@@ -1,10 +1,6 @@
-# Ignore everything by default
-*
-
-# Track specific files and directories
-!*.md
-!mcp.json
-!commands/
-!commands/*
-!to-be-explored-commands/*
-!.gitignore
+.claude/
+ide/
+projects/
+statsig/
+todos/
+credentials.json
