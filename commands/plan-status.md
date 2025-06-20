@@ -6,7 +6,13 @@ This command reads `plan-tracker.json` and generates a comprehensive status repo
 
 ## Process
 
-1. **File Timestamp Analysis**:
+1. **Plan Name Resolution**:
+   - If plan name provided in $ARGUMENTS, use it and update `/tasks/last-plan.json`
+   - If no plan name provided, read from `/tasks/last-plan.json` for the last referenced plan
+   - If neither exists, check for `plan-tracker.json` in current directory
+   - Update `/tasks/last-plan.json` with resolved plan name
+
+2. **File Timestamp Analysis**:
    - Check if `/tasks/[plan-name]/status.md` exists
    - If exists, compare its timestamp against source files:
      - `plan-tracker.json`
@@ -16,12 +22,12 @@ This command reads `plan-tracker.json` and generates a comprehensive status repo
      - All files in `review-audit/` directories
    - Skip generation if status file is newer than all source files (unless `--force`)
 
-2. **Smart Update Detection**:
+3. **Smart Update Detection**:
    - If only specific sections need updates (e.g., task status changes), update incrementally
    - If major changes detected (new phases, structural changes), regenerate completely
    - Parse existing status.md to preserve manual annotations if present
 
-3. **Data Collection**:
+4. **Data Collection**:
    - Read plan-tracker.json from `/tasks/[plan-name]/`
    - Analyze phase and task completion rates
    - Identify blockers and dependencies
@@ -29,7 +35,7 @@ This command reads `plan-tracker.json` and generates a comprehensive status repo
    - Review recent execution logs from scratch directories
    - Parse review audit trails for quality metrics
 
-4. **Status Analysis**:
+5. **Status Analysis**:
    - Overall completion percentage
    - Phase-by-phase progress
    - Task status distribution
@@ -37,7 +43,7 @@ This command reads `plan-tracker.json` and generates a comprehensive status repo
    - Blocker identification
    - Performance metrics from review cycles
 
-5. **Report Generation**:
+6. **Report Generation**:
    - Generate or update `/tasks/[plan-name]/status.md`
    - Add generation timestamp header
    - Visual progress indicators
@@ -192,26 +198,34 @@ The report uses these visual indicators for clarity:
 ## Usage Examples
 
 ```bash
-# Generate status for default/current plan (smart update)
+# Generate status for last referenced plan (reads from /tasks/last-plan.json)
 /plan-status
 
-# Generate status for specific plan (smart update)
+# Generate status for specific plan (updates /tasks/last-plan.json)
 /plan-status "web-app-redesign"
 
 # Force complete regeneration of status file
 /plan-status "mobile-app" --force
 
-# Quick status display (doesn't save to file)
+# Quick status display (doesn't save to file, still updates last-plan.json)
 /plan-status "data-pipeline" --summary --no-save
 
 # Check if status needs updating without generating
 /plan-status "project-name" --check-only
+
+# Example workflow showing last-plan tracking:
+/plan-status "web-app-redesign"  # Creates/updates last-plan.json
+/plan-status                     # Uses "web-app-redesign" from last-plan.json
+/plan-status "mobile-app"        # Updates last-plan.json to "mobile-app"
+/plan-status                     # Now uses "mobile-app"
 ```
 
 ## Arguments
 
 **Plan Name**: $ARGUMENTS (optional)
-- If no plan name provided, uses plan-tracker.json in current directory or most recently accessed plan
+- If no plan name provided, uses the last referenced plan from `/tasks/last-plan.json`
+- If last-plan.json doesn't exist, checks for plan-tracker.json in current directory
+- Updates `/tasks/last-plan.json` with the resolved plan name for future commands
 
 **Options**:
 - `--force`: Force complete regeneration, ignore timestamps
@@ -250,6 +264,42 @@ The report uses these visual indicators for clarity:
 - Monitors file modification timestamps for smart updates
 
 ## Implementation Details
+
+### Last Plan Tracking
+
+The `/tasks/last-plan.json` file maintains project-level tracking of the most recently referenced plan:
+
+```json
+{
+  "plan_name": "web-app-redesign",
+  "last_updated": "2024-01-15T14:30:22.123Z",
+  "updated_by": "plan-status",
+  "command_history": [
+    {
+      "command": "plan-status",
+      "plan_name": "web-app-redesign", 
+      "timestamp": "2024-01-15T14:30:22.123Z"
+    },
+    {
+      "command": "plan-execute-continue",
+      "plan_name": "mobile-app",
+      "timestamp": "2024-01-15T12:15:08.456Z"
+    }
+  ]
+}
+```
+
+**Plan Name Resolution Logic**:
+1. If plan name provided in command → Use it and update last-plan.json
+2. If no plan name provided → Read plan_name from last-plan.json
+3. If last-plan.json doesn't exist → Check current directory for plan-tracker.json
+4. If found → Extract plan name and create last-plan.json
+5. If none found → Error with suggestion to run plan initialization
+
+**Update Behavior**:
+- Always update last-plan.json when a plan name is resolved
+- Maintain command history (last 10 entries) for debugging
+- Include timestamp and command that updated the reference
 
 ### Timestamp Checking Algorithm
 
@@ -301,6 +351,9 @@ Status file created (first generation)
 
 ## Error Handling
 
+- **No plan name and no last-plan.json**: Suggest running `/plan-execution-init` first
+- **Invalid last-plan.json**: Attempt to recover plan name from current directory
+- **Plan name in last-plan.json but tracker missing**: Suggest plan may have been moved/deleted
 - **No tracker found**: Suggest running `/plan-execution-init` first
 - **Corrupted tracker**: Attempt recovery from backup, show partial data
 - **Missing source files**: Show partial report with warnings about missing data
