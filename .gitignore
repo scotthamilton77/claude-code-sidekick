@@ -1,0 +1,9 @@
+# Ignore everything by default
+*
+
+# Track specific files and directories
+!*.md
+!mcp.json
+!commands/
+!commands/*
+!.gitignore
