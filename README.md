@@ -24,23 +24,24 @@ This group of commands facilitates multi-agent workflows. They provide the found
 
 ## Project Analysis & Planning
 
-Commands for analyzing codebases and creating comprehensive development plans. These commands understand project structure, identify improvement opportunities, and create integrated task hierarchies for execution.
+Commands for analyzing codebases and creating comprehensive development plans. These commands understand project structure, identify improvement opportunities, and create integrated task hierarchies for execution. Includes specialized planning for multi-agent coordination and intelligent next-step analysis.
 
-<!-- WORKFLOW NOTES: Planning is the entry point for most major workflows. The 'plan' command creates a bridge between high-level analysis and detailed task execution:
-1. Codebase analysis -> plan creation -> hierarchical task breakdown -> multi-agent assignment
-2. Integrates directly with Task Management by creating initial plans/tasks/subtasks
-3. Supports both single-agent and multi-agent workflows
-4. Creates foundation for all subsequent work coordination -->
+<!-- WORKFLOW NOTES: Planning is the entry point for most major workflows. Key workflow patterns:
+1. Single-agent planning: plan -> task creation -> hierarchical task breakdown -> execution
+2. Multi-agent planning: plan-multi-agent -> agent assignments -> worktree setup -> parallel execution
+3. Next-steps analysis: project state assessment -> priority analysis -> task recommendations -> creation
+4. Integration with all other categories: creates foundation for task management, agent coordination, and workflow automation -->
 
-**Commands**: plan
+**Commands**: plan, plan-multi-agent, next-steps
 
-**Related commands from other categories**: task-create, task-list, task-update (created by planning), agent-assign (for multi-agent execution), start (for execution)
+**Related commands from other categories**: task-create, task-list, task-update (created by planning), agent-assign/agent-init/agent-status (for multi-agent execution), start (for execution), parallel-enhanced (for coordination setup)
 
 **Key workflows enabled**:
 - Automated codebase analysis and improvement identification
-- Hierarchical project planning with task breakdown
+- Single-agent and multi-agent project planning with task breakdown
+- Intelligent next-step recommendations based on project state
+- Multi-agent coordination with automatic agent assignments and worktree management
 - Integration between strategic planning and tactical execution
-- Foundation for multi-agent coordination
 
 ## Task Management System
 
@@ -65,36 +66,37 @@ A comprehensive three-tier hierarchical task management system (Plans → Tasks 
 - Search and discovery across project hierarchies
 - Integration with session todos for active work management
 
-## Workflow Automation
+## Workflow Automation & Development
 
-Commands that automate common development workflows by intelligently selecting and executing tasks based on priorities, dependencies, and current project state.
+Commands that automate common development workflows by intelligently selecting and executing tasks based on priorities, dependencies, and current project state. Includes specialized support for multi-agent coordination, parallel development, and test-driven development.
 
 <!-- WORKFLOW NOTES: These commands consume the outputs of other categories to automate decision-making and execution:
 1. Task prioritization and selection from the task management system
-2. Integration with agent framework for automated work distribution
-3. Connects to planning outputs for understanding project context
-4. Bridges the gap between strategic planning and tactical execution -->
+2. Multi-agent work-stealing and parallel coordination through parallel-enhanced
+3. Test-driven development automation with language-specific setups
+4. Integration with agent framework for automated work distribution
+5. Bridges the gap between strategic planning and tactical execution -->
 
-**Commands**: start
+**Commands**: start, parallel-enhanced, tdd
 
-**Related commands from other categories**: task-list, task-update (for finding and updating work), agent-init, agent-start (for agent-specific workflows), plan (for understanding project context)
+**Related commands from other categories**: task-list, task-update (for finding and updating work), agent-init, agent-start, agent-assign (for agent-specific workflows), plan, plan-multi-agent (for understanding project context), next-steps (for task selection)
 
 **Key workflows enabled**:
 - Automated task selection and prioritization
+- Multi-agent work-stealing with dynamic task claiming
+- Parallel development coordination with worktree automation
+- Test-driven development workflows with language-specific tooling
 - Intelligent workflow progression based on dependencies
 - Integration between planning, task management, and execution
-- Context-aware development automation
 
 <!-- ANALYSIS NOTES:
-Commands referenced in files but not present as command files:
-- /tdd (referenced in agent-start.md) - appears to be a test-driven development workflow command
-- /task-to-todo (referenced in agent-init.md) - converter between task system and TodoWrite
-- /plan-multi-agent (referenced in agent-assign.md) - multi-agent planning command  
-- /parallel-enhanced (referenced in agent-assign.md) - enhanced parallel execution
-- /project:next-steps (referenced in start.md) - project analysis for next steps
+The framework is complete with:
 
-Files that should be moved out of commands/ folder:
-- task.md - This is a comprehensive reference document for the task management system, not an executable command. Should be moved to root level as TASK-SYSTEM.md or similar.
+Total commands: 18
+- Agent Framework: 5 commands (agent-assign, agent-complete, agent-init, agent-start, agent-status)
+- Project Analysis & Planning: 3 commands (plan, plan-multi-agent, next-steps)  
+- Task Management System: 7 commands (task-create, task-list, task-update, task-show, task-search, task-archive, task-log)
+- Workflow Automation & Development: 3 commands (start, parallel-enhanced, tdd)
 
 Framework characteristics:
 1. Highly integrated system where categories depend on each other
@@ -105,8 +107,16 @@ Framework characteristics:
 6. Emphasis on automation and intelligent workflow progression
 
 Key workflow patterns across categories:
-1. Plan -> Create Tasks -> Assign to Agents -> Execute -> Track Progress -> Complete
-2. Analysis -> Planning -> Task Creation -> Multi-agent Distribution -> Coordination -> Integration
-3. Single task focus: Task Selection -> Start Work -> Progress Tracking -> Completion
-4. Maintenance: Archive completed work, maintain clean active workspace
+1. Single-agent workflow: plan/next-steps -> task creation -> start -> progress tracking -> completion
+2. Multi-agent workflow: plan-multi-agent -> agent assignments -> parallel-enhanced setup -> agent coordination -> integration
+3. Work-stealing workflow: plan-multi-agent -> parallel-enhanced -> dynamic task claiming -> autonomous completion
+4. TDD workflow: tdd setup -> test creation -> implementation -> refactoring -> integration
+5. Maintenance: Archive completed work, maintain clean active workspace
+
+Major workflow integrations:
+- Planning commands create the foundation for task management
+- Task management provides the coordination layer for agent framework
+- Agent framework enables parallel execution of planned work
+- Workflow automation commands bridge between planning and execution
+- All categories integrate through the hierarchical task system and TodoWrite
 -->

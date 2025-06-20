@@ -70,7 +70,7 @@ Initialize an agent identity for the current Claude session and load assigned ta
 
    # Convert to TodoWrite format and load
    for TASK in $TASKS; do
-     /task-to-todo "$TASK"
+     /ToDoWrite "$TASK"
    done
    ```
 
