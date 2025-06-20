@@ -19,6 +19,9 @@ A comprehensive command system for AI-assisted project planning, decomposition, 
 
 # Execute tasks with automated review
 /plan-execute-continue "customer-portal"
+
+# Monitor progress with status reports
+/plan-status "customer-portal"
 ```
 
 ## Planning & Execution Workflow
@@ -59,6 +62,12 @@ Creates `plan-tracker.json` to monitor progress across all phases and tasks.
 ```
 Executes pending tasks with automated implementation and code review cycles.
 
+### 7. Progress Monitoring
+```bash
+/plan-status "plan-name"
+```
+Generates comprehensive status reports saved to `/tasks/[plan-name]/status.md` with smart update detection.
+
 ## Command Categories
 
 ### Planning Commands
@@ -70,6 +79,9 @@ Executes pending tasks with automated implementation and code review cycles.
 ### Execution Commands
 - **`/plan-execution-init`** - Create tracking structure from plan files
 - **`/plan-execute-continue`** - Execute tasks with automated implementation and review
+
+### Monitoring Commands
+- **`/plan-status`** - Generate visual progress reports with smart update detection
 
 ### Other Available Commands
 This document provides a high-level overview of additional available Claude commands for various development workflows.
