@@ -6,4 +6,5 @@
 !mcp.json
 !commands/
 !commands/*
+!to-be-explored-commands/*
 !.gitignore
