@@ -90,6 +90,19 @@ The tracker maintains the complete conversation between reviewer and implementor
   "findings": [
     {
       "id": "finding-001",
+      "category": "approach",
+      "severity": "major",
+      "description": "Complex custom caching solution when simple library exists",
+      "file": "multiple",
+      "line": null,
+      "status": "recommended",
+      "reviewer_comment": "Current implementation creates custom caching with 200+ lines of code. Consider using functools.lru_cache or redis-py which would accomplish the same with 20-30 lines and better reliability",
+      "implementation_response": null,
+      "implementation_rationale": null,
+      "final_status": null
+    },
+    {
+      "id": "finding-002",
       "category": "linting",
       "severity": "blocker",
       "description": "Type errors in user_service.py:45",
@@ -102,7 +115,7 @@ The tracker maintains the complete conversation between reviewer and implementor
       "final_status": null
     },
     {
-      "id": "finding-002",
+      "id": "finding-003",
       "category": "functionality",
       "severity": "major",
       "description": "Missing error handling for database connection",
@@ -115,7 +128,7 @@ The tracker maintains the complete conversation between reviewer and implementor
       "final_status": "accepted"
     },
     {
-      "id": "finding-003",
+      "id": "finding-004",
       "category": "code_quality",
       "severity": "minor",
       "description": "Function could be simplified",
@@ -314,10 +327,16 @@ You are a code reviewer tasked with reviewing an implementation for quality and 
    - **Node.js/TypeScript**: Execute `npm run lint`, `npm run format -- --check`, `tsc --noEmit`, and any ESLint/Prettier commands
    - **Other**: Run all project-specific linting commands found in package.json, Makefile, or CI configuration
 3. **CRITICAL**: Flag any linting errors, type errors, or formatting issues as blocking issues
-4. Verify all acceptance criteria are met
-5. Review code quality, patterns, and best practices
-6. Check test coverage and edge cases
-7. Validate documentation updates
+4. **EVALUATE THE APPROACH**: Before reviewing code details, assess the overall solution:
+   - Does this approach solve the problem effectively?
+   - Is there a simpler, more maintainable way to achieve the same result?
+   - Does the solution follow established patterns in the codebase?
+   - Are there any architectural concerns or missed opportunities?
+   - If you see a clearly better approach, recommend it as a major finding
+5. Verify all acceptance criteria are met
+6. Review code quality, patterns, and best practices
+7. Check test coverage and edge cases
+8. Validate documentation updates
 
 **Generate TWO files for the review**:
 
@@ -332,15 +351,17 @@ You are a code reviewer tasked with reviewing an implementation for quality and 
    - Create a finding entry for each issue identified
    - Assign unique IDs (finding-001, finding-002, etc.)
    - Set severity: blocker (must fix), major (should fix), minor (consider fixing)
-   - Set category from review categories list
-   - Include specific file:line references
+   - Set category from review categories list (including "approach" for architectural concerns)
+   - Include specific file:line references (use "multiple" for approach-level issues)
    - Set all findings to "recommended" status initially
+   - **For approach issues**: Include alternative solution suggestions in the reviewer_comment
 
 **After creating both files**:
 - Copy both files to `review-audit/iteration-1-initial/` (or appropriate iteration number)
 - This preserves your original review before the implementation agent responds
 
 **Review Categories**:
+- **Approach & Architecture**: Is this the right solution approach? Any simpler/better alternatives?
 - **Linting & Syntax**: All linting tools pass without errors or warnings
 - **Type Safety**: All type checking tools pass (mypy, pyright, tsc, etc.)
 - **Code Formatting**: Code follows project formatting standards
