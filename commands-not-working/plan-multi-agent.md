@@ -1,29 +1,37 @@
 Analyze the codebase and create a comprehensive plan with integrated task management and multi-agent coordination for $ARGUMENTS:
 
+**IMPORTANT:** Where you see /task-create or other /command references, even if in a `bash` codeblock, these refer to other claude code custom commands; make sure you execute those custom command scripts as intended by the syntax within this file.
+
 1. **Codebase Analysis**:
-   - Search for existing documentation (README.md, CONTRIBUTING.md, docs/)
+
+   - Search for existing documentation (/README.md, /CONTRIBUTING.md, /CLAUDE.md, /docs/)
+   - Search for and read /PLAN.md if it exists to inform you of any existing analysis and planning
    - Identify project structure and key components
    - Analyze package files (package.json, go.mod, Cargo.toml, etc.)
-   - Review recent commits and open issues/PRs
-   - Examine test coverage and CI/CD configuration
    - Identify architectural patterns and conventions
 
 2. **Create Hierarchical Plan with Agent Assignments**:
 
    **Step 1: Create the main plan**
+
    ```bash
+   # remember that /task-create is a claude code custom command
    /task-create plan "[project-name]" --priority=high --tags=project,multi-agent
    ```
 
    **Step 2: Break down into major tasks with agent considerations**
+
    ```bash
+   # remember that /task-create is a claude code custom command
    /task-create task "[project-name]/setup-foundation" --priority=high --tags=setup,infrastructure,agent-a
    /task-create task "[project-name]/core-features" --priority=high --tags=features,development,agent-b
    /task-create task "[project-name]/testing-suite" --priority=high --tags=testing,quality,agent-c
    ```
 
    **Step 3: Create actionable subtasks with clear ownership**
+
    ```bash
+   # remember that /task-create is a claude code custom command
    # Agent A - Foundation work
    /task-create subtask "[project-name]/setup-foundation/project-structure" --priority=high --assigned="agent-a"
    /task-create subtask "[project-name]/setup-foundation/dependency-setup" --priority=high --assigned="agent-a"
@@ -40,6 +48,7 @@ Analyze the codebase and create a comprehensive plan with integrated task manage
 3. **Generate Multi-Agent Coordination Structure**:
 
    **Enhanced Status.json with Agent Tracking**:
+
    ```json
    {
      "version": "3.0",
@@ -117,6 +126,7 @@ Analyze the codebase and create a comprehensive plan with integrated task manage
 5. **Unified Coordination File**:
 
    Create `/tasks/[project-name]/coordination.md`:
+
    ```markdown
    # Multi-Agent Coordination Plan
 
@@ -152,15 +162,19 @@ Analyze the codebase and create a comprehensive plan with integrated task manage
 
    ## Dependency Graph
    ```
+
    setup-foundation ──┐
    ├──> testing-suite ──> final-integration
    core-features ─────┘
+
    ```
+
    ```
 
 6. **Progress Monitoring Integration**:
 
    ```bash
+   # remember that /task-* and /agent-* are claude code custom commands
    # Check overall plan progress with agent details
    /task-list --plan="[project-name]" --show-agents
 

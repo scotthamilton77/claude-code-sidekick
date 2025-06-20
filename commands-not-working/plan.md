@@ -1,14 +1,17 @@
 Analyze the codebase and create a comprehensive plan with integrated task management for $ARGUMENTS:
 
+**IMPORTANT:** Where you see /task-create or other /command references, even if in a `bash` codeblock, these refer to other claude code custom commands; make sure you execute those custom command scripts as intended by the syntax within this file.
+
 1. **Codebase Analysis**:
-   - Search for existing documentation (README.md, CONTRIBUTING.md, docs/)
+
+   - Search for existing documentation (/README.md, /CONTRIBUTING.md, /CLAUDE.md, /docs/)
+   - Search for and read /PLAN.md if it exists to inform you of any existing analysis and planning
    - Identify project structure and key components
    - Analyze package files (package.json, go.mod, Cargo.toml, etc.)
-   - Review recent commits and open issues/PRs
-   - Examine test coverage and CI/CD configuration
    - Identify architectural patterns and conventions
 
 2. **Create Plan with Integrated Task Framework**:
+
    - Generate plan using hierarchical task structure:
      - Create main plan with `/task-create plan "project-name"`
      - Break down into medium-scale tasks
@@ -19,6 +22,7 @@ Analyze the codebase and create a comprehensive plan with integrated task manage
    - Estimate complexity and effort for each level
 
 3. **Task Categorization**:
+
    - **Independent Tasks** (can run in parallel):
      - Unit test improvements
      - Documentation updates
@@ -36,11 +40,13 @@ Analyze the codebase and create a comprehensive plan with integrated task manage
 4. **Hierarchical Plan Creation Process**:
 
    **Step 1: Create the main plan**
+
    ```bash
    /task-create plan "[project-name]" --priority=high --tags=project,planning
    ```
 
    **Step 2: Break down into major tasks**
+
    ```bash
    /task-create task "[project-name]/setup-foundation" --priority=high --tags=setup,infrastructure
    /task-create task "[project-name]/core-features" --priority=high --tags=features,development
@@ -48,6 +54,7 @@ Analyze the codebase and create a comprehensive plan with integrated task manage
    ```
 
    **Step 3: Create actionable subtasks**
+
    ```bash
    # Setup foundation subtasks
    /task-create subtask "[project-name]/setup-foundation/project-structure" --priority=high
@@ -61,6 +68,7 @@ Analyze the codebase and create a comprehensive plan with integrated task manage
    ```
 
    **Step 4: Plan structure will be automatically organized as**:
+
    ```
    /tasks/[project-name]/
    ├── plan.md                           # High-level plan overview
@@ -81,6 +89,7 @@ Analyze the codebase and create a comprehensive plan with integrated task manage
    ```
 
    **Step 5: Multi-Agent Coordination Setup**
+
    ```bash
    # Each agent works on different tasks using git worktrees
    # Agent A - Foundation work
@@ -89,12 +98,13 @@ Analyze the codebase and create a comprehensive plan with integrated task manage
    /task-list --task="[project-name]/setup-foundation"
 
    # Agent B - Core features
-   git worktree add /tmp/agent-b-work feature/core-features  
+   git worktree add /tmp/agent-b-work feature/core-features
    cd /tmp/agent-b-work
    /task-list --task="[project-name]/core-features"
    ```
 
 5. **Advanced Planning Features with Task Integration**:
+
    - **Dependency Graph**: Use task dependencies to visualize relationships
    - **Risk Assessment**: Tag high-risk subtasks, track blockers
    - **Resource Allocation**: Assign agents to specific tasks/subtasks
@@ -104,16 +114,19 @@ Analyze the codebase and create a comprehensive plan with integrated task manage
 6. **Automatic Todo Integration**:
 
    **Plan Creation Automatically Syncs with TodoWrite**:
+
    - Plan-level todo: "Complete [project-name] plan"
    - Task-level todos: "Complete [task-name] in [project-name]"
    - Subtask-level todos: "[specific actionable item]"
 
    **Progress Flows Upward**:
+
    ```
    Subtask completed → Task progress updated → Plan progress updated → Todo progress updated
    ```
 
    **Use commands to manage**:
+
    ```bash
    /task-list --plan="[project-name]"     # See all plan items
    /task-update "[project-name]/task/subtask" --status=completed
