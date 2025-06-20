@@ -1,19 +1,26 @@
 {
+  "model": "sonnet",
   "allowedTools": [
     "Bash(git init:*)",
     "Bash(git branch:*)",
     "Bash(git commit:*)",
-    "Bash(git log:*)",
+    "Bash(find:*)",
     "Bash(ls:*)",
-    "Task",
-    "Glob",
-    "Grep",
-    "LS",
-    "Read",
-    "Edit",
-    "MultiEdit",
-    "Write",
+    "Bash(python3:*)",
+    "Bash(python:*)",
+    "Bash(rm:*)",
+    "Bash(uv:*)",
+    "Bash(grep:*)",
+    "Bash(rg:*)",
+    "Bash(npx:*)",
+    "Bash(mkdir:*)",
     "WebFetch",
-    "WebSearch"
-  ]
+    "WebSearch",
+    "mcp__git__git_status",
+    "mcp__git__git_diff_unstaged",
+    "mcp__context7__resolve-library-id",
+    "mcp__memory__read_graph",
+    "mcp__sequential-thinking__sequentialthinking",
+    "mcp__ide__getDiagnostics"
+]
 }
