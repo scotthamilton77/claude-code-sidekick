@@ -6,25 +6,31 @@ This command analyzes the current plan's objectives and generates multiple strat
 
 ## Process
 
-1. **Objective Analysis**:
+1. **Plan Name Resolution**:
+   - If plan name provided in $ARGUMENTS, use it and update `/tasks/last-plan.json`
+   - If no plan name provided, read from `/tasks/last-plan.json` for the last referenced plan
+   - If neither exists, check for plan files in current directory
+   - Update `/tasks/last-plan.json` with resolved plan name
+
+2. **Objective Analysis**:
    - Parse plan objectives and success criteria
    - Identify key constraints (time, resources, technology)
    - Analyze current approach strengths/weaknesses
    - Determine flexibility points
 
-2. **Option Generation**:
+3. **Option Generation**:
    - Create 3-5 distinct strategic options
    - Ensure each option achieves core objectives
    - Vary approaches across dimensions (speed, quality, cost, risk)
    - Include innovative alternatives
 
-3. **Tradeoff Analysis**:
+4. **Tradeoff Analysis**:
    - Quantify impacts for each option
    - Compare timeline, resource, and quality implications
    - Assess technical and business risks
    - Calculate opportunity costs
 
-4. **Presentation & Selection**:
+5. **Presentation & Selection**:
    - Present options in clear, structured format
    - Provide data-driven recommendation
    - Allow user selection
@@ -278,24 +284,35 @@ When user selects an option:
 ## Usage Examples
 
 ```bash
-# Generate options for current plan
+# Generate options for last referenced plan (reads from /tasks/last-plan.json)
+/plan-brainstorm-options
+
+# Generate options for specific plan (updates /tasks/last-plan.json)
 /plan-brainstorm-options "web-app-redesign"
 
 # Generate options with specific focus
 /plan-brainstorm-options "api-project --focus performance"
 
-# Generate options with constraints
-/plan-brainstorm-options "mobile-app --max-duration 3-months"
+# Generate options with constraints using last plan
+/plan-brainstorm-options "--max-duration 3-months"
 
 # Generate more creative options
 /plan-brainstorm-options "data-pipeline --innovation high"
+
+# Example workflow showing last-plan tracking:
+/plan-create "API redesign"           # Creates plan and updates last-plan.json
+/plan-brainstorm-options              # Uses "api-redesign" from last-plan.json
+/plan-ideate "Selected option 2"      # Also uses "api-redesign"
 ```
 
 ## Arguments
 
-Plan name: $ARGUMENTS
+**Plan Name**: $ARGUMENTS (optional)
+- If no plan name provided, uses the last referenced plan from `/tasks/last-plan.json`
+- If last-plan.json doesn't exist, checks for plan files in current directory
+- Updates `/tasks/last-plan.json` with the resolved plan name for future commands
 
-Optional flags:
+**Optional flags**:
 - `--focus [speed|quality|cost|innovation]`: Emphasize specific dimension
 - `--max-duration [timeframe]`: Set time constraint
 - `--team-size [number]`: Set resource constraint

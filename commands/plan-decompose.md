@@ -6,19 +6,25 @@ This command takes an existing high-level plan created by `/plan-create` and dec
 
 ## Process
 
-1. **Plan Analysis**:
+1. **Plan Name Resolution**:
+   - If plan name provided in $ARGUMENTS, use it and update `/tasks/last-plan.json`
+   - If no plan name provided, read from `/tasks/last-plan.json` for the last referenced plan
+   - If neither exists, check for PLAN.md in current directory
+   - Update `/tasks/last-plan.json` with resolved plan name
+
+2. **Plan Analysis**:
    - Read existing PLAN.md in `/tasks/[plan-name]/`
    - Parse high-level phases and objectives
    - Analyze phase relationships and dependencies
    - Identify technical requirements
 
-2. **Task Decomposition**:
+3. **Task Decomposition**:
    - Break each phase into 3-10 specific tasks
    - Define subtasks for complex tasks
    - Establish task dependencies
    - Create measurable acceptance criteria
 
-3. **File Generation**:
+4. **File Generation**:
    - Create detailed phase files (phase-01-[name].md, etc.)
    - Update PLAN.md with task references
    - Generate dependency graph
@@ -177,7 +183,10 @@ Based on phase type, automatically include relevant tasks:
 ## Usage Examples
 
 ```bash
-# Decompose all phases in a plan
+# Decompose all phases for last referenced plan (reads from /tasks/last-plan.json)
+/plan-decompose
+
+# Decompose all phases in specific plan (updates /tasks/last-plan.json)
 /plan-decompose "web-app-redesign"
 
 # Decompose specific phase only
@@ -188,13 +197,21 @@ Based on phase type, automatically include relevant tasks:
 
 # Re-decompose after plan changes
 /plan-decompose "data-pipeline --regenerate"
+
+# Example workflow showing last-plan tracking:
+/plan-create "API redesign"     # Creates plan and updates last-plan.json
+/plan-decompose                 # Uses "api-redesign" from last-plan.json
+/plan-execution-init            # Also uses "api-redesign"
 ```
 
 ## Arguments
 
-Plan name (required): $ARGUMENTS
+**Plan Name**: $ARGUMENTS (optional)
+- If no plan name provided, uses the last referenced plan from `/tasks/last-plan.json`
+- If last-plan.json doesn't exist, checks for PLAN.md in current directory
+- Updates `/tasks/last-plan.json` with the resolved plan name for future commands
 
-Options:
+**Options**:
 - `--phase N`: Decompose only phase N
 - `--detail [low|medium|high]`: Level of task detail
 - `--regenerate`: Overwrite existing decomposition

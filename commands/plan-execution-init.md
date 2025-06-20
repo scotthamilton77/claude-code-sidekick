@@ -6,21 +6,27 @@ This command reads existing plan files in `/tasks/[plan-name]/` and creates a co
 
 ## Process
 
-1. **Plan Discovery**:
+1. **Plan Name Resolution**:
+   - If plan name provided in $ARGUMENTS, use it and update `/tasks/last-plan.json`
+   - If no plan name provided, read from `/tasks/last-plan.json` for the last referenced plan
+   - If neither exists, check for plan files in current directory
+   - Update `/tasks/last-plan.json` with resolved plan name
+
+2. **Plan Discovery**:
 
    - Read all plan files in `/tasks/[plan-name]/` directory
    - Parse README.md, PLAN.md, and \*-PLAN.md files
    - Extract phases, tasks, subtasks, and acceptance criteria
    - Identify dependencies and prerequisites
 
-2. **Tracker Initialization**:
+3. **Tracker Initialization**:
 
    - Create `plan-tracker.json` with complete plan structure
    - Set all items to "pending" status initially
    - Include metadata for tracking and coordination
    - Validate plan structure and flag any issues
 
-3. **Validation**:
+4. **Validation**:
    - Check for missing dependencies
    - Verify acceptance criteria are measurable
    - Ensure proper phase sequencing
@@ -131,27 +137,33 @@ This command reads existing plan files in `/tasks/[plan-name]/` and creates a co
 
 ## Implementation Steps
 
-1. **Validate Input**:
+1. **Plan Name Resolution & Last Plan Tracking**:
 
-   - Check if plan name is provided as argument
+   - If plan name provided in $ARGUMENTS → Use it and update `/tasks/last-plan.json`
+   - If no plan name provided → Read plan_name from `/tasks/last-plan.json`
+   - If last-plan.json doesn't exist → Check current directory for plan files
+   - Update `/tasks/last-plan.json` with resolved plan name for future commands
    - Verify `/tasks/[plan-name]/` directory exists
+
+2. **Validate Input**:
+
    - List all plan files in the directory
 
-2. **Parse Plan Files**:
+3. **Parse Plan Files**:
 
    - Read each plan file (PLAN.md, README.md, \*-PLAN.md)
    - Extract structured information about phases, tasks, and acceptance criteria
    - Parse dependencies and prerequisites
    - Identify deliverables and validation methods
 
-3. **Generate Tracker**:
+4. **Generate Tracker**:
 
    - Create plan-tracker.json with complete hierarchy
    - Generate unique IDs for all phases, tasks, and subtasks
    - Set initial timestamps and status values
    - Calculate metadata (totals, percentages)
 
-4. **Validation & Output**:
+5. **Validation & Output**:
    - Validate the generated structure for completeness
    - Check for circular dependencies
    - Flag any missing or ambiguous specifications
@@ -161,18 +173,26 @@ This command reads existing plan files in `/tasks/[plan-name]/` and creates a co
 ## Usage Examples
 
 ```bash
-# Initialize tracking for a specific plan
+# Initialize tracking for a specific plan (updates /tasks/last-plan.json)
 /plan-execution-init "web-app-redesign"
 
-# Initialize with custom task directory
-/plan-execution-init "mobile-app tasks-alt"
+# Initialize using last referenced plan (reads from /tasks/last-plan.json)
+/plan-execution-init
+
+# Example workflow showing last-plan tracking:
+/plan-execution-init "web-app-redesign"  # Creates/updates last-plan.json
+/plan-status                             # Uses "web-app-redesign" from last-plan.json
+/plan-execute-continue                   # Also uses "web-app-redesign"
 ```
 
 ## Arguments
 
-Plan name (required): $ARGUMENTS
+**Plan Name**: $ARGUMENTS (optional)
+- If no plan name provided, uses the last referenced plan from `/tasks/last-plan.json`
+- If last-plan.json doesn't exist, checks for plan files in current directory
+- Updates `/tasks/last-plan.json` with the resolved plan name for future commands
 
-The plan name should match a directory under `/tasks/` unless an alternative path is specified.
+The plan name should match a directory under `/tasks/`.
 
 ## Output
 
