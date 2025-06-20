@@ -30,10 +30,13 @@ This command reads `plan-tracker.json`, identifies the next task to execute, cre
 
    - Spawn review subagent to critique implementation
    - Generate code-review.md (detailed feedback) and code-review-tracker.json (structured findings)
+   - **Snapshot to review-audit/iteration-N-initial/** before implementation sees it
    - Implementation subagent addresses each finding (fix or reject with rationale)
+   - **Snapshot to review-audit/iteration-N-response/** after implementation updates
    - Review subagent verifies fixes and evaluates rejection rationales
-   - Tracker maintains full audit trail of decisions
-   - Repeat until approved or max iterations reached
+   - If disputes remain AND iteration < 3: increment iteration and repeat
+   - If iteration = 3 AND disputes remain: set status to "needs-human-review" and stop
+   - Complete audit trail preserved in review-audit/ directory
 
 5. **Completion**:
    - Update task status to "completed" or "needs-human-review"
@@ -49,16 +52,22 @@ This command reads `plan-tracker.json`, identifies the next task to execute, cre
 │   └── phase-[##]/
 │       └── task-[##]/
 │           ├── initial-context-summary.md
-│           ├── code-review.md
-│           ├── code-review-tracker.json
 │           ├── implementation-notes.md
-│           └── review-iterations/
-│               ├── review-1.md
-│               ├── review-1-tracker.json
-│               ├── review-2.md
-│               ├── review-2-tracker.json
-│               ├── review-3.md
-│               └── review-3-tracker.json
+│           ├── code-review.md              # Current/active review
+│           ├── code-review-tracker.json   # Current/active tracker
+│           └── review-audit/              # Historical snapshots
+│               ├── iteration-1-initial/
+│               │   ├── code-review.md
+│               │   └── code-review-tracker.json
+│               ├── iteration-1-response/
+│               │   ├── code-review.md
+│               │   └── code-review-tracker.json
+│               ├── iteration-2-initial/
+│               │   ├── code-review.md
+│               │   └── code-review-tracker.json
+│               └── iteration-2-response/
+│                   ├── code-review.md
+│                   └── code-review-tracker.json
 ```
 
 ## Implementation Details
@@ -135,6 +144,41 @@ The tracker maintains the complete conversation between reviewer and implementor
 - `rejected` → Implementation agent declined with rationale
 - `accepted` → Reviewer verified the fix
 - `disputed` → Reviewer disagrees with rejection, needs resolution
+
+### Review Audit System
+
+The review-audit/ directory maintains a complete history of the review process:
+
+**Snapshot Points**:
+1. **iteration-N-initial/**: Captured immediately after reviewer creates review
+   - Contains the original review findings before any responses
+   - Preserves the reviewer's initial assessment
+
+2. **iteration-N-response/**: Captured after implementation agent responds
+   - Shows the state after fixes/rejections but before verification
+   - Documents all implementation decisions and rationales
+
+**Purpose**:
+- Provides clear history of how issues were identified and resolved
+- Enables human review of the full conversation between agents
+- Prevents loss of context during iterative reviews
+- Makes it easy to see what changed between iterations
+
+**Example Flow**:
+```
+Initial Implementation → Review 1 → Snapshot (iteration-1-initial) → 
+Implementation Response → Snapshot (iteration-1-response) → 
+Review Verification → Disputes Found → Review 2 → Snapshot (iteration-2-initial) → 
+Implementation Response → Snapshot (iteration-2-response) → 
+Review Verification → Still Disputed → Review 3 → Snapshot (iteration-3-initial) →
+Implementation Response → Snapshot (iteration-3-response) → 
+Review Verification → Still Disputed → STOP (needs-human-review)
+```
+
+**Iteration Limit Enforcement**:
+- Maximum 3 review iterations to prevent endless loops
+- After iteration 3, unresolved disputes escalate to human review
+- Prevents agent cycles that don't converge on solutions
 
 ### 1. Task Selection Algorithm
 
@@ -292,6 +336,10 @@ You are a code reviewer tasked with reviewing an implementation for quality and 
    - Include specific file:line references
    - Set all findings to "recommended" status initially
 
+**After creating both files**:
+- Copy both files to `review-audit/iteration-1-initial/` (or appropriate iteration number)
+- This preserves your original review before the implementation agent responds
+
 **Review Categories**:
 - **Linting & Syntax**: All linting tools pass without errors or warnings
 - **Type Safety**: All type checking tools pass (mypy, pyright, tsc, etc.)
@@ -345,6 +393,10 @@ Review feedback has been provided in code-review.md and code-review-tracker.json
 - Re-run tests after changes
 - Update the summary counts in code-review-tracker.json
 
+**After addressing all findings**:
+- Copy both code-review.md and code-review-tracker.json to `review-audit/iteration-N-response/`
+- This preserves your responses before the reviewer verifies them
+
 When complete, ensure code-review-tracker.json shows all findings have been addressed (either fixed or rejected with rationale).
 ```
 
@@ -373,7 +425,13 @@ The implementation agent has responded to your review. Check their work:
 
 **Final Assessment**:
 - If all blockers resolved and no disputed items: Mark review as "Approved"
-- If any blockers remain or items disputed: Mark as "Needs Resolution"
+- If any blockers remain or items disputed: 
+  - Check current iteration number
+  - If iteration < 3: Mark as "Needs Resolution" and create new review iteration
+    - Copy files to `review-audit/iteration-N-initial/` after creating the new review
+  - If iteration = 3: Mark task as "needs-human-review" and STOP
+    - Include summary of remaining disputes in final assessment
+    - Do NOT create iteration 4
 ```
 
 ## Status Flow
@@ -427,16 +485,17 @@ If no plan name provided, looks for plan-tracker.json in current directory or mo
 3. **Completion Report**:
    - Task outcome (completed/needs-human-review)
    - Files modified
-   - Review iterations performed
+   - Review iterations performed (with audit trail in review-audit/)
+   - Summary of any unresolved disputes
    - Next recommended action
 
 ## Error Handling
 
 - **No pending tasks**: Report completion or blocked tasks
 - **Dependency not met**: List blocking dependencies
-- **Review cycle exhausted**: Escalate to human review with code-review-tracker.json summary
-- **Disputed findings remain**: Mark task as needs-human-review with dispute details
-- **Blocker issues unresolved**: Cannot proceed without resolution
+- **Review cycle exhausted (3 iterations)**: Mark task as "needs-human-review" with complete audit trail
+- **Disputed findings remain after iteration 3**: Stop processing, escalate to human with dispute summary
+- **Blocker issues unresolved after 3 iterations**: Cannot proceed without human resolution
 - **Agent failure**: Retry with enhanced context
 - **Invalid plan structure**: Provide diagnostic information
 
@@ -446,5 +505,7 @@ After task completion:
 
 - Run again for next task: `/plan-execute-continue`
 - Create PR if phase complete: `/pr`
-- Review execution logs in scratch directory
-- Manual intervention if needed for blocked tasks
+- Review execution logs and audit trail in scratch directory:
+  - `review-audit/` contains full history of review cycles
+  - Current state in `code-review.md` and `code-review-tracker.json`
+- Manual intervention if needed for blocked tasks or disputed findings
