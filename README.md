@@ -1,130 +1,75 @@
-# Claude Commands Reference
+# Claude Code Planning & Execution System
 
-This document provides a high-level overview of the available Claude commands, grouped by functional category. These commands are designed to assist with various stages of the software development lifecycle, from planning and research to coding and deployment.
+A comprehensive command system for AI-assisted project planning, decomposition, and execution with automated code review cycles.
 
-## Agent Framework
+## Quick Start
 
-This group of commands facilitates multi-agent workflows. They provide the foundation for coordinating multiple AI agents to work on a project collaboratively, managing task assignments, agent initialization, and status tracking to enable complex, parallelized development. Includes comprehensive coordination planning, parallel workflow setup, and inter-agent communication systems.
+```bash
+# Create a high-level plan from an idea
+/plan-create "Build a customer portal with authentication and reporting"
 
-<!-- WORKFLOW NOTES: The agent framework creates a complete coordination system where agents can work independently on different parts of a project using git worktrees. Key workflow patterns:
-1. Assignment workflow: plan -> task creation -> agent assignment -> parallel execution -> coordination/joining
-2. Agent lifecycle: init -> start -> work on tasks -> status tracking -> completion with PR creation
-3. Multi-agent coordination: workload balancing, dependency management, join points, progress monitoring
-4. Integration points: Connects deeply with Task Management for work assignment, uses TodoWrite for session tracking, integrates with git workflows for parallel development -->
+# Explore strategic options
+/plan-brainstorm-options "customer-portal"
 
-**Commands**: agent-assign, agent-complete, agent-init, agent-start, agent-status, coordinate, parallel, scratch
+# Decompose into detailed tasks
+/plan-decompose "customer-portal"
 
-**Related commands from other categories**: task-create, task-update, task-list (for work assignment), plan (for initial task creation), start (for individual agent workflows)
+# Initialize execution tracking
+/plan-execution-init "customer-portal"
 
-**Key workflows enabled**:
-- Multi-agent project execution with isolated worktrees
-- Comprehensive coordination planning with work stream analysis
-- Automated workload distribution and dependency management  
-- Progress tracking and coordination across parallel work streams
-- Inter-agent communication and shared scratchpad systems
-- Clean completion with PR creation and workspace cleanup
+# Execute tasks with automated review
+/plan-execute-continue "customer-portal"
+```
 
-## Project Analysis & Planning
+## Planning & Execution Workflow
 
-Commands for analyzing codebases and creating comprehensive development plans. These commands understand project structure, identify improvement opportunities, and create integrated task hierarchies for execution. Includes specialized planning for multi-agent coordination, intelligent next-step analysis, strategic roadmapping, structured reasoning frameworks, and systematic option analysis for complex decisions.
+### 1. Initial Planning
+```bash
+/plan-create "Your project description"
+```
+Creates `/tasks/[plan-name]/` with high-level structure and phases.
 
-<!-- WORKFLOW NOTES: Planning is the entry point for most major workflows. Key workflow patterns:
-1. Single-agent planning: plan -> task creation -> hierarchical task breakdown -> execution
-2. Multi-agent planning: plan-multi-agent -> agent assignments -> worktree setup -> parallel execution
-3. Next-steps analysis: project state assessment -> priority analysis -> task recommendations -> creation
-4. Integration with all other categories: creates foundation for task management, agent coordination, and workflow automation -->
+### 2. Strategic Options (Optional)
+```bash
+/plan-brainstorm-options "plan-name"
+```
+Presents 3-5 implementation strategies with clear tradeoffs and recommendations.
 
-**Commands**: plan, plan-multi-agent, next-steps, map, think, options
+### 3. Refinement (As Needed)
+```bash
+/plan-ideate "plan-name: Add real-time notifications feature"
+```
+Updates plan based on new requirements or feedback.
 
-**Related commands from other categories**: task-create, task-list, task-update (created by planning), agent-assign/agent-init/agent-status (for multi-agent execution), start (for execution), parallel-enhanced (for coordination setup)
+### 4. Task Decomposition
+```bash
+/plan-decompose "plan-name"
+```
+Generates detailed phase files with tasks, subtasks, and acceptance criteria.
 
-**Key workflows enabled**:
-- Automated codebase analysis and improvement identification
-- Single-agent and multi-agent project planning with task breakdown
-- Intelligent next-step recommendations based on project state
-- Strategic roadmapping with goals, milestones, and risk assessment
-- Multi-dimensional structured reasoning for complex problems
-- Systematic option analysis with benefits, trade-offs, and effort estimates
-- Multi-agent coordination with automatic agent assignments and worktree management
-- Integration between strategic planning and tactical execution
+### 5. Execution Tracking
+```bash
+/plan-execution-init "plan-name"
+```
+Creates `plan-tracker.json` to monitor progress across all phases and tasks.
 
-## Task Management System
+### 6. Automated Execution
+```bash
+/plan-execute-continue "plan-name"
+```
+Executes pending tasks with automated implementation and code review cycles.
 
-A comprehensive three-tier hierarchical task management system (Plans → Tasks → Subtasks) with persistent storage, progress tracking, and integration with TodoWrite. This is the core organizational system that other command categories build upon. Includes specialized support for large-scale cross-repository epics and enhanced progress tracking capabilities.
+## Command Categories
 
-<!-- WORKFLOW NOTES: This is the foundational system that most other categories depend on. Key workflow patterns:
-1. Hierarchical creation: plan -> tasks -> subtasks with automatic organization
-2. Status propagation: subtask completion -> task progress -> plan progress -> TodoWrite sync
-3. Multi-agent support: tasks can be assigned to different agents for parallel work
-4. Lifecycle management: create -> update -> track -> archive with full audit trail
-5. Search and discovery: find work across the entire hierarchy
-6. Integration hub: connects planning, agent coordination, and workflow automation -->
+### Planning Commands
+- **`/plan-create`** - Transform ideas into structured high-level plans
+- **`/plan-brainstorm-options`** - Generate strategic alternatives with tradeoffs
+- **`/plan-ideate`** - Incorporate feedback to refine existing plans
+- **`/plan-decompose`** - Break down phases into detailed, executable tasks
 
-**Commands**: task-create, task-list, task-update, task-show, task-search, task-archive, task-log, epic, progress
+### Execution Commands
+- **`/plan-execution-init`** - Create tracking structure from plan files
+- **`/plan-execute-continue`** - Execute tasks with automated implementation and review
 
-**Related commands from other categories**: plan (creates initial task structure), agent-assign/agent-init/agent-status (work with task assignments), start (consumes task priorities)
-
-**Key workflows enabled**:
-- Hierarchical project organization with automatic progress aggregation
-- Large-scale cross-repository epic management with coordination
-- Multi-agent task distribution and tracking
-- Enhanced progress tracking with timestamps and structured logging
-- Historical progress tracking with audit trails
-- Search and discovery across project hierarchies
-- Integration with session todos for active work management
-
-## Workflow Automation & Development
-
-Commands that automate common development workflows by intelligently selecting and executing tasks based on priorities, dependencies, and current project state. Includes specialized support for multi-agent coordination, parallel development, test-driven development, and automated pull request creation with intelligent analysis.
-
-<!-- WORKFLOW NOTES: These commands consume the outputs of other categories to automate decision-making and execution:
-1. Task prioritization and selection from the task management system
-2. Multi-agent work-stealing and parallel coordination through parallel-enhanced
-3. Test-driven development automation with language-specific setups
-4. Integration with agent framework for automated work distribution
-5. Bridges the gap between strategic planning and tactical execution -->
-
-**Commands**: start, parallel-enhanced, tdd, pr
-
-**Related commands from other categories**: task-list, task-update (for finding and updating work), agent-init, agent-start, agent-assign (for agent-specific workflows), plan, plan-multi-agent (for understanding project context), next-steps (for task selection)
-
-**Key workflows enabled**:
-- Automated task selection and prioritization
-- Multi-agent work-stealing with dynamic task claiming
-- Parallel development coordination with worktree automation
-- Test-driven development workflows with language-specific tooling
-- Automated pull request creation with intelligent analysis and reviewer suggestions
-- Intelligent workflow progression based on dependencies
-- Integration between planning, task management, and execution
-
-<!-- ANALYSIS NOTES:
-The framework is complete with:
-
-Total commands: 27
-- Agent Framework: 8 commands (agent-assign, agent-complete, agent-init, agent-start, agent-status, coordinate, parallel, scratch)
-- Project Analysis & Planning: 6 commands (plan, plan-multi-agent, next-steps, map, think, options)  
-- Task Management System: 9 commands (task-create, task-list, task-update, task-show, task-search, task-archive, task-log, epic, progress)
-- Workflow Automation & Development: 4 commands (start, parallel-enhanced, tdd, pr)
-
-Framework characteristics:
-1. Highly integrated system where categories depend on each other
-2. Hierarchical task system is the central organizing principle
-3. Multi-agent support is a first-class concern throughout
-4. Strong integration with git workflows (worktrees, branches, PRs)
-5. TodoWrite integration provides session-level task tracking
-6. Emphasis on automation and intelligent workflow progression
-
-Key workflow patterns across categories:
-1. Single-agent workflow: plan/next-steps -> task creation -> start -> progress tracking -> completion
-2. Multi-agent workflow: plan-multi-agent -> agent assignments -> parallel-enhanced setup -> agent coordination -> integration
-3. Work-stealing workflow: plan-multi-agent -> parallel-enhanced -> dynamic task claiming -> autonomous completion
-4. TDD workflow: tdd setup -> test creation -> implementation -> refactoring -> integration
-5. Maintenance: Archive completed work, maintain clean active workspace
-
-Major workflow integrations:
-- Planning commands create the foundation for task management
-- Task management provides the coordination layer for agent framework
-- Agent framework enables parallel execution of planned work
-- Workflow automation commands bridge between planning and execution
-- All categories integrate through the hierarchical task system and TodoWrite
--->
+### Other Available Commands
+This document provides a high-level overview of additional available Claude commands for various development workflows.

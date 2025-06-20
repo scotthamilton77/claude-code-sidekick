@@ -2,19 +2,19 @@
   "model": "sonnet",
   "allowedTools": [
     "Bash(git init:*)",
-      "Bash(git branch:*)",
-      "Bash(git commit:*)",
-      "Bash(git log:*)",
-      "Bash(ls:*)",
-      "Task",
-      "Glob",
-      "Grep",
-      "LS",
-      "Read",
-      "Edit",
-      "MultiEdit",
-      "Write",
-      "WebFetch",
-      "WebSearch"
+    "Bash(git branch:*)",
+    "Bash(git commit:*)",
+    "Bash(git log:*)",
+    "Bash(ls:*)",
+    "Task",
+    "Glob",
+    "Grep",
+    "LS",
+    "Read",
+    "Edit",
+    "MultiEdit",
+    "Write",
+    "WebFetch",
+    "WebSearch"
   ]
 }
