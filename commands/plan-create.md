@@ -6,19 +6,22 @@ This command takes a user's idea, project description, or requirements and creat
 
 ## Process
 
-1. **Requirements Analysis**:
+1. **Plan Name Generation & Last Plan Tracking**:
+   - Generate plan name from project description or use provided name
+   - Create `/tasks/[plan-name]/` directory
+   - Update `/tasks/last-plan.json` with the new plan name
+
+2. **Requirements Analysis**:
    - Parse user input for key objectives
    - Identify project scope and constraints
    - Extract success criteria and deliverables
    - Determine project type and complexity
 
-2. **Plan Structure Creation**:
-   - Generate plan name from project description
-   - Create `/tasks/[plan-name]/` directory
+3. **Plan Structure Creation**:
    - Write initial PLAN.md with high-level structure
    - Create README.md with project overview
 
-3. **Phase Definition**:
+4. **Phase Definition**:
    - Break project into 3-7 major phases
    - Define phase objectives and dependencies
    - Establish logical progression
@@ -129,7 +132,7 @@ This command takes a user's idea, project description, or requirements and creat
 ## Usage Examples
 
 ```bash
-# Create plan from description
+# Create plan from description (updates /tasks/last-plan.json)
 /plan-create "Build a customer portal with authentication, dashboard, and reporting features"
 
 # Create plan with specific name
@@ -137,16 +140,26 @@ This command takes a user's idea, project description, or requirements and creat
 
 # Create plan with constraints
 /plan-create "API migration project --timeline 3-months --team 2-developers"
+
+# Example workflow - new plan becomes default:
+/plan-create "Mobile app redesign"    # Creates plan and updates last-plan.json
+/plan-decompose                       # Uses "mobile-app-redesign" from last-plan.json
+/plan-execution-init                  # Also uses "mobile-app-redesign"
 ```
 
 ## Arguments
 
-Project description/requirements: $ARGUMENTS
+**Project description/requirements**: $ARGUMENTS
 
 The description should include:
 - What you're building
 - Key features/requirements
 - Any specific constraints or preferences
+- Optional plan name (otherwise generated from description)
+
+**Last Plan Tracking**: 
+- Always updates `/tasks/last-plan.json` with the newly created plan name
+- This makes the new plan the default for subsequent plan commands
 
 ## Output
 

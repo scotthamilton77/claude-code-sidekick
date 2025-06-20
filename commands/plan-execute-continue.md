@@ -6,27 +6,33 @@ This command reads `plan-tracker.json`, identifies the next task to execute, cre
 
 ## Process Overview
 
-1. **Task Selection**:
+1. **Plan Name Resolution**:
+   - If plan name provided in $ARGUMENTS, use it and update `/tasks/last-plan.json`
+   - If no plan name provided, read from `/tasks/last-plan.json` for the last referenced plan
+   - If neither exists, check for plan-tracker.json in current directory
+   - Update `/tasks/last-plan.json` with resolved plan name
+
+2. **Task Selection**:
 
    - Read plan-tracker.json from `/tasks/[plan-name]/`
    - Find next pending task respecting dependencies
    - Check prerequisites are met
    - Update task status to "in_progress"
 
-2. **Context Preparation**:
+3. **Context Preparation**:
 
    - Create scratchpad directory structure
    - Generate initial-context-summary.md
    - Gather relevant plan documents and dependencies
    - Create curated context for agents
 
-3. **Implementation Cycle**:
+4. **Implementation Cycle**:
 
    - Spawn implementation subagent with context
    - Subagent implements the task
    - Update status to "ready-for-review"
 
-4. **Review Cycle** (up to 3 iterations):
+5. **Review Cycle** (up to 3 iterations):
 
    - Spawn review subagent to critique implementation
    - Generate code-review.md (detailed feedback) and code-review-tracker.json (structured findings)
@@ -38,7 +44,7 @@ This command reads `plan-tracker.json`, identifies the next task to execute, cre
    - If iteration = 3 AND disputes remain: set status to "needs-human-review" and stop
    - Complete audit trail preserved in review-audit/ directory
 
-5. **Completion**:
+6. **Completion**:
    - Update task status to "completed" or "needs-human-review"
    - Log execution details
    - Prepare for next task or PR creation
@@ -470,10 +476,10 @@ pending → in_progress → initialized → implementing → ready-for-review �
 ## Usage Examples
 
 ```bash
-# Continue with next task in default plan
+# Continue with next task in last referenced plan (reads from /tasks/last-plan.json)
 /plan-execute-continue
 
-# Continue specific plan
+# Continue specific plan (updates /tasks/last-plan.json)
 /plan-execute-continue "web-app-redesign"
 
 # Skip to specific phase/task
@@ -481,13 +487,19 @@ pending → in_progress → initialized → implementing → ready-for-review �
 
 # Force re-execution of current task
 /plan-execute-continue "--retry-current"
+
+# Example workflow showing last-plan tracking:
+/plan-execute-continue "web-app-redesign"  # Updates last-plan.json
+/plan-execute-continue                     # Uses "web-app-redesign" from last-plan.json
+/plan-status                              # Also uses "web-app-redesign"
 ```
 
 ## Arguments
 
-Optional plan name: $ARGUMENTS
-
-If no plan name provided, looks for plan-tracker.json in current directory or most recently used plan.
+**Plan Name**: $ARGUMENTS (optional)
+- If no plan name provided, uses the last referenced plan from `/tasks/last-plan.json`
+- If last-plan.json doesn't exist, checks for plan-tracker.json in current directory
+- Updates `/tasks/last-plan.json` with the resolved plan name for future commands
 
 ## Output
 

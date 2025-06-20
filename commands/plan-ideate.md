@@ -6,25 +6,31 @@ This command takes user suggestions, corrections, or new ideas and intelligently
 
 ## Process
 
-1. **Feedback Analysis**:
+1. **Plan Name Resolution**:
+   - If plan name provided in $ARGUMENTS, use it and update `/tasks/last-plan.json`
+   - If no plan name provided, read from `/tasks/last-plan.json` for the last referenced plan
+   - If neither exists, check for plan files in current directory
+   - Update `/tasks/last-plan.json` with resolved plan name
+
+2. **Feedback Analysis**:
    - Parse user input for specific suggestions
    - Identify type of change (addition, modification, removal, pivot)
    - Determine impact scope (single task, phase, or entire plan)
    - Assess compatibility with existing objectives
 
-2. **Impact Assessment**:
+3. **Impact Assessment**:
    - Analyze how changes affect dependencies
    - Evaluate resource and timeline implications
    - Check for conflicts with existing work
    - Consider ripple effects across phases
 
-3. **Plan Revision**:
+4. **Plan Revision**:
    - Update affected sections of PLAN.md
    - Regenerate impacted phase files if needed
    - Adjust dependencies and timelines
    - Document changes and rationale
 
-4. **Validation**:
+5. **Validation**:
    - Ensure plan coherence after changes
    - Verify all objectives still achievable
    - Check dependency graph remains valid
@@ -155,27 +161,38 @@ Actions:
 ## Usage Examples
 
 ```bash
-# Add new feature to existing plan
+# Add new feature to last referenced plan (reads from /tasks/last-plan.json)
+/plan-ideate "Add multi-language support throughout the application"
+
+# Add new feature to specific plan (updates /tasks/last-plan.json)
 /plan-ideate "web-app-redesign: Add multi-language support throughout the application"
 
 # Change technical approach
 /plan-ideate "api-project: Switch from REST to GraphQL for better performance"
 
-# Adjust project scope
-/plan-ideate "mobile-app: Focus on iOS first, delay Android to phase 5"
+# Adjust project scope using last plan
+/plan-ideate "Focus on iOS first, delay Android to phase 5"
 
 # Modify architecture
 /plan-ideate "data-pipeline: Add caching layer between processing stages"
 
-# Update based on new requirements
-/plan-ideate "customer-portal: Client wants SSO integration with their AD system"
+# Example workflow showing last-plan tracking:
+/plan-create "E-commerce platform"        # Creates plan and updates last-plan.json
+/plan-ideate "Add shopping cart analytics" # Uses "e-commerce-platform" from last-plan.json
+/plan-decompose                           # Also uses "e-commerce-platform"
 ```
 
 ## Arguments
 
-Format: `[plan-name]: [feedback/suggestion]`
+**Format**: `[plan-name]: [feedback/suggestion]` or just `[feedback/suggestion]`
 
-The feedback should clearly describe:
+**Plan Name Resolution**:
+- If plan name provided before colon, use it and update `/tasks/last-plan.json`
+- If no plan name provided, uses the last referenced plan from `/tasks/last-plan.json`
+- If last-plan.json doesn't exist, checks for plan files in current directory
+- Updates `/tasks/last-plan.json` with the resolved plan name for future commands
+
+**The feedback should clearly describe**:
 - What needs to change
 - Why the change is beneficial
 - Any constraints or preferences
