@@ -70,7 +70,9 @@ Mark the plan-resolution todo as in_progress, then:
 **Validation Steps:**
 ```bash
 # Check if plan-tracker.json exists and is readable
+echo "📋 Validating plan tracker file existence and readability..."
 plan_tracker_path="/planning/tasks/[resolved-plan-name]/plan-tracker.json"
+echo "   - Checking file: $plan_tracker_path"
 if ! test -f "$plan_tracker_path"; then
     echo "ERROR: plan-tracker.json not found at $plan_tracker_path"
     echo "Run /plan-execution-init [plan-name] first to initialize tracking"
@@ -78,11 +80,14 @@ if ! test -f "$plan_tracker_path"; then
 fi
 
 # Validate JSON structure
+echo "🔍 Validating JSON structure of plan tracker..."
+echo "   - Running jq validation on: $(basename "$plan_tracker_path")"
 if ! jq 'empty' "$plan_tracker_path" 2>/dev/null; then
     echo "ERROR: plan-tracker.json contains invalid JSON"
     echo "Check file format and repair if needed"
     exit 1
 fi
+echo "✅ Plan tracker validation completed successfully"
 ```
 
 Mark plan-resolution todo as completed on success.
@@ -93,11 +98,14 @@ Mark architecture-check todo as in_progress, then:
 
 **Check Architecture Files:**
 ```bash
+echo "🏗️  Checking architecture documentation availability..."
 arch_missing=false
+echo "   - Checking /planning/architecture.md"
 if ! test -f "/planning/architecture.md"; then
     echo "WARNING: /planning/architecture.md not found"
     arch_missing=true
 fi
+echo "   - Checking /planning/standards.md"
 if ! test -f "/planning/standards.md"; then
     echo "WARNING: /planning/standards.md not found" 
     arch_missing=true
@@ -109,10 +117,13 @@ if [ "$arch_missing" = true ]; then
     read -p "Continue without architecture documentation? (y/n): " continue_choice
     if [ "$continue_choice" != "y" ]; then
         echo "Exiting. Run /plan-architecture first, then retry this command."
+        echo "📝 Updating todos to reflect completion status before exit..."
+        echo "   - Using /todo-write to update completion status"
         /todo-write '{"todos": [{"id": "plan-resolution", "content": "Resolve plan name and validate plan-tracker.json exists and is readable", "status": "completed", "priority": "high"}, {"id": "architecture-check", "content": "Check architecture documentation availability and warn if missing", "status": "completed", "priority": "medium"}, {"id": "task-selection", "content": "Select next available task, validate dependencies, and handle state conflicts", "status": "pending", "priority": "high"}, {"id": "context-creation", "content": "Create scratch directory structure and initial context files", "status": "pending", "priority": "high"}, {"id": "architecture-primer-creation", "content": "Create architecture primer (or reuse existing if valid) and generate architecture-primer.json", "status": "pending", "priority": "high"}, {"id": "finalization", "content": "Update context with architect insights and mark task as ready", "status": "pending", "priority": "high"}]}'
         exit 0
     fi
 fi
+echo "✅ Architecture documentation check completed"
 ```
 
 Mark architecture-check todo as completed.
@@ -147,6 +158,7 @@ function selectNextTask(tracker) {
 **State Conflict Handling:**
 ```bash
 # If selected task status is "preparing" or "ready"
+echo "🔍 Checking for task state conflicts..."
 if [ "$task_status" = "preparing" ]; then
     echo "Task is already being prepared (status: preparing)"
     echo "Options:"
@@ -157,8 +169,8 @@ if [ "$task_status" = "preparing" ]; then
     
     case $conflict_choice in
         1) echo "Continuing with override..." ;;
-        2) # Reset task to pending, clean scratch directory
-           echo "Resetting task to pending..."
+        2) echo "🔄 Resetting task to pending state..."
+           echo "   - Will update tracker status and clean scratch directory"
            # Update tracker status atomically
            ;;
         3) echo "Exiting without changes"; exit 0 ;;
@@ -172,15 +184,20 @@ elif [ "$task_status" = "ready" ]; then
         exit 0
     fi
 fi
+echo "✅ State conflict check completed"
 ```
 
 **Atomic Status Update:**
 ```bash
 # Update task status to "preparing" atomically
+echo "🔄 About to update task status to 'preparing' in plan-tracker.json..."
+echo "   - Creating temporary file and using jq to update status"
+echo "   - Target: phase ${phase_index}, task ${task_index}"
 temp_tracker=$(mktemp)
 jq '.phases['"${phase_index}"'].tasks['"${task_index}"'].status = "preparing"' \
    "$plan_tracker_path" > "$temp_tracker"
 mv "$temp_tracker" "$plan_tracker_path"
+echo "✅ Task status successfully updated to 'preparing'"
 ```
 
 Mark task-selection todo as completed.
@@ -191,23 +208,31 @@ Mark context-creation todo as in_progress, then:
 
 **Directory Structure Creation:**
 ```bash
+echo "📁 Creating context directory structure..."
 scratch_dir="/planning/tasks/${plan_name}/scratch/phase-${phase_id}/task-${task_id}"
+echo "   - Target directory: $scratch_dir"
+echo "   - Creating directory tree with mkdir -p"
 mkdir -p "$scratch_dir"
+echo "✅ Directory structure created successfully"
 
 # Check if initial-context-summary.md already exists
+echo "📋 Checking for existing context file..."
+echo "   - Looking for: $scratch_dir/initial-context-summary.md"
 if test -f "$scratch_dir/initial-context-summary.md"; then
     echo "Context file already exists, checking if update needed..."
     # Compare timestamps, only regenerate if plan files are newer
+    echo "🕐 Comparing file timestamps to determine if regeneration needed..."
     if find_plan_files_newer_than_context; then
-        echo "Updating context file with latest plan information..."
+        echo "📝 Plan files are newer - updating context file with latest information..."
         generate_context_file
     else
         echo "Context file is current, skipping regeneration"
     fi
 else
-    echo "Generating initial context file..."
+    echo "📝 Generating initial context file..."
     generate_context_file
 fi
+echo "✅ Context file setup completed"
 ```
 
 **Context File Template Generation:**
@@ -272,10 +297,15 @@ Mark architecture-primer-creation todo as in_progress, then:
 **Smart Architecture Primer Logic:**
 ```bash
 # Check for existing architecture primer file
+echo "🏗️  Checking for existing architecture primer..."
 architecture_primer_file="$scratch_dir/architecture-primer.json"
+echo "   - Looking for: $(basename "$architecture_primer_file")"
 
 if test -f "$architecture_primer_file"; then
     # Found existing primer, check if recent enough to reuse
+    echo "📄 Found existing architecture primer file"
+    echo "🕐 Calculating file age to determine if reuse is appropriate..."
+    echo "   - Using stat command to get file modification time"
     primer_age_hours=$(( ($(date +%s) - $(stat -c %Y "$architecture_primer_file")) / 3600 ))
     
     if [ $primer_age_hours -lt 24 ]; then
@@ -295,14 +325,21 @@ if test -f "$architecture_primer_file"; then
             skip_architecture_primer=true
         fi
     fi
+else
+    echo "No existing architecture primer found - will generate new one"
 fi
 
 # Generate new architecture primer if not reusing existing
 if [ "$skip_architecture_primer" != true ]; then
-    echo "Generating new architecture primer..."
+    echo "🎯 Generating new architecture primer..."
+    echo "📅 Creating ISO timestamp for primer metadata..."
     iso_timestamp=$(date -Iseconds)
+    echo "   - Timestamp: $iso_timestamp"
     
     # Spawn architect agent with comprehensive context
+    echo "🤖 Spawning architect agent for comprehensive analysis..."
+    echo "   - Task: Architecture Primer Creation"
+    echo "   - Context: Plan=$plan_name, Phase=$phase_id, Task=$task_id"
     /task "Architecture Primer Creation" "
     You are an expert software architect creating an architecture primer for task implementation.
     
@@ -376,6 +413,8 @@ if [ "$skip_architecture_primer" != true ]; then
     "
     
     # Validate architecture primer output
+    echo "✅ Architecture primer generation completed, validating output..."
+    echo "📄 Checking if output file was created: $(basename "$architecture_primer_file")"
     if ! test -f "$architecture_primer_file"; then
         echo "ERROR: Architecture primer failed to generate output file"
         # Rollback task status to pending
@@ -383,6 +422,8 @@ if [ "$skip_architecture_primer" != true ]; then
         exit 1
     fi
     
+    echo "🔍 Validating JSON structure of architecture primer..."
+    echo "   - Running jq validation on generated file"
     if ! jq 'empty' "$architecture_primer_file" 2>/dev/null; then
         echo "ERROR: Architecture primer generated invalid JSON"
         # Rollback task status to pending  
@@ -391,6 +432,8 @@ if [ "$skip_architecture_primer" != true ]; then
     fi
     
     # Check for blocking issues
+    echo "⚠️  Checking for blocking issues in architecture primer..."
+    echo "   - Using jq to count blocking_issues array length"
     blocking_issues=$(jq -r '.blocking_issues | length' "$architecture_primer_file")
     if [ "$blocking_issues" -gt 0 ]; then
         echo "CRITICAL: Architecture primer found blocking issues:"
@@ -398,16 +441,24 @@ if [ "$skip_architecture_primer" != true ]; then
         echo "Task requires human resolution before implementation."
         
         # Update task status to "needs-human-review"
+        echo "🔄 About to update task status to 'needs-human-review' due to blocking issues..."
+        echo "   - Creating temporary file and using jq to update status"
+        echo "   - Target: phase ${phase_index}, task ${task_index}"
         temp_tracker=$(mktemp)
         jq '.phases['"${phase_index}"'].tasks['"${task_index}"'].status = "needs-human-review"' \
            "$plan_tracker_path" > "$temp_tracker"
         mv "$temp_tracker" "$plan_tracker_path"
+        echo "⚠️  Task status updated to 'needs-human-review'"
         
+        echo "📝 Updating todos to reflect completion status with human review needed..."
+        echo "   - Using /todo-write to update completion status"
         /todo-write '{"todos": [{"id": "plan-resolution", "content": "Resolve plan name and validate plan-tracker.json exists and is readable", "status": "completed", "priority": "high"}, {"id": "architecture-check", "content": "Check architecture documentation availability and warn if missing", "status": "completed", "priority": "medium"}, {"id": "task-selection", "content": "Select next available task, validate dependencies, and handle state conflicts", "status": "completed", "priority": "high"}, {"id": "context-creation", "content": "Create scratch directory structure and initial context files", "status": "completed", "priority": "high"}, {"id": "architecture-primer-creation", "content": "Create architecture primer (or reuse existing if valid) and generate architecture-primer.json", "status": "completed", "priority": "high"}, {"id": "finalization", "content": "Update context with architect insights and mark task as ready", "status": "pending", "priority": "high"}]}'
         exit 1
     fi
     
-    echo "Architecture primer completed successfully: $(basename "$architecture_primer_file")"
+    echo "✅ Architecture primer completed successfully: $(basename "$architecture_primer_file")"
+else
+    echo "✅ Using existing architecture primer: $(basename "$architecture_primer_file")"
 fi
 ```
 
@@ -420,12 +471,19 @@ Mark finalization todo as in_progress, then:
 **Update Context with Architect Insights:**
 ```bash
 # Extract key insights from architecture primer
+echo "📊 Extracting architectural insights from primer..."
+echo "   - Extracting recommended patterns using jq"
 architect_insights=$(jq -r '.implementation_guidance.recommended_patterns[]' "$architecture_primer_file")
+echo "   - Extracting architectural constraints using jq"
 architectural_constraints=$(jq -r '.implementation_guidance.architectural_constraints[]' "$architecture_primer_file")
+echo "   - Extracting integration strategy using jq"
 integration_strategy=$(jq -r '.implementation_guidance.integration_strategy' "$architecture_primer_file")
 
 # Update initial-context-summary.md with architect insights
+echo "📝 Updating context summary with architectural insights..."
+echo "   - Removing existing architectural context section with sed"
 sed -i '/### Architectural Context/,$d' "$scratch_dir/initial-context-summary.md"
+echo "   - Appending new architectural context section"
 cat >> "$scratch_dir/initial-context-summary.md" << EOF
 
 ### Architectural Context
@@ -453,20 +511,27 @@ EOF
 **Final Validation and Status Update:**
 ```bash
 # Verify all required files exist
+echo "🔍 Performing final validation of required files..."
 required_files=(
     "$scratch_dir/initial-context-summary.md"
     "$architecture_primer_file"
 )
 
 for file in "${required_files[@]}"; do
+    echo "   - Checking: $(basename "$file")"
     if ! test -f "$file"; then
         echo "ERROR: Required file missing: $file"
         rollback_task_status_to_pending
         exit 1
     fi
 done
+echo "✅ All required files validated successfully"
 
 # Atomically update task status to "ready"
+echo "🔄 About to finalize task preparation by updating status to 'ready'..."
+echo "   - Creating temporary file and using jq to update status and prepared_at timestamp"
+echo "   - Target: phase ${phase_index}, task ${task_index}"
+echo "   - Timestamp: $(date -Iseconds)"
 temp_tracker=$(mktemp)
 jq '.phases['"${phase_index}"'].tasks['"${task_index}"'].status = "ready" | .phases['"${phase_index}"'].tasks['"${task_index}"'].prepared_at = "'"$(date -Iseconds)"'"' \
    "$plan_tracker_path" > "$temp_tracker"
@@ -484,14 +549,23 @@ Mark finalization todo as completed.
 **Rollback Function:**
 ```bash
 function rollback_task_status_to_pending() {
-    echo "Rolling back task status to pending due to error..."
+    echo "⚠️  Rolling back task status to pending due to error..."
+    echo "🔄 About to rollback task status to 'pending'..."
+    echo "   - Creating temporary file and using jq to reset status"
+    echo "   - Target: phase ${phase_index}, task ${task_index}"
+    echo "📝 Creating temporary tracker file for atomic update..."
     temp_tracker=$(mktemp)
+    echo "   - Using jq to update status field"
     jq '.phases['"${phase_index}"'].tasks['"${task_index}"'].status = "pending"' \
        "$plan_tracker_path" > "$temp_tracker"
+    echo "   - Moving temporary file to replace original tracker"
     mv "$temp_tracker" "$plan_tracker_path"
+    echo "↩️  Task status rolled back to 'pending'"
     
     # Clean up partial scratch directory if it was created
+    echo "🧹 Checking for cleanup of partial scratch directory..."
     if [ -d "$scratch_dir" ] && [ -z "$(ls -A "$scratch_dir" 2>/dev/null)" ]; then
+        echo "   - Removing empty scratch directory: $scratch_dir"
         rmdir "$scratch_dir"
         echo "Cleaned up empty scratch directory"
     fi

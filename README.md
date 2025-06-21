@@ -4,6 +4,7 @@ A comprehensive command system for AI-assisted project planning, decomposition, 
 
 ## TODOs
 
+- prep file is running into complex bash commands and screwing up folder names - see doc-index-mcp test-suite/scratch/**
 - rename to plan\* again?
 - architect.md
   - asks another architect subagent for review and iterates up to 3x
