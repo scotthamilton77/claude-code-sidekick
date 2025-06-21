@@ -367,7 +367,7 @@ If during implementation you encounter questions about:
 
 Then spawn an architect subagent using the Task tool as follows:
 
-1. **Read the base architect prompt** from `/commands/plan/architect-agent-prompt.md`
+1. **Read the base architect prompt** from `~/.claude/.templates/architect-agent-prompt.md`
 2. **Prepend your specific context** to create the complete prompt:
 
 ```
@@ -390,7 +390,7 @@ Please record your answers in the scratch file:
 
 === BASE ARCHITECT INSTRUCTIONS ===
 
-[Insert the complete content from /commands/plan/architect-agent-prompt.md here]
+[Insert the complete content from ~/.claude/.templates/architect-agent-prompt.md here]
 ```
 
 3. **Use the combined prompt** when calling the Task tool to spawn the architect subagent
@@ -489,6 +489,7 @@ Be constructive but thorough. Provide specific, actionable feedback.
 Review feedback has been provided in code-review.md and code-review-tracker.json.
 
 **Your task**:
+
 1. Read BOTH the detailed review (code-review.md) and tracker (code-review-tracker.json)
 2. For each finding in code-review-tracker.json:
    - If you fix the issue: Update status to "fixed" and add implementation_response
@@ -511,7 +512,7 @@ Review feedback has been provided in code-review.md and code-review-tracker.json
    OR
    ```json
    {
-     "status": "rejected", 
+     "status": "rejected",
      "implementation_response": "Not changing current implementation",
      "implementation_rationale": "Current pattern matches team conventions and changing would break consistency with 20+ other similar functions"
    }
@@ -530,7 +531,6 @@ Review feedback has been provided in code-review.md and code-review-tracker.json
 - This preserves your responses before the reviewer verifies them
 
 When complete, ensure code-review-tracker.json shows all findings have been addressed (either fixed or rejected with rationale).
-
 ````
 
 ### 6. Review Verification Instructions
@@ -571,7 +571,6 @@ The implementation agent has responded to your review. Check their work:
     - Do NOT create iteration 4
 
 ```
-
 
 ## Status Flow
 
