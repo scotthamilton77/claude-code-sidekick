@@ -308,7 +308,14 @@ This file contains all necessary context, requirements, and acceptance criteria 
 2. Implement the solution following project conventions
 3. Write/update tests as needed
 4. Ensure all acceptance criteria are met
-5. Document your implementation decisions
+5. **Document code properly following these practices**:
+   - Write self-descriptive code with clear variable and function names
+   - Add file-level docstrings/comments explaining purpose and high-level approach
+   - Document public classes and methods with clear descriptions, parameters, and return values
+   - Add inline comments ONLY for complex logic, non-obvious decisions, or business rules
+   - Document WHY (rationale) not WHAT (implementation) - code should be self-explanatory
+   - Include examples in docstrings for complex APIs or usage patterns
+   - Avoid over-commenting - prefer refactoring unclear code to be more readable
 6. Create an implementation-notes.md file documenting:
    - Key decisions made
    - Challenges encountered
@@ -349,10 +356,17 @@ You are a code reviewer tasked with reviewing an implementation for quality and 
    - Does the solution follow established patterns in the codebase?
    - Are there any architectural concerns or missed opportunities?
    - If you see a clearly better approach, recommend it as a major finding
-5. Verify all acceptance criteria are met
-6. Review code quality, patterns, and best practices
-7. Check test coverage and edge cases
-8. Validate documentation updates
+5. **ASSESS CODE DOCUMENTATION QUALITY**:
+   - Are files properly documented with purpose and high-level approach?
+   - Are public classes/methods documented with clear descriptions, parameters, and return values?
+   - Is complex logic explained with rationale (WHY not WHAT)?
+   - Is the code self-descriptive with appropriate naming?
+   - Are there examples for complex APIs or usage patterns?
+   - Is documentation balanced (not over-commented, not under-documented)?
+6. Verify all acceptance criteria are met
+7. Review code quality, patterns, and best practices
+8. Check test coverage and edge cases
+9. Validate external documentation updates (README, API docs, etc.)
 
 **Generate TWO files for the review**:
 
@@ -384,7 +398,13 @@ You are a code reviewer tasked with reviewing an implementation for quality and 
 - **Functionality**: Does it work as intended?
 - **Code Quality**: Is it maintainable and follows patterns?
 - **Testing**: Adequate coverage and edge cases?
-- **Documentation**: Clear and updated?
+- **Code Documentation**: Proper documentation practices followed:
+  - File-level documentation explaining purpose and approach
+  - Public API documented with clear descriptions, parameters, return values
+  - Complex logic explained with rationale (WHY, not WHAT)
+  - Self-descriptive code with minimal over-commenting
+  - Examples provided for complex usage patterns
+- **Project Documentation**: External docs (README, API docs) updated as needed
 - **Security**: Any vulnerabilities?
 
 Be constructive but thorough. Provide specific, actionable feedback.
