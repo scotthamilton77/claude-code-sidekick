@@ -70,7 +70,7 @@ Analyze the codebase and create a comprehensive plan with integrated task manage
    **Step 4: Plan structure will be automatically organized as**:
 
    ```
-   /tasks/[project-name]/
+   /planning/tasks/[project-name]/
    ├── plan.md                           # High-level plan overview
    ├── status.json                       # Plan progress tracking
    ├── setup-foundation/

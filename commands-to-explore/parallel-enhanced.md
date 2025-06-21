@@ -1,12 +1,13 @@
 Set up parallel development workflow integrated with planning framework:
 
 1. **Check for Existing Plan**:
+
    ```bash
    # First, check if a plan exists in the task hierarchy
    PROJECT=$(basename $(git rev-parse --show-toplevel 2>/dev/null) || basename $PWD)
 
-   if [ -f "/tasks/$PROJECT/plan.md" ]; then
-     echo "Found existing plan: /tasks/$PROJECT/plan.md"
+   if [ -f "/planning/tasks/$PROJECT/plan.md" ]; then
+     echo "Found existing plan: /planning/tasks/$PROJECT/plan.md"
      /task-list --plan="$PROJECT" --show-structure
    else
      echo "No plan found. Create one with: /plan-multi-agent [description]"
@@ -15,6 +16,7 @@ Set up parallel development workflow integrated with planning framework:
    ```
 
 2. **Analyze Plan for Parallelization**:
+
    - Read plan's status.json for agent assignments
    - Identify tasks marked for parallel execution
    - Check dependency constraints
@@ -24,26 +26,26 @@ Set up parallel development workflow integrated with planning framework:
 
    ```bash
    # Read agent assignments from plan
-   AGENTS=$(jq -r '.coordination.agents | keys[]' /tasks/$PROJECT/status.json)
+   AGENTS=$(jq -r '.coordination.agents | keys[]' /planning/tasks/$PROJECT/status.json)
 
    for AGENT in $AGENTS; do
-     WORKTREE=$(jq -r ".coordination.agents[\"$AGENT\"].worktree" /tasks/$PROJECT/status.json)
-     BRANCH=$(jq -r ".coordination.agents[\"$AGENT\"].branch" /tasks/$PROJECT/status.json)
-     
+     WORKTREE=$(jq -r ".coordination.agents[\"$AGENT\"].worktree" /planning/tasks/$PROJECT/status.json)
+     BRANCH=$(jq -r ".coordination.agents[\"$AGENT\"].branch" /planning/tasks/$PROJECT/status.json)
+
      echo "Setting up worktree for $AGENT:"
-     
+
      # Check if worktree already exists
      if git worktree list | grep -q "$WORKTREE"; then
        echo "  Worktree already exists at $WORKTREE"
        continue
      fi
-     
+
      # Create branch if it doesn't exist
      if ! git show-ref --verify --quiet "refs/heads/$BRANCH"; then
        echo "  Creating branch $BRANCH"
        git branch $BRANCH
      fi
-     
+
      # Create worktree
      git worktree add $WORKTREE $BRANCH
      echo "  Created worktree at $WORKTREE on branch $BRANCH"
@@ -131,14 +133,14 @@ echo "Launch multiple agents in parallel:"
 echo "  # Terminal 1"
 echo "  deno task agent"
 echo ""
-echo "  # Terminal 2" 
+echo "  # Terminal 2"
 echo "  deno task agent"
 echo ""
 echo "  # Terminal 3"
 echo "  deno task agent"
 echo ""
 echo "Each agent will:"
-echo "- Automatically claim an available task from /tasks/$PROJECT/status.json"
+echo "- Automatically claim an available task from /planning/tasks/$PROJECT/status.json"
 echo "- Update the main status.json atomically to prevent conflicts"
 echo "- Work independently in its own worktree"
 echo "- Complete tasks and claim new ones"
@@ -199,7 +201,7 @@ cat .claude-agents/task-registry.json | jq '.agents'
 #   },
 #   "agent-1234-5679": {
 #     "name": "claude-worker-8765",
-#     "startTime": "2025-01-07T10:00:15Z", 
+#     "startTime": "2025-01-07T10:00:15Z",
 #     "currentTask": "core-features/api-implementation"
 #   }
 # }
@@ -236,7 +238,7 @@ deno task agent
 deno task agent
 
 # Each agent automatically:
-# - Reads /tasks/[project]/status.json
+# - Reads /planning/tasks/[project]/status.json
 # - Claims an available, unblocked task
 # - Updates status.json with claim
 # - Completes the task
@@ -252,10 +254,10 @@ deno task agent
  # Output:
  # Join Point: integration
  # Status: Not Ready
- # 
+ #
  # Required Tasks:
  # ✓ setup-foundation/project-structure (agent-a) - completed
- # ✓ setup-foundation/dependency-setup (agent-a) - completed  
+ # ✓ setup-foundation/dependency-setup (agent-a) - completed
  # ⚡ core-features/api-implementation (agent-b) - in-progress (80%)
  # ⏸️ core-features/database-schema (agent-b) - pending
  #
@@ -276,8 +278,8 @@ deno task agent
  # - Update coordination status
 
  # Full cleanup process:
- WORKTREE=$(jq -r '.coordination.agents["agent-a"].worktree' /tasks/$PROJECT/status.json)
- BRANCH=$(jq -r '.coordination.agents["agent-a"].branch' /tasks/$PROJECT/status.json)
+ WORKTREE=$(jq -r '.coordination.agents["agent-a"].worktree' /planning/tasks/$PROJECT/status.json)
+ BRANCH=$(jq -r '.coordination.agents["agent-a"].branch' /planning/tasks/$PROJECT/status.json)
 
  # Create PR
  gh pr create --title "Agent A: Foundation Setup Complete" \

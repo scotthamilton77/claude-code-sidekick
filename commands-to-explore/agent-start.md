@@ -11,11 +11,12 @@ You are starting as an autonomous development agent with the following capabilit
 ## Startup Sequence
 
 1. **Check for existing plan**:
+
    ```bash
    PROJECT=$(basename $(git rev-parse --show-toplevel 2>/dev/null) || basename $PWD)
 
-   if [ -f "/tasks/$PROJECT/plan.md" ]; then
-     echo "Found plan: /tasks/$PROJECT/plan.md"
+   if [ -f "/planning/tasks/$PROJECT/plan.md" ]; then
+     echo "Found plan: /planning/tasks/$PROJECT/plan.md"
      /task-list --plan="$PROJECT" --show-structure
    else
      echo "No plan found. Create one with: /plan-multi-agent [description]"
@@ -25,6 +26,7 @@ You are starting as an autonomous development agent with the following capabilit
    ```
 
 2. **Initialize work environment**:
+
    - Generate unique agent ID: `agent-$(date +%s)-$$`
    - Check for coordination directory: `.claude-agents/`
    - Verify git worktree status

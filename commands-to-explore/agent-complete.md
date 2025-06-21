@@ -25,10 +25,11 @@ Complete an agent's work session with proper cleanup and integration:
 ## Completion Process
 
 1. **Validate Agent State**:
+
    ```bash
    # Check all assigned tasks are complete or handed off
    INCOMPLETE=$(jq -r '.assignedTasks[] | select(.status != "completed")' \
-                /tasks/$PROJECT/agents/$AGENT.json)
+                /planning/tasks/$PROJECT/agents/$AGENT.json)
 
    if [ -n "$INCOMPLETE" ]; then
      echo "Warning: Agent has incomplete tasks:"
@@ -38,10 +39,11 @@ Complete an agent's work session with proper cleanup and integration:
    ```
 
 2. **Create Pull Request**:
+
    ```bash
    # Gather completed work
    COMPLETED_TASKS=$(jq -r '.assignedTasks[] | select(.status == "completed")' \
-                    /tasks/$PROJECT/agents/$AGENT.json)
+                    /planning/tasks/$PROJECT/agents/$AGENT.json)
 
    # Generate PR body
    PR_BODY="## Completed Tasks
@@ -63,6 +65,7 @@ Complete an agent's work session with proper cleanup and integration:
    ```
 
 3. **Update Task Status**:
+
    ```bash
    # Mark all completed tasks as merged
    for TASK in $COMPLETED_TASKS; do
@@ -70,15 +73,16 @@ Complete an agent's work session with proper cleanup and integration:
    done
 
    # Update agent status
-   jq '.status = "completed"' /tasks/$PROJECT/agents/$AGENT.json > tmp.json
-   mv tmp.json /tasks/$PROJECT/agents/$AGENT.json
+   jq '.status = "completed"' /planning/tasks/$PROJECT/agents/$AGENT.json > tmp.json
+   mv tmp.json /planning/tasks/$PROJECT/agents/$AGENT.json
    ```
 
 4. **Clean Up Worktree**:
+
    ```bash
    # Get worktree info
-   WORKTREE=$(jq -r '.worktree' /tasks/$PROJECT/agents/$AGENT.json)
-   BRANCH=$(jq -r '.branch' /tasks/$PROJECT/agents/$AGENT.json)
+   WORKTREE=$(jq -r '.worktree' /planning/tasks/$PROJECT/agents/$AGENT.json)
+   BRANCH=$(jq -r '.branch' /planning/tasks/$PROJECT/agents/$AGENT.json)
 
    # Ensure we're not in the worktree being removed
    CURRENT_DIR=$(pwd)
@@ -96,6 +100,7 @@ Complete an agent's work session with proper cleanup and integration:
    ```
 
 5. **Archive or Delete Branch**:
+
    ```bash
    # If PR was merged, delete branch
    PR_STATUS=$(gh pr view $BRANCH --json state -q .state)
@@ -109,16 +114,17 @@ Complete an agent's work session with proper cleanup and integration:
    ```
 
 6. **Update Coordination Status**:
+
    ```bash
    # Remove agent from active coordination
    jq "del(.coordination.agents[\"$AGENT\"])" \
-      /tasks/$PROJECT/status.json > tmp.json
-   mv tmp.json /tasks/$PROJECT/status.json
+      /planning/tasks/$PROJECT/status.json > tmp.json
+   mv tmp.json /planning/tasks/$PROJECT/status.json
 
    # Add to completed agents list
    jq ".coordination.completedAgents += [\"$AGENT\"]" \
-      /tasks/$PROJECT/status.json > tmp.json
-   mv tmp.json /tasks/$PROJECT/status.json
+      /planning/tasks/$PROJECT/status.json > tmp.json
+   mv tmp.json /planning/tasks/$PROJECT/status.json
    ```
 
 ## Completion Report
@@ -186,11 +192,13 @@ git worktree list
 ## Safety Features
 
 1. **Pre-completion Checks**:
+
    - Verify no uncommitted changes
    - Check for incomplete tasks
    - Validate PR creation eligibility
 
 2. **Rollback Support**:
+
    - Keep branch until PR is merged
    - Archive agent configuration
    - Maintain task history

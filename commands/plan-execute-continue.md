@@ -7,14 +7,15 @@ This command reads `plan-tracker.json`, identifies the next task to execute, cre
 ## Process Overview
 
 1. **Plan Name Resolution**:
-   - If plan name provided in $ARGUMENTS, use it and update `/tasks/last-plan.json`
-   - If no plan name provided, read from `/tasks/last-plan.json` for the last referenced plan
+
+   - If plan name provided in $ARGUMENTS, use it and update `/planning/tasks/last-plan.json`
+   - If no plan name provided, read from `/planning/tasks/last-plan.json` for the last referenced plan
    - If neither exists, check for plan-tracker.json in current directory
-   - Update `/tasks/last-plan.json` with resolved plan name
+   - Update `/planning/tasks/last-plan.json` with resolved plan name
 
 2. **Task Selection**:
 
-   - Read plan-tracker.json from `/tasks/[plan-name]/`
+   - Read plan-tracker.json from `/planning/tasks/[plan-name]/`
    - Find next pending task respecting dependencies
    - Check prerequisites are met
    - Update task status to "in_progress"
@@ -52,7 +53,7 @@ This command reads `plan-tracker.json`, identifies the next task to execute, cre
 ## Directory Structure
 
 ```
-/tasks/[plan-name]/
+/planning/tasks/[plan-name]/
 ├── plan-tracker.json
 ├── scratch/
 │   └── phase-[##]/
@@ -81,6 +82,7 @@ This command reads `plan-tracker.json`, identifies the next task to execute, cre
 ### Code Review Tracker Structure
 
 The `code-review-tracker.json` file provides structured tracking of the review process, enabling:
+
 - Clear audit trail of all review findings and resolutions
 - Explicit rationale documentation for rejected suggestions
 - Automatic tracking of blocker issues that must be resolved
@@ -158,6 +160,7 @@ The tracker maintains the complete conversation between reviewer and implementor
 ```
 
 **Finding Status Workflow**:
+
 - `recommended` → Initial state when reviewer creates finding
 - `fixed` → Implementation agent addressed the issue
 - `rejected` → Implementation agent declined with rationale
@@ -169,7 +172,9 @@ The tracker maintains the complete conversation between reviewer and implementor
 The review-audit/ directory maintains a complete history of the review process:
 
 **Snapshot Points**:
+
 1. **iteration-N-initial/**: Captured immediately after reviewer creates review
+
    - Contains the original review findings before any responses
    - Preserves the reviewer's initial assessment
 
@@ -178,23 +183,26 @@ The review-audit/ directory maintains a complete history of the review process:
    - Documents all implementation decisions and rationales
 
 **Purpose**:
+
 - Provides clear history of how issues were identified and resolved
 - Enables human review of the full conversation between agents
 - Prevents loss of context during iterative reviews
 - Makes it easy to see what changed between iterations
 
 **Example Flow**:
+
 ```
-Initial Implementation → Review 1 → Snapshot (iteration-1-initial) → 
-Implementation Response → Snapshot (iteration-1-response) → 
-Review Verification → Disputes Found → Review 2 → Snapshot (iteration-2-initial) → 
-Implementation Response → Snapshot (iteration-2-response) → 
+Initial Implementation → Review 1 → Snapshot (iteration-1-initial) →
+Implementation Response → Snapshot (iteration-1-response) →
+Review Verification → Disputes Found → Review 2 → Snapshot (iteration-2-initial) →
+Implementation Response → Snapshot (iteration-2-response) →
 Review Verification → Still Disputed → Review 3 → Snapshot (iteration-3-initial) →
-Implementation Response → Snapshot (iteration-3-response) → 
+Implementation Response → Snapshot (iteration-3-response) →
 Review Verification → Still Disputed → STOP (needs-human-review)
 ```
 
 **Iteration Limit Enforcement**:
+
 - Maximum 3 review iterations to prevent endless loops
 - After iteration 3, unresolved disputes escalate to human review
 - Prevents agent cycles that don't converge on solutions
@@ -291,7 +299,7 @@ function selectNextTask(tracker) {
 You are tasked with implementing a specific task as part of a larger plan execution.
 
 **IMPORTANT**: First, read the initial context summary at:
-/tasks/[plan-name]/scratch/phase-[##]/task-[##]/initial-context-summary.md
+/planning/tasks/[plan-name]/scratch/phase-[##]/task-[##]/initial-context-summary.md
 
 This file contains all necessary context, requirements, and acceptance criteria for your task.
 
@@ -326,7 +334,7 @@ Focus on delivering a complete, working solution that meets all requirements.
 You are a code reviewer tasked with reviewing an implementation for quality and completeness.
 
 **IMPORTANT**: First, read the initial context summary at:
-/tasks/[plan-name]/scratch/phase-[##]/task-[##]/initial-context-summary.md
+/planning/tasks/[plan-name]/scratch/phase-[##]/task-[##]/initial-context-summary.md
 
 **Review Process**:
 1. Check git status and diff to see all changes
@@ -384,7 +392,7 @@ Be constructive but thorough. Provide specific, actionable feedback.
 
 ### 5. Review Response Instructions
 
-```
+````markdown
 Review feedback has been provided in code-review.md and code-review-tracker.json.
 
 **Your task**:
@@ -417,24 +425,29 @@ Review feedback has been provided in code-review.md and code-review-tracker.json
    ```
 
 **Important**:
+
 - ALL blocker issues must be either fixed or have detailed rejection rationale
 - Provide clear rationale for any rejected suggestions
 - Re-run tests after changes
 - Update the summary counts in code-review-tracker.json
 
 **After addressing all findings**:
+
 - Copy both code-review.md and code-review-tracker.json to `review-audit/iteration-N-response/`
 - This preserves your responses before the reviewer verifies them
 
 When complete, ensure code-review-tracker.json shows all findings have been addressed (either fixed or rejected with rationale).
-```
+
+````
 
 ### 6. Review Verification Instructions
 
 ```
+
 The implementation agent has responded to your review. Check their work:
 
 **Your task**:
+
 1. Read the updated code-review-tracker.json
 2. For each finding with status "fixed":
    - Verify the fix actually addresses the issue
@@ -448,24 +461,27 @@ The implementation agent has responded to your review. Check their work:
 4. Update the summary in code-review-tracker.json
 
 **Decision criteria**:
+
 - Accept rejection only if rationale is technically sound and well-justified
 - Dispute if rejection compromises code quality, security, or maintainability
 - All "blocker" issues must be resolved (either fixed or accepted rejection)
 
 **Final Assessment**:
+
 - If all blockers resolved and no disputed items: Mark review as "Approved"
-- If any blockers remain or items disputed: 
+- If any blockers remain or items disputed:
   - Check current iteration number
   - If iteration < 3: Mark as "Needs Resolution" and create new review iteration
     - Copy files to `review-audit/iteration-N-initial/` after creating the new review
   - If iteration = 3: Mark task as "needs-human-review" and STOP
     - Include summary of remaining disputes in final assessment
     - Do NOT create iteration 4
+
 ```
 
 ## Status Flow
 
-```
+```text
 pending → in_progress → initialized → implementing → ready-for-review →
   ↓                                                    ↓
   └→ under-review → revision-needed → implementing ←─┘
@@ -478,10 +494,10 @@ pending → in_progress → initialized → implementing → ready-for-review �
 ## Usage Examples
 
 ```bash
-# Continue with next task in last referenced plan (reads from /tasks/last-plan.json)
+# Continue with next task in last referenced plan (reads from /planning/tasks/last-plan.json)
 /plan-execute-continue
 
-# Continue specific plan (updates /tasks/last-plan.json)
+# Continue specific plan (updates /planning/tasks/last-plan.json)
 /plan-execute-continue "web-app-redesign"
 
 # Skip to specific phase/task
@@ -499,9 +515,10 @@ pending → in_progress → initialized → implementing → ready-for-review �
 ## Arguments
 
 **Plan Name**: $ARGUMENTS (optional)
-- If no plan name provided, uses the last referenced plan from `/tasks/last-plan.json`
+
+- If no plan name provided, uses the last referenced plan from `/planning/tasks/last-plan.json`
 - If last-plan.json doesn't exist, checks for plan-tracker.json in current directory
-- Updates `/tasks/last-plan.json` with the resolved plan name for future commands
+- Updates `/planning/tasks/last-plan.json` with the resolved plan name for future commands
 
 ## Output
 

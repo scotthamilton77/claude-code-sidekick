@@ -3,14 +3,16 @@ Analyze the current project state and recommend the next best tasks to work on, 
 ## Analysis Process
 
 1. **Project State Assessment**:
+
    - Check for existing PLAN.md or planning documents
    - Review recent git commits and branch activity
    - Analyze open TODO items using TodoRead
-   - Check task management system at /tasks/ for active items
+   - Check task management system at /planning/tasks/ for active items
    - Review CI/CD status and test results
    - Identify any blocked or stalled work
 
 2. **Priority Analysis**:
+
    - **Immediate blockers**: Issues preventing other work
    - **High-impact tasks**: Core functionality, critical bugs
    - **Quick wins**: Small tasks with immediate value
@@ -19,6 +21,7 @@ Analyze the current project state and recommend the next best tasks to work on, 
    - **Test coverage**: Areas needing better testing
 
 3. **Context Gathering**:
+
    - Check for incomplete work from previous sessions
    - Review any error logs or failing tests
    - Look for comments like TODO, FIXME, HACK
@@ -30,6 +33,7 @@ Analyze the current project state and recommend the next best tasks to work on, 
    **Next Steps** (prioritized list):
 
    1. **[Task Name]** - Priority: High/Medium/Low
+
       - Why: Brief explanation of importance
       - What: Specific actions to take
       - Dependencies: What needs to be done first
@@ -41,10 +45,12 @@ Analyze the current project state and recommend the next best tasks to work on, 
    2. **[Next Task]** ...
 
    **Optional Parallel Work**:
+
    - Tasks that can be done simultaneously
    - Independent improvements
 
    **Future Considerations**:
+
    - Longer-term improvements
    - Architecture decisions needed
    - Process improvements

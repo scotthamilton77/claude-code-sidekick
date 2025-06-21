@@ -7,17 +7,20 @@ This command takes a user's idea, project description, or requirements and creat
 ## Process
 
 1. **Plan Name Generation & Last Plan Tracking**:
+
    - Generate plan name from project description or use provided name
-   - Create `/tasks/[plan-name]/` directory
-   - Update `/tasks/last-plan.json` with the new plan name
+   - Create `/planning/tasks/[plan-name]/` directory
+   - Update `/planning/tasks/last-plan.json` with the new plan name
 
 2. **Requirements Analysis**:
+
    - Parse user input for key objectives
    - Identify project scope and constraints
    - Extract success criteria and deliverables
    - Determine project type and complexity
 
 3. **Plan Structure Creation**:
+
    - Write initial PLAN.md with high-level structure
    - Create README.md with project overview
 
@@ -58,47 +61,59 @@ This command takes a user's idea, project description, or requirements and creat
 ## High-Level Phases
 
 ### Phase 1: [Foundation/Planning]
+
 **Duration**: [Estimate]
-**Objectives**: 
+**Objectives**:
+
 - [Key objectives for this phase]
 
 **Key Deliverables**:
+
 - [Major deliverable 1]
 - [Major deliverable 2]
 
 ### Phase 2: [Core Development]
+
 **Duration**: [Estimate]
 **Objectives**:
+
 - [Key objectives for this phase]
 
 **Key Deliverables**:
+
 - [Major deliverable 1]
 - [Major deliverable 2]
 
 ### Phase 3: [Integration/Testing]
+
 **Duration**: [Estimate]
 **Objectives**:
+
 - [Key objectives for this phase]
 
 **Key Deliverables**:
+
 - [Test results]
 - [Integration documentation]
 
 ### Phase 4: [Deployment/Launch]
+
 **Duration**: [Estimate]
 **Objectives**:
+
 - [Deployment goals]
 
 **Key Deliverables**:
+
 - [Deployed system]
 - [Documentation]
 
 ## Risk Assessment
 
-| Risk | Impact | Probability | Mitigation |
-|------|--------|-------------|------------|
-| [Risk 1] | High | Medium | [Strategy] |
-| [Risk 2] | Medium | Low | [Strategy] |
+| Risk     | Impact | Probability | Mitigation |
+| -------- | ------ | ----------- | ---------- |
+| [Risk 1] | High   | Medium      | [Strategy] |
+| [Risk 2] | Medium | Low         | [Strategy] |
 
 ## Next Steps
 
@@ -110,16 +125,19 @@ This command takes a user's idea, project description, or requirements and creat
 ## Implementation Steps
 
 1. **Parse User Input**:
+
    - Extract project description
    - Identify key requirements
    - Determine project category (web app, API, data pipeline, etc.)
 
 2. **Generate Plan Structure**:
+
    - Create unique plan identifier
    - Establish directory structure
    - Generate initial documentation
 
 3. **Phase Generation**:
+
    - Apply appropriate phase template based on project type
    - Ensure logical flow and dependencies
    - Include standard phases (planning, implementation, testing, deployment)
@@ -132,7 +150,7 @@ This command takes a user's idea, project description, or requirements and creat
 ## Usage Examples
 
 ```bash
-# Create plan from description (updates /tasks/last-plan.json)
+# Create plan from description (updates /planning/tasks/last-plan.json)
 /plan-create "Build a customer portal with authentication, dashboard, and reporting features"
 
 # Create plan with specific name
@@ -152,26 +170,30 @@ This command takes a user's idea, project description, or requirements and creat
 **Project description/requirements**: $ARGUMENTS
 
 The description should include:
+
 - What you're building
 - Key features/requirements
 - Any specific constraints or preferences
 - Optional plan name (otherwise generated from description)
 
-**Last Plan Tracking**: 
-- Always updates `/tasks/last-plan.json` with the newly created plan name
+**Last Plan Tracking**:
+
+- Always updates `/planning/tasks/last-plan.json` with the newly created plan name
 - This makes the new plan the default for subsequent plan commands
 
 ## Output
 
 Creates the following structure:
+
 ```
-/tasks/[plan-name]/
+/planning/tasks/[plan-name]/
 ├── README.md          # Quick project overview
 ├── PLAN.md           # Detailed high-level plan
 └── .plan-metadata    # Plan creation metadata
 ```
 
 Returns:
+
 - Plan name and location
 - Summary of phases created
 - Next recommended command
@@ -182,7 +204,7 @@ Returns:
 The command automatically selects appropriate phase templates based on project type:
 
 - **Web Application**: Planning → Frontend → Backend → Integration → Testing → Deployment
-- **API Service**: Design → Core API → Data Layer → Testing → Documentation → Deployment  
+- **API Service**: Design → Core API → Data Layer → Testing → Documentation → Deployment
 - **Data Pipeline**: Requirements → Data Sources → Processing → Storage → Monitoring → Deployment
 - **Mobile App**: Design → Core Features → Platform Integration → Testing → Release
 - **Migration Project**: Analysis → Preparation → Migration → Validation → Cutover

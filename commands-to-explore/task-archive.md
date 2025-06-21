@@ -7,32 +7,38 @@ Arguments: $ARGUMENTS
 ## Instructions
 
 1. **Parse archive arguments**:
+
    - Project name to archive entire project, OR
    - Project/subtask path to archive single subtask, OR
    - `--all-completed` flag to archive all completed items
 
 2. **Validate before archiving**:
+
    - For projects: verify all subtasks are completed
    - For subtasks: verify subtask is completed
    - For bulk operations: show preview and ask for confirmation
    - Warn if trying to archive active items
 
 3. **Create archive structure**:
+
    ```
-   /tasks/archive/YYYY-MM/{project-name}/
-   /tasks/archive/YYYY-MM/{project-name}/README.md
-   /tasks/archive/YYYY-MM/{project-name}/001-subtask.md
+   /planning/tasks/archive/YYYY-MM/{project-name}/
+   /planning/tasks/archive/YYYY-MM/{project-name}/README.md
+   /planning/tasks/archive/YYYY-MM/{project-name}/001-subtask.md
    ```
+
    - Use completion date for YYYY-MM
    - Preserve project structure in archive
 
 4. **Archive process**:
+
    - For projects: Move entire project directory to archive
    - For subtasks: Move individual .md file to archive project dir
-   - Update global /tasks/plan.md to mark project as archived
+   - Update global /planning/tasks/plan.md to mark project as archived
    - Remove from TodoWrite if present
 
-5. **Create archive summary** in `/tasks/archive/YYYY-MM/summary.md`:
+5. **Create archive summary** in `/planning/tasks/archive/YYYY-MM/summary.md`:
+
    ```markdown
    # Archive Summary - YYYY-MM
 
@@ -55,21 +61,23 @@ Arguments: $ARGUMENTS
    ```
 
 6. **Display confirmation**:
+
    ```
    ✓ Archived successfully:
 
    Project: {project-name}
-   Moved to: /tasks/archive/YYYY-MM/{project-name}/
+   Moved to: /planning/tasks/archive/YYYY-MM/{project-name}/
 
    Archive summary:
    - Total archived this session: X projects
    - Active projects remaining: Y
 
-   To view archived project: ls /tasks/archive/YYYY-MM/{project-name}/
-   To restore: mv /tasks/archive/YYYY-MM/{project-name} /tasks/
+   To view archived project: ls /planning/tasks/archive/YYYY-MM/{project-name}/
+   To restore: mv /planning/tasks/archive/YYYY-MM/{project-name} /planning/tasks/
    ```
 
 7. **Bulk archive preview**:
+
    ```
    Projects to be archived:
 
@@ -87,12 +95,14 @@ Arguments: $ARGUMENTS
 ## Archive Strategies
 
 1. **Archive completed project**:
+
    ```bash
    # Archive entire project when all subtasks complete
    /task-archive "auth-system"
    ```
 
 2. **Archive single subtask**:
+
    ```bash
    # Archive individual completed subtask
    /task-archive "auth-system/003-oauth-integration"
@@ -118,4 +128,4 @@ Arguments: $ARGUMENTS
 After archiving, projects can still be found with:
 
 - `/task-search "term"` (searches archived items too)
-- Browse archive: `ls /tasks/archive/`
+- Browse archive: `ls /planning/tasks/archive/`

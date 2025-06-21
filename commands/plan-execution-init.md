@@ -2,19 +2,20 @@ Initialize plan execution tracking for the specified plan: $ARGUMENTS
 
 ## Purpose
 
-This command reads existing plan files in `/tasks/[plan-name]/` and creates a comprehensive `plan-tracker.json` file to track progress on phases, tasks, subtasks, and acceptance criteria validation.
+This command reads existing plan files in `/planning/tasks/[plan-name]/` and creates a comprehensive `plan-tracker.json` file to track progress on phases, tasks, subtasks, and acceptance criteria validation.
 
 ## Process
 
 1. **Plan Name Resolution**:
-   - If plan name provided in $ARGUMENTS, use it and update `/tasks/last-plan.json`
-   - If no plan name provided, read from `/tasks/last-plan.json` for the last referenced plan
+
+   - If plan name provided in $ARGUMENTS, use it and update `/planning/tasks/last-plan.json`
+   - If no plan name provided, read from `/planning/tasks/last-plan.json` for the last referenced plan
    - If neither exists, check for plan files in current directory
-   - Update `/tasks/last-plan.json` with resolved plan name
+   - Update `/planning/tasks/last-plan.json` with resolved plan name
 
 2. **Plan Discovery**:
 
-   - Read all plan files in `/tasks/[plan-name]/` directory
+   - Read all plan files in `/planning/tasks/[plan-name]/` directory
    - Parse README.md, PLAN.md, and \*-PLAN.md files
    - Extract phases, tasks, subtasks, and acceptance criteria
    - Identify dependencies and prerequisites
@@ -43,7 +44,7 @@ This command reads existing plan files in `/tasks/[plan-name]/` and creates a co
   "overall_status": "pending|in_progress|completed|blocked",
   "completion_percentage": 0,
   "metadata": {
-    "plan_directory": "/tasks/[plan-name]/",
+    "plan_directory": "/planning/tasks/[plan-name]/",
     "plan_context_source_files": ["PLAN.md", "README.md"], // not actual phase files
     "total_phases": 0,
     "total_tasks": 0,
@@ -139,11 +140,11 @@ This command reads existing plan files in `/tasks/[plan-name]/` and creates a co
 
 1. **Plan Name Resolution & Last Plan Tracking**:
 
-   - If plan name provided in $ARGUMENTS → Use it and update `/tasks/last-plan.json`
-   - If no plan name provided → Read plan_name from `/tasks/last-plan.json`
+   - If plan name provided in $ARGUMENTS → Use it and update `/planning/tasks/last-plan.json`
+   - If no plan name provided → Read plan_name from `/planning/tasks/last-plan.json`
    - If last-plan.json doesn't exist → Check current directory for plan files
-   - Update `/tasks/last-plan.json` with resolved plan name for future commands
-   - Verify `/tasks/[plan-name]/` directory exists
+   - Update `/planning/tasks/last-plan.json` with resolved plan name for future commands
+   - Verify `/planning/tasks/[plan-name]/` directory exists
 
 2. **Validate Input**:
 
@@ -173,10 +174,10 @@ This command reads existing plan files in `/tasks/[plan-name]/` and creates a co
 ## Usage Examples
 
 ```bash
-# Initialize tracking for a specific plan (updates /tasks/last-plan.json)
+# Initialize tracking for a specific plan (updates /planning/tasks/last-plan.json)
 /plan-execution-init "web-app-redesign"
 
-# Initialize using last referenced plan (reads from /tasks/last-plan.json)
+# Initialize using last referenced plan (reads from /planning/tasks/last-plan.json)
 /plan-execution-init
 
 # Example workflow showing last-plan tracking:
@@ -188,11 +189,12 @@ This command reads existing plan files in `/tasks/[plan-name]/` and creates a co
 ## Arguments
 
 **Plan Name**: $ARGUMENTS (optional)
-- If no plan name provided, uses the last referenced plan from `/tasks/last-plan.json`
-- If last-plan.json doesn't exist, checks for plan files in current directory
-- Updates `/tasks/last-plan.json` with the resolved plan name for future commands
 
-The plan name should match a directory under `/tasks/`.
+- If no plan name provided, uses the last referenced plan from `/planning/tasks/last-plan.json`
+- If last-plan.json doesn't exist, checks for plan files in current directory
+- Updates `/planning/tasks/last-plan.json` with the resolved plan name for future commands
+
+The plan name should match a directory under `/planning/tasks/`.
 
 ## Output
 

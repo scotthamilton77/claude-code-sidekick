@@ -10,6 +10,7 @@ Arguments: $ARGUMENTS
 ## Instructions
 
 1. **Parse the arguments**:
+
    - Path (required, first argument)
      - Project: "project-name"
      - Subtask: "project-name/001-subtask-name"
@@ -17,19 +18,21 @@ Arguments: $ARGUMENTS
    - Priority flag (optional, for subtasks)
 
 2. **Validate inputs**:
+
    - Parse path to determine type (project/subtask)
    - Check item exists in appropriate location:
-     - Project: `/tasks/{project-name}/README.md`
-     - Subtask: `/tasks/{project-name}/{index}-{subtask-name}.md`
+     - Project: `/planning/tasks/{project-name}/README.md`
+     - Subtask: `/planning/tasks/{project-name}/{index}-{subtask-name}.md`
    - Validate status based on type:
      - Projects: planning, in-progress, completed
      - Subtasks: pending, in-progress, completed
    - If item doesn't exist, suggest using /task-create
 
 3. **Update the appropriate markdown file**:
+
    - Read the correct markdown file:
-     - Project: `/tasks/{project-name}/README.md`
-     - Subtask: `/tasks/{project-name}/{index}-{subtask-name}.md`
+     - Project: `/planning/tasks/{project-name}/README.md`
+     - Subtask: `/planning/tasks/{project-name}/{index}-{subtask-name}.md`
    - Update the header section with new values:
      - Status
      - Updated timestamp
@@ -37,6 +40,7 @@ Arguments: $ARGUMENTS
      - Add completion date if status is "completed"
 
 4. **For Projects** - Update README.md:
+
    ```markdown
    # Project: {Human Readable Title}
 
@@ -47,6 +51,7 @@ Arguments: $ARGUMENTS
    ```
 
    Also update the Tasks list to reflect subtask status changes:
+
    ```markdown
    ## Tasks
 
@@ -56,6 +61,7 @@ Arguments: $ARGUMENTS
    ```
 
 5. **For Subtasks** - Update the subtask file:
+
    ```markdown
    # {index}: {Human Readable Title}
 
@@ -67,9 +73,11 @@ Arguments: $ARGUMENTS
    ```
 
 6. **Calculate project progress**:
+
    - Count total subtasks in project
    - Count completed subtasks
    - Update Progress section in project README.md:
+
      ```markdown
      ## Progress
 
@@ -79,6 +87,7 @@ Arguments: $ARGUMENTS
      ```
 
 7. **Sync with TodoWrite** (if applicable):
+
    - If status = "pending" or "in-progress":
      - Ensure item is in todo list
      - Update todo status to "in_progress" if subtask status is "in-progress"
@@ -87,6 +96,7 @@ Arguments: $ARGUMENTS
 
 8. **Add progress log entry**:
    Append to the Notes section of the file:
+
    ```markdown
    ## Notes
 
@@ -99,6 +109,7 @@ Arguments: $ARGUMENTS
 9. **Provide status summary**:
 
    **For Projects**:
+
    ```
    ✓ Updated project: {project-name}
 
@@ -111,6 +122,7 @@ Arguments: $ARGUMENTS
    ```
 
    **For Subtasks**:
+
    ```
    ✓ Updated subtask: {index}-{subtask-name}
 
@@ -127,4 +139,4 @@ Arguments: $ARGUMENTS
 - **Completed items**: Add completion timestamp
 - **Status regression**: Warn if moving from completed back to pending/in-progress
 - **Auto-completion**: If all subtasks completed, suggest completing the project
-- **Global plan update**: When updating projects, also check if `/tasks/plan.md` needs updating
+- **Global plan update**: When updating projects, also check if `/planning/tasks/plan.md` needs updating

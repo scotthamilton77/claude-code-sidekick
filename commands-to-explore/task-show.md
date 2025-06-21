@@ -10,16 +10,19 @@ Arguments: $ARGUMENTS
 ## Instructions
 
 1. **Parse the path** from arguments:
+
    - Extract and validate the path
    - Determine if showing project or subtask
    - Convert to lowercase, hyphenated format if needed
 
 2. **Check existence**:
-   - For projects: Look for `/tasks/{project-name}/README.md`
-   - For subtasks: Look for `/tasks/{project-name}/{index}-{subtask}.md`
+
+   - For projects: Look for `/planning/tasks/{project-name}/README.md`
+   - For subtasks: Look for `/planning/tasks/{project-name}/{index}-{subtask}.md`
    - If not found, suggest alternatives
 
 3. **Display Project Overview** (if showing project):
+
    ```
    ════════════════════════════════════════════════════════════════
    PROJECT: {Project Name}
@@ -50,6 +53,7 @@ Arguments: $ARGUMENTS
    ```
 
 4. **Display Subtask Details** (if showing subtask):
+
    ```
    ════════════════════════════════════════════════════════════════
    SUBTASK: 001 - {Subtask Title}
@@ -77,6 +81,7 @@ Arguments: $ARGUMENTS
    ```
 
 5. **Show related information**:
+
    - For projects: List all subtasks with status summary
    - For subtasks: Show sibling subtasks and project context
    - Calculate days since creation/update

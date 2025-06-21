@@ -1,6 +1,6 @@
 # Hierarchical Task Management System
 
-A comprehensive three-tier task management system with persistent hierarchical storage in the `/tasks` directory. The system organizes work into **Plans** (large scale) → **Tasks** (medium scale) → **Subtasks** (small scale), with all items stored as markdown files and metadata tracked in JSON indices.
+A comprehensive three-tier task management system with persistent hierarchical storage in the `/planning/tasks` directory. The system organizes work into **Plans** (large scale) → **Tasks** (medium scale) → **Subtasks** (small scale), with all items stored as markdown files and metadata tracked in JSON indices.
 
 ## Three-Tier Hierarchy
 
@@ -83,23 +83,27 @@ Moves completed items to archive folders with hierarchical organization.
 ## Quick Start - Hierarchical Workflow
 
 1. **Create a plan for your project**:
+
    ```bash
    /task-create plan "voice-assistant-migration" --priority=high --tags=project,migration
    ```
 
 2. **Break down into major tasks**:
+
    ```bash
    /task-create task "voice-assistant-migration/setup-infrastructure" --priority=high --tags=setup
    /task-create task "voice-assistant-migration/build-features" --priority=medium --tags=features
    ```
 
 3. **Create actionable subtasks**:
+
    ```bash
    /task-create subtask "voice-assistant-migration/setup-infrastructure/setup-monorepo" --priority=high
    /task-create subtask "voice-assistant-migration/setup-infrastructure/configure-deployment" --priority=medium
    ```
 
 4. **Work on subtasks and track progress**:
+
    ```bash
    /task-update "voice-assistant-migration/setup-infrastructure/setup-monorepo" --status=in-progress
    /task-log "voice-assistant-migration/setup-infrastructure/setup-monorepo" "Created monorepo structure"
@@ -107,6 +111,7 @@ Moves completed items to archive folders with hierarchical organization.
    ```
 
 5. **View hierarchical progress**:
+
    ```bash
    /task-list --plan="voice-assistant-migration"  # See overall plan progress
    /task-list --task="voice-assistant-migration/setup-infrastructure"  # See task progress
@@ -121,7 +126,7 @@ Moves completed items to archive folders with hierarchical organization.
 ## Hierarchical File Structure
 
 ```
-/tasks/
+/planning/tasks/
 ├── status.json                           # Global plan index
 ├── voice-assistant-migration/            # Plan directory
 │   ├── plan.md                          # Plan overview
@@ -146,7 +151,7 @@ Moves completed items to archive folders with hierarchical organization.
 
 ## File Formats by Level
 
-### Plan Format (`/tasks/[plan-name]/plan.md`)
+### Plan Format (`/planning/tasks/[plan-name]/plan.md`)
 
 ```markdown
 # Plan: [Human Readable Title]
@@ -183,7 +188,7 @@ External dependencies, timeline requirements
 - Plan-level milestone entries
 ```
 
-### Task Format (`/tasks/[plan]/[task]/task.md`)
+### Task Format (`/planning/tasks/[plan]/[task]/task.md`)
 
 ```markdown
 # Task: [Human Readable Title]
@@ -214,7 +219,7 @@ Prerequisites from other tasks
 - Task-level progress entries
 ```
 
-### Subtask Format (`/tasks/[plan]/[task]/[subtask].md`)
+### Subtask Format (`/planning/tasks/[plan]/[task]/[subtask].md`)
 
 ```markdown
 # Subtask: [Human Readable Title]
@@ -245,7 +250,7 @@ Specific, actionable work item description
 
 ## Hierarchical Status Indices
 
-### Global Status (`/tasks/status.json`)
+### Global Status (`/planning/tasks/status.json`)
 
 Tracks all plans and high-level statistics:
 
@@ -276,7 +281,7 @@ Tracks all plans and high-level statistics:
 }
 ```
 
-### Plan Status (`/tasks/[plan-name]/status.json`)
+### Plan Status (`/planning/tasks/[plan-name]/status.json`)
 
 Tracks tasks and subtasks within a plan:
 
@@ -323,20 +328,24 @@ Progress flows upward: completing subtasks updates task progress, which updates 
 ## Best Practices
 
 1. **Hierarchical Naming**: Use descriptive, hyphenated names at each level
+
    - Plans: "voice-assistant-migration", "api-redesign-project"
    - Tasks: "setup-infrastructure", "build-core-features"
    - Subtasks: "setup-monorepo", "implement-authentication"
 
 2. **Granularity**: Follow the three-tier structure
+
    - Plans: 2-6 months of work, strategic scope
    - Tasks: 1-4 weeks of work, feature/component scope
    - Subtasks: 1-3 days of work, specific actionable items
 
 3. **Progress Tracking**: Update at the appropriate level
+
    - Subtask updates flow up to tasks and plans automatically
    - Use `/task-log` for detailed progress at each level
 
 4. **Organization**: Use consistent tagging and dependencies
+
    - Tag by domain: backend, frontend, infrastructure
    - Mark dependencies between items clearly
 
@@ -386,7 +395,7 @@ Progress flows upward: completing subtasks updates task progress, which updates 
 
 ```bash
 # Agent A works on infrastructure
-/task-list --task="api-redesign/implementation" 
+/task-list --task="api-redesign/implementation"
 /task-update "api-redesign/implementation/auth-system" --status=in-progress
 
 # Agent B works on features in parallel

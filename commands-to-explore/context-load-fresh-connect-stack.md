@@ -24,7 +24,7 @@ Please load and analyze the complete context of this Fresh + ConnectRPC full-sta
 
 - `/frontend/` - Deno Fresh application with Islands and routes
 - `/backend/` - Go ConnectRPC service with middleware
-- `/tasks/` - Deno task automation for unified development workflow
+- `/planning/tasks/` - Deno task automation for unified development workflow
 - Root `deno.json` as central orchestration harness
 
 ### Development Workflow
@@ -106,8 +106,14 @@ export async function handler(req: Request, _ctx: FreshContext) {
   // Clone response with CORS headers
   const corsHeaders = new Headers(response.headers);
   corsHeaders.set("Access-Control-Allow-Origin", "*");
-  corsHeaders.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  corsHeaders.set("Access-Control-Allow-Headers", "Content-Type, Connect-Protocol-Version");
+  corsHeaders.set(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, DELETE, OPTIONS"
+  );
+  corsHeaders.set(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Connect-Protocol-Version"
+  );
 
   return new Response(response.body, {
     status: response.status,
@@ -157,7 +163,7 @@ export function GreeterApp() {
       <input
         type="text"
         value={name.value}
-        onInput={(e) => name.value = e.currentTarget.value}
+        onInput={(e) => (name.value = e.currentTarget.value)}
         placeholder="Enter your name"
       />
       <button type="submit" disabled={loading.value}>

@@ -12,18 +12,21 @@ Arguments: $ARGUMENTS
 ## Instructions
 
 1. **Parse filter arguments**:
+
    - Project filter (optional, shows subtasks within project)
    - Status filter (default: "active" = pending, in-progress)
    - Priority filter (optional)
    - Sort order (default: by index number)
 
 2. **Load data from new structure**:
-   - Read `/tasks/plan.md` for overall plan view
-   - List directories in `/tasks/` to find projects
-   - For each project, read `/tasks/{project}/README.md` for overview
-   - List `/tasks/{project}/*.md` files (excluding README.md) for subtasks
+
+   - Read `/planning/tasks/plan.md` for overall plan view
+   - List directories in `/planning/tasks/` to find projects
+   - For each project, read `/planning/tasks/{project}/README.md` for overview
+   - List `/planning/tasks/{project}/*.md` files (excluding README.md) for subtasks
 
 3. **Apply filters**:
+
    - Status filtering:
      - "active": pending, in-progress
      - "completed": completed only
@@ -34,6 +37,7 @@ Arguments: $ARGUMENTS
 4. **Display formatted output**:
 
    **All Projects View** (default):
+
    ```
    Projects and Subtasks
 
@@ -50,6 +54,7 @@ Arguments: $ARGUMENTS
    ```
 
    **Project-Specific View** (`--project=agentic-workflow-cli`):
+
    ```
    Project: agentic-workflow-cli
    Status: planning
@@ -66,6 +71,7 @@ Arguments: $ARGUMENTS
    ```
 
 5. **Show summary statistics**:
+
    ```
    Summary:
    - Total projects: 2

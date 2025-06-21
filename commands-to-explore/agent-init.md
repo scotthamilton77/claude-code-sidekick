@@ -25,6 +25,7 @@ Initialize an agent identity for the current Claude session and load assigned ta
 ## Initialization Process
 
 1. **Set Agent Identity**:
+
    ```bash
    # Create agent identity file
    echo "agent-a" > .claude-agent
@@ -35,8 +36,9 @@ Initialize an agent identity for the current Claude session and load assigned ta
    ```
 
 2. **Load Agent Configuration**:
+
    ```json
-   // From /tasks/[project]/agents/agent-a.json
+   // From /planning/tasks/[project]/agents/agent-a.json
    {
      "agentId": "agent-a",
      "name": "claude-foundation",
@@ -51,6 +53,7 @@ Initialize an agent identity for the current Claude session and load assigned ta
    ```
 
 3. **Verify Worktree Context**:
+
    ```bash
    # Confirm in correct worktree
    CURRENT_WORKTREE=$(git rev-parse --show-toplevel)
@@ -64,9 +67,10 @@ Initialize an agent identity for the current Claude session and load assigned ta
    ```
 
 4. **Load Assigned Tasks**:
+
    ```bash
    # Automatically populate TodoWrite with assigned tasks
-   TASKS=$(jq -r '.assignedTasks[]' /tasks/project/agents/agent-a.json)
+   TASKS=$(jq -r '.assignedTasks[]' /planning/tasks/project/agents/agent-a.json)
 
    # Convert to TodoWrite format and load
    for TASK in $TASKS; do
@@ -92,7 +96,7 @@ Initialize an agent identity for the current Claude session and load assigned ta
       Priority: high
       Can start: immediately
 
-   2. setup-foundation/dependency-setup  
+   2. setup-foundation/dependency-setup
       Status: pending
       Priority: high
       Can start: immediately
@@ -123,9 +127,9 @@ Initialize an agent identity for the current Claude session and load assigned ta
 
 # Output:
 # Checking dependencies for agent-c...
-# 
+#
 # ⚠️  Warning: Your tasks have unmet dependencies
-# 
+#
 # testing-suite/unit-tests depends on:
 # - setup-foundation/* (agent-a) - 50% complete
 # - core-features/* (agent-b) - 30% complete

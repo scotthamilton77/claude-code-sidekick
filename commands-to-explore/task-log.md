@@ -7,32 +7,40 @@ Arguments: $ARGUMENTS
 ## Instructions
 
 1. **Parse arguments**:
+
    - Path to subtask (required, first argument in format "project/index-subtask")
    - Log message (required, remaining arguments)
    - If only path provided, prompt for message
 
 2. **Validate subtask exists**:
-   - Check `/tasks/{project-name}/{index}-{subtask}.md` exists
+
+   - Check `/planning/tasks/{project-name}/{index}-{subtask}.md` exists
    - If not found, suggest similar subtasks or /task-create
 
 3. **Read current subtask file**:
+
    - Load the markdown file
    - Locate the "Notes" section
 
 4. **Add new log entry**:
+
    - Append to the "## Notes" section
    - Format:
+
    ```markdown
    ### [ISO datetime with timezone]
 
    - [Log message]
    ```
+
    - Preserve existing entries (prepend new ones)
 
 5. **Update metadata**:
+
    - In the markdown header, update the "Updated" date to current timestamp
 
 6. **Smart suggestions based on content**:
+
    - If message contains "completed", "done", "finished":
      - Suggest: "Update status to completed? /task-update '{project}/{subtask}' --status=completed"
    - If message contains "blocked", "waiting", "stuck":
@@ -41,10 +49,12 @@ Arguments: $ARGUMENTS
      - Suggest: "Great progress! Update status with /task-update if needed"
 
 7. **Special log entry types** (auto-detect from message):
+
    - **Milestone**: If message starts with "Milestone:" or contains percentage
    - **Blocker**: If message contains "blocked by" or "waiting for"
    - **Decision**: If message starts with "Decided:" or "Decision:"
    - Format these specially:
+
    ```markdown
    ### 2025-01-07T14:30:00Z
 
@@ -60,8 +70,10 @@ Arguments: $ARGUMENTS
    ```
 
 8. **Batch logging** (if multiple updates):
+
    - Support multiline messages
    - Format as bullet points under single timestamp:
+
    ```markdown
    ### 2025-01-07T14:30:00Z
 
@@ -71,6 +83,7 @@ Arguments: $ARGUMENTS
    ```
 
 9. **Provide confirmation**:
+
    ```
    ✓ Added progress log to: {project}/{subtask}
 
