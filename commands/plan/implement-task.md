@@ -1,8 +1,30 @@
-Execute the next pending task from plan-tracker.json with automated code review: $ARGUMENTS
+Execute the next ready task from plan-tracker.json with automated code review: $ARGUMENTS
 
 ## Purpose
 
-This command reads `plan-tracker.json`, identifies the next task to execute, creates a working context, spawns implementation and review agents, and manages the review cycle to produce quality code ready for human review or PR.
+This command finds and executes tasks with "ready" status, spawns implementation and review agents, and manages the review cycle to produce quality code ready for human review or PR. Task preparation must be completed first using `/prepare-next-task`.
+
+## Entry Criteria
+
+- Valid plan-tracker.json exists (either specified by name, in last-plan.json, or current directory)
+- At least one task with status "ready" exists
+- Corresponding scratch directory with context files exists:
+  - initial-context-summary.md 
+  - architect-review-[timestamp].json
+
+## Exit Criteria
+
+**Success** (task marked as "completed"):
+- Implementation completed successfully
+- All review cycles passed (up to 3 iterations)
+- No blocking issues remaining
+- All linting and tests pass
+- Task status updated to "completed"
+
+**Needs Human Review** (task marked as "needs-human-review"):
+- Review cycles exhausted (3 iterations) with unresolved disputes
+- Blocking architectural or technical issues identified
+- Comprehensive audit trail preserved in review-audit/ directory
 
 ## Process Overview
 
@@ -13,43 +35,17 @@ This command reads `plan-tracker.json`, identifies the next task to execute, cre
    - If neither exists, check for plan-tracker.json in current directory
    - Update `/planning/tasks/last-plan.json` with resolved plan name
 
-2. **Architecture Documentation Check**:
-
-   - Check if `/planning/architecture.md` and `/planning/standards.md` exist
-   - If architecture files are missing:
-     - Ask user if they want to continue without architecture documentation
-     - Recommend running `/plan-architecture` first for better context
-     - If user chooses to continue, note the missing architecture in context
-
-3. **Task Selection**:
+2. **Ready Task Selection**:
 
    - Read plan-tracker.json from `/planning/tasks/[plan-name]/`
-   - Find next pending task respecting dependencies
-   - Check prerequisites are met
+   - **Find task with status "ready"**: Must have been prepared by `/prepare-next-task`
+   - **Validate preparation**: Ensure scratch directory exists with required context files:
+     - initial-context-summary.md (implementation context)
+     - architect-review-[timestamp].json (pre-implementation architectural review)
+   - **Exit if no ready tasks**: Guide user to run `/prepare-next-task` first
    - Update task status to "in_progress"
 
-4. **Context Preparation**:
-
-   - Create scratchpad directory structure
-   - Generate initial-context-summary.md with architecture file references
-   - Gather relevant plan documents and dependencies
-   - Include architecture documentation in context when available
-   - Create curated context for agents
-
-5. **Architect Review Phase**:
-
-   - Spawn architect subagent to review current state and next task
-   - Architect analyzes:
-     - Completed tasks and their architectural implications
-     - Current system state and existing code patterns
-     - Next task requirements in architectural context
-     - Integration points and potential conflicts
-     - Required updates to architecture artifacts
-   - Generate architect-review-[timestamp].json with insights
-   - Update initial-context-summary.md with architectural context
-   - Flag any architectural concerns or recommendations
-
-6. **Implementation Cycle**:
+3. **Implementation Cycle**:
 
    - Spawn implementation subagent with context
    - Subagent reads context and architecture files entirely to understand system context
@@ -57,7 +53,7 @@ This command reads `plan-tracker.json`, identifies the next task to execute, cre
    - If architecture-level questions arise, spawn architect subagent for clarification
    - Update status to "ready-for-review"
 
-7. **Review Cycle** (up to 3 iterations):
+4. **Review Cycle** (up to 3 iterations):
 
    - Spawn review subagent to critique implementation
    - Generate code-review.md (detailed feedback) and code-review-tracker.json (structured findings)
@@ -69,7 +65,7 @@ This command reads `plan-tracker.json`, identifies the next task to execute, cre
    - If iteration = 3 AND disputes remain: set status to "needs-human-review" and stop
    - Complete audit trail preserved in review-audit/ directory
 
-8. **Completion**:
+5. **Completion**:
    - Update task status to "completed" or "needs-human-review"
    - Log execution details
    - Prepare for next task or PR creation
@@ -233,123 +229,37 @@ Review Verification → Still Disputed → STOP (needs-human-review)
 - After iteration 3, unresolved disputes escalate to human review
 - Prevents agent cycles that don't converge on solutions
 
-### 1. Task Selection Algorithm
+### 1. Ready Task Selection Algorithm
 
 ```javascript
-// Pseudo-code for task selection
-function selectNextTask(tracker) {
+// Pseudo-code for ready task selection
+function selectReadyTask(tracker) {
   for (phase of tracker.phases) {
     if (phase.status === "completed") continue;
 
-    // Check phase dependencies
-    if (!areDependenciesMet(phase.dependencies)) continue;
-
     for (task of phase.tasks) {
-      if (task.status === "pending") {
-        // Check task dependencies
-        if (areDependenciesMet(task.dependencies)) {
+      if (task.status === "ready") {
+        // Validate scratch directory exists
+        const scratchPath = `/planning/tasks/${planName}/scratch/phase-${phase.id}/task-${task.id}/`;
+        if (validateScratchDirectory(scratchPath)) {
           return { phase, task };
+        } else {
+          // Context missing - task needs re-preparation
+          console.warn(`Task ${task.id} marked ready but missing context. Run /prepare-next-task first.`);
         }
       }
     }
   }
-  return null; // All tasks complete or blocked
+  return null; // No ready tasks found
+}
+
+function validateScratchDirectory(scratchPath) {
+  return fileExists(scratchPath + "initial-context-summary.md") &&
+         fileExists(scratchPath + "architect-review-*.json");
 }
 ```
 
-### 2. Initial Context Summary Template
-
-```markdown
-# Task Implementation Context
-
-## Task Information
-
-- **Phase**: [Phase Name] (ID: [phase_id])
-- **Task**: [Task Name] (ID: [task_id])
-- **Priority**: [priority]
-- **Status**: initialized
-
-## Task Description
-
-[Full task description from plan]
-
-## Acceptance Criteria
-
-1. [Criterion 1]
-2. [Criterion 2]
-   ...
-
-## Dependencies
-
-- [List of completed dependencies]
-- [External requirements]
-
-## Relevant Context
-
-### From plan_context_source_files (e.g. plan's README.md, PLAN.md, \*-PLAN.md)
-
-- [List and link to these files]
-
-[Relevant sections]
-
-### From Architecture Documentation
-
-**CRITICAL**: Read these architecture files entirely before beginning implementation to understand the system context:
-
-- `/planning/architecture.md` - System architecture, component design, data flow
-- `/planning/standards.md` - Development standards, coding guidelines, quality requirements
-
-**Architecture Status**: [Available/Missing - if missing, note that architecture context is limited]
-
-### Architectural Context
-
-**Pre-Implementation Architect Review**: [Reference to architect-review-[timestamp].json]
-
-**Key Architectural Insights**:
-- [Architectural constraints that must be followed]
-- [Recommended patterns and approaches for this task]
-- [Integration points and reusable components]
-- [Specific risks to be aware of during implementation]
-
-**Architecture Artifact Updates Required**:
-- [Updates needed to architecture.md]
-- [Updates needed to standards.md]
-- [New documentation to be created]
-
-**Implementation Guidance**:
-- [Specific architectural patterns to use]
-- [Anti-patterns to avoid]
-- [Integration approach recommendations]
-- [Validation requirements for architectural compliance]
-
-### From Phase Documentation
-
-[Phase-specific context]
-
-### Related Completed Tasks
-
-[Summary of related completed work]
-
-## Technical Requirements
-
-- [Specific technical details]
-- [Frameworks/libraries to use]
-- [Constraints or limitations]
-
-## Deliverables
-
-- [Expected outputs]
-- [Files to create/modify]
-
-## Implementation Guidelines
-
-- Follow existing code patterns in the project
-- Ensure all tests pass
-- Update documentation as needed
-- Consider edge cases and error handling
-```
-
-### 3. Implementation Agent Prompt
+### 2. Implementation Agent Prompt
 
 ````
 You are tasked with implementing a specific task as part of a larger plan execution.
@@ -448,7 +358,7 @@ Please record your answers in the scratch file:
 Focus on delivering a complete, working solution that meets all requirements.
 ````
 
-### 4. Architect Review Agent Prompt
+### 3. Architect Review Agent Prompt
 
 ````
 You are the architect subagent responsible for reviewing the current system state and providing architectural context before task implementation.
@@ -548,7 +458,7 @@ Create `/planning/tasks/[plan-name]/scratch/phase-[##]/task-[##]/architect-revie
 Your analysis ensures the implementation agent has comprehensive architectural context before beginning work, reducing the need for mid-implementation architectural questions and ensuring consistency with overall system design.
 ````
 
-### 5. Review Agent Prompt
+### 4. Review Agent Prompt
 
 ```
 You are a code reviewer tasked with reviewing an implementation for quality and completeness.
@@ -623,7 +533,7 @@ You are a code reviewer tasked with reviewing an implementation for quality and 
 Be constructive but thorough. Provide specific, actionable feedback.
 ```
 
-### 6. Review Response Instructions
+### 5. Review Response Instructions
 
 ````markdown
 Review feedback has been provided in code-review.md and code-review-tracker.json.
@@ -673,7 +583,7 @@ Review feedback has been provided in code-review.md and code-review-tracker.json
 When complete, ensure code-review-tracker.json shows all findings have been addressed (either fixed or rejected with rationale).
 ````
 
-### 7. Review Verification Instructions
+### 6. Review Verification Instructions
 
 ```
 
@@ -727,22 +637,23 @@ pending → in_progress → initialized → implementing → ready-for-review �
 ## Usage Examples
 
 ```bash
-# Continue with next task in last referenced plan (reads from /planning/tasks/last-plan.json)
-/plan-execute-continue
+# Execute ready task in last referenced plan (reads from /planning/tasks/last-plan.json)
+/implement-task
 
-# Continue specific plan (updates /planning/tasks/last-plan.json)
-/plan-execute-continue "web-app-redesign"
+# Execute ready task in specific plan (updates /planning/tasks/last-plan.json)
+/implement-task "web-app-redesign"
 
-# Skip to specific phase/task
-/plan-execute-continue "mobile-app --phase 2 --task 3"
+# Force re-execution of current task (if task is ready)
+/implement-task "--retry-current"
 
-# Force re-execution of current task
-/plan-execute-continue "--retry-current"
+# Example workflow showing task preparation and implementation:
+/prepare-next-task                    # Prepares next pending task, marks as "ready"
+/implement-task                      # Executes the ready task
+/prepare-next-task                   # Prepares the next task
+/implement-task                      # Executes the next ready task
 
-# Example workflow showing last-plan tracking:
-/plan-execute-continue "web-app-redesign"  # Updates last-plan.json
-/plan-execute-continue                     # Uses "web-app-redesign" from last-plan.json
-/plan-status                              # Also uses "web-app-redesign"
+# If no ready tasks available:
+/implement-task                      # Will guide user to run /prepare-next-task first
 ```
 
 ## Arguments
@@ -776,21 +687,48 @@ pending → in_progress → initialized → implementing → ready-for-review �
 
 ## Error Handling
 
-- **No pending tasks**: Report completion or blocked tasks
-- **Dependency not met**: List blocking dependencies
+**Task Selection Errors**:
+- **No ready tasks**: Guide user to run `/prepare-next-task` first to prepare pending tasks
+- **Ready task missing context**: Task marked "ready" but scratch directory incomplete - needs re-preparation
+- **Invalid plan structure**: Report specific structural issues with plan-tracker.json
+
+**Implementation Errors**:
+- **Context validation failure**: Required files missing from scratch directory
+- **Implementation agent failure**: Log detailed error, attempt retry once with enhanced context
+- **Architecture agent failure**: During mid-implementation Q&A, fall back to existing context
+
+**Review Cycle Errors**:
 - **Review cycle exhausted (3 iterations)**: Mark task as "needs-human-review" with complete audit trail
 - **Disputed findings remain after iteration 3**: Stop processing, escalate to human with dispute summary
 - **Blocker issues unresolved after 3 iterations**: Cannot proceed without human resolution
-- **Agent failure**: Retry with enhanced context
-- **Invalid plan structure**: Provide diagnostic information
+- **Review agent failure**: Attempt retry once, then escalate to human review
+
+**Recovery Actions**:
+- **Implementation failure**: Reset task status to "ready" to allow retry
+- **Context corruption**: Guide user to re-run `/prepare-next-task` to rebuild context
+- **Partial implementation**: Preserve work in implementation-notes.md before status rollback
 
 ## Next Steps
 
-After task completion:
-
-- Run again for next task: `/plan-execute-continue`
+**After successful implementation** (task marked as "completed"):
+- Prepare next task: `/prepare-next-task` (finds next pending task and prepares it)
+- Execute prepared task: `/implement-task` (executes the newly prepared task)
 - Create PR if phase complete: `/pr`
-- Review execution logs and audit trail in scratch directory:
+
+**After needs-human-review**:
+- Review audit trail in scratch directory:
   - `review-audit/` contains full history of review cycles
   - Current state in `code-review.md` and `code-review-tracker.json`
-- Manual intervention if needed for blocked tasks or disputed findings
+- Resolve disputes manually or accept current implementation
+- Update task status to "completed" when ready to proceed
+
+**When no ready tasks available**:
+- Prepare next task: `/prepare-next-task`
+- Check plan status: `/status` to see overall progress
+- Review any blocked tasks that need manual dependency resolution
+
+**Typical workflow cycle**:
+1. `/prepare-next-task` - Identifies and prepares next pending task
+2. `/implement-task` - Executes the ready task through review cycles
+3. Repeat until phase/plan complete
+4. `/pr` - Create pull request for completed work
