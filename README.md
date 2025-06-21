@@ -5,29 +5,32 @@ A comprehensive command system for AI-assisted project planning, decomposition, 
 ## TODOs
 
 - architect.md
-    - asks another architect subagent for review and iterates up to 3x
+  - asks another architect subagent for review and iterates up to 3x
   - can be asked for clarifications by the implementation agent, who can respond by updating existing or creating new artifacts
 
 ## Quick Start
 
 ```bash
 # Create a high-level plan from an idea
-/plan-create "Build a customer portal with authentication and reporting"
+/create "Build a customer portal with authentication and reporting"
 
 # Explore strategic options
-/plan-brainstorm-options "customer-portal"
+/brainstorm-options "customer-portal"
 
 # Decompose into detailed tasks
-/plan-decompose "customer-portal"
+/decompose "customer-portal"
 
 # Initialize execution tracking
-/plan-execution-init "customer-portal"
+/execution-init "customer-portal"
 
-# Execute tasks with automated review
-/plan-execute-continue "customer-portal"
+# Prepare next task with architectural review
+/prepare-next-task "customer-portal"
+
+# Execute prepared task with automated review
+/implement-task "customer-portal"
 
 # Monitor progress with status reports
-/plan-status "customer-portal"
+/status "customer-portal"
 ```
 
 ## Planning & Execution Workflow
@@ -35,7 +38,7 @@ A comprehensive command system for AI-assisted project planning, decomposition, 
 ### 1. Initial Planning
 
 ```bash
-/plan-create "Your project description"
+/create "Your project description"
 ```
 
 Creates `/planning/tasks/[plan-name]/` with high-level structure and phases.
@@ -43,7 +46,7 @@ Creates `/planning/tasks/[plan-name]/` with high-level structure and phases.
 ### 2. Strategic Options (Optional)
 
 ```bash
-/plan-brainstorm-options "plan-name"
+/brainstorm-options "plan-name"
 ```
 
 Presents 3-5 implementation strategies with clear tradeoffs and recommendations.
@@ -51,7 +54,7 @@ Presents 3-5 implementation strategies with clear tradeoffs and recommendations.
 ### 3. Refinement (As Needed)
 
 ```bash
-/plan-ideate "plan-name: Add real-time notifications feature"
+/ideate "plan-name: Add real-time notifications feature"
 ```
 
 Updates plan based on new requirements or feedback.
@@ -59,7 +62,7 @@ Updates plan based on new requirements or feedback.
 ### 4. Task Decomposition
 
 ```bash
-/plan-decompose "plan-name"
+/decompose "plan-name"
 ```
 
 Generates detailed phase files with tasks, subtasks, and acceptance criteria.
@@ -67,20 +70,28 @@ Generates detailed phase files with tasks, subtasks, and acceptance criteria.
 ### 5. Execution Tracking
 
 ```bash
-/plan-execution-init "plan-name"
+/execution-init "plan-name"
 ```
 
 Creates `plan-tracker.json` to monitor progress across all phases and tasks.
 
-### 6. Automated Execution
+### 6. Task Preparation
 
 ```bash
-/plan-execute-continue "plan-name"
+/prepare-next-task "plan-name"
 ```
 
-Executes pending tasks with automated implementation and code review cycles.
+Prepares the next pending task with architectural review and context creation. Marks the task as "ready" for implementation.
 
-### 7. Progress Monitoring
+### 7. Task Implementation
+
+```bash
+/implement-task "plan-name"
+```
+
+Executes prepared tasks (marked as "ready") with automated implementation and code review cycles.
+
+### 8. Progress Monitoring
 
 ```bash
 /plan-status "plan-name"
@@ -100,7 +111,8 @@ Generates comprehensive status reports saved to `/planning/tasks/[plan-name]/sta
 ### Execution Commands
 
 - **`/plan-execution-init`** - Create tracking structure from plan files
-- **`/plan-execute-continue`** - Execute tasks with automated implementation and review
+- **`/prepare-next-task`** - Prepare next pending task with architectural review and context creation
+- **`/implement-task`** - Execute prepared tasks with automated implementation and review
 
 ### Monitoring Commands
 
