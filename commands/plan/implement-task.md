@@ -407,7 +407,7 @@ If during implementation you encounter questions about:
 
 Then spawn an architect subagent using the Task tool as follows:
 
-1. **Read the base architect prompt** from `~/.claude/.templates/architect-agent-prompt.md`
+1. **Read the base architect prompt** architect-agent-prompt.md from `./.claude/.templates/` if it exists there, else fall back to `~/.claude/.templates/`
 2. **Prepend your specific context** to create the complete prompt:
 
 ```
@@ -430,7 +430,7 @@ Please record your answers in the scratch file:
 
 === BASE ARCHITECT INSTRUCTIONS ===
 
-[Insert the complete content from ~/.claude/.templates/architect-agent-prompt.md here]
+[Insert the complete content from architect-agent-prompt.md here]
 ```
 
 3. **Use the combined prompt** when calling the Task tool to spawn the architect subagent

@@ -4,9 +4,6 @@ A comprehensive command system for AI-assisted project planning, decomposition, 
 
 ## TODOs
 
-
-- add an architect subagent who before the implementation gets started, review current state and for the next-up task, anticipate needed updates/added artifacts to inform implementation and review (this can be added into the initial-context.md)
-
 - architect.md
     - asks another architect subagent for review and iterates up to 3x
   - can be asked for clarifications by the implementation agent, who can respond by updating existing or creating new artifacts
