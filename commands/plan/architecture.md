@@ -483,11 +483,110 @@ describe("UserService", () => {
 });
 ```
 
+### Test Execution Environments
+
+#### Local Development Environment
+```bash
+# Environment setup for local testing
+export NODE_ENV=test
+export DATABASE_URL=postgresql://localhost:5432/myapp_test
+export REDIS_URL=redis://localhost:6379/1
+export API_BASE_URL=http://localhost:3001
+
+# Test database setup
+npm run db:test:reset    # Reset test database
+npm run db:test:migrate  # Run migrations
+npm run db:test:seed     # Seed test data
+```
+
+#### Continuous Integration Environment
+```yaml
+# CI test environment configuration
+test:
+  stage: test
+  services:
+    - postgres:13
+    - redis:6
+  variables:
+    DATABASE_URL: postgresql://postgres@postgres:5432/test_db
+    REDIS_URL: redis://redis:6379/0
+    NODE_ENV: test
+  before_script:
+    - npm ci
+    - npm run db:migrate
+  script:
+    - npm run test:unit
+    - npm run test:integration
+    - npm run test:e2e
+  coverage: '/Coverage: \d+\.\d+/'
+```
+
+#### Test Environment Isolation
+- **Database**: Separate test database with automatic cleanup between test runs
+- **External Services**: Mock all external API calls and third-party services
+- **File System**: Use temporary directories that are cleaned up after tests
+- **Time/Dates**: Mock system time for consistent test results
+- **Random Data**: Use seeded random number generators for reproducible tests
+
+#### Test Data Management
+```typescript
+// Example: Test data factory pattern
+class TestDataFactory {
+  static createUser(overrides: Partial<User> = {}): User {
+    return {
+      id: faker.string.uuid(),
+      email: faker.internet.email(),
+      name: faker.person.fullName(),
+      createdAt: new Date('2024-01-01'),
+      ...overrides
+    };
+  }
+  
+  static async createUserInDB(overrides: Partial<User> = {}): Promise<User> {
+    const userData = this.createUser(overrides);
+    return await testDb.user.create(userData);
+  }
+}
+```
+
+#### Environment-Specific Test Configuration
+```typescript
+// test.config.ts - Environment-specific test settings
+export const testConfig = {
+  database: {
+    url: process.env.TEST_DATABASE_URL || 'postgresql://localhost:5432/test_db',
+    resetBetweenTests: true,
+    enableLogging: process.env.TEST_DB_LOGGING === 'true'
+  },
+  timeouts: {
+    unit: 5000,        // 5 seconds for unit tests
+    integration: 15000, // 15 seconds for integration tests
+    e2e: 30000         // 30 seconds for e2e tests
+  },
+  parallelization: {
+    maxWorkers: process.env.CI ? 2 : '50%',
+    runInBand: process.env.TEST_RUN_IN_BAND === 'true'
+  },
+  coverage: {
+    threshold: {
+      global: {
+        branches: 80,
+        functions: 80,
+        lines: 80,
+        statements: 80
+      }
+    }
+  }
+};
+```
+
 ### Mock and Fixture Standards
 
-- **API Mocks**: Use consistent mock data structure
-- **Database Fixtures**: Maintain realistic test data
-- **External Services**: Mock all external dependencies
+- **API Mocks**: Use consistent mock data structure with MSW or similar tools
+- **Database Fixtures**: Maintain realistic test data with factory patterns
+- **External Services**: Mock all external dependencies with service virtualization
+- **Static Assets**: Use test-specific assets and file fixtures
+- **Environment Variables**: Override environment variables for test scenarios
 
 ## Documentation Standards
 
