@@ -40,8 +40,8 @@ I'll begin by creating todos for the complete preparation workflow:
       "priority": "high"
     },
     {
-      "id": "architect-review",
-      "content": "Run architect review (or reuse existing if valid) and generate architect-review-[timestamp].json",
+      "id": "architecture-primer-creation",
+      "content": "Create architecture primer (or reuse existing if valid) and generate architecture-primer.json",
       "status": "pending",
       "priority": "high"
     },
@@ -109,7 +109,7 @@ if [ "$arch_missing" = true ]; then
     read -p "Continue without architecture documentation? (y/n): " continue_choice
     if [ "$continue_choice" != "y" ]; then
         echo "Exiting. Run /plan-architecture first, then retry this command."
-        /todo-write '{"todos": [{"id": "plan-resolution", "content": "Resolve plan name and validate plan-tracker.json exists and is readable", "status": "completed", "priority": "high"}, {"id": "architecture-check", "content": "Check architecture documentation availability and warn if missing", "status": "completed", "priority": "medium"}, {"id": "task-selection", "content": "Select next available task, validate dependencies, and handle state conflicts", "status": "pending", "priority": "high"}, {"id": "context-creation", "content": "Create scratch directory structure and initial context files", "status": "pending", "priority": "high"}, {"id": "architect-review", "content": "Run architect review (or reuse existing if valid) and generate architect-review-[timestamp].json", "status": "pending", "priority": "high"}, {"id": "finalization", "content": "Update context with architect insights and mark task as ready", "status": "pending", "priority": "high"}]}'
+        /todo-write '{"todos": [{"id": "plan-resolution", "content": "Resolve plan name and validate plan-tracker.json exists and is readable", "status": "completed", "priority": "high"}, {"id": "architecture-check", "content": "Check architecture documentation availability and warn if missing", "status": "completed", "priority": "medium"}, {"id": "task-selection", "content": "Select next available task, validate dependencies, and handle state conflicts", "status": "pending", "priority": "high"}, {"id": "context-creation", "content": "Create scratch directory structure and initial context files", "status": "pending", "priority": "high"}, {"id": "architecture-primer-creation", "content": "Create architecture primer (or reuse existing if valid) and generate architecture-primer.json", "status": "pending", "priority": "high"}, {"id": "finalization", "content": "Update context with architect insights and mark task as ready", "status": "pending", "priority": "high"}]}'
         exit 0
     fi
 fi
@@ -218,7 +218,7 @@ fi
 - **Phase**: [Phase Name] (ID: ${phase_id})
 - **Task**: [Task Name] (ID: ${task_id}) 
 - **Priority**: [priority]
-- **Status**: preparing → ready (after architect review)
+- **Status**: preparing → ready (after architecture primer creation)
 
 ## Task Description
 [Full task description from plan]
@@ -248,9 +248,9 @@ fi
 - `/planning/standards.md` - Development standards, coding guidelines
 
 ### Architectural Context
-**Pre-Implementation Architect Review**: [Will reference architect-review-[timestamp].json]
+**Pre-Implementation Architecture Primer**: [Will reference architecture-primer.json]
 
-[Architectural context will be populated after architect review]
+[Architectural context will be populated after architecture primer creation]
 
 ## Technical Requirements
 [Specific technical details from plan]
@@ -265,50 +265,46 @@ fi
 
 Mark context-creation todo as completed.
 
-## Step 5: Architect Review
+## Step 5: Architecture Primer Creation
 
-Mark architect-review todo as in_progress, then:
+Mark architecture-primer-creation todo as in_progress, then:
 
-**Smart Architect Review Logic:**
+**Smart Architecture Primer Logic:**
 ```bash
-# Check for existing architect review files
-existing_reviews=($(ls "$scratch_dir"/architect-review-*.json 2>/dev/null))
+# Check for existing architecture primer file
+architecture_primer_file="$scratch_dir/architecture-primer.json"
 
-if [ ${#existing_reviews[@]} -gt 0 ]; then
-    # Found existing review(s), check if recent enough to reuse
-    latest_review="${existing_reviews[-1]}"  # Get most recent
-    review_age_hours=$(( ($(date +%s) - $(stat -c %Y "$latest_review")) / 3600 ))
+if test -f "$architecture_primer_file"; then
+    # Found existing primer, check if recent enough to reuse
+    primer_age_hours=$(( ($(date +%s) - $(stat -c %Y "$architecture_primer_file")) / 3600 ))
     
-    if [ $review_age_hours -lt 24 ]; then
-        echo "Found recent architect review (${review_age_hours}h old): $(basename "$latest_review")"
-        read -p "Reuse existing review? (y/n): " reuse_choice
+    if [ $primer_age_hours -lt 24 ]; then
+        echo "Found recent architecture primer (${primer_age_hours}h old): $(basename "$architecture_primer_file")"
+        read -p "Reuse existing primer? (y/n): " reuse_choice
         
         if [ "$reuse_choice" = "y" ]; then
-            echo "Reusing existing architect review: $(basename "$latest_review")"
+            echo "Reusing existing architecture primer: $(basename "$architecture_primer_file")"
             # Skip to context update step
-            architect_review_file="$latest_review"
-            skip_architect_review=true
+            skip_architecture_primer=true
         fi
     else
-        echo "Found older architect review (${review_age_hours}h old): $(basename "$latest_review")"
-        read -p "Generate new review? (y/n): " new_review_choice
-        if [ "$new_review_choice" != "y" ]; then
-            echo "Keeping existing review: $(basename "$latest_review")"
-            architect_review_file="$latest_review"
-            skip_architect_review=true
+        echo "Found older architecture primer (${primer_age_hours}h old): $(basename "$architecture_primer_file")"
+        read -p "Generate new primer? (y/n): " new_primer_choice
+        if [ "$new_primer_choice" != "y" ]; then
+            echo "Keeping existing primer: $(basename "$architecture_primer_file")"
+            skip_architecture_primer=true
         fi
     fi
 fi
 
-# Generate new architect review if not reusing existing
-if [ "$skip_architect_review" != true ]; then
-    echo "Generating new architect review..."
-    timestamp=$(date +"%Y%m%d-%H%M%S")
-    architect_review_file="$scratch_dir/architect-review-$timestamp.json"
+# Generate new architecture primer if not reusing existing
+if [ "$skip_architecture_primer" != true ]; then
+    echo "Generating new architecture primer..."
+    iso_timestamp=$(date -Iseconds)
     
     # Spawn architect agent with comprehensive context
-    /task "Architect Review Analysis" "
-    You are an expert software architect conducting a pre-implementation review.
+    /task "Architecture Primer Creation" "
+    You are an expert software architect creating an architecture primer for task implementation.
     
     **Context:**
     - Plan: $plan_name
@@ -324,16 +320,23 @@ if [ "$skip_architect_review" != true ]; then
     3. Examine next task requirements in architectural context
     4. Identify integration points and potential conflicts
     5. Recommend updates to architecture artifacts
+    6. Create todos for architecture documentation updates
+    7. Actually update the architecture files as needed
+    
+    **Tasks to Complete:**
+    1. Use TodoWrite to create todos for any architecture file updates needed
+    2. Actually update /planning/architecture.md and /planning/standards.md as needed
+    3. Mark architecture update todos as completed after making changes
     
     **Output Format:**
     Generate a structured JSON file with these sections:
     {
-      \"review_metadata\": {
-        \"timestamp\": \"$timestamp\",
+      \"primer_metadata\": {
+        \"timestamp\": \"$iso_timestamp\",
         \"plan_name\": \"$plan_name\", 
         \"phase_id\": \"$phase_id\",
         \"task_id\": \"$task_id\",
-        \"reviewer\": \"architect-agent\",
+        \"architect\": \"architect-agent\",
         \"architecture_files_available\": boolean
       },
       \"current_state_analysis\": {
@@ -355,40 +358,43 @@ if [ "$skip_architect_review" != true ]; then
         \"integration_strategy\": \"How to integrate with existing systems\",
         \"validation_requirements\": [\"How to verify architectural compliance\"]
       },
-      \"architecture_updates_required\": {
-        \"architecture_md_updates\": [\"Changes needed to architecture.md\"],
-        \"standards_md_updates\": [\"Changes needed to standards.md\"],
-        \"new_documentation_needed\": [\"New docs to create\"]
+      \"architecture_updates_completed\": {
+        \"architecture_md_updates\": [\"Changes made to architecture.md\"],
+        \"standards_md_updates\": [\"Changes made to standards.md\"],
+        \"new_documentation_created\": [\"New docs created\"]
       },
       \"blocking_issues\": [\"Critical issues requiring human resolution\"],
       \"recommendations\": [\"Overall recommendations for this task\"]
     }
     
-    Save this JSON structure to: $architect_review_file
+    Save this JSON structure to: $architecture_primer_file
     
-    CRITICAL: If any blocking architectural conflicts are found, mark them clearly in the blocking_issues array.
+    CRITICAL: 
+    - If any blocking architectural conflicts are found, mark them clearly in the blocking_issues array
+    - Use TodoWrite to create todos for architecture updates, then actually complete them
+    - Only mark architecture updates as 'completed' in the JSON after actually making the changes
     "
     
-    # Validate architect review output
-    if ! test -f "$architect_review_file"; then
-        echo "ERROR: Architect review failed to generate output file"
+    # Validate architecture primer output
+    if ! test -f "$architecture_primer_file"; then
+        echo "ERROR: Architecture primer failed to generate output file"
         # Rollback task status to pending
         rollback_task_status_to_pending
         exit 1
     fi
     
-    if ! jq 'empty' "$architect_review_file" 2>/dev/null; then
-        echo "ERROR: Architect review generated invalid JSON"
+    if ! jq 'empty' "$architecture_primer_file" 2>/dev/null; then
+        echo "ERROR: Architecture primer generated invalid JSON"
         # Rollback task status to pending  
         rollback_task_status_to_pending
         exit 1
     fi
     
     # Check for blocking issues
-    blocking_issues=$(jq -r '.blocking_issues | length' "$architect_review_file")
+    blocking_issues=$(jq -r '.blocking_issues | length' "$architecture_primer_file")
     if [ "$blocking_issues" -gt 0 ]; then
-        echo "CRITICAL: Architect review found blocking issues:"
-        jq -r '.blocking_issues[]' "$architect_review_file"
+        echo "CRITICAL: Architecture primer found blocking issues:"
+        jq -r '.blocking_issues[]' "$architecture_primer_file"
         echo "Task requires human resolution before implementation."
         
         # Update task status to "needs-human-review"
@@ -397,15 +403,15 @@ if [ "$skip_architect_review" != true ]; then
            "$plan_tracker_path" > "$temp_tracker"
         mv "$temp_tracker" "$plan_tracker_path"
         
-        /todo-write '{"todos": [{"id": "plan-resolution", "content": "Resolve plan name and validate plan-tracker.json exists and is readable", "status": "completed", "priority": "high"}, {"id": "architecture-check", "content": "Check architecture documentation availability and warn if missing", "status": "completed", "priority": "medium"}, {"id": "task-selection", "content": "Select next available task, validate dependencies, and handle state conflicts", "status": "completed", "priority": "high"}, {"id": "context-creation", "content": "Create scratch directory structure and initial context files", "status": "completed", "priority": "high"}, {"id": "architect-review", "content": "Run architect review (or reuse existing if valid) and generate architect-review-[timestamp].json", "status": "completed", "priority": "high"}, {"id": "finalization", "content": "Update context with architect insights and mark task as ready", "status": "pending", "priority": "high"}]}'
+        /todo-write '{"todos": [{"id": "plan-resolution", "content": "Resolve plan name and validate plan-tracker.json exists and is readable", "status": "completed", "priority": "high"}, {"id": "architecture-check", "content": "Check architecture documentation availability and warn if missing", "status": "completed", "priority": "medium"}, {"id": "task-selection", "content": "Select next available task, validate dependencies, and handle state conflicts", "status": "completed", "priority": "high"}, {"id": "context-creation", "content": "Create scratch directory structure and initial context files", "status": "completed", "priority": "high"}, {"id": "architecture-primer-creation", "content": "Create architecture primer (or reuse existing if valid) and generate architecture-primer.json", "status": "completed", "priority": "high"}, {"id": "finalization", "content": "Update context with architect insights and mark task as ready", "status": "pending", "priority": "high"}]}'
         exit 1
     fi
     
-    echo "Architect review completed successfully: $(basename "$architect_review_file")"
+    echo "Architecture primer completed successfully: $(basename "$architecture_primer_file")"
 fi
 ```
 
-Mark architect-review todo as completed.
+Mark architecture-primer-creation todo as completed.
 
 ## Step 6: Finalization and Status Update
 
@@ -413,10 +419,10 @@ Mark finalization todo as in_progress, then:
 
 **Update Context with Architect Insights:**
 ```bash
-# Extract key insights from architect review
-architect_insights=$(jq -r '.implementation_guidance.recommended_patterns[]' "$architect_review_file")
-architectural_constraints=$(jq -r '.implementation_guidance.architectural_constraints[]' "$architect_review_file")
-integration_strategy=$(jq -r '.implementation_guidance.integration_strategy' "$architect_review_file")
+# Extract key insights from architecture primer
+architect_insights=$(jq -r '.implementation_guidance.recommended_patterns[]' "$architecture_primer_file")
+architectural_constraints=$(jq -r '.implementation_guidance.architectural_constraints[]' "$architecture_primer_file")
+integration_strategy=$(jq -r '.implementation_guidance.integration_strategy' "$architecture_primer_file")
 
 # Update initial-context-summary.md with architect insights
 sed -i '/### Architectural Context/,$d' "$scratch_dir/initial-context-summary.md"
@@ -424,7 +430,7 @@ cat >> "$scratch_dir/initial-context-summary.md" << EOF
 
 ### Architectural Context
 
-**Pre-Implementation Architect Review**: $(basename "$architect_review_file")
+**Pre-Implementation Architecture Primer**: $(basename "$architecture_primer_file")
 
 **Key Architectural Insights:**
 $(echo "$architect_insights" | sed 's/^/- /')
@@ -436,10 +442,10 @@ $(echo "$architectural_constraints" | sed 's/^/- /')
 $integration_strategy
 
 **Implementation Guidance:**
-- Follow architectural patterns specified in the review
+- Follow architectural patterns specified in the primer
 - Validate compliance with architectural constraints
 - Consider integration points with existing systems
-- Address risk factors identified in the review
+- Address risk factors identified in the primer
 
 EOF
 ```
@@ -449,7 +455,7 @@ EOF
 # Verify all required files exist
 required_files=(
     "$scratch_dir/initial-context-summary.md"
-    "$architect_review_file"
+    "$architecture_primer_file"
 )
 
 for file in "${required_files[@]}"; do
