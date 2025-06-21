@@ -2,7 +2,28 @@ Execute the next pending task from plan-tracker.json with automated code review:
 
 ## Purpose
 
-This command ensures proper architecture documentation, reads `plan-tracker.json`, identifies the next task to execute, creates a working context, all in prep to get the next task to execute ready for implementation.
+This command prepares the next task for implementation by validating architecture documentation, identifying the next available task, creating implementation context, and conducting pre-implementation architectural review. The task is marked as "ready" upon successful completion.
+
+## Entry Criteria
+
+- Valid plan-tracker.json exists (either specified by name, in last-plan.json, or current directory)
+- At least one task with status "pending" and satisfied dependencies exists
+- User confirmation to proceed if architecture documentation is missing
+
+## Exit Criteria
+
+**Success** (task marked as "ready"):
+- Next available task identified and marked as "preparing" (until we're done then it's marked "ready")
+- All dependencies verified as satisfied
+- Context files created in scratch directory structure
+- Architect review completed and saved as architect-review-[timestamp].json
+- initial-context-summary.md updated with architectural context
+- Task status updated to "ready"
+
+**Failure** (task remains "pending"):
+- No tasks available due to unsatisfied dependencies
+- User declines to proceed without architecture documentation
+- Critical architecture conflicts identified that require human resolution
 
 ## Process Overview
 
@@ -21,13 +42,18 @@ This command ensures proper architecture documentation, reads `plan-tracker.json
      - Recommend running `/plan-architecture` first for better context
      - If user chooses to continue, note the missing architecture in context
 
-3. **Task Selection**:
+3. **Task Selection and Validation**:
 
    - Read plan-tracker.json from `/planning/tasks/[plan-name]/`
-   - Find next pending or preparing task respecting dependencies
-   - If the task is in preparing state, warn the user that the task is already in a preparing state and see if the user wants to continue or stop
-   - Check prerequisites are met
-   - Update task status to "preparing"
+   - **Validate plan structure**: Ensure phases and tasks arrays exist with required fields
+   - Find next pending task respecting dependencies using selection algorithm
+   - **Handle task conflicts**: If task is in "preparing" state, warn user and offer options:
+     - Continue (override previous preparation)
+     - Stop (exit without changes)
+     - Reset to pending (clear previous preparation)
+   - **Dependency validation**: Check all task and phase dependencies are satisfied
+   - **Block on unmet dependencies**: If dependencies not met, list blocking items and exit
+   - Update task status to "preparing" only after all validations pass
 
 4. **Context Preparation**:
 
@@ -39,6 +65,7 @@ This command ensures proper architecture documentation, reads `plan-tracker.json
 
 5. **Architect Review Phase**:
 
+   - **Pre-review validation**: Ensure architect can access architecture files and task context
    - Spawn architect subagent to review current state and next task
    - Architect analyzes:
      - Completed tasks and their architectural implications
@@ -46,13 +73,20 @@ This command ensures proper architecture documentation, reads `plan-tracker.json
      - Next task requirements in architectural context
      - Integration points and potential conflicts
      - Required updates to architecture artifacts
-   - Generate architect-review-[timestamp].json with insights
-   - Update initial-context-summary.md with architectural context
-   - Flag any architectural concerns or recommendations
+   - **Generate structured output**: Create architect-review-[timestamp].json with required fields
+   - **Validate architect output**: Ensure all required sections are complete
+   - **Update context**: Add architectural insights to initial-context-summary.md
+   - **Handle blocking issues**: If critical architectural conflicts found:
+     - Mark task as "needs-human-review"
+     - Document specific conflicts requiring resolution
+     - Exit without marking task as "ready"
 
-6. **Completion**:
-   - Update task status to "ready" or "needs-human-review"
-   - Log execution details
+6. **Completion and Validation**:
+   - **Final validation**: Verify all required files exist and are properly formatted
+   - **Status update**: Mark task as "ready" if all steps completed successfully
+   - **Alternative outcomes**: Mark as "needs-human-review" if blocking issues found
+   - **Log execution**: Record detailed execution log with timestamps and file locations
+   - **Verification**: Confirm task is ready for implement-task.md to pick up
 
 ## Directory Structure
 
@@ -237,17 +271,48 @@ function selectNextTask(tracker) {
 
 ## Error Handling
 
-- **No pending tasks**: Report completion or blocked tasks
-- **Dependency not met**: List blocking dependencies
-- **Blocker issues unresolved after 3 iterations**: Cannot proceed without human resolution
-- **Agent failure**: Retry with enhanced context
-- **Invalid plan structure**: Provide diagnostic information
+**Validation Errors**:
+- **Invalid plan structure**: Report specific missing fields and exit
+- **Plan file not found**: Guide user to create plan or specify correct name
+- **Malformed JSON**: Report parsing errors with line numbers
+
+**Task Selection Errors**:
+- **No pending tasks**: Report plan completion status or list blocked tasks with reasons
+- **All tasks blocked**: List each blocking dependency and suggested resolution steps
+- **Task already preparing**: Offer user choice to override, reset, or exit
+
+**Architecture Errors**:
+- **Missing architecture files**: Prompt user to continue or run /plan-architecture first
+- **Architect agent failure**: Log error details, attempt retry once, then exit
+- **Critical architectural conflicts**: Document conflicts and mark task as needs-human-review
+
+**Context Creation Errors**:
+- **Directory creation failure**: Report permission issues and required paths
+- **Template file issues**: Fall back to minimal context structure
+- **File write failures**: Report specific path and permission problems
+
+**Recovery Actions**:
+- **Partial preparation**: Clean up incomplete scratch directories before exit
+- **Task status rollback**: Reset task to "pending" if preparation fails after status update
+- **Detailed logging**: Always log exact failure point for debugging
 
 ## Next Steps
 
-After task completion:
+**After successful preparation** (task marked as "ready"):
+- Execute the prepared task: `/implement-task`
+- Task will be automatically selected from "ready" status
 
-- Implement next ready task: `/implement-task`
-- Run again for next task: `/prepare-next-task`
+**After preparation failure**:
+- Review error details and resolve blocking issues
+- Re-run: `/prepare-next-task` (same arguments)
+- Consider architecture setup: `/plan-architecture` if architecture files missing
+
+**When no more tasks to prepare**:
+- Check plan status: `/status`
 - Create PR if phase complete: `/pr`
-- Manual intervention if needed for blocked tasks or disputed findings
+- Manual review for any tasks marked "needs-human-review"
+
+**Integration with implement-task**:
+- implement-task.md looks for tasks with status "ready"
+- No task name needs to be passed - it finds the ready task automatically
+- Prepared context in scratch directory is automatically used
