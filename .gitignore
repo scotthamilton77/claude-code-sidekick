@@ -3,4 +3,4 @@ ide/
 projects/
 statsig/
 todos/
-credentials.json
+.credentials.json
