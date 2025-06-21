@@ -317,38 +317,62 @@ classDiagram
     PlanTracker --> Phase
 ```
 
-### 6. Execution Engine (`/plan-execute-continue`)
+### 6. Task Preparation Engine (`/prepare-next-task`)
 
-**Purpose**: Orchestrate task execution with automated review cycles
+**Purpose**: Prepare next pending task with architectural review and context creation
 
 ```mermaid
 sequenceDiagram
-    participant EC as Execute Continue
+    participant TP as Task Preparation
+    participant PT as plan-tracker.json
+    participant AA as Architect Agent
+    participant CS as Context System
+    
+    TP->>PT: Read next pending task
+    TP->>PT: Validate dependencies
+    TP->>PT: Update status to "preparing"
+    TP->>CS: Create scratch directory structure
+    TP->>CS: Generate initial-context-summary.md
+    TP->>AA: Spawn architect review agent
+    AA->>AA: Analyze current state & task requirements
+    AA->>CS: Generate architect-review-[timestamp].json
+    AA->>CS: Update context with architectural insights
+    TP->>PT: Update status to "ready"
+```
+
+### 7. Execution Engine (`/implement-task`)
+
+**Purpose**: Execute prepared tasks with automated review cycles
+
+```mermaid
+sequenceDiagram
+    participant IE as Implementation Engine
     participant PT as plan-tracker.json
     participant IA as Implementation Agent
     participant RA as Review Agent
     participant AS as Audit System
     
-    EC->>PT: Read next pending task
-    EC->>EC: Create context summary
-    EC->>IA: Spawn with task context
+    IE->>PT: Find task with status "ready"
+    IE->>IE: Validate preparation context exists
+    IE->>PT: Update status to "in_progress"
+    IE->>IA: Spawn with prepared context
     IA->>IA: Implement solution
     IA->>PT: Update to "ready-for-review"
     
     loop Review Cycle (max 3 iterations)
-        EC->>RA: Spawn review agent
+        IE->>RA: Spawn review agent
         RA->>RA: Generate code-review.md & tracker.json
         RA->>AS: Snapshot to iteration-N-initial/
-        EC->>IA: Address review findings
+        IE->>IA: Address review findings
         IA->>IA: Fix issues or reject with rationale
         IA->>AS: Snapshot to iteration-N-response/
-        EC->>RA: Verify fixes and rejections
+        IE->>RA: Verify fixes and rejections
         
         alt All blockers resolved
             RA->>PT: Mark as "completed"
         else Disputes remain
             alt Iteration < 3
-                Note over EC: Continue to next iteration
+                Note over IE: Continue to next iteration
             else Iteration = 3
                 RA->>PT: Mark as "needs-human-review"
             end
@@ -386,7 +410,7 @@ graph TD
     end
 ```
 
-### 7. Status Reporting (`/plan-status`)
+### 8. Status Reporting (`/plan-status`)
 
 **Purpose**: Generate comprehensive progress reports with smart updates
 
