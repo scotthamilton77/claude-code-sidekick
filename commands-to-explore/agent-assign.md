@@ -25,11 +25,13 @@ Assign a task or set of tasks to a specific agent for multi-agent coordination:
 ## Implementation Steps
 
 1. **Validate Task Path**:
+
    - Check task exists in hierarchy
    - Verify task is not already assigned (unless --force)
    - Check for dependency conflicts
 
 2. **Update Task Metadata**:
+
    ```bash
    # Add agent assignment to task
    /task-update "[task-path]" --assigned="[agent-id]"
@@ -48,8 +50,9 @@ Assign a task or set of tasks to a specific agent for multi-agent coordination:
    ```
 
 3. **Create/Update Agent Configuration**:
+
    ```json
-   // In /tasks/[project]/agents/[agent-id].json
+   // In /planning/tasks/[project]/agents/[agent-id].json
    {
      "agentId": "agent-a",
      "name": "claude-foundation",
@@ -69,11 +72,13 @@ Assign a task or set of tasks to a specific agent for multi-agent coordination:
    ```
 
 4. **Handle Dependencies**:
+
    - Check if assigned tasks have dependencies
    - Warn if dependencies assigned to different agents
    - Suggest optimal assignment order
 
 5. **Worktree Setup** (if not exists):
+
    ```bash
    # Auto-create worktree for new agent
    if [ ! -d "$WORKTREE" ]; then
@@ -83,6 +88,7 @@ Assign a task or set of tasks to a specific agent for multi-agent coordination:
    ```
 
 6. **Generate Agent Instructions**:
+
    ````markdown
    ## Agent Assignment Complete
 
@@ -101,12 +107,16 @@ Assign a task or set of tasks to a specific agent for multi-agent coordination:
    ````
 
    ### Assigned Tasks:
+
    - project/setup-foundation/project-structure (ready)
    - project/setup-foundation/dependency-setup (ready)
 
    ### This agent blocks:
-   - project/testing-suite/* (agent-c)
+
+   - project/testing-suite/\* (agent-c)
+
    ```
+
    ```
 
 ## Advanced Features
@@ -120,9 +130,9 @@ Assign a task or set of tasks to a specific agent for multi-agent coordination:
 # Output:
 # Agent Workload Summary:
 # agent-a: 2 tasks (4 hours estimated)
-# agent-b: 3 tasks (6 hours estimated)  
+# agent-b: 3 tasks (6 hours estimated)
 # agent-c: 1 task (2 hours estimated)
-# 
+#
 # Unassigned tasks: 4
 
 # Auto-balance unassigned tasks
@@ -137,7 +147,7 @@ Assign a task or set of tasks to a specific agent for multi-agent coordination:
 
 # This assigns:
 # - project/api/endpoints
-# - project/api/authentication  
+# - project/api/authentication
 # - project/shared/models (dependency)
 ```
 

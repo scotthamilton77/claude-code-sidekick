@@ -125,7 +125,7 @@ Analyze the codebase and create a comprehensive plan with integrated task manage
 
 5. **Unified Coordination File**:
 
-   Create `/tasks/[project-name]/coordination.md`:
+   Create `/planning/tasks/[project-name]/coordination.md`:
 
    ```markdown
    # Multi-Agent Coordination Plan

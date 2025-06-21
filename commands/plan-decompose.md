@@ -7,18 +7,21 @@ This command takes an existing high-level plan created by `/plan-create` and dec
 ## Process
 
 1. **Plan Name Resolution**:
-   - If plan name provided in $ARGUMENTS, use it and update `/tasks/last-plan.json`
-   - If no plan name provided, read from `/tasks/last-plan.json` for the last referenced plan
+
+   - If plan name provided in $ARGUMENTS, use it and update `/planning/tasks/last-plan.json`
+   - If no plan name provided, read from `/planning/tasks/last-plan.json` for the last referenced plan
    - If neither exists, check for PLAN.md in current directory
-   - Update `/tasks/last-plan.json` with resolved plan name
+   - Update `/planning/tasks/last-plan.json` with resolved plan name
 
 2. **Plan Analysis**:
-   - Read existing PLAN.md in `/tasks/[plan-name]/`
+
+   - Read existing PLAN.md in `/planning/tasks/[plan-name]/`
    - Parse high-level phases and objectives
    - Analyze phase relationships and dependencies
    - Identify technical requirements
 
 3. **Task Decomposition**:
+
    - Break each phase into 3-10 specific tasks
    - Define subtasks for complex tasks
    - Establish task dependencies
@@ -32,7 +35,7 @@ This command takes an existing high-level plan created by `/plan-create` and dec
 
 ## Detailed Phase Template
 
-```markdown
+````markdown
 # Phase [#]: [Phase Name]
 
 ## Phase Overview
@@ -59,25 +62,30 @@ This command takes an existing high-level plan created by `/plan-create` and dec
 **Estimated Effort**: [Hours/Days]
 
 **Dependencies**:
+
 - [ ] [Specific dependency]
 - [ ] [Previous task reference]
 
 **Subtasks**:
+
 1. [ ] [Specific subtask with clear outcome]
 2. [ ] [Implementation step]
 3. [ ] [Testing/validation step]
 
 **Acceptance Criteria**:
+
 - [ ] [Specific measurable criterion]
 - [ ] [Quality metric]
 - [ ] [Performance requirement]
 
 **Deliverables**:
+
 - [Specific file/component]
 - [Documentation]
 - [Test results]
 
 **Technical Notes**:
+
 - [Implementation approach]
 - [Technology choices]
 - [Potential challenges]
@@ -102,10 +110,10 @@ This command takes an existing high-level plan created by `/plan-create` and dec
 
 ## Risk Mitigation
 
-| Task | Risk | Mitigation Strategy |
-|------|------|-------------------|
-| Task 1 | [Specific risk] | [Specific action] |
-| Task 3 | [Technical risk] | [Fallback plan] |
+| Task   | Risk             | Mitigation Strategy |
+| ------ | ---------------- | ------------------- |
+| Task 1 | [Specific risk]  | [Specific action]   |
+| Task 3 | [Technical risk] | [Fallback plan]     |
 
 ## Implementation Order
 
@@ -123,24 +131,27 @@ graph TD
 - [ ] [Quantifiable metric 1]
 - [ ] [Performance benchmark]
 - [ ] [Quality threshold]
-```
+````
 
 ## Implementation Details
 
 ### Task Decomposition Algorithm
 
 1. **Analyze Phase Objectives**:
+
    - Parse objectives into actionable components
    - Identify technical requirements
    - Determine logical task groupings
 
 2. **Generate Task Structure**:
+
    - Create setup/configuration tasks first
    - Follow with core implementation tasks
    - Include testing and validation tasks
    - End with integration/documentation tasks
 
 3. **Define Dependencies**:
+
    - Identify task prerequisites
    - Map inter-task relationships
    - Note external dependencies
@@ -157,6 +168,7 @@ graph TD
 Based on phase type, automatically include relevant tasks:
 
 **Development Phases**:
+
 - Environment setup
 - Core feature implementation
 - Unit testing
@@ -165,6 +177,7 @@ Based on phase type, automatically include relevant tasks:
 - Documentation
 
 **Infrastructure Phases**:
+
 - Resource provisioning
 - Configuration management
 - Security setup
@@ -173,6 +186,7 @@ Based on phase type, automatically include relevant tasks:
 - Deployment automation
 
 **Data Phases**:
+
 - Schema design
 - Data modeling
 - ETL implementation
@@ -183,10 +197,10 @@ Based on phase type, automatically include relevant tasks:
 ## Usage Examples
 
 ```bash
-# Decompose all phases for last referenced plan (reads from /tasks/last-plan.json)
+# Decompose all phases for last referenced plan (reads from /planning/tasks/last-plan.json)
 /plan-decompose
 
-# Decompose all phases in specific plan (updates /tasks/last-plan.json)
+# Decompose all phases in specific plan (updates /planning/tasks/last-plan.json)
 /plan-decompose "web-app-redesign"
 
 # Decompose specific phase only
@@ -207,11 +221,13 @@ Based on phase type, automatically include relevant tasks:
 ## Arguments
 
 **Plan Name**: $ARGUMENTS (optional)
-- If no plan name provided, uses the last referenced plan from `/tasks/last-plan.json`
+
+- If no plan name provided, uses the last referenced plan from `/planning/tasks/last-plan.json`
 - If last-plan.json doesn't exist, checks for PLAN.md in current directory
-- Updates `/tasks/last-plan.json` with the resolved plan name for future commands
+- Updates `/planning/tasks/last-plan.json` with the resolved plan name for future commands
 
 **Options**:
+
 - `--phase N`: Decompose only phase N
 - `--detail [low|medium|high]`: Level of task detail
 - `--regenerate`: Overwrite existing decomposition
@@ -219,10 +235,11 @@ Based on phase type, automatically include relevant tasks:
 ## Output Structure
 
 Updates the plan directory:
+
 ```
-/tasks/[plan-name]/
+/planning/tasks/[plan-name]/
 ├── README.md                    # Updated with task count
-├── PLAN.md                     # Updated with task references  
+├── PLAN.md                     # Updated with task references
 ├── phase-01-planning.md        # Detailed phase file
 ├── phase-02-implementation.md  # Detailed phase file
 ├── phase-03-testing.md         # Detailed phase file
@@ -236,16 +253,19 @@ Updates the plan directory:
 The command performs these validations:
 
 1. **Completeness**:
+
    - Each phase has 3-10 tasks
    - All tasks have acceptance criteria
    - Dependencies are clearly defined
 
 2. **Coherence**:
+
    - Tasks align with phase objectives
    - No circular dependencies
    - Logical progression maintained
 
 3. **Executability**:
+
    - Tasks are specific and actionable
    - Acceptance criteria are measurable
    - Effort estimates are reasonable
@@ -260,11 +280,13 @@ The command performs these validations:
 After decomposition:
 
 1. **Review Phase Files**:
+
    - Adjust task details if needed
    - Refine acceptance criteria
    - Update dependencies
 
 2. **Initialize Tracking**:
+
    - Run `/plan-execution-init [plan-name]`
    - Generates plan-tracker.json from phase files
 
@@ -275,6 +297,6 @@ After decomposition:
 ## Next Steps
 
 1. Review generated phase files for accuracy
-2. Adjust task details or dependencies as needed  
+2. Adjust task details or dependencies as needed
 3. Run `/plan-execution-init [plan-name]` to create tracking
 4. Begin execution with `/plan-execute-continue [plan-name]`

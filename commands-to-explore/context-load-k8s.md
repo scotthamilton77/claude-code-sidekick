@@ -8,6 +8,7 @@ When this command is executed, you MUST:
 
 1. **Use the Context7 MCP server** (if available) to fetch and load context from the URLs below
 2. **Use WebFetch tool** to gather information from these key sources:
+
    - **Kubernetes Documentation**: `https://kubernetes.io/docs/`
      - Focus on: concepts, tutorials, reference documentation
    - **API Reference**: `https://kubernetes.io/docs/reference/kubernetes-api/`
@@ -16,10 +17,11 @@ When this command is executed, you MUST:
      - Focus on: configuration management, security, networking
    - **Kubectl Reference**: `https://kubernetes.io/docs/reference/kubectl/`
      - Focus on: command usage, examples, cheat sheet
-   - **Troubleshooting Guide**: `https://kubernetes.io/docs/tasks/debug/`
+   - **Troubleshooting Guide**: `https://kubernetes.io/docs/planning/tasks/debug/`
      - Focus on: debugging, monitoring, common issues
 
 3. **Key documentation sections to prioritize**:
+
    - Core concepts (Pods, Services, Deployments)
    - Configuration management
    - Networking and ingress

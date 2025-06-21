@@ -2,18 +2,20 @@ Generate a concise, visually-pleasing status report for the specified plan: $ARG
 
 ## Purpose
 
-This command reads `plan-tracker.json` and generates a comprehensive status report showing the overall progress of plan development and execution. The report is saved to `/tasks/[plan-name]/status.md` with smart update capabilities that regenerate only when source files have changed since the last generation.
+This command reads `plan-tracker.json` and generates a comprehensive status report showing the overall progress of plan development and execution. The report is saved to `/planning/tasks/[plan-name]/status.md` with smart update capabilities that regenerate only when source files have changed since the last generation.
 
 ## Process
 
 1. **Plan Name Resolution**:
-   - If plan name provided in $ARGUMENTS, use it and update `/tasks/last-plan.json`
-   - If no plan name provided, read from `/tasks/last-plan.json` for the last referenced plan
+
+   - If plan name provided in $ARGUMENTS, use it and update `/planning/tasks/last-plan.json`
+   - If no plan name provided, read from `/planning/tasks/last-plan.json` for the last referenced plan
    - If neither exists, check for `plan-tracker.json` in current directory
-   - Update `/tasks/last-plan.json` with resolved plan name
+   - Update `/planning/tasks/last-plan.json` with resolved plan name
 
 2. **File Timestamp Analysis**:
-   - Check if `/tasks/[plan-name]/status.md` exists
+
+   - Check if `/planning/tasks/[plan-name]/status.md` exists
    - If exists, compare its timestamp against source files:
      - `plan-tracker.json`
      - All `*.md` files in plan directory (PLAN.md, README.md, phase files)
@@ -23,12 +25,14 @@ This command reads `plan-tracker.json` and generates a comprehensive status repo
    - Skip generation if status file is newer than all source files (unless `--force`)
 
 3. **Smart Update Detection**:
+
    - If only specific sections need updates (e.g., task status changes), update incrementally
    - If major changes detected (new phases, structural changes), regenerate completely
    - Parse existing status.md to preserve manual annotations if present
 
 4. **Data Collection**:
-   - Read plan-tracker.json from `/tasks/[plan-name]/`
+
+   - Read plan-tracker.json from `/planning/tasks/[plan-name]/`
    - Analyze phase and task completion rates
    - Identify blockers and dependencies
    - Calculate time metrics
@@ -36,6 +40,7 @@ This command reads `plan-tracker.json` and generates a comprehensive status repo
    - Parse review audit trails for quality metrics
 
 5. **Status Analysis**:
+
    - Overall completion percentage
    - Phase-by-phase progress
    - Task status distribution
@@ -44,7 +49,7 @@ This command reads `plan-tracker.json` and generates a comprehensive status repo
    - Performance metrics from review cycles
 
 6. **Report Generation**:
-   - Generate or update `/tasks/[plan-name]/status.md`
+   - Generate or update `/planning/tasks/[plan-name]/status.md`
    - Add generation timestamp header
    - Visual progress indicators
    - Status summary dashboard
@@ -54,7 +59,7 @@ This command reads `plan-tracker.json` and generates a comprehensive status repo
 
 ## Status Report Template
 
-```markdown
+````markdown
 # Plan Status Report: [Plan Name]
 
 Generated: [ISO Timestamp]
@@ -72,23 +77,22 @@ Report Status: [Up to Date | Updated | Force Regenerated]
 
 ## Phase Progress
 
-| Phase | Status | Progress | Tasks | Blockers |
-|-------|--------|----------|-------|----------|
-| Phase 1: Foundation | ✅ Completed | [██████████] 100% | 8/8 | 0 |
-| Phase 2: Core Features | 🔄 In Progress | [████████░░] 75% | 9/12 | 1 |
-| Phase 3: Integration | ⏸️ Pending | [░░░░░░░░░░] 0% | 0/6 | 0 |
-| Phase 4: Testing | ⏸️ Blocked | [░░░░░░░░░░] 0% | 0/10 | 2 |
-| Phase 5: Deployment | ⏸️ Pending | [░░░░░░░░░░] 0% | 0/5 | 0 |
+| Phase                  | Status         | Progress          | Tasks | Blockers |
+| ---------------------- | -------------- | ----------------- | ----- | -------- |
+| Phase 1: Foundation    | ✅ Completed   | [██████████] 100% | 8/8   | 0        |
+| Phase 2: Core Features | 🔄 In Progress | [████████░░] 75%  | 9/12  | 1        |
+| Phase 3: Integration   | ⏸️ Pending     | [░░░░░░░░░░] 0%   | 0/6   | 0        |
+| Phase 4: Testing       | ⏸️ Blocked     | [░░░░░░░░░░] 0%   | 0/10  | 2        |
+| Phase 5: Deployment    | ⏸️ Pending     | [░░░░░░░░░░] 0%   | 0/5   | 0        |
 
 ## Task Distribution
-
-```
+```text
 ┌─────────────────────────────────────┐
-│ Completed    │████████████│ 23 (56%) │
-│ In Progress  │███         │  3 (7%)  │
-│ Ready        │██          │  2 (5%)  │
-│ Blocked      │██          │  2 (5%)  │
-│ Pending      │███████     │ 11 (27%) │
+│ Completed │████████████│ 23 (56%) │
+│ In Progress │███ │ 3 (7%) │
+│ Ready │██ │ 2 (5%) │
+│ Blocked │██ │ 2 (5%) │
+│ Pending │███████ │ 11 (27%) │
 └─────────────────────────────────────┘
 ```
 
@@ -146,7 +150,7 @@ Report Status: [Up to Date | Updated | Force Regenerated]
 - Database migration dependency blocking Phase 3 start
 - External API documentation delay impacting testing
 
-### 🟡 Medium Risk Items  
+### 🟡 Medium Risk Items
 - Code review bottleneck if velocity increases
 - Test coverage below 80% target in some modules
 
@@ -177,17 +181,19 @@ Report Status: [Up to Date | Updated | Force Regenerated]
 ```
 
 ---
-*Use `/plan-execute-continue` to resume execution*
-```
+
+_Use `/plan-execute-continue` to resume execution_
+
+````
 
 ## Visual Elements
 
 The report uses these visual indicators for clarity:
 
 - **Progress Bars**: `[██████████░░░░░░]` for percentage completion
-- **Status Icons**: 
+- **Status Icons**:
   - ✅ Completed
-  - 🔄 In Progress  
+  - 🔄 In Progress
   - ⏸️ Pending/Paused
   - 🚫 Blocked
   - ⚠️ At Risk
@@ -198,10 +204,10 @@ The report uses these visual indicators for clarity:
 ## Usage Examples
 
 ```bash
-# Generate status for last referenced plan (reads from /tasks/last-plan.json)
+# Generate status for last referenced plan (reads from /planning/tasks/last-plan.json)
 /plan-status
 
-# Generate status for specific plan (updates /tasks/last-plan.json)
+# Generate status for specific plan (updates /planning/tasks/last-plan.json)
 /plan-status "web-app-redesign"
 
 # Force complete regeneration of status file
@@ -223,11 +229,13 @@ The report uses these visual indicators for clarity:
 ## Arguments
 
 **Plan Name**: $ARGUMENTS (optional)
-- If no plan name provided, uses the last referenced plan from `/tasks/last-plan.json`
+
+- If no plan name provided, uses the last referenced plan from `/planning/tasks/last-plan.json`
 - If last-plan.json doesn't exist, checks for plan-tracker.json in current directory
-- Updates `/tasks/last-plan.json` with the resolved plan name for future commands
+- Updates `/planning/tasks/last-plan.json` with the resolved plan name for future commands
 
 **Options**:
+
 - `--force`: Force complete regeneration, ignore timestamps
 - `--summary`: Generate summary section only (faster)
 - `--blockers`: Focus on detailed blocker analysis
@@ -238,18 +246,20 @@ The report uses these visual indicators for clarity:
 
 ## File Output
 
-**Primary Output**: `/tasks/[plan-name]/status.md`
+**Primary Output**: `/planning/tasks/[plan-name]/status.md`
+
 - Generated automatically with smart update detection
 - Preserves manual annotations in specially marked sections
 - Includes generation metadata and timestamps
 
 **Smart Update Logic**:
+
 1. **No Change**: Status file newer than all source files → Skip generation
-2. **Incremental**: Only task status/progress changed → Update specific sections  
+2. **Incremental**: Only task status/progress changed → Update specific sections
 3. **Full Regeneration**: Structural changes or `--force` → Complete rebuild
 4. **Source Files Monitored**:
    - `plan-tracker.json`
-   - `*.md` files in plan directory  
+   - `*.md` files in plan directory
    - All `scratch/` subdirectories
    - `review-audit/` directories
    - `code-review-tracker.json` files
@@ -267,7 +277,7 @@ The report uses these visual indicators for clarity:
 
 ### Last Plan Tracking
 
-The `/tasks/last-plan.json` file maintains project-level tracking of the most recently referenced plan:
+The `/planning/tasks/last-plan.json` file maintains project-level tracking of the most recently referenced plan:
 
 ```json
 {
@@ -277,7 +287,7 @@ The `/tasks/last-plan.json` file maintains project-level tracking of the most re
   "command_history": [
     {
       "command": "plan-status",
-      "plan_name": "web-app-redesign", 
+      "plan_name": "web-app-redesign",
       "timestamp": "2024-01-15T14:30:22.123Z"
     },
     {
@@ -290,6 +300,7 @@ The `/tasks/last-plan.json` file maintains project-level tracking of the most re
 ```
 
 **Plan Name Resolution Logic**:
+
 1. If plan name provided in command → Use it and update last-plan.json
 2. If no plan name provided → Read plan_name from last-plan.json
 3. If last-plan.json doesn't exist → Check current directory for plan-tracker.json
@@ -297,6 +308,7 @@ The `/tasks/last-plan.json` file maintains project-level tracking of the most re
 5. If none found → Error with suggestion to run plan initialization
 
 **Update Behavior**:
+
 - Always update last-plan.json when a plan name is resolved
 - Maintain command history (last 10 entries) for debugging
 - Include timestamp and command that updated the reference
@@ -306,9 +318,9 @@ The `/tasks/last-plan.json` file maintains project-level tracking of the most re
 ```bash
 # Pseudo-code for timestamp checking
 function needsUpdate(planName) {
-  statusFile = `/tasks/${planName}/status.md`
+  statusFile = `/planning/tasks/${planName}/status.md`
   if (!exists(statusFile)) return true
-  
+
   statusTime = getModTime(statusFile)
   sourceFiles = [
     `plan-tracker.json`,
@@ -317,7 +329,7 @@ function needsUpdate(planName) {
     glob(`**/code-review-tracker.json`),
     glob(`**/review-audit/**/*`)
   ]
-  
+
   for (file of sourceFiles) {
     if (getModTime(file) > statusTime) return true
   }
@@ -336,7 +348,9 @@ function needsUpdate(planName) {
 3. **Preserve manual content** in marked sections:
    ```markdown
    <!-- MANUAL-CONTENT-START: Custom Notes -->
+
    User's manual annotations here
+
    <!-- MANUAL-CONTENT-END -->
    ```
 

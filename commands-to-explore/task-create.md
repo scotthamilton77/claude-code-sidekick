@@ -10,12 +10,14 @@ Arguments: $ARGUMENTS
 ## Instructions
 
 1. **Parse the arguments** to extract:
+
    - Type: project or subtask (required, first argument)
    - Project name: hyphenated lowercase (required, second argument)
    - For subtasks: title (required, third argument)
    - Optional flags: description, priority
 
 2. **Validate inputs**:
+
    - Convert project names to lowercase, hyphenated format
    - Ensure names contain only alphanumeric characters and hyphens
    - For subtasks, ensure parent project exists
@@ -23,12 +25,14 @@ Arguments: $ARGUMENTS
 3. **Create the structure** based on type:
 
    **For Projects**:
+
    ```bash
    # Create project directory
-   mkdir -p /tasks/{project-name}
+   mkdir -p /planning/tasks/{project-name}
    ```
 
-   Create `/tasks/{project-name}/README.md`:
+   Create `/planning/tasks/{project-name}/README.md`:
+
    ```markdown
    # Project: {Human Readable Title}
 
@@ -52,8 +56,9 @@ Arguments: $ARGUMENTS
    ```
 
    **For Subtasks**:
+
    - Find the next available index number (001, 002, etc.)
-   - Create `/tasks/{project-name}/{index}-{hyphenated-title}.md`:
+   - Create `/planning/tasks/{project-name}/{index}-{hyphenated-title}.md`:
 
    ```markdown
    # {index}: {Human Readable Title}
@@ -77,32 +82,36 @@ Arguments: $ARGUMENTS
    ```
 
 4. **Update the project README.md**:
+
    - Add the new subtask to the Tasks list
    - Update the progress statistics
    - Sort tasks by index number
 
 5. **Update global plan.md if needed**:
+
    - For new projects, add entry under "Active Projects"
    - Include brief description and status
 
 6. **Provide confirmation**:
 
    **For Projects**:
+
    ```
    ✓ Created project: {project-name}
 
-   Location: /tasks/{project-name}/
+   Location: /planning/tasks/{project-name}/
 
    Next steps:
-   - Edit /tasks/{project-name}/README.md to add details
+   - Edit /planning/tasks/{project-name}/README.md to add details
    - Create subtasks with: /task-create subtask "{project-name}" "task title"
    ```
 
    **For Subtasks**:
+
    ```
    ✓ Created subtask: {index}-{title}
 
-   Location: /tasks/{project-name}/{index}-{title}.md
+   Location: /planning/tasks/{project-name}/{index}-{title}.md
 
    Next steps:
    - Edit the file to add specific action items
