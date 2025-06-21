@@ -254,6 +254,8 @@ function selectNextTask(tracker) {
 
 ### From plan_context_source_files (e.g. plan's README.md, PLAN.md, \*-PLAN.md)
 
+- [List and link to these files]
+
 [Relevant sections]
 
 ### From Phase Documentation
