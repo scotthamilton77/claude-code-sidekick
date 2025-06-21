@@ -4,9 +4,12 @@ A comprehensive command system for AI-assisted project planning, decomposition, 
 
 ## TODOs
 
+- rename to plan\* again?
 - architect.md
   - asks another architect subagent for review and iterates up to 3x
   - can be asked for clarifications by the implementation agent, who can respond by updating existing or creating new artifacts
+- do a qualitiative comparison to https://github.com/scopecraft/command/tree/main/.claude/commands and other similar projects on command formatting, command creation automation
+- consider integration with MCP / other tools
 
 ## Quick Start
 

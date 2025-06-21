@@ -23,6 +23,7 @@
       "Bash(gh:*)",
       "Bash(grep:*)",
       "Bash(head:*)",
+      "Bash(jq:*)",
       "Bash(ls:*)",
       "Bash(mkdir:*)",
       "Bash(node:*)",
@@ -52,7 +53,7 @@
     ],
     "deny": [],
     "additionalDirectories": [
-      "~/.claude/.templates/"
+      "/home/scott/.claude/.templates/"
     ]
   },
   "model": "sonnet"

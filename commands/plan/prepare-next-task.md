@@ -1,318 +1,506 @@
-Execute the next pending task from plan-tracker.json with automated code review: $ARGUMENTS
+Prepare the next task for implementation with architectural review and context creation: $ARGUMENTS
 
 ## Purpose
 
-This command prepares the next task for implementation by validating architecture documentation, identifying the next available task, creating implementation context, and conducting pre-implementation architectural review. The task is marked as "ready" upon successful completion.
+This command prepares the next pending task for implementation by validating dependencies, creating implementation context, conducting architectural review, and marking the task as "ready" for execution. Uses Claude Code todos for progress tracking and state management to prevent duplicate work.
 
-## Entry Criteria
+## Implementation Strategy
 
-- Valid plan-tracker.json exists (either specified by name, in last-plan.json, or current directory)
-- At least one task with status "pending" and satisfied dependencies exists
-- User confirmation to proceed if architecture documentation is missing
+This command immediately creates todos for all major steps, then executes each step with proper state checking to avoid duplicate work and provide clear progress visibility.
 
-## Exit Criteria
+---
 
-**Success** (task marked as "ready"):
-- Next available task identified and marked as "preparing" (until we're done then it's marked "ready")
-- All dependencies verified as satisfied
-- Context files created in scratch directory structure
-- Architect review completed and saved as architect-review-[timestamp].json
-- initial-context-summary.md updated with architectural context
-- Task status updated to "ready"
+I'll begin by creating todos for the complete preparation workflow:
 
-**Failure** (task remains "pending"):
-- No tasks available due to unsatisfied dependencies
-- User declines to proceed without architecture documentation
-- Critical architecture conflicts identified that require human resolution
-
-## Process Overview
-
-1. **Plan Name Resolution**:
-
-   - If plan name provided in $ARGUMENTS, use it and update `/planning/tasks/last-plan.json`
-   - If no plan name provided, read from `/planning/tasks/last-plan.json` for the last referenced plan
-   - If neither exists, check for plan-tracker.json in current directory
-   - Update `/planning/tasks/last-plan.json` with resolved plan name
-
-2. **Architecture Documentation Check**:
-
-   - Check if `/planning/architecture.md` and `/planning/standards.md` exist
-   - If architecture files are missing:
-     - Ask user if they want to continue without architecture documentation
-     - Recommend running `/plan-architecture` first for better context
-     - If user chooses to continue, note the missing architecture in context
-
-3. **Task Selection and Validation**:
-
-   - Read plan-tracker.json from `/planning/tasks/[plan-name]/`
-   - **Validate plan structure**: Ensure phases and tasks arrays exist with required fields
-   - Find next pending task respecting dependencies using selection algorithm
-   - **Handle task conflicts**: If task is in "preparing" state, warn user and offer options:
-     - Continue (override previous preparation)
-     - Stop (exit without changes)
-     - Reset to pending (clear previous preparation)
-   - **Dependency validation**: Check all task and phase dependencies are satisfied
-   - **Block on unmet dependencies**: If dependencies not met, list blocking items and exit
-   - Update task status to "preparing" only after all validations pass
-
-4. **Context Preparation**:
-
-   - Create scratchpad directory structure
-   - Generate initial-context-summary.md with architecture file references
-   - Gather relevant plan documents and dependencies
-   - Include architecture documentation in context when available
-   - Create curated context for agents
-
-5. **Architect Review Phase**:
-
-   - **Pre-review validation**: Ensure architect can access architecture files and task context
-   - Spawn architect subagent to review current state and next task
-   - Architect analyzes:
-     - Completed tasks and their architectural implications
-     - Current system state and existing code patterns
-     - Next task requirements in architectural context
-     - Integration points and potential conflicts
-     - Required updates to architecture artifacts
-   - **Generate structured output**: Create architect-review-[timestamp].json with required fields
-   - **Validate architect output**: Ensure all required sections are complete
-   - **Update context**: Add architectural insights to initial-context-summary.md
-   - **Handle blocking issues**: If critical architectural conflicts found:
-     - Mark task as "needs-human-review"
-     - Document specific conflicts requiring resolution
-     - Exit without marking task as "ready"
-
-6. **Completion and Validation**:
-   - **Final validation**: Verify all required files exist and are properly formatted
-   - **Status update**: Mark task as "ready" if all steps completed successfully
-   - **Alternative outcomes**: Mark as "needs-human-review" if blocking issues found
-   - **Log execution**: Record detailed execution log with timestamps and file locations
-   - **Verification**: Confirm task is ready for implement-task.md to pick up
-
-## Directory Structure
-
-```
-/planning/tasks/[plan-name]/
-├── plan-tracker.json
-├── scratch/
-│   └── phase-[##]/
-│       └── task-[##]/
-│           ├── initial-context-summary.md
-│           ├── architect-review-[timestamp].json  # Pre-implementation architect review
-│           └── implementation-notes.md
+```claude-todo-setup
+/todo-write {
+  "todos": [
+    {
+      "id": "plan-resolution",
+      "content": "Resolve plan name and validate plan-tracker.json exists and is readable",
+      "status": "pending",
+      "priority": "high"
+    },
+    {
+      "id": "architecture-check", 
+      "content": "Check architecture documentation availability and warn if missing",
+      "status": "pending",
+      "priority": "medium"
+    },
+    {
+      "id": "task-selection",
+      "content": "Select next available task, validate dependencies, and handle state conflicts",
+      "status": "pending", 
+      "priority": "high"
+    },
+    {
+      "id": "context-creation",
+      "content": "Create scratch directory structure and initial context files",
+      "status": "pending",
+      "priority": "high"
+    },
+    {
+      "id": "architect-review",
+      "content": "Run architect review (or reuse existing if valid) and generate architect-review-[timestamp].json",
+      "status": "pending",
+      "priority": "high"
+    },
+    {
+      "id": "finalization",
+      "content": "Update context with architect insights and mark task as 'ready'",
+      "status": "pending",
+      "priority": "high"
+    }
+  ]
+}
 ```
 
-## Implementation Details
+Now I'll execute each step with proper state management:
 
-### 1. Task Selection Algorithm
+## Step 1: Plan Name Resolution and Validation
 
+Mark the plan-resolution todo as in_progress, then:
+
+**Plan Name Resolution Logic:**
+- If plan name provided in $ARGUMENTS: use it and update `/planning/tasks/last-plan.json`
+- If no plan name provided: read from `/planning/tasks/last-plan.json` 
+- If neither exists: check for plan-tracker.json in current directory
+- Update `/planning/tasks/last-plan.json` with resolved plan name
+
+**Validation Steps:**
+```bash
+# Check if plan-tracker.json exists and is readable
+plan_tracker_path="/planning/tasks/[resolved-plan-name]/plan-tracker.json"
+if ! test -f "$plan_tracker_path"; then
+    echo "ERROR: plan-tracker.json not found at $plan_tracker_path"
+    echo "Run /plan-execution-init [plan-name] first to initialize tracking"
+    exit 1
+fi
+
+# Validate JSON structure
+if ! jq 'empty' "$plan_tracker_path" 2>/dev/null; then
+    echo "ERROR: plan-tracker.json contains invalid JSON"
+    echo "Check file format and repair if needed"
+    exit 1
+fi
+```
+
+Mark plan-resolution todo as completed on success.
+
+## Step 2: Architecture Documentation Check
+
+Mark architecture-check todo as in_progress, then:
+
+**Check Architecture Files:**
+```bash
+arch_missing=false
+if ! test -f "/planning/architecture.md"; then
+    echo "WARNING: /planning/architecture.md not found"
+    arch_missing=true
+fi
+if ! test -f "/planning/standards.md"; then
+    echo "WARNING: /planning/standards.md not found" 
+    arch_missing=true
+fi
+
+if [ "$arch_missing" = true ]; then
+    echo "Architecture documentation is missing."
+    echo "Recommend running /plan-architecture first for better context."
+    read -p "Continue without architecture documentation? (y/n): " continue_choice
+    if [ "$continue_choice" != "y" ]; then
+        echo "Exiting. Run /plan-architecture first, then retry this command."
+        /todo-write '{"todos": [{"id": "plan-resolution", "content": "Resolve plan name and validate plan-tracker.json exists and is readable", "status": "completed", "priority": "high"}, {"id": "architecture-check", "content": "Check architecture documentation availability and warn if missing", "status": "completed", "priority": "medium"}, {"id": "task-selection", "content": "Select next available task, validate dependencies, and handle state conflicts", "status": "pending", "priority": "high"}, {"id": "context-creation", "content": "Create scratch directory structure and initial context files", "status": "pending", "priority": "high"}, {"id": "architect-review", "content": "Run architect review (or reuse existing if valid) and generate architect-review-[timestamp].json", "status": "pending", "priority": "high"}, {"id": "finalization", "content": "Update context with architect insights and mark task as ready", "status": "pending", "priority": "high"}]}'
+        exit 0
+    fi
+fi
+```
+
+Mark architecture-check todo as completed.
+
+## Step 3: Task Selection and State Management  
+
+Mark task-selection todo as in_progress, then:
+
+**Task Selection Algorithm:**
 ```javascript
-// Pseudo-code for task selection
+// Read plan-tracker.json and find next available task
 function selectNextTask(tracker) {
-  for (phase of tracker.phases) {
+  for (const phase of tracker.phases) {
     if (phase.status === "completed") continue;
-
-    // Check phase dependencies
-    if (!areDependenciesMet(phase.dependencies)) continue;
-
-    for (task of phase.tasks) {
+    
+    // Check phase dependencies are satisfied
+    if (!areDependenciesMatched(phase.dependencies, tracker)) continue;
+    
+    for (const task of phase.tasks) {
       if (task.status === "pending") {
-        // Check task dependencies
-        if (areDependenciesMet(task.dependencies)) {
+        // Check task dependencies are satisfied
+        if (areDependenciesMatched(task.dependencies, tracker)) {
           return { phase, task };
         }
       }
     }
   }
-  return null; // All tasks complete or blocked
+  return null; // No available tasks
 }
 ```
 
-### 2. Initial Context Summary Template
+**State Conflict Handling:**
+```bash
+# If selected task status is "preparing" or "ready"
+if [ "$task_status" = "preparing" ]; then
+    echo "Task is already being prepared (status: preparing)"
+    echo "Options:"
+    echo "1. Continue (override previous preparation)"
+    echo "2. Reset to pending (clear previous preparation)" 
+    echo "3. Exit without changes"
+    read -p "Choose option (1/2/3): " conflict_choice
+    
+    case $conflict_choice in
+        1) echo "Continuing with override..." ;;
+        2) # Reset task to pending, clean scratch directory
+           echo "Resetting task to pending..."
+           # Update tracker status atomically
+           ;;
+        3) echo "Exiting without changes"; exit 0 ;;
+        *) echo "Invalid choice"; exit 1 ;;
+    esac
+elif [ "$task_status" = "ready" ]; then
+    echo "Task is already prepared (status: ready)"
+    read -p "Re-prepare this task? (y/n): " reprepare_choice
+    if [ "$reprepare_choice" != "y" ]; then
+        echo "Task is ready for implementation. Run /implement-task to proceed."
+        exit 0
+    fi
+fi
+```
 
+**Atomic Status Update:**
+```bash
+# Update task status to "preparing" atomically
+temp_tracker=$(mktemp)
+jq '.phases['"${phase_index}"'].tasks['"${task_index}"'].status = "preparing"' \
+   "$plan_tracker_path" > "$temp_tracker"
+mv "$temp_tracker" "$plan_tracker_path"
+```
+
+Mark task-selection todo as completed.
+
+## Step 4: Context Creation
+
+Mark context-creation todo as in_progress, then:
+
+**Directory Structure Creation:**
+```bash
+scratch_dir="/planning/tasks/${plan_name}/scratch/phase-${phase_id}/task-${task_id}"
+mkdir -p "$scratch_dir"
+
+# Check if initial-context-summary.md already exists
+if test -f "$scratch_dir/initial-context-summary.md"; then
+    echo "Context file already exists, checking if update needed..."
+    # Compare timestamps, only regenerate if plan files are newer
+    if find_plan_files_newer_than_context; then
+        echo "Updating context file with latest plan information..."
+        generate_context_file
+    else
+        echo "Context file is current, skipping regeneration"
+    fi
+else
+    echo "Generating initial context file..."
+    generate_context_file
+fi
+```
+
+**Context File Template Generation:**
 ```markdown
 # Task Implementation Context
 
 ## Task Information
-
-- **Phase**: [Phase Name] (ID: [phase_id])
-- **Task**: [Task Name] (ID: [task_id])
+- **Phase**: [Phase Name] (ID: ${phase_id})
+- **Task**: [Task Name] (ID: ${task_id}) 
 - **Priority**: [priority]
-- **Status**: initialized
+- **Status**: preparing → ready (after architect review)
 
 ## Task Description
-
 [Full task description from plan]
 
 ## Acceptance Criteria
-
-1. [Criterion 1]
-2. [Criterion 2]
-   ...
+[List acceptance criteria]
 
 ## Dependencies
+**Satisfied Dependencies:**
+[List completed dependencies that enabled this task]
 
-- [List of completed dependencies]
-- [External requirements]
+**External Requirements:**
+[List external requirements]
 
 ## Relevant Context
 
-### From plan_context_source_files (e.g. plan's README.md, PLAN.md, \*-PLAN.md)
-
-- [List and link to these files]
-
-[Relevant sections]
+### From Plan Context Source Files
+- PLAN.md: [link and relevant sections]
+- README.md: [link and relevant sections]
+- Phase documentation: [link and relevant sections]
 
 ### From Architecture Documentation
+**Architecture Status**: [Available/Missing with details]
 
-**CRITICAL**: Read these architecture files entirely before beginning implementation to understand the system context:
-
+**CRITICAL**: Read these architecture files entirely before implementation:
 - `/planning/architecture.md` - System architecture, component design, data flow
-- `/planning/standards.md` - Development standards, coding guidelines, quality requirements
+- `/planning/standards.md` - Development standards, coding guidelines
 
-**Architecture Status**: [Available/Missing - if missing, note that architecture context is limited]
+### Architectural Context
+**Pre-Implementation Architect Review**: [Will reference architect-review-[timestamp].json]
+
+[Architectural context will be populated after architect review]
+
+## Technical Requirements
+[Specific technical details from plan]
+
+## Implementation Guidelines
+- Follow existing code patterns in the project
+- Ensure all tests pass before marking complete
+- Update documentation as needed
+- Consider edge cases and error handling
+- Maintain architectural compliance
+```
+
+Mark context-creation todo as completed.
+
+## Step 5: Architect Review
+
+Mark architect-review todo as in_progress, then:
+
+**Smart Architect Review Logic:**
+```bash
+# Check for existing architect review files
+existing_reviews=($(ls "$scratch_dir"/architect-review-*.json 2>/dev/null))
+
+if [ ${#existing_reviews[@]} -gt 0 ]; then
+    # Found existing review(s), check if recent enough to reuse
+    latest_review="${existing_reviews[-1]}"  # Get most recent
+    review_age_hours=$(( ($(date +%s) - $(stat -c %Y "$latest_review")) / 3600 ))
+    
+    if [ $review_age_hours -lt 24 ]; then
+        echo "Found recent architect review (${review_age_hours}h old): $(basename "$latest_review")"
+        read -p "Reuse existing review? (y/n): " reuse_choice
+        
+        if [ "$reuse_choice" = "y" ]; then
+            echo "Reusing existing architect review: $(basename "$latest_review")"
+            # Skip to context update step
+            architect_review_file="$latest_review"
+            skip_architect_review=true
+        fi
+    else
+        echo "Found older architect review (${review_age_hours}h old): $(basename "$latest_review")"
+        read -p "Generate new review? (y/n): " new_review_choice
+        if [ "$new_review_choice" != "y" ]; then
+            echo "Keeping existing review: $(basename "$latest_review")"
+            architect_review_file="$latest_review"
+            skip_architect_review=true
+        fi
+    fi
+fi
+
+# Generate new architect review if not reusing existing
+if [ "$skip_architect_review" != true ]; then
+    echo "Generating new architect review..."
+    timestamp=$(date +"%Y%m%d-%H%M%S")
+    architect_review_file="$scratch_dir/architect-review-$timestamp.json"
+    
+    # Spawn architect agent with comprehensive context
+    /task "Architect Review Analysis" "
+    You are an expert software architect conducting a pre-implementation review.
+    
+    **Context:**
+    - Plan: $plan_name
+    - Phase: $phase_name (ID: $phase_id)
+    - Task: $task_name (ID: $task_id)
+    - Plan tracker: $plan_tracker_path
+    - Context file: $scratch_dir/initial-context-summary.md
+    - Architecture files: /planning/architecture.md, /planning/standards.md
+    
+    **Analysis Required:**
+    1. Review completed tasks and their architectural implications
+    2. Analyze current system state and existing code patterns
+    3. Examine next task requirements in architectural context
+    4. Identify integration points and potential conflicts
+    5. Recommend updates to architecture artifacts
+    
+    **Output Format:**
+    Generate a structured JSON file with these sections:
+    {
+      \"review_metadata\": {
+        \"timestamp\": \"$timestamp\",
+        \"plan_name\": \"$plan_name\", 
+        \"phase_id\": \"$phase_id\",
+        \"task_id\": \"$task_id\",
+        \"reviewer\": \"architect-agent\",
+        \"architecture_files_available\": boolean
+      },
+      \"current_state_analysis\": {
+        \"completed_tasks_summary\": \"Summary of completed work\",
+        \"architectural_debt\": [\"List of architectural issues\"],
+        \"existing_patterns\": [\"Code patterns to follow\"],
+        \"integration_points\": [\"Systems that will be affected\"]
+      },
+      \"task_analysis\": {
+        \"architectural_significance\": \"high|medium|low\",
+        \"complexity_assessment\": \"Description of implementation complexity\",
+        \"risk_factors\": [\"List of implementation risks\"],
+        \"recommended_approach\": \"Recommended implementation strategy\"
+      },
+      \"implementation_guidance\": {
+        \"architectural_constraints\": [\"Must-follow constraints\"],
+        \"recommended_patterns\": [\"Patterns to use\"],
+        \"anti_patterns_to_avoid\": [\"Patterns to avoid\"],
+        \"integration_strategy\": \"How to integrate with existing systems\",
+        \"validation_requirements\": [\"How to verify architectural compliance\"]
+      },
+      \"architecture_updates_required\": {
+        \"architecture_md_updates\": [\"Changes needed to architecture.md\"],
+        \"standards_md_updates\": [\"Changes needed to standards.md\"],
+        \"new_documentation_needed\": [\"New docs to create\"]
+      },
+      \"blocking_issues\": [\"Critical issues requiring human resolution\"],
+      \"recommendations\": [\"Overall recommendations for this task\"]
+    }
+    
+    Save this JSON structure to: $architect_review_file
+    
+    CRITICAL: If any blocking architectural conflicts are found, mark them clearly in the blocking_issues array.
+    "
+    
+    # Validate architect review output
+    if ! test -f "$architect_review_file"; then
+        echo "ERROR: Architect review failed to generate output file"
+        # Rollback task status to pending
+        rollback_task_status_to_pending
+        exit 1
+    fi
+    
+    if ! jq 'empty' "$architect_review_file" 2>/dev/null; then
+        echo "ERROR: Architect review generated invalid JSON"
+        # Rollback task status to pending  
+        rollback_task_status_to_pending
+        exit 1
+    fi
+    
+    # Check for blocking issues
+    blocking_issues=$(jq -r '.blocking_issues | length' "$architect_review_file")
+    if [ "$blocking_issues" -gt 0 ]; then
+        echo "CRITICAL: Architect review found blocking issues:"
+        jq -r '.blocking_issues[]' "$architect_review_file"
+        echo "Task requires human resolution before implementation."
+        
+        # Update task status to "needs-human-review"
+        temp_tracker=$(mktemp)
+        jq '.phases['"${phase_index}"'].tasks['"${task_index}"'].status = "needs-human-review"' \
+           "$plan_tracker_path" > "$temp_tracker"
+        mv "$temp_tracker" "$plan_tracker_path"
+        
+        /todo-write '{"todos": [{"id": "plan-resolution", "content": "Resolve plan name and validate plan-tracker.json exists and is readable", "status": "completed", "priority": "high"}, {"id": "architecture-check", "content": "Check architecture documentation availability and warn if missing", "status": "completed", "priority": "medium"}, {"id": "task-selection", "content": "Select next available task, validate dependencies, and handle state conflicts", "status": "completed", "priority": "high"}, {"id": "context-creation", "content": "Create scratch directory structure and initial context files", "status": "completed", "priority": "high"}, {"id": "architect-review", "content": "Run architect review (or reuse existing if valid) and generate architect-review-[timestamp].json", "status": "completed", "priority": "high"}, {"id": "finalization", "content": "Update context with architect insights and mark task as ready", "status": "pending", "priority": "high"}]}'
+        exit 1
+    fi
+    
+    echo "Architect review completed successfully: $(basename "$architect_review_file")"
+fi
+```
+
+Mark architect-review todo as completed.
+
+## Step 6: Finalization and Status Update
+
+Mark finalization todo as in_progress, then:
+
+**Update Context with Architect Insights:**
+```bash
+# Extract key insights from architect review
+architect_insights=$(jq -r '.implementation_guidance.recommended_patterns[]' "$architect_review_file")
+architectural_constraints=$(jq -r '.implementation_guidance.architectural_constraints[]' "$architect_review_file")
+integration_strategy=$(jq -r '.implementation_guidance.integration_strategy' "$architect_review_file")
+
+# Update initial-context-summary.md with architect insights
+sed -i '/### Architectural Context/,$d' "$scratch_dir/initial-context-summary.md"
+cat >> "$scratch_dir/initial-context-summary.md" << EOF
 
 ### Architectural Context
 
-**Pre-Implementation Architect Review**: [Reference to architect-review-[timestamp].json]
+**Pre-Implementation Architect Review**: $(basename "$architect_review_file")
 
-**Key Architectural Insights**:
+**Key Architectural Insights:**
+$(echo "$architect_insights" | sed 's/^/- /')
 
-- [Architectural constraints that must be followed]
-- [Recommended patterns and approaches for this task]
-- [Integration points and reusable components]
-- [Specific risks to be aware of during implementation]
+**Architectural Constraints:**
+$(echo "$architectural_constraints" | sed 's/^/- /')
 
-**Architecture Artifact Updates Required**:
+**Integration Strategy:**
+$integration_strategy
 
-- [Updates needed to architecture.md]
-- [Updates needed to standards.md]
-- [New documentation to be created]
+**Implementation Guidance:**
+- Follow architectural patterns specified in the review
+- Validate compliance with architectural constraints
+- Consider integration points with existing systems
+- Address risk factors identified in the review
 
-**Implementation Guidance**:
+EOF
+```
 
-- [Specific architectural patterns to use]
-- [Anti-patterns to avoid]
-- [Integration approach recommendations]
-- [Validation requirements for architectural compliance]
+**Final Validation and Status Update:**
+```bash
+# Verify all required files exist
+required_files=(
+    "$scratch_dir/initial-context-summary.md"
+    "$architect_review_file"
+)
 
-### From Phase Documentation
+for file in "${required_files[@]}"; do
+    if ! test -f "$file"; then
+        echo "ERROR: Required file missing: $file"
+        rollback_task_status_to_pending
+        exit 1
+    fi
+done
 
-[Phase-specific context]
+# Atomically update task status to "ready"
+temp_tracker=$(mktemp)
+jq '.phases['"${phase_index}"'].tasks['"${task_index}"'].status = "ready" | .phases['"${phase_index}"'].tasks['"${task_index}"'].prepared_at = "'"$(date -Iseconds)"'"' \
+   "$plan_tracker_path" > "$temp_tracker"
+mv "$temp_tracker" "$plan_tracker_path"
 
-### Related Completed Tasks
+echo "✅ Task preparation completed successfully!"
+echo "Task status: ready"
+echo "Next step: Run /implement-task to begin implementation"
+```
 
-[Summary of related completed work]
+Mark finalization todo as completed.
 
-## Technical Requirements
+## Error Handling and Rollback
 
-- [Specific technical details]
-- [Frameworks/libraries to use]
-- [Constraints or limitations]
-
-## Deliverables
-
-- [Expected outputs]
-- [Files to create/modify]
-
-## Implementation Guidelines
-
-- Follow existing code patterns in the project
-- Ensure all tests pass
-- Update documentation as needed
-- Consider edge cases and error handling
+**Rollback Function:**
+```bash
+function rollback_task_status_to_pending() {
+    echo "Rolling back task status to pending due to error..."
+    temp_tracker=$(mktemp)
+    jq '.phases['"${phase_index}"'].tasks['"${task_index}"'].status = "pending"' \
+       "$plan_tracker_path" > "$temp_tracker"
+    mv "$temp_tracker" "$plan_tracker_path"
+    
+    # Clean up partial scratch directory if it was created
+    if [ -d "$scratch_dir" ] && [ -z "$(ls -A "$scratch_dir" 2>/dev/null)" ]; then
+        rmdir "$scratch_dir"
+        echo "Cleaned up empty scratch directory"
+    fi
+}
 ```
 
 ## Usage Examples
 
 ```bash
-# Prepare the next task in last referenced plan (reads from /planning/tasks/last-plan.json)
+# Prepare next task in last referenced plan
 /prepare-next-task
 
-# Prepare specific plan (updates /planning/tasks/last-plan.json)
+# Prepare specific plan (updates last-plan.json)  
 /prepare-next-task "web-app-redesign"
 
-# Skip to specific phase/task
-/prepare-next-task "mobile-app --phase 2 --task 3"
-
-# Force re-preparation of current task
-/prepare-next-task "--retry-current"
-
-# Example workflow showing last-plan tracking:
-/prepare-next-task "web-app-redesign"  # Updates last-plan.json
-/prepare-next-task                     # Uses "web-app-redesign" from last-plan.json
-/status                                # Also uses "web-app-redesign"
+# Check current preparation status
+/todo-read
 ```
-
-## Arguments
-
-**Plan Name**: $ARGUMENTS (optional)
-
-- If no plan name provided, uses the last referenced plan from `/planning/tasks/last-plan.json`
-- If last-plan.json doesn't exist, checks for plan-tracker.json in current directory
-- Updates `/planning/tasks/last-plan.json` with the resolved plan name for future commands
-
-## Output
-
-1. **Progress Summary**:
-
-   - Current task being executed
-   - Phase and overall completion percentage
-   - Dependencies satisfied
-
-2. **Execution Log**:
-
-   - Agent spawning confirmations
-   - Status updates
-
-3. **Completion Report**:
-   - Task outcome (completed/needs-human-review)
-   - Files modified
-   - Next recommended action
-
-## Error Handling
-
-**Validation Errors**:
-- **Invalid plan structure**: Report specific missing fields and exit
-- **Plan file not found**: Guide user to create plan or specify correct name
-- **Malformed JSON**: Report parsing errors with line numbers
-
-**Task Selection Errors**:
-- **No pending tasks**: Report plan completion status or list blocked tasks with reasons
-- **All tasks blocked**: List each blocking dependency and suggested resolution steps
-- **Task already preparing**: Offer user choice to override, reset, or exit
-
-**Architecture Errors**:
-- **Missing architecture files**: Prompt user to continue or run /plan-architecture first
-- **Architect agent failure**: Log error details, attempt retry once, then exit
-- **Critical architectural conflicts**: Document conflicts and mark task as needs-human-review
-
-**Context Creation Errors**:
-- **Directory creation failure**: Report permission issues and required paths
-- **Template file issues**: Fall back to minimal context structure
-- **File write failures**: Report specific path and permission problems
-
-**Recovery Actions**:
-- **Partial preparation**: Clean up incomplete scratch directories before exit
-- **Task status rollback**: Reset task to "pending" if preparation fails after status update
-- **Detailed logging**: Always log exact failure point for debugging
-
-## Next Steps
-
-**After successful preparation** (task marked as "ready"):
-- Execute the prepared task: `/implement-task`
-- Task will be automatically selected from "ready" status
-
-**After preparation failure**:
-- Review error details and resolve blocking issues
-- Re-run: `/prepare-next-task` (same arguments)
-- Consider architecture setup: `/plan-architecture` if architecture files missing
-
-**When no more tasks to prepare**:
-- Check plan status: `/status`
-- Create PR if phase complete: `/pr`
-- Manual review for any tasks marked "needs-human-review"
-
-**Integration with implement-task**:
-- implement-task.md looks for tasks with status "ready"
-- No task name needs to be passed - it finds the ready task automatically
-- Prepared context in scratch directory is automatically used
