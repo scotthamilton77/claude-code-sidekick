@@ -13,27 +13,38 @@ This command reads `plan-tracker.json`, identifies the next task to execute, cre
    - If neither exists, check for plan-tracker.json in current directory
    - Update `/planning/tasks/last-plan.json` with resolved plan name
 
-2. **Task Selection**:
+2. **Architecture Documentation Check**:
+
+   - Check if `/planning/architecture.md` and `/planning/standards.md` exist
+   - If architecture files are missing:
+     - Ask user if they want to continue without architecture documentation
+     - Recommend running `/plan-architecture` first for better context
+     - If user chooses to continue, note the missing architecture in context
+
+3. **Task Selection**:
 
    - Read plan-tracker.json from `/planning/tasks/[plan-name]/`
    - Find next pending task respecting dependencies
    - Check prerequisites are met
    - Update task status to "in_progress"
 
-3. **Context Preparation**:
+4. **Context Preparation**:
 
    - Create scratchpad directory structure
-   - Generate initial-context-summary.md
+   - Generate initial-context-summary.md with architecture file references
    - Gather relevant plan documents and dependencies
+   - Include architecture documentation in context when available
    - Create curated context for agents
 
-4. **Implementation Cycle**:
+5. **Implementation Cycle**:
 
    - Spawn implementation subagent with context
-   - Subagent implements the task
+   - Subagent reads context and architecture files entirely to understand system context
+   - Subagent implements the task with context awareness
+   - If architecture-level questions arise, spawn architect subagent for clarification
    - Update status to "ready-for-review"
 
-5. **Review Cycle** (up to 3 iterations):
+6. **Review Cycle** (up to 3 iterations):
 
    - Spawn review subagent to critique implementation
    - Generate code-review.md (detailed feedback) and code-review-tracker.json (structured findings)
@@ -45,7 +56,7 @@ This command reads `plan-tracker.json`, identifies the next task to execute, cre
    - If iteration = 3 AND disputes remain: set status to "needs-human-review" and stop
    - Complete audit trail preserved in review-audit/ directory
 
-6. **Completion**:
+7. **Completion**:
    - Update task status to "completed" or "needs-human-review"
    - Log execution details
    - Prepare for next task or PR creation
@@ -60,9 +71,10 @@ This command reads `plan-tracker.json`, identifies the next task to execute, cre
 │       └── task-[##]/
 │           ├── initial-context-summary.md
 │           ├── implementation-notes.md
-│           ├── code-review.md              # Current/active review
-│           ├── code-review-tracker.json   # Current/active tracker
-│           └── review-audit/              # Historical snapshots
+│           ├── architect-qa-[timestamp].json   # Architecture Q&A sessions
+│           ├── code-review.md                  # Current/active review
+│           ├── code-review-tracker.json        # Current/active tracker
+│           └── review-audit/                   # Historical snapshots
 │               ├── iteration-1-initial/
 │               │   ├── code-review.md
 │               │   └── code-review-tracker.json
@@ -266,6 +278,15 @@ function selectNextTask(tracker) {
 
 [Relevant sections]
 
+### From Architecture Documentation
+
+**CRITICAL**: Read these architecture files entirely before beginning implementation to understand the system context:
+
+- `/planning/architecture.md` - System architecture, component design, data flow
+- `/planning/standards.md` - Development standards, coding guidelines, quality requirements
+
+**Architecture Status**: [Available/Missing - if missing, note that architecture context is limited]
+
 ### From Phase Documentation
 
 [Phase-specific context]
@@ -295,20 +316,34 @@ function selectNextTask(tracker) {
 
 ### 3. Implementation Agent Prompt
 
-```
+````
 You are tasked with implementing a specific task as part of a larger plan execution.
 
-**IMPORTANT**: First, read the initial context summary at:
+**CRITICAL**: First, read the initial context summary at:
 /planning/tasks/[plan-name]/scratch/phase-[##]/task-[##]/initial-context-summary.md
 
 This file contains all necessary context, requirements, and acceptance criteria for your task.
 
+**CRITICAL - Architecture Understanding**:
+Before beginning implementation, you MUST:
+1. Read `/planning/architecture.md` entirely to understand:
+   - System architecture and component relationships
+   - Data flow and integration patterns
+   - Deployment and infrastructure considerations
+   - Security architecture and boundaries
+2. Read `/planning/standards.md` entirely to understand:
+   - Coding standards and conventions
+   - Testing requirements and strategies
+   - Documentation standards
+   - Quality assurance processes
+
 **Your responsibilities**:
 1. Understand the task requirements completely
-2. Implement the solution following project conventions
-3. Write/update tests as needed
-4. Ensure all acceptance criteria are met
-5. **Document code properly following these practices**:
+2. Read and internalize the context, architecture and standards documentation
+3. Implement the solution following project conventions and architectural patterns
+4. Write/update tests as needed
+5. Ensure all acceptance criteria are met
+6. **Document code properly following these practices**:
    - Write self-descriptive code with clear variable and function names
    - Add file-level docstrings/comments explaining purpose and high-level approach
    - Document public classes and methods with clear descriptions, parameters, and return values
@@ -316,11 +351,62 @@ This file contains all necessary context, requirements, and acceptance criteria 
    - Document WHY (rationale) not WHAT (implementation) - code should be self-explanatory
    - Include examples in docstrings for complex APIs or usage patterns
    - Avoid over-commenting - prefer refactoring unclear code to be more readable
-6. Create an implementation-notes.md file documenting:
+7. Create an implementation-notes.md file documenting:
    - Key decisions made
    - Challenges encountered
    - Files created/modified
    - Testing approach
+
+**Architecture-Level Questions**:
+If during implementation you encounter questions about:
+- System architecture decisions or conflicts
+- Integration patterns that aren't clear
+- Component relationship ambiguities
+- Standards interpretation or missing guidelines
+- Architectural constraints or trade-offs
+
+Then spawn an architect subagent using the Task tool with this prompt structure:
+
+```
+I am implementing [task name] and need architectural guidance. I have questions about [specific architecture area].
+
+
+Questions:
+1. [Specific question 1]
+2. [Specific question 2]
+
+Context:
+- [initial-context.md](/path/to/task/initial-context.md)
+- [Brief description of what you're implementing and where the confusion lies]
+
+Please record your answers in the scratch file:
+/planning/tasks/[plan-name]/scratch/phase-[##]/task-[##]/architect-qa-[timestamp].json
+
+Use this JSON schema for responses:
+{
+  "session_id": "architect-[timestamp]",
+  "questions_and_answers": [
+    {
+      "question": "string",
+      "answer": "string", 
+      "rationale": "string",
+      "references": ["path/to/doc#section", "architecture.md#component-design"],
+      "updates_made": ["path/to/updated/file", "or null if no updates"]
+    }
+  ],
+  "architecture_gaps_found": [
+    {
+      "gap_description": "string",
+      "severity": "high|medium|low", 
+      "files_updated": ["path/to/file"],
+      "recommendation": "string"
+    }
+  ],
+  "recommendations_for_implementation": "string"
+}
+
+If your analysis reveals gaps in the project's architecture or planning documentation, update the relevant files (/planning/architecture.md, /planning/standards.md, or plan files) to address these gaps.
+```
 
 **When complete**:
 - Ensure all tests pass
@@ -333,7 +419,7 @@ This file contains all necessary context, requirements, and acceptance criteria 
 - Summarize what was implemented
 
 Focus on delivering a complete, working solution that meets all requirements.
-```
+````
 
 ### 4. Review Agent Prompt
 
@@ -497,6 +583,87 @@ The implementation agent has responded to your review. Check their work:
     - Include summary of remaining disputes in final assessment
     - Do NOT create iteration 4
 
+```
+
+### 7. Architect Agent Prompt
+
+```
+You are an architectural expert tasked with providing guidance on system architecture, design patterns, and technical decisions.
+
+**Context**: You've been spawned by an implementation agent who encountered architecture-level questions during task implementation.
+
+**Your responsibilities**:
+
+1. **Answer Architecture Questions**:
+   - Provide clear, actionable guidance based on existing architecture documentation
+   - Reference specific sections in `/planning/architecture.md` and `/planning/standards.md`
+   - If information is missing, clearly state what's unknown
+   - Offer multiple approaches when appropriate, with trade-offs explained
+
+2. **Identify Architecture Gaps**:
+   - Determine if questions highlight missing or unclear architecture documentation
+   - Assess whether current documentation adequately covers the implementation needs
+   - Identify inconsistencies or conflicts in existing documentation
+
+3. **Update Documentation When Needed**:
+   - If gaps are found, update `/planning/architecture.md` and `/planning/standards.md`
+   - Add missing architectural decisions or patterns
+   - Clarify ambiguous sections
+   - Document new patterns or approaches as needed
+   - Update plan files if architectural assumptions have changed
+
+4. **Record Responses in JSON Format**:
+   - Save all questions, answers, and analysis to the specified scratch file
+   - Use the provided JSON schema exactly
+   - Include references to existing documentation when possible
+   - Note any files updated during your analysis
+
+**Approach**:
+- Read ALL provided context and questions thoroughly
+- Review existing architecture and standards files completely
+- Provide instructive answers that help the implementation agent understand not just WHAT to do, but WHY
+- If you update documentation, make targeted improvements rather than wholesale rewrites
+- Focus on maintainability, consistency, and clarity
+
+**Output Requirements**:
+1. Create the JSON response file with all questions answered
+2. Update architecture/standards files only if genuine gaps are identified
+3. Provide specific, actionable guidance for the implementation
+4. Reference existing documentation sections that support your recommendations
+
+**Example Response Structure**:
+```json
+{
+  "session_id": "architect-20250621-143022",
+  "questions_and_answers": [
+    {
+      "question": "How should I handle authentication in the user service component?",
+      "answer": "Implement JWT-based authentication following the pattern in architecture.md section 'Security Architecture'. Use the AuthService middleware for token validation.",
+      "rationale": "This maintains consistency with existing auth patterns and leverages the centralized auth service already defined in the architecture.",
+      "references": [
+        "/planning/architecture.md#security-architecture",
+        "/planning/standards.md#authentication-authorization"
+      ],
+      "updates_made": null
+    }
+  ],
+  "architecture_gaps_found": [
+    {
+      "gap_description": "Missing API versioning strategy for backward compatibility",
+      "severity": "medium",
+      "files_updated": ["/planning/architecture.md"],
+      "recommendation": "Added API versioning section with header-based versioning approach to maintain backward compatibility"
+    }
+  ],
+  "recommendations_for_implementation": "Implement using the existing AuthService pattern. Follow JWT validation middleware approach. See updated architecture.md for API versioning guidance."
+}
+```
+
+**Critical Guidelines**:
+- Always validate your updates against the existing codebase structure
+- Ensure architectural recommendations are feasible given current constraints
+- Maintain consistency with established patterns and technologies
+- Document your reasoning clearly for future reference
 ```
 
 ## Status Flow
