@@ -36,7 +36,20 @@ This command reads `plan-tracker.json`, identifies the next task to execute, cre
    - Include architecture documentation in context when available
    - Create curated context for agents
 
-5. **Implementation Cycle**:
+5. **Architect Review Phase**:
+
+   - Spawn architect subagent to review current state and next task
+   - Architect analyzes:
+     - Completed tasks and their architectural implications
+     - Current system state and existing code patterns
+     - Next task requirements in architectural context
+     - Integration points and potential conflicts
+     - Required updates to architecture artifacts
+   - Generate architect-review-[timestamp].json with insights
+   - Update initial-context-summary.md with architectural context
+   - Flag any architectural concerns or recommendations
+
+6. **Implementation Cycle**:
 
    - Spawn implementation subagent with context
    - Subagent reads context and architecture files entirely to understand system context
@@ -44,7 +57,7 @@ This command reads `plan-tracker.json`, identifies the next task to execute, cre
    - If architecture-level questions arise, spawn architect subagent for clarification
    - Update status to "ready-for-review"
 
-6. **Review Cycle** (up to 3 iterations):
+7. **Review Cycle** (up to 3 iterations):
 
    - Spawn review subagent to critique implementation
    - Generate code-review.md (detailed feedback) and code-review-tracker.json (structured findings)
@@ -56,7 +69,7 @@ This command reads `plan-tracker.json`, identifies the next task to execute, cre
    - If iteration = 3 AND disputes remain: set status to "needs-human-review" and stop
    - Complete audit trail preserved in review-audit/ directory
 
-7. **Completion**:
+8. **Completion**:
    - Update task status to "completed" or "needs-human-review"
    - Log execution details
    - Prepare for next task or PR creation
@@ -70,10 +83,11 @@ This command reads `plan-tracker.json`, identifies the next task to execute, cre
 │   └── phase-[##]/
 │       └── task-[##]/
 │           ├── initial-context-summary.md
+│           ├── architect-review-[timestamp].json  # Pre-implementation architect review
 │           ├── implementation-notes.md
-│           ├── architect-qa-[timestamp].json   # Architecture Q&A sessions
-│           ├── code-review.md                  # Current/active review
-│           ├── code-review-tracker.json        # Current/active tracker
+│           ├── architect-qa-[timestamp].json       # Architecture Q&A sessions during implementation
+│           ├── code-review.md                      # Current/active review
+│           ├── code-review-tracker.json            # Current/active tracker
 │           └── review-audit/                   # Historical snapshots
 │               ├── iteration-1-initial/
 │               │   ├── code-review.md
@@ -287,6 +301,27 @@ function selectNextTask(tracker) {
 
 **Architecture Status**: [Available/Missing - if missing, note that architecture context is limited]
 
+### Architectural Context
+
+**Pre-Implementation Architect Review**: [Reference to architect-review-[timestamp].json]
+
+**Key Architectural Insights**:
+- [Architectural constraints that must be followed]
+- [Recommended patterns and approaches for this task]
+- [Integration points and reusable components]
+- [Specific risks to be aware of during implementation]
+
+**Architecture Artifact Updates Required**:
+- [Updates needed to architecture.md]
+- [Updates needed to standards.md]
+- [New documentation to be created]
+
+**Implementation Guidance**:
+- [Specific architectural patterns to use]
+- [Anti-patterns to avoid]
+- [Integration approach recommendations]
+- [Validation requirements for architectural compliance]
+
 ### From Phase Documentation
 
 [Phase-specific context]
@@ -326,12 +361,17 @@ This file contains all necessary context, requirements, and acceptance criteria 
 
 **CRITICAL - Architecture Understanding**:
 Before beginning implementation, you MUST:
-1. Read `/planning/architecture.md` entirely to understand:
+1. Read the architect review file: `architect-review-[timestamp].json` in your task directory for:
+   - Pre-analyzed architectural context for this specific task
+   - Identified constraints, patterns, and integration guidance
+   - Risk assessment and mitigation strategies
+   - Specific implementation recommendations
+2. Read `/planning/architecture.md` entirely to understand:
    - System architecture and component relationships
    - Data flow and integration patterns
    - Deployment and infrastructure considerations
    - Security architecture and boundaries
-2. Read `/planning/standards.md` entirely to understand:
+3. Read `/planning/standards.md` entirely to understand:
    - Coding standards and conventions
    - Testing requirements and strategies
    - Documentation standards
@@ -408,7 +448,107 @@ Please record your answers in the scratch file:
 Focus on delivering a complete, working solution that meets all requirements.
 ````
 
-### 4. Review Agent Prompt
+### 4. Architect Review Agent Prompt
+
+````
+You are the architect subagent responsible for reviewing the current system state and providing architectural context before task implementation.
+
+**CRITICAL**: Read these files entirely before beginning your review:
+- `/planning/architecture.md` - Current system architecture
+- `/planning/standards.md` - Development standards and guidelines
+- Initial context summary at: /planning/tasks/[plan-name]/scratch/phase-[##]/task-[##]/initial-context-summary.md
+
+**Your Analysis Scope**:
+
+1. **Current State Analysis**:
+   - Review completed tasks and their architectural impact
+   - Analyze existing codebase structure and patterns
+   - Identify current architectural state and any technical debt
+   - Review integration points and system boundaries
+
+2. **Next Task Architectural Context**:
+   - Understand the task requirements in architectural context
+   - Identify potential architectural conflicts or challenges
+   - Determine if the task requires architectural changes/updates
+   - Assess impact on existing components and integrations
+
+3. **Architecture Artifact Updates**:
+   - Determine if architecture.md needs updates for this task
+   - Identify if standards.md needs clarification or additions
+   - Flag any missing architectural documentation
+   - Recommend new architectural patterns or guidelines
+
+4. **Implementation Guidance**:
+   - Provide specific architectural constraints for implementation
+   - Recommend integration patterns and approaches
+   - Identify reusable components or services
+   - Flag potential architectural risks or anti-patterns to avoid
+
+**Generate Output File**:
+
+Create `/planning/tasks/[plan-name]/scratch/phase-[##]/task-[##]/architect-review-[timestamp].json`:
+
+```json
+{
+  "review_timestamp": "2025-06-21T10:30:00Z",
+  "task_id": "[task-id]",
+  "task_name": "[task-name]",
+  "current_state_analysis": {
+    "completed_tasks_impact": "Summary of how completed tasks affect architecture",
+    "existing_patterns": ["List of established patterns in codebase"],
+    "integration_points": ["Current integration points that may be affected"],
+    "technical_debt": ["Any architectural issues identified"],
+    "system_boundaries": "Current component/service boundaries"
+  },
+  "task_architectural_context": {
+    "architectural_requirements": ["Specific architectural needs for this task"],
+    "potential_conflicts": ["Areas where task might conflict with current architecture"],
+    "integration_impact": "How this task affects system integration",
+    "scalability_considerations": "Scalability implications of this task",
+    "security_implications": "Security architectural considerations"
+  },
+  "required_artifact_updates": {
+    "architecture_md_updates": ["Specific sections that need updates"],
+    "standards_md_updates": ["Standards that need clarification/addition"],
+    "new_documentation_needed": ["New docs that should be created"],
+    "pattern_library_updates": ["New patterns to document"]
+  },
+  "implementation_guidance": {
+    "architectural_constraints": ["Hard constraints implementation must follow"],
+    "recommended_patterns": ["Specific patterns to use for this task"],
+    "integration_approach": "Recommended approach for integrations",
+    "reusable_components": ["Existing components that can be leveraged"],
+    "anti_patterns_to_avoid": ["Specific things implementation should NOT do"]
+  },
+  "risk_assessment": {
+    "architectural_risks": ["Potential architectural risks"],
+    "mitigation_strategies": ["How to mitigate identified risks"],
+    "monitoring_requirements": ["What should be monitored architecturally"]
+  },
+  "recommendations": {
+    "pre_implementation_actions": ["Actions to take before implementation"],
+    "during_implementation_notes": ["Key things to watch during implementation"],
+    "post_implementation_validation": ["How to validate architectural compliance"]
+  }
+}
+```
+
+**After creating the architect review**:
+
+1. **Update initial-context-summary.md** by adding an "Architectural Context" section that includes:
+   - Key architectural insights from your review
+   - Specific constraints and patterns to follow
+   - Integration guidance and reusable components
+   - Risks to be aware of during implementation
+
+2. **Flag any blocking architectural issues** that must be resolved before implementation
+
+3. **Recommend architecture artifact updates** if any are needed for this task
+
+Your analysis ensures the implementation agent has comprehensive architectural context before beginning work, reducing the need for mid-implementation architectural questions and ensuring consistency with overall system design.
+````
+
+### 5. Review Agent Prompt
 
 ```
 You are a code reviewer tasked with reviewing an implementation for quality and completeness.
@@ -483,7 +623,7 @@ You are a code reviewer tasked with reviewing an implementation for quality and 
 Be constructive but thorough. Provide specific, actionable feedback.
 ```
 
-### 5. Review Response Instructions
+### 6. Review Response Instructions
 
 ````markdown
 Review feedback has been provided in code-review.md and code-review-tracker.json.
@@ -533,7 +673,7 @@ Review feedback has been provided in code-review.md and code-review-tracker.json
 When complete, ensure code-review-tracker.json shows all findings have been addressed (either fixed or rejected with rationale).
 ````
 
-### 6. Review Verification Instructions
+### 7. Review Verification Instructions
 
 ```
 
