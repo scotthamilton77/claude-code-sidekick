@@ -5,6 +5,7 @@ A comprehensive command system for AI-assisted project planning, decomposition, 
 ## TODOs
 
 - prep file is running into complex bash commands and screwing up folder names - see doc-index-mcp test-suite/scratch/**
+  -- just added bunch of "echo" for debuggin
 - rename to plan\* again?
 - architect.md
   - asks another architect subagent for review and iterates up to 3x
@@ -16,25 +17,25 @@ A comprehensive command system for AI-assisted project planning, decomposition, 
 
 ```bash
 # Create a high-level plan from an idea
-/create "Build a customer portal with authentication and reporting"
+/plan-create "Build a customer portal with authentication and reporting"
 
 # Explore strategic options
-/brainstorm-options "customer-portal"
+/plan-brainstorm-options "customer-portal"
 
 # Decompose into detailed tasks
-/decompose "customer-portal"
+/plan-decompose "customer-portal"
 
 # Initialize execution tracking
-/execution-init "customer-portal"
+/plan-execution-init "customer-portal"
 
 # Prepare next task with architectural review
-/prepare-next-task "customer-portal"
+/plan-prepare-next-task "customer-portal"
 
 # Execute prepared task with automated review
-/implement-task "customer-portal"
+/plan-implement-task "customer-portal"
 
 # Monitor progress with status reports
-/status "customer-portal"
+/plan-status "customer-portal"
 ```
 
 ## Planning & Execution Workflow
@@ -42,7 +43,7 @@ A comprehensive command system for AI-assisted project planning, decomposition, 
 ### 1. Initial Planning
 
 ```bash
-/create "Your project description"
+/plan-create "Your project description"
 ```
 
 Creates `/planning/tasks/[plan-name]/` with high-level structure and phases.
@@ -50,7 +51,7 @@ Creates `/planning/tasks/[plan-name]/` with high-level structure and phases.
 ### 2. Strategic Options (Optional)
 
 ```bash
-/brainstorm-options "plan-name"
+/plan-brainstorm-options "plan-name"
 ```
 
 Presents 3-5 implementation strategies with clear tradeoffs and recommendations.
@@ -58,7 +59,7 @@ Presents 3-5 implementation strategies with clear tradeoffs and recommendations.
 ### 3. Refinement (As Needed)
 
 ```bash
-/ideate "plan-name: Add real-time notifications feature"
+/plan-ideate "plan-name: Add real-time notifications feature"
 ```
 
 Updates plan based on new requirements or feedback.
@@ -66,7 +67,7 @@ Updates plan based on new requirements or feedback.
 ### 4. Task Decomposition
 
 ```bash
-/decompose "plan-name"
+/plan-decompose "plan-name"
 ```
 
 Generates detailed phase files with tasks, subtasks, and acceptance criteria.
@@ -74,7 +75,7 @@ Generates detailed phase files with tasks, subtasks, and acceptance criteria.
 ### 5. Execution Tracking
 
 ```bash
-/execution-init "plan-name"
+/plan-execution-init "plan-name"
 ```
 
 Creates `plan-tracker.json` to monitor progress across all phases and tasks.
@@ -82,7 +83,7 @@ Creates `plan-tracker.json` to monitor progress across all phases and tasks.
 ### 6. Task Preparation
 
 ```bash
-/prepare-next-task "plan-name"
+/plan-prepare-next-task "plan-name"
 ```
 
 Prepares the next pending task with architectural review and context creation. Marks the task as "ready" for implementation.
@@ -90,7 +91,7 @@ Prepares the next pending task with architectural review and context creation. M
 ### 7. Task Implementation
 
 ```bash
-/implement-task "plan-name"
+/plan-implement-task "plan-name"
 ```
 
 Executes prepared tasks (marked as "ready") with automated implementation and code review cycles.
@@ -115,8 +116,8 @@ Generates comprehensive status reports saved to `/planning/tasks/[plan-name]/sta
 ### Execution Commands
 
 - **`/plan-execution-init`** - Create tracking structure from plan files
-- **`/prepare-next-task`** - Prepare next pending task with architectural review and context creation
-- **`/implement-task`** - Execute prepared tasks with automated implementation and review
+- **`/plan-prepare-next-task`** - Prepare next pending task with architectural review and context creation
+- **`/plan-implement-task`** - Execute prepared tasks with automated implementation and review
 
 ### Monitoring Commands
 

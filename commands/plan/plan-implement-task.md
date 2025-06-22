@@ -2,7 +2,7 @@ Execute the next ready task from plan-tracker.json with automated code review: $
 
 ## Purpose
 
-This command finds and executes tasks with "ready" status, spawns implementation and review agents, and manages the review cycle to produce quality code ready for human review or PR. Task preparation must be completed first using `/prepare-next-task`.
+This command finds and executes tasks with "ready" status, spawns implementation and review agents, and manages the review cycle to produce quality code ready for human review or PR. Task preparation must be completed first using `/plan-prepare-next-task`.
 
 ## Entry Criteria
 
@@ -38,11 +38,11 @@ This command finds and executes tasks with "ready" status, spawns implementation
 2. **Ready Task Selection**:
 
    - Read plan-tracker.json from `/planning/tasks/[plan-name]/`
-   - **Find task with status "ready"**: Must have been prepared by `/prepare-next-task`
+   - **Find task with status "ready"**: Must have been prepared by `/plan-prepare-next-task`
    - **Validate preparation**: Ensure scratch directory exists with required context files:
      - initial-context-summary.md (implementation context)
      - architect-review-[timestamp].json (pre-implementation architectural review)
-   - **Exit if no ready tasks**: Guide user to run `/prepare-next-task` first
+   - **Exit if no ready tasks**: Guide user to run `/plan-prepare-next-task` first
    - Update task status to "in_progress"
 
 3. **Implementation Cycle**:
@@ -245,7 +245,7 @@ function selectReadyTask(tracker) {
           return { phase, task };
         } else {
           // Context missing - task needs re-preparation
-          console.warn(`Task ${task.id} marked ready but missing context. Run /prepare-next-task first.`);
+          console.warn(`Task ${task.id} marked ready but missing context. Run /plan-prepare-next-task first.`);
         }
       }
     }
@@ -638,22 +638,22 @@ pending → in_progress → initialized → implementing → ready-for-review �
 
 ```bash
 # Execute ready task in last referenced plan (reads from /planning/tasks/last-plan.json)
-/implement-task
+/plan-implement-task
 
 # Execute ready task in specific plan (updates /planning/tasks/last-plan.json)
-/implement-task "web-app-redesign"
+/plan-implement-task "web-app-redesign"
 
 # Force re-execution of current task (if task is ready)
-/implement-task "--retry-current"
+/plan-implement-task "--retry-current"
 
 # Example workflow showing task preparation and implementation:
-/prepare-next-task                    # Prepares next pending task, marks as "ready"
-/implement-task                      # Executes the ready task
-/prepare-next-task                   # Prepares the next task
-/implement-task                      # Executes the next ready task
+/plan-prepare-next-task                    # Prepares next pending task, marks as "ready"
+/plan-implement-task                      # Executes the ready task
+/plan-prepare-next-task                   # Prepares the next task
+/plan-implement-task                      # Executes the next ready task
 
 # If no ready tasks available:
-/implement-task                      # Will guide user to run /prepare-next-task first
+/plan-implement-task                      # Will guide user to run /plan-prepare-next-task first
 ```
 
 ## Arguments
@@ -688,7 +688,7 @@ pending → in_progress → initialized → implementing → ready-for-review �
 ## Error Handling
 
 **Task Selection Errors**:
-- **No ready tasks**: Guide user to run `/prepare-next-task` first to prepare pending tasks
+- **No ready tasks**: Guide user to run `/plan-prepare-next-task` first to prepare pending tasks
 - **Ready task missing context**: Task marked "ready" but scratch directory incomplete - needs re-preparation
 - **Invalid plan structure**: Report specific structural issues with plan-tracker.json
 
@@ -705,14 +705,14 @@ pending → in_progress → initialized → implementing → ready-for-review �
 
 **Recovery Actions**:
 - **Implementation failure**: Reset task status to "ready" to allow retry
-- **Context corruption**: Guide user to re-run `/prepare-next-task` to rebuild context
+- **Context corruption**: Guide user to re-run `/plan-prepare-next-task` to rebuild context
 - **Partial implementation**: Preserve work in implementation-notes.md before status rollback
 
 ## Next Steps
 
 **After successful implementation** (task marked as "completed"):
-- Prepare next task: `/prepare-next-task` (finds next pending task and prepares it)
-- Execute prepared task: `/implement-task` (executes the newly prepared task)
+- Prepare next task: `/plan-prepare-next-task` (finds next pending task and prepares it)
+- Execute prepared task: `/plan-implement-task` (executes the newly prepared task)
 - Create PR if phase complete: `/pr`
 
 **After needs-human-review**:
@@ -723,12 +723,12 @@ pending → in_progress → initialized → implementing → ready-for-review �
 - Update task status to "completed" when ready to proceed
 
 **When no ready tasks available**:
-- Prepare next task: `/prepare-next-task`
-- Check plan status: `/status` to see overall progress
+- Prepare next task: `/plan-prepare-next-task`
+- Check plan status: `/plan-status` to see overall progress
 - Review any blocked tasks that need manual dependency resolution
 
 **Typical workflow cycle**:
-1. `/prepare-next-task` - Identifies and prepares next pending task
-2. `/implement-task` - Executes the ready task through review cycles
+1. `/plan-prepare-next-task` - Identifies and prepares next pending task
+2. `/plan-implement-task` - Executes the ready task through review cycles
 3. Repeat until phase/plan complete
 4. `/pr` - Create pull request for completed work

@@ -317,7 +317,7 @@ classDiagram
     PlanTracker --> Phase
 ```
 
-### 6. Task Preparation Engine (`/prepare-next-task`)
+### 6. Task Preparation Engine (`/plan-prepare-next-task`)
 
 **Purpose**: Prepare next pending task with architectural review and context creation
 
@@ -340,7 +340,7 @@ sequenceDiagram
     TP->>PT: Update status to "ready"
 ```
 
-### 7. Execution Engine (`/implement-task`)
+### 7. Execution Engine (`/plan-implement-task`)
 
 **Purpose**: Execute prepared tasks with automated review cycles
 

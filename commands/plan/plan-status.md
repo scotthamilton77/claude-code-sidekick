@@ -2,7 +2,7 @@ Generate a concise, visually-pleasing status report for the specified plan: $ARG
 
 ## Purpose
 
-This command reads `plan-tracker.json` and generates a comprehensive status report showing the overall progress of plan development and execution. The report is saved to `/planning/tasks/[plan-name]/status.md` with smart update capabilities that regenerate only when source files have changed since the last generation.
+This command reads `plan-tracker.json` and generates a comprehensive status report showing the overall progress of plan development and execution. The report is saved to `/planning/tasks/[plan-name]/plan-status.md` with smart update capabilities that regenerate only when source files have changed since the last generation.
 
 ## Process
 
@@ -15,7 +15,7 @@ This command reads `plan-tracker.json` and generates a comprehensive status repo
 
 2. **File Timestamp Analysis**:
 
-   - Check if `/planning/tasks/[plan-name]/status.md` exists
+   - Check if `/planning/tasks/[plan-name]/plan-status.md` exists
    - If exists, compare its timestamp against source files:
      - `plan-tracker.json`
      - All `*.md` files in plan directory (PLAN.md, README.md, phase files)
@@ -49,7 +49,7 @@ This command reads `plan-tracker.json` and generates a comprehensive status repo
    - Performance metrics from review cycles
 
 6. **Report Generation**:
-   - Generate or update `/planning/tasks/[plan-name]/status.md`
+   - Generate or update `/planning/tasks/[plan-name]/plan-status.md`
    - Add generation timestamp header
    - Visual progress indicators
    - Status summary dashboard
@@ -246,7 +246,7 @@ The report uses these visual indicators for clarity:
 
 ## File Output
 
-**Primary Output**: `/planning/tasks/[plan-name]/status.md`
+**Primary Output**: `/planning/tasks/[plan-name]/plan-status.md`
 
 - Generated automatically with smart update detection
 - Preserves manual annotations in specially marked sections
@@ -318,7 +318,7 @@ The `/planning/tasks/last-plan.json` file maintains project-level tracking of th
 ```bash
 # Pseudo-code for timestamp checking
 function needsUpdate(planName) {
-  statusFile = `/planning/tasks/${planName}/status.md`
+  statusFile = `/planning/tasks/${planName}/plan-status.md`
   if (!exists(statusFile)) return true
 
   statusTime = getModTime(statusFile)

@@ -180,7 +180,7 @@ elif [ "$task_status" = "ready" ]; then
     echo "Task is already prepared (status: ready)"
     read -p "Re-prepare this task? (y/n): " reprepare_choice
     if [ "$reprepare_choice" != "y" ]; then
-        echo "Task is ready for implementation. Run /implement-task to proceed."
+        echo "Task is ready for implementation. Run /plan-implement-task to proceed."
         exit 0
     fi
 fi
@@ -539,7 +539,7 @@ mv "$temp_tracker" "$plan_tracker_path"
 
 echo "✅ Task preparation completed successfully!"
 echo "Task status: ready"
-echo "Next step: Run /implement-task to begin implementation"
+echo "Next step: Run /plan-implement-task to begin implementation"
 ```
 
 Mark finalization todo as completed.
@@ -576,10 +576,10 @@ function rollback_task_status_to_pending() {
 
 ```bash
 # Prepare next task in last referenced plan
-/prepare-next-task
+/plan-prepare-next-task
 
 # Prepare specific plan (updates last-plan.json)  
-/prepare-next-task "web-app-redesign"
+/plan-prepare-next-task "web-app-redesign"
 
 # Check current preparation status
 /todo-read
