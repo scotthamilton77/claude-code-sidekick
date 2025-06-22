@@ -437,13 +437,6 @@ ${generateProcessImprovements(taskAnalysis, metrics)}
 - Resolve ${blockedTasks.length} blocked tasks
 - ${readyTasks.length > 0 ? `Execute ready task: ${readyTasks[0].id}` : 'Prepare next available task'}
 
-## Command History
-
-\`\`\`bash
-# Recent executions
-${generateCommandHistory(project)}
-\`\`\`
-
 ## Next Actions
 
 **Immediate (Next 1-2 Hours)**:
@@ -742,14 +735,6 @@ function generateProcessImprovements(taskAnalysis, metrics) {
   return improvements.join("\n")
 }
 
-function generateCommandHistory(project) {
-  const now = new Date()
-  const timestamp = now.toISOString().substring(11, 19) // HH:MM:SS format
-  
-  return `[${timestamp}] /plan-status "${project.name}"          # This report
-[${timestamp}] /plan-implement-task                    # Last task execution  
-[${timestamp}] /plan-prepare-next-task                 # Task preparation`
-}
 ```
 
 ### **Step 7: Save Report to Timestamped File**
