@@ -70,5 +70,6 @@
     "additionalDirectories": [
       "/home/scott/.claude/.templates/"
     ]
-  }
+  },
+  "model": "sonnet"
 }

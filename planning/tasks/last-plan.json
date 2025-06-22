@@ -1,17 +1,18 @@
 {
   "plan_name": "plan-claude-code-testing",
   "plan_title": "Claude Code Commands Testing Project",
-  "last_updated": "2025-06-22T21:37:14.000Z",
+  "last_updated": "2025-06-22T21:49:19.000Z",
   "updated_by": "plan-status",
   "project_type": "integration",
   "atlas_project_id": "plan-claude-code-testing",
   "last_status_generated": {
-    "timestamp": "2025-06-22T21:37:14.000Z",
+    "timestamp": "2025-06-22T21:49:19.000Z",
     "project_id": "plan-claude-code-testing",
     "project_name": "Claude Code Commands Testing Project",
     "completion_percentage": 0,
     "total_tasks": 21,
     "ready_tasks": 0,
-    "blocked_tasks": 0
+    "blocked_tasks": 0,
+    "report_file": "/home/scott/.claude/planning/status-report-2025-06-22T21-49-19.md"
   }
 }
