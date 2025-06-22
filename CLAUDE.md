@@ -51,16 +51,32 @@ If the task is unreasonable or infeasible, or if any of the tests are incorrect,
 
 ## Project Planning & Coordination
 
-### PLAN.md Adherence
+### Atlas-Based Planning System
 
-When a `PLAN.md` file exists in the project root, **YOU MUST**:
+This repository implements an **Atlas MCP-powered planning and execution system** for complex software projects. The system uses Claude Code's planning commands with Atlas as the backend for robust work tracking.
 
-1. **READ** the PLAN.md file at the start of each session to understand current tasks and priorities
-2. **FOLLOW** the task breakdown and execution strategy defined in the plan
-3. **RESPECT** task dependencies and join points for multi-agent coordination
-4. **UPDATE** task status in the plan as work progresses
-5. **COORDINATE** with other agents at defined synchronization points
-6. **USE** the TodoWrite tool to track individual tasks from the plan
+**Core Planning Commands:**
+- `/plan-create` - Create new project with Atlas integration
+- `/plan-decompose` - Break down project into phases and tasks
+- `/plan-execution-init` - Initialize project for execution
+- `/plan-prepare-next-task` - Prepare context for next task
+- `/plan-implement-task` - Execute task with review cycles
+- `/plan-status` - View project status and progress
+- `/plan-migrate-to-atlas` - Migrate filesystem plans to Atlas
+
+**Atlas Integration Requirements:**
+1. **ALWAYS use Atlas MCP** for project and task management
+2. **USE proper Atlas enums** for status, priority, and task types
+3. **APPLY structured tagging** for hierarchy and categorization
+4. **STORE documentation** as categorized Atlas knowledge
+5. **MAINTAIN dependencies** through Atlas task relationships
+
+**When working with planning commands:**
+1. **CREATE todos** with TodoWrite for complex operations
+2. **TRACK progress** throughout multi-step processes
+3. **VALIDATE Atlas integration** after major operations
+4. **USE flattened task hierarchy** with tags for organization
+5. **CATEGORIZE knowledge** with proper doc-type tags
 
 ## Performance & Optimization
 
