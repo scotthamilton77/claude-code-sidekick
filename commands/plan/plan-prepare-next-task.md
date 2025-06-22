@@ -1,586 +1,554 @@
-Prepare the next task for implementation with architectural review and context creation: $ARGUMENTS
+Prepare the next available Atlas task for implementation with architectural review: $ARGUMENTS
 
 ## Purpose
 
-This command prepares the next pending task for implementation by validating dependencies, creating implementation context, conducting architectural review, and marking the task as "ready" for execution. Uses Claude Code todos for progress tracking and state management to prevent duplicate work.
+This command identifies the next available Atlas task, validates dependencies, creates comprehensive implementation context, conducts architectural review, and marks the task as "ready" for execution. It uses Claude Code TodoWrite for progress tracking and implements sophisticated state management to prevent duplicate work while providing clear progress visibility.
 
-## Implementation Strategy
+## **CRITICAL REQUIREMENTS**
 
-This command immediately creates todos for all major steps, then executes each step with proper state checking to avoid duplicate work and provide clear progress visibility.
+1. **MUST use Atlas MCP tools exclusively** - All task queries and updates through Atlas
+2. **MUST use TodoWrite for progress tracking** - Create todos immediately and update throughout
+3. **MUST validate dependencies** before task preparation
+4. **MUST create categorized knowledge** for task context and architecture primer
+5. **MUST spawn architecture agent** for comprehensive pre-implementation review
+6. **MUST use atomic state updates** to prevent race conditions and duplicate work
+7. **MUST handle state conflicts** gracefully with clear user options
 
----
+## **Implementation Strategy Overview**
 
-I'll begin by creating todos for the complete preparation workflow:
-
-```claude-todo-setup
-/todo-write {
-  "todos": [
-    {
-      "id": "plan-resolution",
-      "content": "Resolve plan name and validate plan-tracker.json exists and is readable",
-      "status": "pending",
-      "priority": "high"
-    },
-    {
-      "id": "architecture-check", 
-      "content": "Check architecture documentation availability and warn if missing",
-      "status": "pending",
-      "priority": "medium"
-    },
-    {
-      "id": "task-selection",
-      "content": "Select next available task, validate dependencies, and handle state conflicts",
-      "status": "pending", 
-      "priority": "high"
-    },
-    {
-      "id": "context-creation",
-      "content": "Create scratch directory structure and initial context files",
-      "status": "pending",
-      "priority": "high"
-    },
-    {
-      "id": "architecture-primer-creation",
-      "content": "Create architecture primer (or reuse existing if valid) and generate architecture-primer.json",
-      "status": "pending",
-      "priority": "high"
-    },
-    {
-      "id": "finalization",
-      "content": "Update context with architect insights and mark task as 'ready'",
-      "status": "pending",
-      "priority": "high"
-    }
-  ]
-}
+```mermaid
+graph TD
+    A[Create Progress Todos] --> B[Find Next Available Task]
+    B --> C[Validate Dependencies] 
+    C --> D[Create Implementation Context]
+    D --> E[Generate Architecture Primer]
+    E --> F[Update Task to Ready State]
+    F --> G[Validate Completion]
 ```
 
-Now I'll execute each step with proper state management:
+## Implementation Steps
 
-## Step 1: Plan Name Resolution and Validation
+### **Step 1: Progress Tracking Initialization**
 
-Mark the plan-resolution todo as in_progress, then:
+**CRITICAL**: Create TodoWrite tracking immediately for all major steps:
 
-**Plan Name Resolution Logic:**
-- If plan name provided in $ARGUMENTS: use it and update `/planning/tasks/last-plan.json`
-- If no plan name provided: read from `/planning/tasks/last-plan.json` 
-- If neither exists: check for plan-tracker.json in current directory
-- Update `/planning/tasks/last-plan.json` with resolved plan name
-
-**Validation Steps:**
-```bash
-# Check if plan-tracker.json exists and is readable
-echo "📋 Validating plan tracker file existence and readability..."
-plan_tracker_path="/planning/tasks/[resolved-plan-name]/plan-tracker.json"
-echo "   - Checking file: $plan_tracker_path"
-if ! test -f "$plan_tracker_path"; then
-    echo "ERROR: plan-tracker.json not found at $plan_tracker_path"
-    echo "Run /plan-execution-init [plan-name] first to initialize tracking"
-    exit 1
-fi
-
-# Validate JSON structure
-echo "🔍 Validating JSON structure of plan tracker..."
-echo "   - Running jq validation on: $(basename "$plan_tracker_path")"
-if ! jq 'empty' "$plan_tracker_path" 2>/dev/null; then
-    echo "ERROR: plan-tracker.json contains invalid JSON"
-    echo "Check file format and repair if needed"
-    exit 1
-fi
-echo "✅ Plan tracker validation completed successfully"
-```
-
-Mark plan-resolution todo as completed on success.
-
-## Step 2: Architecture Documentation Check
-
-Mark architecture-check todo as in_progress, then:
-
-**Check Architecture Files:**
-```bash
-echo "🏗️  Checking architecture documentation availability..."
-arch_missing=false
-echo "   - Checking /planning/architecture.md"
-if ! test -f "/planning/architecture.md"; then
-    echo "WARNING: /planning/architecture.md not found"
-    arch_missing=true
-fi
-echo "   - Checking /planning/standards.md"
-if ! test -f "/planning/standards.md"; then
-    echo "WARNING: /planning/standards.md not found" 
-    arch_missing=true
-fi
-
-if [ "$arch_missing" = true ]; then
-    echo "Architecture documentation is missing."
-    echo "Recommend running /plan-architecture first for better context."
-    read -p "Continue without architecture documentation? (y/n): " continue_choice
-    if [ "$continue_choice" != "y" ]; then
-        echo "Exiting. Run /plan-architecture first, then retry this command."
-        echo "📝 Updating todos to reflect completion status before exit..."
-        echo "   - Using /todo-write to update completion status"
-        /todo-write '{"todos": [{"id": "plan-resolution", "content": "Resolve plan name and validate plan-tracker.json exists and is readable", "status": "completed", "priority": "high"}, {"id": "architecture-check", "content": "Check architecture documentation availability and warn if missing", "status": "completed", "priority": "medium"}, {"id": "task-selection", "content": "Select next available task, validate dependencies, and handle state conflicts", "status": "pending", "priority": "high"}, {"id": "context-creation", "content": "Create scratch directory structure and initial context files", "status": "pending", "priority": "high"}, {"id": "architecture-primer-creation", "content": "Create architecture primer (or reuse existing if valid) and generate architecture-primer.json", "status": "pending", "priority": "high"}, {"id": "finalization", "content": "Update context with architect insights and mark task as ready", "status": "pending", "priority": "high"}]}'
-        exit 0
-    fi
-fi
-echo "✅ Architecture documentation check completed"
-```
-
-Mark architecture-check todo as completed.
-
-## Step 3: Task Selection and State Management  
-
-Mark task-selection todo as in_progress, then:
-
-**Task Selection Algorithm:**
 ```javascript
-// Read plan-tracker.json and find next available task
-function selectNextTask(tracker) {
-  for (const phase of tracker.phases) {
-    if (phase.status === "completed") continue;
+// **MUST CREATE TODOS FIRST** - Provides progress visibility and prevents duplicate work
+const preparationTodos = [
+  {
+    id: "task-selection",
+    content: "Find next available Atlas task and validate dependencies",
+    status: "pending",
+    priority: "high"
+  },
+  {
+    id: "context-creation", 
+    content: "Create implementation context and store as Atlas knowledge",
+    status: "pending",
+    priority: "high"
+  },
+  {
+    id: "architecture-primer",
+    content: "Generate architecture primer using architect subagent",
+    status: "pending", 
+    priority: "high"
+  },
+  {
+    id: "task-finalization",
+    content: "Update task status to ready and validate preparation",
+    status: "pending",
+    priority: "high"
+  }
+]
+
+await TodoWrite({ todos: preparationTodos })
+```
+
+### **Step 2: Project Resolution and Task Selection**
+
+**CRITICAL**: Mark task-selection todo as in_progress, then proceed:
+
+```javascript
+// Update TodoWrite to show progress
+await TodoWrite({ 
+  todos: preparationTodos.map(t => 
+    t.id === "task-selection" ? {...t, status: "in_progress"} : t
+  )
+})
+
+// Resolve project ID from arguments or last-plan.json
+let projectId = extractProjectIdFromArguments($ARGUMENTS)
+if (!projectId) {
+  const lastPlan = await readLastPlanReference()
+  projectId = lastPlan?.atlas_project_id
+}
+
+if (!projectId) {
+  throw new Error("No project specified. Run /plan-execution-init first.")
+}
+
+// **CRITICAL**: Find next available task using Atlas unified search
+const availableTasks = await atlas_task_list({
+  projectId: projectId,
+  status: "todo",
+  limit: 50,
+  sortBy: "priority",
+  sortDirection: "desc"
+})
+
+if (availableTasks.length === 0) {
+  throw new Error("No tasks available for preparation. All tasks may be completed or blocked by dependencies.")
+}
+
+// Select best task based on dependency satisfaction and priority
+const selectedTask = await selectOptimalTask(availableTasks, projectId)
+
+if (!selectedTask) {
+  throw new Error("No tasks are ready for preparation. Check dependency status with /plan-status.")
+}
+
+async function selectOptimalTask(candidates, projectId) {
+  // Get all project tasks to validate dependencies
+  const allProjectTasks = await atlas_task_list({
+    projectId: projectId,
+    limit: 200
+  })
+  
+  const completedTaskIds = new Set(
+    allProjectTasks.filter(t => t.status === "completed").map(t => t.id)
+  )
+  
+  for (const task of candidates) {
+    // Check if all dependencies are satisfied
+    const dependenciesSatisfied = (task.dependencies || []).every(depId => 
+      completedTaskIds.has(depId)
+    )
     
-    // Check phase dependencies are satisfied
-    if (!areDependenciesMatched(phase.dependencies, tracker)) continue;
-    
-    for (const task of phase.tasks) {
-      if (task.status === "pending") {
-        // Check task dependencies are satisfied
-        if (areDependenciesMatched(task.dependencies, tracker)) {
-          return { phase, task };
-        }
-      }
+    if (dependenciesSatisfied) {
+      return task
     }
   }
-  return null; // No available tasks
+  
+  return null // No tasks have satisfied dependencies
 }
 ```
 
-**State Conflict Handling:**
-```bash
-# If selected task status is "preparing" or "ready"
-echo "🔍 Checking for task state conflicts..."
-if [ "$task_status" = "preparing" ]; then
-    echo "Task is already being prepared (status: preparing)"
-    echo "Options:"
-    echo "1. Continue (override previous preparation)"
-    echo "2. Reset to pending (clear previous preparation)" 
-    echo "3. Exit without changes"
-    read -p "Choose option (1/2/3): " conflict_choice
-    
-    case $conflict_choice in
-        1) echo "Continuing with override..." ;;
-        2) echo "🔄 Resetting task to pending state..."
-           echo "   - Will update tracker status and clean scratch directory"
-           # Update tracker status atomically
-           ;;
-        3) echo "Exiting without changes"; exit 0 ;;
-        *) echo "Invalid choice"; exit 1 ;;
-    esac
-elif [ "$task_status" = "ready" ]; then
-    echo "Task is already prepared (status: ready)"
-    read -p "Re-prepare this task? (y/n): " reprepare_choice
-    if [ "$reprepare_choice" != "y" ]; then
-        echo "Task is ready for implementation. Run /plan-implement-task to proceed."
-        exit 0
-    fi
-fi
-echo "✅ State conflict check completed"
+### **Step 3: State Conflict Management**
+
+**CRITICAL**: Handle existing task states and prevent duplicate preparation:
+
+```javascript
+// Check current task state and handle conflicts
+if (selectedTask.tags?.includes("status-preparing")) {
+  console.log("⚠️  Task is already being prepared")
+  console.log("Options:")
+  console.log("1. Continue (override previous preparation)")
+  console.log("2. Reset to todo state (clear previous preparation)")
+  console.log("3. Exit without changes")
+  
+  const userChoice = await promptUser("Choose option (1/2/3): ")
+  
+  switch (userChoice) {
+    case "1":
+      console.log("Continuing with override...")
+      break
+    case "2":
+      console.log("🔄 Resetting task to todo state...")
+      await atlas_task_update({
+        mode: "single",
+        id: selectedTask.id,
+        updates: {
+          status: "todo",
+          tags: selectedTask.tags.filter(tag => !tag.startsWith("status-"))
+        }
+      })
+      break
+    case "3":
+      console.log("Exiting without changes")
+      return
+    default:
+      throw new Error("Invalid choice")
+  }
+} else if (selectedTask.tags?.includes("status-ready")) {
+  console.log("✅ Task is already prepared and ready for implementation")
+  console.log(`Run: /plan-implement-task to execute task ${selectedTask.id}`)
+  return
+}
+
+// **CRITICAL**: Atomically update task status to preparing
+await atlas_task_update({
+  mode: "single", 
+  id: selectedTask.id,
+  updates: {
+    status: "todo",
+    tags: [...(selectedTask.tags || []), "status-preparing"]
+  }
+})
 ```
 
-**Atomic Status Update:**
-```bash
-# Update task status to "preparing" atomically
-echo "🔄 About to update task status to 'preparing' in plan-tracker.json..."
-echo "   - Creating temporary file and using jq to update status"
-echo "   - Target: phase ${phase_index}, task ${task_index}"
-temp_tracker=$(mktemp)
-jq '.phases['"${phase_index}"'].tasks['"${task_index}"'].status = "preparing"' \
-   "$plan_tracker_path" > "$temp_tracker"
-mv "$temp_tracker" "$plan_tracker_path"
-echo "✅ Task status successfully updated to 'preparing'"
-```
+### **Step 4: Implementation Context Creation**
 
-Mark task-selection todo as completed.
+**CRITICAL**: Mark context-creation todo as in_progress and create comprehensive context:
 
-## Step 4: Context Creation
+```javascript
+// Update TodoWrite progress
+await TodoWrite({
+  todos: preparationTodos.map(t => 
+    t.id === "task-selection" ? {...t, status: "completed"} :
+    t.id === "context-creation" ? {...t, status: "in_progress"} : t
+  )
+})
 
-Mark context-creation todo as in_progress, then:
+// Gather comprehensive context from Atlas knowledge
+const projectKnowledge = await atlas_knowledge_list({
+  projectId: projectId,
+  tags: ["doc-type-plan-overview", "doc-type-execution-plan"],
+  limit: 20
+})
 
-**Directory Structure Creation:**
-```bash
-echo "📁 Creating context directory structure..."
-scratch_dir="/planning/tasks/${plan_name}/scratch/phase-${phase_id}/task-${task_id}"
-echo "   - Target directory: $scratch_dir"
-echo "   - Creating directory tree with mkdir -p"
-mkdir -p "$scratch_dir"
-echo "✅ Directory structure created successfully"
+const phaseKnowledge = await atlas_knowledge_list({
+  projectId: projectId, 
+  tags: [`scope-phase-${selectedTask.id.substring(0, 2)}`],
+  limit: 10
+})
 
-# Check if initial-context-summary.md already exists
-echo "📋 Checking for existing context file..."
-echo "   - Looking for: $scratch_dir/initial-context-summary.md"
-if test -f "$scratch_dir/initial-context-summary.md"; then
-    echo "Context file already exists, checking if update needed..."
-    # Compare timestamps, only regenerate if plan files are newer
-    echo "🕐 Comparing file timestamps to determine if regeneration needed..."
-    if find_plan_files_newer_than_context; then
-        echo "📝 Plan files are newer - updating context file with latest information..."
-        generate_context_file
-    else
-        echo "Context file is current, skipping regeneration"
-    fi
-else
-    echo "📝 Generating initial context file..."
-    generate_context_file
-fi
-echo "✅ Context file setup completed"
-```
-
-**Context File Template Generation:**
-```markdown
-# Task Implementation Context
-
-## Task Information
-- **Phase**: [Phase Name] (ID: ${phase_id})
-- **Task**: [Task Name] (ID: ${task_id}) 
-- **Priority**: [priority]
-- **Status**: preparing → ready (after architecture primer creation)
-
-## Task Description
-[Full task description from plan]
-
-## Acceptance Criteria
-[List acceptance criteria]
-
-## Dependencies
-**Satisfied Dependencies:**
-[List completed dependencies that enabled this task]
-
-**External Requirements:**
-[List external requirements]
-
-## Relevant Context
-
-### From Plan Context Source Files
-- PLAN.md: [link and relevant sections]
-- README.md: [link and relevant sections]
-- Phase documentation: [link and relevant sections]
-
-### From Architecture Documentation
-**Architecture Status**: [Available/Missing with details]
-
-**CRITICAL**: Read these architecture files entirely before implementation:
-- `/planning/architecture.md` - System architecture, component design, data flow
-- `/planning/standards.md` - Development standards, coding guidelines
-
-### Architectural Context
-**Pre-Implementation Architecture Primer**: [Will reference architecture-primer.json]
-
-[Architectural context will be populated after architecture primer creation]
-
-## Technical Requirements
-[Specific technical details from plan]
-
-## Implementation Guidelines
-- Follow existing code patterns in the project
-- Ensure all tests pass before marking complete
-- Update documentation as needed
-- Consider edge cases and error handling
-- Maintain architectural compliance
-```
-
-Mark context-creation todo as completed.
-
-## Step 5: Architecture Primer Creation
-
-Mark architecture-primer-creation todo as in_progress, then:
-
-**Smart Architecture Primer Logic:**
-```bash
-# Check for existing architecture primer file
-echo "🏗️  Checking for existing architecture primer..."
-architecture_primer_file="$scratch_dir/architecture-primer.json"
-echo "   - Looking for: $(basename "$architecture_primer_file")"
-
-if test -f "$architecture_primer_file"; then
-    # Found existing primer, check if recent enough to reuse
-    echo "📄 Found existing architecture primer file"
-    echo "🕐 Calculating file age to determine if reuse is appropriate..."
-    echo "   - Using stat command to get file modification time"
-    primer_age_hours=$(( ($(date +%s) - $(stat -c %Y "$architecture_primer_file")) / 3600 ))
-    
-    if [ $primer_age_hours -lt 24 ]; then
-        echo "Found recent architecture primer (${primer_age_hours}h old): $(basename "$architecture_primer_file")"
-        read -p "Reuse existing primer? (y/n): " reuse_choice
-        
-        if [ "$reuse_choice" = "y" ]; then
-            echo "Reusing existing architecture primer: $(basename "$architecture_primer_file")"
-            # Skip to context update step
-            skip_architecture_primer=true
-        fi
-    else
-        echo "Found older architecture primer (${primer_age_hours}h old): $(basename "$architecture_primer_file")"
-        read -p "Generate new primer? (y/n): " new_primer_choice
-        if [ "$new_primer_choice" != "y" ]; then
-            echo "Keeping existing primer: $(basename "$architecture_primer_file")"
-            skip_architecture_primer=true
-        fi
-    fi
-else
-    echo "No existing architecture primer found - will generate new one"
-fi
-
-# Generate new architecture primer if not reusing existing
-if [ "$skip_architecture_primer" != true ]; then
-    echo "🎯 Generating new architecture primer..."
-    echo "📅 Creating ISO timestamp for primer metadata..."
-    iso_timestamp=$(date -Iseconds)
-    echo "   - Timestamp: $iso_timestamp"
-    
-    # Spawn architect agent with comprehensive context
-    echo "🤖 Spawning architect agent for comprehensive analysis..."
-    echo "   - Task: Architecture Primer Creation"
-    echo "   - Context: Plan=$plan_name, Phase=$phase_id, Task=$task_id"
-    /task "Architecture Primer Creation" "
-    You are an expert software architect creating an architecture primer for task implementation.
-    
-    **Context:**
-    - Plan: $plan_name
-    - Phase: $phase_name (ID: $phase_id)
-    - Task: $task_name (ID: $task_id)
-    - Plan tracker: $plan_tracker_path
-    - Context file: $scratch_dir/initial-context-summary.md
-    - Architecture files: /planning/architecture.md, /planning/standards.md
-    
-    **Analysis Required:**
-    1. Review completed tasks and their architectural implications
-    2. Analyze current system state and existing code patterns
-    3. Examine next task requirements in architectural context
-    4. Identify integration points and potential conflicts
-    5. Recommend updates to architecture artifacts
-    6. Create todos for architecture documentation updates
-    7. Actually update the architecture files as needed
-    
-    **Tasks to Complete:**
-    1. Use TodoWrite to create todos for any architecture file updates needed
-    2. Actually update /planning/architecture.md and /planning/standards.md as needed
-    3. Mark architecture update todos as completed after making changes
-    
-    **Output Format:**
-    Generate a structured JSON file with these sections:
-    {
-      \"primer_metadata\": {
-        \"timestamp\": \"$iso_timestamp\",
-        \"plan_name\": \"$plan_name\", 
-        \"phase_id\": \"$phase_id\",
-        \"task_id\": \"$task_id\",
-        \"architect\": \"architect-agent\",
-        \"architecture_files_available\": boolean
-      },
-      \"current_state_analysis\": {
-        \"completed_tasks_summary\": \"Summary of completed work\",
-        \"architectural_debt\": [\"List of architectural issues\"],
-        \"existing_patterns\": [\"Code patterns to follow\"],
-        \"integration_points\": [\"Systems that will be affected\"]
-      },
-      \"task_analysis\": {
-        \"architectural_significance\": \"high|medium|low\",
-        \"complexity_assessment\": \"Description of implementation complexity\",
-        \"risk_factors\": [\"List of implementation risks\"],
-        \"recommended_approach\": \"Recommended implementation strategy\"
-      },
-      \"implementation_guidance\": {
-        \"architectural_constraints\": [\"Must-follow constraints\"],
-        \"recommended_patterns\": [\"Patterns to use\"],
-        \"anti_patterns_to_avoid\": [\"Patterns to avoid\"],
-        \"integration_strategy\": \"How to integrate with existing systems\",
-        \"validation_requirements\": [\"How to verify architectural compliance\"]
-      },
-      \"architecture_updates_completed\": {
-        \"architecture_md_updates\": [\"Changes made to architecture.md\"],
-        \"standards_md_updates\": [\"Changes made to standards.md\"],
-        \"new_documentation_created\": [\"New docs created\"]
-      },
-      \"blocking_issues\": [\"Critical issues requiring human resolution\"],
-      \"recommendations\": [\"Overall recommendations for this task\"]
-    }
-    
-    Save this JSON structure to: $architecture_primer_file
-    
-    CRITICAL: 
-    - If any blocking architectural conflicts are found, mark them clearly in the blocking_issues array
-    - Use TodoWrite to create todos for architecture updates, then actually complete them
-    - Only mark architecture updates as 'completed' in the JSON after actually making the changes
-    "
-    
-    # Validate architecture primer output
-    echo "✅ Architecture primer generation completed, validating output..."
-    echo "📄 Checking if output file was created: $(basename "$architecture_primer_file")"
-    if ! test -f "$architecture_primer_file"; then
-        echo "ERROR: Architecture primer failed to generate output file"
-        # Rollback task status to pending
-        rollback_task_status_to_pending
-        exit 1
-    fi
-    
-    echo "🔍 Validating JSON structure of architecture primer..."
-    echo "   - Running jq validation on generated file"
-    if ! jq 'empty' "$architecture_primer_file" 2>/dev/null; then
-        echo "ERROR: Architecture primer generated invalid JSON"
-        # Rollback task status to pending  
-        rollback_task_status_to_pending
-        exit 1
-    fi
-    
-    # Check for blocking issues
-    echo "⚠️  Checking for blocking issues in architecture primer..."
-    echo "   - Using jq to count blocking_issues array length"
-    blocking_issues=$(jq -r '.blocking_issues | length' "$architecture_primer_file")
-    if [ "$blocking_issues" -gt 0 ]; then
-        echo "CRITICAL: Architecture primer found blocking issues:"
-        jq -r '.blocking_issues[]' "$architecture_primer_file"
-        echo "Task requires human resolution before implementation."
-        
-        # Update task status to "needs-human-review"
-        echo "🔄 About to update task status to 'needs-human-review' due to blocking issues..."
-        echo "   - Creating temporary file and using jq to update status"
-        echo "   - Target: phase ${phase_index}, task ${task_index}"
-        temp_tracker=$(mktemp)
-        jq '.phases['"${phase_index}"'].tasks['"${task_index}"'].status = "needs-human-review"' \
-           "$plan_tracker_path" > "$temp_tracker"
-        mv "$temp_tracker" "$plan_tracker_path"
-        echo "⚠️  Task status updated to 'needs-human-review'"
-        
-        echo "📝 Updating todos to reflect completion status with human review needed..."
-        echo "   - Using /todo-write to update completion status"
-        /todo-write '{"todos": [{"id": "plan-resolution", "content": "Resolve plan name and validate plan-tracker.json exists and is readable", "status": "completed", "priority": "high"}, {"id": "architecture-check", "content": "Check architecture documentation availability and warn if missing", "status": "completed", "priority": "medium"}, {"id": "task-selection", "content": "Select next available task, validate dependencies, and handle state conflicts", "status": "completed", "priority": "high"}, {"id": "context-creation", "content": "Create scratch directory structure and initial context files", "status": "completed", "priority": "high"}, {"id": "architecture-primer-creation", "content": "Create architecture primer (or reuse existing if valid) and generate architecture-primer.json", "status": "completed", "priority": "high"}, {"id": "finalization", "content": "Update context with architect insights and mark task as ready", "status": "pending", "priority": "high"}]}'
-        exit 1
-    fi
-    
-    echo "✅ Architecture primer completed successfully: $(basename "$architecture_primer_file")"
-else
-    echo "✅ Using existing architecture primer: $(basename "$architecture_primer_file")"
-fi
-```
-
-Mark architecture-primer-creation todo as completed.
-
-## Step 6: Finalization and Status Update
-
-Mark finalization todo as in_progress, then:
-
-**Update Context with Architect Insights:**
-```bash
-# Extract key insights from architecture primer
-echo "📊 Extracting architectural insights from primer..."
-echo "   - Extracting recommended patterns using jq"
-architect_insights=$(jq -r '.implementation_guidance.recommended_patterns[]' "$architecture_primer_file")
-echo "   - Extracting architectural constraints using jq"
-architectural_constraints=$(jq -r '.implementation_guidance.architectural_constraints[]' "$architecture_primer_file")
-echo "   - Extracting integration strategy using jq"
-integration_strategy=$(jq -r '.implementation_guidance.integration_strategy' "$architecture_primer_file")
-
-# Update initial-context-summary.md with architect insights
-echo "📝 Updating context summary with architectural insights..."
-echo "   - Removing existing architectural context section with sed"
-sed -i '/### Architectural Context/,$d' "$scratch_dir/initial-context-summary.md"
-echo "   - Appending new architectural context section"
-cat >> "$scratch_dir/initial-context-summary.md" << EOF
-
-### Architectural Context
-
-**Pre-Implementation Architecture Primer**: $(basename "$architecture_primer_file")
-
-**Key Architectural Insights:**
-$(echo "$architect_insights" | sed 's/^/- /')
-
-**Architectural Constraints:**
-$(echo "$architectural_constraints" | sed 's/^/- /')
-
-**Integration Strategy:**
-$integration_strategy
-
-**Implementation Guidance:**
-- Follow architectural patterns specified in the primer
-- Validate compliance with architectural constraints
-- Consider integration points with existing systems
-- Address risk factors identified in the primer
-
-EOF
-```
-
-**Final Validation and Status Update:**
-```bash
-# Verify all required files exist
-echo "🔍 Performing final validation of required files..."
-required_files=(
-    "$scratch_dir/initial-context-summary.md"
-    "$architecture_primer_file"
+// Build comprehensive implementation context
+const implementationContext = generateImplementationContext(
+  selectedTask, 
+  projectKnowledge,
+  phaseKnowledge,
+  projectId
 )
 
-for file in "${required_files[@]}"; do
-    echo "   - Checking: $(basename "$file")"
-    if ! test -f "$file"; then
-        echo "ERROR: Required file missing: $file"
-        rollback_task_status_to_pending
-        exit 1
-    fi
-done
-echo "✅ All required files validated successfully"
+// **CRITICAL**: Store implementation context as categorized Atlas knowledge
+const contextKnowledge = {
+  mode: "single",
+  projectId: projectId,
+  text: implementationContext,
+  domain: "technical", // KnowledgeDomain.TECHNICAL
+  tags: [
+    "doc-type-task-context",
+    "lifecycle-execution", 
+    `scope-task-${selectedTask.id}`,
+    "quality-draft"
+  ]
+}
 
-# Atomically update task status to "ready"
-echo "🔄 About to finalize task preparation by updating status to 'ready'..."
-echo "   - Creating temporary file and using jq to update status and prepared_at timestamp"
-echo "   - Target: phase ${phase_index}, task ${task_index}"
-echo "   - Timestamp: $(date -Iseconds)"
-temp_tracker=$(mktemp)
-jq '.phases['"${phase_index}"'].tasks['"${task_index}"'].status = "ready" | .phases['"${phase_index}"'].tasks['"${task_index}"'].prepared_at = "'"$(date -Iseconds)"'"' \
-   "$plan_tracker_path" > "$temp_tracker"
-mv "$temp_tracker" "$plan_tracker_path"
+await atlas_knowledge_add(contextKnowledge)
 
-echo "✅ Task preparation completed successfully!"
-echo "Task status: ready"
-echo "Next step: Run /plan-implement-task to begin implementation"
-```
+function generateImplementationContext(task, projectKnowledge, phaseKnowledge, projectId) {
+  const planOverview = projectKnowledge.find(k => k.tags.includes("doc-type-plan-overview"))
+  const phaseDetails = phaseKnowledge.find(k => k.tags.includes("doc-type-execution-plan"))
+  
+  return `# Task Implementation Context
 
-Mark finalization todo as completed.
+## Task Information
+- **Task ID**: ${task.id}
+- **Title**: ${task.title}
+- **Phase**: ${task.id.substring(0, 2)}
+- **Priority**: ${task.priority}
+- **Type**: ${task.taskType}
+- **Status**: preparing → ready (after architecture primer)
 
-## Error Handling and Rollback
+## Task Description
+${task.description}
 
-**Rollback Function:**
-```bash
-function rollback_task_status_to_pending() {
-    echo "⚠️  Rolling back task status to pending due to error..."
-    echo "🔄 About to rollback task status to 'pending'..."
-    echo "   - Creating temporary file and using jq to reset status"
-    echo "   - Target: phase ${phase_index}, task ${task_index}"
-    echo "📝 Creating temporary tracker file for atomic update..."
-    temp_tracker=$(mktemp)
-    echo "   - Using jq to update status field"
-    jq '.phases['"${phase_index}"'].tasks['"${task_index}"'].status = "pending"' \
-       "$plan_tracker_path" > "$temp_tracker"
-    echo "   - Moving temporary file to replace original tracker"
-    mv "$temp_tracker" "$plan_tracker_path"
-    echo "↩️  Task status rolled back to 'pending'"
-    
-    # Clean up partial scratch directory if it was created
-    echo "🧹 Checking for cleanup of partial scratch directory..."
-    if [ -d "$scratch_dir" ] && [ -z "$(ls -A "$scratch_dir" 2>/dev/null)" ]; then
-        echo "   - Removing empty scratch directory: $scratch_dir"
-        rmdir "$scratch_dir"
-        echo "Cleaned up empty scratch directory"
-    fi
+## Acceptance Criteria
+${task.completionRequirements}
+
+## Dependencies Status
+**Satisfied Dependencies**: ${(task.dependencies || []).join(", ") || "None"}
+**Dependency Status**: All dependencies completed ✅
+
+## Relevant Project Context
+
+### Plan Overview
+${planOverview ? extractRelevantSections(planOverview.text, task) : "Plan overview not available"}
+
+### Phase Context  
+${phaseDetails ? extractRelevantSections(phaseDetails.text, task) : "Phase details not available"}
+
+### Architecture Documentation
+**CRITICAL**: Read these architecture files entirely before implementation:
+- Search Atlas knowledge for: doc-type-architecture-docs
+- Search Atlas knowledge for: doc-type-standards
+- Review architecture primer (will be generated next)
+
+## Implementation Guidelines
+- Follow existing code patterns discovered in project analysis
+- Ensure all acceptance criteria are validated before completion
+- Update task status through Atlas MCP tools
+- Store implementation notes as Atlas knowledge
+- Consider architectural constraints from primer
+
+## Expected Deliverables
+${task.outputFormat}
+
+## Next Steps
+1. Architecture primer generation (automatic)
+2. Task implementation preparation validation
+3. Status update to "ready" for /plan-implement-task
+`
 }
 ```
 
-## Usage Examples
+### **Step 5: Architecture Primer Generation**
+
+**CRITICAL**: Mark architecture-primer todo as in_progress and spawn architect subagent:
+
+```javascript
+// Update TodoWrite progress
+await TodoWrite({
+  todos: preparationTodos.map(t => 
+    t.id === "context-creation" ? {...t, status: "completed"} :
+    t.id === "architecture-primer" ? {...t, status: "in_progress"} : t
+  )
+})
+
+// Check for existing architecture primer (reuse if recent)
+const existingPrimer = await atlas_knowledge_list({
+  projectId: projectId,
+  tags: [`scope-task-${selectedTask.id}`, "doc-type-architecture-primer"],
+  limit: 1
+})
+
+let architecturePrimer
+if (existingPrimer.length > 0) {
+  const primerAge = Date.now() - new Date(existingPrimer[0].createdAt).getTime()
+  const hoursOld = primerAge / (1000 * 60 * 60)
+  
+  if (hoursOld < 24) {
+    console.log(`📄 Found recent architecture primer (${hoursOld.toFixed(1)}h old)`)
+    const reuseChoice = await promptUser("Reuse existing primer? (y/n): ")
+    
+    if (reuseChoice === "y") {
+      architecturePrimer = existingPrimer[0].text
+    }
+  }
+}
+
+// Generate new architecture primer if not reusing
+if (!architecturePrimer) {
+  console.log("🤖 Generating architecture primer with architect subagent...")
+  
+  // **CRITICAL**: Spawn architect subagent with comprehensive context
+  const architectPrompt = `You are an expert software architect creating an architecture primer for task implementation.
+
+**Context:**
+- Project: ${projectId}
+- Task: ${selectedTask.id} - ${selectedTask.title}
+- Task Type: ${selectedTask.taskType}
+- Priority: ${selectedTask.priority}
+
+**Analysis Required:**
+1. Search Atlas knowledge for relevant architecture documentation
+2. Review completed tasks and their architectural implications  
+3. Analyze current system state and existing code patterns
+4. Examine this specific task requirements in architectural context
+5. Identify integration points and potential conflicts
+6. Provide implementation guidance and constraints
+
+**Use These Atlas MCP Commands:**
+- atlas_knowledge_list to find architecture docs: tags=["doc-type-architecture-docs", "doc-type-standards"]
+- atlas_knowledge_list to find similar completed tasks: tags=["doc-type-implementation-notes"]
+- atlas_task_list to review completed tasks in this project
+
+**Output Requirements:**
+Create a structured JSON architecture primer with:
+{
+  "primer_metadata": {
+    "timestamp": "${new Date().toISOString()}",
+    "task_id": "${selectedTask.id}",
+    "architect": "architect-subagent"
+  },
+  "current_state_analysis": {
+    "completed_tasks_summary": "Analysis of completed work",
+    "architectural_patterns": ["Existing patterns to follow"],
+    "integration_points": ["Systems that will be affected"]
+  },
+  "task_analysis": {
+    "architectural_significance": "high|medium|low",
+    "complexity_assessment": "Implementation complexity description",
+    "risk_factors": ["Implementation risks"],
+    "recommended_approach": "Recommended implementation strategy"
+  },
+  "implementation_guidance": {
+    "architectural_constraints": ["Must-follow constraints"],
+    "recommended_patterns": ["Patterns to use"],
+    "integration_strategy": "How to integrate with existing systems",
+    "validation_requirements": ["How to verify architectural compliance"]
+  },
+  "blocking_issues": ["Critical issues requiring human resolution"],
+  "recommendations": ["Overall recommendations for this task"]
+}
+
+Store this as Atlas knowledge with tags: ["doc-type-architecture-primer", "scope-task-${selectedTask.id}", "lifecycle-execution", "quality-reviewed"]`
+
+  architecturePrimer = await Task("Architecture Primer Generation", architectPrompt)
+  
+  // Validate primer generation
+  try {
+    const primerObj = JSON.parse(architecturePrimer)
+    
+    // Check for blocking issues
+    if (primerObj.blocking_issues && primerObj.blocking_issues.length > 0) {
+      console.log("🚨 CRITICAL: Architecture primer found blocking issues:")
+      primerObj.blocking_issues.forEach(issue => console.log(`  - ${issue}`))
+      
+      // Update task status to needs-human-review
+      await atlas_task_update({
+        mode: "single",
+        id: selectedTask.id, 
+        updates: {
+          status: "todo",
+          tags: [...(selectedTask.tags || []).filter(t => t !== "status-preparing"), "status-blocked"]
+        }
+      })
+      
+      throw new Error("Task requires human resolution before implementation can proceed.")
+    }
+  } catch (parseError) {
+    console.warn("⚠️  Architecture primer parsing failed, but continuing with raw content")
+  }
+}
+```
+
+### **Step 6: Task Finalization and Status Update**
+
+**CRITICAL**: Complete preparation and mark task as ready:
+
+```javascript
+// Update TodoWrite progress
+await TodoWrite({
+  todos: preparationTodos.map(t => 
+    t.id === "architecture-primer" ? {...t, status: "completed"} :
+    t.id === "task-finalization" ? {...t, status: "in_progress"} : t
+  )
+})
+
+// Validate all required context exists
+const requiredContext = await atlas_knowledge_list({
+  projectId: projectId,
+  tags: [`scope-task-${selectedTask.id}`],
+  limit: 10
+})
+
+const hasTaskContext = requiredContext.some(k => k.tags.includes("doc-type-task-context"))
+const hasArchitecturePrimer = requiredContext.some(k => k.tags.includes("doc-type-architecture-primer"))
+
+if (!hasTaskContext || !hasArchitecturePrimer) {
+  throw new Error("Required context missing. Task preparation failed.")
+}
+
+// **CRITICAL**: Atomically update task to ready state
+await atlas_task_update({
+  mode: "single",
+  id: selectedTask.id,
+  updates: {
+    status: "todo",
+    tags: [
+      ...(selectedTask.tags || []).filter(tag => !tag.startsWith("status-")),
+      "status-ready"
+    ]
+  }
+})
+
+// Update coordination file
+const lastPlan = await readLastPlanReference()
+lastPlan.last_prepared_task = {
+  id: selectedTask.id,
+  title: selectedTask.title,
+  prepared_at: new Date().toISOString()
+}
+lastPlan.last_updated = new Date().toISOString()
+lastPlan.updated_by = "plan-prepare-next-task"
+
+await writeFile('/planning/tasks/last-plan.json', JSON.stringify(lastPlan, null, 2))
+
+// **CRITICAL**: Complete all todos
+await TodoWrite({
+  todos: preparationTodos.map(t => ({...t, status: "completed"}))
+})
+```
+
+## **Usage Examples**
 
 ```bash
-# Prepare next task in last referenced plan
+# Prepare next task for current project (uses last-plan.json)
 /plan-prepare-next-task
 
-# Prepare specific plan (updates last-plan.json)  
-/plan-prepare-next-task "web-app-redesign"
+# Prepare next task for specific project  
+/plan-prepare-next-task "plan-web-customer-portal"
 
-# Check current preparation status
-/todo-read
+# Force re-preparation of current ready task
+/plan-prepare-next-task --force-reprepare
+
+# Check preparation status without making changes
+/plan-prepare-next-task --status-only
 ```
+
+## **Arguments Processing**
+
+**Input Format**: `[project-id] [--option]`
+
+**Optional Arguments**:
+- `[project-id]`: Atlas project ID (defaults to last-plan.json)
+- `--force-reprepare`: Re-prepare task even if already ready
+- `--status-only`: Show next available tasks without preparing
+- `--skip-architecture`: Skip architecture primer generation (not recommended)
+
+## **Output and Confirmation**
+
+```bash
+🔄 Task Preparation Progress
+
+✅ Task Selection: Found task 01-003
+✅ Context Creation: Implementation context stored
+✅ Architecture Primer: Generated by architect subagent
+✅ Task Finalization: Status updated to ready
+
+📋 Task Prepared Successfully
+
+Task Details:
+- ID: 01-003
+- Title: Foundation: Setup Development Environment
+- Priority: high  
+- Type: integration
+- Dependencies: All satisfied ✅
+
+Context Knowledge Stored:
+- Implementation Context: doc-type-task-context
+- Architecture Primer: doc-type-architecture-primer
+
+🎯 Task Ready for Implementation
+
+Next Steps:
+1. Run: /plan-implement-task (execute the prepared task)
+2. Run: /plan-status (view overall project progress)
+
+Last Plan Updated: /planning/tasks/last-plan.json
+```
+
+## **Error Handling and Recovery**
+
+1. **No Available Tasks**: Clear guidance on dependency resolution
+2. **State Conflicts**: Interactive resolution with rollback options
+3. **Architecture Primer Failures**: Fallback mechanisms and manual options
+4. **Knowledge Storage Failures**: Atomic rollback of task state changes
+5. **Dependency Validation Errors**: Specific guidance on blocking dependencies
+
+## **Quality Assurance**
+
+- Atomic state updates prevent race conditions and inconsistent states
+- Comprehensive dependency validation before task preparation
+- TodoWrite progress tracking provides complete audit trail
+- Architecture primer generation ensures implementation readiness
+- Knowledge categorization enables efficient context retrieval
+
+## **Integration Points**
+
+- **Reads**: Atlas project, tasks, and knowledge from previous commands
+- **Creates**: Task-specific implementation context and architecture primer as categorized knowledge
+- **Updates**: Task status with proper state tags and coordination file
+- **Enables**: `/plan-implement-task` execution with comprehensive preparation
+- **Maintains**: Sophisticated preparation workflow with progress visibility

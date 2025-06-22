@@ -4,6 +4,15 @@ A comprehensive command system for AI-assisted project planning, decomposition, 
 
 ## TODOs
 
+- check to see if we need to prefix IDs for tasks and knowledge
+- currently still creating /planning/tasks and sticking last-plan.json there; do we need the tasks subfolder?
+- what happens if I run the same command 2x for the same project, e.g. create, decompose, execution-init, prepare-next-task?
+- do we still need execution-init?  Can it be combined with prepare-next-task?
+- need better name for the workflows, e.g. create -> [ideate] -> decompose (from here on should warn if no architecture) -> next-task-prep -> next-task-start -> status
+
+tested:
+- plan-create, plan-decompose
+
 - prep file is running into complex bash commands and screwing up folder names - see doc-index-mcp test-suite/scratch/**
   -- just added bunch of "echo" for debuggin
 - rename to plan\* again?

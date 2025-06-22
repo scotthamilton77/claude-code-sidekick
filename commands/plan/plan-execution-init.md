@@ -1,214 +1,451 @@
-Initialize plan execution tracking for the specified plan: $ARGUMENTS
+Initialize and validate Atlas project for execution tracking: $ARGUMENTS
 
 ## Purpose
 
-This command reads existing plan files in `/planning/tasks/[plan-name]/` and creates a comprehensive `plan-tracker.json` file to track progress on phases, tasks, subtasks, and acceptance criteria validation.
+This command validates an existing Atlas project created by `/plan-create` and decomposed by `/plan-decompose`, ensuring it's ready for automated execution. It performs comprehensive validation, dependency verification, and state initialization to prepare for the execution workflow starting with `/plan-prepare-next-task`.
 
-## Process
+## **CRITICAL REQUIREMENTS**
 
-1. **Plan Name Resolution**:
+1. **MUST validate Atlas project completeness** - Verify project, tasks, and knowledge exist
+2. **MUST check dependency graph integrity** - Ensure no cycles and proper task relationships  
+3. **MUST reset task states for execution** - Initialize all tasks to proper starting states
+4. **MUST validate knowledge categorization** - Ensure plan and phase documentation exists
+5. **MUST update coordination file** - Prepare last-plan.json for execution commands
 
-   - If plan name provided in $ARGUMENTS, use it and update `/planning/tasks/last-plan.json`
-   - If no plan name provided, read from `/planning/tasks/last-plan.json` for the last referenced plan
-   - If neither exists, check for plan files in current directory
-   - Update `/planning/tasks/last-plan.json` with resolved plan name
+## Validation Architecture
 
-2. **Plan Discovery**:
-
-   - Read all plan files in `/planning/tasks/[plan-name]/` directory
-   - Parse README.md, PLAN.md, and \*-PLAN.md files
-   - Extract phases, tasks, subtasks, and acceptance criteria
-   - Identify dependencies and prerequisites
-
-3. **Tracker Initialization**:
-
-   - Create `plan-tracker.json` with complete plan structure
-   - Set all items to "pending" status initially
-   - Include metadata for tracking and coordination
-   - Validate plan structure and flag any issues
-
-4. **Validation**:
-   - Check for missing dependencies
-   - Verify acceptance criteria are measurable
-   - Ensure proper phase sequencing
-   - Flag any ambiguous or incomplete specifications
-
-## Plan Tracker JSON Template
-
-```json
-{
-  "plan_name": "string",
-  "plan_title": "string",
-  "initialized_at": "ISO_timestamp",
-  "last_updated": "ISO_timestamp",
-  "overall_status": "pending|in_progress|completed|blocked",
-  "completion_percentage": 0,
-  "metadata": {
-    "plan_directory": "/planning/tasks/[plan-name]/",
-    "plan_context_source_files": ["PLAN.md", "README.md"], // not actual phase files
-    "total_phases": 0,
-    "total_tasks": 0,
-    "total_subtasks": 0
-  },
-  "phases": [
-    {
-      "id": "phase_1",
-      "name": "Phase Name",
-      "description": "Phase description",
-      "phase_source_file": "relative path to file with phase details",
-      "status": "pending|in_progress|completed|blocked|skipped",
-      "started_at": null,
-      "completed_at": null,
-      "dependencies": ["phase_id", "phase_id/task_id"],
-      "prerequisites": ["requirement"],
-      "acceptance_criteria": [
-        {
-          "id": "ac_1",
-          "description": "Acceptance criteria description",
-          "status": "pending|verified|failed",
-          "validation_method": "test|review|demo|metrics",
-          "validated_at": null,
-          "notes": []
-        }
-      ],
-      "tasks": [
-        {
-          "id": "task_1",
-          "name": "Task Name",
-          "description": "Task description",
-          "plan_task_reference": "section in plan document for this task",
-          "status": "pending|in_progress|completed|blocked|skipped",
-          "priority": "high|medium|low",
-          "assigned_to": null,
-          "started_at": null,
-          "completed_at": null,
-          "estimated_effort": "string",
-          "actual_effort": null,
-          "dependencies": ["phase_id/task_id"],
-          "acceptance_criteria": [
-            {
-              "id": "ac_1",
-              "description": "Task acceptance criteria",
-              "status": "pending|verified|failed",
-              "validation_method": "test|review|demo|metrics",
-              "validated_at": null,
-              "notes": []
-            }
-          ],
-          "subtasks": [
-            {
-              "id": "subtask_1",
-              "name": "Subtask Name",
-              "description": "Subtask description",
-              "status": "pending|in_progress|completed|blocked|skipped",
-              "started_at": null,
-              "completed_at": null,
-              "deliverables": ["deliverable"],
-              "validation_steps": ["step"],
-              "notes": []
-            }
-          ],
-          "deliverables": ["deliverable"],
-          "notes": []
-        }
-      ],
-      "deliverables": ["phase deliverable"],
-      "notes": []
-    }
-  ],
-  "global_dependencies": {
-    "external_systems": [],
-    "tools_required": [],
-    "resources_needed": [],
-    "team_coordination": []
-  },
-  "risk_tracking": [
-    {
-      "id": "risk_1",
-      "description": "Risk description",
-      "impact": "high|medium|low",
-      "probability": "high|medium|low",
-      "mitigation_strategy": "string",
-      "status": "open|mitigated|closed",
-      "affects_phases": ["phase_id"]
-    }
-  ]
-}
+```mermaid
+graph TD
+    A[Resolve Project] --> B[Validate Atlas Entities]
+    B --> C[Check Task Dependencies]
+    C --> D[Verify Knowledge Structure]
+    D --> E[Initialize Task States]
+    E --> F[Update Coordination File]
+    F --> G[Execution Readiness Report]
 ```
 
 ## Implementation Steps
 
-1. **Plan Name Resolution & Last Plan Tracking**:
+### Step 1: **Project Resolution and Existence Validation**
 
-   - If plan name provided in $ARGUMENTS → Use it and update `/planning/tasks/last-plan.json`
-   - If no plan name provided → Read plan_name from `/planning/tasks/last-plan.json`
-   - If last-plan.json doesn't exist → Check current directory for plan files
-   - Update `/planning/tasks/last-plan.json` with resolved plan name for future commands
-   - Verify `/planning/tasks/[plan-name]/` directory exists
+```javascript
+// Resolve project ID from arguments or last-plan.json
+let projectId = extractProjectIdFromArguments($ARGUMENTS)
+if (!projectId) {
+  const lastPlan = await readLastPlanReference()
+  projectId = lastPlan?.atlas_project_id
+}
 
-2. **Validate Input**:
+if (!projectId) {
+  throw new Error("No project specified. Run /plan-create and /plan-decompose first.")
+}
 
-   - List all plan files in the directory
+// **CRITICAL**: Validate Atlas project exists and is properly configured
+const atlasProject = await atlas_project_list({
+  mode: "details",
+  id: projectId,
+  includeKnowledge: true,
+  includeTasks: true
+})
 
-3. **Parse Plan Files**:
+if (!atlasProject) {
+  throw new Error(`Atlas project ${projectId} not found. Run /plan-create first.`)
+}
 
-   - Read each plan file (PLAN.md, README.md, \*-PLAN.md)
-   - Extract structured information about phases, tasks, and acceptance criteria
-   - Parse dependencies and prerequisites
-   - Identify deliverables and validation methods
-
-4. **Generate Tracker**:
-
-   - Create plan-tracker.json with complete hierarchy
-   - Generate unique IDs for all phases, tasks, and subtasks
-   - Set initial timestamps and status values
-   - Calculate metadata (totals, percentages)
-
-5. **Validation & Output**:
-   - Validate the generated structure for completeness
-   - Check for circular dependencies
-   - Flag any missing or ambiguous specifications
-   - Save plan-tracker.json to the plan directory
-   - Provide summary of initialization results
-
-## Usage Examples
-
-```bash
-# Initialize tracking for a specific plan (updates /planning/tasks/last-plan.json)
-/plan-execution-init "web-app-redesign"
-
-# Initialize using last referenced plan (reads from /planning/tasks/last-plan.json)
-/plan-execution-init
-
-# Example workflow showing last-plan tracking:
-/plan-execution-init "web-app-redesign"  # Creates/updates last-plan.json
-/plan-status                             # Uses "web-app-redesign" from last-plan.json
-/plan-execute-continue                   # Also uses "web-app-redesign"
+// Verify project has active status
+if (atlasProject.status !== "active" && atlasProject.status !== "in-progress") {
+  console.warn(`Project status is ${atlasProject.status}. Expected 'active' or 'in-progress'.`)
+}
 ```
 
-## Arguments
+### Step 2: **Task Structure Validation**
 
-**Plan Name**: $ARGUMENTS (optional)
+```javascript
+// Retrieve all Atlas tasks for the project
+const allTasks = await atlas_task_list({
+  projectId: projectId,
+  limit: 200, // Adjust based on expected project size
+  sortBy: "createdAt"
+})
 
-- If no plan name provided, uses the last referenced plan from `/planning/tasks/last-plan.json`
-- If last-plan.json doesn't exist, checks for plan files in current directory
-- Updates `/planning/tasks/last-plan.json` with the resolved plan name for future commands
+if (allTasks.length === 0) {
+  throw new Error(`No tasks found for project ${projectId}. Run /plan-decompose first.`)
+}
 
-The plan name should match a directory under `/planning/tasks/`.
+// Validate task ID conventions and structure
+const validationResults = validateTaskStructure(allTasks)
+if (!validationResults.isValid) {
+  throw new Error(`Task structure validation failed: ${validationResults.errors.join(", ")}`)
+}
 
-## Output
+function validateTaskStructure(tasks) {
+  const errors = []
+  const taskIdPattern = /^(\d{2}-\d{3})(-\d{2})?$/
+  const phaseDistribution = {}
+  
+  for (const task of tasks) {
+    // Validate task ID format
+    if (!taskIdPattern.test(task.id)) {
+      errors.push(`Invalid task ID format: ${task.id}`)
+    }
+    
+    // Track phase distribution
+    const phaseId = task.id.substring(0, 2)
+    phaseDistribution[phaseId] = (phaseDistribution[phaseId] || 0) + 1
+    
+    // Validate required fields
+    if (!task.title || !task.description) {
+      errors.push(`Task ${task.id} missing required fields`)
+    }
+    
+    // Validate Atlas enum compliance
+    const validStatuses = ["backlog", "todo", "in-progress", "completed"]
+    if (!validStatuses.includes(task.status)) {
+      errors.push(`Task ${task.id} has invalid status: ${task.status}`)
+    }
+    
+    const validPriorities = ["low", "medium", "high", "critical"]
+    if (!validPriorities.includes(task.priority)) {
+      errors.push(`Task ${task.id} has invalid priority: ${task.priority}`)
+    }
+    
+    const validTaskTypes = ["research", "generation", "analysis", "integration"]
+    if (!validTaskTypes.includes(task.taskType)) {
+      errors.push(`Task ${task.id} has invalid taskType: ${task.taskType}`)
+    }
+  }
+  
+  // Validate phase distribution (each phase should have at least 2 tasks)
+  for (const [phaseId, count] of Object.entries(phaseDistribution)) {
+    if (count < 2) {
+      errors.push(`Phase ${phaseId} has insufficient tasks (${count})`)
+    }
+  }
+  
+  return {
+    isValid: errors.length === 0,
+    errors: errors,
+    taskCount: tasks.length,
+    phaseCount: Object.keys(phaseDistribution).length,
+    phaseDistribution: phaseDistribution
+  }
+}
+```
 
-- Creates `plan-tracker.json` in the plan directory
-- Provides initialization summary with:
-  - Total phases, tasks, and subtasks discovered
-  - Any validation warnings or errors
-  - Recommended next steps for plan execution
-  - Confirmation of tracker file location
+### Step 3: **Dependency Graph Validation**
 
-## Next Steps
+**CRITICAL**: Verify task dependencies form a valid execution graph:
 
-After running this command, use:
+```javascript
+// Build and validate dependency graph
+const dependencyGraph = buildDependencyGraph(allTasks)
+const graphValidation = validateDependencyGraph(dependencyGraph, allTasks)
 
-- `/plan-execute-continue` to begin executing the next pending tasks
-- Manual editing of `plan-tracker.json` to adjust priorities or assignments
-- Regular status updates as work progresses
+if (!graphValidation.isValid) {
+  throw new Error(`Dependency validation failed: ${graphValidation.errors.join(", ")}`)
+}
+
+function buildDependencyGraph(tasks) {
+  const graph = { nodes: new Set(), edges: [] }
+  
+  for (const task of tasks) {
+    graph.nodes.add(task.id)
+    
+    for (const dependency of task.dependencies || []) {
+      graph.edges.push({ from: dependency, to: task.id })
+    }
+  }
+  
+  return graph
+}
+
+function validateDependencyGraph(graph, tasks) {
+  const errors = []
+  const taskIds = new Set(tasks.map(t => t.id))
+  
+  // Check for invalid dependency references
+  for (const edge of graph.edges) {
+    if (!taskIds.has(edge.from)) {
+      errors.push(`Task ${edge.to} depends on non-existent task ${edge.from}`)
+    }
+  }
+  
+  // Check for circular dependencies using DFS
+  const visited = new Set()
+  const recursionStack = new Set()
+  
+  function hasCycle(nodeId) {
+    if (recursionStack.has(nodeId)) return true
+    if (visited.has(nodeId)) return false
+    
+    visited.add(nodeId)
+    recursionStack.add(nodeId)
+    
+    const dependencies = graph.edges
+      .filter(edge => edge.to === nodeId)
+      .map(edge => edge.from)
+    
+    for (const dep of dependencies) {
+      if (hasCycle(dep)) return true
+    }
+    
+    recursionStack.delete(nodeId)
+    return false
+  }
+  
+  for (const nodeId of graph.nodes) {
+    if (hasCycle(nodeId)) {
+      errors.push(`Circular dependency detected involving task ${nodeId}`)
+      break // Report only first cycle found
+    }
+  }
+  
+  // Calculate execution order
+  const executionOrder = topologicalSort(graph)
+  
+  return {
+    isValid: errors.length === 0,
+    errors: errors,
+    cycleDetected: errors.some(e => e.includes("Circular")),
+    executionOrder: executionOrder,
+    totalDependencies: graph.edges.length
+  }
+}
+```
+
+### Step 4: **Knowledge Structure Verification**
+
+```javascript
+// Validate knowledge structure and categorization
+const projectKnowledge = await atlas_knowledge_list({
+  projectId: projectId,
+  limit: 50
+})
+
+const knowledgeValidation = validateKnowledgeStructure(projectKnowledge)
+if (!knowledgeValidation.isValid) {
+  console.warn(`Knowledge structure issues: ${knowledgeValidation.warnings.join(", ")}`)
+}
+
+function validateKnowledgeStructure(knowledge) {
+  const warnings = []
+  const requiredDocTypes = ["doc-type-plan-overview"]
+  const foundDocTypes = new Set()
+  
+  for (const item of knowledge) {
+    // Track document types found
+    const docTypeTags = item.tags.filter(tag => tag.startsWith("doc-type-"))
+    docTypeTags.forEach(tag => foundDocTypes.add(tag))
+    
+    // Validate knowledge domain
+    const validDomains = ["technical", "business", "scientific"]
+    if (!validDomains.includes(item.domain)) {
+      warnings.push(`Knowledge item has invalid domain: ${item.domain}`)
+    }
+    
+    // Check for essential tags
+    const hasLifecycleTag = item.tags.some(tag => tag.startsWith("lifecycle-"))
+    const hasScopeTag = item.tags.some(tag => tag.startsWith("scope-"))
+    const hasQualityTag = item.tags.some(tag => tag.startsWith("quality-"))
+    
+    if (!hasLifecycleTag || !hasScopeTag || !hasQualityTag) {
+      warnings.push(`Knowledge item missing essential categorization tags`)
+    }
+  }
+  
+  // Check for required document types
+  for (const requiredType of requiredDocTypes) {
+    if (!foundDocTypes.has(requiredType)) {
+      warnings.push(`Missing required knowledge type: ${requiredType}`)
+    }
+  }
+  
+  return {
+    isValid: warnings.length === 0,
+    warnings: warnings,
+    knowledgeCount: knowledge.length,
+    docTypesFound: Array.from(foundDocTypes)
+  }
+}
+```
+
+### Step 5: **Task State Initialization**
+
+**CRITICAL**: Reset task states for proper execution flow:
+
+```javascript
+// Initialize all tasks to proper execution states
+const taskStateUpdates = []
+
+for (const task of allTasks) {
+  let newStatus = task.status
+  const newTags = [...(task.tags || [])]
+  
+  // Reset any execution-specific tags
+  const executionTags = ["status-preparing", "status-ready", "status-blocked", "status-review"]
+  const cleanedTags = newTags.filter(tag => !executionTags.includes(tag))
+  
+  // Set initial status based on dependencies
+  const hasUnmetDependencies = task.dependencies && task.dependencies.length > 0
+  
+  if (task.status === "completed") {
+    // Keep completed tasks as-is
+    newStatus = "completed"
+  } else if (hasUnmetDependencies) {
+    // Tasks with dependencies start in backlog
+    newStatus = "backlog"
+  } else {
+    // Tasks without dependencies are ready to be prepared
+    newStatus = "todo"
+  }
+  
+  // Only update if changes are needed
+  if (newStatus !== task.status || cleanedTags.length !== newTags.length) {
+    taskStateUpdates.push({
+      id: task.id,
+      updates: {
+        status: newStatus,
+        tags: cleanedTags
+      }
+    })
+  }
+}
+
+// **CRITICAL**: Apply task state updates using bulk operation
+if (taskStateUpdates.length > 0) {
+  await atlas_task_update({
+    mode: "bulk",
+    tasks: taskStateUpdates
+  })
+  
+  console.log(`Initialized ${taskStateUpdates.length} tasks for execution`)
+}
+```
+
+### Step 6: **Project Status and Coordination Update**
+
+```javascript
+// Update Atlas project status to in-progress if not already
+if (atlasProject.status === "active") {
+  await atlas_project_update({
+    mode: "single",
+    id: projectId,
+    updates: {
+      status: "in-progress"
+    }
+  })
+}
+
+// **CRITICAL**: Update last-plan.json for command coordination
+const lastPlanData = {
+  plan_name: projectId,
+  plan_title: atlasProject.name,
+  last_updated: new Date().toISOString(),
+  updated_by: "plan-execution-init",
+  atlas_project_id: projectId,
+  total_tasks: allTasks.length,
+  ready_for_execution: true,
+  next_available_tasks: getNextAvailableTasks(allTasks)
+}
+
+await writeFile('/planning/tasks/last-plan.json', JSON.stringify(lastPlanData, null, 2))
+
+function getNextAvailableTasks(tasks) {
+  return tasks
+    .filter(task => task.status === "todo" && (!task.dependencies || task.dependencies.length === 0))
+    .slice(0, 3) // Get first 3 available tasks
+    .map(task => ({
+      id: task.id,
+      title: task.title,
+      priority: task.priority
+    }))
+}
+```
+
+## **Usage Examples**
+
+```bash
+# Initialize current plan (uses last-plan.json)
+/plan-execution-init
+
+# Initialize specific project
+/plan-execution-init "plan-web-customer-portal"
+
+# Validate only (no state changes)
+/plan-execution-init --validate-only
+
+# Force reinitialization (reset all tasks)
+/plan-execution-init --force-reset
+```
+
+## **Arguments Processing**
+
+**Input Format**: `[project-id] [--option]`
+
+**Optional Arguments**:
+- `[project-id]`: Atlas project ID (defaults to last-plan.json)
+- `--validate-only`: Perform validation without state changes
+- `--force-reset`: Reset all task states to initial values
+- `--skip-knowledge-check`: Skip knowledge structure validation
+
+## **Output and Confirmation**
+
+```bash
+✅ Execution Initialization Completed
+
+Project Validation:
+- Atlas Project: plan-web-customer-portal ✅
+- Status: in-progress
+- Type: integration
+
+Task Structure:
+- Total Tasks: 31 main tasks, 44 subtasks
+- Phases: 4 phases validated
+- Dependencies: 67 relationships verified ✅
+- Dependency Graph: No cycles detected ✅
+
+Knowledge Structure:
+- Plan Overview: 1 item ✅
+- Phase Documentation: 4 items ✅
+- Total Knowledge Items: 5
+
+Task Initialization:
+- Reset for Execution: 12 tasks updated
+- Ready for Preparation: 3 tasks available
+- Blocked by Dependencies: 72 tasks
+
+Next Available Tasks:
+1. [01-001] Foundation: Environment Setup (priority: high)
+2. [01-002] Foundation: Requirements Analysis (priority: high)  
+3. [02-001] Core Features: Architecture Design (priority: medium)
+
+✅ Project Ready for Execution
+
+Next Steps:
+1. Run: /plan-prepare-next-task (prepare first available task)
+2. Run: /plan-status (view detailed progress dashboard)
+```
+
+## **Error Handling**
+
+1. **Missing Project**: Clear guidance to run `/plan-create` and `/plan-decompose`
+2. **Invalid Task Structure**: Specific validation errors with correction guidance
+3. **Circular Dependencies**: Identification of problematic task relationships
+4. **Knowledge Structure Issues**: Warnings about missing documentation
+5. **Atlas Connection Issues**: Retry mechanisms and fallback validation
+
+## **Quality Assurance**
+
+- Comprehensive validation of Atlas project structure
+- Dependency graph cycle detection and execution order calculation
+- Task state consistency verification across all project tasks
+- Knowledge categorization compliance checking
+- Coordination file accuracy for downstream command integration
+
+## **Integration Points**
+
+- **Validates**: Atlas entities from `/plan-create` and `/plan-decompose`
+- **Initializes**: Task states for proper execution workflow
+- **Prepares**: Project for `/plan-prepare-next-task` and `/plan-implement-task`
+- **Maintains**: Last-plan.json coordination for automated execution flow
+- **Enables**: Full Atlas-backed execution workflow with state consistency

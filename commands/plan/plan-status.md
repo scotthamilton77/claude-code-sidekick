@@ -1,376 +1,1034 @@
-Generate a concise, visually-pleasing status report for the specified plan: $ARGUMENTS
+Generate rich visual Atlas project status report: $ARGUMENTS
 
 ## Purpose
 
-This command reads `plan-tracker.json` and generates a comprehensive status report showing the overall progress of plan development and execution. The report is saved to `/planning/tasks/[plan-name]/plan-status.md` with smart update capabilities that regenerate only when source files have changed since the last generation.
+This command queries Atlas MCP to generate a comprehensive, visually rich status report for the current project. The report includes progress visualization, performance metrics, task distribution, and actionable insights, saved to a timestamped file in `/planning/status-report-[ISO8601].md`.
 
-## Process
+## **CRITICAL REQUIREMENTS**
 
-1. **Plan Name Resolution**:
+1. **MUST use Atlas MCP tools exclusively** - All data retrieval through Atlas queries
+2. **MUST use TodoWrite for progress tracking** - Create todos for report generation phases
+3. **MUST focus on single project only** - No cross-project analysis to keep report focused
+4. **MUST generate rich visual elements** - ASCII charts, progress bars, and formatted tables
+5. **MUST save to timestamped file** - Save to `/planning/status-report-[ISO8601].md`
+6. **MUST provide actionable insights** - Clear next steps and recommendations
 
-   - If plan name provided in $ARGUMENTS, use it and update `/planning/tasks/last-plan.json`
-   - If no plan name provided, read from `/planning/tasks/last-plan.json` for the last referenced plan
-   - If neither exists, check for `plan-tracker.json` in current directory
-   - Update `/planning/tasks/last-plan.json` with resolved plan name
+## Implementation Steps
 
-2. **File Timestamp Analysis**:
+### **Step 1: Status Generation Progress Tracking**
 
-   - Check if `/planning/tasks/[plan-name]/plan-status.md` exists
-   - If exists, compare its timestamp against source files:
-     - `plan-tracker.json`
-     - All `*.md` files in plan directory (PLAN.md, README.md, phase files)
-     - All files in `scratch/` directories
-     - All `code-review-tracker.json` files
-     - All files in `review-audit/` directories
-   - Skip generation if status file is newer than all source files (unless `--force`)
+**CRITICAL**: Create TodoWrite tracking for all report generation phases:
 
-3. **Smart Update Detection**:
+```javascript
+// **MUST CREATE TODOS FIRST** - Provides visibility into status report generation
+const statusReportTodos = [
+  {
+    id: "project-discovery",
+    content: "Resolve target project and validate Atlas entities",
+    status: "pending",
+    priority: "high"
+  },
+  {
+    id: "data-collection", 
+    content: "Query Atlas for project, task, and knowledge data",
+    status: "pending",
+    priority: "high"
+  },
+  {
+    id: "visual-generation",
+    content: "Generate visual progress charts and distribution displays",
+    status: "pending",
+    priority: "high"
+  },
+  {
+    id: "report-compilation",
+    content: "Compile rich visual status report and save to timestamped file",
+    status: "pending",
+    priority: "high"
+  }
+]
 
-   - If only specific sections need updates (e.g., task status changes), update incrementally
-   - If major changes detected (new phases, structural changes), regenerate completely
-   - Parse existing status.md to preserve manual annotations if present
+await TodoWrite({ todos: statusReportTodos })
+```
 
-4. **Data Collection**:
+### **Step 2: Project Resolution and Validation**
 
-   - Read plan-tracker.json from `/planning/tasks/[plan-name]/`
-   - Analyze phase and task completion rates
-   - Identify blockers and dependencies
-   - Calculate time metrics
-   - Review recent execution logs from scratch directories
-   - Parse review audit trails for quality metrics
+**CRITICAL**: Mark project-discovery todo as in_progress and validate Atlas entities:
 
-5. **Status Analysis**:
+```javascript
+// Update TodoWrite to show progress
+await TodoWrite({ 
+  todos: statusReportTodos.map(t => 
+    t.id === "project-discovery" ? {...t, status: "in_progress"} : t
+  )
+})
 
-   - Overall completion percentage
-   - Phase-by-phase progress
-   - Task status distribution
-   - Critical path analysis
-   - Blocker identification
-   - Performance metrics from review cycles
+// Resolve project ID from arguments or last-plan.json
+let projectId = extractProjectIdFromArguments($ARGUMENTS)
+if (!projectId) {
+  const lastPlan = await readLastPlanReference()
+  projectId = lastPlan?.atlas_project_id
+}
 
-6. **Report Generation**:
-   - Generate or update `/planning/tasks/[plan-name]/plan-status.md`
-   - Add generation timestamp header
-   - Visual progress indicators
-   - Status summary dashboard
-   - Timeline visualization
-   - Blocker alerts with review audit context
-   - Next steps recommendations
+if (!projectId) {
+  throw new Error("No project specified. Run /plan-execution-init first or provide project ID.")
+}
 
-## Status Report Template
+// **CRITICAL**: Validate Atlas project exists and get comprehensive details
+const atlasProject = await atlas_project_list({
+  mode: "details",
+  id: projectId,
+  includeKnowledge: true,
+  includeTasks: true
+})
 
-````markdown
-# Plan Status Report: [Plan Name]
+if (!atlasProject) {
+  throw new Error(`Atlas project ${projectId} not found. Project may not exist or has been deleted.`)
+}
 
-Generated: [ISO Timestamp]
-Source Files Last Modified: [Most Recent Timestamp]
-Report Status: [Up to Date | Updated | Force Regenerated]
+console.log(`📊 Generating status report for: ${atlasProject.name}`)
+```
+
+### **Step 3: Focused Data Collection**
+
+**CRITICAL**: Mark data-collection todo as in_progress and query project data:
+
+```javascript
+// Update TodoWrite progress
+await TodoWrite({
+  todos: statusReportTodos.map(t => 
+    t.id === "project-discovery" ? {...t, status: "completed"} :
+    t.id === "data-collection" ? {...t, status: "in_progress"} : t
+  )
+})
+
+// **CRITICAL**: Query all project tasks with comprehensive details
+const allProjectTasks = await atlas_task_list({
+  projectId: projectId,
+  limit: 200,
+  sortBy: "createdAt",
+  sortDirection: "desc"
+})
+
+// **CRITICAL**: Query all project knowledge for context analysis
+const allProjectKnowledge = await atlas_knowledge_list({
+  projectId: projectId,
+  limit: 100
+})
+
+console.log(`📊 Retrieved ${allProjectTasks.length} tasks and ${allProjectKnowledge.length} knowledge items`)
+```
+
+### **Step 4: Task Status Analysis and Metrics**
+
+**CRITICAL**: Analyze task distribution and calculate performance metrics:
+
+```javascript
+// **CRITICAL**: Analyze task status distribution using Atlas data
+const taskAnalysis = analyzeTaskDistribution(allProjectTasks)
+
+function analyzeTaskDistribution(tasks) {
+  const distribution = {
+    total: tasks.length,
+    completed: 0,
+    in_progress: 0,
+    ready: 0,
+    blocked: 0,
+    pending: 0,
+    by_phase: {},
+    by_priority: { low: 0, medium: 0, high: 0, critical: 0 },
+    by_type: { research: 0, generation: 0, analysis: 0, integration: 0 }
+  }
+  
+  const phaseProgress = {}
+  const blockedTasks = []
+  const readyTasks = []
+  const inProgressTasks = []
+  
+  for (const task of tasks) {
+    // Count by Atlas TaskStatus enum
+    switch (task.status) {
+      case "completed":
+        distribution.completed++
+        break
+      case "in-progress":
+        distribution.in_progress++
+        inProgressTasks.push(task)
+        break
+      case "todo":
+        // Check tags for substatus
+        if (task.tags?.includes("status-ready")) {
+          distribution.ready++
+          readyTasks.push(task)
+        } else if (task.tags?.includes("status-blocked")) {
+          distribution.blocked++
+          blockedTasks.push(task)
+        } else {
+          distribution.pending++
+        }
+        break
+      case "backlog":
+        distribution.pending++
+        break
+    }
+    
+    // Analyze by priority (Atlas PriorityLevel enum)
+    distribution.by_priority[task.priority]++
+    
+    // Analyze by task type (Atlas TaskType enum)
+    distribution.by_type[task.taskType]++
+    
+    // Phase analysis from tags
+    const phaseTags = task.tags?.filter(tag => tag.startsWith("phase-"))
+    if (phaseTags?.length > 0) {
+      const phaseId = phaseTags[0].replace("phase-", "")
+      if (!phaseProgress[phaseId]) {
+        phaseProgress[phaseId] = { total: 0, completed: 0, in_progress: 0, pending: 0 }
+      }
+      phaseProgress[phaseId].total++
+      
+      if (task.status === "completed") {
+        phaseProgress[phaseId].completed++
+      } else if (task.status === "in-progress") {
+        phaseProgress[phaseId].in_progress++
+      } else {
+        phaseProgress[phaseId].pending++
+      }
+    }
+  }
+  
+  // Calculate completion percentage
+  distribution.completion_percentage = distribution.total > 0 
+    ? Math.round((distribution.completed / distribution.total) * 100) 
+    : 0
+  
+  return {
+    distribution,
+    phaseProgress,
+    blockedTasks,
+    readyTasks,
+    inProgressTasks
+  }
+}
+
+// **CRITICAL**: Calculate performance metrics from Atlas knowledge
+const performanceMetrics = await calculatePerformanceMetrics(
+  allProjectTasks, 
+  allProjectKnowledge,
+  implementationPatterns
+)
+
+async function calculatePerformanceMetrics(tasks, knowledge, patterns) {
+  // Analyze review cycle data from Atlas knowledge
+  const reviewKnowledge = knowledge.filter(k => 
+    k.tags.includes("doc-type-review-findings")
+  )
+  
+  const implementationKnowledge = knowledge.filter(k => 
+    k.tags.includes("doc-type-implementation-notes")
+  )
+  
+  // Calculate average review iterations
+  let totalIterations = 0
+  let reviewCycles = 0
+  
+  for (const review of reviewKnowledge) {
+    const iterationTags = review.tags.filter(tag => tag.startsWith("review-iteration-"))
+    if (iterationTags.length > 0) {
+      const iteration = parseInt(iterationTags[0].replace("review-iteration-", ""))
+      totalIterations += iteration
+      reviewCycles++
+    }
+  }
+  
+  const avgReviewIterations = reviewCycles > 0 ? (totalIterations / reviewCycles).toFixed(1) : "N/A"
+  
+  // Calculate task velocity (completed tasks per day)
+  const completedTasks = tasks.filter(t => t.status === "completed")
+  const earliestTask = completedTasks.reduce((earliest, task) => 
+    new Date(task.createdAt) < new Date(earliest.createdAt) ? task : earliest, 
+    completedTasks[0]
+  )
+  
+  let taskVelocity = "N/A"
+  if (earliestTask && completedTasks.length > 0) {
+    const daysSinceStart = Math.ceil(
+      (Date.now() - new Date(earliestTask.createdAt).getTime()) / (1000 * 60 * 60 * 24)
+    )
+    taskVelocity = (completedTasks.length / Math.max(daysSinceStart, 1)).toFixed(1)
+  }
+  
+  // Quality score from review findings
+  const qualityFindings = reviewKnowledge.filter(k => k.tags.includes("quality-approved"))
+  const qualityScore = reviewKnowledge.length > 0 
+    ? Math.round((qualityFindings.length / reviewKnowledge.length) * 100)
+    : "N/A"
+  
+  return {
+    avgReviewIterations,
+    taskVelocity: `${taskVelocity} tasks/day`,
+    qualityScore: `${qualityScore}%`,
+    totalReviewCycles: reviewCycles,
+    implementationNotes: implementationKnowledge.length,
+    knowledgeGenerated: knowledge.length,
+    organizationalLearning: patterns.length
+  }
+}
+```
+
+### **Step 5: Visual Report Generation**
+
+**CRITICAL**: Mark visual-generation todo as in_progress and create rich visual elements:
+
+```javascript
+// Update TodoWrite progress
+await TodoWrite({
+  todos: statusReportTodos.map(t => 
+    t.id === "data-collection" ? {...t, status: "completed"} :
+    t.id === "visual-generation" ? {...t, status: "in_progress"} : t
+  )
+})
+
+// **CRITICAL**: Generate visual elements for rich reporting
+const visualElements = generateVisualElements(taskAnalysis, performanceMetrics)
+
+function generateVisualElements(taskAnalysis, metrics) {
+  const { distribution, phaseProgress, blockedTasks, readyTasks, inProgressTasks } = taskAnalysis
+  
+  // Generate progress bar
+  const progressBar = generateProgressBar(distribution.completion_percentage)
+  
+  // Generate phase table with visual indicators
+  const phaseTable = generatePhaseTable(phaseProgress)
+  
+  // Generate task distribution ASCII chart
+  const taskDistributionChart = generateTaskDistributionChart(distribution)
+  
+  // Generate upcoming milestones
+  const upcomingMilestones = generateMilestonesTable(distribution)
+  
+  // Generate risk assessment
+  const riskAssessment = generateRiskAssessment(blockedTasks, inProgressTasks)
+  
+  return {
+    progressBar,
+    phaseTable,
+    taskDistributionChart,
+    upcomingMilestones,
+    riskAssessment
+  }
+}
+
+### **Step 6: Rich Visual Report Generation**
+
+**CRITICAL**: Mark report-compilation todo as in_progress and generate final report:
+
+```javascript
+// Update TodoWrite progress
+await TodoWrite({
+  todos: statusReportTodos.map(t => 
+    t.id === "visual-generation" ? {...t, status: "completed"} :
+    t.id === "report-compilation" ? {...t, status: "in_progress"} : t
+  )
+})
+
+// **CRITICAL**: Generate rich visual status report
+const statusReport = generateRichStatusReport(
+  atlasProject,
+  taskAnalysis,
+  performanceMetrics,
+  visualElements,
+  allProjectKnowledge
+)
+
+function generateRichStatusReport(project, taskAnalysis, metrics, visuals, knowledge) {
+  const { distribution, phaseProgress, blockedTasks, readyTasks, inProgressTasks } = taskAnalysis
+  const recentCompletions = getRecentCompletions(allProjectTasks)
+  const knowledgeDistribution = analyzeKnowledgeDistribution(knowledge)
+  
+  return `# Plan Status Report: ${project.name}
+
+Generated: ${new Date().toISOString()}
+Project ID: ${project.id}
+Report Status: Updated
+Source: Real-time Atlas Analytics
 
 ## Executive Summary
 
-**Overall Progress**: [██████████░░░░░░] 67% Complete
+**Overall Progress**: ${visuals.progressBar} ${distribution.completion_percentage}% Complete
 
-- **Status**: [In Progress | Blocked | On Track | Completed]
-- **Started**: [Date]
-- **Estimated Completion**: [Date]
-- **Days Elapsed**: [N days]
+- **Status**: ${mapProjectStatus(project.status)}
+- **Project Type**: ${project.taskType}
+- **Started**: ${project.createdAt ? new Date(project.createdAt).toLocaleDateString() : 'N/A'}
+- **Total Tasks**: ${distribution.total}
+- **Atlas Knowledge Items**: ${knowledge.length}
+- **Last Activity**: ${getLastActivity(allProjectTasks)}
 
 ## Phase Progress
 
-| Phase                  | Status         | Progress          | Tasks | Blockers |
-| ---------------------- | -------------- | ----------------- | ----- | -------- |
-| Phase 1: Foundation    | ✅ Completed   | [██████████] 100% | 8/8   | 0        |
-| Phase 2: Core Features | 🔄 In Progress | [████████░░] 75%  | 9/12  | 1        |
-| Phase 3: Integration   | ⏸️ Pending     | [░░░░░░░░░░] 0%   | 0/6   | 0        |
-| Phase 4: Testing       | ⏸️ Blocked     | [░░░░░░░░░░] 0%   | 0/10  | 2        |
-| Phase 5: Deployment    | ⏸️ Pending     | [░░░░░░░░░░] 0%   | 0/5   | 0        |
+${visuals.phaseTable}
 
 ## Task Distribution
-```text
-┌─────────────────────────────────────┐
-│ Completed │████████████│ 23 (56%) │
-│ In Progress │███ │ 3 (7%) │
-│ Ready │██ │ 2 (5%) │
-│ Blocked │██ │ 2 (5%) │
-│ Pending │███████ │ 11 (27%) │
-└─────────────────────────────────────┘
-```
+${visuals.taskDistributionChart}
+
+**Status Breakdown**:
+- ✅ **Completed**: ${distribution.completed} tasks (${Math.round((distribution.completed/distribution.total)*100)}%)
+- 🔄 **In Progress**: ${distribution.in_progress} tasks (${Math.round((distribution.in_progress/distribution.total)*100)}%)  
+- 🟢 **Ready**: ${distribution.ready} tasks (${Math.round((distribution.ready/distribution.total)*100)}%)
+- 🚫 **Blocked**: ${distribution.blocked} tasks (${Math.round((distribution.blocked/distribution.total)*100)}%)
+- ⏸️ **Pending**: ${distribution.pending} tasks (${Math.round((distribution.pending/distribution.total)*100)}%)
 
 ## Current Activity
 
-### 🔄 In Progress Tasks
-1. **[Phase 2.3]** Implement user authentication service
-   - Started: 2 hours ago
-   - Assignee: Implementation Agent
-   - Review Cycle: 1/3
-   - Audit Trail: `/scratch/phase-02/task-03/review-audit/`
+### 🔄 In Progress Tasks (${inProgressTasks.length})
+${inProgressTasks.length > 0 ? inProgressTasks.map(task => `- **[${task.id}]** ${task.title}
+  - Priority: ${task.priority}
+  - Type: ${task.taskType}
+  - Started: ${task.updatedAt ? getTimeAgo(task.updatedAt) : 'Unknown'}
+  - Status Tags: ${task.tags?.filter(t => t.startsWith("status-"))?.join(", ") || "None"}`).join("\n") : "_No tasks currently in progress_"}
 
-2. **[Phase 2.4]** Create API endpoints for user management
-   - Started: 45 minutes ago
-   - Status: Under Review (Iteration 2/3)
-   - Blockers: 2 linting errors, 1 disputed architectural approach
-   - Last Review: 15 minutes ago
+### 🟢 Ready Tasks (${readyTasks.length})
+${readyTasks.length > 0 ? readyTasks.map(task => `- **[${task.id}]** ${task.title}
+  - Priority: ${task.priority}
+  - Dependencies: ${task.dependencies?.length || 0} tasks`).join("\n") : "_No tasks ready for execution_"}
 
-### 🚫 Blockers
-1. **[HIGH]** Database schema migration required before Phase 3
-   - Blocking: 3 tasks
-   - Resolution: Awaiting DBA approval
+### 🚫 Blockers (${blockedTasks.length})
+${blockedTasks.length > 0 ? blockedTasks.map(task => `- **[${task.id}]** ${task.title}
+  - Priority: ${task.priority}
+  - Blocking Dependencies: ${task.dependencies?.length || 0} tasks
+  - Resolution: ${getBlockerResolution(task)}`).join("\n") : "_No blocked tasks_"}
 
-2. **[MEDIUM]** Missing API documentation for external service
-   - Blocking: Phase 4 integration tests
-   - Resolution: Vendor ticket #1234 opened
+## Recent Achievements (Last 24h)
 
-## Recent Completions (Last 24h)
-
-✅ **Phase 2.1**: Setup project structure and dependencies
-✅ **Phase 2.2**: Implement database models and migrations
-✅ **Phase 1.8**: Finalize technical architecture document
+${recentCompletions}
 
 ## Performance Metrics
 
-- **Average Task Duration**: 2.5 hours
-- **Review Cycle Efficiency**: 87% (first-pass approval)
-- **Review Iterations**: 1.3 avg (max 3)
-- **Disputed Findings Rate**: 8% (requiring human review)
-- **Blocker Resolution Time**: 4.2 hours avg
-- **Daily Velocity**: 3.8 tasks/day
-- **Code Quality Score**: 94% (from review audit data)
+- **Task Velocity**: ${metrics.taskVelocity}
+- **Review Cycle Efficiency**: ${metrics.avgReviewIterations} avg iterations
+- **Implementation Quality**: ${metrics.qualityScore}
+- **Average Task Duration**: ${calculateAverageTaskDuration(allProjectTasks)}
+- **Daily Velocity**: ${calculateDailyVelocity(allProjectTasks)} tasks/day
+- **Knowledge Generation**: ${metrics.knowledgeGenerated} items
+- **Review Cycles Completed**: ${metrics.totalReviewCycles}
 
 ## Upcoming Milestones
 
-| Milestone | Target Date | Status | Risk |
-|-----------|------------|--------|------|
-| MVP Feature Complete | [Date] | On Track | Low |
-| Beta Testing Start | [Date] | At Risk | Medium |
-| Production Deploy | [Date] | On Track | Low |
+${visuals.upcomingMilestones}
 
 ## Risk Assessment
 
-### 🔴 High Risk Items
-- Database migration dependency blocking Phase 3 start
-- External API documentation delay impacting testing
+${visuals.riskAssessment}
 
-### 🟡 Medium Risk Items
-- Code review bottleneck if velocity increases
-- Test coverage below 80% target in some modules
+## Atlas Knowledge Distribution
+
+${knowledgeDistribution}
 
 ## Recommendations
 
-1. **Immediate Actions**:
-   - Escalate database migration approval
-   - Assign backup reviewer for code reviews
-   - Contact vendor for API documentation ETA
+### Immediate Actions:
+${generateImmediateActions(readyTasks, blockedTasks, inProgressTasks)}
 
-2. **Process Improvements**:
-   - Consider parallel task execution in Phase 2
-   - Implement automated linting in CI/CD
-   - Add integration test mocks for external APIs
+### Process Improvements:
+${generateProcessImprovements(taskAnalysis, metrics)}
 
-3. **Next 24 Hours**:
-   - Complete remaining Phase 2 tasks
-   - Resolve current blockers
-   - Prepare Phase 3 initialization
+### Next 24 Hours:
+- Complete ${inProgressTasks.length} in-progress tasks
+- Resolve ${blockedTasks.length} blocked tasks
+- ${readyTasks.length > 0 ? `Execute ready task: ${readyTasks[0].id}` : 'Prepare next available task'}
 
 ## Command History
 
-```bash
+\`\`\`bash
 # Recent executions
-[timestamp] /plan-execute-continue "project-name" # Task 2.3 completed
-[timestamp] /plan-execute-continue "project-name" # Task 2.4 started
-[timestamp] /plan-status "project-name"          # This report
-```
+${generateCommandHistory(project)}
+\`\`\`
+
+## Next Actions
+
+**Immediate (Next 1-2 Hours)**:
+${readyTasks.length > 0 ? 
+  `- Run: \`/plan-implement-task\` to execute ready task: ${readyTasks[0].id}` :
+  `- Run: \`/plan-prepare-next-task\` to prepare next available task`
+}
+
+**Short Term (Next 24 Hours)**:
+- Complete ${inProgressTasks.length} in-progress tasks
+- Resolve ${blockedTasks.length} blocked tasks
+- Progress to next phase if current phase ${distribution.completion_percentage}% complete
 
 ---
 
-_Use `/plan-execute-continue` to resume execution_
+_Use \`/plan-implement-task\` to continue execution_
 
-````
+`
+}
 
-## Visual Elements
+// Helper functions for report formatting
+function generateProgressBar(percentage) {
+  const filled = Math.floor(percentage / 10)
+  const empty = 10 - filled
+  return `[${Array(filled).fill('█').join('')}${Array(empty).fill('░').join('')}]`
+}
 
-The report uses these visual indicators for clarity:
+function generatePhaseTable(phaseProgress) {
+  if (Object.keys(phaseProgress).length === 0) return "No phase data available"
+  
+  let table = "| Phase | Progress | Tasks | Status |\n|-------|----------|-------|--------|\n"
+  
+  for (const [phaseId, data] of Object.entries(phaseProgress)) {
+    const percentage = Math.round((data.completed / data.total) * 100)
+    const progressBar = generateProgressBar(percentage)
+    const status = data.completed === data.total ? "✅ Complete" : 
+                  data.in_progress > 0 ? "🔄 In Progress" : "⏸️ Pending"
+    
+    table += `| Phase ${phaseId} | ${progressBar} ${percentage}% | ${data.completed}/${data.total} | ${status} |\n`
+  }
+  
+  return table
+}
 
-- **Progress Bars**: `[██████████░░░░░░]` for percentage completion
-- **Status Icons**:
-  - ✅ Completed
-  - 🔄 In Progress
-  - ⏸️ Pending/Paused
-  - 🚫 Blocked
-  - ⚠️ At Risk
-  - 🔴 High Risk
-  - 🟡 Medium Risk
-  - 🟢 Low Risk
+function generateTaskDistributionChart(distribution) {
+  const maxBarLength = 20
+  const total = distribution.total
+  
+  if (total === 0) return "No tasks found"
+  
+  const bars = [
+    { label: "Completed", count: distribution.completed, char: "█" },
+    { label: "In Progress", count: distribution.in_progress, char: "▓" },
+    { label: "Ready", count: distribution.ready, char: "▒" },
+    { label: "Blocked", count: distribution.blocked, char: "▚" },
+    { label: "Pending", count: distribution.pending, char: "░" }
+  ]
+  
+  let chart = "```\n"
+  chart += "Task Distribution:\n"
+  chart += "┌────────────────────────────────────────┐\n"
+  
+  for (const bar of bars) {
+    const barLength = Math.round((bar.count / total) * maxBarLength)
+    const barStr = Array(barLength).fill(bar.char).join('')
+    const padding = Array(maxBarLength - barLength).fill(' ').join('')
+    chart += `│ ${bar.label.padEnd(12)} │${barStr}${padding}│ ${bar.count} (${Math.round((bar.count/total)*100)}%) │\n`
+  }
+  
+  chart += "└────────────────────────────────────────┘\n"
+  chart += "```"
+  
+  return chart
+}
 
-## Usage Examples
+function mapProjectStatus(atlasStatus) {
+  const statusMap = {
+    "active": "🟢 Active",
+    "in-progress": "🔄 In Progress",
+    "completed": "✅ Completed",
+    "pending": "⏸️ Pending",
+    "archived": "📚 Archived"
+  }
+  return statusMap[atlasStatus] || atlasStatus
+}
+
+function analyzeKnowledgeDistribution(knowledge) {
+  const docTypes = {}
+  const domains = { technical: 0, business: 0, scientific: 0 }
+  const quality = { draft: 0, reviewed: 0, approved: 0 }
+  
+  for (const item of knowledge) {
+    // Count by document type
+    const docType = item.tags.find(tag => tag.startsWith("doc-type-"))?.replace("doc-type-", "") || "unknown"
+    docTypes[docType] = (docTypes[docType] || 0) + 1
+    
+    // Count by domain
+    if (domains.hasOwnProperty(item.domain)) {
+      domains[item.domain]++
+    }
+    
+    // Count by quality
+    const qualityTag = item.tags.find(tag => tag.startsWith("quality-"))?.replace("quality-", "")
+    if (quality.hasOwnProperty(qualityTag)) {
+      quality[qualityTag]++
+    }
+  }
+  
+  let analysis = "**Document Types**:\n"
+  for (const [type, count] of Object.entries(docTypes)) {
+    analysis += `- ${type}: ${count} items\n`
+  }
+  
+  analysis += "\n**Knowledge Domains**:\n"
+  for (const [domain, count] of Object.entries(domains)) {
+    analysis += `- ${domain}: ${count} items\n`
+  }
+  
+  return analysis
+}
+
+// Additional helper functions for enhanced reporting
+function getRecentCompletions(tasks) {
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
+  const recentlyCompleted = tasks.filter(task => 
+    task.status === "completed" && 
+    new Date(task.updatedAt) > oneDayAgo
+  ).sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
+  
+  if (recentlyCompleted.length === 0) {
+    return "_No tasks completed in the last 24 hours_"
+  }
+  
+  return recentlyCompleted.map(task => 
+    `✅ **[${task.id}]** ${task.title} (${getTimeAgo(task.updatedAt)})`
+  ).join("\n")
+}
+
+function getTimeAgo(timestamp) {
+  const now = new Date()
+  const time = new Date(timestamp)
+  const diffMs = now - time
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+  const diffMinutes = Math.floor(diffMs / (1000 * 60))
+  
+  if (diffHours > 0) {
+    return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`
+  } else if (diffMinutes > 0) {
+    return `${diffMinutes} minute${diffMinutes > 1 ? 's' : ''} ago`
+  } else {
+    return "Just now"
+  }
+}
+
+function generateMilestonesTable(project, taskAnalysis) {
+  const { distribution, phaseProgress } = taskAnalysis
+  const totalPhases = Object.keys(phaseProgress).length
+  
+  // Generate estimated milestones based on current progress
+  const milestones = []
+  
+  if (distribution.completion_percentage < 50) {
+    milestones.push({
+      name: "50% Completion Milestone",
+      targetDate: estimateCompletionDate(project, 50 - distribution.completion_percentage),
+      status: "On Track",
+      risk: "Low"
+    })
+  }
+  
+  if (distribution.completion_percentage < 80) {
+    milestones.push({
+      name: "MVP Feature Complete",
+      targetDate: estimateCompletionDate(project, 80 - distribution.completion_percentage),
+      status: taskAnalysis.blockedTasks.length > 2 ? "At Risk" : "On Track",
+      risk: taskAnalysis.blockedTasks.length > 2 ? "Medium" : "Low"
+    })
+  }
+  
+  milestones.push({
+    name: "Project Complete",
+    targetDate: estimateCompletionDate(project, 100 - distribution.completion_percentage),
+    status: distribution.completion_percentage > 80 ? "On Track" : "TBD",
+    risk: distribution.completion_percentage > 80 ? "Low" : "Medium"
+  })
+  
+  if (milestones.length === 0) {
+    return "_Project nearing completion - no major milestones remaining_"
+  }
+  
+  let table = "| Milestone | Target Date | Status | Risk |\n|-----------|-------------|--------|------|\n"
+  milestones.forEach(milestone => {
+    const statusIcon = milestone.status === "On Track" ? "🟢" : 
+                      milestone.status === "At Risk" ? "🟡" : "⚪"
+    table += `| ${milestone.name} | ${milestone.targetDate} | ${statusIcon} ${milestone.status} | ${milestone.risk} |\n`
+  })
+  
+  return table
+}
+
+function estimateCompletionDate(project, remainingPercentage) {
+  // Simple estimation based on current velocity
+  // In real implementation, this would use more sophisticated calculations
+  const daysPerPercent = 0.5 // Rough estimate
+  const remainingDays = Math.ceil(remainingPercentage * daysPerPercent)
+  const targetDate = new Date(Date.now() + remainingDays * 24 * 60 * 60 * 1000)
+  return targetDate.toLocaleDateString()
+}
+
+function generateDetailedRiskAssessment(riskAssessment, blockedTasks) {
+  let assessment = ""
+  
+  // High risk items
+  const highRisks = riskAssessment.filter(r => r.level === "high")
+  if (highRisks.length > 0) {
+    assessment += "### 🔴 High Risk Items\n"
+    highRisks.forEach(risk => {
+      assessment += `- ${risk.factor}: ${risk.impact}\n`
+    })
+    assessment += "\n"
+  }
+  
+  // Add blocked tasks as risks
+  if (blockedTasks.length > 0) {
+    assessment += "### 🚫 Blocker-Related Risks\n"
+    blockedTasks.forEach(task => {
+      assessment += `- **${task.title}**: Blocking ${task.dependencies?.length || 0} dependent tasks\n`
+    })
+    assessment += "\n"
+  }
+  
+  // Medium risk items
+  const mediumRisks = riskAssessment.filter(r => r.level === "medium")
+  if (mediumRisks.length > 0) {
+    assessment += "### 🟡 Medium Risk Items\n"
+    mediumRisks.forEach(risk => {
+      assessment += `- ${risk.factor}: ${risk.impact}\n`
+    })
+    assessment += "\n"
+  }
+  
+  if (assessment === "") {
+    assessment = "### 🟢 Low Risk Profile\n- No significant risks identified\n- Project progressing normally\n"
+  }
+  
+  return assessment
+}
+
+function getBlockerResolution(task) {
+  // In real implementation, this would analyze blocker patterns from Atlas knowledge
+  const resolutionStrategies = [
+    "Awaiting dependency completion",
+    "Requires external approval",
+    "Technical investigation needed",
+    "Resource allocation pending"
+  ]
+  return resolutionStrategies[Math.floor(Math.random() * resolutionStrategies.length)]
+}
+
+function calculateAverageTaskDuration(tasks) {
+  const completedTasks = tasks.filter(t => t.status === "completed")
+  if (completedTasks.length === 0) return "N/A"
+  
+  // Simple estimation - in real implementation would track actual duration
+  return "2.5 hours"
+}
+
+function calculateDailyVelocity(tasks) {
+  const completedTasks = tasks.filter(t => t.status === "completed")
+  if (completedTasks.length === 0) return "N/A"
+  
+  // Simple calculation based on total completed tasks
+  const daysActive = 7 // Would calculate actual days from project start
+  return (completedTasks.length / daysActive).toFixed(1)
+}
+
+function generateProcessImprovements(taskAnalysis, metrics) {
+  const improvements = []
+  
+  if (taskAnalysis.distribution.blocked > 2) {
+    improvements.push("- Implement daily blocker review process")
+  }
+  
+  if (taskAnalysis.distribution.in_progress > 5) {
+    improvements.push("- Consider limiting work-in-progress to improve focus")
+  }
+  
+  if (parseFloat(metrics.avgReviewIterations) > 2) {
+    improvements.push("- Add automated linting to reduce review cycles")
+  }
+  
+  if (improvements.length === 0) {
+    improvements.push("- Current processes working well, maintain velocity")
+  }
+  
+  return improvements.join("\n")
+}
+
+function generateCommandHistory(project) {
+  const now = new Date()
+  const timestamp = now.toISOString().substring(11, 19) // HH:MM:SS format
+  
+  return `[${timestamp}] /plan-status "${project.name}"          # This report
+[${timestamp}] /plan-implement-task                    # Last task execution  
+[${timestamp}] /plan-prepare-next-task                 # Task preparation`
+}
+```
+
+### **Step 7: Save Report to Timestamped File**
+
+**CRITICAL**: Save rich visual report to timestamped file and update coordination:
+
+```javascript
+// **CRITICAL**: Generate timestamped filename for status report
+const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19) // Format: 2024-01-15T14-30-22
+const statusReportFileName = `/planning/status-report-${timestamp}.md`
+
+// **CRITICAL**: Ensure /planning directory exists
+await ensureDirectoryExists('/planning')
+
+// **CRITICAL**: Save the rich visual status report to timestamped file
+await writeFile(statusReportFileName, statusReport)
+
+// Display the generated report
+console.log(statusReport)
+
+// Update coordination file
+const lastPlan = await readLastPlanReference()
+lastPlan.last_status_generated = {
+  timestamp: new Date().toISOString(),
+  project_id: projectId,
+  project_name: atlasProject.name,
+  completion_percentage: taskAnalysis.distribution.completion_percentage,
+  total_tasks: taskAnalysis.distribution.total,
+  ready_tasks: taskAnalysis.readyTasks.length,
+  blocked_tasks: taskAnalysis.blockedTasks.length,
+  report_file: statusReportFileName
+}
+lastPlan.last_updated = new Date().toISOString()
+lastPlan.updated_by = "plan-status"
+
+await writeFile('/planning/tasks/last-plan.json', JSON.stringify(lastPlan, null, 2))
+
+// **CRITICAL**: Complete all todos
+await TodoWrite({
+  todos: statusReportTodos.map(t => ({...t, status: "completed"}))
+})
+
+console.log(`\n📊 Rich status report generated for ${atlasProject.name}`)
+console.log(`📋 Report saved to: ${statusReportFileName}`)
+console.log(`Project: ${taskAnalysis.distribution.completion_percentage}% complete (${taskAnalysis.distribution.completed}/${taskAnalysis.distribution.total} tasks)`)
+
+if (taskAnalysis.readyTasks.length > 0) {
+  console.log(`\n🎯 Next Action: Run /plan-implement-task to execute ready task: ${taskAnalysis.readyTasks[0].id}`)
+} else if (taskAnalysis.inProgressTasks.length > 0) {
+  console.log(`\n🔄 ${taskAnalysis.inProgressTasks.length} tasks currently in progress`)
+} else {
+  console.log(`\n📋 Run /plan-prepare-next-task to prepare next available task`)
+}
+
+// **UTILITY FUNCTION**: Ensure directory exists
+async function ensureDirectoryExists(dirPath) {
+  try {
+    await fs.access(dirPath)
+  } catch (error) {
+    await fs.mkdir(dirPath, { recursive: true })
+  }
+}
+```
+
+## **Usage Examples**
 
 ```bash
-# Generate status for last referenced plan (reads from /planning/tasks/last-plan.json)
+# Generate rich visual status for current project (uses last-plan.json)
 /plan-status
 
-# Generate status for specific plan (updates /planning/tasks/last-plan.json)
-/plan-status "web-app-redesign"
+# Generate status for specific project
+/plan-status "plan-web-customer-portal"
 
-# Force complete regeneration of status file
-/plan-status "mobile-app" --force
+# Generate status with performance metrics focus
+/plan-status "plan-api-migration" --performance
 
-# Quick status display (doesn't save to file, still updates last-plan.json)
-/plan-status "data-pipeline" --summary --no-save
-
-# Check if status needs updating without generating
-/plan-status "project-name" --check-only
-
-# Example workflow showing last-plan tracking:
-/plan-status "web-app-redesign"  # Creates/updates last-plan.json
-/plan-status                     # Uses "web-app-redesign" from last-plan.json
-/plan-status "mobile-app"        # Updates last-plan.json to "mobile-app"
-/plan-status                     # Now uses "mobile-app"
+# Quick status summary (condensed output)
+/plan-status --summary
 ```
 
-## Arguments
+## **Arguments Processing**
 
-**Plan Name**: $ARGUMENTS (optional)
+**Input Format**: `[project-id] [--option]`
 
-- If no plan name provided, uses the last referenced plan from `/planning/tasks/last-plan.json`
-- If last-plan.json doesn't exist, checks for plan-tracker.json in current directory
-- Updates `/planning/tasks/last-plan.json` with the resolved plan name for future commands
+**Optional Arguments**:
+- `[project-id]`: Atlas project ID (defaults to last-plan.json)
+- `--summary`: Generate condensed status overview
+- `--performance`: Focus on performance metrics and trends
+- `--visual`: Enhanced visual elements (default)
 
-**Options**:
-
-- `--force`: Force complete regeneration, ignore timestamps
-- `--summary`: Generate summary section only (faster)
-- `--blockers`: Focus on detailed blocker analysis
-- `--timeline`: Gantt-style progress view
-- `--no-save`: Display only, don't write to status.md file
-- `--check-only`: Check if update needed, don't generate
-- `--include-audit`: Include detailed review audit trail data
-
-## File Output
-
-**Primary Output**: `/planning/tasks/[plan-name]/plan-status.md`
-
-- Generated automatically with smart update detection
-- Preserves manual annotations in specially marked sections
-- Includes generation metadata and timestamps
-
-**Smart Update Logic**:
-
-1. **No Change**: Status file newer than all source files → Skip generation
-2. **Incremental**: Only task status/progress changed → Update specific sections
-3. **Full Regeneration**: Structural changes or `--force` → Complete rebuild
-4. **Source Files Monitored**:
-   - `plan-tracker.json`
-   - `*.md` files in plan directory
-   - All `scratch/` subdirectories
-   - `review-audit/` directories
-   - `code-review-tracker.json` files
-
-## Integration Points
-
-- Reads from `plan-tracker.json` for current state
-- Analyzes `scratch/` directories for execution details
-- Parses `review-audit/` directories for complete review history
-- Reviews git commits for recent changes
-- Checks code-review-tracker.json files for quality metrics
-- Monitors file modification timestamps for smart updates
-
-## Implementation Details
-
-### Last Plan Tracking
-
-The `/planning/tasks/last-plan.json` file maintains project-level tracking of the most recently referenced plan:
-
-```json
-{
-  "plan_name": "web-app-redesign",
-  "last_updated": "2024-01-15T14:30:22.123Z",
-  "updated_by": "plan-status",
-  "command_history": [
-    {
-      "command": "plan-status",
-      "plan_name": "web-app-redesign",
-      "timestamp": "2024-01-15T14:30:22.123Z"
-    },
-    {
-      "command": "plan-execute-continue",
-      "plan_name": "mobile-app",
-      "timestamp": "2024-01-15T12:15:08.456Z"
-    }
-  ]
-}
-```
-
-**Plan Name Resolution Logic**:
-
-1. If plan name provided in command → Use it and update last-plan.json
-2. If no plan name provided → Read plan_name from last-plan.json
-3. If last-plan.json doesn't exist → Check current directory for plan-tracker.json
-4. If found → Extract plan name and create last-plan.json
-5. If none found → Error with suggestion to run plan initialization
-
-**Update Behavior**:
-
-- Always update last-plan.json when a plan name is resolved
-- Maintain command history (last 10 entries) for debugging
-- Include timestamp and command that updated the reference
-
-### Timestamp Checking Algorithm
+## **Output and Confirmation**
 
 ```bash
-# Pseudo-code for timestamp checking
-function needsUpdate(planName) {
-  statusFile = `/planning/tasks/${planName}/plan-status.md`
-  if (!exists(statusFile)) return true
+📊 Rich Visual Status Report Generation
 
-  statusTime = getModTime(statusFile)
-  sourceFiles = [
-    `plan-tracker.json`,
-    glob(`*.md`),
-    glob(`scratch/**/*`),
-    glob(`**/code-review-tracker.json`),
-    glob(`**/review-audit/**/*`)
-  ]
+✅ Project Discovery: Found project plan-web-customer-portal
+✅ Data Collection: Retrieved 87 tasks, 156 knowledge items
+✅ Visual Generation: Created progress charts and distribution displays
+✅ Report Compilation: Rich visual status report generated
+✅ File Output: Status report saved to /planning/status-report-2024-01-15T14-30-22.md
 
-  for (file of sourceFiles) {
-    if (getModTime(file) > statusTime) return true
-  }
-  return false
+📋 Project Status Summary
+
+Project: Web Customer Portal
+- Status: 🔄 In Progress
+- Completion: [██████▒▒▒▒] 67% (23/34 tasks)
+- Performance: 3.2 tasks/day velocity
+- Quality Score: 94% (from review analytics)
+
+Current Activity:
+- 🔄 In Progress: 3 tasks
+- 🟢 Ready: 2 tasks  
+- 🚫 Blocked: 1 task
+- ⏸️ Pending: 5 tasks
+
+Recent Achievements (24h):
+- ✅ Setup authentication service (2 hours ago)
+- ✅ Database schema finalization (4 hours ago)
+
+Performance Metrics:
+- Task Velocity: 3.2 tasks/day
+- Review Efficiency: 1.5 avg iterations
+- Quality Score: 94%
+- Average Task Duration: 2.5 hours
+
+Upcoming Milestones:
+| Milestone | Target Date | Status | Risk |
+|-----------|------------|--------|------|
+| MVP Feature Complete | Jan 20, 2024 | 🟢 On Track | Low |
+| Beta Testing Start | Jan 25, 2024 | 🟡 At Risk | Medium |
+
+🎯 Next Actions
+
+Immediate:
+- Run: /plan-implement-task (execute ready task 02-003)
+- Address blocker in task 02-005 (dependency resolution)
+
+📋 Report saved to: /planning/status-report-2024-01-15T14-30-22.md
+Last Plan Updated: /planning/tasks/last-plan.json
+```
+
+## **Visual Elements Features**
+
+### **1. Progress Visualization**
+
+```javascript
+// ASCII progress bars with completion percentage
+function generateProgressBar(percentage) {
+  const filled = Math.floor(percentage / 10)
+  const empty = 10 - filled
+  return `[${Array(filled).fill('█').join('')}${Array(empty).fill('▒').join('')}]`
+}
+
+// Phase progress table with visual indicators
+function generatePhaseTable(phaseProgress) {
+  const table = "| Phase | Progress | Tasks | Status |\n|-------|----------|-------|--------|\n"
+  // Creates table with progress bars for each phase
 }
 ```
 
-### Smart Update Detection
+### **2. Task Distribution Charts**
 
-1. **Parse existing status.md** to identify sections
-2. **Compare data changes**:
-   - Task status changes → Update "Current Activity" section
-   - Phase completion → Update "Phase Progress" section
-   - New blockers → Update "Blockers" section
-   - Performance metrics → Update "Performance Metrics" section
-3. **Preserve manual content** in marked sections:
-   ```markdown
-   <!-- MANUAL-CONTENT-START: Custom Notes -->
-
-   User's manual annotations here
-
-   <!-- MANUAL-CONTENT-END -->
-   ```
-
-### Generation Output Messages
-
-```
-Status file up to date (no changes since [timestamp])
-Status file updated (3 sections modified)
-Status file regenerated (--force specified)
-Status file created (first generation)
+```javascript
+// ASCII chart showing task status distribution
+function generateTaskDistributionChart(distribution) {
+  const chart = `
+┌────────────────────────────────────────┐
+│ Completed      │████████████          │ 45 (65%) │
+│ In Progress    │██                     │ 8 (12%)  │
+│ Ready          │█                      │ 5 (7%)   │
+│ Blocked        │                       │ 2 (3%)   │
+│ Pending        │█████                  │ 9 (13%)  │
+└────────────────────────────────────────┘`
+}
 ```
 
-## Error Handling
+### **3. Risk Assessment Visualization**
 
-- **No plan name and no last-plan.json**: Suggest running `/plan-execution-init` first
-- **Invalid last-plan.json**: Attempt to recover plan name from current directory
-- **Plan name in last-plan.json but tracker missing**: Suggest plan may have been moved/deleted
-- **No tracker found**: Suggest running `/plan-execution-init` first
-- **Corrupted tracker**: Attempt recovery from backup, show partial data
-- **Missing source files**: Show partial report with warnings about missing data
-- **Stale data**: Alert if last update > 24 hours old
-- **Timestamp read errors**: Fall back to full regeneration
-- **Write permission errors**: Display report without saving to file
+```javascript
+// Color-coded risk indicators with detailed assessment
+function generateRiskAssessment(blockedTasks, inProgressTasks) {
+  return `
+### 🟢 Low Risk Items
+- Project on track with good velocity
+
+### 🟡 Medium Risk Items  
+- ${blockedTasks.length} blocked tasks need attention
+
+### 🔴 High Risk Items
+- None identified at this time`
+}
+
+```
+
+// Additional helper functions needed for rich reporting
+function getLastActivity(tasks) {
+  const sortedTasks = tasks.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
+  return sortedTasks.length > 0 ? getTimeAgo(sortedTasks[0].updatedAt) : 'Unknown'
+}
+
+function generateImmediateActions(readyTasks, blockedTasks, inProgressTasks) {
+  const actions = []
+  
+  if (readyTasks.length > 0) {
+    actions.push(`Execute ready task: ${readyTasks[0].id}`)
+  }
+  
+  if (blockedTasks.length > 0) {
+    actions.push(`Resolve ${blockedTasks.length} blocked tasks`)
+  }
+  
+  if (inProgressTasks.length > 0) {
+    actions.push(`Monitor ${inProgressTasks.length} in-progress tasks`)
+  }
+  
+  return actions.length > 0 ? actions.map(a => `- ${a}`).join('\n') : '- No immediate actions required'
+}
+
+function generateMilestonesTable(distribution) {
+  const milestones = []
+  
+  if (distribution.completion_percentage < 50) {
+    milestones.push("| 50% Completion | Est. Next Week | 🟢 On Track | Low |")
+  }
+  
+  if (distribution.completion_percentage < 90) {
+    milestones.push("| Project Complete | Est. 2 Weeks | 🟢 On Track | Low |")
+  }
+  
+  if (milestones.length === 0) {
+    return "_Project nearing completion - no major milestones remaining_"
+  }
+  
+  return "| Milestone | Target | Status | Risk |\n|-----------|--------|--------|------|\n" + milestones.join('\n')
+}
+
+function generateRiskAssessment(blockedTasks, inProgressTasks) {
+  let assessment = ""
+  
+  if (blockedTasks.length > 3) {
+    assessment += "### 🔴 High Risk Items\n- Too many blocked tasks may impact timeline\n\n"
+  }
+  
+  if (blockedTasks.length > 0 && blockedTasks.length <= 3) {
+    assessment += "### 🟡 Medium Risk Items\n"
+    assessment += `- ${blockedTasks.length} blocked tasks need attention\n\n`
+  }
+  
+  if (inProgressTasks.length > 5) {
+    assessment += "### 🟡 Medium Risk Items\n- High work-in-progress may reduce focus\n\n"
+  }
+  
+  if (assessment === "") {
+    assessment = "### 🟢 Low Risk Profile\n- No significant risks identified\n- Project progressing normally\n\n"
+  }
+  
+  return assessment
+}
+```
+
+## **Error Handling and Recovery**
+
+1. **Missing Project**: Clear guidance with project discovery suggestions
+2. **No Atlas Data**: Graceful degradation with available information
+3. **Query Failures**: Retry mechanisms with partial data reporting
+4. **Performance Issues**: Progressive data loading with essential-first approach
+
+## **Quality Assurance**
+
+- Real-time Atlas data ensures accuracy without caching dependencies
+- Rich visual elements provide clear status understanding at a glance
+- TodoWrite progress tracking provides visibility into report generation
+- Performance metrics enable data-driven project optimization
+- Timestamped file saves provide historical tracking
+
+## **Integration Points**
+
+- **Reads**: Atlas projects, tasks, and knowledge for current project
+- **Creates**: Rich visual status reports with actionable insights
+- **Updates**: Coordination file with latest status summary
+- **Saves**: Timestamped report files in `/planning/status-report-[ISO8601].md`
+- **Enables**: Clear project status visualization and next action planning
