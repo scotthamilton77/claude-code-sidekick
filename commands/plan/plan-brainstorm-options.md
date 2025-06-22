@@ -2,43 +2,46 @@ Analyze plan objectives and present strategic options with tradeoffs: $ARGUMENTS
 
 ## Purpose
 
-This command analyzes the current plan's objectives and generates multiple strategic implementation options. Each option includes clear tradeoffs, risks, benefits, and a recommendation. The user can select an option to automatically update the plan accordingly.
+This command analyzes the current Atlas project's objectives and generates multiple strategic implementation options. Each option includes clear tradeoffs, risks, benefits, and a recommendation. The user can select an option to automatically update the Atlas project and knowledge accordingly.
 
 ## Process
 
-1. **Plan Name Resolution**:
+1. **Atlas Project Resolution**:
 
    - If plan name provided in $ARGUMENTS, use it and update `/planning/tasks/last-plan.json`
    - If no plan name provided, read from `/planning/tasks/last-plan.json` for the last referenced plan
-   - If neither exists, check for plan files in current directory
+   - If neither exists, check for Atlas projects in current directory
    - Update `/planning/tasks/last-plan.json` with resolved plan name
+   - Validate Atlas project exists using `atlas_project_list`
 
-2. **Objective Analysis**:
+2. **Atlas Knowledge Analysis**:
 
-   - Parse plan objectives and success criteria
-   - Identify key constraints (time, resources, technology)
-   - Analyze current approach strengths/weaknesses
-   - Determine flexibility points
+   - Use `atlas_knowledge_list` to retrieve plan documentation with `doc-type-plan-overview` tags
+   - Parse project objectives and success criteria from Atlas knowledge
+   - Identify key constraints (time, resources, technology) from project metadata
+   - Analyze current approach strengths/weaknesses from existing knowledge
+   - Determine flexibility points using cross-project Atlas insights
 
-3. **Option Generation**:
+3. **Strategic Option Generation**:
 
-   - Create 3-5 distinct strategic options
-   - Ensure each option achieves core objectives
+   - Use `atlas_unified_search` to find similar projects for option inspiration
+   - Create 3-5 distinct strategic options based on organizational patterns
+   - Ensure each option achieves core objectives from Atlas project data
    - Vary approaches across dimensions (speed, quality, cost, risk)
-   - Include innovative alternatives
+   - Include innovative alternatives based on Atlas cross-project analysis
 
-4. **Tradeoff Analysis**:
+4. **Tradeoff Analysis with Atlas Intelligence**:
 
-   - Quantify impacts for each option
+   - Quantify impacts using similar project data from Atlas
    - Compare timeline, resource, and quality implications
-   - Assess technical and business risks
-   - Calculate opportunity costs
+   - Assess technical and business risks using Atlas knowledge patterns
+   - Calculate opportunity costs based on organizational learning
 
-5. **Presentation & Selection**:
+5. **Presentation & Atlas Integration**:
    - Present options in clear, structured format
-   - Provide data-driven recommendation
+   - Provide data-driven recommendation using Atlas analytics
    - Allow user selection
-   - Update plan based on choice
+   - Update Atlas project and knowledge based on choice
 
 ## Strategic Option Template
 
@@ -302,10 +305,10 @@ Your selection: \_
 
 When user selects an option:
 
-1. **Plan Updates**:
+1. **Atlas Project Updates**:
 
    ```bash
-   Updating plan with Option [N]: [Name]
+   Updating Atlas project with Option [N]: [Name]
 
    Changes to be applied:
    - Restructuring phases to support [approach]
@@ -314,41 +317,42 @@ When user selects an option:
    - Updating resource requirements
    ```
 
-2. **File Modifications**:
+2. **Atlas Knowledge Updates**:
 
-   - Update PLAN.md with selected strategy
-   - Adjust phase structure in phase files
-   - Update README.md with new approach
-   - Create strategy-decision.md for documentation
+   - Use `atlas_knowledge_add` to store updated strategy with `doc-type-plan-overview` tags
+   - Use `atlas_project_update` to modify project metadata
+   - Store decision rationale with `doc-type-implementation-notes` tags
+   - Create strategy-decision knowledge with proper categorization
 
-3. **Automatic Adjustments**:
-   - Regenerate phase breakdowns
-   - Update dependencies
-   - Adjust acceptance criteria
-   - Modify risk assessments
+3. **Atlas Task Adjustments**:
+   - Use `atlas_task_delete` and `atlas_task_create` to regenerate task structure
+   - Update task dependencies using Atlas task relationships
+   - Adjust task acceptance criteria through Atlas task updates
+   - Modify risk assessments in Atlas knowledge
 
 ## Usage Examples
 
 ```bash
-# Generate options for last referenced plan (reads from /planning/tasks/last-plan.json)
+# Generate options for last referenced Atlas project (reads from /planning/tasks/last-plan.json)
 /plan-brainstorm-options
 
-# Generate options for specific plan (updates /planning/tasks/last-plan.json)
-/plan-brainstorm-options "web-app-redesign"
+# Generate options for specific Atlas project (updates /planning/tasks/last-plan.json)
+/plan-brainstorm-options "plan-web-app-redesign"
 
 # Generate options with specific focus
-/plan-brainstorm-options "api-project --focus performance"
+/plan-brainstorm-options "plan-api-project --focus performance"
 
 # Generate options with constraints using last plan
 /plan-brainstorm-options "--max-duration 3-months"
 
 # Generate more creative options
-/plan-brainstorm-options "data-pipeline --innovation high"
+/plan-brainstorm-options "plan-data-pipeline --innovation high"
 
-# Example workflow showing last-plan tracking:
-/plan-create "API redesign"           # Creates plan and updates last-plan.json
-/plan-brainstorm-options              # Uses "api-redesign" from last-plan.json
-/plan-ideate "Selected option 2"      # Also uses "api-redesign"
+# Example workflow showing Atlas integration:
+/plan-create "API redesign"           # Creates Atlas project and updates last-plan.json
+/plan-brainstorm-options              # Uses Atlas project from last-plan.json
+/plan-ideate "Selected option 2"      # Updates Atlas knowledge
+/plan-decompose                       # Regenerates Atlas tasks
 ```
 
 ## Arguments
@@ -356,8 +360,9 @@ When user selects an option:
 **Plan Name**: $ARGUMENTS (optional)
 
 - If no plan name provided, uses the last referenced plan from `/planning/tasks/last-plan.json`
-- If last-plan.json doesn't exist, checks for plan files in current directory
+- If last-plan.json doesn't exist, checks for Atlas projects in current directory
 - Updates `/planning/tasks/last-plan.json` with the resolved plan name for future commands
+- Plan name should match Atlas project ID format: `plan-[kebab-case-name]`
 
 **Optional flags**:
 
@@ -422,30 +427,98 @@ Each option is evaluated across:
    - Execution risks
    - Dependency risks
 
+## Atlas Integration Implementation
+
+### **Step 1: Atlas Project and Knowledge Retrieval**
+
+```javascript
+// Read coordination file for Atlas project context
+const lastPlan = await readLastPlanReference()
+if (!lastPlan?.atlas_project_id) {
+  throw new Error("No Atlas project found. Run /plan-create first.")
+}
+
+// Retrieve Atlas project details
+const project = await atlas_project_list({ 
+  mode: "details", 
+  id: lastPlan.atlas_project_id,
+  includeKnowledge: true,
+  includeTasks: true 
+})
+
+// Get plan overview knowledge
+const planKnowledge = await atlas_knowledge_list({
+  projectId: lastPlan.atlas_project_id,
+  tags: ["doc-type-plan-overview"],
+  limit: 50
+})
+
+// Search for similar projects for option inspiration
+const similarProjects = await atlas_unified_search({
+  value: project.taskType,
+  entityTypes: ["project"],
+  limit: 10
+})
+```
+
+### **Step 2: Strategic Analysis with Atlas Intelligence**
+
+```javascript
+// Analyze project objectives and constraints
+const objectives = extractObjectives(planKnowledge)
+const constraints = analyzeConstraints(project)
+const currentApproach = analyzeCurrentApproach(planKnowledge)
+const organizationalPatterns = extractPatterns(similarProjects)
+
+// Generate strategic options using Atlas insights
+const strategicOptions = generateOptionsWithAtlasIntelligence({
+  objectives,
+  constraints,
+  currentApproach,
+  organizationalPatterns,
+  similarProjects
+})
+```
+
+### **Step 3: Present Options and Capture Selection**
+
+```javascript
+// Present options to user with Atlas-powered recommendations
+const selectedOption = await presentOptionsAndGetSelection(strategicOptions)
+
+if (selectedOption && selectedOption !== 'none') {
+  // Update Atlas project with selected strategy
+  await updateAtlasProjectWithStrategy(lastPlan.atlas_project_id, selectedOption)
+  
+  // Store decision rationale in Atlas knowledge
+  await storeDecisionRationale(lastPlan.atlas_project_id, selectedOption, strategicOptions)
+}
+```
+
 ## Best Practices
 
-1. **Run After Initial Planning**:
+1. **Atlas-Integrated Planning**:
 
-   - Use after `/plan-create` for strategic direction
+   - Use after `/plan-create` for strategic direction with Atlas context
    - Re-run when requirements change significantly
-   - Consider before major phase transitions
+   - Leverage Atlas cross-project insights for better options
 
-2. **Combine with Ideation**:
+2. **Combine with Atlas Tools**:
 
    - Use `/plan-ideate` for specific changes
    - Use `/plan-brainstorm-options` for strategic pivots
-   - Iterate between both for refinement
+   - Use `atlas_unified_search` for continuous learning
 
-3. **Document Decisions**:
-   - Keep strategy-decision.md updated
-   - Note why options were rejected
-   - Track assumption changes
+3. **Document in Atlas**:
+   - Store strategy decisions as Atlas knowledge
+   - Tag with `doc-type-implementation-notes` and `lifecycle-planning`
+   - Track assumption changes through Atlas knowledge updates
 
 ## Next Steps
 
 After option selection:
 
-1. Review updated PLAN.md
-2. Run `/plan-decompose --regenerate` for new task structure
+1. Review updated Atlas project and knowledge
+2. Run `/plan-decompose --regenerate` for new Atlas task structure
 3. Initialize execution with `/plan-execution-init`
-4. Begin implementation with `/plan-execute-continue`
+4. Begin implementation with `/plan-implement-task`

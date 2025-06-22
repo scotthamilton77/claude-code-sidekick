@@ -1,156 +1,230 @@
-Create a high-level plan from user requirements: $ARGUMENTS
+Create a high-level plan from user requirements using Atlas MCP: $ARGUMENTS
 
 ## Purpose
 
-This command takes a user's idea, project description, or requirements and creates an initial high-level plan structure. It establishes the plan foundation with clear objectives, success criteria, and major phases that will later be decomposed into detailed tasks.
+This command takes a user's idea, project description, or requirements and creates an Atlas project with structured plan knowledge. It establishes the foundation for automated planning and execution workflows by leveraging Atlas's project and knowledge management capabilities.
 
-## Process
+## **CRITICAL REQUIREMENTS**
 
-1. **Plan Name Generation & Last Plan Tracking**:
+1. **MUST use Atlas MCP tools** - All data storage goes through Atlas, not filesystem
+2. **MUST generate unique project ID** using format: `plan-[kebab-case-name]`
+3. **MUST store plan documentation as categorized knowledge** using proper document type tags
+4. **MUST use Atlas enums** - ProjectStatus, TaskType, KnowledgeDomain
+5. **MUST update last-plan.json** for command coordination
 
-   - Generate plan name from project description or use provided name
-   - Create `/planning/tasks/[plan-name]/` directory
-   - Update `/planning/tasks/last-plan.json` with the new plan name
+## Process Overview
 
-2. **Requirements Analysis**:
+```mermaid
+graph TD
+    A[Parse User Input] --> B[Generate Project ID]
+    B --> C[Create Atlas Project]
+    C --> D[Store Plan Knowledge]
+    D --> E[Update Last Plan Reference]
+    E --> F[Validate Project Creation]
+```
 
-   - Parse user input for key objectives
-   - Identify project scope and constraints
-   - Extract success criteria and deliverables
-   - Determine project type and complexity
+## Implementation Steps
 
-3. **Plan Structure Creation**:
+### Step 1: **Input Analysis and Project Setup**
 
-   - Write initial PLAN.md with high-level structure
-   - Create README.md with project overview
+```javascript
+// Parse user requirements and extract key components
+const userInput = $ARGUMENTS
+const projectAnalysis = analyzeUserRequirements(userInput)
 
-4. **Phase Definition**:
-   - Break project into 3-7 major phases
-   - Define phase objectives and dependencies
-   - Establish logical progression
-   - Include validation and deployment phases
+// Generate unique project identifier
+const projectName = extractOrGenerateProjectName(projectAnalysis)
+const projectId = `plan-${kebabCase(projectName)}`
 
-## High-Level Plan Template
+// Validate project doesn't already exist
+const existingProject = await atlas_project_list({ 
+  mode: "details", 
+  id: projectId 
+})
+if (existingProject) {
+  throw new Error(`Project ${projectId} already exists. Use a different name or update existing project.`)
+}
+```
+
+### Step 2: **Atlas Project Creation**
+
+**CRITICAL**: Use `atlas_project_create` MCP tool with proper enum values:
+
+```javascript
+// Create Atlas project with categorized metadata
+const projectData = {
+  mode: "single",
+  id: projectId,
+  name: projectAnalysis.title,
+  description: projectAnalysis.description,
+  taskType: mapToAtlasTaskType(projectAnalysis.projectType), // "integration", "generation", "analysis", "research"
+  status: "active", // Use ProjectStatus enum
+  completionRequirements: projectAnalysis.successCriteria.join("; "),
+  outputFormat: projectAnalysis.expectedDeliverables.join(", "),
+  urls: projectAnalysis.referenceUrls || []
+}
+
+const atlasProject = await atlas_project_create(projectData)
+```
+
+**Task Type Mapping Logic**:
+```javascript
+function mapToAtlasTaskType(projectType) {
+  const mapping = {
+    'web-application': 'integration',
+    'api-service': 'generation', 
+    'data-pipeline': 'analysis',
+    'research-project': 'research',
+    'migration-project': 'integration',
+    'mobile-app': 'integration'
+  }
+  return mapping[projectType] || 'integration'
+}
+```
+
+### Step 3: **Plan Knowledge Storage**
+
+**CRITICAL**: Store plan documentation using knowledge categorization system:
+
+```javascript
+// Create plan overview knowledge (IMPERATIVE document)
+const planOverviewKnowledge = {
+  mode: "single",
+  projectId: projectId,
+  text: generatePlanMarkdown(projectAnalysis), // Full PLAN.md content
+  domain: "business", // Use KnowledgeDomain.BUSINESS for plan overview
+  tags: [
+    "doc-type-plan-overview",
+    "lifecycle-planning", 
+    "scope-project",
+    "quality-approved"
+  ]
+}
+
+await atlas_knowledge_add(planOverviewKnowledge)
+
+// Create README knowledge if substantial content exists
+if (projectAnalysis.quickStartGuide) {
+  const readmeKnowledge = {
+    mode: "single", 
+    projectId: projectId,
+    text: generateReadmeContent(projectAnalysis),
+    domain: "technical",
+    tags: [
+      "doc-type-reference",
+      "lifecycle-planning",
+      "scope-project", 
+      "quality-reviewed"
+    ]
+  }
+  
+  await atlas_knowledge_add(readmeKnowledge)
+}
+```
+
+### Step 4: **Plan Content Generation**
+
+Generate comprehensive plan structure following established templates:
 
 ```markdown
 # [Project Title]
 
 ## Overview
-
-[Project description and business value]
+[Project description emphasizing business value and technical approach]
 
 ## Objectives
-
-1. [Primary objective]
-2. [Secondary objectives]
-3. [Additional goals]
+1. [Primary objective - clearly measurable]
+2. [Secondary objectives - specific outcomes]  
+3. [Success metrics - quantifiable results]
 
 ## Success Criteria
-
-- [ ] [Measurable outcome 1]
-- [ ] [Measurable outcome 2]
-- [ ] [Completion criteria]
+- [ ] [Measurable outcome 1 with specific acceptance criteria]
+- [ ] [Measurable outcome 2 with validation method]
+- [ ] [Completion criteria with clear definition of done]
 
 ## Constraints & Assumptions
-
-- **Timeline**: [Estimated duration]
-- **Technology**: [Tech stack constraints]
-- **Resources**: [Team/budget limitations]
-- **Dependencies**: [External requirements]
+- **Timeline**: [Estimated duration with milestones]
+- **Technology**: [Tech stack requirements and constraints]
+- **Resources**: [Team composition and budget limitations]
+- **Dependencies**: [External requirements and blockers]
 
 ## High-Level Phases
 
-### Phase 1: [Foundation/Planning]
+### Phase 1: [Foundation/Setup Phase]
+**Duration**: [Time estimate]
+**Objectives**: [Phase-specific goals]
+**Key Deliverables**: [Major outputs]
 
-**Duration**: [Estimate]
-**Objectives**:
+### Phase 2: [Core Development Phase] 
+**Duration**: [Time estimate]
+**Objectives**: [Implementation goals]
+**Key Deliverables**: [Core features and components]
 
-- [Key objectives for this phase]
+### Phase 3: [Integration/Testing Phase]
+**Duration**: [Time estimate]  
+**Objectives**: [Quality and integration goals]
+**Key Deliverables**: [Tested and integrated system]
 
-**Key Deliverables**:
-
-- [Major deliverable 1]
-- [Major deliverable 2]
-
-### Phase 2: [Core Development]
-
-**Duration**: [Estimate]
-**Objectives**:
-
-- [Key objectives for this phase]
-
-**Key Deliverables**:
-
-- [Major deliverable 1]
-- [Major deliverable 2]
-
-### Phase 3: [Integration/Testing]
-
-**Duration**: [Estimate]
-**Objectives**:
-
-- [Key objectives for this phase]
-
-**Key Deliverables**:
-
-- [Test results]
-- [Integration documentation]
-
-### Phase 4: [Deployment/Launch]
-
-**Duration**: [Estimate]
-**Objectives**:
-
-- [Deployment goals]
-
-**Key Deliverables**:
-
-- [Deployed system]
-- [Documentation]
+### Phase 4: [Deployment/Launch Phase]
+**Duration**: [Time estimate]
+**Objectives**: [Production readiness goals]
+**Key Deliverables**: [Deployed system with documentation]
 
 ## Risk Assessment
-
-| Risk     | Impact | Probability | Mitigation |
-| -------- | ------ | ----------- | ---------- |
-| [Risk 1] | High   | Medium      | [Strategy] |
-| [Risk 2] | Medium | Low         | [Strategy] |
+| Risk Category | Impact | Probability | Mitigation Strategy |
+|---------------|--------|-------------|-------------------|
+| [Technical Risk] | High/Medium/Low | High/Medium/Low | [Specific mitigation approach] |
+| [Resource Risk] | High/Medium/Low | High/Medium/Low | [Contingency plan] |
 
 ## Next Steps
-
-1. Review and approve high-level plan
-2. Run `/plan-decompose [plan-name]` to create detailed phase breakdowns
-3. Initialize execution tracking with `/plan-execution-init [plan-name]`
+1. Review and approve high-level plan structure
+2. Run `/plan-decompose` to create detailed phase breakdowns
+3. Use `/plan-execution-init` to begin Atlas-tracked execution
 ```
 
-## Implementation Steps
+### Step 5: **Last Plan Reference Update**
 
-1. **Parse User Input**:
+**CRITICAL**: Update coordination file for subsequent commands:
 
-   - Extract project description
-   - Identify key requirements
-   - Determine project category (web app, API, data pipeline, etc.)
+```javascript
+// Update last-plan.json for command coordination
+const lastPlanData = {
+  plan_name: projectId,
+  plan_title: projectAnalysis.title,
+  last_updated: new Date().toISOString(),
+  updated_by: "plan-create",
+  project_type: projectAnalysis.projectType,
+  atlas_project_id: projectId
+}
 
-2. **Generate Plan Structure**:
+await writeFile('/planning/tasks/last-plan.json', JSON.stringify(lastPlanData, null, 2))
+```
 
-   - Create unique plan identifier
-   - Establish directory structure
-   - Generate initial documentation
+### Step 6: **Validation and Confirmation**
 
-3. **Phase Generation**:
+```javascript
+// Verify Atlas project creation
+const createdProject = await atlas_project_list({
+  mode: "details",
+  id: projectId,
+  includeKnowledge: true
+})
 
-   - Apply appropriate phase template based on project type
-   - Ensure logical flow and dependencies
-   - Include standard phases (planning, implementation, testing, deployment)
+// Validate knowledge storage
+const projectKnowledge = await atlas_knowledge_list({
+  projectId: projectId,
+  tags: ["doc-type-plan-overview"]
+})
 
-4. **Output Creation**:
-   - Write PLAN.md with high-level structure
-   - Create README.md with quick reference
-   - Generate initial directory structure
+if (!createdProject || projectKnowledge.length === 0) {
+  throw new Error("Project creation validation failed - Atlas entities not properly created")
+}
+```
 
-## Usage Examples
+## **Usage Examples**
 
 ```bash
-# Create plan from description (updates /planning/tasks/last-plan.json)
+# Create plan from description
 /plan-create "Build a customer portal with authentication, dashboard, and reporting features"
 
 # Create plan with specific name
@@ -159,61 +233,69 @@ This command takes a user's idea, project description, or requirements and creat
 # Create plan with constraints
 /plan-create "API migration project --timeline 3-months --team 2-developers"
 
-# Example workflow - new plan becomes default:
-/plan-create "Mobile app redesign"    # Creates plan and updates last-plan.json
-/plan-decompose                       # Uses "mobile-app-redesign" from last-plan.json
-/plan-execution-init                  # Also uses "mobile-app-redesign"
+# Create plan with project type specification
+/plan-create "Mobile app redesign --type mobile-app"
 ```
 
-## Arguments
+## **Arguments Processing**
 
-**Project description/requirements**: $ARGUMENTS
+**Input Format**: `[project-description] [--option value]`
 
-The description should include:
+**Required**: Project description (first argument)
 
-- What you're building
-- Key features/requirements
-- Any specific constraints or preferences
-- Optional plan name (otherwise generated from description)
+**Optional Flags**:
+- `--name [custom-name]`: Override auto-generated project name
+- `--type [project-type]`: Specify project type for phase template selection
+- `--timeline [duration]`: Set initial timeline constraint
+- `--team [size-description]`: Specify team composition
 
-**Last Plan Tracking**:
+**Project Type Templates**:
+- **`web-application`**: Planning → Frontend → Backend → Integration → Testing → Deployment
+- **`api-service`**: Design → Core API → Data Layer → Testing → Documentation → Deployment  
+- **`data-pipeline`**: Requirements → Data Sources → Processing → Storage → Monitoring → Deployment
+- **`mobile-app`**: Design → Core Features → Platform Integration → Testing → Release
+- **`migration-project`**: Analysis → Preparation → Migration → Validation → Cutover
 
-- Always updates `/planning/tasks/last-plan.json` with the newly created plan name
-- This makes the new plan the default for subsequent plan commands
+## **Output and Confirmation**
 
-## Output
+```bash
+✅ Atlas Project Created Successfully
 
-Creates the following structure:
+Project Details:
+- ID: plan-web-customer-portal
+- Name: Web Customer Portal  
+- Status: active
+- Type: integration
 
+Knowledge Stored:
+- Plan Overview: 1 item (doc-type-plan-overview)
+- Reference Material: 1 item (doc-type-reference)
+
+Last Plan Updated: /planning/tasks/last-plan.json
+
+Next Steps:
+1. Review plan structure if needed
+2. Run: /plan-decompose (to break down phases into detailed tasks)
+3. Run: /plan-execution-init (to begin Atlas-tracked execution)
 ```
-/planning/tasks/[plan-name]/
-├── README.md          # Quick project overview
-├── PLAN.md           # Detailed high-level plan
-└── .plan-metadata    # Plan creation metadata
-```
 
-Returns:
+## **Error Handling**
 
-- Plan name and location
-- Summary of phases created
-- Next recommended command
-- Any assumptions made
+1. **Duplicate Project**: Clear error message with suggestion to use different name
+2. **Invalid Arguments**: Specific guidance on correct argument format
+3. **Atlas Connection Issues**: Fallback error handling with retry suggestions
+4. **Knowledge Storage Failures**: Rollback project creation and report specific failure
 
-## Project Type Templates
+## **Integration Points**
 
-The command automatically selects appropriate phase templates based on project type:
+- **Creates**: Atlas project with categorized knowledge
+- **Updates**: `/planning/tasks/last-plan.json` for command coordination
+- **Prepares**: Foundation for `/plan-decompose` and `/plan-execution-init`
+- **Enables**: Automated planning workflow through Atlas MCP integration
 
-- **Web Application**: Planning → Frontend → Backend → Integration → Testing → Deployment
-- **API Service**: Design → Core API → Data Layer → Testing → Documentation → Deployment
-- **Data Pipeline**: Requirements → Data Sources → Processing → Storage → Monitoring → Deployment
-- **Mobile App**: Design → Core Features → Platform Integration → Testing → Release
-- **Migration Project**: Analysis → Preparation → Migration → Validation → Cutover
+## **Quality Assurance**
 
-## Next Steps
-
-After creating the high-level plan:
-
-1. Review and adjust PLAN.md if needed
-2. Run `/plan-decompose [plan-name]` to break down phases into tasks
-3. Use `/plan-execution-init [plan-name]` to begin tracking
-4. Execute with `/plan-execute-continue [plan-name]`
+- Validates Atlas project creation before proceeding
+- Confirms knowledge storage with proper categorization
+- Ensures last-plan.json update for workflow continuity
+- Provides clear success/failure feedback with actionable next steps
