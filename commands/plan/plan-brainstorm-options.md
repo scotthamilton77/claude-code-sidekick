@@ -8,10 +8,10 @@ This command analyzes the current Atlas project's objectives and generates multi
 
 1. **Atlas Project Resolution**:
 
-   - If plan name provided in $ARGUMENTS, use it and update `/planning/tasks/last-plan.json`
-   - If no plan name provided, read from `/planning/tasks/last-plan.json` for the last referenced plan
+   - If plan name provided in $ARGUMENTS, use it and update `${project_root}/last-plan.json`
+   - If no plan name provided, read from `${project_root}/last-plan.json` for the last referenced plan
    - If neither exists, check for Atlas projects in current directory
-   - Update `/planning/tasks/last-plan.json` with resolved plan name
+   - Update `${project_root}/last-plan.json` with resolved plan name
    - Validate Atlas project exists using `atlas_project_list`
 
 2. **Atlas Knowledge Analysis**:
@@ -333,10 +333,10 @@ When user selects an option:
 ## Usage Examples
 
 ```bash
-# Generate options for last referenced Atlas project (reads from /planning/tasks/last-plan.json)
+# Generate options for last referenced Atlas project (reads from ${project_root}/last-plan.json)
 /plan-brainstorm-options
 
-# Generate options for specific Atlas project (updates /planning/tasks/last-plan.json)
+# Generate options for specific Atlas project (updates ${project_root}/last-plan.json)
 /plan-brainstorm-options "plan-web-app-redesign"
 
 # Generate options with specific focus
@@ -359,9 +359,9 @@ When user selects an option:
 
 **Plan Name**: $ARGUMENTS (optional)
 
-- If no plan name provided, uses the last referenced plan from `/planning/tasks/last-plan.json`
+- If no plan name provided, uses the last referenced plan from `${project_root}/last-plan.json`
 - If last-plan.json doesn't exist, checks for Atlas projects in current directory
-- Updates `/planning/tasks/last-plan.json` with the resolved plan name for future commands
+- Updates `${project_root}/last-plan.json` with the resolved plan name for future commands
 - Plan name should match Atlas project ID format: `plan-[kebab-case-name]`
 
 **Optional flags**:

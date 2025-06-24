@@ -770,7 +770,7 @@ lastPlan.last_status_generated = {
 lastPlan.last_updated = new Date().toISOString()
 lastPlan.updated_by = "plan-status"
 
-await writeFile('/planning/tasks/last-plan.json', JSON.stringify(lastPlan, null, 2))
+await writeFile('${project_root}/last-plan.json', JSON.stringify(lastPlan, null, 2))
 
 // **CRITICAL**: Complete all todos
 await TodoWrite({
@@ -873,7 +873,7 @@ Immediate:
 - Address blocker in task 02-005 (dependency resolution)
 
 📋 Report saved to: /planning/status-report-2024-01-15T14-30-22.md
-Last Plan Updated: /planning/tasks/last-plan.json
+Last Plan Updated: ${project_root}/last-plan.json
 ```
 
 ## **Visual Elements Features**

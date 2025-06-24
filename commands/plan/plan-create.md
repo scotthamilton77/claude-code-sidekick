@@ -197,7 +197,7 @@ const lastPlanData = {
   atlas_project_id: projectId
 }
 
-await writeFile('/planning/tasks/last-plan.json', JSON.stringify(lastPlanData, null, 2))
+await writeFile('${project_root}/last-plan.json', JSON.stringify(lastPlanData, null, 2))
 ```
 
 ### Step 6: **Validation and Confirmation**
@@ -271,7 +271,7 @@ Knowledge Stored:
 - Plan Overview: 1 item (doc-type-plan-overview)
 - Reference Material: 1 item (doc-type-reference)
 
-Last Plan Updated: /planning/tasks/last-plan.json
+Last Plan Updated: ${project_root}/last-plan.json
 
 Next Steps:
 1. Review plan structure if needed
@@ -289,7 +289,7 @@ Next Steps:
 ## **Integration Points**
 
 - **Creates**: Atlas project with categorized knowledge
-- **Updates**: `/planning/tasks/last-plan.json` for command coordination
+- **Updates**: `${project_root}/last-plan.json` for command coordination
 - **Prepares**: Foundation for `/plan-decompose` and `/plan-execution-init`
 - **Enables**: Automated planning workflow through Atlas MCP integration
 
