@@ -72,7 +72,6 @@ The system uses Atlas MCP (Model Context Protocol) for all project and task mana
 ### Coordination Files
 - `${project_root}/last-plan.json` - Tracks current active plan
 - `/planning/status-report-*.md` - Generated status reports
-- `scripts/resolve-plan-name.sh` - Plan name resolution utility
 
 ## Development Guidelines
 
