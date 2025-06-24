@@ -1,26 +1,21 @@
 # Claude Code Planning & Execution System
 
-A comprehensive command system for AI-assisted project planning, decomposition, and execution with automated code review cycles.
+A comprehensive Atlas MCP-powered command system for AI-assisted project planning, decomposition, and execution with automated code review cycles.
 
 ## TODOs
 
 - check to see if we need to prefix IDs for tasks and knowledge
-- currently still creating /planning/tasks and sticking last-plan.json there; do we need the tasks subfolder?
 - what happens if I run the same command 2x for the same project, e.g. create, decompose, execution-init, prepare-next-task?
 - do we still need execution-init?  Can it be combined with prepare-next-task?
 - need better name for the workflows, e.g. create -> [ideate] -> decompose (from here on should warn if no architecture) -> next-task-prep -> next-task-start -> status
 
 tested:
-- plan-create, plan-decompose
+- plan-create, plan-decompose, plan-status
 
-- prep file is running into complex bash commands and screwing up folder names - see doc-index-mcp test-suite/scratch/**
-  -- just added bunch of "echo" for debuggin
-- rename to plan\* again?
-- architect.md
-  - asks another architect subagent for review and iterates up to 3x
-  - can be asked for clarifications by the implementation agent, who can respond by updating existing or creating new artifacts
-- do a qualitiative comparison to https://github.com/scopecraft/command/tree/main/.claude/commands and other similar projects on command formatting, command creation automation
-- consider integration with MCP / other tools
+future improvements:
+- Multi-agent coordination with architect review cycles
+- Qualitative comparison to other command frameworks
+- Enhanced integration patterns documentation
 
 ## Quick Start
 
@@ -55,7 +50,7 @@ tested:
 /plan-create "Your project description"
 ```
 
-Creates `/planning/tasks/[plan-name]/` with high-level structure and phases.
+Creates Atlas project with categorized knowledge and metadata.
 
 ### 2. Strategic Options (Optional)
 
@@ -79,7 +74,7 @@ Updates plan based on new requirements or feedback.
 /plan-decompose "plan-name"
 ```
 
-Generates detailed phase files with tasks, subtasks, and acceptance criteria.
+Creates Atlas tasks with dependencies, tags, and proper hierarchy.
 
 ### 5. Execution Tracking
 
@@ -87,7 +82,7 @@ Generates detailed phase files with tasks, subtasks, and acceptance criteria.
 /plan-execution-init "plan-name"
 ```
 
-Creates `plan-tracker.json` to monitor progress across all phases and tasks.
+Validates Atlas project structure and initializes tasks for execution.
 
 ### 6. Task Preparation
 
@@ -111,7 +106,7 @@ Executes prepared tasks (marked as "ready") with automated implementation and co
 /plan-status "plan-name"
 ```
 
-Generates comprehensive status reports saved to `/planning/tasks/[plan-name]/status.md` with smart update detection.
+Generates rich visual status reports saved to `/planning/status-report-[timestamp].md` with Atlas analytics.
 
 ## Command Categories
 
@@ -124,14 +119,31 @@ Generates comprehensive status reports saved to `/planning/tasks/[plan-name]/sta
 
 ### Execution Commands
 
-- **`/plan-execution-init`** - Create tracking structure from plan files
+- **`/plan-execution-init`** - Validate Atlas project and initialize execution tracking
 - **`/plan-prepare-next-task`** - Prepare next pending task with architectural review and context creation
 - **`/plan-implement-task`** - Execute prepared tasks with automated implementation and review
 
 ### Monitoring Commands
 
-- **`/plan-status`** - Generate visual progress reports with smart update detection
+- **`/plan-status`** - Generate rich visual progress reports with Atlas analytics
 
-### Other Available Commands
+### Migration Commands
 
-This document provides a high-level overview of additional available Claude commands for various development workflows.
+- **`/plan-migrate-to-atlas`** - Migrate existing filesystem plans to Atlas MCP
+
+## Architecture
+
+This system uses **Atlas MCP (Model Context Protocol)** for robust project and task management:
+
+- **Atlas Projects**: Primary organizational units with metadata and relationships
+- **Atlas Tasks**: Flattened hierarchy with dependencies and categorization tags
+- **Atlas Knowledge**: Searchable documentation with proper categorization
+- **Neo4j Backend**: Provides transactional consistency and advanced querying
+
+See `docs/plan/architecture-v2.md` for complete architectural details.
+
+## Configuration
+
+- **MCP Server**: Configured in `mcp.json` (Neo4j at bolt://localhost:7687)
+- **Command Templates**: Located in `/commands/plan/` directory
+- **Documentation**: Complete setup guide available in `CLAUDE.md`

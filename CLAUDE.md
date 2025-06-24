@@ -1,125 +1,141 @@
 # CLAUDE.md
 
-## Important
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-- ALL instructions within this document MUST BE FOLLOWED, these are not optional unless explicitly stated.
-- ASK FOR CLARIFICATION If you are uncertain of any of thing within the document.
-- DO NOT edit more code than you have to.
-- DO NOT WASTE TOKENS, be succinct and concise.
-- For maximum efficiency, whenever you need to perform multiple independent operations, invoke all relevant tools simultaneously rather than sequentially.
+## Project Overview
 
-## Dependencies
+This is the Claude Code Planning & Execution System - a comprehensive command framework for AI-assisted project planning, decomposition, and execution with Atlas MCP integration. The system facilitates structured project management with automated code review cycles and sophisticated multi-agent coordination.
 
-- Prefer latest stable versions of dependencies.
-- Use context7 tools when you need the documentation on dependencies that your model wasn't trained on (E.g. upgrades since your training data cutoff date). This is especially important to resolve compatibility issues between dependencies or code that does not work right using dependencies that are versioned later than this date.
+## Atlas MCP Integration
 
-## Code Style & Workflow
+The system uses Atlas MCP (Model Context Protocol) for all project and task management:
+- **Atlas Project**: Primary organizational unit with metadata and relationships
+- **Atlas Tasks**: Flattened task hierarchy with dependencies and tagging
+- **Atlas Knowledge**: Categorized documentation storage and retrieval
+- **Configuration**: See `mcp.json` for Atlas server settings (Neo4j backend at bolt://localhost:7687)
 
-### Testing
+## Core Commands and Workflows
 
-- **ALWAYS** write clear, descriptive test names for better readability
-- **ALWAYS** prefer running single tests over the whole test suite for performance
+### Planning Phase Commands
+```bash
+# Create new project from idea
+/plan-create "Build a customer portal with authentication"
 
-## Development Workflow
+# Break down into phases and tasks  
+/plan-decompose "plan-customer-portal"
 
-1. **ALWAYS** run type checking/linting after code changes
-2. **ALWAYS** format code before committing using project's formatter
-3. **ALWAYS** run relevant tests before pushing changes
-4. **NEVER** commit without running pre-commit checks
-5. **ALWAYS** use semantic commit messages (feat:, fix:, docs:, refactor:, test:, chore:)
+# Explore strategic options (optional)
+/plan-brainstorm-options "plan-customer-portal"
+```
 
-### AI-Assisted Development Pattern
+### Execution Phase Commands
+```bash
+# Initialize project for execution
+/plan-execution-init "plan-customer-portal"
 
-Write a high quality, general purpose solution. Implement a solution that works correctly for all valid inputs, not just the test cases. Do not hard-code values or create solutions that only work for specific test inputs. Instead, implement the actual logic that solves the problem generally.
+# Prepare next task with architectural review
+/plan-prepare-next-task "plan-customer-portal"
 
-Focus on understanding the problem requirements and implementing the correct algorithm. Tests are there to verify correctness, not to define the solution. Provide a principled implementation that follows best practices and software design principles.
+# Execute prepared task with review cycles
+/plan-implement-task "plan-customer-portal"
 
-If the task is unreasonable or infeasible, or if any of the tests are incorrect, please tell me. The solution should be robust, maintainable, and extendable.
+# Monitor progress
+/plan-status "plan-customer-portal"
+```
 
-1. **WRITE** failing tests first (test-driven development) for the specific requirements (do not focus on comprehensive coverage up front)
-2. **GENERATE** implementation with AI assistance
-3. **VERIFY** code meets requirements and security standards
-4. **TEST** edge cases and error handling thoroughly
-5. **IMPROVE COVERAGE** with appropriate tests only after getting the code functionally correct 
-6. **REFACTOR** at appropriate checkpoints, not continuously
-7. **LOG** extensively for debugging AI-generated code, tagging AI logging with "AI" (either in a log context or as a prefix in the log output)
+### Migration Command
+```bash
+# Migrate filesystem plans to Atlas
+/plan-migrate-to-atlas "existing-plan-name"
+```
 
-### Context Management
+## Architecture and Key Concepts
 
-- **PROVIDE** clear, specific requirements to minimize context gaps
-- **DOCUMENT** assumptions and decisions in code comments
+### Atlas Entity Structure
+- **Projects**: Use format `plan-[kebab-case-name]` for IDs
+- **Tasks**: Hierarchical IDs like `01-001` (phase-task) or `01-001-01` (subtask)
+- **Knowledge**: Tagged with document types (`doc-type-plan-overview`, `doc-type-phase-plan`)
+- **Dependencies**: Maintained through Atlas task relationships
 
-## Project Planning & Coordination
+### Task Status Flow
+1. `backlog` → Tasks with unmet dependencies
+2. `todo` → Ready for preparation
+3. `in-progress` → Being worked on
+4. `completed` → Finished successfully
 
-### Atlas-Based Planning System
+### Knowledge Categorization Tags
+- **Document Types**: `doc-type-plan-overview`, `doc-type-phase-plan`, `doc-type-task-prep`
+- **Lifecycle**: `lifecycle-planning`, `lifecycle-execution`, `lifecycle-review`
+- **Scope**: `scope-project`, `scope-phase`, `scope-task`
+- **Quality**: `quality-draft`, `quality-reviewed`, `quality-final`
 
-This repository implements an **Atlas MCP-powered planning and execution system** for complex software projects. The system uses Claude Code's planning commands with Atlas as the backend for robust work tracking.
+### Coordination Files
+- `${project_root}/last-plan.json` - Tracks current active plan
+- `/planning/status-report-*.md` - Generated status reports
+- `scripts/resolve-plan-name.sh` - Plan name resolution utility
 
-**Core Planning Commands:**
-- `/plan-create` - Create new project with Atlas integration
-- `/plan-decompose` - Break down project into phases and tasks
-- `/plan-execution-init` - Initialize project for execution
-- `/plan-prepare-next-task` - Prepare context for next task
-- `/plan-implement-task` - Execute task with review cycles
-- `/plan-status` - View project status and progress
-- `/plan-migrate-to-atlas` - Migrate filesystem plans to Atlas
+## Development Guidelines
 
-**Atlas Integration Requirements:**
-1. **ALWAYS use Atlas MCP** for project and task management
-2. **USE proper Atlas enums** for status, priority, and task types
-3. **APPLY structured tagging** for hierarchy and categorization
-4. **STORE documentation** as categorized Atlas knowledge
-5. **MAINTAIN dependencies** through Atlas task relationships
+### Working with Commands
+- Commands are markdown files in `/commands/plan/` directory
+- Each command follows a structured template with implementation steps
+- Commands use Atlas MCP tools exclusively for data operations
+- Always validate Atlas entities exist before operations
 
-**When working with planning commands:**
-1. **CREATE todos** with TodoWrite for complex operations
-2. **TRACK progress** throughout multi-step processes
-3. **VALIDATE Atlas integration** after major operations
-4. **USE flattened task hierarchy** with tags for organization
-5. **CATEGORIZE knowledge** with proper doc-type tags
+### Atlas Enum Compliance
+Always use proper Atlas enums:
+- **ProjectStatus**: `active`, `pending`, `in-progress`, `completed`, `archived`
+- **TaskStatus**: `backlog`, `todo`, `in-progress`, `completed`
+- **TaskPriority**: `low`, `medium`, `high`, `critical`
+- **TaskType**: `research`, `generation`, `analysis`, `integration`
 
-## Performance & Optimization
+### Error Handling
+- Validate project existence before any operations
+- Check for circular dependencies in task graphs
+- Ensure proper Atlas connection before bulk operations
+- Provide clear migration paths from filesystem to Atlas
 
-### Token Efficiency
+### Testing Approach
+No formal test suite exists. When modifying commands:
+1. Create a test project with `/plan-create`
+2. Run through full workflow to execution
+3. Verify Atlas entities are created correctly
+4. Check coordination files are updated
+5. Ensure status reports generate properly
 
-- **OPTIMIZE** prompts for clarity and brevity
-- **BATCH** related operations in single requests
-- **USE** structured outputs (JSON) for parsing efficiency
-- **CACHE** common patterns and solutions locally
+## Common Development Tasks
 
-## Documentation Style
+### Adding New Commands
+1. Create markdown file in `/commands/plan/`
+2. Follow existing command structure
+3. Use Atlas MCP tools for all data operations
+4. Update README.md with command documentation
+5. Test full workflow integration
 
-### README Files
+### Debugging Atlas Operations
+```bash
+# Check Atlas connection
+mcp__atlas-mcp-server__atlas_project_list
 
-**KEEP README FILES CONCISE AND SCANNABLE:**
+# Search across all entities
+mcp__atlas-mcp-server__atlas_unified_search value:"search-term"
 
-- **Maximum 100 lines** for most projects
-- **No excessive emojis** or decorative elements
-- **Essential sections only**: Purpose, Quick Start, Key Commands
-- **No verbose explanations** - let code and comments speak
-- **Single quick start command** when possible
-- **Brief feature lists** without detailed descriptions
-- **Minimal project structure** - only if complex
-- **Essential links only** - avoid resource dumps
+# View project with all relationships
+mcp__atlas-mcp-server__atlas_project_list mode:"details" id:"project-id" includeKnowledge:true includeTasks:true
+```
 
-## Claude Code Features
+### Migration from Filesystem Plans
+The system supports migrating existing filesystem-based plans:
+1. Use `/plan-migrate-to-atlas` command
+2. Validates filesystem structure first
+3. Creates Atlas entities maintaining relationships
+4. Preserves task hierarchy through tagging
+5. Updates coordination files
 
-### Thinking Modes
+## Important Notes
 
-- `think` - Standard mode (4,000 tokens)
-- `think hard` - Enhanced analysis
-- `think harder` - Deep computation
-- `ultrathink` - Maximum analysis (31,999 tokens)
-
-### Effective Usage
-
-- **USE** thinking modes for complex architectural decisions
-- **AVOID** over-thinking simple tasks
-- **BALANCE** computation time with task complexity
-
-## IMPORTANT Notes
-
-- **YOU MUST** follow these guidelines exactly as written
-- **ALWAYS** ask for clarification if requirements conflict
-- **NEVER** use deprecated patterns or old import styles
-- **ALWAYS** prioritize simplicity and type safety
+- **Atlas First**: All data operations must use Atlas MCP, never filesystem for work tracking
+- **ID Conventions**: Strictly follow project and task ID formats
+- **Tag Consistency**: Always apply proper categorization tags to knowledge items
+- **Transaction Safety**: Use bulk operations for multiple related changes
+- **Status Consistency**: Ensure task states align with dependency requirements

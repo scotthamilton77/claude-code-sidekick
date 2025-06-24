@@ -463,7 +463,7 @@ lastPlan.last_prepared_task = {
 lastPlan.last_updated = new Date().toISOString()
 lastPlan.updated_by = "plan-prepare-next-task"
 
-await writeFile('/planning/tasks/last-plan.json', JSON.stringify(lastPlan, null, 2))
+await writeFile('${project_root}/last-plan.json', JSON.stringify(lastPlan, null, 2))
 
 // **CRITICAL**: Complete all todos
 await TodoWrite({
@@ -526,7 +526,7 @@ Next Steps:
 1. Run: /plan-implement-task (execute the prepared task)
 2. Run: /plan-status (view overall project progress)
 
-Last Plan Updated: /planning/tasks/last-plan.json
+Last Plan Updated: ${project_root}/last-plan.json
 ```
 
 ## **Error Handling and Recovery**

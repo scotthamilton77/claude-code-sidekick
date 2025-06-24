@@ -8,10 +8,10 @@ This command creates and maintains comprehensive architecture documentation for 
 
 1. **Plan Name Resolution**:
 
-   - If plan name provided in $ARGUMENTS, use it and update `/planning/tasks/last-plan.json`
-   - If no plan name provided, read from `/planning/tasks/last-plan.json` for the last referenced plan
+   - If plan name provided in $ARGUMENTS, use it and update `${project_root}/last-plan.json`
+   - If no plan name provided, read from `${project_root}/last-plan.json` for the last referenced plan
    - If neither exists, use "general" as default architecture scope
-   - Update `/planning/tasks/last-plan.json` with resolved plan name
+   - Update `${project_root}/last-plan.json` with resolved plan name
 
 2. **Architecture Files Assessment**:
 
@@ -1039,9 +1039,9 @@ _This document should be reviewed and updated quarterly or when significant arch
 
 **Plan Name**: $ARGUMENTS (optional)
 
-- If no plan name provided, uses the last referenced plan from `/planning/tasks/last-plan.json`
+- If no plan name provided, uses the last referenced plan from `${project_root}/last-plan.json`
 - If `--general` flag used, creates general architecture documentation
-- Updates `/planning/tasks/last-plan.json` with the resolved plan name
+- Updates `${project_root}/last-plan.json` with the resolved plan name
 
 **Options**:
 
@@ -1071,7 +1071,7 @@ Returns:
 
 ## Integration with Existing Planning System
 
-- Updates `/planning/tasks/last-plan.json` for plan tracking consistency
+- Updates `${project_root}/last-plan.json` for plan tracking consistency
 - References plan-specific context when available
 - Can be run independently of active plan execution
 - Integrates with `/plan-status` for architecture documentation tracking

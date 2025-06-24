@@ -1035,7 +1035,7 @@ for (const project of migratedProjects) {
 lastPlan.last_updated = new Date().toISOString()
 lastPlan.updated_by = "plan-migrate-to-atlas"
 
-await writeFile('/planning/tasks/last-plan.json', JSON.stringify(lastPlan, null, 2))
+await writeFile('${project_root}/last-plan.json', JSON.stringify(lastPlan, null, 2))
 
 // **CRITICAL**: Complete all todos
 await TodoWrite({

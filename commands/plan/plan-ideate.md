@@ -8,10 +8,10 @@ This command takes user suggestions, corrections, or new ideas and intelligently
 
 1. **Atlas Project Resolution**:
 
-   - If plan name provided in $ARGUMENTS, use it and update `/planning/tasks/last-plan.json`
-   - If no plan name provided, read from `/planning/tasks/last-plan.json` for the last referenced plan
+   - If plan name provided in $ARGUMENTS, use it and update `${project_root}/last-plan.json`
+   - If no plan name provided, read from `${project_root}/last-plan.json` for the last referenced plan
    - If neither exists, check for Atlas projects in current directory
-   - Update `/planning/tasks/last-plan.json` with resolved plan name
+   - Update `${project_root}/last-plan.json` with resolved plan name
    - Validate Atlas project exists using `atlas_project_list`
 
 2. **Atlas Knowledge-Based Feedback Analysis**:
@@ -258,7 +258,7 @@ lastPlan.last_ideation = {
 lastPlan.last_updated = new Date().toISOString()
 lastPlan.updated_by = "plan-ideate"
 
-await writeFile('/planning/tasks/last-plan.json', JSON.stringify(lastPlan, null, 2))
+await writeFile('${project_root}/last-plan.json', JSON.stringify(lastPlan, null, 2))
 
 // Complete all todos
 await TodoWrite({
@@ -328,10 +328,10 @@ Changes are documented in Atlas knowledge with proper categorization:
 ## Usage Examples
 
 ```bash
-# Add new feature to last referenced Atlas project (reads from /planning/tasks/last-plan.json)
+# Add new feature to last referenced Atlas project (reads from ${project_root}/last-plan.json)
 /plan-ideate "Add multi-language support throughout the application"
 
-# Add new feature to specific Atlas project (updates /planning/tasks/last-plan.json)
+# Add new feature to specific Atlas project (updates ${project_root}/last-plan.json)
 /plan-ideate "plan-web-app-redesign: Add multi-language support throughout the application"
 
 # Change technical approach
@@ -355,10 +355,10 @@ Changes are documented in Atlas knowledge with proper categorization:
 
 **Atlas Project Resolution**:
 
-- If plan name provided before colon, use it and update `/planning/tasks/last-plan.json`
-- If no plan name provided, uses the last referenced plan from `/planning/tasks/last-plan.json`
+- If plan name provided before colon, use it and update `${project_root}/last-plan.json`
+- If no plan name provided, uses the last referenced plan from `${project_root}/last-plan.json`
 - If last-plan.json doesn't exist, checks for Atlas projects in current directory
-- Updates `/planning/tasks/last-plan.json` with the resolved plan name for future commands
+- Updates `${project_root}/last-plan.json` with the resolved plan name for future commands
 - Plan name should match Atlas project ID format: `plan-[kebab-case-name]`
 
 **The feedback should clearly describe**:

@@ -348,7 +348,7 @@ const lastPlanData = {
   next_available_tasks: getNextAvailableTasks(allTasks)
 }
 
-await writeFile('/planning/tasks/last-plan.json', JSON.stringify(lastPlanData, null, 2))
+await writeFile('${project_root}/last-plan.json', JSON.stringify(lastPlanData, null, 2))
 
 function getNextAvailableTasks(tasks) {
   return tasks
