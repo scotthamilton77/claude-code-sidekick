@@ -4,15 +4,30 @@ A comprehensive Atlas MCP-powered command system for AI-assisted project plannin
 
 ## TODOs
 
+- invert the semantics problem of relying on atlas' data structures, and add an adapter layer to atlas to handle project (tenant), feature, epic, story, task semantics
+    - research and brainstorm on whether this is useful for LLMs?
+- what if we were to go even a level higher in the commands, assigning persona'd agents, e.g. 
+    - /ask-product-manager what's the next epic to work on?
+    - /ask-tech-lead plan the next epic/story
+    - /ask-developer take the next task
+    - CAN we hide the /command parts of this by embedding the instruction in `#CLAUDE.md`?
 - check to see if we need to prefix IDs for tasks and knowledge
 - what happens if I run the same command 2x for the same project, e.g. create, decompose, execution-init, prepare-next-task?
-- do we still need execution-init?  Can it be combined with prepare-next-task?
+- do we still need execution-init? Can it be combined with prepare-next-task?
+  - prep-new-task should first take a step back, revisit the goal, evaluate the progress critically, and re-plan as necessary (agile, anyone?)
 - need better name for the workflows, e.g. create -> [ideate] -> decompose (from here on should warn if no architecture) -> next-task-prep -> next-task-start -> status
+  - limit decompose granularity to coarse-grained goals, with next-horizon planning only
+- can we turn the tasks into a combination of declarative (goals, context, success criteria) and imperative (TodoWrite steps)?
+- need a command to capture current state of the environment: OS, dependencies, dependencies status, is the target software already running?
+  - should be treated pessimistically (trust but verify), so develop scriptable tests that can do this quickly
+  - probably the command should do nothing more than generate the script if it doesn't exist, and run it, letting the script do its thing
 
 tested:
+
 - plan-create, plan-decompose, plan-status
 
 future improvements:
+
 - Multi-agent coordination with architect review cycles
 - Qualitative comparison to other command frameworks
 - Enhanced integration patterns documentation
