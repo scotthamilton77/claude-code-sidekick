@@ -1,4 +1,4 @@
-# Product Requirements Document v2: Human-AI Collaborative Development Platform
+# Product Requirements Document: Conductor
 
 ## Executive Summary
 
