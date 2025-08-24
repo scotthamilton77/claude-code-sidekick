@@ -1,9 +1,14 @@
 {
+  "env": {},
   "permissions": {
     "allow": [
       "Bash(black:*)",
       "Bash(cat:*)",
       "Bash(cp:*)",
+      "Bash(deno check:*)",
+      "Bash(deno run:*)",
+      "Bash(deno task:*)",
+      "Bash(deno test:*)",
       "Bash(df:*)",
       "Bash(echo:*)",
       "Bash(eslint:*)",
@@ -13,6 +18,7 @@
       "Bash(git add:*)",
       "Bash(git branch:*)",
       "Bash(git checkout:*)",
+      "Bash(git check-ignore:*)",
       "Bash(git clone:*)",
       "Bash(git commit:*)",
       "Bash(git init:*)",
@@ -28,7 +34,9 @@
       "Bash(ls:*)",
       "Bash(mkdir:*)",
       "Bash(node:*)",
+      "Bash(npm install:*)",
       "Bash(npm run:*)",
+      "Bash(npm test)",
       "Bash(npx run:*)",
       "Bash(pnpm run:*)",
       "Bash(prettier:*)",
@@ -40,19 +48,7 @@
       "Bash(touch:*)",
       "Bash(uname:*)",
       "Bash(uv run:*)",
-      "mcp__atlas-mcp-server__atlas_deep_research",
-      "mcp__atlas-mcp-server__atlas_knowledge_add",
-      "mcp__atlas-mcp-server__atlas_knowledge_delete",
-      "mcp__atlas-mcp-server__atlas_knowledge_list",
-      "mcp__atlas-mcp-server__atlas_project_create",
-      "mcp__atlas-mcp-server__atlas_project_delete",
-      "mcp__atlas-mcp-server__atlas_project_list",
-      "mcp__atlas-mcp-server__atlas_project_update",
-      "mcp__atlas-mcp-server__atlas_task_create",
-      "mcp__atlas-mcp-server__atlas_task_delete",
-      "mcp__atlas-mcp-server__atlas_task_list",
-      "mcp__atlas-mcp-server__atlas_task_update",
-      "mcp__atlas-mcp-server__atlas_unified_search",
+      "mcp__context7__get-library-docs",
       "mcp__context7__resolve-library-id",
       "mcp__git__git_diff_staged",
       "mcp__git__git_diff_unstaged",
@@ -61,15 +57,19 @@
       "mcp__git__git_status",
       "mcp__ide__getDiagnostics",
       "mcp__memory__read_graph",
-      "mcp__puppeteer__puppeteer_navigate",
-      "mcp__puppeteer__puppeteer_screenshot",
+      "mcp__memory__search_nodes",
+      "mcp__memory__create_entities",
       "mcp__sequential-thinking__sequentialthinking",
+      "WebFetch(domain:arxiv.org)",
+      "WebFetch(domain:openai.com)",
+      "WebFetch(domain:docs.anthropic.com)",
       "WebSearch"
     ],
-    "deny": [],
-    "additionalDirectories": [
-      "/home/scott/.claude/.templates/"
-    ]
+    "deny": []
   },
-  "model": "sonnet"
+  "model": "sonnet",
+  "statusLine": {
+    "type": "command",
+    "command": "~/.claude/statusline.sh"
+  }
 }
