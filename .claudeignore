@@ -6,3 +6,4 @@ plugins/
 shell-snapshots/
 statsig/
 todos/
+commands.backup*/

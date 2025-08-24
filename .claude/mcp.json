@@ -1,0 +1,30 @@
+{
+  "mcpServers": {
+    "context7": {
+      "type": "sse",
+      "url": "https://mcp.context7.com/sse"
+    },
+    "sequential-thinking": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ]
+    },
+    "zen": {
+      "type": "stdio",
+      "command": "/home/scott/projects/oss/zen-mcp-server/.zen_venv/bin/python",
+      "args": [
+        "/home/scott/projects/oss/zen-mcp-server/server.py"
+      ],
+      "env": {}
+    },
+    "memory": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-memory"
+      ]
+    }
+  }
+}
