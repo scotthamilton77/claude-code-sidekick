@@ -5,8 +5,10 @@
 
 set -e
 
+# Get the absolute path of the script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+# Get the project directory (parent of scripts directory)
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 SOURCE_DIR="$PROJECT_DIR/.claude"
 DEST_DIR="$HOME/.claude"
 IGNORE_FILE="$PROJECT_DIR/.claudeignore"
@@ -75,14 +77,44 @@ if [[ ! -d "$SOURCE_DIR" ]]; then
     exit 1
 fi
 
+# Build find command with ignored directory exclusions
+find_cmd="find \"$SOURCE_DIR\" -type f"
+
+if [[ -f "$IGNORE_FILE" ]]; then
+    while IFS= read -r pattern; do
+        # Skip empty lines and comments
+        [[ -z "$pattern" || "$pattern" =~ ^[[:space:]]*# ]] && continue
+        
+        # If pattern ends with / or looks like a directory, exclude it from find
+        if [[ "$pattern" =~ /$ ]] || [[ "$pattern" =~ \*$ ]] || [[ -d "$SOURCE_DIR/${pattern%/}" ]]; then
+            pattern="${pattern%/}"
+            # Handle wildcard patterns specially
+            if [[ "$pattern" =~ \*$ ]]; then
+                pattern="${pattern%\*}"
+                # For wildcard patterns, use shell pattern matching
+                find_cmd+=" -not -path \"$SOURCE_DIR/$pattern*\" -not -path \"$SOURCE_DIR/$pattern*/*\""
+            else
+                find_cmd+=" -not -path \"$SOURCE_DIR/$pattern\" -not -path \"$SOURCE_DIR/$pattern/*\""
+            fi
+        fi
+    done < "$IGNORE_FILE"
+fi
+
+find_cmd+=" -print0"
+
+echo "🔍 Scanning files (excluding ignored directories)..."
+
 # Copy all files recursively, preserving directory structure
 copied_count=0
 skipped_count=0
 
+# Disable exit-on-error for the file processing loop
+set +e
+
 while IFS= read -r -d '' file; do
     rel_path="${file#$SOURCE_DIR/}"
     
-    # Skip ignored files
+    # Skip ignored files (for individual file patterns)
     if is_ignored "$rel_path"; then
         continue
     fi
@@ -94,7 +126,10 @@ while IFS= read -r -d '' file; do
     else
         ((skipped_count++))
     fi
-done < <(find "$SOURCE_DIR" -type f -print0)
+done < <(eval "$find_cmd")
+
+# Re-enable exit-on-error
+set -e
 
 echo ""
 echo "📊 Summary:"
