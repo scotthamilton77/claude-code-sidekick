@@ -1,0 +1,8 @@
+.credentials.json
+projects/
+ide/
+local/
+plugins/
+shell-snapshots/
+statsig/
+todos/
