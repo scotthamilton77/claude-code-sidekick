@@ -1,13 +1,3 @@
-# CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## Project Overview
-
-This is the Claude Code Planning & Execution System - a comprehensive command framework for AI-assisted project planning, decomposition, and execution with task management integration. The system facilitates structured project management with automated code review cycles and sophisticated multi-agent coordination.
-
-The project is currently in a state of refactoring and redesign.  References to Atlas MCP are legacy, and we are currently re-evaluating the Claude-Task-Master MCP tool as an alternative.
-
 # Task Master AI - Claude Code Integration Guide
 
 ## Essential Commands
