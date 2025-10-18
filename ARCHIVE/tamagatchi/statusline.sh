@@ -1,8 +1,8 @@
 #!/bin/bash
 # Enhanced colorful statusline with human-readable formatting
 
-# Configurable threshold (default: 160K tokens = 80% of 200K context)
-THRESHOLD=${CLAUDE_AUTO_COMPACT_THRESHOLD:-160000}
+# Configurable threshold (default: 400K tokens = 80% of 500K context)
+THRESHOLD=${CLAUDE_AUTO_COMPACT_THRESHOLD:-400000}
 
 # Read JSON input from stdin
 input=$(cat)
@@ -101,12 +101,12 @@ calculate_tokens() {
 format_tokens() {
     local total_tokens="$1"
     local percentage="$2"
-
+    
     if [ "$total_tokens" -eq 0 ]; then
         printf "${DIM}0${RESET}"
         return
     fi
-
+    
     # Format with K notation
     local token_display
     if [ $total_tokens -ge 1000 ]; then
@@ -114,7 +114,7 @@ format_tokens() {
     else
         token_display="$total_tokens"
     fi
-
+    
     # Color based on percentage
     if [ $percentage -ge 90 ]; then
         printf "${RED}🪙 %s${RESET}" "$token_display"
@@ -125,43 +125,11 @@ format_tokens() {
     fi
 }
 
-# Extract session topic from first user message in transcript
-get_session_topic() {
-    local session_id="$1"
-    local max_length=50
-
-    if [ -z "$session_id" ] || [ "$session_id" == "null" ]; then
-        printf "${DIM}--${RESET}"
-        return
-    fi
-
-    local transcript_path=$(find ~/.claude/projects -name "${session_id}.jsonl" 2>/dev/null | head -1)
-    if [ ! -f "$transcript_path" ]; then
-        printf "${DIM}--${RESET}"
-        return
-    fi
-
-    # Extract first user message from JSONL transcript (skip "Warmup")
-    # Format: {"type": "user", "message": {"role": "user", "content": "..."}}
-    local first_message=$(jq -r 'select(.type == "user") | .message.content // empty' "$transcript_path" 2>/dev/null | grep -iv "^warmup$" | head -1 | tr -d '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-
-    if [ -z "$first_message" ]; then
-        printf "${DIM}--${RESET}"
-        return
-    fi
-
-    # Truncate and add ellipsis if needed
-    if [ ${#first_message} -gt $max_length ]; then
-        first_message="${first_message:0:$max_length}..."
-    fi
-
-    printf "${MAGENTA}%s${RESET}" "$first_message"
-}
-
 # Use the helpers
 MODEL=$(get_model_name)
 DIR=$(get_current_dir)
 SESSION_ID=$(get_session_id)
+RAW_COST=$(get_cost)
 RAW_DURATION=$(get_duration)
 
 # Calculate token information
@@ -172,9 +140,9 @@ if [ $PERCENTAGE -gt 100 ]; then
 fi
 
 # Format the values
+COST_FORMATTED=$(format_cost "$RAW_COST")
 DURATION_FORMATTED=$(format_duration "$RAW_DURATION")
 TOKENS_FORMATTED=$(format_tokens "$TOTAL_TOKENS" "$PERCENTAGE")
-TOPIC_FORMATTED=$(get_session_topic "$SESSION_ID")
 
 # Show git branch if in a git repo with enhanced formatting
 GIT_BRANCH=""
@@ -194,6 +162,57 @@ if git rev-parse --git-dir > /dev/null 2>&1; then
     fi
 fi
 
-# Build the final statusline with consistent spacing and colors
-printf "${BOLD}${BLUE}[${MODEL}]${RESET} ${DIM}|${RESET} ${TOKENS_FORMATTED} ${DIM}|${RESET} ${CYAN}%d%%${RESET} ${DIM}|${RESET} ${CYAN}📁 ${DIR##*/}${RESET}${GIT_BRANCH} ${DIM}|${RESET} ${DURATION_FORMATTED} ${DIM}|${RESET} ${TOPIC_FORMATTED}\n" "$PERCENTAGE"
+# Pet detection logic - try local dev first, then global install
+get_pet_status() {
+    local LOCAL_PATH="/home/scott/projects/oss/claude-code-tamagotchi"
+    local GLOBAL_BIN=$(which claude-code-tamagotchi 2>/dev/null)
+    
+    if [ -d "$LOCAL_PATH" ] && [ -f "$LOCAL_PATH/src/index.ts" ]; then
+        # Local development checkout
+        cd "$LOCAL_PATH" && echo "$input" | env \
+            PET_SHOW_PET=false \
+            PET_SHOW_STATS=false \
+            PET_HUNGER_DECAY=0 \
+            PET_THOUGHT_WEIGHT_NEEDS=0 \
+            PET_THOUGHT_WEIGHT_CODING=50 \
+            PET_THOUGHT_WEIGHT_RANDOM=30 \
+            PET_THOUGHT_WEIGHT_MOOD=20 \
+            PET_FEEDBACK_ENABLED=true \
+            PET_GROQ_API_KEY="${GROQ_API_KEY:-}" \
+            PET_FEEDBACK_DEBUG=true \
+            PET_FEEDBACK_LOG_DIR="$HOME/.claude/pets/logs" \
+            PET_VIOLATION_CHECK_ENABLED=true \
+         bun run --silent src/index.ts 2>/dev/null
+    elif [ -n "$GLOBAL_BIN" ]; then
+        # Global npm/bun install with custom env vars for enhanced features
+        echo "$input" | env \
+            PET_SHOW_PET=false \
+            PET_SHOW_STATS=false \
+            PET_HUNGER_DECAY=0 \
+            PET_THOUGHT_WEIGHT_NEEDS=0 \
+            PET_THOUGHT_WEIGHT_CODING=50 \
+            PET_THOUGHT_WEIGHT_RANDOM=30 \
+            PET_THOUGHT_WEIGHT_MOOD=20 \
+            PET_FEEDBACK_ENABLED=true \
+            PET_GROQ_API_KEY="${GROQ_API_KEY:-}" \
+            PET_FEEDBACK_DEBUG=true \
+            PET_FEEDBACK_LOG_DIR="$HOME/.claude/pets/logs" \
+            PET_VIOLATION_CHECK_ENABLED=true \
+            claude-code-tamagotchi 2>/dev/null
+    else
+        # No pet available
+        echo ""
+    fi
+}
+
+# Get pet status
+PET_STATUS=$(get_pet_status)
+
+# Build the final statusline with pet (if available)
+if [ -n "$PET_STATUS" ]; then
+    echo "$PET_STATUS"
+else
+    # Fallback without pet
+    printf "${BOLD}${BLUE}[${MODEL}]${RESET} ${DIM}|${RESET} ${TOKENS_FORMATTED} ${DIM}|${RESET} ${CYAN}%d%%${RESET} ${DIM}|${RESET} ${CYAN}📁 ${DIR##*/}${RESET}${GIT_BRANCH} ${DIM}|${RESET} ${COST_FORMATTED} ${DIM}|${RESET} ${DURATION_FORMATTED}\n" "$PERCENTAGE"
+fi
 

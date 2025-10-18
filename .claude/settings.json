@@ -67,7 +67,6 @@
     ],
     "deny": []
   },
-  "model": "sonnet",
   "statusLine": {
     "type": "command",
     "command": "~/.claude/statusline.sh"
