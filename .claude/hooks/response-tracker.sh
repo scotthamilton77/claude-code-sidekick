@@ -2,7 +2,14 @@
 # Response tracking hook - handles session initialization and reminder injection
 
 operation="$1"
-shift  # Remove operation from args, remaining args are flags
+project_dir="$2"
+shift 2  # Remove operation and project_dir from args, remaining args are flags
+
+# Validate required parameters
+if [ -z "$project_dir" ]; then
+    echo "[ResponseTracker] ERROR: project_dir parameter required" >&2
+    exit 1
+fi
 
 # Parse flags
 VERBOSE=false
@@ -79,28 +86,30 @@ session_id=$(echo "$input" | jq -r '.session_id')
 transcript_path=$(echo "$input" | jq -r '.transcript_path')
 
 # Store session state in project-local cache
-cache_dir="${HOOK_DIR}/cache"
+cache_dir="${project_dir}/.claude/hooks/cache"
+[ "$VERBOSE" = true ] && echo "[ResponseTracker] project_dir: $project_dir" >&2
+[ "$VERBOSE" = true ] && echo "[ResponseTracker] cache_dir: $cache_dir" >&2
+
 mkdir -p "$cache_dir" || {
-    echo "[ResponseTracker] ERROR: Failed to create cache directory" >&2
+    echo "[ResponseTracker] ERROR: Failed to create cache directory: $cache_dir" >&2
     exit 1
 }
 
 counter_file="${cache_dir}/${session_id}_response_count"
 topic_file="${cache_dir}/${session_id}_topic"
+unclear_topic_file="${topic_file}_unclear"
+[ "$VERBOSE" = true ] && echo "[ResponseTracker] counter_file: $counter_file" >&2
+[ "$VERBOSE" = true ] && echo "[ResponseTracker] topic_file: $topic_file" >&2
+[ "$VERBOSE" = true ] && echo "[ResponseTracker] unclear_topic_file: $unclear_topic_file" >&2
 
 case "$operation" in
   init)
-    # Initialize counter and topic files
+    # Initialize counter file only
     echo "0" > "$counter_file" || {
         echo "[ResponseTracker] ERROR: Failed to write counter file" >&2
         exit 1
     }
-    echo "$TOPIC_UNSET_MARKER" > "$topic_file" || {
-        echo "[ResponseTracker] ERROR: Failed to write topic file" >&2
-        exit 1
-    }
     [ "$VERBOSE" = true ] && echo "[ResponseTracker] Initialized counter at: $counter_file" >&2
-    [ "$VERBOSE" = true ] && echo "[ResponseTracker] Initialized topic at: $topic_file" >&2
     exit 0
     ;;
 
@@ -113,15 +122,11 @@ case "$operation" in
       count=0
     fi
 
-    # Read current topic (default to marker if file doesn't exist)
+    # Check if topic file exists (if not, topic is unset)
     if [ -f "$topic_file" ]; then
       topic=$(cat "$topic_file")
     else
       topic="$TOPIC_UNSET_MARKER"
-      echo "$TOPIC_UNSET_MARKER" > "$topic_file" || {
-          echo "[ResponseTracker] ERROR: Failed to write topic file" >&2
-          exit 1
-      }
     fi
 
     # Increment counter (safe now after validation)
@@ -136,7 +141,7 @@ case "$operation" in
 
     if [ "$topic" = "$TOPIC_UNSET_MARKER" ]; then
       # Topic not set - inject topic update reminder (every turn)
-      context="IMPORTANT: Update the session topic file at \`$topic_file\` if you now understand the user's goal. Use a concise description (50 chars max). Use the Write tool to update this file."
+      context="IMPORTANT: Analyze the user's stated intent or goal. If it is clear and actionable, use Bash to run: ${HOOK_DIR}/write-topic.sh '$session_id' 'concise topic (50 chars max)' 'snarky explanation'. If the goal is vague, ambiguous, unclear, or the user is just making small talk, you MUST instead run: ${HOOK_DIR}/write-unclear-topic.sh '$session_id' 'creative, cynical insult about their communication skills'"
     else
       # Topic is set - check for static or topic refresh reminders
       static_due=$((count % STATIC_REMINDER_CADENCE))
@@ -147,7 +152,7 @@ case "$operation" in
         context=$(load_static_reminder)
       elif [ $topic_due -eq 0 ]; then
         # Topic refresh reminder
-        context="IMPORTANT: This conversation's topic was previously set to \"$topic\" - if it has changed, update the topic file at \`$topic_file\` to reflect reality. Use the Write tool."
+        context="IMPORTANT: This conversation's topic was previously set to \"$topic\". If it has changed, use Bash to run: ${HOOK_DIR}/write-topic.sh '$session_id' 'new concise topic (50 chars max)' 'snarky explanation of the pivot'. If the conversation has devolved into unclear/vague territory, run: ${HOOK_DIR}/write-unclear-topic.sh '$session_id' 'cynical insult' instead."
       fi
     fi
 
