@@ -24,3 +24,6 @@ node_modules/
 
 # OS specific
 .DS_Store
+
+# Claude hook cache (session-specific ephemeral state)
+.claude/hooks/cache/

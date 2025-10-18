@@ -78,10 +78,15 @@ input=$(cat)
 session_id=$(echo "$input" | jq -r '.session_id')
 transcript_path=$(echo "$input" | jq -r '.transcript_path')
 
-# Determine session directory and file paths
-session_dir=$(dirname "$transcript_path")
-counter_file="${session_dir}/${session_id}_response_count"
-topic_file="${session_dir}/${session_id}_topic"
+# Store session state in project-local cache
+cache_dir="${HOOK_DIR}/cache"
+mkdir -p "$cache_dir" || {
+    echo "[ResponseTracker] ERROR: Failed to create cache directory" >&2
+    exit 1
+}
+
+counter_file="${cache_dir}/${session_id}_response_count"
+topic_file="${cache_dir}/${session_id}_topic"
 
 case "$operation" in
   init)

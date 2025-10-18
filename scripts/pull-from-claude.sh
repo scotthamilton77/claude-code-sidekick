@@ -61,7 +61,7 @@ copy_if_newer() {
     
     # Copy if destination doesn't exist or source is newer
     if [[ ! -e "$dest" ]] || [[ "$src" -nt "$dest" ]]; then
-        cp "$src" "$dest"
+        cp -p "$src" "$dest"
         echo "  ✅ Copied: $rel_path"
         return 0
     else
