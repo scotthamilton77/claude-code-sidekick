@@ -2,6 +2,9 @@
 # Setup script: Configure permissions for write-topic.sh and write-unclear-topic.sh hooks
 # This script intelligently detects whether it's running in user (~/.claude) or project context
 # and updates the appropriate settings.json file(s) with required permissions
+#
+# Usage: setup.sh [--include-local]
+#   --include-local: Also update project-local settings files (default: user settings only)
 
 # Note: NOT using set -e to allow graceful error handling per-file
 
@@ -24,17 +27,34 @@ log_error() { echo -e "${RED}✗${NC} $1"; }
 # Track backup files for final report
 BACKUP_FILES=()
 
+# Parse command line arguments
+INCLUDE_LOCAL=false
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --include-local)
+            INCLUDE_LOCAL=true
+            shift
+            ;;
+        *)
+            log_error "Unknown option: $1"
+            echo "Usage: $0 [--include-local]"
+            exit 1
+            ;;
+    esac
+done
+
 # Check if jq is installed
 if ! command -v jq &> /dev/null; then
     log_error "jq is required but not installed. Install with: sudo apt-get install jq (or brew install jq on macOS)"
     exit 1
 fi
 
-# Function to add permissions to a settings file
-# Args: $1 = settings file path, $2 = hook script path (absolute)
+# Function to add permissions and statusline to a settings file
+# Args: $1 = settings file path, $2 = hook script path (absolute), $3 = statusline command
 add_permissions() {
     local settings_file="$1"
     local hook_path="$2"
+    local statusline_cmd="$3"
 
     if [ ! -f "$settings_file" ]; then
         log_warning "Settings file not found: $settings_file"
@@ -54,14 +74,20 @@ add_permissions() {
     local write_topic_perm="Bash(${hook_path}/write-topic.sh:*)"
     local write_unclear_perm="Bash(${hook_path}/write-unclear-topic.sh:*)"
 
-    # Read current permissions
+    # Read current permissions and statusline
     local current_perms=$(jq -r '.permissions.allow // [] | join("\n")' "$settings_file" 2>/dev/null)
     if [ $? -ne 0 ]; then
         log_error "Failed to read permissions from: $settings_file"
         return 1
     fi
 
-    # Check if permissions already exist
+    local current_statusline=$(jq -r '.statusLine.command // ""' "$settings_file" 2>/dev/null)
+    if [ $? -ne 0 ]; then
+        log_error "Failed to read statusline from: $settings_file"
+        return 1
+    fi
+
+    # Check if permissions and statusline already exist
     local needs_update=false
     if ! echo "$current_perms" | grep -qF "$write_topic_perm"; then
         needs_update=true
@@ -69,9 +95,12 @@ add_permissions() {
     if ! echo "$current_perms" | grep -qF "$write_unclear_perm"; then
         needs_update=true
     fi
+    if [ "$current_statusline" != "$statusline_cmd" ]; then
+        needs_update=true
+    fi
 
     if [ "$needs_update" = false ]; then
-        log_info "Permissions already configured"
+        log_info "Configuration already up to date"
         return 0
     fi
 
@@ -85,10 +114,11 @@ add_permissions() {
     BACKUP_FILES+=("$backup_file")
     log_info "Backed up to: $backup_file"
 
-    # Add permissions using jq
+    # Add permissions and statusline using jq
     local tmp_file=$(mktemp)
     if ! jq --arg write_topic "$write_topic_perm" \
        --arg write_unclear "$write_unclear_perm" \
+       --arg statusline "$statusline_cmd" \
        '.permissions.allow += (
            if (.permissions.allow // []) | map(select(. == $write_topic)) | length == 0
            then [$write_topic]
@@ -99,8 +129,11 @@ add_permissions() {
            then [$write_unclear]
            else []
            end
-       )' "$settings_file" > "$tmp_file" 2>/dev/null; then
-        log_error "Failed to update permissions in: $settings_file"
+       ) | .statusLine = {
+           "type": "command",
+           "command": $statusline
+       }' "$settings_file" > "$tmp_file" 2>/dev/null; then
+        log_error "Failed to update settings in: $settings_file"
         rm -f "$tmp_file"
         return 1
     fi
@@ -112,7 +145,40 @@ add_permissions() {
         return 1
     fi
 
-    log_success "Added permissions for write-topic hooks"
+    log_success "Added permissions and configured statusline"
+}
+
+# Function to update .gitignore with cache directory
+# Args: $1 = project root directory
+update_gitignore() {
+    local project_root="$1"
+    local gitignore="$project_root/.gitignore"
+    local cache_entry=".claude/hooks/cache/"
+
+    # Check if this is a git repository
+    if [ ! -d "$project_root/.git" ]; then
+        return 0  # Not a git repo, skip silently
+    fi
+
+    log_info "Git repository detected - checking .gitignore"
+
+    # Create .gitignore if it doesn't exist
+    if [ ! -f "$gitignore" ]; then
+        log_info "Creating .gitignore"
+        echo "$cache_entry" > "$gitignore"
+        log_success "Added $cache_entry to new .gitignore"
+        return 0
+    fi
+
+    # Check if entry already exists
+    if grep -qF "$cache_entry" "$gitignore"; then
+        log_info ".gitignore already contains $cache_entry"
+        return 0
+    fi
+
+    # Add entry to .gitignore
+    echo "$cache_entry" >> "$gitignore"
+    log_success "Added $cache_entry to .gitignore"
 }
 
 # Detect execution context
@@ -127,48 +193,61 @@ detect_and_configure() {
 
         # Configure user settings.json
         if [ -f "$user_settings" ] && [ -d "$user_hooks" ]; then
-            add_permissions "$user_settings" "$user_hooks"
+            local user_statusline="~/.claude/statusline.sh"
+            add_permissions "$user_settings" "$user_hooks" "$user_statusline"
         else
             log_warning "User hooks not found at: $user_hooks"
         fi
     else
         log_info "Detected project-scope context"
 
-        # Look for project .claude folder
-        local project_claude_dir=""
-        local project_settings=""
+        if [ "$INCLUDE_LOCAL" = true ]; then
+            # Look for project .claude folder
+            local project_claude_dir=""
+            local project_settings=""
 
-        # Check current directory
-        if [ -d "$PROJECT_ROOT/.claude" ]; then
-            project_claude_dir="$PROJECT_ROOT/.claude"
-        # Check parent directory (in case running from scripts/)
-        elif [ -d "$PROJECT_ROOT/../.claude" ]; then
-            project_claude_dir="$(cd "$PROJECT_ROOT/../.claude" && pwd)"
-            PROJECT_ROOT="$(cd "$PROJECT_ROOT/.." && pwd)"
-        fi
-
-        if [ -n "$project_claude_dir" ]; then
-            # Try settings.local.json first, then settings.json
-            if [ -f "$project_claude_dir/settings.local.json" ]; then
-                project_settings="$project_claude_dir/settings.local.json"
-            elif [ -f "$project_claude_dir/settings.json" ]; then
-                project_settings="$project_claude_dir/settings.json"
+            # Check current directory
+            if [ -d "$PROJECT_ROOT/.claude" ]; then
+                project_claude_dir="$PROJECT_ROOT/.claude"
+            # Check parent directory (in case running from scripts/)
+            elif [ -d "$PROJECT_ROOT/../.claude" ]; then
+                project_claude_dir="$(cd "$PROJECT_ROOT/../.claude" && pwd)"
+                PROJECT_ROOT="$(cd "$PROJECT_ROOT/.." && pwd)"
             fi
 
-            if [ -n "$project_settings" ] && [ -d "$project_claude_dir/hooks" ]; then
-                add_permissions "$project_settings" "$project_claude_dir/hooks"
+            if [ -n "$project_claude_dir" ]; then
+                # Try settings.local.json first, then settings.json
+                if [ -f "$project_claude_dir/settings.local.json" ]; then
+                    project_settings="$project_claude_dir/settings.local.json"
+                elif [ -f "$project_claude_dir/settings.json" ]; then
+                    project_settings="$project_claude_dir/settings.json"
+                fi
+
+                if [ -n "$project_settings" ] && [ -d "$project_claude_dir/hooks" ]; then
+                    local project_statusline="\$CLAUDE_PROJECT_DIR/.claude/statusline.sh --project-dir \\\"\$CLAUDE_PROJECT_DIR\\\""
+                    add_permissions "$project_settings" "$project_claude_dir/hooks" "$project_statusline"
+                else
+                    log_warning "Project hooks not found at: $project_claude_dir/hooks"
+                fi
             else
-                log_warning "Project hooks not found at: $project_claude_dir/hooks"
+                log_warning "No .claude folder found in project"
+            fi
+
+            # Update .gitignore for project-scope contexts
+            if [ -n "$PROJECT_ROOT" ]; then
+                echo ""
+                update_gitignore "$PROJECT_ROOT"
             fi
         else
-            log_warning "No .claude folder found in project"
+            log_info "Skipping project-local settings (use --include-local to update)"
         fi
 
-        # Also configure user ~/.claude/settings.json if hooks exist there
+        # Always configure user ~/.claude/settings.json if hooks exist there
         if [ -f "$user_settings" ] && [ -d "$user_hooks" ]; then
             echo ""
-            log_info "Also configuring user-scope settings"
-            add_permissions "$user_settings" "$user_hooks"
+            log_info "Configuring user-scope settings"
+            local user_statusline="~/.claude/statusline.sh"
+            add_permissions "$user_settings" "$user_hooks" "$user_statusline"
         fi
     fi
 }
