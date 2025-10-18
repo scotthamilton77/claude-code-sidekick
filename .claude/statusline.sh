@@ -145,7 +145,7 @@ format_tokens() {
     fi
 }
 
-# Extract session topic from first user message in transcript
+# Extract session topic from topic file or first user message in transcript
 get_session_topic() {
     local session_id="$1"
     local max_length=50
@@ -165,6 +165,23 @@ get_session_topic() {
     if [ ! -f "$transcript_path" ]; then
         printf "${DIM}--${RESET}"
         return
+    fi
+
+    # Check for topic file first (created by response-tracker.sh hook)
+    local session_dir=$(dirname "$transcript_path")
+    local topic_file="${session_dir}/${session_id}_topic"
+
+    if [ -f "$topic_file" ]; then
+        local topic=$(cat "$topic_file")
+        # Only use topic file if it's been set (not default "--")
+        if [ "$topic" != "--" ] && [ -n "$topic" ]; then
+            # Truncate if needed
+            if [ ${#topic} -gt $max_length ]; then
+                topic="${topic:0:$max_length}..."
+            fi
+            printf "${MAGENTA}%s${RESET}" "$topic"
+            return
+        fi
     fi
 
     # Extract first user message from JSONL transcript (skip "Warmup")
