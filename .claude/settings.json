@@ -48,14 +48,6 @@
       "Bash(touch:*)",
       "Bash(uname:*)",
       "Bash(uv run:*)",
-      "Bash(chmod:*)",
-      "Bash(echo:*)",
-      "Bash(./scripts/pull-from-claude.sh:*)",
-      "Bash(./debug-pull.sh:*)",
-      "Bash(./test-simple.sh:*)",
-      "Bash(./debug-ignore.sh)",
-      "Bash(./test-ignore-fix.sh:*)",
-      "Bash(./test-response-tracker.sh)",
       "mcp__context7__get-library-docs",
       "mcp__context7__resolve-library-id",
       "mcp__git__git_diff_staged",
@@ -71,7 +63,9 @@
       "WebFetch(domain:arxiv.org)",
       "WebFetch(domain:openai.com)",
       "WebFetch(domain:docs.anthropic.com)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(/home/scott/.claude/hooks/write-topic.sh:*)",
+      "Bash(/home/scott/.claude/hooks/write-unclear-topic.sh:*)"
     ],
     "deny": []
   },
