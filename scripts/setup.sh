@@ -95,7 +95,8 @@ add_permissions() {
     if ! echo "$current_perms" | grep -qF "$write_unclear_perm"; then
         needs_update=true
     fi
-    if [ "$current_statusline" != "$statusline_cmd" ]; then
+    # Compare statusline by checking if jq finds a match (handles escaping correctly)
+    if ! jq -e --arg expected "$statusline_cmd" '.statusLine.command == $expected' "$settings_file" >/dev/null 2>&1; then
         needs_update=true
     fi
 
@@ -193,7 +194,7 @@ detect_and_configure() {
 
         # Configure user settings.json
         if [ -f "$user_settings" ] && [ -d "$user_hooks" ]; then
-            local user_statusline="~/.claude/statusline.sh"
+            local user_statusline='~/.claude/statusline.sh --project-dir "$CLAUDE_PROJECT_DIR"'
             add_permissions "$user_settings" "$user_hooks" "$user_statusline"
         else
             log_warning "User hooks not found at: $user_hooks"
@@ -224,7 +225,7 @@ detect_and_configure() {
                 fi
 
                 if [ -n "$project_settings" ] && [ -d "$project_claude_dir/hooks" ]; then
-                    local project_statusline="\$CLAUDE_PROJECT_DIR/.claude/statusline.sh --project-dir \\\"\$CLAUDE_PROJECT_DIR\\\""
+                    local project_statusline='$CLAUDE_PROJECT_DIR/.claude/statusline.sh --project-dir "$CLAUDE_PROJECT_DIR"'
                     add_permissions "$project_settings" "$project_claude_dir/hooks" "$project_statusline"
                 else
                     log_warning "Project hooks not found at: $project_claude_dir/hooks"
@@ -246,7 +247,7 @@ detect_and_configure() {
         if [ -f "$user_settings" ] && [ -d "$user_hooks" ]; then
             echo ""
             log_info "Configuring user-scope settings"
-            local user_statusline="~/.claude/statusline.sh"
+            local user_statusline='~/.claude/statusline.sh --project-dir "$CLAUDE_PROJECT_DIR"'
             add_permissions "$user_settings" "$user_hooks" "$user_statusline"
         fi
     fi

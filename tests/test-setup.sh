@@ -64,11 +64,12 @@ test_valid_with_permissions() {
 }
 EOF
 
-    add_permissions "$settings_file" "$TEST_DIR/user_claude/.claude/hooks" "~/.claude/statusline.sh"
+    add_permissions "$settings_file" "$TEST_DIR/user_claude/.claude/hooks" '~/.claude/statusline.sh --project-dir "$CLAUDE_PROJECT_DIR"'
 
     # Verify permissions and statusline were added
+    local expected_statusline='~/.claude/statusline.sh --project-dir "$CLAUDE_PROJECT_DIR"'
     if jq -e '.permissions.allow | map(select(test("write-topic"))) | length > 0' "$settings_file" >/dev/null && \
-       jq -e '.statusLine.command == "~/.claude/statusline.sh"' "$settings_file" >/dev/null; then
+       jq -e --arg expected "$expected_statusline" '.statusLine.command == $expected' "$settings_file" >/dev/null; then
         log_pass "Permissions and statusline added successfully"
         return 0
     else
@@ -89,7 +90,7 @@ test_valid_no_permissions() {
 }
 EOF
 
-    add_permissions "$settings_file" "$TEST_DIR/user_claude/.claude/hooks" "~/.claude/statusline.sh"
+    add_permissions "$settings_file" "$TEST_DIR/user_claude/.claude/hooks" '~/.claude/statusline.sh --project-dir "$CLAUDE_PROJECT_DIR"'
 
     if jq -e '.permissions.allow | length > 0' "$settings_file" >/dev/null && \
        jq -e '.statusLine.command' "$settings_file" >/dev/null; then
@@ -138,23 +139,31 @@ test_already_configured() {
 
     local settings_file="$TEST_DIR/test5_settings.json"
     local hook_path="$TEST_DIR/user_claude/.claude/hooks"
-    local statusline_cmd="~/.claude/statusline.sh"
+    # Note: Pass the bash-escaped version to add_permissions, but JSON contains unescaped
+    local statusline_cmd='~/.claude/statusline.sh --project-dir "$CLAUDE_PROJECT_DIR"'
 
-    cat > "$settings_file" << EOF
+    cat > "$settings_file" << 'EOF'
 {
   "permissions": {
     "allow": [
-      "Bash(${hook_path}/write-topic.sh:*)",
-      "Bash(${hook_path}/write-unclear-topic.sh:*)"
+      "Bash(/tmp/claude-setup-test-*/user_claude/.claude/hooks/write-topic.sh:*)",
+      "Bash(/tmp/claude-setup-test-*/user_claude/.claude/hooks/write-unclear-topic.sh:*)"
     ],
     "deny": []
   },
   "statusLine": {
     "type": "command",
-    "command": "${statusline_cmd}"
+    "command": "~/.claude/statusline.sh --project-dir \"$CLAUDE_PROJECT_DIR\""
   }
 }
 EOF
+
+    # Update the file with actual paths
+    local tmp_file=$(mktemp)
+    jq --arg write_topic "Bash(${hook_path}/write-topic.sh:*)" \
+       --arg write_unclear "Bash(${hook_path}/write-unclear-topic.sh:*)" \
+       '.permissions.allow = [$write_topic, $write_unclear]' "$settings_file" > "$tmp_file"
+    mv "$tmp_file" "$settings_file"
 
     local backup_count_before=$(ls -1 "${settings_file}.backup."* 2>/dev/null | wc -l)
 
@@ -177,7 +186,7 @@ test_statusline_missing() {
 
     local settings_file="$TEST_DIR/test6_settings.json"
     local hook_path="$TEST_DIR/user_claude/.claude/hooks"
-    local statusline_cmd="~/.claude/statusline.sh"
+    local statusline_cmd='~/.claude/statusline.sh --project-dir "$CLAUDE_PROJECT_DIR"'
 
     cat > "$settings_file" << EOF
 {
@@ -193,7 +202,8 @@ EOF
 
     add_permissions "$settings_file" "$hook_path" "$statusline_cmd"
 
-    if jq -e '.statusLine.command == "~/.claude/statusline.sh"' "$settings_file" >/dev/null; then
+    local expected_statusline='~/.claude/statusline.sh --project-dir "$CLAUDE_PROJECT_DIR"'
+    if jq -e --arg expected "$expected_statusline" '.statusLine.command == $expected' "$settings_file" >/dev/null; then
         log_pass "Statusline added when missing"
         return 0
     else
