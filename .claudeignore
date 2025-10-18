@@ -7,3 +7,5 @@ shell-snapshots/
 statsig/
 todos/
 commands.backup*/
+*.local.json
+*.local.*
