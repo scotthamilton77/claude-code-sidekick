@@ -4,6 +4,20 @@
 # Configurable threshold (default: 160K tokens = 80% of 200K context)
 THRESHOLD=${CLAUDE_AUTO_COMPACT_THRESHOLD:-160000}
 
+# Parse command line arguments for transcript file override
+TRANSCRIPT_OVERRIDE=""
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --transcript-file)
+            TRANSCRIPT_OVERRIDE="$2"
+            shift 2
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
+
 # Read JSON input from stdin
 input=$(cat)
 
@@ -84,16 +98,22 @@ format_duration() {
 calculate_tokens() {
     local session_id="$1"
     local total_tokens=0
-    
+
     if [ -n "$session_id" ] && [ "$session_id" != "null" ]; then
-        local transcript_path=$(find ~/.claude/projects -name "${session_id}.jsonl" 2>/dev/null | head -1)
+        local transcript_path
+        if [ -n "$TRANSCRIPT_OVERRIDE" ]; then
+            transcript_path="$TRANSCRIPT_OVERRIDE"
+        else
+            transcript_path=$(find ~/.claude/projects -name "${session_id}.jsonl" 2>/dev/null | head -1)
+        fi
+
         if [ -f "$transcript_path" ]; then
             # Estimate tokens (rough approximation: 1 token per 4 characters)
             local total_chars=$(wc -c < "$transcript_path")
             total_tokens=$((total_chars / 4))
         fi
     fi
-    
+
     echo "$total_tokens"
 }
 
@@ -135,7 +155,13 @@ get_session_topic() {
         return
     fi
 
-    local transcript_path=$(find ~/.claude/projects -name "${session_id}.jsonl" 2>/dev/null | head -1)
+    local transcript_path
+    if [ -n "$TRANSCRIPT_OVERRIDE" ]; then
+        transcript_path="$TRANSCRIPT_OVERRIDE"
+    else
+        transcript_path=$(find ~/.claude/projects -name "${session_id}.jsonl" 2>/dev/null | head -1)
+    fi
+
     if [ ! -f "$transcript_path" ]; then
         printf "${DIM}--${RESET}"
         return
