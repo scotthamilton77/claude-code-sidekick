@@ -75,3 +75,4 @@ Commands follow markdown-based specifications with:
 - `.claudeignore` patterns support both file and directory exclusions
 - All command templates assume integration with Atlas MCP for project/task management
 - The repository maintains both experimental (`commands-to-explore`) and stable (`commands`) command patterns
+- remember to NEVER make changes outside of the project's folders and files without explicit user authorization - when you think you need to, ask first
