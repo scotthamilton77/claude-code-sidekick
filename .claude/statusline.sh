@@ -143,7 +143,21 @@ get_session_topic() {
 
     # Extract first user message from JSONL transcript (skip "Warmup")
     # Format: {"type": "user", "message": {"role": "user", "content": "..."}}
-    local first_message=$(jq -r 'select(.type == "user") | .message.content // empty' "$transcript_path" 2>/dev/null | grep -iv "^warmup$" | head -1 | tr -d '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    # Filter out command-related noise from slash commands and local commands
+    # Use perl for multiline XML tag removal since sed doesn't handle multiline well
+    # Also skip JSON structures (tool results, arrays, objects) and JSON properties
+    local first_message=$(jq -r 'select(.type == "user") | .message.content // empty' "$transcript_path" 2>/dev/null | \
+        grep -iv "^warmup$" | \
+        perl -0777 -pe 's/<command-message>.*?<\/command-message>//gs; s/<command-name>.*?<\/command-name>//gs; s/<command-args>.*?<\/command-args>//gs; s/<local-command-stdout>.*?<\/local-command-stdout>//gs' | \
+        grep -iv "^Caveat: The messages below were generated" | \
+        sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | \
+        grep -v '^\[' | \
+        grep -v '^{' | \
+        grep -v '^}' | \
+        grep -v '^]' | \
+        grep -Ev '^"(type|text|tool_use_id|content|is_error)"' | \
+        grep -v '^$' | \
+        head -1 | tr -d '\n')
 
     if [ -z "$first_message" ]; then
         printf "${DIM}--${RESET}"
