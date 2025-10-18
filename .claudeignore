@@ -6,6 +6,12 @@ plugins/
 shell-snapshots/
 statsig/
 todos/
-commands.backup*/
+file-history/
 *.local.json
 *.local.*
+hooks/cache/
+history.jsonl
+*.backup
+*.backup/
+*.backup.*/
+debug/
