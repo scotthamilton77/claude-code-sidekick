@@ -48,6 +48,14 @@
       "Bash(touch:*)",
       "Bash(uname:*)",
       "Bash(uv run:*)",
+      "Bash(chmod:*)",
+      "Bash(echo:*)",
+      "Bash(./scripts/pull-from-claude.sh:*)",
+      "Bash(./debug-pull.sh:*)",
+      "Bash(./test-simple.sh:*)",
+      "Bash(./debug-ignore.sh)",
+      "Bash(./test-ignore-fix.sh:*)",
+      "Bash(./test-response-tracker.sh)",
       "mcp__context7__get-library-docs",
       "mcp__context7__resolve-library-id",
       "mcp__git__git_diff_staged",
@@ -67,8 +75,30 @@
     ],
     "deny": []
   },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/response-tracker.sh init \"$CLAUDE_PROJECT_DIR\""
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/response-tracker.sh track \"$CLAUDE_PROJECT_DIR\""
+          }
+        ]
+      }
+    ]
+  },
   "statusLine": {
     "type": "command",
-    "command": "~/.claude/statusline.sh"
+    "command": "~/.claude/statusline.sh --project-dir \"$CLAUDE_PROJECT_DIR\""
   }
 }

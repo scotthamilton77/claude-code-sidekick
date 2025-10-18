@@ -4,12 +4,17 @@
 # Configurable threshold (default: 160K tokens = 80% of 200K context)
 THRESHOLD=${CLAUDE_AUTO_COMPACT_THRESHOLD:-160000}
 
-# Parse command line arguments for transcript file override
+# Parse command line arguments for transcript file override and project dir
 TRANSCRIPT_OVERRIDE=""
+PROJECT_DIR=""
 while [[ $# -gt 0 ]]; do
     case $1 in
         --transcript-file)
             TRANSCRIPT_OVERRIDE="$2"
+            shift 2
+            ;;
+        --project-dir)
+            PROJECT_DIR="$2"
             shift 2
             ;;
         *)
@@ -168,51 +173,35 @@ get_session_topic() {
     fi
 
     # Check for topic file first (created by response-tracker.sh hook)
-    local session_dir=$(dirname "$transcript_path")
-    local topic_file="${session_dir}/${session_id}_topic"
+    # If PROJECT_DIR is not set, return a warning
+    if [ -z "$PROJECT_DIR" ]; then
+        printf "${RED}WARNING: statusline.sh has no project dir provided${RESET}"
+        return
+    fi
 
+    local topic_file="${PROJECT_DIR}/.claude/hooks/cache/${session_id}_topic"
+
+    # Check if topic file exists
     if [ -f "$topic_file" ]; then
         local topic=$(cat "$topic_file")
-        # Only use topic file if it's been set (not default "--")
-        if [ "$topic" != "--" ] && [ -n "$topic" ]; then
-            # Truncate if needed
-            if [ ${#topic} -gt $max_length ]; then
-                topic="${topic:0:$max_length}..."
-            fi
+        if [ -n "$topic" ]; then
             printf "${MAGENTA}%s${RESET}" "$topic"
             return
         fi
     fi
 
-    # Extract first user message from JSONL transcript (skip "Warmup")
-    # Format: {"type": "user", "message": {"role": "user", "content": "..."}}
-    # Filter out command-related noise from slash commands and local commands
-    # Use perl for multiline XML tag removal since sed doesn't handle multiline well
-    # Also skip JSON structures (tool results, arrays, objects) and JSON properties
-    local first_message=$(jq -r 'select(.type == "user") | .message.content // empty' "$transcript_path" 2>/dev/null | \
-        grep -iv "^warmup$" | \
-        perl -0777 -pe 's/<command-message>.*?<\/command-message>//gs; s/<command-name>.*?<\/command-name>//gs; s/<command-args>.*?<\/command-args>//gs; s/<local-command-stdout>.*?<\/local-command-stdout>//gs' | \
-        grep -iv "^Caveat: The messages below were generated" | \
-        sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | \
-        grep -v '^\[' | \
-        grep -v '^{' | \
-        grep -v '^}' | \
-        grep -v '^]' | \
-        grep -Ev '^"(type|text|tool_use_id|content|is_error)"' | \
-        grep -v '^$' | \
-        head -1 | tr -d '\n')
-
-    if [ -z "$first_message" ]; then
-        printf "${DIM}--${RESET}"
-        return
+    # Check for unclear topic file
+    local unclear_topic_file="${PROJECT_DIR}/.claude/hooks/cache/${session_id}_topic_unclear"
+    if [ -f "$unclear_topic_file" ]; then
+        local unclear_topic=$(cat "$unclear_topic_file")
+        if [ -n "$unclear_topic" ]; then
+            printf "${YELLOW}%s${RESET}" "$unclear_topic"
+            return
+        fi
     fi
 
-    # Truncate and add ellipsis if needed
-    if [ ${#first_message} -gt $max_length ]; then
-        first_message="${first_message:0:$max_length}..."
-    fi
-
-    printf "${MAGENTA}%s${RESET}" "$first_message"
+    # No topic available, return default
+    printf "${DIM}--${RESET}"
 }
 
 # Use the helpers
