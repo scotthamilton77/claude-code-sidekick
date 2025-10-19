@@ -9,6 +9,14 @@ set -euo pipefail
 readonly SCRIPT_VERSION="1.0.0"
 readonly SCRIPT_NAME="$(basename "$0")"
 
+# Error trap for debugging
+error_trap() {
+    local exit_code=$?
+    local line_no=$1
+    echo "[$(date -Iseconds)] [FATAL] Script failed at line $line_no with exit code $exit_code" >> "${LOG_FILE:-/tmp/claude-analysis-error.log}" 2>&1 || true
+}
+trap 'error_trap $LINENO' ERR
+
 # Parse command-line arguments
 usage() {
     cat <<EOF
@@ -56,30 +64,47 @@ readonly COLOR_GRAY='\033[0;90m'
 # Logging functions
 log() {
     echo "[$(date -Iseconds)] [INFO] $*" >> "$LOG_FILE"
-    [ "$VERBOSE" = true ] && echo -e "${COLOR_GREEN}[AnalyzeTranscript]${COLOR_RESET} $*" >&2
+    if [ "$VERBOSE" = true ]; then
+        echo -e "${COLOR_GREEN}[AnalyzeTranscript]${COLOR_RESET} $*" >&2
+    fi
+    return 0
 }
 
 log_error() {
     echo "[$(date -Iseconds)] [ERROR] $*" >> "$LOG_FILE"
     echo -e "${COLOR_RED}[AnalyzeTranscript] ERROR:${COLOR_RESET} $*" >&2
+    return 0
 }
 
 log_warn() {
     echo "[$(date -Iseconds)] [WARN] $*" >> "$LOG_FILE"
-    [ "$VERBOSE" = true ] && echo -e "${COLOR_YELLOW}[AnalyzeTranscript] WARN:${COLOR_RESET} $*" >&2
+    if [ "$VERBOSE" = true ]; then
+        echo -e "${COLOR_YELLOW}[AnalyzeTranscript] WARN:${COLOR_RESET} $*" >&2
+    fi
+    return 0
 }
 
 log_debug() {
-    [ "$VERBOSE" = true ] && echo "[$(date -Iseconds)] [DEBUG] $*" >> "$LOG_FILE"
-    [ "$VERBOSE" = true ] && echo -e "${COLOR_GRAY}[AnalyzeTranscript] DEBUG:${COLOR_RESET} $*" >&2
+    if [ "$VERBOSE" = true ]; then
+        echo "[$(date -Iseconds)] [DEBUG] $*" >> "$LOG_FILE"
+        echo -e "${COLOR_GRAY}[AnalyzeTranscript] DEBUG:${COLOR_RESET} $*" >&2
+    fi
+    return 0
 }
 
 # Cleanup function - called on exit
 cleanup() {
     local exit_code=$?
-    log_debug "Cleanup: removing workspace $workspace_dir and temp files"
+    log_debug "Cleanup: removing workspace ${workspace_dir:-<unset>} and temp files"
     [ -n "${workspace_dir:-}" ] && [ -d "$workspace_dir" ] && rm -rf "$workspace_dir"
     [ -n "${simplified_transcript:-}" ] && [ -f "$simplified_transcript" ] && rm -f "$simplified_transcript"
+
+    # Remove PID tracking file
+    if [ -f "$PID_FILE" ]; then
+        rm -f "$PID_FILE"
+        log_debug "Removed PID file: $PID_FILE"
+    fi
+
     log "Analysis completed with exit code: $exit_code"
     exit $exit_code
 }
@@ -109,6 +134,7 @@ esac
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROMPT_DIR="${SCRIPT_DIR}/analysis-prompts"
 OUTPUT_DIR="${SCRIPT_DIR}/tmp"
+PID_FILE="${SCRIPT_DIR}/tmp/${session_id}_analysis.pid"
 
 if [ ! -d "$PROMPT_DIR" ]; then
     log_error "Prompt template directory not found: $PROMPT_DIR"
