@@ -4,17 +4,12 @@
 # Configurable threshold (default: 160K tokens = 80% of 200K context)
 THRESHOLD=${CLAUDE_AUTO_COMPACT_THRESHOLD:-160000}
 
-# Parse command line arguments for transcript file override and project dir
+# Parse command line arguments for transcript file override
 TRANSCRIPT_OVERRIDE=""
-PROJECT_DIR=""
 while [[ $# -gt 0 ]]; do
     case $1 in
         --transcript-file)
             TRANSCRIPT_OVERRIDE="$2"
-            shift 2
-            ;;
-        --project-dir)
-            PROJECT_DIR="$2"
             shift 2
             ;;
         *)
@@ -160,26 +155,13 @@ get_session_topic() {
         return
     fi
 
-    local transcript_path
-    if [ -n "$TRANSCRIPT_OVERRIDE" ]; then
-        transcript_path="$TRANSCRIPT_OVERRIDE"
-    else
-        transcript_path=$(find ~/.claude/projects -name "${session_id}.jsonl" 2>/dev/null | head -1)
-    fi
+    # Determine cache directory based on script location (dual-scope compatible)
+    # This matches the approach used in write-topic.sh and write-unclear-topic.sh
+    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local cache_dir="${script_dir}/hooks/cache"
 
-    if [ ! -f "$transcript_path" ]; then
-        printf "${DIM}--${RESET}"
-        return
-    fi
-
-    # Check for topic file first (created by response-tracker.sh hook)
-    # If PROJECT_DIR is not set, return a warning
-    if [ -z "$PROJECT_DIR" ]; then
-        printf "${RED}WARNING: statusline.sh has no project dir provided${RESET}"
-        return
-    fi
-
-    local topic_file="${PROJECT_DIR}/.claude/hooks/cache/${session_id}_topic"
+    # Check for topic file first (created by write-topic.sh hook)
+    local topic_file="${cache_dir}/${session_id}_topic"
 
     # Check if topic file exists
     if [ -f "$topic_file" ]; then
@@ -191,7 +173,7 @@ get_session_topic() {
     fi
 
     # Check for unclear topic file
-    local unclear_topic_file="${PROJECT_DIR}/.claude/hooks/cache/${session_id}_topic_unclear"
+    local unclear_topic_file="${cache_dir}/${session_id}_topic_unclear"
     if [ -f "$unclear_topic_file" ]; then
         local unclear_topic=$(cat "$unclear_topic_file")
         if [ -n "$unclear_topic" ]; then
