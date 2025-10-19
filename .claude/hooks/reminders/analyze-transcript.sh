@@ -20,12 +20,13 @@ trap 'error_trap $LINENO' ERR
 # Parse command-line arguments
 usage() {
     cat <<EOF
-Usage: $SCRIPT_NAME <session_id> <transcript_path> <mode>
+Usage: $SCRIPT_NAME <session_id> <transcript_path> <mode> [output_base_dir]
 
 Arguments:
   session_id       UUID of the conversation session
   transcript_path  Path to JSONL transcript file
   mode             Analysis mode: topic-only|incremental|full-analytics
+  output_base_dir  Base directory for output (default: <script_dir>)
 
 Environment Variables:
   CLAUDE_ANALYSIS_MODEL    Model to use (default: haiku-4.5)
@@ -33,20 +34,22 @@ Environment Variables:
   VERBOSE                  Enable verbose logging (default: false)
 
 Output:
-  Analysis files written to: <script_dir>/tmp/
+  Analysis files written to: <output_base_dir>/tmp/ or <output_base_dir>/analytics/
 
 Example:
   $SCRIPT_NAME "abc-123" "/path/to/transcript.jsonl" "topic-only"
+  $SCRIPT_NAME "abc-123" "/path/to/transcript.jsonl" "topic-only" "/project/.claude/hooks/reminders"
 EOF
     exit 1
 }
 
 # Validate arguments
-[ $# -eq 3 ] || usage
+[ $# -ge 3 ] || usage
 
 session_id="$1"
 transcript_path="$2"
 mode="$3"
+output_base_dir="${4:-}"  # Optional 4th parameter
 
 # Configuration
 CLAUDE_MODEL="${CLAUDE_ANALYSIS_MODEL:-haiku}"
@@ -129,21 +132,24 @@ case "$mode" in
         ;;
 esac
 
-# Determine script directory for locating prompt templates and output
-# Support both project scope (.claude/hooks/reminders/) and user scope (~/.claude/hooks/reminders/)
+# Determine script directory for locating prompt templates
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROMPT_DIR="${SCRIPT_DIR}/analysis-prompts"
+
+# Determine base directory for output files
+# If output_base_dir provided, use it; otherwise use SCRIPT_DIR
+BASE_DIR="${output_base_dir:-$SCRIPT_DIR}"
 
 # Choose output directory based on analysis mode
 # topic-only and incremental → tmp/ (ephemeral, frequently overwritten)
 # full-analytics → analytics/ (persistent, detailed analysis)
 if [ "$mode" = "full-analytics" ]; then
-    OUTPUT_DIR="${SCRIPT_DIR}/analytics"
+    OUTPUT_DIR="${BASE_DIR}/analytics"
 else
-    OUTPUT_DIR="${SCRIPT_DIR}/tmp"
+    OUTPUT_DIR="${BASE_DIR}/tmp"
 fi
 
-PID_FILE="${SCRIPT_DIR}/tmp/${session_id}_analysis.pid"
+PID_FILE="${BASE_DIR}/tmp/${session_id}_analysis.pid"
 
 if [ ! -d "$PROMPT_DIR" ]; then
     log_error "Prompt template directory not found: $PROMPT_DIR"
