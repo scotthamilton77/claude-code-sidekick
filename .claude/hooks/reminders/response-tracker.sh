@@ -137,15 +137,16 @@ get_clarity_score() {
 }
 
 # Launch transcript analysis as detached background process
-# Args: session_id, transcript_path
-# Note: Output directory is determined by analyze-transcript.sh (always ${HOOK_DIR}/tmp)
+# Args: session_id, transcript_path, output_base_dir
+# output_base_dir should be parent of tmp/ (e.g., /project/.claude/hooks/reminders)
 launch_analysis() {
     local session_id="$1"
     local transcript_path="$2"
+    local output_base_dir="$3"
     local mode="${ANALYSIS_MODE}"
 
     # Validate inputs
-    if [ -z "$session_id" ] || [ -z "$transcript_path" ]; then
+    if [ -z "$session_id" ] || [ -z "$transcript_path" ] || [ -z "$output_base_dir" ]; then
         [ "$VERBOSE" = true ] && echo "[ResponseTracker] WARNING: Missing args for analysis" >&2
         return 1
     fi
@@ -157,7 +158,7 @@ launch_analysis() {
     fi
 
     # Check for existing analysis in progress
-    local pid_file="${cache_dir}/${session_id}_analysis.pid"
+    local pid_file="${output_base_dir}/tmp/${session_id}_analysis.pid"
     if [ -f "$pid_file" ]; then
         local existing_pid=$(cat "$pid_file" 2>/dev/null)
         # Check if process is still running
@@ -179,6 +180,7 @@ launch_analysis() {
         "$session_id" \
         "$transcript_path" \
         "$mode" \
+        "$output_base_dir" \
         </dev/null \
         &>"$log_file" &
 
@@ -186,7 +188,7 @@ launch_analysis() {
 
     # Write PID to tracking file
     echo "$analysis_pid" > "$pid_file"
-    [ "$VERBOSE" = true ] && echo "[ResponseTracker] Launched analysis: PID $analysis_pid, mode=$mode, pid_file=$pid_file" >&2
+    [ "$VERBOSE" = true ] && echo "[ResponseTracker] Launched analysis: PID $analysis_pid, mode=$mode, output_dir=$output_base_dir, pid_file=$pid_file" >&2
 
     return 0
 }
@@ -208,8 +210,10 @@ transcript_path=$(echo "$input" | jq -r '.transcript_path')
 
 # Store session state in project-local tmp directory
 cache_dir="${project_dir}/.claude/hooks/reminders/tmp"
+output_base_dir="${project_dir}/.claude/hooks/reminders"
 [ "$VERBOSE" = true ] && echo "[ResponseTracker] project_dir: $project_dir" >&2
 [ "$VERBOSE" = true ] && echo "[ResponseTracker] cache_dir: $cache_dir" >&2
+[ "$VERBOSE" = true ] && echo "[ResponseTracker] output_base_dir: $output_base_dir" >&2
 
 mkdir -p "$cache_dir" || {
     echo "[ResponseTracker] ERROR: Failed to create cache directory: $cache_dir" >&2
@@ -262,7 +266,7 @@ case "$operation" in
         # If no topic file exists, launch analysis immediately (first time)
         if [ ! -f "$topic_json_file" ]; then
             [ "$VERBOSE" = true ] && echo "[ResponseTracker] No topic file found, launching initial analysis" >&2
-            launch_analysis "$session_id" "$transcript_path"
+            launch_analysis "$session_id" "$transcript_path" "$output_base_dir"
         else
             # Get current clarity score
             clarity=$(get_clarity_score "$session_id" "$cache_dir")
@@ -277,7 +281,7 @@ case "$operation" in
             analysis_due=$((count % cadence))
             if [ $analysis_due -eq 0 ]; then
                 [ "$VERBOSE" = true ] && echo "[ResponseTracker] Analysis due at count $count (clarity=$clarity, cadence=$cadence)" >&2
-                launch_analysis "$session_id" "$transcript_path"
+                launch_analysis "$session_id" "$transcript_path" "$output_base_dir"
             fi
         fi
     fi
