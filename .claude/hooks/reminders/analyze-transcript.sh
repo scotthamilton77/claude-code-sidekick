@@ -133,7 +133,16 @@ esac
 # Support both project scope (.claude/hooks/reminders/) and user scope (~/.claude/hooks/reminders/)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROMPT_DIR="${SCRIPT_DIR}/analysis-prompts"
-OUTPUT_DIR="${SCRIPT_DIR}/tmp"
+
+# Choose output directory based on analysis mode
+# topic-only and incremental → tmp/ (ephemeral, frequently overwritten)
+# full-analytics → analytics/ (persistent, detailed analysis)
+if [ "$mode" = "full-analytics" ]; then
+    OUTPUT_DIR="${SCRIPT_DIR}/analytics"
+else
+    OUTPUT_DIR="${SCRIPT_DIR}/tmp"
+fi
+
 PID_FILE="${SCRIPT_DIR}/tmp/${session_id}_analysis.pid"
 
 if [ ! -d "$PROMPT_DIR" ]; then

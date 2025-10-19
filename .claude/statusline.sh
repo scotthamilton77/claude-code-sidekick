@@ -145,10 +145,9 @@ format_tokens() {
     fi
 }
 
-# Extract session topic from topic file or first user message in transcript
+# Extract session topic from LLM-generated analytics JSON
 get_session_topic() {
     local session_id="$1"
-    local max_length=50
 
     if [ -z "$session_id" ] || [ "$session_id" == "null" ]; then
         printf "${DIM}--${RESET}"
@@ -156,34 +155,61 @@ get_session_topic() {
     fi
 
     # Determine tmp directory based on script location (dual-scope compatible)
-    # This matches the approach used in write-topic.sh and write-unclear-topic.sh
     local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    local cache_dir="${script_dir}/hooks/reminders/tmp"
+    local tmp_dir="${script_dir}/hooks/reminders/tmp"
+    local analytics_file="${tmp_dir}/${session_id}_topic.json"
 
-    # Check for topic file first (created by write-topic.sh hook)
-    local topic_file="${cache_dir}/${session_id}_topic"
+    # Check for JSON analytics file
+    if [ ! -f "$analytics_file" ]; then
+        printf "${DIM}--${RESET}"
+        return
+    fi
 
-    # Check if topic file exists
-    if [ -f "$topic_file" ]; then
-        local topic=$(cat "$topic_file")
-        if [ -n "$topic" ]; then
-            printf "${MAGENTA}%s${RESET}" "$topic"
-            return
+    # Parse JSON fields
+    local task_ids=$(jq -r '.task_ids // empty' "$analytics_file" 2>/dev/null)
+    local initial_goal=$(jq -r '.initial_goal // empty' "$analytics_file" 2>/dev/null)
+    local current_objective=$(jq -r '.current_objective // empty' "$analytics_file" 2>/dev/null)
+    local clarity_score=$(jq -r '.clarity_score // 5' "$analytics_file" 2>/dev/null)
+
+    # Choose snarky comment based on clarity score (7+ = high clarity)
+    local snarky_comment
+    if [ "$clarity_score" -ge 7 ] 2>/dev/null; then
+        snarky_comment=$(jq -r '.high_clarity_snarky_comment // empty' "$analytics_file" 2>/dev/null)
+    else
+        snarky_comment=$(jq -r '.low_clarity_snarky_comment // empty' "$analytics_file" 2>/dev/null)
+    fi
+
+    # Build output: [$tasks]: $initial_goal / $current_objective\n$snarky_comment
+    local output=""
+
+    # Add task IDs prefix if present
+    if [ -n "$task_ids" ]; then
+        output="${CYAN}[${task_ids}]${RESET}: "
+    fi
+
+    # Add goals with separator
+    if [ -n "$initial_goal" ]; then
+        output="${output}${MAGENTA}${initial_goal}${RESET}"
+    fi
+    if [ -n "$current_objective" ]; then
+        if [ -n "$initial_goal" ]; then
+            output="${output} ${DIM}/${RESET} ${MAGENTA}${current_objective}${RESET}"
+        else
+            output="${output}${MAGENTA}${current_objective}${RESET}"
         fi
     fi
 
-    # Check for unclear topic file
-    local unclear_topic_file="${cache_dir}/${session_id}_topic_unclear"
-    if [ -f "$unclear_topic_file" ]; then
-        local unclear_topic=$(cat "$unclear_topic_file")
-        if [ -n "$unclear_topic" ]; then
-            printf "${YELLOW}%s${RESET}" "$unclear_topic"
-            return
-        fi
+    # Add snarky comment on new line
+    if [ -n "$snarky_comment" ]; then
+        output="${output}\n${YELLOW}${snarky_comment}${RESET}"
     fi
 
-    # No topic available, return default
-    printf "${DIM}--${RESET}"
+    # Output or fallback to default
+    if [ -n "$output" ]; then
+        printf "$output"
+    else
+        printf "${DIM}--${RESET}"
+    fi
 }
 
 # Use the helpers

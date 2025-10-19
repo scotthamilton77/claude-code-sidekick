@@ -297,40 +297,42 @@ fi
 - Removed duplicate `SCRIPT_DIR` definition
 - Added error trap for better debugging
 
-### Phase 4: Output Integration
+### Phase 4: Output Integration ✅
 
 **File**: `.claude/statusline.sh` (modifications)
 
+**Status**: COMPLETED
+
 **Changes**:
 
-1. Enhance `get_session_topic()` to check analytics directory:
+1. Enhanced `get_session_topic()` to read from tmp directory:
 ```bash
-# Check for JSON analytics file first
-local analytics_file="${cache_dir}/${session_id}_topic.json"
-if [ -f "$analytics_file" ]; then
-    # Extract topic with jq, fall back to legacy format
-    local topic=$(jq -r '.suggested_summary // .primary_topic' "$analytics_file" 2>/dev/null)
-    if [ -n "$topic" ] && [ "$topic" != "null" ]; then
-        printf "${MAGENTA}%s${RESET}" "$topic"
-        return
-    fi
-fi
+# Read JSON from tmp directory
+local tmp_dir="${script_dir}/hooks/reminders/tmp"
+local analytics_file="${tmp_dir}/${session_id}_topic.json"
 
-# Fall back to legacy topic file...
+# Parse fields: task_ids, initial_goal, current_objective, clarity_score
+# Choose snarky comment based on clarity_score >= 7
+# Format: [$tasks]: $initial_goal / $current_objective\n$snarky_comment
 ```
 
-2. Optional: Add analytics indicator (if full analytics available):
-```bash
-# Show indicator when rich analytics available
-if [ -f "${cache_dir}/${session_id}_analytics.json" ]; then
-    printf " ${BLUE}📊${RESET}"
-fi
-```
+2. Modified `analyze-transcript.sh` to route output based on mode:
+   - `topic-only` and `incremental` → `tmp/` (ephemeral)
+   - `full-analytics` → `analytics/` (persistent)
 
 **Success Criteria**:
-- Statusline displays LLM-generated topics when available
-- Falls back gracefully to legacy topic files
-- No performance degradation (file reads cached)
+- ✅ Statusline displays LLM-generated topics from tmp/
+- ✅ Multi-line format with task IDs, goals, and snarky comments
+- ✅ Conditional snark based on clarity score
+- ✅ Graceful fallback when JSON missing
+
+**Testing**:
+```bash
+# Tested with real session JSON
+cat test-input.json | ./statusline.sh
+# Output: [T001,FEAT-08]: Initial goal / Current objective
+#         Snarky comment based on clarity
+```
 
 ### Phase 5: Configuration & Documentation
 
@@ -421,29 +423,9 @@ CLAUDE_ANALYSIS_MODE=topic-only ./response-tracker.sh track "$PWD" < test-input.
 grep -i "hook" /tmp/claude-analysis-*.log
 ```
 
-### Phase 7: Deployment
+### Phase 7: Enhancements
 
-**1. Deploy to Project Scope** (for testing)
-```bash
-cd /home/scott/projects/claude-config
-# All files already in .claude/
-# Test in isolated project environment
-```
-
-**2. Add to Setup Script** (`scripts/setup-reminders.sh`)
-```bash
-# Add permissions for analyze-transcript.sh
-chmod +x "$HOOK_DIR/analyze-transcript.sh"
-
-# Create analytics directory
-mkdir -p "$HOOK_DIR/analytics"
-```
-
-**3. Deploy to User Scope** (after validation)
-```bash
-./scripts/push-to-claude.sh
-# Syncs to ~/.claude/
-```
+- Can we detect in response-tracker.sh a running nohup'd analyze-transcript.sh running from a prior attempt, and when found, log it and skip?  Let's not pile on stuck processes.
 
 ## Configuration Reference
 
