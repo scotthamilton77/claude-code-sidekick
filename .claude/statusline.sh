@@ -4,12 +4,17 @@
 # Configurable threshold (default: 160K tokens = 80% of 200K context)
 THRESHOLD=${CLAUDE_AUTO_COMPACT_THRESHOLD:-160000}
 
-# Parse command line arguments for transcript file override
+# Parse command line arguments for transcript file override and project directory
 TRANSCRIPT_OVERRIDE=""
+PROJECT_DIR=""
 while [[ $# -gt 0 ]]; do
     case $1 in
         --transcript-file)
             TRANSCRIPT_OVERRIDE="$2"
+            shift 2
+            ;;
+        --project-dir)
+            PROJECT_DIR="$2"
             shift 2
             ;;
         *)
@@ -154,9 +159,14 @@ get_session_topic() {
         return
     fi
 
-    # Determine tmp directory based on script location (dual-scope compatible)
-    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    local tmp_dir="${script_dir}/hooks/reminders/tmp"
+    # Determine tmp directory based on project dir (if provided) or script location
+    local tmp_dir
+    if [ -n "$PROJECT_DIR" ]; then
+        tmp_dir="${PROJECT_DIR}/.claude/hooks/reminders/tmp"
+    else
+        local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        tmp_dir="${script_dir}/hooks/reminders/tmp"
+    fi
     local analytics_file="${tmp_dir}/${session_id}_topic.json"
 
     # Check for JSON analytics file
