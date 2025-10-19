@@ -3,7 +3,7 @@
 # This script intelligently detects whether it's running in user (~/.claude) or project context
 # and updates the appropriate settings.json file(s) with required permissions
 #
-# Usage: setup.sh [--project]
+# Usage: setup-reminders.sh [--project]
 #   --project: Update ONLY project settings (default: user settings only)
 
 # Note: NOT using set -e to allow graceful error handling per-file

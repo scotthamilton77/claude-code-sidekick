@@ -1,5 +1,5 @@
 #!/bin/bash
-# Test harness for setup.sh - creates mock environment to test all error scenarios
+# Test harness for setup-reminders.sh - creates mock environment to test all error scenarios
 # without modifying real configuration files
 
 # Note: NOT using set -e to allow test functions to return status codes
@@ -366,10 +366,10 @@ test_gitignore_idempotent() {
     fi
 }
 
-# Source setup.sh once to import functions (won't execute main)
+# Source setup-reminders.sh once to import functions (won't execute main)
 # Suppress the argument parsing by clearing args
 set --
-source "$SCRIPT_DIR/../scripts/setup.sh"
+source "$SCRIPT_DIR/../scripts/setup-reminders.sh"
 
 # Run all tests
 echo ""
