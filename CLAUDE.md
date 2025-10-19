@@ -45,17 +45,18 @@ The repository is organized around three main systems:
 - `scripts/pull-from-claude.sh`: Import files from `~/.claude` → `.claude/`
 - `scripts/push-to-claude.sh`: Export files from `.claude/` → `~/.claude`
 - `scripts/sync-claude.sh`: Bidirectional sync (pull → push)
-- `scripts/setup.sh`: Initialize hook permissions and statusline configuration (supports `--include-local` flag)
+- `scripts/setup-reminders.sh`: Initialize hook permissions and statusline configuration (supports `--project` flag)
+- `scripts/cleanup-reminders.sh`: Remove hook permissions and statusline configuration (supports `--project` flag)
 
 ## Common Commands
 
 ### Initial Setup
 ```bash
 # Configure hook permissions and statusline for user scope
-./scripts/setup.sh
+./scripts/setup-reminders.sh
 
 # Also configure project-local settings (for testing in project scope)
-./scripts/setup.sh --include-local
+./scripts/setup-reminders.sh --project
 ```
 
 ### Configuration Sync
@@ -72,8 +73,11 @@ The repository is organized around three main systems:
 
 ### Testing
 ```bash
-# Test setup.sh functionality (comprehensive test suite)
-./tests/test-setup.sh
+# Test setup-reminders.sh functionality (comprehensive test suite)
+./tests/test-setup-reminders.sh
+
+# Test cleanup-reminders.sh functionality
+./tests/test-cleanup-reminders.sh
 
 # Test response tracker hook behavior
 ./tests/test-response-tracker.sh
@@ -100,7 +104,7 @@ All scripts must support both deployment contexts:
 - **Project scope**: Paths relative to `$CLAUDE_PROJECT_DIR/.claude/`
 - **User scope**: Paths relative to `~/.claude/`
 
-Use environment variables and dynamic path resolution to ensure portability. See `setup.sh:186-254` for context detection patterns.
+Use environment variables and dynamic path resolution to ensure portability. See `setup-reminders.sh:186-254` for context detection patterns.
 
 ### Hook System Architecture
 Hooks execute at specific conversation events:

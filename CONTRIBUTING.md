@@ -33,8 +33,9 @@ Enhancement suggestions are tracked as GitHub issues. When suggesting:
 2. **Test thoroughly** using both scopes:
    ```bash
    # Test project-scope
-   ./scripts/setup.sh --include-local
-   ./tests/test-setup.sh
+   ./scripts/setup-reminders.sh --project
+   ./tests/test-setup-reminders.sh
+   ./tests/test-cleanup-reminders.sh
 
    # Test user-scope deployment
    ./scripts/push-to-claude.sh
@@ -94,7 +95,7 @@ When creating or modifying hooks:
 - **No `set -e`** in scripts that need graceful error handling
 - **Use `set -e`** for scripts that should fail fast
 - **Color output** for user feedback (see existing scripts for patterns)
-- **Backup before modifying** critical files (see `setup.sh:109-116`)
+- **Backup before modifying** critical files (see `setup-reminders.sh:109-116`)
 - **Validate JSON** before/after modifications using `jq`
 
 ### Testing Requirements
@@ -103,7 +104,8 @@ All significant changes require tests:
 
 ```bash
 # Add test cases to appropriate test file
-./tests/test-setup.sh
+./tests/test-setup-reminders.sh
+./tests/test-cleanup-reminders.sh
 ./tests/test-response-tracker.sh
 
 # Create new test file for new functionality
@@ -177,7 +179,7 @@ graph TD
 - **Update CLAUDE.md** for architectural changes
 - **Update README.md** for user-facing changes
 - **Inline comments** for non-obvious code
-- **Reference line numbers** when documenting: `setup.sh:186-254`
+- **Reference line numbers** when documenting: `setup-reminders.sh:186-254`
 
 ## Questions?
 

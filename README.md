@@ -10,9 +10,11 @@ This repository serves as a development and testing environment for [Claude Code
 
 ## TODOs
 
+- separate setup for different functions: statusline, reminders - and cleanup
+- cleanup.sh should also remove all the footprint from this project, e.g. every agent, command, skill, etc. that matches the project's contents exactly should be deleted
 - what if we shifted to launching claude /p (with haiku 4.5 or cheaper?) to derive intent rather than hinting back to claude?
 - statusline is coupled to the reminders; we should make this modular to allow the reminders to inject or supply a module for statusline to load dynamically
-- tmp cleanup
+- periodic tmp cleanup
 
 ### Key Features
 
@@ -41,15 +43,16 @@ cd claude-config
 2. Configure hook permissions and statusline:
 ```bash
 # For user-scope deployment
-./scripts/setup.sh
+./scripts/setup-reminders.sh
 
 # For project-scope testing (includes local settings)
-./scripts/setup.sh --include-local
+./scripts/setup-reminders.sh --project
 ```
 
 3. Test the installation:
 ```bash
-./tests/test-setup.sh
+./tests/test-setup-reminders.sh
+./tests/test-cleanup-reminders.sh
 ```
 
 ## Architecture
@@ -77,7 +80,8 @@ cd claude-config
 │   ├── commands/plan/          # Planning commands
 │   └── commands/proto/         # Prototypes
 ├── scripts/                    # Sync infrastructure
-│   ├── setup.sh                # Permission/statusline setup
+│   ├── setup-reminders.sh      # Permission/statusline setup
+│   ├── cleanup-reminders.sh    # Remove permissions/statusline
 │   ├── pull-from-claude.sh     # Import from ~/.claude
 │   ├── push-to-claude.sh       # Export to ~/.claude
 │   └── sync-claude.sh          # Bidirectional sync
@@ -123,7 +127,10 @@ All hooks maintain state in `.claude/hooks/reminders/tmp/` (excluded from versio
 
 ```bash
 # Test setup script functionality
-./tests/test-setup.sh
+./tests/test-setup-reminders.sh
+
+# Test cleanup script functionality
+./tests/test-cleanup-reminders.sh
 
 # Test response tracker behavior
 ./tests/test-response-tracker.sh
@@ -162,7 +169,7 @@ All scripts must work in both contexts:
 - **Project scope**: `.claude/` within this repository
 - **User scope**: `~/.claude/` global directory
 
-Use environment variables (`$CLAUDE_PROJECT_DIR`) and dynamic path resolution. See `scripts/setup.sh:186-254` for implementation patterns.
+Use environment variables (`$CLAUDE_PROJECT_DIR`) and dynamic path resolution. See `scripts/setup-reminders.sh:186-254` for implementation patterns.
 
 ### Timestamp-Based Sync
 
