@@ -25,5 +25,8 @@ node_modules/
 # OS specific
 .DS_Store
 
+# Windows Zone.Identifier files (created when copying from Windows to WSL)
+*:Zone.Identifier
+
 # Claude hook cache (session-specific ephemeral state)
 .claude/hooks/cache/
