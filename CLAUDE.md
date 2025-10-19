@@ -31,7 +31,10 @@ The repository is organized around three main systems:
 - `.claude/hooks/reminders/write-topic.sh`: Records clear conversation topics with metadata
 - `.claude/hooks/reminders/write-unclear-topic.sh`: Handles vague/ambiguous user requests
 - `.claude/hooks/reminders/response-tracker.sh`: Monitors Claude responses and provides periodic reminders
+- `.claude/hooks/reminders/analyze-transcript.sh`: Async LLM-based transcript analysis (detached background process)
+- `.claude/hooks/reminders/analysis-prompts/`: LLM prompt templates for different analysis modes
 - `.claude/hooks/reminders/tmp/`: Runtime state for hook operations (excluded from version control)
+- `.claude/hooks/reminders/analytics/`: Persistent analytics output (excluded from sync)
 
 #### Configuration Files
 - `.claude/CLAUDE.md`: Project-specific instructions (mirrors global `~/.claude/CLAUDE.md`)
@@ -114,6 +117,127 @@ Hooks execute at specific conversation events:
   - `response-tracker.sh`: Maintains response count, injects periodic reminders
 
 State files in `.claude/hooks/reminders/tmp/` persist across conversations (gitignored).
+
+### LLM Analysis System
+
+The repository implements an **asynchronous transcript analysis system** that uses detached background processes to analyze conversation transcripts with LLM models without impacting hook performance.
+
+#### Architecture
+
+```
+User Conversation (Sonnet 4.5)
+    ↓
+response-tracker.sh fires → decides if analysis needed
+    ↓ YES
+Launch detached: analyze-transcript.sh &
+    ↓ (hook exits immediately <50ms)
+
+[Background Process - Isolated]
+    ↓
+Create /tmp workspace with empty hooks config
+    ↓
+claude -p --model haiku-4.5 (prevents recursion)
+    ↓
+Parse JSON output
+    ↓
+Write to .claude/hooks/reminders/tmp/ or analytics/
+```
+
+#### Key Features
+
+- **Zero-Latency Execution**: Hooks launch analysis via `nohup` and exit immediately
+- **Recursion Prevention**: Isolated workspace with `"hooks":{}` in settings.json
+- **Adaptive Cadence**: Analysis frequency adjusts based on conversation clarity
+- **Cost-Efficient**: Uses Haiku models (~$0.03-0.07 per 100-response conversation)
+- **Dual-Output Routing**:
+  - `topic-only`/`incremental` modes → `tmp/` (ephemeral, statusline consumption)
+  - `full-analytics` mode → `analytics/` (persistent, historical review)
+
+#### Components
+
+- **`analyze-transcript.sh`**: Core analysis script (detached execution)
+- **`analysis-prompts/`**: Mode-specific prompt templates
+  - `topic-only.txt`: Fast topic detection (~2s, minimal tokens)
+  - `incremental.txt`: Recent context analysis (~4s)
+  - `full-analytics.txt`: Comprehensive insights (~10s)
+- **`.claude/hooks/reminders/analytics/`**: Persistent analytics storage (gitignored)
+- **`.claude/hooks/reminders/tmp/`**: Ephemeral topic files for statusline
+
+#### Configuration
+
+Control via environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CLAUDE_ANALYSIS_ENABLED` | `true` | Enable/disable analysis |
+| `CLAUDE_ANALYSIS_MODE` | `topic-only` | Mode: `topic-only`, `incremental`, `full-analytics` |
+| `CLAUDE_ANALYSIS_CADENCE` | `3` | Base frequency (every N responses) |
+| `CLAUDE_ANALYSIS_CADENCE_HIGH_CLARITY` | `5` | Frequency for clear conversations |
+| `CLAUDE_ANALYSIS_CADENCE_LOW_CLARITY` | `2` | Frequency for unclear conversations |
+| `CLAUDE_ANALYSIS_CLARITY_THRESHOLD` | `7` | Clarity score threshold (1-10 scale) |
+| `CLAUDE_ANALYSIS_MODEL` | `haiku-4.5` | Model: `haiku-4.5`, `haiku-3.5`, `haiku-3` |
+
+#### Output Schema
+
+**Topic Files** (`{session_id}_topic.json`):
+```json
+{
+  "session_id": "...",
+  "timestamp": "2025-10-19T12:34:56Z",
+  "task_ids": ["T001", "FEAT-08"],
+  "initial_goal": "User's stated objective",
+  "current_objective": "Current work focus",
+  "clarity_score": 9,
+  "confidence": 0.95,
+  "snarky_comment": "Witty observation (if clarity >= 7)"
+}
+```
+
+**Analytics Files** (`{session_id}_analytics.json` - full mode only):
+```json
+{
+  "session_id": "...",
+  "timestamp": "...",
+  "topic_evolution": [...],
+  "complexity_metrics": {...},
+  "language_patterns": [...],
+  "key_decisions": [...],
+  "technical_domains": [...]
+}
+```
+
+#### Troubleshooting
+
+**Analysis not running**:
+```bash
+# Check if enabled
+echo $CLAUDE_ANALYSIS_ENABLED
+
+# View logs
+tail -f /tmp/claude-analysis-*.log
+
+# Check for stuck processes
+ps aux | grep analyze-transcript
+```
+
+**Performance issues**:
+```bash
+# Measure hook overhead
+time ./response-tracker.sh track "$PWD" < test.json
+
+# Should be <50ms
+```
+
+**Disk space concerns**:
+```bash
+# Check analytics directory size
+du -sh ~/.claude/hooks/reminders/analytics
+
+# Clean old files (30+ days)
+find ~/.claude/hooks/reminders/analytics -name "*.json" -mtime +30 -delete
+```
+
+See `LLM_PLAN.md` for complete implementation details and `analytics/README.md` for output documentation.
 
 ### Synchronization Behavior
 - Timestamp-based copying: only files newer than destination are transferred
