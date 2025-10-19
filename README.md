@@ -10,7 +10,9 @@ This repository serves as a development and testing environment for [Claude Code
 
 ## TODOs
 
+- what if we shifted to launching claude /p (with haiku 4.5 or cheaper?) to derive intent rather than hinting back to claude?
 - statusline is coupled to the reminders; we should make this modular to allow the reminders to inject or supply a module for statusline to load dynamically
+- tmp cleanup
 
 ### Key Features
 
@@ -58,10 +60,11 @@ cd claude-config
 .
 ├── .claude/                    # Project-scoped Claude configuration
 │   ├── hooks/                  # Conversation event handlers
-│   │   ├── write-topic.sh      # Topic classification
-│   │   ├── write-unclear-topic.sh
-│   │   ├── response-tracker.sh # Response monitoring
-│   │   └── cache/              # Runtime state (gitignored)
+│   │   └── reminders/          # Reminder-related hooks
+│   │       ├── write-topic.sh      # Topic classification
+│   │       ├── write-unclear-topic.sh
+│   │       ├── response-tracker.sh # Response monitoring
+│   │       └── tmp/              # Runtime state (gitignored)
 │   ├── skills/                 # Claude Code skills
 │   ├── agents/                 # Custom agent definitions
 │   ├── CLAUDE.md               # Project instructions
@@ -85,9 +88,9 @@ cd claude-config
 
 Hooks execute at conversation events to enhance Claude Code behavior:
 
-- **write-topic.sh**: Analyzes user intent and records conversation metadata
-- **write-unclear-topic.sh**: Handles vague/ambiguous requests with cynical feedback
-- **response-tracker.sh**: Monitors response count and injects periodic reminders
+- **reminders/write-topic.sh**: Analyzes user intent and records conversation metadata
+- **reminders/write-unclear-topic.sh**: Handles vague/ambiguous requests with cynical feedback
+- **reminders/response-tracker.sh**: Monitors response count and injects periodic reminders
 
 All hooks maintain state in `.claude/hooks/reminders/tmp/` (excluded from version control).
 

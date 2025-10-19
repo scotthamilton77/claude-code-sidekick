@@ -28,23 +28,23 @@ trap cleanup EXIT
 
 # Setup test environment
 setup_test_env() {
-    mkdir -p "$TEST_DIR"/{user_claude,project_claude}/.claude/{hooks,cache}
+    mkdir -p "$TEST_DIR"/{user_claude,project_claude}/.claude/hooks/reminders/tmp
 
     # Create mock hook scripts
-    cat > "$TEST_DIR/user_claude/.claude/hooks/write-topic.sh" << 'EOF'
+    cat > "$TEST_DIR/user_claude/.claude/hooks/reminders/write-topic.sh" << 'EOF'
 #!/bin/bash
 echo "mock write-topic.sh"
 EOF
 
-    cat > "$TEST_DIR/user_claude/.claude/hooks/write-unclear-topic.sh" << 'EOF'
+    cat > "$TEST_DIR/user_claude/.claude/hooks/reminders/write-unclear-topic.sh" << 'EOF'
 #!/bin/bash
 echo "mock write-unclear-topic.sh"
 EOF
 
     # Copy to project hooks
-    cp "$TEST_DIR/user_claude/.claude/hooks"/*.sh "$TEST_DIR/project_claude/.claude/hooks/"
+    cp "$TEST_DIR/user_claude/.claude/hooks/reminders"/*.sh "$TEST_DIR/project_claude/.claude/hooks/reminders/"
 
-    chmod +x "$TEST_DIR"/{user_claude,project_claude}/.claude/hooks/*.sh
+    chmod +x "$TEST_DIR"/{user_claude,project_claude}/.claude/hooks/reminders/*.sh
 }
 
 # Test 1: Valid JSON with existing permissions
@@ -64,16 +64,21 @@ test_valid_with_permissions() {
 }
 EOF
 
-    add_permissions "$settings_file" "$TEST_DIR/user_claude/.claude/hooks" '~/.claude/statusline.sh --project-dir "$CLAUDE_PROJECT_DIR"'
+    add_permissions "$settings_file" "$TEST_DIR/user_claude/.claude/hooks" '~/.claude/statusline.sh --project-dir "$CLAUDE_PROJECT_DIR"' '~/.claude'
 
-    # Verify permissions and statusline were added
+    # Verify permissions, hooks, and statusline were added
     local expected_statusline='~/.claude/statusline.sh --project-dir "$CLAUDE_PROJECT_DIR"'
+    local expected_session_start='~/.claude/hooks/reminders/response-tracker.sh init "$CLAUDE_PROJECT_DIR"'
+    local expected_prompt_submit='~/.claude/hooks/reminders/response-tracker.sh track "$CLAUDE_PROJECT_DIR"'
+
     if jq -e '.permissions.allow | map(select(test("write-topic"))) | length > 0' "$settings_file" >/dev/null && \
-       jq -e --arg expected "$expected_statusline" '.statusLine.command == $expected' "$settings_file" >/dev/null; then
-        log_pass "Permissions and statusline added successfully"
+       jq -e --arg expected "$expected_statusline" '.statusLine.command == $expected' "$settings_file" >/dev/null && \
+       jq -e --arg expected "$expected_session_start" '.hooks.SessionStart[0].hooks[0].command == $expected' "$settings_file" >/dev/null && \
+       jq -e --arg expected "$expected_prompt_submit" '.hooks.UserPromptSubmit[0].hooks[0].command == $expected' "$settings_file" >/dev/null; then
+        log_pass "Permissions, hooks, and statusline added successfully"
         return 0
     else
-        echo "FAIL: Permissions or statusline not added correctly"
+        echo "FAIL: Permissions, hooks, or statusline not added correctly"
         return 1
     fi
 }
@@ -90,14 +95,16 @@ test_valid_no_permissions() {
 }
 EOF
 
-    add_permissions "$settings_file" "$TEST_DIR/user_claude/.claude/hooks" '~/.claude/statusline.sh --project-dir "$CLAUDE_PROJECT_DIR"'
+    add_permissions "$settings_file" "$TEST_DIR/user_claude/.claude/hooks" '~/.claude/statusline.sh --project-dir "$CLAUDE_PROJECT_DIR"' '~/.claude'
 
     if jq -e '.permissions.allow | length > 0' "$settings_file" >/dev/null && \
-       jq -e '.statusLine.command' "$settings_file" >/dev/null; then
-        log_pass "Permissions and statusline structure created and populated"
+       jq -e '.statusLine.command' "$settings_file" >/dev/null && \
+       jq -e '.hooks.SessionStart' "$settings_file" >/dev/null && \
+       jq -e '.hooks.UserPromptSubmit' "$settings_file" >/dev/null; then
+        log_pass "Permissions, hooks, and statusline structure created and populated"
         return 0
     else
-        echo "FAIL: Permissions or statusline not created"
+        echo "FAIL: Permissions, hooks, or statusline not created"
         return 1
     fi
 }
@@ -109,7 +116,7 @@ test_corrupted_json() {
     local settings_file="$TEST_DIR/test3_settings.json"
     echo "{ this is not valid json }" > "$settings_file"
 
-    if add_permissions "$settings_file" "$TEST_DIR/user_claude/.claude/hooks" "~/.claude/statusline.sh" 2>/dev/null; then
+    if add_permissions "$settings_file" "$TEST_DIR/user_claude/.claude/hooks" "~/.claude/statusline.sh" '~/.claude' 2>/dev/null; then
         echo "FAIL: Should have rejected corrupted JSON"
         return 1
     else
@@ -124,7 +131,7 @@ test_missing_file() {
 
     local settings_file="$TEST_DIR/nonexistent.json"
 
-    if add_permissions "$settings_file" "$TEST_DIR/user_claude/.claude/hooks" "~/.claude/statusline.sh" 2>/dev/null; then
+    if add_permissions "$settings_file" "$TEST_DIR/user_claude/.claude/hooks" "~/.claude/statusline.sh" '~/.claude' 2>/dev/null; then
         echo "FAIL: Should have failed on missing file"
         return 1
     else
@@ -146,28 +153,50 @@ test_already_configured() {
 {
   "permissions": {
     "allow": [
-      "Bash(/tmp/claude-setup-test-*/user_claude/.claude/hooks/write-topic.sh:*)",
-      "Bash(/tmp/claude-setup-test-*/user_claude/.claude/hooks/write-unclear-topic.sh:*)"
+      "Bash(/tmp/claude-setup-test-*/user_claude/.claude/hooks/reminders/write-topic.sh:*)",
+      "Bash(/tmp/claude-setup-test-*/user_claude/.claude/hooks/reminders/write-unclear-topic.sh:*)"
     ],
     "deny": []
   },
   "statusLine": {
     "type": "command",
     "command": "~/.claude/statusline.sh --project-dir \"$CLAUDE_PROJECT_DIR\""
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/reminders/response-tracker.sh init \"$CLAUDE_PROJECT_DIR\""
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/reminders/response-tracker.sh track \"$CLAUDE_PROJECT_DIR\""
+          }
+        ]
+      }
+    ]
   }
 }
 EOF
 
     # Update the file with actual paths
     local tmp_file=$(mktemp)
-    jq --arg write_topic "Bash(${hook_path}/write-topic.sh:*)" \
-       --arg write_unclear "Bash(${hook_path}/write-unclear-topic.sh:*)" \
+    jq --arg write_topic "Bash(${hook_path}/reminders/write-topic.sh:*)" \
+       --arg write_unclear "Bash(${hook_path}/reminders/write-unclear-topic.sh:*)" \
        '.permissions.allow = [$write_topic, $write_unclear]' "$settings_file" > "$tmp_file"
     mv "$tmp_file" "$settings_file"
 
     local backup_count_before=$(ls -1 "${settings_file}.backup."* 2>/dev/null | wc -l)
 
-    add_permissions "$settings_file" "$hook_path" "$statusline_cmd"
+    add_permissions "$settings_file" "$hook_path" "$statusline_cmd" '~/.claude'
 
     local backup_count_after=$(ls -1 "${settings_file}.backup."* 2>/dev/null | wc -l)
 
@@ -192,29 +221,65 @@ test_statusline_missing() {
 {
   "permissions": {
     "allow": [
-      "Bash(${hook_path}/write-topic.sh:*)",
-      "Bash(${hook_path}/write-unclear-topic.sh:*)"
+      "Bash(${hook_path}/reminders/write-topic.sh:*)",
+      "Bash(${hook_path}/reminders/write-unclear-topic.sh:*)"
     ],
     "deny": []
   }
 }
 EOF
 
-    add_permissions "$settings_file" "$hook_path" "$statusline_cmd"
+    add_permissions "$settings_file" "$hook_path" "$statusline_cmd" '~/.claude'
 
     local expected_statusline='~/.claude/statusline.sh --project-dir "$CLAUDE_PROJECT_DIR"'
-    if jq -e --arg expected "$expected_statusline" '.statusLine.command == $expected' "$settings_file" >/dev/null; then
-        log_pass "Statusline added when missing"
+    if jq -e --arg expected "$expected_statusline" '.statusLine.command == $expected' "$settings_file" >/dev/null && \
+       jq -e '.hooks.SessionStart' "$settings_file" >/dev/null && \
+       jq -e '.hooks.UserPromptSubmit' "$settings_file" >/dev/null; then
+        log_pass "Statusline and hooks added when missing"
         return 0
     else
-        echo "FAIL: Statusline not added"
+        echo "FAIL: Statusline or hooks not added"
         return 1
     fi
 }
 
-# Test 7: .gitignore creation in git repo
+# Test 7: Project-scope hooks configuration
+test_project_scope_hooks() {
+    log_test "Test 7: Project-scope hooks configuration"
+
+    local settings_file="$TEST_DIR/test7_settings.json"
+    local hook_path="$TEST_DIR/project_claude/.claude/hooks"
+    local statusline_cmd='$CLAUDE_PROJECT_DIR/.claude/statusline.sh --project-dir "$CLAUDE_PROJECT_DIR"'
+    local hooks_prefix='$CLAUDE_PROJECT_DIR/.claude'
+
+    cat > "$settings_file" << 'EOF'
+{
+  "permissions": {
+    "allow": [],
+    "deny": []
+  }
+}
+EOF
+
+    add_permissions "$settings_file" "$hook_path" "$statusline_cmd" "$hooks_prefix"
+
+    local expected_session_start='$CLAUDE_PROJECT_DIR/.claude/hooks/reminders/response-tracker.sh init "$CLAUDE_PROJECT_DIR"'
+    local expected_prompt_submit='$CLAUDE_PROJECT_DIR/.claude/hooks/reminders/response-tracker.sh track "$CLAUDE_PROJECT_DIR"'
+
+    if jq -e --arg expected "$expected_session_start" '.hooks.SessionStart[0].hooks[0].command == $expected' "$settings_file" >/dev/null && \
+       jq -e --arg expected "$expected_prompt_submit" '.hooks.UserPromptSubmit[0].hooks[0].command == $expected' "$settings_file" >/dev/null; then
+        log_pass "Project-scope hooks configured correctly"
+        return 0
+    else
+        echo "FAIL: Project-scope hooks not configured correctly"
+        jq '.hooks' "$settings_file"
+        return 1
+    fi
+}
+
+# Test 8: .gitignore creation in git repo
 test_gitignore_creation() {
-    log_test "Test 7: .gitignore creation in git repo"
+    log_test "Test 8: .gitignore creation in git repo"
 
     local test_project="$TEST_DIR/git_project"
     mkdir -p "$test_project"
@@ -234,9 +299,9 @@ test_gitignore_creation() {
     fi
 }
 
-# Test 8: .gitignore update in existing file
+# Test 9: .gitignore update in existing file
 test_gitignore_update() {
-    log_test "Test 8: .gitignore update in existing file"
+    log_test "Test 9: .gitignore update in existing file"
 
     local test_project="$TEST_DIR/git_project2"
     mkdir -p "$test_project"
@@ -258,9 +323,9 @@ test_gitignore_update() {
     fi
 }
 
-# Test 9: .gitignore skip when not a git repo
+# Test 10: .gitignore skip when not a git repo
 test_gitignore_skip_non_git() {
-    log_test "Test 9: .gitignore skip when not a git repo"
+    log_test "Test 10: .gitignore skip when not a git repo"
 
     local test_project="$TEST_DIR/non_git_project"
     mkdir -p "$test_project"
@@ -276,9 +341,9 @@ test_gitignore_skip_non_git() {
     fi
 }
 
-# Test 10: .gitignore idempotency
+# Test 11: .gitignore idempotency
 test_gitignore_idempotent() {
-    log_test "Test 10: .gitignore idempotency (no duplicates)"
+    log_test "Test 11: .gitignore idempotency (no duplicates)"
 
     local test_project="$TEST_DIR/git_project3"
     mkdir -p "$test_project"
@@ -315,7 +380,7 @@ echo ""
 PASSED=0
 FAILED=0
 
-for test_func in test_valid_with_permissions test_valid_no_permissions test_corrupted_json test_missing_file test_already_configured test_statusline_missing test_gitignore_creation test_gitignore_update test_gitignore_skip_non_git test_gitignore_idempotent; do
+for test_func in test_valid_with_permissions test_valid_no_permissions test_corrupted_json test_missing_file test_already_configured test_statusline_missing test_project_scope_hooks test_gitignore_creation test_gitignore_update test_gitignore_skip_non_git test_gitignore_idempotent; do
     # Reset global state between tests
     BACKUP_FILES=()
 
