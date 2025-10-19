@@ -12,32 +12,33 @@ readonly SCRIPT_NAME="$(basename "$0")"
 # Parse command-line arguments
 usage() {
     cat <<EOF
-Usage: $SCRIPT_NAME <session_id> <transcript_path> <mode> <output_dir>
+Usage: $SCRIPT_NAME <session_id> <transcript_path> <mode>
 
 Arguments:
   session_id       UUID of the conversation session
   transcript_path  Path to JSONL transcript file
   mode             Analysis mode: topic-only|incremental|full-analytics
-  output_dir       Directory to write JSON output files
 
 Environment Variables:
   CLAUDE_ANALYSIS_MODEL    Model to use (default: haiku-4.5)
   CLAUDE_BIN               Path to Claude CLI binary (default: ~/.claude/local/claude)
   VERBOSE                  Enable verbose logging (default: false)
 
+Output:
+  Analysis files written to: <script_dir>/tmp/
+
 Example:
-  $SCRIPT_NAME "abc-123" "/path/to/transcript.jsonl" "topic-only" "/tmp/analytics"
+  $SCRIPT_NAME "abc-123" "/path/to/transcript.jsonl" "topic-only"
 EOF
     exit 1
 }
 
 # Validate arguments
-[ $# -eq 4 ] || usage
+[ $# -eq 3 ] || usage
 
 session_id="$1"
 transcript_path="$2"
 mode="$3"
-output_dir="$4"
 
 # Configuration
 CLAUDE_MODEL="${CLAUDE_ANALYSIS_MODEL:-haiku}"
@@ -76,8 +77,9 @@ log_debug() {
 # Cleanup function - called on exit
 cleanup() {
     local exit_code=$?
-    log_debug "Cleanup: removing workspace $workspace_dir"
+    log_debug "Cleanup: removing workspace $workspace_dir and temp files"
     [ -n "${workspace_dir:-}" ] && [ -d "$workspace_dir" ] && rm -rf "$workspace_dir"
+    [ -n "${simplified_transcript:-}" ] && [ -f "$simplified_transcript" ] && rm -f "$simplified_transcript"
     log "Analysis completed with exit code: $exit_code"
     exit $exit_code
 }
@@ -91,14 +93,6 @@ if [ ! -f "$transcript_path" ]; then
     exit 1
 fi
 
-if [ ! -d "$output_dir" ]; then
-    log_debug "Creating output directory: $output_dir"
-    mkdir -p "$output_dir" || {
-        log_error "Failed to create output directory: $output_dir"
-        exit 1
-    }
-fi
-
 # Validate mode
 case "$mode" in
     topic-only|incremental|full-analytics)
@@ -110,17 +104,54 @@ case "$mode" in
         ;;
 esac
 
-# Determine script directory for locating prompt templates
+# Determine script directory for locating prompt templates and output
 # Support both project scope (.claude/hooks/reminders/) and user scope (~/.claude/hooks/reminders/)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROMPT_DIR="${SCRIPT_DIR}/analysis-prompts"
+OUTPUT_DIR="${SCRIPT_DIR}/tmp"
 
 if [ ! -d "$PROMPT_DIR" ]; then
     log_error "Prompt template directory not found: $PROMPT_DIR"
     exit 1
 fi
 
+# Ensure output directory exists
+if [ ! -d "$OUTPUT_DIR" ]; then
+    log_debug "Creating output directory: $OUTPUT_DIR"
+    mkdir -p "$OUTPUT_DIR" || {
+        log_error "Failed to create output directory: $OUTPUT_DIR"
+        exit 1
+    }
+fi
+
+# Pre-process transcript to extract only message objects
+# Converts raw JSONL format to simplified message-only JSONL
+# Input: path to transcript file
+# Output: path to simplified transcript file
+preprocess_transcript() {
+    local transcript_path="$1"
+    local output_path="$2"
+
+    log_debug "Pre-processing transcript: $transcript_path → $output_path"
+
+    # Extract just the message object from each line
+    # - Filter out null messages (lines without .message field)
+    # - Filter out tool messages (where content[0].type is "tool_use" or "tool_result")
+    # - Remove model, id, and type attributes to reduce size
+    # - Write as compact single-line JSON
+    jq -c '.message | select(. != null) | select((.content | if type == "array" then (.[0].type != "tool_use" and .[0].type != "tool_result") else true end)) | del(.model, .id, .type)' "$transcript_path" > "$output_path" || {
+        log_error "Failed to pre-process transcript"
+        return 1
+    }
+
+    local line_count=$(wc -l < "$output_path")
+    log_debug "Pre-processed $line_count message objects"
+
+    return 0
+}
+
 # Extract relevant portion of transcript based on mode
+# Now operates on pre-processed message-only transcript
 extract_transcript_excerpt() {
     local mode="$1"
     local transcript_path="$2"
@@ -128,11 +159,11 @@ extract_transcript_excerpt() {
     case "$mode" in
         topic-only)
             # Last 3 messages (approximately 500-1000 tokens)
-            tail -n 6 "$transcript_path" | jq -s '.'
+            tail -n 80 "$transcript_path" | jq -s '.'
             ;;
         incremental)
             # Last 20 messages (approximately 2000-5000 tokens)
-            tail -n 40 "$transcript_path" | jq -s '.'
+            tail -n 150 "$transcript_path" | jq -s '.'
             ;;
         full-analytics)
             # Full transcript
@@ -141,8 +172,16 @@ extract_transcript_excerpt() {
     esac
 }
 
+# Pre-process transcript to simplified format (extract message objects only)
+simplified_transcript="/tmp/claude-messages-$$-${session_id}.jsonl"
+log_debug "Pre-processing transcript to simplified format"
+preprocess_transcript "$transcript_path" "$simplified_transcript" || {
+    log_error "Failed to pre-process transcript"
+    exit 1
+}
+
 log_debug "Extracting transcript excerpt for mode: $mode"
-transcript_excerpt=$(extract_transcript_excerpt "$mode" "$transcript_path") || {
+transcript_excerpt=$(extract_transcript_excerpt "$mode" "$simplified_transcript") || {
     log_error "Failed to extract transcript excerpt"
     exit 1
 }
@@ -285,8 +324,8 @@ fi
 
 log "Successfully parsed JSON output"
 
-# Write output files based on mode
-output_file="${output_dir}/${session_id}_topic.json"
+# Write output files to tmp directory based on mode
+output_file="${OUTPUT_DIR}/${session_id}_topic.json"
 
 # Always write topic file
 echo "$json_output" | jq '.' > "$output_file" || {
@@ -299,7 +338,7 @@ log "Wrote topic analysis: $output_file"
 
 # For full analytics mode, also write separate analytics file
 if [ "$mode" = "full-analytics" ]; then
-    analytics_file="${output_dir}/${session_id}_analytics.json"
+    analytics_file="${OUTPUT_DIR}/${session_id}_analytics.json"
     echo "$json_output" | jq '.' > "$analytics_file" || {
         log_error "Failed to write analytics file: $analytics_file"
         rm -f "$claude_output" "$claude_errors"
