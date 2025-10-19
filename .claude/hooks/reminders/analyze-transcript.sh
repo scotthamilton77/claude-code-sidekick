@@ -22,6 +22,7 @@ Arguments:
 
 Environment Variables:
   CLAUDE_ANALYSIS_MODEL    Model to use (default: haiku-4.5)
+  CLAUDE_BIN               Path to Claude CLI binary (default: ~/.claude/local/claude)
   VERBOSE                  Enable verbose logging (default: false)
 
 Example:
@@ -39,7 +40,7 @@ mode="$3"
 output_dir="$4"
 
 # Configuration
-CLAUDE_MODEL="${CLAUDE_ANALYSIS_MODEL:-haiku-4.5}"
+CLAUDE_MODEL="${CLAUDE_ANALYSIS_MODEL:-haiku}"
 VERBOSE="${VERBOSE:-false}"
 LOG_FILE="/tmp/claude-analysis-${session_id}.log"
 
@@ -201,14 +202,36 @@ cd "$workspace_dir" || {
 claude_output=$(mktemp)
 claude_errors=$(mktemp)
 
+# Determine Claude CLI path (handle alias or PATH-based installation)
+CLAUDE_BIN="${CLAUDE_BIN:-$HOME/.claude/local/claude}"
+if [ ! -x "$CLAUDE_BIN" ]; then
+    # Fallback: try to find in common locations
+    for path in "$HOME/.claude/local/claude" "$(command -v claude 2>/dev/null)"; do
+        if [ -x "$path" ]; then
+            CLAUDE_BIN="$path"
+            break
+        fi
+    done
+fi
+
+if [ ! -x "$CLAUDE_BIN" ]; then
+    log_error "Claude CLI not found. Set CLAUDE_BIN environment variable or ensure claude is in PATH"
+    exit 1
+fi
+
+log_debug "Using Claude binary: $CLAUDE_BIN"
+
 # Run claude -p (project mode) with JSON output format
 # Use timeout to prevent hanging (30s should be plenty for topic-only)
 # Exit code 124 = timeout, others = claude errors
-timeout 30s claude -p --model "$CLAUDE_MODEL" --settings-source project <<EOF > "$claude_output" 2> "$claude_errors"
+# Temporarily disable set -e to capture exit code
+set +e
+timeout 30s "$CLAUDE_BIN" -p --model "$CLAUDE_MODEL" --setting-sources project <<EOF > "$claude_output" 2> "$claude_errors"
 $analysis_prompt
 EOF
 
 exit_code=$?
+set -e
 
 if [ $exit_code -ne 0 ]; then
     if [ $exit_code -eq 124 ]; then
@@ -216,7 +239,17 @@ if [ $exit_code -ne 0 ]; then
     else
         log_error "Claude execution failed (exit code: $exit_code)"
     fi
-    [ -s "$claude_errors" ] && log_error "Stderr: $(cat "$claude_errors")"
+
+    # Log both stdout and stderr for debugging
+    if [ -s "$claude_errors" ]; then
+        log_error "=== Claude stderr ==="
+        log_error "$(cat "$claude_errors")"
+    fi
+    if [ -s "$claude_output" ]; then
+        log_error "=== Claude stdout (first 50 lines) ==="
+        log_error "$(head -50 "$claude_output")"
+    fi
+
     rm -f "$claude_output" "$claude_errors"
     exit 1
 fi
