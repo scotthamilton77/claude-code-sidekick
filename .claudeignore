@@ -10,6 +10,7 @@ file-history/
 *.local.json
 *.local.*
 hooks/reminders/tmp/
+hooks/reminders/analytics/
 history.jsonl
 *.backup
 *.backup/

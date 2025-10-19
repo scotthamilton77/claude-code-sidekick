@@ -334,39 +334,36 @@ cat test-input.json | ./statusline.sh
 #         Snarky comment based on clarity
 ```
 
-### Phase 5: Configuration & Documentation
+### Phase 5: Configuration & Documentation ✅
 
-**1. Update `.claudeignore`**
-```
-# Existing entries...
-hooks/reminders/tmp/
-hooks/reminders/analytics/  # ADD THIS
-```
+**Status**: COMPLETED
 
-**2. Create `.claude/hooks/reminders/analytics/README.md`**
-```markdown
-# Analytics Output Directory
+**1. Update `.claudeignore`** ✅
+- Added `hooks/reminders/analytics/` exclusion
+- Analytics directory now gitignored and excluded from sync
 
-This directory contains LLM-generated analysis of conversation transcripts.
+**2. Create `.claude/hooks/reminders/analytics/README.md`** ✅
+- Documented file formats and schemas
+- Explained output routing (tmp/ vs analytics/)
+- Provided retention policy and cleanup commands
+- Added configuration reference
+- Included troubleshooting section
 
-## File Format
+**3. Update project `CLAUDE.md`** ✅
+- Added comprehensive "LLM Analysis System" section
+- Documented architecture with ASCII flow diagram
+- Listed key features and components
+- Provided configuration table with all env vars
+- Included output schemas (topic.json and analytics.json)
+- Added troubleshooting commands for common issues
+- Updated Hook System components list
+- Cross-referenced LLM_PLAN.md and analytics/README.md
 
-- `{session_id}_topic.json`: Topic detection results
-- `{session_id}_analytics.json`: Full analytics (if enabled)
-
-## Retention
-
-Files are not automatically cleaned up. To remove old analytics:
-
-```bash
-find ~/.claude/hooks/reminders/analytics -name "*.json" -mtime +30 -delete
-```
-```
-
-**3. Update project `CLAUDE.md`**
-- Document analysis system
-- Explain configuration variables
-- Provide troubleshooting guide
+**Success Criteria**:
+- ✅ `.claudeignore` excludes analytics directory
+- ✅ analytics/README.md provides clear documentation
+- ✅ CLAUDE.md documents all system components and configuration
+- ✅ Troubleshooting guidance included for common issues
 
 ### Phase 6: Testing & Validation
 
@@ -400,27 +397,6 @@ test_detached_launch() {
 test_output_consumption() {
     # Verify statusline reads results
 }
-```
-
-**3. Performance Tests**
-```bash
-# Measure hook overhead
-time ./response-tracker.sh track "$PWD" < test-input.json
-
-# Should be <50ms even with analysis enabled
-
-# Measure analysis completion time
-time ./analyze-transcript.sh ... "topic-only" ...
-# Should be <5s for topic-only
-```
-
-**4. Isolation Tests**
-```bash
-# Verify no recursive hooks
-CLAUDE_ANALYSIS_MODE=topic-only ./response-tracker.sh track "$PWD" < test-input.json
-
-# Check analysis logs - should show no hook events
-grep -i "hook" /tmp/claude-analysis-*.log
 ```
 
 ### Phase 7: Enhancements
