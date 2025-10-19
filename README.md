@@ -12,9 +12,11 @@ This repository serves as a development and testing environment for [Claude Code
 
 - separate setup for different functions: statusline, reminders - and cleanup
 - cleanup.sh should also remove all the footprint from this project, e.g. every agent, command, skill, etc. that matches the project's contents exactly should be deleted
+- sync, push - these should not clobber settings and mcp, but rather merge; for claude.md, ask to replace
 - what if we shifted to launching claude /p (with haiku 4.5 or cheaper?) to derive intent rather than hinting back to claude?
 - statusline is coupled to the reminders; we should make this modular to allow the reminders to inject or supply a module for statusline to load dynamically
 - periodic tmp cleanup
+- allow a "concise" reminder mode during setup that chooses concise template files
 
 ### Key Features
 
