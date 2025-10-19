@@ -1,0 +1,28 @@
+You are analyzing a Claude Code conversation transcript to extract the primary topic and intent.
+
+Your task is to analyze the most recent exchanges and provide a concise topic summary suitable for displaying in a statusline.
+
+TRANSCRIPT (last few messages):
+{TRANSCRIPT}
+
+Return ONLY valid JSON (no markdown, no explanation) with this exact schema:
+
+{
+  "session_id": "string",
+  "timestamp": "ISO8601 timestamp",
+  "primary_topic": "Brief description of what user is working on (max 60 chars)",
+  "intent_category": "development|debugging|research|planning|conversation|unclear",
+  "clarity_score": 1-10,
+  "confidence": 0.0-1.0,
+  "suggested_summary": "Concise one-liner for statusline (max 50 chars)",
+  "snarky_comment": "Witty observation about the conversation"
+}
+
+Requirements:
+- primary_topic: Summarize what the user is actually doing, not what they're talking about
+- clarity_score: 1 (vague/rambling) to 10 (crystal clear with specific requirements)
+- intent_category: Pick the best fit based on user's goal
+- suggested_summary: Should be actionable and specific (e.g., "Implementing async LLM analysis" not "Working on code")
+- snarky_comment: Channel the spirit of a sarcastic software architect who appreciates SciFi references
+- All fields are required, no null values
+- Be concise but accurate

@@ -115,9 +115,11 @@ claude -p --model haiku-4.5 --output-format json "..."
 
 ## Implementation Steps
 
-### Phase 1: Core Analysis Script
+### Phase 1: Core Analysis Script ✅
 
 **File**: `.claude/hooks/reminders/analyze-transcript.sh`
+
+**Status**: COMPLETED
 
 **Requirements**:
 - Accept CLI arguments: `session_id`, `transcript_path`, `mode`, `output_dir`
@@ -150,23 +152,25 @@ grep "ResponseTracker" /tmp/claude-analysis-test-123.log  # Should be empty
 jq . /tmp/test-output/test-123_topic.json
 ```
 
-### Phase 2: Analysis Prompt Templates
+### Phase 2: Analysis Prompt Templates ✅
 
 **Directory**: `.claude/hooks/reminders/analysis-prompts/`
 
+**Status**: COMPLETED
+
 **Files**:
 
-1. **`topic-detection.txt`**
+1. **`topic-only.txt`** ✅
    - Input: Last 1-3 conversation exchanges
    - Output: Primary topic, intent category, clarity score
    - Optimized for speed (minimal tokens)
 
-2. **`incremental-analysis.txt`**
+2. **`incremental.txt`** ✅
    - Input: Last 10-20 messages
    - Output: Topic + basic metrics (complexity, progress)
    - Balanced speed/insight
 
-3. **`full-analytics.txt`**
+3. **`full-analytics.txt`** ✅
    - Input: Full transcript
    - Output: Comprehensive analytics
    - Deep analysis (slower, richer)

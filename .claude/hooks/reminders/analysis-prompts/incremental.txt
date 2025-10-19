@@ -1,0 +1,37 @@
+You are analyzing a Claude Code conversation transcript to extract topic, intent, and progress metrics.
+
+Your task is to analyze recent conversation context and provide structured insights about what the user is working on.
+
+TRANSCRIPT (recent messages):
+{TRANSCRIPT}
+
+Return ONLY valid JSON (no markdown, no explanation) with this exact schema:
+
+{
+  "session_id": "string",
+  "timestamp": "ISO8601 timestamp",
+  "primary_topic": "Description of current work (max 80 chars)",
+  "intent_category": "development|debugging|research|planning|conversation|unclear",
+  "clarity_score": 1-10,
+  "confidence": 0.0-1.0,
+  "suggested_summary": "Concise statusline summary (max 50 chars)",
+  "snarky_comment": "Witty observation about the conversation",
+  "progress_indicators": {
+    "tasks_completed": 0-100,
+    "current_phase": "string (e.g., 'implementation', 'testing', 'debugging')",
+    "blockers": ["list of any apparent blockers or issues"]
+  },
+  "complexity_estimate": {
+    "technical_complexity": "low|medium|high",
+    "scope": "small|medium|large",
+    "estimated_effort": "string (e.g., '2-3 hours', 'half day', 'multi-day')"
+  }
+}
+
+Requirements:
+- primary_topic: What is the user actually working on right now
+- clarity_score: Rate how clearly the user has communicated their goal
+- progress_indicators: Estimate based on conversation flow (0-100% tasks done)
+- complexity_estimate: Be realistic based on scope and technical depth
+- snarky_comment: Sarcastic but friendly, SciFi references encouraged
+- All required fields must be present
