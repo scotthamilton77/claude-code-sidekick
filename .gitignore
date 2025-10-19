@@ -30,3 +30,4 @@ node_modules/
 
 # Claude hook temporary files (session-specific ephemeral state)
 .claude/hooks/reminders/tmp/
+*.backup.*
