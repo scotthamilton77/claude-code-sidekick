@@ -12,7 +12,7 @@ fi
 
 # Construct full path to unclear topic file
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cache_dir="${HOOK_DIR}/cache"
+cache_dir="${HOOK_DIR}/tmp"
 topic_file="${cache_dir}/${session_id}_topic"
 unclear_topic_file="${cache_dir}/${session_id}_topic_unclear"
 

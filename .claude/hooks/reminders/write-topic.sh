@@ -13,7 +13,7 @@ fi
 
 # Construct full path to topic file
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cache_dir="${HOOK_DIR}/cache"
+cache_dir="${HOOK_DIR}/tmp"
 topic_file="${cache_dir}/${session_id}_topic"
 
 # Ensure cache directory exists
