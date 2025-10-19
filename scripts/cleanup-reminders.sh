@@ -186,6 +186,27 @@ remove_reminders_directory() {
     fi
 }
 
+# Function to remove statusline.sh file (user scope only)
+# Args: $1 = claude directory path
+remove_statusline() {
+    local claude_dir="$1"
+    local statusline_file="$claude_dir/statusline.sh"
+
+    if [ ! -f "$statusline_file" ]; then
+        log_info "No statusline.sh found at: $statusline_file"
+        return 0
+    fi
+
+    log_info "Removing statusline.sh: $statusline_file"
+    if rm -f "$statusline_file" 2>/dev/null; then
+        log_success "Removed statusline.sh"
+        return 0
+    else
+        log_error "Failed to remove statusline.sh: $statusline_file"
+        return 1
+    fi
+}
+
 # Detect execution context and cleanup
 detect_and_cleanup() {
     local user_claude_dir="$HOME/.claude"
@@ -209,6 +230,10 @@ detect_and_cleanup() {
         # Remove entire reminders directory in user scope
         echo ""
         remove_reminders_directory "$user_claude_dir"
+
+        # Remove statusline.sh in user scope
+        echo ""
+        remove_statusline "$user_claude_dir"
     else
         log_info "Detected project-scope context"
 
@@ -264,6 +289,10 @@ detect_and_cleanup() {
             # Remove entire reminders directory in user scope
             echo ""
             remove_reminders_directory "$user_claude_dir"
+
+            # Remove statusline.sh in user scope
+            echo ""
+            remove_statusline "$user_claude_dir"
         fi
     fi
 }
@@ -286,6 +315,7 @@ main() {
     log_info "  - statusline configuration"
     if [ "$PROJECT_ONLY" = false ]; then
         log_info "  - reminders directory (user scope only)"
+        log_info "  - statusline.sh file (user scope only)"
     fi
     echo ""
 
