@@ -3,8 +3,8 @@
 # This script intelligently detects whether it's running in user (~/.claude) or project context
 # and updates the appropriate settings.json file(s) with required permissions
 #
-# Usage: setup.sh [--include-local]
-#   --include-local: Also update project-local settings files (default: user settings only)
+# Usage: setup.sh [--project]
+#   --project: Update ONLY project settings (default: user settings only)
 
 # Note: NOT using set -e to allow graceful error handling per-file
 
@@ -28,16 +28,16 @@ log_error() { echo -e "${RED}✗${NC} $1"; }
 BACKUP_FILES=()
 
 # Parse command line arguments
-INCLUDE_LOCAL=false
+PROJECT_ONLY=false
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --include-local)
-            INCLUDE_LOCAL=true
+        --project)
+            PROJECT_ONLY=true
             shift
             ;;
         *)
             log_error "Unknown option: $1"
-            echo "Usage: $0 [--include-local]"
+            echo "Usage: $0 [--project]"
             exit 1
             ;;
     esac
@@ -49,12 +49,13 @@ if ! command -v jq &> /dev/null; then
     exit 1
 fi
 
-# Function to add permissions and statusline to a settings file
-# Args: $1 = settings file path, $2 = hook script path (absolute), $3 = statusline command
+# Function to add permissions, hooks, and statusline to a settings file
+# Args: $1 = settings file path, $2 = hook script path (absolute), $3 = statusline command, $4 = hooks command prefix
 add_permissions() {
     local settings_file="$1"
     local hook_path="$2"
     local statusline_cmd="$3"
+    local hooks_cmd_prefix="$4"
 
     if [ ! -f "$settings_file" ]; then
         log_warning "Settings file not found: $settings_file"
@@ -74,6 +75,10 @@ add_permissions() {
     local write_topic_perm="Bash(${hook_path}/reminders/write-topic.sh:*)"
     local write_unclear_perm="Bash(${hook_path}/reminders/write-unclear-topic.sh:*)"
 
+    # Calculate hooks commands
+    local session_start_cmd="${hooks_cmd_prefix}/hooks/reminders/response-tracker.sh init \"\$CLAUDE_PROJECT_DIR\""
+    local prompt_submit_cmd="${hooks_cmd_prefix}/hooks/reminders/response-tracker.sh track \"\$CLAUDE_PROJECT_DIR\""
+
     # Read current permissions and statusline
     local current_perms=$(jq -r '.permissions.allow // [] | join("\n")' "$settings_file" 2>/dev/null)
     if [ $? -ne 0 ]; then
@@ -87,7 +92,13 @@ add_permissions() {
         return 1
     fi
 
-    # Check if permissions and statusline already exist
+    local current_hooks=$(jq -c '.hooks // {}' "$settings_file" 2>/dev/null)
+    if [ $? -ne 0 ]; then
+        log_error "Failed to read hooks from: $settings_file"
+        return 1
+    fi
+
+    # Check if permissions, hooks, and statusline already exist
     local needs_update=false
     if ! echo "$current_perms" | grep -qF "$write_topic_perm"; then
         needs_update=true
@@ -97,6 +108,13 @@ add_permissions() {
     fi
     # Compare statusline by checking if jq finds a match (handles escaping correctly)
     if ! jq -e --arg expected "$statusline_cmd" '.statusLine.command == $expected' "$settings_file" >/dev/null 2>&1; then
+        needs_update=true
+    fi
+    # Check if hooks configuration exists
+    if ! jq -e --arg expected "$session_start_cmd" '.hooks.SessionStart[0].hooks[0].command == $expected' "$settings_file" >/dev/null 2>&1; then
+        needs_update=true
+    fi
+    if ! jq -e --arg expected "$prompt_submit_cmd" '.hooks.UserPromptSubmit[0].hooks[0].command == $expected' "$settings_file" >/dev/null 2>&1; then
         needs_update=true
     fi
 
@@ -115,11 +133,13 @@ add_permissions() {
     BACKUP_FILES+=("$backup_file")
     log_info "Backed up to: $backup_file"
 
-    # Add permissions and statusline using jq
+    # Add permissions, hooks, and statusline using jq
     local tmp_file=$(mktemp)
     if ! jq --arg write_topic "$write_topic_perm" \
        --arg write_unclear "$write_unclear_perm" \
        --arg statusline "$statusline_cmd" \
+       --arg session_start "$session_start_cmd" \
+       --arg prompt_submit "$prompt_submit_cmd" \
        '.permissions.allow += (
            if (.permissions.allow // []) | map(select(. == $write_topic)) | length == 0
            then [$write_topic]
@@ -133,6 +153,27 @@ add_permissions() {
        ) | .statusLine = {
            "type": "command",
            "command": $statusline
+       } | .hooks = {
+           "SessionStart": [
+               {
+                   "hooks": [
+                       {
+                           "type": "command",
+                           "command": $session_start
+                       }
+                   ]
+               }
+           ],
+           "UserPromptSubmit": [
+               {
+                   "hooks": [
+                       {
+                           "type": "command",
+                           "command": $prompt_submit
+                       }
+                   ]
+               }
+           ]
        }' "$settings_file" > "$tmp_file" 2>/dev/null; then
         log_error "Failed to update settings in: $settings_file"
         rm -f "$tmp_file"
@@ -146,7 +187,7 @@ add_permissions() {
         return 1
     fi
 
-    log_success "Added permissions and configured statusline"
+    log_success "Added permissions, hooks, and configured statusline"
 }
 
 # Function to update .gitignore with tmp directory
@@ -195,14 +236,15 @@ detect_and_configure() {
         # Configure user settings.json
         if [ -f "$user_settings" ] && [ -d "$user_hooks" ]; then
             local user_statusline='~/.claude/statusline.sh --project-dir "$CLAUDE_PROJECT_DIR"'
-            add_permissions "$user_settings" "$user_hooks" "$user_statusline"
+            local user_hooks_prefix='~/.claude'
+            add_permissions "$user_settings" "$user_hooks" "$user_statusline" "$user_hooks_prefix"
         else
             log_warning "User hooks not found at: $user_hooks"
         fi
     else
         log_info "Detected project-scope context"
 
-        if [ "$INCLUDE_LOCAL" = true ]; then
+        if [ "$PROJECT_ONLY" = true ]; then
             # Look for project .claude folder
             local project_claude_dir=""
             local project_settings=""
@@ -226,7 +268,8 @@ detect_and_configure() {
 
                 if [ -n "$project_settings" ] && [ -d "$project_claude_dir/hooks" ]; then
                     local project_statusline='$CLAUDE_PROJECT_DIR/.claude/statusline.sh --project-dir "$CLAUDE_PROJECT_DIR"'
-                    add_permissions "$project_settings" "$project_claude_dir/hooks" "$project_statusline"
+                    local project_hooks_prefix='$CLAUDE_PROJECT_DIR/.claude'
+                    add_permissions "$project_settings" "$project_claude_dir/hooks" "$project_statusline" "$project_hooks_prefix"
                 else
                     log_warning "Project hooks not found at: $project_claude_dir/hooks"
                 fi
@@ -239,16 +282,18 @@ detect_and_configure() {
                 echo ""
                 update_gitignore "$PROJECT_ROOT"
             fi
-        else
-            log_info "Skipping project-local settings (use --include-local to update)"
-        fi
 
-        # Always configure user ~/.claude/settings.json if hooks exist there
-        if [ -f "$user_settings" ] && [ -d "$user_hooks" ]; then
-            echo ""
-            log_info "Configuring user-scope settings"
-            local user_statusline='~/.claude/statusline.sh --project-dir "$CLAUDE_PROJECT_DIR"'
-            add_permissions "$user_settings" "$user_hooks" "$user_statusline"
+            log_info "Project-only mode - skipping user settings"
+        else
+            # Default: configure user ~/.claude/settings.json if hooks exist there
+            if [ -f "$user_settings" ] && [ -d "$user_hooks" ]; then
+                log_info "Configuring user-scope settings"
+                local user_statusline='~/.claude/statusline.sh --project-dir "$CLAUDE_PROJECT_DIR"'
+                local user_hooks_prefix='~/.claude'
+                add_permissions "$user_settings" "$user_hooks" "$user_statusline" "$user_hooks_prefix"
+            else
+                log_warning "User settings or hooks not found at: $user_claude_dir"
+            fi
         fi
     fi
 }
@@ -264,7 +309,8 @@ main() {
     echo ""
     log_success "Setup complete!"
     echo ""
-    log_info "Configured permissions for:"
+    log_info "Configured hooks and permissions for:"
+    log_info "  - response-tracker.sh (SessionStart & UserPromptSubmit)"
     log_info "  - write-topic.sh (for clear user intents)"
     log_info "  - write-unclear-topic.sh (for vague requests)"
     echo ""

@@ -28,8 +28,8 @@ The repository is organized around three main systems:
 - `backlog/commands/proto/`: Prototype command patterns
 
 #### Hook System
-- `.claude/hooks/write-topic.sh`: Records clear conversation topics with metadata
-- `.claude/hooks/write-unclear-topic.sh`: Handles vague/ambiguous user requests
+- `.claude/hooks/reminders/write-topic.sh`: Records clear conversation topics with metadata
+- `.claude/hooks/reminders/write-unclear-topic.sh`: Handles vague/ambiguous user requests
 - `.claude/hooks/reminders/response-tracker.sh`: Monitors Claude responses and provides periodic reminders
 - `.claude/hooks/reminders/tmp/`: Runtime state for hook operations (excluded from version control)
 
@@ -114,7 +114,7 @@ State files in `.claude/hooks/reminders/tmp/` persist across conversations (giti
 ### Synchronization Behavior
 - Timestamp-based copying: only files newer than destination are transferred
 - `.claudeignore` supports glob patterns for files and directories
-- `settings.local.json` and cache files automatically excluded from sync
+- `settings.local.json` and tmp files automatically excluded from sync
 - Sync operations are idempotent and safe to run repeatedly
 
 ### Command Template Structure

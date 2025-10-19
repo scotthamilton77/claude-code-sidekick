@@ -66,31 +66,5 @@
       "WebSearch"
     ],
     "deny": []
-  },
-  "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/hooks/reminders/response-tracker.sh init \"$CLAUDE_PROJECT_DIR\""
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/hooks/reminders/response-tracker.sh track \"$CLAUDE_PROJECT_DIR\""
-          }
-        ]
-      }
-    ]
-  },
-  "statusLine": {
-    "type": "command",
-    "command": "~/.claude/statusline.sh"
   }
 }
