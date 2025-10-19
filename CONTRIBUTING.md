@@ -16,7 +16,7 @@ Before creating bug reports, please check existing issues. When you create a bug
 - **Steps to reproduce** the issue
 - **Expected vs actual behavior**
 - **Environment details** (OS, Claude Code version, shell)
-- **Relevant logs** from `.claude/hooks/cache/` if applicable
+- **Relevant logs** from `.claude/hooks/reminders/tmp/` if applicable
 
 ### Suggesting Enhancements
 
@@ -83,7 +83,7 @@ When creating or modifying hooks:
    }
    ```
 
-2. **Maintain state** in `.claude/hooks/cache/` (automatically gitignored)
+2. **Maintain state** in `.claude/hooks/reminders/tmp/` (automatically gitignored)
 
 3. **Handle errors gracefully** - hooks should never crash Claude Code
 

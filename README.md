@@ -8,6 +8,10 @@
 
 This repository serves as a development and testing environment for [Claude Code](https://claude.com/claude-code) configurations before deploying them to your global `~/.claude` directory. It implements a dual-scope architecture where all capabilities work identically in both project-local and user-global contexts.
 
+## TODOs
+
+- statusline is coupled to the reminders; we should make this modular to allow the reminders to inject or supply a module for statusline to load dynamically
+
 ### Key Features
 
 - **Hook System**: Conversation tracking, topic classification, and response monitoring
@@ -85,7 +89,7 @@ Hooks execute at conversation events to enhance Claude Code behavior:
 - **write-unclear-topic.sh**: Handles vague/ambiguous requests with cynical feedback
 - **response-tracker.sh**: Monitors response count and injects periodic reminders
 
-All hooks maintain state in `.claude/hooks/cache/` (excluded from version control).
+All hooks maintain state in `.claude/hooks/reminders/tmp/` (excluded from version control).
 
 ## Usage
 
@@ -131,7 +135,7 @@ Edit `.claudeignore` to exclude files from sync operations:
 ```
 .credentials.json
 *.local.json
-hooks/cache/
+hooks/reminders/tmp/
 *.backup
 ```
 

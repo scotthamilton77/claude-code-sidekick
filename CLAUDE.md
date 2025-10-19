@@ -30,8 +30,8 @@ The repository is organized around three main systems:
 #### Hook System
 - `.claude/hooks/write-topic.sh`: Records clear conversation topics with metadata
 - `.claude/hooks/write-unclear-topic.sh`: Handles vague/ambiguous user requests
-- `.claude/hooks/response-tracker.sh`: Monitors Claude responses and provides periodic reminders
-- `.claude/hooks/cache/`: Runtime state for hook operations (excluded from version control)
+- `.claude/hooks/reminders/response-tracker.sh`: Monitors Claude responses and provides periodic reminders
+- `.claude/hooks/reminders/tmp/`: Runtime state for hook operations (excluded from version control)
 
 #### Configuration Files
 - `.claude/CLAUDE.md`: Project-specific instructions (mirrors global `~/.claude/CLAUDE.md`)
@@ -109,7 +109,7 @@ Hooks execute at specific conversation events:
   - `write-unclear-topic.sh`: Handles ambiguous/vague requests
   - `response-tracker.sh`: Maintains response count, injects periodic reminders
 
-Cache files in `.claude/hooks/cache/` persist state across conversations (gitignored).
+State files in `.claude/hooks/reminders/tmp/` persist across conversations (gitignored).
 
 ### Synchronization Behavior
 - Timestamp-based copying: only files newer than destination are transferred

@@ -9,7 +9,7 @@ todos/
 file-history/
 *.local.json
 *.local.*
-hooks/cache/
+hooks/reminders/tmp/
 history.jsonl
 *.backup
 *.backup/

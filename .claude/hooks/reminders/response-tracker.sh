@@ -27,7 +27,7 @@ TOPIC_REFRESH_CADENCE=${TOPIC_REFRESH_CADENCE:-10}
 readonly TOPIC_UNSET_MARKER="--"
 readonly HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Allow override for testing - set TEST_*_REMINDER_FILE to override paths
-readonly USER_REMINDER_FILE="${TEST_USER_REMINDER_FILE:-$HOME/.claude/hooks/static-reminder.txt}"
+readonly USER_REMINDER_FILE="${TEST_USER_REMINDER_FILE:-$HOME/.claude/hooks/reminders/static-reminder.txt}"
 readonly PROJECT_REMINDER_FILE="${TEST_PROJECT_REMINDER_FILE:-${HOOK_DIR}/static-reminder.txt}"
 
 # Load static reminder content from user and/or project level files
@@ -74,7 +74,7 @@ load_static_reminder() {
 # Only these whitelisted variables are substituted - all others are left as-is
 load_template() {
     local template_name="$1"
-    local user_template="$HOME/.claude/hooks/$template_name"
+    local user_template="$HOME/.claude/hooks/reminders/$template_name"
     local project_template="${HOOK_DIR}/$template_name"
     local template_path=""
 
@@ -113,8 +113,8 @@ input=$(cat)
 session_id=$(echo "$input" | jq -r '.session_id')
 transcript_path=$(echo "$input" | jq -r '.transcript_path')
 
-# Store session state in project-local cache
-cache_dir="${project_dir}/.claude/hooks/cache"
+# Store session state in project-local tmp directory
+cache_dir="${project_dir}/.claude/hooks/reminders/tmp"
 [ "$VERBOSE" = true ] && echo "[ResponseTracker] project_dir: $project_dir" >&2
 [ "$VERBOSE" = true ] && echo "[ResponseTracker] cache_dir: $cache_dir" >&2
 

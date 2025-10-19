@@ -75,7 +75,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.claude/hooks/response-tracker.sh init \"$CLAUDE_PROJECT_DIR\""
+            "command": "~/.claude/hooks/reminders/response-tracker.sh init \"$CLAUDE_PROJECT_DIR\""
           }
         ]
       }
@@ -85,7 +85,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.claude/hooks/response-tracker.sh track \"$CLAUDE_PROJECT_DIR\""
+            "command": "~/.claude/hooks/reminders/response-tracker.sh track \"$CLAUDE_PROJECT_DIR\""
           }
         ]
       }
@@ -93,6 +93,6 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "~/.claude/statusline.sh --project-dir \"$CLAUDE_PROJECT_DIR\""
+    "command": "~/.claude/statusline.sh"
   }
 }

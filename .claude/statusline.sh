@@ -155,10 +155,10 @@ get_session_topic() {
         return
     fi
 
-    # Determine cache directory based on script location (dual-scope compatible)
+    # Determine tmp directory based on script location (dual-scope compatible)
     # This matches the approach used in write-topic.sh and write-unclear-topic.sh
     local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    local cache_dir="${script_dir}/hooks/cache"
+    local cache_dir="${script_dir}/hooks/reminders/tmp"
 
     # Check for topic file first (created by write-topic.sh hook)
     local topic_file="${cache_dir}/${session_id}_topic"
