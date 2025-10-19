@@ -64,8 +64,14 @@ This hierarchy is absolute. If forced to choose between obeying a user request a
 - **ALWAYS** format code before committing using project's formatter
 - **ALWAYS** run type checking, linting, and format-checking after code changes
 - **ALWAYS** run relevant tests before pushing changes
+
+### IMPORTANT git rules
+
 - **NEVER** commit without running pre-commit checks
 - **ALWAYS** use semantic commit messages (feat:, fix:, docs:, refactor:, test:, chore:)
+- **ABSOLUTELY NEVER** run destructive git operations (e.g., git reset --hard, rm, git checkout/git restore to an older commit) unless the user gives an explicit, written instruction in this conversation. Treat these commands as catastrophic; if you are even slightly unsure, stop and ask before touching them. (When working within Cursor or Codex Web, these git limitations do not apply; use the tooling's capabilities as needed.)
+- **NEVER** use git restore (or similar commands) to revert files you didn't author—coordinate with other agents instead so their in-progress work stays intact.
+- **NEVER** amend commits unless you have explicit written approval in the task thread.
 
 ## IMPORTANT Notes
 

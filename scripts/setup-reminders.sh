@@ -190,6 +190,64 @@ add_permissions() {
     log_success "Added permissions, hooks, and configured statusline"
 }
 
+# Function to copy hook files and statusline to user's ~/.claude directory
+# Args: $1 = source .claude directory (project)
+copy_files_to_user_claude() {
+    local source_claude="$1"
+    local user_claude="$HOME/.claude"
+
+    log_info "Copying hook files and statusline to ~/.claude"
+
+    # Create directories if they don't exist
+    mkdir -p "$user_claude/hooks/reminders"
+
+    # Copy statusline.sh
+    if [ -f "$source_claude/statusline.sh" ]; then
+        if cp -p "$source_claude/statusline.sh" "$user_claude/statusline.sh"; then
+            chmod +x "$user_claude/statusline.sh"
+            log_success "Copied statusline.sh"
+        else
+            log_error "Failed to copy statusline.sh"
+            return 1
+        fi
+    else
+        log_warning "Source statusline.sh not found at: $source_claude/statusline.sh"
+    fi
+
+    # Copy hook files from reminders/ directory (excluding tmp/)
+    if [ -d "$source_claude/hooks/reminders" ]; then
+        local copied_count=0
+        for file in "$source_claude/hooks/reminders"/*.sh; do
+            if [ -f "$file" ]; then
+                local filename=$(basename "$file")
+                if cp -p "$file" "$user_claude/hooks/reminders/$filename"; then
+                    chmod +x "$user_claude/hooks/reminders/$filename"
+                    ((copied_count++))
+                else
+                    log_error "Failed to copy $filename"
+                fi
+            fi
+        done
+
+        # Also copy .txt files for reminder templates
+        for file in "$source_claude/hooks/reminders"/*.txt; do
+            if [ -f "$file" ]; then
+                local filename=$(basename "$file")
+                if cp -p "$file" "$user_claude/hooks/reminders/$filename"; then
+                    ((copied_count++))
+                fi
+            fi
+        done
+
+        log_success "Copied $copied_count hook files to ~/.claude/hooks/reminders/"
+    else
+        log_warning "Source hooks/reminders not found at: $source_claude/hooks/reminders"
+    fi
+
+    # Create tmp directory but don't copy its contents
+    mkdir -p "$user_claude/hooks/reminders/tmp"
+}
+
 # Function to update .gitignore with tmp directory
 # Args: $1 = project root directory
 update_gitignore() {
@@ -285,14 +343,30 @@ detect_and_configure() {
 
             log_info "Project-only mode - skipping user settings"
         else
-            # Default: configure user ~/.claude/settings.json if hooks exist there
-            if [ -f "$user_settings" ] && [ -d "$user_hooks" ]; then
+            # Default: configure user ~/.claude/settings.json
+            # First, copy files from project to user directory
+            local project_claude_dir=""
+            if [ -d "$PROJECT_ROOT/.claude" ]; then
+                project_claude_dir="$PROJECT_ROOT/.claude"
+            elif [ -d "$PROJECT_ROOT/../.claude" ]; then
+                project_claude_dir="$(cd "$PROJECT_ROOT/../.claude" && pwd)"
+            fi
+
+            if [ -n "$project_claude_dir" ]; then
+                copy_files_to_user_claude "$project_claude_dir"
+            else
+                log_warning "No .claude directory found in project - skipping file copy"
+            fi
+
+            # Now configure permissions if settings file exists
+            if [ -f "$user_settings" ]; then
                 log_info "Configuring user-scope settings"
                 local user_statusline='~/.claude/statusline.sh --project-dir "$CLAUDE_PROJECT_DIR"'
                 local user_hooks_prefix='~/.claude'
                 add_permissions "$user_settings" "$user_hooks" "$user_statusline" "$user_hooks_prefix"
             else
-                log_warning "User settings or hooks not found at: $user_claude_dir"
+                log_warning "User settings not found at: $user_settings"
+                log_warning "Files copied but permissions not configured"
             fi
         fi
     fi
@@ -309,7 +383,12 @@ main() {
     echo ""
     log_success "Setup complete!"
     echo ""
-    log_info "Configured hooks and permissions for:"
+    if [ "$PROJECT_ONLY" = false ]; then
+        log_info "User-scope configuration (~/.claude):"
+        log_info "  - Copied hook files and statusline"
+        log_info "  - Configured permissions and hooks in settings.json"
+    fi
+    log_info "Configured hooks:"
     log_info "  - response-tracker.sh (SessionStart & UserPromptSubmit)"
     log_info "  - write-topic.sh (for clear user intents)"
     log_info "  - write-unclear-topic.sh (for vague requests)"
