@@ -71,8 +71,8 @@ add_permissions() {
     fi
 
     # Calculate permissions to add
-    local write_topic_perm="Bash(${hook_path}/write-topic.sh:*)"
-    local write_unclear_perm="Bash(${hook_path}/write-unclear-topic.sh:*)"
+    local write_topic_perm="Bash(${hook_path}/reminders/write-topic.sh:*)"
+    local write_unclear_perm="Bash(${hook_path}/reminders/write-unclear-topic.sh:*)"
 
     # Read current permissions and statusline
     local current_perms=$(jq -r '.permissions.allow // [] | join("\n")' "$settings_file" 2>/dev/null)
