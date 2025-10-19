@@ -5,7 +5,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEST_DIR="${SCRIPT_DIR}/test-artifacts"
-TRACKER="${SCRIPT_DIR}/response-tracker.sh"
+TRACKER="${SCRIPT_DIR}/../.claude/hooks/response-tracker.sh"
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -45,7 +45,9 @@ run_test() {
     [ "$verbose" != "silent" ] && echo -e "${YELLOW}Testing: $test_name${NC}" >&2
 
     # Initialize session
-    create_test_input "$session_id" | TEST_USER_REMINDER_FILE="$TEST_DIR/user-hooks/static-reminder.txt" \
+    create_test_input "$session_id" | \
+        TEST_USER_REMINDER_FILE="$TEST_DIR/user-hooks/static-reminder.txt" \
+        TEST_PROJECT_REMINDER_FILE="$TEST_DIR/.claude/hooks/static-reminder.txt" \
         "$TRACKER" init "$TEST_DIR" > /dev/null 2>&1
 
     # Set topic to non-default so we test static reminder path
@@ -53,7 +55,9 @@ run_test() {
 
     # Run track operation 4 times to trigger the static reminder (at count=4, 4%4=0)
     for i in {1..4}; do
-        result=$(create_test_input "$session_id" | TEST_USER_REMINDER_FILE="$TEST_DIR/user-hooks/static-reminder.txt" \
+        result=$(create_test_input "$session_id" | \
+            TEST_USER_REMINDER_FILE="$TEST_DIR/user-hooks/static-reminder.txt" \
+            TEST_PROJECT_REMINDER_FILE="$TEST_DIR/.claude/hooks/static-reminder.txt" \
             "$TRACKER" track "$TEST_DIR" 2>&1)
     done
 
@@ -68,7 +72,9 @@ run_test_verbose() {
     echo -e "${YELLOW}Testing: $test_name${NC}"
 
     # Initialize session
-    create_test_input "$session_id" | TEST_USER_REMINDER_FILE="$TEST_DIR/user-hooks/static-reminder.txt" \
+    create_test_input "$session_id" | \
+        TEST_USER_REMINDER_FILE="$TEST_DIR/user-hooks/static-reminder.txt" \
+        TEST_PROJECT_REMINDER_FILE="$TEST_DIR/.claude/hooks/static-reminder.txt" \
         "$TRACKER" init "$TEST_DIR" --verbose 2>&1
 
     # Set topic to non-default so we test static reminder path
@@ -76,7 +82,9 @@ run_test_verbose() {
 
     # Run track operation 4 times to trigger static reminder
     for i in {1..4}; do
-        result=$(create_test_input "$session_id" | TEST_USER_REMINDER_FILE="$TEST_DIR/user-hooks/static-reminder.txt" \
+        result=$(create_test_input "$session_id" | \
+            TEST_USER_REMINDER_FILE="$TEST_DIR/user-hooks/static-reminder.txt" \
+            TEST_PROJECT_REMINDER_FILE="$TEST_DIR/.claude/hooks/static-reminder.txt" \
             "$TRACKER" track "$TEST_DIR" --verbose 2>&1)
     done
 
@@ -89,11 +97,6 @@ echo "=========================================="
 echo ""
 
 setup
-
-# Backup project reminder file if it exists
-if [ -f "$SCRIPT_DIR/static-reminder.txt" ]; then
-    mv "$SCRIPT_DIR/static-reminder.txt" "$SCRIPT_DIR/static-reminder.txt.backup"
-fi
 
 # Test 1: No reminder files (silent mode)
 echo -e "${YELLOW}Test 1: No reminder files (silent mode)${NC}"
@@ -130,7 +133,7 @@ echo ""
 # Test 4: Project-level reminder only
 echo -e "${YELLOW}Test 4: Project-level reminder only${NC}"
 rm -f "$TEST_DIR/user-hooks/static-reminder.txt"
-echo "PROJECT LEVEL REMINDER CONTENT" > "$SCRIPT_DIR/static-reminder.txt"
+echo "PROJECT LEVEL REMINDER CONTENT" > "$TEST_DIR/.claude/hooks/static-reminder.txt"
 result=$(run_test "Project-level only")
 if echo "$result" | grep -q "PROJECT LEVEL REMINDER CONTENT"; then
     echo -e "${GREEN}✓ PASS: Project-level reminder loaded${NC}"
@@ -160,13 +163,8 @@ else
 fi
 echo ""
 
-# Cleanup and restore
+# Cleanup
 cleanup
-
-# Restore project reminder file if we backed it up
-if [ -f "$SCRIPT_DIR/static-reminder.txt.backup" ]; then
-    mv "$SCRIPT_DIR/static-reminder.txt.backup" "$SCRIPT_DIR/static-reminder.txt"
-fi
 
 echo "=========================================="
 echo "Test Suite Complete"
