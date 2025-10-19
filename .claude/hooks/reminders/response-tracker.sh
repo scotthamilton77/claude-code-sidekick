@@ -194,9 +194,17 @@ launch_analysis() {
 # Read JSON input from stdin
 input=$(cat)
 
+# Debug: Log the raw input
+[ "$VERBOSE" = true ] && echo "[ResponseTracker] [$operation] Raw stdin: $input" >&2
+
 # Extract session_id and transcript_path
 session_id=$(echo "$input" | jq -r '.session_id')
 transcript_path=$(echo "$input" | jq -r '.transcript_path')
+
+# Debug: Log extracted values
+[ "$VERBOSE" = true ] && echo "[ResponseTracker] [$operation] session_id='$session_id'" >&2
+[ "$VERBOSE" = true ] && echo "[ResponseTracker] [$operation] transcript_path='$transcript_path'" >&2
+[ "$VERBOSE" = true ] && echo "[ResponseTracker] [$operation] transcript exists: $([ -f "$transcript_path" ] && echo yes || echo no)" >&2
 
 # Store session state in project-local tmp directory
 cache_dir="${project_dir}/.claude/hooks/reminders/tmp"
@@ -224,11 +232,9 @@ case "$operation" in
     }
     [ "$VERBOSE" = true ] && echo "[ResponseTracker] Initialized counter at: $counter_file" >&2
 
-    # Launch baseline analysis if enabled and transcript exists
-    if [ "$ANALYSIS_ENABLED" = true ] && [ -n "$transcript_path" ] && [ -f "$transcript_path" ]; then
-        [ "$VERBOSE" = true ] && echo "[ResponseTracker] Launching baseline analysis" >&2
-        launch_analysis "$session_id" "$transcript_path"
-    fi
+    # Note: We don't launch analysis here because the transcript file doesn't exist yet
+    # The first 'track' call will detect missing topic file and launch analysis immediately
+    [ "$VERBOSE" = true ] && echo "[ResponseTracker] init complete (analysis will launch on first track call)" >&2
 
     exit 0
     ;;
@@ -249,22 +255,30 @@ case "$operation" in
         exit 1
     }
 
-    # Check if transcript analysis should run (adaptive cadence based on clarity)
+    # Check if transcript analysis should run
     if [ "$ANALYSIS_ENABLED" = true ]; then
-        # Get current clarity score
-        clarity=$(get_clarity_score "$session_id" "$cache_dir")
+        topic_json_file="${cache_dir}/${session_id}_topic.json"
 
-        # Determine cadence based on clarity
-        if [ "$clarity" -ge "$ANALYSIS_CLARITY_THRESHOLD" ]; then
-            cadence=$ANALYSIS_CADENCE_HIGH_CLARITY
-        else
-            cadence=$ANALYSIS_CADENCE_LOW_CLARITY
-        fi
-
-        analysis_due=$((count % cadence))
-        if [ $analysis_due -eq 0 ]; then
-            [ "$VERBOSE" = true ] && echo "[ResponseTracker] Analysis due at count $count (clarity=$clarity, cadence=$cadence)" >&2
+        # If no topic file exists, launch analysis immediately (first time)
+        if [ ! -f "$topic_json_file" ]; then
+            [ "$VERBOSE" = true ] && echo "[ResponseTracker] No topic file found, launching initial analysis" >&2
             launch_analysis "$session_id" "$transcript_path"
+        else
+            # Get current clarity score
+            clarity=$(get_clarity_score "$session_id" "$cache_dir")
+
+            # Determine cadence based on clarity
+            if [ "$clarity" -ge "$ANALYSIS_CLARITY_THRESHOLD" ]; then
+                cadence=$ANALYSIS_CADENCE_HIGH_CLARITY
+            else
+                cadence=$ANALYSIS_CADENCE_LOW_CLARITY
+            fi
+
+            analysis_due=$((count % cadence))
+            if [ $analysis_due -eq 0 ]; then
+                [ "$VERBOSE" = true ] && echo "[ResponseTracker] Analysis due at count $count (clarity=$clarity, cadence=$cadence)" >&2
+                launch_analysis "$session_id" "$transcript_path"
+            fi
         fi
     fi
 
