@@ -1,0 +1,70 @@
+You are performing comprehensive analysis of a Claude Code conversation transcript.
+
+Your task is to extract deep insights about the conversation including topic evolution, technical patterns, decisions made, and overall conversation quality.
+
+FULL TRANSCRIPT:
+{TRANSCRIPT}
+
+Return ONLY valid JSON (no markdown, no explanation) with this exact schema:
+
+{
+  "session_id": "string",
+  "timestamp": "ISO8601 timestamp",
+  "primary_topic": "Overall conversation focus (max 100 chars)",
+  "intent_category": "development|debugging|research|planning|conversation|unclear",
+  "clarity_score": 1-10,
+  "confidence": 0.0-1.0,
+  "suggested_summary": "Best summary for statusline (max 50 chars)",
+  "snarky_comment": "Witty overall observation",
+  "topic_evolution": [
+    {
+      "timestamp": "ISO8601",
+      "topic": "string",
+      "transition_reason": "string"
+    }
+  ],
+  "complexity_metrics": {
+    "technical_depth": "shallow|moderate|deep|expert",
+    "architectural_scope": "component|module|system|cross-cutting",
+    "domain_expertise_required": ["list of technical domains"],
+    "novelty": "routine|some-new-concepts|mostly-novel|cutting-edge"
+  },
+  "language_patterns": {
+    "user_communication_style": "clear|verbose|terse|scattered",
+    "average_user_clarity": 1-10,
+    "assistant_approach": "string (e.g., 'exploratory', 'prescriptive', 'collaborative')"
+  },
+  "key_decisions": [
+    {
+      "decision": "string",
+      "rationale": "string",
+      "alternatives_considered": ["list"]
+    }
+  ],
+  "technical_domains": [
+    "list of technical areas (e.g., 'bash scripting', 'async programming', 'LLM integration')"
+  ],
+  "conversation_quality": {
+    "productivity_score": 1-10,
+    "collaboration_quality": 1-10,
+    "goal_achievement": "not-started|in-progress|mostly-achieved|fully-achieved",
+    "pain_points": ["list of any struggles or blockers"]
+  },
+  "artifacts_created": {
+    "code_files": ["list of files created/modified"],
+    "documentation": ["list of docs created"],
+    "tests": ["list of test files"],
+    "other": ["any other significant artifacts"]
+  }
+}
+
+Requirements:
+- Provide comprehensive but concise insights
+- topic_evolution: Track how conversation focus shifted over time
+- complexity_metrics: Be honest about technical difficulty
+- key_decisions: Document important architectural or implementation choices
+- technical_domains: List all relevant technical areas covered
+- conversation_quality: Objective assessment of how well the conversation went
+- artifacts_created: Concrete outputs from the conversation
+- snarky_comment: Your best sarcastic observation about the entire conversation, SciFi references welcome
+- All required fields must be present, use empty arrays [] where no data exists
