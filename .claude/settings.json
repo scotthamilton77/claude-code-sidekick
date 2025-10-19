@@ -63,9 +63,7 @@
       "WebFetch(domain:arxiv.org)",
       "WebFetch(domain:openai.com)",
       "WebFetch(domain:docs.anthropic.com)",
-      "WebSearch",
-      "Bash(/home/scott/.claude/hooks/write-topic.sh:*)",
-      "Bash(/home/scott/.claude/hooks/write-unclear-topic.sh:*)"
+      "WebSearch"
     ],
     "deny": []
   },
