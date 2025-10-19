@@ -198,9 +198,11 @@ Requirements:
 - Incremental analysis in <4 seconds
 - Full analytics in <10 seconds
 
-### Phase 3: Hook Integration
+### Phase 3: Hook Integration ✅
 
 **File**: `.claude/hooks/reminders/response-tracker.sh` (modifications)
+
+**Status**: COMPLETED (with enhancements)
 
 **Changes**:
 
@@ -212,47 +214,61 @@ ANALYSIS_MODE=${CLAUDE_ANALYSIS_MODE:-topic-only}
 ANALYSIS_CADENCE=${CLAUDE_ANALYSIS_CADENCE:-3}  # Every N responses
 ```
 
-2. Add detached launcher function:
+2. Add detached launcher function: ✅
 ```bash
 launch_analysis() {
     local session_id="$1"
     local transcript_path="$2"
     local mode="${ANALYSIS_MODE}"
 
-    # Determine output directory (dual-scope)
-    local output_dir="${cache_dir}"
-
-    # Launch detached process
+    # Validate inputs and check for running analysis
+    # Launch detached process via nohup
     nohup "${HOOK_DIR}/analyze-transcript.sh" \
         "$session_id" \
         "$transcript_path" \
         "$mode" \
-        "$output_dir" \
         </dev/null \
         &>"/tmp/claude-analysis-${session_id}.log" &
 
-    # Optional: capture PID for monitoring
+    # Track PID to prevent duplicate launches
     local analysis_pid=$!
-    [ "$VERBOSE" = true ] && echo "[ResponseTracker] Launched analysis: PID $analysis_pid" >&2
+    echo "$analysis_pid" > "${cache_dir}/${session_id}_analysis.pid"
 }
 ```
+**Enhancements**: Added PID file tracking to prevent duplicate analysis launches
 
-3. Integrate into tracking logic:
+3. Integrate into tracking logic: ✅
 ```bash
-# After incrementing counter
+# Init operation: Launch baseline analysis
+if [ "$ANALYSIS_ENABLED" = true ] && [ -n "$transcript_path" ]; then
+    launch_analysis "$session_id" "$transcript_path"
+fi
+
+# Track operation: After incrementing counter
 count=$((count + 1))
 echo "$count" > "$counter_file"
 
-# Check if analysis should run
+# Adaptive cadence based on clarity score
 if [ "$ANALYSIS_ENABLED" = true ]; then
-    analysis_due=$((count % ANALYSIS_CADENCE))
+    clarity=$(get_clarity_score "$session_id" "$cache_dir")
+
+    # High clarity = less frequent analysis
+    if [ "$clarity" -ge "$ANALYSIS_CLARITY_THRESHOLD" ]; then
+        cadence=$ANALYSIS_CADENCE_HIGH_CLARITY
+    else
+        cadence=$ANALYSIS_CADENCE_LOW_CLARITY
+    fi
+
+    analysis_due=$((count % cadence))
     if [ $analysis_due -eq 0 ]; then
         launch_analysis "$session_id" "$transcript_path"
     fi
 fi
-
-# Continue with existing reminder logic...
 ```
+**Enhancements**:
+- Baseline analysis on session init
+- Adaptive cadence based on clarity score (frequent when unclear, infrequent when clear)
+- Clarity threshold configurable via `CLAUDE_ANALYSIS_CLARITY_THRESHOLD`
 
 **Success Criteria**:
 - Hook completion time remains <50ms
@@ -261,17 +277,25 @@ fi
 - Analysis logs appear in `/tmp/`
 - Topic files written to expected location
 
-**Testing**:
+**Testing**: ✅
 ```bash
-# Time hook execution
-time ./response-tracker.sh track "$PWD" < test-input.json
+# Integration test passed
+./tests/test-response-tracker-integration.sh
 
-# Verify detached process
-ps aux | grep analyze-transcript.sh
-
-# Check logs
-tail -f /tmp/claude-analysis-*.log
+# Verified:
+# - Hook execution time <50ms ✅
+# - Detached process launches successfully ✅
+# - No zombie processes ✅
+# - Analysis logs written to /tmp/ ✅
+# - Topic files created in expected location ✅
+# - PID file tracking works correctly ✅
+# - Adaptive cadence based on clarity ✅
 ```
+
+**Bugs Fixed**:
+- Fixed `set -euo pipefail` crash in log functions when `VERBOSE=false`
+- Removed duplicate `SCRIPT_DIR` definition
+- Added error trap for better debugging
 
 ### Phase 4: Output Integration
 
