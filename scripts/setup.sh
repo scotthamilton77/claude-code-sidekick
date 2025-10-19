@@ -149,12 +149,12 @@ add_permissions() {
     log_success "Added permissions and configured statusline"
 }
 
-# Function to update .gitignore with cache directory
+# Function to update .gitignore with tmp directory
 # Args: $1 = project root directory
 update_gitignore() {
     local project_root="$1"
     local gitignore="$project_root/.gitignore"
-    local cache_entry=".claude/hooks/cache/"
+    local cache_entry=".claude/hooks/reminders/tmp/"
 
     # Check if this is a git repository
     if [ ! -d "$project_root/.git" ]; then

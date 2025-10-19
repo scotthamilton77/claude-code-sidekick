@@ -28,5 +28,5 @@ node_modules/
 # Windows Zone.Identifier files (created when copying from Windows to WSL)
 *:Zone.Identifier
 
-# Claude hook cache (session-specific ephemeral state)
-.claude/hooks/cache/
+# Claude hook temporary files (session-specific ephemeral state)
+.claude/hooks/reminders/tmp/

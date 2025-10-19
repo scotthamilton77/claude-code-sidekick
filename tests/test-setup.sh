@@ -223,8 +223,8 @@ test_gitignore_creation() {
 
     update_gitignore "$test_project"
 
-    if [ -f "$test_project/.gitignore" ] && grep -qF ".claude/hooks/cache/" "$test_project/.gitignore"; then
-        log_pass ".gitignore created with cache entry"
+    if [ -f "$test_project/.gitignore" ] && grep -qF ".claude/hooks/reminders/tmp/" "$test_project/.gitignore"; then
+        log_pass ".gitignore created with tmp entry"
         cd - >/dev/null
         return 0
     else
@@ -246,7 +246,7 @@ test_gitignore_update() {
 
     update_gitignore "$test_project"
 
-    if grep -qF ".claude/hooks/cache/" "$test_project/.gitignore" && \
+    if grep -qF ".claude/hooks/reminders/tmp/" "$test_project/.gitignore" && \
        grep -qF "node_modules/" "$test_project/.gitignore"; then
         log_pass ".gitignore updated without losing existing entries"
         cd - >/dev/null
@@ -288,7 +288,7 @@ test_gitignore_idempotent() {
     update_gitignore "$test_project"
     update_gitignore "$test_project"
 
-    local count=$(grep -cF ".claude/hooks/cache/" "$test_project/.gitignore")
+    local count=$(grep -cF ".claude/hooks/reminders/tmp/" "$test_project/.gitignore")
 
     if [ "$count" -eq 1 ]; then
         log_pass "No duplicate entries added"
