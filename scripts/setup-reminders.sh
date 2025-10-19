@@ -244,6 +244,21 @@ copy_files_to_user_claude() {
         log_warning "Source hooks/reminders not found at: $source_claude/hooks/reminders"
     fi
 
+    # Copy analysis-prompts directory if it exists
+    if [ -d "$source_claude/hooks/reminders/analysis-prompts" ]; then
+        mkdir -p "$user_claude/hooks/reminders/analysis-prompts"
+        local prompts_copied=0
+        for file in "$source_claude/hooks/reminders/analysis-prompts"/*.txt; do
+            if [ -f "$file" ]; then
+                local filename=$(basename "$file")
+                if cp -p "$file" "$user_claude/hooks/reminders/analysis-prompts/$filename"; then
+                    ((prompts_copied++))
+                fi
+            fi
+        done
+        log_success "Copied $prompts_copied analysis prompt templates"
+    fi
+
     # Create tmp directory but don't copy its contents
     mkdir -p "$user_claude/hooks/reminders/tmp"
 }
