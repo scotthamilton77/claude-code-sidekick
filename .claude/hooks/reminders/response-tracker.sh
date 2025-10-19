@@ -23,12 +23,17 @@ done
 
 # Configuration
 STATIC_REMINDER_CADENCE=${STATIC_REMINDER_CADENCE:-4}
-TOPIC_REFRESH_CADENCE=${TOPIC_REFRESH_CADENCE:-10}
-readonly TOPIC_UNSET_MARKER="--"
 readonly HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Allow override for testing - set TEST_*_REMINDER_FILE to override paths
 readonly USER_REMINDER_FILE="${TEST_USER_REMINDER_FILE:-$HOME/.claude/hooks/reminders/static-reminder.txt}"
 readonly PROJECT_REMINDER_FILE="${TEST_PROJECT_REMINDER_FILE:-${HOOK_DIR}/static-reminder.txt}"
+
+# Analysis configuration
+ANALYSIS_ENABLED=${CLAUDE_ANALYSIS_ENABLED:-true}
+ANALYSIS_MODE=${CLAUDE_ANALYSIS_MODE:-topic-only}
+ANALYSIS_CADENCE_LOW_CLARITY=${CLAUDE_ANALYSIS_CADENCE_LOW:-3}
+ANALYSIS_CADENCE_HIGH_CLARITY=${CLAUDE_ANALYSIS_CADENCE_HIGH:-10}
+ANALYSIS_CLARITY_THRESHOLD=${CLAUDE_ANALYSIS_CLARITY_THRESHOLD:-7}
 
 # Load static reminder content from user and/or project level files
 # Returns concatenated content if both exist, otherwise whichever is found
@@ -106,6 +111,86 @@ validate_count() {
     fi
 }
 
+# Get current clarity score from most recent analysis
+# Args: session_id, output_dir
+# Returns: clarity score (1-10) or 0 if unavailable
+get_clarity_score() {
+    local session_id="$1"
+    local output_dir="$2"
+    local topic_file="${output_dir}/${session_id}_topic.json"
+
+    # Default to 0 (unknown) if file doesn't exist
+    if [ ! -f "$topic_file" ]; then
+        echo "0"
+        return
+    fi
+
+    # Extract clarity_score from JSON
+    local clarity=$(jq -r '.clarity_score // 0' "$topic_file" 2>/dev/null)
+
+    # Validate it's a number
+    if [[ "$clarity" =~ ^[0-9]+$ ]]; then
+        echo "$clarity"
+    else
+        echo "0"
+    fi
+}
+
+# Launch transcript analysis as detached background process
+# Args: session_id, transcript_path
+# Note: Output directory is determined by analyze-transcript.sh (always ${HOOK_DIR}/tmp)
+launch_analysis() {
+    local session_id="$1"
+    local transcript_path="$2"
+    local mode="${ANALYSIS_MODE}"
+
+    # Validate inputs
+    if [ -z "$session_id" ] || [ -z "$transcript_path" ]; then
+        [ "$VERBOSE" = true ] && echo "[ResponseTracker] WARNING: Missing args for analysis" >&2
+        return 1
+    fi
+
+    # Ensure transcript exists
+    if [ ! -f "$transcript_path" ]; then
+        [ "$VERBOSE" = true ] && echo "[ResponseTracker] WARNING: Transcript not found: $transcript_path" >&2
+        return 1
+    fi
+
+    # Check for existing analysis in progress
+    local pid_file="${cache_dir}/${session_id}_analysis.pid"
+    if [ -f "$pid_file" ]; then
+        local existing_pid=$(cat "$pid_file" 2>/dev/null)
+        # Check if process is still running
+        if [ -n "$existing_pid" ] && kill -0 "$existing_pid" 2>/dev/null; then
+            [ "$VERBOSE" = true ] && echo "[ResponseTracker] Analysis already running: PID $existing_pid" >&2
+            return 0
+        else
+            # Stale PID file - remove it
+            [ "$VERBOSE" = true ] && echo "[ResponseTracker] Removing stale PID file: $existing_pid" >&2
+            rm -f "$pid_file"
+        fi
+    fi
+
+    # Launch detached process (double-fork pattern via nohup)
+    # Redirect stdin from /dev/null, all output to log file
+    local log_file="/tmp/claude-analysis-${session_id}.log"
+
+    nohup "${HOOK_DIR}/analyze-transcript.sh" \
+        "$session_id" \
+        "$transcript_path" \
+        "$mode" \
+        </dev/null \
+        &>"$log_file" &
+
+    local analysis_pid=$!
+
+    # Write PID to tracking file
+    echo "$analysis_pid" > "$pid_file"
+    [ "$VERBOSE" = true ] && echo "[ResponseTracker] Launched analysis: PID $analysis_pid, mode=$mode, pid_file=$pid_file" >&2
+
+    return 0
+}
+
 # Read JSON input from stdin
 input=$(cat)
 
@@ -132,12 +217,19 @@ unclear_topic_file="${topic_file}_unclear"
 
 case "$operation" in
   init)
-    # Initialize counter file only
+    # Initialize counter file
     echo "0" > "$counter_file" || {
         echo "[ResponseTracker] ERROR: Failed to write counter file" >&2
         exit 1
     }
     [ "$VERBOSE" = true ] && echo "[ResponseTracker] Initialized counter at: $counter_file" >&2
+
+    # Launch baseline analysis if enabled and transcript exists
+    if [ "$ANALYSIS_ENABLED" = true ] && [ -n "$transcript_path" ] && [ -f "$transcript_path" ]; then
+        [ "$VERBOSE" = true ] && echo "[ResponseTracker] Launching baseline analysis" >&2
+        launch_analysis "$session_id" "$transcript_path"
+    fi
+
     exit 0
     ;;
 
@@ -150,13 +242,6 @@ case "$operation" in
       count=0
     fi
 
-    # Check if topic file exists (if not, topic is unset)
-    if [ -f "$topic_file" ]; then
-      topic=$(cat "$topic_file")
-    else
-      topic="$TOPIC_UNSET_MARKER"
-    fi
-
     # Increment counter (safe now after validation)
     count=$((count + 1))
     echo "$count" > "$counter_file" || {
@@ -164,24 +249,32 @@ case "$operation" in
         exit 1
     }
 
-    # Decision logic for reminder injection
+    # Check if transcript analysis should run (adaptive cadence based on clarity)
+    if [ "$ANALYSIS_ENABLED" = true ]; then
+        # Get current clarity score
+        clarity=$(get_clarity_score "$session_id" "$cache_dir")
+
+        # Determine cadence based on clarity
+        if [ "$clarity" -ge "$ANALYSIS_CLARITY_THRESHOLD" ]; then
+            cadence=$ANALYSIS_CADENCE_HIGH_CLARITY
+        else
+            cadence=$ANALYSIS_CADENCE_LOW_CLARITY
+        fi
+
+        analysis_due=$((count % cadence))
+        if [ $analysis_due -eq 0 ]; then
+            [ "$VERBOSE" = true ] && echo "[ResponseTracker] Analysis due at count $count (clarity=$clarity, cadence=$cadence)" >&2
+            launch_analysis "$session_id" "$transcript_path"
+        fi
+    fi
+
+    # Decision logic for reminder injection (static reminders only now)
     context=""
+    static_due=$((count % STATIC_REMINDER_CADENCE))
 
-    if [ "$topic" = "$TOPIC_UNSET_MARKER" ]; then
-      # Topic not set - inject topic update reminder (every turn)
-      context=$(load_template "topic-unset-reminder.txt")
-    else
-      # Topic is set - check for static or topic refresh reminders
-      static_due=$((count % STATIC_REMINDER_CADENCE))
-      topic_due=$((count % TOPIC_REFRESH_CADENCE))
-
-      if [ $static_due -eq 0 ]; then
-        # Static reminder takes precedence - load from user/project files
-        context=$(load_static_reminder)
-      elif [ $topic_due -eq 0 ]; then
-        # Topic refresh reminder
-        context=$(load_template "topic-refresh-reminder.txt")
-      fi
+    if [ $static_due -eq 0 ]; then
+      # Load static reminder from user/project files
+      context=$(load_static_reminder)
     fi
 
     # Output JSON with additional context if any reminder is due
