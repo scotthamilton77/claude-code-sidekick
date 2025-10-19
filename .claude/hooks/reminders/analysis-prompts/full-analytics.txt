@@ -10,12 +10,14 @@ Return ONLY valid JSON (no markdown, no explanation) with this exact schema:
 {
   "session_id": "string",
   "timestamp": "ISO8601 timestamp",
-  "primary_topic": "Overall conversation focus (max 100 chars)",
+  "task_ids": "string or null (comma-delimited list like 'T001,FEAT08' when explicitly mentioned as goal/objective)",
+  "initial_goal": "string (brief description of user's first stated goal, max 60 chars)",
+  "current_objective": "string (most recent objective being pursued, max 60 chars)",
   "intent_category": "development|debugging|research|planning|conversation|unclear",
   "clarity_score": 1-10,
   "confidence": 0.0-1.0,
-  "suggested_summary": "Best summary for statusline (max 50 chars)",
-  "snarky_comment": "Witty overall observation",
+  "high_clarity_snarky_comment": "string or null (witty, sarcastic observation about the conversation, max 120 chars)",
+  "low_clarity_snarky_comment": "string or null (creative, cynical insulting prompt for clearer focus, max 120 chars)",
   "topic_evolution": [
     {
       "timestamp": "ISO8601",
@@ -60,11 +62,21 @@ Return ONLY valid JSON (no markdown, no explanation) with this exact schema:
 
 Requirements:
 - Provide comprehensive but concise insights
+- task_ids: Extract task IDs matching common patterns (T###, FEAT-###, JIRA-###, GH-###, TICKET-###, REQ-###, BUG-###, SPIKE-###, STORY-###, #123) when mentioned in active work contexts:
+  * Direct imperatives: "work on X", "start X", "fix X", "implement X"
+  * Current activity: "working on X", "debugging X", "stuck on X", "X is blocking"
+  * Immediate planning: "next is X", "after this do X", "then tackle X"
+  Exclude past-tense retrospectives ("did X", "X was done"), hypotheticals ("if X", "maybe X"), examples ("like X", "see X"), and quoted speech. Return comma-delimited list or null.
+- initial_goal: Summarize the user's first stated goal. If vague/unstated early on, use snarky placeholder like "Wandering aimlessly through the codebase" or "Who knows?"
+- current_objective: Summarize the most recent objective. If conversation has drifted or lost focus, use snarky observation like "Chasing squirrels" or "Lost in the weeds"
+- clarity_score: 1 (vague/rambling) to 10 (crystal clear with specific requirements)
+- intent_category: Pick the best fit based on user's actual goal
+- high_clarity_snarky_comment: For focused conversations (clarity 7+), channel sarcastic software architect with SciFi references
+- low_clarity_snarky_comment: For unclear conversations (clarity <7), offer insulting SciFi-inspired prompt to get user focused
 - topic_evolution: Track how conversation focus shifted over time
 - complexity_metrics: Be honest about technical difficulty
 - key_decisions: Document important architectural or implementation choices
 - technical_domains: List all relevant technical areas covered
 - conversation_quality: Objective assessment of how well the conversation went
 - artifacts_created: Concrete outputs from the conversation
-- snarky_comment: Your best sarcastic observation about the entire conversation, SciFi references welcome
-- All required fields must be present, use empty arrays [] where no data exists
+- All required fields must be present unless "or null", use empty arrays [] where no data exists
