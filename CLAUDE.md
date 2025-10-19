@@ -2,50 +2,88 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Project Purpose
+
+This repository serves as the **experimental proving ground** for Claude Code configuration development. It enables testing and debugging of commands, hooks, agents, skills, and other Claude Code capabilities in a project-scoped environment before deploying them to the user's global `~/.claude` directory.
+
+**Critical Design Principle**: All scripts and capabilities must operate identically whether invoked from:
+- **Project scope**: `.claude/` directory within this repository
+- **User scope**: `~/.claude/` global configuration directory
+
+This dual-scope requirement ensures configurations can be tested locally before global deployment.
+
 ## Architecture Overview
 
-This repository is a Claude configuration management system that maintains custom command definitions and project templates for Human-AI collaborative development. The architecture is organized around:
+The repository is organized around three main systems:
 
-- **Command Templates**: Stored in `backlog/commands-to-explore/` and `backlog/commands/` - these are markdown-based command specifications for various development tasks
-- **Configuration Management**: The `.claude/` directory contains project-specific Claude settings that sync with the global `~/.claude` configuration
-- **Synchronization Scripts**: Shell scripts in `scripts/` handle bidirectional sync between project and global Claude configurations
+- **Experimental Command Templates**: `backlog/commands-to-explore/` and `backlog/commands/` contain markdown-based command specifications for development tasks
+- **Hook System**: Scripts in `.claude/hooks/` handle conversation tracking, response monitoring, and topic classification
+- **Synchronization Infrastructure**: Shell scripts in `scripts/` manage bidirectional sync between project `.claude/` and global `~/.claude` configurations
 
 ### Key Components
 
 #### Command System
-- `backlog/commands-to-explore/`: Collection of experimental and proposed command templates
-- `backlog/commands/plan/`: Specialized planning commands for project management
+- `backlog/commands-to-explore/`: Experimental command templates under development
+- `backlog/commands/plan/`: Planning and project management commands
 - `backlog/commands/proto/`: Prototype command patterns
 
-#### Configuration Management
-- `.claude/CLAUDE.md`: Project-specific instructions (mirrors global configuration)
-- `mcp.json`: Model Context Protocol server configurations including context7, sequential-thinking, zen, and memory servers
-- `.claudeignore`: Specifies files/directories to exclude from synchronization
+#### Hook System
+- `.claude/hooks/write-topic.sh`: Records clear conversation topics with metadata
+- `.claude/hooks/write-unclear-topic.sh`: Handles vague/ambiguous user requests
+- `.claude/hooks/response-tracker.sh`: Monitors Claude responses and provides periodic reminders
+- `.claude/hooks/cache/`: Runtime state for hook operations (excluded from version control)
 
-#### Synchronization System
-- `scripts/pull-from-claude.sh`: Copies files from `~/.claude` to project `.claude/`
-- `scripts/push-to-claude.sh`: Copies files from project `.claude/` to `~/.claude`
-- `scripts/sync-claude.sh`: Performs bidirectional sync (pull then push)
+#### Configuration Files
+- `.claude/CLAUDE.md`: Project-specific instructions (mirrors global `~/.claude/CLAUDE.md`)
+- `.claude/mcp.json`: Model Context Protocol server configurations (context7, sequential-thinking, zen, memory)
+- `.claude/settings.json`: Project-scoped permissions and configuration
+- `.claude/settings.local.json`: Local overrides (excluded from sync)
+- `.claude/statusline.sh`: Dynamic status line generator
+- `.claudeignore`: Sync exclusion patterns (supports file and directory wildcards)
+
+#### Synchronization Scripts
+- `scripts/pull-from-claude.sh`: Import files from `~/.claude` → `.claude/`
+- `scripts/push-to-claude.sh`: Export files from `.claude/` → `~/.claude`
+- `scripts/sync-claude.sh`: Bidirectional sync (pull → push)
+- `scripts/setup.sh`: Initialize hook permissions and statusline configuration (supports `--include-local` flag)
 
 ## Common Commands
 
+### Initial Setup
+```bash
+# Configure hook permissions and statusline for user scope
+./scripts/setup.sh
+
+# Also configure project-local settings (for testing in project scope)
+./scripts/setup.sh --include-local
+```
+
 ### Configuration Sync
 ```bash
-# Pull updates from global Claude config
+# Import from global config (test changes made in ~/.claude)
 ./scripts/pull-from-claude.sh
 
-# Push local changes to global Claude config  
+# Export to global config (deploy tested changes)
 ./scripts/push-to-claude.sh
 
-# Bidirectional sync (recommended)
+# Bidirectional sync (import then export)
 ./scripts/sync-claude.sh
 ```
 
-### File Operations
-Since this is primarily a configuration and template repository, most operations involve:
-- Editing command templates in `backlog/`
-- Modifying MCP server configurations in `mcp.json`
-- Managing sync exclusions in `.claudeignore`
+### Testing
+```bash
+# Test setup.sh functionality (comprehensive test suite)
+./tests/test-setup.sh
+
+# Test response tracker hook behavior
+./tests/test-response-tracker.sh
+```
+
+### Development Workflow
+1. Modify configurations in `.claude/` directory
+2. Test locally in project scope (hooks run from `.claude/hooks/`)
+3. Verify dual-scope compatibility
+4. Deploy to user scope via `./scripts/push-to-claude.sh`
 
 ## MCP Server Configuration
 
@@ -57,22 +95,38 @@ The repository uses several MCP (Model Context Protocol) servers:
 
 ## Development Patterns
 
+### Dual-Scope Compatibility
+All scripts must support both deployment contexts:
+- **Project scope**: Paths relative to `$CLAUDE_PROJECT_DIR/.claude/`
+- **User scope**: Paths relative to `~/.claude/`
+
+Use environment variables and dynamic path resolution to ensure portability. See `setup.sh:186-254` for context detection patterns.
+
+### Hook System Architecture
+Hooks execute at specific conversation events:
+- **UserPromptSubmit**: Triggered before Claude processes user input
+  - `write-topic.sh`: Analyzes intent, records topic metadata
+  - `write-unclear-topic.sh`: Handles ambiguous/vague requests
+  - `response-tracker.sh`: Maintains response count, injects periodic reminders
+
+Cache files in `.claude/hooks/cache/` persist state across conversations (gitignored).
+
+### Synchronization Behavior
+- Timestamp-based copying: only files newer than destination are transferred
+- `.claudeignore` supports glob patterns for files and directories
+- `settings.local.json` and cache files automatically excluded from sync
+- Sync operations are idempotent and safe to run repeatedly
+
 ### Command Template Structure
-Commands follow markdown-based specifications with:
-- Purpose and requirements sections
+Markdown-based specifications include:
+- Purpose/requirements sections
 - Process flows (often with Mermaid diagrams)
-- Bash code blocks for execution logic
-- Integration with Atlas MCP for project management
+- Bash code blocks for execution
+- Atlas MCP integration (where applicable)
 
-### Configuration Sync Workflow
-1. Modify files in project `.claude/` directory
-2. Use sync scripts to propagate changes
-3. Verify synchronization with timestamp-based copying (only newer files copied)
+## Critical Constraints
 
-## Important Notes
-
-- The sync scripts use timestamp-based copying - only files newer than destinations are copied
-- `.claudeignore` patterns support both file and directory exclusions
-- All command templates assume integration with Atlas MCP for project/task management
-- The repository maintains both experimental (`commands-to-explore`) and stable (`commands`) command patterns
-- remember to NEVER make changes outside of the project's folders and files without explicit user authorization - when you think you need to, ask first
+- **Never modify files outside project directory** without explicit authorization
+- **All hooks must be permission-approved** in `settings.json` before execution
+- **Dual-scope testing required** before deploying to `~/.claude`
+- **Timestamp preservation** critical for sync correctness
