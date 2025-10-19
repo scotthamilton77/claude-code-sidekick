@@ -26,9 +26,9 @@ STATIC_REMINDER_CADENCE=${STATIC_REMINDER_CADENCE:-4}
 TOPIC_REFRESH_CADENCE=${TOPIC_REFRESH_CADENCE:-10}
 readonly TOPIC_UNSET_MARKER="--"
 readonly HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Allow override for testing - set TEST_USER_REMINDER_FILE to override user-level path
+# Allow override for testing - set TEST_*_REMINDER_FILE to override paths
 readonly USER_REMINDER_FILE="${TEST_USER_REMINDER_FILE:-$HOME/.claude/hooks/static-reminder.txt}"
-readonly PROJECT_REMINDER_FILE="${HOOK_DIR}/static-reminder.txt"
+readonly PROJECT_REMINDER_FILE="${TEST_PROJECT_REMINDER_FILE:-${HOOK_DIR}/static-reminder.txt}"
 
 # Load static reminder content from user and/or project level files
 # Returns concatenated content if both exist, otherwise whichever is found
@@ -64,6 +64,34 @@ load_static_reminder() {
     else
         echo "$project_content"
     fi
+
+    return 0
+}
+
+# Load and substitute variables in a template file
+# Args: template_basename (e.g., "topic-unset-reminder.txt")
+# Uses variables from caller's scope: HOOK_DIR, session_id, topic
+# Only these whitelisted variables are substituted - all others are left as-is
+load_template() {
+    local template_name="$1"
+    local user_template="$HOME/.claude/hooks/$template_name"
+    local project_template="${HOOK_DIR}/$template_name"
+    local template_path=""
+
+    # Prefer project-level template over user-level
+    if [ -f "$project_template" ]; then
+        template_path="$project_template"
+    elif [ -f "$user_template" ]; then
+        template_path="$user_template"
+    else
+        [ "$VERBOSE" = true ] && echo "[ResponseTracker] WARNING: Template not found: $template_name" >&2
+        return 1
+    fi
+
+    # Export variables for envsubst, then perform whitelisted substitution
+    # The whitelist ensures only specified variables are substituted
+    export HOOK_DIR session_id topic
+    cat "$template_path" | envsubst '${HOOK_DIR} ${session_id} ${topic}'
 
     return 0
 }
@@ -141,7 +169,7 @@ case "$operation" in
 
     if [ "$topic" = "$TOPIC_UNSET_MARKER" ]; then
       # Topic not set - inject topic update reminder (every turn)
-      context="IMPORTANT: Analyze the user's stated intent or goal. If it is clear and actionable, use Bash to run: ${HOOK_DIR}/write-topic.sh '$session_id' 'concise topic (50 chars max)' 'snarky explanation'. If the goal is vague, ambiguous, unclear, or the user is just making small talk, you MUST instead run: ${HOOK_DIR}/write-unclear-topic.sh '$session_id' 'creative, cynical insult about their communication skills'"
+      context=$(load_template "topic-unset-reminder.txt")
     else
       # Topic is set - check for static or topic refresh reminders
       static_due=$((count % STATIC_REMINDER_CADENCE))
@@ -152,7 +180,7 @@ case "$operation" in
         context=$(load_static_reminder)
       elif [ $topic_due -eq 0 ]; then
         # Topic refresh reminder
-        context="IMPORTANT: This conversation's topic was previously set to \"$topic\". If it has changed, use Bash to run: ${HOOK_DIR}/write-topic.sh '$session_id' 'new concise topic (50 chars max)' 'snarky explanation of the pivot'. If the conversation has devolved into unclear/vague territory, run: ${HOOK_DIR}/write-unclear-topic.sh '$session_id' 'cynical insult' instead."
+        context=$(load_template "topic-refresh-reminder.txt")
       fi
     fi
 
