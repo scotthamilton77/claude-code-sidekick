@@ -192,8 +192,8 @@ get_session_topic() {
     # Build output: [$tasks]: $initial_goal / $current_objective\n$snarky_comment
     local output=""
 
-    # Add task IDs prefix if present
-    if [ -n "$task_ids" ]; then
+    # Add task IDs prefix if present (skip if empty array)
+    if [ -n "$task_ids" ] && [ "$task_ids" != "[]" ]; then
         output="${CYAN}[${task_ids}]${RESET}: "
     fi
 

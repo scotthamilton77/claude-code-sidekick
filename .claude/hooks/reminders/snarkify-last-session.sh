@@ -250,7 +250,7 @@ cat > "$current_topic" <<EOF
 {
   "session_id": "${session_id}",
   "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
-  "task_ids": [],
+  "task_ids": null,
   "initial_goal": "${initial_goal}",
   "current_objective": "${current_objective}",
   "intent_category": "development",
