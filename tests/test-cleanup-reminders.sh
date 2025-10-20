@@ -87,6 +87,14 @@ test_remove_permissions() {
             "command": "~/.claude/hooks/reminders/response-tracker.sh init \"\$CLAUDE_PROJECT_DIR\""
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/reminders/snarkify-last-session.sh \"\$CLAUDE_PROJECT_DIR\""
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [
@@ -103,7 +111,7 @@ test_remove_permissions() {
 }
 EOF
 
-    remove_permissions "$settings_file" "$hook_path"
+    remove_permissions "$settings_file" "$hook_path" '~/.claude'
 
     # Verify permissions, hooks, and statusline were removed
     local remaining_perms=$(jq -r '.permissions.allow | length' "$settings_file")
@@ -148,7 +156,7 @@ EOF
 
     local backup_count_before=$(ls -1 "${settings_file}.backup."* 2>/dev/null | wc -l)
 
-    remove_permissions "$settings_file" "$hook_path"
+    remove_permissions "$settings_file" "$hook_path" '~/.claude'
 
     local backup_count_after=$(ls -1 "${settings_file}.backup."* 2>/dev/null | wc -l)
 
@@ -296,7 +304,7 @@ test_partial_config_permissions_only() {
 }
 EOF
 
-    remove_permissions "$settings_file" "$hook_path"
+    remove_permissions "$settings_file" "$hook_path" '~/.claude'
 
     local remaining_perms=$(jq -r '.permissions.allow | length' "$settings_file")
 
@@ -334,7 +342,7 @@ EOF
     # Reset backup tracking
     BACKUP_FILES=()
 
-    remove_permissions "$settings_file" "$hook_path"
+    remove_permissions "$settings_file" "$hook_path" '~/.claude'
 
     # Check if backup was created
     local backup_count=$(ls -1 "${settings_file}.backup."* 2>/dev/null | wc -l)
@@ -376,13 +384,31 @@ test_project_scope_cleanup() {
             "command": "\$CLAUDE_PROJECT_DIR/.claude/hooks/reminders/response-tracker.sh init \"\$CLAUDE_PROJECT_DIR\""
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\$CLAUDE_PROJECT_DIR/.claude/hooks/reminders/snarkify-last-session.sh \"\$CLAUDE_PROJECT_DIR\""
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\$CLAUDE_PROJECT_DIR/.claude/hooks/reminders/response-tracker.sh track \"\$CLAUDE_PROJECT_DIR\""
+          }
+        ]
       }
     ]
   }
 }
 EOF
 
-    remove_permissions "$settings_file" "$hook_path"
+    remove_permissions "$settings_file" "$hook_path" '$CLAUDE_PROJECT_DIR/.claude'
 
     local has_statusline=$(jq -e '.statusLine' "$settings_file" >/dev/null 2>&1 && echo "yes" || echo "no")
     local has_hooks=$(jq -e '.hooks' "$settings_file" >/dev/null 2>&1 && echo "yes" || echo "no")
@@ -395,6 +421,106 @@ EOF
         return 0
     else
         echo "FAIL: Project-scope cleanup incomplete"
+        jq '.' "$settings_file"
+        return 1
+    fi
+}
+
+# Test 12: Custom hook preservation (surgical removal)
+test_custom_hook_preservation() {
+    log_test "Test 12: Custom hook preservation (surgical removal)"
+
+    local settings_file="$TEST_DIR/test12_settings.json"
+    local hook_path="$TEST_DIR/user_claude/.claude/hooks"
+
+    cat > "$settings_file" << EOF
+{
+  "permissions": {
+    "allow": [
+      "Bash(${hook_path}/reminders/write-topic.sh:*)",
+      "Bash(chmod:*)"
+    ],
+    "deny": []
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "~/.claude/statusline.sh --project-dir \"\$CLAUDE_PROJECT_DIR\""
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/custom/hook.sh"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/reminders/response-tracker.sh init \"\$CLAUDE_PROJECT_DIR\""
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/reminders/snarkify-last-session.sh \"\$CLAUDE_PROJECT_DIR\""
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/other/custom/hook.sh"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/reminders/response-tracker.sh track \"\$CLAUDE_PROJECT_DIR\""
+          }
+        ]
+      }
+    ]
+  }
+}
+EOF
+
+    remove_permissions "$settings_file" "$hook_path" '~/.claude'
+
+    # Verify only custom hooks remain
+    local remaining_perms=$(jq -r '.permissions.allow | length' "$settings_file")
+    local custom_session_start=$(jq -r '.hooks.SessionStart[0].hooks[0].command' "$settings_file" 2>/dev/null)
+    local session_start_count=$(jq -r '.hooks.SessionStart | length' "$settings_file" 2>/dev/null)
+    local custom_prompt_submit=$(jq -r '.hooks.UserPromptSubmit[0].hooks[0].command' "$settings_file" 2>/dev/null)
+    local prompt_submit_count=$(jq -r '.hooks.UserPromptSubmit | length' "$settings_file" 2>/dev/null)
+    local has_statusline=$(jq -e '.statusLine' "$settings_file" >/dev/null 2>&1 && echo "yes" || echo "no")
+
+    if [ "$remaining_perms" -eq 1 ] && \
+       [ "$custom_session_start" = "/custom/hook.sh" ] && \
+       [ "$session_start_count" -eq 1 ] && \
+       [ "$custom_prompt_submit" = "/other/custom/hook.sh" ] && \
+       [ "$prompt_submit_count" -eq 1 ] && \
+       [ "$has_statusline" = "no" ]; then
+        log_pass "Custom hooks preserved, reminders hooks removed"
+        return 0
+    else
+        echo "FAIL: Custom hooks not preserved correctly"
+        echo "Remaining perms: $remaining_perms (expected 1)"
+        echo "Custom SessionStart: $custom_session_start (expected /custom/hook.sh)"
+        echo "SessionStart count: $session_start_count (expected 1)"
+        echo "Custom UserPromptSubmit: $custom_prompt_submit (expected /other/custom/hook.sh)"
+        echo "UserPromptSubmit count: $prompt_submit_count (expected 1)"
+        echo "Has statusline: $has_statusline (expected no)"
         jq '.' "$settings_file"
         return 1
     fi
@@ -414,7 +540,7 @@ echo ""
 PASSED=0
 FAILED=0
 
-for test_func in test_remove_permissions test_already_clean test_corrupted_json test_missing_file test_remove_tmp_directory test_remove_tmp_missing test_remove_reminders_directory test_remove_reminders_missing test_partial_config_permissions_only test_backup_creation test_project_scope_cleanup; do
+for test_func in test_remove_permissions test_already_clean test_corrupted_json test_missing_file test_remove_tmp_directory test_remove_tmp_missing test_remove_reminders_directory test_remove_reminders_missing test_partial_config_permissions_only test_backup_creation test_project_scope_cleanup test_custom_hook_preservation; do
     # Reset global state between tests
     BACKUP_FILES=()
 

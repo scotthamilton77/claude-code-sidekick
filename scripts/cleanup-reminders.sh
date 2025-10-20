@@ -51,10 +51,11 @@ if ! command -v jq &> /dev/null; then
 fi
 
 # Function to remove permissions, hooks, and statusline from a settings file
-# Args: $1 = settings file path, $2 = hook script path (absolute)
+# Args: $1 = settings file path, $2 = hook script path (absolute), $3 = hooks command prefix
 remove_permissions() {
     local settings_file="$1"
     local hook_path="$2"
+    local hooks_cmd_prefix="$3"
 
     if [ ! -f "$settings_file" ]; then
         log_warning "Settings file not found: $settings_file"
@@ -114,10 +115,18 @@ remove_permissions() {
     BACKUP_FILES+=("$backup_file")
     log_info "Backed up to: $backup_file"
 
-    # Remove permissions, hooks, and statusline using jq
+    # Calculate hooks commands to remove (using same prefix format as setup script)
+    local session_start_init_cmd="${hooks_cmd_prefix}/hooks/reminders/response-tracker.sh init \"\$CLAUDE_PROJECT_DIR\""
+    local session_start_snarkify_cmd="${hooks_cmd_prefix}/hooks/reminders/snarkify-last-session.sh \"\$CLAUDE_PROJECT_DIR\""
+    local prompt_submit_cmd="${hooks_cmd_prefix}/hooks/reminders/response-tracker.sh track \"\$CLAUDE_PROJECT_DIR\""
+
+    # Remove permissions, hooks, and statusline using jq (surgical removal)
     local tmp_file=$(mktemp)
     if ! jq --arg write_topic "$write_topic_perm" \
        --arg write_unclear "$write_unclear_perm" \
+       --arg session_start_init "$session_start_init_cmd" \
+       --arg session_start_snarkify "$session_start_snarkify_cmd" \
+       --arg prompt_submit "$prompt_submit_cmd" \
        '
        # Remove specific permissions
        .permissions.allow = (
@@ -126,8 +135,29 @@ remove_permissions() {
        )
        # Remove statusLine
        | del(.statusLine)
-       # Remove hooks
-       | del(.hooks)
+       # Surgically remove only our SessionStart hooks
+       | if .hooks.SessionStart then
+           .hooks.SessionStart = (.hooks.SessionStart | map(select(
+               .hooks[0].command != $session_start_init and
+               .hooks[0].command != $session_start_snarkify
+           ))) |
+           if (.hooks.SessionStart | length) == 0 then
+               del(.hooks.SessionStart)
+           else . end
+         else . end
+       # Surgically remove only our UserPromptSubmit hooks
+       | if .hooks.UserPromptSubmit then
+           .hooks.UserPromptSubmit = (.hooks.UserPromptSubmit | map(select(
+               .hooks[0].command != $prompt_submit
+           ))) |
+           if (.hooks.UserPromptSubmit | length) == 0 then
+               del(.hooks.UserPromptSubmit)
+           else . end
+         else . end
+       # Remove hooks object entirely if empty
+       | if .hooks and (.hooks | length) == 0 then
+           del(.hooks)
+         else . end
        ' "$settings_file" > "$tmp_file" 2>/dev/null; then
         log_error "Failed to update settings in: $settings_file"
         rm -f "$tmp_file"
@@ -219,7 +249,8 @@ detect_and_cleanup() {
 
         # Cleanup user settings.json
         if [ -f "$user_settings" ] && [ -d "$user_hooks" ]; then
-            remove_permissions "$user_settings" "$user_hooks"
+            local user_hooks_prefix='~/.claude'
+            remove_permissions "$user_settings" "$user_hooks" "$user_hooks_prefix"
         else
             log_warning "User settings or hooks not found at: $user_claude_dir"
         fi
@@ -260,7 +291,8 @@ detect_and_cleanup() {
                 fi
 
                 if [ -n "$project_settings" ] && [ -d "$project_claude_dir/hooks" ]; then
-                    remove_permissions "$project_settings" "$project_claude_dir/hooks"
+                    local project_hooks_prefix='$CLAUDE_PROJECT_DIR/.claude'
+                    remove_permissions "$project_settings" "$project_claude_dir/hooks" "$project_hooks_prefix"
                 else
                     log_warning "Project hooks not found at: $project_claude_dir/hooks"
                 fi
@@ -277,7 +309,8 @@ detect_and_cleanup() {
             # Default: cleanup user ~/.claude/settings.json if hooks exist there
             if [ -f "$user_settings" ] && [ -d "$user_hooks" ]; then
                 log_info "Cleaning up user-scope settings"
-                remove_permissions "$user_settings" "$user_hooks"
+                local user_hooks_prefix='~/.claude'
+                remove_permissions "$user_settings" "$user_hooks" "$user_hooks_prefix"
             else
                 log_warning "User settings or hooks not found at: $user_claude_dir"
             fi
@@ -309,7 +342,9 @@ main() {
     log_success "Cleanup complete!"
     echo ""
     log_info "Removed configuration for:"
-    log_info "  - response-tracker.sh (SessionStart & UserPromptSubmit hooks)"
+    log_info "  - response-tracker.sh init (SessionStart hook)"
+    log_info "  - snarkify-last-session.sh (SessionStart hook)"
+    log_info "  - response-tracker.sh track (UserPromptSubmit hook)"
     log_info "  - write-topic.sh permissions"
     log_info "  - write-unclear-topic.sh permissions"
     log_info "  - statusline configuration"
