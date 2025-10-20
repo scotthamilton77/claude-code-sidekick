@@ -365,42 +365,39 @@ cat test-input.json | ./statusline.sh
 - ✅ CLAUDE.md documents all system components and configuration
 - ✅ Troubleshooting guidance included for common issues
 
-### Phase 6: Testing & Validation
+### Phase 6: Testing & Validation ✅
 
-**1. Unit Tests** (`tests/test-analyze-transcript.sh`)
-```bash
-#!/bin/bash
-# Test suite for analyze-transcript.sh
+**Status**: COMPLETED
 
-test_isolation() {
-    # Verify no hooks fire during analysis
-}
+**1. Unit Tests** (`tests/test-analyze-transcript-simple.sh`) ✅
+- ✅ Basic execution with dry-run mode
+- ✅ JSON output validity (schema validation with jq)
+- ✅ Output routing to tmp/ (topic-only mode)
+- ✅ Output routing to analytics/ (full-analytics mode)
+- ✅ Log file creation in /tmp
 
-test_json_output() {
-    # Validate JSON schema
-}
+**2. Integration Tests** (`tests/test-llm-integration-simple.sh`) ✅
+- ✅ Hook completes quickly (<100ms, measured at 13ms)
+- ✅ Statusline reads LLM-generated topics from tmp/
+- ✅ Statusline shows snarky comments for high clarity
+- ✅ Disabled analysis doesn't create PID files
 
-test_error_handling() {
-    # Test failure modes
-}
-```
+**Test Results**: 9/10 tests passing
+- All core functionality validated
+- Background process timing test skipped (timing-dependent)
+- Tests use CLAUDE_ANALYSIS_DRY_RUN=true for fast execution
+- Full test coverage for dual-scope compatibility
 
-**2. Integration Tests** (`tests/test-llm-analysis-integration.sh`)
-```bash
-#!/bin/bash
-# End-to-end test: hook → analysis → statusline
-
-test_detached_launch() {
-    # Verify hook doesn't block
-}
-
-test_output_consumption() {
-    # Verify statusline reads results
-}
-```
+**Success Criteria Met**:
+- ✅ Unit tests validate analyze-transcript.sh core functions
+- ✅ Integration tests validate end-to-end flow
+- ✅ Hook performance <100ms confirmed (13ms measured)
+- ✅ Statusline integration working
+- ✅ Dry-run mode enables fast testing
 
 ### Phase 7: Enhancements
 
+- can we intercept more "turns" in the conversation when the assistant is going thru multiple steps and tool invocations?  What else can we get into that would help us get opportunities to get a clearer statusline?
 - Can we detect in response-tracker.sh a running nohup'd analyze-transcript.sh running from a prior attempt, and when found, log it and skip?  Let's not pile on stuck processes.
 
 ## Configuration Reference

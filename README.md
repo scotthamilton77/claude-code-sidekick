@@ -10,7 +10,7 @@ This repository serves as a development and testing environment for [Claude Code
 
 ## TODOs
 
-- LLM_PLAN.md: what if we shifted to launching claude /p (with haiku 4.5 or cheaper?) to derive intent rather than hinting back to claude?
+- Can we hook into more exchanges with the assistant, such as tool usage?  how can we get in between user queries?
 - sync, push - these should not clobber settings and mcp, but rather merge; for claude.md, ask to replace
 - statusline is coupled to the reminders; we should make this modular to allow the reminders to inject or supply a module for statusline to load dynamically
 - periodic tmp cleanup
