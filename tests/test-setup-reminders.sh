@@ -68,17 +68,20 @@ EOF
 
     # Verify permissions, hooks, and statusline were added
     local expected_statusline='~/.claude/statusline.sh --project-dir "$CLAUDE_PROJECT_DIR"'
-    local expected_session_start='~/.claude/hooks/reminders/response-tracker.sh init "$CLAUDE_PROJECT_DIR"'
+    local expected_session_start_init='~/.claude/hooks/reminders/response-tracker.sh init "$CLAUDE_PROJECT_DIR"'
+    local expected_session_start_snarkify='~/.claude/hooks/reminders/snarkify-last-session.sh "$CLAUDE_PROJECT_DIR"'
     local expected_prompt_submit='~/.claude/hooks/reminders/response-tracker.sh track "$CLAUDE_PROJECT_DIR"'
 
     if jq -e '.permissions.allow | map(select(test("write-topic"))) | length > 0' "$settings_file" >/dev/null && \
        jq -e --arg expected "$expected_statusline" '.statusLine.command == $expected' "$settings_file" >/dev/null && \
-       jq -e --arg expected "$expected_session_start" '.hooks.SessionStart[0].hooks[0].command == $expected' "$settings_file" >/dev/null && \
+       jq -e --arg expected "$expected_session_start_init" '.hooks.SessionStart[0].hooks[0].command == $expected' "$settings_file" >/dev/null && \
+       jq -e --arg expected "$expected_session_start_snarkify" '.hooks.SessionStart[1].hooks[0].command == $expected' "$settings_file" >/dev/null && \
        jq -e --arg expected "$expected_prompt_submit" '.hooks.UserPromptSubmit[0].hooks[0].command == $expected' "$settings_file" >/dev/null; then
-        log_pass "Permissions, hooks, and statusline added successfully"
+        log_pass "Permissions, hooks (including snarkify), and statusline added successfully"
         return 0
     else
         echo "FAIL: Permissions, hooks, or statusline not added correctly"
+        jq '.hooks' "$settings_file"
         return 1
     fi
 }
@@ -169,6 +172,14 @@ test_already_configured() {
           {
             "type": "command",
             "command": "~/.claude/hooks/reminders/response-tracker.sh init \"$CLAUDE_PROJECT_DIR\""
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/reminders/snarkify-last-session.sh \"$CLAUDE_PROJECT_DIR\""
           }
         ]
       }
@@ -263,12 +274,14 @@ EOF
 
     add_permissions "$settings_file" "$hook_path" "$statusline_cmd" "$hooks_prefix"
 
-    local expected_session_start='$CLAUDE_PROJECT_DIR/.claude/hooks/reminders/response-tracker.sh init "$CLAUDE_PROJECT_DIR"'
+    local expected_session_start_init='$CLAUDE_PROJECT_DIR/.claude/hooks/reminders/response-tracker.sh init "$CLAUDE_PROJECT_DIR"'
+    local expected_session_start_snarkify='$CLAUDE_PROJECT_DIR/.claude/hooks/reminders/snarkify-last-session.sh "$CLAUDE_PROJECT_DIR"'
     local expected_prompt_submit='$CLAUDE_PROJECT_DIR/.claude/hooks/reminders/response-tracker.sh track "$CLAUDE_PROJECT_DIR"'
 
-    if jq -e --arg expected "$expected_session_start" '.hooks.SessionStart[0].hooks[0].command == $expected' "$settings_file" >/dev/null && \
+    if jq -e --arg expected "$expected_session_start_init" '.hooks.SessionStart[0].hooks[0].command == $expected' "$settings_file" >/dev/null && \
+       jq -e --arg expected "$expected_session_start_snarkify" '.hooks.SessionStart[1].hooks[0].command == $expected' "$settings_file" >/dev/null && \
        jq -e --arg expected "$expected_prompt_submit" '.hooks.UserPromptSubmit[0].hooks[0].command == $expected' "$settings_file" >/dev/null; then
-        log_pass "Project-scope hooks configured correctly"
+        log_pass "Project-scope hooks (including snarkify) configured correctly"
         return 0
     else
         echo "FAIL: Project-scope hooks not configured correctly"
@@ -277,9 +290,76 @@ EOF
     fi
 }
 
-# Test 8: .gitignore creation in git repo
+# Test 8: Custom hook preservation (surgical insertion)
+test_custom_hook_preservation() {
+    log_test "Test 8: Custom hook preservation (surgical insertion)"
+
+    local settings_file="$TEST_DIR/test8_settings.json"
+    local hook_path="$TEST_DIR/user_claude/.claude/hooks"
+    local statusline_cmd='~/.claude/statusline.sh --project-dir "$CLAUDE_PROJECT_DIR"'
+
+    cat > "$settings_file" << 'EOF'
+{
+  "permissions": {
+    "allow": [],
+    "deny": []
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/custom/hook.sh"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/other/custom/hook.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+EOF
+
+    add_permissions "$settings_file" "$hook_path" "$statusline_cmd" '~/.claude'
+
+    # Verify custom hooks are preserved and reminders hooks appended
+    local custom_session_start=$(jq -r '.hooks.SessionStart[0].hooks[0].command' "$settings_file")
+    local has_response_tracker=$(jq -e '.hooks.SessionStart[1].hooks[0].command | test("response-tracker.sh init")' "$settings_file" >/dev/null && echo "yes" || echo "no")
+    local has_snarkify=$(jq -e '.hooks.SessionStart[2].hooks[0].command | test("snarkify-last-session.sh")' "$settings_file" >/dev/null && echo "yes" || echo "no")
+    local custom_prompt_submit=$(jq -r '.hooks.UserPromptSubmit[0].hooks[0].command' "$settings_file")
+    local has_tracker=$(jq -e '.hooks.UserPromptSubmit[1].hooks[0].command | test("response-tracker.sh track")' "$settings_file" >/dev/null && echo "yes" || echo "no")
+
+    if [ "$custom_session_start" = "/custom/hook.sh" ] && \
+       [ "$has_response_tracker" = "yes" ] && \
+       [ "$has_snarkify" = "yes" ] && \
+       [ "$custom_prompt_submit" = "/other/custom/hook.sh" ] && \
+       [ "$has_tracker" = "yes" ]; then
+        log_pass "Custom hooks preserved, reminders hooks appended"
+        return 0
+    else
+        echo "FAIL: Custom hooks not preserved correctly"
+        echo "Custom SessionStart: $custom_session_start (expected /custom/hook.sh)"
+        echo "Has response-tracker: $has_response_tracker (expected yes)"
+        echo "Has snarkify: $has_snarkify (expected yes)"
+        echo "Custom UserPromptSubmit: $custom_prompt_submit (expected /other/custom/hook.sh)"
+        echo "Has tracker: $has_tracker (expected yes)"
+        jq '.hooks' "$settings_file"
+        return 1
+    fi
+}
+
+# Test 9: .gitignore creation in git repo
 test_gitignore_creation() {
-    log_test "Test 8: .gitignore creation in git repo"
+    log_test "Test 9: .gitignore creation in git repo"
 
     local test_project="$TEST_DIR/git_project"
     mkdir -p "$test_project"
@@ -299,9 +379,9 @@ test_gitignore_creation() {
     fi
 }
 
-# Test 9: .gitignore update in existing file
+# Test 10: .gitignore update in existing file
 test_gitignore_update() {
-    log_test "Test 9: .gitignore update in existing file"
+    log_test "Test 10: .gitignore update in existing file"
 
     local test_project="$TEST_DIR/git_project2"
     mkdir -p "$test_project"
@@ -323,9 +403,9 @@ test_gitignore_update() {
     fi
 }
 
-# Test 10: .gitignore skip when not a git repo
+# Test 11: .gitignore skip when not a git repo
 test_gitignore_skip_non_git() {
-    log_test "Test 10: .gitignore skip when not a git repo"
+    log_test "Test 11: .gitignore skip when not a git repo"
 
     local test_project="$TEST_DIR/non_git_project"
     mkdir -p "$test_project"
@@ -341,9 +421,9 @@ test_gitignore_skip_non_git() {
     fi
 }
 
-# Test 11: .gitignore idempotency
+# Test 12: .gitignore idempotency
 test_gitignore_idempotent() {
-    log_test "Test 11: .gitignore idempotency (no duplicates)"
+    log_test "Test 12: .gitignore idempotency (no duplicates)"
 
     local test_project="$TEST_DIR/git_project3"
     mkdir -p "$test_project"
@@ -380,7 +460,7 @@ echo ""
 PASSED=0
 FAILED=0
 
-for test_func in test_valid_with_permissions test_valid_no_permissions test_corrupted_json test_missing_file test_already_configured test_statusline_missing test_project_scope_hooks test_gitignore_creation test_gitignore_update test_gitignore_skip_non_git test_gitignore_idempotent; do
+for test_func in test_valid_with_permissions test_valid_no_permissions test_corrupted_json test_missing_file test_already_configured test_statusline_missing test_project_scope_hooks test_custom_hook_preservation test_gitignore_creation test_gitignore_update test_gitignore_skip_non_git test_gitignore_idempotent; do
     # Reset global state between tests
     BACKUP_FILES=()
 

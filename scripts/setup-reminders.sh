@@ -76,7 +76,8 @@ add_permissions() {
     local write_unclear_perm="Bash(${hook_path}/reminders/write-unclear-topic.sh:*)"
 
     # Calculate hooks commands
-    local session_start_cmd="${hooks_cmd_prefix}/hooks/reminders/response-tracker.sh init \"\$CLAUDE_PROJECT_DIR\""
+    local session_start_init_cmd="${hooks_cmd_prefix}/hooks/reminders/response-tracker.sh init \"\$CLAUDE_PROJECT_DIR\""
+    local session_start_snarkify_cmd="${hooks_cmd_prefix}/hooks/reminders/snarkify-last-session.sh \"\$CLAUDE_PROJECT_DIR\""
     local prompt_submit_cmd="${hooks_cmd_prefix}/hooks/reminders/response-tracker.sh track \"\$CLAUDE_PROJECT_DIR\""
 
     # Read current permissions and statusline
@@ -111,7 +112,10 @@ add_permissions() {
         needs_update=true
     fi
     # Check if hooks configuration exists
-    if ! jq -e --arg expected "$session_start_cmd" '.hooks.SessionStart[0].hooks[0].command == $expected' "$settings_file" >/dev/null 2>&1; then
+    if ! jq -e --arg expected "$session_start_init_cmd" '.hooks.SessionStart[0].hooks[0].command == $expected' "$settings_file" >/dev/null 2>&1; then
+        needs_update=true
+    fi
+    if ! jq -e --arg expected "$session_start_snarkify_cmd" '.hooks.SessionStart[1].hooks[0].command == $expected' "$settings_file" >/dev/null 2>&1; then
         needs_update=true
     fi
     if ! jq -e --arg expected "$prompt_submit_cmd" '.hooks.UserPromptSubmit[0].hooks[0].command == $expected' "$settings_file" >/dev/null 2>&1; then
@@ -133,12 +137,13 @@ add_permissions() {
     BACKUP_FILES+=("$backup_file")
     log_info "Backed up to: $backup_file"
 
-    # Add permissions, hooks, and statusline using jq
+    # Add permissions, hooks, and statusline using jq (surgical insertion)
     local tmp_file=$(mktemp)
     if ! jq --arg write_topic "$write_topic_perm" \
        --arg write_unclear "$write_unclear_perm" \
        --arg statusline "$statusline_cmd" \
-       --arg session_start "$session_start_cmd" \
+       --arg session_start_init "$session_start_init_cmd" \
+       --arg session_start_snarkify "$session_start_snarkify_cmd" \
        --arg prompt_submit "$prompt_submit_cmd" \
        '.permissions.allow += (
            if (.permissions.allow // []) | map(select(. == $write_topic)) | length == 0
@@ -153,28 +158,22 @@ add_permissions() {
        ) | .statusLine = {
            "type": "command",
            "command": $statusline
-       } | .hooks = {
-           "SessionStart": [
-               {
-                   "hooks": [
-                       {
-                           "type": "command",
-                           "command": $session_start
-                       }
-                   ]
-               }
-           ],
-           "UserPromptSubmit": [
-               {
-                   "hooks": [
-                       {
-                           "type": "command",
-                           "command": $prompt_submit
-                       }
-                   ]
-               }
-           ]
-       }' "$settings_file" > "$tmp_file" 2>/dev/null; then
+       } |
+       # Surgically add SessionStart hooks (remove our commands first, then append)
+       .hooks.SessionStart = (
+           (.hooks.SessionStart // []) |
+           map(select(.hooks[0].command != $session_start_init and .hooks[0].command != $session_start_snarkify))
+       ) + [
+           {"hooks": [{"type": "command", "command": $session_start_init}]},
+           {"hooks": [{"type": "command", "command": $session_start_snarkify}]}
+       ] |
+       # Surgically add UserPromptSubmit hooks (remove our command first, then append)
+       .hooks.UserPromptSubmit = (
+           (.hooks.UserPromptSubmit // []) |
+           map(select(.hooks[0].command != $prompt_submit))
+       ) + [
+           {"hooks": [{"type": "command", "command": $prompt_submit}]}
+       ]' "$settings_file" > "$tmp_file" 2>/dev/null; then
         log_error "Failed to update settings in: $settings_file"
         rm -f "$tmp_file"
         return 1
@@ -404,7 +403,9 @@ main() {
         log_info "  - Configured permissions and hooks in settings.json"
     fi
     log_info "Configured hooks:"
-    log_info "  - response-tracker.sh (SessionStart & UserPromptSubmit)"
+    log_info "  - response-tracker.sh init (SessionStart)"
+    log_info "  - snarkify-last-session.sh (SessionStart)"
+    log_info "  - response-tracker.sh track (UserPromptSubmit)"
     log_info "  - write-topic.sh (for clear user intents)"
     log_info "  - write-unclear-topic.sh (for vague requests)"
     echo ""
