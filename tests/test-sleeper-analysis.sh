@@ -127,7 +127,7 @@ test_sleeper_pid_file() {
     # Wait a moment for PID file creation
     sleep 0.5
 
-    local pid_file="$TEST_CACHE_DIR/${TEST_SESSION_ID}_sleeper.pid"
+    local pid_file="$TEST_CACHE_DIR/${TEST_SESSION_ID}/sleeper.pid"
 
     if [ -f "$pid_file" ]; then
         local stored_pid=$(cat "$pid_file")
@@ -137,7 +137,7 @@ test_sleeper_pid_file() {
             fail "PID file has wrong PID (expected $sleeper_pid, got $stored_pid)"
         fi
     else
-        fail "PID file not created"
+        fail "PID file not created at $pid_file"
     fi
 
     # Wait for sleeper to exit
@@ -159,12 +159,12 @@ test_sleeper_cleanup() {
     wait "$sleeper_pid" 2>/dev/null || true
     sleep 0.5  # Extra buffer for cleanup trap to execute
 
-    local pid_file="$TEST_CACHE_DIR/${TEST_SESSION_ID}_sleeper.pid"
+    local pid_file="$TEST_CACHE_DIR/${TEST_SESSION_ID}/sleeper.pid"
 
     if [ ! -f "$pid_file" ]; then
         pass "PID file cleaned up after sleeper exit"
     else
-        fail "PID file still exists after sleeper exit"
+        fail "PID file still exists at $pid_file after sleeper exit"
     fi
 }
 
@@ -198,7 +198,7 @@ test_sleeper_size_detection() {
     sleep 3
 
     # Check if analysis was triggered (look for log entry or topic file)
-    local log_file="/tmp/claude-sleeper-${TEST_SESSION_ID}.log"
+    local log_file="$TEST_CACHE_DIR/${TEST_SESSION_ID}/sleeper.log"
 
     if [ -f "$log_file" ] && grep -q "launching analysis" "$log_file"; then
         pass "Sleeper detected size change and triggered analysis"
@@ -228,7 +228,7 @@ test_snarkify_no_previous() {
     run_test "Snarkify handles missing previous session gracefully"
 
     # Clean test environment first
-    rm -f "$TEST_CACHE_DIR"/*_topic.json
+    rm -rf "$TEST_CACHE_DIR"/*/topic.json
 
     export VERBOSE=false
 
@@ -239,7 +239,7 @@ test_snarkify_no_previous() {
     echo '{"session_id":"'$test_session'"}' | "$SNARKIFY_SCRIPT" "$TEST_DIR" 2>/dev/null || true
 
     # Should exit cleanly without creating topic file
-    local topic_file="$TEST_CACHE_DIR/${test_session}_topic.json"
+    local topic_file="$TEST_CACHE_DIR/${test_session}/topic.json"
 
     if [ ! -f "$topic_file" ]; then
         pass "Snarkify exits cleanly with no previous session"
@@ -253,7 +253,7 @@ test_snarkify_resume() {
     run_test "Snarkify creates resume topic from previous session"
 
     # Clean and recreate test environment
-    rm -f "$TEST_CACHE_DIR"/*_topic.json
+    rm -rf "$TEST_CACHE_DIR"/*/topic.json
     mkdir -p "$TEST_CACHE_DIR"
 
     export VERBOSE=false
@@ -261,7 +261,8 @@ test_snarkify_resume() {
 
     # Create a previous session topic file with high clarity
     local prev_session="prev-session-$(date +%s)"
-    cat > "$TEST_CACHE_DIR/${prev_session}_topic.json" <<EOF
+    mkdir -p "$TEST_CACHE_DIR/${prev_session}"
+    cat > "$TEST_CACHE_DIR/${prev_session}/topic.json" <<EOF
 {
   "session_id": "$prev_session",
   "timestamp": "2025-10-19T12:00:00Z",
@@ -273,7 +274,7 @@ test_snarkify_resume() {
 EOF
 
     # Verify prev session file was created
-    if [ ! -f "$TEST_CACHE_DIR/${prev_session}_topic.json" ]; then
+    if [ ! -f "$TEST_CACHE_DIR/${prev_session}/topic.json" ]; then
         fail "Failed to create previous session topic file for test"
         return
     fi
@@ -283,7 +284,7 @@ EOF
     echo '{"session_id":"'$new_session'"}' | "$SNARKIFY_SCRIPT" "$TEST_DIR" >/dev/null 2>&1 || true
 
     # Check if resume topic created
-    local topic_file="$TEST_CACHE_DIR/${new_session}_topic.json"
+    local topic_file="$TEST_CACHE_DIR/${new_session}/topic.json"
 
     if [ -f "$topic_file" ]; then
         # Check if it contains resume information and expected JSON fields
@@ -301,7 +302,7 @@ EOF
         fi
     else
         # Check if snarkify found the previous topic
-        local log_file="/tmp/claude-snarkify.log"
+        local log_file="$TEST_CACHE_DIR/${new_session}/snarkify.log"
         if [ -f "$log_file" ]; then
             tail -5 "$log_file" >&2
         fi

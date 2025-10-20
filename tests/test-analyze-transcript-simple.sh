@@ -15,7 +15,6 @@ FAIL=0
 
 cleanup() {
     rm -rf "$TEST_DIR"
-    rm -f /tmp/claude-analysis-test-*.log
 }
 
 test_basic_execution() {
@@ -24,7 +23,7 @@ test_basic_execution() {
     echo '{"type":"user","text":"test"}' > "$TEST_DIR/transcript.jsonl"
 
     if CLAUDE_ANALYSIS_DRY_RUN=true "$ANALYZER" "test-basic" "$TEST_DIR/transcript.jsonl" "topic-only" "$TEST_DIR/output" > /dev/null 2>&1; then
-        if [ -f "$TEST_DIR/output/tmp/test-basic_topic.json" ]; then
+        if [ -f "$TEST_DIR/output/tmp/test-basic/topic.json" ]; then
             echo -e "${GREEN}PASS${NC}"
             ((PASS++))
         else
@@ -40,7 +39,7 @@ test_basic_execution() {
 test_json_validity() {
     echo -n "Test: JSON output validity... "
     if command -v jq >/dev/null 2>&1; then
-        if jq -e '.session_id and .timestamp and .task_ids and .clarity_score' "$TEST_DIR/output/tmp/test-basic_topic.json" >/dev/null 2>&1; then
+        if jq -e '.session_id and .timestamp and .task_ids and .clarity_score' "$TEST_DIR/output/tmp/test-basic/topic.json" >/dev/null 2>&1; then
             echo -e "${GREEN}PASS${NC}"
             ((PASS++))
         else
@@ -59,11 +58,11 @@ test_output_routing_tmp() {
 
     CLAUDE_ANALYSIS_DRY_RUN=true "$ANALYZER" "test-tmp" "$TEST_DIR/transcript.jsonl" "topic-only" "$TEST_DIR/output2" > /dev/null 2>&1
 
-    if [ -f "$TEST_DIR/output2/tmp/test-tmp_topic.json" ]; then
+    if [ -f "$TEST_DIR/output2/tmp/test-tmp/topic.json" ]; then
         echo -e "${GREEN}PASS${NC}"
         ((PASS++))
     else
-        echo -e "${RED}FAIL - topic file not in tmp/${NC}"
+        echo -e "${RED}FAIL - topic file not in tmp/test-tmp/${NC}"
         ((FAIL++))
     fi
 }
@@ -82,18 +81,18 @@ test_output_routing_analytics() {
 }
 
 test_log_file_creation() {
-    echo -n "Test: Log file creation... "
-    log_file="/tmp/claude-analysis-test-logging.log"
-    rm -f "$log_file"
+    echo -n "Test: Log file creation in session-specific directory... "
+    session_id="test-logging"
+    log_file="$TEST_DIR/output4/tmp/${session_id}/analysis.log"
+    rm -rf "$TEST_DIR/output4"
 
-    CLAUDE_ANALYSIS_DRY_RUN=true "$ANALYZER" "test-logging" "$TEST_DIR/transcript.jsonl" "topic-only" "$TEST_DIR/output4" > /dev/null 2>&1
+    CLAUDE_ANALYSIS_DRY_RUN=true "$ANALYZER" "$session_id" "$TEST_DIR/transcript.jsonl" "topic-only" "$TEST_DIR/output4" > /dev/null 2>&1
 
     if [ -f "$log_file" ]; then
         echo -e "${GREEN}PASS${NC}"
         ((PASS++))
-        rm -f "$log_file"
     else
-        echo -e "${RED}FAIL - no log file created${NC}"
+        echo -e "${RED}FAIL - no log file at $log_file${NC}"
         ((FAIL++))
     fi
 }

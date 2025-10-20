@@ -62,8 +62,13 @@ VERBOSE="${VERBOSE:-false}"
 # Paths
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cache_dir="${output_base_dir}/tmp"
-pid_file="${cache_dir}/${session_id}_sleeper.pid"
-LOG_FILE="${cache_dir}/sleeper-analysis.log"
+
+# Create session-specific directory for logs and PID files
+session_dir="${cache_dir}/${session_id}"
+mkdir -p "$session_dir" 2>/dev/null || true
+
+pid_file="${session_dir}/sleeper.pid"
+LOG_FILE="${session_dir}/sleeper.log"
 
 # ANSI color codes for terminal output
 readonly COLOR_RESET='\033[0m'
@@ -139,7 +144,7 @@ get_file_size() {
 
 # Get clarity score from most recent analysis
 get_clarity() {
-    local topic_file="${cache_dir}/${session_id}_topic.json"
+    local topic_file="${session_dir}/topic.json"
     if [ ! -f "$topic_file" ]; then
         echo "0"
         return

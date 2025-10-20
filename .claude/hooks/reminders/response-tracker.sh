@@ -123,7 +123,7 @@ validate_count() {
 get_clarity_score() {
     local session_id="$1"
     local output_dir="$2"
-    local topic_file="${output_dir}/${session_id}_topic.json"
+    local topic_file="${output_dir}/${session_id}/topic.json"
 
     # Default to 0 (unknown) if file doesn't exist
     if [ ! -f "$topic_file" ]; then
@@ -163,8 +163,15 @@ launch_analysis() {
         return 1
     fi
 
+    # Create session-specific directory for logs and PID files
+    local session_dir="${output_base_dir}/tmp/${session_id}"
+    mkdir -p "$session_dir" || {
+        [ "$VERBOSE" = true ] && echo "[ResponseTracker] WARNING: Failed to create session directory: $session_dir" >&2
+        return 1
+    }
+
     # Check for existing analysis in progress
-    local pid_file="${output_base_dir}/tmp/${session_id}_analysis.pid"
+    local pid_file="${session_dir}/analysis.pid"
     if [ -f "$pid_file" ]; then
         local existing_pid=$(cat "$pid_file" 2>/dev/null)
         # Check if process is still running
@@ -179,8 +186,8 @@ launch_analysis() {
     fi
 
     # Launch detached process (double-fork pattern via nohup)
-    # Redirect stdin from /dev/null, all output to log file
-    local log_file="/tmp/claude-analysis-${session_id}.log"
+    # Redirect stdin from /dev/null, all output to session-specific log file
+    local log_file="${session_dir}/analysis.log"
 
     nohup "${HOOK_DIR}/analyze-transcript.sh" \
         "$session_id" \
@@ -206,7 +213,14 @@ check_and_launch_sleeper() {
     local transcript_path="$2"
     local output_base_dir="$3"
 
-    local pid_file="${output_base_dir}/tmp/${session_id}_sleeper.pid"
+    # Create session-specific directory for logs and PID files
+    local session_dir="${output_base_dir}/tmp/${session_id}"
+    mkdir -p "$session_dir" || {
+        [ "$VERBOSE" = true ] && echo "[ResponseTracker] WARNING: Failed to create session directory: $session_dir" >&2
+        return 1
+    }
+
+    local pid_file="${session_dir}/sleeper.pid"
 
     # Check if PID file exists
     if [ -f "$pid_file" ]; then
@@ -227,12 +241,13 @@ check_and_launch_sleeper() {
     # Launch sleeper in background
     [ "$VERBOSE" = true ] && echo "[ResponseTracker] Launching sleeper analysis process" >&2
 
+    local log_file="${session_dir}/sleeper.log"
     nohup "${HOOK_DIR}/sleeper-analysis.sh" \
         "$session_id" \
         "$transcript_path" \
         "$output_base_dir" \
         </dev/null \
-        &>/tmp/claude-sleeper-${session_id}.log &
+        &>"$log_file" &
 
     [ "$VERBOSE" = true ] && echo "[ResponseTracker] Sleeper launched: PID $!" >&2
 
@@ -257,17 +272,20 @@ transcript_path=$(echo "$input" | jq -r '.transcript_path')
 # Store session state in project-local tmp directory
 cache_dir="${project_dir}/.claude/hooks/reminders/tmp"
 output_base_dir="${project_dir}/.claude/hooks/reminders"
+session_dir="${cache_dir}/${session_id}"
+
 [ "$VERBOSE" = true ] && echo "[ResponseTracker] project_dir: $project_dir" >&2
 [ "$VERBOSE" = true ] && echo "[ResponseTracker] cache_dir: $cache_dir" >&2
+[ "$VERBOSE" = true ] && echo "[ResponseTracker] session_dir: $session_dir" >&2
 [ "$VERBOSE" = true ] && echo "[ResponseTracker] output_base_dir: $output_base_dir" >&2
 
-mkdir -p "$cache_dir" || {
-    echo "[ResponseTracker] ERROR: Failed to create cache directory: $cache_dir" >&2
+mkdir -p "$session_dir" || {
+    echo "[ResponseTracker] ERROR: Failed to create session directory: $session_dir" >&2
     exit 1
 }
 
-counter_file="${cache_dir}/${session_id}_response_count"
-topic_file="${cache_dir}/${session_id}_topic"
+counter_file="${session_dir}/response_count"
+topic_file="${session_dir}/topic"
 unclear_topic_file="${topic_file}_unclear"
 [ "$VERBOSE" = true ] && echo "[ResponseTracker] counter_file: $counter_file" >&2
 [ "$VERBOSE" = true ] && echo "[ResponseTracker] topic_file: $topic_file" >&2
@@ -320,7 +338,7 @@ case "$operation" in
 
     # Fallback: Check if transcript analysis should run (for when sleeper disabled or after sleeper exits)
     if [ "$ANALYSIS_ENABLED" = true ]; then
-        topic_json_file="${cache_dir}/${session_id}_topic.json"
+        topic_json_file="${session_dir}/topic.json"
 
         # If no topic file exists, launch analysis immediately (first time)
         # This provides immediate analysis if sleeper is disabled
