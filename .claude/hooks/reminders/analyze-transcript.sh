@@ -66,12 +66,13 @@ DRY_RUN="${CLAUDE_ANALYSIS_DRY_RUN:-false}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="${output_base_dir:-$SCRIPT_DIR}"
 
-# Set LOG_FILE and PID_FILE BEFORE any function calls that might reference them
-LOG_FILE="${BASE_DIR}/tmp/analyze-transcript.log"
-PID_FILE="${BASE_DIR}/tmp/${session_id}_analysis.pid"
+# Create session-specific directory for logs and state files
+SESSION_DIR="${BASE_DIR}/tmp/${session_id}"
+mkdir -p "$SESSION_DIR" 2>/dev/null || true
 
-# Ensure tmp directory exists for logging
-mkdir -p "${BASE_DIR}/tmp" 2>/dev/null || true
+# Set LOG_FILE and PID_FILE BEFORE any function calls that might reference them
+LOG_FILE="${SESSION_DIR}/analysis.log"
+PID_FILE="${SESSION_DIR}/analysis.pid"
 
 # ANSI color codes for terminal output
 readonly COLOR_RESET='\033[0m'
@@ -152,25 +153,21 @@ esac
 # Prompt template directory
 PROMPT_DIR="${SCRIPT_DIR}/analysis-prompts"
 
-# Choose output directory based on analysis mode
-# topic-only and incremental → tmp/ (ephemeral, frequently overwritten)
-# full-analytics → analytics/ (persistent, detailed analysis)
-if [ "$mode" = "full-analytics" ]; then
-    OUTPUT_DIR="${BASE_DIR}/analytics"
-else
-    OUTPUT_DIR="${BASE_DIR}/tmp"
-fi
+# Output directories:
+# - Topic files always go to session-specific directory in tmp/
+# - Full analytics files go to analytics/ directory for persistence
+ANALYTICS_DIR="${BASE_DIR}/analytics"
 
 if [ ! -d "$PROMPT_DIR" ]; then
     log_error "Prompt template directory not found: $PROMPT_DIR"
     exit 1
 fi
 
-# Ensure output directory exists
-if [ ! -d "$OUTPUT_DIR" ]; then
-    log_debug "Creating output directory: $OUTPUT_DIR"
-    mkdir -p "$OUTPUT_DIR" || {
-        log_error "Failed to create output directory: $OUTPUT_DIR"
+# Ensure analytics directory exists if needed
+if [ "$mode" = "full-analytics" ] && [ ! -d "$ANALYTICS_DIR" ]; then
+    log_debug "Creating analytics directory: $ANALYTICS_DIR"
+    mkdir -p "$ANALYTICS_DIR" || {
+        log_error "Failed to create analytics directory: $ANALYTICS_DIR"
         exit 1
     }
 fi
@@ -394,21 +391,19 @@ fi
 
 log "Successfully parsed JSON output"
 
-# Write output files to tmp directory based on mode
-output_file="${OUTPUT_DIR}/${session_id}_topic.json"
-
-# Always write topic file
-echo "$json_output" | jq '.' > "$output_file" || {
-    log_error "Failed to write topic file: $output_file"
+# Always write topic file to session-specific directory
+topic_file="${SESSION_DIR}/topic.json"
+echo "$json_output" | jq '.' > "$topic_file" || {
+    log_error "Failed to write topic file: $topic_file"
     rm -f "$claude_output" "$claude_errors"
     exit 1
 }
 
-log "Wrote topic analysis: $output_file"
+log "Wrote topic analysis: $topic_file"
 
 # For full analytics mode, also write separate analytics file
 if [ "$mode" = "full-analytics" ]; then
-    analytics_file="${OUTPUT_DIR}/${session_id}_analytics.json"
+    analytics_file="${ANALYTICS_DIR}/${session_id}_analytics.json"
     echo "$json_output" | jq '.' > "$analytics_file" || {
         log_error "Failed to write analytics file: $analytics_file"
         rm -f "$claude_output" "$claude_errors"

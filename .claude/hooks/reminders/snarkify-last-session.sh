@@ -58,7 +58,26 @@ readonly COLOR_GREEN='\033[0;32m'
 readonly COLOR_YELLOW='\033[0;33m'
 readonly COLOR_GRAY='\033[0;90m'
 
-# Logging functions
+# Get project directory from parameter (preferred) or environment variable (fallback)
+project_dir="${1:-${CLAUDE_PROJECT_DIR:-}}"
+
+if [ -z "$project_dir" ]; then
+    echo "[$(date -Iseconds)] [WARN] No project directory provided (parameter or CLAUDE_PROJECT_DIR), cannot locate cache directory" >&2
+    exit 0
+fi
+
+# Read session_id from stdin JSON (SessionStart hook input) BEFORE any logging
+input=$(cat)
+session_id=$(echo "$input" | jq -r '.session_id' 2>/dev/null || echo "")
+
+# Create session-specific directory for logs
+session_dir="${project_dir}/.claude/hooks/reminders/tmp/${session_id}"
+mkdir -p "$session_dir" 2>/dev/null || true
+
+# Set log file to session-specific directory
+LOG_FILE="${session_dir}/snarkify.log"
+
+# Logging functions (defined AFTER LOG_FILE is set)
 log() {
     echo "[$(date -Iseconds)] [INFO] $*" >> "$LOG_FILE"
     if [ "$VERBOSE" = true ]; then
@@ -83,21 +102,6 @@ log_debug() {
     return 0
 }
 
-# Get project directory from parameter (preferred) or environment variable (fallback)
-project_dir="${1:-${CLAUDE_PROJECT_DIR:-}}"
-
-if [ -z "$project_dir" ]; then
-    echo "[$(date -Iseconds)] [WARN] No project directory provided (parameter or CLAUDE_PROJECT_DIR), cannot locate cache directory" >&2
-    exit 0
-fi
-
-# Set log file to project-local tmp directory
-LOG_FILE="${project_dir}/.claude/hooks/reminders/tmp/snarkify-last-session.log"
-
-# Read session_id from stdin JSON (SessionStart hook input)
-input=$(cat)
-session_id=$(echo "$input" | jq -r '.session_id' 2>/dev/null || echo "")
-
 if [ -z "$session_id" ]; then
     log_warn "No session_id found in input, exiting"
     exit 0
@@ -105,11 +109,13 @@ fi
 
 log "Starting snarkify for session: $session_id"
 
-# Determine cache directory
+# Determine cache directory and current session directory
 cache_dir="${project_dir}/.claude/hooks/reminders/tmp"
-current_topic="${cache_dir}/${session_id}_topic.json"
+current_session_dir="${cache_dir}/${session_id}"
+current_topic="${current_session_dir}/topic.json"
 
 log_debug "Cache directory: $cache_dir"
+log_debug "Current session directory: $current_session_dir"
 log_debug "Current topic file: $current_topic"
 
 # Skip if current topic already exists
@@ -124,9 +130,10 @@ mkdir -p "$cache_dir" || {
     exit 1
 }
 
-# Find most recent topic file with clarity > 5
-# Use jq to filter and sort, output: timestamp|filename
-last_topic=$(find "$cache_dir" -name "*_topic.json" -type f 2>/dev/null | \
+# Find most recent topic file with clarity > 5 from OTHER sessions
+# Search all session directories except current one
+last_topic=$(find "$cache_dir" -mindepth 2 -maxdepth 2 -name "topic.json" -type f 2>/dev/null | \
+    grep -v "/${session_id}/" | \
     while read -r file; do
         clarity=$(jq -r '.clarity_score // 0' "$file" 2>/dev/null || echo "0")
         timestamp=$(jq -r '.timestamp // ""' "$file" 2>/dev/null || echo "")
@@ -146,6 +153,11 @@ log "Found previous session topic: $last_topic"
 prompt_template="${SCRIPT_DIR}/analysis-prompts/new-session-topic.txt"
 if [ ! -f "$prompt_template" ]; then
     log_warn "Prompt template not found: $prompt_template, using fallback"
+    # Ensure session directory exists
+    mkdir -p "$current_session_dir" || {
+        log_warn "Failed to create session directory: $current_session_dir"
+        exit 1
+    }
     # Fallback to manual construction
     last_goal=$(jq -r '.current_objective // .initial_goal // "previous work"' "$last_topic" 2>/dev/null || echo "previous work")
     cat > "$current_topic" <<EOF
@@ -246,6 +258,12 @@ else
         fi
     fi
 fi
+
+# Ensure session directory exists
+mkdir -p "$current_session_dir" || {
+    log_warn "Failed to create session directory: $current_session_dir"
+    exit 1
+}
 
 # Build full JSON structure with extracted values
 cat > "$current_topic" <<EOF
