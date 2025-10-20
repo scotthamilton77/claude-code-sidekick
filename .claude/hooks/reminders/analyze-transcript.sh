@@ -43,6 +43,11 @@ EOF
     exit 1
 }
 
+# Handle --help flag
+if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+    usage
+fi
+
 # Validate arguments
 [ $# -ge 3 ] || usage
 
@@ -54,6 +59,7 @@ output_base_dir="${4:-}"  # Optional 4th parameter
 # Configuration
 CLAUDE_MODEL="${CLAUDE_ANALYSIS_MODEL:-haiku}"
 VERBOSE="${VERBOSE:-false}"
+DRY_RUN="${CLAUDE_ANALYSIS_DRY_RUN:-false}"
 LOG_FILE="/tmp/claude-analysis-${session_id}.log"
 
 # ANSI color codes for terminal output
@@ -301,17 +307,36 @@ fi
 
 log_debug "Using Claude binary: $CLAUDE_BIN"
 
-# Run claude -p (project mode) with JSON output format
-# Use timeout to prevent hanging (30s should be plenty for topic-only)
-# Exit code 124 = timeout, others = claude errors
-# Temporarily disable set -e to capture exit code
-set +e
-timeout 30s "$CLAUDE_BIN" -p --model "$CLAUDE_MODEL" --setting-sources project <<EOF > "$claude_output" 2> "$claude_errors"
+# DRY RUN MODE: Generate mock JSON output for testing
+if [ "$DRY_RUN" = true ]; then
+    log "DRY RUN MODE: Generating mock JSON output"
+    cat > "$claude_output" <<EOF
+{
+  "session_id": "$session_id",
+  "timestamp": "$(date -Iseconds)",
+  "task_ids": ["DRY-RUN"],
+  "initial_goal": "Testing analyze-transcript.sh",
+  "current_objective": "Verify dry-run mode",
+  "clarity_score": 10,
+  "confidence": 1.0,
+  "high_clarity_snarky_comment": "Dry runs are for cowards who fear actual LLM calls",
+  "low_clarity_snarky_comment": "Even in testing, confusion reigns supreme"
+}
+EOF
+    exit_code=0
+else
+    # Run claude -p (project mode) with JSON output format
+    # Use timeout to prevent hanging (30s should be plenty for topic-only)
+    # Exit code 124 = timeout, others = claude errors
+    # Temporarily disable set -e to capture exit code
+    set +e
+    timeout 30s "$CLAUDE_BIN" -p --model "$CLAUDE_MODEL" --setting-sources project <<EOF > "$claude_output" 2> "$claude_errors"
 $analysis_prompt
 EOF
 
-exit_code=$?
-set -e
+    exit_code=$?
+    set -e
+fi
 
 if [ $exit_code -ne 0 ]; then
     if [ $exit_code -eq 124 ]; then
