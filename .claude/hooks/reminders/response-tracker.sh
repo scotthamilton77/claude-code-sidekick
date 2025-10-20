@@ -21,6 +21,9 @@ for arg in "$@"; do
     esac
 done
 
+# Export VERBOSE so child processes (analyze-transcript.sh, sleeper-analysis.sh) inherit it
+export VERBOSE
+
 # Configuration
 STATIC_REMINDER_CADENCE=${STATIC_REMINDER_CADENCE:-4}
 readonly HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

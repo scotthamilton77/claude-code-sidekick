@@ -60,7 +60,18 @@ output_base_dir="${4:-}"  # Optional 4th parameter
 CLAUDE_MODEL="${CLAUDE_ANALYSIS_MODEL:-haiku}"
 VERBOSE="${VERBOSE:-false}"
 DRY_RUN="${CLAUDE_ANALYSIS_DRY_RUN:-false}"
-LOG_FILE="/tmp/claude-analysis-${session_id}.log"
+
+# Determine script directory and base directory EARLY (before any logging)
+# This must happen before any log() or cleanup() calls since they reference these vars
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="${output_base_dir:-$SCRIPT_DIR}"
+
+# Set LOG_FILE and PID_FILE BEFORE any function calls that might reference them
+LOG_FILE="${BASE_DIR}/tmp/analyze-transcript.log"
+PID_FILE="${BASE_DIR}/tmp/${session_id}_analysis.pid"
+
+# Ensure tmp directory exists for logging
+mkdir -p "${BASE_DIR}/tmp" 2>/dev/null || true
 
 # ANSI color codes for terminal output
 readonly COLOR_RESET='\033[0m'
@@ -138,13 +149,8 @@ case "$mode" in
         ;;
 esac
 
-# Determine script directory for locating prompt templates
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Prompt template directory
 PROMPT_DIR="${SCRIPT_DIR}/analysis-prompts"
-
-# Determine base directory for output files
-# If output_base_dir provided, use it; otherwise use SCRIPT_DIR
-BASE_DIR="${output_base_dir:-$SCRIPT_DIR}"
 
 # Choose output directory based on analysis mode
 # topic-only and incremental → tmp/ (ephemeral, frequently overwritten)
@@ -154,8 +160,6 @@ if [ "$mode" = "full-analytics" ]; then
 else
     OUTPUT_DIR="${BASE_DIR}/tmp"
 fi
-
-PID_FILE="${BASE_DIR}/tmp/${session_id}_analysis.pid"
 
 if [ ! -d "$PROMPT_DIR" ]; then
     log_error "Prompt template directory not found: $PROMPT_DIR"
