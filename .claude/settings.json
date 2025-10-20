@@ -66,5 +66,17 @@
       "WebSearch"
     ],
     "deny": []
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/reminders/snarkify-last-session.sh \"$CLAUDE_PROJECT_DIR\""
+          }
+        ]
+      }
+    ]
   }
 }

@@ -35,6 +35,9 @@ ANALYSIS_CADENCE_LOW_CLARITY=${CLAUDE_ANALYSIS_CADENCE_LOW:-1}
 ANALYSIS_CADENCE_HIGH_CLARITY=${CLAUDE_ANALYSIS_CADENCE_HIGH:-10}
 ANALYSIS_CLARITY_THRESHOLD=${CLAUDE_ANALYSIS_CLARITY_THRESHOLD:-7}
 
+# Sleeper configuration
+SLEEPER_ENABLED=${CLAUDE_SLEEPER_ENABLED:-true}
+
 # Load static reminder content from user and/or project level files
 # Returns concatenated content if both exist, otherwise whichever is found
 load_static_reminder() {
@@ -193,6 +196,46 @@ launch_analysis() {
     return 0
 }
 
+# Check for existing sleeper and launch if needed
+# Args: session_id, transcript_path, output_base_dir
+check_and_launch_sleeper() {
+    local session_id="$1"
+    local transcript_path="$2"
+    local output_base_dir="$3"
+
+    local pid_file="${output_base_dir}/tmp/${session_id}_sleeper.pid"
+
+    # Check if PID file exists
+    if [ -f "$pid_file" ]; then
+        local pid=$(cat "$pid_file" 2>/dev/null || echo "")
+
+        # Verify process is actually running
+        if [ -n "$pid" ] && ps -p "$pid" >/dev/null 2>&1; then
+            # Sleeper already running, skip
+            [ "$VERBOSE" = true ] && echo "[ResponseTracker] Sleeper already running: PID $pid" >&2
+            return 0
+        else
+            # Stale PID file, clean up
+            [ "$VERBOSE" = true ] && echo "[ResponseTracker] Removing stale sleeper PID file: $pid" >&2
+            rm -f "$pid_file"
+        fi
+    fi
+
+    # Launch sleeper in background
+    [ "$VERBOSE" = true ] && echo "[ResponseTracker] Launching sleeper analysis process" >&2
+
+    nohup "${HOOK_DIR}/sleeper-analysis.sh" \
+        "$session_id" \
+        "$transcript_path" \
+        "$output_base_dir" \
+        </dev/null \
+        &>/tmp/claude-sleeper-${session_id}.log &
+
+    [ "$VERBOSE" = true ] && echo "[ResponseTracker] Sleeper launched: PID $!" >&2
+
+    return 0
+}
+
 # Read JSON input from stdin
 input=$(cat)
 
@@ -236,9 +279,15 @@ case "$operation" in
     }
     [ "$VERBOSE" = true ] && echo "[ResponseTracker] Initialized counter at: $counter_file" >&2
 
-    # Note: We don't launch analysis here because the transcript file doesn't exist yet
-    # The first 'track' call will detect missing topic file and launch analysis immediately
-    [ "$VERBOSE" = true ] && echo "[ResponseTracker] init complete (analysis will launch on first track call)" >&2
+    # Launch sleeper process if enabled
+    # Sleeper will wait for transcript to exist and monitor for changes
+    if [ "$SLEEPER_ENABLED" = true ]; then
+        [ "$VERBOSE" = true ] && echo "[ResponseTracker] Sleeper enabled, will launch on first track call" >&2
+    fi
+
+    # Note: We don't launch sleeper here because init is typically fired before UserPromptSubmit
+    # The first 'track' call will launch sleeper and/or immediate analysis
+    [ "$VERBOSE" = true ] && echo "[ResponseTracker] init complete" >&2
 
     exit 0
     ;;
@@ -259,14 +308,24 @@ case "$operation" in
         exit 1
     }
 
-    # Check if transcript analysis should run
+    # On first track call, launch sleeper if enabled
+    # Sleeper handles continuous monitoring and adaptive analysis
+    if [ "$count" -eq 1 ] && [ "$SLEEPER_ENABLED" = true ]; then
+        [ "$VERBOSE" = true ] && echo "[ResponseTracker] First track call, launching sleeper" >&2
+        check_and_launch_sleeper "$session_id" "$transcript_path" "$output_base_dir"
+    fi
+
+    # Fallback: Check if transcript analysis should run (for when sleeper disabled or after sleeper exits)
     if [ "$ANALYSIS_ENABLED" = true ]; then
         topic_json_file="${cache_dir}/${session_id}_topic.json"
 
         # If no topic file exists, launch analysis immediately (first time)
+        # This provides immediate analysis if sleeper is disabled
         if [ ! -f "$topic_json_file" ]; then
-            [ "$VERBOSE" = true ] && echo "[ResponseTracker] No topic file found, launching initial analysis" >&2
-            launch_analysis "$session_id" "$transcript_path" "$output_base_dir"
+            if [ "$SLEEPER_ENABLED" = false ]; then
+                [ "$VERBOSE" = true ] && echo "[ResponseTracker] No topic file found, launching initial analysis (sleeper disabled)" >&2
+                launch_analysis "$session_id" "$transcript_path" "$output_base_dir"
+            fi
         else
             # Get current clarity score
             clarity=$(get_clarity_score "$session_id" "$cache_dir")

@@ -1,0 +1,26 @@
+You are creating a resume topic for a new Claude Code session based on a previous session's goal.
+
+Your task is to analyze the previous session's topic data and generate:
+1. A concise resume message for the statusline
+2. A witty snarky comment about resuming this work
+
+PREVIOUS SESSION TOPIC:
+{PREVIOUS_TOPIC}
+
+Return ONLY valid JSON (no markdown, no explanation) with this exact schema:
+
+{
+  "initial_goal": "string ("shall we resume...?" message referencing previous work, max 60 chars)",
+  "current_objective": "string (same as initial_goal)",
+  "high_clarity_snarky_comment": "string (witty, sarcastic comment about resuming this work, max 120 chars)"
+}
+
+Requirements:
+- Extract the most meaningful goal/objective from previous session (prefer current_objective over initial_goal if more specific)
+- initial_goal: Must be in the form of a question, e.g. "Shall we resume" or "Want to continue" followed by brief description (max 60 chars total)
+- current_objective: Same value as initial_goal
+- high_clarity_snarky_comment: Channel sarcastic software architect with SciFi references, acknowledge the resumption with slight cynicism. Be creative. Examples:
+  * "Back to {work}, because apparently we weren't done the first time"
+  * "Ah yes, {work}. Let's see if we finish it this session"
+  * "Resuming {work}. The optimism is... touching"
+  * "Round two with {work}. This time with feeling"
