@@ -11,6 +11,7 @@ This repository serves as a development and testing environment for [Claude Code
 ## TODOs
 
 - Can we hook into more exchanges with the assistant, such as tool usage?  how can we get in between user queries?
+- how do subagents work - can we detect their connection to the parent agent, and do we care?  (for statusline, maybe not, but for analytics?)
 - sync, push - these should not clobber settings and mcp, but rather merge; for claude.md, ask to replace
 - statusline is coupled to the reminders; we should make this modular to allow the reminders to inject or supply a module for statusline to load dynamically
 - periodic tmp cleanup

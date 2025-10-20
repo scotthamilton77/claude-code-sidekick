@@ -120,62 +120,103 @@ State files in `.claude/hooks/reminders/tmp/` persist across conversations (giti
 
 ### LLM Analysis System
 
-The repository implements an **asynchronous transcript analysis system** that uses detached background processes to analyze conversation transcripts with LLM models without impacting hook performance.
+The repository implements an **adaptive asynchronous transcript analysis system** with two complementary approaches:
+
+1. **Sleeper Process** (default): Persistent background polling for rapid status updates during active work
+2. **Cadence-Based Fallback**: Periodic analysis after sleeper exits or when disabled
 
 #### Architecture
 
+**Sleeper Mode** (Active during initial conversation phase):
 ```
-User Conversation (Sonnet 4.5)
+SessionStart Hook
     ↓
-response-tracker.sh fires → decides if analysis needed
-    ↓ YES
-Launch detached: analyze-transcript.sh &
-    ↓ (hook exits immediately <50ms)
+snarkify-last-session.sh → generates resume statusline (proactive)
+    ↓
+Statusline shows "Resume: <goal>" immediately
 
-[Background Process - Isolated]
+First UserPromptSubmit
     ↓
-Create /tmp workspace with empty hooks config
+response-tracker.sh launches sleeper-analysis.sh
+    ↓ (hook exits <10ms)
+
+[Sleeper Process - Long-Running Background]
     ↓
-claude -p --model haiku-4.5 (prevents recursion)
+Poll transcript every 2-5s (adaptive)
     ↓
-Parse JSON output
+If size changed >500 bytes AND >10s since last analysis:
+    Run analyze-transcript.sh
+    Check clarity_score from result
     ↓
-Write to .claude/hooks/reminders/tmp/ or analytics/
+    If clarity >= threshold (default 7): EXIT sleeper
+    If clarity < threshold: CONTINUE polling
+    ↓
+After 10 minutes OR clarity met: EXIT sleeper
+```
+
+**Fallback Mode** (After sleeper exits or when disabled):
+```
+response-tracker.sh fires on UserPromptSubmit
+    ↓
+Check if analysis due (based on response count & clarity)
+    ↓
+Launch analyze-transcript.sh (one-time)
+    ↓
+Continue normal cadence-based analysis
 ```
 
 #### Key Features
 
-- **Zero-Latency Execution**: Hooks launch analysis via `nohup` and exit immediately
-- **Recursion Prevention**: Isolated workspace with `"hooks":{}` in settings.json
-- **Adaptive Cadence**: Analysis frequency adjusts based on conversation clarity
-- **Cost-Efficient**: Uses Haiku models (~$0.03-0.07 per 100-response conversation)
-- **Dual-Output Routing**:
-  - `topic-only`/`incremental` modes → `tmp/` (ephemeral, statusline consumption)
-  - `full-analytics` mode → `analytics/` (persistent, historical review)
+- **Adaptive Polling**: Sleeper adjusts intervals (2s active, 5s idle) based on transcript activity
+- **Clarity-Based Exit**: Sleeper terminates when clarity threshold met, hands off to fallback
+- **Resume Continuity**: Proactive snarkification of last session's topic on new sessions
+- **Cost Control**: Minimum size change (500 bytes) and interval (10s) throttling
+- **Zero Hook Overhead**: Sleeper runs independently, hooks complete in <10ms
+- **Self-Terminating**: Maximum 10-minute runtime prevents orphan processes
+- **Backward Compatible**: Can be disabled to use original cadence-based system
 
 #### Components
 
-- **`analyze-transcript.sh`**: Core analysis script (detached execution)
+- **`sleeper-analysis.sh`**: Persistent polling process with adaptive intervals
+- **`snarkify-last-session.sh`**: SessionStart hook for proactive resume statusline
+- **`analyze-transcript.sh`**: Core analysis script (used by both sleeper and fallback)
+- **`response-tracker.sh`**: Manages sleeper launch and fallback analysis
 - **`analysis-prompts/`**: Mode-specific prompt templates
   - `topic-only.txt`: Fast topic detection (~2s, minimal tokens)
   - `incremental.txt`: Recent context analysis (~4s)
   - `full-analytics.txt`: Comprehensive insights (~10s)
+- **`.claude/hooks/reminders/tmp/`**: Ephemeral topic files + sleeper PID tracking
 - **`.claude/hooks/reminders/analytics/`**: Persistent analytics storage (gitignored)
-- **`.claude/hooks/reminders/tmp/`**: Ephemeral topic files for statusline
 
 #### Configuration
 
 Control via environment variables:
 
+**Sleeper Configuration**:
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `CLAUDE_ANALYSIS_ENABLED` | `true` | Enable/disable analysis |
+| `CLAUDE_SLEEPER_ENABLED` | `true` | Enable/disable sleeper polling |
+| `CLAUDE_SLEEPER_INTERVAL_ACTIVE` | `2` | Polling interval when transcript changing (seconds) |
+| `CLAUDE_SLEEPER_INTERVAL_IDLE` | `5` | Polling interval when idle (seconds) |
+| `CLAUDE_SLEEPER_MAX_DURATION` | `600` | Maximum sleeper runtime (seconds, 10 min) |
+| `CLAUDE_SLEEPER_CLARITY_EXIT` | `7` | Clarity score for sleeper exit (1-10 scale) |
+| `CLAUDE_SLEEPER_MIN_SIZE_CHANGE` | `500` | Minimum bytes changed to trigger analysis |
+| `CLAUDE_SLEEPER_MIN_INTERVAL` | `10` | Minimum seconds between analyses |
+
+**Analysis Configuration** (both sleeper and fallback):
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CLAUDE_ANALYSIS_ENABLED` | `true` | Enable/disable fallback analysis |
 | `CLAUDE_ANALYSIS_MODE` | `topic-only` | Mode: `topic-only`, `incremental`, `full-analytics` |
-| `CLAUDE_ANALYSIS_CADENCE` | `3` | Base frequency (every N responses) |
-| `CLAUDE_ANALYSIS_CADENCE_HIGH_CLARITY` | `5` | Frequency for clear conversations |
-| `CLAUDE_ANALYSIS_CADENCE_LOW_CLARITY` | `2` | Frequency for unclear conversations |
+| `CLAUDE_ANALYSIS_CADENCE_HIGH_CLARITY` | `10` | Fallback frequency for clear conversations |
+| `CLAUDE_ANALYSIS_CADENCE_LOW_CLARITY` | `1` | Fallback frequency for unclear conversations |
 | `CLAUDE_ANALYSIS_CLARITY_THRESHOLD` | `7` | Clarity score threshold (1-10 scale) |
 | `CLAUDE_ANALYSIS_MODEL` | `haiku-4.5` | Model: `haiku-4.5`, `haiku-3.5`, `haiku-3` |
+
+**Resume Configuration**:
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CLAUDE_SNARK_MODEL` | `haiku-4.5` | Model for resume snarkification |
 
 #### Output Schema
 
@@ -208,33 +249,76 @@ Control via environment variables:
 
 #### Troubleshooting
 
-**Analysis not running**:
+**Sleeper not running**:
 ```bash
 # Check if enabled
+echo $CLAUDE_SLEEPER_ENABLED
+
+# View sleeper logs
+tail -f /tmp/claude-sleeper-*.log
+
+# Check for running sleeper
+ps aux | grep sleeper-analysis
+
+# Check PID file
+cat .claude/hooks/reminders/tmp/*_sleeper.pid
+ps -p $(cat .claude/hooks/reminders/tmp/*_sleeper.pid)
+```
+
+**Sleeper stuck or orphaned**:
+```bash
+# Kill all sleeper processes
+pkill -f sleeper-analysis.sh
+
+# Clean up stale PID files
+rm -f .claude/hooks/reminders/tmp/*_sleeper.pid
+```
+
+**Analysis not running**:
+```bash
+# Check if analysis enabled
 echo $CLAUDE_ANALYSIS_ENABLED
 
-# View logs
+# View analysis logs
 tail -f /tmp/claude-analysis-*.log
 
-# Check for stuck processes
+# Check for running analysis
 ps aux | grep analyze-transcript
+```
+
+**Resume statusline not showing**:
+```bash
+# Check if SessionStart hook fired
+tail -f /tmp/claude-snarkify.log
+
+# Check for previous topic files
+ls -la .claude/hooks/reminders/tmp/*_topic.json
+
+# Manually test snarkify
+echo '{"session_id":"test-123"}' | .claude/hooks/reminders/snarkify-last-session.sh
 ```
 
 **Performance issues**:
 ```bash
 # Measure hook overhead
 time ./response-tracker.sh track "$PWD" < test.json
+# Should be <10ms
 
-# Should be <50ms
+# Check sleeper CPU usage
+ps aux | grep sleeper-analysis | grep -v grep
+# Should be <1% CPU
 ```
 
 **Disk space concerns**:
 ```bash
 # Check analytics directory size
-du -sh ~/.claude/hooks/reminders/analytics
+du -sh .claude/hooks/reminders/analytics
 
-# Clean old files (30+ days)
-find ~/.claude/hooks/reminders/analytics -name "*.json" -mtime +30 -delete
+# Clean old analytics files (30+ days)
+find .claude/hooks/reminders/analytics -name "*.json" -mtime +30 -delete
+
+# Clean old logs
+find /tmp -name "claude-*.log" -mtime +7 -delete
 ```
 
 See `LLM_PLAN.md` for complete implementation details and `analytics/README.md` for output documentation.
