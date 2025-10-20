@@ -189,7 +189,7 @@ get_session_topic() {
         snarky_comment=$(jq -r '.low_clarity_snarky_comment // empty' "$analytics_file" 2>/dev/null)
     fi
 
-    # Build output: [$tasks]: $initial_goal / $current_objective\n$snarky_comment
+    # Build output: [$tasks]: $initial_goal ($current_objective)\n$snarky_comment
     local output=""
 
     # Add task IDs prefix if present (skip if empty array)
@@ -203,7 +203,7 @@ get_session_topic() {
     fi
     if [ -n "$current_objective" ]; then
         if [ -n "$initial_goal" ]; then
-            output="${output} ${DIM}/${RESET} ${MAGENTA}${current_objective}${RESET}"
+            output="${output} ${DIM}${RESET}${MAGENTA}(${current_objective})${RESET}"
         else
             output="${output}${MAGENTA}${current_objective}${RESET}"
         fi

@@ -63,7 +63,7 @@ VERBOSE="${VERBOSE:-false}"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cache_dir="${output_base_dir}/tmp"
 pid_file="${cache_dir}/${session_id}_sleeper.pid"
-LOG_FILE="/tmp/claude-sleeper-${session_id}.log"
+LOG_FILE="${cache_dir}/sleeper-analysis.log"
 
 # ANSI color codes for terminal output
 readonly COLOR_RESET='\033[0m'

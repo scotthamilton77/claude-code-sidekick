@@ -39,7 +39,6 @@ SNARK_MODEL="${CLAUDE_SNARK_MODEL:-haiku}"
 
 # Paths
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LOG_FILE="/tmp/claude-snarkify.log"
 
 # Resolve Claude binary path (aliases not available in non-interactive shells)
 CLAUDE_BIN="${CLAUDE_BIN:-$HOME/.claude/local/claude}"
@@ -88,9 +87,12 @@ log_debug() {
 project_dir="${1:-${CLAUDE_PROJECT_DIR:-}}"
 
 if [ -z "$project_dir" ]; then
-    log_warn "No project directory provided (parameter or CLAUDE_PROJECT_DIR), cannot locate cache directory"
+    echo "[$(date -Iseconds)] [WARN] No project directory provided (parameter or CLAUDE_PROJECT_DIR), cannot locate cache directory" >&2
     exit 0
 fi
+
+# Set log file to project-local tmp directory
+LOG_FILE="${project_dir}/.claude/hooks/reminders/tmp/snarkify-last-session.log"
 
 # Read session_id from stdin JSON (SessionStart hook input)
 input=$(cat)
