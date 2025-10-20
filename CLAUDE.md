@@ -28,13 +28,14 @@ The repository is organized around three main systems:
 - `backlog/commands/proto/`: Prototype command patterns
 
 #### Hook System
-- `.claude/hooks/reminders/write-topic.sh`: Records clear conversation topics with metadata
-- `.claude/hooks/reminders/write-unclear-topic.sh`: Handles vague/ambiguous user requests
-- `.claude/hooks/reminders/response-tracker.sh`: Monitors Claude responses and provides periodic reminders
-- `.claude/hooks/reminders/analyze-transcript.sh`: Async LLM-based transcript analysis (detached background process)
+- `.claude/hooks/reminders/response-tracker.sh`: UserPromptSubmit hook that manages sleeper launch and fallback analysis
+- `.claude/hooks/reminders/snarkify-last-session.sh`: SessionStart hook for proactive resume statusline generation
+- `.claude/hooks/reminders/sleeper-analysis.sh`: Persistent background polling process with adaptive intervals
+- `.claude/hooks/reminders/analyze-transcript.sh`: Core LLM-based transcript analysis (used by both sleeper and fallback)
 - `.claude/hooks/reminders/analysis-prompts/`: LLM prompt templates for different analysis modes
 - `.claude/hooks/reminders/tmp/`: Runtime state for hook operations (excluded from version control)
 - `.claude/hooks/reminders/analytics/`: Persistent analytics output (excluded from sync)
+- `.claude/hooks/reminders/deprecated/`: Deprecated hooks (write-topic.sh, write-unclear-topic.sh)
 
 #### Configuration Files
 - `.claude/CLAUDE.md`: Project-specific instructions (mirrors global `~/.claude/CLAUDE.md`)
@@ -111,10 +112,10 @@ Use environment variables and dynamic path resolution to ensure portability. See
 
 ### Hook System Architecture
 Hooks execute at specific conversation events:
+- **SessionStart**: Triggered when a new conversation session begins
+  - `snarkify-last-session.sh`: Generates resume statusline from previous session's topic (proactive)
 - **UserPromptSubmit**: Triggered before Claude processes user input
-  - `write-topic.sh`: Analyzes intent, records topic metadata
-  - `write-unclear-topic.sh`: Handles ambiguous/vague requests
-  - `response-tracker.sh`: Maintains response count, injects periodic reminders
+  - `response-tracker.sh`: Launches sleeper process (first call only), manages fallback analysis cadence
 
 State files in `.claude/hooks/reminders/tmp/` persist across conversations (gitignored).
 
