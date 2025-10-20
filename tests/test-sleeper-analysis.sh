@@ -290,7 +290,7 @@ EOF
         local has_resume=$(grep -cE "Shall we resume|Want to continue" "$topic_file" || echo "0")
         local has_goal=$(grep -c "JWT token handling\|Implement authentication" "$topic_file" || echo "0")
         local has_intent=$(grep -c "intent_category" "$topic_file" || echo "0")
-        local has_snark=$(grep -c "high_clarity_snarky_comment" "$topic_file" || echo "0")
+        local has_snark=$(grep -c "low_clarity_snarky_comment" "$topic_file" || echo "0")
 
         if [ "$has_resume" -gt 0 ] && [ "$has_goal" -gt 0 ] && [ "$has_intent" -gt 0 ] && [ "$has_snark" -gt 0 ]; then
             pass "Snarkify created resume topic with previous goal"

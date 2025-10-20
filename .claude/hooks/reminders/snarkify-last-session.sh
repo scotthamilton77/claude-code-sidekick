@@ -35,12 +35,23 @@ fi
 # Configuration
 VERBOSE="${VERBOSE:-false}"
 DRY_RUN="${CLAUDE_SNARK_DRY_RUN:-false}"
-CLAUDE_BIN="${CLAUDE_BIN:-claude}"
-SNARK_MODEL="${CLAUDE_SNARK_MODEL:-haiku-4.5}"
+SNARK_MODEL="${CLAUDE_SNARK_MODEL:-haiku}"
 
 # Paths
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOG_FILE="/tmp/claude-snarkify.log"
+
+# Resolve Claude binary path (aliases not available in non-interactive shells)
+CLAUDE_BIN="${CLAUDE_BIN:-$HOME/.claude/local/claude}"
+if [ ! -x "$CLAUDE_BIN" ]; then
+    # Fallback: try to find in common locations
+    for path in "$HOME/.claude/local/claude" "$(command -v claude 2>/dev/null)"; do
+        if [ -x "$path" ]; then
+            CLAUDE_BIN="$path"
+            break
+        fi
+    done
+fi
 
 # ANSI color codes
 readonly COLOR_RESET='\033[0m'
@@ -141,12 +152,12 @@ if [ ! -f "$prompt_template" ]; then
   "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
   "task_ids": [],
   "initial_goal": "Shall we resume ${last_goal}?",
-  "current_objective": "Shall we resume ${last_goal}?",
+  "current_objective": "Navigate the space-time continuum of code",
   "intent_category": "development",
   "clarity_score": 6,
   "confidence": 0.7,
-  "high_clarity_snarky_comment": "Back to work, because apparently we weren't done the first time",
-  "low_clarity_snarky_comment": null,
+  "high_clarity_snarky_comment": null,
+  "low_clarity_snarky_comment": "Back to work, because apparently we weren't done the first time",
   "resume_from_session": true
 }
 EOF
@@ -161,38 +172,75 @@ analysis_prompt="${analysis_prompt/\{PREVIOUS_TOPIC\}/$(cat "$last_topic")}"
 
 log_debug "Generating resume topic with model: $SNARK_MODEL (dry_run=$DRY_RUN)"
 
+# Create isolated workspace to prevent hook recursion
+create_isolated_workspace() {
+    local workspace_dir="$1"
+
+    mkdir -p "$workspace_dir/.claude" || {
+        log_warn "Failed to create workspace directory: $workspace_dir"
+        return 1
+    }
+
+    # Disable hooks and statusline to prevent recursion
+    cat > "$workspace_dir/.claude/settings.json" <<'EOF'
+{
+  "hooks": {},
+  "statusLine": null
+}
+EOF
+    return 0
+}
+
+workspace_dir="/tmp/claude-snarkify-$$-${session_id}"
+create_isolated_workspace "$workspace_dir" || {
+    log_warn "Failed to create isolated workspace, using dry-run fallback"
+    DRY_RUN="true"
+}
+
 # Call Claude for analysis (or use dry-run fallback)
 if [ "$DRY_RUN" = "true" ]; then
     # Dry-run fallback
     last_goal=$(jq -r '.current_objective // .initial_goal // "previous work"' "$last_topic" 2>/dev/null || echo "previous work")
     initial_goal="Shall we resume ${last_goal}?"
+    current_objective="Navigate the space-time continuum of code"
     snark="[DRY-RUN] Back to ${last_goal}, because apparently we weren't done the first time"
     log "Using dry-run values"
 else
-    # Call LLM with prompt
-    llm_output=$(echo "$analysis_prompt" | "$CLAUDE_BIN" -p --model "$SNARK_MODEL" 2>>"$LOG_FILE")
+    # Call LLM with prompt in isolated workspace to prevent hook recursion
+    llm_output=$(cd "$workspace_dir" && echo "$analysis_prompt" | "$CLAUDE_BIN" -p --model "$SNARK_MODEL" --setting-sources project 2>>"$LOG_FILE")
 
-    # Extract JSON (remove markdown code blocks if present)
-    llm_json=$(echo "$llm_output" | sed -n '/^{/,/^}/p' | head -1)
+    log_debug "Raw LLM output: $llm_output"
 
+    # Extract JSON (try markdown code block first, then raw JSON)
+    llm_json=$(echo "$llm_output" | sed -n '/```json/,/```/p' | sed '1d;$d')
     if [ -z "$llm_json" ]; then
+        # Fallback: try extracting raw JSON
+        llm_json=$(echo "$llm_output" | sed -n '/^{/,/^}/p')
+    fi
+
+    log_debug "Extracted JSON: $llm_json"
+
+    if [ -z "$llm_json" ] || ! echo "$llm_json" | jq empty 2>/dev/null; then
         log_warn "LLM returned no valid JSON, using fallback"
         last_goal=$(jq -r '.current_objective // .initial_goal // "previous work"' "$last_topic" 2>/dev/null || echo "previous work")
         initial_goal="Shall we resume ${last_goal}?"
+        current_objective="Navigate the space-time continuum of code"
         snark="Ah yes, picking up where we left off. What could possibly go wrong?"
     else
         # Extract fields from LLM response
         initial_goal=$(echo "$llm_json" | jq -r '.initial_goal // ""')
-        snark=$(echo "$llm_json" | jq -r '.high_clarity_snarky_comment // ""')
+        current_objective=$(echo "$llm_json" | jq -r '.current_objective // ""')
+        snark=$(echo "$llm_json" | jq -r '.snarky_comment // ""')
 
         # Validate we got values
-        if [ -z "$initial_goal" ] || [ -z "$snark" ]; then
+        if [ -z "$initial_goal" ] || [ -z "$current_objective" ] || [ -z "$snark" ]; then
             log_warn "LLM response missing required fields, using fallback"
             last_goal=$(jq -r '.current_objective // .initial_goal // "previous work"' "$last_topic" 2>/dev/null || echo "previous work")
             initial_goal="Shall we resume ${last_goal}?"
+            current_objective="Navigate the space-time continuum of code"
             snark="Ah yes, picking up where we left off. What could possibly go wrong?"
         else
-            log "Extracted from LLM: initial_goal='$initial_goal'"
+            log "Extracted from LLM: initial_goal='$initial_goal', current_objective='$current_objective'"
         fi
     fi
 fi
@@ -204,12 +252,12 @@ cat > "$current_topic" <<EOF
   "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
   "task_ids": [],
   "initial_goal": "${initial_goal}",
-  "current_objective": "${initial_goal}",
+  "current_objective": "${current_objective}",
   "intent_category": "development",
-  "clarity_score": 6,
+  "clarity_score": 0,
   "confidence": 0.7,
-  "high_clarity_snarky_comment": "${snark}",
-  "low_clarity_snarky_comment": null,
+  "high_clarity_snarky_comment": null,
+  "low_clarity_snarky_comment": "${snark}",
   "resume_from_session": true
 }
 EOF
@@ -217,5 +265,8 @@ EOF
 log "Created resume topic file: $current_topic"
 
 log_debug "Resume topic content: $(cat "$current_topic")"
+
+# Cleanup isolated workspace
+rm -rf "$workspace_dir" 2>/dev/null || true
 
 exit 0
