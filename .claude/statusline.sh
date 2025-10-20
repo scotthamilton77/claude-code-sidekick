@@ -167,7 +167,7 @@ get_session_topic() {
         local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
         tmp_dir="${script_dir}/hooks/reminders/tmp"
     fi
-    local analytics_file="${tmp_dir}/${session_id}_topic.json"
+    local analytics_file="${tmp_dir}/${session_id}/topic.json"
 
     # Check for JSON analytics file
     if [ ! -f "$analytics_file" ]; then
