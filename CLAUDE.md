@@ -181,7 +181,8 @@ Continue normal cadence-based analysis
 - **`sleeper-analysis.sh`**: Persistent polling process with adaptive intervals
 - **`snarkify-last-session.sh`**: SessionStart hook for proactive resume statusline
 - **`analyze-transcript.sh`**: Core analysis script (used by both sleeper and fallback)
-- **`response-tracker.sh`**: Manages sleeper launch and fallback analysis
+- **`response-tracker.sh`**: Manages sleeper launch, fallback analysis, and cleanup
+- **`cleanup-old-sessions.sh`**: Garbage collection for old session tmp directories
 - **`analysis-prompts/`**: Mode-specific prompt templates
   - `topic-only.txt`: Fast topic detection (~2s, minimal tokens)
   - `incremental.txt`: Recent context analysis (~4s)
@@ -218,6 +219,15 @@ Control via environment variables:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `CLAUDE_SNARK_MODEL` | `haiku-4.5` | Model for resume snarkification |
+
+**Cleanup Configuration** (automatic session directory garbage collection):
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CLAUDE_TMP_CLEANUP_ENABLED` | `true` | Enable/disable automatic cleanup |
+| `CLAUDE_TMP_CLEANUP_MIN_COUNT` | `5` | Minimum old sessions before cleanup triggers |
+| `CLAUDE_TMP_CLEANUP_AGE_DAYS` | `2` | Age threshold in days |
+| `CLAUDE_TMP_CLEANUP_DRY_RUN` | `false` | Test mode (log but don't delete) |
+| `CLAUDE_TMP_CLEANUP_SKIP_SAFETY` | `false` | Skip path validation (testing only) |
 
 #### Output Schema
 
@@ -320,6 +330,32 @@ find .claude/hooks/reminders/analytics -name "*.json" -mtime +30 -delete
 
 # Clean old logs
 find /tmp -name "claude-*.log" -mtime +7 -delete
+```
+
+**Cleanup not running**:
+```bash
+# Check if cleanup enabled
+echo $CLAUDE_TMP_CLEANUP_ENABLED
+
+# View cleanup logs for current session
+cat .claude/hooks/reminders/tmp/$(ls -t .claude/hooks/reminders/tmp | head -1)/cleanup.log
+
+# Manually run cleanup (dry-run)
+CLAUDE_TMP_CLEANUP_DRY_RUN=true .claude/hooks/reminders/cleanup-old-sessions.sh "$PWD/.claude/hooks/reminders"
+
+# Check how many old sessions exist
+find .claude/hooks/reminders/tmp -type d -mindepth 1 -maxdepth 1 -mtime +2 | wc -l
+```
+
+**Cleanup removing too much/too little**:
+```bash
+# Adjust thresholds via environment variables
+export CLAUDE_TMP_CLEANUP_MIN_COUNT=10  # Keep more old sessions
+export CLAUDE_TMP_CLEANUP_AGE_DAYS=7     # Older age threshold
+
+# Test with dry-run before applying
+VERBOSE=true CLAUDE_TMP_CLEANUP_DRY_RUN=true \
+  .claude/hooks/reminders/cleanup-old-sessions.sh "$PWD/.claude/hooks/reminders"
 ```
 
 See `LLM_PLAN.md` for complete implementation details and `analytics/README.md` for output documentation.
