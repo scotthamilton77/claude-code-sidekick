@@ -7,86 +7,86 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 ## Phase 1: Infrastructure Setup
 
 ### 1.1 Create Directory Structure
-- [ ] Create `src/sidekick/` directory
-- [ ] Create `src/sidekick/lib/` directory
-- [ ] Create `src/sidekick/handlers/` directory
-- [ ] Create `src/sidekick/features/` directory
-- [ ] Create `src/sidekick/features/prompts/` directory
-- [ ] Create `scripts/tests/unit/` directory
-- [ ] Create `scripts/tests/integration/` directory
+- [x] Create `src/sidekick/` directory
+- [x] Create `src/sidekick/lib/` directory
+- [x] Create `src/sidekick/handlers/` directory
+- [x] Create `src/sidekick/features/` directory
+- [x] Create `src/sidekick/features/prompts/` directory
+- [x] Create `scripts/tests/unit/` directory
+- [x] Create `scripts/tests/integration/` directory
 
 ### 1.2 Implement Shared Library (lib/common.sh)
-- [ ] Create `lib/common.sh` with file header and double-source guard
-- [ ] Implement LOGGING namespace:
-  - [ ] `log_init()` - Initialize session-specific log file
-  - [ ] `log_debug()` - Debug level logging
-  - [ ] `log_info()` - Info level logging
-  - [ ] `log_warn()` - Warning level logging
-  - [ ] `log_error()` - Error level logging
-  - [ ] `_log_to_file()` - Internal file writer
-  - [ ] `_log_format_ansi()` - Internal ANSI formatter
-- [ ] Implement CONFIGURATION namespace:
-  - [ ] `config_load()` - Load config cascade
-  - [ ] `config_get()` - Get config value
-  - [ ] `config_is_feature_enabled()` - Check feature toggle
-  - [ ] `_config_validate()` - Validate configuration
-- [ ] Implement PATH RESOLUTION namespace:
-  - [ ] `path_detect_scope()` - Detect user vs project scope
-  - [ ] `path_get_sidekick_root()` - Get installation directory
-  - [ ] `path_get_session_dir()` - Get session-specific directory
-  - [ ] `path_get_project_dir()` - Extract project directory
-  - [ ] `_path_normalize()` - Normalize path
-- [ ] Implement JSON PROCESSING namespace:
-  - [ ] `json_get()` - Generic jq wrapper
-  - [ ] `json_get_session_id()` - Extract session_id
-  - [ ] `json_get_transcript_path()` - Extract transcript_path
-  - [ ] `json_validate()` - Validate JSON syntax
-  - [ ] `json_extract_from_markdown()` - Extract JSON from markdown
-- [ ] Implement PROCESS MANAGEMENT namespace:
-  - [ ] `process_launch_background()` - Launch background process with PID
-  - [ ] `process_is_running()` - Check if PID is alive
-  - [ ] `process_kill()` - Kill process by PID file
-  - [ ] `process_cleanup_stale_pids()` - Clean stale PID files
-- [ ] Implement CLAUDE INVOCATION namespace:
-  - [ ] `claude_find_bin()` - Locate Claude CLI binary
-  - [ ] `claude_invoke()` - Invoke Claude with isolation
-  - [ ] `claude_extract_json()` - Extract JSON from output
-- [ ] Implement WORKSPACE MANAGEMENT namespace:
-  - [ ] `workspace_create()` - Create isolated workspace
-  - [ ] `workspace_cleanup()` - Remove workspace
-- [ ] Implement UTILITIES namespace:
-  - [ ] `util_validate_count()` - Validate integer
-  - [ ] `util_get_file_size()` - Cross-platform file size
-  - [ ] `util_create_session_dir()` - Create session directory
-  - [ ] `util_calculate_tokens()` - Estimate tokens from transcript
-- [ ] Add ANSI color constants (readonly globals)
-- [ ] Add error trap for debugging
+- [x] Create `lib/common.sh` with file header and double-source guard
+- [x] Implement LOGGING namespace:
+  - [x] `log_init()` - Initialize session-specific log file
+  - [x] `log_debug()` - Debug level logging
+  - [x] `log_info()` - Info level logging
+  - [x] `log_warn()` - Warning level logging
+  - [x] `log_error()` - Error level logging
+  - [x] `_log_to_file()` - Internal file writer
+  - [x] `_log_format_ansi()` - Internal ANSI formatter
+- [x] Implement CONFIGURATION namespace:
+  - [x] `config_load()` - Load config cascade
+  - [x] `config_get()` - Get config value
+  - [x] `config_is_feature_enabled()` - Check feature toggle
+  - [x] `_config_validate()` - Validate configuration
+- [x] Implement PATH RESOLUTION namespace:
+  - [x] `path_detect_scope()` - Detect user vs project scope
+  - [x] `path_get_sidekick_root()` - Get installation directory
+  - [x] `path_get_session_dir()` - Get session-specific directory
+  - [x] `path_get_project_dir()` - Extract project directory
+  - [x] `_path_normalize()` - Normalize path
+- [x] Implement JSON PROCESSING namespace:
+  - [x] `json_get()` - Generic jq wrapper
+  - [x] `json_get_session_id()` - Extract session_id
+  - [x] `json_get_transcript_path()` - Extract transcript_path
+  - [x] `json_validate()` - Validate JSON syntax
+  - [x] `json_extract_from_markdown()` - Extract JSON from markdown
+- [x] Implement PROCESS MANAGEMENT namespace:
+  - [x] `process_launch_background()` - Launch background process with PID
+  - [x] `process_is_running()` - Check if PID is alive
+  - [x] `process_kill()` - Kill process by PID file
+  - [x] `process_cleanup_stale_pids()` - Clean stale PID files
+- [x] Implement CLAUDE INVOCATION namespace:
+  - [x] `claude_find_bin()` - Locate Claude CLI binary
+  - [x] `claude_invoke()` - Invoke Claude with isolation
+  - [x] `claude_extract_json()` - Extract JSON from output
+- [x] Implement WORKSPACE MANAGEMENT namespace:
+  - [x] `workspace_create()` - Create isolated workspace
+  - [x] `workspace_cleanup()` - Remove workspace
+- [x] Implement UTILITIES namespace:
+  - [x] `util_validate_count()` - Validate integer
+  - [x] `util_get_file_size()` - Cross-platform file size
+  - [x] `util_create_session_dir()` - Create session directory
+  - [x] `util_calculate_tokens()` - Estimate tokens from transcript
+- [x] Add ANSI color constants (readonly globals)
+- [x] Add error trap for debugging
 
 ### 1.3 Create Configuration Defaults
-- [ ] Create `config.defaults` with all feature toggles
-- [ ] Add topic extraction configuration
-- [ ] Add sleeper configuration
-- [ ] Add resume configuration
-- [ ] Add statusline configuration
-- [ ] Add tracking configuration
-- [ ] Add cleanup configuration
-- [ ] Add global configuration (LOG_LEVEL, CLAUDE_BIN)
-- [ ] Add inline documentation for each setting
+- [x] Create `config.defaults` with all feature toggles
+- [x] Add topic extraction configuration
+- [x] Add sleeper configuration
+- [x] Add resume configuration
+- [x] Add statusline configuration
+- [x] Add tracking configuration
+- [x] Add cleanup configuration
+- [x] Add global configuration (LOG_LEVEL, CLAUDE_BIN)
+- [x] Add inline documentation for each setting
 
 ### 1.4 Implement Main Entry Point (sidekick.sh)
-- [ ] Create `sidekick.sh` with shebang and strict mode
-- [ ] Source `lib/common.sh`
-- [ ] Implement command-line argument parsing
-- [ ] Call `config_load()` to initialize configuration
-- [ ] Read stdin JSON for hook events
-- [ ] Extract session_id and project_dir
-- [ ] Call `log_init()` to set up logging
-- [ ] Implement command routing logic:
-  - [ ] `session-start` → source handler, call `handler_session_start()`
-  - [ ] `user-prompt-submit` → source handler, call `handler_user_prompt_submit()`
-  - [ ] `statusline` → source feature, call `feature_statusline_render()`
-- [ ] Implement error handling and exit codes
-- [ ] Add usage/help output
+- [x] Create `sidekick.sh` with shebang and strict mode
+- [x] Source `lib/common.sh`
+- [x] Implement command-line argument parsing
+- [x] Call `config_load()` to initialize configuration
+- [x] Read stdin JSON for hook events
+- [x] Extract session_id and project_dir
+- [x] Call `log_init()` to set up logging
+- [x] Implement command routing logic:
+  - [x] `session-start` → source handler, call `handler_session_start()`
+  - [x] `user-prompt-submit` → source handler, call `handler_user_prompt_submit()`
+  - [x] `statusline` → source feature, call `feature_statusline_render()`
+- [x] Implement error handling and exit codes
+- [x] Add usage/help output
 
 ## Phase 2: Handlers Implementation
 
