@@ -11,8 +11,8 @@ if [ -z "$project_dir" ]; then
     exit 1
 fi
 
-# Parse flags
-VERBOSE=false
+# Parse flags (respect VERBOSE if already set in environment)
+VERBOSE=${VERBOSE:-false}
 for arg in "$@"; do
     case "$arg" in
         --verbose|-v)
@@ -21,7 +21,7 @@ for arg in "$@"; do
     esac
 done
 
-# Export VERBOSE so child processes (analyze-transcript.sh, sleeper-analysis.sh) inherit it
+# Export VERBOSE so child processes (analyze-transcript.sh, sleeper-analysis.sh, cleanup-old-sessions.sh) inherit it
 export VERBOSE
 
 # Configuration
@@ -299,6 +299,30 @@ case "$operation" in
         exit 1
     }
     [ "$VERBOSE" = true ] && echo "[ResponseTracker] Initialized counter at: $counter_file" >&2
+
+    # Launch cleanup of old session directories if enabled
+    # This runs once per session to perform garbage collection on tmp/
+    CLEANUP_ENABLED=${CLAUDE_TMP_CLEANUP_ENABLED:-true}
+    if [ "$CLEANUP_ENABLED" = true ]; then
+        [ "$VERBOSE" = true ] && echo "[ResponseTracker] Launching cleanup of old sessions" >&2
+
+        # Launch as detached background process, logging to session directory
+        # Pass --verbose flag if VERBOSE is enabled
+        if [ "$VERBOSE" = true ]; then
+            nohup "${HOOK_DIR}/cleanup-old-sessions.sh" \
+                "$output_base_dir" \
+                --verbose \
+                </dev/null \
+                &>"${session_dir}/cleanup.log" &
+        else
+            nohup "${HOOK_DIR}/cleanup-old-sessions.sh" \
+                "$output_base_dir" \
+                </dev/null \
+                &>"${session_dir}/cleanup.log" &
+        fi
+
+        [ "$VERBOSE" = true ] && echo "[ResponseTracker] Cleanup launched: PID $!" >&2
+    fi
 
     # Launch sleeper process if enabled
     # Sleeper will wait for transcript to exist and monitor for changes

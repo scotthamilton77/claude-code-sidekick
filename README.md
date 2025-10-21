@@ -10,10 +10,14 @@ This repository serves as a development and testing environment for [Claude Code
 
 ## TODOs
 
-- periodic tmp cleanup
+- common logging - and other shared concerns - should be modularized and shared
+   - then make sure we're CONSISTENTLY logging (vs embedded echoes)
+- on topic change, we can nohup a _resume file creation so that initial claude startup does not have to wait for a resume creation
 - standardize parameter names and styles in the scripts (e.g. --project-dir vs. not, internally using output_dir, etc.)
 - time to re-think names and features: separate reminders from status-line features
-- statusline is coupled to the reminders; we should make this modular to allow the reminders to inject or supply a module for statusline to load dynamically
+   - statusline is coupled to the reminders; we should make this modular to allow the reminders to inject or supply a module for statusline to load dynamically
+   - make this modular, with a core kernel script that look for plugins to activate, and understands dependencies (e.g. which ones need the request_counter)
+- statusline token counter and context % are way off?  If we can't get close to /context, let's remove the %
 - sync, push - these should not clobber settings and mcp, but rather merge; for claude.md, ask to replace
 - how do subagents work - can we detect their connection to the parent agent, and do we care?  (for statusline, maybe not, but for analytics?)
 - allow a "concise" topic mode during setup that chooses concise template files
