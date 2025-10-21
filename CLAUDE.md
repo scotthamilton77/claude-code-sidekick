@@ -20,6 +20,26 @@ The repository is organized around three main systems:
 - **Hook System**: Scripts in `.claude/hooks/` handle conversation tracking, response monitoring, and topic classification
 - **Synchronization Infrastructure**: Shell scripts in `scripts/` manage bidirectional sync between project `.claude/` and global `~/.claude` configurations
 
+### ⚠️ Sidekick Migration in Progress
+
+The hook system is being refactored from the current **reminders** implementation into a modular **Sidekick** architecture. This refactoring addresses code duplication, improves testability, and establishes feature independence through configuration toggles.
+
+**Target Architecture**: See `ARCH.md` for complete Sidekick design (single entry point, shared library, pluggable features, configuration cascade)
+
+**Implementation Plan**: See `PLAN.md` for 8-phase checklist (currently in Phase 1: Infrastructure Setup)
+
+**Current Status**: The existing reminders system (documented below) remains fully functional and accurate. It will be replaced incrementally during the migration. All reminders documentation will be updated in Phase 6 after successful migration and testing.
+
+**Key Changes When Complete**:
+- Directory: `.claude/hooks/reminders/` → `.claude/hooks/sidekick/`
+- Entry point: Multiple scripts → `sidekick.sh <command>`
+- Configuration: Environment variables → `sidekick.conf` cascade
+- Installation: `setup-reminders.sh` → `install.sh --user|--project|--both`
+
+Until migration completes, continue using the reminders system as documented below.
+
+---
+
 ### Key Components
 
 #### Command System
@@ -379,3 +399,24 @@ Markdown-based specifications include:
 - **All hooks must be permission-approved** in `settings.json` before execution
 - **Dual-scope testing required** before deploying to `~/.claude`
 - **Timestamp preservation** critical for sync correctness
+
+
+## Current Implementation Focus
+
+**Active Task**: Implementing Sidekick architecture (ARCH.md) following the implementation plan (PLAN.md)
+
+The project is refactoring the existing reminders hooks system into a modular, maintainable Sidekick architecture. Key objectives:
+
+- Create unified `lib/common.sh` with namespaced utilities (LOGGING, CONFIGURATION, PATH RESOLUTION, JSON PROCESSING, PROCESS MANAGEMENT, CLAUDE INVOCATION, WORKSPACE MANAGEMENT)
+- Implement handlers (`session-start.sh`, `user-prompt-submit.sh`) that orchestrate feature execution
+- Create modular features (tracking, topic-extraction, resume, statusline, cleanup) with independent toggles
+- Establish configuration cascade system (defaults → user → project)
+- Build installation/uninstall infrastructure for dual-scope deployment
+- Comprehensive testing (unit + integration) with performance targets (hooks <100ms)
+
+**Reference Documents**:
+- `ARCH.md`: Complete architectural specification and design patterns
+- `PLAN.md`: 8-phase implementation checklist with detailed tasks
+- Root `CLAUDE.md`: Hook system architecture and LLM analysis documentation
+
+**Current Phase**: Starting Phase 1 (Infrastructure Setup) - creating directory structure and implementing shared library
