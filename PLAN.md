@@ -204,65 +204,65 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 ## Phase 4: Installation Scripts
 
 ### 4.1 Implement Install Script
-- [ ] Create `scripts/install.sh`
-- [ ] Implement argument parsing:
-  - [ ] `--user` - Install to ~/.claude only
-  - [ ] `--project` - Install to project .claude only
-  - [ ] `--both` - Install to both (default)
-  - [ ] `--features <list>` - Install specific features only
-- [ ] Implement `install_to_user()`:
-  - [ ] Create `~/.claude/hooks/sidekick/` directory
-  - [ ] Copy `sidekick.sh`
-  - [ ] Copy `lib/` directory
-  - [ ] Copy `handlers/` directory
-  - [ ] Copy `features/` directory (or selected features)
-  - [ ] Create `tmp/` directory
-  - [ ] Copy `config.defaults` → `sidekick.conf` (if not exists)
-  - [ ] Set executable permissions on .sh files
-  - [ ] Register hooks in `~/.claude/settings.json`
-- [ ] Implement `install_to_project()`:
-  - [ ] Create `.claude/hooks/sidekick/` directory
-  - [ ] Copy `sidekick.sh`
-  - [ ] Copy `lib/` directory
-  - [ ] Copy `handlers/` directory
-  - [ ] Copy `features/` directory (or selected features)
-  - [ ] Create `tmp/` directory
-  - [ ] Copy `config.defaults` → `sidekick.conf` (if not exists)
-  - [ ] Set executable permissions on .sh files
-  - [ ] Register hooks in `.claude/settings.json` or `.claude/settings.local.json`
-  - [ ] Update `.claudeignore` with `hooks/sidekick/tmp/`
-- [ ] Implement `register_hooks_in_settings()`:
-  - [ ] Read current settings.json
-  - [ ] Add SessionStart hook command
-  - [ ] Add UserPromptSubmit hook command
-  - [ ] Add statusLine command
-  - [ ] Write updated settings.json
-  - [ ] Backup original settings.json
-- [ ] Add colored output and progress indicators
-- [ ] Add error handling and rollback on failure
+- [x] Create `scripts/install.sh`
+- [x] Implement argument parsing:
+  - [x] `--user` - Install to ~/.claude only
+  - [x] `--project` - Install to project .claude only
+  - [x] `--both` - Install to both (default)
+  - [x] `--features <list>` - Install specific features only
+- [x] Implement `install_to_user()`:
+  - [x] Create `~/.claude/hooks/sidekick/` directory
+  - [x] Copy `sidekick.sh`
+  - [x] Copy `lib/` directory
+  - [x] Copy `handlers/` directory
+  - [x] Copy `features/` directory (or selected features)
+  - [x] Create `tmp/` directory
+  - [x] Copy `config.defaults` → `sidekick.conf` (if not exists)
+  - [x] Set executable permissions on .sh files
+  - [x] Register hooks in `~/.claude/settings.json`
+- [x] Implement `install_to_project()`:
+  - [x] Create `.claude/hooks/sidekick/` directory
+  - [x] Copy `sidekick.sh`
+  - [x] Copy `lib/` directory
+  - [x] Copy `handlers/` directory
+  - [x] Copy `features/` directory (or selected features)
+  - [x] Create `tmp/` directory
+  - [x] Copy `config.defaults` → `sidekick.conf` (if not exists)
+  - [x] Set executable permissions on .sh files
+  - [x] Register hooks in `.claude/settings.json` or `.claude/settings.local.json`
+  - [x] Update `.claudeignore` with `hooks/sidekick/tmp/`
+- [x] Implement `register_hooks_in_settings()`:
+  - [x] Read current settings.json
+  - [x] Add SessionStart hook command
+  - [x] Add UserPromptSubmit hook command
+  - [x] Add statusLine command
+  - [x] Write updated settings.json
+  - [x] Backup original settings.json
+- [x] Add colored output and progress indicators
+- [x] Add error handling and rollback on failure
 
 ### 4.2 Implement Uninstall Script
-- [ ] Create `scripts/uninstall.sh`
-- [ ] Implement argument parsing (--user|--project|--both)
-- [ ] Implement `uninstall_from_user()`:
-  - [ ] Remove hook commands from `~/.claude/settings.json`
-  - [ ] Remove `~/.claude/hooks/sidekick/` directory
-  - [ ] Preserve tmp/ if contains recent sessions (prompt user)
-- [ ] Implement `uninstall_from_project()`:
-  - [ ] Remove hook commands from `.claude/settings.json`
-  - [ ] Remove `.claude/hooks/sidekick/` directory
-  - [ ] Preserve tmp/ if contains recent sessions (prompt user)
-  - [ ] Remove `.claudeignore` entry
-- [ ] Add confirmation prompts
-- [ ] Add colored output
+- [x] Create `scripts/uninstall.sh`
+- [x] Implement argument parsing (--user|--project|--both)
+- [x] Implement `uninstall_from_user()`:
+  - [x] Remove hook commands from `~/.claude/settings.json`
+  - [x] Remove `~/.claude/hooks/sidekick/` directory
+  - [x] Preserve tmp/ if contains recent sessions (prompt user)
+- [x] Implement `uninstall_from_project()`:
+  - [x] Remove hook commands from `.claude/settings.json`
+  - [x] Remove `.claude/hooks/sidekick/` directory
+  - [x] Preserve tmp/ if contains recent sessions (prompt user)
+  - [x] Remove `.claudeignore` entry
+- [x] Add confirmation prompts
+- [x] Add colored output
 
 ### 4.3 Implement Sync Script
-- [ ] Create `scripts/sync-to-user.sh`
-- [ ] Copy `.claude/hooks/sidekick/` → `~/.claude/hooks/sidekick/`
-- [ ] Preserve `sidekick.conf` (don't overwrite)
-- [ ] Preserve `tmp/` (don't sync)
-- [ ] Update hooks in `~/.claude/settings.json`
-- [ ] Add colored output
+- [x] Create `scripts/sync-to-user.sh`
+- [x] Copy `.claude/hooks/sidekick/` → `~/.claude/hooks/sidekick/`
+- [x] Preserve `sidekick.conf` (don't overwrite)
+- [x] Preserve `tmp/` (don't sync)
+- [x] Update hooks in `~/.claude/settings.json`
+- [x] Add colored output
 
 ## Phase 5: Testing
 
@@ -324,12 +324,12 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
   - [ ] Create user config override
   - [ ] Create project config override
   - [ ] Verify project overrides user overrides defaults
-- [ ] Create `scripts/tests/integration/test-install.sh`
-  - [ ] Run install.sh --user in temp directory
-  - [ ] Verify files copied
-  - [ ] Verify settings.json updated
-  - [ ] Run uninstall.sh --user
-  - [ ] Verify cleanup
+- [x] Create `scripts/tests/integration/test-install.sh`
+  - [x] Run install.sh --user in temp directory
+  - [x] Verify files copied
+  - [x] Verify settings.json updated
+  - [x] Run uninstall.sh --user
+  - [x] Verify cleanup
 - [ ] Create test runner script: `scripts/tests/run-integration-tests.sh`
 
 ### 5.3 Manual Testing Checklist
