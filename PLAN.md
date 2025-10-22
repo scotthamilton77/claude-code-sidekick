@@ -101,15 +101,15 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - [x] Add error handling for each step
 
 ### 2.2 Implement user-prompt-submit Handler
-- [ ] Create `handlers/user-prompt-submit.sh`
-- [ ] Define `handler_user_prompt_submit()` function
-- [ ] Source required features (tracking, topic-extraction)
-- [ ] Increment tracking counter
-- [ ] Launch sleeper on first call (if enabled)
-- [ ] Check cadence-based analysis (if enabled)
-- [ ] Check static reminder cadence
-- [ ] Output hook JSON if reminder due
-- [ ] Add error handling for each step
+- [x] Create `handlers/user-prompt-submit.sh`
+- [x] Define `handler_user_prompt_submit()` function
+- [x] Source required features (tracking, topic-extraction)
+- [x] Increment tracking counter
+- [x] Launch sleeper on first call (if enabled)
+- [x] Check cadence-based analysis (if enabled)
+- [x] Check static reminder cadence
+- [x] Output hook JSON if reminder due
+- [x] Add error handling for each step
 
 ## Phase 3: Features Implementation
 
@@ -305,13 +305,13 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
   - [x] Verify counter file created
   - [x] Verify topic.json created (resume)
   - [x] Verify cleanup launched in background
-- [ ] Create `scripts/tests/integration/test-user-prompt-submit.sh`
-  - [ ] Mock Claude CLI
-  - [ ] Trigger user-prompt-submit 10 times
-  - [ ] Verify counter increments correctly
-  - [ ] Verify sleeper launched on first call
-  - [ ] Verify cadence-based analysis
-  - [ ] Verify static reminder output
+- [x] Create `scripts/tests/integration/test-user-prompt-submit.sh`
+  - [x] Mock Claude CLI
+  - [x] Trigger user-prompt-submit 10 times
+  - [x] Verify counter increments correctly
+  - [x] Verify sleeper launched on first call
+  - [x] Verify cadence-based analysis
+  - [x] Verify static reminder output
 - [ ] Create `scripts/tests/integration/test-statusline.sh`
   - [ ] Create mock topic.json
   - [ ] Trigger statusline with test JSON
