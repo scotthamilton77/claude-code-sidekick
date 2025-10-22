@@ -312,25 +312,66 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
   - [x] Verify sleeper launched on first call
   - [x] Verify cadence-based analysis
   - [x] Verify static reminder output
-- [ ] Create `scripts/tests/integration/test-statusline.sh`
-  - [ ] Create mock topic.json
-  - [ ] Trigger statusline with test JSON
-  - [ ] Verify formatted output
-- [ ] Create `scripts/tests/integration/test-feature-toggles.sh`
-  - [ ] Disable each feature in config
-  - [ ] Verify feature skipped
-  - [ ] Re-enable and verify feature runs
-- [ ] Create `scripts/tests/integration/test-config-cascade.sh`
-  - [ ] Create user config override
-  - [ ] Create project config override
-  - [ ] Verify project overrides user overrides defaults
+- [x] Create `scripts/tests/integration/test-statusline.sh`
+  - [x] Create mock topic.json
+  - [x] Trigger statusline with test JSON
+  - [x] Verify formatted output
+- [x] Create `scripts/tests/integration/test-feature-toggles.sh`
+  - [x] Disable each feature in config
+  - [x] Verify feature skipped
+  - [x] Re-enable and verify feature runs
+- [x] Create `scripts/tests/integration/test-config-cascade.sh`
+  - [x] Create user config override
+  - [x] Create project config override
+  - [x] Verify project overrides user overrides defaults
 - [x] Create `scripts/tests/integration/test-install.sh`
   - [x] Run install.sh --user in temp directory
   - [x] Verify files copied
   - [x] Verify settings.json updated
   - [x] Run uninstall.sh --user
   - [x] Verify cleanup
-- [ ] Create test runner script: `scripts/tests/run-integration-tests.sh`
+- [x] Create test runner script: `scripts/tests/run-integration-tests.sh`
+
+### 5.2.1 Integration Test Bug Fixes (Priority)
+**Status**: 4/6 test suites passing, 2 failing due to implementation bugs
+
+#### Bug 1: Resume Feature Not Creating Topic Files
+- [ ] **Issue**: `test-feature-toggles.sh` - FEATURE_RESUME test fails
+- [ ] **Symptom**: When FEATURE_RESUME=true, topic.json not created for new session
+- [ ] **Location**: `src/sidekick/features/resume.sh` - `resume_snarkify()` function
+- [ ] **Debug**: Check if previous session lookup logic is correct
+- [ ] **Debug**: Verify topic.json writing path and permissions
+- [ ] **Debug**: Check if mock Claude CLI returns valid JSON for resume
+- [ ] **Fix**: Implement correction
+- [ ] **Verify**: Re-run `test-feature-toggles.sh` - should pass (13/13)
+
+#### Bug 2: Config Cascade - User Config Not Overriding Defaults
+- [ ] **Issue**: `test-config-cascade.sh` - 5 sub-tests failing
+- [ ] **Failing Values**:
+  - [ ] LOG_LEVEL (user sets "debug", getting "info" from defaults)
+  - [ ] SLEEPER_ENABLED (user sets "false", getting "true" from defaults)
+  - [ ] CLEANUP_AGE_DAYS (user sets "5", getting "2" from defaults)
+- [ ] **Location**: `src/sidekick/lib/common.sh` - `config_load()` function
+- [ ] **Root Cause**: Investigate config cascade sourcing order
+- [ ] **Debug**: Verify user config file path resolution
+- [ ] **Debug**: Check if user config file is being sourced at all
+- [ ] **Debug**: Verify variable scope (export vs local)
+- [ ] **Fix**: Implement correction in config_load()
+- [ ] **Verify**: Re-run `test-config-cascade.sh` - should pass (22/22)
+
+#### Bug 3: Cleanup/Analysis Process Error Messages
+- [ ] **Issue**: Background processes emitting "bash: -c: option requires an argument"
+- [ ] **Location**: Likely in `process_launch_background()` or feature launch code
+- [ ] **Impact**: Non-fatal but pollutes logs
+- [ ] **Debug**: Trace process_launch_background() calls
+- [ ] **Fix**: Correct bash -c invocation syntax
+- [ ] **Verify**: Re-run tests, check for clean logs
+
+#### Success Criteria
+- [ ] All 6 integration test suites pass (100%)
+- [ ] No error messages in test output
+- [ ] Config cascade works as documented (project > user > defaults)
+- [ ] All features can be independently toggled via config
 
 ### 5.3 Manual Testing Checklist
 - [ ] Install to user scope (`./scripts/install.sh --user`)
