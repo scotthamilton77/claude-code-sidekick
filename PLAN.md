@@ -91,14 +91,14 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 ## Phase 2: Handlers Implementation
 
 ### 2.1 Implement session-start Handler
-- [ ] Create `handlers/session-start.sh`
-- [ ] Define `handler_session_start()` function
-- [ ] Source required features (tracking, cleanup, resume)
-- [ ] Create session directory
-- [ ] Initialize tracking counter (if enabled)
-- [ ] Launch cleanup in background (if enabled)
-- [ ] Generate resume topic (if enabled)
-- [ ] Add error handling for each step
+- [x] Create `handlers/session-start.sh`
+- [x] Define `handler_session_start()` function
+- [x] Source required features (tracking, cleanup, resume)
+- [x] Create session directory
+- [x] Initialize tracking counter (if enabled)
+- [x] Launch cleanup in background (if enabled)
+- [x] Generate resume topic (if enabled)
+- [x] Add error handling for each step
 
 ### 2.2 Implement user-prompt-submit Handler
 - [ ] Create `handlers/user-prompt-submit.sh`
@@ -114,12 +114,12 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 ## Phase 3: Features Implementation
 
 ### 3.1 Implement Tracking Feature
-- [ ] Create `features/tracking.sh`
-- [ ] Define `tracking_init()` - Initialize counter file
-- [ ] Define `tracking_increment()` - Increment and return count
-- [ ] Define `tracking_get()` - Read current count
-- [ ] Define `tracking_check_reminder()` - Check static reminder cadence
-- [ ] Implement static reminder file loading (user + project cascade)
+- [x] Create `features/tracking.sh`
+- [x] Define `tracking_init()` - Initialize counter file
+- [x] Define `tracking_increment()` - Increment and return count
+- [x] Define `tracking_get()` - Read current count
+- [x] Define `tracking_check_reminder()` - Check static reminder cadence
+- [x] Implement static reminder file loading (user + project cascade)
 
 ### 3.2 Implement Topic Extraction Feature
 - [ ] Create `features/topic-extraction.sh`
@@ -155,17 +155,17 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - [ ] Define `topic_extraction_get_clarity()` - Extract clarity from topic.json
 
 ### 3.3 Implement Resume Feature
-- [ ] Create `features/resume.sh`
-- [ ] Copy prompt template to `features/prompts/new-session-topic.txt`
-- [ ] Define `resume_snarkify()`:
-  - [ ] Find most recent topic file with clarity > threshold
-  - [ ] Load prompt template
-  - [ ] Substitute previous topic into prompt
-  - [ ] Invoke Claude using `claude_invoke()`
-  - [ ] Extract initial_goal, current_objective, snarky_comment
-  - [ ] Write topic.json with resume fields
-  - [ ] Error handling with fallback values
-  - [ ] Skip if current session already has topic
+- [x] Create `features/resume.sh`
+- [x] Copy prompt template to `features/prompts/new-session-topic.txt`
+- [x] Define `resume_snarkify()`:
+  - [x] Find most recent topic file with clarity > threshold
+  - [x] Load prompt template
+  - [x] Substitute previous topic into prompt
+  - [x] Invoke Claude using `claude_invoke()`
+  - [x] Extract initial_goal, current_objective, snarky_comment
+  - [x] Write topic.json with resume fields
+  - [x] Error handling with fallback values
+  - [x] Skip if current session already has topic
 
 ### 3.4 Implement Statusline Feature
 - [ ] Create `features/statusline.sh`
@@ -186,20 +186,20 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - [ ] Define `_statusline_get_topic()` - Extract topic from analytics
 
 ### 3.5 Implement Cleanup Feature
-- [ ] Create `features/cleanup.sh`
-- [ ] Define `cleanup_launch()`:
-  - [ ] Launch background process via `process_launch_background()`
-- [ ] Define `cleanup_run()`:
-  - [ ] Check if cleanup enabled
-  - [ ] Find all session directories matching UUID pattern
-  - [ ] Calculate age for each session (newest file in directory)
-  - [ ] Filter sessions older than age threshold
-  - [ ] Check if old count exceeds minimum threshold
-  - [ ] Sort old sessions by age (oldest first)
-  - [ ] Remove oldest sessions to reach threshold
-  - [ ] Dry-run mode support
-  - [ ] Safety checks (path validation)
-  - [ ] Logging for each deletion
+- [x] Create `features/cleanup.sh`
+- [x] Define `cleanup_launch()`:
+  - [x] Launch background process via `process_launch_background()`
+- [x] Define `cleanup_run()`:
+  - [x] Check if cleanup enabled
+  - [x] Find all session directories matching UUID pattern
+  - [x] Calculate age for each session (newest file in directory)
+  - [x] Filter sessions older than age threshold
+  - [x] Check if old count exceeds minimum threshold
+  - [x] Sort old sessions by age (oldest first)
+  - [x] Remove oldest sessions to reach threshold
+  - [x] Dry-run mode support
+  - [x] Safety checks (path validation)
+  - [x] Logging for each deletion
 
 ## Phase 4: Installation Scripts
 
@@ -299,12 +299,12 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - [x] Create test runner script: `scripts/tests/run-unit-tests.sh`
 
 ### 5.2 Integration Tests
-- [ ] Create `scripts/tests/integration/test-session-start.sh`
-  - [ ] Mock Claude CLI
-  - [ ] Trigger session-start with test JSON
-  - [ ] Verify counter file created
-  - [ ] Verify topic.json created (resume)
-  - [ ] Verify cleanup launched in background
+- [x] Create `scripts/tests/integration/test-session-start.sh`
+  - [x] Mock Claude CLI
+  - [x] Trigger session-start with test JSON
+  - [x] Verify counter file created
+  - [x] Verify topic.json created (resume)
+  - [x] Verify cleanup launched in background
 - [ ] Create `scripts/tests/integration/test-user-prompt-submit.sh`
   - [ ] Mock Claude CLI
   - [ ] Trigger user-prompt-submit 10 times
