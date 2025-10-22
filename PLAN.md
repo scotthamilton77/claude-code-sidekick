@@ -122,37 +122,37 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - [x] Implement static reminder file loading (user + project cascade)
 
 ### 3.2 Implement Topic Extraction Feature
-- [ ] Create `features/topic-extraction.sh`
-- [ ] Copy prompt templates to `features/prompts/`:
-  - [ ] `topic-only.txt`
-  - [ ] `incremental.txt`
-  - [ ] `full-analytics.txt`
-- [ ] Define `topic_extraction_analyze()`:
-  - [ ] Pre-process transcript (extract message objects)
-  - [ ] Extract transcript excerpt based on mode
-  - [ ] Load prompt template
-  - [ ] Substitute transcript into prompt
-  - [ ] Invoke Claude using `claude_invoke()`
-  - [ ] Parse JSON output
-  - [ ] Write topic.json file
-  - [ ] Write analytics.json (if full mode)
-  - [ ] Error handling and logging
-- [ ] Define `topic_extraction_sleeper_start()`:
-  - [ ] Check for existing sleeper PID
-  - [ ] Launch background process via `process_launch_background()`
-- [ ] Define `topic_extraction_sleeper_loop()`:
-  - [ ] Initialize state tracking (last_size, last_analysis_time)
-  - [ ] Implement polling loop with adaptive intervals
-  - [ ] Check transcript size delta
-  - [ ] Call `topic_extraction_analyze()` when threshold met
-  - [ ] Check clarity score and exit if threshold met
-  - [ ] Exit after max duration
-  - [ ] Cleanup PID file on exit
-- [ ] Define `topic_extraction_check_cadence()`:
-  - [ ] Get current clarity score from topic.json
-  - [ ] Determine cadence based on clarity threshold
-  - [ ] Launch analysis if due
-- [ ] Define `topic_extraction_get_clarity()` - Extract clarity from topic.json
+- [x] Create `features/topic-extraction.sh`
+- [x] Copy prompt templates to `features/prompts/`:
+  - [x] `topic-only.txt`
+  - [x] `incremental.txt`
+  - [x] `full-analytics.txt`
+- [x] Define `topic_extraction_analyze()`:
+  - [x] Pre-process transcript (extract message objects)
+  - [x] Extract transcript excerpt based on mode
+  - [x] Load prompt template
+  - [x] Substitute transcript into prompt
+  - [x] Invoke Claude using `claude_invoke()`
+  - [x] Parse JSON output
+  - [x] Write topic.json file
+  - [x] Write analytics.json (if full mode)
+  - [x] Error handling and logging
+- [x] Define `topic_extraction_sleeper_start()`:
+  - [x] Check for existing sleeper PID
+  - [x] Launch background process via `process_launch_background()`
+- [x] Define `topic_extraction_sleeper_loop()`:
+  - [x] Initialize state tracking (last_size, last_analysis_time)
+  - [x] Implement polling loop with adaptive intervals
+  - [x] Check transcript size delta
+  - [x] Call `topic_extraction_analyze()` when threshold met
+  - [x] Check clarity score and exit if threshold met
+  - [x] Exit after max duration
+  - [x] Cleanup PID file on exit
+- [x] Define `topic_extraction_check_cadence()`:
+  - [x] Get current clarity score from topic.json
+  - [x] Determine cadence based on clarity threshold
+  - [x] Launch analysis if due
+- [x] Define `topic_extraction_get_clarity()` - Extract clarity from topic.json
 
 ### 3.3 Implement Resume Feature
 - [x] Create `features/resume.sh`
@@ -168,22 +168,22 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
   - [x] Skip if current session already has topic
 
 ### 3.4 Implement Statusline Feature
-- [ ] Create `features/statusline.sh`
-- [ ] Define `feature_statusline_render()`:
-  - [ ] Parse stdin JSON (model, session_id, cost, duration, etc.)
-  - [ ] Calculate tokens from transcript
-  - [ ] Calculate percentage of threshold
-  - [ ] Format cost with colors
-  - [ ] Format duration with colors
-  - [ ] Format tokens with colors
-  - [ ] Extract session topic from topic.json
-  - [ ] Format git branch (if in repo)
-  - [ ] Assemble final statusline string
-  - [ ] Output to stdout
-- [ ] Define `_statusline_format_cost()` - Format cost helper
-- [ ] Define `_statusline_format_duration()` - Format duration helper
-- [ ] Define `_statusline_format_tokens()` - Format tokens helper
-- [ ] Define `_statusline_get_topic()` - Extract topic from analytics
+- [x] Create `features/statusline.sh`
+- [x] Define `feature_statusline_render()`:
+  - [x] Parse stdin JSON (model, session_id, cost, duration, etc.)
+  - [x] Calculate tokens from transcript
+  - [x] Calculate percentage of threshold
+  - [x] Format cost with colors
+  - [x] Format duration with colors
+  - [x] Format tokens with colors
+  - [x] Extract session topic from topic.json
+  - [x] Format git branch (if in repo)
+  - [x] Assemble final statusline string
+  - [x] Output to stdout
+- [x] Define `_statusline_format_cost()` - Format cost helper
+- [x] Define `_statusline_format_duration()` - Format duration helper
+- [x] Define `_statusline_format_tokens()` - Format tokens helper
+- [x] Define `_statusline_get_topic()` - Extract topic from analytics
 
 ### 3.5 Implement Cleanup Feature
 - [x] Create `features/cleanup.sh`
