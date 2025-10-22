@@ -117,6 +117,7 @@ test_config_value() {
     local actual_value
     actual_value=$(bash -c "
         export SIDEKICK_ROOT='$sidekick_root'
+        export SIDEKICK_USER_ROOT='sidekick-test'
         export CLAUDE_PROJECT_DIR='$TEST_DIR'
         source '$sidekick_root/lib/common.sh' 2>/dev/null
         config_load 2>/dev/null

@@ -333,45 +333,43 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - [x] Create test runner script: `scripts/tests/run-integration-tests.sh`
 
 ### 5.2.1 Integration Test Bug Fixes (Priority)
-**Status**: 4/6 test suites passing, 2 failing due to implementation bugs
+**Status**: ✅ COMPLETE - All 6/6 test suites passing
 
 #### Bug 1: Resume Feature Not Creating Topic Files
-- [ ] **Issue**: `test-feature-toggles.sh` - FEATURE_RESUME test fails
-- [ ] **Symptom**: When FEATURE_RESUME=true, topic.json not created for new session
-- [ ] **Location**: `src/sidekick/features/resume.sh` - `resume_snarkify()` function
-- [ ] **Debug**: Check if previous session lookup logic is correct
-- [ ] **Debug**: Verify topic.json writing path and permissions
-- [ ] **Debug**: Check if mock Claude CLI returns valid JSON for resume
-- [ ] **Fix**: Implement correction
-- [ ] **Verify**: Re-run `test-feature-toggles.sh` - should pass (13/13)
+- [x] **Issue**: `test-feature-toggles.sh` - FEATURE_RESUME test fails
+- [x] **Symptom**: When FEATURE_RESUME=true, topic.json not created for new session
+- [x] **Location**: `src/sidekick/features/resume.sh` - `resume_snarkify()` function
+- [x] **Root Cause**: Previous session lookup required `timestamp` field in topic.json, but test data didn't have it
+- [x] **Fix**: Modified resume.sh:84-97 to use file modification time as fallback when timestamp field is missing
+- [x] **Verify**: Re-run `test-feature-toggles.sh` - ✅ PASS (13/13)
 
 #### Bug 2: Config Cascade - User Config Not Overriding Defaults
-- [ ] **Issue**: `test-config-cascade.sh` - 5 sub-tests failing
-- [ ] **Failing Values**:
-  - [ ] LOG_LEVEL (user sets "debug", getting "info" from defaults)
-  - [ ] SLEEPER_ENABLED (user sets "false", getting "true" from defaults)
-  - [ ] CLEANUP_AGE_DAYS (user sets "5", getting "2" from defaults)
-- [ ] **Location**: `src/sidekick/lib/common.sh` - `config_load()` function
-- [ ] **Root Cause**: Investigate config cascade sourcing order
-- [ ] **Debug**: Verify user config file path resolution
-- [ ] **Debug**: Check if user config file is being sourced at all
-- [ ] **Debug**: Verify variable scope (export vs local)
-- [ ] **Fix**: Implement correction in config_load()
-- [ ] **Verify**: Re-run `test-config-cascade.sh` - should pass (22/22)
+- [x] **Issue**: `test-config-cascade.sh` - 5 sub-tests failing
+- [x] **Failing Values**:
+  - [x] LOG_LEVEL (user sets "debug", getting "info" from defaults)
+  - [x] SLEEPER_ENABLED (user sets "false", getting "true" from defaults)
+  - [x] CLEANUP_AGE_DAYS (user sets "5", getting "2" from defaults)
+- [x] **Location**: `src/sidekick/lib/common.sh` - `config_load()` function
+- [x] **Root Cause**: User config path was hardcoded to `~/.claude/hooks/sidekick/`, but test uses `sidekick-test`
+- [x] **Fix**: Modified common.sh:184-191 to use configurable `SIDEKICK_USER_ROOT` env var (defaults to "sidekick")
+- [x] **Fix**: Modified test-config-cascade.sh:118-125 to export `SIDEKICK_USER_ROOT=sidekick-test`
+- [x] **Verify**: Re-run `test-config-cascade.sh` - ✅ PASS (27/27)
 
 #### Bug 3: Cleanup/Analysis Process Error Messages
-- [ ] **Issue**: Background processes emitting "bash: -c: option requires an argument"
-- [ ] **Location**: Likely in `process_launch_background()` or feature launch code
-- [ ] **Impact**: Non-fatal but pollutes logs
-- [ ] **Debug**: Trace process_launch_background() calls
-- [ ] **Fix**: Correct bash -c invocation syntax
-- [ ] **Verify**: Re-run tests, check for clean logs
+- [x] **Issue**: Background processes emitting "bash: -c: option requires an argument"
+- [x] **Location**: `cleanup_launch()` and `topic_extraction_*()` misusing `process_launch_background()`
+- [x] **Root Cause**: Features were passing `bash -c "..."` to process_launch_background, causing double bash -c wrapping
+- [x] **Impact**: Non-fatal but pollutes logs
+- [x] **Fix**: Refactored cleanup.sh:63-101 to launch background process directly (not via process_launch_background)
+- [x] **Fix**: Refactored topic-extraction.sh:265-302 (cadence analysis) to launch directly
+- [x] **Fix**: Refactored topic-extraction.sh:342-366 (sleeper) to launch directly
+- [x] **Verify**: Re-run tests - ✅ PASS with clean logs (no bash errors)
 
 #### Success Criteria
-- [ ] All 6 integration test suites pass (100%)
-- [ ] No error messages in test output
-- [ ] Config cascade works as documented (project > user > defaults)
-- [ ] All features can be independently toggled via config
+- [x] All 6 integration test suites pass (100%)
+- [x] No error messages in test output
+- [x] Config cascade works as documented (project > user > defaults)
+- [x] All features can be independently toggled via config
 
 ### 5.3 Manual Testing Checklist
 - [ ] Install to user scope (`./scripts/install.sh --user`)
