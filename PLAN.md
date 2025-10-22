@@ -267,36 +267,36 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 ## Phase 5: Testing
 
 ### 5.1 Unit Tests
-- [ ] Create `scripts/tests/unit/test-logging.sh`
-  - [ ] Test `log_debug()` respects LOG_LEVEL
-  - [ ] Test `log_info()` outputs correctly
-  - [ ] Test `log_warn()` formats correctly
-  - [ ] Test `log_error()` formats correctly
-- [ ] Create `scripts/tests/unit/test-config.sh`
-  - [ ] Test `config_load()` cascade (defaults → user → project)
-  - [ ] Test `config_get()` returns correct values
-  - [ ] Test `config_is_feature_enabled()` boolean logic
-- [ ] Create `scripts/tests/unit/test-paths.sh`
-  - [ ] Test `path_detect_scope()` user vs project
-  - [ ] Test `path_get_sidekick_root()` resolution
-  - [ ] Test `path_get_session_dir()` creation
-- [ ] Create `scripts/tests/unit/test-json.sh`
-  - [ ] Test `json_get()` extraction
-  - [ ] Test `json_get_session_id()` extraction
-  - [ ] Test `json_validate()` validation
-  - [ ] Test `json_extract_from_markdown()` parsing
-- [ ] Create `scripts/tests/unit/test-process.sh`
-  - [ ] Test `process_launch_background()` PID creation
-  - [ ] Test `process_is_running()` detection
-  - [ ] Test `process_cleanup_stale_pids()` cleanup
-- [ ] Create `scripts/tests/unit/test-claude.sh`
-  - [ ] Test `claude_find_bin()` with mocked paths
-  - [ ] Test `claude_invoke()` with mocked binary
-  - [ ] Test `claude_extract_json()` parsing
-- [ ] Create `scripts/tests/unit/test-workspace.sh`
-  - [ ] Test `workspace_create()` isolation
-  - [ ] Test `workspace_cleanup()` removal
-- [ ] Create test runner script: `scripts/tests/run-unit-tests.sh`
+- [x] Create `scripts/tests/unit/test-logging.sh`
+  - [x] Test `log_debug()` respects LOG_LEVEL
+  - [x] Test `log_info()` outputs correctly
+  - [x] Test `log_warn()` formats correctly
+  - [x] Test `log_error()` formats correctly
+- [x] Create `scripts/tests/unit/test-config.sh`
+  - [x] Test `config_load()` cascade (defaults → user → project)
+  - [x] Test `config_get()` returns correct values
+  - [x] Test `config_is_feature_enabled()` boolean logic
+- [x] Create `scripts/tests/unit/test-paths.sh`
+  - [x] Test `path_detect_scope()` user vs project
+  - [x] Test `path_get_sidekick_root()` resolution
+  - [x] Test `path_get_session_dir()` creation
+- [x] Create `scripts/tests/unit/test-json.sh`
+  - [x] Test `json_get()` extraction
+  - [x] Test `json_get_session_id()` extraction
+  - [x] Test `json_validate()` validation
+  - [x] Test `json_extract_from_markdown()` parsing
+- [x] Create `scripts/tests/unit/test-process.sh`
+  - [x] Test `process_launch_background()` PID creation
+  - [x] Test `process_is_running()` detection
+  - [x] Test `process_cleanup_stale_pids()` cleanup
+- [x] Create `scripts/tests/unit/test-claude.sh`
+  - [x] Test `claude_find_bin()` with mocked paths
+  - [x] Test `claude_invoke()` with mocked binary
+  - [x] Test `claude_extract_json()` parsing
+- [x] Create `scripts/tests/unit/test-workspace.sh`
+  - [x] Test `workspace_create()` isolation
+  - [x] Test `workspace_cleanup()` removal
+- [x] Create test runner script: `scripts/tests/run-unit-tests.sh`
 
 ### 5.2 Integration Tests
 - [ ] Create `scripts/tests/integration/test-session-start.sh`
