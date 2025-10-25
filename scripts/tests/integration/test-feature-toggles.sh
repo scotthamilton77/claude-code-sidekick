@@ -50,7 +50,7 @@ setup() {
     mkdir -p "$TEST_DIR/.claude/hooks/sidekick/handlers"
     mkdir -p "$TEST_DIR/.claude/hooks/sidekick/features"
     mkdir -p "$TEST_DIR/.claude/hooks/sidekick/features/prompts"
-    mkdir -p "$TEST_DIR/.claude/hooks/sidekick/tmp"
+    mkdir -p "$TEST_DIR/.sidekick/sessions"
 
     # Copy sidekick files
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -78,7 +78,7 @@ MOCKEOF
 
     # Create test session
     TEST_SESSION="test-toggles-$(date +%s)"
-    SESSION_DIR="$TEST_DIR/.claude/hooks/sidekick/tmp/$TEST_SESSION"
+    SESSION_DIR="$TEST_DIR/.sidekick/sessions/$TEST_SESSION"
     mkdir -p "$SESSION_DIR"
 
     # Create test transcript
@@ -143,7 +143,7 @@ test_tracking_feature_toggle() {
 
     # Run session-start again with new session
     TEST_SESSION="test-toggles-enabled-$(date +%s)"
-    SESSION_DIR="$TEST_DIR/.claude/hooks/sidekick/tmp/$TEST_SESSION"
+    SESSION_DIR="$TEST_DIR/.sidekick/sessions/$TEST_SESSION"
     mkdir -p "$SESSION_DIR"
     input_json='{"session_id":"'$TEST_SESSION'","workspace":{"project_dir":"'$TEST_DIR'"}}'
 
@@ -181,7 +181,7 @@ test_cleanup_feature_toggle() {
     create_config "false" "false" "false" "true" "true"
 
     TEST_SESSION="test-cleanup-enabled-$(date +%s)"
-    SESSION_DIR="$TEST_DIR/.claude/hooks/sidekick/tmp/$TEST_SESSION"
+    SESSION_DIR="$TEST_DIR/.sidekick/sessions/$TEST_SESSION"
     mkdir -p "$SESSION_DIR"
     input_json='{"session_id":"'$TEST_SESSION'","workspace":{"project_dir":"'$TEST_DIR'"}}'
 
@@ -202,7 +202,7 @@ test_resume_feature_toggle() {
 
     # Create a previous session with topic file
     local prev_session="prev-session-$(date +%s)"
-    local prev_session_dir="$TEST_DIR/.claude/hooks/sidekick/tmp/$prev_session"
+    local prev_session_dir="$TEST_DIR/.sidekick/sessions/$prev_session"
     mkdir -p "$prev_session_dir"
 
     cat > "$prev_session_dir/topic.json" << 'EOF'
@@ -214,7 +214,7 @@ EOF
 
     # Start new session
     TEST_SESSION="test-resume-disabled-$(date +%s)"
-    SESSION_DIR="$TEST_DIR/.claude/hooks/sidekick/tmp/$TEST_SESSION"
+    SESSION_DIR="$TEST_DIR/.sidekick/sessions/$TEST_SESSION"
     mkdir -p "$SESSION_DIR"
     local input_json='{"session_id":"'$TEST_SESSION'","workspace":{"project_dir":"'$TEST_DIR'"}}'
 
@@ -237,7 +237,7 @@ EOF
     create_config "false" "true" "false" "true" "false"
 
     TEST_SESSION="test-resume-enabled-$(date +%s)"
-    SESSION_DIR="$TEST_DIR/.claude/hooks/sidekick/tmp/$TEST_SESSION"
+    SESSION_DIR="$TEST_DIR/.sidekick/sessions/$TEST_SESSION"
     mkdir -p "$SESSION_DIR"
     input_json='{"session_id":"'$TEST_SESSION'","workspace":{"project_dir":"'$TEST_DIR'"}}'
 
@@ -260,7 +260,7 @@ test_topic_extraction_feature_toggle() {
 
     # Create session
     TEST_SESSION="test-topic-disabled-$(date +%s)"
-    SESSION_DIR="$TEST_DIR/.claude/hooks/sidekick/tmp/$TEST_SESSION"
+    SESSION_DIR="$TEST_DIR/.sidekick/sessions/$TEST_SESSION"
     mkdir -p "$SESSION_DIR"
 
     # Initialize tracking
@@ -283,7 +283,7 @@ test_topic_extraction_feature_toggle() {
     create_config "true" "false" "false" "true" "false"
 
     TEST_SESSION="test-topic-enabled-$(date +%s)"
-    SESSION_DIR="$TEST_DIR/.claude/hooks/sidekick/tmp/$TEST_SESSION"
+    SESSION_DIR="$TEST_DIR/.sidekick/sessions/$TEST_SESSION"
     mkdir -p "$SESSION_DIR"
     echo "0" > "$SESSION_DIR/response_count"
 
@@ -347,12 +347,12 @@ test_multiple_features_enabled() {
     create_config "true" "true" "true" "true" "true"
 
     TEST_SESSION="test-all-features-$(date +%s)"
-    SESSION_DIR="$TEST_DIR/.claude/hooks/sidekick/tmp/$TEST_SESSION"
+    SESSION_DIR="$TEST_DIR/.sidekick/sessions/$TEST_SESSION"
     mkdir -p "$SESSION_DIR"
 
     # Create previous session for resume
     local prev_session="prev-all-$(date +%s)"
-    local prev_session_dir="$TEST_DIR/.claude/hooks/sidekick/tmp/$prev_session"
+    local prev_session_dir="$TEST_DIR/.sidekick/sessions/$prev_session"
     mkdir -p "$prev_session_dir"
     cat > "$prev_session_dir/topic.json" << 'EOF'
 {"session_id":"prev","initial_goal":"Goal","current_objective":"Objective","clarity_score":9,"confidence":0.95}
@@ -393,7 +393,7 @@ test_multiple_features_disabled() {
     create_config "false" "false" "false" "false" "false"
 
     TEST_SESSION="test-no-features-$(date +%s)"
-    SESSION_DIR="$TEST_DIR/.claude/hooks/sidekick/tmp/$TEST_SESSION"
+    SESSION_DIR="$TEST_DIR/.sidekick/sessions/$TEST_SESSION"
     mkdir -p "$SESSION_DIR"
 
     # Run session-start

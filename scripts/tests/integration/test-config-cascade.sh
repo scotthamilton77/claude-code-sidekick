@@ -50,7 +50,7 @@ setup() {
     mkdir -p "$TEST_DIR/.claude/hooks/sidekick/lib"
     mkdir -p "$TEST_DIR/.claude/hooks/sidekick/handlers"
     mkdir -p "$TEST_DIR/.claude/hooks/sidekick/features"
-    mkdir -p "$TEST_DIR/.claude/hooks/sidekick/tmp"
+    mkdir -p "$TEST_DIR/.sidekick/sessions"
 
     # Create sidekick directory structure for user scope
     mkdir -p "$HOME/.claude/hooks/sidekick-test/lib"
@@ -80,7 +80,7 @@ setup() {
 
     # Create test session
     TEST_SESSION="test-cascade-$(date +%s)"
-    mkdir -p "$TEST_DIR/.claude/hooks/sidekick/tmp/$TEST_SESSION"
+    mkdir -p "$TEST_DIR/.sidekick/sessions/$TEST_SESSION"
 
     info "Test environment created at: $TEST_DIR"
     info "User test environment at: $HOME/.claude/hooks/sidekick-test"

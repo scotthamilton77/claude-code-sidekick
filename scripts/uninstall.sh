@@ -505,17 +505,17 @@ kill_sidekick_processes() {
     done
 }
 
-# Check if tmp directory has recent sessions
+# Check if sessions directory has recent sessions
 has_recent_sessions() {
-    local tmp_dir="$1"
+    local sessions_dir="$1"
 
-    if [ ! -d "$tmp_dir" ]; then
+    if [ ! -d "$sessions_dir" ]; then
         return 1
     fi
 
     # Check if any session directory modified in last 7 days
     local recent_count
-    recent_count=$(find "$tmp_dir" -mindepth 1 -maxdepth 1 -type d -mtime -7 2>/dev/null | wc -l)
+    recent_count=$(find "$sessions_dir" -mindepth 1 -maxdepth 1 -type d -mtime -7 2>/dev/null | wc -l)
 
     [ "$recent_count" -gt 0 ]
 }
@@ -534,29 +534,12 @@ uninstall_from_user() {
     local project_sessions_dir="$project_dir/.sidekick/sessions"
 
     # Kill any running processes first
-    kill_sidekick_processes "$user_dir/tmp"
     kill_sidekick_processes "$project_sessions_dir"
 
     # Remove hooks from settings
     if [ -f "$settings_file" ]; then
         remove_hooks_from_settings "$settings_file"
         cleanup_empty_settings "$settings_file"
-    fi
-
-    # Check for recent sessions
-    if has_recent_sessions "$user_dir/tmp"; then
-        log_warn "Found recent session data in $user_dir/tmp"
-        if [ "${SIDEKICK_SKIP_CONFIRM:-0}" != "1" ] && [ "$DRY_RUN" = false ]; then
-            read -p "Preserve tmp directory? (Y/n) " -n 1 -r
-            echo
-            if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-                log_info "Preserving tmp directory"
-                # Remove everything except tmp
-                safe_find_remove "$user_dir" "user" "tmp"
-                log_info "User scope uninstallation complete (tmp preserved)"
-                return 0
-            fi
-        fi
     fi
 
     # Remove sidekick directory
@@ -616,7 +599,6 @@ uninstall_from_project() {
     local settings_file="$project_dir/.claude/settings.json"
 
     # Kill any running processes first
-    kill_sidekick_processes "$project_sidekick_dir/tmp"
     kill_sidekick_processes "$project_sessions_dir"
 
     # Remove hooks from settings
@@ -627,19 +609,6 @@ uninstall_from_project() {
 
     # Remove .claudeignore entry
     remove_claudeignore_entry "$project_dir"
-
-    # Check for recent sessions in .claude/hooks/sidekick/tmp
-    local preserve_tmp=false
-    if has_recent_sessions "$project_sidekick_dir/tmp"; then
-        log_warn "Found recent session data in $project_sidekick_dir/tmp"
-        if [ "${SIDEKICK_SKIP_CONFIRM:-0}" != "1" ] && [ "$DRY_RUN" = false ]; then
-            read -p "Preserve tmp directory? (Y/n) " -n 1 -r
-            echo
-            if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-                preserve_tmp=true
-            fi
-        fi
-    fi
 
     # Check for recent sessions in .sidekick/sessions
     local preserve_sessions=false
@@ -655,17 +624,10 @@ uninstall_from_project() {
     fi
 
     # Handle sidekick directory
-    if [ "$preserve_tmp" = true ]; then
-        log_info "Preserving tmp directory"
-        # Remove everything except tmp
-        safe_find_remove "$project_sidekick_dir" "project" "tmp"
-    else
-        # Remove entire sidekick directory
-        if [ -d "$project_sidekick_dir" ]; then
-            safe_rm "$project_sidekick_dir" "project"
-            if [ "$DRY_RUN" = false ]; then
-                log_info "Removed $project_sidekick_dir"
-            fi
+    if [ -d "$project_sidekick_dir" ]; then
+        safe_rm "$project_sidekick_dir" "project"
+        if [ "$DRY_RUN" = false ]; then
+            log_info "Removed $project_sidekick_dir"
         fi
     fi
 
