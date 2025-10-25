@@ -2,18 +2,21 @@
 # uninstall.sh - Uninstall Sidekick from user and/or project scope
 #
 # Usage:
-#   uninstall.sh [--user|--project|--both]
+#   uninstall.sh [--user|--project|--both] [--dry-run] [--verbose]
 #
 # Options:
 #   --user      Uninstall from ~/.claude only
 #   --project   Uninstall from project .claude only
 #   --both      Uninstall from both (default)
+#   --dry-run   Show what would be deleted without actually deleting
+#   --verbose   Show detailed output of all operations
 #
 # Environment:
 #   SIDEKICK_SKIP_CONFIRM=1   Skip confirmation prompt (for testing)
 #
 # Examples:
-#   uninstall.sh --user
+#   uninstall.sh --user --dry-run
+#   uninstall.sh --user --verbose
 #   uninstall.sh --project
 #   SIDEKICK_SKIP_CONFIRM=1 uninstall.sh --user
 
@@ -33,6 +36,10 @@ NC='\033[0m' # No Color
 UNINSTALL_USER=false
 UNINSTALL_PROJECT=false
 
+# Operation modes
+DRY_RUN=false
+VERBOSE=false
+
 # Logging functions
 log_info() {
     echo -e "${GREEN}[INFO]${NC} $*"
@@ -48,6 +55,147 @@ log_error() {
 
 log_step() {
     echo -e "${BLUE}[STEP]${NC} $*"
+}
+
+log_verbose() {
+    if [ "$VERBOSE" = true ]; then
+        echo -e "${BLUE}[VERBOSE]${NC} $*"
+    fi
+}
+
+log_operation() {
+    local op="$1"
+    shift
+    if [ "$DRY_RUN" = true ]; then
+        echo -e "${YELLOW}[DRY-RUN]${NC} Would $op: $*"
+    else
+        log_verbose "$op: $*"
+    fi
+}
+
+# Validate path is within expected boundaries
+validate_path() {
+    local path="$1"
+    local scope="$2"  # "user" or "project"
+
+    case "$scope" in
+        user)
+            # Must be within ~/.claude/hooks/sidekick
+            if [[ ! "$path" =~ ^"$HOME"/.claude/hooks/sidekick ]]; then
+                log_error "SAFETY: Path outside expected user scope: $path"
+                log_error "         Expected: $HOME/.claude/hooks/sidekick/*"
+                return 1
+            fi
+            ;;
+        user-hooks)
+            # Must be ~/.claude/hooks exactly
+            if [ "$path" != "$HOME/.claude/hooks" ]; then
+                log_error "SAFETY: Invalid hooks directory path: $path"
+                log_error "         Expected: $HOME/.claude/hooks"
+                return 1
+            fi
+            ;;
+        user-claude)
+            # Must be ~/.claude exactly
+            if [ "$path" != "$HOME/.claude" ]; then
+                log_error "SAFETY: Invalid claude directory path: $path"
+                log_error "         Expected: $HOME/.claude"
+                return 1
+            fi
+            ;;
+        project)
+            # Must contain .claude/hooks/sidekick
+            if [[ ! "$path" =~ /.claude/hooks/sidekick ]]; then
+                log_error "SAFETY: Path doesn't match project scope: $path"
+                log_error "         Expected: */.claude/hooks/sidekick"
+                return 1
+            fi
+            ;;
+        project-sessions)
+            # Must be */.sidekick
+            if [[ ! "$path" =~ /.sidekick$ ]]; then
+                log_error "SAFETY: Path doesn't match project sessions: $path"
+                log_error "         Expected: */.sidekick"
+                return 1
+            fi
+            ;;
+    esac
+
+    log_verbose "Path validation passed: $path (scope: $scope)"
+    return 0
+}
+
+# Safe remove file/directory
+safe_rm() {
+    local path="$1"
+    local scope="$2"
+
+    if ! validate_path "$path" "$scope"; then
+        log_error "Refusing to remove: $path"
+        return 1
+    fi
+
+    log_operation "remove" "$path"
+
+    if [ "$DRY_RUN" = false ]; then
+        rm -rf "$path"
+    fi
+}
+
+# Safe remove empty directory
+safe_rmdir() {
+    local path="$1"
+    local scope="$2"
+
+    if ! validate_path "$path" "$scope"; then
+        log_error "Refusing to rmdir: $path"
+        return 1
+    fi
+
+    if [ ! -d "$path" ]; then
+        log_verbose "Directory does not exist: $path"
+        return 0
+    fi
+
+    if [ -n "$(ls -A "$path" 2>/dev/null)" ]; then
+        log_verbose "Directory not empty, skipping: $path"
+        return 0
+    fi
+
+    log_operation "remove empty directory" "$path"
+
+    if [ "$DRY_RUN" = false ]; then
+        rmdir "$path"
+    fi
+}
+
+# Safe find and remove (for selective cleanup)
+safe_find_remove() {
+    local base_dir="$1"
+    local scope="$2"
+    local exclude_name="$3"
+
+    if ! validate_path "$base_dir" "$scope"; then
+        log_error "Refusing to find/remove in: $base_dir"
+        return 1
+    fi
+
+    # Show what would be removed
+    local items
+    items=$(find "$base_dir" -mindepth 1 -maxdepth 1 ! -name "$exclude_name" 2>/dev/null || true)
+
+    if [ -z "$items" ]; then
+        log_verbose "No items to remove in: $base_dir (excluding: $exclude_name)"
+        return 0
+    fi
+
+    while IFS= read -r item; do
+        log_operation "remove (find)" "$item"
+    done <<< "$items"
+
+    if [ "$DRY_RUN" = false ]; then
+        find "$base_dir" -mindepth 1 -maxdepth 1 ! -name "$exclude_name" -exec rm -rf {} +
+    fi
 }
 
 # Parse command-line arguments
@@ -72,6 +220,14 @@ parse_args() {
             --both)
                 UNINSTALL_USER=true
                 UNINSTALL_PROJECT=true
+                shift
+                ;;
+            --dry-run)
+                DRY_RUN=true
+                shift
+                ;;
+            --verbose)
+                VERBOSE=true
                 shift
                 ;;
             -h|--help)
@@ -105,13 +261,16 @@ Options:
   --user      Uninstall from ~/.claude only
   --project   Uninstall from project .claude only
   --both      Uninstall from both scopes (default)
+  --dry-run   Show what would be deleted without actually deleting
+  --verbose   Show detailed output of all operations
   -h, --help  Show this help message
 
 Environment:
   SIDEKICK_SKIP_CONFIRM=1   Skip confirmation prompt (for testing)
 
 Examples:
-  uninstall.sh --user
+  uninstall.sh --user --dry-run
+  uninstall.sh --user --verbose
   uninstall.sh --project
   SIDEKICK_SKIP_CONFIRM=1 uninstall.sh --user
 
@@ -152,6 +311,11 @@ remove_hooks_from_settings() {
     if ! command -v jq &> /dev/null; then
         log_error "jq is required but not installed"
         return 1
+    fi
+
+    if [ "$DRY_RUN" = true ]; then
+        log_operation "remove hooks from" "$settings_file"
+        return 0
     fi
 
     # Create backup
@@ -235,40 +399,53 @@ cleanup_empty_settings() {
     ' "$settings_file")
 
     if [ "$is_empty" = "empty" ]; then
-        log_info "Removing empty settings.json"
-        rm -f "$settings_file"
+        log_operation "remove empty settings.json" "$settings_file"
+        if [ "$DRY_RUN" = false ]; then
+            rm -f "$settings_file"
+        fi
     else
-        # Clean up empty hook arrays
-        jq '
-            if .hooks then
-                .hooks |= with_entries(select(.value | length > 0))
-            else . end |
-            if (.hooks // {} | length) == 0 then
-                del(.hooks)
-            else . end
-        ' "$settings_file" > "$settings_file.tmp"
-        mv "$settings_file.tmp" "$settings_file"
-        log_info "Cleaned up empty hook entries"
+        log_operation "clean up empty hook arrays in" "$settings_file"
+        if [ "$DRY_RUN" = false ]; then
+            # Clean up empty hook arrays
+            jq '
+                if .hooks then
+                    .hooks |= with_entries(select(.value | length > 0))
+                else . end |
+                if (.hooks // {} | length) == 0 then
+                    del(.hooks)
+                else . end
+            ' "$settings_file" > "$settings_file.tmp"
+            mv "$settings_file.tmp" "$settings_file"
+            log_info "Cleaned up empty hook entries"
+        fi
     fi
 }
 
 # Clean up empty directories
 cleanup_empty_directories() {
     local base_dir="$1"
+    local scope="$2"  # "user" or "project"
+
+    # Determine scope suffix for validation
+    local hooks_scope
+    local claude_scope
+    if [ "$scope" = "user" ]; then
+        hooks_scope="user-hooks"
+        claude_scope="user-claude"
+    else
+        # For project scope, we can't safely remove parent dirs
+        # since we don't control the entire project directory
+        log_verbose "Skipping parent directory cleanup for project scope"
+        return 0
+    fi
 
     # Remove .claude/hooks if empty
     local hooks_dir="$base_dir/.claude/hooks"
-    if [ -d "$hooks_dir" ] && [ -z "$(ls -A "$hooks_dir")" ]; then
-        rmdir "$hooks_dir"
-        log_info "Removed empty directory: $hooks_dir"
-    fi
+    safe_rmdir "$hooks_dir" "$hooks_scope"
 
     # Remove .claude if empty
     local claude_dir="$base_dir/.claude"
-    if [ -d "$claude_dir" ] && [ -z "$(ls -A "$claude_dir")" ]; then
-        rmdir "$claude_dir"
-        log_info "Removed empty directory: $claude_dir"
-    fi
+    safe_rmdir "$claude_dir" "$claude_scope"
 }
 
 # Kill running sidekick processes for session
@@ -353,9 +530,12 @@ uninstall_from_user() {
 
     local user_dir="$HOME/.claude/hooks/sidekick"
     local settings_file="$HOME/.claude/settings.json"
+    local project_dir="${CLAUDE_PROJECT_DIR:-$PWD}"
+    local project_sessions_dir="$project_dir/.sidekick/sessions"
 
     # Kill any running processes first
     kill_sidekick_processes "$user_dir/tmp"
+    kill_sidekick_processes "$project_sessions_dir"
 
     # Remove hooks from settings
     if [ -f "$settings_file" ]; then
@@ -366,13 +546,13 @@ uninstall_from_user() {
     # Check for recent sessions
     if has_recent_sessions "$user_dir/tmp"; then
         log_warn "Found recent session data in $user_dir/tmp"
-        if [ "${SIDEKICK_SKIP_CONFIRM:-0}" != "1" ]; then
+        if [ "${SIDEKICK_SKIP_CONFIRM:-0}" != "1" ] && [ "$DRY_RUN" = false ]; then
             read -p "Preserve tmp directory? (Y/n) " -n 1 -r
             echo
             if [[ ! $REPLY =~ ^[Nn]$ ]]; then
                 log_info "Preserving tmp directory"
                 # Remove everything except tmp
-                find "$user_dir" -mindepth 1 -maxdepth 1 ! -name tmp -exec rm -rf {} +
+                safe_find_remove "$user_dir" "user" "tmp"
                 log_info "User scope uninstallation complete (tmp preserved)"
                 return 0
             fi
@@ -381,14 +561,42 @@ uninstall_from_user() {
 
     # Remove sidekick directory
     if [ -d "$user_dir" ]; then
-        rm -rf "$user_dir"
-        log_info "Removed $user_dir"
+        safe_rm "$user_dir" "user"
+        if [ "$DRY_RUN" = false ]; then
+            log_info "Removed $user_dir"
+        fi
     else
         log_warn "Sidekick directory not found: $user_dir"
     fi
 
     # Clean up empty directories
-    cleanup_empty_directories "$HOME"
+    cleanup_empty_directories "$HOME" "user"
+
+    # Clean up project's .sidekick/sessions directory (user scope stores sessions here)
+    local preserve_sessions=false
+    if has_recent_sessions "$project_sessions_dir"; then
+        log_warn "Found recent session data in $project_sessions_dir"
+        if [ "${SIDEKICK_SKIP_CONFIRM:-0}" != "1" ] && [ "$DRY_RUN" = false ]; then
+            read -p "Preserve .sidekick/sessions directory? (Y/n) " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+                preserve_sessions=true
+            fi
+        fi
+    fi
+
+    # Handle .sidekick directory
+    if [ "$preserve_sessions" = true ]; then
+        log_info "Preserving .sidekick/sessions directory"
+    else
+        # Remove .sidekick directory
+        if [ -d "$project_dir/.sidekick" ]; then
+            safe_rm "$project_dir/.sidekick" "project-sessions"
+            if [ "$DRY_RUN" = false ]; then
+                log_info "Removed $project_dir/.sidekick"
+            fi
+        fi
+    fi
 
     log_info "User scope uninstallation complete"
 }
@@ -424,7 +632,7 @@ uninstall_from_project() {
     local preserve_tmp=false
     if has_recent_sessions "$project_sidekick_dir/tmp"; then
         log_warn "Found recent session data in $project_sidekick_dir/tmp"
-        if [ "${SIDEKICK_SKIP_CONFIRM:-0}" != "1" ]; then
+        if [ "${SIDEKICK_SKIP_CONFIRM:-0}" != "1" ] && [ "$DRY_RUN" = false ]; then
             read -p "Preserve tmp directory? (Y/n) " -n 1 -r
             echo
             if [[ ! $REPLY =~ ^[Nn]$ ]]; then
@@ -437,7 +645,7 @@ uninstall_from_project() {
     local preserve_sessions=false
     if has_recent_sessions "$project_sessions_dir"; then
         log_warn "Found recent session data in $project_sessions_dir"
-        if [ "${SIDEKICK_SKIP_CONFIRM:-0}" != "1" ]; then
+        if [ "${SIDEKICK_SKIP_CONFIRM:-0}" != "1" ] && [ "$DRY_RUN" = false ]; then
             read -p "Preserve .sidekick/sessions directory? (Y/n) " -n 1 -r
             echo
             if [[ ! $REPLY =~ ^[Nn]$ ]]; then
@@ -450,12 +658,14 @@ uninstall_from_project() {
     if [ "$preserve_tmp" = true ]; then
         log_info "Preserving tmp directory"
         # Remove everything except tmp
-        find "$project_sidekick_dir" -mindepth 1 -maxdepth 1 ! -name tmp -exec rm -rf {} +
+        safe_find_remove "$project_sidekick_dir" "project" "tmp"
     else
         # Remove entire sidekick directory
         if [ -d "$project_sidekick_dir" ]; then
-            rm -rf "$project_sidekick_dir"
-            log_info "Removed $project_sidekick_dir"
+            safe_rm "$project_sidekick_dir" "project"
+            if [ "$DRY_RUN" = false ]; then
+                log_info "Removed $project_sidekick_dir"
+            fi
         fi
     fi
 
@@ -465,13 +675,15 @@ uninstall_from_project() {
     else
         # Remove .sidekick directory
         if [ -d "$project_dir/.sidekick" ]; then
-            rm -rf "$project_dir/.sidekick"
-            log_info "Removed $project_dir/.sidekick"
+            safe_rm "$project_dir/.sidekick" "project-sessions"
+            if [ "$DRY_RUN" = false ]; then
+                log_info "Removed $project_dir/.sidekick"
+            fi
         fi
     fi
 
     # Clean up empty directories
-    cleanup_empty_directories "$project_dir"
+    cleanup_empty_directories "$project_dir" "project"
 
     log_info "Project scope uninstallation complete"
 }
@@ -495,6 +707,12 @@ main() {
     fi
     if [ "$UNINSTALL_PROJECT" = true ]; then
         echo "  - Project scope: .claude/hooks/sidekick"
+    fi
+    if [ "$DRY_RUN" = true ]; then
+        echo "  - Mode: DRY-RUN (no files will be deleted)"
+    fi
+    if [ "$VERBOSE" = true ]; then
+        echo "  - Verbose output: ENABLED"
     fi
     echo ""
 
