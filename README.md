@@ -10,6 +10,8 @@ This repository serves as a development and testing environment for [Claude Code
 
 ## TODOs
 
+## Sidekick
+
 - PLAN.MD (executing ARCH.md)
    - need a better place for the temp files?  Do we want any state preserved in git?
    - standardize parameter names and styles in the scripts (e.g. --project-dir vs. not, internally using output_dir, etc.)
@@ -20,9 +22,13 @@ This repository serves as a development and testing environment for [Claude Code
 - allow a "concise" topic mode during setup that chooses concise template files
    - maybe just allow for project-level overrides (template file input parameter and/or user and project level overrides)
 - statusline token counter and context % are way off?  If we can't get close to /context, let's remove the %
-- agents, skills, CLAUDE.md, settings.json - I've moved these into src/.claude/ for now - we'll need to make these installable/uninstallable as components too
-- sync, push - these should not clobber settings and mcp, but rather merge; for claude.md, ask to replace
 - how do subagents work - can we detect their connection to the parent agent, and do we care?  (for statusline, maybe not, but for analytics?)
+
+## Agents and Skills
+
+- agents, skills, CLAUDE.md, settings.json - I've moved these into src/.claude/ for now - we'll need to make these installable/uninstallable as components too
+- Can we have a skill and/or agent that intersects the task list and plan for when claude starts to execute a plan and (a) checks it against the user request and requirements to catch scope creep and (b) checks against unnecessary complexity keeping YAGNI and DRY and KISS principles in play?
+- sync, push - these should not clobber settings and mcp, but rather merge; for claude.md, ask to replace
 
 ### Key Features
 
