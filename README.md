@@ -11,6 +11,7 @@ This repository serves as a development and testing environment for [Claude Code
 ## TODOs
 
 ## Sidekick
+- remove the analytics and incremental bits - they are complexity we don't need right now
 - user-prompt-submit.sh is coupled to the response counter and reminder and topic extraction logic.  these should be separate modules/functions that are injected into user-prompt-submit.sh
 - PLAN.MD (executing ARCH.md)
    - standardize parameter names and styles in the scripts (e.g. --project-dir vs. not, internally using output_dir, etc.)
