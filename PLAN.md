@@ -372,10 +372,10 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - [x] All features can be independently toggled via config
 
 ### 5.3 Manual Testing Checklist
-- [ ] Install to user scope (`./scripts/install.sh --user`)
-  - [ ] Verify files exist in `~/.claude/hooks/sidekick/`
-  - [ ] Verify `~/.claude/settings.json` has hooks registered
-- [ ] Start new Claude session in test project
+- [x] Install to user scope (`./scripts/install.sh --user`)
+  - [x] Verify files exist in `~/.claude/hooks/sidekick/`
+  - [x] Verify `~/.claude/settings.json` has hooks registered
+- [x] Start new Claude session in test project
   - [ ] Verify SessionStart hook fires (check logs)
   - [ ] Verify `tmp/${session_id}/response_count` created
   - [ ] Verify resume topic generated (if previous session exists)

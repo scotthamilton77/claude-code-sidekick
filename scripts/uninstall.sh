@@ -205,6 +205,129 @@ remove_claudeignore_entry() {
     fi
 }
 
+# Clean up empty settings.json
+cleanup_empty_settings() {
+    local settings_file="$1"
+
+    if [ ! -f "$settings_file" ]; then
+        return 0
+    fi
+
+    log_step "Cleaning up empty settings..."
+
+    # Check if settings.json is empty or only has empty hooks
+    local is_empty
+    is_empty=$(jq -r '
+        # Remove empty arrays from hooks
+        if .hooks then
+            .hooks |= with_entries(select(.value | length > 0))
+        else . end |
+        # Check if hooks object is now empty
+        if (.hooks // {} | length) == 0 then
+            del(.hooks)
+        else . end |
+        # Check if entire object is empty
+        if (. | length) == 0 then
+            "empty"
+        else
+            "not_empty"
+        end
+    ' "$settings_file")
+
+    if [ "$is_empty" = "empty" ]; then
+        log_info "Removing empty settings.json"
+        rm -f "$settings_file"
+    else
+        # Clean up empty hook arrays
+        jq '
+            if .hooks then
+                .hooks |= with_entries(select(.value | length > 0))
+            else . end |
+            if (.hooks // {} | length) == 0 then
+                del(.hooks)
+            else . end
+        ' "$settings_file" > "$settings_file.tmp"
+        mv "$settings_file.tmp" "$settings_file"
+        log_info "Cleaned up empty hook entries"
+    fi
+}
+
+# Clean up empty directories
+cleanup_empty_directories() {
+    local base_dir="$1"
+
+    # Remove .claude/hooks if empty
+    local hooks_dir="$base_dir/.claude/hooks"
+    if [ -d "$hooks_dir" ] && [ -z "$(ls -A "$hooks_dir")" ]; then
+        rmdir "$hooks_dir"
+        log_info "Removed empty directory: $hooks_dir"
+    fi
+
+    # Remove .claude if empty
+    local claude_dir="$base_dir/.claude"
+    if [ -d "$claude_dir" ] && [ -z "$(ls -A "$claude_dir")" ]; then
+        rmdir "$claude_dir"
+        log_info "Removed empty directory: $claude_dir"
+    fi
+}
+
+# Kill running sidekick processes for session
+kill_sidekick_processes() {
+    local tmp_dir="$1"
+
+    if [ ! -d "$tmp_dir" ]; then
+        return 0
+    fi
+
+    # Find all PID files
+    local pid_files
+    pid_files=$(find "$tmp_dir" -name "*.pid" 2>/dev/null || true)
+
+    if [ -z "$pid_files" ]; then
+        return 0
+    fi
+
+    log_warn "Found running Sidekick processes"
+
+    local pids=()
+    while IFS= read -r pid_file; do
+        if [ -f "$pid_file" ]; then
+            local pid
+            pid=$(cat "$pid_file" 2>/dev/null || echo "")
+            if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+                pids+=("$pid")
+            fi
+        fi
+    done <<< "$pid_files"
+
+    if [ ${#pids[@]} -eq 0 ]; then
+        return 0
+    fi
+
+    if [ "${SIDEKICK_SKIP_CONFIRM:-0}" != "1" ]; then
+        echo "Active processes (PIDs): ${pids[*]}"
+        read -p "Kill these processes? (Y/n) " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Nn]$ ]]; then
+            log_warn "Leaving processes running"
+            return 0
+        fi
+    fi
+
+    # Kill processes
+    for pid in "${pids[@]}"; do
+        if kill -0 "$pid" 2>/dev/null; then
+            log_info "Killing process $pid..."
+            kill -TERM "$pid" 2>/dev/null || true
+            sleep 1
+            # Force kill if still running
+            if kill -0 "$pid" 2>/dev/null; then
+                kill -KILL "$pid" 2>/dev/null || true
+            fi
+        fi
+    done
+}
+
 # Check if tmp directory has recent sessions
 has_recent_sessions() {
     local tmp_dir="$1"
@@ -231,9 +354,13 @@ uninstall_from_user() {
     local user_dir="$HOME/.claude/hooks/sidekick"
     local settings_file="$HOME/.claude/settings.json"
 
+    # Kill any running processes first
+    kill_sidekick_processes "$user_dir/tmp"
+
     # Remove hooks from settings
     if [ -f "$settings_file" ]; then
         remove_hooks_from_settings "$settings_file"
+        cleanup_empty_settings "$settings_file"
     fi
 
     # Check for recent sessions
@@ -260,6 +387,9 @@ uninstall_from_user() {
         log_warn "Sidekick directory not found: $user_dir"
     fi
 
+    # Clean up empty directories
+    cleanup_empty_directories "$HOME"
+
     log_info "User scope uninstallation complete"
 }
 
@@ -274,39 +404,74 @@ uninstall_from_project() {
     # Determine project directory
     local project_dir="${CLAUDE_PROJECT_DIR:-$PWD}"
     local project_sidekick_dir="$project_dir/.claude/hooks/sidekick"
+    local project_sessions_dir="$project_dir/.sidekick/sessions"
     local settings_file="$project_dir/.claude/settings.json"
+
+    # Kill any running processes first
+    kill_sidekick_processes "$project_sidekick_dir/tmp"
+    kill_sidekick_processes "$project_sessions_dir"
 
     # Remove hooks from settings
     if [ -f "$settings_file" ]; then
         remove_hooks_from_settings "$settings_file"
+        cleanup_empty_settings "$settings_file"
     fi
 
     # Remove .claudeignore entry
     remove_claudeignore_entry "$project_dir"
 
-    # Check for recent sessions
+    # Check for recent sessions in .claude/hooks/sidekick/tmp
+    local preserve_tmp=false
     if has_recent_sessions "$project_sidekick_dir/tmp"; then
         log_warn "Found recent session data in $project_sidekick_dir/tmp"
         if [ "${SIDEKICK_SKIP_CONFIRM:-0}" != "1" ]; then
             read -p "Preserve tmp directory? (Y/n) " -n 1 -r
             echo
             if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-                log_info "Preserving tmp directory"
-                # Remove everything except tmp
-                find "$project_sidekick_dir" -mindepth 1 -maxdepth 1 ! -name tmp -exec rm -rf {} +
-                log_info "Project scope uninstallation complete (tmp preserved)"
-                return 0
+                preserve_tmp=true
             fi
         fi
     fi
 
-    # Remove sidekick directory
-    if [ -d "$project_sidekick_dir" ]; then
-        rm -rf "$project_sidekick_dir"
-        log_info "Removed $project_sidekick_dir"
-    else
-        log_warn "Sidekick directory not found: $project_sidekick_dir"
+    # Check for recent sessions in .sidekick/sessions
+    local preserve_sessions=false
+    if has_recent_sessions "$project_sessions_dir"; then
+        log_warn "Found recent session data in $project_sessions_dir"
+        if [ "${SIDEKICK_SKIP_CONFIRM:-0}" != "1" ]; then
+            read -p "Preserve .sidekick/sessions directory? (Y/n) " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+                preserve_sessions=true
+            fi
+        fi
     fi
+
+    # Handle sidekick directory
+    if [ "$preserve_tmp" = true ]; then
+        log_info "Preserving tmp directory"
+        # Remove everything except tmp
+        find "$project_sidekick_dir" -mindepth 1 -maxdepth 1 ! -name tmp -exec rm -rf {} +
+    else
+        # Remove entire sidekick directory
+        if [ -d "$project_sidekick_dir" ]; then
+            rm -rf "$project_sidekick_dir"
+            log_info "Removed $project_sidekick_dir"
+        fi
+    fi
+
+    # Handle .sidekick/sessions directory
+    if [ "$preserve_sessions" = true ]; then
+        log_info "Preserving .sidekick/sessions directory"
+    else
+        # Remove .sidekick directory
+        if [ -d "$project_dir/.sidekick" ]; then
+            rm -rf "$project_dir/.sidekick"
+            log_info "Removed $project_dir/.sidekick"
+        fi
+    fi
+
+    # Clean up empty directories
+    cleanup_empty_directories "$project_dir"
 
     log_info "Project scope uninstallation complete"
 }
