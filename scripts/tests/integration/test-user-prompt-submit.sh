@@ -1,6 +1,6 @@
 #!/bin/bash
 # Integration test for user-prompt-submit handler
-# Tests counter increments, sleeper launch, cadence analysis, and static reminders
+# Tests counter increments, sleeper watchdog pattern, and static reminders
 
 set -euo pipefail
 
