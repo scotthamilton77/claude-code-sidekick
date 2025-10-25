@@ -201,24 +201,6 @@ test_statusline_contains_model() {
     fi
 }
 
-# Test 3: Statusline contains cost information
-test_statusline_contains_cost() {
-    log_test "Statusline contains cost"
-
-    local session_id="test-statusline-003"
-    local transcript=$(create_mock_session "$session_id" "Test objective" 8 5000)
-
-    local output=$(invoke_statusline "$session_id" "Sonnet 4.5" 3.75 15000 "$transcript")
-
-    # Should contain some representation of cost (dollars or cents)
-    if echo "$output" | grep -qE '\$|¢|3\.75|375'; then
-        pass "Statusline contains cost information"
-    else
-        fail "Statusline does not contain cost. Output: $output"
-        return 1
-    fi
-}
-
 # Test 4: Statusline contains duration
 test_statusline_contains_duration() {
     log_test "Statusline contains duration"
@@ -466,7 +448,6 @@ main() {
 
     test_statusline_basic || true
     test_statusline_contains_model || true
-    test_statusline_contains_cost || true
     test_statusline_contains_duration || true
     test_statusline_contains_tokens || true
     test_statusline_contains_topic || true

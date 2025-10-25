@@ -200,13 +200,16 @@ test_cleanup_feature_toggle() {
 test_resume_feature_toggle() {
     local test_name="FEATURE_RESUME toggle"
 
-    # Create a previous session with topic file
+    # Create a previous session with topic.json and resume.json
     local prev_session="prev-session-$(date +%s)"
     local prev_session_dir="$TEST_DIR/.sidekick/sessions/$prev_session"
     mkdir -p "$prev_session_dir"
 
     cat > "$prev_session_dir/topic.json" << 'EOF'
 {"session_id":"prev","initial_goal":"Previous goal","current_objective":"Previous objective","clarity_score":9,"confidence":0.95}
+EOF
+    cat > "$prev_session_dir/resume.json" << 'EOF'
+{"last_task_id":null,"resume_last_goal_message":"Shall we resume previous work?","last_objective_in_progress":"Continue the mission","snarky_comment":"Round 2: Electric Boogaloo"}
 EOF
 
     # Disable resume
@@ -226,7 +229,7 @@ EOF
     else
         # It's possible topic file exists from other source, but check it's not a resume
         local content=$(cat "$SESSION_DIR/topic.json" 2>/dev/null || echo "")
-        if [[ ! "$content" =~ "Previous" ]]; then
+        if [[ ! "$content" =~ "resume_from_session" ]]; then
             pass "$test_name - disabled (no resume from previous session)"
         else
             fail "$test_name - disabled" "Resume occurred when feature disabled"
@@ -243,9 +246,15 @@ EOF
 
     echo "$input_json" | "$TEST_DIR/.claude/hooks/sidekick/sidekick.sh" session-start 2>&1 >/dev/null || true
 
-    # Check that topic.json WAS created (with resume)
+    # Check that topic.json WAS created (with resume from resume.json)
     if [ -f "$SESSION_DIR/topic.json" ]; then
-        pass "$test_name - enabled (resume topic created)"
+        # Verify it came from resume.json
+        local content=$(cat "$SESSION_DIR/topic.json" 2>/dev/null || echo "")
+        if [[ "$content" =~ "resume_from_session" ]]; then
+            pass "$test_name - enabled (resume topic created from resume.json)"
+        else
+            fail "$test_name - enabled" "Topic file created but not from resume"
+        fi
     else
         fail "$test_name - enabled" "Resume topic not created when feature enabled"
     fi
