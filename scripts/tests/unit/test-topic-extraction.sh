@@ -465,6 +465,8 @@ test_sleeper_disabled() {
         return 0
     fi
 
+    # Save original value and restore after test
+    local orig_sleeper_enabled="${SLEEPER_ENABLED:-true}"
     export SLEEPER_ENABLED=false
 
     local session_id="test-session-sleeper-disabled"
@@ -478,7 +480,13 @@ test_sleeper_disabled() {
     sleep 0.5
 
     # Should NOT have created PID file
-    [ ! -f "$TEST_DIR/.sidekick/sessions/$session_id/sleeper.pid" ]
+    local result=0
+    [ ! -f "$TEST_DIR/.sidekick/sessions/$session_id/sleeper.pid" ] || result=1
+
+    # Restore original value
+    export SLEEPER_ENABLED="$orig_sleeper_enabled"
+
+    return $result
 }
 
 # ============================================================================
@@ -490,6 +498,9 @@ test_sleeper_exits_after_inactivity_timeout() {
     if ! command -v topic_extraction_sleeper_start &> /dev/null; then
         return 0
     fi
+
+    # Explicitly enable sleeper (may have been disabled by previous test)
+    export SLEEPER_ENABLED=true
 
     # Clean up any leftover sleepers from previous tests
     pkill -9 -f "topic_extraction_sleeper_loop" 2>/dev/null || true
@@ -517,7 +528,7 @@ EOF
 
     # Start sleeper
     topic_extraction_sleeper_start "$session_id" "$transcript" "$TEST_DIR"
-    sleep 0.5
+    sleep 1  # Give sleeper time to fully start
 
     local pid
     pid=$(cat "$TEST_DIR/.sidekick/sessions/$session_id/sleeper.pid" 2>/dev/null || echo "")
@@ -529,6 +540,10 @@ EOF
     # Verify sleeper is initially running
     ps -p "$pid" > /dev/null 2>&1 || {
         echo "ERROR: Sleeper not running initially (PID=$pid)" >&2
+        echo "Sleeper log:" >&2
+        cat "$TEST_DIR/.sidekick/sessions/$session_id/sleeper.log" 2>&1 | tail -20 >&2 || echo "No log available" >&2
+        echo "Session log:" >&2
+        cat "$TEST_DIR/.sidekick/sessions/$session_id/sidekick.log" 2>&1 | tail -20 >&2 || echo "No session log" >&2
         return 1
     }
 
@@ -558,6 +573,9 @@ test_sleeper_stays_alive_with_ongoing_activity() {
     if ! command -v topic_extraction_sleeper_start &> /dev/null; then
         return 0
     fi
+
+    # Explicitly enable sleeper (may have been disabled by previous test)
+    export SLEEPER_ENABLED=true
 
     # Write config overrides in project sidekick.conf for background processes
     mkdir -p "$TEST_DIR/.claude/hooks/sidekick"
@@ -612,6 +630,9 @@ test_sleeper_activity_resets_inactivity_timer() {
         return 0
     fi
 
+    # Explicitly enable sleeper (may have been disabled by previous test)
+    export SLEEPER_ENABLED=true
+
     # Write config overrides in project sidekick.conf for background processes
     mkdir -p "$TEST_DIR/.claude/hooks/sidekick"
     cat > "$TEST_DIR/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
@@ -665,6 +686,9 @@ test_sleeper_exits_after_activity_stops() {
     if ! command -v topic_extraction_sleeper_start &> /dev/null; then
         return 0
     fi
+
+    # Explicitly enable sleeper (may have been disabled by previous test)
+    export SLEEPER_ENABLED=true
 
     # Write config overrides in project sidekick.conf for background processes
     mkdir -p "$TEST_DIR/.claude/hooks/sidekick"
