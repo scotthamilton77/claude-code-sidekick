@@ -505,5 +505,4 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - ✅ Hook execution times meet performance targets
 - [ ] Documentation complete and accurate
 - [ ] Successfully deployed to user scope on development machine
-- [x] Legacy code organized for reference (src/LEGACY/)
 - [x] Source templates organized for future install system (src/.claude/)

@@ -103,14 +103,7 @@ cd claude-config
 
 ### Hook System
 
-Hooks execute at conversation events to enhance Claude Code behavior:
-
-**Legacy Hooks** (in `src/LEGACY/`):
-- **reminders/write-topic.sh**: Analyzes user intent and records conversation metadata
-- **reminders/write-unclear-topic.sh**: Handles vague/ambiguous requests with cynical feedback
-- **reminders/response-tracker.sh**: Monitors response count and injects periodic reminders
-
-**Modern System**: See [Sidekick](#sidekick) for the current modular hooks architecture. Sidekick maintains session state in `.sidekick/sessions/` at the project root (gitignored).
+The Sidekick system provides modular hooks that execute at conversation events to enhance Claude Code behavior. See the [Sidekick](#sidekick) section for the complete architecture. Sidekick maintains session state in `.sidekick/sessions/` at the project root (gitignored).
 
 ## Usage
 

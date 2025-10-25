@@ -29,9 +29,6 @@ The repository is organized into source components and deployment targets:
   - CLAUDE.md - Project instructions template
   - settings.json - Permission configuration template
 
-- **`src/LEGACY/`**: Reference implementations (not deployed)
-  - `.claude/hooks/reminders/` - Original hooks system (replaced by Sidekick)
-
 ### Deployment Targets
 
 - **`.claude/hooks/sidekick/`**: Installed Sidekick system (after running `scripts/install.sh`)
@@ -162,6 +159,3 @@ Markdown-based specifications in `backlog/` include:
 - `ARCH.md`: Complete architectural specification
 - `PLAN.md`: 8-phase implementation checklist (currently at Phase 5.3)
 - `src/sidekick/config.defaults`: All configuration options with documentation
-
-**Legacy Code**:
-- `src/LEGACY/.claude/hooks/reminders/`: Original hooks system (reference only, replaced by Sidekick)
