@@ -101,13 +101,8 @@ test_path_get_sidekick_root_caches() {
 
 # Test: path_get_session_dir creates directory
 test_path_get_session_dir_creates() {
-    # Override path_get_sidekick_root for this test
-    local original_sidekick_root
-    original_sidekick_root=$(path_get_sidekick_root)
-
-    path_get_sidekick_root() {
-        echo "${TEST_DIR}"
-    }
+    # Set CLAUDE_PROJECT_DIR (required)
+    export CLAUDE_PROJECT_DIR="${TEST_DIR}"
 
     local session_id="test-session-123"
     local session_dir
@@ -116,28 +111,28 @@ test_path_get_session_dir_creates() {
     # Should create the directory
     [ -d "$session_dir" ]
 
-    # Should have correct path
-    [ "$session_dir" = "${TEST_DIR}/tmp/${session_id}" ]
+    # Should have correct path (.sidekick/sessions/)
+    [ "$session_dir" = "${TEST_DIR}/.sidekick/sessions/${session_id}" ]
 
-    # Restore
-    path_get_sidekick_root() {
-        echo "$original_sidekick_root"
-    }
+    # Cleanup
+    unset CLAUDE_PROJECT_DIR
 }
 
 # Test: path_get_session_dir returns existing directory
 test_path_get_session_dir_existing() {
-    path_get_sidekick_root() {
-        echo "${TEST_DIR}"
-    }
+    # Set CLAUDE_PROJECT_DIR (required)
+    export CLAUDE_PROJECT_DIR="${TEST_DIR}"
 
     local session_id="test-existing-123"
-    mkdir -p "${TEST_DIR}/tmp/${session_id}"
+    mkdir -p "${TEST_DIR}/.sidekick/sessions/${session_id}"
 
     local session_dir
     session_dir=$(path_get_session_dir "$session_id")
 
-    [ "$session_dir" = "${TEST_DIR}/tmp/${session_id}" ]
+    [ "$session_dir" = "${TEST_DIR}/.sidekick/sessions/${session_id}" ]
+
+    # Cleanup
+    unset CLAUDE_PROJECT_DIR
 }
 
 # Test: path_get_project_dir from JSON

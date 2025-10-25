@@ -52,14 +52,14 @@ claude-config/
 │   ├── sidekick.conf                      # Runtime config (created from defaults)
 │   ├── lib/                               # Shared library (copied)
 │   ├── handlers/                          # Handlers (copied)
-│   ├── features/                          # Features (copied)
-│   └── tmp/                               # Runtime state (gitignored)
-│       └── ${session_id}/                 # Session-specific directories
-│           ├── sidekick.log               # Unified log file
-│           ├── topic.json                 # Current topic analysis
-│           ├── response_count             # Tracking counter
-│           ├── sleeper.pid                # Sleeper process ID
-│           └── analysis.pid               # Analysis process ID
+│   └── features/                          # Features (copied)
+│
+├── .sidekick/sessions/${session_id}/      # Session state (gitignored)
+│   ├── sidekick.log                       # Unified log file
+│   ├── topic.json                         # Current topic analysis
+│   ├── response_count                     # Tracking counter
+│   ├── sleeper.pid                        # Sleeper process ID
+│   └── analysis.pid                       # Analysis process ID
 │
 └── ARCH.md, PLAN.md                       # This file and implementation plan
 ```
@@ -118,7 +118,7 @@ _log_to_file "level" "message"
 _log_format_ansi "level" "message"
 ```
 
-**Log File Location**: `tmp/${session_id}/sidekick.log`
+**Log File Location**: `.sidekick/sessions/${session_id}/sidekick.log`
 
 **ANSI Colors**: Defined as readonly globals (COLOR_RED, COLOR_GREEN, etc.)
 
@@ -153,6 +153,8 @@ path_detect_scope
 path_get_sidekick_root
 
 # Get session-specific directory (creates if missing)
+# Returns: ${CLAUDE_PROJECT_DIR}/.sidekick/sessions/${session_id}/
+# Requires: CLAUDE_PROJECT_DIR must be set
 path_get_session_dir <session_id>
 
 # Get project directory from JSON input or environment
@@ -184,8 +186,8 @@ json_extract_from_markdown <text>
 # Launch background process with PID tracking
 process_launch_background <session_id> <name> <function> [args...]
 # Example: process_launch_background "$sid" "sleeper" sleeper_loop "$transcript"
-# Creates: tmp/${session_id}/${name}.pid
-# Logs to: tmp/${session_id}/${name}.log
+# Creates: ${session_dir}/${name}.pid
+# Logs to: ${session_dir}/${name}.log
 
 # Check if process is running by PID file
 process_is_running <pid_file>
@@ -379,7 +381,7 @@ RESUME_MODEL=haiku-4.5
 RESUME_MIN_CLARITY=5                # Minimum clarity to use previous session
 ```
 
-**Output**: Creates `tmp/${session_id}/topic.json` with resume message
+**Output**: Creates `${session_dir}/topic.json` with resume message
 
 #### features/statusline.sh
 
@@ -407,7 +409,7 @@ FEATURE_TRACKING=true
 TRACKING_STATIC_CADENCE=4           # Reminder cadence (responses)
 ```
 
-**State Files**: `tmp/${session_id}/response_count`
+**State Files**: `${session_dir}/response_count`
 
 #### features/cleanup.sh
 
@@ -632,11 +634,11 @@ sidekick.sh session-start "$CLAUDE_PROJECT_DIR"
   ↓
 handler_session_start()
   ↓
-tracking_init() → writes tmp/${session_id}/response_count
+tracking_init() → writes ${session_dir}/response_count
   ↓
 cleanup_launch() → process_launch_background → nohup cleanup_run &
   ↓
-resume_snarkify() → claude_invoke → writes tmp/${session_id}/topic.json
+resume_snarkify() → claude_invoke → writes ${session_dir}/topic.json
   ↓
 sidekick.sh exits (<100ms)
 ```
@@ -651,7 +653,7 @@ sidekick.sh user-prompt-submit "$CLAUDE_PROJECT_DIR"
   ↓
 handler_user_prompt_submit()
   ↓
-count = tracking_increment() → updates tmp/${session_id}/response_count
+count = tracking_increment() → updates ${session_dir}/response_count
   ↓
 if count == 1: topic_extraction_sleeper_start() → process_launch_background
   ↓
@@ -672,7 +674,7 @@ sidekick.sh statusline --project-dir "$CLAUDE_PROJECT_DIR"
   ↓
 feature_statusline_render()
   ↓
-read tmp/${session_id}/topic.json
+read ${session_dir}/topic.json
   ↓
 calculate tokens, format output
   ↓
@@ -691,7 +693,7 @@ topic_extraction_sleeper_start()
 process_launch_background "sleeper" topic_extraction_sleeper_loop
   ↓
 nohup bash -c "topic_extraction_sleeper_loop" &
-  ↓ (writes PID to tmp/${session_id}/sleeper.pid)
+  ↓ (writes PID to ${session_dir}/sleeper.pid)
   ↓
 [Sleeper runs independently]
   while true:
@@ -810,8 +812,8 @@ chmod +x "$CLAUDE_BIN"
 echo '{"session_id":"test-123"}' | ./src/sidekick/sidekick.sh session-start "$TEST_DIR"
 
 # Verify outputs
-[ -f "$TEST_DIR/.claude/hooks/sidekick/tmp/test-123/response_count" ]
-[ -f "$TEST_DIR/.claude/hooks/sidekick/tmp/test-123/topic.json" ]
+[ -f "$TEST_DIR/.sidekick/sessions/test-123/response_count" ]
+[ -f "$TEST_DIR/.sidekick/sessions/test-123/topic.json" ]
 
 # Cleanup
 rm -rf "$TEST_DIR"

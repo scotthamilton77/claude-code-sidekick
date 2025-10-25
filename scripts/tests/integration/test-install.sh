@@ -162,7 +162,6 @@ test_install_user() {
     assert_dir_exists "$HOME/.claude/hooks/sidekick/handlers"
     assert_dir_exists "$HOME/.claude/hooks/sidekick/features"
     assert_dir_exists "$HOME/.claude/hooks/sidekick/features/prompts"
-    assert_dir_exists "$HOME/.claude/hooks/sidekick/tmp"
 
     # Verify main files copied
     assert_file_exists "$HOME/.claude/hooks/sidekick/sidekick.sh"
@@ -210,7 +209,6 @@ test_install_project() {
     assert_dir_exists "$temp_project/.claude/hooks/sidekick/lib"
     assert_dir_exists "$temp_project/.claude/hooks/sidekick/handlers"
     assert_dir_exists "$temp_project/.claude/hooks/sidekick/features"
-    assert_dir_exists "$temp_project/.claude/hooks/sidekick/tmp"
 
     # Verify main files copied
     assert_file_exists "$temp_project/.claude/hooks/sidekick/sidekick.sh"
@@ -230,7 +228,7 @@ test_install_project() {
     assert_file_exists "$temp_project/.claudeignore"
     local ignore_content
     ignore_content=$(cat "$temp_project/.claudeignore")
-    assert_string_contains "$ignore_content" "hooks/sidekick/tmp/" ".claudeignore contains tmp directory"
+    assert_string_contains "$ignore_content" ".sidekick/" ".claudeignore contains session state directory"
 
     # Cleanup
     cd "$PROJECT_ROOT"

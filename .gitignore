@@ -29,6 +29,6 @@ node_modules/
 *:Zone.Identifier
 
 # Claude hook temporary files (session-specific ephemeral state)
-.claude/hooks/reminders/tmp/
 .sidekick/
 *.backup.*
+*.uninstall-backup.*
