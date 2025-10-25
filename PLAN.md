@@ -216,7 +216,6 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
   - [x] Copy `lib/` directory
   - [x] Copy `handlers/` directory
   - [x] Copy `features/` directory (or selected features)
-  - [x] Create `tmp/` directory
   - [x] Copy `config.defaults` → `sidekick.conf` (if not exists)
   - [x] Set executable permissions on .sh files
   - [x] Register hooks in `~/.claude/settings.json`
@@ -226,11 +225,10 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
   - [x] Copy `lib/` directory
   - [x] Copy `handlers/` directory
   - [x] Copy `features/` directory (or selected features)
-  - [x] Create `tmp/` directory
   - [x] Copy `config.defaults` → `sidekick.conf` (if not exists)
   - [x] Set executable permissions on .sh files
   - [x] Register hooks in `.claude/settings.json` or `.claude/settings.local.json`
-  - [x] Update `.claudeignore` with `hooks/sidekick/tmp/`
+  - [x] Update `.claudeignore` with `.sidekick/` (project session state)
 - [x] Implement `register_hooks_in_settings()`:
   - [x] Read current settings.json
   - [x] Add SessionStart hook command
@@ -247,11 +245,11 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - [x] Implement `uninstall_from_user()`:
   - [x] Remove hook commands from `~/.claude/settings.json`
   - [x] Remove `~/.claude/hooks/sidekick/` directory
-  - [x] Preserve tmp/ if contains recent sessions (prompt user)
+  - [x] Check for active sessions in project `.sidekick/sessions/` (if uninstalling from project)
 - [x] Implement `uninstall_from_project()`:
   - [x] Remove hook commands from `.claude/settings.json`
   - [x] Remove `.claude/hooks/sidekick/` directory
-  - [x] Preserve tmp/ if contains recent sessions (prompt user)
+  - [x] Preserve .sidekick/sessions/ if contains recent sessions (prompt user)
   - [x] Remove `.claudeignore` entry
 - [x] Add confirmation prompts
 - [x] Add colored output
@@ -260,7 +258,7 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - [x] Create `scripts/sync-to-user.sh`
 - [x] Copy `.claude/hooks/sidekick/` → `~/.claude/hooks/sidekick/`
 - [x] Preserve `sidekick.conf` (don't overwrite)
-- [x] Preserve `tmp/` (don't sync)
+- [x] Don't sync session state (project: `.sidekick/sessions/`)
 - [x] Update hooks in `~/.claude/settings.json`
 - [x] Add colored output
 
@@ -377,7 +375,7 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
   - [x] Verify `~/.claude/settings.json` has hooks registered
 - [x] Start new Claude session in test project
   - [ ] Verify SessionStart hook fires (check logs)
-  - [ ] Verify `tmp/${session_id}/response_count` created
+  - [ ] Verify `.sidekick/sessions/${session_id}/response_count` created
   - [ ] Verify resume topic generated (if previous session exists)
 - [ ] Submit 10 user prompts
   - [ ] Verify counter increments (check `response_count`)
@@ -399,7 +397,7 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - [ ] Install to project scope (`./scripts/install.sh --project`)
   - [ ] Verify files exist in `.claude/hooks/sidekick/`
   - [ ] Verify `.claude/settings.json` has hooks registered
-  - [ ] Verify `.claudeignore` has `hooks/sidekick/tmp/`
+  - [ ] Verify `.claudeignore` has `.sidekick/` (session state directory)
 - [ ] Test dual-scope (user + project installed)
   - [ ] Verify project hooks fire (not user hooks)
   - [ ] Verify project config overrides user config

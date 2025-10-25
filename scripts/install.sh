@@ -155,7 +155,6 @@ copy_files() {
     mkdir -p "$dest_dir/handlers"
     mkdir -p "$dest_dir/features"
     mkdir -p "$dest_dir/features/prompts"
-    mkdir -p "$dest_dir/tmp"
 
     # Copy main entry point
     cp "$SRC_DIR/sidekick.sh" "$dest_dir/"
@@ -265,12 +264,12 @@ update_claudeignore() {
         touch "$ignore_file"
     fi
 
-    # Add sidekick tmp directory if not already present
-    if ! grep -q "hooks/sidekick/tmp/" "$ignore_file" 2>/dev/null; then
-        echo "hooks/sidekick/tmp/" >> "$ignore_file"
-        log_info "Added hooks/sidekick/tmp/ to .claudeignore"
+    # Add sidekick session state directory if not already present
+    if ! grep -q "^\.sidekick/" "$ignore_file" 2>/dev/null; then
+        echo ".sidekick/" >> "$ignore_file"
+        log_info "Added .sidekick/ to .claudeignore"
     else
-        log_info ".claudeignore already contains sidekick tmp directory"
+        log_info ".claudeignore already contains .sidekick/ directory"
     fi
 }
 
@@ -361,7 +360,7 @@ main() {
     echo "Next steps:"
     echo "  1. Review configuration: cat ~/.claude/hooks/sidekick/sidekick.conf"
     echo "  2. Start a new Claude session to activate hooks"
-    echo "  3. Check logs in .claude/hooks/sidekick/tmp/\${session_id}/sidekick.log"
+    echo "  3. Logs will be created in .sidekick/sessions/\${session_id}/sidekick.log on first use"
     echo ""
 }
 

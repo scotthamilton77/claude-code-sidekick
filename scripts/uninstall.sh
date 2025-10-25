@@ -361,11 +361,11 @@ remove_claudeignore_entry() {
 
     log_step "Removing .claudeignore entry..."
 
-    # Remove sidekick tmp entry
-    if grep -q "hooks/sidekick/tmp/" "$ignore_file" 2>/dev/null; then
-        grep -v "hooks/sidekick/tmp/" "$ignore_file" > "$ignore_file.tmp"
+    # Remove .sidekick/ entry
+    if grep -q "^\.sidekick/" "$ignore_file" 2>/dev/null; then
+        grep -v "^\.sidekick/" "$ignore_file" > "$ignore_file.tmp"
         mv "$ignore_file.tmp" "$ignore_file"
-        log_info "Removed sidekick entry from .claudeignore"
+        log_info "Removed .sidekick/ entry from .claudeignore"
     fi
 }
 

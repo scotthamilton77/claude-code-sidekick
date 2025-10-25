@@ -77,11 +77,10 @@ cd claude-config
 .
 ├── .claude/                    # Project-scoped Claude configuration
 │   ├── hooks/                  # Conversation event handlers
-│   │   └── reminders/          # Reminder-related hooks
+│   │   └── reminders/          # LEGACY: Reminder-related hooks (see Sidekick)
 │   │       ├── write-topic.sh      # Topic classification
 │   │       ├── write-unclear-topic.sh
-│   │       ├── response-tracker.sh # Response monitoring
-│   │       └── tmp/              # Runtime state (gitignored)
+│   │       └── response-tracker.sh # Response monitoring
 │   ├── skills/                 # Claude Code skills
 │   ├── agents/                 # Custom agent definitions
 │   ├── CLAUDE.md               # Project instructions
@@ -106,11 +105,12 @@ cd claude-config
 
 Hooks execute at conversation events to enhance Claude Code behavior:
 
+**Legacy Hooks** (in `src/LEGACY/`):
 - **reminders/write-topic.sh**: Analyzes user intent and records conversation metadata
 - **reminders/write-unclear-topic.sh**: Handles vague/ambiguous requests with cynical feedback
 - **reminders/response-tracker.sh**: Monitors response count and injects periodic reminders
 
-All hooks maintain state in `.claude/hooks/reminders/tmp/` (excluded from version control).
+**Modern System**: See [Sidekick](#sidekick) for the current modular hooks architecture. Sidekick maintains session state in `.sidekick/sessions/` at the project root (gitignored).
 
 ## Usage
 
@@ -159,7 +159,7 @@ Edit `.claudeignore` to exclude files from sync operations:
 ```
 .credentials.json
 *.local.json
-hooks/reminders/tmp/
+.sidekick/
 *.backup
 ```
 
