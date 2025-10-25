@@ -361,12 +361,12 @@ TOPIC_CADENCE_LOW=1                 # Low clarity cadence (responses)
 TOPIC_CLARITY_THRESHOLD=7           # Threshold for high/low (1-10)
 
 SLEEPER_ENABLED=true
-SLEEPER_INTERVAL_ACTIVE=2           # Polling interval when active (seconds)
-SLEEPER_INTERVAL_IDLE=5             # Polling interval when idle (seconds)
-SLEEPER_MAX_DURATION=600            # Maximum runtime (seconds)
-SLEEPER_CLARITY_EXIT=7              # Clarity score to exit sleeper
+SLEEPER_MAX_DURATION=600            # Maximum inactivity timeout (seconds) - exits after no activity
 SLEEPER_MIN_SIZE_CHANGE=500         # Minimum bytes changed to trigger analysis
 SLEEPER_MIN_INTERVAL=10             # Minimum seconds between analyses
+SLEEPER_MIN_SLEEP=2                 # Minimum dynamic sleep interval (seconds)
+SLEEPER_MAX_SLEEP=20                # Maximum dynamic sleep interval (seconds)
+                                    # Sleep interval = clarity * 2 (capped between min/max)
 ```
 
 **Resume Generation Integration**:
@@ -503,12 +503,11 @@ TOPIC_CLARITY_THRESHOLD=7
 # SLEEPER
 # ============================================================================
 SLEEPER_ENABLED=true
-SLEEPER_INTERVAL_ACTIVE=2
-SLEEPER_INTERVAL_IDLE=5
-SLEEPER_MAX_DURATION=600
-SLEEPER_CLARITY_EXIT=7
-SLEEPER_MIN_SIZE_CHANGE=500
-SLEEPER_MIN_INTERVAL=10
+SLEEPER_MAX_DURATION=600           # Inactivity timeout (seconds)
+SLEEPER_MIN_SIZE_CHANGE=500        # Minimum bytes to trigger analysis
+SLEEPER_MIN_INTERVAL=10            # Minimum seconds between analyses
+SLEEPER_MIN_SLEEP=2                # Minimum dynamic sleep
+SLEEPER_MAX_SLEEP=20               # Maximum dynamic sleep
 
 # ============================================================================
 # RESUME
@@ -746,11 +745,11 @@ nohup bash -c "topic_extraction_sleeper_loop" &
   ↓
 [Sleeper runs independently]
   while true:
-    sleep $interval
+    if inactive_duration > max_duration: exit  # Exit after inactivity timeout
     if transcript changed significantly:
       topic_extraction_analyze()
-      if clarity >= threshold: exit
-    if elapsed > max_duration: exit
+      update last_activity_time  # Reset inactivity timer
+    sleep $dynamic_interval  # Based on clarity * 2 (capped 2-20s)
 ```
 
 ### Pattern 5: Async Resume Generation (triggered by topic change)
