@@ -410,7 +410,7 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
   - [ ] Verify `.claude/hooks/sidekick/` removed
   - [ ] Verify hooks removed from settings.json
 
-## Phase 6: Documentation & Migration
+## Phase 6: Documentation & Deployment
 
 ### 6.1 Update Documentation
 - [ ] Update root `CLAUDE.md` with Sidekick architecture overview
@@ -419,35 +419,17 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
   - [ ] Configuration guide
   - [ ] Feature documentation
   - [ ] Troubleshooting section
-- [ ] Create `MIGRATION.md` guide:
-  - [ ] Reminders → Sidekick migration steps
-  - [ ] Configuration translation table
-  - [ ] Breaking changes list
 - [ ] Add inline code documentation:
   - [ ] Function headers in `lib/common.sh`
   - [ ] Handler documentation
   - [ ] Feature documentation
 
-### 6.2 Migrate from Reminders
-- [ ] Install sidekick to project scope (`--project`)
-- [ ] Test all features work in parallel with reminders
-- [ ] Compare output (logs, topic files) for consistency
-- [ ] Fix any discrepancies found
-- [ ] Install sidekick to user scope (`--user`)
-- [ ] Manually remove reminders hooks from settings.json
-- [ ] Move `.claude/hooks/reminders/` → `.claude/hooks/reminders.backup/`
-- [ ] Test with reminders removed, verify sidekick works
-- [ ] Delete `.claude/hooks/reminders.backup/` after confidence period
-
-### 6.3 Cleanup Old Code
-- [ ] Move `.claude/hooks/reminders/deprecated/` to project root `deprecated/reminders/`
-- [ ] Delete old `scripts/setup-reminders.sh`
-- [ ] Delete old `scripts/cleanup-reminders.sh`
-- [ ] Delete old `scripts/pull-from-claude.sh`
-- [ ] Delete old `scripts/push-to-claude.sh`
-- [ ] Delete old `scripts/sync-claude.sh`
-- [ ] Update `.claudeignore` (remove old paths, add new)
-- [ ] Update `LLM_PLAN.md` with deprecation notice
+### 6.2 Legacy Code Organization
+- [x] Move `.claude/hooks/reminders/` → `src/LEGACY/.claude/hooks/reminders/` (reference only)
+- [x] Move `.claude/{agents,skills,CLAUDE.md,settings.json}` → `src/.claude/` (source templates)
+- [ ] Update `.claudeignore` to reflect new paths
+- [ ] Add README in `src/LEGACY/` explaining purpose (reference implementation only)
+- [ ] Add README in `src/.claude/` explaining these are source templates for future install system
 
 ## Phase 7: Polish & Optimization
 
@@ -511,7 +493,7 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - [ ] Install to user scope on primary development machine
 - [ ] Monitor for issues over 1 week
 - [ ] Address any issues found
-- [ ] Mark migration complete
+- [ ] Mark Sidekick Phase 1 complete
 
 ## Success Criteria
 
@@ -523,5 +505,7 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - ✅ Installation scripts work for user, project, and both scopes
 - ✅ All tests passing (unit + integration)
 - ✅ Hook execution times meet performance targets
-- ✅ Documentation complete and accurate
-- ✅ Successfully migrated from reminders on development machine
+- [ ] Documentation complete and accurate
+- [ ] Successfully deployed to user scope on development machine
+- [x] Legacy code organized for reference (src/LEGACY/)
+- [x] Source templates organized for future install system (src/.claude/)
