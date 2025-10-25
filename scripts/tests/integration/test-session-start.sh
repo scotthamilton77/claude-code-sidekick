@@ -49,7 +49,7 @@ setup() {
     mkdir -p "$TEST_DIR/.claude/hooks/sidekick/handlers"
     mkdir -p "$TEST_DIR/.claude/hooks/sidekick/features"
     mkdir -p "$TEST_DIR/.claude/hooks/sidekick/features/prompts"
-    mkdir -p "$TEST_DIR/.claude/hooks/sidekick/tmp"
+    mkdir -p "$TEST_DIR/.sidekick/sessions"
 
     # Copy sidekick files to test directory
     cp "$PROJECT_ROOT/src/sidekick/sidekick.sh" "$TEST_DIR/.claude/hooks/sidekick/"
@@ -142,8 +142,8 @@ cleanup() {
     log_test "Cleaning up test environment"
 
     # Kill any background processes we may have started
-    if [ -n "${TEST_DIR:-}" ] && [ -d "$TEST_DIR/.claude/hooks/sidekick/tmp" ]; then
-        find "$TEST_DIR/.claude/hooks/sidekick/tmp" -name "*.pid" -type f 2>/dev/null | while read -r pidfile; do
+    if [ -n "${TEST_DIR:-}" ] && [ -d "$TEST_DIR/.sidekick/sessions" ]; then
+        find "$TEST_DIR/.sidekick/sessions" -name "*.pid" -type f 2>/dev/null | while read -r pidfile; do
             if [ -f "$pidfile" ]; then
                 pid=$(cat "$pidfile" 2>/dev/null || echo "")
                 if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
@@ -206,7 +206,7 @@ JSON
     echo "$test_json" | "$TEST_DIR/.claude/hooks/sidekick/sidekick.sh" session-start >/dev/null 2>&1 || true
 
     # Check if session directory was created
-    local session_dir="$TEST_DIR/.claude/hooks/sidekick/tmp/$session_id"
+    local session_dir="$TEST_DIR/.sidekick/sessions/$session_id"
     if [ -d "$session_dir" ]; then
         pass "Session directory created: $session_dir"
     else
@@ -235,7 +235,7 @@ JSON
     echo "$test_json" | "$TEST_DIR/.claude/hooks/sidekick/sidekick.sh" session-start >/dev/null 2>&1 || true
 
     # Check if counter file was created
-    local counter_file="$TEST_DIR/.claude/hooks/sidekick/tmp/$session_id/response_count"
+    local counter_file="$TEST_DIR/.sidekick/sessions/$session_id/response_count"
     if [ -f "$counter_file" ]; then
         local count=$(cat "$counter_file")
         if [ "$count" = "0" ]; then
@@ -270,7 +270,7 @@ JSON
     echo "$test_json" | "$TEST_DIR/.claude/hooks/sidekick/sidekick.sh" session-start >/dev/null 2>&1 || true
 
     # Check if log file was created
-    local log_file="$TEST_DIR/.claude/hooks/sidekick/tmp/$session_id/sidekick.log"
+    local log_file="$TEST_DIR/.sidekick/sessions/$session_id/sidekick.log"
     if [ -f "$log_file" ]; then
         pass "Log file created: $log_file"
 
@@ -315,7 +315,7 @@ JSON
     echo "$test_json" | "$TEST_DIR/.claude/hooks/sidekick/sidekick.sh" session-start >/dev/null 2>&1 || true
 
     # Check that counter file was NOT created (tracking disabled)
-    local counter_file="$TEST_DIR/.claude/hooks/sidekick/tmp/$session_id/response_count"
+    local counter_file="$TEST_DIR/.sidekick/sessions/$session_id/response_count"
     if [ ! -f "$counter_file" ]; then
         pass "Tracking disabled - counter file not created"
     else
@@ -342,8 +342,8 @@ test_resume_feature() {
     local new_session_id="test-session-006b"
 
     # Create a previous session with a topic file
-    mkdir -p "$TEST_DIR/.claude/hooks/sidekick/tmp/$prev_session_id"
-    cat > "$TEST_DIR/.claude/hooks/sidekick/tmp/$prev_session_id/topic.json" <<'EOF'
+    mkdir -p "$TEST_DIR/.sidekick/sessions/$prev_session_id"
+    cat > "$TEST_DIR/.sidekick/sessions/$prev_session_id/topic.json" <<'EOF'
 {
   "session_id": "test-session-006a",
   "timestamp": "2025-10-22T10:00:00Z",
@@ -370,7 +370,7 @@ JSON
     echo "$test_json" | "$TEST_DIR/.claude/hooks/sidekick/sidekick.sh" session-start >/dev/null 2>&1 || true
 
     # Check if new session has topic file (created by resume feature)
-    local topic_file="$TEST_DIR/.claude/hooks/sidekick/tmp/$new_session_id/topic.json"
+    local topic_file="$TEST_DIR/.sidekick/sessions/$new_session_id/topic.json"
     if [ -f "$topic_file" ]; then
         pass "Resume created topic file for new session"
 
@@ -408,7 +408,7 @@ JSON
     echo "$test_json" | "$TEST_DIR/.claude/hooks/sidekick/sidekick.sh" session-start >/dev/null 2>&1 || true
 
     # Check if cleanup PID file was created
-    local cleanup_pid_file="$TEST_DIR/.claude/hooks/sidekick/tmp/$session_id/cleanup.pid"
+    local cleanup_pid_file="$TEST_DIR/.sidekick/sessions/$session_id/cleanup.pid"
     if [ -f "$cleanup_pid_file" ]; then
         pass "Cleanup PID file created: $cleanup_pid_file"
 

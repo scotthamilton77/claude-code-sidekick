@@ -49,7 +49,7 @@ setup() {
     mkdir -p "$TEST_DIR/.claude/hooks/sidekick/handlers"
     mkdir -p "$TEST_DIR/.claude/hooks/sidekick/features"
     mkdir -p "$TEST_DIR/.claude/hooks/sidekick/features/prompts"
-    mkdir -p "$TEST_DIR/.claude/hooks/sidekick/tmp"
+    mkdir -p "$TEST_DIR/.sidekick/sessions"
 
     # Copy sidekick files to test directory
     cp "$PROJECT_ROOT/src/sidekick/sidekick.sh" "$TEST_DIR/.claude/hooks/sidekick/"
@@ -131,8 +131,8 @@ cleanup() {
     log_test "Cleaning up test environment"
 
     # Kill any background processes
-    if [ -n "${TEST_DIR:-}" ] && [ -d "$TEST_DIR/.claude/hooks/sidekick/tmp" ]; then
-        find "$TEST_DIR/.claude/hooks/sidekick/tmp" -name "*.pid" -type f 2>/dev/null | while read -r pidfile; do
+    if [ -n "${TEST_DIR:-}" ] && [ -d "$TEST_DIR/.sidekick/sessions" ]; then
+        find "$TEST_DIR/.sidekick/sessions" -name "*.pid" -type f 2>/dev/null | while read -r pidfile; do
             if [ -f "$pidfile" ]; then
                 pid=$(cat "$pidfile" 2>/dev/null || echo "")
                 if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
@@ -156,8 +156,8 @@ create_test_session() {
     local session_id="$1"
 
     # Create session directory and counter file
-    mkdir -p "$TEST_DIR/.claude/hooks/sidekick/tmp/$session_id"
-    echo "0" > "$TEST_DIR/.claude/hooks/sidekick/tmp/$session_id/response_count"
+    mkdir -p "$TEST_DIR/.sidekick/sessions/$session_id"
+    echo "0" > "$TEST_DIR/.sidekick/sessions/$session_id/response_count"
 }
 
 # Helper to invoke user-prompt-submit hook
@@ -207,7 +207,7 @@ test_counter_increments() {
     local session_id="test-ups-002"
     create_test_session "$session_id"
 
-    local counter_file="$TEST_DIR/.claude/hooks/sidekick/tmp/$session_id/response_count"
+    local counter_file="$TEST_DIR/.sidekick/sessions/$session_id/response_count"
 
     # Invoke 5 times and check counter each time
     for i in {1..5}; do
@@ -239,7 +239,7 @@ test_sleeper_launched_on_first_call() {
     invoke_user_prompt_submit "$session_id" >/dev/null 2>&1 || true
 
     # Check if sleeper PID file was created
-    local sleeper_pid_file="$TEST_DIR/.claude/hooks/sidekick/tmp/$session_id/sleeper.pid"
+    local sleeper_pid_file="$TEST_DIR/.sidekick/sessions/$session_id/sleeper.pid"
 
     # Give it a moment to start
     sleep 0.5
@@ -276,7 +276,7 @@ test_sleeper_not_relaunched() {
     invoke_user_prompt_submit "$session_id" >/dev/null 2>&1 || true
     sleep 0.2
 
-    local sleeper_pid_file="$TEST_DIR/.claude/hooks/sidekick/tmp/$session_id/sleeper.pid"
+    local sleeper_pid_file="$TEST_DIR/.sidekick/sessions/$session_id/sleeper.pid"
 
     if [ -f "$sleeper_pid_file" ]; then
         local original_pid=$(cat "$sleeper_pid_file" 2>/dev/null || echo "")
@@ -351,13 +351,13 @@ EOF
 
     local session_id="test-ups-006"
     # Don't pre-create counter since tracking is disabled
-    mkdir -p "$TEST_DIR/.claude/hooks/sidekick/tmp/$session_id"
+    mkdir -p "$TEST_DIR/.sidekick/sessions/$session_id"
 
     # Execute user-prompt-submit
     invoke_user_prompt_submit "$session_id" >/dev/null 2>&1 || true
 
     # Counter should NOT be created
-    local counter_file="$TEST_DIR/.claude/hooks/sidekick/tmp/$session_id/response_count"
+    local counter_file="$TEST_DIR/.sidekick/sessions/$session_id/response_count"
     if [ ! -f "$counter_file" ]; then
         pass "Tracking disabled - counter not created"
     else
@@ -397,7 +397,7 @@ EOF
     sleep 0.2
 
     # Sleeper should NOT be launched
-    local sleeper_pid_file="$TEST_DIR/.claude/hooks/sidekick/tmp/$session_id/sleeper.pid"
+    local sleeper_pid_file="$TEST_DIR/.sidekick/sessions/$session_id/sleeper.pid"
     if [ ! -f "$sleeper_pid_file" ]; then
         pass "Topic extraction disabled - sleeper not launched"
     else

@@ -27,7 +27,7 @@ setup() {
 
     path_get_session_dir() {
         local session_id="$1"
-        local session_dir="${TEST_DIR}/tmp/${session_id}"
+        local session_dir="${TEST_DIR}/sessions/${session_id}"
         mkdir -p "$session_dir"
         echo "$session_dir"
     }
@@ -85,7 +85,7 @@ test_process_launch_background_creates_pid() {
 
     process_launch_background "$session_id" "testproc" test_dummy_function 1
 
-    local pid_file="${TEST_DIR}/tmp/${session_id}/testproc.pid"
+    local pid_file="${TEST_DIR}/sessions/${session_id}/testproc.pid"
     [ -f "$pid_file" ]
 
     # Cleanup
@@ -98,7 +98,7 @@ test_process_launch_background_creates_log() {
 
     process_launch_background "$session_id" "testproc" test_dummy_function 1
 
-    local log_file="${TEST_DIR}/tmp/${session_id}/testproc.log"
+    local log_file="${TEST_DIR}/sessions/${session_id}/testproc.log"
     sleep 0.5  # Give it a moment to start
 
     [ -f "$log_file" ]
@@ -115,7 +115,7 @@ test_process_launch_background_prevents_duplicate() {
     # Launch first process
     process_launch_background "$session_id" "testproc" test_dummy_function 5
 
-    local pid_file="${TEST_DIR}/tmp/${session_id}/testproc.pid"
+    local pid_file="${TEST_DIR}/sessions/${session_id}/testproc.pid"
     local pid1
     pid1=$(cat "$pid_file")
 
@@ -138,7 +138,7 @@ test_process_is_running_true() {
 
     process_launch_background "$session_id" "testproc" test_dummy_function 5
 
-    local pid_file="${TEST_DIR}/tmp/${session_id}/testproc.pid"
+    local pid_file="${TEST_DIR}/sessions/${session_id}/testproc.pid"
     sleep 0.5  # Give it a moment to start
 
     process_is_running "$pid_file"
@@ -157,9 +157,9 @@ test_process_is_running_no_file() {
 # Test: process_is_running returns 1 for dead process
 test_process_is_running_dead_process() {
     local session_id="test-dead-$$"
-    local pid_file="${TEST_DIR}/tmp/${session_id}/testproc.pid"
+    local pid_file="${TEST_DIR}/sessions/${session_id}/testproc.pid"
 
-    mkdir -p "${TEST_DIR}/tmp/${session_id}"
+    mkdir -p "${TEST_DIR}/sessions/${session_id}"
 
     # Create PID file with non-existent PID
     echo "999999" > "$pid_file"
@@ -173,7 +173,7 @@ test_process_kill_stops_process() {
 
     process_launch_background "$session_id" "testproc" test_dummy_function 60
 
-    local pid_file="${TEST_DIR}/tmp/${session_id}/testproc.pid"
+    local pid_file="${TEST_DIR}/sessions/${session_id}/testproc.pid"
     sleep 0.5  # Let it start
 
     # Verify it's running
@@ -195,7 +195,7 @@ test_process_kill_removes_pid_file() {
 
     process_launch_background "$session_id" "testproc" test_dummy_function 5
 
-    local pid_file="${TEST_DIR}/tmp/${session_id}/testproc.pid"
+    local pid_file="${TEST_DIR}/sessions/${session_id}/testproc.pid"
     sleep 0.5
 
     process_kill "$pid_file"
@@ -206,7 +206,7 @@ test_process_kill_removes_pid_file() {
 # Test: process_cleanup_stale_pids removes stale PIDs
 test_process_cleanup_stale_pids() {
     local session_id="test-cleanup-$$"
-    local session_dir="${TEST_DIR}/tmp/${session_id}"
+    local session_dir="${TEST_DIR}/sessions/${session_id}"
     mkdir -p "$session_dir"
 
     # Create stale PID file
@@ -231,7 +231,7 @@ test_process_cleanup_stale_pids() {
 
 # Test: process_cleanup_stale_pids handles empty directory
 test_process_cleanup_stale_pids_empty_dir() {
-    local session_dir="${TEST_DIR}/tmp/empty-$$"
+    local session_dir="${TEST_DIR}/sessions/empty-$$"
     mkdir -p "$session_dir"
 
     # Should not error on empty directory

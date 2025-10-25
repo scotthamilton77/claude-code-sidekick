@@ -49,7 +49,7 @@ setup() {
     mkdir -p "$TEST_DIR/.claude/hooks/sidekick/handlers"
     mkdir -p "$TEST_DIR/.claude/hooks/sidekick/features"
     mkdir -p "$TEST_DIR/.claude/hooks/sidekick/features/prompts"
-    mkdir -p "$TEST_DIR/.claude/hooks/sidekick/tmp"
+    mkdir -p "$TEST_DIR/.sidekick/sessions"
 
     # Make test dir a git repo for git branch testing
     cd "$TEST_DIR"
@@ -103,7 +103,7 @@ create_mock_session() {
     local transcript_size="${4:-5000}"
 
     # Create session directory
-    local session_dir="$TEST_DIR/.claude/hooks/sidekick/tmp/$session_id"
+    local session_dir="$TEST_DIR/.sidekick/sessions/$session_id"
     mkdir -p "$session_dir"
 
     # Create topic.json
@@ -297,7 +297,7 @@ test_statusline_no_topic() {
 
     local session_id="test-statusline-008-no-topic"
     # Don't create topic file
-    mkdir -p "$TEST_DIR/.claude/hooks/sidekick/tmp/$session_id"
+    mkdir -p "$TEST_DIR/.sidekick/sessions/$session_id"
 
     local transcript="$TEST_DIR/test-transcript-$session_id.jsonl"
     echo '{"type":"user","message":"test"}' > "$transcript"
