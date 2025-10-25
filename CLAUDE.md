@@ -71,7 +71,11 @@ See `ARCH.md` for complete design documentation. Key features:
 Sidekick provides five independently configurable features:
 
 1. **Topic Extraction**: LLM-based conversation analysis with adaptive sleeper process
-2. **Resume**: Session continuity with snarkified resume statusline
+   - Triggers async resume generation when topic changes significantly (significant_change=true AND clarity>=5)
+2. **Resume**: Session continuity with snarkified resume messages
+   - **Architecture**: Async generation during topic extraction (no LLM blocking at SessionStart)
+   - Resume generated in background when topic changes, used by next session for fast initialization
+   - Field schema: last_task_id, resume_last_goal_message, last_objective_in_progress, snarky_comment
 3. **Statusline**: Enhanced status display with topic, tokens, git branch
 4. **Tracking**: Request counting with periodic reminders
 5. **Cleanup**: Automatic garbage collection of old session directories
@@ -146,14 +150,16 @@ Markdown-based specifications in `backlog/` include:
 
 ## Current Status
 
-**Sidekick Implementation**: ✅ Complete through Phase 5.2 (all tests passing)
+**Sidekick Implementation**: ✅ Complete through Phase 5.3 (tests passing, docs updated)
 
 - ✅ Infrastructure complete (lib/common.sh with 7 namespaces)
 - ✅ All 5 features implemented (topic-extraction, resume, statusline, tracking, cleanup)
+- ✅ Resume feature refactored (async generation, file-based initialization, no LLM blocking at SessionStart)
 - ✅ Installation/uninstallation scripts working for both scopes
 - ✅ All unit tests passing (7/7 suites)
 - ✅ All integration tests passing (6/6 suites)
-- ⏸️ **Next**: Phase 5.3 - Manual testing in real Claude sessions
+- ✅ Documentation updated (ARCH.md, PLAN.md, README.md, CLAUDE.md)
+- 🔄 **In Progress**: Phase 5.3 - Manual testing in real Claude sessions
 
 **Reference Documents**:
 - `ARCH.md`: Complete architectural specification

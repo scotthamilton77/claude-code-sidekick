@@ -13,12 +13,10 @@ This repository serves as a development and testing environment for [Claude Code
 ## Sidekick
 
 - PLAN.MD (executing ARCH.md)
-   - need a better place for the temp files?  Do we want any state preserved in git?
    - standardize parameter names and styles in the scripts (e.g. --project-dir vs. not, internally using output_dir, etc.)
    - time to re-think names and features: separate reminders from status-line features
       - statusline is coupled to the reminders; we should make this modular to allow the reminders to inject or supply a module for statusline to load dynamically
       - make this modular, with a core kernel script that look for plugins to activate, and understands dependencies (e.g. which ones need the request_counter)
-- on topic change, we can nohup a _resume file creation so that initial claude startup does not have to wait for a resume creation
 - allow a "concise" topic mode during setup that chooses concise template files
    - maybe just allow for project-level overrides (template file input parameter and/or user and project level overrides)
 - statusline token counter and context % are way off?  If we can't get close to /context, let's remove the %
@@ -103,7 +101,16 @@ cd claude-config
 
 ### Hook System
 
-The Sidekick system provides modular hooks that execute at conversation events to enhance Claude Code behavior. See the [Sidekick](#sidekick) section for the complete architecture. Sidekick maintains session state in `.sidekick/sessions/` at the project root (gitignored).
+The Sidekick system provides modular hooks that execute at conversation events to enhance Claude Code behavior. Key features:
+
+- **Topic Extraction**: LLM-based conversation analysis with adaptive polling
+- **Resume Generation**: Async background process generates snarkified resume messages when topic changes significantly
+- **Session Continuity**: Fast SessionStart initialization from previous session's resume (no LLM blocking)
+- **Enhanced Statusline**: Token tracking, git branch, topic display
+- **Request Tracking**: Periodic reminders with configurable cadence
+- **Session Cleanup**: Automatic garbage collection of old session directories
+
+See ARCH.md for complete architecture documentation. Sidekick maintains session state in `.sidekick/sessions/` at the project root (gitignored).
 
 ## Usage
 

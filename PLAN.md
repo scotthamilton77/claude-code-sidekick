@@ -156,16 +156,20 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 
 ### 3.3 Implement Resume Feature
 - [x] Create `features/resume.sh`
-- [x] Copy prompt template to `features/prompts/new-session-topic.txt`
-- [x] Define `resume_snarkify()`:
-  - [x] Find most recent topic file with clarity > threshold
-  - [x] Load prompt template
-  - [x] Substitute previous topic into prompt
-  - [x] Invoke Claude using `claude_invoke()`
-  - [x] Extract initial_goal, current_objective, snarky_comment
-  - [x] Write topic.json with resume fields
-  - [x] Error handling with fallback values
+- [x] Create prompt template `features/prompts/generate-resume.txt`
+- [x] Define `resume_snarkify()` (refactored to file-based initialization):
+  - [x] Find most recent session with resume.json and clarity > threshold
+  - [x] Read resume.json fields from previous session
+  - [x] Map resume fields to topic.json schema (last_task_id → task_ids, etc.)
+  - [x] Write initial topic.json for current session
   - [x] Skip if current session already has topic
+- [x] Add `resume_generate_async()` to topic-extraction.sh:
+  - [x] Triggered when significant_change=true AND clarity>=5
+  - [x] Launches background process (non-blocking)
+  - [x] Loads generate-resume.txt prompt template
+  - [x] Substitutes {CURRENT_TOPIC} and {TRANSCRIPT}
+  - [x] Invokes Claude to generate snarkified resume for NEXT session
+  - [x] Writes resume.json in current session directory
 
 ### 3.4 Implement Statusline Feature
 - [x] Create `features/statusline.sh`
@@ -374,13 +378,14 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
   - [x] Verify files exist in `~/.claude/hooks/sidekick/`
   - [x] Verify `~/.claude/settings.json` has hooks registered
 - [x] Start new Claude session in test project
-  - [ ] Verify SessionStart hook fires (check logs)
-  - [ ] Verify `.sidekick/sessions/${session_id}/response_count` created
-  - [ ] Verify resume topic generated (if previous session exists)
+  - [x] Verify SessionStart hook fires (check logs)
+  - [x] Verify `.sidekick/sessions/${session_id}/response_count` created
+  - [x] Verify resume topic initialized from previous session's resume.json (if exists)
 - [ ] Submit 10 user prompts
   - [ ] Verify counter increments (check `response_count`)
   - [ ] Verify sleeper launched (check `sleeper.pid`)
   - [ ] Verify topic analysis runs (check `topic.json`)
+  - [ ] Verify resume.json generated when topic changes significantly (significant_change=true AND clarity>=5)
   - [ ] Verify static reminder appears on 4th, 8th prompts
 - [ ] Check statusline
   - [ ] Verify displays model, tokens, percentage, directory, git branch
@@ -411,12 +416,14 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 ## Phase 6: Documentation & Deployment
 
 ### 6.1 Update Documentation
-- [ ] Update root `CLAUDE.md` with Sidekick architecture overview
-- [ ] Update root `README.md` with:
-  - [ ] Installation instructions
-  - [ ] Configuration guide
-  - [ ] Feature documentation
+- [x] Update root `CLAUDE.md` with Sidekick architecture overview
+- [x] Update root `README.md` with:
+  - [x] Installation instructions
+  - [x] Configuration guide
+  - [x] Feature documentation (resume architecture updated)
   - [ ] Troubleshooting section
+- [x] Update `ARCH.md` with complete resume refactor details
+- [x] Update `PLAN.md` with resume implementation changes
 - [ ] Add inline code documentation:
   - [ ] Function headers in `lib/common.sh`
   - [ ] Handler documentation
