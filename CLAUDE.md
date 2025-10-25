@@ -99,9 +99,21 @@ Configure via `sidekick.conf` (see `src/sidekick/config.defaults` for all option
 1. **Develop** new features in `src/sidekick/features/`
 2. **Test** using unit and integration test suites
 3. **Install** to project scope for manual testing: `./scripts/install.sh --project`
-4. **Verify** functionality in real Claude sessions
-5. **Deploy** to user scope: `./scripts/install.sh --user`
-6. **Sync** to user global config (for deployment): `./scripts/sync-to-user.sh`
+4. **RESTART CLAUDE** - After any installation or update to `.claude/settings.json`, you **MUST** restart Claude with `claude --continue` to load the new settings
+5. **Verify** functionality in real Claude sessions
+6. **Deploy** to user scope: `./scripts/install.sh --user`
+7. **RESTART CLAUDE** - After deploying to user scope, restart Claude again with `claude --continue`
+8. **Sync** to user global config (for deployment): `./scripts/sync-to-user.sh`
+
+### Critical Testing Requirement
+
+**⚠️ ALWAYS ask the user to restart Claude after:**
+- Running `./scripts/install.sh` (any scope)
+- Running `./scripts/uninstall.sh` (any scope)
+- Manually editing `.claude/settings.json` or `~/.claude/settings.json`
+- Updating hook scripts in deployed locations
+
+**Restart command**: `claude --continue` (to resume the current session with new settings)
 
 ## MCP Server Configuration
 
