@@ -146,7 +146,7 @@ Markdown-based specifications in `backlog/` include:
 - **All hooks must be permission-approved** in `settings.json` before execution
 - **Dual-scope testing required** before deploying to `~/.claude`
 - **Timestamp preservation** critical for sync correctness
-
+- **NEVER** perform an install or uninstall to either user or project scope without the user's explicit authorization
 
 ## Current Status
 
