@@ -17,9 +17,8 @@ This repository serves as a development and testing environment for [Claude Code
    - need a project-level override for config settings
    - test each option
       - [x] claude cli
-      - [ ] openai api
+      - [x] openai api
       - [ ] custom API (groq)
-   - remove deprecation code and docs
    - add groq option
    - implement fallback
 - remove .claudeignore if not useful
