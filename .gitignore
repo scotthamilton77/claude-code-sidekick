@@ -39,12 +39,3 @@ node_modules/
 .sidekick/
 *.backup.*
 *.uninstall-backup.*
-# Sidekick Hook System (managed by scripts/install.sh)
-# Runtime data - ignored
-.sidekick/*.log
-.sidekick/sessions/
-
-# Configuration and docs - tracked (do not ignore these)
-# .sidekick/sidekick.conf
-# .sidekick/README.md
-# End Sidekick Hook System
