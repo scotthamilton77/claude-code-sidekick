@@ -11,12 +11,14 @@ This repository serves as a development and testing environment for [Claude Code
 ## TODOs
 
 ## Sidekick
-- tracking and reminders - make sure we pull static-reminder into a more appropriate location
-   - do we want to have multiple reminders with different cadences?
+- configure non-claude-native LLM APIs
+   - test each option
+   - remove deprecation code and docs
+   - implement fallback
+- tracking and reminders - do we want to have multiple reminders with different cadences?
 - PLAN.MD (executing ARCH.md)
    - standardize parameter names and styles in the scripts (e.g. --project-dir vs. not, internally using output_dir, etc.)
 - tune the topic extracter to follow the last n turns (delta + 10?) - this combined with previous goal snapshot might be cheaper?
-- configure non-claude-native LLM APIs
 - tune the instructions for the topic extraction (little shorter, more cynical)
 - allow for different personalities - either explicit at install time or random per project or random per session or just random
    - moods: cynical, sarcastic, snarky, nerdy, arrogant, moody
@@ -26,6 +28,7 @@ This repository serves as a development and testing environment for [Claude Code
 - statusline token counter and context % are way off?  If we can't get close to /context, let's remove the %
 - log rotation and log level to info by default
 - how do subagents work - can we detect their connection to the parent agent, and do we care?  (for statusline, maybe not, but for analytics?)
+- skills and agents - review carefully and attribute to https://github.com/obra/superpowers
 
 ## Agents and Skills
 
@@ -192,6 +195,40 @@ The repository includes configurations for:
 - **memory**: Conversation memory management
 
 Configure in `.claude/mcp.json`.
+
+### LLM Provider Configuration
+
+Sidekick supports pluggable LLM backends for conversation analysis and resume generation. Configure in `~/.claude/hooks/sidekick/sidekick.conf` or `.claude/hooks/sidekick/sidekick.conf`:
+
+**Claude CLI (default)**:
+```bash
+LLM_PROVIDER=claude-cli
+LLM_CLAUDE_MODEL=haiku  # haiku, sonnet, opus
+```
+
+**OpenAI API**:
+```bash
+LLM_PROVIDER=openai-api
+LLM_OPENAI_API_KEY=sk-...
+LLM_OPENAI_MODEL=gpt-4-turbo
+```
+
+**Gemini CLI**:
+```bash
+LLM_PROVIDER=gemini-cli
+LLM_GEMINI_BIN=/path/to/gemini
+LLM_GEMINI_MODEL=gemini-pro
+```
+
+**Custom Provider**:
+```bash
+LLM_PROVIDER=custom
+LLM_CUSTOM_BIN=/usr/local/bin/ollama
+LLM_CUSTOM_MODEL=llama2
+LLM_CUSTOM_COMMAND={BIN} run {MODEL} < {PROMPT_FILE}
+```
+
+See `src/sidekick/config.defaults` for all available options and `ARCH.md` for detailed provider documentation.
 
 ## Development Patterns
 
