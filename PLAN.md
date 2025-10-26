@@ -123,19 +123,15 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 
 ### 3.2 Implement Topic Extraction Feature
 - [x] Create `features/topic-extraction.sh`
-- [x] Copy prompt templates to `features/prompts/`:
-  - [x] `topic-only.txt`
-  - [x] `incremental.txt`
-  - [x] `full-analytics.txt`
+- [x] Copy prompt template to `features/prompts/topic-only.txt`
 - [x] Define `topic_extraction_analyze()`:
   - [x] Pre-process transcript (extract message objects)
-  - [x] Extract transcript excerpt based on mode
+  - [x] Extract transcript excerpt (last 80 lines)
   - [x] Load prompt template
   - [x] Substitute transcript into prompt
   - [x] Invoke Claude using `claude_invoke()`
   - [x] Parse JSON output
   - [x] Write topic.json file
-  - [x] Write analytics.json (if full mode)
   - [x] Error handling and logging
 - [x] Define `topic_extraction_sleeper_start()`:
   - [x] Check for existing sleeper PID
@@ -187,7 +183,7 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - [x] Define `_statusline_format_cost()` - Format cost helper
 - [x] Define `_statusline_format_duration()` - Format duration helper
 - [x] Define `_statusline_format_tokens()` - Format tokens helper
-- [x] Define `_statusline_get_topic()` - Extract topic from analytics
+- [x] Define `_statusline_get_topic()` - Extract topic from topic.json
 
 ### 3.5 Implement Cleanup Feature
 - [x] Create `features/cleanup.sh`
@@ -396,9 +392,9 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
   - [ ] Submit prompts, verify no analysis runs
   - [ ] Re-enable, verify analysis resumes
 - [ ] Test configuration cascade
-  - [ ] Edit `~/.claude/hooks/sidekick/sidekick.conf`, set `TOPIC_MODE=incremental`
-  - [ ] Edit `.claude/hooks/sidekick/sidekick.conf`, set `TOPIC_MODE=full-analytics`
-  - [ ] Verify project config wins (check logs for mode)
+  - [ ] Edit `~/.claude/hooks/sidekick/sidekick.conf`, set `TOPIC_CADENCE_HIGH=20`
+  - [ ] Edit `.claude/hooks/sidekick/sidekick.conf`, set `TOPIC_CADENCE_HIGH=5`
+  - [ ] Verify project config wins (check logs for cadence value)
 - [ ] Install to project scope (`./scripts/install.sh --project`)
   - [ ] Verify files exist in `.claude/hooks/sidekick/`
   - [ ] Verify `.claude/settings.json` has hooks registered

@@ -211,15 +211,13 @@ EOF
     [ -n "$clarity" ]
 }
 
-test_analyze_respects_mode_topic_only() {
+test_analyze_creates_topic_file() {
     # Skip if function doesn't exist yet
     if ! command -v topic_extraction_analyze &> /dev/null; then
         return 0
     fi
 
-    export TOPIC_MODE=topic-only
-
-    local session_id="test-session-topic-only"
+    local session_id="test-session-topic"
     mkdir -p "$TEST_DIR/.sidekick/sessions/$session_id"
 
     # Create mock transcript
@@ -228,55 +226,9 @@ test_analyze_respects_mode_topic_only() {
 
     topic_extraction_analyze "$session_id" "$transcript" "$TEST_DIR"
 
-    # Should have topic.json but not analytics.json
+    # Should have topic.json (no analytics.json since we removed that complexity)
     [ -f "$TEST_DIR/.sidekick/sessions/$session_id/topic.json" ]
     [ ! -f "$TEST_DIR/.sidekick/sessions/$session_id/analytics.json" ]
-}
-
-test_analyze_respects_mode_full_analytics() {
-    # Skip if function doesn't exist yet
-    if ! command -v topic_extraction_analyze &> /dev/null; then
-        return 0
-    fi
-
-    export TOPIC_MODE=full-analytics
-
-    local session_id="test-session-full"
-    mkdir -p "$TEST_DIR/.sidekick/sessions/$session_id"
-
-    # Create mock transcript
-    local transcript="$TEST_DIR/transcript.jsonl"
-    echo '{"role":"user","content":"test"}' > "$transcript"
-
-    # Update mock Claude to return complete analytics JSON (markdown-wrapped)
-    cat > "$MOCK_CLAUDE" <<'EOFCLAUDE'
-#!/bin/bash
-cat <<'EOF'
-```json
-{
-  "session_id": "test-session",
-  "timestamp": "2025-10-22T12:00:00Z",
-  "task_ids": ["TEST-001"],
-  "initial_goal": "Test goal",
-  "current_objective": "Testing",
-  "significant_change": false,
-  "intent_category": "development",
-  "clarity_score": 8,
-  "confidence": 0.95,
-  "topic_evolution": ["step1", "step2"],
-  "complexity_metrics": {"score": 5},
-  "key_decisions": ["decision1"],
-  "technical_domains": ["testing"]
-}
-```
-EOF
-EOFCLAUDE
-    chmod +x "$MOCK_CLAUDE"
-
-    topic_extraction_analyze "$session_id" "$transcript" "$TEST_DIR"
-
-    # Should have both topic.json and analytics.json (or combined)
-    [ -f "$TEST_DIR/.sidekick/sessions/$session_id/topic.json" ]
 }
 
 test_analyze_handles_llm_failure() {
@@ -760,9 +712,6 @@ main() {
 
     # Analysis tests
     run_test test_analyze_creates_topic_file
-    run_test test_analyze_respects_mode_topic_only
-    # TODO: Fix this test - has JSON parsing issues
-    # run_test test_analyze_respects_mode_full_analytics
     run_test test_analyze_handles_llm_failure
 
     # Cadence tests

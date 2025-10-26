@@ -36,8 +36,6 @@ claude-config/
 │       ├── cleanup.sh                     # Session directory garbage collection
 │       └── prompts/                       # LLM prompt templates
 │           ├── topic-only.txt
-│           ├── incremental.txt
-│           ├── full-analytics.txt
 │           └── generate-resume.txt
 │
 ├── scripts/
@@ -354,8 +352,8 @@ Features are **function libraries** - they define functions that are called by h
 **Configuration Keys**:
 ```bash
 FEATURE_TOPIC_EXTRACTION=true
-TOPIC_MODE=topic-only              # topic-only | incremental | full-analytics
-TOPIC_MODEL=haiku-4.5
+TOPIC_MODEL=haiku                   # Model for topic analysis
+TOPIC_EXCERPT_LINES=80              # Transcript lines to analyze (≈3-5 messages)
 TOPIC_CADENCE_HIGH=10               # High clarity cadence (responses)
 TOPIC_CADENCE_LOW=1                 # Low clarity cadence (responses)
 TOPIC_CLARITY_THRESHOLD=7           # Threshold for high/low (1-10)
@@ -493,8 +491,8 @@ FEATURE_CLEANUP=true
 # ============================================================================
 # TOPIC EXTRACTION
 # ============================================================================
-TOPIC_MODE=topic-only
-TOPIC_MODEL=haiku-4.5
+TOPIC_MODEL=haiku
+TOPIC_EXCERPT_LINES=80
 TOPIC_CADENCE_HIGH=10
 TOPIC_CADENCE_LOW=1
 TOPIC_CLARITY_THRESHOLD=7
