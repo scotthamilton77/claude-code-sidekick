@@ -48,7 +48,8 @@ setup() {
 # Test configuration
 FEATURE_TOPIC_EXTRACTION=true
 TOPIC_MODE=topic-only
-TOPIC_MODEL=haiku-4.5
+LLM_PROVIDER=claude-cli
+LLM_CLAUDE_MODEL=haiku-4.5
 TOPIC_CADENCE_HIGH=10
 TOPIC_CADENCE_LOW=1
 TOPIC_CLARITY_THRESHOLD=7
@@ -58,14 +59,14 @@ SLEEPER_MIN_SIZE_CHANGE=500
 SLEEPER_MIN_INTERVAL=10
 SLEEPER_MIN_SLEEP=2
 SLEEPER_MAX_SLEEP=20
-RESUME_MODEL=haiku
 LOG_LEVEL=error
 EOFCONFIG
 
     # Set up config for current process
     export FEATURE_TOPIC_EXTRACTION=true
     export TOPIC_MODE=topic-only
-    export TOPIC_MODEL=haiku-4.5
+    export LLM_PROVIDER=claude-cli
+    export LLM_CLAUDE_MODEL=haiku-4.5
     export TOPIC_CADENCE_HIGH=10
     export TOPIC_CADENCE_LOW=1
     export TOPIC_CLARITY_THRESHOLD=7

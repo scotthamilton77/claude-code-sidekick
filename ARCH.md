@@ -206,24 +206,25 @@ process_kill <pid_file>
 process_cleanup_stale_pids <session_dir>
 ```
 
-#### CLAUDE INVOCATION
+#### LLM INVOCATION
 ```bash
-# Find Claude CLI binary
-claude_find_bin
-# Returns: path to claude binary
-# Checks: CLAUDE_BIN env, ~/.claude/local/claude, PATH
+# Find LLM binary for specified provider
+llm_find_bin <provider>
+# Args: provider name (claude-cli, openai-api, custom)
+# Returns: path to binary (or "curl" for openai-api)
+# Checks provider-specific paths and configs
 
-# Invoke Claude with isolation and error handling
-claude_invoke <model> <prompt> [timeout_seconds]
+# Invoke LLM with isolation and error handling
+llm_invoke <model> <prompt> [timeout_seconds]
 # Returns: JSON output (extracted from markdown if needed)
-# Creates isolated workspace to prevent hook recursion
+# Creates isolated workspace to prevent hook recursion (for claude-cli)
 # Default timeout: 30s
 
-# Extract JSON from Claude output (handles markdown wrapping)
-claude_extract_json <claude_output>
+# Extract JSON from LLM output (handles markdown wrapping)
+llm_extract_json <llm_output>
 ```
 
-**Isolation Strategy**: Creates temporary workspace with disabled hooks:
+**Isolation Strategy** (claude-cli only): Creates temporary workspace with disabled hooks:
 ```json
 {
   "hooks": {},
@@ -464,7 +465,6 @@ JSON
 **Configuration Keys**:
 ```bash
 FEATURE_TOPIC_EXTRACTION=true
-TOPIC_MODEL=haiku                   # Model for topic analysis
 TOPIC_EXCERPT_LINES=80              # Transcript lines to analyze (≈3-5 messages)
 TOPIC_FILTER_TOOL_MESSAGES=true     # Filter tool_use/tool_result (reduces tokens)
 TOPIC_CADENCE_HIGH=10               # High clarity cadence (responses)
@@ -523,7 +523,6 @@ All topic extraction prompts now include:
 **Configuration Keys**:
 ```bash
 FEATURE_RESUME=true
-RESUME_MODEL=haiku                  # Model used by topic-extraction for resume generation
 RESUME_MIN_CLARITY=5                # Minimum clarity to use previous session's resume
 ```
 
@@ -604,7 +603,6 @@ FEATURE_CLEANUP=true
 # ============================================================================
 # TOPIC EXTRACTION
 # ============================================================================
-TOPIC_MODEL=haiku
 TOPIC_EXCERPT_LINES=80
 TOPIC_FILTER_TOOL_MESSAGES=true
 TOPIC_CADENCE_HIGH=10
@@ -624,7 +622,6 @@ SLEEPER_MAX_SLEEP=20               # Maximum dynamic sleep
 # ============================================================================
 # RESUME
 # ============================================================================
-RESUME_MODEL=haiku
 RESUME_MIN_CLARITY=5
 
 # ============================================================================
@@ -710,19 +707,6 @@ LLM_CUSTOM_BIN=/path/to/llm-tool
 LLM_CUSTOM_MODEL=default
 LLM_CUSTOM_COMMAND={BIN} --model {MODEL} < {PROMPT_FILE}
 ```
-
-### Backward Compatibility
-
-**Deprecated Functions** (still functional):
-- `claude_invoke()` - Now wraps `llm_invoke()`
-- `claude_extract_json()` - Now wraps `llm_extract_json()`
-- `claude_find_bin()` - Use `llm_find_bin("claude-cli")` instead
-
-**Deprecated Config Keys**:
-- `TOPIC_MODEL` - Use `LLM_CLAUDE_MODEL` (or provider-specific model config)
-- `RESUME_MODEL` - Use `LLM_CLAUDE_MODEL` (or provider-specific model config)
-
-Both deprecated functions and config keys remain functional for backward compatibility but will be removed in a future version.
 
 ### Usage Example
 
@@ -989,7 +973,7 @@ nohup bash -c "generate resume in background" &
   ↓
   substitutes {CURRENT_TOPIC} and {TRANSCRIPT}
   ↓
-  claude_invoke RESUME_MODEL prompt 30s
+  llm_invoke <model> prompt 30s
   ↓
   extracts JSON output
   ↓
