@@ -130,8 +130,7 @@ LLM_CUSTOM_COMMAND={BIN} --model {MODEL} < {PROMPT_FILE}
 
 **Key Implementation Details**:
 - `llm_invoke()` - Main dispatcher in `lib/llm.sh`
-- Provider-specific implementations: `_llm_invoke_claude_cli()`, `_llm_invoke_openai_api()`, etc.
-- Backward compatibility: `claude_invoke()` wraps `llm_invoke()` (deprecated)
+- Provider-specific implementations: `_llm_invoke_claude_cli()`, `_llm_invoke_openai_api()`, `_llm_invoke_custom()`
 - Used in: `features/topic-extraction.sh` (topic analysis and resume generation)
 
 See `ARCH.md` LLM Provider System section for complete documentation.

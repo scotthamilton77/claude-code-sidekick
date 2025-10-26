@@ -47,10 +47,10 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
   - [x] `process_is_running()` - Check if PID is alive
   - [x] `process_kill()` - Kill process by PID file
   - [x] `process_cleanup_stale_pids()` - Clean stale PID files
-- [x] Implement CLAUDE INVOCATION namespace:
-  - [x] `claude_find_bin()` - Locate Claude CLI binary
-  - [x] `claude_invoke()` - Invoke Claude with isolation
-  - [x] `claude_extract_json()` - Extract JSON from output
+- [x] Implement LLM INVOCATION namespace:
+  - [x] `llm_find_bin()` - Locate LLM binary for provider
+  - [x] `llm_invoke()` - Invoke LLM with isolation
+  - [x] `llm_extract_json()` - Extract JSON from output
 - [x] Implement WORKSPACE MANAGEMENT namespace:
   - [x] `workspace_create()` - Create isolated workspace
   - [x] `workspace_cleanup()` - Remove workspace
@@ -129,7 +129,7 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
   - [x] Extract transcript excerpt (last 80 lines)
   - [x] Load prompt template
   - [x] Substitute transcript into prompt
-  - [x] Invoke Claude using `claude_invoke()`
+  - [x] Invoke LLM using `llm_invoke()`
   - [x] Parse JSON output
   - [x] Write topic.json file
   - [x] Error handling and logging
@@ -288,9 +288,9 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
   - [x] Test `process_is_running()` detection
   - [x] Test `process_cleanup_stale_pids()` cleanup
 - [x] Create `scripts/tests/unit/test-claude.sh`
-  - [x] Test `claude_find_bin()` with mocked paths
-  - [x] Test `claude_invoke()` with mocked binary
-  - [x] Test `claude_extract_json()` parsing
+  - [x] Test `llm_find_bin()` with mocked paths
+  - [x] Test `llm_invoke()` with mocked binary
+  - [x] Test `llm_extract_json()` parsing
 - [x] Create `scripts/tests/unit/test-workspace.sh`
   - [x] Test `workspace_create()` isolation
   - [x] Test `workspace_cleanup()` removal
