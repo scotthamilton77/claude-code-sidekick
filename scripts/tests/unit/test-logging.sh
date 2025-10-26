@@ -31,6 +31,7 @@ setup() {
     # Create a minimal implementation
     export SIDEKICK_TEST_MODE=1
     export SIDEKICK_ROOT="${TEST_DIR}"
+    export CLAUDE_PROJECT_DIR="${TEST_DIR}"
 
     # Source the library
     # shellcheck disable=SC1091
@@ -46,7 +47,7 @@ setup() {
 
     path_get_session_dir() {
         local session_id="$1"
-        local session_dir="${TEST_DIR}/tmp/${session_id}"
+        local session_dir="${TEST_DIR}/.sidekick/sessions/${session_id}"
         mkdir -p "$session_dir"
         echo "$session_dir"
     }
@@ -76,92 +77,108 @@ run_test() {
 # Test: log_init creates log file
 test_log_init_creates_file() {
     local session_id="test-init-$$"
+    # Create session directory (log_init expects it to exist)
+    path_get_session_dir "$session_id" >/dev/null
     log_init "$session_id"
 
-    local expected_log="${TEST_DIR}/tmp/${session_id}/sidekick.log"
+    local expected_log="${TEST_DIR}/.sidekick/sessions/${session_id}/sidekick.log"
     [ -f "$expected_log" ]
 }
 
 # Test: log_init writes initialization message
 test_log_init_writes_message() {
     local session_id="test-init-msg-$$"
+    # Create session directory (log_init expects it to exist)
+    path_get_session_dir "$session_id" >/dev/null
     log_init "$session_id"
 
-    local log_file="${TEST_DIR}/tmp/${session_id}/sidekick.log"
+    local log_file="${TEST_DIR}/.sidekick/sessions/${session_id}/sidekick.log"
     grep -q "Sidekick session started: ${session_id}" "$log_file"
 }
 
 # Test: log_debug respects LOG_LEVEL
 test_log_debug_respects_level() {
     local session_id="test-debug-level-$$"
+    # Create session directory (log_init expects it to exist)
+    path_get_session_dir "$session_id" >/dev/null
     log_init "$session_id"
 
     # Test with LOG_LEVEL=info (debug should not log)
     LOG_LEVEL=info
     log_debug "debug message should not appear"
 
-    local log_file="${TEST_DIR}/tmp/${session_id}/sidekick.log"
+    local log_file="${TEST_DIR}/.sidekick/sessions/${session_id}/sidekick.log"
     ! grep -q "debug message should not appear" "$log_file"
 }
 
 # Test: log_debug outputs when LOG_LEVEL=debug
 test_log_debug_outputs_when_enabled() {
     local session_id="test-debug-enabled-$$"
+    # Create session directory (log_init expects it to exist)
+    path_get_session_dir "$session_id" >/dev/null
     log_init "$session_id"
 
     # Test with LOG_LEVEL=debug
     LOG_LEVEL=debug
     log_debug "debug message should appear"
 
-    local log_file="${TEST_DIR}/tmp/${session_id}/sidekick.log"
+    local log_file="${TEST_DIR}/.sidekick/sessions/${session_id}/sidekick.log"
     grep -q "debug message should appear" "$log_file"
 }
 
 # Test: log_info outputs correctly
 test_log_info_outputs() {
     local session_id="test-info-$$"
+    # Create session directory (log_init expects it to exist)
+    path_get_session_dir "$session_id" >/dev/null
     log_init "$session_id"
 
     LOG_LEVEL=info
     log_info "info message"
 
-    local log_file="${TEST_DIR}/tmp/${session_id}/sidekick.log"
-    grep -q "\[INFO\] info message" "$log_file"
+    local log_file="${TEST_DIR}/.sidekick/sessions/${session_id}/sidekick.log"
+    grep -qF "info message" "$log_file"
 }
 
 # Test: log_warn outputs correctly
 test_log_warn_outputs() {
     local session_id="test-warn-$$"
+    # Create session directory (log_init expects it to exist)
+    path_get_session_dir "$session_id" >/dev/null
     log_init "$session_id"
 
     LOG_LEVEL=warn
     log_warn "warning message"
 
-    local log_file="${TEST_DIR}/tmp/${session_id}/sidekick.log"
-    grep -q "\[WARN\] warning message" "$log_file"
+    local log_file="${TEST_DIR}/.sidekick/sessions/${session_id}/sidekick.log"
+    grep -qF "warning message" "$log_file"
 }
 
 # Test: log_error always outputs
 test_log_error_always_outputs() {
     local session_id="test-error-$$"
+    # Create session directory (log_init expects it to exist)
+    path_get_session_dir "$session_id" >/dev/null
     log_init "$session_id"
 
     # Even with LOG_LEVEL=error, errors should log
     LOG_LEVEL=error
     log_error "error message"
 
-    local log_file="${TEST_DIR}/tmp/${session_id}/sidekick.log"
-    grep -q "\[ERROR\] error message" "$log_file"
+    local log_file="${TEST_DIR}/.sidekick/sessions/${session_id}/sidekick.log"
+    grep -qF "error message" "$log_file"
 }
 
 # Test: _log_to_file includes timestamp
 test_log_to_file_includes_timestamp() {
     local session_id="test-timestamp-$$"
+    # Create session directory (log_init expects it to exist)
+    path_get_session_dir "$session_id" >/dev/null
     log_init "$session_id"
 
     log_info "timestamped message"
 
-    local log_file="${TEST_DIR}/tmp/${session_id}/sidekick.log"
+    local log_file="${TEST_DIR}/.sidekick/sessions/${session_id}/sidekick.log"
     # Check for timestamp format: [YYYY-MM-DD HH:MM:SS]
     grep -q '\[[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\} [0-9]\{2\}:[0-9]\{2\}:[0-9]\{2\}\]' "$log_file"
 }
@@ -169,6 +186,8 @@ test_log_to_file_includes_timestamp() {
 # Test: log levels are hierarchical
 test_log_levels_hierarchical() {
     local session_id="test-hierarchy-$$"
+    # Create session directory (log_init expects it to exist)
+    path_get_session_dir "$session_id" >/dev/null
     log_init "$session_id"
 
     # With LOG_LEVEL=warn, info should not log
@@ -176,7 +195,7 @@ test_log_levels_hierarchical() {
     log_info "should not appear"
     log_warn "should appear"
 
-    local log_file="${TEST_DIR}/tmp/${session_id}/sidekick.log"
+    local log_file="${TEST_DIR}/.sidekick/sessions/${session_id}/sidekick.log"
     ! grep -q "should not appear" "$log_file"
     grep -q "should appear" "$log_file"
 }

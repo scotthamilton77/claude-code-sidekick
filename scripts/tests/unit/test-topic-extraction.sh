@@ -39,9 +39,9 @@ setup() {
     # Copy topic-extraction.sh (needed by sleeper-loop.sh)
     cp "$(dirname "$0")/../../../src/sidekick/features/topic-extraction.sh" "$TEST_DIR/features/" 2>/dev/null || true
 
-    # Copy lib/common.sh (needed by background scripts)
+    # Copy all lib files (needed by background scripts)
     mkdir -p "$TEST_DIR/lib"
-    cp "$(dirname "$0")/../../../src/sidekick/lib/common.sh" "$TEST_DIR/lib/" 2>/dev/null || true
+    cp "$(dirname "$0")/../../../src/sidekick/lib/"*.sh "$TEST_DIR/lib/" 2>/dev/null || true
 
     # Create config.defaults for background processes
     cat >> "$TEST_DIR/config.defaults" <<'EOFCONFIG'

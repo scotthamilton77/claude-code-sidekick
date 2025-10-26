@@ -220,10 +220,10 @@ test_get_topic_with_valid_file() {
     # Override sidekick root to use test directory
     local session_id="test-session-123"
     export _SIDEKICK_ROOT="$TEST_DIR"
-    mkdir -p "$TEST_DIR/tmp/$session_id"
+    mkdir -p "$TEST_DIR/.sidekick/sessions/$session_id"
 
     # Create topic.json
-    cat > "$TEST_DIR/tmp/$session_id/topic.json" <<EOF
+    cat > "$TEST_DIR/.sidekick/sessions/$session_id/topic.json" <<EOF
 {
   "session_id": "$session_id",
   "task_ids": ["TASK-001", "FEAT-42"],
@@ -340,9 +340,9 @@ test_render_full_statusline() {
 
     # Create session and topic
     local session_id="test-session-789"
-    mkdir -p "$TEST_DIR/tmp/$session_id"
+    mkdir -p "$TEST_DIR/.sidekick/sessions/$session_id"
 
-    cat > "$TEST_DIR/tmp/$session_id/topic.json" <<EOF
+    cat > "$TEST_DIR/.sidekick/sessions/$session_id/topic.json" <<EOF
 {
   "session_id": "$session_id",
   "initial_goal": "Test statusline",
