@@ -343,17 +343,24 @@ Features are **function libraries** - they define functions that are called by h
 #### features/topic-extraction.sh
 
 **Functions**:
-- `topic_extraction_analyze()` - Run LLM analysis (refactored analyze-transcript.sh)
+- `topic_extraction_analyze()` - Run LLM analysis with preprocessing (extracts `.message`, filters tool messages, strips metadata)
 - `topic_extraction_sleeper_start()` - Launch sleeper process
 - `topic_extraction_sleeper_loop()` - Sleeper polling loop (runs as background process)
 - `topic_extraction_check_cadence()` - Cadence-based analysis fallback
 - `resume_generate_async()` - Launch background resume generation when topic changes significantly
+
+**Preprocessing**: Transcript lines are filtered before LLM analysis to reduce token usage:
+- Extracts `.message` field from each transcript line
+- Filters out `tool_use` and `tool_result` messages (configurable via `TOPIC_FILTER_TOOL_MESSAGES`)
+- Strips unnecessary metadata: `.model`, `.id`, `.type`, `.stop_reason`, `.stop_sequence`, `.usage`
+- Filters null/empty messages
 
 **Configuration Keys**:
 ```bash
 FEATURE_TOPIC_EXTRACTION=true
 TOPIC_MODEL=haiku                   # Model for topic analysis
 TOPIC_EXCERPT_LINES=80              # Transcript lines to analyze (≈3-5 messages)
+TOPIC_FILTER_TOOL_MESSAGES=true     # Filter tool_use/tool_result (reduces tokens)
 TOPIC_CADENCE_HIGH=10               # High clarity cadence (responses)
 TOPIC_CADENCE_LOW=1                 # Low clarity cadence (responses)
 TOPIC_CLARITY_THRESHOLD=7           # Threshold for high/low (1-10)
@@ -493,6 +500,7 @@ FEATURE_CLEANUP=true
 # ============================================================================
 TOPIC_MODEL=haiku
 TOPIC_EXCERPT_LINES=80
+TOPIC_FILTER_TOOL_MESSAGES=true
 TOPIC_CADENCE_HIGH=10
 TOPIC_CADENCE_LOW=1
 TOPIC_CLARITY_THRESHOLD=7
