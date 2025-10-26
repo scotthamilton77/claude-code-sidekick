@@ -12,12 +12,6 @@ This repository serves as a development and testing environment for [Claude Code
 
 ## Sidekick
 - configure non-claude-native LLM APIs
-   - need a project-level override for config settings
-   - test each option
-      - [x] claude cli
-      - [x] openai api
-      - [ ] custom API (groq)
-   - add groq option
    - implement fallback
 - remove .claudeignore if not useful
 - tracking and reminders
@@ -29,6 +23,7 @@ This repository serves as a development and testing environment for [Claude Code
 - tune the instructions for the topic extraction (little shorter, more cynical)
 - allow for different personalities - either explicit at install time or random per project or random per session or just random
    - moods: cynical, sarcastic, snarky, nerdy, arrogant, moody
+   - persona: angry klingon, skeptical vulcan, Scotty, Bones
    - themes: scifi, crime drama, daytime television, soap opera, classic 80s tv sitcom, seinfeld & friends
 - allow a "concise" topic mode during setup that chooses concise template files
    - allow the line length hints to be configurable
@@ -245,6 +240,20 @@ LLM_CLAUDE_MODEL=haiku  # haiku, sonnet, opus
 LLM_PROVIDER=openai-api
 LLM_OPENAI_API_KEY=sk-...
 LLM_OPENAI_MODEL=gpt-4-turbo
+```
+
+**GROQ API**:
+```bash
+LLM_PROVIDER=groq
+LLM_GROQ_API_KEY=gsk_...
+LLM_GROQ_MODEL=openai/gpt-oss-20b  # or llama-3.1-8b-instant, mixtral-8x7b-32768
+```
+
+**OpenRouter API**:
+```bash
+LLM_PROVIDER=openrouter
+LLM_OPENROUTER_API_KEY=sk-or-...
+LLM_OPENROUTER_MODEL=sao10k/l3-lunaris-8b  # or anthropic/claude-3.5-sonnet, meta-llama/llama-3.1-8b-instruct
 ```
 
 **Custom Provider**:
