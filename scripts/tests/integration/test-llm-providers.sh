@@ -172,6 +172,78 @@ test_openai_api_integration() {
     return 0
 }
 
+# Test: GROQ API provider (requires curl and API key)
+test_groq_api_integration() {
+    # Check if curl is available
+    check_cli_available "curl" || return $?
+
+    # Check if API key is available
+    local api_key
+    api_key=$(config_get "LLM_GROQ_API_KEY")
+    if [ -z "$api_key" ]; then
+        api_key="${GROQ_API_KEY:-}"
+    fi
+
+    if [ -z "$api_key" ]; then
+        echo "GROQ API key not configured" >&2
+        return 2 # Skip
+    fi
+
+    export LLM_PROVIDER="groq"
+
+    # Invoke LLM
+    local result
+    if ! result=$(llm_invoke "openai/gpt-oss-20b" "$TEST_PROMPT" 30 2>&1); then
+        echo "LLM invocation failed for groq" >&2
+        echo "Output: $result" >&2
+        return 1
+    fi
+
+    # Validate JSON structure
+    if ! json_validate "$result"; then
+        echo "Invalid JSON from groq: $result" >&2
+        return 1
+    fi
+
+    return 0
+}
+
+# Test: OpenRouter API provider (requires curl and API key)
+test_openrouter_api_integration() {
+    # Check if curl is available
+    check_cli_available "curl" || return $?
+
+    # Check if API key is available
+    local api_key
+    api_key=$(config_get "LLM_OPENROUTER_API_KEY")
+    if [ -z "$api_key" ]; then
+        api_key="${OPENROUTER_API_KEY:-}"
+    fi
+
+    if [ -z "$api_key" ]; then
+        echo "OpenRouter API key not configured" >&2
+        return 2 # Skip
+    fi
+
+    export LLM_PROVIDER="openrouter"
+
+    # Invoke LLM
+    local result
+    if ! result=$(llm_invoke "sao10k/l3-lunaris-8b" "$TEST_PROMPT" 30 2>&1); then
+        echo "LLM invocation failed for openrouter" >&2
+        echo "Output: $result" >&2
+        return 1
+    fi
+
+    # Validate JSON structure
+    if ! json_validate "$result"; then
+        echo "Invalid JSON from openrouter: $result" >&2
+        return 1
+    fi
+
+    return 0
+}
+
 # Test: Provider switching
 test_provider_switching() {
     local providers_tested=0
@@ -245,6 +317,8 @@ main() {
     # Run integration tests for each provider
     run_test test_claude_cli_integration
     run_test test_openai_api_integration
+    run_test test_groq_api_integration
+    run_test test_openrouter_api_integration
 
     # Run functional tests
     run_test test_provider_switching

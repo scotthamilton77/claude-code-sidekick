@@ -15,4 +15,3 @@ history.jsonl
 *.backup.*/
 *.uninstall-backup.*
 debug/
-.sidekick/
