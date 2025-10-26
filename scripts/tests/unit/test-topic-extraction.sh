@@ -258,6 +258,200 @@ EOF
 }
 
 # ============================================================================
+# TESTS: _topic_extraction_extract_excerpt() - Preprocessing
+# ============================================================================
+
+test_excerpt_filters_tool_messages_when_enabled() {
+    # Skip if function doesn't exist yet
+    if ! command -v _topic_extraction_extract_excerpt &> /dev/null; then
+        return 0
+    fi
+
+    # Set config to filter tool messages (default)
+    export TOPIC_FILTER_TOOL_MESSAGES=true
+    export TOPIC_EXCERPT_LINES=10
+
+    local transcript="$TEST_DIR/transcript-with-tools.jsonl"
+    cat > "$transcript" <<'EOF'
+{"type":"user","message":{"role":"user","content":"Hello"}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"tool1","name":"Bash"}],"model":"claude-sonnet-4-5","id":"msg_123","stop_reason":"tool_use","usage":{"input_tokens":100}}}
+{"type":"tool_result","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tool1","content":"output"}]}}
+{"type":"assistant","message":{"role":"assistant","content":"Here's the result","model":"claude-sonnet-4-5","id":"msg_124"}}
+EOF
+
+    local result
+    result=$(_topic_extraction_extract_excerpt "$transcript")
+
+    # Should have 2 messages (user and final assistant, not the tool messages)
+    local count
+    count=$(echo "$result" | jq 'length')
+    [ "$count" = "2" ]
+
+    # First message should be user message
+    local first_role
+    first_role=$(echo "$result" | jq -r '.[0].role')
+    [ "$first_role" = "user" ]
+
+    # Second message should be final assistant (not tool_use)
+    local second_content
+    second_content=$(echo "$result" | jq -r '.[1].content')
+    [ "$second_content" = "Here's the result" ]
+}
+
+test_excerpt_keeps_tool_messages_when_disabled() {
+    # Skip if function doesn't exist yet
+    if ! command -v _topic_extraction_extract_excerpt &> /dev/null; then
+        return 0
+    fi
+
+    # Set config to NOT filter tool messages
+    export TOPIC_FILTER_TOOL_MESSAGES=false
+    export TOPIC_EXCERPT_LINES=10
+
+    local transcript="$TEST_DIR/transcript-with-tools-keep.jsonl"
+    cat > "$transcript" <<'EOF'
+{"type":"user","message":{"role":"user","content":"Hello"}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"tool1","name":"Bash"}],"model":"claude-sonnet-4-5"}}
+{"type":"assistant","message":{"role":"assistant","content":"Result","model":"claude-sonnet-4-5"}}
+EOF
+
+    local result
+    result=$(_topic_extraction_extract_excerpt "$transcript")
+
+    # Should have 3 messages (including tool_use)
+    local count
+    count=$(echo "$result" | jq 'length')
+    [ "$count" = "3" ]
+
+    # Second message should have tool_use
+    local has_tool
+    has_tool=$(echo "$result" | jq -r '.[1].content[0].type')
+    [ "$has_tool" = "tool_use" ]
+}
+
+test_excerpt_strips_metadata_fields() {
+    # Skip if function doesn't exist yet
+    if ! command -v _topic_extraction_extract_excerpt &> /dev/null; then
+        return 0
+    fi
+
+    export TOPIC_EXCERPT_LINES=10
+
+    local transcript="$TEST_DIR/transcript-with-metadata.jsonl"
+    cat > "$transcript" <<'EOF'
+{"type":"assistant","message":{"role":"assistant","content":"Hello","model":"claude-sonnet-4-5","id":"msg_123","type":"message","stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":100,"output_tokens":50}}}
+EOF
+
+    local result
+    result=$(_topic_extraction_extract_excerpt "$transcript")
+
+    # Should have message with content
+    local content
+    content=$(echo "$result" | jq -r '.[0].content')
+    [ "$content" = "Hello" ]
+
+    # Should NOT have metadata fields
+    local has_model
+    has_model=$(echo "$result" | jq -r '.[0].model')
+    [ "$has_model" = "null" ]
+
+    local has_id
+    has_id=$(echo "$result" | jq -r '.[0].id')
+    [ "$has_id" = "null" ]
+
+    local has_usage
+    has_usage=$(echo "$result" | jq -r '.[0].usage')
+    [ "$has_usage" = "null" ]
+}
+
+test_excerpt_filters_null_messages() {
+    # Skip if function doesn't exist yet
+    if ! command -v _topic_extraction_extract_excerpt &> /dev/null; then
+        return 0
+    fi
+
+    export TOPIC_EXCERPT_LINES=10
+
+    local transcript="$TEST_DIR/transcript-with-nulls.jsonl"
+    cat > "$transcript" <<'EOF'
+{"type":"user","message":{"role":"user","content":"Hello"}}
+{"type":"summary","message":null}
+{"type":"assistant","message":{"role":"assistant","content":"Response"}}
+EOF
+
+    local result
+    result=$(_topic_extraction_extract_excerpt "$transcript")
+
+    # Should have 2 messages (null filtered out)
+    local count
+    count=$(echo "$result" | jq 'length')
+    [ "$count" = "2" ]
+}
+
+test_excerpt_respects_line_count_config() {
+    # Skip if function doesn't exist yet
+    if ! command -v _topic_extraction_extract_excerpt &> /dev/null; then
+        return 0
+    fi
+
+    # Set to only extract 2 lines
+    export TOPIC_EXCERPT_LINES=2
+
+    local transcript="$TEST_DIR/transcript-long.jsonl"
+    cat > "$transcript" <<'EOF'
+{"type":"user","message":{"role":"user","content":"Message 1"}}
+{"type":"assistant","message":{"role":"assistant","content":"Response 1"}}
+{"type":"user","message":{"role":"user","content":"Message 2"}}
+{"type":"assistant","message":{"role":"assistant","content":"Response 2"}}
+{"type":"user","message":{"role":"user","content":"Message 3"}}
+EOF
+
+    local result
+    result=$(_topic_extraction_extract_excerpt "$transcript")
+
+    # Should have only last 2 lines processed
+    local count
+    count=$(echo "$result" | jq 'length')
+    [ "$count" -le "2" ]
+
+    # Last message should be "Message 3"
+    local last_content
+    last_content=$(echo "$result" | jq -r '.[-1].content')
+    [ "$last_content" = "Message 3" ]
+}
+
+test_excerpt_extracts_only_message_field() {
+    # Skip if function doesn't exist yet
+    if ! command -v _topic_extraction_extract_excerpt &> /dev/null; then
+        return 0
+    fi
+
+    export TOPIC_EXCERPT_LINES=10
+
+    local transcript="$TEST_DIR/transcript-with-extra-fields.jsonl"
+    cat > "$transcript" <<'EOF'
+{"type":"user","parentUuid":"abc123","sessionId":"session1","timestamp":"2025-10-26T00:00:00Z","message":{"role":"user","content":"Test"}}
+EOF
+
+    local result
+    result=$(_topic_extraction_extract_excerpt "$transcript")
+
+    # Should only have fields from .message (not type, parentUuid, etc)
+    local has_role
+    has_role=$(echo "$result" | jq -r '.[0].role')
+    [ "$has_role" = "user" ]
+
+    # Should NOT have transcript-level fields
+    local has_type
+    has_type=$(echo "$result" | jq -r '.[0].type')
+    [ "$has_type" = "null" ]
+
+    local has_session
+    has_session=$(echo "$result" | jq -r '.[0].sessionId')
+    [ "$has_session" = "null" ]
+}
+
+# ============================================================================
 # TESTS: topic_extraction_check_cadence()
 # ============================================================================
 
@@ -713,6 +907,14 @@ main() {
     # Analysis tests
     run_test test_analyze_creates_topic_file
     run_test test_analyze_handles_llm_failure
+
+    # Preprocessing/excerpt tests
+    run_test test_excerpt_filters_tool_messages_when_enabled
+    run_test test_excerpt_keeps_tool_messages_when_disabled
+    run_test test_excerpt_strips_metadata_fields
+    run_test test_excerpt_filters_null_messages
+    run_test test_excerpt_respects_line_count_config
+    run_test test_excerpt_extracts_only_message_field
 
     # Cadence tests
     run_test test_check_cadence_high_clarity
