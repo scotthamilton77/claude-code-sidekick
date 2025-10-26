@@ -161,8 +161,8 @@ copy_files() {
     cp "$SRC_DIR/sidekick.sh" "$dest_dir/"
     chmod +x "$dest_dir/sidekick.sh"
 
-    # Copy library
-    cp "$SRC_DIR/lib/common.sh" "$dest_dir/lib/"
+    # Copy library (all namespace files)
+    cp "$SRC_DIR/lib"/*.sh "$dest_dir/lib/"
 
     # Copy handlers
     cp "$SRC_DIR/handlers"/*.sh "$dest_dir/handlers/"
@@ -185,6 +185,13 @@ copy_files() {
 
     # Copy prompts
     cp "$SRC_DIR/features/prompts"/*.txt "$dest_dir/features/prompts/"
+
+    # Copy scripts (for sleeper-loop, etc.)
+    if [ -d "$SRC_DIR/features/scripts" ]; then
+        mkdir -p "$dest_dir/features/scripts"
+        cp "$SRC_DIR/features/scripts"/*.sh "$dest_dir/features/scripts/"
+        chmod +x "$dest_dir/features/scripts"/*.sh
+    fi
 
     # Copy config defaults
     cp "$SRC_DIR/config.defaults" "$dest_dir/"
