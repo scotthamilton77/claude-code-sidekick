@@ -11,7 +11,6 @@ This repository serves as a development and testing environment for [Claude Code
 ## TODOs
 
 ## Sidekick
-- debug logging for llm invocation: time spent, token counts (if present in the response)
 - configure non-claude-native LLM APIs
    - need a project-level override for config settings
    - test each option
