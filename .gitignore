@@ -29,6 +29,22 @@ node_modules/
 *:Zone.Identifier
 
 # Claude hook temporary files (session-specific ephemeral state)
+# Note: For this SOURCE project, we ignore the entire .sidekick/ directory
+# since it only contains test/development runtime data.
+# Consumer projects should use these patterns in their .gitignore:
+#   .sidekick/*.log
+#   .sidekick/sessions/
+# to track .sidekick/sidekick.conf and .sidekick/README.md
+.claude/hooks/sidekick
 .sidekick/
 *.backup.*
 *.uninstall-backup.*
+# Sidekick Hook System (managed by scripts/install.sh)
+# Runtime data - ignored
+.sidekick/*.log
+.sidekick/sessions/
+
+# Configuration and docs - tracked (do not ignore these)
+# .sidekick/sidekick.conf
+# .sidekick/README.md
+# End Sidekick Hook System

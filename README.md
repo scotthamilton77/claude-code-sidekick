@@ -14,8 +14,14 @@ This repository serves as a development and testing environment for [Claude Code
 - configure non-claude-native LLM APIs
    - need a project-level override for config settings
    - test each option
+      - [x] claude cli
+      - [ ] openai api
+      - [ ] gemini cli
+      - [ ] custom API (groq)
    - remove deprecation code and docs
+   - add groq option
    - implement fallback
+- remove .claudeignore if not useful
 - tracking and reminders
    - make sure we log when it happens
    - do we want to have multiple reminders with different cadences?
@@ -27,6 +33,8 @@ This repository serves as a development and testing environment for [Claude Code
    - moods: cynical, sarcastic, snarky, nerdy, arrogant, moody
    - themes: scifi, crime drama, daytime television, soap opera, classic 80s tv sitcom, seinfeld & friends
 - allow a "concise" topic mode during setup that chooses concise template files
+   - allow the line length hints to be configurable
+   - allow the statusline topic format to be configurable
    - maybe just allow for project-level overrides (template file input parameter and/or user and project level overrides)
 - statusline token counter and context % are way off?  If we can't get close to /context, let's remove the %
 - log rotation and log level to info by default
@@ -194,9 +202,12 @@ Edit `.claudeignore` to exclude files from sync operations:
 ```
 .credentials.json
 *.local.json
-.sidekick/
+.sidekick/*.log         # Exclude log files (e.g., sidekick.log)
+.sidekick/sessions/     # Exclude session data
 *.backup
 ```
+
+**Note**: `.sidekick/sidekick.conf` and `.sidekick/README.md` are NOT excluded and can be committed for team-wide configuration.
 
 Supports glob patterns for both files and directories.
 
@@ -210,9 +221,20 @@ The repository includes configurations for:
 
 Configure in `.claude/mcp.json`.
 
+### Sidekick Configuration Cascade
+
+Sidekick uses a four-level configuration cascade (later sources override earlier):
+
+1. **Defaults**: `src/sidekick/config.defaults`
+2. **User Global**: `~/.claude/hooks/sidekick/sidekick.conf` (user-wide overrides)
+3. **Project Deployed**: `.claude/hooks/sidekick/sidekick.conf` (ephemeral, deleted on uninstall)
+4. **Project Versioned**: `.sidekick/sidekick.conf` (**highest priority**, persistent, can be committed)
+
+**Recommended approach**: Use `.sidekick/sidekick.conf` for team-wide project settings that should be version-controlled.
+
 ### LLM Provider Configuration
 
-Sidekick supports pluggable LLM backends for conversation analysis and resume generation. Configure in `~/.claude/hooks/sidekick/sidekick.conf` or `.claude/hooks/sidekick/sidekick.conf`:
+Sidekick supports pluggable LLM backends for conversation analysis and resume generation. Configure in any config file above:
 
 **Claude CLI (default)**:
 ```bash

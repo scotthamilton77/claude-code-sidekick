@@ -9,7 +9,7 @@
 1. **Single Entry Point**: All hooks route through `sidekick.sh <command>`
 2. **Shared Library**: Single `lib/common.sh` loaded once per invocation
 3. **Feature Independence**: Features are function libraries, independently toggleable
-4. **Configuration Cascade**: Project → User → Defaults (shell .conf format)
+4. **Configuration Cascade**: Versioned Project → Deployed Project → User → Defaults (shell .conf format)
 5. **Copy-Based Deployment**: Installation copies files to `.claude/hooks/sidekick/`
 6. **No Subprocess Spawning**: Features sourced and called as functions (except intentional background processes)
 
@@ -45,20 +45,23 @@ claude-config/
 │       ├── unit/                          # Unit tests for lib/common.sh functions
 │       └── integration/                   # Integration tests for full workflows
 │
-├── .claude/hooks/sidekick/                # Deployment target (after install)
+├── .claude/hooks/sidekick/                # Deployment target (after install, ephemeral)
 │   ├── sidekick.sh                        # Main entry (copied from src/)
-│   ├── sidekick.conf                      # Runtime config (created from defaults)
 │   ├── lib/                               # Shared library (copied)
 │   ├── handlers/                          # Handlers (copied)
 │   └── features/                          # Features (copied)
 │
-├── .sidekick/sessions/${session_id}/      # Session state (gitignored)
-│   ├── sidekick.log                       # Unified log file
-│   ├── topic.json                         # Current topic analysis
-│   ├── resume.json                        # Resume message for NEXT session (generated when topic changes significantly)
-│   ├── response_count                     # Tracking counter
-│   ├── sleeper.pid                        # Sleeper process ID
-│   └── analysis.pid                       # Analysis process ID
+├── .sidekick/                             # Project-specific state & config
+│   ├── sidekick.conf                      # Versioned project config (optional, highest priority)
+│   ├── README.md                          # Documentation for this directory
+│   ├── sidekick.log                       # Global log file (gitignored)
+│   └── sessions/${session_id}/            # Session state (gitignored)
+│       ├── sidekick.log                   # Per-session log file
+│       ├── topic.json                     # Current topic analysis
+│       ├── resume.json                    # Resume message for NEXT session (generated when topic changes)
+│       ├── response_count                 # Tracking counter
+│       ├── sleeper.pid                    # Sleeper process ID
+│       └── analysis.pid                   # Analysis process ID
 │
 └── ARCH.md, PLAN.md                       # This file and implementation plan
 ```
@@ -137,11 +140,16 @@ _config_validate
 ```
 
 **Configuration Cascade**:
-1. Source `src/sidekick/config.defaults`
-2. Source `~/.claude/hooks/sidekick/sidekick.conf` (if exists)
-3. Source `$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.conf` (if exists)
+1. Source `src/sidekick/config.defaults` (must exist)
+2. Source `~/.claude/hooks/sidekick/sidekick.conf` (optional, user-wide)
+3. Source `$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.conf` (optional, ephemeral)
+4. Source `$CLAUDE_PROJECT_DIR/.sidekick/sidekick.conf` (optional, **versioned**, highest priority)
 
 **Result**: Later sources override earlier ones
+
+**Key Distinctions**:
+- **Deployed config** (`.claude/hooks/sidekick/sidekick.conf`): Ephemeral, deleted on uninstall
+- **Versioned config** (`.sidekick/sidekick.conf`): Persistent, survives install/uninstall, can be committed to git
 
 #### PATH RESOLUTION
 ```bash
