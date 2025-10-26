@@ -104,6 +104,7 @@ Configure via `sidekick.conf` (see `src/sidekick/config.defaults` for all option
 1. **Create** `src/sidekick/features/my-feature.sh` with standardized hook functions:
    - `myfeature_on_session_start(session_id, project_dir)` - optional
    - `myfeature_on_user_prompt_submit(session_id, transcript_path, project_dir)` - optional
+   - **Optional**: Add `readonly PLUGIN_DEPENDS="other-feature"` if your feature depends on another plugin
 2. **Add** `FEATURE_MY_FEATURE=true` to `src/sidekick/config.defaults`
 3. **Test** using unit and integration test suites
 4. **Install** to project scope: `./scripts/install.sh --project`
@@ -113,7 +114,7 @@ Configure via `sidekick.conf` (see `src/sidekick/config.defaults` for all option
 8. **RESTART CLAUDE** - `claude --continue` again
 9. **Sync** to user global config: `./scripts/sync-to-user.sh`
 
-**That's it!** Handlers auto-discover and invoke your feature.
+**That's it!** Handlers auto-discover, resolve dependencies, and invoke your feature in the correct order.
 
 ### Critical Testing Requirement
 
@@ -141,6 +142,7 @@ The repository uses several MCP (Model Context Protocol) servers:
 
 **Key Concepts**:
 - **Auto-discovery**: Handlers scan `features/*.sh` and source enabled ones
+- **Dependency resolution**: Plugins declare dependencies via `PLUGIN_DEPENDS`; topological sort ensures correct load order
 - **Standardized hooks**: Features export `{name}_on_{event}()` functions
 - **Name normalization**: Filenames may use hyphens (`topic-extraction.sh`), but config keys and functions use underscores (`FEATURE_TOPIC_EXTRACTION`, `topic_extraction_on_session_start()`)
 - **Output aggregation**: Multiple plugins can output JSON; handlers concatenate and return
@@ -151,6 +153,9 @@ The repository uses several MCP (Model Context Protocol) servers:
 # Prevent double-sourcing
 [[ -n "${_SIDEKICK_FEATURE_MYFEATURE_LOADED:-}" ]] && return 0
 readonly _SIDEKICK_FEATURE_MYFEATURE_LOADED=1
+
+# Optional: Declare dependencies (space-separated list)
+readonly PLUGIN_DEPENDS="tracking other-plugin"
 
 # ... helper functions ...
 
@@ -183,6 +188,13 @@ JSON
 }
 ```
 
+**Dependency System**:
+- Declare dependencies with `readonly PLUGIN_DEPENDS="dep1 dep2"`
+- Plugin loader performs topological sort (Kahn's algorithm)
+- Circular dependencies are detected and reported as errors
+- Missing dependencies cause load failure with clear error messages
+- Dependencies can use hyphens or underscores (normalized automatically)
+
 ### Dual-Scope Compatibility
 All scripts must support both deployment contexts:
 - **Project scope**: Paths relative to `$CLAUDE_PROJECT_DIR/.claude/`
@@ -207,15 +219,17 @@ Markdown-based specifications in `backlog/` include:
 
 ## Current Status
 
-**Sidekick Implementation**: ✅ Complete with Plugin Architecture (tests passing, docs updated)
+**Sidekick Implementation**: ✅ Complete with Plugin Architecture + Dependency Resolution (tests passing, docs updated)
 
-- ✅ Infrastructure complete (lib/common.sh with 8 namespaces: added PLUGIN LOADER)
-- ✅ All 5 features implemented as self-contained plugins (topic-extraction, resume, statusline, tracking, cleanup)
-- ✅ **Plugin architecture**: Handlers auto-discover and invoke features - no editing required for new features
+- ✅ Infrastructure complete (lib/common.sh with 8 namespaces: added PLUGIN LOADER with dependency resolution)
+- ✅ All 6 features implemented as self-contained plugins (topic-extraction, resume, statusline, tracking, reminder, cleanup)
+- ✅ **Plugin architecture**: Handlers auto-discover, resolve dependencies (topological sort), and invoke features
+- ✅ **Dependency system**: Plugins declare dependencies; loader ensures correct execution order
+- ✅ Feature split: tracking (counter only) and reminder (output) are now decoupled with explicit dependency
 - ✅ Resume feature refactored (async generation, file-based initialization, no LLM blocking at SessionStart)
 - ✅ Installation/uninstallation scripts working for both scopes
-- ✅ All unit tests passing (7/7 suites)
-- ✅ All integration tests passing (6/6 suites)
+- ✅ All unit tests passing (8/8 suites - added plugin dependency tests)
+- ✅ All integration tests passing (7/7 suites - added reminder independence test)
 - ✅ Documentation updated (ARCH.md, PLAN.md, README.md, CLAUDE.md)
 - 🔄 **In Progress**: Manual testing in real Claude sessions
 
