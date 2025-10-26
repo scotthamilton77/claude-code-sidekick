@@ -12,6 +12,7 @@ This repository serves as a development and testing environment for [Claude Code
 
 ## Sidekick
 - configure non-claude-native LLM APIs
+   - need a project-level override for config settings
    - test each option
    - remove deprecation code and docs
    - implement fallback
@@ -29,6 +30,7 @@ This repository serves as a development and testing environment for [Claude Code
    - maybe just allow for project-level overrides (template file input parameter and/or user and project level overrides)
 - statusline token counter and context % are way off?  If we can't get close to /context, let's remove the %
 - log rotation and log level to info by default
+- BUG: uninstall from project leaves empty hooks folder
 - how do subagents work - can we detect their connection to the parent agent, and do we care?  (for statusline, maybe not, but for analytics?)
 - skills and agents - review carefully and attribute to https://github.com/obra/superpowers
 
