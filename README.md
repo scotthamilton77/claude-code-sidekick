@@ -162,14 +162,24 @@ See `ARCH.md` for complete architecture documentation and `CLAUDE.md` for plugin
 
 ### Testing
 
+**Sidekick Test Suite**:
 ```bash
-# Test setup script functionality
+# Run all unit tests (mocked LLM, zero API costs)
+./scripts/tests/run-unit-tests.sh
+
+# Run all integration tests (mocked data, zero API costs)
+./scripts/tests/run-integration-tests.sh
+
+# EXPENSIVE: Test real LLM providers (makes actual API calls)
+./scripts/tests/integration/test-llm-providers.sh
+```
+
+**IMPORTANT**: Unit and integration tests use mocks - no API costs. The `test-llm-providers.sh` suite is intentionally excluded from default test runs to prevent accidental charges.
+
+**Legacy Setup Tests** (for reminder system migration):
+```bash
 ./tests/test-setup-reminders.sh
-
-# Test cleanup script functionality
 ./tests/test-cleanup-reminders.sh
-
-# Test response tracker behavior
 ./tests/test-response-tracker.sh
 ```
 

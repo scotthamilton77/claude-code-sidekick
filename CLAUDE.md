@@ -48,7 +48,7 @@ The repository is organized into source components and deployment targets:
 See `ARCH.md` for complete design documentation. Key features:
 
 - **Single Entry Point**: All hooks route through `sidekick.sh <command>`
-- **Shared Library**: `lib/common.sh` provides namespaced utilities (LOGGING, CONFIGURATION, PATH RESOLUTION, JSON PROCESSING, PROCESS MANAGEMENT, LLM INVOCATION, WORKSPACE MANAGEMENT)
+- **Modular Libraries**: `lib/common.sh` loader + 9 focused namespace files (config.sh, json.sh, llm.sh, logging.sh, paths.sh, plugin.sh, process.sh, utils.sh, workspace.sh)
 - **Pluggable Features**: Independently toggleable via `sidekick.conf`
 - **Pluggable LLM Providers**: Support for Claude CLI, OpenAI API, Gemini CLI, and custom providers
 - **Configuration Cascade**: Project → User → Defaults (shell .conf format)
@@ -105,7 +105,7 @@ LLM_CUSTOM_COMMAND={BIN} --model {MODEL} < {PROMPT_FILE}
 ```
 
 **Key Implementation Details**:
-- `llm_invoke()` - Main dispatcher in `lib/common.sh` (line 1034)
+- `llm_invoke()` - Main dispatcher in `lib/llm.sh`
 - Provider-specific implementations: `_llm_invoke_claude_cli()`, `_llm_invoke_openai_api()`, etc.
 - Backward compatibility: `claude_invoke()` wraps `llm_invoke()` (deprecated)
 - Used in: `features/topic-extraction.sh` (topic analysis and resume generation)
@@ -114,16 +114,26 @@ See `ARCH.md` LLM Provider System section for complete documentation.
 
 ### Testing
 
+**Test Architecture:**
+- **Unit tests** (8 suites, 64 tests): Use mock LLM binaries - **zero API costs**
+- **Integration tests** (7 suites): Use mocked data - **zero API costs by default**
+- **LLM provider tests**: Real API calls - **excluded from default test runs** (run explicitly to avoid costs)
+
 ```bash
-# Run all unit tests
+# Run all unit tests (mocked, no API costs)
 ./scripts/tests/run-unit-tests.sh
 
-# Run all integration tests
+# Run all integration tests (mocked, no API costs)
 ./scripts/tests/run-integration-tests.sh
 
 # Run specific test suite
 ./scripts/tests/integration/test-session-start.sh
+
+# EXPENSIVE: Run real LLM provider tests (makes actual API calls)
+./scripts/tests/integration/test-llm-providers.sh
 ```
+
+**IMPORTANT**: The expensive `test-llm-providers.sh` is intentionally excluded from `run-integration-tests.sh` to prevent accidental API costs. It auto-skips providers that aren't configured.
 
 ## Development Workflow
 
@@ -156,12 +166,19 @@ See `ARCH.md` LLM Provider System section for complete documentation.
 
 **Restart command**: `claude --continue` (to resume the current session with new settings)
 
+## Reference Documents
+
+- **AGENTS.md**: Redirect to canonical agent instructions in CLAUDE.md
+- **ARCH.md**: Complete architectural specification
+- **PLAN.md**: 8-phase implementation checklist with current progress
+- **README.md**: User-facing documentation and quick start guide
+
 ## MCP Server Configuration
 
 The repository uses several MCP (Model Context Protocol) servers:
 - **context7**: External SSE server for enhanced context
 - **sequential-thinking**: NPX-based thinking assistance
-- **zen**: Local Python-based server for specialized functionality  
+- **zen**: Local Python-based server for specialized functionality
 - **memory**: NPX-based memory management
 
 ## Development Patterns
@@ -304,16 +321,16 @@ Markdown-based specifications in `backlog/` include:
 
 **Sidekick Implementation**: ✅ Complete with Plugin Architecture + Dependency Resolution (tests passing, docs updated)
 
-- ✅ Infrastructure complete (lib/common.sh with 8 namespaces: added PLUGIN LOADER with dependency resolution)
+- ✅ Infrastructure complete (modular lib/* with 10 namespace files + plugin loader with dependency resolution)
 - ✅ All 6 features implemented as self-contained plugins (topic-extraction, resume, statusline, tracking, reminder, cleanup)
 - ✅ **Plugin architecture**: Handlers auto-discover, resolve dependencies (topological sort), and invoke features
 - ✅ **Dependency system**: Plugins declare dependencies; loader ensures correct execution order
 - ✅ Feature split: tracking (counter only) and reminder (output) are now decoupled with explicit dependency
 - ✅ Resume feature refactored (async generation, file-based initialization, no LLM blocking at SessionStart)
 - ✅ Installation/uninstallation scripts working for both scopes
-- ✅ All unit tests passing (8/8 suites - added plugin dependency tests)
-- ✅ All integration tests passing (7/7 suites - added reminder independence test)
-- ✅ Documentation updated (ARCH.md, PLAN.md, README.md, CLAUDE.md)
+- ✅ All unit tests passing (8 suites, 64 tests - mocked LLM, zero API costs)
+- ✅ All integration tests passing (7 suites - mocked data, test-llm-providers excluded from default runs)
+- ✅ Documentation updated (ARCH.md, PLAN.md, README.md, CLAUDE.md, AGENTS.md)
 - 🔄 **In Progress**: Manual testing in real Claude sessions
 
 **Reference Documents**:
