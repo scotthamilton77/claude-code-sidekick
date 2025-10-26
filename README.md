@@ -18,7 +18,6 @@ This repository serves as a development and testing environment for [Claude Code
    - test each option
       - [x] claude cli
       - [ ] openai api
-      - [ ] gemini cli
       - [ ] custom API (groq)
    - remove deprecation code and docs
    - add groq option
@@ -249,13 +248,6 @@ LLM_CLAUDE_MODEL=haiku  # haiku, sonnet, opus
 LLM_PROVIDER=openai-api
 LLM_OPENAI_API_KEY=sk-...
 LLM_OPENAI_MODEL=gpt-4-turbo
-```
-
-**Gemini CLI**:
-```bash
-LLM_PROVIDER=gemini-cli
-LLM_GEMINI_BIN=/path/to/gemini
-LLM_GEMINI_MODEL=gemini-pro
 ```
 
 **Custom Provider**:

@@ -50,7 +50,7 @@ See `ARCH.md` for complete design documentation. Key features:
 - **Single Entry Point**: All hooks route through `sidekick.sh <command>`
 - **Modular Libraries**: `lib/common.sh` loader + 9 focused namespace files (config.sh, json.sh, llm.sh, logging.sh, paths.sh, plugin.sh, process.sh, utils.sh, workspace.sh)
 - **Pluggable Features**: Independently toggleable via `sidekick.conf`
-- **Pluggable LLM Providers**: Support for Claude CLI, OpenAI API, Gemini CLI, and custom providers
+- **Pluggable LLM Providers**: Support for Claude CLI, OpenAI API, and custom providers
 - **Configuration Cascade**: Versioned Project → Deployed Project → User → Defaults (shell .conf format)
 - **Dual-Scope Deployment**: Works identically in project (.claude/) and user (~/.claude/) contexts
 
@@ -114,7 +114,7 @@ Sidekick uses a pluggable LLM provider system for conversation analysis and resu
 **Configuration Options**:
 ```bash
 # Provider selection
-LLM_PROVIDER=claude-cli  # claude-cli | openai-api | gemini-cli | custom
+LLM_PROVIDER=claude-cli  # claude-cli | openai-api | custom
 
 # Claude CLI (default)
 LLM_CLAUDE_MODEL=haiku

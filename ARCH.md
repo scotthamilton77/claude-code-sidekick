@@ -668,7 +668,7 @@ source "$SIDEKICK_ROOT/config.defaults"
 
 ### Overview
 
-Sidekick uses a pluggable LLM provider architecture to support multiple AI backends for conversation analysis and resume generation. The system abstracts LLM invocation behind a provider interface, allowing drop-in replacement of Claude CLI with OpenAI, Gemini, or custom LLM tools.
+Sidekick uses a pluggable LLM provider architecture to support multiple AI backends for conversation analysis and resume generation. The system abstracts LLM invocation behind a provider interface, allowing drop-in replacement of Claude CLI with OpenAI or custom LLM tools.
 
 ### Provider Architecture
 
@@ -685,8 +685,6 @@ Sidekick uses a pluggable LLM provider architecture to support multiple AI backe
 - `_llm_invoke_openai_api()` - OpenAI API via curl
   - Direct HTTP calls to OpenAI endpoint
   - Requires API key via config or environment variable
-- `_llm_invoke_gemini_cli()` - Google Gemini CLI (placeholder)
-  - Command-line interface for Gemini models
 - `_llm_invoke_custom()` - User-defined command template
   - Template substitution: {BIN}, {MODEL}, {PROMPT_FILE}, {TIMEOUT}
   - Maximum flexibility for any LLM tool
@@ -696,7 +694,7 @@ Sidekick uses a pluggable LLM provider architecture to support multiple AI backe
 **Provider Selection** (config.defaults or sidekick.conf):
 ```bash
 # Select active provider
-LLM_PROVIDER=claude-cli  # claude-cli | openai-api | gemini-cli | custom
+LLM_PROVIDER=claude-cli  # claude-cli | openai-api | custom
 
 # Claude CLI provider
 LLM_CLAUDE_BIN=          # Auto-detect: ~/.claude/local/claude or PATH
@@ -706,10 +704,6 @@ LLM_CLAUDE_MODEL=haiku   # haiku, sonnet, opus, haiku-4, etc.
 LLM_OPENAI_API_KEY=      # API key (or use OPENAI_API_KEY env var)
 LLM_OPENAI_ENDPOINT=https://api.openai.com/v1/chat/completions
 LLM_OPENAI_MODEL=gpt-4-turbo
-
-# Gemini CLI provider
-LLM_GEMINI_BIN=gemini
-LLM_GEMINI_MODEL=gemini-pro
 
 # Custom provider
 LLM_CUSTOM_BIN=/path/to/llm-tool
