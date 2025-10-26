@@ -188,6 +188,11 @@ copy_files() {
     # Copy config defaults
     cp "$SRC_DIR/config.defaults" "$dest_dir/"
 
+    # Copy static reminder if it exists
+    if [ -f "$SRC_DIR/static-reminder.txt" ]; then
+        cp "$SRC_DIR/static-reminder.txt" "$dest_dir/"
+    fi
+
     # Create sidekick.conf if it doesn't exist (don't overwrite)
     if [ ! -f "$dest_dir/sidekick.conf" ]; then
         cp "$SRC_DIR/config.defaults" "$dest_dir/sidekick.conf"
