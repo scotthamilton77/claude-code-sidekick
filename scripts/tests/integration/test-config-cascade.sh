@@ -161,7 +161,7 @@ test_user_overrides_defaults() {
     cat > "$HOME/.claude/hooks/sidekick-test/sidekick.conf" << 'EOF'
 # User config overrides
 LOG_LEVEL=debug
-TOPIC_MODE=incremental
+TOPIC_CADENCE_HIGH=20
 SLEEPER_ENABLED=false
 CLEANUP_MIN_COUNT=10
 EOF
@@ -174,10 +174,10 @@ EOF
         return
     fi
 
-    if test_config_value "TOPIC_MODE" "incremental" "user"; then
-        pass "$test_name - TOPIC_MODE overridden"
+    if test_config_value "TOPIC_CADENCE_HIGH" "20" "user"; then
+        pass "$test_name - TOPIC_CADENCE_HIGH overridden"
     else
-        fail "$test_name - TOPIC_MODE" "User override failed"
+        fail "$test_name - TOPIC_CADENCE_HIGH" "User override failed"
     fi
 
     if test_config_value "SLEEPER_ENABLED" "false" "user"; then
@@ -203,7 +203,7 @@ test_project_overrides_user() {
     cat > "$TEST_DIR/.claude/hooks/sidekick/sidekick.conf" << 'EOF'
 # Project config overrides
 LOG_LEVEL=warn
-TOPIC_MODE=full-analytics
+TOPIC_CADENCE_HIGH=30
 CLEANUP_MIN_COUNT=20
 EOF
 
@@ -215,10 +215,10 @@ EOF
         return
     fi
 
-    if test_config_value "TOPIC_MODE" "full-analytics" "project"; then
-        pass "$test_name - TOPIC_MODE overridden by project"
+    if test_config_value "TOPIC_CADENCE_HIGH" "30" "project"; then
+        pass "$test_name - TOPIC_CADENCE_HIGH overridden by project"
     else
-        fail "$test_name - TOPIC_MODE" "Project override failed"
+        fail "$test_name - TOPIC_CADENCE_HIGH" "Project override failed"
     fi
 
     if test_config_value "CLEANUP_MIN_COUNT" "20" "project"; then
@@ -252,15 +252,15 @@ test_full_cascade() {
         return
     fi
 
-    # Default: TOPIC_MODE=topic-only
-    # User: TOPIC_MODE=incremental
-    # Project: TOPIC_MODE=full-analytics
-    # Expected: full-analytics (project wins)
+    # Default: TOPIC_CADENCE_HIGH=10
+    # User: TOPIC_CADENCE_HIGH=20
+    # Project: TOPIC_CADENCE_HIGH=30
+    # Expected: 30 (project wins)
 
-    if test_config_value "TOPIC_MODE" "full-analytics" "project"; then
-        pass "$test_name - TOPIC_MODE = full-analytics (project wins)"
+    if test_config_value "TOPIC_CADENCE_HIGH" "30" "project"; then
+        pass "$test_name - TOPIC_CADENCE_HIGH = 30 (project wins)"
     else
-        fail "$test_name - TOPIC_MODE" "Full cascade failed"
+        fail "$test_name - TOPIC_CADENCE_HIGH" "Full cascade failed"
     fi
 
     # Default: SLEEPER_ENABLED=true
@@ -375,7 +375,7 @@ test_empty_user_config() {
     # Create project config
     cat > "$TEST_DIR/.claude/hooks/sidekick/sidekick.conf" << 'EOF'
 LOG_LEVEL=error
-TOPIC_MODE=topic-only
+TOPIC_CADENCE_HIGH=15
 EOF
 
     # Test project values

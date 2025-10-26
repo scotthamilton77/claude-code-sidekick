@@ -28,7 +28,6 @@ FEATURE_TOPIC_EXTRACTION=true
 FEATURE_RESUME=true
 FEATURE_TRACKING=true
 FEATURE_NONEXISTENT=false
-TOPIC_MODE=topic-only
 TOPIC_CADENCE_HIGH=10
 LOG_LEVEL=info
 TOPIC_CADENCE_LOW=1
@@ -69,7 +68,7 @@ run_test() {
 
     # Reset config before each test
     unset FEATURE_TOPIC_EXTRACTION FEATURE_RESUME FEATURE_TRACKING
-    unset TOPIC_MODE TOPIC_CADENCE_HIGH LOG_LEVEL
+    unset TOPIC_CADENCE_HIGH LOG_LEVEL
     unset CLAUDE_PROJECT_DIR
 
     if "$test_name"; then
@@ -89,7 +88,7 @@ test_config_load_sources_defaults() {
 
     # Check that defaults were loaded
     [ "${FEATURE_TOPIC_EXTRACTION}" = "true" ]
-    [ "${TOPIC_MODE}" = "topic-only" ]
+    [ "${TOPIC_CADENCE_HIGH}" = "10" ]
     [ "${LOG_LEVEL}" = "info" ]
 }
 
@@ -99,14 +98,14 @@ test_config_load_user_override() {
     mkdir -p "${HOME}/.claude/hooks/sidekick"
     cat > "${HOME}/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
 # User overrides
-TOPIC_MODE=incremental
+TOPIC_CADENCE_HIGH=20
 LOG_LEVEL=debug
 EOF
 
     config_load
 
     # User config should override defaults
-    [ "${TOPIC_MODE}" = "incremental" ]
+    [ "${TOPIC_CADENCE_HIGH}" = "20" ]
     [ "${LOG_LEVEL}" = "debug" ]
     # But unoverridden values should remain
     [ "${FEATURE_TOPIC_EXTRACTION}" = "true" ]
@@ -120,7 +119,7 @@ test_config_load_project_override() {
     # Create user config
     mkdir -p "${HOME}/.claude/hooks/sidekick"
     cat > "${HOME}/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
-TOPIC_MODE=incremental
+TOPIC_CADENCE_HIGH=20
 LOG_LEVEL=debug
 EOF
 
@@ -128,13 +127,13 @@ EOF
     export CLAUDE_PROJECT_DIR="${TEST_DIR}/project"
     mkdir -p "${CLAUDE_PROJECT_DIR}/.claude/hooks/sidekick"
     cat > "${CLAUDE_PROJECT_DIR}/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
-TOPIC_MODE=full-analytics
+TOPIC_CADENCE_HIGH=30
 EOF
 
     config_load
 
     # Project should override user
-    [ "${TOPIC_MODE}" = "full-analytics" ]
+    [ "${TOPIC_CADENCE_HIGH}" = "30" ]
     # But user should override defaults
     [ "${LOG_LEVEL}" = "debug" ]
 
@@ -147,8 +146,8 @@ test_config_get_returns_value() {
     config_load
 
     local value
-    value=$(config_get "TOPIC_MODE")
-    [ "$value" = "topic-only" ]
+    value=$(config_get "TOPIC_CADENCE_HIGH")
+    [ "$value" = "10" ]
 }
 
 # Test: config_get returns empty for missing key
