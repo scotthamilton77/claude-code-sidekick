@@ -155,6 +155,7 @@ copy_files() {
     mkdir -p "$dest_dir/handlers"
     mkdir -p "$dest_dir/features"
     mkdir -p "$dest_dir/features/prompts"
+    mkdir -p "$dest_dir/config"
 
     # Copy main entry point
     cp "$SRC_DIR/sidekick.sh" "$dest_dir/"
@@ -189,8 +190,8 @@ copy_files() {
     cp "$SRC_DIR/config.defaults" "$dest_dir/"
 
     # Copy static reminder if it exists
-    if [ -f "$SRC_DIR/static-reminder.txt" ]; then
-        cp "$SRC_DIR/static-reminder.txt" "$dest_dir/"
+    if [ -f "$SRC_DIR/config/static-reminder.txt" ]; then
+        cp "$SRC_DIR/config/static-reminder.txt" "$dest_dir/config/"
     fi
 
     # Create sidekick.conf if it doesn't exist (don't overwrite)
