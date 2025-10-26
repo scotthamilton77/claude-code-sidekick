@@ -11,7 +11,6 @@ This repository serves as a development and testing environment for [Claude Code
 ## TODOs
 
 ## Sidekick
-- remove the analytics and incremental bits - they are complexity we don't need right now
 - user-prompt-submit.sh is coupled to the response counter and reminder and topic extraction logic.  these should be separate modules/functions that are injected into user-prompt-submit.sh
 - PLAN.MD (executing ARCH.md)
    - standardize parameter names and styles in the scripts (e.g. --project-dir vs. not, internally using output_dir, etc.)
@@ -20,6 +19,10 @@ This repository serves as a development and testing environment for [Claude Code
       - make this modular, with a core kernel script that look for plugins to activate, and understands dependencies (e.g. which ones need the request_counter)
 - tune the topic extracter to follow the last n turns (delta + 10?) - this combined with previous goal snapshot might be cheaper?
 - configure non-claude-native LLM APIs
+- tune the instructions for the topic extraction (little shorter, more cynical)
+- allow for different personalities - either explicit at install time or random per project or random per session or just random
+   - moods: cynical, sarcastic, snarky, nerdy, arrogant, moody
+   - themes: scifi, crime drama, daytime television, soap opera, classic 80s tv sitcom, seinfeld & friends
 - allow a "concise" topic mode during setup that chooses concise template files
    - maybe just allow for project-level overrides (template file input parameter and/or user and project level overrides)
 - statusline token counter and context % are way off?  If we can't get close to /context, let's remove the %
