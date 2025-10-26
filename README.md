@@ -104,18 +104,31 @@ cd claude-config
 └── tests/                      # Test harnesses
 ```
 
-### Hook System
+### Hook System (Sidekick)
 
-The Sidekick system provides modular hooks that execute at conversation events to enhance Claude Code behavior. Key features:
+The Sidekick system provides a **plugin-based hook architecture** that executes at conversation events to enhance Claude Code behavior.
 
-- **Topic Extraction**: LLM-based conversation analysis with adaptive polling
-- **Resume Generation**: Async background process generates snarkified resume messages when topic changes significantly
-- **Session Continuity**: Fast SessionStart initialization from previous session's resume (no LLM blocking)
-- **Enhanced Statusline**: Token tracking, git branch, topic display
-- **Request Tracking**: Periodic reminders with configurable cadence
-- **Session Cleanup**: Automatic garbage collection of old session directories
+**How It Works**:
+- Claude invokes `sidekick.sh <hook-type>` at conversation events (SessionStart, UserPromptSubmit, Statusline)
+- Each invocation **discovers and loads all enabled plugins** in dependency order
+- Plugins implement hook functions (e.g., `tracking_on_user_prompt_submit()`) which get invoked if defined
+- **Dependency resolution** ensures plugins load in correct order (e.g., reminder loads after tracking)
 
-See ARCH.md for complete architecture documentation. Sidekick maintains session state in `.sidekick/sessions/` at the project root (gitignored).
+**Available Plugins** (6 total):
+- **topic-extraction**: LLM-based conversation analysis with adaptive polling
+- **resume**: Async background resume generation when topic changes significantly
+- **statusline**: Enhanced statusline with token tracking, git branch, topic display
+- **tracking**: Response counter for session management
+- **reminder**: Periodic static reminders at configurable cadence (depends on tracking)
+- **cleanup**: Automatic garbage collection of old session directories
+
+**Plugin Features**:
+- **Declarative dependencies**: Plugins declare `PLUGIN_DEPENDS="other-plugin"` for explicit ordering
+- **Selective implementation**: Plugins implement only the hooks they need (not all plugins run on every event)
+- **Independent toggles**: Each plugin has `FEATURE_<NAME>=true/false` config flag
+- **Topological sort**: Dependency graph automatically resolved (detects cycles and missing deps)
+
+See `ARCH.md` for complete architecture documentation and `CLAUDE.md` for plugin development guide. Sidekick maintains session state in `.sidekick/sessions/` at the project root (gitignored).
 
 ## Usage
 

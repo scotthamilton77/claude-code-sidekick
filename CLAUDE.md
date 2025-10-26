@@ -195,6 +195,59 @@ JSON
 - Missing dependencies cause load failure with clear error messages
 - Dependencies can use hyphens or underscores (normalized automatically)
 
+**Plugin Execution Flow**:
+
+Each hook invocation follows this sequence (fresh process each time):
+
+1. **Invocation**: Claude calls `sidekick.sh <command>` with JSON on stdin
+   ```bash
+   echo '{"session_id":"abc-123"}' | sidekick.sh user-prompt-submit
+   ```
+
+2. **Command Routing**: `sidekick.sh` routes to appropriate handler
+   ```bash
+   case "$command" in
+       user-prompt-submit) handle_user_prompt_submit ;;
+       session-start) handle_session_start ;;
+       statusline) handle_statusline ;;
+   esac
+   ```
+
+3. **Plugin Discovery & Loading**: Handler calls `plugin_discover_and_load()`
+   - **Phase 1 - Discovery**: Scans `features/*.sh`, checks `FEATURE_*` config flags, extracts `PLUGIN_DEPENDS` without sourcing
+   - **Phase 2 - Sort**: Topological sort based on dependency graph (Kahn's algorithm)
+   - **Phase 3 - Load**: Sources plugins in dependency order, populates `_LOADED_PLUGINS[]` array
+
+4. **Hook Invocation**: Handler calls `plugin_invoke_hook("on_<event>", args...)`
+   - Iterates through `_LOADED_PLUGINS[]` in load order
+   - For each plugin, checks if hook function exists (e.g., `tracking_on_user_prompt_submit`)
+   - If function exists, invokes it with arguments
+   - If function doesn't exist, skips that plugin (e.g., reminder has no `on_session_start`)
+   - Aggregates stdout from all hooks and returns
+
+**Key Behaviors**:
+- **Stateless**: Each invocation is a separate process - no state persists between hooks
+- **Partial Implementation**: Plugins can implement subset of hooks (tracking implements both `on_session_start` and `on_user_prompt_submit`, reminder only implements `on_user_prompt_submit`)
+- **Dependency Order Applies to Sourcing**: Even if reminder doesn't run during `session-start`, it still gets sourced AFTER tracking so shared functions are available
+- **All Enabled Plugins Load**: Every enabled plugin sources on every hook invocation, even if it doesn't implement that specific hook
+
+**Example Execution** (`user-prompt-submit` with tracking+reminder enabled):
+```
+plugin_discover_and_load()
+  → Discovers: cleanup, reminder, resume, statusline, topic-extraction, tracking
+  → Dependencies: reminder depends on tracking
+  → Sorted: [cleanup, resume, statusline, topic-extraction, tracking, reminder]
+  → Sources all in that order
+
+plugin_invoke_hook("on_user_prompt_submit", session_id, transcript_path, project_dir)
+  → cleanup: No on_user_prompt_submit function → skip
+  → resume: No on_user_prompt_submit function → skip
+  → statusline: No on_user_prompt_submit function → skip
+  → topic-extraction: Has on_user_prompt_submit → invoke ✓
+  → tracking: Has on_user_prompt_submit → invoke ✓ (increments counter)
+  → reminder: Has on_user_prompt_submit → invoke ✓ (reads counter via tracking_get())
+```
+
 ### Dual-Scope Compatibility
 All scripts must support both deployment contexts:
 - **Project scope**: Paths relative to `$CLAUDE_PROJECT_DIR/.claude/`
