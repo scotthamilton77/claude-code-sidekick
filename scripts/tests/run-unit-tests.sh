@@ -123,13 +123,16 @@ Options:
   -h, --help    Show this help message
 
 Test suites run:
-  - test-logging.sh     - Logging namespace tests
-  - test-config.sh      - Configuration namespace tests
-  - test-paths.sh       - Path resolution namespace tests
-  - test-json.sh        - JSON processing namespace tests
-  - test-process.sh     - Process management namespace tests
-  - test-claude.sh      - Claude invocation namespace tests
-  - test-workspace.sh   - Workspace management namespace tests
+  - test-circuit-breaker.sh  - Circuit breaker state machine tests
+  - test-logging.sh          - Logging namespace tests
+  - test-config.sh           - Configuration namespace tests
+  - test-paths.sh            - Path resolution namespace tests
+  - test-json.sh             - JSON processing namespace tests
+  - test-process.sh          - Process management namespace tests
+  - test-statusline.sh       - Statusline feature tests
+  - test-topic-extraction.sh - Topic extraction feature tests
+  - test-plugin-dependencies.sh - Plugin dependency resolution tests
+  - test-workspace.sh        - Workspace management namespace tests
 
 Exit codes:
   0 - All tests passed
