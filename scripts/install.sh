@@ -146,6 +146,7 @@ check_prerequisites() {
 # Copy files to destination
 copy_files() {
     local dest_dir="$1"
+    local scope="$2"  # "user" or "project"
 
     log_step "Copying files to $dest_dir..."
 
@@ -201,15 +202,48 @@ copy_files() {
         cp "$SRC_DIR/config/static-reminder.txt" "$dest_dir/config/"
     fi
 
-    # Create sidekick.conf if it doesn't exist (don't overwrite)
-    if [ ! -f "$dest_dir/sidekick.conf" ]; then
-        cp "$SRC_DIR/config.defaults" "$dest_dir/sidekick.conf"
-        log_info "Created sidekick.conf from defaults"
-    else
-        log_info "Preserving existing sidekick.conf"
+    # Create sidekick.conf only for user scope (project uses .sidekick/sidekick.conf)
+    if [ "$scope" = "user" ]; then
+        if [ ! -f "$dest_dir/sidekick.conf" ]; then
+            cp "$SRC_DIR/config.defaults" "$dest_dir/sidekick.conf"
+            log_info "Created sidekick.conf from defaults"
+        else
+            log_info "Preserving existing sidekick.conf"
+        fi
     fi
 
     log_info "Files copied successfully"
+}
+
+# Initialize versioned project config
+initialize_project_versioned_config() {
+    local project_dir="$1"
+    local sidekick_dir="$project_dir/.sidekick"
+    local config_file="$sidekick_dir/sidekick.conf"
+    local readme_file="$sidekick_dir/README.md"
+
+    log_step "Initializing versioned project config..."
+
+    # Create .sidekick directory if it doesn't exist
+    mkdir -p "$sidekick_dir"
+
+    # Create sidekick.conf if it doesn't exist (don't overwrite)
+    if [ ! -f "$config_file" ]; then
+        cp "$SRC_DIR/config.defaults" "$config_file"
+        log_info "Created versioned config: $config_file"
+        log_info "This file survives install/uninstall and can be committed to git"
+    else
+        log_info "Preserving existing versioned config: $config_file"
+    fi
+
+    # Copy README.md template (always overwrite to get latest docs)
+    local readme_template="$SRC_DIR/templates/sidekick-directory-README.md"
+    if [ -f "$readme_template" ]; then
+        cp "$readme_template" "$readme_file"
+        log_info "Copied .sidekick/README.md from template"
+    else
+        log_warn "README template not found at $readme_template"
+    fi
 }
 
 # Register hooks in settings.json
@@ -286,6 +320,40 @@ update_claudeignore() {
     fi
 }
 
+# Update .gitignore
+update_gitignore() {
+    local project_dir="$1"
+    local ignore_file="$project_dir/.gitignore"
+
+    log_step "Updating .gitignore..."
+
+    # Create .gitignore if it doesn't exist
+    if [ ! -f "$ignore_file" ]; then
+        touch "$ignore_file"
+    fi
+
+    # Check if our managed section already exists
+    if grep -q "^# Sidekick Hook System (managed by scripts/install.sh)" "$ignore_file" 2>/dev/null; then
+        log_info ".gitignore already contains Sidekick patterns"
+        return 0
+    fi
+
+    # Add managed section with markers
+    cat >> "$ignore_file" << 'EOF'
+# Sidekick Hook System (managed by scripts/install.sh)
+# Runtime data - ignored
+.sidekick/*.log
+.sidekick/sessions/
+
+# Configuration and docs - tracked (do not ignore these)
+# .sidekick/sidekick.conf
+# .sidekick/README.md
+# End Sidekick Hook System
+EOF
+
+    log_info "Added Sidekick patterns to .gitignore"
+}
+
 # Install to user scope
 install_to_user() {
     log_info "Installing to user scope (~/.claude)..."
@@ -294,7 +362,7 @@ install_to_user() {
     local settings_file="$HOME/.claude/settings.json"
 
     # Copy files
-    copy_files "$user_dir"
+    copy_files "$user_dir" "user"
 
     # Register hooks
     register_hooks_in_settings "$settings_file" "~/.claude/hooks/sidekick"
@@ -312,13 +380,19 @@ install_to_project() {
     local settings_file="$project_dir/.claude/settings.json"
 
     # Copy files
-    copy_files "$project_sidekick_dir"
+    copy_files "$project_sidekick_dir" "project"
+
+    # Initialize versioned project config (.sidekick/sidekick.conf)
+    initialize_project_versioned_config "$project_dir"
 
     # Register hooks (use $CLAUDE_PROJECT_DIR variable in paths)
     register_hooks_in_settings "$settings_file" "\$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick"
 
     # Update .claudeignore
     update_claudeignore "$project_dir"
+
+    # Update .gitignore
+    update_gitignore "$project_dir"
 
     log_info "Project scope installation complete"
 }

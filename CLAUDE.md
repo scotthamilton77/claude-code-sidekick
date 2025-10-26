@@ -51,7 +51,7 @@ See `ARCH.md` for complete design documentation. Key features:
 - **Modular Libraries**: `lib/common.sh` loader + 9 focused namespace files (config.sh, json.sh, llm.sh, logging.sh, paths.sh, plugin.sh, process.sh, utils.sh, workspace.sh)
 - **Pluggable Features**: Independently toggleable via `sidekick.conf`
 - **Pluggable LLM Providers**: Support for Claude CLI, OpenAI API, Gemini CLI, and custom providers
-- **Configuration Cascade**: Project → User → Defaults (shell .conf format)
+- **Configuration Cascade**: Versioned Project → Deployed Project → User → Defaults (shell .conf format)
 - **Dual-Scope Deployment**: Works identically in project (.claude/) and user (~/.claude/) contexts
 
 ### Installation
@@ -81,7 +81,31 @@ Sidekick provides five independently configurable features:
 4. **Tracking**: Request counting with periodic reminders
 5. **Cleanup**: Automatic garbage collection of old session directories
 
-Configure via `sidekick.conf` (see `src/sidekick/config.defaults` for all options).
+### Configuration
+
+Sidekick uses a four-level configuration cascade where later sources override earlier ones:
+
+1. **Defaults**: `src/sidekick/config.defaults` (all settings with defaults)
+2. **User Global**: `~/.claude/hooks/sidekick/sidekick.conf` (optional, user-wide overrides)
+3. **Project Deployed**: `.claude/hooks/sidekick/sidekick.conf` (optional, ephemeral, deleted on uninstall)
+4. **Project Versioned**: `.sidekick/sidekick.conf` (optional, **highest priority**, survives install/uninstall, can be committed to git)
+
+**Key Benefits**:
+- Team-wide config: Commit `.sidekick/sidekick.conf` to share project-specific settings
+- Personal overrides: Use `~/.claude/hooks/sidekick/sidekick.conf` for user preferences
+- Minimal configs: Only specify settings you want to override (no need to copy all defaults)
+
+**Example** (`.sidekick/sidekick.conf` with minimal overrides):
+```bash
+# Disable features we don't use
+FEATURE_TOPIC_EXTRACTION=false
+FEATURE_CLEANUP=false
+
+# Custom reminder cadence
+TRACKING_STATIC_CADENCE=10
+```
+
+For all available options, see `src/sidekick/config.defaults`.
 
 ### LLM Provider Configuration
 

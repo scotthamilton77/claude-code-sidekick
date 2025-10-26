@@ -24,6 +24,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+SRC_DIR="$PROJECT_ROOT/src/sidekick"
 
 # ANSI colors
 RED='\033[0;31m'
@@ -369,6 +370,51 @@ remove_claudeignore_entry() {
     fi
 }
 
+# Remove .gitignore entry
+remove_gitignore_entry() {
+    local project_dir="$1"
+    local ignore_file="$project_dir/.gitignore"
+
+    if [ ! -f "$ignore_file" ]; then
+        return 0
+    fi
+
+    # Check if our managed section exists
+    if ! grep -q "^# Sidekick Hook System (managed by scripts/install.sh)" "$ignore_file" 2>/dev/null; then
+        log_verbose "No Sidekick patterns found in .gitignore"
+        return 0
+    fi
+
+    log_step "Removing .gitignore entries..."
+
+    # Prompt user for permission
+    if [ "${SIDEKICK_SKIP_CONFIRM:-0}" != "1" ] && [ "$DRY_RUN" = false ]; then
+        log_warn "Found Sidekick-managed section in .gitignore"
+        read -p "Remove Sidekick patterns from .gitignore? (y/N) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            log_info "Preserving .gitignore entries"
+            return 0
+        fi
+    fi
+
+    if [ "$DRY_RUN" = true ]; then
+        log_operation "remove Sidekick section from" "$ignore_file"
+        return 0
+    fi
+
+    # Remove the entire managed section (from start marker to end marker, inclusive)
+    # Using sed to remove lines between markers (inclusive)
+    sed -i '/^# Sidekick Hook System (managed by scripts\/install\.sh)/,/^# End Sidekick Hook System/d' "$ignore_file"
+
+    # Also remove the blank line before the section if it exists
+    # (sed leaves an extra blank line, let's clean it up)
+    # Remove multiple consecutive blank lines, keeping only one
+    sed -i '/^$/N;/^\n$/D' "$ignore_file"
+
+    log_info "Removed Sidekick patterns from .gitignore"
+}
+
 # Clean up empty settings.json
 cleanup_empty_settings() {
     local settings_file="$1"
@@ -426,26 +472,45 @@ cleanup_empty_directories() {
     local base_dir="$1"
     local scope="$2"  # "user" or "project"
 
-    # Determine scope suffix for validation
-    local hooks_scope
-    local claude_scope
+    log_step "Cleaning up empty directories..."
+
     if [ "$scope" = "user" ]; then
-        hooks_scope="user-hooks"
-        claude_scope="user-claude"
+        # User scope: Clean up ~/.claude hierarchy
+        local hooks_dir="$base_dir/.claude/hooks"
+        safe_rmdir "$hooks_dir" "user-hooks"
+
+        local claude_dir="$base_dir/.claude"
+        safe_rmdir "$claude_dir" "user-claude"
     else
-        # For project scope, we can't safely remove parent dirs
-        # since we don't control the entire project directory
-        log_verbose "Skipping parent directory cleanup for project scope"
-        return 0
+        # Project scope: Only clean up .claude/hooks if empty
+        # We can safely remove .claude/hooks since it's specifically for hooks
+        local project_hooks_dir="$base_dir/.claude/hooks"
+        if [ -d "$project_hooks_dir" ]; then
+            if [ -z "$(ls -A "$project_hooks_dir" 2>/dev/null)" ]; then
+                log_operation "remove empty directory" "$project_hooks_dir"
+                if [ "$DRY_RUN" = false ]; then
+                    rmdir "$project_hooks_dir"
+                    log_info "Removed empty directory: $project_hooks_dir"
+                fi
+            else
+                log_verbose "Directory not empty, skipping: $project_hooks_dir"
+            fi
+        fi
+
+        # Also try to remove .claude if now empty
+        local project_claude_dir="$base_dir/.claude"
+        if [ -d "$project_claude_dir" ]; then
+            if [ -z "$(ls -A "$project_claude_dir" 2>/dev/null)" ]; then
+                log_operation "remove empty directory" "$project_claude_dir"
+                if [ "$DRY_RUN" = false ]; then
+                    rmdir "$project_claude_dir"
+                    log_info "Removed empty directory: $project_claude_dir"
+                fi
+            else
+                log_verbose "Directory not empty, skipping: $project_claude_dir"
+            fi
+        fi
     fi
-
-    # Remove .claude/hooks if empty
-    local hooks_dir="$base_dir/.claude/hooks"
-    safe_rmdir "$hooks_dir" "$hooks_scope"
-
-    # Remove .claude if empty
-    local claude_dir="$base_dir/.claude"
-    safe_rmdir "$claude_dir" "$claude_scope"
 }
 
 # Kill running sidekick processes for session
@@ -520,6 +585,128 @@ has_recent_sessions() {
     [ "$recent_count" -gt 0 ]
 }
 
+# Check if versioned config differs from defaults
+# Returns 0 if different, 1 if same or doesn't exist
+# Uses SRC_DIR global variable for config.defaults location
+versioned_config_differs_from_defaults() {
+    local versioned_config="$1"
+
+    if [ ! -f "$versioned_config" ]; then
+        return 1  # Doesn't exist, so not different
+    fi
+
+    local defaults="${SRC_DIR}/config.defaults"
+    if [ ! -f "$defaults" ]; then
+        log_warn "Cannot compare: config.defaults not found at $defaults"
+        return 0  # Assume different if can't compare
+    fi
+
+    # Compare SHA256 hashes
+    local hash_versioned hash_defaults
+    hash_versioned=$(sha256sum "$versioned_config" | awk '{print $1}')
+    hash_defaults=$(sha256sum "$defaults" | awk '{print $1}')
+
+    if [ "$hash_versioned" = "$hash_defaults" ]; then
+        return 1  # Same
+    else
+        return 0  # Different
+    fi
+}
+
+# Handle .sidekick directory cleanup with user prompts
+# Handles sessions, logs, and versioned config based on user choices
+handle_sidekick_cleanup() {
+    local sidekick_dir="$1"
+    local sessions_dir="$sidekick_dir/sessions"
+    local versioned_config="$sidekick_dir/sidekick.conf"
+
+    if [ ! -d "$sidekick_dir" ]; then
+        log_verbose "Sidekick directory does not exist: $sidekick_dir"
+        return 0
+    fi
+
+    log_step "Cleaning up $sidekick_dir..."
+
+    # Track what to keep
+    local preserve_sessions=false
+    local preserve_config=false
+
+    # 1. Check for recent sessions and prompt
+    if has_recent_sessions "$sessions_dir"; then
+        log_warn "Found recent session data in $sessions_dir"
+        if [ "${SIDEKICK_SKIP_CONFIRM:-0}" != "1" ] && [ "$DRY_RUN" = false ]; then
+            read -p "Preserve .sidekick/sessions directory? (Y/n) " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+                preserve_sessions=true
+            fi
+        fi
+    fi
+
+    # 2. Check versioned config and prompt if different from defaults
+    if [ -f "$versioned_config" ]; then
+        if versioned_config_differs_from_defaults "$versioned_config"; then
+            log_warn "Versioned config differs from defaults: $versioned_config"
+            if [ "${SIDEKICK_SKIP_CONFIRM:-0}" != "1" ] && [ "$DRY_RUN" = false ]; then
+                read -p "Remove customized .sidekick/sidekick.conf? (y/N) " -n 1 -r
+                echo
+                if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                    preserve_config=true
+                fi
+            fi
+        else
+            log_verbose "Versioned config is identical to defaults, will remove"
+        fi
+    fi
+
+    # 3. Perform cleanup based on decisions
+    # Remove log files at root level (*.log files like sidekick.log)
+    if [ -n "$(find "$sidekick_dir" -maxdepth 1 -name "*.log" 2>/dev/null)" ]; then
+        log_operation "remove" "$sidekick_dir/*.log files"
+        if [ "$DRY_RUN" = false ]; then
+            rm -f "$sidekick_dir"/*.log
+        fi
+    fi
+
+    # Remove sessions unless preserved
+    if [ "$preserve_sessions" = false ] && [ -d "$sessions_dir" ]; then
+        log_operation "remove" "$sessions_dir"
+        if [ "$DRY_RUN" = false ]; then
+            rm -rf "$sessions_dir"
+        fi
+    elif [ "$preserve_sessions" = true ]; then
+        log_info "Preserving sessions directory: $sessions_dir"
+    fi
+
+    # Remove versioned config unless preserved
+    if [ "$preserve_config" = false ] && [ -f "$versioned_config" ]; then
+        log_operation "remove" "$versioned_config"
+        if [ "$DRY_RUN" = false ]; then
+            rm -f "$versioned_config"
+        fi
+    elif [ "$preserve_config" = true ]; then
+        log_info "Preserving versioned config: $versioned_config"
+    fi
+
+    # Remove README.md if it exists
+    if [ -f "$sidekick_dir/README.md" ]; then
+        log_operation "remove" "$sidekick_dir/README.md"
+        if [ "$DRY_RUN" = false ]; then
+            rm -f "$sidekick_dir/README.md"
+        fi
+    fi
+
+    # Remove .sidekick directory if now empty
+    if [ "$DRY_RUN" = false ]; then
+        if [ -d "$sidekick_dir" ] && [ -z "$(ls -A "$sidekick_dir" 2>/dev/null)" ]; then
+            log_operation "remove empty directory" "$sidekick_dir"
+            rmdir "$sidekick_dir"
+        fi
+    fi
+
+    log_info ".sidekick cleanup complete"
+}
+
 # Uninstall from user scope
 uninstall_from_user() {
     log_info "Uninstalling from user scope (~/.claude)..."
@@ -555,30 +742,9 @@ uninstall_from_user() {
     # Clean up empty directories
     cleanup_empty_directories "$HOME" "user"
 
-    # Clean up project's .sidekick/sessions directory (user scope stores sessions here)
-    local preserve_sessions=false
-    if has_recent_sessions "$project_sessions_dir"; then
-        log_warn "Found recent session data in $project_sessions_dir"
-        if [ "${SIDEKICK_SKIP_CONFIRM:-0}" != "1" ] && [ "$DRY_RUN" = false ]; then
-            read -p "Preserve .sidekick/sessions directory? (Y/n) " -n 1 -r
-            echo
-            if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-                preserve_sessions=true
-            fi
-        fi
-    fi
-
-    # Handle .sidekick directory
-    if [ "$preserve_sessions" = true ]; then
-        log_info "Preserving .sidekick/sessions directory"
-    else
-        # Remove .sidekick directory
-        if [ -d "$project_dir/.sidekick" ]; then
-            safe_rm "$project_dir/.sidekick" "project-sessions"
-            if [ "$DRY_RUN" = false ]; then
-                log_info "Removed $project_dir/.sidekick"
-            fi
-        fi
+    # Clean up project's .sidekick directory (with prompts for sessions/config)
+    if [ -d "$project_dir/.sidekick" ]; then
+        handle_sidekick_cleanup "$project_dir/.sidekick"
     fi
 
     log_info "User scope uninstallation complete"
@@ -610,18 +776,8 @@ uninstall_from_project() {
     # Remove .claudeignore entry
     remove_claudeignore_entry "$project_dir"
 
-    # Check for recent sessions in .sidekick/sessions
-    local preserve_sessions=false
-    if has_recent_sessions "$project_sessions_dir"; then
-        log_warn "Found recent session data in $project_sessions_dir"
-        if [ "${SIDEKICK_SKIP_CONFIRM:-0}" != "1" ] && [ "$DRY_RUN" = false ]; then
-            read -p "Preserve .sidekick/sessions directory? (Y/n) " -n 1 -r
-            echo
-            if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-                preserve_sessions=true
-            fi
-        fi
-    fi
+    # Remove .gitignore entry
+    remove_gitignore_entry "$project_dir"
 
     # Handle sidekick directory
     if [ -d "$project_sidekick_dir" ]; then
@@ -631,17 +787,9 @@ uninstall_from_project() {
         fi
     fi
 
-    # Handle .sidekick/sessions directory
-    if [ "$preserve_sessions" = true ]; then
-        log_info "Preserving .sidekick/sessions directory"
-    else
-        # Remove .sidekick directory
-        if [ -d "$project_dir/.sidekick" ]; then
-            safe_rm "$project_dir/.sidekick" "project-sessions"
-            if [ "$DRY_RUN" = false ]; then
-                log_info "Removed $project_dir/.sidekick"
-            fi
-        fi
+    # Clean up .sidekick directory (with prompts for sessions/config)
+    if [ -d "$project_dir/.sidekick" ]; then
+        handle_sidekick_cleanup "$project_dir/.sidekick"
     fi
 
     # Clean up empty directories
