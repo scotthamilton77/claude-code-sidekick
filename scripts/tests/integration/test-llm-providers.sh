@@ -2,7 +2,7 @@
 # test-llm-providers.sh - Integration tests for LLM providers
 #
 # Tests actual LLM CLI invocations (not mocks)
-# Requires: claude, gemini CLIs installed and available in PATH
+# Requires: claude CLI installed and available in PATH
 #
 # NOTE: These tests make real API calls and may incur costs
 # Tests are skipped if the required CLI is not available
@@ -68,7 +68,7 @@ run_test() {
 }
 
 # Check if CLI is available
-# Args: $1 - CLI name (e.g., "claude", "gemini")
+# Args: $1 - CLI name (e.g., "claude")
 # Returns: 0 if available, 2 if not (for skip), 1 on error
 check_cli_available() {
     local cli_name="$1"
@@ -83,9 +83,9 @@ check_cli_available() {
 
 # Template for testing an LLM provider
 # Args:
-#   $1 - provider name (e.g., "claude-cli", "gemini-cli")
-#   $2 - CLI command name (e.g., "claude", "gemini")
-#   $3 - model name (e.g., "haiku", "gemini-2.5-flash")
+#   $1 - provider name (e.g., "claude-cli", "openai-api")
+#   $2 - CLI command name (e.g., "claude")
+#   $3 - model name (e.g., "haiku", "gpt-4-turbo")
 #   $4 - config_var for binary path (e.g., "LLM_CLAUDE_BIN")
 # Returns: 0 on success, 1 on failure, 2 on skip
 test_llm_provider() {
@@ -136,11 +136,6 @@ test_claude_cli_integration() {
     test_llm_provider "claude-cli" "claude" "haiku" "LLM_CLAUDE_BIN"
 }
 
-# Test: Gemini CLI provider
-test_gemini_cli_integration() {
-    test_llm_provider "gemini-cli" "gemini" "gemini-2.5-flash" "LLM_GEMINI_BIN"
-}
-
 # Test: OpenAI API provider (requires curl and API key)
 test_openai_api_integration() {
     # Check if curl is available
@@ -183,8 +178,7 @@ test_provider_switching() {
 
     # Test each available provider
     for provider_info in \
-        "claude-cli:claude:haiku:LLM_CLAUDE_BIN" \
-        "gemini-cli:gemini:gemini-2.5-flash:LLM_GEMINI_BIN"
+        "claude-cli:claude:haiku:LLM_CLAUDE_BIN"
     do
         IFS=':' read -r provider cli_name model config_var <<< "$provider_info"
 
@@ -210,8 +204,8 @@ test_provider_switching() {
 
 # Test: Error handling for missing binary
 test_missing_binary_error() {
-    export LLM_PROVIDER="gemini-cli"
-    export LLM_GEMINI_BIN="/nonexistent/path/to/gemini"
+    export LLM_PROVIDER="custom"
+    export LLM_CUSTOM_BIN="/nonexistent/path/to/custom"
 
     # Should fail gracefully
     if llm_invoke "test-model" "test prompt" 5 2>/dev/null; then
@@ -250,7 +244,6 @@ main() {
 
     # Run integration tests for each provider
     run_test test_claude_cli_integration
-    run_test test_gemini_cli_integration
     run_test test_openai_api_integration
 
     # Run functional tests
