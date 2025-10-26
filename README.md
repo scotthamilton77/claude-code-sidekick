@@ -15,7 +15,9 @@ This repository serves as a development and testing environment for [Claude Code
    - test each option
    - remove deprecation code and docs
    - implement fallback
-- tracking and reminders - do we want to have multiple reminders with different cadences?
+- tracking and reminders
+   - make sure we log when it happens
+   - do we want to have multiple reminders with different cadences?
 - PLAN.MD (executing ARCH.md)
    - standardize parameter names and styles in the scripts (e.g. --project-dir vs. not, internally using output_dir, etc.)
 - tune the topic extracter to follow the last n turns (delta + 10?) - this combined with previous goal snapshot might be cheaper?
