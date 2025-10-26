@@ -97,14 +97,23 @@ Configure via `sidekick.conf` (see `src/sidekick/config.defaults` for all option
 
 ## Development Workflow
 
-1. **Develop** new features in `src/sidekick/features/`
-2. **Test** using unit and integration test suites
-3. **Install** to project scope for manual testing: `./scripts/install.sh --project`
-4. **RESTART CLAUDE** - After any installation or update to `.claude/settings.json`, you **MUST** restart Claude with `claude --continue` to load the new settings
-5. **Verify** functionality in real Claude sessions
-6. **Deploy** to user scope: `./scripts/install.sh --user`
-7. **RESTART CLAUDE** - After deploying to user scope, restart Claude again with `claude --continue`
-8. **Sync** to user global config (for deployment): `./scripts/sync-to-user.sh`
+### Adding a New Feature (Plugin)
+
+**The plugin architecture means you NEVER need to edit handlers when adding features!**
+
+1. **Create** `src/sidekick/features/my-feature.sh` with standardized hook functions:
+   - `myfeature_on_session_start(session_id, project_dir)` - optional
+   - `myfeature_on_user_prompt_submit(session_id, transcript_path, project_dir)` - optional
+2. **Add** `FEATURE_MY_FEATURE=true` to `src/sidekick/config.defaults`
+3. **Test** using unit and integration test suites
+4. **Install** to project scope: `./scripts/install.sh --project`
+5. **RESTART CLAUDE** - `claude --continue` to load new settings
+6. **Verify** functionality in real Claude sessions
+7. **Deploy** to user scope: `./scripts/install.sh --user`
+8. **RESTART CLAUDE** - `claude --continue` again
+9. **Sync** to user global config: `./scripts/sync-to-user.sh`
+
+**That's it!** Handlers auto-discover and invoke your feature.
 
 ### Critical Testing Requirement
 
@@ -125,6 +134,54 @@ The repository uses several MCP (Model Context Protocol) servers:
 - **memory**: NPX-based memory management
 
 ## Development Patterns
+
+### Plugin Architecture
+
+**Handlers are framework code** - they automatically discover and invoke feature plugins. You never edit them.
+
+**Key Concepts**:
+- **Auto-discovery**: Handlers scan `features/*.sh` and source enabled ones
+- **Standardized hooks**: Features export `{name}_on_{event}()` functions
+- **Name normalization**: Filenames may use hyphens (`topic-extraction.sh`), but config keys and functions use underscores (`FEATURE_TOPIC_EXTRACTION`, `topic_extraction_on_session_start()`)
+- **Output aggregation**: Multiple plugins can output JSON; handlers concatenate and return
+
+**Plugin Template**:
+```bash
+#!/bin/bash
+# Prevent double-sourcing
+[[ -n "${_SIDEKICK_FEATURE_MYFEATURE_LOADED:-}" ]] && return 0
+readonly _SIDEKICK_FEATURE_MYFEATURE_LOADED=1
+
+# ... helper functions ...
+
+#------------------------------------------------------------------------------
+# PLUGIN HOOKS
+#------------------------------------------------------------------------------
+
+myfeature_on_session_start() {
+    local session_id="$1"
+    local project_dir="$2"
+    # Your logic here
+}
+
+myfeature_on_user_prompt_submit() {
+    local session_id="$1"
+    local transcript_path="$2"
+    local project_dir="$3"
+
+    # Optional: output JSON for additionalContext
+    if [ -n "$output" ]; then
+        cat <<JSON
+{
+  "hookSpecificOutput": {
+    "hookEventName": "UserPromptSubmit",
+    "additionalContext": "$output"
+  }
+}
+JSON
+    fi
+}
+```
 
 ### Dual-Scope Compatibility
 All scripts must support both deployment contexts:
@@ -150,16 +207,17 @@ Markdown-based specifications in `backlog/` include:
 
 ## Current Status
 
-**Sidekick Implementation**: ✅ Complete through Phase 5.3 (tests passing, docs updated)
+**Sidekick Implementation**: ✅ Complete with Plugin Architecture (tests passing, docs updated)
 
-- ✅ Infrastructure complete (lib/common.sh with 7 namespaces)
-- ✅ All 5 features implemented (topic-extraction, resume, statusline, tracking, cleanup)
+- ✅ Infrastructure complete (lib/common.sh with 8 namespaces: added PLUGIN LOADER)
+- ✅ All 5 features implemented as self-contained plugins (topic-extraction, resume, statusline, tracking, cleanup)
+- ✅ **Plugin architecture**: Handlers auto-discover and invoke features - no editing required for new features
 - ✅ Resume feature refactored (async generation, file-based initialization, no LLM blocking at SessionStart)
 - ✅ Installation/uninstallation scripts working for both scopes
 - ✅ All unit tests passing (7/7 suites)
 - ✅ All integration tests passing (6/6 suites)
 - ✅ Documentation updated (ARCH.md, PLAN.md, README.md, CLAUDE.md)
-- 🔄 **In Progress**: Phase 5.3 - Manual testing in real Claude sessions
+- 🔄 **In Progress**: Manual testing in real Claude sessions
 
 **Reference Documents**:
 - `ARCH.md`: Complete architectural specification
