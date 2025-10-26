@@ -11,12 +11,8 @@ This repository serves as a development and testing environment for [Claude Code
 ## TODOs
 
 ## Sidekick
-- user-prompt-submit.sh is coupled to the response counter and reminder and topic extraction logic.  these should be separate modules/functions that are injected into user-prompt-submit.sh
 - PLAN.MD (executing ARCH.md)
    - standardize parameter names and styles in the scripts (e.g. --project-dir vs. not, internally using output_dir, etc.)
-   - time to re-think names and features: separate reminders from status-line features
-      - statusline is coupled to the reminders; we should make this modular to allow the reminders to inject or supply a module for statusline to load dynamically
-      - make this modular, with a core kernel script that look for plugins to activate, and understands dependencies (e.g. which ones need the request_counter)
 - tune the topic extracter to follow the last n turns (delta + 10?) - this combined with previous goal snapshot might be cheaper?
 - configure non-claude-native LLM APIs
 - tune the instructions for the topic extraction (little shorter, more cynical)

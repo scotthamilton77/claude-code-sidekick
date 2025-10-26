@@ -249,96 +249,194 @@ util_create_session_dir <session_id>
 util_calculate_tokens <transcript_path>
 ```
 
-### 3. Handlers
+### 3. Handlers (Generic Plugin Loaders)
 
-**Purpose**: Orchestrate features for specific hook events
+**Purpose**: Framework code that discovers and invokes feature plugins
+
+Handlers are **generic and feature-agnostic** - they never need to be edited when adding new features. All feature-specific logic lives in the plugin files themselves.
 
 Handlers are **sourced** by `sidekick.sh`, not executed as subprocesses.
+
+**Plugin Architecture**:
+- Handlers auto-discover all `.sh` files in `features/` directory
+- Source only those enabled via config (`FEATURE_NAME=true`)
+- Invoke standardized hook functions (`{feature}_on_{hook_name}`)
+- Aggregate and output any JSON responses
 
 #### handlers/session-start.sh
 
 **Function**: `handler_session_start()`
 
 **Responsibilities**:
-1. Source required feature files
-2. Create session directory
-3. Initialize tracking counter (if enabled)
-4. Launch cleanup in background (if enabled)
-5. Generate resume topic from previous session (if enabled)
+1. Create session directory (framework-level task)
+2. Discover and load all enabled plugins
+3. Invoke `{feature}_on_session_start()` on each plugin
 
-**Pseudo-code**:
+**Implementation**:
 ```bash
 handler_session_start() {
     local session_id="$1"
     local project_dir="$2"
 
-    # Source features
-    source "$SIDEKICK_ROOT/features/tracking.sh"
-    config_is_feature_enabled "cleanup" && source "$SIDEKICK_ROOT/features/cleanup.sh"
-    config_is_feature_enabled "resume" && source "$SIDEKICK_ROOT/features/resume.sh"
-
-    # Initialize session
+    # Create session directory (framework responsibility)
     util_create_session_dir "$session_id"
 
-    # Initialize tracking
-    config_is_feature_enabled "tracking" && tracking_init "$session_id"
+    # Discover and load all enabled plugins
+    plugin_discover_and_load
 
-    # Launch cleanup
-    config_is_feature_enabled "cleanup" && cleanup_launch "$project_dir"
+    # Invoke on_session_start hook on all loaded plugins
+    plugin_invoke_hook "on_session_start" "$session_id" "$project_dir"
 
-    # Generate resume topic
-    config_is_feature_enabled "resume" && resume_snarkify "$session_id" "$project_dir"
+    return 0
 }
 ```
+
+**Adding a New Feature**: Just create `features/my-feature.sh` with `my_feature_on_session_start()` - no handler changes needed!
 
 #### handlers/user-prompt-submit.sh
 
 **Function**: `handler_user_prompt_submit()`
 
 **Responsibilities**:
-1. Increment tracking counter
-2. Check if sleeper should be launched (first call, topic-extraction enabled)
-3. Check if cadence-based analysis is due
-4. Check if static reminder is due
-5. Output hook JSON if additional context needed
+1. Discover and load all enabled plugins
+2. Invoke `{feature}_on_user_prompt_submit()` on each plugin
+3. Output aggregated JSON responses
 
-**Pseudo-code**:
+**Implementation**:
 ```bash
 handler_user_prompt_submit() {
     local session_id="$1"
     local transcript_path="$2"
     local project_dir="$3"
 
-    # Source features
-    source "$SIDEKICK_ROOT/features/tracking.sh"
-    config_is_feature_enabled "topic_extraction" && source "$SIDEKICK_ROOT/features/topic-extraction.sh"
+    # Discover and load all enabled plugins
+    plugin_discover_and_load
 
-    # Increment counter
-    local count=$(tracking_increment "$session_id")
+    # Invoke on_user_prompt_submit hook on all loaded plugins
+    local hook_output
+    hook_output=$(plugin_invoke_hook "on_user_prompt_submit" "$session_id" "$transcript_path" "$project_dir")
 
-    # Launch sleeper on first call
-    if [ "$count" -eq 1 ] && config_is_feature_enabled "topic_extraction"; then
-        topic_extraction_sleeper_start "$session_id" "$transcript_path" "$project_dir"
+    # Output any JSON returned from plugins
+    if [ -n "$hook_output" ]; then
+        echo "$hook_output"
     fi
 
-    # Cadence-based analysis (fallback)
-    if config_is_feature_enabled "topic_extraction"; then
-        topic_extraction_check_cadence "$session_id" "$transcript_path" "$project_dir" "$count"
-    fi
+    return 0
+}
+```
 
-    # Static reminder injection
-    local reminder=$(tracking_check_reminder "$count")
-    if [ -n "$reminder" ]; then
-        json_output_additional_context "$reminder"
+**Adding a New Feature**: Just create `features/my-feature.sh` with `my_feature_on_user_prompt_submit()` - no handler changes needed!
+
+### 3.1 Plugin Discovery and Loading
+
+**Function**: `plugin_discover_and_load()` (in `lib/common.sh`)
+
+**Process**:
+1. Scans `features/` directory for all `.sh` files
+2. For each file: extracts basename as feature name (e.g., `tracking.sh` → `tracking`)
+3. Normalizes feature name for config lookup (replaces hyphens with underscores: `topic-extraction` → `topic_extraction`)
+4. Checks `FEATURE_{NAME}=true` in config cascade
+5. Sources enabled features in alphabetical order
+6. Tracks loaded plugins in `_LOADED_PLUGINS` array
+
+**Feature Name Normalization**:
+- **Filenames** may use hyphens: `topic-extraction.sh`
+- **Config keys** must use underscores: `FEATURE_TOPIC_EXTRACTION=true`
+- **Hook functions** must use underscores: `topic_extraction_on_session_start()`
+- Plugin loader automatically converts hyphens to underscores for lookups
+
+### 3.2 Plugin Hook Invocation
+
+**Function**: `plugin_invoke_hook()` (in `lib/common.sh`)
+
+**Process**:
+1. Accepts hook name (e.g., `"on_session_start"`) and arguments
+2. For each loaded plugin, constructs hook function name: `{feature}_{hook_name}`
+3. Normalizes plugin name (hyphens → underscores) for function lookup
+4. Checks if function exists using `declare -f`
+5. Invokes function with provided arguments
+6. Captures stdout output from all hooks
+7. Aggregates outputs (concatenated with newlines if multiple)
+8. Returns aggregated output to caller
+
+**Hook Function Contract**:
+- Name format: `{feature}_on_{hook_name}()`
+- Arguments: Hook-specific (documented per hook type below)
+- Returns: JSON output to stdout (optional), exit code 0
+- Non-fatal failures: Logged but don't stop other plugins
+
+**Available Hook Types**:
+
+**`on_session_start(session_id, project_dir)`**:
+- Called once per session initialization
+- Used for: counter initialization, background process launch, session state setup
+- Example: `tracking_on_session_start()`, `cleanup_on_session_start()`
+
+**`on_user_prompt_submit(session_id, transcript_path, project_dir)`**:
+- Called on every user prompt submission
+- Used for: counter increments, watchdog processes, reminder checks
+- May output JSON for `additionalContext` injection
+- Example: `tracking_on_user_prompt_submit()`, `topic_extraction_on_user_prompt_submit()`
+
+### 4. Features (Plugins)
+
+**Purpose**: Self-contained, independently-toggleable functionality modules
+
+Features are **plugins** that export standardized hook functions. Handlers automatically discover and invoke them - no manual registration required.
+
+**Plugin File Structure**:
+```bash
+#!/bin/bash
+# Sidekick Feature: MyFeature
+# Description of what this feature does
+
+# Prevent double-sourcing
+[[ -n "${_SIDEKICK_FEATURE_MYFEATURE_LOADED:-}" ]] && return 0
+readonly _SIDEKICK_FEATURE_MYFEATURE_LOADED=1
+
+# ... internal helper functions ...
+
+#------------------------------------------------------------------------------
+# PLUGIN HOOKS (standardized entry points)
+#------------------------------------------------------------------------------
+
+# Hook for SessionStart event
+myfeature_on_session_start() {
+    local session_id="$1"
+    local project_dir="$2"
+
+    # Feature logic here...
+    # No output needed if just side effects
+}
+
+# Hook for UserPromptSubmit event
+myfeature_on_user_prompt_submit() {
+    local session_id="$1"
+    local transcript_path="$2"
+    local project_dir="$3"
+
+    # Feature logic here...
+
+    # Optional: output JSON for additionalContext injection
+    if [ -n "$some_output" ]; then
+        cat <<JSON
+{
+  "hookSpecificOutput": {
+    "hookEventName": "UserPromptSubmit",
+    "additionalContext": "..."
+  }
+}
+JSON
     fi
 }
 ```
 
-### 4. Features
+**Adding a New Feature**:
+1. Create `features/my-feature.sh` with hook functions
+2. Add `FEATURE_MY_FEATURE=true` to `config.defaults`
+3. Done! Handler automatically discovers and invokes it
 
-**Purpose**: Self-contained, toggleable functionality
-
-Features are **function libraries** - they define functions that are called by handlers.
+**Existing Features**:
 
 #### features/topic-extraction.sh
 
