@@ -656,7 +656,115 @@ source "$SIDEKICK_ROOT/config.defaults"
 [ -f "$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.conf" ] && source "$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.conf"
 ```
 
-## Claude Integration
+## LLM Provider System
+
+### Overview
+
+Sidekick uses a pluggable LLM provider architecture to support multiple AI backends for conversation analysis and resume generation. The system abstracts LLM invocation behind a provider interface, allowing drop-in replacement of Claude CLI with OpenAI, Gemini, or custom LLM tools.
+
+### Provider Architecture
+
+**Dispatcher**: `llm_invoke(model, prompt, timeout)` - Main entry point
+- Reads `LLM_PROVIDER` config to select backend
+- Dispatches to provider-specific implementation
+- Validates and extracts JSON from response
+- Returns structured output or errors
+
+**Provider Implementations**:
+- `_llm_invoke_claude_cli()` - Claude Code CLI (default)
+  - Preserves workspace isolation to prevent hook recursion
+  - Uses isolated .claude/settings.json to disable hooks
+- `_llm_invoke_openai_api()` - OpenAI API via curl
+  - Direct HTTP calls to OpenAI endpoint
+  - Requires API key via config or environment variable
+- `_llm_invoke_gemini_cli()` - Google Gemini CLI (placeholder)
+  - Command-line interface for Gemini models
+- `_llm_invoke_custom()` - User-defined command template
+  - Template substitution: {BIN}, {MODEL}, {PROMPT_FILE}, {TIMEOUT}
+  - Maximum flexibility for any LLM tool
+
+### Configuration
+
+**Provider Selection** (config.defaults or sidekick.conf):
+```bash
+# Select active provider
+LLM_PROVIDER=claude-cli  # claude-cli | openai-api | gemini-cli | custom
+
+# Claude CLI provider
+LLM_CLAUDE_BIN=          # Auto-detect: ~/.claude/local/claude or PATH
+LLM_CLAUDE_MODEL=haiku   # haiku, sonnet, opus, haiku-4, etc.
+
+# OpenAI API provider
+LLM_OPENAI_API_KEY=      # API key (or use OPENAI_API_KEY env var)
+LLM_OPENAI_ENDPOINT=https://api.openai.com/v1/chat/completions
+LLM_OPENAI_MODEL=gpt-4-turbo
+
+# Gemini CLI provider
+LLM_GEMINI_BIN=gemini
+LLM_GEMINI_MODEL=gemini-pro
+
+# Custom provider
+LLM_CUSTOM_BIN=/path/to/llm-tool
+LLM_CUSTOM_MODEL=default
+LLM_CUSTOM_COMMAND={BIN} --model {MODEL} < {PROMPT_FILE}
+```
+
+### Backward Compatibility
+
+**Deprecated Functions** (still functional):
+- `claude_invoke()` - Now wraps `llm_invoke()`
+- `claude_extract_json()` - Now wraps `llm_extract_json()`
+- `claude_find_bin()` - Use `llm_find_bin("claude-cli")` instead
+
+**Deprecated Config Keys**:
+- `TOPIC_MODEL` - Use `LLM_CLAUDE_MODEL` (or provider-specific model config)
+- `RESUME_MODEL` - Use `LLM_CLAUDE_MODEL` (or provider-specific model config)
+
+Both deprecated functions and config keys remain functional for backward compatibility but will be removed in a future version.
+
+### Usage Example
+
+**Topic Extraction** (topic-extraction.sh:256):
+```bash
+# Get model from provider config
+local provider=$(config_get "LLM_PROVIDER")
+local model=$(config_get "LLM_CLAUDE_MODEL")  # or LLM_OPENAI_MODEL, etc.
+
+# Invoke LLM
+if ! llm_output=$(llm_invoke "$model" "$prompt" 30); then
+    log_error "LLM invocation failed"
+    return 1
+fi
+```
+
+**Provider Switching**:
+```bash
+# Switch to OpenAI in user config (~/.claude/hooks/sidekick/sidekick.conf)
+LLM_PROVIDER=openai-api
+LLM_OPENAI_API_KEY=sk-...
+LLM_OPENAI_MODEL=gpt-4-turbo
+
+# Or use custom provider
+LLM_PROVIDER=custom
+LLM_CUSTOM_BIN=/usr/local/bin/ollama
+LLM_CUSTOM_MODEL=llama2
+LLM_CUSTOM_COMMAND={BIN} run {MODEL} < {PROMPT_FILE}
+```
+
+### Error Handling
+
+**Fail-Fast Design**: Single provider per invocation, no fallback chains
+- Simpler error paths
+- Clearer debugging
+- Explicit configuration
+
+**Error Reporting**:
+- Binary not found → Exit code 3
+- Invalid provider → Exit code 3
+- LLM invocation failure → Return code 1 (logged)
+- Invalid JSON response → Return code 1 (logged)
+
+## Hook Integration
 
 ### Hooks Registration
 

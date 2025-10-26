@@ -1,7 +1,8 @@
 #!/bin/bash
-# test-claude.sh - Unit tests for Claude invocation functions
+# test-claude.sh - Unit tests for LLM invocation functions
 #
-# Tests the CLAUDE INVOCATION namespace from lib/common.sh
+# Tests the LLM INVOCATION namespace from lib/common.sh
+# Includes backward compatibility tests for claude_* functions
 
 set -euo pipefail
 
@@ -103,7 +104,22 @@ test_claude_find_bin_from_path() {
     [[ "$bin" == */claude ]]
 }
 
-# Test: claude_extract_json extracts from markdown
+# Test: llm_extract_json extracts from markdown
+test_llm_extract_json_from_markdown() {
+    local output='Some text before
+```json
+{"result":"extracted"}
+```
+Some text after'
+
+    local json
+    json=$(llm_extract_json "$output")
+
+    # Should have extracted the JSON
+    echo "$json" | grep -q '"result":"extracted"'
+}
+
+# Test: claude_extract_json extracts from markdown (backward compat)
 test_claude_extract_json_from_markdown() {
     local output='Some text before
 ```json
@@ -239,17 +255,74 @@ EOF
     ! claude_invoke "test-model" "test prompt" 5 2>/dev/null
 }
 
+# Test: llm_find_bin dispatches to correct provider
+test_llm_find_bin_claude() {
+    export CLAUDE_BIN="$MOCK_CLAUDE"
+
+    local bin
+    bin=$(llm_find_bin "claude-cli")
+    [ "$bin" = "$MOCK_CLAUDE" ]
+}
+
+# Test: llm_find_bin finds curl for openai-api
+test_llm_find_bin_openai() {
+    local bin
+    bin=$(llm_find_bin "openai-api" 2>/dev/null)
+    [ "$bin" = "curl" ]
+}
+
+# Test: llm_find_bin fails on unknown provider
+test_llm_find_bin_unknown() {
+    ! llm_find_bin "unknown-provider" 2>/dev/null
+}
+
+# Test: llm_invoke with claude-cli provider
+test_llm_invoke_claude_provider() {
+    export CLAUDE_BIN="$MOCK_CLAUDE"
+    export LLM_PROVIDER="claude-cli"
+
+    local result
+    result=$(llm_invoke "test-model" "test prompt" 5 2>&1)
+
+    # Should return valid JSON
+    json_validate "$result"
+
+    local value
+    value=$(json_get "$result" ".result")
+    [ "$value" = "success" ]
+}
+
+# Test: llm_invoke backward compatibility with claude_invoke
+test_llm_invoke_backward_compat() {
+    export CLAUDE_BIN="$MOCK_CLAUDE"
+    export LLM_PROVIDER="claude-cli"
+
+    # claude_invoke should delegate to llm_invoke
+    local result1
+    result1=$(claude_invoke "test-model" "test prompt" 5 2>&1)
+
+    local result2
+    result2=$(llm_invoke "test-model" "test prompt" 5 2>&1)
+
+    # Both should produce same result
+    [ "$result1" = "$result2" ]
+}
+
 # Main test execution
 main() {
-    echo "Running Claude invocation namespace tests..."
+    echo "Running LLM invocation namespace tests..."
     echo
 
     setup
+
+    # Load config after setup
+    config_load
 
     # Run all tests
     run_test test_claude_find_bin_from_config
     run_test test_claude_find_bin_from_local
     run_test test_claude_find_bin_from_path
+    run_test test_llm_extract_json_from_markdown
     run_test test_claude_extract_json_from_markdown
     run_test test_claude_extract_json_plain
     run_test test_claude_extract_json_embedded
@@ -258,6 +331,11 @@ main() {
     run_test test_claude_invoke_markdown_response
     run_test test_claude_invoke_timeout
     run_test test_claude_invoke_validates_json
+    run_test test_llm_find_bin_claude
+    run_test test_llm_find_bin_openai
+    run_test test_llm_find_bin_unknown
+    run_test test_llm_invoke_claude_provider
+    run_test test_llm_invoke_backward_compat
 
     teardown
 

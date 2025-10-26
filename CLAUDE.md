@@ -48,8 +48,9 @@ The repository is organized into source components and deployment targets:
 See `ARCH.md` for complete design documentation. Key features:
 
 - **Single Entry Point**: All hooks route through `sidekick.sh <command>`
-- **Shared Library**: `lib/common.sh` provides namespaced utilities (LOGGING, CONFIGURATION, PATH RESOLUTION, JSON PROCESSING, PROCESS MANAGEMENT, CLAUDE INVOCATION, WORKSPACE MANAGEMENT)
+- **Shared Library**: `lib/common.sh` provides namespaced utilities (LOGGING, CONFIGURATION, PATH RESOLUTION, JSON PROCESSING, PROCESS MANAGEMENT, LLM INVOCATION, WORKSPACE MANAGEMENT)
 - **Pluggable Features**: Independently toggleable via `sidekick.conf`
+- **Pluggable LLM Providers**: Support for Claude CLI, OpenAI API, Gemini CLI, and custom providers
 - **Configuration Cascade**: Project → User → Defaults (shell .conf format)
 - **Dual-Scope Deployment**: Works identically in project (.claude/) and user (~/.claude/) contexts
 
@@ -81,6 +82,35 @@ Sidekick provides five independently configurable features:
 5. **Cleanup**: Automatic garbage collection of old session directories
 
 Configure via `sidekick.conf` (see `src/sidekick/config.defaults` for all options).
+
+### LLM Provider Configuration
+
+Sidekick uses a pluggable LLM provider system for conversation analysis and resume generation. The default is Claude CLI, but you can configure alternative providers:
+
+**Configuration Options**:
+```bash
+# Provider selection
+LLM_PROVIDER=claude-cli  # claude-cli | openai-api | gemini-cli | custom
+
+# Claude CLI (default)
+LLM_CLAUDE_MODEL=haiku
+
+# OpenAI API
+LLM_OPENAI_API_KEY=sk-...
+LLM_OPENAI_MODEL=gpt-4-turbo
+
+# Custom provider with template
+LLM_CUSTOM_BIN=/path/to/llm
+LLM_CUSTOM_COMMAND={BIN} --model {MODEL} < {PROMPT_FILE}
+```
+
+**Key Implementation Details**:
+- `llm_invoke()` - Main dispatcher in `lib/common.sh` (line 1034)
+- Provider-specific implementations: `_llm_invoke_claude_cli()`, `_llm_invoke_openai_api()`, etc.
+- Backward compatibility: `claude_invoke()` wraps `llm_invoke()` (deprecated)
+- Used in: `features/topic-extraction.sh` (topic analysis and resume generation)
+
+See `ARCH.md` LLM Provider System section for complete documentation.
 
 ### Testing
 

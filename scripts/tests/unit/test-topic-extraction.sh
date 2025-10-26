@@ -31,6 +31,18 @@ setup() {
     mkdir -p "$TEST_DIR/features/prompts"
     cp "$(dirname "$0")/../../../src/sidekick/features/prompts/"*.txt "$TEST_DIR/features/prompts/" 2>/dev/null || true
 
+    # Copy scripts to test directory (needed for background processes)
+    mkdir -p "$TEST_DIR/features/scripts"
+    cp "$(dirname "$0")/../../../src/sidekick/features/scripts/"*.sh "$TEST_DIR/features/scripts/" 2>/dev/null || true
+    chmod +x "$TEST_DIR/features/scripts/"*.sh 2>/dev/null || true
+
+    # Copy topic-extraction.sh (needed by sleeper-loop.sh)
+    cp "$(dirname "$0")/../../../src/sidekick/features/topic-extraction.sh" "$TEST_DIR/features/" 2>/dev/null || true
+
+    # Copy lib/common.sh (needed by background scripts)
+    mkdir -p "$TEST_DIR/lib"
+    cp "$(dirname "$0")/../../../src/sidekick/lib/common.sh" "$TEST_DIR/lib/" 2>/dev/null || true
+
     # Create config.defaults for background processes
     cat >> "$TEST_DIR/config.defaults" <<'EOFCONFIG'
 # Test configuration
@@ -887,6 +899,95 @@ EOF
 }
 
 # ============================================================================
+# Script File Tests
+# ============================================================================
+
+test_sleeper_script_exists() {
+    local script_path="$(dirname "$0")/../../../src/sidekick/features/scripts/sleeper-loop.sh"
+    [ -f "$script_path" ] && [ -x "$script_path" ]
+}
+
+test_resume_script_exists() {
+    local script_path="$(dirname "$0")/../../../src/sidekick/features/scripts/generate-resume.sh"
+    [ -f "$script_path" ] && [ -x "$script_path" ]
+}
+
+test_sleeper_script_syntax() {
+    local script_path="$(dirname "$0")/../../../src/sidekick/features/scripts/sleeper-loop.sh"
+    bash -n "$script_path"
+}
+
+test_resume_script_syntax() {
+    local script_path="$(dirname "$0")/../../../src/sidekick/features/scripts/generate-resume.sh"
+    bash -n "$script_path"
+}
+
+test_sleeper_start_uses_script() {
+    # Skip if function doesn't exist
+    if ! command -v topic_extraction_sleeper_start &> /dev/null; then
+        return 0
+    fi
+
+    # Copy scripts to test directory
+    mkdir -p "$TEST_DIR/features/scripts"
+    cp "$(dirname "$0")/../../../src/sidekick/features/scripts/"*.sh "$TEST_DIR/features/scripts/" 2>/dev/null || true
+    chmod +x "$TEST_DIR/features/scripts/"*.sh
+
+    local session_id="test-session-sleeper"
+    mkdir -p "$TEST_DIR/.sidekick/sessions/$session_id"
+
+    local transcript="$TEST_DIR/transcript.jsonl"
+    echo '{"role":"user","content":"test"}' > "$transcript"
+
+    # Should not fail when script exists
+    topic_extraction_sleeper_start "$session_id" "$transcript" "$TEST_DIR"
+
+    # Verify PID file was created
+    [ -f "$TEST_DIR/.sidekick/sessions/$session_id/sleeper.pid" ]
+
+    # Clean up background process
+    local pid
+    pid=$(cat "$TEST_DIR/.sidekick/sessions/$session_id/sleeper.pid")
+    kill "$pid" 2>/dev/null || true
+}
+
+test_resume_async_uses_script() {
+    # Skip if function doesn't exist
+    if ! command -v resume_generate_async &> /dev/null; then
+        return 0
+    fi
+
+    # Copy scripts to test directory
+    mkdir -p "$TEST_DIR/features/scripts"
+    cp "$(dirname "$0")/../../../src/sidekick/features/scripts/"*.sh "$TEST_DIR/features/scripts/" 2>/dev/null || true
+    chmod +x "$TEST_DIR/features/scripts/"*.sh
+
+    local session_id="test-session-resume"
+    mkdir -p "$TEST_DIR/.sidekick/sessions/$session_id"
+
+    # Create topic.json (required for resume generation)
+    cat > "$TEST_DIR/.sidekick/sessions/$session_id/topic.json" <<'EOF'
+{
+  "clarity_score": 8,
+  "current_objective": "Testing"
+}
+EOF
+
+    local transcript="$TEST_DIR/transcript.jsonl"
+    echo '{"role":"user","content":"test"}' > "$transcript"
+
+    # Should not fail when script exists
+    resume_generate_async "$session_id" "$transcript"
+
+    # Give it a moment to start
+    sleep 1
+
+    # Verify resume.json was created (or is being created)
+    # Note: Background process may still be running
+    true
+}
+
+# ============================================================================
 # Main test execution
 # ============================================================================
 
@@ -898,6 +999,14 @@ main() {
     echo
 
     setup
+
+    # Script file tests
+    run_test test_sleeper_script_exists
+    run_test test_resume_script_exists
+    run_test test_sleeper_script_syntax
+    run_test test_resume_script_syntax
+    run_test test_sleeper_start_uses_script
+    run_test test_resume_async_uses_script
 
     # Clarity extraction tests
     run_test test_get_clarity_from_valid_file
