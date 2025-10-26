@@ -307,8 +307,8 @@ test_static_reminder_cadence() {
     create_test_session "$session_id"
 
     # Create a static reminder file (cadence is 4 per config)
-    mkdir -p "$TEST_DIR/.claude/hooks/sidekick"
-    cat > "$TEST_DIR/.claude/hooks/sidekick/static-reminder.txt" <<'EOF'
+    mkdir -p "$TEST_DIR/.claude/hooks/sidekick/config"
+    cat > "$TEST_DIR/.claude/hooks/sidekick/config/static-reminder.txt" <<'EOF'
 This is a test static reminder.
 Remember to follow TDD principles!
 EOF
@@ -396,7 +396,8 @@ EOF
     create_test_session "$session_id"
 
     # Create static reminder file
-    cat > "$TEST_DIR/.claude/hooks/sidekick/static-reminder.txt" <<'EOF'
+    mkdir -p "$TEST_DIR/.claude/hooks/sidekick/config"
+    cat > "$TEST_DIR/.claude/hooks/sidekick/config/static-reminder.txt" <<'EOF'
 This reminder should NOT appear.
 EOF
 
