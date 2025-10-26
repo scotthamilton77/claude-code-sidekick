@@ -342,9 +342,10 @@ EOF
 test_tracking_disabled() {
     log_test "Feature toggle - tracking disabled"
 
-    # Disable tracking
+    # Disable tracking (and reminder which depends on it)
     cat > "$TEST_DIR/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
 FEATURE_TRACKING=false
+FEATURE_REMINDER=false
 FEATURE_TOPIC_EXTRACTION=false
 LOG_LEVEL=debug
 EOF
@@ -368,6 +369,62 @@ EOF
     # Re-enable for remaining tests
     cat > "$TEST_DIR/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
 FEATURE_TRACKING=true
+FEATURE_REMINDER=true
+FEATURE_TOPIC_EXTRACTION=true
+SLEEPER_ENABLED=true
+LOG_LEVEL=debug
+TOPIC_CADENCE_HIGH=5
+TOPIC_CADENCE_LOW=2
+TRACKING_STATIC_CADENCE=4
+EOF
+}
+
+# Test 6b: Feature toggle - reminder disabled but tracking enabled
+test_reminder_disabled() {
+    log_test "Feature toggle - reminder disabled (tracking still on)"
+
+    # Enable tracking but disable reminder
+    cat > "$TEST_DIR/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
+FEATURE_TRACKING=true
+FEATURE_REMINDER=false
+FEATURE_TOPIC_EXTRACTION=false
+TRACKING_STATIC_CADENCE=2
+LOG_LEVEL=debug
+EOF
+
+    local session_id="test-ups-006b"
+    create_test_session "$session_id"
+
+    # Create static reminder file
+    cat > "$TEST_DIR/.claude/hooks/sidekick/static-reminder.txt" <<'EOF'
+This reminder should NOT appear.
+EOF
+
+    # Invoke 4 times - counter should increment, no reminders should appear
+    for i in {1..4}; do
+        local output=$(invoke_user_prompt_submit "$session_id" 2>&1)
+
+        # Should never output reminder (even at cadence)
+        if echo "$output" | grep -q "additionalContext"; then
+            fail "Reminder output when FEATURE_REMINDER=false on call $i"
+            return 1
+        fi
+    done
+
+    # Verify counter was incremented
+    local counter_file="$TEST_DIR/.sidekick/sessions/$session_id/response_count"
+    local count=$(cat "$counter_file" 2>/dev/null || echo "0")
+    if [ "$count" -eq 4 ]; then
+        pass "Reminder disabled but tracking still works (count=$count)"
+    else
+        fail "Counter not incremented properly with reminder disabled (expected 4, got $count)"
+        return 1
+    fi
+
+    # Re-enable for remaining tests
+    cat > "$TEST_DIR/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
+FEATURE_TRACKING=true
+FEATURE_REMINDER=true
 FEATURE_TOPIC_EXTRACTION=true
 SLEEPER_ENABLED=true
 LOG_LEVEL=debug
@@ -512,6 +569,7 @@ main() {
     test_sleeper_not_relaunched || true
     test_static_reminder_cadence || true
     test_tracking_disabled || true
+    test_reminder_disabled || true
     test_topic_extraction_disabled || true
     test_invalid_json || true
     test_missing_session_id || true
