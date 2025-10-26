@@ -11,6 +11,8 @@ This repository serves as a development and testing environment for [Claude Code
 ## TODOs
 
 ## Sidekick
+- tracking and reminders - make sure we pull static-reminder into a more appropriate location
+   - do we want to have multiple reminders with different cadences?
 - PLAN.MD (executing ARCH.md)
    - standardize parameter names and styles in the scripts (e.g. --project-dir vs. not, internally using output_dir, etc.)
 - tune the topic extracter to follow the last n turns (delta + 10?) - this combined with previous goal snapshot might be cheaper?
@@ -22,6 +24,7 @@ This repository serves as a development and testing environment for [Claude Code
 - allow a "concise" topic mode during setup that chooses concise template files
    - maybe just allow for project-level overrides (template file input parameter and/or user and project level overrides)
 - statusline token counter and context % are way off?  If we can't get close to /context, let's remove the %
+- log rotation and log level to info by default
 - how do subagents work - can we detect their connection to the parent agent, and do we care?  (for statusline, maybe not, but for analytics?)
 
 ## Agents and Skills
