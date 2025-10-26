@@ -11,6 +11,8 @@ This repository serves as a development and testing environment for [Claude Code
 ## TODOs
 
 ## Sidekick
+- debug logging for topic extraction: shortcut / failfast checks and results, e.g. I want to know when it decided not to invoke LLM b/c of inactivity
+- debug logging for llm invocation: time spent, token counts (if present in the response)
 - configure non-claude-native LLM APIs
    - need a project-level override for config settings
    - test each option
