@@ -143,10 +143,86 @@ LLM_CUSTOM_COMMAND={BIN} --model {MODEL} < {PROMPT_FILE}
 
 See `ARCH.md` LLM Provider System section for complete documentation.
 
+### Circuit Breaker with Fallback Provider
+
+Sidekick implements a **circuit breaker pattern** for LLM provider resilience. When the primary provider fails repeatedly, the circuit breaker automatically switches to a fallback provider and implements exponential backoff before retrying the primary.
+
+**State Machine**:
+```
+CLOSED (normal operation - use primary)
+  ↓ [3 consecutive failures]
+OPEN (use fallback, backoff period active)
+  ↓ [backoff expires]
+HALF_OPEN (test primary with next request)
+  ↓ [success] → CLOSED
+  ↓ [failure] → OPEN (2x backoff)
+```
+
+**Configuration**:
+```bash
+# Fallback provider configuration
+LLM_FALLBACK_PROVIDER=claude-cli      # Provider to use when primary fails
+LLM_FALLBACK_MODEL=haiku              # Model for fallback (optional)
+
+# Circuit breaker settings
+CIRCUIT_BREAKER_ENABLED=true          # Enable/disable circuit breaker
+CIRCUIT_BREAKER_FAILURE_THRESHOLD=3   # Failures before opening circuit
+CIRCUIT_BREAKER_BACKOFF_INITIAL=60    # Initial backoff (seconds)
+CIRCUIT_BREAKER_BACKOFF_MAX=3600      # Maximum backoff (1 hour)
+CIRCUIT_BREAKER_BACKOFF_MULTIPLIER=2  # Exponential growth factor
+```
+
+**Behavior**:
+1. **CLOSED**: Normal operation - all requests go to primary provider
+   - On failure: increment counter, try fallback immediately, stay CLOSED
+   - After 3 consecutive failures → transition to OPEN
+2. **OPEN**: Circuit is open - all requests go to fallback provider
+   - Skips primary provider entirely during backoff period
+   - After backoff expires → transition to HALF_OPEN
+3. **HALF_OPEN**: Testing primary provider
+   - Next request tests the primary provider
+   - Success → reset to CLOSED (primary restored)
+   - Failure → back to OPEN with doubled backoff (capped at max)
+
+**State Persistence**:
+- Circuit state stored in `.sidekick/sessions/<session_id>/circuit-breaker.json`
+- State survives across hook invocations within a session
+- Independent circuits per session (different sessions don't affect each other)
+
+**Example Use Case**:
+```bash
+# Primary: OpenRouter (cheap but sometimes flaky)
+LLM_PROVIDER=openrouter
+LLM_OPENROUTER_MODEL=google/gemma-3n-e4b-it
+
+# Fallback: Claude CLI (reliable but more expensive)
+LLM_FALLBACK_PROVIDER=claude-cli
+LLM_FALLBACK_MODEL=haiku
+
+# Conservative thresholds
+CIRCUIT_BREAKER_FAILURE_THRESHOLD=3
+CIRCUIT_BREAKER_BACKOFF_INITIAL=300   # 5 minutes
+```
+
+**Testing**:
+```bash
+# Unit tests (state machine logic)
+./scripts/tests/unit/test-circuit-breaker.sh
+
+# Demo (visual walkthrough of state transitions)
+./scripts/tests/demo-circuit-breaker.sh
+```
+
+**Key Benefits**:
+- **Automatic failover**: No manual intervention when primary provider fails
+- **Self-healing**: Circuit automatically closes when primary recovers
+- **Cost optimization**: Use cheap primary, reliable fallback
+- **Exponential backoff**: Prevents hammering a failing provider
+
 ### Testing
 
 **Test Architecture:**
-- **Unit tests** (8 suites, 64 tests): Use mock LLM binaries - **zero API costs**
+- **Unit tests** (10 suites, 77 tests): Use mock LLM binaries - **zero API costs**
 - **Integration tests** (7 suites): Use mocked data - **zero API costs by default**
 - **LLM provider tests**: Real API calls - **excluded from default test runs** (run explicitly to avoid costs)
 

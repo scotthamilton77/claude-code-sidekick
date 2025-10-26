@@ -11,8 +11,6 @@ This repository serves as a development and testing environment for [Claude Code
 ## TODOs
 
 ## Sidekick
-- configure non-claude-native LLM APIs
-   - implement fallback
 - remove .claudeignore if not useful
 - tracking and reminders
    - make sure we log when it happens
