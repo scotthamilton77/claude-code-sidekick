@@ -11,6 +11,10 @@ This repository serves as a development and testing environment for [Claude Code
 ## TODOs
 
 ## Sidekick
+- llm quality and speed benchmark testing needed
+- llm.sh DRY
+- json schema vs. prompt overlap
+- json schema for resume message generator
 - We need some quality memories on the models, e.g. our current gemma is failing miserably to return the right json; we could try a more advanced gemma model, or else we'll need to upgrade
 - remove .claudeignore if not useful
 - tracking and reminders
