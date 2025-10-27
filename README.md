@@ -12,8 +12,16 @@ This repository serves as a development and testing environment for [Claude Code
 
 ## Sidekick
 - llm quality and speed benchmark testing needed
-- llm.sh DRY
-- json schema vs. prompt overlap
+- DRY issues
+   - llm.sh DRY
+   - topic-extraction and generate-resume have lots of overlap - DRY!
+   - json schema vs. prompt overlap
+   1. Shared transcript extraction (lines 26-59 in topic-extraction.sh, lines 49-76 in generate-resume.sh)
+      - Move to lib/transcript.sh as transcript_extract_excerpt()
+   2. Shared model config (lines 207-234 in topic-extraction.sh, lines 90-116 in generate-resume.sh)
+      - Already centralized in lib/llm.sh, just ensure both use it consistently
+   3. Shared preprocessing (jq filters for stripping attributes)
+      - Could be a constant in lib/json.sh
 - json schema for resume message generator
 - We need some quality memories on the models, e.g. our current gemma is failing miserably to return the right json; we could try a more advanced gemma model, or else we'll need to upgrade
 - remove .claudeignore if not useful
