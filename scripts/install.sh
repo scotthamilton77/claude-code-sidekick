@@ -150,65 +150,58 @@ copy_files() {
 
     log_step "Copying files to $dest_dir..."
 
-    # Create directory structure
+    # Preserve existing sidekick.conf if it exists (user scope only)
+    local existing_config=""
+    if [ "$scope" = "user" ] && [ -f "$dest_dir/sidekick.conf" ]; then
+        existing_config=$(mktemp)
+        cp "$dest_dir/sidekick.conf" "$existing_config"
+        log_debug "Preserved existing sidekick.conf"
+    fi
+
+    # Remove old installation to ensure clean copy
+    if [ -d "$dest_dir" ]; then
+        rm -rf "$dest_dir"
+    fi
+
+    # Create destination directory
     mkdir -p "$dest_dir"
-    mkdir -p "$dest_dir/lib"
-    mkdir -p "$dest_dir/handlers"
-    mkdir -p "$dest_dir/features"
-    mkdir -p "$dest_dir/features/prompts"
-    mkdir -p "$dest_dir/config"
 
-    # Copy main entry point
-    cp "$SRC_DIR/sidekick.sh" "$dest_dir/"
-    chmod +x "$dest_dir/sidekick.sh"
+    # Copy entire source tree recursively
+    cp -r "$SRC_DIR"/* "$dest_dir/"
 
-    # Copy library (all namespace files)
-    cp "$SRC_DIR/lib"/*.sh "$dest_dir/lib/"
+    # Set executable permissions on all shell scripts
+    find "$dest_dir" -type f -name "*.sh" -exec chmod +x {} \;
 
-    # Copy handlers
-    cp "$SRC_DIR/handlers"/*.sh "$dest_dir/handlers/"
-
-    # Copy features (all or selected)
+    # Handle feature selection if specified
     if [ -n "$SELECTED_FEATURES" ]; then
-        # Copy selected features
+        # Remove all features except selected ones
         IFS=',' read -ra FEATURES <<< "$SELECTED_FEATURES"
-        for feature in "${FEATURES[@]}"; do
-            if [ -f "$SRC_DIR/features/${feature}.sh" ]; then
-                cp "$SRC_DIR/features/${feature}.sh" "$dest_dir/features/"
-            else
-                log_warn "Feature not found: ${feature}.sh"
+        for feature_file in "$dest_dir/features"/*.sh; do
+            feature_name=$(basename "$feature_file" .sh)
+            # Check if this feature is in the selected list
+            found=false
+            for selected in "${FEATURES[@]}"; do
+                if [ "$feature_name" = "$selected" ]; then
+                    found=true
+                    break
+                fi
+            done
+            # Remove if not selected
+            if [ "$found" = "false" ]; then
+                rm -f "$feature_file"
+                log_debug "Removed unselected feature: $feature_name"
             fi
         done
-    else
-        # Copy all features
-        cp "$SRC_DIR/features"/*.sh "$dest_dir/features/"
     fi
 
-    # Copy prompts
-    cp "$SRC_DIR/features/prompts"/*.txt "$dest_dir/features/prompts/"
-
-    # Copy scripts (for sleeper-loop, etc.)
-    if [ -d "$SRC_DIR/features/scripts" ]; then
-        mkdir -p "$dest_dir/features/scripts"
-        cp "$SRC_DIR/features/scripts"/*.sh "$dest_dir/features/scripts/"
-        chmod +x "$dest_dir/features/scripts"/*.sh
-    fi
-
-    # Copy config defaults
-    cp "$SRC_DIR/config.defaults" "$dest_dir/"
-
-    # Copy static reminder if it exists
-    if [ -f "$SRC_DIR/config/static-reminder.txt" ]; then
-        cp "$SRC_DIR/config/static-reminder.txt" "$dest_dir/config/"
-    fi
-
-    # Create sidekick.conf only for user scope (project uses .sidekick/sidekick.conf)
+    # Restore or create sidekick.conf (user scope only)
     if [ "$scope" = "user" ]; then
-        if [ ! -f "$dest_dir/sidekick.conf" ]; then
-            cp "$SRC_DIR/config.defaults" "$dest_dir/sidekick.conf"
-            log_info "Created sidekick.conf from defaults"
+        if [ -n "$existing_config" ] && [ -f "$existing_config" ]; then
+            mv "$existing_config" "$dest_dir/sidekick.conf"
+            log_info "Preserved existing sidekick.conf"
         else
-            log_info "Preserving existing sidekick.conf"
+            cp "$dest_dir/config.defaults" "$dest_dir/sidekick.conf"
+            log_info "Created sidekick.conf from defaults"
         fi
     fi
 
