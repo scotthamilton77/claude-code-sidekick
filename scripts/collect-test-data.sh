@@ -7,15 +7,20 @@
 # each transcript. Generates metadata.json with test case classifications.
 #
 # Usage:
-#   ./scripts/collect-test-data.sh [--reset]
+#   ./scripts/collect-test-data.sh [--reset] [--test-data]
 #
 # Options:
-#   --reset  Clear existing test data and start fresh
+#   --reset      Clear existing test data and start fresh
+#   --test-data  Use pre-collected test data from test-data/ directories
+#                (auto-includes all transcripts without prompting)
 ###############################################################################
 
 set -euo pipefail
 
-# Directories
+# Mode flags
+TEST_DATA_MODE=false
+
+# Directories (will be overridden in test-data mode)
 PROJECTS_DIR="${HOME}/.claude/projects"
 SIDEKICK_SESSIONS_DIR=".sidekick/sessions"
 OUTPUT_DIR="test-data/transcripts"
@@ -188,29 +193,43 @@ add_transcript() {
     # Generate unique test ID
     local test_id
     case "$length_category" in
-        short) test_id=$(generate_test_id "short" $((++count_short))) ;;
-        medium) test_id=$(generate_test_id "medium" $((++count_medium))) ;;
-        long) test_id=$(generate_test_id "long" $((++count_long))) ;;
+        short)
+            count_short=$((count_short + 1))
+            test_id=$(generate_test_id "short" "$count_short")
+            ;;
+        medium)
+            count_medium=$((count_medium + 1))
+            test_id=$(generate_test_id "medium" "$count_medium")
+            ;;
+        long)
+            count_long=$((count_long + 1))
+            test_id=$(generate_test_id "long" "$count_long")
+            ;;
     esac
 
     # Copy transcript to output directory
     local dest_file="${test_id}.jsonl"
     cp "$transcript_file" "${OUTPUT_DIR}/${dest_file}"
 
-    # Create metadata entry
+    # Create metadata entry using jq for proper JSON escaping
     local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-    local entry=$(cat <<JSON
-    {
-      "id": "${test_id}",
-      "file": "${dest_file}",
-      "source_session": "${session_id}",
-      "length_category": "${length_category}",
-      "line_count": ${line_count},
-      "description": "${description}",
-      "collected_at": "${timestamp}"
-    }
-JSON
-    )
+    local entry=$(jq -n \
+        --arg id "$test_id" \
+        --arg file "$dest_file" \
+        --arg session "$session_id" \
+        --arg category "$length_category" \
+        --argjson lines "$line_count" \
+        --arg desc "$description" \
+        --arg ts "$timestamp" \
+        '{
+            id: $id,
+            file: $file,
+            source_session: $session,
+            length_category: $category,
+            line_count: $lines,
+            description: $desc,
+            collected_at: $ts
+        }')
 
     metadata_entries+=("$entry")
     count_total=$((count_total + 1))
@@ -222,31 +241,35 @@ JSON
 write_metadata() {
     print_info "Generating metadata.json..."
 
-    # Join entries with commas
-    local entries_json=""
-    for i in "${!metadata_entries[@]}"; do
-        if [[ $i -gt 0 ]]; then
-            entries_json+=","
-        fi
-        entries_json+="${metadata_entries[$i]}"
+    # Write all entries to a temp file (one JSON object per line)
+    local temp_entries=$(mktemp)
+    for entry in "${metadata_entries[@]}"; do
+        echo "$entry" >> "$temp_entries"
     done
 
-    # Write complete JSON
-    cat > "$METADATA_FILE" <<JSON
-{
-  "dataset_version": "1.0",
-  "generated_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
-  "test_count": ${count_total},
-  "distribution": {
-    "short": ${count_short},
-    "medium": ${count_medium},
-    "long": ${count_long}
-  },
-  "transcripts": [
-${entries_json}
-  ]
-}
-JSON
+    # Use jq slurp to read all entries and build the final JSON
+    jq -n \
+        --arg version "1.0" \
+        --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+        --argjson count "$count_total" \
+        --argjson short "$count_short" \
+        --argjson medium "$count_medium" \
+        --argjson long "$count_long" \
+        --slurpfile transcripts "$temp_entries" \
+        '{
+            dataset_version: $version,
+            generated_at: $timestamp,
+            test_count: $count,
+            distribution: {
+                short: $short,
+                medium: $medium,
+                long: $long
+            },
+            transcripts: $transcripts
+        }' > "$METADATA_FILE"
+
+    # Clean up temp file
+    rm -f "$temp_entries"
 
     print_success "Metadata written to ${METADATA_FILE}"
 }
@@ -291,10 +314,36 @@ show_summary() {
 ###############################################################################
 
 main() {
-    print_header "LLM Benchmark Test Data Collection"
+    # Parse command-line arguments
+    local reset_mode=false
+    for arg in "$@"; do
+        case "$arg" in
+            --reset)
+                reset_mode=true
+                ;;
+            --test-data)
+                TEST_DATA_MODE=true
+                ;;
+            *)
+                echo "ERROR: Unknown option: $arg"
+                echo "Usage: $0 [--reset] [--test-data]"
+                exit 1
+                ;;
+        esac
+    done
+
+    # Override directories in test-data mode
+    if [[ "$TEST_DATA_MODE" == true ]]; then
+        PROJECTS_DIR="test-data/projects"
+        SIDEKICK_SESSIONS_DIR="test-data/sessions"
+        print_header "LLM Benchmark Test Data Collection (TEST-DATA MODE)"
+        print_info "Using pre-collected data from test-data/ directories"
+    else
+        print_header "LLM Benchmark Test Data Collection"
+    fi
 
     # Check for --reset flag
-    if [[ "${1:-}" == "--reset" ]]; then
+    if [[ "$reset_mode" == true ]]; then
         print_warning "Resetting test data directory..."
         rm -f "${OUTPUT_DIR}"/*.jsonl "$METADATA_FILE"
         print_success "Existing test data cleared"
@@ -361,30 +410,43 @@ main() {
                 print_stat "Goal" "${goal:0:60}$([ ${#goal} -gt 60 ] && echo '...')"
             fi
 
-            # Show conversation preview
-            echo ""
-            echo "  Conversation preview:"
-            local preview=$(extract_conversation_preview "$transcript")
-            if [[ -n "$preview" ]]; then
-                echo "$preview"
+            # Show conversation preview (unless in test-data mode)
+            if [[ "$TEST_DATA_MODE" != true ]]; then
+                echo ""
+                echo "  Conversation preview:"
+                local preview=$(extract_conversation_preview "$transcript")
+                if [[ -n "$preview" ]]; then
+                    echo "$preview"
+                else
+                    echo "      (no preview available)"
+                fi
+            fi
+
+            # In test-data mode, auto-include all transcripts
+            # In interactive mode, prompt user
+            local should_include=false
+            if [[ "$TEST_DATA_MODE" == true ]]; then
+                should_include=true
             else
-                echo "      (no preview available)"
+                # Prompt user
+                echo ""
+                read -p "Include this transcript? [y/N/q] " -n 1 -r
+                echo
+
+                if [[ $REPLY =~ ^[Qq]$ ]]; then
+                    print_info "Quitting collection..."
+                    break 2
+                fi
+
+                if [[ $REPLY =~ ^[Yy]$ ]]; then
+                    should_include=true
+                fi
             fi
 
-            # Prompt user
-            echo ""
-            read -p "Include this transcript? [y/N/q] " -n 1 -r
-            echo
-
-            if [[ $REPLY =~ ^[Qq]$ ]]; then
-                print_info "Quitting collection..."
-                break 2
-            fi
-
-            if [[ $REPLY =~ ^[Yy]$ ]]; then
-                # Optionally prompt for custom description
+            if [[ "$should_include" == true ]]; then
+                # Use goal as description, or prompt in interactive mode
                 local description="$goal"
-                if [[ -z "$description" ]]; then
+                if [[ "$TEST_DATA_MODE" != true && -z "$description" ]]; then
                     read -p "Enter brief description (or press Enter to skip): " description
                 fi
 
