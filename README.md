@@ -12,6 +12,7 @@ This repository serves as a development and testing environment for [Claude Code
 
 ## Sidekick
 - llm quality and speed benchmark testing needed
+   - try with and without system prompt separate from user prompt
 - DRY issues
    - llm.sh DRY
    - topic-extraction and generate-resume have lots of overlap - DRY!
