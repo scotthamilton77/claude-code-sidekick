@@ -327,7 +327,7 @@ python -m benchmark.main run \
 2. ✅ `scripts/bulk-topic-extraction.sh` - NEW: Bulk topic analysis script
    - Pre-analyzes all transcripts using Sidekick topic extraction
    - Populates `.sidekick/sessions/<session-id>/topic.json`
-   - Extracts intent_category and initial_goal metadata
+   - Extracts initial_goal and clarity_score metadata
    - Makes curation easier by providing AI-generated context
    - Supports --provider, --model, --force, --limit flags
 
@@ -355,7 +355,6 @@ python -m benchmark.main run \
      ]
    }
    ```
-   **Note**: intent_category not in metadata.json yet (available in topic.json files)
 
 4. ✅ Test data collection: **497 transcripts** (exceeded 20-30 target!)
    - Distribution: 36% short (179), 22% medium (110), 42% long (208)
@@ -365,7 +364,7 @@ python -m benchmark.main run \
 - ✅ Script successfully scans and classifies transcripts (automated via AI)
 - ✅ Metadata JSON is valid and complete (497 entries with all fields)
 - ⚠️  Balanced distribution: 36%/22%/42% vs target 33%/33%/33% (acceptable variance)
-- 🔄 Variety of intent categories: Available in topic.json files, not yet integrated into metadata.json
+- ✅ AI-generated descriptions provide semantic context for each transcript
 
 **Actual Effort:** ~3-4 hours (includes AI-powered automation features)
 

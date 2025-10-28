@@ -34,10 +34,33 @@ The repository is organized into source components and deployment targets:
 - **`.claude/hooks/sidekick/`**: Installed Sidekick system (after running `scripts/install.sh`)
 - **`~/.claude/hooks/sidekick/`**: User-global Sidekick installation
 
+### Test Data & Benchmarking (`test-data/`)
+
+- **`test-data/transcripts/`**: Curated transcript collection for LLM benchmarking (497 transcripts)
+  - **`metadata.json`**: Master index with 497 transcripts classified by length (short/medium/long)
+  - **`golden-set.json`**: 15 hand-picked transcripts (5 short, 5 medium, 5 long) for reference generation
+  - **`*.jsonl`**: Actual transcript files copied from original sessions
+  - **Distribution**: 36% short (179), 22% medium (110), 42% long (208)
+  - **Task ID Coverage**: Golden set includes 6 transcripts with task IDs (T###) for testing extraction
+
+- **`test-data/projects/`**: Original source transcripts from `~/.claude/projects/*/transcript.jsonl`
+  - Organized by project directory structure
+  - Source of truth before processing into test-data/transcripts/
+
+- **`test-data/sessions/`**: Sidekick analysis results (`.sidekick/sessions/*/topic.json`)
+  - Contains LLM-generated topic extractions for transcripts
+  - Used by collect-test-data.sh to enrich metadata
+
+- **`test-data/references/`**: High-quality reference outputs for benchmarking (generated in Phase 2)
+  - Golden set analyzed by 3 premium models (Grok-4, Gemini 2.5 Pro, GPT-5)
+  - Consensus outputs used as ground truth for scoring
+
 ### Other Components
 
 - **`backlog/commands-to-explore/`**: Experimental command templates under development
 - **`scripts/`**: Installation, testing, and sync infrastructure
+  - **`collect-test-data.sh`**: AI-powered transcript collection and classification
+  - **`bulk-topic-extraction.sh`**: Batch topic analysis for all transcripts
 
 ## Sidekick Hook System
 
