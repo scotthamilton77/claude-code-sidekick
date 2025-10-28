@@ -168,30 +168,36 @@ PRODUCTION_READY_CRITERIA = {
 
 ### Component Responsibilities
 
-| Component | Responsibility | Language | Key Libraries |
-|-----------|---------------|----------|---------------|
-| **Test Data Collection** | Curate diverse transcript samples with metadata | Bash | jq, find |
-| **Reference Generation** | Generate consensus outputs from high-quality models | Python | asyncio, aiohttp |
-| **Benchmark Runner** | Execute models, measure latency, capture outputs | Python | asyncio, subprocess |
-| **Scoring Engine** | Validate and score outputs vs. references | Python | jsonschema, sentence-transformers |
-| **Report Generator** | Create multi-format reports with visualizations | Python | jinja2, pandas, matplotlib |
+| Component | Responsibility | Language | Key Tools |
+|-----------|---------------|----------|-----------|
+| **Test Data Collection** | Curate diverse transcript samples with metadata | Bash | jq, find, LLM (for descriptions) |
+| **Reference Generation** | Generate consensus outputs from high-quality models | Bash | lib/llm.sh, jq, parallel jobs |
+| **Benchmark Runner** | Execute models, measure latency, capture outputs | Bash | lib/llm.sh, time, background jobs |
+| **Scoring Engine** | Validate and score outputs vs. references | Bash | jq, bc, LLM-as-judge (similarity) |
+| **Report Generator** | Create multi-format reports with visualizations | Bash | heredocs, jq, HTML/Markdown templates |
 
 ---
 
 ## Technical Approach
 
-### Language Choice: Python
+### Language Choice: Bash (with Minimal Dependencies)
 
 **Rationale:**
 
-1. **Async/Await**: Native support for concurrent model testing via `asyncio`
-2. **Rich Ecosystem**: Libraries for JSON schema validation, semantic similarity, report generation
-3. **Data Processing**: Pandas for tabular data, NumPy for statistics
-4. **Integration**: Easy subprocess calls to existing bash LLM infrastructure
-5. **Developer Experience**: Readable, maintainable code with type hints
+1. **Leverage Existing Infrastructure**: Reuses `lib/llm.sh` provider abstraction directly
+2. **Parallel Execution**: Bash background jobs + wait provides sufficient concurrency
+3. **JSON Processing**: `jq` handles all JSON manipulation, validation, and aggregation
+4. **Simplicity**: No additional language/runtime dependencies beyond what we already have
+5. **Maintainability**: Consistent with existing Sidekick codebase architecture
 
-**Alternative Considered:** Pure bash with parallel job control
-- **Rejected**: Complex async logic, limited data processing capabilities, poor library support
+**Semantic Similarity Approach:** LLM-as-Judge
+- Use `deepseek/deepseek-r1-distill-qwen-14b` as fixed judge model
+- Reuses existing LLM infrastructure (no new dependencies)
+- Cost: ~$5-10 for full benchmark run
+- Avoids circular logic (judge model is not one being benchmarked)
+
+**Alternative Considered:** Python with sentence-transformers
+- **Rejected**: Requires Python + PyTorch (~2GB install), adds complexity, embeddings approach overkill for our needs
 
 ### Integration with Existing System
 
@@ -381,52 +387,55 @@ python -m benchmark.main run \
 **Objective:** Generate high-quality reference outputs for comparison
 
 **Deliverables:**
-1. `benchmark/config.py` - Model definitions and pricing
-   ```python
-   REFERENCE_MODELS = [
-       {"provider": "openrouter", "model": "x-ai/grok-4",
-        "pricing": {"input": 3.00, "output": 15.00}},
-       {"provider": "openrouter", "model": "google/gemini-2.5-pro",
-        "pricing": {"input": 1.25, "output": 10.00}},
-       {"provider": "openrouter", "model": "openai/gpt-5-chat",
-        "pricing": {"input": 1.25, "output": 10.00}}
-   ]
+1. `scripts/benchmark/config.sh` - Model definitions and configuration
+   ```bash
+   # Reference models for generating ground truth
+   REFERENCE_MODELS=(
+       "openrouter:x-ai/grok-4"
+       "openrouter:google/gemini-2.5-pro"
+       "openrouter:openai/gpt-5-chat"
+   )
+
+   # Judge model for semantic similarity
+   JUDGE_MODEL="openrouter:deepseek/deepseek-r1-distill-qwen-14b"
+
+   # Paths
+   GOLDEN_SET_FILE="test-data/transcripts/golden-set.json"
+   REFERENCES_DIR="test-data/references"
    ```
 
-2. `benchmark/models.py` - Model abstraction layer
-   - `Model` dataclass: provider, name, pricing, timeout
-   - `invoke_model()` - Call bash LLM infrastructure
-   - Error handling & retry logic
+2. `scripts/benchmark/lib/similarity.sh` - LLM-as-judge semantic similarity
+   - `semantic_similarity()` - Invokes judge model to rate similarity (0.0-1.0)
+   - Reuses existing `lib/llm.sh` infrastructure
+   - Error handling & validation
 
-3. `benchmark/reference.py` - Reference generation logic
-   - Load test transcripts
-   - Invoke reference models (async, parallel)
-   - Compute consensus:
-     - **String fields**: Pick most common value
-     - **Numeric fields**: Average or median
-     - **Boolean fields**: Majority vote
-     - **Arrays**: Union or intersection based on field
-   - Store in `test-data/references/{test_id}/`
+3. `scripts/benchmark/lib/consensus.sh` - Consensus algorithms
+   - `consensus_string_field()` - Find most central text using semantic similarity
+   - `consensus_numeric_field()` - Compute median of 3 values
+   - `consensus_boolean_field()` - Majority vote
+   - `consensus_array_field()` - Include if 2+ models agree
 
-4. `benchmark/main.py` - CLI entry point
+4. `scripts/benchmark/generate-reference.sh` - Main orchestrator
    ```bash
-   python -m benchmark.main generate-reference
+   ./scripts/benchmark/generate-reference.sh
    ```
 
 **Consensus Algorithm:**
-```python
+```bash
 # Example for clarity_score (numeric)
-scores = [ref1.clarity_score, ref2.clarity_score, ref3.clarity_score]
-consensus.clarity_score = round(mean(scores))
+consensus_clarity=$(echo "$score1 $score2 $score3" | \
+    jq -s 'sort | .[1]')  # median
 
 # Example for task_ids (array)
-all_ids = set(ref1.task_ids + ref2.task_ids + ref3.task_ids)
-# Include ID if 2+ models agree
-consensus.task_ids = [id for id in all_ids if count(id) >= 2]
+# Include ID if appears in 2+ model outputs
+consensus_ids=$(jq -n --argjson arr1 "$ids1" \
+    --argjson arr2 "$ids2" --argjson arr3 "$ids3" \
+    '[$arr1[], $arr2[], $arr3[]] | group_by(.) |
+     map(select(length >= 2) | .[0])')
 
 # Example for initial_goal (string with semantic similarity)
-# Use sentence-transformers to compute pairwise similarity
-# Select most central text (highest avg similarity to others)
+# Compute pairwise similarity, select most central
+# (highest average similarity to the other two)
 ```
 
 **Success Criteria:**
@@ -444,138 +453,157 @@ consensus.task_ids = [id for id in all_ids if count(id) >= 2]
 **Objective:** Execute models and compute basic scores
 
 **Deliverables:**
-1. `benchmark/runner.py` - Async benchmark execution
+1. `scripts/benchmark/run-benchmark.sh` - Benchmark execution orchestrator
    - Load test transcripts and model definitions
    - For each model × transcript combination:
-     - Run 5 iterations (measure latency)
+     - Run 5 iterations in background (measure latency with `time`)
      - Capture stdout, stderr, exit code
      - Track timeouts and failures
    - Early termination: Skip model if first 3 test cases fail JSON parsing or timeout
    - Store raw outputs in `results/{timestamp}/raw/{model}/{test_id}/`
-   - Generate summary stats: min/avg/max/p95/stddev latency per model
+   - Generate summary stats: min/avg/max/p95/stddev latency per model using `jq`
 
    **Early Termination Rules:**
-   ```python
-   EARLY_TERMINATION_RULES = {
-       "json_parse_failures": 3,  # Skip after 3 consecutive parse failures
-       "timeout_threshold": 3,    # Skip after 3 consecutive timeouts
-   }
+   ```bash
+   EARLY_TERMINATION_RULES=(
+       json_parse_failures=3  # Skip after 3 consecutive parse failures
+       timeout_threshold=3    # Skip after 3 consecutive timeouts
+   )
    # Saves time and API costs on obviously unsuitable models
    ```
 
-2. `benchmark/scoring.py` - Scoring implementation
+2. `scripts/benchmark/lib/scoring.sh` - Scoring implementation
 
    **A. Schema Compliance Score (0-100 points):**
-   ```python
-   def score_schema_compliance(output: str) -> dict:
-       score = 0
+   ```bash
+   score_schema_compliance() {
+       local output="$1"
+       local score=0
 
        # Valid JSON structure (30 pts)
-       try:
-           data = json.loads(output)
-           score += 30
-       except:
-           return {"score": 0, "errors": ["Invalid JSON"]}
+       if ! echo "$output" | jq empty 2>/dev/null; then
+           echo '{"score": 0, "errors": ["Invalid JSON"]}'
+           return
+       fi
+       score=$((score + 30))
 
        # Required fields present (30 pts)
-       required = ["session_id", "timestamp", "task_ids",
-                   "initial_goal", "current_objective", ...]
-       present = sum(1 for f in required if f in data)
-       score += (present / len(required)) * 30
+       local required_fields="session_id timestamp task_ids initial_goal current_objective"
+       local present=$(echo "$output" | jq -r \
+           "[$required_fields] | map(select(. != null)) | length")
+       local required_count=$(echo "$required_fields" | wc -w)
+       score=$((score + (present * 30 / required_count)))
 
-       # Correct field types (20 pts)
-       type_checks = [
-           ("clarity_score", int, lambda v: 1 <= v <= 10),
-           ("confidence", float, lambda v: 0.0 <= v <= 1.0),
-           ...
-       ]
-       correct = sum(1 for f, t, v in type_checks
-                     if isinstance(data.get(f), t) and v(data[f]))
-       score += (correct / len(type_checks)) * 20
+       # Correct field types & ranges (40 pts)
+       # Check clarity_score is int 1-10
+       local clarity=$(echo "$output" | jq '.clarity_score')
+       if [[ "$clarity" =~ ^[0-9]+$ ]] && ((clarity >= 1 && clarity <= 10)); then
+           score=$((score + 10))
+       fi
+       # ... similar checks for other fields
 
-       # Value range validation (20 pts)
-       # (covered in type_checks above)
-
-       return {"score": score, "details": {...}}
+       echo "{\"score\": $score}"
+   }
    ```
 
    **B. Technical Accuracy Score (0-100 points):**
-   ```python
-   def score_technical_accuracy(output: dict, reference: dict) -> dict:
-       score = 0
+   ```bash
+   score_technical_accuracy() {
+       local output="$1"
+       local reference="$2"
+       local score=0
 
        # task_ids exact match (15 pts)
-       if set(output.get("task_ids", [])) == set(reference["task_ids"]):
-           score += 15
+       local output_ids=$(echo "$output" | jq -c '.task_ids | sort')
+       local ref_ids=$(echo "$reference" | jq -c '.task_ids | sort')
+       if [[ "$output_ids" == "$ref_ids" ]]; then
+           score=$((score + 15))
+       fi
 
        # initial_goal semantic similarity (20 pts)
-       sim = semantic_similarity(output["initial_goal"],
-                                  reference["initial_goal"])
-       score += sim * 20
+       local goal_out=$(echo "$output" | jq -r '.initial_goal')
+       local goal_ref=$(echo "$reference" | jq -r '.initial_goal')
+       local similarity=$(semantic_similarity "$goal_out" "$goal_ref")
+       score=$((score + $(echo "$similarity * 20" | bc -l | cut -d. -f1)))
 
        # current_objective semantic similarity (20 pts)
-       sim = semantic_similarity(output["current_objective"],
-                                  reference["current_objective"])
-       score += sim * 20
+       local obj_out=$(echo "$output" | jq -r '.current_objective')
+       local obj_ref=$(echo "$reference" | jq -r '.current_objective')
+       similarity=$(semantic_similarity "$obj_out" "$obj_ref")
+       score=$((score + $(echo "$similarity * 20" | bc -l | cut -d. -f1)))
 
        # intent_category exact match (15 pts)
-       if output["intent_category"] == reference["intent_category"]:
-           score += 15
+       if [[ "$(echo "$output" | jq -r '.intent_category')" == \
+             "$(echo "$reference" | jq -r '.intent_category')" ]]; then
+           score=$((score + 15))
+       fi
 
        # clarity_score within ±1 (15 pts)
-       if abs(output["clarity_score"] - reference["clarity_score"]) <= 1:
-           score += 15
+       local clarity_out=$(echo "$output" | jq '.clarity_score')
+       local clarity_ref=$(echo "$reference" | jq '.clarity_score')
+       if (($(echo "$clarity_out - $clarity_ref" | bc -l | awk '{print ($1<0)?-$1:$1}') <= 1)); then
+           score=$((score + 15))
+       fi
 
        # significant_change match (15 pts)
-       if output["significant_change"] == reference["significant_change"]:
-           score += 15
+       if [[ "$(echo "$output" | jq '.significant_change')" == \
+             "$(echo "$reference" | jq '.significant_change')" ]]; then
+           score=$((score + 15))
+       fi
 
-       return {"score": score, "details": {...}}
+       echo "{\"score\": $score}"
+   }
    ```
 
    **C. Content Quality Score (0-100 points):**
-   ```python
-   def score_content_quality(output: dict, reference: dict,
-                             transcript: str) -> dict:
-       score = 0
+   ```bash
+   score_content_quality() {
+       local output="$1"
+       local reference="$2"
+       local transcript="$3"
+       local score=0
 
        # Determine which snarky comment field to evaluate
-       clarity = output.get("clarity_score", 5)
-       comment_field = ("high_clarity_snarky_comment" if clarity >= 7
-                       else "low_clarity_snarky_comment")
-       comment = output.get(comment_field, "")
+       local clarity=$(echo "$output" | jq '.clarity_score')
+       local comment_field="low_clarity_snarky_comment"
+       if ((clarity >= 7)); then
+           comment_field="high_clarity_snarky_comment"
+       fi
+       local comment=$(echo "$output" | jq -r ".$comment_field // \"\"")
 
        # Snarky comment present (20 pts)
-       if comment and len(comment) > 0:
-           score += 20
+       if [[ -n "$comment" && "$comment" != "null" ]]; then
+           score=$((score + 20))
+       fi
 
        # Length within bounds (20 pts)
-       if 20 <= len(comment) <= 120:
-           score += 20
+       local len=${#comment}
+       if ((len >= 20 && len <= 120)); then
+           score=$((score + 20))
+       fi
 
        # Relevance to transcript (60 pts)
-       # Use sentence-transformers to compare comment embedding
-       # to transcript embedding
        # NOTE: Style/tone preferences (e.g., SciFi references) are
        # configurable and should not be baked into scoring.
        # Focus on semantic accuracy: does the comment accurately
        # reflect the conversation content?
-       relevance = semantic_similarity(comment, transcript)
-       score += relevance * 60
+       local relevance=$(semantic_similarity "$comment" "$transcript")
+       score=$((score + $(echo "$relevance * 60" | bc -l | cut -d. -f1)))
 
-       return {"score": score, "details": {...}}
+       echo "{\"score\": $score}"
+   }
    ```
 
    **Overall Score:**
-   ```python
-   overall = (schema * 0.30) + (accuracy * 0.50) + (content * 0.20)
+   ```bash
+   overall=$(echo "scale=2; ($schema * 0.30) + ($accuracy * 0.50) + ($content * 0.20)" | bc)
    ```
 
 3. Integration & CLI
    ```bash
-   python -m benchmark.main run --models all
-   python -m benchmark.main run --models cheap
-   python -m benchmark.main run --models "gemma-3-12b-it,gpt-5-nano"
+   ./scripts/benchmark/run-benchmark.sh --models all
+   ./scripts/benchmark/run-benchmark.sh --models cheap
+   ./scripts/benchmark/run-benchmark.sh --models "gemma-3-12b-it,gpt-5-nano"
    ```
 
 **Success Criteria:**
@@ -589,53 +617,46 @@ consensus.task_ids = [id for id in all_ids if count(id) >= 2]
 
 ---
 
-### Phase 4: Content Quality Scoring
+### Phase 4: Semantic Similarity Integration
 
-**Objective:** Implement semantic similarity and content evaluation
+**Objective:** Integrate LLM-as-judge semantic similarity into scoring
 
 **Deliverables:**
-1. Install `sentence-transformers` library
+1. `scripts/benchmark/lib/similarity.sh` - Semantic similarity implementation
    ```bash
-   pip install sentence-transformers
+   semantic_similarity() {
+       local text1="$1"
+       local text2="$2"
+
+       # Use DeepSeek R1 as judge model
+       local prompt="Rate semantic similarity between these texts (0.0-1.0).
+   Output ONLY a decimal number, no explanation.
+
+   Text A: $text1
+   Text B: $text2"
+
+       # Invoke judge model via existing LLM infrastructure
+       local score=$(echo "$prompt" | llm_invoke "$JUDGE_MODEL" | \
+           grep -oP '0\.\d+|1\.0' | head -1)
+
+       echo "${score:-0.0}"
+   }
    ```
 
-2. Semantic Similarity Helper (`benchmark/similarity.py`)
-   ```python
-   from sentence_transformers import SentenceTransformer
+2. Integration into `scripts/benchmark/lib/scoring.sh`
+   - Already integrated in `score_technical_accuracy()` for goal/objective fields
+   - Already integrated in `score_content_quality()` for relevance check
+   - Validate output is numeric 0.0-1.0, default to 0.0 on error
 
-   # Load model once, reuse across comparisons
-   model = SentenceTransformer('all-MiniLM-L6-v2')
-
-   def semantic_similarity(text1: str, text2: str) -> float:
-       """Compute cosine similarity between two texts (0.0-1.0)"""
-       embeddings = model.encode([text1, text2])
-       return cosine_similarity(embeddings[0], embeddings[1])
-   ```
-
-3. Integrate into scoring.py
-   - Update `score_technical_accuracy()` for goal/objective fields
-   - Update `score_content_quality()` for relevance check
-
-4. SciFi Reference Detection
-   ```python
-   SCIFI_KEYWORDS = [
-       # Star Trek
-       "Enterprise", "Klingon", "Borg", "warp", "phaser",
-       # Star Wars
-       "Jedi", "Sith", "Force", "Vader", "lightsaber",
-       # The Matrix
-       "Matrix", "red pill", "blue pill", "Agent Smith", "Neo",
-       # Blade Runner
-       "replicant", "Voight-Kampff", "Tyrell",
-       # Misc
-       "Skynet", "HAL 9000", "Asimov", "android", "cyborg"
-   ]
-   ```
+3. Testing & Validation
+   - Test with known-similar texts (e.g., "Fix auth bug" vs "Resolve login issue")
+   - Test with known-dissimilar texts (e.g., "Fix bug" vs "Add feature")
+   - Validate consistency across multiple invocations
 
 **Success Criteria:**
-- Semantic similarity scores correlate with human judgment
-- SciFi detection catches obvious references
-- Content quality scores differentiate between generic and creative outputs
+- Semantic similarity returns valid scores 0.0-1.0
+- Similar texts score >0.7, dissimilar texts score <0.3
+- Judge model cost stays under budget (~$5-10 for full benchmark)
 
 **Estimated Effort:** 2-3 hours
 
@@ -1254,40 +1275,43 @@ class APICall:
 ## Appendix: File Structure
 
 ```
-benchmark/
-├── __init__.py
-├── config.py              # Model definitions, thresholds, weights
-├── models.py              # Model abstraction, pricing, invocation
-├── test_data.py           # Test case loading, metadata parsing
-├── reference.py           # Reference generation, consensus algorithms
-├── runner.py              # Async benchmark execution, latency tracking
-├── scoring.py             # Schema, accuracy, content quality scoring
-├── similarity.py          # Semantic similarity helpers
-├── reporting.py           # HTML, Markdown, JSON report generation
-├── main.py                # CLI entry point (argparse)
+scripts/benchmark/
+├── config.sh                  # Model definitions, thresholds, configuration
+├── generate-reference.sh      # Reference generation orchestrator
+├── run-benchmark.sh           # Benchmark execution orchestrator
+├── generate-reports.sh        # Report generation (HTML, MD, JSON)
+├── lib/
+│   ├── common.sh             # Shared utilities, logging
+│   ├── similarity.sh         # LLM-as-judge semantic similarity
+│   ├── consensus.sh          # Consensus algorithms (voting, averaging)
+│   ├── scoring.sh            # Schema, accuracy, content quality scoring
+│   ├── llm-wrapper.sh        # Wrapper around src/sidekick/lib/llm.sh
+│   └── reporting.sh          # Report generation helpers
 ├── templates/
-│   ├── dashboard.html     # Jinja2 HTML template
-│   └── report.md.j2       # Jinja2 Markdown template
-└── README.md              # Usage documentation
+│   ├── dashboard.html        # HTML template (heredoc-based)
+│   └── report.md             # Markdown template (heredoc-based)
+└── README.md                  # Usage documentation
 
 scripts/
-└── collect-test-data.sh   # Interactive transcript collection
+└── collect-test-data.sh       # Interactive transcript collection (existing)
 
 test-data/
-├── transcripts/           # Curated test transcripts
-│   ├── *.jsonl            # Transcript files
-│   └── metadata.json      # Test case metadata
-├── references/            # Golden standard outputs
+├── transcripts/               # Curated test transcripts
+│   ├── *.jsonl                # Transcript files
+│   ├── metadata.json          # Test case metadata
+│   └── golden-set.json        # Golden test set (15 transcripts)
+├── references/                # Golden standard outputs
 │   └── {test_id}/
-│       ├── topic.json
-│       ├── resume.json
+│       ├── grok-4.json
+│       ├── gemini-2.5-pro.json
+│       ├── gpt-5-chat.json
 │       └── consensus.json
-└── results/               # Benchmark run outputs
+└── results/                   # Benchmark run outputs
     └── YYYY-MM-DD_HHMMSS/
         ├── report.html
         ├── report.md
         ├── results.json
-        └── raw/           # Per-model outputs
+        └── raw/               # Per-model outputs
             └── {model}/
                 └── {test_id}/
                     ├── topic_run1.json
@@ -1299,21 +1323,30 @@ test-data/
 
 ## Dependencies
 
+**System Requirements:**
+```bash
+# Bash 4.0+ (for associative arrays)
+bash --version
+
+# jq (JSON processing)
+jq --version  # >= 1.6
+
+# bc (floating point arithmetic)
+bc --version
+
+# Standard POSIX utilities (sort, uniq, grep, awk, sed)
 ```
-# requirements.txt
-asyncio          # Built-in (Python 3.7+)
-aiohttp>=3.9     # Async HTTP client
-pandas>=2.0      # Data processing
-jinja2>=3.1      # Template rendering
-jsonschema>=4.0  # JSON validation
-tqdm>=4.65       # Progress bars
-python-dotenv>=1.0  # Environment variable loading
-sentence-transformers>=2.2  # Semantic similarity
-matplotlib>=3.7  # Visualization
-numpy>=1.24      # Numerical operations
-scipy>=1.11      # Statistical functions (stddev, percentiles)
-tiktoken>=0.5    # Token counting (OpenAI)
-```
+
+**Sidekick Infrastructure:**
+- `src/sidekick/lib/llm.sh` - LLM provider abstraction (already exists)
+- OpenRouter API key (for reference models + judge model)
+- OR other configured LLM providers (Claude CLI, OpenAI, GROQ)
+
+**LLM Models Used:**
+- **Reference Models**: `x-ai/grok-4`, `google/gemini-2.5-pro`, `openai/gpt-5-chat`
+- **Judge Model**: `deepseek/deepseek-r1-distill-qwen-14b` (for semantic similarity)
+
+**No Python required!**
 
 ---
 
@@ -1394,6 +1427,36 @@ tiktoken>=0.5    # Token counting (OpenAI)
 ---
 
 ## Updates & Revisions
+
+### Version 1.2 (2025-10-28) - Bash-First Architecture
+
+**Major Change:** Pivot from Python to pure Bash implementation
+
+**Rationale:**
+After discussion with user, determined Python adds unnecessary complexity and dependencies when bash+jq+existing LLM infrastructure can handle all requirements.
+
+**Key Changes:**
+1. **Language**: Python → Bash throughout all phases
+2. **Semantic Similarity**: sentence-transformers → LLM-as-judge using `deepseek/deepseek-r1-distill-qwen-14b`
+3. **Dependencies**: Removed ~2GB Python+PyTorch requirement, only need bash 4.0+, jq, bc
+4. **Integration**: Direct reuse of `src/sidekick/lib/llm.sh` (no subprocess wrapper needed)
+5. **File Structure**: `benchmark/*.py` → `scripts/benchmark/*.sh` with modular lib/ directory
+
+**Benefits:**
+- ✅ Zero new dependencies (uses existing infrastructure)
+- ✅ Consistent with Sidekick codebase architecture
+- ✅ LLM-as-judge cost: ~$5-10 per benchmark run (acceptable)
+- ✅ Simpler maintenance and debugging
+- ✅ Bash background jobs provide sufficient parallelism
+
+**Trade-offs:**
+- ⚠️ LLM-as-judge is non-deterministic (same inputs may vary slightly)
+- ⚠️ Semantic similarity adds API cost vs. local embeddings (but minimal)
+
+**Timeline Impact:**
+- Unchanged: 23-32 hours (bash is comparable complexity to Python for this use case)
+
+---
 
 ### Version 1.1 (2025-10-27) - Feedback Integration
 
