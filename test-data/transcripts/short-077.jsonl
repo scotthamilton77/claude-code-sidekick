@@ -1,0 +1,6 @@
+{"type":"file-history-snapshot","messageId":"e3744f84-3067-4f9f-82c7-87914c861668","snapshot":{"messageId":"e3744f84-3067-4f9f-82c7-87914c861668","trackedFileBackups":{},"timestamp":"2025-10-22T12:36:04.133Z"},"isSnapshotUpdate":false}
+{"type":"file-history-snapshot","messageId":"5c07d176-d017-4184-9ec9-c2050ad805df","snapshot":{"messageId":"5c07d176-d017-4184-9ec9-c2050ad805df","trackedFileBackups":{"scripts/tests/integration/test-feature-toggles.sh":{"backupFileName":"b8e0de02e38f1343@v1","version":1,"backupTime":"2025-10-22T12:44:11.153Z"},"scripts/tests/integration/test-config-cascade.sh":{"backupFileName":"456ac2bc2758eb20@v1","version":1,"backupTime":"2025-10-22T12:44:28.093Z"},"PLAN.md":{"backupFileName":"d74abd939e1147b9@v1","version":1,"backupTime":"2025-10-22T12:47:52.035Z"}},"timestamp":"2025-10-22T12:36:35.480Z"},"isSnapshotUpdate":false}
+{"type":"summary","summary":"Integration Testing Complete, Bugs Found","leafUuid":"a84a155d-8fd8-4581-834b-37199b7fa73a"}
+{"type":"summary","summary":"Sidekick Phase 4: Installation Scripts TDD Complete","leafUuid":"ae16b1e9-937a-4bd0-8a1f-07266c8a1dcb"}
+{"type":"summary","summary":"Sidekick Phase 3 Complete: Topic Extraction Tests","leafUuid":"ca6818f4-ba76-4902-924f-9a26a5cadace"}
+{"type":"summary","summary":"Sidekick Phase 3.4 Statusline Feature Complete","leafUuid":"b8b83c6c-8b18-4d05-b100-98c6fc9bf1c3"}

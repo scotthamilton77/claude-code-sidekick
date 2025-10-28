@@ -1,0 +1,4485 @@
+{
+  "dataset_version": "1.0",
+  "generated_at": "2025-10-28T09:35:48Z",
+  "test_count": 497,
+  "distribution": {
+    "short": 179,
+    "medium": 110,
+    "long": 208
+  },
+  "transcripts": [
+    {
+      "id": "medium-001",
+      "file": "medium-001.jsonl",
+      "source_session": "7fb61bfe-c741-4649-829a-1585d63da38c",
+      "length_category": "medium",
+      "line_count": 53,
+      "description": "Clean up project files related to a removed tool",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "short-001",
+      "file": "short-001.jsonl",
+      "source_session": "d3be097e-b494-4dc4-a253-02939dfd6b12",
+      "length_category": "short",
+      "line_count": 33,
+      "description": "Work on the status line configuration.",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "medium-002",
+      "file": "medium-002.jsonl",
+      "source_session": "0079290f-9a52-4341-9738-6d286ab633d5",
+      "length_category": "medium",
+      "line_count": 108,
+      "description": "Reliably log topic or unclear topic",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "long-001",
+      "file": "long-001.jsonl",
+      "source_session": "00ca6c2d-342e-4b61-9b79-82db97256f12",
+      "length_category": "long",
+      "line_count": 319,
+      "description": "Implement plugin dependency management.",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "short-002",
+      "file": "short-002.jsonl",
+      "source_session": "01fafc91-8f79-4bef-91cb-9d5368c1cebf",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "No description",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "medium-003",
+      "file": "medium-003.jsonl",
+      "source_session": "0324f461-4d25-4fbb-b3cb-98fd4ba21a79",
+      "length_category": "medium",
+      "line_count": 80,
+      "description": "Debug and fix sleeper logic",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "short-003",
+      "file": "short-003.jsonl",
+      "source_session": "03d74d51-8855-41c2-881e-a56290f56625",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Explore the codebase",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "short-004",
+      "file": "short-004.jsonl",
+      "source_session": "086c250d-60bd-4ea1-9741-4e5698ecb034",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Understand the Sidekick hook system",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "short-005",
+      "file": "short-005.jsonl",
+      "source_session": "0b1cfde8-7333-4455-b3d0-78301c4fc325",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Wandering aimlessly through the codebase",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "medium-004",
+      "file": "medium-004.jsonl",
+      "source_session": "0d5a23e3-7bfa-4ae2-85da-baf22e46b0dc",
+      "length_category": "medium",
+      "line_count": 79,
+      "description": "Test different LLM providers",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "short-006",
+      "file": "short-006.jsonl",
+      "source_session": "1018f371-1c76-4e47-b4e7-0e000a815489",
+      "length_category": "short",
+      "line_count": 6,
+      "description": "Explore and understand the claude-config project",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "short-007",
+      "file": "short-007.jsonl",
+      "source_session": "1035bf45-66ec-4f2b-bcb5-6450b9ac4915",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Understand and utilize Claude Code for codebase assistance",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "medium-005",
+      "file": "medium-005.jsonl",
+      "source_session": "10363d6c-4702-40ff-aefb-81f2d347acbb",
+      "length_category": "medium",
+      "line_count": 143,
+      "description": "Wandering aimlessly through the codebase",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "medium-006",
+      "file": "medium-006.jsonl",
+      "source_session": "129de5c5-a903-46a1-ab00-2245bba53a2b",
+      "length_category": "medium",
+      "line_count": 93,
+      "description": "Remove analytics and incremental modes from topic extraction",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "short-008",
+      "file": "short-008.jsonl",
+      "source_session": "14345a8c-082b-45b3-a3f9-028d97537a44",
+      "length_category": "short",
+      "line_count": 3,
+      "description": "No description",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "medium-007",
+      "file": "medium-007.jsonl",
+      "source_session": "167b9618-a888-4f7d-ab11-e111be6f11ec",
+      "length_category": "medium",
+      "line_count": 75,
+      "description": "Implement an asynchronous LLM analysis process for conversation transcripts.",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "long-002",
+      "file": "long-002.jsonl",
+      "source_session": "16cfced9-6767-4f82-a52d-b57d19d47429",
+      "length_category": "long",
+      "line_count": 180,
+      "description": "Implement topic tracking via hooks to manage conversation context",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "medium-008",
+      "file": "medium-008.jsonl",
+      "source_session": "16f0a404-c3b6-47ce-9b16-153e49b48555",
+      "length_category": "medium",
+      "line_count": 67,
+      "description": "Who knows?",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "short-009",
+      "file": "short-009.jsonl",
+      "source_session": "183f0d76-2fa0-4e50-b4c2-96a812951ae2",
+      "length_category": "short",
+      "line_count": 13,
+      "description": "Understand the claude-config project evolution",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "short-010",
+      "file": "short-010.jsonl",
+      "source_session": "185102ef-1d00-4e81-9d15-99a51072555f",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Wandering aimlessly through the codebase",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "medium-009",
+      "file": "medium-009.jsonl",
+      "source_session": "19894d5f-543e-4d20-b638-b4e876927ae6",
+      "length_category": "medium",
+      "line_count": 58,
+      "description": "Modify Claude Code to correctly write topic files",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "medium-010",
+      "file": "medium-010.jsonl",
+      "source_session": "19d6bf03-ecbd-451e-b74b-f0b3710bf017",
+      "length_category": "medium",
+      "line_count": 52,
+      "description": "Refine hook instructions for clarity and snark",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "short-011",
+      "file": "short-011.jsonl",
+      "source_session": "1b37cf32-d242-4f0c-9245-d83f0495c30d",
+      "length_category": "short",
+      "line_count": 25,
+      "description": "Manage gitignore and commit changes",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "short-012",
+      "file": "short-012.jsonl",
+      "source_session": "1d2691d4-271c-4a46-bed9-914c0e10353a",
+      "length_category": "short",
+      "line_count": 8,
+      "description": "Create a CLAUDE.md file for future Claude Code instances",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "short-013",
+      "file": "short-013.jsonl",
+      "source_session": "1f06243c-9dc1-4e86-a0b7-cdcf279e9470",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Wandering aimlessly through the codebase",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "short-014",
+      "file": "short-014.jsonl",
+      "source_session": "203ad66b-3813-476a-964c-5beb0dd21a36",
+      "length_category": "short",
+      "line_count": 1,
+      "description": "No description",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "medium-011",
+      "file": "medium-011.jsonl",
+      "source_session": "20485cad-75ec-42cc-a540-5b6efe659644",
+      "length_category": "medium",
+      "line_count": 68,
+      "description": "Test LLM providers one at a time",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "short-015",
+      "file": "short-015.jsonl",
+      "source_session": "22a5035a-b52b-4266-9ae9-1d6db5dd4533",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Investigate Claude Code capabilities and configuration",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "short-016",
+      "file": "short-016.jsonl",
+      "source_session": "22b4c623-39b8-45bc-ad96-d6db6d2912df",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Wandering aimlessly through the codebase",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "short-017",
+      "file": "short-017.jsonl",
+      "source_session": "22d77f0b-8246-4e91-91ff-4393538bad41",
+      "length_category": "short",
+      "line_count": 12,
+      "description": "Compare project and local statusline.sh files",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "short-018",
+      "file": "short-018.jsonl",
+      "source_session": "2311d2a0-3d3e-42e3-bc6d-e3b680ace2f2",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Explore codebase",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "short-019",
+      "file": "short-019.jsonl",
+      "source_session": "2367be85-f91e-40de-9243-00acfc90e210",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Explore the codebase",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "short-020",
+      "file": "short-020.jsonl",
+      "source_session": "2558ba12-a59a-4f97-a885-b3fcd402c069",
+      "length_category": "short",
+      "line_count": 1,
+      "description": "No description",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "short-021",
+      "file": "short-021.jsonl",
+      "source_session": "28a65b65-eb56-4561-9182-40704b03f261",
+      "length_category": "short",
+      "line_count": 4,
+      "description": "Clean terminal output",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "short-022",
+      "file": "short-022.jsonl",
+      "source_session": "28acdd90-db60-4e2f-851b-337f1ac0aa17",
+      "length_category": "short",
+      "line_count": 48,
+      "description": "Integrate and validate gemini-cli as LLM provider for Sidekick",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "short-023",
+      "file": "short-023.jsonl",
+      "source_session": "2a6365c3-cc65-4cac-9b65-c193c16a7016",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Explore the claude-config codebase",
+      "collected_at": "2025-10-28T09:35:41Z"
+    },
+    {
+      "id": "short-024",
+      "file": "short-024.jsonl",
+      "source_session": "2bb5b5da-bd75-4ce4-b4d3-b879188ab1d0",
+      "length_category": "short",
+      "line_count": 31,
+      "description": "Review code for quality, security, and maintainability",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "short-025",
+      "file": "short-025.jsonl",
+      "source_session": "2dff29a2-9149-483c-a4e8-40147c3b31eb",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Search the codebase",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "medium-012",
+      "file": "medium-012.jsonl",
+      "source_session": "30087115-10f3-4979-8f5c-fe88fddb95e7",
+      "length_category": "medium",
+      "line_count": 145,
+      "description": "Implement and test hierarchical static reminder loading",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "short-026",
+      "file": "short-026.jsonl",
+      "source_session": "33ddfc9c-3ba5-4549-9088-4dd5c5a8597f",
+      "length_category": "short",
+      "line_count": 46,
+      "description": "Review and fix code vulnerabilities",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "long-003",
+      "file": "long-003.jsonl",
+      "source_session": "38ec1fcc-067c-4e07-aa0e-8600abfdefb8",
+      "length_category": "long",
+      "line_count": 294,
+      "description": "Improve topic file location and statusline display",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "short-027",
+      "file": "short-027.jsonl",
+      "source_session": "3b78b553-4024-4419-b7f2-e7371aa1477e",
+      "length_category": "short",
+      "line_count": 18,
+      "description": "Understand Claude Code configurations",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "medium-013",
+      "file": "medium-013.jsonl",
+      "source_session": "3d0234fe-6410-4259-8d82-e65f4cfb5f45",
+      "length_category": "medium",
+      "line_count": 50,
+      "description": "Create CLAUDE.md with commands and architecture",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "short-028",
+      "file": "short-028.jsonl",
+      "source_session": "3d434ed9-c76a-4d5a-957f-194a5afbc391",
+      "length_category": "short",
+      "line_count": 4,
+      "description": "Wandering aimlessly through the codebase",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "short-029",
+      "file": "short-029.jsonl",
+      "source_session": "3d898717-1bc9-407a-9503-f2c125d62238",
+      "length_category": "short",
+      "line_count": 12,
+      "description": "No description",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "short-030",
+      "file": "short-030.jsonl",
+      "source_session": "3fc4977b-d17d-4b03-b520-990bf67c06d2",
+      "length_category": "short",
+      "line_count": 37,
+      "description": "Manage and commit new Claude code skills.",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "medium-014",
+      "file": "medium-014.jsonl",
+      "source_session": "4088c70e-f283-428f-9878-cf901909c820",
+      "length_category": "medium",
+      "line_count": 53,
+      "description": "Test LLM providers one at a time",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "long-004",
+      "file": "long-004.jsonl",
+      "source_session": "434b9ee2-be60-4fa8-9f07-0fa1d7a486b1",
+      "length_category": "long",
+      "line_count": 159,
+      "description": "Implement Sidekick features",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "long-005",
+      "file": "long-005.jsonl",
+      "source_session": "4421a1ad-a9a1-421a-9146-eca793f47e83",
+      "length_category": "long",
+      "line_count": 167,
+      "description": "Implement and test circuit breaker for LLM fallbacks",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "short-031",
+      "file": "short-031.jsonl",
+      "source_session": "44acaf45-5286-414c-9021-2baf82187045",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Understand basic arithmetic",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "short-032",
+      "file": "short-032.jsonl",
+      "source_session": "44ca172e-4ce9-4ec8-bc69-4d245fa3b937",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Assist with file searching and codebase navigation",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "short-033",
+      "file": "short-033.jsonl",
+      "source_session": "45b12c85-1335-4646-95e4-69af195be57b",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Understand Claude Code config dual-scope requirements",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "short-034",
+      "file": "short-034.jsonl",
+      "source_session": "4aeae217-2171-4e78-b646-dc218cf4f30f",
+      "length_category": "short",
+      "line_count": 11,
+      "description": "Test different LLM providers sequentially",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "medium-015",
+      "file": "medium-015.jsonl",
+      "source_session": "4bb7b75e-3ee4-417e-9801-08d371a5233f",
+      "length_category": "medium",
+      "line_count": 124,
+      "description": "Test statusline.sh script functionality",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "medium-016",
+      "file": "medium-016.jsonl",
+      "source_session": "4c0b50fd-e9f2-4965-ae03-e638f3b19650",
+      "length_category": "medium",
+      "line_count": 78,
+      "description": "Create CLAUDE.md file for guiding future Claude instances",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "medium-017",
+      "file": "medium-017.jsonl",
+      "source_session": "4f70664f-bc2e-44c5-a185-1ce955f9bff9",
+      "length_category": "medium",
+      "line_count": 88,
+      "description": "Update snarkify-last-session.sh",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "short-035",
+      "file": "short-035.jsonl",
+      "source_session": "518159e7-eba0-451e-a471-0e646576f7ca",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Assist with Claude Code configuration and development.",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "long-006",
+      "file": "long-006.jsonl",
+      "source_session": "51e06a7f-160e-4991-b7dc-1cadd8181b57",
+      "length_category": "long",
+      "line_count": 333,
+      "description": "Improve LLM error logging",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "short-036",
+      "file": "short-036.jsonl",
+      "source_session": "52d41ef0-3910-419a-adeb-329e7eb58dc6",
+      "length_category": "short",
+      "line_count": 3,
+      "description": "No description",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "long-007",
+      "file": "long-007.jsonl",
+      "source_session": "5380798c-311f-4ff4-9110-f26626adbf0e",
+      "length_category": "long",
+      "line_count": 204,
+      "description": "Fix analyze-transcript.sh script",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "short-037",
+      "file": "short-037.jsonl",
+      "source_session": "540beeb1-891a-404e-9e27-d71c98fe1232",
+      "length_category": "short",
+      "line_count": 4,
+      "description": "Wandering aimlessly through the codebase",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "long-008",
+      "file": "long-008.jsonl",
+      "source_session": "55a1d691-f073-48f6-b810-fd568557628c",
+      "length_category": "long",
+      "line_count": 240,
+      "description": "Refactor codebase to use a plugin architecture for features",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "long-009",
+      "file": "long-009.jsonl",
+      "source_session": "55e7be79-a00f-4133-821d-a772d55d8184",
+      "length_category": "long",
+      "line_count": 177,
+      "description": "Fix the LLM API integration",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "short-038",
+      "file": "short-038.jsonl",
+      "source_session": "57091279-fcfd-4ac9-b368-c3a7b6571e0a",
+      "length_category": "short",
+      "line_count": 34,
+      "description": "Debug OpenRouter LLM API key issue",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "short-039",
+      "file": "short-039.jsonl",
+      "source_session": "57deafa6-34b0-4626-880a-c4ca02ed7a78",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Assist with searching and navigating this codebase",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "short-040",
+      "file": "short-040.jsonl",
+      "source_session": "5829a2ad-66f3-42dd-a670-e6824884260a",
+      "length_category": "short",
+      "line_count": 3,
+      "description": "No description",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "medium-018",
+      "file": "medium-018.jsonl",
+      "source_session": "58a87aec-9e4d-4f60-94ef-29bf87edfc2c",
+      "length_category": "medium",
+      "line_count": 90,
+      "description": "Implement dual logging",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "long-010",
+      "file": "long-010.jsonl",
+      "source_session": "5a7a6376-43cd-4c53-9258-82acbed7d486",
+      "length_category": "long",
+      "line_count": 185,
+      "description": "Implement a more secure and maintainable template variable substitution.",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "long-011",
+      "file": "long-011.jsonl",
+      "source_session": "5c3e47b7-6ee1-4d1f-b3a1-227e81c49c9b",
+      "length_category": "long",
+      "line_count": 386,
+      "description": "Update codebase to properly handle log file locations",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "medium-019",
+      "file": "medium-019.jsonl",
+      "source_session": "5cc16dcc-d4fa-42b0-92d8-0bb17c468f74",
+      "length_category": "medium",
+      "line_count": 96,
+      "description": "Fix response-tracker.sh cache directory issue",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "long-012",
+      "file": "long-012.jsonl",
+      "source_session": "5dc342c8-23da-45f2-8384-f76f58fc1d20",
+      "length_category": "long",
+      "line_count": 305,
+      "description": "Implement defensive measures in uninstall script",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "long-013",
+      "file": "long-013.jsonl",
+      "source_session": "5ec07c1f-f3ca-4de9-b334-d8c3625bdcc7",
+      "length_category": "long",
+      "line_count": 240,
+      "description": "Implement Sidekick Phase 1 infrastructure",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "long-014",
+      "file": "long-014.jsonl",
+      "source_session": "5fd6d93d-0c8f-461f-83e2-1344c946a1ca",
+      "length_category": "long",
+      "line_count": 244,
+      "description": "Analyze legacy tests vs. new architecture",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "medium-020",
+      "file": "medium-020.jsonl",
+      "source_session": "61f6947e-fad5-4694-852a-6f36ab70dc20",
+      "length_category": "medium",
+      "line_count": 150,
+      "description": "Add LLM timing and token cost logging",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "short-041",
+      "file": "short-041.jsonl",
+      "source_session": "625366e0-9c73-41ad-8346-b2d5f8f7a8e8",
+      "length_category": "short",
+      "line_count": 7,
+      "description": "Search the codebase efficiently",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "short-042",
+      "file": "short-042.jsonl",
+      "source_session": "6349a22d-342f-4106-b225-5089a694039a",
+      "length_category": "short",
+      "line_count": 34,
+      "description": "Refactor setup.sh to change --include-local to --project",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "short-043",
+      "file": "short-043.jsonl",
+      "source_session": "63fcbb0c-02b9-4c36-a97c-5e4a714cff19",
+      "length_category": "short",
+      "line_count": 30,
+      "description": "Wandering aimlessly through the codebase",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "long-015",
+      "file": "long-015.jsonl",
+      "source_session": "6643066c-a75e-4767-ae30-8868fd0cfeb0",
+      "length_category": "long",
+      "line_count": 269,
+      "description": "Organize project scripts and hooks",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "short-044",
+      "file": "short-044.jsonl",
+      "source_session": "673c7c73-ad82-4ddd-973b-925cb3a73485",
+      "length_category": "short",
+      "line_count": 4,
+      "description": "Wandering aimlessly through the codebase",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "long-016",
+      "file": "long-016.jsonl",
+      "source_session": "69ed3787-2134-4002-abde-17e3b12b7667",
+      "length_category": "long",
+      "line_count": 172,
+      "description": "Update QA-PLAN.md based on integrated feedback",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "long-017",
+      "file": "long-017.jsonl",
+      "source_session": "6a778a38-7ca9-4635-9ecd-e80a6fdd69a6",
+      "length_category": "long",
+      "line_count": 263,
+      "description": "Complete Sidekick Phase 3 TDD implementation",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "medium-021",
+      "file": "medium-021.jsonl",
+      "source_session": "6b25e31f-5061-46bc-b9bc-404d136016f5",
+      "length_category": "medium",
+      "line_count": 112,
+      "description": "Refactor code to improve organization",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "short-045",
+      "file": "short-045.jsonl",
+      "source_session": "6bc47534-fbc0-41e0-aef0-1487b4fbafc8",
+      "length_category": "short",
+      "line_count": 45,
+      "description": "Verify claude config overrides are working",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "short-046",
+      "file": "short-046.jsonl",
+      "source_session": "6fdb5860-ceac-43bc-ab90-168beb909816",
+      "length_category": "short",
+      "line_count": 11,
+      "description": "No description",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "short-047",
+      "file": "short-047.jsonl",
+      "source_session": "706b9e11-1816-4fe5-a5a7-86563bc87215",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Search codebase efficiently",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "short-048",
+      "file": "short-048.jsonl",
+      "source_session": "7388bc16-dbc9-4d69-81aa-7e4459056f82",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Explore the codebase",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "medium-022",
+      "file": "medium-022.jsonl",
+      "source_session": "7823f420-45cc-44c8-aff0-4e3db25e5589",
+      "length_category": "medium",
+      "line_count": 149,
+      "description": "Implement the Sidekick architecture",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "long-018",
+      "file": "long-018.jsonl",
+      "source_session": "7a0d3f1a-779a-401c-baa0-56a8f289c145",
+      "length_category": "long",
+      "line_count": 371,
+      "description": "Refactor sidekick src/ to use .sidekick/sessions/ instead of tmp/",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "short-049",
+      "file": "short-049.jsonl",
+      "source_session": "7a35fa29-3a22-4250-ad74-a93d7eb05eb2",
+      "length_category": "short",
+      "line_count": 29,
+      "description": "Add debug logging to topic extraction logic",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "short-050",
+      "file": "short-050.jsonl",
+      "source_session": "7a768fcc-81bc-4632-8b96-b4d78afd085f",
+      "length_category": "short",
+      "line_count": 3,
+      "description": "No description",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "short-051",
+      "file": "short-051.jsonl",
+      "source_session": "7c9ea835-9b42-47da-ab39-c24fc001b81b",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Understand current project architecture and tooling",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "medium-023",
+      "file": "medium-023.jsonl",
+      "source_session": "7d2e2bbf-7efb-4133-b3c7-619805e64a22",
+      "length_category": "medium",
+      "line_count": 87,
+      "description": "Build LLM analysis for statusline comments",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "short-052",
+      "file": "short-052.jsonl",
+      "source_session": "7d45a269-c790-4eee-b390-86f2f16d454d",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Assist with claude-config project",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "short-053",
+      "file": "short-053.jsonl",
+      "source_session": "822c0ab1-28ae-4188-8ba3-b61d4bb5b84b",
+      "length_category": "short",
+      "line_count": 46,
+      "description": "Simplify statusline.sh by removing file creation/checking \"--\" logic",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "long-019",
+      "file": "long-019.jsonl",
+      "source_session": "82848f17-aac0-48bf-8e51-5262996acec6",
+      "length_category": "long",
+      "line_count": 152,
+      "description": "Fix background process logging and uninstall cleanup",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "long-020",
+      "file": "long-020.jsonl",
+      "source_session": "834486f6-4309-4a7d-aea6-64a36c599d3b",
+      "length_category": "long",
+      "line_count": 295,
+      "description": "Refactor codebase to group session data",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "short-054",
+      "file": "short-054.jsonl",
+      "source_session": "8469ced7-afef-4e65-bac6-29f85b4d74b9",
+      "length_category": "short",
+      "line_count": 29,
+      "description": "Make statusline.sh dual-scope compatible",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "short-055",
+      "file": "short-055.jsonl",
+      "source_session": "84c6ab00-6f40-4117-86fc-0f84fb5f786e",
+      "length_category": "short",
+      "line_count": 23,
+      "description": "Debug Claude session topic display",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "short-056",
+      "file": "short-056.jsonl",
+      "source_session": "8671822c-1c90-437e-add0-aa673ee05bdd",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "No description",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "short-057",
+      "file": "short-057.jsonl",
+      "source_session": "886295e3-0072-4743-b461-27083a0c0bae",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Wandering aimlessly through the codebase",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "long-021",
+      "file": "long-021.jsonl",
+      "source_session": "8a44b2c7-1528-43ca-abf7-fa6c01f79d8f",
+      "length_category": "long",
+      "line_count": 250,
+      "description": "Integrate OpenRouter as a new LLM provider",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "medium-024",
+      "file": "medium-024.jsonl",
+      "source_session": "8b44f3fd-b36d-4779-8d6f-85178c75501f",
+      "length_category": "medium",
+      "line_count": 145,
+      "description": "Update LLM_PLAN.md status",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "long-022",
+      "file": "long-022.jsonl",
+      "source_session": "8bdb2700-92fe-46b6-a9ad-dc59017aa5b1",
+      "length_category": "long",
+      "line_count": 202,
+      "description": "Fix bash string escaping issues with jq",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "short-058",
+      "file": "short-058.jsonl",
+      "source_session": "8d329531-52a9-4ac0-84e5-840c9db484d3",
+      "length_category": "short",
+      "line_count": 44,
+      "description": "Analyze sync scripts and .claudeignore",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "long-023",
+      "file": "long-023.jsonl",
+      "source_session": "8e585c46-454e-4e58-b504-eaf968a128cd",
+      "length_category": "long",
+      "line_count": 188,
+      "description": "Fix reminder scripts to surgically manage hooks",
+      "collected_at": "2025-10-28T09:35:42Z"
+    },
+    {
+      "id": "long-024",
+      "file": "long-024.jsonl",
+      "source_session": "8eae072a-f21d-4f2e-938f-a71c0d39b9b4",
+      "length_category": "long",
+      "line_count": 185,
+      "description": "Make resume generation work",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-059",
+      "file": "short-059.jsonl",
+      "source_session": "8f03ddc9-0b42-42ea-8faa-2fbf5a6afd79",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Assist with file searching and codebase exploration",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-060",
+      "file": "short-060.jsonl",
+      "source_session": "91848799-33be-4d1a-951a-db73b91c1942",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Assist with code analysis and enhancements",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-061",
+      "file": "short-061.jsonl",
+      "source_session": "9205bea1-88d1-4321-83cf-ffd0c1cbf318",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Explore and analyze the codebase.",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-062",
+      "file": "short-062.jsonl",
+      "source_session": "92a1e884-b68e-45f0-8fba-6fde29675baa",
+      "length_category": "short",
+      "line_count": 4,
+      "description": "Wandering aimlessly through the codebase",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-063",
+      "file": "short-063.jsonl",
+      "source_session": "92cdb274-2469-43ff-83c3-e18a8e40d316",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "No description",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-064",
+      "file": "short-064.jsonl",
+      "source_session": "94e70d7a-6f82-46c5-aeb5-1410e31ee4fb",
+      "length_category": "short",
+      "line_count": 4,
+      "description": "Engage with the user",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "medium-025",
+      "file": "medium-025.jsonl",
+      "source_session": "95ab0aea-975e-47b0-96aa-88e9f96538f3",
+      "length_category": "medium",
+      "line_count": 91,
+      "description": "Implement Phase 2 handlers",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "long-025",
+      "file": "long-025.jsonl",
+      "source_session": "96dc5dbc-1de4-4c06-99ba-9a6fecff1e4c",
+      "length_category": "long",
+      "line_count": 261,
+      "description": "Reorganize and update hook file paths",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-065",
+      "file": "short-065.jsonl",
+      "source_session": "973a24ad-e70c-437a-a4a0-44975e4eb2c6",
+      "length_category": "short",
+      "line_count": 3,
+      "description": "No description",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-066",
+      "file": "short-066.jsonl",
+      "source_session": "983dc9c9-0f91-4468-b9c7-470021d089bf",
+      "length_category": "short",
+      "line_count": 4,
+      "description": "Wandering aimlessly through the codebase",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-067",
+      "file": "short-067.jsonl",
+      "source_session": "986e7f77-d8d6-4683-8901-5b70db75b47e",
+      "length_category": "short",
+      "line_count": 4,
+      "description": "Navigating the VCS.",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-068",
+      "file": "short-068.jsonl",
+      "source_session": "98fcee50-577e-4a58-8e3e-7fdbf3d082d3",
+      "length_category": "short",
+      "line_count": 4,
+      "description": "Wandering aimlessly through the codebase",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "long-026",
+      "file": "long-026.jsonl",
+      "source_session": "9a21ba7d-0245-41bd-9350-0d391b843a14",
+      "length_category": "long",
+      "line_count": 162,
+      "description": "Improve Sidekick uninstall script functionality",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-069",
+      "file": "short-069.jsonl",
+      "source_session": "9b3365af-47da-41d4-92bb-bc52e59301bd",
+      "length_category": "short",
+      "line_count": 10,
+      "description": "No description",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-070",
+      "file": "short-070.jsonl",
+      "source_session": "9ce3fcec-764f-4308-8550-415eeac00501",
+      "length_category": "short",
+      "line_count": 4,
+      "description": "Assist with file operations and searches",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "long-027",
+      "file": "long-027.jsonl",
+      "source_session": "9e192cf7-d0b6-4485-aaf2-96bafe2d1395",
+      "length_category": "long",
+      "line_count": 444,
+      "description": "Refactor resume generation and update documentation",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "long-028",
+      "file": "long-028.jsonl",
+      "source_session": "9fa3c616-e10d-430b-b1a8-fd6637f25f98",
+      "length_category": "long",
+      "line_count": 235,
+      "description": "Complete Phase 5.2.1 bug fixes",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "medium-026",
+      "file": "medium-026.jsonl",
+      "source_session": "9faf0f4a-016f-498a-b6d6-a4898f626384",
+      "length_category": "medium",
+      "line_count": 135,
+      "description": "Improve sleeper behavior and documentation",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-071",
+      "file": "short-071.jsonl",
+      "source_session": "a347403e-78d2-4969-90cd-42a74e0e9b89",
+      "length_category": "short",
+      "line_count": 3,
+      "description": "Investigate or fix something in the codebase",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "medium-027",
+      "file": "medium-027.jsonl",
+      "source_session": "a35c8196-41e6-4a7e-a134-e08b6805d739",
+      "length_category": "medium",
+      "line_count": 62,
+      "description": "Create a script to remove project footprint from ~/.claude/",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "medium-028",
+      "file": "medium-028.jsonl",
+      "source_session": "a395733d-8af6-4302-8927-65d8e3412efc",
+      "length_category": "medium",
+      "line_count": 117,
+      "description": "Fix duplicate topic extraction",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "medium-029",
+      "file": "medium-029.jsonl",
+      "source_session": "a39de389-7ebc-44a7-ac5a-7c42dea2e873",
+      "length_category": "medium",
+      "line_count": 81,
+      "description": "Update CLAUDE.md and README.md with recent changes",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-072",
+      "file": "short-072.jsonl",
+      "source_session": "a4d6552c-99e4-462d-944c-6d726c887824",
+      "length_category": "short",
+      "line_count": 3,
+      "description": "Wandering aimlessly through the codebase",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-073",
+      "file": "short-073.jsonl",
+      "source_session": "a503be23-3403-4ddd-afc6-2d5f814f9496",
+      "length_category": "short",
+      "line_count": 12,
+      "description": "Wandering aimlessly through the codebase",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-074",
+      "file": "short-074.jsonl",
+      "source_session": "a72d57ff-8104-4a75-a0fb-2572dec27ae1",
+      "length_category": "short",
+      "line_count": 8,
+      "description": "No description",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-075",
+      "file": "short-075.jsonl",
+      "source_session": "a733f69e-ddb4-4396-a161-38814c0ab09e",
+      "length_category": "short",
+      "line_count": 6,
+      "description": "No description",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-076",
+      "file": "short-076.jsonl",
+      "source_session": "a7a53fc7-7f5e-4b65-8993-df613d408d27",
+      "length_category": "short",
+      "line_count": 36,
+      "description": "Implement Sidekick architecture",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-077",
+      "file": "short-077.jsonl",
+      "source_session": "a9453e7b-3f5a-4ab5-8604-460d53eaec23",
+      "length_category": "short",
+      "line_count": 6,
+      "description": "No description",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "medium-030",
+      "file": "medium-030.jsonl",
+      "source_session": "abb72415-f014-455c-84f6-fce4518d5ce1",
+      "length_category": "medium",
+      "line_count": 95,
+      "description": "Refine project statusline.sh to display specific info",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "long-029",
+      "file": "long-029.jsonl",
+      "source_session": "acd65af7-680e-45fe-af73-e0d60e1550e4",
+      "length_category": "long",
+      "line_count": 407,
+      "description": "Fix sleeper inactivity timeout tests",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "long-030",
+      "file": "long-030.jsonl",
+      "source_session": "aed458ef-6a85-4915-8109-3986d1c37108",
+      "length_category": "long",
+      "line_count": 444,
+      "description": "Implement verbose logging for cleanup scripts.",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-078",
+      "file": "short-078.jsonl",
+      "source_session": "af3b9130-962b-4f17-b50e-acd4f278d97b",
+      "length_category": "short",
+      "line_count": 14,
+      "description": "Deploy Sidekick system",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-079",
+      "file": "short-079.jsonl",
+      "source_session": "agent-67d4f971",
+      "length_category": "short",
+      "line_count": 33,
+      "description": "Analyze overlap and duplication in topic extraction and resume generation files.",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-080",
+      "file": "short-080.jsonl",
+      "source_session": "agent-93fb5cae",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Navigate and explore the codebase",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-081",
+      "file": "short-081.jsonl",
+      "source_session": "agent-e6bd1f26",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Explore claude-config codebase",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-082",
+      "file": "short-082.jsonl",
+      "source_session": "b02a6561-c425-43c2-8f06-d73569b7aa25",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Wandering aimlessly through the codebase",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-083",
+      "file": "short-083.jsonl",
+      "source_session": "b0c82c58-86ad-4745-b617-27a0f9bc1671",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Explore codebase",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-084",
+      "file": "short-084.jsonl",
+      "source_session": "b1cc8767-a3eb-4cf7-b3e0-3ed789a4a665",
+      "length_category": "short",
+      "line_count": 4,
+      "description": "Navigate this codebase like a seasoned starship captain",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "medium-031",
+      "file": "medium-031.jsonl",
+      "source_session": "b2d539a0-8d6b-4372-a602-e8fb79b0b183",
+      "length_category": "medium",
+      "line_count": 99,
+      "description": "Implement and test hooks configuration for.",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "long-031",
+      "file": "long-031.jsonl",
+      "source_session": "b2f6fad0-119f-4b08-b5b3-aacc496ad1aa",
+      "length_category": "long",
+      "line_count": 605,
+      "description": "Get OpenAI API access working",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-085",
+      "file": "short-085.jsonl",
+      "source_session": "b93a2688-5a87-444a-95c2-4b2f3f4a737d",
+      "length_category": "short",
+      "line_count": 29,
+      "description": "Clean up references to deleted code",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "long-032",
+      "file": "long-032.jsonl",
+      "source_session": "bd0ad056-e3ef-4ebb-8d11-024086a1a041",
+      "length_category": "long",
+      "line_count": 263,
+      "description": "Fix chatbot test infrastructure and bugs",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "long-033",
+      "file": "long-033.jsonl",
+      "source_session": "bea25e26-9f9d-4832-a166-938269083b1c",
+      "length_category": "long",
+      "line_count": 268,
+      "description": "Refactor codebase to remove deprecated code and functions",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "long-034",
+      "file": "long-034.jsonl",
+      "source_session": "bf8d8e13-0e74-49fb-ad7b-a822e5a88ffb",
+      "length_category": "long",
+      "line_count": 364,
+      "description": "Implement adaptive sleeper analysis system",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-086",
+      "file": "short-086.jsonl",
+      "source_session": "bfaa8849-92a5-464b-800d-dc8eecf860c4",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Assist with codebase navigation and exploration",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-087",
+      "file": "short-087.jsonl",
+      "source_session": "c28e7564-a7cb-4bfa-9c18-f708d98a1b20",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Wandering aimlessly through the codebase",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "medium-032",
+      "file": "medium-032.jsonl",
+      "source_session": "c2a567ce-53dd-4973-95ea-e2ccb8f6264b",
+      "length_category": "medium",
+      "line_count": 72,
+      "description": "Complete Phase 5: Configuration and Documentation",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "medium-033",
+      "file": "medium-033.jsonl",
+      "source_session": "c3c7955b-d2cb-41d2-96dd-b51cfbeb464a",
+      "length_category": "medium",
+      "line_count": 88,
+      "description": "Refactor reminders hook system into modular Sidekick architecture",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-088",
+      "file": "short-088.jsonl",
+      "source_session": "c4172095-3175-454c-88de-dc2df9d4d11b",
+      "length_category": "short",
+      "line_count": 1,
+      "description": "No description",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-089",
+      "file": "short-089.jsonl",
+      "source_session": "c4c635cb-8a63-4e24-a0ea-59ac9d06c9bb",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Explore the codebase",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "long-035",
+      "file": "long-035.jsonl",
+      "source_session": "c57f5010-2b26-4d1c-888f-c0591303f31b",
+      "length_category": "long",
+      "line_count": 293,
+      "description": "Optimize config loading for sleeper",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-090",
+      "file": "short-090.jsonl",
+      "source_session": "c64acc4e-f3d4-49ab-a9d2-f7b161be5fdb",
+      "length_category": "short",
+      "line_count": 7,
+      "description": "No description",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "medium-034",
+      "file": "medium-034.jsonl",
+      "source_session": "c661438f-89c0-49b3-baa1-61b74f56801e",
+      "length_category": "medium",
+      "line_count": 149,
+      "description": "Run analytics on test data files",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "long-036",
+      "file": "long-036.jsonl",
+      "source_session": "c6f01ed0-949d-410b-98aa-146308c35956",
+      "length_category": "long",
+      "line_count": 247,
+      "description": "Complete Phase 6 testing of LLM analysis system",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "long-037",
+      "file": "long-037.jsonl",
+      "source_session": "ca57da15-908f-4fb0-a5f9-3f94b40a8486",
+      "length_category": "long",
+      "line_count": 517,
+      "description": "Implement transcript preprocessing for topic extraction",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "medium-035",
+      "file": "medium-035.jsonl",
+      "source_session": "ca81f6ed-9fa1-4480-94b5-c6898a75f2e2",
+      "length_category": "medium",
+      "line_count": 82,
+      "description": "Make code resilient to invalid JSON",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-091",
+      "file": "short-091.jsonl",
+      "source_session": "cc63b092-56cf-4222-b127-76277db80041",
+      "length_category": "short",
+      "line_count": 4,
+      "description": "Navigate and explore the claude-config codebase",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "medium-036",
+      "file": "medium-036.jsonl",
+      "source_session": "cdef7e5f-d23c-4f6c-8754-3299d0000172",
+      "length_category": "medium",
+      "line_count": 132,
+      "description": "Enhance statusline.sh to filter command noise",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-092",
+      "file": "short-092.jsonl",
+      "source_session": "ce32caca-9f33-4f91-b1d8-1452b5db0355",
+      "length_category": "short",
+      "line_count": 3,
+      "description": "Analyze project context and guidelines",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "long-038",
+      "file": "long-038.jsonl",
+      "source_session": "cf440fb0-760c-41c2-95ab-1afdef7992ec",
+      "length_category": "long",
+      "line_count": 209,
+      "description": "Complete Phase 5.2 integration tests",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "medium-037",
+      "file": "medium-037.jsonl",
+      "source_session": "cf7c9294-a28f-42cf-ab1f-1aa17915afe2",
+      "length_category": "medium",
+      "line_count": 107,
+      "description": "Reorganize project structure for clarity and future development",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "medium-038",
+      "file": "medium-038.jsonl",
+      "source_session": "d30fa2aa-aec7-4cc0-bb54-51b89d2846ad",
+      "length_category": "medium",
+      "line_count": 51,
+      "description": "Review template changes\n            ",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "medium-039",
+      "file": "medium-039.jsonl",
+      "source_session": "d385b497-7d3a-4df1-b00a-0419d1b22a10",
+      "length_category": "medium",
+      "line_count": 56,
+      "description": "Refactor hooks architecture",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-093",
+      "file": "short-093.jsonl",
+      "source_session": "d38f42e3-988e-420b-961c-29332fde2e9e",
+      "length_category": "short",
+      "line_count": 4,
+      "description": "Respond to user input",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-094",
+      "file": "short-094.jsonl",
+      "source_session": "d63f1bb2-c717-4c00-b7d0-e71754e4cfcc",
+      "length_category": "short",
+      "line_count": 13,
+      "description": "Assist with codebase exploration and development",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-095",
+      "file": "short-095.jsonl",
+      "source_session": "d7bc1e4a-5a99-4cbd-af33-4ecd3ecafd0c",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Wandering aimlessly through the codebase",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-096",
+      "file": "short-096.jsonl",
+      "source_session": "d7bd8cc4-c0af-43a5-bd95-1e90ab3d59c6",
+      "length_category": "short",
+      "line_count": 15,
+      "description": "Fix statusline.sh bugs",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "medium-040",
+      "file": "medium-040.jsonl",
+      "source_session": "dc09865f-baed-4cff-bb86-a0b128f52028",
+      "length_category": "medium",
+      "line_count": 85,
+      "description": "Ensure setup and cleanup scripts fully configure and remove user ~/.claude config",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "long-039",
+      "file": "long-039.jsonl",
+      "source_session": "dc4c163c-2574-4d91-80ec-eaca592ef530",
+      "length_category": "long",
+      "line_count": 225,
+      "description": "Standardize logging across scripts",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "short-097",
+      "file": "short-097.jsonl",
+      "source_session": "dd251e21-1455-451b-b20a-1f5d886d04bf",
+      "length_category": "short",
+      "line_count": 25,
+      "description": "Fix bug in setup.sh not overwriting statusline config",
+      "collected_at": "2025-10-28T09:35:43Z"
+    },
+    {
+      "id": "long-040",
+      "file": "long-040.jsonl",
+      "source_session": "dd33f4e5-9018-4d93-8d9d-ead0aabec98f",
+      "length_category": "long",
+      "line_count": 278,
+      "description": "Refactor common.sh into a modular structure",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "short-098",
+      "file": "short-098.jsonl",
+      "source_session": "dd5254f7-e70a-4e90-8ec6-9d0833f53699",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Work on Claude Code configuration",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "short-099",
+      "file": "short-099.jsonl",
+      "source_session": "ddcc88e9-e8f3-443a-b495-53d70b0c0ddb",
+      "length_category": "short",
+      "line_count": 41,
+      "description": "Understand claude config file precedence",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "long-041",
+      "file": "long-041.jsonl",
+      "source_session": "de544d41-24f4-4101-a3e3-aa2fdf336e30",
+      "length_category": "long",
+      "line_count": 519,
+      "description": "Configure Claude Code status line",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "short-100",
+      "file": "short-100.jsonl",
+      "source_session": "df925218-c8d1-469f-a8e8-704d1b0dae76",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Explore the codebase",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "short-101",
+      "file": "short-101.jsonl",
+      "source_session": "e43d1895-1cac-4b61-927b-6e056861b2e7",
+      "length_category": "short",
+      "line_count": 3,
+      "description": "No description",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "medium-041",
+      "file": "medium-041.jsonl",
+      "source_session": "e53a0e84-d223-4690-a98b-9bcc3b4bd10b",
+      "length_category": "medium",
+      "line_count": 100,
+      "description": "Ensure Claude hooks and scripts are correctly configured",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "short-102",
+      "file": "short-102.jsonl",
+      "source_session": "e58e3814-aae0-4a9c-af2f-c45db3b059bf",
+      "length_category": "short",
+      "line_count": 22,
+      "description": "Improve LLM benchmarking plan",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "long-042",
+      "file": "long-042.jsonl",
+      "source_session": "e59b50fb-5fc1-420c-a562-b6e46189ae66",
+      "length_category": "long",
+      "line_count": 179,
+      "description": "Refactor Claude Code scripts for clarity and functionality",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "medium-042",
+      "file": "medium-042.jsonl",
+      "source_session": "e5b17a81-26c2-4b32-9214-796a90887cf9",
+      "length_category": "medium",
+      "line_count": 68,
+      "description": "Debug \"SessionStart:startup hook error\"",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "short-103",
+      "file": "short-103.jsonl",
+      "source_session": "e772f84a-a71d-4d7c-9fc9-959a4a3f24aa",
+      "length_category": "short",
+      "line_count": 4,
+      "description": "No description",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "long-043",
+      "file": "long-043.jsonl",
+      "source_session": "ea26abe4-3c69-4581-8f79-1020e34daf58",
+      "length_category": "long",
+      "line_count": 154,
+      "description": "Analyze code with Claude, slimming down input data",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "medium-043",
+      "file": "medium-043.jsonl",
+      "source_session": "eff51914-81dc-498f-90c0-ba4ca902ea2e",
+      "length_category": "medium",
+      "line_count": 130,
+      "description": "Fix statusline to display correct session topic",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "long-044",
+      "file": "long-044.jsonl",
+      "source_session": "f0d4fb02-d60a-4e60-8bbe-1eef1510699c",
+      "length_category": "long",
+      "line_count": 681,
+      "description": "Ensuring Sidekick hooks are fully functional",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "short-104",
+      "file": "short-104.jsonl",
+      "source_session": "f1ac358c-2edf-4d56-9f89-403f0f628cfd",
+      "length_category": "short",
+      "line_count": 32,
+      "description": "Investigate duplication in topic extraction.",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "short-105",
+      "file": "short-105.jsonl",
+      "source_session": "f2ce8447-85f3-4915-9cd8-023a443898bc",
+      "length_category": "short",
+      "line_count": 7,
+      "description": "No description",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "medium-044",
+      "file": "medium-044.jsonl",
+      "source_session": "f313e2d4-461c-4522-b1fe-54b70d97f4bf",
+      "length_category": "medium",
+      "line_count": 86,
+      "description": "Refactor session tracking to use project-local storage",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "short-106",
+      "file": "short-106.jsonl",
+      "source_session": "f5c3aa56-4ed8-49d7-99df-01d508d64d3b",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Explore the codebase",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "short-107",
+      "file": "short-107.jsonl",
+      "source_session": "f856ba49-6907-4076-859f-f531ce8b3403",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Understand codebase and assistant capabilities",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "short-108",
+      "file": "short-108.jsonl",
+      "source_session": "f9681a78-ca05-4084-b2df-73d7d7d20392",
+      "length_category": "short",
+      "line_count": 28,
+      "description": "Figure out next steps for Sidekick implementation",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "short-109",
+      "file": "short-109.jsonl",
+      "source_session": "fcb32c41-5b3a-442f-900f-f49fb3e289c2",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Explore the codebase",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "short-110",
+      "file": "short-110.jsonl",
+      "source_session": "fcde39a5-ed11-46d7-8624-4194a94611da",
+      "length_category": "short",
+      "line_count": 4,
+      "description": "Execute commands",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "long-045",
+      "file": "long-045.jsonl",
+      "source_session": "fd211375-dd4c-4d82-9329-c8b22737fbbe",
+      "length_category": "long",
+      "line_count": 234,
+      "description": "Implement and test installation scripts",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "long-046",
+      "file": "long-046.jsonl",
+      "source_session": "ff2e402c-b768-4857-a6ec-3c92ba644027",
+      "length_category": "long",
+      "line_count": 153,
+      "description": "Implement different output directories based on mode",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "short-111",
+      "file": "short-111.jsonl",
+      "source_session": "0a2bf65e-30ed-466b-b254-6a97042312dc",
+      "length_category": "short",
+      "line_count": 4,
+      "description": "No description",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "short-112",
+      "file": "short-112.jsonl",
+      "source_session": "agent-38b9e647",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "No description",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "short-113",
+      "file": "short-113.jsonl",
+      "source_session": "agent-3f979195",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "No description",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "short-114",
+      "file": "short-114.jsonl",
+      "source_session": "063ff8ad-27e8-4000-8667-acc1d10462a4",
+      "length_category": "short",
+      "line_count": 17,
+      "description": "Manage git worktrees",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "short-115",
+      "file": "short-115.jsonl",
+      "source_session": "0ddabe4d-a904-4040-8f02-a9337c27bc25",
+      "length_category": "short",
+      "line_count": 10,
+      "description": "Wandering aimlessly through the codebase",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "long-047",
+      "file": "long-047.jsonl",
+      "source_session": "23524946-d192-4a72-8dbd-e48592ffe796",
+      "length_category": "long",
+      "line_count": 524,
+      "description": "Fix TypeScript and ESLint issues",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "short-116",
+      "file": "short-116.jsonl",
+      "source_session": "3ac669c4-93f0-41c3-b8f5-6bc5d15e1f2c",
+      "length_category": "short",
+      "line_count": 3,
+      "description": "Direct Gmail API integration with 10-stage classification pipeline",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "short-117",
+      "file": "short-117.jsonl",
+      "source_session": "8f70ef1a-999e-4b98-8441-9f1a97acbf91",
+      "length_category": "short",
+      "line_count": 24,
+      "description": "Improve devcontainer.json maintainability",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "short-118",
+      "file": "short-118.jsonl",
+      "source_session": "92755689-5f5c-4194-b577-b7db176ca770",
+      "length_category": "short",
+      "line_count": 42,
+      "description": "Fix ESLint hook configuration",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "short-119",
+      "file": "short-119.jsonl",
+      "source_session": "9bba7bac-d1ea-462b-b62a-053e180edb64",
+      "length_category": "short",
+      "line_count": 26,
+      "description": "Stop using \"any\" in TypeScript",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "short-120",
+      "file": "short-120.jsonl",
+      "source_session": "b6a2b489-997f-4535-8b1b-f5b0f1ec0ad4",
+      "length_category": "short",
+      "line_count": 1,
+      "description": "No description",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "short-121",
+      "file": "short-121.jsonl",
+      "source_session": "b6f5416a-f605-4e55-b7fa-04561a351d40",
+      "length_category": "short",
+      "line_count": 8,
+      "description": "No description",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "short-122",
+      "file": "short-122.jsonl",
+      "source_session": "b76e3d0b-98d0-4451-90dc-12f9f8b7deff",
+      "length_category": "short",
+      "line_count": 9,
+      "description": "No description",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "long-048",
+      "file": "long-048.jsonl",
+      "source_session": "c7f7ce2b-0b30-48e3-93f2-4d145d75e81e",
+      "length_category": "long",
+      "line_count": 510,
+      "description": "Implement StageTask architecture for replay",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "long-049",
+      "file": "long-049.jsonl",
+      "source_session": "c85bdd18-57c0-41b6-a804-e22fb91cd543",
+      "length_category": "long",
+      "line_count": 210,
+      "description": "Refactor classification pipeline for reduced duplication",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "medium-045",
+      "file": "medium-045.jsonl",
+      "source_session": "cb15f236-9dd9-4474-b0a8-c8850aa00024",
+      "length_category": "medium",
+      "line_count": 108,
+      "description": "Implement response tracking and reminders for Claude Code hooks",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "short-123",
+      "file": "short-123.jsonl",
+      "source_session": "d63be678-6500-4aef-9994-ccc11420e039",
+      "length_category": "short",
+      "line_count": 6,
+      "description": "Understand Claude's core directives",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "medium-046",
+      "file": "medium-046.jsonl",
+      "source_session": "e5abd9e5-7ed1-4a21-a0e7-ba677a21f18d",
+      "length_category": "medium",
+      "line_count": 94,
+      "description": "Map EmailCategorizer workflow to new architecture.",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "short-124",
+      "file": "short-124.jsonl",
+      "source_session": "f6d34541-f640-428d-9a78-19eda6b4e3ac",
+      "length_category": "short",
+      "line_count": 22,
+      "description": "Open project in devcontainer",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "medium-047",
+      "file": "medium-047.jsonl",
+      "source_session": "fdc7fb44-493b-4b3a-b95d-b214dd06243f",
+      "length_category": "medium",
+      "line_count": 59,
+      "description": "Run authorize-gmail.ts to set up Google OAuth",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "long-050",
+      "file": "long-050.jsonl",
+      "source_session": "00b415cb-a8b8-4d85-bfb6-2aee41dc2b6d",
+      "length_category": "long",
+      "line_count": 277,
+      "description": "Implement classification engine and pipeline stages",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "medium-048",
+      "file": "medium-048.jsonl",
+      "source_session": "0145c1ff-ddf6-4268-89e8-235ad9a595d8",
+      "length_category": "medium",
+      "line_count": 150,
+      "description": "Add tasks and annotate test files",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "medium-049",
+      "file": "medium-049.jsonl",
+      "source_session": "0228a6ce-a5f3-478e-a39a-141f39120d0c",
+      "length_category": "medium",
+      "line_count": 92,
+      "description": "Implement digest schedule",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "medium-050",
+      "file": "medium-050.jsonl",
+      "source_session": "02a0b8de-5b7a-4f2c-a62f-d7bf9cee7294",
+      "length_category": "medium",
+      "line_count": 69,
+      "description": "Implement 10-stage classification pipeline",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "short-125",
+      "file": "short-125.jsonl",
+      "source_session": "02b795d3-c93b-4dc2-9695-a6abfba17d23",
+      "length_category": "short",
+      "line_count": 4,
+      "description": "Navigate and optimize Gmail automation codebase",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "medium-051",
+      "file": "medium-051.jsonl",
+      "source_session": "053bb803-1840-49cd-acec-40d0cf8ae4b9",
+      "length_category": "medium",
+      "line_count": 98,
+      "description": "Implement refactoring tasks for Phase 3.10",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "long-051",
+      "file": "long-051.jsonl",
+      "source_session": "071d7243-a0df-4707-b47f-fc41f586d599",
+      "length_category": "long",
+      "line_count": 356,
+      "description": "Implement performance benchmarking tool for classification pipeline",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "medium-052",
+      "file": "medium-052.jsonl",
+      "source_session": "084de868-b8f8-41ba-91a8-aa82890d7d09",
+      "length_category": "medium",
+      "line_count": 119,
+      "description": "Refactor Gmail API interaction",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "long-052",
+      "file": "long-052.jsonl",
+      "source_session": "0a2985e4-484f-452d-8772-6e86ded05d65",
+      "length_category": "long",
+      "line_count": 539,
+      "description": "Refactor Gmail API interaction and email fetching logic",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "short-126",
+      "file": "short-126.jsonl",
+      "source_session": "0a74067e-88de-472e-a582-ba4534abd83d",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "Navigate and understand the codebase",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "short-127",
+      "file": "short-127.jsonl",
+      "source_session": "0c23a7a6-7e83-49d9-838c-b90c58960dc7",
+      "length_category": "short",
+      "line_count": 4,
+      "description": "Wandering aimlessly through the codebase",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "medium-053",
+      "file": "medium-053.jsonl",
+      "source_session": "0c2bb3f6-e835-4ae8-85cc-d963f90657ab",
+      "length_category": "medium",
+      "line_count": 50,
+      "description": "Double-check that all TODO/FIXME items are handled",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "long-053",
+      "file": "long-053.jsonl",
+      "source_session": "0d299b33-e472-492e-92a9-3e000a34ee36",
+      "length_category": "long",
+      "line_count": 371,
+      "description": "Implement domain resolution for classification",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "long-054",
+      "file": "long-054.jsonl",
+      "source_session": "0d504031-8efc-44ba-aaa1-8a2178b6cd0d",
+      "length_category": "long",
+      "line_count": 190,
+      "description": "Improve agent files to match tech-lead.md template",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "long-055",
+      "file": "long-055.jsonl",
+      "source_session": "1003f1ff-f9b9-458d-a742-3dd7dee2ddb7",
+      "length_category": "long",
+      "line_count": 193,
+      "description": "Implement fetch-emails CLI and update audit trail comments",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "long-056",
+      "file": "long-056.jsonl",
+      "source_session": "117d4996-c6b7-4d48-b02a-9587a58e7bc5",
+      "length_category": "long",
+      "line_count": 245,
+      "description": "Implement missing tuning parameters and fix related schema/tests",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "long-057",
+      "file": "long-057.jsonl",
+      "source_session": "121ffaf4-73d2-4224-a54d-14f0989e4cfa",
+      "length_category": "long",
+      "line_count": 278,
+      "description": "Implement Gmail API integration for email fetching.",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "medium-054",
+      "file": "medium-054.jsonl",
+      "source_session": "13421704-607d-44de-8101-65fa0485e85d",
+      "length_category": "medium",
+      "line_count": 113,
+      "description": "Fix lint and TypeScript errors in new packages",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "long-058",
+      "file": "long-058.jsonl",
+      "source_session": "14ba9575-fd81-4be8-901c-262ab5114140",
+      "length_category": "long",
+      "line_count": 201,
+      "description": "Verify tasks.md corresponds to FUTURE_ENHANCEMENTS.md",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "long-059",
+      "file": "long-059.jsonl",
+      "source_session": "15a9d9c7-0a9f-44fe-b11d-b2dcced44e71",
+      "length_category": "long",
+      "line_count": 314,
+      "description": "Fix attribute-influence.test.ts errors",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "long-060",
+      "file": "long-060.jsonl",
+      "source_session": "16529161-eced-41f3-90cb-1e5a8cf37478",
+      "length_category": "long",
+      "line_count": 162,
+      "description": "Fix TypeScript and lint issues in changed files",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "medium-055",
+      "file": "medium-055.jsonl",
+      "source_session": "172950c6-8b6d-490e-826c-532f5df7a1ad",
+      "length_category": "medium",
+      "line_count": 107,
+      "description": "Fix 8 failing tests in T075 and subsequent tasks",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "short-128",
+      "file": "short-128.jsonl",
+      "source_session": "1766a7ab-b3e4-4232-9c5f-8a901f9b8a84",
+      "length_category": "short",
+      "line_count": 17,
+      "description": "Refactor configuration into modular structure",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "short-129",
+      "file": "short-129.jsonl",
+      "source_session": "1792e51f-4639-422e-9141-71fecf8c9bf0",
+      "length_category": "short",
+      "line_count": 40,
+      "description": "Ensure task definitions are consistent and logically ordered",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "medium-056",
+      "file": "medium-056.jsonl",
+      "source_session": "1a3b3574-5c0c-425f-a294-f5b8f069cff5",
+      "length_category": "medium",
+      "line_count": 66,
+      "description": "Fix TypeScript and lint errors in ai-routing.test.ts",
+      "collected_at": "2025-10-28T09:35:44Z"
+    },
+    {
+      "id": "long-061",
+      "file": "long-061.jsonl",
+      "source_session": "1ba3d65f-3671-4b35-b79b-66c38dd50fce",
+      "length_category": "long",
+      "line_count": 318,
+      "description": "Refactor classification-engine.ts for SRP",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "short-130",
+      "file": "short-130.jsonl",
+      "source_session": "1c141d9f-926f-42f1-8dee-6bdb869da65f",
+      "length_category": "short",
+      "line_count": 6,
+      "description": "Explore and analyze the codebase",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "short-131",
+      "file": "short-131.jsonl",
+      "source_session": "1d2d6b6d-f12f-499a-8de1-df4636ca49c4",
+      "length_category": "short",
+      "line_count": 4,
+      "description": "Execute code commands",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-062",
+      "file": "long-062.jsonl",
+      "source_session": "1d97c554-f05b-43da-8fa7-9dcc1a6757e0",
+      "length_category": "long",
+      "line_count": 321,
+      "description": "Implement the AI routing stage for email classification",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "medium-057",
+      "file": "medium-057.jsonl",
+      "source_session": "1edfbaaa-15b7-496d-8fe9-28ad73a87486",
+      "length_category": "medium",
+      "line_count": 148,
+      "description": "Fix integration tests that fail due to dynamic imports",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "medium-058",
+      "file": "medium-058.jsonl",
+      "source_session": "1fb662ef-bc59-4442-92ba-b2340f4b07dc",
+      "length_category": "medium",
+      "line_count": 148,
+      "description": "Implement AI routing and processing pipeline",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-063",
+      "file": "long-063.jsonl",
+      "source_session": "21454e60-2222-4b89-aeff-e84421cbf722",
+      "length_category": "long",
+      "line_count": 161,
+      "description": "Fix digest generator implementation and tests",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-064",
+      "file": "long-064.jsonl",
+      "source_session": "219ef127-623e-4dd2-baef-dc338a2bbc63",
+      "length_category": "long",
+      "line_count": 161,
+      "description": "Fix TypeScript and lint issues in test files",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-065",
+      "file": "long-065.jsonl",
+      "source_session": "2217d3db-324b-4917-a594-057c282e3abb",
+      "length_category": "long",
+      "line_count": 396,
+      "description": "Implement ClassificationEngine and related API Contract Tests",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "medium-059",
+      "file": "medium-059.jsonl",
+      "source_session": "226df644-ff55-4187-bb07-f4c5a8e1c2d6",
+      "length_category": "medium",
+      "line_count": 120,
+      "description": "Mark T093 as complete",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "short-132",
+      "file": "short-132.jsonl",
+      "source_session": "23788bad-db89-4270-b5fa-bc30141da97b",
+      "length_category": "short",
+      "line_count": 24,
+      "description": "Implement classification engine enhancements",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-066",
+      "file": "long-066.jsonl",
+      "source_session": "26cf7eb9-7512-4762-bd2a-0dc59a2f6104",
+      "length_category": "long",
+      "line_count": 413,
+      "description": "Fix TypeScript and ESLint errors in test files",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "medium-060",
+      "file": "medium-060.jsonl",
+      "source_session": "29252d49-ea61-4b44-9308-f10e38afe697",
+      "length_category": "medium",
+      "line_count": 121,
+      "description": "Get classification tests passing with proper subtype expectations",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "medium-061",
+      "file": "medium-061.jsonl",
+      "source_session": "297dcea7-608c-4df3-a963-205ca24bafa0",
+      "length_category": "medium",
+      "line_count": 83,
+      "description": "Analyze and renumber tasks",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-067",
+      "file": "long-067.jsonl",
+      "source_session": "2b29829c-9cda-496e-9013-21b6e6ee5a63",
+      "length_category": "long",
+      "line_count": 1358,
+      "description": "Eradicate all task IDs from the codebase",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "short-133",
+      "file": "short-133.jsonl",
+      "source_session": "2cc768b9-f379-44d5-8bb0-dd4fa938079f",
+      "length_category": "short",
+      "line_count": 4,
+      "description": "Wandering aimlessly through the codebase",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-068",
+      "file": "long-068.jsonl",
+      "source_session": "2d80d943-32d5-4620-8d1d-65eb6f2f44e5",
+      "length_category": "long",
+      "line_count": 225,
+      "description": "Add FR-003 category validation tests",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-069",
+      "file": "long-069.jsonl",
+      "source_session": "2dd645b4-8947-4afc-b7ab-1c693a509486",
+      "length_category": "long",
+      "line_count": 156,
+      "description": "Fix AI classification pipeline wiring",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "short-134",
+      "file": "short-134.jsonl",
+      "source_session": "310045be-e32e-48dd-b57e-ba56de69d27f",
+      "length_category": "short",
+      "line_count": 3,
+      "description": "No description",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-070",
+      "file": "long-070.jsonl",
+      "source_session": "311ea664-7897-48fd-bbd6-0b09bcd6dc87",
+      "length_category": "long",
+      "line_count": 162,
+      "description": "Fix schema-implementation mismatches for attribute detection",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-071",
+      "file": "long-071.jsonl",
+      "source_session": "327f0329-7aa1-4a66-91ae-a62f46017b49",
+      "length_category": "long",
+      "line_count": 176,
+      "description": "Understand TypeScript 'as never' type assertion",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-072",
+      "file": "long-072.jsonl",
+      "source_session": "32a8c89c-4b42-48b7-9be8-4301f781c5ad",
+      "length_category": "long",
+      "line_count": 389,
+      "description": "Standardize codebase to use camelCase for consistency and align with API snake_case",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "short-135",
+      "file": "short-135.jsonl",
+      "source_session": "32f26640-6ca9-4109-a855-b7fdf9127353",
+      "length_category": "short",
+      "line_count": 18,
+      "description": "Advance architectural cleanup and configuration completeness",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-073",
+      "file": "long-073.jsonl",
+      "source_session": "360314e3-83fd-4190-8140-39bcee69af31",
+      "length_category": "long",
+      "line_count": 422,
+      "description": "Complete Phase 3.8 (Digest Generation)",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-074",
+      "file": "long-074.jsonl",
+      "source_session": "3656c88a-5a37-46b3-a8eb-0a19ddc6b9ae",
+      "length_category": "long",
+      "line_count": 394,
+      "description": "Implement the Handlebars template engine",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-075",
+      "file": "long-075.jsonl",
+      "source_session": "36695d4b-6a6f-433c-bbf7-dd9240f32bd9",
+      "length_category": "long",
+      "line_count": 226,
+      "description": "Edit agent descriptor files to remove detailed implementation examples.",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "short-136",
+      "file": "short-136.jsonl",
+      "source_session": "36949c2b-eaa2-4c5e-9b03-a0c1d71edb95",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "No description",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-076",
+      "file": "long-076.jsonl",
+      "source_session": "3a1c73ea-64ea-4159-afc1-03456c2b487f",
+      "length_category": "long",
+      "line_count": 409,
+      "description": "Implement Gmail API client with OAuth2 authentication",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "short-137",
+      "file": "short-137.jsonl",
+      "source_session": "3b59243e-2d72-43f5-bb57-adcd9c72f70e",
+      "length_category": "short",
+      "line_count": 4,
+      "description": "Undefined",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-077",
+      "file": "long-077.jsonl",
+      "source_session": "4064509c-352c-419f-b470-5a99bc3050ac",
+      "length_category": "long",
+      "line_count": 288,
+      "description": "Clean up build artifacts and .gitignore",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "short-138",
+      "file": "short-138.jsonl",
+      "source_session": "40ec46ff-b865-402f-bb5c-c521828ab6d6",
+      "length_category": "short",
+      "line_count": 5,
+      "description": "Execute commands",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-078",
+      "file": "long-078.jsonl",
+      "source_session": "414f59dd-2f01-4641-baff-af75ded521a3",
+      "length_category": "long",
+      "line_count": 212,
+      "description": "Implement T062 - Fix notContains logic error",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-079",
+      "file": "long-079.jsonl",
+      "source_session": "415ee67a-040a-4902-b3f5-981ab9058454",
+      "length_category": "long",
+      "line_count": 162,
+      "description": "Implement constructor validation for required config fields and deprecated fields",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-080",
+      "file": "long-080.jsonl",
+      "source_session": "42da970b-5caf-4ce6-a41e-195bb8b96939",
+      "length_category": "long",
+      "line_count": 193,
+      "description": "Fix TypeScript type errors.",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "short-139",
+      "file": "short-139.jsonl",
+      "source_session": "4665233e-5e83-4cbf-9e18-b745d7fa9e65",
+      "length_category": "short",
+      "line_count": 40,
+      "description": "Debug hooks configuration",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "short-140",
+      "file": "short-140.jsonl",
+      "source_session": "46682d81-d493-474f-bf16-2cae18407170",
+      "length_category": "short",
+      "line_count": 6,
+      "description": "Migrate Gmail automation from n8n to direct Node.js services",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-081",
+      "file": "long-081.jsonl",
+      "source_session": "4785e80a-fd72-4163-ba75-e5ed98ebd1c8",
+      "length_category": "long",
+      "line_count": 180,
+      "description": "Refactor AI stages to canonical signature pattern",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-082",
+      "file": "long-082.jsonl",
+      "source_session": "478864b5-53be-48f9-b078-fbe05c284ec2",
+      "length_category": "long",
+      "line_count": 579,
+      "description": "Review category/subtype parsing utility extraction for production readiness",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-083",
+      "file": "long-083.jsonl",
+      "source_session": "485ad32c-cad0-41f8-8ef9-27dcb5e0dfb8",
+      "length_category": "long",
+      "line_count": 157,
+      "description": "Fix disambiguation schema-implementation mismatches",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "medium-062",
+      "file": "medium-062.jsonl",
+      "source_session": "49fe8081-42df-4ba2-9277-ea2b6b8e49d9",
+      "length_category": "medium",
+      "line_count": 79,
+      "description": "Implement new features and fix code issues",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "short-141",
+      "file": "short-141.jsonl",
+      "source_session": "4c0df0d4-14ae-4541-b42e-c501cc8117df",
+      "length_category": "short",
+      "line_count": 30,
+      "description": "Automate Gmail processing pipeline",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-084",
+      "file": "long-084.jsonl",
+      "source_session": "4c1f5334-3408-4026-9734-8e0f88ebdaab",
+      "length_category": "long",
+      "line_count": 164,
+      "description": "Complete Phase 2 runtime interface fixes",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-085",
+      "file": "long-085.jsonl",
+      "source_session": "4cff956c-024b-44b8-9fbe-ecca2590b5d6",
+      "length_category": "long",
+      "line_count": 461,
+      "description": "Implement Phase 3.4: Configuration System and Schema Validation",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "short-142",
+      "file": "short-142.jsonl",
+      "source_session": "4d314d66-5c63-4e25-b676-c59f9ee406fe",
+      "length_category": "short",
+      "line_count": 8,
+      "description": "Understand UUID generation logic",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-086",
+      "file": "long-086.jsonl",
+      "source_session": "4d5ab373-f5e4-4bbd-8c16-1d963e671593",
+      "length_category": "long",
+      "line_count": 244,
+      "description": "Implement classification pipeline orchestrator",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-087",
+      "file": "long-087.jsonl",
+      "source_session": "4dcefd34-7ba8-4c86-9b34-ff706b9a50dd",
+      "length_category": "long",
+      "line_count": 284,
+      "description": "Add and commit remaining files",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-088",
+      "file": "long-088.jsonl",
+      "source_session": "4f4478e0-bace-4716-9356-ee9f61bc7b18",
+      "length_category": "long",
+      "line_count": 291,
+      "description": "Ensure monorepo TypeScript setup is robust and correctly configured",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-089",
+      "file": "long-089.jsonl",
+      "source_session": "503892ae-110d-46e2-946b-6d7da47aab4c",
+      "length_category": "long",
+      "line_count": 173,
+      "description": "Fix schema divergence issues",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "medium-063",
+      "file": "medium-063.jsonl",
+      "source_session": "517ac71b-3d5f-406b-9a1a-4865fdec5f65",
+      "length_category": "medium",
+      "line_count": 121,
+      "description": "Fix integration test data issues",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-090",
+      "file": "long-090.jsonl",
+      "source_session": "5182bd38-bb42-41bd-824b-9222203bfcb7",
+      "length_category": "long",
+      "line_count": 660,
+      "description": "Refactor database connection pooling",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "medium-064",
+      "file": "medium-064.jsonl",
+      "source_session": "523713fe-0076-45d1-a2fd-61fcc89d5839",
+      "length_category": "medium",
+      "line_count": 77,
+      "description": "Fix TypeScript errors in rule-scoring.test.ts",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-091",
+      "file": "long-091.jsonl",
+      "source_session": "532fbca4-1d9a-4399-a318-efca82d7007e",
+      "length_category": "long",
+      "line_count": 245,
+      "description": "Fix failing tests due to config mocking",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "medium-065",
+      "file": "medium-065.jsonl",
+      "source_session": "54275daa-bc76-4b19-9ef1-a98608bfc9da",
+      "length_category": "medium",
+      "line_count": 146,
+      "description": "Implement TDD contract tests for Classification Engine, Email Processor, and Digest Generator.",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-092",
+      "file": "long-092.jsonl",
+      "source_session": "55e3d22f-e029-433f-abef-813f50e564aa",
+      "length_category": "long",
+      "line_count": 176,
+      "description": "Implement attribute detectors for email categorization",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-093",
+      "file": "long-093.jsonl",
+      "source_session": "56185485-6680-42d4-83a1-af7f9c3c1485",
+      "length_category": "long",
+      "line_count": 675,
+      "description": "Fix snake_case properties in config files",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-094",
+      "file": "long-094.jsonl",
+      "source_session": "569706c7-27e5-4f21-a0f8-b79cd375357f",
+      "length_category": "long",
+      "line_count": 302,
+      "description": "Update CLAUDE.md files with current state info",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "short-143",
+      "file": "short-143.jsonl",
+      "source_session": "56ec2109-7d9f-4a2a-be54-434ebcbe0b83",
+      "length_category": "short",
+      "line_count": 40,
+      "description": "Implement end-to-end testing infrastructure",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-095",
+      "file": "long-095.jsonl",
+      "source_session": "579898c5-daa5-44a6-adf8-5e63897ba66a",
+      "length_category": "long",
+      "line_count": 633,
+      "description": "Fix failing tests",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-096",
+      "file": "long-096.jsonl",
+      "source_session": "5818c8a6-ca18-4812-869c-3bf60cf60b08",
+      "length_category": "long",
+      "line_count": 622,
+      "description": "Refactor classification engine code",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-097",
+      "file": "long-097.jsonl",
+      "source_session": "5840b61f-8a5f-4762-bba0-b2e33578faf0",
+      "length_category": "long",
+      "line_count": 314,
+      "description": "Complete TDD for multi-label selection.",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-098",
+      "file": "long-098.jsonl",
+      "source_session": "598425e8-b728-4b07-ad18-de5d4ce8947c",
+      "length_category": "long",
+      "line_count": 887,
+      "description": "Migrate tests to canonical signature and remove deprecated code",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-099",
+      "file": "long-099.jsonl",
+      "source_session": "5a8ee00d-4491-4117-8806-1a1350c60784",
+      "length_category": "long",
+      "line_count": 723,
+      "description": "Refactor pipeline stages to return types and update AuditTrailGenerator",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-100",
+      "file": "long-100.jsonl",
+      "source_session": "5d84cde6-9b68-4f53-bb69-f87adead8633",
+      "length_category": "long",
+      "line_count": 287,
+      "description": "Implement urgency attribute detection",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "short-144",
+      "file": "short-144.jsonl",
+      "source_session": "5e1034bf-ad99-4b7f-b3af-3777743531c4",
+      "length_category": "short",
+      "line_count": 13,
+      "description": "Analyze task parallelizability",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "short-145",
+      "file": "short-145.jsonl",
+      "source_session": "5ed6c147-f5d5-4cce-9a37-5768b5b8680e",
+      "length_category": "short",
+      "line_count": 4,
+      "description": "Execute code commands",
+      "collected_at": "2025-10-28T09:35:45Z"
+    },
+    {
+      "id": "long-101",
+      "file": "long-101.jsonl",
+      "source_session": "5f327999-1208-48e5-afc5-cf1d548ed754",
+      "length_category": "long",
+      "line_count": 211,
+      "description": "Fix T084 multi-category test failure",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "short-146",
+      "file": "short-146.jsonl",
+      "source_session": "61d5e320-6227-4d4b-ac28-8d091b01e835",
+      "length_category": "short",
+      "line_count": 4,
+      "description": "Wandering aimlessly through the codebase",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "long-102",
+      "file": "long-102.jsonl",
+      "source_session": "62080f44-dede-4e6a-b7d3-7f375b0cca6b",
+      "length_category": "long",
+      "line_count": 210,
+      "description": "Implement domain lookup loading and transformation",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "short-147",
+      "file": "short-147.jsonl",
+      "source_session": "62186ed0-b26e-41f3-a0ab-1bf375872f32",
+      "length_category": "short",
+      "line_count": 4,
+      "description": "Wandering aimlessly through the codebase",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "short-148",
+      "file": "short-148.jsonl",
+      "source_session": "627d5a3f-4817-44e5-b5de-ca6c340b2f7b",
+      "length_category": "short",
+      "line_count": 13,
+      "description": "Improve code quality and maintainability using Claude's skills",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "short-149",
+      "file": "short-149.jsonl",
+      "source_session": "637aa321-b4b1-4357-be92-71c9412c0ec1",
+      "length_category": "short",
+      "line_count": 17,
+      "description": "Analyze artifacts for inconsistencies, duplications, ambiguities before implementation",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "long-103",
+      "file": "long-103.jsonl",
+      "source_session": "6409dbfb-a799-46ea-8cc3-a960b6611240",
+      "length_category": "long",
+      "line_count": 239,
+      "description": "Fix OpenAI schema validation and TypeScript errors",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "medium-066",
+      "file": "medium-066.jsonl",
+      "source_session": "64630775-9c4f-4985-89b8-128e45fae66b",
+      "length_category": "medium",
+      "line_count": 142,
+      "description": "Complete T090 implementation and documentation",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "short-150",
+      "file": "short-150.jsonl",
+      "source_session": "65b8753c-2649-457b-b876-4b8bc66a07eb",
+      "length_category": "short",
+      "line_count": 18,
+      "description": "Determine the next task to work on",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "long-104",
+      "file": "long-104.jsonl",
+      "source_session": "6609075d-5be0-48ab-9026-b6c80a097197",
+      "length_category": "long",
+      "line_count": 248,
+      "description": "Refactor email processor and classification engine",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "long-105",
+      "file": "long-105.jsonl",
+      "source_session": "663dad4c-683a-40b7-80c0-a091fe3da038",
+      "length_category": "long",
+      "line_count": 182,
+      "description": "Fix AI routing test to be truly ambiguous",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "long-106",
+      "file": "long-106.jsonl",
+      "source_session": "67fdcdab-c77c-466a-9c15-1adefe5fe15f",
+      "length_category": "long",
+      "line_count": 297,
+      "description": "Implement AI feature extraction stage",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "long-107",
+      "file": "long-107.jsonl",
+      "source_session": "68841212-8b76-4c8a-997a-97e0887e1e94",
+      "length_category": "long",
+      "line_count": 423,
+      "description": "Resolve TypeScript and ESLint issues in codebase",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "long-108",
+      "file": "long-108.jsonl",
+      "source_session": "688d50f3-91e3-4237-beda-7e33d5cd0635",
+      "length_category": "long",
+      "line_count": 257,
+      "description": "Document classification engine architecture and utilities",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "long-109",
+      "file": "long-109.jsonl",
+      "source_session": "69016bb6-24fc-4019-b997-ffa704d8dc55",
+      "length_category": "long",
+      "line_count": 247,
+      "description": "Manage workflow execution traces and metadata.",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "long-110",
+      "file": "long-110.jsonl",
+      "source_session": "692a1be0-6898-48d6-aa2d-276c05112826",
+      "length_category": "long",
+      "line_count": 554,
+      "description": "Migrate logging from console.* to pino structured logging",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "medium-067",
+      "file": "medium-067.jsonl",
+      "source_session": "6b662b77-86e0-48d5-99fe-e7698f541cc7",
+      "length_category": "medium",
+      "line_count": 142,
+      "description": "Complete attribute context mapping with temporal signals and influence tracking.",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "medium-068",
+      "file": "medium-068.jsonl",
+      "source_session": "6bcf3ee1-f398-45ef-9c68-d66675c61479",
+      "length_category": "medium",
+      "line_count": 95,
+      "description": "Unify scoring scale and fix related TypeScript errors",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "short-151",
+      "file": "short-151.jsonl",
+      "source_session": "6c7511a1-3dff-45a4-a372-1673e66613c8",
+      "length_category": "short",
+      "line_count": 24,
+      "description": "Understand the claude hook configuration and response-tracker.sh",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "short-152",
+      "file": "short-152.jsonl",
+      "source_session": "6d387a9a-e389-4330-8888-49d63fd49e76",
+      "length_category": "short",
+      "line_count": 25,
+      "description": "Verify usage of performance-tracking.ts",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "short-153",
+      "file": "short-153.jsonl",
+      "source_session": "6dc13d62-cd2b-4156-bff1-0ad904f3d02b",
+      "length_category": "short",
+      "line_count": 17,
+      "description": "Explore and develop gmail-automation codebase",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "medium-069",
+      "file": "medium-069.jsonl",
+      "source_session": "6e695f84-1118-4b7b-b605-8aa5b5d8b39f",
+      "length_category": "medium",
+      "line_count": 76,
+      "description": "Analyze code and task files for artifacts.",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "medium-070",
+      "file": "medium-070.jsonl",
+      "source_session": "6ea414df-2427-4c9a-a53d-8e081e69ad68",
+      "length_category": "medium",
+      "line_count": 107,
+      "description": "Implement the full system of email classification",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "long-111",
+      "file": "long-111.jsonl",
+      "source_session": "6fc1cb7c-44ff-4ad5-8a90-9b018faa292d",
+      "length_category": "long",
+      "line_count": 216,
+      "description": "Update CLAUDE.md files for clarity and accuracy",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "medium-071",
+      "file": "medium-071.jsonl",
+      "source_session": "72f16957-a586-4125-9244-d5fce27e5015",
+      "length_category": "medium",
+      "line_count": 114,
+      "description": "Update CLAUDE.md files",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "medium-072",
+      "file": "medium-072.jsonl",
+      "source_session": "7488891c-804d-4f36-939e-556b294ae581",
+      "length_category": "medium",
+      "line_count": 53,
+      "description": "Analyze and resolve configuration discrepancies",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "long-112",
+      "file": "long-112.jsonl",
+      "source_session": "74a5667a-76d1-40aa-b5f3-051c722bb4b0",
+      "length_category": "long",
+      "line_count": 236,
+      "description": "Fix TypeScript and ESLint issues",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "long-113",
+      "file": "long-113.jsonl",
+      "source_session": "752d4629-ab2e-4529-833d-da48692e8551",
+      "length_category": "long",
+      "line_count": 328,
+      "description": "Refactor code and fix build",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "short-154",
+      "file": "short-154.jsonl",
+      "source_session": "767156ae-f1a0-4a5b-b374-18b05bbe196d",
+      "length_category": "short",
+      "line_count": 14,
+      "description": "Migrate from n8n to direct Gmail API.",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "long-114",
+      "file": "long-114.jsonl",
+      "source_session": "76b89abf-2192-4899-906d-eccb18b76b97",
+      "length_category": "long",
+      "line_count": 159,
+      "description": "Complete T063 bug fix and verification",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "medium-073",
+      "file": "medium-073.jsonl",
+      "source_session": "76c6d53c-5ec9-46b6-a4c8-401001e5cb92",
+      "length_category": "medium",
+      "line_count": 133,
+      "description": "Implement AI routing logic and pass related tests",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "medium-074",
+      "file": "medium-074.jsonl",
+      "source_session": "77a5d461-2c75-4e3a-90d5-ec8ace636d15",
+      "length_category": "medium",
+      "line_count": 67,
+      "description": "Clean up spec, plan and tasks",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "long-115",
+      "file": "long-115.jsonl",
+      "source_session": "7a67a002-cbda-4256-8daa-14becb52d08b",
+      "length_category": "long",
+      "line_count": 442,
+      "description": "Implement email persistence and incremental fetch CLI",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "short-155",
+      "file": "short-155.jsonl",
+      "source_session": "7b01b10c-e020-4de0-a847-03aea220b8f5",
+      "length_category": "short",
+      "line_count": 4,
+      "description": "Wandering aimlessly through the codebase",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "short-156",
+      "file": "short-156.jsonl",
+      "source_session": "7b668393-5990-4da6-94dc-aaa5615d5faa",
+      "length_category": "short",
+      "line_count": 10,
+      "description": "Determine the purpose of 'Warmup'",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "medium-075",
+      "file": "medium-075.jsonl",
+      "source_session": "7d38612b-410c-4447-a81b-8b1561eaf42b",
+      "length_category": "medium",
+      "line_count": 77,
+      "description": "Fix TypeScript errors in audit-trail-failure-recovery.test.ts",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "long-116",
+      "file": "long-116.jsonl",
+      "source_session": "7dc5fd0d-7301-481c-9b9c-194d5c804687",
+      "length_category": "long",
+      "line_count": 245,
+      "description": "Refactor configuration system to use camelCase",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "long-117",
+      "file": "long-117.jsonl",
+      "source_session": "7dda589a-f2f3-4afc-82a6-946407ebd239",
+      "length_category": "long",
+      "line_count": 722,
+      "description": "Wire AI stages into pipeline orchestrator",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "long-118",
+      "file": "long-118.jsonl",
+      "source_session": "7ed12d6b-4a65-43cb-b838-ff6c5df20238",
+      "length_category": "long",
+      "line_count": 649,
+      "description": "Refactor all test files to use centralized fixtures",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "medium-076",
+      "file": "medium-076.jsonl",
+      "source_session": "809d2d17-b61c-4ac4-843a-72d619024165",
+      "length_category": "medium",
+      "line_count": 102,
+      "description": "Update config validation test to match actual error message",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "long-119",
+      "file": "long-119.jsonl",
+      "source_session": "80eb6a90-6411-438e-b4fa-f9aa763eecda",
+      "length_category": "long",
+      "line_count": 176,
+      "description": "Complete T070 task, including code changes and documentation",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "long-120",
+      "file": "long-120.jsonl",
+      "source_session": "820f1ae5-1859-4eeb-ad30-0b1e5d349889",
+      "length_category": "long",
+      "line_count": 188,
+      "description": "Implement the final decision stage of the classification pipeline",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "long-121",
+      "file": "long-121.jsonl",
+      "source_session": "82c77526-3759-4abf-8ad0-c29e3c5473c9",
+      "length_category": "long",
+      "line_count": 178,
+      "description": "Implement T067 multi-label selection schema fixes",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "short-157",
+      "file": "short-157.jsonl",
+      "source_session": "849489e3-2aa4-466a-be5d-dc7b606670a4",
+      "length_category": "short",
+      "line_count": 37,
+      "description": "Debug git commit hook error",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "medium-077",
+      "file": "medium-077.jsonl",
+      "source_session": "853f7076-f16d-4aee-9080-e6c486749ef7",
+      "length_category": "medium",
+      "line_count": 79,
+      "description": "Re-evaluate remaining tasks for spec 001",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "medium-078",
+      "file": "medium-078.jsonl",
+      "source_session": "85a48842-1d3f-4c1d-8a25-c647b38a3320",
+      "length_category": "medium",
+      "line_count": 103,
+      "description": "Refactor T036l to use canonical signatures",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "medium-079",
+      "file": "medium-079.jsonl",
+      "source_session": "85b49674-e138-4172-9f88-a0ba0e8da6b1",
+      "length_category": "medium",
+      "line_count": 112,
+      "description": "Modernize email processing with a 9-stage classification engine",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "long-122",
+      "file": "long-122.jsonl",
+      "source_session": "86935573-6d63-49a1-9a9a-1790323a84a7",
+      "length_category": "long",
+      "line_count": 283,
+      "description": "Implement AI feature extraction persistence",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "medium-080",
+      "file": "medium-080.jsonl",
+      "source_session": "8b3739d0-772f-44be-bed2-ab3938cf1bb8",
+      "length_category": "medium",
+      "line_count": 85,
+      "description": "Implement email classification migration",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "long-123",
+      "file": "long-123.jsonl",
+      "source_session": "8c405c87-a78d-4cce-a66f-6edb5bd65955",
+      "length_category": "long",
+      "line_count": 345,
+      "description": "Commit code changes",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "medium-081",
+      "file": "medium-081.jsonl",
+      "source_session": "8c638aaf-dd3a-4698-84f1-98277144fa5a",
+      "length_category": "medium",
+      "line_count": 82,
+      "description": "Update CLAUDE.md and verify code integrity",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "long-124",
+      "file": "long-124.jsonl",
+      "source_session": "8c723046-69e1-4b29-a4b4-2267e7dfd0b7",
+      "length_category": "long",
+      "line_count": 323,
+      "description": "Extract shared validation utilities from stage implementations",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "medium-082",
+      "file": "medium-082.jsonl",
+      "source_session": "8ef10561-172e-46c7-be94-8a26b1fd6642",
+      "length_category": "medium",
+      "line_count": 109,
+      "description": "Complete task traceability between tasks.md and TODOS.md",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "short-158",
+      "file": "short-158.jsonl",
+      "source_session": "900b8563-80ec-4755-a12f-9079ae147d19",
+      "length_category": "short",
+      "line_count": 4,
+      "description": "No description",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "long-125",
+      "file": "long-125.jsonl",
+      "source_session": "910de761-0099-464c-84ab-59945d000fdb",
+      "length_category": "long",
+      "line_count": 166,
+      "description": "Implement rule-based scoring stage",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "medium-083",
+      "file": "medium-083.jsonl",
+      "source_session": "9218dfef-e5af-4146-b3b4-ece36032ff35",
+      "length_category": "medium",
+      "line_count": 83,
+      "description": "Simplify the tasks.md file",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "medium-084",
+      "file": "medium-084.jsonl",
+      "source_session": "9261c1e0-d055-4ac8-a330-15c529cb908e",
+      "length_category": "medium",
+      "line_count": 86,
+      "description": "Complete task T075b by fixing receipt email confidence",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "long-126",
+      "file": "long-126.jsonl",
+      "source_session": "92a5e76e-fd0b-4ec1-849d-fbad766aa166",
+      "length_category": "long",
+      "line_count": 196,
+      "description": "Fix AI routing unit tests",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "long-127",
+      "file": "long-127.jsonl",
+      "source_session": "93741db4-379e-4882-b1ff-8aef1d4fd30f",
+      "length_category": "long",
+      "line_count": 269,
+      "description": "Complete T075h and address technical debt",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "long-128",
+      "file": "long-128.jsonl",
+      "source_session": "93881368-dc71-4780-bac5-ed83cfd24246",
+      "length_category": "long",
+      "line_count": 575,
+      "description": "Implement thread-based email fetching for label sync",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "short-159",
+      "file": "short-159.jsonl",
+      "source_session": "9418e30b-ef9c-43e6-9124-cf03ebd00910",
+      "length_category": "short",
+      "line_count": 3,
+      "description": "No description",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "long-129",
+      "file": "long-129.jsonl",
+      "source_session": "9447adea-e9be-48ac-bf77-e5f9e7ad5a53",
+      "length_category": "long",
+      "line_count": 153,
+      "description": "Implement task T079 to update urgency test contracts",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "short-160",
+      "file": "short-160.jsonl",
+      "source_session": "955bf052-58b9-482e-acdc-c9766df12a76",
+      "length_category": "short",
+      "line_count": 4,
+      "description": "Maintain program state",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "long-130",
+      "file": "long-130.jsonl",
+      "source_session": "958ae9ff-ccbb-4b40-aa9a-2dba49004a2f",
+      "length_category": "long",
+      "line_count": 193,
+      "description": "Implement and finalize the audit trail generation stage",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "short-161",
+      "file": "short-161.jsonl",
+      "source_session": "958f6620-947f-4de2-b286-b2ff4cda1524",
+      "length_category": "short",
+      "line_count": 16,
+      "description": "Return to a previous git branch and clean up",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "short-162",
+      "file": "short-162.jsonl",
+      "source_session": "95cc543b-d427-4243-9b26-47c56ca5753a",
+      "length_category": "short",
+      "line_count": 4,
+      "description": "Clear output",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "long-131",
+      "file": "long-131.jsonl",
+      "source_session": "9782c8f4-b7b0-45d4-a04f-8334f37f638b",
+      "length_category": "long",
+      "line_count": 204,
+      "description": "Fix TypeScript and lint issues in test files",
+      "collected_at": "2025-10-28T09:35:46Z"
+    },
+    {
+      "id": "long-132",
+      "file": "long-132.jsonl",
+      "source_session": "979f53f5-dae4-495a-9cee-745aff920641",
+      "length_category": "long",
+      "line_count": 364,
+      "description": "Implement the DigestGenerator with Prisma integration",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-133",
+      "file": "long-133.jsonl",
+      "source_session": "97c927d1-f202-4175-9845-b72c126876e5",
+      "length_category": "long",
+      "line_count": 1021,
+      "description": "Clean up codebase and fix linter errors",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-134",
+      "file": "long-134.jsonl",
+      "source_session": "98216e1c-9dfd-4afd-a8ab-c3001ce1ca19",
+      "length_category": "long",
+      "line_count": 246,
+      "description": "Fix lint and type errors in attribute-influence.ts",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-135",
+      "file": "long-135.jsonl",
+      "source_session": "9a012be0-c358-4ad7-ae38-7ecb88e0d0f5",
+      "length_category": "long",
+      "line_count": 162,
+      "description": "Standardize pipeline stage signatures",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-136",
+      "file": "long-136.jsonl",
+      "source_session": "9a89dfc0-39ee-4da8-a9fb-77dd98f52984",
+      "length_category": "long",
+      "line_count": 445,
+      "description": "Refactor type definitions and configurations",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "medium-085",
+      "file": "medium-085.jsonl",
+      "source_session": "9af3722c-f451-40ab-9831-0210e78300cc",
+      "length_category": "medium",
+      "line_count": 66,
+      "description": "Integrate Gmail API and improve classification pipeline",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-137",
+      "file": "long-137.jsonl",
+      "source_session": "9c8e5857-16ee-45a3-9f13-2cf8a5e1a331",
+      "length_category": "long",
+      "line_count": 199,
+      "description": "Complete Spec 001: Migrate n8n to direct implementation",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "medium-086",
+      "file": "medium-086.jsonl",
+      "source_session": "9cddcea4-9618-448f-b5e0-48db514821cf",
+      "length_category": "medium",
+      "line_count": 92,
+      "description": "Implement & then remove weightMultiplier from schema",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "medium-087",
+      "file": "medium-087.jsonl",
+      "source_session": "9d18611f-2a73-4868-8aa4-5ac3c3a91b85",
+      "length_category": "medium",
+      "line_count": 118,
+      "description": "Update tasks.md write-up for T076 refactoring plan",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-138",
+      "file": "long-138.jsonl",
+      "source_session": "9e3a8703-9090-4807-8e84-533eb55c6d77",
+      "length_category": "long",
+      "line_count": 272,
+      "description": "Fix pipeline type system",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "short-163",
+      "file": "short-163.jsonl",
+      "source_session": "9e816aa0-c975-419f-ac14-0d3cefb1ee6e",
+      "length_category": "short",
+      "line_count": 31,
+      "description": "Automate Gmail by replacing n8n with Node.js services",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-139",
+      "file": "long-139.jsonl",
+      "source_session": "9eae51e3-01f2-4ce4-9fae-12a010d24a35",
+      "length_category": "long",
+      "line_count": 819,
+      "description": "Implement critical security improvements",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "medium-088",
+      "file": "medium-088.jsonl",
+      "source_session": "9f44f5da-338b-4ea4-a8a5-3352ab21c470",
+      "length_category": "medium",
+      "line_count": 111,
+      "description": "Organize and consolidate all tasks into main task files.",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "short-164",
+      "file": "short-164.jsonl",
+      "source_session": "9fffc0a5-e0a4-4295-9f43-0b5f5961b5fd",
+      "length_category": "short",
+      "line_count": 4,
+      "description": "Wandering aimlessly through the codebase",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-140",
+      "file": "long-140.jsonl",
+      "source_session": "a0443c22-0f8d-4c74-8f7f-77e900b04a42",
+      "length_category": "long",
+      "line_count": 183,
+      "description": "Fix all T075* test failures",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "medium-089",
+      "file": "medium-089.jsonl",
+      "source_session": "a0beebf9-b269-4de4-af55-1f1d26016396",
+      "length_category": "medium",
+      "line_count": 134,
+      "description": "Fix domain-sources schema validation and tests",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-141",
+      "file": "long-141.jsonl",
+      "source_session": "a25ddb89-7494-4eee-9aee-fa270b697372",
+      "length_category": "long",
+      "line_count": 248,
+      "description": "Implement pino logging infrastructure",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "medium-090",
+      "file": "medium-090.jsonl",
+      "source_session": "a29c332f-f96d-427b-9500-a46aeb50d20a",
+      "length_category": "medium",
+      "line_count": 89,
+      "description": "Update CLAUDE.md files and fix classification accuracy",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-142",
+      "file": "long-142.jsonl",
+      "source_session": "a30525f0-da8f-4a3d-93fe-3b47cbec4a91",
+      "length_category": "long",
+      "line_count": 505,
+      "description": "Fix multi-category email classification",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "short-165",
+      "file": "short-165.jsonl",
+      "source_session": "a4425b40-03b0-4346-9abb-bd7ec5174ee3",
+      "length_category": "short",
+      "line_count": 38,
+      "description": "Refactor monolithic configuration file",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-143",
+      "file": "long-143.jsonl",
+      "source_session": "a4e7c7c3-a9e1-413f-bd0e-cde35aeebf9f",
+      "length_category": "long",
+      "line_count": 302,
+      "description": "Enhance T049 with AI vs non-AI path separation",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-144",
+      "file": "long-144.jsonl",
+      "source_session": "a5a12b59-9257-4635-9280-38964aaf4914",
+      "length_category": "long",
+      "line_count": 252,
+      "description": "Fix bugs and ensure tests are passing",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-145",
+      "file": "long-145.jsonl",
+      "source_session": "a62571cd-dd6b-4af1-93cb-34ea65b97f73",
+      "length_category": "long",
+      "line_count": 205,
+      "description": "Fix test mock naming convention",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-146",
+      "file": "long-146.jsonl",
+      "source_session": "a70eb78b-1351-4ef7-868c-edd3e5ecc367",
+      "length_category": "long",
+      "line_count": 198,
+      "description": "Fix TypeScript and ESLint issues in code",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-147",
+      "file": "long-147.jsonl",
+      "source_session": "a769a4c7-17a4-4ee2-87d9-fd906a493839",
+      "length_category": "long",
+      "line_count": 203,
+      "description": "Implement IoC/DI for AI client",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-148",
+      "file": "long-148.jsonl",
+      "source_session": "a9e9e589-93c4-49c3-99d7-6bd891c7dad9",
+      "length_category": "long",
+      "line_count": 410,
+      "description": "Decouple codebase from n8n infrastructure",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "short-166",
+      "file": "short-166.jsonl",
+      "source_session": "aa93f251-9323-4411-8333-8a49f679e4f0",
+      "length_category": "short",
+      "line_count": 4,
+      "description": "Perform requested command-line operations",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-149",
+      "file": "long-149.jsonl",
+      "source_session": "aaf351b4-2d65-4c9b-a283-7324265c21dd",
+      "length_category": "long",
+      "line_count": 398,
+      "description": "Implement T036j: classification result persistence",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-150",
+      "file": "long-150.jsonl",
+      "source_session": "aafdb395-92fe-43a0-93e3-cfe30ec3cf37",
+      "length_category": "long",
+      "line_count": 259,
+      "description": "Fix type safety and commit changes",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "short-167",
+      "file": "short-167.jsonl",
+      "source_session": "abc5bb25-683b-4168-b2f9-9878e6d59228",
+      "length_category": "short",
+      "line_count": 12,
+      "description": "Explore the gmail-automation codebase",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-151",
+      "file": "long-151.jsonl",
+      "source_session": "ac3d695a-770e-432d-aecb-70cfbbefd7f8",
+      "length_category": "long",
+      "line_count": 220,
+      "description": "Tackle T075e (fix test failures)",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-152",
+      "file": "long-152.jsonl",
+      "source_session": "ac44d3db-db63-4cca-8473-bed85adbec50",
+      "length_category": "long",
+      "line_count": 545,
+      "description": "Implement incremental email fetching CLI",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "medium-091",
+      "file": "medium-091.jsonl",
+      "source_session": "ad484226-4ee2-4d01-b3ff-079a5bcb3f41",
+      "length_category": "medium",
+      "line_count": 115,
+      "description": "Update CLAUDE.md with project status and migration plan",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-153",
+      "file": "long-153.jsonl",
+      "source_session": "adbe4286-7998-4b77-9530-00932209b77b",
+      "length_category": "long",
+      "line_count": 331,
+      "description": "Update email categorization strategy and documentation.",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "medium-092",
+      "file": "medium-092.jsonl",
+      "source_session": "ae23416f-4fbb-4171-b91c-c1b2598c76ed",
+      "length_category": "medium",
+      "line_count": 85,
+      "description": "Refactor classification system with new type names",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "medium-093",
+      "file": "medium-093.jsonl",
+      "source_session": "aef535e7-81aa-494d-b827-b2bb7baf13b7",
+      "length_category": "medium",
+      "line_count": 98,
+      "description": "Fix bugs in classification and email processing",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-154",
+      "file": "long-154.jsonl",
+      "source_session": "b031d15d-38d2-4b16-8d3b-d8abb12aa989",
+      "length_category": "long",
+      "line_count": 1617,
+      "description": "Refactor pipeline stages to canonical signature",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-155",
+      "file": "long-155.jsonl",
+      "source_session": "b11b0aae-4518-4dc5-b13a-e20a48894836",
+      "length_category": "long",
+      "line_count": 534,
+      "description": "Fix bugs in classification engine",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-156",
+      "file": "long-156.jsonl",
+      "source_session": "b354a64c-e987-48c6-8bbc-f50430813249",
+      "length_category": "long",
+      "line_count": 198,
+      "description": "Fix TypeScript and ESLint issues in disambiguation.test.ts",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-157",
+      "file": "long-157.jsonl",
+      "source_session": "b7746f2d-2420-40c3-a499-469596578f84",
+      "length_category": "long",
+      "line_count": 310,
+      "description": "Fix TypeScript errors in classification engine",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "medium-094",
+      "file": "medium-094.jsonl",
+      "source_session": "b83831e4-f6fa-4f60-9b25-350ca93ea610",
+      "length_category": "medium",
+      "line_count": 59,
+      "description": "Write a node script to rename snake_case variables to camelCase",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-158",
+      "file": "long-158.jsonl",
+      "source_session": "b8bb94ec-bcc4-4b92-a53a-866d7844220f",
+      "length_category": "long",
+      "line_count": 260,
+      "description": "Implement classification results persistence",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-159",
+      "file": "long-159.jsonl",
+      "source_session": "bac1d6cb-fce7-4545-9b9c-f9718b022767",
+      "length_category": "long",
+      "line_count": 259,
+      "description": "Fix all reported bugs and clean up codebase",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-160",
+      "file": "long-160.jsonl",
+      "source_session": "bb0411d2-18ae-4e8e-a475-2fdb369952e9",
+      "length_category": "long",
+      "line_count": 188,
+      "description": "Address FIXMEs using OpenAI's structured outputs",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-161",
+      "file": "long-161.jsonl",
+      "source_session": "bc103e84-be98-42bd-afbe-71df47811b8b",
+      "length_category": "long",
+      "line_count": 279,
+      "description": "Implement thread-based email fetching",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-162",
+      "file": "long-162.jsonl",
+      "source_session": "bc3c409b-7bb8-421b-9c42-722d221a6827",
+      "length_category": "long",
+      "line_count": 270,
+      "description": "Implement and test an end-to-end testing CLI tool",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-163",
+      "file": "long-163.jsonl",
+      "source_session": "bfbb06ea-d9c7-42d8-82c9-faa4033909bb",
+      "length_category": "long",
+      "line_count": 212,
+      "description": "Migrate email processing architecture from n8n to Node.js/TypeScript",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-164",
+      "file": "long-164.jsonl",
+      "source_session": "bfc7192d-fe1e-423a-9afa-d3363a3fd4fe",
+      "length_category": "long",
+      "line_count": 263,
+      "description": "Fix rule scoring schema-implementation mismatches.",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-165",
+      "file": "long-165.jsonl",
+      "source_session": "c0311408-15b9-4799-b911-e1c6ce5efba2",
+      "length_category": "long",
+      "line_count": 374,
+      "description": "Upgrade nodemailer for security vulnerability",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "short-168",
+      "file": "short-168.jsonl",
+      "source_session": "c1fb4bb0-2229-4680-af93-3704fccf8319",
+      "length_category": "short",
+      "line_count": 7,
+      "description": "Who knows?",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-166",
+      "file": "long-166.jsonl",
+      "source_session": "c2094061-78ec-43c7-a74b-3e3afcb7e124",
+      "length_category": "long",
+      "line_count": 167,
+      "description": "Clean up task IDs in codebase and establish policy",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-167",
+      "file": "long-167.jsonl",
+      "source_session": "c23c25da-900b-4de8-b308-f7fb6d0f8d30",
+      "length_category": "long",
+      "line_count": 412,
+      "description": "Fix ESLint configuration for TypeScript",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-168",
+      "file": "long-168.jsonl",
+      "source_session": "c2b67b2e-1834-4388-993f-a45a9cb9309a",
+      "length_category": "long",
+      "line_count": 371,
+      "description": "Refactor classification pipeline tests",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-169",
+      "file": "long-169.jsonl",
+      "source_session": "c3f01965-a679-4c87-8771-81560d70e6be",
+      "length_category": "long",
+      "line_count": 394,
+      "description": "Migrate logging infrastructure to pino",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "medium-095",
+      "file": "medium-095.jsonl",
+      "source_session": "c3f08730-e222-4e9b-9747-55c0328fa11e",
+      "length_category": "medium",
+      "line_count": 78,
+      "description": "Resolve conflicts between tasks.md and CLAUDE.md files",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "medium-096",
+      "file": "medium-096.jsonl",
+      "source_session": "c3f69055-818f-46a7-ac40-6abe60732709",
+      "length_category": "medium",
+      "line_count": 144,
+      "description": "Fix unit test regressions and complete T084",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-170",
+      "file": "long-170.jsonl",
+      "source_session": "c4cb8d4c-5859-4d44-aed5-2434d40ee2aa",
+      "length_category": "long",
+      "line_count": 536,
+      "description": "Refactor code, replace hardcoded defaults, and categorize TODOs",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-171",
+      "file": "long-171.jsonl",
+      "source_session": "c5edfff9-76ed-4184-a010-9810b9dcb03f",
+      "length_category": "long",
+      "line_count": 461,
+      "description": "Fix TypeScript and ESLint issues across codebase",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-172",
+      "file": "long-172.jsonl",
+      "source_session": "c743d6ee-f53b-4917-9fdd-29cd93d201ac",
+      "length_category": "long",
+      "line_count": 201,
+      "description": "Organize and document remaining code refactoring tasks.",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "short-169",
+      "file": "short-169.jsonl",
+      "source_session": "c87ccf6e-92e1-4127-998a-26b29d329428",
+      "length_category": "short",
+      "line_count": 40,
+      "description": "Implement refactoring plan for email-categorizer-config.json",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "short-170",
+      "file": "short-170.jsonl",
+      "source_session": "c8e9a9fd-fb6d-41d2-b1cc-ab458821d00e",
+      "length_category": "short",
+      "line_count": 4,
+      "description": "Wandering aimlessly through the codebase",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-173",
+      "file": "long-173.jsonl",
+      "source_session": "ca31a121-ab97-469a-b43f-ef8f62eeefa7",
+      "length_category": "long",
+      "line_count": 242,
+      "description": "Review the config refactoring changes for the classification engine.",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-174",
+      "file": "long-174.jsonl",
+      "source_session": "cb6c3429-8bc3-4aec-9e33-e5d66aabce1e",
+      "length_category": "long",
+      "line_count": 162,
+      "description": "Clarify and validate AI routing thresholds",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-175",
+      "file": "long-175.jsonl",
+      "source_session": "cc0a947a-66b0-4e64-bcce-ea3a976ad8d1",
+      "length_category": "long",
+      "line_count": 343,
+      "description": "Complete obsolete scaffolding cleanup",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "long-176",
+      "file": "long-176.jsonl",
+      "source_session": "cc967b21-d1ac-4caf-a933-07ebd408bdb2",
+      "length_category": "long",
+      "line_count": 212,
+      "description": "Fix AI classification pipeline issues",
+      "collected_at": "2025-10-28T09:35:47Z"
+    },
+    {
+      "id": "medium-097",
+      "file": "medium-097.jsonl",
+      "source_session": "cd8c70ca-4c00-4a19-a599-94afc046c07e",
+      "length_category": "medium",
+      "line_count": 53,
+      "description": "Implement IDE debugging capabilities",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "long-177",
+      "file": "long-177.jsonl",
+      "source_session": "d00ad1ad-1422-4fef-920d-2b3e8b23369e",
+      "length_category": "long",
+      "line_count": 265,
+      "description": "Implement email processing orchestrator",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "medium-098",
+      "file": "medium-098.jsonl",
+      "source_session": "d0e657cc-8669-4708-8f5b-86cba4825a4c",
+      "length_category": "medium",
+      "line_count": 89,
+      "description": "Implement T069, Option B",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "short-171",
+      "file": "short-171.jsonl",
+      "source_session": "d20999ed-d83f-4487-ab02-7da9c42f890b",
+      "length_category": "short",
+      "line_count": 10,
+      "description": "Wandering aimlessly through the codebase",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "long-178",
+      "file": "long-178.jsonl",
+      "source_session": "d3f6b53c-99d4-47a8-a060-6ad8237b469c",
+      "length_category": "long",
+      "line_count": 215,
+      "description": "Implement T048 - Database email query service",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "medium-099",
+      "file": "medium-099.jsonl",
+      "source_session": "d5b87ae6-4f52-40be-a91a-58a64a82d56b",
+      "length_category": "medium",
+      "line_count": 57,
+      "description": "Understand email classification logic and migration plan",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "short-172",
+      "file": "short-172.jsonl",
+      "source_session": "d83fa7c3-ce6c-45c6-b852-b4b540244c21",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "No description",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "long-179",
+      "file": "long-179.jsonl",
+      "source_session": "d923ac44-7768-49aa-b07f-293a904f76dc",
+      "length_category": "long",
+      "line_count": 567,
+      "description": "Add instructions to CLAUDE.md for TypeScript checks",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "medium-100",
+      "file": "medium-100.jsonl",
+      "source_session": "d943b41b-e9fc-407d-88a7-a4806a126a9d",
+      "length_category": "medium",
+      "line_count": 63,
+      "description": "Identify and create new tasks based on \"ADDITIONAL TASKS NEEDED\" section",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "long-180",
+      "file": "long-180.jsonl",
+      "source_session": "db144154-ed39-4a4a-8a19-b501fe870f8c",
+      "length_category": "long",
+      "line_count": 204,
+      "description": "Complete T075a task",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "long-181",
+      "file": "long-181.jsonl",
+      "source_session": "db70e468-b8ca-4ab4-a8f9-b49ff6f22f15",
+      "length_category": "long",
+      "line_count": 199,
+      "description": "Remove unnecessary API endpoints",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "short-173",
+      "file": "short-173.jsonl",
+      "source_session": "db7aa76a-3bb9-4f41-80f5-0f25d2aafb84",
+      "length_category": "short",
+      "line_count": 11,
+      "description": "Navigate and search the codebase",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "medium-101",
+      "file": "medium-101.jsonl",
+      "source_session": "db835210-0e18-400d-b7b6-309279676c85",
+      "length_category": "medium",
+      "line_count": 114,
+      "description": "Implement code coverage analysis and reporting",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "medium-102",
+      "file": "medium-102.jsonl",
+      "source_session": "dc83c722-bc1c-45a6-ae4f-00b58246a5c1",
+      "length_category": "medium",
+      "line_count": 118,
+      "description": "Implement ai-classification stage with type safety and ESLint compliance",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "short-174",
+      "file": "short-174.jsonl",
+      "source_session": "dd302688-4f69-48b2-98e2-267f7d3400e0",
+      "length_category": "short",
+      "line_count": 2,
+      "description": "No description",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "short-175",
+      "file": "short-175.jsonl",
+      "source_session": "ddd2f6c7-0b56-4986-8a72-753dd0916a94",
+      "length_category": "short",
+      "line_count": 12,
+      "description": "Migrate n8n to Node.js email pipeline",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "medium-103",
+      "file": "medium-103.jsonl",
+      "source_session": "de6af2f1-63a9-4ea5-932a-18e32905bfd8",
+      "length_category": "medium",
+      "line_count": 54,
+      "description": "Analyze pipeline files for refactoring opportunities and create a new task",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "short-176",
+      "file": "short-176.jsonl",
+      "source_session": "e029d836-9cab-4cad-9ee3-62a50e72ff38",
+      "length_category": "short",
+      "line_count": 32,
+      "description": "Build gmail-automation project with direct Gmail API integration",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "long-182",
+      "file": "long-182.jsonl",
+      "source_session": "e1349b8e-4af9-4e39-8b52-e686976d53f1",
+      "length_category": "long",
+      "line_count": 188,
+      "description": "Implement classification pipeline orchestration",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "medium-104",
+      "file": "medium-104.jsonl",
+      "source_session": "e26dcd31-a402-413f-b77d-b0019b1a8c80",
+      "length_category": "medium",
+      "line_count": 67,
+      "description": "Verify T078 task completion",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "long-183",
+      "file": "long-183.jsonl",
+      "source_session": "e2d023e3-e8a2-4d20-8b08-671756056d27",
+      "length_category": "long",
+      "line_count": 365,
+      "description": "Refactor rule compiler to extract strategies",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "short-177",
+      "file": "short-177.jsonl",
+      "source_session": "e2d042fd-e23e-48de-8c36-fb487104ad81",
+      "length_category": "short",
+      "line_count": 4,
+      "description": "Wandering aimlessly through the codebase",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "long-184",
+      "file": "long-184.jsonl",
+      "source_session": "e32d81cf-3aae-4c2a-ac3c-2a1871026b6d",
+      "length_category": "long",
+      "line_count": 228,
+      "description": "Manage classification data with persistence layer",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "long-185",
+      "file": "long-185.jsonl",
+      "source_session": "e52b5bfc-3529-4adb-9321-b2e79593e6ff",
+      "length_category": "long",
+      "line_count": 438,
+      "description": "Export and version test fixtures for performance testing",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "medium-105",
+      "file": "medium-105.jsonl",
+      "source_session": "e597fdf7-c406-4124-835e-a500377ba55e",
+      "length_category": "medium",
+      "line_count": 127,
+      "description": "Fix AI routing schema-implementation mismatch",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "long-186",
+      "file": "long-186.jsonl",
+      "source_session": "e8ac2866-09dc-418a-a7e3-64729d7abd6f",
+      "length_category": "long",
+      "line_count": 219,
+      "description": "Implement hybrid progressive audit trail recording",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "medium-106",
+      "file": "medium-106.jsonl",
+      "source_session": "e8b81b0e-b707-4dce-bdb4-d1f07422d93d",
+      "length_category": "medium",
+      "line_count": 100,
+      "description": "Fix failing tests related to T075",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "long-187",
+      "file": "long-187.jsonl",
+      "source_session": "e8ccca9b-b20d-48e8-bb6c-f05b7a43fd47",
+      "length_category": "long",
+      "line_count": 374,
+      "description": "Clean up codebase",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "long-188",
+      "file": "long-188.jsonl",
+      "source_session": "eace3664-aa73-425d-9882-2936f0780784",
+      "length_category": "long",
+      "line_count": 320,
+      "description": "Implement SessionRepository with performance tracking",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "medium-107",
+      "file": "medium-107.jsonl",
+      "source_session": "eb4c688e-1a1c-4c93-b887-6d95871042f4",
+      "length_category": "medium",
+      "line_count": 71,
+      "description": "Fix TypeScript configuration errors",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "long-189",
+      "file": "long-189.jsonl",
+      "source_session": "eb8cb9a6-1b0f-44b3-addf-be4f65e9b499",
+      "length_category": "long",
+      "line_count": 174,
+      "description": "Fix email query schema and pagination bugs",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "long-190",
+      "file": "long-190.jsonl",
+      "source_session": "ebbad062-46c5-4fc9-8478-427c0d543f81",
+      "length_category": "long",
+      "line_count": 382,
+      "description": "Fix all linting and typing issues",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "long-191",
+      "file": "long-191.jsonl",
+      "source_session": "ebc20af6-a8ea-40ff-9441-7e81e0c5ea63",
+      "length_category": "long",
+      "line_count": 577,
+      "description": "Fix constitutional violations",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "medium-108",
+      "file": "medium-108.jsonl",
+      "source_session": "ec9800bd-1c72-4d0b-a1fa-fb0c7d9954fc",
+      "length_category": "medium",
+      "line_count": 60,
+      "description": "Refactor documentation and code",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "long-192",
+      "file": "long-192.jsonl",
+      "source_session": "eca6fc38-0fe9-4a36-9852-e3cdc9a1131a",
+      "length_category": "long",
+      "line_count": 902,
+      "description": "Unify scoring scale to a 0-1 probability range",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "long-193",
+      "file": "long-193.jsonl",
+      "source_session": "ecb65895-0f21-44f4-9d85-acdb850b3f02",
+      "length_category": "long",
+      "line_count": 557,
+      "description": "Fixing code in email-processor package",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "long-194",
+      "file": "long-194.jsonl",
+      "source_session": "ed1d783e-fafb-4636-b48b-395253677524",
+      "length_category": "long",
+      "line_count": 204,
+      "description": "Fix Session ID Type Inconsistency",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "long-195",
+      "file": "long-195.jsonl",
+      "source_session": "ed418ce2-4a71-4083-b464-1fc111373f4c",
+      "length_category": "long",
+      "line_count": 497,
+      "description": "Ensure the codebase builds perfectly from scratch with zero lingering artifacts",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "medium-109",
+      "file": "medium-109.jsonl",
+      "source_session": "eec73b47-9299-487a-9fb4-43535f8227a0",
+      "length_category": "medium",
+      "line_count": 142,
+      "description": "Fix issues related to test failures and code quality",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "long-196",
+      "file": "long-196.jsonl",
+      "source_session": "efa8fdb8-5ef3-4b4c-9476-fe6f7289688d",
+      "length_category": "long",
+      "line_count": 197,
+      "description": "Clean up n8n-related references in devcontainer files",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "long-197",
+      "file": "long-197.jsonl",
+      "source_session": "efe9814f-dab6-4cda-bee9-68e54ed76fa5",
+      "length_category": "long",
+      "line_count": 438,
+      "description": "Update CLAUDE.md to reflect accurate test status",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "long-198",
+      "file": "long-198.jsonl",
+      "source_session": "f025dad1-bc71-46a6-841f-eec073ee088e",
+      "length_category": "long",
+      "line_count": 217,
+      "description": "Fix TODOs for completed tasks T026 and T032",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "long-199",
+      "file": "long-199.jsonl",
+      "source_session": "f2e7a70f-31e2-43de-8b3e-d398f3618904",
+      "length_category": "long",
+      "line_count": 363,
+      "description": "Eliminate test flakiness",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "long-200",
+      "file": "long-200.jsonl",
+      "source_session": "f3afab5d-c510-4b58-a758-0ea58bcebd31",
+      "length_category": "long",
+      "line_count": 325,
+      "description": "Update architectural plans and reports",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "long-201",
+      "file": "long-201.jsonl",
+      "source_session": "f4b8eb87-c8a8-4124-b09b-b0b813e04e2d",
+      "length_category": "long",
+      "line_count": 471,
+      "description": "Refactor configuration validation logic",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "long-202",
+      "file": "long-202.jsonl",
+      "source_session": "f8094c7c-fd96-4b84-853d-19d872e2777d",
+      "length_category": "long",
+      "line_count": 363,
+      "description": "Improve classification pipeline error handling",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "long-203",
+      "file": "long-203.jsonl",
+      "source_session": "f8c77ca8-460f-489e-849f-33eaa1d885d4",
+      "length_category": "long",
+      "line_count": 349,
+      "description": "Fix and document the test pipeline CLI tool",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "long-204",
+      "file": "long-204.jsonl",
+      "source_session": "f9599a63-df32-4765-b870-9a02f5877eff",
+      "length_category": "long",
+      "line_count": 219,
+      "description": "Implement migration to Node.js architecture with TDD",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "long-205",
+      "file": "long-205.jsonl",
+      "source_session": "f9a5c40f-e738-4ff7-8912-99988d48f5df",
+      "length_category": "long",
+      "line_count": 319,
+      "description": "Complete T037a - extract configuration parameters",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "long-206",
+      "file": "long-206.jsonl",
+      "source_session": "f9db520c-83ea-4810-8204-4fd6de73d909",
+      "length_category": "long",
+      "line_count": 185,
+      "description": "Remove test pollution from production code",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "long-207",
+      "file": "long-207.jsonl",
+      "source_session": "fa1872f5-6579-498c-80ad-582da0a067e1",
+      "length_category": "long",
+      "line_count": 315,
+      "description": "Fix the CategoryConfiguration type definition mismatch",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "long-208",
+      "file": "long-208.jsonl",
+      "source_session": "fbf3ef3d-8358-4ad2-842d-791cfae73d9a",
+      "length_category": "long",
+      "line_count": 170,
+      "description": "Complete T091 and ensure audit trail functionality",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "short-178",
+      "file": "short-178.jsonl",
+      "source_session": "fd7e9e36-2aa5-4fa5-9b85-114755c9cf04",
+      "length_category": "short",
+      "line_count": 4,
+      "description": "Unknown",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "short-179",
+      "file": "short-179.jsonl",
+      "source_session": "fe718848-1c67-4560-a151-5cb69378224b",
+      "length_category": "short",
+      "line_count": 6,
+      "description": "Wandering aimlessly through the codebase",
+      "collected_at": "2025-10-28T09:35:48Z"
+    },
+    {
+      "id": "medium-110",
+      "file": "medium-110.jsonl",
+      "source_session": "fecd582d-bedd-4bba-87e1-ddac2f1eafd6",
+      "length_category": "medium",
+      "line_count": 125,
+      "description": "Fix classification-engine strong indicators accumulation logic bug",
+      "collected_at": "2025-10-28T09:35:48Z"
+    }
+  ]
+}
