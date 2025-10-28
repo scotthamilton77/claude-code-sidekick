@@ -1,0 +1,16 @@
+{
+  "task_ids": null,
+  "initial_goal": "Who knows? Waiting for a goal beyond 'Warmup'.",
+  "current_objective": "Initiating session, awaiting an actual command.",
+  "clarity_score": 1,
+  "confidence": 0.9,
+  "high_clarity_snarky_comment": null,
+  "low_clarity_snarky_comment": "Directive 'Warmup' is... ambiguous. State your primary objective before my probability processors overflow.",
+  "significant_change": true,
+  "_metadata": {
+    "model": "openrouter:google/gemini-2.5-pro",
+    "test_id": "short-003",
+    "latency_seconds": 18,
+    "generated_at": "2025-10-28T11:36:24Z"
+  }
+}
