@@ -474,12 +474,12 @@ main() {
     for test_id in "${golden_ids[@]}"; do
         if generate_reference_for_test "$test_id" "$versioned_dir"; then
             if [ -f "${versioned_dir}/${test_id}/consensus.json" ]; then
-                ((success_count++))
+                success_count=$((success_count + 1))
             else
-                ((skip_count++))
+                skip_count=$((skip_count + 1))
             fi
         else
-            ((fail_count++))
+            fail_count=$((fail_count + 1))
         fi
     done
 
