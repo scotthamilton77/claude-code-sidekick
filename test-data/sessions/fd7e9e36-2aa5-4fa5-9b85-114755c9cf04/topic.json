@@ -1,0 +1,11 @@
+{
+  "task_ids": null,
+  "initial_goal": "Unknown",
+  "current_objective": "Executing local commands",
+  "clarity_score": 2,
+  "confidence": 0.8,
+  "significant_change": true,
+  "session_id": "fd7e9e36-2aa5-4fa5-9b85-114755c9cf04",
+  "timestamp": "2025-10-27T22:55:27Z",
+  "snarky_comment": "Engage warp core. What's the mission objective, Captain?"
+}
