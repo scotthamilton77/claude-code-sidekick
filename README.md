@@ -15,6 +15,7 @@ This repository serves as a development and testing environment for [Claude Code
    - try with and without system prompt separate from user prompt
 - DRY issues
    - llm.sh DRY
+   - transcript pre-processing
    - topic-extraction and generate-resume have lots of overlap - DRY!
    - json schema vs. prompt overlap
    1. Shared transcript extraction (lines 26-59 in topic-extraction.sh, lines 49-76 in generate-resume.sh)

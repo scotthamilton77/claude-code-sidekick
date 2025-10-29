@@ -21,8 +21,14 @@ if [ ! -f "${SIDEKICK_LIB}/llm.sh" ]; then
     exit 1
 fi
 
+# Set CLAUDE_PROJECT_DIR for Sidekick logging (required before sourcing)
+export CLAUDE_PROJECT_DIR="${BENCHMARK_LIB_ROOT}/../../.."
+
 # Source required Sidekick libraries
 source "${SIDEKICK_LIB}/common.sh"
+
+# Initialize logging subsystem
+log_init
 
 # ==============================================================================
 # SEMANTIC SIMILARITY
@@ -233,11 +239,18 @@ llm_invoke_with_provider() {
     esac
 
     # Invoke LLM
-    local result
+    # Capture both stdout and stderr separately to preserve error details
+    local result_file=$(mktemp)
+    local error_file=$(mktemp)
     local exit_code=0
-    if ! result=$(llm_invoke "$model" "$prompt" "$timeout" "$json_schema" 2>&1); then
+
+    if ! llm_invoke "$model" "$prompt" "$timeout" "$json_schema" >"$result_file" 2>"$error_file"; then
         exit_code=$?
     fi
+
+    result=$(cat "$result_file")
+    local errors=$(cat "$error_file")
+    rm -f "$result_file" "$error_file"
 
     # Restore original settings
     if [ -n "$orig_provider" ]; then
@@ -280,9 +293,28 @@ llm_invoke_with_provider() {
     # Return result
     if [ $exit_code -eq 0 ]; then
         echo "$result"
+        # Also output any errors/warnings that were logged during successful execution
+        if [ -n "$errors" ]; then
+            echo "$errors" >&2
+        fi
         return 0
     else
-        echo "$result" >&2
+        # On error: output detailed error information
+        # Send brief summary to stdout (captured in RAW_FILE)
+        echo "=== LLM INVOCATION FAILED ==="
+        echo "Provider: $provider"
+        echo "Model: $model"
+        echo "Exit code: $exit_code"
+        if [ -n "$result" ]; then
+            echo "Partial output: $result"
+        fi
+
+        # Send detailed errors to stderr (captured in ERROR_FILE)
+        if [ -n "$errors" ]; then
+            echo "$errors" >&2
+        else
+            log_error "LLM invocation failed for provider '$provider' model '$model' (no error details available)"
+        fi
         return 1
     fi
 }

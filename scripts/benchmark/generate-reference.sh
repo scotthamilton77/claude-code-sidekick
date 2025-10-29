@@ -36,6 +36,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Source configuration and libraries
 source "${SCRIPT_DIR}/config.sh"
+source "${SCRIPT_DIR}/lib/preprocessing.sh"
 source "${SCRIPT_DIR}/lib/similarity.sh"
 source "${SCRIPT_DIR}/lib/consensus.sh"
 
@@ -182,22 +183,11 @@ EOF
 }
 
 
-# Extract transcript excerpt for analysis (similar to Sidekick logic)
+# Extract transcript excerpt for analysis (delegates to shared preprocessing)
 extract_transcript_excerpt() {
     local transcript_file="$1"
-    local line_count="${2:-80}"
-
-    if [ ! -f "$transcript_file" ]; then
-        echo "ERROR: Transcript not found: $transcript_file" >&2
-        return 1
-    fi
-
-    # Preprocess: filter tool messages, strip metadata
-    local jq_filter='.message | select(. != null)'
-    jq_filter+=' | select((.content | if type == "array" then (.[0].type != "tool_use" and .[0].type != "tool_result") else true end))'
-    jq_filter+=' | del(.model, .id, .type, .stop_reason, .stop_sequence, .usage)'
-
-    tail -n "$line_count" "$transcript_file" | jq -c "$jq_filter" | jq -s '.'
+    # Use shared preprocessing function from lib/preprocessing.sh
+    preprocess_transcript "$transcript_file"
 }
 
 # Build prompt from transcript excerpt
