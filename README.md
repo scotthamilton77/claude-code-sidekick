@@ -25,6 +25,7 @@ This repository serves as a development and testing environment for [Claude Code
    3. Shared preprocessing (jq filters for stripping attributes)
       - Could be a constant in lib/json.sh
 - json schema for resume message generator
+- incorporate https://github.com/johannschopplich/toon
 - We need some quality memories on the models, e.g. our current gemma is failing miserably to return the right json; we could try a more advanced gemma model, or else we'll need to upgrade
 - remove .claudeignore if not useful
 - tracking and reminders
