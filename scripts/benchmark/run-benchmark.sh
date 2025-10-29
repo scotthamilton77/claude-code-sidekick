@@ -29,6 +29,29 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
+# ==============================================================================
+# HELPER FUNCTIONS
+# ==============================================================================
+
+show_help() {
+    head -n 21 "$0" | tail -n +2 | grep "^#" | sed 's/^# \?//'
+}
+
+# ==============================================================================
+# EARLY HELP CHECK (before loading libraries)
+# ==============================================================================
+
+for arg in "$@"; do
+    if [[ "$arg" == "--help" || "$arg" == "-h" ]]; then
+        show_help
+        exit 0
+    fi
+done
+
+# ==============================================================================
+# LOAD LIBRARIES
+# ==============================================================================
+
 # Source configuration and libraries
 source "$SCRIPT_DIR/config.sh"
 source "$SCRIPT_DIR/lib/preprocessing.sh"
@@ -48,14 +71,6 @@ MODE="quick"
 MODELS_FILTER="all"
 REFERENCE_VERSION_FILTER="latest"
 OUTPUT_DIR=""
-
-# ==============================================================================
-# HELPER FUNCTIONS
-# ==============================================================================
-
-show_help() {
-    head -n 30 "$0" | grep "^#" | sed 's/^# \?//'
-}
 
 # ==============================================================================
 # ARGUMENT PARSING
@@ -80,6 +95,7 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --help|-h)
+            # Should never reach here due to early help check, but keep as fallback
             show_help
             exit 0
             ;;
