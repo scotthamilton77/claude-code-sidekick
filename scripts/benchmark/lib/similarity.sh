@@ -242,11 +242,12 @@ llm_invoke_with_provider() {
     # Capture both stdout and stderr separately to preserve error details
     local result_file=$(mktemp)
     local error_file=$(mktemp)
-    local exit_code=0
 
-    if ! llm_invoke "$model" "$prompt" "$timeout" "$json_schema" >"$result_file" 2>"$error_file"; then
-        exit_code=$?
-    fi
+    # Use set +e pattern to reliably capture exit code
+    set +e
+    llm_invoke "$model" "$prompt" "$timeout" "$json_schema" >"$result_file" 2>"$error_file"
+    local exit_code=$?
+    set -e
 
     result=$(cat "$result_file")
     local errors=$(cat "$error_file")
