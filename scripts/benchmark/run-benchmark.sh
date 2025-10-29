@@ -330,18 +330,20 @@ for model_spec in "${MODELS_TO_TEST[@]}"; do
 
                 echo "$LATENCY_MS" > "$TIMING_FILE"
 
-                # Save whatever output we got (if any)
-                echo "$LLM_OUTPUT" > "$RAW_OUTPUT_FILE"
-                echo '{"error": "LLM invocation failed"}' > "$OUTPUT_FILE"
-                echo '{"schema_compliance": {"score": 0, "errors": ["LLM invocation failed"]}, "technical_accuracy": {"score": 0}, "content_quality": {"score": 0}, "overall_score": 0}' > "$SCORE_FILE"
-
-                log_warn "    Run $run failed: LLM invocation error"
-                consecutive_failures=$((consecutive_failures + 1))
-
-                # Check for timeout
+                # Determine failure type
+                failure_type="api_error"
                 if grep -q "timeout" "$ERROR_FILE" 2>/dev/null; then
+                    failure_type="timeout"
                     consecutive_timeouts=$((consecutive_timeouts + 1))
                 fi
+
+                # Save whatever output we got (if any)
+                echo "$LLM_OUTPUT" > "$RAW_OUTPUT_FILE"
+                echo '{"error": "LLM invocation failed", "failure_type": "'$failure_type'"}' > "$OUTPUT_FILE"
+                echo '{"api_failure": true, "failure_type": "'$failure_type'", "schema_compliance": {"score": 0, "errors": ["LLM invocation failed"]}, "technical_accuracy": {"score": 0}, "content_quality": {"score": 0}, "overall_score": 0, "timestamp": "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'"}' > "$SCORE_FILE"
+
+                log_warn "    Run $run failed: LLM invocation error ($failure_type)"
+                consecutive_failures=$((consecutive_failures + 1))
 
                 continue
             fi
@@ -455,13 +457,16 @@ for model_spec in "${MODELS_TO_TEST[@]}"; do
         count: length
     }')
 
-    # Calculate score stats
+    # Calculate score stats (excluding API failures from averages, but include in counts)
     SCORE_STATS=$(echo "$SCORES" | jq '{
-        schema_avg: (map(.schema_compliance.score) | add / length),
-        technical_avg: (map(.technical_accuracy.score) | add / length),
-        content_avg: (map(.content_quality.score) | add / length),
-        overall_avg: (map(.overall_score) | add / length),
-        count: length
+        total_runs: length,
+        api_failures: (map(select(.api_failure == true)) | length),
+        successful_runs: (map(select(.api_failure != true)) | length),
+        error_rate: ((map(select(.api_failure == true)) | length) / length),
+        schema_avg: (map(select(.api_failure != true) | .schema_compliance.score) | if length > 0 then (add / length) else 0 end),
+        technical_avg: (map(select(.api_failure != true) | .technical_accuracy.score) | if length > 0 then (add / length) else 0 end),
+        content_avg: (map(select(.api_failure != true) | .content_quality.score) | if length > 0 then (add / length) else 0 end),
+        overall_avg: (map(select(.api_failure != true) | .overall_score) | if length > 0 then (add / length) else 0 end)
     }')
 
     # Add model results to summary
