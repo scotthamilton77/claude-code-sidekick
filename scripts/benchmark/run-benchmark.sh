@@ -34,6 +34,12 @@ source "$SCRIPT_DIR/config.sh"
 source "$SCRIPT_DIR/lib/preprocessing.sh"
 source "$SCRIPT_DIR/lib/scoring.sh"
 
+# Initialize Sidekick logging
+export CLAUDE_PROJECT_DIR="$PROJECT_ROOT"
+SIDEKICK_LIB="$PROJECT_ROOT/src/sidekick/lib"
+source "$SIDEKICK_LIB/common.sh"
+log_init
+
 # ==============================================================================
 # DEFAULT OPTIONS
 # ==============================================================================
@@ -49,18 +55,6 @@ OUTPUT_DIR=""
 
 show_help() {
     head -n 30 "$0" | grep "^#" | sed 's/^# \?//'
-}
-
-log_info() {
-    echo "[$(date +'%Y-%m-%d %H:%M:%S')] INFO: $*" >&2
-}
-
-log_error() {
-    echo "[$(date +'%Y-%m-%d %H:%M:%S')] ERROR: $*" >&2
-}
-
-log_warn() {
-    echo "[$(date +'%Y-%m-%d %H:%M:%S')] WARN: $*" >&2
 }
 
 # ==============================================================================
