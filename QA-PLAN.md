@@ -459,7 +459,7 @@ consensus_ids=$(jq -n --argjson arr1 "$ids1" \
 
 ---
 
-### Phase 3: Benchmark Runner & Core Scoring
+### Phase 3: Benchmark Runner & Core Scoring ✅ **COMPLETE**
 
 **Objective:** Execute models and compute basic scores
 
@@ -623,6 +623,25 @@ consensus_ids=$(jq -n --argjson arr1 "$ids1" \
 - Scores computed for all valid outputs
 - Invalid JSON outputs score 0 on schema compliance
 - Results stored with full provenance (timestamp, model, version)
+
+**Actual Results:**
+- ✅ Benchmark runner executes successfully with tiered modes (smoke/quick/full/statistical)
+- ✅ Early termination working: gemma-3n-e4b-it terminated after 3 consecutive JSON failures
+- ✅ Latency measurement working: 25132ms captured for successful runs
+- ✅ Scoring engine complete (480 lines):
+  - `score_schema_compliance()` - validates JSON structure and field types
+  - `score_technical_accuracy()` - compares against reference outputs
+  - `score_content_quality()` - assesses snarky comment relevance
+  - `score_output()` - orchestrates all scoring with weighted averages (30%/50%/20%)
+- ✅ CLI flags operational: `--mode`, `--models`, `--reference-version`, `--output-dir`
+- ✅ Model filtering working: all/cheap/expensive/specific models
+- ✅ Integration with similarity.sh for semantic comparisons
+- ✅ Error handling: Invalid JSON detected and fails gracefully with score=0
+- ✅ Summary generation: JSON summary with latency stats and score aggregates
+
+**Smoke Test Results:**
+- gemma-3-12b-it: 1/3 successful (33% success rate, score=70.70, latency=25.1s)
+- gemma-3n-e4b-it: 0/3 successful (early terminated, 3 consecutive JSON failures)
 
 **Estimated Effort:** 4-5 hours
 
