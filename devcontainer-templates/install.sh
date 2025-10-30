@@ -86,8 +86,6 @@ Target:
 
 Configuration:
   -c, --config FILE        Configuration file (default: install.conf)
-  --host-username NAME     Host username for mounts
-  --host-home PATH         Host home directory
 
 Features (node-ai-stack):
   --claude-code           Install Claude Code CLI
@@ -195,14 +193,6 @@ parse_arguments() {
                 ;;
             -c|--config)
                 CONFIG_FILE="$2"
-                shift 2
-                ;;
-            --host-username)
-                HOST_USERNAME="$2"
-                shift 2
-                ;;
-            --host-home)
-                HOST_HOME="$2"
                 shift 2
                 ;;
             --claude-code)
@@ -368,11 +358,6 @@ interactive_mode() {
     if [ "$TEMPLATE" = "node-ai-stack" ]; then
         echo -e "${BLUE}AI Stack Configuration:${NC}"
 
-        # User configuration
-        HOST_USERNAME=$(prompt_choice "Host username" "${HOST_USERNAME:-$USER}")
-        HOST_HOME=$(prompt_choice "Host home directory" "${HOST_HOME:-$HOME}")
-        echo ""
-
         # AI tools
         echo -e "${BLUE}AI Tools Installation:${NC}"
         INSTALL_CLAUDE_CODE=$(prompt_yes_no "Install Claude Code CLI?" "false")
@@ -388,16 +373,12 @@ interactive_mode() {
 
         # Mounts
         echo -e "${BLUE}File System Mounts:${NC}"
-        MOUNT_CLAUDE_CONFIG=$(prompt_yes_no "Mount Claude configuration?" "false")
-
-        if [ "$MOUNT_CLAUDE_CONFIG" = "true" ]; then
-            CLAUDE_CONFIG_PATH=$(prompt_choice "Claude config path" "${CLAUDE_CONFIG_PATH:-$HOST_HOME/.claude}")
-        fi
+        MOUNT_CLAUDE_CONFIG=$(prompt_yes_no "Mount Claude configuration (~/.claude)?" "false")
 
         MOUNT_OSS_PROJECTS=$(prompt_yes_no "Mount OSS projects?" "false")
 
         if [ "$MOUNT_OSS_PROJECTS" = "true" ]; then
-            OSS_PROJECTS_PATH=$(prompt_choice "OSS projects directory" "${OSS_PROJECTS_PATH:-$HOST_HOME/projects/oss}")
+            OSS_PROJECTS_PATH=$(prompt_choice "OSS projects path (relative to HOME)" "${OSS_PROJECTS_PATH:-projects/oss}")
             OSS_PROJECT_1=$(prompt_choice "First project name (leave empty to skip)" "")
             if [ -n "$OSS_PROJECT_1" ]; then
                 OSS_PROJECT_2=$(prompt_choice "Second project name (leave empty to skip)" "")
@@ -427,7 +408,6 @@ interactive_mode() {
     echo "Target:          $TARGET_DIR"
 
     if [ "$TEMPLATE" = "node-ai-stack" ]; then
-        echo "Host User:       $HOST_USERNAME"
         echo "AI Tools:        Claude=$INSTALL_CLAUDE_CODE Gemini=$INSTALL_GEMINI_CLI Codex=$INSTALL_CODEX_CLI"
         echo "Python (uv):     $INSTALL_UV"
         echo "Mounts:          Claude=$MOUNT_CLAUDE_CONFIG OSS=$MOUNT_OSS_PROJECTS Docker=$MOUNT_DOCKER_SOCKET"
@@ -476,28 +456,16 @@ validate_configuration() {
 
     # Template-specific validation
     if [ "$TEMPLATE" = "node-ai-stack" ]; then
-        if [ -z "$HOST_USERNAME" ]; then
-            log_warning "HOST_USERNAME not set - will use current user: $USER"
-            HOST_USERNAME="$USER"
-        fi
-
-        if [ -z "$HOST_HOME" ]; then
-            log_warning "HOST_HOME not set - will use: $HOME"
-            HOST_HOME="$HOME"
-        fi
-
-        # Validate mount paths
-        if [ "$MOUNT_CLAUDE_CONFIG" = "true" ]; then
-            local claude_path="${CLAUDE_CONFIG_PATH:-$HOST_HOME/.claude}"
-            if [ ! -d "$claude_path" ]; then
-                log_warning "Claude config directory not found: $claude_path"
-                log_info "Mount will be configured but may not work until directory exists"
-            fi
+        # Validate mount paths (paths will use ${localEnv:HOME} at runtime)
+        if [ "$MOUNT_CLAUDE_CONFIG" = "true" ] && [ ! -d "$HOME/.claude" ]; then
+            log_warning "Claude config directory not found: $HOME/.claude"
+            log_info "Mount will be configured but may not work until directory exists"
         fi
 
         if [ "$MOUNT_OSS_PROJECTS" = "true" ] && [ -n "$OSS_PROJECTS_PATH" ]; then
-            if [ ! -d "$OSS_PROJECTS_PATH" ]; then
-                log_warning "OSS projects directory not found: $OSS_PROJECTS_PATH"
+            local oss_path="$HOME/$OSS_PROJECTS_PATH"
+            if [ ! -d "$oss_path" ]; then
+                log_warning "OSS projects directory not found: $oss_path"
             fi
         fi
 
@@ -587,8 +555,6 @@ create_env_file() {
     if [ "$DRY_RUN" = "true" ]; then
         log_dry_run "Would create: $env_file"
         log_verbose "Configuration values:"
-        log_verbose "  HOST_USERNAME=$HOST_USERNAME"
-        log_verbose "  HOST_HOME=$HOST_HOME"
         log_verbose "  INSTALL_CLAUDE_CODE=$INSTALL_CLAUDE_CODE"
         log_verbose "  INSTALL_UV=$INSTALL_UV"
         log_verbose "  MOUNT_CLAUDE_CONFIG=$MOUNT_CLAUDE_CONFIG"
@@ -603,8 +569,6 @@ create_env_file() {
         cp "$env_template" "$env_file"
 
         # Replace configuration values
-        sed -i "s|^HOST_USERNAME=.*|HOST_USERNAME=${HOST_USERNAME}|" "$env_file"
-        sed -i "s|^HOST_HOME=.*|HOST_HOME=${HOST_HOME}|" "$env_file"
         sed -i "s|^INSTALL_CLAUDE_CODE=.*|INSTALL_CLAUDE_CODE=${INSTALL_CLAUDE_CODE}|" "$env_file"
         sed -i "s|^INSTALL_GEMINI_CLI=.*|INSTALL_GEMINI_CLI=${INSTALL_GEMINI_CLI}|" "$env_file"
         sed -i "s|^INSTALL_CODEX_CLI=.*|INSTALL_CODEX_CLI=${INSTALL_CODEX_CLI}|" "$env_file"

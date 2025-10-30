@@ -264,7 +264,6 @@ Output shows:
   - README.md
 [DRY RUN] Would create: /path/to/project/.devcontainer/.env
 → Configuration values:
-  HOST_USERNAME=scott
   INSTALL_CLAUDE_CODE=true
   MOUNT_CLAUDE_CONFIG=true
 ```
@@ -281,9 +280,6 @@ The `install.conf` file provides defaults for all options. Command-line argument
 # Comments start with #
 KEY=value
 
-# String values
-HOST_USERNAME="scott"
-
 # Boolean values
 INSTALL_CLAUDE_CODE="true"
 
@@ -294,11 +290,10 @@ POSTGRES_DB=""
 ### Key Sections
 
 1. **Target Configuration** - Where to install, which template
-2. **User Configuration** - Username, home directory
-3. **Optional Features** - AI tools, Python, etc.
-4. **Mounts** - File system mounts (Claude config, OSS projects)
-5. **Database Configuration** - PostgreSQL connection
-6. **Installation Options** - .env creation, backups, .gitignore
+2. **Optional Features** - AI tools, Python, etc.
+3. **Mounts** - File system mounts (Claude config, OSS projects)
+4. **Database Configuration** - PostgreSQL connection
+5. **Installation Options** - .env creation, backups, .gitignore
 
 See `install.conf` for complete reference with inline documentation.
 
