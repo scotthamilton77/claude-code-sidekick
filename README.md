@@ -13,6 +13,9 @@ This repository serves as a development and testing environment for [Claude Code
 ## Sidekick
 - llm quality and speed benchmark testing needed
    - try with and without system prompt separate from user prompt
+- 2>&1 issues - see below
+- CURL timeouts - are we too aggressive?
+   - do we need timeout retries?
 - DRY issues
    - llm.sh DRY
    - transcript pre-processing
@@ -48,6 +51,72 @@ This repository serves as a development and testing environment for [Claude Code
 - BUG: uninstall from project leaves empty hooks folder
 - how do subagents work - can we detect their connection to the parent agent, and do we care?  (for statusline, maybe not, but for analytics?)
 - skills and agents - review carefully and attribute to https://github.com/obra/superpowers
+
+### stdout/stderr analysis
+
+✅ GOOD USES
+
+1. Silencing checks (don't care about output at all):
+if ps -p "$pid" >/dev/null 2>&1; then
+   # Just checking existence
+fi
+2. Logging both streams together:
+./run-benchmark.sh 2>&1 | tee log.txt  # Interleaved stdout/stderr in log
+3. Test validation (intentionally checking all output):
+output=$(command 2>&1)  # Test framework needs to validate errors
+
+❌ BAD USES (Your Bug!)
+
+Capturing function output in command substitution:
+result=$(my_function 2>&1)  # PROBLEM: mixes return data with error messages
+
+This breaks when:
+- Function outputs data to stdout (the "return value")
+- Function outputs errors to stdout (should be stderr!)
+- Caller expects clean data but gets garbage mixed in
+
+🔧 The Fix
+
+Option 1: Fix the function (preferred for libraries):
+llm_invoke_with_provider() {
+   if [ $exit_code -eq 0 ]; then
+         echo "$result"  # Data to stdout
+         return 0
+   else
+         # ALL error output to stderr
+         echo "=== LLM INVOCATION FAILED ===" >&2
+         echo "Provider: $provider" >&2
+         echo "Model: $model" >&2
+         return 1
+   fi
+}
+
+# Now caller doesn't need 2>&1
+result=$(llm_invoke_with_provider "$provider" "$model" "$prompt")
+
+Option 2: Use temp files (when you need error details):
+error_file=$(mktemp)
+if result=$(my_function 2>"$error_file"); then
+   # Success: result has clean data
+else
+   # Failure: can read error details from error_file
+   errors=$(cat "$error_file")
+fi
+rm -f "$error_file"
+
+🎯 The Real Problem
+
+Your codebase has two conflicting design patterns:
+
+1. Pattern A (library functions): Return data via stdout, errors via stderr
+2. Pattern B (your similarity.sh:293-299): Return errors via stdout "for RAW_FILE capture"
+
+When you mix these patterns with 2>&1, chaos ensues.
+
+Recommendation
+
+Refactor llm_invoke_with_provider in similarity.sh:290-308 to send ALL error output to stderr. The "RAW_FILE" argument in the comment is misleading - you're not in the benchmark script
+context there, you're in a library function that should follow stderr conventions.
 
 ## Agents and Skills
 

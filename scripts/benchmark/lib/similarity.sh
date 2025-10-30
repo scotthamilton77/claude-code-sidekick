@@ -134,7 +134,7 @@ EOF
 
     # Invoke judge model with schema
     local llm_output
-    if ! llm_output=$(llm_invoke_with_provider "$provider" "$model" "$prompt" 10 "$json_schema" 2>&1); then
+    if ! llm_output=$(llm_invoke_with_provider "$provider" "$model" "$prompt" 10 "$json_schema"); then
         echo "ERROR: LLM invocation failed for semantic similarity" >&2
         echo "0.0"
         return 1
@@ -288,17 +288,16 @@ llm_invoke_with_provider() {
         fi
         return 0
     else
-        # On error: output detailed error information
-        # Send brief summary to stdout (captured in RAW_FILE)
-        echo "=== LLM INVOCATION FAILED ==="
-        echo "Provider: $provider"
-        echo "Model: $model"
-        echo "Exit code: $exit_code"
+        # On error: output all error information to stderr
+        echo "=== LLM INVOCATION FAILED ===" >&2
+        echo "Provider: $provider" >&2
+        echo "Model: $model" >&2
+        echo "Exit code: $exit_code" >&2
         if [ -n "$result" ]; then
-            echo "Partial output: $result"
+            echo "Partial output: $result" >&2
         fi
 
-        # Send detailed errors to stderr (captured in ERROR_FILE)
+        # Send detailed errors to stderr
         if [ -n "$errors" ]; then
             echo "$errors" >&2
         else
