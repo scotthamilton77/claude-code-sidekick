@@ -120,8 +120,6 @@ if [ "$PROVIDER" = "openrouter" ]; then
     export LLM_OPENROUTER_MODEL="$MODEL"
 elif [ "$PROVIDER" = "openai-api" ]; then
     export LLM_OPENAI_MODEL="$MODEL"
-elif [ "$PROVIDER" = "groq" ]; then
-    export LLM_GROQ_MODEL="$MODEL"
 elif [ "$PROVIDER" = "claude-cli" ]; then
     export LLM_CLAUDE_MODEL="$MODEL"
 fi

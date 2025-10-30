@@ -256,13 +256,6 @@ LLM_OPENAI_API_KEY=sk-...
 LLM_OPENAI_MODEL=gpt-4-turbo
 ```
 
-**GROQ API**:
-```bash
-LLM_PROVIDER=groq
-LLM_GROQ_API_KEY=gsk_...
-LLM_GROQ_MODEL=openai/gpt-oss-20b  # or llama-3.1-8b-instant, mixtral-8x7b-32768
-```
-
 **OpenRouter API**:
 ```bash
 LLM_PROVIDER=openrouter

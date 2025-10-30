@@ -24,7 +24,7 @@ This document outlines a comprehensive benchmarking framework for evaluating and
 ### Why Build This?
 
 **Problem Statement:**
-The Sidekick system currently supports multiple LLM providers (Claude CLI, OpenAI, GROQ, OpenRouter) with dozens of model options documented in `config.defaults`. However, we lack empirical data to answer critical questions:
+The Sidekick system currently supports multiple LLM providers (Claude CLI, OpenAI, OpenRouter) with dozens of model options documented in `config.defaults`. However, we lack empirical data to answer critical questions:
 
 - Which models provide the fastest response times?
 - Which models reliably produce valid JSON output?
@@ -58,7 +58,7 @@ The Sidekick system currently supports multiple LLM providers (Claude CLI, OpenA
 ### Functional Requirements
 
 **Must Have:**
-- ✅ Benchmark all models listed in `config.defaults` (Claude, OpenAI, GROQ, OpenRouter)
+- ✅ Benchmark all models listed in `config.defaults` (Claude, OpenAI, OpenRouter)
 - ✅ Test both topic extraction and resume generation prompts
 - ✅ Generate reference outputs from 3 high-quality models (Grok-4, Gemini 2.5 Pro, GPT-5 Chat)
 - ✅ Score outputs across 3 dimensions: schema compliance, technical accuracy, content quality
@@ -125,7 +125,6 @@ PRODUCTION_READY_CRITERIA = {
 │                │  Provider-Specific Implementations   │         │
 │                │  - Claude CLI                        │         │
 │                │  - OpenAI API                        │         │
-│                │  - GROQ API                          │         │
 │                │  - OpenRouter API                    │         │
 │                └──────────────────────────────────────┘         │
 └─────────────────────────────────────────────────────────────────┘
@@ -1373,7 +1372,7 @@ bc --version
 **Sidekick Infrastructure:**
 - `src/sidekick/lib/llm.sh` - LLM provider abstraction (already exists)
 - OpenRouter API key (for reference models + judge model)
-- OR other configured LLM providers (Claude CLI, OpenAI, GROQ)
+- OR other configured LLM providers (Claude CLI, OpenAI)
 
 **LLM Models Used:**
 - **Reference Models**: `x-ai/grok-4`, `google/gemini-2.5-pro`, `openai/gpt-5-chat`
