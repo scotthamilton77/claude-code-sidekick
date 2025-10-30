@@ -13,10 +13,10 @@
     // Docker socket for Docker-in-Docker (SECURITY: only for trusted projects)
     // "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
     // Claude configuration directory (if MOUNT_CLAUDE_CONFIG=true in .env)
-    // "source=${localEnv:CLAUDE_CONFIG_PATH},target=/home/node/.claude,type=bind,consistency=cached",
+    // "source=${localEnv:HOME}/.claude,target=/home/node/.claude,type=bind,consistency=cached",
     // OSS projects directory (if MOUNT_OSS_PROJECTS=true in .env)
-    // "source=${localEnv:OSS_PROJECTS_PATH}/${localEnv:OSS_PROJECT_1},target=/workspace/oss/${localEnv:OSS_PROJECT_1},type=bind,consistency=cached",
-    // "source=${localEnv:OSS_PROJECTS_PATH}/${localEnv:OSS_PROJECT_2},target=/workspace/oss/${localEnv:OSS_PROJECT_2},type=bind,consistency=cached"
+    // "source=${localEnv:HOME}/${localEnv:OSS_PROJECTS_PATH}/${localEnv:OSS_PROJECT_1},target=/workspace/oss/${localEnv:OSS_PROJECT_1},type=bind,consistency=cached",
+    // "source=${localEnv:HOME}/${localEnv:OSS_PROJECTS_PATH}/${localEnv:OSS_PROJECT_2},target=/workspace/oss/${localEnv:OSS_PROJECT_2},type=bind,consistency=cached"
   ],
 
   // Connect to external Docker network (e.g., for PostgreSQL)

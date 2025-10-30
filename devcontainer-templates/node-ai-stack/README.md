@@ -49,10 +49,6 @@ This is a **maximalist template** designed for developers building AI-assisted a
 3. **Edit `.env` with your settings:**
 
    ```bash
-   # Required - customize these
-   HOST_USERNAME=scott
-   HOST_HOME=/home/scott
-
    # Optional - enable what you need
    INSTALL_CLAUDE_CODE=true
    INSTALL_UV=true
@@ -75,13 +71,6 @@ This is a **maximalist template** designed for developers building AI-assisted a
 
 The `.env` file controls all optional features. Copy `.env.template` and customize:
 
-#### User Configuration (Required)
-
-```bash
-HOST_USERNAME=your_username
-HOST_HOME=/home/your_username
-```
-
 #### AI Tool Installation
 
 ```bash
@@ -96,13 +85,12 @@ PYTHON_VERSION=3.12.3        # Python version for uv
 #### Mount Configuration
 
 ```bash
-# Mount your Claude configuration
+# Mount your Claude configuration (uses ${localEnv:HOME}/.claude)
 MOUNT_CLAUDE_CONFIG=true
-CLAUDE_CONFIG_PATH=${HOST_HOME}/.claude
 
-# Mount external OSS projects
+# Mount external OSS projects (path relative to HOME)
 MOUNT_OSS_PROJECTS=true
-OSS_PROJECTS_PATH=${HOST_HOME}/projects/oss
+OSS_PROJECTS_PATH=projects/oss
 OSS_PROJECT_1=zen-mcp-server
 OSS_PROJECT_2=claude-code-tamagotchi
 ```
@@ -128,10 +116,10 @@ After configuring `.env`, edit `devcontainer.json` to enable mounts:
   "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
 
   // Uncomment to mount Claude configuration
-  "source=${localEnv:CLAUDE_CONFIG_PATH},target=/home/node/.claude,type=bind,consistency=cached",
+  "source=${localEnv:HOME}/.claude,target=/home/node/.claude,type=bind,consistency=cached",
 
   // Uncomment to mount OSS projects
-  "source=${localEnv:OSS_PROJECTS_PATH}/${localEnv:OSS_PROJECT_1},target=/workspace/oss/${localEnv:OSS_PROJECT_1},type=bind,consistency=cached"
+  "source=${localEnv:HOME}/${localEnv:OSS_PROJECTS_PATH}/${localEnv:OSS_PROJECT_1},target=/workspace/oss/${localEnv:OSS_PROJECT_1},type=bind,consistency=cached"
 ]
 ```
 
@@ -159,8 +147,6 @@ These are automatically forwarded to the container via `devcontainer.json`.
 
 ```bash
 # .env
-HOST_USERNAME=jane
-HOST_HOME=/home/jane
 INSTALL_CLAUDE_CODE=false
 INSTALL_UV=false
 # Leave all mounts commented in devcontainer.json
@@ -170,15 +156,12 @@ INSTALL_UV=false
 
 ```bash
 # .env
-HOST_USERNAME=jane
-HOST_HOME=/home/jane
 INSTALL_CLAUDE_CODE=true
 MOUNT_CLAUDE_CONFIG=true
-CLAUDE_CONFIG_PATH=${HOST_HOME}/.claude
 
 # devcontainer.json - uncomment:
 "mounts": [
-  "source=${localEnv:CLAUDE_CONFIG_PATH},target=/home/node/.claude,type=bind,consistency=cached"
+  "source=${localEnv:HOME}/.claude,target=/home/node/.claude,type=bind,consistency=cached"
 ]
 ```
 
@@ -186,8 +169,6 @@ CLAUDE_CONFIG_PATH=${HOST_HOME}/.claude
 
 ```bash
 # .env
-HOST_USERNAME=jane
-HOST_HOME=/home/jane
 INSTALL_CLAUDE_CODE=true
 INSTALL_GEMINI_CLI=true
 INSTALL_UV=true
@@ -204,7 +185,7 @@ POSTGRES_DB=myapp_dev
 ```bash
 # .env
 MOUNT_OSS_PROJECTS=true
-OSS_PROJECTS_PATH=${HOST_HOME}/projects/oss
+OSS_PROJECTS_PATH=projects/oss  # Relative to HOME
 OSS_PROJECT_1=shared-library
 OSS_PROJECT_2=common-utils
 

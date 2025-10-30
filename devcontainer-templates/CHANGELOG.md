@@ -2,6 +2,69 @@
 
 All notable changes to the DevContainer Templates project.
 
+## [1.1.0] - 2025-10-30
+
+### 🚀 BREAKING CHANGES
+
+#### Removed HOST_USERNAME and HOST_HOME Configuration
+
+**Rationale**: Simplified configuration by leveraging VS Code DevContainer's native `${localEnv:HOME}` variable substitution instead of requiring user-specific path configuration.
+
+**What Changed**:
+
+- ❌ Removed `HOST_USERNAME` variable (unused)
+- ❌ Removed `HOST_HOME` variable (replaced with `${localEnv:HOME}`)
+- ✅ All devcontainer.json mounts now use `${localEnv:HOME}` directly
+- ✅ OSS_PROJECTS_PATH is now relative to HOME (e.g., `projects/oss` instead of `/home/scott/projects/oss`)
+- ✅ Claude config mount automatically resolves to `${localEnv:HOME}/.claude`
+
+**Migration**:
+
+Old .env configuration:
+
+```bash
+HOST_USERNAME=scott
+HOST_HOME=/home/scott
+CLAUDE_CONFIG_PATH=${HOST_HOME}/.claude
+OSS_PROJECTS_PATH=${HOST_HOME}/projects/oss
+```
+
+New .env configuration:
+
+```bash
+# HOST_USERNAME and HOST_HOME removed entirely
+# Paths automatically use ${localEnv:HOME} from host environment
+OSS_PROJECTS_PATH=projects/oss  # Now relative to HOME
+```
+
+Old devcontainer.json mounts:
+
+```json
+"source=${localEnv:CLAUDE_CONFIG_PATH},target=/home/node/.claude"
+```
+
+New devcontainer.json mounts:
+
+```json
+"source=${localEnv:HOME}/.claude,target=/home/node/.claude"
+```
+
+**Benefits**:
+
+- ✅ Zero path configuration required
+- ✅ Works across different usernames without changes
+- ✅ More portable across development machines
+- ✅ Simpler installation with fewer options
+- ✅ Templates work out-of-box without customization
+
+**Impact**: Existing `.env` files will need to remove `HOST_USERNAME` and `HOST_HOME` variables. Paths in `devcontainer.json` will automatically resolve using host's `$HOME` environment variable.
+
+### Changed
+
+- Removed `--host-username` and `--host-home` CLI options from install.sh
+- Updated all documentation (README.md, INSTALL_GUIDE.md, QUICKREF.md) to reflect new approach
+- Simplified install.sh by removing ~50 lines of HOST\_ variable handling
+
 ## [1.0.0] - 2025-10-30
 
 ### Added
