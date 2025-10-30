@@ -210,8 +210,8 @@ process_cleanup_stale_pids <session_dir>
 ```bash
 # Find LLM binary for specified provider
 llm_find_bin <provider>
-# Args: provider name (claude-cli, openai-api, groq, openrouter, custom)
-# Returns: path to binary (or "curl" for openai-api/groq/openrouter)
+# Args: provider name (claude-cli, openai-api, openrouter, custom)
+# Returns: path to binary (or "curl" for openai-api/openrouter)
 # Checks provider-specific paths and configs
 
 # Invoke LLM with isolation and error handling
@@ -665,7 +665,7 @@ source "$SIDEKICK_ROOT/config.defaults"
 
 ### Overview
 
-Sidekick uses a pluggable LLM provider architecture to support multiple AI backends for conversation analysis and resume generation. The system abstracts LLM invocation behind a provider interface, allowing drop-in replacement of Claude CLI with OpenAI, GROQ, OpenRouter, or custom LLM tools.
+Sidekick uses a pluggable LLM provider architecture to support multiple AI backends for conversation analysis and resume generation. The system abstracts LLM invocation behind a provider interface, allowing drop-in replacement of Claude CLI with OpenAI, OpenRouter, or custom LLM tools.
 
 ### Provider Architecture
 
@@ -682,10 +682,6 @@ Sidekick uses a pluggable LLM provider architecture to support multiple AI backe
 - `_llm_invoke_openai_api()` - OpenAI API via curl
   - Direct HTTP calls to OpenAI endpoint
   - Requires API key via config or environment variable
-- `_llm_invoke_groq()` - GROQ API via curl
-  - Direct HTTP calls to GROQ endpoint
-  - Requires API key via config or environment variable
-  - OpenAI-compatible API interface
 - `_llm_invoke_openrouter()` - OpenRouter API via curl
   - Direct HTTP calls to OpenRouter endpoint
   - Requires API key via config or environment variable
@@ -699,7 +695,7 @@ Sidekick uses a pluggable LLM provider architecture to support multiple AI backe
 **Provider Selection** (config.defaults or sidekick.conf):
 ```bash
 # Select active provider
-LLM_PROVIDER=claude-cli  # claude-cli | openai-api | groq | openrouter | custom
+LLM_PROVIDER=claude-cli  # claude-cli | openai-api | openrouter | custom
 
 # Claude CLI provider
 LLM_CLAUDE_BIN=          # Auto-detect: ~/.claude/local/claude or PATH
@@ -709,11 +705,6 @@ LLM_CLAUDE_MODEL=haiku   # haiku, sonnet, opus, haiku-4, etc.
 LLM_OPENAI_API_KEY=      # API key (or use OPENAI_API_KEY env var)
 LLM_OPENAI_ENDPOINT=https://api.openai.com/v1/chat/completions
 LLM_OPENAI_MODEL=gpt-4-turbo
-
-# GROQ API provider
-LLM_GROQ_API_KEY=        # API key (or use GROQ_API_KEY env var)
-LLM_GROQ_ENDPOINT=https://api.groq.com/openai/v1/chat/completions
-LLM_GROQ_MODEL=openai/gpt-oss-20b  # openai/gpt-oss-20b, llama-3.1-8b-instant, etc.
 
 # OpenRouter API provider
 LLM_OPENROUTER_API_KEY=  # API key (or use OPENROUTER_API_KEY env var)
@@ -747,11 +738,6 @@ fi
 LLM_PROVIDER=openai-api
 LLM_OPENAI_API_KEY=sk-...
 LLM_OPENAI_MODEL=gpt-4-turbo
-
-# Or use GROQ
-LLM_PROVIDER=groq
-LLM_GROQ_API_KEY=gsk_...
-LLM_GROQ_MODEL=openai/gpt-oss-20b
 
 # Or use OpenRouter
 LLM_PROVIDER=openrouter

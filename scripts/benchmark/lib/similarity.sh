@@ -190,7 +190,7 @@ EOF
 # for a single invocation.
 #
 # Arguments:
-#   $1 - provider: LLM provider (openrouter, claude-cli, openai-api, groq)
+#   $1 - provider: LLM provider (openrouter, claude-cli, openai-api)
 #   $2 - model: Model identifier
 #   $3 - prompt: Prompt text
 #   $4 - timeout: Timeout in seconds (optional, default 30)
@@ -226,11 +226,6 @@ llm_invoke_with_provider() {
             orig_model="${LLM_OPENAI_MODEL:-}"
             export LLM_PROVIDER="openai-api"
             export LLM_OPENAI_MODEL="$model"
-            ;;
-        groq)
-            orig_model="${LLM_GROQ_MODEL:-}"
-            export LLM_PROVIDER="groq"
-            export LLM_GROQ_MODEL="$model"
             ;;
         *)
             echo "ERROR: Unknown provider: $provider" >&2
@@ -280,13 +275,6 @@ llm_invoke_with_provider() {
                 export LLM_OPENAI_MODEL="$orig_model"
             else
                 unset LLM_OPENAI_MODEL
-            fi
-            ;;
-        groq)
-            if [ -n "$orig_model" ]; then
-                export LLM_GROQ_MODEL="$orig_model"
-            else
-                unset LLM_GROQ_MODEL
             fi
             ;;
     esac

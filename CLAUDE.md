@@ -73,7 +73,7 @@ See `ARCH.md` for complete design documentation. Key features:
 - **Single Entry Point**: All hooks route through `sidekick.sh <command>`
 - **Modular Libraries**: `lib/common.sh` loader + 9 focused namespace files (config.sh, json.sh, llm.sh, logging.sh, paths.sh, plugin.sh, process.sh, utils.sh, workspace.sh)
 - **Pluggable Features**: Independently toggleable via `sidekick.conf`
-- **Pluggable LLM Providers**: Support for Claude CLI, OpenAI API, GROQ API, OpenRouter API, and custom providers
+- **Pluggable LLM Providers**: Support for Claude CLI, OpenAI API, OpenRouter API, and custom providers
 - **Configuration Cascade**: Versioned Project → Deployed Project → User → Defaults (shell .conf format)
 - **Dual-Scope Deployment**: Works identically in project (.claude/) and user (~/.claude/) contexts
 
@@ -137,7 +137,7 @@ Sidekick uses a pluggable LLM provider system for conversation analysis and resu
 **Configuration Options**:
 ```bash
 # Provider selection
-LLM_PROVIDER=claude-cli  # claude-cli | openai-api | groq | openrouter | custom
+LLM_PROVIDER=claude-cli  # claude-cli | openai-api | openrouter | custom
 
 # Claude CLI (default)
 LLM_CLAUDE_MODEL=haiku
@@ -145,10 +145,6 @@ LLM_CLAUDE_MODEL=haiku
 # OpenAI API
 LLM_OPENAI_API_KEY=sk-...
 LLM_OPENAI_MODEL=gpt-4-turbo
-
-# GROQ API
-LLM_GROQ_API_KEY=gsk_...
-LLM_GROQ_MODEL=openai/gpt-oss-20b
 
 # OpenRouter API
 LLM_OPENROUTER_API_KEY=sk-or-...
@@ -161,7 +157,7 @@ LLM_CUSTOM_COMMAND={BIN} --model {MODEL} < {PROMPT_FILE}
 
 **Key Implementation Details**:
 - `llm_invoke()` - Main dispatcher in `lib/llm.sh`
-- Provider-specific implementations: `_llm_invoke_claude_cli()`, `_llm_invoke_openai_api()`, `_llm_invoke_groq()`, `_llm_invoke_openrouter()`, `_llm_invoke_custom()`
+- Provider-specific implementations: `_llm_invoke_claude_cli()`, `_llm_invoke_openai_api()`, `_llm_invoke_openrouter()`, `_llm_invoke_custom()`
 - Used in: `features/topic-extraction.sh` (topic analysis and resume generation)
 
 See `ARCH.md` LLM Provider System section for complete documentation.
