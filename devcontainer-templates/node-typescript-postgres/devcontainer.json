@@ -1,0 +1,56 @@
+{
+  "name": "Node TypeScript PostgreSQL Dev Environment",
+
+  // Use custom Dockerfile
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "."
+  },
+
+  // Optional: Connect to external PostgreSQL via Docker network
+  // Uncomment and configure if you have PostgreSQL running in another container
+  // "runArgs": ["--network=${localEnv:DOCKER_NETWORK}"],
+
+  // Run post-creation setup script
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint",
+        "ms-vscode.vscode-typescript-next",
+        "ckolkman.vscode-postgres"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "eslint.format.enable": true,
+        "editor.codeActionsOnSave": {
+          "source.fixAll.eslint": "explicit"
+        },
+        "typescript.tsdk": "node_modules/typescript/lib",
+        "typescript.enablePromptUseWorkspaceTsdk": true
+      }
+    }
+  },
+
+  // Forward PostgreSQL port for database connections
+  "forwardPorts": [5432],
+  "portsAttributes": {
+    "5432": { "label": "PostgreSQL", "onAutoForward": "silent" }
+  },
+
+  // Pass through database connection environment variables
+  "remoteEnv": {
+    "POSTGRES_HOST": "${localEnv:POSTGRES_HOST:localhost}",
+    "POSTGRES_PORT": "${localEnv:POSTGRES_PORT:5432}",
+    "POSTGRES_DB": "${localEnv:POSTGRES_DB}",
+    "POSTGRES_USER": "${localEnv:POSTGRES_USER}",
+    "POSTGRES_PASSWORD": "${localEnv:POSTGRES_PASSWORD}"
+  },
+
+  "remoteUser": "node",
+  "updateRemoteUserUID": true
+}
