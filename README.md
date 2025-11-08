@@ -15,7 +15,7 @@ Where I'm leaving off:
 - occasionally run into a bad model response - see sidekick.log
 - but the details of that (inputs and outputs) get obscured - logging and data capture in the scripts are suspect
 - there are curl timeouts which may be our fault but did not look into it
-- the jq parse error kills us:
+- but then the jq parse error kills us:
 ```text
 scott@alienmachine:~/projects/claude-config$ ./scripts/benchmark/run-benchmark.sh --models cheap
 [CONFIG] Benchmark configuration loaded successfully

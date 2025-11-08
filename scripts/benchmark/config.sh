@@ -123,8 +123,11 @@ EARLY_TERM_TIMEOUT_COUNT=3    # Skip model after 3 consecutive timeouts
 # ==============================================================================
 # LLM INVOCATION SETTINGS
 # ==============================================================================
+# Timeout configuration is now in src/sidekick/config.defaults:
+#   LLM_TIMEOUT_SECONDS - Global default (30s)
+#   LLM_BENCHMARK_TIMEOUT_SECONDS - Benchmark override (60s)
+# Override in ~/.claude/hooks/sidekick/sidekick.conf or .sidekick/sidekick.conf
 
-LLM_TIMEOUT_SECONDS=30        # Timeout for LLM API calls
 LLM_MAX_RETRIES=2             # Max retries on transient failures
 
 # ==============================================================================
@@ -194,8 +197,37 @@ get_versioned_reference_dir() {
     echo "${REFERENCES_DIR}/${REFERENCE_VERSION}_${timestamp}"
 }
 
+# Resolve timeout with cascading logic using sidekick config system
+# Priority: LLM_BENCHMARK_TIMEOUT_SECONDS → LLM_TIMEOUT_SECONDS → 30 (hardcoded fallback)
+_resolve_timeout() {
+    # NOTE: config_load is now called in config_export (not here in subshell)
+    # This function assumes config_get is available
+
+    # Try benchmark-specific timeout first
+    local timeout
+    timeout=$(config_get "LLM_BENCHMARK_TIMEOUT_SECONDS")
+
+    # Fall back to global timeout
+    if [ -z "$timeout" ]; then
+        timeout=$(config_get "LLM_TIMEOUT_SECONDS")
+    fi
+
+    # Final hardcoded fallback
+    echo "${timeout:-30}"
+}
+
 # Export all configuration for subprocesses
 config_export() {
+    # Load sidekick config if not already loaded
+    if ! command -v config_get &>/dev/null; then
+        # shellcheck source=../../src/sidekick/lib/common.sh
+        source "$SIDEKICK_SRC/lib/common.sh"
+        config_load
+    fi
+
+    # Resolve final timeout value for benchmarks
+    LLM_TIMEOUT_SECONDS=$(_resolve_timeout)
+
     export BENCHMARK_ROOT PROJECT_ROOT
     export GOLDEN_SET_FILE METADATA_FILE TRANSCRIPTS_DIR
     export REFERENCES_DIR RESULTS_DIR SIDEKICK_SRC
@@ -206,6 +238,9 @@ config_export() {
     export SCORE_WEIGHT_SCHEMA SCORE_WEIGHT_ACCURACY SCORE_WEIGHT_CONTENT
     export EARLY_TERM_JSON_FAILURES EARLY_TERM_TIMEOUT_COUNT
     export LLM_TIMEOUT_SECONDS LLM_MAX_RETRIES
+
+    # Export LLM debug settings (loaded via config_load above)
+    export LLM_DEBUG_DUMP_ENABLED CIRCUIT_BREAKER_ENABLED LLM_FALLBACK_PROVIDER
 }
 
 # ==============================================================================
