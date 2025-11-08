@@ -39,3 +39,6 @@ node_modules/
 .sidekick/
 *.backup.*
 *.uninstall-backup.*
+
+# DevContainer environment variables (contains secrets)
+.devcontainer/.env
