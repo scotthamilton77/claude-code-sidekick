@@ -52,15 +52,20 @@ done
 # LOAD LIBRARIES
 # ==============================================================================
 
+# CRITICAL: Set CLAUDE_PROJECT_DIR BEFORE sourcing config.sh
+# config.sh calls config_load which needs this to find .sidekick/sidekick.conf
+export CLAUDE_PROJECT_DIR="$PROJECT_ROOT"
+
 # Source configuration and libraries
 source "$SCRIPT_DIR/config.sh"
 source "$SCRIPT_DIR/lib/preprocessing.sh"
 source "$SCRIPT_DIR/lib/scoring.sh"
 
 # Initialize Sidekick logging
-export CLAUDE_PROJECT_DIR="$PROJECT_ROOT"
 SIDEKICK_LIB="$PROJECT_ROOT/src/sidekick/lib"
 source "$SIDEKICK_LIB/common.sh"
+# NOTE: Do NOT call config_load here - config.sh already called it via _resolve_timeout
+# Calling it again would overwrite LLM_TIMEOUT_SECONDS (60 → 30)
 log_init
 
 # ==============================================================================

@@ -27,8 +27,14 @@ export CLAUDE_PROJECT_DIR="${BENCHMARK_LIB_ROOT}/../../.."
 # Source required Sidekick libraries
 source "${SIDEKICK_LIB}/common.sh"
 
-# Initialize logging subsystem
-log_init
+# NOTE: Do NOT call config_load here - this is a library, not an entry point
+# Parent scripts (run-benchmark.sh, etc.) handle config_load and config_export
+# Calling config_load here would overwrite exported values like LLM_TIMEOUT_SECONDS
+
+# Initialize logging subsystem (only if not already initialized)
+if [ -z "${_SIDEKICK_LOG_INITIALIZED:-}" ]; then
+    log_init
+fi
 
 # ==============================================================================
 # SEMANTIC SIMILARITY
@@ -133,8 +139,9 @@ EOF
     local model="${JUDGE_MODEL#*:}"
 
     # Invoke judge model with schema
+    # Use empty string for timeout to respect LLM_TIMEOUT_SECONDS from config (set to 60s for benchmarks)
     local llm_output
-    if ! llm_output=$(llm_invoke_with_provider "$provider" "$model" "$prompt" 10 "$json_schema"); then
+    if ! llm_output=$(llm_invoke_with_provider "$provider" "$model" "$prompt" "" "$json_schema"); then
         echo "ERROR: LLM invocation failed for semantic similarity" >&2
         echo "0.0"
         return 1
@@ -204,7 +211,7 @@ llm_invoke_with_provider() {
     local provider="$1"
     local model="$2"
     local prompt="$3"
-    local timeout="${4:-30}"
+    local timeout="${4:-}"  # Default to empty, let llm_invoke use config
     local json_schema="${5:-}"
 
     # Save current provider settings

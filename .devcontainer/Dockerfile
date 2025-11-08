@@ -32,6 +32,7 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
     fzf \
     gh \
     gawk \
+    bc \
     coreutils \
     diffutils \
     less \
