@@ -184,6 +184,7 @@ jq: parse error: Expected value before ',' at line 8, column 25
 - BUG: uninstall from project leaves empty hooks folder
 - how do subagents work - can we detect their connection to the parent agent, and do we care?  (for statusline, maybe not, but for analytics?)
 - skills and agents - review carefully and attribute to https://github.com/obra/superpowers
+- learning mode? investigate https://medium.com/coding-nexus/rip-fine-tuning-how-stanfords-ace-framework-teaches-ai-to-learn-without-retraining-510f412d8579
 
 ### stdout/stderr analysis
 
