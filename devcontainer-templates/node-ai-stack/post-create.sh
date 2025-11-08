@@ -3,7 +3,9 @@ set -e
 
 echo "🔧 Setting up AI Stack development environment..."
 
-# Read installation flags from environment (defaults to false)
+# Read installation flags from environment
+# Note: install.sh bakes these into devcontainer.json, so defaults shouldn't be needed
+# Conservative fallbacks provided for manual devcontainer builds
 INSTALL_UV=${INSTALL_UV:-false}
 INSTALL_CLAUDE_CODE=${INSTALL_CLAUDE_CODE:-false}
 INSTALL_GEMINI_CLI=${INSTALL_GEMINI_CLI:-false}
@@ -22,12 +24,19 @@ if [ "$INSTALL_UV" = "true" ]; then
 
   # Install Python if version specified
   if [ -n "$PYTHON_VERSION" ]; then
-    echo "🐍 Installing Python $PYTHON_VERSION..."
-    uv python install "$PYTHON_VERSION"
+    if [ "$PYTHON_VERSION" = "latest" ]; then
+      echo "🐍 Installing latest stable Python..."
+      uv python install
+    else
+      echo "🐍 Installing Python $PYTHON_VERSION..."
+      uv python install "$PYTHON_VERSION"
+    fi
 
-    # Create symlink for system-wide access
-    PYTHON_MINOR=$(echo "$PYTHON_VERSION" | cut -d. -f1,2)
-    sudo ln -sf "$HOME/.local/bin/python$PYTHON_MINOR" "/usr/bin/python$PYTHON_MINOR" 2>/dev/null || true
+    # Create symlink for system-wide access (only if specific version installed)
+    if [ "$PYTHON_VERSION" != "latest" ]; then
+      PYTHON_MINOR=$(echo "$PYTHON_VERSION" | cut -d. -f1,2)
+      sudo ln -sf "$HOME/.local/bin/python$PYTHON_MINOR" "/usr/bin/python$PYTHON_MINOR" 2>/dev/null || true
+    fi
   fi
 fi
 
