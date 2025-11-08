@@ -153,7 +153,26 @@ LLM_OPENROUTER_MODEL=sao10k/l3-lunaris-8b
 # Custom provider with template
 LLM_CUSTOM_BIN=/path/to/llm
 LLM_CUSTOM_COMMAND={BIN} --model {MODEL} < {PROMPT_FILE}
+
+# Timeout and retry configuration
+LLM_TIMEOUT_SECONDS=10                    # Global timeout for LLM API calls (seconds)
+LLM_BENCHMARK_TIMEOUT_SECONDS=15          # Benchmark-specific timeout override (empty = use global)
+LLM_TIMEOUT_MAX_RETRIES=3                 # Max retry attempts for timeout errors (0 = no retries)
+
+# Debug dumping for troubleshooting
+LLM_DEBUG_DUMP_ENABLED=false              # Save API calls to /tmp/sidekick-llm-debug/{provider}/{model}/
 ```
+
+**Timeout & Retry Behavior**:
+- API calls time out after `LLM_TIMEOUT_SECONDS` (default: 10s)
+- On timeout (curl exit 28), retries up to `LLM_TIMEOUT_MAX_RETRIES` times
+- Benchmark scripts use `LLM_BENCHMARK_TIMEOUT_SECONDS` if set (default: 15s)
+- Total attempts = 1 initial + retries (e.g., max_retries=3 → 4 total attempts)
+
+**Debug Dumping**:
+- When `LLM_DEBUG_DUMP_ENABLED=true`, saves each API call to `/tmp/sidekick-llm-debug/`
+- Captures: curl command (`curl.sh`), payload (`payload.json`), metadata (`metadata.txt`)
+- Organized by provider/model/timestamp for easy troubleshooting
 
 **Key Implementation Details**:
 - `llm_invoke()` - Main dispatcher in `lib/llm.sh`
