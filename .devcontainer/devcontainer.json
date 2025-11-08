@@ -11,12 +11,12 @@
   // Uncomment and customize as needed based on your .env configuration
   "mounts": [
     // Docker socket for Docker-in-Docker (SECURITY: only for trusted projects)
-    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
+    // "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
     // Claude configuration directory (if MOUNT_CLAUDE_CONFIG=true in .env)
-    // "source=${localEnv:HOME}/.claude,target=/home/node/.claude,type=bind,consistency=cached",
     // OSS projects directory (if MOUNT_OSS_PROJECTS=true in .env)
     // "source=${localEnv:HOME}/${localEnv:OSS_PROJECTS_PATH}/${localEnv:OSS_PROJECT_1},target=/workspace/oss/${localEnv:OSS_PROJECT_1},type=bind,consistency=cached",
     // "source=${localEnv:HOME}/${localEnv:OSS_PROJECTS_PATH}/${localEnv:OSS_PROJECT_2},target=/workspace/oss/${localEnv:OSS_PROJECT_2},type=bind,consistency=cached"
+    "source=${localEnv:HOME}/.claude,target=/home/node/.claude,type=bind,consistency=cached"
   ],
 
   // Connect to external Docker network (e.g., for PostgreSQL)
@@ -76,12 +76,13 @@
     "POSTGRES_PASSWORD": "${localEnv:POSTGRES_PASSWORD}",
 
     // Installation Flags (passed to post-create script)
-    "INSTALL_CLAUDE_CODE": "${localEnv:INSTALL_CLAUDE_CODE:false}",
-    "INSTALL_GEMINI_CLI": "${localEnv:INSTALL_GEMINI_CLI:false}",
-    "INSTALL_CODEX_CLI": "${localEnv:INSTALL_CODEX_CLI:false}",
-    "INSTALL_UV": "${localEnv:INSTALL_UV:false}",
-    "INSTALL_SPECIFY_CLI": "${localEnv:INSTALL_SPECIFY_CLI:false}",
-    "PYTHON_VERSION": "${localEnv:PYTHON_VERSION:3.12.3}",
+    // Note: install.sh will replace these with actual values
+    "INSTALL_CLAUDE_CODE": "true",
+    "INSTALL_GEMINI_CLI": "true",
+    "INSTALL_CODEX_CLI": "true",
+    "INSTALL_UV": "true",
+    "INSTALL_SPECIFY_CLI": "true",
+    "PYTHON_VERSION": "latest",
 
     // Mark as devcontainer environment for scripts
     "DEVCONTAINER": "true"

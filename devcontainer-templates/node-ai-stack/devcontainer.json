@@ -76,6 +76,7 @@
     "POSTGRES_PASSWORD": "${localEnv:POSTGRES_PASSWORD}",
 
     // Installation Flags (passed to post-create script)
+    // Note: install.sh will replace these with actual values
     "INSTALL_CLAUDE_CODE": "${localEnv:INSTALL_CLAUDE_CODE:false}",
     "INSTALL_GEMINI_CLI": "${localEnv:INSTALL_GEMINI_CLI:false}",
     "INSTALL_CODEX_CLI": "${localEnv:INSTALL_CODEX_CLI:false}",

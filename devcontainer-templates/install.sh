@@ -320,7 +320,7 @@ interactive_mode() {
     echo "  1) base                      - Minimal Node.js setup"
     echo "  2) node-typescript           - TypeScript ready"
     echo "  3) node-typescript-postgres  - TypeScript + PostgreSQL"
-    echo "  4) node-ai-stack            - Full AI stack (kitchen sink)"
+    echo "  4) node-ai-stack             - Full AI stack (kitchen sink)"
     echo ""
 
     read -p "Select template [1-4, default: 1]: " template_choice
@@ -332,6 +332,10 @@ interactive_mode() {
     esac
 
     log_info "Selected template: $TEMPLATE"
+
+    # Apply template-specific defaults NOW (after template selection)
+    apply_template_defaults
+
     echo ""
 
     # Target directory
@@ -350,7 +354,7 @@ interactive_mode() {
             POSTGRES_USER=$(prompt_choice "Database user" "${POSTGRES_USER}")
             read -s -p "Database password (hidden): " POSTGRES_PASSWORD
             echo ""
-            DOCKER_NETWORK=$(prompt_choice "Docker network (leave empty if not using)" "${DOCKER_NETWORK}")
+            DOCKER_NETWORK=$(prompt_choice "Docker network name" "${DOCKER_NETWORK:-postgres_default}")
         fi
         echo ""
     fi
@@ -358,16 +362,16 @@ interactive_mode() {
     if [ "$TEMPLATE" = "node-ai-stack" ]; then
         echo -e "${BLUE}AI Stack Configuration:${NC}"
 
-        # AI tools
+        # AI tools (defaults set by apply_template_defaults)
         echo -e "${BLUE}AI Tools Installation:${NC}"
-        INSTALL_CLAUDE_CODE=$(prompt_yes_no "Install Claude Code CLI?" "false")
-        INSTALL_GEMINI_CLI=$(prompt_yes_no "Install Gemini CLI?" "false")
-        INSTALL_CODEX_CLI=$(prompt_yes_no "Install OpenAI Codex CLI?" "false")
-        INSTALL_UV=$(prompt_yes_no "Install uv (Python package manager)?" "false")
+        INSTALL_CLAUDE_CODE=$(prompt_yes_no "Install Claude Code CLI?" "$INSTALL_CLAUDE_CODE")
+        INSTALL_GEMINI_CLI=$(prompt_yes_no "Install Gemini CLI?" "$INSTALL_GEMINI_CLI")
+        INSTALL_CODEX_CLI=$(prompt_yes_no "Install OpenAI Codex CLI?" "$INSTALL_CODEX_CLI")
+        INSTALL_UV=$(prompt_yes_no "Install uv (Python package manager)?" "$INSTALL_UV")
 
         if [ "$INSTALL_UV" = "true" ]; then
-            PYTHON_VERSION=$(prompt_choice "Python version" "${PYTHON_VERSION:-3.12.3}")
-            INSTALL_SPECIFY_CLI=$(prompt_yes_no "Install specify-cli?" "false")
+            PYTHON_VERSION=$(prompt_choice "Python version" "$PYTHON_VERSION")
+            INSTALL_SPECIFY_CLI=$(prompt_yes_no "Install specify-cli?" "$INSTALL_SPECIFY_CLI")
         fi
         echo ""
 
@@ -638,7 +642,7 @@ configure_mounts() {
 
     # Uncomment Claude config mount if enabled
     if [ "$MOUNT_CLAUDE_CONFIG" = "true" ]; then
-        sed -i 's|// "source=\${localEnv:CLAUDE_CONFIG_PATH}|"source=${localEnv:CLAUDE_CONFIG_PATH}|' "$devcontainer_json"
+        sed -i 's|// "source=\${localEnv:HOME}/\.claude|"source=${localEnv:HOME}/.claude|' "$devcontainer_json"
         log_verbose "Enabled Claude config mount"
     fi
 
@@ -654,7 +658,109 @@ configure_mounts() {
         log_verbose "Enabled Docker network configuration"
     fi
 
+    # Fix trailing commas in mounts array
+    # Strategy: Remove all trailing commas from mount lines, then add commas to all but the last
+    fix_mount_trailing_commas "$devcontainer_json"
+
     log_success "Mounts configured"
+}
+
+fix_mount_trailing_commas() {
+    local json_file="$1"
+
+    # Use awk to process the mounts array
+    awk '
+        BEGIN { in_mounts = 0; mount_lines = ""; line_count = 0 }
+
+        # Detect start of mounts array
+        /"mounts": \[/ { in_mounts = 1; print; next }
+
+        # Detect end of mounts array
+        in_mounts && /^[[:space:]]*\],?[[:space:]]*$/ {
+            # Process accumulated mount lines
+            if (line_count > 0) {
+                # Split stored lines
+                split(mount_lines, lines, "\n")
+
+                # Print all lines except last, ensuring they have trailing commas
+                for (i = 1; i < line_count; i++) {
+                    line = lines[i]
+                    # Remove any existing comma, then add one
+                    sub(/,[[:space:]]*$/, "", line)
+                    print line ","
+                }
+
+                # Print last line without trailing comma
+                line = lines[line_count]
+                sub(/,[[:space:]]*$/, "", line)
+                print line
+            }
+
+            in_mounts = 0
+            mount_lines = ""
+            line_count = 0
+            print
+            next
+        }
+
+        # Accumulate non-comment mount lines
+        in_mounts && /^[[:space:]]*"source=/ {
+            line_count++
+            if (line_count > 1) mount_lines = mount_lines "\n"
+            mount_lines = mount_lines $0
+            next
+        }
+
+        # Pass through everything else
+        { print }
+    ' "$json_file" > "$json_file.tmp" && mv "$json_file.tmp" "$json_file"
+
+    log_verbose "Fixed trailing commas in mounts array"
+}
+
+configure_devcontainer_env() {
+    local devcontainer_json="${TARGET_DIR}/.devcontainer/devcontainer.json"
+
+    # Only for node-ai-stack template
+    if [ "$TEMPLATE" != "node-ai-stack" ]; then
+        return 0
+    fi
+
+    log_info "Configuring installation flags in devcontainer.json"
+
+    if [ "$DRY_RUN" = "true" ]; then
+        log_dry_run "Would configure installation flags in: $devcontainer_json"
+        log_verbose "  - INSTALL_CLAUDE_CODE=$INSTALL_CLAUDE_CODE"
+        log_verbose "  - INSTALL_GEMINI_CLI=$INSTALL_GEMINI_CLI"
+        log_verbose "  - INSTALL_CODEX_CLI=$INSTALL_CODEX_CLI"
+        log_verbose "  - INSTALL_UV=$INSTALL_UV"
+        log_verbose "  - INSTALL_SPECIFY_CLI=$INSTALL_SPECIFY_CLI"
+        log_verbose "  - PYTHON_VERSION=$PYTHON_VERSION"
+        return 0
+    fi
+
+    # Replace env var syntax with actual values (bakes choices into devcontainer.json)
+    # This eliminates the need to set environment variables when building the container
+
+    sed -i "s|\"INSTALL_CLAUDE_CODE\": \"\${localEnv:INSTALL_CLAUDE_CODE:false}\"|\"INSTALL_CLAUDE_CODE\": \"$INSTALL_CLAUDE_CODE\"|" "$devcontainer_json"
+    log_verbose "Set INSTALL_CLAUDE_CODE=$INSTALL_CLAUDE_CODE"
+
+    sed -i "s|\"INSTALL_GEMINI_CLI\": \"\${localEnv:INSTALL_GEMINI_CLI:false}\"|\"INSTALL_GEMINI_CLI\": \"$INSTALL_GEMINI_CLI\"|" "$devcontainer_json"
+    log_verbose "Set INSTALL_GEMINI_CLI=$INSTALL_GEMINI_CLI"
+
+    sed -i "s|\"INSTALL_CODEX_CLI\": \"\${localEnv:INSTALL_CODEX_CLI:false}\"|\"INSTALL_CODEX_CLI\": \"$INSTALL_CODEX_CLI\"|" "$devcontainer_json"
+    log_verbose "Set INSTALL_CODEX_CLI=$INSTALL_CODEX_CLI"
+
+    sed -i "s|\"INSTALL_UV\": \"\${localEnv:INSTALL_UV:false}\"|\"INSTALL_UV\": \"$INSTALL_UV\"|" "$devcontainer_json"
+    log_verbose "Set INSTALL_UV=$INSTALL_UV"
+
+    sed -i "s|\"INSTALL_SPECIFY_CLI\": \"\${localEnv:INSTALL_SPECIFY_CLI:false}\"|\"INSTALL_SPECIFY_CLI\": \"$INSTALL_SPECIFY_CLI\"|" "$devcontainer_json"
+    log_verbose "Set INSTALL_SPECIFY_CLI=$INSTALL_SPECIFY_CLI"
+
+    sed -i "s|\"PYTHON_VERSION\": \"\${localEnv:PYTHON_VERSION:3.12.3}\"|\"PYTHON_VERSION\": \"$PYTHON_VERSION\"|" "$devcontainer_json"
+    log_verbose "Set PYTHON_VERSION=$PYTHON_VERSION"
+
+    log_success "Installation flags configured"
 }
 
 update_gitignore() {
@@ -705,15 +811,9 @@ show_next_steps() {
         echo ""
     fi
 
-    if [ "$TEMPLATE" = "node-ai-stack" ]; then
-        echo "  3. If using mounts, uncomment the relevant lines in:"
-        echo "     ${TARGET_DIR}/.devcontainer/devcontainer.json"
-        echo ""
-    fi
-
-    echo "  4. Open the project in VS Code"
+    echo "  3. Open the project in VS Code"
     echo ""
-    echo "  5. Command Palette → 'Dev Containers: Reopen in Container'"
+    echo "  4. Command Palette → 'Dev Containers: Reopen in Container'"
     echo ""
     echo "Documentation:"
     echo "  - Main README: ${SCRIPT_DIR}/README.md"
@@ -730,6 +830,35 @@ show_next_steps() {
 }
 
 # ============================================================================
+# Template-Specific Defaults
+# ============================================================================
+
+apply_template_defaults() {
+    # Apply template-specific defaults for variables not already set via CLI/config override
+    # This ensures consistent defaults whether using interactive or non-interactive mode
+
+    if [ "$TEMPLATE" = "node-ai-stack" ]; then
+        # AI Stack template optimized for AI tool development
+        # Only set if not already set (allows CLI/config overrides)
+        : ${INSTALL_CLAUDE_CODE:=true}
+        : ${INSTALL_GEMINI_CLI:=true}
+        : ${INSTALL_CODEX_CLI:=true}
+        : ${INSTALL_UV:=true}
+        : ${PYTHON_VERSION:=latest}
+        # INSTALL_SPECIFY_CLI defaults to false
+
+        log_verbose "Applied node-ai-stack template defaults (Claude=$INSTALL_CLAUDE_CODE, Gemini=$INSTALL_GEMINI_CLI, Codex=$INSTALL_CODEX_CLI, UV=$INSTALL_UV, Python=$PYTHON_VERSION)"
+    else
+        # Other templates: set conservative defaults if not already set
+        : ${INSTALL_CLAUDE_CODE:=false}
+        : ${INSTALL_GEMINI_CLI:=false}
+        : ${INSTALL_CODEX_CLI:=false}
+        : ${INSTALL_UV:=false}
+        : ${PYTHON_VERSION:=3.12.3}
+    fi
+}
+
+# ============================================================================
 # Main Installation Flow
 # ============================================================================
 
@@ -743,6 +872,10 @@ main() {
     # Interactive mode if requested
     if [ "$INTERACTIVE" = "true" ]; then
         interactive_mode
+    else
+        # Apply template-specific defaults for non-interactive mode
+        # (Interactive mode applies them after user selects template)
+        apply_template_defaults
     fi
 
     # Convert relative target to absolute
@@ -775,6 +908,7 @@ main() {
     copy_template
     create_env_file
     configure_mounts
+    configure_devcontainer_env
     update_gitignore
 
     # Show completion message
