@@ -482,8 +482,12 @@ for model_spec in "${MODELS_TO_TEST[@]}"; do
     SCORE_STATS=$(echo "$SCORES" | jq '{
         total_runs: length,
         api_failures: (map(select(.api_failure == true)) | length),
+        timeouts: (map(select(.api_failure == true and .failure_type == "timeout")) | length),
+        other_api_errors: (map(select(.api_failure == true and .failure_type != "timeout")) | length),
         successful_runs: (map(select(.api_failure != true)) | length),
         error_rate: ((map(select(.api_failure == true)) | length) / length),
+        timeout_rate: ((map(select(.api_failure == true and .failure_type == "timeout")) | length) / length),
+        other_error_rate: ((map(select(.api_failure == true and .failure_type != "timeout")) | length) / length),
         schema_avg: (map(select(.api_failure != true) | .schema_compliance.score) | if length > 0 then (add / length) else 0 end),
         technical_avg: (map(select(.api_failure != true) | .technical_accuracy.score) | if length > 0 then (add / length) else 0 end),
         content_avg: (map(select(.api_failure != true) | .content_quality.score) | if length > 0 then (add / length) else 0 end),
