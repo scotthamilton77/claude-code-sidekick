@@ -1,10 +1,10 @@
 # LLM Benchmarking System
 
-Phase 2 implementation: Reference generation with prompt versioning and snapshotting.
+A comprehensive benchmarking framework for evaluating LLM models on topic extraction quality. Generates high-quality reference outputs from premium models and scores candidate models against them.
 
 ## Quick Start
 
-### Generate References (v1.0)
+### 1. Generate Reference Outputs
 
 ```bash
 # Test with single transcript first
@@ -15,6 +15,32 @@ Phase 2 implementation: Reference generation with prompt versioning and snapshot
 
 # Dry-run to see what would happen
 ./scripts/benchmark/generate-reference.sh --dry-run
+```
+
+### 2. Run Benchmarks
+
+```bash
+# Quick smoke test (3 transcripts, 1 run, cheapest+default models)
+./scripts/benchmark/run-benchmark.sh --mode smoke
+
+# Standard benchmark (10 transcripts, 3 runs, cheap models)
+./scripts/benchmark/run-benchmark.sh --mode quick --models cheap
+
+# Full benchmark (all 15 transcripts, 5 runs, all models)
+./scripts/benchmark/run-benchmark.sh --mode full
+
+# Test specific models
+./scripts/benchmark/run-benchmark.sh --mode quick --models "gemma-3-4b-it,gpt-5-nano"
+```
+
+### 3. Review Results
+
+```bash
+# View summary statistics
+jq . test-data/results/TIMESTAMP/summary.json
+
+# Examine individual model outputs
+ls -la test-data/results/TIMESTAMP/raw/
 ```
 
 ## Versioning System
@@ -32,9 +58,9 @@ test-data/references/
       topic-schema.json              # Exact schema used
       config-snapshot.sh             # Config vars snapshot
     short-001/
-      grok-beta.json                 # Individual model outputs
-      gemini-2.0-flash-exp.json
-      gpt-4o.json
+      grok-4.json                    # Individual model outputs
+      gemini-2.5-pro.json
+      gpt-5-chat.json
       consensus.json                 # Consensus from 3 models
     short-002/
       ...
@@ -73,9 +99,9 @@ Each versioned directory includes `_metadata.json` with:
   },
   "models": {
     "references": [
-      "openrouter:x-ai/grok-beta",
-      "openrouter:google/gemini-2.0-flash-exp:free",
-      "openrouter:openai/gpt-4o"
+      "openrouter:x-ai/grok-4",
+      "openrouter:google/gemini-2.5-pro",
+      "openrouter:openai/gpt-5-chat"
     ],
     "judge": "openrouter:deepseek/deepseek-r1-distill-qwen-14b"
   },
@@ -88,7 +114,7 @@ Each versioned directory includes `_metadata.json` with:
   "config": {
     "excerpt_lines": 80,
     "filter_tool_messages": true,
-    "timeout_seconds": 30
+    "timeout_seconds": 60
   }
 }
 ```
@@ -162,24 +188,163 @@ Each versioned directory includes `_metadata.json` with:
 - Can always go back to compare
 - Versioned directories keep everything organized
 
+## Benchmark Modes
+
+The system supports four benchmark modes with different speed/cost/thoroughness trade-offs:
+
+| Mode | Transcripts | Runs/Model | Models | Use Case |
+|------|------------|------------|--------|----------|
+| **smoke** | 3 | 1 | cheapest+default | Quick sanity check |
+| **quick** | 10 | 3 | cheap | Development/iteration |
+| **full** | all (15) | 5 | all | Complete evaluation |
+| **statistical** | all (15) | 10 | all | High-confidence results |
+
+**Transcript selection**: Based on `test-data/transcripts/golden-set.json` (5 short, 5 medium, 5 long)
+
+**Model filters**:
+- `all` - Test all configured models
+- `cheap` - Models tagged as cheap (<$0.10 per M tokens)
+- `default` - Default production models
+- `"model1,model2"` - Comma-separated list of specific models
+
+## Scoring System
+
+Each model output is scored on three dimensions:
+
+### Schema Compliance (30% weight, 0-100 points)
+- Valid JSON structure (30 pts)
+- Required fields present (30 pts)
+- Correct field types and ranges (40 pts)
+
+**Required fields**:
+- `task_ids` (string or null)
+- `initial_goal` (string, max 60 chars)
+- `current_objective` (string, max 60 chars)
+- `clarity_score` (int, 1-10)
+- `confidence` (float, 0.0-1.0)
+- `significant_change` (boolean)
+- `high_clarity_snarky_comment` (string, max 120 chars)
+- `low_clarity_snarky_comment` (string, max 120 chars)
+
+### Technical Accuracy (50% weight, 0-100 points)
+Compares output to reference using:
+- `task_ids` exact match (15 pts)
+- `initial_goal` semantic similarity (20 pts)
+- `current_objective` semantic similarity (20 pts)
+- `clarity_score` within ±1 (20 pts)
+- `significant_change` match (15 pts)
+- `confidence` within ±0.15 (10 pts)
+
+### Content Quality (20% weight, 0-100 points)
+Evaluates snarky comment quality:
+- Comment present in appropriate field based on clarity (20 pts)
+- Length within bounds 20-120 chars (20 pts)
+- Relevance to transcript content via semantic similarity (60 pts)
+
+**Overall Score**: Weighted average of three dimensions
+```
+overall = (schema × 0.30) + (technical × 0.50) + (content × 0.20)
+```
+
+## Production-Ready Criteria
+
+Models must meet these thresholds for production use:
+
+- **JSON Parse Rate**: ≥95% (valid JSON outputs)
+- **Latency P95**: <10 seconds (95th percentile)
+- **Technical Accuracy**: ≥70% average score
+- **Cost**: <$1.00 per 1000 operations
+
+**Early termination**: Models are skipped after 3 consecutive JSON failures or timeouts.
+
 ## Cost Tracking
 
-Reference generation costs:
-- 3 models × 15 transcripts = 45 API calls
-- Consensus uses judge model: 15 transcripts × ~6 similarity checks = ~90 API calls
-- Estimated total: ~$5-15 per reference version
+### Reference Generation
+- 3 reference models × 15 transcripts = 45 API calls
+- Consensus semantic similarity: ~90 additional API calls (judge model)
+- **Estimated total**: $5-15 per reference version (depends on model pricing)
 
-Cost optimization:
-- Reuse existing references (skip regeneration with proper version management)
-- Test changes on single transcript first: `--test-id short-001`
-- Use dry-run to validate before spending: `--dry-run`
+### Benchmark Runs
+Varies by mode and model selection:
+
+| Mode | API Calls | Estimated Cost |
+|------|-----------|----------------|
+| smoke | 3 transcripts × models × 1 run | $0.10-0.50 |
+| quick | 10 transcripts × models × 3 runs | $1-5 |
+| full | 15 transcripts × models × 5 runs | $5-20 |
+| statistical | 15 transcripts × models × 10 runs | $10-40 |
+
+**Cost optimization**:
+- Start with `--mode smoke` for quick validation
+- Use `--models cheap` to test only low-cost models
+- Test single transcripts: `--test-id short-001`
+- Reuse existing references (version management)
 
 ## Architecture
 
-See `QA-PLAN.md` Phase 2 for complete design documentation.
+### Components
 
-**Key Components:**
-- `config.sh` - Configuration with version management
-- `lib/similarity.sh` - LLM-as-judge semantic similarity
-- `lib/consensus.sh` - Consensus algorithms (median, majority, semantic)
-- `generate-reference.sh` - Main orchestrator with snapshotting
+#### Core Scripts
+- **`run-benchmark.sh`** - Main benchmark orchestrator
+  - Loads references and test transcripts
+  - Executes models against transcripts
+  - Scores outputs and generates summary statistics
+  - Early termination for failing models
+
+- **`generate-reference.sh`** - Reference generation
+  - Invokes 3 premium models on golden set
+  - Computes consensus using semantic similarity
+  - Creates versioned directories with snapshots
+
+- **`test-similarity.sh`** - Validation test suite
+  - Tests semantic similarity function
+  - Validates score ranges and consistency
+  - Checks edge cases
+
+- **`config.sh`** - Central configuration
+  - Reference models (grok-4, gemini-2.5-pro, gpt-5-chat)
+  - Judge model (deepseek-r1-distill-qwen-14b)
+  - Benchmark models with pricing and tags
+  - Timeout configuration via Sidekick config system
+
+#### Library Modules
+
+- **`lib/preprocessing.sh`** - Transcript preprocessing
+  - `preprocess_transcript()` - Extract and clean excerpts
+  - Matches Sidekick's topic extraction behavior
+  - Configurable via `TOPIC_EXCERPT_LINES` and `TOPIC_FILTER_TOOL_MESSAGES`
+
+- **`lib/similarity.sh`** - LLM-as-judge semantic similarity
+  - `semantic_similarity()` - Score similarity 0.0-1.0
+  - `llm_invoke_with_provider()` - Multi-provider LLM wrapper
+  - Uses configured `JUDGE_MODEL`
+
+- **`lib/consensus.sh`** - Consensus algorithms
+  - `consensus_string_field()` - Most central text via semantic similarity
+  - `consensus_numeric_field()` - Median of numeric values
+  - `consensus_boolean_field()` - Majority vote
+  - `consensus_array_field()` - Items appearing in 2+ outputs
+  - `consensus_merge()` - Main orchestrator
+
+- **`lib/scoring.sh`** - Output scoring
+  - `score_schema_compliance()` - Validate JSON structure (0-100)
+  - `score_technical_accuracy()` - Compare to reference (0-100)
+  - `score_content_quality()` - Assess snarky comments (0-100)
+  - `score_output()` - Weighted overall score
+
+### Configuration
+
+**Timeout settings** are managed via Sidekick config system:
+- Global default: `LLM_TIMEOUT_SECONDS` (30s)
+- Benchmark override: `LLM_BENCHMARK_TIMEOUT_SECONDS` (60s by default)
+- Configure in `~/.claude/hooks/sidekick/sidekick.conf` or `.sidekick/sidekick.conf`
+
+**Benchmark models** are defined in `config.sh` with format:
+```bash
+"provider:model_name|input_price|output_price|tags"
+```
+
+Example:
+```bash
+"openrouter:google/gemma-3-4b-it|0.02|0.07|cheap,fast"
+```
