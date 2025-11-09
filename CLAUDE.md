@@ -55,6 +55,39 @@ The repository is organized into source components and deployment targets:
   - Golden set analyzed by 3 premium models (Grok-4, Gemini 2.5 Pro, GPT-5)
   - Consensus outputs used as ground truth for scoring
 
+### Benchmarking Systems (Dual-Track Development)
+
+**Architecture**: Two parallel implementations with shared test data
+
+- **Track 1 - `scripts/benchmark/`**: Production Bash implementation (~3,000 LOC)
+  - **Status**: 🚧 Active debugging and improvements
+  - **Purpose**: Current working system, rapid iteration on scoring algorithms
+  - **Stack**: Bash + jq + Sidekick LLM infrastructure
+  - **Integration**: Tightly coupled with `src/sidekick/lib/` (LLM providers, config, logging)
+  - **Strengths**: Works today, fast prototyping of algorithmic changes
+  - **Weaknesses**: Growing complexity, Bash limitations for async/statistical work
+
+- **Track 2 - `benchmark-next/`**: TypeScript rewrite (greenfield)
+  - **Status**: 🏗️ Foundation setup, architectural planning
+  - **Purpose**: Long-term maintainable replacement with better type safety
+  - **Stack**: TypeScript + Node.js + Vitest + LLM SDKs
+  - **Goal**: Behavioral parity with Track 1, idiomatic TypeScript architecture
+  - **Success Criteria**: See `benchmark-next/CLAUDE.md` for complete checklist
+  - **Migration Strategy**: Extract functional requirements from Track 1 → implement in Track 2
+
+**Sync Process**:
+1. Improve/debug Track 1 (Bash scripts)
+2. Document HIGH-LEVEL functional changes in `docs/benchmark-migration.md`
+3. Implement requirements idiomatically in Track 2 (TypeScript)
+4. Validate using shared `test-data/` (both tracks must produce identical outputs)
+
+**Shared Resources**:
+- `test-data/transcripts/` - 497 test transcripts
+- `test-data/references/` - Versioned reference outputs
+- `test-data/results/` - Benchmark run results (organized by timestamp/provider/model)
+
+**Key Principle**: Track 1 drives functional requirements; Track 2 implements with modern architecture. No direct code translation - extract behavior, implement idiomatically.
+
 ### Other Components
 
 - **`backlog/commands-to-explore/`**: Experimental command templates under development
