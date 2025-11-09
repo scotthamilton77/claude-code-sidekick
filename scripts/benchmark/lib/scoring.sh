@@ -240,7 +240,10 @@ score_technical_accuracy() {
         goal_similarity="0.0"
         goal_score=0
     else
-        goal_similarity=$(semantic_similarity "$goal_out" "$goal_ref" 2>/dev/null || echo "0.0")
+        # semantic_similarity already outputs "0.0" on error, so no need for || echo "0.0"
+        goal_similarity=$(semantic_similarity "$goal_out" "$goal_ref" 2>/dev/null)
+        # Defensive: strip whitespace and ensure single value (in case of multiline output)
+        goal_similarity=$(echo "$goal_similarity" | tr -d '\n' | awk '{print $1}')
         goal_score=$(echo "$goal_similarity * 20" | bc -l | awk '{printf "%.0f", $1}')
         score=$((score + goal_score))
     fi
@@ -254,7 +257,10 @@ score_technical_accuracy() {
         obj_similarity="0.0"
         obj_score=0
     else
-        obj_similarity=$(semantic_similarity "$obj_out" "$obj_ref" 2>/dev/null || echo "0.0")
+        # semantic_similarity already outputs "0.0" on error, so no need for || echo "0.0"
+        obj_similarity=$(semantic_similarity "$obj_out" "$obj_ref" 2>/dev/null)
+        # Defensive: strip whitespace and ensure single value (in case of multiline output)
+        obj_similarity=$(echo "$obj_similarity" | tr -d '\n' | awk '{print $1}')
         obj_score=$(echo "$obj_similarity * 20" | bc -l | awk '{printf "%.0f", $1}')
         score=$((score + obj_score))
     fi
@@ -304,28 +310,41 @@ score_technical_accuracy() {
         fi
     fi
 
-    # Build details JSON
+    # Build details JSON using jq to properly escape and validate values
     local details
-    details=$(cat <<EOF
-{
-  "task_ids_match": $task_ids_match,
-  "task_ids_score": $task_ids_score,
-  "initial_goal_similarity": $goal_similarity,
-  "initial_goal_score": $goal_score,
-  "current_objective_similarity": $obj_similarity,
-  "current_objective_score": $obj_score,
-  "clarity_match": $clarity_match,
-  "clarity_score": $clarity_score,
-  "significant_change_match": $sig_change_match,
-  "significant_change_score": $sig_change_score,
-  "confidence_match": $conf_match,
-  "confidence_score": $conf_score
-}
-EOF
-)
+    details=$(jq -n \
+        --argjson task_ids_match "$task_ids_match" \
+        --argjson task_ids_score "$task_ids_score" \
+        --arg goal_similarity "$goal_similarity" \
+        --argjson goal_score "$goal_score" \
+        --arg obj_similarity "$obj_similarity" \
+        --argjson obj_score "$obj_score" \
+        --argjson clarity_match "$clarity_match" \
+        --argjson clarity_score "$clarity_score" \
+        --argjson sig_change_match "$sig_change_match" \
+        --argjson sig_change_score "$sig_change_score" \
+        --argjson conf_match "$conf_match" \
+        --argjson conf_score "$conf_score" \
+        '{
+            task_ids_match: $task_ids_match,
+            task_ids_score: $task_ids_score,
+            initial_goal_similarity: ($goal_similarity | tonumber),
+            initial_goal_score: $goal_score,
+            current_objective_similarity: ($obj_similarity | tonumber),
+            current_objective_score: $obj_score,
+            clarity_match: $clarity_match,
+            clarity_score: $clarity_score,
+            significant_change_match: $sig_change_match,
+            significant_change_score: $sig_change_score,
+            confidence_match: $conf_match,
+            confidence_score: $conf_score
+        }')
 
-    # Return result
-    echo "{\"score\": $score, \"details\": $details}" | jq .
+    # Return result using jq to construct final JSON
+    jq -n \
+        --argjson score "$score" \
+        --argjson details "$details" \
+        '{score: $score, details: $details}'
 }
 
 # ==============================================================================
@@ -394,27 +413,37 @@ score_content_quality() {
         relevance_similarity="0.0"
         relevance_score=0
     else
-        relevance_similarity=$(semantic_similarity "$comment" "$transcript_excerpt" 2>/dev/null || echo "0.0")
+        # semantic_similarity already outputs "0.0" on error, so no need for || echo "0.0"
+        relevance_similarity=$(semantic_similarity "$comment" "$transcript_excerpt" 2>/dev/null)
+        # Defensive: strip whitespace and ensure single value (in case of multiline output)
+        relevance_similarity=$(echo "$relevance_similarity" | tr -d '\n' | awk '{print $1}')
         relevance_score=$(echo "$relevance_similarity * 60" | bc -l | awk '{printf "%.0f", $1}')
         score=$((score + relevance_score))
     fi
 
-    # Build details JSON
+    # Build details JSON using jq to properly escape and validate values
     local details
-    details=$(cat <<EOF
-{
-  "field_used": "$comment_field",
-  "comment_length": $len,
-  "present_score": $present_score,
-  "length_score": $length_score,
-  "relevance_similarity": $relevance_similarity,
-  "relevance_score": $relevance_score
-}
-EOF
-)
+    details=$(jq -n \
+        --arg field_used "$comment_field" \
+        --argjson comment_length "$len" \
+        --argjson present_score "$present_score" \
+        --argjson length_score "$length_score" \
+        --arg relevance_similarity "$relevance_similarity" \
+        --argjson relevance_score "$relevance_score" \
+        '{
+            field_used: $field_used,
+            comment_length: $comment_length,
+            present_score: $present_score,
+            length_score: $length_score,
+            relevance_similarity: ($relevance_similarity | tonumber),
+            relevance_score: $relevance_score
+        }')
 
-    # Return result
-    echo "{\"score\": $score, \"details\": $details}" | jq .
+    # Return result using jq to construct final JSON
+    jq -n \
+        --argjson score "$score" \
+        --argjson details "$details" \
+        '{score: $score, details: $details}'
 }
 
 # ==============================================================================
@@ -461,20 +490,20 @@ score_output() {
     local overall_score
     overall_score=$(echo "scale=2; ($schema_score * 0.30) + ($technical_score * 0.50) + ($content_score * 0.20)" | bc)
 
-    # Build final result
-    local result
-    result=$(cat <<EOF
-{
-  "schema_compliance": $schema_result,
-  "technical_accuracy": $technical_result,
-  "content_quality": $content_result,
-  "overall_score": $overall_score,
-  "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-}
-EOF
-)
-
-    echo "$result" | jq .
+    # Build final result using jq to properly combine JSON objects
+    jq -n \
+        --argjson schema_compliance "$schema_result" \
+        --argjson technical_accuracy "$technical_result" \
+        --argjson content_quality "$content_result" \
+        --arg overall_score "$overall_score" \
+        --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+        '{
+            schema_compliance: $schema_compliance,
+            technical_accuracy: $technical_accuracy,
+            content_quality: $content_quality,
+            overall_score: ($overall_score | tonumber),
+            timestamp: $timestamp
+        }'
 }
 
 echo "[SCORING] Scoring module loaded" >&2
