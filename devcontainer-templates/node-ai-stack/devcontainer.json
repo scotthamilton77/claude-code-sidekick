@@ -58,6 +58,9 @@
 
   // Pass through API keys from host environment
   "remoteEnv": {
+    // GitHub Personal Access Token
+    "GITHUB_PAT": "${localEnv:GITHUB_PAT}",
+
     // AI API Keys
     "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}",
     "PERPLEXITY_API_KEY": "${localEnv:PERPLEXITY_API_KEY}",
