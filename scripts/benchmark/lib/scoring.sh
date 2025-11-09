@@ -28,7 +28,7 @@ source "${SCORING_LIB_ROOT}/similarity.sh"
 #------------------------------------------------------------------------------
 # score_schema_compliance - Validate JSON structure and field types
 #
-# Evaluates output against topic-schema.json requirements:
+# Evaluates output against topic.schema.json requirements:
 #   - Valid JSON structure (30 pts)
 #   - Required fields present (30 pts)
 #   - Correct field types & ranges (40 pts)

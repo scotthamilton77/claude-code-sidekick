@@ -12,11 +12,8 @@ This repository serves as a development and testing environment for [Claude Code
 
 ### Sidekick
 
-- llm quality and speed benchmark testing needed
-  - try with and without system prompt separate from user prompt
-- json schema for resume message generator
-- incorporate https://github.com/johannschopplich/toon
 - tracking and reminders
+  - make sure we actually have a static reminder with content deployed
   - make sure we log when it happens
   - do we want to have multiple reminders with different cadences?
 - PLAN.MD (executing ARCH.md)
@@ -38,6 +35,7 @@ This repository serves as a development and testing environment for [Claude Code
 - skills and agents - review carefully and attribute to https://github.com/obra/superpowers
 - learning mode? investigate https://medium.com/coding-nexus/rip-fine-tuning-how-stanfords-ace-framework-teaches-ai-to-learn-without-retraining-510f412d8579
 - is it time to move to something more robust than bash?
+   - incorporate https://github.com/johannschopplich/toon
 
 ## Agents and Skills
 

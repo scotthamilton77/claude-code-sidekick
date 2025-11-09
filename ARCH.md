@@ -35,8 +35,10 @@ claude-config/
 │       ├── tracking.sh                    # Request counting
 │       ├── cleanup.sh                     # Session directory garbage collection
 │       └── prompts/                       # LLM prompt templates
-│           ├── topic-only.txt
-│           └── generate-resume.txt
+│           ├── topic.prompt.txt
+│           ├── topic.schema.json
+│           ├── resume.prompt.txt
+│           └── resume.schema.json
 │
 ├── scripts/
 │   ├── install.sh                         # Install sidekick (--user|--project|--both)
@@ -488,7 +490,7 @@ When `topic_extraction_analyze()` writes `topic.json`, it checks two conditions:
 
 If both true, triggers `resume_generate_async()` which:
 - Launches background process (non-blocking)
-- Loads `generate-resume.txt` prompt template
+- Loads `resume.prompt.txt` prompt template
 - Substitutes `{CURRENT_TOPIC}` and `{TRANSCRIPT}` placeholders
 - Invokes Claude to generate snarkified resume message for NEXT session
 - Writes `resume.json` in current session directory
@@ -983,7 +985,7 @@ nohup bash -c "generate resume in background" &
   ↓
   extracts transcript excerpt (last ~3-5 messages)
   ↓
-  loads features/prompts/generate-resume.txt
+  loads features/prompts/resume.prompt.txt
   ↓
   substitutes {CURRENT_TOPIC} and {TRANSCRIPT}
   ↓

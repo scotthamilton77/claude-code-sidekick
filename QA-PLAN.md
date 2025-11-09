@@ -409,7 +409,7 @@ python -m benchmark.main run \
 
 4. ✅ `scripts/benchmark/generate-reference.sh` - Main orchestrator
    - Versioned reference directories: `v1.0_2025-10-28_HHMMSS`
-   - Prompt snapshotting: Captures topic-only.txt, topic-schema.json, config
+   - Prompt snapshotting: Captures topic.prompt.txt, topic.schema.json, config
    - SHA256 checksums for prompts, golden set, config
    - Metadata generation: Complete provenance tracking
    - 2-model consensus fallback (if 1 of 3 reference models fails)

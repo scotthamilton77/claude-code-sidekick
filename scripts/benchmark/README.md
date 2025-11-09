@@ -54,8 +54,8 @@ test-data/references/
   v1.0_2025-10-28_141530/           # Version + timestamp
     _metadata.json                   # Complete metadata snapshot
     _prompt-snapshot/
-      topic-only.txt                 # Exact prompt used
-      topic-schema.json              # Exact schema used
+      topic.prompt.txt               # Exact prompt used
+      topic.schema.json              # Exact schema used
       config-snapshot.sh             # Config vars snapshot
     short-001/
       grok-4.json                    # Individual model outputs
@@ -106,9 +106,9 @@ Each versioned directory includes `_metadata.json` with:
     "judge": "openrouter:deepseek/deepseek-r1-distill-qwen-14b"
   },
   "prompts": {
-    "topic_template": "topic-only.txt",
+    "topic_template": "topic.prompt.txt",
     "topic_template_sha256": "def456...",
-    "schema": "topic-schema.json",
+    "schema": "topic.schema.json",
     "schema_sha256": "ghi789..."
   },
   "config": {
@@ -141,7 +141,7 @@ Each versioned directory includes `_metadata.json` with:
    ./scripts/benchmark/generate-reference.sh
    ```
 
-2. **Modify Prompts**: Edit `src/sidekick/features/prompts/topic-only.txt`
+2. **Modify Prompts**: Edit `src/sidekick/features/prompts/topic.prompt.txt`
    - Add clarifications
    - Adjust examples
    - Tune instructions
