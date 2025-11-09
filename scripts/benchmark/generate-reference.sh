@@ -236,7 +236,7 @@ invoke_reference_model() {
     local output
     local start_time=$(date +%s)
 
-    if ! output=$(llm_invoke_with_provider "$provider" "$model" "$prompt" "$LLM_TIMEOUT_SECONDS" "$json_schema" 2>&1); then
+    if ! output=$(llm_invoke_with_provider "$provider" "$model" "$prompt" "$LLM_TIMEOUT_SECONDS"); then
         local end_time=$(date +%s)
         local latency=$((end_time - start_time))
 

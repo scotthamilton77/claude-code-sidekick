@@ -141,7 +141,7 @@ EOF
     # Invoke judge model with schema
     # Use empty string for timeout to respect LLM_TIMEOUT_SECONDS from config (set to 60s for benchmarks)
     local llm_output
-    if ! llm_output=$(llm_invoke_with_provider "$provider" "$model" "$prompt" "" "$json_schema" 2>&1); then
+    if ! llm_output=$(llm_invoke_with_provider "$provider" "$model" "$prompt" "" "$json_schema"); then
         # Primary judge model failed - try fallback if configured
         if [ -n "${BENCHMARK_SCORING_MODEL_FALLBACK:-}" ]; then
             echo "WARN: Primary judge model ($JUDGE_MODEL) failed, trying fallback ($BENCHMARK_SCORING_MODEL_FALLBACK)" >&2
@@ -149,7 +149,7 @@ EOF
             local fallback_provider="${BENCHMARK_SCORING_MODEL_FALLBACK%%:*}"
             local fallback_model="${BENCHMARK_SCORING_MODEL_FALLBACK#*:}"
 
-            if ! llm_output=$(llm_invoke_with_provider "$fallback_provider" "$fallback_model" "$prompt" "" "$json_schema" 2>&1); then
+            if ! llm_output=$(llm_invoke_with_provider "$fallback_provider" "$fallback_model" "$prompt" "" "$json_schema"); then
                 echo "ERROR: Both primary and fallback judge models failed for semantic similarity" >&2
                 echo "0.0"
                 return 1
