@@ -18,7 +18,7 @@ This roadmap tracks the component-level migration from Track 1 (Bash, `scripts/b
 - Validate output parity with Track 1
 - Mark component complete
 
-**Progress**: 6/34 components complete (18%) - 1 component skipped
+**Progress**: 7/34 components complete (21%) - 1 component skipped
 
 ---
 
@@ -158,7 +158,7 @@ abstract class LLMProvider {
 
 ---
 
-## Phase 2: Infrastructure (1/5 Complete, 1 Skipped)
+## Phase 2: Infrastructure (2/5 Complete, 1 Skipped)
 
 **Goal**: Complete LLM provider ecosystem and configuration management.
 
@@ -220,20 +220,31 @@ Creating a separate decorator would require:
 
 ---
 
-### 2.3 JSON Extraction Utilities ⏳
+### 2.3 JSON Extraction Utilities ✅
 **Maps to**: `llm.sh::llm_extract_json()`
 **Acceptance Criteria**:
-- Handles code fences (```json ... ```)
-- Handles markdown json blocks
-- Handles raw JSON
-- Zod validation integration
-- Matches Track 1 extraction behavior
+- ✅ Handles code fences (```json ... ```)
+- ✅ Handles markdown json blocks
+- ✅ Handles raw JSON
+- ✅ Zod validation integration (ready for use by callers)
+- ✅ Matches Track 1 extraction behavior
 
-**Files to Create**:
-- `src/utils/json-extraction.ts`
-- `test/utils/json-extraction.test.ts`
+**Files Created**:
+- ✅ `src/utils/json-extraction.ts` (extractJSON, extractJSONFromMarkdown functions)
+- ✅ `test/utils/json-extraction.test.ts` (16 tests, all passing)
+- ✅ `test/fixtures/json-extraction/` (6 test fixtures)
 
-**Test Fixtures**: `test/fixtures/json-extraction/` (various formats from Track 1)
+**Key Features**:
+- Markdown code fence extraction (```json ... ```)
+- Raw JSON passthrough
+- Single-element array unwrapping (`[{...}]` → `{...}`)
+- Multi-element array preservation
+- Handles both objects ({}) and arrays ([])
+- Edge case handling (text with embedded JSON, whitespace)
+
+**Status**: Complete - all tests passing, behavioral parity with Track 1
+
+**Completed**: 2025-11-09
 
 ---
 
@@ -696,7 +707,7 @@ Creating a separate decorator would require:
 Update this section after completing each component:
 
 **Phase 1**: █████ 5/5 (100%) ✅
-**Phase 2**: █⏭️░░░░ 1/5 complete, 1 skipped (20%)
+**Phase 2**: ██⏭️░░░ 2/5 complete, 1 skipped (40%)
 **Phase 3**: ░░ 0/2 (0%)
 **Phase 4**: ░░░░░ 0/5 (0%)
 **Phase 5**: ░░░░ 0/4 (0%)
@@ -705,7 +716,7 @@ Update this section after completing each component:
 **Phase 8**: ░░░ 0/3 (0%)
 **Phase 9**: ░░░░ 0/4 (0%)
 
-**Overall**: ██████⏭️░░░░░░░░░░░░░ 6/34 complete, 1 skipped (18%)
+**Overall**: ███████⏭️░░░░░░░░░░░░ 7/34 complete, 1 skipped (21%)
 
 ---
 
