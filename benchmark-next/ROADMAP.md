@@ -18,7 +18,7 @@ This roadmap tracks the component-level migration from Track 1 (Bash, `scripts/b
 - Validate output parity with Track 1
 - Mark component complete
 
-**Progress**: 7/34 components complete (21%) - 1 component skipped
+**Progress**: 8/34 components complete (24%) - 1 component skipped
 
 ---
 
@@ -34,7 +34,7 @@ src/
 ├── lib/                      # Shared foundation (future common package)
 │   ├── providers/            # ✅ LLM abstraction (Phase 2.1)
 │   ├── utils/                # ✅ Generic helpers (Phase 2.3)
-│   ├── config/               # ⏳ Config cascade (Phase 2.4)
+│   ├── config/               # ✅ Config cascade (Phase 2.4)
 │   ├── logging/              # ⏳ Structured logging (Phase 2.5)
 │   └── paths/                # ⏳ Path utilities (Phase 2.6)
 └── benchmark/                # Benchmark-specific domain logic
@@ -296,25 +296,37 @@ Creating a separate decorator would require:
 
 ---
 
-### 2.4 Config System with Zod Schemas ⏳
+### 2.4 Config System with Zod Schemas ✅
 **Maps to**: `config.sh` + Sidekick config cascade
 **Acceptance Criteria**:
-- 4-level cascade: defaults → user global → project → versioned
-- Type-safe config classes
-- Zod validation with clear error messages
-- Environment variable overrides
-- Timeout resolution cascade logic
+- ✅ 4-level cascade: defaults → user global → project → local (gitignored)
+- ✅ Type-safe config classes with TypeScript interfaces
+- ✅ Zod validation with clear error messages
+- ✅ Environment variable overrides (BENCHMARK_*, OPENAI_API_KEY, OPENROUTER_API_KEY)
+- ✅ Timeout resolution cascade logic (benchmarkTimeoutSeconds → timeoutSeconds → 30s fallback)
+- ✅ Comprehensive test suite (28 tests, all passing)
 
-**Files to Create**:
-- `src/lib/config/Config.ts`
-- `src/lib/config/ConfigSchema.ts` (Zod schemas)
-- `test/unit/config/Config.test.ts`
+**Files Created**:
+- ✅ `src/lib/config/Config.ts` (full implementation with 4-level cascade, deep merge)
+- ✅ `src/lib/config/ConfigSchema.ts` (Zod schemas for all config sections)
+- ✅ `test/unit/config/Config.test.ts` (28 tests covering defaults, cascade, env vars, validation)
 
 **Config Sources**:
 1. Hardcoded defaults (in Config.ts)
-2. `~/.claude/benchmark-next.conf` (optional)
-3. `.benchmark-next/config.json` (optional)
+2. `~/.claude/benchmark-next.conf` (optional user global)
+3. `.benchmark-next/config.json` (optional project)
 4. `.benchmark-next/config.local.json` (gitignored, highest priority)
+
+**Key Features**:
+- Deep merge algorithm preserves nested object overrides
+- Feature toggle checking (isFeatureEnabled())
+- Timeout resolution with context (benchmark vs default)
+- Test isolation via homeDir parameter
+- Null support for benchmarkTimeoutSeconds to disable override
+
+**Status**: Complete - all tests passing, behavioral parity with bash config cascade
+
+**Completed**: 2025-11-09
 
 ---
 
@@ -755,7 +767,7 @@ Creating a separate decorator would require:
 Update this section after completing each component:
 
 **Phase 1**: █████ 5/5 (100%) ✅
-**Phase 2**: ██⏭️░░░ 2/5 complete, 1 skipped (40%)
+**Phase 2**: ███⏭️░ 3/5 complete, 1 skipped (60%)
 **Phase 3**: ░░ 0/2 (0%)
 **Phase 4**: ░░░░░ 0/5 (0%)
 **Phase 5**: ░░░░ 0/4 (0%)
@@ -764,7 +776,7 @@ Update this section after completing each component:
 **Phase 8**: ░░░ 0/3 (0%)
 **Phase 9**: ░░░░ 0/4 (0%)
 
-**Overall**: ███████⏭️░░░░░░░░░░░░ 7/34 complete, 1 skipped (21%)
+**Overall**: ████████⏭️░░░░░░░░░░░ 8/34 complete, 1 skipped (24%)
 
 ---
 
