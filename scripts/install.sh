@@ -155,7 +155,6 @@ copy_files() {
     if [ "$scope" = "user" ] && [ -f "$dest_dir/sidekick.conf" ]; then
         existing_config=$(mktemp)
         cp "$dest_dir/sidekick.conf" "$existing_config"
-        # Note: Preserved existing sidekick.conf
     fi
 
     # Remove old installation to ensure clean copy
@@ -189,7 +188,7 @@ copy_files() {
             # Remove if not selected
             if [ "$found" = "false" ]; then
                 rm -f "$feature_file"
-                # Note: Removed unselected feature: $feature_name
+                log_info "Removed unselected feature: $feature_name"
             fi
         done
     fi
