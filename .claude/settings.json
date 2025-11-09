@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.sh session-start \"$CLAUDE_PROJECT_DIR\""
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.sh user-prompt-submit \"$CLAUDE_PROJECT_DIR\""
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.sh statusline --project-dir \"$CLAUDE_PROJECT_DIR\""
+  }
+}
