@@ -348,3 +348,11 @@ Example:
 ```bash
 "openrouter:google/gemma-3-4b-it|0.02|0.07|cheap,fast"
 ```
+
+**Scoring fallback** is available for the judge model:
+- Primary judge: `JUDGE_MODEL` (deepseek-r1-distill-qwen-14b)
+- Fallback judge: `BENCHMARK_SCORING_MODEL_FALLBACK` (openai-api:gpt-5-mini)
+- Fallback is ONLY used for semantic similarity scoring (not model evaluation)
+- When primary judge fails/times out, fallback is automatically used
+- This ensures scoring continues even when the cheap judge model has issues
+- Benchmark evaluation has NO fallback (to keep results clean)
