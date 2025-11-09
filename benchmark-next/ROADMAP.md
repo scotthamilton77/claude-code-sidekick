@@ -1,8 +1,8 @@
 # TypeScript Migration Roadmap
 
-**Status**: 🏗️ Foundation Phase
+**Status**: 🏗️ Infrastructure Phase
 **Last Updated**: 2025-11-09
-**Recent Activity**: Phase 1.5 complete (OpenAIProvider with retry logic, 27 tests passing)
+**Recent Activity**: Phase 2.1 complete (OpenRouterProvider with HTTP client, 25 tests passing)
 **Target**: Behavioral parity with Track 1 Bash implementation
 
 ---
@@ -18,7 +18,7 @@ This roadmap tracks the component-level migration from Track 1 (Bash, `scripts/b
 - Validate output parity with Track 1
 - Mark component complete
 
-**Progress**: 5/35 components complete (14%)
+**Progress**: 6/35 components complete (17%)
 
 ---
 
@@ -158,21 +158,35 @@ abstract class LLMProvider {
 
 ---
 
-## Phase 2: Infrastructure (0/6 Complete)
+## Phase 2: Infrastructure (1/6 Complete)
 
 **Goal**: Complete LLM provider ecosystem and configuration management.
 
-### 2.1 OpenRouterProvider Implementation ⏳
+### 2.1 OpenRouterProvider Implementation ✅
 **Maps to**: `llm.sh::_llm_invoke_openrouter()`
 **Acceptance Criteria**:
-- HTTP client for OpenRouter API
-- JSON schema support (via API parameters)
-- Timeout/retry handling
-- Passes Track 1 compatibility tests
+- ✅ OpenAI SDK with custom baseURL (reuses battle-tested SDK, OpenRouter API is OpenAI-compatible)
+- ✅ JSON schema support (via API parameters: json_schema and json_object modes)
+- ✅ Timeout/retry handling (AbortController + exponential backoff)
+- ✅ Comprehensive test suite (24 tests, all passing)
 
-**Files to Create**:
-- `src/providers/OpenRouterProvider.ts`
-- `test/providers/OpenRouterProvider.test.ts`
+**Files Created**:
+- ✅ `src/providers/OpenRouterProvider.ts` (full implementation with retry logic, ~287 lines)
+- ✅ `test/providers/OpenRouterProvider.test.ts` (24 tests covering all scenarios)
+
+**Key Features**:
+- Uses OpenAI SDK with `baseURL: 'https://openrouter.ai/api/v1'` (no custom HTTP code)
+- Configurable timeout (default: 30s)
+- Automatic retry on timeout/rate limit (default: 3 retries, exponential backoff)
+- JSON schema enforcement (response_format: json_schema or json_object)
+- Tool call handling (extracts content from `<|constrain|>json` tool calls)
+- Reasoning field extraction (for models that provide reasoning)
+- Error type mapping (timeout, rate limit, API, network, unknown)
+- Full metadata extraction (tokens, timing, HTTP status)
+
+**Status**: Complete - all tests passing, type-safe implementation
+
+**Completed**: 2025-11-09
 
 ---
 
@@ -672,7 +686,7 @@ abstract class LLMProvider {
 Update this section after completing each component:
 
 **Phase 1**: █████ 5/5 (100%) ✅
-**Phase 2**: ░░░░░░ 0/6 (0%)
+**Phase 2**: █░░░░░ 1/6 (17%)
 **Phase 3**: ░░ 0/2 (0%)
 **Phase 4**: ░░░░░ 0/5 (0%)
 **Phase 5**: ░░░░ 0/4 (0%)
@@ -681,7 +695,7 @@ Update this section after completing each component:
 **Phase 8**: ░░░ 0/3 (0%)
 **Phase 9**: ░░░░ 0/4 (0%)
 
-**Overall**: █████░░░░░░░░░░░░░░░ 5/35 (14%)
+**Overall**: ██████░░░░░░░░░░░░░░ 6/35 (17%)
 
 ---
 
