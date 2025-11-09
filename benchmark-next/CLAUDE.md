@@ -123,6 +123,33 @@ Before marking Track 2 as production-ready:
 - `@types/node` - Node.js types
 - `eslint` + `prettier` - Code quality
 
+### Post-Training Dependencies (Released After January 2025)
+
+**⚠️ CRITICAL: Use context7 MCP tools when debugging these libraries**
+
+The following dependencies are newer than Claude's training cutoff (January 2025). When working with their APIs, ALWAYS use context7 to fetch current documentation:
+
+#### @anthropic-ai/sdk 0.68.0 (Released ~October 2025)
+**Version in use**: 0.68.0 (intentionally kept current)
+**Reason**: Fast-moving API with new models and critical bug fixes
+
+**Key changes from training knowledge** (researched via context7):
+- [Details populated by parallel agent research below]
+
+#### openai 6.8.1 (Released November 2025)
+**Version in use**: 6.8.1 (intentionally kept current)
+**Reason**: Latest models (GPT-5, o1, o3) require recent SDK versions
+
+**Key changes from training knowledge** (researched via context7):
+- [Details populated by parallel agent research below]
+
+**When to use context7**:
+- Writing provider integration code (`src/providers/ClaudeProvider.ts`, `OpenAIProvider.ts`)
+- Debugging API call failures or unexpected responses
+- Implementing timeout/retry logic with AbortController
+- Handling structured outputs or JSON schemas
+- Working with streaming responses
+
 ## Migration from Track 1
 
 **DO NOT simply translate Bash to TypeScript**. Instead:
