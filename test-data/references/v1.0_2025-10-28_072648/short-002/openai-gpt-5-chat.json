@@ -1,0 +1,16 @@
+{
+  "task_ids": null,
+  "initial_goal": "Wandering aimlessly through the codebase",
+  "current_objective": "Chasing squirrels",
+  "clarity_score": 1,
+  "confidence": 0.2,
+  "high_clarity_snarky_comment": null,
+  "low_clarity_snarky_comment": "Focus, human. Even a droid needs coordinates.",
+  "significant_change": true,
+  "_metadata": {
+    "model": "openrouter:openai/gpt-5-chat",
+    "test_id": "short-002",
+    "latency_seconds": 1,
+    "generated_at": "2025-10-28T11:35:30Z"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "task_ids": null,
+  "initial_goal": "Who knows?",
+  "current_objective": "Chasing squirrels",
+  "clarity_score": 1,
+  "confidence": 0.2,
+  "high_clarity_snarky_comment": null,
+  "low_clarity_snarky_comment": "Get your head out of the nebula, spacer, and state a clear objective before we hit the asteroid field of confusion!",
+  "significant_change": true,
+  "_metadata": {
+    "model": "openrouter:x-ai/grok-4",
+    "test_id": "short-002",
+    "latency_seconds": 22,
+    "generated_at": "2025-10-28T11:35:22Z"
+  }
+}

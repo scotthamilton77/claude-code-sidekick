@@ -10,17 +10,130 @@ This repository serves as a development and testing environment for [Claude Code
 
 ## TODOs
 
+Where I'm leaving off:
+- in the middle of trying to get the benchmarks generated
+   - I have UNTESTED code to dump raw API responses under test-data/results/... - the run_1_raw.txt open here is manually copied data
+   - I don't know the impact of this but am starting a new run now...
+- occasionally run into a bad model response - see sidekick.log
+   - we're dumping debug data into /tmp/sidekick-llm-debug/, and also raw API content into the test-data/results/ now.
+   - there seems to be a bug where if we get json that has both message.content and some reasoning then we might get some kind of error - see the last run test-data/results/2025-11-08_204233/raw/openrouter_openai_gpt-oss-20b/long-001/run_1_raw.txt and the debug files
+- provider issues
+   - we see differing quality of responses from different providers - we CAN have specific ones configured - see https://openrouter.ai/docs/features/provider-routing
+   - suggest we capture provider-specific statistics too to build lists of providers we don't want to allow
+
+## Sidekick
+- is it time to move to something more robust than bash?
+- 2>&1 issues - see below
+- llm quality and speed benchmark testing needed
+   - try with and without system prompt separate from user prompt
+- DRY issues
+   - llm.sh DRY
+   - transcript pre-processing
+   - topic-extraction and generate-resume have lots of overlap - DRY!
+   - json schema vs. prompt overlap
+   1. Shared transcript extraction (lines 26-59 in topic-extraction.sh, lines 49-76 in generate-resume.sh)
+      - Move to lib/transcript.sh as transcript_extract_excerpt()
+   2. Shared model config (lines 207-234 in topic-extraction.sh, lines 90-116 in generate-resume.sh)
+      - Already centralized in lib/llm.sh, just ensure both use it consistently
+   3. Shared preprocessing (jq filters for stripping attributes)
+      - Could be a constant in lib/json.sh
+- json schema for resume message generator
+- incorporate https://github.com/johannschopplich/toon
+- We need some quality memories on the models, e.g. our current gemma is failing miserably to return the right json; we could try a more advanced gemma model, or else we'll need to upgrade
+- remove .claudeignore if not useful
+- tracking and reminders
+   - make sure we log when it happens
+   - do we want to have multiple reminders with different cadences?
 - PLAN.MD (executing ARCH.md)
-- standardize parameter names and styles in the scripts (e.g. --project-dir vs. not, internally using output_dir, etc.)
-- time to re-think names and features: separate reminders from status-line features
-   - statusline is coupled to the reminders; we should make this modular to allow the reminders to inject or supply a module for statusline to load dynamically
-   - make this modular, with a core kernel script that look for plugins to activate, and understands dependencies (e.g. which ones need the request_counter)
-- on topic change, we can nohup a _resume file creation so that initial claude startup does not have to wait for a resume creation
-- statusline token counter and context % are way off?  If we can't get close to /context, let's remove the %
-- sync, push - these should not clobber settings and mcp, but rather merge; for claude.md, ask to replace
-- how do subagents work - can we detect their connection to the parent agent, and do we care?  (for statusline, maybe not, but for analytics?)
+   - standardize parameter names and styles in the scripts (e.g. --project-dir vs. not, internally using output_dir, etc.)
+- tune the topic extracter to follow the last n turns (delta + 10?) - this combined with previous goal snapshot might be cheaper?
+- tune the instructions for the topic extraction (little shorter, more cynical)
+- allow for different personalities - either explicit at install time or random per project or random per session or just random
+   - moods: cynical, sarcastic, snarky, nerdy, arrogant, moody
+   - persona: angry klingon, skeptical vulcan, Scotty, Bones
+   - themes: scifi, crime drama, daytime television, soap opera, classic 80s tv sitcom, seinfeld & friends
 - allow a "concise" topic mode during setup that chooses concise template files
+   - allow the line length hints to be configurable
+   - allow the statusline topic format to be configurable
    - maybe just allow for project-level overrides (template file input parameter and/or user and project level overrides)
+- statusline token counter and context % are way off?  If we can't get close to /context, let's remove the %
+- log rotation and log level to info by default
+- BUG: uninstall from project leaves empty hooks folder
+- how do subagents work - can we detect their connection to the parent agent, and do we care?  (for statusline, maybe not, but for analytics?)
+- skills and agents - review carefully and attribute to https://github.com/obra/superpowers
+- learning mode? investigate https://medium.com/coding-nexus/rip-fine-tuning-how-stanfords-ace-framework-teaches-ai-to-learn-without-retraining-510f412d8579
+
+### stdout/stderr analysis
+
+✅ GOOD USES
+
+1. Silencing checks (don't care about output at all):
+if ps -p "$pid" >/dev/null 2>&1; then
+   # Just checking existence
+fi
+2. Logging both streams together:
+./run-benchmark.sh 2>&1 | tee log.txt  # Interleaved stdout/stderr in log
+3. Test validation (intentionally checking all output):
+output=$(command 2>&1)  # Test framework needs to validate errors
+
+❌ BAD USES (Your Bug!)
+
+Capturing function output in command substitution:
+result=$(my_function 2>&1)  # PROBLEM: mixes return data with error messages
+
+This breaks when:
+- Function outputs data to stdout (the "return value")
+- Function outputs errors to stdout (should be stderr!)
+- Caller expects clean data but gets garbage mixed in
+
+🔧 The Fix
+
+Option 1: Fix the function (preferred for libraries):
+llm_invoke_with_provider() {
+   if [ $exit_code -eq 0 ]; then
+         echo "$result"  # Data to stdout
+         return 0
+   else
+         # ALL error output to stderr
+         echo "=== LLM INVOCATION FAILED ===" >&2
+         echo "Provider: $provider" >&2
+         echo "Model: $model" >&2
+         return 1
+   fi
+}
+
+# Now caller doesn't need 2>&1
+result=$(llm_invoke_with_provider "$provider" "$model" "$prompt")
+
+Option 2: Use temp files (when you need error details):
+error_file=$(mktemp)
+if result=$(my_function 2>"$error_file"); then
+   # Success: result has clean data
+else
+   # Failure: can read error details from error_file
+   errors=$(cat "$error_file")
+fi
+rm -f "$error_file"
+
+🎯 The Real Problem
+
+Your codebase has two conflicting design patterns:
+
+1. Pattern A (library functions): Return data via stdout, errors via stderr
+2. Pattern B (your similarity.sh:293-299): Return errors via stdout "for RAW_FILE capture"
+
+When you mix these patterns with 2>&1, chaos ensues.
+
+Recommendation
+
+Refactor llm_invoke_with_provider in similarity.sh:290-308 to send ALL error output to stderr. The "RAW_FILE" argument in the comment is misleading - you're not in the benchmark script
+context there, you're in a library function that should follow stderr conventions.
+
+## Agents and Skills
+
+- agents, skills, CLAUDE.md, settings.json - I've moved these into src/.claude/ for now - we'll need to make these installable/uninstallable as components too
+- Can we have a skill and/or agent that intersects the task list and plan for when claude starts to execute a plan and (a) checks it against the user request and requirements to catch scope creep and (b) checks against unnecessary complexity keeping YAGNI and DRY and KISS principles in play?
+- sync, push - these should not clobber settings and mcp, but rather merge; for claude.md, ask to replace
 
 ### Key Features
 
@@ -69,11 +182,10 @@ cd claude-config
 .
 ├── .claude/                    # Project-scoped Claude configuration
 │   ├── hooks/                  # Conversation event handlers
-│   │   └── reminders/          # Reminder-related hooks
+│   │   └── reminders/          # LEGACY: Reminder-related hooks (see Sidekick)
 │   │       ├── write-topic.sh      # Topic classification
 │   │       ├── write-unclear-topic.sh
-│   │       ├── response-tracker.sh # Response monitoring
-│   │       └── tmp/              # Runtime state (gitignored)
+│   │       └── response-tracker.sh # Response monitoring
 │   ├── skills/                 # Claude Code skills
 │   ├── agents/                 # Custom agent definitions
 │   ├── CLAUDE.md               # Project instructions
@@ -94,15 +206,31 @@ cd claude-config
 └── tests/                      # Test harnesses
 ```
 
-### Hook System
+### Hook System (Sidekick)
 
-Hooks execute at conversation events to enhance Claude Code behavior:
+The Sidekick system provides a **plugin-based hook architecture** that executes at conversation events to enhance Claude Code behavior.
 
-- **reminders/write-topic.sh**: Analyzes user intent and records conversation metadata
-- **reminders/write-unclear-topic.sh**: Handles vague/ambiguous requests with cynical feedback
-- **reminders/response-tracker.sh**: Monitors response count and injects periodic reminders
+**How It Works**:
+- Claude invokes `sidekick.sh <hook-type>` at conversation events (SessionStart, UserPromptSubmit, Statusline)
+- Each invocation **discovers and loads all enabled plugins** in dependency order
+- Plugins implement hook functions (e.g., `tracking_on_user_prompt_submit()`) which get invoked if defined
+- **Dependency resolution** ensures plugins load in correct order (e.g., reminder loads after tracking)
 
-All hooks maintain state in `.claude/hooks/reminders/tmp/` (excluded from version control).
+**Available Plugins** (6 total):
+- **topic-extraction**: LLM-based conversation analysis with adaptive polling
+- **resume**: Async background resume generation when topic changes significantly
+- **statusline**: Enhanced statusline with token tracking, git branch, topic display
+- **tracking**: Response counter for session management
+- **reminder**: Periodic static reminders at configurable cadence (depends on tracking)
+- **cleanup**: Automatic garbage collection of old session directories
+
+**Plugin Features**:
+- **Declarative dependencies**: Plugins declare `PLUGIN_DEPENDS="other-plugin"` for explicit ordering
+- **Selective implementation**: Plugins implement only the hooks they need (not all plugins run on every event)
+- **Independent toggles**: Each plugin has `FEATURE_<NAME>=true/false` config flag
+- **Topological sort**: Dependency graph automatically resolved (detects cycles and missing deps)
+
+See `ARCH.md` for complete architecture documentation and `CLAUDE.md` for plugin development guide. Sidekick maintains session state in `.sidekick/sessions/` at the project root (gitignored).
 
 ## Usage
 
@@ -131,14 +259,24 @@ All hooks maintain state in `.claude/hooks/reminders/tmp/` (excluded from versio
 
 ### Testing
 
+**Sidekick Test Suite**:
 ```bash
-# Test setup script functionality
+# Run all unit tests (mocked LLM, zero API costs)
+./scripts/tests/run-unit-tests.sh
+
+# Run all integration tests (mocked data, zero API costs)
+./scripts/tests/run-integration-tests.sh
+
+# EXPENSIVE: Test real LLM providers (makes actual API calls)
+./scripts/tests/integration/test-llm-providers.sh
+```
+
+**IMPORTANT**: Unit and integration tests use mocks - no API costs. The `test-llm-providers.sh` suite is intentionally excluded from default test runs to prevent accidental charges.
+
+**Legacy Setup Tests** (for reminder system migration):
+```bash
 ./tests/test-setup-reminders.sh
-
-# Test cleanup script functionality
 ./tests/test-cleanup-reminders.sh
-
-# Test response tracker behavior
 ./tests/test-response-tracker.sh
 ```
 
@@ -151,9 +289,12 @@ Edit `.claudeignore` to exclude files from sync operations:
 ```
 .credentials.json
 *.local.json
-hooks/reminders/tmp/
+.sidekick/*.log         # Exclude log files (e.g., sidekick.log)
+.sidekick/sessions/     # Exclude session data
 *.backup
 ```
+
+**Note**: `.sidekick/sidekick.conf` and `.sidekick/README.md` are NOT excluded and can be committed for team-wide configuration.
 
 Supports glob patterns for both files and directories.
 
@@ -166,6 +307,51 @@ The repository includes configurations for:
 - **memory**: Conversation memory management
 
 Configure in `.claude/mcp.json`.
+
+### Sidekick Configuration Cascade
+
+Sidekick uses a four-level configuration cascade (later sources override earlier):
+
+1. **Defaults**: `src/sidekick/config.defaults`
+2. **User Global**: `~/.claude/hooks/sidekick/sidekick.conf` (user-wide overrides)
+3. **Project Deployed**: `.claude/hooks/sidekick/sidekick.conf` (ephemeral, deleted on uninstall)
+4. **Project Versioned**: `.sidekick/sidekick.conf` (**highest priority**, persistent, can be committed)
+
+**Recommended approach**: Use `.sidekick/sidekick.conf` for team-wide project settings that should be version-controlled.
+
+### LLM Provider Configuration
+
+Sidekick supports pluggable LLM backends for conversation analysis and resume generation. Configure in any config file above:
+
+**Claude CLI (default)**:
+```bash
+LLM_PROVIDER=claude-cli
+LLM_CLAUDE_MODEL=haiku  # haiku, sonnet, opus
+```
+
+**OpenAI API**:
+```bash
+LLM_PROVIDER=openai-api
+LLM_OPENAI_API_KEY=sk-...
+LLM_OPENAI_MODEL=gpt-4-turbo
+```
+
+**OpenRouter API**:
+```bash
+LLM_PROVIDER=openrouter
+LLM_OPENROUTER_API_KEY=sk-or-...
+LLM_OPENROUTER_MODEL=sao10k/l3-lunaris-8b  # or anthropic/claude-3.5-sonnet, meta-llama/llama-3.1-8b-instruct
+```
+
+**Custom Provider**:
+```bash
+LLM_PROVIDER=custom
+LLM_CUSTOM_BIN=/usr/local/bin/ollama
+LLM_CUSTOM_MODEL=llama2
+LLM_CUSTOM_COMMAND={BIN} run {MODEL} < {PROMPT_FILE}
+```
+
+See `src/sidekick/config.defaults` for all available options and `ARCH.md` for detailed provider documentation.
 
 ## Development Patterns
 

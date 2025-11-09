@@ -1,7 +1,0 @@
-**CRITICAL!!** Analyze the user's stated intent or goal.
-
-If it is clear and actionable, use Bash to run:
-`${HOOK_DIR}/write-topic.sh '${session_id}' 'concise topic (50 chars max)' 'snarky explanation'`
-
-If the goal is vague, ambiguous, unclear, or the user is just making small talk, you MUST instead run:
-`${HOOK_DIR}/write-unclear-topic.sh '${session_id}' 'creative, cynical insult about their communication skills'`

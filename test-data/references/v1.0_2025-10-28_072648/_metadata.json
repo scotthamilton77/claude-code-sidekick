@@ -1,0 +1,29 @@
+{
+  "reference_version": "v1.0",
+  "description": "Reference generation for golden test set",
+  "generated_at": "2025-10-28T11:26:48Z",
+  "dataset": {
+    "version": "1.0",
+    "golden_set_sha256": "75e489d66bcd814c8255bb4bd679762c1e210b1039a663374b21d6c054f2d933",
+    "test_count": 15
+  },
+  "models": {
+    "references": [
+      "openrouter:x-ai/grok-4",
+      "openrouter:google/gemini-2.5-pro",
+      "openrouter:openai/gpt-5-chat"
+    ],
+    "judge": "openrouter:deepseek/deepseek-r1-distill-qwen-14b"
+  },
+  "prompts": {
+    "topic_template": "topic-only.txt",
+    "topic_template_sha256": "089c4ecf2147acdde80bf4529fe7716209e28cb770f748ca9a4282507cd46336",
+    "schema": "topic-schema.json",
+    "schema_sha256": "fd8a0acab573c33b9f6345e195481ba3b6945bd2b7e226ca39fe9878345ce4fa"
+  },
+  "config": {
+    "excerpt_lines": 80,
+    "filter_tool_messages": true,
+    "timeout_seconds": 30
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "task_ids": null,
+  "initial_goal": "Fix and improve Claude hook scripts for project-based analysis",
+  "current_objective": "Adjust analysis cadence for low-clarity sessions",
+  "clarity_score": 10,
+  "confidence": 1,
+  "high_clarity_snarky_comment": "A user with specs clearer than a Starfleet technical manual. It's a rare and beautiful thing. Let's make it so.",
+  "low_clarity_snarky_comment": null,
+  "significant_change": true,
+  "_metadata": {
+    "model": "openrouter:google/gemini-2.5-pro",
+    "test_id": "long-003",
+    "latency_seconds": 16,
+    "generated_at": "2025-10-28T11:29:12Z"
+  }
+}

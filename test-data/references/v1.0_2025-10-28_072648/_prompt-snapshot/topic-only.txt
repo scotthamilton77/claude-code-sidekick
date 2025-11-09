@@ -1,0 +1,27 @@
+You are analyzing a Claude Code conversation transcript to extract the primary goal and intent.
+
+Your task is to analyze the human/assistant conversation transcript below and provide a concise summary suitable for displaying in a statusline.
+
+PREVIOUS TOPIC (if this session has prior analysis):
+{PREVIOUS_TOPIC}
+
+TRANSCRIPT (last few messages):
+{TRANSCRIPT}
+
+Return ONLY valid JSON matching the structure defined in topic-schema.json (no markdown, no explanation).
+
+Field Semantics and Requirements:
+- task_ids: Extract task IDs matching common patterns (T###, FEAT-###, JIRA-###, GH-###, TICKET-###, REQ-###, BUG-###, SPIKE-###, STORY-###, #123) when mentioned in active work contexts:
+  * Direct imperatives: "work on X", "start X", "fix X", "implement X"
+  * Current activity: "working on X", "debugging X", "stuck on X", "X is blocking"
+  * Immediate planning: "next is X", "after this do X", "then tackle X"
+  Exclude past-tense retrospectives ("did X", "X was done"), hypotheticals ("if X", "maybe X"), examples ("like X", "see X"), and quoted speech. Return comma-delimited list or null.
+- initial_goal: Identify the user's PRIMARY goal - what they ultimately want to accomplish, not preliminary steps. Look for verbs like "work on", "build", "improve", "fix", "implement", "refactor". If user says "We're going to work on X. First, do Y", X is the goal, not Y. Distinguish preparatory actions ("research", "fetch docs", "understand") from end objectives. If truly vague/unstated, use snarky placeholder like "Wandering aimlessly through the codebase" or "Who knows?"
+- current_objective: Identify what the user is trying to accomplish RIGHT NOW in the most recent messages. This should reflect the current work, which may be a preparatory step toward the initial_goal. If conversation has drifted or lost focus, use snarky observation like "Chasing squirrels" or "Lost in the weeds"
+- clarity_score: 1 (vague/rambling) to 10 (crystal clear with specific requirements)
+- confidence: 0.0 to 1.0 indicating confidence in your analysis (consider transcript length, clarity, and context completeness)
+- high_clarity_snarky_comment: For focused conversations (clarity 7+), channel sarcastic software architect with SciFi references
+- low_clarity_snarky_comment: For unclear conversations (clarity <7), offer insulting SciFi-inspired prompt to get user focused
+- significant_change: If PREVIOUS_TOPIC is provided, compare task_ids, initial_goal, current_objective, and clarity_score. Set true if any changed meaningfully (not just minor wording). Set false for first analysis or minor updates. Set true if PREVIOUS_TOPIC is empty/null.
+- All fields required; task_ids and unused snarky_comment fields may be null
+- Be concise but accurate

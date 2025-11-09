@@ -9,7 +9,7 @@
 1. **Single Entry Point**: All hooks route through `sidekick.sh <command>`
 2. **Shared Library**: Single `lib/common.sh` loaded once per invocation
 3. **Feature Independence**: Features are function libraries, independently toggleable
-4. **Configuration Cascade**: Project → User → Defaults (shell .conf format)
+4. **Configuration Cascade**: Versioned Project → Deployed Project → User → Defaults (shell .conf format)
 5. **Copy-Based Deployment**: Installation copies files to `.claude/hooks/sidekick/`
 6. **No Subprocess Spawning**: Features sourced and called as functions (except intentional background processes)
 
@@ -36,9 +36,7 @@ claude-config/
 │       ├── cleanup.sh                     # Session directory garbage collection
 │       └── prompts/                       # LLM prompt templates
 │           ├── topic-only.txt
-│           ├── incremental.txt
-│           ├── full-analytics.txt
-│           └── new-session-topic.txt
+│           └── generate-resume.txt
 │
 ├── scripts/
 │   ├── install.sh                         # Install sidekick (--user|--project|--both)
@@ -47,19 +45,23 @@ claude-config/
 │       ├── unit/                          # Unit tests for lib/common.sh functions
 │       └── integration/                   # Integration tests for full workflows
 │
-├── .claude/hooks/sidekick/                # Deployment target (after install)
+├── .claude/hooks/sidekick/                # Deployment target (after install, ephemeral)
 │   ├── sidekick.sh                        # Main entry (copied from src/)
-│   ├── sidekick.conf                      # Runtime config (created from defaults)
 │   ├── lib/                               # Shared library (copied)
 │   ├── handlers/                          # Handlers (copied)
-│   ├── features/                          # Features (copied)
-│   └── tmp/                               # Runtime state (gitignored)
-│       └── ${session_id}/                 # Session-specific directories
-│           ├── sidekick.log               # Unified log file
-│           ├── topic.json                 # Current topic analysis
-│           ├── response_count             # Tracking counter
-│           ├── sleeper.pid                # Sleeper process ID
-│           └── analysis.pid               # Analysis process ID
+│   └── features/                          # Features (copied)
+│
+├── .sidekick/                             # Project-specific state & config
+│   ├── sidekick.conf                      # Versioned project config (optional, highest priority)
+│   ├── README.md                          # Documentation for this directory
+│   ├── sidekick.log                       # Global log file (gitignored)
+│   └── sessions/${session_id}/            # Session state (gitignored)
+│       ├── sidekick.log                   # Per-session log file
+│       ├── topic.json                     # Current topic analysis
+│       ├── resume.json                    # Resume message for NEXT session (generated when topic changes)
+│       ├── response_count                 # Tracking counter
+│       ├── sleeper.pid                    # Sleeper process ID
+│       └── analysis.pid                   # Analysis process ID
 │
 └── ARCH.md, PLAN.md                       # This file and implementation plan
 ```
@@ -118,7 +120,7 @@ _log_to_file "level" "message"
 _log_format_ansi "level" "message"
 ```
 
-**Log File Location**: `tmp/${session_id}/sidekick.log`
+**Log File Location**: `.sidekick/sessions/${session_id}/sidekick.log`
 
 **ANSI Colors**: Defined as readonly globals (COLOR_RED, COLOR_GREEN, etc.)
 
@@ -138,11 +140,16 @@ _config_validate
 ```
 
 **Configuration Cascade**:
-1. Source `src/sidekick/config.defaults`
-2. Source `~/.claude/hooks/sidekick/sidekick.conf` (if exists)
-3. Source `$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.conf` (if exists)
+1. Source `src/sidekick/config.defaults` (must exist)
+2. Source `~/.claude/hooks/sidekick/sidekick.conf` (optional, user-wide)
+3. Source `$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.conf` (optional, ephemeral)
+4. Source `$CLAUDE_PROJECT_DIR/.sidekick/sidekick.conf` (optional, **versioned**, highest priority)
 
 **Result**: Later sources override earlier ones
+
+**Key Distinctions**:
+- **Deployed config** (`.claude/hooks/sidekick/sidekick.conf`): Ephemeral, deleted on uninstall
+- **Versioned config** (`.sidekick/sidekick.conf`): Persistent, survives install/uninstall, can be committed to git
 
 #### PATH RESOLUTION
 ```bash
@@ -153,6 +160,8 @@ path_detect_scope
 path_get_sidekick_root
 
 # Get session-specific directory (creates if missing)
+# Returns: ${CLAUDE_PROJECT_DIR}/.sidekick/sessions/${session_id}/
+# Requires: CLAUDE_PROJECT_DIR must be set
 path_get_session_dir <session_id>
 
 # Get project directory from JSON input or environment
@@ -184,8 +193,8 @@ json_extract_from_markdown <text>
 # Launch background process with PID tracking
 process_launch_background <session_id> <name> <function> [args...]
 # Example: process_launch_background "$sid" "sleeper" sleeper_loop "$transcript"
-# Creates: tmp/${session_id}/${name}.pid
-# Logs to: tmp/${session_id}/${name}.log
+# Creates: ${session_dir}/${name}.pid
+# Logs to: ${session_dir}/${name}.log
 
 # Check if process is running by PID file
 process_is_running <pid_file>
@@ -197,24 +206,25 @@ process_kill <pid_file>
 process_cleanup_stale_pids <session_dir>
 ```
 
-#### CLAUDE INVOCATION
+#### LLM INVOCATION
 ```bash
-# Find Claude CLI binary
-claude_find_bin
-# Returns: path to claude binary
-# Checks: CLAUDE_BIN env, ~/.claude/local/claude, PATH
+# Find LLM binary for specified provider
+llm_find_bin <provider>
+# Args: provider name (claude-cli, openai-api, openrouter, custom)
+# Returns: path to binary (or "curl" for openai-api/openrouter)
+# Checks provider-specific paths and configs
 
-# Invoke Claude with isolation and error handling
-claude_invoke <model> <prompt> [timeout_seconds]
+# Invoke LLM with isolation and error handling
+llm_invoke <model> <prompt> [timeout_seconds]
 # Returns: JSON output (extracted from markdown if needed)
-# Creates isolated workspace to prevent hook recursion
+# Creates isolated workspace to prevent hook recursion (for claude-cli)
 # Default timeout: 30s
 
-# Extract JSON from Claude output (handles markdown wrapping)
-claude_extract_json <claude_output>
+# Extract JSON from LLM output (handles markdown wrapping)
+llm_extract_json <llm_output>
 ```
 
-**Isolation Strategy**: Creates temporary workspace with disabled hooks:
+**Isolation Strategy** (claude-cli only): Creates temporary workspace with disabled hooks:
 ```json
 {
   "hooks": {},
@@ -248,138 +258,289 @@ util_create_session_dir <session_id>
 util_calculate_tokens <transcript_path>
 ```
 
-### 3. Handlers
+### 3. Handlers (Generic Plugin Loaders)
 
-**Purpose**: Orchestrate features for specific hook events
+**Purpose**: Framework code that discovers and invokes feature plugins
+
+Handlers are **generic and feature-agnostic** - they never need to be edited when adding new features. All feature-specific logic lives in the plugin files themselves.
 
 Handlers are **sourced** by `sidekick.sh`, not executed as subprocesses.
+
+**Plugin Architecture**:
+- Handlers auto-discover all `.sh` files in `features/` directory
+- Source only those enabled via config (`FEATURE_NAME=true`)
+- Invoke standardized hook functions (`{feature}_on_{hook_name}`)
+- Aggregate and output any JSON responses
 
 #### handlers/session-start.sh
 
 **Function**: `handler_session_start()`
 
 **Responsibilities**:
-1. Source required feature files
-2. Create session directory
-3. Initialize tracking counter (if enabled)
-4. Launch cleanup in background (if enabled)
-5. Generate resume topic from previous session (if enabled)
+1. Create session directory (framework-level task)
+2. Discover and load all enabled plugins
+3. Invoke `{feature}_on_session_start()` on each plugin
 
-**Pseudo-code**:
+**Implementation**:
 ```bash
 handler_session_start() {
     local session_id="$1"
     local project_dir="$2"
 
-    # Source features
-    source "$SIDEKICK_ROOT/features/tracking.sh"
-    config_is_feature_enabled "cleanup" && source "$SIDEKICK_ROOT/features/cleanup.sh"
-    config_is_feature_enabled "resume" && source "$SIDEKICK_ROOT/features/resume.sh"
-
-    # Initialize session
+    # Create session directory (framework responsibility)
     util_create_session_dir "$session_id"
 
-    # Initialize tracking
-    config_is_feature_enabled "tracking" && tracking_init "$session_id"
+    # Discover and load all enabled plugins
+    plugin_discover_and_load
 
-    # Launch cleanup
-    config_is_feature_enabled "cleanup" && cleanup_launch "$project_dir"
+    # Invoke on_session_start hook on all loaded plugins
+    plugin_invoke_hook "on_session_start" "$session_id" "$project_dir"
 
-    # Generate resume topic
-    config_is_feature_enabled "resume" && resume_snarkify "$session_id" "$project_dir"
+    return 0
 }
 ```
+
+**Adding a New Feature**: Just create `features/my-feature.sh` with `my_feature_on_session_start()` - no handler changes needed!
 
 #### handlers/user-prompt-submit.sh
 
 **Function**: `handler_user_prompt_submit()`
 
 **Responsibilities**:
-1. Increment tracking counter
-2. Check if sleeper should be launched (first call, topic-extraction enabled)
-3. Check if cadence-based analysis is due
-4. Check if static reminder is due
-5. Output hook JSON if additional context needed
+1. Discover and load all enabled plugins
+2. Invoke `{feature}_on_user_prompt_submit()` on each plugin
+3. Output aggregated JSON responses
 
-**Pseudo-code**:
+**Implementation**:
 ```bash
 handler_user_prompt_submit() {
     local session_id="$1"
     local transcript_path="$2"
     local project_dir="$3"
 
-    # Source features
-    source "$SIDEKICK_ROOT/features/tracking.sh"
-    config_is_feature_enabled "topic_extraction" && source "$SIDEKICK_ROOT/features/topic-extraction.sh"
+    # Discover and load all enabled plugins
+    plugin_discover_and_load
 
-    # Increment counter
-    local count=$(tracking_increment "$session_id")
+    # Invoke on_user_prompt_submit hook on all loaded plugins
+    local hook_output
+    hook_output=$(plugin_invoke_hook "on_user_prompt_submit" "$session_id" "$transcript_path" "$project_dir")
 
-    # Launch sleeper on first call
-    if [ "$count" -eq 1 ] && config_is_feature_enabled "topic_extraction"; then
-        topic_extraction_sleeper_start "$session_id" "$transcript_path" "$project_dir"
+    # Output any JSON returned from plugins
+    if [ -n "$hook_output" ]; then
+        echo "$hook_output"
     fi
 
-    # Cadence-based analysis (fallback)
-    if config_is_feature_enabled "topic_extraction"; then
-        topic_extraction_check_cadence "$session_id" "$transcript_path" "$project_dir" "$count"
-    fi
+    return 0
+}
+```
 
-    # Static reminder injection
-    local reminder=$(tracking_check_reminder "$count")
-    if [ -n "$reminder" ]; then
-        json_output_additional_context "$reminder"
+**Adding a New Feature**: Just create `features/my-feature.sh` with `my_feature_on_user_prompt_submit()` - no handler changes needed!
+
+### 3.1 Plugin Discovery and Loading
+
+**Function**: `plugin_discover_and_load()` (in `lib/common.sh`)
+
+**Process**:
+1. Scans `features/` directory for all `.sh` files
+2. For each file: extracts basename as feature name (e.g., `tracking.sh` → `tracking`)
+3. Normalizes feature name for config lookup (replaces hyphens with underscores: `topic-extraction` → `topic_extraction`)
+4. Checks `FEATURE_{NAME}=true` in config cascade
+5. Sources enabled features in alphabetical order
+6. Tracks loaded plugins in `_LOADED_PLUGINS` array
+
+**Feature Name Normalization**:
+- **Filenames** may use hyphens: `topic-extraction.sh`
+- **Config keys** must use underscores: `FEATURE_TOPIC_EXTRACTION=true`
+- **Hook functions** must use underscores: `topic_extraction_on_session_start()`
+- Plugin loader automatically converts hyphens to underscores for lookups
+
+### 3.2 Plugin Hook Invocation
+
+**Function**: `plugin_invoke_hook()` (in `lib/common.sh`)
+
+**Process**:
+1. Accepts hook name (e.g., `"on_session_start"`) and arguments
+2. For each loaded plugin, constructs hook function name: `{feature}_{hook_name}`
+3. Normalizes plugin name (hyphens → underscores) for function lookup
+4. Checks if function exists using `declare -f`
+5. Invokes function with provided arguments
+6. Captures stdout output from all hooks
+7. Aggregates outputs (concatenated with newlines if multiple)
+8. Returns aggregated output to caller
+
+**Hook Function Contract**:
+- Name format: `{feature}_on_{hook_name}()`
+- Arguments: Hook-specific (documented per hook type below)
+- Returns: JSON output to stdout (optional), exit code 0
+- Non-fatal failures: Logged but don't stop other plugins
+
+**Available Hook Types**:
+
+**`on_session_start(session_id, project_dir)`**:
+- Called once per session initialization
+- Used for: counter initialization, background process launch, session state setup
+- Example: `tracking_on_session_start()`, `cleanup_on_session_start()`
+
+**`on_user_prompt_submit(session_id, transcript_path, project_dir)`**:
+- Called on every user prompt submission
+- Used for: counter increments, watchdog processes, reminder checks
+- May output JSON for `additionalContext` injection
+- Example: `tracking_on_user_prompt_submit()`, `topic_extraction_on_user_prompt_submit()`
+
+### 4. Features (Plugins)
+
+**Purpose**: Self-contained, independently-toggleable functionality modules
+
+Features are **plugins** that export standardized hook functions. Handlers automatically discover and invoke them - no manual registration required.
+
+**Plugin File Structure**:
+```bash
+#!/bin/bash
+# Sidekick Feature: MyFeature
+# Description of what this feature does
+
+# Prevent double-sourcing
+[[ -n "${_SIDEKICK_FEATURE_MYFEATURE_LOADED:-}" ]] && return 0
+readonly _SIDEKICK_FEATURE_MYFEATURE_LOADED=1
+
+# ... internal helper functions ...
+
+#------------------------------------------------------------------------------
+# PLUGIN HOOKS (standardized entry points)
+#------------------------------------------------------------------------------
+
+# Hook for SessionStart event
+myfeature_on_session_start() {
+    local session_id="$1"
+    local project_dir="$2"
+
+    # Feature logic here...
+    # No output needed if just side effects
+}
+
+# Hook for UserPromptSubmit event
+myfeature_on_user_prompt_submit() {
+    local session_id="$1"
+    local transcript_path="$2"
+    local project_dir="$3"
+
+    # Feature logic here...
+
+    # Optional: output JSON for additionalContext injection
+    if [ -n "$some_output" ]; then
+        cat <<JSON
+{
+  "hookSpecificOutput": {
+    "hookEventName": "UserPromptSubmit",
+    "additionalContext": "..."
+  }
+}
+JSON
     fi
 }
 ```
 
-### 4. Features
+**Adding a New Feature**:
+1. Create `features/my-feature.sh` with hook functions
+2. Add `FEATURE_MY_FEATURE=true` to `config.defaults`
+3. Done! Handler automatically discovers and invokes it
 
-**Purpose**: Self-contained, toggleable functionality
-
-Features are **function libraries** - they define functions that are called by handlers.
+**Existing Features**:
 
 #### features/topic-extraction.sh
 
 **Functions**:
-- `topic_extraction_analyze()` - Run LLM analysis (refactored analyze-transcript.sh)
+- `topic_extraction_analyze()` - Run LLM analysis with preprocessing (extracts `.message`, filters tool messages, strips metadata)
 - `topic_extraction_sleeper_start()` - Launch sleeper process
 - `topic_extraction_sleeper_loop()` - Sleeper polling loop (runs as background process)
 - `topic_extraction_check_cadence()` - Cadence-based analysis fallback
+- `resume_generate_async()` - Launch background resume generation when topic changes significantly
+
+**Preprocessing**: Transcript lines are filtered before LLM analysis to reduce token usage:
+- Extracts `.message` field from each transcript line
+- Filters out `tool_use` and `tool_result` messages (configurable via `TOPIC_FILTER_TOOL_MESSAGES`)
+- Strips unnecessary metadata: `.model`, `.id`, `.type`, `.stop_reason`, `.stop_sequence`, `.usage`
+- Filters null/empty messages
 
 **Configuration Keys**:
 ```bash
 FEATURE_TOPIC_EXTRACTION=true
-TOPIC_MODE=topic-only              # topic-only | incremental | full-analytics
-TOPIC_MODEL=haiku-4.5
+TOPIC_EXCERPT_LINES=80              # Transcript lines to analyze (≈3-5 messages)
+TOPIC_FILTER_TOOL_MESSAGES=true     # Filter tool_use/tool_result (reduces tokens)
 TOPIC_CADENCE_HIGH=10               # High clarity cadence (responses)
 TOPIC_CADENCE_LOW=1                 # Low clarity cadence (responses)
 TOPIC_CLARITY_THRESHOLD=7           # Threshold for high/low (1-10)
 
 SLEEPER_ENABLED=true
-SLEEPER_INTERVAL_ACTIVE=2           # Polling interval when active (seconds)
-SLEEPER_INTERVAL_IDLE=5             # Polling interval when idle (seconds)
-SLEEPER_MAX_DURATION=600            # Maximum runtime (seconds)
-SLEEPER_CLARITY_EXIT=7              # Clarity score to exit sleeper
+SLEEPER_MAX_DURATION=600            # Maximum inactivity timeout (seconds) - exits after no activity
 SLEEPER_MIN_SIZE_CHANGE=500         # Minimum bytes changed to trigger analysis
 SLEEPER_MIN_INTERVAL=10             # Minimum seconds between analyses
+SLEEPER_MIN_SLEEP=2                 # Minimum dynamic sleep interval (seconds)
+SLEEPER_MAX_SLEEP=20                # Maximum dynamic sleep interval (seconds)
+                                    # Sleep interval = clarity * 2 (capped between min/max)
 ```
+
+**Resume Generation Integration**:
+
+When `topic_extraction_analyze()` writes `topic.json`, it checks two conditions:
+1. `significant_change: true` (determined by Claude comparing current and previous topic)
+2. `clarity_score >= 5` (sufficient understanding to generate meaningful resume)
+
+If both true, triggers `resume_generate_async()` which:
+- Launches background process (non-blocking)
+- Loads `generate-resume.txt` prompt template
+- Substitutes `{CURRENT_TOPIC}` and `{TRANSCRIPT}` placeholders
+- Invokes Claude to generate snarkified resume message for NEXT session
+- Writes `resume.json` in current session directory
+
+**Topic Analysis Output Schema**:
+
+All topic extraction prompts now include:
+- `significant_change: boolean` - Claude determines if goals/objectives differ meaningfully from previous analysis
+- `{PREVIOUS_TOPIC}` placeholder - Previous topic.json content for comparison (if exists)
 
 **Dependencies**: LLM prompt templates in `features/prompts/`
 
 #### features/resume.sh
 
 **Functions**:
-- `resume_snarkify()` - Generate resume topic from previous session (refactored snarkify-last-session.sh)
+- `resume_snarkify()` - Initialize new session from previous session's resume (refactored from LLM-based generation)
+
+**Architecture**: File-based session initialization (no LLM invocation at SessionStart)
+
+**Workflow**:
+1. Called during SessionStart hook
+2. Finds most recent session with `resume.json` and `clarity_score >= RESUME_MIN_CLARITY`
+3. Reads `resume.json` fields (generated by previous session's topic extraction)
+4. Maps resume fields to topic.json schema:
+   - `last_task_id` → `task_ids` (converts single ID to expected field)
+   - `resume_last_goal_message` → `initial_goal`
+   - `last_objective_in_progress` → `current_objective`
+   - `snarky_comment` → `snarky_comment`
+5. Creates initial `topic.json` in current session directory
+6. Sets `resume_from_session: true` flag
 
 **Configuration Keys**:
 ```bash
 FEATURE_RESUME=true
-RESUME_MODEL=haiku-4.5
-RESUME_MIN_CLARITY=5                # Minimum clarity to use previous session
+RESUME_MIN_CLARITY=5                # Minimum clarity to use previous session's resume
 ```
 
-**Output**: Creates `tmp/${session_id}/topic.json` with resume message
+**Input**: Previous session's `resume.json` (created by `resume_generate_async()` in topic-extraction.sh)
+
+**Resume.json Schema**:
+```json
+{
+  "last_task_id": "string or null",
+  "resume_last_goal_message": "string (max 60 chars, question format)",
+  "last_objective_in_progress": "string (SciFi-themed, max 60 chars)",
+  "snarky_comment": "string (witty comment, max 120 chars)"
+}
+```
+
+**Output**: Creates `${session_dir}/topic.json` initialized from previous resume
+
+**Performance**: Fast (<10ms) - pure file I/O, no LLM calls
 
 #### features/statusline.sh
 
@@ -407,7 +568,7 @@ FEATURE_TRACKING=true
 TRACKING_STATIC_CADENCE=4           # Reminder cadence (responses)
 ```
 
-**State Files**: `tmp/${session_id}/response_count`
+**State Files**: `${session_dir}/response_count`
 
 #### features/cleanup.sh
 
@@ -442,8 +603,8 @@ FEATURE_CLEANUP=true
 # ============================================================================
 # TOPIC EXTRACTION
 # ============================================================================
-TOPIC_MODE=topic-only
-TOPIC_MODEL=haiku-4.5
+TOPIC_EXCERPT_LINES=80
+TOPIC_FILTER_TOOL_MESSAGES=true
 TOPIC_CADENCE_HIGH=10
 TOPIC_CADENCE_LOW=1
 TOPIC_CLARITY_THRESHOLD=7
@@ -452,17 +613,15 @@ TOPIC_CLARITY_THRESHOLD=7
 # SLEEPER
 # ============================================================================
 SLEEPER_ENABLED=true
-SLEEPER_INTERVAL_ACTIVE=2
-SLEEPER_INTERVAL_IDLE=5
-SLEEPER_MAX_DURATION=600
-SLEEPER_CLARITY_EXIT=7
-SLEEPER_MIN_SIZE_CHANGE=500
-SLEEPER_MIN_INTERVAL=10
+SLEEPER_MAX_DURATION=600           # Inactivity timeout (seconds)
+SLEEPER_MIN_SIZE_CHANGE=500        # Minimum bytes to trigger analysis
+SLEEPER_MIN_INTERVAL=10            # Minimum seconds between analyses
+SLEEPER_MIN_SLEEP=2                # Minimum dynamic sleep
+SLEEPER_MAX_SLEEP=20               # Maximum dynamic sleep
 
 # ============================================================================
 # RESUME
 # ============================================================================
-RESUME_MODEL=haiku-4.5
 RESUME_MIN_CLARITY=5
 
 # ============================================================================
@@ -502,7 +661,110 @@ source "$SIDEKICK_ROOT/config.defaults"
 [ -f "$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.conf" ] && source "$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.conf"
 ```
 
-## Claude Integration
+## LLM Provider System
+
+### Overview
+
+Sidekick uses a pluggable LLM provider architecture to support multiple AI backends for conversation analysis and resume generation. The system abstracts LLM invocation behind a provider interface, allowing drop-in replacement of Claude CLI with OpenAI, OpenRouter, or custom LLM tools.
+
+### Provider Architecture
+
+**Dispatcher**: `llm_invoke(model, prompt, timeout)` - Main entry point
+- Reads `LLM_PROVIDER` config to select backend
+- Dispatches to provider-specific implementation
+- Validates and extracts JSON from response
+- Returns structured output or errors
+
+**Provider Implementations**:
+- `_llm_invoke_claude_cli()` - Claude Code CLI (default)
+  - Preserves workspace isolation to prevent hook recursion
+  - Uses isolated .claude/settings.json to disable hooks
+- `_llm_invoke_openai_api()` - OpenAI API via curl
+  - Direct HTTP calls to OpenAI endpoint
+  - Requires API key via config or environment variable
+- `_llm_invoke_openrouter()` - OpenRouter API via curl
+  - Direct HTTP calls to OpenRouter endpoint
+  - Requires API key via config or environment variable
+  - OpenAI-compatible API interface
+- `_llm_invoke_custom()` - User-defined command template
+  - Template substitution: {BIN}, {MODEL}, {PROMPT_FILE}, {TIMEOUT}
+  - Maximum flexibility for any LLM tool
+
+### Configuration
+
+**Provider Selection** (config.defaults or sidekick.conf):
+```bash
+# Select active provider
+LLM_PROVIDER=claude-cli  # claude-cli | openai-api | openrouter | custom
+
+# Claude CLI provider
+LLM_CLAUDE_BIN=          # Auto-detect: ~/.claude/local/claude or PATH
+LLM_CLAUDE_MODEL=haiku   # haiku, sonnet, opus, haiku-4, etc.
+
+# OpenAI API provider
+LLM_OPENAI_API_KEY=      # API key (or use OPENAI_API_KEY env var)
+LLM_OPENAI_ENDPOINT=https://api.openai.com/v1/chat/completions
+LLM_OPENAI_MODEL=gpt-4-turbo
+
+# OpenRouter API provider
+LLM_OPENROUTER_API_KEY=  # API key (or use OPENROUTER_API_KEY env var)
+LLM_OPENROUTER_ENDPOINT=https://openrouter.ai/api/v1/chat/completions
+LLM_OPENROUTER_MODEL=sao10k/l3-lunaris-8b  # sao10k/l3-lunaris-8b, anthropic/claude-3.5-sonnet, etc.
+
+# Custom provider
+LLM_CUSTOM_BIN=/path/to/llm-tool
+LLM_CUSTOM_MODEL=default
+LLM_CUSTOM_COMMAND={BIN} --model {MODEL} < {PROMPT_FILE}
+```
+
+### Usage Example
+
+**Topic Extraction** (topic-extraction.sh:256):
+```bash
+# Get model from provider config
+local provider=$(config_get "LLM_PROVIDER")
+local model=$(config_get "LLM_CLAUDE_MODEL")  # or LLM_OPENAI_MODEL, etc.
+
+# Invoke LLM
+if ! llm_output=$(llm_invoke "$model" "$prompt" 30); then
+    log_error "LLM invocation failed"
+    return 1
+fi
+```
+
+**Provider Switching**:
+```bash
+# Switch to OpenAI in user config (~/.claude/hooks/sidekick/sidekick.conf)
+LLM_PROVIDER=openai-api
+LLM_OPENAI_API_KEY=sk-...
+LLM_OPENAI_MODEL=gpt-4-turbo
+
+# Or use OpenRouter
+LLM_PROVIDER=openrouter
+LLM_OPENROUTER_API_KEY=sk-or-...
+LLM_OPENROUTER_MODEL=sao10k/l3-lunaris-8b
+
+# Or use custom provider
+LLM_PROVIDER=custom
+LLM_CUSTOM_BIN=/usr/local/bin/ollama
+LLM_CUSTOM_MODEL=llama2
+LLM_CUSTOM_COMMAND={BIN} run {MODEL} < {PROMPT_FILE}
+```
+
+### Error Handling
+
+**Fail-Fast Design**: Single provider per invocation, no fallback chains
+- Simpler error paths
+- Clearer debugging
+- Explicit configuration
+
+**Error Reporting**:
+- Binary not found → Exit code 3
+- Invalid provider → Exit code 3
+- LLM invocation failure → Return code 1 (logged)
+- Invalid JSON response → Return code 1 (logged)
+
+## Hook Integration
 
 ### Hooks Registration
 
@@ -632,13 +894,13 @@ sidekick.sh session-start "$CLAUDE_PROJECT_DIR"
   ↓
 handler_session_start()
   ↓
-tracking_init() → writes tmp/${session_id}/response_count
+tracking_init() → writes ${session_dir}/response_count
   ↓
 cleanup_launch() → process_launch_background → nohup cleanup_run &
   ↓
-resume_snarkify() → claude_invoke → writes tmp/${session_id}/topic.json
+resume_snarkify() → reads previous resume.json → writes ${session_dir}/topic.json
   ↓
-sidekick.sh exits (<100ms)
+sidekick.sh exits (<10ms) - FAST: no LLM calls
 ```
 
 ### Pattern 2: Cadence Hook with Optional Output (user-prompt-submit)
@@ -651,7 +913,7 @@ sidekick.sh user-prompt-submit "$CLAUDE_PROJECT_DIR"
   ↓
 handler_user_prompt_submit()
   ↓
-count = tracking_increment() → updates tmp/${session_id}/response_count
+count = tracking_increment() → updates ${session_dir}/response_count
   ↓
 if count == 1: topic_extraction_sleeper_start() → process_launch_background
   ↓
@@ -672,7 +934,7 @@ sidekick.sh statusline --project-dir "$CLAUDE_PROJECT_DIR"
   ↓
 feature_statusline_render()
   ↓
-read tmp/${session_id}/topic.json
+read ${session_dir}/topic.json
   ↓
 calculate tokens, format output
   ↓
@@ -691,16 +953,54 @@ topic_extraction_sleeper_start()
 process_launch_background "sleeper" topic_extraction_sleeper_loop
   ↓
 nohup bash -c "topic_extraction_sleeper_loop" &
-  ↓ (writes PID to tmp/${session_id}/sleeper.pid)
+  ↓ (writes PID to ${session_dir}/sleeper.pid)
   ↓
 [Sleeper runs independently]
   while true:
-    sleep $interval
+    if inactive_duration > max_duration: exit  # Exit after inactivity timeout
     if transcript changed significantly:
       topic_extraction_analyze()
-      if clarity >= threshold: exit
-    if elapsed > max_duration: exit
+      update last_activity_time  # Reset inactivity timer
+    sleep $dynamic_interval  # Based on clarity * 2 (capped 2-20s)
 ```
+
+### Pattern 5: Async Resume Generation (triggered by topic change)
+
+```
+topic_extraction_analyze()
+  ↓
+writes ${session_dir}/topic.json
+  ↓
+checks: significant_change == true && clarity >= 5
+  ↓ (if both true)
+resume_generate_async()
+  ↓
+nohup bash -c "generate resume in background" &
+  ↓ (doesn't block main flow)
+  ↓
+[Background process]
+  reads ${session_dir}/topic.json (current topic)
+  ↓
+  extracts transcript excerpt (last ~3-5 messages)
+  ↓
+  loads features/prompts/generate-resume.txt
+  ↓
+  substitutes {CURRENT_TOPIC} and {TRANSCRIPT}
+  ↓
+  llm_invoke <model> prompt 30s
+  ↓
+  extracts JSON output
+  ↓
+  writes ${session_dir}/resume.json
+  ↓
+  [NEXT session's SessionStart will use this resume.json]
+```
+
+**Key Benefits**:
+- SessionStart fast (<10ms) - no LLM blocking
+- Resume generated from stable/mature topic understanding (end of session)
+- Claude determines significance (smarter than hardcoded thresholds)
+- Natural first-session handling (no resume.json = graceful skip)
 
 ## Function Naming Convention
 
@@ -810,8 +1110,8 @@ chmod +x "$CLAUDE_BIN"
 echo '{"session_id":"test-123"}' | ./src/sidekick/sidekick.sh session-start "$TEST_DIR"
 
 # Verify outputs
-[ -f "$TEST_DIR/.claude/hooks/sidekick/tmp/test-123/response_count" ]
-[ -f "$TEST_DIR/.claude/hooks/sidekick/tmp/test-123/topic.json" ]
+[ -f "$TEST_DIR/.sidekick/sessions/test-123/response_count" ]
+[ -f "$TEST_DIR/.sidekick/sessions/test-123/topic.json" ]
 
 # Cleanup
 rm -rf "$TEST_DIR"
