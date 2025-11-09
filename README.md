@@ -12,24 +12,10 @@ This repository serves as a development and testing environment for [Claude Code
 
 ### Sidekick
 
-- is it time to move to something more robust than bash?
 - llm quality and speed benchmark testing needed
   - try with and without system prompt separate from user prompt
-- DRY issues
-  - llm.sh DRY
-  - transcript pre-processing
-  - topic-extraction and generate-resume have lots of overlap - DRY!
-  - json schema vs. prompt overlap
-  1.  Shared transcript extraction (lines 26-59 in topic-extraction.sh, lines 49-76 in generate-resume.sh)
-      - Move to lib/transcript.sh as transcript_extract_excerpt()
-  2.  Shared model config (lines 207-234 in topic-extraction.sh, lines 90-116 in generate-resume.sh)
-      - Already centralized in lib/llm.sh, just ensure both use it consistently
-  3.  Shared preprocessing (jq filters for stripping attributes)
-      - Could be a constant in lib/json.sh
 - json schema for resume message generator
 - incorporate https://github.com/johannschopplich/toon
-- We need some quality memories on the models, e.g. our current gemma is failing miserably to return the right json; we could try a more advanced gemma model, or else we'll need to upgrade
-- remove .claudeignore if not useful
 - tracking and reminders
   - make sure we log when it happens
   - do we want to have multiple reminders with different cadences?
@@ -51,6 +37,7 @@ This repository serves as a development and testing environment for [Claude Code
 - how do subagents work - can we detect their connection to the parent agent, and do we care? (for statusline, maybe not, but for analytics?)
 - skills and agents - review carefully and attribute to https://github.com/obra/superpowers
 - learning mode? investigate https://medium.com/coding-nexus/rip-fine-tuning-how-stanfords-ace-framework-teaches-ai-to-learn-without-retraining-510f412d8579
+- is it time to move to something more robust than bash?
 
 ## Agents and Skills
 
