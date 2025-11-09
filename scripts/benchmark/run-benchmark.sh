@@ -250,8 +250,8 @@ log_info "Testing ${#MODELS_TO_TEST[@]} models"
 
 log_info "Loading prompts..."
 
-TOPIC_PROMPT_FILE="$SIDEKICK_SRC/features/prompts/topic-only.txt"
-TOPIC_SCHEMA_FILE="$SIDEKICK_SRC/features/prompts/topic-schema.json"
+TOPIC_PROMPT_FILE="$SIDEKICK_SRC/features/prompts/topic.prompt.txt"
+TOPIC_SCHEMA_FILE="$SIDEKICK_SRC/features/prompts/topic.schema.json"
 
 if [[ ! -f "$TOPIC_PROMPT_FILE" ]]; then
     log_error "Topic prompt not found: $TOPIC_PROMPT_FILE"

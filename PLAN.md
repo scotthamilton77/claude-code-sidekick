@@ -123,7 +123,7 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 
 ### 3.2 Implement Topic Extraction Feature
 - [x] Create `features/topic-extraction.sh`
-- [x] Copy prompt template to `features/prompts/topic-only.txt`
+- [x] Copy prompt template to `features/prompts/topic.prompt.txt`
 - [x] Define `topic_extraction_analyze()`:
   - [x] Pre-process transcript (extract message objects)
   - [x] Extract transcript excerpt (last 80 lines)
@@ -152,7 +152,7 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 
 ### 3.3 Implement Resume Feature
 - [x] Create `features/resume.sh`
-- [x] Create prompt template `features/prompts/generate-resume.txt`
+- [x] Create prompt template `features/prompts/resume.prompt.txt`
 - [x] Define `resume_snarkify()` (refactored to file-based initialization):
   - [x] Find most recent session with resume.json and clarity > threshold
   - [x] Read resume.json fields from previous session
@@ -162,7 +162,7 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - [x] Add `resume_generate_async()` to topic-extraction.sh:
   - [x] Triggered when significant_change=true AND clarity>=5
   - [x] Launches background process (non-blocking)
-  - [x] Loads generate-resume.txt prompt template
+  - [x] Loads resume.prompt.txt prompt template
   - [x] Substitutes {CURRENT_TOPIC} and {TRANSCRIPT}
   - [x] Invokes Claude to generate snarkified resume for NEXT session
   - [x] Writes resume.json in current session directory
