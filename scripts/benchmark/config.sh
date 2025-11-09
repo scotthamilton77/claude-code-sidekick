@@ -142,21 +142,19 @@ LLM_MAX_RETRIES=2             # Max retries on transient failures
 # Format: "provider:model_name|input_price|output_price|tags"
 # Tags: cheap, expensive, fast, slow, default, baseline
 
+# Models taken out of benchmark for now:
+# 
+# "openrouter:openai/gpt-oss-20b|0.03|0.14|cheap,slow" -- high latency, unreliable
+# "openai-api:gpt-5-nano|0.05|0.40|" -- no good responses; API may not support features we're trying to use such as response_format
+# "claude-cli:haiku|0.25|1.25|default,expensive"
+# "claude-cli:sonnet|0.75|3.75|expensive"
+
 BENCHMARK_MODELS=(
-    # OpenRouter models (cheapest to most expensive)
+    # OpenRouter models
+    "openrouter:google/gemma-3-12b-it|0.03|0.10|cheap,default,baseline"
     "openrouter:google/gemma-3-4b-it|0.02|0.07|cheap,fast"
-    # "openrouter:google/gemma-3-12b-it|0.03|0.10|cheap,default,baseline"
-    "openrouter:openai/gpt-oss-20b|0.03|0.14|cheap,slow"
-    "openrouter:google/gemini-2.0-flash-lite-001|0.08|0.30|"
+    "openrouter:google/gemini-2.0-flash-lite-001|0.08|0.30|,fast"
     "openrouter:google/gemma-3-27b-it|0.09|0.16|"
-    "openrouter:mistralai/ministral-8b|0.10|0.10|"
-
-    # Claude CLI (default models)
-    "claude-cli:haiku|0.25|1.25|default"
-    "claude-cli:sonnet|0.75|3.75|expensive"
-
-    # OpenAI API
-    "openai-api:gpt-5-nano|0.05|0.40|"
 )
 
 # ==============================================================================
