@@ -17,13 +17,7 @@
 
 import OpenAI from 'openai'
 import { LLMProvider } from './LLMProvider.js'
-import {
-  OpenRouterConfig,
-  InvokeOptions,
-  LLMResponse,
-  LLMErrorType,
-  TokenUsage,
-} from './types.js'
+import { OpenRouterConfig, InvokeOptions, LLMResponse, LLMErrorType, TokenUsage } from './types.js'
 
 /**
  * OpenRouter provider implementation
