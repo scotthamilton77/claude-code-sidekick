@@ -18,7 +18,7 @@ This roadmap tracks the component-level migration from Track 1 (Bash, `scripts/b
 - Validate output parity with Track 1
 - Mark component complete
 
-**Progress**: 6/35 components complete (17%)
+**Progress**: 6/34 components complete (18%) - 1 component skipped
 
 ---
 
@@ -158,7 +158,7 @@ abstract class LLMProvider {
 
 ---
 
-## Phase 2: Infrastructure (1/6 Complete)
+## Phase 2: Infrastructure (1/5 Complete, 1 Skipped)
 
 **Goal**: Complete LLM provider ecosystem and configuration management.
 
@@ -190,23 +190,33 @@ abstract class LLMProvider {
 
 ---
 
-### 2.2 Timeout/Retry Decorator ⏳
+### 2.2 Timeout/Retry Decorator ⏭️ **SKIPPED - NOT NEEDED**
 **Maps to**: `llm.sh` timeout logic + `LLM_TIMEOUT_MAX_RETRIES`
-**Acceptance Criteria**:
-- Configurable timeout (AbortController-based)
-- Exponential backoff between retries
-- Max retry limit honored
-- Matches Track 1 retry behavior (timeout = curl exit 28)
 
-**Files to Create**:
-- `src/providers/RetryDecorator.ts`
-- `test/providers/RetryDecorator.test.ts`
+**Status**: ⏭️ Skipped - Retry logic already implemented directly in each provider
 
-**Test Cases**:
-- Immediate success (no retry)
-- Timeout → retry → success
-- Max retries exceeded → throw error
-- Exponential backoff timing validation
+**Rationale**:
+All providers (ClaudeProvider, OpenAIProvider, OpenRouterProvider) already implement timeout/retry logic using their respective official SDKs:
+- **ClaudeProvider**: Uses `@anthropic-ai/sdk` timeout + custom retry loop with exponential backoff
+- **OpenAIProvider**: Uses `openai` SDK timeout + custom retry loop with exponential backoff
+- **OpenRouterProvider**: Uses `openai` SDK timeout + custom retry loop with exponential backoff
+
+Creating a separate decorator would require:
+1. Extracting retry logic from all existing providers (breaking changes)
+2. Wrapping SDK calls with decorator pattern (added complexity)
+3. Maintaining consistency between decorator and SDK error types
+
+**Decision**: Keep retry logic co-located with provider implementations. The pattern is consistent across providers (~80 lines each), well-tested (3-4 retry tests per provider), and leverages SDK-native error detection.
+
+**Original Acceptance Criteria** (now implemented per-provider):
+- ✅ Configurable timeout (AbortController-based) - in each provider
+- ✅ Exponential backoff between retries - in each provider
+- ✅ Max retry limit honored - in each provider
+- ✅ Matches Track 1 retry behavior - validated in tests
+
+**Files NOT Created** (intentionally):
+- ~~`src/providers/RetryDecorator.ts`~~ - not needed
+- ~~`test/providers/RetryDecorator.test.ts`~~ - covered by provider tests
 
 ---
 
@@ -686,7 +696,7 @@ abstract class LLMProvider {
 Update this section after completing each component:
 
 **Phase 1**: █████ 5/5 (100%) ✅
-**Phase 2**: █░░░░░ 1/6 (17%)
+**Phase 2**: █⏭️░░░░ 1/5 complete, 1 skipped (20%)
 **Phase 3**: ░░ 0/2 (0%)
 **Phase 4**: ░░░░░ 0/5 (0%)
 **Phase 5**: ░░░░ 0/4 (0%)
@@ -695,7 +705,7 @@ Update this section after completing each component:
 **Phase 8**: ░░░ 0/3 (0%)
 **Phase 9**: ░░░░ 0/4 (0%)
 
-**Overall**: ██████░░░░░░░░░░░░░░ 6/35 (17%)
+**Overall**: ██████⏭️░░░░░░░░░░░░░ 6/34 complete, 1 skipped (18%)
 
 ---
 
