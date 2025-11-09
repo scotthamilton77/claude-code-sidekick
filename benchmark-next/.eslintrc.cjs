@@ -1,10 +1,13 @@
+const path = require('path')
+
 module.exports = {
   root: true,
   parser: '@typescript-eslint/parser',
   parserOptions: {
     ecmaVersion: 2022,
     sourceType: 'module',
-    project: './tsconfig.json',
+    project: path.resolve(__dirname, './tsconfig.json'),
+    tsconfigRootDir: __dirname,
   },
   plugins: [
     '@typescript-eslint',
