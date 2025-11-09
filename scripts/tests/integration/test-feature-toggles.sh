@@ -108,6 +108,7 @@ FEATURE_RESUME=${2:-false}
 FEATURE_STATUSLINE=${3:-false}
 FEATURE_TRACKING=${4:-false}
 FEATURE_CLEANUP=${5:-false}
+FEATURE_REMINDER=${6:-false}
 
 # Set sleeper disabled for faster tests
 SLEEPER_ENABLED=false
@@ -122,7 +123,7 @@ test_tracking_feature_toggle() {
     local test_name="FEATURE_TRACKING toggle"
 
     # Disable tracking
-    create_config "false" "false" "false" "false" "false"
+    create_config "false" "false" "false" "false" "false" "false"
 
     # Create session input
     local input_json='{"session_id":"'$TEST_SESSION'","workspace":{"project_dir":"'$TEST_DIR'"}}'
@@ -139,7 +140,7 @@ test_tracking_feature_toggle() {
     fi
 
     # Now enable tracking
-    create_config "false" "false" "false" "true" "false"
+    create_config "false" "false" "false" "true" "false" "false"
 
     # Run session-start again with new session
     TEST_SESSION="test-toggles-enabled-$(date +%s)"
@@ -162,7 +163,7 @@ test_cleanup_feature_toggle() {
     local test_name="FEATURE_CLEANUP toggle"
 
     # Disable cleanup
-    create_config "false" "false" "false" "true" "false"
+    create_config "false" "false" "false" "true" "false" "false"
 
     local input_json='{"session_id":"'$TEST_SESSION'","workspace":{"project_dir":"'$TEST_DIR'"}}'
 
@@ -178,7 +179,7 @@ test_cleanup_feature_toggle() {
     fi
 
     # Enable cleanup
-    create_config "false" "false" "false" "true" "true"
+    create_config "false" "false" "false" "true" "true" "false"
 
     TEST_SESSION="test-cleanup-enabled-$(date +%s)"
     SESSION_DIR="$TEST_DIR/.sidekick/sessions/$TEST_SESSION"
@@ -213,7 +214,7 @@ EOF
 EOF
 
     # Disable resume
-    create_config "false" "false" "false" "true" "false"
+    create_config "false" "false" "false" "true" "false" "false"
 
     # Start new session
     TEST_SESSION="test-resume-disabled-$(date +%s)"
@@ -237,7 +238,7 @@ EOF
     fi
 
     # Enable resume
-    create_config "false" "true" "false" "true" "false"
+    create_config "false" "true" "false" "true" "false" "false"
 
     TEST_SESSION="test-resume-enabled-$(date +%s)"
     SESSION_DIR="$TEST_DIR/.sidekick/sessions/$TEST_SESSION"
@@ -265,7 +266,7 @@ test_topic_extraction_feature_toggle() {
     local test_name="FEATURE_TOPIC_EXTRACTION toggle"
 
     # Disable topic extraction
-    create_config "false" "false" "false" "true" "false"
+    create_config "false" "false" "false" "true" "false" "false"
 
     # Create session
     TEST_SESSION="test-topic-disabled-$(date +%s)"
@@ -289,7 +290,7 @@ test_topic_extraction_feature_toggle() {
     fi
 
     # Enable topic extraction
-    create_config "true" "false" "false" "true" "false"
+    create_config "true" "false" "false" "true" "false" "false"
 
     TEST_SESSION="test-topic-enabled-$(date +%s)"
     SESSION_DIR="$TEST_DIR/.sidekick/sessions/$TEST_SESSION"
@@ -318,7 +319,7 @@ test_statusline_feature_toggle() {
     local test_name="FEATURE_STATUSLINE toggle"
 
     # Disable statusline
-    create_config "false" "false" "false" "true" "false"
+    create_config "false" "false" "false" "true" "false" "false"
 
     local input_json='{"session_id":"'$TEST_SESSION'","model":{"display_name":"Sonnet 4.5"},"workspace":{"project_dir":"'$TEST_DIR'"},"transcript_path":"'$TEST_TRANSCRIPT'","cost":{"total_cost_usd":1.0},"version":"1.0.0"}'
 
@@ -336,7 +337,7 @@ test_statusline_feature_toggle() {
     fi
 
     # Enable statusline
-    create_config "false" "false" "true" "true" "false"
+    create_config "false" "false" "true" "true" "false" "false"
 
     output=$(echo "$input_json" | "$TEST_DIR/.claude/hooks/sidekick/sidekick.sh" statusline 2>&1) || true
 
@@ -353,7 +354,7 @@ test_multiple_features_enabled() {
     local test_name="Multiple features enabled together"
 
     # Enable all features
-    create_config "true" "true" "true" "true" "true"
+    create_config "true" "true" "true" "true" "true" "true"
 
     TEST_SESSION="test-all-features-$(date +%s)"
     SESSION_DIR="$TEST_DIR/.sidekick/sessions/$TEST_SESSION"
@@ -399,7 +400,7 @@ test_multiple_features_disabled() {
     local test_name="Multiple features disabled together"
 
     # Disable all features
-    create_config "false" "false" "false" "false" "false"
+    create_config "false" "false" "false" "false" "false" "false"
 
     TEST_SESSION="test-no-features-$(date +%s)"
     SESSION_DIR="$TEST_DIR/.sidekick/sessions/$TEST_SESSION"
