@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { OpenRouterProvider } from '../../src/providers/OpenRouterProvider.js'
+import { OpenRouterProvider } from '../../src/lib/providers/OpenRouterProvider.js'
 import OpenAI from 'openai'
 
 // Mock the OpenAI SDK

@@ -10,7 +10,7 @@
  * Zero API costs - all responses are mocked.
  */
 
-import { LLMProvider } from '../../src/providers/LLMProvider.js'
+import { LLMProvider } from '../../src/lib/providers/LLMProvider.js'
 import {
   InvokeOptions,
   LLMResponse,
@@ -18,7 +18,7 @@ import {
   LLMErrorType,
   TokenUsage,
   ProviderConfig,
-} from '../../src/providers/types.js'
+} from '../../src/lib/providers/types.js'
 
 /**
  * Configuration for mock responses

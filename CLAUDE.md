@@ -30,14 +30,24 @@ This repository is the **experimental proving ground** for Claude Code configura
 
 **Stack**: TypeScript + Node.js + Vitest + Zod
 **Documentation**: See `benchmark-next/CLAUDE.md` for detailed architecture
-**Status**: 🏗️ Foundation complete, migrating core features from bash implementation
+**Status**: 🏗️ Phase 2 in progress - building shared foundation with forward-looking modularity
 
-**Key Components**:
-- LLM provider abstraction (Claude, OpenAI, OpenRouter, custom)
-- Timeout/retry with exponential backoff and circuit breaker
-- Semantic similarity scoring (LLM-as-judge)
-- Reference generation and benchmark orchestration
-- Structured logging and configuration management
+**Architecture Strategy**: Staged extraction approach
+- **Phase 1 (current)**: Develop in `benchmark-next/src/lib/` with loose coupling to benchmark domain
+- **Phase 2 (future)**: Extract stabilized `lib/` code to monorepo `packages/common/` when sidekick migration begins
+
+**Current Structure**:
+- `src/lib/` - Shared foundation (providers, utils, config, logging, paths) - designed for future extraction
+- `src/benchmark/` - Benchmark-specific domain logic (scoring, consensus, orchestration)
+
+**Implemented Components**:
+- ✅ LLM provider abstraction (Claude, OpenAI, OpenRouter, custom)
+- ✅ JSON extraction utilities
+- 🏗️ Timeout/retry with exponential backoff (in progress)
+- ⏳ Configuration cascade (planned)
+- ⏳ Structured logging (planned)
+- ⏳ Semantic similarity scoring (planned)
+- ⏳ Consensus algorithms (planned)
 
 ### Legacy: Bash Track (`src/sidekick/`, `scripts/`)
 

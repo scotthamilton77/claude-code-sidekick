@@ -5,8 +5,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { ClaudeProvider } from '../../src/providers/ClaudeProvider.js'
-import { LLMErrorType } from '../../src/providers/types.js'
+import { ClaudeProvider } from '../../src/lib/providers/ClaudeProvider.js'
+import { LLMErrorType } from '../../src/lib/providers/types.js'
 import Anthropic from '@anthropic-ai/sdk'
 
 // Mock the Anthropic SDK

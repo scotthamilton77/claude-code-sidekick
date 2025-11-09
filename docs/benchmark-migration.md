@@ -90,6 +90,40 @@
 - Validate using shared test-data/ on both implementations
 - Document decisions that differ from Track 1 approach
 
+## Architecture: Staged Extraction Strategy
+
+**Rationale**: Both `benchmark-next/` and future `sidekick-next/` will need identical foundational capabilities (LLM providers, config cascade, logging, paths). To avoid duplication and enforce clean architecture, we're using a staged approach:
+
+**Phase 1 (Current)**: Foundation in `benchmark-next/src/lib/`
+- Code organized into `src/lib/` (shared foundation) vs `src/benchmark/` (domain-specific)
+- `lib/` designed with loose coupling - no benchmark-specific dependencies
+- Subdirectories: `providers/`, `utils/`, `config/`, `logging/`, `paths/`
+- Clear interfaces documented for future extraction
+
+**Phase 2 (When Sidekick Migration Starts)**: Extraction to Monorepo
+- Move stabilized `lib/` code to `packages/common/`
+- Structure becomes:
+  ```
+  packages/
+  ├── common/       # Extracted from benchmark-next/src/lib/
+  ├── benchmark/    # Benchmark-specific
+  └── sidekick/     # Sidekick-specific
+  ```
+
+**Design Constraints for lib/ Code**:
+- Must have clear, documented interfaces
+- No tight coupling to benchmark domain logic
+- Testable in isolation
+- Document "shared candidate" status
+
+**Extraction Criteria**: Code moves from `lib/` to `packages/common/` when:
+1. Interface has stabilized through real-world use
+2. No benchmark-specific dependencies remain
+3. Sidekick migration requires the same capability
+4. Full test coverage exists
+
+See `benchmark-next/src/lib/README.md` for detailed extraction guidelines.
+
 ## Test-Driven Migration Workflow
 
 When Track 1 changes or you're ready to implement a Track 2 component:

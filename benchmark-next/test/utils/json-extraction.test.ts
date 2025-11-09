@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'fs'
 import { join } from 'path'
-import { extractJSONFromMarkdown, extractJSON } from '../../src/utils/json-extraction.js'
+import { extractJSONFromMarkdown, extractJSON } from '../../src/lib/utils/json-extraction.js'
 
 // Helper to load test fixtures
 function loadFixture(filename: string): string {
