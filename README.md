@@ -12,10 +12,14 @@ This repository serves as a development and testing environment for [Claude Code
 
 Where I'm leaving off:
 - in the middle of trying to get the benchmarks generated
+   - I have UNTESTED code to dump raw API responses under test-data/results/... - the run_1_raw.txt open here is manually copied data
+   - I don't know the impact of this but am starting a new run now...
 - occasionally run into a bad model response - see sidekick.log
-- but the details of that (inputs and outputs) get obscured - logging and data capture in the scripts are suspect
-- there are curl timeouts which may be our fault but did not look into it
-- but then the jq parse error kills us
+   - we're dumping debug data into /tmp/sidekick-llm-debug/, and also raw API content into the test-data/results/ now.
+   - there seems to be a bug where if we get json that has both message.content and some reasoning then we might get some kind of error - see the last run test-data/results/2025-11-08_204233/raw/openrouter_openai_gpt-oss-20b/long-001/run_1_raw.txt and the debug files
+- provider issues
+   - we see differing quality of responses from different providers - we CAN have specific ones configured - see https://openrouter.ai/docs/features/provider-routing
+   - suggest we capture provider-specific statistics too to build lists of providers we don't want to allow
 
 ## Sidekick
 - is it time to move to something more robust than bash?

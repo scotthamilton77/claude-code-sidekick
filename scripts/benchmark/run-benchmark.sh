@@ -344,6 +344,10 @@ for model_spec in "${MODELS_TO_TEST[@]}"; do
             # Measure latency and invoke model
             START_TIME=$(date +%s%N)
 
+            # Set temp file for raw response (provider functions will write to this)
+            export BENCHMARK_RAW_RESPONSE_FILE="${TMPDIR:-/tmp}/llm_raw_response_$$.txt"
+            rm -f "$BENCHMARK_RAW_RESPONSE_FILE"
+
             if ! LLM_OUTPUT=$(llm_invoke_with_provider "$provider" "$model" "$PROMPT" "$LLM_TIMEOUT_SECONDS" "$TOPIC_SCHEMA" 2>"$ERROR_FILE"); then
                 # Model invocation failed
                 END_TIME=$(date +%s%N)
@@ -358,8 +362,17 @@ for model_spec in "${MODELS_TO_TEST[@]}"; do
                     consecutive_timeouts=$((consecutive_timeouts + 1))
                 fi
 
-                # Save whatever output we got (if any)
-                echo "$LLM_OUTPUT" > "$RAW_OUTPUT_FILE"
+                # Save raw API response (prettified JSON) if available
+                if [ -f "$BENCHMARK_RAW_RESPONSE_FILE" ]; then
+                    # Try to prettify with jq, fall back to raw if jq fails
+                    if ! jq . "$BENCHMARK_RAW_RESPONSE_FILE" > "$RAW_OUTPUT_FILE" 2>/dev/null; then
+                        cat "$BENCHMARK_RAW_RESPONSE_FILE" > "$RAW_OUTPUT_FILE"
+                    fi
+                    rm -f "$BENCHMARK_RAW_RESPONSE_FILE"
+                else
+                    # Fallback to whatever output we got
+                    echo "$LLM_OUTPUT" > "$RAW_OUTPUT_FILE"
+                fi
                 echo '{"error": "LLM invocation failed", "failure_type": "'$failure_type'"}' > "$OUTPUT_FILE"
                 echo '{"api_failure": true, "failure_type": "'$failure_type'", "schema_compliance": {"score": 0, "errors": ["LLM invocation failed"]}, "technical_accuracy": {"score": 0}, "content_quality": {"score": 0}, "overall_score": 0, "timestamp": "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'"}' > "$SCORE_FILE"
 
@@ -373,8 +386,17 @@ for model_spec in "${MODELS_TO_TEST[@]}"; do
             LATENCY_MS=$(( (END_TIME - START_TIME) / 1000000 ))
             echo "$LATENCY_MS" > "$TIMING_FILE"
 
-            # Save raw output BEFORE JSON extraction
-            echo "$LLM_OUTPUT" > "$RAW_OUTPUT_FILE"
+            # Save raw API response (prettified JSON)
+            if [ -f "$BENCHMARK_RAW_RESPONSE_FILE" ]; then
+                # Try to prettify with jq, fall back to raw if jq fails
+                if ! jq . "$BENCHMARK_RAW_RESPONSE_FILE" > "$RAW_OUTPUT_FILE" 2>/dev/null; then
+                    cat "$BENCHMARK_RAW_RESPONSE_FILE" > "$RAW_OUTPUT_FILE"
+                fi
+                rm -f "$BENCHMARK_RAW_RESPONSE_FILE"
+            else
+                # Fallback to extracted output (for providers that don't set raw response)
+                echo "$LLM_OUTPUT" > "$RAW_OUTPUT_FILE"
+            fi
 
             # Extract JSON from output (handle markdown wrapping)
             # Capture both output and errors

@@ -33,6 +33,11 @@ REFERENCE_MODELS=(
 
 JUDGE_MODEL="openrouter:deepseek/deepseek-r1-distill-qwen-14b"
 
+# Fallback judge model for scoring when primary judge fails/times out
+# This is ONLY used for semantic similarity scoring, not benchmark evaluation
+# Leave empty to disable fallback
+BENCHMARK_SCORING_MODEL_FALLBACK="openai-api:gpt-5-mini"
+
 # ==============================================================================
 # PATHS
 # ==============================================================================
@@ -232,7 +237,7 @@ config_export() {
     export GOLDEN_SET_FILE METADATA_FILE TRANSCRIPTS_DIR
     export REFERENCES_DIR RESULTS_DIR SIDEKICK_SRC
     export REFERENCE_VERSION
-    export JUDGE_MODEL BASELINE_MODEL
+    export JUDGE_MODEL BENCHMARK_SCORING_MODEL_FALLBACK BASELINE_MODEL
     export PRODUCTION_JSON_PARSE_RATE PRODUCTION_MAX_LATENCY_P95
     export PRODUCTION_MIN_ACCURACY_SCORE PRODUCTION_MAX_COST_PER_1K
     export SCORE_WEIGHT_SCHEMA SCORE_WEIGHT_ACCURACY SCORE_WEIGHT_CONTENT
