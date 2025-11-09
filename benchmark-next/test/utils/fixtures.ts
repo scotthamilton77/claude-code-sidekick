@@ -29,8 +29,8 @@ export async function loadFixture<T = unknown>(path: string): Promise<Fixture<T>
  * @param pattern - Glob pattern (e.g., "scoring/similarity/*.json")
  * @returns Array of parsed fixture objects
  */
-export async function loadFixtures<T = unknown>(pattern: string): Promise<Array<Fixture<T>>> {
+export function loadFixtures<T = unknown>(pattern: string): Promise<Array<Fixture<T>>> {
   // TODO: Implement glob-based fixture loading
-  // For now, return empty array
-  throw new Error(`loadFixtures not yet implemented: ${pattern}`)
+  // For now, throw error since it's not implemented
+  return Promise.reject(new Error(`loadFixtures not yet implemented: ${pattern}`))
 }
