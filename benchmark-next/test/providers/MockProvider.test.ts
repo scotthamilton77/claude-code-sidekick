@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { z } from 'zod'
 import { MockProvider, createSimpleMock, createErrorMock } from './MockProvider.js'
-import { LLMErrorType } from '../../src/providers/types.js'
+import { LLMErrorType } from '../../src/lib/providers/types.js'
 
 describe('MockProvider', () => {
   describe('Basic functionality', () => {

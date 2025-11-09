@@ -22,34 +22,34 @@ Rewrite the Bash-based benchmarking system (`scripts/benchmark/`) in TypeScript 
 4. **Pluggable Providers**: Abstract LLM provider interface (OpenAI, Anthropic, OpenRouter, custom)
 5. **Comprehensive Logging**: Structured logging with timestamps, log levels, context
 
-### Planned Structure
+### Current Structure
 
 ```
 src/
-├── core/
-│   ├── Benchmark.ts          # Main orchestrator
-│   ├── ReferenceGenerator.ts # Reference generation workflow
-│   └── Config.ts             # Configuration management
-├── providers/
-│   ├── LLMProvider.ts        # Abstract interface
-│   ├── ClaudeProvider.ts     # Anthropic SDK
-│   ├── OpenAIProvider.ts     # OpenAI SDK
-│   ├── OpenRouterProvider.ts # OpenRouter API
-│   └── CircuitBreaker.ts     # Resilience pattern
-├── scoring/
-│   ├── SchemaValidator.ts    # JSON schema compliance
-│   ├── SemanticSimilarity.ts # LLM-as-judge scoring
-│   ├── TechnicalAccuracy.ts  # Technical correctness
-│   └── ContentQuality.ts     # Quality assessment
-├── consensus/
-│   ├── NumericConsensus.ts   # Median, mean algorithms
-│   ├── StringConsensus.ts    # Semantic centrality
-│   ├── BooleanConsensus.ts   # Majority vote
-│   └── ArrayConsensus.ts     # Union/intersection
-└── cli/
-    ├── benchmark.ts          # CLI entry point
-    └── generate-reference.ts # Reference generation CLI
+├── lib/                      # Shared foundation (future common package)
+│   ├── providers/            # ✅ LLM provider abstraction (Phase 2.1)
+│   │   ├── LLMProvider.ts    # Abstract base class
+│   │   ├── ClaudeProvider.ts # Anthropic SDK implementation
+│   │   ├── OpenAIProvider.ts # OpenAI SDK implementation
+│   │   ├── OpenRouterProvider.ts # OpenRouter API implementation
+│   │   ├── OpenAICompatibleProvider.ts # Base for OpenAI-compatible APIs
+│   │   ├── types.ts          # Type definitions
+│   │   └── schemas.ts        # Zod schemas
+│   ├── utils/                # 🟡 Generic helpers (JSON extraction done)
+│   │   └── json-extraction.ts # Extract JSON from LLM output
+│   ├── config/               # ⏳ Config cascade (Phase 2.4, planned)
+│   ├── logging/              # ⏳ Structured logging (Phase 2.5, planned)
+│   └── paths/                # ⏳ Path utilities (Phase 2.6, planned)
+└── benchmark/                # Benchmark-specific domain logic
+    ├── core/                 # ⏳ Orchestration (planned)
+    ├── scoring/              # ⏳ Scoring algorithms (planned)
+    ├── consensus/            # ⏳ Consensus algorithms (planned)
+    ├── preprocessing/        # ⏳ Data preprocessing (planned)
+    ├── data/                 # ⏳ Data loading (planned)
+    └── cli/                  # ⏳ CLI entry points (planned)
 ```
+
+**Architecture Principle**: Code in `lib/` is designed for future extraction to a monorepo `packages/common/` when sidekick migration begins. See `src/lib/README.md` for extraction criteria.
 
 ## Development Workflow
 

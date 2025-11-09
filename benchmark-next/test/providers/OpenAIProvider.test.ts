@@ -5,8 +5,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { OpenAIProvider } from '../../src/providers/OpenAIProvider.js'
-import { LLMErrorType } from '../../src/providers/types.js'
+import { OpenAIProvider } from '../../src/lib/providers/OpenAIProvider.js'
+import { LLMErrorType } from '../../src/lib/providers/types.js'
 import OpenAI from 'openai'
 
 // Mock the OpenAI SDK

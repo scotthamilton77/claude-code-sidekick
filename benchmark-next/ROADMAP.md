@@ -22,6 +22,54 @@ This roadmap tracks the component-level migration from Track 1 (Bash, `scripts/b
 
 ---
 
+## Architecture: Staged Extraction Strategy
+
+**Date**: 2025-11-09 - Reorganized source structure to prepare for future monorepo extraction
+
+**Rationale**: Both `benchmark-next/` and future `sidekick-next/` will need identical foundational capabilities (LLM providers, config cascade, logging, paths). To avoid duplication and enforce clean architecture, we've reorganized with future extraction in mind.
+
+**Current Structure** (`src/`):
+```
+src/
+├── lib/                      # Shared foundation (future common package)
+│   ├── providers/            # ✅ LLM abstraction (Phase 2.1)
+│   ├── utils/                # ✅ Generic helpers (Phase 2.3)
+│   ├── config/               # ⏳ Config cascade (Phase 2.4)
+│   ├── logging/              # ⏳ Structured logging (Phase 2.5)
+│   └── paths/                # ⏳ Path utilities (Phase 2.6)
+└── benchmark/                # Benchmark-specific domain logic
+    ├── core/                 # ⏳ Orchestration (Phase 6)
+    ├── scoring/              # ⏳ Scoring algorithms (Phase 4)
+    ├── consensus/            # ⏳ Consensus algorithms (Phase 5)
+    ├── preprocessing/        # ⏳ Data preprocessing (Phase 3)
+    ├── data/                 # ⏳ Data loading (Phase 2.6)
+    └── cli/                  # ⏳ CLI entry points (Phase 7)
+```
+
+**Future Structure** (when sidekick migration begins):
+```
+packages/
+├── common/       # Extracted from benchmark-next/src/lib/
+├── benchmark/    # Benchmark-specific
+└── sidekick/     # Sidekick-specific
+```
+
+**Design Constraints for `lib/` Code**:
+- Clear, documented interfaces
+- No tight coupling to benchmark domain logic
+- Testable in isolation
+- All code marked as "shared candidate"
+
+**Extraction Criteria**: Move from `lib/` to `packages/common/` when:
+1. Interface has stabilized through real-world use
+2. No benchmark-specific dependencies remain
+3. Sidekick migration requires the capability
+4. Full test coverage exists
+
+See `src/lib/README.md` and `docs/benchmark-migration.md` for detailed guidelines.
+
+---
+
 ## Phase 1: Foundation (5/5 Complete) ✅
 
 **Goal**: Establish TypeScript project infrastructure and core LLM provider abstractions.
@@ -79,9 +127,9 @@ This roadmap tracks the component-level migration from Track 1 (Bash, `scripts/b
 - ✅ Mock provider implementation for testing
 
 **Files Created**:
-- ✅ `src/providers/LLMProvider.ts` (abstract base class)
-- ✅ `src/providers/types.ts` (comprehensive type definitions)
-- ✅ `src/providers/schemas.ts` (Zod validation schemas)
+- ✅ `src/lib/providers/LLMProvider.ts` (abstract base class)
+- ✅ `src/lib/providers/types.ts` (comprehensive type definitions)
+- ✅ `src/lib/providers/schemas.ts` (Zod validation schemas)
 - ✅ `test/providers/MockProvider.ts` (full mock implementation)
 - ✅ `test/providers/MockProvider.test.ts` (32 tests passing)
 
@@ -114,7 +162,7 @@ abstract class LLMProvider {
 - ✅ Comprehensive test suite (23 tests, all passing)
 
 **Files Created**:
-- ✅ `src/providers/ClaudeProvider.ts` (full implementation with retry logic)
+- ✅ `src/lib/providers/ClaudeProvider.ts` (full implementation with retry logic)
 - ✅ `test/providers/ClaudeProvider.test.ts` (23 tests covering all scenarios)
 
 **Key Features**:
@@ -141,7 +189,7 @@ abstract class LLMProvider {
 - ✅ Comprehensive test suite (27 tests, all passing)
 
 **Files Created**:
-- ✅ `src/providers/OpenAIProvider.ts` (full implementation with retry logic)
+- ✅ `src/lib/providers/OpenAIProvider.ts` (full implementation with retry logic)
 - ✅ `test/providers/OpenAIProvider.test.ts` (27 tests covering all scenarios)
 
 **Key Features**:
@@ -171,7 +219,7 @@ abstract class LLMProvider {
 - ✅ Comprehensive test suite (24 tests, all passing)
 
 **Files Created**:
-- ✅ `src/providers/OpenRouterProvider.ts` (full implementation with retry logic, ~287 lines)
+- ✅ `src/lib/providers/OpenRouterProvider.ts` (full implementation with retry logic, ~287 lines)
 - ✅ `test/providers/OpenRouterProvider.test.ts` (24 tests covering all scenarios)
 
 **Key Features**:
@@ -230,7 +278,7 @@ Creating a separate decorator would require:
 - ✅ Matches Track 1 extraction behavior
 
 **Files Created**:
-- ✅ `src/utils/json-extraction.ts` (extractJSON, extractJSONFromMarkdown functions)
+- ✅ `src/lib/utils/json-extraction.ts` (extractJSON, extractJSONFromMarkdown functions)
 - ✅ `test/utils/json-extraction.test.ts` (16 tests, all passing)
 - ✅ `test/fixtures/json-extraction/` (6 test fixtures)
 
@@ -258,9 +306,9 @@ Creating a separate decorator would require:
 - Timeout resolution cascade logic
 
 **Files to Create**:
-- `src/core/Config.ts`
-- `src/core/ConfigSchema.ts` (Zod schemas)
-- `test/core/Config.test.ts`
+- `src/lib/config/Config.ts`
+- `src/lib/config/ConfigSchema.ts` (Zod schemas)
+- `test/unit/config/Config.test.ts`
 
 **Config Sources**:
 1. Hardcoded defaults (in Config.ts)
@@ -279,8 +327,8 @@ Creating a separate decorator would require:
 - Configurable output (stdout, file, both)
 
 **Files to Create**:
-- `src/utils/logger.ts`
-- `test/utils/logger.test.ts`
+- `src/lib/logging/Logger.ts`
+- `test/unit/logging/Logger.test.ts`
 
 **Library Choice**: Winston or Pino (decide during implementation)
 
@@ -296,9 +344,9 @@ Creating a separate decorator would require:
 - Type-safe transcript/metadata interfaces
 
 **Files to Create**:
-- `src/data/loaders.ts`
-- `src/data/types.ts` (transcript, metadata types)
-- `test/data/loaders.test.ts`
+- `src/benchmark/data/loaders.ts`
+- `src/benchmark/data/types.ts` (transcript, metadata types)
+- `test/unit/data/loaders.test.ts`
 
 ---
 
