@@ -63,7 +63,7 @@ setup() {
     SRC_DIR="$SCRIPT_DIR/../../../src/sidekick"
 
     cp "$SRC_DIR/sidekick.sh" "$TEST_DIR/.claude/hooks/sidekick/"
-    cp "$SRC_DIR/lib/common.sh" "$TEST_DIR/.claude/hooks/sidekick/lib/"
+    cp -r "$SRC_DIR/lib/"* "$TEST_DIR/.claude/hooks/sidekick/lib/"
     cp "$SRC_DIR/config.defaults" "$TEST_DIR/.claude/hooks/sidekick/"
     cp "$SRC_DIR/handlers"/*.sh "$TEST_DIR/.claude/hooks/sidekick/handlers/" 2>/dev/null || true
     cp "$SRC_DIR/features"/*.sh "$TEST_DIR/.claude/hooks/sidekick/features/" 2>/dev/null || true
@@ -72,7 +72,7 @@ setup() {
 
     # Copy to user scope for cascade testing
     cp "$SRC_DIR/sidekick.sh" "$HOME/.claude/hooks/sidekick-test/"
-    cp "$SRC_DIR/lib/common.sh" "$HOME/.claude/hooks/sidekick-test/lib/"
+    cp -r "$SRC_DIR/lib/"* "$HOME/.claude/hooks/sidekick-test/lib/"
     cp "$SRC_DIR/config.defaults" "$HOME/.claude/hooks/sidekick-test/"
     cp "$SRC_DIR/handlers"/*.sh "$HOME/.claude/hooks/sidekick-test/handlers/" 2>/dev/null || true
     cp "$SRC_DIR/features"/*.sh "$HOME/.claude/hooks/sidekick-test/features/" 2>/dev/null || true

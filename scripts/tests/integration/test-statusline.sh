@@ -61,7 +61,7 @@ setup() {
 
     # Copy sidekick files to test directory
     cp "$PROJECT_ROOT/src/sidekick/sidekick.sh" "$TEST_DIR/.claude/hooks/sidekick/"
-    cp "$PROJECT_ROOT/src/sidekick/lib/common.sh" "$TEST_DIR/.claude/hooks/sidekick/lib/"
+    cp -r "$PROJECT_ROOT/src/sidekick/lib/"* "$TEST_DIR/.claude/hooks/sidekick/lib/"
     cp "$PROJECT_ROOT/src/sidekick/config.defaults" "$TEST_DIR/.claude/hooks/sidekick/"
 
     # Copy features if they exist
