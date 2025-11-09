@@ -355,11 +355,17 @@ for model_spec in "${MODELS_TO_TEST[@]}"; do
 
                 echo "$LATENCY_MS" > "$TIMING_FILE"
 
-                # Determine failure type
+                # Determine failure type by parsing error output
+                # Priority: timeout (curl exit 28) > HTTP errors (4xx/5xx) > generic API error
                 failure_type="api_error"
-                if grep -q "timeout" "$ERROR_FILE" 2>/dev/null; then
+
+                # Check for actual timeout (curl exit code 28 or explicit timeout error)
+                if grep -qE "(curl.*exit code.*28|timed? ?out after|Operation timed out)" "$ERROR_FILE" 2>/dev/null; then
                     failure_type="timeout"
                     consecutive_timeouts=$((consecutive_timeouts + 1))
+                # Check for HTTP status errors (404, 500, etc.) - NOT timeouts
+                elif grep -qE "HTTP status: [45][0-9]{2}" "$ERROR_FILE" 2>/dev/null; then
+                    failure_type="api_error"  # Keep as api_error, NOT timeout
                 fi
 
                 # Save raw API response (prettified JSON) if available
