@@ -131,12 +131,16 @@ The following dependencies are newer than Claude's training cutoff (January 2025
 
 #### @anthropic-ai/sdk 0.68.0 (Released ~October 2025)
 **Version in use**: 0.68.0 (intentionally kept current)
-**Reason**: Fast-moving API with new models and critical bug fixes
+**Reason**: Latest API features and bug fixes (models are strings, SDK version-agnostic)
 
-**Critical changes since training cutoff**:
+**Critical SDK changes since training cutoff**:
 - ✅ **No breaking changes** - backwards compatible with v0.30+ (training cutoff range)
-- **New models**: Claude Opus 4 (v0.32), Claude Sonnet 4.5 (v0.65)
-- **Tool helpers**: `betaZodTool()` for structured outputs (v0.68)
+- **Tool helpers**: `betaZodTool()` for Zod-based structured outputs (v0.68)
+- **Context management**: API for managing conversation context (v0.65+)
+- **Agent skills**: Dynamic skill loading support (v0.67+)
+- **Code execution tools**: Built-in code execution capabilities (v0.61+)
+
+**Core API patterns** (stable across versions):
 - **Timeout config**: `timeout` in milliseconds (not seconds) - multiply by 1000
 - **No native JSON schema** - must use `tool_choice` pattern for structured outputs
 - **Error types**: `APIConnectionTimeoutError`, `RateLimitError` (includes `retry-after` header)
@@ -153,26 +157,31 @@ The following dependencies are newer than Claude's training cutoff (January 2025
 
 #### openai 6.8.1 (Released November 2025)
 **Version in use**: 6.8.1 (intentionally kept current)
-**Reason**: Latest models (GPT-5, o1, o3) require recent SDK versions
+**Reason**: Latest SDK features and API capabilities (models are strings, SDK version-agnostic)
 
-**Critical changes since training cutoff** (v4.85 → v6.8):
+**Critical SDK changes since training cutoff** (v4.85 → v6.8):
 - 🚨 **Breaking changes in v5**: Assistants API removed, `runFunctions()` removed, "function" helpers renamed to "tools"
 - 🚨 **Breaking changes in v6**: Function call outputs changed from `string` to `string | Array<...>` - needs type guards
-- **New models**: `gpt-4.5-preview`, `o1`, `o1-pro`, `o3`, `o4-mini` (reasoning models)
-- **Structured outputs**: Use `parse()` with `zodResponseFormat()` for type-safe JSON extraction
-- **Reasoning models**: Use `max_completion_tokens` (not `max_tokens`), access `completion_tokens_details.reasoning_tokens`
-- **Reasoning effort**: Control with `reasoning_effort: 'low' | 'medium' | 'high'` (except o1-mini)
-- **Error types**: `APIConnectionTimeoutError`, `RateLimitError`, automatic retries on 429/5xx
-- **Zod v4 support**: Compatible with latest Zod (v6.7.0+)
+- **Structured outputs**: `parse()` method with `zodResponseFormat()` for type-safe JSON extraction
+- **Realtime API**: WebSocket-based real-time communication (v6.1+)
+- **Reasoning token tracking**: `completion_tokens_details.reasoning_tokens` field for reasoning models
+- **Zod v4 support**: Compatible with Zod 4.x schemas (v6.7.0+)
+- **Audio enhancements**: Transcription with diarization support (v6.4.0)
+
+**Core API patterns** (stable across versions):
+- **Timeout config**: `timeout` in milliseconds, default 10 minutes
+- **Retry behavior**: Automatic retries on 429/5xx with exponential backoff
+- **Error types**: `APIConnectionTimeoutError`, `RateLimitError`
+- **Reasoning models**: Use `max_completion_tokens` (not `max_tokens`), optional `reasoning_effort` parameter
 
 **Key TypeScript types**: `ChatCompletion`, `ParsedChatCompletion<T>`, `CompletionUsage`, `CompletionTokensDetails`
 
 **Implementation gotchas**:
 - Default timeout is 10 minutes - set explicit `timeout` for benchmarking
 - `maxRetries: 0` recommended for predictable benchmark timing
-- `parse()` throws `LengthFinishReasonError` on truncation (easier error handling)
-- Reasoning tokens are hidden (not in content), only count in `usage.completion_tokens_details.reasoning_tokens`
-- AbortController cancellation may have flakiness issues - test thoroughly
+- `parse()` throws `LengthFinishReasonError` on truncation (cleaner error handling than manual JSON.parse)
+- Reasoning tokens don't appear in message content, only in usage stats
+- AbortController cancellation may have edge case issues - test thoroughly
 
 **When to use context7 for these libraries**:
 - Writing provider integration code (`src/providers/ClaudeProvider.ts`, `OpenAIProvider.ts`)
