@@ -10,7 +10,10 @@
       "Bash(curl:*)",
       "Bash(docker ps:*)",
       "Bash(docker network:*)",
-      "Bash(git diff:*)"
+      "Bash(git diff:*)",
+      "Bash(git worktree add:*)",
+      "Bash(git worktree:*)",
+      "Bash(sed:*)"
     ],
     "deny": []
   }
