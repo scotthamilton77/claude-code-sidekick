@@ -1,16 +1,16 @@
 # LLM Model Analysis Report
 
-**Last Updated**: 2025-11-09 11:40:45 UTC
+**Last Updated**: 2025-11-09 14:20:21 UTC
 
 This report tracks all LLM models configured in Sidekick and their benchmark performance data.
 
 ## Summary
 
-- **Total Models Configured**: 18
+- **Total Models Configured**: 19
   - Claude CLI: 3
   - OpenAI API: 3
-  - OpenRouter: 12
-- **Models Tested**: 1
+  - OpenRouter: 13
+- **Models Tested**: 2
 - **Models Untested**: 17
 
 ---
@@ -19,7 +19,7 @@ This report tracks all LLM models configured in Sidekick and their benchmark per
 
 | Model | Input Cost | Output Cost | Status |
 |-------|------------|-------------|--------|
-| haiku (4.5) | $1.00/M | $5.00/M | ❌ Not Tested |
+| haiku (4.5) | $1.00/M | $5.00/M | ✅ Tested |
 | sonnet (4.5) | $3.00/M | $15.00/M | ❌ Not Tested |
 | opus (4.1) | $15.00/M | $75/M | ❌ Not Tested |
 
@@ -48,6 +48,7 @@ This report tracks all LLM models configured in Sidekick and their benchmark per
 | mistralai/ministral-8b | $0.10/M | $0.10/M | 131K |  | ❌ Not Tested |
 | google/gemini-2.0-flash-lite-001 | $0.08/M | $0.30/M | 1000k | (max out: 8k) | ❌ Not Tested |
 | google/gemini-2.5-flash-lite | $0.10/M | $0.40/M | 1000k |  | ❌ Not Tested |
+| deepseek/deepseek-r1-distill-qwen-14b | $0.15/M | $0.15/M | 32k |  | ❌ Not Tested |
 | x-ai/grok-4 | $3.00/M | $15.00/M | 256k |  | ❌ Not Tested |
 | google/gemini-2.5-pro | $1.25/M | $10.00/M | 1000k |  | ❌ Not Tested |
 | openai/gpt-5-chat | $1.25/M | $10.00/M | 128k |  | ❌ Not Tested |
@@ -56,123 +57,93 @@ This report tracks all LLM models configured in Sidekick and their benchmark per
 
 ## Benchmark Results
 
-### openai/gpt-oss-20b via OpenRouter
+### haiku (Claude CLI)
 
-**Test Run**: 2025-11-09_095020  
-**Total Runs**: 13  
-**Overall Success Rate**: 46.2%  
-**Input Cost**: $0.03/M tokens  
-**Output Cost**: $0.14/M tokens  
+**Test Run**: 2025-11-09_132454
+**Total Runs**: 3
+**Overall Score**: 56.50/100
+**Latency**: 5.02s avg (min: 4.83s, max: 5.30s)
+**Status**: ❌ **Not Recommended**
 
-#### Performance by OpenRouter Backend Provider
+#### Performance Metrics
 
-| Backend Provider | Runs | Success | Failed | Success Rate | Failures |
-|------------------|------|---------|--------|--------------|----------|
-| OpenRouter/SiliconFlow | 5 | 3 | 2 | 60.0% | 1× timeout, 1× invalid_json |
-| OpenRouter/Novita | 4 | 2 | 2 | 50.0% | 1× empty_content, 1× invalid_json |
-| OpenRouter/Nebius | 3 | 1 | 2 | 33.3% | 2× invalid_json |
-| OpenRouter/WandB | 1 | 0 | 1 | 0.0% | 1× invalid_json |
+| Metric | Average | Min | Max |
+|--------|---------|-----|-----|
+| Schema Compliance | 83.3% | 80% | 85% |
+| Technical Accuracy | 55.0% | N/A | N/A |
+| Content Quality | 20.0% | N/A | N/A |
+| Overall Score | 56.50 | 50.50 | 59.50 |
+| Latency | 5.02s | 4.83s | 5.30s |
 
 **Key Findings**:
 - ❌ **Not Recommended** for production use
-- Primary failure mode: Invalid JSON formatting (71% of failures)
-  - Model outputs explanatory text before/after JSON structure
-  - Does not reliably follow structured output constraints
-- Secondary issues:
-  - Empty content field (reasoning model puts output in wrong field)
-  - API timeouts (15-second threshold)
-- Best backend provider: SiliconFlow (60% success)
-- Worst backend provider: WandB (0% success, limited sample)
+- Below production threshold (avg 56.5% < 70%)
+- Consider higher-quality models
+- ⚠️ High average latency: 5.0s (acceptable but not ideal)
 
-**Recommendation**: Avoid this model for structured JSON tasks. Consider alternatives with better instruction-following capabilities.
+---
+
+### openai/gpt-oss-20b (OpenRouter)
+
+**Test Run**: 2025-11-09_135255
+**Total Runs**: 56
+**Overall Score**: 37.14/100
+**Latency**: 18.77s avg (min: 1.01s, max: 63.18s)
+**Status**: ❌ **Not Recommended**
+
+#### Performance Metrics
+
+| Metric | Average | Min | Max |
+|--------|---------|-----|-----|
+| Schema Compliance | 51.1% | 0% | 100% |
+| Technical Accuracy | 35.4% | N/A | N/A |
+| Content Quality | 20.5% | N/A | N/A |
+| Overall Score | 37.14 | 0.00 | 91.50 |
+| Latency | 18.77s | 1.01s | 63.18s |
+
+**Key Findings**:
+- ❌ **Not Recommended** for production use
+- Below production threshold (avg 37.1% < 70%)
+- Consider higher-quality models
+- ⚠️ Latency concerns: max 63.2s exceeds 10s production threshold
 
 ---
 
 ## Testing Status
 
-### ✅ Tested Models (1)
+### ✅ Tested Models (2)
 
-1. **openai/gpt-oss-20b** (OpenRouter)
-   - Success Rate: 46.2%
-   - Cost: $0.03 input / $0.14 output per M tokens
-   - Status: ❌ **Not Recommended** (unreliable structured output)
+1. **haiku (Claude CLI)**
+   - Overall Score: 56.50/100
+   - Total Runs: 3
+   - Status: ❌ **Not Recommended**
+
+1. **openai/gpt-oss-20b (OpenRouter)**
+   - Overall Score: 37.14/100
+   - Total Runs: 56
+   - Status: ❌ **Not Recommended**
 
 ### ❌ Untested Models
 
-All models listed above with ❌ status have not been benchmarked yet. Priority candidates for testing:
-
-**Budget Tier** (< $0.10 input):
-- google/gemma-3n-e4b-it ($0.02/$0.04) - ⚠️ Flagged: high error rate (100% on 2025-10-30)
-- google/gemma-3-4b-it ($0.02/$0.07)
-- google/gemma-3-12b-it ($0.03/$0.10) - ⚠️ Flagged: high error rate (20% on 2025-10-30)
-- openai/gpt-5-nano ($0.05/$0.40) - Available via both OpenAI API and OpenRouter
-- google/gemini-2.0-flash-lite-001 ($0.08/$0.30)
-
-**Mid-Tier** (< $0.50 input):
-- google/gemma-3-27b-it ($0.09/$0.16)
-- mistralai/ministral-8b ($0.10/$0.10)
-- google/gemini-2.5-flash-lite ($0.10/$0.40)
-
-**Premium Tier** (reference/baseline):
-- x-ai/grok-4 ($3.00/$15.00)
-- google/gemini-2.5-pro ($1.25/$10.00)
-- openai/gpt-5-chat ($1.25/$10.00)
-
----
-
-## Failure Type Glossary
-
-- **invalid_json**: Model outputs text before/after JSON or produces malformed JSON
-- **empty_content**: Reasoning model puts output in reasoning field instead of content field
-- **timeout**: API request exceeded timeout threshold (15s for benchmarks)
-- **other**: Unclassified errors
+All models listed above with ❌ status have not been benchmarked yet.
 
 ---
 
 ## Methodology
 
 Benchmarks test LLM topic extraction capability with:
-- Real Claude Code conversation transcripts (5 test cases, 3 runs each = 15 total per model)
+- Real Claude Code conversation transcripts from golden set
 - Structured JSON output requirements (8-field schema)
-- 15-second timeout threshold
-- Multiple metrics: reliability, latency, cost, failure modes
+- Multiple runs per transcript for statistical significance
+- Scored on: schema compliance (30%), technical accuracy (50%), content quality (20%)
 
 **Evaluation Criteria**:
-- ✅ **Recommended**: ≥80% success rate, reliable structured output
-- ⚠️ **Use with Caution**: 50-79% success rate, occasional failures
-- ❌ **Not Recommended**: <50% success rate, unreliable output
+- ✅ **Recommended**: ≥80% overall score, reliable structured output
+- ⚠️ **Use with Caution**: 70-79% overall score, acceptable for non-critical use
+- ❌ **Not Recommended**: <70% overall score, below production threshold
 
----
-
-## OpenRouter Provider Routing
-
-OpenRouter routes requests to multiple backend providers. To improve reliability, Sidekick supports provider allow-lists and block-lists via configuration:
-
-**Configuration** (in `src/sidekick/config.defaults` or override in `.sidekick/sidekick.conf`):
-
-```bash
-# Allow-list: Only use these providers (empty = allow all)
-LLM_OPENROUTER_PROVIDER_ALLOWLIST=
-
-# Block-list: Never use these providers (empty = no blocking)
-# Default blocks low-reliability providers based on benchmark data
-LLM_OPENROUTER_PROVIDER_BLOCKLIST=Nebius,WandB
-```
-
-**Default Block-list** (based on 2025-11-09 benchmark data):
-- **Nebius**: 33.3% success rate (blocked)
-- **WandB**: 0% success rate (blocked)
-
-**How it works**:
-- Add provider slugs as comma-separated list
-- Spaces are automatically trimmed
-- Cannot use both allow-list and block-list simultaneously
-- Settings apply to all OpenRouter API requests
-
-**Example - Use only high-reliability providers**:
-```bash
-LLM_OPENROUTER_PROVIDER_ALLOWLIST=SiliconFlow,Novita
-LLM_OPENROUTER_PROVIDER_BLOCKLIST=
-```
-
-See [OpenRouter Provider Routing Docs](https://openrouter.ai/docs/features/provider-routing) for details.
+**Production Requirements** (from `scripts/benchmark/config.sh`):
+- JSON Parse Rate: ≥95%
+- Latency (P95): <10s
+- Accuracy Score: ≥70%
+- Cost per 1K ops: <$1.00

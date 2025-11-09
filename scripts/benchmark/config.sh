@@ -146,7 +146,7 @@ BENCHMARK_MODELS=(
     # OpenRouter models (cheapest to most expensive)
     "openrouter:google/gemma-3-4b-it|0.02|0.07|cheap,fast"
     # "openrouter:google/gemma-3-12b-it|0.03|0.10|cheap,default,baseline"
-    "openrouter:openai/gpt-oss-20b|0.03|0.14|cheap,fast"
+    "openrouter:openai/gpt-oss-20b|0.03|0.14|cheap,slow"
     "openrouter:google/gemini-2.0-flash-lite-001|0.08|0.30|"
     "openrouter:google/gemma-3-27b-it|0.09|0.16|"
     "openrouter:mistralai/ministral-8b|0.10|0.10|"
