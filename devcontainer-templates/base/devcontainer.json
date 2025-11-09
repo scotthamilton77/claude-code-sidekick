@@ -30,7 +30,9 @@
   // No ports forwarded by default - configure per project
 
   // No environment variables by default - configure per project
-  "remoteEnv": {},
+  "remoteEnv": {
+    "GITHUB_PAT": "${localEnv:GITHUB_PAT}"
+  },
 
   "remoteUser": "node",
   "updateRemoteUserUID": true

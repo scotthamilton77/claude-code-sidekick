@@ -44,6 +44,7 @@
 
   // Pass through database connection environment variables
   "remoteEnv": {
+    "GITHUB_PAT": "${localEnv:GITHUB_PAT}",
     "POSTGRES_HOST": "${localEnv:POSTGRES_HOST:localhost}",
     "POSTGRES_PORT": "${localEnv:POSTGRES_PORT:5432}",
     "POSTGRES_DB": "${localEnv:POSTGRES_DB}",
