@@ -1,0 +1,16 @@
+{
+  "task_ids": null,
+  "initial_goal": "Warming up or preparing for a coding session",
+  "current_objective": "Simply initiating a warmup interaction",
+  "clarity_score": 3,
+  "confidence": 0.78,
+  "high_clarity_snarky_comment": null,
+  "low_clarity_snarky_comment": "Did you just say 'Warmup'? What is this, a Starfleet stretching routine? Define your mission, captain.",
+  "significant_change": true,
+  "_metadata": {
+    "model": "openrouter:openai/gpt-5-chat",
+    "test_id": "short-005",
+    "latency_seconds": 2,
+    "generated_at": "2025-10-28T11:37:59Z"
+  }
+}

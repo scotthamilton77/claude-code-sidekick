@@ -1,0 +1,16 @@
+{
+  "task_ids": null,
+  "initial_goal": "Staring into the void of an empty prompt",
+  "current_objective": "Awaiting a directive from the user",
+  "clarity_score": 1,
+  "confidence": 0.1,
+  "high_clarity_snarky_comment": null,
+  "low_clarity_snarky_comment": "The void stares back. Perhaps you should state your primary directive before the heat death of the universe.",
+  "significant_change": true,
+  "_metadata": {
+    "model": "openrouter:google/gemini-2.5-pro",
+    "test_id": "short-002",
+    "latency_seconds": 7,
+    "generated_at": "2025-10-28T11:35:29Z"
+  }
+}

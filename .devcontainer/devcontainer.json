@@ -1,0 +1,93 @@
+{
+  "name": "Node AI Stack Dev Environment",
+
+  // Use custom Dockerfile
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "."
+  },
+
+  // Mounts - Configure via .env file
+  // Uncomment and customize as needed based on your .env configuration
+  "mounts": [
+    // Docker socket for Docker-in-Docker (SECURITY: only for trusted projects)
+    // "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
+    // Claude configuration directory (if MOUNT_CLAUDE_CONFIG=true in .env)
+    // OSS projects directory (if MOUNT_OSS_PROJECTS=true in .env)
+    // "source=${localEnv:HOME}/${localEnv:OSS_PROJECTS_PATH}/${localEnv:OSS_PROJECT_1},target=/workspace/oss/${localEnv:OSS_PROJECT_1},type=bind,consistency=cached",
+    // "source=${localEnv:HOME}/${localEnv:OSS_PROJECTS_PATH}/${localEnv:OSS_PROJECT_2},target=/workspace/oss/${localEnv:OSS_PROJECT_2},type=bind,consistency=cached"
+    "source=${localEnv:HOME}/.claude,target=/home/node/.claude,type=bind,consistency=cached"
+  ],
+
+  // Connect to external Docker network (e.g., for PostgreSQL)
+  // Uncomment if using external database container
+  // "runArgs": ["--network=${localEnv:DOCKER_NETWORK}"],
+
+  // Run post-creation setup script
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint",
+        "redhat.vscode-yaml",
+        "ms-vscode.vscode-typescript-next",
+        "ckolkman.vscode-postgres"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "eslint.format.enable": true,
+        "editor.codeActionsOnSave": {
+          "source.fixAll.eslint": "explicit"
+        },
+        "typescript.tsdk": "node_modules/typescript/lib",
+        "typescript.enablePromptUseWorkspaceTsdk": true
+      }
+    }
+  },
+
+  // Forward ports for services
+  "forwardPorts": [5432, 3000],
+  "portsAttributes": {
+    "5432": { "label": "PostgreSQL", "onAutoForward": "silent" },
+    "3000": { "label": "Web App", "onAutoForward": "notify" }
+  },
+
+  // Pass through API keys from host environment
+  "remoteEnv": {
+    // AI API Keys
+    "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}",
+    "PERPLEXITY_API_KEY": "${localEnv:PERPLEXITY_API_KEY}",
+    "OPENAI_API_KEY": "${localEnv:OPENAI_API_KEY}",
+    "GOOGLE_API_KEY": "${localEnv:GOOGLE_API_KEY}",
+    "XAI_API_KEY": "${localEnv:XAI_API_KEY}",
+    "OPENROUTER_API_KEY": "${localEnv:OPENROUTER_API_KEY}",
+    "MISTRAL_API_KEY": "${localEnv:MISTRAL_API_KEY}",
+    "GROQ_API_KEY": "${localEnv:GROQ_API_KEY}",
+
+    // Database Configuration (optional)
+    "POSTGRES_HOST": "${localEnv:POSTGRES_HOST}",
+    "POSTGRES_PORT": "${localEnv:POSTGRES_PORT}",
+    "POSTGRES_DB": "${localEnv:POSTGRES_DB}",
+    "POSTGRES_USER": "${localEnv:POSTGRES_USER}",
+    "POSTGRES_PASSWORD": "${localEnv:POSTGRES_PASSWORD}",
+
+    // Installation Flags (passed to post-create script)
+    // Note: install.sh will replace these with actual values
+    "INSTALL_CLAUDE_CODE": "true",
+    "INSTALL_GEMINI_CLI": "true",
+    "INSTALL_CODEX_CLI": "true",
+    "INSTALL_UV": "true",
+    "INSTALL_SPECIFY_CLI": "true",
+    "PYTHON_VERSION": "latest",
+
+    // Mark as devcontainer environment for scripts
+    "DEVCONTAINER": "true"
+  },
+
+  "remoteUser": "node",
+  "updateRemoteUserUID": true
+}

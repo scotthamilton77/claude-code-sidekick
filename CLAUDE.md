@@ -14,380 +14,441 @@ This dual-scope requirement ensures configurations can be tested locally before 
 
 ## Architecture Overview
 
-The repository is organized around three main systems:
+The repository is organized into source components and deployment targets:
 
-- **Experimental Command Templates**: `backlog/commands-to-explore/` and `backlog/commands/` contain markdown-based command specifications for development tasks
-- **Hook System**: Scripts in `.claude/hooks/` handle conversation tracking, response monitoring, and topic classification
-- **Synchronization Infrastructure**: Shell scripts in `scripts/` manage bidirectional sync between project `.claude/` and global `~/.claude` configurations
+### Source Components (`src/`)
 
-### ⚠️ Sidekick Migration in Progress
+- **`src/sidekick/`**: Modular hooks system for conversation intelligence
+  - **Implementation Status**: ✅ Complete (all tests passing)
+  - **Architecture**: Single entry point, shared library, pluggable features
+  - **See**: `ARCH.md` for complete design, `PLAN.md` for implementation status
 
-The hook system is being refactored from the current **reminders** implementation into a modular **Sidekick** architecture. This refactoring addresses code duplication, improves testability, and establishes feature independence through configuration toggles.
+- **`src/.claude/`**: Source templates for future component install system
+  - agents/ - Custom agent definitions
+  - skills/ - Claude Code skills
+  - CLAUDE.md - Project instructions template
+  - settings.json - Permission configuration template
 
-**Target Architecture**: See `ARCH.md` for complete Sidekick design (single entry point, shared library, pluggable features, configuration cascade)
+### Deployment Targets
 
-**Implementation Plan**: See `PLAN.md` for 8-phase checklist (currently in Phase 1: Infrastructure Setup)
+- **`.claude/hooks/sidekick/`**: Installed Sidekick system (after running `scripts/install.sh`)
+- **`~/.claude/hooks/sidekick/`**: User-global Sidekick installation
 
-**Current Status**: The existing reminders system (documented below) remains fully functional and accurate. It will be replaced incrementally during the migration. All reminders documentation will be updated in Phase 6 after successful migration and testing.
+### Test Data & Benchmarking (`test-data/`)
 
-**Key Changes When Complete**:
-- Directory: `.claude/hooks/reminders/` → `.claude/hooks/sidekick/`
-- Entry point: Multiple scripts → `sidekick.sh <command>`
-- Configuration: Environment variables → `sidekick.conf` cascade
-- Installation: `setup-reminders.sh` → `install.sh --user|--project|--both`
+- **`test-data/transcripts/`**: Curated transcript collection for LLM benchmarking (497 transcripts)
+  - **`metadata.json`**: Master index with 497 transcripts classified by length (short/medium/long)
+  - **`golden-set.json`**: 15 hand-picked transcripts (5 short, 5 medium, 5 long) for reference generation
+  - **`*.jsonl`**: Actual transcript files copied from original sessions
+  - **Distribution**: 36% short (179), 22% medium (110), 42% long (208)
+  - **Task ID Coverage**: Golden set includes 6 transcripts with task IDs (T###) for testing extraction
 
-Until migration completes, continue using the reminders system as documented below.
+- **`test-data/projects/`**: Original source transcripts from `~/.claude/projects/*/transcript.jsonl`
+  - Organized by project directory structure
+  - Source of truth before processing into test-data/transcripts/
 
----
+- **`test-data/sessions/`**: Sidekick analysis results (`.sidekick/sessions/*/topic.json`)
+  - Contains LLM-generated topic extractions for transcripts
+  - Used by collect-test-data.sh to enrich metadata
 
-### Key Components
+- **`test-data/references/`**: High-quality reference outputs for benchmarking (generated in Phase 2)
+  - Golden set analyzed by 3 premium models (Grok-4, Gemini 2.5 Pro, GPT-5)
+  - Consensus outputs used as ground truth for scoring
 
-#### Command System
-- `backlog/commands-to-explore/`: Experimental command templates under development
-- `backlog/commands/plan/`: Planning and project management commands
-- `backlog/commands/proto/`: Prototype command patterns
+### Other Components
 
-#### Hook System
-- `.claude/hooks/reminders/response-tracker.sh`: UserPromptSubmit hook that manages sleeper launch and fallback analysis
-- `.claude/hooks/reminders/snarkify-last-session.sh`: SessionStart hook for proactive resume statusline generation
-- `.claude/hooks/reminders/sleeper-analysis.sh`: Persistent background polling process with adaptive intervals
-- `.claude/hooks/reminders/analyze-transcript.sh`: Core LLM-based transcript analysis (used by both sleeper and fallback)
-- `.claude/hooks/reminders/analysis-prompts/`: LLM prompt templates for different analysis modes
-- `.claude/hooks/reminders/tmp/`: Runtime state for hook operations (excluded from version control)
-- `.claude/hooks/reminders/analytics/`: Persistent analytics output (excluded from sync)
-- `.claude/hooks/reminders/deprecated/`: Deprecated hooks (write-topic.sh, write-unclear-topic.sh)
+- **`backlog/commands-to-explore/`**: Experimental command templates under development
+- **`scripts/`**: Installation, testing, and sync infrastructure
+  - **`collect-test-data.sh`**: AI-powered transcript collection and classification
+  - **`bulk-topic-extraction.sh`**: Batch topic analysis for all transcripts
 
-#### Configuration Files
-- `.claude/CLAUDE.md`: Project-specific instructions (mirrors global `~/.claude/CLAUDE.md`)
-- `.claude/mcp.json`: Model Context Protocol server configurations (context7, sequential-thinking, zen, memory)
-- `.claude/settings.json`: Project-scoped permissions and configuration
-- `.claude/settings.local.json`: Local overrides (excluded from sync)
-- `.claude/statusline.sh`: Dynamic status line generator
-- `.claudeignore`: Sync exclusion patterns (supports file and directory wildcards)
+## Sidekick Hook System
 
-#### Synchronization Scripts
-- `scripts/pull-from-claude.sh`: Import files from `~/.claude` → `.claude/`
-- `scripts/push-to-claude.sh`: Export files from `.claude/` → `~/.claude`
-- `scripts/sync-claude.sh`: Bidirectional sync (pull → push)
-- `scripts/setup-reminders.sh`: Initialize hook permissions and statusline configuration (supports `--project` flag)
-- `scripts/cleanup-reminders.sh`: Remove hook permissions and statusline configuration (supports `--project` flag)
+**Status**: ✅ Production-ready (all unit & integration tests passing)
 
-## Common Commands
+### Architecture
 
-### Initial Setup
+See `ARCH.md` for complete design documentation. Key features:
+
+- **Single Entry Point**: All hooks route through `sidekick.sh <command>`
+- **Modular Libraries**: `lib/common.sh` loader + 9 focused namespace files (config.sh, json.sh, llm.sh, logging.sh, paths.sh, plugin.sh, process.sh, utils.sh, workspace.sh)
+- **Pluggable Features**: Independently toggleable via `sidekick.conf`
+- **Pluggable LLM Providers**: Support for Claude CLI, OpenAI API, OpenRouter API, and custom providers
+- **Configuration Cascade**: Versioned Project → Deployed Project → User → Defaults (shell .conf format)
+- **Dual-Scope Deployment**: Works identically in project (.claude/) and user (~/.claude/) contexts
+
+### Installation
+
 ```bash
-# Configure hook permissions and statusline for user scope
-./scripts/setup-reminders.sh
+# Install to user scope (recommended)
+./scripts/install.sh --user
 
-# Also configure project-local settings (for testing in project scope)
-./scripts/setup-reminders.sh --project
+# Install to project scope (for testing)
+./scripts/install.sh --project
+
+# Install to both
+./scripts/install.sh --both
 ```
 
-### Configuration Sync
+### Features
+
+Sidekick provides five independently configurable features:
+
+1. **Topic Extraction**: LLM-based conversation analysis with adaptive sleeper process
+   - Triggers async resume generation when topic changes significantly (significant_change=true AND clarity>=5)
+2. **Resume**: Session continuity with snarkified resume messages
+   - **Architecture**: Async generation during topic extraction (no LLM blocking at SessionStart)
+   - Resume generated in background when topic changes, used by next session for fast initialization
+   - Field schema: last_task_id, resume_last_goal_message, last_objective_in_progress, snarky_comment
+3. **Statusline**: Enhanced status display with topic, tokens, git branch
+4. **Tracking**: Request counting with periodic reminders
+5. **Cleanup**: Automatic garbage collection of old session directories
+
+### Configuration
+
+Sidekick uses a four-level configuration cascade where later sources override earlier ones:
+
+1. **Defaults**: `src/sidekick/config.defaults` (all settings with defaults)
+2. **User Global**: `~/.claude/hooks/sidekick/sidekick.conf` (optional, user-wide overrides)
+3. **Project Deployed**: `.claude/hooks/sidekick/sidekick.conf` (optional, ephemeral, deleted on uninstall)
+4. **Project Versioned**: `.sidekick/sidekick.conf` (optional, **highest priority**, survives install/uninstall, can be committed to git)
+
+**Key Benefits**:
+- Team-wide config: Commit `.sidekick/sidekick.conf` to share project-specific settings
+- Personal overrides: Use `~/.claude/hooks/sidekick/sidekick.conf` for user preferences
+- Minimal configs: Only specify settings you want to override (no need to copy all defaults)
+
+**Example** (`.sidekick/sidekick.conf` with minimal overrides):
 ```bash
-# Import from global config (test changes made in ~/.claude)
-./scripts/pull-from-claude.sh
+# Disable features we don't use
+FEATURE_TOPIC_EXTRACTION=false
+FEATURE_CLEANUP=false
 
-# Export to global config (deploy tested changes)
-./scripts/push-to-claude.sh
-
-# Bidirectional sync (import then export)
-./scripts/sync-claude.sh
+# Custom reminder cadence
+TRACKING_STATIC_CADENCE=10
 ```
+
+For all available options, see `src/sidekick/config.defaults`.
+
+### LLM Provider Configuration
+
+Sidekick uses a pluggable LLM provider system for conversation analysis and resume generation. The default is Claude CLI, but you can configure alternative providers:
+
+**Configuration Options**:
+```bash
+# Provider selection
+LLM_PROVIDER=claude-cli  # claude-cli | openai-api | openrouter | custom
+
+# Claude CLI (default)
+LLM_CLAUDE_MODEL=haiku
+
+# OpenAI API
+LLM_OPENAI_API_KEY=sk-...
+LLM_OPENAI_MODEL=gpt-4-turbo
+
+# OpenRouter API
+LLM_OPENROUTER_API_KEY=sk-or-...
+LLM_OPENROUTER_MODEL=sao10k/l3-lunaris-8b
+
+# Custom provider with template
+LLM_CUSTOM_BIN=/path/to/llm
+LLM_CUSTOM_COMMAND={BIN} --model {MODEL} < {PROMPT_FILE}
+
+# Timeout and retry configuration
+LLM_TIMEOUT_SECONDS=10                    # Global timeout for LLM API calls (seconds)
+LLM_BENCHMARK_TIMEOUT_SECONDS=15          # Benchmark-specific timeout override (empty = use global)
+LLM_TIMEOUT_MAX_RETRIES=3                 # Max retry attempts for timeout errors (0 = no retries)
+
+# Debug dumping for troubleshooting
+LLM_DEBUG_DUMP_ENABLED=false              # Save API calls to /tmp/sidekick-llm-debug/{provider}/{model}/
+```
+
+**Timeout & Retry Behavior**:
+- API calls time out after `LLM_TIMEOUT_SECONDS` (default: 10s)
+- On timeout (curl exit 28), retries up to `LLM_TIMEOUT_MAX_RETRIES` times
+- Benchmark scripts use `LLM_BENCHMARK_TIMEOUT_SECONDS` if set (default: 15s)
+- Total attempts = 1 initial + retries (e.g., max_retries=3 → 4 total attempts)
+
+**Debug Dumping**:
+- When `LLM_DEBUG_DUMP_ENABLED=true`, saves each API call to `/tmp/sidekick-llm-debug/`
+- Captures: curl command (`curl.sh`), payload (`payload.json`), metadata (`metadata.txt`)
+- Organized by provider/model/timestamp for easy troubleshooting
+
+**Key Implementation Details**:
+- `llm_invoke()` - Main dispatcher in `lib/llm.sh`
+- Provider-specific implementations: `_llm_invoke_claude_cli()`, `_llm_invoke_openai_api()`, `_llm_invoke_openrouter()`, `_llm_invoke_custom()`
+- Used in: `features/topic-extraction.sh` (topic analysis and resume generation)
+
+See `ARCH.md` LLM Provider System section for complete documentation.
+
+### Circuit Breaker with Fallback Provider
+
+Sidekick implements a **circuit breaker pattern** for LLM provider resilience. When the primary provider fails repeatedly, the circuit breaker automatically switches to a fallback provider and implements exponential backoff before retrying the primary.
+
+**State Machine**:
+```
+CLOSED (normal operation - use primary)
+  ↓ [3 consecutive failures]
+OPEN (use fallback, backoff period active)
+  ↓ [backoff expires]
+HALF_OPEN (test primary with next request)
+  ↓ [success] → CLOSED
+  ↓ [failure] → OPEN (2x backoff)
+```
+
+**Configuration**:
+```bash
+# Fallback provider configuration
+LLM_FALLBACK_PROVIDER=claude-cli      # Provider to use when primary fails
+LLM_FALLBACK_MODEL=haiku              # Model for fallback (optional)
+
+# Circuit breaker settings
+CIRCUIT_BREAKER_ENABLED=true          # Enable/disable circuit breaker
+CIRCUIT_BREAKER_FAILURE_THRESHOLD=3   # Failures before opening circuit
+CIRCUIT_BREAKER_BACKOFF_INITIAL=60    # Initial backoff (seconds)
+CIRCUIT_BREAKER_BACKOFF_MAX=3600      # Maximum backoff (1 hour)
+CIRCUIT_BREAKER_BACKOFF_MULTIPLIER=2  # Exponential growth factor
+```
+
+**Behavior**:
+1. **CLOSED**: Normal operation - all requests go to primary provider
+   - On failure: increment counter, try fallback immediately, stay CLOSED
+   - After 3 consecutive failures → transition to OPEN
+2. **OPEN**: Circuit is open - all requests go to fallback provider
+   - Skips primary provider entirely during backoff period
+   - After backoff expires → transition to HALF_OPEN
+3. **HALF_OPEN**: Testing primary provider
+   - Next request tests the primary provider
+   - Success → reset to CLOSED (primary restored)
+   - Failure → back to OPEN with doubled backoff (capped at max)
+
+**State Persistence**:
+- Circuit state stored in `.sidekick/sessions/<session_id>/circuit-breaker.json`
+- State survives across hook invocations within a session
+- Independent circuits per session (different sessions don't affect each other)
+
+**Example Use Case**:
+```bash
+# Primary: OpenRouter (cheap but sometimes flaky)
+LLM_PROVIDER=openrouter
+LLM_OPENROUTER_MODEL=google/gemma-3n-e4b-it
+
+# Fallback: Claude CLI (reliable but more expensive)
+LLM_FALLBACK_PROVIDER=claude-cli
+LLM_FALLBACK_MODEL=haiku
+
+# Conservative thresholds
+CIRCUIT_BREAKER_FAILURE_THRESHOLD=3
+CIRCUIT_BREAKER_BACKOFF_INITIAL=300   # 5 minutes
+```
+
+**Testing**:
+```bash
+# Unit tests (state machine logic)
+./scripts/tests/unit/test-circuit-breaker.sh
+
+# Demo (visual walkthrough of state transitions)
+./scripts/tests/demo-circuit-breaker.sh
+```
+
+**Key Benefits**:
+- **Automatic failover**: No manual intervention when primary provider fails
+- **Self-healing**: Circuit automatically closes when primary recovers
+- **Cost optimization**: Use cheap primary, reliable fallback
+- **Exponential backoff**: Prevents hammering a failing provider
 
 ### Testing
+
+**Test Architecture:**
+- **Unit tests** (10 suites, 77 tests): Use mock LLM binaries - **zero API costs**
+- **Integration tests** (7 suites): Use mocked data - **zero API costs by default**
+- **LLM provider tests**: Real API calls - **excluded from default test runs** (run explicitly to avoid costs)
+
 ```bash
-# Test setup-reminders.sh functionality (comprehensive test suite)
-./tests/test-setup-reminders.sh
+# Run all unit tests (mocked, no API costs)
+./scripts/tests/run-unit-tests.sh
 
-# Test cleanup-reminders.sh functionality
-./tests/test-cleanup-reminders.sh
+# Run all integration tests (mocked, no API costs)
+./scripts/tests/run-integration-tests.sh
 
-# Test response tracker hook behavior
-./tests/test-response-tracker.sh
+# Run specific test suite
+./scripts/tests/integration/test-session-start.sh
+
+# EXPENSIVE: Run real LLM provider tests (makes actual API calls)
+./scripts/tests/integration/test-llm-providers.sh
 ```
 
-### Development Workflow
-1. Modify configurations in `.claude/` directory
-2. Test locally in project scope (hooks run from `.claude/hooks/`)
-3. Verify dual-scope compatibility
-4. Deploy to user scope via `./scripts/push-to-claude.sh`
+**IMPORTANT**: The expensive `test-llm-providers.sh` is intentionally excluded from `run-integration-tests.sh` to prevent accidental API costs. It auto-skips providers that aren't configured.
+
+## Development Workflow
+
+### Adding a New Feature (Plugin)
+
+**The plugin architecture means you NEVER need to edit handlers when adding features!**
+
+1. **Create** `src/sidekick/features/my-feature.sh` with standardized hook functions:
+   - `myfeature_on_session_start(session_id, project_dir)` - optional
+   - `myfeature_on_user_prompt_submit(session_id, transcript_path, project_dir)` - optional
+   - **Optional**: Add `readonly PLUGIN_DEPENDS="other-feature"` if your feature depends on another plugin
+2. **Add** `FEATURE_MY_FEATURE=true` to `src/sidekick/config.defaults`
+3. **Test** using unit and integration test suites
+4. **Install** to project scope: `./scripts/install.sh --project`
+5. **RESTART CLAUDE** - `claude --continue` to load new settings
+6. **Verify** functionality in real Claude sessions
+7. **Deploy** to user scope: `./scripts/install.sh --user`
+8. **RESTART CLAUDE** - `claude --continue` again
+9. **Sync** to user global config: `./scripts/sync-to-user.sh`
+
+**That's it!** Handlers auto-discover, resolve dependencies, and invoke your feature in the correct order.
+
+### Critical Testing Requirement
+
+**⚠️ ALWAYS ask the user to restart Claude after:**
+- Running `./scripts/install.sh` (any scope)
+- Running `./scripts/uninstall.sh` (any scope)
+- Manually editing `.claude/settings.json` or `~/.claude/settings.json`
+- Updating hook scripts in deployed locations
+
+**Restart command**: `claude --continue` (to resume the current session with new settings)
+
+## Reference Documents
+
+- **AGENTS.md**: Redirect to canonical agent instructions in CLAUDE.md
+- **ARCH.md**: Complete architectural specification
+- **PLAN.md**: 8-phase implementation checklist with current progress
+- **README.md**: User-facing documentation and quick start guide
 
 ## MCP Server Configuration
 
 The repository uses several MCP (Model Context Protocol) servers:
 - **context7**: External SSE server for enhanced context
 - **sequential-thinking**: NPX-based thinking assistance
-- **zen**: Local Python-based server for specialized functionality  
+- **zen**: Local Python-based server for specialized functionality
 - **memory**: NPX-based memory management
 
 ## Development Patterns
+
+### Plugin Architecture
+
+**Handlers are framework code** - they automatically discover and invoke feature plugins. You never edit them.
+
+**Key Concepts**:
+- **Auto-discovery**: Handlers scan `features/*.sh` and source enabled ones
+- **Dependency resolution**: Plugins declare dependencies via `PLUGIN_DEPENDS`; topological sort ensures correct load order
+- **Standardized hooks**: Features export `{name}_on_{event}()` functions
+- **Name normalization**: Filenames may use hyphens (`topic-extraction.sh`), but config keys and functions use underscores (`FEATURE_TOPIC_EXTRACTION`, `topic_extraction_on_session_start()`)
+- **Output aggregation**: Multiple plugins can output JSON; handlers concatenate and return
+
+**Plugin Template**:
+```bash
+#!/bin/bash
+# Prevent double-sourcing
+[[ -n "${_SIDEKICK_FEATURE_MYFEATURE_LOADED:-}" ]] && return 0
+readonly _SIDEKICK_FEATURE_MYFEATURE_LOADED=1
+
+# Optional: Declare dependencies (space-separated list)
+readonly PLUGIN_DEPENDS="tracking other-plugin"
+
+# ... helper functions ...
+
+#------------------------------------------------------------------------------
+# PLUGIN HOOKS
+#------------------------------------------------------------------------------
+
+myfeature_on_session_start() {
+    local session_id="$1"
+    local project_dir="$2"
+    # Your logic here
+}
+
+myfeature_on_user_prompt_submit() {
+    local session_id="$1"
+    local transcript_path="$2"
+    local project_dir="$3"
+
+    # Optional: output JSON for additionalContext
+    if [ -n "$output" ]; then
+        cat <<JSON
+{
+  "hookSpecificOutput": {
+    "hookEventName": "UserPromptSubmit",
+    "additionalContext": "$output"
+  }
+}
+JSON
+    fi
+}
+```
+
+**Dependency System**:
+- Declare dependencies with `readonly PLUGIN_DEPENDS="dep1 dep2"`
+- Plugin loader performs topological sort (Kahn's algorithm)
+- Circular dependencies are detected and reported as errors
+- Missing dependencies cause load failure with clear error messages
+- Dependencies can use hyphens or underscores (normalized automatically)
+
+**Plugin Execution Flow**:
+
+Each hook invocation follows this sequence (fresh process each time):
+
+1. **Invocation**: Claude calls `sidekick.sh <command>` with JSON on stdin
+   ```bash
+   echo '{"session_id":"abc-123"}' | sidekick.sh user-prompt-submit
+   ```
+
+2. **Command Routing**: `sidekick.sh` routes to appropriate handler
+   ```bash
+   case "$command" in
+       user-prompt-submit) handle_user_prompt_submit ;;
+       session-start) handle_session_start ;;
+       statusline) handle_statusline ;;
+   esac
+   ```
+
+3. **Plugin Discovery & Loading**: Handler calls `plugin_discover_and_load()`
+   - **Phase 1 - Discovery**: Scans `features/*.sh`, checks `FEATURE_*` config flags, extracts `PLUGIN_DEPENDS` without sourcing
+   - **Phase 2 - Sort**: Topological sort based on dependency graph (Kahn's algorithm)
+   - **Phase 3 - Load**: Sources plugins in dependency order, populates `_LOADED_PLUGINS[]` array
+
+4. **Hook Invocation**: Handler calls `plugin_invoke_hook("on_<event>", args...)`
+   - Iterates through `_LOADED_PLUGINS[]` in load order
+   - For each plugin, checks if hook function exists (e.g., `tracking_on_user_prompt_submit`)
+   - If function exists, invokes it with arguments
+   - If function doesn't exist, skips that plugin (e.g., reminder has no `on_session_start`)
+   - Aggregates stdout from all hooks and returns
+
+**Key Behaviors**:
+- **Stateless**: Each invocation is a separate process - no state persists between hooks
+- **Partial Implementation**: Plugins can implement subset of hooks (tracking implements both `on_session_start` and `on_user_prompt_submit`, reminder only implements `on_user_prompt_submit`)
+- **Dependency Order Applies to Sourcing**: Even if reminder doesn't run during `session-start`, it still gets sourced AFTER tracking so shared functions are available
+- **All Enabled Plugins Load**: Every enabled plugin sources on every hook invocation, even if it doesn't implement that specific hook
+
+**Example Execution** (`user-prompt-submit` with tracking+reminder enabled):
+```
+plugin_discover_and_load()
+  → Discovers: cleanup, reminder, resume, statusline, topic-extraction, tracking
+  → Dependencies: reminder depends on tracking
+  → Sorted: [cleanup, resume, statusline, topic-extraction, tracking, reminder]
+  → Sources all in that order
+
+plugin_invoke_hook("on_user_prompt_submit", session_id, transcript_path, project_dir)
+  → cleanup: No on_user_prompt_submit function → skip
+  → resume: No on_user_prompt_submit function → skip
+  → statusline: No on_user_prompt_submit function → skip
+  → topic-extraction: Has on_user_prompt_submit → invoke ✓
+  → tracking: Has on_user_prompt_submit → invoke ✓ (increments counter)
+  → reminder: Has on_user_prompt_submit → invoke ✓ (reads counter via tracking_get())
+```
 
 ### Dual-Scope Compatibility
 All scripts must support both deployment contexts:
 - **Project scope**: Paths relative to `$CLAUDE_PROJECT_DIR/.claude/`
 - **User scope**: Paths relative to `~/.claude/`
 
-Use environment variables and dynamic path resolution to ensure portability. See `setup-reminders.sh:186-254` for context detection patterns.
-
-### Hook System Architecture
-Hooks execute at specific conversation events:
-- **SessionStart**: Triggered when a new conversation session begins
-  - `snarkify-last-session.sh`: Generates resume statusline from previous session's topic (proactive)
-- **UserPromptSubmit**: Triggered before Claude processes user input
-  - `response-tracker.sh`: Launches sleeper process (first call only), manages fallback analysis cadence
-
-State files in `.claude/hooks/reminders/tmp/` persist across conversations (gitignored).
-
-### LLM Analysis System
-
-The repository implements an **adaptive asynchronous transcript analysis system** with two complementary approaches:
-
-1. **Sleeper Process** (default): Persistent background polling for rapid status updates during active work
-2. **Cadence-Based Fallback**: Periodic analysis after sleeper exits or when disabled
-
-#### Architecture
-
-**Sleeper Mode** (Active during initial conversation phase):
-```
-SessionStart Hook
-    ↓
-snarkify-last-session.sh → generates resume statusline (proactive)
-    ↓
-Statusline shows "Resume: <goal>" immediately
-
-First UserPromptSubmit
-    ↓
-response-tracker.sh launches sleeper-analysis.sh
-    ↓ (hook exits <10ms)
-
-[Sleeper Process - Long-Running Background]
-    ↓
-Poll transcript every 2-5s (adaptive)
-    ↓
-If size changed >500 bytes AND >10s since last analysis:
-    Run analyze-transcript.sh
-    Check clarity_score from result
-    ↓
-    If clarity >= threshold (default 7): EXIT sleeper
-    If clarity < threshold: CONTINUE polling
-    ↓
-After 10 minutes OR clarity met: EXIT sleeper
-```
-
-**Fallback Mode** (After sleeper exits or when disabled):
-```
-response-tracker.sh fires on UserPromptSubmit
-    ↓
-Check if analysis due (based on response count & clarity)
-    ↓
-Launch analyze-transcript.sh (one-time)
-    ↓
-Continue normal cadence-based analysis
-```
-
-#### Key Features
-
-- **Adaptive Polling**: Sleeper adjusts intervals (2s active, 5s idle) based on transcript activity
-- **Clarity-Based Exit**: Sleeper terminates when clarity threshold met, hands off to fallback
-- **Resume Continuity**: Proactive snarkification of last session's topic on new sessions
-- **Cost Control**: Minimum size change (500 bytes) and interval (10s) throttling
-- **Zero Hook Overhead**: Sleeper runs independently, hooks complete in <10ms
-- **Self-Terminating**: Maximum 10-minute runtime prevents orphan processes
-- **Backward Compatible**: Can be disabled to use original cadence-based system
-
-#### Components
-
-- **`sleeper-analysis.sh`**: Persistent polling process with adaptive intervals
-- **`snarkify-last-session.sh`**: SessionStart hook for proactive resume statusline
-- **`analyze-transcript.sh`**: Core analysis script (used by both sleeper and fallback)
-- **`response-tracker.sh`**: Manages sleeper launch, fallback analysis, and cleanup
-- **`cleanup-old-sessions.sh`**: Garbage collection for old session tmp directories
-- **`analysis-prompts/`**: Mode-specific prompt templates
-  - `topic-only.txt`: Fast topic detection (~2s, minimal tokens)
-  - `incremental.txt`: Recent context analysis (~4s)
-  - `full-analytics.txt`: Comprehensive insights (~10s)
-- **`.claude/hooks/reminders/tmp/`**: Ephemeral topic files + sleeper PID tracking
-- **`.claude/hooks/reminders/analytics/`**: Persistent analytics storage (gitignored)
-
-#### Configuration
-
-Control via environment variables:
-
-**Sleeper Configuration**:
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `CLAUDE_SLEEPER_ENABLED` | `true` | Enable/disable sleeper polling |
-| `CLAUDE_SLEEPER_INTERVAL_ACTIVE` | `2` | Polling interval when transcript changing (seconds) |
-| `CLAUDE_SLEEPER_INTERVAL_IDLE` | `5` | Polling interval when idle (seconds) |
-| `CLAUDE_SLEEPER_MAX_DURATION` | `600` | Maximum sleeper runtime (seconds, 10 min) |
-| `CLAUDE_SLEEPER_CLARITY_EXIT` | `7` | Clarity score for sleeper exit (1-10 scale) |
-| `CLAUDE_SLEEPER_MIN_SIZE_CHANGE` | `500` | Minimum bytes changed to trigger analysis |
-| `CLAUDE_SLEEPER_MIN_INTERVAL` | `10` | Minimum seconds between analyses |
-
-**Analysis Configuration** (both sleeper and fallback):
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `CLAUDE_ANALYSIS_ENABLED` | `true` | Enable/disable fallback analysis |
-| `CLAUDE_ANALYSIS_MODE` | `topic-only` | Mode: `topic-only`, `incremental`, `full-analytics` |
-| `CLAUDE_ANALYSIS_CADENCE_HIGH_CLARITY` | `10` | Fallback frequency for clear conversations |
-| `CLAUDE_ANALYSIS_CADENCE_LOW_CLARITY` | `1` | Fallback frequency for unclear conversations |
-| `CLAUDE_ANALYSIS_CLARITY_THRESHOLD` | `7` | Clarity score threshold (1-10 scale) |
-| `CLAUDE_ANALYSIS_MODEL` | `haiku-4.5` | Model: `haiku-4.5`, `haiku-3.5`, `haiku-3` |
-
-**Resume Configuration**:
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `CLAUDE_SNARK_MODEL` | `haiku-4.5` | Model for resume snarkification |
-
-**Cleanup Configuration** (automatic session directory garbage collection):
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `CLAUDE_TMP_CLEANUP_ENABLED` | `true` | Enable/disable automatic cleanup |
-| `CLAUDE_TMP_CLEANUP_MIN_COUNT` | `5` | Minimum old sessions before cleanup triggers |
-| `CLAUDE_TMP_CLEANUP_AGE_DAYS` | `2` | Age threshold in days |
-| `CLAUDE_TMP_CLEANUP_DRY_RUN` | `false` | Test mode (log but don't delete) |
-| `CLAUDE_TMP_CLEANUP_SKIP_SAFETY` | `false` | Skip path validation (testing only) |
-
-#### Output Schema
-
-**Topic Files** (`{session_id}_topic.json`):
-```json
-{
-  "session_id": "...",
-  "timestamp": "2025-10-19T12:34:56Z",
-  "task_ids": ["T001", "FEAT-08"],
-  "initial_goal": "User's stated objective",
-  "current_objective": "Current work focus",
-  "clarity_score": 9,
-  "confidence": 0.95,
-  "snarky_comment": "Witty observation (if clarity >= 7)"
-}
-```
-
-**Analytics Files** (`{session_id}_analytics.json` - full mode only):
-```json
-{
-  "session_id": "...",
-  "timestamp": "...",
-  "topic_evolution": [...],
-  "complexity_metrics": {...},
-  "language_patterns": [...],
-  "key_decisions": [...],
-  "technical_domains": [...]
-}
-```
-
-#### Troubleshooting
-
-**Sleeper not running**:
-```bash
-# Check if enabled
-echo $CLAUDE_SLEEPER_ENABLED
-
-# View sleeper logs
-tail -f /tmp/claude-sleeper-*.log
-
-# Check for running sleeper
-ps aux | grep sleeper-analysis
-
-# Check PID file
-cat .claude/hooks/reminders/tmp/*_sleeper.pid
-ps -p $(cat .claude/hooks/reminders/tmp/*_sleeper.pid)
-```
-
-**Sleeper stuck or orphaned**:
-```bash
-# Kill all sleeper processes
-pkill -f sleeper-analysis.sh
-
-# Clean up stale PID files
-rm -f .claude/hooks/reminders/tmp/*_sleeper.pid
-```
-
-**Analysis not running**:
-```bash
-# Check if analysis enabled
-echo $CLAUDE_ANALYSIS_ENABLED
-
-# View analysis logs
-tail -f /tmp/claude-analysis-*.log
-
-# Check for running analysis
-ps aux | grep analyze-transcript
-```
-
-**Resume statusline not showing**:
-```bash
-# Check if SessionStart hook fired
-tail -f /tmp/claude-snarkify.log
-
-# Check for previous topic files
-ls -la .claude/hooks/reminders/tmp/*_topic.json
-
-# Manually test snarkify
-echo '{"session_id":"test-123"}' | .claude/hooks/reminders/snarkify-last-session.sh
-```
-
-**Performance issues**:
-```bash
-# Measure hook overhead
-time ./response-tracker.sh track "$PWD" < test.json
-# Should be <10ms
-
-# Check sleeper CPU usage
-ps aux | grep sleeper-analysis | grep -v grep
-# Should be <1% CPU
-```
-
-**Disk space concerns**:
-```bash
-# Check analytics directory size
-du -sh .claude/hooks/reminders/analytics
-
-# Clean old analytics files (30+ days)
-find .claude/hooks/reminders/analytics -name "*.json" -mtime +30 -delete
-
-# Clean old logs
-find /tmp -name "claude-*.log" -mtime +7 -delete
-```
-
-**Cleanup not running**:
-```bash
-# Check if cleanup enabled
-echo $CLAUDE_TMP_CLEANUP_ENABLED
-
-# View cleanup logs for current session
-cat .claude/hooks/reminders/tmp/$(ls -t .claude/hooks/reminders/tmp | head -1)/cleanup.log
-
-# Manually run cleanup (dry-run)
-CLAUDE_TMP_CLEANUP_DRY_RUN=true .claude/hooks/reminders/cleanup-old-sessions.sh "$PWD/.claude/hooks/reminders"
-
-# Check how many old sessions exist
-find .claude/hooks/reminders/tmp -type d -mindepth 1 -maxdepth 1 -mtime +2 | wc -l
-```
-
-**Cleanup removing too much/too little**:
-```bash
-# Adjust thresholds via environment variables
-export CLAUDE_TMP_CLEANUP_MIN_COUNT=10  # Keep more old sessions
-export CLAUDE_TMP_CLEANUP_AGE_DAYS=7     # Older age threshold
-
-# Test with dry-run before applying
-VERBOSE=true CLAUDE_TMP_CLEANUP_DRY_RUN=true \
-  .claude/hooks/reminders/cleanup-old-sessions.sh "$PWD/.claude/hooks/reminders"
-```
-
-See `LLM_PLAN.md` for complete implementation details and `analytics/README.md` for output documentation.
-
-### Synchronization Behavior
-- Timestamp-based copying: only files newer than destination are transferred
-- `.claudeignore` supports glob patterns for files and directories
-- `settings.local.json` and tmp files automatically excluded from sync
-- Sync operations are idempotent and safe to run repeatedly
+Use environment variables and dynamic path resolution. See `src/sidekick/lib/common.sh` PATH RESOLUTION namespace for implementation patterns.
 
 ### Command Template Structure
-Markdown-based specifications include:
+Markdown-based specifications in `backlog/` include:
 - Purpose/requirements sections
 - Process flows (often with Mermaid diagrams)
 - Bash code blocks for execution
@@ -399,24 +460,25 @@ Markdown-based specifications include:
 - **All hooks must be permission-approved** in `settings.json` before execution
 - **Dual-scope testing required** before deploying to `~/.claude`
 - **Timestamp preservation** critical for sync correctness
+- **NEVER** perform an install or uninstall to either user or project scope without the user's explicit authorization
 
+## Current Status
 
-## Current Implementation Focus
+**Sidekick Implementation**: ✅ Complete with Plugin Architecture + Dependency Resolution (tests passing, docs updated)
 
-**Active Task**: Implementing Sidekick architecture (ARCH.md) following the implementation plan (PLAN.md)
-
-The project is refactoring the existing reminders hooks system into a modular, maintainable Sidekick architecture. Key objectives:
-
-- Create unified `lib/common.sh` with namespaced utilities (LOGGING, CONFIGURATION, PATH RESOLUTION, JSON PROCESSING, PROCESS MANAGEMENT, CLAUDE INVOCATION, WORKSPACE MANAGEMENT)
-- Implement handlers (`session-start.sh`, `user-prompt-submit.sh`) that orchestrate feature execution
-- Create modular features (tracking, topic-extraction, resume, statusline, cleanup) with independent toggles
-- Establish configuration cascade system (defaults → user → project)
-- Build installation/uninstall infrastructure for dual-scope deployment
-- Comprehensive testing (unit + integration) with performance targets (hooks <100ms)
+- ✅ Infrastructure complete (modular lib/* with 10 namespace files + plugin loader with dependency resolution)
+- ✅ All 6 features implemented as self-contained plugins (topic-extraction, resume, statusline, tracking, reminder, cleanup)
+- ✅ **Plugin architecture**: Handlers auto-discover, resolve dependencies (topological sort), and invoke features
+- ✅ **Dependency system**: Plugins declare dependencies; loader ensures correct execution order
+- ✅ Feature split: tracking (counter only) and reminder (output) are now decoupled with explicit dependency
+- ✅ Resume feature refactored (async generation, file-based initialization, no LLM blocking at SessionStart)
+- ✅ Installation/uninstallation scripts working for both scopes
+- ✅ All unit tests passing (8 suites, 64 tests - mocked LLM, zero API costs)
+- ✅ All integration tests passing (7 suites - mocked data, test-llm-providers excluded from default runs)
+- ✅ Documentation updated (ARCH.md, PLAN.md, README.md, CLAUDE.md, AGENTS.md)
+- 🔄 **In Progress**: Manual testing in real Claude sessions
 
 **Reference Documents**:
-- `ARCH.md`: Complete architectural specification and design patterns
-- `PLAN.md`: 8-phase implementation checklist with detailed tasks
-- Root `CLAUDE.md`: Hook system architecture and LLM analysis documentation
-
-**Current Phase**: Starting Phase 1 (Infrastructure Setup) - creating directory structure and implementing shared library
+- `ARCH.md`: Complete architectural specification
+- `PLAN.md`: 8-phase implementation checklist (currently at Phase 5.3)
+- `src/sidekick/config.defaults`: All configuration options with documentation

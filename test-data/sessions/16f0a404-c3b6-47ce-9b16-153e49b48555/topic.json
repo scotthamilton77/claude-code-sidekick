@@ -1,0 +1,11 @@
+{
+  "task_ids": null,
+  "initial_goal": "Who knows?",
+  "current_objective": "No topic identified",
+  "clarity_score": 1,
+  "confidence": 0.1,
+  "significant_change": true,
+  "session_id": "16f0a404-c3b6-47ce-9b16-153e49b48555",
+  "timestamp": "2025-10-27T22:43:32Z",
+  "snarky_comment": "probe launched into the void with no coordinates"
+}
