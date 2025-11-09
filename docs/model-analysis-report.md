@@ -141,3 +141,38 @@ Benchmarks test LLM topic extraction capability with:
 - ✅ **Recommended**: ≥80% success rate, reliable structured output
 - ⚠️ **Use with Caution**: 50-79% success rate, occasional failures
 - ❌ **Not Recommended**: <50% success rate, unreliable output
+
+---
+
+## OpenRouter Provider Routing
+
+OpenRouter routes requests to multiple backend providers. To improve reliability, Sidekick supports provider allow-lists and block-lists via configuration:
+
+**Configuration** (in `src/sidekick/config.defaults` or override in `.sidekick/sidekick.conf`):
+
+```bash
+# Allow-list: Only use these providers (empty = allow all)
+LLM_OPENROUTER_PROVIDER_ALLOWLIST=
+
+# Block-list: Never use these providers (empty = no blocking)
+# Default blocks low-reliability providers based on benchmark data
+LLM_OPENROUTER_PROVIDER_BLOCKLIST=Nebius,WandB
+```
+
+**Default Block-list** (based on 2025-11-09 benchmark data):
+- **Nebius**: 33.3% success rate (blocked)
+- **WandB**: 0% success rate (blocked)
+
+**How it works**:
+- Add provider slugs as comma-separated list
+- Spaces are automatically trimmed
+- Cannot use both allow-list and block-list simultaneously
+- Settings apply to all OpenRouter API requests
+
+**Example - Use only high-reliability providers**:
+```bash
+LLM_OPENROUTER_PROVIDER_ALLOWLIST=SiliconFlow,Novita
+LLM_OPENROUTER_PROVIDER_BLOCKLIST=
+```
+
+See [OpenRouter Provider Routing Docs](https://openrouter.ai/docs/features/provider-routing) for details.
