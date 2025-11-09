@@ -133,22 +133,55 @@ The following dependencies are newer than Claude's training cutoff (January 2025
 **Version in use**: 0.68.0 (intentionally kept current)
 **Reason**: Fast-moving API with new models and critical bug fixes
 
-**Key changes from training knowledge** (researched via context7):
-- [Details populated by parallel agent research below]
+**Critical changes since training cutoff**:
+- ✅ **No breaking changes** - backwards compatible with v0.30+ (training cutoff range)
+- **New models**: Claude Opus 4 (v0.32), Claude Sonnet 4.5 (v0.65)
+- **Tool helpers**: `betaZodTool()` for structured outputs (v0.68)
+- **Timeout config**: `timeout` in milliseconds (not seconds) - multiply by 1000
+- **No native JSON schema** - must use `tool_choice` pattern for structured outputs
+- **Error types**: `APIConnectionTimeoutError`, `RateLimitError` (includes `retry-after` header)
+- **Token usage**: Always in `message.usage`, content is array of blocks
+- **Streaming abort**: Use `stream.controller.abort()`, not external AbortController
+
+**Key TypeScript types**: `Message`, `MessageCreateParams`, `ContentBlock`, `APIError` hierarchy
+
+**Implementation gotchas**:
+- Default timeout is 10 minutes - set explicit `timeout` for benchmarking
+- `maxRetries: 0` disables retries (default is 2)
+- Second parameter to `create()` allows per-request timeout/retry overrides
+- `message.content` is always an array, even for single text responses
 
 #### openai 6.8.1 (Released November 2025)
 **Version in use**: 6.8.1 (intentionally kept current)
 **Reason**: Latest models (GPT-5, o1, o3) require recent SDK versions
 
-**Key changes from training knowledge** (researched via context7):
-- [Details populated by parallel agent research below]
+**Critical changes since training cutoff** (v4.85 → v6.8):
+- 🚨 **Breaking changes in v5**: Assistants API removed, `runFunctions()` removed, "function" helpers renamed to "tools"
+- 🚨 **Breaking changes in v6**: Function call outputs changed from `string` to `string | Array<...>` - needs type guards
+- **New models**: `gpt-4.5-preview`, `o1`, `o1-pro`, `o3`, `o4-mini` (reasoning models)
+- **Structured outputs**: Use `parse()` with `zodResponseFormat()` for type-safe JSON extraction
+- **Reasoning models**: Use `max_completion_tokens` (not `max_tokens`), access `completion_tokens_details.reasoning_tokens`
+- **Reasoning effort**: Control with `reasoning_effort: 'low' | 'medium' | 'high'` (except o1-mini)
+- **Error types**: `APIConnectionTimeoutError`, `RateLimitError`, automatic retries on 429/5xx
+- **Zod v4 support**: Compatible with latest Zod (v6.7.0+)
 
-**When to use context7**:
+**Key TypeScript types**: `ChatCompletion`, `ParsedChatCompletion<T>`, `CompletionUsage`, `CompletionTokensDetails`
+
+**Implementation gotchas**:
+- Default timeout is 10 minutes - set explicit `timeout` for benchmarking
+- `maxRetries: 0` recommended for predictable benchmark timing
+- `parse()` throws `LengthFinishReasonError` on truncation (easier error handling)
+- Reasoning tokens are hidden (not in content), only count in `usage.completion_tokens_details.reasoning_tokens`
+- AbortController cancellation may have flakiness issues - test thoroughly
+
+**When to use context7 for these libraries**:
 - Writing provider integration code (`src/providers/ClaudeProvider.ts`, `OpenAIProvider.ts`)
 - Debugging API call failures or unexpected responses
 - Implementing timeout/retry logic with AbortController
-- Handling structured outputs or JSON schemas
+- Handling structured outputs or JSON schemas (especially Anthropic's tool_choice pattern)
 - Working with streaming responses
+- Implementing reasoning model support (o1/o3 token tracking)
+- Troubleshooting error handling edge cases
 
 ## Migration from Track 1
 
