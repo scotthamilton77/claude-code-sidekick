@@ -30,9 +30,9 @@ This roadmap tracks the component-level migration from Track 1 (Bash, `scripts/b
 **Maps to**: New infrastructure
 **Acceptance Criteria**:
 - ✅ `tsconfig.json` with strict mode enabled
-- ✅ `package.json` with all required dependencies
+- ✅ `package.json` with all required dependencies (optimized: stable infra pre-training, LLM SDKs current)
 - ✅ ESLint + Prettier configured
-- ⏳ Build script verification (pending `pnpm install`)
+- ✅ Build script verification (`pnpm run build` and `pnpm run typecheck` passing)
 
 **Files Created**:
 - ✅ `package.json`
@@ -53,7 +53,7 @@ This roadmap tracks the component-level migration from Track 1 (Bash, `scripts/b
 - ✅ Vitest configured for TypeScript
 - ⏳ Mock LLM provider setup (zero API cost testing)
 - ✅ Test fixtures loader utility created
-- ⏳ `pnpm test` verification (pending `pnpm install`)
+- ⏳ `pnpm test` verification (pending test implementation)
 
 **Files Created**:
 - ✅ `vitest.config.ts`
