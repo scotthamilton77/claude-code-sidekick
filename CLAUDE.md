@@ -82,7 +82,6 @@ Two parallel implementations with shared `test-data/`:
 
 ### Other Components
 
-- **`backlog/commands-to-explore/`**: Experimental command templates under development
 - **`scripts/`**: Installation, testing, and sync infrastructure
   - **`collect-test-data.sh`**: AI-powered transcript collection and classification
   - **`bulk-topic-extraction.sh`**: Batch topic analysis for all transcripts
