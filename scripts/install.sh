@@ -207,6 +207,30 @@ copy_files() {
     log_info "Files copied successfully"
 }
 
+# Create reminder template
+create_reminder_template() {
+    local sidekick_dir="$1"
+    local reminders_dir="$sidekick_dir/reminders"
+    local template_file="$reminders_dir/static-reminder.txt.template"
+    local source_reminder="$SRC_DIR/reminders/static-reminder.txt"
+
+    # Create reminders directory if it doesn't exist
+    mkdir -p "$reminders_dir"
+
+    # Copy template if source exists and template doesn't exist
+    if [ -f "$source_reminder" ]; then
+        if [ ! -f "$template_file" ]; then
+            cp "$source_reminder" "$template_file"
+            log_info "Created reminder template: $template_file"
+            log_info "Rename to static-reminder.txt to override default reminder"
+        else
+            log_info "Preserving existing reminder template: $template_file"
+        fi
+    else
+        log_warn "Source reminder not found at $source_reminder"
+    fi
+}
+
 # Initialize versioned project config
 initialize_project_versioned_config() {
     local project_dir="$1"
@@ -236,6 +260,9 @@ initialize_project_versioned_config() {
     else
         log_warn "README template not found at $readme_template"
     fi
+
+    # Copy reminder template (don't overwrite existing reminder)
+    create_reminder_template "$sidekick_dir"
 }
 
 # Register hooks in settings.json
@@ -358,6 +385,9 @@ install_to_user() {
 
     # Register hooks
     register_hooks_in_settings "$settings_file" "~/.claude/hooks/sidekick"
+
+    # Create reminder template in user-persistent location
+    create_reminder_template "$HOME/.sidekick"
 
     log_info "User scope installation complete"
 }

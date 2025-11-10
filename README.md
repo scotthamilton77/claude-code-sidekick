@@ -313,6 +313,8 @@ Sidekick prompts and reminders use a 4-level file cascade, allowing you to overr
 3. `.claude/hooks/sidekick/reminders/` - Project installed (ephemeral)
 4. `.sidekick/reminders/` - Project persistent (git-committable)
 
+**Reminder Templates**: The install script creates `static-reminder.txt.template` in both `~/.sidekick/reminders/` (user scope) and `.sidekick/reminders/` (project scope) as a starting point. **Rename to `static-reminder.txt` to activate your custom reminder**.
+
 **Usage Examples**:
 
 ```bash
@@ -321,13 +323,15 @@ mkdir -p ~/.sidekick/prompts
 cp ~/.claude/hooks/sidekick/prompts/topic.prompt.txt ~/.sidekick/prompts/
 # Edit ~/.sidekick/prompts/topic.prompt.txt
 
-# Override reminder for this project only
-mkdir -p .sidekick/reminders
-cat > .sidekick/reminders/static-reminder.txt <<'EOF'
-Remember to run tests before committing!
-EOF
+# Override reminder for this project (using template)
+mv .sidekick/reminders/static-reminder.txt.template .sidekick/reminders/static-reminder.txt
+# Edit .sidekick/reminders/static-reminder.txt
 git add .sidekick/reminders/static-reminder.txt
 git commit -m "Add custom project reminder"
+
+# Override reminder for all projects (using template)
+mv ~/.sidekick/reminders/static-reminder.txt.template ~/.sidekick/reminders/static-reminder.txt
+# Edit ~/.sidekick/reminders/static-reminder.txt
 ```
 
 The first existing file in the cascade wins. Use `.sidekick/` for persistent overrides that survive install/uninstall.
