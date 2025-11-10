@@ -28,8 +28,9 @@ setup() {
     export _SIDEKICK_ROOT="$TEST_DIR"
 
     # Copy prompts to test directory
-    mkdir -p "$TEST_DIR/features/prompts"
-    cp "$(dirname "$0")/../../../src/sidekick/features/prompts/"*.txt "$TEST_DIR/features/prompts/" 2>/dev/null || true
+    mkdir -p "$TEST_DIR/prompts"
+    cp "$(dirname "$0")/../../../src/sidekick/prompts/"*.txt "$TEST_DIR/prompts/" 2>/dev/null || true
+    cp "$(dirname "$0")/../../../src/sidekick/prompts/"*.json "$TEST_DIR/prompts/" 2>/dev/null || true
 
     # Copy scripts to test directory (needed for background processes)
     mkdir -p "$TEST_DIR/features/scripts"

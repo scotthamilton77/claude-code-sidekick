@@ -28,17 +28,22 @@ claude-config/
 │   │   ├── session-start.sh               # SessionStart orchestrator
 │   │   └── user-prompt-submit.sh          # UserPromptSubmit orchestrator
 │   │
-│   └── features/
-│       ├── topic-extraction.sh            # LLM-based conversation analysis
-│       ├── resume.sh                      # Session continuity & snarkification
-│       ├── statusline.sh                  # Enhanced statusline rendering
-│       ├── tracking.sh                    # Request counting
-│       ├── cleanup.sh                     # Session directory garbage collection
-│       └── prompts/                       # LLM prompt templates
-│           ├── topic.prompt.txt
-│           ├── topic.schema.json
-│           ├── resume.prompt.txt
-│           └── resume.schema.json
+│   ├── features/
+│   │   ├── topic-extraction.sh            # LLM-based conversation analysis
+│   │   ├── resume.sh                      # Session continuity & snarkification
+│   │   ├── statusline.sh                  # Enhanced statusline rendering
+│   │   ├── tracking.sh                    # Request counting
+│   │   ├── reminder.sh                    # Periodic static reminders
+│   │   └── cleanup.sh                     # Session directory garbage collection
+│   │
+│   ├── prompts/                           # LLM prompt templates (cascadable)
+│   │   ├── topic.prompt.txt
+│   │   ├── topic.schema.json
+│   │   ├── resume.prompt.txt
+│   │   └── resume.schema.json
+│   │
+│   └── reminders/                         # Static reminder text (cascadable)
+│       └── static-reminder.txt
 │
 ├── scripts/
 │   ├── install.sh                         # Install sidekick (--user|--project|--both)
@@ -169,9 +174,21 @@ path_get_session_dir <session_id>
 # Get project directory from JSON input or environment
 path_get_project_dir <json_input>
 
+# Resolve file using 4-level cascade (returns first existing file)
+path_resolve_cascade <relative_path> [project_dir]
+# Example: path_resolve_cascade "prompts/topic.prompt.txt" "$project_dir"
+# Cascade: 1. ~/.claude/hooks/sidekick/{path}
+#          2. ~/.sidekick/{path}
+#          3. ${projectRoot}/.claude/hooks/sidekick/{path}
+#          4. ${projectRoot}/.sidekick/{path}
+# Returns: absolute path to first existing file, empty if none found
+# Exit code: 0 if found, 1 if not found
+
 # Internal helpers
 _path_normalize <path>
 ```
+
+**File Cascade Usage**: Prompts (`prompts/*.prompt.txt`, `prompts/*.schema.json`) and reminders (`reminders/static-reminder.txt`) use `path_resolve_cascade()` to support user and project overrides without modifying installed files. The `.sidekick/` locations survive install/uninstall and are git-committable for team-wide settings.
 
 #### JSON PROCESSING
 ```bash
@@ -501,7 +518,7 @@ All topic extraction prompts now include:
 - `significant_change: boolean` - Claude determines if goals/objectives differ meaningfully from previous analysis
 - `{PREVIOUS_TOPIC}` placeholder - Previous topic.json content for comparison (if exists)
 
-**Dependencies**: LLM prompt templates in `features/prompts/`
+**Dependencies**: LLM prompt templates loaded via `path_resolve_cascade("prompts/topic.prompt.txt")` and `path_resolve_cascade("prompts/topic.schema.json")`
 
 #### features/resume.sh
 
@@ -544,6 +561,8 @@ RESUME_MIN_CLARITY=5                # Minimum clarity to use previous session's 
 
 **Performance**: Fast (<10ms) - pure file I/O, no LLM calls
 
+**Dependencies**: Resume generation (in `topic-extraction.sh:resume_generate_async()`) loads prompts via `path_resolve_cascade("prompts/resume.prompt.txt")` and `path_resolve_cascade("prompts/resume.schema.json")`
+
 #### features/statusline.sh
 
 **Functions**:
@@ -571,6 +590,38 @@ TRACKING_STATIC_CADENCE=4           # Reminder cadence (responses)
 ```
 
 **State Files**: `${session_dir}/response_count`
+
+#### features/reminder.sh
+
+**Functions**:
+- `reminder_check_due()` - Check if static reminder should be displayed based on cadence
+- `reminder_on_user_prompt_submit()` - Hook that outputs reminder as additionalContext when due
+
+**Configuration Keys**:
+```bash
+FEATURE_REMINDER=true
+TRACKING_STATIC_CADENCE=4           # Reminder cadence (responses, shared with tracking)
+```
+
+**Dependencies**:
+- `tracking.sh` - Uses tracking counter to determine cadence
+- Reminder text loaded via `path_resolve_cascade("reminders/static-reminder.txt", project_dir)`
+
+**Output**: When reminder is due (count % cadence == 0 && count > 0), outputs JSON with `additionalContext`:
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "UserPromptSubmit",
+    "additionalContext": "<reminder text content>"
+  }
+}
+```
+
+**Cascade Behavior**: Loads reminder from first existing file:
+1. `~/.claude/hooks/sidekick/reminders/static-reminder.txt`
+2. `~/.sidekick/reminders/static-reminder.txt`
+3. `${projectRoot}/.claude/hooks/sidekick/reminders/static-reminder.txt`
+4. `${projectRoot}/.sidekick/reminders/static-reminder.txt`
 
 #### features/cleanup.sh
 

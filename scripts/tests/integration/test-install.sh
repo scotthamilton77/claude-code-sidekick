@@ -161,7 +161,8 @@ test_install_user() {
     assert_dir_exists "$HOME/.claude/hooks/sidekick/lib"
     assert_dir_exists "$HOME/.claude/hooks/sidekick/handlers"
     assert_dir_exists "$HOME/.claude/hooks/sidekick/features"
-    assert_dir_exists "$HOME/.claude/hooks/sidekick/features/prompts"
+    assert_dir_exists "$HOME/.claude/hooks/sidekick/prompts"
+    assert_dir_exists "$HOME/.claude/hooks/sidekick/reminders"
 
     # Verify main files copied
     assert_file_exists "$HOME/.claude/hooks/sidekick/sidekick.sh"

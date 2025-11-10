@@ -48,13 +48,22 @@ setup() {
     mkdir -p "$TEST_DIR/.claude/hooks/sidekick/lib"
     mkdir -p "$TEST_DIR/.claude/hooks/sidekick/handlers"
     mkdir -p "$TEST_DIR/.claude/hooks/sidekick/features"
-    mkdir -p "$TEST_DIR/.claude/hooks/sidekick/features/prompts"
+    mkdir -p "$TEST_DIR/.claude/hooks/sidekick/prompts"
+    mkdir -p "$TEST_DIR/.claude/hooks/sidekick/reminders"
     mkdir -p "$TEST_DIR/.sidekick/sessions"
 
     # Copy sidekick files to test directory
     cp "$PROJECT_ROOT/src/sidekick/sidekick.sh" "$TEST_DIR/.claude/hooks/sidekick/"
     cp -r "$PROJECT_ROOT/src/sidekick/lib/"* "$TEST_DIR/.claude/hooks/sidekick/lib/"
     cp "$PROJECT_ROOT/src/sidekick/config.defaults" "$TEST_DIR/.claude/hooks/sidekick/"
+
+    # Copy prompts and reminders
+    if [ -d "$PROJECT_ROOT/src/sidekick/prompts" ]; then
+        cp -r "$PROJECT_ROOT/src/sidekick/prompts/"* "$TEST_DIR/.claude/hooks/sidekick/prompts/" 2>/dev/null || true
+    fi
+    if [ -d "$PROJECT_ROOT/src/sidekick/reminders" ]; then
+        cp -r "$PROJECT_ROOT/src/sidekick/reminders/"* "$TEST_DIR/.claude/hooks/sidekick/reminders/" 2>/dev/null || true
+    fi
 
     # Copy handlers if they exist
     if [ -f "$PROJECT_ROOT/src/sidekick/handlers/session-start.sh" ]; then
@@ -64,7 +73,6 @@ setup() {
     # Copy features if they exist
     if [ -d "$PROJECT_ROOT/src/sidekick/features" ]; then
         cp -r "$PROJECT_ROOT/src/sidekick/features/"*.sh "$TEST_DIR/.claude/hooks/sidekick/features/" 2>/dev/null || true
-        cp -r "$PROJECT_ROOT/src/sidekick/features/prompts/"* "$TEST_DIR/.claude/hooks/sidekick/features/prompts/" 2>/dev/null || true
     fi
 
     # Make sidekick.sh executable
