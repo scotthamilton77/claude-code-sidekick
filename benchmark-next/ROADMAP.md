@@ -1,8 +1,8 @@
 # TypeScript Migration Roadmap
 
-**Status**: 🏗️ Scoring Phase - Phase 4.1-4.3 Complete ✅
+**Status**: 🏗️ Scoring Phase - Phase 4.1-4.4 Complete ✅
 **Last Updated**: 2025-11-10
-**Recent Activity**: Phase 4.3 complete (technical accuracy scorer with 26 passing tests, 286 total tests passing)
+**Recent Activity**: Phase 4.4 complete (content quality scorer with 23 passing tests, 309 total tests passing)
 **Target**: Behavioral parity with Track 1 Bash implementation
 
 ---
@@ -19,7 +19,7 @@ This roadmap tracks the component-level migration from Track 1 (Bash, `scripts/b
 - Validate output parity with Track 1
 - Mark component complete
 
-**Progress**: 16/34 components complete (47%) - 1 component skipped
+**Progress**: 17/34 components complete (50%) - 1 component skipped
 
 ---
 
@@ -495,7 +495,7 @@ After code review, removed unnecessary Logger wrapper class (300 lines + 445 lin
 
 ---
 
-## Phase 4: Scoring (2/5 Complete)
+## Phase 4: Scoring (4/5 Complete)
 
 **Goal**: Three-dimensional scoring system (schema, technical, content).
 
@@ -590,20 +590,34 @@ After code review, removed unnecessary Logger wrapper class (300 lines + 445 lin
 
 ---
 
-### 4.4 Content Quality Scorer ⏳
+### 4.4 Content Quality Scorer ✅
 
 **Maps to**: `lib/scoring.sh::score_content_quality()`
 **Acceptance Criteria**:
 
-- Snarky comment presence (20 pts)
-- Length 20-120 chars (20 pts)
-- Relevance to transcript (60 pts via semantic similarity)
-- Scores match Track 1 exactly
+- ✅ Snarky comment presence (20 pts)
+- ✅ Length 20-120 chars (20 pts)
+- ✅ Relevance to transcript (60 pts via semantic similarity)
+- ✅ Field selection based on clarity_score (high/low comment)
+- ✅ Uses first 500 chars of transcript for relevance
+- ✅ Scores match Track 1 exactly
 
-**Files to Create**:
+**Files Created**:
 
-- `src/scoring/ContentQuality.ts`
-- `test/scoring/ContentQuality.test.ts`
+- ✅ `src/benchmark/scoring/ContentQuality.ts` (~92 lines)
+- ✅ `test/unit/scoring/ContentQuality.test.ts` (23 tests, all passing)
+
+**Key Features**:
+
+- Field selection: clarity_score >= 7 → high_clarity_snarky_comment, else low_clarity_snarky_comment
+- Three-dimensional scoring: presence (20), length 20-120 chars (20), relevance via semantic similarity (60)
+- Transcript excerpt: uses first 500 characters for relevance comparison
+- Graceful null handling: returns 0 scores without calling semantic similarity
+- Comprehensive edge case coverage: boundary lengths, null comments, rounding behavior
+
+**Status**: Complete - all tests passing, behavioral parity with Track 1
+
+**Completed**: 2025-11-10
 
 ---
 
@@ -964,14 +978,14 @@ Update this section after completing each component:
 **Phase 1**: █████ 5/5 (100%) ✅
 **Phase 2**: █████⏭️ 5/5 complete, 1 skipped (100%) ✅
 **Phase 3**: ██ 2/2 (100%) ✅
-**Phase 4**: ███░░ 3/5 (60%)
+**Phase 4**: ████░ 4/5 (80%)
 **Phase 5**: ░░░░ 0/4 (0%)
 **Phase 6**: ░░░░ 0/4 (0%)
 **Phase 7**: ░░ 0/2 (0%)
 **Phase 8**: ░░░ 0/3 (0%)
 **Phase 9**: ░░░░ 0/4 (0%)
 
-**Overall**: ████████████████⏭️░░░ 16/34 complete, 1 skipped (47%)
+**Overall**: ████████████████░⏭️░░░ 17/34 complete, 1 skipped (50%)
 
 ---
 
