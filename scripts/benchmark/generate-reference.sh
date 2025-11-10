@@ -89,8 +89,8 @@ create_versioned_reference_dir() {
     mkdir -p "$output_dir/_prompt-snapshot"
 
     # Snapshot prompt files
-    local prompt_file="${SIDEKICK_SRC}/features/prompts/topic.prompt.txt"
-    local schema_file="${SIDEKICK_SRC}/features/prompts/topic.schema.json"
+    local prompt_file="${SIDEKICK_SRC}/prompts/topic.prompt.txt"
+    local schema_file="${SIDEKICK_SRC}/prompts/topic.schema.json"
 
     if [ -f "$prompt_file" ]; then
         cp "$prompt_file" "$output_dir/_prompt-snapshot/"
@@ -193,7 +193,7 @@ extract_transcript_excerpt() {
 # Build prompt from transcript excerpt
 build_prompt() {
     local transcript_json="$1"
-    local prompt_template="${SIDEKICK_SRC}/features/prompts/topic.prompt.txt"
+    local prompt_template="${SIDEKICK_SRC}/prompts/topic.prompt.txt"
 
     if [ ! -f "$prompt_template" ]; then
         echo "ERROR: Prompt template not found: $prompt_template" >&2
@@ -223,7 +223,7 @@ invoke_reference_model() {
     echo "[INVOKE] Calling $provider:$model for test $test_id..." >&2
 
     # Load JSON schema
-    local schema_file="${SIDEKICK_SRC}/features/prompts/topic.schema.json"
+    local schema_file="${SIDEKICK_SRC}/prompts/topic.schema.json"
     local json_schema=""
 
     if [ -f "$schema_file" ]; then

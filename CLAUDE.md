@@ -139,6 +139,17 @@ Four-level cascade (later overrides earlier):
 
 See `src/sidekick/config.defaults` for all available options.
 
+### File Cascade (Prompts & Reminders)
+
+Prompts (`*.prompt.txt`, `*.schema.json`) and reminders (`static-reminder.txt`) use 4-level cascade via `path_resolve_cascade()`:
+
+1. `~/.claude/hooks/sidekick/{prompts,reminders}/` - Installed user-wide (ephemeral)
+2. `~/.sidekick/{prompts,reminders}/` - User-wide persistent (survives install/uninstall)
+3. `${projectRoot}/.claude/hooks/sidekick/{prompts,reminders}/` - Installed project (ephemeral)
+4. `${projectRoot}/.sidekick/{prompts,reminders}/` - Project persistent (git-committable)
+
+First existing file wins. Override default prompts/reminders without modifying installed files.
+
 ### LLM Provider Configuration
 
 Sidekick uses a pluggable LLM provider system for conversation analysis and resume generation.

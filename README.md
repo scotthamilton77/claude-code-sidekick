@@ -13,13 +13,25 @@ This repository serves as a development and testing environment for [Claude Code
 ### Sidekick
 
 - tracking and reminders
-  - make sure we actually have a static reminder with content deployed
+  - make sure we actually have a static reminder with content deployed (currently placeholder, dunno if it is getting deployed)
+   - option to automate the message on install ("most urgent stuff from CLAUDEs")
   - make sure we log when it happens
   - do we want to have multiple reminders with different cadences?
+  - should we also look at tool call intercepts (or others) - can these also inject context?
+- response tracker
+   - what if we include in the sleeper process a watch of the tanscript to also count additional messages beyond user submitted?  we might watch for "informative" updates based on the message type?
+- sleeper process
+   - is this per session?  what happens when a new session is started?  Does the sleeper just time out without further API calls (it should)?
 - PLAN.MD (executing ARCH.md)
   - standardize parameter names and styles in the scripts (e.g. --project-dir vs. not, internally using output_dir, etc.)
 - tune the topic extracter to follow the last n turns (delta + 10?) - this combined with previous goal snapshot might be cheaper?
 - tune the instructions for the topic extraction (little shorter, more cynical)
+- improve analysis and snarkiness
+   - analysis
+      - should call out rationale, keywords
+      - should over-weight existing/current stated goals
+   - we need 2 API calls, one for the analysis (low-temp), another for the snark (configurable temperature)
+   - this would allow us to use different models
 - allow for different personalities - either explicit at install time or random per project or random per session or just random
   - moods: cynical, sarcastic, snarky, nerdy, arrogant, moody
   - persona: angry klingon, skeptical vulcan, Scotty, Bones
@@ -273,6 +285,41 @@ LLM_CUSTOM_COMMAND={BIN} run {MODEL} < {PROMPT_FILE}
 ```
 
 See `src/sidekick/config.defaults` for all available options and `ARCH.md` for detailed provider documentation.
+
+### Customizing Prompts and Reminders
+
+Sidekick prompts and reminders use a 4-level file cascade, allowing you to override defaults without modifying installed files:
+
+**Prompts** (`topic.prompt.txt`, `resume.prompt.txt`, `*.schema.json`):
+1. `~/.claude/hooks/sidekick/prompts/` - User-wide installed (ephemeral)
+2. `~/.sidekick/prompts/` - User-wide persistent
+3. `.claude/hooks/sidekick/prompts/` - Project installed (ephemeral)
+4. `.sidekick/prompts/` - Project persistent (git-committable)
+
+**Reminders** (`static-reminder.txt`):
+1. `~/.claude/hooks/sidekick/reminders/` - User-wide installed (ephemeral)
+2. `~/.sidekick/reminders/` - User-wide persistent
+3. `.claude/hooks/sidekick/reminders/` - Project installed (ephemeral)
+4. `.sidekick/reminders/` - Project persistent (git-committable)
+
+**Usage Examples**:
+
+```bash
+# Override topic extraction prompt for all projects
+mkdir -p ~/.sidekick/prompts
+cp ~/.claude/hooks/sidekick/prompts/topic.prompt.txt ~/.sidekick/prompts/
+# Edit ~/.sidekick/prompts/topic.prompt.txt
+
+# Override reminder for this project only
+mkdir -p .sidekick/reminders
+cat > .sidekick/reminders/static-reminder.txt <<'EOF'
+Remember to run tests before committing!
+EOF
+git add .sidekick/reminders/static-reminder.txt
+git commit -m "Add custom project reminder"
+```
+
+The first existing file in the cascade wins. Use `.sidekick/` for persistent overrides that survive install/uninstall.
 
 ## Development Patterns
 

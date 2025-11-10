@@ -49,7 +49,8 @@ setup() {
     mkdir -p "$TEST_DIR/.claude/hooks/sidekick/lib"
     mkdir -p "$TEST_DIR/.claude/hooks/sidekick/handlers"
     mkdir -p "$TEST_DIR/.claude/hooks/sidekick/features"
-    mkdir -p "$TEST_DIR/.claude/hooks/sidekick/features/prompts"
+    mkdir -p "$TEST_DIR/.claude/hooks/sidekick/prompts"
+    mkdir -p "$TEST_DIR/.claude/hooks/sidekick/reminders"
     mkdir -p "$TEST_DIR/.sidekick/sessions"
 
     # Copy sidekick files
@@ -61,7 +62,9 @@ setup() {
     cp "$SRC_DIR/config.defaults" "$TEST_DIR/.claude/hooks/sidekick/"
     cp "$SRC_DIR/handlers"/*.sh "$TEST_DIR/.claude/hooks/sidekick/handlers/" 2>/dev/null || true
     cp "$SRC_DIR/features"/*.sh "$TEST_DIR/.claude/hooks/sidekick/features/" 2>/dev/null || true
-    cp "$SRC_DIR/features/prompts"/*.txt "$TEST_DIR/.claude/hooks/sidekick/features/prompts/" 2>/dev/null || true
+    cp "$SRC_DIR/prompts"/*.txt "$TEST_DIR/.claude/hooks/sidekick/prompts/" 2>/dev/null || true
+    cp "$SRC_DIR/prompts"/*.json "$TEST_DIR/.claude/hooks/sidekick/prompts/" 2>/dev/null || true
+    cp "$SRC_DIR/reminders"/*.txt "$TEST_DIR/.claude/hooks/sidekick/reminders/" 2>/dev/null || true
 
     chmod +x "$TEST_DIR/.claude/hooks/sidekick/sidekick.sh"
 
