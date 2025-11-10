@@ -617,12 +617,63 @@ versioned_config_differs_from_defaults() {
     fi
 }
 
+# Check for custom reminder files (non-template files)
+# Returns 0 if custom reminders exist, 1 if none found
+has_custom_reminders() {
+    local reminders_dir="$1"
+
+    if [ ! -d "$reminders_dir" ]; then
+        return 1
+    fi
+
+    # Check for any non-template files (files without .template extension)
+    local custom_count
+    custom_count=$(find "$reminders_dir" -mindepth 1 -maxdepth 1 -type f ! -name "*.template" 2>/dev/null | wc -l)
+
+    [ "$custom_count" -gt 0 ]
+}
+
+# Check if a reminder template differs from source
+# Returns 0 if different, 1 if same or doesn't exist
+reminder_template_differs_from_source() {
+    local template_file="$1"
+    local template_name
+    template_name=$(basename "$template_file")
+
+    if [ ! -f "$template_file" ]; then
+        return 1  # Doesn't exist
+    fi
+
+    # Strip .template extension to find source file
+    # Templates are created as: source.txt -> source.txt.template
+    local source_name="${template_name%.template}"
+    local source_file="${SRC_DIR}/reminders/${source_name}"
+
+    if [ ! -f "$source_file" ]; then
+        # No source file to compare against, assume it's custom
+        log_verbose "No source file found for template: $template_name"
+        return 0
+    fi
+
+    # Compare SHA256 hashes
+    local hash_template hash_source
+    hash_template=$(sha256sum "$template_file" | awk '{print $1}')
+    hash_source=$(sha256sum "$source_file" | awk '{print $1}')
+
+    if [ "$hash_template" = "$hash_source" ]; then
+        return 1  # Same
+    else
+        return 0  # Different
+    fi
+}
+
 # Handle .sidekick directory cleanup with user prompts
-# Handles sessions, logs, and versioned config based on user choices
+# Handles sessions, logs, versioned config, and reminders based on user choices
 handle_sidekick_cleanup() {
     local sidekick_dir="$1"
     local sessions_dir="$sidekick_dir/sessions"
     local versioned_config="$sidekick_dir/sidekick.conf"
+    local reminders_dir="$sidekick_dir/reminders"
 
     if [ ! -d "$sidekick_dir" ]; then
         log_verbose "Sidekick directory does not exist: $sidekick_dir"
@@ -631,40 +682,58 @@ handle_sidekick_cleanup() {
 
     log_step "Cleaning up $sidekick_dir..."
 
-    # Track what to keep
-    local preserve_sessions=false
-    local preserve_config=false
-
-    # 1. Check for recent sessions and prompt
-    if has_recent_sessions "$sessions_dir"; then
-        log_warn "Found recent session data in $sessions_dir"
-        if [ "${SIDEKICK_SKIP_CONFIRM:-0}" != "1" ] && [ "$DRY_RUN" = false ]; then
-            read -p "Preserve .sidekick/sessions directory? (Y/n) " -n 1 -r
-            echo
-            if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-                preserve_sessions=true
-            fi
+    # 1. Primary decision: remove .sidekick directory?
+    local remove_sidekick=true
+    if [ "${SIDEKICK_SKIP_CONFIRM:-0}" != "1" ] && [ "$DRY_RUN" = false ]; then
+        log_warn "The .sidekick directory contains session data and configuration"
+        read -p "Remove .sidekick directory and its contents? (Y/n) " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Nn]$ ]]; then
+            remove_sidekick=false
+            log_info "Preserving .sidekick directory"
+            return 0
         fi
     fi
 
-    # 2. Check versioned config and prompt if different from defaults
+    # If user chose not to remove .sidekick, preserve everything
+    if [ "$remove_sidekick" = false ]; then
+        return 0
+    fi
+
+    # Track what to preserve (within removal decision)
+    local preserve_config=false
+    local preserve_custom_reminders=false
+
+    # 2. Check versioned config and prompt if customized
     if [ -f "$versioned_config" ]; then
         if versioned_config_differs_from_defaults "$versioned_config"; then
-            log_warn "Versioned config differs from defaults: $versioned_config"
+            log_warn "Config is customized: $versioned_config"
             if [ "${SIDEKICK_SKIP_CONFIRM:-0}" != "1" ] && [ "$DRY_RUN" = false ]; then
-                read -p "Remove customized .sidekick/sidekick.conf? (y/N) " -n 1 -r
+                read -p "Preserve customized config file? (Y/n) " -n 1 -r
                 echo
-                if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                if [[ ! $REPLY =~ ^[Nn]$ ]]; then
                     preserve_config=true
                 fi
             fi
         else
-            log_verbose "Versioned config is identical to defaults, will remove"
+            log_verbose "Config is identical to defaults, will remove"
         fi
     fi
 
-    # 3. Perform cleanup based on decisions
-    # Remove log files at root level (*.log files like sidekick.log)
+    # 3. Check for custom reminders and prompt
+    if has_custom_reminders "$reminders_dir"; then
+        log_warn "Found custom reminders (non-template files) in $reminders_dir"
+        if [ "${SIDEKICK_SKIP_CONFIRM:-0}" != "1" ] && [ "$DRY_RUN" = false ]; then
+            read -p "Preserve custom reminder files? (Y/n) " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+                preserve_custom_reminders=true
+            fi
+        fi
+    fi
+
+    # 4. Perform cleanup
+    # Always remove log files (ephemeral)
     if [ -n "$(find "$sidekick_dir" -maxdepth 1 -name "*.log" 2>/dev/null)" ]; then
         log_operation "remove" "$sidekick_dir/*.log files"
         if [ "$DRY_RUN" = false ]; then
@@ -672,14 +741,62 @@ handle_sidekick_cleanup() {
         fi
     fi
 
-    # Remove sessions unless preserved
-    if [ "$preserve_sessions" = false ] && [ -d "$sessions_dir" ]; then
+    # Always remove sessions (ephemeral data)
+    if [ -d "$sessions_dir" ]; then
         log_operation "remove" "$sessions_dir"
         if [ "$DRY_RUN" = false ]; then
             rm -rf "$sessions_dir"
         fi
-    elif [ "$preserve_sessions" = true ]; then
-        log_info "Preserving sessions directory: $sessions_dir"
+    fi
+
+    # Handle reminders directory
+    if [ -d "$reminders_dir" ]; then
+        # Always remove template files (they're defaults, not custom)
+        local templates_found=false
+        for template_file in "$reminders_dir"/*.template; do
+            if [ -f "$template_file" ]; then
+                templates_found=true
+                # Check if modified from source
+                if reminder_template_differs_from_source "$template_file"; then
+                    log_warn "Template was modified: $(basename "$template_file")"
+                    if [ "${SIDEKICK_SKIP_CONFIRM:-0}" != "1" ] && [ "$DRY_RUN" = false ]; then
+                        read -p "Remove modified template? (Y/n) " -n 1 -r
+                        echo
+                        if [[ $REPLY =~ ^[Nn]$ ]]; then
+                            log_info "Preserving modified template: $(basename "$template_file")"
+                            continue
+                        fi
+                    fi
+                fi
+                log_operation "remove" "$template_file"
+                if [ "$DRY_RUN" = false ]; then
+                    rm -f "$template_file"
+                fi
+            fi
+        done
+
+        # Remove custom reminders unless preserved
+        if [ "$preserve_custom_reminders" = false ]; then
+            # Remove non-template files
+            for reminder_file in "$reminders_dir"/*; do
+                if [ -f "$reminder_file" ] && [[ ! "$reminder_file" =~ \.template$ ]]; then
+                    log_operation "remove" "$reminder_file"
+                    if [ "$DRY_RUN" = false ]; then
+                        rm -f "$reminder_file"
+                    fi
+                fi
+            done
+        else
+            log_info "Preserving custom reminder files"
+        fi
+
+        # Remove reminders directory if empty
+        if [ "$DRY_RUN" = false ]; then
+            if [ -d "$reminders_dir" ] && [ -z "$(ls -A "$reminders_dir" 2>/dev/null)" ]; then
+                log_operation "remove empty directory" "$reminders_dir"
+                rmdir "$reminders_dir"
+            fi
+        fi
     fi
 
     # Remove versioned config unless preserved
@@ -692,11 +809,19 @@ handle_sidekick_cleanup() {
         log_info "Preserving versioned config: $versioned_config"
     fi
 
-    # Remove README.md if it exists
+    # Always remove README.md (it's documentation, not custom)
     if [ -f "$sidekick_dir/README.md" ]; then
         log_operation "remove" "$sidekick_dir/README.md"
         if [ "$DRY_RUN" = false ]; then
             rm -f "$sidekick_dir/README.md"
+        fi
+    fi
+
+    # Remove prompts directory if it exists (templates)
+    if [ -d "$sidekick_dir/prompts" ]; then
+        log_operation "remove" "$sidekick_dir/prompts"
+        if [ "$DRY_RUN" = false ]; then
+            rm -rf "$sidekick_dir/prompts"
         fi
     fi
 
