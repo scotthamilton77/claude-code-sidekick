@@ -1,8 +1,8 @@
 # TypeScript Migration Roadmap
 
-**Status**: 🏗️ Infrastructure Phase - Phase 2 Complete ✅
+**Status**: 🏗️ Infrastructure Phase - Phase 3 Complete ✅
 **Last Updated**: 2025-11-10
-**Recent Activity**: Phase 2.6 complete (test data loaders with 29 passing tests)
+**Recent Activity**: Phase 3 complete (transcript preprocessing with 16 passing tests)
 **Target**: Behavioral parity with Track 1 Bash implementation
 
 ---
@@ -19,7 +19,7 @@ This roadmap tracks the component-level migration from Track 1 (Bash, `scripts/b
 - Validate output parity with Track 1
 - Mark component complete
 
-**Progress**: 11/34 components complete (32%) - 1 component skipped
+**Progress**: 13/34 components complete (38%) - 1 component skipped
 
 ---
 
@@ -38,12 +38,12 @@ src/
 │   ├── utils/                # ✅ Generic helpers (Phase 2.3)
 │   ├── config/               # ✅ Config cascade (Phase 2.4)
 │   ├── logging/              # ✅ Structured logging (Phase 2.5)
+│   ├── transcript/           # ✅ Transcript processing (Phase 3.1-3.2)
 │   └── paths/                # ⏳ Path utilities (future phase)
 └── benchmark/                # Benchmark-specific domain logic
     ├── core/                 # ⏳ Orchestration (Phase 6)
     ├── scoring/              # ⏳ Scoring algorithms (Phase 4)
     ├── consensus/            # ⏳ Consensus algorithms (Phase 5)
-    ├── preprocessing/        # ⏳ Data preprocessing (Phase 3)
     ├── data/                 # ✅ Data loading (Phase 2.6)
     └── cli/                  # ⏳ CLI entry points (Phase 7)
 ```
@@ -444,43 +444,54 @@ After code review, removed unnecessary Logger wrapper class (300 lines + 445 lin
 
 ---
 
-## Phase 3: Preprocessing (0/2 Complete)
+## Phase 3: Preprocessing (2/2 Complete) ✅
 
 **Goal**: Transcript preprocessing matching Sidekick topic extraction behavior.
 
-### 3.1 Transcript Excerpt Extraction ⏳
+### 3.1 Transcript Excerpt Extraction ✅
 
 **Maps to**: `lib/preprocessing.sh::preprocess_transcript()`
 **Acceptance Criteria**:
 
-- Extracts last N lines (configurable, default 80)
-- Matches Track 1 output exactly (byte-for-byte)
-- Handles edge cases (transcript shorter than N lines)
+- ✅ Extracts last N lines (configurable, default 80)
+- ✅ Matches Track 1 output exactly (byte-for-byte)
+- ✅ Handles edge cases (transcript shorter than N lines)
 
-**Files to Create**:
+**Files Created**:
 
-- `src/preprocessing/excerpt.ts`
-- `test/preprocessing/excerpt.test.ts`
+- ✅ `src/lib/transcript/excerpt.ts` (core extraction logic, ~185 lines)
+- ✅ `src/lib/transcript/types.ts` (type definitions, ~40 lines)
+- ✅ `src/lib/transcript/index.ts` (public API exports)
+- ✅ `test/unit/transcript/excerpt.test.ts` (16 tests, all passing)
+- ✅ `test/fixtures/transcript/` (4 test fixtures from Track 1)
 
-**Test Fixtures**: Sample transcripts from `test-data/transcripts/` with known excerpt outputs
+**Design Decision**: Placed in `src/lib/transcript/` (not `src/benchmark/preprocessing/`) because transcript processing is shared infrastructure that will be needed by both benchmark and sidekick implementations.
+
+**Test Coverage**: 16 tests covering line extraction, filtering, metadata stripping, edge cases, and file I/O
+
+**Status**: Complete - all tests passing, behavioral parity with Track 1 validated
+
+**Completed**: 2025-11-10
 
 ---
 
-### 3.2 Message Filtering & Metadata Stripping ⏳
+### 3.2 Message Filtering & Metadata Stripping ✅
 
 **Maps to**: `lib/preprocessing.sh` (tool message removal, metadata deletion)
 **Acceptance Criteria**:
 
-- Filters `tool_use` and `tool_result` messages (when enabled)
-- Strips `.model`, `.id`, `.type`, `.stop_reason`, `.stop_sequence`, `.usage`
-- Output matches Track 1 exactly
+- ✅ Filters `tool_use` and `tool_result` messages (when enabled)
+- ✅ Strips `.model`, `.id`, `.type`, `.stop_reason`, `.stop_sequence`, `.usage`
+- ✅ Output matches Track 1 exactly
 
-**Files to Create**:
+**Implementation Note**: Implemented as part of 3.1 via `ExcerptOptions`:
 
-- `src/preprocessing/filter.ts`
-- `test/preprocessing/filter.test.ts`
+- `filterToolMessages: boolean` (default: true)
+- `stripMetadata: boolean` (default: true)
 
-**Configuration**: `TOPIC_FILTER_TOOL_MESSAGES` (boolean)
+**Status**: Complete - integrated with excerpt extraction, fully tested
+
+**Completed**: 2025-11-10
 
 ---
 
@@ -922,7 +933,7 @@ Update this section after completing each component:
 
 **Phase 1**: █████ 5/5 (100%) ✅
 **Phase 2**: █████⏭️ 5/5 complete, 1 skipped (100%) ✅
-**Phase 3**: ░░ 0/2 (0%)
+**Phase 3**: ██ 2/2 (100%) ✅
 **Phase 4**: ░░░░░ 0/5 (0%)
 **Phase 5**: ░░░░ 0/4 (0%)
 **Phase 6**: ░░░░ 0/4 (0%)
@@ -930,7 +941,7 @@ Update this section after completing each component:
 **Phase 8**: ░░░ 0/3 (0%)
 **Phase 9**: ░░░░ 0/4 (0%)
 
-**Overall**: ███████████⏭️░░░░░░░░ 11/34 complete, 1 skipped (32%)
+**Overall**: █████████████⏭️░░░░░░ 13/34 complete, 1 skipped (38%)
 
 ---
 
