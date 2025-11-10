@@ -239,14 +239,25 @@ Configure in `.claude/mcp.json`.
 
 ### Sidekick Configuration Cascade
 
-Sidekick uses a four-level configuration cascade (later sources override earlier):
+Sidekick uses a five-level configuration cascade (later sources override earlier):
 
 1. **Defaults**: `src/sidekick/config.defaults`
-2. **User Global**: `~/.claude/hooks/sidekick/sidekick.conf` (user-wide overrides)
-3. **Project Deployed**: `.claude/hooks/sidekick/sidekick.conf` (ephemeral, deleted on uninstall)
-4. **Project Versioned**: `.sidekick/sidekick.conf` (**highest priority**, persistent, can be committed)
+2. **User Installed**: `~/.claude/hooks/sidekick/sidekick.conf` (ephemeral, deleted on uninstall)
+3. **User Persistent**: `~/.sidekick/sidekick.conf` (survives install/uninstall)
+4. **Project Deployed**: `.claude/hooks/sidekick/sidekick.conf` (ephemeral, deleted on uninstall)
+5. **Project Versioned**: `.sidekick/sidekick.conf` (**highest priority**, persistent, can be committed)
 
-**Recommended approach**: Use `.sidekick/sidekick.conf` for team-wide project settings that should be version-controlled.
+**Recommended approach**: Use `.sidekick/sidekick.conf` for team-wide project settings that should be version-controlled. Use `~/.sidekick/sidekick.conf` for personal preferences that apply across all projects.
+
+**Example - Personal preferences for all projects**:
+```bash
+# Create persistent user config (survives install/uninstall)
+mkdir -p ~/.sidekick
+cat > ~/.sidekick/sidekick.conf <<'EOF'
+LOG_LEVEL=debug
+TOPIC_CADENCE_HIGH=15
+EOF
+```
 
 ### LLM Provider Configuration
 

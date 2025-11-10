@@ -3,10 +3,11 @@
 #
 # Tests:
 # - Default config loaded from config.defaults
-# - User config overrides defaults
-# - Project deployed config overrides user config
+# - User installed config overrides defaults
+# - User persistent config overrides user installed
+# - Project deployed config overrides user configs
 # - Project versioned config overrides deployed config
-# - Configuration precedence: versioned project > deployed project > user > defaults
+# - Configuration precedence: versioned project > deployed project > user persistent > user installed > defaults
 
 set -euo pipefail
 
@@ -430,7 +431,55 @@ EOF
     fi
 }
 
-# Test 9: Versioned project config overrides deployed project config
+# Test 9: User persistent config overrides user installed config
+test_user_persistent_overrides_user_installed() {
+    local test_name="User persistent config overrides user installed"
+
+    # Create user installed config
+    cat > "$HOME/.claude/hooks/sidekick-test/sidekick.conf" << 'EOF'
+LOG_LEVEL=debug
+TOPIC_CADENCE_HIGH=20
+CLEANUP_MIN_COUNT=10
+EOF
+
+    # Create user persistent config (higher priority)
+    mkdir -p "$HOME/.sidekick"
+    cat > "$HOME/.sidekick/sidekick.conf" << 'EOF'
+LOG_LEVEL=warn
+CLEANUP_MIN_COUNT=15
+EOF
+
+    # Remove project configs for this test
+    rm -f "$TEST_DIR/.claude/hooks/sidekick/sidekick.conf"
+    rm -f "$TEST_DIR/.sidekick/sidekick.conf"
+
+    # Test that user persistent config wins
+    if test_config_value "LOG_LEVEL" "warn" "project"; then
+        pass "$test_name - LOG_LEVEL = warn (user persistent wins)"
+    else
+        fail "$test_name - LOG_LEVEL" "User persistent override failed"
+        return
+    fi
+
+    # Test that user persistent config wins for CLEANUP_MIN_COUNT
+    if test_config_value "CLEANUP_MIN_COUNT" "15" "project"; then
+        pass "$test_name - CLEANUP_MIN_COUNT = 15 (user persistent wins)"
+    else
+        fail "$test_name - CLEANUP_MIN_COUNT" "User persistent override failed"
+    fi
+
+    # Test that user installed config applies for non-overridden values
+    if test_config_value "TOPIC_CADENCE_HIGH" "20" "project"; then
+        pass "$test_name - TOPIC_CADENCE_HIGH = 20 (user installed)"
+    else
+        fail "$test_name - TOPIC_CADENCE_HIGH" "User installed value not preserved"
+    fi
+
+    # Cleanup user persistent config for next tests
+    rm -f "$HOME/.sidekick/sidekick.conf"
+}
+
+# Test 10: Versioned project config overrides deployed project config
 test_versioned_project_overrides_deployed() {
     local test_name="Versioned project config overrides deployed"
 
@@ -477,18 +526,27 @@ EOF
     fi
 }
 
-# Test 10: Full four-level cascade (defaults → user → deployed → versioned)
-test_four_level_cascade() {
-    local test_name="Four-level cascade (defaults → user → deployed → versioned)"
+# Test 11: Full five-level cascade (defaults → user installed → user persistent → deployed → versioned)
+test_five_level_cascade() {
+    local test_name="Five-level cascade (defaults → user installed → user persistent → deployed → versioned)"
 
-    # Create all four levels with different values
-    # Defaults: LOG_LEVEL=info, TOPIC_CADENCE_HIGH=10, CLEANUP_MIN_COUNT=5, FEATURE_TRACKING=true
+    # Create all five levels with different values
+    # Defaults: LOG_LEVEL=info, TOPIC_CADENCE_HIGH=10, CLEANUP_MIN_COUNT=5, SLEEPER_MAX_DURATION=600, FEATURE_TRACKING=true
 
-    # User config
+    # User installed config
     cat > "$HOME/.claude/hooks/sidekick-test/sidekick.conf" << 'EOF'
 LOG_LEVEL=debug
 TOPIC_CADENCE_HIGH=20
 CLEANUP_MIN_COUNT=10
+SLEEPER_MAX_DURATION=300
+EOF
+
+    # User persistent config
+    mkdir -p "$HOME/.sidekick"
+    cat > "$HOME/.sidekick/sidekick.conf" << 'EOF'
+LOG_LEVEL=info
+TOPIC_CADENCE_HIGH=25
+CLEANUP_MIN_COUNT=12
 EOF
 
     # Project deployed config
@@ -503,28 +561,35 @@ LOG_LEVEL=error
 EOF
 
     # Test cascade precedence:
-    # LOG_LEVEL: error (versioned wins over deployed, user, defaults)
-    # TOPIC_CADENCE_HIGH: 30 (deployed wins over user, defaults)
-    # CLEANUP_MIN_COUNT: 10 (user wins over defaults)
+    # LOG_LEVEL: error (versioned wins over all)
+    # TOPIC_CADENCE_HIGH: 30 (deployed wins over user persistent, user installed, defaults)
+    # CLEANUP_MIN_COUNT: 12 (user persistent wins over user installed, defaults)
+    # SLEEPER_MAX_DURATION: 300 (user installed wins over defaults)
     # FEATURE_TRACKING: true (defaults, not overridden)
 
     if test_config_value "LOG_LEVEL" "error" "project"; then
         pass "$test_name - LOG_LEVEL = error (versioned wins)"
     else
-        fail "$test_name - LOG_LEVEL" "Four-level cascade failed"
+        fail "$test_name - LOG_LEVEL" "Five-level cascade failed"
         return
     fi
 
     if test_config_value "TOPIC_CADENCE_HIGH" "30" "project"; then
         pass "$test_name - TOPIC_CADENCE_HIGH = 30 (deployed wins)"
     else
-        fail "$test_name - TOPIC_CADENCE_HIGH" "Four-level cascade failed"
+        fail "$test_name - TOPIC_CADENCE_HIGH" "Five-level cascade failed"
     fi
 
-    if test_config_value "CLEANUP_MIN_COUNT" "10" "project"; then
-        pass "$test_name - CLEANUP_MIN_COUNT = 10 (user wins)"
+    if test_config_value "CLEANUP_MIN_COUNT" "12" "project"; then
+        pass "$test_name - CLEANUP_MIN_COUNT = 12 (user persistent wins)"
     else
-        fail "$test_name - CLEANUP_MIN_COUNT" "Four-level cascade failed"
+        fail "$test_name - CLEANUP_MIN_COUNT" "Five-level cascade failed"
+    fi
+
+    if test_config_value "SLEEPER_MAX_DURATION" "300" "project"; then
+        pass "$test_name - SLEEPER_MAX_DURATION = 300 (user installed wins)"
+    else
+        fail "$test_name - SLEEPER_MAX_DURATION" "Five-level cascade failed"
     fi
 
     if test_config_value "FEATURE_TRACKING" "true" "project"; then
@@ -532,9 +597,12 @@ EOF
     else
         fail "$test_name - FEATURE_TRACKING" "Default not preserved"
     fi
+
+    # Cleanup user persistent config
+    rm -f "$HOME/.sidekick/sidekick.conf"
 }
 
-# Test 11: config_is_feature_enabled through cascade
+# Test 12: config_is_feature_enabled through cascade
 test_feature_enabled_cascade() {
     local test_name="config_is_feature_enabled through cascade"
 
@@ -609,8 +677,9 @@ main() {
     test_numeric_config_cascade
     test_empty_user_config
     test_empty_project_config
+    test_user_persistent_overrides_user_installed
     test_versioned_project_overrides_deployed
-    test_four_level_cascade
+    test_five_level_cascade
     test_feature_enabled_cascade
 
     # Summary

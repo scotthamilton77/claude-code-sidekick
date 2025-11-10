@@ -9,7 +9,7 @@
 1. **Single Entry Point**: All hooks route through `sidekick.sh <command>`
 2. **Shared Library**: Single `lib/common.sh` loaded once per invocation
 3. **Feature Independence**: Features are function libraries, independently toggleable
-4. **Configuration Cascade**: Versioned Project → Deployed Project → User → Defaults (shell .conf format)
+4. **Configuration Cascade**: Versioned Project → Deployed Project → User Persistent → User Installed → Defaults (shell .conf format)
 5. **Copy-Based Deployment**: Installation copies files to `.claude/hooks/sidekick/`
 6. **No Subprocess Spawning**: Features sourced and called as functions (except intentional background processes)
 
@@ -148,15 +148,18 @@ _config_validate
 
 **Configuration Cascade**:
 1. Source `src/sidekick/config.defaults` (must exist)
-2. Source `~/.claude/hooks/sidekick/sidekick.conf` (optional, user-wide)
-3. Source `$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.conf` (optional, ephemeral)
-4. Source `$CLAUDE_PROJECT_DIR/.sidekick/sidekick.conf` (optional, **versioned**, highest priority)
+2. Source `~/.claude/hooks/sidekick/sidekick.conf` (optional, user-wide installed, ephemeral)
+3. Source `~/.sidekick/sidekick.conf` (optional, user-wide persistent)
+4. Source `$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.conf` (optional, project deployed, ephemeral)
+5. Source `$CLAUDE_PROJECT_DIR/.sidekick/sidekick.conf` (optional, **project versioned**, highest priority)
 
 **Result**: Later sources override earlier ones
 
 **Key Distinctions**:
-- **Deployed config** (`.claude/hooks/sidekick/sidekick.conf`): Ephemeral, deleted on uninstall
-- **Versioned config** (`.sidekick/sidekick.conf`): Persistent, survives install/uninstall, can be committed to git
+- **Installed configs** (`~/.claude/hooks/sidekick/` and `.claude/hooks/sidekick/`): Ephemeral, deleted on uninstall
+- **Persistent configs** (`~/.sidekick/` and `.sidekick/`): Survive install/uninstall, can be committed to git
+- **User-wide persistent** (`~/.sidekick/sidekick.conf`): Personal preferences across all projects
+- **Project versioned** (`.sidekick/sidekick.conf`): Team-wide project settings
 
 #### PATH RESOLUTION
 ```bash
