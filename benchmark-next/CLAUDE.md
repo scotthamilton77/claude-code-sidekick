@@ -7,6 +7,7 @@ This directory contains the Track 2 TypeScript rewrite of the benchmarking syste
 ## Project Purpose
 
 Rewrite the Bash-based benchmarking system (`scripts/benchmark/`) in TypeScript for:
+
 - Better maintainability (type safety, IDE support, clearer architecture)
 - Improved async handling (native async/await vs subshells)
 - Easier testing (Jest/Vitest vs Bash unit tests)
@@ -35,18 +36,21 @@ src/
 │   │   ├── OpenAICompatibleProvider.ts # Base for OpenAI-compatible APIs
 │   │   ├── types.ts          # Type definitions
 │   │   └── schemas.ts        # Zod schemas
-│   ├── utils/                # 🟡 Generic helpers (JSON extraction done)
+│   ├── utils/                # ✅ Generic helpers (Phase 2.3)
 │   │   └── json-extraction.ts # Extract JSON from LLM output
 │   ├── config/               # ✅ Config cascade (Phase 2.4)
 │   ├── logging/              # ✅ Pino logger factory (Phase 2.5)
-│   └── paths/                # ⏳ Path utilities (Phase 2.6, planned)
+│   ├── transcript/           # ✅ Transcript processing (Phase 3.1-3.2)
+│   │   ├── excerpt.ts        # Extract and preprocess transcript excerpts
+│   │   ├── types.ts          # Type definitions
+│   │   └── index.ts          # Public API
+│   └── paths/                # ⏳ Path utilities (future phase)
 └── benchmark/                # Benchmark-specific domain logic
-    ├── core/                 # ⏳ Orchestration (planned)
-    ├── scoring/              # ⏳ Scoring algorithms (planned)
-    ├── consensus/            # ⏳ Consensus algorithms (planned)
-    ├── preprocessing/        # ⏳ Data preprocessing (planned)
-    ├── data/                 # ⏳ Data loading (planned)
-    └── cli/                  # ⏳ CLI entry points (planned)
+    ├── core/                 # ⏳ Orchestration (Phase 6)
+    ├── scoring/              # ⏳ Scoring algorithms (Phase 4)
+    ├── consensus/            # ⏳ Consensus algorithms (Phase 5)
+    ├── data/                 # ✅ Data loading (Phase 2.6)
+    └── cli/                  # ⏳ CLI entry points (Phase 7)
 ```
 
 **Architecture Principle**: Code in `lib/` is designed for future extraction to a monorepo `packages/common/` when sidekick migration begins. See `src/lib/README.md` for extraction criteria.
@@ -64,17 +68,20 @@ src/
 ### Testing Strategy
 
 **Unit Tests** (Vitest):
+
 - Mock LLM providers (no API costs)
 - Test scoring algorithms with known inputs/outputs
 - Test consensus algorithms with predefined data sets
 - Test config loading and validation
 
 **Integration Tests**:
+
 - Use real test-data/transcripts/
 - Compare outputs to Track 1 Bash results
 - Validate against test-data/references/
 
 **E2E Tests** (expensive, run manually):
+
 - Real LLM provider calls
 - Full benchmark run on golden-set
 - Performance benchmarks
@@ -82,6 +89,7 @@ src/
 ### Validation Checklist
 
 Before marking Track 2 as production-ready:
+
 - [ ] All Track 1 functional requirements implemented (see migration log)
 - [ ] All shared test-data/ tests pass
 - [ ] Output format matches Track 1 exactly (JSON schema, field names, value ranges)
@@ -94,12 +102,14 @@ Before marking Track 2 as production-ready:
 ## Configuration
 
 **Config Cascade** (match Track 1 Sidekick pattern):
+
 1. Defaults (hardcoded in Config.ts)
 2. User global (~/.claude/benchmark-next.conf or similar)
 3. Project deployed (.benchmark-next/config.json)
 4. Project versioned (.benchmark-next/config.local.json - gitignored)
 
 **Key Settings**:
+
 - LLM provider selection (claude-cli, openai-api, openrouter, custom)
 - Model selection per provider
 - Timeout/retry configuration
@@ -110,6 +120,7 @@ Before marking Track 2 as production-ready:
 ## Dependencies
 
 **Production**:
+
 - `@anthropic-ai/sdk` - Claude API
 - `openai` - OpenAI/Azure OpenAI
 - `zod` - Runtime validation and type safety
@@ -117,6 +128,7 @@ Before marking Track 2 as production-ready:
 - `commander` - CLI framework
 
 **Development**:
+
 - `typescript` - Type checking
 - `tsx` - TypeScript execution
 - `vitest` - Testing framework
@@ -130,10 +142,12 @@ Before marking Track 2 as production-ready:
 The following dependencies are newer than Claude's training cutoff (January 2025). When working with their APIs, ALWAYS use context7 to fetch current documentation:
 
 #### @anthropic-ai/sdk 0.68.0 (Released ~October 2025)
+
 **Version in use**: 0.68.0 (intentionally kept current)
 **Reason**: Latest API features and bug fixes (models are strings, SDK version-agnostic)
 
 **Critical SDK changes since training cutoff**:
+
 - ✅ **No breaking changes** - backwards compatible with v0.30+ (training cutoff range)
 - **Tool helpers**: `betaZodTool()` for Zod-based structured outputs (v0.68)
 - **Context management**: API for managing conversation context (v0.65+)
@@ -141,6 +155,7 @@ The following dependencies are newer than Claude's training cutoff (January 2025
 - **Code execution tools**: Built-in code execution capabilities (v0.61+)
 
 **Core API patterns** (stable across versions):
+
 - **Timeout config**: `timeout` in milliseconds (not seconds) - multiply by 1000
 - **No native JSON schema** - must use `tool_choice` pattern for structured outputs
 - **Error types**: `APIConnectionTimeoutError`, `RateLimitError` (includes `retry-after` header)
@@ -150,16 +165,19 @@ The following dependencies are newer than Claude's training cutoff (January 2025
 **Key TypeScript types**: `Message`, `MessageCreateParams`, `ContentBlock`, `APIError` hierarchy
 
 **Implementation gotchas**:
+
 - Default timeout is 10 minutes - set explicit `timeout` for benchmarking
 - `maxRetries: 0` disables retries (default is 2)
 - Second parameter to `create()` allows per-request timeout/retry overrides
 - `message.content` is always an array, even for single text responses
 
 #### openai 6.8.1 (Released November 2025)
+
 **Version in use**: 6.8.1 (intentionally kept current)
 **Reason**: Latest SDK features and API capabilities (models are strings, SDK version-agnostic)
 
 **Critical SDK changes since training cutoff** (v4.85 → v6.8):
+
 - 🚨 **Breaking changes in v5**: Assistants API removed, `runFunctions()` removed, "function" helpers renamed to "tools"
 - 🚨 **Breaking changes in v6**: Function call outputs changed from `string` to `string | Array<...>` - needs type guards
 - **Structured outputs**: `parse()` method with `zodResponseFormat()` for type-safe JSON extraction
@@ -169,6 +187,7 @@ The following dependencies are newer than Claude's training cutoff (January 2025
 - **Audio enhancements**: Transcription with diarization support (v6.4.0)
 
 **Core API patterns** (stable across versions):
+
 - **Timeout config**: `timeout` in milliseconds, default 10 minutes
 - **Retry behavior**: Automatic retries on 429/5xx with exponential backoff
 - **Error types**: `APIConnectionTimeoutError`, `RateLimitError`
@@ -177,6 +196,7 @@ The following dependencies are newer than Claude's training cutoff (January 2025
 **Key TypeScript types**: `ChatCompletion`, `ParsedChatCompletion<T>`, `CompletionUsage`, `CompletionTokensDetails`
 
 **Implementation gotchas**:
+
 - Default timeout is 10 minutes - set explicit `timeout` for benchmarking
 - `maxRetries: 0` recommended for predictable benchmark timing
 - `parse()` throws `LengthFinishReasonError` on truncation (cleaner error handling than manual JSON.parse)
@@ -184,6 +204,7 @@ The following dependencies are newer than Claude's training cutoff (January 2025
 - AbortController cancellation may have edge case issues - test thoroughly
 
 **When to use context7 for these libraries**:
+
 - Writing provider integration code (`src/providers/ClaudeProvider.ts`, `OpenAIProvider.ts`)
 - Debugging API call failures or unexpected responses
 - Implementing timeout/retry logic with AbortController
@@ -202,6 +223,7 @@ The following dependencies are newer than Claude's training cutoff (January 2025
 4. **Document differences**: If TypeScript approach differs, explain why in migration log
 
 **Example - Timeout Handling**:
+
 - **Track 1**: `timeout` command + retry loop in Bash
 - **Track 2**: `AbortController` + Promise.race() + retry decorator pattern
 - **Same behavior**: 3 retries, exponential backoff, same error messages
@@ -216,6 +238,7 @@ The following dependencies are newer than Claude's training cutoff (January 2025
 ## Success Metrics
 
 Track 2 is production-ready when:
+
 1. ✅ Passes all Track 1 validation tests
 2. ✅ Full type coverage (tsc --strict with no errors)
 3. ✅ Performance within 20% of Track 1
