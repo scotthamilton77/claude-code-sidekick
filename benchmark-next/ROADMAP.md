@@ -1,8 +1,8 @@
 # TypeScript Migration Roadmap
 
-**Status**: 🏗️ Consensus Phase - Phase 5.1 Complete ✅
+**Status**: 🏗️ Consensus Phase - Phase 5.2 Complete ✅
 **Last Updated**: 2025-11-10
-**Recent Activity**: Phase 5.1 complete (string consensus with semantic centrality, 27 passing tests, 353 total tests passing)
+**Recent Activity**: Phase 5.2 complete (numeric consensus with median, 24 passing tests, 377 total tests passing)
 **Target**: Behavioral parity with Track 1 Bash implementation
 
 ---
@@ -19,7 +19,7 @@ This roadmap tracks the component-level migration from Track 1 (Bash, `scripts/b
 - Validate output parity with Track 1
 - Mark component complete
 
-**Progress**: 19/34 components complete (56%) - 1 component skipped
+**Progress**: 20/34 components complete (59%) - 1 component skipped
 
 ---
 
@@ -683,19 +683,31 @@ After code review, removed unnecessary Logger wrapper class (300 lines + 445 lin
 
 ---
 
-### 5.2 Numeric Consensus (Median) ⏳
+### 5.2 Numeric Consensus (Median) ✅
 
-**Maps to**: `lib/consensus.sh::compute_numeric_consensus()`
+**Maps to**: `lib/consensus.sh::consensus_numeric_field()`
 **Acceptance Criteria**:
 
-- Median calculation (3 or 2 values)
-- Null filtering
-- Matches Track 1 results
+- ✅ Median calculation (3 values, middle when sorted)
+- ✅ Null filtering (null/undefined → 0)
+- ✅ Matches Track 1 results
 
-**Files to Create**:
+**Files Created**:
 
-- `src/consensus/NumericConsensus.ts`
-- `test/consensus/NumericConsensus.test.ts`
+- ✅ `src/benchmark/consensus/NumericConsensus.ts` (~54 lines)
+- ✅ `test/unit/consensus/NumericConsensus.test.ts` (24 tests, all passing)
+
+**Key Features**:
+
+- Simple median calculation (sort and take middle value)
+- Null/undefined handling (treated as 0, matches bash default)
+- Supports integers, floats, negative numbers
+- Robust to outliers (median property)
+- Pure function with no side effects
+
+**Status**: Complete - all tests passing, behavioral parity with Track 1 validated
+
+**Completed**: 2025-11-10
 
 ---
 
@@ -999,13 +1011,13 @@ Update this section after completing each component:
 **Phase 2**: █████⏭️ 5/5 complete, 1 skipped (100%) ✅
 **Phase 3**: ██ 2/2 (100%) ✅
 **Phase 4**: █████ 5/5 (100%) ✅
-**Phase 5**: █░░░ 1/4 (25%)
+**Phase 5**: ██░░ 2/4 (50%)
 **Phase 6**: ░░░░ 0/4 (0%)
 **Phase 7**: ░░ 0/2 (0%)
 **Phase 8**: ░░░ 0/3 (0%)
 **Phase 9**: ░░░░ 0/4 (0%)
 
-**Overall**: ██████████████████⏭️░░ 19/34 complete, 1 skipped (56%)
+**Overall**: ███████████████████⏭️░░ 20/34 complete, 1 skipped (59%)
 
 ---
 
