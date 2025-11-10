@@ -1,8 +1,8 @@
 # TypeScript Migration Roadmap
 
-**Status**: 🏗️ Scoring Phase - Phase 4.1-4.4 Complete ✅
+**Status**: 🏗️ Scoring Phase - Phase 4 Complete ✅
 **Last Updated**: 2025-11-10
-**Recent Activity**: Phase 4.4 complete (content quality scorer with 23 passing tests, 309 total tests passing)
+**Recent Activity**: Phase 4.5 complete (weighted score aggregator with 17 passing tests, 326 total tests passing)
 **Target**: Behavioral parity with Track 1 Bash implementation
 
 ---
@@ -19,7 +19,7 @@ This roadmap tracks the component-level migration from Track 1 (Bash, `scripts/b
 - Validate output parity with Track 1
 - Mark component complete
 
-**Progress**: 17/34 components complete (50%) - 1 component skipped
+**Progress**: 18/34 components complete (53%) - 1 component skipped
 
 ---
 
@@ -621,21 +621,30 @@ After code review, removed unnecessary Logger wrapper class (300 lines + 445 lin
 
 ---
 
-### 4.5 Weighted Score Aggregator ⏳
+### 4.5 Weighted Score Aggregator ✅
 
 **Maps to**: `lib/scoring.sh::calculate_overall_score()`
 **Acceptance Criteria**:
 
-- Combines schema (30%), technical (50%), content (20%)
-- Produces overall score (0-100)
-- Matches Track 1 calculations exactly
+- ✅ Combines schema (30%), technical (50%), content (20%)
+- ✅ Produces overall score (0-100)
+- ✅ Matches Track 1 calculations exactly
 
-**Files to Create**:
+**Files Created**:
 
-- `src/scoring/Aggregator.ts`
-- `test/scoring/Aggregator.test.ts`
+- ✅ `src/benchmark/scoring/Aggregator.ts` (~60 lines, calculateOverallScore function)
+- ✅ `test/unit/scoring/Aggregator.test.ts` (17 tests, all passing)
 
-**Test Cases**: Various score combinations with known weighted results
+**Key Features**:
+
+- Weighted average calculation: (schema _ 0.30) + (technical _ 0.50) + (content \* 0.20)
+- Rounds to 2 decimal places to match Track 1's bc scale=2 behavior
+- Comprehensive test coverage: edge cases, realistic scenarios, validation against bash calculations
+- Pure function with no side effects (stateless, deterministic)
+
+**Status**: Complete - all tests passing, behavioral parity with Track 1 validated
+
+**Completed**: 2025-11-10
 
 ---
 
@@ -978,14 +987,14 @@ Update this section after completing each component:
 **Phase 1**: █████ 5/5 (100%) ✅
 **Phase 2**: █████⏭️ 5/5 complete, 1 skipped (100%) ✅
 **Phase 3**: ██ 2/2 (100%) ✅
-**Phase 4**: ████░ 4/5 (80%)
+**Phase 4**: █████ 5/5 (100%) ✅
 **Phase 5**: ░░░░ 0/4 (0%)
 **Phase 6**: ░░░░ 0/4 (0%)
 **Phase 7**: ░░ 0/2 (0%)
 **Phase 8**: ░░░ 0/3 (0%)
 **Phase 9**: ░░░░ 0/4 (0%)
 
-**Overall**: ████████████████░⏭️░░░ 17/34 complete, 1 skipped (50%)
+**Overall**: █████████████████⏭️░░░ 18/34 complete, 1 skipped (53%)
 
 ---
 
