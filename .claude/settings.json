@@ -1,0 +1,19 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|MultiEdit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '🎨 Running Prettier...' && jq -r '.tool_input.file_path' | xargs npx prettier --write"
+          },
+          {
+            "type": "command",
+            "command": "echo '🚨 Running ESLint...' && jq -r '.tool_input.file_path' | xargs npx eslint --fix --quiet"
+          }
+        ]
+      }
+    ]
+  }
+}

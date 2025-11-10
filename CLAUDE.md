@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Quick Reference
 
-| Need | Location |
-|------|----------|
-| **Run tests** | `cd benchmark-next && npm test` |
-| **Architecture** | `benchmark-next/CLAUDE.md` (TypeScript), `ARCH.md` (legacy Bash) |
-| **Migration status** | `docs/benchmark-migration.md` |
-| **Test data** | `test-data/` (shared by both implementations) |
-| **Legacy bash** | `src/sidekick/`, `scripts/benchmark/` (reference only) |
+| Need                 | Location                                                         |
+| -------------------- | ---------------------------------------------------------------- |
+| **Run tests**        | `cd benchmark-next && npm test`                                  |
+| **Architecture**     | `benchmark-next/CLAUDE.md` (TypeScript), `ARCH.md` (legacy Bash) |
+| **Migration status** | `docs/benchmark-migration.md`                                    |
+| **Test data**        | `test-data/` (shared by both implementations)                    |
+| **Legacy bash**      | `src/sidekick/`, `scripts/benchmark/` (reference only)           |
 
 ## Project Purpose
 
@@ -19,6 +19,7 @@ This repository is the **experimental proving ground** for Claude Code configura
 **Strategic Direction**: Migrating from Bash to TypeScript for maintainability, type safety, and testability. Starting with the benchmark system (`benchmark-next/`), with plans to eventually migrate all components.
 
 **Critical Design Principle**: All capabilities must work identically in both:
+
 - **Project scope**: `.claude/` within this repository (testing)
 - **User scope**: `~/.claude/` global directory (production deployment)
 
@@ -33,14 +34,17 @@ This repository is the **experimental proving ground** for Claude Code configura
 **Status**: 🏗️ Phase 2 in progress - building shared foundation with forward-looking modularity
 
 **Architecture Strategy**: Staged extraction approach
+
 - **Phase 1 (current)**: Develop in `benchmark-next/src/lib/` with loose coupling to benchmark domain
 - **Phase 2 (future)**: Extract stabilized `lib/` code to monorepo `packages/common/` when sidekick migration begins
 
 **Current Structure**:
+
 - `src/lib/` - Shared foundation (providers, utils, config, logging, paths) - designed for future extraction
 - `src/benchmark/` - Benchmark-specific domain logic (scoring, consensus, orchestration)
 
 **Implemented Components**:
+
 - ✅ LLM provider abstraction (Claude, OpenAI, OpenRouter, custom)
 - ✅ JSON extraction utilities
 - 🏗️ Timeout/retry with exponential backoff (in progress)
@@ -54,11 +58,13 @@ This repository is the **experimental proving ground** for Claude Code configura
 **Production system** currently in use, but being phased out. Reference for functional behavior only.
 
 **Key Locations** (minimal detail—see `ARCH.md` for complete docs):
+
 - `src/sidekick/` - Hook system (topic extraction, resume, statusline, tracking, cleanup)
 - `scripts/benchmark/` - Original benchmark implementation (3K LOC Bash)
 - `scripts/tests/` - Bash test infrastructure
 
 **If you need to**:
+
 - Install legacy hooks: `./scripts/install.sh --user` → `claude --continue`
 - Run legacy tests: `./scripts/tests/run-unit-tests.sh`
 - Find bash implementation details: See `ARCH.md` and `PLAN.md`
@@ -68,6 +74,7 @@ This repository is the **experimental proving ground** for Claude Code configura
 Canonical dataset used by **both** implementations for validation and behavioral parity testing.
 
 **Structure**:
+
 - `test-data/transcripts/` - 497 Claude Code transcripts with metadata
   - `metadata.json` - Master index (length classification, task IDs)
   - `golden-set.json` - 15 reference transcripts for benchmarking
@@ -80,7 +87,9 @@ Canonical dataset used by **both** implementations for validation and behavioral
 
 ## Development Workflow
 
-### Working on TypeScript Track (Recommended)
+### Working on TypeScript Track
+
+**Recommended:**
 
 ```bash
 cd benchmark-next
@@ -89,11 +98,23 @@ npm test          # Run all tests
 npm test:watch    # TDD mode
 ```
 
+**MANDATORY: before telling the user you're done!**
+
+```bash
+cd benchmark-next
+tsc --noEmit
+npm run fix
+```
+
+- ALWAYS run after making code changes
+- ALWAYS fix any lingering lint and typescript errors
+
 See `benchmark-next/CLAUDE.md` for architecture, patterns, and migration checklist.
 
 ### Working on Legacy Bash (Maintenance Only)
 
 Only modify bash code for:
+
 - Critical production bugs
 - Extracting behavioral requirements for TypeScript migration
 
@@ -102,6 +123,7 @@ After any bash changes, extract requirements to `docs/benchmark-migration.md` fo
 ### Migration Workflow
 
 See `docs/benchmark-migration.md` for the test-driven migration process:
+
 1. Extract behavior from Bash (inputs → outputs)
 2. Create test fixtures in `benchmark-next/test/fixtures/`
 3. Write failing TypeScript tests
