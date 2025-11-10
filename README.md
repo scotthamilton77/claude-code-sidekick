@@ -13,17 +13,14 @@ This repository serves as a development and testing environment for [Claude Code
 ### Sidekick
 
 - tracking and reminders
-  - make sure we actually have a static reminder with content deployed (currently placeholder, dunno if it is getting deployed)
-   - option to automate the message on install ("most urgent stuff from CLAUDEs")
-  - make sure we log when it happens
-  - do we want to have multiple reminders with different cadences?
-  - should we also look at tool call intercepts (or others) - can these also inject context?
+  - option to automate the turn-cadence-reminder.md message on install ("most urgent stuff from CLAUDEs")
 - response tracker
    - what if we include in the sleeper process a watch of the tanscript to also count additional messages beyond user submitted?  we might watch for "informative" updates based on the message type?
 - sleeper process
    - is this per session?  what happens when a new session is started?  Does the sleeper just time out without further API calls (it should)?
 - PLAN.MD (executing ARCH.md)
   - standardize parameter names and styles in the scripts (e.g. --project-dir vs. not, internally using output_dir, etc.)
+- should this be a claude code plugin?  There are plugin hooks referenced here: https://code.claude.com/docs/en/hooks
 - tune the topic extracter to follow the last n turns (delta + 10?) - this combined with previous goal snapshot might be cheaper?
 - tune the instructions for the topic extraction (little shorter, more cynical)
 - improve analysis and snarkiness
@@ -140,13 +137,14 @@ The Sidekick system provides a **plugin-based hook architecture** that executes 
 - Plugins implement hook functions (e.g., `tracking_on_user_prompt_submit()`) which get invoked if defined
 - **Dependency resolution** ensures plugins load in correct order (e.g., reminder loads after tracking)
 
-**Available Plugins** (6 total):
+**Available Plugins** (7 total):
 
 - **topic-extraction**: LLM-based conversation analysis with adaptive polling
 - **resume**: Async background resume generation when topic changes significantly
 - **statusline**: Enhanced statusline with token tracking, git branch, topic display
-- **tracking**: Response counter for session management
-- **reminder**: Periodic static reminders at configurable cadence (depends on tracking)
+- **tracking**: Turn and tool counters for session management
+- **reminder**: Three-tier reminder system (turn-cadence, tool-cadence, tools-per-turn) with independent thresholds
+- **post-tool-use**: Tool activity tracking with cadence-based and threshold-based reminders
 - **cleanup**: Automatic garbage collection of old session directories
 
 **Plugin Features**:
@@ -307,13 +305,26 @@ Sidekick prompts and reminders use a 4-level file cascade, allowing you to overr
 3. `.claude/hooks/sidekick/prompts/` - Project installed (ephemeral)
 4. `.sidekick/prompts/` - Project persistent (git-committable)
 
-**Reminders** (`static-reminder.txt`):
+**Reminders** (three types):
+1. `turn-cadence-reminder.txt` - Fires every N user prompts (default: 4)
+2. `tool-cadence-reminder.txt` - Fires every N total tool calls (default: 50)
+3. `tools-per-turn-reminder.txt` - Fires when single turn exceeds threshold (default: 20 tools, interruptive)
+
+Each reminder type uses the same 4-level cascade:
 1. `~/.claude/hooks/sidekick/reminders/` - User-wide installed (ephemeral)
 2. `~/.sidekick/reminders/` - User-wide persistent
 3. `.claude/hooks/sidekick/reminders/` - Project installed (ephemeral)
 4. `.sidekick/reminders/` - Project persistent (git-committable)
 
-**Reminder Templates**: The install script creates `static-reminder.txt.template` in both `~/.sidekick/reminders/` (user scope) and `.sidekick/reminders/` (project scope) as a starting point. **Rename to `static-reminder.txt` to activate your custom reminder**.
+**Reminder Templates**: The install script creates `.template` files for all three types in both `~/.sidekick/reminders/` (user scope) and `.sidekick/reminders/` (project scope). **Rename to remove `.template` suffix to activate your custom reminder**.
+
+**Configuration**:
+```bash
+# config.defaults or sidekick.conf
+TURN_CADENCE=4                  # Every 4 user prompts
+TOOL_CADENCE=50                 # Every 50 total tool calls
+TOOLS_PER_TURN_THRESHOLD=20     # When single response exceeds 20 tools
+```
 
 **Usage Examples**:
 
@@ -323,15 +334,15 @@ mkdir -p ~/.sidekick/prompts
 cp ~/.claude/hooks/sidekick/prompts/topic.prompt.txt ~/.sidekick/prompts/
 # Edit ~/.sidekick/prompts/topic.prompt.txt
 
-# Override reminder for this project (using template)
-mv .sidekick/reminders/static-reminder.txt.template .sidekick/reminders/static-reminder.txt
-# Edit .sidekick/reminders/static-reminder.txt
-git add .sidekick/reminders/static-reminder.txt
-git commit -m "Add custom project reminder"
+# Override turn-cadence reminder for this project (using template)
+mv .sidekick/reminders/turn-cadence-reminder.txt.template .sidekick/reminders/turn-cadence-reminder.txt
+# Edit .sidekick/reminders/turn-cadence-reminder.txt
+git add .sidekick/reminders/turn-cadence-reminder.txt
+git commit -m "Add custom turn-cadence reminder"
 
-# Override reminder for all projects (using template)
-mv ~/.sidekick/reminders/static-reminder.txt.template ~/.sidekick/reminders/static-reminder.txt
-# Edit ~/.sidekick/reminders/static-reminder.txt
+# Override tools-per-turn reminder for all projects (using template)
+mv ~/.sidekick/reminders/tools-per-turn-reminder.txt.template ~/.sidekick/reminders/tools-per-turn-reminder.txt
+# Edit ~/.sidekick/reminders/tools-per-turn-reminder.txt
 ```
 
 The first existing file in the cascade wins. Use `.sidekick/` for persistent overrides that survive install/uninstall.
