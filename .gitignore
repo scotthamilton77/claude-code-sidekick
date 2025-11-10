@@ -31,6 +31,9 @@ node_modules/
 # DevContainer environment variables (contains secrets)
 .devcontainer/.env
 
+# Sidekick development env exclusions (otherwise we get random files thrown in there that don't need to be versioned)
+.sidekick
+
 # Sidekick backup files
 *.backup.*
 *.uninstall-backup.*
