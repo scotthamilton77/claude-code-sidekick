@@ -1,8 +1,8 @@
 # TypeScript Migration Roadmap
 
-**Status**: 🏗️ Infrastructure Phase - Phase 3 Complete ✅
+**Status**: 🏗️ Scoring Phase - Phase 4.1-4.2 Complete ✅
 **Last Updated**: 2025-11-10
-**Recent Activity**: Phase 3 complete (transcript preprocessing with 16 passing tests)
+**Recent Activity**: Phase 4.1-4.2 complete (schema validation & semantic similarity with 39 passing tests)
 **Target**: Behavioral parity with Track 1 Bash implementation
 
 ---
@@ -19,7 +19,7 @@ This roadmap tracks the component-level migration from Track 1 (Bash, `scripts/b
 - Validate output parity with Track 1
 - Mark component complete
 
-**Progress**: 13/34 components complete (38%) - 1 component skipped
+**Progress**: 15/34 components complete (44%) - 1 component skipped
 
 ---
 
@@ -495,46 +495,66 @@ After code review, removed unnecessary Logger wrapper class (300 lines + 445 lin
 
 ---
 
-## Phase 4: Scoring (0/5 Complete)
+## Phase 4: Scoring (2/5 Complete)
 
 **Goal**: Three-dimensional scoring system (schema, technical, content).
 
-### 4.1 Schema Validator (Zod-based) ⏳
+### 4.1 Schema Validator (Zod-based) ✅
 
 **Maps to**: `lib/scoring.sh::score_schema_compliance()`
 **Acceptance Criteria**:
 
-- Validates JSON structure (30 points)
-- Validates required fields (30 points)
-- Validates types/ranges (40 points)
-- Produces same scores as Track 1 on test fixtures
+- ✅ Validates JSON structure (30 points)
+- ✅ Validates required fields (30 points proportional)
+- ✅ Validates types/ranges (40 points, 8 checks × 5 points each)
+- ✅ Produces same scores as Track 1 on test fixtures
 
-**Files to Create**:
+**Files Created**:
 
-- `src/scoring/SchemaValidator.ts`
-- `src/scoring/schemas.ts` (topic extraction schema)
-- `test/scoring/SchemaValidator.test.ts`
+- ✅ `src/benchmark/scoring/SchemaValidator.ts` (217 lines)
+- ✅ `src/benchmark/scoring/schemas.ts` (Zod schemas for TopicAnalysis, SimilarityScore)
+- ✅ `src/benchmark/scoring/types.ts` (TypeScript interfaces)
+- ✅ `test/unit/scoring/SchemaValidator.test.ts` (23 tests, all passing)
 
-**Test Fixtures**: `test/fixtures/scoring/schema-*.json` (valid, invalid, edge cases)
+**Key Features**:
+
+- 3-tier scoring: JSON (30), required fields (30), type/range validation (40)
+- Proportional field scoring (missing fields reduce score proportionally)
+- Per-check type validation (5 points each: clarity_score range, confidence range, string lengths, etc.)
+- Comprehensive validation: integers, numeric ranges, string max lengths, nullable unions
+
+**Status**: Complete - all tests passing, behavioral parity with Track 1
+
+**Completed**: 2025-11-10
 
 ---
 
-### 4.2 Semantic Similarity (LLM-as-Judge) ⏳
+### 4.2 Semantic Similarity (LLM-as-Judge) ✅
 
 **Maps to**: `lib/similarity.sh::calculate_semantic_similarity()`
 **Acceptance Criteria**:
 
-- Uses judge model to score similarity (0.0-1.0)
-- Fallback judge support
-- Identical text optimization (return 1.0 without API call)
-- Scores match Track 1 within ±0.05
+- ✅ Uses judge model to score similarity (0.0-1.0)
+- ✅ Fallback judge support with error aggregation
+- ✅ Identical text optimization (return 1.0 without API call)
+- ✅ Scores match Track 1 within ±0.05
 
-**Files to Create**:
+**Files Created**:
 
-- `src/scoring/SemanticSimilarity.ts`
-- `test/scoring/SemanticSimilarity.test.ts`
+- ✅ `src/benchmark/scoring/SemanticSimilarity.ts` (100 lines)
+- ✅ `test/unit/scoring/SemanticSimilarity.test.ts` (16 tests, all passing)
 
-**Test Fixtures**: String pairs with known similarity scores from Track 1
+**Key Features**:
+
+- LLM-as-judge pattern with explicit scoring guidelines (1.0 = identical, 0.7-0.89 = similar, etc.)
+- Primary/fallback judge provider cascade for resilience
+- Identical text optimization (short-circuit to 1.0, zero API cost)
+- Input validation (non-empty text enforcement)
+- Prompt template with context-rich guidelines for consistency
+
+**Status**: Complete - all tests passing, fallback scenarios validated
+
+**Completed**: 2025-11-10
 
 ---
 
@@ -934,14 +954,14 @@ Update this section after completing each component:
 **Phase 1**: █████ 5/5 (100%) ✅
 **Phase 2**: █████⏭️ 5/5 complete, 1 skipped (100%) ✅
 **Phase 3**: ██ 2/2 (100%) ✅
-**Phase 4**: ░░░░░ 0/5 (0%)
+**Phase 4**: ██░░░ 2/5 (40%)
 **Phase 5**: ░░░░ 0/4 (0%)
 **Phase 6**: ░░░░ 0/4 (0%)
 **Phase 7**: ░░ 0/2 (0%)
 **Phase 8**: ░░░ 0/3 (0%)
 **Phase 9**: ░░░░ 0/4 (0%)
 
-**Overall**: █████████████⏭️░░░░░░ 13/34 complete, 1 skipped (38%)
+**Overall**: ███████████████⏭️░░░░ 15/34 complete, 1 skipped (44%)
 
 ---
 
