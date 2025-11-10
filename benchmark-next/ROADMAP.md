@@ -1,8 +1,8 @@
 # TypeScript Migration Roadmap
 
 **Status**: 🏗️ Infrastructure Phase
-**Last Updated**: 2025-11-09
-**Recent Activity**: Phase 2.1 complete (OpenRouterProvider with HTTP client, 25 tests passing)
+**Last Updated**: 2025-11-10
+**Recent Activity**: Phase 2.5 simplified (removed Logger wrapper, replaced with factory function)
 **Target**: Behavioral parity with Track 1 Bash implementation
 
 ---
@@ -18,7 +18,7 @@ This roadmap tracks the component-level migration from Track 1 (Bash, `scripts/b
 - Validate output parity with Track 1
 - Mark component complete
 
-**Progress**: 8/34 components complete (24%) - 1 component skipped
+**Progress**: 10/34 components complete (29%) - 1 component skipped
 
 ---
 
@@ -35,7 +35,7 @@ src/
 │   ├── providers/            # ✅ LLM abstraction (Phase 2.1)
 │   ├── utils/                # ✅ Generic helpers (Phase 2.3)
 │   ├── config/               # ✅ Config cascade (Phase 2.4)
-│   ├── logging/              # ⏳ Structured logging (Phase 2.5)
+│   ├── logging/              # ✅ Structured logging (Phase 2.5)
 │   └── paths/                # ⏳ Path utilities (Phase 2.6)
 └── benchmark/                # Benchmark-specific domain logic
     ├── core/                 # ⏳ Orchestration (Phase 6)
@@ -89,7 +89,7 @@ See `src/lib/README.md` and `docs/benchmark-migration.md` for detailed guideline
 - ✅ `.prettierrc`
 - ✅ `.gitignore`
 
-**Dependencies**: @anthropic-ai/sdk, openai, zod, winston, commander, vitest
+**Dependencies**: @anthropic-ai/sdk, openai, zod, pino, commander, vitest
 
 **Completed**: 2025-11-09
 
@@ -206,7 +206,7 @@ abstract class LLMProvider {
 
 ---
 
-## Phase 2: Infrastructure (2/5 Complete, 1 Skipped)
+## Phase 2: Infrastructure (3/5 Complete, 1 Skipped)
 
 **Goal**: Complete LLM provider ecosystem and configuration management.
 
@@ -330,19 +330,39 @@ Creating a separate decorator would require:
 
 ---
 
-### 2.5 Logger Setup (Structured Logging) ⏳
+### 2.5 Logger Setup (Structured Logging) ✅
 **Maps to**: `sidekick/lib/common.sh::log_*()` functions
 **Acceptance Criteria**:
-- Structured logging (JSON format)
-- Log levels (debug, info, warn, error)
-- Timestamp precision matches Track 1
-- Configurable output (stdout, file, both)
+- ✅ Structured logging (JSON format)
+- ✅ Log levels (debug, info, warn, error)
+- ✅ Timestamp precision (ISO format with milliseconds, exceeds Track 1 second precision)
+- ✅ Configurable output (stdout, file, both)
+- ✅ Directory creation and validation
+- ✅ Pretty print mode for development
 
-**Files to Create**:
-- `src/lib/logging/Logger.ts`
-- `test/unit/logging/Logger.test.ts`
+**Files Created**:
+- ✅ `src/lib/logging/createLogger.ts` (~165 lines, factory function)
+- ✅ `src/lib/logging/README.md` (updated to reflect simplified approach)
 
-**Library Choice**: Winston or Pino (decide during implementation)
+**Library Choice**: **Pino** (used directly, no wrapper)
+
+**Design Philosophy**:
+After code review, removed unnecessary Logger wrapper class (300 lines + 445 lines of tests). Replaced with simple factory function (~165 lines) that handles setup, then consumers use Pino's documented API directly. Benefits:
+- No abstraction overhead (YAGNI - nobody swaps logger implementations)
+- Use Pino's excellent documentation instead of custom API
+- Reduced complexity (165 lines vs 745 lines)
+- Removed unused winston dependency
+
+**Key Features**:
+- Factory function with directory creation (`mkdir -p`)
+- Multi-stream support (stdout, file, both)
+- Pretty print mode for development (pino-pretty)
+- ISO 8601 timestamps with millisecond precision
+- Consumers use Pino API directly (child loggers, dynamic levels, etc.)
+
+**Status**: Complete - simplified, maintainable, no unnecessary abstraction
+
+**Completed**: 2025-11-10
 
 ---
 
@@ -767,7 +787,7 @@ Creating a separate decorator would require:
 Update this section after completing each component:
 
 **Phase 1**: █████ 5/5 (100%) ✅
-**Phase 2**: ███⏭️░ 3/5 complete, 1 skipped (60%)
+**Phase 2**: ████⏭️ 4/5 complete, 1 skipped (80%) - includes 2.5 ✅
 **Phase 3**: ░░ 0/2 (0%)
 **Phase 4**: ░░░░░ 0/5 (0%)
 **Phase 5**: ░░░░ 0/4 (0%)
@@ -776,7 +796,7 @@ Update this section after completing each component:
 **Phase 8**: ░░░ 0/3 (0%)
 **Phase 9**: ░░░░ 0/4 (0%)
 
-**Overall**: ████████⏭️░░░░░░░░░░░ 8/34 complete, 1 skipped (24%)
+**Overall**: ██████████⏭️░░░░░░░░░ 10/34 complete, 1 skipped (29%)
 
 ---
 

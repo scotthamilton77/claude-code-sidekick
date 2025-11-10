@@ -20,7 +20,7 @@ Rewrite the Bash-based benchmarking system (`scripts/benchmark/`) in TypeScript 
 2. **Functional Behavioral Parity**: Must match Track 1 Bash output exactly (use shared test-data/ for validation)
 3. **Idiomatic TypeScript**: Don't translate Bash patterns - use classes, async/await, dependency injection
 4. **Pluggable Providers**: Abstract LLM provider interface (OpenAI, Anthropic, OpenRouter, custom)
-5. **Comprehensive Logging**: Structured logging with timestamps, log levels, context
+5. **Simple Logging**: Use Pino directly via `createLogger()` factory - no wrappers, no abstraction
 
 ### Current Structure
 
@@ -37,8 +37,8 @@ src/
 │   │   └── schemas.ts        # Zod schemas
 │   ├── utils/                # 🟡 Generic helpers (JSON extraction done)
 │   │   └── json-extraction.ts # Extract JSON from LLM output
-│   ├── config/               # ⏳ Config cascade (Phase 2.4, planned)
-│   ├── logging/              # ⏳ Structured logging (Phase 2.5, planned)
+│   ├── config/               # ✅ Config cascade (Phase 2.4)
+│   ├── logging/              # ✅ Pino logger factory (Phase 2.5)
 │   └── paths/                # ⏳ Path utilities (Phase 2.6, planned)
 └── benchmark/                # Benchmark-specific domain logic
     ├── core/                 # ⏳ Orchestration (planned)
@@ -113,7 +113,7 @@ Before marking Track 2 as production-ready:
 - `@anthropic-ai/sdk` - Claude API
 - `openai` - OpenAI/Azure OpenAI
 - `zod` - Runtime validation and type safety
-- `winston` or `pino` - Structured logging
+- `pino` - Structured logging (use directly, no wrapper)
 - `commander` - CLI framework
 
 **Development**:

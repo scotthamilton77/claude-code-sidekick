@@ -10,28 +10,23 @@
  * Environment variables override all file-based config.
  */
 
-import fs from 'fs/promises';
-import path from 'path';
-import os from 'os';
-import {
-  ConfigSchema,
-  PartialConfigSchema,
-  type Config as ConfigType,
-  type PartialConfig,
-} from './ConfigSchema';
+import fs from 'fs/promises'
+import path from 'path'
+import os from 'os'
+import { ConfigSchema, type Config as ConfigType, type PartialConfig } from './ConfigSchema'
 
 /**
  * Options for loading configuration
  */
 export interface ConfigLoadOptions {
   /** Project directory (defaults to process.cwd()) */
-  projectDir?: string;
+  projectDir?: string
   /** Skip loading user global config */
-  skipUserConfig?: boolean;
+  skipUserConfig?: boolean
   /** Skip loading project configs */
-  skipProjectConfig?: boolean;
+  skipProjectConfig?: boolean
   /** Home directory override (for testing, defaults to os.homedir()) */
-  homeDir?: string;
+  homeDir?: string
 }
 
 /**
@@ -39,77 +34,77 @@ export interface ConfigLoadOptions {
  */
 export class Config implements ConfigType {
   // Implement all ConfigType fields
-  logLevel: ConfigType['logLevel'];
-  features: ConfigType['features'];
-  llm: ConfigType['llm'];
-  topic: ConfigType['topic'];
-  sleeper: ConfigType['sleeper'];
-  resume: ConfigType['resume'];
-  statusline: ConfigType['statusline'];
-  reminder: ConfigType['reminder'];
-  cleanup: ConfigType['cleanup'];
-  benchmark: ConfigType['benchmark'];
+  logLevel: ConfigType['logLevel']
+  features: ConfigType['features']
+  llm: ConfigType['llm']
+  topic: ConfigType['topic']
+  sleeper: ConfigType['sleeper']
+  resume: ConfigType['resume']
+  statusline: ConfigType['statusline']
+  reminder: ConfigType['reminder']
+  cleanup: ConfigType['cleanup']
+  benchmark: ConfigType['benchmark']
 
   private constructor(config: ConfigType) {
-    this.logLevel = config.logLevel;
-    this.features = config.features;
-    this.llm = config.llm;
-    this.topic = config.topic;
-    this.sleeper = config.sleeper;
-    this.resume = config.resume;
-    this.statusline = config.statusline;
-    this.reminder = config.reminder;
-    this.cleanup = config.cleanup;
-    this.benchmark = config.benchmark;
+    this.logLevel = config.logLevel
+    this.features = config.features
+    this.llm = config.llm
+    this.topic = config.topic
+    this.sleeper = config.sleeper
+    this.resume = config.resume
+    this.statusline = config.statusline
+    this.reminder = config.reminder
+    this.cleanup = config.cleanup
+    this.benchmark = config.benchmark
   }
 
   /**
    * Load configuration with full cascade
    */
   static async load(options: ConfigLoadOptions = {}): Promise<Config> {
-    const projectDir = options.projectDir || process.cwd();
+    const projectDir = options.projectDir || process.cwd()
 
     // 1. Start with defaults (as a plain object, not parsed by Zod yet)
-    let config: any = Config.getDefaults();
+    let config: PartialConfig = Config.getDefaults()
 
     // 2. Load user global config (if not skipped)
     if (!options.skipUserConfig) {
-      const userConfig = await Config.loadUserConfig(options.homeDir);
+      const userConfig = await Config.loadUserConfig(options.homeDir)
       if (userConfig) {
-        config = Config.deepMerge(config, userConfig);
+        config = Config.deepMerge(config, userConfig)
       }
     }
 
     // 3. Load project config (if not skipped)
     if (!options.skipProjectConfig) {
-      const projectConfig = await Config.loadProjectConfig(projectDir);
+      const projectConfig = await Config.loadProjectConfig(projectDir)
       if (projectConfig) {
-        config = Config.deepMerge(config, projectConfig);
+        config = Config.deepMerge(config, projectConfig)
       }
 
       // 4. Load project local config (highest priority from files)
-      const localConfig = await Config.loadProjectLocalConfig(projectDir);
+      const localConfig = await Config.loadProjectLocalConfig(projectDir)
       if (localConfig) {
-        config = Config.deepMerge(config, localConfig);
+        config = Config.deepMerge(config, localConfig)
       }
     }
 
     // 5. Apply environment variable overrides
-    config = Config.applyEnvironmentOverrides(config);
+    config = Config.applyEnvironmentOverrides(config)
 
     // 6. Validate final config
-    const validated = ConfigSchema.parse(config);
+    const validated = ConfigSchema.parse(config)
 
-    return new Config(validated);
+    return new Config(validated)
   }
 
   /**
    * Load configuration with only defaults
    */
-  static async loadDefaults(): Promise<Config> {
-    const defaults = Config.getDefaults();
-    const validated = ConfigSchema.parse(defaults);
-    return new Config(validated);
+  static loadDefaults(): Config {
+    const defaults = Config.getDefaults()
+    const validated = ConfigSchema.parse(defaults)
+    return new Config(validated)
   }
 
   /**
@@ -194,7 +189,7 @@ export class Config implements ConfigType {
         earlyTermTimeoutCount: 3,
         maxRetries: 2,
       },
-    };
+    }
   }
 
   /**
@@ -202,65 +197,60 @@ export class Config implements ConfigType {
    */
   private static async loadUserConfig(homeDir?: string): Promise<PartialConfig | null> {
     try {
-      const home = homeDir || os.homedir();
-      const configPath = path.join(home, '.claude', 'benchmark-next.conf');
-      const content = await fs.readFile(configPath, 'utf-8');
-      const parsed = JSON.parse(content);
-      return parsed as PartialConfig;
-    } catch (err: any) {
+      const home = homeDir || os.homedir()
+      const configPath = path.join(home, '.claude', 'benchmark-next.conf')
+      const content = await fs.readFile(configPath, 'utf-8')
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const parsed = JSON.parse(content)
+      return parsed as PartialConfig
+    } catch (err: unknown) {
       // Only ignore ENOENT (file not found), propagate other errors
-      if (err.code === 'ENOENT') {
-        return null;
+      if (err && typeof err === 'object' && 'code' in err && err.code === 'ENOENT') {
+        return null
       }
-      throw err;
+      throw err
     }
   }
 
   /**
    * Load project config from .benchmark-next/config.json
    */
-  private static async loadProjectConfig(
-    projectDir: string
-  ): Promise<PartialConfig | null> {
+  private static async loadProjectConfig(projectDir: string): Promise<PartialConfig | null> {
     try {
-      const configPath = path.join(projectDir, '.benchmark-next', 'config.json');
-      const content = await fs.readFile(configPath, 'utf-8');
-      const parsed = JSON.parse(content);
+      const configPath = path.join(projectDir, '.benchmark-next', 'config.json')
+      const content = await fs.readFile(configPath, 'utf-8')
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const parsed = JSON.parse(content)
       // Don't validate with schema here - just return raw object
       // Validation happens later in the cascade
-      return parsed as PartialConfig;
-    } catch (err: any) {
+      return parsed as PartialConfig
+    } catch (err: unknown) {
       // Only ignore ENOENT (file not found), propagate other errors
-      if (err.code === 'ENOENT') {
-        return null;
+      if (err && typeof err === 'object' && 'code' in err && err.code === 'ENOENT') {
+        return null
       }
-      throw err;
+      throw err
     }
   }
 
   /**
    * Load project local config from .benchmark-next/config.local.json
    */
-  private static async loadProjectLocalConfig(
-    projectDir: string
-  ): Promise<PartialConfig | null> {
+  private static async loadProjectLocalConfig(projectDir: string): Promise<PartialConfig | null> {
     try {
-      const configPath = path.join(
-        projectDir,
-        '.benchmark-next',
-        'config.local.json'
-      );
-      const content = await fs.readFile(configPath, 'utf-8');
-      const parsed = JSON.parse(content);
+      const configPath = path.join(projectDir, '.benchmark-next', 'config.local.json')
+      const content = await fs.readFile(configPath, 'utf-8')
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const parsed = JSON.parse(content)
       // Don't validate with schema here - just return raw object
       // Validation happens later in the cascade
-      return parsed as PartialConfig;
-    } catch (err: any) {
+      return parsed as PartialConfig
+    } catch (err: unknown) {
       // Only ignore ENOENT (file not found), propagate other errors
-      if (err.code === 'ENOENT') {
-        return null;
+      if (err && typeof err === 'object' && 'code' in err && err.code === 'ENOENT') {
+        return null
       }
-      throw err;
+      throw err
     }
   }
 
@@ -277,90 +267,88 @@ export class Config implements ConfigType {
    * - OPENROUTER_API_KEY (standard OpenRouter env var)
    * - etc.
    */
-  private static applyEnvironmentOverrides(config: any): any {
-    const env = process.env;
+  private static applyEnvironmentOverrides(config: PartialConfig): PartialConfig {
+    const env = process.env
 
     // Helper to get env var and parse as number
     const getEnvNumber = (key: string): number | undefined => {
-      const val = env[key];
-      if (!val) return undefined;
-      const num = parseInt(val, 10);
-      return isNaN(num) ? undefined : num;
-    };
+      const val = env[key]
+      if (!val) return undefined
+      const num = parseInt(val, 10)
+      return isNaN(num) ? undefined : num
+    }
 
     // Build overrides object
-    const envOverrides: any = {};
+    const envOverrides: PartialConfig = {}
 
     // Log level
-    if (env.BENCHMARK_LOG_LEVEL) {
-      envOverrides.logLevel = env.BENCHMARK_LOG_LEVEL;
+    if (env['BENCHMARK_LOG_LEVEL']) {
+      envOverrides.logLevel = env['BENCHMARK_LOG_LEVEL'] as ConfigType['logLevel']
     }
 
     // LLM settings
-    const llmOverrides: any = {};
-    const timeoutSeconds = getEnvNumber('BENCHMARK_LLM_TIMEOUT_SECONDS');
+    const llmOverrides: Record<string, unknown> = {}
+    const timeoutSeconds = getEnvNumber('BENCHMARK_LLM_TIMEOUT_SECONDS')
     if (timeoutSeconds !== undefined) {
-      llmOverrides.timeoutSeconds = timeoutSeconds;
+      llmOverrides['timeoutSeconds'] = timeoutSeconds
     }
 
-    const benchmarkTimeoutSeconds = getEnvNumber('BENCHMARK_LLM_BENCHMARK_TIMEOUT_SECONDS');
+    const benchmarkTimeoutSeconds = getEnvNumber('BENCHMARK_LLM_BENCHMARK_TIMEOUT_SECONDS')
     if (benchmarkTimeoutSeconds !== undefined) {
-      llmOverrides.benchmarkTimeoutSeconds = benchmarkTimeoutSeconds;
+      llmOverrides['benchmarkTimeoutSeconds'] = benchmarkTimeoutSeconds
     }
 
     // API keys
-    if (env.OPENAI_API_KEY) {
-      llmOverrides.openai = {
+    if (env['OPENAI_API_KEY']) {
+      llmOverrides['openai'] = {
         ...(config.llm?.openai || {}),
-        apiKey: env.OPENAI_API_KEY,
-      };
+        apiKey: env['OPENAI_API_KEY'],
+      }
     }
 
-    if (env.OPENROUTER_API_KEY) {
-      llmOverrides.openrouter = {
+    if (env['OPENROUTER_API_KEY']) {
+      llmOverrides['openrouter'] = {
         ...(config.llm?.openrouter || {}),
-        apiKey: env.OPENROUTER_API_KEY,
-      };
+        apiKey: env['OPENROUTER_API_KEY'],
+      }
     }
 
     if (Object.keys(llmOverrides).length > 0) {
-      envOverrides.llm = llmOverrides;
+      envOverrides.llm = llmOverrides as PartialConfig['llm']
     }
 
     // Topic settings
-    const topicOverrides: any = {};
-    const cadenceHigh = getEnvNumber('BENCHMARK_TOPIC_CADENCE_HIGH');
+    const topicOverrides: Record<string, unknown> = {}
+    const cadenceHigh = getEnvNumber('BENCHMARK_TOPIC_CADENCE_HIGH')
     if (cadenceHigh !== undefined) {
-      topicOverrides.cadenceHigh = cadenceHigh;
+      topicOverrides['cadenceHigh'] = cadenceHigh
     }
 
-    const cadenceLow = getEnvNumber('BENCHMARK_TOPIC_CADENCE_LOW');
+    const cadenceLow = getEnvNumber('BENCHMARK_TOPIC_CADENCE_LOW')
     if (cadenceLow !== undefined) {
-      topicOverrides.cadenceLow = cadenceLow;
+      topicOverrides['cadenceLow'] = cadenceLow
     }
 
     if (Object.keys(topicOverrides).length > 0) {
-      envOverrides.topic = topicOverrides;
+      envOverrides.topic = topicOverrides as PartialConfig['topic']
     }
 
     // Deep merge env overrides into config
-    return Config.deepMerge(config, envOverrides);
+    return Config.deepMerge(config, envOverrides)
   }
 
   /**
    * Deep merge two partial configs
    * Later config takes precedence
    */
-  private static deepMerge(
-    base: PartialConfig,
-    override: PartialConfig
-  ): PartialConfig {
-    const result: any = { ...base };
+  private static deepMerge(base: PartialConfig, override: PartialConfig): PartialConfig {
+    const result = { ...base } as Record<string, unknown>
+    const overrideRecord = override as Record<string, unknown>
 
     for (const key in override) {
-      if (override.hasOwnProperty(key)) {
-        const overrideVal = (override as any)[key];
-        const baseVal = result[key];
+      if (Object.prototype.hasOwnProperty.call(override, key)) {
+        const overrideVal = overrideRecord[key]
+        const baseVal = result[key]
 
         if (
           overrideVal !== undefined &&
@@ -371,15 +359,15 @@ export class Config implements ConfigType {
           !Array.isArray(baseVal)
         ) {
           // Recursively merge objects
-          result[key] = Config.deepMerge(baseVal, overrideVal);
+          result[key] = Config.deepMerge(baseVal as PartialConfig, overrideVal as PartialConfig)
         } else if (overrideVal !== undefined) {
           // Override primitive or array
-          result[key] = overrideVal;
+          result[key] = overrideVal
         }
       }
     }
 
-    return result;
+    return result as PartialConfig
   }
 
   /**
@@ -391,20 +379,21 @@ export class Config implements ConfigType {
   resolveTimeout(context: 'benchmark' | 'default' = 'default'): number {
     if (context === 'benchmark') {
       // Check if benchmarkTimeoutSeconds is explicitly undefined/null
-      if (this.llm.benchmarkTimeoutSeconds !== undefined && this.llm.benchmarkTimeoutSeconds !== null) {
-        return this.llm.benchmarkTimeoutSeconds;
+      if (
+        this.llm.benchmarkTimeoutSeconds !== undefined &&
+        this.llm.benchmarkTimeoutSeconds !== null
+      ) {
+        return this.llm.benchmarkTimeoutSeconds
       }
     }
-    return this.llm.timeoutSeconds || 30;
+    return this.llm.timeoutSeconds || 30
   }
 
   /**
    * Check if a feature is enabled
    */
-  isFeatureEnabled(
-    feature: keyof ConfigType['features']
-  ): boolean {
-    return this.features[feature] === true;
+  isFeatureEnabled(feature: keyof ConfigType['features']): boolean {
+    return this.features[feature] === true
   }
 
   /**
@@ -422,6 +411,6 @@ export class Config implements ConfigType {
       reminder: this.reminder,
       cleanup: this.cleanup,
       benchmark: this.benchmark,
-    };
+    }
   }
 }
