@@ -207,28 +207,36 @@ copy_files() {
     log_info "Files copied successfully"
 }
 
-# Create reminder template
+# Create reminder templates
 create_reminder_template() {
     local sidekick_dir="$1"
     local reminders_dir="$sidekick_dir/reminders"
-    local template_file="$reminders_dir/static-reminder.txt.template"
-    local source_reminder="$SRC_DIR/reminders/static-reminder.txt"
 
     # Create reminders directory if it doesn't exist
     mkdir -p "$reminders_dir"
 
-    # Copy template if source exists and template doesn't exist
-    if [ -f "$source_reminder" ]; then
-        if [ ! -f "$template_file" ]; then
-            cp "$source_reminder" "$template_file"
-            log_info "Created reminder template: $template_file"
-            log_info "Rename to static-reminder.txt to override default reminder"
+    # Array of reminder types
+    local reminder_types=("turn-cadence" "tool-cadence" "tools-per-turn")
+
+    # Create template for each type
+    for type in "${reminder_types[@]}"; do
+        local template_file="$reminders_dir/${type}-reminder.txt.template"
+        local source_reminder="$SRC_DIR/reminders/${type}-reminder.txt"
+
+        # Copy template if source exists and template doesn't exist
+        if [ -f "$source_reminder" ]; then
+            if [ ! -f "$template_file" ]; then
+                cp "$source_reminder" "$template_file"
+                log_info "Created ${type} reminder template: $template_file"
+            else
+                log_info "Preserving existing ${type} reminder template: $template_file"
+            fi
         else
-            log_info "Preserving existing reminder template: $template_file"
+            log_warn "Source ${type} reminder not found at $source_reminder"
         fi
-    else
-        log_warn "Source reminder not found at $source_reminder"
-    fi
+    done
+
+    log_info "Reminder templates can be renamed (remove .template) to override defaults"
 }
 
 # Initialize versioned project config
@@ -292,6 +300,7 @@ register_hooks_in_settings() {
     settings=$(echo "$settings" | jq \
         --arg session_cmd "${sidekick_path}/sidekick.sh session-start \"\$CLAUDE_PROJECT_DIR\"" \
         --arg prompt_cmd "${sidekick_path}/sidekick.sh user-prompt-submit \"\$CLAUDE_PROJECT_DIR\"" \
+        --arg post_tool_cmd "${sidekick_path}/sidekick.sh post-tool-use \"\$CLAUDE_PROJECT_DIR\"" \
         --arg status_cmd "${sidekick_path}/sidekick.sh statusline --project-dir \"\$CLAUDE_PROJECT_DIR\"" \
         '
         .hooks.SessionStart = [{
@@ -304,6 +313,13 @@ register_hooks_in_settings() {
             "hooks": [{
                 "type": "command",
                 "command": $prompt_cmd
+            }]
+        }] |
+        .hooks.PostToolUse = [{
+            "matcher": "*",
+            "hooks": [{
+                "type": "command",
+                "command": $post_tool_cmd
             }]
         }] |
         .statusLine = {

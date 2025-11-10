@@ -122,6 +122,8 @@ See `ARCH.md` for complete design documentation. Key features:
 | **Resume** | Session continuity | Generated async in background, no LLM blocking at SessionStart |
 | **Statusline** | Enhanced status display | Shows topic, tokens, git branch |
 | **Tracking** | Request counting | Enables periodic reminders |
+| **Reminder** | Turn-cadence reminders | Injects TOP 5 reminders every N turns |
+| **Post-Tool-Use** | Tool-based reminders | Tool-cadence (every N tools) and stuck detection (threshold per turn) |
 | **Cleanup** | Garbage collection | Removes old session directories |
 
 All features independently toggleable via `FEATURE_*` flags in `sidekick.conf`.
@@ -273,7 +275,7 @@ Scripts must work in both project (`.claude/`) and user (`~/.claude/`) contexts.
 | Component | Status | Details |
 |-----------|--------|---------|
 | **Infrastructure** | ✅ | 10 namespace libs + plugin loader with dependency resolution |
-| **Features** | ✅ | 6 plugins (topic-extraction, resume, statusline, tracking, reminder, cleanup) |
+| **Features** | ✅ | 7 plugins (topic-extraction, resume, statusline, tracking, reminder, post-tool-use, cleanup) |
 | **Testing** | ✅ | 10 unit suites (77 tests), 7 integration suites, all passing |
 | **Documentation** | ✅ | ARCH.md, PLAN.md, README.md updated |
 | **Manual Testing** | 🔄 | In progress (real Claude sessions) |
