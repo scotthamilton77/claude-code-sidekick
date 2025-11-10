@@ -17,8 +17,10 @@
     "test:e2e": "vitest run --dir test/e2e",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint src test --ext .ts --no-error-on-unmatched-pattern",
+    "lint:fix": "eslint src test --ext .ts --no-error-on-unmatched-pattern --fix",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",
+    "fix": "npm run format && npm run lint:fix",
     "typecheck": "tsc --noEmit",
     "benchmark": "tsx src/cli/benchmark.ts",
     "generate-reference": "tsx src/cli/generate-reference.ts"
