@@ -239,25 +239,25 @@ create_reminder_template() {
     log_info "Reminder templates can be renamed (remove .template) to override defaults"
 }
 
-# Initialize versioned project config
-initialize_project_versioned_config() {
+# Initialize versioned project config templates
+initialize_project_config_templates() {
     local project_dir="$1"
     local sidekick_dir="$project_dir/.sidekick"
-    local config_file="$sidekick_dir/sidekick.conf"
+    local config_template="$sidekick_dir/sidekick.conf.template"
     local readme_file="$sidekick_dir/README.md"
 
-    log_step "Initializing versioned project config..."
+    log_step "Initializing project config templates..."
 
     # Create .sidekick directory if it doesn't exist
     mkdir -p "$sidekick_dir"
 
-    # Create sidekick.conf if it doesn't exist (don't overwrite)
-    if [ ! -f "$config_file" ]; then
-        cp "$SRC_DIR/config.defaults" "$config_file"
-        log_info "Created versioned config: $config_file"
-        log_info "This file survives install/uninstall and can be committed to git"
+    # Create sidekick.conf.template if it doesn't exist (don't overwrite)
+    if [ ! -f "$config_template" ]; then
+        cp "$SRC_DIR/config.defaults" "$config_template"
+        log_info "Created config template: $config_template"
+        log_info "Rename to sidekick.conf to override defaults (survives install/uninstall, can be committed)"
     else
-        log_info "Preserving existing versioned config: $config_file"
+        log_info "Preserving existing config template: $config_template"
     fi
 
     # Copy README.md template (always overwrite to get latest docs)
@@ -269,8 +269,12 @@ initialize_project_versioned_config() {
         log_warn "README template not found at $readme_template"
     fi
 
-    # Copy reminder template (don't overwrite existing reminder)
+    # Copy reminder templates (don't overwrite existing reminders)
     create_reminder_template "$sidekick_dir"
+
+    log_info ""
+    log_info "Template files created in $sidekick_dir/"
+    log_info "Rename .template files (remove suffix) to activate customizations"
 }
 
 # Register hooks in settings.json
@@ -380,9 +384,14 @@ update_gitignore() {
 .sidekick/*.log
 .sidekick/sessions/
 
-# Configuration and docs - tracked (do not ignore these)
-# .sidekick/sidekick.conf
+# Templates, config, backups - tracked by default, uncomment to ignore
 # .sidekick/README.md
+# .sidekick/sidekick.conf
+# .sidekick/sidekick.conf.template
+# .sidekick/reminders/*.template
+# .sidekick/reminders/*-reminder.txt
+# *.backup.*
+# *.uninstall-backup.*
 # End Sidekick Hook System
 EOF
 
@@ -395,6 +404,7 @@ install_to_user() {
 
     local user_dir="$HOME/.claude/hooks/sidekick"
     local settings_file="$HOME/.claude/settings.json"
+    local project_dir="${CLAUDE_PROJECT_DIR:-$PWD}"
 
     # Copy files
     copy_files "$user_dir" "user"
@@ -402,10 +412,33 @@ install_to_user() {
     # Register hooks
     register_hooks_in_settings "$settings_file" "~/.claude/hooks/sidekick"
 
-    # Create reminder template in user-persistent location
-    create_reminder_template "$HOME/.sidekick"
+    # Create config template in user-persistent location
+    local user_sidekick_dir="$HOME/.sidekick"
+    mkdir -p "$user_sidekick_dir"
+
+    local config_template="$user_sidekick_dir/sidekick.conf.template"
+    if [ ! -f "$config_template" ]; then
+        cp "$SRC_DIR/config.defaults" "$config_template"
+        log_info "Created user config template: $config_template"
+    else
+        log_info "Preserving existing user config template"
+    fi
+
+    # Create reminder templates in user-persistent location
+    create_reminder_template "$user_sidekick_dir"
+
+    # ALSO initialize project config templates (allows project-level customization regardless of install scope)
+    initialize_project_config_templates "$project_dir"
+
+    # Update project .gitignore
+    update_gitignore "$project_dir"
 
     log_info "User scope installation complete"
+    log_info ""
+    log_info "Templates created:"
+    log_info "  - User-persistent: ~/.sidekick/ (applies to all projects)"
+    log_info "  - Project-specific: .sidekick/ (this project only, can be committed to git)"
+    log_info "Rename .template files (remove suffix) to activate customizations"
 }
 
 # Install to project scope
@@ -420,8 +453,8 @@ install_to_project() {
     # Copy files
     copy_files "$project_sidekick_dir" "project"
 
-    # Initialize versioned project config (.sidekick/sidekick.conf)
-    initialize_project_versioned_config "$project_dir"
+    # Initialize project config templates (.sidekick/sidekick.conf.template)
+    initialize_project_config_templates "$project_dir"
 
     # Register hooks (use $CLAUDE_PROJECT_DIR variable in paths)
     register_hooks_in_settings "$settings_file" "\$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick"
