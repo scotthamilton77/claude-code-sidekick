@@ -98,7 +98,7 @@ See `ARCH.md` for complete design documentation. Key features:
 - **Modular Libraries**: `lib/common.sh` loader + 9 focused namespace files (config.sh, json.sh, llm.sh, logging.sh, paths.sh, plugin.sh, process.sh, utils.sh, workspace.sh)
 - **Pluggable Features**: Independently toggleable via `sidekick.conf`
 - **Pluggable LLM Providers**: Support for Claude CLI, OpenAI API, OpenRouter API, and custom providers
-- **Configuration Cascade**: Versioned Project → Deployed Project → User → Defaults (shell .conf format)
+- **Configuration Cascade**: Versioned Project → Deployed Project → User Persistent → User Installed → Defaults (shell .conf format)
 - **Dual-Scope Deployment**: Works identically in project (.claude/) and user (~/.claude/) contexts
 
 ### Installation
@@ -128,14 +128,15 @@ All features independently toggleable via `FEATURE_*` flags in `sidekick.conf`.
 
 ### Configuration
 
-Four-level cascade (later overrides earlier):
+Five-level cascade (later overrides earlier):
 
 1. `src/sidekick/config.defaults` - Baseline settings
-2. `~/.claude/hooks/sidekick/sidekick.conf` - User-wide overrides
-3. `.claude/hooks/sidekick/sidekick.conf` - Project ephemeral (deleted on uninstall)
-4. `.sidekick/sidekick.conf` - **Highest priority**, survives install/uninstall, git-committable
+2. `~/.claude/hooks/sidekick/sidekick.conf` - User-wide installed (ephemeral)
+3. `~/.sidekick/sidekick.conf` - User-wide persistent (survives install/uninstall)
+4. `.claude/hooks/sidekick/sidekick.conf` - Project ephemeral (deleted on uninstall)
+5. `.sidekick/sidekick.conf` - **Highest priority**, survives install/uninstall, git-committable
 
-**Pattern**: Only specify overrides (minimal configs). Commit #4 for team-wide settings, use #2 for personal preferences.
+**Pattern**: Only specify overrides (minimal configs). Commit #5 for team-wide settings, use #3 for personal preferences.
 
 See `src/sidekick/config.defaults` for all available options.
 
