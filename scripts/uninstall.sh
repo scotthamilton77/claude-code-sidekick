@@ -617,8 +617,47 @@ versioned_config_differs_from_defaults() {
     fi
 }
 
+# Check if a custom file matches its template in the same directory or source
+# Returns 0 if matches template or source, 1 if different
+custom_file_matches_template() {
+    local custom_file="$1"
+    local custom_basename
+    custom_basename=$(basename "$custom_file")
+    local template_file="${custom_file}.template"
+
+    if [ ! -f "$custom_file" ]; then
+        return 1  # File doesn't exist
+    fi
+
+    # Get hash of custom file
+    local hash_custom
+    hash_custom=$(sha256sum "$custom_file" | awk '{print $1}')
+
+    # Check 1: Compare with .template file in same directory
+    if [ -f "$template_file" ]; then
+        local hash_template
+        hash_template=$(sha256sum "$template_file" | awk '{print $1}')
+        if [ "$hash_custom" = "$hash_template" ]; then
+            return 0  # Matches template
+        fi
+    fi
+
+    # Check 2: Compare with source file (for renamed templates)
+    local source_file="${SRC_DIR}/reminders/${custom_basename}"
+    if [ -f "$source_file" ]; then
+        local hash_source
+        hash_source=$(sha256sum "$source_file" | awk '{print $1}')
+        if [ "$hash_custom" = "$hash_source" ]; then
+            return 0  # Matches source
+        fi
+    fi
+
+    return 1  # Different from both template and source
+}
+
 # Check for custom reminder files (non-template files)
 # Returns 0 if custom reminders exist, 1 if none found
+# Files that match their templates are not considered custom
 has_custom_reminders() {
     local reminders_dir="$1"
 
@@ -626,9 +665,16 @@ has_custom_reminders() {
         return 1
     fi
 
-    # Check for any non-template files (files without .template extension)
-    local custom_count
-    custom_count=$(find "$reminders_dir" -mindepth 1 -maxdepth 1 -type f ! -name "*.template" 2>/dev/null | wc -l)
+    # Check for any non-template files that differ from their templates
+    local custom_count=0
+    while IFS= read -r custom_file; do
+        if [ -f "$custom_file" ]; then
+            # If file matches its template, don't count it as custom
+            if ! custom_file_matches_template "$custom_file"; then
+                custom_count=$((custom_count + 1))
+            fi
+        fi
+    done < <(find "$reminders_dir" -mindepth 1 -maxdepth 1 -type f ! -name "*.template" 2>/dev/null || true)
 
     [ "$custom_count" -gt 0 ]
 }
@@ -668,11 +714,12 @@ reminder_template_differs_from_source() {
 }
 
 # Handle .sidekick directory cleanup with user prompts
-# Handles sessions, logs, versioned config, and reminders based on user choices
+# Handles sessions, logs, config templates, and reminders based on user choices
 handle_sidekick_cleanup() {
     local sidekick_dir="$1"
     local sessions_dir="$sidekick_dir/sessions"
     local versioned_config="$sidekick_dir/sidekick.conf"
+    local config_template="$sidekick_dir/sidekick.conf.template"
     local reminders_dir="$sidekick_dir/reminders"
 
     if [ ! -d "$sidekick_dir" ]; then
@@ -686,7 +733,7 @@ handle_sidekick_cleanup() {
     local remove_sidekick=true
     if [ "${SIDEKICK_SKIP_CONFIRM:-0}" != "1" ] && [ "$DRY_RUN" = false ]; then
         log_warn "The .sidekick directory contains session data and configuration"
-        read -p "Remove .sidekick directory and its contents? (Y/n) " -n 1 -r
+        read -p "Remove $sidekick_dir and its contents? (Y/n) " -n 1 -r
         echo
         if [[ $REPLY =~ ^[Nn]$ ]]; then
             remove_sidekick=false
@@ -787,6 +834,18 @@ handle_sidekick_cleanup() {
                 fi
             done
         else
+            # Still remove files that match their templates (not truly custom)
+            for reminder_file in "$reminders_dir"/*; do
+                if [ -f "$reminder_file" ] && [[ ! "$reminder_file" =~ \.template$ ]]; then
+                    if custom_file_matches_template "$reminder_file"; then
+                        log_verbose "Removing non-custom file (matches template): $(basename "$reminder_file")"
+                        log_operation "remove" "$reminder_file"
+                        if [ "$DRY_RUN" = false ]; then
+                            rm -f "$reminder_file"
+                        fi
+                    fi
+                fi
+            done
             log_info "Preserving custom reminder files"
         fi
 
@@ -807,6 +866,34 @@ handle_sidekick_cleanup() {
         fi
     elif [ "$preserve_config" = true ]; then
         log_info "Preserving versioned config: $versioned_config"
+    fi
+
+    # Always remove config template (it's a defaults copy, not custom)
+    if [ -f "$config_template" ]; then
+        # Check if template was modified from defaults
+        if versioned_config_differs_from_defaults "$config_template"; then
+            log_warn "Config template was modified: $config_template"
+            if [ "${SIDEKICK_SKIP_CONFIRM:-0}" != "1" ] && [ "$DRY_RUN" = false ]; then
+                read -p "Remove modified config template? (Y/n) " -n 1 -r
+                echo
+                if [[ $REPLY =~ ^[Nn]$ ]]; then
+                    log_info "Preserving modified config template"
+                else
+                    log_operation "remove" "$config_template"
+                    rm -f "$config_template"
+                fi
+            else
+                log_operation "remove" "$config_template"
+                if [ "$DRY_RUN" = false ]; then
+                    rm -f "$config_template"
+                fi
+            fi
+        else
+            log_operation "remove" "$config_template"
+            if [ "$DRY_RUN" = false ]; then
+                rm -f "$config_template"
+            fi
+        fi
     fi
 
     # Always remove README.md (it's documentation, not custom)
@@ -870,6 +957,17 @@ uninstall_from_user() {
 
     # Clean up empty directories
     cleanup_empty_directories "$HOME" "user"
+
+    # Clean up user-persistent .sidekick directory (with prompts for config/templates)
+    if [ -d "$HOME/.sidekick" ]; then
+        handle_sidekick_cleanup "$HOME/.sidekick"
+    fi
+
+    # Clean up project's .claudeignore entry
+    remove_claudeignore_entry "$project_dir"
+
+    # Clean up project's .gitignore entry
+    remove_gitignore_entry "$project_dir"
 
     # Clean up project's .sidekick directory (with prompts for sessions/config)
     if [ -d "$project_dir/.sidekick" ]; then
