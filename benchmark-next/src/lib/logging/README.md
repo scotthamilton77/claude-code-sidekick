@@ -1,73 +1,63 @@
 # lib/logging/
 
-**Status**: ⏳ Not Started (Planned for Phase 2.5)
+**Status**: ✅ Complete (Phase 2.5)
 
-**Shared Candidate**: Very High - centralized logging critical for all systems
+**Shared Candidate**: High - logging utilities useful for all systems
 
 ## Purpose
 
-Structured logging system matching bash implementation in `src/sidekick/lib/logging.sh`.
+Simple Pino logger factory function with directory creation, validation, and multi-stream support.
 
-## Planned API
+**Design Philosophy**: Use Pino directly (no wrapper). The factory function handles setup, then consumers use Pino's well-documented API.
+
+## Why No Wrapper?
+
+Original design included a Logger wrapper class (300 lines + 445 lines of tests). After code review, we removed it because:
+
+1. **No abstraction value** - Nobody swaps logger implementations in practice (YAGNI)
+2. **Hides good docs** - Pino's documentation is excellent, wrappers require learning custom APIs
+3. **Unnecessary complexity** - 745 lines (code + tests) for ~10 lines of real value
+4. **Not domain-specific** - Generic logging helpers, not benchmark-specific logic
+
+The factory function provides the only real benefits:
+- Directory creation (`mkdir -p`)
+- File path validation
+- Multi-stream setup (stdout + file)
+
+Then consumers use Pino directly. Simple, documented, maintainable.
+
+## Usage
 
 ```typescript
-import { Logger } from '@/lib/logging'
+import { createLogger } from '@/lib/logging/createLogger'
 
-// Initialize logger for session
-const logger = Logger.init({
-  sessionId: 'abc123',
-  globalLogPath: '.sidekick/sidekick.log',
-  sessionLogPath: '.sidekick/sessions/abc123/sidekick.log',
-  level: 'debug',
+const logger = await createLogger({
+  level: 'info',
+  output: 'file',
+  filePath: './logs/app.log'
 })
 
-// Log with levels
-logger.debug('Checking cache', { key: 'foo' })
-logger.info('Starting benchmark', { model: 'claude-sonnet-4' })
-logger.warn('Retry attempt', { attempt: 2, maxRetries: 3 })
-logger.error('API call failed', { error: err })
-
-// Structured fields
-logger.info('Request completed', {
-  duration: 1234,
-  tokens: { input: 100, output: 50 },
-})
+// Use Pino's API directly (object-first)
+logger.info({ model: 'gpt-4', tokens: 1234 }, 'LLM request completed')
+const child = logger.child({ provider: 'openai' })
 ```
 
-## Requirements from Bash Implementation
+See `createLogger.ts` JSDoc for options. See [Pino docs](https://getpino.io/) for API.
 
-Extracted from `src/sidekick/lib/logging.sh`:
-- **Dual logging**: Both global and session-specific logs
-- **Color output**: ANSI colors for terminal (red errors, green info, etc.)
-- **Timestamps**: ISO 8601 format for consistency
-- **Log levels**: DEBUG, INFO, WARN, ERROR
-- **Context**: Session ID, hook name, feature name
-- **Atomic writes**: Append-only for concurrent safety
+## Migration from Bash
 
-## Log Format
+When porting bash logging calls:
 
-Match bash output format:
-```
-[2025-11-09T19:48:23Z] [INFO] [session:abc123] Message here
-[2025-11-09T19:48:24Z] [ERROR] [session:abc123] Error message
+**Bash** (`src/sidekick/lib/logging.sh`):
+```bash
+log_info "Starting benchmark" "model=gpt-4"
+log_error "API failed" "provider=openai"
 ```
 
-Structured logs (for machine parsing):
-```json
-{"timestamp":"2025-11-09T19:48:23Z","level":"INFO","session":"abc123","message":"Message here","context":{...}}
+**TypeScript** (use Pino directly):
+```typescript
+logger.info({ model: 'gpt-4' }, 'Starting benchmark')
+logger.error({ provider: 'openai' }, 'API failed')
 ```
 
-## Dependencies
-
-Will use:
-- `winston` or `pino` (already in package.json: winston)
-- Custom formatters for bash-compatible output
-- File transports for dual logging
-
-## Migration Notes
-
-When porting from bash:
-- Preserve exact timestamp format (ISO 8601)
-- Match ANSI color codes
-- Ensure atomic writes (Winston handles this)
-- Support log rotation (prevent unbounded growth)
+**Key difference**: Pino's first parameter is the structured object, second is the message (reverse of most loggers).
