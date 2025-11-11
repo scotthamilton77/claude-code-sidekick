@@ -45,3 +45,6 @@ node_modules/
 
 # for now?
 test-data/results/
+
+# these need to be part of the install:
+.claude/tsc-cache/
