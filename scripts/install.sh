@@ -53,6 +53,25 @@ log_step() {
     echo -e "${BLUE}[STEP]${NC} $*"
 }
 
+# Prompt user for yes/no confirmation
+# Args: $1 - prompt message, $2 - default (Y/n or y/N)
+# Returns: 0 for yes, 1 for no
+prompt_yes_no() {
+    local prompt="$1"
+    local default="${2:-Y}"
+    local response
+
+    if [[ "$default" =~ ^[Yy] ]]; then
+        read -r -p "$prompt [Y/n]: " response
+        response="${response:-Y}"
+    else
+        read -r -p "$prompt [y/N]: " response
+        response="${response:-N}"
+    fi
+
+    [[ "$response" =~ ^[Yy] ]]
+}
+
 # Parse command-line arguments
 parse_args() {
     if [ $# -eq 0 ]; then
@@ -468,6 +487,87 @@ install_to_project() {
     log_info "Project scope installation complete"
 }
 
+# Offer to generate turn-cadence reminder templates
+offer_reminder_generation() {
+    echo ""
+    echo "=================================================="
+    log_info "Turn-Cadence Reminder Template Generation"
+    echo "=================================================="
+    echo ""
+    echo "The generate-reminder-template.sh script can analyze your CLAUDE.md files"
+    echo "and create customized turn-cadence reminders for Sidekick."
+    echo ""
+
+    local generate_script="$SCRIPT_DIR/generate-reminder-template.sh"
+
+    # Check if generate script exists
+    if [[ ! -x "$generate_script" ]]; then
+        log_warn "generate-reminder-template.sh not found or not executable, skipping"
+        return 0
+    fi
+
+    # Check if Claude CLI is available
+    if ! command -v claude &>/dev/null && [[ ! -x "${HOME}/.claude/local/claude" ]]; then
+        log_warn "Claude CLI not found, skipping template generation"
+        echo "  Install Claude CLI from: https://claude.ai/download"
+        return 0
+    fi
+
+    # Offer user-scope generation if user installation was done
+    if [[ "$INSTALL_USER" = true ]]; then
+        if [[ -f "${HOME}/.claude/CLAUDE.md" ]]; then
+            if prompt_yes_no "Generate user-scope reminder from ~/.claude/CLAUDE.md?" "Y"; then
+                log_step "Generating user-scope reminder template..."
+                if "$generate_script" --user; then
+                    log_info "User-scope reminder template generated"
+                else
+                    log_warn "Failed to generate user-scope reminder template"
+                fi
+            fi
+        else
+            log_warn "~/.claude/CLAUDE.md not found, skipping user-scope template"
+        fi
+    fi
+
+    # Offer project-scope generation if project installation was done
+    if [[ "$INSTALL_PROJECT" = true ]]; then
+        local project_dir="${CLAUDE_PROJECT_DIR:-$PWD}"
+        local project_claude_md="$project_dir/CLAUDE.md"
+
+        if [[ -f "$project_claude_md" ]]; then
+            if prompt_yes_no "Generate project-scope reminder from project CLAUDE.md?" "Y"; then
+                log_step "Generating project-scope reminder template..."
+                if "$generate_script" --project; then
+                    log_info "Project-scope reminder template generated"
+                else
+                    log_warn "Failed to generate project-scope reminder template"
+                fi
+            fi
+        else
+            log_warn "$project_claude_md not found, skipping project-scope template"
+        fi
+    # Special case: user install only, but project has CLAUDE.md
+    elif [[ "$INSTALL_USER" = true ]]; then
+        local project_dir="${CLAUDE_PROJECT_DIR:-$PWD}"
+        local project_claude_md="$project_dir/CLAUDE.md"
+
+        if [[ -f "$project_claude_md" ]]; then
+            echo ""
+            echo "Note: Current project has a CLAUDE.md file."
+            if prompt_yes_no "Generate project-scope reminder for current project?" "n"; then
+                log_step "Generating project-scope reminder template..."
+                if "$generate_script" --project; then
+                    log_info "Project-scope reminder template generated"
+                else
+                    log_warn "Failed to generate project-scope reminder template"
+                fi
+            fi
+        fi
+    fi
+
+    echo ""
+}
+
 # Main installation flow
 main() {
     echo ""
@@ -509,6 +609,9 @@ main() {
         install_to_project
         echo ""
     fi
+
+    # Offer to generate reminder templates
+    offer_reminder_generation
 
     # Success
     echo "=================================================="
