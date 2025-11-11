@@ -200,6 +200,85 @@ test_log_levels_hierarchical() {
     grep -q "should appear" "$log_file"
 }
 
+# Test: console logging can be suppressed for debug/info/warn
+test_console_logging_suppression() {
+    local session_id="test-console-suppress-$$"
+    path_get_session_dir "$session_id" >/dev/null
+    log_init "$session_id"
+
+    # Disable console logging
+    export _CONSOLE_LOGGING_ENABLED=false
+    LOG_LEVEL=debug
+
+    # Capture stderr
+    local stderr_output
+    stderr_output=$(log_debug "console suppressed debug" 2>&1 || true)
+
+    # Should not appear in stderr
+    [ -z "$stderr_output" ] || [[ ! "$stderr_output" =~ "console suppressed debug" ]]
+
+    # But should still be in log file
+    local log_file="${TEST_DIR}/.sidekick/sessions/${session_id}/sidekick.log"
+    grep -q "console suppressed debug" "$log_file"
+}
+
+# Test: log_error bypasses console logging suppression
+test_error_bypasses_console_suppression() {
+    local session_id="test-error-bypass-$$"
+    path_get_session_dir "$session_id" >/dev/null
+    log_init "$session_id"
+
+    # Disable console logging
+    export _CONSOLE_LOGGING_ENABLED=false
+
+    # Capture stderr
+    local stderr_output
+    stderr_output=$(log_error "critical error visible" 2>&1 || true)
+
+    # Error should appear in stderr (bypasses flag)
+    [[ "$stderr_output" =~ "critical error visible" ]]
+
+    # And also in log file
+    local log_file="${TEST_DIR}/.sidekick/sessions/${session_id}/sidekick.log"
+    grep -q "critical error visible" "$log_file"
+}
+
+# Test: file logging continues when console logging disabled
+test_file_logging_when_console_disabled() {
+    local session_id="test-file-when-disabled-$$"
+    path_get_session_dir "$session_id" >/dev/null
+    log_init "$session_id"
+
+    export _CONSOLE_LOGGING_ENABLED=false
+    LOG_LEVEL=debug
+
+    log_debug "file only debug"
+    log_info "file only info"
+    log_warn "file only warn"
+
+    local log_file="${TEST_DIR}/.sidekick/sessions/${session_id}/sidekick.log"
+    grep -q "file only debug" "$log_file"
+    grep -q "file only info" "$log_file"
+    grep -q "file only warn" "$log_file"
+}
+
+# Test: console logging enabled by default
+test_console_logging_default_enabled() {
+    local session_id="test-console-default-$$"
+    path_get_session_dir "$session_id" >/dev/null
+
+    # Unset the flag to test default
+    unset _CONSOLE_LOGGING_ENABLED
+    log_init "$session_id"
+
+    # Capture stderr
+    local stderr_output
+    stderr_output=$(log_info "default console output" 2>&1 || true)
+
+    # Should appear in stderr by default
+    [[ "$stderr_output" =~ "default console output" ]]
+}
+
 # Main test execution
 main() {
     echo "Running logging namespace tests..."
@@ -217,6 +296,10 @@ main() {
     run_test test_log_error_always_outputs
     run_test test_log_to_file_includes_timestamp
     run_test test_log_levels_hierarchical
+    run_test test_console_logging_suppression
+    run_test test_error_bypasses_console_suppression
+    run_test test_file_logging_when_console_disabled
+    run_test test_console_logging_default_enabled
 
     teardown
 

@@ -175,11 +175,32 @@ Automatic resilience for flaky LLM providers: CLOSED (use primary) → 3 failure
 **Config**: `CIRCUIT_BREAKER_ENABLED`, `LLM_FALLBACK_PROVIDER`, `CIRCUIT_BREAKER_FAILURE_THRESHOLD` (see `config.defaults`)
 **Testing**: `./scripts/tests/unit/test-circuit-breaker.sh` and `./scripts/tests/demo-circuit-breaker.sh`
 
+### Logging & Troubleshooting
+
+**Two-Tier Console Logging System**:
+- `log_debug/log_info/log_warn`: Respect `--no-console-logging` flag (can be suppressed)
+- `log_error`: ALWAYS outputs to stderr (critical errors bypass flag for visibility)
+- File logging: ALWAYS enabled regardless of console flag
+
+**Console Logging Control** (precedence, highest to lowest):
+1. `--no-console-logging` CLI flag (forces off)
+2. `SIDEKICK_CONSOLE_LOGGING` environment variable
+3. `SIDEKICK_CONSOLE_LOGGING` config file setting
+4. Default: `true` (console logging enabled)
+
+**Hook Integration**: Hook invocations automatically use `--no-console-logging` to prevent log pollution in JSON output returned to Claude Code.
+
+**Log File Locations**:
+- Session logs: `.sidekick/sessions/<session_id>/sidekick.log`
+- Global log: `.sidekick/sidekick.log`
+
+**Troubleshooting**: See README.md "Troubleshooting" section for viewing logs and enabling console output for debugging.
+
 ### Testing
 
 | Test Type | Suites | Cost | Command |
 |-----------|--------|------|---------|
-| **Unit** | 10 suites, 77 tests | Free (mocked LLM) | `./scripts/tests/run-unit-tests.sh` |
+| **Unit** | 10 suites, 81 tests | Free (mocked LLM) | `./scripts/tests/run-unit-tests.sh` |
 | **Integration** | 7 suites | Free (mocked data) | `./scripts/tests/run-integration-tests.sh` |
 | **LLM Providers** | Real API calls | 💰 **EXPENSIVE** | `./scripts/tests/integration/test-llm-providers.sh` |
 

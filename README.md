@@ -362,6 +362,46 @@ Use environment variables (`$CLAUDE_PROJECT_DIR`) and dynamic path resolution. S
 
 Sync scripts only copy files newer than their destinations, preserving timestamps for idempotent operations.
 
+## Troubleshooting
+
+### Console vs File Logging
+
+Sidekick uses a two-tier logging system:
+
+**Console Logging (stderr)**:
+- `log_debug/log_info/log_warn`: Can be suppressed via `--no-console-logging` flag
+- `log_error`: ALWAYS visible (critical errors bypass suppression)
+- Hook scripts automatically use `--no-console-logging` to prevent log pollution in JSON output
+
+**File Logging**:
+- ALWAYS enabled regardless of console logging setting
+- Session logs: `.sidekick/sessions/<session_id>/sidekick.log`
+- Global log: `.sidekick/sidekick.log`
+
+**To view logs when console output is suppressed**:
+```bash
+# View current session logs
+tail -f .sidekick/sessions/*/sidekick.log | sort -r | head -100
+
+# View all logs
+tail -f .sidekick/sidekick.log
+```
+
+**To enable console logging for debugging**:
+```bash
+# Via environment variable
+SIDEKICK_CONSOLE_LOGGING=true sidekick.sh session-start < input.json
+
+# Via config file (~/.sidekick/sidekick.conf or .sidekick/sidekick.conf)
+echo "SIDEKICK_CONSOLE_LOGGING=true" >> ~/.sidekick/sidekick.conf
+```
+
+**Precedence** (highest to lowest):
+1. `--no-console-logging` CLI flag
+2. `SIDEKICK_CONSOLE_LOGGING` environment variable
+3. `SIDEKICK_CONSOLE_LOGGING` config file setting
+4. Default: `true` (console logging enabled)
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.

@@ -120,12 +120,25 @@ log_init <session_id>
 log_debug "message"    # Gray, only shown if LOG_LEVEL=debug
 log_info "message"     # Green
 log_warn "message"     # Yellow
-log_error "message"    # Red
+log_error "message"    # Red (ALWAYS visible, bypasses console logging flag)
 
 # Internal helpers
 _log_to_file "level" "message"
 _log_format_ansi "level" "message"
 ```
+
+**Two-Tier Console Logging**:
+- `log_debug/log_info/log_warn`: Respect `_CONSOLE_LOGGING_ENABLED` flag (can be suppressed)
+- `log_error`: ALWAYS outputs to stderr (critical errors bypass flag for visibility)
+- File logging: Always enabled regardless of console flag
+
+**Console Logging Control** (precedence, highest to lowest):
+1. `--no-console-logging` CLI flag (forces false)
+2. `SIDEKICK_CONSOLE_LOGGING` environment variable
+3. `SIDEKICK_CONSOLE_LOGGING` config file setting
+4. Default: true (console logging enabled)
+
+**Hook Integration**: Hook invocation commands (in `settings.json` and `install.sh`) automatically include `--no-console-logging` flag to prevent log pollution in JSON output returned to Claude Code.
 
 **Log File Location**: `.sidekick/sessions/${session_id}/sidekick.log`
 
