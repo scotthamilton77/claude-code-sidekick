@@ -16,21 +16,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/post-tool-use-tracker.sh"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/tsc-check.sh"
+            "command": "echo '🎨 Running Prettier...' && jq -r '.tool_input.file_path' | xargs npx prettier --write"
           },
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/trigger-build-resolver.sh"
+            "command": "echo '🚨 Running ESLint...' && jq -r '.tool_input.file_path' | xargs npx eslint --fix --quiet"
           }
         ]
       }
