@@ -1,8 +1,8 @@
 # TypeScript Migration Roadmap
 
-**Status**: 🏗️ Consensus Phase - Phase 5.4 Complete ✅
+**Status**: 🏗️ Orchestration Phase - Phase 6.1 Complete ✅
 **Last Updated**: 2025-11-11
-**Recent Activity**: Phase 5.4 complete (array consensus with union, 28 passing tests, 429 total tests passing)
+**Recent Activity**: Phase 6.1 complete (reference generator with versioning and provenance, 21 passing tests, 450 total tests passing)
 **Target**: Behavioral parity with Track 1 Bash implementation
 
 ---
@@ -19,7 +19,7 @@ This roadmap tracks the component-level migration from Track 1 (Bash, `scripts/b
 - Validate output parity with Track 1
 - Mark component complete
 
-**Progress**: 22/34 components complete (65%) - 1 component skipped
+**Progress**: 23/34 components complete (68%) - 1 component skipped
 
 ---
 
@@ -769,28 +769,46 @@ After code review, removed unnecessary Logger wrapper class (300 lines + 445 lin
 
 ---
 
-## Phase 6: Orchestration (0/4 Complete)
+## Phase 6: Orchestration (1/4 Complete)
 
 **Goal**: Main benchmark and reference generation workflows.
 
-### 6.1 Reference Generator (Versioning, Provenance) ⏳
+### 6.1 Reference Generator (Versioning, Provenance) ✅
 
 **Maps to**: `generate-reference.sh`
 **Acceptance Criteria**:
 
-- Versioned directory creation (`{version}_{timestamp}/`)
-- Provenance tracking (prompt, schema, config, checksums)
-- Metadata generation
-- 3-model invocation
-- Consensus computation
-- Output matches Track 1 structure
+- ✅ Versioned directory creation (`{version}_{timestamp}/`)
+- ✅ Provenance tracking (prompt, schema, config, checksums)
+- ✅ Metadata generation
+- ✅ 3-model invocation
+- ✅ Consensus computation
+- ✅ Output matches Track 1 structure
 
-**Files to Create**:
+**Files Created**:
 
-- `src/core/ReferenceGenerator.ts`
-- `test/core/ReferenceGenerator.test.ts`
+- ✅ `src/benchmark/core/ReferenceGenerator.ts` (~575 lines, full implementation)
+- ✅ `src/benchmark/core/types.ts` (~137 lines, comprehensive type definitions)
+- ✅ `test/unit/core/ReferenceGenerator.test.ts` (~630 lines, 21 tests, all passing)
+
+**Key Features**:
+
+- Versioned directory creation with format `{version}_{timestamp}/` (e.g., v1.0_2025-11-11_120000)
+- Complete provenance tracking:
+  - Snapshots of prompt and schema files (`_prompt-snapshot/`)
+  - Configuration snapshot in bash format for compatibility
+  - Metadata with SHA256 checksums for all files
+- 3-model orchestration with graceful degradation (works with 2+ successful models)
+- Consensus computation using all 4 consensus algorithms (string, numeric, boolean, array)
+- Structured output matching Track 1 format exactly
+- Dry run mode for testing without LLM invocations
+- Force regeneration option for overwriting existing references
 
 **Test Strategy**: Mock LLM providers, validate directory structure and file contents
+
+**Status**: Complete - all tests passing, behavioral parity with Track 1 validated
+
+**Completed**: 2025-11-11
 
 ---
 
@@ -1036,12 +1054,12 @@ Update this section after completing each component:
 **Phase 3**: ██ 2/2 (100%) ✅
 **Phase 4**: █████ 5/5 (100%) ✅
 **Phase 5**: ████ 4/4 (100%) ✅
-**Phase 6**: ░░░░ 0/4 (0%)
+**Phase 6**: █░░░ 1/4 (25%)
 **Phase 7**: ░░ 0/2 (0%)
 **Phase 8**: ░░░ 0/3 (0%)
 **Phase 9**: ░░░░ 0/4 (0%)
 
-**Overall**: █████████████████████⏭️░ 22/34 complete, 1 skipped (65%)
+**Overall**: ██████████████████████⏭️░ 23/34 complete, 1 skipped (68%)
 
 ---
 
