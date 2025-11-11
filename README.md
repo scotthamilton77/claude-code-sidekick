@@ -14,6 +14,7 @@ This repository serves as a development and testing environment for [Claude Code
 
 - tracking and reminders
   - option to automate the turn-cadence-reminder.md message on install ("most urgent stuff from CLAUDEs")
+   - STATUS: this is working, but: (a) should generate the .txt file, not the .template file, and (b) we still need the tool-cadence version generated
 - response tracker
    - what if we include in the sleeper process a watch of the tanscript to also count additional messages beyond user submitted?  we might watch for "informative" updates based on the message type?
 - sleeper process
