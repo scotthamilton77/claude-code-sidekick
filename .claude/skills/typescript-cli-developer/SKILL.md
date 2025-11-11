@@ -1,22 +1,23 @@
 ---
 name: typescript-cli-developer
-description: Comprehensive guide for building production-ready CLI applications with TypeScript. Covers argument parsing (yargs, commander), terminal UI (chalk, ora, inquirer), file operations, error handling, testing CLI apps, packaging, distribution, stdin/stdout handling, exit codes, configuration, and CLI UX best practices.
+description: Build production-ready command-line tools with TypeScript. Use when creating CLI apps, working with argv, terminal UI, interactive prompts, spinners, progress bars, testing CLIs, or packaging for npm. Covers yargs, commander, chalk, ora, inquirer, execa, and CLI best practices.
 ---
 
 # TypeScript CLI Developer
 
 ## Purpose
 
-Build robust, user-friendly command-line tools with TypeScript using industry-standard libraries and patterns. This skill provides architectural guidance, library recommendations, and best practices for creating professional CLI applications.
+Build robust, user-friendly command-line tools with TypeScript using industry-standard libraries. This skill provides architectural patterns, library guidance, and testing strategies for professional CLI development.
 
 ## When to Use
 
-- Building new CLI tools or command-line applications
-- Adding CLI interfaces to existing applications
-- Working with argv parsing, terminal UI, or interactive prompts
-- Implementing progress bars, spinners, or colored output
-- Testing command-line applications
-- Packaging CLIs for npm distribution
+Trigger this skill when working on:
+- CLI tools, command-line apps, terminal utilities
+- Argument parsing with yargs or commander
+- Terminal UI: colors, spinners, progress bars, prompts, tables
+- Interactive CLI workflows
+- Testing CLIs with execa or subprocess testing
+- npm packaging and distribution
 
 ---
 
@@ -38,50 +39,10 @@ Build robust, user-friendly command-line tools with TypeScript using industry-st
 ## Architecture Patterns
 
 ### Entry Point Structure
-
-Separate CLI concerns from business logic for testability:
-
-```typescript
-#!/usr/bin/env node
-// bin/cli.ts
-import { run } from '../src/index.js';
-
-run(process.argv.slice(2)).catch((error) => {
-  console.error(error.message);
-  process.exit(1);
-});
-```
-
-```typescript
-// src/index.ts
-export async function run(args: string[]): Promise<void> {
-  const parsed = parseArgs(args);
-  await executeCommand(parsed);
-}
-```
-
-**Why:** Enables testing without `process.exit()`, separates concerns
+Separate CLI entry (`bin/cli.ts` with shebang) from business logic (`src/index.ts`). Export testable `run(args)` function instead of using `process.exit()` directly.
 
 ### Error Handling
-
-Use custom error classes with exit codes:
-
-```typescript
-export class CliError extends Error {
-  constructor(
-    message: string,
-    public readonly exitCode: number = 1,
-  ) {
-    super(message);
-    this.name = 'CliError';
-  }
-}
-
-// Usage
-if (!fileExists(path)) {
-  throw new CliError(`File not found: ${path}`, 2);
-}
-```
+Custom error classes with exit codes. Use `CliError` base class with `exitCode` property.
 
 **Exit code conventions:**
 - `0` - Success
@@ -89,324 +50,96 @@ if (!fileExists(path)) {
 - `2` - Misuse (invalid args, missing files)
 - `128+n` - Fatal error signal "n"
 
-**Error output pattern:**
-
-```typescript
-import chalk from 'chalk';
-
-function handleError(error: unknown): never {
-  if (error instanceof CliError) {
-    console.error(chalk.red(`Error: ${error.message}`));
-    process.exit(error.exitCode);
-  }
-  console.error(chalk.red('Unexpected error:'), error);
-  process.exit(1);
-}
-```
-
 ### Configuration Cascade
-
 **Pattern:** CLI args > env vars > config file > defaults
 
-```typescript
-import { cosmiconfigSync } from 'cosmiconfig';
-
-function loadConfig(cliArgs: ParsedArgs): Config {
-  const explorer = cosmiconfigSync('myapp');
-  const fileConfig = explorer.search()?.config ?? {};
-
-  return {
-    apiKey: cliArgs.apiKey ?? process.env.API_KEY ?? fileConfig.apiKey,
-    timeout: cliArgs.timeout ?? fileConfig.timeout ?? 5000,
-    verbose: cliArgs.verbose ?? fileConfig.verbose ?? false,
-  };
-}
-```
+Use `cosmiconfig` for file discovery. Apply nullish coalescing (`??`) chain for precedence.
 
 ---
 
 ## Core Capabilities
 
 ### Argument Parsing
+**yargs** (120KB): Complex CLIs, advanced validation, middleware, config files
+**commander** (8KB): Simple CLIs, fluent API, basic validation
 
-**Quick comparison:**
-
-| Feature | yargs | commander |
-|---------|-------|-----------|
-| Complexity | Complex CLIs | Simple CLIs |
-| Bundle size | ~120KB | ~8KB |
-| Type safety | Excellent | Good |
-| Validation | Advanced | Basic |
-| Middleware | ✅ Yes | ❌ No |
-
-**See [ARGUMENT_PARSING.md](ARGUMENT_PARSING.md) for:**
-- Full yargs and commander examples
-- Subcommands and validation
-- Type-safe patterns
-- Configuration file integration
+See [ARGUMENT_PARSING.md](ARGUMENT_PARSING.md) for library-specific patterns.
 
 ### Terminal UI
+**chalk** - Colors with auto-detection
+**ora** - Spinners with TTY handling
+**cli-progress** - Progress bars with ETA
+**inquirer**/**prompts** - Interactive prompts
+**cli-table3** - Formatted tables
 
-**Available components:**
+See [TERMINAL_UI.md](TERMINAL_UI.md) for usage patterns.
 
-- **Colors**: chalk for terminal styling
-- **Spinners**: ora for loading indicators
-- **Progress bars**: cli-progress for long operations
-- **Interactive prompts**: inquirer or prompts for user input
-- **Tables**: cli-table3 for formatted output
-- **Feature detection**: Color and unicode support
-
-**See [TERMINAL_UI.md](TERMINAL_UI.md) for:**
-- Complete examples for each component
-- Color patterns and styling
-- Interactive prompt patterns
-- Progress tracking
-- Feature detection
-
-### Input/Output Handling
-
-**Reading stdin:**
-
-```typescript
-async function readStdin(): Promise<string> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of process.stdin) {
-    chunks.push(chunk);
-  }
-  return Buffer.concat(chunks).toString('utf-8');
-}
-
-// Detect piped input
-if (process.stdin.isTTY) {
-  // Interactive mode
-  const answer = await promptUser();
-} else {
-  // Piped input
-  const input = await readStdin();
-}
-```
-
-**Writing to stdout/stderr:**
-
-```typescript
-// Standard output (actual program output)
-process.stdout.write('data\n');
-console.log('data');
-
-// Standard error (diagnostics and logging)
-process.stderr.write('error\n');
-console.error('diagnostic info');
-```
-
-**Important:** Use stderr for logging, stdout for data. This allows:
-```bash
-mycli | jq  # stdout to jq, logging to terminal
-```
+### Input/Output
+- **stdin**: Check `process.stdin.isTTY` to detect pipes vs interactive mode
+- **stdout**: Program data output (pipeable)
+- **stderr**: Logging and diagnostics (visible in pipes)
 
 ---
 
 ## Testing
+- **Unit tests**: vitest for functions (parsing, validation, formatters)
+- **Integration tests**: execa to run CLI as subprocess
+- **Mocks**: Test interactive prompts without user input
+- **Strip ANSI**: Use `strip-ansi` for stable assertions
 
-**Strategy:**
-- **Unit tests**: Test functions (parsing, validation, formatters)
-- **Integration tests**: Test CLI as subprocess (real usage)
-- **Mocks**: Test interactive prompts
-
-**Quick example:**
-
-```typescript
-// Integration test with execa
-import { execa } from 'execa';
-
-it('shows help message', async () => {
-  const { stdout, exitCode } = await execa('node', [cliPath, '--help']);
-
-  expect(exitCode).toBe(0);
-  expect(stdout).toContain('Usage:');
-});
-
-it('handles errors correctly', async () => {
-  await expect(
-    execa('node', [cliPath, 'invalid'])
-  ).rejects.toMatchObject({
-    exitCode: 1,
-    stderr: expect.stringContaining('Unknown command'),
-  });
-});
-```
-
-**See [TESTING.md](TESTING.md) for:**
-- Unit testing patterns
-- Integration testing with execa
-- Testing interactive prompts
-- Mocking strategies
-- Snapshot testing
-- stdin/stdout testing
+See [TESTING.md](TESTING.md) for test patterns and execa usage.
 
 ---
 
 ## Packaging & Distribution
+**package.json essentials:**
+- `"type": "module"` for ESM
+- `"bin": { "mycli": "./dist/cli.js" }` for executable
+- `"files": ["dist"]` to whitelist published content
+- `prepublishOnly` hook for build + test
 
-**Essential package.json:**
+**Development:** Use `npm link` for local testing, `npm pack` to verify tarball contents.
 
-```json
-{
-  "name": "my-cli-tool",
-  "version": "1.0.0",
-  "type": "module",
-  "bin": {
-    "mycli": "./dist/cli.js"
-  },
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
-  ],
-  "scripts": {
-    "build": "tsc",
-    "dev": "tsx src/cli.ts",
-    "prepublishOnly": "npm run build && npm test"
-  }
-}
-```
-
-**Publishing workflow:**
-
-```bash
-# Link for local testing
-npm link
-
-# Test locally
-mycli --help
-
-# Publish to npm
-npm version patch
-npm publish
-```
-
-**See [PACKAGING.md](PACKAGING.md) for:**
-- Complete package.json setup
-- TypeScript configuration
-- Build optimization
-- Local development
-- Publishing to npm
-- Version management
-- Binary wrappers
+See [PACKAGING.md](PACKAGING.md) for tsconfig, build optimization, and publishing workflow.
 
 ---
 
 ## Best Practices
 
 ### ✅ DO
-
-1. **Use exit codes correctly**
-   ```typescript
-   process.exit(0);  // Success
-   process.exit(1);  // Error
-   process.exit(2);  // Invalid usage
-   ```
-
-2. **Respect stdout/stderr**
-   ```typescript
-   console.log(data);           // Actual output (stdout)
-   console.error('Warning:');   // Diagnostics (stderr)
-   ```
-
-3. **Support --help and --version**
-   ```typescript
-   yargs.help().version()
-   ```
-
-4. **Handle SIGINT gracefully**
-   ```typescript
-   process.on('SIGINT', async () => {
-     await cleanup();
-     process.exit(130); // 128 + SIGINT(2)
-   });
-   ```
-
-5. **Validate user input**
-   ```typescript
-   .option('port', {
-     type: 'number',
-     coerce: (val) => {
-       if (val < 1 || val > 65535) {
-         throw new Error('Port must be 1-65535');
-       }
-       return val;
-     },
-   })
-   ```
-
-6. **Use spinners for long operations**
-   ```typescript
-   const spinner = ora('Installing...').start();
-   await install();
-   spinner.succeed('Installed!');
-   ```
-
-7. **Provide verbose mode**
-   ```typescript
-   if (argv.verbose) {
-     console.error(`Processing ${file}...`);
-   }
-   ```
-
-8. **Test as users would run it**
-   ```typescript
-   await execa('node', [cliPath, 'build', 'input.ts']);
-   ```
+1. Use exit codes correctly (0=success, 1=error, 2=misuse, 130=SIGINT)
+2. Respect stdout/stderr separation (data vs diagnostics)
+3. Support --help and --version flags
+4. Handle SIGINT gracefully with cleanup (exit 130)
+5. Validate user input with clear error messages
+6. Use spinners for long operations (ora auto-hides in CI)
+7. Provide verbose mode for debugging
+8. Test as users would run it (execa subprocess tests)
 
 ### ❌ DON'T
-
-1. **Don't use process.exit() in library code** - Throw errors instead
-2. **Don't log to stdout unless it's actual output** - Use stderr for diagnostics
-3. **Don't ignore errors silently** - Always handle or propagate
-4. **Don't assume terminal capabilities** - Check with feature detection
-5. **Don't block on synchronous I/O** - Use async file operations
-6. **Don't hard-code paths** - Use path.join() and respect OS differences
-7. **Don't publish without testing** - Use `npm pack` and test locally
+1. Don't use `process.exit()` in library code (throw errors instead)
+2. Don't log to stdout unless it's actual output (use stderr for diagnostics)
+3. Don't ignore errors silently (always handle or propagate)
+4. Don't assume terminal capabilities (check TTY/color support)
+5. Don't block on synchronous I/O (use async operations)
+6. Don't hard-code paths (use `path.join()`, respect OS)
+7. Don't publish without testing (`npm pack` + local install)
 
 ---
 
 ## Quick Start
 
-Basic TypeScript CLI setup:
+**Dependencies:** `yargs` + `chalk` + `ora` + `typescript` + `tsx` + types
 
-**1. Install dependencies:**
-```bash
-npm install yargs chalk ora
-npm install -D typescript tsx @types/yargs @types/node
-```
+**Setup:**
+1. Create `src/cli.ts` with shebang `#!/usr/bin/env node`
+2. Set `"type": "module"` and `"bin": "./dist/cli.js"` in package.json
+3. Add build script: `"build": "tsc"`
+4. Add dev script: `"dev": "tsx src/cli.ts"`
 
-**2. Create src/cli.ts:**
-```typescript
-#!/usr/bin/env node
-import yargs from 'yargs';
-import { hideBin } from 'yargs/helpers';
+**Pattern:** Use `yargs(hideBin(process.argv))` for arg parsing, `.strict().help()` for validation.
 
-yargs(hideBin(process.argv))
-  .command('hello [name]', 'Say hello', {}, (argv) => {
-    console.log(`Hello, ${argv.name || 'World'}!`);
-  })
-  .strict()
-  .help()
-  .parse();
-```
-
-**3. Configure package.json:**
-```json
-{
-  "type": "module",
-  "bin": "./dist/cli.js",
-  "scripts": {
-    "build": "tsc",
-    "dev": "tsx src/cli.ts"
-  }
-}
-```
-
-**See reference files for complete examples and patterns.**
+See reference files for detailed patterns.
 
 ---
 
@@ -431,6 +164,20 @@ yargs(hideBin(process.argv))
 
 ---
 
-**Skill Status**: COMPLETE ✅
-**Line Count**: < 500 (following 500-line rule) ✅
-**Progressive Disclosure**: Reference files for detailed information ✅
+## Quality Checklist
+
+When building a CLI with this skill, verify:
+
+- [ ] Description includes trigger terms and specific use cases
+- [ ] SKILL.md under 500 lines with progressive disclosure
+- [ ] No time-sensitive information (version numbers generic)
+- [ ] Consistent terminology throughout
+- [ ] Examples explain "why" not just "what"
+- [ ] Error handling with clear messages
+- [ ] Exit codes follow conventions (0=success, 1=error, 2=misuse)
+- [ ] Respects stdout/stderr separation
+- [ ] Supports --help and --version
+- [ ] Handles SIGINT gracefully
+- [ ] Tests cover success and error paths
+- [ ] Integration tests use execa or subprocess
+- [ ] Works with NO_COLOR environment variable

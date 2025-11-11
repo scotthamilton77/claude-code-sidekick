@@ -27,248 +27,33 @@ Argument parsing libraries handle:
 
 **Install:** `npm install yargs @types/yargs`
 
+**Why yargs:** Advanced validation, middleware support, configuration file integration, and excellent TypeScript inference. Choose when you need complex CLIs with plugins, cross-field validation, or config file support.
+
 ### Basic Usage
-
-```typescript
-import yargs from 'yargs';
-import { hideBin } from 'yargs/helpers';
-
-const argv = await yargs(hideBin(process.argv))
-  .command('build <input>', 'Build the project', (yargs) => {
-    return yargs.positional('input', {
-      describe: 'Input file',
-      type: 'string',
-      demandOption: true,
-    });
-  })
-  .option('output', {
-    alias: 'o',
-    type: 'string',
-    description: 'Output directory',
-    default: './dist',
-  })
-  .option('watch', {
-    alias: 'w',
-    type: 'boolean',
-    description: 'Watch mode',
-    default: false,
-  })
-  .option('verbose', {
-    alias: 'v',
-    type: 'boolean',
-    description: 'Verbose output',
-    default: false,
-  })
-  .strict()
-  .help()
-  .parse();
-
-console.log(argv.input);  // Typed!
-console.log(argv.output); // Typed!
-```
+Use `.command()` for subcommands with `.positional()` for required args. Use `.option()` for flags with `type`, `alias`, `default`. Chain `.strict().help().parse()` for validation and help text.
 
 ### Subcommands
+Use `.demandCommand(1, 'message')` to require a command. Each `.command()` gets its own handler and options.
 
-```typescript
-yargs(hideBin(process.argv))
-  .command('init', 'Initialize project', {}, async (argv) => {
-    await initProject();
-  })
-  .command('build', 'Build project', {}, async (argv) => {
-    await buildProject();
-  })
-  .command('test', 'Run tests', {}, async (argv) => {
-    await runTests();
-  })
-  .demandCommand(1, 'You must specify a command')
-  .strict()
-  .help()
-  .parse();
-```
-
-### Type-Safe with Middleware
-
-```typescript
-interface GlobalArgs {
-  verbose: boolean;
-  config?: string;
-}
-
-interface BuildArgs extends GlobalArgs {
-  input: string;
-  output: string;
-  watch: boolean;
-}
-
-const parser = yargs(hideBin(process.argv))
-  .option('verbose', {
-    type: 'boolean',
-    default: false,
-    description: 'Verbose logging',
-  })
-  .option('config', {
-    type: 'string',
-    description: 'Config file path',
-  })
-  .middleware((argv) => {
-    // Setup logging based on verbose flag
-    if (argv.verbose) {
-      setupVerboseLogging();
-    }
-
-    // Load config if specified
-    if (argv.config) {
-      loadConfigFile(argv.config);
-    }
-  });
-
-const buildCommand = parser.command<BuildArgs>(
-  'build <input>',
-  'Build the project',
-  (yargs) => {
-    return yargs
-      .positional('input', {
-        type: 'string',
-        demandOption: true,
-        describe: 'Input file or directory',
-      })
-      .option('output', {
-        type: 'string',
-        default: './dist',
-        alias: 'o',
-        describe: 'Output directory',
-      })
-      .option('watch', {
-        type: 'boolean',
-        default: false,
-        alias: 'w',
-        describe: 'Watch for changes',
-      });
-  },
-  async (argv) => {
-    await build(argv.input, argv.output, { watch: argv.watch });
-  }
-);
-
-await parser.parse();
-```
+### Type-Safe Patterns
+Define interfaces for arg types, use generics in `.command<YourInterface>()`. Use `.middleware()` for cross-cutting concerns (logging setup, config loading).
 
 ### Advanced Validation
-
-```typescript
-yargs(hideBin(process.argv))
-  .option('port', {
-    type: 'number',
-    default: 3000,
-    coerce: (val) => {
-      if (val < 1 || val > 65535) {
-        throw new Error('Port must be between 1 and 65535');
-      }
-      return val;
-    },
-  })
-  .option('env', {
-    type: 'string',
-    choices: ['development', 'staging', 'production'],
-    default: 'development',
-  })
-  .option('log-level', {
-    type: 'string',
-    choices: ['debug', 'info', 'warn', 'error'],
-    default: 'info',
-  })
-  .check((argv) => {
-    // Cross-field validation
-    if (argv.env === 'production' && argv.logLevel === 'debug') {
-      throw new Error('Cannot use debug logging in production');
-    }
-    return true;
-  })
-  .parse();
-```
+- **coerce**: Transform/validate option values (throw Error for invalid)
+- **choices**: Restrict to enum values
+- **check**: Cross-field validation (access all argv)
 
 ### Positional Arguments
-
-```typescript
-yargs(hideBin(process.argv))
-  .command(
-    'copy <source> <destination>',
-    'Copy files',
-    (yargs) => {
-      return yargs
-        .positional('source', {
-          describe: 'Source file or directory',
-          type: 'string',
-          normalize: true, // Resolve paths
-        })
-        .positional('destination', {
-          describe: 'Destination path',
-          type: 'string',
-          normalize: true,
-        });
-    },
-    async (argv) => {
-      await copyFiles(argv.source, argv.destination);
-    }
-  )
-  .parse();
-```
+Use `<required>` and `[optional]` in command string. Set `normalize: true` for path resolution.
 
 ### Variadic Arguments
-
-```typescript
-yargs(hideBin(process.argv))
-  .command(
-    'process <files..>',
-    'Process multiple files',
-    (yargs) => {
-      return yargs.positional('files', {
-        describe: 'Files to process',
-        type: 'string',
-        array: true,
-      });
-    },
-    async (argv) => {
-      // argv.files is string[]
-      for (const file of argv.files) {
-        await processFile(file);
-      }
-    }
-  )
-  .parse();
-
-// Usage: mycli process file1.txt file2.txt file3.txt
-```
+Use `<files..>` syntax with `array: true` in positional config. Results in `string[]`.
 
 ### Custom Help Text
-
-```typescript
-yargs(hideBin(process.argv))
-  .usage('Usage: $0 <command> [options]')
-  .epilogue('For more information, visit https://example.com/docs')
-  .example('$0 build src/', 'Build from src directory')
-  .example('$0 build src/ -o dist/', 'Build with custom output')
-  .wrap(Math.min(120, yargs.terminalWidth()))
-  .parse();
-```
+Use `.usage()`, `.epilogue()`, `.example()` for customization. Use `.wrap()` for terminal width control.
 
 ### Configuration Files
-
-```typescript
-yargs(hideBin(process.argv))
-  .config('config', 'Path to config file', (configPath) => {
-    return JSON.parse(readFileSync(configPath, 'utf-8'));
-  })
-  .option('config', {
-    alias: 'c',
-    type: 'string',
-    description: 'Config file path',
-  })
-  .parse();
-
-// Usage: mycli --config ./myconfig.json
-// Config file values are merged with CLI args
-```
+Use `.config()` with custom loader function. Config values merge with CLI args (CLI args win).
 
 ---
 
@@ -276,131 +61,17 @@ yargs(hideBin(process.argv))
 
 **Install:** `npm install commander`
 
+**Why commander:** Tiny bundle size (~8KB vs yargs ~120KB), clean fluent API, and simpler learning curve. Choose for straightforward CLIs without complex validation needs or when bundle size is critical.
+
 ### Basic Usage
+Create `new Command()`, set `.name()`, `.description()`, `.version()`. Use `.command()` for subcommands with `.argument()` and `.option()`. Call `.action()` with handler, then `.parseAsync()`.
 
-```typescript
-import { Command } from 'commander';
-
-const program = new Command();
-
-program
-  .name('my-cli')
-  .description('CLI tool description')
-  .version('1.0.0');
-
-program
-  .command('build')
-  .description('Build the project')
-  .argument('<input>', 'Input file')
-  .option('-o, --output <dir>', 'Output directory', './dist')
-  .option('-w, --watch', 'Watch mode', false)
-  .action(async (input, options) => {
-    await build(input, options);
-  });
-
-await program.parseAsync(process.argv);
-```
-
-### Subcommands
-
-```typescript
-const program = new Command();
-
-program
-  .name('mycli')
-  .description('My CLI tool')
-  .version('1.0.0');
-
-// Init command
-program
-  .command('init')
-  .description('Initialize a new project')
-  .option('-t, --template <name>', 'Template to use', 'basic')
-  .action(async (options) => {
-    await initProject(options.template);
-  });
-
-// Build command
-program
-  .command('build')
-  .description('Build the project')
-  .argument('<input>', 'Input file')
-  .option('-o, --output <dir>', 'Output directory', './dist')
-  .action(async (input, options) => {
-    await build(input, options.output);
-  });
-
-await program.parseAsync();
-```
-
-### Options
-
-```typescript
-program
-  .option('-d, --debug', 'Enable debug mode')
-  .option('-p, --port <number>', 'Port number', '3000')
-  .option('-h, --host <address>', 'Host address', 'localhost')
-  .option('--no-color', 'Disable colored output')
-  .action((options) => {
-    console.log(options.debug);   // boolean
-    console.log(options.port);    // string
-    console.log(options.color);   // boolean (negated)
-  });
-```
-
-### Custom Validation
-
-```typescript
-program
-  .command('start')
-  .option('-p, --port <number>', 'Port number')
-  .action((options) => {
-    if (options.port) {
-      const port = parseInt(options.port, 10);
-      if (isNaN(port) || port < 1 || port > 65535) {
-        program.error('Error: Port must be between 1 and 65535');
-      }
-    }
-  });
-```
-
-### Variadic Arguments
-
-```typescript
-program
-  .command('process')
-  .description('Process multiple files')
-  .argument('<files...>', 'Files to process')
-  .action(async (files) => {
-    // files is string[]
-    for (const file of files) {
-      await processFile(file);
-    }
-  });
-
-// Usage: mycli process file1.txt file2.txt file3.txt
-```
-
-### Global Options
-
-```typescript
-const program = new Command();
-
-// Global options available to all commands
-program
-  .option('-v, --verbose', 'Verbose output')
-  .option('-c, --config <path>', 'Config file');
-
-program
-  .command('build')
-  .action((options, command) => {
-    // Access global options from parent
-    const globalOpts = command.parent.opts();
-    if (globalOpts.verbose) {
-      console.log('Verbose mode enabled');
-    }
-  });
-```
+### Key Patterns
+- **Options**: `-s, --long <value>` syntax, third param is default
+- **Negation**: `--no-flag` creates boolean flag (defaults true)
+- **Variadic**: `<files...>` for arrays
+- **Validation**: Use `program.error()` for validation errors
+- **Global options**: Access via `command.parent.opts()` in subcommand handlers
 
 ---
 
@@ -409,23 +80,27 @@ program
 ### Use **yargs** when:
 
 ✅ Building complex CLIs with many subcommands
-✅ Need advanced validation and coercion
-✅ Want middleware support
-✅ Need configuration file integration
-✅ Type safety is critical
-✅ Have many cross-field validations
+✅ Need advanced validation and coercion (port ranges, custom types)
+✅ Want middleware support (logging, auth, config loading)
+✅ Need configuration file integration (cosmiconfig support)
+✅ Type safety is critical (excellent TypeScript inference)
+✅ Have many cross-field validations (production + debug conflicts)
 
-**Examples:** Build tools (Webpack, Vite), CLIs with plugins
+**Examples:** Build tools (Webpack, Vite), CLIs with plugins, enterprise tooling
+
+**Trade-off:** Larger bundle (~120KB) but saves development time on complex CLIs
 
 ### Use **commander** when:
 
-✅ Building simpler CLIs
-✅ Want cleaner, more readable API
-✅ Don't need complex validation
-✅ Prefer fluent/builder pattern
-✅ Want lighter dependencies
+✅ Building simpler CLIs (< 10 commands)
+✅ Want cleaner, more readable API (less boilerplate)
+✅ Don't need complex validation (basic type checking is enough)
+✅ Prefer fluent/builder pattern (method chaining)
+✅ Want lighter dependencies (bundle size matters)
 
-**Examples:** Simple utilities, deployment tools, generators
+**Examples:** Simple utilities, deployment tools, generators, one-off scripts
+
+**Trade-off:** Smaller bundle (~8KB) but manual validation for complex scenarios
 
 ### Comparison
 
@@ -444,58 +119,11 @@ program
 
 ## Common Patterns
 
-### Environment Variable Fallbacks
+**Environment Variable Fallbacks**: Use `default: process.env.VAR_NAME`
 
-```typescript
-// yargs
-yargs()
-  .option('api-key', {
-    type: 'string',
-    description: 'API key',
-    default: process.env.API_KEY,
-  })
-  .parse();
+**Required Options**: yargs `demandOption: true`, commander `.requiredOption()`
 
-// commander
-program
-  .option('-k, --api-key <key>', 'API key', process.env.API_KEY)
-  .parse();
-```
-
-### Required Options
-
-```typescript
-// yargs
-yargs()
-  .option('api-key', {
-    type: 'string',
-    demandOption: true,
-    description: 'API key (required)',
-  })
-  .parse();
-
-// commander
-program
-  .requiredOption('-k, --api-key <key>', 'API key')
-  .parse();
-```
-
-### Conflicts and Dependencies
-
-```typescript
-// yargs
-yargs()
-  .option('production', { type: 'boolean' })
-  .option('development', { type: 'boolean' })
-  .conflicts('production', 'development')
-  .parse();
-
-yargs()
-  .option('watch', { type: 'boolean' })
-  .option('output', { type: 'string' })
-  .implies('watch', 'output') // watch requires output
-  .parse();
-```
+**Conflicts & Dependencies** (yargs only): `.conflicts(a, b)` and `.implies(a, b)`
 
 ---
 

@@ -19,91 +19,20 @@ Complete guide to creating beautiful, interactive command-line interfaces.
 
 **Install:** `npm install chalk`
 
-```typescript
-import chalk from 'chalk';
+**Why chalk:** Auto-detects color support, respects NO_COLOR/FORCE_COLOR env vars, and safely degrades to plain text when piped. More reliable than manual ANSI codes.
 
-// Basic colors
-console.log(chalk.blue('Info:'), 'Processing files...');
-console.log(chalk.green('Success:'), 'Build completed!');
-console.log(chalk.yellow('Warning:'), 'Deprecated API used');
-console.log(chalk.red('Error:'), 'Build failed!');
-
-// Background colors
-console.log(chalk.bgRed.white(' ERROR '), 'Critical failure');
-console.log(chalk.bgGreen.black(' PASS '), 'All tests passed');
-
-// Combine styles
-console.log(chalk.bold.green('✓'), 'All tests passed');
-console.log(chalk.dim('(123 files processed)'));
-console.log(chalk.underline('Important'));
-console.log(chalk.italic('Note:'), 'This is a note');
-
-// Hex and RGB colors
-console.log(chalk.hex('#FF6B6B')('Custom color'));
-console.log(chalk.rgb(255, 136, 0)('Orange text'));
-
-// Conditional coloring
-const status = hasErrors ? chalk.red('FAILED') : chalk.green('PASSED');
-console.log(`Tests: ${status}`);
-
-// Template literals
-console.log(chalk`
-  {green Success:} Built {bold ${fileCount}} files
-  {dim Output:} ${outputDir}
-`);
-```
+### Basic API
+- **Colors**: `.red()`, `.green()`, `.blue()`, `.yellow()`
+- **Backgrounds**: `.bgRed()`, `.bgGreen()`, chain with text color
+- **Styles**: `.bold()`, `.dim()`, `.italic()`, `.underline()`
+- **Custom**: `.hex('#FF6B6B')`, `.rgb(255, 136, 0)`
+- **Templates**: `` chalk`{green text} {bold value}` ``
 
 ### Color Detection
+Auto-detects via `supports-color`. Manual control: `new chalk.Instance({ level: 0-3 })` for no color to true color.
 
-```typescript
-import chalk from 'chalk';
-
-// chalk auto-detects color support via supports-color
-// It respects NO_COLOR and FORCE_COLOR environment variables
-
-// Manual control:
-const forceColor = new chalk.Instance({ level: 3 }); // Force 24-bit color
-const noColor = new chalk.Instance({ level: 0 });    // Disable colors
-
-// Check support level
-import supportsColor from 'supports-color';
-
-if (supportsColor.stdout) {
-  console.log('Color level:', supportsColor.stdout.level);
-  // level 1: Basic 16 colors
-  // level 2: ANSI 256 colors
-  // level 3: 16 million colors (true color)
-}
-```
-
-### Common Color Patterns
-
-```typescript
-// Status messages
-function logInfo(message: string) {
-  console.log(chalk.blue('ℹ'), message);
-}
-
-function logSuccess(message: string) {
-  console.log(chalk.green('✓'), message);
-}
-
-function logWarning(message: string) {
-  console.log(chalk.yellow('⚠'), message);
-}
-
-function logError(message: string) {
-  console.error(chalk.red('✗'), message);
-}
-
-// Highlight important parts
-console.log(`Found ${chalk.bold(count)} matches in ${chalk.cyan(filename)}`);
-
-// Diff-like output
-console.log(chalk.red('- Removed line'));
-console.log(chalk.green('+ Added line'));
-console.log(chalk.dim('  Unchanged line'));
-```
+### Common Patterns
+Status helpers: `chalk.blue('ℹ')`, `chalk.green('✓')`, `chalk.yellow('⚠')`, `chalk.red('✗')`. Diff-style with red/green/dim for removed/added/unchanged.
 
 ---
 
@@ -113,106 +42,18 @@ console.log(chalk.dim('  Unchanged line'));
 
 **Install:** `npm install ora`
 
-```typescript
-import ora from 'ora';
+**Why ora:** Automatically hides spinners in non-TTY environments (CI/CD, pipes), prevents visual glitches, and provides clean success/fail/warn states without manual cleanup.
 
-// Basic usage
-const spinner = ora('Loading...').start();
+### Basic API
+Create with `ora('message').start()`. Update with `.text = 'new message'`. Finish with `.succeed()`, `.fail()`, `.warn()`, `.info()`, or `.stop()`.
 
-try {
-  await longRunningOperation();
-  spinner.succeed('Operation completed!');
-} catch (error) {
-  spinner.fail('Operation failed');
-  throw error;
-}
+### Properties
+- `.spinner`: Change animation (`'dots'`, `'line'`, `'arrow3'`)
+- `.color`: Change color (`'yellow'`, `'cyan'`)
+- `.text`: Update message during operation
 
-// Update spinner text
-spinner.text = 'Still working...';
-
-// Change spinner type
-spinner.spinner = 'dots';
-spinner.spinner = 'line';
-spinner.spinner = 'arrow3';
-
-// Change color
-spinner.color = 'yellow';
-spinner.color = 'cyan';
-```
-
-### Advanced Spinner Patterns
-
-```typescript
-import ora from 'ora';
-
-// Sequential operations
-const spinner = ora();
-
-spinner.start('Downloading dependencies...');
-await downloadDeps();
-
-spinner.text = 'Installing packages...';
-await installPackages();
-
-spinner.text = 'Building project...';
-await build();
-
-spinner.succeed('Project ready!');
-
-// Conditional success/failure
-const spinner = ora('Running tests...').start();
-const results = await runTests();
-
-if (results.passed === results.total) {
-  spinner.succeed(`All ${results.total} tests passed`);
-} else {
-  spinner.fail(`${results.failed} of ${results.total} tests failed`);
-}
-
-// Warnings
-const spinner = ora('Checking dependencies...').start();
-const warnings = await checkDeps();
-
-if (warnings.length > 0) {
-  spinner.warn(`Found ${warnings.length} warnings`);
-} else {
-  spinner.succeed('All dependencies up to date');
-}
-
-// Info
-spinner.info('No changes detected');
-
-// Stop without symbol
-spinner.stop();
-spinner.clear();
-```
-
-### Multiple Spinners
-
-```typescript
-import ora from 'ora';
-
-const spinners = {
-  download: ora('Downloading...'),
-  install: ora('Installing...'),
-  build: ora('Building...'),
-};
-
-// Start all
-spinners.download.start();
-spinners.install.start();
-spinners.build.start();
-
-// Update as tasks complete
-await download();
-spinners.download.succeed();
-
-await install();
-spinners.install.succeed();
-
-await build();
-spinners.build.succeed();
-```
+### Patterns
+Sequential: Update `.text` between steps, finish with final state. Conditional: Choose `.succeed()` or `.fail()` based on results. Multiple: Track multiple spinners in object, update independently.
 
 ---
 
@@ -222,83 +63,19 @@ spinners.build.succeed();
 
 **Install:** `npm install cli-progress`
 
-```typescript
-import cliProgress from 'cli-progress';
+**Why cli-progress:** Provides multi-bar support (concurrent operations), auto-calculates ETA, and handles terminal resize gracefully. Essential for batch processing visibility.
 
-// Basic progress bar
-const bar = new cliProgress.SingleBar({
-  format: 'Progress |{bar}| {percentage}% | {value}/{total} Files',
-  barCompleteChar: '\u2588',
-  barIncompleteChar: '\u2591',
-});
+### Basic API
+Create `SingleBar` with format config. Call `.start(total, initial, payload)`, `.update(value, payload)`, and `.stop()`.
 
-bar.start(totalFiles, 0);
+### Format Tokens
+`{bar}`, `{percentage}`, `{value}`, `{total}`, `{eta}`, custom `{payload}` variables
 
-for (let i = 0; i < totalFiles; i++) {
-  await processFile(files[i]);
-  bar.update(i + 1);
-}
+### Multiple Bars
+Use `MultiBar` to track concurrent operations. Create bars with `.create(total, initial, payload)`, update independently.
 
-bar.stop();
-```
-
-### Custom Formatting
-
-```typescript
-const bar = new cliProgress.SingleBar({
-  format: '{task} |{bar}| {percentage}% | ETA: {eta}s | {value}/{total}',
-  barCompleteChar: '#',
-  barIncompleteChar: '-',
-  hideCursor: true,
-});
-
-bar.start(total, 0, { task: 'Processing' });
-
-for (let i = 0; i < total; i++) {
-  await process(items[i]);
-  bar.update(i + 1, { task: `Processing ${items[i].name}` });
-}
-
-bar.stop();
-```
-
-### Multiple Progress Bars
-
-```typescript
-import cliProgress from 'cli-progress';
-
-const multibar = new cliProgress.MultiBar({
-  format: '{task} |{bar}| {percentage}% | {value}/{total}',
-  clearOnComplete: false,
-  hideCursor: true,
-});
-
-const downloadBar = multibar.create(100, 0, { task: 'Download' });
-const installBar = multibar.create(50, 0, { task: 'Install ' });
-const buildBar = multibar.create(30, 0, { task: 'Build   ' });
-
-// Update bars independently
-downloadBar.update(50);
-installBar.update(25);
-buildBar.update(10);
-
-// ...
-
-multibar.stop();
-```
-
-### Progress Bar with Color
-
-```typescript
-import chalk from 'chalk';
-import cliProgress from 'cli-progress';
-
-const bar = new cliProgress.SingleBar({
-  format: `${chalk.cyan('{task}')} |{bar}| ${chalk.yellow('{percentage}%')} | {value}/{total}`,
-  barCompleteChar: '\u2588',
-  barIncompleteChar: '\u2591',
-});
-```
+### Integration
+Combine with chalk for colored formatting: `` format: `${chalk.cyan('{task}')} |{bar}|` ``
 
 ---
 
@@ -308,139 +85,36 @@ const bar = new cliProgress.SingleBar({
 
 **Install:** `npm install inquirer`
 
-```typescript
-import inquirer from 'inquirer';
+**Why inquirer:** Industry standard with 8+ prompt types, validation, conditional questions, and robust TTY handling. Best for complex interactive workflows (setup wizards, config builders).
 
-const answers = await inquirer.prompt([
-  {
-    type: 'input',
-    name: 'projectName',
-    message: 'Project name:',
-    default: 'my-project',
-    validate: (input) => {
-      if (input.length === 0) {
-        return 'Name is required';
-      }
-      if (!/^[a-z0-9-]+$/.test(input)) {
-        return 'Name must be lowercase alphanumeric with hyphens';
-      }
-      return true;
-    },
-  },
-  {
-    type: 'list',
-    name: 'template',
-    message: 'Choose a template:',
-    choices: ['basic', 'advanced', 'minimal'],
-    default: 'basic',
-  },
-  {
-    type: 'confirm',
-    name: 'useTypescript',
-    message: 'Use TypeScript?',
-    default: true,
-  },
-  {
-    type: 'checkbox',
-    name: 'features',
-    message: 'Select features:',
-    choices: [
-      { name: 'Linting (ESLint)', value: 'linting', checked: true },
-      { name: 'Testing (Vitest)', value: 'testing', checked: true },
-      { name: 'CI/CD (GitHub Actions)', value: 'ci-cd' },
-      { name: 'Docker support', value: 'docker' },
-    ],
-  },
-  {
-    type: 'password',
-    name: 'apiKey',
-    message: 'API key:',
-    mask: '*',
-  },
-  {
-    type: 'editor',
-    name: 'description',
-    message: 'Project description (opens editor):',
-  },
-]);
+### Prompt Types
+- **input**: Text input with validation
+- **list**: Single selection from choices
+- **checkbox**: Multiple selections
+- **confirm**: Yes/no question
+- **password**: Masked input
+- **editor**: Opens $EDITOR for long text
 
-console.log(answers.projectName);    // string
-console.log(answers.template);       // 'basic' | 'advanced' | 'minimal'
-console.log(answers.useTypescript);  // boolean
-console.log(answers.features);       // string[]
-```
+### Key Properties
+- `validate`: Return `true` or error string
+- `when`: Conditional rendering based on previous answers
+- `default`: Default value
+- `choices`: Array or objects with `name`, `value`, `checked`
 
-### Conditional Questions
-
-```typescript
-const answers = await inquirer.prompt([
-  {
-    type: 'confirm',
-    name: 'useDatabase',
-    message: 'Use a database?',
-  },
-  {
-    type: 'list',
-    name: 'database',
-    message: 'Which database?',
-    choices: ['PostgreSQL', 'MySQL', 'SQLite'],
-    when: (answers) => answers.useDatabase, // Only ask if useDatabase is true
-  },
-]);
-```
+Call `inquirer.prompt([questions])`, returns promise with answers object.
 
 ### prompts - Lightweight Alternative
 
 **Install:** `npm install prompts`
 
-```typescript
-import prompts from 'prompts';
+**Why prompts:** Minimal bundle size (~4KB vs inquirer's ~100KB), simpler API, and better TypeScript support. Choose for simple CLIs where size matters or when you need fewer prompt types.
 
-const response = await prompts([
-  {
-    type: 'text',
-    name: 'name',
-    message: 'Project name?',
-    initial: 'my-project',
-    validate: (value) => value.length > 0 || 'Name is required',
-  },
-  {
-    type: 'select',
-    name: 'template',
-    message: 'Choose template',
-    choices: [
-      { title: 'Basic', value: 'basic' },
-      { title: 'Advanced', value: 'advanced' },
-      { title: 'Minimal', value: 'minimal' },
-    ],
-    initial: 0,
-  },
-  {
-    type: 'toggle',
-    name: 'typescript',
-    message: 'Use TypeScript?',
-    initial: true,
-    active: 'yes',
-    inactive: 'no',
-  },
-  {
-    type: 'multiselect',
-    name: 'features',
-    message: 'Select features',
-    choices: [
-      { title: 'Linting', value: 'lint', selected: true },
-      { title: 'Testing', value: 'test', selected: true },
-      { title: 'CI/CD', value: 'ci' },
-    ],
-  },
-]);
+### Key Differences from inquirer
+- **Types**: `text`, `select`, `toggle`, `multiselect` (similar names, different API)
+- **Cancellation**: Returns partial response on Ctrl+C (check for missing values)
+- **Choices**: Use `title` and `value` properties, `selected` for defaults
 
-// Handle Ctrl+C gracefully
-if (!response.name) {
-  console.log('Cancelled');
-  process.exit(0);
-}
-```
+Simpler API but requires manual Ctrl+C handling.
 
 ---
 
@@ -450,263 +124,47 @@ if (!response.name) {
 
 **Install:** `npm install cli-table3`
 
-```typescript
-import Table from 'cli-table3';
-import chalk from 'chalk';
+**Why cli-table3:** Supports complex layouts (horizontal, vertical, cross tables), Unicode box drawing, and color integration. Perfect for structured data display (test results, file listings, comparisons).
 
-// Basic table
-const table = new Table({
-  head: [chalk.cyan('Name'), chalk.cyan('Status'), chalk.cyan('Time')],
-  colWidths: [30, 15, 10],
-});
+### Basic API
+Create `new Table({ head, colWidths })`. Push arrays for rows: `table.push([...row])`. Call `table.toString()` to render.
 
-table.push(
-  ['Authentication', chalk.green('✓ PASS'), '123ms'],
-  ['Database', chalk.red('✗ FAIL'), '456ms'],
-  ['API', chalk.yellow('⚠ WARN'), '789ms']
-);
+### Config Options
+- `head`: Column headers (array)
+- `colWidths`: Fixed column widths
+- `colAligns`: Alignment per column (`'left'`, `'center'`, `'right'`)
+- `style`: Color theme (`{ head: ['cyan'] }`)
+- `chars`: Custom border characters (for borderless/markdown tables)
 
-console.log(table.toString());
-```
+### Layouts
+- **Vertical**: Default, rows are arrays
+- **Horizontal**: Push objects (`{ 'Key': 'Value' }`)
+- **Cross**: Mixed layouts
 
-### Table Styles
-
-```typescript
-// Compact style
-const compactTable = new Table({
-  head: ['Name', 'Value'],
-  style: {
-    head: ['cyan'],
-    compact: true,
-  },
-});
-
-// Borderless
-const borderlessTable = new Table({
-  chars: {
-    'top': '', 'top-mid': '', 'top-left': '', 'top-right': '',
-    'bottom': '', 'bottom-mid': '', 'bottom-left': '', 'bottom-right': '',
-    'left': '', 'left-mid': '', 'mid': '', 'mid-mid': '',
-    'right': '', 'right-mid': '', 'middle': ' ',
-  },
-  style: { 'padding-left': 0, 'padding-right': 0 },
-});
-
-// Markdown-style
-const mdTable = new Table({
-  chars: {
-    'top': '', 'top-mid': '', 'top-left': '', 'top-right': '',
-    'bottom': '', 'bottom-mid': '', 'bottom-left': '', 'bottom-right': '',
-    'left': '|', 'left-mid': '', 'mid': '', 'mid-mid': '',
-    'right': '|', 'right-mid': '', 'middle': '|',
-  },
-});
-```
-
-### Horizontal Tables
-
-```typescript
-const table = new Table();
-
-table.push(
-  { 'Name': 'John Doe' },
-  { 'Email': 'john@example.com' },
-  { 'Role': 'Admin' }
-);
-
-console.log(table.toString());
-// Output:
-// ┌───────┬──────────────────┐
-// │ Name  │ John Doe         │
-// ├───────┼──────────────────┤
-// │ Email │ john@example.com │
-// ├───────┼──────────────────┤
-// │ Role  │ Admin            │
-// └───────┴──────────────────┘
-```
-
-### Complex Tables
-
-```typescript
-const table = new Table({
-  head: ['Module', 'Tests', 'Coverage', 'Status'],
-  colAligns: ['left', 'right', 'right', 'center'],
-  colWidths: [25, 10, 12, 10],
-});
-
-table.push(
-  ['Authentication', '42', '95.2%', chalk.green('PASS')],
-  ['Database', '38', '87.5%', chalk.green('PASS')],
-  ['API', '56', '72.1%', chalk.yellow('WARN')],
-  ['Utilities', '28', '98.8%', chalk.green('PASS')]
-);
-
-console.log(table.toString());
-```
+Integrate with chalk for colored cells.
 
 ---
 
 ## Feature Detection
 
 ### Unicode Support
-
-**Install:** `npm install is-unicode-supported`
-
-```typescript
-import isUnicodeSupported from 'is-unicode-supported';
-
-const useUnicode = isUnicodeSupported();
-
-// Use appropriate characters
-const checkmark = useUnicode ? '✓' : '√';
-const crossmark = useUnicode ? '✗' : 'x';
-const info = useUnicode ? 'ℹ' : 'i';
-const warning = useUnicode ? '⚠' : '!';
-const spinner = useUnicode ? '◐◓◑◒' : '|/-\\';
-
-console.log(`${checkmark} Test passed`);
-console.log(`${crossmark} Test failed`);
-```
+Use `is-unicode-supported` package. Fallback fancy chars (✓, ✗, ℹ, ⚠) to ASCII (√, x, i, !) for compatibility.
 
 ### Terminal Width
-
-```typescript
-import { stdout } from 'process';
-
-const width = stdout.columns || 80;
-
-// Wrap text to terminal width
-function wrapText(text: string, maxWidth: number = width): string {
-  const words = text.split(' ');
-  const lines: string[] = [];
-  let currentLine = '';
-
-  for (const word of words) {
-    if ((currentLine + word).length > maxWidth) {
-      lines.push(currentLine.trim());
-      currentLine = '';
-    }
-    currentLine += word + ' ';
-  }
-
-  if (currentLine) {
-    lines.push(currentLine.trim());
-  }
-
-  return lines.join('\n');
-}
-```
+Access via `process.stdout.columns` (fallback to 80). Use for text wrapping and responsive layouts.
 
 ### TTY Detection
-
-```typescript
-import { stdin, stdout, stderr } from 'process';
-
-// Check if running in interactive terminal
-if (stdin.isTTY) {
-  // Interactive mode - can use prompts, spinners
-  const answer = await promptUser();
-} else {
-  // Piped input - read from stdin
-  const input = await readStdin();
-}
-
-if (stdout.isTTY) {
-  // Can use colors, spinners, progress bars
-  const spinner = ora('Loading...').start();
-} else {
-  // Piped output - use plain text
-  console.log('Loading...');
-}
-```
+Check `process.stdin.isTTY` for interactive vs piped input. Check `process.stdout.isTTY` to enable/disable colors, spinners, progress bars.
 
 ---
 
 ## Common Patterns
 
-### Loading State with Spinner and Progress
+**Spinner → Progress**: Use ora for indefinite scanning, switch to progress bar for batch processing with known total.
 
-```typescript
-import ora from 'ora';
-import cliProgress from 'cli-progress';
+**Setup Wizards**: Prompt for config with inquirer, show summary, confirm before execution, ora spinner during creation.
 
-async function processFiles(files: string[]) {
-  const spinner = ora(`Scanning ${files.length} files...`).start();
-
-  // Scan phase
-  const tasks = await scanFiles(files);
-  spinner.succeed(`Found ${tasks.length} tasks`);
-
-  // Processing phase with progress
-  const bar = new cliProgress.SingleBar({
-    format: 'Processing |{bar}| {percentage}% | {value}/{total}',
-  });
-
-  bar.start(tasks.length, 0);
-
-  for (let i = 0; i < tasks.length; i++) {
-    await processTask(tasks[i]);
-    bar.update(i + 1);
-  }
-
-  bar.stop();
-  console.log(chalk.green('✓'), 'All tasks completed');
-}
-```
-
-### Interactive Setup Wizard
-
-```typescript
-import inquirer from 'inquirer';
-import chalk from 'chalk';
-import ora from 'ora';
-
-async function setupProject() {
-  console.log(chalk.bold.cyan('\n🚀 Project Setup Wizard\n'));
-
-  const config = await inquirer.prompt([
-    {
-      type: 'input',
-      name: 'name',
-      message: 'Project name:',
-      validate: (input) => input.length > 0 || 'Required',
-    },
-    {
-      type: 'list',
-      name: 'template',
-      message: 'Template:',
-      choices: ['basic', 'advanced'],
-    },
-    {
-      type: 'checkbox',
-      name: 'features',
-      message: 'Features:',
-      choices: ['linting', 'testing', 'ci/cd'],
-    },
-  ]);
-
-  console.log(chalk.dim('\nConfiguration:'));
-  console.log(chalk.dim(JSON.stringify(config, null, 2)));
-
-  const { confirm } = await inquirer.prompt([
-    {
-      type: 'confirm',
-      name: 'confirm',
-      message: 'Create project?',
-      default: true,
-    },
-  ]);
-
-  if (!confirm) {
-    console.log(chalk.yellow('Cancelled'));
-    return;
-  }
-
-  const spinner = ora('Creating project...').start();
-  await createProject(config);
-  spinner.succeed('Project created!');
-}
-```
+**Status Logging**: Combine chalk colors with symbol prefixes (ℹ blue, ✓ green, ⚠ yellow, ✗ red) to stderr for visibility in pipes.
 
 ---
 
