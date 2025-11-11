@@ -302,10 +302,10 @@ register_hooks_in_settings() {
 
     # Add hooks using jq
     settings=$(echo "$settings" | jq \
-        --arg session_cmd "${sidekick_path}/sidekick.sh session-start \"\$CLAUDE_PROJECT_DIR\"" \
-        --arg prompt_cmd "${sidekick_path}/sidekick.sh user-prompt-submit \"\$CLAUDE_PROJECT_DIR\"" \
-        --arg post_tool_cmd "${sidekick_path}/sidekick.sh post-tool-use \"\$CLAUDE_PROJECT_DIR\"" \
-        --arg status_cmd "${sidekick_path}/sidekick.sh statusline --project-dir \"\$CLAUDE_PROJECT_DIR\"" \
+        --arg session_cmd "${sidekick_path}/sidekick.sh --no-console-logging session-start \"\$CLAUDE_PROJECT_DIR\"" \
+        --arg prompt_cmd "${sidekick_path}/sidekick.sh --no-console-logging user-prompt-submit \"\$CLAUDE_PROJECT_DIR\"" \
+        --arg post_tool_cmd "${sidekick_path}/sidekick.sh --no-console-logging post-tool-use \"\$CLAUDE_PROJECT_DIR\"" \
+        --arg status_cmd "${sidekick_path}/sidekick.sh --no-console-logging statusline --project-dir \"\$CLAUDE_PROJECT_DIR\"" \
         '
         .hooks.SessionStart = [{
             "hooks": [{
