@@ -33,6 +33,7 @@ node_modules/
 
 # Sidekick development env exclusions (otherwise we get random files thrown in there that don't need to be versioned)
 .sidekick
+.claude/hooks/sidekick/
 
 # Sidekick backup files
 *.backup.*
