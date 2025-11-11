@@ -1,8 +1,8 @@
 # TypeScript Migration Roadmap
 
-**Status**: 🏗️ Consensus Phase - Phase 5.3 Complete ✅
+**Status**: 🏗️ Consensus Phase - Phase 5.4 Complete ✅
 **Last Updated**: 2025-11-11
-**Recent Activity**: Phase 5.3 complete (boolean consensus with majority vote, 24 passing tests, 401 total tests passing)
+**Recent Activity**: Phase 5.4 complete (array consensus with union, 28 passing tests, 429 total tests passing)
 **Target**: Behavioral parity with Track 1 Bash implementation
 
 ---
@@ -19,7 +19,7 @@ This roadmap tracks the component-level migration from Track 1 (Bash, `scripts/b
 - Validate output parity with Track 1
 - Mark component complete
 
-**Progress**: 21/34 components complete (62%) - 1 component skipped
+**Progress**: 22/34 components complete (65%) - 1 component skipped
 
 ---
 
@@ -495,7 +495,7 @@ After code review, removed unnecessary Logger wrapper class (300 lines + 445 lin
 
 ---
 
-## Phase 4: Scoring (4/5 Complete)
+## Phase 4: Scoring (5/5 Complete) ✅
 
 **Goal**: Three-dimensional scoring system (schema, technical, content).
 
@@ -648,7 +648,7 @@ After code review, removed unnecessary Logger wrapper class (300 lines + 445 lin
 
 ---
 
-## Phase 5: Consensus (1/4 Complete)
+## Phase 5: Consensus (4/4 Complete) ✅
 
 **Goal**: Multi-model consensus algorithms for reference generation.
 
@@ -739,21 +739,33 @@ After code review, removed unnecessary Logger wrapper class (300 lines + 445 lin
 
 ---
 
-### 5.4 Array Consensus (Union) ⏳
+### 5.4 Array Consensus (Union) ✅
 
-**Maps to**: `lib/consensus.sh::compute_array_consensus()`
+**Maps to**: `lib/consensus.sh::consensus_array_field()`
 **Acceptance Criteria**:
 
-- Union where item appears in 2+ arrays
-- Deduplication
-- Matches Track 1 unions
+- ✅ Union where item appears in 2+ arrays
+- ✅ Deduplication
+- ✅ Null/undefined handling
+- ✅ Empty string filtering
+- ✅ Matches Track 1 unions
 
-**Files to Create**:
+**Files Created**:
 
-- `src/consensus/ArrayConsensus.ts`
-- `test/consensus/ArrayConsensus.test.ts`
+- ✅ `src/benchmark/consensus/ArrayConsensus.ts` (~112 lines)
+- ✅ `test/unit/consensus/ArrayConsensus.test.ts` (28 tests, all passing)
 
-**Test Fixtures**: Task ID arrays from 3-model outputs
+**Key Features**:
+
+- Majority voting: item must appear in 2+ of 3 arrays to be included
+- Deduplication within arrays: counts array presence, not occurrence count
+- Null/undefined → empty array conversion
+- Empty string filtering from results
+- Returns null if no items meet threshold or all arrays empty
+
+**Status**: Complete - all tests passing, behavioral parity with Track 1 validated
+
+**Completed**: 2025-11-11
 
 ---
 
@@ -1023,13 +1035,13 @@ Update this section after completing each component:
 **Phase 2**: █████⏭️ 5/5 complete, 1 skipped (100%) ✅
 **Phase 3**: ██ 2/2 (100%) ✅
 **Phase 4**: █████ 5/5 (100%) ✅
-**Phase 5**: ███░ 3/4 (75%)
+**Phase 5**: ████ 4/4 (100%) ✅
 **Phase 6**: ░░░░ 0/4 (0%)
 **Phase 7**: ░░ 0/2 (0%)
 **Phase 8**: ░░░ 0/3 (0%)
 **Phase 9**: ░░░░ 0/4 (0%)
 
-**Overall**: ████████████████████⏭️░░ 21/34 complete, 1 skipped (62%)
+**Overall**: █████████████████████⏭️░ 22/34 complete, 1 skipped (65%)
 
 ---
 
@@ -1042,16 +1054,3 @@ Update this section after completing each component:
 - **Documentation**: Update this roadmap after each component completion (don't let it go stale!)
 
 ---
-
-## Quick Start
-
-Ready to start implementing? Pick a component and follow this workflow:
-
-1. **Review Track 1 behavior** - Read corresponding Bash script, understand logic
-2. **Write test first** - Create failing test based on Track 1 behavior
-3. **Implement** - Write TypeScript to pass test
-4. **Validate** - Run both Track 1 and Track 2 on same input, diff outputs
-5. **Update roadmap** - Change component status from ⏳ → 🧪 → 🚧 → ✅
-6. **Update progress bar** - Increment completion counter
-
-**Recommended starting point**: Phase 1.1 (TypeScript Project Setup) - establishes foundation for all other work.
