@@ -12,13 +12,13 @@ This repository serves as a development and testing environment for [Claude Code
 
 ### Sidekick
 
-- stop-reminder-pending should only get written when the TOOLS_CADENCE kicks in with the tool reminder
 - config setting names out of sync
 - topic backups should be configurable (default to true for now)
 - failing integration tests (claude blames "known TDD gap" but I disagree)
 - tracking and reminders
   - option to automate the turn-cadence-reminder.md message on install ("most urgent stuff from CLAUDEs")
   - STATUS: this is working, but: (a) should generate the .txt file, not the .template file, and (b) we still need the tool-cadence version generated
+      - what if there are no CLAUDE.md's?  Don't ask to generate
   - let's first structure the reminder to ask claude to assess what it's doing and ensure these reminders are not ignored
   - but then let's get smarter (optional feature)
     - take the reminder against the transcript to ask AI to evaluate which parts of the reminder may be most relevant for the situation and context
@@ -325,7 +325,7 @@ Sidekick prompts and reminders use a 4-level file cascade, allowing you to overr
 1. `user-prompt-submit-reminder.txt` - Fires every N user prompts (default: 4)
 2. `post-tool-use-cadence-reminder.txt` - Fires every N total tool calls (default: 50)
 3. `post-tool-use-stuck-reminder.txt` - Fires when single turn exceeds threshold (default: 20 tools, interruptive)
-4. `stop-reminder.txt` - Fires when conversation stops (completion verification)
+4. `stop-reminder.txt` - Fires when conversation stops after file modifications (Write/Edit/MultiEdit/NotebookEdit), blocks stop to verify completion
 
 Each reminder type uses the same 4-level cascade:
 

@@ -122,8 +122,8 @@ See `ARCH.md` for complete design documentation. Key features:
 | **Resume** | Session continuity | Generated async in background, no LLM blocking at SessionStart |
 | **Statusline** | Enhanced status display | Shows topic, tokens, git branch |
 | **Tracking** | Request counting | Enables periodic reminders |
-| **Reminder** | Turn-cadence reminders | Injects TOP 5 reminders every N turns |
-| **Post-Tool-Use** | Tool-based reminders | Tool-cadence (every N tools) and stuck detection (threshold per turn) |
+| **Reminder** | Turn-cadence and stop reminders | Turn-cadence (every N turns), Stop (blocks conversation end after file edits) |
+| **Post-Tool-Use** | Tool-based reminders | Tool-cadence (every N tools), stuck detection (threshold per turn), sets stop reminder marker after file edits |
 | **Cleanup** | Garbage collection | Removes old session directories |
 
 All features independently toggleable via `FEATURE_*` flags in `sidekick.conf`.
@@ -151,7 +151,11 @@ Prompts (`*.prompt.txt`, `*.schema.json`) and reminders (`*-reminder.txt`) use 4
 3. `${projectRoot}/.claude/hooks/sidekick/{prompts,reminders}/` - Installed project (ephemeral)
 4. `${projectRoot}/.sidekick/{prompts,reminders}/` - Project persistent (git-committable)
 
-**Reminder Types**: `user-prompt-submit-reminder.txt`, `post-tool-use-cadence-reminder.txt`, `post-tool-use-stuck-reminder.txt`, `stop-reminder.txt`
+**Reminder Types**:
+- `user-prompt-submit-reminder.txt` - Every N user prompts
+- `post-tool-use-cadence-reminder.txt` - Every N total tool calls
+- `post-tool-use-stuck-reminder.txt` - When single turn exceeds threshold
+- `stop-reminder.txt` - When conversation stops after file modifications (Write/Edit/MultiEdit/NotebookEdit)
 
 First existing file wins. Override default prompts/reminders without modifying installed files.
 
