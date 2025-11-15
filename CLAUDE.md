@@ -144,12 +144,14 @@ See `src/sidekick/config.defaults` for all available options.
 
 ### File Cascade (Prompts & Reminders)
 
-Prompts (`*.prompt.txt`, `*.schema.json`) and reminders (`static-reminder.txt`) use 4-level cascade via `path_resolve_cascade()`:
+Prompts (`*.prompt.txt`, `*.schema.json`) and reminders (`*-reminder.txt`) use 4-level cascade via `path_resolve_cascade()`:
 
 1. `~/.claude/hooks/sidekick/{prompts,reminders}/` - Installed user-wide (ephemeral)
 2. `~/.sidekick/{prompts,reminders}/` - User-wide persistent (survives install/uninstall)
 3. `${projectRoot}/.claude/hooks/sidekick/{prompts,reminders}/` - Installed project (ephemeral)
 4. `${projectRoot}/.sidekick/{prompts,reminders}/` - Project persistent (git-committable)
+
+**Reminder Types**: `user-prompt-submit-reminder.txt`, `post-tool-use-cadence-reminder.txt`, `post-tool-use-stuck-reminder.txt`, `stop-reminder.txt`
 
 First existing file wins. Override default prompts/reminders without modifying installed files.
 
