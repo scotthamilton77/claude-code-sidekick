@@ -14,22 +14,30 @@ This repository serves as a development and testing environment for [Claude Code
 
 - tracking and reminders
   - option to automate the turn-cadence-reminder.md message on install ("most urgent stuff from CLAUDEs")
-   - STATUS: this is working, but: (a) should generate the .txt file, not the .template file, and (b) we still need the tool-cadence version generated
+  - STATUS: this is working, but: (a) should generate the .txt file, not the .template file, and (b) we still need the tool-cadence version generated
+  - let's first structure the reminder to ask claude to assess what it's doing and ensure these reminders are not ignored
+  - but then let's get smarter (optional feature)
+    - take the reminder against the transcript to ask AI to evaluate which parts of the reminder may be most relevant for the situation and context
+      - if we do this, we should have a 2 stage pipeline: pre-process CLAUDE.md's into stage 1 (more verbose/complete), then use that against context to generate point-in-time reminder
+    - add to the UserPromptSubmit a trigger to evaluate the user's prompt to see if the user is asking claude to do something that it should have already done, and record that as a possible RL item to factor into the reminder
+    - would it make sense to scan the ToDos and suggest to Claude to add to its todos any specific items relevant to the reminders? (Would this be more context-efficient?)
 - response tracker
-   - what if we include in the sleeper process a watch of the tanscript to also count additional messages beyond user submitted?  we might watch for "informative" updates based on the message type?
+  - what if we include in the sleeper process a watch of the tanscript to also count additional messages beyond user submitted? we might watch for "informative" updates based on the message type?
 - sleeper process
-   - is this per session?  what happens when a new session is started?  Does the sleeper just time out without further API calls (it should)?
-- PLAN.MD (executing ARCH.md)
-  - standardize parameter names and styles in the scripts (e.g. --project-dir vs. not, internally using output_dir, etc.)
-- should this be a claude code plugin?  There are plugin hooks referenced here: https://code.claude.com/docs/en/hooks
-- tune the topic extracter to follow the last n turns (delta + 10?) - this combined with previous goal snapshot might be cheaper?
-- tune the instructions for the topic extraction (little shorter, more cynical)
-- improve analysis and snarkiness
-   - analysis
+  - is this per session? what happens when a new session is started? Does the sleeper just time out without further API calls (it should)?
+- refine the transcript analysis process
+  - check isMeta tag? https://leehanchung.github.io/blogs/2025/10/26/claude-skills-deep-dive/
+  - let's capture stronger sense of initial and current goal ALONG WITH a watermark (line indicator?) and perhaps summary of key points relative to topic extraction
+    - this allows a delta analysis to focus more specifically on goal/objective changes
       - should call out rationale, keywords
       - should over-weight existing/current stated goals
-   - we need 2 API calls, one for the analysis (low-temp), another for the snark (configurable temperature)
-   - this would allow us to use different models
+    - we need 2 API calls, one for the analysis (low-temp), another for the snark (configurable temperature)
+    - this would allow us to use different models
+- PLAN.MD (executing ARCH.md)
+  - standardize parameter names and styles in the scripts (e.g. --project-dir vs. not, internally using output_dir, etc.)
+- should this be a claude code plugin? There are plugin hooks referenced here: https://code.claude.com/docs/en/hooks
+- tune the topic extracter to follow the last n turns (delta + 10?) - this combined with previous goal snapshot might be cheaper?
+- tune the instructions for the topic extraction (little shorter, more cynical)
 - allow for different personalities - either explicit at install time or random per project or random per session or just random
   - moods: cynical, sarcastic, snarky, nerdy, arrogant, moody
   - persona: angry klingon, skeptical vulcan, Scotty, Bones
@@ -45,7 +53,7 @@ This repository serves as a development and testing environment for [Claude Code
 - skills and agents - review carefully and attribute to https://github.com/obra/superpowers
 - learning mode? investigate https://medium.com/coding-nexus/rip-fine-tuning-how-stanfords-ace-framework-teaches-ai-to-learn-without-retraining-510f412d8579
 - is it time to move to something more robust than bash?
-   - incorporate https://github.com/johannschopplich/toon
+  - incorporate https://github.com/johannschopplich/toon
 
 ## Agents and Skills
 
@@ -249,6 +257,7 @@ Sidekick uses a five-level configuration cascade (later sources override earlier
 **Recommended approach**: Use `.sidekick/sidekick.conf` for team-wide project settings that should be version-controlled. Use `~/.sidekick/sidekick.conf` for personal preferences that apply across all projects.
 
 **Example - Personal preferences for all projects**:
+
 ```bash
 # Create persistent user config (survives install/uninstall)
 mkdir -p ~/.sidekick
@@ -301,17 +310,20 @@ See `src/sidekick/config.defaults` for all available options and `ARCH.md` for d
 Sidekick prompts and reminders use a 4-level file cascade, allowing you to override defaults without modifying installed files:
 
 **Prompts** (`topic.prompt.txt`, `resume.prompt.txt`, `*.schema.json`):
+
 1. `~/.claude/hooks/sidekick/prompts/` - User-wide installed (ephemeral)
 2. `~/.sidekick/prompts/` - User-wide persistent
 3. `.claude/hooks/sidekick/prompts/` - Project installed (ephemeral)
 4. `.sidekick/prompts/` - Project persistent (git-committable)
 
 **Reminders** (three types):
+
 1. `turn-cadence-reminder.txt` - Fires every N user prompts (default: 4)
 2. `tool-cadence-reminder.txt` - Fires every N total tool calls (default: 50)
 3. `tools-per-turn-reminder.txt` - Fires when single turn exceeds threshold (default: 20 tools, interruptive)
 
 Each reminder type uses the same 4-level cascade:
+
 1. `~/.claude/hooks/sidekick/reminders/` - User-wide installed (ephemeral)
 2. `~/.sidekick/reminders/` - User-wide persistent
 3. `.claude/hooks/sidekick/reminders/` - Project installed (ephemeral)
@@ -320,6 +332,7 @@ Each reminder type uses the same 4-level cascade:
 **Reminder Templates**: The install script creates `.template` files for all three types in both `~/.sidekick/reminders/` (user scope) and `.sidekick/reminders/` (project scope). **Rename to remove `.template` suffix to activate your custom reminder**.
 
 **Configuration**:
+
 ```bash
 # config.defaults or sidekick.conf
 TURN_CADENCE=4                  # Every 4 user prompts
@@ -370,16 +383,19 @@ Sync scripts only copy files newer than their destinations, preserving timestamp
 Sidekick uses a two-tier logging system:
 
 **Console Logging (stderr)**:
+
 - `log_debug/log_info/log_warn`: Can be suppressed via `--no-console-logging` flag
 - `log_error`: ALWAYS visible (critical errors bypass suppression)
 - Hook scripts automatically use `--no-console-logging` to prevent log pollution in JSON output
 
 **File Logging**:
+
 - ALWAYS enabled regardless of console logging setting
 - Session logs: `.sidekick/sessions/<session_id>/sidekick.log`
 - Global log: `.sidekick/sidekick.log`
 
 **To view logs when console output is suppressed**:
+
 ```bash
 # View current session logs
 tail -f .sidekick/sessions/*/sidekick.log | sort -r | head -100
@@ -389,6 +405,7 @@ tail -f .sidekick/sidekick.log
 ```
 
 **To enable console logging for debugging**:
+
 ```bash
 # Via environment variable
 SIDEKICK_CONSOLE_LOGGING=true sidekick.sh session-start < input.json
@@ -398,6 +415,7 @@ echo "SIDEKICK_CONSOLE_LOGGING=true" >> ~/.sidekick/sidekick.conf
 ```
 
 **Precedence** (highest to lowest):
+
 1. `--no-console-logging` CLI flag
 2. `SIDEKICK_CONSOLE_LOGGING` environment variable
 3. `SIDEKICK_CONSOLE_LOGGING` config file setting
