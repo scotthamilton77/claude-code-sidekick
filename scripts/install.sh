@@ -235,7 +235,7 @@ create_reminder_template() {
     mkdir -p "$reminders_dir"
 
     # Array of reminder types
-    local reminder_types=("turn-cadence" "tool-cadence" "tools-per-turn")
+    local reminder_types=("user-prompt-submit" "post-tool-use-cadence" "post-tool-use-stuck" "stop")
 
     # Create template for each type
     for type in "${reminder_types[@]}"; do
@@ -324,6 +324,7 @@ register_hooks_in_settings() {
         --arg session_cmd "${sidekick_path}/sidekick.sh --no-console-logging session-start \"\$CLAUDE_PROJECT_DIR\"" \
         --arg prompt_cmd "${sidekick_path}/sidekick.sh --no-console-logging user-prompt-submit \"\$CLAUDE_PROJECT_DIR\"" \
         --arg post_tool_cmd "${sidekick_path}/sidekick.sh --no-console-logging post-tool-use \"\$CLAUDE_PROJECT_DIR\"" \
+        --arg stop_cmd "${sidekick_path}/sidekick.sh --no-console-logging stop \"\$CLAUDE_PROJECT_DIR\"" \
         --arg status_cmd "${sidekick_path}/sidekick.sh --no-console-logging statusline --project-dir \"\$CLAUDE_PROJECT_DIR\"" \
         '
         .hooks.SessionStart = [{
@@ -343,6 +344,12 @@ register_hooks_in_settings() {
             "hooks": [{
                 "type": "command",
                 "command": $post_tool_cmd
+            }]
+        }] |
+        .hooks.Stop = [{
+            "hooks": [{
+                "type": "command",
+                "command": $stop_cmd
             }]
         }] |
         .statusLine = {

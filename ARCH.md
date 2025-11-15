@@ -42,8 +42,11 @@ claude-config/
 │   │   ├── resume.prompt.txt
 │   │   └── resume.schema.json
 │   │
-│   └── reminders/                         # Static reminder text (cascadable)
-│       └── static-reminder.txt
+│   └── reminders/                         # Reminder templates (cascadable)
+│       ├── user-prompt-submit-reminder.txt
+│       ├── post-tool-use-cadence-reminder.txt
+│       ├── post-tool-use-stuck-reminder.txt
+│       └── stop-reminder.txt
 │
 ├── scripts/
 │   ├── install.sh                         # Install sidekick (--user|--project|--both)

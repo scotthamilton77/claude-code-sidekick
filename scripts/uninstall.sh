@@ -342,6 +342,10 @@ remove_hooks_from_settings() {
             .hooks.PostToolUse = [.hooks.PostToolUse[] |
                 select(.hooks[0].command | contains("sidekick") | not)]
         else . end |
+        if .hooks.Stop then
+            .hooks.Stop = [.hooks.Stop[] |
+                select(.hooks[0].command | contains("sidekick") | not)]
+        else . end |
         if .statusLine.command then
             if (.statusLine.command | contains("sidekick")) then
                 del(.statusLine)

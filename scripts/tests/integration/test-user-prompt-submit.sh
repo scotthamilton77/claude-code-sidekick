@@ -314,9 +314,9 @@ test_static_reminder_cadence() {
     local session_id="test-ups-005"
     create_test_session "$session_id"
 
-    # Create a static reminder file (cadence is 4 per config)
+    # Create a user-prompt-submit reminder file (cadence is 4 per config)
     mkdir -p "$TEST_DIR/.claude/hooks/sidekick/reminders"
-    cat > "$TEST_DIR/.claude/hooks/sidekick/reminders/static-reminder.txt" <<'EOF'
+    cat > "$TEST_DIR/.claude/hooks/sidekick/reminders/user-prompt-submit-reminder.txt" <<'EOF'
 This is a test static reminder.
 Remember to follow TDD principles!
 EOF
@@ -403,9 +403,9 @@ EOF
     local session_id="test-ups-006b"
     create_test_session "$session_id"
 
-    # Create static reminder file
+    # Create user-prompt-submit reminder file
     mkdir -p "$TEST_DIR/.claude/hooks/sidekick/reminders"
-    cat > "$TEST_DIR/.claude/hooks/sidekick/reminders/static-reminder.txt" <<'EOF'
+    cat > "$TEST_DIR/.claude/hooks/sidekick/reminders/user-prompt-submit-reminder.txt" <<'EOF'
 This reminder should NOT appear.
 EOF
 
