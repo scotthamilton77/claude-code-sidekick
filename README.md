@@ -13,7 +13,6 @@ This repository serves as a development and testing environment for [Claude Code
 ### Sidekick
 
 - refine the transcript analysis process
-  - check isMeta tag? https://leehanchung.github.io/blogs/2025/10/26/claude-skills-deep-dive/
   - let's capture stronger sense of initial and current goal ALONG WITH a watermark (line indicator?) and perhaps summary of key points relative to topic extraction
     - this allows a delta analysis to focus more specifically on goal/objective changes
       - should call out rationale, keywords
