@@ -70,9 +70,13 @@ setup() {
         cp "$PROJECT_ROOT/src/sidekick/handlers/session-start.sh" "$TEST_DIR/.claude/hooks/sidekick/handlers/"
     fi
 
-    # Copy features if they exist
+    # Copy features if they exist (including scripts subdirectory)
     if [ -d "$PROJECT_ROOT/src/sidekick/features" ]; then
         cp -r "$PROJECT_ROOT/src/sidekick/features/"*.sh "$TEST_DIR/.claude/hooks/sidekick/features/" 2>/dev/null || true
+        if [ -d "$PROJECT_ROOT/src/sidekick/features/scripts" ]; then
+            mkdir -p "$TEST_DIR/.claude/hooks/sidekick/features/scripts"
+            cp -r "$PROJECT_ROOT/src/sidekick/features/scripts/"* "$TEST_DIR/.claude/hooks/sidekick/features/scripts/" 2>/dev/null || true
+        fi
     fi
 
     # Make sidekick.sh executable
