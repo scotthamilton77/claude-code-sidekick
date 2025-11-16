@@ -59,6 +59,9 @@ EOF
 teardown() {
     rm -rf "$TEST_DIR"
     unset CLAUDE_PROJECT_DIR
+    unset TEST_API_KEY ANOTHER_VAR SHARED_VAR SIDEKICK_ONLY
+    unset USER_API_KEY USER_SETTING API_KEY USER_ONLY PROJECT_ONLY
+    rm -f "${HOME}/.sidekick/.env"  # Clean up any user .env created by tests
 }
 
 # Test helper
@@ -239,6 +242,126 @@ test_config_validate_rejects_non_numeric() {
     ! _config_validate 2>/dev/null
 }
 
+# Test: config_load sources .env from project root
+test_config_load_env_project_root() {
+    # Create project directory with .env
+    export CLAUDE_PROJECT_DIR="${TEST_DIR}/project"
+    mkdir -p "${CLAUDE_PROJECT_DIR}"
+    cat > "${CLAUDE_PROJECT_DIR}/.env" <<'EOF'
+TEST_API_KEY=project-root-key
+ANOTHER_VAR=project-value
+EOF
+
+    # Clear any existing values
+    unset TEST_API_KEY ANOTHER_VAR
+
+    config_load
+
+    # Environment variables should be set and exported
+    [ "${TEST_API_KEY}" = "project-root-key" ]
+    [ "${ANOTHER_VAR}" = "project-value" ]
+}
+
+# Test: config_load .sidekick/.env overrides project root .env
+test_config_load_env_sidekick_overrides() {
+    # Create project directory with both .env files
+    export CLAUDE_PROJECT_DIR="${TEST_DIR}/project"
+    mkdir -p "${CLAUDE_PROJECT_DIR}"
+    mkdir -p "${CLAUDE_PROJECT_DIR}/.sidekick"
+
+    # Project root .env
+    cat > "${CLAUDE_PROJECT_DIR}/.env" <<'EOF'
+TEST_API_KEY=project-root-key
+SHARED_VAR=from-root
+EOF
+
+    # Sidekick-specific .env (should override)
+    cat > "${CLAUDE_PROJECT_DIR}/.sidekick/.env" <<'EOF'
+TEST_API_KEY=sidekick-key
+SIDEKICK_ONLY=sidekick-value
+EOF
+
+    # Clear any existing values
+    unset TEST_API_KEY SHARED_VAR SIDEKICK_ONLY
+
+    config_load
+
+    # Sidekick .env should override project root for TEST_API_KEY
+    [ "${TEST_API_KEY}" = "sidekick-key" ]
+    # But project root values not in sidekick .env should remain
+    [ "${SHARED_VAR}" = "from-root" ]
+    # And sidekick-only values should be set
+    [ "${SIDEKICK_ONLY}" = "sidekick-value" ]
+}
+
+# Test: config_load works without .env files
+test_config_load_env_optional() {
+    # Create project directory without .env
+    export CLAUDE_PROJECT_DIR="${TEST_DIR}/project"
+    mkdir -p "${CLAUDE_PROJECT_DIR}"
+
+    # Should not fail if .env doesn't exist
+    config_load
+
+    # Defaults should still be loaded
+    [ "${FEATURE_TOPIC_EXTRACTION}" = "true" ]
+}
+
+# Test: config_load sources user-wide .env
+test_config_load_env_user_scope() {
+    # Create user-wide .env
+    mkdir -p "${HOME}/.sidekick"
+    cat > "${HOME}/.sidekick/.env" <<'EOF'
+USER_API_KEY=user-wide-key
+USER_SETTING=user-value
+EOF
+
+    # Clear any existing values
+    unset USER_API_KEY USER_SETTING
+
+    config_load
+
+    # Environment variables should be set
+    [ "${USER_API_KEY}" = "user-wide-key" ]
+    [ "${USER_SETTING}" = "user-value" ]
+
+    # Cleanup
+    rm -f "${HOME}/.sidekick/.env"
+}
+
+# Test: config_load project .env overrides user .env
+test_config_load_env_project_overrides_user() {
+    # Create user-wide .env
+    mkdir -p "${HOME}/.sidekick"
+    cat > "${HOME}/.sidekick/.env" <<'EOF'
+API_KEY=user-key
+USER_ONLY=user-value
+EOF
+
+    # Create project .env (should override)
+    export CLAUDE_PROJECT_DIR="${TEST_DIR}/project"
+    mkdir -p "${CLAUDE_PROJECT_DIR}"
+    cat > "${CLAUDE_PROJECT_DIR}/.env" <<'EOF'
+API_KEY=project-key
+PROJECT_ONLY=project-value
+EOF
+
+    # Clear any existing values
+    unset API_KEY USER_ONLY PROJECT_ONLY
+
+    config_load
+
+    # Project should override user for API_KEY
+    [ "${API_KEY}" = "project-key" ]
+    # User-only values should remain
+    [ "${USER_ONLY}" = "user-value" ]
+    # Project-only values should be set
+    [ "${PROJECT_ONLY}" = "project-value" ]
+
+    # Cleanup
+    rm -f "${HOME}/.sidekick/.env"
+}
+
 # Main test execution
 main() {
     echo "Running configuration namespace tests..."
@@ -250,6 +373,11 @@ main() {
     run_test test_config_load_sources_defaults
     run_test test_config_load_user_override
     run_test test_config_load_project_override
+    run_test test_config_load_env_user_scope
+    run_test test_config_load_env_project_root
+    run_test test_config_load_env_project_overrides_user
+    run_test test_config_load_env_sidekick_overrides
+    run_test test_config_load_env_optional
     run_test test_config_get_returns_value
     run_test test_config_get_missing_key
     run_test test_config_is_feature_enabled_true

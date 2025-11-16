@@ -137,7 +137,17 @@ All features independently toggleable via `FEATURE_*` flags in `sidekick.conf`.
 
 ### Configuration
 
-Five-level cascade (later overrides earlier):
+**Environment Variables** (`.env` files, loaded first):
+
+0a. `~/.sidekick/.env` - User-wide persistent (works in both user-only and project scopes)
+0b. `$CLAUDE_PROJECT_DIR/.env` - Project root (shared with docker-compose, etc.)
+0c. `$CLAUDE_PROJECT_DIR/.sidekick/.env` - Project sidekick-specific (highest priority)
+
+Environment variables are auto-exported via `set -a` during `config_load()`. Example: `OPENROUTER_API_KEY=sk-or-v1-...`
+
+**Best Practice**: Store global API keys in `~/.sidekick/.env` (never commit), project-specific keys in `.sidekick/.env` (git-committable with encryption/secrets management).
+
+**Config Files** (five-level cascade, later overrides earlier):
 
 1. `src/sidekick/config.defaults` - Baseline settings
 2. `~/.claude/hooks/sidekick/sidekick.conf` - User-wide installed (ephemeral)
@@ -145,7 +155,7 @@ Five-level cascade (later overrides earlier):
 4. `.claude/hooks/sidekick/sidekick.conf` - Project ephemeral (deleted on uninstall)
 5. `.sidekick/sidekick.conf` - **Highest priority**, survives install/uninstall, git-committable
 
-**Pattern**: Only specify overrides (minimal configs). Commit #5 for team-wide settings, use #3 for personal preferences.
+**Pattern**: Use `.env` for API keys (never commit to git), use config files for settings. Only specify overrides (minimal configs). Commit #5 for team-wide settings, use #3 for personal preferences.
 
 See `src/sidekick/config.defaults` for all available options.
 
