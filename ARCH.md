@@ -46,7 +46,7 @@ claude-config/
 │       ├── user-prompt-submit-reminder.txt
 │       ├── post-tool-use-cadence-reminder.txt
 │       ├── post-tool-use-stuck-reminder.txt
-│       └── stop-reminder.txt
+│       └── pre-completion-reminder.txt
 │
 ├── scripts/
 │   ├── install.sh                         # Install sidekick (--user|--project|--both)
@@ -599,34 +599,51 @@ STATUSLINE_TOKEN_THRESHOLD=160000   # Token budget threshold
 
 **Functions**:
 - `tracking_init()` - Initialize counter file
-- `tracking_increment()` - Increment and return count
-- `tracking_check_reminder()` - Check if static reminder is due
+- `tracking_increment_turn_count()` - Increment turn counter
+- `tracking_increment_tool_count()` - Increment tool counter
+- `tracking_increment_tools_this_turn()` - Increment per-turn tool counter
+- `tracking_reset_tools_this_turn()` - Reset per-turn tool counter
+- `tracking_countdown_decrement()` - Decrement countdown (for cadence checking)
+- `tracking_countdown_reset()` - Reset countdown to cadence value
 
-**Configuration Keys**:
-```bash
-FEATURE_TRACKING=true
-TRACKING_STATIC_CADENCE=4           # Reminder cadence (responses)
-```
+**Configuration**: Auto-enabled (cannot be disabled) - tracking is an infrastructure feature required by other plugins
 
-**State Files**: `${session_dir}/response_count`
+**State Files**:
+- `${session_dir}/turn_count` - Total user prompts
+- `${session_dir}/tool_count` - Total tool calls
+- `${session_dir}/tools_this_turn` - Tool calls in current turn
+- `${session_dir}/turn_countdown` - Countdown for turn-cadence reminders
+- `${session_dir}/tool_countdown` - Countdown for tool-cadence reminders
 
-#### features/reminder.sh
+#### features/reminders.sh
+
+**Master switch for all reminder sub-features**
 
 **Functions**:
-- `reminder_check_due()` - Check if static reminder should be displayed based on cadence
-- `reminder_on_user_prompt_submit()` - Hook that outputs reminder as additionalContext when due
+- `reminder_load_template()` - Load reminder by type (user-prompt-submit, post-tool-use-cadence, post-tool-use-stuck, pre-completion)
+- `reminder_check_turn_cadence()` - Check if turn-based reminder is due (uses countdown)
+- `reminder_check_tool_cadence()` - Check if tool-based reminder is due (uses countdown)
+- `reminder_check_tools_per_turn()` - Check if tools-per-turn threshold exceeded
+- `reminder_on_user_prompt_submit()` - UserPromptSubmit hook (checks turn-cadence reminder, resets tools_this_turn)
 
 **Configuration Keys**:
 ```bash
-FEATURE_REMINDER=true
-TRACKING_STATIC_CADENCE=4           # Reminder cadence (responses, shared with tracking)
+FEATURE_REMINDERS=true                    # Master switch - gates all reminder sub-features
+FEATURE_REMINDER_USER_PROMPT=true         # Turn-cadence reminders (every N user prompts)
+FEATURE_REMINDER_TOOL_CADENCE=true        # Tool-cadence reminders (every N total tools)
+FEATURE_REMINDER_STUCK_CHECKPOINT=true    # Stuck detection (threshold tools per turn)
+FEATURE_REMINDER_PRE_COMPLETION=true      # Pre-completion reminder (before conversation ends after file edits)
+
+USER_PROMPT_CADENCE=4                     # Turn-cadence interval
+POST_TOOL_USE_CADENCE=50                  # Tool-cadence interval
+POST_TOOL_USE_STUCK_THRESHOLD=20          # Tools per turn threshold
 ```
 
 **Dependencies**:
-- `tracking.sh` - Uses tracking counter to determine cadence
-- Reminder text loaded via `path_resolve_cascade("reminders/static-reminder.txt", project_dir)`
+- `tracking.sh` - Uses counters and countdowns
+- Reminder templates loaded via `path_resolve_cascade("reminders/{type}-reminder.txt", project_dir)`
 
-**Output**: When reminder is due (count % cadence == 0 && count > 0), outputs JSON with `additionalContext`:
+**Output**: When reminder is due, outputs JSON with `additionalContext`:
 ```json
 {
   "hookSpecificOutput": {
@@ -636,11 +653,34 @@ TRACKING_STATIC_CADENCE=4           # Reminder cadence (responses, shared with t
 }
 ```
 
-**Cascade Behavior**: Loads reminder from first existing file:
-1. `~/.claude/hooks/sidekick/reminders/static-reminder.txt`
-2. `~/.sidekick/reminders/static-reminder.txt`
-3. `${projectRoot}/.claude/hooks/sidekick/reminders/static-reminder.txt`
-4. `${projectRoot}/.sidekick/reminders/static-reminder.txt`
+**Cascade Behavior**: Loads reminder from first existing file (4-level cascade):
+1. `~/.claude/hooks/sidekick/reminders/{type}-reminder.txt`
+2. `~/.sidekick/reminders/{type}-reminder.txt`
+3. `${projectRoot}/.claude/hooks/sidekick/reminders/{type}-reminder.txt`
+4. `${projectRoot}/.sidekick/reminders/{type}-reminder.txt`
+
+#### features/post-tool-use.sh
+
+**Auto-enabled when any reminder sub-feature is enabled**
+
+**Functions**:
+- `post_tool_use_on_post_tool_use()` - PostToolUse hook (increments tool counters, checks tool-cadence and stuck reminders)
+
+**Configuration**: Auto-enabled when `FEATURE_REMINDER_TOOL_CADENCE`, `FEATURE_REMINDER_STUCK_CHECKPOINT`, or `FEATURE_REMINDER_PRE_COMPLETION` is true
+
+**Dependencies**: `tracking`, `reminders`
+
+#### features/reminder-pre-completion.sh
+
+**Functions**:
+- `reminder_pre_completion_on_post_tool_use()` - Sets marker after file edits (Write/Edit/MultiEdit/NotebookEdit)
+- `reminder_pre_completion_on_stop()` - Stop hook that injects reminder if marker exists
+
+**Configuration**: Enabled by `FEATURE_REMINDER_PRE_COMPLETION` (gated by `FEATURE_REMINDERS` master switch)
+
+**State Files**: `${session_dir}/.pre-completion-reminder-pending`
+
+**Behavior**: Prevents conversation end without explicit verification after code changes
 
 #### features/cleanup.sh
 
@@ -666,11 +706,31 @@ CLEANUP_DRY_RUN=false               # Test mode (don't delete)
 # ============================================================================
 # FEATURES - Set to false to disable
 # ============================================================================
+# Dependency Chain:
+#   STATUSLINE (independent, primary UI)
+#     └─> TOPIC_EXTRACTION (requires statusline - wasted LLM cost without it)
+#           └─> RESUME (requires extracted topics)
+#
+#   REMINDERS (master switch - gates all reminder sub-features)
+#     ├─> REMINDER_USER_PROMPT (turn-cadence)
+#     ├─> REMINDER_TOOL_CADENCE (tool-cadence)
+#     ├─> REMINDER_STUCK_CHECKPOINT (threshold per turn)
+#     └─> REMINDER_PRE_COMPLETION (blocks stop after file edits)
+#
+# Auto-enabled (cannot be disabled):
+#   - TRACKING (infrastructure for counters/countdowns)
+#   - POST_TOOL_USE (enabled when any REMINDER_* sub-feature is on)
+
+FEATURE_STATUSLINE=true
 FEATURE_TOPIC_EXTRACTION=true
 FEATURE_RESUME=true
-FEATURE_STATUSLINE=true
-FEATURE_TRACKING=true
 FEATURE_CLEANUP=true
+
+FEATURE_REMINDERS=true
+FEATURE_REMINDER_USER_PROMPT=true
+FEATURE_REMINDER_TOOL_CADENCE=true
+FEATURE_REMINDER_STUCK_CHECKPOINT=true
+FEATURE_REMINDER_PRE_COMPLETION=true
 
 # ============================================================================
 # TOPIC EXTRACTION

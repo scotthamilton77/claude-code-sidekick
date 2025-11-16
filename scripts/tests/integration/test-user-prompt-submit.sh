@@ -165,7 +165,7 @@ create_test_session() {
 
     # Create session directory and counter file
     mkdir -p "$TEST_DIR/.sidekick/sessions/$session_id"
-    echo "0" > "$TEST_DIR/.sidekick/sessions/$session_id/response_count"
+    echo "0" > "$TEST_DIR/.sidekick/sessions/$session_id/turn_count"
 }
 
 # Helper to invoke user-prompt-submit hook
@@ -215,7 +215,7 @@ test_counter_increments() {
     local session_id="test-ups-002"
     create_test_session "$session_id"
 
-    local counter_file="$TEST_DIR/.sidekick/sessions/$session_id/response_count"
+    local counter_file="$TEST_DIR/.sidekick/sessions/$session_id/turn_count"
 
     # Invoke 5 times and check counter each time
     for i in {1..5}; do
@@ -346,38 +346,41 @@ EOF
     done
 }
 
-# Test 6: Feature toggle - tracking disabled
-test_tracking_disabled() {
-    log_test "Feature toggle - tracking disabled"
+# Test 6: Feature toggle - topic extraction disabled (tracking auto-enabled)
+test_topic_extraction_disabled_early() {
+    log_test "Feature toggle - topic extraction disabled (tracking still works)"
 
-    # Disable tracking (and reminder which depends on it)
+    # Disable topic extraction (tracking is auto-enabled and can't be disabled)
     cat > "$TEST_DIR/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
-FEATURE_TRACKING=false
-FEATURE_REMINDER=false
+FEATURE_REMINDERS=false
 FEATURE_TOPIC_EXTRACTION=false
 LOG_LEVEL=debug
 EOF
 
     local session_id="test-ups-006"
-    # Don't pre-create counter since tracking is disabled
-    mkdir -p "$TEST_DIR/.sidekick/sessions/$session_id"
+    create_test_session "$session_id"
 
     # Execute user-prompt-submit
     invoke_user_prompt_submit "$session_id" >/dev/null 2>&1 || true
 
-    # Counter should NOT be created
-    local counter_file="$TEST_DIR/.sidekick/sessions/$session_id/response_count"
-    if [ ! -f "$counter_file" ]; then
-        pass "Tracking disabled - counter not created"
+    # Counter SHOULD still be created (tracking is auto-enabled)
+    local counter_file="$TEST_DIR/.sidekick/sessions/$session_id/turn_count"
+    if [ -f "$counter_file" ]; then
+        local count=$(cat "$counter_file")
+        if [ "$count" = "1" ]; then
+            pass "Tracking auto-enabled - counter works even when other features disabled"
+        else
+            fail "Counter has wrong value: $count (expected 1)"
+            return 1
+        fi
     else
-        fail "Tracking disabled but counter was created"
+        fail "Counter not created (tracking should be auto-enabled)"
         return 1
     fi
 
     # Re-enable for remaining tests
     cat > "$TEST_DIR/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
-FEATURE_TRACKING=true
-FEATURE_REMINDER=true
+FEATURE_REMINDERS=true
 FEATURE_TOPIC_EXTRACTION=true
 SLEEPER_ENABLED=true
 LOG_LEVEL=debug
@@ -391,10 +394,9 @@ EOF
 test_reminder_disabled() {
     log_test "Feature toggle - reminder disabled (tracking still on)"
 
-    # Enable tracking but disable reminder
+    # Tracking is auto-enabled, disable reminders
     cat > "$TEST_DIR/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
-FEATURE_TRACKING=true
-FEATURE_REMINDER=false
+FEATURE_REMINDERS=false
 FEATURE_TOPIC_EXTRACTION=false
 TRACKING_STATIC_CADENCE=2
 LOG_LEVEL=debug
@@ -421,7 +423,7 @@ EOF
     done
 
     # Verify counter was incremented
-    local counter_file="$TEST_DIR/.sidekick/sessions/$session_id/response_count"
+    local counter_file="$TEST_DIR/.sidekick/sessions/$session_id/turn_count"
     local count=$(cat "$counter_file" 2>/dev/null || echo "0")
     if [ "$count" -eq 4 ]; then
         pass "Reminder disabled but tracking still works (count=$count)"
@@ -432,8 +434,7 @@ EOF
 
     # Re-enable for remaining tests
     cat > "$TEST_DIR/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
-FEATURE_TRACKING=true
-FEATURE_REMINDER=true
+FEATURE_REMINDERS=true
 FEATURE_TOPIC_EXTRACTION=true
 SLEEPER_ENABLED=true
 LOG_LEVEL=debug
@@ -577,7 +578,7 @@ main() {
     test_sleeper_launched_on_first_call || true
     test_sleeper_not_relaunched || true
     test_static_reminder_cadence || true
-    test_tracking_disabled || true
+    test_topic_extraction_disabled_early || true
     test_reminder_disabled || true
     test_topic_extraction_disabled || true
     test_invalid_json || true

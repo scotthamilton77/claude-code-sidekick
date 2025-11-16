@@ -259,7 +259,7 @@ JSON
     echo "$test_json" | "$TEST_DIR/.claude/hooks/sidekick/sidekick.sh" session-start >/dev/null 2>&1 || true
 
     # Check if counter file was created
-    local counter_file="$TEST_DIR/.sidekick/sessions/$session_id/response_count"
+    local counter_file="$TEST_DIR/.sidekick/sessions/$session_id/turn_count"
     if [ -f "$counter_file" ]; then
         local count=$(cat "$counter_file")
         if [ "$count" = "0" ]; then
@@ -315,9 +315,8 @@ JSON
 test_feature_toggles() {
     log_test "Feature toggles respected"
 
-    # Create config with tracking disabled
+    # Create config with cleanup and resume disabled (tracking is always auto-enabled)
     cat > "$TEST_DIR/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
-FEATURE_TRACKING=false
 FEATURE_CLEANUP=false
 FEATURE_RESUME=false
 LOG_LEVEL=debug
@@ -338,18 +337,17 @@ JSON
     # Execute session-start
     echo "$test_json" | "$TEST_DIR/.claude/hooks/sidekick/sidekick.sh" session-start >/dev/null 2>&1 || true
 
-    # Check that counter file was NOT created (tracking disabled)
-    local counter_file="$TEST_DIR/.sidekick/sessions/$session_id/response_count"
-    if [ ! -f "$counter_file" ]; then
-        pass "Tracking disabled - counter file not created"
+    # Check that counter file WAS created (tracking is auto-enabled, can't be disabled)
+    local counter_file="$TEST_DIR/.sidekick/sessions/$session_id/turn_count"
+    if [ -f "$counter_file" ]; then
+        pass "Tracking auto-enabled - counter file created"
     else
-        fail "Tracking disabled but counter file was created"
+        fail "Counter file not created (tracking should be auto-enabled)"
         return 1
     fi
 
     # Re-enable features for remaining tests
     cat > "$TEST_DIR/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
-FEATURE_TRACKING=true
 FEATURE_CLEANUP=true
 FEATURE_RESUME=true
 LOG_LEVEL=debug

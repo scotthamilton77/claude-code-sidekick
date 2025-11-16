@@ -102,16 +102,18 @@ cleanup() {
 }
 
 # Helper: Create config with specific feature toggles
+# NOTE: TRACKING is auto-enabled and cannot be disabled
 create_config() {
     local config_file="$TEST_DIR/.claude/hooks/sidekick/sidekick.conf"
     cat > "$config_file" << CONFEOF
-# Test configuration - all features disabled
+# Test configuration
 FEATURE_TOPIC_EXTRACTION=${1:-false}
 FEATURE_RESUME=${2:-false}
 FEATURE_STATUSLINE=${3:-false}
-FEATURE_TRACKING=${4:-false}
-FEATURE_CLEANUP=${5:-false}
-FEATURE_REMINDER=${6:-false}
+FEATURE_CLEANUP=${4:-false}
+FEATURE_REMINDERS=${5:-false}
+
+# Tracking is auto-enabled and cannot be disabled
 
 # Set sleeper disabled for faster tests
 SLEEPER_ENABLED=false
@@ -121,43 +123,24 @@ LOG_LEVEL=debug
 CONFEOF
 }
 
-# Test 1: FEATURE_TRACKING toggle
-test_tracking_feature_toggle() {
-    local test_name="FEATURE_TRACKING toggle"
+# Test 1: Tracking is auto-enabled (cannot be disabled)
+test_tracking_auto_enabled() {
+    local test_name="Tracking auto-enabled"
 
-    # Disable tracking
-    create_config "false" "false" "false" "false" "false" "false"
+    # Disable all other features
+    create_config "false" "false" "false" "false" "false"
 
     # Create session input
     local input_json='{"session_id":"'$TEST_SESSION'","workspace":{"project_dir":"'$TEST_DIR'"}}'
 
-    # Run session-start (which should initialize tracking if enabled)
+    # Run session-start
     echo "$input_json" | "$TEST_DIR/.claude/hooks/sidekick/sidekick.sh" session-start 2>&1 >/dev/null || true
 
-    # Check if response_count file was NOT created
-    if [ ! -f "$SESSION_DIR/response_count" ]; then
-        pass "$test_name - disabled (no counter file)"
+    # Check if turn_count file WAS created (tracking is always enabled)
+    if [ -f "$SESSION_DIR/turn_count" ]; then
+        pass "$test_name - counter file created (auto-enabled)"
     else
-        fail "$test_name - disabled" "Counter file exists when feature disabled"
-        return
-    fi
-
-    # Now enable tracking
-    create_config "false" "false" "false" "true" "false" "false"
-
-    # Run session-start again with new session
-    TEST_SESSION="test-toggles-enabled-$(date +%s)"
-    SESSION_DIR="$TEST_DIR/.sidekick/sessions/$TEST_SESSION"
-    mkdir -p "$SESSION_DIR"
-    input_json='{"session_id":"'$TEST_SESSION'","workspace":{"project_dir":"'$TEST_DIR'"}}'
-
-    echo "$input_json" | "$TEST_DIR/.claude/hooks/sidekick/sidekick.sh" session-start 2>&1 >/dev/null || true
-
-    # Check if response_count file WAS created
-    if [ -f "$SESSION_DIR/response_count" ]; then
-        pass "$test_name - enabled (counter file created)"
-    else
-        fail "$test_name - enabled" "Counter file missing when feature enabled"
+        fail "$test_name" "Counter file not created (tracking should be auto-enabled)"
     fi
 }
 
@@ -166,7 +149,7 @@ test_cleanup_feature_toggle() {
     local test_name="FEATURE_CLEANUP toggle"
 
     # Disable cleanup
-    create_config "false" "false" "false" "true" "false" "false"
+    create_config "false" "false" "false" "false" "false"
 
     local input_json='{"session_id":"'$TEST_SESSION'","workspace":{"project_dir":"'$TEST_DIR'"}}'
 
@@ -182,7 +165,7 @@ test_cleanup_feature_toggle() {
     fi
 
     # Enable cleanup
-    create_config "false" "false" "false" "true" "true" "false"
+    create_config "false" "false" "false" "true" "false"
 
     TEST_SESSION="test-cleanup-enabled-$(date +%s)"
     SESSION_DIR="$TEST_DIR/.sidekick/sessions/$TEST_SESSION"
@@ -217,7 +200,7 @@ EOF
 EOF
 
     # Disable resume
-    create_config "false" "false" "false" "true" "false" "false"
+    create_config "false" "false" "false" "false" "false"
 
     # Start new session
     TEST_SESSION="test-resume-disabled-$(date +%s)"
@@ -241,7 +224,7 @@ EOF
     fi
 
     # Enable resume
-    create_config "false" "true" "false" "true" "false" "false"
+    create_config "false" "true" "false" "false" "false"
 
     TEST_SESSION="test-resume-enabled-$(date +%s)"
     SESSION_DIR="$TEST_DIR/.sidekick/sessions/$TEST_SESSION"
@@ -269,7 +252,7 @@ test_topic_extraction_feature_toggle() {
     local test_name="FEATURE_TOPIC_EXTRACTION toggle"
 
     # Disable topic extraction
-    create_config "false" "false" "false" "true" "false" "false"
+    create_config "false" "false" "false" "false" "false"
 
     # Create session
     TEST_SESSION="test-topic-disabled-$(date +%s)"
@@ -277,7 +260,7 @@ test_topic_extraction_feature_toggle() {
     mkdir -p "$SESSION_DIR"
 
     # Initialize tracking
-    echo "0" > "$SESSION_DIR/response_count"
+    echo "0" > "$SESSION_DIR/turn_count"
 
     # Run user-prompt-submit (which triggers topic extraction)
     local input_json='{"session_id":"'$TEST_SESSION'","transcript_path":"'$TEST_TRANSCRIPT'","workspace":{"project_dir":"'$TEST_DIR'"}}'
@@ -293,12 +276,12 @@ test_topic_extraction_feature_toggle() {
     fi
 
     # Enable topic extraction
-    create_config "true" "false" "false" "true" "false" "false"
+    create_config "true" "false" "false" "false" "false"
 
     TEST_SESSION="test-topic-enabled-$(date +%s)"
     SESSION_DIR="$TEST_DIR/.sidekick/sessions/$TEST_SESSION"
     mkdir -p "$SESSION_DIR"
-    echo "0" > "$SESSION_DIR/response_count"
+    echo "0" > "$SESSION_DIR/turn_count"
 
     input_json='{"session_id":"'$TEST_SESSION'","transcript_path":"'$TEST_TRANSCRIPT'","workspace":{"project_dir":"'$TEST_DIR'"}}'
 
@@ -322,7 +305,7 @@ test_statusline_feature_toggle() {
     local test_name="FEATURE_STATUSLINE toggle"
 
     # Disable statusline
-    create_config "false" "false" "false" "true" "false" "false"
+    create_config "false" "false" "false" "false" "false"
 
     local input_json='{"session_id":"'$TEST_SESSION'","model":{"display_name":"Sonnet 4.5"},"workspace":{"project_dir":"'$TEST_DIR'"},"transcript_path":"'$TEST_TRANSCRIPT'","cost":{"total_cost_usd":1.0},"version":"1.0.0"}'
 
@@ -340,7 +323,7 @@ test_statusline_feature_toggle() {
     fi
 
     # Enable statusline
-    create_config "false" "false" "true" "true" "false" "false"
+    create_config "false" "false" "true" "false" "false"
 
     output=$(echo "$input_json" | "$TEST_DIR/.claude/hooks/sidekick/sidekick.sh" statusline 2>&1) || true
 
@@ -357,7 +340,7 @@ test_multiple_features_enabled() {
     local test_name="Multiple features enabled together"
 
     # Enable all features
-    create_config "true" "true" "true" "true" "true" "true"
+    create_config "true" "true" "true" "true" "true"
 
     TEST_SESSION="test-all-features-$(date +%s)"
     SESSION_DIR="$TEST_DIR/.sidekick/sessions/$TEST_SESSION"
@@ -387,7 +370,7 @@ EOF
 
     # Check that various features worked
     local success_count=0
-    [ -f "$SESSION_DIR/response_count" ] && success_count=$((success_count + 1))
+    [ -f "$SESSION_DIR/turn_count" ] && success_count=$((success_count + 1))
     [ -f "$SESSION_DIR/topic.json" ] && success_count=$((success_count + 1))
     [ -n "$statusline_output" ] && success_count=$((success_count + 1))
 
@@ -402,8 +385,8 @@ EOF
 test_multiple_features_disabled() {
     local test_name="Multiple features disabled together"
 
-    # Disable all features
-    create_config "false" "false" "false" "false" "false" "false"
+    # Disable all features (except tracking which is auto-enabled)
+    create_config "false" "false" "false" "false" "false"
 
     TEST_SESSION="test-no-features-$(date +%s)"
     SESSION_DIR="$TEST_DIR/.sidekick/sessions/$TEST_SESSION"
@@ -445,7 +428,7 @@ main() {
     trap cleanup EXIT
 
     # Run tests
-    test_tracking_feature_toggle
+    test_tracking_auto_enabled
     test_cleanup_feature_toggle
     test_resume_feature_toggle
     test_topic_extraction_feature_toggle

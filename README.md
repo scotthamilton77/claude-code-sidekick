@@ -12,21 +12,11 @@ This repository serves as a development and testing environment for [Claude Code
 
 ### Sidekick
 
-- config setting names out of sync
+- When the stuck check fires, we should write a marker file that the stop reminder can check (and delete) to skip it's check
 - topic backups should be configurable (default to true for now)
 - failing integration tests (claude blames "known TDD gap" but I disagree)
-- tracking and reminders
-  - option to automate the turn-cadence-reminder.md message on install ("most urgent stuff from CLAUDEs")
-  - STATUS: this is working, but: (a) should generate the .txt file, not the .template file, and (b) we still need the tool-cadence version generated
-      - what if there are no CLAUDE.md's?  Don't ask to generate
-  - let's first structure the reminder to ask claude to assess what it's doing and ensure these reminders are not ignored
-  - but then let's get smarter (optional feature)
-    - take the reminder against the transcript to ask AI to evaluate which parts of the reminder may be most relevant for the situation and context
-      - if we do this, we should have a 2 stage pipeline: pre-process CLAUDE.md's into stage 1 (more verbose/complete), then use that against context to generate point-in-time reminder
-    - add to the UserPromptSubmit a trigger to evaluate the user's prompt to see if the user is asking claude to do something that it should have already done, and record that as a possible RL item to factor into the reminder
-    - would it make sense to scan the ToDos and suggest to Claude to add to its todos any specific items relevant to the reminders? (Would this be more context-efficient?)
-- response tracker
-  - what if we include in the sleeper process a watch of the tanscript to also count additional messages beyond user submitted? we might watch for "informative" updates based on the message type?
+- reminder generator: what if there are no CLAUDE.md's? Don't ask to generate
+- standardize parameter names and styles in the scripts (e.g. --project-dir vs. not, internally using output_dir, etc.)
 - sleeper process
   - is this per session? what happens when a new session is started? Does the sleeper just time out without further API calls (it should)?
 - refine the transcript analysis process
@@ -37,11 +27,9 @@ This repository serves as a development and testing environment for [Claude Code
       - should over-weight existing/current stated goals
     - we need 2 API calls, one for the analysis (low-temp), another for the snark (configurable temperature)
     - this would allow us to use different models
+  - tune the topic extracter to follow the last n turns (delta + 10?) - this combined with previous goal snapshot might be cheaper?
+  - tune the instructions for the topic extraction (little shorter, more cynical)
 - PLAN.MD (executing ARCH.md)
-  - standardize parameter names and styles in the scripts (e.g. --project-dir vs. not, internally using output_dir, etc.)
-- should this be a claude code plugin? There are plugin hooks referenced here: https://code.claude.com/docs/en/hooks
-- tune the topic extracter to follow the last n turns (delta + 10?) - this combined with previous goal snapshot might be cheaper?
-- tune the instructions for the topic extraction (little shorter, more cynical)
 - allow for different personalities - either explicit at install time or random per project or random per session or just random
   - moods: cynical, sarcastic, snarky, nerdy, arrogant, moody
   - persona: angry klingon, skeptical vulcan, Scotty, Bones
@@ -59,8 +47,17 @@ This repository serves as a development and testing environment for [Claude Code
 - is it time to move to something more robust than bash?
   - incorporate https://github.com/johannschopplich/toon
 
+### Nice to Haves
+
+- should this be a claude code plugin? There are plugin hooks referenced here: https://code.claude.com/docs/en/hooks
+- take the reminder against the transcript to ask AI to evaluate which parts of the reminder may be most relevant for the situation and context
+  - if we do this, we should have a 2 stage pipeline: pre-process CLAUDE.md's into stage 1 (more verbose/complete), then use that against context to generate point-in-time reminder
+- add to the UserPromptSubmit a trigger to evaluate the user's prompt to see if the user is asking claude to do something that it should have already done, and record that as a possible RL item to factor into the reminder
+- would it make sense to scan the ToDos and suggest to Claude to add to its todos any specific items relevant to the reminders? (Would this be more context-efficient?)
+
 ## Agents and Skills
 
+- Consider pulling all the different pieces out as separate repos (to be separate claude code plugins)
 - agents, skills, CLAUDE.md, settings.json - I've moved these into src/.claude/ for now - we'll need to make these installable/uninstallable as components too
 - Can we have a skill and/or agent that intersects the task list and plan for when claude starts to execute a plan and (a) checks it against the user request and requirements to catch scope creep and (b) checks against unnecessary complexity keeping YAGNI and DRY and KISS principles in play?
 - sync, push - these should not clobber settings and mcp, but rather merge; for claude.md, ask to replace
@@ -325,7 +322,7 @@ Sidekick prompts and reminders use a 4-level file cascade, allowing you to overr
 1. `user-prompt-submit-reminder.txt` - Fires every N user prompts (default: 4)
 2. `post-tool-use-cadence-reminder.txt` - Fires every N total tool calls (default: 50)
 3. `post-tool-use-stuck-reminder.txt` - Fires when single turn exceeds threshold (default: 20 tools, interruptive)
-4. `stop-reminder.txt` - Fires when conversation stops after file modifications (Write/Edit/MultiEdit/NotebookEdit), blocks stop to verify completion
+4. `pre-completion-reminder.txt` - Fires when conversation stops after file modifications (Write/Edit/MultiEdit/NotebookEdit), blocks stop to verify completion
 
 Each reminder type uses the same 4-level cascade:
 
@@ -340,9 +337,9 @@ Each reminder type uses the same 4-level cascade:
 
 ```bash
 # config.defaults or sidekick.conf
-TURN_CADENCE=4                  # Every 4 user prompts
-TOOL_CADENCE=50                 # Every 50 total tool calls
-TOOLS_PER_TURN_THRESHOLD=20     # When single response exceeds 20 tools
+USER_PROMPT_CADENCE=4              # Every 4 user prompts
+POST_TOOL_USE_CADENCE=50           # Every 50 total tool calls
+POST_TOOL_USE_STUCK_THRESHOLD=20   # When single turn exceeds 20 tools
 ```
 
 **Usage Examples**:
