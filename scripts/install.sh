@@ -235,7 +235,7 @@ create_reminder_template() {
     mkdir -p "$reminders_dir"
 
     # Array of reminder types
-    local reminder_types=("user-prompt-submit" "post-tool-use-cadence" "post-tool-use-stuck" "stop")
+    local reminder_types=("user-prompt-submit" "post-tool-use-cadence" "post-tool-use-stuck" "pre-completion")
 
     # Create template for each type
     for type in "${reminder_types[@]}"; do

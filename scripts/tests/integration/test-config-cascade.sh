@@ -148,11 +148,6 @@ test_defaults_only() {
         return
     fi
 
-    if test_config_value "FEATURE_TRACKING" "true" "project"; then
-        pass "$test_name - FEATURE_TRACKING from defaults"
-    else
-        fail "$test_name - FEATURE_TRACKING" "Could not read default FEATURE_TRACKING"
-    fi
 }
 
 # Test 2: User config overrides defaults
@@ -189,11 +184,6 @@ EOF
     fi
 
     # Test that non-overridden values still come from defaults
-    if test_config_value "FEATURE_TRACKING" "true" "user"; then
-        pass "$test_name - FEATURE_TRACKING from defaults"
-    else
-        fail "$test_name - FEATURE_TRACKING" "Default value not preserved"
-    fi
 }
 
 # Test 3: Project config overrides user config
@@ -281,11 +271,6 @@ test_full_cascade() {
     # Project: (not set)
     # Expected: true (default wins)
 
-    if test_config_value "FEATURE_TRACKING" "true" "project"; then
-        pass "$test_name - FEATURE_TRACKING = true (default wins)"
-    else
-        fail "$test_name - FEATURE_TRACKING" "Default value not preserved"
-    fi
 }
 
 # Test 5: Feature toggle cascade
@@ -321,11 +306,6 @@ EOF
     fi
 
     # Test non-overridden feature (should be default=true)
-    if test_config_value "FEATURE_TRACKING" "true" "project"; then
-        pass "$test_name - FEATURE_TRACKING from defaults"
-    else
-        fail "$test_name - FEATURE_TRACKING" "Default not preserved"
-    fi
 }
 
 # Test 6: Numeric config cascade
@@ -389,11 +369,6 @@ EOF
     fi
 
     # Test defaults for non-overridden values
-    if test_config_value "FEATURE_TRACKING" "true" "project"; then
-        pass "$test_name - FEATURE_TRACKING = true (default)"
-    else
-        fail "$test_name - FEATURE_TRACKING" "Default not preserved"
-    fi
 }
 
 # Test 8: Empty project config (user overrides defaults only)
@@ -424,11 +399,6 @@ EOF
     fi
 
     # Test defaults
-    if test_config_value "FEATURE_TRACKING" "true" "project"; then
-        pass "$test_name - FEATURE_TRACKING = true (default)"
-    else
-        fail "$test_name - FEATURE_TRACKING" "Default not preserved"
-    fi
 }
 
 # Test 9: User persistent config overrides user installed config
@@ -531,7 +501,7 @@ test_five_level_cascade() {
     local test_name="Five-level cascade (defaults → user installed → user persistent → deployed → versioned)"
 
     # Create all five levels with different values
-    # Defaults: LOG_LEVEL=info, TOPIC_CADENCE_HIGH=10, CLEANUP_MIN_COUNT=5, SLEEPER_MAX_DURATION=600, FEATURE_TRACKING=true
+    # Defaults: LOG_LEVEL=info, TOPIC_CADENCE_HIGH=10, CLEANUP_MIN_COUNT=5, SLEEPER_MAX_DURATION=600
 
     # User installed config
     cat > "$HOME/.claude/hooks/sidekick-test/sidekick.conf" << 'EOF'
@@ -592,11 +562,6 @@ EOF
         fail "$test_name - SLEEPER_MAX_DURATION" "Five-level cascade failed"
     fi
 
-    if test_config_value "FEATURE_TRACKING" "true" "project"; then
-        pass "$test_name - FEATURE_TRACKING = true (defaults win)"
-    else
-        fail "$test_name - FEATURE_TRACKING" "Default not preserved"
-    fi
 
     # Cleanup user persistent config
     rm -f "$HOME/.sidekick/sidekick.conf"

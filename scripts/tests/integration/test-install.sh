@@ -179,15 +179,15 @@ test_install_user() {
     assert_file_exists "$HOME/.claude/settings.json"
     assert_json_contains "$HOME/.claude/settings.json" \
         '.hooks.SessionStart[0].hooks[0].command' \
-        '~/.claude/hooks/sidekick/sidekick.sh session-start "$CLAUDE_PROJECT_DIR"' \
+        '~/.claude/hooks/sidekick/sidekick.sh --no-console-logging session-start "$CLAUDE_PROJECT_DIR"' \
         "SessionStart hook registered"
     assert_json_contains "$HOME/.claude/settings.json" \
         '.hooks.UserPromptSubmit[0].hooks[0].command' \
-        '~/.claude/hooks/sidekick/sidekick.sh user-prompt-submit "$CLAUDE_PROJECT_DIR"' \
+        '~/.claude/hooks/sidekick/sidekick.sh --no-console-logging user-prompt-submit "$CLAUDE_PROJECT_DIR"' \
         "UserPromptSubmit hook registered"
     assert_json_contains "$HOME/.claude/settings.json" \
         '.statusLine.command' \
-        '~/.claude/hooks/sidekick/sidekick.sh statusline --project-dir "$CLAUDE_PROJECT_DIR"' \
+        '~/.claude/hooks/sidekick/sidekick.sh --no-console-logging statusline --project-dir "$CLAUDE_PROJECT_DIR"' \
         "Statusline command registered"
 
     # Cleanup
@@ -222,7 +222,7 @@ test_install_project() {
     assert_file_exists "$temp_project/.claude/settings.json"
     assert_json_contains "$temp_project/.claude/settings.json" \
         '.hooks.SessionStart[0].hooks[0].command' \
-        '$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.sh session-start "$CLAUDE_PROJECT_DIR"' \
+        '$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.sh --no-console-logging session-start "$CLAUDE_PROJECT_DIR"' \
         "SessionStart hook registered (project)"
 
     # Verify .claudeignore updated

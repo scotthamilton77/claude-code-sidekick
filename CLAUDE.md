@@ -4,21 +4,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Quick Reference
 
-| Need | Command/Location |
-|------|------------------|
-| **Install Sidekick** | `./scripts/install.sh --user` → `claude --continue` |
-| **Run tests** | `./scripts/tests/run-unit-tests.sh` (mocked, free) |
-| **Add plugin** | Create `src/sidekick/features/my-feature.sh` + enable in `config.defaults` |
-| **Config options** | `src/sidekick/config.defaults` (all settings documented) |
-| **Architecture deep-dive** | `ARCH.md` (design), `PLAN.md` (progress) |
-| **Benchmark (Bash)** | `scripts/benchmark/` (production, 3K LOC) |
-| **Benchmark (TypeScript)** | `benchmark-next/` (greenfield rewrite) |
+| Need                       | Command/Location                                                           |
+| -------------------------- | -------------------------------------------------------------------------- |
+| **Install Sidekick**       | `./scripts/install.sh --user` → `claude --continue`                        |
+| **Run tests**              | `./scripts/tests/run-unit-tests.sh` (mocked, free)                         |
+| **Add plugin**             | Create `src/sidekick/features/my-feature.sh` + enable in `config.defaults` |
+| **Config options**         | `src/sidekick/config.defaults` (all settings documented)                   |
+| **Architecture deep-dive** | `ARCH.md` (design), `PLAN.md` (progress)                                   |
+| **Benchmark (Bash)**       | `scripts/benchmark/` (production, 3K LOC)                                  |
+| **Benchmark (TypeScript)** | `benchmark-next/` (greenfield rewrite)                                     |
 
 ## Project Purpose
+
+NOTE: This project is in development; there are no other users of the project other than this user. **There is no need to maintain backward compatibility!**
 
 This repository serves as the **experimental proving ground** for Claude Code configuration development. It enables testing and debugging of commands, hooks, agents, skills, and other Claude Code capabilities in a project-scoped environment before deploying them to the user's global `~/.claude` directory.
 
 **Critical Design Principle**: All scripts and capabilities must operate identically whether invoked from:
+
 - **Project scope**: `.claude/` directory within this repository
 - **User scope**: `~/.claude/` global configuration directory
 
@@ -31,6 +34,7 @@ The repository is organized into source components and deployment targets:
 ### Source Components (`src/`)
 
 - **`src/sidekick/`**: Modular hooks system for conversation intelligence
+
   - **Implementation Status**: ✅ Complete (all tests passing)
   - **Architecture**: Single entry point, shared library, pluggable features
   - **See**: `ARCH.md` for complete design, `PLAN.md` for implementation status
@@ -49,6 +53,7 @@ The repository is organized into source components and deployment targets:
 ### Test Data & Benchmarking (`test-data/`)
 
 - **`test-data/transcripts/`**: Curated transcript collection for LLM benchmarking (497 transcripts)
+
   - **`metadata.json`**: Master index with 497 transcripts classified by length (short/medium/long)
   - **`golden-set.json`**: 15 hand-picked transcripts (5 short, 5 medium, 5 long) for reference generation
   - **`*.jsonl`**: Actual transcript files copied from original sessions
@@ -56,10 +61,12 @@ The repository is organized into source components and deployment targets:
   - **Task ID Coverage**: Golden set includes 6 transcripts with task IDs (T###) for testing extraction
 
 - **`test-data/projects/`**: Original source transcripts from `~/.claude/projects/*/transcript.jsonl`
+
   - Organized by project directory structure
   - Source of truth before processing into test-data/transcripts/
 
 - **`test-data/sessions/`**: Sidekick analysis results (`.sidekick/sessions/*/topic.json`)
+
   - Contains LLM-generated topic extractions for transcripts
   - Used by collect-test-data.sh to enrich metadata
 
@@ -71,10 +78,10 @@ The repository is organized into source components and deployment targets:
 
 Two parallel implementations with shared `test-data/`:
 
-| Track | Status | Purpose | Stack |
-|-------|--------|---------|-------|
-| **1: `scripts/benchmark/`** | 🚧 Production (3K LOC Bash) | Rapid iteration on scoring algorithms | Bash + jq + Sidekick libs |
-| **2: `benchmark-next/`** | 🏗️ Greenfield rewrite | Long-term maintainability, type safety | TypeScript + Node + Vitest |
+| Track                       | Status                      | Purpose                                | Stack                      |
+| --------------------------- | --------------------------- | -------------------------------------- | -------------------------- |
+| **1: `scripts/benchmark/`** | 🚧 Production (3K LOC Bash) | Rapid iteration on scoring algorithms  | Bash + jq + Sidekick libs  |
+| **2: `benchmark-next/`**    | 🏗️ Greenfield rewrite       | Long-term maintainability, type safety | TypeScript + Node + Vitest |
 
 **Development Pattern**: Improve Track 1 → extract functional requirements → implement idiomatically in Track 2 → validate with shared test data.
 
@@ -116,15 +123,15 @@ See `ARCH.md` for complete design documentation. Key features:
 
 ### Features
 
-| Feature | Purpose | Key Behavior |
-|---------|---------|--------------|
-| **Topic Extraction** | LLM-based conversation analysis | Triggers async resume on significant topic change |
-| **Resume** | Session continuity | Generated async in background, no LLM blocking at SessionStart |
-| **Statusline** | Enhanced status display | Shows topic, tokens, git branch |
-| **Tracking** | Request counting | Enables periodic reminders |
-| **Reminder** | Turn-cadence and stop reminders | Turn-cadence (every N turns), Stop (blocks conversation end after file edits) |
-| **Post-Tool-Use** | Tool-based reminders | Tool-cadence (every N tools), stuck detection (threshold per turn), sets stop reminder marker after file edits |
-| **Cleanup** | Garbage collection | Removes old session directories |
+| Feature              | Purpose                         | Key Behavior                                                                                                   |
+| -------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **Topic Extraction** | LLM-based conversation analysis | Triggers async resume on significant topic change                                                              |
+| **Resume**           | Session continuity              | Generated async in background, no LLM blocking at SessionStart                                                 |
+| **Statusline**       | Enhanced status display         | Shows topic, tokens, git branch                                                                                |
+| **Tracking**         | Request counting                | Enables periodic reminders                                                                                     |
+| **Reminder**         | Turn-cadence and stop reminders | Turn-cadence (every N turns), Stop (blocks conversation end after file edits)                                  |
+| **Post-Tool-Use**    | Tool-based reminders            | Tool-cadence (every N tools), stuck detection (threshold per turn), sets stop reminder marker after file edits |
+| **Cleanup**          | Garbage collection              | Removes old session directories                                                                                |
 
 All features independently toggleable via `FEATURE_*` flags in `sidekick.conf`.
 
@@ -152,10 +159,11 @@ Prompts (`*.prompt.txt`, `*.schema.json`) and reminders (`*-reminder.txt`) use 4
 4. `${projectRoot}/.sidekick/{prompts,reminders}/` - Project persistent (git-committable)
 
 **Reminder Types**:
+
 - `user-prompt-submit-reminder.txt` - Every N user prompts
 - `post-tool-use-cadence-reminder.txt` - Every N total tool calls
 - `post-tool-use-stuck-reminder.txt` - When single turn exceeds threshold
-- `stop-reminder.txt` - When conversation stops after file modifications (Write/Edit/MultiEdit/NotebookEdit)
+- `pre-completion-reminder.txt` - When conversation stops after file modifications (Write/Edit/MultiEdit/NotebookEdit)
 
 First existing file wins. Override default prompts/reminders without modifying installed files.
 
@@ -166,6 +174,7 @@ Sidekick uses a pluggable LLM provider system for conversation analysis and resu
 **Supported Providers**: Claude CLI (default), OpenAI API, OpenRouter API, custom shell commands
 
 **Key Settings** (see `src/sidekick/config.defaults` for complete list):
+
 - `LLM_PROVIDER` - Provider selection (claude-cli | openai-api | openrouter | custom)
 - `LLM_TIMEOUT_SECONDS` - Global timeout (default: 10s), with retry support
 - `LLM_DEBUG_DUMP_ENABLED` - Save API calls to `/tmp/sidekick-llm-debug/` for troubleshooting
@@ -184,11 +193,13 @@ Automatic resilience for flaky LLM providers: CLOSED (use primary) → 3 failure
 ### Logging & Troubleshooting
 
 **Two-Tier Console Logging System**:
+
 - `log_debug/log_info/log_warn`: Respect `--no-console-logging` flag (can be suppressed)
 - `log_error`: ALWAYS outputs to stderr (critical errors bypass flag for visibility)
 - File logging: ALWAYS enabled regardless of console flag
 
 **Console Logging Control** (precedence, highest to lowest):
+
 1. `--no-console-logging` CLI flag (forces off)
 2. `SIDEKICK_CONSOLE_LOGGING` environment variable
 3. `SIDEKICK_CONSOLE_LOGGING` config file setting
@@ -197,6 +208,7 @@ Automatic resilience for flaky LLM providers: CLOSED (use primary) → 3 failure
 **Hook Integration**: Hook invocations automatically use `--no-console-logging` to prevent log pollution in JSON output returned to Claude Code.
 
 **Log File Locations**:
+
 - Session logs: `.sidekick/sessions/<session_id>/sidekick.log`
 - Global log: `.sidekick/sidekick.log`
 
@@ -204,11 +216,11 @@ Automatic resilience for flaky LLM providers: CLOSED (use primary) → 3 failure
 
 ### Testing
 
-| Test Type | Suites | Cost | Command |
-|-----------|--------|------|---------|
-| **Unit** | 10 suites, 81 tests | Free (mocked LLM) | `./scripts/tests/run-unit-tests.sh` |
-| **Integration** | 7 suites | Free (mocked data) | `./scripts/tests/run-integration-tests.sh` |
-| **LLM Providers** | Real API calls | 💰 **EXPENSIVE** | `./scripts/tests/integration/test-llm-providers.sh` |
+| Test Type         | Suites              | Cost               | Command                                             |
+| ----------------- | ------------------- | ------------------ | --------------------------------------------------- |
+| **Unit**          | 10 suites, 81 tests | Free (mocked LLM)  | `./scripts/tests/run-unit-tests.sh`                 |
+| **Integration**   | 7 suites            | Free (mocked data) | `./scripts/tests/run-integration-tests.sh`          |
+| **LLM Providers** | Real API calls      | 💰 **EXPENSIVE**   | `./scripts/tests/integration/test-llm-providers.sh` |
 
 **IMPORTANT**: LLM provider tests intentionally excluded from default runs to prevent accidental API costs. They auto-skip unconfigured providers.
 
@@ -231,16 +243,17 @@ Handlers auto-discover, resolve dependencies, and invoke in correct order.
 ### Critical Testing Requirement
 
 **⚠️ ALWAYS restart Claude (`claude --continue`) after:**
+
 - Installing/uninstalling Sidekick (any scope)
 - Editing `settings.json` or deployed hook scripts
 
 ## Reference Documents
 
-| Doc | Purpose |
-|-----|---------|
-| **ARCH.md** | Complete architectural specification |
-| **PLAN.md** | 8-phase implementation checklist with current progress |
-| **README.md** | User-facing documentation and quick start guide |
+| Doc           | Purpose                                                |
+| ------------- | ------------------------------------------------------ |
+| **ARCH.md**   | Complete architectural specification                   |
+| **PLAN.md**   | 8-phase implementation checklist with current progress |
+| **README.md** | User-facing documentation and quick start guide        |
 
 ## MCP Servers
 
@@ -253,6 +266,7 @@ context7 (SSE), sequential-thinking (NPX), memory (NPX)
 **Handlers are framework code** - they automatically discover and invoke feature plugins. You never edit them.
 
 **Key Concepts**:
+
 - **Auto-discovery**: Handlers scan `features/*.sh` and source enabled ones
 - **Dependency resolution**: Plugins declare `PLUGIN_DEPENDS`; topological sort ensures correct load order
 - **Standardized hooks**: Export `{name}_on_{event}()` functions
@@ -260,6 +274,7 @@ context7 (SSE), sequential-thinking (NPX), memory (NPX)
 - **Output aggregation**: Multiple plugins output JSON; handlers concatenate
 
 **Plugin Structure**:
+
 ```bash
 #!/bin/bash
 [[ -n "${_SIDEKICK_FEATURE_MYFEATURE_LOADED:-}" ]] && return 0
@@ -299,12 +314,12 @@ Scripts must work in both project (`.claude/`) and user (`~/.claude/`) contexts.
 
 **Sidekick**: ✅ Complete (plugin architecture, tests passing, docs updated)
 
-| Component | Status | Details |
-|-----------|--------|---------|
-| **Infrastructure** | ✅ | 10 namespace libs + plugin loader with dependency resolution |
-| **Features** | ✅ | 7 plugins (topic-extraction, resume, statusline, tracking, reminder, post-tool-use, cleanup) |
-| **Testing** | ✅ | 10 unit suites (77 tests), 7 integration suites, all passing |
-| **Documentation** | ✅ | ARCH.md, PLAN.md, README.md updated |
-| **Manual Testing** | 🔄 | In progress (real Claude sessions) |
+| Component          | Status | Details                                                                                      |
+| ------------------ | ------ | -------------------------------------------------------------------------------------------- |
+| **Infrastructure** | ✅     | 10 namespace libs + plugin loader with dependency resolution                                 |
+| **Features**       | ✅     | 7 plugins (topic-extraction, resume, statusline, tracking, reminder, post-tool-use, cleanup) |
+| **Testing**        | ✅     | 10 unit suites (77 tests), 7 integration suites, all passing                                 |
+| **Documentation**  | ✅     | ARCH.md, PLAN.md, README.md updated                                                          |
+| **Manual Testing** | 🔄     | In progress (real Claude sessions)                                                           |
 
 See `PLAN.md` (Phase 5.3) and `src/sidekick/config.defaults` for details.
