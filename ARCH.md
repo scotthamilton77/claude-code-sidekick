@@ -140,12 +140,12 @@ _log_format_ansi "level" "message"
 - File logging: Always enabled regardless of console flag
 
 **Console Logging Control** (precedence, highest to lowest):
-1. `--no-console-logging` CLI flag (forces false)
+1. `--log-to-console` CLI flag (forces true)
 2. `SIDEKICK_CONSOLE_LOGGING` environment variable
 3. `SIDEKICK_CONSOLE_LOGGING` config file setting
-4. Default: true (console logging enabled)
+4. Default: false (console logging disabled)
 
-**Hook Integration**: Hook invocation commands (in `settings.json` and `install.sh`) automatically include `--no-console-logging` flag to prevent log pollution in JSON output returned to Claude Code.
+**Hook Integration**: Hook invocation commands (in `settings.json` and `install.sh`) omit console logging flag since default behavior (disabled) is appropriate for JSON output to Claude Code. Use `--log-to-console` flag for debugging when needed.
 
 **Log File Location**: `.sidekick/sessions/${session_id}/sidekick.log`
 
@@ -931,7 +931,7 @@ LLM_CUSTOM_COMMAND={BIN} run {MODEL} < {PROMPT_FILE}
         "hooks": [
           {
             "type": "command",
-            "command": "~/.claude/hooks/sidekick/sidekick.sh session-start \"$CLAUDE_PROJECT_DIR\""
+            "command": "~/.claude/hooks/sidekick/sidekick.sh session-start"
           }
         ]
       }
@@ -941,7 +941,7 @@ LLM_CUSTOM_COMMAND={BIN} run {MODEL} < {PROMPT_FILE}
         "hooks": [
           {
             "type": "command",
-            "command": "~/.claude/hooks/sidekick/sidekick.sh user-prompt-submit \"$CLAUDE_PROJECT_DIR\""
+            "command": "~/.claude/hooks/sidekick/sidekick.sh user-prompt-submit"
           }
         ]
       }
@@ -949,7 +949,7 @@ LLM_CUSTOM_COMMAND={BIN} run {MODEL} < {PROMPT_FILE}
   },
   "statusLine": {
     "type": "command",
-    "command": "~/.claude/hooks/sidekick/sidekick.sh statusline --project-dir \"$CLAUDE_PROJECT_DIR\""
+    "command": "~/.claude/hooks/sidekick/sidekick.sh statusline"
   }
 }
 ```
@@ -963,7 +963,7 @@ LLM_CUSTOM_COMMAND={BIN} run {MODEL} < {PROMPT_FILE}
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.sh session-start \"$CLAUDE_PROJECT_DIR\""
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.sh session-start"
           }
         ]
       }
@@ -973,7 +973,7 @@ LLM_CUSTOM_COMMAND={BIN} run {MODEL} < {PROMPT_FILE}
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.sh user-prompt-submit \"$CLAUDE_PROJECT_DIR\""
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.sh user-prompt-submit"
           }
         ]
       }
@@ -981,7 +981,7 @@ LLM_CUSTOM_COMMAND={BIN} run {MODEL} < {PROMPT_FILE}
   },
   "statusLine": {
     "type": "command",
-    "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.sh statusline --project-dir \"$CLAUDE_PROJECT_DIR\""
+    "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.sh statusline"
   }
 }
 ```
@@ -1083,7 +1083,7 @@ sidekick.sh exits (<10ms)
 ```
 Claude → Statusline request
   ↓
-sidekick.sh statusline --project-dir "$CLAUDE_PROJECT_DIR"
+sidekick.sh statusline
   ↓ (reads stdin JSON)
   ↓
 feature_statusline_render()

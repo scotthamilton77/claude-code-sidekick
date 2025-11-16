@@ -51,9 +51,6 @@ FEATURE_TOPIC_EXTRACTION=true
 TOPIC_MODE=topic-only
 LLM_PROVIDER=claude-cli
 LLM_CLAUDE_MODEL=haiku
-TOPIC_CADENCE_HIGH=10
-TOPIC_CADENCE_LOW=1
-TOPIC_CLARITY_THRESHOLD=7
 SLEEPER_ENABLED=true
 SLEEPER_MAX_DURATION=600
 SLEEPER_MIN_SIZE_CHANGE=500
@@ -68,9 +65,6 @@ EOFCONFIG
     export TOPIC_MODE=topic-only
     export LLM_PROVIDER=claude-cli
     export LLM_CLAUDE_MODEL=haiku
-    export TOPIC_CADENCE_HIGH=10
-    export TOPIC_CADENCE_LOW=1
-    export TOPIC_CLARITY_THRESHOLD=7
     export SLEEPER_ENABLED=true
     export SLEEPER_MAX_DURATION=600
     export SLEEPER_MIN_SIZE_CHANGE=500
@@ -463,93 +457,6 @@ EOF
     local has_session
     has_session=$(echo "$result" | jq -r '.[0].sessionId')
     [ "$has_session" = "null" ]
-}
-
-# ============================================================================
-# TESTS: topic_extraction_check_cadence()
-# ============================================================================
-
-test_check_cadence_high_clarity() {
-    # Skip if function doesn't exist yet
-    if ! command -v topic_extraction_check_cadence &> /dev/null; then
-        return 0
-    fi
-
-    local session_id="test-session-cadence-high"
-    mkdir -p "$TEST_DIR/.sidekick/sessions/$session_id"
-
-    # Create topic with high clarity
-    cat > "$TEST_DIR/.sidekick/sessions/$session_id/topic.json" <<EOF
-{
-  "session_id": "$session_id",
-  "clarity_score": 9
-}
-EOF
-
-    # Create transcript
-    local transcript="$TEST_DIR/transcript.jsonl"
-    echo '{"role":"user","content":"test"}' > "$transcript"
-
-    # With high clarity (9 >= 7), should analyze every 10 responses
-    # Test count 5 (should not analyze)
-    if topic_extraction_check_cadence "$session_id" "$transcript" "$TEST_DIR" 5 2>/dev/null; then
-        # Function returned true, meaning analysis is due
-        false  # Fail test - shouldn't analyze at count 5
-    else
-        true  # Passed - analysis not due
-    fi
-}
-
-test_check_cadence_low_clarity() {
-    # Skip if function doesn't exist yet
-    if ! command -v topic_extraction_check_cadence &> /dev/null; then
-        return 0
-    fi
-
-    local session_id="test-session-cadence-low"
-    mkdir -p "$TEST_DIR/.sidekick/sessions/$session_id"
-
-    # Create topic with low clarity
-    cat > "$TEST_DIR/.sidekick/sessions/$session_id/topic.json" <<EOF
-{
-  "session_id": "$session_id",
-  "clarity_score": 5
-}
-EOF
-
-    # Create transcript
-    local transcript="$TEST_DIR/transcript.jsonl"
-    echo '{"role":"user","content":"test"}' > "$transcript"
-
-    # With low clarity (5 < 7), should analyze every 1 response
-    # Test count 1 (should analyze)
-    if topic_extraction_check_cadence "$session_id" "$transcript" "$TEST_DIR" 1 2>/dev/null; then
-        true  # Passed - analysis is due
-    else
-        # Function returned false, meaning analysis is not due (unexpected)
-        # But since we're testing with mocks, this might be acceptable behavior
-        true  # Allow both outcomes for now
-    fi
-}
-
-test_check_cadence_no_topic_file() {
-    # Skip if function doesn't exist yet
-    if ! command -v topic_extraction_check_cadence &> /dev/null; then
-        return 0
-    fi
-
-    local session_id="test-session-no-topic"
-    mkdir -p "$TEST_DIR/.sidekick/sessions/$session_id"
-
-    local transcript="$TEST_DIR/transcript.jsonl"
-    echo '{"role":"user","content":"test"}' > "$transcript"
-
-    # Without topic file, should use default cadence (low clarity = every 1)
-    if topic_extraction_check_cadence "$session_id" "$transcript" "$TEST_DIR" 1 2>/dev/null; then
-        true  # Analysis may be due
-    else
-        true  # Or may not be due - allow both
-    fi
 }
 
 # ============================================================================
@@ -1026,11 +933,6 @@ main() {
     run_test test_excerpt_filters_null_messages
     run_test test_excerpt_respects_line_count_config
     run_test test_excerpt_extracts_only_message_field
-
-    # Cadence tests
-    run_test test_check_cadence_high_clarity
-    run_test test_check_cadence_low_clarity
-    run_test test_check_cadence_no_topic_file
 
     # Sleeper tests
     run_test test_sleeper_start_creates_pid_file

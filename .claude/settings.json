@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.sh --no-console-logging session-start \"$CLAUDE_PROJECT_DIR\""
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.sh session-start"
           }
         ]
       }
@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.sh --no-console-logging user-prompt-submit \"$CLAUDE_PROJECT_DIR\""
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.sh user-prompt-submit"
           }
         ]
       }
@@ -26,7 +26,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.sh --no-console-logging post-tool-use \"$CLAUDE_PROJECT_DIR\""
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.sh post-tool-use"
           }
         ]
       }
@@ -36,7 +36,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.sh --no-console-logging stop \"$CLAUDE_PROJECT_DIR\""
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.sh stop"
           }
         ]
       }
@@ -44,6 +44,6 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.sh --no-console-logging statusline --project-dir \"$CLAUDE_PROJECT_DIR\""
+    "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.sh statusline"
   }
 }

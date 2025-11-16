@@ -12,9 +12,6 @@ This repository serves as a development and testing environment for [Claude Code
 
 ### Sidekick
 
-- standardize parameter names and styles in the scripts (e.g. --project-dir vs. not, internally using output_dir, etc.)
-- sleeper process
-  - is this per session? what happens when a new session is started? Does the sleeper just time out without further API calls (it should)?
 - refine the transcript analysis process
   - check isMeta tag? https://leehanchung.github.io/blogs/2025/10/26/claude-skills-deep-dive/
   - let's capture stronger sense of initial and current goal ALONG WITH a watermark (line indicator?) and perhaps summary of key points relative to topic extraction
@@ -246,12 +243,14 @@ Configure in `.claude/mcp.json`.
 Sidekick uses **modular configuration** with a five-level cascade (later sources override earlier):
 
 **Modular Domains**:
+
 - `config` - Feature flags, global settings
 - `llm-core` - LLM infrastructure (provider, circuit breaker, timeouts)
 - `llm-providers` - Provider-specific configs (API keys, models)
 - `features` - Feature tuning parameters
 
 **Cascade Levels**:
+
 1. **Defaults**: `src/sidekick/*.defaults` (required, modular)
 2. **User Installed**: `~/.claude/hooks/sidekick/*.conf` (optional, ephemeral)
 3. **User Persistent**: `~/.sidekick/*.conf` (optional, survives install/uninstall)
@@ -261,6 +260,7 @@ Sidekick uses **modular configuration** with a five-level cascade (later sources
 **Templates**: After installation, `.sidekick/` and `~/.sidekick/` contain `*.conf.template` files. Rename to `*.conf` to activate.
 
 **Override Strategies**:
+
 - **Modular**: Create domain-specific .conf files (e.g., `llm-providers.conf` for LLM settings only)
 - **Simple**: Use `sidekick.conf` to override any setting from any domain (single file, loads last)
 
@@ -410,9 +410,9 @@ Sidekick uses a two-tier logging system:
 
 **Console Logging (stderr)**:
 
-- `log_debug/log_info/log_warn`: Can be suppressed via `--no-console-logging` flag
-- `log_error`: ALWAYS visible (critical errors bypass suppression)
-- Hook scripts automatically use `--no-console-logging` to prevent log pollution in JSON output
+- `log_debug/log_info/log_warn`: Can be enabled via `--log-to-console` flag
+- `log_error`: ALWAYS visible (critical errors bypass flag)
+- Hook scripts use default behavior (console logging disabled) to prevent log pollution in JSON output
 
 **File Logging**:
 
@@ -442,10 +442,10 @@ echo "SIDEKICK_CONSOLE_LOGGING=true" >> ~/.sidekick/sidekick.conf
 
 **Precedence** (highest to lowest):
 
-1. `--no-console-logging` CLI flag
+1. `--log-to-console` CLI flag
 2. `SIDEKICK_CONSOLE_LOGGING` environment variable
 3. `SIDEKICK_CONSOLE_LOGGING` config file setting
-4. Default: `true` (console logging enabled)
+4. Default: `false` (console logging disabled)
 
 ## Contributing
 

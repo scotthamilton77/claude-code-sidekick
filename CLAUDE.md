@@ -219,18 +219,18 @@ Automatic resilience for flaky LLM providers: CLOSED (use primary) → 3 failure
 
 **Two-Tier Console Logging System**:
 
-- `log_debug/log_info/log_warn`: Respect `--no-console-logging` flag (can be suppressed)
+- `log_debug/log_info/log_warn`: Respect `--log-to-console` flag (can be enabled)
 - `log_error`: ALWAYS outputs to stderr (critical errors bypass flag for visibility)
 - File logging: ALWAYS enabled regardless of console flag
 
 **Console Logging Control** (precedence, highest to lowest):
 
-1. `--no-console-logging` CLI flag (forces off)
+1. `--log-to-console` CLI flag (forces on)
 2. `SIDEKICK_CONSOLE_LOGGING` environment variable
 3. `SIDEKICK_CONSOLE_LOGGING` config file setting
-4. Default: `true` (console logging enabled)
+4. Default: `false` (console logging disabled)
 
-**Hook Integration**: Hook invocations automatically use `--no-console-logging` to prevent log pollution in JSON output returned to Claude Code.
+**Hook Integration**: Hook invocations omit console logging flag since default behavior (disabled) is appropriate for JSON output to Claude Code. Use `--log-to-console` flag for debugging when needed.
 
 **Log File Locations**:
 
