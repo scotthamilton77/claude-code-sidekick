@@ -370,37 +370,37 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
   - [x] Verify SessionStart hook fires (check logs)
   - [x] Verify `.sidekick/sessions/${session_id}/response_count` created
   - [x] Verify resume topic initialized from previous session's resume.json (if exists)
-- [ ] Submit 10 user prompts
-  - [ ] Verify counter increments (check `response_count`)
-  - [ ] Verify sleeper launched (check `sleeper.pid`)
-  - [ ] Verify topic analysis runs (check `topic.json`)
-  - [ ] Verify resume.json generated when topic changes significantly (significant_change=true AND clarity>=5)
-  - [ ] Verify static reminder appears on 4th, 8th prompts
-- [ ] Check statusline
-  - [ ] Verify displays model, tokens, percentage, directory, git branch
-  - [ ] Verify topic displayed (from topic.json)
-  - [ ] Verify snarky comment displayed
-- [ ] Test feature toggles
-  - [ ] Edit `sidekick.conf`, set `FEATURE_TOPIC_EXTRACTION=false`
-  - [ ] Submit prompts, verify no analysis runs
-  - [ ] Re-enable, verify analysis resumes
-- [ ] Test configuration cascade
-  - [ ] Edit `~/.claude/hooks/sidekick/sidekick.conf`, set `SLEEPER_MAX_DURATION=300`
-  - [ ] Edit `.claude/hooks/sidekick/sidekick.conf`, set `SLEEPER_MAX_DURATION=120`
-  - [ ] Verify project config wins (check logs for sleeper duration)
-- [ ] Install to project scope (`./scripts/install.sh --project`)
-  - [ ] Verify files exist in `.claude/hooks/sidekick/`
-  - [ ] Verify `.claude/settings.json` has hooks registered
-  - [ ] Verify `.claudeignore` has `.sidekick/` (session state directory)
-- [ ] Test dual-scope (user + project installed)
-  - [ ] Verify project hooks fire (not user hooks)
-  - [ ] Verify project config overrides user config
-- [ ] Uninstall from user scope (`./scripts/uninstall.sh --user`)
-  - [ ] Verify `~/.claude/hooks/sidekick/` removed
-  - [ ] Verify hooks removed from settings.json
-- [ ] Uninstall from project scope (`./scripts/uninstall.sh --project`)
-  - [ ] Verify `.claude/hooks/sidekick/` removed
-  - [ ] Verify hooks removed from settings.json
+- [x] Submit 10 user prompts
+  - [x] Verify counter increments (check `response_count`)
+  - [x] Verify sleeper launched (check `sleeper.pid`)
+  - [x] Verify topic analysis runs (check `topic.json`)
+  - [x] Verify resume.json generated when topic changes significantly (significant_change=true AND clarity>=5)
+  - [x] Verify static reminder appears on 4th, 8th prompts
+- [x] Check statusline
+  - [x] Verify displays model, tokens, percentage, directory, git branch
+  - [x] Verify topic displayed (from topic.json)
+  - [x] Verify snarky comment displayed
+- [x] Test feature toggles
+  - [x] Edit `sidekick.conf`, set `FEATURE_TOPIC_EXTRACTION=false`
+  - [x] Submit prompts, verify no analysis runs
+  - [x] Re-enable, verify analysis resumes
+- [x] Test configuration cascade
+  - [x] Edit `~/.claude/hooks/sidekick/sidekick.conf`, set `SLEEPER_MAX_DURATION=300`
+  - [x] Edit `.claude/hooks/sidekick/sidekick.conf`, set `SLEEPER_MAX_DURATION=120`
+  - [x] Verify project config wins (check logs for sleeper duration)
+- [x] Install to project scope (`./scripts/install.sh --project`)
+  - [x] Verify files exist in `.claude/hooks/sidekick/`
+  - [x] Verify `.claude/settings.json` has hooks registered
+  - [x] Verify `.claudeignore` has `.sidekick/` (session state directory)
+- [x] Test dual-scope (user + project installed)
+  - [x] Verify project hooks fire (not user hooks)
+  - [x] Verify project config overrides user config
+- [x] Uninstall from user scope (`./scripts/uninstall.sh --user`)
+  - [x] Verify `~/.claude/hooks/sidekick/` removed
+  - [x] Verify hooks removed from settings.json
+- [x] Uninstall from project scope (`./scripts/uninstall.sh --project`)
+  - [x] Verify `.claude/hooks/sidekick/` removed
+  - [x] Verify hooks removed from settings.json
 
 ## Phase 6: Documentation & Deployment
 
