@@ -49,9 +49,6 @@ EOF
     # features.defaults - feature-specific tuning
     cat > "${TEST_SIDEKICK_ROOT}/features.defaults" <<'EOF'
 # Test defaults - features
-TOPIC_CADENCE_HIGH=10
-TOPIC_CADENCE_LOW=1
-TOPIC_CLARITY_THRESHOLD=7
 SLEEPER_MAX_DURATION=600
 SLEEPER_MIN_SIZE_CHANGE=500
 SLEEPER_MIN_INTERVAL=10
@@ -91,7 +88,7 @@ run_test() {
 
     # Reset config before each test
     unset FEATURE_TOPIC_EXTRACTION FEATURE_RESUME FEATURE_TRACKING
-    unset TOPIC_CADENCE_HIGH LOG_LEVEL
+    unset SLEEPER_MAX_DURATION LOG_LEVEL
     unset CLAUDE_PROJECT_DIR
 
     if "$test_name"; then
@@ -111,7 +108,7 @@ test_config_load_sources_defaults() {
 
     # Check that defaults were loaded
     [ "${FEATURE_TOPIC_EXTRACTION}" = "true" ]
-    [ "${TOPIC_CADENCE_HIGH}" = "10" ]
+    [ "${SLEEPER_MAX_DURATION}" = "600" ]
     [ "${LOG_LEVEL}" = "info" ]
 }
 
@@ -121,14 +118,14 @@ test_config_load_user_override() {
     mkdir -p "${HOME}/.claude/hooks/sidekick"
     cat > "${HOME}/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
 # User overrides
-TOPIC_CADENCE_HIGH=20
+SLEEPER_MAX_DURATION=300
 LOG_LEVEL=debug
 EOF
 
     config_load
 
     # User config should override defaults
-    [ "${TOPIC_CADENCE_HIGH}" = "20" ]
+    [ "${SLEEPER_MAX_DURATION}" = "300" ]
     [ "${LOG_LEVEL}" = "debug" ]
     # But unoverridden values should remain
     [ "${FEATURE_TOPIC_EXTRACTION}" = "true" ]
@@ -142,7 +139,7 @@ test_config_load_project_override() {
     # Create user config
     mkdir -p "${HOME}/.claude/hooks/sidekick"
     cat > "${HOME}/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
-TOPIC_CADENCE_HIGH=20
+SLEEPER_MAX_DURATION=20
 LOG_LEVEL=debug
 EOF
 
@@ -150,13 +147,13 @@ EOF
     export CLAUDE_PROJECT_DIR="${TEST_DIR}/project"
     mkdir -p "${CLAUDE_PROJECT_DIR}/.claude/hooks/sidekick"
     cat > "${CLAUDE_PROJECT_DIR}/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
-TOPIC_CADENCE_HIGH=30
+SLEEPER_MAX_DURATION=30
 EOF
 
     config_load
 
     # Project should override user
-    [ "${TOPIC_CADENCE_HIGH}" = "30" ]
+    [ "${SLEEPER_MAX_DURATION}" = "30" ]
     # But user should override defaults
     [ "${LOG_LEVEL}" = "debug" ]
 
@@ -169,7 +166,7 @@ test_config_get_returns_value() {
     config_load
 
     local value
-    value=$(config_get "TOPIC_CADENCE_HIGH")
+    value=$(config_get "SLEEPER_MAX_DURATION")
     [ "$value" = "10" ]
 }
 
@@ -248,7 +245,7 @@ test_config_validate_valid_log_level() {
 
 # Test: _config_validate checks numeric values
 test_config_validate_numeric_values() {
-    TOPIC_CADENCE_HIGH=10
+    SLEEPER_MAX_DURATION=10
     SLEEPER_MIN_SLEEP=2
     SLEEPER_MAX_SLEEP=20
 
@@ -257,7 +254,7 @@ test_config_validate_numeric_values() {
 
 # Test: _config_validate rejects non-numeric values
 test_config_validate_rejects_non_numeric() {
-    TOPIC_CADENCE_HIGH="not a number"
+    SLEEPER_MAX_DURATION="not a number"
 
     ! _config_validate 2>/dev/null
 }
@@ -399,7 +396,7 @@ test_modular_defaults_loaded() {
     [ "${LLM_CLAUDE_MODEL}" = "haiku" ]
 
     # Settings from features.defaults
-    [ "${TOPIC_CADENCE_HIGH}" = "10" ]
+    [ "${SLEEPER_MAX_DURATION}" = "10" ]
 }
 
 # Test: modular user config overrides modular defaults
@@ -415,7 +412,7 @@ EOF
 
     # Override feature settings
     cat > "${HOME}/.claude/hooks/sidekick/features.conf" <<'EOF'
-TOPIC_CADENCE_HIGH=15
+SLEEPER_MAX_DURATION=15
 EOF
 
     config_load
@@ -423,7 +420,7 @@ EOF
     # Modular overrides should work
     [ "${LLM_PROVIDER}" = "claude-cli" ]
     [ "${LLM_TIMEOUT_SECONDS}" = "20" ]
-    [ "${TOPIC_CADENCE_HIGH}" = "15" ]
+    [ "${SLEEPER_MAX_DURATION}" = "15" ]
 
     # Unoverridden values should remain from defaults
     [ "${LOG_LEVEL}" = "info" ]
@@ -445,14 +442,14 @@ EOF
     # Create legacy sidekick.conf (should override modular)
     cat > "${HOME}/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
 LLM_PROVIDER=openai-api
-TOPIC_CADENCE_HIGH=25
+SLEEPER_MAX_DURATION=25
 EOF
 
     config_load
 
     # Legacy sidekick.conf should override modular config
     [ "${LLM_PROVIDER}" = "openai-api" ]
-    [ "${TOPIC_CADENCE_HIGH}" = "25" ]
+    [ "${SLEEPER_MAX_DURATION}" = "25" ]
 
     # Cleanup
     rm -f "${HOME}/.claude/hooks/sidekick/llm-core.conf"
