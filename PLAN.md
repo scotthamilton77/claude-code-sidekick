@@ -106,7 +106,6 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - [x] Source required features (tracking, topic-extraction)
 - [x] Increment tracking counter
 - [x] Launch sleeper on first call (if enabled)
-- [x] Check cadence-based analysis (if enabled)
 - [x] Check static reminder cadence
 - [x] Output hook JSON if reminder due
 - [x] Add error handling for each step
@@ -144,10 +143,6 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
   - [x] Check clarity score and exit if threshold met
   - [x] Exit after max duration
   - [x] Cleanup PID file on exit
-- [x] Define `topic_extraction_check_cadence()`:
-  - [x] Get current clarity score from topic.json
-  - [x] Determine cadence based on clarity threshold
-  - [x] Launch analysis if due
 - [x] Define `topic_extraction_get_clarity()` - Extract clarity from topic.json
 
 ### 3.3 Implement Resume Feature
@@ -308,7 +303,6 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
   - [x] Trigger user-prompt-submit 10 times
   - [x] Verify counter increments correctly
   - [x] Verify sleeper launched on first call
-  - [x] Verify cadence-based analysis
   - [x] Verify static reminder output
 - [x] Create `scripts/tests/integration/test-statusline.sh`
   - [x] Create mock topic.json
@@ -359,8 +353,7 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - [x] **Root Cause**: Features were passing `bash -c "..."` to process_launch_background, causing double bash -c wrapping
 - [x] **Impact**: Non-fatal but pollutes logs
 - [x] **Fix**: Refactored cleanup.sh:63-101 to launch background process directly (not via process_launch_background)
-- [x] **Fix**: Refactored topic-extraction.sh:265-302 (cadence analysis) to launch directly
-- [x] **Fix**: Refactored topic-extraction.sh:342-366 (sleeper) to launch directly
+- [x] **Fix**: Refactored topic-extraction.sh sleeper to launch directly
 - [x] **Verify**: Re-run tests - ✅ PASS with clean logs (no bash errors)
 
 #### Success Criteria
@@ -392,9 +385,9 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
   - [ ] Submit prompts, verify no analysis runs
   - [ ] Re-enable, verify analysis resumes
 - [ ] Test configuration cascade
-  - [ ] Edit `~/.claude/hooks/sidekick/sidekick.conf`, set `TOPIC_CADENCE_HIGH=20`
-  - [ ] Edit `.claude/hooks/sidekick/sidekick.conf`, set `TOPIC_CADENCE_HIGH=5`
-  - [ ] Verify project config wins (check logs for cadence value)
+  - [ ] Edit `~/.claude/hooks/sidekick/sidekick.conf`, set `SLEEPER_MAX_DURATION=300`
+  - [ ] Edit `.claude/hooks/sidekick/sidekick.conf`, set `SLEEPER_MAX_DURATION=120`
+  - [ ] Verify project config wins (check logs for sleeper duration)
 - [ ] Install to project scope (`./scripts/install.sh --project`)
   - [ ] Verify files exist in `.claude/hooks/sidekick/`
   - [ ] Verify `.claude/settings.json` has hooks registered

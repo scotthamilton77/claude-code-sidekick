@@ -153,7 +153,7 @@ Environment variables are auto-exported via `set -a` during `config_load()`. Exa
 - `config.defaults` - Feature flags, global settings (LOG_LEVEL, SIDEKICK_CONSOLE_LOGGING)
 - `llm-core.defaults` - LLM infrastructure (LLM_PROVIDER, circuit breaker, timeouts, debugging)
 - `llm-providers.defaults` - Provider-specific configs (API keys, models, endpoints)
-- `features.defaults` - Feature tuning (TOPIC_CADENCE_HIGH, SLEEPER_MAX_DURATION, etc.)
+- `features.defaults` - Feature tuning (SLEEPER_MAX_DURATION, TOPIC_EXCERPT_LINES, etc.)
 
 **Cascade Levels** (later overrides earlier):
 1. **Defaults**: `src/sidekick/*.defaults` (required, modular)

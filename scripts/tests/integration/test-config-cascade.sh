@@ -158,7 +158,7 @@ test_user_overrides_defaults() {
     cat > "$HOME/.claude/hooks/sidekick-test/sidekick.conf" << 'EOF'
 # User config overrides
 LOG_LEVEL=debug
-TOPIC_CADENCE_HIGH=20
+SLEEPER_MAX_DURATION=20
 SLEEPER_ENABLED=false
 CLEANUP_MIN_COUNT=10
 EOF
@@ -171,10 +171,10 @@ EOF
         return
     fi
 
-    if test_config_value "TOPIC_CADENCE_HIGH" "20" "user"; then
-        pass "$test_name - TOPIC_CADENCE_HIGH overridden"
+    if test_config_value "SLEEPER_MAX_DURATION" "20" "user"; then
+        pass "$test_name - SLEEPER_MAX_DURATION overridden"
     else
-        fail "$test_name - TOPIC_CADENCE_HIGH" "User override failed"
+        fail "$test_name - SLEEPER_MAX_DURATION" "User override failed"
     fi
 
     if test_config_value "SLEEPER_ENABLED" "false" "user"; then
@@ -195,7 +195,7 @@ test_project_overrides_user() {
     cat > "$TEST_DIR/.claude/hooks/sidekick/sidekick.conf" << 'EOF'
 # Project config overrides
 LOG_LEVEL=warn
-TOPIC_CADENCE_HIGH=30
+SLEEPER_MAX_DURATION=30
 CLEANUP_MIN_COUNT=20
 EOF
 
@@ -207,10 +207,10 @@ EOF
         return
     fi
 
-    if test_config_value "TOPIC_CADENCE_HIGH" "30" "project"; then
-        pass "$test_name - TOPIC_CADENCE_HIGH overridden by project"
+    if test_config_value "SLEEPER_MAX_DURATION" "30" "project"; then
+        pass "$test_name - SLEEPER_MAX_DURATION overridden by project"
     else
-        fail "$test_name - TOPIC_CADENCE_HIGH" "Project override failed"
+        fail "$test_name - SLEEPER_MAX_DURATION" "Project override failed"
     fi
 
     if test_config_value "CLEANUP_MIN_COUNT" "20" "project"; then
@@ -244,15 +244,15 @@ test_full_cascade() {
         return
     fi
 
-    # Default: TOPIC_CADENCE_HIGH=10
-    # User: TOPIC_CADENCE_HIGH=20
-    # Project: TOPIC_CADENCE_HIGH=30
+    # Default: SLEEPER_MAX_DURATION=10
+    # User: SLEEPER_MAX_DURATION=20
+    # Project: SLEEPER_MAX_DURATION=30
     # Expected: 30 (project wins)
 
-    if test_config_value "TOPIC_CADENCE_HIGH" "30" "project"; then
-        pass "$test_name - TOPIC_CADENCE_HIGH = 30 (project wins)"
+    if test_config_value "SLEEPER_MAX_DURATION" "30" "project"; then
+        pass "$test_name - SLEEPER_MAX_DURATION = 30 (project wins)"
     else
-        fail "$test_name - TOPIC_CADENCE_HIGH" "Full cascade failed"
+        fail "$test_name - SLEEPER_MAX_DURATION" "Full cascade failed"
     fi
 
     # Default: SLEEPER_ENABLED=true
@@ -314,22 +314,22 @@ test_numeric_config_cascade() {
 
     # Create user config with numeric values
     cat > "$HOME/.claude/hooks/sidekick-test/sidekick.conf" << 'EOF'
-TOPIC_CADENCE_HIGH=20
+SLEEPER_MAX_DURATION=20
 SLEEPER_MAX_DURATION=300
 CLEANUP_AGE_DAYS=5
 EOF
 
     # Create project config overriding some
     cat > "$TEST_DIR/.claude/hooks/sidekick/sidekick.conf" << 'EOF'
-TOPIC_CADENCE_HIGH=15
+SLEEPER_MAX_DURATION=15
 SLEEPER_MAX_DURATION=450
 EOF
 
     # Test project overrides
-    if test_config_value "TOPIC_CADENCE_HIGH" "15" "project"; then
-        pass "$test_name - TOPIC_CADENCE_HIGH = 15 (project)"
+    if test_config_value "SLEEPER_MAX_DURATION" "15" "project"; then
+        pass "$test_name - SLEEPER_MAX_DURATION = 15 (project)"
     else
-        fail "$test_name - TOPIC_CADENCE_HIGH" "Project override failed"
+        fail "$test_name - SLEEPER_MAX_DURATION" "Project override failed"
         return
     fi
 
@@ -357,7 +357,7 @@ test_empty_user_config() {
     # Create project config
     cat > "$TEST_DIR/.claude/hooks/sidekick/sidekick.conf" << 'EOF'
 LOG_LEVEL=error
-TOPIC_CADENCE_HIGH=15
+SLEEPER_MAX_DURATION=15
 EOF
 
     # Test project values
@@ -408,7 +408,7 @@ test_user_persistent_overrides_user_installed() {
     # Create user installed config
     cat > "$HOME/.claude/hooks/sidekick-test/sidekick.conf" << 'EOF'
 LOG_LEVEL=debug
-TOPIC_CADENCE_HIGH=20
+SLEEPER_MAX_DURATION=20
 CLEANUP_MIN_COUNT=10
 EOF
 
@@ -439,10 +439,10 @@ EOF
     fi
 
     # Test that user installed config applies for non-overridden values
-    if test_config_value "TOPIC_CADENCE_HIGH" "20" "project"; then
-        pass "$test_name - TOPIC_CADENCE_HIGH = 20 (user installed)"
+    if test_config_value "SLEEPER_MAX_DURATION" "20" "project"; then
+        pass "$test_name - SLEEPER_MAX_DURATION = 20 (user installed)"
     else
-        fail "$test_name - TOPIC_CADENCE_HIGH" "User installed value not preserved"
+        fail "$test_name - SLEEPER_MAX_DURATION" "User installed value not preserved"
     fi
 
     # Cleanup user persistent config for next tests
@@ -456,13 +456,13 @@ test_versioned_project_overrides_deployed() {
     # Create user config
     cat > "$HOME/.claude/hooks/sidekick-test/sidekick.conf" << 'EOF'
 LOG_LEVEL=debug
-TOPIC_CADENCE_HIGH=20
+SLEEPER_MAX_DURATION=20
 EOF
 
     # Create project deployed config
     cat > "$TEST_DIR/.claude/hooks/sidekick/sidekick.conf" << 'EOF'
 LOG_LEVEL=warn
-TOPIC_CADENCE_HIGH=30
+SLEEPER_MAX_DURATION=30
 CLEANUP_MIN_COUNT=15
 EOF
 
@@ -489,10 +489,10 @@ EOF
     fi
 
     # Test that deployed project config applies for non-overridden values
-    if test_config_value "TOPIC_CADENCE_HIGH" "30" "project"; then
-        pass "$test_name - TOPIC_CADENCE_HIGH = 30 (deployed project)"
+    if test_config_value "SLEEPER_MAX_DURATION" "30" "project"; then
+        pass "$test_name - SLEEPER_MAX_DURATION = 30 (deployed project)"
     else
-        fail "$test_name - TOPIC_CADENCE_HIGH" "Deployed project value not preserved"
+        fail "$test_name - SLEEPER_MAX_DURATION" "Deployed project value not preserved"
     fi
 }
 
@@ -501,12 +501,12 @@ test_five_level_cascade() {
     local test_name="Five-level cascade (defaults → user installed → user persistent → deployed → versioned)"
 
     # Create all five levels with different values
-    # Defaults: LOG_LEVEL=info, TOPIC_CADENCE_HIGH=10, CLEANUP_MIN_COUNT=5, SLEEPER_MAX_DURATION=600
+    # Defaults: LOG_LEVEL=info, SLEEPER_MAX_DURATION=10, CLEANUP_MIN_COUNT=5, SLEEPER_MAX_DURATION=600
 
     # User installed config
     cat > "$HOME/.claude/hooks/sidekick-test/sidekick.conf" << 'EOF'
 LOG_LEVEL=debug
-TOPIC_CADENCE_HIGH=20
+SLEEPER_MAX_DURATION=20
 CLEANUP_MIN_COUNT=10
 SLEEPER_MAX_DURATION=300
 EOF
@@ -515,14 +515,14 @@ EOF
     mkdir -p "$HOME/.sidekick"
     cat > "$HOME/.sidekick/sidekick.conf" << 'EOF'
 LOG_LEVEL=info
-TOPIC_CADENCE_HIGH=25
+SLEEPER_MAX_DURATION=25
 CLEANUP_MIN_COUNT=12
 EOF
 
     # Project deployed config
     cat > "$TEST_DIR/.claude/hooks/sidekick/sidekick.conf" << 'EOF'
 LOG_LEVEL=warn
-TOPIC_CADENCE_HIGH=30
+SLEEPER_MAX_DURATION=30
 EOF
 
     # Versioned project config
@@ -532,7 +532,7 @@ EOF
 
     # Test cascade precedence:
     # LOG_LEVEL: error (versioned wins over all)
-    # TOPIC_CADENCE_HIGH: 30 (deployed wins over user persistent, user installed, defaults)
+    # SLEEPER_MAX_DURATION: 30 (deployed wins over user persistent, user installed, defaults)
     # CLEANUP_MIN_COUNT: 12 (user persistent wins over user installed, defaults)
     # SLEEPER_MAX_DURATION: 300 (user installed wins over defaults)
     # FEATURE_TRACKING: true (defaults, not overridden)
@@ -544,10 +544,10 @@ EOF
         return
     fi
 
-    if test_config_value "TOPIC_CADENCE_HIGH" "30" "project"; then
-        pass "$test_name - TOPIC_CADENCE_HIGH = 30 (deployed wins)"
+    if test_config_value "SLEEPER_MAX_DURATION" "30" "project"; then
+        pass "$test_name - SLEEPER_MAX_DURATION = 30 (deployed wins)"
     else
-        fail "$test_name - TOPIC_CADENCE_HIGH" "Five-level cascade failed"
+        fail "$test_name - SLEEPER_MAX_DURATION" "Five-level cascade failed"
     fi
 
     if test_config_value "CLEANUP_MIN_COUNT" "12" "project"; then
