@@ -13,6 +13,10 @@ This repository serves as a development and testing environment for [Claude Code
 ### Sidekick
 
 - refine the transcript analysis process
+  - STATUS:
+    - we've got an analyze-topic-at-line.sh that is good for benchmarking portions of a transcript (e.g. ddebe53b-347a-45dd-b421-9e4b9790c367)
+    - we now have the ability to define revised prompts and json-schema in the target folder and issue --use-revised to see the impact
+    - once we get a prompt revision that we like, we can ask claude to reverse engineer a plan of what code changes are necessary to implement the change
   - let's capture stronger sense of initial and current goal ALONG WITH a watermark (line indicator?) and perhaps summary of key points relative to topic extraction
     - this allows a delta analysis to focus more specifically on goal/objective changes
       - should call out rationale, keywords

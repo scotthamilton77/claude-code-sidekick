@@ -21,13 +21,19 @@
 #   --output-dir DIR           Output directory (default: test-data/topic-analysis/)
 #   --provider PROVIDER        LLM provider (default: openrouter)
 #   --model MODEL              Model name (default: google/gemini-2.5-flash-lite)
+#   --use-revised              Use ####-prompt-revised.txt instead of building prompt,
+#                              outputs to ####-topic-revised.json
 #
 # Output:
 #   <output-dir>/<session-id>/
-#     ├── 0100-transcript.jsonl  # Raw transcript lines 1-100
-#     ├── 0100-filtered.jsonl    # Preprocessed (what LLM sees)
-#     ├── 0100-prompt.txt        # Complete prompt sent to LLM
-#     └── 0100-topic.json        # Extracted topic result
+#     ├── 0100-transcript.jsonl          # Raw transcript lines 1-100
+#     ├── 0100-filtered.jsonl            # Preprocessed (what LLM sees)
+#     ├── 0100-prompt.txt                # Complete prompt sent to LLM
+#     ├── 0100-json-schema.json          # JSON schema passed to LLM
+#     ├── 0100-topic.json                # Extracted topic result
+#     ├── 0100-prompt-revised.txt        # Optional: manually edited prompt
+#     ├── 0100-json-schema-revised.json  # Optional: manually edited schema
+#     └── 0100-topic-revised.json        # Result from revised prompt/schema (--use-revised)
 #
 # Topic Continuity:
 #   Before analysis, scans output directory for previous topic files
@@ -43,14 +49,17 @@
 #
 #   # Works out of order - uses 0100-topic.json (highest < 150)
 #   ./scripts/analyze-topic-at-line.sh abc123 --to-line 150
+#
+#   # Test revised prompt - edit 0100-prompt.txt, save as 0100-prompt-revised.txt
+#   ./scripts/analyze-topic-at-line.sh abc123 --to-line 100 --use-revised
 ###############################################################################
 
 set -euo pipefail
 
 # Check for help first (before parsing positional args)
 if [ $# -eq 0 ] || [[ "${1:-}" =~ ^(-h|--help)$ ]]; then
-    # Extract documentation header (lines 2-44, skip shebang)
-    sed -n '2,44p' "$0" | sed 's/^# *//' | sed 's/^#$//'
+    # Extract documentation header (lines 2-54, skip shebang)
+    sed -n '2,54p' "$0" | sed 's/^# *//' | sed 's/^#$//'
     exit 0
 fi
 
@@ -69,6 +78,7 @@ PROVIDER="openrouter"
 MODEL="google/gemini-2.5-flash-lite"
 OUTPUT_DIR="test-data/topic-analysis"
 TO_LINE=-1  # Required
+USE_REVISED=false  # Use revised prompt instead of building
 
 # Parse options
 while [[ $# -gt 0 ]]; do
@@ -88,6 +98,10 @@ while [[ $# -gt 0 ]]; do
         --output-dir)
             OUTPUT_DIR="$2"
             shift 2
+            ;;
+        --use-revised)
+            USE_REVISED=true
+            shift
             ;;
         *)
             echo "Unknown option: $1"
@@ -299,14 +313,39 @@ echo "Filtered result:  $FILTERED_COUNT messages (from $TO_LINE raw lines)"
 echo ""
 
 ###############################################################################
-# Build Complete Prompt
+# Build Complete Prompt (or load revised)
 ###############################################################################
 
-echo "Building complete prompt..."
+# Generate output file prefix early (needed for revised prompt detection)
+FILE_PREFIX=$(printf '%04d' "$TO_LINE")
 
-# Load prompt template and schema
-PROMPT_TEMPLATE_PATH=$(path_resolve_cascade "prompts/topic.prompt.txt" "$CLAUDE_PROJECT_DIR")
-SCHEMA_PATH=$(path_resolve_cascade "prompts/topic.schema.json" "$CLAUDE_PROJECT_DIR")
+# Determine if using revised prompt
+if [ "$USE_REVISED" = true ]; then
+    # Check for revised prompt file
+    REVISED_PROMPT_FILE="${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-prompt-revised.txt"
+
+    if [ ! -f "$REVISED_PROMPT_FILE" ]; then
+        echo "ERROR: --use-revised specified but file not found:"
+        echo "  $REVISED_PROMPT_FILE"
+        echo ""
+        echo "Workflow:"
+        echo "  1. Run analysis normally to generate ${FILE_PREFIX}-prompt.txt"
+        echo "  2. Edit and save as ${FILE_PREFIX}-prompt-revised.txt"
+        echo "  3. Run again with --use-revised flag"
+        exit 1
+    fi
+
+    echo "Loading revised prompt..."
+    echo "  Source: ${FILE_PREFIX}-prompt-revised.txt"
+    PROMPT_TEXT=$(cat "$REVISED_PROMPT_FILE")
+    echo "  Size: $(wc -c < "$REVISED_PROMPT_FILE") bytes"
+    echo ""
+else
+    echo "Building complete prompt..."
+
+    # Load prompt template and schema
+    PROMPT_TEMPLATE_PATH=$(path_resolve_cascade "prompts/topic.prompt.txt" "$CLAUDE_PROJECT_DIR")
+    SCHEMA_PATH=$(path_resolve_cascade "prompts/topic.schema.json" "$CLAUDE_PROJECT_DIR")
 
 if [ -z "$PROMPT_TEMPLATE_PATH" ] || [ ! -f "$PROMPT_TEMPLATE_PATH" ]; then
     log_error "Prompt template not found: prompts/topic.prompt.txt"
@@ -321,6 +360,10 @@ fi
 # Read files
 PROMPT_TEMPLATE=$(cat "$PROMPT_TEMPLATE_PATH")
 SCHEMA_JSON=$(cat "$SCHEMA_PATH")
+
+# Save schema as artifact for reference/revision
+TEMP_SCHEMA="${TEMP_WORK_DIR}/schema.json"
+echo "$SCHEMA_JSON" > "$TEMP_SCHEMA"
 
 # Build prompt with substitutions using bash parameter expansion
 # This handles multi-line JSON and special characters safely
@@ -345,6 +388,7 @@ echo "$PROMPT_TEXT" > "$TEMP_PROMPT"
 
 echo "Prompt built ($(wc -c < "$TEMP_PROMPT") bytes)"
 echo ""
+fi  # End of USE_REVISED conditional
 
 ###############################################################################
 # Invoke LLM
@@ -353,8 +397,19 @@ echo ""
 echo "Invoking LLM ($PROVIDER / $MODEL)..."
 export LOG_LEVEL=ERROR  # Suppress debug logs for cleaner output
 
-# Load JSON schema for LLM
-JSON_SCHEMA=$(llm_load_schema "topic.schema")
+# Load JSON schema for LLM (check for revised version first)
+if [ "$USE_REVISED" = true ]; then
+    REVISED_SCHEMA_FILE="${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-json-schema-revised.json"
+    if [ -f "$REVISED_SCHEMA_FILE" ]; then
+        echo "  Using revised JSON schema: ${FILE_PREFIX}-json-schema-revised.json"
+        JSON_SCHEMA=$(cat "$REVISED_SCHEMA_FILE")
+    else
+        echo "  No revised schema found, using default"
+        JSON_SCHEMA=$(llm_load_schema "topic.schema")
+    fi
+else
+    JSON_SCHEMA=$(llm_load_schema "topic.schema")
+fi
 
 # Invoke LLM with schema
 if ! llm_output=$(llm_invoke "$MODEL" "$PROMPT_TEXT" 60 "$JSON_SCHEMA"); then
@@ -382,24 +437,32 @@ echo ""
 
 echo "Saving artifacts..."
 
-# Generate output file prefix (4-digit zero-padded)
-FILE_PREFIX=$(printf '%04d' "$TO_LINE")
+# Determine output files based on mode
+if [ "$USE_REVISED" = true ]; then
+    # Revised mode: only save revised topic
+    ARTIFACT_TOPIC="${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-topic-revised.json"
+    echo "$topic_json" | jq '.' > "$ARTIFACT_TOPIC"
+    echo "  → ${FILE_PREFIX}-topic-revised.json"
+else
+    # Normal mode: save all artifacts
+    ARTIFACT_TRANSCRIPT="${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-transcript.jsonl"
+    ARTIFACT_FILTERED="${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-filtered.jsonl"
+    ARTIFACT_PROMPT="${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-prompt.txt"
+    ARTIFACT_SCHEMA="${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-json-schema.json"
+    ARTIFACT_TOPIC="${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-topic.json"
 
-# Save all artifacts
-ARTIFACT_TRANSCRIPT="${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-transcript.jsonl"
-ARTIFACT_FILTERED="${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-filtered.jsonl"
-ARTIFACT_PROMPT="${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-prompt.txt"
-ARTIFACT_TOPIC="${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-topic.json"
+    cp "$TEMP_TRANSCRIPT" "$ARTIFACT_TRANSCRIPT"
+    cp "$TEMP_FILTERED" "$ARTIFACT_FILTERED"
+    cp "$TEMP_PROMPT" "$ARTIFACT_PROMPT"
+    cp "$TEMP_SCHEMA" "$ARTIFACT_SCHEMA"
+    echo "$topic_json" | jq '.' > "$ARTIFACT_TOPIC"
 
-cp "$TEMP_TRANSCRIPT" "$ARTIFACT_TRANSCRIPT"
-cp "$TEMP_FILTERED" "$ARTIFACT_FILTERED"
-cp "$TEMP_PROMPT" "$ARTIFACT_PROMPT"
-echo "$topic_json" | jq '.' > "$ARTIFACT_TOPIC"
-
-echo "  → ${FILE_PREFIX}-transcript.jsonl  (raw, $TO_LINE lines)"
-echo "  → ${FILE_PREFIX}-filtered.jsonl    (preprocessed, $FILTERED_COUNT lines)"
-echo "  → ${FILE_PREFIX}-prompt.txt        ($(wc -c < "$ARTIFACT_PROMPT") bytes)"
-echo "  → ${FILE_PREFIX}-topic.json"
+    echo "  → ${FILE_PREFIX}-transcript.jsonl  (raw, $TO_LINE lines)"
+    echo "  → ${FILE_PREFIX}-filtered.jsonl    (preprocessed, $FILTERED_COUNT lines)"
+    echo "  → ${FILE_PREFIX}-prompt.txt        ($(wc -c < "$ARTIFACT_PROMPT") bytes)"
+    echo "  → ${FILE_PREFIX}-json-schema.json  ($(wc -c < "$ARTIFACT_SCHEMA") bytes)"
+    echo "  → ${FILE_PREFIX}-topic.json"
+fi
 echo ""
 
 ###############################################################################
@@ -428,12 +491,23 @@ echo "Next steps:"
 echo "  # View extracted topic"
 echo "  cat $ARTIFACT_TOPIC"
 echo ""
-echo "  # View filtered transcript (LLM input)"
-echo "  cat $ARTIFACT_FILTERED"
-echo ""
-echo "  # View complete prompt"
-echo "  cat $ARTIFACT_PROMPT"
-echo ""
+
+if [ "$USE_REVISED" = false ]; then
+    echo "  # View filtered transcript (LLM input)"
+    echo "  cat ${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-filtered.jsonl"
+    echo ""
+    echo "  # View complete prompt and schema"
+    echo "  cat ${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-prompt.txt"
+    echo "  cat ${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-json-schema.json"
+    echo ""
+    echo "  # Edit prompt/schema and test revision"
+    echo "  cp ${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-prompt.txt ${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-prompt-revised.txt"
+    echo "  cp ${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-json-schema.json ${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-json-schema-revised.json"
+    echo "  # ... edit the revised files ..."
+    echo "  ./scripts/analyze-topic-at-line.sh $SESSION_ID --to-line $TO_LINE --use-revised"
+    echo ""
+fi
+
 echo "  # Analyze next checkpoint"
 echo "  ./scripts/analyze-topic-at-line.sh $SESSION_ID --to-line $((TO_LINE + 100))"
 echo ""
