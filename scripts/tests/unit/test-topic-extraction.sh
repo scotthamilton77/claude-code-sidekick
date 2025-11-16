@@ -396,6 +396,38 @@ EOF
     [ "$count" = "2" ]
 }
 
+test_excerpt_filters_meta_messages() {
+    # Skip if function doesn't exist yet
+    if ! command -v _topic_extraction_extract_excerpt &> /dev/null; then
+        return 0
+    fi
+
+    export TOPIC_EXCERPT_LINES=10
+
+    local transcript="$TEST_DIR/transcript-with-meta.jsonl"
+    cat > "$transcript" <<'EOF'
+{"isMeta":true,"message":{"role":"user","content":"This is a meta message"}}
+{"isMeta":false,"message":{"role":"user","content":"Hello"}}
+{"message":{"role":"assistant","content":"Response"}}
+{"isMeta":true,"message":{"role":"user","content":"Another meta message"}}
+EOF
+
+    local result
+    result=$(_topic_extraction_extract_excerpt "$transcript")
+
+    # Should have 2 messages (isMeta=true filtered out)
+    local count
+    count=$(echo "$result" | jq 'length')
+    [ "$count" = "2" ]
+
+    # Verify the correct messages were kept
+    local content1 content2
+    content1=$(echo "$result" | jq -r '.[0].content')
+    content2=$(echo "$result" | jq -r '.[1].content')
+    [ "$content1" = "Hello" ]
+    [ "$content2" = "Response" ]
+}
+
 test_excerpt_respects_line_count_config() {
     # Skip if function doesn't exist yet
     if ! command -v _topic_extraction_extract_excerpt &> /dev/null; then
@@ -931,6 +963,7 @@ main() {
     run_test test_excerpt_keeps_tool_messages_when_disabled
     run_test test_excerpt_strips_metadata_fields
     run_test test_excerpt_filters_null_messages
+    run_test test_excerpt_filters_meta_messages
     run_test test_excerpt_respects_line_count_config
     run_test test_excerpt_extracts_only_message_field
 
