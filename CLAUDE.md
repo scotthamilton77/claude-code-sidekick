@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | **Install Sidekick**       | `./scripts/install.sh --user` → `claude --continue`                        |
 | **Run tests**              | `./scripts/tests/run-unit-tests.sh` (mocked, free)                         |
 | **Add plugin**             | Create `src/sidekick/features/my-feature.sh` + enable in `config.defaults` |
-| **Config options**         | `src/sidekick/config.defaults` (all settings documented)                   |
+| **Config options**         | `src/sidekick/*.defaults` (4 modular files: config, llm-core, llm-providers, features) |
 | **Architecture deep-dive** | `ARCH.md` (design), `PLAN.md` (progress)                                   |
 | **Benchmark (Bash)**       | `scripts/benchmark/` (production, 3K LOC)                                  |
 | **Benchmark (TypeScript)** | `benchmark-next/` (greenfield rewrite)                                     |
@@ -147,17 +147,32 @@ Environment variables are auto-exported via `set -a` during `config_load()`. Exa
 
 **Best Practice**: Store global API keys in `~/.sidekick/.env` (never commit), project-specific keys in `.sidekick/.env` (git-committable with encryption/secrets management).
 
-**Config Files** (five-level cascade, later overrides earlier):
+**Config Files** (modular architecture with five-level cascade):
 
-1. `src/sidekick/config.defaults` - Baseline settings
-2. `~/.claude/hooks/sidekick/sidekick.conf` - User-wide installed (ephemeral)
-3. `~/.sidekick/sidekick.conf` - User-wide persistent (survives install/uninstall)
-4. `.claude/hooks/sidekick/sidekick.conf` - Project ephemeral (deleted on uninstall)
-5. `.sidekick/sidekick.conf` - **Highest priority**, survives install/uninstall, git-committable
+**Modular Domains** (defaults layer):
+- `config.defaults` - Feature flags, global settings (LOG_LEVEL, SIDEKICK_CONSOLE_LOGGING)
+- `llm-core.defaults` - LLM infrastructure (LLM_PROVIDER, circuit breaker, timeouts, debugging)
+- `llm-providers.defaults` - Provider-specific configs (API keys, models, endpoints)
+- `features.defaults` - Feature tuning (TOPIC_CADENCE_HIGH, SLEEPER_MAX_DURATION, etc.)
 
-**Pattern**: Use `.env` for API keys (never commit to git), use config files for settings. Only specify overrides (minimal configs). Commit #5 for team-wide settings, use #3 for personal preferences.
+**Cascade Levels** (later overrides earlier):
+1. **Defaults**: `src/sidekick/*.defaults` (required, modular)
+2. **User installed**: `~/.claude/hooks/sidekick/*.conf` (optional, ephemeral)
+3. **User persistent**: `~/.sidekick/*.conf` (optional, survives install/uninstall)
+4. **Project deployed**: `.claude/hooks/sidekick/*.conf` (optional, deleted on uninstall)
+5. **Project versioned**: `.sidekick/*.conf` (optional, highest priority, git-committable)
 
-See `src/sidekick/config.defaults` for all available options.
+**Loading Order** (at each cascade level):
+- Modular files: `config.conf` → `llm-core.conf` → `llm-providers.conf` → `features.conf`
+- Legacy file: `sidekick.conf` (loads LAST, overrides all modular files for backward compatibility)
+
+**Override Strategies**:
+- **Modular**: Create domain-specific .conf files (e.g., `llm-providers.conf` to override just LLM settings)
+- **Simple**: Use `sidekick.conf` to override any setting from any domain (single file, loads last)
+
+**Pattern**: Use `.env` for API keys (never commit), modular `.conf` for domain-specific overrides, or `sidekick.conf` for simple single-file overrides. Commit project versioned (#5) for team-wide settings, use user persistent (#3) for personal preferences.
+
+See `src/sidekick/*.defaults` for all available options in each domain.
 
 ### File Cascade (Prompts & Reminders)
 
@@ -183,7 +198,7 @@ Sidekick uses a pluggable LLM provider system for conversation analysis and resu
 
 **Supported Providers**: Claude CLI (default), OpenAI API, OpenRouter API, custom shell commands
 
-**Key Settings** (see `src/sidekick/config.defaults` for complete list):
+**Key Settings** (see `src/sidekick/llm-core.defaults` and `llm-providers.defaults` for complete list):
 
 - `LLM_PROVIDER` - Provider selection (claude-cli | openai-api | openrouter | custom)
 - `LLM_TIMEOUT_SECONDS` - Global timeout (default: 10s), with retry support
@@ -197,7 +212,7 @@ Automatic resilience for flaky LLM providers: CLOSED (use primary) → 3 failure
 
 **Use Case**: Cheap-but-flaky primary (OpenRouter) with reliable fallback (Claude CLI). State persists per-session in `.sidekick/sessions/<session_id>/circuit-breaker.json`.
 
-**Config**: `CIRCUIT_BREAKER_ENABLED`, `LLM_FALLBACK_PROVIDER`, `CIRCUIT_BREAKER_FAILURE_THRESHOLD` (see `config.defaults`)
+**Config**: `CIRCUIT_BREAKER_ENABLED`, `LLM_FALLBACK_PROVIDER`, `CIRCUIT_BREAKER_FAILURE_THRESHOLD` (see `llm-core.defaults`)
 **Testing**: `./scripts/tests/unit/test-circuit-breaker.sh` and `./scripts/tests/demo-circuit-breaker.sh`
 
 ### Logging & Troubleshooting

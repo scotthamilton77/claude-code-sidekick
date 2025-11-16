@@ -12,8 +12,6 @@ This repository serves as a development and testing environment for [Claude Code
 
 ### Sidekick
 
-- config needs to be modularized
-- reminder generator: what if there are no CLAUDE.md's? Don't ask to generate
 - standardize parameter names and styles in the scripts (e.g. --project-dir vs. not, internally using output_dir, etc.)
 - sleeper process
   - is this per session? what happens when a new session is started? Does the sleeper just time out without further API calls (it should)?
@@ -245,25 +243,34 @@ Configure in `.claude/mcp.json`.
 
 ### Sidekick Configuration Cascade
 
-Sidekick uses a five-level configuration cascade (later sources override earlier):
+Sidekick uses **modular configuration** with a five-level cascade (later sources override earlier):
 
-1. **Defaults**: `src/sidekick/config.defaults`
-2. **User Installed**: `~/.claude/hooks/sidekick/sidekick.conf` (ephemeral, deleted on uninstall)
-3. **User Persistent**: `~/.sidekick/sidekick.conf` (survives install/uninstall)
-4. **Project Deployed**: `.claude/hooks/sidekick/sidekick.conf` (ephemeral, deleted on uninstall)
-5. **Project Versioned**: `.sidekick/sidekick.conf` (**highest priority**, persistent, can be committed)
+**Modular Domains**:
+- `config` - Feature flags, global settings
+- `llm-core` - LLM infrastructure (provider, circuit breaker, timeouts)
+- `llm-providers` - Provider-specific configs (API keys, models)
+- `features` - Feature tuning parameters
 
-**Recommended approach**: Use `.sidekick/sidekick.conf` for team-wide project settings that should be version-controlled. Use `~/.sidekick/sidekick.conf` for personal preferences that apply across all projects.
+**Cascade Levels**:
+1. **Defaults**: `src/sidekick/*.defaults` (required, modular)
+2. **User Installed**: `~/.claude/hooks/sidekick/*.conf` (optional, ephemeral)
+3. **User Persistent**: `~/.sidekick/*.conf` (optional, survives install/uninstall)
+4. **Project Deployed**: `.claude/hooks/sidekick/*.conf` (optional, ephemeral)
+5. **Project Versioned**: `.sidekick/*.conf` (**highest priority**, persistent, can be committed)
 
-**Example - Personal preferences for all projects**:
+**Templates**: After installation, `.sidekick/` and `~/.sidekick/` contain `*.conf.template` files. Rename to `*.conf` to activate.
+
+**Override Strategies**:
+- **Modular**: Create domain-specific .conf files (e.g., `llm-providers.conf` for LLM settings only)
+- **Simple**: Use `sidekick.conf` to override any setting from any domain (single file, loads last)
+
+**Example - Override LLM provider settings**:
 
 ```bash
-# Create persistent user config (survives install/uninstall)
-mkdir -p ~/.sidekick
-cat > ~/.sidekick/sidekick.conf <<'EOF'
-LOG_LEVEL=debug
-TOPIC_CADENCE_HIGH=15
-EOF
+# Rename template and customize (survives install/uninstall)
+cd ~/.sidekick
+mv llm-providers.conf.template llm-providers.conf
+# Edit to set your provider and API key
 ```
 
 ### LLM Provider Configuration

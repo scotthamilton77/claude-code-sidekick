@@ -22,7 +22,11 @@ claude-config/
 │   │   └── common.sh                      # All shared functions (~1000 lines)
 │   │
 │   ├── sidekick.sh                        # Main entry point & router
-│   ├── config.defaults                    # Default configuration
+│   │
+│   ├── config.defaults                    # Core config (features, global)
+│   ├── llm-core.defaults                  # LLM infrastructure config
+│   ├── llm-providers.defaults             # Provider-specific config
+│   ├── features.defaults                  # Feature tuning config
 │   │
 │   ├── handlers/
 │   │   ├── session-start.sh               # SessionStart orchestrator
@@ -167,20 +171,33 @@ _config_validate
 0b. Source `$CLAUDE_PROJECT_DIR/.env` (optional, project root, shared with other tools)
 0c. Source `$CLAUDE_PROJECT_DIR/.sidekick/.env` (optional, project sidekick-specific, highest priority)
 
-**Configuration Cascade** (config files):
-1. Source `src/sidekick/config.defaults` (must exist)
-2. Source `~/.claude/hooks/sidekick/sidekick.conf` (optional, user-wide installed, ephemeral)
-3. Source `~/.sidekick/sidekick.conf` (optional, user-wide persistent)
-4. Source `$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.conf` (optional, project deployed, ephemeral)
-5. Source `$CLAUDE_PROJECT_DIR/.sidekick/sidekick.conf` (optional, **project versioned**, highest priority)
+**Configuration Cascade** (modular config files):
 
-**Result**: `.env` files set environment variables (auto-exported via `set -a`), then config files override. Later sources override earlier ones.
+**Modular Domains** (loaded in this order at each cascade level):
+- `config` - Feature flags, global settings
+- `llm-core` - LLM infrastructure (provider, circuit breaker, timeouts, debugging)
+- `llm-providers` - Provider-specific configs (API keys, models, endpoints)
+- `features` - Feature tuning parameters
+- `sidekick` - Legacy single-file override (loads LAST, overrides all domains)
+
+**Cascade Levels** (later overrides earlier):
+1. **Defaults**: `src/sidekick/*.defaults` (required, must exist)
+2. **User Installed**: `~/.claude/hooks/sidekick/*.conf` (optional, ephemeral)
+3. **User Persistent**: `~/.sidekick/*.conf` (optional, survives install/uninstall)
+4. **Project Deployed**: `$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/*.conf` (optional, ephemeral)
+5. **Project Versioned**: `$CLAUDE_PROJECT_DIR/.sidekick/*.conf` (optional, **highest priority**, can be committed)
+
+**Loading Order**: At each cascade level, sources: `config.{defaults|conf}` → `llm-core.{defaults|conf}` → `llm-providers.{defaults|conf}` → `features.{defaults|conf}` → `sidekick.conf` (legacy)
+
+**Result**: `.env` files set environment variables (auto-exported via `set -a`), then modular config files cascade. Later sources override earlier ones.
+
+**Templates**: Installation creates `*.conf.template` files in persistent directories by copying `*.defaults` files. Users rename to `*.conf` to activate.
 
 **Key Distinctions**:
 - **Installed configs** (`~/.claude/hooks/sidekick/` and `.claude/hooks/sidekick/`): Ephemeral, deleted on uninstall
 - **Persistent configs** (`~/.sidekick/` and `.sidekick/`): Survive install/uninstall, can be committed to git
-- **User-wide persistent** (`~/.sidekick/sidekick.conf`): Personal preferences across all projects
-- **Project versioned** (`.sidekick/sidekick.conf`): Team-wide project settings
+- **Modular overrides**: Domain-specific (e.g., `llm-providers.conf` for LLM settings only)
+- **Legacy override**: `sidekick.conf` can override any setting from any domain (single file, loads last)
 
 #### PATH RESOLUTION
 ```bash

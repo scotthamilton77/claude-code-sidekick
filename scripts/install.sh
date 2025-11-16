@@ -162,6 +162,36 @@ check_prerequisites() {
     log_info "Prerequisites check passed"
 }
 
+# Create modular config templates from .defaults files
+# Args:
+#   $1 - source directory containing .defaults files
+#   $2 - destination directory for .conf.template files
+create_modular_config_templates() {
+    local source_dir="$1"
+    local dest_dir="$2"
+
+    # Modular config files
+    local modules=(
+        "config"
+        "llm-core"
+        "llm-providers"
+        "features"
+    )
+
+    mkdir -p "$dest_dir"
+
+    # Copy each .defaults file as .conf.template
+    for module in "${modules[@]}"; do
+        local source_file="$source_dir/${module}.defaults"
+        local template_file="$dest_dir/${module}.conf.template"
+
+        if [ -f "$source_file" ]; then
+            cp "$source_file" "$template_file"
+            log_info "Created template: ${module}.conf.template"
+        fi
+    done
+}
+
 # Copy files to destination
 copy_files() {
     local dest_dir="$1"
@@ -212,14 +242,11 @@ copy_files() {
         done
     fi
 
-    # Restore or create sidekick.conf (user scope only)
+    # Restore existing sidekick.conf if it exists (user scope only)
     if [ "$scope" = "user" ]; then
         if [ -n "$existing_config" ] && [ -f "$existing_config" ]; then
             mv "$existing_config" "$dest_dir/sidekick.conf"
             log_info "Preserved existing sidekick.conf"
-        else
-            cp "$dest_dir/config.defaults" "$dest_dir/sidekick.conf"
-            log_info "Created sidekick.conf from defaults"
         fi
     fi
 
@@ -270,14 +297,10 @@ initialize_project_config_templates() {
     # Create .sidekick directory if it doesn't exist
     mkdir -p "$sidekick_dir"
 
-    # Create sidekick.conf.template if it doesn't exist (don't overwrite)
-    if [ ! -f "$config_template" ]; then
-        cp "$SRC_DIR/config.defaults" "$config_template"
-        log_info "Created config template: $config_template"
-        log_info "Rename to sidekick.conf to override defaults (survives install/uninstall, can be committed)"
-    else
-        log_info "Preserving existing config template: $config_template"
-    fi
+    # Create modular config templates if they don't exist (don't overwrite)
+    create_modular_config_templates "$SRC_DIR" "$sidekick_dir"
+    log_info "Modular templates created in $sidekick_dir"
+    log_info "Rename *.conf.template → *.conf to override defaults (survives install/uninstall, can be committed)"
 
     # Copy README.md template (always overwrite to get latest docs)
     local readme_template="$SRC_DIR/templates/sidekick-directory-README.md"
@@ -438,17 +461,12 @@ install_to_user() {
     # Register hooks
     register_hooks_in_settings "$settings_file" "~/.claude/hooks/sidekick"
 
-    # Create config template in user-persistent location
+    # Create modular config templates in user-persistent location
     local user_sidekick_dir="$HOME/.sidekick"
     mkdir -p "$user_sidekick_dir"
 
-    local config_template="$user_sidekick_dir/sidekick.conf.template"
-    if [ ! -f "$config_template" ]; then
-        cp "$SRC_DIR/config.defaults" "$config_template"
-        log_info "Created user config template: $config_template"
-    else
-        log_info "Preserving existing user config template"
-    fi
+    create_modular_config_templates "$SRC_DIR" "$user_sidekick_dir"
+    log_info "Modular templates created in $user_sidekick_dir"
 
     # Create reminder templates in user-persistent location
     create_reminder_template "$user_sidekick_dir"
@@ -523,7 +541,7 @@ offer_reminder_generation() {
     # Offer user-scope generation if user installation was done
     if [[ "$INSTALL_USER" = true ]]; then
         if [[ -f "${HOME}/.claude/CLAUDE.md" ]]; then
-            if prompt_yes_no "Generate user-scope reminder from ~/.claude/CLAUDE.md?" "Y"; then
+            if prompt_yes_no "Generate user-scope reminder from ~/.claude/CLAUDE.md?" "N"; then
                 log_step "Generating user-scope reminder template..."
                 if "$generate_script" --user; then
                     log_info "User-scope reminder template generated"
@@ -542,7 +560,7 @@ offer_reminder_generation() {
         local project_claude_md="$project_dir/CLAUDE.md"
 
         if [[ -f "$project_claude_md" ]]; then
-            if prompt_yes_no "Generate project-scope reminder from project CLAUDE.md?" "Y"; then
+            if prompt_yes_no "Generate project-scope reminder from project CLAUDE.md?" "N"; then
                 log_step "Generating project-scope reminder template..."
                 if "$generate_script" --project; then
                     log_info "Project-scope reminder template generated"
@@ -561,7 +579,7 @@ offer_reminder_generation() {
         if [[ -f "$project_claude_md" ]]; then
             echo ""
             echo "Note: Current project has a CLAUDE.md file."
-            if prompt_yes_no "Generate project-scope reminder for current project?" "n"; then
+            if prompt_yes_no "Generate project-scope reminder for current project?" "N"; then
                 log_step "Generating project-scope reminder template..."
                 if "$generate_script" --project; then
                     log_info "Project-scope reminder template generated"
