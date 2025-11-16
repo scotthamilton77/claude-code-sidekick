@@ -21,15 +21,35 @@ setup() {
     TEST_SIDEKICK_ROOT="${TEST_DIR}/sidekick"
     mkdir -p "${TEST_SIDEKICK_ROOT}/lib"
 
-    # Create minimal config.defaults
+    # Create modular config defaults
+    # config.defaults - feature flags and global settings
     cat > "${TEST_SIDEKICK_ROOT}/config.defaults" <<'EOF'
-# Test defaults
+# Test defaults - core
 FEATURE_TOPIC_EXTRACTION=true
 FEATURE_RESUME=true
 FEATURE_TRACKING=true
 FEATURE_NONEXISTENT=false
-TOPIC_CADENCE_HIGH=10
 LOG_LEVEL=info
+EOF
+
+    # llm-core.defaults - LLM infrastructure
+    cat > "${TEST_SIDEKICK_ROOT}/llm-core.defaults" <<'EOF'
+# Test defaults - LLM core
+LLM_PROVIDER=openrouter
+LLM_TIMEOUT_SECONDS=10
+EOF
+
+    # llm-providers.defaults - provider-specific configs
+    cat > "${TEST_SIDEKICK_ROOT}/llm-providers.defaults" <<'EOF'
+# Test defaults - LLM providers
+LLM_OPENROUTER_MODEL=google/gemini-2.0-flash-lite-001
+LLM_CLAUDE_MODEL=haiku
+EOF
+
+    # features.defaults - feature-specific tuning
+    cat > "${TEST_SIDEKICK_ROOT}/features.defaults" <<'EOF'
+# Test defaults - features
+TOPIC_CADENCE_HIGH=10
 TOPIC_CADENCE_LOW=1
 TOPIC_CLARITY_THRESHOLD=7
 SLEEPER_MAX_DURATION=600
@@ -362,6 +382,110 @@ EOF
     rm -f "${HOME}/.sidekick/.env"
 }
 
+# Test: modular defaults are loaded
+test_modular_defaults_loaded() {
+    config_load
+
+    # Settings from config.defaults
+    [ "${FEATURE_TOPIC_EXTRACTION}" = "true" ]
+    [ "${LOG_LEVEL}" = "info" ]
+
+    # Settings from llm-core.defaults
+    [ "${LLM_PROVIDER}" = "openrouter" ]
+    [ "${LLM_TIMEOUT_SECONDS}" = "10" ]
+
+    # Settings from llm-providers.defaults
+    [ "${LLM_OPENROUTER_MODEL}" = "google/gemini-2.0-flash-lite-001" ]
+    [ "${LLM_CLAUDE_MODEL}" = "haiku" ]
+
+    # Settings from features.defaults
+    [ "${TOPIC_CADENCE_HIGH}" = "10" ]
+}
+
+# Test: modular user config overrides modular defaults
+test_modular_user_config_overrides() {
+    # Create modular user config files
+    mkdir -p "${HOME}/.claude/hooks/sidekick"
+
+    # Override LLM settings
+    cat > "${HOME}/.claude/hooks/sidekick/llm-core.conf" <<'EOF'
+LLM_PROVIDER=claude-cli
+LLM_TIMEOUT_SECONDS=20
+EOF
+
+    # Override feature settings
+    cat > "${HOME}/.claude/hooks/sidekick/features.conf" <<'EOF'
+TOPIC_CADENCE_HIGH=15
+EOF
+
+    config_load
+
+    # Modular overrides should work
+    [ "${LLM_PROVIDER}" = "claude-cli" ]
+    [ "${LLM_TIMEOUT_SECONDS}" = "20" ]
+    [ "${TOPIC_CADENCE_HIGH}" = "15" ]
+
+    # Unoverridden values should remain from defaults
+    [ "${LOG_LEVEL}" = "info" ]
+    [ "${LLM_CLAUDE_MODEL}" = "haiku" ]
+
+    # Cleanup
+    rm -f "${HOME}/.claude/hooks/sidekick/llm-core.conf"
+    rm -f "${HOME}/.claude/hooks/sidekick/features.conf"
+}
+
+# Test: legacy sidekick.conf overrides modular files
+test_legacy_sidekick_conf_overrides_modular() {
+    # Create modular user config
+    mkdir -p "${HOME}/.claude/hooks/sidekick"
+    cat > "${HOME}/.claude/hooks/sidekick/llm-core.conf" <<'EOF'
+LLM_PROVIDER=claude-cli
+EOF
+
+    # Create legacy sidekick.conf (should override modular)
+    cat > "${HOME}/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
+LLM_PROVIDER=openai-api
+TOPIC_CADENCE_HIGH=25
+EOF
+
+    config_load
+
+    # Legacy sidekick.conf should override modular config
+    [ "${LLM_PROVIDER}" = "openai-api" ]
+    [ "${TOPIC_CADENCE_HIGH}" = "25" ]
+
+    # Cleanup
+    rm -f "${HOME}/.claude/hooks/sidekick/llm-core.conf"
+    rm -f "${HOME}/.claude/hooks/sidekick/sidekick.conf"
+}
+
+# Test: modular cascade precedence (project versioned overrides all)
+test_modular_cascade_precedence() {
+    # Create user config
+    mkdir -p "${HOME}/.claude/hooks/sidekick"
+    cat > "${HOME}/.claude/hooks/sidekick/llm-core.conf" <<'EOF'
+LLM_PROVIDER=claude-cli
+LLM_TIMEOUT_SECONDS=20
+EOF
+
+    # Create project versioned config (highest priority)
+    export CLAUDE_PROJECT_DIR="${TEST_DIR}/project"
+    mkdir -p "${CLAUDE_PROJECT_DIR}/.sidekick"
+    cat > "${CLAUDE_PROJECT_DIR}/.sidekick/llm-core.conf" <<'EOF'
+LLM_PROVIDER=openrouter
+EOF
+
+    config_load
+
+    # Project versioned should override user
+    [ "${LLM_PROVIDER}" = "openrouter" ]
+    # But user should override defaults for other settings
+    [ "${LLM_TIMEOUT_SECONDS}" = "20" ]
+
+    # Cleanup
+    rm -f "${HOME}/.claude/hooks/sidekick/llm-core.conf"
+}
+
 # Main test execution
 main() {
     echo "Running configuration namespace tests..."
@@ -387,6 +511,10 @@ main() {
     run_test test_config_validate_valid_log_level
     run_test test_config_validate_numeric_values
     run_test test_config_validate_rejects_non_numeric
+    run_test test_modular_defaults_loaded
+    run_test test_modular_user_config_overrides
+    run_test test_legacy_sidekick_conf_overrides_modular
+    run_test test_modular_cascade_precedence
 
     teardown
 

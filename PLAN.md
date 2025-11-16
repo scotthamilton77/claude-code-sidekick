@@ -496,6 +496,52 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - [ ] Address any issues found
 - [ ] Mark Sidekick Phase 1 complete
 
+## Phase 9: Configuration Modularization
+
+### 9.1 Modular Config Architecture
+- [x] Split monolithic `config.defaults` (422 lines) into 4 domain-focused files:
+  - [x] `config.defaults` - Feature flags, global settings (137 lines)
+  - [x] `llm-core.defaults` - LLM infrastructure (circuit breaker, timeouts, debugging) (88 lines)
+  - [x] `llm-providers.defaults` - Provider-specific configs (API keys, models, endpoints) (148 lines)
+  - [x] `features.defaults` - Feature tuning parameters (128 lines)
+
+### 9.2 Config Loading System
+- [x] Update `config_load()` in `lib/config.sh` to implement modular cascade loading
+- [x] Load modular files in order at each cascade level: config → llm-core → llm-providers → features
+- [x] Maintain backward compatibility with legacy `sidekick.conf` (loads last, overrides all)
+- [x] Update header documentation in `lib/config.sh`
+
+### 9.3 Installation & Templates
+- [x] Update `install.sh` to copy all 4 modular `.defaults` files
+- [x] Create modular config templates (copy each `.defaults` as `.conf.template`)
+- [x] Remove merged template approach (per user feedback - defeats modularization purpose)
+- [x] Support both modular overrides (domain-specific `.conf` files) and simple overrides (single `sidekick.conf`)
+
+### 9.4 Testing
+- [x] Update unit test setup to create all 4 modular `.defaults` files
+- [x] Add 4 new tests for modular config behavior:
+  - [x] `test_modular_defaults_loaded`
+  - [x] `test_modular_user_config_overrides`
+  - [x] `test_legacy_sidekick_conf_overrides_modular`
+  - [x] `test_modular_cascade_precedence`
+- [x] Fix `test-circuit-breaker.sh` for modular config structure
+- [x] Verify all config tests passing (21/21 ✓)
+
+### 9.5 Documentation
+- [x] Update CLAUDE.md - Configuration section with modular domains, cascade levels, override strategies
+- [x] Update README.md - Sidekick Configuration Cascade section
+- [x] Update ARCH.md - Directory structure, configuration cascade
+- [x] Update QA-PLAN.md - References to configuration system
+- [x] Update PLAN.md - Document modularization work (this phase)
+
+### 9.6 Benefits Achieved
+- ✅ **Navigability**: Easy to find settings (LLM configs in `llm-providers.defaults` vs searching 422-line file)
+- ✅ **Maintainability**: Each domain ~50-150 lines vs monolithic 422 lines
+- ✅ **Flexibility**: Override just the domain you need (e.g., `llm-providers.conf` for LLM settings only)
+- ✅ **Backward Compatibility**: Legacy `sidekick.conf` still works (loads last, overrides all)
+- ✅ **Architecture Alignment**: Modular configs match plugin architecture philosophy
+- ✅ **Zero Breaking Changes**: Existing configs work, modular approach is optional
+
 ## Success Criteria
 
 - ✅ All features from reminders ported to sidekick
@@ -506,6 +552,7 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - ✅ Installation scripts work for user, project, and both scopes
 - ✅ All tests passing (unit + integration)
 - ✅ Hook execution times meet performance targets
+- ✅ Configuration system modularized for improved navigability and maintainability
 - [ ] Documentation complete and accurate
 - [ ] Successfully deployed to user scope on development machine
 - [x] Source templates organized for future install system (src/.claude/)

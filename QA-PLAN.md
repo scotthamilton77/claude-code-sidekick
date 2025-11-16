@@ -24,7 +24,7 @@ This document outlines a comprehensive benchmarking framework for evaluating and
 ### Why Build This?
 
 **Problem Statement:**
-The Sidekick system currently supports multiple LLM providers (Claude CLI, OpenAI, OpenRouter) with dozens of model options documented in `config.defaults`. However, we lack empirical data to answer critical questions:
+The Sidekick system currently supports multiple LLM providers (Claude CLI, OpenAI, OpenRouter) with dozens of model options documented in the modular configuration system (`llm-providers.defaults`). However, we lack empirical data to answer critical questions:
 
 - Which models provide the fastest response times?
 - Which models reliably produce valid JSON output?
@@ -35,7 +35,7 @@ The Sidekick system currently supports multiple LLM providers (Claude CLI, OpenA
 - **User Experience**: Faster models reduce hook latency, improving session responsiveness
 - **Cost Optimization**: Identify cheapest models that meet quality thresholds
 - **Reliability**: Avoid models with high JSON error rates
-- **Informed Defaults**: Set optimal default models in `config.defaults`
+- **Informed Defaults**: Set optimal default models in the configuration system
 
 ### Primary Goals
 
@@ -58,7 +58,7 @@ The Sidekick system currently supports multiple LLM providers (Claude CLI, OpenA
 ### Functional Requirements
 
 **Must Have:**
-- ✅ Benchmark all models listed in `config.defaults` (Claude, OpenAI, OpenRouter)
+- ✅ Benchmark all models listed in `llm-providers.defaults` (Claude, OpenAI, OpenRouter)
 - ✅ Test both topic extraction and resume generation prompts
 - ✅ Generate reference outputs from 3 high-quality models (Grok-4, Gemini 2.5 Pro, GPT-5 Chat)
 - ✅ Score outputs across 3 dimensions: schema compliance, technical accuracy, content quality
@@ -203,7 +203,7 @@ PRODUCTION_READY_CRITERIA = {
 **Leverage Existing Infrastructure:**
 - Reuse `lib/llm.sh` provider abstraction via subprocess calls
 - Use existing prompt templates from `src/sidekick/features/prompts/`
-- Load configuration from `src/sidekick/config.defaults`
+- Load configuration from modular config system (`src/sidekick/*.defaults`)
 - Store test data alongside existing test infrastructure
 
 **Clean Separation:**
@@ -1524,7 +1524,7 @@ While SciFi references are currently specified in prompts, the user correctly id
 
 This benchmarking system will provide empirical, data-driven guidance for LLM model selection in Sidekick. By measuring latency, JSON quality, and analysis accuracy across all documented models, we'll be able to:
 
-1. Set optimal defaults in `config.defaults`
+1. Set optimal defaults in the configuration system (`llm-providers.defaults`)
 2. Recommend models for different use cases (speed, cost, quality)
 3. Identify unreliable models to avoid
 4. Track model performance over time
