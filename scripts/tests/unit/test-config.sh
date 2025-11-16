@@ -25,6 +25,7 @@ setup() {
     # config.defaults - feature flags and global settings
     cat > "${TEST_SIDEKICK_ROOT}/config.defaults" <<'EOF'
 # Test defaults - core
+FEATURE_STATUSLINE=true
 FEATURE_TOPIC_EXTRACTION=true
 FEATURE_RESUME=true
 FEATURE_TRACKING=true
@@ -61,15 +62,15 @@ CLEANUP_MIN_COUNT=5
 CLEANUP_AGE_DAYS=2
 EOF
 
-    # Mock path_get_sidekick_root
+    # Source common.sh FIRST
+    # shellcheck disable=SC1090
+    source "$(dirname "$0")/../../../src/sidekick/lib/common.sh" 2>/dev/null || true
+
+    # Mock path_get_sidekick_root AFTER sourcing (to override the real one)
     path_get_sidekick_root() {
         echo "${TEST_SIDEKICK_ROOT}"
     }
     export -f path_get_sidekick_root
-
-    # Source common.sh
-    # shellcheck disable=SC1090
-    source "$(dirname "$0")/../../../src/sidekick/lib/common.sh" 2>/dev/null || true
 }
 
 # Teardown test environment
@@ -167,7 +168,7 @@ test_config_get_returns_value() {
 
     local value
     value=$(config_get "SLEEPER_MAX_DURATION")
-    [ "$value" = "10" ]
+    [ "$value" = "600" ]
 }
 
 # Test: config_get returns empty for missing key

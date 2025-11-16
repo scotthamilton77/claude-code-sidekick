@@ -513,7 +513,6 @@ JSON
 - `topic_extraction_analyze()` - Run LLM analysis with preprocessing (extracts `.message`, filters tool messages, strips metadata)
 - `topic_extraction_sleeper_start()` - Launch sleeper process
 - `topic_extraction_sleeper_loop()` - Sleeper polling loop (runs as background process)
-- `topic_extraction_check_cadence()` - Cadence-based analysis fallback
 - `resume_generate_async()` - Launch background resume generation when topic changes significantly
 
 **Preprocessing**: Transcript lines are filtered before LLM analysis to reduce token usage:
@@ -527,9 +526,6 @@ JSON
 FEATURE_TOPIC_EXTRACTION=true
 TOPIC_EXCERPT_LINES=80              # Transcript lines to analyze (≈3-5 messages)
 TOPIC_FILTER_TOOL_MESSAGES=true     # Filter tool_use/tool_result (reduces tokens)
-TOPIC_CADENCE_HIGH=10               # High clarity cadence (responses)
-TOPIC_CADENCE_LOW=1                 # Low clarity cadence (responses)
-TOPIC_CLARITY_THRESHOLD=7           # Threshold for high/low (1-10)
 
 SLEEPER_ENABLED=true
 SLEEPER_MAX_DURATION=600            # Maximum inactivity timeout (seconds) - exits after no activity
@@ -759,9 +755,6 @@ FEATURE_REMINDER_PRE_COMPLETION=true
 # ============================================================================
 TOPIC_EXCERPT_LINES=80
 TOPIC_FILTER_TOOL_MESSAGES=true
-TOPIC_CADENCE_HIGH=10
-TOPIC_CADENCE_LOW=1
-TOPIC_CLARITY_THRESHOLD=7
 
 # ============================================================================
 # SLEEPER
