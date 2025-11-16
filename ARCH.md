@@ -515,12 +515,18 @@ JSON
 - `topic_extraction_sleeper_loop()` - Sleeper polling loop (runs as background process)
 - `resume_generate_async()` - Launch background resume generation when topic changes significantly
 
-**Preprocessing**: Transcript lines are filtered before LLM analysis to reduce token usage:
+**Preprocessing**: Transcript lines are filtered before LLM analysis to reduce token usage and prevent metadata leakage:
 - Filters out meta messages (`.isMeta == true`) - system-generated metadata
 - Extracts `.message` field from each transcript line
 - Filters null/empty messages
 - Filters out `tool_use` and `tool_result` messages (configurable via `TOPIC_FILTER_TOOL_MESSAGES`)
-- Strips unnecessary metadata: `.model`, `.id`, `.type`, `.stop_reason`, `.stop_sequence`, `.usage`
+- **Whitelists essential attributes** (robust against new fields):
+  - Message level: `{role, content}` only
+  - Content array items (when applicable):
+    - `thinking` blocks: `{type, thinking}` (strips `signature` and other metadata)
+    - `text` blocks: `{type, text}`
+    - `tool_use` blocks: `{type, name, input}`
+    - `tool_result` blocks: `{type, tool_use_id, content}`
 
 **Configuration Keys**:
 ```bash

@@ -33,12 +33,17 @@ src/sidekick/          # Source (edit here)
 ~/.sidekick/*.conf         # User persistent (survives installs)
 
 scripts/
-├── install.sh         # Deploy to --user, --project, or --both
-├── tests/             # run-unit-tests.sh (mocked, free)
-└── benchmark/         # LLM benchmarking code (legacy, being rewritten in another branch)
+├── install.sh                      # Deploy to --user, --project, or --both
+├── analyze-topic-at-line.sh        # Surgical topic extraction (debug tool)
+├── replay-topic-extraction.sh      # Topic evolution simulator (debug tool)
+├── tests/                          # run-unit-tests.sh (mocked, free)
+└── benchmark/                      # LLM benchmarking code (legacy, being rewritten in another branch)
 
 benchmark-next/        # TypeScript rewrite (see child CLAUDE.md)
-test-data/             # Shared test corpus
+test-data/
+├── projects/          # Test transcripts
+├── replay-results/    # Replay simulation output (gitignored)
+└── topic-analysis/    # Surgical extraction output (gitignored)
 ```
 
 ## Development Checklist
@@ -62,6 +67,18 @@ test-data/             # Shared test corpus
 cd /workspaces/claude-config && .claude/hooks/sidekick/sidekick.sh <cmd>
 # Test in user context (outside project)
 cd /tmp && ~/.claude/hooks/sidekick/sidekick.sh <cmd>
+```
+
+**Topic extraction debugging**:
+```bash
+# Surgical analysis - extract topic at specific line
+./scripts/analyze-topic-at-line.sh <session-id> --to-line 100
+
+# Outputs: 0100-transcript.jsonl, 0100-filtered.jsonl, 0100-prompt.txt, 0100-topic.json
+# Use to inspect exact LLM input and validate filtering logic
+
+# Replay simulation - observe topic evolution over time
+./scripts/replay-topic-extraction.sh <session-id> --min-size-change 500
 ```
 
 ## Reference Docs (For Questions)

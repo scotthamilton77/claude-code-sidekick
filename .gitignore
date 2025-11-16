@@ -41,6 +41,8 @@ node_modules/
 
 # for now?
 test-data/results/
+test-data/replay-results/
+test-data/topic-analysis/
 # Sidekick Hook System (managed by scripts/install.sh)
 # Runtime data - ignored
 .sidekick/*.log
