@@ -12,8 +12,6 @@ This repository serves as a development and testing environment for [Claude Code
 
 ### Sidekick
 
-- When the stuck check fires, we should write a marker file that the stop reminder can check (and delete) to skip it's check
-- topic backups should be configurable (default to true for now)
 - config needs to be modularized
 - reminder generator: what if there are no CLAUDE.md's? Don't ask to generate
 - standardize parameter names and styles in the scripts (e.g. --project-dir vs. not, internally using output_dir, etc.)
