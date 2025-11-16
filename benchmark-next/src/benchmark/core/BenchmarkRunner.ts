@@ -291,12 +291,13 @@ export class BenchmarkRunner {
       }
 
       // Check for early termination after each transcript
-      if (failureTracker.consecutiveFailures >= EARLY_TERM_JSON_FAILURES) {
-        failureTracker.terminated = true
-        failureTracker.terminationReason = `${failureTracker.consecutiveFailures} consecutive JSON failures`
-      } else if (failureTracker.consecutiveTimeouts >= EARLY_TERM_TIMEOUT_COUNT) {
+      // Check timeouts first (more specific) before general failures
+      if (failureTracker.consecutiveTimeouts >= EARLY_TERM_TIMEOUT_COUNT) {
         failureTracker.terminated = true
         failureTracker.terminationReason = `${failureTracker.consecutiveTimeouts} consecutive timeouts`
+      } else if (failureTracker.consecutiveFailures >= EARLY_TERM_JSON_FAILURES) {
+        failureTracker.terminated = true
+        failureTracker.terminationReason = `${failureTracker.consecutiveFailures} consecutive JSON failures`
       }
     }
 
@@ -565,8 +566,8 @@ export class BenchmarkRunner {
       tags: modelSpec.tags.join(','),
       latency: latencyStats,
       scores: scoreStats,
+      terminated: failureTracker.terminated,
       ...(failureTracker.terminated && {
-        terminated: true,
         terminationReason: failureTracker.terminationReason,
       }),
     }
