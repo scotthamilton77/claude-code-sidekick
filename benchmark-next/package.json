@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.68.0",
+    "cockatiel": "^3.2.1",
     "commander": "^12.1.0",
     "openai": "^6.8.1",
     "pino": "^10.1.0",
