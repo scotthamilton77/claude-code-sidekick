@@ -60,10 +60,10 @@ export interface LLMProvider {
   /**
    * Extract and validate JSON from LLM response
    * @param response - LLM response containing JSON
-   * @param schema - Zod schema for validation
+   * @param schema - Optional Zod schema for validation
    * @returns Parsed and validated JSON object
    */
-  extractJSON<T>(response: LLMResponse, schema: ZodSchema<T>): T
+  extractJSON<T>(response: LLMResponse, schema?: ZodSchema<T>): T
 
   /**
    * Get the provider name (e.g., "claude", "openai", "openrouter")
@@ -203,7 +203,7 @@ export class MockLLMProvider implements LLMProvider {
   /**
    * Extract and validate JSON from mock response
    */
-  extractJSON<T>(response: LLMResponse, schema: ZodSchema<T>): T {
+  extractJSON<T>(response: LLMResponse, schema?: ZodSchema<T>): T {
     const content = response.content.trim()
 
     // Handle code fence format (```json ... ```)
@@ -225,13 +225,16 @@ export class MockLLMProvider implements LLMProvider {
       )
     }
 
-    // Validate with Zod schema
-    const result = schema.safeParse(parsed)
-    if (!result.success) {
-      throw new Error(`Schema validation failed: ${result.error.message}`)
+    // Validate with Zod schema if provided
+    if (schema) {
+      const result = schema.safeParse(parsed)
+      if (!result.success) {
+        throw new Error(`Schema validation failed: ${result.error.message}`)
+      }
+      return result.data
     }
 
-    return result.data
+    return parsed as T
   }
 
   /**
