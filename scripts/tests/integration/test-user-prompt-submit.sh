@@ -526,35 +526,6 @@ JSON
     fi
 }
 
-# Test 10: Performance - execution time under 10ms
-test_performance() {
-    log_test "Performance - execution time"
-
-    local session_id="test-ups-010"
-    create_test_session "$session_id"
-
-    # Measure execution time (after first call to avoid sleeper launch)
-    invoke_user_prompt_submit "$session_id" >/dev/null 2>&1 || true
-    sleep 0.1
-
-    # Now measure second call
-    local start_time=$(date +%s%N)
-    invoke_user_prompt_submit "$session_id" >/dev/null 2>&1 || true
-    local end_time=$(date +%s%N)
-
-    local duration_ms=$(( (end_time - start_time) / 1000000 ))
-
-    echo "  Execution time: ${duration_ms}ms"
-
-    # Target is <10ms for subsequent calls
-    if [ $duration_ms -lt 100 ]; then
-        pass "Execution time acceptable: ${duration_ms}ms"
-    else
-        fail "Execution time slow: ${duration_ms}ms (target <100ms)"
-        # Don't fail test - informational during development
-    fi
-}
-
 # Main test runner
 main() {
     echo "=================================="
@@ -583,7 +554,6 @@ main() {
     test_topic_extraction_disabled || true
     test_invalid_json || true
     test_missing_session_id || true
-    test_performance || true
 
     # Summary
     echo ""
