@@ -41,3 +41,17 @@ node_modules/
 
 # for now?
 test-data/results/
+# Sidekick Hook System (managed by scripts/install.sh)
+# Runtime data - ignored
+.sidekick/*.log
+.sidekick/sessions/
+
+# Templates, config, backups - tracked by default, uncomment to ignore
+# .sidekick/README.md
+# .sidekick/sidekick.conf
+# .sidekick/sidekick.conf.template
+# .sidekick/reminders/*.template
+# .sidekick/reminders/*-reminder.txt
+# *.backup.*
+# *.uninstall-backup.*
+# End Sidekick Hook System
