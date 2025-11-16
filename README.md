@@ -200,6 +200,21 @@ See `ARCH.md` for complete architecture documentation and `CLAUDE.md` for plugin
 
 **IMPORTANT**: Unit and integration tests use mocks - no API costs. The `test-llm-providers.sh` suite is intentionally excluded from default test runs to prevent accidental charges.
 
+**Development & Analysis Tools**:
+
+```bash
+# Surgical topic extraction - analyze transcript at specific line
+./scripts/analyze-topic-at-line.sh <session-id> --to-line 100
+
+# Saves 4 artifacts: raw transcript, filtered (LLM input), prompt, topic
+# Output: test-data/topic-analysis/<session-id>/0100-*.{jsonl,txt,json}
+
+# Topic evolution replay - simulate production sleeper behavior
+./scripts/replay-topic-extraction.sh <session-id> [OPTIONS]
+
+# Useful for tuning extraction logic and observing topic changes over time
+```
+
 **Legacy Setup Tests** (for reminder system migration):
 
 ```bash
