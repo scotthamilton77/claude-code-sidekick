@@ -162,14 +162,19 @@ config_is_feature_enabled "feature_name"
 _config_validate
 ```
 
-**Configuration Cascade**:
+**Environment Variable Loading** (`.env` files, sourced first):
+0a. Source `~/.sidekick/.env` (optional, user-wide persistent, works in both user-only and project scopes)
+0b. Source `$CLAUDE_PROJECT_DIR/.env` (optional, project root, shared with other tools)
+0c. Source `$CLAUDE_PROJECT_DIR/.sidekick/.env` (optional, project sidekick-specific, highest priority)
+
+**Configuration Cascade** (config files):
 1. Source `src/sidekick/config.defaults` (must exist)
 2. Source `~/.claude/hooks/sidekick/sidekick.conf` (optional, user-wide installed, ephemeral)
 3. Source `~/.sidekick/sidekick.conf` (optional, user-wide persistent)
 4. Source `$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.conf` (optional, project deployed, ephemeral)
 5. Source `$CLAUDE_PROJECT_DIR/.sidekick/sidekick.conf` (optional, **project versioned**, highest priority)
 
-**Result**: Later sources override earlier ones
+**Result**: `.env` files set environment variables (auto-exported via `set -a`), then config files override. Later sources override earlier ones.
 
 **Key Distinctions**:
 - **Installed configs** (`~/.claude/hooks/sidekick/` and `.claude/hooks/sidekick/`): Ephemeral, deleted on uninstall

@@ -304,6 +304,25 @@ LLM_CUSTOM_MODEL=llama2
 LLM_CUSTOM_COMMAND={BIN} run {MODEL} < {PROMPT_FILE}
 ```
 
+**Environment Variables via `.env` Files**:
+
+API keys and other settings can be configured via `.env` files instead of config files:
+
+- **`~/.sidekick/.env`**: User-wide persistent (works in both user-only and project scopes)
+- **Project root `.env`**: Shared with other tools (docker-compose, etc.)
+- **`.sidekick/.env`**: Project sidekick-specific (highest priority)
+
+Example `.env` file:
+
+```bash
+OPENROUTER_API_KEY=sk-or-v1-...
+OPENAI_API_KEY=sk-...
+```
+
+`.env` files are sourced automatically during `config_load()` and variables are auto-exported. Cascade: `~/.sidekick/.env` → project root `.env` → `.sidekick/.env` (latter wins).
+
+**Use Case**: Put global API keys in `~/.sidekick/.env`, project-specific overrides in `.sidekick/.env`. Never commit `.env` to git.
+
 See `src/sidekick/config.defaults` for all available options and `ARCH.md` for detailed provider documentation.
 
 ### Customizing Prompts and Reminders
