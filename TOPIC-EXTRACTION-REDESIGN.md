@@ -78,32 +78,44 @@ The bash script handles:
 
 ### 1. Analysis Trigger Logic
 
-**Separate thresholds for title vs ask:**
+**Countdown-based triggering:**
 
-| Title Confidence | Re-analyze Title |
-|-----------------|------------------|
-| < 0.6 | Every 5 tool calls OR user prompt |
-| 0.6-0.8 | Every 20 tool calls OR user prompt |
-| > 0.8 | Only on user prompt |
+Each field (title and ask) has an independent countdown counter that decrements on every tool call. When either counter reaches 0, we trigger a single LLM call that extracts both fields.
 
-| Ask Confidence | Re-analyze Ask |
-|----------------|----------------|
-| < 0.6 | Every 5 tool calls OR user prompt |
-| 0.6-0.8 | Every 20 tool calls OR user prompt |
-| > 0.8 | Only on user prompt |
+**Countdown reset values based on confidence:**
+
+| Confidence Level | Reset Value | Meaning |
+|-----------------|-------------|---------|
+| < 0.6 (Low) | 5 | Re-analyze in 5 tool calls |
+| 0.6-0.8 (Medium) | 20 | Re-analyze in 20 tool calls |
+| > 0.8 (High) | 10000 | Effectively never on tool count alone |
+
+**On each tool call:**
+```bash
+((TOPIC_TITLE_COUNTDOWN--))
+((TOPIC_ASK_COUNTDOWN--))
+
+if [[ $TOPIC_TITLE_COUNTDOWN -le 0 || $TOPIC_ASK_COUNTDOWN -le 0 ]]; then
+  extract_both_title_and_ask()
+  # Reset each countdown independently based on new confidence
+fi
+```
 
 **Always analyze on:**
-- UserPromptSubmit hook (regardless of tool counts)
+- UserPromptSubmit hook (regardless of countdown values)
 - Session start (initial extraction)
+
+**Trade-off:** When one field has low confidence and the other high, the low-confidence countdown will trigger analysis of both fields. This is accepted for consistency and because title/ask inform each other (ask interpretation needs title context, pivot detection needs both).
 
 ### 2. Hard Pivot Detection
 
-**Trigger:** LLM determines semantic distance between current and new session focus
+**Integration:** Hard pivot detection is integrated into the main extraction prompt (not a separate LLM call). The LLM compares the previous session focus with the current work to determine if this is a refinement or a pivot.
 
-**Action when detected:**
-- Reset `session_title_confidence` to **0.5 or lower**
-- Allow follow-up transcript context to raise and refine
+**Action when pivot detected:**
+- LLM sets `session_title_confidence` to **0.5 or lower**
+- This triggers more frequent re-analysis (countdown resets to 5)
 - New title likely very different from previous
+- Follow-up context allows refinement and confidence increase
 
 ### 3. Meta-Request Handling
 
@@ -160,48 +172,160 @@ All instructions captured, not just currently active one.
 
 ### 7. State Tracking (Outside Schema)
 
-Script maintains:
+Script maintains countdown counters that decrement on each tool call:
+
 ```bash
 # Per-session state file (.claude/sessions/{id}/topic-state.sh)
-TOPIC_TOOL_COUNT=47                    # Current tool count
-TOPIC_TITLE_NEXT_ANALYSIS=52           # Analyze title at tool count 52
-TOPIC_ASK_NEXT_ANALYSIS="user_prompt"  # Analyze ask only on next user prompt
-TOPIC_LAST_USER_PROMPT_COUNT=3         # Number of user prompts so far
+TOPIC_TITLE_COUNTDOWN=15               # Analyze title in 15 tool calls (or when ≤0)
+TOPIC_ASK_COUNTDOWN=3                  # Analyze ask in 3 tool calls (or when ≤0)
 ```
+
+**Countdown reset logic after extraction:**
+```bash
+# Based on new confidence from LLM
+if (( $(bc <<< "$confidence < 0.6") )); then
+  COUNTDOWN=5                          # Low confidence: frequent re-analysis
+elif (( $(bc <<< "$confidence < 0.8") )); then
+  COUNTDOWN=20                         # Medium confidence: periodic re-analysis
+else
+  COUNTDOWN=10000                      # High confidence: only on user prompt
+fi
+```
+
+**Note:** No special number semantics. The value `10000` for high confidence is simply a practical threshold that won't be reached in normal sessions before UserPromptSubmit triggers.
+
+### 8. Context Windowing and Bookmarking
+
+**Optimization:** Track the transcript line number where we last achieved high confidence to enable efficient context windowing.
+
+**Bookmark tracking:**
+```bash
+# In state file
+TOPIC_TITLE_CONFIDENCE_BOOKMARK=150    # Line where title reached ≥0.8 confidence
+```
+
+**When to set bookmark:**
+- When `session_title_confidence` reaches ≥ 0.8 (high confidence)
+- Or when confidence increases while already ≥ 0.8
+- Store the current transcript line number
+
+**When to reset bookmark (use full transcript):**
+- Confidence drops below 0.7
+- Meta-request detected (user might need full context)
+- Manual reset via config flag
+
+**Two-section prompt structure:**
+
+Instead of truncating pre-bookmark context, we label it to guide LLM attention:
+
+```
+HISTORICAL CONTEXT (lines 1-150, led to previous analysis)
+- More aggressively filtered (it's settled, just provides anchoring)
+- Remove routine tool completions, collapse repetitive patterns
+- Keep conversation structure and key decisions
+
+RECENT ACTIVITY (lines 151-200, since last analysis)
+- Less aggressively filtered (this is the active signal)
+- Preserve user messages in full
+- Keep assistant responses with context
+- Retain tool use patterns
+```
+
+**Benefits:**
+- LLM knows historical section is "decided" (confidence 0.85) - reduces random variance
+- LLM focuses analysis on recent activity for refinement/pivot detection
+- No context loss (unlike truncation) - can still refine based on full arc
+- Tiered filtering optimizes token usage without sacrificing needed context
+- Clear temporal structure prevents random flip-flopping
+
+**Token savings:**
+- Full transcript: 500 lines (~15k tokens filtered)
+- With bookmarking: Historical (150 lines, heavily filtered ~2k) + Recent (100 lines, lightly filtered ~3k) = ~5k tokens
+- **~65% reduction** for stable high-confidence sessions
 
 ## LLM Prompt Design
 
 ### Input Context
 
-**Required for accurate extraction:**
-- Last 3-5 user messages (minimum) for `last_ask` context
-- Assistant responses to understand work progression
-- Current tool use patterns (if available)
+**Two-tiered transcript structure:**
+
+When `session_title_confidence` ≥ 0.8 and bookmark exists, divide transcript into labeled sections:
+
+**Historical Context (pre-bookmark):**
+- Heavily filtered: Remove routine tool calls, collapse repetitive patterns
+- Purpose: Provide anchoring context for the settled high-confidence title
+- LLM instruction: Treat as decided background, don't randomly revisit
+
+**Recent Activity (post-bookmark):**
+- Lightly filtered: Preserve user messages, assistant responses, tool patterns
+- Purpose: Active signal for refinement/pivot detection
+- LLM instruction: Focus analysis here for changes
+
+**Always preserve regardless of bookmark:**
+- Minimum last 5 user messages (critical for `last_ask` interpretation)
+- Minimum last 50 transcript lines (safety net for vague references)
+
+**When no bookmark (confidence < 0.8):**
+- Use full transcript with standard filtering
+- No section division needed
 
 ### Prompt Instructions
 
+Single LLM call that extracts both title/ask and detects hard pivots.
+
+**When bookmark exists (high confidence):**
+
 ```
 Extract the session topic from this conversation transcript.
+
+Previous analysis (line {bookmark_line}, confidence {previous_confidence}):
+{
+  "session_title": "{previous_title}",
+  "session_title_confidence": {previous_confidence},
+  "session_title_key_phrases": {previous_key_phrases},
+  "last_ask": "{previous_ask}",
+  "last_ask_confidence": {previous_ask_confidence}
+}
+
+════════════════════════════════════════════════════════
+HISTORICAL CONTEXT (lines 1-{bookmark_line})
+This context was analyzed to produce the previous high-confidence conclusion above.
+Treat as settled background - only revisit if recent activity contradicts it.
+════════════════════════════════════════════════════════
+
+{historical_transcript}
+
+════════════════════════════════════════════════════════
+RECENT ACTIVITY (lines {bookmark_line+1}-{current_line})
+New activity since last analysis. Focus here for refinement/pivot detection.
+════════════════════════════════════════════════════════
+
+{recent_transcript}
 
 Output JSON with these fields:
 
 1. session_title: High-level summary of what this session is working on
    - Should be persistent but can evolve/refine over time
-   - Detect hard pivots (completely different task) vs refinements
-   - Examples: "Refactoring feature flags" → "Refactoring feature flag dependencies" (refinement)
-   - Hard pivot: "Refactoring feature flags" → "Debugging LLM providers" (reset confidence)
+   - Compare to previous title to determine if this is:
+     * Unchanged: New information does not materially change the current session_title
+     * Refinement: More specific/clearer direction on same topic (maintain/increase confidence)
+     * Hard pivot: Completely different task (set confidence to 0.5 or lower)
+   - Examples:
+     * "Refactoring feature flags" → "Refactoring feature flag dependencies" = Refinement
+     * "Refactoring feature flags" → "Debugging LLM providers" = Hard pivot (low confidence)
 
 2. session_title_confidence: 0.0-1.0
    - Higher (>0.8): Clear, specific, consistent focus
    - Medium (0.6-0.8): Reasonably clear but some ambiguity
-   - Lower (<0.6): Vague, multiple interpretations, unclear direction
+   - Lower (≤0.5): Hard pivot detected, vague direction, or multiple interpretations
+   - Reset to ≤0.5 if hard pivot detected
 
 3. session_title_key_phrases: Array of 3-7 key phrases supporting this title
    - Direct quotes from transcript that reinforce the title choice
    - Help explain the confidence level
 
 4. last_ask: What the user wanted in their most recent prompt
-   - Use conversation context to interpret vague prompts ("do it", "yes", "continue")
+   - Use conversation context (including session_title) to interpret vague prompts ("do it", "yes", "continue")
    - If multi-instruction prompt, capture ALL instructions
    - Don't update for meta-requests ("what are we doing?", "/context")
 
@@ -213,23 +337,30 @@ Output JSON with these fields:
    - Direct quotes preferred
    - Show evidence for confidence level
 
-{PREVIOUS_TOPIC_CONTEXT}  # If continuing session, include previous title/ask
+Analysis instructions:
+- The historical context resulted in the previous high-confidence analysis
+- Focus on recent activity to determine if refinement or pivot is needed
+- Only update session_title if recent activity shows clear evolution or hard pivot
+- Use historical context to understand session arc, but weight recent activity more heavily
+- Avoid randomly changing high-confidence fields based on noise
 ```
 
-### Hard Pivot Detection Prompt
+**When no bookmark (confidence < 0.8):**
 
 ```
-Compare the current session focus to the new user request.
+Extract the session topic from this conversation transcript.
 
-Is this:
-A) A refinement of the same topic (more specific, clearer direction)
-B) A hard pivot to a completely different task
+Previous analysis (confidence {previous_confidence}):
+{
+  "session_title": "{previous_title}",
+  "session_title_key_phrases": {previous_key_phrases},
+  "last_ask": "{previous_ask}"
+}
 
-If B (hard pivot), set session_title_confidence to 0.5 or lower.
+{filtered_transcript}
 
-Examples:
-- "working on X" → "implementing X with Y approach" = Refinement (keep/increase confidence)
-- "working on X" → "forget that, help with Z" = Hard pivot (reset to 0.5)
+Output JSON with these fields:
+[Same field definitions as above]
 ```
 
 ## Implementation Steps
@@ -246,15 +377,26 @@ Examples:
    - Add meta-request handling note
 
 3. **Update topic-extraction.sh**
-   - Implement separate confidence-based triggering (title vs ask)
-   - Track tool counts independently
-   - Handle UserPromptSubmit always-analyze
+   - Implement countdown-based triggering (separate counters for title vs ask)
+   - Decrement both counters on each tool call
+   - Trigger extraction when either countdown ≤ 0
+   - Handle UserPromptSubmit always-analyze (regardless of countdowns)
    - Apply configurable meta-request penalty
-   - Detect hard pivots and reset confidence
+   - Reset countdowns based on new confidence after extraction
+   - **Bookmark tracking:**
+     - Set bookmark when title confidence reaches ≥ 0.8
+     - Reset bookmark when confidence drops below 0.7 or on meta-request
+     - Use bookmark to divide transcript into historical/recent sections
 
-4. **Update filtering** (if needed)
-   - Ensure 3-5 user messages preserved for context
-   - Keep enough history for "do it" interpretation
+4. **Update filtering** (implement tiered approach)
+   - **Historical context (pre-bookmark, when confidence ≥ 0.8):**
+     - More aggressive filtering: remove routine tool calls, collapse repetitive patterns
+     - Keep conversation structure and key decisions only
+   - **Recent activity (post-bookmark, or full transcript when confidence < 0.8):**
+     - Less aggressive filtering: preserve user messages, assistant responses, tool patterns
+   - **Always preserve regardless of filtering tier:**
+     - Minimum last 5 user messages (critical for last_ask interpretation)
+     - Minimum last 50 transcript lines (safety net)
 
 5. **Update resume.sh**
    - Use session_title instead of initial_goal
@@ -265,11 +407,9 @@ Examples:
    ```bash
    # New config options
    META_REQUEST_CONFIDENCE_PENALTY=0.2
-   HARD_PIVOT_CONFIDENCE_RESET=0.5
-   TOPIC_TITLE_TRIGGER_LOW=5      # Tool calls when confidence < 0.6
-   TOPIC_TITLE_TRIGGER_MED=20     # Tool calls when confidence 0.6-0.8
-   TOPIC_ASK_TRIGGER_LOW=5
-   TOPIC_ASK_TRIGGER_MED=20
+   TOPIC_COUNTDOWN_LOW=5          # Countdown reset value when confidence < 0.6
+   TOPIC_COUNTDOWN_MED=20         # Countdown reset value when confidence 0.6-0.8
+   TOPIC_COUNTDOWN_HIGH=10000     # Countdown reset value when confidence > 0.8
    ```
 
 7. **Test with existing transcripts**
@@ -285,12 +425,13 @@ Examples:
 
 ## Benefits of This Approach
 
-1. **Cost-efficient**: Only re-analyze when confidence is low
+1. **Cost-efficient**: Only re-analyze when confidence is low, plus bookmark optimization reduces tokens by ~65% for stable sessions
 2. **User-focused**: Captures actual intent (last_ask) not just current state
-3. **Stable**: High-confidence topics don't churn unnecessarily
+3. **Stable**: High-confidence topics don't churn unnecessarily - labeled sections reduce random variance
 4. **Explainable**: Key phrases show evidence for LLM's choices
 5. **Flexible**: Separate tracking for title vs ask
 6. **Simple**: LLM only extracts info, bash handles orchestration
+7. **Smart context windowing**: Two-section prompts guide LLM attention without losing context
 
 ## Deferred Features
 
@@ -304,19 +445,24 @@ Examples:
 # Topic Extraction Config
 TOPIC_EXTRACTION_ENABLED=true
 
-# Confidence thresholds for re-analysis
-TOPIC_TITLE_TRIGGER_LOW=5       # Tool calls when confidence < 0.6
-TOPIC_TITLE_TRIGGER_MED=20      # Tool calls when confidence 0.6-0.8
-TOPIC_ASK_TRIGGER_LOW=5
-TOPIC_ASK_TRIGGER_MED=20
+# Countdown reset values based on confidence
+# Each field (title and ask) uses these values after extraction
+TOPIC_COUNTDOWN_LOW=5          # Reset value when confidence < 0.6 (frequent re-analysis)
+TOPIC_COUNTDOWN_MED=20         # Reset value when confidence 0.6-0.8 (periodic re-analysis)
+TOPIC_COUNTDOWN_HIGH=10000     # Reset value when confidence > 0.8 (effectively only on user prompt)
 
 # Confidence adjustments
 META_REQUEST_CONFIDENCE_PENALTY=0.2   # Subtract when user asks meta-questions
-HARD_PIVOT_CONFIDENCE_RESET=0.5       # Reset to this on hard pivot detection
+
+# Bookmark optimization (context windowing)
+TOPIC_BOOKMARK_CONFIDENCE_THRESHOLD=0.8    # Set bookmark when title reaches this confidence
+TOPIC_BOOKMARK_RESET_THRESHOLD=0.7         # Reset bookmark if confidence drops below this
+TOPIC_BOOKMARK_ENABLED=true                # Enable bookmark-based context windowing
 
 # Initial extraction
 TOPIC_EXTRACT_ON_FIRST_MESSAGE=true   # Start extraction immediately
 
 # Context preservation for LLM
-TOPIC_MIN_USER_MESSAGES=3             # Keep at least N user messages for context
+TOPIC_MIN_USER_MESSAGES=5             # Keep at least N user messages for context (critical for last_ask)
+TOPIC_MIN_RECENT_LINES=50             # Keep at least N recent transcript lines (safety net)
 ```
