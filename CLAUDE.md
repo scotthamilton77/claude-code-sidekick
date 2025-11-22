@@ -81,14 +81,37 @@ cd /tmp && ~/.claude/hooks/sidekick/sidekick.sh <cmd>
 
 ```bash
 # Surgical analysis - extract summary at specific line
-./scripts/analyze-topic-at-line.sh <session-id> --to-line 100
+./scripts/analyze-session-at-line.sh <session-id> --to-line 100
 
-# Outputs: 0100-transcript.jsonl, 0100-filtered.jsonl, 0100-prompt.txt, 0100-topic.json
+# Outputs: 0100-transcript.jsonl, 0100-filtered.jsonl, 0100-prompt.txt, 0100-session.json
 # Use to inspect exact LLM input and validate filtering logic
 
 # Replay simulation - observe summary evolution over time
 ./scripts/replay-session-summary.sh <session-id> --min-size-change 500
 ```
+
+## Rules for Development
+
+1. Explore and Plan Strategically
+
+- Before writing code, deeply explore the problem or feature.
+- Clearly identify root causes, requirements, and goals.
+- Plan a strategic, thoughtful approach before implementation.
+
+2. Debug Elegantly
+
+- If there's a bug, systematically locate, isolate, and resolve it.
+- Effectively utilize logs, print statements, and isolation scripts to pinpoint issues.
+
+3. Create Closed-Loop Systems
+
+- Build self-contained systems that let you fully test and verify functionality without user involvement.
+- For example, when working on backend features:
+    - Run the backend locally.
+    - Send requests yourself.
+    - Monitor logs and verify correct behavior independently.
+    - If issues arise, iterate internally—debug and retest—until fully functional.
+- The user should NOT have to provide logs or repeated feedback to solve issues. Complete the debugging and testing independently.
 
 ## Reference Docs (For Questions)
 
