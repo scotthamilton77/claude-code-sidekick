@@ -687,7 +687,8 @@ RESUME_MIN_CONFIDENCE=0.7           # Only generate resume if both title and int
 
 - Polls session-summary.json in watch loop
 - Tracks last-seen session_title and latest_intent in memory
-- Invokes generate-resume.sh when changes detected with sufficient confidence
+- **First read**: Treats non-empty content as "changed" if confidence meets threshold (enables immediate resume on startup)
+- **Subsequent reads**: Invokes generate-resume.sh only when title/intent changes and confidence >= threshold
 - Logs to `${session_dir}/resume-sleeper.log`
 - PID tracked in `${session_dir}/resume-sleeper.pid`
 

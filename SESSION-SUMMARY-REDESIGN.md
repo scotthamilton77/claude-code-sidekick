@@ -2,7 +2,7 @@
 
 ## TODOs
 
-- [testing needed] resume message - make sure that's still working
+- shorter title, with "title" flavor
 - snarky comments
 
 ## Overview
