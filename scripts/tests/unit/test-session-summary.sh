@@ -480,6 +480,197 @@ EOF
 }
 
 # ============================================================================
+# TESTS: Countdown & Bookmark Logic
+# ============================================================================
+
+test_check_trigger_decrements_countdowns() {
+    if ! declare -F _session_summary_check_trigger >/dev/null; then
+        return 0
+    fi
+
+    local session_id="test-countdown-step"
+    local session_dir="$TEST_DIR/.sidekick/sessions/$session_id"
+    mkdir -p "$session_dir"
+
+    cat > "$session_dir/session-summary-state.sh" <<'EOF'
+SUMMARY_TITLE_COUNTDOWN=3
+SUMMARY_INTENT_COUNTDOWN=2
+SUMMARY_TITLE_CONFIDENCE_BOOKMARK=0
+EOF
+
+    if _session_summary_check_trigger "$session_id" "false"; then
+        echo "Unexpected trigger while countdowns > 0" >&2
+        return 1
+    fi
+
+    # shellcheck disable=SC1090
+    source "$session_dir/session-summary-state.sh"
+
+    [ "$SUMMARY_TITLE_COUNTDOWN" -eq 2 ] && [ "$SUMMARY_INTENT_COUNTDOWN" -eq 1 ]
+}
+
+test_check_trigger_triggers_when_zero() {
+    if ! declare -F _session_summary_check_trigger >/dev/null; then
+        return 0
+    fi
+
+    local session_id="test-countdown-trigger"
+    local session_dir="$TEST_DIR/.sidekick/sessions/$session_id"
+    mkdir -p "$session_dir"
+
+    cat > "$session_dir/session-summary-state.sh" <<'EOF'
+SUMMARY_TITLE_COUNTDOWN=1
+SUMMARY_INTENT_COUNTDOWN=5
+SUMMARY_TITLE_CONFIDENCE_BOOKMARK=0
+EOF
+
+    if ! _session_summary_check_trigger "$session_id" "false"; then
+        echo "Expected trigger when countdown hits zero" >&2
+        return 1
+    fi
+
+    # shellcheck disable=SC1090
+    source "$session_dir/session-summary-state.sh"
+
+    [ "$SUMMARY_TITLE_COUNTDOWN" -eq 0 ] && [ "$SUMMARY_INTENT_COUNTDOWN" -eq 4 ]
+}
+
+test_write_summary_sets_high_confidence_countdowns_and_bookmark() {
+    if ! declare -F _session_summary_write_summary >/dev/null; then
+        return 0
+    fi
+
+    export SUMMARY_COUNTDOWN_LOW=3
+    export SUMMARY_COUNTDOWN_MED=5
+    export SUMMARY_COUNTDOWN_HIGH=7
+    export SUMMARY_BOOKMARK_ENABLED=true
+    export SUMMARY_BOOKMARK_CONFIDENCE_THRESHOLD=0.8
+    export SUMMARY_BOOKMARK_RESET_THRESHOLD=0.7
+
+    local session_id="test-summary-high"
+    local session_dir="$TEST_DIR/.sidekick/sessions/$session_id"
+    mkdir -p "$session_dir"
+
+    local llm_output='```json
+{
+  "session_title": "Bookmark Title",
+  "session_title_confidence": 0.9,
+  "session_title_key_phrases": ["Bookmark", "Title", "High"],
+  "latest_intent": "Finish tests",
+  "latest_intent_confidence": 0.88,
+  "latest_intent_key_phrases": ["Finish", "tests"]
+}
+```'
+
+    _session_summary_write_summary "$session_id" "$llm_output" 120
+
+    local state_file="$session_dir/session-summary-state.sh"
+    [ -f "$state_file" ] || return 1
+
+    # shellcheck disable=SC1090
+    source "$state_file"
+
+    [ "$SUMMARY_TITLE_COUNTDOWN" -eq 7 ]
+    [ "$SUMMARY_INTENT_COUNTDOWN" -eq 7 ]
+    [ "$SUMMARY_TITLE_CONFIDENCE_BOOKMARK" -eq 120 ]
+
+    local summary_file="$session_dir/session-summary.json"
+    [ -f "$summary_file" ] || return 1
+    local title
+    title=$(jq -r '.session_title' "$summary_file")
+    [ "$title" = "Bookmark Title" ]
+}
+
+test_write_summary_resets_bookmark_on_confidence_drop() {
+    if ! declare -F _session_summary_write_summary >/dev/null; then
+        return 0
+    fi
+
+    export SUMMARY_COUNTDOWN_LOW=3
+    export SUMMARY_COUNTDOWN_MED=5
+    export SUMMARY_COUNTDOWN_HIGH=7
+    export SUMMARY_BOOKMARK_ENABLED=true
+    export SUMMARY_BOOKMARK_CONFIDENCE_THRESHOLD=0.8
+    export SUMMARY_BOOKMARK_RESET_THRESHOLD=0.7
+
+    local session_id="test-summary-low"
+    local session_dir="$TEST_DIR/.sidekick/sessions/$session_id"
+    mkdir -p "$session_dir"
+
+    local high_output='```json
+{
+  "session_title": "Stable Title",
+  "session_title_confidence": 0.85,
+  "session_title_key_phrases": ["Stable"],
+  "latest_intent": "Ship",
+  "latest_intent_confidence": 0.82,
+  "latest_intent_key_phrases": ["Ship"]
+}
+```'
+
+    _session_summary_write_summary "$session_id" "$high_output" 90
+
+    local low_output='```json
+{
+  "session_title": "Unclear",
+  "session_title_confidence": 0.55,
+  "session_title_key_phrases": ["Unclear"],
+  "latest_intent": "Investigate",
+  "latest_intent_confidence": 0.58,
+  "latest_intent_key_phrases": ["Investigate"]
+}
+```'
+
+    _session_summary_write_summary "$session_id" "$low_output" 110
+
+    local state_file="$session_dir/session-summary-state.sh"
+    # shellcheck disable=SC1090
+    source "$state_file"
+
+    [ "$SUMMARY_TITLE_COUNTDOWN" -eq 3 ]
+    [ "$SUMMARY_INTENT_COUNTDOWN" -eq 3 ]
+    [ "$SUMMARY_TITLE_CONFIDENCE_BOOKMARK" -eq 0 ]
+}
+
+test_excerpt_uses_bookmark_split_when_conditions_met() {
+    if ! declare -F _session_summary_extract_excerpt >/dev/null; then
+        return 0
+    fi
+
+    export SUMMARY_MIN_USER_MESSAGES=1
+    export SUMMARY_MIN_RECENT_LINES=1
+
+    local transcript="$TEST_DIR/transcript-bookmark.jsonl"
+    : > "$transcript"
+    for i in $(seq 1 60); do
+        if (( i % 2 == 1 )); then
+            cat >> "$transcript" <<EOF
+{"type":"user","message":{"role":"user","content":"User line $i"}}
+EOF
+        else
+            cat >> "$transcript" <<EOF
+{"type":"assistant","message":{"role":"assistant","content":"Assistant line $i"}}
+EOF
+        fi
+    done
+
+    local result
+    result=$(_session_summary_extract_excerpt "$transcript" 5)
+
+    local type
+    type=$(echo "$result" | jq -r '.type')
+    [ "$type" = "tiered" ]
+
+    local historical_len
+    historical_len=$(echo "$result" | jq '.historical | length')
+    [ "$historical_len" -eq 5 ]
+
+    local recent_len
+    recent_len=$(echo "$result" | jq '.recent | length')
+    [ "$recent_len" -eq 55 ]
+}
+
+# ============================================================================
 # TESTS: session_summary_sleeper_start()
 # ============================================================================
 
@@ -905,6 +1096,11 @@ main() {
     run_test test_excerpt_filters_meta_messages
     run_test test_excerpt_respects_line_count_config
     run_test test_excerpt_extracts_only_message_field
+    run_test test_check_trigger_decrements_countdowns
+    run_test test_check_trigger_triggers_when_zero
+    run_test test_write_summary_sets_high_confidence_countdowns_and_bookmark
+    run_test test_write_summary_resets_bookmark_on_confidence_drop
+    run_test test_excerpt_uses_bookmark_split_when_conditions_met
 
     # Sleeper tests
     run_test test_sleeper_start_creates_pid_file
