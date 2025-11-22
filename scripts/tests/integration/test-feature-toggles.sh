@@ -197,12 +197,12 @@ test_cleanup_feature_toggle() {
 test_resume_feature_toggle() {
     local test_name="FEATURE_RESUME toggle"
 
-    # Create a previous session with topic.json and resume.json
+    # Create a previous session with session-summary.json and resume.json
     local prev_session="prev-session-$(date +%s)"
     local prev_session_dir="$TEST_DIR/.sidekick/sessions/$prev_session"
     mkdir -p "$prev_session_dir"
 
-    cat > "$prev_session_dir/topic.json" << 'EOF'
+    cat > "$prev_session_dir/session-summary.json" << 'EOF'
 {"session_id":"prev","initial_goal":"Previous goal","current_objective":"Previous objective","clarity_score":9,"confidence":0.95}
 EOF
     cat > "$prev_session_dir/resume.json" << 'EOF'
@@ -220,12 +220,12 @@ EOF
 
     echo "$input_json" | "$TEST_DIR/.claude/hooks/sidekick/sidekick.sh" session-start 2>&1 >/dev/null || true
 
-    # Check that topic.json was NOT created (no resume)
-    if [ ! -f "$SESSION_DIR/topic.json" ]; then
+    # Check that session-summary.json was NOT created (no resume)
+    if [ ! -f "$SESSION_DIR/session-summary.json" ]; then
         pass "$test_name - disabled (no resume topic)"
     else
-        # It's possible topic file exists from other source, but check it's not a resume
-        local content=$(cat "$SESSION_DIR/topic.json" 2>/dev/null || echo "")
+        # It's possible session summary file exists from other source, but check it's not a resume
+        local content=$(cat "$SESSION_DIR/session-summary.json" 2>/dev/null || echo "")
         if [[ ! "$content" =~ "resume_from_session" ]]; then
             pass "$test_name - disabled (no resume from previous session)"
         else
@@ -243,10 +243,10 @@ EOF
 
     echo "$input_json" | "$TEST_DIR/.claude/hooks/sidekick/sidekick.sh" session-start 2>&1 >/dev/null || true
 
-    # Check that topic.json WAS created (with resume from resume.json)
-    if [ -f "$SESSION_DIR/topic.json" ]; then
+    # Check that session-summary.json WAS created (with resume from resume.json)
+    if [ -f "$SESSION_DIR/session-summary.json" ]; then
         # Verify it came from resume.json
-        local content=$(cat "$SESSION_DIR/topic.json" 2>/dev/null || echo "")
+        local content=$(cat "$SESSION_DIR/session-summary.json" 2>/dev/null || echo "")
         if [[ "$content" =~ "resume_from_session" ]]; then
             pass "$test_name - enabled (resume topic created from resume.json)"
         else
@@ -300,9 +300,9 @@ test_session_summary_feature_toggle() {
     # Give sleeper a moment to launch
     sleep 0.5
 
-    # Check for sleeper PID or topic.json (one should exist)
-    if [ -f "$SESSION_DIR/sleeper.pid" ] || [ -f "$SESSION_DIR/topic.json" ]; then
-        pass "$test_name - enabled (sleeper or topic created)"
+    # Check for sleeper PID or session-summary.json (one should exist)
+    if [ -f "$SESSION_DIR/sleeper.pid" ] || [ -f "$SESSION_DIR/session-summary.json" ]; then
+        pass "$test_name - enabled (sleeper or session summary created)"
     else
         # With sleeper disabled in config, might do cadence-based analysis instead
         # Just verify no errors occurred
@@ -360,7 +360,7 @@ test_multiple_features_enabled() {
     local prev_session="prev-all-$(date +%s)"
     local prev_session_dir="$TEST_DIR/.sidekick/sessions/$prev_session"
     mkdir -p "$prev_session_dir"
-    cat > "$prev_session_dir/topic.json" << 'EOF'
+    cat > "$prev_session_dir/session-summary.json" << 'EOF'
 {"session_id":"prev","initial_goal":"Goal","current_objective":"Objective","clarity_score":9,"confidence":0.95}
 EOF
 
@@ -381,7 +381,7 @@ EOF
     # Check that various features worked
     local success_count=0
     [ -f "$SESSION_DIR/turn_count" ] && success_count=$((success_count + 1))
-    [ -f "$SESSION_DIR/topic.json" ] && success_count=$((success_count + 1))
+    [ -f "$SESSION_DIR/session-summary.json" ] && success_count=$((success_count + 1))
     [ -n "$statusline_output" ] && success_count=$((success_count + 1))
 
     if [ $success_count -ge 2 ]; then

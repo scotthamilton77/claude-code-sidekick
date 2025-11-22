@@ -162,8 +162,8 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - [x] Define `resume_snarkify()` (refactored to file-based initialization):
   - [x] Find most recent session with resume.json and clarity > threshold
   - [x] Read resume.json fields from previous session
-  - [x] Map resume fields to topic.json schema (last_task_id → task_ids, etc.)
-  - [x] Write initial topic.json for current session
+  - [x] Map resume fields to session-summary.json schema (last_task_id → task_ids, etc.)
+  - [x] Write initial session-summary.json for current session
   - [x] Skip if current session already has topic
 - [x] Add `resume_generate_async()` to topic-extraction.sh:
   - [x] Triggered when significant_change=true AND clarity>=5
@@ -314,7 +314,7 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
   - [x] Mock Claude CLI
   - [x] Trigger session-start with test JSON
   - [x] Verify counter file created
-  - [x] Verify topic.json created (resume)
+  - [x] Verify session-summary.json created (resume)
   - [x] Verify cleanup launched in background
 - [x] Create `scripts/tests/integration/test-user-prompt-submit.sh`
   - [x] Mock Claude CLI
@@ -349,9 +349,9 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 #### Bug 1: Resume Feature Not Creating Topic Files
 
 - [x] **Issue**: `test-feature-toggles.sh` - FEATURE_RESUME test fails
-- [x] **Symptom**: When FEATURE_RESUME=true, topic.json not created for new session
+- [x] **Symptom**: When FEATURE_RESUME=true, session-summary.json not created for new session
 - [x] **Location**: `src/sidekick/features/resume.sh` - `resume_snarkify()` function
-- [x] **Root Cause**: Previous session lookup required `timestamp` field in topic.json, but test data didn't have it
+- [x] **Root Cause**: Previous session lookup required `timestamp` field in session-summary.json, but test data didn't have it
 - [x] **Fix**: Modified resume.sh:84-97 to use file modification time as fallback when timestamp field is missing
 - [x] **Verify**: Re-run `test-feature-toggles.sh` - ✅ PASS (13/13)
 
@@ -397,12 +397,12 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - [x] Submit 10 user prompts
   - [x] Verify counter increments (check `response_count`)
   - [x] Verify sleeper launched (check `sleeper.pid`)
-  - [x] Verify topic analysis runs (check `topic.json`)
+  - [x] Verify topic analysis runs (check `session-summary.json`)
   - [x] Verify resume.json generated when topic changes significantly (significant_change=true AND clarity>=5)
   - [x] Verify static reminder appears on 4th, 8th prompts
 - [x] Check statusline
   - [x] Verify displays model, tokens, percentage, directory, git branch
-  - [x] Verify topic displayed (from topic.json)
+  - [x] Verify topic displayed (from session-summary.json)
   - [x] Verify snarky comment displayed
 - [x] Test feature toggles
   - [x] Edit `sidekick.conf`, set `FEATURE_SESSION_SUMMARY=false`
