@@ -67,8 +67,8 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 ### 1.3 Create Configuration Defaults
 
 - [x] Create `config.defaults` with all feature toggles
-- [x] Add topic extraction configuration
-- [x] Add sleeper configuration
+- [x] Add topic extraction configuration *(Later renamed to session_summary)*
+- [x] ~~Add sleeper configuration~~ *(REMOVED: Replaced by countdown-based config)*
 - [x] Add resume configuration
 - [x] Add statusline configuration
 - [x] Add tracking configuration
@@ -109,9 +109,9 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 
 - [x] Create `handlers/user-prompt-submit.sh`
 - [x] Define `handler_user_prompt_submit()` function
-- [x] Source required features (tracking, topic-extraction)
+- [x] Source required features (tracking, session-summary)
 - [x] Increment tracking counter
-- [x] Launch sleeper on first call (if enabled)
+- [x] ~~Launch sleeper on first call~~ *(REMOVED: Sleeper replaced by countdown triggering)*
 - [x] Check static reminder cadence
 - [x] Output hook JSON if reminder due
 - [x] Add error handling for each step
@@ -140,10 +140,10 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
   - [x] Parse JSON output
   - [x] Write session-summary.json file
   - [x] Error handling and logging
-- [x] Define `session_summary_sleeper_start()`:
+- [x] ~~Define `session_summary_sleeper_start()`~~ *(REMOVED: Sleeper replaced by countdown-based triggering via hooks)*
   - [x] Check for existing sleeper PID
   - [x] Launch background process via `process_launch_background()`
-- [x] Define `session_summary_sleeper_loop()`:
+- [x] ~~Define `session_summary_sleeper_loop()`~~ *(REMOVED: Sleeper replaced by countdown-based triggering via hooks)*
   - [x] Initialize state tracking (last_size, last_analysis_time)
   - [x] Implement polling loop with adaptive intervals
   - [x] Check transcript size delta
@@ -151,7 +151,9 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
   - [x] Check clarity score and exit if threshold met
   - [x] Exit after max duration
   - [x] Cleanup PID file on exit
-- [x] Define `session_summary_get_clarity()` - Extract clarity from session-summary.json
+- [x] ~~Define `session_summary_get_clarity()`~~ *(REMOVED: Clarity replaced by title/intent confidence scores)*
+
+**Note**: The sleeper process (polling-based triggering) was later removed and replaced with countdown-based triggering via `session_summary_on_user_prompt_submit()` and `session_summary_on_post_tool_use()` hooks. See SESSION-SUMMARY-REDESIGN.md for the new design.
 
 ### 3.3 Implement Resume Feature
 

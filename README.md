@@ -213,8 +213,8 @@ See `ARCH.md` for complete architecture documentation and `CLAUDE.md` for plugin
 # Saves 4 artifacts: raw transcript, filtered (LLM input), prompt, topic
 # Output: test-data/topic-analysis/<session-id>/0100-*.{jsonl,txt,json}
 
-# Session summary replay - simulate production sleeper behavior
-./scripts/replay-session-summary.sh <session-id> [OPTIONS]
+# Session simulation - verify production trigger logic
+python3 scripts/simulate-session.py <session-id>
 
 # Useful for tuning extraction logic and observing summary changes over time
 ```

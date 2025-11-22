@@ -39,7 +39,7 @@ src/sidekick/          # Source (edit here)
 scripts/
 ├── install.sh                      # Deploy to --user, --project, or --both
 ├── analyze-topic-at-line.sh        # Surgical session summary (debug tool)
-├── replay-session-summary.sh       # Session summary simulator (debug tool)
+├── simulate-session.py           # Session analysis simulator (debug tool)
 ├── tests/                          # run-unit-tests.sh (mocked, free)
 └── benchmark/                      # LLM benchmarking code (legacy, being rewritten in another branch)
 
@@ -86,8 +86,8 @@ cd /tmp && ~/.claude/hooks/sidekick/sidekick.sh <cmd>
 # Outputs: 0100-transcript.jsonl, 0100-filtered.jsonl, 0100-prompt.txt, 0100-session-summary.json
 # Use to inspect exact LLM input and validate filtering logic
 
-# Replay simulation - observe summary evolution over time
-./scripts/replay-session-summary.sh <session-id> --min-size-change 500
+# Session simulation - verify production trigger logic
+python3 scripts/simulate-session.py <session-id>
 ```
 
 ## Rules for Development
