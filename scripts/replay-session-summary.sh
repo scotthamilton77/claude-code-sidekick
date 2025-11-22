@@ -2,9 +2,8 @@
 ###############################################################################
 # replay-session-summary.sh
 #
-# Simulates how session summary evolves as a transcript grows, mimicking
-# the production sleeper process behavior. Useful for tuning extraction logic
-# and observing how summaries evolve over time.
+# Simulates how session summary evolves as a transcript grows. Useful for
+# tuning extraction logic and observing how summaries evolve over time.
 #
 # Usage:
 #   ./scripts/replay-session-summary.sh <session-id-or-path> [OPTIONS]
@@ -206,10 +205,6 @@ elif [ "$PROVIDER" = "openai-api" ]; then
 elif [ "$PROVIDER" = "claude-cli" ]; then
     export LLM_CLAUDE_MODEL="$MODEL"
 fi
-
-# Override sleeper config to match replay params
-export SLEEPER_MIN_SIZE_CHANGE="$MIN_SIZE_CHANGE"
-export SLEEPER_MIN_INTERVAL="$MIN_INTERVAL"
 
 log_info "Sidekick libraries loaded"
 log_info "Session summary configured: $PROVIDER / $MODEL"

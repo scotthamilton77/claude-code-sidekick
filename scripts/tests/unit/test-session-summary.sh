@@ -37,7 +37,7 @@ setup() {
     cp "$(dirname "$0")/../../../src/sidekick/features/scripts/"*.sh "$TEST_DIR/.sidekick/features/scripts/" 2>/dev/null || true
     chmod +x "$TEST_DIR/.sidekick/features/scripts/"*.sh 2>/dev/null || true
 
-    # Copy session-summary.sh (needed by sleeper-loop.sh)
+    # Copy session-summary.sh
     mkdir -p "$TEST_DIR/.sidekick/features"
     cp "$(dirname "$0")/../../../src/sidekick/features/session-summary.sh" "$TEST_DIR/.sidekick/features/" 2>/dev/null || true
 
@@ -48,16 +48,10 @@ setup() {
     # Create config.defaults for background processes
     cat >> "$TEST_DIR/config.defaults" <<'EOFCONFIG'
 # Test configuration
+FEATURE_STATUSLINE=true
 FEATURE_SESSION_SUMMARY=true
-FEATURE_SLEEPER=true
 LLM_PROVIDER=claude-cli
 LLM_CLAUDE_MODEL=haiku
-SLEEPER_ENABLED=true
-SLEEPER_MAX_DURATION=600
-SLEEPER_MIN_SIZE_CHANGE=500
-SLEEPER_MIN_INTERVAL=10
-SLEEPER_MIN_SLEEP=2
-SLEEPER_MAX_SLEEP=20
 LOG_LEVEL=error
 EOFCONFIG
 
@@ -67,16 +61,10 @@ EOFCONFIG
     touch "$TEST_DIR/features.defaults"
 
     # Set up config for current process
+    export FEATURE_STATUSLINE=true
     export FEATURE_SESSION_SUMMARY=true
-    export FEATURE_SLEEPER=true
     export LLM_PROVIDER=claude-cli
     export LLM_CLAUDE_MODEL=haiku
-    export SLEEPER_ENABLED=true
-    export SLEEPER_MAX_DURATION=600
-    export SLEEPER_MIN_SIZE_CHANGE=500
-    export SLEEPER_MIN_INTERVAL=10
-    export SLEEPER_MIN_SLEEP=2
-    export SLEEPER_MAX_SLEEP=20
     export LOG_LEVEL=error  # Suppress logs during tests
 
     # Initialize logging
@@ -112,16 +100,6 @@ EOFCLAUDE
 
 # Teardown test environment
 teardown() {
-    # Kill ALL sleeper processes started during tests
-    find "$TEST_DIR/.sidekick/sessions" -name "sleeper.pid" 2>/dev/null | while read pidfile; do
-        if [ -f "$pidfile" ]; then
-            local pid=$(cat "$pidfile" 2>/dev/null || echo "")
-            if [ -n "$pid" ]; then
-                kill -9 "$pid" 2>/dev/null || true
-                pkill -9 -P "$pid" 2>/dev/null || true
-            fi
-        fi
-    done
     rm -rf "$TEST_DIR"
 }
 
@@ -670,396 +648,6 @@ EOF
     [ "$recent_len" -eq 55 ]
 }
 
-# ============================================================================
-# TESTS: session_summary_sleeper_start()
-# ============================================================================
-
-test_sleeper_start_creates_pid_file() {
-    # Skip if function doesn't exist yet
-    if ! command -v session_summary_sleeper_start &> /dev/null; then
-        return 0
-    fi
-
-    local session_id="test-session-sleeper"
-    mkdir -p "$TEST_DIR/.sidekick/sessions/$session_id"
-
-    local transcript="$TEST_DIR/transcript.jsonl"
-    echo '{"role":"user","content":"test"}' > "$transcript"
-
-    session_summary_sleeper_start "$session_id" "$transcript" "$TEST_DIR"
-
-    # Should have created PID file
-    sleep 0.5  # Give it time to start
-    [ -f "$TEST_DIR/.sidekick/sessions/$session_id/sleeper.pid" ]
-
-    # Should have a valid PID
-    local pid
-    pid=$(cat "$TEST_DIR/.sidekick/sessions/$session_id/sleeper.pid")
-    [ -n "$pid" ]
-
-    # Process should be running
-    ps -p "$pid" > /dev/null 2>&1 || true  # Don't fail if already exited
-
-    # Clean up
-    pkill -P "$pid" 2>/dev/null || true
-}
-
-test_sleeper_start_doesnt_duplicate() {
-    # Skip if function doesn't exist yet
-    if ! command -v session_summary_sleeper_start &> /dev/null; then
-        return 0
-    fi
-
-    local session_id="test-session-sleeper-dup"
-    mkdir -p "$TEST_DIR/.sidekick/sessions/$session_id"
-
-    local transcript="$TEST_DIR/transcript.jsonl"
-    echo '{"role":"user","content":"test"}' > "$transcript"
-
-    # Start first sleeper
-    session_summary_sleeper_start "$session_id" "$transcript" "$TEST_DIR"
-    sleep 0.5
-
-    local pid1
-    pid1=$(cat "$TEST_DIR/.sidekick/sessions/$session_id/sleeper.pid" 2>/dev/null || echo "")
-
-    # Try to start second sleeper
-    session_summary_sleeper_start "$session_id" "$transcript" "$TEST_DIR"
-    sleep 0.5
-
-    local pid2
-    pid2=$(cat "$TEST_DIR/.sidekick/sessions/$session_id/sleeper.pid" 2>/dev/null || echo "")
-
-    # PIDs should be the same (didn't start duplicate)
-    [ "$pid1" = "$pid2" ]
-
-    # Clean up
-    [ -n "$pid1" ] && pkill -P "$pid1" 2>/dev/null || true
-}
-
-test_sleeper_disabled() {
-    # Skip if function doesn't exist yet
-    if ! command -v session_summary_sleeper_start &> /dev/null; then
-        return 0
-    fi
-
-    # Save original value and restore after test
-    local orig_sleeper_enabled="${SLEEPER_ENABLED:-true}"
-    export SLEEPER_ENABLED=false
-
-    local session_id="test-session-sleeper-disabled"
-    mkdir -p "$TEST_DIR/.sidekick/sessions/$session_id"
-
-    local transcript="$TEST_DIR/transcript.jsonl"
-    echo '{"role":"user","content":"test"}' > "$transcript"
-
-    session_summary_sleeper_start "$session_id" "$transcript" "$TEST_DIR"
-
-    sleep 0.5
-
-    # Should NOT have created PID file
-    local result=0
-    [ ! -f "$TEST_DIR/.sidekick/sessions/$session_id/sleeper.pid" ] || result=1
-
-    # Restore original value
-    export SLEEPER_ENABLED="$orig_sleeper_enabled"
-
-    return $result
-}
-
-# ============================================================================
-# TESTS: Sleeper Inactivity Timeout Behavior
-# ============================================================================
-
-test_sleeper_exits_after_inactivity_timeout() {
-    # Skip if function doesn't exist yet
-    if ! command -v session_summary_sleeper_start &> /dev/null; then
-        return 0
-    fi
-
-    # Explicitly enable sleeper (may have been disabled by previous test)
-    export SLEEPER_ENABLED=true
-
-    # Clean up any leftover sleepers from previous tests
-    pkill -9 -f "session_summary_sleeper_loop" 2>/dev/null || true
-    sleep 0.2
-
-    # Write config overrides in project sidekick.conf for background processes
-    mkdir -p "$TEST_DIR/.claude/hooks/sidekick"
-    cat > "$TEST_DIR/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
-SLEEPER_MAX_DURATION=5
-SLEEPER_MIN_SLEEP=1
-SLEEPER_MAX_SLEEP=2
-EOF
-
-    # Set short timeout for testing (for current process)
-    export SLEEPER_MAX_DURATION=5
-    export SLEEPER_MIN_SLEEP=1
-    export SLEEPER_MAX_SLEEP=2
-
-    local session_id="test-session-inactivity-exit"
-    mkdir -p "$TEST_DIR/.sidekick/sessions/$session_id"
-
-    # Create static transcript (no changes during test)
-    local transcript="$TEST_DIR/transcript-static.jsonl"
-    echo '{"role":"user","content":"test"}' > "$transcript"
-
-    # Start sleeper
-    session_summary_sleeper_start "$session_id" "$transcript" "$TEST_DIR"
-    sleep 1  # Give sleeper time to fully start
-
-    local pid
-    pid=$(cat "$TEST_DIR/.sidekick/sessions/$session_id/sleeper.pid" 2>/dev/null || echo "")
-    [ -n "$pid" ] || {
-        echo "ERROR: PID file empty or missing" >&2
-        return 1
-    }
-
-    # Verify sleeper is initially running
-    ps -p "$pid" > /dev/null 2>&1 || {
-        echo "ERROR: Sleeper not running initially (PID=$pid)" >&2
-        echo "Sleeper log:" >&2
-        cat "$TEST_DIR/.sidekick/sessions/$session_id/sleeper.log" 2>&1 | tail -20 >&2 || echo "No log available" >&2
-        echo "Session log:" >&2
-        cat "$TEST_DIR/.sidekick/sessions/$session_id/sidekick.log" 2>&1 | tail -20 >&2 || echo "No session log" >&2
-        return 1
-    }
-
-    # Wait beyond timeout (6 seconds > 5 second timeout)
-    sleep 6
-
-    # Verify sleeper has exited
-    if ps -p "$pid" > /dev/null 2>&1; then
-        echo "ERROR: Sleeper still running after 6s (PID=$pid, expected timeout=5s)" >&2
-        echo "Sleeper log:" >&2
-        cat "$TEST_DIR/.sidekick/sessions/$session_id/sleeper.log" 2>&1 | tail -20 >&2 || true
-        return 1
-    fi
-
-    # Verify log shows inactivity timeout
-    local log_file="$TEST_DIR/.sidekick/sessions/$session_id/sleeper.log"
-    if [ -f "$log_file" ]; then
-        grep -q "inactivity timeout" "$log_file" || true
-    fi
-
-    # PID file should be cleaned up
-    [ ! -f "$TEST_DIR/.sidekick/sessions/$session_id/sleeper.pid" ]
-}
-
-test_sleeper_stays_alive_with_ongoing_activity() {
-    # Skip if function doesn't exist yet
-    if ! command -v session_summary_sleeper_start &> /dev/null; then
-        return 0
-    fi
-
-    # Explicitly enable sleeper (may have been disabled by previous test)
-    export SLEEPER_ENABLED=true
-
-    # Write config overrides in project sidekick.conf for background processes
-    mkdir -p "$TEST_DIR/.claude/hooks/sidekick"
-    cat > "$TEST_DIR/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
-SLEEPER_MAX_DURATION=5
-SLEEPER_MIN_SIZE_CHANGE=500
-SLEEPER_MIN_SLEEP=1
-SLEEPER_MAX_SLEEP=2
-EOF
-
-    # Set short timeout for testing (for current process)
-    export SLEEPER_MAX_DURATION=5
-    export SLEEPER_MIN_SIZE_CHANGE=500
-    export SLEEPER_MIN_SLEEP=1
-    export SLEEPER_MAX_SLEEP=2
-
-    local session_id="test-session-ongoing-activity"
-    mkdir -p "$TEST_DIR/.sidekick/sessions/$session_id"
-
-    # Create initial transcript
-    local transcript="$TEST_DIR/transcript-active.jsonl"
-    echo '{"role":"user","content":"initial content"}' > "$transcript"
-
-    # Start sleeper
-    session_summary_sleeper_start "$session_id" "$transcript" "$TEST_DIR"
-    sleep 0.5
-
-    local pid
-    pid=$(cat "$TEST_DIR/.sidekick/sessions/$session_id/sleeper.pid" 2>/dev/null || echo "")
-    [ -n "$pid" ] || return 1
-
-    # Add significant activity every 3 seconds for 12 seconds (2.4x max_duration)
-    for i in {1..4}; do
-        sleep 3
-
-        # Append >500 bytes of data to trigger activity detection
-        local padding=$(printf '%*s' 600 '' | tr ' ' 'X')
-        echo "{\"role\":\"user\",\"content\":\"update $i $padding\"}" >> "$transcript"
-    done
-
-    # After 12 seconds of regular activity, sleeper should still be running
-    ps -p "$pid" > /dev/null 2>&1
-
-    # Clean up
-    kill "$pid" 2>/dev/null || true
-    rm -f "$TEST_DIR/.sidekick/sessions/$session_id/sleeper.pid"
-}
-
-test_sleeper_activity_resets_inactivity_timer() {
-    # Skip if function doesn't exist yet
-    if ! command -v session_summary_sleeper_start &> /dev/null; then
-        return 0
-    fi
-
-    # Explicitly enable sleeper (may have been disabled by previous test)
-    export SLEEPER_ENABLED=true
-
-    # Write config overrides in project sidekick.conf for background processes
-    mkdir -p "$TEST_DIR/.claude/hooks/sidekick"
-    cat > "$TEST_DIR/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
-SLEEPER_MAX_DURATION=5
-SLEEPER_MIN_SIZE_CHANGE=500
-SLEEPER_MIN_SLEEP=1
-SLEEPER_MAX_SLEEP=2
-EOF
-
-    # Set short timeout for testing (for current process)
-    export SLEEPER_MAX_DURATION=5
-    export SLEEPER_MIN_SIZE_CHANGE=500
-    export SLEEPER_MIN_SLEEP=1
-    export SLEEPER_MAX_SLEEP=2
-
-    local session_id="test-session-timer-reset"
-    mkdir -p "$TEST_DIR/.sidekick/sessions/$session_id"
-
-    # Create initial transcript
-    local transcript="$TEST_DIR/transcript-reset.jsonl"
-    echo '{"role":"user","content":"initial"}' > "$transcript"
-
-    # Start sleeper
-    session_summary_sleeper_start "$session_id" "$transcript" "$TEST_DIR"
-    sleep 0.5
-
-    local pid
-    pid=$(cat "$TEST_DIR/.sidekick/sessions/$session_id/sleeper.pid" 2>/dev/null || echo "")
-    [ -n "$pid" ] || return 1
-
-    # Wait 4 seconds (almost timed out at 5 second limit)
-    sleep 4
-
-    # Add significant activity to reset timer
-    local padding=$(printf '%*s' 600 '' | tr ' ' 'X')
-    echo "{\"role\":\"user\",\"content\":\"reset activity $padding\"}" >> "$transcript"
-
-    # Wait another 4 seconds (total 8s, but only 4s since last activity)
-    sleep 4
-
-    # Sleeper should still be running (timer was reset)
-    ps -p "$pid" > /dev/null 2>&1
-
-    # Clean up
-    kill "$pid" 2>/dev/null || true
-    rm -f "$TEST_DIR/.sidekick/sessions/$session_id/sleeper.pid"
-}
-
-test_sleeper_exits_after_activity_stops() {
-    # Skip if function doesn't exist yet
-    if ! command -v session_summary_sleeper_start &> /dev/null; then
-        return 0
-    fi
-
-    # Explicitly enable sleeper (may have been disabled by previous test)
-    export SLEEPER_ENABLED=true
-
-    # Write config overrides in project sidekick.conf for background processes
-    mkdir -p "$TEST_DIR/.claude/hooks/sidekick"
-    cat > "$TEST_DIR/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
-SLEEPER_MAX_DURATION=5
-SLEEPER_MIN_SIZE_CHANGE=500
-SLEEPER_MIN_SLEEP=1
-SLEEPER_MAX_SLEEP=2
-EOF
-
-    # Set short timeout for testing (for current process)
-    export SLEEPER_MAX_DURATION=5
-    export SLEEPER_MIN_SIZE_CHANGE=500
-    export SLEEPER_MIN_SLEEP=1
-    export SLEEPER_MAX_SLEEP=2
-
-    local session_id="test-session-activity-stops"
-    mkdir -p "$TEST_DIR/.sidekick/sessions/$session_id"
-
-    # Create initial transcript
-    local transcript="$TEST_DIR/transcript-stops.jsonl"
-    echo '{"role":"user","content":"initial"}' > "$transcript"
-
-    # Start sleeper
-    session_summary_sleeper_start "$session_id" "$transcript" "$TEST_DIR"
-    sleep 0.5
-
-    local pid
-    pid=$(cat "$TEST_DIR/.sidekick/sessions/$session_id/sleeper.pid" 2>/dev/null || echo "")
-    [ -n "$pid" ] || return 1
-
-    # Trigger 2-3 analyses with transcript changes
-    for i in {1..3}; do
-        sleep 2
-        local padding=$(printf '%*s' 600 '' | tr ' ' 'X')
-        echo "{\"role\":\"user\",\"content\":\"activity $i $padding\"}" >> "$transcript"
-    done
-
-    # Verify sleeper is still running
-    ps -p "$pid" > /dev/null 2>&1 || return 1
-
-    # Stop changing transcript and wait for timeout + buffer
-    sleep 7
-
-    # Sleeper should have exited due to inactivity
-    ! ps -p "$pid" > /dev/null 2>&1
-
-    # PID file should be cleaned up
-    [ ! -f "$TEST_DIR/.sidekick/sessions/$session_id/sleeper.pid" ]
-}
-
-# ============================================================================
-# Script File Tests
-# ============================================================================
-
-test_sleeper_script_exists() {
-    local script_path="$(dirname "$0")/../../../src/sidekick/features/scripts/sleeper-loop.sh"
-    [ -f "$script_path" ] && [ -x "$script_path" ]
-}
-
-test_sleeper_script_syntax() {
-    local script_path="$(dirname "$0")/../../../src/sidekick/features/scripts/sleeper-loop.sh"
-    bash -n "$script_path"
-}
-
-test_sleeper_start_uses_script() {
-    # Skip if function doesn't exist
-    if ! command -v session_summary_sleeper_start &> /dev/null; then
-        return 0
-    fi
-
-    # Copy scripts to test directory
-    mkdir -p "$TEST_DIR/.sidekick/features/scripts"
-    cp "$(dirname "$0")/../../../src/sidekick/features/scripts/"*.sh "$TEST_DIR/.sidekick/features/scripts/" 2>/dev/null || true
-    chmod +x "$TEST_DIR/.sidekick/features/scripts/"*.sh
-
-    local session_id="test-session-sleeper"
-    mkdir -p "$TEST_DIR/.sidekick/sessions/$session_id"
-
-    local transcript="$TEST_DIR/transcript.jsonl"
-    echo '{"role":"user","content":"test"}' > "$transcript"
-
-    # Should not fail when script exists
-    session_summary_sleeper_start "$session_id" "$transcript" "$TEST_DIR"
-
-    # Verify PID file was created
-    [ -f "$TEST_DIR/.sidekick/sessions/$session_id/sleeper.pid" ]
-
-    # Clean up background process
-    local pid
-    pid=$(cat "$TEST_DIR/.sidekick/sessions/$session_id/sleeper.pid")
-    kill "$pid" 2>/dev/null || true
-}
 
 # ============================================================================
 # Main test execution
@@ -1073,11 +661,6 @@ main() {
     echo
 
     setup
-
-    # Script file tests
-    run_test test_sleeper_script_exists
-    run_test test_sleeper_script_syntax
-    run_test test_sleeper_start_uses_script
 
     # Title extraction tests
     run_test test_get_title_from_valid_file
@@ -1101,17 +684,6 @@ main() {
     run_test test_write_summary_sets_high_confidence_countdowns_and_bookmark
     run_test test_write_summary_resets_bookmark_on_confidence_drop
     run_test test_excerpt_uses_bookmark_split_when_conditions_met
-
-    # Sleeper tests
-    run_test test_sleeper_start_creates_pid_file
-    run_test test_sleeper_start_doesnt_duplicate
-    run_test test_sleeper_disabled
-
-    # Sleeper inactivity timeout tests
-    run_test test_sleeper_exits_after_inactivity_timeout
-    run_test test_sleeper_stays_alive_with_ongoing_activity
-    run_test test_sleeper_activity_resets_inactivity_timer
-    run_test test_sleeper_exits_after_activity_stops
 
     teardown
 

@@ -578,7 +578,7 @@ EOF
 
     # Create project config
     cat > "$TEST_DIR/.claude/hooks/sidekick/sidekick.conf" << 'EOF'
-FEATURE_TOPIC_EXTRACTION=false
+FEATURE_SESSION_SUMMARY=false
 FEATURE_CLEANUP=true
 EOF
 
@@ -608,7 +608,7 @@ EOF
         export CLAUDE_PROJECT_DIR='$TEST_DIR'
         source '$TEST_DIR/.claude/hooks/sidekick/lib/common.sh' 2>/dev/null
         config_load 2>/dev/null
-        if config_is_feature_enabled 'topic_extraction'; then
+        if config_is_feature_enabled 'session_summary'; then
             echo 'enabled'
         else
             echo 'disabled'
@@ -616,9 +616,9 @@ EOF
     " 2>/dev/null)
 
     if [ "$result" == "disabled" ]; then
-        pass "$test_name - topic_extraction disabled (project config)"
+        pass "$test_name - session_summary disabled (project config)"
     else
-        fail "$test_name - topic_extraction" "Feature detection failed, got: $result"
+        fail "$test_name - session_summary" "Feature detection failed, got: $result"
     fi
 }
 

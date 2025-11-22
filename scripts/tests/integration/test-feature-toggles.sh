@@ -111,7 +111,7 @@ create_config() {
     local config_file="$TEST_DIR/.claude/hooks/sidekick/sidekick.conf"
     cat > "$config_file" << CONFEOF
 # Test configuration
-FEATURE_TOPIC_EXTRACTION=${1:-false}
+FEATURE_SESSION_SUMMARY=${1:-false}
 FEATURE_RESUME=${2:-false}
 FEATURE_STATUSLINE=${3:-false}
 FEATURE_CLEANUP=${4:-false}
@@ -233,7 +233,7 @@ EOF
         fi
     fi
 
-    # Enable resume (requires full chain: statusline + topic_extraction + resume)
+    # Enable resume (requires full chain: statusline + session_summary + resume)
     create_config "true" "true" "true" "false" "false"
 
     TEST_SESSION="test-resume-enabled-$(date +%s)"
@@ -257,9 +257,9 @@ EOF
     fi
 }
 
-# Test 4: FEATURE_TOPIC_EXTRACTION toggle
-test_topic_extraction_feature_toggle() {
-    local test_name="FEATURE_TOPIC_EXTRACTION toggle"
+# Test 4: FEATURE_SESSION_SUMMARY toggle
+test_session_summary_feature_toggle() {
+    local test_name="FEATURE_SESSION_SUMMARY toggle"
 
     # Disable topic extraction
     create_config "false" "false" "false" "false" "false"
@@ -441,7 +441,7 @@ main() {
     test_tracking_auto_enabled
     test_cleanup_feature_toggle
     test_resume_feature_toggle
-    test_topic_extraction_feature_toggle
+    test_session_summary_feature_toggle
     test_statusline_feature_toggle
     test_multiple_features_enabled
     test_multiple_features_disabled
