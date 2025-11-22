@@ -1,6 +1,6 @@
 #!/bin/bash
 ###############################################################################
-# analyze-topic-at-line.sh
+# analyze-session-at-line.sh
 #
 # Surgical session summary tool - analyzes transcript up to a specific line
 # and saves all intermediate artifacts (filtered transcript, prompt, summary).
@@ -8,7 +8,7 @@
 # for significance change detection.
 #
 # Usage:
-#   ./scripts/analyze-topic-at-line.sh <session-id-or-path> --to-line N [OPTIONS]
+#   ./scripts/analyze-session-at-line.sh <session-id-or-path> --to-line N [OPTIONS]
 #
 # Arguments:
 #   <session-id-or-path>   Session ID (looks in ~/.claude/projects/) or
@@ -18,11 +18,11 @@
 #   --to-line N                Analyze transcript up to and including line N
 #
 # Optional:
-#   --output-dir DIR           Output directory (default: test-data/topic-analysis/)
+#   --output-dir DIR           Output directory (default: test-data/session-analysis/)
 #   --provider PROVIDER        LLM provider (default: openrouter)
 #   --model MODEL              Model name (default: google/gemini-2.5-flash-lite)
 #   --use-revised              Use ####-prompt-revised.txt instead of building prompt,
-#                              outputs to ####-topic-revised.json
+#                              outputs to ####-session-revised.json
 #
 # Output:
 #   <output-dir>/<session-id>/
@@ -30,28 +30,28 @@
 #     ├── 0100-filtered.jsonl            # Preprocessed (what LLM sees)
 #     ├── 0100-prompt.txt                # Complete prompt sent to LLM
 #     ├── 0100-json-schema.json          # JSON schema passed to LLM
-#     ├── 0100-topic.json                # Extracted topic result
+#     ├── 0100-session-summary.json      # Extracted session result
 #     ├── 0100-prompt-revised.txt        # Optional: manually edited prompt
 #     ├── 0100-json-schema-revised.json  # Optional: manually edited schema
-#     └── 0100-topic-revised.json        # Result from revised prompt/schema (--use-revised)
+#     └── 0100-session-revised.json      # Result from revised prompt/schema (--use-revised)
 #
-# Topic Continuity:
-#   Before analysis, scans output directory for previous topic files
-#   (####-topic.json where #### < target line) and uses the highest one
-#   as {PREVIOUS_TOPIC} for significance change detection.
+# Session Continuity:
+#   Before analysis, scans output directory for previous session files
+#   (####-session-summary.json where #### < target line) and uses the highest one
+#   as {PREVIOUS_SESSION} for significance change detection.
 #
 # Examples:
 #   # First analysis - no previous
-#   ./scripts/analyze-topic-at-line.sh abc123 --to-line 100
+#   ./scripts/analyze-session-at-line.sh abc123 --to-line 100
 #
-#   # Second analysis - uses 0100-topic.json as previous
-#   ./scripts/analyze-topic-at-line.sh abc123 --to-line 200
+#   # Second analysis - uses 0100-session-summary.json as previous
+#   ./scripts/analyze-session-at-line.sh abc123 --to-line 200
 #
-#   # Works out of order - uses 0100-topic.json (highest < 150)
-#   ./scripts/analyze-topic-at-line.sh abc123 --to-line 150
+#   # Works out of order - uses 0100-session-summary.json (highest < 150)
+#   ./scripts/analyze-session-at-line.sh abc123 --to-line 150
 #
 #   # Test revised prompt - edit 0100-prompt.txt, save as 0100-prompt-revised.txt
-#   ./scripts/analyze-topic-at-line.sh abc123 --to-line 100 --use-revised
+#   ./scripts/analyze-session-at-line.sh abc123 --to-line 100 --use-revised
 ###############################################################################
 
 set -euo pipefail
@@ -76,7 +76,7 @@ shift
 # Default configuration
 PROVIDER="openrouter"
 MODEL="google/gemini-2.5-flash-lite"
-OUTPUT_DIR="test-data/topic-analysis"
+OUTPUT_DIR="test-data/session-analysis"
 TO_LINE=-1  # Required
 USE_REVISED=false  # Use revised prompt instead of building
 
@@ -231,50 +231,50 @@ echo "Session output:   $SESSION_OUTPUT_DIR"
 echo ""
 
 ###############################################################################
-# Find Previous Topic (Topic Continuity)
+# Find Previous Session (Session Continuity)
 ###############################################################################
 
-find_previous_topic() {
+find_previous_session() {
     local target_line=$1
     local output_dir=$2
 
-    # Find all existing topic files in format ####-topic.json
-    local previous_topic_file=""
+    # Find all existing session files in format ####-session-summary.json
+    local previous_session_file=""
     local highest_line=0
 
-    for topic_file in "$output_dir"/[0-9][0-9][0-9][0-9]-topic.json; do
-        if [ -f "$topic_file" ]; then
+    for session_file in "$output_dir"/[0-9][0-9][0-9][0-9]-session-summary.json; do
+        if [ -f "$session_file" ]; then
             # Extract line number from filename
-            local line_num=$(basename "$topic_file" | sed 's/^0*//' | sed 's/-topic.json$//')
+            local line_num=$(basename "$session_file" | sed 's/^0*//' | sed 's/-session-summary.json$//')
             # Handle edge case where line_num is empty (0000)
             [ -z "$line_num" ] && line_num=0
 
             # Check if this is less than target and higher than current highest
             if [ "$line_num" -lt "$target_line" ] && [ "$line_num" -gt "$highest_line" ]; then
                 highest_line=$line_num
-                previous_topic_file="$topic_file"
+                previous_session_file="$session_file"
             fi
         fi
     done
 
-    if [ -n "$previous_topic_file" ]; then
-        echo "$previous_topic_file"
+    if [ -n "$previous_session_file" ]; then
+        echo "$previous_session_file"
     else
         echo ""
     fi
 }
 
-echo "Finding previous topic analysis..."
-PREVIOUS_TOPIC_FILE=$(find_previous_topic "$TO_LINE" "$SESSION_OUTPUT_DIR")
+echo "Finding previous session analysis..."
+PREVIOUS_SESSION_FILE=$(find_previous_session "$TO_LINE" "$SESSION_OUTPUT_DIR")
 
-if [ -n "$PREVIOUS_TOPIC_FILE" ]; then
-    PREVIOUS_LINE=$(basename "$PREVIOUS_TOPIC_FILE" | sed 's/^0*//' | sed 's/-topic.json$//')
+if [ -n "$PREVIOUS_SESSION_FILE" ]; then
+    PREVIOUS_LINE=$(basename "$PREVIOUS_SESSION_FILE" | sed 's/^0*//' | sed 's/-session-summary.json$//')
     [ -z "$PREVIOUS_LINE" ] && PREVIOUS_LINE=0
-    echo "Found previous:   Line $PREVIOUS_LINE ($PREVIOUS_TOPIC_FILE)"
-    PREVIOUS_TOPIC_JSON=$(cat "$PREVIOUS_TOPIC_FILE")
+    echo "Found previous:   Line $PREVIOUS_LINE ($PREVIOUS_SESSION_FILE)"
+    PREVIOUS_SESSION_JSON=$(cat "$PREVIOUS_SESSION_FILE")
 else
-    echo "No previous topic found (first analysis)"
-    PREVIOUS_TOPIC_JSON=""
+    echo "No previous session found (first analysis)"
+    PREVIOUS_SESSION_JSON=""
 fi
 echo ""
 
@@ -372,11 +372,11 @@ PROMPT_TEXT="$PROMPT_TEMPLATE"
 # Substitute {SCHEMA}
 PROMPT_TEXT="${PROMPT_TEXT//\{SCHEMA\}/$SCHEMA_JSON}"
 
-# Substitute {PREVIOUS_TOPIC}
-if [ -n "$PREVIOUS_TOPIC_JSON" ]; then
-    PROMPT_TEXT="${PROMPT_TEXT//\{PREVIOUS_TOPIC\}/$PREVIOUS_TOPIC_JSON}"
+# Substitute {PREVIOUS_SESSION} placeholder
+if [ -n "$PREVIOUS_SESSION_JSON" ]; then
+    PROMPT_TEXT="${PROMPT_TEXT//\{PREVIOUS_SESSION\}/$PREVIOUS_SESSION_JSON}"
 else
-    PROMPT_TEXT="${PROMPT_TEXT//\{PREVIOUS_TOPIC\}/null}"
+    PROMPT_TEXT="${PROMPT_TEXT//\{PREVIOUS_SESSION\}/null}"
 fi
 
 # Substitute {TRANSCRIPT}
@@ -419,16 +419,16 @@ if ! llm_output=$(llm_invoke "$MODEL" "$PROMPT_TEXT" 60 "$JSON_SCHEMA"); then
 fi
 
 # Extract JSON from output (handles markdown wrapping)
-topic_json=$(llm_extract_json "$llm_output")
+session_summary_json=$(llm_extract_json "$llm_output")
 
 # Validate JSON
-if ! json_validate "$topic_json"; then
+if ! json_validate "$session_summary_json"; then
     echo "ERROR: Invalid JSON response from LLM"
-    echo "$topic_json" | head -20
+    echo "$session_summary_json" | head -20
     exit 1
 fi
 
-echo "Topic extracted successfully"
+echo "Session summary extracted successfully"
 echo ""
 
 ###############################################################################
@@ -439,29 +439,29 @@ echo "Saving artifacts..."
 
 # Determine output files based on mode
 if [ "$USE_REVISED" = true ]; then
-    # Revised mode: only save revised topic
-    ARTIFACT_TOPIC="${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-topic-revised.json"
-    echo "$topic_json" | jq '.' > "$ARTIFACT_TOPIC"
-    echo "  → ${FILE_PREFIX}-topic-revised.json"
+    # Revised mode: only save revised session summary
+    ARTIFACT_SESSION_FILE="${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-session-revised.json"
+    echo "$session_summary_json" | jq '.' > "$ARTIFACT_SESSION_FILE"
+    echo "  → ${FILE_PREFIX}-session-revised.json"
 else
     # Normal mode: save all artifacts
     ARTIFACT_TRANSCRIPT="${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-transcript.jsonl"
     ARTIFACT_FILTERED="${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-filtered.jsonl"
     ARTIFACT_PROMPT="${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-prompt.txt"
     ARTIFACT_SCHEMA="${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-json-schema.json"
-    ARTIFACT_TOPIC="${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-topic.json"
+    ARTIFACT_SESSION_FILE="${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-session-summary.json"
 
     cp "$TEMP_TRANSCRIPT" "$ARTIFACT_TRANSCRIPT"
     cp "$TEMP_FILTERED" "$ARTIFACT_FILTERED"
     cp "$TEMP_PROMPT" "$ARTIFACT_PROMPT"
     cp "$TEMP_SCHEMA" "$ARTIFACT_SCHEMA"
-    echo "$topic_json" | jq '.' > "$ARTIFACT_TOPIC"
+    echo "$session_summary_json" | jq '.' > "$ARTIFACT_SESSION_FILE"
 
     echo "  → ${FILE_PREFIX}-transcript.jsonl  (raw, $TO_LINE lines)"
     echo "  → ${FILE_PREFIX}-filtered.jsonl    (preprocessed, $FILTERED_COUNT lines)"
     echo "  → ${FILE_PREFIX}-prompt.txt        ($(wc -c < "$ARTIFACT_PROMPT") bytes)"
     echo "  → ${FILE_PREFIX}-json-schema.json  ($(wc -c < "$ARTIFACT_SCHEMA") bytes)"
-    echo "  → ${FILE_PREFIX}-topic.json"
+    echo "  → ${FILE_PREFIX}-session-summary.json"
 fi
 echo ""
 
@@ -477,9 +477,9 @@ echo "Output directory: $SESSION_OUTPUT_DIR"
 echo ""
 
 # Extract key fields for display
-clarity=$(echo "$topic_json" | jq -r '.clarity_score // "N/A"')
-significant_change=$(echo "$topic_json" | jq -r '.significant_change // "N/A"')
-initial_goal=$(echo "$topic_json" | jq -r '.initial_goal // "N/A"' | head -c 80)
+clarity=$(echo "$session_summary_json" | jq -r '.clarity_score // "N/A"')
+significant_change=$(echo "$session_summary_json" | jq -r '.significant_change // "N/A"')
+initial_goal=$(echo "$session_summary_json" | jq -r '.initial_goal // "N/A"' | head -c 80)
 
 echo "Results:"
 echo "  Clarity score:       $clarity"
@@ -488,8 +488,8 @@ echo "  Initial goal:        ${initial_goal}..."
 echo ""
 
 echo "Next steps:"
-echo "  # View extracted topic"
-echo "  cat $ARTIFACT_TOPIC"
+echo "  # View extracted session summary"
+echo "  cat $ARTIFACT_SESSION_FILE"
 echo ""
 
 if [ "$USE_REVISED" = false ]; then
@@ -504,10 +504,10 @@ if [ "$USE_REVISED" = false ]; then
     echo "  cp ${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-prompt.txt ${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-prompt-revised.txt"
     echo "  cp ${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-json-schema.json ${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-json-schema-revised.json"
     echo "  # ... edit the revised files ..."
-    echo "  ./scripts/analyze-topic-at-line.sh $SESSION_ID --to-line $TO_LINE --use-revised"
+    echo "  ./scripts/analyze-session-at-line.sh $SESSION_ID --to-line $TO_LINE --use-revised"
     echo ""
 fi
 
 echo "  # Analyze next checkpoint"
-echo "  ./scripts/analyze-topic-at-line.sh $SESSION_ID --to-line $((TO_LINE + 100))"
+echo "  ./scripts/analyze-session-at-line.sh $SESSION_ID --to-line $((TO_LINE + 100))"
 echo ""
