@@ -69,6 +69,7 @@ def main():
     parser = argparse.ArgumentParser(description="Simulate session analysis from a transcript.")
     parser.add_argument("session_id_or_path", help="Session ID or path to transcript file")
     parser.add_argument("--start-line", type=int, default=0, help="Line number to start simulation from")
+    parser.add_argument("--limit", type=int, help="Maximum line number to process (stops after this line)")
     parser.add_argument("--output-dir", help="Directory for analysis artifacts")
     
     args = parser.parse_args()
@@ -99,6 +100,11 @@ def main():
     i = 0
     while i < len(lines):
         line_num = i + 1
+        
+        # Check if we've reached the limit
+        if args.limit and line_num > args.limit:
+            print(f"\nReached line limit ({args.limit}). Stopping simulation.")
+            break
         
         if line_num < args.start_line:
             i += 1
