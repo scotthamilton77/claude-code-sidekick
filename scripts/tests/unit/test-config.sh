@@ -50,7 +50,7 @@ EOF
     # features.defaults - feature-specific tuning
     cat > "${TEST_SIDEKICK_ROOT}/features.defaults" <<'EOF'
 # Test defaults - features
-RESUME_MIN_CONFIDENCE=7
+RESUME_MIN_CONFIDENCE=0.7
 STATUSLINE_TOKEN_THRESHOLD=160000
 TRACKING_STATIC_CADENCE=4
 CLEANUP_MIN_COUNT=5
@@ -104,7 +104,7 @@ test_config_load_sources_defaults() {
 
     # Check that defaults were loaded
     [ "${FEATURE_SESSION_SUMMARY}" = "true" ]
-    [ "${RESUME_MIN_CONFIDENCE}" = "7" ]
+    [ "${RESUME_MIN_CONFIDENCE}" = "0.7" ]
     [ "${LOG_LEVEL}" = "info" ]
 }
 
@@ -114,14 +114,14 @@ test_config_load_user_override() {
     mkdir -p "${HOME}/.claude/hooks/sidekick"
     cat > "${HOME}/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
 # User overrides
-RESUME_MIN_CONFIDENCE=5
+RESUME_MIN_CONFIDENCE=0.5
 LOG_LEVEL=debug
 EOF
 
     config_load
 
     # User config should override defaults
-    [ "${RESUME_MIN_CONFIDENCE}" = "5" ]
+    [ "${RESUME_MIN_CONFIDENCE}" = "0.5" ]
     [ "${LOG_LEVEL}" = "debug" ]
     # But unoverridden values should remain
     [ "${FEATURE_SESSION_SUMMARY}" = "true" ]
@@ -135,7 +135,7 @@ test_config_load_project_override() {
     # Create user config
     mkdir -p "${HOME}/.claude/hooks/sidekick"
     cat > "${HOME}/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
-RESUME_MIN_CONFIDENCE=3
+RESUME_MIN_CONFIDENCE=0.3
 LOG_LEVEL=debug
 EOF
 
@@ -143,13 +143,13 @@ EOF
     export CLAUDE_PROJECT_DIR="${TEST_DIR}/project"
     mkdir -p "${CLAUDE_PROJECT_DIR}/.claude/hooks/sidekick"
     cat > "${CLAUDE_PROJECT_DIR}/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
-RESUME_MIN_CONFIDENCE=4
+    RESUME_MIN_CONFIDENCE=0.4
 EOF
 
     config_load
 
     # Project should override user
-    [ "${RESUME_MIN_CONFIDENCE}" = "4" ]
+    [ "${RESUME_MIN_CONFIDENCE}" = "0.4" ]
     # But user should override defaults
     [ "${LOG_LEVEL}" = "debug" ]
 
@@ -163,7 +163,7 @@ test_config_get_returns_value() {
 
     local value
     value=$(config_get "RESUME_MIN_CONFIDENCE")
-    [ "$value" = "7" ]
+    [ "$value" = "0.7" ]
 }
 
 # Test: config_get returns empty for missing key
@@ -239,7 +239,7 @@ test_config_validate_valid_log_level() {
 
 # Test: _config_validate checks numeric values
 test_config_validate_numeric_values() {
-    RESUME_MIN_CONFIDENCE=7
+    RESUME_MIN_CONFIDENCE=0.7
     CLEANUP_MIN_COUNT=5
     CLEANUP_AGE_DAYS=2
 
@@ -390,7 +390,7 @@ test_modular_defaults_loaded() {
     [ "${LLM_CLAUDE_MODEL}" = "haiku" ]
 
     # Settings from features.defaults
-    [ "${RESUME_MIN_CONFIDENCE}" = "7" ]
+    [ "${RESUME_MIN_CONFIDENCE}" = "0.7" ]
 }
 
 # Test: modular user config overrides modular defaults
@@ -406,7 +406,7 @@ EOF
 
     # Override feature settings
     cat > "${HOME}/.claude/hooks/sidekick/features.conf" <<'EOF'
-RESUME_MIN_CONFIDENCE=8
+    RESUME_MIN_CONFIDENCE=0.8
 EOF
 
     config_load
@@ -414,7 +414,7 @@ EOF
     # Modular overrides should work
     [ "${LLM_PROVIDER}" = "claude-cli" ]
     [ "${LLM_TIMEOUT_SECONDS}" = "20" ]
-    [ "${RESUME_MIN_CONFIDENCE}" = "8" ]
+    [ "${RESUME_MIN_CONFIDENCE}" = "0.8" ]
 
     # Unoverridden values should remain from defaults
     [ "${LOG_LEVEL}" = "info" ]
@@ -435,15 +435,15 @@ EOF
 
     # Create legacy sidekick.conf (should override modular)
     cat > "${HOME}/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
-LLM_PROVIDER=openai-api
-RESUME_MIN_CONFIDENCE=9
+    LLM_PROVIDER=openai-api
+    RESUME_MIN_CONFIDENCE=0.9
 EOF
 
     config_load
 
     # Legacy sidekick.conf should override modular config
     [ "${LLM_PROVIDER}" = "openai-api" ]
-    [ "${RESUME_MIN_CONFIDENCE}" = "9" ]
+    [ "${RESUME_MIN_CONFIDENCE}" = "0.9" ]
 
     # Cleanup
     rm -f "${HOME}/.claude/hooks/sidekick/llm-core.conf"
