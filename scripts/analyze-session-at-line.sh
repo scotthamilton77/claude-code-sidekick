@@ -535,9 +535,9 @@ else
 
         PROMPT_TEMPLATE=$(cat "$PROMPT_TEMPLATE_PATH")
 
-        # Extract tiered components
-        HISTORICAL_TRANSCRIPT=$(echo "$EXCERPT_JSON" | jq -r '.historical | tojson')
-        RECENT_TRANSCRIPT=$(echo "$EXCERPT_JSON" | jq -r '.recent | tojson')
+        # Extract tiered components (pretty-printed for readability)
+        HISTORICAL_TRANSCRIPT=$(echo "$EXCERPT_JSON" | jq '.historical' | jq -Rs '.')
+        RECENT_TRANSCRIPT=$(echo "$EXCERPT_JSON" | jq '.recent' | jq -Rs '.')
         EXCERPT_BOOKMARK_LINE=$(echo "$EXCERPT_JSON" | jq -r '.bookmark_line')
         EXCERPT_CURRENT_LINE=$(echo "$EXCERPT_JSON" | jq -r '.current_line')
         BOOKMARK_LINE_PLUS_1=$((EXCERPT_BOOKMARK_LINE + 1))
@@ -561,8 +561,8 @@ else
 
         PROMPT_TEMPLATE=$(cat "$PROMPT_TEMPLATE_PATH")
 
-        # Extract full transcript
-        TRANSCRIPT_JSON=$(echo "$EXCERPT_JSON" | jq -r '.transcript | tojson')
+        # Extract full transcript (pretty-printed for readability)
+        TRANSCRIPT_JSON=$(echo "$EXCERPT_JSON" | jq '.transcript' | jq -Rs '.')
 
         # Build prompt with full substitutions
         PROMPT_TEXT="$PROMPT_TEMPLATE"
