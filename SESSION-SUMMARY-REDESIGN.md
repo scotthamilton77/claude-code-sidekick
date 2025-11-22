@@ -236,9 +236,10 @@ SUMMARY_TITLE_CONFIDENCE_BOOKMARK=150    # Line where title reached ≥0.8 confi
 
 **When to USE bookmark (split transcript):**
 
-- Only when `current_line - bookmark_line > 50`
-- Ensures "Recent Activity" section always has sufficient context
-- If < 50 lines since bookmark, use full transcript mode (with previous analysis passed in)
+- Whenever a valid bookmark exists (`bookmark_line > 0` and `current_line > bookmark_line`)
+- Historical context (lines 1 to bookmark) gets aggressive filtering
+- Recent activity (lines bookmark+1 to current) gets light filtering
+- Note: May fall back to full mode if filtered result has insufficient context (safety check)
 
 **Two-section prompt structure:**
 
