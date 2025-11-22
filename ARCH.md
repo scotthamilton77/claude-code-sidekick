@@ -35,6 +35,7 @@ claude-config/
 │   ├── features/
 │   │   ├── topic-extraction.sh            # LLM-based conversation analysis
 │   │   ├── resume.sh                      # Session continuity & snarkification
+│   │   ├── sleeper.sh                     # Background watcher for resume generation
 │   │   ├── statusline.sh                  # Enhanced statusline rendering
 │   │   ├── tracking.sh                    # Request counting
 │   │   ├── reminder.sh                    # Periodic static reminders
@@ -652,6 +653,49 @@ RESUME_MIN_CLARITY=5                # Minimum clarity to use previous session's 
 **Performance**: Fast (<10ms) - pure file I/O, no LLM calls
 
 **Dependencies**: Resume generation (in `topic-extraction.sh:resume_generate_async()`) loads prompts via `path_resolve_cascade("prompts/resume.prompt.txt")` and `path_resolve_cascade("prompts/resume.schema.json")`
+
+#### features/sleeper.sh
+
+**Functions**:
+
+- `sleeper_launch(session_id)` - Launch background sleeper process to watch session-summary.json
+- `sleeper_is_running(session_id)` - Check if sleeper is running for session
+- `sleeper_kill(session_id)` - Kill sleeper process for session
+
+**Architecture**: Background process that polls session-summary.json for changes and triggers resume generation
+
+**Workflow**:
+
+1. Launched by `session-summary.sh` after writing session-summary.json file
+2. Sleeper wakes every `SLEEPER_POLL_INTERVAL` seconds (default: 5s)
+3. Reads current session-summary.json and compares to last-seen values (in memory)
+4. If `session_title` or `latest_intent` changed AND both confidence scores >= `SLEEPER_MIN_CONFIDENCE`:
+   - Invokes `generate-resume.sh` to create/update resume.json
+   - Updates last-seen values
+5. Self-terminates after `SLEEPER_IDLE_TIMEOUT` seconds of no changes (default: 60s)
+
+**Configuration Keys**:
+
+```bash
+FEATURE_SLEEPER=true                # Master switch (requires FEATURE_RESUME)
+SLEEPER_POLL_INTERVAL=5             # Wake interval in seconds
+SLEEPER_IDLE_TIMEOUT=60             # Auto-exit after N seconds of no changes
+RESUME_MIN_CONFIDENCE=0.7           # Only generate resume if both title and intent confidence >= this (shared with resume.sh)
+```
+
+**Background Script**: `features/scripts/resume-sleeper.sh`
+
+- Polls session-summary.json in watch loop
+- Tracks last-seen session_title and latest_intent in memory
+- Invokes generate-resume.sh when changes detected with sufficient confidence
+- Logs to `${session_dir}/resume-sleeper.log`
+- PID tracked in `${session_dir}/resume-sleeper.pid`
+
+**Output**: Creates/updates `${session_dir}/resume.json` via generate-resume.sh when conditions met
+
+**Performance**: Minimal overhead - sleeps between polls, only processes on actual changes
+
+**Dependencies**: Requires `FEATURE_RESUME` enabled, uses `process_start_background()` from lib/process.sh
 
 #### features/statusline.sh
 
