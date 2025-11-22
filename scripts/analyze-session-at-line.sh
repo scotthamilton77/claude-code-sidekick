@@ -3,7 +3,7 @@
 # analyze-session-at-line.sh
 #
 # Surgical session summary tool - analyzes transcript up to a specific line
-# and saves all intermediate artifacts (filtered transcript, prompt, summary).
+# and saves all intermediate artifacts (excerpt, prompt, summary).
 # Maintains summary continuity by finding and using the previous summary analysis
 # for significance change detection.
 #
@@ -27,18 +27,31 @@
 # Output:
 #   <output-dir>/<session-id>/
 #     ├── 0100-transcript.jsonl          # Raw transcript lines 1-100
-#     ├── 0100-filtered.jsonl            # Preprocessed (what LLM sees)
-#     ├── 0100-prompt.txt                # Complete prompt sent to LLM
+#     ├── 0100-excerpt.json              # Preprocessed (tiered or full, what LLM sees)
+#     ├── 0100-prompt.txt                # Complete prompt sent to LLM (bookmark or basic)
 #     ├── 0100-json-schema.json          # JSON schema passed to LLM
 #     ├── 0100-session-summary.json      # Extracted session result
+#     ├── 0100-state.sh                  # State file (bookmark, countdowns) for next analysis
 #     ├── 0100-prompt-revised.txt        # Optional: manually edited prompt
 #     ├── 0100-json-schema-revised.json  # Optional: manually edited schema
 #     └── 0100-session-revised.json      # Result from revised prompt/schema (--use-revised)
 #
-# Session Continuity:
+# Session Continuity & Tiered Extraction:
 #   Before analysis, scans output directory for previous session files
-#   (####-session-summary.json where #### < target line) and uses the highest one
-#   as {PREVIOUS_SESSION} for significance change detection.
+#   (####-session-summary.json where #### < target line) and uses the highest one.
+#   Loads previous state file (####-state.sh) to get bookmark from confidence scores.
+#
+#   If bookmark > 0:
+#     - Uses tiered extraction (historical + recent with different filtering)
+#     - Loads session-summary-bookmark.prompt.txt
+#   Otherwise:
+#     - Uses full extraction with standard filtering
+#     - Loads session-summary.prompt.txt
+#
+#   After analysis, writes new state file with:
+#     - SUMMARY_TITLE_CONFIDENCE_BOOKMARK (set if confidence >= 0.8)
+#     - SUMMARY_TITLE_COUNTDOWN (5/20/10000 based on confidence)
+#     - SUMMARY_INTENT_COUNTDOWN (5/20/10000 based on confidence)
 #
 # Examples:
 #   # First analysis - no previous
@@ -202,6 +215,92 @@ source "$SIDEKICK_ROOT/lib/transcript.sh"
 # Initialize logging
 log_init "analyze-${SESSION_ID}-line${TO_LINE}"
 
+# Helper: Resolve path with source tree fallback (for development use)
+_resolve_path_with_source_fallback() {
+    local relative_path="$1"
+    local result
+
+    # Try installed locations first
+    if result=$(path_resolve_cascade "$relative_path" "$CLAUDE_PROJECT_DIR" 2>/dev/null); then
+        echo "$result"
+        return 0
+    fi
+
+    # Fallback: Check source tree (for development)
+    local source_path="${CLAUDE_PROJECT_DIR}/${SIDEKICK_ROOT}/${relative_path}"
+    if [ -f "$source_path" ]; then
+        echo "$source_path"
+        return 0
+    fi
+
+    # Not found
+    return 1
+}
+
+# Write state file with bookmark calculation (matches production logic)
+_write_state_file() {
+    local output_dir="$1"
+    local line_num="$2"
+    local session_summary_json="$3"
+    local previous_bookmark="${4:-0}"
+
+    local file_prefix=$(printf '%04d' "$line_num")
+    local state_file="${output_dir}/${file_prefix}-state.sh"
+
+    # Extract confidence scores
+    local title_conf=$(echo "$session_summary_json" | jq -r '.session_title_confidence // 0')
+    local intent_conf=$(echo "$session_summary_json" | jq -r '.latest_intent_confidence // 0')
+
+    # Calculate countdowns (same logic as production, lines 229-253)
+    local low_reset=${SUMMARY_COUNTDOWN_LOW:-5}
+    local med_reset=${SUMMARY_COUNTDOWN_MED:-20}
+    local high_reset=${SUMMARY_COUNTDOWN_HIGH:-10000}
+
+    local title_countdown=$low_reset
+    if [ $(awk "BEGIN {print ($title_conf < 0.6)}") -eq 1 ]; then
+        title_countdown=$low_reset
+    elif [ $(awk "BEGIN {print ($title_conf < 0.8)}") -eq 1 ]; then
+        title_countdown=$med_reset
+    else
+        title_countdown=$high_reset
+    fi
+
+    local intent_countdown=$low_reset
+    if [ $(awk "BEGIN {print ($intent_conf < 0.6)}") -eq 1 ]; then
+        intent_countdown=$low_reset
+    elif [ $(awk "BEGIN {print ($intent_conf < 0.8)}") -eq 1 ]; then
+        intent_countdown=$med_reset
+    else
+        intent_countdown=$high_reset
+    fi
+
+    # Bookmark logic (same as production, lines 256-272)
+    local bookmark_enabled=${SUMMARY_BOOKMARK_ENABLED:-true}
+    local new_bookmark=$previous_bookmark
+
+    if [ "$bookmark_enabled" = "true" ]; then
+        local bookmark_threshold=${SUMMARY_BOOKMARK_CONFIDENCE_THRESHOLD:-0.8}
+        local reset_threshold=${SUMMARY_BOOKMARK_RESET_THRESHOLD:-0.7}
+
+        # Set bookmark if title confidence >= threshold
+        if [ $(awk "BEGIN {print ($title_conf >= $bookmark_threshold)}") -eq 1 ]; then
+            new_bookmark=$line_num
+        elif [ $(awk "BEGIN {print ($title_conf < $reset_threshold)}") -eq 1 ]; then
+            # Reset if drops below reset threshold
+            new_bookmark=0
+        fi
+    fi
+
+    # Write state file
+    cat <<STATE > "$state_file"
+SUMMARY_TITLE_COUNTDOWN=$title_countdown
+SUMMARY_INTENT_COUNTDOWN=$intent_countdown
+SUMMARY_TITLE_CONFIDENCE_BOOKMARK=$new_bookmark
+STATE
+
+    echo "  State saved: bookmark=$new_bookmark, title_conf=$title_conf"
+}
+
 # Load session summary feature
 if [ ! -f "$SIDEKICK_ROOT/features/session-summary.sh" ]; then
     echo "ERROR: session-summary.sh not found"
@@ -267,19 +366,34 @@ find_previous_session() {
 echo "Finding previous session analysis..."
 PREVIOUS_SESSION_FILE=$(find_previous_session "$TO_LINE" "$SESSION_OUTPUT_DIR")
 
+# Initialize state variables
+PREVIOUS_BOOKMARK=0
+PREVIOUS_SESSION_JSON=""
+
 if [ -n "$PREVIOUS_SESSION_FILE" ]; then
     PREVIOUS_LINE=$(basename "$PREVIOUS_SESSION_FILE" | sed 's/^0*//' | sed 's/-session-summary.json$//')
     [ -z "$PREVIOUS_LINE" ] && PREVIOUS_LINE=0
-    echo "Found previous:   Line $PREVIOUS_LINE ($PREVIOUS_SESSION_FILE)"
+
+    # Load previous state file to get bookmark
+    PREVIOUS_STATE_FILE="${SESSION_OUTPUT_DIR}/$(printf '%04d' "$PREVIOUS_LINE")-state.sh"
+    if [ -f "$PREVIOUS_STATE_FILE" ]; then
+        source "$PREVIOUS_STATE_FILE"
+        PREVIOUS_BOOKMARK=$SUMMARY_TITLE_CONFIDENCE_BOOKMARK
+        echo "Found previous:   Line $PREVIOUS_LINE (bookmark: $PREVIOUS_BOOKMARK)"
+    else
+        # Fallback: use previous line as bookmark if no state file
+        PREVIOUS_BOOKMARK=$PREVIOUS_LINE
+        echo "Found previous:   Line $PREVIOUS_LINE (no state file, using line as bookmark)"
+    fi
+
     PREVIOUS_SESSION_JSON=$(cat "$PREVIOUS_SESSION_FILE")
 else
     echo "No previous session found (first analysis)"
-    PREVIOUS_SESSION_JSON=""
 fi
 echo ""
 
 ###############################################################################
-# Extract and Preprocess Transcript
+# Extract and Preprocess Transcript (Tiered if bookmark exists)
 ###############################################################################
 
 echo "Extracting transcript lines 1-${TO_LINE}..."
@@ -289,27 +403,74 @@ TEMP_WORK_DIR=$(mktemp -d)
 trap "rm -rf '$TEMP_WORK_DIR'" EXIT
 
 TEMP_TRANSCRIPT="${TEMP_WORK_DIR}/transcript.jsonl"
-TEMP_FILTERED="${TEMP_WORK_DIR}/filtered.jsonl"
 
 # Extract lines 1 to TO_LINE
 head -n "$TO_LINE" "$TRANSCRIPT_PATH" > "$TEMP_TRANSCRIPT"
 
-echo "Preprocessing transcript (filtering meta, tools, extracting .message)..."
+# Determine if we should use tiered extraction (bookmark logic)
+USE_TIERED=false
+BOOKMARK_LINE=$PREVIOUS_BOOKMARK
 
-# Use same filtering logic as production (from lib/transcript.sh)
-SUMMARY_FILTER_TOOL_MESSAGES=${SUMMARY_FILTER_TOOL_MESSAGES:-true}
+if [ "$BOOKMARK_LINE" -gt 0 ] && [ "$TO_LINE" -gt "$BOOKMARK_LINE" ]; then
+    USE_TIERED=true
+    LINE_DELTA=$((TO_LINE - BOOKMARK_LINE))
+    echo "Using tiered extraction (bookmark at line $BOOKMARK_LINE, delta: $LINE_DELTA)"
+fi
 
-# Build jq filter using production function
-JQ_FILTER=$(transcript_build_filter "$SUMMARY_FILTER_TOOL_MESSAGES")
+if [ "$USE_TIERED" = "true" ]; then
+    echo "Preprocessing transcript (tiered: historical + recent)..."
 
-# Apply filter and wrap in JSON array
-jq -c "$JQ_FILTER" "$TEMP_TRANSCRIPT" > "$TEMP_FILTERED"
+    # Historical: lines 1 to bookmark_line (aggressive filtering)
+    filter_historical=$(transcript_build_filter "true")
+    HISTORICAL_JSON=$(sed -n "1,${BOOKMARK_LINE}p" "$TEMP_TRANSCRIPT" | jq -c "$filter_historical" | jq -s '.')
 
-# Also create JSON array format for prompt substitution
-FILTERED_JSON=$(jq -s '.' "$TEMP_FILTERED")
+    # Recent: lines bookmark_line+1 to TO_LINE (light filtering)
+    filter_recent=$(transcript_build_filter "false")
+    RECENT_JSON=$(sed -n "$((BOOKMARK_LINE+1)),${TO_LINE}p" "$TEMP_TRANSCRIPT" | jq -c "$filter_recent" | jq -s '.')
 
-FILTERED_COUNT=$(wc -l < "$TEMP_FILTERED")
-echo "Filtered result:  $FILTERED_COUNT messages (from $TO_LINE raw lines)"
+    # Validate minimum context preservation
+    MIN_USER_MSGS=${SUMMARY_MIN_USER_MESSAGES:-5}
+    MIN_RECENT_LINES=${SUMMARY_MIN_RECENT_LINES:-50}
+
+    USER_MSG_COUNT=$(jq -n --argjson h "$HISTORICAL_JSON" --argjson r "$RECENT_JSON" \
+        '($h + $r) | map(select(.role == "user")) | length')
+
+    COMBINED_LINE_COUNT=$(jq -n --argjson h "$HISTORICAL_JSON" --argjson r "$RECENT_JSON" \
+        '($h + $r) | length')
+
+    # Fall back to full extraction if insufficient context
+    if [ "$USER_MSG_COUNT" -lt "$MIN_USER_MSGS" ] || [ "$COMBINED_LINE_COUNT" -lt "$MIN_RECENT_LINES" ]; then
+        echo "Insufficient context (users=$USER_MSG_COUNT/$MIN_USER_MSGS, lines=$COMBINED_LINE_COUNT/$MIN_RECENT_LINES), falling back to full extraction"
+        USE_TIERED=false
+    else
+        # Build tiered excerpt JSON
+        EXCERPT_JSON=$(jq -n --argjson h "$HISTORICAL_JSON" --argjson r "$RECENT_JSON" \
+            --arg bl "$BOOKMARK_LINE" --arg cl "$TO_LINE" \
+            '{historical: $h, recent: $r, bookmark_line: $bl, current_line: $cl, type: "tiered"}')
+
+        HISTORICAL_COUNT=$(echo "$HISTORICAL_JSON" | jq 'length')
+        RECENT_COUNT=$(echo "$RECENT_JSON" | jq 'length')
+        echo "Tiered result:    $HISTORICAL_COUNT historical + $RECENT_COUNT recent messages"
+    fi
+fi
+
+if [ "$USE_TIERED" = "false" ]; then
+    echo "Preprocessing transcript (full extraction with standard filtering)..."
+
+    # Use same filtering logic as production (from lib/transcript.sh)
+    FILTER_TOOLS=${SUMMARY_FILTER_TOOL_MESSAGES:-true}
+    JQ_FILTER=$(transcript_build_filter "$FILTER_TOOLS")
+
+    # Apply filter and wrap in JSON array
+    FILTERED_JSON=$(jq -c "$JQ_FILTER" "$TEMP_TRANSCRIPT" | jq -s '.')
+
+    # Build full excerpt JSON
+    EXCERPT_JSON=$(jq -n --argjson t "$FILTERED_JSON" '{transcript: $t, type: "full"}')
+
+    FILTERED_COUNT=$(echo "$FILTERED_JSON" | jq 'length')
+    echo "Filtered result:  $FILTERED_COUNT messages (from $TO_LINE raw lines)"
+fi
+
 echo ""
 
 ###############################################################################
@@ -343,52 +504,88 @@ if [ "$USE_REVISED" = true ]; then
 else
     echo "Building complete prompt..."
 
-    # Load prompt template and schema
-    PROMPT_TEMPLATE_PATH=$(path_resolve_cascade "prompts/session-summary.prompt.txt" "$CLAUDE_PROJECT_DIR")
-    SCHEMA_PATH=$(path_resolve_cascade "prompts/session-summary.schema.json" "$CLAUDE_PROJECT_DIR")
+    # Detect excerpt type
+    EXCERPT_TYPE=$(echo "$EXCERPT_JSON" | jq -r '.type')
+    echo "  Excerpt type: $EXCERPT_TYPE"
 
-if [ -z "$PROMPT_TEMPLATE_PATH" ] || [ ! -f "$PROMPT_TEMPLATE_PATH" ]; then
-    log_error "Prompt template not found: prompts/session-summary.prompt.txt"
-    exit 1
-fi
+    # Load schema (common to both types)
+    if ! SCHEMA_PATH=$(_resolve_path_with_source_fallback "prompts/session-summary.schema.json"); then
+        log_error "Schema not found: prompts/session-summary.schema.json"
+        exit 1
+    fi
+    SCHEMA_JSON=$(cat "$SCHEMA_PATH")
 
-if [ -z "$SCHEMA_PATH" ] || [ ! -f "$SCHEMA_PATH" ]; then
-    log_error "Schema not found: prompts/session-summary.schema.json"
-    exit 1
-fi
+    # Save schema as artifact for reference/revision
+    TEMP_SCHEMA="${TEMP_WORK_DIR}/schema.json"
+    echo "$SCHEMA_JSON" > "$TEMP_SCHEMA"
 
-# Read files
-PROMPT_TEMPLATE=$(cat "$PROMPT_TEMPLATE_PATH")
-SCHEMA_JSON=$(cat "$SCHEMA_PATH")
+    # Load previous summary for confidence extraction
+    PREVIOUS_CONFIDENCE="0.0"
+    if [ -n "$PREVIOUS_SESSION_JSON" ]; then
+        PREVIOUS_CONFIDENCE=$(echo "$PREVIOUS_SESSION_JSON" | jq -r '.session_title_confidence // 0.0')
+    fi
 
-# Save schema as artifact for reference/revision
-TEMP_SCHEMA="${TEMP_WORK_DIR}/schema.json"
-echo "$SCHEMA_JSON" > "$TEMP_SCHEMA"
+    # Load appropriate prompt template and build substitutions
+    if [ "$EXCERPT_TYPE" = "tiered" ]; then
+        # Tiered/bookmark mode
+        if ! PROMPT_TEMPLATE_PATH=$(_resolve_path_with_source_fallback "prompts/session-summary-bookmark.prompt.txt"); then
+            log_error "Bookmark prompt template not found: prompts/session-summary-bookmark.prompt.txt"
+            exit 1
+        fi
 
-# Build prompt with substitutions using bash parameter expansion
-# This handles multi-line JSON and special characters safely
-PROMPT_TEXT="$PROMPT_TEMPLATE"
+        PROMPT_TEMPLATE=$(cat "$PROMPT_TEMPLATE_PATH")
 
-# Substitute {SCHEMA}
-PROMPT_TEXT="${PROMPT_TEXT//\{SCHEMA\}/$SCHEMA_JSON}"
+        # Extract tiered components
+        HISTORICAL_TRANSCRIPT=$(echo "$EXCERPT_JSON" | jq -r '.historical | tojson')
+        RECENT_TRANSCRIPT=$(echo "$EXCERPT_JSON" | jq -r '.recent | tojson')
+        EXCERPT_BOOKMARK_LINE=$(echo "$EXCERPT_JSON" | jq -r '.bookmark_line')
+        EXCERPT_CURRENT_LINE=$(echo "$EXCERPT_JSON" | jq -r '.current_line')
+        BOOKMARK_LINE_PLUS_1=$((EXCERPT_BOOKMARK_LINE + 1))
 
-# Substitute {PREVIOUS_SESSION} placeholder
-if [ -n "$PREVIOUS_SESSION_JSON" ]; then
-    PROMPT_TEXT="${PROMPT_TEXT//\{PREVIOUS_SESSION\}/$PREVIOUS_SESSION_JSON}"
-else
-    PROMPT_TEXT="${PROMPT_TEXT//\{PREVIOUS_SESSION\}/null}"
-fi
+        # Build prompt with tiered substitutions
+        PROMPT_TEXT="$PROMPT_TEMPLATE"
+        PROMPT_TEXT="${PROMPT_TEXT//\{BOOKMARK_LINE\}/$EXCERPT_BOOKMARK_LINE}"
+        PROMPT_TEXT="${PROMPT_TEXT//\{PREVIOUS_CONFIDENCE\}/$PREVIOUS_CONFIDENCE}"
+        PROMPT_TEXT="${PROMPT_TEXT//\{PREVIOUS_SESSION\}/$PREVIOUS_SESSION_JSON}"
+        PROMPT_TEXT="${PROMPT_TEXT//\{HISTORICAL_TRANSCRIPT\}/$HISTORICAL_TRANSCRIPT}"
+        PROMPT_TEXT="${PROMPT_TEXT//\{BOOKMARK_LINE_PLUS_1\}/$BOOKMARK_LINE_PLUS_1}"
+        PROMPT_TEXT="${PROMPT_TEXT//\{CURRENT_LINE\}/$EXCERPT_CURRENT_LINE}"
+        PROMPT_TEXT="${PROMPT_TEXT//\{RECENT_TRANSCRIPT\}/$RECENT_TRANSCRIPT}"
 
-# Substitute {TRANSCRIPT}
-PROMPT_TEXT="${PROMPT_TEXT//\{TRANSCRIPT\}/$FILTERED_JSON}"
+    else
+        # Full mode
+        if ! PROMPT_TEMPLATE_PATH=$(_resolve_path_with_source_fallback "prompts/session-summary.prompt.txt"); then
+            log_error "Prompt template not found: prompts/session-summary.prompt.txt"
+            exit 1
+        fi
 
-# Save to file for artifact
-TEMP_PROMPT="${TEMP_WORK_DIR}/prompt.txt"
-echo "$PROMPT_TEXT" > "$TEMP_PROMPT"
+        PROMPT_TEMPLATE=$(cat "$PROMPT_TEMPLATE_PATH")
 
-echo "Prompt built ($(wc -c < "$TEMP_PROMPT") bytes)"
-echo ""
+        # Extract full transcript
+        TRANSCRIPT_JSON=$(echo "$EXCERPT_JSON" | jq -r '.transcript | tojson')
+
+        # Build prompt with full substitutions
+        PROMPT_TEXT="$PROMPT_TEMPLATE"
+        PROMPT_TEXT="${PROMPT_TEXT//\{PREVIOUS_CONFIDENCE\}/$PREVIOUS_CONFIDENCE}"
+
+        # Handle PREVIOUS_SESSION substitution (null if empty)
+        if [ -n "$PREVIOUS_SESSION_JSON" ]; then
+            PROMPT_TEXT="${PROMPT_TEXT//\{PREVIOUS_SESSION\}/$PREVIOUS_SESSION_JSON}"
+        else
+            PROMPT_TEXT="${PROMPT_TEXT//\{PREVIOUS_SESSION\}/null}"
+        fi
+
+        PROMPT_TEXT="${PROMPT_TEXT//\{TRANSCRIPT\}/$TRANSCRIPT_JSON}"
+    fi
+
+    # Save to file for artifact
+    TEMP_PROMPT="${TEMP_WORK_DIR}/prompt.txt"
+    echo "$PROMPT_TEXT" > "$TEMP_PROMPT"
+
+    echo "  Prompt built ($(wc -c < "$TEMP_PROMPT") bytes)"
+    echo ""
 fi  # End of USE_REVISED conditional
+
 
 ###############################################################################
 # Invoke LLM
@@ -446,23 +643,37 @@ if [ "$USE_REVISED" = true ]; then
 else
     # Normal mode: save all artifacts
     ARTIFACT_TRANSCRIPT="${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-transcript.jsonl"
-    ARTIFACT_FILTERED="${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-filtered.jsonl"
+    ARTIFACT_EXCERPT="${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-excerpt.json"
     ARTIFACT_PROMPT="${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-prompt.txt"
     ARTIFACT_SCHEMA="${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-json-schema.json"
     ARTIFACT_SESSION_FILE="${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-session-summary.json"
 
     cp "$TEMP_TRANSCRIPT" "$ARTIFACT_TRANSCRIPT"
-    cp "$TEMP_FILTERED" "$ARTIFACT_FILTERED"
+    echo "$EXCERPT_JSON" | jq '.' > "$ARTIFACT_EXCERPT"
     cp "$TEMP_PROMPT" "$ARTIFACT_PROMPT"
     cp "$TEMP_SCHEMA" "$ARTIFACT_SCHEMA"
     echo "$session_summary_json" | jq '.' > "$ARTIFACT_SESSION_FILE"
 
     echo "  → ${FILE_PREFIX}-transcript.jsonl  (raw, $TO_LINE lines)"
-    echo "  → ${FILE_PREFIX}-filtered.jsonl    (preprocessed, $FILTERED_COUNT lines)"
+
+    # Describe excerpt based on type
+    if [ "$EXCERPT_TYPE" = "tiered" ]; then
+        HIST_COUNT=$(echo "$EXCERPT_JSON" | jq '.historical | length')
+        REC_COUNT=$(echo "$EXCERPT_JSON" | jq '.recent | length')
+        echo "  → ${FILE_PREFIX}-excerpt.json      (tiered: $HIST_COUNT historical + $REC_COUNT recent)"
+    else
+        EXCERPT_COUNT=$(echo "$EXCERPT_JSON" | jq '.transcript | length')
+        echo "  → ${FILE_PREFIX}-excerpt.json      (full: $EXCERPT_COUNT messages)"
+    fi
+
     echo "  → ${FILE_PREFIX}-prompt.txt        ($(wc -c < "$ARTIFACT_PROMPT") bytes)"
     echo "  → ${FILE_PREFIX}-json-schema.json  ($(wc -c < "$ARTIFACT_SCHEMA") bytes)"
     echo "  → ${FILE_PREFIX}-session-summary.json"
 fi
+
+# Write state file (production-compatible bookmark tracking)
+_write_state_file "$SESSION_OUTPUT_DIR" "$TO_LINE" "$session_summary_json" "$PREVIOUS_BOOKMARK"
+echo "  → ${FILE_PREFIX}-state.sh"
 echo ""
 
 ###############################################################################
@@ -493,8 +704,8 @@ echo "  cat $ARTIFACT_SESSION_FILE"
 echo ""
 
 if [ "$USE_REVISED" = false ]; then
-    echo "  # View filtered transcript (LLM input)"
-    echo "  cat ${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-filtered.jsonl"
+    echo "  # View excerpt (LLM input - tiered or full)"
+    echo "  cat ${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-excerpt.json | jq"
     echo ""
     echo "  # View complete prompt and schema"
     echo "  cat ${SESSION_OUTPUT_DIR}/${FILE_PREFIX}-prompt.txt"
