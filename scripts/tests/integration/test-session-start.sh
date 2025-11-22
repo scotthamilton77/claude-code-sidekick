@@ -55,7 +55,7 @@ setup() {
     # Copy sidekick files to test directory
     cp "$PROJECT_ROOT/src/sidekick/sidekick.sh" "$TEST_DIR/.claude/hooks/sidekick/"
     cp -r "$PROJECT_ROOT/src/sidekick/lib/"* "$TEST_DIR/.claude/hooks/sidekick/lib/"
-    cp "$PROJECT_ROOT/src/sidekick/config.defaults" "$TEST_DIR/.claude/hooks/sidekick/"
+    cp "$PROJECT_ROOT"/src/sidekick/*.defaults "$TEST_DIR/.claude/hooks/sidekick/"
 
     # Copy prompts and reminders
     if [ -d "$PROJECT_ROOT/src/sidekick/prompts" ]; then
@@ -149,6 +149,7 @@ FEATURE_CLEANUP=true
 FEATURE_RESUME=true
 FEATURE_TOPIC_EXTRACTION=true
 FEATURE_STATUSLINE=true
+FEATURE_SESSION_SUMMARY=true
 
 # Disable sleeper for testing (we don't want background processes during test)
 SLEEPER_ENABLED=false
@@ -354,6 +355,7 @@ JSON
     cat > "$TEST_DIR/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
 FEATURE_CLEANUP=true
 FEATURE_RESUME=true
+FEATURE_SESSION_SUMMARY=true
 LOG_LEVEL=debug
 SLEEPER_ENABLED=false
 CLEANUP_DRY_RUN=true
@@ -367,24 +369,18 @@ test_resume_feature() {
     local prev_session_id="test-session-006a"
     local new_session_id="test-session-006b"
 
-    # Create a previous session with topic.json and resume.json
+        # Create a previous session with session-summary.json
     mkdir -p "$TEST_DIR/.sidekick/sessions/$prev_session_id"
-    cat > "$TEST_DIR/.sidekick/sessions/$prev_session_id/topic.json" <<'EOF'
+        cat > "$TEST_DIR/.sidekick/sessions/$prev_session_id/session-summary.json" <<'EOF'
 {
-  "session_id": "test-session-006a",
-  "timestamp": "2025-10-22T10:00:00Z",
-  "initial_goal": "Previous session goal",
-  "current_objective": "Testing resume",
-  "clarity_score": 8,
-  "confidence": 0.9
-}
-EOF
-    cat > "$TEST_DIR/.sidekick/sessions/$prev_session_id/resume.json" <<'EOF'
-{
-  "last_task_id": null,
-  "resume_last_goal_message": "Shall we resume testing resume?",
-  "last_objective_in_progress": "Navigate the space-time continuum of testing",
-  "snarky_comment": "Back for more testing, are we?"
+    "session_id": "test-session-006a",
+    "timestamp": "2025-10-22T10:00:00Z",
+    "session_title": "Previous session goal",
+    "latest_intent": "Testing resume",
+    "session_title_confidence": 0.92,
+    "latest_intent_confidence": 0.9,
+    "session_title_key_phrases": ["Previous session goal"],
+    "latest_intent_key_phrases": ["Testing resume"]
 }
 EOF
 
@@ -403,21 +399,32 @@ JSON
     # Execute session-start
     echo "$test_json" | "$TEST_DIR/.claude/hooks/sidekick/sidekick.sh" session-start >/dev/null 2>&1 || true
 
-    # Check if new session has topic file (created by resume feature from resume.json)
-    local topic_file="$TEST_DIR/.sidekick/sessions/$new_session_id/topic.json"
-    if [ -f "$topic_file" ]; then
-        pass "Resume created topic file for new session from resume.json"
+    # Check if new session inherited session summary
+    local summary_file="$TEST_DIR/.sidekick/sessions/$new_session_id/session-summary.json"
+    if [ -f "$summary_file" ]; then
+        pass "Resume created session-summary.json for new session"
 
-        # Verify it contains resume information
-        if grep -q "snarky_comment" "$topic_file" && grep -q "resume_from_session" "$topic_file"; then
-            pass "Topic file contains resume data"
+        local inherited_title
+        inherited_title=$(jq -r '.session_title' "$summary_file")
+        local inherited_intent
+        inherited_intent=$(jq -r '.latest_intent' "$summary_file")
+        local resume_flag
+        resume_flag=$(jq -r '.resume_from_session // false' "$summary_file")
+        local confidence
+        confidence=$(jq -r '.session_title_confidence' "$summary_file")
+
+        if [ "$inherited_title" = "Previous session goal" ] && \
+           [ "$inherited_intent" = "Testing resume" ] && \
+           [ "$resume_flag" = "true" ] && \
+           [ "$confidence" = "0.7" ]; then
+            pass "Session summary copied title, intent, and confidence baseline"
         else
-            fail "Topic file missing resume data"
+            fail "Session summary missing expected resume data"
             return 1
         fi
     else
-        # Resume feature skips if no resume.json found (graceful fallback)
-        pass "No topic file created (expected behavior when resume.json available)"
+        fail "Resume did not create session-summary.json for new session"
+        return 1
     fi
 }
 
