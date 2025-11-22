@@ -422,21 +422,21 @@ if [ "$USE_TIERED" = "true" ]; then
 
     # Historical: lines 1 to bookmark_line (aggressive filtering)
     filter_historical=$(transcript_build_filter "true")
-    HISTORICAL_JSON=$(sed -n "1,${BOOKMARK_LINE}p" "$TEMP_TRANSCRIPT" | jq -c "$filter_historical" | jq -s '.')
+    sed -n "1,${BOOKMARK_LINE}p" "$TEMP_TRANSCRIPT" | jq -c "$filter_historical" | jq -s '.' > "${TEMP_WORK_DIR}/historical.json"
 
     # Recent: lines bookmark_line+1 to TO_LINE (light filtering)
     filter_recent=$(transcript_build_filter "false")
-    RECENT_JSON=$(sed -n "$((BOOKMARK_LINE+1)),${TO_LINE}p" "$TEMP_TRANSCRIPT" | jq -c "$filter_recent" | jq -s '.')
+    sed -n "$((BOOKMARK_LINE+1)),${TO_LINE}p" "$TEMP_TRANSCRIPT" | jq -c "$filter_recent" | jq -s '.' > "${TEMP_WORK_DIR}/recent.json"
 
     # Validate minimum context preservation
     MIN_USER_MSGS=${SUMMARY_MIN_USER_MESSAGES:-5}
     MIN_RECENT_LINES=${SUMMARY_MIN_RECENT_LINES:-50}
 
-    USER_MSG_COUNT=$(jq -n --argjson h "$HISTORICAL_JSON" --argjson r "$RECENT_JSON" \
-        '($h + $r) | map(select(.role == "user")) | length')
+    USER_MSG_COUNT=$(jq -n --slurpfile h "${TEMP_WORK_DIR}/historical.json" --slurpfile r "${TEMP_WORK_DIR}/recent.json" \
+        '($h[0] + $r[0]) | map(select(.role == "user")) | length')
 
-    COMBINED_LINE_COUNT=$(jq -n --argjson h "$HISTORICAL_JSON" --argjson r "$RECENT_JSON" \
-        '($h + $r) | length')
+    COMBINED_LINE_COUNT=$(jq -n --slurpfile h "${TEMP_WORK_DIR}/historical.json" --slurpfile r "${TEMP_WORK_DIR}/recent.json" \
+        '($h[0] + $r[0]) | length')
 
     # Fall back to full extraction if insufficient context
     if [ "$USER_MSG_COUNT" -lt "$MIN_USER_MSGS" ] || [ "$COMBINED_LINE_COUNT" -lt "$MIN_RECENT_LINES" ]; then
@@ -444,12 +444,12 @@ if [ "$USE_TIERED" = "true" ]; then
         USE_TIERED=false
     else
         # Build tiered excerpt JSON
-        EXCERPT_JSON=$(jq -n --argjson h "$HISTORICAL_JSON" --argjson r "$RECENT_JSON" \
+        EXCERPT_JSON=$(jq -n --slurpfile h "${TEMP_WORK_DIR}/historical.json" --slurpfile r "${TEMP_WORK_DIR}/recent.json" \
             --arg bl "$BOOKMARK_LINE" --arg cl "$TO_LINE" \
-            '{historical: $h, recent: $r, bookmark_line: $bl, current_line: $cl, type: "tiered"}')
+            '{historical: $h[0], recent: $r[0], bookmark_line: $bl, current_line: $cl, type: "tiered"}')
 
-        HISTORICAL_COUNT=$(echo "$HISTORICAL_JSON" | jq 'length')
-        RECENT_COUNT=$(echo "$RECENT_JSON" | jq 'length')
+        HISTORICAL_COUNT=$(jq 'length' "${TEMP_WORK_DIR}/historical.json")
+        RECENT_COUNT=$(jq 'length' "${TEMP_WORK_DIR}/recent.json")
         echo "Tiered result:    $HISTORICAL_COUNT historical + $RECENT_COUNT recent messages"
     fi
 fi
@@ -462,12 +462,12 @@ if [ "$USE_TIERED" = "false" ]; then
     JQ_FILTER=$(transcript_build_filter "$FILTER_TOOLS")
 
     # Apply filter and wrap in JSON array
-    FILTERED_JSON=$(jq -c "$JQ_FILTER" "$TEMP_TRANSCRIPT" | jq -s '.')
+    jq -c "$JQ_FILTER" "$TEMP_TRANSCRIPT" | jq -s '.' > "${TEMP_WORK_DIR}/filtered.json"
 
     # Build full excerpt JSON
-    EXCERPT_JSON=$(jq -n --argjson t "$FILTERED_JSON" '{transcript: $t, type: "full"}')
+    EXCERPT_JSON=$(jq -n --slurpfile t "${TEMP_WORK_DIR}/filtered.json" '{transcript: $t[0], type: "full"}')
 
-    FILTERED_COUNT=$(echo "$FILTERED_JSON" | jq 'length')
+    FILTERED_COUNT=$(jq 'length' "${TEMP_WORK_DIR}/filtered.json")
     echo "Filtered result:  $FILTERED_COUNT messages (from $TO_LINE raw lines)"
 fi
 

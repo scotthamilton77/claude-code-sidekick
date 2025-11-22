@@ -71,11 +71,9 @@ claude-config/
 │   ├── sidekick.log                       # Global log file (gitignored)
 │   └── sessions/${session_id}/            # Session state (gitignored)
 │       ├── sidekick.log                   # Per-session log file
-│       ├── topic.json                     # Current topic analysis
-│       ├── resume.json                    # Resume message for NEXT session (generated when topic changes)
-│       ├── response_count                 # Tracking counter
-│       ├── sleeper.pid                    # Sleeper process ID
-│       └── analysis.pid                   # Analysis process ID
+│       ├── session-summary.json           # Session title and latest intent
+│       ├── session-summary-state.sh       # Countdown state for re-analysis triggering
+│       └── response_count                 # Tracking counter
 │
 └── ARCH.md, PLAN.md                       # This file and implementation plan
 ```
@@ -265,7 +263,7 @@ json_extract_from_markdown <text>
 ```bash
 # Launch background process with PID tracking
 process_launch_background <session_id> <name> <function> [args...]
-# Example: process_launch_background "$sid" "sleeper" sleeper_loop "$transcript"
+# Example: process_launch_background "$sid" "cleanup" cleanup_run "$session_dir"
 # Creates: ${session_dir}/${name}.pid
 # Logs to: ${session_dir}/${name}.log
 
@@ -537,21 +535,21 @@ JSON
 
 **Existing Features**:
 
-#### features/topic-extraction.sh
+#### features/session-summary.sh
 
 **Functions**:
 
 - `session_summary_analyze()` - Run LLM analysis with preprocessing (extracts `.message`, filters tool messages, strips metadata)
-- `session_summary_sleeper_start()` - Launch sleeper process
-- `session_summary_sleeper_loop()` - Sleeper polling loop (runs as background process)
-- `resume_generate_async()` - Launch background resume generation when topic changes significantly
+- `session_summary_on_user_prompt_submit()` - Hook to analyze on every user prompt
+- `session_summary_on_post_tool_use()` - Hook to analyze based on countdown state
+- `session_summary_get_title()` - Retrieve session title from summary file
 
 **Preprocessing**: Transcript lines are filtered before LLM analysis to reduce token usage and prevent metadata leakage:
 
 - Filters out meta messages (`.isMeta == true`) - system-generated metadata
 - Extracts `.message` field from each transcript line
 - Filters null/empty messages
-- Filters out `tool_use` and `tool_result` messages (configurable via `TOPIC_FILTER_TOOL_MESSAGES`)
+- Filters out `tool_use` and `tool_result` messages (configurable via `SUMMARY_FILTER_TOOL_MESSAGES`)
 - **Whitelists essential attributes** (robust against new fields):
   - Message level: `{role, content}` only
   - Content array items (when applicable):
@@ -564,26 +562,34 @@ JSON
 
 ```bash
 FEATURE_SESSION_SUMMARY=true
-TOPIC_EXCERPT_LINES=80              # Transcript lines to analyze (≈3-5 messages)
-TOPIC_FILTER_TOOL_MESSAGES=true     # Filter tool_use/tool_result (reduces tokens)
+SUMMARY_EXCERPT_LINES=80                      # Transcript lines to analyze (≈3-5 messages)
+SUMMARY_FILTER_TOOL_MESSAGES=true             # Filter tool_use/tool_result (reduces tokens)
 
-SLEEPER_ENABLED=true
-SLEEPER_MAX_DURATION=600            # Maximum inactivity timeout (seconds) - exits after no activity
-SLEEPER_MIN_SIZE_CHANGE=500         # Minimum bytes changed to trigger analysis
-SLEEPER_MIN_INTERVAL=10             # Minimum seconds between analyses
-SLEEPER_MIN_SLEEP=2                 # Minimum dynamic sleep interval (seconds)
-SLEEPER_MAX_SLEEP=20                # Maximum dynamic sleep interval (seconds)
-                                    # Sleep interval = clarity * 2 (capped between min/max)
+# Countdown-based re-analysis triggering
+SUMMARY_COUNTDOWN_LOW=5                       # Reset value for confidence < 0.6
+SUMMARY_COUNTDOWN_MED=20                      # Reset value for confidence 0.6-0.8
+SUMMARY_COUNTDOWN_HIGH=10000                  # Reset value for confidence > 0.8
+
+# Bookmark optimization (context windowing)
+SUMMARY_BOOKMARK_CONFIDENCE_THRESHOLD=0.8     # Set bookmark when title reaches this confidence
+SUMMARY_BOOKMARK_RESET_THRESHOLD=0.7          # Reset bookmark if confidence drops below this
+
+# Context preservation constraints
+SUMMARY_MIN_USER_MESSAGES=5                   # Minimum user messages to preserve
+SUMMARY_MIN_RECENT_LINES=50                   # Minimum recent transcript lines to preserve
 ```
 
-**Resume Generation Integration**:
+**Triggering Logic**:
 
-When `session_summary_analyze()` writes `topic.json`, it checks two conditions:
+Session summary analysis is triggered via hooks:
 
-1. `significant_change: true` (determined by Claude comparing current and previous topic)
-2. `clarity_score >= 5` (sufficient understanding to generate meaningful resume)
+1. **UserPromptSubmit**: Always analyze on every user prompt (ensures latest_intent is current)
+2. **PostToolUse**: Analyze when countdown reaches zero (title countdown and intent countdown managed independently)
 
-If both true, triggers `resume_generate_async()` which:
+**Countdown Mechanism**: After each analysis, countdowns are reset based on confidence:
+- Low confidence (<0.6): Frequent re-analysis (countdown = 5)
+- Medium confidence (0.6-0.8): Periodic re-analysis (countdown = 20)
+- High confidence (>0.8): Rare re-analysis (countdown = 10000)
 
 - Launches background process (non-blocking)
 - Loads `resume.prompt.txt` prompt template
@@ -812,25 +818,20 @@ FEATURE_REMINDER_STUCK_CHECKPOINT=true
 FEATURE_REMINDER_PRE_COMPLETION=true
 
 # ============================================================================
-# TOPIC EXTRACTION
+# SESSION SUMMARY
 # ============================================================================
-TOPIC_EXCERPT_LINES=80
-TOPIC_FILTER_TOOL_MESSAGES=true
-
-# ============================================================================
-# SLEEPER
-# ============================================================================
-SLEEPER_ENABLED=true
-SLEEPER_MAX_DURATION=600           # Inactivity timeout (seconds)
-SLEEPER_MIN_SIZE_CHANGE=500        # Minimum bytes to trigger analysis
-SLEEPER_MIN_INTERVAL=10            # Minimum seconds between analyses
-SLEEPER_MIN_SLEEP=2                # Minimum dynamic sleep
-SLEEPER_MAX_SLEEP=20               # Maximum dynamic sleep
+SUMMARY_EXCERPT_LINES=80
+SUMMARY_FILTER_TOOL_MESSAGES=true
+SUMMARY_COUNTDOWN_LOW=5
+SUMMARY_COUNTDOWN_MED=20
+SUMMARY_COUNTDOWN_HIGH=10000
+SUMMARY_BOOKMARK_CONFIDENCE_THRESHOLD=0.8
+SUMMARY_BOOKMARK_RESET_THRESHOLD=0.7
 
 # ============================================================================
 # RESUME
 # ============================================================================
-RESUME_MIN_CLARITY=5
+RESUME_MIN_CONFIDENCE=0.7
 
 # ============================================================================
 # STATUSLINE
@@ -1139,9 +1140,7 @@ handler_user_prompt_submit()
   ↓
 count = tracking_increment() → updates ${session_dir}/response_count
   ↓
-if count == 1: session_summary_sleeper_start() → process_launch_background
-  ↓
-if count % cadence == 0: session_summary_analyze() (async via process_launch_background)
+session_summary_on_user_prompt_submit() → always analyze on user prompt
   ↓
 if count % 4 == 0: output static reminder JSON
   ↓
@@ -1167,53 +1166,52 @@ echo formatted statusline
 sidekick.sh exits (<50ms)
 ```
 
-### Pattern 4: Background Process (sleeper)
+### Pattern 4: Background Process (cleanup)
 
 ```
-handler_user_prompt_submit()
+handler_post_tool_use()
   ↓
-session_summary_sleeper_start()
+cleanup_on_post_tool_use()
   ↓
-process_launch_background "sleeper" session_summary_sleeper_loop
+process_launch_background "cleanup" cleanup_run
   ↓
-nohup bash -c "session_summary_sleeper_loop" &
-  ↓ (writes PID to ${session_dir}/sleeper.pid)
+nohup bash -c "cleanup_run" &
+  ↓ (writes PID to ${session_dir}/cleanup.pid)
   ↓
-[Sleeper runs independently]
-  while true:
-    if inactive_duration > max_duration: exit  # Exit after inactivity timeout
-    if transcript changed significantly:
-      session_summary_analyze()
-      update last_activity_time  # Reset inactivity timer
-    sleep $dynamic_interval  # Based on clarity * 2 (capped 2-20s)
+[Cleanup runs independently]
+  identifies old session directories
+  removes sessions older than threshold
+  exits when complete
 ```
 
-### Pattern 5: Async Resume Generation (triggered by topic change)
+**Note**: The sleeper process (Pattern 4 in earlier versions) was removed and replaced with countdown-based triggering. Session summary analysis now triggers via hooks instead of background polling.
+
+### Pattern 5: Countdown-Based Re-Analysis
 
 ```
-session_summary_analyze()
+handler_post_tool_use()
   ↓
-writes ${session_dir}/topic.json
+session_summary_on_post_tool_use()
   ↓
-checks: significant_change == true && clarity >= 5
-  ↓ (if both true)
-resume_generate_async()
+load session-summary-state.sh (SUMMARY_TITLE_COUNTDOWN, SUMMARY_INTENT_COUNTDOWN)
   ↓
-nohup bash -c "generate resume in background" &
-  ↓ (doesn't block main flow)
+decrement counters (--TITLE_COUNTDOWN, --INTENT_COUNTDOWN)
   ↓
-[Background process]
-  reads ${session_dir}/topic.json (current topic)
+save state back to session-summary-state.sh
   ↓
-  extracts transcript excerpt (last ~3-5 messages)
-  ↓
-  loads features/prompts/resume.prompt.txt
-  ↓
-  substitutes {CURRENT_TOPIC} and {TRANSCRIPT}
-  ↓
-  llm_invoke <model> prompt 30s
-  ↓
-  extracts JSON output
+if either countdown <= 0:
+  session_summary_analyze()
+    ↓
+  write session-summary.json (title, intent, confidence scores)
+    ↓
+  reset countdowns based on confidence:
+    - confidence < 0.6: countdown = 5  (frequent re-analysis)
+    - confidence 0.6-0.8: countdown = 20 (periodic re-analysis)
+    - confidence > 0.8: countdown = 10000 (rare re-analysis)
+    ↓
+  if title_confidence >= 0.8: set bookmark at current line
+    ↓
+  save updated state
   ↓
   writes ${session_dir}/resume.json
   ↓
@@ -1254,15 +1252,6 @@ nohup bash -c "generate resume in background" &
 **Strategy**: Fail fast with clear error messages
 
 **set -euo pipefail**: Applied in `sidekick.sh` and all sourced files
-
-**Error Traps**: Capture line number and log errors
-
-```bash
-error_trap() {
-    log_error "Failed at line $1 with exit code $?"
-}
-trap 'error_trap $LINENO' ERR
-```
 
 **Graceful Degradation**:
 

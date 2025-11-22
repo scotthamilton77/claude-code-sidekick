@@ -50,12 +50,7 @@ EOF
     # features.defaults - feature-specific tuning
     cat > "${TEST_SIDEKICK_ROOT}/features.defaults" <<'EOF'
 # Test defaults - features
-SLEEPER_MAX_DURATION=600
-SLEEPER_MIN_SIZE_CHANGE=500
-SLEEPER_MIN_INTERVAL=10
-SLEEPER_MIN_SLEEP=2
-SLEEPER_MAX_SLEEP=20
-RESUME_MIN_CLARITY=5
+RESUME_MIN_CONFIDENCE=7
 STATUSLINE_TOKEN_THRESHOLD=160000
 TRACKING_STATIC_CADENCE=4
 CLEANUP_MIN_COUNT=5
@@ -89,7 +84,7 @@ run_test() {
 
     # Reset config before each test
     unset FEATURE_SESSION_SUMMARY FEATURE_RESUME FEATURE_TRACKING
-    unset SLEEPER_MAX_DURATION LOG_LEVEL
+    unset RESUME_MIN_CONFIDENCE LOG_LEVEL
     unset CLAUDE_PROJECT_DIR
 
     if "$test_name"; then
@@ -109,7 +104,7 @@ test_config_load_sources_defaults() {
 
     # Check that defaults were loaded
     [ "${FEATURE_SESSION_SUMMARY}" = "true" ]
-    [ "${SLEEPER_MAX_DURATION}" = "600" ]
+    [ "${RESUME_MIN_CONFIDENCE}" = "7" ]
     [ "${LOG_LEVEL}" = "info" ]
 }
 
@@ -119,14 +114,14 @@ test_config_load_user_override() {
     mkdir -p "${HOME}/.claude/hooks/sidekick"
     cat > "${HOME}/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
 # User overrides
-SLEEPER_MAX_DURATION=300
+RESUME_MIN_CONFIDENCE=5
 LOG_LEVEL=debug
 EOF
 
     config_load
 
     # User config should override defaults
-    [ "${SLEEPER_MAX_DURATION}" = "300" ]
+    [ "${RESUME_MIN_CONFIDENCE}" = "5" ]
     [ "${LOG_LEVEL}" = "debug" ]
     # But unoverridden values should remain
     [ "${FEATURE_SESSION_SUMMARY}" = "true" ]
@@ -140,7 +135,7 @@ test_config_load_project_override() {
     # Create user config
     mkdir -p "${HOME}/.claude/hooks/sidekick"
     cat > "${HOME}/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
-SLEEPER_MAX_DURATION=20
+RESUME_MIN_CONFIDENCE=3
 LOG_LEVEL=debug
 EOF
 
@@ -148,13 +143,13 @@ EOF
     export CLAUDE_PROJECT_DIR="${TEST_DIR}/project"
     mkdir -p "${CLAUDE_PROJECT_DIR}/.claude/hooks/sidekick"
     cat > "${CLAUDE_PROJECT_DIR}/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
-SLEEPER_MAX_DURATION=30
+RESUME_MIN_CONFIDENCE=4
 EOF
 
     config_load
 
     # Project should override user
-    [ "${SLEEPER_MAX_DURATION}" = "30" ]
+    [ "${RESUME_MIN_CONFIDENCE}" = "4" ]
     # But user should override defaults
     [ "${LOG_LEVEL}" = "debug" ]
 
@@ -167,8 +162,8 @@ test_config_get_returns_value() {
     config_load
 
     local value
-    value=$(config_get "SLEEPER_MAX_DURATION")
-    [ "$value" = "600" ]
+    value=$(config_get "RESUME_MIN_CONFIDENCE")
+    [ "$value" = "7" ]
 }
 
 # Test: config_get returns empty for missing key
@@ -193,13 +188,11 @@ test_config_is_feature_enabled_false() {
     config_load
 
     # FEATURE_NONEXISTENT=false in defaults
-    # Temporarily disable error trap and errexit to test function that returns 1
-    trap - ERR
+    # Temporarily disable errexit to test function that returns 1
     set +e
     config_is_feature_enabled "nonexistent"
     local result=$?
     set -e
-    trap 'error_trap $LINENO' ERR
 
     # Should return 1 (disabled)
     [ "$result" -eq 1 ]
@@ -246,16 +239,16 @@ test_config_validate_valid_log_level() {
 
 # Test: _config_validate checks numeric values
 test_config_validate_numeric_values() {
-    SLEEPER_MAX_DURATION=10
-    SLEEPER_MIN_SLEEP=2
-    SLEEPER_MAX_SLEEP=20
+    RESUME_MIN_CONFIDENCE=7
+    CLEANUP_MIN_COUNT=5
+    CLEANUP_AGE_DAYS=2
 
     _config_validate
 }
 
 # Test: _config_validate rejects non-numeric values
 test_config_validate_rejects_non_numeric() {
-    SLEEPER_MAX_DURATION="not a number"
+    RESUME_MIN_CONFIDENCE="not a number"
 
     ! _config_validate 2>/dev/null
 }
@@ -397,7 +390,7 @@ test_modular_defaults_loaded() {
     [ "${LLM_CLAUDE_MODEL}" = "haiku" ]
 
     # Settings from features.defaults
-    [ "${SLEEPER_MAX_DURATION}" = "10" ]
+    [ "${RESUME_MIN_CONFIDENCE}" = "7" ]
 }
 
 # Test: modular user config overrides modular defaults
@@ -413,7 +406,7 @@ EOF
 
     # Override feature settings
     cat > "${HOME}/.claude/hooks/sidekick/features.conf" <<'EOF'
-SLEEPER_MAX_DURATION=15
+RESUME_MIN_CONFIDENCE=8
 EOF
 
     config_load
@@ -421,7 +414,7 @@ EOF
     # Modular overrides should work
     [ "${LLM_PROVIDER}" = "claude-cli" ]
     [ "${LLM_TIMEOUT_SECONDS}" = "20" ]
-    [ "${SLEEPER_MAX_DURATION}" = "15" ]
+    [ "${RESUME_MIN_CONFIDENCE}" = "8" ]
 
     # Unoverridden values should remain from defaults
     [ "${LOG_LEVEL}" = "info" ]
@@ -443,14 +436,14 @@ EOF
     # Create legacy sidekick.conf (should override modular)
     cat > "${HOME}/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
 LLM_PROVIDER=openai-api
-SLEEPER_MAX_DURATION=25
+RESUME_MIN_CONFIDENCE=9
 EOF
 
     config_load
 
     # Legacy sidekick.conf should override modular config
     [ "${LLM_PROVIDER}" = "openai-api" ]
-    [ "${SLEEPER_MAX_DURATION}" = "25" ]
+    [ "${RESUME_MIN_CONFIDENCE}" = "9" ]
 
     # Cleanup
     rm -f "${HOME}/.claude/hooks/sidekick/llm-core.conf"
