@@ -609,7 +609,7 @@ else
 fi
 
 # Invoke LLM with schema
-if ! llm_output=$(llm_invoke "$MODEL" "$PROMPT_TEXT" 60 "$JSON_SCHEMA"); then
+if ! llm_output=$(llm_invoke "$MODEL" "$PROMPT_TEXT" 60 "$JSON_SCHEMA" 0); then
     echo "ERROR: LLM invocation failed"
     echo "$llm_output" | head -20
     exit 1
