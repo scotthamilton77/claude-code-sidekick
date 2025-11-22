@@ -283,24 +283,24 @@ test_toposort_missing_dependency() {
 
 test_toposort_hyphen_normalization() {
     declare -A deps_map
-    deps_map["topic-extraction"]=""
-    deps_map["reminder"]="topic_extraction"  # Reference with underscore
+    deps_map["session-summary"]=""
+    deps_map["reminder"]="session_summary"  # Reference with underscore
 
     local sorted=()
     plugin_toposort deps_map sorted
 
     assert_equals 2 "${#sorted[@]}" "Should have 2 plugins in sorted output"
 
-    # topic-extraction should come before reminder
-    local idx_topic=-1 idx_reminder=-1
+    # session-summary should come before reminder
+    local idx_summary=-1 idx_reminder=-1
     for i in "${!sorted[@]}"; do
         case "${sorted[$i]}" in
-            topic-extraction) idx_topic=$i ;;
+            session-summary) idx_summary=$i ;;
             reminder) idx_reminder=$i ;;
         esac
     done
 
-    assert_true "[ $idx_topic -lt $idx_reminder ]" "topic-extraction should come before reminder"
+    assert_true "[ $idx_summary -lt $idx_reminder ]" "session-summary should come before reminder"
 }
 
 # ============================================================================

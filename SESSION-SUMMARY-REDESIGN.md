@@ -1,15 +1,15 @@
-# Topic Extraction Redesign
+# Session Summary Redesign
 
 ## Overview
 
-Redesigned topic extraction to better support the actual use case: helping users identify which terminal/session is which when multitasking across multiple Claude Code sessions.
+Redesigned session summary (formerly topic extraction) to better support the actual use case: helping users identify which terminal/session is which when multitasking across multiple Claude Code sessions.
 
 ## Core Concept
 
 Extract two pieces of information:
 
 1. **session_title**: High-level persistent summary of what the session is working on
-2. **last_ask**: What the user wanted in their most recent prompt (with context)
+2. **latest_intent**: What the user wanted in their most recent prompt (with context)
 
 Both should be stable once confident, with dynamic re-analysis based on confidence levels.
 
@@ -25,9 +25,9 @@ Both should be stable once confident, with dynamic re-analysis based on confiden
     "dependency chain",
     "master switch pattern"
   ],
-  "last_ask": "Fix tracking-disabled test expectations and update documentation",
-  "last_ask_confidence": 0.95,
-  "last_ask_key_phrases": [
+  "latest_intent": "Fix tracking-disabled test expectations and update documentation",
+  "latest_intent_confidence": 0.95,
+  "latest_intent_key_phrases": [
     "Fix the tracking-disabled test expectations",
     "proceed with documentation updates",
     "get the tests passing before updating the documentation"
@@ -59,7 +59,7 @@ Both should be stable once confident, with dynamic re-analysis based on confiden
 - Helps explain confidence level
 - Provides evidence for the LLM's interpretation
 
-**last_ask**
+**latest_intent**
 
 - What user wanted in their most recent prompt
 - Uses conversation context to interpret vague prompts ("do it", "continue")
@@ -67,13 +67,13 @@ Both should be stable once confident, with dynamic re-analysis based on confiden
   - Example: "Fix tests, update docs, commit" → all three captured
 - Meta-requests: keep existing state (don't update for "what are we doing?")
 
-**last_ask_confidence** (0.0 - 1.0)
+**latest_intent_confidence** (0.0 - 1.0)
 
-- How confident the LLM is about interpreting the last ask
+- How confident the LLM is about interpreting the latest intent
 - Higher when: explicit instructions, clear context
 - Lower when: vague references, ambiguous phrasing
 
-**last_ask_key_phrases**
+**latest_intent_key_phrases**
 
 - Array of 2-5 key phrases that support the interpretation
 - Direct quotes from user messages preferred
@@ -87,7 +87,7 @@ The bash script handles:
 
 **Countdown-based triggering:**
 
-Each field (title and ask) has an independent countdown counter that decrements on every tool call. When either counter reaches 0, we trigger a single LLM call that extracts both fields.
+Each field (title and intent) has an independent countdown counter that decrements on every tool call. When either counter reaches 0, we trigger a single LLM call that extracts both fields.
 
 **Countdown reset values based on confidence:**
 
@@ -100,11 +100,11 @@ Each field (title and ask) has an independent countdown counter that decrements 
 **On each tool call:**
 
 ```bash
-((TOPIC_TITLE_COUNTDOWN--))
-((TOPIC_ASK_COUNTDOWN--))
+((SUMMARY_TITLE_COUNTDOWN--))
+((SUMMARY_INTENT_COUNTDOWN--))
 
-if [[ $TOPIC_TITLE_COUNTDOWN -le 0 || $TOPIC_ASK_COUNTDOWN -le 0 ]]; then
-  extract_both_title_and_ask()
+if [[ $SUMMARY_TITLE_COUNTDOWN -le 0 || $SUMMARY_INTENT_COUNTDOWN -le 0 ]]; then
+  extract_both_title_and_intent()
   # Reset each countdown independently based on new confidence
 fi
 ```
@@ -140,17 +140,11 @@ fi
 
 **Action:**
 
-- Keep existing `session_title` and `last_ask` (don't update)
-- Apply **configurable confidence penalty** (default: -0.2)
-  - Example: 0.85 → 0.65
+- Keep existing `session_title` and `latest_intent` (don't update)
+- Assume lower confidence in analysis
 - Rationale: Meta-requests may indicate confusion, verify understanding more frequently
 
-**Configuration:**
-
-```bash
-# In config
-META_REQUEST_CONFIDENCE_PENALTY=0.2  # Subtracted from both confidences
-```
+NOTE: this is currently tackled as part of the prompt instructions.
 
 ### 4. Multi-Instruction Capture
 
@@ -160,9 +154,9 @@ META_REQUEST_CONFIDENCE_PENALTY=0.2  # Subtracted from both confidences
 
 ```json
 {
-  "last_ask": "Fix tests, update documentation, and commit changes",
-  "last_ask_confidence": 0.95,
-  "last_ask_key_phrases": [
+  "latest_intent": "Fix tests, update documentation, and commit changes",
+  "latest_intent_confidence": 0.95,
+  "latest_intent_key_phrases": [
     "Fix the tests",
     "update the docs",
     "commit the changes"
@@ -187,7 +181,7 @@ All instructions captured, not just currently active one.
 
 **On session continuation:**
 
-- Carry forward `session_title` and `last_ask` from previous session
+- Carry forward `session_title` and `latest_intent` from previous session
 - Include in continuation summary passed to LLM
 - Initial confidence for continued session: **0.7** (medium - we have context but it's summarized)
 - Re-analyze immediately to verify accuracy
@@ -197,9 +191,9 @@ All instructions captured, not just currently active one.
 Script maintains countdown counters that decrement on each tool call:
 
 ```bash
-# Per-session state file (.claude/sessions/{id}/topic-state.sh)
-TOPIC_TITLE_COUNTDOWN=15               # Analyze title in 15 tool calls (or when ≤0)
-TOPIC_ASK_COUNTDOWN=3                  # Analyze ask in 3 tool calls (or when ≤0)
+# Per-session state file (.claude/sessions/{id}/session-summary-state.sh)
+SUMMARY_TITLE_COUNTDOWN=15               # Analyze title in 15 tool calls (or when ≤0)
+SUMMARY_INTENT_COUNTDOWN=3               # Analyze intent in 3 tool calls (or when ≤0)
 ```
 
 **Countdown reset logic after extraction:**
@@ -225,7 +219,7 @@ fi
 
 ```bash
 # In state file
-TOPIC_TITLE_CONFIDENCE_BOOKMARK=150    # Line where title reached ≥0.8 confidence
+SUMMARY_TITLE_CONFIDENCE_BOOKMARK=150    # Line where title reached ≥0.8 confidence
 ```
 
 **When to set bookmark:**
@@ -310,20 +304,20 @@ When `session_title_confidence` ≥ 0.8 and bookmark exists, divide transcript i
 
 ### Prompt Instructions
 
-Single LLM call that extracts both title/ask and detects hard pivots.
+Single LLM call that extracts both title/intent and detects hard pivots.
 
 **When bookmark exists (high confidence):**
 
 ```
-Extract the session topic from this conversation transcript.
+Extract the session summary from this conversation transcript.
 
 Previous analysis (line {bookmark_line}, confidence {previous_confidence}):
 {
   "session_title": "{previous_title}",
   "session_title_confidence": {previous_confidence},
   "session_title_key_phrases": {previous_key_phrases},
-  "last_ask": "{previous_ask}",
-  "last_ask_confidence": {previous_ask_confidence}
+  "latest_intent": "{previous_intent}",
+  "latest_intent_confidence": {previous_intent_confidence}
 }
 
 ════════════════════════════════════════════════════════
@@ -363,16 +357,16 @@ Output JSON with these fields:
    - Direct quotes from transcript that reinforce the title choice
    - Help explain the confidence level
 
-4. last_ask: What the user wanted in their most recent prompt
+4. latest_intent: What the user wanted in their most recent prompt
    - Use conversation context (including session_title) to interpret vague prompts ("do it", "yes", "continue")
    - If multi-instruction prompt, capture ALL instructions
    - Don't update for meta-requests ("what are we doing?", "/context")
 
-5. last_ask_confidence: 0.0-1.0
+5. latest_intent_confidence: 0.0-1.0
    - Higher: Explicit, clear instructions
    - Lower: Vague references, needs context interpretation
 
-6. last_ask_key_phrases: Array of 2-5 key phrases supporting interpretation
+6. latest_intent_key_phrases: Array of 2-5 key phrases supporting interpretation
    - Direct quotes preferred
    - Show evidence for confidence level
 
@@ -387,13 +381,13 @@ Analysis instructions:
 **When no bookmark (confidence < 0.8):**
 
 ```
-Extract the session topic from this conversation transcript.
+Extract the session summary from this conversation transcript.
 
 Previous analysis (confidence {previous_confidence}):
 {
   "session_title": "{previous_title}",
   "session_title_key_phrases": {previous_key_phrases},
-  "last_ask": "{previous_ask}"
+  "latest_intent": "{previous_intent}"
 }
 
 {filtered_transcript}
@@ -404,22 +398,22 @@ Output JSON with these fields:
 
 ## Implementation Steps
 
-1. **Update schema** (topic.json structure)
+1. **Update schema** (session-summary.json structure)
 
    - Remove: initial_goal, current_objective, significant_change, snarky comments
-   - Add: session_title, last_ask, confidence scores, key_phrases arrays
+   - Add: session_title, latest_intent, confidence scores, key_phrases arrays
    - Keep state tracking external
 
-2. **Rewrite LLM prompt** (topic extraction prompt file)
+2. **Rewrite LLM prompt** (session summary prompt file)
 
-   - Focus on title + ask extraction
+   - Focus on title + intent extraction
    - Add hard pivot detection guidance
    - Add multi-instruction capture guidance
    - Add meta-request handling note
 
-3. **Update topic-extraction.sh**
+3. **Update session-summary.sh**
 
-   - Implement countdown-based triggering (separate counters for title vs ask)
+   - Implement countdown-based triggering (separate counters for title vs intent)
    - Decrement both counters on each tool call
    - Trigger extraction when either countdown ≤ 0
    - Handle UserPromptSubmit always-analyze (regardless of countdowns)
@@ -433,28 +427,27 @@ Output JSON with these fields:
 4. **Update filtering** (implement tiered approach)
 
    - **Historical context (pre-bookmark, when confidence ≥ 0.8):**
-     - More aggressive filtering: remove routine tool calls, collapse repetitive patterns
+     - More aggressive filtering: remove routine tool calls
      - Keep conversation structure and key decisions only
    - **Recent activity (post-bookmark, or full transcript when confidence < 0.8):**
      - Less aggressive filtering: preserve user messages, assistant responses, tool patterns
    - **Always preserve regardless of filtering tier:**
-     - Minimum last 5 user messages (critical for last_ask interpretation)
+     - Minimum last 5 user messages (critical for latest_intent interpretation)
      - Minimum last 50 transcript lines (safety net)
 
 5. **Update resume.sh**
 
    - Use session_title instead of initial_goal
-   - Include last_ask in continuation context
+   - Include latest_intent in continuation context
    - Carry forward to new session
 
 6. **Add configuration options**
 
    ```bash
    # New config options
-   META_REQUEST_CONFIDENCE_PENALTY=0.2
-   TOPIC_COUNTDOWN_LOW=5          # Countdown reset value when confidence < 0.6
-   TOPIC_COUNTDOWN_MED=20         # Countdown reset value when confidence 0.6-0.8
-   TOPIC_COUNTDOWN_HIGH=10000     # Countdown reset value when confidence > 0.8
+   SUMMARY_COUNTDOWN_LOW=5          # Countdown reset value when confidence < 0.6
+   SUMMARY_COUNTDOWN_MED=20         # Countdown reset value when confidence 0.6-0.8
+   SUMMARY_COUNTDOWN_HIGH=10000     # Countdown reset value when confidence > 0.8
    ```
 
 7. **Test with existing transcripts**
@@ -466,16 +459,16 @@ Output JSON with these fields:
    - Verify meta-request handling
 
 8. **Update documentation**
-   - ARCH.md: New topic extraction model
+   - ARCH.md: New session summary model
    - README.md: Configuration options
 
 ## Benefits of This Approach
 
 1. **Cost-efficient**: Only re-analyze when confidence is low, plus bookmark optimization reduces tokens by ~65% for stable sessions
-2. **User-focused**: Captures actual intent (last_ask) not just current state
+2. **User-focused**: Captures actual intent (latest_intent) not just current state
 3. **Stable**: High-confidence topics don't churn unnecessarily - labeled sections reduce random variance
 4. **Explainable**: Key phrases show evidence for LLM's choices
-5. **Flexible**: Separate tracking for title vs ask
+5. **Flexible**: Separate tracking for title vs intent
 6. **Simple**: LLM only extracts info, bash handles orchestration
 7. **Smart context windowing**: Two-section prompts guide LLM attention without losing context
 
@@ -488,27 +481,24 @@ Output JSON with these fields:
 ## Configuration Reference
 
 ```bash
-# Topic Extraction Config
-TOPIC_EXTRACTION_ENABLED=true
+# Session Summary Config
+SESSION_SUMMARY_ENABLED=true
 
 # Countdown reset values based on confidence
-# Each field (title and ask) uses these values after extraction
-TOPIC_COUNTDOWN_LOW=5          # Reset value when confidence < 0.6 (frequent re-analysis)
-TOPIC_COUNTDOWN_MED=20         # Reset value when confidence 0.6-0.8 (periodic re-analysis)
-TOPIC_COUNTDOWN_HIGH=10000     # Reset value when confidence > 0.8 (effectively only on user prompt)
-
-# Confidence adjustments
-META_REQUEST_CONFIDENCE_PENALTY=0.2   # Subtract when user asks meta-questions
+# Each field (title and intent) uses these values after extraction
+SUMMARY_COUNTDOWN_LOW=5          # Reset value when confidence < 0.6 (frequent re-analysis)
+SUMMARY_COUNTDOWN_MED=20         # Reset value when confidence 0.6-0.8 (periodic re-analysis)
+SUMMARY_COUNTDOWN_HIGH=10000     # Reset value when confidence > 0.8 (effectively only on user prompt)
 
 # Bookmark optimization (context windowing)
-TOPIC_BOOKMARK_CONFIDENCE_THRESHOLD=0.8    # Set bookmark when title reaches this confidence
-TOPIC_BOOKMARK_RESET_THRESHOLD=0.7         # Reset bookmark if confidence drops below this
-TOPIC_BOOKMARK_ENABLED=true                # Enable bookmark-based context windowing
+SUMMARY_BOOKMARK_CONFIDENCE_THRESHOLD=0.8    # Set bookmark when title reaches this confidence
+SUMMARY_BOOKMARK_RESET_THRESHOLD=0.7         # Reset bookmark if confidence drops below this
+SUMMARY_BOOKMARK_ENABLED=true                # Enable bookmark-based context windowing
 
 # Initial extraction
-TOPIC_EXTRACT_ON_FIRST_MESSAGE=true   # Start extraction immediately
+SUMMARY_EXTRACT_ON_FIRST_MESSAGE=true   # Start extraction immediately
 
 # Context preservation for LLM
-TOPIC_MIN_USER_MESSAGES=5             # Keep at least N user messages for context (critical for last_ask)
-TOPIC_MIN_RECENT_LINES=50             # Keep at least N recent transcript lines (safety net)
+SUMMARY_MIN_USER_MESSAGES=5             # Keep at least N user messages for context (critical for latest_intent)
+SUMMARY_MIN_RECENT_LINES=50             # Keep at least N recent transcript lines (safety net)
 ```

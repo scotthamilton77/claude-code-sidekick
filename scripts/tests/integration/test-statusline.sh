@@ -63,7 +63,7 @@ setup() {
     # Copy sidekick files to test directory
     cp "$PROJECT_ROOT/src/sidekick/sidekick.sh" "$TEST_DIR/.claude/hooks/sidekick/"
     cp -r "$PROJECT_ROOT/src/sidekick/lib/"* "$TEST_DIR/.claude/hooks/sidekick/lib/"
-    cp "$PROJECT_ROOT/src/sidekick/config.defaults" "$TEST_DIR/.claude/hooks/sidekick/"
+    cp "$PROJECT_ROOT/src/sidekick/"*.defaults "$TEST_DIR/.claude/hooks/sidekick/"
 
     # Copy prompts and reminders
     if [ -d "$PROJECT_ROOT/src/sidekick/prompts" ]; then
@@ -107,28 +107,26 @@ cleanup() {
     fi
 }
 
-# Helper to create mock session with topic and transcript
+# Helper to create mock session with summary and transcript
 create_mock_session() {
     local session_id="$1"
-    local topic_text="${2:-Test objective}"
-    local clarity_score="${3:-8}"
+    local title="${2:-Test objective}"
+    local confidence="${3:-0.8}"
     local transcript_size="${4:-5000}"
 
     # Create session directory
     local session_dir="$TEST_DIR/.sidekick/sessions/$session_id"
     mkdir -p "$session_dir"
 
-    # Create topic.json
-    cat > "$session_dir/topic.json" <<EOF
+    # Create session-summary.json
+    cat > "$session_dir/session-summary.json" <<EOF
 {
   "session_id": "$session_id",
   "timestamp": "2025-10-22T12:00:00Z",
-  "task_ids": ["TEST-001"],
-  "initial_goal": "Test goal",
-  "current_objective": "$topic_text",
-  "clarity_score": $clarity_score,
-  "confidence": 0.9,
-  "snarky_comment": "Testing is fun!"
+  "session_title": "$title",
+  "latest_intent": "Testing functionality",
+  "session_title_confidence": $confidence,
+  "latest_intent_confidence": 0.9
 }
 EOF
 
@@ -249,20 +247,20 @@ test_statusline_contains_tokens() {
     fi
 }
 
-# Test 6: Statusline contains topic/objective
-test_statusline_contains_topic() {
-    log_test "Statusline contains topic"
+# Test 6: Statusline contains summary/title
+test_statusline_contains_summary() {
+    log_test "Statusline contains summary"
 
     local session_id="test-statusline-006"
-    local topic="Implementing feature X with TDD"
-    local transcript=$(create_mock_session "$session_id" "$topic" 8 5000)
+    local title="Implementing feature X with TDD"
+    local transcript=$(create_mock_session "$session_id" "$title" 0.8 5000)
 
     local output=$(invoke_statusline "$session_id" "Sonnet 4.5" 1.00 10000 "$transcript")
 
     if echo "$output" | grep -q "Implementing feature X"; then
-        pass "Statusline contains topic from topic.json"
+        pass "Statusline contains title from session-summary.json"
     else
-        fail "Statusline does not contain topic. Output: $output"
+        fail "Statusline does not contain title. Output: $output"
         return 1
     fi
 }
@@ -272,7 +270,7 @@ test_statusline_contains_git_branch() {
     log_test "Statusline contains git branch"
 
     local session_id="test-statusline-007"
-    local transcript=$(create_mock_session "$session_id" "Test objective" 8 5000)
+    local transcript=$(create_mock_session "$session_id" "Test objective" 0.8 5000)
 
     # We're on main/master branch from setup
     local output=$(invoke_statusline "$session_id" "Sonnet 4.5" 1.00 10000 "$transcript")
@@ -285,12 +283,12 @@ test_statusline_contains_git_branch() {
     fi
 }
 
-# Test 8: Statusline with missing topic file (graceful degradation)
-test_statusline_no_topic() {
-    log_test "Statusline handles missing topic gracefully"
+# Test 8: Statusline with missing summary file (graceful degradation)
+test_statusline_no_summary() {
+    log_test "Statusline handles missing summary gracefully"
 
-    local session_id="test-statusline-008-no-topic"
-    # Don't create topic file
+    local session_id="test-statusline-008-no-summary"
+    # Don't create summary file
     mkdir -p "$TEST_DIR/.sidekick/sessions/$session_id"
 
     local transcript="$TEST_DIR/test-transcript-$session_id.jsonl"
@@ -301,14 +299,14 @@ test_statusline_no_topic() {
     output=$(invoke_statusline "$session_id" "Sonnet 4.5" 1.00 10000 "$transcript") || exit_code=$?
 
     if [ $exit_code -eq 0 ]; then
-        pass "Statusline handled missing topic file gracefully"
+        pass "Statusline handled missing summary file gracefully"
 
-        # Should still show basic info (model, cost, etc) even without topic
+        # Should still show basic info (model, cost, etc) even without summary
         if echo "$output" | grep -q "Sonnet"; then
-            pass "Statusline shows model even without topic"
+            pass "Statusline shows model even without summary"
         fi
     else
-        fail "Statusline crashed with missing topic file: $output"
+        fail "Statusline crashed with missing summary file: $output"
         return 1
     fi
 }
@@ -416,26 +414,26 @@ test_statusline_performance() {
     fi
 }
 
-# Test 13: Statusline with different clarity scores (affects display)
-test_statusline_low_clarity() {
-    log_test "Statusline with low clarity topic"
+# Test 13: Statusline with different confidence scores (affects display)
+test_statusline_low_confidence() {
+    log_test "Statusline with low confidence summary"
 
     local session_id="test-statusline-013"
-    local transcript=$(create_mock_session "$session_id" "Unclear objective" 3 5000)
+    local transcript=$(create_mock_session "$session_id" "Unclear objective" 0.3 5000)
 
     local output
     local exit_code=0
     output=$(invoke_statusline "$session_id" "Sonnet 4.5" 1.00 10000 "$transcript") || exit_code=$?
 
     if [ $exit_code -eq 0 ]; then
-        pass "Statusline handled low clarity topic"
+        pass "Statusline handled low confidence summary"
 
-        # Should still display topic even if clarity is low
+        # Should still display title even if confidence is low
         if echo "$output" | grep -q "Unclear objective"; then
-            pass "Statusline shows topic even with low clarity"
+            pass "Statusline shows title even with low confidence"
         fi
     else
-        fail "Statusline failed with low clarity topic: $output"
+        fail "Statusline failed with low confidence summary: $output"
         return 1
     fi
 }
@@ -462,14 +460,14 @@ main() {
     test_statusline_contains_model || true
     test_statusline_contains_duration || true
     test_statusline_contains_tokens || true
-    test_statusline_contains_topic || true
+    test_statusline_contains_summary || true
     test_statusline_contains_git_branch || true
-    test_statusline_no_topic || true
+    test_statusline_no_summary || true
     test_statusline_token_percentage || true
     test_statusline_high_token_usage || true
     test_statusline_feature_disabled || true
     test_statusline_performance || true
-    test_statusline_low_clarity || true
+    test_statusline_low_confidence || true
 
     # Summary
     echo ""

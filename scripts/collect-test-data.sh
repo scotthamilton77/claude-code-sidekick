@@ -76,15 +76,15 @@ classify_length() {
 }
 
 
-# Extract initial goal from sidekick topic.json if available
+# Extract session title from sidekick session-summary.json if available
 extract_goal() {
     local session_id=$1
-    local topic_file="${SIDEKICK_SESSIONS_DIR}/${session_id}/topic.json"
+    local summary_file="${SIDEKICK_SESSIONS_DIR}/${session_id}/session-summary.json"
 
-    if [[ -f "$topic_file" ]]; then
-        local goal=$(jq -r '.initial_goal // empty' "$topic_file" 2>/dev/null || echo "")
-        if [[ -n "$goal" && "$goal" != "null" ]]; then
-            echo "$goal"
+    if [[ -f "$summary_file" ]]; then
+        local title=$(jq -r '.session_title // empty' "$summary_file" 2>/dev/null || echo "")
+        if [[ -n "$title" && "$title" != "null" ]]; then
+            echo "$title"
             return
         fi
     fi
@@ -99,12 +99,12 @@ extract_project_name() {
     echo "${dir_name#-}" | sed 's/-/\//g'
 }
 
-# Preprocess transcript using same logic as topic-extraction.sh
+# Preprocess transcript using same logic as session-summary.sh
 # Filters tool messages and strips unnecessary attributes
 preprocess_transcript() {
     local transcript=$1
 
-    # Replicate topic-extraction.sh preprocessing:
+    # Replicate session-summary.sh preprocessing:
     # 1. Extract .message field (ignore wrapper metadata)
     # 2. Filter out tool_use and tool_result content
     # 3. Strip model, id, type, stop_reason, stop_sequence, usage attributes

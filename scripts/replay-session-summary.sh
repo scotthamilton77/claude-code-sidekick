@@ -1,13 +1,13 @@
 #!/bin/bash
 ###############################################################################
-# replay-topic-extraction.sh
+# replay-session-summary.sh
 #
-# Simulates how topic extraction evolves as a transcript grows, mimicking
+# Simulates how session summary evolves as a transcript grows, mimicking
 # the production sleeper process behavior. Useful for tuning extraction logic
-# and observing how topics evolve over time.
+# and observing how summaries evolve over time.
 #
 # Usage:
-#   ./scripts/replay-topic-extraction.sh <session-id-or-path> [OPTIONS]
+#   ./scripts/replay-session-summary.sh <session-id-or-path> [OPTIONS]
 #
 # Arguments:
 #   <session-id-or-path>   Session ID (looks in ~/.claude/projects/) or
@@ -27,9 +27,9 @@
 # Output:
 #   replay-results/<session-id>-<timestamp>/
 #     ├── 001-transcript.jsonl  # Transcript state at extraction 1
-#     ├── 001-topic.json        # Topic extracted from that state
+#     ├── 001-session-summary.json        # Summary extracted from that state
 #     ├── 002-transcript.jsonl  # Transcript state at extraction 2
-#     ├── 002-topic.json
+#     ├── 002-session-summary.json
 #     └── ...
 ###############################################################################
 
@@ -114,7 +114,7 @@ done
 ###############################################################################
 
 echo "=============================================="
-echo "Topic Extraction Replay Debugger"
+echo "Session Summary Replay Debugger"
 echo "=============================================="
 echo ""
 echo "Input:            $INPUT"
@@ -188,15 +188,15 @@ source "$SIDEKICK_ROOT/lib/common.sh"
 # Initialize logging
 log_init "replay-${SESSION_ID}"
 
-# Load topic extraction feature
-if [ ! -f "$SIDEKICK_ROOT/features/topic-extraction.sh" ]; then
-    echo "ERROR: topic-extraction.sh not found"
+# Load session summary feature
+if [ ! -f "$SIDEKICK_ROOT/features/session-summary.sh" ]; then
+    echo "ERROR: session-summary.sh not found"
     exit 1
 fi
-source "$SIDEKICK_ROOT/features/topic-extraction.sh"
+source "$SIDEKICK_ROOT/features/session-summary.sh"
 
 # Configure features
-export FEATURE_TOPIC_EXTRACTION=true
+export FEATURE_SESSION_SUMMARY=true
 export FEATURE_STATUSLINE=true  # Required dependency
 export LLM_PROVIDER="$PROVIDER"
 if [ "$PROVIDER" = "openrouter" ]; then
@@ -212,7 +212,7 @@ export SLEEPER_MIN_SIZE_CHANGE="$MIN_SIZE_CHANGE"
 export SLEEPER_MIN_INTERVAL="$MIN_INTERVAL"
 
 log_info "Sidekick libraries loaded"
-log_info "Topic extraction configured: $PROVIDER / $MODEL"
+log_info "Session summary configured: $PROVIDER / $MODEL"
 
 # Create output directory
 RUN_TIMESTAMP=$(date +%Y%m%d-%H%M%S)
@@ -292,32 +292,32 @@ while [ $line_index -lt ${#TRANSCRIPT_LINES[@]} ]; do
         snapshot_transcript="${RUN_DIR}/$(printf '%03d' $sequence)-transcript.jsonl"
         cp "$TEMP_TRANSCRIPT" "$snapshot_transcript"
 
-        # Run topic extraction
+        # Run session summary
         export LOG_LEVEL=ERROR  # Suppress debug logs for cleaner output
 
         # Run analysis - session dir will be created automatically in .sidekick/sessions/
-        analysis_output=$(topic_extraction_analyze "replay-${sequence}" "$TEMP_TRANSCRIPT" "$PWD" 2>&1 || echo "FAILED")
+        analysis_output=$(session_summary_analyze "replay-${sequence}" "$TEMP_TRANSCRIPT" "$PWD" 2>&1 || echo "FAILED")
 
-        # Get the session directory path (created by topic_extraction_analyze)
+        # Get the session directory path (created by session_summary_analyze)
         analysis_session_dir="${PWD}/.sidekick/sessions/replay-${sequence}"
 
         if echo "$analysis_output" | grep -q "FAILED"; then
             echo "         ERROR: Analysis function failed"
             echo "$analysis_output" | grep -i "error\|fatal" | head -5
-        elif [ -f "${analysis_session_dir}/topic.json" ]; then
-            # Copy generated topic.json to snapshot
-            snapshot_topic="${RUN_DIR}/$(printf '%03d' $sequence)-topic.json"
-            cp "${analysis_session_dir}/topic.json" "$snapshot_topic"
+        elif [ -f "${analysis_session_dir}/session-summary.json" ]; then
+            # Copy generated session-summary.json to snapshot
+            snapshot_summary="${RUN_DIR}/$(printf '%03d' $sequence)-session-summary.json"
+            cp "${analysis_session_dir}/session-summary.json" "$snapshot_summary"
 
             # Extract key fields for display
-            clarity=$(jq -r '.clarity_score // "N/A"' "$snapshot_topic")
-            initial_goal=$(jq -r '.initial_goal // "N/A"' "$snapshot_topic" | head -c 60)
-            echo "         Clarity: $clarity | Goal: ${initial_goal}..."
+            confidence=$(jq -r '.session_title_confidence // "N/A"' "$snapshot_summary")
+            title=$(jq -r '.session_title // "N/A"' "$snapshot_summary" | head -c 60)
+            echo "         Confidence: $confidence | Title: ${title}..."
         else
-            echo "         ERROR: topic.json not generated"
+            echo "         ERROR: session-summary.json not generated"
         fi
 
-        # Clean up session directory (we've already copied the topic file)
+        # Clean up session directory (we've already copied the summary file)
         rm -rf "$analysis_session_dir" 2>/dev/null || true
 
         # Update state
@@ -356,11 +356,11 @@ echo ""
 echo "Output directory:     $RUN_DIR"
 echo ""
 echo "Next steps:"
-echo "  # View topic evolution"
+echo "  # View summary evolution"
 echo "  ls -lh $RUN_DIR/"
 echo ""
-echo "  # Compare topic changes"
-echo "  diff -u $RUN_DIR/001-topic.json $RUN_DIR/002-topic.json"
+echo "  # Compare summary changes"
+echo "  diff -u $RUN_DIR/001-session-summary.json $RUN_DIR/002-session-summary.json"
 echo ""
 echo "  # View transcript at specific extraction"
 echo "  cat $RUN_DIR/001-transcript.jsonl"

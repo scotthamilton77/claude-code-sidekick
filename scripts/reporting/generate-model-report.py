@@ -388,7 +388,7 @@ This report tracks all LLM models configured in Sidekick and their benchmark per
 
 ## Methodology
 
-Benchmarks test LLM topic extraction capability with:
+Benchmarks test LLM session summary capability with:
 - Real Claude Code conversation transcripts from golden set
 - Structured JSON output requirements (8-field schema)
 - Multiple runs per transcript for statistical significance
