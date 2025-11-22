@@ -17,14 +17,14 @@ This repository serves as a development and testing environment for [Claude Code
     - we've got an analyze-topic-at-line.sh that is good for benchmarking portions of a transcript (e.g. ddebe53b-347a-45dd-b421-9e4b9790c367)
     - we now have the ability to define revised prompts and json-schema in the target folder and issue --use-revised to see the impact
     - once we get a prompt revision that we like, we can ask claude to reverse engineer a plan of what code changes are necessary to implement the change
-  - let's capture stronger sense of initial and current goal ALONG WITH a watermark (line indicator?) and perhaps summary of key points relative to topic extraction
+  - let's capture stronger sense of initial and current goal ALONG WITH a watermark (line indicator?) and perhaps summary of key points relative to session summary
     - this allows a delta analysis to focus more specifically on goal/objective changes
       - should call out rationale, keywords
       - should over-weight existing/current stated goals
     - we need 2 API calls, one for the analysis (low-temp), another for the snark (configurable temperature)
     - this would allow us to use different models
-  - tune the topic extracter to follow the last n turns (delta + 10?) - this combined with previous goal snapshot might be cheaper?
-  - tune the instructions for the topic extraction (little shorter, more cynical)
+  - tune the session summarizer to follow the last n turns (delta + 10?) - this combined with previous goal snapshot might be cheaper?
+  - tune the instructions for the session summary (little shorter, more cynical)
 - PLAN.MD (executing ARCH.md)
 - allow for different personalities - either explicit at install time or random per project or random per session or just random
   - moods: cynical, sarcastic, snarky, nerdy, arrogant, moody
@@ -145,9 +145,9 @@ The Sidekick system provides a **plugin-based hook architecture** that executes 
 
 **Available Plugins** (7 total):
 
-- **topic-extraction**: LLM-based conversation analysis with adaptive polling
-- **resume**: Async background resume generation when topic changes significantly
-- **statusline**: Enhanced statusline with token tracking, git branch, topic display
+- **session-summary**: LLM-based conversation analysis with adaptive polling
+- **resume**: Async background resume generation when session summary changes significantly
+- **statusline**: Enhanced statusline with token tracking, git branch, session title display
 - **tracking**: Turn and tool counters for session management
 - **reminder**: Three-tier reminder system (turn-cadence, tool-cadence, tools-per-turn) with independent thresholds
 - **post-tool-use**: Tool activity tracking with cadence-based and threshold-based reminders
@@ -207,16 +207,16 @@ See `ARCH.md` for complete architecture documentation and `CLAUDE.md` for plugin
 **Development & Analysis Tools**:
 
 ```bash
-# Surgical topic extraction - analyze transcript at specific line
+# Surgical session summary - analyze transcript at specific line
 ./scripts/analyze-topic-at-line.sh <session-id> --to-line 100
 
 # Saves 4 artifacts: raw transcript, filtered (LLM input), prompt, topic
 # Output: test-data/topic-analysis/<session-id>/0100-*.{jsonl,txt,json}
 
-# Topic evolution replay - simulate production sleeper behavior
-./scripts/replay-topic-extraction.sh <session-id> [OPTIONS]
+# Session summary replay - simulate production sleeper behavior
+./scripts/replay-session-summary.sh <session-id> [OPTIONS]
 
-# Useful for tuning extraction logic and observing topic changes over time
+# Useful for tuning extraction logic and observing summary changes over time
 ```
 
 **Legacy Setup Tests** (for reminder system migration):
@@ -352,7 +352,7 @@ See `src/sidekick/config.defaults` for all available options and `ARCH.md` for d
 
 Sidekick prompts and reminders use a 4-level file cascade, allowing you to override defaults without modifying installed files:
 
-**Prompts** (`topic.prompt.txt`, `resume.prompt.txt`, `*.schema.json`):
+**Prompts** (`session-summary.prompt.txt`, `resume.prompt.txt`, `*.schema.json`):
 
 1. `~/.claude/hooks/sidekick/prompts/` - User-wide installed (ephemeral)
 2. `~/.sidekick/prompts/` - User-wide persistent
@@ -387,10 +387,10 @@ POST_TOOL_USE_STUCK_THRESHOLD=20   # When single turn exceeds 20 tools
 **Usage Examples**:
 
 ```bash
-# Override topic extraction prompt for all projects
+# Override session summary prompt for all projects
 mkdir -p ~/.sidekick/prompts
-cp ~/.claude/hooks/sidekick/prompts/topic.prompt.txt ~/.sidekick/prompts/
-# Edit ~/.sidekick/prompts/topic.prompt.txt
+cp ~/.claude/hooks/sidekick/prompts/session-summary.prompt.txt ~/.sidekick/prompts/
+# Edit ~/.sidekick/prompts/session-summary.prompt.txt
 
 # Override turn-cadence reminder for this project (using template)
 mv .sidekick/reminders/turn-cadence-reminder.txt.template .sidekick/reminders/turn-cadence-reminder.txt

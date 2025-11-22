@@ -2,9 +2,9 @@
 ###############################################################################
 # analyze-topic-at-line.sh
 #
-# Surgical topic extraction tool - analyzes transcript up to a specific line
-# and saves all intermediate artifacts (filtered transcript, prompt, topic).
-# Maintains topic continuity by finding and using the previous topic analysis
+# Surgical session summary tool - analyzes transcript up to a specific line
+# and saves all intermediate artifacts (filtered transcript, prompt, summary).
+# Maintains summary continuity by finding and using the previous summary analysis
 # for significance change detection.
 #
 # Usage:
@@ -122,7 +122,7 @@ fi
 ###############################################################################
 
 echo "=============================================="
-echo "Surgical Topic Extraction"
+echo "Surgical Session Summary"
 echo "=============================================="
 echo ""
 echo "Input:            $INPUT"
@@ -202,15 +202,15 @@ source "$SIDEKICK_ROOT/lib/transcript.sh"
 # Initialize logging
 log_init "analyze-${SESSION_ID}-line${TO_LINE}"
 
-# Load topic extraction feature
-if [ ! -f "$SIDEKICK_ROOT/features/topic-extraction.sh" ]; then
-    echo "ERROR: topic-extraction.sh not found"
+# Load session summary feature
+if [ ! -f "$SIDEKICK_ROOT/features/session-summary.sh" ]; then
+    echo "ERROR: session-summary.sh not found"
     exit 1
 fi
-source "$SIDEKICK_ROOT/features/topic-extraction.sh"
+source "$SIDEKICK_ROOT/features/session-summary.sh"
 
 # Configure features
-export FEATURE_TOPIC_EXTRACTION=true
+export FEATURE_SESSION_SUMMARY=true
 export FEATURE_STATUSLINE=true  # Required dependency
 export LLM_PROVIDER="$PROVIDER"
 if [ "$PROVIDER" = "openrouter" ]; then
@@ -222,7 +222,7 @@ elif [ "$PROVIDER" = "claude-cli" ]; then
 fi
 
 log_info "Sidekick libraries loaded"
-log_info "Topic extraction configured: $PROVIDER / $MODEL"
+log_info "Session summary configured: $PROVIDER / $MODEL"
 
 # Create output directory
 SESSION_OUTPUT_DIR="${OUTPUT_DIR}/${SESSION_ID}"
@@ -297,10 +297,10 @@ head -n "$TO_LINE" "$TRANSCRIPT_PATH" > "$TEMP_TRANSCRIPT"
 echo "Preprocessing transcript (filtering meta, tools, extracting .message)..."
 
 # Use same filtering logic as production (from lib/transcript.sh)
-TOPIC_FILTER_TOOL_MESSAGES=${TOPIC_FILTER_TOOL_MESSAGES:-true}
+SUMMARY_FILTER_TOOL_MESSAGES=${SUMMARY_FILTER_TOOL_MESSAGES:-true}
 
 # Build jq filter using production function
-JQ_FILTER=$(transcript_build_filter "$TOPIC_FILTER_TOOL_MESSAGES")
+JQ_FILTER=$(transcript_build_filter "$SUMMARY_FILTER_TOOL_MESSAGES")
 
 # Apply filter and wrap in JSON array
 jq -c "$JQ_FILTER" "$TEMP_TRANSCRIPT" > "$TEMP_FILTERED"
@@ -344,16 +344,16 @@ else
     echo "Building complete prompt..."
 
     # Load prompt template and schema
-    PROMPT_TEMPLATE_PATH=$(path_resolve_cascade "prompts/topic.prompt.txt" "$CLAUDE_PROJECT_DIR")
-    SCHEMA_PATH=$(path_resolve_cascade "prompts/topic.schema.json" "$CLAUDE_PROJECT_DIR")
+    PROMPT_TEMPLATE_PATH=$(path_resolve_cascade "prompts/session-summary.prompt.txt" "$CLAUDE_PROJECT_DIR")
+    SCHEMA_PATH=$(path_resolve_cascade "prompts/session-summary.schema.json" "$CLAUDE_PROJECT_DIR")
 
 if [ -z "$PROMPT_TEMPLATE_PATH" ] || [ ! -f "$PROMPT_TEMPLATE_PATH" ]; then
-    log_error "Prompt template not found: prompts/topic.prompt.txt"
+    log_error "Prompt template not found: prompts/session-summary.prompt.txt"
     exit 1
 fi
 
 if [ -z "$SCHEMA_PATH" ] || [ ! -f "$SCHEMA_PATH" ]; then
-    log_error "Schema not found: prompts/topic.schema.json"
+    log_error "Schema not found: prompts/session-summary.schema.json"
     exit 1
 fi
 
@@ -405,10 +405,10 @@ if [ "$USE_REVISED" = true ]; then
         JSON_SCHEMA=$(cat "$REVISED_SCHEMA_FILE")
     else
         echo "  No revised schema found, using default"
-        JSON_SCHEMA=$(llm_load_schema "topic.schema")
+        JSON_SCHEMA=$(llm_load_schema "session-summary.schema")
     fi
 else
-    JSON_SCHEMA=$(llm_load_schema "topic.schema")
+    JSON_SCHEMA=$(llm_load_schema "session-summary.schema")
 fi
 
 # Invoke LLM with schema

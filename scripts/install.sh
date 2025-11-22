@@ -14,7 +14,7 @@
 #   install.sh --user
 #   install.sh --project
 #   install.sh --both
-#   install.sh --user --features topic-extraction,resume
+#   install.sh --user --features session-summary,resume
 
 set -euo pipefail
 
@@ -138,7 +138,7 @@ Examples:
   install.sh --user
   install.sh --project
   install.sh --both
-  install.sh --user --features topic-extraction,resume
+  install.sh --user --features session-summary,resume
 
 EOF
 }

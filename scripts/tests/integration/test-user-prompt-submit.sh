@@ -86,7 +86,7 @@ setup() {
     MOCK_CLAUDE="$TEST_DIR/mock-claude"
     cat > "$MOCK_CLAUDE" <<'EOF'
 #!/bin/bash
-# Mock Claude CLI for testing topic extraction
+# Mock Claude CLI for testing session summary
 cat <<'JSON'
 ```json
 {
@@ -117,7 +117,7 @@ EOF
     # Create test config
     cat > "$TEST_DIR/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
 # Test configuration
-FEATURE_TOPIC_EXTRACTION=true
+FEATURE_SESSION_SUMMARY=true
 FEATURE_CLEANUP=false
 FEATURE_RESUME=false
 FEATURE_REMINDERS=true
@@ -351,14 +351,14 @@ EOF
     done
 }
 
-# Test 6: Feature toggle - topic extraction disabled (tracking auto-enabled)
-test_topic_extraction_disabled_early() {
-    log_test "Feature toggle - topic extraction disabled (tracking still works)"
+# Test 6: Feature toggle - session summary disabled (tracking auto-enabled)
+test_session_summary_disabled_early() {
+    log_test "Feature toggle - session summary disabled (tracking still works)"
 
-    # Disable topic extraction (tracking is auto-enabled when needed)
+    # Disable session summary (tracking is auto-enabled when needed)
     cat > "$TEST_DIR/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
 FEATURE_REMINDERS=false
-FEATURE_TOPIC_EXTRACTION=false
+FEATURE_SESSION_SUMMARY=false
 LOG_LEVEL=debug
 EOF
 
@@ -381,7 +381,7 @@ EOF
     cat > "$TEST_DIR/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
 FEATURE_REMINDERS=true
 FEATURE_REMINDER_USER_PROMPT=true
-FEATURE_TOPIC_EXTRACTION=true
+FEATURE_SESSION_SUMMARY=true
 SLEEPER_ENABLED=true
 LOG_LEVEL=debug
 SLEEPER_MAX_DURATION=5
@@ -397,7 +397,7 @@ test_reminder_disabled() {
     # Disable reminders
     cat > "$TEST_DIR/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
 FEATURE_REMINDERS=false
-FEATURE_TOPIC_EXTRACTION=false
+FEATURE_SESSION_SUMMARY=false
 USER_PROMPT_CADENCE=2
 LOG_LEVEL=debug
 EOF
@@ -437,7 +437,7 @@ EOF
     cat > "$TEST_DIR/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
 FEATURE_REMINDERS=true
 FEATURE_REMINDER_USER_PROMPT=true
-FEATURE_TOPIC_EXTRACTION=true
+FEATURE_SESSION_SUMMARY=true
 SLEEPER_ENABLED=true
 LOG_LEVEL=debug
 SLEEPER_MAX_DURATION=5
@@ -446,13 +446,13 @@ USER_PROMPT_CADENCE=4
 EOF
 }
 
-# Test 7: Feature toggle - topic extraction disabled
-test_topic_extraction_disabled() {
-    log_test "Feature toggle - topic extraction disabled"
+# Test 7: Feature toggle - session summary disabled
+test_session_summary_disabled() {
+    log_test "Feature toggle - session summary disabled"
 
-    # Disable topic extraction
+    # Disable session summary
     cat > "$TEST_DIR/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
-FEATURE_TOPIC_EXTRACTION=false
+FEATURE_SESSION_SUMMARY=false
 SLEEPER_ENABLED=false
 LOG_LEVEL=debug
 EOF
@@ -467,15 +467,15 @@ EOF
     # Sleeper should NOT be launched
     local sleeper_pid_file="$TEST_DIR/.sidekick/sessions/$session_id/sleeper.pid"
     if [ ! -f "$sleeper_pid_file" ]; then
-        pass "Topic extraction disabled - sleeper not launched"
+        pass "Session summary disabled - sleeper not launched"
     else
-        fail "Topic extraction disabled but sleeper was launched"
+        fail "Session summary disabled but sleeper was launched"
         return 1
     fi
 
     # Re-enable for remaining tests
     cat > "$TEST_DIR/.claude/hooks/sidekick/sidekick.conf" <<'EOF'
-FEATURE_TOPIC_EXTRACTION=true
+FEATURE_SESSION_SUMMARY=true
 SLEEPER_ENABLED=true
 LOG_LEVEL=debug
 EOF
@@ -549,9 +549,9 @@ main() {
     test_sleeper_launched_on_first_call || true
     test_sleeper_not_relaunched || true
     test_static_reminder_cadence || true
-    test_topic_extraction_disabled_early || true
+    test_session_summary_disabled_early || true
     test_reminder_disabled || true
-    test_topic_extraction_disabled || true
+    test_session_summary_disabled || true
     test_invalid_json || true
     test_missing_session_id || true
 

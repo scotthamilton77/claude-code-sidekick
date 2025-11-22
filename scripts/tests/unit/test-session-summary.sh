@@ -1,7 +1,7 @@
 #!/bin/bash
-# test-topic-extraction.sh - Unit tests for topic extraction feature
+# test-session-summary.sh - Unit tests for session summary feature
 #
-# Tests the TOPIC EXTRACTION feature from features/topic-extraction.sh
+# Tests the SESSION SUMMARY feature from features/session-summary.sh
 
 set -euo pipefail
 
@@ -28,27 +28,28 @@ setup() {
     export _SIDEKICK_ROOT="$TEST_DIR"
 
     # Copy prompts to test directory
-    mkdir -p "$TEST_DIR/prompts"
-    cp "$(dirname "$0")/../../../src/sidekick/prompts/"*.txt "$TEST_DIR/prompts/" 2>/dev/null || true
-    cp "$(dirname "$0")/../../../src/sidekick/prompts/"*.json "$TEST_DIR/prompts/" 2>/dev/null || true
+    mkdir -p "$TEST_DIR/.sidekick/prompts"
+    cp "$(dirname "$0")/../../../src/sidekick/prompts/"*.txt "$TEST_DIR/.sidekick/prompts/" 2>/dev/null || true
+    cp "$(dirname "$0")/../../../src/sidekick/prompts/"*.json "$TEST_DIR/.sidekick/prompts/" 2>/dev/null || true
 
     # Copy scripts to test directory (needed for background processes)
-    mkdir -p "$TEST_DIR/features/scripts"
-    cp "$(dirname "$0")/../../../src/sidekick/features/scripts/"*.sh "$TEST_DIR/features/scripts/" 2>/dev/null || true
-    chmod +x "$TEST_DIR/features/scripts/"*.sh 2>/dev/null || true
+    mkdir -p "$TEST_DIR/.sidekick/features/scripts"
+    cp "$(dirname "$0")/../../../src/sidekick/features/scripts/"*.sh "$TEST_DIR/.sidekick/features/scripts/" 2>/dev/null || true
+    chmod +x "$TEST_DIR/.sidekick/features/scripts/"*.sh 2>/dev/null || true
 
-    # Copy topic-extraction.sh (needed by sleeper-loop.sh)
-    cp "$(dirname "$0")/../../../src/sidekick/features/topic-extraction.sh" "$TEST_DIR/features/" 2>/dev/null || true
+    # Copy session-summary.sh (needed by sleeper-loop.sh)
+    mkdir -p "$TEST_DIR/.sidekick/features"
+    cp "$(dirname "$0")/../../../src/sidekick/features/session-summary.sh" "$TEST_DIR/.sidekick/features/" 2>/dev/null || true
 
     # Copy all lib files (needed by background scripts)
-    mkdir -p "$TEST_DIR/lib"
-    cp "$(dirname "$0")/../../../src/sidekick/lib/"*.sh "$TEST_DIR/lib/" 2>/dev/null || true
+    mkdir -p "$TEST_DIR/.sidekick/lib"
+    cp "$(dirname "$0")/../../../src/sidekick/lib/"*.sh "$TEST_DIR/.sidekick/lib/" 2>/dev/null || true
 
     # Create config.defaults for background processes
     cat >> "$TEST_DIR/config.defaults" <<'EOFCONFIG'
 # Test configuration
-FEATURE_TOPIC_EXTRACTION=true
-TOPIC_MODE=topic-only
+FEATURE_SESSION_SUMMARY=true
+FEATURE_SLEEPER=true
 LLM_PROVIDER=claude-cli
 LLM_CLAUDE_MODEL=haiku
 SLEEPER_ENABLED=true
@@ -60,9 +61,14 @@ SLEEPER_MAX_SLEEP=20
 LOG_LEVEL=error
 EOFCONFIG
 
+    # Create other required defaults (empty is fine for tests)
+    touch "$TEST_DIR/llm-core.defaults"
+    touch "$TEST_DIR/llm-providers.defaults"
+    touch "$TEST_DIR/features.defaults"
+
     # Set up config for current process
-    export FEATURE_TOPIC_EXTRACTION=true
-    export TOPIC_MODE=topic-only
+    export FEATURE_SESSION_SUMMARY=true
+    export FEATURE_SLEEPER=true
     export LLM_PROVIDER=claude-cli
     export LLM_CLAUDE_MODEL=haiku
     export SLEEPER_ENABLED=true
@@ -73,33 +79,34 @@ EOFCONFIG
     export SLEEPER_MAX_SLEEP=20
     export LOG_LEVEL=error  # Suppress logs during tests
 
+    # Initialize logging
+    log_init "test-session"
+
     # Create mock Claude CLI
     MOCK_CLAUDE="$TEST_DIR/mock-claude"
     cat > "$MOCK_CLAUDE" <<'EOFCLAUDE'
 #!/bin/bash
 # Mock Claude CLI that returns markdown-wrapped JSON (like real Claude)
+# The CLI output format wraps the model response in a "result" field
 cat <<'EOF'
-```json
 {
-  "session_id": "test-session",
-  "timestamp": "2025-10-22T12:00:00Z",
-  "task_ids": ["TEST-001"],
-  "initial_goal": "Test goal",
-  "current_objective": "Testing",
-  "clarity_score": 8,
-  "confidence": 0.95,
-  "snarky_comment": "Mock snark"
+  "result": "```json\n{\n  \"session_id\": \"test-session\",\n  \"timestamp\": \"2025-10-22T12:00:00Z\",\n  \"task_ids\": [\"TEST-001\"],\n  \"session_title\": \"Test goal\",\n  \"latest_intent\": \"Testing\",\n  \"session_title_confidence\": 0.95,\n  \"snarky_comment\": \"Mock snark\"\n}\n```",
+  "duration_ms": 100,
+  "total_cost_usd": 0.001,
+  "usage": {
+    "input_tokens": 100,
+    "output_tokens": 50
+  }
 }
-```
 EOF
 EOFCLAUDE
     chmod +x "$MOCK_CLAUDE"
     export CLAUDE_BIN="$MOCK_CLAUDE"
 
-    # Source topic-extraction.sh (will be implemented)
+    # Source session-summary.sh (will be implemented)
     # shellcheck disable=SC1091
-    if [ -f "$(dirname "$0")/../../../src/sidekick/features/topic-extraction.sh" ]; then
-        source "$(dirname "$0")/../../../src/sidekick/features/topic-extraction.sh" 2>/dev/null || true
+    if [ -f "$(dirname "$0")/../../../src/sidekick/features/session-summary.sh" ]; then
+        source "$(dirname "$0")/../../../src/sidekick/features/session-summary.sh" 2>/dev/null || true
     fi
 }
 
@@ -135,66 +142,66 @@ run_test() {
 }
 
 # ============================================================================
-# TESTS: topic_extraction_get_clarity()
+# TESTS: session_summary_get_title()
 # ============================================================================
 
-test_get_clarity_from_valid_file() {
+test_get_title_from_valid_file() {
     # Skip if function doesn't exist yet
-    if ! command -v topic_extraction_get_clarity &> /dev/null; then
+    if ! command -v session_summary_get_title &> /dev/null; then
         return 0
     fi
 
-    local session_id="test-session-clarity"
+    local session_id="test-session-title"
     mkdir -p "$TEST_DIR/.sidekick/sessions/$session_id"
 
-    cat > "$TEST_DIR/.sidekick/sessions/$session_id/topic.json" <<EOF
+    cat > "$TEST_DIR/.sidekick/sessions/$session_id/session-summary.json" <<EOF
 {
   "session_id": "$session_id",
-  "clarity_score": 9
+  "session_title": "My Title"
 }
 EOF
 
-    local clarity
-    clarity=$(topic_extraction_get_clarity "$session_id")
-    [ "$clarity" = "9" ]
+    local title
+    title=$(session_summary_get_title "$session_id")
+    [ "$title" = "My Title" ]
 }
 
-test_get_clarity_missing_file() {
+test_get_title_missing_file() {
     # Skip if function doesn't exist yet
-    if ! command -v topic_extraction_get_clarity &> /dev/null; then
+    if ! command -v session_summary_get_title &> /dev/null; then
         return 0
     fi
 
-    local clarity
-    clarity=$(topic_extraction_get_clarity "nonexistent-session")
-    # Should return default or empty
-    [ -z "$clarity" ] || [ "$clarity" = "5" ]
+    local title
+    title=$(session_summary_get_title "nonexistent-session")
+    # Should return empty
+    [ -z "$title" ]
 }
 
-test_get_clarity_invalid_json() {
+test_get_title_invalid_json() {
     # Skip if function doesn't exist yet
-    if ! command -v topic_extraction_get_clarity &> /dev/null; then
+    if ! command -v session_summary_get_title &> /dev/null; then
         return 0
     fi
 
     local session_id="test-session-invalid"
     mkdir -p "$TEST_DIR/.sidekick/sessions/$session_id"
 
-    echo "invalid json" > "$TEST_DIR/.sidekick/sessions/$session_id/topic.json"
+    echo "invalid json" > "$TEST_DIR/.sidekick/sessions/$session_id/session-summary.json"
 
-    local clarity
-    clarity=$(topic_extraction_get_clarity "$session_id" 2>/dev/null || echo "5")
-    # Should return default on error
-    [ "$clarity" = "5" ]
+    local title
+    title=$(session_summary_get_title "$session_id" 2>/dev/null || echo "")
+    # Should return empty on error
+    [ -z "$title" ]
 }
 
 # ============================================================================
-# TESTS: topic_extraction_analyze()
+# TESTS: session_summary_analyze()
 # ============================================================================
 
-test_analyze_creates_topic_file() {
+test_analyze_creates_summary_file() {
     # Skip if function doesn't exist yet
-    if ! command -v topic_extraction_analyze &> /dev/null; then
+    if ! command -v session_summary_analyze &> /dev/null; then
         return 0
     fi
 
@@ -208,40 +215,20 @@ test_analyze_creates_topic_file() {
 {"role":"assistant","content":"Sure, I'll help with that"}
 EOF
 
-    topic_extraction_analyze "$session_id" "$transcript" "$TEST_DIR"
+    session_summary_analyze "$session_id" "$transcript" "$TEST_DIR"
 
-    # Should have created topic.json
-    [ -f "$TEST_DIR/.sidekick/sessions/$session_id/topic.json" ]
+    # Should have created session-summary.json
+    [ -f "$TEST_DIR/.sidekick/sessions/$session_id/session-summary.json" ]
 
     # Should contain expected fields
-    local clarity
-    clarity=$(jq -r '.clarity_score' "$TEST_DIR/.sidekick/sessions/$session_id/topic.json")
-    [ -n "$clarity" ]
-}
-
-test_analyze_creates_topic_file() {
-    # Skip if function doesn't exist yet
-    if ! command -v topic_extraction_analyze &> /dev/null; then
-        return 0
-    fi
-
-    local session_id="test-session-topic"
-    mkdir -p "$TEST_DIR/.sidekick/sessions/$session_id"
-
-    # Create mock transcript
-    local transcript="$TEST_DIR/transcript.jsonl"
-    echo '{"role":"user","content":"test"}' > "$transcript"
-
-    topic_extraction_analyze "$session_id" "$transcript" "$TEST_DIR"
-
-    # Should have topic.json (no analytics.json since we removed that complexity)
-    [ -f "$TEST_DIR/.sidekick/sessions/$session_id/topic.json" ]
-    [ ! -f "$TEST_DIR/.sidekick/sessions/$session_id/analytics.json" ]
+    local title
+    title=$(jq -r '.session_title' "$TEST_DIR/.sidekick/sessions/$session_id/session-summary.json")
+    [ -n "$title" ]
 }
 
 test_analyze_handles_llm_failure() {
     # Skip if function doesn't exist yet
-    if ! command -v topic_extraction_analyze &> /dev/null; then
+    if ! command -v session_summary_analyze &> /dev/null; then
         return 0
     fi
 
@@ -259,25 +246,26 @@ EOF
     echo '{"role":"user","content":"test"}' > "$transcript"
 
     # Should not crash, should handle gracefully
-    topic_extraction_analyze "$session_id" "$transcript" "$TEST_DIR" 2>/dev/null || true
+    session_summary_analyze "$session_id" "$transcript" "$TEST_DIR" 2>/dev/null || true
 
     # Restore working mock
     setup
 }
 
 # ============================================================================
-# TESTS: _topic_extraction_extract_excerpt() - Preprocessing
+# TESTS: _session_summary_extract_excerpt() - Preprocessing
 # ============================================================================
 
 test_excerpt_filters_tool_messages_when_enabled() {
+    set -x
     # Skip if function doesn't exist yet
-    if ! command -v _topic_extraction_extract_excerpt &> /dev/null; then
+    if ! command -v _session_summary_extract_excerpt &> /dev/null; then
         return 0
     fi
 
     # Set config to filter tool messages (default)
-    export TOPIC_FILTER_TOOL_MESSAGES=true
-    export TOPIC_EXCERPT_LINES=10
+    export SUMMARY_FILTER_TOOL_MESSAGES=true
+    export SUMMARY_EXCERPT_LINES=10
 
     local transcript="$TEST_DIR/transcript-with-tools.jsonl"
     cat > "$transcript" <<'EOF'
@@ -288,33 +276,33 @@ test_excerpt_filters_tool_messages_when_enabled() {
 EOF
 
     local result
-    result=$(_topic_extraction_extract_excerpt "$transcript")
+    result=$(_session_summary_extract_excerpt "$transcript")
 
     # Should have 2 messages (user and final assistant, not the tool messages)
     local count
-    count=$(echo "$result" | jq 'length')
+    count=$(echo "$result" | jq '.transcript | length')
     [ "$count" = "2" ]
 
     # First message should be user message
     local first_role
-    first_role=$(echo "$result" | jq -r '.[0].role')
+    first_role=$(echo "$result" | jq -r '.transcript[0].role')
     [ "$first_role" = "user" ]
 
     # Second message should be final assistant (not tool_use)
     local second_content
-    second_content=$(echo "$result" | jq -r '.[1].content')
+    second_content=$(echo "$result" | jq -r '.transcript[1].content')
     [ "$second_content" = "Here's the result" ]
 }
 
 test_excerpt_keeps_tool_messages_when_disabled() {
     # Skip if function doesn't exist yet
-    if ! command -v _topic_extraction_extract_excerpt &> /dev/null; then
+    if ! command -v _session_summary_extract_excerpt &> /dev/null; then
         return 0
     fi
 
     # Set config to NOT filter tool messages
-    export TOPIC_FILTER_TOOL_MESSAGES=false
-    export TOPIC_EXCERPT_LINES=10
+    export SUMMARY_FILTER_TOOL_MESSAGES=false
+    export SUMMARY_EXCERPT_LINES=10
 
     local transcript="$TEST_DIR/transcript-with-tools-keep.jsonl"
     cat > "$transcript" <<'EOF'
@@ -324,26 +312,26 @@ test_excerpt_keeps_tool_messages_when_disabled() {
 EOF
 
     local result
-    result=$(_topic_extraction_extract_excerpt "$transcript")
+    result=$(_session_summary_extract_excerpt "$transcript")
 
     # Should have 3 messages (including tool_use)
     local count
-    count=$(echo "$result" | jq 'length')
+    count=$(echo "$result" | jq '.transcript | length')
     [ "$count" = "3" ]
 
     # Second message should have tool_use
     local has_tool
-    has_tool=$(echo "$result" | jq -r '.[1].content[0].type')
+    has_tool=$(echo "$result" | jq -r '.transcript[1].content[0].type')
     [ "$has_tool" = "tool_use" ]
 }
 
 test_excerpt_strips_metadata_fields() {
     # Skip if function doesn't exist yet
-    if ! command -v _topic_extraction_extract_excerpt &> /dev/null; then
+    if ! command -v _session_summary_extract_excerpt &> /dev/null; then
         return 0
     fi
 
-    export TOPIC_EXCERPT_LINES=10
+    export SUMMARY_EXCERPT_LINES=10
 
     local transcript="$TEST_DIR/transcript-with-metadata.jsonl"
     cat > "$transcript" <<'EOF'
@@ -351,34 +339,34 @@ test_excerpt_strips_metadata_fields() {
 EOF
 
     local result
-    result=$(_topic_extraction_extract_excerpt "$transcript")
+    result=$(_session_summary_extract_excerpt "$transcript")
 
     # Should have message with content
     local content
-    content=$(echo "$result" | jq -r '.[0].content')
+    content=$(echo "$result" | jq -r '.transcript[0].content')
     [ "$content" = "Hello" ]
 
     # Should NOT have metadata fields
     local has_model
-    has_model=$(echo "$result" | jq -r '.[0].model')
+    has_model=$(echo "$result" | jq -r '.transcript[0].model')
     [ "$has_model" = "null" ]
 
     local has_id
-    has_id=$(echo "$result" | jq -r '.[0].id')
+    has_id=$(echo "$result" | jq -r '.transcript[0].id')
     [ "$has_id" = "null" ]
 
     local has_usage
-    has_usage=$(echo "$result" | jq -r '.[0].usage')
+    has_usage=$(echo "$result" | jq -r '.transcript[0].usage')
     [ "$has_usage" = "null" ]
 }
 
 test_excerpt_filters_null_messages() {
     # Skip if function doesn't exist yet
-    if ! command -v _topic_extraction_extract_excerpt &> /dev/null; then
+    if ! command -v _session_summary_extract_excerpt &> /dev/null; then
         return 0
     fi
 
-    export TOPIC_EXCERPT_LINES=10
+    export SUMMARY_EXCERPT_LINES=10
 
     local transcript="$TEST_DIR/transcript-with-nulls.jsonl"
     cat > "$transcript" <<'EOF'
@@ -388,21 +376,21 @@ test_excerpt_filters_null_messages() {
 EOF
 
     local result
-    result=$(_topic_extraction_extract_excerpt "$transcript")
+    result=$(_session_summary_extract_excerpt "$transcript")
 
     # Should have 2 messages (null filtered out)
     local count
-    count=$(echo "$result" | jq 'length')
+    count=$(echo "$result" | jq '.transcript | length')
     [ "$count" = "2" ]
 }
 
 test_excerpt_filters_meta_messages() {
     # Skip if function doesn't exist yet
-    if ! command -v _topic_extraction_extract_excerpt &> /dev/null; then
+    if ! command -v _session_summary_extract_excerpt &> /dev/null; then
         return 0
     fi
 
-    export TOPIC_EXCERPT_LINES=10
+    export SUMMARY_EXCERPT_LINES=10
 
     local transcript="$TEST_DIR/transcript-with-meta.jsonl"
     cat > "$transcript" <<'EOF'
@@ -413,29 +401,29 @@ test_excerpt_filters_meta_messages() {
 EOF
 
     local result
-    result=$(_topic_extraction_extract_excerpt "$transcript")
+    result=$(_session_summary_extract_excerpt "$transcript")
 
     # Should have 2 messages (isMeta=true filtered out)
     local count
-    count=$(echo "$result" | jq 'length')
+    count=$(echo "$result" | jq '.transcript | length')
     [ "$count" = "2" ]
 
     # Verify the correct messages were kept
     local content1 content2
-    content1=$(echo "$result" | jq -r '.[0].content')
-    content2=$(echo "$result" | jq -r '.[1].content')
+    content1=$(echo "$result" | jq -r '.transcript[0].content')
+    content2=$(echo "$result" | jq -r '.transcript[1].content')
     [ "$content1" = "Hello" ]
     [ "$content2" = "Response" ]
 }
 
 test_excerpt_respects_line_count_config() {
     # Skip if function doesn't exist yet
-    if ! command -v _topic_extraction_extract_excerpt &> /dev/null; then
+    if ! command -v _session_summary_extract_excerpt &> /dev/null; then
         return 0
     fi
 
     # Set to only extract 2 lines
-    export TOPIC_EXCERPT_LINES=2
+    export SUMMARY_EXCERPT_LINES=2
 
     local transcript="$TEST_DIR/transcript-long.jsonl"
     cat > "$transcript" <<'EOF'
@@ -447,26 +435,26 @@ test_excerpt_respects_line_count_config() {
 EOF
 
     local result
-    result=$(_topic_extraction_extract_excerpt "$transcript")
+    result=$(_session_summary_extract_excerpt "$transcript")
 
     # Should have only last 2 lines processed
     local count
-    count=$(echo "$result" | jq 'length')
+    count=$(echo "$result" | jq '.transcript | length')
     [ "$count" -le "2" ]
 
     # Last message should be "Message 3"
     local last_content
-    last_content=$(echo "$result" | jq -r '.[-1].content')
+    last_content=$(echo "$result" | jq -r '.transcript[-1].content')
     [ "$last_content" = "Message 3" ]
 }
 
 test_excerpt_extracts_only_message_field() {
     # Skip if function doesn't exist yet
-    if ! command -v _topic_extraction_extract_excerpt &> /dev/null; then
+    if ! command -v _session_summary_extract_excerpt &> /dev/null; then
         return 0
     fi
 
-    export TOPIC_EXCERPT_LINES=10
+    export SUMMARY_EXCERPT_LINES=10
 
     local transcript="$TEST_DIR/transcript-with-extra-fields.jsonl"
     cat > "$transcript" <<'EOF'
@@ -474,30 +462,30 @@ test_excerpt_extracts_only_message_field() {
 EOF
 
     local result
-    result=$(_topic_extraction_extract_excerpt "$transcript")
+    result=$(_session_summary_extract_excerpt "$transcript")
 
     # Should only have fields from .message (not type, parentUuid, etc)
     local has_role
-    has_role=$(echo "$result" | jq -r '.[0].role')
+    has_role=$(echo "$result" | jq -r '.transcript[0].role')
     [ "$has_role" = "user" ]
 
     # Should NOT have transcript-level fields
     local has_type
-    has_type=$(echo "$result" | jq -r '.[0].type')
+    has_type=$(echo "$result" | jq -r '.transcript[0].type')
     [ "$has_type" = "null" ]
 
     local has_session
-    has_session=$(echo "$result" | jq -r '.[0].sessionId')
+    has_session=$(echo "$result" | jq -r '.transcript[0].sessionId')
     [ "$has_session" = "null" ]
 }
 
 # ============================================================================
-# TESTS: topic_extraction_sleeper_start()
+# TESTS: session_summary_sleeper_start()
 # ============================================================================
 
 test_sleeper_start_creates_pid_file() {
     # Skip if function doesn't exist yet
-    if ! command -v topic_extraction_sleeper_start &> /dev/null; then
+    if ! command -v session_summary_sleeper_start &> /dev/null; then
         return 0
     fi
 
@@ -507,7 +495,7 @@ test_sleeper_start_creates_pid_file() {
     local transcript="$TEST_DIR/transcript.jsonl"
     echo '{"role":"user","content":"test"}' > "$transcript"
 
-    topic_extraction_sleeper_start "$session_id" "$transcript" "$TEST_DIR"
+    session_summary_sleeper_start "$session_id" "$transcript" "$TEST_DIR"
 
     # Should have created PID file
     sleep 0.5  # Give it time to start
@@ -527,7 +515,7 @@ test_sleeper_start_creates_pid_file() {
 
 test_sleeper_start_doesnt_duplicate() {
     # Skip if function doesn't exist yet
-    if ! command -v topic_extraction_sleeper_start &> /dev/null; then
+    if ! command -v session_summary_sleeper_start &> /dev/null; then
         return 0
     fi
 
@@ -538,14 +526,14 @@ test_sleeper_start_doesnt_duplicate() {
     echo '{"role":"user","content":"test"}' > "$transcript"
 
     # Start first sleeper
-    topic_extraction_sleeper_start "$session_id" "$transcript" "$TEST_DIR"
+    session_summary_sleeper_start "$session_id" "$transcript" "$TEST_DIR"
     sleep 0.5
 
     local pid1
     pid1=$(cat "$TEST_DIR/.sidekick/sessions/$session_id/sleeper.pid" 2>/dev/null || echo "")
 
     # Try to start second sleeper
-    topic_extraction_sleeper_start "$session_id" "$transcript" "$TEST_DIR"
+    session_summary_sleeper_start "$session_id" "$transcript" "$TEST_DIR"
     sleep 0.5
 
     local pid2
@@ -560,7 +548,7 @@ test_sleeper_start_doesnt_duplicate() {
 
 test_sleeper_disabled() {
     # Skip if function doesn't exist yet
-    if ! command -v topic_extraction_sleeper_start &> /dev/null; then
+    if ! command -v session_summary_sleeper_start &> /dev/null; then
         return 0
     fi
 
@@ -574,7 +562,7 @@ test_sleeper_disabled() {
     local transcript="$TEST_DIR/transcript.jsonl"
     echo '{"role":"user","content":"test"}' > "$transcript"
 
-    topic_extraction_sleeper_start "$session_id" "$transcript" "$TEST_DIR"
+    session_summary_sleeper_start "$session_id" "$transcript" "$TEST_DIR"
 
     sleep 0.5
 
@@ -594,7 +582,7 @@ test_sleeper_disabled() {
 
 test_sleeper_exits_after_inactivity_timeout() {
     # Skip if function doesn't exist yet
-    if ! command -v topic_extraction_sleeper_start &> /dev/null; then
+    if ! command -v session_summary_sleeper_start &> /dev/null; then
         return 0
     fi
 
@@ -602,7 +590,7 @@ test_sleeper_exits_after_inactivity_timeout() {
     export SLEEPER_ENABLED=true
 
     # Clean up any leftover sleepers from previous tests
-    pkill -9 -f "topic_extraction_sleeper_loop" 2>/dev/null || true
+    pkill -9 -f "session_summary_sleeper_loop" 2>/dev/null || true
     sleep 0.2
 
     # Write config overrides in project sidekick.conf for background processes
@@ -626,7 +614,7 @@ EOF
     echo '{"role":"user","content":"test"}' > "$transcript"
 
     # Start sleeper
-    topic_extraction_sleeper_start "$session_id" "$transcript" "$TEST_DIR"
+    session_summary_sleeper_start "$session_id" "$transcript" "$TEST_DIR"
     sleep 1  # Give sleeper time to fully start
 
     local pid
@@ -669,7 +657,7 @@ EOF
 
 test_sleeper_stays_alive_with_ongoing_activity() {
     # Skip if function doesn't exist yet
-    if ! command -v topic_extraction_sleeper_start &> /dev/null; then
+    if ! command -v session_summary_sleeper_start &> /dev/null; then
         return 0
     fi
 
@@ -699,7 +687,7 @@ EOF
     echo '{"role":"user","content":"initial content"}' > "$transcript"
 
     # Start sleeper
-    topic_extraction_sleeper_start "$session_id" "$transcript" "$TEST_DIR"
+    session_summary_sleeper_start "$session_id" "$transcript" "$TEST_DIR"
     sleep 0.5
 
     local pid
@@ -725,7 +713,7 @@ EOF
 
 test_sleeper_activity_resets_inactivity_timer() {
     # Skip if function doesn't exist yet
-    if ! command -v topic_extraction_sleeper_start &> /dev/null; then
+    if ! command -v session_summary_sleeper_start &> /dev/null; then
         return 0
     fi
 
@@ -755,7 +743,7 @@ EOF
     echo '{"role":"user","content":"initial"}' > "$transcript"
 
     # Start sleeper
-    topic_extraction_sleeper_start "$session_id" "$transcript" "$TEST_DIR"
+    session_summary_sleeper_start "$session_id" "$transcript" "$TEST_DIR"
     sleep 0.5
 
     local pid
@@ -782,7 +770,7 @@ EOF
 
 test_sleeper_exits_after_activity_stops() {
     # Skip if function doesn't exist yet
-    if ! command -v topic_extraction_sleeper_start &> /dev/null; then
+    if ! command -v session_summary_sleeper_start &> /dev/null; then
         return 0
     fi
 
@@ -812,7 +800,7 @@ EOF
     echo '{"role":"user","content":"initial"}' > "$transcript"
 
     # Start sleeper
-    topic_extraction_sleeper_start "$session_id" "$transcript" "$TEST_DIR"
+    session_summary_sleeper_start "$session_id" "$transcript" "$TEST_DIR"
     sleep 0.5
 
     local pid
@@ -848,31 +836,21 @@ test_sleeper_script_exists() {
     [ -f "$script_path" ] && [ -x "$script_path" ]
 }
 
-test_resume_script_exists() {
-    local script_path="$(dirname "$0")/../../../src/sidekick/features/scripts/generate-resume.sh"
-    [ -f "$script_path" ] && [ -x "$script_path" ]
-}
-
 test_sleeper_script_syntax() {
     local script_path="$(dirname "$0")/../../../src/sidekick/features/scripts/sleeper-loop.sh"
     bash -n "$script_path"
 }
 
-test_resume_script_syntax() {
-    local script_path="$(dirname "$0")/../../../src/sidekick/features/scripts/generate-resume.sh"
-    bash -n "$script_path"
-}
-
 test_sleeper_start_uses_script() {
     # Skip if function doesn't exist
-    if ! command -v topic_extraction_sleeper_start &> /dev/null; then
+    if ! command -v session_summary_sleeper_start &> /dev/null; then
         return 0
     fi
 
     # Copy scripts to test directory
-    mkdir -p "$TEST_DIR/features/scripts"
-    cp "$(dirname "$0")/../../../src/sidekick/features/scripts/"*.sh "$TEST_DIR/features/scripts/" 2>/dev/null || true
-    chmod +x "$TEST_DIR/features/scripts/"*.sh
+    mkdir -p "$TEST_DIR/.sidekick/features/scripts"
+    cp "$(dirname "$0")/../../../src/sidekick/features/scripts/"*.sh "$TEST_DIR/.sidekick/features/scripts/" 2>/dev/null || true
+    chmod +x "$TEST_DIR/.sidekick/features/scripts/"*.sh
 
     local session_id="test-session-sleeper"
     mkdir -p "$TEST_DIR/.sidekick/sessions/$session_id"
@@ -881,7 +859,7 @@ test_sleeper_start_uses_script() {
     echo '{"role":"user","content":"test"}' > "$transcript"
 
     # Should not fail when script exists
-    topic_extraction_sleeper_start "$session_id" "$transcript" "$TEST_DIR"
+    session_summary_sleeper_start "$session_id" "$transcript" "$TEST_DIR"
 
     # Verify PID file was created
     [ -f "$TEST_DIR/.sidekick/sessions/$session_id/sleeper.pid" ]
@@ -892,48 +870,12 @@ test_sleeper_start_uses_script() {
     kill "$pid" 2>/dev/null || true
 }
 
-test_resume_async_uses_script() {
-    # Skip if function doesn't exist
-    if ! command -v resume_generate_async &> /dev/null; then
-        return 0
-    fi
-
-    # Copy scripts to test directory
-    mkdir -p "$TEST_DIR/features/scripts"
-    cp "$(dirname "$0")/../../../src/sidekick/features/scripts/"*.sh "$TEST_DIR/features/scripts/" 2>/dev/null || true
-    chmod +x "$TEST_DIR/features/scripts/"*.sh
-
-    local session_id="test-session-resume"
-    mkdir -p "$TEST_DIR/.sidekick/sessions/$session_id"
-
-    # Create topic.json (required for resume generation)
-    cat > "$TEST_DIR/.sidekick/sessions/$session_id/topic.json" <<'EOF'
-{
-  "clarity_score": 8,
-  "current_objective": "Testing"
-}
-EOF
-
-    local transcript="$TEST_DIR/transcript.jsonl"
-    echo '{"role":"user","content":"test"}' > "$transcript"
-
-    # Should not fail when script exists
-    resume_generate_async "$session_id" "$transcript"
-
-    # Give it a moment to start
-    sleep 1
-
-    # Verify resume.json was created (or is being created)
-    # Note: Background process may still be running
-    true
-}
-
 # ============================================================================
 # Main test execution
 # ============================================================================
 
 main() {
-    echo "Running topic extraction feature tests..."
+    echo "Running session summary feature tests..."
     echo
     echo "NOTE: These are TDD tests - functions may not be implemented yet."
     echo "Tests will be skipped if functions don't exist."
@@ -943,19 +885,16 @@ main() {
 
     # Script file tests
     run_test test_sleeper_script_exists
-    run_test test_resume_script_exists
     run_test test_sleeper_script_syntax
-    run_test test_resume_script_syntax
     run_test test_sleeper_start_uses_script
-    run_test test_resume_async_uses_script
 
-    # Clarity extraction tests
-    run_test test_get_clarity_from_valid_file
-    run_test test_get_clarity_missing_file
-    run_test test_get_clarity_invalid_json
+    # Title extraction tests
+    run_test test_get_title_from_valid_file
+    run_test test_get_title_missing_file
+    run_test test_get_title_invalid_json
 
     # Analysis tests
-    run_test test_analyze_creates_topic_file
+    run_test test_analyze_creates_summary_file
     run_test test_analyze_handles_llm_failure
 
     # Preprocessing/excerpt tests
@@ -997,3 +936,4 @@ main() {
 }
 
 main "$@"
+
