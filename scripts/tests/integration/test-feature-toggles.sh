@@ -59,7 +59,7 @@ setup() {
 
     cp "$SRC_DIR/sidekick.sh" "$TEST_DIR/.claude/hooks/sidekick/"
     cp -r "$SRC_DIR/lib/"* "$TEST_DIR/.claude/hooks/sidekick/lib/"
-    cp "$SRC_DIR/config.defaults" "$TEST_DIR/.claude/hooks/sidekick/"
+    cp "$SRC_DIR/"*.defaults "$TEST_DIR/.claude/hooks/sidekick/"
     cp "$SRC_DIR/handlers"/*.sh "$TEST_DIR/.claude/hooks/sidekick/handlers/" 2>/dev/null || true
     cp "$SRC_DIR/features"/*.sh "$TEST_DIR/.claude/hooks/sidekick/features/" 2>/dev/null || true
     if [ -d "$SRC_DIR/features/scripts" ]; then
@@ -203,7 +203,7 @@ test_resume_feature_toggle() {
     mkdir -p "$prev_session_dir"
 
     cat > "$prev_session_dir/session-summary.json" << 'EOF'
-{"session_id":"prev","initial_goal":"Previous goal","current_objective":"Previous objective","clarity_score":9,"confidence":0.95}
+{"session_id":"prev","session_title":"Previous goal","latest_intent":"Previous objective","session_title_confidence":0.95,"timestamp":"2024-01-01T00:00:00Z"}
 EOF
     cat > "$prev_session_dir/resume.json" << 'EOF'
 {"last_task_id":null,"resume_last_goal_message":"Shall we resume previous work?","last_objective_in_progress":"Continue the mission","snarky_comment":"Round 2: Electric Boogaloo"}
@@ -361,7 +361,7 @@ test_multiple_features_enabled() {
     local prev_session_dir="$TEST_DIR/.sidekick/sessions/$prev_session"
     mkdir -p "$prev_session_dir"
     cat > "$prev_session_dir/session-summary.json" << 'EOF'
-{"session_id":"prev","initial_goal":"Goal","current_objective":"Objective","clarity_score":9,"confidence":0.95}
+{"session_id":"prev","session_title":"Goal","latest_intent":"Objective","session_title_confidence":0.95,"timestamp":"2024-01-01T00:00:00Z"}
 EOF
 
     # Run session-start
