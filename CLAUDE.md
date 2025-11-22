@@ -83,7 +83,7 @@ cd /tmp && ~/.claude/hooks/sidekick/sidekick.sh <cmd>
 # Surgical analysis - extract summary at specific line
 ./scripts/analyze-session-at-line.sh <session-id> --to-line 100
 
-# Outputs: 0100-transcript.jsonl, 0100-filtered.jsonl, 0100-prompt.txt, 0100-session.json
+# Outputs: 0100-transcript.jsonl, 0100-filtered.jsonl, 0100-prompt.txt, 0100-session-summary.json
 # Use to inspect exact LLM input and validate filtering logic
 
 # Replay simulation - observe summary evolution over time

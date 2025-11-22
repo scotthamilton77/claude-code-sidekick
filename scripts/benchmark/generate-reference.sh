@@ -204,7 +204,7 @@ build_prompt() {
     prompt=$(cat "$prompt_template")
 
     # No previous topic for reference generation
-    prompt="${prompt//\{PREVIOUS_TOPIC\}/}"
+    prompt="${prompt//\{PREVIOUS_SESSION\}/}"
     prompt="${prompt//\{TRANSCRIPT\}/$transcript_json}"
 
     echo "$prompt"
