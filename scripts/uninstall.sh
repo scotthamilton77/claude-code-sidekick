@@ -717,6 +717,48 @@ reminder_template_differs_from_source() {
     fi
 }
 
+# Check if a modular config template differs from source defaults
+# Returns 0 if different, 1 if same or doesn't exist
+# Modular templates: config.conf.template, llm-core.conf.template, etc.
+modular_template_differs_from_defaults() {
+    local template_file="$1"
+    local template_name
+    template_name=$(basename "$template_file")
+
+    if [ ! -f "$template_file" ]; then
+        return 1  # Doesn't exist
+    fi
+
+    # Extract module name from template
+    # E.g., "config.conf.template" -> "config"
+    local module_name="${template_name%.conf.template}"
+
+    # If we couldn't extract a valid module name, it's not a modular template
+    if [ "$module_name" = "$template_name" ] || [ -z "$module_name" ]; then
+        log_verbose "Not a modular config template: $template_name"
+        return 0  # Assume different
+    fi
+
+    # Find corresponding .defaults file
+    local defaults_file="${SRC_DIR}/${module_name}.defaults"
+
+    if [ ! -f "$defaults_file" ]; then
+        log_verbose "No defaults file found for template: $template_name (expected: $defaults_file)"
+        return 0  # Assume different if can't compare
+    fi
+
+    # Compare SHA256 hashes
+    local hash_template hash_defaults
+    hash_template=$(sha256sum "$template_file" | awk '{print $1}')
+    hash_defaults=$(sha256sum "$defaults_file" | awk '{print $1}')
+
+    if [ "$hash_template" = "$hash_defaults" ]; then
+        return 1  # Same
+    else
+        return 0  # Different
+    fi
+}
+
 # Handle .sidekick directory cleanup with user prompts
 # Handles sessions, logs, config templates, and reminders based on user choices
 handle_sidekick_cleanup() {
@@ -899,6 +941,32 @@ handle_sidekick_cleanup() {
             fi
         fi
     fi
+
+    # Handle modular config templates (config.conf.template, llm-core.conf.template, etc.)
+    # These are always defaults copies, remove unless modified
+    local modular_templates=("config.conf.template" "llm-core.conf.template" "llm-providers.conf.template" "features.conf.template")
+    for template_name in "${modular_templates[@]}"; do
+        local template_file="$sidekick_dir/$template_name"
+        if [ -f "$template_file" ]; then
+            # Check if template was modified from defaults
+            if modular_template_differs_from_defaults "$template_file"; then
+                log_warn "Modular template was modified: $template_name"
+                if [ "${SIDEKICK_SKIP_CONFIRM:-0}" != "1" ] && [ "$DRY_RUN" = false ]; then
+                    read -p "Remove modified template $template_name? (Y/n) " -n 1 -r
+                    echo
+                    if [[ $REPLY =~ ^[Nn]$ ]]; then
+                        log_info "Preserving modified template: $template_name"
+                        continue
+                    fi
+                fi
+            fi
+            # Remove template (either unmodified or user agreed to remove)
+            log_operation "remove" "$template_file"
+            if [ "$DRY_RUN" = false ]; then
+                rm -f "$template_file"
+            fi
+        fi
+    done
 
     # Always remove README.md (it's documentation, not custom)
     if [ -f "$sidekick_dir/README.md" ]; then
