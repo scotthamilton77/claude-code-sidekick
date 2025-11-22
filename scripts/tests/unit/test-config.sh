@@ -26,7 +26,7 @@ setup() {
     cat > "${TEST_SIDEKICK_ROOT}/config.defaults" <<'EOF'
 # Test defaults - core
 FEATURE_STATUSLINE=true
-FEATURE_TOPIC_EXTRACTION=true
+FEATURE_SESSION_SUMMARY=true
 FEATURE_RESUME=true
 FEATURE_TRACKING=true
 FEATURE_NONEXISTENT=false
@@ -88,7 +88,7 @@ run_test() {
     TESTS_RUN=$((TESTS_RUN + 1))
 
     # Reset config before each test
-    unset FEATURE_TOPIC_EXTRACTION FEATURE_RESUME FEATURE_TRACKING
+    unset FEATURE_SESSION_SUMMARY FEATURE_RESUME FEATURE_TRACKING
     unset SLEEPER_MAX_DURATION LOG_LEVEL
     unset CLAUDE_PROJECT_DIR
 
@@ -108,7 +108,7 @@ test_config_load_sources_defaults() {
     config_load
 
     # Check that defaults were loaded
-    [ "${FEATURE_TOPIC_EXTRACTION}" = "true" ]
+    [ "${FEATURE_SESSION_SUMMARY}" = "true" ]
     [ "${SLEEPER_MAX_DURATION}" = "600" ]
     [ "${LOG_LEVEL}" = "info" ]
 }
@@ -129,7 +129,7 @@ EOF
     [ "${SLEEPER_MAX_DURATION}" = "300" ]
     [ "${LOG_LEVEL}" = "debug" ]
     # But unoverridden values should remain
-    [ "${FEATURE_TOPIC_EXTRACTION}" = "true" ]
+    [ "${FEATURE_SESSION_SUMMARY}" = "true" ]
 
     # Cleanup
     rm -f "${HOME}/.claude/hooks/sidekick/sidekick.conf"
@@ -184,8 +184,8 @@ test_config_get_missing_key() {
 test_config_is_feature_enabled_true() {
     config_load
 
-    # FEATURE_TOPIC_EXTRACTION=true in defaults
-    config_is_feature_enabled "topic_extraction"
+    # FEATURE_SESSION_SUMMARY=true in defaults
+    config_is_feature_enabled "session_summary"
 }
 
 # Test: config_is_feature_enabled returns 1 for disabled
@@ -322,7 +322,7 @@ test_config_load_env_optional() {
     config_load
 
     # Defaults should still be loaded
-    [ "${FEATURE_TOPIC_EXTRACTION}" = "true" ]
+    [ "${FEATURE_SESSION_SUMMARY}" = "true" ]
 }
 
 # Test: config_load sources user-wide .env
@@ -385,7 +385,7 @@ test_modular_defaults_loaded() {
     config_load
 
     # Settings from config.defaults
-    [ "${FEATURE_TOPIC_EXTRACTION}" = "true" ]
+    [ "${FEATURE_SESSION_SUMMARY}" = "true" ]
     [ "${LOG_LEVEL}" = "info" ]
 
     # Settings from llm-core.defaults

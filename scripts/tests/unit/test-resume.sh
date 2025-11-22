@@ -25,7 +25,7 @@ setup() {
     source "$PROJECT_ROOT/src/sidekick/features/resume.sh"
 
     export FEATURE_STATUSLINE=true
-    export FEATURE_TOPIC_EXTRACTION=true
+    export FEATURE_SESSION_SUMMARY=true
     export FEATURE_SESSION_SUMMARY=true
     export FEATURE_RESUME=true
     export RESUME_MIN_CONFIDENCE=0.7

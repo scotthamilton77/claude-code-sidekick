@@ -96,7 +96,7 @@ log_info "Searching for Sidekick-related processes..."
 # Looking for:
 # - bash processes containing "sidekick" in command
 # - bash processes with "lib/common.sh" (Sidekick library)
-# - bash processes with "sleeper-loop.sh" or "cleanup_run"
+# - bash processes with "cleanup_run"
 
 SIDEKICK_PROCESSES=()
 
@@ -107,7 +107,7 @@ while IFS= read -r line; do
     cmd=$(echo "$line" | cut -d' ' -f2-)
 
     # Check if command contains Sidekick indicators
-    if echo "$cmd" | grep -Eq "(sidekick|lib/common\.sh|sleeper-loop\.sh|cleanup_run)"; then
+    if echo "$cmd" | grep -Eq "(sidekick|lib/common\.sh|cleanup_run)"; then
         SIDEKICK_PROCESSES+=("$pid|$cmd")
         log_debug "Found Sidekick process: PID=$pid CMD=$cmd"
     fi

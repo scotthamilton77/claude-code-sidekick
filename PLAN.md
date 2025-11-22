@@ -369,7 +369,7 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 #### Bug 3: Cleanup/Analysis Process Error Messages
 
 - [x] **Issue**: Background processes emitting "bash: -c: option requires an argument"
-- [x] **Location**: `cleanup_launch()` and `topic_extraction_*()` misusing `process_launch_background()`
+- [x] **Location**: `cleanup_launch()` and `session_summary_*()` misusing `process_launch_background()`
 - [x] **Root Cause**: Features were passing `bash -c "..."` to process_launch_background, causing double bash -c wrapping
 - [x] **Impact**: Non-fatal but pollutes logs
 - [x] **Fix**: Refactored cleanup.sh:63-101 to launch background process directly (not via process_launch_background)
@@ -403,7 +403,7 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
   - [x] Verify topic displayed (from topic.json)
   - [x] Verify snarky comment displayed
 - [x] Test feature toggles
-  - [x] Edit `sidekick.conf`, set `FEATURE_TOPIC_EXTRACTION=false`
+  - [x] Edit `sidekick.conf`, set `FEATURE_SESSION_SUMMARY=false`
   - [x] Submit prompts, verify no analysis runs
   - [x] Re-enable, verify analysis resumes
 - [x] Test configuration cascade
