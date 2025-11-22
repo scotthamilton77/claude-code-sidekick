@@ -364,18 +364,11 @@ remove_claudeignore_entry() {
     local project_dir="$1"
     local ignore_file="$project_dir/.claudeignore"
 
-    if [ ! -f "$ignore_file" ]; then
-        return 0
+    # Preserve .claudeignore modifications (harmless ignore patterns)
+    if [ -f "$ignore_file" ] && grep -q "^\.sidekick/" "$ignore_file" 2>/dev/null; then
+        log_verbose "Preserving .claudeignore entry (harmless ignore pattern)"
     fi
-
-    log_step "Removing .claudeignore entry..."
-
-    # Remove .sidekick/ entry
-    if grep -q "^\.sidekick/" "$ignore_file" 2>/dev/null; then
-        grep -v "^\.sidekick/" "$ignore_file" > "$ignore_file.tmp"
-        mv "$ignore_file.tmp" "$ignore_file"
-        log_info "Removed .sidekick/ entry from .claudeignore"
-    fi
+    return 0
 }
 
 # Remove .gitignore entry
@@ -383,44 +376,11 @@ remove_gitignore_entry() {
     local project_dir="$1"
     local ignore_file="$project_dir/.gitignore"
 
-    if [ ! -f "$ignore_file" ]; then
-        return 0
+    # Preserve .gitignore modifications (harmless ignore patterns)
+    if [ -f "$ignore_file" ] && grep -q "^# Sidekick Hook System" "$ignore_file" 2>/dev/null; then
+        log_verbose "Preserving .gitignore entries (harmless ignore patterns)"
     fi
-
-    # Check if our managed section exists
-    if ! grep -q "^# Sidekick Hook System (managed by scripts/install.sh)" "$ignore_file" 2>/dev/null; then
-        log_verbose "No Sidekick patterns found in .gitignore"
-        return 0
-    fi
-
-    log_step "Removing .gitignore entries..."
-
-    # Prompt user for permission
-    if [ "${SIDEKICK_SKIP_CONFIRM:-0}" != "1" ] && [ "$DRY_RUN" = false ]; then
-        log_warn "Found Sidekick-managed section in .gitignore"
-        read -p "Remove Sidekick patterns from .gitignore? (y/N) " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            log_info "Preserving .gitignore entries"
-            return 0
-        fi
-    fi
-
-    if [ "$DRY_RUN" = true ]; then
-        log_operation "remove Sidekick section from" "$ignore_file"
-        return 0
-    fi
-
-    # Remove the entire managed section (from start marker to end marker, inclusive)
-    # Using sed to remove lines between markers (inclusive)
-    sed -i '/^# Sidekick Hook System (managed by scripts\/install\.sh)/,/^# End Sidekick Hook System/d' "$ignore_file"
-
-    # Also remove the blank line before the section if it exists
-    # (sed leaves an extra blank line, let's clean it up)
-    # Remove multiple consecutive blank lines, keeping only one
-    sed -i '/^$/N;/^\n$/D' "$ignore_file"
-
-    log_info "Removed Sidekick patterns from .gitignore"
+    return 0
 }
 
 # Clean up empty settings.json
