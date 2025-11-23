@@ -39,12 +39,13 @@ node_modules/
 *.backup.*
 *.uninstall-backup.*
 
-# for now?
+# Test data and results
 test-data/results/
 test-data/replay-results/
 test-data/topic-analysis/
 test-data/session-analysis/
 test-data/simulation-test/
+
 # Sidekick Hook System (managed by scripts/install.sh)
 # Runtime data - ignored
 .sidekick/*.log
@@ -59,3 +60,6 @@ test-data/simulation-test/
 # *.backup.*
 # *.uninstall-backup.*
 # End Sidekick Hook System
+
+# TypeScript build cache (needs to be part of install)
+.claude/tsc-cache/
