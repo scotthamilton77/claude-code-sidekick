@@ -42,12 +42,16 @@ _Last updated: 2025-11-23_
 1. **Bootstrap Package**
    - Scaffold TS project (tsconfig, eslint) co-located with `benchmark-next` tooling or new `packages/` folder.
    - **Reuse `benchmark-next` Core**: Extract `src/lib/` from `benchmark-next` into `packages/sidekick-core` to jumpstart config, logging, and LLM providers.
+   - **Establish Hexagonal Boundary**: Define `sidekick-core` interfaces for generic domain objects, ensuring no Claude-specific types leak into the core.
    - Implement entry command `sidekick runtime-check` stub runnable via `npx ts-node` for local dev.
 2. **Transcription Pipeline Spike**
    - Re-implement `_session_summary_extract_excerpt` in TS using streaming file reads to prove resolution of ARG_MAX issue (leverage `benchmark-next/src/lib/transcript`).
    - Compare output parity against existing Bash for regression confidence.
 3. **Hook Shim**
    - Wrap existing `sidekick.sh` to call `node dist/cli.js <command>` when present, falling back to Bash behavior otherwise (toggle via env). This keeps install/uninstall unchanged for now.
+4. **Asset Governance Setup**
+   - Implement `packages/schema-contracts` to enforce type safety between `assets/sidekick` and the runtime.
+   - Establish the "Monorepo Lockstep" pattern: build fails if assets diverge from Zod schemas, replacing manual versioning.
 
 ### Phase 2 – Feature Parity Slice (Weeks 3-5)
 
@@ -58,7 +62,12 @@ _Last updated: 2025-11-23_
 3. **LLM Invocation Module**
    - Reuse provider design from `benchmark-next` (Claude CLI, OpenAI, OpenRouter); ensure isolation behavior matches Bash implementation.
 4. **Logging & Telemetry**
-   - Adopt `pino` logging from `benchmark-next` with file + console targets; map to existing `.sidekick/sessions/<id>/sidekick.log` layout.
+   - Adopt `pino` logging from `benchmark-next` with file + console targets; map to existing `.sidekick/sessions/<id>/sidekick.log` layout. **Implement `TelemetryLogger` wrapper to emit structured metric events.**
+5. **Background Supervisor & State**
+   - Implement the detached event loop process (supervisor) to handle async tasks.
+   - Implement the "Single Writer" pattern: Supervisor owns `state/*.json` writes; CLI reads only.
+   - Create the CLI logic to check/start the supervisor and queue events.
+   - Port heavy features (resume, session summary) to run within this supervisor.
 
 ### Phase 3 – Project-Scope Pilot (Weeks 6-7)
 
