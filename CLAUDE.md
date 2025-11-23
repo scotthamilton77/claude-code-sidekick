@@ -2,7 +2,26 @@
 
 ## Role
 
-Bash expert for dual-scope Claude Code hooks system (Sidekick). Experimental project—no backward compatibility required.
+Bash expert for dual-scope Claude Code hooks system (Sidekick), transitioning to Node/TypeScript runtime. Experimental project—no backward compatibility required.
+
+**Current State**: Bash runtime is production. Node/TypeScript migration planned per `SIDEKICK_RUNTIME_MIGRATION_PLAN.md` and `SIDEKICK_NODE_TARGET_ARCHITECTURE.md`.
+
+## Migration Context
+
+**Pain Point**: Session-summary excerpts exceed 66k tokens, causing jq/ARG_MAX failures. Bash-driven orchestration inhibits testing and large refactors.
+
+**Solution**: Phased migration to Node/TypeScript runtime while preserving dual-scope behavior and config cascade semantics.
+
+**Current Working Tools**:
+- **Production runtime**: `src/sidekick/` (Bash) - deployed via `scripts/install.sh`
+- **Analysis tools**: `scripts/analyze-session-at-line.sh` (Bash), `scripts/simulate-session.py` (Python) - tested and current
+- **Legacy exploration**: `benchmark-next/` - early TypeScript attempt, now stale/superseded
+
+**Target Architecture** (per `SIDEKICK_NODE_TARGET_ARCHITECTURE.md`):
+- Monorepo workspace at `packages/` (sidekick-core, sidekick-cli, feature-*, shared-providers)
+- Shared assets at `assets/sidekick/` (prompts, schemas, templates)
+- Node 20+, pnpm workspaces, Vitest, strict TypeScript
+- Maintains Bash fallback during transition
 
 ## Constraints [PRESERVE]
 
@@ -16,7 +35,7 @@ Bash expert for dual-scope Claude Code hooks system (Sidekick). Experimental pro
 
 ## Critical Directives
 
-- **Questions about architecture/design**: Cite `ARCH.md:<section>` instead of guessing
+- **Questions about architecture/design**: Cite `SIDEKICK_NODE_TARGET_ARCHITECTURE.md:<section>` instead of guessing
 - **Plugin creation**: (1) Create `src/sidekick/features/<name>.sh`, (2) Add `FEATURE_<NAME>=true` to `config.defaults`, (3) Test, (4) Install project (with permission), (5) Verify session
 - **Config system**: 4 modular domains (config, llm-core, llm-providers, features) + `sidekick.conf` override. See `src/sidekick/*.defaults` for all options
 - **Path resolution**: Use `src/sidekick/lib/common.sh` path helpers for dual-scope compatibility
@@ -37,13 +56,14 @@ src/sidekick/          # Source (edit here)
 ~/.sidekick/*.conf         # User persistent (survives installs)
 
 scripts/
-├── install.sh                      # Deploy to --user, --project, or --both
-├── analyze-topic-at-line.sh        # Surgical session summary (debug tool)
-├── simulate-session.py           # Session analysis simulator (debug tool)
-├── tests/                          # run-unit-tests.sh (mocked, free)
-└── benchmark/                      # LLM benchmarking code (legacy, being rewritten in another branch)
+├── install.sh                    # Deploy to --user, --project, or --both
+├── analyze-session-at-line.sh    # Surgical session summary (debug tool) - CURRENT working version
+├── simulate-session.py           # Session analysis simulator (debug tool) - CURRENT working version
+├── tests/                        # run-unit-tests.sh (mocked, free)
+└── benchmark/                    # Legacy bash benchmarking code (superseded by Python/Bash tools above)
 
-benchmark-next/        # TypeScript rewrite (see child CLAUDE.md)
+benchmark-next/        # ⚠️ STALE: Early TypeScript exploration, largely untested, out of sync with current work
+                       # Being replaced by packages/ structure per SIDEKICK_NODE_TARGET_ARCHITECTURE.md
 test-data/
 ├── projects/          # Test transcripts
 ├── replay-results/    # Replay simulation output (gitignored)
@@ -115,11 +135,18 @@ python3 scripts/simulate-session.py <session-id>
 
 ## Reference Docs (For Questions)
 
-- **ARCH.md**: Complete design (plugin system, LLM providers, cascade logic)
-- **PLAN.md**: Implementation status (Phase 5.3: manual testing)
-- **README.md**: User guide (installation, configuration, troubleshooting)
+- **README.md**: User guide (installation, configuration, troubleshooting) - current Bash runtime
+- **SIDEKICK_RUNTIME_MIGRATION_PLAN.md**: Migration strategy from Bash to Node/TypeScript (phased approach)
+- **SIDEKICK_NODE_TARGET_ARCHITECTURE.md**: Target architecture for Node rewrite (packages/ workspace, shared assets)
 
 ## Tech Stack
 
-- **Sidekick**: Bash 4.4+, jq 1.6+, 9 namespace libs, pluggable LLM providers
+**Current (Production)**:
+- **Sidekick Runtime**: Bash 4.4+, jq 1.6+, 9 namespace libs, pluggable LLM providers
+- **Analysis Tools**: Python 3.x (simulate-session.py), Bash (analyze-session-at-line.sh)
 - **Tests**: Mocked unit (free), integration (free), LLM provider (expensive, opt-in)
+
+**Future (Migration In Progress)**:
+- **Target Runtime**: Node 20+, TypeScript, pnpm workspaces
+- **Architecture**: Monorepo packages/ structure, shared assets/sidekick/ for prompts/schemas
+- **Migration Path**: Phased transition maintaining Bash fallback during migration (see SIDEKICK_RUNTIME_MIGRATION_PLAN.md)

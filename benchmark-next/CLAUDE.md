@@ -1,8 +1,21 @@
 # benchmark-next/CLAUDE.md
 
-**Status**: 🚧 EXPERIMENTAL - TypeScript rewrite in progress
+**⚠️ STATUS: STALE / OUT OF SYNC ⚠️**
 
-This directory contains the Track 2 TypeScript rewrite of the benchmarking system.
+This directory contains an early TypeScript exploration that is:
+- **Largely untested** - many features not validated
+- **Out of sync** - superseded by current working Python/Bash analysis tools (`scripts/analyze-session-at-line.sh`, `scripts/simulate-session.py`)
+- **Being replaced** - by comprehensive Node/TypeScript rewrite per `SIDEKICK_RUNTIME_MIGRATION_PLAN.md` and `SIDEKICK_NODE_TARGET_ARCHITECTURE.md`
+
+**Current working tools**: Use `scripts/analyze-session-at-line.sh` and `scripts/simulate-session.py` for session analysis and benchmarking.
+
+**Future direction**: This codebase will be superseded by the `packages/` workspace structure described in `SIDEKICK_NODE_TARGET_ARCHITECTURE.md`, which unifies Sidekick runtime + benchmarking under a single modern TypeScript architecture.
+
+---
+
+## Original Purpose (Historical Context)
+
+This directory was an early attempt at a Track 2 TypeScript rewrite of the benchmarking system.
 
 ## Project Purpose
 
@@ -213,35 +226,47 @@ The following dependencies are newer than Claude's training cutoff (January 2025
 - Implementing reasoning model support (o1/o3 token tracking)
 - Troubleshooting error handling edge cases
 
-## Migration from Track 1
+## Migration from Track 1 (Historical Context - See New Plan Below)
 
-**DO NOT simply translate Bash to TypeScript**. Instead:
+**⚠️ This approach is superseded by `SIDEKICK_RUNTIME_MIGRATION_PLAN.md`**
 
-1. **Understand the requirement**: What does Track 1 do? Why? What are edge cases?
-2. **Design TypeScript solution**: Use classes, interfaces, async/await idiomatically
-3. **Validate behavior**: Same inputs → same outputs as Track 1
-4. **Document differences**: If TypeScript approach differs, explain why in migration log
+The original plan was to translate Track 1 (Bash benchmarking) to Track 2 (TypeScript), but this has been replaced by a comprehensive runtime migration that unifies Sidekick hooks + benchmarking.
 
-**Example - Timeout Handling**:
-
+**Example - Timeout Handling** (original approach):
 - **Track 1**: `timeout` command + retry loop in Bash
 - **Track 2**: `AbortController` + Promise.race() + retry decorator pattern
 - **Same behavior**: 3 retries, exponential backoff, same error messages
 
-## Critical Constraints
+## Current Working Tools
 
-- **Behavioral parity with Track 1**: Output must be identical for same inputs
+**For session analysis and benchmarking, use these instead**:
+- `scripts/analyze-session-at-line.sh` - Surgical session summary extraction at specific line numbers
+- `scripts/simulate-session.py` - Session analysis simulator for verifying trigger logic
+
+These tools are **tested, working, and current**. They supersede any incomplete TypeScript implementations in this directory.
+
+## Future Direction
+
+**See `SIDEKICK_RUNTIME_MIGRATION_PLAN.md` and `SIDEKICK_NODE_TARGET_ARCHITECTURE.md`** for the comprehensive rewrite plan:
+
+1. **Unified Architecture**: Node/TypeScript runtime for both Sidekick hooks AND benchmarking
+2. **Workspace Structure**: Monorepo with `packages/` (sidekick-core, sidekick-cli, feature-*, shared-providers, etc.)
+3. **Shared Assets**: `assets/sidekick/` for prompts, schemas, templates - shared by Node runtime AND Python dev tools
+4. **Phased Migration**: Bash remains as fallback during transition
+5. **Modern Stack**: Node 20+, pnpm workspaces, Vitest, strict TypeScript
+
+## What to Do With This Directory
+
+**Short term**: Reference useful patterns (provider abstractions, config cascade, logging) but don't treat as authoritative.
+
+**Medium term**: Extract reusable components (LLM provider interfaces, transcript types) into new `packages/` structure.
+
+**Long term**: Archive or delete once new `packages/` implementation is complete and tested.
+
+## Critical Constraints (When Extracting Code)
+
+- **Behavioral parity**: New implementation must match current Bash/Python tool outputs
 - **Type safety**: All public APIs must have complete type definitions
 - **No breaking changes to test data**: Use existing test-data/ structure as-is
-- **Performance**: Must not be significantly slower than Track 1 (within 20%)
-
-## Success Metrics
-
-Track 2 is production-ready when:
-
-1. ✅ Passes all Track 1 validation tests
-2. ✅ Full type coverage (tsc --strict with no errors)
-3. ✅ Performance within 20% of Track 1
-4. ✅ Documentation complete
-5. ✅ User migration guide written
-6. ✅ At least one real-world benchmark run matches Track 1 output exactly
+- **Performance**: Must not be significantly slower than current tools (within 20%)
+- **Dual-scope compatibility**: Work identically in project (`.claude/`) and user (`~/.claude/`) scopes
