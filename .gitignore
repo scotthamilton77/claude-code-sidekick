@@ -28,23 +28,38 @@ node_modules/
 # Windows Zone.Identifier files (created when copying from Windows to WSL)
 *:Zone.Identifier
 
-# Claude hook temporary files (session-specific ephemeral state)
-# Note: For this SOURCE project, we ignore the entire .sidekick/ directory
-# since it only contains test/development runtime data.
-# Consumer projects should use these patterns in their .gitignore:
-#   .sidekick/*.log
-#   .sidekick/sessions/
-# to track .sidekick/sidekick.conf and .sidekick/README.md
-.claude/hooks/sidekick
-.sidekick/
-*.backup.*
-*.uninstall-backup.*
-
 # DevContainer environment variables (contains secrets)
 .devcontainer/.env
 
-# for now?
-test-data/results/
+# Sidekick development env exclusions (otherwise we get random files thrown in there that don't need to be versioned)
+.sidekick
+.claude/hooks/sidekick/
 
-# these need to be part of the install:
+# Sidekick backup files
+*.backup.*
+*.uninstall-backup.*
+
+# Test data and results
+test-data/results/
+test-data/replay-results/
+test-data/topic-analysis/
+test-data/session-analysis/
+test-data/simulation-test/
+
+# Sidekick Hook System (managed by scripts/install.sh)
+# Runtime data - ignored
+.sidekick/*.log
+.sidekick/sessions/
+
+# Templates, config, backups - tracked by default, uncomment to ignore
+# .sidekick/README.md
+# .sidekick/sidekick.conf
+# .sidekick/sidekick.conf.template
+# .sidekick/reminders/*.template
+# .sidekick/reminders/*-reminder.txt
+# *.backup.*
+# *.uninstall-backup.*
+# End Sidekick Hook System
+
+# TypeScript build cache (needs to be part of install)
 .claude/tsc-cache/

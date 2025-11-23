@@ -89,19 +89,19 @@ create_versioned_reference_dir() {
     mkdir -p "$output_dir/_prompt-snapshot"
 
     # Snapshot prompt files
-    local prompt_file="${SIDEKICK_SRC}/features/prompts/topic-only.txt"
-    local schema_file="${SIDEKICK_SRC}/features/prompts/topic-schema.json"
+    local prompt_file="${SIDEKICK_SRC}/prompts/topic.prompt.txt"
+    local schema_file="${SIDEKICK_SRC}/prompts/topic.schema.json"
 
     if [ -f "$prompt_file" ]; then
         cp "$prompt_file" "$output_dir/_prompt-snapshot/"
-        echo "  Snapshotted: topic-only.txt"
+        echo "  Snapshotted: topic.prompt.txt"
     else
         echo "  WARN: Prompt file not found: $prompt_file" >&2
     fi
 
     if [ -f "$schema_file" ]; then
         cp "$schema_file" "$output_dir/_prompt-snapshot/"
-        echo "  Snapshotted: topic-schema.json"
+        echo "  Snapshotted: topic.schema.json"
     else
         echo "  WARN: Schema file not found: $schema_file" >&2
     fi
@@ -127,8 +127,8 @@ EOF
     echo "  Snapshotted: config-snapshot.sh"
 
     # Compute checksums
-    local prompt_sha256=$(sha256sum "$output_dir/_prompt-snapshot/topic-only.txt" 2>/dev/null | cut -d' ' -f1 || echo "")
-    local schema_sha256=$(sha256sum "$output_dir/_prompt-snapshot/topic-schema.json" 2>/dev/null | cut -d' ' -f1 || echo "")
+    local prompt_sha256=$(sha256sum "$output_dir/_prompt-snapshot/topic.prompt.txt" 2>/dev/null | cut -d' ' -f1 || echo "")
+    local schema_sha256=$(sha256sum "$output_dir/_prompt-snapshot/topic.schema.json" 2>/dev/null | cut -d' ' -f1 || echo "")
     local golden_sha256=$(sha256sum "$GOLDEN_SET_FILE" 2>/dev/null | cut -d' ' -f1 || echo "")
 
     # Get test count
@@ -145,9 +145,9 @@ EOF
         --argjson test_count "$test_count" \
         --argjson ref_models "$(printf '%s\n' "${REFERENCE_MODELS[@]}" | jq -R . | jq -s .)" \
         --arg judge_model "$JUDGE_MODEL" \
-        --arg prompt_file "topic-only.txt" \
+        --arg prompt_file "topic.prompt.txt" \
         --arg prompt_sha256 "$prompt_sha256" \
-        --arg schema_file "topic-schema.json" \
+        --arg schema_file "topic.schema.json" \
         --arg schema_sha256 "$schema_sha256" \
         --argjson excerpt_lines "${TOPIC_EXCERPT_LINES:-80}" \
         --arg filter_tools "${TOPIC_FILTER_TOOL_MESSAGES:-true}" \
@@ -193,7 +193,7 @@ extract_transcript_excerpt() {
 # Build prompt from transcript excerpt
 build_prompt() {
     local transcript_json="$1"
-    local prompt_template="${SIDEKICK_SRC}/features/prompts/topic-only.txt"
+    local prompt_template="${SIDEKICK_SRC}/prompts/topic.prompt.txt"
 
     if [ ! -f "$prompt_template" ]; then
         echo "ERROR: Prompt template not found: $prompt_template" >&2
@@ -204,7 +204,7 @@ build_prompt() {
     prompt=$(cat "$prompt_template")
 
     # No previous topic for reference generation
-    prompt="${prompt//\{PREVIOUS_TOPIC\}/}"
+    prompt="${prompt//\{PREVIOUS_SESSION\}/}"
     prompt="${prompt//\{TRANSCRIPT\}/$transcript_json}"
 
     echo "$prompt"
@@ -223,7 +223,7 @@ invoke_reference_model() {
     echo "[INVOKE] Calling $provider:$model for test $test_id..." >&2
 
     # Load JSON schema
-    local schema_file="${SIDEKICK_SRC}/features/prompts/topic-schema.json"
+    local schema_file="${SIDEKICK_SRC}/prompts/topic.schema.json"
     local json_schema=""
 
     if [ -f "$schema_file" ]; then
@@ -236,7 +236,7 @@ invoke_reference_model() {
     local output
     local start_time=$(date +%s)
 
-    if ! output=$(llm_invoke_with_provider "$provider" "$model" "$prompt" "$LLM_TIMEOUT_SECONDS" "$json_schema" 2>&1); then
+    if ! output=$(llm_invoke_with_provider "$provider" "$model" "$prompt" "$LLM_TIMEOUT_SECONDS"); then
         local end_time=$(date +%s)
         local latency=$((end_time - start_time))
 

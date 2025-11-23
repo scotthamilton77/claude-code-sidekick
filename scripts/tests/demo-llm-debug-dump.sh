@@ -39,7 +39,7 @@ echo ""
 
 # Make a simple LLM call
 echo "Making a test LLM call..."
-prompt='{"task": "topic_extraction", "instructions": "Extract the main topic from this conversation. Respond with JSON only.", "conversation": "User: Hello\nAssistant: Hi there!"}'
+prompt='{"task": "session_summary", "instructions": "Extract the main topic from this conversation. Respond with JSON only.", "conversation": "User: Hello\nAssistant: Hi there!"}'
 
 # Call the LLM (this will trigger debug dumping)
 if result=$(llm_invoke "$LLM_OPENROUTER_MODEL" "$prompt" 10); then

@@ -130,7 +130,7 @@ Test suites run:
   - test-json.sh             - JSON processing namespace tests
   - test-process.sh          - Process management namespace tests
   - test-statusline.sh       - Statusline feature tests
-  - test-topic-extraction.sh - Topic extraction feature tests
+  - test-session-summary.sh - Session summary feature tests
   - test-plugin-dependencies.sh - Plugin dependency resolution tests
   - test-workspace.sh        - Workspace management namespace tests
 

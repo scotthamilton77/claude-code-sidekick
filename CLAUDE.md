@@ -1,153 +1,125 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## Role
 
-## Quick Reference
+Bash expert for dual-scope Claude Code hooks system (Sidekick). Experimental project—no backward compatibility required.
 
-| Need                 | Location                                                         |
-| -------------------- | ---------------------------------------------------------------- |
-| **Run tests**        | `cd benchmark-next && npm test`                                  |
-| **Architecture**     | `benchmark-next/CLAUDE.md` (TypeScript), `ARCH.md` (legacy Bash) |
-| **Migration status** | `docs/benchmark-migration.md`                                    |
-| **Test data**        | `test-data/` (shared by both implementations)                    |
-| **Legacy bash**      | `src/sidekick/`, `scripts/benchmark/` (reference only)           |
+## Constraints [PRESERVE]
 
-## Project Purpose
+- **No backward compatibility**: Single-user project, breaking changes allowed
+- **Dual-scope testing**: Every script must work identically in `.claude/` and `~/.claude/` contexts
+- **Install/uninstall authorization**: Abort unless user message contains exact word "install" or "uninstall"
+- **Timestamp preservation**: Use `rsync -a`, never `cp`, for file sync (critical for `./scripts/sync-to-user.sh`)
+- **Plugin architecture boundary**: New features → `src/sidekick/features/<name>.sh` only. NEVER edit `handlers/*.sh`
+- **Restart requirement**: All hook changes require `claude --continue` restart to take effect
+- **Test isolation**: LLM provider tests (`test-llm-providers.sh`) intentionally excluded from default runs (expensive API calls)
 
-This repository is the **experimental proving ground** for Claude Code configuration development—a system for enhancing Claude Code conversations with hooks, agents, skills, and other capabilities.
+## Critical Directives
 
-**Strategic Direction**: Migrating from Bash to TypeScript for maintainability, type safety, and testability. Starting with the benchmark system (`benchmark-next/`), with plans to eventually migrate all components.
+- **Questions about architecture/design**: Cite `ARCH.md:<section>` instead of guessing
+- **Plugin creation**: (1) Create `src/sidekick/features/<name>.sh`, (2) Add `FEATURE_<NAME>=true` to `config.defaults`, (3) Test, (4) Install project (with permission), (5) Verify session
+- **Config system**: 4 modular domains (config, llm-core, llm-providers, features) + `sidekick.conf` override. See `src/sidekick/*.defaults` for all options
+- **Path resolution**: Use `src/sidekick/lib/common.sh` path helpers for dual-scope compatibility
+- **LLM debugging**: Enable `LLM_DEBUG_DUMP_ENABLED=true` → saves payloads to `/tmp/sidekick-llm-debug/`
 
-**Critical Design Principle**: All capabilities must work identically in both:
+## Project Structure (Action Paths)
 
-- **Project scope**: `.claude/` within this repository (testing)
-- **User scope**: `~/.claude/` global directory (production deployment)
+```
+src/sidekick/          # Source (edit here)
+├── features/*.sh      # Plugins (add new features here)
+├── handlers/*.sh      # Framework (never edit)
+├── lib/*.sh           # Shared libraries (edit for infra changes)
+└── *.defaults         # Config domains (4 files)
 
-## Architecture Overview
+.claude/hooks/sidekick/    # Project deployment (ephemeral)
+~/.claude/hooks/sidekick/  # User deployment (ephemeral)
+.sidekick/*.conf           # Project persistent (git-committable - but note this project specifically .gitignored)
+~/.sidekick/*.conf         # User persistent (survives installs)
 
-### Active Development: TypeScript Track (`benchmark-next/`)
+scripts/
+├── install.sh                      # Deploy to --user, --project, or --both
+├── analyze-topic-at-line.sh        # Surgical session summary (debug tool)
+├── simulate-session.py           # Session analysis simulator (debug tool)
+├── tests/                          # run-unit-tests.sh (mocked, free)
+└── benchmark/                      # LLM benchmarking code (legacy, being rewritten in another branch)
 
-**Primary focus** for all new development. Modern stack with type safety and comprehensive testing.
-
-**Stack**: TypeScript + Node.js + Vitest + Zod
-**Documentation**: See `benchmark-next/CLAUDE.md` for detailed architecture
-**Status**: 🏗️ Phase 2 in progress - building shared foundation with forward-looking modularity
-
-**Architecture Strategy**: Staged extraction approach
-
-- **Phase 1 (current)**: Develop in `benchmark-next/src/lib/` with loose coupling to benchmark domain
-- **Phase 2 (future)**: Extract stabilized `lib/` code to monorepo `packages/common/` when sidekick migration begins
-
-**Current Structure**:
-
-- `src/lib/` - Shared foundation (providers, utils, config, logging, paths) - designed for future extraction
-- `src/benchmark/` - Benchmark-specific domain logic (scoring, consensus, orchestration)
-
-**Implemented Components**:
-
-- ✅ LLM provider abstraction (Claude, OpenAI, OpenRouter, custom)
-- ✅ JSON extraction utilities
-- 🏗️ Timeout/retry with exponential backoff (in progress)
-- ⏳ Configuration cascade (planned)
-- ⏳ Structured logging (planned)
-- ⏳ Semantic similarity scoring (planned)
-- ⏳ Consensus algorithms (planned)
-
-### Legacy: Bash Track (`src/sidekick/`, `scripts/`)
-
-**Production system** currently in use, but being phased out. Reference for functional behavior only.
-
-**Key Locations** (minimal detail—see `ARCH.md` for complete docs):
-
-- `src/sidekick/` - Hook system (topic extraction, resume, statusline, tracking, cleanup)
-- `scripts/benchmark/` - Original benchmark implementation (3K LOC Bash)
-- `scripts/tests/` - Bash test infrastructure
-
-**If you need to**:
-
-- Install legacy hooks: `./scripts/install.sh --user` → `claude --continue`
-- Run legacy tests: `./scripts/tests/run-unit-tests.sh`
-- Find bash implementation details: See `ARCH.md` and `PLAN.md`
-
-### Shared Test Data (`test-data/`)
-
-Canonical dataset used by **both** implementations for validation and behavioral parity testing.
-
-**Structure**:
-
-- `test-data/transcripts/` - 497 Claude Code transcripts with metadata
-  - `metadata.json` - Master index (length classification, task IDs)
-  - `golden-set.json` - 15 reference transcripts for benchmarking
-  - `*.jsonl` - Raw transcript files
-- `test-data/references/` - High-quality LLM outputs for scoring ground truth
-- `test-data/projects/` - Original source (for repopulating if needed)
-- `test-data/sessions/` - Legacy Sidekick analysis results
-
-**Distribution**: 36% short (179), 22% medium (110), 42% long (208) transcripts
-
-## Development Workflow
-
-### Working on TypeScript Track
-
-**Recommended:**
-
-```bash
-cd benchmark-next
-npm install
-npm test          # Run all tests
-npm test:watch    # TDD mode
+benchmark-next/        # TypeScript rewrite (see child CLAUDE.md)
+test-data/
+├── projects/          # Test transcripts
+├── replay-results/    # Replay simulation output (gitignored)
+└── topic-analysis/    # Surgical extraction output (gitignored)
 ```
 
-**MANDATORY: before telling the user you're done!**
+## Development Checklist
+
+**New plugin (zero handler edits)**:
+
+1. `src/sidekick/features/<name>.sh` with `<name>_on_<event>()` functions
+2. `FEATURE_<NAME>=true` in `config.defaults`
+3. `./scripts/tests/run-unit-tests.sh`
+4. `./scripts/install.sh --project && claude --continue`
+5. Test in real session
+6. `./scripts/install.sh --user && claude --continue`
+
+**Config override**:
+
+- Modular: Create `.sidekick/llm-providers.conf` (domain-specific)
+- Simple: Create `.sidekick/sidekick.conf` (overrides all domains)
+- API keys: `.env` files (never commit `~/.sidekick/.env`)
+
+**Dual-scope verification**:
 
 ```bash
-cd benchmark-next
-tsc --noEmit
-npm run fix
+./scripts/install.sh --both
+# Test in project context
+cd /workspaces/claude-config && .claude/hooks/sidekick/sidekick.sh <cmd>
+# Test in user context (outside project)
+cd /tmp && ~/.claude/hooks/sidekick/sidekick.sh <cmd>
 ```
 
-- ALWAYS run after making code changes
-- ALWAYS fix any lingering lint and typescript errors
+**Session summary debugging**:
 
-See `benchmark-next/CLAUDE.md` for architecture, patterns, and migration checklist.
+```bash
+# Surgical analysis - extract summary at specific line
+./scripts/analyze-session-at-line.sh <session-id> --to-line 100
 
-### Working on Legacy Bash (Maintenance Only)
+# Outputs: 0100-transcript.jsonl, 0100-filtered.jsonl, 0100-prompt.txt, 0100-session-summary.json
+# Use to inspect exact LLM input and validate filtering logic
 
-Only modify bash code for:
+# Session simulation - verify production trigger logic
+python3 scripts/simulate-session.py <session-id>
+```
 
-- Critical production bugs
-- Extracting behavioral requirements for TypeScript migration
+## Rules for Development
 
-After any bash changes, extract requirements to `docs/benchmark-migration.md` for eventual TypeScript implementation.
+1. Explore and Plan Strategically
 
-### Migration Workflow
+- Before writing code, deeply explore the problem or feature.
+- Clearly identify root causes, requirements, and goals.
+- Plan a strategic, thoughtful approach before implementation.
 
-See `docs/benchmark-migration.md` for the test-driven migration process:
+2. Debug Elegantly
 
-1. Extract behavior from Bash (inputs → outputs)
-2. Create test fixtures in `benchmark-next/test/fixtures/`
-3. Write failing TypeScript tests
-4. Implement TypeScript to pass tests
-5. Validate parity using shared `test-data/`
+- If there's a bug, systematically locate, isolate, and resolve it.
+- Effectively utilize logs, print statements, and isolation scripts to pinpoint issues.
 
-## MCP Servers
+3. Create Closed-Loop Systems
 
-- **context7** (SSE) - Post-cutoff documentation lookup
-- **sequential-thinking** (NPX) - Enhanced reasoning
-- **memory** (NPX) - Session knowledge persistence
+- Build self-contained systems that let you fully test and verify functionality without user involvement.
+- For example, when working on backend features:
+    - Run the backend locally.
+    - Send requests yourself.
+    - Monitor logs and verify correct behavior independently.
+    - If issues arise, iterate internally—debug and retest—until fully functional.
+- The user should NOT have to provide logs or repeated feedback to solve issues. Complete the debugging and testing independently.
 
-## Critical Constraints
+## Reference Docs (For Questions)
 
-- Never modify files outside project directory without authorization
-- Hooks require permission in `settings.json` before execution
-- Dual-scope testing required before deploying to `~/.claude/`
-- Timestamp preservation critical for sync correctness
-- **NEVER install/uninstall without explicit user authorization**
+- **ARCH.md**: Complete design (plugin system, LLM providers, cascade logic)
+- **PLAN.md**: Implementation status (Phase 5.3: manual testing)
+- **README.md**: User guide (installation, configuration, troubleshooting)
 
-## Current Status
+## Tech Stack
 
-**TypeScript Track** (`benchmark-next/`): 🏗️ Foundation setup complete, implementing Phase 2 core utilities
-
-**Bash Track** (`src/sidekick/`, `scripts/`): ✅ Production-stable, maintenance mode only
-
-See `docs/benchmark-migration.md` for migration progress.
+- **Sidekick**: Bash 4.4+, jq 1.6+, 9 namespace libs, pluggable LLM providers
+- **Tests**: Mocked unit (free), integration (free), LLM provider (expensive, opt-in)
