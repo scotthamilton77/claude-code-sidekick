@@ -1,0 +1,58 @@
+{
+  "name": "benchmark-next",
+  "version": "0.1.0",
+  "description": "TypeScript rewrite of Claude Code benchmarking system",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:unit": "vitest run --dir test/unit",
+    "test:integration": "vitest run --dir test/integration",
+    "test:e2e": "vitest run --dir test/e2e",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src test --ext .ts --no-error-on-unmatched-pattern",
+    "lint:fix": "eslint src test --ext .ts --no-error-on-unmatched-pattern --fix",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",
+    "fix": "npm run format && npm run lint:fix",
+    "typecheck": "tsc --noEmit",
+    "benchmark": "tsx src/cli/benchmark.ts",
+    "generate-reference": "tsx src/cli/generate-reference.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.68.0",
+    "cockatiel": "^3.2.1",
+    "commander": "^12.1.0",
+    "openai": "^6.8.1",
+    "pino": "^10.1.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.24",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "@vitest/coverage-v8": "^2.1.9",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.4",
+    "pino-pretty": "^13.1.2",
+    "prettier": "^3.6.2",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.9"
+  },
+  "keywords": [
+    "benchmarking",
+    "llm",
+    "claude",
+    "testing"
+  ],
+  "author": "Scott Hamilton",
+  "license": "UNLICENSED"
+}

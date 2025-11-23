@@ -1,0 +1,7 @@
+Here is the JSON output:
+
+```json
+{"name": "test", "value": 42}
+```
+
+This is the result.

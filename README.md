@@ -43,9 +43,11 @@ This repository serves as a development and testing environment for [Claude Code
 - add to the UserPromptSubmit a trigger to evaluate the user's prompt to see if the user is asking claude to do something that it should have already done, and record that as a possible RL item to factor into the reminder
 - would it make sense to scan the ToDos and suggest to Claude to add to its todos any specific items relevant to the reminders? (Would this be more context-efficient?)
 
-## Agents and Skills
+## Agents and Skills and Hooks
 
-- Consider pulling all the different pieces out as separate repos (to be separate claude code plugins)
+- testing https://github.com/diet103/claude-code-infrastructure-showcase - specifically the hooks integrated with skill intent and build purity
+   - read through https://www.reddit.com/r/ClaudeAI/comments/1oivjvm/claude_code_is_a_beast_tips_from_6_months_of/ (same repo reference)
+   - I might have lost prettier? (see settings copy.json)
 - agents, skills, CLAUDE.md, settings.json - I've moved these into src/.claude/ for now - we'll need to make these installable/uninstallable as components too
 - Can we have a skill and/or agent that intersects the task list and plan for when claude starts to execute a plan and (a) checks it against the user request and requirements to catch scope creep and (b) checks against unnecessary complexity keeping YAGNI and DRY and KISS principles in play?
 - sync, push - these should not clobber settings and mcp, but rather merge; for claude.md, ask to replace
