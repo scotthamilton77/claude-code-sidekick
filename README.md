@@ -10,124 +10,38 @@ This repository serves as a development and testing environment for [Claude Code
 
 ## TODOs
 
-Where I'm leaving off:
-- in the middle of trying to get the benchmarks generated
-   - I have UNTESTED code to dump raw API responses under test-data/results/... - the run_1_raw.txt open here is manually copied data
-   - I don't know the impact of this but am starting a new run now...
-- occasionally run into a bad model response - see sidekick.log
-   - we're dumping debug data into /tmp/sidekick-llm-debug/, and also raw API content into the test-data/results/ now.
-   - there seems to be a bug where if we get json that has both message.content and some reasoning then we might get some kind of error - see the last run test-data/results/2025-11-08_204233/raw/openrouter_openai_gpt-oss-20b/long-001/run_1_raw.txt and the debug files
-- provider issues
-   - we see differing quality of responses from different providers - we CAN have specific ones configured - see https://openrouter.ai/docs/features/provider-routing
-   - suggest we capture provider-specific statistics too to build lists of providers we don't want to allow
+### Sidekick
 
-## Sidekick
-- is it time to move to something more robust than bash?
-- 2>&1 issues - see below
-- llm quality and speed benchmark testing needed
-   - try with and without system prompt separate from user prompt
-- DRY issues
-   - llm.sh DRY
-   - transcript pre-processing
-   - topic-extraction and generate-resume have lots of overlap - DRY!
-   - json schema vs. prompt overlap
-   1. Shared transcript extraction (lines 26-59 in topic-extraction.sh, lines 49-76 in generate-resume.sh)
-      - Move to lib/transcript.sh as transcript_extract_excerpt()
-   2. Shared model config (lines 207-234 in topic-extraction.sh, lines 90-116 in generate-resume.sh)
-      - Already centralized in lib/llm.sh, just ensure both use it consistently
-   3. Shared preprocessing (jq filters for stripping attributes)
-      - Could be a constant in lib/json.sh
-- json schema for resume message generator
-- incorporate https://github.com/johannschopplich/toon
-- We need some quality memories on the models, e.g. our current gemma is failing miserably to return the right json; we could try a more advanced gemma model, or else we'll need to upgrade
-- remove .claudeignore if not useful
-- tracking and reminders
-   - make sure we log when it happens
-   - do we want to have multiple reminders with different cadences?
+- snarky comment generator
+  - needs a fallback model
+- refine the transcript analysis process
+  - tune the session summarizer to follow the last n turns (delta + 10?) - this combined with previous goal snapshot might be cheaper?
+  - tune the instructions for the session summary (little shorter, more cynical)
 - PLAN.MD (executing ARCH.md)
-   - standardize parameter names and styles in the scripts (e.g. --project-dir vs. not, internally using output_dir, etc.)
-- tune the topic extracter to follow the last n turns (delta + 10?) - this combined with previous goal snapshot might be cheaper?
-- tune the instructions for the topic extraction (little shorter, more cynical)
 - allow for different personalities - either explicit at install time or random per project or random per session or just random
-   - moods: cynical, sarcastic, snarky, nerdy, arrogant, moody
-   - persona: angry klingon, skeptical vulcan, Scotty, Bones
-   - themes: scifi, crime drama, daytime television, soap opera, classic 80s tv sitcom, seinfeld & friends
+  - moods: cynical, sarcastic, snarky, nerdy, arrogant, moody
+  - persona: angry klingon, skeptical vulcan, Scotty, Bones
+  - themes: scifi, crime drama, daytime television, soap opera, classic 80s tv sitcom, seinfeld & friends
 - allow a "concise" topic mode during setup that chooses concise template files
-   - allow the line length hints to be configurable
-   - allow the statusline topic format to be configurable
-   - maybe just allow for project-level overrides (template file input parameter and/or user and project level overrides)
-- statusline token counter and context % are way off?  If we can't get close to /context, let's remove the %
+  - allow the line length hints to be configurable
+  - allow the statusline topic format to be configurable
+  - maybe just allow for project-level overrides (template file input parameter and/or user and project level overrides)
+- statusline token counter and context % are way off? If we can't get close to /context, let's remove the %
 - log rotation and log level to info by default
 - BUG: uninstall from project leaves empty hooks folder
-- how do subagents work - can we detect their connection to the parent agent, and do we care?  (for statusline, maybe not, but for analytics?)
+- how do subagents work - can we detect their connection to the parent agent, and do we care? (for statusline, maybe not, but for analytics?)
 - skills and agents - review carefully and attribute to https://github.com/obra/superpowers
 - learning mode? investigate https://medium.com/coding-nexus/rip-fine-tuning-how-stanfords-ace-framework-teaches-ai-to-learn-without-retraining-510f412d8579
+- is it time to move to something more robust than bash?
+  - incorporate https://github.com/johannschopplich/toon
 
-### stdout/stderr analysis
+### Nice to Haves
 
-✅ GOOD USES
-
-1. Silencing checks (don't care about output at all):
-if ps -p "$pid" >/dev/null 2>&1; then
-   # Just checking existence
-fi
-2. Logging both streams together:
-./run-benchmark.sh 2>&1 | tee log.txt  # Interleaved stdout/stderr in log
-3. Test validation (intentionally checking all output):
-output=$(command 2>&1)  # Test framework needs to validate errors
-
-❌ BAD USES (Your Bug!)
-
-Capturing function output in command substitution:
-result=$(my_function 2>&1)  # PROBLEM: mixes return data with error messages
-
-This breaks when:
-- Function outputs data to stdout (the "return value")
-- Function outputs errors to stdout (should be stderr!)
-- Caller expects clean data but gets garbage mixed in
-
-🔧 The Fix
-
-Option 1: Fix the function (preferred for libraries):
-llm_invoke_with_provider() {
-   if [ $exit_code -eq 0 ]; then
-         echo "$result"  # Data to stdout
-         return 0
-   else
-         # ALL error output to stderr
-         echo "=== LLM INVOCATION FAILED ===" >&2
-         echo "Provider: $provider" >&2
-         echo "Model: $model" >&2
-         return 1
-   fi
-}
-
-# Now caller doesn't need 2>&1
-result=$(llm_invoke_with_provider "$provider" "$model" "$prompt")
-
-Option 2: Use temp files (when you need error details):
-error_file=$(mktemp)
-if result=$(my_function 2>"$error_file"); then
-   # Success: result has clean data
-else
-   # Failure: can read error details from error_file
-   errors=$(cat "$error_file")
-fi
-rm -f "$error_file"
-
-🎯 The Real Problem
-
-Your codebase has two conflicting design patterns:
-
-1. Pattern A (library functions): Return data via stdout, errors via stderr
-2. Pattern B (your similarity.sh:293-299): Return errors via stdout "for RAW_FILE capture"
-
-When you mix these patterns with 2>&1, chaos ensues.
-
-Recommendation
-
-Refactor llm_invoke_with_provider in similarity.sh:290-308 to send ALL error output to stderr. The "RAW_FILE" argument in the comment is misleading - you're not in the benchmark script
-context there, you're in a library function that should follow stderr conventions.
+- should this be a claude code plugin? There are plugin hooks referenced here: https://code.claude.com/docs/en/hooks
+- take the reminder against the transcript to ask AI to evaluate which parts of the reminder may be most relevant for the situation and context
+  - if we do this, we should have a 2 stage pipeline: pre-process CLAUDE.md's into stage 1 (more verbose/complete), then use that against context to generate point-in-time reminder
+- add to the UserPromptSubmit a trigger to evaluate the user's prompt to see if the user is asking claude to do something that it should have already done, and record that as a possible RL item to factor into the reminder
+- would it make sense to scan the ToDos and suggest to Claude to add to its todos any specific items relevant to the reminders? (Would this be more context-efficient?)
 
 ## Agents and Skills and Hooks
 
@@ -157,12 +71,14 @@ context there, you're in a library function that should follow stderr convention
 ### Installation
 
 1. Clone the repository:
+
 ```bash
 git clone https://github.com/scotthamilton77/claude-config.git
 cd claude-config
 ```
 
 2. Configure hook permissions and statusline:
+
 ```bash
 # For user-scope deployment
 ./scripts/setup-reminders.sh
@@ -172,6 +88,7 @@ cd claude-config
 ```
 
 3. Test the installation:
+
 ```bash
 ./tests/test-setup-reminders.sh
 ./tests/test-cleanup-reminders.sh
@@ -214,20 +131,24 @@ cd claude-config
 The Sidekick system provides a **plugin-based hook architecture** that executes at conversation events to enhance Claude Code behavior.
 
 **How It Works**:
+
 - Claude invokes `sidekick.sh <hook-type>` at conversation events (SessionStart, UserPromptSubmit, Statusline)
 - Each invocation **discovers and loads all enabled plugins** in dependency order
 - Plugins implement hook functions (e.g., `tracking_on_user_prompt_submit()`) which get invoked if defined
 - **Dependency resolution** ensures plugins load in correct order (e.g., reminder loads after tracking)
 
-**Available Plugins** (6 total):
-- **topic-extraction**: LLM-based conversation analysis with adaptive polling
-- **resume**: Async background resume generation when topic changes significantly
-- **statusline**: Enhanced statusline with token tracking, git branch, topic display
-- **tracking**: Response counter for session management
-- **reminder**: Periodic static reminders at configurable cadence (depends on tracking)
+**Available Plugins** (7 total):
+
+- **session-summary**: LLM-based conversation analysis with adaptive polling
+- **resume**: Async background resume generation when session summary changes significantly
+- **statusline**: Enhanced statusline with token tracking, git branch, session title display
+- **tracking**: Turn and tool counters for session management
+- **reminder**: Three-tier reminder system (turn-cadence, tool-cadence, tools-per-turn) with independent thresholds
+- **post-tool-use**: Tool activity tracking with cadence-based and threshold-based reminders
 - **cleanup**: Automatic garbage collection of old session directories
 
 **Plugin Features**:
+
 - **Declarative dependencies**: Plugins declare `PLUGIN_DEPENDS="other-plugin"` for explicit ordering
 - **Selective implementation**: Plugins implement only the hooks they need (not all plugins run on every event)
 - **Independent toggles**: Each plugin has `FEATURE_<NAME>=true/false` config flag
@@ -263,6 +184,7 @@ See `ARCH.md` for complete architecture documentation and `CLAUDE.md` for plugin
 ### Testing
 
 **Sidekick Test Suite**:
+
 ```bash
 # Run all unit tests (mocked LLM, zero API costs)
 ./scripts/tests/run-unit-tests.sh
@@ -276,7 +198,23 @@ See `ARCH.md` for complete architecture documentation and `CLAUDE.md` for plugin
 
 **IMPORTANT**: Unit and integration tests use mocks - no API costs. The `test-llm-providers.sh` suite is intentionally excluded from default test runs to prevent accidental charges.
 
+**Development & Analysis Tools**:
+
+```bash
+# Surgical session summary - analyze transcript at specific line
+./scripts/analyze-topic-at-line.sh <session-id> --to-line 100
+
+# Saves 4 artifacts: raw transcript, filtered (LLM input), prompt, topic
+# Output: test-data/topic-analysis/<session-id>/0100-*.{jsonl,txt,json}
+
+# Session simulation - verify production trigger logic
+python3 scripts/simulate-session.py <session-id>
+
+# Useful for tuning extraction logic and observing summary changes over time
+```
+
 **Legacy Setup Tests** (for reminder system migration):
+
 ```bash
 ./tests/test-setup-reminders.sh
 ./tests/test-cleanup-reminders.sh
@@ -304,6 +242,7 @@ Supports glob patterns for both files and directories.
 ### MCP Servers
 
 The repository includes configurations for:
+
 - **context7**: External documentation context
 - **sequential-thinking**: Advanced reasoning assistance
 - **zen**: Specialized Python-based tooling
@@ -313,26 +252,52 @@ Configure in `.claude/mcp.json`.
 
 ### Sidekick Configuration Cascade
 
-Sidekick uses a four-level configuration cascade (later sources override earlier):
+Sidekick uses **modular configuration** with a five-level cascade (later sources override earlier):
 
-1. **Defaults**: `src/sidekick/config.defaults`
-2. **User Global**: `~/.claude/hooks/sidekick/sidekick.conf` (user-wide overrides)
-3. **Project Deployed**: `.claude/hooks/sidekick/sidekick.conf` (ephemeral, deleted on uninstall)
-4. **Project Versioned**: `.sidekick/sidekick.conf` (**highest priority**, persistent, can be committed)
+**Modular Domains**:
 
-**Recommended approach**: Use `.sidekick/sidekick.conf` for team-wide project settings that should be version-controlled.
+- `config` - Feature flags, global settings
+- `llm-core` - LLM infrastructure (provider, circuit breaker, timeouts)
+- `llm-providers` - Provider-specific configs (API keys, models)
+- `features` - Feature tuning parameters
+
+**Cascade Levels**:
+
+1. **Defaults**: `src/sidekick/*.defaults` (required, modular)
+2. **User Installed**: `~/.claude/hooks/sidekick/*.conf` (optional, ephemeral)
+3. **User Persistent**: `~/.sidekick/*.conf` (optional, survives install/uninstall)
+4. **Project Deployed**: `.claude/hooks/sidekick/*.conf` (optional, ephemeral)
+5. **Project Versioned**: `.sidekick/*.conf` (**highest priority**, persistent, can be committed)
+
+**Templates**: After installation, `.sidekick/` and `~/.sidekick/` contain `*.conf.template` files. Rename to `*.conf` to activate.
+
+**Override Strategies**:
+
+- **Modular**: Create domain-specific .conf files (e.g., `llm-providers.conf` for LLM settings only)
+- **Simple**: Use `sidekick.conf` to override any setting from any domain (single file, loads last)
+
+**Example - Override LLM provider settings**:
+
+```bash
+# Rename template and customize (survives install/uninstall)
+cd ~/.sidekick
+mv llm-providers.conf.template llm-providers.conf
+# Edit to set your provider and API key
+```
 
 ### LLM Provider Configuration
 
 Sidekick supports pluggable LLM backends for conversation analysis and resume generation. Configure in any config file above:
 
 **Claude CLI (default)**:
+
 ```bash
 LLM_PROVIDER=claude-cli
 LLM_CLAUDE_MODEL=haiku  # haiku, sonnet, opus
 ```
 
 **OpenAI API**:
+
 ```bash
 LLM_PROVIDER=openai-api
 LLM_OPENAI_API_KEY=sk-...
@@ -340,6 +305,7 @@ LLM_OPENAI_MODEL=gpt-4-turbo
 ```
 
 **OpenRouter API**:
+
 ```bash
 LLM_PROVIDER=openrouter
 LLM_OPENROUTER_API_KEY=sk-or-...
@@ -347,6 +313,7 @@ LLM_OPENROUTER_MODEL=sao10k/l3-lunaris-8b  # or anthropic/claude-3.5-sonnet, met
 ```
 
 **Custom Provider**:
+
 ```bash
 LLM_PROVIDER=custom
 LLM_CUSTOM_BIN=/usr/local/bin/ollama
@@ -354,13 +321,90 @@ LLM_CUSTOM_MODEL=llama2
 LLM_CUSTOM_COMMAND={BIN} run {MODEL} < {PROMPT_FILE}
 ```
 
+**Environment Variables via `.env` Files**:
+
+API keys and other settings can be configured via `.env` files instead of config files:
+
+- **`~/.sidekick/.env`**: User-wide persistent (works in both user-only and project scopes)
+- **Project root `.env`**: Shared with other tools (docker-compose, etc.)
+- **`.sidekick/.env`**: Project sidekick-specific (highest priority)
+
+Example `.env` file:
+
+```bash
+OPENROUTER_API_KEY=sk-or-v1-...
+OPENAI_API_KEY=sk-...
+```
+
+`.env` files are sourced automatically during `config_load()` and variables are auto-exported. Cascade: `~/.sidekick/.env` → project root `.env` → `.sidekick/.env` (latter wins).
+
+**Use Case**: Put global API keys in `~/.sidekick/.env`, project-specific overrides in `.sidekick/.env`. Never commit `.env` to git.
+
 See `src/sidekick/config.defaults` for all available options and `ARCH.md` for detailed provider documentation.
+
+### Customizing Prompts and Reminders
+
+Sidekick prompts and reminders use a 4-level file cascade, allowing you to override defaults without modifying installed files:
+
+**Prompts** (`session-summary.prompt.txt`, `resume.prompt.txt`, `*.schema.json`):
+
+1. `~/.claude/hooks/sidekick/prompts/` - User-wide installed (ephemeral)
+2. `~/.sidekick/prompts/` - User-wide persistent
+3. `.claude/hooks/sidekick/prompts/` - Project installed (ephemeral)
+4. `.sidekick/prompts/` - Project persistent (git-committable)
+
+**Reminders** (four types):
+
+1. `user-prompt-submit-reminder.txt` - Fires every N user prompts (default: 4)
+2. `post-tool-use-cadence-reminder.txt` - Fires every N total tool calls (default: 50)
+3. `post-tool-use-stuck-reminder.txt` - Fires when single turn exceeds threshold (default: 20 tools, interruptive)
+4. `pre-completion-reminder.txt` - Fires when conversation stops after file modifications (Write/Edit/MultiEdit/NotebookEdit), blocks stop to verify completion
+
+Each reminder type uses the same 4-level cascade:
+
+1. `~/.claude/hooks/sidekick/reminders/` - User-wide installed (ephemeral)
+2. `~/.sidekick/reminders/` - User-wide persistent
+3. `.claude/hooks/sidekick/reminders/` - Project installed (ephemeral)
+4. `.sidekick/reminders/` - Project persistent (git-committable)
+
+**Reminder Templates**: The install script creates `.template` files for all three types in both `~/.sidekick/reminders/` (user scope) and `.sidekick/reminders/` (project scope). **Rename to remove `.template` suffix to activate your custom reminder**.
+
+**Configuration**:
+
+```bash
+# config.defaults or sidekick.conf
+USER_PROMPT_CADENCE=4              # Every 4 user prompts
+POST_TOOL_USE_CADENCE=50           # Every 50 total tool calls
+POST_TOOL_USE_STUCK_THRESHOLD=20   # When single turn exceeds 20 tools
+```
+
+**Usage Examples**:
+
+```bash
+# Override session summary prompt for all projects
+mkdir -p ~/.sidekick/prompts
+cp ~/.claude/hooks/sidekick/prompts/session-summary.prompt.txt ~/.sidekick/prompts/
+# Edit ~/.sidekick/prompts/session-summary.prompt.txt
+
+# Override turn-cadence reminder for this project (using template)
+mv .sidekick/reminders/turn-cadence-reminder.txt.template .sidekick/reminders/turn-cadence-reminder.txt
+# Edit .sidekick/reminders/turn-cadence-reminder.txt
+git add .sidekick/reminders/turn-cadence-reminder.txt
+git commit -m "Add custom turn-cadence reminder"
+
+# Override tools-per-turn reminder for all projects (using template)
+mv ~/.sidekick/reminders/tools-per-turn-reminder.txt.template ~/.sidekick/reminders/tools-per-turn-reminder.txt
+# Edit ~/.sidekick/reminders/tools-per-turn-reminder.txt
+```
+
+The first existing file in the cascade wins. Use `.sidekick/` for persistent overrides that survive install/uninstall.
 
 ## Development Patterns
 
 ### Dual-Scope Compatibility
 
 All scripts must work in both contexts:
+
 - **Project scope**: `.claude/` within this repository
 - **User scope**: `~/.claude/` global directory
 
@@ -369,6 +413,51 @@ Use environment variables (`$CLAUDE_PROJECT_DIR`) and dynamic path resolution. S
 ### Timestamp-Based Sync
 
 Sync scripts only copy files newer than their destinations, preserving timestamps for idempotent operations.
+
+## Troubleshooting
+
+### Console vs File Logging
+
+Sidekick uses a two-tier logging system:
+
+**Console Logging (stderr)**:
+
+- `log_debug/log_info/log_warn`: Can be enabled via `--log-to-console` flag
+- `log_error`: ALWAYS visible (critical errors bypass flag)
+- Hook scripts use default behavior (console logging disabled) to prevent log pollution in JSON output
+
+**File Logging**:
+
+- ALWAYS enabled regardless of console logging setting
+- Session logs: `.sidekick/sessions/<session_id>/sidekick.log`
+- Global log: `.sidekick/sidekick.log`
+
+**To view logs when console output is suppressed**:
+
+```bash
+# View current session logs
+tail -f .sidekick/sessions/*/sidekick.log | sort -r | head -100
+
+# View all logs
+tail -f .sidekick/sidekick.log
+```
+
+**To enable console logging for debugging**:
+
+```bash
+# Via environment variable
+SIDEKICK_CONSOLE_LOGGING=true sidekick.sh session-start < input.json
+
+# Via config file (~/.sidekick/sidekick.conf or .sidekick/sidekick.conf)
+echo "SIDEKICK_CONSOLE_LOGGING=true" >> ~/.sidekick/sidekick.conf
+```
+
+**Precedence** (highest to lowest):
+
+1. `--log-to-console` CLI flag
+2. `SIDEKICK_CONSOLE_LOGGING` environment variable
+3. `SIDEKICK_CONSOLE_LOGGING` config file setting
+4. Default: `false` (console logging disabled)
 
 ## Contributing
 

@@ -9,7 +9,7 @@
 1. **Single Entry Point**: All hooks route through `sidekick.sh <command>`
 2. **Shared Library**: Single `lib/common.sh` loaded once per invocation
 3. **Feature Independence**: Features are function libraries, independently toggleable
-4. **Configuration Cascade**: Versioned Project → Deployed Project → User → Defaults (shell .conf format)
+4. **Configuration Cascade**: Versioned Project → Deployed Project → User Persistent → User Installed → Defaults (shell .conf format)
 5. **Copy-Based Deployment**: Installation copies files to `.claude/hooks/sidekick/`
 6. **No Subprocess Spawning**: Features sourced and called as functions (except intentional background processes)
 
@@ -22,21 +22,36 @@ claude-config/
 │   │   └── common.sh                      # All shared functions (~1000 lines)
 │   │
 │   ├── sidekick.sh                        # Main entry point & router
-│   ├── config.defaults                    # Default configuration
+│   │
+│   ├── config.defaults                    # Core config (features, global)
+│   ├── llm-core.defaults                  # LLM infrastructure config
+│   ├── llm-providers.defaults             # Provider-specific config
+│   ├── features.defaults                  # Feature tuning config
 │   │
 │   ├── handlers/
 │   │   ├── session-start.sh               # SessionStart orchestrator
 │   │   └── user-prompt-submit.sh          # UserPromptSubmit orchestrator
 │   │
-│   └── features/
-│       ├── topic-extraction.sh            # LLM-based conversation analysis
-│       ├── resume.sh                      # Session continuity & snarkification
-│       ├── statusline.sh                  # Enhanced statusline rendering
-│       ├── tracking.sh                    # Request counting
-│       ├── cleanup.sh                     # Session directory garbage collection
-│       └── prompts/                       # LLM prompt templates
-│           ├── topic-only.txt
-│           └── generate-resume.txt
+│   ├── features/
+│   │   ├── topic-extraction.sh            # LLM-based conversation analysis
+│   │   ├── resume.sh                      # Session continuity & snarkification
+│   │   ├── sleeper.sh                     # Background watcher for resume generation
+│   │   ├── statusline.sh                  # Enhanced statusline rendering
+│   │   ├── tracking.sh                    # Request counting
+│   │   ├── reminder.sh                    # Periodic static reminders
+│   │   └── cleanup.sh                     # Session directory garbage collection
+│   │
+│   ├── prompts/                           # LLM prompt templates (cascadable)
+│   │   ├── topic.prompt.txt
+│   │   ├── topic.schema.json
+│   │   ├── resume.prompt.txt
+│   │   └── resume.schema.json
+│   │
+│   └── reminders/                         # Reminder templates (cascadable)
+│       ├── user-prompt-submit-reminder.txt
+│       ├── post-tool-use-cadence-reminder.txt
+│       ├── post-tool-use-stuck-reminder.txt
+│       └── pre-completion-reminder.txt
 │
 ├── scripts/
 │   ├── install.sh                         # Install sidekick (--user|--project|--both)
@@ -57,11 +72,9 @@ claude-config/
 │   ├── sidekick.log                       # Global log file (gitignored)
 │   └── sessions/${session_id}/            # Session state (gitignored)
 │       ├── sidekick.log                   # Per-session log file
-│       ├── topic.json                     # Current topic analysis
-│       ├── resume.json                    # Resume message for NEXT session (generated when topic changes)
-│       ├── response_count                 # Tracking counter
-│       ├── sleeper.pid                    # Sleeper process ID
-│       └── analysis.pid                   # Analysis process ID
+│       ├── session-summary.json           # Session title and latest intent
+│       ├── session-summary-state.sh       # Countdown state for re-analysis triggering
+│       └── response_count                 # Tracking counter
 │
 └── ARCH.md, PLAN.md                       # This file and implementation plan
 ```
@@ -73,6 +86,7 @@ claude-config/
 **Purpose**: Route hook events to appropriate handlers
 
 **Execution Flow**:
+
 ```bash
 sidekick.sh <command> [args...]
   ↓
@@ -87,11 +101,13 @@ sidekick.sh <command> [args...]
 ```
 
 **Commands**:
+
 - `sidekick.sh session-start` - SessionStart hook
 - `sidekick.sh user-prompt-submit` - UserPromptSubmit hook
 - `sidekick.sh statusline` - Statusline rendering
 
 **Key Responsibilities**:
+
 - Bootstrap shared library
 - Load configuration
 - Initialize logging
@@ -105,6 +121,7 @@ sidekick.sh <command> [args...]
 **Structure** (organized by namespace):
 
 #### LOGGING
+
 ```bash
 # Initialize session-specific logging
 log_init <session_id>
@@ -113,18 +130,34 @@ log_init <session_id>
 log_debug "message"    # Gray, only shown if LOG_LEVEL=debug
 log_info "message"     # Green
 log_warn "message"     # Yellow
-log_error "message"    # Red
+log_error "message"    # Red (ALWAYS visible, bypasses console logging flag)
 
 # Internal helpers
 _log_to_file "level" "message"
 _log_format_ansi "level" "message"
 ```
 
+**Two-Tier Console Logging**:
+
+- `log_debug/log_info/log_warn`: Respect `_CONSOLE_LOGGING_ENABLED` flag (can be suppressed)
+- `log_error`: ALWAYS outputs to stderr (critical errors bypass flag for visibility)
+- File logging: Always enabled regardless of console flag
+
+**Console Logging Control** (precedence, highest to lowest):
+
+1. `--log-to-console` CLI flag (forces true)
+2. `SIDEKICK_CONSOLE_LOGGING` environment variable
+3. `SIDEKICK_CONSOLE_LOGGING` config file setting
+4. Default: false (console logging disabled)
+
+**Hook Integration**: Hook invocation commands (in `settings.json` and `install.sh`) omit console logging flag since default behavior (disabled) is appropriate for JSON output to Claude Code. Use `--log-to-console` flag for debugging when needed.
+
 **Log File Location**: `.sidekick/sessions/${session_id}/sidekick.log`
 
 **ANSI Colors**: Defined as readonly globals (COLOR_RED, COLOR_GREEN, etc.)
 
 #### CONFIGURATION
+
 ```bash
 # Load config cascade: defaults → user → project
 config_load
@@ -139,19 +172,44 @@ config_is_feature_enabled "feature_name"
 _config_validate
 ```
 
-**Configuration Cascade**:
-1. Source `src/sidekick/config.defaults` (must exist)
-2. Source `~/.claude/hooks/sidekick/sidekick.conf` (optional, user-wide)
-3. Source `$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.conf` (optional, ephemeral)
-4. Source `$CLAUDE_PROJECT_DIR/.sidekick/sidekick.conf` (optional, **versioned**, highest priority)
+**Environment Variable Loading** (`.env` files, sourced first):
+0a. Source `~/.sidekick/.env` (optional, user-wide persistent, works in both user-only and project scopes)
+0b. Source `$CLAUDE_PROJECT_DIR/.env` (optional, project root, shared with other tools)
+0c. Source `$CLAUDE_PROJECT_DIR/.sidekick/.env` (optional, project sidekick-specific, highest priority)
 
-**Result**: Later sources override earlier ones
+**Configuration Cascade** (modular config files):
+
+**Modular Domains** (loaded in this order at each cascade level):
+
+- `config` - Feature flags, global settings
+- `llm-core` - LLM infrastructure (provider, circuit breaker, timeouts, debugging)
+- `llm-providers` - Provider-specific configs (API keys, models, endpoints)
+- `features` - Feature tuning parameters
+- `sidekick` - Legacy single-file override (loads LAST, overrides all domains)
+
+**Cascade Levels** (later overrides earlier):
+
+1. **Defaults**: `src/sidekick/*.defaults` (required, must exist)
+2. **User Installed**: `~/.claude/hooks/sidekick/*.conf` (optional, ephemeral)
+3. **User Persistent**: `~/.sidekick/*.conf` (optional, survives install/uninstall)
+4. **Project Deployed**: `$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/*.conf` (optional, ephemeral)
+5. **Project Versioned**: `$CLAUDE_PROJECT_DIR/.sidekick/*.conf` (optional, **highest priority**, can be committed)
+
+**Loading Order**: At each cascade level, sources: `config.{defaults|conf}` → `llm-core.{defaults|conf}` → `llm-providers.{defaults|conf}` → `features.{defaults|conf}` → `sidekick.conf` (legacy)
+
+**Result**: `.env` files set environment variables (auto-exported via `set -a`), then modular config files cascade. Later sources override earlier ones.
+
+**Templates**: Installation creates `*.conf.template` files in persistent directories by copying `*.defaults` files. Users rename to `*.conf` to activate.
 
 **Key Distinctions**:
-- **Deployed config** (`.claude/hooks/sidekick/sidekick.conf`): Ephemeral, deleted on uninstall
-- **Versioned config** (`.sidekick/sidekick.conf`): Persistent, survives install/uninstall, can be committed to git
+
+- **Installed configs** (`~/.claude/hooks/sidekick/` and `.claude/hooks/sidekick/`): Ephemeral, deleted on uninstall
+- **Persistent configs** (`~/.sidekick/` and `.sidekick/`): Survive install/uninstall, can be committed to git
+- **Modular overrides**: Domain-specific (e.g., `llm-providers.conf` for LLM settings only)
+- **Legacy override**: `sidekick.conf` can override any setting from any domain (single file, loads last)
 
 #### PATH RESOLUTION
+
 ```bash
 # Detect execution scope (returns "user" or "project")
 path_detect_scope
@@ -167,11 +225,24 @@ path_get_session_dir <session_id>
 # Get project directory from JSON input or environment
 path_get_project_dir <json_input>
 
+# Resolve file using 4-level cascade (returns first existing file)
+path_resolve_cascade <relative_path> [project_dir]
+# Example: path_resolve_cascade "prompts/topic.prompt.txt" "$project_dir"
+# Cascade: 1. ~/.claude/hooks/sidekick/{path}
+#          2. ~/.sidekick/{path}
+#          3. ${projectRoot}/.claude/hooks/sidekick/{path}
+#          4. ${projectRoot}/.sidekick/{path}
+# Returns: absolute path to first existing file, empty if none found
+# Exit code: 0 if found, 1 if not found
+
 # Internal helpers
 _path_normalize <path>
 ```
 
+**File Cascade Usage**: Prompts (`prompts/*.prompt.txt`, `prompts/*.schema.json`) and reminders (`reminders/static-reminder.txt`) use `path_resolve_cascade()` to support user and project overrides without modifying installed files. The `.sidekick/` locations survive install/uninstall and are git-committable for team-wide settings.
+
 #### JSON PROCESSING
+
 ```bash
 # Extract value from JSON using jq
 json_get <json_string> <jq_path>
@@ -189,10 +260,11 @@ json_extract_from_markdown <text>
 ```
 
 #### PROCESS MANAGEMENT
+
 ```bash
 # Launch background process with PID tracking
 process_launch_background <session_id> <name> <function> [args...]
-# Example: process_launch_background "$sid" "sleeper" sleeper_loop "$transcript"
+# Example: process_launch_background "$sid" "cleanup" cleanup_run "$session_dir"
 # Creates: ${session_dir}/${name}.pid
 # Logs to: ${session_dir}/${name}.log
 
@@ -207,6 +279,7 @@ process_cleanup_stale_pids <session_dir>
 ```
 
 #### LLM INVOCATION
+
 ```bash
 # Find LLM binary for specified provider
 llm_find_bin <provider>
@@ -225,14 +298,16 @@ llm_extract_json <llm_output>
 ```
 
 **Isolation Strategy** (claude-cli only): Creates temporary workspace with disabled hooks:
+
 ```json
 {
   "hooks": {},
-  "statusLine": {"enabled": false}
+  "statusLine": { "enabled": false }
 }
 ```
 
 #### WORKSPACE MANAGEMENT
+
 ```bash
 # Create isolated workspace (prevents hook recursion)
 workspace_create <session_id>
@@ -244,6 +319,7 @@ workspace_cleanup <workspace_path>
 ```
 
 #### UTILITIES
+
 ```bash
 # Validate that value is non-negative integer
 util_validate_count <value>
@@ -267,6 +343,7 @@ Handlers are **generic and feature-agnostic** - they never need to be edited whe
 Handlers are **sourced** by `sidekick.sh`, not executed as subprocesses.
 
 **Plugin Architecture**:
+
 - Handlers auto-discover all `.sh` files in `features/` directory
 - Source only those enabled via config (`FEATURE_NAME=true`)
 - Invoke standardized hook functions (`{feature}_on_{hook_name}`)
@@ -277,11 +354,13 @@ Handlers are **sourced** by `sidekick.sh`, not executed as subprocesses.
 **Function**: `handler_session_start()`
 
 **Responsibilities**:
+
 1. Create session directory (framework-level task)
 2. Discover and load all enabled plugins
 3. Invoke `{feature}_on_session_start()` on each plugin
 
 **Implementation**:
+
 ```bash
 handler_session_start() {
     local session_id="$1"
@@ -307,11 +386,13 @@ handler_session_start() {
 **Function**: `handler_user_prompt_submit()`
 
 **Responsibilities**:
+
 1. Discover and load all enabled plugins
 2. Invoke `{feature}_on_user_prompt_submit()` on each plugin
 3. Output aggregated JSON responses
 
 **Implementation**:
+
 ```bash
 handler_user_prompt_submit() {
     local session_id="$1"
@@ -341,17 +422,19 @@ handler_user_prompt_submit() {
 **Function**: `plugin_discover_and_load()` (in `lib/common.sh`)
 
 **Process**:
+
 1. Scans `features/` directory for all `.sh` files
 2. For each file: extracts basename as feature name (e.g., `tracking.sh` → `tracking`)
-3. Normalizes feature name for config lookup (replaces hyphens with underscores: `topic-extraction` → `topic_extraction`)
+3. Normalizes feature name for config lookup (replaces hyphens with underscores: `topic-extraction` → `session_summary`)
 4. Checks `FEATURE_{NAME}=true` in config cascade
 5. Sources enabled features in alphabetical order
 6. Tracks loaded plugins in `_LOADED_PLUGINS` array
 
 **Feature Name Normalization**:
+
 - **Filenames** may use hyphens: `topic-extraction.sh`
-- **Config keys** must use underscores: `FEATURE_TOPIC_EXTRACTION=true`
-- **Hook functions** must use underscores: `topic_extraction_on_session_start()`
+- **Config keys** must use underscores: `FEATURE_SESSION_SUMMARY=true`
+- **Hook functions** must use underscores: `session_summary_on_session_start()`
 - Plugin loader automatically converts hyphens to underscores for lookups
 
 ### 3.2 Plugin Hook Invocation
@@ -359,6 +442,7 @@ handler_user_prompt_submit() {
 **Function**: `plugin_invoke_hook()` (in `lib/common.sh`)
 
 **Process**:
+
 1. Accepts hook name (e.g., `"on_session_start"`) and arguments
 2. For each loaded plugin, constructs hook function name: `{feature}_{hook_name}`
 3. Normalizes plugin name (hyphens → underscores) for function lookup
@@ -369,6 +453,7 @@ handler_user_prompt_submit() {
 8. Returns aggregated output to caller
 
 **Hook Function Contract**:
+
 - Name format: `{feature}_on_{hook_name}()`
 - Arguments: Hook-specific (documented per hook type below)
 - Returns: JSON output to stdout (optional), exit code 0
@@ -377,15 +462,17 @@ handler_user_prompt_submit() {
 **Available Hook Types**:
 
 **`on_session_start(session_id, project_dir)`**:
+
 - Called once per session initialization
 - Used for: counter initialization, background process launch, session state setup
 - Example: `tracking_on_session_start()`, `cleanup_on_session_start()`
 
 **`on_user_prompt_submit(session_id, transcript_path, project_dir)`**:
+
 - Called on every user prompt submission
 - Used for: counter increments, watchdog processes, reminder checks
 - May output JSON for `additionalContext` injection
-- Example: `tracking_on_user_prompt_submit()`, `topic_extraction_on_user_prompt_submit()`
+- Example: `tracking_on_user_prompt_submit()`, `session_summary_on_user_prompt_submit()`
 
 ### 4. Features (Plugins)
 
@@ -394,6 +481,7 @@ handler_user_prompt_submit() {
 Features are **plugins** that export standardized hook functions. Handlers automatically discover and invoke them - no manual registration required.
 
 **Plugin File Structure**:
+
 ```bash
 #!/bin/bash
 # Sidekick Feature: MyFeature
@@ -441,86 +529,107 @@ JSON
 ```
 
 **Adding a New Feature**:
+
 1. Create `features/my-feature.sh` with hook functions
 2. Add `FEATURE_MY_FEATURE=true` to `config.defaults`
 3. Done! Handler automatically discovers and invokes it
 
 **Existing Features**:
 
-#### features/topic-extraction.sh
+#### features/session-summary.sh
 
 **Functions**:
-- `topic_extraction_analyze()` - Run LLM analysis with preprocessing (extracts `.message`, filters tool messages, strips metadata)
-- `topic_extraction_sleeper_start()` - Launch sleeper process
-- `topic_extraction_sleeper_loop()` - Sleeper polling loop (runs as background process)
-- `topic_extraction_check_cadence()` - Cadence-based analysis fallback
-- `resume_generate_async()` - Launch background resume generation when topic changes significantly
 
-**Preprocessing**: Transcript lines are filtered before LLM analysis to reduce token usage:
+- `session_summary_analyze()` - Run LLM analysis with preprocessing (extracts `.message`, filters tool messages, strips metadata)
+- `session_summary_on_user_prompt_submit()` - Hook to analyze on every user prompt
+- `session_summary_on_post_tool_use()` - Hook to analyze based on countdown state
+- `session_summary_get_title()` - Retrieve session title from summary file
+
+**Preprocessing**: Transcript lines are filtered before LLM analysis to reduce token usage and prevent metadata leakage:
+
+- Filters out meta messages (`.isMeta == true`) - system-generated metadata
 - Extracts `.message` field from each transcript line
-- Filters out `tool_use` and `tool_result` messages (configurable via `TOPIC_FILTER_TOOL_MESSAGES`)
-- Strips unnecessary metadata: `.model`, `.id`, `.type`, `.stop_reason`, `.stop_sequence`, `.usage`
 - Filters null/empty messages
+- Filters out `tool_use` and `tool_result` messages (configurable via `SUMMARY_FILTER_TOOL_MESSAGES`)
+- **Whitelists essential attributes** (robust against new fields):
+  - Message level: `{role, content}` only
+  - Content array items (when applicable):
+    - `thinking` blocks: `{type, thinking}` (strips `signature` and other metadata)
+    - `text` blocks: `{type, text}`
+    - `tool_use` blocks: `{type, name, input}`
+    - `tool_result` blocks: `{type, tool_use_id, content}`
 
 **Configuration Keys**:
-```bash
-FEATURE_TOPIC_EXTRACTION=true
-TOPIC_EXCERPT_LINES=80              # Transcript lines to analyze (≈3-5 messages)
-TOPIC_FILTER_TOOL_MESSAGES=true     # Filter tool_use/tool_result (reduces tokens)
-TOPIC_CADENCE_HIGH=10               # High clarity cadence (responses)
-TOPIC_CADENCE_LOW=1                 # Low clarity cadence (responses)
-TOPIC_CLARITY_THRESHOLD=7           # Threshold for high/low (1-10)
 
-SLEEPER_ENABLED=true
-SLEEPER_MAX_DURATION=600            # Maximum inactivity timeout (seconds) - exits after no activity
-SLEEPER_MIN_SIZE_CHANGE=500         # Minimum bytes changed to trigger analysis
-SLEEPER_MIN_INTERVAL=10             # Minimum seconds between analyses
-SLEEPER_MIN_SLEEP=2                 # Minimum dynamic sleep interval (seconds)
-SLEEPER_MAX_SLEEP=20                # Maximum dynamic sleep interval (seconds)
-                                    # Sleep interval = clarity * 2 (capped between min/max)
+```bash
+FEATURE_SESSION_SUMMARY=true
+SUMMARY_EXCERPT_LINES=80                      # Transcript lines to analyze (≈3-5 messages)
+SUMMARY_FILTER_TOOL_MESSAGES=true             # Filter tool_use/tool_result (reduces tokens)
+
+# Countdown-based re-analysis triggering
+SUMMARY_COUNTDOWN_LOW=5                       # Reset value for confidence < 0.6
+SUMMARY_COUNTDOWN_MED=20                      # Reset value for confidence 0.6-0.8
+SUMMARY_COUNTDOWN_HIGH=10000                  # Reset value for confidence > 0.8
+
+# Bookmark optimization (context windowing)
+SUMMARY_BOOKMARK_CONFIDENCE_THRESHOLD=0.8     # Set bookmark when title reaches this confidence
+SUMMARY_BOOKMARK_RESET_THRESHOLD=0.7          # Reset bookmark if confidence drops below this
+
+# Context preservation constraints
+SUMMARY_MIN_USER_MESSAGES=5                   # Minimum user messages to preserve
+SUMMARY_MIN_RECENT_LINES=50                   # Minimum recent transcript lines to preserve
 ```
 
-**Resume Generation Integration**:
+**Triggering Logic**:
 
-When `topic_extraction_analyze()` writes `topic.json`, it checks two conditions:
-1. `significant_change: true` (determined by Claude comparing current and previous topic)
-2. `clarity_score >= 5` (sufficient understanding to generate meaningful resume)
+Session summary analysis is triggered via hooks:
 
-If both true, triggers `resume_generate_async()` which:
+1. **UserPromptSubmit**: Always analyze on every user prompt (ensures latest_intent is current)
+2. **PostToolUse**: Analyze when countdown reaches zero (title countdown and intent countdown managed independently)
+
+**Countdown Mechanism**: After each analysis, countdowns are reset based on confidence:
+- Low confidence (<0.6): Frequent re-analysis (countdown = 5)
+- Medium confidence (0.6-0.8): Periodic re-analysis (countdown = 20)
+- High confidence (>0.8): Rare re-analysis (countdown = 10000)
+
 - Launches background process (non-blocking)
-- Loads `generate-resume.txt` prompt template
+- Loads `resume.prompt.txt` prompt template
 - Substitutes `{CURRENT_TOPIC}` and `{TRANSCRIPT}` placeholders
 - Invokes Claude to generate snarkified resume message for NEXT session
 - Writes `resume.json` in current session directory
 
 **Topic Analysis Output Schema**:
 
-All topic extraction prompts now include:
-- `significant_change: boolean` - Claude determines if goals/objectives differ meaningfully from previous analysis
-- `{PREVIOUS_TOPIC}` placeholder - Previous topic.json content for comparison (if exists)
+All session summary prompts now include:
 
-**Dependencies**: LLM prompt templates in `features/prompts/`
+- `significant_change: boolean` - Claude determines if goals/objectives differ meaningfully from previous analysis
+- `{PREVIOUS_SESSION}` placeholder - Previous session summary JSON for comparison (if exists)
+
+**Dependencies**: LLM prompt templates loaded via `path_resolve_cascade("prompts/topic.prompt.txt")` and `path_resolve_cascade("prompts/topic.schema.json")`
 
 #### features/resume.sh
 
 **Functions**:
+
 - `resume_snarkify()` - Initialize new session from previous session's resume (refactored from LLM-based generation)
 
 **Architecture**: File-based session initialization (no LLM invocation at SessionStart)
 
 **Workflow**:
+
 1. Called during SessionStart hook
 2. Finds most recent session with `resume.json` and `clarity_score >= RESUME_MIN_CLARITY`
-3. Reads `resume.json` fields (generated by previous session's topic extraction)
-4. Maps resume fields to topic.json schema:
+3. Reads `resume.json` fields (generated by previous session's session summary)
+4. Maps resume fields to session-summary.json schema:
    - `last_task_id` → `task_ids` (converts single ID to expected field)
    - `resume_last_goal_message` → `initial_goal`
    - `last_objective_in_progress` → `current_objective`
    - `snarky_comment` → `snarky_comment`
-5. Creates initial `topic.json` in current session directory
+5. Creates initial `session-summary.json` in current session directory
 6. Sets `resume_from_session: true` flag
 
 **Configuration Keys**:
+
 ```bash
 FEATURE_RESUME=true
 RESUME_MIN_CLARITY=5                # Minimum clarity to use previous session's resume
@@ -529,6 +638,7 @@ RESUME_MIN_CLARITY=5                # Minimum clarity to use previous session's 
 **Input**: Previous session's `resume.json` (created by `resume_generate_async()` in topic-extraction.sh)
 
 **Resume.json Schema**:
+
 ```json
 {
   "last_task_id": "string or null",
@@ -538,16 +648,64 @@ RESUME_MIN_CLARITY=5                # Minimum clarity to use previous session's 
 }
 ```
 
-**Output**: Creates `${session_dir}/topic.json` initialized from previous resume
+**Output**: Creates `${session_dir}/session-summary.json` initialized from previous resume
 
 **Performance**: Fast (<10ms) - pure file I/O, no LLM calls
+
+**Dependencies**: Resume generation (in `topic-extraction.sh:resume_generate_async()`) loads prompts via `path_resolve_cascade("prompts/resume.prompt.txt")` and `path_resolve_cascade("prompts/resume.schema.json")`
+
+#### features/sleeper.sh
+
+**Functions**:
+
+- `sleeper_launch(session_id)` - Launch background sleeper process to watch session-summary.json
+- `sleeper_is_running(session_id)` - Check if sleeper is running for session
+- `sleeper_kill(session_id)` - Kill sleeper process for session
+
+**Architecture**: Background process that polls session-summary.json for changes and triggers resume generation
+
+**Workflow**:
+
+1. Launched by `session-summary.sh` after writing session-summary.json file
+2. Sleeper wakes every `SLEEPER_POLL_INTERVAL` seconds (default: 5s)
+3. Reads current session-summary.json and compares to last-seen values (in memory)
+4. If `session_title` or `latest_intent` changed AND both confidence scores >= `SLEEPER_MIN_CONFIDENCE`:
+   - Invokes `generate-resume.sh` to create/update resume.json
+   - Updates last-seen values
+5. Self-terminates after `SLEEPER_IDLE_TIMEOUT` seconds of no changes (default: 60s)
+
+**Configuration Keys**:
+
+```bash
+FEATURE_SLEEPER=true                # Master switch (requires FEATURE_RESUME)
+SLEEPER_POLL_INTERVAL=5             # Wake interval in seconds
+SLEEPER_IDLE_TIMEOUT=60             # Auto-exit after N seconds of no changes
+RESUME_MIN_CONFIDENCE=0.7           # Only generate resume if both title and intent confidence >= this (shared with resume.sh)
+```
+
+**Background Script**: `features/scripts/resume-sleeper.sh`
+
+- Polls session-summary.json in watch loop
+- Tracks last-seen session_title and latest_intent in memory
+- **First read**: Treats non-empty content as "changed" if confidence meets threshold (enables immediate resume on startup)
+- **Subsequent reads**: Invokes generate-resume.sh only when title/intent changes and confidence >= threshold
+- Logs to `${session_dir}/resume-sleeper.log`
+- PID tracked in `${session_dir}/resume-sleeper.pid`
+
+**Output**: Creates/updates `${session_dir}/resume.json` via generate-resume.sh when conditions met
+
+**Performance**: Minimal overhead - sleeps between polls, only processes on actual changes
+
+**Dependencies**: Requires `FEATURE_RESUME` enabled, uses `process_start_background()` from lib/process.sh
 
 #### features/statusline.sh
 
 **Functions**:
+
 - `feature_statusline_render()` - Render enhanced statusline (refactored statusline.sh)
 
 **Configuration Keys**:
+
 ```bash
 FEATURE_STATUSLINE=true
 STATUSLINE_TOKEN_THRESHOLD=160000   # Token budget threshold
@@ -558,25 +716,108 @@ STATUSLINE_TOKEN_THRESHOLD=160000   # Token budget threshold
 #### features/tracking.sh
 
 **Functions**:
+
 - `tracking_init()` - Initialize counter file
-- `tracking_increment()` - Increment and return count
-- `tracking_check_reminder()` - Check if static reminder is due
+- `tracking_increment_turn_count()` - Increment turn counter
+- `tracking_increment_tool_count()` - Increment tool counter
+- `tracking_increment_tools_this_turn()` - Increment per-turn tool counter
+- `tracking_reset_tools_this_turn()` - Reset per-turn tool counter
+- `tracking_countdown_decrement()` - Decrement countdown (for cadence checking)
+- `tracking_countdown_reset()` - Reset countdown to cadence value
+
+**Configuration**: Auto-enabled (cannot be disabled) - tracking is an infrastructure feature required by other plugins
+
+**State Files**:
+
+- `${session_dir}/turn_count` - Total user prompts
+- `${session_dir}/tool_count` - Total tool calls
+- `${session_dir}/tools_this_turn` - Tool calls in current turn
+- `${session_dir}/turn_countdown` - Countdown for turn-cadence reminders
+- `${session_dir}/tool_countdown` - Countdown for tool-cadence reminders
+
+#### features/reminders.sh
+
+**Master switch for all reminder sub-features**
+
+**Functions**:
+
+- `reminder_load_template()` - Load reminder by type (user-prompt-submit, post-tool-use-cadence, post-tool-use-stuck, pre-completion)
+- `reminder_check_turn_cadence()` - Check if turn-based reminder is due (uses countdown)
+- `reminder_check_tool_cadence()` - Check if tool-based reminder is due (uses countdown)
+- `reminder_check_tools_per_turn()` - Check if tools-per-turn threshold exceeded
+- `reminder_on_user_prompt_submit()` - UserPromptSubmit hook (checks turn-cadence reminder, resets tools_this_turn)
 
 **Configuration Keys**:
+
 ```bash
-FEATURE_TRACKING=true
-TRACKING_STATIC_CADENCE=4           # Reminder cadence (responses)
+FEATURE_REMINDERS=true                    # Master switch - gates all reminder sub-features
+FEATURE_REMINDER_USER_PROMPT=true         # Turn-cadence reminders (every N user prompts)
+FEATURE_REMINDER_TOOL_CADENCE=true        # Tool-cadence reminders (every N total tools)
+FEATURE_REMINDER_STUCK_CHECKPOINT=true    # Stuck detection (threshold tools per turn)
+FEATURE_REMINDER_PRE_COMPLETION=true      # Pre-completion reminder (before conversation ends after file edits)
+
+USER_PROMPT_CADENCE=4                     # Turn-cadence interval
+POST_TOOL_USE_CADENCE=50                  # Tool-cadence interval
+POST_TOOL_USE_STUCK_THRESHOLD=20          # Tools per turn threshold
 ```
 
-**State Files**: `${session_dir}/response_count`
+**Dependencies**:
+
+- `tracking.sh` - Uses counters and countdowns
+- Reminder templates loaded via `path_resolve_cascade("reminders/{type}-reminder.txt", project_dir)`
+
+**Output**: When reminder is due, outputs JSON with `additionalContext`:
+
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "UserPromptSubmit",
+    "additionalContext": "<reminder text content>"
+  }
+}
+```
+
+**Cascade Behavior**: Loads reminder from first existing file (4-level cascade):
+
+1. `~/.claude/hooks/sidekick/reminders/{type}-reminder.txt`
+2. `~/.sidekick/reminders/{type}-reminder.txt`
+3. `${projectRoot}/.claude/hooks/sidekick/reminders/{type}-reminder.txt`
+4. `${projectRoot}/.sidekick/reminders/{type}-reminder.txt`
+
+#### features/post-tool-use.sh
+
+**Auto-enabled when any reminder sub-feature is enabled**
+
+**Functions**:
+
+- `post_tool_use_on_post_tool_use()` - PostToolUse hook (increments tool counters, checks tool-cadence and stuck reminders)
+
+**Configuration**: Auto-enabled when `FEATURE_REMINDER_TOOL_CADENCE`, `FEATURE_REMINDER_STUCK_CHECKPOINT`, or `FEATURE_REMINDER_PRE_COMPLETION` is true
+
+**Dependencies**: `tracking`, `reminders`
+
+#### features/reminder-pre-completion.sh
+
+**Functions**:
+
+- `reminder_pre_completion_on_post_tool_use()` - Sets marker after file edits (Write/Edit/MultiEdit/NotebookEdit)
+- `reminder_pre_completion_on_stop()` - Stop hook that injects reminder if marker exists
+
+**Configuration**: Enabled by `FEATURE_REMINDER_PRE_COMPLETION` (gated by `FEATURE_REMINDERS` master switch)
+
+**State Files**: `${session_dir}/.pre-completion-reminder-pending`
+
+**Behavior**: Prevents conversation end without explicit verification after code changes
 
 #### features/cleanup.sh
 
 **Functions**:
+
 - `cleanup_launch()` - Launch garbage collection in background (refactored cleanup-old-sessions.sh)
 - `cleanup_run()` - Main cleanup logic (called by background process)
 
 **Configuration Keys**:
+
 ```bash
 FEATURE_CLEANUP=true
 CLEANUP_ENABLED=true
@@ -590,39 +831,52 @@ CLEANUP_DRY_RUN=false               # Test mode (don't delete)
 **File**: `sidekick.conf` (shell KEY=VALUE format)
 
 **Example**:
+
 ```bash
 # ============================================================================
 # FEATURES - Set to false to disable
 # ============================================================================
-FEATURE_TOPIC_EXTRACTION=true
-FEATURE_RESUME=true
+# Dependency Chain:
+#   STATUSLINE (independent, primary UI)
+#     └─> SESSION_SUMMARY (requires statusline - wasted LLM cost without it)
+#           └─> RESUME (requires extracted topics)
+#
+#   REMINDERS (master switch - gates all reminder sub-features)
+#     ├─> REMINDER_USER_PROMPT (turn-cadence)
+#     ├─> REMINDER_TOOL_CADENCE (tool-cadence)
+#     ├─> REMINDER_STUCK_CHECKPOINT (threshold per turn)
+#     └─> REMINDER_PRE_COMPLETION (blocks stop after file edits)
+#
+# Auto-enabled (cannot be disabled):
+#   - TRACKING (infrastructure for counters/countdowns)
+#   - POST_TOOL_USE (enabled when any REMINDER_* sub-feature is on)
+
 FEATURE_STATUSLINE=true
-FEATURE_TRACKING=true
+FEATURE_SESSION_SUMMARY=true
+FEATURE_RESUME=true
 FEATURE_CLEANUP=true
 
-# ============================================================================
-# TOPIC EXTRACTION
-# ============================================================================
-TOPIC_EXCERPT_LINES=80
-TOPIC_FILTER_TOOL_MESSAGES=true
-TOPIC_CADENCE_HIGH=10
-TOPIC_CADENCE_LOW=1
-TOPIC_CLARITY_THRESHOLD=7
+FEATURE_REMINDERS=true
+FEATURE_REMINDER_USER_PROMPT=true
+FEATURE_REMINDER_TOOL_CADENCE=true
+FEATURE_REMINDER_STUCK_CHECKPOINT=true
+FEATURE_REMINDER_PRE_COMPLETION=true
 
 # ============================================================================
-# SLEEPER
+# SESSION SUMMARY
 # ============================================================================
-SLEEPER_ENABLED=true
-SLEEPER_MAX_DURATION=600           # Inactivity timeout (seconds)
-SLEEPER_MIN_SIZE_CHANGE=500        # Minimum bytes to trigger analysis
-SLEEPER_MIN_INTERVAL=10            # Minimum seconds between analyses
-SLEEPER_MIN_SLEEP=2                # Minimum dynamic sleep
-SLEEPER_MAX_SLEEP=20               # Maximum dynamic sleep
+SUMMARY_EXCERPT_LINES=80
+SUMMARY_FILTER_TOOL_MESSAGES=true
+SUMMARY_COUNTDOWN_LOW=5
+SUMMARY_COUNTDOWN_MED=20
+SUMMARY_COUNTDOWN_HIGH=10000
+SUMMARY_BOOKMARK_CONFIDENCE_THRESHOLD=0.8
+SUMMARY_BOOKMARK_RESET_THRESHOLD=0.7
 
 # ============================================================================
 # RESUME
 # ============================================================================
-RESUME_MIN_CLARITY=5
+RESUME_MIN_CONFIDENCE=0.7
 
 # ============================================================================
 # STATUSLINE
@@ -650,11 +904,13 @@ CLAUDE_BIN=                         # Override Claude binary path (optional)
 ```
 
 **Cascade Behavior**:
+
 - `config.defaults` provides all defaults
 - User `sidekick.conf` overrides selected keys
 - Project `sidekick.conf` overrides user settings
 
 **Loading**: Simple sourcing (bash-native)
+
 ```bash
 source "$SIDEKICK_ROOT/config.defaults"
 [ -f "$HOME/.claude/hooks/sidekick/sidekick.conf" ] && source "$HOME/.claude/hooks/sidekick/sidekick.conf"
@@ -670,12 +926,14 @@ Sidekick uses a pluggable LLM provider architecture to support multiple AI backe
 ### Provider Architecture
 
 **Dispatcher**: `llm_invoke(model, prompt, timeout)` - Main entry point
+
 - Reads `LLM_PROVIDER` config to select backend
 - Dispatches to provider-specific implementation
 - Validates and extracts JSON from response
 - Returns structured output or errors
 
 **Provider Implementations**:
+
 - `_llm_invoke_claude_cli()` - Claude Code CLI (default)
   - Preserves workspace isolation to prevent hook recursion
   - Uses isolated .claude/settings.json to disable hooks
@@ -693,6 +951,7 @@ Sidekick uses a pluggable LLM provider architecture to support multiple AI backe
 ### Configuration
 
 **Provider Selection** (config.defaults or sidekick.conf):
+
 ```bash
 # Select active provider
 LLM_PROVIDER=claude-cli  # claude-cli | openai-api | openrouter | custom
@@ -720,6 +979,7 @@ LLM_CUSTOM_COMMAND={BIN} --model {MODEL} < {PROMPT_FILE}
 ### Usage Example
 
 **Topic Extraction** (topic-extraction.sh:256):
+
 ```bash
 # Get model from provider config
 local provider=$(config_get "LLM_PROVIDER")
@@ -733,6 +993,7 @@ fi
 ```
 
 **Provider Switching**:
+
 ```bash
 # Switch to OpenAI in user config (~/.claude/hooks/sidekick/sidekick.conf)
 LLM_PROVIDER=openai-api
@@ -754,11 +1015,13 @@ LLM_CUSTOM_COMMAND={BIN} run {MODEL} < {PROMPT_FILE}
 ### Error Handling
 
 **Fail-Fast Design**: Single provider per invocation, no fallback chains
+
 - Simpler error paths
 - Clearer debugging
 - Explicit configuration
 
 **Error Reporting**:
+
 - Binary not found → Exit code 3
 - Invalid provider → Exit code 3
 - LLM invocation failure → Return code 1 (logged)
@@ -769,6 +1032,7 @@ LLM_CUSTOM_COMMAND={BIN} run {MODEL} < {PROMPT_FILE}
 ### Hooks Registration
 
 **User Scope** (`~/.claude/settings.json`):
+
 ```json
 {
   "hooks": {
@@ -777,7 +1041,7 @@ LLM_CUSTOM_COMMAND={BIN} run {MODEL} < {PROMPT_FILE}
         "hooks": [
           {
             "type": "command",
-            "command": "~/.claude/hooks/sidekick/sidekick.sh session-start \"$CLAUDE_PROJECT_DIR\""
+            "command": "~/.claude/hooks/sidekick/sidekick.sh session-start"
           }
         ]
       }
@@ -787,7 +1051,7 @@ LLM_CUSTOM_COMMAND={BIN} run {MODEL} < {PROMPT_FILE}
         "hooks": [
           {
             "type": "command",
-            "command": "~/.claude/hooks/sidekick/sidekick.sh user-prompt-submit \"$CLAUDE_PROJECT_DIR\""
+            "command": "~/.claude/hooks/sidekick/sidekick.sh user-prompt-submit"
           }
         ]
       }
@@ -795,12 +1059,13 @@ LLM_CUSTOM_COMMAND={BIN} run {MODEL} < {PROMPT_FILE}
   },
   "statusLine": {
     "type": "command",
-    "command": "~/.claude/hooks/sidekick/sidekick.sh statusline --project-dir \"$CLAUDE_PROJECT_DIR\""
+    "command": "~/.claude/hooks/sidekick/sidekick.sh statusline"
   }
 }
 ```
 
 **Project Scope** (`.claude/settings.json` or `.claude/settings.local.json`):
+
 ```json
 {
   "hooks": {
@@ -809,7 +1074,7 @@ LLM_CUSTOM_COMMAND={BIN} run {MODEL} < {PROMPT_FILE}
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.sh session-start \"$CLAUDE_PROJECT_DIR\""
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.sh session-start"
           }
         ]
       }
@@ -819,7 +1084,7 @@ LLM_CUSTOM_COMMAND={BIN} run {MODEL} < {PROMPT_FILE}
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.sh user-prompt-submit \"$CLAUDE_PROJECT_DIR\""
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.sh user-prompt-submit"
           }
         ]
       }
@@ -827,7 +1092,7 @@ LLM_CUSTOM_COMMAND={BIN} run {MODEL} < {PROMPT_FILE}
   },
   "statusLine": {
     "type": "command",
-    "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.sh statusline --project-dir \"$CLAUDE_PROJECT_DIR\""
+    "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick/sidekick.sh statusline"
   }
 }
 ```
@@ -835,6 +1100,7 @@ LLM_CUSTOM_COMMAND={BIN} run {MODEL} < {PROMPT_FILE}
 ### Hook Input/Output
 
 **SessionStart Input** (stdin JSON):
+
 ```json
 {
   "session_id": "abc-123-...",
@@ -846,6 +1112,7 @@ LLM_CUSTOM_COMMAND={BIN} run {MODEL} < {PROMPT_FILE}
 ```
 
 **UserPromptSubmit Input** (stdin JSON):
+
 ```json
 {
   "session_id": "abc-123-...",
@@ -857,6 +1124,7 @@ LLM_CUSTOM_COMMAND={BIN} run {MODEL} < {PROMPT_FILE}
 ```
 
 **UserPromptSubmit Output** (stdout JSON, optional):
+
 ```json
 {
   "hookSpecificOutput": {
@@ -867,17 +1135,19 @@ LLM_CUSTOM_COMMAND={BIN} run {MODEL} < {PROMPT_FILE}
 ```
 
 **Statusline Input** (stdin JSON):
+
 ```json
 {
   "session_id": "abc-123-...",
-  "model": {"display_name": "Sonnet 4.5"},
-  "workspace": {"current_dir": "/path"},
-  "cost": {"total_cost_usd": 1.23},
+  "model": { "display_name": "Sonnet 4.5" },
+  "workspace": { "current_dir": "/path" },
+  "cost": { "total_cost_usd": 1.23 },
   "version": "1.2.3"
 }
 ```
 
 **Statusline Output** (stdout plain text):
+
 ```
 [Sonnet 4.5] | 🪙 125.3K | 78% | 📁 project | ⎇ main | 12.5s | [TASK-123]: Implementing feature X
 ```
@@ -898,7 +1168,7 @@ tracking_init() → writes ${session_dir}/response_count
   ↓
 cleanup_launch() → process_launch_background → nohup cleanup_run &
   ↓
-resume_snarkify() → reads previous resume.json → writes ${session_dir}/topic.json
+resume_snarkify() → reads previous resume.json → writes ${session_dir}/session-summary.json
   ↓
 sidekick.sh exits (<10ms) - FAST: no LLM calls
 ```
@@ -915,9 +1185,7 @@ handler_user_prompt_submit()
   ↓
 count = tracking_increment() → updates ${session_dir}/response_count
   ↓
-if count == 1: topic_extraction_sleeper_start() → process_launch_background
-  ↓
-if count % cadence == 0: topic_extraction_analyze() (async via process_launch_background)
+session_summary_on_user_prompt_submit() → always analyze on user prompt
   ↓
 if count % 4 == 0: output static reminder JSON
   ↓
@@ -929,12 +1197,12 @@ sidekick.sh exits (<10ms)
 ```
 Claude → Statusline request
   ↓
-sidekick.sh statusline --project-dir "$CLAUDE_PROJECT_DIR"
+sidekick.sh statusline
   ↓ (reads stdin JSON)
   ↓
 feature_statusline_render()
   ↓
-read ${session_dir}/topic.json
+read ${session_dir}/session-summary.json
   ↓
 calculate tokens, format output
   ↓
@@ -943,53 +1211,52 @@ echo formatted statusline
 sidekick.sh exits (<50ms)
 ```
 
-### Pattern 4: Background Process (sleeper)
+### Pattern 4: Background Process (cleanup)
 
 ```
-handler_user_prompt_submit()
+handler_post_tool_use()
   ↓
-topic_extraction_sleeper_start()
+cleanup_on_post_tool_use()
   ↓
-process_launch_background "sleeper" topic_extraction_sleeper_loop
+process_launch_background "cleanup" cleanup_run
   ↓
-nohup bash -c "topic_extraction_sleeper_loop" &
-  ↓ (writes PID to ${session_dir}/sleeper.pid)
+nohup bash -c "cleanup_run" &
+  ↓ (writes PID to ${session_dir}/cleanup.pid)
   ↓
-[Sleeper runs independently]
-  while true:
-    if inactive_duration > max_duration: exit  # Exit after inactivity timeout
-    if transcript changed significantly:
-      topic_extraction_analyze()
-      update last_activity_time  # Reset inactivity timer
-    sleep $dynamic_interval  # Based on clarity * 2 (capped 2-20s)
+[Cleanup runs independently]
+  identifies old session directories
+  removes sessions older than threshold
+  exits when complete
 ```
 
-### Pattern 5: Async Resume Generation (triggered by topic change)
+**Note**: The sleeper process (Pattern 4 in earlier versions) was removed and replaced with countdown-based triggering. Session summary analysis now triggers via hooks instead of background polling.
+
+### Pattern 5: Countdown-Based Re-Analysis
 
 ```
-topic_extraction_analyze()
+handler_post_tool_use()
   ↓
-writes ${session_dir}/topic.json
+session_summary_on_post_tool_use()
   ↓
-checks: significant_change == true && clarity >= 5
-  ↓ (if both true)
-resume_generate_async()
+load session-summary-state.sh (SUMMARY_TITLE_COUNTDOWN, SUMMARY_INTENT_COUNTDOWN)
   ↓
-nohup bash -c "generate resume in background" &
-  ↓ (doesn't block main flow)
+decrement counters (--TITLE_COUNTDOWN, --INTENT_COUNTDOWN)
   ↓
-[Background process]
-  reads ${session_dir}/topic.json (current topic)
+save state back to session-summary-state.sh
   ↓
-  extracts transcript excerpt (last ~3-5 messages)
-  ↓
-  loads features/prompts/generate-resume.txt
-  ↓
-  substitutes {CURRENT_TOPIC} and {TRANSCRIPT}
-  ↓
-  llm_invoke <model> prompt 30s
-  ↓
-  extracts JSON output
+if either countdown <= 0:
+  session_summary_analyze()
+    ↓
+  write session-summary.json (title, intent, confidence scores)
+    ↓
+  reset countdowns based on confidence:
+    - confidence < 0.6: countdown = 5  (frequent re-analysis)
+    - confidence 0.6-0.8: countdown = 20 (periodic re-analysis)
+    - confidence > 0.8: countdown = 10000 (rare re-analysis)
+    ↓
+  if title_confidence >= 0.8: set bookmark at current line
+    ↓
+  save updated state
   ↓
   writes ${session_dir}/resume.json
   ↓
@@ -997,6 +1264,7 @@ nohup bash -c "generate resume in background" &
 ```
 
 **Key Benefits**:
+
 - SessionStart fast (<10ms) - no LLM blocking
 - Resume generated from stable/mature topic understanding (end of session)
 - Claude determines significance (smarter than hardcoded thresholds)
@@ -1005,6 +1273,7 @@ nohup bash -c "generate resume in background" &
 ## Function Naming Convention
 
 **Namespace Prefixes**:
+
 - `log_*` - Logging functions
 - `config_*` - Configuration functions
 - `path_*` - Path resolution functions
@@ -1019,6 +1288,7 @@ nohup bash -c "generate resume in background" &
 - `_*` - Internal/private functions (not meant to be called externally)
 
 **Examples**:
+
 - Public API: `log_info()`, `config_get()`, `tracking_increment()`
 - Internal helpers: `_log_to_file()`, `_config_validate()`
 
@@ -1028,21 +1298,15 @@ nohup bash -c "generate resume in background" &
 
 **set -euo pipefail**: Applied in `sidekick.sh` and all sourced files
 
-**Error Traps**: Capture line number and log errors
-```bash
-error_trap() {
-    log_error "Failed at line $1 with exit code $?"
-}
-trap 'error_trap $LINENO' ERR
-```
-
 **Graceful Degradation**:
+
 - If feature disabled: skip silently
 - If config missing: use defaults
 - If LLM fails: log error, don't crash hook
 - If background process fails: log to PID-specific log, don't affect main flow
 
 **Exit Codes**:
+
 - `0` - Success
 - `1` - General error (logged)
 - `2` - Configuration error
@@ -1057,6 +1321,7 @@ trap 'error_trap $LINENO' ERR
 **Approach**: Test individual functions from `lib/common.sh`
 
 **Example**:
+
 ```bash
 #!/bin/bash
 # Test logging functions
@@ -1090,6 +1355,7 @@ echo "All tests passed"
 **Approach**: Test full hook workflows with mocked Claude CLI
 
 **Example**:
+
 ```bash
 #!/bin/bash
 # Test session-start workflow
@@ -1111,7 +1377,7 @@ echo '{"session_id":"test-123"}' | ./src/sidekick/sidekick.sh session-start "$TE
 
 # Verify outputs
 [ -f "$TEST_DIR/.sidekick/sessions/test-123/response_count" ]
-[ -f "$TEST_DIR/.sidekick/sessions/test-123/topic.json" ]
+[ -f "$TEST_DIR/.sidekick/sessions/test-123/session-summary.json" ]
 
 # Cleanup
 rm -rf "$TEST_DIR"
@@ -1123,6 +1389,7 @@ echo "Integration test passed"
 ### Manual Testing
 
 **Checklist**:
+
 1. Install to user scope → verify files copied
 2. Install to project scope → verify files copied
 3. Trigger SessionStart → verify logs, topic file
@@ -1135,33 +1402,39 @@ echo "Integration test passed"
 ## Performance Targets
 
 **Hook Execution Times**:
+
 - SessionStart: <100ms (includes resume LLM call)
 - UserPromptSubmit: <10ms (background processes don't count)
 - Statusline: <50ms
 
 **Memory Usage**:
+
 - Sourcing `common.sh`: ~2MB
 - Background processes: <10MB each
 
 **Disk Usage**:
+
 - Installation: ~100KB (scripts + prompts)
 - Runtime state: ~1MB per session (logs + JSON)
 
 ## Security Considerations
 
 **Isolation**:
+
 - Hooks run in Claude's security context
 - LLM invocations use isolated workspace (prevents recursion)
 - No network calls except Claude CLI
 - No sudo/elevated permissions
 
 **Input Validation**:
+
 - Session IDs validated (UUID format)
 - JSON parsed with jq (safe)
 - File paths normalized (prevent traversal)
 - Config values validated on load
 
 **Secrets**:
+
 - No API keys stored
 - Claude CLI handles authentication
 - Logs may contain conversation content (gitignored)
@@ -1169,12 +1442,14 @@ echo "Integration test passed"
 ## Migration from Reminders
 
 **Breaking Changes**:
+
 - Directory rename: `.claude/hooks/reminders/` → `.claude/hooks/sidekick/`
 - Hook commands change: `response-tracker.sh` → `sidekick.sh`
 - Config format change: env vars → `sidekick.conf`
 - Log consolidation: multiple logs → `sidekick.log`
 
 **Migration Path**:
+
 1. Install sidekick (keeps reminders intact)
 2. Test sidekick functionality
 3. Uninstall reminders (manual `uninstall.sh`)
@@ -1185,6 +1460,7 @@ echo "Integration test passed"
 ## Future Extensions
 
 **Potential Features**:
+
 - Git change tracking
 - Code metrics extraction
 - Custom reminder templates
@@ -1192,6 +1468,7 @@ echo "Integration test passed"
 - Multi-session topic correlation
 
 **Architecture Support**:
+
 - New features added as `features/{name}.sh`
 - Handlers source new features
 - Config keys namespaced by feature

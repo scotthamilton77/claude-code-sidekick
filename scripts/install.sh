@@ -14,7 +14,7 @@
 #   install.sh --user
 #   install.sh --project
 #   install.sh --both
-#   install.sh --user --features topic-extraction,resume
+#   install.sh --user --features session-summary,resume
 
 set -euo pipefail
 
@@ -51,6 +51,25 @@ log_error() {
 
 log_step() {
     echo -e "${BLUE}[STEP]${NC} $*"
+}
+
+# Prompt user for yes/no confirmation
+# Args: $1 - prompt message, $2 - default (Y/n or y/N)
+# Returns: 0 for yes, 1 for no
+prompt_yes_no() {
+    local prompt="$1"
+    local default="${2:-Y}"
+    local response
+
+    if [[ "$default" =~ ^[Yy] ]]; then
+        read -r -p "$prompt [Y/n]: " response
+        response="${response:-Y}"
+    else
+        read -r -p "$prompt [y/N]: " response
+        response="${response:-N}"
+    fi
+
+    [[ "$response" =~ ^[Yy] ]]
 }
 
 # Parse command-line arguments
@@ -119,7 +138,7 @@ Examples:
   install.sh --user
   install.sh --project
   install.sh --both
-  install.sh --user --features topic-extraction,resume
+  install.sh --user --features session-summary,resume
 
 EOF
 }
@@ -143,6 +162,36 @@ check_prerequisites() {
     log_info "Prerequisites check passed"
 }
 
+# Create modular config templates from .defaults files
+# Args:
+#   $1 - source directory containing .defaults files
+#   $2 - destination directory for .conf.template files
+create_modular_config_templates() {
+    local source_dir="$1"
+    local dest_dir="$2"
+
+    # Modular config files
+    local modules=(
+        "config"
+        "llm-core"
+        "llm-providers"
+        "features"
+    )
+
+    mkdir -p "$dest_dir"
+
+    # Copy each .defaults file as .conf.template
+    for module in "${modules[@]}"; do
+        local source_file="$source_dir/${module}.defaults"
+        local template_file="$dest_dir/${module}.conf.template"
+
+        if [ -f "$source_file" ]; then
+            cp "$source_file" "$template_file"
+            log_info "Created template: ${module}.conf.template"
+        fi
+    done
+}
+
 # Copy files to destination
 copy_files() {
     local dest_dir="$1"
@@ -155,7 +204,6 @@ copy_files() {
     if [ "$scope" = "user" ] && [ -f "$dest_dir/sidekick.conf" ]; then
         existing_config=$(mktemp)
         cp "$dest_dir/sidekick.conf" "$existing_config"
-        log_debug "Preserved existing sidekick.conf"
     fi
 
     # Remove old installation to ensure clean copy
@@ -189,45 +237,70 @@ copy_files() {
             # Remove if not selected
             if [ "$found" = "false" ]; then
                 rm -f "$feature_file"
-                log_debug "Removed unselected feature: $feature_name"
+                log_info "Removed unselected feature: $feature_name"
             fi
         done
     fi
 
-    # Restore or create sidekick.conf (user scope only)
+    # Restore existing sidekick.conf if it exists (user scope only)
     if [ "$scope" = "user" ]; then
         if [ -n "$existing_config" ] && [ -f "$existing_config" ]; then
             mv "$existing_config" "$dest_dir/sidekick.conf"
             log_info "Preserved existing sidekick.conf"
-        else
-            cp "$dest_dir/config.defaults" "$dest_dir/sidekick.conf"
-            log_info "Created sidekick.conf from defaults"
         fi
     fi
 
     log_info "Files copied successfully"
 }
 
-# Initialize versioned project config
-initialize_project_versioned_config() {
+# Create reminder templates
+create_reminder_template() {
+    local sidekick_dir="$1"
+    local reminders_dir="$sidekick_dir/reminders"
+
+    # Create reminders directory if it doesn't exist
+    mkdir -p "$reminders_dir"
+
+    # Array of reminder types
+    local reminder_types=("user-prompt-submit" "post-tool-use-cadence" "post-tool-use-stuck" "pre-completion")
+
+    # Create template for each type
+    for type in "${reminder_types[@]}"; do
+        local template_file="$reminders_dir/${type}-reminder.txt.template"
+        local source_reminder="$SRC_DIR/reminders/${type}-reminder.txt"
+
+        # Copy template if source exists and template doesn't exist
+        if [ -f "$source_reminder" ]; then
+            if [ ! -f "$template_file" ]; then
+                cp "$source_reminder" "$template_file"
+                log_info "Created ${type} reminder template: $template_file"
+            else
+                log_info "Preserving existing ${type} reminder template: $template_file"
+            fi
+        else
+            log_warn "Source ${type} reminder not found at $source_reminder"
+        fi
+    done
+
+    log_info "Reminder templates can be renamed (remove .template) to override defaults"
+}
+
+# Initialize versioned project config templates
+initialize_project_config_templates() {
     local project_dir="$1"
     local sidekick_dir="$project_dir/.sidekick"
-    local config_file="$sidekick_dir/sidekick.conf"
+    local config_template="$sidekick_dir/sidekick.conf.template"
     local readme_file="$sidekick_dir/README.md"
 
-    log_step "Initializing versioned project config..."
+    log_step "Initializing project config templates..."
 
     # Create .sidekick directory if it doesn't exist
     mkdir -p "$sidekick_dir"
 
-    # Create sidekick.conf if it doesn't exist (don't overwrite)
-    if [ ! -f "$config_file" ]; then
-        cp "$SRC_DIR/config.defaults" "$config_file"
-        log_info "Created versioned config: $config_file"
-        log_info "This file survives install/uninstall and can be committed to git"
-    else
-        log_info "Preserving existing versioned config: $config_file"
-    fi
+    # Create modular config templates if they don't exist (don't overwrite)
+    create_modular_config_templates "$SRC_DIR" "$sidekick_dir"
+    log_info "Modular templates created in $sidekick_dir"
+    log_info "Rename *.conf.template → *.conf to override defaults (survives install/uninstall, can be committed)"
 
     # Copy README.md template (always overwrite to get latest docs)
     local readme_template="$SRC_DIR/templates/sidekick-directory-README.md"
@@ -237,6 +310,13 @@ initialize_project_versioned_config() {
     else
         log_warn "README template not found at $readme_template"
     fi
+
+    # Copy reminder templates (don't overwrite existing reminders)
+    create_reminder_template "$sidekick_dir"
+
+    log_info ""
+    log_info "Template files created in $sidekick_dir/"
+    log_info "Rename .template files (remove suffix) to activate customizations"
 }
 
 # Register hooks in settings.json
@@ -264,9 +344,11 @@ register_hooks_in_settings() {
 
     # Add hooks using jq
     settings=$(echo "$settings" | jq \
-        --arg session_cmd "${sidekick_path}/sidekick.sh session-start \"\$CLAUDE_PROJECT_DIR\"" \
-        --arg prompt_cmd "${sidekick_path}/sidekick.sh user-prompt-submit \"\$CLAUDE_PROJECT_DIR\"" \
-        --arg status_cmd "${sidekick_path}/sidekick.sh statusline --project-dir \"\$CLAUDE_PROJECT_DIR\"" \
+        --arg session_cmd "${sidekick_path}/sidekick.sh session-start" \
+        --arg prompt_cmd "${sidekick_path}/sidekick.sh user-prompt-submit" \
+        --arg post_tool_cmd "${sidekick_path}/sidekick.sh post-tool-use" \
+        --arg stop_cmd "${sidekick_path}/sidekick.sh stop" \
+        --arg status_cmd "${sidekick_path}/sidekick.sh statusline" \
         '
         .hooks.SessionStart = [{
             "hooks": [{
@@ -278,6 +360,19 @@ register_hooks_in_settings() {
             "hooks": [{
                 "type": "command",
                 "command": $prompt_cmd
+            }]
+        }] |
+        .hooks.PostToolUse = [{
+            "matcher": "*",
+            "hooks": [{
+                "type": "command",
+                "command": $post_tool_cmd
+            }]
+        }] |
+        .hooks.Stop = [{
+            "hooks": [{
+                "type": "command",
+                "command": $stop_cmd
             }]
         }] |
         .statusLine = {
@@ -338,9 +433,14 @@ update_gitignore() {
 .sidekick/*.log
 .sidekick/sessions/
 
-# Configuration and docs - tracked (do not ignore these)
-# .sidekick/sidekick.conf
+# Templates, config, backups - tracked by default, uncomment to ignore
 # .sidekick/README.md
+# .sidekick/sidekick.conf
+# .sidekick/sidekick.conf.template
+# .sidekick/reminders/*.template
+# .sidekick/reminders/*-reminder.txt
+# *.backup.*
+# *.uninstall-backup.*
 # End Sidekick Hook System
 EOF
 
@@ -353,6 +453,7 @@ install_to_user() {
 
     local user_dir="$HOME/.claude/hooks/sidekick"
     local settings_file="$HOME/.claude/settings.json"
+    local project_dir="${CLAUDE_PROJECT_DIR:-$PWD}"
 
     # Copy files
     copy_files "$user_dir" "user"
@@ -360,7 +461,28 @@ install_to_user() {
     # Register hooks
     register_hooks_in_settings "$settings_file" "~/.claude/hooks/sidekick"
 
+    # Create modular config templates in user-persistent location
+    local user_sidekick_dir="$HOME/.sidekick"
+    mkdir -p "$user_sidekick_dir"
+
+    create_modular_config_templates "$SRC_DIR" "$user_sidekick_dir"
+    log_info "Modular templates created in $user_sidekick_dir"
+
+    # Create reminder templates in user-persistent location
+    create_reminder_template "$user_sidekick_dir"
+
+    # ALSO initialize project config templates (allows project-level customization regardless of install scope)
+    initialize_project_config_templates "$project_dir"
+
+    # Update project .gitignore
+    update_gitignore "$project_dir"
+
     log_info "User scope installation complete"
+    log_info ""
+    log_info "Templates created:"
+    log_info "  - User-persistent: ~/.sidekick/ (applies to all projects)"
+    log_info "  - Project-specific: .sidekick/ (this project only, can be committed to git)"
+    log_info "Rename .template files (remove suffix) to activate customizations"
 }
 
 # Install to project scope
@@ -375,8 +497,8 @@ install_to_project() {
     # Copy files
     copy_files "$project_sidekick_dir" "project"
 
-    # Initialize versioned project config (.sidekick/sidekick.conf)
-    initialize_project_versioned_config "$project_dir"
+    # Initialize project config templates (.sidekick/sidekick.conf.template)
+    initialize_project_config_templates "$project_dir"
 
     # Register hooks (use $CLAUDE_PROJECT_DIR variable in paths)
     register_hooks_in_settings "$settings_file" "\$CLAUDE_PROJECT_DIR/.claude/hooks/sidekick"
@@ -388,6 +510,87 @@ install_to_project() {
     update_gitignore "$project_dir"
 
     log_info "Project scope installation complete"
+}
+
+# Offer to generate turn-cadence reminder templates
+offer_reminder_generation() {
+    echo ""
+    echo "=================================================="
+    log_info "Turn-Cadence Reminder Template Generation"
+    echo "=================================================="
+    echo ""
+    echo "The generate-reminder-template.sh script can analyze your CLAUDE.md files"
+    echo "and create customized turn-cadence reminders for Sidekick."
+    echo ""
+
+    local generate_script="$SCRIPT_DIR/generate-reminder-template.sh"
+
+    # Check if generate script exists
+    if [[ ! -x "$generate_script" ]]; then
+        log_warn "generate-reminder-template.sh not found or not executable, skipping"
+        return 0
+    fi
+
+    # Check if Claude CLI is available
+    if ! command -v claude &>/dev/null && [[ ! -x "${HOME}/.claude/local/claude" ]]; then
+        log_warn "Claude CLI not found, skipping template generation"
+        echo "  Install Claude CLI from: https://claude.ai/download"
+        return 0
+    fi
+
+    # Offer user-scope generation if user installation was done
+    if [[ "$INSTALL_USER" = true ]]; then
+        if [[ -f "${HOME}/.claude/CLAUDE.md" ]]; then
+            if prompt_yes_no "Generate user-scope reminder from ~/.claude/CLAUDE.md?" "N"; then
+                log_step "Generating user-scope reminder template..."
+                if "$generate_script" --user; then
+                    log_info "User-scope reminder template generated"
+                else
+                    log_warn "Failed to generate user-scope reminder template"
+                fi
+            fi
+        else
+            log_warn "~/.claude/CLAUDE.md not found, skipping user-scope template"
+        fi
+    fi
+
+    # Offer project-scope generation if project installation was done
+    if [[ "$INSTALL_PROJECT" = true ]]; then
+        local project_dir="${CLAUDE_PROJECT_DIR:-$PWD}"
+        local project_claude_md="$project_dir/CLAUDE.md"
+
+        if [[ -f "$project_claude_md" ]]; then
+            if prompt_yes_no "Generate project-scope reminder from project CLAUDE.md?" "N"; then
+                log_step "Generating project-scope reminder template..."
+                if "$generate_script" --project; then
+                    log_info "Project-scope reminder template generated"
+                else
+                    log_warn "Failed to generate project-scope reminder template"
+                fi
+            fi
+        else
+            log_warn "$project_claude_md not found, skipping project-scope template"
+        fi
+    # Special case: user install only, but project has CLAUDE.md
+    elif [[ "$INSTALL_USER" = true ]]; then
+        local project_dir="${CLAUDE_PROJECT_DIR:-$PWD}"
+        local project_claude_md="$project_dir/CLAUDE.md"
+
+        if [[ -f "$project_claude_md" ]]; then
+            echo ""
+            echo "Note: Current project has a CLAUDE.md file."
+            if prompt_yes_no "Generate project-scope reminder for current project?" "N"; then
+                log_step "Generating project-scope reminder template..."
+                if "$generate_script" --project; then
+                    log_info "Project-scope reminder template generated"
+                else
+                    log_warn "Failed to generate project-scope reminder template"
+                fi
+            fi
+        fi
+    fi
+
+    echo ""
 }
 
 # Main installation flow
@@ -431,6 +634,9 @@ main() {
         install_to_project
         echo ""
     fi
+
+    # Offer to generate reminder templates
+    offer_reminder_generation
 
     # Success
     echo "=================================================="

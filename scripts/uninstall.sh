@@ -2,7 +2,7 @@
 # uninstall.sh - Uninstall Sidekick from user and/or project scope
 #
 # Usage:
-#   uninstall.sh [--user|--project|--both] [--dry-run] [--verbose]
+#   uninstall.sh [--user|--project|--both] [--dry-run] [--verbose] [--force]
 #
 # Options:
 #   --user      Uninstall from ~/.claude only
@@ -10,6 +10,7 @@
 #   --both      Uninstall from both (default)
 #   --dry-run   Show what would be deleted without actually deleting
 #   --verbose   Show detailed output of all operations
+#   --force     Force uninstall even if not detected as installed (skip all prompts)
 #
 # Environment:
 #   SIDEKICK_SKIP_CONFIRM=1   Skip confirmation prompt (for testing)
@@ -18,6 +19,7 @@
 #   uninstall.sh --user --dry-run
 #   uninstall.sh --user --verbose
 #   uninstall.sh --project
+#   uninstall.sh --user --force
 #   SIDEKICK_SKIP_CONFIRM=1 uninstall.sh --user
 
 set -euo pipefail
@@ -40,6 +42,7 @@ UNINSTALL_PROJECT=false
 # Operation modes
 DRY_RUN=false
 VERBOSE=false
+FORCE=false
 
 # Logging functions
 log_info() {
@@ -231,6 +234,10 @@ parse_args() {
                 VERBOSE=true
                 shift
                 ;;
+            --force)
+                FORCE=true
+                shift
+                ;;
             -h|--help)
                 show_help
                 exit 0
@@ -264,6 +271,7 @@ Options:
   --both      Uninstall from both scopes (default)
   --dry-run   Show what would be deleted without actually deleting
   --verbose   Show detailed output of all operations
+  --force     Force uninstall even if not detected as installed (skip all prompts)
   -h, --help  Show this help message
 
 Environment:
@@ -273,9 +281,31 @@ Examples:
   uninstall.sh --user --dry-run
   uninstall.sh --user --verbose
   uninstall.sh --project
+  uninstall.sh --user --force
   SIDEKICK_SKIP_CONFIRM=1 uninstall.sh --user
 
 EOF
+}
+
+# Check if Sidekick is installed in the specified scope
+# Args: $1 - scope ("user" or "project")
+# Returns: 0 if installed, 1 if not installed
+is_installed() {
+    local scope="$1"
+
+    case "$scope" in
+        user)
+            [ -d "$HOME/.claude/hooks/sidekick" ]
+            ;;
+        project)
+            local project_dir="${CLAUDE_PROJECT_DIR:-$PWD}"
+            [ -d "$project_dir/.claude/hooks/sidekick" ]
+            ;;
+        *)
+            log_error "Unknown scope: $scope"
+            return 1
+            ;;
+    esac
 }
 
 # Confirm uninstallation
@@ -338,6 +368,14 @@ remove_hooks_from_settings() {
             .hooks.UserPromptSubmit = [.hooks.UserPromptSubmit[] |
                 select(.hooks[0].command | contains("sidekick") | not)]
         else . end |
+        if .hooks.PostToolUse then
+            .hooks.PostToolUse = [.hooks.PostToolUse[] |
+                select(.hooks[0].command | contains("sidekick") | not)]
+        else . end |
+        if .hooks.Stop then
+            .hooks.Stop = [.hooks.Stop[] |
+                select(.hooks[0].command | contains("sidekick") | not)]
+        else . end |
         if .statusLine.command then
             if (.statusLine.command | contains("sidekick")) then
                 del(.statusLine)
@@ -356,18 +394,11 @@ remove_claudeignore_entry() {
     local project_dir="$1"
     local ignore_file="$project_dir/.claudeignore"
 
-    if [ ! -f "$ignore_file" ]; then
-        return 0
+    # Preserve .claudeignore modifications (harmless ignore patterns)
+    if [ -f "$ignore_file" ] && grep -q "^\.sidekick/" "$ignore_file" 2>/dev/null; then
+        log_verbose "Preserving .claudeignore entry (harmless ignore pattern)"
     fi
-
-    log_step "Removing .claudeignore entry..."
-
-    # Remove .sidekick/ entry
-    if grep -q "^\.sidekick/" "$ignore_file" 2>/dev/null; then
-        grep -v "^\.sidekick/" "$ignore_file" > "$ignore_file.tmp"
-        mv "$ignore_file.tmp" "$ignore_file"
-        log_info "Removed .sidekick/ entry from .claudeignore"
-    fi
+    return 0
 }
 
 # Remove .gitignore entry
@@ -375,44 +406,11 @@ remove_gitignore_entry() {
     local project_dir="$1"
     local ignore_file="$project_dir/.gitignore"
 
-    if [ ! -f "$ignore_file" ]; then
-        return 0
+    # Preserve .gitignore modifications (harmless ignore patterns)
+    if [ -f "$ignore_file" ] && grep -q "^# Sidekick Hook System" "$ignore_file" 2>/dev/null; then
+        log_verbose "Preserving .gitignore entries (harmless ignore patterns)"
     fi
-
-    # Check if our managed section exists
-    if ! grep -q "^# Sidekick Hook System (managed by scripts/install.sh)" "$ignore_file" 2>/dev/null; then
-        log_verbose "No Sidekick patterns found in .gitignore"
-        return 0
-    fi
-
-    log_step "Removing .gitignore entries..."
-
-    # Prompt user for permission
-    if [ "${SIDEKICK_SKIP_CONFIRM:-0}" != "1" ] && [ "$DRY_RUN" = false ]; then
-        log_warn "Found Sidekick-managed section in .gitignore"
-        read -p "Remove Sidekick patterns from .gitignore? (y/N) " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            log_info "Preserving .gitignore entries"
-            return 0
-        fi
-    fi
-
-    if [ "$DRY_RUN" = true ]; then
-        log_operation "remove Sidekick section from" "$ignore_file"
-        return 0
-    fi
-
-    # Remove the entire managed section (from start marker to end marker, inclusive)
-    # Using sed to remove lines between markers (inclusive)
-    sed -i '/^# Sidekick Hook System (managed by scripts\/install\.sh)/,/^# End Sidekick Hook System/d' "$ignore_file"
-
-    # Also remove the blank line before the section if it exists
-    # (sed leaves an extra blank line, let's clean it up)
-    # Remove multiple consecutive blank lines, keeping only one
-    sed -i '/^$/N;/^\n$/D' "$ignore_file"
-
-    log_info "Removed Sidekick patterns from .gitignore"
+    return 0
 }
 
 # Clean up empty settings.json
@@ -613,12 +611,152 @@ versioned_config_differs_from_defaults() {
     fi
 }
 
+# Check if a custom file matches its template in the same directory or source
+# Returns 0 if matches template or source, 1 if different
+custom_file_matches_template() {
+    local custom_file="$1"
+    local custom_basename
+    custom_basename=$(basename "$custom_file")
+    local template_file="${custom_file}.template"
+
+    if [ ! -f "$custom_file" ]; then
+        return 1  # File doesn't exist
+    fi
+
+    # Get hash of custom file
+    local hash_custom
+    hash_custom=$(sha256sum "$custom_file" | awk '{print $1}')
+
+    # Check 1: Compare with .template file in same directory
+    if [ -f "$template_file" ]; then
+        local hash_template
+        hash_template=$(sha256sum "$template_file" | awk '{print $1}')
+        if [ "$hash_custom" = "$hash_template" ]; then
+            return 0  # Matches template
+        fi
+    fi
+
+    # Check 2: Compare with source file (for renamed templates)
+    local source_file="${SRC_DIR}/reminders/${custom_basename}"
+    if [ -f "$source_file" ]; then
+        local hash_source
+        hash_source=$(sha256sum "$source_file" | awk '{print $1}')
+        if [ "$hash_custom" = "$hash_source" ]; then
+            return 0  # Matches source
+        fi
+    fi
+
+    return 1  # Different from both template and source
+}
+
+# Check for custom reminder files (non-template files)
+# Returns 0 if custom reminders exist, 1 if none found
+# Files that match their templates are not considered custom
+has_custom_reminders() {
+    local reminders_dir="$1"
+
+    if [ ! -d "$reminders_dir" ]; then
+        return 1
+    fi
+
+    # Check for any non-template files that differ from their templates
+    local custom_count=0
+    while IFS= read -r custom_file; do
+        if [ -f "$custom_file" ]; then
+            # If file matches its template, don't count it as custom
+            if ! custom_file_matches_template "$custom_file"; then
+                custom_count=$((custom_count + 1))
+            fi
+        fi
+    done < <(find "$reminders_dir" -mindepth 1 -maxdepth 1 -type f ! -name "*.template" 2>/dev/null || true)
+
+    [ "$custom_count" -gt 0 ]
+}
+
+# Check if a reminder template differs from source
+# Returns 0 if different, 1 if same or doesn't exist
+reminder_template_differs_from_source() {
+    local template_file="$1"
+    local template_name
+    template_name=$(basename "$template_file")
+
+    if [ ! -f "$template_file" ]; then
+        return 1  # Doesn't exist
+    fi
+
+    # Strip .template extension to find source file
+    # Templates are created as: source.txt -> source.txt.template
+    local source_name="${template_name%.template}"
+    local source_file="${SRC_DIR}/reminders/${source_name}"
+
+    if [ ! -f "$source_file" ]; then
+        # No source file to compare against, assume it's custom
+        log_verbose "No source file found for template: $template_name"
+        return 0
+    fi
+
+    # Compare SHA256 hashes
+    local hash_template hash_source
+    hash_template=$(sha256sum "$template_file" | awk '{print $1}')
+    hash_source=$(sha256sum "$source_file" | awk '{print $1}')
+
+    if [ "$hash_template" = "$hash_source" ]; then
+        return 1  # Same
+    else
+        return 0  # Different
+    fi
+}
+
+# Check if a modular config template differs from source defaults
+# Returns 0 if different, 1 if same or doesn't exist
+# Modular templates: config.conf.template, llm-core.conf.template, etc.
+modular_template_differs_from_defaults() {
+    local template_file="$1"
+    local template_name
+    template_name=$(basename "$template_file")
+
+    if [ ! -f "$template_file" ]; then
+        return 1  # Doesn't exist
+    fi
+
+    # Extract module name from template
+    # E.g., "config.conf.template" -> "config"
+    local module_name="${template_name%.conf.template}"
+
+    # If we couldn't extract a valid module name, it's not a modular template
+    if [ "$module_name" = "$template_name" ] || [ -z "$module_name" ]; then
+        log_verbose "Not a modular config template: $template_name"
+        return 0  # Assume different
+    fi
+
+    # Find corresponding .defaults file
+    local defaults_file="${SRC_DIR}/${module_name}.defaults"
+
+    if [ ! -f "$defaults_file" ]; then
+        log_verbose "No defaults file found for template: $template_name (expected: $defaults_file)"
+        return 0  # Assume different if can't compare
+    fi
+
+    # Compare SHA256 hashes
+    local hash_template hash_defaults
+    hash_template=$(sha256sum "$template_file" | awk '{print $1}')
+    hash_defaults=$(sha256sum "$defaults_file" | awk '{print $1}')
+
+    if [ "$hash_template" = "$hash_defaults" ]; then
+        return 1  # Same
+    else
+        return 0  # Different
+    fi
+}
+
 # Handle .sidekick directory cleanup with user prompts
-# Handles sessions, logs, and versioned config based on user choices
+# Handles sessions, logs, config templates, and reminders based on user choices
 handle_sidekick_cleanup() {
     local sidekick_dir="$1"
     local sessions_dir="$sidekick_dir/sessions"
     local versioned_config="$sidekick_dir/sidekick.conf"
+    local config_template="$sidekick_dir/sidekick.conf.template"
+    local reminders_dir="$sidekick_dir/reminders"
 
     if [ ! -d "$sidekick_dir" ]; then
         log_verbose "Sidekick directory does not exist: $sidekick_dir"
@@ -627,40 +765,58 @@ handle_sidekick_cleanup() {
 
     log_step "Cleaning up $sidekick_dir..."
 
-    # Track what to keep
-    local preserve_sessions=false
-    local preserve_config=false
-
-    # 1. Check for recent sessions and prompt
-    if has_recent_sessions "$sessions_dir"; then
-        log_warn "Found recent session data in $sessions_dir"
-        if [ "${SIDEKICK_SKIP_CONFIRM:-0}" != "1" ] && [ "$DRY_RUN" = false ]; then
-            read -p "Preserve .sidekick/sessions directory? (Y/n) " -n 1 -r
-            echo
-            if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-                preserve_sessions=true
-            fi
+    # 1. Primary decision: remove .sidekick directory?
+    local remove_sidekick=true
+    if [ "${SIDEKICK_SKIP_CONFIRM:-0}" != "1" ] && [ "$DRY_RUN" = false ]; then
+        log_warn "The .sidekick directory contains session data and configuration"
+        read -p "Remove $sidekick_dir and its contents? (Y/n) " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Nn]$ ]]; then
+            remove_sidekick=false
+            log_info "Preserving .sidekick directory"
+            return 0
         fi
     fi
 
-    # 2. Check versioned config and prompt if different from defaults
+    # If user chose not to remove .sidekick, preserve everything
+    if [ "$remove_sidekick" = false ]; then
+        return 0
+    fi
+
+    # Track what to preserve (within removal decision)
+    local preserve_config=false
+    local preserve_custom_reminders=false
+
+    # 2. Check versioned config and prompt if customized
     if [ -f "$versioned_config" ]; then
         if versioned_config_differs_from_defaults "$versioned_config"; then
-            log_warn "Versioned config differs from defaults: $versioned_config"
+            log_warn "Config is customized: $versioned_config"
             if [ "${SIDEKICK_SKIP_CONFIRM:-0}" != "1" ] && [ "$DRY_RUN" = false ]; then
-                read -p "Remove customized .sidekick/sidekick.conf? (y/N) " -n 1 -r
+                read -p "Preserve customized config file? (Y/n) " -n 1 -r
                 echo
-                if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                if [[ ! $REPLY =~ ^[Nn]$ ]]; then
                     preserve_config=true
                 fi
             fi
         else
-            log_verbose "Versioned config is identical to defaults, will remove"
+            log_verbose "Config is identical to defaults, will remove"
         fi
     fi
 
-    # 3. Perform cleanup based on decisions
-    # Remove log files at root level (*.log files like sidekick.log)
+    # 3. Check for custom reminders and prompt
+    if has_custom_reminders "$reminders_dir"; then
+        log_warn "Found custom reminders (non-template files) in $reminders_dir"
+        if [ "${SIDEKICK_SKIP_CONFIRM:-0}" != "1" ] && [ "$DRY_RUN" = false ]; then
+            read -p "Preserve custom reminder files? (Y/n) " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+                preserve_custom_reminders=true
+            fi
+        fi
+    fi
+
+    # 4. Perform cleanup
+    # Always remove log files (ephemeral)
     if [ -n "$(find "$sidekick_dir" -maxdepth 1 -name "*.log" 2>/dev/null)" ]; then
         log_operation "remove" "$sidekick_dir/*.log files"
         if [ "$DRY_RUN" = false ]; then
@@ -668,14 +824,74 @@ handle_sidekick_cleanup() {
         fi
     fi
 
-    # Remove sessions unless preserved
-    if [ "$preserve_sessions" = false ] && [ -d "$sessions_dir" ]; then
+    # Always remove sessions (ephemeral data)
+    if [ -d "$sessions_dir" ]; then
         log_operation "remove" "$sessions_dir"
         if [ "$DRY_RUN" = false ]; then
             rm -rf "$sessions_dir"
         fi
-    elif [ "$preserve_sessions" = true ]; then
-        log_info "Preserving sessions directory: $sessions_dir"
+    fi
+
+    # Handle reminders directory
+    if [ -d "$reminders_dir" ]; then
+        # Always remove template files (they're defaults, not custom)
+        local templates_found=false
+        for template_file in "$reminders_dir"/*.template; do
+            if [ -f "$template_file" ]; then
+                templates_found=true
+                # Check if modified from source
+                if reminder_template_differs_from_source "$template_file"; then
+                    log_warn "Template was modified: $(basename "$template_file")"
+                    if [ "${SIDEKICK_SKIP_CONFIRM:-0}" != "1" ] && [ "$DRY_RUN" = false ]; then
+                        read -p "Remove modified template? (Y/n) " -n 1 -r
+                        echo
+                        if [[ $REPLY =~ ^[Nn]$ ]]; then
+                            log_info "Preserving modified template: $(basename "$template_file")"
+                            continue
+                        fi
+                    fi
+                fi
+                log_operation "remove" "$template_file"
+                if [ "$DRY_RUN" = false ]; then
+                    rm -f "$template_file"
+                fi
+            fi
+        done
+
+        # Remove custom reminders unless preserved
+        if [ "$preserve_custom_reminders" = false ]; then
+            # Remove non-template files
+            for reminder_file in "$reminders_dir"/*; do
+                if [ -f "$reminder_file" ] && [[ ! "$reminder_file" =~ \.template$ ]]; then
+                    log_operation "remove" "$reminder_file"
+                    if [ "$DRY_RUN" = false ]; then
+                        rm -f "$reminder_file"
+                    fi
+                fi
+            done
+        else
+            # Still remove files that match their templates (not truly custom)
+            for reminder_file in "$reminders_dir"/*; do
+                if [ -f "$reminder_file" ] && [[ ! "$reminder_file" =~ \.template$ ]]; then
+                    if custom_file_matches_template "$reminder_file"; then
+                        log_verbose "Removing non-custom file (matches template): $(basename "$reminder_file")"
+                        log_operation "remove" "$reminder_file"
+                        if [ "$DRY_RUN" = false ]; then
+                            rm -f "$reminder_file"
+                        fi
+                    fi
+                fi
+            done
+            log_info "Preserving custom reminder files"
+        fi
+
+        # Remove reminders directory if empty
+        if [ "$DRY_RUN" = false ]; then
+            if [ -d "$reminders_dir" ] && [ -z "$(ls -A "$reminders_dir" 2>/dev/null)" ]; then
+                log_operation "remove empty directory" "$reminders_dir"
+                rmdir "$reminders_dir"
+            fi
+        fi
     fi
 
     # Remove versioned config unless preserved
@@ -688,11 +904,73 @@ handle_sidekick_cleanup() {
         log_info "Preserving versioned config: $versioned_config"
     fi
 
-    # Remove README.md if it exists
+    # Always remove config template (it's a defaults copy, not custom)
+    if [ -f "$config_template" ]; then
+        # Check if template was modified from defaults
+        if versioned_config_differs_from_defaults "$config_template"; then
+            log_warn "Config template was modified: $config_template"
+            if [ "${SIDEKICK_SKIP_CONFIRM:-0}" != "1" ] && [ "$DRY_RUN" = false ]; then
+                read -p "Remove modified config template? (Y/n) " -n 1 -r
+                echo
+                if [[ $REPLY =~ ^[Nn]$ ]]; then
+                    log_info "Preserving modified config template"
+                else
+                    log_operation "remove" "$config_template"
+                    rm -f "$config_template"
+                fi
+            else
+                log_operation "remove" "$config_template"
+                if [ "$DRY_RUN" = false ]; then
+                    rm -f "$config_template"
+                fi
+            fi
+        else
+            log_operation "remove" "$config_template"
+            if [ "$DRY_RUN" = false ]; then
+                rm -f "$config_template"
+            fi
+        fi
+    fi
+
+    # Handle modular config templates (config.conf.template, llm-core.conf.template, etc.)
+    # These are always defaults copies, remove unless modified
+    local modular_templates=("config.conf.template" "llm-core.conf.template" "llm-providers.conf.template" "features.conf.template")
+    for template_name in "${modular_templates[@]}"; do
+        local template_file="$sidekick_dir/$template_name"
+        if [ -f "$template_file" ]; then
+            # Check if template was modified from defaults
+            if modular_template_differs_from_defaults "$template_file"; then
+                log_warn "Modular template was modified: $template_name"
+                if [ "${SIDEKICK_SKIP_CONFIRM:-0}" != "1" ] && [ "$DRY_RUN" = false ]; then
+                    read -p "Remove modified template $template_name? (Y/n) " -n 1 -r
+                    echo
+                    if [[ $REPLY =~ ^[Nn]$ ]]; then
+                        log_info "Preserving modified template: $template_name"
+                        continue
+                    fi
+                fi
+            fi
+            # Remove template (either unmodified or user agreed to remove)
+            log_operation "remove" "$template_file"
+            if [ "$DRY_RUN" = false ]; then
+                rm -f "$template_file"
+            fi
+        fi
+    done
+
+    # Always remove README.md (it's documentation, not custom)
     if [ -f "$sidekick_dir/README.md" ]; then
         log_operation "remove" "$sidekick_dir/README.md"
         if [ "$DRY_RUN" = false ]; then
             rm -f "$sidekick_dir/README.md"
+        fi
+    fi
+
+    # Remove prompts directory if it exists (templates)
+    if [ -d "$sidekick_dir/prompts" ]; then
+        log_operation "remove" "$sidekick_dir/prompts"
+        if [ "$DRY_RUN" = false ]; then
+            rm -rf "$sidekick_dir/prompts"
         fi
     fi
 
@@ -741,6 +1019,17 @@ uninstall_from_user() {
 
     # Clean up empty directories
     cleanup_empty_directories "$HOME" "user"
+
+    # Clean up user-persistent .sidekick directory (with prompts for config/templates)
+    if [ -d "$HOME/.sidekick" ]; then
+        handle_sidekick_cleanup "$HOME/.sidekick"
+    fi
+
+    # Clean up project's .claudeignore entry
+    remove_claudeignore_entry "$project_dir"
+
+    # Clean up project's .gitignore entry
+    remove_gitignore_entry "$project_dir"
 
     # Clean up project's .sidekick directory (with prompts for sessions/config)
     if [ -d "$project_dir/.sidekick" ]; then
@@ -809,14 +1098,69 @@ main() {
     # Parse arguments
     parse_args "$@"
 
+    # If force mode, skip all confirmations
+    if [ "$FORCE" = true ]; then
+        export SIDEKICK_SKIP_CONFIRM=1
+    fi
+
+    # Check if anything is installed (skip check if force mode)
+    local user_installed=false
+    local project_installed=false
+
+    if [ "$FORCE" = true ]; then
+        # Force mode: always proceed regardless of installation status
+        if [ "$UNINSTALL_USER" = true ]; then
+            user_installed=true
+        fi
+        if [ "$UNINSTALL_PROJECT" = true ]; then
+            project_installed=true
+        fi
+    else
+        # Normal mode: check installation status
+        if [ "$UNINSTALL_USER" = true ] && is_installed "user"; then
+            user_installed=true
+        fi
+
+        if [ "$UNINSTALL_PROJECT" = true ] && is_installed "project"; then
+            project_installed=true
+        fi
+
+        # If nothing is installed, just say so and exit
+        if [ "$user_installed" = false ] && [ "$project_installed" = false ]; then
+            log_info "No Sidekick features are installed."
+            if [ "$UNINSTALL_USER" = true ] && [ "$UNINSTALL_PROJECT" = true ]; then
+                echo "  - User scope: Not installed"
+                echo "  - Project scope: Not installed"
+            elif [ "$UNINSTALL_USER" = true ]; then
+                echo "  - User scope: Not installed"
+            else
+                echo "  - Project scope: Not installed"
+            fi
+            echo ""
+            return 0
+        fi
+    fi
+
     # Show uninstallation plan
     echo ""
     log_info "Uninstallation plan:"
     if [ "$UNINSTALL_USER" = true ]; then
-        echo "  - User scope: ~/.claude/hooks/sidekick"
+        if [ "$FORCE" = true ]; then
+            echo "  - User scope: ~/.claude/hooks/sidekick (force mode)"
+        elif [ "$user_installed" = true ]; then
+            echo "  - User scope: ~/.claude/hooks/sidekick (installed)"
+        else
+            echo "  - User scope: ~/.claude/hooks/sidekick (not installed, skipping)"
+        fi
     fi
     if [ "$UNINSTALL_PROJECT" = true ]; then
-        echo "  - Project scope: .claude/hooks/sidekick"
+        if [ "$FORCE" = true ]; then
+            echo "  - Project scope: .claude/hooks/sidekick (force mode)"
+        elif [ "$project_installed" = true ]; then
+            echo "  - Project scope: .claude/hooks/sidekick (installed)"
+        else
+            echo "  - Project scope: .claude/hooks/sidekick (not installed, skipping)"
+        fi
     fi
     if [ "$DRY_RUN" = true ]; then
         echo "  - Mode: DRY-RUN (no files will be deleted)"
@@ -824,16 +1168,19 @@ main() {
     if [ "$VERBOSE" = true ]; then
         echo "  - Verbose output: ENABLED"
     fi
+    if [ "$FORCE" = true ]; then
+        echo "  - Force mode: ENABLED (skip checks, skip confirmations)"
+    fi
     echo ""
 
-    # Uninstall from user scope
-    if [ "$UNINSTALL_USER" = true ]; then
+    # Uninstall from user scope (only if installed or force mode)
+    if [ "$UNINSTALL_USER" = true ] && [ "$user_installed" = true ]; then
         uninstall_from_user || true
         echo ""
     fi
 
-    # Uninstall from project scope
-    if [ "$UNINSTALL_PROJECT" = true ]; then
+    # Uninstall from project scope (only if installed or force mode)
+    if [ "$UNINSTALL_PROJECT" = true ] && [ "$project_installed" = true ]; then
         uninstall_from_project || true
         echo ""
     fi

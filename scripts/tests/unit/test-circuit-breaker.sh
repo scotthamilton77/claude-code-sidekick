@@ -29,9 +29,14 @@ setup() {
     # Prevent loading real user config
     export SIDEKICK_USER_ROOT="sidekick-test-$$"
 
-    # Create minimal config.defaults
+    # Create modular config defaults
     cat > "${TEST_SIDEKICK_ROOT}/config.defaults" <<'EOF'
-# Test defaults
+# Test defaults - core
+LOG_LEVEL=error
+EOF
+
+    cat > "${TEST_SIDEKICK_ROOT}/llm-core.defaults" <<'EOF'
+# Test defaults - LLM core
 CIRCUIT_BREAKER_ENABLED=true
 CIRCUIT_BREAKER_FAILURE_THRESHOLD=3
 CIRCUIT_BREAKER_BACKOFF_INITIAL=60
@@ -39,7 +44,14 @@ CIRCUIT_BREAKER_BACKOFF_MAX=3600
 CIRCUIT_BREAKER_BACKOFF_MULTIPLIER=2
 LLM_FALLBACK_PROVIDER=claude-cli
 LLM_FALLBACK_MODEL=haiku
-LOG_LEVEL=error
+EOF
+
+    cat > "${TEST_SIDEKICK_ROOT}/llm-providers.defaults" <<'EOF'
+# Test defaults - LLM providers
+EOF
+
+    cat > "${TEST_SIDEKICK_ROOT}/features.defaults" <<'EOF'
+# Test defaults - features
 EOF
 
     # Source common.sh and llm.sh first
@@ -216,8 +228,9 @@ test_closed_success_resets_count() {
 
 # Test: Disabled circuit breaker always uses primary
 test_disabled_always_primary() {
-    # Create config with circuit breaker disabled
-    cat > "${TEST_SIDEKICK_ROOT}/config.defaults" <<'EOF'
+    # Update llm-core config with circuit breaker disabled
+    cat > "${TEST_SIDEKICK_ROOT}/llm-core.defaults" <<'EOF'
+# Test defaults - LLM core with circuit breaker disabled
 CIRCUIT_BREAKER_ENABLED=false
 CIRCUIT_BREAKER_FAILURE_THRESHOLD=3
 CIRCUIT_BREAKER_BACKOFF_INITIAL=60
@@ -225,7 +238,6 @@ CIRCUIT_BREAKER_BACKOFF_MAX=3600
 CIRCUIT_BREAKER_BACKOFF_MULTIPLIER=2
 LLM_FALLBACK_PROVIDER=claude-cli
 LLM_FALLBACK_MODEL=haiku
-LOG_LEVEL=error
 EOF
 
     # Reset config variables and reload

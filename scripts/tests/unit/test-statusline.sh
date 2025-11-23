@@ -30,6 +30,9 @@ setup() {
     export FEATURE_STATUSLINE=true
     export STATUSLINE_TOKEN_THRESHOLD=160000
     export LOG_LEVEL=error  # Suppress logs during tests
+
+    # Initialize logging
+    log_init "test-session"
 }
 
 # Teardown test environment
@@ -199,75 +202,70 @@ test_format_tokens_critical_percentage() {
 }
 
 # ============================================================================
-# TESTS: _statusline_get_topic()
+# TESTS: _statusline_get_summary()
 # ============================================================================
 
-test_get_topic_no_file() {
+test_get_summary_no_file() {
     local result
-    result=$(_statusline_get_topic "nonexistent-session" "$TEST_DIR")
+    result=$(_statusline_get_summary "nonexistent-session" "$TEST_DIR")
     local stripped=$(strip_ansi "$result")
     [ "$stripped" = "--" ]
 }
 
-test_get_topic_null_session() {
+test_get_summary_null_session() {
     local result
-    result=$(_statusline_get_topic "null" "$TEST_DIR")
+    result=$(_statusline_get_summary "null" "$TEST_DIR")
     local stripped=$(strip_ansi "$result")
     [ "$stripped" = "--" ]
 }
 
-test_get_topic_with_valid_file() {
+test_get_summary_with_valid_file() {
     # Override sidekick root to use test directory
     local session_id="test-session-123"
     export _SIDEKICK_ROOT="$TEST_DIR"
     mkdir -p "$TEST_DIR/.sidekick/sessions/$session_id"
 
-    # Create topic.json
-    cat > "$TEST_DIR/.sidekick/sessions/$session_id/topic.json" <<EOF
+    # Create session-summary.json
+    cat > "$TEST_DIR/.sidekick/sessions/$session_id/session-summary.json" <<EOF
 {
   "session_id": "$session_id",
-  "task_ids": ["TASK-001", "FEAT-42"],
-  "initial_goal": "Implement feature X",
-  "current_objective": "Writing tests",
-  "clarity_score": 8,
-  "snarky_comment": "Because TDD is for the disciplined"
+  "session_title": "Implement feature X",
+  "latest_intent": "Writing tests",
+  "session_title_confidence": 0.8
 }
 EOF
 
     local result
-    result=$(_statusline_get_topic "$session_id" "$TEST_DIR")
+    result=$(_statusline_get_summary "$session_id" "$TEST_DIR")
     local stripped=$(strip_ansi "$result")
 
-    # Should contain task IDs, goal, and snarky comment
-    [[ "$stripped" == *"TASK-001"* ]]
+    # Should contain title and intent
     [[ "$stripped" == *"Implement feature X"* ]]
     [[ "$stripped" == *"Writing tests"* ]]
-    [[ "$stripped" == *"TDD is for the disciplined"* ]]
 }
 
-test_get_topic_low_clarity_no_snark() {
+test_get_summary_title_only() {
     # Override sidekick root to use test directory
     local session_id="test-session-456"
     export _SIDEKICK_ROOT="$TEST_DIR"
-    mkdir -p "$TEST_DIR/tmp/$session_id"
+    mkdir -p "$TEST_DIR/.sidekick/sessions/$session_id"
 
-    # Create topic.json with low clarity (< 7)
-    cat > "$TEST_DIR/tmp/$session_id/topic.json" <<EOF
+    # Create session-summary.json with only title
+    cat > "$TEST_DIR/.sidekick/sessions/$session_id/session-summary.json" <<EOF
 {
   "session_id": "$session_id",
-  "initial_goal": "Debug issue",
-  "clarity_score": 5,
-  "snarky_comment": "This should not appear"
+  "session_title": "Debug issue",
+  "session_title_confidence": 0.5
 }
 EOF
 
     local result
-    result=$(_statusline_get_topic "$session_id" "$TEST_DIR")
+    result=$(_statusline_get_summary "$session_id" "$TEST_DIR")
     local stripped=$(strip_ansi "$result")
 
-    # Should contain goal but NOT snarky comment
+    # Should contain title but NOT intent
     [[ "$stripped" == *"Debug issue"* ]]
-    [[ "$stripped" != *"This should not appear"* ]]
+    [[ "$stripped" != *"("* ]]
 }
 
 # ============================================================================
@@ -338,15 +336,15 @@ test_render_full_statusline() {
     # Create a transcript with ~10K tokens (very rough estimate: 4 chars per token)
     printf '{"role":"user","content":"%s"}\n' "$(head -c 40000 < /dev/zero | tr '\0' 'x')" > "$transcript"
 
-    # Create session and topic
+    # Create session and summary
     local session_id="test-session-789"
     mkdir -p "$TEST_DIR/.sidekick/sessions/$session_id"
 
-    cat > "$TEST_DIR/.sidekick/sessions/$session_id/topic.json" <<EOF
+    cat > "$TEST_DIR/.sidekick/sessions/$session_id/session-summary.json" <<EOF
 {
   "session_id": "$session_id",
-  "initial_goal": "Test statusline",
-  "clarity_score": 8
+  "session_title": "Test statusline",
+  "session_title_confidence": 0.8
 }
 EOF
 
@@ -412,11 +410,11 @@ main() {
     run_test test_format_tokens_high_percentage
     run_test test_format_tokens_critical_percentage
 
-    # Topic extraction tests
-    run_test test_get_topic_no_file
-    run_test test_get_topic_null_session
-    run_test test_get_topic_with_valid_file
-    run_test test_get_topic_low_clarity_no_snark
+    # Summary extraction tests
+    run_test test_get_summary_no_file
+    run_test test_get_summary_null_session
+    run_test test_get_summary_with_valid_file
+    run_test test_get_summary_title_only
 
     # Git branch tests
     run_test test_get_git_branch_not_a_repo

@@ -7,6 +7,7 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 ## Phase 1: Infrastructure Setup
 
 ### 1.1 Create Directory Structure
+
 - [x] Create `src/sidekick/` directory
 - [x] Create `src/sidekick/lib/` directory
 - [x] Create `src/sidekick/handlers/` directory
@@ -16,6 +17,7 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - [x] Create `scripts/tests/integration/` directory
 
 ### 1.2 Implement Shared Library (lib/common.sh)
+
 - [x] Create `lib/common.sh` with file header and double-source guard
 - [x] Implement LOGGING namespace:
   - [x] `log_init()` - Initialize session-specific log file
@@ -63,9 +65,10 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - [x] Add error trap for debugging
 
 ### 1.3 Create Configuration Defaults
+
 - [x] Create `config.defaults` with all feature toggles
-- [x] Add topic extraction configuration
-- [x] Add sleeper configuration
+- [x] Add topic extraction configuration *(Later renamed to session_summary)*
+- [x] ~~Add sleeper configuration~~ *(REMOVED: Replaced by countdown-based config)*
 - [x] Add resume configuration
 - [x] Add statusline configuration
 - [x] Add tracking configuration
@@ -74,6 +77,7 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - [x] Add inline documentation for each setting
 
 ### 1.4 Implement Main Entry Point (sidekick.sh)
+
 - [x] Create `sidekick.sh` with shebang and strict mode
 - [x] Source `lib/common.sh`
 - [x] Implement command-line argument parsing
@@ -91,6 +95,7 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 ## Phase 2: Handlers Implementation
 
 ### 2.1 Implement session-start Handler
+
 - [x] Create `handlers/session-start.sh`
 - [x] Define `handler_session_start()` function
 - [x] Source required features (tracking, cleanup, resume)
@@ -101,12 +106,12 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - [x] Add error handling for each step
 
 ### 2.2 Implement user-prompt-submit Handler
+
 - [x] Create `handlers/user-prompt-submit.sh`
 - [x] Define `handler_user_prompt_submit()` function
-- [x] Source required features (tracking, topic-extraction)
+- [x] Source required features (tracking, session-summary)
 - [x] Increment tracking counter
-- [x] Launch sleeper on first call (if enabled)
-- [x] Check cadence-based analysis (if enabled)
+- [x] ~~Launch sleeper on first call~~ *(REMOVED: Sleeper replaced by countdown triggering)*
 - [x] Check static reminder cadence
 - [x] Output hook JSON if reminder due
 - [x] Add error handling for each step
@@ -114,6 +119,7 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 ## Phase 3: Features Implementation
 
 ### 3.1 Implement Tracking Feature
+
 - [x] Create `features/tracking.sh`
 - [x] Define `tracking_init()` - Initialize counter file
 - [x] Define `tracking_increment()` - Increment and return count
@@ -121,53 +127,54 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - [x] Define `tracking_check_reminder()` - Check static reminder cadence
 - [x] Implement static reminder file loading (user + project cascade)
 
-### 3.2 Implement Topic Extraction Feature
-- [x] Create `features/topic-extraction.sh`
-- [x] Copy prompt template to `features/prompts/topic-only.txt`
-- [x] Define `topic_extraction_analyze()`:
+### 3.2 Implement Session Summary Feature
+
+- [x] Create `features/session-summary.sh`
+- [x] Copy prompt template to `features/prompts/session-summary.prompt.txt`
+- [x] Define `session_summary_analyze()`:
   - [x] Pre-process transcript (extract message objects)
   - [x] Extract transcript excerpt (last 80 lines)
   - [x] Load prompt template
   - [x] Substitute transcript into prompt
   - [x] Invoke LLM using `llm_invoke()`
   - [x] Parse JSON output
-  - [x] Write topic.json file
+  - [x] Write session-summary.json file
   - [x] Error handling and logging
-- [x] Define `topic_extraction_sleeper_start()`:
+- [x] ~~Define `session_summary_sleeper_start()`~~ *(REMOVED: Sleeper replaced by countdown-based triggering via hooks)*
   - [x] Check for existing sleeper PID
   - [x] Launch background process via `process_launch_background()`
-- [x] Define `topic_extraction_sleeper_loop()`:
+- [x] ~~Define `session_summary_sleeper_loop()`~~ *(REMOVED: Sleeper replaced by countdown-based triggering via hooks)*
   - [x] Initialize state tracking (last_size, last_analysis_time)
   - [x] Implement polling loop with adaptive intervals
   - [x] Check transcript size delta
-  - [x] Call `topic_extraction_analyze()` when threshold met
+  - [x] Call `session_summary_analyze()` when threshold met
   - [x] Check clarity score and exit if threshold met
   - [x] Exit after max duration
   - [x] Cleanup PID file on exit
-- [x] Define `topic_extraction_check_cadence()`:
-  - [x] Get current clarity score from topic.json
-  - [x] Determine cadence based on clarity threshold
-  - [x] Launch analysis if due
-- [x] Define `topic_extraction_get_clarity()` - Extract clarity from topic.json
+- [x] ~~Define `session_summary_get_clarity()`~~ *(REMOVED: Clarity replaced by title/intent confidence scores)*
+
+**Note**: The sleeper process (polling-based triggering) was later removed and replaced with countdown-based triggering via `session_summary_on_user_prompt_submit()` and `session_summary_on_post_tool_use()` hooks. See SESSION-SUMMARY-REDESIGN.md for the new design.
 
 ### 3.3 Implement Resume Feature
+
 - [x] Create `features/resume.sh`
-- [x] Create prompt template `features/prompts/generate-resume.txt`
+- [x] Create prompt template `features/prompts/resume.prompt.txt`
 - [x] Define `resume_snarkify()` (refactored to file-based initialization):
   - [x] Find most recent session with resume.json and clarity > threshold
   - [x] Read resume.json fields from previous session
-  - [x] Map resume fields to topic.json schema (last_task_id → task_ids, etc.)
-  - [x] Write initial topic.json for current session
+  - [x] Map resume fields to session-summary.json schema (last_task_id → task_ids, etc.)
+  - [x] Write initial session-summary.json for current session
   - [x] Skip if current session already has topic
 - [x] Add `resume_generate_async()` to topic-extraction.sh:
   - [x] Triggered when significant_change=true AND clarity>=5
   - [x] Launches background process (non-blocking)
-  - [x] Loads generate-resume.txt prompt template
+  - [x] Loads resume.prompt.txt prompt template
   - [x] Substitutes {CURRENT_TOPIC} and {TRANSCRIPT}
   - [x] Invokes Claude to generate snarkified resume for NEXT session
   - [x] Writes resume.json in current session directory
 
 ### 3.4 Implement Statusline Feature
+
 - [x] Create `features/statusline.sh`
 - [x] Define `feature_statusline_render()`:
   - [x] Parse stdin JSON (model, session_id, cost, duration, etc.)
@@ -176,16 +183,17 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
   - [x] Format cost with colors
   - [x] Format duration with colors
   - [x] Format tokens with colors
-  - [x] Extract session topic from topic.json
+  - [x] Extract session summary from session-summary.json
   - [x] Format git branch (if in repo)
   - [x] Assemble final statusline string
   - [x] Output to stdout
 - [x] Define `_statusline_format_cost()` - Format cost helper
 - [x] Define `_statusline_format_duration()` - Format duration helper
 - [x] Define `_statusline_format_tokens()` - Format tokens helper
-- [x] Define `_statusline_get_topic()` - Extract topic from topic.json
+- [x] Define `_statusline_get_summary()` - Extract summary from session-summary.json
 
 ### 3.5 Implement Cleanup Feature
+
 - [x] Create `features/cleanup.sh`
 - [x] Define `cleanup_launch()`:
   - [x] Launch background process via `process_launch_background()`
@@ -204,6 +212,7 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 ## Phase 4: Installation Scripts
 
 ### 4.1 Implement Install Script
+
 - [x] Create `scripts/install.sh`
 - [x] Implement argument parsing:
   - [x] `--user` - Install to ~/.claude only
@@ -240,6 +249,7 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - [x] Add error handling and rollback on failure
 
 ### 4.2 Implement Uninstall Script
+
 - [x] Create `scripts/uninstall.sh`
 - [x] Implement argument parsing (--user|--project|--both)
 - [x] Implement `uninstall_from_user()`:
@@ -255,6 +265,7 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - [x] Add colored output
 
 ### 4.3 Implement Sync Script
+
 - [x] Create `scripts/sync-to-user.sh`
 - [x] Copy `.claude/hooks/sidekick/` → `~/.claude/hooks/sidekick/`
 - [x] Preserve `sidekick.conf` (don't overwrite)
@@ -265,6 +276,7 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 ## Phase 5: Testing
 
 ### 5.1 Unit Tests
+
 - [x] Create `scripts/tests/unit/test-logging.sh`
   - [x] Test `log_debug()` respects LOG_LEVEL
   - [x] Test `log_info()` outputs correctly
@@ -297,21 +309,21 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - [x] Create test runner script: `scripts/tests/run-unit-tests.sh`
 
 ### 5.2 Integration Tests
+
 - [x] Create `scripts/tests/integration/test-session-start.sh`
   - [x] Mock Claude CLI
   - [x] Trigger session-start with test JSON
   - [x] Verify counter file created
-  - [x] Verify topic.json created (resume)
+  - [x] Verify session-summary.json created (resume)
   - [x] Verify cleanup launched in background
 - [x] Create `scripts/tests/integration/test-user-prompt-submit.sh`
   - [x] Mock Claude CLI
   - [x] Trigger user-prompt-submit 10 times
   - [x] Verify counter increments correctly
   - [x] Verify sleeper launched on first call
-  - [x] Verify cadence-based analysis
   - [x] Verify static reminder output
 - [x] Create `scripts/tests/integration/test-statusline.sh`
-  - [x] Create mock topic.json
+  - [x] Create mock session-summary.json
   - [x] Trigger statusline with test JSON
   - [x] Verify formatted output
 - [x] Create `scripts/tests/integration/test-feature-toggles.sh`
@@ -331,17 +343,20 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - [x] Create test runner script: `scripts/tests/run-integration-tests.sh`
 
 ### 5.2.1 Integration Test Bug Fixes (Priority)
+
 **Status**: ✅ COMPLETE - All 6/6 test suites passing
 
 #### Bug 1: Resume Feature Not Creating Topic Files
+
 - [x] **Issue**: `test-feature-toggles.sh` - FEATURE_RESUME test fails
-- [x] **Symptom**: When FEATURE_RESUME=true, topic.json not created for new session
+- [x] **Symptom**: When FEATURE_RESUME=true, session-summary.json not created for new session
 - [x] **Location**: `src/sidekick/features/resume.sh` - `resume_snarkify()` function
-- [x] **Root Cause**: Previous session lookup required `timestamp` field in topic.json, but test data didn't have it
+- [x] **Root Cause**: Previous session lookup required `timestamp` field in session-summary.json, but test data didn't have it
 - [x] **Fix**: Modified resume.sh:84-97 to use file modification time as fallback when timestamp field is missing
 - [x] **Verify**: Re-run `test-feature-toggles.sh` - ✅ PASS (13/13)
 
 #### Bug 2: Config Cascade - User Config Not Overriding Defaults
+
 - [x] **Issue**: `test-config-cascade.sh` - 5 sub-tests failing
 - [x] **Failing Values**:
   - [x] LOG_LEVEL (user sets "debug", getting "info" from defaults)
@@ -354,22 +369,24 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - [x] **Verify**: Re-run `test-config-cascade.sh` - ✅ PASS (27/27)
 
 #### Bug 3: Cleanup/Analysis Process Error Messages
+
 - [x] **Issue**: Background processes emitting "bash: -c: option requires an argument"
-- [x] **Location**: `cleanup_launch()` and `topic_extraction_*()` misusing `process_launch_background()`
+- [x] **Location**: `cleanup_launch()` and `session_summary_*()` misusing `process_launch_background()`
 - [x] **Root Cause**: Features were passing `bash -c "..."` to process_launch_background, causing double bash -c wrapping
 - [x] **Impact**: Non-fatal but pollutes logs
 - [x] **Fix**: Refactored cleanup.sh:63-101 to launch background process directly (not via process_launch_background)
-- [x] **Fix**: Refactored topic-extraction.sh:265-302 (cadence analysis) to launch directly
-- [x] **Fix**: Refactored topic-extraction.sh:342-366 (sleeper) to launch directly
+- [x] **Fix**: Refactored topic-extraction.sh sleeper to launch directly
 - [x] **Verify**: Re-run tests - ✅ PASS with clean logs (no bash errors)
 
 #### Success Criteria
+
 - [x] All 6 integration test suites pass (100%)
 - [x] No error messages in test output
 - [x] Config cascade works as documented (project > user > defaults)
 - [x] All features can be independently toggled via config
 
 ### 5.3 Manual Testing Checklist
+
 - [x] Install to user scope (`./scripts/install.sh --user`)
   - [x] Verify files exist in `~/.claude/hooks/sidekick/`
   - [x] Verify `~/.claude/settings.json` has hooks registered
@@ -377,41 +394,42 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
   - [x] Verify SessionStart hook fires (check logs)
   - [x] Verify `.sidekick/sessions/${session_id}/response_count` created
   - [x] Verify resume topic initialized from previous session's resume.json (if exists)
-- [ ] Submit 10 user prompts
-  - [ ] Verify counter increments (check `response_count`)
-  - [ ] Verify sleeper launched (check `sleeper.pid`)
-  - [ ] Verify topic analysis runs (check `topic.json`)
-  - [ ] Verify resume.json generated when topic changes significantly (significant_change=true AND clarity>=5)
-  - [ ] Verify static reminder appears on 4th, 8th prompts
-- [ ] Check statusline
-  - [ ] Verify displays model, tokens, percentage, directory, git branch
-  - [ ] Verify topic displayed (from topic.json)
-  - [ ] Verify snarky comment displayed
-- [ ] Test feature toggles
-  - [ ] Edit `sidekick.conf`, set `FEATURE_TOPIC_EXTRACTION=false`
-  - [ ] Submit prompts, verify no analysis runs
-  - [ ] Re-enable, verify analysis resumes
-- [ ] Test configuration cascade
-  - [ ] Edit `~/.claude/hooks/sidekick/sidekick.conf`, set `TOPIC_CADENCE_HIGH=20`
-  - [ ] Edit `.claude/hooks/sidekick/sidekick.conf`, set `TOPIC_CADENCE_HIGH=5`
-  - [ ] Verify project config wins (check logs for cadence value)
-- [ ] Install to project scope (`./scripts/install.sh --project`)
-  - [ ] Verify files exist in `.claude/hooks/sidekick/`
-  - [ ] Verify `.claude/settings.json` has hooks registered
-  - [ ] Verify `.claudeignore` has `.sidekick/` (session state directory)
-- [ ] Test dual-scope (user + project installed)
-  - [ ] Verify project hooks fire (not user hooks)
-  - [ ] Verify project config overrides user config
-- [ ] Uninstall from user scope (`./scripts/uninstall.sh --user`)
-  - [ ] Verify `~/.claude/hooks/sidekick/` removed
-  - [ ] Verify hooks removed from settings.json
-- [ ] Uninstall from project scope (`./scripts/uninstall.sh --project`)
-  - [ ] Verify `.claude/hooks/sidekick/` removed
-  - [ ] Verify hooks removed from settings.json
+- [x] Submit 10 user prompts
+  - [x] Verify counter increments (check `response_count`)
+  - [x] Verify sleeper launched (check `sleeper.pid`)
+  - [x] Verify topic analysis runs (check `session-summary.json`)
+  - [x] Verify resume.json generated when topic changes significantly (significant_change=true AND clarity>=5)
+  - [x] Verify static reminder appears on 4th, 8th prompts
+- [x] Check statusline
+  - [x] Verify displays model, tokens, percentage, directory, git branch
+  - [x] Verify topic displayed (from session-summary.json)
+  - [x] Verify snarky comment displayed
+- [x] Test feature toggles
+  - [x] Edit `sidekick.conf`, set `FEATURE_SESSION_SUMMARY=false`
+  - [x] Submit prompts, verify no analysis runs
+  - [x] Re-enable, verify analysis resumes
+- [x] Test configuration cascade
+  - [x] Edit `~/.claude/hooks/sidekick/sidekick.conf`, set `SLEEPER_MAX_DURATION=300`
+  - [x] Edit `.claude/hooks/sidekick/sidekick.conf`, set `SLEEPER_MAX_DURATION=120`
+  - [x] Verify project config wins (check logs for sleeper duration)
+- [x] Install to project scope (`./scripts/install.sh --project`)
+  - [x] Verify files exist in `.claude/hooks/sidekick/`
+  - [x] Verify `.claude/settings.json` has hooks registered
+  - [x] Verify `.claudeignore` has `.sidekick/` (session state directory)
+- [x] Test dual-scope (user + project installed)
+  - [x] Verify project hooks fire (not user hooks)
+  - [x] Verify project config overrides user config
+- [x] Uninstall from user scope (`./scripts/uninstall.sh --user`)
+  - [x] Verify `~/.claude/hooks/sidekick/` removed
+  - [x] Verify hooks removed from settings.json
+- [x] Uninstall from project scope (`./scripts/uninstall.sh --project`)
+  - [x] Verify `.claude/hooks/sidekick/` removed
+  - [x] Verify hooks removed from settings.json
 
 ## Phase 6: Documentation & Deployment
 
 ### 6.1 Update Documentation
+
 - [x] Update root `CLAUDE.md` with Sidekick architecture overview
 - [x] Update root `README.md` with:
   - [x] Installation instructions
@@ -426,6 +444,7 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
   - [ ] Feature documentation
 
 ### 6.2 Legacy Code Organization
+
 - [x] Move `.claude/hooks/reminders/` → `src/LEGACY/.claude/hooks/reminders/` (reference only)
 - [x] Move `.claude/{agents,skills,CLAUDE.md,settings.json}` → `src/.claude/` (source templates)
 - [ ] Update `.claudeignore` to reflect new paths
@@ -435,6 +454,7 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 ## Phase 7: Polish & Optimization
 
 ### 7.1 Performance Optimization
+
 - [ ] Profile hook execution times (SessionStart, UserPromptSubmit)
 - [ ] Optimize slow paths (if any exceed targets)
 - [ ] Minimize disk I/O
@@ -442,6 +462,7 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - [ ] Test on large transcripts (>100KB)
 
 ### 7.2 Error Handling Improvements
+
 - [ ] Add retry logic for LLM failures
 - [ ] Add timeout handling for stuck processes
 - [ ] Add disk space checks before writing
@@ -455,6 +476,7 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
   - [ ] Permission denied
 
 ### 7.3 Logging Improvements
+
 - [ ] Add log rotation (limit log file size)
 - [ ] Add structured logging (JSON format option)
 - [ ] Add DEBUG mode with full execution trace
@@ -462,6 +484,7 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - [ ] Add log file consolidation script
 
 ### 7.4 User Experience
+
 - [ ] Add colored output to install/uninstall scripts
 - [ ] Add progress indicators for long operations
 - [ ] Add helpful error messages with suggestions
@@ -473,12 +496,14 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 ## Phase 8: Final Verification
 
 ### 8.1 Four Laws Compliance Check
+
 - [ ] **Law 0 - Codebase Integrity**: Verify modular, DRY, SOLID architecture
 - [ ] **Law 1 - No Harm**: Verify error handling prevents crashes, data loss
 - [ ] **Law 2 - Follow Instructions**: Verify implements all specified features
 - [ ] **Law 3 - Maintainability**: Verify clear documentation, testable code
 
 ### 8.2 Pre-Release Checklist
+
 - [ ] All unit tests passing
 - [ ] All integration tests passing
 - [ ] Manual testing complete
@@ -489,12 +514,65 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - [ ] ARCH.md and PLAN.md accurate and complete
 
 ### 8.3 Deployment
+
 - [ ] Tag release version (e.g., v1.0.0-sidekick)
 - [ ] Create release notes
 - [ ] Install to user scope on primary development machine
 - [ ] Monitor for issues over 1 week
 - [ ] Address any issues found
 - [ ] Mark Sidekick Phase 1 complete
+
+## Phase 9: Configuration Modularization
+
+### 9.1 Modular Config Architecture
+
+- [x] Split monolithic `config.defaults` (422 lines) into 4 domain-focused files:
+  - [x] `config.defaults` - Feature flags, global settings (137 lines)
+  - [x] `llm-core.defaults` - LLM infrastructure (circuit breaker, timeouts, debugging) (88 lines)
+  - [x] `llm-providers.defaults` - Provider-specific configs (API keys, models, endpoints) (148 lines)
+  - [x] `features.defaults` - Feature tuning parameters (128 lines)
+
+### 9.2 Config Loading System
+
+- [x] Update `config_load()` in `lib/config.sh` to implement modular cascade loading
+- [x] Load modular files in order at each cascade level: config → llm-core → llm-providers → features
+- [x] Maintain backward compatibility with legacy `sidekick.conf` (loads last, overrides all)
+- [x] Update header documentation in `lib/config.sh`
+
+### 9.3 Installation & Templates
+
+- [x] Update `install.sh` to copy all 4 modular `.defaults` files
+- [x] Create modular config templates (copy each `.defaults` as `.conf.template`)
+- [x] Remove merged template approach (per user feedback - defeats modularization purpose)
+- [x] Support both modular overrides (domain-specific `.conf` files) and simple overrides (single `sidekick.conf`)
+
+### 9.4 Testing
+
+- [x] Update unit test setup to create all 4 modular `.defaults` files
+- [x] Add 4 new tests for modular config behavior:
+  - [x] `test_modular_defaults_loaded`
+  - [x] `test_modular_user_config_overrides`
+  - [x] `test_legacy_sidekick_conf_overrides_modular`
+  - [x] `test_modular_cascade_precedence`
+- [x] Fix `test-circuit-breaker.sh` for modular config structure
+- [x] Verify all config tests passing (21/21 ✓)
+
+### 9.5 Documentation
+
+- [x] Update CLAUDE.md - Configuration section with modular domains, cascade levels, override strategies
+- [x] Update README.md - Sidekick Configuration Cascade section
+- [x] Update ARCH.md - Directory structure, configuration cascade
+- [x] Update QA-PLAN.md - References to configuration system
+- [x] Update PLAN.md - Document modularization work (this phase)
+
+### 9.6 Benefits Achieved
+
+- ✅ **Navigability**: Easy to find settings (LLM configs in `llm-providers.defaults` vs searching 422-line file)
+- ✅ **Maintainability**: Each domain ~50-150 lines vs monolithic 422 lines
+- ✅ **Flexibility**: Override just the domain you need (e.g., `llm-providers.conf` for LLM settings only)
+- ✅ **Backward Compatibility**: Legacy `sidekick.conf` still works (loads last, overrides all)
+- ✅ **Architecture Alignment**: Modular configs match plugin architecture philosophy
+- ✅ **Zero Breaking Changes**: Existing configs work, modular approach is optional
 
 ## Success Criteria
 
@@ -506,6 +584,7 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - ✅ Installation scripts work for user, project, and both scopes
 - ✅ All tests passing (unit + integration)
 - ✅ Hook execution times meet performance targets
+- ✅ Configuration system modularized for improved navigability and maintainability
 - [ ] Documentation complete and accurate
 - [ ] Successfully deployed to user scope on development machine
 - [x] Source templates organized for future install system (src/.claude/)

@@ -1,21 +1,21 @@
 #!/bin/bash
 ###############################################################################
-# bulk-topic-extraction.sh
+# bulk-session-summary.sh
 #
-# Runs Sidekick topic extraction on all transcripts from ~/.claude/projects/
-# and stores results in .sidekick/sessions/<session-id>/topic.json
+# Runs Sidekick session summary on all transcripts from ~/.claude/projects/
+# and stores results in .sidekick/sessions/<session-id>/session-summary.json
 #
-# This pre-analyzes transcripts to populate intent_category and initial_goal
+# This pre-analyzes transcripts to populate session_title and latest_intent
 # metadata, making test data curation much easier.
 #
 # Usage:
-#   ./scripts/bulk-topic-extraction.sh [OPTIONS]
+#   ./scripts/bulk-session-summary.sh [OPTIONS]
 #
 # Options:
 #   --provider PROVIDER    LLM provider (default: openrouter)
 #   --model MODEL          Model name (default: google/gemini-2.5-flash-lite)
 #   --dry-run              Show what would be processed without running analysis
-#   --force                Re-analyze even if topic.json already exists
+#   --force                Re-analyze even if session-summary.json already exists
 #   --limit N              Process at most N transcripts (useful for testing)
 ###############################################################################
 
@@ -73,7 +73,7 @@ declare -i failed=0
 ###############################################################################
 
 echo "=============================================="
-echo "Bulk Topic Extraction"
+echo "Bulk Session Summary"
 echo "=============================================="
 echo ""
 echo "Provider: $PROVIDER"
@@ -104,15 +104,15 @@ export CLAUDE_PROJECT_DIR="$PWD"
 export SIDEKICK_ROOT_OVERRIDE="$PWD/$SIDEKICK_ROOT"
 source "$SIDEKICK_ROOT/lib/common.sh"
 
-# Load topic extraction feature
-if [ ! -f "$SIDEKICK_ROOT/features/topic-extraction.sh" ]; then
-    echo "ERROR: topic-extraction.sh not found"
+# Load session summary feature
+if [ ! -f "$SIDEKICK_ROOT/features/session-summary.sh" ]; then
+    echo "ERROR: session-summary.sh not found"
     exit 1
 fi
-source "$SIDEKICK_ROOT/features/topic-extraction.sh"
+source "$SIDEKICK_ROOT/features/session-summary.sh"
 
-# Enable topic extraction feature
-export FEATURE_TOPIC_EXTRACTION=true
+# Enable session summary feature
+export FEATURE_SESSION_SUMMARY=true
 
 # Override LLM configuration
 export LLM_PROVIDER="$PROVIDER"
@@ -125,7 +125,7 @@ elif [ "$PROVIDER" = "claude-cli" ]; then
 fi
 
 log_info "Sidekick libraries loaded"
-log_info "Topic extraction feature loaded"
+log_info "Session summary feature loaded"
 log_info "LLM provider configured: $PROVIDER / $MODEL"
 
 # Create sessions directory
@@ -159,10 +159,10 @@ for project_dir in "$PROJECTS_DIR"/*; do
         # Extract session ID from filename
         session_id=$(basename "$transcript" .jsonl)
         session_dir="${SESSIONS_DIR}/${session_id}"
-        topic_file="${session_dir}/topic.json"
+        summary_file="${session_dir}/session-summary.json"
 
         # Check if already analyzed
-        if [ -f "$topic_file" ] && [ "$FORCE" = false ]; then
+        if [ -f "$summary_file" ] && [ "$FORCE" = false ]; then
             log_debug "Skipping $session_id (already analyzed)"
             skipped=$((skipped + 1))
             continue
@@ -190,32 +190,32 @@ for project_dir in "$PROJECTS_DIR"/*; do
         # Enable debug logging for this run
         export LOG_LEVEL=DEBUG
 
-        # Run topic extraction
+        # Run session summary
         echo "Analyzing..."
 
         # Call the function and capture its output
         set +e  # Don't exit on error
-        analysis_output=$(topic_extraction_analyze "$session_id" "$transcript" "$PWD" 2>&1)
+        analysis_output=$(session_summary_analyze "$session_id" "$transcript" "$PWD" 2>&1)
         analysis_exit_code=$?
         set -e
 
         if [ $analysis_exit_code -eq 0 ]; then
-            # Check if topic file was actually created
-            if [ -f "$topic_file" ]; then
-                log_info "✓ Analysis complete: $topic_file"
+            # Check if summary file was actually created
+            if [ -f "$summary_file" ]; then
+                log_info "✓ Analysis complete: $summary_file"
 
                 # Display results
                 echo ""
                 echo "Results:"
                 jq -r '
-                    "  Intent:     " + (.intent_category // "unknown") + "\n" +
-                    "  Clarity:    " + (.clarity_score | tostring) + "/10" + "\n" +
-                    "  Goal:       " + ((.initial_goal // "N/A") | .[0:70]) + (if (.initial_goal | length) > 70 then "..." else "" end)
-                ' "$topic_file"
+                    "  Title:      " + ((.session_title // "N/A") | .[0:70]) + (if (.session_title | length) > 70 then "..." else "" end) + "\n" +
+                    "  Confidence: " + (.session_title_confidence | tostring) + "\n" +
+                    "  Intent:     " + ((.latest_intent // "N/A") | .[0:70]) + (if (.latest_intent | length) > 70 then "..." else "" end)
+                ' "$summary_file"
 
                 processed=$((processed + 1))
             else
-                log_error "✗ Function returned success but no topic file created"
+                log_error "✗ Function returned success but no summary file created"
                 echo "Output: $analysis_output"
                 failed=$((failed + 1))
             fi
@@ -252,7 +252,7 @@ echo "Failed:               $failed"
 echo ""
 
 if [ "$DRY_RUN" = false ]; then
-    echo "Topic metadata stored in: $SESSIONS_DIR/"
+    echo "Session metadata stored in: $SESSIONS_DIR/"
     echo ""
     echo "Next step:"
     echo "  ./scripts/collect-test-data.sh"
