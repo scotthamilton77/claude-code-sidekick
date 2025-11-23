@@ -11,7 +11,8 @@ This document captures the greenfield Node.js rewrite plan for Sidekick. It pull
   - Honor SOLID principles: Files > 500 lines and methods > 20 lines are smells that we're letting complexity creep in
   - Honor DRY principles: If we're unnecessarily doing the same thing in two places, we should refactor
 - **Node-first runtime**: CLI, feature orchestration, and hook integration live in TypeScript/Node. Python is reserved for developer tooling only (one-off analyzers, data prep), never as a deployed dependency.
-- **Dual-scope parity**: Behavior must remain identical in project (`.claude/`) and user (`~/.claude/`) scopes, mirroring today’s Sidekick guarantees in `CLAUDE.md`.
+- **Observability-first**: Use pino + telemetry wrapper from day one, with the supervisor as single writer for state to eliminate file locking/race issues seen in Bash.
+- **Dual-scope parity**: Behavior must remain identical in project (`.claude/`) and user (`~/.claude/`) scopes, mirroring today’s Sidekick guarantees in `CLAUDE.md`.  Preserve the existing cascade (user/project installed vs. persistent) through the asset resolver so users keep current workflows while gaining the Node runtime benefits.
 - **Greenfield repo layout**: Rather than carry forward organic structures, introduce a deliberate workspace rooted at `packages/` with explicit package boundaries and shared tooling.
 - **Reuse benchmark-next core**: The `src/lib/` directory in `benchmark-next` becomes the shared core (`sidekick-core`), providing production-ready implementations for LLM providers, configuration, logging, and transcript processing.
 - **Benchmark-next toolchain reuse**: Adopt the same modern stack already planned for `benchmark-next` (Node 20+, pnpm workspaces, strict TypeScript, Vitest, eslint/prettier, tsx for local runs) to reduce cognitive load.
