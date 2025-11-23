@@ -13,16 +13,21 @@ This repository serves as a development and testing environment for [Claude Code
 ### Sidekick
 
 - refine the transcript analysis process
-  - STATUS:
-    - we've got an analyze-topic-at-line.sh that is good for benchmarking portions of a transcript (e.g. ddebe53b-347a-45dd-b421-9e4b9790c367)
-    - we now have the ability to define revised prompts and json-schema in the target folder and issue --use-revised to see the impact
-    - once we get a prompt revision that we like, we can ask claude to reverse engineer a plan of what code changes are necessary to implement the change
-  - let's capture stronger sense of initial and current goal ALONG WITH a watermark (line indicator?) and perhaps summary of key points relative to session summary
-    - this allows a delta analysis to focus more specifically on goal/objective changes
-      - should call out rationale, keywords
-      - should over-weight existing/current stated goals
-    - we need 2 API calls, one for the analysis (low-temp), another for the snark (configurable temperature)
-    - this would allow us to use different models
+  - running into transcript length issues:
+```
+The Issue:
+  The session summary extraction is choking because our transcript has become enormous (we're at 66k+ tokens). The shell is hitting ARG_MAX limits when trying to pass the full transcript excerpt to jq at
+  session-summary.sh:103,108,119.
+
+  Why You Won't Get Your Insult Yet:
+  No session summary = no snarky comment generator triggered. The background process only launches after a successful session summary write.
+
+  The Errors:
+  /workspaces/claude-config/.claude/hooks/sidekick/features/session-summary.sh: line 103: /usr/bin/jq: Argument list too long
+  /workspaces/claude-config/.claude/hooks/sidekick/features/session-summary.sh: line 108: /usr/bin/jq: Argument list too long
+
+  This is hitting the shell's exec argument length limit - likely the _session_summary_extract_excerpt function is trying to pipe too much data through command-line arguments instead of stdin.
+```
   - tune the session summarizer to follow the last n turns (delta + 10?) - this combined with previous goal snapshot might be cheaper?
   - tune the instructions for the session summary (little shorter, more cynical)
 - PLAN.MD (executing ARCH.md)
