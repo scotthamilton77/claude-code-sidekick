@@ -9,6 +9,7 @@ This document captures the greenfield Node.js rewrite plan for Sidekick. It pull
 - **Node-first runtime**: CLI, feature orchestration, and hook integration live in TypeScript/Node. Python is reserved for developer tooling only (one-off analyzers, data prep), never as a deployed dependency.
 - **Dual-scope parity**: Behavior must remain identical in project (`.claude/`) and user (`~/.claude/`) scopes, mirroring today’s Sidekick guarantees in `CLAUDE.md`.
 - **Greenfield repo layout**: Rather than carry forward organic structures, introduce a deliberate workspace rooted at `packages/` with explicit package boundaries and shared tooling.
+- **Reuse benchmark-next core**: The `src/lib/` directory in `benchmark-next` becomes the shared core (`sidekick-core`), providing production-ready implementations for LLM providers, configuration, logging, and transcript processing.
 - **Benchmark-next toolchain reuse**: Adopt the same modern stack already planned for `benchmark-next` (Node 20+, pnpm workspaces, strict TypeScript, Vitest, eslint/prettier, tsx for local runs) to reduce cognitive load.
 - **Feature modularity and flags**: Preserve the plugin-style independence described in `ARCH.md`, including dependency enforcement (e.g., reminders require tracking) and config-driven toggles.
 - **Shared assets, flexible overrides**: Defaults (prompts, schemas, reminder templates) live in a new `assets/sidekick/` tree so both Node runtime and Python tools share canonical sources. Runtime overrides still honor user/project cascades, but dev tools only read the defaults unless explicitly told otherwise.
@@ -36,7 +37,7 @@ assets/
 Key characteristics:
 
 - **`pnpm-workspace.yaml`** at repo root lists all packages plus `benchmark-next` so tooling (lint, test, build) is consistent.
-- **`packages/sidekick-core`** houses runtime primitives: configuration cascade loader, path utilities, feature registry, process manager, structured logging, JSON helpers, telemetry.
+- **`packages/sidekick-core`** (derived from `benchmark-next/src/lib`) houses runtime primitives: configuration cascade loader, path utilities, feature registry, process manager, structured logging, JSON helpers, telemetry.
 - **Feature packages** expose a standard interface (`registerHooks(registry)`) and ship compiled JS ready for dynamic loading. This mirrors the Bash plugin loader while allowing typed dependencies and tree-shaking.
 - **`schema-contracts`** publishes generated TypeScript types plus JSON Schema artifacts produced during build. Python tools can import the JSON Schema directly from `assets/sidekick/schemas` without pulling Node code.
 - **`assets/sidekick`** keeps versioned defaults under source control. Build scripts copy or bundle them into packages while also leaving them accessible at runtime for cascading overrides.
@@ -61,12 +62,12 @@ Key characteristics:
    - Each feature module registers declared dependencies (e.g., `reminders` depends on `tracking`). The runtime performs a DAG validation during startup, mirroring Bash’s loader but with compile-time types and descriptive errors.
    - Features expose hook handlers (`onSessionStart`, `onUserPromptSubmit`, `onStatusLine`, etc.) and optional background tasks.
 4. **Configuration Cascade**
-   - Implemented in `sidekick-core/config`. Supports the same domains (`config`, `llm-core`, `llm-providers`, `features`, plus legacy `sidekick.conf`). Files are parsed using a shell-compatible parser (or converted to a structured format if we provide a migration script) and merged in the order defined in `ARCH.md`.
+   - Implemented in `sidekick-core/config` (reusing `benchmark-next` config logic). Supports the same domains (`config`, `llm-core`, `llm-providers`, `features`, plus legacy `sidekick.conf`). Files are parsed using a shell-compatible parser (or converted to a structured format if we provide a migration script) and merged in the order defined in `ARCH.md`.
    - Environment `.env` files are sourced in the same order as today (user persistent → project root → project `.sidekick`).
 5. **LLM Providers**
-   - `shared-providers` offers typed adapters for Claude CLI (via child_process), OpenAI, OpenRouter, and custom commands. It mirrors the provider matrix described in `ARCH.md` but leverages async/await, AbortController, and circuit-breaker primitives for resilience.
+   - `shared-providers` (reusing `benchmark-next/src/lib/providers`) offers typed adapters for Claude CLI (via child_process), OpenAI, OpenRouter, and custom commands. It mirrors the provider matrix described in `ARCH.md` but leverages async/await, AbortController, and circuit-breaker primitives for resilience.
 6. **Logging & Telemetry**
-   - Use `pino` or `winston` for structured logs. File output continues to `.sidekick/sessions/<id>/sidekick.log`. Console logging remains opt-in via config/env/CLI flag, matching current semantics.
+   - Use `pino` (as in `benchmark-next`) for structured logs. File output continues to `.sidekick/sessions/<id>/sidekick.log`. Console logging remains opt-in via config/env/CLI flag, matching current semantics.
 7. **Background Work (if needed)**
    - Instead of ad-hoc Bash background processes, use Node workers or detached child processes managed through `sidekick-core/process`. PID tracking stays in session directories for parity.
 
@@ -107,5 +108,7 @@ Key characteristics:
 2. **Background Task Implementation**: Do we rely on worker threads for long-running features (e.g., resume generation) or spawn separate CLI commands managed by a supervisor?
 3. **Shared Tooling Governance**: How do we coordinate versioning across `benchmark-next` and Sidekick when they share `assets/sidekick/` (e.g., semantic versioning for prompt/schema updates)?
 4. **Telemetry/Observability Enhancements**: Should we introduce optional metrics exporters (e.g., OpenTelemetry) as part of `sidekick-core`, or keep logging-only until the rewrite stabilizes?
+5. **State Management**: How should we track state, e.g. the bash architecture uses a number of counter files and later introduced a generated `session-summary-state.sh` file which also tracked counters and a bookmark.  Should we revise this approach now that we're in a different tech stack?  How do we do file locking to ensure atomic updates?
+6. **Separation of Concerns**: How do we keep the claude hooks architecture separate from the core functions of sidekick so that these might be portable across LLM development environments?  (This separation of concerns can also make testability easier.)
 
 Answering these questions is part of the implementation roadmap, but the architecture above frames the intended direction for the Node rewrite.

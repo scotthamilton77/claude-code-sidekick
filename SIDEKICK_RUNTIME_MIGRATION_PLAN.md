@@ -41,9 +41,10 @@ _Last updated: 2025-11-23_
 
 1. **Bootstrap Package**
    - Scaffold TS project (tsconfig, eslint) co-located with `benchmark-next` tooling or new `packages/` folder.
+   - **Reuse `benchmark-next` Core**: Extract `src/lib/` from `benchmark-next` into `packages/sidekick-core` to jumpstart config, logging, and LLM providers.
    - Implement entry command `sidekick runtime-check` stub runnable via `npx ts-node` for local dev.
 2. **Transcription Pipeline Spike**
-   - Re-implement `_session_summary_extract_excerpt` in TS using streaming file reads to prove resolution of ARG_MAX issue.
+   - Re-implement `_session_summary_extract_excerpt` in TS using streaming file reads to prove resolution of ARG_MAX issue (leverage `benchmark-next/src/lib/transcript`).
    - Compare output parity against existing Bash for regression confidence.
 3. **Hook Shim**
    - Wrap existing `sidekick.sh` to call `node dist/cli.js <command>` when present, falling back to Bash behavior otherwise (toggle via env). This keeps install/uninstall unchanged for now.
@@ -51,13 +52,13 @@ _Last updated: 2025-11-23_
 ### Phase 2 – Feature Parity Slice (Weeks 3-5)
 
 1. **Configuration Loader**
-   - Port config cascade into TS (parse `.defaults` and `.conf` via shell-compatible parser or convert to TOML/JSON internally).
+   - Adapt `benchmark-next` config loader to support full Sidekick cascade (parse `.defaults` and `.conf` via shell-compatible parser or convert to TOML/JSON internally).
 2. **Plugin Loader Bridge**
    - Introduce a TS plugin registry mirroring `features/*.sh` contracts; initially load only `session-summary` logic.
 3. **LLM Invocation Module**
-   - Reuse provider design planned for `benchmark-next` (Claude CLI, OpenAI, OpenRouter); ensure isolation behavior matches Bash implementation.
+   - Reuse provider design from `benchmark-next` (Claude CLI, OpenAI, OpenRouter); ensure isolation behavior matches Bash implementation.
 4. **Logging & Telemetry**
-   - Implement structured logging (e.g., pino) with file + console targets; map to existing `.sidekick/sessions/<id>/sidekick.log` layout.
+   - Adopt `pino` logging from `benchmark-next` with file + console targets; map to existing `.sidekick/sessions/<id>/sidekick.log` layout.
 
 ### Phase 3 – Project-Scope Pilot (Weeks 6-7)
 
