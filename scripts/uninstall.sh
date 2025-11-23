@@ -2,7 +2,7 @@
 # uninstall.sh - Uninstall Sidekick from user and/or project scope
 #
 # Usage:
-#   uninstall.sh [--user|--project|--both] [--dry-run] [--verbose]
+#   uninstall.sh [--user|--project|--both] [--dry-run] [--verbose] [--force]
 #
 # Options:
 #   --user      Uninstall from ~/.claude only
@@ -10,6 +10,7 @@
 #   --both      Uninstall from both (default)
 #   --dry-run   Show what would be deleted without actually deleting
 #   --verbose   Show detailed output of all operations
+#   --force     Force uninstall even if not detected as installed (skip all prompts)
 #
 # Environment:
 #   SIDEKICK_SKIP_CONFIRM=1   Skip confirmation prompt (for testing)
@@ -18,6 +19,7 @@
 #   uninstall.sh --user --dry-run
 #   uninstall.sh --user --verbose
 #   uninstall.sh --project
+#   uninstall.sh --user --force
 #   SIDEKICK_SKIP_CONFIRM=1 uninstall.sh --user
 
 set -euo pipefail
@@ -40,6 +42,7 @@ UNINSTALL_PROJECT=false
 # Operation modes
 DRY_RUN=false
 VERBOSE=false
+FORCE=false
 
 # Logging functions
 log_info() {
@@ -231,6 +234,10 @@ parse_args() {
                 VERBOSE=true
                 shift
                 ;;
+            --force)
+                FORCE=true
+                shift
+                ;;
             -h|--help)
                 show_help
                 exit 0
@@ -264,6 +271,7 @@ Options:
   --both      Uninstall from both scopes (default)
   --dry-run   Show what would be deleted without actually deleting
   --verbose   Show detailed output of all operations
+  --force     Force uninstall even if not detected as installed (skip all prompts)
   -h, --help  Show this help message
 
 Environment:
@@ -273,9 +281,31 @@ Examples:
   uninstall.sh --user --dry-run
   uninstall.sh --user --verbose
   uninstall.sh --project
+  uninstall.sh --user --force
   SIDEKICK_SKIP_CONFIRM=1 uninstall.sh --user
 
 EOF
+}
+
+# Check if Sidekick is installed in the specified scope
+# Args: $1 - scope ("user" or "project")
+# Returns: 0 if installed, 1 if not installed
+is_installed() {
+    local scope="$1"
+
+    case "$scope" in
+        user)
+            [ -d "$HOME/.claude/hooks/sidekick" ]
+            ;;
+        project)
+            local project_dir="${CLAUDE_PROJECT_DIR:-$PWD}"
+            [ -d "$project_dir/.claude/hooks/sidekick" ]
+            ;;
+        *)
+            log_error "Unknown scope: $scope"
+            return 1
+            ;;
+    esac
 }
 
 # Confirm uninstallation
@@ -1068,14 +1098,69 @@ main() {
     # Parse arguments
     parse_args "$@"
 
+    # If force mode, skip all confirmations
+    if [ "$FORCE" = true ]; then
+        export SIDEKICK_SKIP_CONFIRM=1
+    fi
+
+    # Check if anything is installed (skip check if force mode)
+    local user_installed=false
+    local project_installed=false
+
+    if [ "$FORCE" = true ]; then
+        # Force mode: always proceed regardless of installation status
+        if [ "$UNINSTALL_USER" = true ]; then
+            user_installed=true
+        fi
+        if [ "$UNINSTALL_PROJECT" = true ]; then
+            project_installed=true
+        fi
+    else
+        # Normal mode: check installation status
+        if [ "$UNINSTALL_USER" = true ] && is_installed "user"; then
+            user_installed=true
+        fi
+
+        if [ "$UNINSTALL_PROJECT" = true ] && is_installed "project"; then
+            project_installed=true
+        fi
+
+        # If nothing is installed, just say so and exit
+        if [ "$user_installed" = false ] && [ "$project_installed" = false ]; then
+            log_info "No Sidekick features are installed."
+            if [ "$UNINSTALL_USER" = true ] && [ "$UNINSTALL_PROJECT" = true ]; then
+                echo "  - User scope: Not installed"
+                echo "  - Project scope: Not installed"
+            elif [ "$UNINSTALL_USER" = true ]; then
+                echo "  - User scope: Not installed"
+            else
+                echo "  - Project scope: Not installed"
+            fi
+            echo ""
+            return 0
+        fi
+    fi
+
     # Show uninstallation plan
     echo ""
     log_info "Uninstallation plan:"
     if [ "$UNINSTALL_USER" = true ]; then
-        echo "  - User scope: ~/.claude/hooks/sidekick"
+        if [ "$FORCE" = true ]; then
+            echo "  - User scope: ~/.claude/hooks/sidekick (force mode)"
+        elif [ "$user_installed" = true ]; then
+            echo "  - User scope: ~/.claude/hooks/sidekick (installed)"
+        else
+            echo "  - User scope: ~/.claude/hooks/sidekick (not installed, skipping)"
+        fi
     fi
     if [ "$UNINSTALL_PROJECT" = true ]; then
-        echo "  - Project scope: .claude/hooks/sidekick"
+        if [ "$FORCE" = true ]; then
+            echo "  - Project scope: .claude/hooks/sidekick (force mode)"
+        elif [ "$project_installed" = true ]; then
+            echo "  - Project scope: .claude/hooks/sidekick (installed)"
+        else
+            echo "  - Project scope: .claude/hooks/sidekick (not installed, skipping)"
+        fi
     fi
     if [ "$DRY_RUN" = true ]; then
         echo "  - Mode: DRY-RUN (no files will be deleted)"
@@ -1083,16 +1168,19 @@ main() {
     if [ "$VERBOSE" = true ]; then
         echo "  - Verbose output: ENABLED"
     fi
+    if [ "$FORCE" = true ]; then
+        echo "  - Force mode: ENABLED (skip checks, skip confirmations)"
+    fi
     echo ""
 
-    # Uninstall from user scope
-    if [ "$UNINSTALL_USER" = true ]; then
+    # Uninstall from user scope (only if installed or force mode)
+    if [ "$UNINSTALL_USER" = true ] && [ "$user_installed" = true ]; then
         uninstall_from_user || true
         echo ""
     fi
 
-    # Uninstall from project scope
-    if [ "$UNINSTALL_PROJECT" = true ]; then
+    # Uninstall from project scope (only if installed or force mode)
+    if [ "$UNINSTALL_PROJECT" = true ] && [ "$project_installed" = true ]; then
         uninstall_from_project || true
         echo ""
     fi
