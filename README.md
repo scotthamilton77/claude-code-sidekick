@@ -12,22 +12,9 @@ This repository serves as a development and testing environment for [Claude Code
 
 ### Sidekick
 
+- snarky comment generator
+  - needs a fallback model
 - refine the transcript analysis process
-  - running into transcript length issues:
-```
-The Issue:
-  The session summary extraction is choking because our transcript has become enormous (we're at 66k+ tokens). The shell is hitting ARG_MAX limits when trying to pass the full transcript excerpt to jq at
-  session-summary.sh:103,108,119.
-
-  Why You Won't Get Your Insult Yet:
-  No session summary = no snarky comment generator triggered. The background process only launches after a successful session summary write.
-
-  The Errors:
-  /workspaces/claude-config/.claude/hooks/sidekick/features/session-summary.sh: line 103: /usr/bin/jq: Argument list too long
-  /workspaces/claude-config/.claude/hooks/sidekick/features/session-summary.sh: line 108: /usr/bin/jq: Argument list too long
-
-  This is hitting the shell's exec argument length limit - likely the _session_summary_extract_excerpt function is trying to pipe too much data through command-line arguments instead of stdin.
-```
   - tune the session summarizer to follow the last n turns (delta + 10?) - this combined with previous goal snapshot might be cheaper?
   - tune the instructions for the session summary (little shorter, more cynical)
 - PLAN.MD (executing ARCH.md)
