@@ -21,7 +21,41 @@ The `sidekick-cli` is a **thin, pluggable framework**. It does not contain busin
 
 ## 3. Architecture
 
-### 3.1 Execution Modes
+### 3.1 Hook Wrapper Layer (Bash Scripts)
+
+**Important**: The hooks configured in Claude Code's `settings.json` are **bash scripts**, not direct Node.js invocations. These bash scripts:
+
+1. **Installation Location**: Installed to `.claude/hooks/sidekick/` (project-scope) or `~/.claude/hooks/sidekick/` (user-scope).
+2. **Self-Awareness**: Can extract their own installation path from bash parameters (`$0`, `$BASH_SOURCE`, etc.).
+3. **Environment Access**: Have access to Claude Code's environment variables, including `$CLAUDE_PROJECT_DIR`.
+4. **Parameter Forwarding**: Receive hook input parameters (JSON structure) from Claude Code and forward them to the Node.js CLI.
+5. **Explicit Scope Hints**: Pass explicit parameters to the CLI:
+   - `--hook-script-path`: The absolute path of the bash script itself (enables scope detection).
+   - `--project-dir`: The value of `$CLAUDE_PROJECT_DIR` (explicit project context).
+   - Hook-specific JSON payload via stdin or `--input` flag.
+
+**Example Hook Script** (`.claude/hooks/sidekick/session-start`):
+```bash
+#!/usr/bin/env bash
+# This script is registered in .claude/settings.json
+
+# Extract our own location
+HOOK_SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+
+# Forward to Node.js CLI with explicit context
+exec npx @sidekick/cli session-start \
+  --hook \
+  --hook-script-path="$HOOK_SCRIPT_PATH" \
+  --project-dir="$CLAUDE_PROJECT_DIR" \
+  --input "$@"
+```
+
+This architecture provides:
+- **Deterministic Scope Resolution**: CLI receives explicit hints rather than relying solely on directory walking.
+- **Portability**: Bash scripts can invoke `npx`, global installs, or custom Node.js paths.
+- **Flexibility**: Bash layer can perform pre-processing, environment setup, or conditional execution.
+
+### 3.2 Execution Modes
 
 The CLI operates in two distinct modes, determined by flags or invocation context:
 
@@ -36,7 +70,7 @@ The CLI operates in two distinct modes, determined by flags or invocation contex
     - **Behavior**: Non-interactive, fail-fast, minimal latency.
     - **Use Case**: Automated calls from Claude Desktop (e.g., `npx @sidekick/cli session-start --hook`).
 
-### 3.2 Pluggable Command Registry
+### 3.3 Pluggable Command Registry
 
 Features register their commands at runtime. The CLI does not hardcode `session-start` or `user-prompt-submit`.
 
@@ -57,17 +91,26 @@ export function register(registry: CommandRegistry) {
 }
 ```
 
-### 3.3 Bootstrap Sequence
+### 3.4 Bootstrap Sequence
 
 1.  **Parse Args**: Identify mode and requested command.
-2.  **Init Core**: Load `sidekick-core` (Config, Logger).
-3.  **Resolve Scope**: Detect whether invocation is project (`.claude/hooks/sidekick/`) or user (`~/.claude/hooks/sidekick/`) scoped and locate the correct asset/config roots.
-4.  **Supervisor Handshake**: Establish IPC with the background supervisor (start if missing) before feature registration so shared clients exist in the command context.
-5.  **Load Features**: Scan `packages/` or config to find enabled features.
-6.  **Register Commands**: Invoke `register()` on each active feature.
-7.  **Dispatch**: Find the matching command(s) and execute.
+2.  **Init Minimal Logger**: Initialize Phase 1 logger (console-based) for bootstrap logging.
+3.  **Resolve Scope**: 
+    - Extract project path from hook input (if available).
+    - Walk up from `cwd` to find nearest `.claude/hooks/sidekick/`.
+    - Determine if user-scope or project-scope.
+    - **Dual-Install Check**: If running from user-scope, check project's `.claude/settings.json` and `.claude/settings.json.local` for `sidekick` string. If found, log warning to project logs and exit.
+4.  **Init Core**: Load `sidekick-core` (Config, Logger Phase 2, Asset Resolver).
+5.  **Supervisor Handshake**: 
+    - Check for existing supervisor (PID file + socket).
+    - Verify version compatibility via IPC ping.
+    - Start supervisor if missing or restart if version mismatch.
+    - Establish IPC connection.
+6.  **Load Features**: Scan `packages/` or config to find enabled features.
+7.  **Register Commands**: Invoke `register()` on each active feature.
+8.  **Dispatch**: Find the matching command(s) and execute.
 
-### 3.4 Hook Dispatcher
+### 3.5 Hook Dispatcher
 
 The CLI owns hook dispatch so there is a single entry point for Claude Desktop integrations:
 
@@ -88,9 +131,127 @@ The CLI framework provides a shared **IPC Client** helper that commands can use.
 - **Interactive**: Print friendly error message to `stderr`.
 - **Hook**: Log full error to file, exit with code 1 (or 0 if failure should be silent), print minimal/no output to `stderr` to avoid breaking the calling process.
 
-## 6. Outstanding Questions / Concerns
+## 6. Scope Resolution & Dual-Installation Handling
 
-- **Scope Resolution**: Need explicit algorithm for locating `.claude` vs `~/.claude` installs when both exist—especially for `npx` use inside nested workspaces.
-- **Supervisor Lifecycle**: Define when the CLI restarts the supervisor after hook updates (ties into "claude --continue" requirement from `AGENTS.md`).
-- **Telemetry Bootstrapping**: Clarify whether CLI initializes telemetry before config load (minimal logger) or after (full `pino` stream).
-- **Process Model**: Decide if long-running hooks should spawn worker processes via supervisor vs staying in-process with async tasks to avoid blocking the CLI event loop.
+### 6.1 Scope Detection Algorithm
+
+When the CLI is invoked, it determines scope using **explicit hints** provided by the bash hook wrapper (see §3.1):
+
+**Primary Detection (Explicit Hints)**:
+1. **`--hook-script-path` parameter**: The bash wrapper passes its own absolute path.
+   - If path contains `/.claude/hooks/sidekick/`: **project scope** (extract project root from path).
+   - If path contains `~/.claude/hooks/sidekick/` or `$HOME/.claude/hooks/sidekick/`: **user scope**.
+2. **`--project-dir` parameter**: The bash wrapper forwards `$CLAUDE_PROJECT_DIR` from Claude Code's environment.
+   - Provides explicit project context for validation and logging.
+   - Used to verify consistency with scope derived from `--hook-script-path`.
+
+**Fallback Detection (No Explicit Hints)**:
+- If `--hook-script-path` is not provided (e.g., manual CLI invocation):
+  1. Walk up directory tree from `cwd` to find nearest `.claude/hooks/sidekick/` directory.
+  2. If found and is **NOT** `~/.claude/hooks/sidekick/`: Use **project scope**.
+  3. If not found: Use **user scope** (`~/.claude/hooks/sidekick/`).
+
+**Manual Override**:
+- `--scope=user|project` flag can override all auto-detection logic.
+
+**Validation**:
+- If both `--hook-script-path` and `--project-dir` are provided, verify they are consistent:
+  - Extract project root from hook script path.
+  - Compare with `--project-dir`.
+  - Log warning if mismatch detected (but proceed with `--hook-script-path` as source of truth).
+
+### 6.2 Dual-Installation Detection
+
+When **both** user-scope and project-scope installations exist, hooks could fire twice. To prevent this:
+
+**User-Scope Hook Execution Path**:
+1. CLI receives explicit project directory via `--project-dir` parameter (forwarded from `$CLAUDE_PROJECT_DIR` by bash wrapper).
+2. Check if project has Sidekick registered in `<project-dir>/.claude/settings.json` OR `<project-dir>/.claude/settings.json.local`.
+3. Perform simple string search for `sidekick` (no JSON parsing required—just verify the string exists).
+4. **If project-scope detected**:
+   - Log warning to `<project-dir>/.sidekick/logs/sidekick.log`:
+     ```
+     [WARN] Sidekick hook executed from user-scope (~/.claude/hooks/sidekick/) 
+            but project-scope installation detected at <project-dir>. 
+            Project-scope takes precedence. User-scope hook exiting. 
+            Consider uninstalling user-scope if not needed globally.
+     ```
+   - Exit silently (exit code 0).
+5. **If no project-scope**: Proceed with normal execution.
+
+**Project-Scope Hook Execution Path**:
+- Always executes normally (project-scope takes precedence).
+
+**Supervisor Ownership**:
+- Supervisor process is **always project-scoped** regardless of installation scope.
+- PID file location: `<project>/.sidekick/supervisor.pid`.
+- User-scope hooks delegate to project-scope supervisor when dual-install detected.
+
+## 7. Supervisor Lifecycle Management
+
+Supervisor process should self-terminate after 5 minutes of no messages/activity.
+
+The CLI should also include a --kill switch which finds and kills the supervisor that is project-local (to where the CLI was executed), or, if --kill-all is issued, should kill all supervisor processes.  This implies we need a ~/.sidekick/supervisors/{session_id}.pid file for each supervisor process.
+
+When a supervisor process ends, it should clean up its own PID files (project- and user-level).
+
+## 8. Telemetry & Logging Bootstrap
+
+### 8.1 Two-Phase Initialization
+
+**Phase 1: Pre-Config (Minimal Logger)**
+- Initialize basic console logger with hardcoded defaults:
+  - Level: `WARN`
+  - Format: Simple text (timestamp + level + message)
+  - Destination: `stderr`
+- Used during: arg parsing, config loading, error reporting.
+
+**Phase 2: Post-Config (Full Pino Logger)**
+- Replace minimal logger with full `pino` instance configured from loaded config.
+- Respects user settings: log level, format, file destinations, redaction rules.
+- Logger facade ensures transparent transition (code doesn't need to know which phase).
+
+### 8.2 Logger Facade
+
+```typescript
+// Simplified interface
+interface Logger {
+  debug(msg: string, meta?: object): void;
+  info(msg: string, meta?: object): void;
+  warn(msg: string, meta?: object): void;
+  error(msg: string, meta?: object): void;
+}
+
+// Implementation swaps from console → pino after config load
+```
+
+## 9. Process Model for Hooks
+
+### 9.1 Hook Execution Strategy
+
+Hooks declare their execution model during registration:
+
+```typescript
+interface HookDefinition {
+  name: string;
+  executionModel: 'sync' | 'async';
+  timeout?: number; // milliseconds
+}
+```
+
+**Synchronous Hooks** (e.g., `statusline`, `session-start`):
+- Run **in-process** within CLI.
+- Strict timeout enforcement (default: 50ms for statusline, session-start, 500ms for others).
+- If timeout exceeded: log warning - in future we might log as error and return fallback response.
+
+**Asynchronous Hooks** (e.g., `session-summary`, `resume-generation`):
+- **Always delegate to supervisor** via IPC.
+- CLI enqueues task and returns immediately.
+- Supervisor processes task in background.
+- Results written to state files (`.sidekick/state/*.json`).
+
+### 9.2 Timeout Behavior
+
+- API calls, file locks - these need declared timeouts and explicit fallback or fail modes.
+- Supervisor enforces resource limits (max concurrent tasks).
+- See Supervisor Lifecycle Management section above for supervisor's process idle timeout.

@@ -13,12 +13,13 @@ The Configuration System is the backbone of the Sidekick Node.js runtime. It is 
 
 ## 3. Configuration Cascade
 
-The configuration is resolved in the following order (lowest to highest priority):
+The configuration is resolved in a deterministic cascade (lowest to highest priority). Each successive layer completely overrides scalars/arrays defined earlier while objects are deep-merged:
 
-1.  **Internal Defaults**: Hardcoded defaults within `sidekick-core`.
-2.  **Environment Variables**: `SIDEKICK_*` variables (Runtime overrides).
-3.  **User Global Config**: `~/.sidekick/config.jsonc` (User preferences).
-4.  **Project Config**: `.sidekick/config.jsonc` (Project-specific settings).
+1.  **Internal Defaults**: Hardcoded defaults compiled into `sidekick-core`.
+2.  **Environment Variables**: `SIDEKICK_*` values plus `.env` files loaded in order: `~/.sidekick/.env` → project `.env` → `.sidekick/.env.local`. Later sources override earlier ones before configs apply.
+3.  **User Global Config**: JSONC files in `~/.sidekick/` (for example `~/.sidekick/config.jsonc`).
+4.  **Project Config**: `.sidekick/config.jsonc` (checked into the project repo).
+5.  **Project-Local Overrides**: `.sidekick/config.jsonc.local` (or `<name>.jsonc.local` per domain) for untracked, highest-priority overrides.
 
 ### 3.1 Merge Strategy
 
@@ -65,13 +66,14 @@ export type Config = z.infer<typeof ConfigSchema>;
 
 ### 4.2 Asset Resolution
 
-Assets (prompts, schemas) are resolved using a similar cascade but with specific directory lookups, (lowest to highest priority):
+Assets (prompts, schemas, templates) respect the same least-to-most priority cascade, mapped onto filesystem locations:
 
-1.  **Bundled Defaults**: `assets/sidekick/` (from the package itself).
-2.  **User Installed**: Global node_modules or bundled assets.
-3.  **User Persistent**: `~/.sidekick/assets/`
-4.  **Project Installed**: `node_modules/@sidekick/assets/` (if applicable)
-5.  **Project Persistent**: `.sidekick/assets/`
+1.  **Bundled Defaults**: `assets/sidekick/` from the repo/package (baseline).
+2.  **User Installed**: Assets delivered with a global/user install (e.g., `~/.claude/hooks/sidekick/assets/`).
+3.  **User Persistent**: `~/.sidekick/assets/` for hand-edited overrides that survive reinstall.
+4.  **Project Installed**: Project-scoped install artifacts (e.g., `.claude/hooks/sidekick/assets/` or `node_modules/@sidekick/assets/`).
+5.  **Project Persistent**: `.sidekick/assets/` committed with the project.
+6.  **Project-Local Overrides**: `.sidekick/assets.local/` (untracked) for highest-priority tweaks during development.
 
 ## 5. Component Architecture
 
@@ -133,9 +135,7 @@ A standalone utility `sidekick-migrate` will be provided to convert legacy `.con
 3.  **Implement Loader**: Create `packages/sidekick-core/src/config/loader.ts` using `cosmiconfig` or similar, or custom JSONC parser.
 4.  **Implement Asset Resolver**: Create `packages/sidekick-core/src/assets/resolver.ts`.
 
-## 8. Outstanding Questions / Concerns
+## 8. Decisions
 
-- **Cascade Order Drift**: `TARGET-ARCHITECTURE.md §2.3` defines priority as User Installed → User Persistent → Project Installed → Project Persistent → Bundled Assets. Document currently lists bundled defaults first; pick one canonical order and codify tests for it.
-- **Environment Source Clarification**: Need to specify where `.env` files are loaded (project root vs `.sidekick/`) and precedence relative to JSONC configs.
-- **Feature Settings Merge**: Clarify how partial feature settings merge without blowing away nested options. Arrays currently "replace" but some features may need additive behavior.
-- **Hot Reloading**: Decide if the config service watches files for changes or if restart is required; affects supervisor + CLI coordination.
+- **Feature Settings Merge**: Partial feature settings merge without blowing away nested options. Arrays currently "replace" but some features may need additive behavior - case-by-case basis identified by the developer.
+- **Hot Reloading**: Config service watches files for changes.
