@@ -1,10 +1,5 @@
 # Session Summary Redesign
 
-## TODOs
-
-- shorter title, with "title" flavor
-- snarky comments
-
 ## Overview
 
 Redesigned session summary (formerly topic extraction) to better support the actual use case: helping users identify which terminal/session is which when multitasking across multiple Claude Code sessions.
