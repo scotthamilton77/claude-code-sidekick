@@ -63,3 +63,7 @@ test-data/simulation-test/
 
 # TypeScript build cache (needs to be part of install)
 .claude/tsc-cache/
+
+# Node workspace outputs
+packages/*/dist/
+packages/*/tsconfig.tsbuildinfo

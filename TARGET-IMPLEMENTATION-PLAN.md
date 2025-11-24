@@ -2,20 +2,20 @@
 
 This plan sequences the Node/TypeScript rewrite into phases that each end with working, demoable software. Every phase lists objectives, relevant design documents/sections, acceptance criteria, and a reminder that tests are authored at the start to cover the criteria.
 
-- [ ] **Phase 1: Bootstrap CLI & Runtime Skeleton**
-  - [ ] Objectives
-    - [ ] Deliver a minimal Node-based CLI that can be invoked via bash hook wrappers and echoes simple outputs for at least one hook (e.g., `session-start`).
-    - [ ] Implement scope detection and bootstrap sequence sufficient to locate project vs. user installs and initialize a lightweight runtime shell.
-  - [ ] Relevant documents/sections
-    - [ ] `TARGET-ARCHITECTURE.md` (§3.1 Hook Wrapper Architecture, §3.2 Bootstrap Flow, §3.3 Configuration Cascade)
-    - [ ] `LLD-CLI.md` (§3 Hook Wrapper Layer, §3.4 Bootstrap Sequence, §6 Scope Resolution)
-    - [ ] `LLD-CORE-RUNTIME.md` (§3.1 Bootstrap & Lifecycle, §3.2 Configuration Service outline)
-  - [ ] Acceptance criteria
-    - [ ] Running the installed hook wrapper calls the Node CLI, which logs clearly whether it detected user or project scope.
-    - [ ] CLI supports a demo `session-start` command that returns a structured placeholder response without errors.
-    - [ ] Startup logs show the parsed hook context and do not crash when optional supervisor endpoints are absent.
-  - [ ] Testing
-    - [ ] Write unit/integration tests at the start of the phase that simulate invoking the hook wrapper, assert scope detection results, and validate the demo command response.
+- [x] **Phase 1: Bootstrap CLI & Runtime Skeleton**
+  - [x] Objectives
+    - [x] Deliver a minimal Node-based CLI that can be invoked via bash hook wrappers and echoes simple outputs for at least one hook (e.g., `session-start`).
+    - [x] Implement scope detection and bootstrap sequence sufficient to locate project vs. user installs and initialize a lightweight runtime shell.
+  - [x] Relevant documents/sections
+    - [x] `TARGET-ARCHITECTURE.md` (§3.1 Hook Wrapper Architecture, §3.2 Bootstrap Flow, §3.3 Configuration Cascade)
+    - [x] `LLD-CLI.md` (§3 Hook Wrapper Layer, §3.4 Bootstrap Sequence, §6 Scope Resolution)
+    - [x] `LLD-CORE-RUNTIME.md` (§3.1 Bootstrap & Lifecycle, §3.2 Configuration Service outline)
+  - [x] Acceptance criteria
+    - [x] Running the installed hook wrapper calls the Node CLI, which logs clearly whether it detected user or project scope.
+    - [x] CLI supports a demo `session-start` command that returns a structured placeholder response without errors.
+    - [x] Startup logs show the parsed hook context and do not crash when optional supervisor endpoints are absent.
+  - [x] Testing
+    - [x] Write unit/integration tests at the start of the phase that simulate invoking the hook wrapper, assert scope detection results, and validate the demo command response.
 
 - [ ] **Phase 2: Configuration & Asset Resolution Foundations**
   - [ ] Objectives
