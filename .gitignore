@@ -8,6 +8,7 @@ dev-debug.log
 
 # Dependency directories
 node_modules/
+.pnpm-store/
 
 # Environment variables
 .env
@@ -21,6 +22,9 @@ node_modules/
 *.njsproj
 *.sln
 *.sw?
+
+# Local settings
+settings.local.json
 
 # OS specific
 .DS_Store
