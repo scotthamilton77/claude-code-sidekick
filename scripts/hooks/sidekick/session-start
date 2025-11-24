@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+HOOK_SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+PROJECT_DIR="${CLAUDE_PROJECT_DIR:-}"
+CLI_COMMAND=${SIDEKICK_NODE_CLI:-"npx @sidekick/cli"}
+
+exec ${CLI_COMMAND} session-start \
+  --hook \
+  --hook-script-path="${HOOK_SCRIPT_PATH}" \
+  --project-dir="${PROJECT_DIR}" \
+  "$@"
