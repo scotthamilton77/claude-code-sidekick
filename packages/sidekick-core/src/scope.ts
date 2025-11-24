@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 
@@ -24,16 +24,12 @@ export interface ScopeResolution {
 const SIDEKICK_HOOK_SEGMENT = `${path.sep}.claude${path.sep}hooks${path.sep}sidekick${path.sep}`;
 
 function normalizeHookPath(hookScriptPath: string): string {
-  const resolved = path.resolve(hookScriptPath);
   try {
-    const stats = statSync(resolved);
-    if (stats.isSymbolicLink()) {
-      return path.resolve(resolved);
-    }
+    return realpathSync(hookScriptPath);
   } catch {
-    // fall back to resolved path when stat fails
+    // Fall back to resolved path if realpath fails (e.g., broken symlink)
+    return path.resolve(hookScriptPath);
   }
-  return resolved;
 }
 
 function deriveProjectRootFromHook(hookScriptPath: string): string | undefined {
