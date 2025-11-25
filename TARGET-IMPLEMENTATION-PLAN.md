@@ -7,9 +7,9 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [x] Deliver a minimal Node-based CLI that can be invoked via bash hook wrappers and echoes simple outputs for at least one hook (e.g., `session-start`).
     - [x] Implement scope detection and bootstrap sequence sufficient to locate project vs. user installs and initialize a lightweight runtime shell.
   - [x] Relevant documents/sections
-    - [x] `TARGET-ARCHITECTURE.md` (§3.1 Hook Wrapper Architecture, §3.2 Bootstrap Flow, §3.3 Configuration Cascade)
-    - [x] `LLD-CLI.md` (§3 Hook Wrapper Layer, §3.4 Bootstrap Sequence, §6 Scope Resolution)
-    - [x] `LLD-CORE-RUNTIME.md` (§3.1 Bootstrap & Lifecycle, §3.2 Configuration Service outline)
+    - [x] `{project_root_dir}/TARGET-ARCHITECTURE.md` (§3.1 Hook Wrapper Architecture, §3.2 Bootstrap Flow, §3.3 Configuration Cascade)
+    - [x] `{project_root_dir}/LLD-CLI.md` (§3 Hook Wrapper Layer, §3.4 Bootstrap Sequence, §6 Scope Resolution)
+    - [x] `{project_root_dir}/LLD-CORE-RUNTIME.md` (§3.1 Bootstrap & Lifecycle, §3.2 Configuration Service outline)
   - [x] Acceptance criteria
     - [x] Running the installed hook wrapper calls the Node CLI, which logs clearly whether it detected user or project scope.
     - [x] CLI supports a demo `session-start` command that returns a structured placeholder response without errors.
@@ -17,31 +17,39 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
   - [x] Testing
     - [x] Write unit/integration tests at the start of the phase that simulate invoking the hook wrapper, assert scope detection results, and validate the demo command response.
 
-- [ ] **Phase 2: Configuration & Asset Resolution Foundations**
-  - [ ] Objectives
-    - [ ] Implement the configuration cascade (env + JSONC) with deep-merge semantics and validation.
-    - [ ] Add asset resolver capable of reading defaults from `assets/sidekick/` and honoring override layers for user/project scopes.
-  - [ ] Relevant documents/sections
-    - [ ] `TARGET-ARCHITECTURE.md` (§3.3 Configuration Cascade, §2.3 Static Assets)
-    - [ ] `LLD-CONFIG-SYSTEM.md` (§3 Configuration Cascade, §4 Data Structures, §5 Component Architecture)
-    - [ ] `LLD-SCHEMA-CONTRACTS.md` (§3 Core Schemas, §4 Asset Synchronization, §5 Versioning Strategy)
-    - [ ] `LLD-CORE-RUNTIME.md` (§3.2 Configuration Service, §3.3 Asset Resolver)
-  - [ ] Acceptance criteria
-    - [ ] Config loader reads env files and JSONC layers in the documented order, producing a validated runtime config object.
-    - [ ] Asset resolver returns defaults from `assets/sidekick/` when no overrides exist and correctly prefers project-local overrides when present.
-    - [ ] CLI commands can access config and assets through the runtime shell, with errors surfaced via clear validation messages.
-  - [ ] Testing
-    - [ ] Author tests upfront that cover env/JSONC precedence, invalid schema failures, and asset override resolution for both user and project scopes.
+- [x] **Phase 2: Configuration & Asset Resolution Foundations**
+  - [x] Objectives
+    - [x] Implement the configuration cascade (env + JSONC) with deep-merge semantics and validation.
+    - [x] Add asset resolver capable of reading defaults from `assets/sidekick/` and honoring override layers for user/project scopes.
+  - [x] Relevant documents/sections
+    - [x] `{project_root_dir}/TARGET-ARCHITECTURE.md` (§3.3 Configuration Cascade, §2.3 Static Assets)
+    - [x] `{project_root_dir}/LLD-CONFIG-SYSTEM.md` (§3 Configuration Cascade, §4 Data Structures, §5 Component Architecture)
+      - [x] §2 "Immutability": Config object should be frozen after loading
+    - [x] `{project_root_dir}/LLD-SCHEMA-CONTRACTS.md` (§3 Core Schemas, §4 Asset Synchronization, §5 Versioning Strategy)
+      - [x] §6.4 "Strictness": Use `z.strict()` by default to reject unknown config keys
+    - [x] `{project_root_dir}/LLD-CORE-RUNTIME.md` (§3.2 Configuration Service, §3.3 Asset Resolver)
+  - [x] Acceptance criteria
+    - [x] Config loader reads env files and JSONC layers in the documented order, producing a validated runtime config object.
+    - [x] Asset resolver returns defaults from `assets/sidekick/` when no overrides exist and correctly prefers project-local overrides when present.
+    - [x] CLI commands can access config and assets through the runtime shell, with errors surfaced via clear validation messages.
+    - [x] Config object is immutable after loading (per LLD-CONFIG-SYSTEM §2).
+    - [x] Zod schemas use strict mode to reject unknown keys (per LLD-SCHEMA-CONTRACTS §6.4).
+  - [x] Testing
+    - [x] Author tests upfront that cover env/JSONC precedence, invalid schema failures, and asset override resolution for both user and project scopes.
+  - [x] Code review follow-ups
+    - [x] Create stub `assets/sidekick/` directory structure (`prompts/`, `schemas/`, `templates/`) before Phase 6.
+    - [x] Fix redundant fallback logic in `getDefaultAssetsDir()` (both paths compute identically).
+    - [x] Use `os.tmpdir()` in tests instead of `process.cwd()` relative paths for robustness.
 
 - [ ] **Phase 3: Structured Logging & Telemetry**
   - [ ] Objectives
     - [ ] Add a two-phase logging pipeline (bootstrap console → Pino-based structured logger) with redaction and telemetry events.
     - [ ] Provide logger access through runtime so commands/features emit structured entries tied to scope and command context.
   - [ ] Relevant documents/sections
-    - [ ] `TARGET-ARCHITECTURE.md` (§1 Guiding Principles: Observability-First)
-    - [ ] `LLD-STRUCTURED-LOGGING.md` (§2 Architecture, §3 Log Schema, §4 Configuration & Routing)
-    - [ ] `LLD-CLI.md` (§8 Telemetry & Logging Bootstrap)
-    - [ ] `LLD-CORE-RUNTIME.md` (§3.1 Bootstrap stages, §5 Error Handling Strategy)
+    - [ ] `{project_root_dir}/TARGET-ARCHITECTURE.md` (§1 Guiding Principles: Observability-First)
+    - [ ] `{project_root_dir}/LLD-STRUCTURED-LOGGING.md` (§2 Architecture, §3 Log Schema, §4 Configuration & Routing)
+    - [ ] `{project_root_dir}/LLD-CLI.md` (§8 Telemetry & Logging Bootstrap)
+    - [ ] `{project_root_dir}/LLD-CORE-RUNTIME.md` (§3.1 Bootstrap stages, §5 Error Handling Strategy)
   - [ ] Acceptance criteria
     - [ ] Logs include standard fields (timestamp, scope, command, correlation IDs) and redact sensitive payload fields per design.
     - [ ] Telemetry counters/timers are emitted alongside logs for hook executions.
@@ -54,10 +62,10 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [ ] Build LLM provider interfaces and factory with retry/fallback logic, using shared provider adapters.
     - [ ] Flesh out core runtime services (feature registry wiring, LLM service) to support feature packages.
   - [ ] Relevant documents/sections
-    - [ ] `TARGET-ARCHITECTURE.md` (§3.5 LLM Providers & Telemetry)
-    - [ ] `LLD-LLM-PROVIDERS.md` (§2 Core Architecture, §3 Interfaces & Types, §5 Resilience & Reliability)
-    - [ ] `LLD-CORE-RUNTIME.md` (§3.4 Feature Registry, §3.5 LLM Service)
-    - [ ] `LLD-TEST-FIXTURES.md` (§3 Core Mocks for LLM, §5 Integration Test Harness)
+    - [ ] `{project_root_dir}/TARGET-ARCHITECTURE.md` (§3.5 LLM Providers & Telemetry)
+    - [ ] `{project_root_dir}/LLD-LLM-PROVIDERS.md` (§2 Core Architecture, §3 Interfaces & Types, §5 Resilience & Reliability)
+    - [ ] `{project_root_dir}/LLD-CORE-RUNTIME.md` (§3.4 Feature Registry, §3.5 LLM Service)
+    - [ ] `{project_root_dir}/LLD-TEST-FIXTURES.md` (§3 Core Mocks for LLM, §5 Integration Test Harness)
   - [ ] Acceptance criteria
     - [ ] Providers honor credential precedence and retry/fallback policies, returning structured errors on exhaustion.
     - [ ] Feature registry can register a sample feature that calls the LLM service and return deterministic mocked output in demo mode.
@@ -70,10 +78,10 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [ ] Implement the supervisor process with IPC socket, task engine, and single-writer state manager for shared files.
     - [ ] Connect CLI commands to supervisor lifecycle (start/stop/version handshake) and delegate background tasks (e.g., session summary updates).
   - [ ] Relevant documents/sections
-    - [ ] `TARGET-ARCHITECTURE.md` (§3.4 Background Supervisor)
-    - [ ] `LLD-SUPERVISOR.md` (§2 Process Architecture, §3 Communication Layer, §4 Subsystems)
-    - [ ] `LLD-CLI.md` (§4 Supervisor Interaction, §7 Supervisor Lifecycle Management)
-    - [ ] `LLD-TRANSCRIPT-PROCESSING.md` (§2 Components, §3.1 File Watching & Updates) for background transcript tasks
+    - [ ] `{project_root_dir}/TARGET-ARCHITECTURE.md` (§3.4 Background Supervisor)
+    - [ ] `{project_root_dir}/LLD-SUPERVISOR.md` (§2 Process Architecture, §3 Communication Layer, §4 Subsystems)
+    - [ ] `{project_root_dir}/LLD-CLI.md` (§4 Supervisor Interaction, §7 Supervisor Lifecycle Management)
+    - [ ] `{project_root_dir}/LLD-TRANSCRIPT-PROCESSING.md` (§2 Components, §3.1 File Watching & Updates) for background transcript tasks
   - [ ] Acceptance criteria
     - [ ] Supervisor starts, responds to version handshake, and serializes state updates to `.sidekick/state/*.json` atomically.
     - [ ] IPC layer enforces token security and handles timeouts/retries without orphaning tasks.
@@ -86,13 +94,13 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [ ] Implement feature packages (session summary, reminders, statusline, resume) using the shared runtime services and supervisor for heavy tasks.
     - [ ] Ensure transcript parsing/denoising feeds session-summary and resume flows, and statusline surfaces supervisor/LLM states.
   - [ ] Relevant documents/sections
-    - [ ] `TARGET-ARCHITECTURE.md` (§2.1 Package Structure, §3.5 LLM Providers & Telemetry)
-    - [ ] `LLD-FEATURE-SESSION-SUMMARY.md` (Scope, Responsibilities)
-    - [ ] `LLD-FEATURE-REMINDERS.md` (Scope, Responsibilities)
-    - [ ] `LLD-FEATURE-STATUSLINE.md` (Scope, Responsibilities)
-    - [ ] `LLD-FEATURE-RESUME.md` (Scope)
-    - [ ] `LLD-TRANSCRIPT-PROCESSING.md` (§2 Components, §4 Denoising Rules)
-    - [ ] `LLD-TEST-FIXTURES.md` (§4 Test Data Management for feature fixtures)
+    - [ ] `{project_root_dir}/TARGET-ARCHITECTURE.md` (§2.1 Package Structure, §3.5 LLM Providers & Telemetry)
+    - [ ] `{project_root_dir}/LLD-FEATURE-SESSION-SUMMARY.md` (Scope, Responsibilities)
+    - [ ] `{project_root_dir}/LLD-FEATURE-REMINDERS.md` (Scope, Responsibilities)
+    - [ ] `{project_root_dir}/LLD-FEATURE-STATUSLINE.md` (Scope, Responsibilities)
+    - [ ] `{project_root_dir}/LLD-FEATURE-RESUME.md` (Scope)
+    - [ ] `{project_root_dir}/LLD-TRANSCRIPT-PROCESSING.md` (§2 Components, §4 Denoising Rules)
+    - [ ] `{project_root_dir}/LLD-TEST-FIXTURES.md` (§4 Test Data Management for feature fixtures)
   - [ ] Acceptance criteria
     - [ ] Each feature exposes `registerHooks` entrypoints and functions end-to-end using runtime config, assets, logging, and provider services.
     - [ ] Session summary/resume flows produce deterministic outputs against recorded transcripts; reminders and statusline react to supervisor state.
@@ -105,9 +113,9 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [ ] Finalize installer scripts to bundle assets, generate bash wrappers, and support `npx` and global CLI usage with dual-scope detection warnings.
     - [ ] Harden migration utilities (legacy `.conf` → JSONC) and document workflows.
   - [ ] Relevant documents/sections
-    - [ ] `TARGET-ARCHITECTURE.md` (§4 Installation & Distribution)
-    - [ ] `LLD-CLI.md` (§3 Hook Wrapper Layer, §6 Scope Resolution, §9 Process Model for Hooks)
-    - [ ] `LLD-CONFIG-SYSTEM.md` (§6 Migration Strategy)
+    - [ ] `{project_root_dir}/TARGET-ARCHITECTURE.md` (§4 Installation & Distribution)
+    - [ ] `{project_root_dir}/LLD-CLI.md` (§3 Hook Wrapper Layer, §6 Scope Resolution, §9 Process Model for Hooks)
+    - [ ] `{project_root_dir}/LLD-CONFIG-SYSTEM.md` (§6 Migration Strategy)
   - [ ] Acceptance criteria
     - [ ] Installer produces working hook wrappers in both scopes, preferring project hooks when dual installs are detected.
     - [ ] Bundled assets match `assets/sidekick/` HEAD contents and are loaded correctly by runtime after install.
