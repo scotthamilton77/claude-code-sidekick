@@ -80,6 +80,14 @@ export async function runCli(options: RunCliOptions): Promise<{ exitCode: number
     scope: runtime.scope.scope,
     projectRoot: runtime.scope.projectRoot ?? null,
     hookScriptPath: runtime.scope.hookScriptPath ?? null,
+    config: {
+      logLevel: runtime.config.get('logLevel'),
+      llmProvider: runtime.config.get('llm').provider,
+      configSources: runtime.config.sources,
+    },
+    assets: {
+      cascadeLayers: runtime.assets.cascadeLayers,
+    },
   };
 
   if (parsed.hookMode) {
