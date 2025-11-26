@@ -454,10 +454,8 @@ pnpm test
 pnpm tsc --noEmit
 
 # Execute CLI directly
-pnpm --filter @sidekick/cli exec tsx src/bin.ts session-start --hook
+node packages/sidekick-cli/dist/bin.js session-start --hook
 ```
-
-See `packages/CHANGELOG.md` for detailed changes by phase.
 
 ## Development Patterns
 

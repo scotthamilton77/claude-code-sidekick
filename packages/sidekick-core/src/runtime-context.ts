@@ -4,11 +4,14 @@
  *
  * Central context object passed to all features during registration.
  * Contains initialized instances of core services.
+ *
+ * @see LLD-CLI.md §4 Supervisor Interaction
  */
 
 import type { ConfigService } from './config'
 import type { Logger, LLMProvider } from '@sidekick/types'
 import type { AssetResolver } from './assets'
+import type { IpcService } from './ipc-service'
 
 /**
  * Runtime paths resolved during bootstrap
@@ -47,6 +50,24 @@ export interface RuntimeContext {
   /** Resolved runtime paths */
   paths: RuntimePaths
 
-  // Future additions:
-  // supervisor: SupervisorClient
+  /**
+   * IPC service for supervisor communication.
+   *
+   * Provides connection pooling, auto-reconnection, and graceful degradation.
+   * May be undefined if no project context is available.
+   *
+   * @see LLD-CLI.md §4 Supervisor Interaction
+   *
+   * @example
+   * ```typescript
+   * // Send command to supervisor with graceful degradation
+   * const result = await ctx.ipc?.send('state.update', { file: 'summary.json', data: {...} });
+   *
+   * // Check if supervisor is available before expensive operations
+   * if (await ctx.ipc?.isAvailable()) {
+   *   await ctx.ipc.send('task.enqueue', { type: 'summary', payload: {...} });
+   * }
+   * ```
+   */
+  ipc?: IpcService
 }

@@ -3,6 +3,8 @@ import {
   getPidPath,
   getSocketPath,
   getTokenPath,
+  getUserPidPath,
+  getUserSupervisorsDir,
   IpcServer,
   loadConfig,
   Logger,
@@ -17,8 +19,9 @@ import { StateManager } from './state-manager.js'
 import { TaskEngine } from './task-engine.js'
 
 // Read version from package.json at startup
+// Path is relative to dist/ output location
 // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-const VERSION: string = require('../../package.json').version
+const VERSION: string = require('../package.json').version
 
 // Idle check interval (how often to check for idle timeout)
 const IDLE_CHECK_INTERVAL_MS = 30 * 1000 // Check every 30 seconds
@@ -217,10 +220,29 @@ export class Supervisor {
     return { version: VERSION, status: 'ok' }
   }
 
+  /**
+   * Write PID files to both project-level and user-level locations.
+   *
+   * Project-level: .sidekick/supervisor.pid (simple PID number)
+   * User-level: ~/.sidekick/supervisors/{hash}.pid (JSON with project path and PID)
+   *
+   * @see LLD-CLI.md §7 Supervisor Lifecycle Management
+   */
   private async writePid(): Promise<void> {
+    // Project-level PID file (simple PID for backward compatibility)
     const pidPath = getPidPath(this.projectDir)
     await fs.mkdir(path.dirname(pidPath), { recursive: true })
     await fs.writeFile(pidPath, process.pid.toString(), 'utf-8')
+
+    // User-level PID file for --kill-all discovery
+    const userPidPath = getUserPidPath(this.projectDir)
+    await fs.mkdir(getUserSupervisorsDir(), { recursive: true })
+    const userPidData = JSON.stringify({
+      pid: process.pid,
+      projectDir: this.projectDir,
+      startedAt: new Date().toISOString(),
+    })
+    await fs.writeFile(userPidPath, userPidData, 'utf-8')
   }
 
   private async writeToken(): Promise<void> {
@@ -230,13 +252,26 @@ export class Supervisor {
     await fs.writeFile(tokenPath, this.token, { mode: 0o600, encoding: 'utf-8' })
   }
 
+  /**
+   * Clean up all supervisor files on shutdown.
+   * Removes project-level PID, token, and user-level PID files.
+   *
+   * @see LLD-CLI.md §7 Supervisor Lifecycle Management
+   */
   private async cleanup(): Promise<void> {
-    try {
-      await fs.unlink(getPidPath(this.projectDir))
-      await fs.unlink(getTokenPath(this.projectDir))
+    const filesToRemove = [
+      getPidPath(this.projectDir),
+      getTokenPath(this.projectDir),
+      getUserPidPath(this.projectDir), // User-level PID for --kill-all discovery
       // Socket is cleaned up by IpcServer
-    } catch {
-      // Files may not exist
+    ]
+
+    for (const file of filesToRemove) {
+      try {
+        await fs.unlink(file)
+      } catch {
+        // File may not exist
+      }
     }
   }
 

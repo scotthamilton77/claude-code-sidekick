@@ -236,23 +236,23 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
       - [x] Debounced change detection (100ms)
       - [x] Integrated into Supervisor lifecycle (start/stop)
 
-  - [ ] **5.5 CLI Integration (LLD-CLI §4, §7)**
-    - [x] Supervisor lifecycle commands - BASIC IMPLEMENTATION COMPLETE
+  - [x] **5.5 CLI Integration (LLD-CLI §4, §7)** - COMPLETE
+    - [x] Supervisor lifecycle commands
       - [x] `supervisor start` - starts supervisor process
       - [x] `supervisor stop` - stops supervisor gracefully
       - [x] `supervisor status` - shows supervisor status with ping
-      - [ ] Implement `--kill` switch (kill project-local supervisor)
-      - [ ] Implement `--kill-all` switch (kill all supervisors)
-      - [ ] User-level PID tracking: `~/.sidekick/supervisors/{session_id}.pid`
-    - [ ] IPC client helper for commands
-      - [x] `SupervisorClient` facade with start/stop/getStatus methods
-      - [ ] `ctx.ipc.send(method, payload)` abstraction
-      - [ ] Connection pooling/reuse
-      - [ ] Automatic reconnect on transient failures
-    - [ ] Graceful degradation
-      - [ ] CLI fallback when supervisor unavailable
-      - [ ] Log warnings and proceed with degraded sync paths
-      - [ ] Don't crash if supervisor socket doesn't exist/respond
+      - [x] `supervisor kill` - forcefully kill project-local supervisor (SIGKILL)
+      - [x] `supervisor kill-all` - kill all supervisors across projects
+      - [x] User-level PID tracking: `~/.sidekick/supervisors/{hash}.pid` (JSON with pid, projectDir, startedAt)
+    - [x] IPC client helper for commands
+      - [x] `SupervisorClient` facade with start/stop/getStatus/kill methods
+      - [x] `IpcService` with `send(method, payload)` abstraction (added to RuntimeContext as `ctx.ipc`)
+      - [x] Connection pooling/reuse (IpcService maintains connection across calls)
+      - [x] Automatic reconnect on transient failures (via IpcClient.callWithRetry)
+    - [x] Graceful degradation
+      - [x] `IpcService.send()` returns null when supervisor unavailable (configurable)
+      - [x] Warnings logged via structured logging
+      - [x] `isAvailable()` method for features to check before expensive operations
 
   - [ ] **5.6 Error Handling (LLD-SUPERVISOR §5)**
     - [ ] Uncaught exception handling

@@ -8,7 +8,15 @@ export * from './feature-types'
 export * from './ipc/client'
 export * from './ipc/protocol'
 export { IpcServer } from './ipc/server'
-export { getPidPath, getSocketPath, getTokenPath } from './ipc/transport'
+export { IpcService, type IpcServiceOptions } from './ipc-service'
+export {
+  getPidPath,
+  getProjectHash,
+  getSocketPath,
+  getTokenPath,
+  getUserPidPath,
+  getUserSupervisorsDir,
+} from './ipc/transport'
 
 export { createConsoleLogger, type Logger as ConsoleLogger, type LoggerOptions as ConsoleLoggerOptions } from './logger'
 export * from './runtime-context'
@@ -25,7 +33,7 @@ export {
   type UpgradeOptions,
 } from './structured-logging'
 
-export { SupervisorClient } from './supervisor-client'
+export { killAllSupervisors, SupervisorClient, type KillResult, type UserPidInfo } from './supervisor-client'
 
 // Note: LLMService should be imported directly from '@sidekick/shared-providers'
 // to avoid circular dependencies between packages
