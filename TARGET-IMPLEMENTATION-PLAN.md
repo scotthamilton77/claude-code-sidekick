@@ -2,7 +2,7 @@
 
 This plan sequences the Node/TypeScript rewrite into phases that each end with working, demoable software. Every phase lists objectives, relevant design documents/sections, acceptance criteria, and a reminder that tests are authored at the start to cover the criteria.
 
-- [ ] **Phase 1: Bootstrap CLI & Runtime Skeleton**
+- [x] **Phase 1: Bootstrap CLI & Runtime Skeleton**
   - [x] Objectives
     - [x] Deliver a minimal Node-based CLI that can be invoked via bash hook wrappers and echoes simple outputs for at least one hook (e.g., `session-start`).
     - [x] Implement scope detection and bootstrap sequence sufficient to locate project vs. user installs and initialize a lightweight runtime shell.
@@ -14,9 +14,9 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [x] Running the installed hook wrapper calls the Node CLI, which logs clearly whether it detected user or project scope.
     - [x] CLI supports a demo `session-start` command that returns a structured placeholder response without errors.
     - [x] Startup logs show the parsed hook context and do not crash when optional supervisor endpoints are absent.
-    - [ ] All new and modified files are documented in the project's CHANGELOG or documentation with header comments describing purpose and any breaking changes.
+    - [x] All new and modified files are documented in the project's CHANGELOG or documentation with header comments describing purpose and any breaking changes.
 
-- [ ] **Phase 2: Configuration & Asset Resolution Foundations**
+- [x] **Phase 2: Configuration & Asset Resolution Foundations**
   - [x] Objectives
     - [x] Implement the configuration cascade (env + JSONC) with deep-merge semantics and validation.
     - [x] Add asset resolver capable of reading defaults from `assets/sidekick/` and honoring override layers for user/project scopes.
@@ -33,7 +33,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [x] CLI commands can access config and assets through the runtime shell, with errors surfaced via clear validation messages.
     - [x] Config object is immutable after loading (per LLD-CONFIG-SYSTEM §2).
     - [x] Zod schemas use strict mode to reject unknown keys (per LLD-SCHEMA-CONTRACTS §6.4).
-    - [ ] All new and modified files are documented in the project's CHANGELOG or documentation with header comments describing purpose and any breaking changes.
+    - [x] All new and modified files are documented in the project's CHANGELOG or documentation with header comments describing purpose and any breaking changes.
   - [x] Testing
     - [x] Author tests upfront that cover env/JSONC precedence, invalid schema failures, and asset override resolution for both user and project scopes.
   - [x] Code review follow-ups
@@ -72,13 +72,13 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [ ] `{project_root_dir}/LLD-LLM-PROVIDERS.md` (§2 Core Architecture, §3 Interfaces & Types, §5 Resilience & Reliability)
     - [ ] `{project_root_dir}/LLD-CORE-RUNTIME.md` (§3.4 Feature Registry, §3.5 LLM Service)
     - [ ] `{project_root_dir}/LLD-TEST-FIXTURES.md` (§3 Core Mocks for LLM, §5 Integration Test Harness)
+  - [ ] Testing
+    - [ ] Create tests first that cover provider selection, retry/fallback flows, credential precedence, and feature registry interactions using mocks.
   - [ ] Acceptance criteria
     - [ ] Providers honor credential precedence and retry/fallback policies, returning structured errors on exhaustion.
     - [ ] Feature registry can register a sample feature that calls the LLM service and return deterministic mocked output in demo mode.
     - [ ] All new and modified files are documented in the project's CHANGELOG or documentation with header comments describing purpose and any breaking changes.
     - [ ] CLI commands can invoke the LLM service through the registry without tight coupling to provider implementations.
-  - [ ] Testing
-    - [ ] Create tests first that cover provider selection, retry/fallback flows, credential precedence, and feature registry interactions using mocks.
 
 - [ ] **Phase 5: Supervisor & Background Tasks**
   - [ ] Objectives
@@ -89,13 +89,13 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [ ] `{project_root_dir}/LLD-SUPERVISOR.md` (§2 Process Architecture, §3 Communication Layer, §4 Subsystems)
     - [ ] `{project_root_dir}/LLD-CLI.md` (§4 Supervisor Interaction, §7 Supervisor Lifecycle Management)
     - [ ] `{project_root_dir}/LLD-TRANSCRIPT-PROCESSING.md` (§2 Components, §3.1 File Watching & Updates) for background transcript tasks
+  - [ ] Testing
+    - [ ] Draft tests at phase start that exercise supervisor start/stop, version mismatches, IPC token validation, and single-writer guarantees during concurrent task submissions.
   - [ ] Acceptance criteria
     - [ ] Supervisor starts, responds to version handshake, and serializes state updates to `.sidekick/state/*.json` atomically.
     - [ ] IPC layer enforces token security and handles timeouts/retries without orphaning tasks.
     - [ ] CLI gracefully falls back when supervisor is unavailable, logging warnings and proceeding with degraded sync paths.
     - [ ] All new and modified files are documented in the project's CHANGELOG or documentation with header comments describing purpose and any breaking changes.
-  - [ ] Testing
-    - [ ] Draft tests at phase start that exercise supervisor start/stop, version mismatches, IPC token validation, and single-writer guarantees during concurrent task submissions.
 
 - [ ] **Phase 6: Feature Enablement & Integration**
   - [ ] Objectives
@@ -109,13 +109,13 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [ ] `{project_root_dir}/LLD-FEATURE-RESUME.md` (Scope)
     - [ ] `{project_root_dir}/LLD-TRANSCRIPT-PROCESSING.md` (§2 Components, §4 Denoising Rules)
     - [ ] `{project_root_dir}/LLD-TEST-FIXTURES.md` (§4 Test Data Management for feature fixtures)
+  - [ ] Testing
+    - [ ] Start with tests covering feature registration, transcript parsing/denoising, end-to-end flows against fixtures, and dual-scope behavior across hooks.
   - [ ] Acceptance criteria
     - [ ] Each feature exposes `registerHooks` entrypoints and functions end-to-end using runtime config, assets, logging, and provider services.
     - [ ] Session summary/resume flows produce deterministic outputs against recorded transcripts; reminders and statusline react to supervisor state.
     - [ ] Dual-scope parity verified: features behave identically when invoked from user and project hook installs.
     - [ ] All new and modified files are documented in the project's CHANGELOG or documentation with header comments describing purpose and any breaking changes.
-  - [ ] Testing
-    - [ ] Start with tests covering feature registration, transcript parsing/denoising, end-to-end flows against fixtures, and dual-scope behavior across hooks.
 
 - [ ] **Phase 7: Installation & Distribution Hardening**
   - [ ] Objectives
@@ -125,10 +125,10 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [ ] `{project_root_dir}/TARGET-ARCHITECTURE.md` (§4 Installation & Distribution)
     - [ ] `{project_root_dir}/LLD-CLI.md` (§3 Hook Wrapper Layer, §6 Scope Resolution, §9 Process Model for Hooks)
     - [ ] `{project_root_dir}/LLD-CONFIG-SYSTEM.md` (§6 Migration Strategy)
+  - [ ] Testing
+    - [ ] Begin by writing installer integration tests that execute install/uninstall in isolated temp directories, verify hook invocation, asset presence, and migration outputs.
   - [ ] Acceptance criteria
     - [ ] Installer produces working hook wrappers in both scopes, preferring project hooks when dual installs are detected.
     - [ ] Bundled assets match `assets/sidekick/` HEAD contents and are loaded correctly by runtime after install.
     - [ ] Migration tool converts legacy configs with clear reporting and preserves overrides.
     - [ ] All new and modified files are documented in the project's CHANGELOG or documentation with header comments describing purpose and any breaking changes.
-  - [ ] Testing
-    - [ ] Begin by writing installer integration tests that execute install/uninstall in isolated temp directories, verify hook invocation, asset presence, and migration outputs.

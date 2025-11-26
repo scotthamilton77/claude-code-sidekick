@@ -1,3 +1,26 @@
+/**
+ * Configuration Service Module
+ *
+ * Implements Phase 2 of the Sidekick Node runtime per LLD-CONFIG-SYSTEM.md.
+ *
+ * Provides a multi-layer configuration cascade with:
+ * - Environment variables (SIDEKICK_* prefixed)
+ * - .env file loading (~/.sidekick/.env, project .env, .sidekick/.env)
+ * - User JSONC config (~/.sidekick/config.jsonc)
+ * - Project JSONC config (.sidekick/config.jsonc)
+ * - Project-local JSONC config (.sidekick/config.jsonc.local)
+ *
+ * Key features per LLD requirements:
+ * - Deep-merge semantics for nested objects
+ * - Zod schema validation with strict mode (rejects unknown keys per §6.4)
+ * - Config immutability after loading (Object.freeze per §2)
+ * - Sensible defaults applied via Zod transforms
+ *
+ * @see LLD-CONFIG-SYSTEM.md
+ * @see LLD-SCHEMA-CONTRACTS.md §6.4 (strict mode)
+ * @see TARGET-ARCHITECTURE.md §3.3 Configuration Cascade
+ */
+
 import { config as loadDotenv } from 'dotenv'
 import { parse as parseJsonc } from 'jsonc-parser'
 import { existsSync, readFileSync } from 'node:fs'

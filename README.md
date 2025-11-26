@@ -399,6 +399,53 @@ mv ~/.sidekick/reminders/tools-per-turn-reminder.txt.template ~/.sidekick/remind
 
 The first existing file in the cascade wins. Use `.sidekick/` for persistent overrides that survive install/uninstall.
 
+## Node Runtime Migration (In Progress)
+
+The Sidekick system is being migrated from Bash to Node/TypeScript for improved testability and maintainability. The migration is tracked in `TARGET-IMPLEMENTATION-PLAN.md`.
+
+### Current Status
+
+| Phase | Description | Status |
+|-------|-------------|--------|
+| Phase 1 | Bootstrap CLI & Runtime Skeleton | Complete |
+| Phase 2 | Configuration & Asset Resolution | Complete |
+| Phase 3 | Structured Logging & Telemetry | Complete |
+| Phase 4 | Core Services & Providers | Pending |
+| Phase 5 | Supervisor & Background Tasks | Pending |
+| Phase 6 | Feature Enablement & Integration | Pending |
+| Phase 7 | Installation & Distribution | Pending |
+
+### Package Structure
+
+```
+packages/
+├── sidekick-cli/     # CLI entrypoint and runtime bootstrap
+└── sidekick-core/    # Core services (config, assets, logging, scope)
+
+assets/sidekick/      # Shared prompts, schemas, templates
+├── prompts/
+├── schemas/
+└── templates/
+```
+
+### Running the Node CLI (Development)
+
+```bash
+# Install dependencies
+pnpm install
+
+# Run tests
+pnpm test
+
+# Type check
+pnpm tsc --noEmit
+
+# Execute CLI directly
+pnpm --filter @sidekick/cli exec tsx src/bin.ts session-start --hook
+```
+
+See `packages/CHANGELOG.md` for detailed changes by phase.
+
 ## Development Patterns
 
 ### Dual-Scope Compatibility

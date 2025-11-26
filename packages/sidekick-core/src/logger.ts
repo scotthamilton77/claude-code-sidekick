@@ -1,3 +1,16 @@
+/**
+ * Simple Console Logger (Phase 1 Bootstrap Logger)
+ *
+ * Provides a minimal console logger for early bootstrap before the full
+ * Pino-based structured logging system initializes.
+ *
+ * @deprecated Superseded by structured-logging.ts in Phase 3. This module
+ * remains for backward compatibility but new code should use createLogManager()
+ * or createLoggerFacade() from structured-logging.ts instead.
+ *
+ * @see structured-logging.ts for the production logging system
+ */
+
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
 
 const levelOrder: Record<LogLevel, number> = {

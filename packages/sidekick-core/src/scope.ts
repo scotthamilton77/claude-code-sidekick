@@ -1,3 +1,21 @@
+/**
+ * Scope Resolution Module
+ *
+ * Implements Phase 1 of the Sidekick Node runtime per LLD-CLI.md §6 and
+ * TARGET-ARCHITECTURE.md §3.2.
+ *
+ * Determines whether the CLI is running in 'project' or 'user' scope based on:
+ * - Explicit override via --scope flag
+ * - Hook script path location (user vs project .claude/hooks/sidekick/)
+ * - Working directory traversal to find nearest sidekick install
+ *
+ * Also detects dual-install scenarios (both user and project hooks present)
+ * to allow the CLI to defer to project scope and prevent duplicate execution.
+ *
+ * @see LLD-CLI.md §6 Scope Resolution
+ * @see TARGET-ARCHITECTURE.md §3.2 Bootstrap Flow
+ */
+
 import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import { homedir } from 'node:os'
 import path from 'node:path'
