@@ -14,6 +14,7 @@
     "format": "prettier --write \"src/**/*.ts\""
   },
   "dependencies": {
+    "@sidekick/types": "workspace:*",
     "@sidekick/core": "workspace:*"
   },
   "devDependencies": {

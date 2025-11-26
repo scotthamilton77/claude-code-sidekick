@@ -22,8 +22,8 @@
  * ```
  */
 
-// Core interfaces
-export type { Message, LLMRequest, LLMResponse, LLMProvider } from './interface'
+// Core interfaces (re-exported from @sidekick/types)
+export type { Message, LLMRequest, LLMResponse, LLMProvider } from '@sidekick/types'
 
 // Error types
 export { ProviderError, RateLimitError, AuthError, TimeoutError } from './errors'

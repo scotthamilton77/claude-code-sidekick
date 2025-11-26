@@ -1,8 +1,10 @@
 /**
  * LLM Provider Interface Definitions
  *
- * Unified type-safe interface for interacting with various LLM providers.
- * All providers implement the LLMProvider interface for consistent interaction.
+ * Core types for LLM interaction across the Sidekick runtime.
+ * These interfaces are implemented by shared-providers package.
+ *
+ * @see shared-providers for concrete provider implementations (OpenAI, Claude CLI, etc.)
  */
 
 export interface Message {
@@ -32,6 +34,10 @@ export interface LLMResponse {
   }
 }
 
+/**
+ * Core LLM provider interface - all providers must implement this.
+ * Used by RuntimeContext for dependency injection of LLM capabilities.
+ */
 export interface LLMProvider {
   id: string
   complete(request: LLMRequest): Promise<LLMResponse>

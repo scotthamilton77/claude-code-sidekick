@@ -13,7 +13,7 @@
  * ```
  */
 
-import type { Logger } from '@sidekick/core'
+import type { Logger } from '@sidekick/types'
 
 export interface LogRecord {
   level: 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal'

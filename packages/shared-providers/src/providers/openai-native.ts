@@ -7,8 +7,7 @@
  */
 
 import OpenAI from 'openai'
-import type { Logger } from '@sidekick/core'
-import type { LLMRequest, LLMResponse } from '../interface'
+import type { Logger, LLMRequest, LLMResponse } from '@sidekick/types'
 import { AbstractProvider } from './base'
 import { AuthError, RateLimitError, TimeoutError, ProviderError } from '../errors'
 

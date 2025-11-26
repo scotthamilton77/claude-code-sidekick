@@ -63,7 +63,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [x] RuntimeShell now exposes `logger`, `telemetry`, `correlationId`, and `cleanup()`
     - [x] Logs written to `.sidekick/logs/sidekick.log` (scope-dependent path)
 
-- [ ] **Phase 4: Core Services & Providers**
+- [x] **Phase 4: Core Services & Providers**
   - [x] Objectives
     - [x] Build LLM provider interfaces and factory with retry/fallback logic, using shared provider adapters.
     - [x] Flesh out core runtime services (feature registry wiring, LLM service) to support feature packages.
@@ -99,15 +99,20 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [x] Code complexity is kept low using stated architecture principles and guidelines.  (See `TARGET-ARCHITECTURE.md` Guiding Principles).
     - [x] Providers honor credential precedence and retry/fallback policies, returning structured errors on exhaustion.
     - [x] All new and modified files are documented in the project's CHANGELOG or documentation with header comments describing purpose and any breaking changes.
-  - [ ] Final integration task
-    - [ ] Create integration test demonstrating end-to-end feature → LLM flow
-    - [ ] Acceptance criteria for integration test:
-      - [ ] Sample feature registered via FeatureRegistry calls LLMService.complete()
-      - [ ] MockLLMService returns deterministic canned response
-      - [ ] Telemetry events emitted for LLM request (duration, success)
-      - [ ] Test runs without real API calls (fully mocked)
-      - [ ] Test demonstrates RuntimeContext wiring (config → provider → service → feature)
-    - [ ] CLI commands can invoke the LLM service through the registry without tight coupling to provider implementations.
+  - [x] Final integration task
+    - [x] Create integration test demonstrating end-to-end feature → LLM flow
+    - [x] Acceptance criteria for integration test:
+      - [x] Sample feature registered via FeatureRegistry calls LLMService.complete()
+      - [x] MockLLMService returns deterministic canned response
+      - [x] Telemetry events emitted for LLM request (duration, success)
+      - [x] Test runs without real API calls (fully mocked)
+      - [x] Test demonstrates RuntimeContext wiring (config → provider → service → feature)
+    - [x] CLI commands can invoke the LLM service through the registry without tight coupling to provider implementations.
+  - [x] Architecture improvement: Created `@sidekick/types` package
+    - [x] Zero-dependency package containing shared interfaces (Logger, Telemetry, LLMProvider, etc.)
+    - [x] Resolves circular dependency between sidekick-core and shared-providers
+    - [x] Both packages now import types from @sidekick/types and re-export for convenience
+    - [x] Clean unidirectional dependency graph: types → core → shared-providers → consumers
 
 - [ ] **Phase 5: Supervisor & Background Tasks**
   - [ ] Objectives

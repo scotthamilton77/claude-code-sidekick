@@ -7,6 +7,7 @@ const rootDir = dirname(fileURLToPath(import.meta.url))
 export default defineConfig({
   resolve: {
     alias: {
+      '@sidekick/types': resolve(rootDir, '../types/src'),
       '@sidekick/core': resolve(rootDir, '../sidekick-core/src'),
     },
   },

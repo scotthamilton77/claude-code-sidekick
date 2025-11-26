@@ -6,8 +6,7 @@
  * automatic observability integration.
  */
 
-import type { Logger } from '@sidekick/core'
-import type { LLMProvider, LLMRequest, LLMResponse } from '../interface'
+import type { Logger, LLMProvider, LLMRequest, LLMResponse } from '@sidekick/types'
 
 export abstract class AbstractProvider implements LLMProvider {
   abstract readonly id: string
