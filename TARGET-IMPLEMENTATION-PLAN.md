@@ -2,7 +2,7 @@
 
 This plan sequences the Node/TypeScript rewrite into phases that each end with working, demoable software. Every phase lists objectives, relevant design documents/sections, acceptance criteria, and a reminder that tests are authored at the start to cover the criteria.
 
-- [x] **Phase 1: Bootstrap CLI & Runtime Skeleton**
+- [ ] **Phase 1: Bootstrap CLI & Runtime Skeleton**
   - [x] Objectives
     - [x] Deliver a minimal Node-based CLI that can be invoked via bash hook wrappers and echoes simple outputs for at least one hook (e.g., `session-start`).
     - [x] Implement scope detection and bootstrap sequence sufficient to locate project vs. user installs and initialize a lightweight runtime shell.
@@ -14,10 +14,9 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [x] Running the installed hook wrapper calls the Node CLI, which logs clearly whether it detected user or project scope.
     - [x] CLI supports a demo `session-start` command that returns a structured placeholder response without errors.
     - [x] Startup logs show the parsed hook context and do not crash when optional supervisor endpoints are absent.
-  - [x] Testing
-    - [x] Write unit/integration tests at the start of the phase that simulate invoking the hook wrapper, assert scope detection results, and validate the demo command response.
+    - [ ] All new and modified files are documented in the project's CHANGELOG or documentation with header comments describing purpose and any breaking changes.
 
-- [x] **Phase 2: Configuration & Asset Resolution Foundations**
+- [ ] **Phase 2: Configuration & Asset Resolution Foundations**
   - [x] Objectives
     - [x] Implement the configuration cascade (env + JSONC) with deep-merge semantics and validation.
     - [x] Add asset resolver capable of reading defaults from `assets/sidekick/` and honoring override layers for user/project scopes.
@@ -34,6 +33,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [x] CLI commands can access config and assets through the runtime shell, with errors surfaced via clear validation messages.
     - [x] Config object is immutable after loading (per LLD-CONFIG-SYSTEM §2).
     - [x] Zod schemas use strict mode to reject unknown keys (per LLD-SCHEMA-CONTRACTS §6.4).
+    - [ ] All new and modified files are documented in the project's CHANGELOG or documentation with header comments describing purpose and any breaking changes.
   - [x] Testing
     - [x] Author tests upfront that cover env/JSONC precedence, invalid schema failures, and asset override resolution for both user and project scopes.
   - [x] Code review follow-ups
@@ -54,6 +54,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [x] Logs include standard fields (timestamp, scope, command, correlation IDs) and redact sensitive payload fields per design.
     - [x] Telemetry counters/timers are emitted alongside logs for hook executions.
     - [x] Fallback to the bootstrap console logger occurs gracefully if Pino initialization fails, without dropping log lines.
+    - [x] All new and modified files are documented in the project's CHANGELOG or documentation with header comments describing purpose and any breaking changes.
   - [x] Testing
     - [x] Begin the phase by writing tests that assert log shape/content, redaction behavior, and telemetry emission under success and failure paths.
   - [x] Implementation notes
@@ -74,6 +75,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
   - [ ] Acceptance criteria
     - [ ] Providers honor credential precedence and retry/fallback policies, returning structured errors on exhaustion.
     - [ ] Feature registry can register a sample feature that calls the LLM service and return deterministic mocked output in demo mode.
+    - [ ] All new and modified files are documented in the project's CHANGELOG or documentation with header comments describing purpose and any breaking changes.
     - [ ] CLI commands can invoke the LLM service through the registry without tight coupling to provider implementations.
   - [ ] Testing
     - [ ] Create tests first that cover provider selection, retry/fallback flows, credential precedence, and feature registry interactions using mocks.
@@ -91,6 +93,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [ ] Supervisor starts, responds to version handshake, and serializes state updates to `.sidekick/state/*.json` atomically.
     - [ ] IPC layer enforces token security and handles timeouts/retries without orphaning tasks.
     - [ ] CLI gracefully falls back when supervisor is unavailable, logging warnings and proceeding with degraded sync paths.
+    - [ ] All new and modified files are documented in the project's CHANGELOG or documentation with header comments describing purpose and any breaking changes.
   - [ ] Testing
     - [ ] Draft tests at phase start that exercise supervisor start/stop, version mismatches, IPC token validation, and single-writer guarantees during concurrent task submissions.
 
@@ -110,6 +113,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [ ] Each feature exposes `registerHooks` entrypoints and functions end-to-end using runtime config, assets, logging, and provider services.
     - [ ] Session summary/resume flows produce deterministic outputs against recorded transcripts; reminders and statusline react to supervisor state.
     - [ ] Dual-scope parity verified: features behave identically when invoked from user and project hook installs.
+    - [ ] All new and modified files are documented in the project's CHANGELOG or documentation with header comments describing purpose and any breaking changes.
   - [ ] Testing
     - [ ] Start with tests covering feature registration, transcript parsing/denoising, end-to-end flows against fixtures, and dual-scope behavior across hooks.
 
@@ -125,5 +129,6 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [ ] Installer produces working hook wrappers in both scopes, preferring project hooks when dual installs are detected.
     - [ ] Bundled assets match `assets/sidekick/` HEAD contents and are loaded correctly by runtime after install.
     - [ ] Migration tool converts legacy configs with clear reporting and preserves overrides.
+    - [ ] All new and modified files are documented in the project's CHANGELOG or documentation with header comments describing purpose and any breaking changes.
   - [ ] Testing
     - [ ] Begin by writing installer integration tests that execute install/uninstall in isolated temp directories, verify hook invocation, asset presence, and migration outputs.
