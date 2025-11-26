@@ -80,6 +80,61 @@ describe('SupervisorClient', () => {
       expect(path1).toContain('.pid')
     })
   })
+
+  describe('stopAndWait()', () => {
+    it('should return true when supervisor stops within timeout', async () => {
+      const client = new SupervisorClient(tmpProjectDir, logger)
+
+      // Mock isRunning to return true once, then false (simulating supervisor stopped)
+      let callCount = 0
+      vi.spyOn(client as unknown as { isRunning: () => Promise<boolean> }, 'isRunning').mockImplementation(() => {
+        callCount++
+        return Promise.resolve(callCount <= 1) // First call true, subsequent false
+      })
+
+      // Mock stop to do nothing (we're testing the polling, not stop itself)
+      vi.spyOn(client, 'stop').mockResolvedValue()
+
+      const result = await client.stopAndWait(5000)
+
+      expect(result).toBe(true)
+      expect(client.stop).toHaveBeenCalledOnce()
+    })
+
+    it('should return false when timeout is reached', async () => {
+      const client = new SupervisorClient(tmpProjectDir, logger)
+
+      // Mock isRunning to always return true (supervisor never stops)
+      vi.spyOn(client as unknown as { isRunning: () => Promise<boolean> }, 'isRunning').mockResolvedValue(true)
+
+      // Mock stop to do nothing
+      vi.spyOn(client, 'stop').mockResolvedValue()
+
+      // Use short timeout for test speed
+      const result = await client.stopAndWait(1500)
+
+      expect(result).toBe(false)
+      expect(client.stop).toHaveBeenCalledOnce()
+    })
+
+    it('should return true immediately if supervisor already stopped', async () => {
+      const client = new SupervisorClient(tmpProjectDir, logger)
+
+      // Mock isRunning to return false immediately
+      vi.spyOn(client as unknown as { isRunning: () => Promise<boolean> }, 'isRunning').mockResolvedValue(false)
+
+      // Mock stop to do nothing
+      vi.spyOn(client, 'stop').mockResolvedValue()
+
+      const start = Date.now()
+      const result = await client.stopAndWait(5000)
+      const elapsed = Date.now() - start
+
+      expect(result).toBe(true)
+      // Should complete quickly (within 1.5s - one poll interval + buffer)
+      expect(elapsed).toBeLessThan(1500)
+    })
+  })
 })
 
 describe('killAllSupervisors', () => {

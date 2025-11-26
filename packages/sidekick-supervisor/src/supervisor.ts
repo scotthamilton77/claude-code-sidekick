@@ -193,7 +193,10 @@ export class Supervisor {
       case 'handshake':
         return this.handleHandshake(p)
       case 'shutdown':
-        return this.stop()
+        // Return ack immediately, then self-terminate after response is sent
+        // This prevents deadlock where client waits for response while server.close() waits for client
+        setImmediate(() => void this.stop())
+        return { status: 'stopping' }
       case 'state.update':
         return this.stateManager.update(
           p?.file as string,

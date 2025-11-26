@@ -96,6 +96,11 @@ export class SupervisorClient {
     await this.waitForStartup()
   }
 
+  /**
+   * Request supervisor shutdown (fire-and-forget).
+   * Sends shutdown request, receives ack, closes connection immediately.
+   * Supervisor self-terminates asynchronously after ack.
+   */
   async stop(): Promise<void> {
     if (!(await this.isRunning())) {
       return
@@ -108,12 +113,38 @@ export class SupervisorClient {
       // Handshake
       await this.ipcClient.call('handshake', { token: this.token })
 
-      // Shutdown (requires token)
+      // Shutdown - supervisor returns ack immediately, then self-terminates
       await this.ipcClient.call('shutdown', { token: this.token })
+
+      // Close connection immediately after ack (don't wait for supervisor to terminate)
+      this.ipcClient.close()
     } catch (err) {
       this.logger.warn('Failed to stop supervisor gracefully, killing...', { error: err })
       await this.killForcefully()
     }
+  }
+
+  /**
+   * Request supervisor shutdown and wait for it to stop.
+   * Polls isRunning() every 1 second until supervisor stops or timeout.
+   *
+   * @param timeoutMs - Maximum time to wait (default: 30000ms)
+   * @returns true if supervisor stopped, false if timeout reached
+   */
+  async stopAndWait(timeoutMs = 30000): Promise<boolean> {
+    await this.stop()
+
+    const pollIntervalMs = 1000
+    const start = Date.now()
+
+    while (Date.now() - start < timeoutMs) {
+      await new Promise((resolve) => setTimeout(resolve, pollIntervalMs))
+      if (!(await this.isRunning())) {
+        return true
+      }
+    }
+
+    return false
   }
 
   async getStatus(): Promise<{ status: string; ping?: unknown; error?: unknown }> {

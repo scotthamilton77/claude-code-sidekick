@@ -191,7 +191,37 @@ When **both** user-scope and project-scope installations exist, hooks could fire
 
 Supervisor process should self-terminate after a configurable idle timeout (default: 5 minutes). Configure via `supervisor.idleTimeoutMs` in config; set to `0` to disable.
 
-The CLI should also include a --kill switch which finds and kills the supervisor that is project-local (to where the CLI was executed), or, if --kill-all is issued, should kill all supervisor processes.  This implies we need a ~/.sidekick/supervisors/{session_id}.pid file for each supervisor process.
+### 7.1 CLI Commands
+
+| Command | Behavior |
+|---------|----------|
+| `supervisor start` | Start project-local supervisor (or no-op if already running with matching version) |
+| `supervisor stop` | Fire-and-forget: send shutdown request, receive ack, return immediately (~100ms) |
+| `supervisor stop --wait` | Send shutdown, then poll every 1s until stopped or 30s timeout |
+| `supervisor status` | Check if running and ping for responsiveness |
+| `supervisor kill` | SIGKILL project-local supervisor (no graceful shutdown) |
+| `supervisor kill-all` | SIGKILL all supervisors across all projects |
+
+**Stop Protocol**: The `stop` command uses an ack-then-terminate protocol to avoid deadlock:
+1. Client sends `shutdown` IPC request
+2. Supervisor returns `{ status: 'stopping' }` immediately
+3. Client closes connection and returns
+4. Supervisor self-terminates via `setImmediate()` after response is sent
+
+This prevents the previous deadlock where `server.close()` waited for client to disconnect while client waited for response.
+
+**Stop --wait Timeout**: If supervisor doesn't stop within 30s, CLI warns and advises using `kill`:
+```
+Warning: Supervisor did not stop within timeout
+Use "sidekick supervisor kill" to forcefully terminate
+```
+Exit code is 1 on timeout.
+
+### 7.2 PID File Management
+
+The CLI includes `--kill` and `--kill-all` switches. This requires tracking supervisors at user level:
+- Project-level: `<project>/.sidekick/supervisor.pid` (simple PID number)
+- User-level: `~/.sidekick/supervisors/{hash}.pid` (JSON with PID, project path, start time)
 
 When a supervisor process ends, it should clean up its own PID files (project- and user-level).
 
