@@ -24,8 +24,7 @@
 
 import { ProviderFactory } from './factory.js'
 import type { ProviderConfig, ProviderType } from './factory.js'
-import type { LLMProvider, LLMRequest, LLMResponse } from './interface.js'
-import type { Logger, Telemetry } from '@sidekick/core'
+import type { LLMProvider, LLMRequest, LLMResponse, Logger, Telemetry } from '@sidekick/types'
 
 /**
  * LLM Service configuration

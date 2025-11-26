@@ -5,8 +5,7 @@
  * and configuration based on runtime config.
  */
 
-import type { Logger } from '@sidekick/core'
-import type { LLMProvider } from './interface'
+import type { Logger, LLMProvider } from '@sidekick/types'
 import { OpenAINativeProvider, type OpenAINativeConfig } from './providers/openai-native'
 import { AnthropicCliProvider, type AnthropicCliConfig } from './providers/anthropic-cli'
 import { ProviderError } from './errors'

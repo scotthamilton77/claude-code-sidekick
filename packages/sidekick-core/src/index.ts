@@ -1,6 +1,10 @@
+// Re-export shared types from @sidekick/types for consumer convenience
+export type { Logger, Telemetry, LogLevel, Message, LLMRequest, LLMResponse, LLMProvider } from '@sidekick/types'
+
 export * from './assets.js'
 export * from './config.js'
 export * from './feature-registry.js'
+export * from './feature-types.js'
 export * from './ipc/client.js'
 export * from './ipc/protocol.js'
 export * from './ipc/server.js'
@@ -15,5 +19,5 @@ export * from './scope.js'
 export * from './structured-logging.js'
 export * from './supervisor-client.js'
 
-// Re-export LLMService from shared-providers for convenience
-export { LLMService, type LLMServiceConfig } from '@sidekick/shared-providers'
+// Note: LLMService should be imported directly from '@sidekick/shared-providers'
+// to avoid circular dependencies between packages

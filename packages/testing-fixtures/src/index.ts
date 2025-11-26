@@ -15,6 +15,9 @@ export type { LLMRequest, LLMResponse } from './mocks/MockLLMService'
 export { MockLogger } from './mocks/MockLogger'
 export type { LogRecord } from './mocks/MockLogger'
 
+export { MockTelemetry } from './mocks/MockTelemetry'
+export type { CounterRecord, GaugeRecord, HistogramRecord } from './mocks/MockTelemetry'
+
 export { MockConfigService } from './mocks/MockConfigService'
 
 export { MockAssetResolver } from './mocks/MockAssetResolver'

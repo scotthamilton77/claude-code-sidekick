@@ -7,8 +7,7 @@
  */
 
 import { spawn } from 'node:child_process'
-import type { Logger } from '@sidekick/core'
-import type { LLMRequest, LLMResponse } from '../interface'
+import type { Logger, LLMRequest, LLMResponse } from '@sidekick/types'
 import { AbstractProvider } from './base'
 import { AuthError, TimeoutError, ProviderError } from '../errors'
 

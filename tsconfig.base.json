@@ -10,7 +10,10 @@
     "forceConsistentCasingInFileNames": true,
     "baseUrl": "./",
     "paths": {
-      "@sidekick/core": ["packages/sidekick-core/src"]
+      "@sidekick/types": ["packages/types/dist"],
+      "@sidekick/core": ["packages/sidekick-core/dist"],
+      "@sidekick/shared-providers": ["packages/shared-providers/dist"],
+      "@sidekick/testing-fixtures": ["packages/testing-fixtures/dist"]
     }
   }
 }

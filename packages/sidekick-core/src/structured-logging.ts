@@ -41,6 +41,10 @@ import { Writable } from 'node:stream'
 // Types & Constants
 // =============================================================================
 
+// Re-export core types from @sidekick/types for backward compatibility
+export type { Logger, Telemetry, LogLevel } from '@sidekick/types'
+import type { Logger, Telemetry, LogLevel } from '@sidekick/types'
+
 export const LOG_LEVELS = {
   trace: 10,
   debug: 20,
@@ -50,8 +54,6 @@ export const LOG_LEVELS = {
   fatal: 60,
 } as const
 
-export type LogLevel = keyof typeof LOG_LEVELS
-
 export interface LogContext {
   scope?: 'user' | 'project'
   correlationId?: string
@@ -60,29 +62,12 @@ export interface LogContext {
   command?: string
 }
 
-export interface Logger {
-  trace(msg: string, meta?: Record<string, unknown>): void
-  debug(msg: string, meta?: Record<string, unknown>): void
-  info(msg: string, meta?: Record<string, unknown>): void
-  warn(msg: string, meta?: Record<string, unknown>): void
-  error(msg: string, meta?: Record<string, unknown>): void
-  fatal(msg: string, meta?: Record<string, unknown>): void
-  child(bindings: Record<string, unknown>): Logger
-  flush(): Promise<void>
-}
-
 export interface TelemetryMetric {
   name: string
   type: 'counter' | 'gauge' | 'histogram'
   value: number
   unit?: string
   tags?: Record<string, string>
-}
-
-export interface Telemetry {
-  increment(name: string, tags?: Record<string, string>): void
-  gauge(name: string, value: number, tags?: Record<string, string>): void
-  histogram(name: string, value: number, unit: string, tags?: Record<string, string>): void
 }
 
 export interface LogManagerOptions {

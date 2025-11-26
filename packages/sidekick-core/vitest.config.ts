@@ -8,7 +8,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@sidekick/types': resolve(rootDir, '../types/src'),
-      '@sidekick/core': resolve(rootDir, '../sidekick-core/src'),
+      '@sidekick/shared-providers': resolve(rootDir, '../shared-providers/src'),
+      '@sidekick/testing-fixtures': resolve(rootDir, '../testing-fixtures/src'),
     },
   },
   test: {

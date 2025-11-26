@@ -15,11 +15,12 @@
     "format": "prettier --write \"src/**/*.ts\""
   },
   "dependencies": {
-    "@sidekick/core": "workspace:*",
+    "@sidekick/types": "workspace:*",
     "openai": "^4.77.3",
     "zod": "^4.1.13"
   },
   "devDependencies": {
+    "@sidekick/core": "workspace:*",
     "@types/node": "^22.7.4",
     "typescript": "^5.6.3",
     "vitest": "^2.1.1"

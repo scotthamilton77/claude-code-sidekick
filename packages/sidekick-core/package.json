@@ -21,6 +21,7 @@
     "vitest": "^2.1.1"
   },
   "dependencies": {
+    "@sidekick/types": "workspace:*",
     "dotenv": "^17.2.3",
     "jsonc-parser": "^3.3.1",
     "pino": "^10.1.0",

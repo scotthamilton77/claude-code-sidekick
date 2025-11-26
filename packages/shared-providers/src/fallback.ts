@@ -6,8 +6,7 @@
  * original error if all providers fail.
  */
 
-import type { Logger } from '@sidekick/core'
-import type { LLMProvider, LLMRequest, LLMResponse } from './interface'
+import type { Logger, LLMProvider, LLMRequest, LLMResponse } from '@sidekick/types'
 
 export class FallbackProvider implements LLMProvider {
   readonly id = 'fallback-wrapper'

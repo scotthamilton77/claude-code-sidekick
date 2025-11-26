@@ -7,9 +7,8 @@
  */
 
 import type { ConfigService } from './config'
-import type { Logger } from './structured-logging'
+import type { Logger, LLMProvider } from '@sidekick/types'
 import type { AssetResolver } from './assets'
-import type { LLMService } from '@sidekick/shared-providers'
 
 /**
  * Runtime paths resolved during bootstrap
@@ -42,8 +41,8 @@ export interface RuntimeContext {
   /** Asset resolver (prompts, schemas, templates) */
   assets: AssetResolver
 
-  /** LLM service with telemetry integration */
-  llm: LLMService
+  /** LLM provider (typically LLMService with telemetry integration) */
+  llm: LLMProvider
 
   /** Resolved runtime paths */
   paths: RuntimePaths

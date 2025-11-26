@@ -1,0 +1,16 @@
+{
+  "name": "@sidekick/types",
+  "version": "0.0.0",
+  "description": "Shared type definitions for the Sidekick runtime - zero dependencies",
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}
