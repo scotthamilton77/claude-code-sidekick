@@ -5,7 +5,8 @@
  *
  * Commands:
  * - start: Start the project-local supervisor
- * - stop: Gracefully stop the supervisor via IPC
+ * - stop: Gracefully stop the supervisor via IPC (fire-and-forget)
+ * - stop --wait: Stop and poll until supervisor terminates or timeout
  * - status: Check supervisor status and ping
  * - kill: Forcefully kill project-local supervisor (SIGKILL)
  * - kill-all: Kill all supervisors across all projects
@@ -14,12 +15,21 @@
  */
 import { killAllSupervisors, Logger, SupervisorClient } from '@sidekick/core'
 
+export interface SupervisorCommandOptions {
+  wait?: boolean
+}
+
+export interface SupervisorCommandResult {
+  exitCode: number
+}
+
 export async function handleSupervisorCommand(
   subcommand: string,
   projectDir: string,
   logger: Logger,
-  stdout: NodeJS.WritableStream
-): Promise<void> {
+  stdout: NodeJS.WritableStream,
+  options: SupervisorCommandOptions = {}
+): Promise<SupervisorCommandResult> {
   const client = new SupervisorClient(projectDir, logger)
 
   switch (subcommand) {
@@ -29,8 +39,19 @@ export async function handleSupervisorCommand(
       break
 
     case 'stop':
-      await client.stop()
-      stdout.write('Supervisor stopped\n')
+      if (options.wait) {
+        const stopped = await client.stopAndWait()
+        if (stopped) {
+          stdout.write('Supervisor stopped\n')
+        } else {
+          stdout.write('Warning: Supervisor did not stop within timeout\n')
+          stdout.write('Use "sidekick supervisor kill" to forcefully terminate\n')
+          return { exitCode: 1 }
+        }
+      } else {
+        await client.stop()
+        stdout.write('Supervisor stopping\n')
+      }
       break
 
     case 'status': {
@@ -69,7 +90,9 @@ export async function handleSupervisorCommand(
 
     default:
       stdout.write(`Unknown supervisor subcommand: ${subcommand}\n`)
-      stdout.write('Available commands: start, stop, status, kill, kill-all\n')
-      process.exit(1)
+      stdout.write('Available commands: start, stop [--wait], status, kill, kill-all\n')
+      return { exitCode: 1 }
   }
+
+  return { exitCode: 0 }
 }

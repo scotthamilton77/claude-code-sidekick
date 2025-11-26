@@ -27,6 +27,7 @@ interface ParsedArgs {
   projectDir?: string
   scopeOverride?: 'user' | 'project'
   logLevel?: 'debug' | 'info' | 'warn' | 'error'
+  wait?: boolean
   _?: (string | number)[]
 }
 
@@ -47,7 +48,7 @@ interface RunCliOptions {
  */
 function parseArgs(argv: string[]): ParsedArgs {
   const parsed = yargsParser(argv, {
-    boolean: ['hook'],
+    boolean: ['hook', 'wait'],
     string: ['hook-script-path', 'project-dir', 'scope', 'log-level'],
     configuration: {
       'camel-case-expansion': false,
@@ -63,6 +64,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     projectDir: parsed['project-dir'] as string | undefined,
     scopeOverride: parsed.scope as 'user' | 'project' | undefined,
     logLevel: (parsed['log-level'] as ParsedArgs['logLevel']) ?? 'info',
+    wait: Boolean(parsed.wait),
     _: parsed._,
   }
 }
@@ -118,8 +120,14 @@ export async function runCli(options: RunCliOptions): Promise<{ exitCode: number
     const subcommand = (parsed._ && (parsed._[1] as string)) || 'status'
     // Dynamic import to avoid circular deps if any, or just keep it simple
     const { handleSupervisorCommand } = await import('./commands/supervisor.js')
-    await handleSupervisorCommand(subcommand, runtime.scope.projectRoot || process.cwd(), runtime.logger, stdout)
-    return { exitCode: 0, stdout: '', stderr: '' }
+    const result = await handleSupervisorCommand(
+      subcommand,
+      runtime.scope.projectRoot || process.cwd(),
+      runtime.logger,
+      stdout,
+      { wait: parsed.wait }
+    )
+    return { exitCode: result.exitCode, stdout: '', stderr: '' }
   }
 
   if (parsed.hookMode) {
