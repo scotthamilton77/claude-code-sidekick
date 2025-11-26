@@ -1,3 +1,24 @@
+/**
+ * Asset Resolver Module
+ *
+ * Implements Phase 2 of the Sidekick Node runtime per LLD-CORE-RUNTIME.md §3.3.
+ *
+ * Provides a cascading asset resolver that searches for prompts, schemas, and
+ * templates across multiple locations in priority order (highest wins):
+ *
+ * 1. assets/sidekick/ (defaults, lowest priority)
+ * 2. ~/.claude/hooks/sidekick/assets/ (user-installed, ephemeral)
+ * 3. ~/.sidekick/assets/ (user-persistent)
+ * 4. .claude/hooks/sidekick/assets/ (project-installed, ephemeral)
+ * 5. .sidekick/assets/ (project-persistent)
+ * 6. .sidekick/assets.local/ (project-local, highest priority)
+ *
+ * Supports text, JSON, and JSONC asset formats with proper error handling.
+ *
+ * @see LLD-CORE-RUNTIME.md §3.3 Asset Resolver
+ * @see TARGET-ARCHITECTURE.md §2.3 Static Assets
+ */
+
 import { parse as parseJsonc } from 'jsonc-parser'
 import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'

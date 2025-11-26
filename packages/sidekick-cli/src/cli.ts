@@ -1,3 +1,20 @@
+/**
+ * CLI Entrypoint Module
+ *
+ * Implements the Sidekick Node CLI per LLD-CLI.md §3 Hook Wrapper Layer.
+ *
+ * Parses command-line arguments, bootstraps the runtime shell, and executes
+ * hook commands. Designed for testability with injectable I/O streams.
+ *
+ * Supports:
+ * - Hook mode (--hook): Outputs structured JSON for Claude Code integration
+ * - Interactive mode: Human-readable output for debugging
+ * - Scope detection with dual-install awareness
+ *
+ * @see LLD-CLI.md §3 Hook Wrapper Layer
+ * @see LLD-CLI.md §9 Process Model for Hooks
+ */
+
 import { PassThrough, Writable } from 'node:stream'
 import yargsParser from 'yargs-parser'
 

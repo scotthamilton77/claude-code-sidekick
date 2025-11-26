@@ -1,3 +1,28 @@
+/**
+ * Runtime Shell Bootstrap Module
+ *
+ * Implements the Sidekick runtime bootstrap sequence per LLD-CLI.md §3.4 and
+ * LLD-CORE-RUNTIME.md §3.1.
+ *
+ * Orchestrates the multi-phase startup:
+ * 1. Create bootstrap logger facade for early error capture
+ * 2. Resolve execution scope (project vs user)
+ * 3. Load cascaded configuration with validation
+ * 4. Upgrade to structured Pino logger with file transport
+ * 5. Initialize asset resolver
+ * 6. Set up global error handlers
+ *
+ * Returns a RuntimeShell providing access to all core services:
+ * - logger: Structured Pino-based logging
+ * - telemetry: Metrics emission (counters, gauges, histograms)
+ * - config: Validated configuration service
+ * - assets: Cascading asset resolver
+ * - cleanup: Teardown function for graceful shutdown
+ *
+ * @see LLD-CLI.md §3.4 Bootstrap Sequence
+ * @see LLD-CORE-RUNTIME.md §3.1 Bootstrap & Lifecycle
+ */
+
 import type { AssetResolver, ConfigService, LogContext, Logger, Telemetry } from '@sidekick/core'
 import {
   createAssetResolver,
