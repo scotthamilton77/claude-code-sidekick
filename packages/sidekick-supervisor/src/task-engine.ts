@@ -11,13 +11,22 @@ export interface Task {
 
 export type TaskHandler = (payload: Record<string, unknown>, logger: Logger) => Promise<void>
 
+/**
+ * Simple priority task queue with bounded concurrency.
+ *
+ * Thread-safety: This class relies on Node.js's single-threaded event loop model.
+ * All state mutations (queue operations, counter increments) occur in synchronous
+ * code blocks. Async task handlers schedule microtasks that execute sequentially,
+ * never concurrently. This class is NOT safe for Worker Threads with shared memory.
+ */
 export class TaskEngine {
   private queue: Task[] = []
   private handlers = new Map<string, TaskHandler>()
   private running = 0
   private readonly maxConcurrency: number
   private logger: Logger
-  private isProcessing = false
+  private isShuttingDown = false
+  private shutdownResolve: (() => void) | null = null
 
   constructor(logger: Logger, maxConcurrency = 2) {
     this.logger = logger
@@ -29,6 +38,10 @@ export class TaskEngine {
   }
 
   enqueue(type: string, payload: Record<string, unknown>, priority = 0): string {
+    if (this.isShuttingDown) {
+      throw new Error('TaskEngine is shutting down, cannot enqueue new tasks')
+    }
+
     const id = crypto.randomUUID()
     const task: Task = {
       id,
@@ -53,22 +66,18 @@ export class TaskEngine {
   }
 
   private process(): void {
-    if (this.isProcessing) return
-    this.isProcessing = true
+    while (this.running < this.maxConcurrency && this.queue.length > 0) {
+      const task = this.queue.shift()
+      if (!task) break
 
-    try {
-      while (this.running < this.maxConcurrency && this.queue.length > 0) {
-        const task = this.queue.shift()
-        if (!task) break
-
-        this.running++
-        void this.runTask(task).finally(() => {
-          this.running--
+      this.running++
+      void this.runTask(task).finally(() => {
+        this.running--
+        this.checkShutdownComplete()
+        if (!this.isShuttingDown) {
           void this.process()
-        })
-      }
-    } finally {
-      this.isProcessing = false
+        }
+      })
     }
   }
 
@@ -99,9 +108,39 @@ export class TaskEngine {
     }
   }
 
-  shutdown(): void {
-    if (this.running > 0) {
-      this.logger.warn('Shutting down with running tasks', { count: this.running })
+  /**
+   * Gracefully shutdown the task engine.
+   * Prevents new enqueues, clears pending queue, waits for running tasks to complete.
+   */
+  async shutdown(): Promise<void> {
+    if (this.isShuttingDown) {
+      return // Already shutting down
+    }
+
+    this.isShuttingDown = true
+    const pendingCount = this.queue.length
+    this.queue = [] // Clear pending tasks
+
+    this.logger.info('TaskEngine shutting down', {
+      pendingDropped: pendingCount,
+      runningTasks: this.running,
+    })
+
+    if (this.running === 0) {
+      return
+    }
+
+    // Wait for running tasks to complete
+    return new Promise((resolve) => {
+      this.shutdownResolve = resolve
+    })
+  }
+
+  private checkShutdownComplete(): void {
+    if (this.isShuttingDown && this.running === 0 && this.shutdownResolve) {
+      this.logger.info('TaskEngine shutdown complete')
+      this.shutdownResolve()
+      this.shutdownResolve = null
     }
   }
 }

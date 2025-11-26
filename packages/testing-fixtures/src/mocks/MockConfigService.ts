@@ -3,6 +3,7 @@
  *
  * Provides a simple in-memory configuration service for testing.
  * Allows setting arbitrary config values without file I/O.
+ * Implements ConfigService interface for type compatibility.
  *
  * @example
  * ```typescript
@@ -12,32 +13,40 @@
  * ```
  */
 
-import type { SidekickConfig } from '@sidekick/core'
+import type { ConfigService, SidekickConfig } from '@sidekick/core'
 
-export class MockConfigService {
-  private config: Partial<SidekickConfig> = {}
+/** Recursively make all properties optional */
+type DeepPartial<T> = {
+  [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P]
+}
+
+export class MockConfigService implements ConfigService {
+  private config: DeepPartial<SidekickConfig> = {}
+  /** Config sources (empty for mock) */
+  readonly sources: string[] = []
 
   /**
    * Set configuration (deep merges with existing).
    */
-  set(newConfig: Partial<SidekickConfig>): void {
-    this.config = this.deepMerge(this.config, newConfig)
+  set(newConfig: DeepPartial<SidekickConfig>): void {
+    this.config = this.deepMerge(this.config, newConfig) as DeepPartial<SidekickConfig>
   }
 
-  private deepMerge<T extends Record<string, unknown>>(target: T, source: Partial<T>): T {
-    const result = { ...target }
+  private deepMerge(target: unknown, source: unknown): unknown {
+    if (!this.isPlainObject(target) || !this.isPlainObject(source)) {
+      return source !== undefined ? source : target
+    }
 
-    for (const key of Object.keys(source) as Array<keyof T>) {
+    const result: Record<string, unknown> = { ...target }
+
+    for (const key of Object.keys(source)) {
       const sourceValue = source[key]
       const targetValue = result[key]
 
       if (this.isPlainObject(sourceValue) && this.isPlainObject(targetValue)) {
-        result[key] = this.deepMerge(
-          targetValue as Record<string, unknown>,
-          sourceValue as Record<string, unknown>
-        ) as T[keyof T]
-      } else {
-        result[key] = sourceValue as T[keyof T]
+        result[key] = this.deepMerge(targetValue, sourceValue)
+      } else if (sourceValue !== undefined) {
+        result[key] = sourceValue
       }
     }
 
@@ -49,13 +58,16 @@ export class MockConfigService {
   }
 
   /**
-   * Get configuration value by dot-path or return entire config.
+   * Get configuration value by key (ConfigService interface).
    */
-  get<T = unknown>(path?: string): T {
-    if (!path) {
-      return this.config as T
-    }
+  get<K extends keyof SidekickConfig>(key: K): SidekickConfig[K] {
+    return this.config[key] as SidekickConfig[K]
+  }
 
+  /**
+   * Get configuration value by dot-path (extended API for tests).
+   */
+  getPath<T = unknown>(path: string): T {
     const keys = path.split('.')
     let value: unknown = this.config
 
@@ -78,9 +90,10 @@ export class MockConfigService {
   }
 
   /**
-   * Get entire config object.
+   * Get entire config object (ConfigService interface).
+   * Note: Returns partial config cast to full type for test compatibility.
    */
-  getAll(): Partial<SidekickConfig> {
-    return this.config
+  getAll(): SidekickConfig {
+    return this.config as SidekickConfig
   }
 }

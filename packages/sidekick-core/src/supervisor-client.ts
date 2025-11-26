@@ -22,6 +22,7 @@ export class SupervisorClient {
   private projectDir: string
   private logger: Logger
   private ipcClient: IpcClient
+  private token: string | null = null
 
   constructor(projectDir: string, logger: Logger) {
     this.projectDir = projectDir
@@ -69,14 +70,13 @@ export class SupervisorClient {
 
     try {
       await this.ipcClient.connect()
-      // Read token
-      const token = await this.readToken()
+      this.token = await this.readToken()
 
       // Handshake
-      await this.ipcClient.call('handshake', { token })
+      await this.ipcClient.call('handshake', { token: this.token })
 
-      // Shutdown
-      await this.ipcClient.call('shutdown')
+      // Shutdown (requires token)
+      await this.ipcClient.call('shutdown', { token: this.token })
     } catch (err) {
       this.logger.warn('Failed to stop supervisor gracefully, killing...', { error: err })
       await this.killForcefully()
@@ -91,9 +91,9 @@ export class SupervisorClient {
 
     try {
       await this.ipcClient.connect()
-      const token = await this.readToken()
-      await this.ipcClient.call('handshake', { token })
-      const pong = await this.ipcClient.call('ping')
+      this.token = await this.readToken()
+      await this.ipcClient.call('handshake', { token: this.token })
+      const pong = await this.ipcClient.call('ping', { token: this.token })
       this.ipcClient.close()
       return { status: 'running', ping: pong }
     } catch (err) {

@@ -14,6 +14,11 @@
 
 import type { SidekickConfig } from '@sidekick/core'
 
+/** Recursively make all properties optional */
+type DeepPartial<T> = {
+  [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P]
+}
+
 const DEFAULT_CONFIG: SidekickConfig = {
   llm: {
     provider: 'openrouter',
@@ -74,27 +79,29 @@ const DEFAULT_CONFIG: SidekickConfig = {
 /**
  * Create a test configuration with defaults merged with overrides.
  */
-export function createTestConfig(overrides?: Partial<SidekickConfig>): SidekickConfig {
-  return deepMerge(DEFAULT_CONFIG, overrides ?? {})
+export function createTestConfig(overrides?: DeepPartial<SidekickConfig>): SidekickConfig {
+  return deepMerge(DEFAULT_CONFIG, overrides ?? {}) as SidekickConfig
 }
 
 /**
  * Deep merge helper for nested objects.
+ * Uses unknown internally to handle DeepPartial inputs.
  */
-function deepMerge<T extends Record<string, unknown>>(target: T, source: Partial<T>): T {
-  const result = { ...target }
+function deepMerge(target: unknown, source: unknown): unknown {
+  if (!isPlainObject(target) || !isPlainObject(source)) {
+    return source !== undefined ? source : target
+  }
 
-  for (const key of Object.keys(source) as Array<keyof T>) {
+  const result: Record<string, unknown> = { ...target }
+
+  for (const key of Object.keys(source)) {
     const sourceValue = source[key]
     const targetValue = result[key]
 
     if (isPlainObject(sourceValue) && isPlainObject(targetValue)) {
-      result[key] = deepMerge(
-        targetValue as Record<string, unknown>,
-        sourceValue as Record<string, unknown>
-      ) as T[keyof T]
-    } else {
-      result[key] = sourceValue as T[keyof T]
+      result[key] = deepMerge(targetValue, sourceValue)
+    } else if (sourceValue !== undefined) {
+      result[key] = sourceValue
     }
   }
 

@@ -142,25 +142,27 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
       - [x] Remove async from synchronous methods (client.close(), task-engine.process())
       - [x] Fix empty catch blocks with explanatory comments
 
-  - [ ] **5.1.1 Technical Debt Remediation** (remaining from code review)
-    - [ ] IPC Authentication Bug (CRITICAL)
-      - [ ] `SupervisorClient.getStatus()` calls `ping` without token after handshake
-      - [ ] Either implement session-based auth (authenticated socket stays authenticated)
-      - [ ] Or ensure all client calls include token in params
-    - [ ] Type safety improvements
-      - [ ] Replace `z.any()` with `z.unknown()` in `protocol.ts` Zod schemas
-    - [ ] Code quality (deferred)
-      - [ ] Read version from `package.json` instead of hardcoded `"0.0.1"` in supervisor.ts
-      - [ ] Resolve FIXME comments in protocol.ts ("should be UUID?") and client.ts
-      - [ ] Remove stale doc comments in ipc/server.ts (copy-paste artifacts)
-      - [ ] require() usage acceptable in CommonJS mode (ESM migration is architectural change)
-    - [ ] Test improvements
-      - [ ] Use `os.tmpdir()` in ipc.test.ts and state-manager.test.ts instead of source dir
-      - [ ] Make priority test deterministic (add pause mechanism or blocking handlers)
-    - [ ] Supervisor initialization
-      - [ ] Create `.sidekick/` directory before writing PID/token files
-    - [ ] Task engine shutdown
-      - [ ] Implement proper `shutdown()` that prevents new enqueues, drains queue, waits for running tasks
+  - [x] **5.1.1 Technical Debt Remediation** (remaining from code review) - FULLY COMPLETE
+    - [x] IPC Authentication Bug (CRITICAL) - FIXED
+      - [x] `SupervisorClient.getStatus()` now passes token on `ping` call after handshake
+      - [x] `SupervisorClient.stop()` now passes token on `shutdown` call
+      - [x] Client stores token after `readToken()` and passes on all authenticated calls
+    - [x] Type safety improvements
+      - [x] Replace `z.any()` with `z.unknown()` in `protocol.ts` Zod schemas (params, result, error.data)
+    - [x] Code quality
+      - [x] Read version from `package.json` instead of hardcoded `"0.0.1"` in supervisor.ts
+      - [x] Resolve FIXME comments in protocol.ts - updated with JSON-RPC 2.0 spec clarification
+      - [x] Remove stale doc comments in ipc/server.ts (copy-paste artifacts)
+      - [x] require() usage acceptable in CommonJS mode (ESM migration is architectural change)
+    - [x] Test improvements
+      - [x] Use `os.tmpdir()` with `mkdtemp()` in ipc.test.ts and state-manager.test.ts
+      - [x] Make priority test deterministic using deferred promises and maxConcurrency=1
+      - [x] Added shutdown tests (reject enqueue, wait for running tasks)
+    - [x] Supervisor initialization
+      - [x] Create `.sidekick/` directory before writing PID/token files (fs.mkdir with recursive)
+    - [x] Task engine shutdown - PROPERLY IMPLEMENTED
+      - [x] `shutdown()` now async, prevents new enqueues, clears queue, waits for running tasks
+      - [x] Added `isShuttingDown` flag and `shutdownResolve` for graceful completion
 
   - [ ] **5.2 Supervisor Process (LLD-SUPERVISOR §2)**
     - [x] Filesystem layout (`.sidekick/`) - BASIC IMPLEMENTATION COMPLETE
@@ -169,7 +171,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
       - [x] `supervisor.token` - Crypto-random auth token (0600 permissions)
       - [x] `logs/supervisor.log` - Dedicated structured JSON logs via Pino
       - [x] `state/*.json` - State files managed atomically
-      - [ ] Create `.sidekick/` directory on startup (see 5.1.1)
+      - [x] Create `.sidekick/` directory on startup (implemented in 5.1.1)
     - [x] Startup sequence - BASIC IMPLEMENTATION COMPLETE
       - [x] CLI checks liveness via `supervisor.pid` + `kill -0`
       - [x] Spawn detached process: `spawn(..., { detached: true, stdio: 'ignore' }).unref()`

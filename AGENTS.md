@@ -78,7 +78,7 @@ test-data/
 
 ```bash
 # CORRECT: Always use pnpm from repo root
-pnpm build                    # Build all packages
+pnpm build                    # Build all packages (excludes tests)
 pnpm -F @sidekick/core build  # Build specific package
 
 # CORRECT: If using tsc directly, always specify project
@@ -88,6 +88,18 @@ pnpm tsc -p packages/sidekick-core/tsconfig.json
 tsc                           # ❌ Pollutes source directories
 cd packages/foo && tsc        # ❌ Same problem
 ```
+
+**Typecheck including tests**: Build tsconfig excludes `**/*.test.ts` (tests shouldn't be in `dist/`). To catch type errors in tests, run:
+```bash
+pnpm typecheck                # Uses tsconfig.lint.json which includes tests
+```
+⚠️ **Always run both `pnpm build` AND `pnpm typecheck`** before claiming completion. Build alone won't catch test file type errors.
+
+**Lint (zero-warning policy)**: Warnings are treated as errors. A clean codebase means zero warnings, always:
+```bash
+pnpm lint                     # Must produce no output (no errors, no warnings)
+```
+⚠️ **Fix all warnings immediately** - don't leave them for later. If eslint reports anything, fix it before moving on.
 
 **If artifacts appear in src/**: Delete with `find packages/*/src \( -name "*.js" -o -name "*.d.ts" -o -name "*.d.ts.map" \) -delete`
 

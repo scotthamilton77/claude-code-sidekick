@@ -1,4 +1,5 @@
 import fs from 'fs/promises'
+import os from 'os'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createConsoleLogger } from '../../logger.js'
@@ -6,12 +7,13 @@ import { IpcClient } from '../client.js'
 import { IpcServer } from '../server.js'
 
 const logger = createConsoleLogger({ minimumLevel: 'error' })
-const tmpDir = path.join(__dirname, 'tmp')
-const socketPath = path.join(tmpDir, 'test.sock')
+let tmpDir: string
+let socketPath: string
 
 describe('IPC', () => {
   beforeEach(async () => {
-    await fs.mkdir(tmpDir, { recursive: true })
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sidekick-ipc-test-'))
+    socketPath = path.join(tmpDir, 'test.sock')
   })
 
   afterEach(async () => {

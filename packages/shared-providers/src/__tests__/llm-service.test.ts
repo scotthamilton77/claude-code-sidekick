@@ -10,8 +10,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { LLMService } from '../llm-service.js'
-import type { Logger, Telemetry } from '@sidekick/core'
-import type { LLMResponse } from '../interface.js'
+import type { Logger, Telemetry, LLMResponse } from '@sidekick/types'
 import { ProviderFactory } from '../factory.js'
 
 // Mock ProviderFactory.create() to return our mock provider
