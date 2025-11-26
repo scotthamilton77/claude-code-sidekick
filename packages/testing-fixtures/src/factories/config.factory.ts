@@ -74,6 +74,10 @@ const DEFAULT_CONFIG: SidekickConfig = {
     ageDays: 2,
     dryRun: false,
   },
+  supervisor: {
+    idleTimeoutMs: 5 * 60 * 1000, // 5 minutes
+    shutdownTimeoutMs: 30 * 1000, // 30 seconds
+  },
 }
 
 /**

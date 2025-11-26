@@ -41,7 +41,7 @@ All supervisor-related files live in `<project-root>/.sidekick/`:
 2.  **Signal**: Supervisor catches `SIGTERM`/`SIGINT`.
 3.  **Cleanup**:
     *   Stop accepting new tasks.
-    *   Wait for in-flight tasks to complete (max 30s).
+    *   Wait for in-flight tasks to complete (configurable via `supervisor.shutdownTimeoutMs`, default 30s).
     *   Remove `.pid`, `.sock`, `.token`.
     *   Exit.
 

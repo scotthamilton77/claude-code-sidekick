@@ -122,6 +122,11 @@ const CLEANUP_DEFAULTS = {
   dryRun: false,
 } as const
 
+const SUPERVISOR_DEFAULTS = {
+  idleTimeoutMs: 5 * 60 * 1000, // 5 minutes
+  shutdownTimeoutMs: 30 * 1000, // 30 seconds
+} as const
+
 // Per LLD-SCHEMA-CONTRACTS §6.4: Use .strict() to reject unknown config keys
 const FeaturesSchema = z
   .object({
@@ -205,6 +210,14 @@ const CleanupConfigSchema = z
   .strict()
   .transform((val) => ({ ...CLEANUP_DEFAULTS, ...val }))
 
+const SupervisorConfigSchema = z
+  .object({
+    idleTimeoutMs: z.number().min(0).optional(), // 0 = disabled
+    shutdownTimeoutMs: z.number().min(1000).optional(), // min 1 second
+  })
+  .strict()
+  .transform((val) => ({ ...SUPERVISOR_DEFAULTS, ...val }))
+
 export const SidekickConfigSchema = z
   .object({
     logLevel: LogLevelSchema.optional(),
@@ -215,6 +228,7 @@ export const SidekickConfigSchema = z
     sessionSummary: SessionSummaryConfigSchema.optional(),
     reminder: ReminderConfigSchema.optional(),
     cleanup: CleanupConfigSchema.optional(),
+    supervisor: SupervisorConfigSchema.optional(),
   })
   .strict()
   .transform((val) => ({
@@ -226,6 +240,7 @@ export const SidekickConfigSchema = z
     sessionSummary: val.sessionSummary ?? SESSION_SUMMARY_DEFAULTS,
     reminder: val.reminder ?? REMINDER_DEFAULTS,
     cleanup: val.cleanup ?? CLEANUP_DEFAULTS,
+    supervisor: val.supervisor ?? SUPERVISOR_DEFAULTS,
   }))
 
 export type SidekickConfig = z.infer<typeof SidekickConfigSchema>

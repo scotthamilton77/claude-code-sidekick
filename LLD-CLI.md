@@ -189,7 +189,7 @@ When **both** user-scope and project-scope installations exist, hooks could fire
 
 ## 7. Supervisor Lifecycle Management
 
-Supervisor process should self-terminate after 5 minutes of no messages/activity.
+Supervisor process should self-terminate after a configurable idle timeout (default: 5 minutes). Configure via `supervisor.idleTimeoutMs` in config; set to `0` to disable.
 
 The CLI should also include a --kill switch which finds and kills the supervisor that is project-local (to where the CLI was executed), or, if --kill-all is issued, should kill all supervisor processes.  This implies we need a ~/.sidekick/supervisors/{session_id}.pid file for each supervisor process.
 

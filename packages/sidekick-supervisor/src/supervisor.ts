@@ -4,8 +4,10 @@ import {
   getSocketPath,
   getTokenPath,
   IpcServer,
+  loadConfig,
   Logger,
   LogManager,
+  SidekickConfig,
 } from '@sidekick/core'
 import { randomBytes } from 'crypto'
 import fs from 'fs/promises'
@@ -16,6 +18,9 @@ import { TaskEngine } from './task-engine.js'
 // Read version from package.json at startup
 // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
 const VERSION: string = require('../../package.json').version
+
+// Idle check interval (how often to check for idle timeout)
+const IDLE_CHECK_INTERVAL_MS = 30 * 1000 // Check every 30 seconds
 
 /**
  * Supervisor Process Entrypoint
@@ -30,24 +35,30 @@ const VERSION: string = require('../../package.json').version
 
 export class Supervisor {
   private projectDir: string
+  private config: SidekickConfig
   private logger: Logger
   private logManager: LogManager
   private stateManager: StateManager
   private taskEngine: TaskEngine
   private ipcServer: IpcServer
   private token: string = ''
+  private lastActivityTime: number = Date.now()
+  private idleCheckInterval: ReturnType<typeof setInterval> | null = null
 
   constructor(projectDir: string) {
     this.projectDir = projectDir
+
+    // Load config from project
+    this.config = loadConfig({ projectRoot: projectDir })
 
     // Initialize Logger
     const logDir = path.join(projectDir, '.sidekick', 'logs')
     this.logManager = createLogManager({
       name: 'supervisor',
-      level: 'debug', // Default to debug for supervisor
+      level: this.config.logLevel,
       destinations: {
         file: { path: path.join(logDir, 'supervisor.log') },
-        console: { enabled: false },
+        console: { enabled: this.config.consoleLogging },
       },
     })
     this.logger = this.logManager.getLogger()
@@ -77,6 +88,9 @@ export class Supervisor {
       // 4. Start IPC Server
       await this.ipcServer.start()
 
+      // 5. Start idle timeout checker
+      this.startIdleCheck()
+
       this.logger.info('Supervisor started successfully')
     } catch (err) {
       this.logger.fatal('Failed to start supervisor', { error: err })
@@ -88,6 +102,9 @@ export class Supervisor {
   async stop(): Promise<void> {
     this.logger.info('Supervisor stopping')
 
+    // Stop idle checker
+    this.stopIdleCheck()
+
     try {
       // Stop accepting new IPC
       await this.ipcServer.stop()
@@ -97,7 +114,7 @@ export class Supervisor {
 
     try {
       // Shutdown Task Engine - wait for running tasks to complete
-      await this.taskEngine.shutdown()
+      await this.taskEngine.shutdown(this.config.supervisor.shutdownTimeoutMs)
     } catch (err) {
       this.logger.error('Failed to shutdown task engine', { error: err })
     }
@@ -110,6 +127,9 @@ export class Supervisor {
   }
 
   private async handleIpcRequest(method: string, params: unknown): Promise<unknown> {
+    // Reset idle timer on any activity
+    this.lastActivityTime = Date.now()
+
     this.logger.debug('IPC Request', { method })
 
     const p = params as Record<string, unknown> | undefined
@@ -174,6 +194,43 @@ export class Supervisor {
       // Socket is cleaned up by IpcServer
     } catch {
       // Files may not exist
+    }
+  }
+
+  /**
+   * Start the idle timeout checker.
+   * Per LLD-CLI §7: Self-terminate after configured idle timeout (default 5 minutes).
+   * Set supervisor.idleTimeoutMs to 0 to disable idle timeout.
+   */
+  private startIdleCheck(): void {
+    const idleTimeoutMs = this.config.supervisor.idleTimeoutMs
+
+    // 0 = disabled
+    if (idleTimeoutMs === 0) {
+      this.logger.info('Idle timeout disabled')
+      return
+    }
+
+    this.lastActivityTime = Date.now()
+    this.idleCheckInterval = setInterval(() => {
+      const idleTime = Date.now() - this.lastActivityTime
+      if (idleTime >= idleTimeoutMs) {
+        this.logger.info('Idle timeout reached, shutting down', {
+          idleTimeMs: idleTime,
+          idleTimeoutMs,
+        })
+        void this.stop()
+      }
+    }, IDLE_CHECK_INTERVAL_MS)
+
+    // Don't let the interval keep the process alive if everything else is done
+    this.idleCheckInterval.unref()
+  }
+
+  private stopIdleCheck(): void {
+    if (this.idleCheckInterval) {
+      clearInterval(this.idleCheckInterval)
+      this.idleCheckInterval = null
     }
   }
 }

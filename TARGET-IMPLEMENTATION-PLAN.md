@@ -164,29 +164,30 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
       - [x] `shutdown()` now async, prevents new enqueues, clears queue, waits for running tasks
       - [x] Added `isShuttingDown` flag and `shutdownResolve` for graceful completion
 
-  - [ ] **5.2 Supervisor Process (LLD-SUPERVISOR §2)**
-    - [x] Filesystem layout (`.sidekick/`) - BASIC IMPLEMENTATION COMPLETE
+  - [x] **5.2 Supervisor Process (LLD-SUPERVISOR §2)** - COMPLETE
+    - [x] Filesystem layout (`.sidekick/`)
       - [x] `supervisor.pid` - PID file written on startup
       - [x] `supervisor.sock` - Unix Domain Socket (Named Pipe on Windows)
       - [x] `supervisor.token` - Crypto-random auth token (0600 permissions)
       - [x] `logs/supervisor.log` - Dedicated structured JSON logs via Pino
       - [x] `state/*.json` - State files managed atomically
       - [x] Create `.sidekick/` directory on startup (implemented in 5.1.1)
-    - [x] Startup sequence - BASIC IMPLEMENTATION COMPLETE
+    - [x] Startup sequence
       - [x] CLI checks liveness via `supervisor.pid` + `kill -0`
       - [x] Spawn detached process: `spawn(..., { detached: true, stdio: 'ignore' }).unref()`
       - [x] Poll for `.sock` creation (5s timeout via `waitForStartup`)
-      - [ ] Remove stale `.pid`, `.sock`, `.token` if process dead
-      - [ ] Connect to socket and perform handshake with version + token
-      - [ ] Version mismatch handling: send shutdown, wait, spawn new
-    - [x] Shutdown sequence - BASIC IMPLEMENTATION COMPLETE
+      - [x] Remove stale `.pid`, `.sock`, `.token` if process dead (`cleanupStaleFiles()`)
+      - [x] Connect to socket and perform handshake with version + token (`checkVersion()`)
+      - [x] Version mismatch handling: send shutdown, wait, spawn new
+    - [x] Shutdown sequence
       - [x] Graceful shutdown via `shutdown` IPC method
       - [x] Handle `SIGTERM`/`SIGINT` signals (uses `void` operator)
       - [x] Remove `.pid`, `.token` on exit (cleanup method)
-      - [ ] Stop accepting new tasks (task engine shutdown incomplete)
-      - [ ] Wait for in-flight tasks to complete (max 30s timeout)
-    - [ ] Idle timeout
-      - [ ] Self-terminate after 5 minutes of no messages/activity (LLD-CLI §7)
+      - [x] Stop accepting new tasks (`isShuttingDown` flag in TaskEngine)
+      - [x] Wait for in-flight tasks to complete (configurable via `supervisor.shutdownTimeoutMs`, default 30s)
+    - [x] Idle timeout
+      - [x] Self-terminate after configurable idle timeout (`startIdleCheck()`)
+      - [x] Configurable via `supervisor.idleTimeoutMs` (default: 5 min, 0 = disabled)
 
   - [ ] **5.3 IPC Communication Layer (LLD-SUPERVISOR §3)**
     - [x] Transport abstraction - BASIC IMPLEMENTATION COMPLETE
