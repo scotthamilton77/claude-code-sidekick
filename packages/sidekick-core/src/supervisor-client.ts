@@ -14,9 +14,19 @@ import { getPidPath, getSocketPath, getTokenPath } from './ipc/transport.js'
 import { Logger } from './logger.js'
 
 interface PackageJson {
+  version?: string
   bin?: string | Record<string, string>
   main?: string
 }
+
+interface HandshakeResponse {
+  version: string
+  status: string
+}
+
+// Read version from package.json at module load
+// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+const CLIENT_VERSION: string = require('../package.json').version
 
 export class SupervisorClient {
   private projectDir: string
@@ -31,9 +41,23 @@ export class SupervisorClient {
   }
 
   async start(): Promise<void> {
+    // Clean up stale files if process died without cleanup
+    await this.cleanupStaleFiles()
+
     if (await this.isRunning()) {
-      this.logger.debug('Supervisor already running')
-      return
+      // Check version compatibility
+      const versionMatch = await this.checkVersion()
+      if (versionMatch) {
+        this.logger.debug('Supervisor already running with matching version')
+        return
+      }
+
+      // Version mismatch - stop old supervisor before spawning new
+      this.logger.info('Version mismatch, restarting supervisor', {
+        clientVersion: CLIENT_VERSION,
+      })
+      await this.stop()
+      await this.waitForShutdown()
     }
 
     this.logger.info('Starting supervisor...')
@@ -109,6 +133,87 @@ export class SupervisorClient {
       return true
     } catch {
       return false
+    }
+  }
+
+  /**
+   * Check if running supervisor version matches client version.
+   * Per LLD-SUPERVISOR §2.2: Version mismatch triggers restart.
+   */
+  private async checkVersion(): Promise<boolean> {
+    try {
+      await this.ipcClient.connect()
+      this.token = await this.readToken()
+      const response = (await this.ipcClient.call('handshake', {
+        token: this.token,
+      })) as HandshakeResponse
+      this.ipcClient.close()
+
+      const match = response.version === CLIENT_VERSION
+      if (!match) {
+        this.logger.debug('Supervisor version mismatch', {
+          supervisorVersion: response.version,
+          clientVersion: CLIENT_VERSION,
+        })
+      }
+      return match
+    } catch (err) {
+      this.logger.warn('Failed to check supervisor version', { error: err })
+      // On error, assume mismatch to trigger restart
+      return false
+    }
+  }
+
+  /**
+   * Wait for supervisor to fully shut down (files removed).
+   */
+  private async waitForShutdown(timeoutMs = 5000): Promise<void> {
+    const start = Date.now()
+    while (Date.now() - start < timeoutMs) {
+      if (!(await this.isRunning())) {
+        return
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    }
+    this.logger.warn('Supervisor did not shut down within timeout, forcing kill')
+    await this.killForcefully()
+    await this.cleanupStaleFiles()
+  }
+
+  /**
+   * Remove stale supervisor files when process is dead but files remain.
+   * Per LLD-SUPERVISOR §2.2: "If process dead: Remove stale .pid, .sock, .token files"
+   */
+  private async cleanupStaleFiles(): Promise<void> {
+    const pidPath = getPidPath(this.projectDir)
+
+    try {
+      const pidContent = await fs.readFile(pidPath, 'utf-8')
+      const pid = parseInt(pidContent, 10)
+
+      try {
+        process.kill(pid, 0)
+        // Process is alive, don't cleanup
+        return
+      } catch {
+        // Process is dead, cleanup stale files
+        this.logger.info('Cleaning up stale supervisor files', { pid })
+      }
+    } catch {
+      // No PID file, nothing to cleanup
+      return
+    }
+
+    // Remove stale files
+    const filesToRemove = [getPidPath(this.projectDir), getSocketPath(this.projectDir), getTokenPath(this.projectDir)]
+
+    for (const file of filesToRemove) {
+      try {
+        await fs.unlink(file)
+        this.logger.debug('Removed stale file', { file })
+      } catch {
+        // File may not exist
+      }
     }
   }
 

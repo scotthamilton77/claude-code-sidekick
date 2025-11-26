@@ -90,7 +90,7 @@ This architecture decouples Claude Code's hook registration from the Node.js run
 - **Scope**: Supervisor is **always project-scoped** (`.sidekick/supervisor.pid`). User-scope hooks delegate to project supervisor when dual-install detected.
 - **Lifecycle**: 
   - CLI checks supervisor existence via PID file + socket.
-  - **Version-based restart**: CLI sends version in IPC handshake; if mismatch, gracefully shuts down supervisor (30s timeout for in-flight tasks), saves state, and starts new version.
+  - **Version-based restart**: CLI sends version in IPC handshake; if mismatch, gracefully shuts down supervisor (configurable timeout via `supervisor.shutdownTimeoutMs`, default 30s), saves state, and starts new version.
   - **Single instance**: PID file acts as lock; prevents multiple supervisors per project.
 - **Responsibility**: Handles compute-heavy tasks (resume generation, session summary updates) asynchronously.
 - **Single Writer**: Acts as the **single writer** for shared state files (`.sidekick/state/*.json`) using atomic writes (temp file + `mv`). The CLI reads these files directly (no IPC needed) for synchronous hooks (statusline) but delegates mutations to the supervisor via IPC.

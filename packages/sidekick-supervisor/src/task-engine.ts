@@ -111,8 +111,9 @@ export class TaskEngine {
   /**
    * Gracefully shutdown the task engine.
    * Prevents new enqueues, clears pending queue, waits for running tasks to complete.
+   * Per LLD-SUPERVISOR §2.2: max 30s timeout for running tasks.
    */
-  async shutdown(): Promise<void> {
+  async shutdown(timeoutMs = 30000): Promise<void> {
     if (this.isShuttingDown) {
       return // Already shutting down
     }
@@ -130,10 +131,23 @@ export class TaskEngine {
       return
     }
 
-    // Wait for running tasks to complete
-    return new Promise((resolve) => {
+    // Wait for running tasks to complete with timeout
+    const waitForTasks = new Promise<void>((resolve) => {
       this.shutdownResolve = resolve
     })
+
+    const timeout = new Promise<void>((resolve) => {
+      setTimeout(() => {
+        if (this.running > 0) {
+          this.logger.warn('Shutdown timeout reached, tasks still running', {
+            runningTasks: this.running,
+          })
+        }
+        resolve()
+      }, timeoutMs)
+    })
+
+    await Promise.race([waitForTasks, timeout])
   }
 
   private checkShutdownComplete(): void {
