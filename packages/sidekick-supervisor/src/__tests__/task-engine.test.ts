@@ -1,6 +1,6 @@
 import { createConsoleLogger } from '@sidekick/core'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { TaskEngine } from '../task-engine.js'
+import { TaskContext, TaskEngine, TaskTimeoutError } from '../task-engine.js'
 
 const logger = createConsoleLogger({ minimumLevel: 'error' })
 
@@ -17,7 +17,8 @@ describe('TaskEngine', () => {
   let engine: TaskEngine
 
   beforeEach(() => {
-    engine = new TaskEngine(logger, 2)
+    // Use short default timeout for tests (100ms instead of 5 minutes)
+    engine = new TaskEngine(logger, 2, 100)
   })
 
   it('should execute tasks', async () => {
@@ -25,7 +26,7 @@ describe('TaskEngine', () => {
     engine.registerHandler('test', handler)
 
     return new Promise<void>((resolve) => {
-      engine.registerHandler('test', async (payload) => {
+      engine.registerHandler('test', async (payload, _ctx: TaskContext) => {
         await handler(payload)
         resolve()
       })
@@ -37,7 +38,8 @@ describe('TaskEngine', () => {
 
   it('should respect priority', async () => {
     // Use maxConcurrency=1 so only one task runs at a time
-    const singleEngine = new TaskEngine(logger, 1)
+    // Long timeout so blocking task doesn't timeout
+    const singleEngine = new TaskEngine(logger, 1, 60000)
     const executionOrder: string[] = []
 
     // Use a blocking handler that waits until we release it
@@ -46,12 +48,12 @@ describe('TaskEngine', () => {
 
     // First task blocks, allowing queue to fill before other tasks process
     let firstTaskStarted = false
-    singleEngine.registerHandler('block', async () => {
+    singleEngine.registerHandler('block', async (_payload, _ctx: TaskContext) => {
       firstTaskStarted = true
       await blocker.promise
     })
 
-    singleEngine.registerHandler('test', (payload: Record<string, unknown>): Promise<void> => {
+    singleEngine.registerHandler('test', (payload: Record<string, unknown>, _ctx: TaskContext): Promise<void> => {
       executionOrder.push(payload.id as string)
       return Promise.resolve()
     })
@@ -85,18 +87,20 @@ describe('TaskEngine', () => {
   })
 
   it('should wait for running tasks on shutdown', async () => {
+    // Use longer timeout for shutdown test
+    const slowEngine = new TaskEngine(logger, 2, 60000)
     const taskDeferred = createDeferred()
     let taskCompleted = false
 
-    engine.registerHandler('slow', async () => {
+    slowEngine.registerHandler('slow', async (_payload, _ctx: TaskContext) => {
       await taskDeferred.promise
       taskCompleted = true
     })
 
-    engine.enqueue('slow', {})
+    slowEngine.enqueue('slow', {})
 
     // Start shutdown (should wait for task)
-    const shutdownPromise = engine.shutdown()
+    const shutdownPromise = slowEngine.shutdown()
 
     // Task should still be running
     expect(taskCompleted).toBe(false)
@@ -107,5 +111,119 @@ describe('TaskEngine', () => {
     // Now shutdown should complete
     await shutdownPromise
     expect(taskCompleted).toBe(true)
+  })
+
+  describe('timeout enforcement', () => {
+    it('should timeout tasks exceeding default timeout', async () => {
+      // Engine with 50ms default timeout
+      const timeoutEngine = new TaskEngine(logger, 2, 50)
+      let taskTimedOut = false
+
+      // Handler that runs forever (until aborted)
+      timeoutEngine.registerHandler('slow', async (_payload, ctx: TaskContext) => {
+        // Simulate long-running work
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(resolve, 10000) // Would take 10s
+          ctx.signal.addEventListener('abort', () => {
+            clearTimeout(timer)
+            taskTimedOut = true
+            reject(new Error('Aborted'))
+          })
+        })
+      })
+
+      timeoutEngine.enqueue('slow', {})
+
+      // Wait for timeout to trigger
+      await vi.waitFor(() => expect(taskTimedOut).toBe(true), { timeout: 200 })
+    })
+
+    it('should respect per-task timeout override', async () => {
+      // Engine with long default timeout
+      const engine = new TaskEngine(logger, 2, 60000)
+      let taskTimedOut = false
+
+      engine.registerHandler('slow', async (_payload, ctx: TaskContext) => {
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(resolve, 10000)
+          ctx.signal.addEventListener('abort', () => {
+            clearTimeout(timer)
+            taskTimedOut = true
+            reject(new Error('Aborted'))
+          })
+        })
+      })
+
+      // Enqueue with short per-task timeout
+      engine.enqueue('slow', {}, { priority: 0, timeoutMs: 50 })
+
+      // Wait for timeout to trigger
+      await vi.waitFor(() => expect(taskTimedOut).toBe(true), { timeout: 200 })
+    })
+
+    it('should provide TaskContext with AbortSignal to handlers', async () => {
+      let receivedContext: TaskContext | null = null
+      const completed = createDeferred()
+
+      engine.registerHandler('test', (_payload, ctx: TaskContext) => {
+        receivedContext = ctx
+        completed.resolve()
+        return Promise.resolve()
+      })
+
+      engine.enqueue('test', {})
+      await completed.promise
+
+      expect(receivedContext).not.toBeNull()
+      expect(receivedContext!.signal).toBeInstanceOf(AbortSignal)
+      expect(receivedContext!.logger).toBeDefined()
+    })
+
+    it('should cancel task via cancelTask method', async () => {
+      // Engine with long timeout so we can test manual cancellation
+      const engine = new TaskEngine(logger, 2, 60000)
+      let wasCancelled = false
+      const taskStarted = createDeferred()
+
+      engine.registerHandler('cancellable', async (_payload, ctx: TaskContext) => {
+        taskStarted.resolve()
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(resolve, 10000)
+          ctx.signal.addEventListener('abort', () => {
+            clearTimeout(timer)
+            wasCancelled = true
+            reject(new Error('Cancelled'))
+          })
+        })
+      })
+
+      const taskId = engine.enqueue('cancellable', {})
+      await taskStarted.promise
+
+      // Cancel the task
+      const cancelled = engine.cancelTask(taskId)
+      expect(cancelled).toBe(true)
+
+      // Wait for cancellation to be processed
+      await vi.waitFor(() => expect(wasCancelled).toBe(true), { timeout: 200 })
+    })
+
+    it('should return false when cancelling non-existent task', () => {
+      const result = engine.cancelTask('non-existent-task-id')
+      expect(result).toBe(false)
+    })
+  })
+
+  describe('TaskTimeoutError', () => {
+    it('should have correct properties', () => {
+      const error = new TaskTimeoutError('task-123', 'summary', 5000)
+      expect(error.name).toBe('TaskTimeoutError')
+      expect(error.taskId).toBe('task-123')
+      expect(error.taskType).toBe('summary')
+      expect(error.timeoutMs).toBe(5000)
+      expect(error.message).toContain('task-123')
+      expect(error.message).toContain('summary')
+      expect(error.message).toContain('5000ms')
+    })
   })
 })
