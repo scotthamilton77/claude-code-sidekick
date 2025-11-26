@@ -168,4 +168,51 @@ python3 scripts/simulate-session.py <session-id>
 **Future (Migration In Progress)**:
 - **Target Runtime**: Node 20+, TypeScript, pnpm workspaces
 - **Architecture**: Monorepo packages/ structure, shared assets/sidekick/ for prompts/schemas
-- **Migration Path**: Phased transition maintaining Bash fallback during migration (see SIDEKICK_RUNTIME_MIGRATION_PLAN.md)
+- **Migration Path**: Phased transition maintaining Bash fallback during migration (see SIDEKICK_RUNTIME_MIGRATION_PLAN.md and TARGET-IMPLEMENTATION-PLAN.md)
+
+## TypeScript Tooling (Post-Training Cutoff Notes)
+
+**Explicit Versions**
+- `eslint`: 9.39.1 (flat config in `eslint.config.js`)
+- `typescript-eslint`: 8.48.0 (unified package for flat config)
+- `@typescript-eslint/eslint-plugin`: 8.48.0
+- `@typescript-eslint/parser`: 8.48.0
+- `typescript`: 5.9.3
+
+**ESLint v9 Flat Config Notes** (Claude trained on legacy `.eslintrc.*` format):
+- Config file: `eslint.config.js` (not `.eslintrc.cjs`)
+- Uses `export default []` array of config objects
+- `extends` → import and spread: `...tseslint.configs.recommended`
+- `plugins` → object: `plugins: { '@typescript-eslint': tseslint }`
+- `parser` → `languageOptions: { parser }`
+- `parserOptions.project` → `languageOptions.parserOptions.projectService: true`
+- `ignorePatterns` → `ignores: []` in dedicated config object
+- `overrides` → separate config objects with `files: []` property
+- Root `package.json` requires `"type": "module"` for ESM config
+
+**v7 → v8 Breaking Changes** (Claude trained on v7):
+
+| What Changed | Old (v7) | New (v8) | Impact |
+|--------------|----------|----------|--------|
+| `ban-types` rule | Single rule | **Deleted** - split into `no-restricted-types`, `no-empty-object-type`, `no-unsafe-function-type`, `no-wrapper-object-types` | Config migration required |
+| `no-throw-literal` | Existed | **Removed** - use `only-throw-error` instead | Rule rename |
+| `no-var-requires` | Existed | **Deprecated** - use `no-require-imports` | Rule rename |
+| `no-useless-template-literals` | Existed | **Renamed** to `no-unnecessary-template-expression` | Rule rename |
+| `prefer-ts-expect-error` | Existed | **Deprecated** - use `ban-ts-comment` | Rule rename |
+| `EXPERIMENTAL_useProjectService` | Parser option | **Renamed** to `projectService` | Config key change |
+| `automaticSingleRunInference` | Opt-in | **Inverted** to `disallowAutomaticSingleRunInference` (opt-out) | Logic flip |
+| Mapped type AST | `node.typeParameter.constraint/name` | `node.constraint` / `node.key` | AST structure change |
+| Enum AST | `node.members` | `node.body.members` | AST structure change |
+| Minimum TS version | >=4.7.4 | >=4.8.4 | Version bump |
+| Minimum ESLint | ^8.56.0 | ^8.57.0 | Version bump |
+
+**New Rules (post-January 2025, Claude unaware)**:
+- `no-misused-spread` (v8.20.0, Jan 2025) - catches incorrect spread usage
+- `no-unnecessary-type-conversion` (v8.32.0, May 2025) - flags redundant type conversions
+- `no-unused-private-class-members` (v8.47.0, Nov 2025) - extension rule for unused private members
+
+**Behavior Changes**:
+- `prefer-nullish-coalescing`: Now ignores conditional tests by default
+- Dot-directories (`.foo/`) matched by default in `parserOptions.project` globs
+
+**Sources**: [typescript-eslint v8 announcement](https://typescript-eslint.io/blog/announcing-typescript-eslint-v8/), [GitHub releases](https://github.com/typescript-eslint/typescript-eslint/releases)
