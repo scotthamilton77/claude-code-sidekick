@@ -16,11 +16,12 @@ This repository serves as a development and testing environment for [Claude Code
   - needs a fallback model
 - refine the transcript analysis process
   - tune the session summarizer to follow the last n turns (delta + 10?) - this combined with previous goal snapshot might be cheaper?
+  - optmize transcript embedding in the prompts, e.g. we don't really need the full json, do we?  And can we truncate tool results?  (Might need to do some analysis here to get a sense of the range of output here.)
   - tune the instructions for the session summary (little shorter, more cynical)
 - PLAN.MD (executing ARCH.md)
 - allow for different personalities - either explicit at install time or random per project or random per session or just random
   - moods: cynical, sarcastic, snarky, nerdy, arrogant, moody
-  - persona: angry klingon, skeptical vulcan, Scotty, Bones
+  - persona: angry klingon, skeptical vulcan, Scotty, Bones, Dilbert
   - themes: scifi, crime drama, daytime television, soap opera, classic 80s tv sitcom, seinfeld & friends
 - allow a "concise" topic mode during setup that chooses concise template files
   - allow the line length hints to be configurable
