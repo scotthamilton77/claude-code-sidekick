@@ -95,7 +95,7 @@ export class ProviderFactory {
     const type = this.config.llm.provider;
     
     switch (type) {
-      case 'anthropic':
+      case 'claude-cli':
         return new AnthropicCliProvider(this.config, this.logger);
       case 'openai':
       case 'openrouter':

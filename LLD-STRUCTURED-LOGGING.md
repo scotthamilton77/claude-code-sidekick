@@ -86,7 +86,7 @@ Telemetry events add specific fields to the root object.
     "value": 450,
     "unit": "ms",
     "tags": {
-      "provider": "anthropic",
+      "provider": "claude-cli",
       "model": "claude-3-5-sonnet"
     }
   }

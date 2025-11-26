@@ -42,7 +42,7 @@ Defines the structure of `sidekick.jsonc`.
 - **Project Config**: Per-project overrides (enabled features, project-specific prompt variables).
 
 **Key Fields**:
-- `llm`: `{ provider: "anthropic" | "openai" | "custom", model: string, ... }`
+- `llm`: `{ provider: "claude-cli" | "openai" | "openrouter" | "custom", model: string, ... }`
 - `features`: `{ [featureName]: { enabled: boolean, ...config } }`
 - `logging`: `{ level: "debug" | "info", redactor: string[] }`
 

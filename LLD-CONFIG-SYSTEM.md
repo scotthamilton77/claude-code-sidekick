@@ -37,8 +37,8 @@ import { z } from "zod";
 export const ConfigSchema = z.object({
   llm: z.object({
     provider: z
-      .enum(["anthropic", "openai", "openrouter", "custom"])
-      .default("anthropic"),
+      .enum(["claude-cli", "openai", "openrouter", "custom"])
+      .default("claude-cli"),
     model: z.string().optional(),
     temperature: z.number().min(0).max(1).default(0),
     maxTokens: z.number().optional(),
