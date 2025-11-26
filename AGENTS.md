@@ -74,6 +74,23 @@ test-data/
 - **Documentation**: Ensure all code changes are reflected in the project's documentation (design docs, changelog, README) to keep knowledge current.
 - **Implementation Plan**: Follow the current `TARGET-IMPLEMENTATION-PLAN.md` as the authoritative roadmap. For any development request, read the referenced sections, `TARGET-ARCHITECTURE.md`, and any other task‑relevant docs. After completing the work, mark the corresponding items in the plan as done.
 
+**TypeScript builds (packages/)**:
+
+```bash
+# CORRECT: Always use pnpm from repo root
+pnpm build                    # Build all packages
+pnpm -F @sidekick/core build  # Build specific package
+
+# CORRECT: If using tsc directly, always specify project
+pnpm tsc -p packages/sidekick-core/tsconfig.json
+
+# WRONG: Never run bare tsc - outputs land in src/ instead of dist/
+tsc                           # ❌ Pollutes source directories
+cd packages/foo && tsc        # ❌ Same problem
+```
+
+**If artifacts appear in src/**: Delete with `find packages/*/src \( -name "*.js" -o -name "*.d.ts" -o -name "*.d.ts.map" \) -delete`
+
 **New plugin (zero handler edits)**:
 
 1. `src/sidekick/features/<name>.sh` with `<name>_on_<event>()` functions
