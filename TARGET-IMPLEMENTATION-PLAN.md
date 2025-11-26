@@ -189,24 +189,30 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
       - [x] Self-terminate after configurable idle timeout (`startIdleCheck()`)
       - [x] Configurable via `supervisor.idleTimeoutMs` (default: 5 min, 0 = disabled)
 
-  - [ ] **5.3 IPC Communication Layer (LLD-SUPERVISOR §3)**
-    - [x] Transport abstraction - BASIC IMPLEMENTATION COMPLETE
+  - [x] **5.3 IPC Communication Layer (LLD-SUPERVISOR §3)** - COMPLETE
+    - [x] Transport abstraction
       - [x] Unix Domain Sockets for Linux/macOS
       - [x] Named Pipes for Windows (`\\.\pipe\sidekick-<project-hash>-sock`)
       - [x] `IpcServer` and `IpcClient` classes hiding platform differences
-    - [x] JSON-RPC 2.0 protocol - BASIC IMPLEMENTATION COMPLETE
+    - [x] JSON-RPC 2.0 protocol
       - [x] Standard request/response format with `jsonrpc`, `method`, `params`, `id`
       - [x] Proper error codes per JSON-RPC spec (`-32603` for internal error)
       - [x] Zod schema validation for requests/responses
-    - [x] Security - BASIC IMPLEMENTATION COMPLETE (see 5.1.1 for auth bug)
+    - [x] Security (see 5.1.1 for auth bug fix)
       - [x] Generate crypto-random token on startup (32 bytes hex)
       - [x] Write token to file with 0600 permissions
       - [x] Enforce handshake as first message on any connection
-      - [ ] Fix: post-handshake calls need session auth or token passing (5.1.1)
-    - [ ] Resilience
-      - [ ] Connection timeout in `IpcClient.connect()` (prevent hanging)
-      - [ ] Retry/reconnection logic in IPC client
-      - [ ] Request timeout handling (don't orphan tasks)
+      - [x] Post-handshake calls pass token (fixed in 5.1.1)
+    - [x] Resilience
+      - [x] Connection timeout in `IpcClient.connect()` (configurable, default 5s)
+      - [x] Request timeout in `IpcClient.call()` (configurable, default 30s)
+      - [x] Retry/reconnection logic via `IpcClient.callWithRetry()` with exponential backoff
+      - [x] Transient error detection: ENOENT, ECONNREFUSED, ECONNRESET, EPIPE, timeouts
+    - [x] Implementation notes
+      - [x] Added `IpcClientOptions` interface for configuring timeouts and retry behavior
+      - [x] `callWithRetry()` handles auto-reconnection when disconnected
+      - [x] `isConnected()` helper for connection state checking
+      - [x] Comprehensive test coverage: 16 IPC tests including timeout, retry, backoff scenarios
 
   - [ ] **5.4 Supervisor Subsystems (LLD-SUPERVISOR §4)**
     - [x] State Manager (single writer) - BASIC IMPLEMENTATION COMPLETE
@@ -253,13 +259,20 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
       - [ ] Error logging with task context
 
   - [ ] **5.7 Testing Requirements**
-    - [x] Unit tests - BASIC COVERAGE EXISTS
+    - [x] Unit tests - COMPREHENSIVE COVERAGE
       - [x] IPC request/response cycle (ipc.test.ts)
       - [x] IPC error handling with JSON-RPC codes (ipc.test.ts)
+      - [x] IPC connection timeout (ipc.test.ts)
+      - [x] IPC request timeout (ipc.test.ts)
+      - [x] IPC retry with exponential backoff (ipc.test.ts)
+      - [x] IPC auto-connect on callWithRetry (ipc.test.ts)
+      - [x] IPC retry when server becomes available (ipc.test.ts)
+      - [x] IPC non-transient error handling (ipc.test.ts)
+      - [x] IPC isConnected state tracking (ipc.test.ts)
       - [x] State manager atomic writes (state-manager.test.ts)
       - [x] State manager merge operations (state-manager.test.ts)
       - [x] Task engine basic execution (task-engine.test.ts)
-      - [x] Task engine priority ordering (task-engine.test.ts - needs determinism fix)
+      - [x] Task engine priority ordering (task-engine.test.ts)
       - [ ] Supervisor start/stop lifecycle
       - [ ] Version handshake and mismatch handling
       - [ ] IPC token validation (valid, invalid, missing scenarios)

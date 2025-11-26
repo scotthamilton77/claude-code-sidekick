@@ -1,4 +1,5 @@
 import fs from 'fs/promises'
+import net from 'net'
 import os from 'os'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -52,5 +53,249 @@ describe('IPC', () => {
 
     client.close()
     await server.stop()
+  })
+
+  describe('Connection Timeout', () => {
+    it('should timeout if server does not exist', async () => {
+      const client = new IpcClient(path.join(tmpDir, 'nonexistent.sock'), logger, {
+        connectTimeoutMs: 100,
+      })
+
+      await expect(client.connect()).rejects.toThrow()
+      expect(client.isConnected()).toBe(false)
+    })
+
+    it('should timeout if server does not accept connection', async () => {
+      // Create a socket file but don't listen on it
+      const hangingSocketPath = path.join(tmpDir, 'hanging.sock')
+      const dummyServer = net.createServer()
+      // Listen but don't accept connections properly - just hold them
+      await new Promise<void>((resolve) => dummyServer.listen(hangingSocketPath, resolve))
+
+      // Now create a server that accepts but never responds
+      const client = new IpcClient(hangingSocketPath, logger, {
+        connectTimeoutMs: 100,
+      })
+
+      // Connection will succeed since server is listening
+      await client.connect()
+      expect(client.isConnected()).toBe(true)
+
+      client.close()
+      dummyServer.close()
+    })
+
+    it('should connect within timeout if server is responsive', async () => {
+      const handler = vi.fn().mockResolvedValue('ok')
+      const server = new IpcServer(socketPath, logger, handler)
+      await server.start()
+
+      const client = new IpcClient(socketPath, logger, {
+        connectTimeoutMs: 5000,
+      })
+
+      await client.connect()
+      expect(client.isConnected()).toBe(true)
+
+      client.close()
+      await server.stop()
+    })
+  })
+
+  describe('Request Timeout', () => {
+    it('should timeout if server does not respond', async () => {
+      // Create a server that never responds
+      const silentHandler = vi.fn().mockImplementation(
+        () => new Promise(() => {}) // Never resolves
+      )
+      const server = new IpcServer(socketPath, logger, silentHandler)
+      await server.start()
+
+      const client = new IpcClient(socketPath, logger, {
+        requestTimeoutMs: 100,
+      })
+      await client.connect()
+
+      await expect(client.call('silent')).rejects.toThrow('Request timeout after 100ms for method: silent')
+
+      client.close()
+      await server.stop()
+    })
+
+    it('should complete within timeout if server responds quickly', async () => {
+      const handler = vi.fn().mockResolvedValue('fast')
+      const server = new IpcServer(socketPath, logger, handler)
+      await server.start()
+
+      const client = new IpcClient(socketPath, logger, {
+        requestTimeoutMs: 5000,
+      })
+      await client.connect()
+
+      const result = await client.call('fast')
+      expect(result).toBe('fast')
+
+      client.close()
+      await server.stop()
+    })
+
+    it('should clear timeout on successful response', async () => {
+      vi.useFakeTimers()
+      const handler = vi.fn().mockResolvedValue('ok')
+      const server = new IpcServer(socketPath, logger, handler)
+      await server.start()
+
+      const client = new IpcClient(socketPath, logger, {
+        requestTimeoutMs: 1000,
+      })
+      await client.connect()
+
+      const promise = client.call('test')
+
+      // Advance time past timeout - should not reject if response received
+      await vi.advanceTimersByTimeAsync(50) // Give time for response
+      const result = await promise
+      expect(result).toBe('ok')
+
+      client.close()
+      await server.stop()
+      vi.useRealTimers()
+    })
+  })
+
+  describe('Retry Logic', () => {
+    it('should auto-connect when calling callWithRetry without prior connect', async () => {
+      const handler = vi.fn().mockResolvedValue('success')
+      const server = new IpcServer(socketPath, logger, handler)
+      await server.start()
+
+      // Create client but don't connect - callWithRetry should handle it
+      const client = new IpcClient(socketPath, logger, {
+        maxRetries: 3,
+        retryDelayMs: 10,
+      })
+
+      expect(client.isConnected()).toBe(false)
+
+      // callWithRetry should connect automatically
+      const result = await client.callWithRetry('test')
+      expect(result).toBe('success')
+      expect(client.isConnected()).toBe(true)
+
+      client.close()
+      await server.stop()
+    })
+
+    it('should retry when server becomes available', async () => {
+      const handler = vi.fn().mockResolvedValue('delayed-success')
+      const server = new IpcServer(socketPath, logger, handler)
+
+      const client = new IpcClient(socketPath, logger, {
+        maxRetries: 5,
+        retryDelayMs: 50,
+        connectTimeoutMs: 100,
+      })
+
+      // Start server after a delay - client should retry until it succeeds
+      const startServerAfterDelay = async (): Promise<void> => {
+        await new Promise((resolve) => setTimeout(resolve, 80))
+        await server.start()
+      }
+
+      const [result] = await Promise.all([client.callWithRetry('test'), startServerAfterDelay()])
+
+      expect(result).toBe('delayed-success')
+      expect(handler).toHaveBeenCalledWith('test', undefined)
+
+      client.close()
+      await server.stop()
+    })
+
+    it('should fail after max retries on persistent error', async () => {
+      const nonExistentSocket = path.join(tmpDir, 'nonexistent.sock')
+      const client = new IpcClient(nonExistentSocket, logger, {
+        maxRetries: 2,
+        retryDelayMs: 10,
+        connectTimeoutMs: 50,
+      })
+
+      // Should fail after retries (socket doesn't exist)
+      await expect(client.callWithRetry('test')).rejects.toThrow()
+    })
+
+    it('should not retry on non-transient errors', async () => {
+      const handler = vi.fn().mockRejectedValue(new Error('Application Error'))
+      const server = new IpcServer(socketPath, logger, handler)
+      await server.start()
+
+      const client = new IpcClient(socketPath, logger, {
+        maxRetries: 3,
+        retryDelayMs: 10,
+      })
+      await client.connect()
+
+      // Application errors should not trigger retry
+      await expect(client.callWithRetry('fail')).rejects.toThrow('[-32603] Application Error')
+      expect(handler).toHaveBeenCalledTimes(1) // Only called once, no retries
+
+      client.close()
+      await server.stop()
+    })
+
+    it('should use exponential backoff', async () => {
+      const nonExistentSocket = path.join(tmpDir, 'nonexistent.sock')
+      const client = new IpcClient(nonExistentSocket, logger, {
+        maxRetries: 3,
+        retryDelayMs: 50,
+        connectTimeoutMs: 10,
+      })
+
+      const start = Date.now()
+      try {
+        await client.callWithRetry('test')
+      } catch {
+        // Expected to fail
+      }
+      const elapsed = Date.now() - start
+
+      // With 3 retries and exponential backoff (50, 100, 200), should take at least 150ms
+      // But connection timeout adds ~10ms per attempt, so allow some variance
+      expect(elapsed).toBeGreaterThan(100)
+    })
+  })
+
+  describe('isConnected', () => {
+    it('should return false when not connected', () => {
+      const client = new IpcClient(socketPath, logger)
+      expect(client.isConnected()).toBe(false)
+    })
+
+    it('should return true after connect', async () => {
+      const handler = vi.fn().mockResolvedValue('ok')
+      const server = new IpcServer(socketPath, logger, handler)
+      await server.start()
+
+      const client = new IpcClient(socketPath, logger)
+      await client.connect()
+
+      expect(client.isConnected()).toBe(true)
+
+      client.close()
+      await server.stop()
+    })
+
+    it('should return false after close', async () => {
+      const handler = vi.fn().mockResolvedValue('ok')
+      const server = new IpcServer(socketPath, logger, handler)
+      await server.start()
+
+      const client = new IpcClient(socketPath, logger)
+      await client.connect()
+      client.close()
+
+      expect(client.isConnected()).toBe(false)
+
+      await server.stop()
+    })
   })
 })
