@@ -72,6 +72,7 @@ test-data/
 
 ## Development Checklist
 - **Documentation**: Ensure all code changes are reflected in the project's documentation (design docs, changelog, README) to keep knowledge current.
+- **Implementation Plan**: Follow the current `TARGET-IMPLEMENTATION-PLAN.md` as the authoritative roadmap. For any development request, read the referenced sections, `TARGET-ARCHITECTURE.md`, and any other task‑relevant docs. After completing the work, mark the corresponding items in the plan as done.
 
 **New plugin (zero handler edits)**:
 
