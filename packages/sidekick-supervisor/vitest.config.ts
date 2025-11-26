@@ -5,11 +5,6 @@ import { defineConfig } from 'vitest/config'
 const rootDir = dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
-  resolve: {
-    alias: {
-      '@sidekick/core': resolve(rootDir, '../sidekick-core/src'),
-    },
-  },
   test: {
     environment: 'node',
     coverage: {

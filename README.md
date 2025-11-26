@@ -16,7 +16,7 @@ This repository serves as a development and testing environment for [Claude Code
   - needs a fallback model
 - refine the transcript analysis process
   - tune the session summarizer to follow the last n turns (delta + 10?) - this combined with previous goal snapshot might be cheaper?
-  - optmize transcript embedding in the prompts, e.g. we don't really need the full json, do we?  And can we truncate tool results?  (Might need to do some analysis here to get a sense of the range of output here.)
+  - optmize transcript embedding in the prompts, e.g. we don't really need the full json, do we? And can we truncate tool results? (Might need to do some analysis here to get a sense of the range of output here.)
   - tune the instructions for the session summary (little shorter, more cynical)
 - PLAN.MD (executing ARCH.md)
 - allow for different personalities - either explicit at install time or random per project or random per session or just random
@@ -47,8 +47,8 @@ This repository serves as a development and testing environment for [Claude Code
 ## Agents and Skills and Hooks
 
 - testing https://github.com/diet103/claude-code-infrastructure-showcase - specifically the hooks integrated with skill intent and build purity
-   - read through https://www.reddit.com/r/ClaudeAI/comments/1oivjvm/claude_code_is_a_beast_tips_from_6_months_of/ (same repo reference)
-   - I might have lost prettier? (see settings copy.json)
+  - read through https://www.reddit.com/r/ClaudeAI/comments/1oivjvm/claude_code_is_a_beast_tips_from_6_months_of/ (same repo reference)
+  - I might have lost prettier? (see settings copy.json)
 - agents, skills, CLAUDE.md, settings.json - I've moved these into src/.claude/ for now - we'll need to make these installable/uninstallable as components too
 - Can we have a skill and/or agent that intersects the task list and plan for when claude starts to execute a plan and (a) checks it against the user request and requirements to catch scope creep and (b) checks against unnecessary complexity keeping YAGNI and DRY and KISS principles in play?
 - sync, push - these should not clobber settings and mcp, but rather merge; for claude.md, ask to replace
@@ -221,6 +221,18 @@ python3 scripts/simulate-session.py <session-id>
 ./tests/test-cleanup-reminders.sh
 ./tests/test-response-tracker.sh
 ```
+
+### Node Package Tests & Coverage
+
+All TypeScript packages under `packages/` use Vitest with coverage enabled by default. Run the workspace tests after `pnpm install`:
+
+```bash
+pnpm test
+```
+
+Each package writes text, HTML, and LCOV coverage reports to its own `packages/<name>/coverage/` directory (gitignored). Open `coverage/index.html` inside any package to inspect the full report.
+
+**Known Warning**: `pnpm install` emits `openai@4.x` → `zod@^3.23.8` peer complaints because we intentionally run `zod@^4.1.13` across the workspace for improved schema tooling. The OpenAI SDK still functions with zod 4, so we are ignoring the warning until we adopt OpenAI 6.x (which officially supports newer zod) or migrate to the Responses API.
 
 ## Configuration
 
@@ -406,15 +418,15 @@ The Sidekick system is being migrated from Bash to Node/TypeScript for improved 
 
 ### Current Status
 
-| Phase | Description | Status |
-|-------|-------------|--------|
+| Phase   | Description                      | Status   |
+| ------- | -------------------------------- | -------- |
 | Phase 1 | Bootstrap CLI & Runtime Skeleton | Complete |
 | Phase 2 | Configuration & Asset Resolution | Complete |
-| Phase 3 | Structured Logging & Telemetry | Complete |
-| Phase 4 | Core Services & Providers | Pending |
-| Phase 5 | Supervisor & Background Tasks | Pending |
-| Phase 6 | Feature Enablement & Integration | Pending |
-| Phase 7 | Installation & Distribution | Pending |
+| Phase 3 | Structured Logging & Telemetry   | Complete |
+| Phase 4 | Core Services & Providers        | Pending  |
+| Phase 5 | Supervisor & Background Tasks    | Pending  |
+| Phase 6 | Feature Enablement & Integration | Pending  |
+| Phase 7 | Installation & Distribution      | Pending  |
 
 ### Package Structure
 
