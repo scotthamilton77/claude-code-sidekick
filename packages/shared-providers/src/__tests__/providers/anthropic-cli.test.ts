@@ -131,9 +131,7 @@ describe('AnthropicCliProvider', () => {
 
     await responsePromise
 
-    expect(mockProc.stdin.write).toHaveBeenCalledWith(
-      expect.stringContaining('System: You are helpful')
-    )
+    expect(mockProc.stdin.write).toHaveBeenCalledWith(expect.stringContaining('System: You are helpful'))
   })
 
   it('throws TimeoutError on exit code 124', async () => {

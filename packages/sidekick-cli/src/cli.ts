@@ -27,6 +27,7 @@ interface ParsedArgs {
   projectDir?: string
   scopeOverride?: 'user' | 'project'
   logLevel?: 'debug' | 'info' | 'warn' | 'error'
+  _?: (string | number)[]
 }
 
 interface RunCliOptions {
@@ -62,6 +63,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     projectDir: parsed['project-dir'] as string | undefined,
     scopeOverride: parsed.scope as 'user' | 'project' | undefined,
     logLevel: (parsed['log-level'] as ParsedArgs['logLevel']) ?? 'info',
+    _: parsed._,
   }
 }
 
@@ -71,7 +73,7 @@ function parseArgs(argv: string[]): ParsedArgs {
  * This function is intentionally side-effect free aside from writes to the provided output streams,
  * making it easy to exercise via unit tests without spawning a separate process.
  */
-export function runCli(options: RunCliOptions): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+export async function runCli(options: RunCliOptions): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   const stdout = options.stdout ?? new PassThrough()
   const stderr = options.stderr ?? new PassThrough()
   const parsed = parseArgs(options.argv)
@@ -110,6 +112,14 @@ export function runCli(options: RunCliOptions): Promise<{ exitCode: number; stdo
     assets: {
       cascadeLayers: runtime.assets.cascadeLayers,
     },
+  }
+
+  if (parsed.command === 'supervisor') {
+    const subcommand = (parsed._ && (parsed._[1] as string)) || 'status'
+    // Dynamic import to avoid circular deps if any, or just keep it simple
+    const { handleSupervisorCommand } = await import('./commands/supervisor.js')
+    await handleSupervisorCommand(subcommand, runtime.scope.projectRoot || process.cwd(), runtime.logger, stdout)
+    return { exitCode: 0, stdout: '', stderr: '' }
   }
 
   if (parsed.hookMode) {

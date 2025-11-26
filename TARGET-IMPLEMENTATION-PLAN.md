@@ -14,7 +14,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [x] Running the installed hook wrapper calls the Node CLI, which logs clearly whether it detected user or project scope.
     - [x] CLI supports a demo `session-start` command that returns a structured placeholder response without errors.
     - [x] Startup logs show the parsed hook context and do not crash when optional supervisor endpoints are absent.
-    - [x] All new and modified files are documented in the project's CHANGELOG or documentation with header comments describing purpose and any breaking changes.
+    - [x] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
 
 - [x] **Phase 2: Configuration & Asset Resolution Foundations**
   - [x] Objectives
@@ -33,7 +33,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [x] CLI commands can access config and assets through the runtime shell, with errors surfaced via clear validation messages.
     - [x] Config object is immutable after loading (per LLD-CONFIG-SYSTEM §2).
     - [x] Zod schemas use strict mode to reject unknown keys (per LLD-SCHEMA-CONTRACTS §6.4).
-    - [x] All new and modified files are documented in the project's CHANGELOG or documentation with header comments describing purpose and any breaking changes.
+    - [x] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
   - [x] Testing
     - [x] Author tests upfront that cover env/JSONC precedence, invalid schema failures, and asset override resolution for both user and project scopes.
   - [x] Code review follow-ups
@@ -54,7 +54,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [x] Logs include standard fields (timestamp, scope, command, correlation IDs) and redact sensitive payload fields per design.
     - [x] Telemetry counters/timers are emitted alongside logs for hook executions.
     - [x] Fallback to the bootstrap console logger occurs gracefully if Pino initialization fails, without dropping log lines.
-    - [x] All new and modified files are documented in the project's CHANGELOG or documentation with header comments describing purpose and any breaking changes.
+    - [x] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
   - [x] Testing
     - [x] Begin the phase by writing tests that assert log shape/content, redaction behavior, and telemetry emission under success and failure paths.
   - [x] Implementation notes
@@ -98,7 +98,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [x] We're testing OUR code, not open source behaviors.
     - [x] Code complexity is kept low using stated architecture principles and guidelines.  (See `TARGET-ARCHITECTURE.md` Guiding Principles).
     - [x] Providers honor credential precedence and retry/fallback policies, returning structured errors on exhaustion.
-    - [x] All new and modified files are documented in the project's CHANGELOG or documentation with header comments describing purpose and any breaking changes.
+    - [x] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
   - [x] Final integration task
     - [x] Create integration test demonstrating end-to-end feature → LLM flow
     - [x] Acceptance criteria for integration test:
@@ -123,8 +123,163 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [ ] `{project_root_dir}/LLD-SUPERVISOR.md` (§2 Process Architecture, §3 Communication Layer, §4 Subsystems)
     - [ ] `{project_root_dir}/LLD-CLI.md` (§4 Supervisor Interaction, §7 Supervisor Lifecycle Management)
     - [ ] `{project_root_dir}/LLD-TRANSCRIPT-PROCESSING.md` (§2 Components, §3.1 File Watching & Updates) for background transcript tasks
-  - [ ] Testing
-    - [ ] Draft tests at phase start that exercise supervisor start/stop, version mismatches, IPC token validation, and single-writer guarantees during concurrent task submissions.
+
+  - [x] **5.1 Technical Debt Remediation** (from code review) - PHASE 1 COMPLETE
+    - [x] Fix build failures
+      - [x] Export `SupervisorClient` from `@sidekick/core` index.ts
+      - [x] Export structured-logging utilities (createLoggerFacade, setupGlobalErrorHandlers, LogContext)
+    - [x] Fix lint errors (85+ → 0 errors, 3 warnings)
+      - [x] Resolve `@typescript-eslint/no-unsafe-*` errors across all packages
+      - [x] Replace `any` types with proper typing or explicit `unknown`
+      - [x] Fix `@typescript-eslint/no-misused-promises` in signal handlers
+      - [x] Fix `@typescript-eslint/no-floating-promises` (unhandled promises)
+      - [x] Add test files to tsconfig project service scope (created tsconfig.lint.json)
+    - [x] Fix test failures
+      - [x] Correct IPC error test expectation (`-32603` is correct per JSON-RPC spec)
+      - [x] Fix task-engine priority test handler type (Record<string, unknown>)
+    - [x] Code quality fixes (partial)
+      - [x] Add `void` operator to floating promises in signal handlers
+      - [x] Remove async from synchronous methods (client.close(), task-engine.process())
+      - [x] Fix empty catch blocks with explanatory comments
+
+  - [ ] **5.1.1 Technical Debt Remediation** (remaining from code review)
+    - [ ] IPC Authentication Bug (CRITICAL)
+      - [ ] `SupervisorClient.getStatus()` calls `ping` without token after handshake
+      - [ ] Either implement session-based auth (authenticated socket stays authenticated)
+      - [ ] Or ensure all client calls include token in params
+    - [ ] Type safety improvements
+      - [ ] Replace `z.any()` with `z.unknown()` in `protocol.ts` Zod schemas
+    - [ ] Code quality (deferred)
+      - [ ] Read version from `package.json` instead of hardcoded `"0.0.1"` in supervisor.ts
+      - [ ] Resolve FIXME comments in protocol.ts ("should be UUID?") and client.ts
+      - [ ] Remove stale doc comments in ipc/server.ts (copy-paste artifacts)
+      - [ ] require() usage acceptable in CommonJS mode (ESM migration is architectural change)
+    - [ ] Test improvements
+      - [ ] Use `os.tmpdir()` in ipc.test.ts and state-manager.test.ts instead of source dir
+      - [ ] Make priority test deterministic (add pause mechanism or blocking handlers)
+    - [ ] Supervisor initialization
+      - [ ] Create `.sidekick/` directory before writing PID/token files
+    - [ ] Task engine shutdown
+      - [ ] Implement proper `shutdown()` that prevents new enqueues, drains queue, waits for running tasks
+
+  - [ ] **5.2 Supervisor Process (LLD-SUPERVISOR §2)**
+    - [x] Filesystem layout (`.sidekick/`) - BASIC IMPLEMENTATION COMPLETE
+      - [x] `supervisor.pid` - PID file written on startup
+      - [x] `supervisor.sock` - Unix Domain Socket (Named Pipe on Windows)
+      - [x] `supervisor.token` - Crypto-random auth token (0600 permissions)
+      - [x] `logs/supervisor.log` - Dedicated structured JSON logs via Pino
+      - [x] `state/*.json` - State files managed atomically
+      - [ ] Create `.sidekick/` directory on startup (see 5.1.1)
+    - [x] Startup sequence - BASIC IMPLEMENTATION COMPLETE
+      - [x] CLI checks liveness via `supervisor.pid` + `kill -0`
+      - [x] Spawn detached process: `spawn(..., { detached: true, stdio: 'ignore' }).unref()`
+      - [x] Poll for `.sock` creation (5s timeout via `waitForStartup`)
+      - [ ] Remove stale `.pid`, `.sock`, `.token` if process dead
+      - [ ] Connect to socket and perform handshake with version + token
+      - [ ] Version mismatch handling: send shutdown, wait, spawn new
+    - [x] Shutdown sequence - BASIC IMPLEMENTATION COMPLETE
+      - [x] Graceful shutdown via `shutdown` IPC method
+      - [x] Handle `SIGTERM`/`SIGINT` signals (uses `void` operator)
+      - [x] Remove `.pid`, `.token` on exit (cleanup method)
+      - [ ] Stop accepting new tasks (task engine shutdown incomplete)
+      - [ ] Wait for in-flight tasks to complete (max 30s timeout)
+    - [ ] Idle timeout
+      - [ ] Self-terminate after 5 minutes of no messages/activity (LLD-CLI §7)
+
+  - [ ] **5.3 IPC Communication Layer (LLD-SUPERVISOR §3)**
+    - [x] Transport abstraction - BASIC IMPLEMENTATION COMPLETE
+      - [x] Unix Domain Sockets for Linux/macOS
+      - [x] Named Pipes for Windows (`\\.\pipe\sidekick-<project-hash>-sock`)
+      - [x] `IpcServer` and `IpcClient` classes hiding platform differences
+    - [x] JSON-RPC 2.0 protocol - BASIC IMPLEMENTATION COMPLETE
+      - [x] Standard request/response format with `jsonrpc`, `method`, `params`, `id`
+      - [x] Proper error codes per JSON-RPC spec (`-32603` for internal error)
+      - [x] Zod schema validation for requests/responses
+    - [x] Security - BASIC IMPLEMENTATION COMPLETE (see 5.1.1 for auth bug)
+      - [x] Generate crypto-random token on startup (32 bytes hex)
+      - [x] Write token to file with 0600 permissions
+      - [x] Enforce handshake as first message on any connection
+      - [ ] Fix: post-handshake calls need session auth or token passing (5.1.1)
+    - [ ] Resilience
+      - [ ] Connection timeout in `IpcClient.connect()` (prevent hanging)
+      - [ ] Retry/reconnection logic in IPC client
+      - [ ] Request timeout handling (don't orphan tasks)
+
+  - [ ] **5.4 Supervisor Subsystems (LLD-SUPERVISOR §4)**
+    - [x] State Manager (single writer) - BASIC IMPLEMENTATION COMPLETE
+      - [x] `state.update(file, data, merge)` API
+      - [x] In-memory cache with atomic write (tmp + rename)
+      - [ ] Corrupt state handling: move malformed JSON to `.bak`, reset to empty
+    - [x] Task Execution Engine - BASIC IMPLEMENTATION COMPLETE
+      - [x] In-memory priority queue with sort by priority (desc) then timestamp (asc)
+      - [x] Configurable concurrency limit (default: 2)
+      - [x] Task handler registration via `registerHandler(type, handler)`
+      - [ ] Task timeout enforcement (default 5m, task-specific overrides)
+      - [ ] Proper task cancellation on timeout (terminate/reject)
+      - [ ] `shutdown()` properly drains queue with timeout (see 5.1.1)
+    - [ ] Watcher Service (optional for Phase 5, required Phase 6)
+      - [ ] Watch `.sidekick/config.jsonc` and `.env` for changes
+      - [ ] Hot-reload config in-memory on change
+
+  - [ ] **5.5 CLI Integration (LLD-CLI §4, §7)**
+    - [x] Supervisor lifecycle commands - BASIC IMPLEMENTATION COMPLETE
+      - [x] `supervisor start` - starts supervisor process
+      - [x] `supervisor stop` - stops supervisor gracefully
+      - [x] `supervisor status` - shows supervisor status with ping
+      - [ ] Implement `--kill` switch (kill project-local supervisor)
+      - [ ] Implement `--kill-all` switch (kill all supervisors)
+      - [ ] User-level PID tracking: `~/.sidekick/supervisors/{session_id}.pid`
+    - [ ] IPC client helper for commands
+      - [x] `SupervisorClient` facade with start/stop/getStatus methods
+      - [ ] `ctx.ipc.send(method, payload)` abstraction
+      - [ ] Connection pooling/reuse
+      - [ ] Automatic reconnect on transient failures
+    - [ ] Graceful degradation
+      - [ ] CLI fallback when supervisor unavailable
+      - [ ] Log warnings and proceed with degraded sync paths
+      - [ ] Don't crash if supervisor socket doesn't exist/respond
+
+  - [ ] **5.6 Error Handling (LLD-SUPERVISOR §5)**
+    - [ ] Uncaught exception handling
+      - [ ] Log fatal error to `supervisor.log`
+      - [ ] Attempt graceful cleanup
+      - [ ] CLI will restart on next run
+    - [ ] Stuck task handling
+      - [ ] Strict timeout enforcement per task type
+      - [ ] Worker termination/promise rejection on timeout
+      - [ ] Error logging with task context
+
+  - [ ] **5.7 Testing Requirements**
+    - [x] Unit tests - BASIC COVERAGE EXISTS
+      - [x] IPC request/response cycle (ipc.test.ts)
+      - [x] IPC error handling with JSON-RPC codes (ipc.test.ts)
+      - [x] State manager atomic writes (state-manager.test.ts)
+      - [x] State manager merge operations (state-manager.test.ts)
+      - [x] Task engine basic execution (task-engine.test.ts)
+      - [x] Task engine priority ordering (task-engine.test.ts - needs determinism fix)
+      - [ ] Supervisor start/stop lifecycle
+      - [ ] Version handshake and mismatch handling
+      - [ ] IPC token validation (valid, invalid, missing scenarios)
+      - [ ] State manager corrupt file recovery
+      - [ ] Task engine timeout enforcement
+      - [ ] Task engine concurrent task limits
+    - [ ] Integration tests
+      - [ ] Single-writer guarantees during concurrent task submissions
+      - [ ] CLI-to-supervisor round-trip communication
+      - [ ] Graceful shutdown with in-flight tasks
+      - [ ] CLI fallback when supervisor unavailable
+    - [ ] SupervisorClient tests (currently missing)
+      - [ ] Connect/disconnect lifecycle
+      - [ ] Version check behavior
+      - [ ] Spawn behavior when no supervisor running
+
+  - [ ] **5.8 Definition of Done Gates**
+    - [x] `pnpm build` passes with zero errors
+    - [x] `pnpm lint` passes with zero errors (3 warnings remain - missing return types)
+    - [x] `pnpm test` passes with zero failures (148 tests)
+    - [ ] All acceptance criteria verified
+    - [ ] Header comments on all new/modified files
+
   - [ ] Acceptance criteria
     - [ ] We're utilizing open source to its maximum potential - no unnecessary wheel reinvention!
     - [ ] We're testing OUR code, not open source behaviors.
@@ -132,7 +287,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [ ] Supervisor starts, responds to version handshake, and serializes state updates to `.sidekick/state/*.json` atomically.
     - [ ] IPC layer enforces token security and handles timeouts/retries without orphaning tasks.
     - [ ] CLI gracefully falls back when supervisor is unavailable, logging warnings and proceeding with degraded sync paths.
-    - [ ] All new and modified files are documented in the project's CHANGELOG or documentation with header comments describing purpose and any breaking changes.
+    - [ ] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
 
 - [ ] **Phase 6: Feature Enablement & Integration**
   - [ ] Objectives
@@ -155,7 +310,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [ ] Each feature exposes `registerHooks` entrypoints and functions end-to-end using runtime config, assets, logging, and provider services.
     - [ ] Session summary/resume flows produce deterministic outputs against recorded transcripts; reminders and statusline react to supervisor state.
     - [ ] Dual-scope parity verified: features behave identically when invoked from user and project hook installs.
-    - [ ] All new and modified files are documented in the project's CHANGELOG or documentation with header comments describing purpose and any breaking changes.
+    - [ ] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
 
 - [ ] **Phase 7: Installation & Distribution Hardening**
   - [ ] Objectives
@@ -174,4 +329,4 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [ ] Installer produces working hook wrappers in both scopes, preferring project hooks when dual installs are detected.
     - [ ] Bundled assets match `assets/sidekick/` HEAD contents and are loaded correctly by runtime after install.
     - [ ] Migration tool converts legacy configs with clear reporting and preserves overrides.
-    - [ ] All new and modified files are documented in the project's CHANGELOG or documentation with header comments describing purpose and any breaking changes.
+    - [ ] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.

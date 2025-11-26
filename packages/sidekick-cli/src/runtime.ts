@@ -136,7 +136,7 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
         pretty: isInteractive,
       },
     },
-    onUpgradeError: (err) => {
+    onUpgradeError: (err: Error) => {
       loggerFacade.warn('Pino initialization failed, using fallback logger', {
         error: err.message,
       })

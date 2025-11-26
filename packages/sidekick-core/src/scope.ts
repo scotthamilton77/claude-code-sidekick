@@ -60,7 +60,7 @@ function deriveProjectRootFromHook(hookScriptPath: string): string | undefined {
 
 function findNearestSidekickDir(startDir: string): string | undefined {
   let current = path.resolve(startDir)
-  // eslint-disable-next-line no-constant-condition
+
   while (true) {
     const candidate = path.join(current, '.claude', 'hooks', 'sidekick')
     if (existsSync(candidate)) {

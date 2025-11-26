@@ -9,7 +9,6 @@ import { runCli } from '../cli'
 class CollectingWritable extends Writable {
   data = ''
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _write(chunk: Buffer, _encoding: BufferEncoding, callback: (error?: Error | null) => void): void {
     this.data += chunk.toString()
     callback()

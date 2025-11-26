@@ -72,12 +72,7 @@ export class AnthropicCliProvider extends AbstractProvider {
     }
 
     this.logError(lastError!)
-    throw new ProviderError(
-      `Failed after ${this.maxRetries} retries: ${lastError!.message}`,
-      this.id,
-      false,
-      lastError
-    )
+    throw new ProviderError(`Failed after ${this.maxRetries} retries: ${lastError!.message}`, this.id, false, lastError)
   }
 
   private async executeCliRequest(request: LLMRequest): Promise<LLMResponse> {
@@ -100,24 +95,17 @@ export class AnthropicCliProvider extends AbstractProvider {
       let stdout = ''
       let stderr = ''
 
-      child.stdout.on('data', (data) => {
+      child.stdout.on('data', (data: Buffer) => {
         stdout += data.toString()
       })
 
-      child.stderr.on('data', (data) => {
+      child.stderr.on('data', (data: Buffer) => {
         stderr += data.toString()
       })
 
       child.on('error', (error) => {
         if (error.message.includes('ENOENT')) {
-          reject(
-            new ProviderError(
-              `Claude CLI not found at path: ${this.cliPath}`,
-              this.id,
-              false,
-              error
-            )
-          )
+          reject(new ProviderError(`Claude CLI not found at path: ${this.cliPath}`, this.id, false, error))
         } else {
           reject(new ProviderError(`Spawn error: ${error.message}`, this.id, true, error))
         }
@@ -132,7 +120,11 @@ export class AnthropicCliProvider extends AbstractProvider {
 
         if (code === 0) {
           try {
-            const parsed = JSON.parse(stdout)
+            const parsed = JSON.parse(stdout) as {
+              content?: string
+              message?: string
+              usage?: { input_tokens?: number; output_tokens?: number }
+            }
             const response: LLMResponse = {
               content: parsed.content ?? parsed.message ?? stdout,
               model: request.model ?? this.defaultModel,
@@ -148,7 +140,7 @@ export class AnthropicCliProvider extends AbstractProvider {
               },
             }
             resolve(response)
-          } catch (error) {
+          } catch {
             // If JSON parsing fails, return raw output
             resolve({
               content: stdout,

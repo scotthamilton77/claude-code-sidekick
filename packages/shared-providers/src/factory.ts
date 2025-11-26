@@ -39,7 +39,7 @@ export class ProviderFactory {
       case 'openrouter':
         return this.createOpenRouter()
       default:
-        throw new ProviderError(`Unknown provider type: ${provider}`, 'factory', false)
+        throw new ProviderError(`Unknown provider type: ${provider as string}`, 'factory', false)
     }
   }
 

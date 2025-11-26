@@ -15,7 +15,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-  // eslint-disable-next-line no-console
   console.error('[FATAL] sidekick-cli failed during bootstrap', error)
   process.exit(1)
 })
