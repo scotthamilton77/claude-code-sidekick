@@ -1,6 +1,22 @@
+/**
+ * IPC Transport Utilities
+ *
+ * Provides platform-aware path resolution for supervisor IPC resources.
+ *
+ * @see LLD-SUPERVISOR.md §2 Process Architecture
+ * @see LLD-CLI.md §7 Supervisor Lifecycle Management
+ */
 import crypto from 'crypto'
 import os from 'os'
 import path from 'path'
+
+/**
+ * Generate a deterministic hash for a project directory.
+ * Used for unique socket names and user-level PID tracking.
+ */
+export function getProjectHash(projectDir: string): string {
+  return crypto.createHash('sha256').update(projectDir).digest('hex').substring(0, 16)
+}
 
 export function getSocketPath(projectDir: string): string {
   const isWindows = os.platform() === 'win32'
@@ -8,7 +24,7 @@ export function getSocketPath(projectDir: string): string {
   if (isWindows) {
     // On Windows, use named pipes.
     // We hash the project path to create a unique but deterministic pipe name.
-    const hash = crypto.createHash('sha256').update(projectDir).digest('hex').substring(0, 16)
+    const hash = getProjectHash(projectDir)
     return `\\\\.\\pipe\\sidekick-${hash}-sock`
   } else {
     // On Unix, use domain sockets in the .sidekick directory.
@@ -22,4 +38,23 @@ export function getTokenPath(projectDir: string): string {
 
 export function getPidPath(projectDir: string): string {
   return path.join(projectDir, '.sidekick', 'supervisor.pid')
+}
+
+/**
+ * Get the user-level supervisors directory.
+ * Per LLD-CLI §7: Store PID files at ~/.sidekick/supervisors/ for --kill-all.
+ */
+export function getUserSupervisorsDir(): string {
+  return path.join(os.homedir(), '.sidekick', 'supervisors')
+}
+
+/**
+ * Get the user-level PID file path for a project.
+ * Format: ~/.sidekick/supervisors/{project-hash}.pid
+ *
+ * Contains JSON with project path and PID for discovery during --kill-all.
+ */
+export function getUserPidPath(projectDir: string): string {
+  const hash = getProjectHash(projectDir)
+  return path.join(getUserSupervisorsDir(), `${hash}.pid`)
 }

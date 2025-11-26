@@ -363,7 +363,7 @@ function loadEnvFiles(homeDir: string, projectRoot?: string): void {
 
   // Load in order (each subsequent file overrides previous values in process.env)
   for (const envPath of envPaths) {
-    loadDotenv({ path: envPath, override: true })
+    loadDotenv({ path: envPath, override: true, quiet: true })
   }
 }
 

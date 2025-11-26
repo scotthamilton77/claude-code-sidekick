@@ -10,8 +10,17 @@ import { spawn } from 'child_process'
 import fs from 'fs/promises'
 import path from 'path'
 import { IpcClient } from './ipc/client.js'
-import { getPidPath, getSocketPath, getTokenPath } from './ipc/transport.js'
+import { getPidPath, getSocketPath, getTokenPath, getUserPidPath, getUserSupervisorsDir } from './ipc/transport.js'
 import { Logger } from './logger.js'
+
+/**
+ * User-level PID file format for --kill-all discovery.
+ */
+export interface UserPidInfo {
+  pid: number
+  projectDir: string
+  startedAt: string
+}
 
 interface PackageJson {
   version?: string
@@ -71,8 +80,8 @@ export class SupervisorClient {
       const binPath = pkg.bin ? (typeof pkg.bin === 'string' ? pkg.bin : pkg.bin['sidekick-supervisor']) : pkg.main
       supervisorPath = path.resolve(path.dirname(pkgPath), binPath ?? 'dist/index.js')
     } catch {
-      // Fallback for dev environment
-      supervisorPath = path.resolve(__dirname, '../../../sidekick-supervisor/dist/index.js')
+      // Fallback for dev environment: from dist/ → packages/sidekick-supervisor/dist/
+      supervisorPath = path.resolve(__dirname, '../../sidekick-supervisor/dist/index.js')
     }
 
     const child = spawn('node', [supervisorPath, this.projectDir], {
@@ -122,6 +131,37 @@ export class SupervisorClient {
       return { status: 'running', ping: pong }
     } catch (err) {
       return { status: 'unresponsive', error: err }
+    }
+  }
+
+  /**
+   * Forcefully kill the project-local supervisor (--kill switch).
+   * Does not attempt graceful shutdown via IPC - just sends SIGKILL.
+   * Cleans up all associated files after kill.
+   *
+   * @see LLD-CLI.md §7 Supervisor Lifecycle Management
+   */
+  async kill(): Promise<{ killed: boolean; pid?: number }> {
+    if (!(await this.isRunning())) {
+      // Check for stale files and clean them up
+      await this.cleanupStaleFiles()
+      return { killed: false }
+    }
+
+    try {
+      const pidPath = getPidPath(this.projectDir)
+      const pid = parseInt(await fs.readFile(pidPath, 'utf-8'), 10)
+      process.kill(pid, 'SIGKILL')
+      this.logger.info('Forcefully killed supervisor', { pid, projectDir: this.projectDir })
+
+      // Clean up files after kill
+      await this.cleanupStaleFiles()
+      return { killed: true, pid }
+    } catch (err) {
+      this.logger.warn('Failed to kill supervisor', { error: err })
+      // Still try to clean up any stale files
+      await this.cleanupStaleFiles()
+      return { killed: false }
     }
   }
 
@@ -204,8 +244,13 @@ export class SupervisorClient {
       return
     }
 
-    // Remove stale files
-    const filesToRemove = [getPidPath(this.projectDir), getSocketPath(this.projectDir), getTokenPath(this.projectDir)]
+    // Remove stale files (including user-level PID for --kill-all discovery)
+    const filesToRemove = [
+      getPidPath(this.projectDir),
+      getSocketPath(this.projectDir),
+      getTokenPath(this.projectDir),
+      getUserPidPath(this.projectDir),
+    ]
 
     for (const file of filesToRemove) {
       try {
@@ -247,4 +292,86 @@ export class SupervisorClient {
   private async readToken(): Promise<string> {
     return fs.readFile(getTokenPath(this.projectDir), 'utf-8')
   }
+}
+
+/**
+ * Result of killing a single supervisor during --kill-all.
+ */
+export interface KillResult {
+  projectDir: string
+  pid: number
+  killed: boolean
+  error?: string
+}
+
+/**
+ * Kill all supervisors by scanning ~/.sidekick/supervisors/*.pid files.
+ *
+ * Used for the --kill-all CLI switch. Iterates through all user-level PID files,
+ * verifies each process is alive, sends SIGKILL, and cleans up associated files.
+ *
+ * @param logger - Logger instance for reporting
+ * @returns Array of results for each supervisor found
+ *
+ * @see LLD-CLI.md §7 Supervisor Lifecycle Management
+ */
+export async function killAllSupervisors(logger: Logger): Promise<KillResult[]> {
+  const results: KillResult[] = []
+  const supervisorsDir = getUserSupervisorsDir()
+
+  let files: string[]
+  try {
+    files = await fs.readdir(supervisorsDir)
+  } catch {
+    // Directory doesn't exist - no supervisors running
+    logger.debug('No supervisors directory found', { path: supervisorsDir })
+    return results
+  }
+
+  const pidFiles = files.filter((f) => f.endsWith('.pid'))
+
+  for (const pidFile of pidFiles) {
+    const pidPath = path.join(supervisorsDir, pidFile)
+
+    try {
+      const content = await fs.readFile(pidPath, 'utf-8')
+      const info = JSON.parse(content) as UserPidInfo
+
+      // Check if process is alive
+      try {
+        process.kill(info.pid, 0)
+      } catch {
+        // Process is dead, just clean up the stale file
+        logger.debug('Cleaning up stale PID file', { pidFile, pid: info.pid })
+        await fs.unlink(pidPath).catch(() => {})
+        continue
+      }
+
+      // Process is alive, kill it
+      try {
+        process.kill(info.pid, 'SIGKILL')
+        logger.info('Killed supervisor', { pid: info.pid, projectDir: info.projectDir })
+        results.push({ projectDir: info.projectDir, pid: info.pid, killed: true })
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err)
+        logger.warn('Failed to kill supervisor', { pid: info.pid, error: errorMsg })
+        results.push({ projectDir: info.projectDir, pid: info.pid, killed: false, error: errorMsg })
+      }
+
+      // Clean up user-level PID file
+      await fs.unlink(pidPath).catch(() => {})
+
+      // Also try to clean up project-level files
+      const projectFiles = [getPidPath(info.projectDir), getSocketPath(info.projectDir), getTokenPath(info.projectDir)]
+      for (const file of projectFiles) {
+        await fs.unlink(file).catch(() => {})
+      }
+    } catch (err) {
+      // Invalid JSON or read error - clean up the bad file
+      logger.warn('Invalid PID file, removing', { pidFile, error: err instanceof Error ? err.message : String(err) })
+      await fs.unlink(pidPath).catch(() => {})
+    }
+  }
+
+  return results
 }
