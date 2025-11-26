@@ -12,7 +12,9 @@
   ],
   "scripts": {
     "build": "tsc -b",
-    "test": "vitest run"
+    "test": "vitest run",
+    "lint": "eslint src --ext .ts",
+    "format": "prettier --write \"src/**/*.ts\""
   },
   "dependencies": {
     "@sidekick/core": "workspace:*",

@@ -1,16 +1,16 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { homedir } from 'node:os';
-import { parse as parseJsonc } from 'jsonc-parser';
+import { parse as parseJsonc } from 'jsonc-parser'
+import { existsSync, readFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 
 // =============================================================================
 // Asset Resolver
 // =============================================================================
 
 export interface AssetResolverOptions {
-  defaultAssetsDir: string;
-  projectRoot?: string;
-  homeDir?: string;
+  defaultAssetsDir: string
+  projectRoot?: string
+  homeDir?: string
 }
 
 export interface AssetResolver {
@@ -18,30 +18,30 @@ export interface AssetResolver {
    * Resolve an asset by relative path, returning its content.
    * Returns null if the asset is not found in any cascade layer.
    */
-  resolve(relativePath: string): string | null;
+  resolve(relativePath: string): string | null
 
   /**
    * Resolve an asset, throwing if not found.
    */
-  resolveOrThrow(relativePath: string): string;
+  resolveOrThrow(relativePath: string): string
 
   /**
    * Resolve the absolute path to an asset without reading it.
    * Returns null if the asset is not found.
    */
-  resolvePath(relativePath: string): string | null;
+  resolvePath(relativePath: string): string | null
 
   /**
    * Resolve and parse a JSON/JSONC asset.
    * Returns null if the asset is not found.
    */
-  resolveJson<T = unknown>(relativePath: string): T | null;
+  resolveJson<T = unknown>(relativePath: string): T | null
 
   /**
    * The cascade layers in order of precedence (lowest to highest).
    * Useful for debugging.
    */
-  cascadeLayers: string[];
+  cascadeLayers: string[]
 }
 
 /**
@@ -55,99 +55,91 @@ export interface AssetResolver {
  * 5. project-persistent: .sidekick/assets/
  * 6. project-local: .sidekick/assets.local/
  */
-function buildCascadeLayers(
-  defaultAssetsDir: string,
-  homeDir: string,
-  projectRoot?: string,
-): string[] {
-  const layers: string[] = [];
+function buildCascadeLayers(defaultAssetsDir: string, homeDir: string, projectRoot?: string): string[] {
+  const layers: string[] = []
 
   // 1. Default assets (always first, lowest priority)
-  layers.push(defaultAssetsDir);
+  layers.push(defaultAssetsDir)
 
   // 2. User-installed assets
-  const userInstalled = join(homeDir, '.claude', 'hooks', 'sidekick', 'assets');
-  layers.push(userInstalled);
+  const userInstalled = join(homeDir, '.claude', 'hooks', 'sidekick', 'assets')
+  layers.push(userInstalled)
 
   // 3. User-persistent assets
-  const userPersistent = join(homeDir, '.sidekick', 'assets');
-  layers.push(userPersistent);
+  const userPersistent = join(homeDir, '.sidekick', 'assets')
+  layers.push(userPersistent)
 
   if (projectRoot) {
     // 4. Project-installed assets
-    const projectInstalled = join(projectRoot, '.claude', 'hooks', 'sidekick', 'assets');
-    layers.push(projectInstalled);
+    const projectInstalled = join(projectRoot, '.claude', 'hooks', 'sidekick', 'assets')
+    layers.push(projectInstalled)
 
     // 5. Project-persistent assets
-    const projectPersistent = join(projectRoot, '.sidekick', 'assets');
-    layers.push(projectPersistent);
+    const projectPersistent = join(projectRoot, '.sidekick', 'assets')
+    layers.push(projectPersistent)
 
     // 6. Project-local assets (highest priority)
-    const projectLocal = join(projectRoot, '.sidekick', 'assets.local');
-    layers.push(projectLocal);
+    const projectLocal = join(projectRoot, '.sidekick', 'assets.local')
+    layers.push(projectLocal)
   }
 
-  return layers;
+  return layers
 }
 
 export function createAssetResolver(options: AssetResolverOptions): AssetResolver {
-  const homeDir = options.homeDir ?? homedir();
-  const cascadeLayers = buildCascadeLayers(options.defaultAssetsDir, homeDir, options.projectRoot);
+  const homeDir = options.homeDir ?? homedir()
+  const cascadeLayers = buildCascadeLayers(options.defaultAssetsDir, homeDir, options.projectRoot)
 
   // Search layers in reverse order (highest priority first)
   const findAsset = (relativePath: string): string | null => {
     for (let i = cascadeLayers.length - 1; i >= 0; i--) {
-      const fullPath = join(cascadeLayers[i], relativePath);
+      const fullPath = join(cascadeLayers[i], relativePath)
       if (existsSync(fullPath)) {
-        return fullPath;
+        return fullPath
       }
     }
-    return null;
-  };
+    return null
+  }
 
   return {
     resolve(relativePath: string): string | null {
-      const fullPath = findAsset(relativePath);
+      const fullPath = findAsset(relativePath)
       if (!fullPath) {
-        return null;
+        return null
       }
-      return readFileSync(fullPath, 'utf8');
+      return readFileSync(fullPath, 'utf8')
     },
 
     resolveOrThrow(relativePath: string): string {
-      const content = this.resolve(relativePath);
+      const content = this.resolve(relativePath)
       if (content === null) {
-        throw new Error(
-          `Asset not found: ${relativePath}. Searched cascade layers: ${cascadeLayers.join(', ')}`,
-        );
+        throw new Error(`Asset not found: ${relativePath}. Searched cascade layers: ${cascadeLayers.join(', ')}`)
       }
-      return content;
+      return content
     },
 
     resolvePath(relativePath: string): string | null {
-      return findAsset(relativePath);
+      return findAsset(relativePath)
     },
 
     resolveJson<T = unknown>(relativePath: string): T | null {
-      const content = this.resolve(relativePath);
+      const content = this.resolve(relativePath)
       if (content === null) {
-        return null;
+        return null
       }
 
-      const errors: { error: number; offset: number; length: number }[] = [];
-      const parsed = parseJsonc(content, errors);
+      const errors: { error: number; offset: number; length: number }[] = []
+      const parsed = parseJsonc(content, errors) as T
 
       if (errors.length > 0) {
-        throw new Error(
-          `Failed to parse JSON asset ${relativePath}: syntax error at offset ${errors[0].offset}`,
-        );
+        throw new Error(`Failed to parse JSON asset ${relativePath}: syntax error at offset ${errors[0].offset}`)
       }
 
-      return parsed as T;
+      return parsed
     },
 
     cascadeLayers,
-  };
+  }
 }
 
 /**
@@ -161,6 +153,6 @@ export function createAssetResolver(options: AssetResolverOptions): AssetResolve
  * - Dev/Test: packages/sidekick-core/src/assets.ts -> ../../../../assets/sidekick
  */
 export function getDefaultAssetsDir(): string {
-  const workspaceRoot = join(__dirname, '..', '..', '..', '..');
-  return join(workspaceRoot, 'assets', 'sidekick');
+  const workspaceRoot = join(__dirname, '..', '..', '..', '..')
+  return join(workspaceRoot, 'assets', 'sidekick')
 }

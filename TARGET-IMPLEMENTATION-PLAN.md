@@ -41,21 +41,26 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [x] Fix redundant fallback logic in `getDefaultAssetsDir()` (both paths compute identically).
     - [x] Use `os.tmpdir()` in tests instead of `process.cwd()` relative paths for robustness.
 
-- [ ] **Phase 3: Structured Logging & Telemetry**
-  - [ ] Objectives
-    - [ ] Add a two-phase logging pipeline (bootstrap console → Pino-based structured logger) with redaction and telemetry events.
-    - [ ] Provide logger access through runtime so commands/features emit structured entries tied to scope and command context.
-  - [ ] Relevant documents/sections
-    - [ ] `{project_root_dir}/TARGET-ARCHITECTURE.md` (§1 Guiding Principles: Observability-First)
-    - [ ] `{project_root_dir}/LLD-STRUCTURED-LOGGING.md` (§2 Architecture, §3 Log Schema, §4 Configuration & Routing)
-    - [ ] `{project_root_dir}/LLD-CLI.md` (§8 Telemetry & Logging Bootstrap)
-    - [ ] `{project_root_dir}/LLD-CORE-RUNTIME.md` (§3.1 Bootstrap stages, §5 Error Handling Strategy)
-  - [ ] Acceptance criteria
-    - [ ] Logs include standard fields (timestamp, scope, command, correlation IDs) and redact sensitive payload fields per design.
-    - [ ] Telemetry counters/timers are emitted alongside logs for hook executions.
-    - [ ] Fallback to the bootstrap console logger occurs gracefully if Pino initialization fails, without dropping log lines.
-  - [ ] Testing
-    - [ ] Begin the phase by writing tests that assert log shape/content, redaction behavior, and telemetry emission under success and failure paths.
+- [x] **Phase 3: Structured Logging & Telemetry**
+  - [x] Objectives
+    - [x] Add a two-phase logging pipeline (bootstrap console → Pino-based structured logger) with redaction and telemetry events.
+    - [x] Provide logger access through runtime so commands/features emit structured entries tied to scope and command context.
+  - [x] Relevant documents/sections
+    - [x] `{project_root_dir}/TARGET-ARCHITECTURE.md` (§1 Guiding Principles: Observability-First)
+    - [x] `{project_root_dir}/LLD-STRUCTURED-LOGGING.md` (§2 Architecture, §3 Log Schema, §4 Configuration & Routing)
+    - [x] `{project_root_dir}/LLD-CLI.md` (§8 Telemetry & Logging Bootstrap)
+    - [x] `{project_root_dir}/LLD-CORE-RUNTIME.md` (§3.1 Bootstrap stages, §5 Error Handling Strategy)
+  - [x] Acceptance criteria
+    - [x] Logs include standard fields (timestamp, scope, command, correlation IDs) and redact sensitive payload fields per design.
+    - [x] Telemetry counters/timers are emitted alongside logs for hook executions.
+    - [x] Fallback to the bootstrap console logger occurs gracefully if Pino initialization fails, without dropping log lines.
+  - [x] Testing
+    - [x] Begin the phase by writing tests that assert log shape/content, redaction behavior, and telemetry emission under success and failure paths.
+  - [x] Implementation notes
+    - [x] Added `packages/sidekick-core/src/structured-logging.ts` with Pino-based logging
+    - [x] Dependencies: `pino`, `pino-roll`, `pino-pretty` (dev)
+    - [x] RuntimeShell now exposes `logger`, `telemetry`, `correlationId`, and `cleanup()`
+    - [x] Logs written to `.sidekick/logs/sidekick.log` (scope-dependent path)
 
 - [ ] **Phase 4: Core Services & Providers**
   - [ ] Objectives
