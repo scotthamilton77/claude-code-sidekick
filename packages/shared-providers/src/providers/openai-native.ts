@@ -90,9 +90,9 @@ export class OpenAINativeProvider extends AbstractProvider {
         return new AuthError(this.id, error)
       }
       if (error.status === 429) {
-        const retryAfter = error.headers?.['retry-after']
-          ? parseInt(error.headers['retry-after'], 10)
-          : undefined
+        const headers = error.headers as Record<string, string | null | undefined> | undefined
+        const retryHeader = headers?.['retry-after']
+        const retryAfter = typeof retryHeader === 'string' ? parseInt(retryHeader, 10) : undefined
         return new RateLimitError(this.id, retryAfter, error)
       }
       if (error.status && error.status >= 500) {

@@ -1,23 +1,31 @@
 // Re-export shared types from @sidekick/types for consumer convenience
-export type { Logger, Telemetry, LogLevel, Message, LLMRequest, LLMResponse, LLMProvider } from '@sidekick/types'
+export type { LLMProvider, LLMRequest, LLMResponse, Logger, LogLevel, Message, Telemetry } from '@sidekick/types'
 
-export * from './assets.js'
-export * from './config.js'
-export * from './feature-registry.js'
-export * from './feature-types.js'
-export * from './ipc/client.js'
-export * from './ipc/protocol.js'
-export * from './ipc/server.js'
-export * from './ipc/transport.js'
+export * from './assets'
+export * from './config'
+export * from './feature-registry'
+export * from './feature-types'
+export * from './ipc/client'
+export * from './ipc/protocol'
+export { IpcServer } from './ipc/server'
+export { getPidPath, getSocketPath, getTokenPath } from './ipc/transport'
+
+export { createConsoleLogger, type Logger as ConsoleLogger, type LoggerOptions as ConsoleLoggerOptions } from './logger'
+export * from './runtime-context'
+export * from './scope'
 export {
-  createConsoleLogger,
-  type Logger as ConsoleLogger,
-  type LoggerOptions as ConsoleLoggerOptions,
-} from './logger.js'
-export * from './runtime-context.js'
-export * from './scope.js'
-export * from './structured-logging.js'
-export * from './supervisor-client.js'
+  createLogManager,
+  createLoggerFacade,
+  setupGlobalErrorHandlers,
+  type LogContext,
+  type LogManager,
+  type LogManagerOptions,
+  type LoggerFacade,
+  type LoggerFacadeOptions,
+  type UpgradeOptions,
+} from './structured-logging'
+
+export { SupervisorClient } from './supervisor-client'
 
 // Note: LLMService should be imported directly from '@sidekick/shared-providers'
 // to avoid circular dependencies between packages

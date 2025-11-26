@@ -53,6 +53,6 @@ export class FallbackProvider implements LLMProvider {
       primary: this.primary.id,
       fallbackCount: this.fallbacks.length,
     })
-    throw primaryError!
+    throw primaryError
   }
 }

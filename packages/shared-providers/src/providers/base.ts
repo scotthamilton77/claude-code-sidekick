@@ -16,10 +16,7 @@ export abstract class AbstractProvider implements LLMProvider {
   abstract complete(request: LLMRequest): Promise<LLMResponse>
 
   protected logRequest(request: LLMRequest): void {
-    const totalContentLength = request.messages.reduce(
-      (sum, msg) => sum + msg.content.length,
-      0
-    )
+    const totalContentLength = request.messages.reduce((sum, msg) => sum + msg.content.length, 0)
 
     this.logger.debug('LLM request initiated', {
       provider: this.id,

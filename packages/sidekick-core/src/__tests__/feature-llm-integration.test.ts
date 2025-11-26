@@ -23,12 +23,7 @@ import type { RuntimeContext, RuntimePaths } from '../runtime-context'
 import { LLMService } from '@sidekick/shared-providers'
 import { ProviderFactory } from '@sidekick/shared-providers'
 import type { LLMResponse } from '@sidekick/shared-providers'
-import {
-  MockLogger,
-  MockTelemetry,
-  MockConfigService,
-  MockAssetResolver,
-} from '@sidekick/testing-fixtures'
+import { MockLogger, MockTelemetry, MockConfigService, MockAssetResolver } from '@sidekick/testing-fixtures'
 
 // Mock ProviderFactory.create() to return our mock provider
 vi.spyOn(ProviderFactory.prototype, 'create')
@@ -193,9 +188,7 @@ describe('Feature → LLM Integration', () => {
       await feature.register(context)
 
       // Verify: Duration histogram emitted with success=true
-      expect(
-        mockTelemetry.wasHistogramRecorded('llm_request_duration', { success: 'true' })
-      ).toBe(true)
+      expect(mockTelemetry.wasHistogramRecorded('llm_request_duration', { success: 'true' })).toBe(true)
 
       // Verify: Token histograms emitted
       expect(mockTelemetry.wasHistogramRecorded('llm_input_tokens')).toBe(true)
@@ -239,14 +232,10 @@ describe('Feature → LLM Integration', () => {
       await expect(feature.register(context)).rejects.toThrow('Provider unavailable')
 
       // Verify: Duration histogram emitted with success=false
-      expect(
-        mockTelemetry.wasHistogramRecorded('llm_request_duration', { success: 'false' })
-      ).toBe(true)
+      expect(mockTelemetry.wasHistogramRecorded('llm_request_duration', { success: 'false' })).toBe(true)
 
       // Verify: Error counter incremented
-      expect(
-        mockTelemetry.wasCounterIncremented('llm_request_errors', { error_type: 'Error' })
-      ).toBe(true)
+      expect(mockTelemetry.wasCounterIncremented('llm_request_errors', { error_type: 'Error' })).toBe(true)
 
       // Verify: Logger recorded error
       expect(mockLogger.wasLoggedAtLevel('LLM request failed', 'error')).toBe(true)
@@ -282,8 +271,9 @@ describe('Feature → LLM Integration', () => {
       // Create features with dependencies
       const baseFeature: Feature = {
         manifest: { id: 'base', version: '1.0.0' },
-        async register() {
+        register() {
           executionOrder.push('base')
+          return Promise.resolve()
         },
       }
 
@@ -300,8 +290,9 @@ describe('Feature → LLM Integration', () => {
 
       const finalFeature: Feature = {
         manifest: { id: 'final', version: '1.0.0', needs: ['dependent'] },
-        async register() {
+        register() {
           executionOrder.push('final')
+          return Promise.resolve()
         },
       }
 

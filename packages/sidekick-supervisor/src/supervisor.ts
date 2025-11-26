@@ -1,0 +1,173 @@
+import {
+  createLogManager,
+  getPidPath,
+  getSocketPath,
+  getTokenPath,
+  IpcServer,
+  Logger,
+  LogManager,
+} from '@sidekick/core'
+import { randomBytes } from 'crypto'
+import fs from 'fs/promises'
+import path from 'path'
+import { StateManager } from './state-manager.js'
+import { TaskEngine } from './task-engine.js'
+
+/**
+ * Supervisor Process Entrypoint
+ *
+ * The Supervisor is a long-running background process responsible for:
+ * 1. Single-writer state management (preventing race conditions)
+ * 2. Background task execution (heavy compute offloading)
+ * 3. IPC communication with the CLI
+ *
+ * @see LLD-SUPERVISOR.md
+ */
+
+export class Supervisor {
+  private projectDir: string
+  private logger: Logger
+  private logManager: LogManager
+  private stateManager: StateManager
+  private taskEngine: TaskEngine
+  private ipcServer: IpcServer
+  private token: string = ''
+
+  constructor(projectDir: string) {
+    this.projectDir = projectDir
+
+    // Initialize Logger
+    const logDir = path.join(projectDir, '.sidekick', 'logs')
+    this.logManager = createLogManager({
+      name: 'supervisor',
+      level: 'debug', // Default to debug for supervisor
+      destinations: {
+        file: { path: path.join(logDir, 'supervisor.log') },
+        console: { enabled: false },
+      },
+    })
+    this.logger = this.logManager.getLogger()
+
+    // Initialize Components
+    this.stateManager = new StateManager(path.join(projectDir, '.sidekick', 'state'), this.logger)
+    this.taskEngine = new TaskEngine(this.logger)
+
+    // Initialize IPC
+    const socketPath = getSocketPath(projectDir)
+    this.ipcServer = new IpcServer(socketPath, this.logger, this.handleIpcRequest.bind(this))
+  }
+
+  async start(): Promise<void> {
+    try {
+      this.logger.info('Supervisor starting', { projectDir: this.projectDir, pid: process.pid })
+
+      // 1. Write PID file
+      await this.writePid()
+
+      // 2. Generate and write Token
+      await this.writeToken()
+
+      // 3. Initialize State Manager
+      await this.stateManager.initialize()
+
+      // 4. Start IPC Server
+      await this.ipcServer.start()
+
+      this.logger.info('Supervisor started successfully')
+    } catch (err) {
+      this.logger.fatal('Failed to start supervisor', { error: err })
+      await this.cleanup()
+      process.exit(1)
+    }
+  }
+
+  async stop(): Promise<void> {
+    this.logger.info('Supervisor stopping')
+
+    try {
+      // Stop accepting new IPC
+      await this.ipcServer.stop()
+    } catch (err) {
+      this.logger.error('Failed to stop IPC server', { error: err })
+    }
+
+    try {
+      // Shutdown Task Engine
+      this.taskEngine.shutdown()
+    } catch (err) {
+      this.logger.error('Failed to shutdown task engine', { error: err })
+    }
+
+    // Cleanup files
+    await this.cleanup()
+
+    this.logger.info('Supervisor stopped')
+    process.exit(0)
+  }
+
+  private async handleIpcRequest(method: string, params: unknown): Promise<unknown> {
+    this.logger.debug('IPC Request', { method })
+
+    const p = params as Record<string, unknown> | undefined
+
+    // Verify token for all requests except handshake (which validates it inside)
+    if (method !== 'handshake') {
+      const token = p?.token
+      if (!token || token !== this.token) {
+        this.logger.warn('Unauthorized IPC request', { method })
+        throw new Error('Unauthorized')
+      }
+    }
+
+    switch (method) {
+      case 'handshake':
+        return this.handleHandshake(p)
+      case 'shutdown':
+        return this.stop()
+      case 'state.update':
+        return this.stateManager.update(
+          p?.file as string,
+          p?.data as Record<string, unknown>,
+          p?.merge as boolean | undefined
+        )
+      case 'task.enqueue':
+        return this.taskEngine.enqueue(
+          p?.type as string,
+          p?.payload as Record<string, unknown>,
+          p?.priority as number | undefined
+        )
+      case 'ping':
+        return 'pong'
+      default:
+        throw new Error(`Method not found: ${method}`)
+    }
+  }
+
+  private handleHandshake(params: Record<string, unknown> | undefined): { version: string; status: string } {
+    if (params?.token !== this.token) {
+      throw new Error('Invalid token')
+    }
+    return { version: '0.0.1', status: 'ok' }
+  }
+
+  private async writePid() {
+    const pidPath = getPidPath(this.projectDir)
+    await fs.writeFile(pidPath, process.pid.toString(), 'utf-8')
+  }
+
+  private async writeToken() {
+    this.token = randomBytes(32).toString('hex')
+    const tokenPath = getTokenPath(this.projectDir)
+    await fs.writeFile(tokenPath, this.token, { mode: 0o600, encoding: 'utf-8' })
+  }
+
+  private async cleanup(): Promise<void> {
+    try {
+      await fs.unlink(getPidPath(this.projectDir))
+      await fs.unlink(getTokenPath(this.projectDir))
+      // Socket is cleaned up by IpcServer
+    } catch {
+      // Files may not exist
+    }
+  }
+}
