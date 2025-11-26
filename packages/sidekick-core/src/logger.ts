@@ -11,25 +11,25 @@
  * @see structured-logging.ts for the production logging system
  */
 
-export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
+import { Logger } from '@sidekick/types'
+
+// Re-export Logger interface for backward compatibility
+export type { Logger }
+
+export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal'
 
 const levelOrder: Record<LogLevel, number> = {
+  trace: 5,
   debug: 10,
   info: 20,
   warn: 30,
   error: 40,
+  fatal: 50,
 }
 
 export interface LoggerOptions {
   minimumLevel?: LogLevel
   sink?: NodeJS.WritableStream
-}
-
-export interface Logger {
-  debug(message: string, meta?: Record<string, unknown>): void
-  info(message: string, meta?: Record<string, unknown>): void
-  warn(message: string, meta?: Record<string, unknown>): void
-  error(message: string, meta?: Record<string, unknown>): void
 }
 
 function shouldLog(level: LogLevel, minimumLevel: LogLevel): boolean {
@@ -53,10 +53,16 @@ export function createConsoleLogger(options: LoggerOptions = {}): Logger {
     sink.write(formatLine(level, message, meta) + '\n')
   }
 
-  return {
+  const logger: Logger = {
+    trace: (message, meta) => write('trace', message, meta),
     debug: (message, meta) => write('debug', message, meta),
     info: (message, meta) => write('info', message, meta),
     warn: (message, meta) => write('warn', message, meta),
     error: (message, meta) => write('error', message, meta),
+    fatal: (message, meta) => write('fatal', message, meta),
+    child: (_bindings) => logger, // Return self for simple console logger
+    flush: () => Promise.resolve(), // No-op for console logger
   }
+
+  return logger
 }

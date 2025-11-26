@@ -13,6 +13,10 @@ import path from 'path'
 import { StateManager } from './state-manager.js'
 import { TaskEngine } from './task-engine.js'
 
+// Read version from package.json at startup
+// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+const VERSION: string = require('../../package.json').version
+
 /**
  * Supervisor Process Entrypoint
  *
@@ -92,8 +96,8 @@ export class Supervisor {
     }
 
     try {
-      // Shutdown Task Engine
-      this.taskEngine.shutdown()
+      // Shutdown Task Engine - wait for running tasks to complete
+      await this.taskEngine.shutdown()
     } catch (err) {
       this.logger.error('Failed to shutdown task engine', { error: err })
     }
@@ -147,17 +151,19 @@ export class Supervisor {
     if (params?.token !== this.token) {
       throw new Error('Invalid token')
     }
-    return { version: '0.0.1', status: 'ok' }
+    return { version: VERSION, status: 'ok' }
   }
 
-  private async writePid() {
+  private async writePid(): Promise<void> {
     const pidPath = getPidPath(this.projectDir)
+    await fs.mkdir(path.dirname(pidPath), { recursive: true })
     await fs.writeFile(pidPath, process.pid.toString(), 'utf-8')
   }
 
-  private async writeToken() {
+  private async writeToken(): Promise<void> {
     this.token = randomBytes(32).toString('hex')
     const tokenPath = getTokenPath(this.projectDir)
+    await fs.mkdir(path.dirname(tokenPath), { recursive: true })
     await fs.writeFile(tokenPath, this.token, { mode: 0o600, encoding: 'utf-8' })
   }
 

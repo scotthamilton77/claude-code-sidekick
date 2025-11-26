@@ -5,21 +5,23 @@ export const JSONRPC_VERSION = '2.0'
 export const JsonRpcRequestSchema = z.object({
   jsonrpc: z.literal(JSONRPC_VERSION),
   method: z.string(),
-  params: z.any().optional(),
-  id: z.union([z.string(), z.number()]).optional(), // FIXME should be a UUID?
+  params: z.unknown().optional(),
+  // Per JSON-RPC 2.0 spec: id can be string, number, or null. We use auto-increment numbers.
+  id: z.union([z.string(), z.number()]).optional(),
 })
 
 export const JsonRpcResponseSchema = z.object({
   jsonrpc: z.literal(JSONRPC_VERSION),
-  result: z.any().optional(),
+  result: z.unknown().optional(),
   error: z
     .object({
       code: z.number(),
       message: z.string(),
-      data: z.any().optional(),
+      data: z.unknown().optional(),
     })
     .optional(),
-  id: z.union([z.string(), z.number(), z.null()]), // FIXME should be a UUID?
+  // Response id matches request id (or null for notifications/errors without id)
+  id: z.union([z.string(), z.number(), z.null()]),
 })
 
 export type JsonRpcRequest = z.infer<typeof JsonRpcRequestSchema>

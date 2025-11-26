@@ -4,6 +4,15 @@ import { TaskEngine } from '../task-engine.js'
 
 const logger = createConsoleLogger({ minimumLevel: 'error' })
 
+// Helper to create a deferred promise for controlled task completion
+function createDeferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve!: () => void
+  const promise = new Promise<void>((r) => {
+    resolve = r
+  })
+  return { promise, resolve }
+}
+
 describe('TaskEngine', () => {
   let engine: TaskEngine
 
@@ -27,35 +36,76 @@ describe('TaskEngine', () => {
   })
 
   it('should respect priority', async () => {
+    // Use maxConcurrency=1 so only one task runs at a time
+    const singleEngine = new TaskEngine(logger, 1)
     const executionOrder: string[] = []
-    const handler = (payload: Record<string, unknown>): Promise<void> => {
+
+    // Use a blocking handler that waits until we release it
+    // This allows us to enqueue all tasks before any start processing
+    const blocker = createDeferred()
+
+    // First task blocks, allowing queue to fill before other tasks process
+    let firstTaskStarted = false
+    singleEngine.registerHandler('block', async () => {
+      firstTaskStarted = true
+      await blocker.promise
+    })
+
+    singleEngine.registerHandler('test', (payload: Record<string, unknown>): Promise<void> => {
       executionOrder.push(payload.id as string)
       return Promise.resolve()
-    }
-    engine.registerHandler('test', handler)
+    })
 
-    // Pause processing to queue up tasks
-    // We can't easily pause the engine without mocking, but we can rely on JS event loop
-    // if we enqueue synchronously.
+    // Enqueue blocking task first (takes the only concurrency slot)
+    singleEngine.enqueue('block', {}, 0)
 
-    // Actually, enqueue triggers process() which is async.
-    // But since we are single threaded, the process loop won't pick up until we yield.
+    // Wait for blocking task to start
+    await vi.waitFor(() => expect(firstTaskStarted).toBe(true))
 
-    engine.enqueue('test', { id: 'low' }, 1)
-    engine.enqueue('test', { id: 'high' }, 10)
-    engine.enqueue('test', { id: 'medium' }, 5)
+    // Now enqueue prioritized tasks - they queue up and get sorted
+    singleEngine.enqueue('test', { id: 'low' }, 1)
+    singleEngine.enqueue('test', { id: 'high' }, 10)
+    singleEngine.enqueue('test', { id: 'medium' }, 5)
 
-    // Wait for all to finish
-    await new Promise((resolve) => setTimeout(resolve, 100))
+    // Queue should now be sorted: high(10), medium(5), low(1)
+    // Release the blocker to let processing continue
+    blocker.resolve()
 
-    // Since process() starts immediately on first enqueue, 'low' might start first if it's async.
-    // But 'high' and 'medium' should be sorted in the queue before they are picked up
-    // IF the first task yields.
+    // Wait for all tasks to complete
+    await vi.waitFor(() => expect(executionOrder.length).toBe(3))
 
-    // This test is flaky without better control over the engine loop.
-    // For now, let's just verify they all ran.
-    expect(executionOrder).toContain('low')
-    expect(executionOrder).toContain('high')
-    expect(executionOrder).toContain('medium')
+    // Verify priority order: high first, then medium, then low
+    expect(executionOrder).toEqual(['high', 'medium', 'low'])
+  })
+
+  it('should reject enqueue after shutdown', async () => {
+    engine.registerHandler('test', () => Promise.resolve())
+    await engine.shutdown()
+    expect(() => engine.enqueue('test', {})).toThrow('TaskEngine is shutting down')
+  })
+
+  it('should wait for running tasks on shutdown', async () => {
+    const taskDeferred = createDeferred()
+    let taskCompleted = false
+
+    engine.registerHandler('slow', async () => {
+      await taskDeferred.promise
+      taskCompleted = true
+    })
+
+    engine.enqueue('slow', {})
+
+    // Start shutdown (should wait for task)
+    const shutdownPromise = engine.shutdown()
+
+    // Task should still be running
+    expect(taskCompleted).toBe(false)
+
+    // Complete the task
+    taskDeferred.resolve()
+
+    // Now shutdown should complete
+    await shutdownPromise
+    expect(taskCompleted).toBe(true)
   })
 })

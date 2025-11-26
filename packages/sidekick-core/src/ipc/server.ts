@@ -5,17 +5,6 @@
  * Used by the Supervisor to accept commands from the CLI.
  */
 import fs from 'fs/promises'
-/**
- * IPC Client Implementation
- *
- * Provides a JSON-RPC 2.0 compatible client for communicating with the Supervisor.
- * Handles connection management, request correlation, and error parsing.
- */
-/**
- * IPC Protocol Definitions
- *
- * Defines the JSON-RPC 2.0 schemas and types used for Supervisor communication.
- */
 import net from 'net'
 import { Logger } from '../logger.js'
 import { ErrorCodes, IpcHandler, JSONRPC_VERSION, JsonRpcRequestSchema, JsonRpcResponse } from './protocol.js'

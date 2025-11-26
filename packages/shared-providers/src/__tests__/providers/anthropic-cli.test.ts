@@ -3,6 +3,13 @@ import { createLogManager } from '@sidekick/core'
 import { AnthropicCliProvider, AuthError, TimeoutError, ProviderError } from '../../index'
 import { EventEmitter } from 'node:events'
 
+/** Mock ChildProcess with guaranteed stdout/stderr (never null like real ChildProcess) */
+interface MockChildProcess extends EventEmitter {
+  stdout: EventEmitter
+  stderr: EventEmitter
+  stdin: { write: ReturnType<typeof vi.fn>; end: ReturnType<typeof vi.fn> }
+}
+
 // Mock child_process
 vi.mock('node:child_process', () => ({
   spawn: vi.fn(),
@@ -21,8 +28,8 @@ describe('AnthropicCliProvider', () => {
     mockSpawn = spawn as any
   })
 
-  const createMockProcess = () => {
-    const proc = new EventEmitter() as any
+  const createMockProcess = (): MockChildProcess => {
+    const proc = new EventEmitter() as MockChildProcess
     proc.stdout = new EventEmitter()
     proc.stderr = new EventEmitter()
     proc.stdin = {

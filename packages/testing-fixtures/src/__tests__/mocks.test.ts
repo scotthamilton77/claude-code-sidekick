@@ -189,22 +189,28 @@ describe('MockConfigService', () => {
     config = new MockConfigService()
   })
 
-  it('sets and gets configuration', () => {
+  it('sets and gets configuration by key', () => {
     config.set({ llm: { provider: 'openai-api' } })
 
-    expect(config.get('llm.provider')).toBe('openai-api')
+    expect(config.get('llm')?.provider).toBe('openai-api')
+  })
+
+  it('gets configuration by dot-path', () => {
+    config.set({ llm: { provider: 'openai-api' } })
+
+    expect(config.getPath('llm.provider')).toBe('openai-api')
   })
 
   it('merges configuration on set', () => {
     config.set({ llm: { provider: 'openai-api' } })
     config.set({ llm: { timeout: 30 } })
 
-    expect(config.get('llm.provider')).toBe('openai-api')
-    expect(config.get('llm.timeout')).toBe(30)
+    expect(config.getPath('llm.provider')).toBe('openai-api')
+    expect(config.getPath('llm.timeout')).toBe(30)
   })
 
   it('returns undefined for missing paths', () => {
-    expect(config.get('nonexistent.path')).toBeUndefined()
+    expect(config.getPath('nonexistent.path')).toBeUndefined()
   })
 
   it('getAll returns entire config', () => {
@@ -219,6 +225,14 @@ describe('MockConfigService', () => {
     config.reset()
 
     expect(config.getAll()).toEqual({})
+  })
+
+  it('implements ConfigService interface', () => {
+    config.set({ logLevel: 'debug' })
+
+    // Using typed get() method
+    expect(config.get('logLevel')).toBe('debug')
+    expect(config.sources).toEqual([])
   })
 })
 
