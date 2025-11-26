@@ -71,6 +71,7 @@ test-data/
 ```
 
 ## Development Checklist
+- **Documentation**: Ensure all code changes are reflected in the project's documentation (design docs, changelog, README) to keep knowledge current.
 
 **New plugin (zero handler edits)**:
 
