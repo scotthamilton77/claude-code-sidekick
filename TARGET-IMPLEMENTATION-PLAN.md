@@ -214,21 +214,27 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
       - [x] `isConnected()` helper for connection state checking
       - [x] Comprehensive test coverage: 16 IPC tests including timeout, retry, backoff scenarios
 
-  - [ ] **5.4 Supervisor Subsystems (LLD-SUPERVISOR §4)**
-    - [x] State Manager (single writer) - BASIC IMPLEMENTATION COMPLETE
+  - [x] **5.4 Supervisor Subsystems (LLD-SUPERVISOR §4)** - COMPLETE
+    - [x] State Manager (single writer)
       - [x] `state.update(file, data, merge)` API
       - [x] In-memory cache with atomic write (tmp + rename)
-      - [ ] Corrupt state handling: move malformed JSON to `.bak`, reset to empty
-    - [x] Task Execution Engine - BASIC IMPLEMENTATION COMPLETE
+      - [x] Corrupt state handling: move malformed JSON to `.bak`, reset to empty
+      - [x] Load existing state files into cache on initialize
+    - [x] Task Execution Engine
       - [x] In-memory priority queue with sort by priority (desc) then timestamp (asc)
       - [x] Configurable concurrency limit (default: 2)
       - [x] Task handler registration via `registerHandler(type, handler)`
-      - [ ] Task timeout enforcement (default 5m, task-specific overrides)
-      - [ ] Proper task cancellation on timeout (terminate/reject)
-      - [ ] `shutdown()` properly drains queue with timeout (see 5.1.1)
-    - [ ] Watcher Service (optional for Phase 5, required Phase 6)
-      - [ ] Watch `.sidekick/config.jsonc` and `.env` for changes
-      - [ ] Hot-reload config in-memory on change
+      - [x] Task timeout enforcement (default 5m, task-specific overrides via `EnqueueOptions`)
+      - [x] Proper task cancellation on timeout via `AbortController`/`AbortSignal`
+      - [x] `cancelTask(taskId)` method for manual cancellation
+      - [x] `TaskContext` passed to handlers with `signal` and `logger`
+      - [x] `TaskTimeoutError` for timeout identification
+      - [x] `shutdown()` properly drains queue with timeout
+    - [x] Watcher Service (ConfigWatcher)
+      - [x] Watch `.sidekick/config.jsonc` and `.env` for changes
+      - [x] Hot-reload config in-memory on change
+      - [x] Debounced change detection (100ms)
+      - [x] Integrated into Supervisor lifecycle (start/stop)
 
   - [ ] **5.5 CLI Integration (LLD-CLI §4, §7)**
     - [x] Supervisor lifecycle commands - BASIC IMPLEMENTATION COMPLETE

@@ -1,54 +1,113 @@
 import { Logger } from '@sidekick/core'
 import crypto from 'crypto'
 
+/**
+ * Default task timeout: 5 minutes per LLD-SUPERVISOR §5.
+ * Tasks can override this via their timeoutMs property.
+ */
+const DEFAULT_TASK_TIMEOUT_MS = 5 * 60 * 1000
+
 export interface Task {
   id: string
   type: string
   payload: Record<string, unknown>
   priority?: number // Higher is better
   timestamp: number
+  timeoutMs?: number // Per-task timeout override
 }
 
-export type TaskHandler = (payload: Record<string, unknown>, logger: Logger) => Promise<void>
+/**
+ * Context passed to task handlers for cancellation support.
+ */
+export interface TaskContext {
+  /** AbortSignal for cancellation - handlers should check this periodically */
+  signal: AbortSignal
+  /** Logger scoped to this task */
+  logger: Logger
+}
 
 /**
- * Simple priority task queue with bounded concurrency.
+ * Task handler function signature.
+ * Receives payload and context (with AbortSignal for cancellation).
+ */
+export type TaskHandler = (payload: Record<string, unknown>, context: TaskContext) => Promise<void>
+
+/**
+ * Custom error class for task timeout.
+ */
+export class TaskTimeoutError extends Error {
+  constructor(
+    public taskId: string,
+    public taskType: string,
+    public timeoutMs: number
+  ) {
+    super(`Task ${taskType}:${taskId} timed out after ${timeoutMs}ms`)
+    this.name = 'TaskTimeoutError'
+  }
+}
+
+/**
+ * Options for task enqueueing.
+ */
+export interface EnqueueOptions {
+  priority?: number
+  timeoutMs?: number
+}
+
+/**
+ * Simple priority task queue with bounded concurrency and timeout enforcement.
  *
  * Thread-safety: This class relies on Node.js's single-threaded event loop model.
  * All state mutations (queue operations, counter increments) occur in synchronous
  * code blocks. Async task handlers schedule microtasks that execute sequentially,
  * never concurrently. This class is NOT safe for Worker Threads with shared memory.
+ *
+ * @see LLD-SUPERVISOR.md §4.2, §5
  */
 export class TaskEngine {
   private queue: Task[] = []
   private handlers = new Map<string, TaskHandler>()
   private running = 0
   private readonly maxConcurrency: number
+  private readonly defaultTimeoutMs: number
   private logger: Logger
   private isShuttingDown = false
   private shutdownResolve: (() => void) | null = null
+  private activeAbortControllers = new Map<string, AbortController>()
 
-  constructor(logger: Logger, maxConcurrency = 2) {
+  constructor(logger: Logger, maxConcurrency = 2, defaultTimeoutMs = DEFAULT_TASK_TIMEOUT_MS) {
     this.logger = logger
     this.maxConcurrency = maxConcurrency
+    this.defaultTimeoutMs = defaultTimeoutMs
   }
 
   registerHandler(type: string, handler: TaskHandler): void {
     this.handlers.set(type, handler)
   }
 
-  enqueue(type: string, payload: Record<string, unknown>, priority = 0): string {
+  /**
+   * Enqueue a task for execution.
+   * @param type - The task type (must have a registered handler)
+   * @param payload - Task payload data
+   * @param priorityOrOptions - Priority number OR options object
+   */
+  enqueue(type: string, payload: Record<string, unknown>, priorityOrOptions: number | EnqueueOptions = 0): string {
     if (this.isShuttingDown) {
       throw new Error('TaskEngine is shutting down, cannot enqueue new tasks')
     }
+
+    // Support both legacy (priority number) and new (options object) signatures
+    const options: EnqueueOptions =
+      typeof priorityOrOptions === 'number' ? { priority: priorityOrOptions } : priorityOrOptions
 
     const id = crypto.randomUUID()
     const task: Task = {
       id,
       type,
       payload,
-      priority,
+      priority: options.priority ?? 0,
       timestamp: Date.now(),
+      timeoutMs: options.timeoutMs,
     }
 
     this.queue.push(task)
@@ -60,7 +119,7 @@ export class TaskEngine {
       return a.timestamp - b.timestamp
     })
 
-    this.logger.debug('Task enqueued', { type, id, priority })
+    this.logger.debug('Task enqueued', { type, id, priority: task.priority, timeoutMs: task.timeoutMs })
     void this.process()
     return id
   }
@@ -88,24 +147,99 @@ export class TaskEngine {
       return
     }
 
-    this.logger.info('Starting task', { type: task.type, id: task.id })
+    const timeoutMs = task.timeoutMs ?? this.defaultTimeoutMs
+    const abortController = new AbortController()
+    this.activeAbortControllers.set(task.id, abortController)
+
+    this.logger.info('Starting task', { type: task.type, id: task.id, timeoutMs })
     const start = Date.now()
 
+    // Create task context with AbortSignal for cancellation
+    const context: TaskContext = {
+      signal: abortController.signal,
+      logger: this.logger,
+    }
+
     try {
-      await handler(task.payload, this.logger)
+      await this.runWithTimeout(handler, task, context, timeoutMs, abortController)
       this.logger.info('Task completed', {
         type: task.type,
         id: task.id,
         durationMs: Date.now() - start,
       })
     } catch (err) {
-      this.logger.error('Task failed', {
-        type: task.type,
-        id: task.id,
-        error: err,
-        durationMs: Date.now() - start,
-      })
+      const durationMs = Date.now() - start
+
+      if (err instanceof TaskTimeoutError) {
+        this.logger.error('Task timed out', {
+          type: task.type,
+          id: task.id,
+          timeoutMs,
+          durationMs,
+        })
+      } else if (abortController.signal.aborted) {
+        this.logger.warn('Task was cancelled', {
+          type: task.type,
+          id: task.id,
+          durationMs,
+        })
+      } else {
+        this.logger.error('Task failed', {
+          type: task.type,
+          id: task.id,
+          error: err,
+          durationMs,
+        })
+      }
+    } finally {
+      this.activeAbortControllers.delete(task.id)
     }
+  }
+
+  /**
+   * Run task handler with timeout enforcement.
+   * Per LLD-SUPERVISOR §5: Tasks have a strict timeout, defaulting to 5 minutes.
+   */
+  private async runWithTimeout(
+    handler: TaskHandler,
+    task: Task,
+    context: TaskContext,
+    timeoutMs: number,
+    abortController: AbortController
+  ): Promise<void> {
+    // Create timeout promise that rejects and aborts the task
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      const timer = setTimeout(() => {
+        abortController.abort()
+        reject(new TaskTimeoutError(task.id, task.type, timeoutMs))
+      }, timeoutMs)
+
+      // Clean up timer if handler completes first
+      // Store reference for cleanup
+      ;(timeoutPromise as { timer?: ReturnType<typeof setTimeout> }).timer = timer
+    })
+
+    try {
+      await Promise.race([handler(task.payload, context), timeoutPromise])
+    } finally {
+      // Clear the timeout to prevent memory leaks
+      const timer = (timeoutPromise as { timer?: ReturnType<typeof setTimeout> }).timer
+      if (timer) clearTimeout(timer)
+    }
+  }
+
+  /**
+   * Cancel a running task by ID.
+   * Signals abort to the task handler - handler must check signal.aborted.
+   */
+  cancelTask(taskId: string): boolean {
+    const controller = this.activeAbortControllers.get(taskId)
+    if (controller) {
+      controller.abort()
+      this.logger.info('Task cancellation requested', { taskId })
+      return true
+    }
+    return false
   }
 
   /**

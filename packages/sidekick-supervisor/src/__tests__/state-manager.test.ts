@@ -25,6 +25,64 @@ describe('StateManager', () => {
     }
   })
 
+  describe('corrupt state recovery', () => {
+    it('should move corrupt JSON to .bak and reset to empty on initialize', async () => {
+      // Create a corrupt JSON file before initializing new StateManager
+      const corruptFile = path.join(tmpDir, 'corrupt.json')
+      await fs.writeFile(corruptFile, '{ invalid json }', 'utf-8')
+
+      // Create new StateManager and initialize (triggers corrupt file handling)
+      const freshManager = new StateManager(tmpDir, logger)
+      await freshManager.initialize()
+
+      // Original file should be reset to empty object
+      const content = await fs.readFile(corruptFile, 'utf-8')
+      expect(JSON.parse(content)).toEqual({})
+
+      // Backup file should contain original corrupt content
+      const bakContent = await fs.readFile(`${corruptFile}.bak`, 'utf-8')
+      expect(bakContent).toBe('{ invalid json }')
+
+      // Cache should have empty object
+      expect(freshManager.get('corrupt')).toEqual({})
+    })
+
+    it('should load valid state files into cache on initialize', async () => {
+      // Create valid JSON file
+      const validFile = path.join(tmpDir, 'valid.json')
+      await fs.writeFile(validFile, JSON.stringify({ key: 'value' }), 'utf-8')
+
+      // Create new StateManager and initialize
+      const freshManager = new StateManager(tmpDir, logger)
+      await freshManager.initialize()
+
+      // Cache should have loaded content
+      expect(freshManager.get('valid')).toEqual({ key: 'value' })
+    })
+
+    it('should handle mix of valid and corrupt files', async () => {
+      // Create one valid and one corrupt file
+      await fs.writeFile(path.join(tmpDir, 'good.json'), JSON.stringify({ status: 'ok' }), 'utf-8')
+      await fs.writeFile(path.join(tmpDir, 'bad.json'), 'not { json at all', 'utf-8')
+
+      const freshManager = new StateManager(tmpDir, logger)
+      await freshManager.initialize()
+
+      // Good file should be loaded
+      expect(freshManager.get('good')).toEqual({ status: 'ok' })
+
+      // Bad file should be reset to empty
+      expect(freshManager.get('bad')).toEqual({})
+
+      // Backup should exist for bad file
+      const bakExists = await fs
+        .access(path.join(tmpDir, 'bad.json.bak'))
+        .then(() => true)
+        .catch(() => false)
+      expect(bakExists).toBe(true)
+    })
+  })
+
   it('should write state atomically', async () => {
     await stateManager.update('test', { foo: 'bar' })
 

@@ -12,6 +12,7 @@ import {
 import { randomBytes } from 'crypto'
 import fs from 'fs/promises'
 import path from 'path'
+import { ConfigWatcher, ConfigChangeEvent } from './config-watcher.js'
 import { StateManager } from './state-manager.js'
 import { TaskEngine } from './task-engine.js'
 
@@ -41,6 +42,7 @@ export class Supervisor {
   private stateManager: StateManager
   private taskEngine: TaskEngine
   private ipcServer: IpcServer
+  private configWatcher: ConfigWatcher
   private token: string = ''
   private lastActivityTime: number = Date.now()
   private idleCheckInterval: ReturnType<typeof setInterval> | null = null
@@ -67,6 +69,9 @@ export class Supervisor {
     this.stateManager = new StateManager(path.join(projectDir, '.sidekick', 'state'), this.logger)
     this.taskEngine = new TaskEngine(this.logger)
 
+    // Initialize Config Watcher for hot-reload (LLD-SUPERVISOR §4.3)
+    this.configWatcher = new ConfigWatcher(projectDir, this.logger, this.handleConfigChange.bind(this))
+
     // Initialize IPC
     const socketPath = getSocketPath(projectDir)
     this.ipcServer = new IpcServer(socketPath, this.logger, this.handleIpcRequest.bind(this))
@@ -88,7 +93,10 @@ export class Supervisor {
       // 4. Start IPC Server
       await this.ipcServer.start()
 
-      // 5. Start idle timeout checker
+      // 5. Start config watcher for hot-reload
+      this.configWatcher.start()
+
+      // 6. Start idle timeout checker
       this.startIdleCheck()
 
       this.logger.info('Supervisor started successfully')
@@ -104,6 +112,9 @@ export class Supervisor {
 
     // Stop idle checker
     this.stopIdleCheck()
+
+    // Stop config watcher
+    this.configWatcher.stop()
 
     try {
       // Stop accepting new IPC
@@ -124,6 +135,38 @@ export class Supervisor {
 
     this.logger.info('Supervisor stopped')
     process.exit(0)
+  }
+
+  /**
+   * Handle configuration file changes for hot-reload.
+   * Per LLD-SUPERVISOR §4.3: Reload config in-memory on change.
+   */
+  private handleConfigChange(event: ConfigChangeEvent): void {
+    this.logger.info('Configuration change detected', { file: event.file, eventType: event.eventType })
+
+    // Reload configuration
+    try {
+      const newConfig = loadConfig({ projectRoot: this.projectDir })
+
+      // Apply critical config changes immediately
+      if (newConfig.logLevel !== this.config.logLevel) {
+        this.logger.info('Log level changed, updating logger', {
+          old: this.config.logLevel,
+          new: newConfig.logLevel,
+        })
+        // Note: Full log level change would require recreating the logger
+        // For now, we just note it. Full implementation would update the Pino level.
+      }
+
+      // Update stored config
+      this.config = newConfig
+
+      this.logger.info('Configuration reloaded successfully')
+    } catch (err) {
+      this.logger.error('Failed to reload configuration', {
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
   }
 
   private async handleIpcRequest(method: string, params: unknown): Promise<unknown> {
