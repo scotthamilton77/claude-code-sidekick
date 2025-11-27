@@ -254,15 +254,22 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
       - [x] Warnings logged via structured logging
       - [x] `isAvailable()` method for features to check before expensive operations
 
-  - [ ] **5.6 Error Handling (LLD-SUPERVISOR §5)**
-    - [ ] Uncaught exception handling
-      - [ ] Log fatal error to `supervisor.log`
-      - [ ] Attempt graceful cleanup
-      - [ ] CLI will restart on next run
-    - [ ] Stuck task handling
-      - [ ] Strict timeout enforcement per task type
-      - [ ] Worker termination/promise rejection on timeout
-      - [ ] Error logging with task context
+  - [x] **5.6 Error Handling (LLD-SUPERVISOR §5)** - COMPLETE
+    - [x] Uncaught exception handling
+      - [x] Log fatal error to `supervisor.log` via structured logger
+      - [x] Attempt graceful cleanup (calls `cleanup()` before exit)
+      - [x] CLI will restart on next run (exits with code 1)
+      - [x] `unhandledRejection` handler added for async errors
+      - [x] Recursion guard prevents infinite loops if cleanup throws
+    - [x] Stuck task handling (implemented in 5.4)
+      - [x] Strict timeout enforcement per task type (`runWithTimeout()`)
+      - [x] Worker termination/promise rejection on timeout (`AbortController.abort()`)
+      - [x] Error logging with task context (`TaskTimeoutError`, structured logging)
+    - [x] Implementation notes
+      - [x] Error handlers moved into `Supervisor.setupErrorHandlers()` for logger access
+      - [x] `handleFatalError()` logs structured error data (message, stack, pid, projectDir)
+      - [x] Process-level handlers tested indirectly via cleanup() coverage; direct testing
+            would require fragile process mocking that can interfere with test runner
 
   - [ ] **5.7 Testing Requirements**
     - [x] Unit tests - COMPREHENSIVE COVERAGE
@@ -279,11 +286,14 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
       - [x] State manager merge operations (state-manager.test.ts)
       - [x] Task engine basic execution (task-engine.test.ts)
       - [x] Task engine priority ordering (task-engine.test.ts)
+      - [x] Task engine timeout enforcement (task-engine.test.ts - 2 tests)
+      - [x] Task engine cancellation via AbortController (task-engine.test.ts)
+      - [x] Task engine shutdown with running tasks (task-engine.test.ts)
+      - [x] Error handling - cleanup and logging tested via supervisor paths
       - [ ] Supervisor start/stop lifecycle
       - [ ] Version handshake and mismatch handling
       - [ ] IPC token validation (valid, invalid, missing scenarios)
       - [ ] State manager corrupt file recovery
-      - [ ] Task engine timeout enforcement
       - [ ] Task engine concurrent task limits
     - [ ] Integration tests
       - [ ] Single-writer guarantees during concurrent task submissions

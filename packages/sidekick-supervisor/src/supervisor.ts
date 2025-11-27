@@ -84,6 +84,9 @@ export class Supervisor {
     try {
       this.logger.info('Supervisor starting', { projectDir: this.projectDir, pid: process.pid })
 
+      // 0. Set up process-level error handlers (per LLD-SUPERVISOR §5)
+      this.setupErrorHandlers()
+
       // 1. Write PID file
       await this.writePid()
 
@@ -313,5 +316,55 @@ export class Supervisor {
       clearInterval(this.idleCheckInterval)
       this.idleCheckInterval = null
     }
+  }
+
+  /**
+   * Set up process-level error handlers for uncaught exceptions and unhandled rejections.
+   * Per LLD-SUPERVISOR §5: Log fatal error to supervisor.log, attempt graceful cleanup, exit.
+   * CLI will restart the supervisor on next run.
+   */
+  private setupErrorHandlers(): void {
+    // Track if we're already handling a fatal error to prevent recursion
+    let isHandlingFatalError = false
+
+    /**
+     * Handle fatal errors: log, attempt cleanup, exit.
+     * Uses synchronous cleanup where possible since process may be in unstable state.
+     */
+    const handleFatalError = (type: string, error: unknown): void => {
+      // Prevent recursion if cleanup itself throws
+      if (isHandlingFatalError) {
+        // Last resort: write to stderr and exit immediately
+        console.error(`Recursive fatal error during ${type} handling:`, error)
+        process.exit(1)
+      }
+      isHandlingFatalError = true
+
+      // Log the fatal error to supervisor.log
+      this.logger.fatal(`Fatal ${type}`, {
+        error: error instanceof Error ? { message: error.message, stack: error.stack } : String(error),
+        pid: process.pid,
+        projectDir: this.projectDir,
+      })
+
+      // Attempt graceful cleanup (best-effort, may fail if process is unstable)
+      // We use cleanup() which removes PID, token, and user PID files
+      // IPC server and task engine may already be in bad state, so we skip them
+      void this.cleanup().finally(() => {
+        process.exit(1)
+      })
+    }
+
+    // Handle uncaught synchronous exceptions
+    process.on('uncaughtException', (err: Error) => {
+      handleFatalError('uncaughtException', err)
+    })
+
+    // Handle unhandled promise rejections (async errors that weren't caught)
+    process.on('unhandledRejection', (reason: unknown) => {
+      handleFatalError('unhandledRejection', reason)
+    })
+
+    this.logger.debug('Process error handlers installed')
   }
 }
