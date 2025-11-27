@@ -298,4 +298,138 @@ describe('IPC', () => {
       await server.stop()
     })
   })
+
+  describe('Token Validation', () => {
+    const VALID_TOKEN = 'valid-test-token-abc123'
+
+    // Simulates supervisor's token validation behavior
+    const createTokenValidatingHandler = (expectedToken: string): ReturnType<typeof vi.fn> => {
+      return vi.fn().mockImplementation((method: string, params: unknown) => {
+        const p = params as Record<string, unknown> | undefined
+
+        // Handshake validates token and returns version
+        if (method === 'handshake') {
+          if (p?.token !== expectedToken) {
+            throw new Error('Invalid token')
+          }
+          return { version: '1.0.0', status: 'ok' }
+        }
+
+        // All other methods require valid token (post-handshake)
+        if (!p?.token || p.token !== expectedToken) {
+          throw new Error('Unauthorized')
+        }
+
+        switch (method) {
+          case 'ping':
+            return 'pong'
+          case 'state.update':
+            return { updated: true }
+          default:
+            throw new Error(`Method not found: ${method}`)
+        }
+      })
+    }
+
+    it('should succeed with valid token', async () => {
+      const handler = createTokenValidatingHandler(VALID_TOKEN)
+      const server = new IpcServer(socketPath, logger, handler)
+      await server.start()
+
+      const client = new IpcClient(socketPath, logger)
+      await client.connect()
+
+      // Handshake with valid token
+      const handshakeResult = await client.call('handshake', { token: VALID_TOKEN })
+      expect(handshakeResult).toEqual({ version: '1.0.0', status: 'ok' })
+
+      // Subsequent call with valid token
+      const pingResult = await client.call('ping', { token: VALID_TOKEN })
+      expect(pingResult).toBe('pong')
+
+      client.close()
+      await server.stop()
+    })
+
+    it('should reject invalid token on handshake', async () => {
+      const handler = createTokenValidatingHandler(VALID_TOKEN)
+      const server = new IpcServer(socketPath, logger, handler)
+      await server.start()
+
+      const client = new IpcClient(socketPath, logger)
+      await client.connect()
+
+      // Handshake with wrong token should fail
+      await expect(client.call('handshake', { token: 'wrong-token' })).rejects.toThrow('Invalid token')
+
+      client.close()
+      await server.stop()
+    })
+
+    it('should reject missing token on handshake', async () => {
+      const handler = createTokenValidatingHandler(VALID_TOKEN)
+      const server = new IpcServer(socketPath, logger, handler)
+      await server.start()
+
+      const client = new IpcClient(socketPath, logger)
+      await client.connect()
+
+      // Handshake without token should fail
+      await expect(client.call('handshake', {})).rejects.toThrow('Invalid token')
+
+      client.close()
+      await server.stop()
+    })
+
+    it('should reject unauthorized call without token', async () => {
+      const handler = createTokenValidatingHandler(VALID_TOKEN)
+      const server = new IpcServer(socketPath, logger, handler)
+      await server.start()
+
+      const client = new IpcClient(socketPath, logger)
+      await client.connect()
+
+      // First authenticate properly
+      await client.call('handshake', { token: VALID_TOKEN })
+
+      // Then try to call without token
+      await expect(client.call('ping', {})).rejects.toThrow('Unauthorized')
+
+      client.close()
+      await server.stop()
+    })
+
+    it('should reject unauthorized call with invalid token', async () => {
+      const handler = createTokenValidatingHandler(VALID_TOKEN)
+      const server = new IpcServer(socketPath, logger, handler)
+      await server.start()
+
+      const client = new IpcClient(socketPath, logger)
+      await client.connect()
+
+      // First authenticate properly
+      await client.call('handshake', { token: VALID_TOKEN })
+
+      // Then try to call with wrong token
+      await expect(client.call('ping', { token: 'tampered-token' })).rejects.toThrow('Unauthorized')
+
+      client.close()
+      await server.stop()
+    })
+
+    it('should reject call when token is null', async () => {
+      const handler = createTokenValidatingHandler(VALID_TOKEN)
+      const server = new IpcServer(socketPath, logger, handler)
+      await server.start()
+
+      const client = new IpcClient(socketPath, logger)
+      await client.connect()
+
+      // Handshake with null token
+      await expect(client.call('handshake', { token: null })).rejects.toThrow('Invalid token')
+
+      client.close()
+      await server.stop()
+    })
+  })
 })
