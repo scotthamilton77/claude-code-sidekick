@@ -271,7 +271,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
       - [x] Process-level handlers tested indirectly via cleanup() coverage; direct testing
             would require fragile process mocking that can interfere with test runner
 
-  - [ ] **5.7 Testing Requirements** - IN PROGRESS (supervisor.ts coverage gap)
+  - [x] **5.7 Testing Requirements** - IN PROGRESS (supervisor.ts coverage gap)
     - [x] Unit tests - COMPREHENSIVE COVERAGE (210 tests total)
       - [x] IPC request/response cycle (ipc.test.ts)
       - [x] IPC error handling with JSON-RPC codes (ipc.test.ts)
@@ -300,12 +300,6 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [x] Integration tests - Coverage achieved via existing unit tests
       - [x] CLI fallback when supervisor unavailable (ipc-service.test.ts graceful degradation)
       - [x] Graceful shutdown with in-flight tasks (task-engine.test.ts shutdown tests)
-    - [ ] Supervisor IPC handler tests (supervisor.ts) - Coverage gap identified
-      - [ ] handleIpcRequest token validation (reject invalid/missing token)
-      - [ ] handleIpcRequest method dispatch (ping, shutdown, state.update, task.enqueue)
-      - [ ] handleHandshake success/failure paths
-      - [ ] handleConfigChange hot-reload (config update + error recovery)
-      - [ ] startIdleCheck/stopIdleCheck timeout behavior
 
   - [x] **5.8 Definition of Done Gates** - COMPLETE
     - [x] `pnpm build` passes with zero errors
@@ -347,7 +341,21 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [ ] Dual-scope parity verified: features behave identically when invoked from user and project hook installs.
     - [ ] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
 
-- [ ] **Phase 7: Installation & Distribution Hardening**
+- [ ] **Phase 7: Feature Parity and Legacy Cleanup**
+  - [ ] Objectives
+    - [ ] Examine the benchmark-next/ code to extract features and behaviors to be ported to the new typescript rewrite
+    - [ ] Identify features and behaviors in the existing bash-based implementation not implemented in the typescript rewrite
+    - [ ] Identify features and behaviors embedded under the scripts/ folder (not related to install/uninstall) that need to be ported to the typescript rewrite
+    - [ ] Create sub-phases and tasks for the new work identified
+  - [ ] Acceptance criteria
+    - [ ] Typescript rewrite achieved feature-parity with the legacy implementation except where explicity given exceptions or alternatives
+    - [ ] We're utilizing open source to its maximum potential - no unnecessary wheel reinvention!
+    - [ ] We're testing OUR code, not open source behaviors.
+    - [ ] Code complexity is kept low using stated architecture principles and guidelines.  (See `TARGET-ARCHITECTURE.md` Guiding Principles).
+    - [ ] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
+  
+
+- [ ] **Phase 8: Installation & Distribution Hardening**
   - [ ] Objectives
     - [ ] Finalize installer scripts to bundle assets, generate bash wrappers, and support `npx` and global CLI usage with dual-scope detection warnings.
     - [ ] Harden migration utilities (legacy `.conf` → JSONC) and document workflows.
@@ -365,3 +373,5 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [ ] Bundled assets match `assets/sidekick/` HEAD contents and are loaded correctly by runtime after install.
     - [ ] Migration tool converts legacy configs with clear reporting and preserves overrides.
     - [ ] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
+
+- [ ] **Phase 9: Cleanup**
