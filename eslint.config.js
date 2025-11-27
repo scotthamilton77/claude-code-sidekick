@@ -31,7 +31,7 @@ export default tseslint.config(
 
   // Main config for TypeScript files
   {
-    files: ['packages/**/*.ts'],
+    files: ['packages/**/*.ts', 'packages/**/*.tsx'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',
@@ -65,6 +65,14 @@ export default tseslint.config(
 
       // Prettier integration
       'prettier/prettier': 'error',
+    },
+  },
+
+  // React components - relaxed return type requirement (JSX return is obvious)
+  {
+    files: ['**/*.tsx'],
+    rules: {
+      '@typescript-eslint/explicit-function-return-type': 'off',
     },
   },
 
