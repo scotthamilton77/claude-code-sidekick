@@ -226,4 +226,71 @@ describe('TaskEngine', () => {
       expect(error.message).toContain('5000ms')
     })
   })
+
+  describe('concurrent task limits', () => {
+    it('should process multiple enqueued tasks to completion', async () => {
+      // This test verifies that queueing works - tasks queue up and eventually all complete
+      const limitedEngine = new TaskEngine(logger, 2, 60000)
+      const completed: string[] = []
+
+      limitedEngine.registerHandler('multi', (payload: Record<string, unknown>, _ctx: TaskContext): Promise<void> => {
+        // Synchronous work only to avoid timing issues
+        completed.push(payload.id as string)
+        return Promise.resolve()
+      })
+
+      // Enqueue 5 tasks
+      for (let i = 1; i <= 5; i++) {
+        limitedEngine.enqueue('multi', { id: `task${i}` })
+      }
+
+      // All tasks should complete eventually
+      await vi.waitFor(() => expect(completed.length).toBe(5), { timeout: 1000 })
+
+      // All 5 tasks should have completed
+      expect(completed).toHaveLength(5)
+      expect(completed).toContain('task1')
+      expect(completed).toContain('task5')
+    })
+
+    it('should process tasks even with high concurrency limit', async () => {
+      // With concurrency=10 and 5 tasks, all should complete
+      const highConcurrencyEngine = new TaskEngine(logger, 10, 60000)
+      const completed: string[] = []
+
+      highConcurrencyEngine.registerHandler(
+        'high',
+        (payload: Record<string, unknown>, _ctx: TaskContext): Promise<void> => {
+          completed.push(payload.id as string)
+          return Promise.resolve()
+        }
+      )
+
+      for (let i = 1; i <= 5; i++) {
+        highConcurrencyEngine.enqueue('high', { id: `task${i}` })
+      }
+
+      await vi.waitFor(() => expect(completed.length).toBe(5), { timeout: 500 })
+      expect(completed).toHaveLength(5)
+    })
+
+    it('should process tasks with concurrency=1', async () => {
+      // Serial processing: all tasks complete in order
+      const serialEngine = new TaskEngine(logger, 1, 60000)
+      const completed: string[] = []
+
+      serialEngine.registerHandler('serial', (payload: Record<string, unknown>, _ctx: TaskContext): Promise<void> => {
+        completed.push(payload.id as string)
+        return Promise.resolve()
+      })
+
+      // Enqueue in order
+      serialEngine.enqueue('serial', { id: 'task1' })
+      serialEngine.enqueue('serial', { id: 'task2' })
+      serialEngine.enqueue('serial', { id: 'task3' })
+
+      await vi.waitFor(() => expect(completed.length).toBe(3), { timeout: 500 })
+      expect(completed).toHaveLength(3)
+    })
+  })
 })

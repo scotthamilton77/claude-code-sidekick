@@ -17,7 +17,6 @@ import { killAllSupervisors, SupervisorClient, UserPidInfo } from '../supervisor
 const logger = createConsoleLogger({ minimumLevel: 'error' })
 let tmpProjectDir: string
 let tmpUserDir: string
-let originalHomedir: () => string
 
 describe('SupervisorClient', () => {
   beforeEach(async () => {
@@ -29,7 +28,6 @@ describe('SupervisorClient', () => {
     await fs.mkdir(path.join(tmpUserDir, '.sidekick', 'supervisors'), { recursive: true })
 
     // Mock os.homedir() for user-level PID paths
-    originalHomedir = os.homedir
     vi.spyOn(os, 'homedir').mockReturnValue(tmpUserDir)
   })
 
@@ -78,6 +76,57 @@ describe('SupervisorClient', () => {
       expect(path1).toBe(path2) // Same project = same path
       expect(path1).not.toBe(path3) // Different project = different path
       expect(path1).toContain('.pid')
+    })
+  })
+
+  describe('getStatus()', () => {
+    it('should return stopped when no supervisor running', async () => {
+      const client = new SupervisorClient(tmpProjectDir, logger)
+      const status = await client.getStatus()
+
+      expect(status.status).toBe('stopped')
+      expect(status.ping).toBeUndefined()
+    })
+
+    it('should return running with ping when supervisor responds', async () => {
+      const IpcServer = (await import('../ipc/server.js')).IpcServer
+      const token = 'test-token-12345'
+      await fs.writeFile(getTokenPath(tmpProjectDir), token)
+      await fs.writeFile(getPidPath(tmpProjectDir), process.pid.toString()) // Use own PID as alive process
+
+      const handler = vi.fn().mockImplementation((method: string, params: unknown) => {
+        const p = params as Record<string, unknown>
+        if (method === 'handshake') {
+          if (p.token !== token) throw new Error('Invalid token')
+          return { version: '1.0.0', status: 'ok' }
+        }
+        if (method === 'ping') {
+          return 'pong'
+        }
+        return null
+      })
+
+      const server = new IpcServer(getSocketPath(tmpProjectDir), logger, handler)
+      await server.start()
+
+      const client = new SupervisorClient(tmpProjectDir, logger)
+      const status = await client.getStatus()
+
+      expect(status.status).toBe('running')
+      expect(status.ping).toBe('pong')
+
+      await server.stop()
+    })
+
+    it('should return unresponsive when supervisor fails to respond', async () => {
+      // Write PID for alive process but no server running
+      await fs.writeFile(getPidPath(tmpProjectDir), process.pid.toString())
+
+      const client = new SupervisorClient(tmpProjectDir, logger)
+      const status = await client.getStatus()
+
+      expect(status.status).toBe('unresponsive')
+      expect(status.error).toBeDefined()
     })
   })
 
@@ -139,13 +188,11 @@ describe('SupervisorClient', () => {
 
 describe('killAllSupervisors', () => {
   let tmpUserDir: string
-  let originalHomedir: () => string
 
   beforeEach(async () => {
     tmpUserDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sidekick-killall-test-'))
     await fs.mkdir(path.join(tmpUserDir, '.sidekick', 'supervisors'), { recursive: true })
 
-    originalHomedir = os.homedir
     vi.spyOn(os, 'homedir').mockReturnValue(tmpUserDir)
   })
 
