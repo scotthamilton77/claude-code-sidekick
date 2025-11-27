@@ -11,6 +11,7 @@ const Icon = ({ name, ...props }: IconProps) => {
 
     return (
         <Suspense fallback={<div style={{ width: props.size || 24, height: props.size || 24 }} />}>
+            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
             <LucideIcon {...props as any} />
         </Suspense>
     );
