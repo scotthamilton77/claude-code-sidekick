@@ -271,7 +271,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
       - [x] Process-level handlers tested indirectly via cleanup() coverage; direct testing
             would require fragile process mocking that can interfere with test runner
 
-  - [x] **5.7 Testing Requirements** - COMPLETE
+  - [ ] **5.7 Testing Requirements** - IN PROGRESS (supervisor.ts coverage gap)
     - [x] Unit tests - COMPREHENSIVE COVERAGE (210 tests total)
       - [x] IPC request/response cycle (ipc.test.ts)
       - [x] IPC error handling with JSON-RPC codes (ipc.test.ts)
@@ -300,6 +300,12 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [x] Integration tests - Coverage achieved via existing unit tests
       - [x] CLI fallback when supervisor unavailable (ipc-service.test.ts graceful degradation)
       - [x] Graceful shutdown with in-flight tasks (task-engine.test.ts shutdown tests)
+    - [ ] Supervisor IPC handler tests (supervisor.ts) - Coverage gap identified
+      - [ ] handleIpcRequest token validation (reject invalid/missing token)
+      - [ ] handleIpcRequest method dispatch (ping, shutdown, state.update, task.enqueue)
+      - [ ] handleHandshake success/failure paths
+      - [ ] handleConfigChange hot-reload (config update + error recovery)
+      - [ ] startIdleCheck/stopIdleCheck timeout behavior
 
   - [x] **5.8 Definition of Done Gates** - COMPLETE
     - [x] `pnpm build` passes with zero errors
