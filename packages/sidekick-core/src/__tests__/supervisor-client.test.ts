@@ -2,17 +2,28 @@
  * SupervisorClient Unit Tests
  *
  * Tests the supervisor lifecycle management including:
+ * - start() - spawn new supervisor, version checks, restart on mismatch
+ * - stop() - graceful IPC shutdown with fallback
  * - kill() - forceful termination of project-local supervisor
  * - killAllSupervisors() - kill all supervisors across projects
  * - User-level PID file management
  */
+import type { ChildProcess } from 'child_process'
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import { createConsoleLogger } from '../logger.js'
 import { getPidPath, getSocketPath, getTokenPath, getUserPidPath, getUserSupervisorsDir } from '../ipc/transport.js'
 import { killAllSupervisors, SupervisorClient, UserPidInfo } from '../supervisor-client.js'
+
+// Mock child_process.spawn
+vi.mock('child_process', () => ({
+  spawn: vi.fn(),
+}))
+
+// Import spawn after mock setup
+import { spawn } from 'child_process'
 
 const logger = createConsoleLogger({ minimumLevel: 'error' })
 let tmpProjectDir: string
@@ -64,6 +75,58 @@ describe('SupervisorClient', () => {
 
       // Stale files should be cleaned up
       await expect(fs.access(getPidPath(tmpProjectDir))).rejects.toThrow()
+    })
+
+    it('should SIGKILL running supervisor and return pid', async () => {
+      // Use current process PID to simulate running supervisor
+      await fs.writeFile(getPidPath(tmpProjectDir), process.pid.toString())
+      await fs.writeFile(getSocketPath(tmpProjectDir), '')
+      await fs.writeFile(getTokenPath(tmpProjectDir), 'token')
+
+      const client = new SupervisorClient(tmpProjectDir, logger)
+
+      // Mock process.kill to track calls without actually killing
+      const killSpy = vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
+        if (signal === 0) return true // Process alive check
+        if (signal === 'SIGKILL') return true // Simulate successful kill
+        return true
+      })
+
+      // Mock cleanupStaleFiles to prevent actual file deletion affecting other tests
+      vi.spyOn(client as unknown as { cleanupStaleFiles: () => Promise<void> }, 'cleanupStaleFiles').mockResolvedValue()
+
+      const result = await client.kill()
+
+      expect(result.killed).toBe(true)
+      expect(result.pid).toBe(process.pid)
+      expect(killSpy).toHaveBeenCalledWith(process.pid, 'SIGKILL')
+
+      killSpy.mockRestore()
+    })
+
+    it('should handle SIGKILL failure gracefully', async () => {
+      await fs.writeFile(getPidPath(tmpProjectDir), process.pid.toString())
+
+      const client = new SupervisorClient(tmpProjectDir, logger)
+
+      // Mock process.kill to fail on SIGKILL but succeed on signal 0 (alive check)
+      const killSpy = vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
+        if (signal === 0) return true // Process is alive
+        // SIGKILL fails
+        const err = new Error('EPERM') as NodeJS.ErrnoException
+        err.code = 'EPERM'
+        throw err
+      })
+
+      // Mock cleanupStaleFiles
+      vi.spyOn(client as unknown as { cleanupStaleFiles: () => Promise<void> }, 'cleanupStaleFiles').mockResolvedValue()
+
+      const result = await client.kill()
+
+      expect(result.killed).toBe(false)
+      expect(result.pid).toBeUndefined()
+
+      killSpy.mockRestore()
     })
   })
 
@@ -130,6 +193,177 @@ describe('SupervisorClient', () => {
     })
   })
 
+  describe('start()', () => {
+    let mockSpawn: MockInstance
+    let mockChildProcess: Partial<ChildProcess>
+
+    beforeEach(() => {
+      mockChildProcess = {
+        unref: vi.fn(),
+        pid: 12345,
+      }
+      mockSpawn = vi.mocked(spawn).mockReturnValue(mockChildProcess as ChildProcess)
+    })
+
+    it('should spawn supervisor when none running', async () => {
+      const client = new SupervisorClient(tmpProjectDir, logger)
+
+      // Mock waitForStartup to succeed immediately
+      vi.spyOn(client as unknown as { waitForStartup: () => Promise<void> }, 'waitForStartup').mockResolvedValue()
+
+      await client.start()
+
+      expect(mockSpawn).toHaveBeenCalledWith(
+        'node',
+        expect.arrayContaining([expect.stringContaining('sidekick-supervisor')]),
+        {
+          detached: true,
+          stdio: 'ignore',
+          cwd: tmpProjectDir,
+        }
+      )
+      expect(mockChildProcess.unref).toHaveBeenCalled()
+    })
+
+    it('should skip spawn when supervisor running with matching version', async () => {
+      const IpcServer = (await import('../ipc/server.js')).IpcServer
+      const token = 'test-token-version-match'
+      await fs.writeFile(getTokenPath(tmpProjectDir), token)
+      await fs.writeFile(getPidPath(tmpProjectDir), process.pid.toString())
+
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const clientVersion: string = require('../../package.json').version
+
+      const handler = vi.fn().mockImplementation((method: string, params: unknown) => {
+        const p = params as Record<string, unknown>
+        if (method === 'handshake') {
+          if (p.token !== token) throw new Error('Invalid token')
+          return { version: clientVersion, status: 'ok' } // Matching version
+        }
+        return null
+      })
+
+      const server = new IpcServer(getSocketPath(tmpProjectDir), logger, handler)
+      await server.start()
+
+      const client = new SupervisorClient(tmpProjectDir, logger)
+      await client.start()
+
+      // Should NOT spawn because version matches
+      expect(mockSpawn).not.toHaveBeenCalled()
+
+      await server.stop()
+    })
+
+    it('should restart supervisor on version mismatch', async () => {
+      const IpcServer = (await import('../ipc/server.js')).IpcServer
+      const token = 'test-token-version-mismatch'
+      await fs.writeFile(getTokenPath(tmpProjectDir), token)
+      await fs.writeFile(getPidPath(tmpProjectDir), process.pid.toString())
+
+      const handler = vi.fn().mockImplementation((method: string, params: unknown) => {
+        const p = params as Record<string, unknown>
+        if (method === 'handshake') {
+          if (p.token !== token) throw new Error('Invalid token')
+          return { version: '0.0.0-mismatched', status: 'ok' } // Mismatched version
+        }
+        if (method === 'shutdown') {
+          return { ack: true }
+        }
+        return null
+      })
+
+      const server = new IpcServer(getSocketPath(tmpProjectDir), logger, handler)
+      await server.start()
+
+      const client = new SupervisorClient(tmpProjectDir, logger)
+
+      // Mock waitForShutdown and waitForStartup
+      vi.spyOn(client as unknown as { waitForShutdown: () => Promise<void> }, 'waitForShutdown').mockResolvedValue()
+      vi.spyOn(client as unknown as { waitForStartup: () => Promise<void> }, 'waitForStartup').mockResolvedValue()
+
+      await client.start()
+
+      // Should spawn new supervisor after version mismatch
+      expect(mockSpawn).toHaveBeenCalled()
+
+      await server.stop()
+    })
+
+    it('should throw if startup times out', async () => {
+      const client = new SupervisorClient(tmpProjectDir, logger)
+
+      // Don't mock waitForStartup - let it actually timeout
+      // But use a very short timeout by mocking the internal method
+      vi.spyOn(
+        client as unknown as { waitForStartup: (t: number) => Promise<void> },
+        'waitForStartup'
+      ).mockRejectedValue(new Error('Supervisor failed to start within timeout'))
+
+      await expect(client.start()).rejects.toThrow('Supervisor failed to start within timeout')
+    })
+  })
+
+  describe('stop()', () => {
+    it('should return early when no supervisor running', async () => {
+      const client = new SupervisorClient(tmpProjectDir, logger)
+
+      // No PID file exists, so isRunning() returns false
+      await client.stop()
+
+      // Should complete without error (no-op)
+    })
+
+    it('should perform graceful IPC shutdown', async () => {
+      const IpcServer = (await import('../ipc/server.js')).IpcServer
+      const token = 'test-token-stop'
+      await fs.writeFile(getTokenPath(tmpProjectDir), token)
+      await fs.writeFile(getPidPath(tmpProjectDir), process.pid.toString())
+
+      let shutdownCalled = false
+      const handler = vi.fn().mockImplementation((method: string, params: unknown) => {
+        const p = params as Record<string, unknown>
+        if (method === 'handshake') {
+          if (p.token !== token) throw new Error('Invalid token')
+          return { version: '1.0.0', status: 'ok' }
+        }
+        if (method === 'shutdown') {
+          shutdownCalled = true
+          return { ack: true }
+        }
+        return null
+      })
+
+      const server = new IpcServer(getSocketPath(tmpProjectDir), logger, handler)
+      await server.start()
+
+      const client = new SupervisorClient(tmpProjectDir, logger)
+      await client.stop()
+
+      expect(shutdownCalled).toBe(true)
+      expect(handler).toHaveBeenCalledWith('handshake', expect.anything())
+      expect(handler).toHaveBeenCalledWith('shutdown', expect.anything())
+
+      await server.stop()
+    })
+
+    it('should fallback to killForcefully on IPC error', async () => {
+      // Write PID for alive process but no server (will fail to connect)
+      await fs.writeFile(getPidPath(tmpProjectDir), process.pid.toString())
+
+      const client = new SupervisorClient(tmpProjectDir, logger)
+
+      // Spy on killForcefully
+      const killForceFullySpy = vi
+        .spyOn(client as unknown as { killForcefully: () => Promise<void> }, 'killForcefully')
+        .mockResolvedValue()
+
+      await client.stop()
+
+      expect(killForceFullySpy).toHaveBeenCalled()
+    })
+  })
+
   describe('stopAndWait()', () => {
     it('should return true when supervisor stops within timeout', async () => {
       const client = new SupervisorClient(tmpProjectDir, logger)
@@ -182,6 +416,270 @@ describe('SupervisorClient', () => {
       expect(result).toBe(true)
       // Should complete quickly (within 1.5s - one poll interval + buffer)
       expect(elapsed).toBeLessThan(1500)
+    })
+  })
+
+  describe('checkVersion() [private]', () => {
+    it('should return true on version match', async () => {
+      const IpcServer = (await import('../ipc/server.js')).IpcServer
+      const token = 'test-token-check-version'
+      await fs.writeFile(getTokenPath(tmpProjectDir), token)
+      await fs.writeFile(getPidPath(tmpProjectDir), process.pid.toString())
+
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const clientVersion: string = require('../../package.json').version
+
+      const handler = vi.fn().mockImplementation((method: string, params: unknown) => {
+        const p = params as Record<string, unknown>
+        if (method === 'handshake') {
+          if (p.token !== token) throw new Error('Invalid token')
+          return { version: clientVersion, status: 'ok' }
+        }
+        return null
+      })
+
+      const server = new IpcServer(getSocketPath(tmpProjectDir), logger, handler)
+      await server.start()
+
+      const client = new SupervisorClient(tmpProjectDir, logger)
+      const checkVersion = (client as unknown as { checkVersion: () => Promise<boolean> }).checkVersion.bind(client)
+      const result = await checkVersion()
+
+      expect(result).toBe(true)
+
+      await server.stop()
+    })
+
+    it('should return false on version mismatch', async () => {
+      const IpcServer = (await import('../ipc/server.js')).IpcServer
+      const token = 'test-token-mismatch'
+      await fs.writeFile(getTokenPath(tmpProjectDir), token)
+      await fs.writeFile(getPidPath(tmpProjectDir), process.pid.toString())
+
+      const handler = vi.fn().mockImplementation((method: string, params: unknown) => {
+        const p = params as Record<string, unknown>
+        if (method === 'handshake') {
+          if (p.token !== token) throw new Error('Invalid token')
+          return { version: '0.0.0-different', status: 'ok' }
+        }
+        return null
+      })
+
+      const server = new IpcServer(getSocketPath(tmpProjectDir), logger, handler)
+      await server.start()
+
+      const client = new SupervisorClient(tmpProjectDir, logger)
+      const checkVersion = (client as unknown as { checkVersion: () => Promise<boolean> }).checkVersion.bind(client)
+      const result = await checkVersion()
+
+      expect(result).toBe(false)
+
+      await server.stop()
+    })
+
+    it('should return false on IPC error (triggers restart)', async () => {
+      // No server running, so IPC will fail
+      await fs.writeFile(getPidPath(tmpProjectDir), process.pid.toString())
+      await fs.writeFile(getTokenPath(tmpProjectDir), 'dummy-token')
+
+      const client = new SupervisorClient(tmpProjectDir, logger)
+      const checkVersion = (client as unknown as { checkVersion: () => Promise<boolean> }).checkVersion.bind(client)
+      const result = await checkVersion()
+
+      // On error, should return false to trigger restart
+      expect(result).toBe(false)
+    })
+  })
+
+  describe('waitForShutdown() [private]', () => {
+    it('should return when supervisor stops', async () => {
+      const client = new SupervisorClient(tmpProjectDir, logger)
+
+      // Mock isRunning to return false immediately
+      vi.spyOn(client as unknown as { isRunning: () => Promise<boolean> }, 'isRunning').mockResolvedValue(false)
+
+      const waitForShutdown = (
+        client as unknown as { waitForShutdown: (t?: number) => Promise<void> }
+      ).waitForShutdown.bind(client)
+
+      // Should complete without error
+      await waitForShutdown(1000)
+    })
+
+    it('should force kill and cleanup on timeout', async () => {
+      const client = new SupervisorClient(tmpProjectDir, logger)
+
+      // Mock isRunning to always return true (supervisor never stops)
+      vi.spyOn(client as unknown as { isRunning: () => Promise<boolean> }, 'isRunning').mockResolvedValue(true)
+
+      // Mock killForcefully and cleanupStaleFiles
+      const killForceFullySpy = vi
+        .spyOn(client as unknown as { killForcefully: () => Promise<void> }, 'killForcefully')
+        .mockResolvedValue()
+      const cleanupSpy = vi
+        .spyOn(client as unknown as { cleanupStaleFiles: () => Promise<void> }, 'cleanupStaleFiles')
+        .mockResolvedValue()
+
+      const waitForShutdown = (
+        client as unknown as { waitForShutdown: (t?: number) => Promise<void> }
+      ).waitForShutdown.bind(client)
+
+      // Use very short timeout
+      await waitForShutdown(200)
+
+      expect(killForceFullySpy).toHaveBeenCalled()
+      expect(cleanupSpy).toHaveBeenCalled()
+    })
+  })
+
+  describe('cleanupStaleFiles() [private]', () => {
+    it('should not cleanup when process is alive', async () => {
+      // Write PID for current process (alive)
+      await fs.writeFile(getPidPath(tmpProjectDir), process.pid.toString())
+      await fs.writeFile(getSocketPath(tmpProjectDir), '')
+      await fs.writeFile(getTokenPath(tmpProjectDir), 'token')
+
+      const client = new SupervisorClient(tmpProjectDir, logger)
+      const cleanupStaleFiles = (
+        client as unknown as { cleanupStaleFiles: () => Promise<void> }
+      ).cleanupStaleFiles.bind(client)
+
+      await cleanupStaleFiles()
+
+      // Files should still exist (process is alive)
+      await expect(fs.access(getPidPath(tmpProjectDir))).resolves.toBeUndefined()
+      await expect(fs.access(getSocketPath(tmpProjectDir))).resolves.toBeUndefined()
+      await expect(fs.access(getTokenPath(tmpProjectDir))).resolves.toBeUndefined()
+    })
+
+    it('should remove all stale files when process is dead', async () => {
+      const deadPid = 999999999
+      await fs.writeFile(getPidPath(tmpProjectDir), deadPid.toString())
+      await fs.writeFile(getSocketPath(tmpProjectDir), '')
+      await fs.writeFile(getTokenPath(tmpProjectDir), 'stale-token')
+
+      // Also create user-level PID file
+      const userPidPath = getUserPidPath(tmpProjectDir)
+      await fs.mkdir(path.dirname(userPidPath), { recursive: true })
+      await fs.writeFile(
+        userPidPath,
+        JSON.stringify({ pid: deadPid, projectDir: tmpProjectDir, startedAt: new Date().toISOString() })
+      )
+
+      const client = new SupervisorClient(tmpProjectDir, logger)
+      const cleanupStaleFiles = (
+        client as unknown as { cleanupStaleFiles: () => Promise<void> }
+      ).cleanupStaleFiles.bind(client)
+
+      await cleanupStaleFiles()
+
+      // All files should be removed
+      await expect(fs.access(getPidPath(tmpProjectDir))).rejects.toThrow()
+      await expect(fs.access(getSocketPath(tmpProjectDir))).rejects.toThrow()
+      await expect(fs.access(getTokenPath(tmpProjectDir))).rejects.toThrow()
+      await expect(fs.access(userPidPath)).rejects.toThrow()
+    })
+
+    it('should do nothing when no PID file exists', async () => {
+      const client = new SupervisorClient(tmpProjectDir, logger)
+      const cleanupStaleFiles = (
+        client as unknown as { cleanupStaleFiles: () => Promise<void> }
+      ).cleanupStaleFiles.bind(client)
+
+      // Should complete without error
+      await cleanupStaleFiles()
+    })
+  })
+
+  describe('waitForStartup() [private]', () => {
+    it('should return when supervisor becomes ready', async () => {
+      const client = new SupervisorClient(tmpProjectDir, logger)
+
+      // Create PID and socket files to simulate startup
+      await fs.writeFile(getPidPath(tmpProjectDir), process.pid.toString())
+      await fs.writeFile(getSocketPath(tmpProjectDir), '')
+
+      const waitForStartup = (
+        client as unknown as { waitForStartup: (t?: number) => Promise<void> }
+      ).waitForStartup.bind(client)
+
+      // Should complete without error
+      await waitForStartup(1000)
+    })
+
+    it('should throw on timeout when supervisor never starts', async () => {
+      const client = new SupervisorClient(tmpProjectDir, logger)
+
+      // No PID or socket files - supervisor not starting
+      const waitForStartup = (
+        client as unknown as { waitForStartup: (t?: number) => Promise<void> }
+      ).waitForStartup.bind(client)
+
+      await expect(waitForStartup(200)).rejects.toThrow('Supervisor failed to start within timeout')
+    })
+
+    it('should wait for socket even if PID file exists', async () => {
+      const client = new SupervisorClient(tmpProjectDir, logger)
+
+      // Write PID file but no socket
+      await fs.writeFile(getPidPath(tmpProjectDir), process.pid.toString())
+
+      const waitForStartup = (
+        client as unknown as { waitForStartup: (t?: number) => Promise<void> }
+      ).waitForStartup.bind(client)
+
+      await expect(waitForStartup(200)).rejects.toThrow('Supervisor failed to start within timeout')
+    })
+  })
+
+  describe('killForcefully() [private]', () => {
+    it('should attempt SIGKILL on valid PID', async () => {
+      const client = new SupervisorClient(tmpProjectDir, logger)
+
+      // Use a non-existent PID that won't actually kill anything
+      const fakePid = 999999999
+      await fs.writeFile(getPidPath(tmpProjectDir), fakePid.toString())
+
+      // Spy on process.kill
+      const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true)
+
+      const killForcefully = (client as unknown as { killForcefully: () => Promise<void> }).killForcefully.bind(client)
+      await killForcefully()
+
+      expect(killSpy).toHaveBeenCalledWith(fakePid, 'SIGKILL')
+
+      killSpy.mockRestore()
+    })
+
+    it('should handle missing PID file gracefully', async () => {
+      const client = new SupervisorClient(tmpProjectDir, logger)
+
+      // No PID file
+      const killForcefully = (client as unknown as { killForcefully: () => Promise<void> }).killForcefully.bind(client)
+
+      // Should complete without error
+      await killForcefully()
+    })
+
+    it('should handle ESRCH (process not found) gracefully', async () => {
+      const client = new SupervisorClient(tmpProjectDir, logger)
+
+      const fakePid = 999999999
+      await fs.writeFile(getPidPath(tmpProjectDir), fakePid.toString())
+
+      // process.kill throws ESRCH when process doesn't exist
+      const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => {
+        const err = new Error('ESRCH') as NodeJS.ErrnoException
+        err.code = 'ESRCH'
+        throw err
+      })
+
+      const killForcefully = (client as unknown as { killForcefully: () => Promise<void> }).killForcefully.bind(client)
+
+      // Should complete without error (catches exception)
+      await killForcefully()
+
+      killSpy.mockRestore()
     })
   })
 })
@@ -259,5 +757,111 @@ describe('killAllSupervisors', () => {
 
     // Non-PID file should still exist
     await expect(fs.access(otherFile)).resolves.toBeUndefined()
+  })
+
+  it('should kill live supervisor and report success', async () => {
+    // Use current process PID as "live" process
+    const livePidInfo: UserPidInfo = {
+      pid: process.pid,
+      projectDir: '/test/project',
+      startedAt: new Date().toISOString(),
+    }
+
+    const pidFilePath = path.join(getUserSupervisorsDir(), 'live.pid')
+    await fs.writeFile(pidFilePath, JSON.stringify(livePidInfo))
+
+    // Also create project-level files that should be cleaned up
+    const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sidekick-project-'))
+    await fs.mkdir(path.join(projectDir, '.sidekick'), { recursive: true })
+    await fs.writeFile(getPidPath(projectDir), process.pid.toString())
+    await fs.writeFile(getSocketPath(projectDir), '')
+    await fs.writeFile(getTokenPath(projectDir), 'token')
+
+    // Update PID info to use real project dir
+    livePidInfo.projectDir = projectDir
+    await fs.writeFile(pidFilePath, JSON.stringify(livePidInfo))
+
+    // Mock process.kill to track calls without actually killing
+    const killSpy = vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
+      if (signal === 0) return true // Alive check
+      if (signal === 'SIGKILL') return true // Kill
+      return true
+    })
+
+    const results = await killAllSupervisors(logger)
+
+    expect(results).toHaveLength(1)
+    expect(results[0]).toEqual({
+      projectDir,
+      pid: process.pid,
+      killed: true,
+    })
+
+    // SIGKILL should have been called
+    expect(killSpy).toHaveBeenCalledWith(process.pid, 'SIGKILL')
+
+    // Cleanup
+    killSpy.mockRestore()
+    await fs.rm(projectDir, { recursive: true, force: true }).catch(() => {})
+  })
+
+  it('should report error when kill fails (EPERM)', async () => {
+    const pidInfo: UserPidInfo = {
+      pid: 12345,
+      projectDir: '/test/project',
+      startedAt: new Date().toISOString(),
+    }
+
+    const pidFilePath = path.join(getUserSupervisorsDir(), 'eperm.pid')
+    await fs.writeFile(pidFilePath, JSON.stringify(pidInfo))
+
+    // Mock process.kill to simulate EPERM error
+    const killSpy = vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
+      if (signal === 0) return true // Process is alive
+      // SIGKILL fails with EPERM
+      const err = new Error('EPERM: operation not permitted') as NodeJS.ErrnoException
+      err.code = 'EPERM'
+      throw err
+    })
+
+    const results = await killAllSupervisors(logger)
+
+    expect(results).toHaveLength(1)
+    expect(results[0].killed).toBe(false)
+    expect(results[0].error).toContain('EPERM')
+
+    killSpy.mockRestore()
+  })
+
+  it('should handle multiple supervisors', async () => {
+    // Create multiple PID files
+    const pids = [1001, 1002, 1003]
+    for (let i = 0; i < pids.length; i++) {
+      const pidInfo: UserPidInfo = {
+        pid: pids[i],
+        projectDir: `/test/project${i}`,
+        startedAt: new Date().toISOString(),
+      }
+      await fs.writeFile(path.join(getUserSupervisorsDir(), `supervisor${i}.pid`), JSON.stringify(pidInfo))
+    }
+
+    // Mock process.kill
+    const killedPids: number[] = []
+    const killSpy = vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
+      if (signal === 0) return true // All alive
+      if (signal === 'SIGKILL') {
+        killedPids.push(pid)
+        return true
+      }
+      return true
+    })
+
+    const results = await killAllSupervisors(logger)
+
+    expect(results).toHaveLength(3)
+    expect(results.every((r) => r.killed)).toBe(true)
+    expect(killedPids.sort()).toEqual(pids.sort())
+
+    killSpy.mockRestore()
   })
 })
