@@ -67,6 +67,16 @@ scripts/
 
 benchmark-next/        # ⚠️ STALE: Early TypeScript exploration, largely untested, out of sync with current work
                        # Being replaced by packages/ structure per SIDEKICK_NODE_TARGET_ARCHITECTURE.md
+
+packages/              # Node/TypeScript migration workspace
+├── sidekick-core/     # Core runtime library
+├── sidekick-supervisor/ # Orchestration layer
+├── sidekick-cli/      # CLI wrapper
+├── sidekick-ui/       # Monitoring UI (React SPA mockup) — has AGENTS.md
+├── shared-providers/  # LLM provider abstractions
+├── testing-fixtures/  # Test utilities
+└── types/             # Shared TypeScript types
+
 test-data/
 ├── projects/          # Test transcripts
 ├── replay-results/    # Replay simulation output (gitignored)
