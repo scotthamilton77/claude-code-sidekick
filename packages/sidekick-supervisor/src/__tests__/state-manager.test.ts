@@ -116,4 +116,59 @@ describe('StateManager', () => {
     const content = await fs.readFile(path.join(tmpDir, 'test.json'), 'utf-8')
     expect(JSON.parse(content)).toEqual({ foo: 'bar', baz: 'qux' })
   })
+
+  describe('merge with cache miss', () => {
+    it('should read from disk when merging with cache miss', async () => {
+      // Create a fresh StateManager that hasn't seen this file
+      const freshManager = new StateManager(tmpDir, logger)
+      await freshManager.initialize()
+
+      // Write file directly to disk (bypassing cache)
+      await fs.writeFile(path.join(tmpDir, 'diskonly.json'), JSON.stringify({ existing: 'data' }), 'utf-8')
+
+      // Merge with cache miss - should read from disk
+      await freshManager.update('diskonly', { new: 'value' }, true)
+
+      const content = await fs.readFile(path.join(tmpDir, 'diskonly.json'), 'utf-8')
+      expect(JSON.parse(content)).toEqual({ existing: 'data', new: 'value' })
+    })
+
+    it('should use empty object when merging with cache miss and no file', async () => {
+      const freshManager = new StateManager(tmpDir, logger)
+      await freshManager.initialize()
+
+      // Merge on non-existent file (cache miss, disk miss)
+      await freshManager.update('newfile', { key: 'value' }, true)
+
+      const content = await fs.readFile(path.join(tmpDir, 'newfile.json'), 'utf-8')
+      expect(JSON.parse(content)).toEqual({ key: 'value' })
+    })
+  })
+
+  describe('error handling', () => {
+    it('should handle rename failure during corrupt file recovery', async () => {
+      // Create corrupt file
+      const corruptFile = path.join(tmpDir, 'unrecoverable.json')
+      await fs.writeFile(corruptFile, '{ broken json', 'utf-8')
+
+      // Make the directory read-only to cause rename to fail
+      // Actually, let's use a different approach - create a .bak that's a directory
+      // to cause rename to fail
+      await fs.mkdir(`${corruptFile}.bak`, { recursive: true })
+
+      const freshManager = new StateManager(tmpDir, logger)
+      await freshManager.initialize()
+
+      // Should have recovered by initializing cache with empty object despite rename failure
+      expect(freshManager.get('unrecoverable')).toEqual({})
+    })
+
+    it('should throw and log when write fails', async () => {
+      // Create a subdirectory where we expect a file - write will fail
+      const blockerPath = path.join(tmpDir, 'blocked.json')
+      await fs.mkdir(blockerPath, { recursive: true })
+
+      await expect(stateManager.update('blocked', { data: 'test' })).rejects.toThrow()
+    })
+  })
 })

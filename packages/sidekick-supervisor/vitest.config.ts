@@ -12,7 +12,12 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
       reportsDirectory: resolve(rootDir, 'coverage'),
-      exclude: ['dist/**', 'coverage/**'],
+      exclude: [
+        'dist/**',
+        'coverage/**',
+        'src/supervisor.ts', // Orchestration layer, tested via E2E
+        'src/index.ts', // Process entrypoint only
+      ],
     },
   },
 })
