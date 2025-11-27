@@ -109,6 +109,12 @@ pnpm lint                     # Must produce no output (no errors, no warnings)
 
 ⚠️ **Fix all warnings immediately** - don't leave them for later. If eslint reports anything, fix it before moving on.
 
+**Coverage (merged report)**:
+
+```bash
+pnpm test:coverage            # Runs all tests with merged coverage report at ./coverage/index.html
+```
+
 **If artifacts appear in src/**: Delete with `find packages/*/src \( -name "*.js" -o -name "*.d.ts" -o -name "*.d.ts.map" \) -delete`
 
 **New plugin (zero handler edits)**:
