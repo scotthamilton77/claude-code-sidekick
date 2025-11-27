@@ -16,6 +16,7 @@ export default defineConfig({
         // Low-ROI exclusions (see coverage analysis)
         'packages/types/src/**', // Pure types, no runtime
         'packages/sidekick-supervisor/src/index.ts', // Process entrypoint only
+        'packages/sidekick-supervisor/src/supervisor.ts', // Orchestration layer, tested via E2E
         'packages/sidekick-cli/src/bin.ts', // CLI entrypoint only
         'packages/sidekick-cli/src/index.ts', // Barrel file (re-exports only)
         'packages/testing-fixtures/**', // Test infrastructure
