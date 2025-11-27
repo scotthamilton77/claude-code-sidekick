@@ -1,22 +1,89 @@
+import { useState } from 'react';
+import Header from './components/Header';
+import Layout from './components/Layout';
+import StateInspector from './components/StateInspector';
+import Timeline from './components/Timeline';
+import Transcript from './components/Transcript';
+import {
+    events,
+    currentSession as initialSession,
+    otherSessions,
+    Session,
+    stateData
+} from './data/mockData';
+
 
 function App() {
+    const [currentSession, setCurrentSession] = useState<Session>(initialSession);
+    const [currentEventId, setCurrentEventId] = useState(6);
+    const [filterType, setFilterType] = useState('all');
+    const [isLive, setIsLive] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+
+    const getEventColor = (type: string) => {
+        const colors: Record<string, string> = {
+            session: 'bg-slate-400',
+            user: 'bg-blue-500',
+            assistant: 'bg-emerald-500',
+            decision: 'bg-amber-500',
+            state: 'bg-purple-500',
+            tool: 'bg-cyan-500',
+            reminder: 'bg-rose-500',
+        };
+        return colors[type] || 'bg-gray-500';
+    };
+
+    const getEventCategory = (type: string) => {
+        if (type === 'user' || type === 'assistant') return 'conversation';
+        return 'system';
+    };
+
+    // Filter events based on selected filter and search
+    const filteredEvents = events.filter(event => {
+        const matchesFilter = filterType === 'all' || getEventCategory(event.type) === filterType;
+        const matchesSearch = !searchQuery ||
+            (event.content?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false) ||
+            event.label.toLowerCase().includes(searchQuery.toLowerCase());
+        return matchesFilter && matchesSearch;
+    });
+
     return (
-        <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
-            <div className="max-w-md w-full bg-white shadow-lg rounded-lg p-8">
-                <h1 className="text-2xl font-bold text-gray-900 mb-4">Sidekick Monitoring</h1>
-                <p className="text-gray-600">
-                    Welcome to the Sidekick Monitoring UI. This is the initial shell.
-                </p>
-                <div className="mt-6 flex gap-2">
-                    <button className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors">
-                        Start Session
-                    </button>
-                    <button className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition-colors">
-                        View Logs
-                    </button>
-                </div>
-            </div>
-        </div>
+        <Layout
+            header={
+                <Header
+                    currentSession={currentSession}
+                    otherSessions={otherSessions}
+                    isLive={isLive}
+                    onToggleLive={() => setIsLive(!isLive)}
+                    onSelectSession={setCurrentSession}
+                />
+            }
+            timeline={
+                <Timeline
+                    events={events}
+                    currentEventId={currentEventId}
+                    filteredEvents={filteredEvents}
+                    onEventSelect={setCurrentEventId}
+                    getEventColor={getEventColor}
+                />
+            }
+            transcript={
+                <Transcript
+                    filteredEvents={filteredEvents}
+                    currentEventId={currentEventId}
+                    searchQuery={searchQuery}
+                    onSearchChange={setSearchQuery}
+                    filterType={filterType}
+                    onFilterChange={setFilterType}
+                />
+            }
+            inspector={
+                <StateInspector
+                    stateData={stateData}
+                    currentTime={events[currentEventId]?.time || ''}
+                />
+            }
+        />
     );
 }
 
