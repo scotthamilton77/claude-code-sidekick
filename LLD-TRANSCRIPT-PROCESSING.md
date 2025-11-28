@@ -111,6 +111,7 @@ For the **Supervisor**, we need to react to changes in the transcript.
 - **Debouncing**: Debounce updates (e.g., 500ms for user text messages, 5000ms for tool and assistant messages) to avoid thrashing during rapid output generation.
 - **Full Read**: On change, re-read the entire file, we can process efficiently using a watermark to avoid processing the same events multiple times.
   - *Rationale*: Transcripts are typically small (< 10MB). Complexity of implementing "tail" logic for JSON arrays outweighs the performance cost of full reads for V1.
+- **Persistence**: The Supervisor hosts the `TranscriptScrubber` and writes normalized output to `.sidekick/sessions/{session_id}/transcript.json`. This serves as the stable data source for the Monitoring UI and other downstream consumers.
 
 ### 3.2 Schema Contracts
 The `packages/schema-contracts` package will host:
@@ -125,6 +126,58 @@ Note: We explicitly **do not** maintain a strict Zod schema for the raw input fi
   - Or return the last known good state.
   - Log a warning.
 - **Missing File**: Return an empty transcript.
+
+### 3.4 Monitoring UI Integration
+
+The `TranscriptScrubber` emits **Entity-Lifecycle events** (see `LLD-STRUCTURED-LOGGING.md`) for the `transcript` entity:
+
+```json
+// Initial normalization complete
+{
+  "source": "sidekick-supervisor",
+  "pid": 12345,
+  "context": {
+    "session_id": "sess-001",
+    "task_id": "task-001"
+  },
+  "entity": "transcript",
+  "entity_id": "tx-001",
+  "lifecycle": "normalized",
+  "state": { "message_count": 42, "token_estimate": 15000 }
+}
+
+// Context pruned (token limit reached)
+{
+  "source": "sidekick-supervisor",
+  "pid": 12345,
+  "context": {
+    "session_id": "sess-001",
+    "task_id": "task-001"
+  },
+  "entity": "transcript",
+  "entity_id": "tx-001",
+  "lifecycle": "pruned",
+  "reason": "token_limit",
+  "metadata": { "removed_lines": 50, "original_tokens": 25000, "pruned_tokens": 15000 }
+}
+
+// Tool output truncated
+{
+  "source": "sidekick-supervisor",
+  "pid": 12345,
+  "context": {
+    "session_id": "sess-001",
+    "task_id": "task-001"
+  },
+  "entity": "transcript",
+  "entity_id": "tx-001",
+  "lifecycle": "pruned",
+  "reason": "tool_output_truncation",
+  "metadata": { "tool": "Read", "original_size": 50000, "truncated_size": 5000 }
+}
+```
+
+These events explain *why* context was modified, enabling the Monitoring UI to show pruning decisions in the timeline.
 
 ## 4. Denoising Rules
 

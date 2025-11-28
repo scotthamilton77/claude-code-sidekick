@@ -28,11 +28,34 @@ The `sidekick-cli` is a **thin, pluggable framework**. It does not contain busin
 1. **Installation Location**: Installed to `.claude/hooks/sidekick/` (project-scope) or `~/.claude/hooks/sidekick/` (user-scope).
 2. **Self-Awareness**: Can extract their own installation path from bash parameters (`$0`, `$BASH_SOURCE`, etc.).
 3. **Environment Access**: Have access to Claude Code's environment variables, including `$CLAUDE_PROJECT_DIR`.
-4. **Parameter Forwarding**: Receive hook input parameters (JSON structure) from Claude Code and forward them to the Node.js CLI.
-5. **Explicit Scope Hints**: Pass explicit parameters to the CLI:
+4. **Hook Input Reception**: Receive hook invocation JSON from Claude Code containing structured data about the event.
+5. **Parameter Forwarding**: Forward hook input to the Node.js CLI along with explicit scope hints.
+6. **Explicit Scope Hints**: Pass explicit parameters to the CLI:
    - `--hook-script-path`: The absolute path of the bash script itself (enables scope detection).
    - `--project-dir`: The value of `$CLAUDE_PROJECT_DIR` (explicit project context).
-   - Hook-specific JSON payload via stdin or `--input` flag.
+   - Hook input JSON payload via stdin or `--input` flag.
+
+#### 3.1.1 Hook Input Structure
+
+Claude Code invokes hooks with a JSON structure passed via stdin. The structure varies by hook type but always includes core context fields:
+
+**Common Fields** (all hooks):
+- `session_id` (string): Unique identifier for the current Claude session
+- `transcript_path` (string): Absolute path to the session transcript file
+- `cwd` (string): Current working directory when hook was triggered
+- `hook_event_name` (string): Name of the triggered hook (e.g., "UserPromptSubmit", "SessionStart")
+
+**Hook-Specific Fields** (examples):
+- `UserPromptSubmit`: `user_prompt` (string) - the user's message
+- `StatusLine`: (no additional fields)
+- `SessionSummary`: Previous summary context (if available)
+
+**Reference**: See [Claude Code Hooks Documentation](https://docs.anthropic.com/en/docs/claude-code/hooks#hook-input) for complete specification.
+
+**Session ID Extraction**: The CLI extracts `session_id` directly from the hook input JSON. This is the authoritative session identifier used for:
+- Correlating logs and events
+- Organizing session state files (`.sidekick/sessions/{session_id}/`)
+- Supervisor task tracking and routing
 
 **Example Hook Script** (`.claude/hooks/sidekick/session-start`):
 ```bash
@@ -169,7 +192,7 @@ When **both** user-scope and project-scope installations exist, hooks could fire
 2. Check if project has Sidekick registered in `<project-dir>/.claude/settings.json` OR `<project-dir>/.claude/settings.json.local`.
 3. Perform simple string search for `sidekick` (no JSON parsing required—just verify the string exists).
 4. **If project-scope detected**:
-   - Log warning to `<project-dir>/.sidekick/logs/sidekick.log`:
+   - Log warning to session-specific log (or fallback to project root if session context unavailable):
      ```
      [WARN] Sidekick hook executed from user-scope (~/.claude/hooks/sidekick/) 
             but project-scope installation detected at <project-dir>. 
@@ -238,7 +261,8 @@ When a supervisor process ends, it should clean up its own PID files (project- a
 
 **Phase 2: Post-Config (Full Pino Logger)**
 - Replace minimal logger with full `pino` instance configured from loaded config.
-- Respects user settings: log level, format, file destinations, redaction rules.
+- **Destination**: `<project-dir>/.sidekick/sessions/{session_id}/cli.log` (rotated).
+- Respects user settings: log level, format, redaction rules.
 - Logger facade ensures transparent transition (code doesn't need to know which phase).
 
 ### 8.2 Logger Facade
@@ -254,6 +278,53 @@ interface Logger {
 
 // Implementation swaps from console → pino after config load
 ```
+
+### 8.3 Hook Invocation Events
+
+To support the Monitoring UI, the CLI emits **Entity-Lifecycle events** (see `LLD-STRUCTURED-LOGGING.md`) for every hook invocation:
+
+```json
+// Hook invocation received
+{
+  "source": "sidekick-cli",
+  "pid": 12345,
+  "context": {
+    "session_id": "sess-abc",
+    "hook": "UserPromptSubmit"
+  },
+  "entity": "hook",
+  "entity_id": "hook-001",
+  "lifecycle": "received",
+  "metadata": {
+    "hook_event_name": "UserPromptSubmit",
+    "cwd": "/workspaces/project",
+    "mode": "hook"
+  }
+}
+```
+
+```json
+// Hook invocation completed
+{
+  "source": "sidekick-cli",
+  "pid": 12345,
+  "context": {
+    "session_id": "sess-abc",
+    "hook": "UserPromptSubmit"
+  },
+  "entity": "hook",
+  "entity_id": "hook-001",
+  "lifecycle": "completed",
+  "metadata": {
+    "duration_ms": 45,
+    "execution_model": "sync"
+  }
+}
+```
+
+- **Level**: `INFO`
+- **Timing**: `received` emitted immediately after Phase 2 logger initialization; `completed` emitted after handler finishes.
+- **Correlation**: The `entity_id` links hook invocation to any resulting tasks in the Supervisor via `trace_id`.
 
 ## 9. Process Model for Hooks
 
@@ -278,7 +349,7 @@ interface HookDefinition {
 - **Always delegate to supervisor** via IPC.
 - CLI enqueues task and returns immediately.
 - Supervisor processes task in background.
-- Results written to state files (`.sidekick/state/*.json`).
+- Results written to state files (`.sidekick/sessions/{session_id}/*.json`).
 
 ### 9.2 Timeout Behavior
 

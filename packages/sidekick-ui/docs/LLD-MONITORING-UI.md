@@ -14,14 +14,16 @@ The Sidekick Monitoring UI is a developer tool designed to provide visibility in
 - **Communication**: Polling / WebSocket (future) to read local files.
 
 ### 2.2 Data Flow
-The UI runs locally and reads files directly from the project's `.sidekick` directory.
+The UI runs locally and reads files directly from the session directory.
 
 ```mermaid
 graph TD
-    UI[Monitoring UI (React)] -->|Reads| LogFile[.sidekick/logs/sidekick.log]
-    UI -->|Reads| Transcript[Transcript File]
-    UI -->|Reads| StateFiles[.sidekick/state/*.json]
-    
+    UI[Monitoring UI (React)] -->|Reads| SupervisorLog[.sidekick/sessions/{session_id}/supervisor.log]
+    UI -->|Reads| CliLog[.sidekick/sessions/{session_id}/cli.log]
+    UI -->|Reads| Transcript[.sidekick/sessions/{session_id}/transcript.json]
+    UI -->|Reads| StateFiles[.sidekick/sessions/{session_id}/*.json]
+    UI -->|Reads| SupervisorStatus[.sidekick/sessions/{session_id}/supervisor-status.json]
+
     subgraph "Replay Engine (In-Browser)"
         LogFile --> Ingest[Log Ingest]
         Ingest --> Reconstructor[State Reconstructor]
@@ -35,10 +37,11 @@ graph TD
 Since Sidekick overwrites its state files (`state/summary.json`, etc.), we cannot rely on the file system for history. Instead, we use **Log-Based Reconstruction**.
 
 - **Mechanism**:
-    1.  The UI ingests `sidekick.log` (NDJSON).
-    2.  It filters for `event_type="state_change"` and `event_type="decision"`.
-    3.  It builds an in-memory timeline of state snapshots.
-    4.  The user can scrub a timeline slider to "rewind" the state.
+    1.  The UI ingests `sessions/{session_id}/supervisor.log` and `sessions/{session_id}/cli.log` (NDJSON).
+    2.  It merges the streams based on timestamp.
+    3.  It filters for entity-lifecycle events (by `entity` type and `lifecycle` state).
+    4.  It builds an in-memory timeline of state snapshots.
+    5.  The user can scrub a timeline slider to "rewind" the state.
 
 ### 3.2 Views
 
@@ -59,48 +62,165 @@ Displays the conversation history.
 
 #### C. State Inspector
 A JSON tree view showing the internal state at the selected timestamp.
-- **Scope**: Shows `summary.json`, `status.json`, `reminders.json`, etc.
+- **Scope**: Shows `sessions/{session_id}/summary.json`, `sessions/{session_id}/status.json`, `sessions/{session_id}/reminders.json`, etc.
 - **Diff Mode**: Highlights what changed between the previous and current state.
 
 #### D. Decision Log
 A filtered view of "Decision" events to see the system's reasoning chain.
 - Example: `[Decision] Session Title Change: Updated session title to "My Session"`
 
+#### E. System Health
+A real-time dashboard showing the health of the Supervisor process.
+- **Metrics**: Uptime, Memory Usage (Heap/RSS), Queue Depth, Active Tasks.
+- **Source**: Reads `sessions/{session_id}/supervisor-status.json`.
+- **Visuals**: Sparklines for memory/queue, status indicators for liveness.
+- **Offline Detection**: Poll file mtime; if > 30s old, show "Supervisor Offline" state with red/grey badge and last-known timestamp. This handles cases where the Supervisor crashes or is manually stopped.
+
 ## 4. Data Sources & Schema
 
-### 4.1 Log Schema Enhancements
-To support reconstruction, `sidekick-core` must emit specific events.
+### 4.1 Entity-Lifecycle Event Schema
 
-#### Decision Event
+The UI consumes **Entity-Lifecycle events** as defined in `LLD-STRUCTURED-LOGGING.md`. All events follow a unified schema:
+
 ```json
 {
   "level": 30,
   "time": 1678888888888,
-  "event_type": "decision",
-  "component": "session-summary",
-  "decision": "update_summary",
-  "reason": "tool_count_threshold_exceeded",
-  "metadata": {
-    "current_tools": 5,
-    "threshold": 10
-  }
+  "source": "sidekick-cli",           // Required: which component emitted this
+  "pid": 12345,                       // Required: process ID for correlation
+
+  "context": {                        // Required: event correlation context
+    "session_id": "sess-abc123",      //   - correlates all events in session
+    "trace_id": "req-456",            //   - links causally-related events
+    "hook": "UserPromptSubmit"        //   - hook name (when applicable)
+  },
+
+  "entity": "reminder",               // Required: entity type
+  "entity_id": "rem-789",             // Required: unique instance ID
+  "lifecycle": "triggered",           // Required: what happened
+
+  "reason": "turn_cadence_met",       // Optional: explains the transition
+  "state": { ... },                   // Optional: full entity state snapshot
+  "metadata": { ... }                 // Optional: additional context
 }
 ```
 
-#### State Change Event
+#### Standard Entity Types
+
+| Entity | Lifecycle States | Description |
+|--------|------------------|-------------|
+| `context` | N/A | Nested diagnostic context (groups correlators) |
+| `session` | started, ended | Claude session boundaries |
+| `hook` | received | Hook invocations from Claude |
+| `command` | received, processed | CLI/IPC requests to Supervisor |
+| `task` | queued, started, completed, failed | Background work units |
+| `reminder` | created, triggered, injected, dismissed | Reminder instances |
+| `summary` | analyzing, updated | Session summary state |
+| `statusline` | rendered, error | Status line renders |
+| `transcript` | normalized, pruned | Transcript processing |
+
+#### Example: UserPromptSubmit Hook → Task Chain (complete flow)
+
 ```json
-{
-  "level": 30,
-  "time": 1678888888888,
-  "event_type": "state_change",
-  "file": "summary.json",
-  "operation": "update", // or "snapshot"
-  "payload": { ... } // The new state or a diff
+// 1. Hook received from Claude (cli.log)
+{ "source": "sidekick-cli", "pid": 12345, "time": 1678888888000,
+  "context": { "session_id": "sess-001", "trace_id": "req-abc", "hook": "UserPromptSubmit" },
+  "entity": "hook", "entity_id": "hook-001",
+  "lifecycle": "received" }
+
+// 2. CLI dispatches command to Supervisor (cli.log)
+{ "source": "sidekick-cli", "pid": 12345, "time": 1678888888100,
+  "context": { "session_id": "sess-001", "trace_id": "req-abc", "hook": "UserPromptSubmit" },
+  "entity": "command", "entity_id": "cmd-001",
+  "lifecycle": "sent", "metadata": { "command": "handle_user_prompt_submit" } }
+
+// 3a. Supervisor enqueues session summary task (supervisor.log, same trace_id)
+{ "source": "sidekick-supervisor", "pid": 12346, "time": 1678888888150,
+  "context": { "session_id": "sess-001", "trace_id": "req-abc", "hook": "UserPromptSubmit" },
+  "entity": "task", "entity_id": "task-001",
+  "lifecycle": "queued", "state": { "type": "session_summary" } }
+
+// 3b. Supervisor enqueues reminder task (supervisor.log, same trace_id)
+{ "source": "sidekick-supervisor", "pid": 12346, "time": 1678888888151,
+  "context": { "session_id": "sess-001", "trace_id": "req-abc", "hook": "UserPromptSubmit" },
+  "entity": "task", "entity_id": "task-002",
+  "lifecycle": "queued", "state": { "type": "reminder" } }
+
+// 3c. Supervisor enqueues turn_count_tracker (supervisor.log, same trace_id)
+{ "source": "sidekick-supervisor", "pid": 12346, "time": 1678888888150,
+  "context": { "session_id": "sess-001", "trace_id": "req-abc", "hook": "UserPromptSubmit" },
+  "entity": "task", "entity_id": "task-003",
+  "lifecycle": "queued", "state": { "type": "increment_turn_count" } }
+
+// 4. Task activates and summary analysis begins (supervisor.log)
+{ "source": "sidekick-supervisor", "pid": 12346, "time": 1678888888200,
+  "context": { "session_id": "sess-001", "trace_id": "req-abc", "hook": "UserPromptSubmit", "task_id": "task-001" },
+  "entity": "summary", "entity_id": "summary-001",
+  "lifecycle": "analyzing", "state": { "transcript_lines": 342 } }
+
+// 5. Summary analysis completes (supervisor.log)
+{ "source": "sidekick-supervisor", "pid": 12346, "time": 1678888889400,
+  "context": { "session_id": "sess-001", "trace_id": "req-abc", "hook": "UserPromptSubmit", "task_id": "task-001" },
+  "entity": "summary", "entity_id": "summary-001",
+  "lifecycle": "updated", "state": { "title": "Backend API Development", "duration_ms": 1200 } }
+
+// 6. Reminder trigger evaluated (supervisor.log)
+{ "source": "sidekick-supervisor", "pid": 12346, "time": 1678888889450,
+  "context": { "session_id": "sess-001", "trace_id": "req-abc", "hook": "UserPromptSubmit", "task_id": "task-002" },
+  "entity": "reminder", "entity_id": "rem-001",
+  "lifecycle": "evaluating",
+  "state": { "text": "Check for memory leaks", "countdown": 0 },
+  "metadata": { "condition": "hook=='UserPromptSubmit'" }
 }
+
+// 7. Reminder injected (supervisor.log)
+{ "source": "sidekick-supervisor", "pid": 12346, "time": 1678888889500,
+  "context": { "session_id": "sess-001", "trace_id": "req-abc", "hook": "UserPromptSubmit", "task_id": "task-002" },
+  "entity": "reminder", "entity_id": "rem-001",
+  "lifecycle": "injected",
+  "state": { "text": "Check for memory leaks", "countdown": 0 }
+  "metadata": { "condition": "hook=='UserPromptSubmit'", "result": true }
+}
+
+// 8. Task completed (supervisor.log)
+{ "source": "sidekick-supervisor", "pid": 12346, "time": 1678888889550,
+  "context": { "session_id": "sess-001", "trace_id": "req-abc", "hook": "UserPromptSubmit" },
+  "entity": "task", "entity_id": "task-001",
+  "lifecycle": "completed", "state": { "duration_ms": 1350 } }
+
+// 9. Task completed (supervisor.log)
+{ "source": "sidekick-supervisor", "pid": 12346, "time": 1678888889600,
+  "context": { "session_id": "sess-001", "trace_id": "req-abc", "hook": "UserPromptSubmit" },
+  "entity": "task", "entity_id": "task-002",
+  "lifecycle": "completed", "state": { "duration_ms": 150 } }
 ```
+
+#### Example: Reminder Lifecycle - Passive Activation (turn cadence trigger)
+
+Assumption: there's a supervisor event handler registered for reminders that watches turn count events.
+
+```json
+// Triggered
+{ "source": "sidekick-supervisor", "pid": 12346, "time": 1678888889450,
+  "context": { "session_id": "sess-001", "trace_id": "req-abc", "task_id": "task-003" },
+  "entity": "reminder", "entity_id": "rem-002",
+  "lifecycle": "triggered", "reason": "turn_cadence_met",
+  "state": { "text": "Check for memory leaks", "countdown": 0 },
+  "metadata": { "cadence": 10 }
+}
+
+// Injected into hook response
+{ "source": "sidekick-cli", "pid": 12345, "time": 1678888889600,
+  "context": { "session_id": "sess-001", "trace_id": "req-abc", "task_id": "task-003" },
+  "entity": "reminder", "entity_id": "rem-001",
+  "lifecycle": "injected" }
+```
+
+> [!NOTE]
+> **Future Enhancement**: Full, combined debug log correlation will be added in a future version.
 
 ### 4.2 Transcript Correlation
-- **Primary Correlator**: session ID
+- **Primary Correlator**: `context.session_id`
 - **Key**: Timestamp.
 - **Logic**: The UI aligns log timestamps with transcript message timestamps to show side-by-side evolution.
 
@@ -111,10 +231,15 @@ A "Unified Cockpit" design that merges the transcript and event log into a singl
 
 ### 5.2 Layout Structure
 - **Left Panel (The Stream)**: A wide, scrollable vertical stream containing:
-    - **Search Bar**: A sticky header at the top of the stream to filter messages and events by text content.
+    - **Search Bar**: A sticky header at the top of the stream to filter messages and events.
+        - **Text Search**: Free-form text matches against message content and event payloads.
+        - **Entity Filtering**: Use `entity:reminder`, `entity:task` syntax to show only specific entity types.
+        - **Lifecycle Filtering**: Use `lifecycle:failed`, `lifecycle:triggered` to filter by state.
+        - **Combined**: `entity:task lifecycle:failed` shows only failed tasks.
     - **Transcript Items**: User messages and Assistant responses in standard chat bubbles.
-    - **Interleaved Events**: "Decision" cards and "State Change" markers inserted exactly when they occurred.
-        - *Visual Style*: Distinct from chat bubbles (e.g., different background color, border, or icon) to clearly separate system actions from conversation.
+    - **Interleaved Events**: Entity-lifecycle event cards inserted exactly when they occurred.
+        - *Visual Style*: Distinct from chat bubbles (e.g., different background color, border, or icon) to clearly separate system events from conversation.
+        - *Card Content*: Shows `entity:lifecycle` (e.g., "reminder:triggered"), with `reason` as subtitle and expandable (or hover-over overlay?) `state` and `metadata` payloads.
     - **Time Travel Gutter**: A vertical rail on the far left.
         - **Slider**: A draggable handle moving vertically.
         - **Current Time Indicator**: A horizontal line extending from the slider across the entire stream, visually cutting the history at the "current" replay time.
@@ -132,12 +257,24 @@ A "Unified Cockpit" design that merges the transcript and event log into a singl
 - **Live Mode**: A "Live" button snaps the slider to the bottom and follows new events in real-time.
 
 ## 6. Implementation Strategy
-1.  **Instrumentation**: Update `sidekick-core` to emit `decision` and `state_change` logs.
-2.  **UI Scaffold**: Create React app with a log parser.
-3.  **Replay Logic**: Implement the reducer that takes a stream of logs and computes state.
-4.  **Visualization**: Build the Timeline and Inspector components.
+1.  **Instrumentation**: Update `sidekick-core` to emit Entity-Lifecycle events (see `LLD-STRUCTURED-LOGGING.md`).
+2.  **UI Scaffold**: Create React app with a log parser that understands the unified event schema.
+3.  **Replay Logic**: Implement a reducer that:
+    - Groups events by `session_id`
+    - Builds entity state from `state` snapshots
+    - Correlates causally-related events via `trace_id`
+4.  **Visualization**: Build Timeline, Inspector, and entity-filter components.
 
-## 7. UI Mockups
+## 7. Outstanding Questions
+
+### 7.1 UI Noise Management
+*Question*: Detailed events (like full reminder text or large client payloads) can clutter the stream.
+*Recommendation*: The UI should use "progressive disclosure". The stream shows a summary (e.g., "Reminder Injected"), and clicking the event reveals the full payload in the Inspector or an expanded card view.
+
+
+## 8. UI Mockups
+
+**FIXME** these options are out of date with changes to requirements and the ui-mockup/*.html mockup file
 
 ### Option 1: Data-Dense Dashboard
 **Concept**: High information density, compact rows, clear separation of data types. Designed for power users who want to see as much context as possible at once.
