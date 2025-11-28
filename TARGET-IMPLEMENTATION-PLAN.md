@@ -357,6 +357,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
 
 - [ ] **Phase 8: Installation & Distribution Hardening**
   - [ ] Objectives
+    - [ ] Re-evalate installation / uninstallation in light of Claude Code Plugins - how does this help us?
     - [ ] Finalize installer scripts to bundle assets, generate bash wrappers, and support `npx` and global CLI usage with dual-scope detection warnings.
     - [ ] Harden migration utilities (legacy `.conf` → JSONC) and document workflows.
   - [ ] Relevant documents/sections
