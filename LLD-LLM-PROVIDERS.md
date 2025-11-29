@@ -4,15 +4,57 @@
 
 The `shared-providers` package provides a unified, type-safe interface for interacting with various Large Language Model (LLM) providers. It leverages official open-source SDKs where available (e.g., OpenAI Node.js library) to minimize maintenance burden, while providing a consistent abstraction for the rest of the Sidekick system.
 
+### 1.1 System Context
+
+LLM providers operate exclusively within the **Supervisor** (async side) of the CLI/Supervisor architecture defined in **LLD-flow.md §2.1**:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Claude Code                                                 │
+└─────────────────────┬───────────────────────────────────────┘
+                      │ Hook invocation
+                      ▼
+┌─────────────────────────────────────────────────────────────┐
+│ CLI (synchronous)                                           │
+│  • Reads staged files                                       │
+│  • Returns hook responses                                   │
+│  • NO LLM calls                                             │
+└─────────────────────┬───────────────────────────────────────┘
+                      │ IPC event
+                      ▼
+┌─────────────────────────────────────────────────────────────┐
+│ Supervisor (asynchronous)                                   │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │ Handler Registry                                       │ │
+│  │  ├─ UpdateSessionSummary ──► LLMProvider.complete()    │ │
+│  │  ├─ [Future features]   ──► LLMProvider.complete()     │ │
+│  │  └─ ...                                                │ │
+│  └────────────────────────────────────────────────────────┘ │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │ ProviderFactory                                        │ │
+│  │  └─ Instantiated at Supervisor startup                 │ │
+│  │  └─ Provider instance shared via HandlerContext        │ │
+│  └────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Key Points**:
+
+- Providers are instantiated once at Supervisor startup
+- Handlers access the provider via `HandlerContext.llm`
+- LLM calls inherit session context for log correlation
+- Provider operations are internal events (logged, don't trigger handlers)
+
 ## 2. Core Architecture
 
 ### 2.1 Design Principles
 
 - **Unified Interface**: All providers implement a strict `LLMProvider` interface.
 - **SDK Leverage**: Use official SDKs (e.g., `openai` npm package) for OpenAI and OpenRouter.
-- **Statelessness**: The providers themselves are stateless; configuration is injected.
+- **Statelessness**: Providers are stateless; configuration and session context are injected per-call.
 - **Resilience**: Rely on SDK built-in retries where available; implement simple fallbacks for high availability.
-- **Observability**: Deep integration with the structured logging and redaction system.
+- **Observability**: Deep integration with structured logging per **LLD-STRUCTURED-LOGGING.md**.
+- **Event Model Alignment**: Providers emit internal events only (per **LLD-flow.md §3.1**)—logged for observability but non-recursive (don't trigger handlers).
 
 ### 2.2 Package Structure
 
@@ -41,19 +83,31 @@ export interface Message {
   content: string;
 }
 
+/**
+ * Correlation context for log tracing. Inherited from EventContext (LLD-flow.md §3.2).
+ * Providers propagate these fields to all log entries for end-to-end traceability.
+ */
+export interface LLMCallContext {
+  sessionId: string;        // Required: correlates to Sidekick session
+  correlationId?: string;   // Unique ID for the originating CLI command
+  traceId?: string;         // Links causally-related operations
+}
+
 export interface LLMRequest {
   messages: Message[];
-  system?: string; // System prompt
-  model?: string;  // Override configured model
+  system?: string;          // System prompt
+  model?: string;           // Override configured model
   temperature?: number;
   maxTokens?: number;
   // Flexible map for provider-specific parameters (e.g. top_p, frequency_penalty)
   additionalParams?: Record<string, unknown>;
+  // Correlation context for structured logging
+  context: LLMCallContext;
 }
 
 export interface LLMResponse {
   content: string;
-  model: string;   // The actual model used
+  model: string;            // The actual model used
   usage?: {
     inputTokens: number;
     outputTokens: number;
@@ -61,8 +115,10 @@ export interface LLMResponse {
   // Raw response for debugging/telemetry
   rawResponse: {
     status: number;
-    body: string; // JSON string of the full response
+    body: string;           // JSON string of the full response
   };
+  // Echo back context for log correlation
+  context: LLMCallContext;
 }
 
 export interface LLMProvider {
@@ -73,18 +129,43 @@ export interface LLMProvider {
 
   /**
    * Send a completion request to the LLM.
+   * Context is required for log correlation across CLI/Supervisor boundary.
    */
   complete(request: LLMRequest): Promise<LLMResponse>;
 }
 ```
 
+### 3.2 Context Propagation
+
+Handlers invoke LLM providers with context derived from the originating event:
+
+```typescript
+// Inside a handler (e.g., UpdateSessionSummary)
+async function handler(event: SidekickEvent, ctx: HandlerContext): Promise<void> {
+  const response = await ctx.llm.complete({
+    messages: [{ role: 'user', content: 'Summarize...' }],
+    system: 'You are a session summarizer.',
+    context: {
+      sessionId: event.context.sessionId,
+      correlationId: event.context.correlationId,
+      traceId: event.context.traceId,
+    },
+  });
+  // response.context echoes back the same IDs for downstream correlation
+}
+```
+
+This enables the Monitoring UI to trace an LLM call back to its originating hook event.
+
 ## 4. Component Details
 
 ### 4.1 `ProviderFactory`
 
-The factory is responsible for instantiating the correct provider based on the configuration.
+The factory is responsible for instantiating the correct provider based on configuration. It is invoked once during Supervisor startup; the resulting provider instance is shared across all handlers via `HandlerContext`.
 
 ```typescript
+import type { Logger } from 'pino'; // See LLD-STRUCTURED-LOGGING.md
+
 export class ProviderFactory {
   constructor(
     private config: Config,
@@ -93,7 +174,7 @@ export class ProviderFactory {
 
   create(): LLMProvider {
     const type = this.config.llm.provider;
-    
+
     switch (type) {
       case 'claude-cli':
         return new AnthropicCliProvider(this.config, this.logger);
@@ -106,6 +187,22 @@ export class ProviderFactory {
     }
   }
 }
+```
+
+**Supervisor Integration** (see **LLD-SUPERVISOR.md**):
+
+```typescript
+// During Supervisor startup
+const factory = new ProviderFactory(config, logger);
+const llmProvider = factory.create();
+
+// Provider exposed to handlers via context
+const handlerContext: HandlerContext = {
+  llm: llmProvider,
+  session: sessionState,
+  transcript: transcriptService,
+  // ...
+};
 ```
 
 ### 4.2 `OpenAINativeProvider`
@@ -175,10 +272,91 @@ Instead of complex circuit breakers, we provide the `FallbackProvider` capabilit
 ### 6.1 Credential Precedence
 
 Credentials are resolved in the following order:
-1.  **Environment Variables** (Recommended): `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` (for CLI auth if needed), `OPENROUTER_API_KEY`.
-2.  **Configuration File**: `llm.apiKey` in `config.jsonc`.
+1. **Environment Variables** (Recommended): `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` (for CLI auth if needed), `OPENROUTER_API_KEY`.
+2. **Configuration File**: `llm.apiKey` in `config.yaml`.
 
 ### 6.2 Redaction
 
-The `Logger` passed to the provider MUST have a `Redactor` configured.
-- **SDK Logging**: We will NOT use the SDK's built-in console logging. We will capture errors and log them via our structured logger to ensure redaction.
+The `Logger` passed to the provider MUST have a `Redactor` configured per **LLD-STRUCTURED-LOGGING.md §4**.
+- **SDK Logging**: We do NOT use SDK built-in console logging. All logs go through our structured logger to ensure redaction.
+- **Request/Response Logging**: Raw payloads are redacted before logging (API keys, sensitive content patterns).
+
+## 7. Observability
+
+### 7.1 Internal Events
+
+Per **LLD-flow.md §3.1**, provider operations emit **internal events**—logged for observability but non-recursive (they don't trigger handlers). This prevents infinite loops if a handler's LLM call were to somehow trigger more handlers.
+
+| Event             | When                          | Key Fields                                      |
+| ----------------- | ----------------------------- | ----------------------------------------------- |
+| `LLMCallStarted`  | Before SDK/CLI invocation     | `provider`, `model`, `sessionId`, `messageCount` |
+| `LLMCallCompleted`| Successful response received  | `provider`, `model`, `sessionId`, `durationMs`, `usage` |
+| `LLMCallFailed`   | Error (after retries)         | `provider`, `model`, `sessionId`, `error`, `attemptCount` |
+| `LLMFallbackUsed` | Primary failed, using fallback| `primaryProvider`, `fallbackProvider`, `sessionId` |
+
+### 7.2 Log Format
+
+All events include correlation context from `LLMCallContext` and follow **LLD-STRUCTURED-LOGGING.md §3.3** format:
+
+```typescript
+// Example log entry (Pino JSON)
+{
+  "level": 30,
+  "time": 1699999999999,
+  "pid": 12345,
+  "name": "sidekick-supervisor",
+  "msg": "LLM call completed",
+  "event": "LLMCallCompleted",
+  "sessionId": "abc123",
+  "correlationId": "cmd-456",
+  "provider": "openai",
+  "model": "gpt-4o-mini",
+  "durationMs": 1234,
+  "usage": { "inputTokens": 150, "outputTokens": 50 }
+}
+```
+
+### 7.3 Debug Mode
+
+When `LLM_DEBUG_DUMP_ENABLED=true`, providers write full request/response payloads to `/tmp/sidekick-llm-debug/` for debugging (redacted in production logs).
+
+## 8. Handler Integration
+
+### 8.1 Current Consumers
+
+The following Supervisor handlers use LLM providers:
+
+| Handler                 | Transcript Event Trigger  | LLM Purpose                          |
+| ----------------------- | ------------------------- | ------------------------------------ |
+| `UpdateSessionSummary`  | `UserPrompt`, `ToolCall`  | Generate session summary, snarky message |
+
+### 8.2 Handler Access Pattern
+
+Handlers receive the provider via `HandlerContext` and pass event correlation context:
+
+```typescript
+// From LLD-flow.md §2.3 handler registration
+context.handlers.register({
+  id: 'session-summary:update',
+  priority: 80,
+  filter: { kind: 'hook', hooks: ['PostToolUse'] },
+  handler: async (event, ctx) => {
+    const response = await ctx.llm.complete({
+      messages: buildSummaryPrompt(ctx.transcript),
+      context: {
+        sessionId: event.context.sessionId,
+        correlationId: event.context.correlationId,
+      },
+    });
+    await ctx.session.updateSummary(response.content);
+  },
+});
+```
+
+### 8.3 Future Extensibility
+
+New features requiring LLM access follow the same pattern:
+1. Register handler with appropriate priority (see **LLD-flow.md §8.2**)
+2. Access provider via `ctx.llm`
+3. Pass correlation context from `event.context`
+4. Handle errors internally (per **LLD-flow.md §6.2**)

@@ -4,11 +4,19 @@
 
 The Supervisor is a long-running, detached Node.js background process responsible for:
 
-1.  **State Management**: Acting as the _single writer_ to shared state files to prevent race conditions.
-2.  **Async Task Execution**: Handling heavy compute tasks (e.g., session summarization, resume generation) off the critical path of the CLI.
-3.  **Resource Management**: Managing concurrency and ensuring system stability.
+1.  **State Management**: Acting as the _single writer_ to shared state and staging files to prevent race conditions.
+2.  **Handler Execution**: Running registered handlers in response to hook events from the CLI.
+3.  **Async Task Execution**: Handling heavy compute tasks (e.g., session summarization, resume generation) off the critical path of the CLI.
+4.  **Resource Management**: Managing concurrency and ensuring system stability.
 
 It is **always project-scoped**. Even if the user invokes Sidekick from a global install, the supervisor runs within the context of the specific project (`$CLAUDE_PROJECT_DIR`).
+
+**Related Documentation:**
+
+- `LLD-flow.md`: Authoritative source for event model, hook flows, and CLI/Supervisor interaction patterns.
+- `LLD-TRANSCRIPT-PROCESSING.md`: TranscriptService as metrics owner, event emission, compaction history.
+- `LLD-CORE-RUNTIME.md`: RuntimeContext, HandlerRegistry API, service interfaces.
+- `LLD-STRUCTURED-LOGGING.md`: Logging infrastructure and conventions.
 
 ## 2. Process Architecture
 
@@ -16,14 +24,17 @@ It is **always project-scoped**. Even if the user invokes Sidekick from a global
 
 All supervisor-related files live in `<project-root>/.sidekick/`:
 
-| File                           | Purpose                                                                                    |
-| ------------------------------ | ------------------------------------------------------------------------------------------ |
-| `supervisor.pid`               | Contains the Process ID of the running supervisor. Acts as a lock file.                    |
-| `supervisor.sock`              | Unix Domain Socket (or Named Pipe on Windows) for IPC.                                     |
-| `supervisor.token`             | Randomly generated auth token for IPC connection verification.                             |
-| `logs/supervisor.log`          | Dedicated log file for the supervisor process (structured JSON logs).                      |
-| `state/supervisor-status.json` | Global supervisor status (not session-specific).                                           |
-| `sessions/{session_id}/*.json` | Session-specific state files (e.g., `summary.json`, `transcript.json`).                    |
+| File                                                        | Purpose                                                                 |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `supervisor.pid`                                            | Contains the Process ID of the running supervisor. Acts as a lock file. |
+| `supervisor.sock`                                           | Unix Domain Socket (or Named Pipe on Windows) for IPC.                  |
+| `supervisor.token`                                          | Randomly generated auth token for IPC connection verification.          |
+| `logs/supervisor.log`                                       | Structured JSON log file for supervisor events.                         |
+| `state/supervisor-status.json`                              | Global supervisor status (not session-specific).                        |
+| `sessions/{session_id}/*.json`                              | Session-specific persistent state (e.g., `summary.json`).               |
+| `sessions/{session_id}/stage/{hook_name}/*.json`            | Staged reminders for CLI consumption (see §4.1).                        |
+| `sessions/{session_id}/transcripts/pre-compact-{ts}.jsonl`  | Transcript snapshots captured by CLI before compaction (see §4.7).      |
+| `sessions/{session_id}/state/compaction-history.json`       | Compaction metadata for Monitoring UI timeline (see §4.7).              |
 
 ### 2.2 Lifecycle Management
 
@@ -46,9 +57,12 @@ All supervisor-related files live in `<project-root>/.sidekick/`:
 2.  **Signal**: Supervisor catches `SIGTERM`/`SIGINT`.
 3.  **Cleanup**:
     - Stop accepting new tasks.
+    - Stop TranscriptService file watchers (flush pending state).
     - Wait for in-flight tasks to complete (configurable via `supervisor.shutdownTimeoutMs`, default 30s).
     - Remove `.pid`, `.sock`, `.token`.
     - Exit.
+
+**Note**: TranscriptService file watchers are configured with `watcher.unref()` so they don't prevent shutdown even if cleanup is delayed.
 
 ## 3. Communication Layer (IPC)
 
@@ -92,207 +106,196 @@ All messages follow the JSON-RPC 2.0 specification.
 
 ### 4.1 State Manager (Single Writer)
 
-The Supervisor is the **only** entity allowed to write to `.sidekick/state/`.
+The Supervisor is the **only** entity allowed to write to `.sidekick/` state and staging files. The State Manager provides two distinct APIs:
+
+#### Persistent State
+
+For long-lived session data (summaries, transcript metadata):
 
 - **API**: `state.update(file: string, data: any, merge: boolean = false)`
+- **Location**: `.sidekick/sessions/{session_id}/*.json`
 - **Mechanism**:
-  1.  Receive update request via IPC.
+  1.  Receive update request via IPC or handler invocation.
   2.  Apply change to in-memory cache.
-  3.  **Atomic Write**: Write to `.sidekick/state/<file>.tmp`, then `rename` to `.sidekick/state/<file>.json`.
-- **Reads**: The CLI reads these JSON files directly. No IPC required for reads.
+  3.  **Atomic Write**: Write to `<path>.tmp`, then `rename` to `<path>.json`.
 
-### 4.2 Task Execution Engine
+#### Staging (Reminder Files)
 
-Handles long-running or background jobs.
+For files prepared by the Supervisor and consumed by the CLI on subsequent hook invocations:
+
+- **API**: `stage.write(session_id: string, hook_name: string, reminder: StagedReminder)`
+- **API**: `stage.suppress(session_id: string, hook_name: string)` — creates `.suppressed` marker
+- **API**: `stage.clear(session_id: string, hook_name?: string)`
+- **Location**: `.sidekick/sessions/{session_id}/stage/{hook_name}/*.json`
+- **Mechanism**:
+  1.  Create/overwrite reminder file at staging path.
+  2.  Emit `ReminderStaged` event (see §4.5).
+- **Consumption**: CLI reads staged files directly. No IPC required for reads.
+
+See **LLD-flow.md §4** for reminder file schema and **LLD-FEATURE-REMINDERS.md §3.3** for suppression semantics.
+
+### 4.2 Handler System (Unified Event Model)
+
+The Supervisor registers **handlers** that execute in response to events from two sources:
+1. **Hook Events**: Received via IPC from CLI (processed sequentially for synchronous response).
+2. **Transcript Events**: Emitted by TranscriptService on file changes (processed concurrently, fire-and-forget).
+
+Per **LLD-flow.md §2.3** and **LLD-CORE-RUNTIME.md §3.5**, handlers register with filters to specify which events they process:
+
+```typescript
+context.handlers.register({
+  id: 'feature:handler-name',
+  priority: 70,
+  filter: { kind: 'hook', hooks: ['PostToolUse'] }  // or 'transcript' or 'all'
+             | { kind: 'transcript', eventTypes: ['UserPrompt', 'ToolCall'] }
+             | { kind: 'all' },
+  handler: async (event, ctx) => { ... }
+});
+```
+
+- **Priority**: Determines execution order (higher = earlier).
+- **Error Handling**: Handlers implement internal try/catch. Unhandled exceptions are logged; execution continues to next handler.
+- **Concurrency**:
+  - Hook events: Sequential execution (must produce single response to CLI).
+  - Transcript events: Concurrent execution (handlers manage their own concurrency via StateManager's atomic operations).
+
+**Example Supervisor Handlers:**
+
+| Filter Type   | Event(s)        | Handler                          | Priority | Behavior                                   |
+| ------------- | --------------- | -------------------------------- | -------- | ------------------------------------------ |
+| hook          | `SessionStart`  | `InitSessionState`               | 100      | Initialize session, start TranscriptService|
+| hook          | `SessionStart`  | `StageDefaultUserPromptReminder` | 90       | Stage initial UserPromptSubmit reminder    |
+| hook          | `PreCompact`    | `CapturePreCompactState`         | 100      | Invoke TranscriptService.capturePreCompactState() |
+| hook          | `SessionEnd`    | `StopTranscriptService`          | 100      | Stop file watcher, flush pending state     |
+| transcript    | `UserPrompt`    | `CheckSummaryCadence`            | 80       | Trigger summary if threshold met           |
+| transcript    | `ToolCall`      | `StageAreYouStuckReminder`       | 70       | Stage reminder if tools-this-turn threshold met |
+
+Note: Handlers DO NOT increment counters. Metrics (turn count, tool count, tokens) are owned by TranscriptService (see §4.7).
+
+### 4.3 Task Execution Engine
+
+Handlers may trigger **tasks**—long-running async jobs that run off the critical path.
 
 - **Queue**: In-memory `PriorityQueue`.
-- **Concurrency**: Configurable limit (default: 2 heavy tasks).
-- **Task Registry**: Features register handlers (e.g., `session-summary` registers a summarizer function).
-- **API**: `task.enqueue(type: string, payload: any)`
+- **Concurrency**: Configurable limit (default: 2 concurrent tasks).
+- **Task Registry**: Task types register executor functions.
+- **API**: `task.enqueue(type: string, payload: any, priority?: number)`
 
-**Standard Tasks:** (Note that these are not the responsibility of the supervisor, rather examples of the task implementations' responsibilities)
+**Standard Task Types:**
 
-1.  `session_summary`: Reads transcript, calls LLM, updates `state/summary.json`.
-2.  `resume_generation`: Analyzes context, generates resume points.
-3.  `cleanup`: Periodic maintenance (old state pruning).
+| Task Type          | Triggered By               | Output                                     |
+| ------------------ | -------------------------- | ------------------------------------------ |
+| `session_summary`  | `UpdateSessionSummary`     | Writes `sessions/{id}/summary.json`        |
+| `resume_generation`| `UpdateSessionSummary`     | Writes `sessions/{id}/resume-message.json` |
+| `cleanup`          | Periodic timer             | Prunes old session data                    |
 
-### 4.3 Watcher Service
+### 4.4 Watcher Service
 
-Watches configuration files to trigger hot-reloads of internal state.
+Watches files to trigger reactive behaviors.
 
-- **Targets**: `.sidekick/config.jsonc`, `.env`.
+#### Configuration Watching
+- **Targets**: `.sidekick/config.yaml`, `.env`.
 - **Action**: On change, reload config in-memory. If critical config changes (e.g., log level), apply immediately.
 
-### 4.4 Monitoring UI Integration
+#### Transcript Watching (via TranscriptService)
+- **Target**: Claude Code transcript file (`$CLAUDE_SESSION_TRANSCRIPT_PATH`).
+- **Action**: On file change, TranscriptService parses new entries and emits `TranscriptEvent` to HandlerRegistry.
+- **Debouncing**: 100ms debounce to batch rapid file updates.
+- **See**: §4.7 for TranscriptService details.
 
-To support the Monitoring UI, the Supervisor emits **Entity-Lifecycle events** (see `LLD-STRUCTURED-LOGGING.md` for schema). All events include `session_id` for correlation.
+### 4.5 Monitoring UI Integration
 
-#### 4.4.1 Task Entity Events
+The Supervisor emits **SidekickEvents** (see `LLD-flow.md` §3.2 for schema) that the Monitoring UI aggregates for time-travel debugging.
 
-The **Task Execution Engine** emits events for each task lifecycle transition:
+#### 4.5.1 Event Schema
 
-```json
-// Task queued
-{
-  "source": "sidekick-supervisor",
-  "pid": 12345,
-  "context": {
-    "session_id": "sess-001",
-    "trace_id": "req-abc"
-  },
-  "entity": "task",
-  "entity_id": "task-001",
-  "lifecycle": "queued",
-  "state": { "type": "session_summary", "priority": 1, "queue_depth": 2 }
-}
+All Supervisor events follow the unified `SidekickEvent` schema:
 
-// Task started
-{
-  "source": "sidekick-supervisor",
-  "pid": 12345,
-  "context": {
-    "session_id": "sess-001",
-    "trace_id": "req-abc"
-  },
-  "entity": "task",
-  "entity_id": "task-001",
-  "lifecycle": "started"
-}
-
-// Task completed (with result state)
-{
-  "source": "sidekick-supervisor",
-  "pid": 12345,
-  "context": {
-    "session_id": "sess-001",
-    "trace_id": "req-abc"
-  },
-  "entity": "task",
-  "entity_id": "task-001",
-  "lifecycle": "completed",
-  "state": { "duration_ms": 1250 }
-}
-
-// Task failed (with error details)
-{
-  "source": "sidekick-supervisor",
-  "pid": 12345,
-  "context": {
-    "session_id": "sess-001",
-    "trace_id": "req-abc"
-  },
-  "entity": "task",
-  "entity_id": "task-001",
-  "lifecycle": "failed",
-  "reason": "LLM_TIMEOUT",
-  "metadata": { "message": "LLM call timed out after 30s", "recoverable": true }
+```typescript
+interface SidekickEvent {
+  type: string
+  time: number                    // Unix timestamp (ms)
+  source: 'cli' | 'supervisor'
+  context: {
+    session_id: string            // Required: correlates all events
+    scope?: 'project' | 'user'
+    correlation_id?: string       // Unique ID for CLI command execution
+    trace_id?: string             // Links causally-related events
+    hook?: string                 // Which hook triggered this event
+    task_id?: string              // Background task identifier
+  }
+  payload: {
+    state?: Record<string, unknown>
+    metadata?: Record<string, unknown>
+    reason?: string
+  }
 }
 ```
 
-#### 4.4.2 Command Entity Events
+#### 4.5.2 Supervisor-Emitted Events
 
-The **IPC Layer** emits events for each client request:
+| Event Type         | When                                   | Payload                                    |
+| ------------------ | -------------------------------------- | ------------------------------------------ |
+| `EventReceived`    | IPC event arrives from CLI             | `{ metadata: { hook, params } }`           |
+| `HandlerExecuted`  | Handler completes (success or failure) | `{ state: { handler, result }, reason? }`  |
+| `ReminderStaged`   | Reminder file created/updated          | `{ state: { hook, reminder_name } }`       |
+| `SummaryUpdated`   | Session summary recalculated           | `{ state: { summary } }`                   |
+| `RemindersCleared` | Stage directory cleaned (SessionStart) | `{ metadata: { session_id } }`             |
+| `TaskQueued`       | Task added to execution queue          | `{ state: { type, priority, queue_depth }}`|
+| `TaskStarted`      | Task execution begins                  | `{ metadata: { type } }`                   |
+| `TaskCompleted`    | Task execution succeeds                | `{ state: { duration_ms } }`               |
+| `TaskFailed`       | Task execution fails                   | `{ reason, metadata: { error } }`          |
 
-```json
-// Command received
-{
-  "source": "sidekick-supervisor",
-  "pid": 12345,
-  "context": {
-    "session_id": "sess-001",
-    "trace_id": "req-abc"
-  },
-  "entity": "command",
-  "entity_id": "cmd-001",
-  "lifecycle": "received",
-  "metadata": { "method": "task.enqueue", "params": { "type": "session_summary" } }
-}
-
-// Command processed
-{
-  "source": "sidekick-supervisor",
-  "pid": 12345,
-  "context": {
-    "session_id": "sess-001",
-    "trace_id": "req-abc"
-  },
-  "entity": "command",
-  "entity_id": "cmd-001",
-  "lifecycle": "processed",
-  "state": { "result": "ok" }
-}
-```
-
-#### 4.4.3 State File Updates
-
-The **State Manager** is responsible for persistence only and does NOT emit entity-lifecycle events. Instead:
-
-- **Features emit their own lifecycle events**: When a feature (e.g., session-summary, resume) updates its state, it emits an `entity: X, lifecycle: updated` event with the new state.
-- **State Manager logs persistence operations**:
-  - **DEBUG**: Successful writes (e.g., "State file written: sessions/sess-001/summary.json")
-  - **ERROR**: Write failures (e.g., "Failed to write state file: sessions/sess-001/summary.json")
-
-This decoupling ensures:
-1. The State Manager remains a pure persistence layer with no knowledge of feature semantics
-2. Features control their own event emission and lifecycle semantics
-3. Monitoring UI receives events from the domain that owns the data
-
-**Example feature event:**
+#### 4.5.3 Example Events
 
 ```json
-// Session summary feature emits after generating summary
+// Handler executed successfully
 {
-  "source": "sidekick-supervisor",
-  "pid": 12345,
+  "type": "HandlerExecuted",
+  "time": 1678888888888,
+  "source": "supervisor",
   "context": {
     "session_id": "sess-001",
     "trace_id": "req-abc",
+    "hook": "PostToolUse"
+  },
+  "payload": {
+    "state": { "handler": "StageAreYouStuckReminder", "result": "staged" }
+  }
+}
+
+// Reminder staged for future consumption
+{
+  "type": "ReminderStaged",
+  "time": 1678888888900,
+  "source": "supervisor",
+  "context": {
+    "session_id": "sess-001",
+    "trace_id": "req-abc",
+    "hook": "PostToolUse"
+  },
+  "payload": {
+    "state": { "hook": "PreToolUse", "reminder_name": "AreYouStuckReminder" }
+  }
+}
+
+// Task failed with error details
+{
+  "type": "TaskFailed",
+  "time": 1678888920000,
+  "source": "supervisor",
+  "context": {
+    "session_id": "sess-001",
     "task_id": "task-001"
   },
-  "entity": "summary",
-  "entity_id": "summary-sess-001",
-  "lifecycle": "updated",
-  "state": { /* full summary content */ }
-}
-```
-
-**State Manager system logs** (not entity events):
-
-```json
-// DEBUG: Successful persistence
-{
-  "source": "sidekick-supervisor",
-  "pid": 12345,
-  "level": "debug",
-  "message": "State file written",
-  "context": {
-    "session_id": "sess-001",
-    "trace_id": "req-abc"
-  },
-  "metadata": {
-    "file_path": "sessions/sess-001/summary.json",
-    "size_bytes": 4096
-  }
-}
-
-// ERROR: Persistence failure
-{
-  "source": "sidekick-supervisor",
-  "pid": 12345,
-  "level": "error",
-  "message": "Failed to write state file",
-  "context": {
-    "session_id": "sess-001",
-    "trace_id": "req-abc"
-  },
-  "metadata": {
-    "file_path": "sessions/sess-001/summary.json",
-    "error": "ENOSPC: no space left on device"
+  "payload": {
+    "reason": "LLM_TIMEOUT",
+    "metadata": { "error": "LLM call timed out after 30s", "recoverable": true }
   }
 }
 ```
 
-### 4.5 Internal State Visibility
+### 4.6 Internal State Visibility
 
 To allow the Monitoring UI to display system health, the Supervisor must periodically (e.g., every 5s or on change) write its internal status to `state/supervisor-status.json`.
 
@@ -321,6 +324,68 @@ To allow the Monitoring UI to display system health, the Supervisor must periodi
   ]
 }
 ```
+
+### 4.7 TranscriptService Integration
+
+The Supervisor owns the `TranscriptService` instance, which serves as the canonical source of transcript-derived metrics. See **LLD-TRANSCRIPT-PROCESSING.md** for complete specification.
+
+#### Initialization
+
+On `SessionStart`, the Supervisor initializes TranscriptService:
+
+```typescript
+// In SessionStart handler (priority 100)
+// event is typed as SessionStartHookEvent
+ctx.transcript.initialize({
+  transcriptPath: event.payload.transcriptPath,
+  sessionId: event.context.sessionId
+});
+ctx.transcript.startWatching();  // Begin file watching
+```
+
+#### Shutdown
+
+On `SessionEnd` (reason: `clear` | `logout` | `prompt_input_exit` | `other`), TranscriptService stops watching:
+
+```typescript
+// In SessionEnd handler (priority 100)
+await ctx.transcript.shutdown();  // Stop watching, flush pending state
+```
+
+**Note**: The file watcher is configured with `watcher.unref()` so it doesn't prevent process shutdown even if the SessionEnd event is missed.
+
+#### Metrics Ownership
+
+TranscriptService maintains authoritative metrics:
+
+| Metric            | Description                              |
+| ----------------- | ---------------------------------------- |
+| `turnCount`       | Total user prompts in session            |
+| `toolsThisTurn`   | Tools since last UserPrompt (resets)     |
+| `toolCount`       | Total tool invocations                   |
+| `inputTokens`     | Extracted from native transcript metadata |
+| `outputTokens`    | Estimated output tokens                  |
+| `lastProcessedLine` | Watermark for incremental processing   |
+
+Features access via `ctx.transcript.getMetrics()` rather than maintaining independent counters.
+
+#### Event Emission
+
+On transcript file changes, TranscriptService:
+1. Parses new lines since `lastProcessedLine`.
+2. Updates metrics incrementally.
+3. Emits `TranscriptEvent` for each new entry to HandlerRegistry.
+4. Persists metrics to StateManager for crash recovery.
+
+#### Compaction Handling
+
+Per **LLD-flow.md §5.6** (PreCompact flow):
+
+1. CLI copies full transcript to `.sidekick/sessions/{session_id}/transcripts/pre-compact-{timestamp}.jsonl`.
+2. CLI sends `PreCompact` event with `transcriptSnapshotPath` reference.
+3. Supervisor's PreCompact handler invokes `ctx.transcript.capturePreCompactState(snapshotPath)`.
+4. TranscriptService snapshots current metrics and records compaction metadata.
+5. On next file change, TranscriptService detects shortened file → triggers full recompute.
 
 ## 5. Error Handling & Resilience
 
