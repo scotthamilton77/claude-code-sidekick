@@ -5,7 +5,7 @@
  * Central context object passed to all features during registration.
  * Contains initialized instances of core services.
  *
- * @see LLD-CLI.md §4 Supervisor Interaction
+ * @see docs/design/CLI.md §4 Supervisor Interaction
  */
 
 import type { ConfigService } from './config'
@@ -56,7 +56,7 @@ export interface RuntimeContext {
    * Provides connection pooling, auto-reconnection, and graceful degradation.
    * May be undefined if no project context is available.
    *
-   * @see LLD-CLI.md §4 Supervisor Interaction
+   * @see docs/design/CLI.md §4 Supervisor Interaction
    *
    * @example
    * ```typescript

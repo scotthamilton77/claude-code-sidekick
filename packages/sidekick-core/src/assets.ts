@@ -1,7 +1,7 @@
 /**
  * Asset Resolver Module
  *
- * Implements Phase 2 of the Sidekick Node runtime per LLD-CORE-RUNTIME.md §3.3.
+ * Implements Phase 2 of the Sidekick Node runtime per docs/design/CORE-RUNTIME.md §3.3.
  *
  * Provides a cascading asset resolver that searches for prompts, schemas, and
  * templates across multiple locations in priority order (highest wins):
@@ -15,8 +15,8 @@
  *
  * Supports text, JSON, and JSONC asset formats with proper error handling.
  *
- * @see LLD-CORE-RUNTIME.md §3.3 Asset Resolver
- * @see TARGET-ARCHITECTURE.md §2.3 Static Assets
+ * @see docs/design/CORE-RUNTIME.md §3.3 Asset Resolver
+ * @see docs/ARCHITECTURE.md §2.3 Static Assets
  */
 
 import { parse as parseJsonc } from 'jsonc-parser'

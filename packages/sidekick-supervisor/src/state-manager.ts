@@ -9,7 +9,7 @@ import path from 'path'
  * and in-memory caching. Handles corrupt state files on startup by moving
  * them to `.bak` and resetting to empty.
  *
- * @see LLD-SUPERVISOR.md §4.1
+ * @see docs/design/SUPERVISOR.md §4.1
  */
 export class StateManager {
   private stateDir: string
@@ -35,7 +35,7 @@ export class StateManager {
 
   /**
    * Load all existing `.json` state files into cache.
-   * Per LLD-SUPERVISOR §5: malformed JSON files are moved to `.bak` and reset to empty.
+   * Per design/SUPERVISOR.md §5: malformed JSON files are moved to `.bak` and reset to empty.
    */
   private async loadExistingState(): Promise<void> {
     let entries: string[]

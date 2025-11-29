@@ -1,13 +1,13 @@
 /**
  * ConfigWatcher - Watches configuration files for hot-reload.
  *
- * Per LLD-SUPERVISOR §4.3: Watches `.sidekick/config.jsonc` and `.env` for changes.
+ * Per design/SUPERVISOR.md §4.3: Watches `.sidekick/config.jsonc` and `.env` for changes.
  * On change, triggers a callback for config reload.
  *
  * Uses Node's built-in fs.watch for simplicity. For production use with many files
  * or cross-platform reliability, consider chokidar.
  *
- * @see LLD-SUPERVISOR.md §4.3
+ * @see docs/design/SUPERVISOR.md §4.3
  */
 
 import { Logger } from '@sidekick/core'

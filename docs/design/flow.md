@@ -87,13 +87,13 @@ Handlers are responsible for their own error handling via internal try/catch. Un
 
 **Note**: Hook events arrive via IPC from CLI; transcript events are emitted by TranscriptService when it detects new entries in the transcript file. Both event types flow through the same handler dispatch system.
 
-**Internal Events Extensibility**: Domain-specific LLDs may define additional internal event types (e.g., `HookReceived` in LLD-CLI.md, `StatuslineRendered` in LLD-FEATURE-STATUSLINE.md). These must conform to the `SidekickEvent` schema defined in §3.2.
+**Internal Events Extensibility**: Domain-specific LLDs may define additional internal event types (e.g., `HookReceived` in docs/design/CLI.md, `StatuslineRendered` in docs/design/FEATURE-STATUSLINE.md). These must conform to the `SidekickEvent` schema defined in §3.2.
 
 ### 3.2 Event Schema
 
 Events use a discriminated union pattern for type-safe handler dispatch.
 
-**Logging Attributes**: When events are logged, Pino adds standard fields (`level`, `time`, `pid`, `hostname`, `name`, `msg`). See **LLD-STRUCTURED-LOGGING.md §3.3** for the complete log record format.
+**Logging Attributes**: When events are logged, Pino adds standard fields (`level`, `time`, `pid`, `hostname`, `name`, `msg`). See **docs/design/STRUCTURED-LOGGING.md §3.3** for the complete log record format.
 
 ```typescript
 // Base context shared by all events
@@ -229,7 +229,7 @@ interface TranscriptEvent {
 }
 
 // Metrics snapshot embedded in TranscriptEvent (subset for event payload)
-// See LLD-TRANSCRIPT-PROCESSING.md §3.1 for full TranscriptMetrics schema
+// See docs/design/TRANSCRIPT-PROCESSING.md §3.1 for full TranscriptMetrics schema
 interface TranscriptMetrics {
   turnCount: number // Total user prompts in session
   toolCount: number // Total tool invocations in session
@@ -291,7 +291,7 @@ This section describes the reminder system in general, but does not go into deta
 
 **Location**: `.sidekick/sessions/{session_id}/stage/{hook_name}/{reminder_name}.json`
 
-Per **LLD-FEATURE-REMINDERS.md §3.3**, staged reminders use typed text fields:
+Per **docs/design/FEATURE-REMINDERS.md §3.3**, staged reminders use typed text fields:
 
 ```typescript
 interface StagedReminder {
@@ -355,7 +355,7 @@ When conditions are met to stage a reminder:
 
 ### 4.5 Suppression Pattern
 
-Per **LLD-FEATURE-REMINDERS.md §3.3**, suppression uses marker files rather than per-reminder state.
+Per **docs/design/FEATURE-REMINDERS.md §3.3**, suppression uses marker files rather than per-reminder state.
 
 **Marker Location**: `.sidekick/sessions/{session_id}/stage/{hook_name}/.suppressed`
 
@@ -684,7 +684,7 @@ If file write fails during staging:
 
 ### 8.1 Reminder Configuration
 
-Reminder thresholds (turn cadence, tool cadence, stuck threshold) are configured per-reminder type in the Reminders feature. See **LLD-FEATURE-REMINDERS.md §8** for configuration schema.
+Reminder thresholds (turn cadence, tool cadence, stuck threshold) are configured per-reminder type in the Reminders feature. See **docs/design/FEATURE-REMINDERS.md §8** for configuration schema.
 
 ### 8.2 Handler Priorities
 
@@ -697,7 +697,7 @@ Handler priorities are specified at registration time via the `priority` field (
 
 ### 8.3 Transcript Configuration
 
-See **LLD-CONFIG-SYSTEM.md** for the full transcript configuration schema. Key settings:
+See **docs/design/CONFIG-SYSTEM.md** for the full transcript configuration schema. Key settings:
 
 ```yaml
 # .sidekick/transcript.yaml

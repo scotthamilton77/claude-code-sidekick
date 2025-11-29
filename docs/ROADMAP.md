@@ -7,15 +7,15 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [x] Deliver a minimal Node-based CLI that can be invoked via bash hook wrappers and echoes simple outputs for at least one hook (e.g., `session-start`).
     - [x] Implement scope detection and bootstrap sequence sufficient to locate project vs. user installs and initialize a lightweight runtime shell.
   - [x] Relevant documents/sections
-    - [x] `{project_root_dir}/TARGET-ARCHITECTURE.md` (§3.1 Hook Wrapper Architecture, §3.2 CLI/Supervisor Relationship, §3.3 Event Model)
-    - [x] `{project_root_dir}/LLD-flow.md` (§2.1 CLI/Supervisor Relationship, §2.3 Handler Registration, §3.1-3.2 Event Types and Schema) — **architectural source of truth for event model**
-    - [x] `{project_root_dir}/LLD-CLI.md` (§3 Hook Wrapper Layer, §3.4 Bootstrap Sequence, §6 Scope Resolution)
-    - [x] `{project_root_dir}/LLD-CORE-RUNTIME.md` (§3.1 Bootstrap & Lifecycle, §3.2 Configuration Service outline, §3.5 Handler Registration)
+    - [x] `{project_root_dir}/docs/ARCHITECTURE.md` (§3.1 Hook Wrapper Architecture, §3.2 CLI/Supervisor Relationship, §3.3 Event Model)
+    - [x] `{project_root_dir}/docs/design/flow.md` (§2.1 CLI/Supervisor Relationship, §2.3 Handler Registration, §3.1-3.2 Event Types and Schema) — **architectural source of truth for event model**
+    - [x] `{project_root_dir}/docs/design/CLI.md` (§3 Hook Wrapper Layer, §3.4 Bootstrap Sequence, §6 Scope Resolution)
+    - [x] `{project_root_dir}/docs/design/CORE-RUNTIME.md` (§3.1 Bootstrap & Lifecycle, §3.2 Configuration Service outline, §3.5 Handler Registration)
   - [ ] **Architectural alignment tasks** (added post-architecture-pivot)
-    - [ ] Add Event Model types to `@sidekick/types`: `SidekickEvent` discriminated union, `HookEvent` variants, `TranscriptEvent`, `EventContext` (per LLD-flow.md §3.2)
-    - [ ] Add type guards: `isHookEvent()`, `isTranscriptEvent()`, `isSessionStartEvent()`, etc. (per LLD-flow.md §3.2)
-    - [ ] Add `HandlerRegistry` interface to `@sidekick/core`: `register()`, `HandlerFilter`, `EventHandler`, `HandlerResult` (per LLD-flow.md §2.3)
-    - [ ] Wire `HandlerRegistry` into `RuntimeContext` as `ctx.handlers` (per LLD-CORE-RUNTIME.md §3.5)
+    - [ ] Add Event Model types to `@sidekick/types`: `SidekickEvent` discriminated union, `HookEvent` variants, `TranscriptEvent`, `EventContext` (per docs/design/flow.md §3.2)
+    - [ ] Add type guards: `isHookEvent()`, `isTranscriptEvent()`, `isSessionStartEvent()`, etc. (per docs/design/flow.md §3.2)
+    - [ ] Add `HandlerRegistry` interface to `@sidekick/core`: `register()`, `HandlerFilter`, `EventHandler`, `HandlerResult` (per docs/design/flow.md §2.3)
+    - [ ] Wire `HandlerRegistry` into `RuntimeContext` as `ctx.handlers` (per docs/design/CORE-RUNTIME.md §3.5)
     - [ ] **Testing for alignment tasks**:
       - [ ] Event type discrimination tests (type guards work correctly)
       - [ ] HandlerRegistry registration and filter matching tests
@@ -30,13 +30,13 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
 
 - [ ] **Phase 1.5: UI Foundation** (can start immediately, parallel to Phase 1 alignment)
   - [ ] Objectives
-    - [ ] Align UI types with `SidekickEvent` schema from LLD-flow.md
+    - [ ] Align UI types with `SidekickEvent` schema from docs/design/flow.md
     - [ ] Build log parsing infrastructure (NDJSON reader, sessionId filtering)
     - [ ] Create Replay Engine core (state reconstruction from events)
   - [ ] Relevant documents/sections
-    - [ ] `{project_root_dir}/packages/sidekick-ui/docs/LLD-MONITORING-UI.md` (§2 Architecture, §3.2 Time Travel, §4 Data Sources)
-    - [ ] `{project_root_dir}/LLD-flow.md` (§3.2 Event Schema)
-    - [ ] `{project_root_dir}/LLD-STRUCTURED-LOGGING.md` (§3 Event Schema)
+    - [ ] `{project_root_dir}/packages/sidekick-ui/docs/MONITORING-UI.md` (§2 Architecture, §3.2 Time Travel, §4 Data Sources)
+    - [ ] `{project_root_dir}/docs/design/flow.md` (§3.2 Event Schema)
+    - [ ] `{project_root_dir}/docs/design/STRUCTURED-LOGGING.md` (§3 Event Schema)
   - [ ] **1.5.1 Type Alignment** (depends on Phase 1 architectural alignment completing first)
     - [ ] Import `SidekickEvent`, `HookEvent`, `TranscriptEvent` from `@sidekick/types`
     - [ ] Import `EventContext`, `TranscriptMetrics` from `@sidekick/types`
@@ -72,17 +72,17 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [x] Implement the configuration cascade (env + config files) with deep-merge semantics and validation.
     - [x] Add asset resolver capable of reading defaults from `assets/sidekick/` and honoring override layers for user/project scopes.
   - [x] Relevant documents/sections
-    - [x] `{project_root_dir}/TARGET-ARCHITECTURE.md` (§3.6 Configuration Cascade, §2.3 Static Assets)
-    - [x] `{project_root_dir}/LLD-CONFIG-SYSTEM.md` (§3 Configuration Domains, §4 Configuration Cascade, §5 Data Structures, §8 Component Architecture) — **authoritative for config format and cascade**
-    - [x] `{project_root_dir}/LLD-SCHEMA-CONTRACTS.md` (§3 Core Schemas, §4 Asset Synchronization, §5 Versioning Strategy)
+    - [x] `{project_root_dir}/docs/ARCHITECTURE.md` (§3.6 Configuration Cascade, §2.3 Static Assets)
+    - [x] `{project_root_dir}/docs/design/CONFIG-SYSTEM.md` (§3 Configuration Domains, §4 Configuration Cascade, §5 Data Structures, §8 Component Architecture) — **authoritative for config format and cascade**
+    - [x] `{project_root_dir}/docs/design/SCHEMA-CONTRACTS.md` (§3 Core Schemas, §4 Asset Synchronization, §5 Versioning Strategy)
       - [x] §6.4 "Strictness": Use `z.strict()` by default to reject unknown config keys
-    - [x] `{project_root_dir}/LLD-CORE-RUNTIME.md` (§3.2 Configuration Service, §3.3 Asset Resolver)
+    - [x] `{project_root_dir}/docs/design/CORE-RUNTIME.md` (§3.2 Configuration Service, §3.3 Asset Resolver)
   - [ ] Acceptance criteria - REQUIRES RE-VERIFICATION after YAML migration
     - [x] Config loader reads env files and config layers in the documented order, producing a validated runtime config object.
     - [x] Asset resolver returns defaults from `assets/sidekick/` when no overrides exist and correctly prefers project-local overrides when present.
     - [x] CLI commands can access config and assets through the runtime shell, with errors surfaced via clear validation messages.
-    - [x] Config object is immutable after loading (per LLD-CONFIG-SYSTEM §2).
-    - [x] Zod schemas use strict mode to reject unknown keys (per LLD-SCHEMA-CONTRACTS §6.4).
+    - [x] Config object is immutable after loading (per CONFIG-SYSTEM §2).
+    - [x] Zod schemas use strict mode to reject unknown keys (per SCHEMA-CONTRACTS §6.4).
     - [x] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
   - [x] Testing
     - [x] Author tests upfront that cover env/config precedence, invalid schema failures, and asset override resolution for both user and project scopes.
@@ -91,15 +91,15 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [x] Fix redundant fallback logic in `getDefaultAssetsDir()` (both paths compute identically).
     - [x] Use `os.tmpdir()` in tests instead of `process.cwd()` relative paths for robustness.
   - [ ] **Architectural alignment tasks** (added post-architecture-pivot)
-    - [ ] Migrate config format from JSONC to YAML domain files (per LLD-CONFIG-SYSTEM.md §3):
+    - [ ] Migrate config format from JSONC to YAML domain files (per docs/design/CONFIG-SYSTEM.md §3):
       - [ ] `config.yaml` (core: paths, logging)
       - [ ] `llm.yaml` (provider settings, model selection)
       - [ ] `transcript.yaml` (watchDebounceMs, metricsPersistIntervalMs)
       - [ ] `features.yaml` (feature flags and feature-specific settings)
-    - [ ] Add `sidekick.config` unified override support (bash-style dot-notation, per LLD-CONFIG-SYSTEM.md §4.2)
-    - [ ] Update cascade order to match LLD-CONFIG-SYSTEM.md §4: internal defaults → env/.env → user unified → user domain → project unified → project domain → project-local
-    - [ ] Add `TranscriptConfigSchema` Zod schema (per LLD-CONFIG-SYSTEM.md §5.3)
-    - [ ] Add derived path helpers for staging directories: `{paths.state}/sessions/{session_id}/stage/{hook_name}/` (per LLD-CONFIG-SYSTEM.md §6)
+    - [ ] Add `sidekick.config` unified override support (bash-style dot-notation, per docs/design/CONFIG-SYSTEM.md §4.2)
+    - [ ] Update cascade order to match docs/design/CONFIG-SYSTEM.md §4: internal defaults → env/.env → user unified → user domain → project unified → project domain → project-local
+    - [ ] Add `TranscriptConfigSchema` Zod schema (per docs/design/CONFIG-SYSTEM.md §5.3)
+    - [ ] Add derived path helpers for staging directories: `{paths.state}/sessions/{session_id}/stage/{hook_name}/` (per docs/design/CONFIG-SYSTEM.md §6)
     - [ ] **Testing for alignment tasks**:
       - [ ] YAML parsing tests (valid/invalid domain files)
       - [ ] Domain file cascade precedence tests
@@ -112,11 +112,11 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [x] Add a two-phase logging pipeline (bootstrap console → Pino-based structured logger) with redaction and telemetry events.
     - [x] Provide logger access through runtime so commands/features emit structured entries tied to scope and command context.
   - [x] Relevant documents/sections
-    - [x] `{project_root_dir}/TARGET-ARCHITECTURE.md` (§1 Guiding Principles: Observability-First, §3.2 CLI/Supervisor Relationship)
-    - [x] `{project_root_dir}/LLD-STRUCTURED-LOGGING.md` (§2 Architecture, §3 Event Schema, §4 Configuration & Routing) — **authoritative for log format and event schema**
-    - [x] `{project_root_dir}/LLD-flow.md` (§3.2 Event Schema, §7 Logging Events) — **canonical event model**
-    - [x] `{project_root_dir}/LLD-CLI.md` (§8 Telemetry & Logging Bootstrap)
-    - [x] `{project_root_dir}/LLD-CORE-RUNTIME.md` (§3.1 Bootstrap stages, §5 Error Handling Strategy)
+    - [x] `{project_root_dir}/docs/ARCHITECTURE.md` (§1 Guiding Principles: Observability-First, §3.2 CLI/Supervisor Relationship)
+    - [x] `{project_root_dir}/docs/design/STRUCTURED-LOGGING.md` (§2 Architecture, §3 Event Schema, §4 Configuration & Routing) — **authoritative for log format and event schema**
+    - [x] `{project_root_dir}/docs/design/flow.md` (§3.2 Event Schema, §7 Logging Events) — **canonical event model**
+    - [x] `{project_root_dir}/docs/design/CLI.md` (§8 Telemetry & Logging Bootstrap)
+    - [x] `{project_root_dir}/docs/design/CORE-RUNTIME.md` (§3.1 Bootstrap stages, §5 Error Handling Strategy)
   - [ ] Acceptance criteria - REQUIRES RE-VERIFICATION after log file split
     - [ ] Logs include standard fields (timestamp, scope, command, correlation IDs) and redact sensitive payload fields per design.
     - [ ] Telemetry counters/timers are emitted alongside logs for hook executions.
@@ -130,24 +130,24 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [x] RuntimeShell now exposes `logger`, `telemetry`, `correlationId`, and `cleanup()`
     - [x] Logs written to `.sidekick/logs/sidekick.log` (scope-dependent path)
   - [ ] **Architectural alignment tasks** (added post-architecture-pivot)
-    - [ ] Split log files by component (per LLD-STRUCTURED-LOGGING.md §2.2):
+    - [ ] Split log files by component (per docs/design/STRUCTURED-LOGGING.md §2.2):
       - [ ] CLI logs to `.sidekick/logs/cli.log`
       - [ ] Supervisor logs to `.sidekick/logs/supervisor.log`
-    - [ ] Add `source: 'cli' | 'supervisor'` field to distinguish component in logs (per LLD-STRUCTURED-LOGGING.md §3.1)
-    - [ ] Implement `ContextLogger` wrapper for deep-merging `context` across child loggers (per LLD-STRUCTURED-LOGGING.md §3.7)
-    - [ ] Align log record format with `SidekickEvent` schema from LLD-flow.md §3.2 (type, time, source, context, payload)
-    - [ ] Add CLI-logged events: `HookReceived`, `ReminderConsumed`, `HookCompleted` (per LLD-flow.md §7.1)
-    - [ ] Add Supervisor-logged events: `EventReceived`, `HandlerExecuted`, `ReminderStaged`, `SummaryUpdated`, `RemindersCleared` (per LLD-flow.md §7.2)
+    - [ ] Add `source: 'cli' | 'supervisor'` field to distinguish component in logs (per docs/design/STRUCTURED-LOGGING.md §3.1)
+    - [ ] Implement `ContextLogger` wrapper for deep-merging `context` across child loggers (per docs/design/STRUCTURED-LOGGING.md §3.7)
+    - [ ] Align log record format with `SidekickEvent` schema from docs/design/flow.md §3.2 (type, time, source, context, payload)
+    - [ ] Add CLI-logged events: `HookReceived`, `ReminderConsumed`, `HookCompleted` (per docs/design/flow.md §7.1)
+    - [ ] Add Supervisor-logged events: `EventReceived`, `HandlerExecuted`, `ReminderStaged`, `SummaryUpdated`, `RemindersCleared` (per docs/design/flow.md §7.2)
     - [ ] **Testing for alignment tasks**:
       - [ ] Separate log file tests (CLI writes to cli.log, Supervisor writes to supervisor.log)
       - [ ] ContextLogger deep-merge tests
       - [ ] Event type logging tests (HookReceived, etc.)
     - [ ] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
   - [ ] **UI Integration (Phase 3)**
-    - [ ] Wire UI to read `.sidekick/logs/cli.log` and `supervisor.log` (per LLD-MONITORING-UI.md §2.2)
+    - [ ] Wire UI to read `.sidekick/logs/cli.log` and `supervisor.log` (per packages/sidekick-ui/docs/MONITORING-UI.md §2.2)
     - [ ] Add file polling for "Live Mode" (follow new events in real-time)
     - [ ] Display `source: 'cli' | 'supervisor'` badge on events in stream
-    - [ ] Implement search/filter UI per LLD-MONITORING-UI.md §5.2:
+    - [ ] Implement search/filter UI per packages/sidekick-ui/docs/MONITORING-UI.md §5.2:
       - [ ] `kind:hook`, `kind:transcript` filtering
       - [ ] `type:ReminderStaged`, `type:SummaryUpdated` filtering
       - [ ] `hook:UserPromptSubmit`, `hook:PreToolUse` filtering
@@ -158,12 +158,12 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [x] Build LLM provider interfaces and factory with retry/fallback logic, using shared provider adapters.
     - [x] Flesh out core runtime services (feature registry wiring, LLM service) to support feature packages.
   - [x] Relevant documents/sections
-    - [x] `{project_root_dir}/TARGET-ARCHITECTURE.md` (§3.4 TranscriptService, §3.5 Staging Pattern, §3.8 LLM Providers & Telemetry)
-    - [x] `{project_root_dir}/LLD-flow.md` (§2.2 Staging Pattern, §3.2 Event Schema) — **staging pattern source of truth**
-    - [x] `{project_root_dir}/LLD-CORE-RUNTIME.md` (§3.4 Feature Registry, §3.5 Handler Registry, §3.6 LLM Service, §3.7 Transcript Service, §4.1 Runtime Context) — **core services architecture**
-    - [x] `{project_root_dir}/LLD-TRANSCRIPT-PROCESSING.md` (§2.2 Components, §3 Metrics System) — **TranscriptService specification**
-    - [x] `{project_root_dir}/LLD-LLM-PROVIDERS.md` (§2 Core Architecture, §3 Interfaces & Types, §5 Resilience & Reliability)
-    - [x] `{project_root_dir}/LLD-TEST-FIXTURES.md` (§3 Core Mocks for LLM, §5 Integration Test Harness)
+    - [x] `{project_root_dir}/docs/ARCHITECTURE.md` (§3.4 TranscriptService, §3.5 Staging Pattern, §3.8 LLM Providers & Telemetry)
+    - [x] `{project_root_dir}/docs/design/flow.md` (§2.2 Staging Pattern, §3.2 Event Schema) — **staging pattern source of truth**
+    - [x] `{project_root_dir}/docs/design/CORE-RUNTIME.md` (§3.4 Feature Registry, §3.5 Handler Registry, §3.6 LLM Service, §3.7 Transcript Service, §4.1 Runtime Context) — **core services architecture**
+    - [x] `{project_root_dir}/docs/design/TRANSCRIPT-PROCESSING.md` (§2.2 Components, §3 Metrics System) — **TranscriptService specification**
+    - [x] `{project_root_dir}/docs/design/LLM-PROVIDERS.md` (§2 Core Architecture, §3 Interfaces & Types, §5 Resilience & Reliability)
+    - [x] `{project_root_dir}/docs/design/TEST-FIXTURES.md` (§3 Core Mocks for LLM, §5 Integration Test Harness)
   - [x] Testing
     - [x] Create tests first that cover provider selection, retry/fallback flows, credential precedence, and feature registry interactions using mocks.
   - [x] Implementation notes
@@ -188,7 +188,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
   - [ ] Acceptance criteria - REQUIRES RE-VERIFICATION after RuntimeContext refactor
     - [ ] We're utilizing open source to its maximum potential - no unnecessary wheel reinvention!
     - [ ] We're testing OUR code, not open source behaviors.
-    - [ ] Code complexity is kept low using stated architecture principles and guidelines.  (See `TARGET-ARCHITECTURE.md` Guiding Principles).
+    - [ ] Code complexity is kept low using stated architecture principles and guidelines.  (See `docs/ARCHITECTURE.md` Guiding Principles).
     - [ ] Providers honor credential precedence and retry/fallback policies, returning structured errors on exhaustion.
     - [ ] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
   - [x] Final integration task
@@ -206,22 +206,22 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [x] Both packages now import types from @sidekick/types and re-export for convenience
     - [x] Clean unidirectional dependency graph: types → core → shared-providers → consumers
   - [ ] **Architectural alignment tasks** (added post-architecture-pivot)
-    - [ ] Refactor `RuntimeContext` to discriminated union (per LLD-CORE-RUNTIME.md §4.1):
+    - [ ] Refactor `RuntimeContext` to discriminated union (per docs/design/CORE-RUNTIME.md §4.1):
       - [ ] `CLIContext extends BaseContext { role: 'cli'; supervisor: SupervisorClient }`
       - [ ] `SupervisorContext extends BaseContext { role: 'supervisor'; llm: LLMService; staging: StagingService; transcript: TranscriptService }`
       - [ ] Add type guards: `isCLIContext()`, `isSupervisorContext()`
-    - [ ] Implement `TranscriptService` as metrics owner (per LLD-TRANSCRIPT-PROCESSING.md §2.2.5):
+    - [ ] Implement `TranscriptService` as metrics owner (per docs/design/TRANSCRIPT-PROCESSING.md §2.2.5):
       - [ ] `initialize(sessionId, transcriptPath)`, `shutdown()` lifecycle
       - [ ] `getMetrics(): TranscriptMetrics` - turn count, tool count, tokens, message count
       - [ ] `onMetricsChange()`, `onThreshold()` observable API
       - [ ] File watching with chokidar, incremental processing via watermark
       - [ ] `capturePreCompactState()` for compaction history
-    - [ ] Add `TranscriptMetrics` schema (per LLD-TRANSCRIPT-PROCESSING.md §3.1):
+    - [ ] Add `TranscriptMetrics` schema (per docs/design/TRANSCRIPT-PROCESSING.md §3.1):
       - [ ] Turn-level: `turnCount`, `toolsThisTurn`
       - [ ] Session-level: `toolCount`, `messageCount`
       - [ ] Token metrics: `tokenUsage` with cache tiers, per-model breakdown
       - [ ] Watermarks: `lastProcessedLine`, `lastUpdatedAt`
-    - [ ] Implement `StagingService` for reminder file staging (per LLD-flow.md §2.2):
+    - [ ] Implement `StagingService` for reminder file staging (per docs/design/flow.md §2.2):
       - [ ] `stageReminder(hookName, reminderName, data)` - writes to `.sidekick/sessions/{session_id}/stage/{hook_name}/`
       - [ ] Atomic writes (temp file + rename)
       - [ ] Log `ReminderStaged` events
@@ -233,12 +233,12 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
       - [ ] StagingService atomic write tests
     - [ ] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
   - [ ] **UI Integration (Phase 4)**
-    - [ ] Display `TranscriptMetrics` in State Inspector panel (per LLD-MONITORING-UI.md §4.2)
+    - [ ] Display `TranscriptMetrics` in State Inspector panel (per packages/sidekick-ui/docs/MONITORING-UI.md §4.2)
       - [ ] `turnCount`, `toolsThisTurn`, `toolCount`, `messageCount`
       - [ ] `tokenUsage` (input, output, total)
       - [ ] `toolsPerTurn` derived ratio
     - [ ] Show metrics sparklines (turnCount, toolCount evolution over time)
-    - [ ] Implement Compaction Timeline (per LLD-MONITORING-UI.md §3.1):
+    - [ ] Implement Compaction Timeline (per packages/sidekick-ui/docs/MONITORING-UI.md §3.1):
       - [ ] Read `.sidekick/sessions/{sessionId}/state/compaction-history.json`
       - [ ] Display compaction markers (scissors icon) on timeline
       - [ ] Segment navigation between pre-compact and post-compact transcript
@@ -250,11 +250,11 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [x] Implement the supervisor process with IPC socket, task engine, and single-writer state manager for shared files.
     - [x] Connect CLI commands to supervisor lifecycle (start/stop/version handshake) and delegate background tasks (e.g., session summary updates).
   - [x] Relevant documents/sections
-    - [x] `{project_root_dir}/TARGET-ARCHITECTURE.md` (§3.7 Background Supervisor)
-    - [x] `{project_root_dir}/LLD-flow.md` (§2.1 CLI/Supervisor Relationship, §5 Complete Hook Flows) — **CLI/Supervisor interaction patterns**
-    - [x] `{project_root_dir}/LLD-SUPERVISOR.md` (§2 Process Architecture, §3 Communication Layer, §4 Subsystems) — **Supervisor process specification**
-    - [x] `{project_root_dir}/LLD-CLI.md` (§4 Supervisor Interaction, §7 Supervisor Lifecycle Management)
-    - [x] `{project_root_dir}/LLD-TRANSCRIPT-PROCESSING.md` (§2 Components, §6 Implementation Details) — **TranscriptService integration**
+    - [x] `{project_root_dir}/docs/ARCHITECTURE.md` (§3.7 Background Supervisor)
+    - [x] `{project_root_dir}/docs/design/flow.md` (§2.1 CLI/Supervisor Relationship, §5 Complete Hook Flows) — **CLI/Supervisor interaction patterns**
+    - [x] `{project_root_dir}/docs/design/SUPERVISOR.md` (§2 Process Architecture, §3 Communication Layer, §4 Subsystems) — **Supervisor process specification**
+    - [x] `{project_root_dir}/docs/design/CLI.md` (§4 Supervisor Interaction, §7 Supervisor Lifecycle Management)
+    - [x] `{project_root_dir}/docs/design/TRANSCRIPT-PROCESSING.md` (§2 Components, §6 Implementation Details) — **TranscriptService integration**
 
   - [x] **5.1 Technical Debt Remediation** (from code review) - PHASE 1 COMPLETE
     - [x] Fix build failures
@@ -296,7 +296,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
       - [x] `shutdown()` now async, prevents new enqueues, clears queue, waits for running tasks
       - [x] Added `isShuttingDown` flag and `shutdownResolve` for graceful completion
 
-  - [x] **5.2 Supervisor Process (LLD-SUPERVISOR §2)** - COMPLETE
+  - [x] **5.2 Supervisor Process (SUPERVISOR §2)** - COMPLETE
     - [x] Filesystem layout (`.sidekick/`)
       - [x] `supervisor.pid` - PID file written on startup
       - [x] `supervisor.sock` - Unix Domain Socket (Named Pipe on Windows)
@@ -321,7 +321,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
       - [x] Self-terminate after configurable idle timeout (`startIdleCheck()`)
       - [x] Configurable via `supervisor.idleTimeoutMs` (default: 5 min, 0 = disabled)
 
-  - [x] **5.3 IPC Communication Layer (LLD-SUPERVISOR §3)** - COMPLETE
+  - [x] **5.3 IPC Communication Layer (SUPERVISOR §3)** - COMPLETE
     - [x] Transport abstraction
       - [x] Unix Domain Sockets for Linux/macOS
       - [x] Named Pipes for Windows (`\\.\pipe\sidekick-<project-hash>-sock`)
@@ -346,7 +346,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
       - [x] `isConnected()` helper for connection state checking
       - [x] Comprehensive test coverage: 16 IPC tests including timeout, retry, backoff scenarios
 
-  - [x] **5.4 Supervisor Subsystems (LLD-SUPERVISOR §4)** - COMPLETE
+  - [x] **5.4 Supervisor Subsystems (SUPERVISOR §4)** - COMPLETE
     - [x] State Manager (single writer)
       - [x] `state.update(file, data, merge)` API
       - [x] In-memory cache with atomic write (tmp + rename)
@@ -368,7 +368,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
       - [x] Debounced change detection (100ms)
       - [x] Integrated into Supervisor lifecycle (start/stop)
 
-  - [x] **5.5 CLI Integration (LLD-CLI §4, §7)** - COMPLETE
+  - [x] **5.5 CLI Integration (CLI §4, §7)** - COMPLETE
     - [x] Supervisor lifecycle commands
       - [x] `supervisor start` - starts supervisor process
       - [x] `supervisor stop` - stops supervisor gracefully
@@ -386,7 +386,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
       - [x] Warnings logged via structured logging
       - [x] `isAvailable()` method for features to check before expensive operations
 
-  - [x] **5.6 Error Handling (LLD-SUPERVISOR §5)** - COMPLETE
+  - [x] **5.6 Error Handling (SUPERVISOR §5)** - COMPLETE
     - [x] Uncaught exception handling
       - [x] Log fatal error to `supervisor.log` via structured logger
       - [x] Attempt graceful cleanup (calls `cleanup()` before exit)
@@ -444,24 +444,24 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
   - [ ] Acceptance criteria - REQUIRES RE-VERIFICATION after TranscriptService/HandlerRegistry integration
     - [ ] We're utilizing open source to its maximum potential - no unnecessary wheel reinvention!
     - [ ] We're testing OUR code, not open source behaviors.
-    - [ ] Code complexity is kept low using stated architecture principles and guidelines.  (See `TARGET-ARCHITECTURE.md` Guiding Principles).
+    - [ ] Code complexity is kept low using stated architecture principles and guidelines.  (See `docs/ARCHITECTURE.md` Guiding Principles).
     - [ ] Supervisor starts, responds to version handshake, and serializes state updates to `.sidekick/state/*.json` atomically.
     - [ ] IPC layer enforces token security and handles timeouts/retries without orphaning tasks.
     - [ ] CLI gracefully falls back when supervisor is unavailable, logging warnings and proceeding with degraded sync paths.
     - [ ] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
   - [ ] **Architectural alignment tasks** (added post-architecture-pivot)
-    - [ ] Integrate TranscriptService with Supervisor (per LLD-SUPERVISOR.md §4, LLD-TRANSCRIPT-PROCESSING.md §6):
+    - [ ] Integrate TranscriptService with Supervisor (per docs/design/SUPERVISOR.md §4, docs/design/TRANSCRIPT-PROCESSING.md §6):
       - [ ] Initialize TranscriptService on `SessionStart` handler
       - [ ] Stop TranscriptService on `SessionEnd` handler
       - [ ] Configure file watcher with `watcher.unref()` so it doesn't block shutdown
-    - [ ] Wire HandlerRegistry into Supervisor for event dispatch (per LLD-flow.md §2.3):
+    - [ ] Wire HandlerRegistry into Supervisor for event dispatch (per docs/design/flow.md §2.3):
       - [ ] `invokeHook()` for hook events received via IPC from CLI
       - [ ] `emitTranscriptEvent()` called by TranscriptService when file changes detected
       - [ ] Sequential execution for hook handlers, concurrent for transcript handlers
-    - [ ] Add staging directory management (per LLD-flow.md §2.2):
+    - [ ] Add staging directory management (per docs/design/flow.md §2.2):
       - [ ] Create session staging directories: `.sidekick/sessions/{session_id}/stage/{hook_name}/`
       - [ ] Clean staging directories on `SessionStart` (type: startup|clear)
-    - [ ] Log to separate supervisor log file: `.sidekick/logs/supervisor.log` (per LLD-STRUCTURED-LOGGING.md §2.2)
+    - [ ] Log to separate supervisor log file: `.sidekick/logs/supervisor.log` (per docs/design/STRUCTURED-LOGGING.md §2.2)
     - [ ] **Testing for alignment tasks**:
       - [ ] TranscriptService lifecycle tests (initialize on SessionStart, stop on SessionEnd)
       - [ ] HandlerRegistry dispatch tests (hook events sequential, transcript events concurrent)
@@ -469,14 +469,14 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
       - [ ] Supervisor log file isolation tests
     - [ ] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
   - [ ] **UI Integration (Phase 5)**
-    - [ ] System Health dashboard (per LLD-MONITORING-UI.md §3.2.E)
+    - [ ] System Health dashboard (per packages/sidekick-ui/docs/MONITORING-UI.md §3.2.E)
       - [ ] Read `.sidekick/state/supervisor-status.json` for health metrics
       - [ ] Display: Uptime, Memory Usage (Heap/RSS), Queue Depth, Active Tasks
       - [ ] Memory/queue sparklines for trend visualization
     - [ ] Offline detection:
       - [ ] Poll file mtime; if > 30s old, show "Supervisor Offline" state
       - [ ] Red/grey badge with last-known timestamp
-    - [ ] Session state files (per LLD-MONITORING-UI.md §2.2):
+    - [ ] Session state files (per packages/sidekick-ui/docs/MONITORING-UI.md §2.2):
       - [ ] Read `.sidekick/sessions/{sessionId}/state/*.json`
       - [ ] Read staged reminders from `.sidekick/sessions/{sessionId}/stage/{hookName}/*.json`
     - [ ] Testing: Health dashboard tests, offline detection tests
@@ -487,18 +487,18 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [ ] Features consume TranscriptService metrics via `ctx.transcript.getMetrics()` rather than maintaining independent counters
     - [ ] Staging handlers run in Supervisor (transcript events); consumption handlers run in CLI (hook events)
   - [ ] Relevant documents/sections
-    - [ ] `{project_root_dir}/TARGET-ARCHITECTURE.md` (§2.1 Package Structure, §3.3 Event Model, §3.4 TranscriptService)
-    - [ ] `{project_root_dir}/LLD-flow.md` (§4 Reminder System, §5 Complete Hook Flows) — **handler registration patterns**
-    - [ ] `{project_root_dir}/LLD-CORE-RUNTIME.md` (§6.10 Dual-Registration Patterns) — **event routing vs role discriminant**
-    - [ ] `{project_root_dir}/LLD-FEATURE-SESSION-SUMMARY.md` (handler registration, LLM integration)
-    - [ ] `{project_root_dir}/LLD-FEATURE-REMINDERS.md` (§3 Architecture, §3.3 Reminder File Schema) — **staging/consumption pattern**
-    - [ ] `{project_root_dir}/LLD-FEATURE-STATUSLINE.md` (state rendering, supervisor integration)
-    - [ ] `{project_root_dir}/LLD-FEATURE-RESUME.md` (artifact discovery, message generation)
-    - [ ] `{project_root_dir}/LLD-TRANSCRIPT-PROCESSING.md` (§3 Metrics System, §5 Event Emission)
-    - [ ] `{project_root_dir}/LLD-TEST-FIXTURES.md` (§4 Test Data Management)
+    - [ ] `{project_root_dir}/docs/ARCHITECTURE.md` (§2.1 Package Structure, §3.3 Event Model, §3.4 TranscriptService)
+    - [ ] `{project_root_dir}/docs/design/flow.md` (§4 Reminder System, §5 Complete Hook Flows) — **handler registration patterns**
+    - [ ] `{project_root_dir}/docs/design/CORE-RUNTIME.md` (§6.10 Dual-Registration Patterns) — **event routing vs role discriminant**
+    - [ ] `{project_root_dir}/docs/design/FEATURE-SESSION-SUMMARY.md` (handler registration, LLM integration)
+    - [ ] `{project_root_dir}/docs/design/FEATURE-REMINDERS.md` (§3 Architecture, §3.3 Reminder File Schema) — **staging/consumption pattern**
+    - [ ] `{project_root_dir}/docs/design/FEATURE-STATUSLINE.md` (state rendering, supervisor integration)
+    - [ ] `{project_root_dir}/docs/design/FEATURE-RESUME.md` (artifact discovery, message generation)
+    - [ ] `{project_root_dir}/docs/design/TRANSCRIPT-PROCESSING.md` (§3 Metrics System, §5 Event Emission)
+    - [ ] `{project_root_dir}/docs/design/TEST-FIXTURES.md` (§4 Test Data Management)
   - [ ] **6.1 Reminders Feature** (`feature-reminders/`)
     - [ ] Implement `ReminderUtils` module: `resolveReminder()`, `stageReminder()`, `consumeReminder()`, `suppressHook()`
-    - [ ] Staging handlers (Supervisor, transcript events per LLD-FEATURE-REMINDERS.md §3.1):
+    - [ ] Staging handlers (Supervisor, transcript events per docs/design/FEATURE-REMINDERS.md §3.1):
       - [ ] `StageDefaultUserPromptReminder` (SessionStart hook)
       - [ ] `StageAreYouStuckReminder` (ToolCall transcript, `toolsThisTurn >= stuck_threshold`)
       - [ ] `StageTimeForUserUpdateReminder` (ToolCall transcript, `toolsThisTurn >= update_threshold`)
@@ -526,21 +526,21 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
   - [ ] Acceptance criteria
     - [ ] We're utilizing open source to its maximum potential - no unnecessary wheel reinvention!
     - [ ] We're testing OUR code, not open source behaviors.
-    - [ ] Code complexity is kept low using stated architecture principles and guidelines.  (See `TARGET-ARCHITECTURE.md` Guiding Principles).
+    - [ ] Code complexity is kept low using stated architecture principles and guidelines.  (See `docs/ARCHITECTURE.md` Guiding Principles).
     - [ ] Features register handlers via `ctx.handlers.register()` with appropriate filters (hook vs transcript events)
     - [ ] Features consume metrics from `ctx.transcript.getMetrics()` - no independent counters
     - [ ] Staging/consumption separation: Supervisor handles staging, CLI handles consumption
     - [ ] Dual-scope parity verified: features behave identically in user and project contexts
     - [ ] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
   - [ ] **UI Integration (Phase 6)**
-    - [ ] Reminder event visualization (per LLD-MONITORING-UI.md §4.1):
+    - [ ] Reminder event visualization (per packages/sidekick-ui/docs/MONITORING-UI.md §4.1):
       - [ ] `ReminderStaged` cards with name, priority, blocking status
       - [ ] `ReminderConsumed` cards showing which reminder was returned
       - [ ] `RemindersCleared` events on SessionStart
     - [ ] Session summary event cards:
       - [ ] `SummaryUpdated` with state diff and reason (cadence_met, title_change, etc.)
       - [ ] Expandable payload view for full summary state
-    - [ ] Decision Log view (per LLD-MONITORING-UI.md §3.2.D):
+    - [ ] Decision Log view (per packages/sidekick-ui/docs/MONITORING-UI.md §3.2.D):
       - [ ] Filtered view of decision events (Summary, Reminder, Context Prune)
       - [ ] Show system reasoning chain
     - [ ] End-to-end flow visualization:
@@ -554,8 +554,8 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [ ] Port remaining functionality not obsolete or in conflict with new designs; document intentional omissions
     - [ ] Clean up or archive legacy code
   - [ ] Relevant documents/sections
-    - [ ] `{project_root_dir}/TARGET-ARCHITECTURE.md` (§1 Guiding Principles)
-    - [ ] `{project_root_dir}/LLD-flow.md` (complete hook flows as feature reference)
+    - [ ] `{project_root_dir}/docs/ARCHITECTURE.md` (§1 Guiding Principles)
+    - [ ] `{project_root_dir}/docs/design/flow.md` (complete hook flows as feature reference)
   - [ ] **7.1 Legacy Audit**
     - [ ] Audit `benchmark-next/` for unported features (early TypeScript exploration, largely stale)
     - [ ] Audit `src/sidekick/` (bash runtime) for behaviors not yet in TypeScript packages
@@ -580,9 +580,9 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [ ] Finalize installer scripts for bash wrappers, assets, and dual-scope support
     - [ ] Implement migration utilities (legacy bash `.conf` → YAML domain files)
   - [ ] Relevant documents/sections
-    - [ ] `{project_root_dir}/TARGET-ARCHITECTURE.md` (§4 Installation & Distribution)
-    - [ ] `{project_root_dir}/LLD-CLI.md` (§3 Hook Wrapper Layer, §6 Scope Resolution)
-    - [ ] `{project_root_dir}/LLD-CONFIG-SYSTEM.md` (§3 Configuration Domains, §4 Configuration Cascade) — **YAML format spec**
+    - [ ] `{project_root_dir}/docs/ARCHITECTURE.md` (§4 Installation & Distribution)
+    - [ ] `{project_root_dir}/docs/design/CLI.md` (§3 Hook Wrapper Layer, §6 Scope Resolution)
+    - [ ] `{project_root_dir}/docs/design/CONFIG-SYSTEM.md` (§3 Configuration Domains, §4 Configuration Cascade) — **YAML format spec**
   - [ ] **8.1 Installer Implementation**
     - [ ] Hook wrapper generation: bash scripts that invoke `npx @sidekick/cli` or global install
     - [ ] Asset bundling: copy `assets/sidekick/` to installed location
@@ -590,7 +590,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [ ] CLI commands: `sidekick install --project`, `sidekick install --user`, `sidekick uninstall`
   - [ ] **8.2 Config Migration**
     - [ ] Legacy `.conf` → YAML converter: parse bash-style key=value, emit domain YAML files
-    - [ ] `sidekick.config` support: unified override file with dot-notation (per LLD-CONFIG-SYSTEM.md §4.2)
+    - [ ] `sidekick.config` support: unified override file with dot-notation (per docs/design/CONFIG-SYSTEM.md §4.2)
     - [ ] Migration reporting: show what was converted, warn on unrecognized keys
   - [ ] **8.3 Distribution Options**
     - [ ] npm package: `@sidekick/cli` with `npx` support

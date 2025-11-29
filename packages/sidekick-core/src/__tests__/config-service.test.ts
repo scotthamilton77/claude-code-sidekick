@@ -178,7 +178,7 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ projectRoot: projectDir, homeDir: join(tempRoot, 'home') })).toThrow(/parse|syntax/i)
   })
 
-  test('config object is deeply frozen (immutable per LLD-CONFIG-SYSTEM §2)', () => {
+  test('config object is deeply frozen (immutable per design/CONFIG-SYSTEM.md §2)', () => {
     const config = loadConfig({
       projectRoot: join(tempRoot, 'empty-project'),
       homeDir: join(tempRoot, 'empty-home'),
@@ -211,7 +211,7 @@ describe('loadConfig', () => {
     expect(config.llm.timeout).toBe(originalTimeout)
   })
 
-  test('rejects unknown keys at top level (strict mode per LLD-SCHEMA-CONTRACTS §6.4)', () => {
+  test('rejects unknown keys at top level (strict mode per design/SCHEMA-CONTRACTS.md §6.4)', () => {
     const projectDir = join(tempRoot, 'project')
     const projectSidekick = join(projectDir, '.sidekick')
     mkdirSync(projectSidekick, { recursive: true })

@@ -7,7 +7,7 @@
  * - Automatic reconnection on transient failures
  * - Graceful degradation when supervisor unavailable
  *
- * @see LLD-CLI.md §4 Supervisor Interaction
+ * @see docs/design/CLI.md §4 Supervisor Interaction
  */
 import fs from 'fs/promises'
 import { IpcClient, IpcClientOptions } from './ipc/client.js'

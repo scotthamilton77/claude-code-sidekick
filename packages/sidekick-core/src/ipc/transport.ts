@@ -3,8 +3,8 @@
  *
  * Provides platform-aware path resolution for supervisor IPC resources.
  *
- * @see LLD-SUPERVISOR.md §2 Process Architecture
- * @see LLD-CLI.md §7 Supervisor Lifecycle Management
+ * @see docs/design/SUPERVISOR.md §2 Process Architecture
+ * @see docs/design/CLI.md §7 Supervisor Lifecycle Management
  */
 import crypto from 'crypto'
 import os from 'os'
@@ -42,7 +42,7 @@ export function getPidPath(projectDir: string): string {
 
 /**
  * Get the user-level supervisors directory.
- * Per LLD-CLI §7: Store PID files at ~/.sidekick/supervisors/ for --kill-all.
+ * Per design/CLI.md §7: Store PID files at ~/.sidekick/supervisors/ for --kill-all.
  */
 export function getUserSupervisorsDir(): string {
   return path.join(os.homedir(), '.sidekick', 'supervisors')

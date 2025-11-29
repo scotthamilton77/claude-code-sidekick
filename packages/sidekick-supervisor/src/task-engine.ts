@@ -2,7 +2,7 @@ import { Logger } from '@sidekick/core'
 import crypto from 'crypto'
 
 /**
- * Default task timeout: 5 minutes per LLD-SUPERVISOR §5.
+ * Default task timeout: 5 minutes per design/SUPERVISOR.md §5.
  * Tasks can override this via their timeoutMs property.
  */
 const DEFAULT_TASK_TIMEOUT_MS = 5 * 60 * 1000
@@ -62,7 +62,7 @@ export interface EnqueueOptions {
  * code blocks. Async task handlers schedule microtasks that execute sequentially,
  * never concurrently. This class is NOT safe for Worker Threads with shared memory.
  *
- * @see LLD-SUPERVISOR.md §4.2, §5
+ * @see docs/design/SUPERVISOR.md §4.2, §5
  */
 export class TaskEngine {
   private queue: Task[] = []
@@ -198,7 +198,7 @@ export class TaskEngine {
 
   /**
    * Run task handler with timeout enforcement.
-   * Per LLD-SUPERVISOR §5: Tasks have a strict timeout, defaulting to 5 minutes.
+   * Per design/SUPERVISOR.md §5: Tasks have a strict timeout, defaulting to 5 minutes.
    */
   private async runWithTimeout(
     handler: TaskHandler,
@@ -245,7 +245,7 @@ export class TaskEngine {
   /**
    * Gracefully shutdown the task engine.
    * Prevents new enqueues, clears pending queue, waits for running tasks to complete.
-   * Per LLD-SUPERVISOR §2.2: max 30s timeout for running tasks.
+   * Per design/SUPERVISOR.md §2.2: max 30s timeout for running tasks.
    */
   async shutdown(timeoutMs = 30000): Promise<void> {
     if (this.isShuttingDown) {

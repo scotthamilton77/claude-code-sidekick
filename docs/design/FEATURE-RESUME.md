@@ -101,7 +101,7 @@ Managed via `sidekick-core` config system.
 
 ### 5.3 Event Logging
 
-The Resume feature emits `SidekickEvent` records (see `LLD-flow.md` §3.2) to the Supervisor log (`supervisor.log`, per `LLD-STRUCTURED-LOGGING.md`):
+The Resume feature emits `SidekickEvent` records (see `docs/design/flow.md` §3.2) to the Supervisor log (`supervisor.log`, per `docs/design/STRUCTURED-LOGGING.md`):
 
 ```json
 // Resume generation triggered (significant title change with high confidence)

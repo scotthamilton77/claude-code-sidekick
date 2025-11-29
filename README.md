@@ -415,7 +415,7 @@ The first existing file in the cascade wins. Use `.sidekick/` for persistent ove
 
 ## Node Runtime Migration (In Progress)
 
-The Sidekick system is being migrated from Bash to Node/TypeScript for improved testability and maintainability. The migration is tracked in `TARGET-IMPLEMENTATION-PLAN.md`.
+The Sidekick system is being migrated from Bash to Node/TypeScript for improved testability and maintainability. The migration is tracked in `docs/ROADMAP.md`.
 
 ### Current Status
 

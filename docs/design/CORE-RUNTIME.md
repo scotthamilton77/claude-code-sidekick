@@ -6,11 +6,11 @@ The `sidekick-core` package is the foundation of the Sidekick Node.js runtime. I
 
 ### 1.1 Related Documents
 
-- **LLD-flow.md**: Event model, hook flows, handler registration (source of truth for runtime behavior)
-- **LLD-TRANSCRIPT-PROCESSING.md**: TranscriptService as metrics owner, event emission, compaction history
-- **LLD-CONFIG-SYSTEM.md**: Configuration schemas and cascade logic
-- **LLD-STRUCTURED-LOGGING.md**: Event schema (`SidekickEvent`), logging architecture
-- **LLD-SCHEMA-CONTRACTS.md**: Cross-language schema contracts (Zod → JSON Schema)
+- **docs/design/flow.md**: Event model, hook flows, handler registration (source of truth for runtime behavior)
+- **docs/design/TRANSCRIPT-PROCESSING.md**: TranscriptService as metrics owner, event emission, compaction history
+- **docs/design/CONFIG-SYSTEM.md**: Configuration schemas and cascade logic
+- **docs/design/STRUCTURED-LOGGING.md**: Event schema (`SidekickEvent`), logging architecture
+- **docs/design/SCHEMA-CONTRACTS.md**: Cross-language schema contracts (Zod → JSON Schema)
 
 ## 2. Architecture
 
@@ -32,7 +32,7 @@ To maintain simplicity and testability without the overhead of a complex DI cont
 
 ### 2.2 CLI/Supervisor Relationship
 
-Per **LLD-flow.md §2.1**, CLI and Supervisor operate as separate processes with distinct responsibilities:
+Per **docs/design/flow.md §2.1**, CLI and Supervisor operate as separate processes with distinct responsibilities:
 
 - **CLI**: Handles synchronous hook responses to Claude Code. Reads staged files, logs events locally.
 - **Supervisor**: Performs async background work (LLM calls, transcript analysis). Stages files for CLI consumption.
@@ -105,7 +105,7 @@ Manages the lifecycle of features.
 
 ### 3.5 Handler Registry (`HandlerRegistry`)
 
-Per **LLD-flow.md §2.3**, the unified HandlerRegistry processes both CLI hook events and transcript file-change events through a single registration API with discriminated filters.
+Per **docs/design/flow.md §2.3**, the unified HandlerRegistry processes both CLI hook events and transcript file-change events through a single registration API with discriminated filters.
 
 - **Unified Event Queue**: Handlers register for hook events, transcript events, or both via filter patterns.
 - **Execution Priority**: Determines handler invocation order (higher priority runs first).
@@ -116,7 +116,7 @@ Per **LLD-flow.md §2.3**, the unified HandlerRegistry processes both CLI hook e
 **Handler Signature**:
 
 ```typescript
-type SidekickEvent = HookEvent | TranscriptEvent // Discriminated union (see LLD-flow.md §3.2)
+type SidekickEvent = HookEvent | TranscriptEvent // Discriminated union (see docs/design/flow.md §3.2)
 
 type EventHandler = (event: SidekickEvent, context: RuntimeContext) => Promise<HandlerResult | void>
 
@@ -167,7 +167,7 @@ A unified interface for LLM interactions.
 
 ### 3.7 Transcript Service (`TranscriptService`)
 
-Per **LLD-TRANSCRIPT-PROCESSING.md**, TranscriptService is the canonical owner of transcript-derived metrics and the source of truth for session state.
+Per **docs/design/TRANSCRIPT-PROCESSING.md**, TranscriptService is the canonical owner of transcript-derived metrics and the source of truth for session state.
 
 - **Metrics Ownership**: Owns turn count, tool count, tokens, message count. Features consume metrics via `getMetrics()`.
 - **File Watching**: Watches transcript file for changes, emits `TranscriptEvent` entries to HandlerRegistry.
@@ -269,7 +269,7 @@ export interface SupervisorFeature extends Feature {
 
 ### 4.3 Handler Registration
 
-Per **LLD-flow.md §2.3**, handlers register with a filter to specify which events they process.
+Per **docs/design/flow.md §2.3**, handlers register with a filter to specify which events they process.
 
 ```typescript
 type HookName =
@@ -308,7 +308,7 @@ interface HandlerRegistry {
 
 ### 4.4 Configuration
 
-Configuration schemas are defined in **LLD-CONFIG-SYSTEM.md**. Key types:
+Configuration schemas are defined in **docs/design/CONFIG-SYSTEM.md**. Key types:
 
 ```typescript
 // Re-exported from schema-contracts
@@ -354,7 +354,7 @@ import type { SidekickConfig, CoreConfig, LlmConfig, RemindersConfig } from '@si
 
 - Features call `context.handlers.register()` during their `register()` lifecycle.
 - Handlers are hook-specific callbacks with explicit priority ordering.
-- See **LLD-flow.md §2.3** for handler registration semantics.
+- See **docs/design/flow.md §2.3** for handler registration semantics.
 
 ### 6.5 RuntimeContext Architecture ✓
 
@@ -365,7 +365,7 @@ import type { SidekickConfig, CoreConfig, LlmConfig, RemindersConfig } from '@si
 
 ### 6.6 Event Schema Location ✓
 
-**Decision**: `SidekickEvent` is defined in **LLD-flow.md §3.2** (source of truth) and implemented in **LLD-STRUCTURED-LOGGING.md**.
+**Decision**: `SidekickEvent` is defined in **docs/design/flow.md §3.2** (source of truth) and implemented in **docs/design/STRUCTURED-LOGGING.md**.
 
 ### 6.7 Unified Event Model ✓
 
@@ -383,7 +383,7 @@ import type { SidekickConfig, CoreConfig, LlmConfig, RemindersConfig } from '@si
 - **Single Source of Truth**: Metrics derived from transcript content, not from hook events.
 - **Feature Decoupling**: Features consume metrics via `getMetrics()` rather than maintaining their own counters.
 - **Compaction Handling**: TranscriptService manages compaction history for Monitoring UI timeline.
-- **See**: **LLD-TRANSCRIPT-PROCESSING.md** for full specification.
+- **See**: **docs/design/TRANSCRIPT-PROCESSING.md** for full specification.
 
 ### 6.9 Bootstrap Stages
 

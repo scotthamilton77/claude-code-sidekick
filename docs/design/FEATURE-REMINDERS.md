@@ -2,15 +2,15 @@
 
 ## 1. Overview
 
-The Reminders feature ensures the user and the LLM stay on track by injecting context-aware prompts at specific intervals or events, sometimes "blocking" a decision the agent may be taking. It implements rule-based (turn-based, tool-usage-based, dynamic condition evaluation-based) staging logic through a distributed handler architecture that aligns with the core event model defined in `LLD-flow.md`.
+The Reminders feature ensures the user and the LLM stay on track by injecting context-aware prompts at specific intervals or events, sometimes "blocking" a decision the agent may be taking. It implements rule-based (turn-based, tool-usage-based, dynamic condition evaluation-based) staging logic through a distributed handler architecture that aligns with the core event model defined in `docs/design/flow.md`.
 
 **Key Principle**: There is no monolithic reminder system. Instead, individual handlers register for specific events (hook or transcript) and are responsible for staging or consuming reminders. Common functionality (template resolution, file I/O) is consolidated in a thin `ReminderUtils` module.
 
 **Related Documents**:
 
-- `LLD-flow.md`: Event model, hook flows, handler registration
-- `LLD-TRANSCRIPT-PROCESSING.md`: TranscriptService as metrics owner (turn count, tool count, etc.)
-- `LLD-CORE-RUNTIME.md`: RuntimeContext, handler registration API
+- `docs/design/flow.md`: Event model, hook flows, handler registration
+- `docs/design/TRANSCRIPT-PROCESSING.md`: TranscriptService as metrics owner (turn count, tool count, etc.)
+- `docs/design/CORE-RUNTIME.md`: RuntimeContext, handler registration API
 
 ## 2. Scope
 
@@ -22,7 +22,7 @@ The Reminders feature ensures the user and the LLM stay on track by injecting co
 
 ### 3.1 Handler-Based Design (Unified Event Model)
 
-Per **LLD-flow.md §2.3**, handlers register with filters to specify which events they process. Reminders use both hook events (for CLI response) and transcript events (for metrics-driven staging):
+Per **docs/design/flow.md §2.3**, handlers register with filters to specify which events they process. Reminders use both hook events (for CLI response) and transcript events (for metrics-driven staging):
 
 | Handler                           | Filter Type | Event(s)         | Priority | Responsibility                                              |
 | --------------------------------- | ----------- | ---------------- | -------- | ----------------------------------------------------------- |
@@ -37,7 +37,7 @@ Per **LLD-flow.md §2.3**, handlers register with filters to specify which event
 
 **Note**: Both `StageAreYouStuckReminder` and `StageTimeForUserUpdateReminder` watch `toolsThisTurn`. Since both can stage before CLI consumes, the staged reminder's `priority` field determines which is returned (higher wins). Stuck (priority 80) beats update (priority 70).
 
-**Dual-Registration via Event Routing**: This feature demonstrates **Pattern 2** from **LLD-CORE-RUNTIME.md §6.10**. Role separation is achieved through event filter types rather than explicit context discrimination:
+**Dual-Registration via Event Routing**: This feature demonstrates **Pattern 2** from **docs/design/CORE-RUNTIME.md §6.10**. Role separation is achieved through event filter types rather than explicit context discrimination:
 
 - **Staging handlers**: `{ kind: 'transcript', ... }` → Supervisor (TranscriptService owner)
 - **Consumption handlers**: `{ kind: 'hook', ... }` → CLI (synchronous hook responder)
@@ -155,7 +155,7 @@ This avoids race conditions when multiple handlers stage reminders in the same P
 
 ### 4.1 Metrics (TranscriptService - Read Only)
 
-Per **LLD-TRANSCRIPT-PROCESSING.md**, metrics are owned by `TranscriptService`. Reminders handlers **consume** metrics but do not maintain their own counters (however they can still maintain their own state such as countdowns using the StateManager):
+Per **docs/design/TRANSCRIPT-PROCESSING.md**, metrics are owned by `TranscriptService`. Reminders handlers **consume** metrics but do not maintain their own counters (however they can still maintain their own state such as countdowns using the StateManager):
 
 ```typescript
 // Handlers access metrics via context
@@ -334,7 +334,7 @@ function consumeReminder(ctx: RuntimeContext, hookName: string): HookResult {
 
 ## 7. Logging Events
 
-Aligned with `LLD-flow.md` event taxonomy:
+Aligned with `docs/design/flow.md` event taxonomy:
 
 | Event                | Source     | When                              |
 | -------------------- | ---------- | --------------------------------- |

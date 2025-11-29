@@ -12,9 +12,9 @@ The `packages/schema-contracts` package serves as the **single source of truth**
 
 ### 1.2 Related Documents
 
-- **LLD-flow.md**: Canonical event model, hook flows, handler registration (§3 Event Taxonomy)
-- **LLD-FEATURE-REMINDERS.md**: Reminder schemas and YAML definitions (§3.3, §8.1)
-- **LLD-CONFIG-SYSTEM.md**: Configuration file structure and cascade semantics
+- **docs/design/flow.md**: Canonical event model, hook flows, handler registration (§3 Event Taxonomy)
+- **docs/design/FEATURE-REMINDERS.md**: Reminder schemas and YAML definitions (§3.3, §8.1)
+- **docs/design/CONFIG-SYSTEM.md**: Configuration file structure and cascade semantics
 
 ## 2. Package Architecture
 
@@ -62,7 +62,7 @@ Defines the structure of `sidekick.yaml`.
 
 ### 3.2 Events (`src/events/`)
 
-Defines the unified event model per **LLD-flow.md §3**. All events flow through the same handler dispatch system.
+Defines the unified event model per **docs/design/flow.md §3**. All events flow through the same handler dispatch system.
 
 #### EventContext
 
@@ -259,7 +259,7 @@ Defines the contract between the CLI (client) and the Background Supervisor (ser
 - **Format**: Newline-Delimited JSON (NDJSON).
 - **Semantics**: Fire-and-forget events (CLI → Supervisor). No request/response for hook events.
 
-Per **LLD-flow.md §2.1**, the CLI and Supervisor communicate asynchronously:
+Per **docs/design/flow.md §2.1**, the CLI and Supervisor communicate asynchronously:
 
 - CLI sends `SidekickEvent` to Supervisor via IPC
 - Supervisor "responds" by staging files that CLI reads on subsequent hook invocations
@@ -288,7 +288,7 @@ Each feature defines its data models here.
 
 #### Reminders
 
-Per **LLD-FEATURE-REMINDERS.md §3.3**, staged reminders use this schema:
+Per **docs/design/FEATURE-REMINDERS.md §3.3**, staged reminders use this schema:
 
 **StagedReminder** (JSON file):
 
@@ -309,7 +309,7 @@ interface StagedReminder {
 
 **ReminderDefinition** (YAML source file):
 
-Per **LLD-FEATURE-REMINDERS.md §8.1**:
+Per **docs/design/FEATURE-REMINDERS.md §8.1**:
 
 ```typescript
 interface ReminderDefinition {
@@ -350,7 +350,7 @@ interface PromptFrontmatter {
 
 ## 4. Handler Registration (`src/handlers/`)
 
-Per **LLD-flow.md §2.3**, handlers register with filters:
+Per **docs/design/flow.md §2.3**, handlers register with filters:
 
 ```typescript
 interface HandlerRegistration {

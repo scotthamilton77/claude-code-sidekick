@@ -34,7 +34,7 @@ const IDLE_CHECK_INTERVAL_MS = 30 * 1000 // Check every 30 seconds
  * 2. Background task execution (heavy compute offloading)
  * 3. IPC communication with the CLI
  *
- * @see LLD-SUPERVISOR.md
+ * @see docs/design/SUPERVISOR.md
  */
 
 export class Supervisor {
@@ -72,7 +72,7 @@ export class Supervisor {
     this.stateManager = new StateManager(path.join(projectDir, '.sidekick', 'state'), this.logger)
     this.taskEngine = new TaskEngine(this.logger)
 
-    // Initialize Config Watcher for hot-reload (LLD-SUPERVISOR §4.3)
+    // Initialize Config Watcher for hot-reload (design/SUPERVISOR.md §4.3)
     this.configWatcher = new ConfigWatcher(projectDir, this.logger, this.handleConfigChange.bind(this))
 
     // Initialize IPC
@@ -84,7 +84,7 @@ export class Supervisor {
     try {
       this.logger.info('Supervisor starting', { projectDir: this.projectDir, pid: process.pid })
 
-      // 0. Set up process-level error handlers (per LLD-SUPERVISOR §5)
+      // 0. Set up process-level error handlers (per design/SUPERVISOR.md §5)
       this.setupErrorHandlers()
 
       // 1. Write PID file
@@ -145,7 +145,7 @@ export class Supervisor {
 
   /**
    * Handle configuration file changes for hot-reload.
-   * Per LLD-SUPERVISOR §4.3: Reload config in-memory on change.
+   * Per design/SUPERVISOR.md §4.3: Reload config in-memory on change.
    */
   private handleConfigChange(event: ConfigChangeEvent): void {
     this.logger.info('Configuration change detected', { file: event.file, eventType: event.eventType })
@@ -232,7 +232,7 @@ export class Supervisor {
    * Project-level: .sidekick/supervisor.pid (simple PID number)
    * User-level: ~/.sidekick/supervisors/{hash}.pid (JSON with project path and PID)
    *
-   * @see LLD-CLI.md §7 Supervisor Lifecycle Management
+   * @see docs/design/CLI.md §7 Supervisor Lifecycle Management
    */
   private async writePid(): Promise<void> {
     // Project-level PID file (simple PID for backward compatibility)
@@ -262,7 +262,7 @@ export class Supervisor {
    * Clean up all supervisor files on shutdown.
    * Removes project-level PID, token, and user-level PID files.
    *
-   * @see LLD-CLI.md §7 Supervisor Lifecycle Management
+   * @see docs/design/CLI.md §7 Supervisor Lifecycle Management
    */
   private async cleanup(): Promise<void> {
     const filesToRemove = [
@@ -283,7 +283,7 @@ export class Supervisor {
 
   /**
    * Start the idle timeout checker.
-   * Per LLD-CLI §7: Self-terminate after configured idle timeout (default 5 minutes).
+   * Per design/CLI.md §7: Self-terminate after configured idle timeout (default 5 minutes).
    * Set supervisor.idleTimeoutMs to 0 to disable idle timeout.
    */
   private startIdleCheck(): void {
@@ -320,7 +320,7 @@ export class Supervisor {
 
   /**
    * Set up process-level error handlers for uncaught exceptions and unhandled rejections.
-   * Per LLD-SUPERVISOR §5: Log fatal error to supervisor.log, attempt graceful cleanup, exit.
+   * Per design/SUPERVISOR.md §5: Log fatal error to supervisor.log, attempt graceful cleanup, exit.
    * CLI will restart the supervisor on next run.
    */
   private setupErrorHandlers(): void {

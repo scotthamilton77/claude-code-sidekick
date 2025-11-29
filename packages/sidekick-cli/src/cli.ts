@@ -1,7 +1,7 @@
 /**
  * CLI Entrypoint Module
  *
- * Implements the Sidekick Node CLI per LLD-CLI.md §3 Hook Wrapper Layer.
+ * Implements the Sidekick Node CLI per docs/design/CLI.md §3 Hook Wrapper Layer.
  *
  * Parses command-line arguments, bootstraps the runtime shell, and executes
  * hook commands. Designed for testability with injectable I/O streams.
@@ -11,8 +11,8 @@
  * - Interactive mode: Human-readable output for debugging
  * - Scope detection with dual-install awareness
  *
- * @see LLD-CLI.md §3 Hook Wrapper Layer
- * @see LLD-CLI.md §9 Process Model for Hooks
+ * @see docs/design/CLI.md §3 Hook Wrapper Layer
+ * @see docs/design/CLI.md §9 Process Model for Hooks
  */
 
 import { PassThrough, Writable } from 'node:stream'

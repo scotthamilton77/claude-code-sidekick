@@ -24,17 +24,17 @@ The system is organized as a monorepo with a clear distinction between runtime p
 
 ```
 packages/
-├── sidekick-core/          # Shared runtime library (see LLD-CORE-RUNTIME.md)
-├── sidekick-cli/           # CLI entry + hook commands (see LLD-CLI.md)
-├── sidekick-supervisor/    # Background process for async work (see LLD-SUPERVISOR.md)
-├── sidekick-ui/            # Monitoring UI for debugging (see LLD-MONITORING-UI.md)
-├── feature-session-summary/# Session summary feature (see LLD-FEATURE-SESSION-SUMMARY.md)
-├── feature-reminders/      # Reminder system (see LLD-FEATURE-REMINDERS.md)
-├── feature-statusline/     # Statusline rendering (see LLD-FEATURE-STATUSLINE.md)
-├── feature-resume/         # Resume message generation (see LLD-FEATURE-RESUME.md)
-├── shared-providers/       # LLM provider adapters (see LLD-LLM-PROVIDERS.md)
-├── schema-contracts/       # Type definitions + Zod schemas (see LLD-SCHEMA-CONTRACTS.md)
-├── testing-fixtures/       # Shared test infrastructure (see LLD-TEST-FIXTURES.md)
+├── sidekick-core/          # Shared runtime library (see docs/design/CORE-RUNTIME.md)
+├── sidekick-cli/           # CLI entry + hook commands (see docs/design/CLI.md)
+├── sidekick-supervisor/    # Background process for async work (see docs/design/SUPERVISOR.md)
+├── sidekick-ui/            # Monitoring UI for debugging (see packages/sidekick-ui/docs/MONITORING-UI.md)
+├── feature-session-summary/# Session summary feature (see docs/design/FEATURE-SESSION-SUMMARY.md)
+├── feature-reminders/      # Reminder system (see docs/design/FEATURE-REMINDERS.md)
+├── feature-statusline/     # Statusline rendering (see docs/design/FEATURE-STATUSLINE.md)
+├── feature-resume/         # Resume message generation (see docs/design/FEATURE-RESUME.md)
+├── shared-providers/       # LLM provider adapters (see docs/design/LLM-PROVIDERS.md)
+├── schema-contracts/       # Type definitions + Zod schemas (see docs/design/SCHEMA-CONTRACTS.md)
+├── testing-fixtures/       # Shared test infrastructure (see docs/design/TEST-FIXTURES.md)
 └── types/                  # Shared TypeScript types
 ```
 
@@ -47,7 +47,7 @@ packages/
 
 - **Authoritative Location**: Contains all shipped defaults—prompts (`prompts/*.prompt.txt`), schemas (`schemas/*.json`), reminders (`reminders/*.yaml`), and templates.
 - **Monorepo Lockstep**: `assets/sidekick` represents the current development state (HEAD). Compatibility is enforced by `packages/schema-contracts` (Zod/TS types) during the build.
-- **Runtime Access**: `sidekick-core` exposes helpers (`assetResolver.resolve(...)`) that read from assets by default, respecting the cascade. See **LLD-CORE-RUNTIME.md §3.3** for cascade order.
+- **Runtime Access**: `sidekick-core` exposes helpers (`assetResolver.resolve(...)`) that read from assets by default, respecting the cascade. See **docs/design/CORE-RUNTIME.md §3.3** for cascade order.
 
 ## 3. Runtime Architecture
 
@@ -60,7 +60,7 @@ Hooks configured in Claude Code's `settings.json` are **bash scripts** installed
 3. Forward explicit parameters to the Node.js CLI (`--hook-script-path`, `--project-dir`).
 4. Invoke the Node.js CLI via `npx @sidekick/cli` or global install.
 
-This decouples Claude Code's hook registration from the Node.js runtime. See **LLD-CLI.md §3.1** for details.
+This decouples Claude Code's hook registration from the Node.js runtime. See **docs/design/CLI.md §3.1** for details.
 
 ### 3.2 CLI/Supervisor Relationship
 
@@ -73,7 +73,7 @@ The CLI and Supervisor operate as **separate processes** with distinct responsib
 
 **Communication**: CLI sends events to Supervisor via IPC (fire-and-forget). Supervisor "responds" by staging files that CLI reads on subsequent hook invocations.
 
-See **LLD-flow.md §2.1** for the complete interaction model.
+See **docs/design/flow.md §2.1** for the complete interaction model.
 
 ### 3.3 Event Model
 
@@ -84,7 +84,7 @@ The system uses a **unified event model** with discriminated unions:
 
 Both event types flow through a unified **HandlerRegistry** with filter-based registration. Handlers specify which events they process via `{ kind: 'hook', hooks: [...] }` or `{ kind: 'transcript', eventTypes: [...] }`.
 
-See **LLD-flow.md §3** for complete event schema and **LLD-CORE-RUNTIME.md §3.5** for handler registration API.
+See **docs/design/flow.md §3** for complete event schema and **docs/design/CORE-RUNTIME.md §3.5** for handler registration API.
 
 ### 3.4 TranscriptService
 
@@ -97,7 +97,7 @@ The **TranscriptService** is the single source of truth for transcript-derived m
 
 Features consume metrics via `ctx.transcript.getMetrics()` rather than maintaining independent counters.
 
-See **LLD-TRANSCRIPT-PROCESSING.md** for complete specification.
+See **docs/design/TRANSCRIPT-PROCESSING.md** for complete specification.
 
 ### 3.5 Staging Pattern
 
@@ -117,7 +117,7 @@ The Supervisor prepares future CLI actions by staging files. This decouples asyn
 └── transcripts/              # Pre-compact snapshots (for Monitoring UI)
 ```
 
-See **LLD-flow.md §2.2** for staging semantics and **LLD-FEATURE-REMINDERS.md §3.3** for reminder file schema.
+See **docs/design/flow.md §2.2** for staging semantics and **docs/design/FEATURE-REMINDERS.md §3.3** for reminder file schema.
 
 ### 3.6 Configuration Cascade
 
@@ -134,7 +134,7 @@ Configuration uses **YAML** for domain-specific files with a bash-style `sidekic
 6. Project Domain Config (`.sidekick/{domain}.yaml`)
 7. Project-Local Overrides (`.sidekick/{domain}.yaml.local`)
 
-See **LLD-CONFIG-SYSTEM.md** for complete schema and merge semantics.
+See **docs/design/CONFIG-SYSTEM.md** for complete schema and merge semantics.
 
 ### 3.7 Background Supervisor
 
@@ -143,14 +143,14 @@ See **LLD-CONFIG-SYSTEM.md** for complete schema and merge semantics.
 - **IPC**: Unix domain sockets (`.sidekick/supervisor.sock`) with **Newline-Delimited JSON (NDJSON)** protocol. Auth via shared token (`.sidekick/supervisor.token`).
 - **Single Writer**: Acts as the single writer for shared state files using atomic writes (temp file + `mv`).
 
-See **LLD-SUPERVISOR.md** for lifecycle management, handler execution, and task queue.
+See **docs/design/SUPERVISOR.md** for lifecycle management, handler execution, and task queue.
 
 ### 3.8 LLM Providers & Telemetry
 
 - **Providers**: `shared-providers` offers typed adapters for Claude CLI, OpenAI, OpenRouter, and custom commands, with retry logic and fallback chains.
 - **Telemetry**: Implemented as a lightweight wrapper around `pino` logging, emitting metric events into the structured log stream.
 
-See **LLD-LLM-PROVIDERS.md** for provider architecture and **LLD-STRUCTURED-LOGGING.md** for telemetry schema.
+See **docs/design/LLM-PROVIDERS.md** for provider architecture and **docs/design/STRUCTURED-LOGGING.md** for telemetry schema.
 
 ## 4. Installation & Distribution
 
@@ -166,24 +166,24 @@ See **LLD-LLM-PROVIDERS.md** for provider architecture and **LLD-STRUCTURED-LOGG
 - **Integration Tests**: Run the Node CLI against recorded transcripts from `test-data/` and diff outputs with expected results.
 - **Test Fixtures**: Shared mocks (`MockLLMService`, `MockHandlerRegistry`, `MockTranscriptService`, `MockStagingService`), factories for events/reminders/metrics, and harnesses for CLI and Supervisor testing.
 
-See **LLD-TEST-FIXTURES.md** for complete testing infrastructure.
+See **docs/design/TEST-FIXTURES.md** for complete testing infrastructure.
 
 ## 6. LLD Reference Index
 
 | Document | Scope |
 |----------|-------|
-| **LLD-flow.md** | Event model, hook flows, handler registration, staging pattern (architectural source of truth) |
-| **LLD-CORE-RUNTIME.md** | RuntimeContext, services, feature registration, bootstrap sequence |
-| **LLD-CLI.md** | CLI framework, hook dispatcher, scope resolution, supervisor lifecycle |
-| **LLD-SUPERVISOR.md** | Background process, IPC, state management, task execution |
-| **LLD-CONFIG-SYSTEM.md** | Configuration cascade, YAML schemas, domain separation |
-| **LLD-TRANSCRIPT-PROCESSING.md** | TranscriptService, metrics ownership, compaction handling |
-| **LLD-STRUCTURED-LOGGING.md** | Pino logging, event schema, redaction, log rotation |
-| **LLD-SCHEMA-CONTRACTS.md** | Zod schemas, JSON Schema generation, type contracts |
-| **LLD-LLM-PROVIDERS.md** | Provider adapters, retry/fallback, observability |
-| **LLD-FEATURE-REMINDERS.md** | Reminder handlers, staging, suppression pattern |
-| **LLD-FEATURE-SESSION-SUMMARY.md** | Summary generation, bookmark system, snarky messages |
-| **LLD-FEATURE-STATUSLINE.md** | Statusline rendering, state consumption |
-| **LLD-FEATURE-RESUME.md** | Resume message generation, artifact discovery |
-| **LLD-TEST-FIXTURES.md** | Mocks, factories, test harnesses |
-| **LLD-MONITORING-UI.md** | Time-travel debugging UI, log aggregation |
+| **docs/design/flow.md** | Event model, hook flows, handler registration, staging pattern (architectural source of truth) |
+| **docs/design/CORE-RUNTIME.md** | RuntimeContext, services, feature registration, bootstrap sequence |
+| **docs/design/CLI.md** | CLI framework, hook dispatcher, scope resolution, supervisor lifecycle |
+| **docs/design/SUPERVISOR.md** | Background process, IPC, state management, task execution |
+| **docs/design/CONFIG-SYSTEM.md** | Configuration cascade, YAML schemas, domain separation |
+| **docs/design/TRANSCRIPT-PROCESSING.md** | TranscriptService, metrics ownership, compaction handling |
+| **docs/design/STRUCTURED-LOGGING.md** | Pino logging, event schema, redaction, log rotation |
+| **docs/design/SCHEMA-CONTRACTS.md** | Zod schemas, JSON Schema generation, type contracts |
+| **docs/design/LLM-PROVIDERS.md** | Provider adapters, retry/fallback, observability |
+| **docs/design/FEATURE-REMINDERS.md** | Reminder handlers, staging, suppression pattern |
+| **docs/design/FEATURE-SESSION-SUMMARY.md** | Summary generation, bookmark system, snarky messages |
+| **docs/design/FEATURE-STATUSLINE.md** | Statusline rendering, state consumption |
+| **docs/design/FEATURE-RESUME.md** | Resume message generation, artifact discovery |
+| **docs/design/TEST-FIXTURES.md** | Mocks, factories, test harnesses |
+| **packages/sidekick-ui/docs/MONITORING-UI.md** | Time-travel debugging UI, log aggregation |

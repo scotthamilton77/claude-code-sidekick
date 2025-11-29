@@ -4,7 +4,7 @@
  * High-level client for managing the Supervisor lifecycle (start/stop/status)
  * and communicating via IPC.
  *
- * @see LLD-CLI.md §7 Supervisor Lifecycle Management
+ * @see docs/design/CLI.md §7 Supervisor Lifecycle Management
  */
 import { spawn } from 'child_process'
 import fs from 'fs/promises'
@@ -170,7 +170,7 @@ export class SupervisorClient {
    * Does not attempt graceful shutdown via IPC - just sends SIGKILL.
    * Cleans up all associated files after kill.
    *
-   * @see LLD-CLI.md §7 Supervisor Lifecycle Management
+   * @see docs/design/CLI.md §7 Supervisor Lifecycle Management
    */
   async kill(): Promise<{ killed: boolean; pid?: number }> {
     if (!(await this.isRunning())) {
@@ -209,7 +209,7 @@ export class SupervisorClient {
 
   /**
    * Check if running supervisor version matches client version.
-   * Per LLD-SUPERVISOR §2.2: Version mismatch triggers restart.
+   * Per design/SUPERVISOR.md §2.2: Version mismatch triggers restart.
    */
   private async checkVersion(): Promise<boolean> {
     try {
@@ -253,7 +253,7 @@ export class SupervisorClient {
 
   /**
    * Remove stale supervisor files when process is dead but files remain.
-   * Per LLD-SUPERVISOR §2.2: "If process dead: Remove stale .pid, .sock, .token files"
+   * Per design/SUPERVISOR.md §2.2: "If process dead: Remove stale .pid, .sock, .token files"
    */
   private async cleanupStaleFiles(): Promise<void> {
     const pidPath = getPidPath(this.projectDir)
@@ -344,7 +344,7 @@ export interface KillResult {
  * @param logger - Logger instance for reporting
  * @returns Array of results for each supervisor found
  *
- * @see LLD-CLI.md §7 Supervisor Lifecycle Management
+ * @see docs/design/CLI.md §7 Supervisor Lifecycle Management
  */
 export async function killAllSupervisors(logger: Logger): Promise<KillResult[]> {
   const results: KillResult[] = []

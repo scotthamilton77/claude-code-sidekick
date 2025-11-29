@@ -28,7 +28,7 @@ const DEFAULT_OPTIONS: Required<IpcClientOptions> = {
  *
  * Provides JSON-RPC 2.0 communication over Unix Domain Sockets (or Named Pipes on Windows).
  *
- * @see LLD-SUPERVISOR.md §3 Communication Layer
+ * @see docs/design/SUPERVISOR.md §3 Communication Layer
  */
 export class IpcClient {
   private socketPath: string

@@ -6,7 +6,7 @@ React SPA for "Time Travel" debugging of Sidekick sessions. Reconstructs past st
 
 **Current State**: UI mockup only—uses hardcoded mock data, no real data integration.
 
-**Implementation Roadmap**: See `TARGET-IMPLEMENTATION-PLAN.md`:
+**Implementation Roadmap**: See `docs/ROADMAP.md`:
 - **Phase 1.5**: UI Foundation (type alignment, log parsing, replay engine)
 - **Phases 3-6**: UI Integration sections add real data wiring progressively
 
@@ -21,7 +21,7 @@ React 18 + Vite + TypeScript + TailwindCSS
 | `src/App.tsx` | Main app, state management, event filtering |
 | `src/data/mockData.ts` | Mock session/event/state data (replace with real integration) |
 | `src/components/` | Layout, Header, Timeline, Transcript, StateInspector |
-| `docs/LLD-MONITORING-UI.md` | **Detailed design doc**—read this for architecture/features |
+| `packages/sidekick-ui/docs/MONITORING-UI.md` | **Detailed design doc**—read this for architecture/features |
 
 ## Commands
 
@@ -37,4 +37,4 @@ pnpm -F @sidekick/ui lint     # ESLint check
 - **Time Travel**: Scrub timeline to reconstruct state at any point
 - **State Inspector**: JSON tree view with diff mode showing what changed
 
-See `docs/LLD-MONITORING-UI.md` for full specification and wireframes.
+See `packages/sidekick-ui/docs/MONITORING-UI.md` for full specification and wireframes.
