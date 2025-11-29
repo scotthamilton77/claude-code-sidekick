@@ -42,11 +42,11 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [x] Import `EventContext`, `TranscriptMetrics` from `@sidekick/types`
     - [x] Add `@sidekick/types` as dependency to `@sidekick/ui` package.json
     - [x] Update `@sidekick/ui` to use shared types (remove duplicate definitions from `mockData.ts`)
-  - [ ] **1.5.2 Log Parsing Infrastructure** (`@sidekick/ui`)
-    - [ ] NDJSON line parser with streaming support
-    - [ ] Session filter: `filterBySessionId(events, sessionId)`
-    - [ ] Log merger: `mergeLogStreams(cliLog, supervisorLog)` by timestamp
-    - [ ] Event type guards: `isHookEvent()`, `isTranscriptEvent()`
+  - [x] **1.5.2 Log Parsing Infrastructure** (`@sidekick/ui`)
+    - [x] NDJSON line parser with streaming support
+    - [x] Session filter: `filterBySessionId(events, sessionId)`
+    - [x] Log merger: `mergeLogStreams(cliLog, supervisorLog)` by timestamp
+    - [x] Event type guards: `isHookEvent()`, `isTranscriptEvent()` (re-exported from `@sidekick/types`)
   - [ ] **1.5.3 Replay Engine Core** (`@sidekick/ui`)
     - [ ] State reconstructor: build timeline from event sequence
     - [ ] Time travel store: `getStateAt(timestamp)` API
