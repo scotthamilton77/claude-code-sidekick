@@ -160,8 +160,8 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - [x] Create `features/resume.sh`
 - [x] Create prompt template `features/prompts/resume.prompt.txt`
 - [x] Define `resume_snarkify()` (refactored to file-based initialization):
-  - [x] Find most recent session with resume.json and clarity > threshold
-  - [x] Read resume.json fields from previous session
+  - [x] Find most recent session with resume-message.json and clarity > threshold
+  - [x] Read resume-message.json fields from previous session
   - [x] Map resume fields to session-summary.json schema (last_task_id → task_ids, etc.)
   - [x] Write initial session-summary.json for current session
   - [x] Skip if current session already has topic
@@ -171,7 +171,7 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
   - [x] Loads resume.prompt.txt prompt template
   - [x] Substitutes {CURRENT_TOPIC} and {TRANSCRIPT}
   - [x] Invokes Claude to generate snarkified resume for NEXT session
-  - [x] Writes resume.json in current session directory
+  - [x] Writes resume-message.json in current session directory
 
 ### 3.4 Implement Statusline Feature
 
@@ -393,12 +393,12 @@ Implementation checklist for refactoring the reminders hooks into the Sidekick a
 - [x] Start new Claude session in test project
   - [x] Verify SessionStart hook fires (check logs)
   - [x] Verify `.sidekick/sessions/${session_id}/response_count` created
-  - [x] Verify resume topic initialized from previous session's resume.json (if exists)
+  - [x] Verify resume topic initialized from previous session's resume-message.json (if exists)
 - [x] Submit 10 user prompts
   - [x] Verify counter increments (check `response_count`)
   - [x] Verify sleeper launched (check `sleeper.pid`)
   - [x] Verify topic analysis runs (check `session-summary.json`)
-  - [x] Verify resume.json generated when topic changes significantly (significant_change=true AND clarity>=5)
+  - [x] Verify resume-message.json generated when topic changes significantly (significant_change=true AND clarity>=5)
   - [x] Verify static reminder appears on 4th, 8th prompts
 - [x] Check statusline
   - [x] Verify displays model, tokens, percentage, directory, git branch

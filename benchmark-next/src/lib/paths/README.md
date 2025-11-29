@@ -41,7 +41,7 @@ Extracted from `src/sidekick/lib/paths.sh`:
 - **Sidekick root**: ~/.claude/hooks/sidekick or .claude/hooks/sidekick
 - **Session paths**: `.sidekick/sessions/${session_id}/`
   - `topic.json` - Conversation topic
-  - `resume.json` - Resume data
+  - `resume-message.json` - Resume data
   - `sidekick.log` - Session log
 - **Config resolution**: Find config files in cascade order
 - **Tilde expansion**: Support `~/` in paths
@@ -55,7 +55,7 @@ ${PROJECT_ROOT}/
 │   ├── sessions/
 │   │   └── ${session_id}/
 │   │       ├── topic.json
-│   │       ├── resume.json
+│   │       ├── resume-message.json
 │   │       └── sidekick.log      # Session log
 │   └── cache/                    # Optional cache dir
 ├── .claude/                      # Project deployed config

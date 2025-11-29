@@ -1,13 +1,11 @@
 # Feature: Resume Generation
 
-NOTE: NOT YET REVIEWED
-
 ## 1. Overview
 
 The Resume feature provides continuity between sessions by:
 
-1.  **Context Restoration**: Initializing the current session's summary with the high-confidence topic/intent from the most recent previous session.
-2.  **User Engagement**: Displaying a witty, context-aware "welcome back" message generated at the end of the previous session.
+1. **Context Display**: Showing the user a witty, context-aware "welcome back" message referencing their previous session's work.
+2. **Background Generation**: Preparing resume artifacts during the current session for the _next_ time the user returns.
 
 This creates a seamless experience where the user feels the AI "remembers" what they were working on, rather than starting from a blank slate every time.
 
@@ -17,62 +15,62 @@ This creates a seamless experience where the user feels the AI "remembers" what 
 
 When the user starts a new session (`claude`):
 
-1.  **Immediate Context**: The status line (if enabled) immediately populates with the `Session Title` and `Latest Intent` from the previous session, rather than showing "Analyzing...".
-2.  **Welcome Message**: A "snarky" or witty message appears in the terminal, referencing the specific task they were working on (e.g., "Shall we resume hunting bugs in the Matrix?").
+1. **Statusline Display**: The statusline (if enabled) shows a resume message referencing what they were previously working on (e.g., "Shall we resume hunting bugs in the Matrix?").
+2. **Fallback**: If no valid resume artifact exists, the statusline shows its default empty-summary message.
 
 ### 2.2 Background Operation
 
-The user does not see the generation process. It happens asynchronously in the background (handled by the Supervisor) as they work. When their session topic stabilizes (high confidence), the system quietly prepares the resume artifacts for the _next_ time they return.
+The user does not see the generation process. It happens asynchronously in the Supervisor as they work. When their session topic stabilizes (significant title change with high confidence), the system quietly prepares the resume artifacts for the _next_ time they return.
 
 ## 3. Architecture
 
-The feature is split between the **CLI** (consumption) and the **Supervisor** (production).
+The feature is split between **statusline.sh** (consumption) and the **Supervisor** (production).
 
-### 3.1 CLI: Session Initialization (Consumer)
+### 3.1 Statusline: Resume Display (Consumer)
 
-The `session-start` hook in the CLI is responsible for "resuming" state.
+The `statusline.sh` CLI is responsible for discovering and displaying resume content.
 
 **Logic Flow:**
 
-1.  **Discovery**: Scan the sessions directory (`.sidekick/sessions/` or `~/.sidekick/sessions/`) for the most recent _other_ session.
-2.  **Validation**: Check if the found session has a `session-summary.json` with `confidence >= RESUME_MIN_CONFIDENCE`.
-3.  **State Restoration**:
-    - Copy `session_title` and `latest_intent` to the _current_ session's `session-summary.json`.
-    - Set a flag `resume_from_session: true`.
-4.  **Message Display**:
-    - Check for a `resume.json` in the previous session's directory.
-    - If found, print the `snarky_comment` or `resume_last_goal_message` to the console.
+The following is true when there isn't already a session-summary.json in the current session state folder:
+
+1. **Discovery**: Scan the sessions directory (`.sidekick/sessions/` or `~/.sidekick/sessions/`) for the most recent _other_ session's `resume-message.json`.
+2. **Validation**: Check if the found `resume-message.json` exists and is valid.
+3. **Display**: Show the `resume_last_goal_message` or `snarky_comment` in the statusline.
+
+Note: The CLI's `InitSessionState` handler clears the _current_ session's state on startup/clear—it does not touch previous sessions' artifacts.
 
 ### 3.2 Supervisor: Artifact Generation (Producer)
 
-The Supervisor handles the heavy lifting of generating the resume artifacts using an LLM.
+The Supervisor generates resume artifacts via the `UpdateSessionSummary` handler.
 
 **Trigger:**
 
-- Watches for changes to the _current_ session's `session-summary.json`.
-- Debounced/Throttled (similar to the legacy "sleeper" mechanism).
-- **Condition**: Triggers only when `session_title_confidence` AND `latest_intent_confidence` >= `RESUME_MIN_CONFIDENCE`.
+- The `UpdateSessionSummary` handler (invoked on `UserPromptSubmit` and `PostToolUse`) detects a **significant title change**.
+- **Condition**: Triggers only when `session_title_confidence` AND `latest_intent_confidence` >= `RESUME_MIN_CONFIDENCE` AND (a pivot was detected OR there is no resume-message.json already generated).
 
 **Action:**
 
-1.  **Extract Context**: Reads the current `session-summary.json` and a transcript excerpt (recent messages).
-2.  **LLM Call**: Invokes the configured model (default: `qwen/qwen3-235b-a22b-2507`) with `resume.prompt.txt`.
-    - **Temperature**: High (1.2) for creativity.
-    - **Schema**: `resume.schema.json`.
-3.  **Persist**: Writes the result to `resume.json` in the current session directory.
+1. **Extract Context**: Reads the current `session-summary.json` and a transcript excerpt (recent messages).
+2. **LLM Call**: Invokes the configured model (default: `qwen/qwen3-235b-a22b-2507`) with `resume.prompt.txt`.
+   - **Temperature**: High (1.2) for creativity.
+   - **Schema**: `resume.schema.json`.
+3. **Persist**: Writes the result to `state/resume-message.json` in the current session directory.
 
 ## 4. Data Models
 
-### 4.1 `resume.json`
+### 4.1 `resume-message.json`
 
-Generated by the Supervisor, consumed by the CLI in the _next_ session.
+Generated by the Supervisor, consumed by statusline.sh in the _next_ session.
+
+**Location**: `.sidekick/sessions/{session_id}/state/resume-message.json`
 
 ```json
 {
   "last_task_id": "string | null",
-  "resume_last_goal_message": "string", // "Shall we resume refactoring the API?"
-  "last_objective_in_progress": "string", // SciFi-themed objective
-  "snarky_comment": "string", // Witty remark about the user's return
+  "resume_last_goal_message": "string",
+  "last_objective_in_progress": "string",
+  "snarky_comment": "string",
   "timestamp": "ISO-8601 string"
 }
 ```
@@ -98,59 +96,57 @@ Managed via `sidekick-core` config system.
 
 ### 5.2 Improvements over Legacy
 
-- **Explicit Display**: The legacy code generated `resume.json` but seemingly didn't display it in `session-start`. The Node.js implementation will explicitly show this message.
-- **Event-Driven**: Instead of a polling loop (`resume-sleeper.sh`), the Supervisor can react to `SessionSummaryUpdated` events internally.
+- **Event-Driven**: Instead of a polling loop (`resume-sleeper.sh`), the `UpdateSessionSummary` handler initiates resume generation when conditions are met.
+- **Unified Handler**: Resume generation is part of the summary update flow, reducing complexity.
 
-### 5.3 Monitoring UI Integration
+### 5.3 Event Logging
 
-The Resume feature emits **Entity-Lifecycle events** (see `LLD-STRUCTURED-LOGGING.md`) for the `resume` entity. Events are logged to `.sidekick/sessions/{session_id}/events.jsonl`:
+The Resume feature emits `SidekickEvent` records (see `LLD-flow.md` §3.2) to the Supervisor log (`supervisor.log`, per `LLD-STRUCTURED-LOGGING.md`):
 
 ```json
-// Generation triggered (confidence threshold met)
+// Resume generation triggered (significant title change with high confidence)
 {
-  "source": "sidekick-supervisor",
-  "pid": 12345,
+  "type": "ResumeGenerating",
+  "time": 1705315800000,
+  "source": "supervisor",
   "context": {
     "session_id": "sess-001",
-    "trace_id": "req-126",
-    "hook": null,
     "task_id": "task-resume-gen-001"
   },
-  "entity": "resume",
-  "entity_id": "res-001",
-  "lifecycle": "generating",
-  "reason": "confidence_threshold_met",
-  "metadata": { "title_confidence": 0.8, "intent_confidence": 0.85 }
+  "payload": {
+    "reason": "significant_title_change",
+    "metadata": {
+      "title_confidence": 0.8,
+      "intent_confidence": 0.85
+    }
+  }
 }
 
 // Resume artifact updated
 {
-  "source": "sidekick-supervisor",
-  "pid": 12345,
+  "type": "ResumeUpdated",
+  "time": 1705315805000,
+  "source": "supervisor",
   "context": {
     "session_id": "sess-001",
-    "trace_id": "req-126",
-    "hook": null,
     "task_id": "task-resume-gen-001"
   },
-  "entity": "resume",
-  "entity_id": "res-001",
-  "lifecycle": "updated",
-  "reason": "generation_complete",
-  "state": {
-    "resume_last_goal_message": "Shall we resume refactoring the API?",
-    "snarky_comment": "Back from the void, I see...",
-    "last_objective_in_progress": "Fixing the warp drive alignment",
-    "timestamp": "2024-01-15T10:30:00Z"
+  "payload": {
+    "state": {
+      "resume_last_goal_message": "Shall we resume refactoring the API?",
+      "snarky_comment": "Back from the void, I see...",
+      "last_objective_in_progress": "Fixing the warp drive alignment",
+      "timestamp": "2024-01-15T10:30:00Z"
+    },
+    "reason": "generation_complete"
   }
 }
 ```
 
-The `state` field contains the complete `resume.json` content (stored at `.sidekick/sessions/{session_id}/state/resume.json`) for Time Travel reconstruction.
-
 ## 6. Outstanding Questions
 
-1.  **Message Display Format**: How should the resume message be presented?
-    - _Proposal_: A stylized box or colored text block immediately after the standard Claude header.
-2.  **Multi-Session Handling**: If the user has multiple active sessions, which one do we resume from?
-    - _Decision_: Always the _most recently updated_ session that isn't the current one. This aligns with the "I just switched terminals" or "I'm coming back the next day" use cases.
+1. **Significant Title Change Definition**: What constitutes a "significant" title change?
+   - _Decision_: session-summary.json has pivot_detected == true
+
+2. **Multi-Session Handling**: If the user has multiple active sessions, which one do we resume from?
+   - _Decision_: Always the _most recently updated_ session that isn't the current one. This aligns with the "I just switched terminals" or "I'm coming back the next day" use cases.

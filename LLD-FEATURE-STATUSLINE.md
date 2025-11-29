@@ -1,10 +1,10 @@
 # Feature: Statusline
 
-NOTE: NOT YET REVIEWED
-
 ## 1. Overview
 
-The Statusline feature provides a real-time, context-aware information bar to the user, typically displayed as part of the shell prompt or a dedicated status area. It aggregates data from the current session, the project state, and background analysis (Supervisor) to provide immediate feedback on costs, token usage, and session intent.
+The Statusline feature provides a real-time, context-aware information bar displayed alongside the agent's shell prompt. It reads state files prepared by the Supervisor to provide immediate feedback on costs, token usage, and session intent.
+
+**Relationship to Hook Flow**: There is no relationship between the hook flow and status line.  Although `LLD-flow.md` implies this in the documentation of the flows, these are independently called from Claude Code.
 
 ## 2. Scope & Responsibilities
 
@@ -25,16 +25,32 @@ The Statusline feature provides a real-time, context-aware information bar to th
 
 The Statusline is a **reader-only** consumer of state. It does not write to state files or trigger heavy computations.
 
-### 3.1 Input Data Sources
+### 3.1 State Directory Structure
 
-| Source                     | Data Points                                  | Access Method               |
-| :------------------------- | :------------------------------------------- | :-------------------------- |
-| **`session-state.json`**   | Token count, Cost, Duration, Model Name      | Read File (JSON)            |
-| **`session-summary.json`** | Session Title, Latest Intent, Snarky Comment | Read File (JSON)            |
-| **Git (Subprocess)**       | Current Branch                               | `git branch --show-current` |
-| **Environment**            | CWD, Project Root                            | `process.cwd()`, Config     |
+State files live in `.sidekick/sessions/{session_id}/state/`, parallel to the `stage/` directory used for reminder staging (see `LLD-flow.md` §2.2).
 
-### 3.2 State File Optimization
+```
+.sidekick/sessions/{session_id}/
+├── stage/           # Reminder staging (per LLD-flow.md)
+│   └── ...
+└── state/           # Statusline data (this feature)
+    ├── session-state.json
+    ├── session-summary.json
+    └── resume-message.json
+```
+
+### 3.2 Input Data Sources
+
+| Source                                            | Data Points                                  | Access Method               |
+| :------------------------------------------------ | :------------------------------------------- | :-------------------------- |
+| `.sidekick/sessions/{id}/state/session-state.json`   | Token count, Cost, Duration, Model Name      | Read File (JSON)            |
+| `.sidekick/sessions/{id}/state/session-summary.json` | Session Title, Latest Intent                 | Read File (JSON)            |
+| `.sidekick/sessions/{id}/state/snarky-message.txt`   | Snarky Comment                               | Read File (Text)            |
+| `.sidekick/sessions/{id}/state/resume-message.json`  | Resume message (for session resumption)      | Read File (JSON)            |
+| **Git (Subprocess)**                              | Current Branch                               | `git branch --show-current` |
+| **Environment**                                   | CWD, Project Root                            | `process.cwd()`, Config     |
+
+### 3.3 State File Optimization
 
 _Critical Change from Legacy_: The legacy bash implementation calculated token counts by reading the entire transcript file on every render. In the Node.js architecture, this is moved to the **Supervisor**.
 
@@ -135,11 +151,20 @@ A lightweight string interpolator.
 
 ### 6.2 Summary Selection
 
-Logic to decide what text to show in the `{summary}` slot:
+The statusline displays different content based on session state. Per `LLD-flow.md`, there are four distinct states:
 
-1.  If `snarky_comment` exists -> Show `snarky_comment`.
-2.  Else if `latest_intent` exists -> Show `latest_intent`.
-3.  Else -> Show nothing or Session Title.
+| State                    | Trigger                                    | Display Content                                   |
+| :----------------------- | :----------------------------------------- | :------------------------------------------------ |
+| **Resume Message**       | `SessionStart` with `type: "resume"`       | Content from `resume-message.json` (if exists)            |
+| **Empty-Summary Default**| `SessionStart` without resume message      | Static placeholder (e.g., "New session")          |
+| **First-Prompt Default** | `UserPromptSubmit` before summary exists   | Static placeholder (e.g., "Awaiting first turn")  |
+| **Session Summary**      | Normal operation (summary available)       | Snarky comment or latest intent                   |
+
+**Session Summary priority** (when in normal operation):
+
+1.  Always show session title.
+2.  If `snarky-message.txt` exists → Append snarky message content.
+3.  Else if `latest_intent` exists in `session-summary.json` → Append `latest_intent`.
 
 ### 6.3 Git Integration
 
@@ -147,16 +172,35 @@ Logic to decide what text to show in the `{summary}` slot:
 - If it times out or fails (not a git repo), return empty string.
 - This prevents the statusline from hanging the shell in slow/networked filesystems.
 
-## 7. CLI Command
+## 7. Invocation Model
 
-The feature is exposed via the CLI:
+### 7.1 Agent-Agnostic Design
+
+The statusline is invoked by agent-specific hook scripts, not directly by the agent. This allows Sidekick to support multiple agents (Claude Code today, potentially Gemini/Codex tomorrow).
+
+```
+[Agent] → [Agent Hook Script] → [sidekick.cli statusline] → [stdout]
+           (e.g., sidekick-hook.sh)
+```
+
+### 7.2 CLI Command
 
 ```bash
-sidekick statusline [--format <json|text>]
+sidekick.cli statusline [--format <json|text>]
 ```
 
 - **Default**: Outputs the rendered ANSI string.
 - **`--format json`**: Outputs the raw data structure (useful for debugging or custom external renderers).
+
+### 7.3 Hook Script Integration
+
+Agent hook scripts call the statusline after returning hook results:
+
+```bash
+# In sidekick-hook.sh (Claude Code example)
+echo "$hook_result"                    # Return hook response to agent
+sidekick.cli statusline 2>/dev/null    # Render statusline (errors suppressed)
+```
 
 ## 8. Resolution of Open Questions
 
@@ -169,17 +213,18 @@ sidekick statusline [--format <json|text>]
 
 ### 8.2 Stale State Handling
 
-**Decision**: **Graceful Fallback**.
+**Decision**: **Graceful Fallback** (aligned with `LLD-flow.md` §6).
 
 - If `session-state.json` is older than X seconds (e.g., 60s), the Supervisor might be down.
 - **Action**: Render the stale data but apply a "dim" style or append a specific indicator (e.g., `(stale)`) to alert the user without breaking the flow.
+- Per `LLD-flow.md` §6.1, missing state is acceptable degradation—CLI continues with defaults.
 
 ### 8.3 Hook Contract
 
-**Decision**: The hook invokes `sidekick statusline`.
+**Decision**: Agent hook scripts invoke `sidekick.cli statusline` (see §7).
 
-- The shell script wrapper captures the output and displays it.
-- No complex schema negotiation needed; the CLI simply outputs the string to stdout.
+- Claude Code calls the agent-specific hook script as part of its settings.json statusline configuration (e.g., `sidekick-hook.sh`) calls the CLI after returning hook results.
+- No complex schema negotiation needed; the CLI outputs the formatted string to stdout.
 
 ### 8.4 Refresh Cadence
 
@@ -191,52 +236,66 @@ sidekick statusline [--format <json|text>]
 
 ### 8.5 Monitoring UI Integration
 
-The Statusline feature emits **Entity-Lifecycle events** (see `LLD-STRUCTURED-LOGGING.md`) for the `statusline` entity. Events are logged to `.sidekick/sessions/{session_id}/events.jsonl`:
+The Statusline feature emits events conforming to the `SidekickEvent` schema (see `LLD-flow.md` §3.2). Since statusline rendering happens in the CLI, events use `source: "cli"`.
+
+**Event Types**:
+
+| Type                | When                          | Category       |
+| :------------------ | :---------------------------- | :------------- |
+| `StatuslineRendered`| Statusline output successfully| Internal Event |
+| `StatuslineError`   | Render failed (graceful fallback) | Internal Event |
+
+**Example Events** (logged to CLI log file):
 
 ```json
 // Statusline rendered successfully
 {
-  "source": "sidekick-supervisor",
-  "pid": 12345,
+  "type": "StatuslineRendered",
+  "time": 1732819200000,
+  "source": "cli",
   "context": {
     "session_id": "sess-001",
-    "trace_id": "req-127",
-    "hook": null,
-    "task_id": null
+    "correlation_id": "cli-exec-127"
   },
-  "entity": "statusline",
-  "entity_id": "sl-001",
-  "lifecycle": "rendered",
-  "state": { "text": "[claude-3-5-sonnet] | 45k tokens | ~/project (main) | Fixing auth bug" },
-  "metadata": {
-    "resume_file": ".sidekick/sessions/sess-001/state/resume.json",
-    "model": "claude-3-5-sonnet"
+  "payload": {
+    "state": {
+      "display_mode": "session_summary",
+      "text": "[claude-3-5-sonnet] | 45k tokens | ~/project (main) | Fixing auth bug"
+    },
+    "metadata": {
+      "model": "claude-3-5-sonnet",
+      "tokens": 45000
+    }
   }
 }
 
-// Statusline render error
+// Statusline render error (graceful fallback)
 {
-  "source": "sidekick-supervisor",
-  "pid": 12345,
+  "type": "StatuslineError",
+  "time": 1732819200100,
+  "source": "cli",
   "context": {
     "session_id": "sess-001",
-    "trace_id": "req-128",
-    "hook": null,
-    "task_id": null
+    "correlation_id": "cli-exec-128"
   },
-  "entity": "statusline",
-  "entity_id": "sl-002",
-  "lifecycle": "error",
-  "reason": "state_file_missing",
-  "metadata": { "file": "session-state.json", "fallback_used": true }
+  "payload": {
+    "reason": "state_file_missing",
+    "metadata": {
+      "file": "session-state.json",
+      "fallback_used": true
+    }
+  }
 }
 ```
 
+**Note**: Per `LLD-flow.md` §3.3, these are internal events—they are logged but do not trigger handlers.
+
 ## 9. Implementation Plan
 
-1.  **Define Zod Schemas**: For `session-state.json` and `StatuslineConfig`.
-2.  **Implement `StateReader`**: Robust JSON reading.
+1.  **Define Zod Schemas**: For `session-state.json`, `session-summary.json`, `resume-message.json`, and `StatuslineConfig`.
+2.  **Implement `StateReader`**: Robust JSON reading from `.sidekick/sessions/{id}/state/`.
 3.  **Implement `GitProvider`**: With timeout protection.
-4.  **Implement `Formatter`**: Template logic and ANSI coloring.
+4.  **Implement `Formatter`**: Template logic, ANSI coloring, and display mode selection (§6.2).
 5.  **Assemble `StatuslineService`**: Wire it all together.
-6.  **CLI Entrypoint**: Add `statusline` command to `sidekick-cli`.
+6.  **CLI Entrypoint**: Add `statusline` command to `sidekick.cli`.
+7.  **Agent Hook Integration**: Update `sidekick-hook.sh` to call `sidekick.cli statusline` after hook responses.

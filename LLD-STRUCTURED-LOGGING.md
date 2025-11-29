@@ -4,6 +4,8 @@
 
 This document details the design for the observability stack in Sidekick. The system uses **structured logging** (JSON) as the primary mechanism for both debug logs and telemetry (metrics), enabling a unified stream for debugging, performance analysis, and usage tracking.
 
+This document aligns with and extends `LLD-flow.md`, which defines the canonical event model and hook flows.
+
 ## 2. Architecture
 
 The logging system is built on **Pino**, chosen for its low overhead and rich ecosystem. It is wrapped by `sidekick-core` to enforce schemas, redaction, and context management.
@@ -26,63 +28,132 @@ The logging system is built on **Pino**, chosen for its low overhead and rich ec
     - Methods: `increment(metric, tags)`, `gauge(metric, value, tags)`, `histogram(metric, value, tags)`.
     - Metrics are written to the _same_ log stream but with a specific `event_type="telemetry"` field.
 
-### 2.2 Data Flow
+### 2.2 Log File Strategy
+
+CLI and Supervisor each maintain **separate log files**. The Monitoring UI aggregates both for unified time-travel debugging.
+
+- **CLI Log**: `.sidekick/logs/cli.log`
+- **Supervisor Log**: `.sidekick/logs/supervisor.log`
+
+This separation avoids concurrency issues from multiple processes writing to a single file and simplifies debugging when isolating CLI vs Supervisor behavior.
+
+### 2.3 Data Flow
 
 ```mermaid
 graph TD
-    CLI[Sidekick CLI] -->|Log/Metric| CoreLogger
+    CLI[Sidekick CLI] -->|Log/Metric| CLILogger
+    Supervisor[Sidekick Supervisor] -->|Log/Metric| SupervisorLogger
     Feature[Feature Module] -->|Log/Metric| ScopedLogger
-    ScopedLogger -->|Inherits| CoreLogger
-    CoreLogger -->|JSON Stream| Redactor
-    Redactor -->|Sanitized JSON| MultiStream
-    MultiStream -->|Stream 1| FileTransport[File: .sidekick/logs/sidekick.log]
-    MultiStream -->|Stream 2 (Interactive)| PrettyTransport[Console (stderr)]
+    ScopedLogger -->|Inherits| CLILogger
+    ScopedLogger -->|Inherits| SupervisorLogger
+    CLILogger -->|JSON Stream| Redactor
+    SupervisorLogger -->|JSON Stream| Redactor
+    Redactor -->|Sanitized JSON| FileTransport
+    FileTransport -->|cli.log| CLIFile[.sidekick/logs/cli.log]
+    FileTransport -->|supervisor.log| SupervisorFile[.sidekick/logs/supervisor.log]
+    CLILogger -->|Interactive| PrettyTransport[Console stderr]
 ```
 
-## 3. Log Schema
+## 3. Event Schema
 
-All logs are valid JSON objects.
+All Sidekick events conform to the `SidekickEvent` schema defined in `LLD-flow.md`. This section describes how events are serialized for logging.
 
-### 3.1 Standard Fields (Pino Defaults + Custom)
+### 3.1 SidekickEvent Schema (from LLD-flow.md)
 
-| Field      | Type     | Description                                                           |
-| :--------- | :------- | :-------------------------------------------------------------------- |
-| `level`    | `number` | Log level (10=trace, 20=debug, 30=info, 40=warn, 50=error, 60=fatal). |
-| `time`     | `number` | Unix timestamp (ms).                                                  |
-| `pid`      | `number` | Process ID.                                                           |
-| `hostname` | `string` | Hostname.                                                             |
-| `name`     | `string` | Logger name (e.g., `sidekick:cli`, `sidekick:supervisor`).            |
-| `msg`      | `string` | Human-readable message.                                               |
-| `context`  | `object` | Contextual data (see below).                                          |
-
-### 3.2 Context Object
-
-The `context` object carries metadata about the execution scope.
-
-```json
-{
-  "context": {
-    "scope": "project", // or "user"
-    "correlation_id": "uuid", // Unique ID for the CLI command execution
-    "session_id": "uuid", // If applicable (active shell session)
-    "component": "feature-name", // e.g., "statusline", "reminders"
-    "command": "user-prompt-submit" // The hook being executed
+```typescript
+interface SidekickEvent {
+  type: string
+  time: number // Unix timestamp (ms)
+  source: 'cli' | 'supervisor'
+  context: {
+    session_id: string // Required: correlates all events in a session
+    scope?: 'project' | 'user' // Which scope this event occurred in
+    correlation_id?: string // Unique ID for the CLI command execution
+    trace_id?: string // Optional: links causally-related events
+    hook?: string // Optional: which hook triggered this event
+    task_id?: string // Optional: background task identifier
+  }
+  payload: {
+    state?: Record<string, unknown> // Entity state snapshot
+    metadata?: Record<string, unknown> // Additional context
+    reason?: string // Why this event occurred
   }
 }
 ```
 
-### 3.3 Telemetry Schema
+### 3.2 Event Types (from LLD-flow.md)
 
-Telemetry events add specific fields to the root object.
+| Type                | Source                 | Examples                                               | Behavior                    |
+| ------------------- | ---------------------- | ------------------------------------------------------ | --------------------------- |
+| **Hook Events**     | Claude Code (external) | `SessionStart`, `PostToolUse`, `Stop`                  | Trigger handler chains      |
+| **Internal Events** | Handlers               | `ReminderStaged`, `ReminderConsumed`, `SummaryUpdated` | Logged only (non-recursive) |
+
+Events posted by handlers are logged but do not trigger further handlers. This prevents infinite loops and keeps the system predictable.
+
+### 3.3 Log Record Format
+
+When a `SidekickEvent` is logged, Pino adds standard fields:
+
+```json
+{
+  "level": 30,
+  "time": 1678888888888,
+  "pid": 12345,
+  "hostname": "dev-machine",
+  "name": "sidekick:cli",
+  "msg": "Hook completed",
+
+  "type": "HookCompleted",
+  "source": "cli",
+  "context": {
+    "session_id": "sess-abc123",
+    "scope": "project",
+    "correlation_id": "corr-456",
+    "trace_id": "req-789",
+    "hook": "UserPromptSubmit"
+  },
+  "payload": {
+    "state": { "reminder_returned": true },
+    "metadata": { "duration_ms": 12 }
+  }
+}
+```
+
+### 3.4 CLI-Logged Events
+
+| Event              | When                          |
+| ------------------ | ----------------------------- |
+| `HookReceived`     | Hook invocation starts        |
+| `ReminderConsumed` | CLI returns a staged reminder |
+| `HookCompleted`    | Hook invocation ends          |
+
+### 3.5 Supervisor-Logged Events
+
+| Event              | When                                   |
+| ------------------ | -------------------------------------- |
+| `EventReceived`    | IPC event arrives from CLI             |
+| `HandlerExecuted`  | Handler completes (success or failure) |
+| `ReminderStaged`   | Reminder file created/updated          |
+| `SummaryUpdated`   | Session summary recalculated           |
+| `RemindersCleared` | Stage directory cleaned (SessionStart) |
+
+### 3.6 Telemetry Schema
+
+Telemetry events use a specialized format for metrics collection. They are written to the same log stream with `event_type="telemetry"`.
 
 ```json
 {
   "level": 30,
   "time": 1678888888888,
   "event_type": "telemetry",
+  "source": "supervisor",
+  "context": {
+    "session_id": "sess-abc123",
+    "scope": "project"
+  },
   "metric": {
     "name": "llm_request_duration_ms",
-    "type": "histogram", // counter, gauge, histogram
+    "type": "histogram",
     "value": 450,
     "unit": "ms",
     "tags": {
@@ -93,168 +164,7 @@ Telemetry events add specific fields to the root object.
 }
 ```
 
-### 3.4 Entity-Lifecycle Events
-
-To support the "Time Travel" and "Unified Cockpit" features of the Monitoring UI, the system uses a unified **Entity-Lifecycle** event model. This enables consistent querying ("show me all reminder events") and causality tracking.
-
-#### Unified Event Schema
-
-```json
-{
-  "level": 30,
-  "time": 1678888888888,
-  "source": "sidekick-cli",           // Required: which component emitted this event
-  "pid": 12345,                       // Required: process ID
-
-  "context": {                        // Required: correlation and scope metadata
-    "session_id": "sess-abc123",      // Required: correlates all events in a session
-    "trace_id": "req-456",            // Optional: links causally-related events
-    "hook": "UserPromptSubmit",       // Optional: which hook triggered this event
-    "task_id": "task-001"             // Optional: which background task is running
-  },
-
-  "entity": "reminder",               // Required: the type of thing
-  "entity_id": "rem-789",             // Required: unique instance identifier
-  "lifecycle": "triggered",           // Required: what happened to it
-
-  "reason": "turn_cadence_met",       // Optional: explains why this happened
-  "state": { ... },                   // Optional: full entity state snapshot
-  "metadata": { ... }                 // Optional: additional context
-}
-```
-
-#### Standard Entity Types
-
-| Entity       | Lifecycle States                        | Emitted By              |
-| ------------ | --------------------------------------- | ----------------------- |
-| `session`    | started, ended                          | CLI                     |
-| `command`    | received, processed                     | CLI, Supervisor IPC     |
-| `task`       | queued, started, completed, failed      | Supervisor              |
-| `reminder`   | created, triggered, injected, dismissed | Reminders feature       |
-| `summary`    | analyzing, updated                      | Session-Summary feature |
-| `statusline` | rendered, error                         | Statusline feature      |
-| `transcript` | normalized, pruned                      | Transcript processing   |
-
-#### Field Descriptions
-
-- **`source`**: Identifies which Sidekick component emitted this event (e.g., `sidekick-cli`, `sidekick-supervisor`). Required for distinguishing events in multi-process scenarios.
-- **`pid`**: Process ID of the component that emitted this event. Required for debugging concurrent processes and correlating with system-level monitoring.
-- **`context`**: Nested object containing correlation IDs and scope metadata:
-  - **`session_id`**: Unique identifier for the Claude session. Generated at session start. Used to correlate all events within a single user session. (Required)
-  - **`trace_id`**: Optional correlation ID linking events that are causally related (e.g., a command → task queued → task completed chain). Enables trace visualization in the UI.
-  - **`hook`**: Optional hook name that triggered this event (e.g., `UserPromptSubmit`, `ConversationContinued`). Useful for understanding the execution context.
-  - **`task_id`**: Optional background task identifier when this event is part of asynchronous task execution.
-- **`entity`**: The type of system component or concept this event describes.
-- **`entity_id`**: A unique identifier for this specific instance (e.g., `rem-abc` for a specific reminder, `task-123` for a specific background task).
-- **`lifecycle`**: The state transition that occurred. Each entity type defines its valid lifecycle states.
-- **`reason`**: Human-readable explanation of why this transition happened. Useful for debugging.
-- **`state`**: Complete snapshot of the entity's state at this point in time. Enables full reconstruction without diffs.
-- **`metadata`**: Additional context that doesn't fit the standard fields (e.g., error details, performance metrics).
-
-#### Example: Reminder Lifecycle
-
-```json
-// Reminder created
-{
-  "source": "sidekick-cli",
-  "pid": 12345,
-  "context": { "session_id": "sess-abc123" },
-  "entity": "reminder",
-  "entity_id": "rem-001",
-  "lifecycle": "created",
-  "state": { "type": "turn_cadence", "interval": 4, "countdown": 4 }
-}
-
-// Reminder triggered (countdown reached zero)
-{
-  "source": "sidekick-cli",
-  "pid": 12345,
-  "context": { "session_id": "sess-abc123" },
-  "entity": "reminder",
-  "entity_id": "rem-001",
-  "lifecycle": "triggered",
-  "reason": "turn_cadence_met",
-  "state": { "countdown": 0, "text": "..." }
-}
-
-// Reminder injected into response
-{
-  "source": "sidekick-cli",
-  "pid": 12345,
-  "context": {
-    "session_id": "sess-abc123",
-    "trace_id": "hook-xyz",
-    "hook": "UserPromptSubmit"
-  },
-  "entity": "reminder",
-  "entity_id": "rem-001",
-  "lifecycle": "injected"
-}
-```
-
-#### Example: Task Lifecycle (with trace_id)
-
-```json
-// Command received by Supervisor
-{
-  "source": "sidekick-supervisor",
-  "pid": 12346,
-  "context": {
-    "session_id": "sess-abc123",
-    "trace_id": "req-abc"
-  },
-  "entity": "command",
-  "entity_id": "cmd-001",
-  "lifecycle": "received",
-  "metadata": { "method": "task.enqueue" }
-}
-
-// Task queued (linked to command)
-{
-  "source": "sidekick-supervisor",
-  "pid": 12346,
-  "context": {
-    "session_id": "sess-abc123",
-    "trace_id": "req-abc",
-    "task_id": "task-001"
-  },
-  "entity": "task",
-  "entity_id": "task-001",
-  "lifecycle": "queued",
-  "state": { "type": "session_summary", "priority": 1 }
-}
-
-// Task started
-{
-  "source": "sidekick-supervisor",
-  "pid": 12346,
-  "context": {
-    "session_id": "sess-abc123",
-    "trace_id": "req-abc",
-    "task_id": "task-001"
-  },
-  "entity": "task",
-  "entity_id": "task-001",
-  "lifecycle": "started"
-}
-
-// Task completed (with state snapshot)
-{
-  "source": "sidekick-supervisor",
-  "pid": 12346,
-  "context": {
-    "session_id": "sess-abc123",
-    "trace_id": "req-abc",
-    "task_id": "task-001"
-  },
-  "entity": "task",
-  "entity_id": "task-001",
-  "lifecycle": "completed",
-  "state": { "duration_ms": 1250 }
-}
-```
-
-### 3.5 Context Logger Wrapper
+### 3.7 Context Logger Wrapper
 
 Pino's built-in `child()` method performs a **shallow merge** of bindings, which means nested objects like `context` get replaced entirely rather than merged:
 
@@ -299,34 +209,27 @@ export class ContextLogger {
 #### Usage: Building Context Through the Call Chain
 
 ```typescript
-// 1. Root logger with source and pid
+// 1. Root logger
 const rootLogger = new ContextLogger(pino());
 
-// 2. CLI initializes with session_id
+// 2. CLI initializes with session context
 const sessionLogger = rootLogger.child({
-  source: "sidekick-cli",
-  pid: process.pid,
-  context: { session_id: "sess-abc123" }
+  source: "cli",
+  context: {
+    session_id: "sess-abc123",
+    scope: "project",
+    correlation_id: "corr-456"
+  }
 });
 
 // 3. Hook handler adds trace_id and hook name
 const hookLogger = sessionLogger.child({
-  context: { trace_id: "req-456", hook: "UserPromptSubmit" }
+  context: { trace_id: "req-789", hook: "UserPromptSubmit" }
 });
 
 // ✅ CORRECT: hookLogger has all context fields
-hookLogger.info({ entity: "reminder", lifecycle: "triggered" });
-// Output: {
-//   "source": "sidekick-cli",
-//   "pid": 12345,
-//   "context": {
-//     "session_id": "sess-abc123",
-//     "trace_id": "req-456",
-//     "hook": "UserPromptSubmit"
-//   },
-//   "entity": "reminder",
-//   "lifecycle": "triggered"
-// }
+hookLogger.info({ type: "ReminderConsumed" }, "Reminder returned to Claude");
+// Output includes full merged context
 ```
 
 #### Design Rationale
@@ -347,15 +250,19 @@ hookLogger.info({ entity: "reminder", lifecycle: "triggered" });
 
 ### 4.2 Destinations
 
-1.  **Log File**:
-    - **Path**:
-      - Project Scope: `<project_root>/.sidekick/logs/sidekick.log`
-      - User Scope: `~/.sidekick/logs/sidekick.log`
+1.  **Log Files** (separate per component):
+    - **Paths**:
+      - Project Scope:
+        - CLI: `<project_root>/.sidekick/logs/cli.log`
+        - Supervisor: `<project_root>/.sidekick/logs/supervisor.log`
+      - User Scope:
+        - CLI: `~/.sidekick/logs/cli.log`
+        - Supervisor: `~/.sidekick/logs/supervisor.log`
     - **Format**: JSON Lines (NDJSON).
     - **Rotation**:
       - **Mechanism**: Use `pino-roll` as the file transport. This handles rotation within the Node.js process, ensuring cross-platform compatibility (Windows/Linux) without external dependencies like `logrotate`.
-      - **Policy**: Rotate when file size exceeds **10MB**. Keep a maximum of **5 rotated files** (e.g., `sidekick.1.log`, `sidekick.2.log`).
-    - **Concurrency**: Both CLI (ephemeral) and Supervisor (long-running) write to this file. Node.js `fs.appendFile` is atomic for lines < PIPE_BUF (4KB on Linux), which covers most logs. For larger logs, we rely on OS file locking or accept minor interleaving risk, or use the Supervisor as the log aggregator (future optimization). _Decision: Direct append for now for simplicity and reliability if Supervisor is down._
+      - **Policy**: Rotate when file size exceeds **10MB**. Keep a maximum of **5 rotated files** (e.g., `cli.1.log`, `cli.2.log`).
+    - **Concurrency**: Each component writes to its own file, eliminating concurrency concerns. The Monitoring UI reads both files and merges by timestamp for unified debugging.
 
 2.  **Console (Stderr)**:
     - **Interactive Mode**: When running interactively (e.g., `sidekick config`), pretty-print logs using `pino-pretty` (or a lightweight custom formatter) to stderr.
@@ -382,26 +289,36 @@ Privacy is critical. We must not log PII or sensitive user content by default.
 
 ### 6.1 `sidekick-core`
 
-- Install `pino`, `pino-pretty` (dev dependency or bundled for CLI).
+- Install `pino`, `pino-roll`, `pino-pretty` (dev dependency or bundled for CLI).
 - Implement `src/logger/index.ts`:
-  - `createLogger(config)` factory.
+  - `createLogger(config)` factory accepting `source: 'cli' | 'supervisor'`.
+  - `ContextLogger` wrapper for deep-merging context.
   - `Telemetry` class wrapper.
 - Implement `src/logger/redaction.ts`:
   - Define redaction paths.
 
 ### 6.2 `sidekick-cli`
 
-- Initialize logger at startup.
-- Generate `correlation_id` for the command.
+- Initialize logger at startup with `source: 'cli'`, writing to `cli.log`.
+- Generate `correlation_id` for each hook invocation.
+- Set `scope` based on execution context (project vs user).
 - Ensure `uncaughtException` and `unhandledRejection` are caught and logged.
 
-### 6.3 Feature Integration
+### 6.3 `sidekick-supervisor`
+
+- Initialize logger at startup with `source: 'supervisor'`, writing to `supervisor.log`.
+- Inherit `session_id` from CLI events.
+- Generate `task_id` for background tasks.
+
+### 6.4 Feature Integration
 
 - Features receive a `logger` instance in their `register` method (or context).
 - Example:
   ```typescript
   export function register(ctx: Context) {
-    const log = ctx.logger.child({ component: 'my-feature' })
-    log.info('Feature initialized')
+    const log = ctx.logger.child({
+      context: { component: 'my-feature' }
+    })
+    log.info({ type: 'FeatureInitialized' }, 'Feature initialized')
   }
   ```
