@@ -37,12 +37,11 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [ ] `{project_root_dir}/packages/sidekick-ui/docs/LLD-MONITORING-UI.md` (§2 Architecture, §3.2 Time Travel, §4 Data Sources)
     - [ ] `{project_root_dir}/LLD-flow.md` (§3.2 Event Schema)
     - [ ] `{project_root_dir}/LLD-STRUCTURED-LOGGING.md` (§3 Event Schema)
-  - [ ] **1.5.1 Type Alignment**
-    - [ ] Add `SidekickEvent` discriminated union to `@sidekick/types` (share with UI)
-    - [ ] Add `HookEvent`, `TranscriptEvent`, `InternalEvent` interfaces
-    - [ ] Add `EventContext`, `TranscriptMetrics` types
-    - [ ] Export types from `@sidekick/types` for UI consumption
-    - [ ] Update `@sidekick/ui` to import shared types (remove duplicate definitions from `mockData.ts`)
+  - [ ] **1.5.1 Type Alignment** (depends on Phase 1 architectural alignment completing first)
+    - [ ] Import `SidekickEvent`, `HookEvent`, `TranscriptEvent` from `@sidekick/types`
+    - [ ] Import `EventContext`, `TranscriptMetrics` from `@sidekick/types`
+    - [ ] Add `@sidekick/types` as dependency to `@sidekick/ui` package.json
+    - [ ] Update `@sidekick/ui` to use shared types (remove duplicate definitions from `mockData.ts`)
   - [ ] **1.5.2 Log Parsing Infrastructure** (`@sidekick/ui`)
     - [ ] NDJSON line parser with streaming support
     - [ ] Session filter: `filterBySessionId(events, sessionId)`
