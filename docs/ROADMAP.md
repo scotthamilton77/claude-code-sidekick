@@ -47,19 +47,19 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [x] Session filter: `filterBySessionId(events, sessionId)`
     - [x] Log merger: `mergeLogStreams(cliLog, supervisorLog)` by timestamp
     - [x] Event type guards: `isHookEvent()`, `isTranscriptEvent()` (re-exported from `@sidekick/types`)
-  - [ ] **1.5.3 Replay Engine Core** (`@sidekick/ui`)
-    - [ ] State reconstructor: build timeline from event sequence
-    - [ ] Time travel store: `getStateAt(timestamp)` API
-    - [ ] Diff calculator: compute state deltas between snapshots
+  - [x] **1.5.3 Replay Engine Core** (`@sidekick/ui`)
+    - [x] State reconstructor: build timeline from event sequence
+    - [x] Time travel store: `getStateAt(timestamp)` API
+    - [x] Diff calculator: compute state deltas between snapshots
   - [ ] **1.5.4 UI Component Updates**
     - [ ] Update mock data to use `SidekickEvent` schema
     - [ ] Add event type badges (hook vs transcript vs internal)
     - [ ] Add `source` indicator (cli vs supervisor)
-  - [ ] Testing
-    - [ ] Log parser tests with sample NDJSON files in `test-data/`
-    - [ ] Event merge tests (proper timestamp ordering)
-    - [ ] State reconstruction tests (known event sequence → expected state)
-    - [ ] Type guard tests for event discrimination
+  - [x] Testing
+    - [x] Log parser tests with sample NDJSON files in `test-data/`
+    - [x] Event merge tests (proper timestamp ordering)
+    - [x] State reconstruction tests (known event sequence → expected state)
+    - [x] Type guard tests for event discrimination
   - [ ] Acceptance criteria
     - [ ] UI can load sample log files and display events in timeline
     - [ ] Time travel slider reconstructs state at any point
