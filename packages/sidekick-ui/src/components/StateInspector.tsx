@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { StateSnapshot } from '../data/mockData'
+import type { StateSnapshot } from '../types'
 import Icon from './Icon'
 
 interface StateInspectorProps {

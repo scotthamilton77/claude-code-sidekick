@@ -1,32 +1,23 @@
-export interface Session {
-  id: string
-  title: string
-  date: string
-  branch: string
-}
+/**
+ * Mock Data for UI Development
+ *
+ * Sample data for developing and testing the monitoring UI.
+ * Uses types from src/types which include both canonical @sidekick/types
+ * and UI-specific presentation types.
+ *
+ * @see src/types/index.ts for type definitions
+ */
 
-export interface Event {
-  id: number
-  time: string
-  type: 'session' | 'user' | 'assistant' | 'decision' | 'state' | 'tool' | 'reminder'
-  label: string
-  content?: string
-  branch?: string
-}
+import type { Session, StateSnapshot, UIEvent } from '../types'
 
-export interface StateSnapshot {
-  session_id: string
-  session_title: string
-  session_title_confidence: number
-  latest_intent: string
-  latest_intent_confidence: number
-  tokens: {
-    input: number
-    output: number
-  }
-  cost_usd: number
-  duration_sec: number
-}
+// Re-export types for backward compatibility during migration
+export type { Session, StateSnapshot, UIEvent }
+/** @deprecated Use UIEvent instead */
+export type { Event } from '../types'
+
+// ============================================================================
+// Session Data
+// ============================================================================
 
 export const currentSession: Session = {
   id: 'a1b2c3d4',
@@ -41,7 +32,11 @@ export const otherSessions: Session[] = [
   { id: 'm3n4o5p6', title: 'Frontend Refactor', date: 'Nov 24, 2025 • 2:30 PM', branch: 'refactor/ui' },
 ]
 
-export const events: Event[] = [
+// ============================================================================
+// Event Timeline Data
+// ============================================================================
+
+export const events: UIEvent[] = [
   { id: 0, time: '10:00:00', type: 'session', label: 'Session Start', branch: 'main' },
   {
     id: 1,
@@ -99,6 +94,10 @@ export const events: Event[] = [
       "I've fixed the token expiration bug. The change ensures tokens remain valid through their full expiration time. Would you like me to add a test case for this edge condition?",
   },
 ]
+
+// ============================================================================
+// State Inspector Data
+// ============================================================================
 
 export const stateData = {
   current: {

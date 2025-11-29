@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Session } from '../data/mockData'
+import type { Session } from '../types'
 import Icon from './Icon'
 
 interface HeaderProps {

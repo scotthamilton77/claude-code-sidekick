@@ -1,10 +1,10 @@
 import React from 'react'
-import { Event } from '../data/mockData'
+import type { UIEvent } from '../types'
 
 interface TimelineProps {
-  events: Event[]
+  events: UIEvent[]
   currentEventId: number
-  filteredEvents: Event[]
+  filteredEvents: UIEvent[]
   onEventSelect: (id: number) => void
   getEventColor: (type: string) => string
 }

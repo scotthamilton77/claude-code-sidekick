@@ -4,7 +4,8 @@ import Layout from './components/Layout'
 import StateInspector from './components/StateInspector'
 import Timeline from './components/Timeline'
 import Transcript from './components/Transcript'
-import { events, currentSession as initialSession, otherSessions, Session, stateData } from './data/mockData'
+import type { Session } from './types'
+import { events, currentSession as initialSession, otherSessions, stateData } from './data/mockData'
 
 function App() {
   const [currentSession, setCurrentSession] = useState<Session>(initialSession)
