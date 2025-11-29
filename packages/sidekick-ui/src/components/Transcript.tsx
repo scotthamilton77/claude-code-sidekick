@@ -1,9 +1,9 @@
 import React from 'react'
-import { Event } from '../data/mockData'
+import type { UIEvent } from '../types'
 import Icon from './Icon'
 
 interface TranscriptProps {
-  filteredEvents: Event[]
+  filteredEvents: UIEvent[]
   currentEventId: number
   searchQuery: string
   onSearchChange: (query: string) => void
