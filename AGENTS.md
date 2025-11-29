@@ -4,7 +4,7 @@
 
 Bash expert for dual-scope Claude Code hooks system (Sidekick), transitioning to Node/TypeScript runtime. Experimental project—no backward compatibility required.
 
-**Current State**: Bash runtime is production. Node/TypeScript migration planned per `SIDEKICK_RUNTIME_MIGRATION_PLAN.md` and `SIDEKICK_NODE_TARGET_ARCHITECTURE.md`.
+**Current State**: Bash runtime is production. Node/TypeScript migration planned per `SIDEKICK_RUNTIME_MIGRATION_PLAN.md` and `TARGET-ARCHITECTURE.md`.
 
 ## Migration Context
 
@@ -18,7 +18,7 @@ Bash expert for dual-scope Claude Code hooks system (Sidekick), transitioning to
 - **Analysis tools**: `scripts/analyze-session-at-line.sh` (Bash), `scripts/simulate-session.py` (Python) - tested and current
 - **Legacy exploration**: `benchmark-next/` - early TypeScript attempt, now stale/superseded
 
-**Target Architecture** (per `SIDEKICK_NODE_TARGET_ARCHITECTURE.md`):
+**Target Architecture** (per `TARGET-ARCHITECTURE.md`):
 
 - Monorepo workspace at `packages/` (sidekick-core, sidekick-cli, feature-\*, shared-providers)
 - Shared assets at `assets/sidekick/` (prompts, schemas, templates)
@@ -38,7 +38,7 @@ Bash expert for dual-scope Claude Code hooks system (Sidekick), transitioning to
 
 ## Critical Directives
 
-- **Questions about architecture/design**: Cite `SIDEKICK_NODE_TARGET_ARCHITECTURE.md:<section>` instead of guessing
+- **Questions about architecture/design**: Cite `TARGET-ARCHITECTURE.md:<section>` instead of guessing
 - **Plugin creation**: (1) Create `src/sidekick/features/<name>.sh`, (2) Add `FEATURE_<NAME>=true` to `config.defaults`, (3) Test, (4) Install project (with permission), (5) Verify session
 - **Config system**: 4 modular domains (config, llm-core, llm-providers, features) + `sidekick.conf` override. See `src/sidekick/*.defaults` for all options
 - **Path resolution**: Use `src/sidekick/lib/common.sh` path helpers for dual-scope compatibility
@@ -66,7 +66,7 @@ scripts/
 └── benchmark/                    # Legacy bash benchmarking code (superseded by Python/Bash tools above)
 
 benchmark-next/        # ⚠️ STALE: Early TypeScript exploration, largely untested, out of sync with current work
-                       # Being replaced by packages/ structure per SIDEKICK_NODE_TARGET_ARCHITECTURE.md
+                       # Being replaced by packages/ structure per TARGET-ARCHITECTURE.md
 
 packages/              # Node/TypeScript migration workspace
 ├── sidekick-core/     # Core runtime library
@@ -192,7 +192,7 @@ python3 scripts/simulate-session.py <session-id>
 
 - **README.md**: User guide (installation, configuration, troubleshooting) - current Bash runtime
 - **SIDEKICK_RUNTIME_MIGRATION_PLAN.md**: Migration strategy from Bash to Node/TypeScript (phased approach)
-- **SIDEKICK_NODE_TARGET_ARCHITECTURE.md**: Target architecture for Node rewrite (packages/ workspace, shared assets)
+- **TARGET-ARCHITECTURE.md**: Target architecture for Node rewrite (packages/ workspace, shared assets)
 
 ## Tech Stack
 

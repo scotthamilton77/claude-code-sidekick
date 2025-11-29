@@ -7,7 +7,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [x] Deliver a minimal Node-based CLI that can be invoked via bash hook wrappers and echoes simple outputs for at least one hook (e.g., `session-start`).
     - [x] Implement scope detection and bootstrap sequence sufficient to locate project vs. user installs and initialize a lightweight runtime shell.
   - [x] Relevant documents/sections
-    - [x] `{project_root_dir}/TARGET-ARCHITECTURE.md` (§3.1 Hook Wrapper Architecture, §3.2 Bootstrap Flow, §3.3 Configuration Cascade)
+    - [x] `{project_root_dir}/TARGET-ARCHITECTURE.md` (§3.1 Hook Wrapper Architecture, §3.2 CLI/Supervisor Relationship, §3.6 Configuration Cascade)
     - [x] `{project_root_dir}/LLD-CLI.md` (§3 Hook Wrapper Layer, §3.4 Bootstrap Sequence, §6 Scope Resolution)
     - [x] `{project_root_dir}/LLD-CORE-RUNTIME.md` (§3.1 Bootstrap & Lifecycle, §3.2 Configuration Service outline)
   - [x] Acceptance criteria
@@ -21,7 +21,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [x] Implement the configuration cascade (env + JSONC) with deep-merge semantics and validation.
     - [x] Add asset resolver capable of reading defaults from `assets/sidekick/` and honoring override layers for user/project scopes.
   - [x] Relevant documents/sections
-    - [x] `{project_root_dir}/TARGET-ARCHITECTURE.md` (§3.3 Configuration Cascade, §2.3 Static Assets)
+    - [x] `{project_root_dir}/TARGET-ARCHITECTURE.md` (§3.6 Configuration Cascade, §2.3 Static Assets)
     - [x] `{project_root_dir}/LLD-CONFIG-SYSTEM.md` (§3 Configuration Cascade, §4 Data Structures, §5 Component Architecture)
       - [x] §2 "Immutability": Config object should be frozen after loading
     - [x] `{project_root_dir}/LLD-SCHEMA-CONTRACTS.md` (§3 Core Schemas, §4 Asset Synchronization, §5 Versioning Strategy)
@@ -68,7 +68,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [x] Build LLM provider interfaces and factory with retry/fallback logic, using shared provider adapters.
     - [x] Flesh out core runtime services (feature registry wiring, LLM service) to support feature packages.
   - [x] Relevant documents/sections
-    - [x] `{project_root_dir}/TARGET-ARCHITECTURE.md` (§3.5 LLM Providers & Telemetry)
+    - [x] `{project_root_dir}/TARGET-ARCHITECTURE.md` (§3.8 LLM Providers & Telemetry)
     - [x] `{project_root_dir}/LLD-LLM-PROVIDERS.md` (§2 Core Architecture, §3 Interfaces & Types, §5 Resilience & Reliability)
     - [x] `{project_root_dir}/LLD-CORE-RUNTIME.md` (§3.4 Feature Registry, §3.5 LLM Service)
     - [x] `{project_root_dir}/LLD-TEST-FIXTURES.md` (§3 Core Mocks for LLM, §5 Integration Test Harness)
@@ -119,7 +119,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [x] Implement the supervisor process with IPC socket, task engine, and single-writer state manager for shared files.
     - [x] Connect CLI commands to supervisor lifecycle (start/stop/version handshake) and delegate background tasks (e.g., session summary updates).
   - [x] Relevant documents/sections
-    - [x] `{project_root_dir}/TARGET-ARCHITECTURE.md` (§3.4 Background Supervisor)
+    - [x] `{project_root_dir}/TARGET-ARCHITECTURE.md` (§3.7 Background Supervisor)
     - [x] `{project_root_dir}/LLD-SUPERVISOR.md` (§2 Process Architecture, §3 Communication Layer, §4 Subsystems)
     - [x] `{project_root_dir}/LLD-CLI.md` (§4 Supervisor Interaction, §7 Supervisor Lifecycle Management)
     - [x] `{project_root_dir}/LLD-TRANSCRIPT-PROCESSING.md` (§2 Components, §3.1 File Watching & Updates) for background transcript tasks
@@ -323,7 +323,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [ ] Implement feature packages (session summary, reminders, statusline, resume) using the shared runtime services and supervisor for heavy tasks.
     - [ ] Ensure transcript parsing/denoising feeds session-summary and resume flows, and statusline surfaces supervisor/LLM states.
   - [ ] Relevant documents/sections
-    - [ ] `{project_root_dir}/TARGET-ARCHITECTURE.md` (§2.1 Package Structure, §3.5 LLM Providers & Telemetry)
+    - [ ] `{project_root_dir}/TARGET-ARCHITECTURE.md` (§2.1 Package Structure, §3.8 LLM Providers & Telemetry)
     - [ ] `{project_root_dir}/LLD-FEATURE-SESSION-SUMMARY.md` (Scope, Responsibilities)
     - [ ] `{project_root_dir}/LLD-FEATURE-REMINDERS.md` (Scope, Responsibilities)
     - [ ] `{project_root_dir}/LLD-FEATURE-STATUSLINE.md` (Scope, Responsibilities)
