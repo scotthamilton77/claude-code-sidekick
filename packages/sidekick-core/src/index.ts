@@ -1,5 +1,55 @@
 // Re-export shared types from @sidekick/types for consumer convenience
-export type { LLMProvider, LLMRequest, LLMResponse, Logger, LogLevel, Message, Telemetry } from '@sidekick/types'
+export type {
+  // LLM types
+  LLMProvider,
+  LLMRequest,
+  LLMResponse,
+  Message,
+  // Logger types
+  Logger,
+  LogLevel,
+  Telemetry,
+  // Event types
+  EventContext,
+  HookName,
+  HookEvent,
+  SessionStartHookEvent,
+  SessionEndHookEvent,
+  UserPromptSubmitHookEvent,
+  PreToolUseHookEvent,
+  PostToolUseHookEvent,
+  StopHookEvent,
+  PreCompactHookEvent,
+  TranscriptEventType,
+  TranscriptEntry,
+  TranscriptMetrics,
+  TranscriptEvent,
+  SidekickEvent,
+  // Handler types
+  HandlerFilter,
+  HookFilter,
+  TranscriptFilter,
+  AllFilter,
+  HookResponse,
+  HandlerResult,
+  HandlerContext,
+  EventHandler,
+  HandlerRegistration,
+  HandlerRegistry,
+} from '@sidekick/types'
+
+// Re-export type guards from @sidekick/types
+export {
+  isHookEvent,
+  isTranscriptEvent,
+  isSessionStartEvent,
+  isSessionEndEvent,
+  isUserPromptSubmitEvent,
+  isPreToolUseEvent,
+  isPostToolUseEvent,
+  isStopEvent,
+  isPreCompactEvent,
+} from '@sidekick/types'
 
 export * from './assets'
 export * from './config'

@@ -11,16 +11,16 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [x] `{project_root_dir}/docs/design/flow.md` (§2.1 CLI/Supervisor Relationship, §2.3 Handler Registration, §3.1-3.2 Event Types and Schema) — **architectural source of truth for event model**
     - [x] `{project_root_dir}/docs/design/CLI.md` (§3 Hook Wrapper Layer, §3.4 Bootstrap Sequence, §6 Scope Resolution)
     - [x] `{project_root_dir}/docs/design/CORE-RUNTIME.md` (§3.1 Bootstrap & Lifecycle, §3.2 Configuration Service outline, §3.5 Handler Registration)
-  - [ ] **Architectural alignment tasks** (added post-architecture-pivot)
-    - [ ] Add Event Model types to `@sidekick/types`: `SidekickEvent` discriminated union, `HookEvent` variants, `TranscriptEvent`, `EventContext` (per docs/design/flow.md §3.2)
-    - [ ] Add type guards: `isHookEvent()`, `isTranscriptEvent()`, `isSessionStartEvent()`, etc. (per docs/design/flow.md §3.2)
-    - [ ] Add `HandlerRegistry` interface to `@sidekick/core`: `register()`, `HandlerFilter`, `EventHandler`, `HandlerResult` (per docs/design/flow.md §2.3)
-    - [ ] Wire `HandlerRegistry` into `RuntimeContext` as `ctx.handlers` (per docs/design/CORE-RUNTIME.md §3.5)
-    - [ ] **Testing for alignment tasks**:
-      - [ ] Event type discrimination tests (type guards work correctly)
-      - [ ] HandlerRegistry registration and filter matching tests
-      - [ ] RuntimeContext.handlers wiring tests
-    - [ ] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
+  - [x] **Architectural alignment tasks** (added post-architecture-pivot)
+    - [x] Add Event Model types to `@sidekick/types`: `SidekickEvent` discriminated union, `HookEvent` variants, `TranscriptEvent`, `EventContext` (per docs/design/flow.md §3.2)
+    - [x] Add type guards: `isHookEvent()`, `isTranscriptEvent()`, `isSessionStartEvent()`, etc. (per docs/design/flow.md §3.2)
+    - [x] Add `HandlerRegistry` interface to `@sidekick/types`: `register()`, `HandlerFilter`, `EventHandler`, `HandlerResult` (per docs/design/flow.md §2.3) — placed in types package to avoid circular dependencies
+    - [x] Wire `HandlerRegistry` into `RuntimeContext` as `ctx.handlers` (per docs/design/CORE-RUNTIME.md §3.5)
+    - [x] **Testing for alignment tasks**:
+      - [x] Event type discrimination tests (type guards work correctly)
+      - [x] HandlerRegistry registration and filter matching tests
+      - [x] RuntimeContext.handlers wiring tests
+    - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
     - Note: Config format migration (JSONC → YAML) deferred to Phase 2 scope
   - [ ] Acceptance criteria - REQUIRES RE-VERIFICATION after architectural alignment
     - [ ] Running the installed hook wrapper calls the Node CLI, which logs clearly whether it detected user or project scope.

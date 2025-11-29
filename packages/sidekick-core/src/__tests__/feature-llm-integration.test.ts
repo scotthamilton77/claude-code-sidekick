@@ -23,7 +23,13 @@ import type { RuntimeContext, RuntimePaths } from '../runtime-context'
 import { LLMService } from '@sidekick/shared-providers'
 import { ProviderFactory } from '@sidekick/shared-providers'
 import type { LLMResponse } from '@sidekick/shared-providers'
-import { MockLogger, MockTelemetry, MockConfigService, MockAssetResolver } from '@sidekick/testing-fixtures'
+import {
+  MockLogger,
+  MockTelemetry,
+  MockConfigService,
+  MockAssetResolver,
+  MockHandlerRegistry,
+} from '@sidekick/testing-fixtures'
 
 // Mock ProviderFactory.create() to return our mock provider
 vi.spyOn(ProviderFactory.prototype, 'create')
@@ -125,6 +131,7 @@ describe('Feature → LLM Integration', () => {
         logger: mockLogger,
         assets: mockAssets,
         llm: llmService,
+        handlers: new MockHandlerRegistry(),
         paths: mockPaths,
       }
 
@@ -179,6 +186,7 @@ describe('Feature → LLM Integration', () => {
         logger: mockLogger,
         assets: mockAssets,
         llm: llmService,
+        handlers: new MockHandlerRegistry(),
         paths: mockPaths,
       }
 
@@ -221,6 +229,7 @@ describe('Feature → LLM Integration', () => {
         logger: mockLogger,
         assets: mockAssets,
         llm: llmService,
+        handlers: new MockHandlerRegistry(),
         paths: mockPaths,
       }
 
@@ -262,6 +271,7 @@ describe('Feature → LLM Integration', () => {
         logger: mockLogger,
         assets: mockAssets,
         llm: llmService,
+        handlers: new MockHandlerRegistry(),
         paths: mockPaths,
       }
 
@@ -355,6 +365,7 @@ describe('Feature → LLM Integration', () => {
         logger: mockLogger,
         assets: mockAssets,
         llm: llmService,
+        handlers: new MockHandlerRegistry(),
         paths: mockPaths,
       }
 

@@ -9,3 +9,5 @@
 
 export * from './logger.js'
 export * from './llm.js'
+export * from './events.js'
+export * from './handler-registry.js'

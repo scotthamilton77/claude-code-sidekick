@@ -8,11 +8,13 @@ import {
   MockLogger,
   MockConfigService,
   MockAssetResolver,
+  MockHandlerRegistry,
   createMockContext,
   createTestConfig,
   createTestFeature,
   createRecordingFeature,
 } from '../index'
+import type { SessionStartHookEvent, TranscriptEvent, EventContext } from '@sidekick/types'
 
 describe('MockLLMService', () => {
   let llm: MockLLMService
@@ -410,5 +412,261 @@ describe('createRecordingFeature', () => {
     expect(feature.recordedCalls[0].hook).toBe('onSessionStart')
     expect(feature.recordedCalls[1].hook).toBe('onUserPrompt')
     expect(feature.recordedCalls[1].args[1]).toBe('Hello')
+  })
+})
+
+// Test fixtures for MockHandlerRegistry
+const baseContext: EventContext = {
+  sessionId: 'test-session-123',
+  timestamp: Date.now(),
+  scope: 'project',
+}
+
+const sessionStartEvent: SessionStartHookEvent = {
+  kind: 'hook',
+  hook: 'SessionStart',
+  context: baseContext,
+  payload: {
+    startType: 'startup',
+    transcriptPath: '/path/to/transcript.jsonl',
+  },
+}
+
+describe('MockHandlerRegistry', () => {
+  let registry: MockHandlerRegistry
+
+  beforeEach(() => {
+    registry = new MockHandlerRegistry()
+  })
+
+  describe('register', () => {
+    it('records handler registrations', () => {
+      registry.register({
+        id: 'test:handler',
+        priority: 50,
+        filter: { kind: 'hook', hooks: ['SessionStart'] },
+        handler: async () => {},
+      })
+
+      const registrations = registry.getRegistrations()
+      expect(registrations).toHaveLength(1)
+      expect(registrations[0].id).toBe('test:handler')
+      expect(registrations[0].priority).toBe(50)
+    })
+
+    it('allows multiple registrations', () => {
+      registry.register({
+        id: 'handler1',
+        priority: 100,
+        filter: { kind: 'hook', hooks: ['SessionStart'] },
+        handler: async () => {},
+      })
+      registry.register({
+        id: 'handler2',
+        priority: 50,
+        filter: { kind: 'transcript', eventTypes: ['UserPrompt'] },
+        handler: async () => {},
+      })
+
+      expect(registry.getRegistrations()).toHaveLength(2)
+    })
+  })
+
+  describe('getHandler', () => {
+    it('retrieves handler by ID', () => {
+      registry.register({
+        id: 'test:handler',
+        priority: 50,
+        filter: { kind: 'hook', hooks: ['SessionStart'] },
+        handler: () => Promise.resolve({ stop: true }),
+      })
+
+      const handler = registry.getHandler('test:handler')
+      expect(handler).toBeDefined()
+      expect(handler?.id).toBe('test:handler')
+    })
+
+    it('returns undefined for missing handler', () => {
+      expect(registry.getHandler('nonexistent')).toBeUndefined()
+    })
+  })
+
+  describe('getHandlersByKind', () => {
+    beforeEach(() => {
+      registry.register({
+        id: 'hook-handler',
+        priority: 100,
+        filter: { kind: 'hook', hooks: ['SessionStart', 'SessionEnd'] },
+        handler: async () => {},
+      })
+      registry.register({
+        id: 'transcript-handler',
+        priority: 50,
+        filter: { kind: 'transcript', eventTypes: ['UserPrompt'] },
+        handler: async () => {},
+      })
+      registry.register({
+        id: 'all-handler',
+        priority: 25,
+        filter: { kind: 'all' },
+        handler: async () => {},
+      })
+    })
+
+    it('filters by hook kind', () => {
+      const handlers = registry.getHandlersByKind('hook')
+      expect(handlers).toHaveLength(1)
+      expect(handlers[0].id).toBe('hook-handler')
+    })
+
+    it('filters by transcript kind', () => {
+      const handlers = registry.getHandlersByKind('transcript')
+      expect(handlers).toHaveLength(1)
+      expect(handlers[0].id).toBe('transcript-handler')
+    })
+
+    it('filters by all kind', () => {
+      const handlers = registry.getHandlersByKind('all')
+      expect(handlers).toHaveLength(1)
+      expect(handlers[0].id).toBe('all-handler')
+    })
+  })
+
+  describe('getHandlersForHook', () => {
+    beforeEach(() => {
+      registry.register({
+        id: 'session-start-handler',
+        priority: 100,
+        filter: { kind: 'hook', hooks: ['SessionStart'] },
+        handler: async () => {},
+      })
+      registry.register({
+        id: 'multi-hook-handler',
+        priority: 50,
+        filter: { kind: 'hook', hooks: ['SessionStart', 'SessionEnd'] },
+        handler: async () => {},
+      })
+      registry.register({
+        id: 'stop-handler',
+        priority: 25,
+        filter: { kind: 'hook', hooks: ['Stop'] },
+        handler: async () => {},
+      })
+    })
+
+    it('finds handlers for specific hook', () => {
+      const handlers = registry.getHandlersForHook('SessionStart')
+      expect(handlers).toHaveLength(2)
+    })
+
+    it('returns empty for hook with no handlers', () => {
+      const handlers = registry.getHandlersForHook('PreCompact')
+      expect(handlers).toHaveLength(0)
+    })
+  })
+
+  describe('getHandlersForTranscriptEvent', () => {
+    beforeEach(() => {
+      registry.register({
+        id: 'user-prompt-handler',
+        priority: 100,
+        filter: { kind: 'transcript', eventTypes: ['UserPrompt'] },
+        handler: async () => {},
+      })
+      registry.register({
+        id: 'tool-handler',
+        priority: 50,
+        filter: { kind: 'transcript', eventTypes: ['ToolCall', 'ToolResult'] },
+        handler: async () => {},
+      })
+    })
+
+    it('finds handlers for specific transcript event type', () => {
+      const handlers = registry.getHandlersForTranscriptEvent('UserPrompt')
+      expect(handlers).toHaveLength(1)
+      expect(handlers[0].id).toBe('user-prompt-handler')
+    })
+
+    it('finds handlers for multiple event types', () => {
+      const handlers = registry.getHandlersForTranscriptEvent('ToolCall')
+      expect(handlers).toHaveLength(1)
+      expect(handlers[0].id).toBe('tool-handler')
+    })
+  })
+
+  describe('invokeHook', () => {
+    it('records invocation', async () => {
+      await registry.invokeHook('SessionStart', sessionStartEvent)
+
+      const calls = registry.getInvokeHookCalls()
+      expect(calls).toHaveLength(1)
+      expect(calls[0].hook).toBe('SessionStart')
+      expect(calls[0].event).toBe(sessionStartEvent)
+    })
+
+    it('returns default response', async () => {
+      const response = await registry.invokeHook('SessionStart', sessionStartEvent)
+      expect(response).toEqual({})
+    })
+
+    it('returns custom default response when set', async () => {
+      registry.defaultHookResponse = { blocking: true, reason: 'Test block' }
+
+      const response = await registry.invokeHook('SessionStart', sessionStartEvent)
+      expect(response.blocking).toBe(true)
+      expect(response.reason).toBe('Test block')
+    })
+  })
+
+  describe('emitTranscriptEvent', () => {
+    it('records emission', () => {
+      const entry = { type: 'human', message: 'Hello' }
+      registry.emitTranscriptEvent('UserPrompt', entry, 42)
+
+      const calls = registry.getEmitTranscriptCalls()
+      expect(calls).toHaveLength(1)
+      expect(calls[0].eventType).toBe('UserPrompt')
+      expect(calls[0].entry).toBe(entry)
+      expect(calls[0].lineNumber).toBe(42)
+    })
+  })
+
+  describe('reset', () => {
+    it('clears all state', async () => {
+      registry.register({
+        id: 'test',
+        priority: 50,
+        filter: { kind: 'hook', hooks: ['SessionStart'] },
+        handler: async () => {},
+      })
+      await registry.invokeHook('SessionStart', sessionStartEvent)
+      registry.emitTranscriptEvent('UserPrompt', {}, 1)
+      registry.defaultHookResponse = { blocking: true }
+
+      registry.reset()
+
+      expect(registry.getRegistrations()).toHaveLength(0)
+      expect(registry.getInvokeHookCalls()).toHaveLength(0)
+      expect(registry.getEmitTranscriptCalls()).toHaveLength(0)
+      expect(registry.defaultHookResponse).toEqual({})
+    })
+  })
+})
+
+describe('createMockContext with handlers', () => {
+  it('includes handlers in context', () => {
+    const ctx = createMockContext()
+
+    expect(ctx.handlers).toBeInstanceOf(MockHandlerRegistry)
+  })
+
+  it('allows overriding handlers', () => {
+    const customHandlers = new MockHandlerRegistry()
+    customHandlers.defaultHookResponse = { blocking: true }
+
+    const ctx = createMockContext({ handlers: customHandlers })
+
+    expect(ctx.handlers).toBe(customHandlers)
+    expect(ctx.handlers.defaultHookResponse.blocking).toBe(true)
   })
 })
