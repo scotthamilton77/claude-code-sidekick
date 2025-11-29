@@ -23,6 +23,7 @@ This repository serves as a development and testing environment for [Claude Code
   - moods: cynical, sarcastic, snarky, nerdy, arrogant, moody
   - persona: angry klingon, skeptical vulcan, Scotty, Bones, Dilbert
   - themes: scifi, crime drama, daytime television, soap opera, classic 80s tv sitcom, seinfeld & friends
+- add stakes and psychology to the user prompt reminder?  https://medium.com/@ichigoSan/i-accidentally-made-claude-45-smarter-heres-how-23ad0bf91ccf
 - allow a "concise" topic mode during setup that chooses concise template files
   - allow the line length hints to be configurable
   - allow the statusline topic format to be configurable
