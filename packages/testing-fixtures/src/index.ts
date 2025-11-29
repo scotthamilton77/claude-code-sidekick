@@ -2,10 +2,10 @@
  * Testing Fixtures Package
  *
  * Provides shared mocks, factories, and test utilities for the Sidekick
- * Node runtime packages. Implements Phase 4 Track C per LLD-TEST-FIXTURES.md.
+ * Node runtime packages. Implements Phase 4 Track C per docs/design/TEST-FIXTURES.md.
  *
- * @see LLD-TEST-FIXTURES.md
- * @see TARGET-IMPLEMENTATION-PLAN.md Phase 4 Track C
+ * @see docs/design/TEST-FIXTURES.md
+ * @see docs/ROADMAP.md Phase 4 Track C
  */
 
 // Mocks

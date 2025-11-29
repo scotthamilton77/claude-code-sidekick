@@ -44,7 +44,7 @@ We provide a set of "Smart Mocks" that implement the core interfaces but allow f
 
 A factory to create a fully mocked `RuntimeContext` for unit testing features.
 
-**Note**: Unlike production `RuntimeContext` which uses a discriminated union (`CLIContext` vs `SupervisorContext` per **LLD-CORE-RUNTIME.md §4.1**), the mock context intentionally combines all properties from both roles. This allows test code to verify feature behavior without caring which runtime context the feature would run in. Tests requiring role-specific behavior should use explicit overrides.
+**Note**: Unlike production `RuntimeContext` which uses a discriminated union (`CLIContext` vs `SupervisorContext` per **docs/design/CORE-RUNTIME.md §4.1**), the mock context intentionally combines all properties from both roles. This allows test code to verify feature behavior without caring which runtime context the feature would run in. Tests requiring role-specific behavior should use explicit overrides.
 
 ```typescript
 import { RuntimeContext } from '@sidekick/core';
@@ -185,7 +185,7 @@ export class MockTranscriptService implements TranscriptService {
 
 ### 3.5 MockStagingService
 
-Manages in-memory staging directory for testing reminder flows without filesystem I/O. Per **LLD-FEATURE-REMINDERS.md §3.3**, suppression uses marker files rather than per-reminder state.
+Manages in-memory staging directory for testing reminder flows without filesystem I/O. Per **docs/design/FEATURE-REMINDERS.md §3.3**, suppression uses marker files rather than per-reminder state.
 
 ```typescript
 export class MockStagingService implements StagingService {
@@ -204,7 +204,7 @@ export class MockStagingService implements StagingService {
   }
 
   consume(hookName: HookName): StagedReminder | null {
-    // Check suppression marker first (per LLD-FEATURE-REMINDERS.md §3.3)
+    // Check suppression marker first (per docs/design/FEATURE-REMINDERS.md §3.3)
     if (this.suppressed.has(hookName)) {
       this.suppressed.delete(hookName);
       this.operations.push({ type: 'suppression-cleared', hookName });
@@ -352,7 +352,7 @@ export function createTranscriptEvent(
 
 ### 4.3 Reminder Factories
 
-Factory functions for creating staged reminder files matching the schema from **LLD-FEATURE-REMINDERS.md §3.3**.
+Factory functions for creating staged reminder files matching the schema from **docs/design/FEATURE-REMINDERS.md §3.3**.
 
 ```typescript
 // reminder.factory.ts
@@ -372,7 +372,7 @@ export function createReminder(overrides: Partial<StagedReminder> = {}): StagedR
   };
 }
 
-// Presets for common reminder types (per LLD-FEATURE-REMINDERS.md §8.1)
+// Presets for common reminder types (per docs/design/FEATURE-REMINDERS.md §8.1)
 export const reminderPresets = {
   userPromptSubmit: () => createReminder({
     name: 'UserPromptSubmitReminder',
@@ -522,7 +522,7 @@ interface SupervisorTestOptions {
 
 ### 5.3 StagingHelper
 
-Utilities for seeding and inspecting the staging directory during integration tests. Per **LLD-FEATURE-REMINDERS.md §3.3**, suppression uses marker files.
+Utilities for seeding and inspecting the staging directory during integration tests. Per **docs/design/FEATURE-REMINDERS.md §3.3**, suppression uses marker files.
 
 ```typescript
 export class StagingHelper {
@@ -557,7 +557,7 @@ export class StagingHelper {
     }
   }
 
-  // Create suppression marker for a hook (per LLD-FEATURE-REMINDERS.md §3.3)
+  // Create suppression marker for a hook (per docs/design/FEATURE-REMINDERS.md §3.3)
   async createSuppressionMarker(hookName: HookName): Promise<void> {
     const dir = path.join(this.stagePath, hookName);
     await fs.mkdir(dir, { recursive: true });

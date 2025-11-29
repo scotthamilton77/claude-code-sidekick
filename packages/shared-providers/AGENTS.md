@@ -30,4 +30,4 @@ ProviderFactory → AbstractProvider → (OpenAINativeProvider | AnthropicCliPro
 
 ## Reference
 
-- `LLD-LLM-PROVIDERS.md` for retry/fallback semantics
+- `docs/design/LLM-PROVIDERS.md` for retry/fallback semantics

@@ -5,10 +5,10 @@
 The Sidekick Monitoring UI is a developer tool designed to provide visibility into the internal state, decision-making process, and evolution of a Sidekick session. It enables "Time Travel" debugging by reconstructing past states from structured logs, allowing developers to understand *why* the system behaved in a certain way.
 
 **Related Documents**:
-- `LLD-flow.md`: Event model, PreCompact flow with transcript snapshot
-- `LLD-TRANSCRIPT-PROCESSING.md`: TranscriptService, compaction history management
-- `LLD-SUPERVISOR.md`: Event emission, TranscriptService integration
-- `LLD-STRUCTURED-LOGGING.md`: Entity-lifecycle event schema
+- `docs/design/flow.md`: Event model, PreCompact flow with transcript snapshot
+- `docs/design/TRANSCRIPT-PROCESSING.md`: TranscriptService, compaction history management
+- `docs/design/SUPERVISOR.md`: Event emission, TranscriptService integration
+- `docs/design/STRUCTURED-LOGGING.md`: Entity-lifecycle event schema
 
 ## 2. Architecture
 
@@ -40,13 +40,13 @@ graph TD
 
 **Notes**:
 - **Transcript Path**: The `$transcript_path` is provided by Claude Code at session start and propagated through: Claude Code → hook script → sidekick CLI → sidekick Supervisor. The UI reads this file to reconstruct the conversation timeline.
-- **Log Files**: Global (not session-specific). The UI filters events by `context.sessionId` to isolate a single session's timeline. See **LLD-STRUCTURED-LOGGING.md §2.2** for log file strategy.
+- **Log Files**: Global (not session-specific). The UI filters events by `context.sessionId` to isolate a single session's timeline. See **docs/design/STRUCTURED-LOGGING.md §2.2** for log file strategy.
 
 ## 3. Core Features
 
 ### 3.1 Compaction Timeline (New)
 
-The Monitoring UI supports **compaction-aware time travel** to handle transcript compaction events. Per **LLD-TRANSCRIPT-PROCESSING.md** and **LLD-flow.md §5.6**:
+The Monitoring UI supports **compaction-aware time travel** to handle transcript compaction events. Per **docs/design/TRANSCRIPT-PROCESSING.md** and **docs/design/flow.md §5.6**:
 
 - **Pre-Compact Snapshots**: CLI copies full transcript before compaction to `.sidekick/sessions/{sessionId}/transcripts/pre-compact-{timestamp}.jsonl`
 - **Compaction History**: TranscriptService maintains `compaction-history.json` with metadata for each compaction point
@@ -57,7 +57,7 @@ The Monitoring UI supports **compaction-aware time travel** to handle transcript
 3. **Metrics Continuity**: Metrics shown correctly across compaction boundaries (TranscriptService handles recomputation)
 4. **Snapshot Viewer**: Clicking a compaction marker opens the pre-compact snapshot for comparison
 
-**Data Source**: Reads `.sidekick/sessions/{sessionId}/state/compaction-history.json` for compaction metadata (schema per **LLD-TRANSCRIPT-PROCESSING.md §4.2**):
+**Data Source**: Reads `.sidekick/sessions/{sessionId}/state/compaction-history.json` for compaction metadata (schema per **docs/design/TRANSCRIPT-PROCESSING.md §4.2**):
 ```json
 [
   {
@@ -127,9 +127,9 @@ A real-time dashboard showing the health of the Supervisor process.
 
 ### 4.1 SidekickEvent Schema
 
-The UI consumes **SidekickEvents** as defined in `LLD-flow.md §3.2`. All events conform to a unified schema with discriminated union types.
+The UI consumes **SidekickEvents** as defined in `docs/design/flow.md §3.2`. All events conform to a unified schema with discriminated union types.
 
-**Reference**: See `LLD-STRUCTURED-LOGGING.md §3` for log record format (Pino adds `level`, `time`, `pid`, `hostname`, `name`, `msg` fields).
+**Reference**: See `docs/design/STRUCTURED-LOGGING.md §3` for log record format (Pino adds `level`, `time`, `pid`, `hostname`, `name`, `msg` fields).
 
 ```typescript
 // Base context shared by all events
@@ -292,7 +292,7 @@ The TranscriptService maintains session metrics derived from the transcript file
 | `tokenUsage`    | TokenUsageMetrics  | `{ input, output, total }` from transcript metadata |
 | `toolsPerTurn`  | number             | Derived ratio: `toolCount / turnCount`   |
 
-**Note**: Metrics are the single source of truth—handlers do NOT increment counters directly. See **LLD-TRANSCRIPT-PROCESSING.md §3.1** for full schema including watermarks.
+**Note**: Metrics are the single source of truth—handlers do NOT increment counters directly. See **docs/design/TRANSCRIPT-PROCESSING.md §3.1** for full schema including watermarks.
 
 ### 4.3 Transcript Correlation
 - **Primary Correlator**: `context.sessionId`
@@ -333,7 +333,7 @@ A "Unified Cockpit" design that merges the transcript and event log into a singl
 - **Live Mode**: A "Live" button snaps the slider to the bottom and follows new events in real-time.
 
 ## 6. Implementation Strategy
-1.  **Instrumentation**: Update `sidekick-core` and `sidekick-supervisor` to emit `SidekickEvent` types (see `LLD-flow.md §3` and `LLD-STRUCTURED-LOGGING.md`).
+1.  **Instrumentation**: Update `sidekick-core` and `sidekick-supervisor` to emit `SidekickEvent` types (see `docs/design/flow.md §3` and `docs/design/STRUCTURED-LOGGING.md`).
 2.  **UI Scaffold**: Create React app with a log parser that reads both `cli.log` and `supervisor.log`.
 3.  **Replay Logic**: Implement a reducer that:
     - Filters events by `context.sessionId` to isolate a session

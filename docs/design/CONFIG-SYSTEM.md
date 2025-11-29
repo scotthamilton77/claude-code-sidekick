@@ -24,7 +24,7 @@ Configuration is organized into logical domains, each with its own file and sche
 | `transcript` | `transcript.yaml` | Transcript processing, metrics            |
 | `features`   | `features.yaml`   | Feature flags and feature-specific config |
 
-**Note**: Feature-specific configuration schemas (e.g., reminders thresholds, templates) are defined in their respective feature LLDs (see `LLD-FEATURE-REMINDERS.md` Section 8).
+**Note**: Feature-specific configuration schemas (e.g., reminders thresholds, templates) are defined in their respective feature LLDs (see `docs/design/FEATURE-REMINDERS.md` Section 8).
 
 ### 3.1 Domain File Resolution
 
@@ -125,9 +125,9 @@ export const TranscriptConfigSchema = z.object({
 export type TranscriptConfig = z.infer<typeof TranscriptConfigSchema>;
 ```
 
-**Note**: Token metrics are extracted from native transcript metadata (the `usage` object in Claude Code responses). This is always enabled and not configurable. See **LLD-TRANSCRIPT-PROCESSING.md §3.4** for extraction details.
+**Note**: Token metrics are extracted from native transcript metadata (the `usage` object in Claude Code responses). This is always enabled and not configurable. See **docs/design/TRANSCRIPT-PROCESSING.md §3.4** for extraction details.
 
-See **LLD-TRANSCRIPT-PROCESSING.md** for TranscriptService specification.
+See **docs/design/TRANSCRIPT-PROCESSING.md** for TranscriptService specification.
 
 ### 5.4 Features Config Schema
 
@@ -164,7 +164,7 @@ Certain paths are derived from configuration, not directly configurable:
 | -------------------------------------------------------- | -------------------------- | --------------------- |
 | `{paths.state}/sessions/{session_id}/`                   | Derived from `paths.state` | Session state root    |
 | `{paths.state}/sessions/{session_id}/stage/`             | Hardcoded subfolder        | Reminder staging area |
-| `{paths.state}/sessions/{session_id}/stage/{hook_name}/` | Per LLD-flow.md Section 2.2| Hook-specific staging |
+| `{paths.state}/sessions/{session_id}/stage/{hook_name}/` | Per docs/design/flow.md Section 2.2| Hook-specific staging |
 
 **Example**: If `paths.state = ".sidekick"` and session ID is `abc123`:
 - Session root: `.sidekick/sessions/abc123/`
@@ -287,9 +287,9 @@ session_summary:
 
 The following are internal implementation concerns, not exposed via configuration:
 
-- **Handler execution priorities**: Hardcoded in handler registration (see LLD-flow.md Section 2.3).
+- **Handler execution priorities**: Hardcoded in handler registration (see docs/design/flow.md Section 2.3).
 - **Staging directory structure**: Fixed at `{paths.state}/sessions/{session_id}/stage/{hook_name}/`.
-- **Event schema**: Defined in code, not configurable (see LLD-flow.md Section 3.2).
+- **Event schema**: Defined in code, not configurable (see docs/design/flow.md Section 3.2).
 
 ## 11. Decisions
 

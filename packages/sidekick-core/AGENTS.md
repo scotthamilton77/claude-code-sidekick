@@ -28,6 +28,6 @@ Core runtime library—config, logging, IPC, scope resolution, asset loading.
 
 ## Reference
 
-- `LLD-CORE-RUNTIME.md` for RuntimeContext, services, bootstrap
-- `LLD-CONFIG-SYSTEM.md` for cascade order and schema
-- `LLD-STRUCTURED-LOGGING.md` for log event schema
+- `docs/design/CORE-RUNTIME.md` for RuntimeContext, services, bootstrap
+- `docs/design/CONFIG-SYSTEM.md` for cascade order and schema
+- `docs/design/STRUCTURED-LOGGING.md` for log event schema

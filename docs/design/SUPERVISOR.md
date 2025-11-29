@@ -13,10 +13,10 @@ It is **always project-scoped**. Even if the user invokes Sidekick from a global
 
 **Related Documentation:**
 
-- `LLD-flow.md`: Authoritative source for event model, hook flows, and CLI/Supervisor interaction patterns.
-- `LLD-TRANSCRIPT-PROCESSING.md`: TranscriptService as metrics owner, event emission, compaction history.
-- `LLD-CORE-RUNTIME.md`: RuntimeContext, HandlerRegistry API, service interfaces.
-- `LLD-STRUCTURED-LOGGING.md`: Logging infrastructure and conventions.
+- `docs/design/flow.md`: Authoritative source for event model, hook flows, and CLI/Supervisor interaction patterns.
+- `docs/design/TRANSCRIPT-PROCESSING.md`: TranscriptService as metrics owner, event emission, compaction history.
+- `docs/design/CORE-RUNTIME.md`: RuntimeContext, HandlerRegistry API, service interfaces.
+- `docs/design/STRUCTURED-LOGGING.md`: Logging infrastructure and conventions.
 
 ## 2. Process Architecture
 
@@ -132,7 +132,7 @@ For files prepared by the Supervisor and consumed by the CLI on subsequent hook 
   2.  Emit `ReminderStaged` event (see §4.5).
 - **Consumption**: CLI reads staged files directly. No IPC required for reads.
 
-See **LLD-flow.md §4** for reminder file schema and **LLD-FEATURE-REMINDERS.md §3.3** for suppression semantics.
+See **docs/design/flow.md §4** for reminder file schema and **docs/design/FEATURE-REMINDERS.md §3.3** for suppression semantics.
 
 ### 4.2 Handler System (Unified Event Model)
 
@@ -140,7 +140,7 @@ The Supervisor registers **handlers** that execute in response to events from tw
 1. **Hook Events**: Received via IPC from CLI (processed sequentially for synchronous response).
 2. **Transcript Events**: Emitted by TranscriptService on file changes (processed concurrently, fire-and-forget).
 
-Per **LLD-flow.md §2.3** and **LLD-CORE-RUNTIME.md §3.5**, handlers register with filters to specify which events they process:
+Per **docs/design/flow.md §2.3** and **docs/design/CORE-RUNTIME.md §3.5**, handlers register with filters to specify which events they process:
 
 ```typescript
 context.handlers.register({
@@ -205,7 +205,7 @@ Watches files to trigger reactive behaviors.
 
 ### 4.5 Monitoring UI Integration
 
-The Supervisor emits **SidekickEvents** (see `LLD-flow.md` §3.2 for schema) that the Monitoring UI aggregates for time-travel debugging.
+The Supervisor emits **SidekickEvents** (see `docs/design/flow.md` §3.2 for schema) that the Monitoring UI aggregates for time-travel debugging.
 
 #### 4.5.1 Event Schema
 
@@ -327,7 +327,7 @@ To allow the Monitoring UI to display system health, the Supervisor must periodi
 
 ### 4.7 TranscriptService Integration
 
-The Supervisor owns the `TranscriptService` instance, which serves as the canonical source of transcript-derived metrics. See **LLD-TRANSCRIPT-PROCESSING.md** for complete specification.
+The Supervisor owns the `TranscriptService` instance, which serves as the canonical source of transcript-derived metrics. See **docs/design/TRANSCRIPT-PROCESSING.md** for complete specification.
 
 #### Initialization
 
@@ -379,7 +379,7 @@ On transcript file changes, TranscriptService:
 
 #### Compaction Handling
 
-Per **LLD-flow.md §5.6** (PreCompact flow):
+Per **docs/design/flow.md §5.6** (PreCompact flow):
 
 1. CLI copies full transcript to `.sidekick/sessions/{session_id}/transcripts/pre-compact-{timestamp}.jsonl`.
 2. CLI sends `PreCompact` event with `transcriptSnapshotPath` reference.

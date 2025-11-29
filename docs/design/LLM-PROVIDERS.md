@@ -6,7 +6,7 @@ The `shared-providers` package provides a unified, type-safe interface for inter
 
 ### 1.1 System Context
 
-LLM providers operate exclusively within the **Supervisor** (async side) of the CLI/Supervisor architecture defined in **LLD-flow.md §2.1**:
+LLM providers operate exclusively within the **Supervisor** (async side) of the CLI/Supervisor architecture defined in **docs/design/flow.md §2.1**:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -53,8 +53,8 @@ LLM providers operate exclusively within the **Supervisor** (async side) of the 
 - **SDK Leverage**: Use official SDKs (e.g., `openai` npm package) for OpenAI and OpenRouter.
 - **Statelessness**: Providers are stateless; configuration and session context are injected per-call.
 - **Resilience**: Rely on SDK built-in retries where available; implement simple fallbacks for high availability.
-- **Observability**: Deep integration with structured logging per **LLD-STRUCTURED-LOGGING.md**.
-- **Event Model Alignment**: Providers emit internal events only (per **LLD-flow.md §3.1**)—logged for observability but non-recursive (don't trigger handlers).
+- **Observability**: Deep integration with structured logging per **docs/design/STRUCTURED-LOGGING.md**.
+- **Event Model Alignment**: Providers emit internal events only (per **docs/design/flow.md §3.1**)—logged for observability but non-recursive (don't trigger handlers).
 
 ### 2.2 Package Structure
 
@@ -84,7 +84,7 @@ export interface Message {
 }
 
 /**
- * Correlation context for log tracing. Inherited from EventContext (LLD-flow.md §3.2).
+ * Correlation context for log tracing. Inherited from EventContext (docs/design/flow.md §3.2).
  * Providers propagate these fields to all log entries for end-to-end traceability.
  */
 export interface LLMCallContext {
@@ -164,7 +164,7 @@ This enables the Monitoring UI to trace an LLM call back to its originating hook
 The factory is responsible for instantiating the correct provider based on configuration. It is invoked once during Supervisor startup; the resulting provider instance is shared across all handlers via `HandlerContext`.
 
 ```typescript
-import type { Logger } from 'pino'; // See LLD-STRUCTURED-LOGGING.md
+import type { Logger } from 'pino'; // See docs/design/STRUCTURED-LOGGING.md
 
 export class ProviderFactory {
   constructor(
@@ -189,7 +189,7 @@ export class ProviderFactory {
 }
 ```
 
-**Supervisor Integration** (see **LLD-SUPERVISOR.md**):
+**Supervisor Integration** (see **docs/design/SUPERVISOR.md**):
 
 ```typescript
 // During Supervisor startup
@@ -277,7 +277,7 @@ Credentials are resolved in the following order:
 
 ### 6.2 Redaction
 
-The `Logger` passed to the provider MUST have a `Redactor` configured per **LLD-STRUCTURED-LOGGING.md §4**.
+The `Logger` passed to the provider MUST have a `Redactor` configured per **docs/design/STRUCTURED-LOGGING.md §4**.
 - **SDK Logging**: We do NOT use SDK built-in console logging. All logs go through our structured logger to ensure redaction.
 - **Request/Response Logging**: Raw payloads are redacted before logging (API keys, sensitive content patterns).
 
@@ -285,7 +285,7 @@ The `Logger` passed to the provider MUST have a `Redactor` configured per **LLD-
 
 ### 7.1 Internal Events
 
-Per **LLD-flow.md §3.1**, provider operations emit **internal events**—logged for observability but non-recursive (they don't trigger handlers). This prevents infinite loops if a handler's LLM call were to somehow trigger more handlers.
+Per **docs/design/flow.md §3.1**, provider operations emit **internal events**—logged for observability but non-recursive (they don't trigger handlers). This prevents infinite loops if a handler's LLM call were to somehow trigger more handlers.
 
 | Event             | When                          | Key Fields                                      |
 | ----------------- | ----------------------------- | ----------------------------------------------- |
@@ -296,7 +296,7 @@ Per **LLD-flow.md §3.1**, provider operations emit **internal events**—logged
 
 ### 7.2 Log Format
 
-All events include correlation context from `LLMCallContext` and follow **LLD-STRUCTURED-LOGGING.md §3.3** format:
+All events include correlation context from `LLMCallContext` and follow **docs/design/STRUCTURED-LOGGING.md §3.3** format:
 
 ```typescript
 // Example log entry (Pino JSON)
@@ -335,7 +335,7 @@ The following Supervisor handlers use LLM providers:
 Handlers receive the provider via `HandlerContext` and pass event correlation context:
 
 ```typescript
-// From LLD-flow.md §2.3 handler registration
+// From docs/design/flow.md §2.3 handler registration
 context.handlers.register({
   id: 'session-summary:update',
   priority: 80,
@@ -356,7 +356,7 @@ context.handlers.register({
 ### 8.3 Future Extensibility
 
 New features requiring LLM access follow the same pattern:
-1. Register handler with appropriate priority (see **LLD-flow.md §8.2**)
+1. Register handler with appropriate priority (see **docs/design/flow.md §8.2**)
 2. Access provider via `ctx.llm`
 3. Pass correlation context from `event.context`
-4. Handle errors internally (per **LLD-flow.md §6.2**)
+4. Handle errors internally (per **docs/design/flow.md §6.2**)

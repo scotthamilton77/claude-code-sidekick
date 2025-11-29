@@ -4,7 +4,7 @@
 
 The Statusline feature provides a real-time, context-aware information bar displayed alongside the agent's shell prompt. It reads state files prepared by the Supervisor to provide immediate feedback on costs, token usage, and session intent.
 
-**Relationship to Hook Flow**: There is no relationship between the hook flow and status line.  Although `LLD-flow.md` implies this in the documentation of the flows, these are independently called from Claude Code.
+**Relationship to Hook Flow**: There is no relationship between the hook flow and status line.  Although `docs/design/flow.md` implies this in the documentation of the flows, these are independently called from Claude Code.
 
 ## 2. Scope & Responsibilities
 
@@ -27,11 +27,11 @@ The Statusline is a **reader-only** consumer of state. It does not write to stat
 
 ### 3.1 State Directory Structure
 
-State files live in `.sidekick/sessions/{session_id}/state/`, parallel to the `stage/` directory used for reminder staging (see `LLD-flow.md` §2.2).
+State files live in `.sidekick/sessions/{session_id}/state/`, parallel to the `stage/` directory used for reminder staging (see `docs/design/flow.md` §2.2).
 
 ```
 .sidekick/sessions/{session_id}/
-├── stage/           # Reminder staging (per LLD-flow.md)
+├── stage/           # Reminder staging (per docs/design/flow.md)
 │   └── ...
 └── state/           # Statusline data (this feature)
     ├── session-state.json
@@ -151,7 +151,7 @@ A lightweight string interpolator.
 
 ### 6.2 Summary Selection
 
-The statusline displays different content based on session state. Per `LLD-flow.md`, there are four distinct states:
+The statusline displays different content based on session state. Per `docs/design/flow.md`, there are four distinct states:
 
 | State                    | Trigger                                    | Display Content                                   |
 | :----------------------- | :----------------------------------------- | :------------------------------------------------ |
@@ -213,11 +213,11 @@ sidekick.cli statusline 2>/dev/null    # Render statusline (errors suppressed)
 
 ### 8.2 Stale State Handling
 
-**Decision**: **Graceful Fallback** (aligned with `LLD-flow.md` §6).
+**Decision**: **Graceful Fallback** (aligned with `docs/design/flow.md` §6).
 
 - If `session-state.json` is older than X seconds (e.g., 60s), the Supervisor might be down.
 - **Action**: Render the stale data but apply a "dim" style or append a specific indicator (e.g., `(stale)`) to alert the user without breaking the flow.
-- Per `LLD-flow.md` §6.1, missing state is acceptable degradation—CLI continues with defaults.
+- Per `docs/design/flow.md` §6.1, missing state is acceptable degradation—CLI continues with defaults.
 
 ### 8.3 Hook Contract
 
@@ -236,7 +236,7 @@ sidekick.cli statusline 2>/dev/null    # Render statusline (errors suppressed)
 
 ### 8.5 Monitoring UI Integration
 
-The Statusline feature emits events conforming to the `SidekickEvent` schema (see `LLD-flow.md` §3.2). Since statusline rendering happens in the CLI, events use `source: "cli"`.
+The Statusline feature emits events conforming to the `SidekickEvent` schema (see `docs/design/flow.md` §3.2). Since statusline rendering happens in the CLI, events use `source: "cli"`.
 
 **Event Types**:
 
@@ -288,7 +288,7 @@ The Statusline feature emits events conforming to the `SidekickEvent` schema (se
 }
 ```
 
-**Note**: Per `LLD-flow.md` §3.3, these are internal events—they are logged but do not trigger handlers.
+**Note**: Per `docs/design/flow.md` §3.3, these are internal events—they are logged but do not trigger handlers.
 
 ## 9. Implementation Plan
 

@@ -10,7 +10,7 @@ Early TypeScript exploration—largely untested, out of sync with current tools.
 - `scripts/analyze-session-at-line.sh` — surgical session summary extraction
 - `scripts/simulate-session.py` — session analysis simulator
 
-**Future direction**: `packages/` workspace per `TARGET-ARCHITECTURE.md`
+**Future direction**: `packages/` workspace per `docs/ARCHITECTURE.md`
 
 ## Salvageable Patterns
 

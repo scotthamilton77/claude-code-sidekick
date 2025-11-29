@@ -11,7 +11,7 @@
  * - kill: Forcefully kill project-local supervisor (SIGKILL)
  * - kill-all: Kill all supervisors across all projects
  *
- * @see LLD-CLI.md §7 Supervisor Lifecycle Management
+ * @see docs/design/CLI.md §7 Supervisor Lifecycle Management
  */
 import { killAllSupervisors, Logger, SupervisorClient } from '@sidekick/core'
 

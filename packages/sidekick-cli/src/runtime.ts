@@ -1,8 +1,8 @@
 /**
  * Runtime Shell Bootstrap Module
  *
- * Implements the Sidekick runtime bootstrap sequence per LLD-CLI.md §3.4 and
- * LLD-CORE-RUNTIME.md §3.1.
+ * Implements the Sidekick runtime bootstrap sequence per docs/design/CLI.md §3.4 and
+ * docs/design/CORE-RUNTIME.md §3.1.
  *
  * Orchestrates the multi-phase startup:
  * 1. Create bootstrap logger facade for early error capture
@@ -19,8 +19,8 @@
  * - assets: Cascading asset resolver
  * - cleanup: Teardown function for graceful shutdown
  *
- * @see LLD-CLI.md §3.4 Bootstrap Sequence
- * @see LLD-CORE-RUNTIME.md §3.1 Bootstrap & Lifecycle
+ * @see docs/design/CLI.md §3.4 Bootstrap Sequence
+ * @see docs/design/CORE-RUNTIME.md §3.1 Bootstrap & Lifecycle
  */
 
 import type { AssetResolver, ConfigService, LogContext, Logger, Telemetry } from '@sidekick/core'

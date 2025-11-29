@@ -4,7 +4,7 @@
 
 Bash expert for dual-scope Claude Code hooks system (Sidekick), transitioning to Node/TypeScript runtime.
 
-**Current**: Bash runtime (`src/sidekick/`). Migration planned per `TARGET-ARCHITECTURE.md` and `TARGET-IMPLEMENTATION-PLAN.md`.
+**Current**: Bash runtime (`src/sidekick/`). Migration planned per `docs/ARCHITECTURE.md` and `docs/ROADMAP.md`.
 
 ## Constraints [PRESERVE]
 
@@ -18,7 +18,7 @@ Bash expert for dual-scope Claude Code hooks system (Sidekick), transitioning to
 
 ## Critical Directives
 
-- **Architecture questions**: Cite `TARGET-ARCHITECTURE.md:<section>`, don't guess
+- **Architecture questions**: Cite `docs/ARCHITECTURE.md §N` or `docs/design/FOO.md §N`, don't guess
 
 ## Project Structure
 
@@ -35,7 +35,7 @@ scripts/
 ├── simulate-session.py         # Session simulation
 └── tests/              # run-unit-tests.sh (mocked, free)
 
-packages/               # Node/TS migration workspace (see TARGET-ARCHITECTURE.md)
+packages/               # Node/TS migration workspace (see docs/ARCHITECTURE.md)
 ├── sidekick-core/     # Core runtime library
 ├── sidekick-supervisor/ # Orchestration layer
 ├── sidekick-cli/      # CLI wrapper
@@ -61,11 +61,23 @@ benchmark-next/         # ⚠️ STALE—see benchmark-next/AGENTS.md
 
 ## Reference Docs
 
-| Doc | Purpose |
-|-----|---------|
-| `TARGET-ARCHITECTURE.md` | Target Node rewrite architecture |
-| `TARGET-IMPLEMENTATION-PLAN.md` | Phased migration roadmap |
-| `README.md` | Current Bash runtime user guide |
+```
+docs/
+├── ARCHITECTURE.md        # High-level target architecture
+├── ROADMAP.md             # Phased migration roadmap (task tracking)
+└── design/                # Low-level design specifications
+    ├── CLI.md             # CLI framework, hook dispatcher
+    ├── CONFIG-SYSTEM.md   # Configuration cascade, YAML schemas
+    ├── CORE-RUNTIME.md    # RuntimeContext, services, bootstrap
+    ├── SUPERVISOR.md      # Background process, IPC, state mgmt
+    ├── TRANSCRIPT-PROCESSING.md  # TranscriptService, metrics
+    ├── STRUCTURED-LOGGING.md     # Pino logging, event schema
+    ├── SCHEMA-CONTRACTS.md       # Zod schemas, type contracts
+    ├── LLM-PROVIDERS.md          # Provider adapters, retry/fallback
+    ├── TEST-FIXTURES.md          # Mocks, factories, test harnesses
+    ├── flow.md                   # Complete event flows
+    └── FEATURE-*.md              # Feature-specific designs
+```
 
 ## TypeScript Tooling [PRESERVE]
 

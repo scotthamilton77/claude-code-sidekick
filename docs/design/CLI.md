@@ -10,10 +10,10 @@ The `sidekick-cli` is a **thin, pluggable framework**. It does not contain busin
 4.  Handling output formatting based on the execution mode (Interactive vs. Hook).
 
 **Related Documents**:
-- `LLD-flow.md`: Authoritative source for event model, hook flows, and CLI/Supervisor interaction patterns
-- `LLD-TRANSCRIPT-PROCESSING.md`: TranscriptService, compaction handling, metrics ownership
-- `LLD-SUPERVISOR.md`: Supervisor lifecycle, handler registration, transcript integration
-- `LLD-STRUCTURED-LOGGING.md`: Logging architecture and event schemas
+- `docs/design/flow.md`: Authoritative source for event model, hook flows, and CLI/Supervisor interaction patterns
+- `docs/design/TRANSCRIPT-PROCESSING.md`: TranscriptService, compaction handling, metrics ownership
+- `docs/design/SUPERVISOR.md`: Supervisor lifecycle, handler registration, transcript integration
+- `docs/design/STRUCTURED-LOGGING.md`: Logging architecture and event schemas
 
 ## 2. Testing Strategy (TDD)
 
@@ -56,7 +56,7 @@ Claude Code invokes hooks with a JSON structure passed via stdin. The structure 
 - `StatusLine`: (no additional fields)
 - `SessionSummary`: Previous summary context (if available)
 
-**Field Mapping**: Raw Claude Code field names are mapped to internal event payload fields. For example, `user_prompt` in raw input becomes `prompt` in `UserPromptSubmitHookEvent.payload` (see **LLD-flow.md §3.2**).
+**Field Mapping**: Raw Claude Code field names are mapped to internal event payload fields. For example, `user_prompt` in raw input becomes `prompt` in `UserPromptSubmitHookEvent.payload` (see **docs/design/flow.md §3.2**).
 
 **Reference**: See [Claude Code Hooks Documentation](https://docs.anthropic.com/en/docs/claude-code/hooks#hook-input) for complete specification.
 
@@ -137,7 +137,7 @@ export function register(registry: CommandRegistry) {
     - Verify version compatibility via IPC ping.
     - Start supervisor if missing or restart if version mismatch.
     - Establish IPC connection.
-    - See `LLD-flow.md` §5.1 (SessionStart) for the full supervisor initialization flow.
+    - See `docs/design/flow.md` §5.1 (SessionStart) for the full supervisor initialization flow.
 6.  **Load Features**: Scan `packages/` or config to find enabled features.
 7.  **Register Commands**: Invoke `register()` on each active feature.
 8.  **Dispatch**: Find the matching command(s) and execute. See §9 for hook execution model.
@@ -270,7 +270,7 @@ When a supervisor process ends, it should clean up its own PID files (project- a
 
 **Phase 2: Post-Config (Full Pino Logger)**
 - Replace minimal logger with full `pino` instance configured from loaded config.
-- **Destination**: `<project-dir>/.sidekick/logs/cli.log` (rotated). See `LLD-STRUCTURED-LOGGING.md` for rotation policy.
+- **Destination**: `<project-dir>/.sidekick/logs/cli.log` (rotated). See `docs/design/STRUCTURED-LOGGING.md` for rotation policy.
 - **Session Correlation**: Each log record includes `context.session_id` for filtering/aggregation.
 - Respects user settings: log level, format, redaction rules.
 - Logger facade ensures transparent transition (code doesn't need to know which phase).
@@ -291,7 +291,7 @@ interface Logger {
 
 ### 8.3 Hook Invocation Events
 
-The CLI emits `SidekickEvent` records (see `LLD-flow.md` §3.2) for every hook invocation:
+The CLI emits `SidekickEvent` records (see `docs/design/flow.md` §3.2) for every hook invocation:
 
 ```json
 // Hook invocation received
@@ -340,18 +340,18 @@ The CLI emits `SidekickEvent` records (see `LLD-flow.md` §3.2) for every hook i
 
 ## 9. Process Model for Hooks
 
-The CLI's role in hook processing is defined by `LLD-flow.md`. This section describes how the CLI implements that model.
+The CLI's role in hook processing is defined by `docs/design/flow.md`. This section describes how the CLI implements that model.
 
 ### 9.1 Hook Execution Flow
 
-All hooks follow the same execution pattern (see `LLD-flow.md` §5 for complete flows):
+All hooks follow the same execution pattern (see `docs/design/flow.md` §5 for complete flows):
 
 1. **Receive Hook**: Claude Code invokes bash wrapper → CLI receives hook input
 2. **Send Event**: CLI sends hook event to Supervisor via IPC (fire-and-forget)
 3. **Run CLI Handlers**: CLI executes its own registered handlers synchronously
 4. **Return Response**: CLI returns JSON response to Claude Code
 
-The Supervisor performs background work asynchronously. Its results are staged as files (see `LLD-flow.md` §2.2) for the CLI to consume on subsequent hook invocations.
+The Supervisor performs background work asynchronously. Its results are staged as files (see `docs/design/flow.md` §2.2) for the CLI to consume on subsequent hook invocations.
 
 ### 9.2 CLI Handler Registration
 
@@ -366,7 +366,7 @@ interface CliHandlerDefinition {
 }
 ```
 
-**Example CLI handlers** (see `LLD-flow.md` §5 for which hooks invoke which handlers):
+**Example CLI handlers** (see `docs/design/flow.md` §5 for which hooks invoke which handlers):
 - `InjectUserPromptSubmitReminders`: Consumes staged reminders from `stage/UserPromptSubmit/`
 - `InjectPreToolUseReminders`: Consumes staged reminders from `stage/PreToolUse/`
 - `InjectStopReminders`: Consumes staged reminders from `stage/Stop/`
@@ -380,7 +380,7 @@ interface CliHandlerDefinition {
 
 ### 9.4 Staged File Consumption
 
-The CLI consumes files staged by the Supervisor (see **LLD-flow.md §4.3** for full algorithm):
+The CLI consumes files staged by the Supervisor (see **docs/design/flow.md §4.3** for full algorithm):
 
 1. Check for `.suppressed` marker in `.sidekick/sessions/{session_id}/stage/{hook_name}/`
 2. If marker exists: delete marker, return empty (suppression cleared)
@@ -394,7 +394,7 @@ The CLI consumes files staged by the Supervisor (see **LLD-flow.md §4.3** for f
 
 The PreCompact hook is an **exception** to the "thin CLI" principle. The CLI performs synchronous transcript capture because the transcript file is modified immediately after Claude Code receives the hook response.
 
-**Flow** (see `LLD-flow.md` §5.6 for complete sequence):
+**Flow** (see `docs/design/flow.md` §5.6 for complete sequence):
 
 1. **CLI receives PreCompact hook** with `transcript_path` in payload.
 2. **CLI copies full transcript file** to `.sidekick/sessions/{session_id}/transcripts/pre-compact-{timestamp}.jsonl`.

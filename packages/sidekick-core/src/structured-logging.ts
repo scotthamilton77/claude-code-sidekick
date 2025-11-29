@@ -1,7 +1,7 @@
 /**
  * Structured Logging & Telemetry Module
  *
- * Implements Phase 3 of the Sidekick Node runtime per LLD-STRUCTURED-LOGGING.md.
+ * Implements Phase 3 of the Sidekick Node runtime per docs/design/STRUCTURED-LOGGING.md.
  * Provides a Pino-based logging system with:
  *
  * - Two-phase initialization (bootstrap console → full Pino logger)
@@ -28,8 +28,8 @@
  * telemetry.histogram('hook_duration', 45, 'ms', { hook: 'session-start' })
  * ```
  *
- * @see LLD-STRUCTURED-LOGGING.md
- * @see TARGET-ARCHITECTURE.md §3.5 LLM Providers & Telemetry
+ * @see docs/design/STRUCTURED-LOGGING.md
+ * @see docs/ARCHITECTURE.md §3.5 LLM Providers & Telemetry
  */
 
 import pino, { type Logger as PinoLogger, type LoggerOptions as PinoOptions } from 'pino'

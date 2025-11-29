@@ -12,14 +12,14 @@ This context is critical for:
 
 ### 1.1 Related Documents
 
-- **LLD-flow.md**: Event model, hook flows, handler registration (source of truth for runtime behavior)
-- **LLD-TRANSCRIPT-PROCESSING.md**: TranscriptService as metrics owner, event emission
-- **LLD-CORE-RUNTIME.md**: Feature registration, handler patterns, RuntimeContext
-- **LLD-STRUCTURED-LOGGING.md**: Event schema (`SidekickEvent`), logging architecture
+- **docs/design/flow.md**: Event model, hook flows, handler registration (source of truth for runtime behavior)
+- **docs/design/TRANSCRIPT-PROCESSING.md**: TranscriptService as metrics owner, event emission
+- **docs/design/CORE-RUNTIME.md**: Feature registration, handler patterns, RuntimeContext
+- **docs/design/STRUCTURED-LOGGING.md**: Event schema (`SidekickEvent`), logging architecture
 
 ## 2. Architecture
 
-This feature registers handlers on both CLI and Supervisor per **LLD-CORE-RUNTIME.md §3.5**. The Supervisor performs async LLM analysis; the CLI reads staged state files.
+This feature registers handlers on both CLI and Supervisor per **docs/design/CORE-RUNTIME.md §3.5**. The Supervisor performs async LLM analysis; the CLI reads staged state files.
 
 ### 2.1 Feature Manifest
 
@@ -34,7 +34,7 @@ export const manifest: FeatureManifest = {
 
 ### 2.2 Registered Handlers (Unified Event Model)
 
-Per **LLD-flow.md §2.3**, handlers register with filters to specify which events they process:
+Per **docs/design/flow.md §2.3**, handlers register with filters to specify which events they process:
 
 | Filter Type  | Event(s)        | Handler                    | Priority | Description                                      |
 | ------------ | --------------- | -------------------------- | -------- | ------------------------------------------------ |
@@ -79,11 +79,11 @@ Statusline (external)
   └─ Read state/session-summary.json synchronously
 ```
 
-**Metrics Access**: Handlers use `ctx.transcript.getMetrics()` instead of maintaining their own counters. See **LLD-TRANSCRIPT-PROCESSING.md** for metrics API.
+**Metrics Access**: Handlers use `ctx.transcript.getMetrics()` instead of maintaining their own counters. See **docs/design/TRANSCRIPT-PROCESSING.md** for metrics API.
 
 ### 2.5 Dual-Registration Pattern
 
-Per **LLD-CORE-RUNTIME.md §6.10**, this feature uses **Pattern 1: Role Discriminant** to register Supervisor-only handlers:
+Per **docs/design/CORE-RUNTIME.md §6.10**, this feature uses **Pattern 1: Role Discriminant** to register Supervisor-only handlers:
 
 ```typescript
 export function register(context: RuntimeContext): void {
@@ -246,7 +246,7 @@ These outputs are consumed by other features (Statusline, Resume) but generated 
 
 ### 3.4 Monitoring UI Integration
 
-The Session Summary feature emits `SidekickEvent` events (per **LLD-flow.md §3.2**) to the Supervisor log. The Monitoring UI aggregates these for time-travel debugging.
+The Session Summary feature emits `SidekickEvent` events (per **docs/design/flow.md §3.2**) to the Supervisor log. The Monitoring UI aggregates these for time-travel debugging.
 
 **Event Types**:
 
@@ -349,7 +349,7 @@ features:
 
 ### 4.2 LLM Configuration
 
-Each LLM task has dedicated provider/model settings with fallback chain: (**NOTE TO CLAUDE** when it comes time for implementation, note that these are examples, but `LLD-LLM-PROVIDERS.md` should be the source of truth for this!)
+Each LLM task has dedicated provider/model settings with fallback chain: (**NOTE TO CLAUDE** when it comes time for implementation, note that these are examples, but `docs/design/LLM-PROVIDERS.md` should be the source of truth for this!)
 
 ```yaml
 # .sidekick/llm.yaml (task-specific settings)
@@ -419,6 +419,6 @@ llm:
 | -------- | ---------- |
 | Snarky commentary: separate feature? | **No**. Side-effect of `UpdateSessionSummary`. Config toggle: `snarkyMessages`. |
 | Sleeper process? | **Removed**. Supervisor handles scheduled/delayed tasks if needed. |
-| Dual-Registration Pattern | Per **LLD-CORE-RUNTIME.md §6.10**: Use role discriminant (`context.role === 'supervisor'`). See §2.5. |
+| Dual-Registration Pattern | Per **docs/design/CORE-RUNTIME.md §6.10**: Use role discriminant (`context.role === 'supervisor'`). See §2.5. |
 | Resume message trigger | **LLM-based pivot detection**. Summary LLM returns `pivot_detected: boolean`. Replaces heuristic distance calculations. See §3.2.4. |
 | Snarky message: single or separate LLM call? | **Separate LLM call** with its own provider/model/temperature config. Allows creative model for snark, fast model for summary. See §3.2.3, §3.2.4. |

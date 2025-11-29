@@ -13,7 +13,7 @@
  * - Test runs without real API calls (fully mocked)
  * - Test demonstrates RuntimeContext wiring (config → provider → service → feature)
  *
- * @see TARGET-IMPLEMENTATION-PLAN.md Phase 4 Final Integration Task
+ * @see docs/ROADMAP.md Phase 4 Final Integration Task
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'

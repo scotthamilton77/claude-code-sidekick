@@ -1,7 +1,7 @@
 /**
  * Configuration Service Module
  *
- * Implements Phase 2 of the Sidekick Node runtime per LLD-CONFIG-SYSTEM.md.
+ * Implements Phase 2 of the Sidekick Node runtime per docs/design/CONFIG-SYSTEM.md.
  *
  * Provides a multi-layer configuration cascade with:
  * - Environment variables (SIDEKICK_* prefixed)
@@ -16,9 +16,9 @@
  * - Config immutability after loading (Object.freeze per §2)
  * - Sensible defaults applied via Zod transforms
  *
- * @see LLD-CONFIG-SYSTEM.md
- * @see LLD-SCHEMA-CONTRACTS.md §6.4 (strict mode)
- * @see TARGET-ARCHITECTURE.md §3.3 Configuration Cascade
+ * @see docs/design/CONFIG-SYSTEM.md
+ * @see docs/design/SCHEMA-CONTRACTS.md §6.4 (strict mode)
+ * @see docs/ARCHITECTURE.md §3.3 Configuration Cascade
  */
 
 import { config as loadDotenv } from 'dotenv'
@@ -34,7 +34,7 @@ import { z } from 'zod/v4'
 
 /**
  * Recursively freezes an object and all nested objects/arrays.
- * Per LLD-CONFIG-SYSTEM §2: Config object is immutable after loading.
+ * Per design/CONFIG-SYSTEM.md §2: Config object is immutable after loading.
  */
 function deepFreeze<T>(obj: T): T {
   if (obj === null || typeof obj !== 'object') {
@@ -127,7 +127,7 @@ const SUPERVISOR_DEFAULTS = {
   shutdownTimeoutMs: 30 * 1000, // 30 seconds
 } as const
 
-// Per LLD-SCHEMA-CONTRACTS §6.4: Use .strict() to reject unknown config keys
+// Per design/SCHEMA-CONTRACTS.md §6.4: Use .strict() to reject unknown config keys
 const FeaturesSchema = z
   .object({
     statusline: z.boolean().optional(),
@@ -420,7 +420,7 @@ export function loadConfig(options: ConfigServiceOptions): SidekickConfig {
     throw new Error(`Configuration validation failed: ${issues}`)
   }
 
-  // Step 5: Freeze config for immutability (per LLD-CONFIG-SYSTEM §2)
+  // Step 5: Freeze config for immutability (per design/CONFIG-SYSTEM.md §2)
   return deepFreeze(result.data)
 }
 

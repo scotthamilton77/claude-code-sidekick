@@ -4,7 +4,7 @@
 
 This document details the design for the observability stack in Sidekick. The system uses **structured logging** (JSON) as the primary mechanism for both debug logs and telemetry (metrics), enabling a unified stream for debugging, performance analysis, and usage tracking.
 
-This document aligns with and extends `LLD-flow.md`, which defines the canonical event model and hook flows.
+This document aligns with and extends `docs/design/flow.md`, which defines the canonical event model and hook flows.
 
 ## 2. Architecture
 
@@ -56,9 +56,9 @@ graph TD
 
 ## 3. Event Schema
 
-All Sidekick events conform to the `SidekickEvent` schema defined in `LLD-flow.md`. This section describes how events are serialized for logging.
+All Sidekick events conform to the `SidekickEvent` schema defined in `docs/design/flow.md`. This section describes how events are serialized for logging.
 
-### 3.1 SidekickEvent Schema (from LLD-flow.md)
+### 3.1 SidekickEvent Schema (from docs/design/flow.md)
 
 ```typescript
 interface SidekickEvent {
@@ -81,7 +81,7 @@ interface SidekickEvent {
 }
 ```
 
-### 3.2 Event Types (from LLD-flow.md)
+### 3.2 Event Types (from docs/design/flow.md)
 
 | Type                | Source                 | Examples                                               | Behavior                    |
 | ------------------- | ---------------------- | ------------------------------------------------------ | --------------------------- |

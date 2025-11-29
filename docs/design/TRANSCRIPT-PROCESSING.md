@@ -8,16 +8,16 @@ The Transcript Processing subsystem is responsible for reading, parsing, normali
 
 1. **Transcript Parsing**: Reading and normalizing transcript files into canonical events
 2. **Metrics Ownership**: Single source of truth for transcript-derived metrics (turn count, tool count, tokens)
-3. **Event Emission**: Emitting transcript events into the unified event queue (see **LLD-flow.md**)
+3. **Event Emission**: Emitting transcript events into the unified event queue (see **docs/design/flow.md**)
 4. **Compaction History**: Managing pre-compact snapshots for Monitoring UI time-travel
 
 This subsystem resides within `sidekick-core` and exposes a high-level API for interacting with transcripts, abstracting away the underlying file formats and provider-specific idiosyncrasies.
 
 ### 1.1 Related Documents
 
-- **LLD-flow.md**: Defines `TranscriptEvent` schema and event dispatch model
-- **LLD-SUPERVISOR.md**: TranscriptService integration with Supervisor
-- **LLD-MONITORING-UI.md**: Compaction timeline visualization
+- **docs/design/flow.md**: Defines `TranscriptEvent` schema and event dispatch model
+- **docs/design/SUPERVISOR.md**: TranscriptService integration with Supervisor
+- **packages/sidekick-ui/docs/MONITORING-UI.md**: Compaction timeline visualization
 
 ## 2. Architecture
 
@@ -353,7 +353,7 @@ interface CompactionEntry {
 
 ## 5. Event Emission
 
-TranscriptService emits transcript events into the Supervisor's unified event queue (per **LLD-flow.md §3.2**).
+TranscriptService emits transcript events into the Supervisor's unified event queue (per **docs/design/flow.md §3.2**).
 
 ### 5.1 Event Types Emitted
 
@@ -447,7 +447,7 @@ Note: We explicitly **do not** maintain a strict Zod schema for the raw input fi
 
 ### 6.4 Monitoring UI Integration
 
-The `TranscriptScrubber` emits **Entity-Lifecycle events** (see `LLD-STRUCTURED-LOGGING.md`) for the `transcript` entity:
+The `TranscriptScrubber` emits **Entity-Lifecycle events** (see `docs/design/STRUCTURED-LOGGING.md`) for the `transcript` entity:
 
 ```json
 // Initial normalization complete
