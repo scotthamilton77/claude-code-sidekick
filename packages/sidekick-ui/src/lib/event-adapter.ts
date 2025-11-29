@@ -1,0 +1,372 @@
+/**
+ * Event Adapter
+ *
+ * Converts SidekickEvent and ParsedLogRecord to UIEvent for display.
+ * Handles mapping between canonical event schema and UI presentation types.
+ *
+ * @see src/types/index.ts for type definitions
+ * @see docs/design/flow.md §3.2 Event Schema
+ */
+
+import type { SidekickEvent, HookEvent, TranscriptEvent } from '@sidekick/types'
+import type { UIEvent, UIEventType } from '../types'
+import { isHookEvent, isTranscriptEvent } from '../types'
+import type { ParsedLogRecord, LogSource } from './log-parser'
+
+// ============================================================================
+// Event Kind Detection
+// ============================================================================
+
+/**
+ * Event kind for badge display.
+ * Derived from SidekickEvent.kind plus internal events.
+ */
+export type EventKind = 'hook' | 'transcript' | 'internal'
+
+/**
+ * Determine the event kind from a ParsedLogRecord.
+ * Returns 'internal' for non-hook/non-transcript events (e.g., SummaryUpdated).
+ */
+export function getEventKind(record: ParsedLogRecord): EventKind {
+  if (record.event) {
+    return record.event.kind === 'hook' ? 'hook' : 'transcript'
+  }
+
+  // Internal events are logged without full SidekickEvent structure
+  const internalTypes = new Set([
+    'SummaryUpdated',
+    'ReminderStaged',
+    'ReminderConsumed',
+    'RemindersCleared',
+    'ContextPruned',
+    'HandlerExecuted',
+  ])
+
+  if (record.type && internalTypes.has(record.type)) {
+    return 'internal'
+  }
+
+  // Default based on source
+  return record.source === 'supervisor' ? 'internal' : 'hook'
+}
+
+// ============================================================================
+// UIEventType Mapping
+// ============================================================================
+
+/**
+ * Map a HookEvent to UIEventType.
+ */
+function hookEventToUIType(event: HookEvent): UIEventType {
+  switch (event.hook) {
+    case 'SessionStart':
+    case 'SessionEnd':
+      return 'session'
+    case 'UserPromptSubmit':
+      return 'user'
+    case 'PreToolUse':
+    case 'PostToolUse':
+      return 'tool'
+    case 'Stop':
+      return 'reminder' // Stop hook is often reminder-related
+    case 'PreCompact':
+      return 'decision'
+    default:
+      return 'state'
+  }
+}
+
+/**
+ * Map a TranscriptEvent to UIEventType.
+ */
+function transcriptEventToUIType(event: TranscriptEvent): UIEventType {
+  switch (event.eventType) {
+    case 'UserPrompt':
+      return 'user'
+    case 'AssistantMessage':
+      return 'assistant'
+    case 'ToolCall':
+    case 'ToolResult':
+      return 'tool'
+    case 'Compact':
+      return 'decision'
+    default:
+      return 'state'
+  }
+}
+
+/**
+ * Map a ParsedLogRecord type to UIEventType.
+ * Used for internal events that don't have SidekickEvent.
+ */
+function logRecordTypeToUIType(recordType: string | undefined): UIEventType {
+  switch (recordType) {
+    case 'SummaryUpdated':
+      return 'state'
+    case 'ReminderStaged':
+    case 'ReminderConsumed':
+    case 'RemindersCleared':
+      return 'reminder'
+    case 'ContextPruned':
+      return 'decision'
+    case 'HandlerExecuted':
+      return 'state'
+    case 'HookReceived':
+    case 'HookCompleted':
+      return 'session'
+    default:
+      return 'state'
+  }
+}
+
+// ============================================================================
+// Label Generation
+// ============================================================================
+
+/**
+ * Generate a display label for a HookEvent.
+ */
+function hookEventToLabel(event: HookEvent): string {
+  switch (event.hook) {
+    case 'SessionStart':
+      return 'Session Start'
+    case 'SessionEnd':
+      return 'Session End'
+    case 'UserPromptSubmit':
+      return 'User message'
+    case 'PreToolUse':
+      return `Tool: ${(event.payload as { toolName?: string }).toolName ?? 'unknown'}`
+    case 'PostToolUse':
+      return `Tool completed: ${(event.payload as { toolName?: string }).toolName ?? 'unknown'}`
+    case 'Stop':
+      return 'Stop hook'
+    case 'PreCompact':
+      return 'Pre-compact'
+  }
+  // Exhaustive check - this line is unreachable but handles future hook types
+  const _exhaustive: never = event
+  return (_exhaustive as HookEvent).hook
+}
+
+/**
+ * Generate a display label for a TranscriptEvent.
+ */
+function transcriptEventToLabel(event: TranscriptEvent): string {
+  switch (event.eventType) {
+    case 'UserPrompt':
+      return 'User message'
+    case 'AssistantMessage':
+      return 'Claude response'
+    case 'ToolCall':
+      return event.payload.toolName ? `Tool: ${event.payload.toolName}` : 'Tool call'
+    case 'ToolResult':
+      return event.payload.toolName ? `Result: ${event.payload.toolName}` : 'Tool result'
+    case 'Compact':
+      return 'Compact'
+    default:
+      return event.eventType
+  }
+}
+
+/**
+ * Generate a display label for a ParsedLogRecord.
+ */
+function logRecordToLabel(record: ParsedLogRecord): string {
+  if (record.event) {
+    if (isHookEvent(record.event)) {
+      return hookEventToLabel(record.event)
+    }
+    if (isTranscriptEvent(record.event)) {
+      return transcriptEventToLabel(record.event)
+    }
+  }
+
+  // Internal event labels
+  switch (record.type) {
+    case 'SummaryUpdated':
+      return 'Summary Updated'
+    case 'ReminderStaged':
+      return 'Reminder Staged'
+    case 'ReminderConsumed':
+      return 'Reminder Consumed'
+    case 'RemindersCleared':
+      return 'Reminders Cleared'
+    case 'ContextPruned':
+      return 'Prune Context'
+    case 'HandlerExecuted':
+      return 'Handler Executed'
+    case 'HookReceived':
+      return `Hook: ${(record.context?.hook as string) ?? 'unknown'}`
+    case 'HookCompleted':
+      return 'Hook Completed'
+    default:
+      return record.pino.msg ?? record.type ?? 'Event'
+  }
+}
+
+// ============================================================================
+// Content Extraction
+// ============================================================================
+
+/**
+ * Extract display content from a HookEvent.
+ */
+function hookEventToContent(event: HookEvent): string | undefined {
+  switch (event.hook) {
+    case 'SessionStart': {
+      const payload = event.payload as { startType?: string }
+      return `Session started (${payload.startType ?? 'unknown'})`
+    }
+    case 'SessionEnd': {
+      const payload = event.payload as { endReason?: string }
+      return `Session ended (${payload.endReason ?? 'unknown'})`
+    }
+    case 'UserPromptSubmit': {
+      const payload = event.payload as { prompt?: string }
+      return payload.prompt
+    }
+    case 'PreToolUse':
+    case 'PostToolUse': {
+      const payload = event.payload as { toolInput?: Record<string, unknown> }
+      if (payload.toolInput) {
+        // Summarize tool input
+        const keys = Object.keys(payload.toolInput)
+        return keys.length > 0 ? `Input: ${keys.join(', ')}` : undefined
+      }
+      return undefined
+    }
+    default:
+      return undefined
+  }
+}
+
+/**
+ * Extract display content from a TranscriptEvent.
+ */
+function transcriptEventToContent(event: TranscriptEvent): string | undefined {
+  return event.payload.content
+}
+
+/**
+ * Extract display content from a ParsedLogRecord.
+ */
+function logRecordToContent(record: ParsedLogRecord): string | undefined {
+  if (record.event) {
+    if (isHookEvent(record.event)) {
+      return hookEventToContent(record.event)
+    }
+    if (isTranscriptEvent(record.event)) {
+      return transcriptEventToContent(record.event)
+    }
+  }
+
+  // For internal events, use msg or summarize payload
+  if (record.pino.msg) {
+    return record.pino.msg
+  }
+
+  if (record.payload) {
+    // Summarize payload
+    const keys = Object.keys(record.payload)
+    if (keys.length > 0) {
+      return `${keys.slice(0, 3).join(', ')}${keys.length > 3 ? '...' : ''}`
+    }
+  }
+
+  return undefined
+}
+
+// ============================================================================
+// Time Formatting
+// ============================================================================
+
+/**
+ * Format a Unix timestamp to HH:MM:SS.
+ */
+export function formatTime(timestamp: number): string {
+  const date = new Date(timestamp)
+  return date.toLocaleTimeString('en-US', {
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+}
+
+// ============================================================================
+// Main Adapter Functions
+// ============================================================================
+
+/**
+ * Convert a SidekickEvent to UIEvent.
+ *
+ * @param event - Canonical SidekickEvent
+ * @param id - Sequential ID for timeline positioning
+ * @param source - Optional source component override
+ * @returns UIEvent for display
+ */
+export function sidekickEventToUIEvent(event: SidekickEvent, id: number, source?: LogSource): UIEvent {
+  const isHook = isHookEvent(event)
+
+  const uiEvent: UIEvent = {
+    id,
+    time: formatTime(event.context.timestamp),
+    type: isHook ? hookEventToUIType(event) : transcriptEventToUIType(event),
+    label: isHook ? hookEventToLabel(event) : transcriptEventToLabel(event),
+    content: isHook ? hookEventToContent(event) : transcriptEventToContent(event),
+    source: source ?? (isHook ? 'cli' : 'supervisor'),
+    rawEvent: event,
+  }
+
+  return uiEvent
+}
+
+/**
+ * Convert a ParsedLogRecord to UIEvent.
+ * Handles both records with embedded SidekickEvent and internal events.
+ *
+ * @param record - Parsed log record
+ * @param id - Sequential ID for timeline positioning
+ * @returns UIEvent for display
+ */
+export function logRecordToUIEvent(record: ParsedLogRecord, id: number): UIEvent {
+  // If record has a SidekickEvent, use that for conversion
+  if (record.event) {
+    return sidekickEventToUIEvent(record.event, id, record.source)
+  }
+
+  // Otherwise, convert the log record directly
+  const uiEvent: UIEvent = {
+    id,
+    time: formatTime(record.pino.time),
+    type: logRecordTypeToUIType(record.type),
+    label: logRecordToLabel(record),
+    content: logRecordToContent(record),
+    source: record.source,
+  }
+
+  return uiEvent
+}
+
+/**
+ * Convert an array of ParsedLogRecords to UIEvents.
+ * Assigns sequential IDs starting from 0.
+ *
+ * @param records - Array of parsed log records
+ * @returns Array of UIEvents
+ */
+export function logRecordsToUIEvents(records: ParsedLogRecord[]): UIEvent[] {
+  return records.map((record, index) => logRecordToUIEvent(record, index))
+}
+
+/**
+ * Convert an array of SidekickEvents to UIEvents.
+ * Assigns sequential IDs starting from 0.
+ *
+ * @param events - Array of SidekickEvents
+ * @param source - Optional source component override
+ * @returns Array of UIEvents
+ */
+export function sidekickEventsToUIEvents(events: SidekickEvent[], source?: LogSource): UIEvent[] {
+  return events.map((event, index) => sidekickEventToUIEvent(event, index, source))
+}

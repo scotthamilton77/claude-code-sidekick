@@ -11,6 +11,97 @@ interface TranscriptProps {
   onFilterChange: (type: string) => void
 }
 
+/**
+ * Badge showing event kind (hook/transcript/internal).
+ * Derived from the rawEvent or inferred from source/type.
+ */
+const EventKindBadge: React.FC<{ event: UIEvent; isFuture: boolean }> = ({ event, isFuture }) => {
+  // Determine event kind from rawEvent or infer
+  let kind: 'hook' | 'transcript' | 'internal' = 'internal'
+
+  if (event.rawEvent) {
+    kind = event.rawEvent.kind === 'hook' ? 'hook' : 'transcript'
+  } else if (event.source === 'cli') {
+    // CLI events without rawEvent are typically hook-related
+    kind = 'hook'
+  }
+
+  const styles = {
+    hook: {
+      bg: isFuture ? 'bg-slate-100' : 'bg-blue-50',
+      text: isFuture ? 'text-slate-400' : 'text-blue-600',
+      border: isFuture ? 'border-slate-200' : 'border-blue-200',
+    },
+    transcript: {
+      bg: isFuture ? 'bg-slate-100' : 'bg-emerald-50',
+      text: isFuture ? 'text-slate-400' : 'text-emerald-600',
+      border: isFuture ? 'border-slate-200' : 'border-emerald-200',
+    },
+    internal: {
+      bg: isFuture ? 'bg-slate-100' : 'bg-violet-50',
+      text: isFuture ? 'text-slate-400' : 'text-violet-600',
+      border: isFuture ? 'border-slate-200' : 'border-violet-200',
+    },
+  }
+
+  const style = styles[kind]
+  const label = kind.charAt(0).toUpperCase() + kind.slice(1)
+
+  return (
+    <span
+      className={`inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded border ${style.bg} ${style.text} ${style.border}`}
+    >
+      {label}
+    </span>
+  )
+}
+
+/**
+ * Badge showing event source (cli/supervisor).
+ */
+const SourceBadge: React.FC<{ source?: 'cli' | 'supervisor'; isFuture: boolean }> = ({ source, isFuture }) => {
+  if (!source) return null
+
+  const styles = {
+    cli: {
+      bg: isFuture ? 'bg-slate-100' : 'bg-orange-50',
+      text: isFuture ? 'text-slate-400' : 'text-orange-600',
+      border: isFuture ? 'border-slate-200' : 'border-orange-200',
+      icon: 'terminal' as const,
+    },
+    supervisor: {
+      bg: isFuture ? 'bg-slate-100' : 'bg-indigo-50',
+      text: isFuture ? 'text-slate-400' : 'text-indigo-600',
+      border: isFuture ? 'border-slate-200' : 'border-indigo-200',
+      icon: 'server' as const,
+    },
+  }
+
+  const style = styles[source]
+  const label = source === 'cli' ? 'CLI' : 'Supervisor'
+
+  return (
+    <span
+      className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium rounded border ${style.bg} ${style.text} ${style.border}`}
+    >
+      <Icon name={style.icon} className="w-2.5 h-2.5" />
+      {label}
+    </span>
+  )
+}
+
+/**
+ * Combined badge group for event metadata.
+ */
+const EventBadges: React.FC<{ event: UIEvent; isFuture: boolean }> = ({ event, isFuture }) => {
+  return (
+    <div className="flex items-center gap-1">
+      <EventKindBadge event={event} isFuture={isFuture} />
+      <SourceBadge source={event.source} isFuture={isFuture} />
+    </div>
+  )
+}
+
 const Transcript: React.FC<TranscriptProps> = ({
   filteredEvents,
   currentEventId,
@@ -96,11 +187,12 @@ const Transcript: React.FC<TranscriptProps> = ({
                     <Icon name="user" className={`w-4 h-4 ${isFuture ? 'text-slate-400' : 'text-blue-600'}`} />
                   </div>
                   <div className="flex-1">
-                    <div className="flex items-baseline gap-2 mb-1">
+                    <div className="flex items-baseline gap-2 mb-1 flex-wrap">
                       <span className={`text-sm font-medium ${isFuture ? 'text-slate-400' : 'text-blue-600'}`}>
                         You
                       </span>
                       <span className="text-xs text-slate-400">{event.time}</span>
+                      <EventBadges event={event} isFuture={isFuture} />
                     </div>
                     <div
                       className={`rounded-lg rounded-tl-sm px-4 py-3 shadow-sm ${
@@ -124,11 +216,12 @@ const Transcript: React.FC<TranscriptProps> = ({
                     <Icon name="bot" className={`w-4 h-4 ${isFuture ? 'text-slate-400' : 'text-emerald-600'}`} />
                   </div>
                   <div className="flex-1">
-                    <div className="flex items-baseline gap-2 mb-1">
+                    <div className="flex items-baseline gap-2 mb-1 flex-wrap">
                       <span className={`text-sm font-medium ${isFuture ? 'text-slate-400' : 'text-emerald-600'}`}>
                         Claude
                       </span>
                       <span className="text-xs text-slate-400">{event.time}</span>
+                      <EventBadges event={event} isFuture={isFuture} />
                       {event.branch && event.branch !== 'main' && !isFuture && (
                         <span className="text-xs text-slate-400 flex items-center gap-1">
                           <Icon name="git-branch" className="w-3 h-3" />
@@ -157,16 +250,19 @@ const Transcript: React.FC<TranscriptProps> = ({
                       isFuture ? 'bg-slate-100 border border-slate-200' : 'bg-cyan-50 border border-cyan-200'
                     }`}
                   >
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <Icon name="wrench" className={`w-4 h-4 ${isFuture ? 'text-slate-400' : 'text-cyan-600'}`} />
                       <span className={`text-sm font-medium ${isFuture ? 'text-slate-500' : 'text-cyan-700'}`}>
                         {event.label}
                       </span>
-                      <span className={`text-xs ${isFuture ? 'text-slate-400' : 'text-cyan-600'}`}>
-                        {event.content}
+                      <EventBadges event={event} isFuture={isFuture} />
+                      <span className={`text-xs ${isFuture ? 'text-slate-400' : 'text-cyan-600'} ml-auto`}>
+                        {event.time}
                       </span>
-                      <span className="text-xs text-slate-400 ml-auto">{event.time}</span>
                     </div>
+                    {event.content && (
+                      <p className={`text-xs mt-1 ${isFuture ? 'text-slate-400' : 'text-cyan-600'}`}>{event.content}</p>
+                    )}
                   </div>
                 </div>
               )}
@@ -186,11 +282,16 @@ const Transcript: React.FC<TranscriptProps> = ({
                       isFuture ? 'bg-slate-100 border border-slate-200' : 'bg-amber-50 border border-amber-200'
                     }`}
                   >
-                    <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
                       <span className={`text-sm font-medium ${isFuture ? 'text-slate-500' : 'text-amber-700'}`}>
                         Decision: {event.label}
                       </span>
-                      <span className={`text-xs ${isFuture ? 'text-slate-400' : 'text-amber-600'}`}>{event.time}</span>
+                      <div className="flex items-center gap-2">
+                        <EventBadges event={event} isFuture={isFuture} />
+                        <span className={`text-xs ${isFuture ? 'text-slate-400' : 'text-amber-600'}`}>
+                          {event.time}
+                        </span>
+                      </div>
                     </div>
                     <p className={`text-sm ${isFuture ? 'text-slate-500' : 'text-amber-800'}`}>{event.content}</p>
                   </div>
@@ -212,11 +313,16 @@ const Transcript: React.FC<TranscriptProps> = ({
                       isFuture ? 'bg-slate-100 border border-slate-200' : 'bg-purple-50 border border-purple-200'
                     }`}
                   >
-                    <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
                       <span className={`text-sm font-medium ${isFuture ? 'text-slate-500' : 'text-purple-700'}`}>
                         State: {event.label}
                       </span>
-                      <span className={`text-xs ${isFuture ? 'text-slate-400' : 'text-purple-600'}`}>{event.time}</span>
+                      <div className="flex items-center gap-2">
+                        <EventBadges event={event} isFuture={isFuture} />
+                        <span className={`text-xs ${isFuture ? 'text-slate-400' : 'text-purple-600'}`}>
+                          {event.time}
+                        </span>
+                      </div>
                     </div>
                     <p className={`text-sm font-mono ${isFuture ? 'text-slate-500' : 'text-purple-800'}`}>
                       {event.content}
@@ -243,11 +349,14 @@ const Transcript: React.FC<TranscriptProps> = ({
                       isFuture ? 'bg-slate-100 border border-slate-200' : 'bg-rose-50 border border-rose-200'
                     }`}
                   >
-                    <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
                       <span className={`text-sm font-medium ${isFuture ? 'text-slate-500' : 'text-rose-700'}`}>
                         Reminder: {event.label}
                       </span>
-                      <span className={`text-xs ${isFuture ? 'text-slate-400' : 'text-rose-600'}`}>{event.time}</span>
+                      <div className="flex items-center gap-2">
+                        <EventBadges event={event} isFuture={isFuture} />
+                        <span className={`text-xs ${isFuture ? 'text-slate-400' : 'text-rose-600'}`}>{event.time}</span>
+                      </div>
                     </div>
                     <p className={`text-sm ${isFuture ? 'text-slate-500' : 'text-rose-800'}`}>{event.content}</p>
                   </div>
@@ -263,6 +372,7 @@ const Transcript: React.FC<TranscriptProps> = ({
                   <Icon name="play" className="w-3 h-3" />
                   <span>Session started</span>
                   <span className="text-xs text-slate-400">{event.time}</span>
+                  <EventBadges event={event} isFuture={isFuture} />
                   <div className="flex-1 h-px bg-slate-200" />
                 </div>
               )}

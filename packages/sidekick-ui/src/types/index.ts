@@ -35,18 +35,47 @@ export type {
   TranscriptMetrics,
 } from '@sidekick/types'
 
-// Re-export type guards for runtime discrimination
-export {
-  isHookEvent,
-  isTranscriptEvent,
-  isSessionStartEvent,
-  isSessionEndEvent,
-  isUserPromptSubmitEvent,
-  isPreToolUseEvent,
-  isPostToolUseEvent,
-  isStopEvent,
-  isPreCompactEvent,
-} from '@sidekick/types'
+// Local type guards for runtime discrimination
+// (Implemented locally to avoid ESM/CommonJS interop issues with Vite)
+import type { SidekickEvent, HookEvent, TranscriptEvent } from '@sidekick/types'
+
+export function isHookEvent(event: SidekickEvent): event is HookEvent {
+  return event.kind === 'hook'
+}
+
+export function isTranscriptEvent(event: SidekickEvent): event is TranscriptEvent {
+  return event.kind === 'transcript'
+}
+
+export function isSessionStartEvent(event: HookEvent): event is import('@sidekick/types').SessionStartHookEvent {
+  return event.hook === 'SessionStart'
+}
+
+export function isSessionEndEvent(event: HookEvent): event is import('@sidekick/types').SessionEndHookEvent {
+  return event.hook === 'SessionEnd'
+}
+
+export function isUserPromptSubmitEvent(
+  event: HookEvent
+): event is import('@sidekick/types').UserPromptSubmitHookEvent {
+  return event.hook === 'UserPromptSubmit'
+}
+
+export function isPreToolUseEvent(event: HookEvent): event is import('@sidekick/types').PreToolUseHookEvent {
+  return event.hook === 'PreToolUse'
+}
+
+export function isPostToolUseEvent(event: HookEvent): event is import('@sidekick/types').PostToolUseHookEvent {
+  return event.hook === 'PostToolUse'
+}
+
+export function isStopEvent(event: HookEvent): event is import('@sidekick/types').StopHookEvent {
+  return event.hook === 'Stop'
+}
+
+export function isPreCompactEvent(event: HookEvent): event is import('@sidekick/types').PreCompactHookEvent {
+  return event.hook === 'PreCompact'
+}
 
 // ============================================================================
 // UI-Specific Types
