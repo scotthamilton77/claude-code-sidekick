@@ -28,6 +28,46 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [ ] Startup logs show the parsed hook context and do not crash when optional supervisor endpoints are absent.
     - [ ] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
 
+- [ ] **Phase 1.5: UI Foundation** (can start immediately, parallel to Phase 1 alignment)
+  - [ ] Objectives
+    - [ ] Align UI types with `SidekickEvent` schema from LLD-flow.md
+    - [ ] Build log parsing infrastructure (NDJSON reader, sessionId filtering)
+    - [ ] Create Replay Engine core (state reconstruction from events)
+  - [ ] Relevant documents/sections
+    - [ ] `{project_root_dir}/packages/sidekick-ui/docs/LLD-MONITORING-UI.md` (§2 Architecture, §3.2 Time Travel, §4 Data Sources)
+    - [ ] `{project_root_dir}/LLD-flow.md` (§3.2 Event Schema)
+    - [ ] `{project_root_dir}/LLD-STRUCTURED-LOGGING.md` (§3 Event Schema)
+  - [ ] **1.5.1 Type Alignment**
+    - [ ] Add `SidekickEvent` discriminated union to `@sidekick/types` (share with UI)
+    - [ ] Add `HookEvent`, `TranscriptEvent`, `InternalEvent` interfaces
+    - [ ] Add `EventContext`, `TranscriptMetrics` types
+    - [ ] Export types from `@sidekick/types` for UI consumption
+    - [ ] Update `@sidekick/ui` to import shared types (remove duplicate definitions from `mockData.ts`)
+  - [ ] **1.5.2 Log Parsing Infrastructure** (`@sidekick/ui`)
+    - [ ] NDJSON line parser with streaming support
+    - [ ] Session filter: `filterBySessionId(events, sessionId)`
+    - [ ] Log merger: `mergeLogStreams(cliLog, supervisorLog)` by timestamp
+    - [ ] Event type guards: `isHookEvent()`, `isTranscriptEvent()`
+  - [ ] **1.5.3 Replay Engine Core** (`@sidekick/ui`)
+    - [ ] State reconstructor: build timeline from event sequence
+    - [ ] Time travel store: `getStateAt(timestamp)` API
+    - [ ] Diff calculator: compute state deltas between snapshots
+  - [ ] **1.5.4 UI Component Updates**
+    - [ ] Update mock data to use `SidekickEvent` schema
+    - [ ] Add event type badges (hook vs transcript vs internal)
+    - [ ] Add `source` indicator (cli vs supervisor)
+  - [ ] Testing
+    - [ ] Log parser tests with sample NDJSON files in `test-data/`
+    - [ ] Event merge tests (proper timestamp ordering)
+    - [ ] State reconstruction tests (known event sequence → expected state)
+    - [ ] Type guard tests for event discrimination
+  - [ ] Acceptance criteria
+    - [ ] UI can load sample log files and display events in timeline
+    - [ ] Time travel slider reconstructs state at any point
+    - [ ] Events filtered correctly by sessionId
+    - [ ] Shared types used by both UI and backend packages
+  - [ ] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
+
 - [x] **Phase 2: Configuration & Asset Resolution Foundations**
   - [x] Objectives
     - [x] Implement the configuration cascade (env + config files) with deep-merge semantics and validation.
@@ -104,6 +144,15 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
       - [ ] ContextLogger deep-merge tests
       - [ ] Event type logging tests (HookReceived, etc.)
     - [ ] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
+  - [ ] **UI Integration (Phase 3)**
+    - [ ] Wire UI to read `.sidekick/logs/cli.log` and `supervisor.log` (per LLD-MONITORING-UI.md §2.2)
+    - [ ] Add file polling for "Live Mode" (follow new events in real-time)
+    - [ ] Display `source: 'cli' | 'supervisor'` badge on events in stream
+    - [ ] Implement search/filter UI per LLD-MONITORING-UI.md §5.2:
+      - [ ] `kind:hook`, `kind:transcript` filtering
+      - [ ] `type:ReminderStaged`, `type:SummaryUpdated` filtering
+      - [ ] `hook:UserPromptSubmit`, `hook:PreToolUse` filtering
+    - [ ] Testing: File reading tests, filter query parsing tests
 
 - [x] **Phase 4: Core Services & Providers**
   - [x] Objectives
@@ -184,6 +233,18 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
       - [ ] TranscriptService file watching tests (incremental processing, compaction detection)
       - [ ] StagingService atomic write tests
     - [ ] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
+  - [ ] **UI Integration (Phase 4)**
+    - [ ] Display `TranscriptMetrics` in State Inspector panel (per LLD-MONITORING-UI.md §4.2)
+      - [ ] `turnCount`, `toolsThisTurn`, `toolCount`, `messageCount`
+      - [ ] `tokenUsage` (input, output, total)
+      - [ ] `toolsPerTurn` derived ratio
+    - [ ] Show metrics sparklines (turnCount, toolCount evolution over time)
+    - [ ] Implement Compaction Timeline (per LLD-MONITORING-UI.md §3.1):
+      - [ ] Read `.sidekick/sessions/{sessionId}/state/compaction-history.json`
+      - [ ] Display compaction markers (scissors icon) on timeline
+      - [ ] Segment navigation between pre-compact and post-compact transcript
+      - [ ] Pre-compact snapshot viewer on marker click
+    - [ ] Testing: Metrics display tests, compaction timeline navigation tests
 
 - [x] **Phase 5: Supervisor & Background Tasks** - COMPLETE
   - [x] Objectives
@@ -408,6 +469,18 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
       - [ ] Staging directory management tests (create, clean on SessionStart)
       - [ ] Supervisor log file isolation tests
     - [ ] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
+  - [ ] **UI Integration (Phase 5)**
+    - [ ] System Health dashboard (per LLD-MONITORING-UI.md §3.2.E)
+      - [ ] Read `.sidekick/state/supervisor-status.json` for health metrics
+      - [ ] Display: Uptime, Memory Usage (Heap/RSS), Queue Depth, Active Tasks
+      - [ ] Memory/queue sparklines for trend visualization
+    - [ ] Offline detection:
+      - [ ] Poll file mtime; if > 30s old, show "Supervisor Offline" state
+      - [ ] Red/grey badge with last-known timestamp
+    - [ ] Session state files (per LLD-MONITORING-UI.md §2.2):
+      - [ ] Read `.sidekick/sessions/{sessionId}/state/*.json`
+      - [ ] Read staged reminders from `.sidekick/sessions/{sessionId}/stage/{hookName}/*.json`
+    - [ ] Testing: Health dashboard tests, offline detection tests
 
 - [ ] **Phase 6: Feature Enablement & Integration**
   - [ ] Objectives
@@ -460,6 +533,21 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [ ] Staging/consumption separation: Supervisor handles staging, CLI handles consumption
     - [ ] Dual-scope parity verified: features behave identically in user and project contexts
     - [ ] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
+  - [ ] **UI Integration (Phase 6)**
+    - [ ] Reminder event visualization (per LLD-MONITORING-UI.md §4.1):
+      - [ ] `ReminderStaged` cards with name, priority, blocking status
+      - [ ] `ReminderConsumed` cards showing which reminder was returned
+      - [ ] `RemindersCleared` events on SessionStart
+    - [ ] Session summary event cards:
+      - [ ] `SummaryUpdated` with state diff and reason (cadence_met, title_change, etc.)
+      - [ ] Expandable payload view for full summary state
+    - [ ] Decision Log view (per LLD-MONITORING-UI.md §3.2.D):
+      - [ ] Filtered view of decision events (Summary, Reminder, Context Prune)
+      - [ ] Show system reasoning chain
+    - [ ] End-to-end flow visualization:
+      - [ ] Trace `UserPromptSubmit` → `HandlerExecuted` → `SummaryUpdated` → `ReminderConsumed`
+      - [ ] Use `context.traceId` to link causally-related events
+    - [ ] Testing: Event card rendering tests, decision log filter tests, trace correlation tests
 
 - [ ] **Phase 7: Feature Parity and Legacy Cleanup**
   - [ ] Objectives
