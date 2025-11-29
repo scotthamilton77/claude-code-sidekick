@@ -1,13 +1,15 @@
 # /optimize-claude-md
 
-Analyze and optimize a CLAUDE.md file to maximize AI efficacy while minimizing token cost. Remove redundant information, strengthen actionable directives, and ensure proper hierarchy alignment.
+Analyze and optimize a CLAUDE.md (and/or AGENTS.md) file to maximize AI efficacy while minimizing token cost. Remove redundant information, strengthen actionable directives, and ensure proper hierarchy alignment.
 
 ## Usage
 ```
-/optimize-claude-md [path/to/CLAUDE.md]
+/optimize-claude-md [path/to/CLAUDE.md or AGENTS.md]
 ```
 
 ## Process
+
+For the following steps, wherever you see CLAUDE.md, substitute AGENTS.md if the user has indicated that is the target for optimization.
 
 ### 1. Inventory & Context Analysis
 - Read target CLAUDE.md file
