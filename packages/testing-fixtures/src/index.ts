@@ -22,6 +22,9 @@ export { MockConfigService } from './mocks/MockConfigService'
 
 export { MockAssetResolver } from './mocks/MockAssetResolver'
 
+export { MockHandlerRegistry } from './mocks/MockHandlerRegistry'
+export type { RegisteredHandler } from './mocks/MockHandlerRegistry'
+
 // Factories
 export { createMockContext } from './factories/context.factory'
 export type { RuntimeContext, RuntimePaths, Scope } from './factories/context.factory'

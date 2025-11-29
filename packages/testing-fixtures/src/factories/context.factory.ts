@@ -17,6 +17,7 @@ import { MockConfigService } from '../mocks/MockConfigService'
 import { MockLogger } from '../mocks/MockLogger'
 import { MockLLMService } from '../mocks/MockLLMService'
 import { MockAssetResolver } from '../mocks/MockAssetResolver'
+import { MockHandlerRegistry } from '../mocks/MockHandlerRegistry'
 
 export type Scope = 'user' | 'project'
 
@@ -33,6 +34,7 @@ export interface RuntimeContext {
   logger: MockLogger
   llm: MockLLMService
   assets: MockAssetResolver
+  handlers: MockHandlerRegistry
   paths: RuntimePaths
   scope: Scope
 }
@@ -55,6 +57,7 @@ export function createMockContext(overrides?: Partial<RuntimeContext>): RuntimeC
     logger: new MockLogger(),
     llm: new MockLLMService(),
     assets: new MockAssetResolver(),
+    handlers: new MockHandlerRegistry(),
     paths: DEFAULT_PATHS,
     scope: 'project',
     ...overrides,

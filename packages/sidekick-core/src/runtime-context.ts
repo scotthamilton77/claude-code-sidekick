@@ -6,10 +6,11 @@
  * Contains initialized instances of core services.
  *
  * @see docs/design/CLI.md §4 Supervisor Interaction
+ * @see docs/design/CORE-RUNTIME.md §4.1 Runtime Context
  */
 
 import type { ConfigService } from './config'
-import type { Logger, LLMProvider } from '@sidekick/types'
+import type { Logger, LLMProvider, HandlerRegistry } from '@sidekick/types'
 import type { AssetResolver } from './assets'
 import type { IpcService } from './ipc-service'
 
@@ -49,6 +50,18 @@ export interface RuntimeContext {
 
   /** Resolved runtime paths */
   paths: RuntimePaths
+
+  /**
+   * Handler registry for event dispatch.
+   *
+   * Features register handlers via `ctx.handlers.register()` during their
+   * `register()` lifecycle. Handlers are invoked for matching hook and
+   * transcript events.
+   *
+   * @see docs/design/flow.md §2.3 Handler Registration
+   * @see docs/design/CORE-RUNTIME.md §3.5 Handler Registry
+   */
+  handlers: HandlerRegistry
 
   /**
    * IPC service for supervisor communication.
