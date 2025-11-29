@@ -28,15 +28,15 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [ ] Startup logs show the parsed hook context and do not crash when optional supervisor endpoints are absent.
     - [ ] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
 
-- [ ] **Phase 1.5: UI Foundation** (can start immediately, parallel to Phase 1 alignment)
-  - [ ] Objectives
-    - [ ] Align UI types with `SidekickEvent` schema from docs/design/flow.md
-    - [ ] Build log parsing infrastructure (NDJSON reader, sessionId filtering)
-    - [ ] Create Replay Engine core (state reconstruction from events)
-  - [ ] Relevant documents/sections
-    - [ ] `{project_root_dir}/packages/sidekick-ui/docs/MONITORING-UI.md` (§2 Architecture, §3.2 Time Travel, §4 Data Sources)
-    - [ ] `{project_root_dir}/docs/design/flow.md` (§3.2 Event Schema)
-    - [ ] `{project_root_dir}/docs/design/STRUCTURED-LOGGING.md` (§3 Event Schema)
+- [x] **Phase 1.5: UI Foundation** (can start immediately, parallel to Phase 1 alignment)
+  - [x] Objectives
+    - [x] Align UI types with `SidekickEvent` schema from docs/design/flow.md
+    - [x] Build log parsing infrastructure (NDJSON reader, sessionId filtering)
+    - [x] Create Replay Engine core (state reconstruction from events)
+  - [x] Relevant documents/sections
+    - [x] `{project_root_dir}/packages/sidekick-ui/docs/MONITORING-UI.md` (§2 Architecture, §3.2 Time Travel, §4 Data Sources)
+    - [x] `{project_root_dir}/docs/design/flow.md` (§3.2 Event Schema)
+    - [x] `{project_root_dir}/docs/design/STRUCTURED-LOGGING.md` (§3 Event Schema)
   - [x] **1.5.1 Type Alignment** (depends on Phase 1 architectural alignment completing first)
     - [x] Import `SidekickEvent`, `HookEvent`, `TranscriptEvent` from `@sidekick/types`
     - [x] Import `EventContext`, `TranscriptMetrics` from `@sidekick/types`
@@ -51,21 +51,21 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [x] State reconstructor: build timeline from event sequence
     - [x] Time travel store: `getStateAt(timestamp)` API
     - [x] Diff calculator: compute state deltas between snapshots
-  - [ ] **1.5.4 UI Component Updates**
-    - [ ] Update mock data to use `SidekickEvent` schema
-    - [ ] Add event type badges (hook vs transcript vs internal)
-    - [ ] Add `source` indicator (cli vs supervisor)
+  - [x] **1.5.4 UI Component Updates**
+    - [x] Update mock data to use `SidekickEvent` schema
+    - [x] Add event type badges (hook vs transcript vs internal)
+    - [x] Add `source` indicator (cli vs supervisor)
   - [x] Testing
     - [x] Log parser tests with sample NDJSON files in `test-data/`
     - [x] Event merge tests (proper timestamp ordering)
     - [x] State reconstruction tests (known event sequence → expected state)
     - [x] Type guard tests for event discrimination
-  - [ ] Acceptance criteria
-    - [ ] UI can load sample log files and display events in timeline
-    - [ ] Time travel slider reconstructs state at any point
-    - [ ] Events filtered correctly by sessionId
-    - [ ] Shared types used by both UI and backend packages
-  - [ ] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
+  - [x] Acceptance criteria
+    - [x] UI can load sample log files and display events in timeline
+    - [x] Time travel slider reconstructs state at any point
+    - [x] Events filtered correctly by sessionId
+    - [x] Shared types used by both UI and backend packages
+  - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
 
 - [x] **Phase 2: Configuration & Asset Resolution Foundations**
   - [x] Objectives

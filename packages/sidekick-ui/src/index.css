@@ -39,7 +39,7 @@ body,
     background: transparent;
     cursor: pointer;
     writing-mode: vertical-lr;
-    direction: rtl;
+    /* direction: rtl was causing inverted behavior - top should be min, bottom max */
 }
 
 .timeline-slider::-webkit-slider-runnable-track {

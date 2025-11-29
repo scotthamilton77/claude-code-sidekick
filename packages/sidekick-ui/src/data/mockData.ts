@@ -2,15 +2,27 @@
  * Mock Data for UI Development
  *
  * Sample data for developing and testing the monitoring UI.
- * Uses types from src/types which include both canonical @sidekick/types
- * and UI-specific presentation types.
+ * Uses canonical SidekickEvent schema from @sidekick/types, converted to
+ * UIEvent via the event adapter for display.
  *
  * @see src/types/index.ts for type definitions
+ * @see src/lib/event-adapter.ts for conversion logic
  */
 
+import type {
+  SidekickEvent,
+  SessionStartHookEvent,
+  UserPromptSubmitHookEvent,
+  PreToolUseHookEvent,
+  PostToolUseHookEvent,
+  TranscriptEvent,
+} from '@sidekick/types'
 import type { Session, StateSnapshot, UIEvent } from '../types'
+import { sidekickEventsToUIEvents } from '../lib/event-adapter'
+import type { ParsedLogRecord } from '../lib/log-parser'
+import { logRecordsToUIEvents } from '../lib/event-adapter'
 
-// Re-export types for backward compatibility during migration
+// Re-export types for backward compatibility
 export type { Session, StateSnapshot, UIEvent }
 /** @deprecated Use UIEvent instead */
 export type { Event } from '../types'
@@ -22,78 +34,362 @@ export type { Event } from '../types'
 export const currentSession: Session = {
   id: 'a1b2c3d4',
   title: 'Auth Bug Investigation',
-  date: 'Nov 26, 2025 • 10:00 AM',
+  date: 'Nov 26, 2025 \u2022 10:00 AM',
   branch: 'main',
 }
 
 export const otherSessions: Session[] = [
-  { id: 'e5f6g7h8', title: 'API Rate Limiting', date: 'Nov 25, 2025 • 3:42 PM', branch: 'feature/rate-limit' },
-  { id: 'i9j0k1l2', title: 'Database Migration', date: 'Nov 25, 2025 • 11:15 AM', branch: 'main' },
-  { id: 'm3n4o5p6', title: 'Frontend Refactor', date: 'Nov 24, 2025 • 2:30 PM', branch: 'refactor/ui' },
+  { id: 'e5f6g7h8', title: 'API Rate Limiting', date: 'Nov 25, 2025 \u2022 3:42 PM', branch: 'feature/rate-limit' },
+  { id: 'i9j0k1l2', title: 'Database Migration', date: 'Nov 25, 2025 \u2022 11:15 AM', branch: 'main' },
+  { id: 'm3n4o5p6', title: 'Frontend Refactor', date: 'Nov 24, 2025 \u2022 2:30 PM', branch: 'refactor/ui' },
 ]
 
 // ============================================================================
-// Event Timeline Data
+// Raw SidekickEvent Data
 // ============================================================================
 
-export const events: UIEvent[] = [
-  { id: 0, time: '10:00:00', type: 'session', label: 'Session Start', branch: 'main' },
+const baseTime = new Date('2025-11-26T10:00:00').getTime()
+const sessionId = 'a1b2c3d4'
+
+/**
+ * Raw SidekickEvents following the canonical schema.
+ * These are the source of truth for the mock data.
+ */
+export const rawSidekickEvents: SidekickEvent[] = [
+  // Session Start
   {
-    id: 1,
-    time: '10:00:15',
-    type: 'user',
-    label: 'User message',
-    content: 'Fix the auth bug in auth.ts - users are getting logged out randomly after about an hour of activity.',
+    kind: 'hook',
+    hook: 'SessionStart',
+    context: {
+      sessionId,
+      timestamp: baseTime,
+      scope: 'project',
+      correlationId: 'corr-001',
+    },
+    payload: {
+      startType: 'startup',
+      transcriptPath: '/workspace/.claude/transcript.jsonl',
+    },
+  } as SessionStartHookEvent,
+
+  // User Prompt
+  {
+    kind: 'hook',
+    hook: 'UserPromptSubmit',
+    context: {
+      sessionId,
+      timestamp: baseTime + 15_000,
+      scope: 'project',
+      correlationId: 'corr-002',
+    },
+    payload: {
+      prompt: 'Fix the auth bug in auth.ts - users are getting logged out randomly after about an hour of activity.',
+      transcriptPath: '/workspace/.claude/transcript.jsonl',
+      cwd: '/workspace',
+      permissionMode: 'default',
+    },
+  } as UserPromptSubmitHookEvent,
+
+  // Assistant Message (from transcript)
+  {
+    kind: 'transcript',
+    eventType: 'AssistantMessage',
+    context: {
+      sessionId,
+      timestamp: baseTime + 45_000,
+      scope: 'project',
+    },
+    payload: {
+      lineNumber: 3,
+      entry: {},
+      content:
+        "I'll investigate the auth.ts file to identify the cause of random logouts. This sounds like it could be related to token expiration handling. Let me start by reading the current implementation.",
+    },
+    metadata: {
+      transcriptPath: '/workspace/.claude/transcript.jsonl',
+      metrics: {
+        turnCount: 1,
+        toolCount: 0,
+        toolsThisTurn: 0,
+        totalTokens: 1250,
+      },
+    },
+  } as TranscriptEvent,
+
+  // PreToolUse - Read file
+  {
+    kind: 'hook',
+    hook: 'PreToolUse',
+    context: {
+      sessionId,
+      timestamp: baseTime + 62_000,
+      scope: 'project',
+      correlationId: 'corr-003',
+    },
+    payload: {
+      toolName: 'Read',
+      toolInput: {
+        file_path: '/workspace/src/auth/auth.ts',
+      },
+    },
+  } as PreToolUseHookEvent,
+
+  // PostToolUse - Read file complete
+  {
+    kind: 'hook',
+    hook: 'PostToolUse',
+    context: {
+      sessionId,
+      timestamp: baseTime + 65_000,
+      scope: 'project',
+      correlationId: 'corr-003',
+    },
+    payload: {
+      toolName: 'Read',
+      toolInput: {
+        file_path: '/workspace/src/auth/auth.ts',
+      },
+      toolResult: { lines: 342 },
+    },
+  } as PostToolUseHookEvent,
+
+  // Assistant analysis (from transcript)
+  {
+    kind: 'transcript',
+    eventType: 'AssistantMessage',
+    context: {
+      sessionId,
+      timestamp: baseTime + 90_000,
+      scope: 'project',
+    },
+    payload: {
+      lineNumber: 5,
+      entry: {},
+      content:
+        "I found the issue. The token expiration check on line 47 uses a strict less-than comparison (`<`) instead of less-than-or-equal (`<=`). This causes tokens to be considered expired one second early during edge cases.\n\nHere's the fix:",
+    },
+    metadata: {
+      transcriptPath: '/workspace/.claude/transcript.jsonl',
+      metrics: {
+        turnCount: 1,
+        toolCount: 1,
+        toolsThisTurn: 1,
+        totalTokens: 3500,
+      },
+    },
+  } as TranscriptEvent,
+
+  // PreToolUse - Edit file
+  {
+    kind: 'hook',
+    hook: 'PreToolUse',
+    context: {
+      sessionId,
+      timestamp: baseTime + 105_000,
+      scope: 'project',
+      correlationId: 'corr-004',
+    },
+    payload: {
+      toolName: 'Edit',
+      toolInput: {
+        file_path: '/workspace/src/auth/auth.ts',
+        old_string: 'if (now < expiry)',
+        new_string: 'if (now <= expiry)',
+      },
+    },
+  } as PreToolUseHookEvent,
+
+  // PostToolUse - Edit complete
+  {
+    kind: 'hook',
+    hook: 'PostToolUse',
+    context: {
+      sessionId,
+      timestamp: baseTime + 108_000,
+      scope: 'project',
+      correlationId: 'corr-004',
+    },
+    payload: {
+      toolName: 'Edit',
+      toolInput: {
+        file_path: '/workspace/src/auth/auth.ts',
+        old_string: 'if (now < expiry)',
+        new_string: 'if (now <= expiry)',
+      },
+      toolResult: { success: true, line: 47 },
+    },
+  } as PostToolUseHookEvent,
+
+  // Final assistant message (from transcript)
+  {
+    kind: 'transcript',
+    eventType: 'AssistantMessage',
+    context: {
+      sessionId,
+      timestamp: baseTime + 120_000,
+      scope: 'project',
+    },
+    payload: {
+      lineNumber: 7,
+      entry: {},
+      content:
+        "I've fixed the token expiration bug. The change ensures tokens remain valid through their full expiration time. Would you like me to add a test case for this edge condition?",
+    },
+    metadata: {
+      transcriptPath: '/workspace/.claude/transcript.jsonl',
+      metrics: {
+        turnCount: 1,
+        toolCount: 2,
+        toolsThisTurn: 2,
+        totalTokens: 4800,
+      },
+    },
+  } as TranscriptEvent,
+]
+
+/**
+ * Mock ParsedLogRecords including internal events.
+ * These simulate what would come from parsing cli.log and supervisor.log.
+ */
+export const mockLogRecords: ParsedLogRecord[] = [
+  // SessionStart hook event
+  {
+    pino: { level: 30, time: baseTime, pid: 1234, hostname: 'dev' },
+    source: 'cli',
+    type: 'HookReceived',
+    context: { sessionId, scope: 'project', hook: 'SessionStart' },
+    event: rawSidekickEvents[0],
+    raw: {},
   },
+
+  // User prompt
   {
-    id: 2,
-    time: '10:00:18',
-    type: 'decision',
-    label: 'Prune Context',
-    content: 'Token limit approaching (156k/180k). Pruned 36k tokens from early context.',
+    pino: { level: 30, time: baseTime + 15_000, pid: 1234, hostname: 'dev' },
+    source: 'cli',
+    type: 'HookReceived',
+    context: { sessionId, scope: 'project', hook: 'UserPromptSubmit' },
+    event: rawSidekickEvents[1],
+    raw: {},
   },
+
+  // Internal: Context pruning decision (from supervisor)
   {
-    id: 3,
-    time: '10:00:45',
-    type: 'assistant',
-    label: 'Claude response',
-    content:
-      "I'll investigate the auth.ts file to identify the cause of random logouts. This sounds like it could be related to token expiration handling. Let me start by reading the current implementation.",
+    pino: { level: 30, time: baseTime + 18_000, pid: 5678, hostname: 'dev', msg: 'Token limit approaching' },
+    source: 'supervisor',
+    type: 'ContextPruned',
+    context: { sessionId, scope: 'project' },
+    payload: {
+      reason: 'token_limit',
+      tokensBefore: 156_000,
+      tokensAfter: 120_000,
+      pruned: 36_000,
+    },
+    raw: {},
   },
-  { id: 4, time: '10:01:02', type: 'tool', label: 'Read auth.ts', content: 'Read 342 lines from src/auth/auth.ts' },
+
+  // Assistant transcript event
   {
-    id: 5,
-    time: '10:01:05',
-    type: 'state',
-    label: 'Summary Updated',
-    content: 'session_title_confidence: 0.85 → 0.92, latest_intent updated',
+    pino: { level: 30, time: baseTime + 45_000, pid: 5678, hostname: 'dev' },
+    source: 'supervisor',
+    type: 'TranscriptEventEmitted',
+    context: { sessionId, scope: 'project' },
+    event: rawSidekickEvents[2],
+    raw: {},
   },
+
+  // Tool read
   {
-    id: 6,
-    time: '10:01:30',
-    type: 'assistant',
-    label: 'Claude response',
-    content:
-      "I found the issue. The token expiration check on line 47 uses a strict less-than comparison (`<`) instead of less-than-or-equal (`<=`). This causes tokens to be considered expired one second early during edge cases.\n\nHere's the fix:",
-    branch: 'fix/auth-expiry',
+    pino: { level: 30, time: baseTime + 62_000, pid: 1234, hostname: 'dev' },
+    source: 'cli',
+    type: 'HookReceived',
+    context: { sessionId, scope: 'project', hook: 'PreToolUse' },
+    event: rawSidekickEvents[3],
+    raw: {},
   },
-  { id: 7, time: '10:01:45', type: 'tool', label: 'Edit auth.ts:47', content: 'Modified line 47: < → <=' },
+
+  // Internal: Summary updated (from supervisor)
   {
-    id: 8,
-    time: '10:01:48',
-    type: 'reminder',
-    label: 'Pre-completion',
-    content: 'File modifications detected. Verify changes before stopping.',
+    pino: { level: 30, time: baseTime + 65_000, pid: 5678, hostname: 'dev', msg: 'Session summary updated' },
+    source: 'supervisor',
+    type: 'SummaryUpdated',
+    context: { sessionId, scope: 'project' },
+    payload: {
+      state: {
+        title: 'Auth Bug Investigation',
+        titleConfidence: 0.92,
+        intent: 'Fix token expiration timing issue',
+        intentConfidence: 0.88,
+      },
+      reason: 'tool_use_detected',
+    },
+    raw: {},
   },
+
+  // Assistant analysis
   {
-    id: 9,
-    time: '10:02:00',
-    type: 'assistant',
-    label: 'Claude response',
-    content:
-      "I've fixed the token expiration bug. The change ensures tokens remain valid through their full expiration time. Would you like me to add a test case for this edge condition?",
+    pino: { level: 30, time: baseTime + 90_000, pid: 5678, hostname: 'dev' },
+    source: 'supervisor',
+    type: 'TranscriptEventEmitted',
+    context: { sessionId, scope: 'project' },
+    event: rawSidekickEvents[5],
+    raw: {},
+  },
+
+  // Tool edit
+  {
+    pino: { level: 30, time: baseTime + 105_000, pid: 1234, hostname: 'dev' },
+    source: 'cli',
+    type: 'HookReceived',
+    context: { sessionId, scope: 'project', hook: 'PreToolUse' },
+    event: rawSidekickEvents[6],
+    raw: {},
+  },
+
+  // Internal: Reminder staged (from supervisor)
+  {
+    pino: { level: 30, time: baseTime + 108_000, pid: 5678, hostname: 'dev', msg: 'Reminder staged for Stop hook' },
+    source: 'supervisor',
+    type: 'ReminderStaged',
+    context: { sessionId, scope: 'project' },
+    payload: {
+      hookName: 'Stop',
+      reminder: {
+        name: 'pre-completion',
+        blocking: true,
+        priority: 100,
+        persistent: false,
+        userMessage: 'File modifications detected. Verify changes before stopping.',
+      },
+    },
+    raw: {},
+  },
+
+  // Final assistant message
+  {
+    pino: { level: 30, time: baseTime + 120_000, pid: 5678, hostname: 'dev' },
+    source: 'supervisor',
+    type: 'TranscriptEventEmitted',
+    context: { sessionId, scope: 'project' },
+    event: rawSidekickEvents[8],
+    raw: {},
   },
 ]
+
+// ============================================================================
+// Converted UIEvent Data
+// ============================================================================
+
+/**
+ * UIEvents converted from SidekickEvents for simple display.
+ * Use this for basic timeline without internal events.
+ */
+export const sidekickUIEvents: UIEvent[] = sidekickEventsToUIEvents(rawSidekickEvents)
+
+/**
+ * UIEvents converted from ParsedLogRecords including internal events.
+ * This is the full timeline including supervisor internal events.
+ */
+export const events: UIEvent[] = logRecordsToUIEvents(mockLogRecords)
 
 // ============================================================================
 // State Inspector Data
@@ -127,3 +423,24 @@ export const stateData = {
     duration_sec: 65,
   } as StateSnapshot,
 }
+
+// ============================================================================
+// Sample NDJSON for Testing
+// ============================================================================
+
+/**
+ * Sample NDJSON content that can be used for testing the log parser.
+ * Each line is a valid JSON log record.
+ */
+export const sampleNdjson = mockLogRecords
+  .map((record) =>
+    JSON.stringify({
+      ...record.pino,
+      source: record.source,
+      type: record.type,
+      context: record.context,
+      payload: record.payload,
+      ...(record.event ? { kind: record.event.kind } : {}),
+    })
+  )
+  .join('\n')
