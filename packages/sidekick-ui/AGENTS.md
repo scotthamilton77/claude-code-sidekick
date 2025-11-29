@@ -6,6 +6,10 @@ React SPA for "Time Travel" debugging of Sidekick sessions. Reconstructs past st
 
 **Current State**: UI mockup only—uses hardcoded mock data, no real data integration.
 
+**Implementation Roadmap**: See `TARGET-IMPLEMENTATION-PLAN.md`:
+- **Phase 1.5**: UI Foundation (type alignment, log parsing, replay engine)
+- **Phases 3-6**: UI Integration sections add real data wiring progressively
+
 ## Tech Stack
 
 React 18 + Vite + TypeScript + TailwindCSS
