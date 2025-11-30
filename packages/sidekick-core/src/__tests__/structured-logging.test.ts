@@ -597,8 +597,389 @@ describe('Structured Logging', () => {
   })
 
   // ===========================================================================
+  // Tests - ContextLogger Deep Merge
+  // ===========================================================================
+
+  describe('ContextLogger Deep Merge', () => {
+    it('should deep-merge context when creating child loggers', async () => {
+      const { createContextLogger } = await import('../structured-logging')
+      const { stream, lines } = createTestStream()
+
+      // Create root logger with initial context
+      const rootLogger = createContextLogger({
+        name: 'sidekick:test',
+        level: 'info',
+        source: 'cli',
+        context: {
+          sessionId: 'sess-123',
+          scope: 'project',
+        },
+        testStream: stream,
+      })
+
+      // Create child with additional context - should merge, not replace
+      const childLogger = rootLogger.child({
+        context: {
+          correlationId: 'corr-456',
+          hook: 'UserPromptSubmit',
+        },
+      })
+
+      childLogger.info('Child message')
+      await childLogger.flush()
+
+      expect(lines.length).toBe(1)
+      const log = parseLogLine(lines[0])
+
+      // Should have ALL context fields - both parent and child
+      expect(log).toHaveProperty('context')
+      const context = log.context as Record<string, unknown>
+      expect(context.sessionId).toBe('sess-123') // From parent
+      expect(context.scope).toBe('project') // From parent
+      expect(context.correlationId).toBe('corr-456') // From child
+      expect(context.hook).toBe('UserPromptSubmit') // From child
+    })
+
+    it('should allow child context to override parent context fields', async () => {
+      const { createContextLogger } = await import('../structured-logging')
+      const { stream, lines } = createTestStream()
+
+      const rootLogger = createContextLogger({
+        name: 'sidekick:test',
+        level: 'info',
+        source: 'cli',
+        context: {
+          sessionId: 'sess-123',
+          traceId: 'parent-trace',
+        },
+        testStream: stream,
+      })
+
+      // Child overrides traceId but inherits sessionId
+      const childLogger = rootLogger.child({
+        context: { traceId: 'child-trace' },
+      })
+
+      childLogger.info('Override test')
+      await childLogger.flush()
+
+      const log = parseLogLine(lines[0])
+      const context = log.context as Record<string, unknown>
+      expect(context.sessionId).toBe('sess-123') // Inherited
+      expect(context.traceId).toBe('child-trace') // Overridden
+    })
+
+    it('should include source field in all log records', async () => {
+      const { createContextLogger } = await import('../structured-logging')
+      const { stream, lines } = createTestStream()
+
+      const logger = createContextLogger({
+        name: 'sidekick:cli',
+        level: 'info',
+        source: 'cli',
+        testStream: stream,
+      })
+
+      logger.info('Source test')
+      await logger.flush()
+
+      const log = parseLogLine(lines[0])
+      expect(log).toHaveProperty('source', 'cli')
+    })
+
+    it('should support multi-level child hierarchy with cumulative context', async () => {
+      const { createContextLogger } = await import('../structured-logging')
+      const { stream, lines } = createTestStream()
+
+      const rootLogger = createContextLogger({
+        name: 'sidekick:test',
+        level: 'info',
+        source: 'supervisor',
+        context: { sessionId: 'sess-root' },
+        testStream: stream,
+      })
+
+      const level1 = rootLogger.child({ context: { traceId: 'trace-1' } })
+      const level2 = level1.child({ context: { taskId: 'task-2' } })
+      const level3 = level2.child({ context: { hook: 'PostToolUse' } })
+
+      level3.info('Deep hierarchy')
+      await level3.flush()
+
+      const log = parseLogLine(lines[0])
+      const context = log.context as Record<string, unknown>
+      expect(context.sessionId).toBe('sess-root')
+      expect(context.traceId).toBe('trace-1')
+      expect(context.taskId).toBe('task-2')
+      expect(context.hook).toBe('PostToolUse')
+      expect(log.source).toBe('supervisor')
+    })
+
+    it('should not mutate parent logger context when creating children', async () => {
+      const { createContextLogger } = await import('../structured-logging')
+      const { stream, lines } = createTestStream()
+
+      const parentLogger = createContextLogger({
+        name: 'sidekick:test',
+        level: 'info',
+        source: 'cli',
+        context: { sessionId: 'sess-parent' },
+        testStream: stream,
+      })
+
+      // Create child with extra context
+      parentLogger.child({ context: { traceId: 'child-only' } })
+
+      // Parent should not have child's context
+      parentLogger.info('Parent log')
+      await parentLogger.flush()
+
+      const log = parseLogLine(lines[0])
+      const context = log.context as Record<string, unknown>
+      expect(context.sessionId).toBe('sess-parent')
+      expect(context.traceId).toBeUndefined()
+    })
+  })
+
+  // ===========================================================================
+  // Tests - Source-Based Log Files
+  // ===========================================================================
+
+  describe('Source-Based Log Files', () => {
+    let tempDir: string
+
+    beforeEach(() => {
+      tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sidekick-source-log-test-'))
+    })
+
+    afterEach(() => {
+      fs.rmSync(tempDir, { recursive: true, force: true })
+    })
+
+    it('should write CLI logs to cli.log file', async () => {
+      const { createContextLogger } = await import('../structured-logging')
+      const logsDir = path.join(tempDir, 'logs')
+
+      const logger = createContextLogger({
+        name: 'sidekick:cli',
+        level: 'info',
+        source: 'cli',
+        logsDir,
+      })
+
+      logger.info('CLI log entry')
+      await logger.flush()
+
+      await new Promise((r) => setTimeout(r, 100))
+
+      const cliLogPath = path.join(logsDir, 'cli.log')
+      expect(fs.existsSync(cliLogPath)).toBe(true)
+
+      const content = fs.readFileSync(cliLogPath, 'utf8')
+      const log = JSON.parse(content.trim())
+      expect(log.source).toBe('cli')
+      expect(log.msg).toBe('CLI log entry')
+    })
+
+    it('should write Supervisor logs to supervisor.log file', async () => {
+      const { createContextLogger } = await import('../structured-logging')
+      const logsDir = path.join(tempDir, 'logs')
+
+      const logger = createContextLogger({
+        name: 'sidekick:supervisor',
+        level: 'info',
+        source: 'supervisor',
+        logsDir,
+      })
+
+      logger.info('Supervisor log entry')
+      await logger.flush()
+
+      await new Promise((r) => setTimeout(r, 100))
+
+      const supervisorLogPath = path.join(logsDir, 'supervisor.log')
+      expect(fs.existsSync(supervisorLogPath)).toBe(true)
+
+      const content = fs.readFileSync(supervisorLogPath, 'utf8')
+      const log = JSON.parse(content.trim())
+      expect(log.source).toBe('supervisor')
+      expect(log.msg).toBe('Supervisor log entry')
+    })
+  })
+
+  // ===========================================================================
   // Tests - Error Handling Integration
   // ===========================================================================
+
+  // ===========================================================================
+  // Tests - Event Logging Helpers
+  // ===========================================================================
+
+  describe('Event Logging Helpers', () => {
+    it('should create HookReceived events with correct structure', async () => {
+      const { LogEvents } = await import('../structured-logging')
+
+      const event = LogEvents.hookReceived(
+        {
+          sessionId: 'sess-123',
+          scope: 'project',
+          correlationId: 'corr-456',
+          hook: 'UserPromptSubmit',
+        },
+        { cwd: '/workspaces/project', mode: 'hook' }
+      )
+
+      expect(event.type).toBe('HookReceived')
+      expect(event.source).toBe('cli')
+      expect(event.time).toBeGreaterThan(0)
+      expect(event.context.sessionId).toBe('sess-123')
+      expect(event.context.scope).toBe('project')
+      expect(event.context.correlationId).toBe('corr-456')
+      expect(event.context.hook).toBe('UserPromptSubmit')
+      expect(event.payload.metadata.cwd).toBe('/workspaces/project')
+      expect(event.payload.metadata.mode).toBe('hook')
+    })
+
+    it('should create HookCompleted events with duration and state', async () => {
+      const { LogEvents } = await import('../structured-logging')
+
+      const event = LogEvents.hookCompleted(
+        {
+          sessionId: 'sess-123',
+          hook: 'UserPromptSubmit',
+        },
+        { durationMs: 45 },
+        { reminderReturned: true }
+      )
+
+      expect(event.type).toBe('HookCompleted')
+      expect(event.source).toBe('cli')
+      expect(event.payload.metadata.durationMs).toBe(45)
+      expect(event.payload.state?.reminderReturned).toBe(true)
+    })
+
+    it('should create ReminderConsumed events', async () => {
+      const { LogEvents } = await import('../structured-logging')
+
+      const event = LogEvents.reminderConsumed(
+        { sessionId: 'sess-123', hook: 'PreToolUse' },
+        {
+          reminderName: 'AreYouStuckReminder',
+          reminderReturned: true,
+          blocking: true,
+          priority: 80,
+        }
+      )
+
+      expect(event.type).toBe('ReminderConsumed')
+      expect(event.source).toBe('cli')
+      expect(event.payload.state.reminderName).toBe('AreYouStuckReminder')
+      expect(event.payload.state.blocking).toBe(true)
+    })
+
+    it('should create EventReceived events for supervisor', async () => {
+      const { LogEvents } = await import('../structured-logging')
+
+      const event = LogEvents.eventReceived(
+        { sessionId: 'sess-123', taskId: 'task-789' },
+        { eventKind: 'hook', hook: 'PostToolUse' }
+      )
+
+      expect(event.type).toBe('EventReceived')
+      expect(event.source).toBe('supervisor')
+      expect(event.context.taskId).toBe('task-789')
+      expect(event.payload.metadata.eventKind).toBe('hook')
+      expect(event.payload.metadata.hook).toBe('PostToolUse')
+    })
+
+    it('should create HandlerExecuted events with success/failure', async () => {
+      const { LogEvents } = await import('../structured-logging')
+
+      const event = LogEvents.handlerExecuted(
+        { sessionId: 'sess-123' },
+        { handlerId: 'reminders:stage-stuck', success: true },
+        { durationMs: 12 }
+      )
+
+      expect(event.type).toBe('HandlerExecuted')
+      expect(event.source).toBe('supervisor')
+      expect(event.payload.state.handlerId).toBe('reminders:stage-stuck')
+      expect(event.payload.state.success).toBe(true)
+      expect(event.payload.metadata.durationMs).toBe(12)
+    })
+
+    it('should create ReminderStaged events', async () => {
+      const { LogEvents } = await import('../structured-logging')
+
+      const event = LogEvents.reminderStaged(
+        { sessionId: 'sess-123' },
+        {
+          reminderName: 'AreYouStuckReminder',
+          hookName: 'PreToolUse',
+          blocking: true,
+          priority: 80,
+          persistent: false,
+        }
+      )
+
+      expect(event.type).toBe('ReminderStaged')
+      expect(event.source).toBe('supervisor')
+      expect(event.payload.state.reminderName).toBe('AreYouStuckReminder')
+      expect(event.payload.state.hookName).toBe('PreToolUse')
+    })
+
+    it('should create SummaryUpdated events with reason', async () => {
+      const { LogEvents } = await import('../structured-logging')
+
+      const event = LogEvents.summaryUpdated(
+        { sessionId: 'sess-123' },
+        'cadence_met',
+        { previousSummary: 'old', newSummary: 'new' },
+        { durationMs: 200, tokenCount: 150 }
+      )
+
+      expect(event.type).toBe('SummaryUpdated')
+      expect(event.source).toBe('supervisor')
+      expect(event.payload.reason).toBe('cadence_met')
+      expect(event.payload.state?.newSummary).toBe('new')
+    })
+
+    it('should create RemindersCleared events', async () => {
+      const { LogEvents } = await import('../structured-logging')
+
+      const event = LogEvents.remindersCleared(
+        { sessionId: 'sess-123' },
+        { clearedCount: 3, hookNames: ['PreToolUse', 'Stop'] },
+        'session_start'
+      )
+
+      expect(event.type).toBe('RemindersCleared')
+      expect(event.source).toBe('supervisor')
+      expect(event.payload.state.clearedCount).toBe(3)
+      expect(event.payload.reason).toBe('session_start')
+    })
+
+    it('should support logEvent helper to emit events via logger', async () => {
+      const { createContextLogger, LogEvents, logEvent } = await import('../structured-logging')
+      const { stream, lines } = createTestStream()
+
+      const logger = createContextLogger({
+        source: 'cli',
+        context: { sessionId: 'sess-123' },
+        testStream: stream,
+      })
+
+      const event = LogEvents.hookReceived({ sessionId: 'sess-123', hook: 'SessionStart' }, { mode: 'hook' })
+
+      logEvent(logger, event)
+      await logger.flush()
+
+      expect(lines.length).toBe(1)
+      const log = parseLogLine(lines[0])
+      expect(log.type).toBe('HookReceived')
+      expect(log.source).toBe('cli')
+    })
+  })
 
   describe('Error Handling', () => {
     it('should log errors with stack traces', async () => {

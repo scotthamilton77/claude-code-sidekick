@@ -136,38 +136,39 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - LLM provider enum changed: `openai-api` → `openai`
     - Removed from LlmConfig: `circuitBreaker` (defer to Phase 4 resilience work)
 
-- [ ] **Phase 3: Structured Logging & Telemetry**
-  - [ ] Objectives
-    - [ ] Add a two-phase logging pipeline (bootstrap console → Pino-based structured logger) with redaction and telemetry events.
-    - [ ] Provide logger access through runtime so commands/features emit structured entries tied to scope and command context.
-  - [ ] Relevant documents/sections
-    - [ ] `{project_root_dir}/docs/ARCHITECTURE.md` (§1 Guiding Principles: Observability-First, §3.2 CLI/Supervisor Relationship)
-    - [ ] `{project_root_dir}/docs/design/STRUCTURED-LOGGING.md` (§2 Architecture, §3 Event Schema, §4 Configuration & Routing) — **authoritative for log format and event schema**
-    - [ ] `{project_root_dir}/docs/design/flow.md` (§3.2 Event Schema, §7 Logging Events) — **canonical event model**
-    - [ ] `{project_root_dir}/docs/design/CLI.md` (§8 Telemetry & Logging Bootstrap)
-    - [ ] `{project_root_dir}/docs/design/CORE-RUNTIME.md` (§3.1 Bootstrap stages, §5 Error Handling Strategy)
-  - [ ] Acceptance criteria - REQUIRES RE-VERIFICATION after log file split
-    - [ ] Logs include standard fields (timestamp, scope, command, correlation IDs) and redact sensitive payload fields per design.
-    - [ ] Telemetry counters/timers are emitted alongside logs for hook executions.
-    - [ ] Fallback to the bootstrap console logger occurs gracefully if Pino initialization fails, without dropping log lines.
-    - [ ] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
-  - [ ] Testing
-    - [ ] Begin the phase by writing tests
-  - [ ] **Architectural alignment tasks** (added post-architecture-pivot)
-    - [ ] Split log files by component (per docs/design/STRUCTURED-LOGGING.md §2.2):
-      - [ ] CLI logs to `.sidekick/logs/cli.log`
-      - [ ] Supervisor logs to `.sidekick/logs/supervisor.log`
-    - [ ] Add `source: 'cli' | 'supervisor'` field to distinguish component in logs (per docs/design/STRUCTURED-LOGGING.md §3.1)
-    - [ ] Implement `ContextLogger` wrapper for deep-merging `context` across child loggers (per docs/design/STRUCTURED-LOGGING.md §3.7)
-    - [ ] Align log record format with `SidekickEvent` schema from docs/design/flow.md §3.2 (type, time, source, context, payload)
-    - [ ] Add CLI-logged events: `HookReceived`, `ReminderConsumed`, `HookCompleted` (per docs/design/flow.md §7.1)
-    - [ ] Add Supervisor-logged events: `EventReceived`, `HandlerExecuted`, `ReminderStaged`, `SummaryUpdated`, `RemindersCleared` (per docs/design/flow.md §7.2)
-    - [ ] **Testing for alignment tasks**:
-      - [ ] Separate log file tests (CLI writes to cli.log, Supervisor writes to supervisor.log)
-      - [ ] ContextLogger deep-merge tests
-      - [ ] Event type logging tests (HookReceived, etc.)
-    - [ ] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
-  - [ ] **UI Integration (Phase 3)**
+- [x] **Phase 3: Structured Logging & Telemetry** - COMPLETE 2025-11-30
+  - [x] Objectives
+    - [x] Add a two-phase logging pipeline (bootstrap console → Pino-based structured logger) with redaction and telemetry events.
+    - [x] Provide logger access through runtime so commands/features emit structured entries tied to scope and command context.
+  - [x] Relevant documents/sections
+    - [x] `{project_root_dir}/docs/ARCHITECTURE.md` (§1 Guiding Principles: Observability-First, §3.2 CLI/Supervisor Relationship)
+    - [x] `{project_root_dir}/docs/design/STRUCTURED-LOGGING.md` (§2 Architecture, §3 Event Schema, §4 Configuration & Routing) — **authoritative for log format and event schema**
+    - [x] `{project_root_dir}/docs/design/flow.md` (§3.2 Event Schema, §7 Logging Events) — **canonical event model**
+    - [x] `{project_root_dir}/docs/design/CLI.md` (§8 Telemetry & Logging Bootstrap)
+    - [x] `{project_root_dir}/docs/design/CORE-RUNTIME.md` (§3.1 Bootstrap stages, §5 Error Handling Strategy)
+  - [x] Acceptance criteria - VERIFIED 2025-11-30
+    - [x] Logs include standard fields (timestamp, scope, command, correlation IDs) and redact sensitive payload fields per design.
+    - [x] Telemetry counters/timers are emitted alongside logs for hook executions.
+    - [x] Fallback to the bootstrap console logger occurs gracefully if Pino initialization fails, without dropping log lines.
+    - [x] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
+  - [x] Testing
+    - [x] Tests written before implementation (TDD approach)
+    - [x] 35 structured-logging tests passing
+  - [x] **Architectural alignment tasks** (added post-architecture-pivot) - COMPLETE 2025-11-30
+    - [x] Split log files by component (per docs/design/STRUCTURED-LOGGING.md §2.2):
+      - [x] CLI logs to `.sidekick/logs/cli.log`
+      - [x] Supervisor logs to `.sidekick/logs/supervisor.log`
+    - [x] Add `source: 'cli' | 'supervisor'` field to distinguish component in logs (per docs/design/STRUCTURED-LOGGING.md §3.1)
+    - [x] Implement `ContextLogger` wrapper for deep-merging `context` across child loggers (per docs/design/STRUCTURED-LOGGING.md §3.7)
+    - [x] Align log record format with `SidekickEvent` schema from docs/design/flow.md §3.2 (type, time, source, context, payload)
+    - [x] Add CLI-logged events: `HookReceived`, `ReminderConsumed`, `HookCompleted` (per docs/design/flow.md §7.1)
+    - [x] Add Supervisor-logged events: `EventReceived`, `HandlerExecuted`, `ReminderStaged`, `SummaryUpdated`, `RemindersCleared` (per docs/design/flow.md §7.2)
+    - [x] **Testing for alignment tasks**:
+      - [x] Separate log file tests (CLI writes to cli.log, Supervisor writes to supervisor.log) — 2 tests
+      - [x] ContextLogger deep-merge tests — 5 tests
+      - [x] Event type logging tests (HookReceived, etc.) — 9 tests
+    - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test` - PASSED 2025-11-30
+  - [ ] **UI Integration (Phase 3)** - DEFERRED
     - [ ] Wire UI to read `.sidekick/logs/cli.log` and `supervisor.log` (per packages/sidekick-ui/docs/MONITORING-UI.md §2.2)
     - [ ] Add file polling for "Live Mode" (follow new events in real-time)
     - [ ] Display `source: 'cli' | 'supervisor'` badge on events in stream
@@ -176,6 +177,15 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
       - [ ] `type:ReminderStaged`, `type:SummaryUpdated` filtering
       - [ ] `hook:UserPromptSubmit`, `hook:PreToolUse` filtering
     - [ ] Testing: File reading tests, filter query parsing tests
+  - **Implementation notes** (2025-11-30):
+    - Added `LogSource` type and `LoggingEventBase` interface to `@sidekick/types/events.ts`
+    - Added 8 logging event types: `HookReceivedEvent`, `HookCompletedEvent`, `ReminderConsumedEvent`, `EventReceivedEvent`, `HandlerExecutedEvent`, `ReminderStagedEvent`, `SummaryUpdatedEvent`, `RemindersClearedEvent`
+    - Created `createContextLogger()` function in `structured-logging.ts` with:
+      - Deep-merging context on child logger creation
+      - Source-based log file routing (cli.log / supervisor.log)
+      - `source` field added to all log records
+    - Created `LogEvents` factory object with type-safe event constructors
+    - Created `logEvent()` helper for emitting events via logger
 
 - [ ] **Phase 4: Core Services & Providers**
   - [ ] Objectives
