@@ -38,6 +38,18 @@ Represents the raw data structure found in the underlying transcript files. To e
 type RawTranscriptEvent = Record<string, unknown>
 ```
 
+**Claude Code Transcript Structure (observed):**
+
+Real Claude Code transcripts use these top-level entry types:
+- `user` - User messages (may contain nested `tool_result` blocks in `message.content[]`)
+- `assistant` - Assistant responses (may contain nested `tool_use` blocks in `message.content[]`)
+- `summary` - Conversation summaries
+- `file-history-snapshot` - File state snapshots
+
+Tool interactions are **nested**, not top-level:
+- `tool_use` → `assistant.message.content[{type: 'tool_use', name, id, input}]`
+- `tool_result` → `user.message.content[{type: 'tool_result', tool_use_id, content}]`
+
 #### 2.1.2 Canonical Event Model (`TranscriptEvent`)
 
 The internal, standardized representation used by Sidekick features. This model is provider-agnostic.
@@ -131,7 +143,7 @@ The main entry point in `sidekick-core`. TranscriptService is the **single sourc
 
 **Shutdown Requirements**:
 
-- The file watcher must NOT prevent Supervisor process shutdown (use `watcher.unref()` or equivalent)
+- The file watcher must NOT prevent Supervisor process shutdown (chokidar doesn't expose `unref()`, so we rely on `watcher.close()` in `shutdown()` — Supervisor must call `shutdown()` before exit)
 - TranscriptService stops watching automatically on `SessionEnd` event (reason: `clear` | `logout` | `prompt_input_exit` | `other`)
 
 **Transcript Access**:
