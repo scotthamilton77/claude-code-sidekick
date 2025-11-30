@@ -84,6 +84,12 @@ export {
 } from './structured-logging'
 
 export { killAllSupervisors, SupervisorClient, type KillResult, type UserPidInfo } from './supervisor-client'
+export {
+  createDefaultMetrics,
+  createDefaultTokenUsage,
+  TranscriptServiceImpl,
+  type TranscriptServiceOptions,
+} from './transcript-service'
 
 // Note: LLMService should be imported directly from '@sidekick/shared-providers'
 // to avoid circular dependencies between packages
