@@ -13,7 +13,8 @@
  */
 
 import type { SidekickEvent } from '@sidekick/types'
-import { isHookEvent, isTranscriptEvent } from '@sidekick/types'
+// Use local type guards to avoid CommonJS/ESM interop issues with Vite
+import { isHookEvent, isTranscriptEvent } from '../types'
 
 // Re-export type guards for convenience
 export { isHookEvent, isTranscriptEvent }

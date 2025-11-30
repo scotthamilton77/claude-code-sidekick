@@ -7,7 +7,8 @@
   },
   "include": [
     "packages/*/src/**/*.ts",
-    "packages/*/src/**/*.tsx"
+    "packages/*/src/**/*.tsx",
+    "packages/sidekick-ui/server/**/*.ts"
   ],
   "exclude": [
     "**/node_modules/**",

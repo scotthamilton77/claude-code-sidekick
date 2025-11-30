@@ -1,17 +1,51 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import Header from './components/Header'
 import Layout from './components/Layout'
 import StateInspector from './components/StateInspector'
 import Timeline from './components/Timeline'
 import Transcript from './components/Transcript'
 import type { Session } from './types'
-import { events, currentSession as initialSession, otherSessions, stateData } from './data/mockData'
+import { useLogService } from './hooks/useLogService'
+import { filterEvents } from './lib/filter-parser'
+import {
+  events as mockEvents,
+  currentSession as initialSession,
+  otherSessions as mockOtherSessions,
+  stateData,
+} from './data/mockData'
 
 function App() {
-  const [currentSession, setCurrentSession] = useState<Session>(initialSession)
-  const [currentEventId, setCurrentEventId] = useState(6)
+  // Log service for real data
+  const logService = useLogService({ autoLive: false })
+
+  // Fallback to mock data when API unavailable
+  const useRealData = logService.apiAvailable && logService.events.length > 0
+  const events = useRealData ? logService.events : mockEvents
+
+  // Session management - derive from real sessions or use mock
+  const realSessions: Session[] = useMemo(() => {
+    return logService.sessions.map((id, index) => ({
+      id,
+      title: `Session ${id.slice(0, 8)}`,
+      date: index === 0 ? 'Current' : `Session ${index + 1}`,
+      branch: 'unknown',
+    }))
+  }, [logService.sessions])
+
+  const otherSessions = useRealData ? realSessions : mockOtherSessions
+  const [mockSession, setMockSession] = useState<Session>(initialSession)
+
+  // Current session - derive from selected session ID or use mock
+  const currentSession = useMemo(() => {
+    if (useRealData && logService.selectedSession) {
+      const found = realSessions.find((s) => s.id === logService.selectedSession)
+      if (found) return found
+    }
+    return useRealData && realSessions.length > 0 ? realSessions[0] : mockSession
+  }, [useRealData, logService.selectedSession, realSessions, mockSession])
+
+  const [currentEventId, setCurrentEventId] = useState(events.length > 0 ? events.length - 1 : 0)
   const [filterType, setFilterType] = useState('all')
-  const [isLive, setIsLive] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
 
   const getEventColor = (type: string) => {
@@ -32,25 +66,69 @@ function App() {
     return 'system'
   }
 
+  // Build filter query from UI state and search input
+  const buildFilterQuery = (): string => {
+    const parts: string[] = []
+
+    // Add category filter if not 'all'
+    // We don't have direct kind mapping, so we handle this separately
+
+    // Add search query which may include filter syntax
+    if (searchQuery) {
+      parts.push(searchQuery)
+    }
+
+    return parts.join(' ')
+  }
+
   // Filter events based on selected filter and search
-  const filteredEvents = events.filter((event) => {
-    const matchesFilter = filterType === 'all' || getEventCategory(event.type) === filterType
-    const matchesSearch =
-      !searchQuery ||
-      (event.content?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false) ||
-      event.label.toLowerCase().includes(searchQuery.toLowerCase())
-    return matchesFilter && matchesSearch
-  })
+  const filteredEvents = useMemo(() => {
+    let filtered = events
+
+    // Apply category filter first (all/conversation/system)
+    if (filterType !== 'all') {
+      filtered = filtered.filter((event) => {
+        const category = getEventCategory(event.type)
+        return category === filterType
+      })
+    }
+
+    // Apply search/filter query (supports kind:, type:, hook:, source:, and free text)
+    const query = buildFilterQuery()
+    if (query) {
+      filtered = filterEvents(filtered, query)
+    }
+
+    return filtered
+  }, [events, filterType, searchQuery])
+
+  // Handle session selection
+  const handleSelectSession = (session: Session) => {
+    if (useRealData) {
+      logService.selectSession(session.id)
+    } else {
+      setMockSession(session)
+    }
+  }
+
+  // Handle live toggle
+  const handleToggleLive = () => {
+    if (useRealData) {
+      logService.toggleLive()
+    }
+  }
+
+  const isLive = useRealData ? logService.isLive : false
 
   return (
     <Layout
       header={
         <Header
           currentSession={currentSession}
-          otherSessions={otherSessions}
+          otherSessions={otherSessions.filter((s) => s.id !== currentSession.id)}
           isLive={isLive}
-          onToggleLive={() => setIsLive(!isLive)}
-          onSelectSession={setCurrentSession}
+          onToggleLive={handleToggleLive}
+          onSelectSession={handleSelectSession}
         />
       }
       timeline={

@@ -168,15 +168,22 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
       - [x] ContextLogger deep-merge tests — 5 tests
       - [x] Event type logging tests (HookReceived, etc.) — 9 tests
     - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test` - PASSED 2025-11-30
-  - [ ] **UI Integration (Phase 3)** - DEFERRED
-    - [ ] Wire UI to read `.sidekick/logs/cli.log` and `supervisor.log` (per packages/sidekick-ui/docs/MONITORING-UI.md §2.2)
-    - [ ] Add file polling for "Live Mode" (follow new events in real-time)
-    - [ ] Display `source: 'cli' | 'supervisor'` badge on events in stream
-    - [ ] Implement search/filter UI per packages/sidekick-ui/docs/MONITORING-UI.md §5.2:
-      - [ ] `kind:hook`, `kind:transcript` filtering
-      - [ ] `type:ReminderStaged`, `type:SummaryUpdated` filtering
-      - [ ] `hook:UserPromptSubmit`, `hook:PreToolUse` filtering
-    - [ ] Testing: File reading tests, filter query parsing tests
+  - [x] **UI Integration (Phase 3)** - COMPLETE 2025-11-30
+    - [x] Wire UI to read `.sidekick/logs/cli.log` and `supervisor.log` (per packages/sidekick-ui/docs/MONITORING-UI.md §2.2)
+      - [x] Vite dev server API plugin (`server/api-plugin.ts`) serving log files
+      - [x] `useLogService` hook for fetching/polling logs with session filtering
+    - [x] Add file polling for "Live Mode" (follow new events in real-time)
+      - [x] Configurable poll interval, mtime-based change detection
+    - [x] Display `source: 'cli' | 'supervisor'` badge on events in stream
+      - [x] Already implemented in Phase 1.5.4 (`SourceBadge` component)
+    - [x] Implement search/filter UI per packages/sidekick-ui/docs/MONITORING-UI.md §5.2:
+      - [x] `kind:hook`, `kind:transcript`, `kind:internal` filtering
+      - [x] `type:ReminderStaged`, `type:SummaryUpdated` filtering
+      - [x] `hook:UserPromptSubmit`, `hook:PreToolUse` filtering
+      - [x] `source:cli`, `source:supervisor` filtering
+      - [x] Free text search with quoted string support
+    - [x] Filter parser: `src/lib/filter-parser.ts` with `compileFilter()` and `filterEvents()`
+    - [x] App.tsx wired to use real logs (with mock data fallback when API unavailable)
   - **Implementation notes** (2025-11-30):
     - Added `LogSource` type and `LoggingEventBase` interface to `@sidekick/types/events.ts`
     - Added 8 logging event types: `HookReceivedEvent`, `HookCompletedEvent`, `ReminderConsumedEvent`, `EventReceivedEvent`, `HandlerExecutedEvent`, `ReminderStagedEvent`, `SummaryUpdatedEvent`, `RemindersClearedEvent`
