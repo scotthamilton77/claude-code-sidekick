@@ -191,50 +191,78 @@ describe('MockConfigService', () => {
     config = new MockConfigService()
   })
 
-  it('sets and gets configuration by key', () => {
-    config.set({ llm: { provider: 'openai-api' } })
+  it('provides domain accessors with defaults', () => {
+    // All domain accessors should return defaults
+    expect(config.core.logging.level).toBe('info')
+    expect(config.llm.provider).toBe('claude-cli')
+    expect(config.transcript.watchDebounceMs).toBe(100)
+    expect(config.features).toEqual({})
+  })
 
-    expect(config.get('llm')?.provider).toBe('openai-api')
+  it('sets and gets configuration via domain accessors', () => {
+    config.set({ llm: { provider: 'openai' } })
+
+    expect(config.llm.provider).toBe('openai')
   })
 
   it('gets configuration by dot-path', () => {
-    config.set({ llm: { provider: 'openai-api' } })
+    config.set({ llm: { provider: 'openai' } })
 
-    expect(config.getPath('llm.provider')).toBe('openai-api')
+    expect(config.getPath('llm.provider')).toBe('openai')
   })
 
   it('merges configuration on set', () => {
-    config.set({ llm: { provider: 'openai-api' } })
-    config.set({ llm: { timeout: 30 } })
+    config.set({ llm: { provider: 'openai' } })
+    config.set({ llm: { timeout: 60 } })
 
-    expect(config.getPath('llm.provider')).toBe('openai-api')
-    expect(config.getPath('llm.timeout')).toBe(30)
+    expect(config.llm.provider).toBe('openai')
+    expect(config.llm.timeout).toBe(60)
   })
 
   it('returns undefined for missing paths', () => {
     expect(config.getPath('nonexistent.path')).toBeUndefined()
   })
 
-  it('getAll returns entire config', () => {
-    config.set({ llm: { provider: 'openai-api' } })
+  it('getAll returns entire config with all domains', () => {
+    config.set({ llm: { provider: 'openai' } })
 
     const all = config.getAll()
-    expect(all).toEqual({ llm: { provider: 'openai-api' } })
+    expect(all.llm.provider).toBe('openai')
+    expect(all.core).toBeDefined()
+    expect(all.transcript).toBeDefined()
+    expect(all.features).toBeDefined()
   })
 
-  it('reset clears config', () => {
-    config.set({ llm: { provider: 'openai-api' } })
+  it('reset restores defaults', () => {
+    config.set({ llm: { provider: 'openai' } })
     config.reset()
 
-    expect(config.getAll()).toEqual({})
+    expect(config.llm.provider).toBe('claude-cli')
+    expect(config.core.logging.level).toBe('info')
   })
 
-  it('implements ConfigService interface', () => {
-    config.set({ logLevel: 'debug' })
-
-    // Using typed get() method
-    expect(config.get('logLevel')).toBe('debug')
+  it('implements ConfigService interface with sources', () => {
     expect(config.sources).toEqual([])
+  })
+
+  it('getFeature returns feature config with defaults', () => {
+    config.set({ features: { myFeature: { enabled: true, settings: { option: 'value' } } } })
+
+    const feature = config.getFeature<{ option: string }>('myFeature')
+    expect(feature.enabled).toBe(true)
+    expect(feature.settings.option).toBe('value')
+  })
+
+  it('getFeature returns default for missing features', () => {
+    const feature = config.getFeature('nonexistent')
+    expect(feature.enabled).toBe(true)
+    expect(feature.settings).toEqual({})
+  })
+
+  it('provides derived paths', () => {
+    expect(config.paths.sessionRoot('abc123')).toBe('.sidekick/sessions/abc123')
+    expect(config.paths.stagingRoot('abc123')).toBe('.sidekick/sessions/abc123/stage')
+    expect(config.paths.logsDir()).toBe('.sidekick/logs')
   })
 })
 
@@ -341,32 +369,47 @@ describe('createTestConfig', () => {
   it('creates config with sensible defaults', () => {
     const config = createTestConfig()
 
-    expect(config.llm.provider).toBe('openrouter')
-    expect(config.features.statusline).toBe(true)
-    expect(config.logLevel).toBe('info')
+    expect(config.llm.provider).toBe('claude-cli')
+    expect(config.core.logging.level).toBe('info')
+    expect(config.core.supervisor.idleTimeoutMs).toBe(300000)
+    expect(config.transcript.watchDebounceMs).toBe(100)
   })
 
   it('merges overrides with defaults', () => {
     const config = createTestConfig({
-      llm: { provider: 'openai-api', timeout: 20 },
+      llm: { provider: 'openai', timeout: 20 },
     })
 
-    expect(config.llm.provider).toBe('openai-api')
+    expect(config.llm.provider).toBe('openai')
     expect(config.llm.timeout).toBe(20)
     expect(config.llm.timeoutMaxRetries).toBe(3) // Default preserved
   })
 
   it('deep merges nested objects', () => {
     const config = createTestConfig({
-      llm: {
-        circuitBreaker: {
-          enabled: false,
+      core: {
+        logging: {
+          level: 'debug',
         },
       },
     })
 
-    expect(config.llm.circuitBreaker.enabled).toBe(false)
-    expect(config.llm.circuitBreaker.failureThreshold).toBe(3) // Default preserved
+    expect(config.core.logging.level).toBe('debug')
+    expect(config.core.logging.format).toBe('pretty') // Default preserved
+  })
+
+  it('supports feature flags with enabled/settings structure', () => {
+    const config = createTestConfig({
+      features: {
+        myFeature: {
+          enabled: true,
+          settings: { threshold: 10 },
+        },
+      },
+    })
+
+    expect(config.features.myFeature?.enabled).toBe(true)
+    expect(config.features.myFeature?.settings).toEqual({ threshold: 10 })
   })
 })
 

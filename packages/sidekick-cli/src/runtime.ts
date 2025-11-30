@@ -95,7 +95,7 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
   }
 
   // Determine effective log level (CLI override > config)
-  const effectiveLogLevel = options.logLevel ?? config.get('logLevel')
+  const effectiveLogLevel = options.logLevel ?? config.core.logging.level
 
   // Build context for structured logs
   const logContext: LogContext = {

@@ -3,18 +3,27 @@
  *
  * Implements Phase 2 of the Sidekick Node runtime per docs/design/CONFIG-SYSTEM.md.
  *
- * Provides a multi-layer configuration cascade with:
- * - Environment variables (SIDEKICK_* prefixed)
- * - .env file loading (~/.sidekick/.env, project .env, .sidekick/.env)
- * - User JSONC config (~/.sidekick/config.jsonc)
- * - Project JSONC config (.sidekick/config.jsonc)
- * - Project-local JSONC config (.sidekick/config.jsonc.local)
+ * Provides a multi-layer configuration cascade with YAML domain files:
+ * - config.yaml (core: paths, logging)
+ * - llm.yaml (provider settings, model selection)
+ * - transcript.yaml (watchDebounceMs, metricsPersistIntervalMs)
+ * - features.yaml (feature flags and feature-specific settings)
+ *
+ * Cascade order (lowest to highest priority):
+ * 1. Internal defaults (hardcoded in Zod schemas)
+ * 2. Environment variables (SIDEKICK_* plus .env files)
+ * 3. User unified config (~/.sidekick/sidekick.config)
+ * 4. User domain config (~/.sidekick/{domain}.yaml)
+ * 5. Project unified config (.sidekick/sidekick.config)
+ * 6. Project domain config (.sidekick/{domain}.yaml)
+ * 7. Project-local overrides (.sidekick/{domain}.yaml.local)
  *
  * Key features per LLD requirements:
- * - Deep-merge semantics for nested objects
+ * - Deep-merge semantics for nested objects (arrays are replaced)
  * - Zod schema validation with strict mode (rejects unknown keys per §6.4)
  * - Config immutability after loading (Object.freeze per §2)
  * - Sensible defaults applied via Zod transforms
+ * - sidekick.config dot-notation parsing for quick overrides
  *
  * @see docs/design/CONFIG-SYSTEM.md
  * @see docs/design/SCHEMA-CONTRACTS.md §6.4 (strict mode)
@@ -22,10 +31,10 @@
  */
 
 import { config as loadDotenv } from 'dotenv'
-import { parse as parseJsonc } from 'jsonc-parser'
 import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { parse as parseYaml } from 'yaml'
 import { z } from 'zod/v4'
 
 // =============================================================================
@@ -41,10 +50,8 @@ function deepFreeze<T>(obj: T): T {
     return obj
   }
 
-  // Freeze the object itself first
   Object.freeze(obj)
 
-  // Then recursively freeze all properties
   for (const key of Object.keys(obj)) {
     const value = (obj as Record<string, unknown>)[key]
     if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
@@ -56,226 +63,198 @@ function deepFreeze<T>(obj: T): T {
 }
 
 // =============================================================================
-// Zod Schemas
+// Domain Names and File Mappings
 // =============================================================================
 
-const LogLevelSchema = z.enum(['debug', 'info', 'warn', 'error'])
+/**
+ * Configuration domains as defined in docs/design/CONFIG-SYSTEM.md §3
+ */
+export type ConfigDomain = 'core' | 'llm' | 'transcript' | 'features'
 
-const LlmProviderSchema = z.enum(['claude-cli', 'openai-api', 'openrouter', 'custom'])
+const DOMAIN_FILES: Record<ConfigDomain, string> = {
+  core: 'config.yaml',
+  llm: 'llm.yaml',
+  transcript: 'transcript.yaml',
+  features: 'features.yaml',
+}
 
-// Default values as constants for reuse
-const FEATURES_DEFAULTS = {
-  statusline: true,
-  sessionSummary: true,
-  resume: true,
-  sleeper: true,
-  snarkyComment: true,
-  reminders: true,
-  reminderUserPrompt: true,
-  reminderToolCadence: true,
-  reminderStuckCheckpoint: true,
-  reminderPreCompletion: true,
-  cleanup: true,
-} as const
+// =============================================================================
+// Zod Schemas - Per docs/design/CONFIG-SYSTEM.md §5
+// =============================================================================
 
-const CIRCUIT_BREAKER_DEFAULTS = {
-  enabled: true,
-  failureThreshold: 3,
-  backoffInitial: 60,
-  backoffMax: 3600,
-  backoffMultiplier: 2,
-} as const
+// --- Core Config Schema (§5.1) ---
+
+const LoggingSchema = z
+  .object({
+    level: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+    format: z.enum(['pretty', 'json']).default('pretty'),
+    consoleEnabled: z.boolean().default(false), // Enable console output (in addition to file)
+  })
+  .strict()
+
+const PathsSchema = z
+  .object({
+    state: z.string().default('.sidekick'),
+    assets: z.string().optional(),
+  })
+  .strict()
+
+const SUPERVISOR_DEFAULTS = {
+  idleTimeoutMs: 300000, // 5 minutes
+  shutdownTimeoutMs: 30000, // 30 seconds
+}
+
+const SupervisorSchema = z
+  .object({
+    idleTimeoutMs: z.number().min(0).optional(),
+    shutdownTimeoutMs: z.number().min(0).optional(),
+  })
+  .strict()
+  .transform((val) => ({
+    idleTimeoutMs: val.idleTimeoutMs ?? SUPERVISOR_DEFAULTS.idleTimeoutMs,
+    shutdownTimeoutMs: val.shutdownTimeoutMs ?? SUPERVISOR_DEFAULTS.shutdownTimeoutMs,
+  }))
+
+export const CoreConfigSchema = z
+  .object({
+    logging: LoggingSchema.optional(),
+    paths: PathsSchema.optional(),
+    supervisor: SupervisorSchema.optional(),
+  })
+  .strict()
+  .transform((val) => ({
+    logging: val.logging ?? { level: 'info' as const, format: 'pretty' as const, consoleEnabled: false },
+    paths: val.paths ?? { state: '.sidekick' },
+    supervisor: val.supervisor ?? SUPERVISOR_DEFAULTS,
+  }))
+
+export type CoreConfig = z.infer<typeof CoreConfigSchema>
+
+// --- LLM Config Schema (§5.2) ---
+
+const LlmProviderSchema = z.enum(['claude-cli', 'openai', 'openrouter', 'custom'])
 
 const LLM_DEFAULTS = {
-  provider: 'openrouter' as const,
-  timeout: 10,
+  provider: 'claude-cli' as const,
+  temperature: 0,
+  timeout: 30,
   timeoutMaxRetries: 3,
-  circuitBreaker: CIRCUIT_BREAKER_DEFAULTS,
   debugDumpEnabled: false,
 }
 
-const SESSION_SUMMARY_DEFAULTS = {
-  excerptLines: 80,
-  filterToolMessages: true,
-  keepHistory: false,
-  countdownLow: 5,
-  countdownMed: 20,
-  countdownHigh: 10000,
-  bookmarkConfidenceThreshold: 0.8,
-  bookmarkResetThreshold: 0.7,
-  minUserMessages: 5,
-  minRecentLines: 50,
-  titleMaxWords: 8,
-  intentMaxWords: 12,
-} as const
-
-const REMINDER_DEFAULTS = {
-  userPromptCadence: 1,
-  toolUseCadence: 60,
-  stuckThreshold: 40,
-} as const
-
-const CLEANUP_DEFAULTS = {
-  enabled: true,
-  minCount: 5,
-  ageDays: 2,
-  dryRun: false,
-} as const
-
-const SUPERVISOR_DEFAULTS = {
-  idleTimeoutMs: 5 * 60 * 1000, // 5 minutes
-  shutdownTimeoutMs: 30 * 1000, // 30 seconds
-} as const
-
-// Per design/SCHEMA-CONTRACTS.md §6.4: Use .strict() to reject unknown config keys
-const FeaturesSchema = z
-  .object({
-    statusline: z.boolean().optional(),
-    sessionSummary: z.boolean().optional(),
-    resume: z.boolean().optional(),
-    sleeper: z.boolean().optional(),
-    snarkyComment: z.boolean().optional(),
-    reminders: z.boolean().optional(),
-    reminderUserPrompt: z.boolean().optional(),
-    reminderToolCadence: z.boolean().optional(),
-    reminderStuckCheckpoint: z.boolean().optional(),
-    reminderPreCompletion: z.boolean().optional(),
-    cleanup: z.boolean().optional(),
-  })
-  .strict()
-  .transform((val) => ({ ...FEATURES_DEFAULTS, ...val }))
-
-const CircuitBreakerSchema = z
-  .object({
-    enabled: z.boolean().optional(),
-    failureThreshold: z.number().min(1).optional(),
-    backoffInitial: z.number().min(1).optional(),
-    backoffMax: z.number().min(1).optional(),
-    backoffMultiplier: z.number().min(1).optional(),
-  })
-  .strict()
-  .transform((val) => ({ ...CIRCUIT_BREAKER_DEFAULTS, ...val }))
-
-const LlmConfigSchema = z
+export const LlmConfigSchema = z
   .object({
     provider: LlmProviderSchema.optional(),
+    model: z.string().optional(),
+    temperature: z.number().min(0).max(1).optional(),
+    maxTokens: z.number().optional(),
     fallbackProvider: LlmProviderSchema.optional(),
     fallbackModel: z.string().optional(),
     timeout: z.number().min(1).max(300).optional(),
     timeoutMaxRetries: z.number().min(0).max(10).optional(),
-    circuitBreaker: CircuitBreakerSchema.optional(),
     debugDumpEnabled: z.boolean().optional(),
   })
   .strict()
   .transform((val) => ({
-    ...LLM_DEFAULTS,
-    ...val,
-    circuitBreaker: val.circuitBreaker ?? CIRCUIT_BREAKER_DEFAULTS,
+    provider: val.provider ?? LLM_DEFAULTS.provider,
+    model: val.model,
+    temperature: val.temperature ?? LLM_DEFAULTS.temperature,
+    maxTokens: val.maxTokens,
+    fallbackProvider: val.fallbackProvider,
+    fallbackModel: val.fallbackModel,
+    timeout: val.timeout ?? LLM_DEFAULTS.timeout,
+    timeoutMaxRetries: val.timeoutMaxRetries ?? LLM_DEFAULTS.timeoutMaxRetries,
+    debugDumpEnabled: val.debugDumpEnabled ?? LLM_DEFAULTS.debugDumpEnabled,
   }))
 
-const SessionSummaryConfigSchema = z
-  .object({
-    excerptLines: z.number().min(10).optional(),
-    filterToolMessages: z.boolean().optional(),
-    keepHistory: z.boolean().optional(),
-    countdownLow: z.number().min(1).optional(),
-    countdownMed: z.number().min(1).optional(),
-    countdownHigh: z.number().min(1).optional(),
-    bookmarkConfidenceThreshold: z.number().min(0).max(1).optional(),
-    bookmarkResetThreshold: z.number().min(0).max(1).optional(),
-    minUserMessages: z.number().min(1).optional(),
-    minRecentLines: z.number().min(1).optional(),
-    titleMaxWords: z.number().min(1).optional(),
-    intentMaxWords: z.number().min(1).optional(),
-  })
-  .strict()
-  .transform((val) => ({ ...SESSION_SUMMARY_DEFAULTS, ...val }))
+export type LlmConfig = z.infer<typeof LlmConfigSchema>
 
-const ReminderConfigSchema = z
-  .object({
-    userPromptCadence: z.number().min(1).optional(),
-    toolUseCadence: z.number().min(1).optional(),
-    stuckThreshold: z.number().min(1).optional(),
-  })
-  .strict()
-  .transform((val) => ({ ...REMINDER_DEFAULTS, ...val }))
+// --- Transcript Config Schema (§5.3) ---
 
-const CleanupConfigSchema = z
-  .object({
-    enabled: z.boolean().optional(),
-    minCount: z.number().min(1).optional(),
-    ageDays: z.number().min(1).optional(),
-    dryRun: z.boolean().optional(),
-  })
-  .strict()
-  .transform((val) => ({ ...CLEANUP_DEFAULTS, ...val }))
+const TRANSCRIPT_DEFAULTS = {
+  watchDebounceMs: 100,
+  metricsPersistIntervalMs: 5000,
+}
 
-const SupervisorConfigSchema = z
+export const TranscriptConfigSchema = z
   .object({
-    idleTimeoutMs: z.number().min(0).optional(), // 0 = disabled
-    shutdownTimeoutMs: z.number().min(1000).optional(), // min 1 second
-  })
-  .strict()
-  .transform((val) => ({ ...SUPERVISOR_DEFAULTS, ...val }))
-
-export const SidekickConfigSchema = z
-  .object({
-    logLevel: LogLevelSchema.optional(),
-    consoleLogging: z.boolean().optional(),
-    claudeBin: z.string().optional(),
-    features: FeaturesSchema.optional(),
-    llm: LlmConfigSchema.optional(),
-    sessionSummary: SessionSummaryConfigSchema.optional(),
-    reminder: ReminderConfigSchema.optional(),
-    cleanup: CleanupConfigSchema.optional(),
-    supervisor: SupervisorConfigSchema.optional(),
+    watchDebounceMs: z.number().min(0).optional(),
+    metricsPersistIntervalMs: z.number().optional(),
   })
   .strict()
   .transform((val) => ({
-    logLevel: val.logLevel ?? 'info',
-    consoleLogging: val.consoleLogging ?? false,
-    claudeBin: val.claudeBin,
-    features: val.features ?? FEATURES_DEFAULTS,
-    llm: val.llm ?? LLM_DEFAULTS,
-    sessionSummary: val.sessionSummary ?? SESSION_SUMMARY_DEFAULTS,
-    reminder: val.reminder ?? REMINDER_DEFAULTS,
-    cleanup: val.cleanup ?? CLEANUP_DEFAULTS,
-    supervisor: val.supervisor ?? SUPERVISOR_DEFAULTS,
+    watchDebounceMs: val.watchDebounceMs ?? TRANSCRIPT_DEFAULTS.watchDebounceMs,
+    metricsPersistIntervalMs: val.metricsPersistIntervalMs ?? TRANSCRIPT_DEFAULTS.metricsPersistIntervalMs,
   }))
 
-export type SidekickConfig = z.infer<typeof SidekickConfigSchema>
+export type TranscriptConfig = z.infer<typeof TranscriptConfigSchema>
+
+// --- Features Config Schema (§5.4) ---
+
+const FeatureSettingsSchema = z.record(z.string(), z.unknown())
+
+const FeatureEntrySchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    settings: FeatureSettingsSchema.optional(),
+  })
+  .strict()
+  .transform((val) => ({
+    enabled: val.enabled ?? true,
+    settings: val.settings ?? {},
+  }))
+
+export const FeaturesConfigSchema = z
+  .record(z.string(), FeatureEntrySchema)
+  .optional()
+  .transform((val) => val ?? {})
+
+export type FeatureConfig = z.infer<typeof FeatureEntrySchema>
+export type FeaturesConfig = z.infer<typeof FeaturesConfigSchema>
+
+// --- Unified Config Type (§5.5) ---
+
+export interface SidekickConfig {
+  core: CoreConfig
+  llm: LlmConfig
+  transcript: TranscriptConfig
+  features: FeaturesConfig
+}
+
+// Combined schema for full validation
+export const SidekickConfigSchema = z.object({
+  core: CoreConfigSchema.optional().transform(
+    (val) =>
+      val ?? {
+        logging: { level: 'info' as const, format: 'pretty' as const, consoleEnabled: false },
+        paths: { state: '.sidekick' },
+        supervisor: SUPERVISOR_DEFAULTS,
+      }
+  ),
+  llm: LlmConfigSchema.optional().transform(
+    (val) =>
+      val ?? {
+        ...LLM_DEFAULTS,
+        model: undefined,
+        maxTokens: undefined,
+        fallbackProvider: undefined,
+        fallbackModel: undefined,
+      }
+  ),
+  transcript: TranscriptConfigSchema.optional().transform((val) => val ?? TRANSCRIPT_DEFAULTS),
+  features: FeaturesConfigSchema,
+})
 
 // =============================================================================
-// Config Loading
+// Deep Merge Utility
 // =============================================================================
 
-export interface ConfigServiceOptions {
-  projectRoot?: string
-  homeDir?: string
-}
-
-interface LoadedLayer {
-  source: string
-  data: Record<string, unknown>
-}
-
-function tryReadJsonc(filePath: string): Record<string, unknown> | null {
-  if (!existsSync(filePath)) {
-    return null
-  }
-
-  const content = readFileSync(filePath, 'utf8')
-  const errors: { error: number; offset: number; length: number }[] = []
-  const parsed = parseJsonc(content, errors) as Record<string, unknown>
-
-  if (errors.length > 0) {
-    const firstError = errors[0]
-    throw new Error(`Failed to parse JSONC at ${filePath}: syntax error at offset ${firstError.offset}`)
-  }
-
-  return parsed
-}
-
+/**
+ * Deep merge two objects. Per CONFIG-SYSTEM.md §4.1:
+ * - Objects: Deep merged
+ * - Arrays: Replaced (higher priority replaces lower)
+ * - Primitives: Replaced
+ */
 function deepMerge<T extends Record<string, unknown>>(base: T, override: Record<string, unknown>): T {
   const result = { ...base } as Record<string, unknown>
 
@@ -300,128 +279,411 @@ function deepMerge<T extends Record<string, unknown>>(base: T, override: Record<
   return result as T
 }
 
-function envToConfig(env: NodeJS.ProcessEnv): Record<string, unknown> {
-  const config: Record<string, unknown> = {}
+// =============================================================================
+// Unified Config (sidekick.config) Parser
+// =============================================================================
 
-  // Map SIDEKICK_* env vars to config paths
-  const mappings: Record<string, (val: string) => void> = {
-    SIDEKICK_LOG_LEVEL: (val) => {
-      config.logLevel = val
-    },
-    SIDEKICK_CONSOLE_LOGGING: (val) => {
-      config.consoleLogging = val === 'true'
-    },
-    SIDEKICK_LLM_PROVIDER: (val) => {
-      config.llm = config.llm ?? {}
-      ;(config.llm as Record<string, unknown>).provider = val
-    },
-    SIDEKICK_LLM_TIMEOUT: (val) => {
-      config.llm = config.llm ?? {}
-      ;(config.llm as Record<string, unknown>).timeout = parseInt(val, 10)
-    },
+/**
+ * Parse a sidekick.config file with bash-style dot-notation.
+ * Per docs/design/CONFIG-SYSTEM.md §4.2
+ *
+ * Format:
+ * - Lines starting with # are comments
+ * - Format: domain.path.to.key=value
+ * - Values are coerced to appropriate types (number, boolean, string)
+ * - Arrays use JSON syntax: some.array=["a","b","c"]
+ */
+function parseUnifiedConfig(content: string): Record<string, Record<string, unknown>> {
+  const result: Record<string, Record<string, unknown>> = {}
+
+  const lines = content.split('\n')
+  for (const line of lines) {
+    const trimmed = line.trim()
+
+    // Skip empty lines and comments
+    if (!trimmed || trimmed.startsWith('#')) {
+      continue
+    }
+
+    // Parse key=value
+    const eqIndex = trimmed.indexOf('=')
+    if (eqIndex === -1) {
+      continue
+    }
+
+    const key = trimmed.substring(0, eqIndex).trim()
+    const rawValue = trimmed.substring(eqIndex + 1).trim()
+
+    // Parse the key path (e.g., "llm.provider" -> ["llm", "provider"])
+    const parts = key.split('.')
+    if (parts.length < 2) {
+      // Invalid format - need at least domain.key
+      continue
+    }
+
+    // First part is the domain
+    const domain = parts[0]
+    const path = parts.slice(1)
+
+    // Coerce value to appropriate type
+    const value = coerceValue(rawValue)
+
+    // Build nested structure
+    if (!result[domain]) {
+      result[domain] = {}
+    }
+
+    setNestedValue(result[domain], path, value)
   }
 
-  for (const [envKey, setter] of Object.entries(mappings)) {
-    const val = env[envKey]
-    if (val !== undefined) {
-      setter(val)
+  return result
+}
+
+/**
+ * Coerce a string value to its appropriate type.
+ * Supports: boolean, number, JSON arrays/objects, string
+ */
+function coerceValue(raw: string): unknown {
+  // Boolean
+  if (raw === 'true') return true
+  if (raw === 'false') return false
+
+  // Number
+  const num = Number(raw)
+  if (!isNaN(num) && raw !== '') return num
+
+  // JSON array or object
+  if ((raw.startsWith('[') && raw.endsWith(']')) || (raw.startsWith('{') && raw.endsWith('}'))) {
+    try {
+      return JSON.parse(raw)
+    } catch {
+      // Fall through to string
     }
   }
 
-  return config
+  // String (remove quotes if present)
+  if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) {
+    return raw.slice(1, -1)
+  }
+
+  return raw
 }
 
+/**
+ * Set a nested value in an object given a path array.
+ */
+function setNestedValue(obj: Record<string, unknown>, path: string[], value: unknown): void {
+  let current = obj
+  for (let i = 0; i < path.length - 1; i++) {
+    const key = path[i]
+    if (!(key in current) || typeof current[key] !== 'object' || current[key] === null) {
+      current[key] = {}
+    }
+    current = current[key] as Record<string, unknown>
+  }
+  current[path[path.length - 1]] = value
+}
+
+// =============================================================================
+// YAML File Loading
+// =============================================================================
+
+/**
+ * Try to read and parse a YAML file. Returns null if file doesn't exist.
+ * Throws on parse errors.
+ */
+function tryReadYaml(filePath: string): Record<string, unknown> | null {
+  if (!existsSync(filePath)) {
+    return null
+  }
+
+  const content = readFileSync(filePath, 'utf8')
+
+  try {
+    const parsed = parseYaml(content) as Record<string, unknown> | null
+    // YAML.parse returns undefined/null for empty files
+    return parsed ?? {}
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    throw new Error(`Failed to parse YAML at ${filePath}: ${message}`)
+  }
+}
+
+/**
+ * Try to read a unified config file. Returns null if file doesn't exist.
+ */
+function tryReadUnifiedConfig(filePath: string): Record<string, Record<string, unknown>> | null {
+  if (!existsSync(filePath)) {
+    return null
+  }
+
+  const content = readFileSync(filePath, 'utf8')
+  return parseUnifiedConfig(content)
+}
+
+// =============================================================================
+// Environment Variable Loading
+// =============================================================================
+
+/**
+ * Load environment files in cascade order.
+ * Per docs/design/CONFIG-SYSTEM.md §4: env is layer 2.
+ */
 function loadEnvFiles(homeDir: string, projectRoot?: string): void {
-  // Load env files in precedence order (later overrides earlier)
   const envPaths: string[] = []
 
-  // User env
+  // User env (~/.sidekick/.env)
   const userEnv = join(homeDir, '.sidekick', '.env')
   if (existsSync(userEnv)) {
     envPaths.push(userEnv)
   }
 
   if (projectRoot) {
-    // Project root .env (standard location)
-    const projectRootEnv = join(projectRoot, '.env')
-    if (existsSync(projectRootEnv)) {
-      envPaths.push(projectRootEnv)
-    }
-
     // Project .sidekick/.env
-    const projectSidekickEnv = join(projectRoot, '.sidekick', '.env')
-    if (existsSync(projectSidekickEnv)) {
-      envPaths.push(projectSidekickEnv)
+    const projectEnv = join(projectRoot, '.sidekick', '.env')
+    if (existsSync(projectEnv)) {
+      envPaths.push(projectEnv)
     }
 
-    // Project .sidekick/.env.local (highest priority)
+    // Project .sidekick/.env.local (highest env priority)
     const projectLocalEnv = join(projectRoot, '.sidekick', '.env.local')
     if (existsSync(projectLocalEnv)) {
       envPaths.push(projectLocalEnv)
     }
   }
 
-  // Load in order (each subsequent file overrides previous values in process.env)
+  // Load in order (each subsequent file overrides previous values)
   for (const envPath of envPaths) {
     loadDotenv({ path: envPath, override: true, quiet: true })
   }
 }
 
+/**
+ * Map environment variables to config structure.
+ * Uses SIDEKICK_* prefix with underscore-to-path mapping.
+ */
+function envToConfig(env: NodeJS.ProcessEnv): Record<string, Record<string, unknown>> {
+  const result: Record<string, Record<string, unknown>> = {}
+
+  // Define explicit mappings for environment variables
+  const mappings: Record<string, { domain: ConfigDomain; path: string[] }> = {
+    // Core domain
+    SIDEKICK_LOG_LEVEL: { domain: 'core', path: ['logging', 'level'] },
+    SIDEKICK_LOG_FORMAT: { domain: 'core', path: ['logging', 'format'] },
+    SIDEKICK_STATE_PATH: { domain: 'core', path: ['paths', 'state'] },
+    SIDEKICK_ASSETS_PATH: { domain: 'core', path: ['paths', 'assets'] },
+
+    // LLM domain
+    SIDEKICK_LLM_PROVIDER: { domain: 'llm', path: ['provider'] },
+    SIDEKICK_LLM_MODEL: { domain: 'llm', path: ['model'] },
+    SIDEKICK_LLM_TEMPERATURE: { domain: 'llm', path: ['temperature'] },
+    SIDEKICK_LLM_MAX_TOKENS: { domain: 'llm', path: ['maxTokens'] },
+    SIDEKICK_LLM_TIMEOUT: { domain: 'llm', path: ['timeout'] },
+
+    // Transcript domain
+    SIDEKICK_TRANSCRIPT_WATCH_DEBOUNCE: { domain: 'transcript', path: ['watchDebounceMs'] },
+    SIDEKICK_TRANSCRIPT_METRICS_INTERVAL: { domain: 'transcript', path: ['metricsPersistIntervalMs'] },
+  }
+
+  for (const [envKey, mapping] of Object.entries(mappings)) {
+    const val = env[envKey]
+    if (val !== undefined) {
+      if (!result[mapping.domain]) {
+        result[mapping.domain] = {}
+      }
+      setNestedValue(result[mapping.domain], mapping.path, coerceValue(val))
+    }
+  }
+
+  return result
+}
+
+// =============================================================================
+// Config Loading
+// =============================================================================
+
+export interface ConfigServiceOptions {
+  projectRoot?: string
+  homeDir?: string
+}
+
+interface LoadedSource {
+  source: string
+  domain?: ConfigDomain
+}
+
+/**
+ * Load domain configuration with full cascade.
+ *
+ * Cascade order per docs/design/CONFIG-SYSTEM.md §4:
+ * 1. Internal defaults (via Zod)
+ * 2. Environment variables
+ * 3. User unified config (~/.sidekick/sidekick.config)
+ * 4. User domain config (~/.sidekick/{domain}.yaml)
+ * 5. Project unified config (.sidekick/sidekick.config)
+ * 6. Project domain config (.sidekick/{domain}.yaml)
+ * 7. Project-local override (.sidekick/{domain}.yaml.local)
+ */
+function loadDomainConfig(
+  domain: ConfigDomain,
+  envConfig: Record<string, Record<string, unknown>>,
+  userUnified: Record<string, Record<string, unknown>> | null,
+  userDomainPath: string,
+  projectUnified: Record<string, Record<string, unknown>> | null,
+  projectDomainPath: string | null,
+  projectLocalPath: string | null
+): { config: Record<string, unknown>; sources: LoadedSource[] } {
+  const sources: LoadedSource[] = []
+  let merged: Record<string, unknown> = {}
+
+  // 2. Environment variables for this domain
+  if (envConfig[domain]) {
+    merged = deepMerge(merged, envConfig[domain])
+    sources.push({ source: 'environment', domain })
+  }
+
+  // 3. User unified config for this domain
+  if (userUnified?.[domain]) {
+    merged = deepMerge(merged, userUnified[domain])
+    sources.push({ source: 'user:sidekick.config', domain })
+  }
+
+  // 4. User domain YAML
+  const userDomain = tryReadYaml(userDomainPath)
+  if (userDomain) {
+    merged = deepMerge(merged, userDomain)
+    sources.push({ source: userDomainPath, domain })
+  }
+
+  // 5. Project unified config for this domain
+  if (projectUnified?.[domain]) {
+    merged = deepMerge(merged, projectUnified[domain])
+    sources.push({ source: 'project:sidekick.config', domain })
+  }
+
+  // 6. Project domain YAML
+  if (projectDomainPath) {
+    const projectDomain = tryReadYaml(projectDomainPath)
+    if (projectDomain) {
+      merged = deepMerge(merged, projectDomain)
+      sources.push({ source: projectDomainPath, domain })
+    }
+  }
+
+  // 7. Project-local override
+  if (projectLocalPath) {
+    const projectLocal = tryReadYaml(projectLocalPath)
+    if (projectLocal) {
+      merged = deepMerge(merged, projectLocal)
+      sources.push({ source: projectLocalPath, domain })
+    }
+  }
+
+  return { config: merged, sources }
+}
+
+/**
+ * Load and validate the full Sidekick configuration.
+ */
 export function loadConfig(options: ConfigServiceOptions): SidekickConfig {
   const homeDir = options.homeDir ?? homedir()
   const projectRoot = options.projectRoot
 
-  // Step 1: Load env files first (they go into process.env)
+  // Step 1: Load env files (populates process.env)
   loadEnvFiles(homeDir, projectRoot)
 
-  // Step 2: Build merged config from layers
-  const layers: LoadedLayer[] = []
-
-  // Internal defaults are handled by Zod defaults
-  // Start with env-derived config
+  // Step 2: Parse env vars into domain structure
   const envConfig = envToConfig(process.env)
-  if (Object.keys(envConfig).length > 0) {
-    layers.push({ source: 'environment', data: envConfig })
+
+  // Step 3: Load unified config files
+  const userUnifiedPath = join(homeDir, '.sidekick', 'sidekick.config')
+  const userUnified = tryReadUnifiedConfig(userUnifiedPath)
+
+  const projectUnifiedPath = projectRoot ? join(projectRoot, '.sidekick', 'sidekick.config') : null
+  const projectUnified = projectUnifiedPath ? tryReadUnifiedConfig(projectUnifiedPath) : null
+
+  // Step 4: Build paths for domain files
+  const userSidekick = join(homeDir, '.sidekick')
+  const projectSidekick = projectRoot ? join(projectRoot, '.sidekick') : null
+
+  // Step 5: Load each domain with full cascade
+  const domains: ConfigDomain[] = ['core', 'llm', 'transcript', 'features']
+  const domainConfigs: Record<string, Record<string, unknown>> = {}
+
+  for (const domain of domains) {
+    const filename = DOMAIN_FILES[domain]
+    const userDomainPath = join(userSidekick, filename)
+    const projectDomainPath = projectSidekick ? join(projectSidekick, filename) : null
+    const projectLocalPath = projectSidekick ? join(projectSidekick, `${filename}.local`) : null
+
+    const { config } = loadDomainConfig(
+      domain,
+      envConfig,
+      userUnified,
+      userDomainPath,
+      projectUnified,
+      projectDomainPath,
+      projectLocalPath
+    )
+
+    domainConfigs[domain] = config
   }
 
-  // User global JSONC (~/.sidekick/config.jsonc)
-  const userConfigPath = join(homeDir, '.sidekick', 'config.jsonc')
-  const userConfig = tryReadJsonc(userConfigPath)
-  if (userConfig) {
-    layers.push({ source: userConfigPath, data: userConfig })
-  }
-
-  if (projectRoot) {
-    // Project JSONC (.sidekick/config.jsonc)
-    const projectConfigPath = join(projectRoot, '.sidekick', 'config.jsonc')
-    const projectConfig = tryReadJsonc(projectConfigPath)
-    if (projectConfig) {
-      layers.push({ source: projectConfigPath, data: projectConfig })
-    }
-
-    // Project-local .local variant (.sidekick/config.jsonc.local)
-    const projectLocalConfigPath = join(projectRoot, '.sidekick', 'config.jsonc.local')
-    const projectLocalConfig = tryReadJsonc(projectLocalConfigPath)
-    if (projectLocalConfig) {
-      layers.push({ source: projectLocalConfigPath, data: projectLocalConfig })
-    }
-  }
-
-  // Step 3: Deep merge all layers
-  let merged: Record<string, unknown> = {}
-  for (const layer of layers) {
-    merged = deepMerge(merged, layer.data)
-  }
-
-  // Step 4: Validate with Zod (applies defaults)
-  const result = SidekickConfigSchema.safeParse(merged)
+  // Step 6: Validate with Zod (applies defaults)
+  const result = SidekickConfigSchema.safeParse(domainConfigs)
   if (!result.success) {
     const issues = result.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ')
     throw new Error(`Configuration validation failed: ${issues}`)
   }
 
-  // Step 5: Freeze config for immutability (per design/CONFIG-SYSTEM.md §2)
+  // Step 7: Freeze config for immutability
   return deepFreeze(result.data)
+}
+
+// =============================================================================
+// Derived Paths
+// =============================================================================
+
+/**
+ * Derived path helpers per docs/design/CONFIG-SYSTEM.md §6.
+ * These paths are computed from configuration, not directly configurable.
+ */
+export interface DerivedPaths {
+  /** Session state root: {paths.state}/sessions/{session_id}/ */
+  sessionRoot(sessionId: string): string
+  /** Staging root: {paths.state}/sessions/{session_id}/stage/ */
+  stagingRoot(sessionId: string): string
+  /** Hook-specific staging: {paths.state}/sessions/{session_id}/stage/{hook_name}/ */
+  hookStaging(sessionId: string, hookName: string): string
+  /** Session state file: {paths.state}/sessions/{session_id}/state/{filename} */
+  sessionState(sessionId: string, filename: string): string
+  /** Logs directory: {paths.state}/logs/ */
+  logsDir(): string
+}
+
+/**
+ * Create derived path helpers from core config.
+ */
+export function createDerivedPaths(coreConfig: CoreConfig, projectRoot?: string): DerivedPaths {
+  const stateBase = projectRoot ? join(projectRoot, coreConfig.paths.state) : coreConfig.paths.state
+
+  return {
+    sessionRoot(sessionId: string): string {
+      return join(stateBase, 'sessions', sessionId)
+    },
+    stagingRoot(sessionId: string): string {
+      return join(stateBase, 'sessions', sessionId, 'stage')
+    },
+    hookStaging(sessionId: string, hookName: string): string {
+      return join(stateBase, 'sessions', sessionId, 'stage', hookName)
+    },
+    sessionState(sessionId: string, filename: string): string {
+      return join(stateBase, 'sessions', sessionId, 'state', filename)
+    },
+    logsDir(): string {
+      return join(stateBase, 'logs')
+    },
+  }
 }
 
 // =============================================================================
@@ -429,8 +691,22 @@ export function loadConfig(options: ConfigServiceOptions): SidekickConfig {
 // =============================================================================
 
 export interface ConfigService {
-  get<K extends keyof SidekickConfig>(key: K): SidekickConfig[K]
+  /** Get a specific domain config */
+  get core(): CoreConfig
+  get llm(): LlmConfig
+  get transcript(): TranscriptConfig
+  get features(): FeaturesConfig
+
+  /** Get the full config object */
   getAll(): SidekickConfig
+
+  /** Get a specific feature's config */
+  getFeature<T = Record<string, unknown>>(name: string): FeatureConfig & { settings: T }
+
+  /** Derived path helpers */
+  paths: DerivedPaths
+
+  /** Sources loaded for debugging */
   sources: string[]
 }
 
@@ -443,36 +719,78 @@ export function createConfigService(options: ConfigServiceOptions): ConfigServic
 
   // Load env files
   loadEnvFiles(homeDir, projectRoot)
-  if (Object.keys(envToConfig(process.env)).length > 0) {
+
+  // Check for env config
+  const envConfig = envToConfig(process.env)
+  if (Object.keys(envConfig).length > 0) {
     sources.push('environment')
   }
 
-  const userConfigPath = join(homeDir, '.sidekick', 'config.jsonc')
-  if (existsSync(userConfigPath)) {
-    sources.push(userConfigPath)
+  // Check for unified config files
+  const userUnifiedPath = join(homeDir, '.sidekick', 'sidekick.config')
+  if (existsSync(userUnifiedPath)) {
+    sources.push(userUnifiedPath)
   }
 
-  if (projectRoot) {
-    const projectConfigPath = join(projectRoot, '.sidekick', 'config.jsonc')
-    if (existsSync(projectConfigPath)) {
-      sources.push(projectConfigPath)
+  const projectUnifiedPath = projectRoot ? join(projectRoot, '.sidekick', 'sidekick.config') : null
+  if (projectUnifiedPath && existsSync(projectUnifiedPath)) {
+    sources.push(projectUnifiedPath)
+  }
+
+  // Check for domain files
+  const userSidekick = join(homeDir, '.sidekick')
+  const projectSidekick = projectRoot ? join(projectRoot, '.sidekick') : null
+
+  for (const domain of Object.keys(DOMAIN_FILES) as ConfigDomain[]) {
+    const filename = DOMAIN_FILES[domain]
+    const userDomainPath = join(userSidekick, filename)
+    if (existsSync(userDomainPath)) {
+      sources.push(userDomainPath)
     }
 
-    const projectLocalConfigPath = join(projectRoot, '.sidekick', 'config.jsonc.local')
-    if (existsSync(projectLocalConfigPath)) {
-      sources.push(projectLocalConfigPath)
+    if (projectSidekick) {
+      const projectDomainPath = join(projectSidekick, filename)
+      if (existsSync(projectDomainPath)) {
+        sources.push(projectDomainPath)
+      }
+
+      const projectLocalPath = join(projectSidekick, `${filename}.local`)
+      if (existsSync(projectLocalPath)) {
+        sources.push(projectLocalPath)
+      }
     }
   }
 
   const config = loadConfig(options)
+  const derivedPaths = createDerivedPaths(config.core, projectRoot)
 
   return {
-    get<K extends keyof SidekickConfig>(key: K): SidekickConfig[K] {
-      return config[key]
+    get core(): CoreConfig {
+      return config.core
+    },
+    get llm(): LlmConfig {
+      return config.llm
+    },
+    get transcript(): TranscriptConfig {
+      return config.transcript
+    },
+    get features(): FeaturesConfig {
+      return config.features
     },
     getAll(): SidekickConfig {
       return config
     },
+    getFeature<T = Record<string, unknown>>(name: string): FeatureConfig & { settings: T } {
+      const feature = config.features[name] ?? { enabled: true, settings: {} }
+      return feature as FeatureConfig & { settings: T }
+    },
+    paths: derivedPaths,
     sources,
   }
 }
+
+// =============================================================================
+// Exported Utilities
+// =============================================================================
+
+export { parseUnifiedConfig }

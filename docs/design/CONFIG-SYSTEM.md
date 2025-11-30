@@ -85,31 +85,53 @@ export const CoreConfigSchema = z.object({
   logging: z.object({
     level: z.enum(["debug", "info", "warn", "error"]).default("info"),
     format: z.enum(["pretty", "json"]).default("pretty"),
+    consoleEnabled: z.boolean().default(false),  // Enable console output (in addition to file)
   }),
   paths: z.object({
     state: z.string().default(".sidekick"),  // Base path for session state
     assets: z.string().optional(),            // Custom assets path override
   }),
+  supervisor: z.object({
+    idleTimeoutMs: z.number().default(300000),      // Auto-shutdown after 5 min idle
+    shutdownTimeoutMs: z.number().default(30000),   // Grace period for in-flight tasks
+  }).optional(),
 });
 
 export type CoreConfig = z.infer<typeof CoreConfigSchema>;
 ```
 
+**Note**: Supervisor settings are optional; defaults apply when supervisor is spawned. See `docs/design/CLI.md §7` and `docs/design/SUPERVISOR.md §2` for lifecycle details.
+
 ### 5.2 LLM Config Schema
 
 ```typescript
 export const LlmConfigSchema = z.object({
+  // Primary provider settings
   provider: z
     .enum(["claude-cli", "openai", "openrouter", "custom"])
     .default("claude-cli"),
   model: z.string().optional(),
   temperature: z.number().min(0).max(1).default(0),
   maxTokens: z.number().optional(),
+
+  // Fallback provider (used when primary fails after retries)
+  fallbackProvider: z.enum(["claude-cli", "openai", "openrouter", "custom"]).optional(),
+  fallbackModel: z.string().optional(),
+
+  // Resilience settings
+  timeout: z.number().min(1).max(300).default(30),        // Request timeout in seconds
+  timeoutMaxRetries: z.number().min(0).max(10).default(3), // Retries before fallback
+
+  // Debugging
+  debugDumpEnabled: z.boolean().default(false),  // Dump LLM request/response to logs
+
   // API keys should come from .env files, not config
 });
 
 export type LlmConfig = z.infer<typeof LlmConfigSchema>;
 ```
+
+**Note**: Fallback and resilience settings support Phase 4 LLM provider implementation. See `docs/design/LLM-PROVIDERS.md §5` for retry/fallback policy details.
 
 ### 5.3 Transcript Config Schema
 
@@ -209,11 +231,18 @@ class ConfigService {
 
   public get core(): CoreConfig { return this.config.core; }
   public get llm(): LlmConfig { return this.config.llm; }
+  public get transcript(): TranscriptConfig { return this.config.transcript; }
   public get features(): FeaturesConfig { return this.config.features; }
 
   public getFeature<T>(name: string): FeatureConfig & { settings: T } {
     return this.config.features[name] as FeatureConfig & { settings: T };
   }
+
+  /** Derived path helpers - see Section 6 */
+  public get paths(): DerivedPaths { return this.derivedPaths; }
+
+  /** Config sources loaded (for debugging) */
+  public get sources(): string[] { return this.loadedSources; }
 }
 ```
 
@@ -254,6 +283,11 @@ logging:
 
 paths:
   state: .sidekick
+
+# Supervisor settings (optional - defaults shown)
+supervisor:
+  idleTimeoutMs: 300000     # 5 minutes
+  shutdownTimeoutMs: 30000  # 30 seconds
 ```
 
 ### 9.3 `.sidekick/llm.yaml` (Project LLM)
@@ -297,4 +331,5 @@ The following are internal implementation concerns, not exposed via configuratio
 - **Unified config convenience**: `sidekick.config` provides quick bash-style overrides without editing multiple files.
 - **Feature-specific schemas in feature LLDs**: Feature settings schemas live in their respective feature docs, not here.
 - **Derived vs. configurable paths**: Session/staging paths derived from `paths.state`; internal structure is not configurable.
-- **Hot reloading**: Config service watches files for changes.
+- **Supervisor in core domain**: Supervisor settings (`idleTimeoutMs`, `shutdownTimeoutMs`) live in CoreConfig as they are operational/runtime concerns alongside logging and paths.
+- **Hot reloading**: ConfigService watches domain files and `sidekick.config` for changes. On file change, the entire config is reloaded and atomically replaced. Consumers must not cache config values or references—always access via `configService.{domain}` accessors. File watching uses chokidar with debouncing to avoid thrashing on rapid edits.

@@ -67,41 +67,74 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [x] Shared types used by both UI and backend packages
   - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
 
-- [ ] **Phase 2: Configuration & Asset Resolution Foundations**
-  - [ ] Objectives
-    - [ ] Implement the configuration cascade (env + config files) with deep-merge semantics and validation.
-    - [ ] Add asset resolver capable of reading defaults from `assets/sidekick/` and honoring override layers for user/project scopes.
-  - [ ] Relevant documents/sections
-    - [ ] `{project_root_dir}/docs/ARCHITECTURE.md` (§3.6 Configuration Cascade, §2.3 Static Assets)
-    - [ ] `{project_root_dir}/docs/design/CONFIG-SYSTEM.md` (§3 Configuration Domains, §4 Configuration Cascade, §5 Data Structures, §8 Component Architecture) — **authoritative for config format and cascade**
-    - [ ] `{project_root_dir}/docs/design/SCHEMA-CONTRACTS.md` (§3 Core Schemas, §4 Asset Synchronization, §5 Versioning Strategy)
-      - [ ] §6.4 "Strictness": Use `z.strict()` by default to reject unknown config keys
-    - [ ] `{project_root_dir}/docs/design/CORE-RUNTIME.md` (§3.2 Configuration Service, §3.3 Asset Resolver)
-  - [ ] Acceptance criteria - REQUIRES RE-VERIFICATION after YAML migration
-    - [ ] Config loader reads env files and config layers in the documented order, producing a validated runtime config object.
-    - [ ] Asset resolver returns defaults from `assets/sidekick/` when no overrides exist and correctly prefers project-local overrides when present.
-    - [ ] CLI commands can access config and assets through the runtime shell, with errors surfaced via clear validation messages.
-    - [ ] Config object is immutable after loading (per CONFIG-SYSTEM §2).
-    - [ ] Zod schemas use strict mode to reject unknown keys (per SCHEMA-CONTRACTS §6.4).
-    - [ ] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
-  - [ ] Testing
-    - [ ] Author tests upfront that cover requirements to be implemented/updated
-  - [ ] **Architectural alignment tasks** (added post-architecture-pivot)
-    - [ ] Migrate config format from JSONC to YAML domain files (per docs/design/CONFIG-SYSTEM.md §3):
-      - [ ] `config.yaml` (core: paths, logging)
-      - [ ] `llm.yaml` (provider settings, model selection)
-      - [ ] `transcript.yaml` (watchDebounceMs, metricsPersistIntervalMs)
-      - [ ] `features.yaml` (feature flags and feature-specific settings)
-    - [ ] Add `sidekick.config` unified override support (bash-style dot-notation, per docs/design/CONFIG-SYSTEM.md §4.2)
-    - [ ] Update cascade order to match docs/design/CONFIG-SYSTEM.md §4: internal defaults → env/.env → user unified → user domain → project unified → project domain → project-local
-    - [ ] Add `TranscriptConfigSchema` Zod schema (per docs/design/CONFIG-SYSTEM.md §5.3)
-    - [ ] Add derived path helpers for staging directories: `{paths.state}/sessions/{session_id}/stage/{hook_name}/` (per docs/design/CONFIG-SYSTEM.md §6)
-    - [ ] **Testing for alignment tasks**:
-      - [ ] YAML parsing tests (valid/invalid domain files)
-      - [ ] Domain file cascade precedence tests
-      - [ ] `sidekick.config` dot-notation parsing tests
-      - [ ] Derived path helper tests (staging directories)
-    - [ ] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
+- [x] **Phase 2: Configuration & Asset Resolution Foundations**
+  - [x] **PRIORITY ANALYSIS TASK**: Ensure that the config structure change(s) are aligned with `docs/design/CONFIG-SYSTEM.md` - verify it aligns with the implementation, and if it does not, discuss with the user
+  - [x] Objectives
+    - [x] Implement the configuration cascade (env + config files) with deep-merge semantics and validation.
+    - [x] Add asset resolver capable of reading defaults from `assets/sidekick/` and honoring override layers for user/project scopes.
+  - [x] Relevant documents/sections
+    - [x] `{project_root_dir}/docs/ARCHITECTURE.md` (§3.6 Configuration Cascade, §2.3 Static Assets)
+    - [x] `{project_root_dir}/docs/design/CONFIG-SYSTEM.md` (§3 Configuration Domains, §4 Configuration Cascade, §5 Data Structures, §8 Component Architecture) — **authoritative for config format and cascade**
+    - [x] `{project_root_dir}/docs/design/SCHEMA-CONTRACTS.md` (§3 Core Schemas, §4 Asset Synchronization, §5 Versioning Strategy)
+      - [x] §6.4 "Strictness": Use `z.strict()` by default to reject unknown config keys
+    - [x] `{project_root_dir}/docs/design/CORE-RUNTIME.md` (§3.2 Configuration Service, §3.3 Asset Resolver)
+  - [x] Acceptance criteria - VERIFIED 2025-11-30
+    - [x] Config loader reads env files and config layers in the documented order, producing a validated runtime config object.
+    - [x] Asset resolver returns defaults from `assets/sidekick/` when no overrides exist and correctly prefers project-local overrides when present.
+    - [x] CLI commands can access config and assets through the runtime shell, with errors surfaced via clear validation messages.
+    - [x] Config object is immutable after loading (per CONFIG-SYSTEM §2).
+    - [x] Zod schemas use strict mode to reject unknown keys (per SCHEMA-CONTRACTS §6.4).
+    - [x] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
+  - [x] Testing
+    - [x] Author tests upfront that cover requirements to be implemented/updated
+  - [x] **Architectural alignment tasks** (added post-architecture-pivot)
+    - [x] Migrate config format from JSONC to YAML domain files (per docs/design/CONFIG-SYSTEM.md §3):
+      - [x] `config.yaml` (core: paths, logging) — implemented as `CoreConfigSchema`
+      - [x] `llm.yaml` (provider settings, model selection) — implemented as `LlmConfigSchema`
+      - [x] `transcript.yaml` (watchDebounceMs, metricsPersistIntervalMs) — implemented as `TranscriptConfigSchema`
+      - [x] `features.yaml` (feature flags and feature-specific settings) — implemented as `FeaturesConfigSchema`
+    - [x] Add `sidekick.config` unified override support (bash-style dot-notation, per docs/design/CONFIG-SYSTEM.md §4.2)
+      - [x] Implemented `parseUnifiedConfig()` function with type coercion (boolean, number, JSON, string)
+    - [x] Update cascade order to match docs/design/CONFIG-SYSTEM.md §4: internal defaults → env/.env → user unified → user domain → project unified → project domain → project-local
+      - [x] 7-layer cascade implemented in `loadDomainConfig()`
+    - [x] Add `TranscriptConfigSchema` Zod schema (per docs/design/CONFIG-SYSTEM.md §5.3)
+    - [x] Add derived path helpers for staging directories: `{paths.state}/sessions/{session_id}/stage/{hook_name}/` (per docs/design/CONFIG-SYSTEM.md §6)
+      - [x] Implemented `DerivedPaths` interface with `sessionRoot()`, `stagingRoot()`, `hookStaging()`, `sessionState()`, `logsDir()`
+    - [x] **Testing for alignment tasks**:
+      - [x] YAML parsing tests (valid/invalid domain files) — 8 tests
+      - [x] Domain file cascade precedence tests — 8 tests
+      - [x] `sidekick.config` dot-notation parsing tests — 8 tests
+      - [x] Derived path helper tests (staging directories) — 7 tests
+    - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test` - PASSED 2025-11-30
+  - [x] **Breaking change migration tasks** (added 2024-11-30)
+    - [x] Add `supervisor` settings to `CoreConfig` schema (idleTimeoutMs, shutdownTimeoutMs)
+      - Decision: Supervisor settings belong in core domain as operational/runtime config
+    - [x] Update `sidekick-cli` for new config structure:
+      - [x] Replace `config.get('logLevel')` → `config.core.logging.level`
+      - [x] Replace `config.get('llm').provider` → `config.llm.provider`
+    - [x] Update `sidekick-supervisor` for new config structure:
+      - [x] Replace `config.logLevel` → `config.core.logging.level`
+      - [x] Replace `config.consoleLogging` → `config.core.logging.consoleEnabled`
+      - [x] Replace `config.supervisor.idleTimeoutMs` → `config.core.supervisor.idleTimeoutMs`
+      - [x] Replace `config.supervisor.shutdownTimeoutMs` → `config.core.supervisor.shutdownTimeoutMs`
+    - [x] Update `testing-fixtures` tests for new config structure:
+      - [x] Fix `openai-api` → `openai` provider enum value
+      - [x] Remove `circuitBreaker` references (no longer in LlmConfig)
+      - [x] Update tests to use domain accessors
+    - [x] Update `feature-llm-integration.test.ts` MockConfigService usage (already compliant)
+    - [x] Final verification gate: `pnpm build && pnpm lint && pnpm typecheck && pnpm test` - PASSED 2025-11-30
+  - **Implementation notes** (2024-11-30):
+    - Config structure changed from flat to domain-based:
+      - Old: `{ logLevel, features: { statusline: true }, llm: { provider, circuitBreaker }, supervisor }`
+      - New: `{ core: { logging, paths }, llm: { provider, timeout }, transcript: { watchDebounceMs }, features: { name: { enabled, settings } } }`
+    - `ConfigService` interface changed:
+      - Old: `get(key)`, `getAll()`
+      - New: Domain accessors (`core`, `llm`, `transcript`, `features`), `getFeature(name)`, `paths`, `getAll()`
+    - Feature config structure changed:
+      - Old: `features.statusline: boolean`
+      - New: `features.statusline: { enabled: boolean, settings: Record<string, unknown> }`
+    - LLM provider enum changed: `openai-api` → `openai`
+    - Removed from LlmConfig: `circuitBreaker` (defer to Phase 4 resilience work)
 
 - [ ] **Phase 3: Structured Logging & Telemetry**
   - [ ] Objectives
@@ -160,7 +193,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
   - [ ] Acceptance criteria - REQUIRES RE-VERIFICATION after RuntimeContext refactor
     - [ ] We're utilizing open source to its maximum potential - no unnecessary wheel reinvention!
     - [ ] We're testing OUR code, not open source behaviors.
-    - [ ] Code complexity is kept low using stated architecture principles and guidelines.  (See `docs/ARCHITECTURE.md` Guiding Principles).
+    - [ ] Code complexity is kept low using stated architecture principles and guidelines. (See `docs/ARCHITECTURE.md` Guiding Principles).
     - [ ] Providers honor credential precedence and retry/fallback policies, returning structured errors on exhaustion.
     - [ ] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
   - [ ] Final integration task
@@ -225,7 +258,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
   - [ ] Acceptance criteria - REQUIRES RE-VERIFICATION after TranscriptService/HandlerRegistry integration
     - [ ] We're utilizing open source to its maximum potential - no unnecessary wheel reinvention!
     - [ ] We're testing OUR code, not open source behaviors.
-    - [ ] Code complexity is kept low using stated architecture principles and guidelines.  (See `docs/ARCHITECTURE.md` Guiding Principles).
+    - [ ] Code complexity is kept low using stated architecture principles and guidelines. (See `docs/ARCHITECTURE.md` Guiding Principles).
     - [ ] Supervisor starts, responds to version handshake, and serializes state updates to `.sidekick/state/*.json` atomically.
     - [ ] IPC layer enforces token security and handles timeouts/retries without orphaning tasks.
     - [ ] CLI gracefully falls back when supervisor is unavailable, logging warnings and proceeding with degraded sync paths.
@@ -307,7 +340,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
   - [ ] Acceptance criteria
     - [ ] We're utilizing open source to its maximum potential - no unnecessary wheel reinvention!
     - [ ] We're testing OUR code, not open source behaviors.
-    - [ ] Code complexity is kept low using stated architecture principles and guidelines.  (See `docs/ARCHITECTURE.md` Guiding Principles).
+    - [ ] Code complexity is kept low using stated architecture principles and guidelines. (See `docs/ARCHITECTURE.md` Guiding Principles).
     - [ ] Features register handlers via `ctx.handlers.register()` with appropriate filters (hook vs transcript events)
     - [ ] Features consume metrics from `ctx.transcript.getMetrics()` - no independent counters
     - [ ] Staging/consumption separation: Supervisor handles staging, CLI handles consumption
@@ -353,7 +386,6 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [ ] Legacy code is archived/deprecated with clear migration notes
     - [ ] Code complexity is kept low using stated architecture principles and guidelines
     - [ ] All new and modified files are documented
-  
 
 - [ ] **Phase 8: Installation & Distribution Hardening**
   - [ ] Objectives
@@ -398,6 +430,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [ ] User guide: installation, configuration, troubleshooting
     - [ ] Developer guide: architecture overview, contributing
     - [ ] Ensure all LLDs are current with implementation
+    - [ ] Ensure all source code documentation is up-to-date (not in conflict with requirements or implementation), clean and lean (not over-documenting), and remove all references to implementation phases (how we planned the work should be irrelevant to code documentation).
   - [ ] **9.2 Cleanup**
     - [ ] Remove or archive stale files (benchmark-next/, legacy scripts)
     - [ ] Verify all `// TODO` and `// FIXME` comments addressed
