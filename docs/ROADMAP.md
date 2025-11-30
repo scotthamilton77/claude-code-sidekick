@@ -298,34 +298,43 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
       - Updated UI `replay-engine.ts` with `createDefaultMetrics()` for proper deep-cloning
       - All dependent test files updated to use new metrics structure
 
-  - [ ] **Phase 4.3: TranscriptService Implementation** (File Watching + Event Emission)
-    - [ ] Objectives
-      - [ ] Implement file watching with chokidar
-      - [ ] Implement incremental processing via watermark
-      - [ ] Implement compaction detection and history management
-    - [ ] Implementation tasks
-      - [ ] Create `TranscriptServiceImpl` in `sidekick-core`:
-        - [ ] File watching with chokidar (100ms debounce configurable via `transcript.debounceMs`)
-        - [ ] Incremental processing: track `lastProcessedLine`, process only new lines
-        - [ ] Metrics computation from transcript entries (turn boundaries, tool counts, tokens)
-        - [ ] Compaction detection: `currentLineCount < lastProcessedLine` triggers full recompute
-        - [ ] `watcher.unref()` to prevent blocking shutdown
-      - [ ] Compaction history management:
-        - [ ] `capturePreCompactState()` writes to `compaction-history.json`
-        - [ ] Store `CompactionEntry`: `compactedAt`, `transcriptSnapshotPath`, `metricsAtCompaction`, `postCompactLineCount`
-      - [ ] Event emission to HandlerRegistry:
-        - [ ] Emit `TranscriptEvent` for each new entry (`UserPrompt`, `AssistantMessage`, `ToolCall`, `ToolResult`, `Compact`)
-        - [ ] Metrics snapshot embedded in event metadata (after update)
-      - [ ] Metrics persistence:
-        - [ ] Write to `.sidekick/sessions/{session_id}/state/transcript-metrics.json`
-        - [ ] Debounced writes (100ms), immediate on shutdown, periodic (30s safety net)
-    - [ ] Testing
-      - [ ] File watching tests (change detection, debouncing)
-      - [ ] Incremental processing tests (watermark behavior)
-      - [ ] Compaction detection tests (line count reduction triggers recompute)
-      - [ ] Event emission tests (correct event types, metrics snapshots)
-      - [ ] Metrics persistence tests (debounce, shutdown, recovery)
-    - [ ] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
+  - [x] **Phase 4.3: TranscriptService Implementation** (File Watching + Event Emission) - COMPLETE 2025-11-30
+    - [x] Objectives
+      - [x] Implement file watching with chokidar
+      - [x] Implement incremental processing via watermark
+      - [x] Implement compaction detection and history management
+    - [x] Implementation tasks
+      - [x] Create `TranscriptServiceImpl` in `sidekick-core`:
+        - [x] File watching with chokidar (100ms debounce configurable via `transcript.debounceMs`)
+        - [x] Incremental processing: track `lastProcessedLine`, process only new lines
+        - [x] Metrics computation from transcript entries (turn boundaries, tool counts, tokens)
+        - [x] Compaction detection: `currentLineCount < lastProcessedLine` triggers full recompute
+        - [x] Shutdown via `watcher.close()` (chokidar doesn't expose `unref()`)
+      - [x] Compaction history management:
+        - [x] `capturePreCompactState()` writes to `compaction-history.json`
+        - [x] Store `CompactionEntry`: `compactedAt`, `transcriptSnapshotPath`, `metricsAtCompaction`, `postCompactLineCount`
+      - [x] Event emission to HandlerRegistry:
+        - [x] Emit `TranscriptEvent` for each new entry (`UserPrompt`, `AssistantMessage`, `ToolCall`, `ToolResult`, `Compact`)
+        - [x] Metrics snapshot embedded in event metadata (after update)
+      - [x] Metrics persistence:
+        - [x] Write to `.sidekick/sessions/{session_id}/state/transcript-metrics.json`
+        - [x] Debounced writes (100ms), immediate on shutdown, periodic (30s safety net)
+    - [x] Testing
+      - [x] File watching tests (change detection, debouncing)
+      - [x] Incremental processing tests (watermark behavior)
+      - [x] Compaction detection tests (line count reduction triggers recompute)
+      - [x] Event emission tests (correct event types, metrics snapshots)
+      - [x] Metrics persistence tests (debounce, shutdown, recovery)
+    - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test` - PASSED 2025-11-30
+    - **Implementation notes** (2025-11-30):
+      - Created `TranscriptServiceImpl` in `packages/sidekick-core/src/transcript-service.ts`
+      - File watching uses chokidar with `awaitWriteFinish` for debouncing
+      - Token usage extraction from assistant message `usage` metadata (input, output, cache metrics, service tier)
+      - Per-model token breakdown tracked in `tokenUsage.byModel`
+      - Compaction detection: when `currentLineCount < lastProcessedLine`, emits `Compact` event
+      - Metrics additive across compaction (per TRANSCRIPT-PROCESSING.md §3.2)
+      - Observable API: `onMetricsChange()` and `onThreshold()` with unsubscribe support
+      - 233 tests passing including 25 new transcript-service tests
 
   - [ ] **Phase 4.4: StagingService** (Atomic File Staging)
     - [ ] Objectives
@@ -421,7 +430,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [ ] Integrate TranscriptService with Supervisor (per docs/design/SUPERVISOR.md §4, docs/design/TRANSCRIPT-PROCESSING.md §6):
       - [ ] Initialize TranscriptService on `SessionStart` handler
       - [ ] Stop TranscriptService on `SessionEnd` handler
-      - [ ] Configure file watcher with `watcher.unref()` so it doesn't block shutdown
+      - [ ] Ensure `shutdown()` is called before process exit (watcher.close() releases handle)
     - [ ] Wire HandlerRegistry into Supervisor for event dispatch (per docs/design/flow.md §2.3):
       - [ ] `invokeHook()` for hook events received via IPC from CLI
       - [ ] `emitTranscriptEvent()` called by TranscriptService when file changes detected
