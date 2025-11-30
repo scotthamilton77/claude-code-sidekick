@@ -22,11 +22,11 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
       - [x] RuntimeContext.handlers wiring tests
     - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
     - Note: Config format migration (JSONC → YAML) deferred to Phase 2 scope
-  - [ ] Acceptance criteria - REQUIRES RE-VERIFICATION after architectural alignment
-    - [ ] Running the installed hook wrapper calls the Node CLI, which logs clearly whether it detected user or project scope.
-    - [ ] CLI supports a demo `session-start` command that returns a structured placeholder response without errors.
-    - [ ] Startup logs show the parsed hook context and do not crash when optional supervisor endpoints are absent.
-    - [ ] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
+  - [x] Acceptance criteria - VERIFIED 2025-11-29
+    - [x] Node CLI correctly detects user vs project scope when invoked with `--hook-script-path` argument (verified via direct invocation: `node packages/sidekick-cli/dist/bin.js session-start --hook --hook-script-path /path/to/hook`). Note: Bash hook wrapper installation that invokes Node CLI is Phase 8 scope.
+    - [x] CLI supports a demo `session-start` command that returns a structured placeholder response without errors.
+    - [x] Startup logs show the parsed hook context and do not crash when optional supervisor endpoints are absent (logs "Supervisor endpoint unavailable - skipped handshake for bootstrap skeleton").
+    - [x] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
 
 - [x] **Phase 1.5: UI Foundation** (can start immediately, parallel to Phase 1 alignment)
   - [x] Objectives
@@ -67,29 +67,25 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - [x] Shared types used by both UI and backend packages
   - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
 
-- [x] **Phase 2: Configuration & Asset Resolution Foundations**
-  - [x] Objectives
-    - [x] Implement the configuration cascade (env + config files) with deep-merge semantics and validation.
-    - [x] Add asset resolver capable of reading defaults from `assets/sidekick/` and honoring override layers for user/project scopes.
-  - [x] Relevant documents/sections
-    - [x] `{project_root_dir}/docs/ARCHITECTURE.md` (§3.6 Configuration Cascade, §2.3 Static Assets)
-    - [x] `{project_root_dir}/docs/design/CONFIG-SYSTEM.md` (§3 Configuration Domains, §4 Configuration Cascade, §5 Data Structures, §8 Component Architecture) — **authoritative for config format and cascade**
-    - [x] `{project_root_dir}/docs/design/SCHEMA-CONTRACTS.md` (§3 Core Schemas, §4 Asset Synchronization, §5 Versioning Strategy)
-      - [x] §6.4 "Strictness": Use `z.strict()` by default to reject unknown config keys
-    - [x] `{project_root_dir}/docs/design/CORE-RUNTIME.md` (§3.2 Configuration Service, §3.3 Asset Resolver)
+- [ ] **Phase 2: Configuration & Asset Resolution Foundations**
+  - [ ] Objectives
+    - [ ] Implement the configuration cascade (env + config files) with deep-merge semantics and validation.
+    - [ ] Add asset resolver capable of reading defaults from `assets/sidekick/` and honoring override layers for user/project scopes.
+  - [ ] Relevant documents/sections
+    - [ ] `{project_root_dir}/docs/ARCHITECTURE.md` (§3.6 Configuration Cascade, §2.3 Static Assets)
+    - [ ] `{project_root_dir}/docs/design/CONFIG-SYSTEM.md` (§3 Configuration Domains, §4 Configuration Cascade, §5 Data Structures, §8 Component Architecture) — **authoritative for config format and cascade**
+    - [ ] `{project_root_dir}/docs/design/SCHEMA-CONTRACTS.md` (§3 Core Schemas, §4 Asset Synchronization, §5 Versioning Strategy)
+      - [ ] §6.4 "Strictness": Use `z.strict()` by default to reject unknown config keys
+    - [ ] `{project_root_dir}/docs/design/CORE-RUNTIME.md` (§3.2 Configuration Service, §3.3 Asset Resolver)
   - [ ] Acceptance criteria - REQUIRES RE-VERIFICATION after YAML migration
-    - [x] Config loader reads env files and config layers in the documented order, producing a validated runtime config object.
-    - [x] Asset resolver returns defaults from `assets/sidekick/` when no overrides exist and correctly prefers project-local overrides when present.
-    - [x] CLI commands can access config and assets through the runtime shell, with errors surfaced via clear validation messages.
-    - [x] Config object is immutable after loading (per CONFIG-SYSTEM §2).
-    - [x] Zod schemas use strict mode to reject unknown keys (per SCHEMA-CONTRACTS §6.4).
-    - [x] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
-  - [x] Testing
-    - [x] Author tests upfront that cover env/config precedence, invalid schema failures, and asset override resolution for both user and project scopes.
-  - [x] Code review follow-ups
-    - [x] Create stub `assets/sidekick/` directory structure (`prompts/`, `schemas/`, `templates/`) before Phase 6.
-    - [x] Fix redundant fallback logic in `getDefaultAssetsDir()` (both paths compute identically).
-    - [x] Use `os.tmpdir()` in tests instead of `process.cwd()` relative paths for robustness.
+    - [ ] Config loader reads env files and config layers in the documented order, producing a validated runtime config object.
+    - [ ] Asset resolver returns defaults from `assets/sidekick/` when no overrides exist and correctly prefers project-local overrides when present.
+    - [ ] CLI commands can access config and assets through the runtime shell, with errors surfaced via clear validation messages.
+    - [ ] Config object is immutable after loading (per CONFIG-SYSTEM §2).
+    - [ ] Zod schemas use strict mode to reject unknown keys (per SCHEMA-CONTRACTS §6.4).
+    - [ ] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
+  - [ ] Testing
+    - [ ] Author tests upfront that cover requirements to be implemented/updated
   - [ ] **Architectural alignment tasks** (added post-architecture-pivot)
     - [ ] Migrate config format from JSONC to YAML domain files (per docs/design/CONFIG-SYSTEM.md §3):
       - [ ] `config.yaml` (core: paths, logging)
@@ -107,28 +103,23 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
       - [ ] Derived path helper tests (staging directories)
     - [ ] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
 
-- [x] **Phase 3: Structured Logging & Telemetry**
-  - [x] Objectives
-    - [x] Add a two-phase logging pipeline (bootstrap console → Pino-based structured logger) with redaction and telemetry events.
-    - [x] Provide logger access through runtime so commands/features emit structured entries tied to scope and command context.
-  - [x] Relevant documents/sections
-    - [x] `{project_root_dir}/docs/ARCHITECTURE.md` (§1 Guiding Principles: Observability-First, §3.2 CLI/Supervisor Relationship)
-    - [x] `{project_root_dir}/docs/design/STRUCTURED-LOGGING.md` (§2 Architecture, §3 Event Schema, §4 Configuration & Routing) — **authoritative for log format and event schema**
-    - [x] `{project_root_dir}/docs/design/flow.md` (§3.2 Event Schema, §7 Logging Events) — **canonical event model**
-    - [x] `{project_root_dir}/docs/design/CLI.md` (§8 Telemetry & Logging Bootstrap)
-    - [x] `{project_root_dir}/docs/design/CORE-RUNTIME.md` (§3.1 Bootstrap stages, §5 Error Handling Strategy)
+- [ ] **Phase 3: Structured Logging & Telemetry**
+  - [ ] Objectives
+    - [ ] Add a two-phase logging pipeline (bootstrap console → Pino-based structured logger) with redaction and telemetry events.
+    - [ ] Provide logger access through runtime so commands/features emit structured entries tied to scope and command context.
+  - [ ] Relevant documents/sections
+    - [ ] `{project_root_dir}/docs/ARCHITECTURE.md` (§1 Guiding Principles: Observability-First, §3.2 CLI/Supervisor Relationship)
+    - [ ] `{project_root_dir}/docs/design/STRUCTURED-LOGGING.md` (§2 Architecture, §3 Event Schema, §4 Configuration & Routing) — **authoritative for log format and event schema**
+    - [ ] `{project_root_dir}/docs/design/flow.md` (§3.2 Event Schema, §7 Logging Events) — **canonical event model**
+    - [ ] `{project_root_dir}/docs/design/CLI.md` (§8 Telemetry & Logging Bootstrap)
+    - [ ] `{project_root_dir}/docs/design/CORE-RUNTIME.md` (§3.1 Bootstrap stages, §5 Error Handling Strategy)
   - [ ] Acceptance criteria - REQUIRES RE-VERIFICATION after log file split
     - [ ] Logs include standard fields (timestamp, scope, command, correlation IDs) and redact sensitive payload fields per design.
     - [ ] Telemetry counters/timers are emitted alongside logs for hook executions.
     - [ ] Fallback to the bootstrap console logger occurs gracefully if Pino initialization fails, without dropping log lines.
     - [ ] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
-  - [x] Testing
-    - [x] Begin the phase by writing tests that assert log shape/content, redaction behavior, and telemetry emission under success and failure paths.
-  - [x] Implementation notes
-    - [x] Added `packages/sidekick-core/src/structured-logging.ts` with Pino-based logging
-    - [x] Dependencies: `pino`, `pino-roll`, `pino-pretty` (dev)
-    - [x] RuntimeShell now exposes `logger`, `telemetry`, `correlationId`, and `cleanup()`
-    - [x] Logs written to `.sidekick/logs/sidekick.log` (scope-dependent path)
+  - [ ] Testing
+    - [ ] Begin the phase by writing tests
   - [ ] **Architectural alignment tasks** (added post-architecture-pivot)
     - [ ] Split log files by component (per docs/design/STRUCTURED-LOGGING.md §2.2):
       - [ ] CLI logs to `.sidekick/logs/cli.log`
@@ -153,58 +144,34 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
       - [ ] `hook:UserPromptSubmit`, `hook:PreToolUse` filtering
     - [ ] Testing: File reading tests, filter query parsing tests
 
-- [x] **Phase 4: Core Services & Providers**
-  - [x] Objectives
-    - [x] Build LLM provider interfaces and factory with retry/fallback logic, using shared provider adapters.
-    - [x] Flesh out core runtime services (feature registry wiring, LLM service) to support feature packages.
-  - [x] Relevant documents/sections
-    - [x] `{project_root_dir}/docs/ARCHITECTURE.md` (§3.4 TranscriptService, §3.5 Staging Pattern, §3.8 LLM Providers & Telemetry)
-    - [x] `{project_root_dir}/docs/design/flow.md` (§2.2 Staging Pattern, §3.2 Event Schema) — **staging pattern source of truth**
-    - [x] `{project_root_dir}/docs/design/CORE-RUNTIME.md` (§3.4 Feature Registry, §3.5 Handler Registry, §3.6 LLM Service, §3.7 Transcript Service, §4.1 Runtime Context) — **core services architecture**
-    - [x] `{project_root_dir}/docs/design/TRANSCRIPT-PROCESSING.md` (§2.2 Components, §3 Metrics System) — **TranscriptService specification**
-    - [x] `{project_root_dir}/docs/design/LLM-PROVIDERS.md` (§2 Core Architecture, §3 Interfaces & Types, §5 Resilience & Reliability)
-    - [x] `{project_root_dir}/docs/design/TEST-FIXTURES.md` (§3 Core Mocks for LLM, §5 Integration Test Harness)
-  - [x] Testing
-    - [x] Create tests first that cover provider selection, retry/fallback flows, credential precedence, and feature registry interactions using mocks.
-  - [x] Implementation notes
-    - [x] Created `packages/shared-providers/` with LLM provider abstraction layer
-      - `interface.ts`: LLMProvider, LLMRequest, LLMResponse, Message types
-      - `errors.ts`: ProviderError, AuthError, RateLimitError, TimeoutError
-      - `factory.ts`: ProviderFactory for config-driven provider instantiation
-      - `fallback.ts`: FallbackProvider for high-availability wrapping
-      - `providers/openai-native.ts`: OpenAI SDK wrapper (supports OpenAI + OpenRouter)
-      - `providers/anthropic-cli.ts`: Claude CLI subprocess wrapper
-      - `llm-service.ts`: High-level LLMService with telemetry integration
-    - [x] Created `packages/sidekick-core/src/feature-registry.ts` with DAG validation
-      - Topological sort for dependency-ordered loading
-      - Cycle detection with path reporting
-      - FeatureManifest and Feature interfaces
-    - [x] Created `packages/testing-fixtures/` with test infrastructure
-      - MockLLMService, MockLogger, MockConfigService, MockAssetResolver
-      - createMockContext(), createTestConfig(), createTestFeature() factories
-    - [x] Updated RuntimeContext to include `llm: LLMService` and `featureRegistry: FeatureRegistry`
-    - [x] Provider type renamed from `anthropic` to `claude-cli` for clarity
-    - [x] Test folder convention standardized to `src/__tests__/` across all packages
+- [ ] **Phase 4: Core Services & Providers**
+  - [ ] Objectives
+    - [ ] Build LLM provider interfaces and factory with retry/fallback logic, using shared provider adapters.
+    - [ ] Flesh out core runtime services (feature registry wiring, LLM service) to support feature packages.
+  - [ ] Relevant documents/sections
+    - [ ] `{project_root_dir}/docs/ARCHITECTURE.md` (§3.4 TranscriptService, §3.5 Staging Pattern, §3.8 LLM Providers & Telemetry)
+    - [ ] `{project_root_dir}/docs/design/flow.md` (§2.2 Staging Pattern, §3.2 Event Schema) — **staging pattern source of truth**
+    - [ ] `{project_root_dir}/docs/design/CORE-RUNTIME.md` (§3.4 Feature Registry, §3.5 Handler Registry, §3.6 LLM Service, §3.7 Transcript Service, §4.1 Runtime Context) — **core services architecture**
+    - [ ] `{project_root_dir}/docs/design/TRANSCRIPT-PROCESSING.md` (§2.2 Components, §3 Metrics System) — **TranscriptService specification**
+    - [ ] `{project_root_dir}/docs/design/LLM-PROVIDERS.md` (§2 Core Architecture, §3 Interfaces & Types, §5 Resilience & Reliability)
+    - [ ] `{project_root_dir}/docs/design/TEST-FIXTURES.md` (§3 Core Mocks for LLM, §5 Integration Test Harness)
+  - [ ] Testing
+    - [ ] Create tests first
   - [ ] Acceptance criteria - REQUIRES RE-VERIFICATION after RuntimeContext refactor
     - [ ] We're utilizing open source to its maximum potential - no unnecessary wheel reinvention!
     - [ ] We're testing OUR code, not open source behaviors.
     - [ ] Code complexity is kept low using stated architecture principles and guidelines.  (See `docs/ARCHITECTURE.md` Guiding Principles).
     - [ ] Providers honor credential precedence and retry/fallback policies, returning structured errors on exhaustion.
     - [ ] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
-  - [x] Final integration task
+  - [ ] Final integration task
     - [x] Create integration test demonstrating end-to-end feature → LLM flow
-    - [x] Acceptance criteria for integration test:
-      - [x] Sample feature registered via FeatureRegistry calls LLMService.complete()
-      - [x] MockLLMService returns deterministic canned response
-      - [x] Telemetry events emitted for LLM request (duration, success)
-      - [x] Test runs without real API calls (fully mocked)
-      - [x] Test demonstrates RuntimeContext wiring (config → provider → service → feature)
-    - [x] CLI commands can invoke the LLM service through the registry without tight coupling to provider implementations.
-  - [x] Architecture improvement: Created `@sidekick/types` package
-    - [x] Zero-dependency package containing shared interfaces (Logger, Telemetry, LLMProvider, etc.)
-    - [x] Resolves circular dependency between sidekick-core and shared-providers
-    - [x] Both packages now import types from @sidekick/types and re-export for convenience
-    - [x] Clean unidirectional dependency graph: types → core → shared-providers → consumers
+    - [ ] Acceptance criteria for integration test:
+      - [ ] Sample feature registered via FeatureRegistry calls LLMService.complete()
+      - [ ] MockLLMService returns deterministic canned response
+      - [ ] Telemetry events emitted for LLM request (duration, success)
+      - [ ] Test runs without real API calls (fully mocked)
+      - [ ] Test demonstrates RuntimeContext wiring (config → provider → service → feature)
+    - [ ] CLI commands can invoke the LLM service through the registry without tight coupling to provider implementations.
   - [ ] **Architectural alignment tasks** (added post-architecture-pivot)
     - [ ] Refactor `RuntimeContext` to discriminated union (per docs/design/CORE-RUNTIME.md §4.1):
       - [ ] `CLIContext extends BaseContext { role: 'cli'; supervisor: SupervisorClient }`
@@ -245,202 +212,16 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
       - [ ] Pre-compact snapshot viewer on marker click
     - [ ] Testing: Metrics display tests, compaction timeline navigation tests
 
-- [x] **Phase 5: Supervisor & Background Tasks** - COMPLETE
-  - [x] Objectives
-    - [x] Implement the supervisor process with IPC socket, task engine, and single-writer state manager for shared files.
-    - [x] Connect CLI commands to supervisor lifecycle (start/stop/version handshake) and delegate background tasks (e.g., session summary updates).
-  - [x] Relevant documents/sections
-    - [x] `{project_root_dir}/docs/ARCHITECTURE.md` (§3.7 Background Supervisor)
-    - [x] `{project_root_dir}/docs/design/flow.md` (§2.1 CLI/Supervisor Relationship, §5 Complete Hook Flows) — **CLI/Supervisor interaction patterns**
-    - [x] `{project_root_dir}/docs/design/SUPERVISOR.md` (§2 Process Architecture, §3 Communication Layer, §4 Subsystems) — **Supervisor process specification**
-    - [x] `{project_root_dir}/docs/design/CLI.md` (§4 Supervisor Interaction, §7 Supervisor Lifecycle Management)
-    - [x] `{project_root_dir}/docs/design/TRANSCRIPT-PROCESSING.md` (§2 Components, §6 Implementation Details) — **TranscriptService integration**
-
-  - [x] **5.1 Technical Debt Remediation** (from code review) - PHASE 1 COMPLETE
-    - [x] Fix build failures
-      - [x] Export `SupervisorClient` from `@sidekick/core` index.ts
-      - [x] Export structured-logging utilities (createLoggerFacade, setupGlobalErrorHandlers, LogContext)
-    - [x] Fix lint errors (85+ → 0 errors, 3 warnings)
-      - [x] Resolve `@typescript-eslint/no-unsafe-*` errors across all packages
-      - [x] Replace `any` types with proper typing or explicit `unknown`
-      - [x] Fix `@typescript-eslint/no-misused-promises` in signal handlers
-      - [x] Fix `@typescript-eslint/no-floating-promises` (unhandled promises)
-      - [x] Add test files to tsconfig project service scope (created tsconfig.lint.json)
-    - [x] Fix test failures
-      - [x] Correct IPC error test expectation (`-32603` is correct per JSON-RPC spec)
-      - [x] Fix task-engine priority test handler type (Record<string, unknown>)
-    - [x] Code quality fixes (partial)
-      - [x] Add `void` operator to floating promises in signal handlers
-      - [x] Remove async from synchronous methods (client.close(), task-engine.process())
-      - [x] Fix empty catch blocks with explanatory comments
-
-  - [x] **5.1.1 Technical Debt Remediation** (remaining from code review) - FULLY COMPLETE
-    - [x] IPC Authentication Bug (CRITICAL) - FIXED
-      - [x] `SupervisorClient.getStatus()` now passes token on `ping` call after handshake
-      - [x] `SupervisorClient.stop()` now passes token on `shutdown` call
-      - [x] Client stores token after `readToken()` and passes on all authenticated calls
-    - [x] Type safety improvements
-      - [x] Replace `z.any()` with `z.unknown()` in `protocol.ts` Zod schemas (params, result, error.data)
-    - [x] Code quality
-      - [x] Read version from `package.json` instead of hardcoded `"0.0.1"` in supervisor.ts
-      - [x] Resolve FIXME comments in protocol.ts - updated with JSON-RPC 2.0 spec clarification
-      - [x] Remove stale doc comments in ipc/server.ts (copy-paste artifacts)
-      - [x] require() usage acceptable in CommonJS mode (ESM migration is architectural change)
-    - [x] Test improvements
-      - [x] Use `os.tmpdir()` with `mkdtemp()` in ipc.test.ts and state-manager.test.ts
-      - [x] Make priority test deterministic using deferred promises and maxConcurrency=1
-      - [x] Added shutdown tests (reject enqueue, wait for running tasks)
-    - [x] Supervisor initialization
-      - [x] Create `.sidekick/` directory before writing PID/token files (fs.mkdir with recursive)
-    - [x] Task engine shutdown - PROPERLY IMPLEMENTED
-      - [x] `shutdown()` now async, prevents new enqueues, clears queue, waits for running tasks
-      - [x] Added `isShuttingDown` flag and `shutdownResolve` for graceful completion
-
-  - [x] **5.2 Supervisor Process (SUPERVISOR §2)** - COMPLETE
-    - [x] Filesystem layout (`.sidekick/`)
-      - [x] `supervisor.pid` - PID file written on startup
-      - [x] `supervisor.sock` - Unix Domain Socket (Named Pipe on Windows)
-      - [x] `supervisor.token` - Crypto-random auth token (0600 permissions)
-      - [x] `logs/supervisor.log` - Dedicated structured JSON logs via Pino
-      - [x] `state/*.json` - State files managed atomically
-      - [x] Create `.sidekick/` directory on startup (implemented in 5.1.1)
-    - [x] Startup sequence
-      - [x] CLI checks liveness via `supervisor.pid` + `kill -0`
-      - [x] Spawn detached process: `spawn(..., { detached: true, stdio: 'ignore' }).unref()`
-      - [x] Poll for `.sock` creation (5s timeout via `waitForStartup`)
-      - [x] Remove stale `.pid`, `.sock`, `.token` if process dead (`cleanupStaleFiles()`)
-      - [x] Connect to socket and perform handshake with version + token (`checkVersion()`)
-      - [x] Version mismatch handling: send shutdown, wait, spawn new
-    - [x] Shutdown sequence
-      - [x] Graceful shutdown via `shutdown` IPC method
-      - [x] Handle `SIGTERM`/`SIGINT` signals (uses `void` operator)
-      - [x] Remove `.pid`, `.token` on exit (cleanup method)
-      - [x] Stop accepting new tasks (`isShuttingDown` flag in TaskEngine)
-      - [x] Wait for in-flight tasks to complete (configurable via `supervisor.shutdownTimeoutMs`, default 30s)
-    - [x] Idle timeout
-      - [x] Self-terminate after configurable idle timeout (`startIdleCheck()`)
-      - [x] Configurable via `supervisor.idleTimeoutMs` (default: 5 min, 0 = disabled)
-
-  - [x] **5.3 IPC Communication Layer (SUPERVISOR §3)** - COMPLETE
-    - [x] Transport abstraction
-      - [x] Unix Domain Sockets for Linux/macOS
-      - [x] Named Pipes for Windows (`\\.\pipe\sidekick-<project-hash>-sock`)
-      - [x] `IpcServer` and `IpcClient` classes hiding platform differences
-    - [x] JSON-RPC 2.0 protocol
-      - [x] Standard request/response format with `jsonrpc`, `method`, `params`, `id`
-      - [x] Proper error codes per JSON-RPC spec (`-32603` for internal error)
-      - [x] Zod schema validation for requests/responses
-    - [x] Security (see 5.1.1 for auth bug fix)
-      - [x] Generate crypto-random token on startup (32 bytes hex)
-      - [x] Write token to file with 0600 permissions
-      - [x] Enforce handshake as first message on any connection
-      - [x] Post-handshake calls pass token (fixed in 5.1.1)
-    - [x] Resilience
-      - [x] Connection timeout in `IpcClient.connect()` (configurable, default 5s)
-      - [x] Request timeout in `IpcClient.call()` (configurable, default 30s)
-      - [x] Retry/reconnection logic via `IpcClient.callWithRetry()` with exponential backoff
-      - [x] Transient error detection: ENOENT, ECONNREFUSED, ECONNRESET, EPIPE, timeouts
-    - [x] Implementation notes
-      - [x] Added `IpcClientOptions` interface for configuring timeouts and retry behavior
-      - [x] `callWithRetry()` handles auto-reconnection when disconnected
-      - [x] `isConnected()` helper for connection state checking
-      - [x] Comprehensive test coverage: 16 IPC tests including timeout, retry, backoff scenarios
-
-  - [x] **5.4 Supervisor Subsystems (SUPERVISOR §4)** - COMPLETE
-    - [x] State Manager (single writer)
-      - [x] `state.update(file, data, merge)` API
-      - [x] In-memory cache with atomic write (tmp + rename)
-      - [x] Corrupt state handling: move malformed JSON to `.bak`, reset to empty
-      - [x] Load existing state files into cache on initialize
-    - [x] Task Execution Engine
-      - [x] In-memory priority queue with sort by priority (desc) then timestamp (asc)
-      - [x] Configurable concurrency limit (default: 2)
-      - [x] Task handler registration via `registerHandler(type, handler)`
-      - [x] Task timeout enforcement (default 5m, task-specific overrides via `EnqueueOptions`)
-      - [x] Proper task cancellation on timeout via `AbortController`/`AbortSignal`
-      - [x] `cancelTask(taskId)` method for manual cancellation
-      - [x] `TaskContext` passed to handlers with `signal` and `logger`
-      - [x] `TaskTimeoutError` for timeout identification
-      - [x] `shutdown()` properly drains queue with timeout
-    - [x] Watcher Service (ConfigWatcher)
-      - [x] Watch `.sidekick/config.jsonc` and `.env` for changes
-      - [x] Hot-reload config in-memory on change
-      - [x] Debounced change detection (100ms)
-      - [x] Integrated into Supervisor lifecycle (start/stop)
-
-  - [x] **5.5 CLI Integration (CLI §4, §7)** - COMPLETE
-    - [x] Supervisor lifecycle commands
-      - [x] `supervisor start` - starts supervisor process
-      - [x] `supervisor stop` - stops supervisor gracefully
-      - [x] `supervisor status` - shows supervisor status with ping
-      - [x] `supervisor kill` - forcefully kill project-local supervisor (SIGKILL)
-      - [x] `supervisor kill-all` - kill all supervisors across projects
-      - [x] User-level PID tracking: `~/.sidekick/supervisors/{hash}.pid` (JSON with pid, projectDir, startedAt)
-    - [x] IPC client helper for commands
-      - [x] `SupervisorClient` facade with start/stop/getStatus/kill methods
-      - [x] `IpcService` with `send(method, payload)` abstraction (added to RuntimeContext as `ctx.ipc`)
-      - [x] Connection pooling/reuse (IpcService maintains connection across calls)
-      - [x] Automatic reconnect on transient failures (via IpcClient.callWithRetry)
-    - [x] Graceful degradation
-      - [x] `IpcService.send()` returns null when supervisor unavailable (configurable)
-      - [x] Warnings logged via structured logging
-      - [x] `isAvailable()` method for features to check before expensive operations
-
-  - [x] **5.6 Error Handling (SUPERVISOR §5)** - COMPLETE
-    - [x] Uncaught exception handling
-      - [x] Log fatal error to `supervisor.log` via structured logger
-      - [x] Attempt graceful cleanup (calls `cleanup()` before exit)
-      - [x] CLI will restart on next run (exits with code 1)
-      - [x] `unhandledRejection` handler added for async errors
-      - [x] Recursion guard prevents infinite loops if cleanup throws
-    - [x] Stuck task handling (implemented in 5.4)
-      - [x] Strict timeout enforcement per task type (`runWithTimeout()`)
-      - [x] Worker termination/promise rejection on timeout (`AbortController.abort()`)
-      - [x] Error logging with task context (`TaskTimeoutError`, structured logging)
-    - [x] Implementation notes
-      - [x] Error handlers moved into `Supervisor.setupErrorHandlers()` for logger access
-      - [x] `handleFatalError()` logs structured error data (message, stack, pid, projectDir)
-      - [x] Process-level handlers tested indirectly via cleanup() coverage; direct testing
-            would require fragile process mocking that can interfere with test runner
-
-  - [x] **5.7 Testing Requirements** - IN PROGRESS (supervisor.ts coverage gap)
-    - [x] Unit tests - COMPREHENSIVE COVERAGE (210 tests total)
-      - [x] IPC request/response cycle (ipc.test.ts)
-      - [x] IPC error handling with JSON-RPC codes (ipc.test.ts)
-      - [x] IPC connection timeout (ipc.test.ts)
-      - [x] IPC request timeout (ipc.test.ts)
-      - [x] IPC retry with exponential backoff (ipc.test.ts)
-      - [x] IPC auto-connect on callWithRetry (ipc.test.ts)
-      - [x] IPC retry when server becomes available (ipc.test.ts)
-      - [x] IPC non-transient error handling (ipc.test.ts)
-      - [x] IPC isConnected state tracking (ipc.test.ts)
-      - [x] IPC token validation - valid, invalid, missing, null scenarios (ipc.test.ts)
-      - [x] State manager atomic writes (state-manager.test.ts)
-      - [x] State manager merge operations (state-manager.test.ts)
-      - [x] State manager corrupt file recovery (state-manager.test.ts)
-      - [x] Task engine basic execution (task-engine.test.ts)
-      - [x] Task engine priority ordering (task-engine.test.ts)
-      - [x] Task engine timeout enforcement (task-engine.test.ts - 2 tests)
-      - [x] Task engine cancellation via AbortController (task-engine.test.ts)
-      - [x] Task engine shutdown with running tasks (task-engine.test.ts)
-      - [x] Task engine concurrent task processing (task-engine.test.ts - 3 tests)
-      - [x] SupervisorClient getStatus - stopped/running/unresponsive (supervisor-client.test.ts)
-      - [x] SupervisorClient kill with stale files (supervisor-client.test.ts)
-      - [x] SupervisorClient stopAndWait polling (supervisor-client.test.ts)
-      - [x] killAllSupervisors user-level PID management (supervisor-client.test.ts)
-      - [x] Error handling - cleanup and logging tested via supervisor paths
-    - [x] Integration tests - Coverage achieved via existing unit tests
-      - [x] CLI fallback when supervisor unavailable (ipc-service.test.ts graceful degradation)
-      - [x] Graceful shutdown with in-flight tasks (task-engine.test.ts shutdown tests)
-
-  - [x] **5.8 Definition of Done Gates** - COMPLETE
-    - [x] `pnpm build` passes with zero errors
-    - [x] `pnpm lint` passes with zero errors
-    - [x] `pnpm typecheck` passes with zero errors
-    - [x] `pnpm test` passes with zero failures (210 tests)
-    - [x] All acceptance criteria verified
-    - [x] Header comments present on new/modified files
-
+- [ ] **Phase 5: Supervisor & Background Tasks** - COMPLETE
+  - [ ] Objectives
+    - [ ] Implement the supervisor process with IPC socket, task engine, and single-writer state manager for shared files.
+    - [ ] Connect CLI commands to supervisor lifecycle (start/stop/version handshake) and delegate background tasks (e.g., session summary updates).
+  - [ ] Relevant documents/sections
+    - [ ] `{project_root_dir}/docs/ARCHITECTURE.md` (§3.7 Background Supervisor)
+    - [ ] `{project_root_dir}/docs/design/flow.md` (§2.1 CLI/Supervisor Relationship, §5 Complete Hook Flows) — **CLI/Supervisor interaction patterns**
+    - [ ] `{project_root_dir}/docs/design/SUPERVISOR.md` (§2 Process Architecture, §3 Communication Layer, §4 Subsystems) — **Supervisor process specification**
+    - [ ] `{project_root_dir}/docs/design/CLI.md` (§4 Supervisor Interaction, §7 Supervisor Lifecycle Management)
+    - [ ] `{project_root_dir}/docs/design/TRANSCRIPT-PROCESSING.md` (§2 Components, §6 Implementation Details) — **TranscriptService integration**
   - [ ] Acceptance criteria - REQUIRES RE-VERIFICATION after TranscriptService/HandlerRegistry integration
     - [ ] We're utilizing open source to its maximum potential - no unnecessary wheel reinvention!
     - [ ] We're testing OUR code, not open source behaviors.
