@@ -4,10 +4,16 @@
  * Creates test configuration objects with sensible defaults.
  * Useful for testing config-dependent behavior.
  *
+ * Updated for Phase 2 YAML domain-based config structure:
+ * - core: logging, paths
+ * - llm: provider settings
+ * - transcript: file watching settings
+ * - features: feature flags with enabled/settings
+ *
  * @example
  * ```typescript
  * const config = createTestConfig({
- *   llm: { provider: 'openai-api' }
+ *   llm: { provider: 'openai' }
  * });
  * ```
  */
@@ -20,63 +26,49 @@ type DeepPartial<T> = {
 }
 
 const DEFAULT_CONFIG: SidekickConfig = {
-  llm: {
-    provider: 'openrouter',
-    timeout: 10,
-    timeoutMaxRetries: 3,
-    debugDumpEnabled: false,
-    circuitBreaker: {
-      enabled: true,
-      failureThreshold: 3,
-      backoffInitial: 60,
-      backoffMax: 3600,
-      backoffMultiplier: 2,
+  core: {
+    logging: {
+      level: 'info',
+      format: 'pretty',
+      consoleEnabled: false,
+    },
+    paths: {
+      state: '.sidekick',
+    },
+    supervisor: {
+      idleTimeoutMs: 300000,
+      shutdownTimeoutMs: 30000,
     },
   },
-  sessionSummary: {
-    excerptLines: 80,
-    filterToolMessages: true,
-    keepHistory: false,
-    countdownLow: 5,
-    countdownMed: 20,
-    countdownHigh: 10000,
-    bookmarkConfidenceThreshold: 0.8,
-    bookmarkResetThreshold: 0.7,
-    minUserMessages: 5,
-    minRecentLines: 50,
-    titleMaxWords: 8,
-    intentMaxWords: 12,
+  llm: {
+    provider: 'claude-cli',
+    model: undefined,
+    temperature: 0,
+    maxTokens: undefined,
+    fallbackProvider: undefined,
+    fallbackModel: undefined,
+    timeout: 30,
+    timeoutMaxRetries: 3,
+    debugDumpEnabled: false,
+  },
+  transcript: {
+    watchDebounceMs: 100,
+    metricsPersistIntervalMs: 5000,
   },
   features: {
-    statusline: true,
-    sessionSummary: true,
-    resume: true,
-    sleeper: true,
-    snarkyComment: true,
-    reminders: true,
-    reminderUserPrompt: true,
-    reminderToolCadence: true,
-    reminderStuckCheckpoint: true,
-    reminderPreCompletion: true,
-    cleanup: true,
-  },
-  logLevel: 'info',
-  consoleLogging: false,
-  claudeBin: undefined,
-  reminder: {
-    userPromptCadence: 1,
-    toolUseCadence: 60,
-    stuckThreshold: 40,
-  },
-  cleanup: {
-    enabled: true,
-    minCount: 5,
-    ageDays: 2,
-    dryRun: false,
-  },
-  supervisor: {
-    idleTimeoutMs: 5 * 60 * 1000, // 5 minutes
-    shutdownTimeoutMs: 30 * 1000, // 30 seconds
+    // Example feature with new structure
+    reminders: {
+      enabled: true,
+      settings: {
+        turnCadence: 4,
+        toolCadence: 50,
+        stuckThreshold: 20,
+      },
+    },
+    sessionSummary: {
+      enabled: true,
+      settings: {},
+    },
   },
 }
 

@@ -107,8 +107,8 @@ export async function runCli(options: RunCliOptions): Promise<{ exitCode: number
     projectRoot: runtime.scope.projectRoot ?? null,
     hookScriptPath: runtime.scope.hookScriptPath ?? null,
     config: {
-      logLevel: runtime.config.get('logLevel'),
-      llmProvider: runtime.config.get('llm').provider,
+      logLevel: runtime.config.core.logging.level,
+      llmProvider: runtime.config.llm.provider,
       configSources: runtime.config.sources,
     },
     assets: {

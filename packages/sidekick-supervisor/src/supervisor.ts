@@ -14,7 +14,7 @@ import {
 import { randomBytes } from 'crypto'
 import fs from 'fs/promises'
 import path from 'path'
-import { ConfigWatcher, ConfigChangeEvent } from './config-watcher.js'
+import { ConfigChangeEvent, ConfigWatcher } from './config-watcher.js'
 import { StateManager } from './state-manager.js'
 import { TaskEngine } from './task-engine.js'
 
@@ -60,10 +60,10 @@ export class Supervisor {
     const logDir = path.join(projectDir, '.sidekick', 'logs')
     this.logManager = createLogManager({
       name: 'supervisor',
-      level: this.config.logLevel,
+      level: this.config.core.logging.level,
       destinations: {
         file: { path: path.join(logDir, 'supervisor.log') },
-        console: { enabled: this.config.consoleLogging },
+        console: { enabled: this.config.core.logging.consoleEnabled },
       },
     })
     this.logger = this.logManager.getLogger()
@@ -131,7 +131,7 @@ export class Supervisor {
 
     try {
       // Shutdown Task Engine - wait for running tasks to complete
-      await this.taskEngine.shutdown(this.config.supervisor.shutdownTimeoutMs)
+      await this.taskEngine.shutdown(this.config.core.supervisor.shutdownTimeoutMs)
     } catch (err) {
       this.logger.error('Failed to shutdown task engine', { error: err })
     }
@@ -155,10 +155,10 @@ export class Supervisor {
       const newConfig = loadConfig({ projectRoot: this.projectDir })
 
       // Apply critical config changes immediately
-      if (newConfig.logLevel !== this.config.logLevel) {
+      if (newConfig.core.logging.level !== this.config.core.logging.level) {
         this.logger.info('Log level changed, updating logger', {
-          old: this.config.logLevel,
-          new: newConfig.logLevel,
+          old: this.config.core.logging.level,
+          new: newConfig.core.logging.level,
         })
         // Note: Full log level change would require recreating the logger
         // For now, we just note it. Full implementation would update the Pino level.
@@ -287,7 +287,7 @@ export class Supervisor {
    * Set supervisor.idleTimeoutMs to 0 to disable idle timeout.
    */
   private startIdleCheck(): void {
-    const idleTimeoutMs = this.config.supervisor.idleTimeoutMs
+    const idleTimeoutMs = this.config.core.supervisor.idleTimeoutMs
 
     // 0 = disabled
     if (idleTimeoutMs === 0) {
