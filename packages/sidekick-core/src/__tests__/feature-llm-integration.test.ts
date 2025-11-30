@@ -19,7 +19,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { FeatureRegistry } from '../feature-registry'
 import type { Feature, FeatureManifest } from '../feature-types'
-import type { RuntimeContext, RuntimePaths } from '../runtime-context'
+import type { SupervisorContext, RuntimePaths } from '../runtime-context'
 import { LLMService } from '@sidekick/shared-providers'
 import { ProviderFactory } from '@sidekick/shared-providers'
 import type { LLMResponse } from '@sidekick/shared-providers'
@@ -29,6 +29,8 @@ import {
   MockConfigService,
   MockAssetResolver,
   MockHandlerRegistry,
+  MockStagingService,
+  MockTranscriptService,
 } from '@sidekick/testing-fixtures'
 
 // Mock ProviderFactory.create() to return our mock provider
@@ -89,8 +91,12 @@ describe('Feature → LLM Integration', () => {
 
     return {
       manifest,
-      async register(context: RuntimeContext) {
-        // Feature uses LLM service from context to generate content
+      async register(context) {
+        // Features that need LLM access check the role
+        if (context.role !== 'supervisor') {
+          throw new Error('This feature requires SupervisorContext')
+        }
+        // Now TypeScript knows context is SupervisorContext
         const prompt = options.prompt ?? `Test prompt from ${id}`
         const response = await context.llm.complete({
           messages: [{ role: 'user', content: prompt }],
@@ -125,14 +131,17 @@ describe('Feature → LLM Integration', () => {
         mockTelemetry
       )
 
-      // Build RuntimeContext (the central wiring point)
-      const context: RuntimeContext = {
+      // Build SupervisorContext (the central wiring point for LLM access)
+      const context: SupervisorContext = {
+        role: 'supervisor',
         config: mockConfig,
         logger: mockLogger,
         assets: mockAssets,
         llm: llmService,
         handlers: new MockHandlerRegistry(),
         paths: mockPaths,
+        staging: new MockStagingService(),
+        transcript: new MockTranscriptService(),
       }
 
       // Track received response
@@ -181,13 +190,16 @@ describe('Feature → LLM Integration', () => {
         mockTelemetry
       )
 
-      const context: RuntimeContext = {
+      const context: SupervisorContext = {
+        role: 'supervisor',
         config: mockConfig,
         logger: mockLogger,
         assets: mockAssets,
         llm: llmService,
         handlers: new MockHandlerRegistry(),
         paths: mockPaths,
+        staging: new MockStagingService(),
+        transcript: new MockTranscriptService(),
       }
 
       const feature = createLLMFeature('telemetry-test')
@@ -224,13 +236,16 @@ describe('Feature → LLM Integration', () => {
         mockTelemetry
       )
 
-      const context: RuntimeContext = {
+      const context: SupervisorContext = {
+        role: 'supervisor',
         config: mockConfig,
         logger: mockLogger,
         assets: mockAssets,
         llm: llmService,
         handlers: new MockHandlerRegistry(),
         paths: mockPaths,
+        staging: new MockStagingService(),
+        transcript: new MockTranscriptService(),
       }
 
       const feature = createLLMFeature('error-test')
@@ -266,13 +281,16 @@ describe('Feature → LLM Integration', () => {
         mockTelemetry
       )
 
-      const context: RuntimeContext = {
+      const context: SupervisorContext = {
+        role: 'supervisor',
         config: mockConfig,
         logger: mockLogger,
         assets: mockAssets,
         llm: llmService,
         handlers: new MockHandlerRegistry(),
         paths: mockPaths,
+        staging: new MockStagingService(),
+        transcript: new MockTranscriptService(),
       }
 
       // Track execution order
@@ -290,7 +308,8 @@ describe('Feature → LLM Integration', () => {
       const dependentFeature: Feature = {
         manifest: { id: 'dependent', version: '1.0.0', needs: ['base'] },
         async register(ctx) {
-          // This feature uses LLM
+          // This feature uses LLM - narrow to SupervisorContext
+          if (ctx.role !== 'supervisor') throw new Error('Requires supervisor')
           await ctx.llm.complete({
             messages: [{ role: 'user', content: 'Generate dependent content' }],
           })
@@ -360,13 +379,16 @@ describe('Feature → LLM Integration', () => {
         mockTelemetry
       )
 
-      const context: RuntimeContext = {
+      const context: SupervisorContext = {
+        role: 'supervisor',
         config: mockConfig,
         logger: mockLogger,
         assets: mockAssets,
         llm: llmService,
         handlers: new MockHandlerRegistry(),
         paths: mockPaths,
+        staging: new MockStagingService(),
+        transcript: new MockTranscriptService(),
       }
 
       // Features are registered during bootstrap
@@ -379,6 +401,8 @@ describe('Feature → LLM Integration', () => {
           description: 'Generates session summaries via LLM',
         },
         async register(ctx) {
+          // Narrow to SupervisorContext for LLM access
+          if (ctx.role !== 'supervisor') throw new Error('Requires supervisor')
           const response = await ctx.llm.complete({
             messages: [
               { role: 'system', content: 'You are a session summarizer.' },

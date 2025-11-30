@@ -9,7 +9,7 @@ import {
   MockConfigService,
   MockAssetResolver,
   MockHandlerRegistry,
-  createMockContext,
+  createMockSupervisorContext,
   createTestConfig,
   createTestFeature,
   createRecordingFeature,
@@ -326,40 +326,32 @@ describe('MockAssetResolver', () => {
   })
 })
 
-describe('createMockContext', () => {
-  it('creates context with all required services', () => {
-    const ctx = createMockContext()
+describe('createMockSupervisorContext', () => {
+  it('creates supervisor context with all required services', () => {
+    const ctx = createMockSupervisorContext()
 
+    expect(ctx.role).toBe('supervisor')
     expect(ctx.config).toBeInstanceOf(MockConfigService)
     expect(ctx.logger).toBeInstanceOf(MockLogger)
     expect(ctx.llm).toBeInstanceOf(MockLLMService)
     expect(ctx.assets).toBeInstanceOf(MockAssetResolver)
     expect(ctx.paths).toBeDefined()
-    expect(ctx.scope).toBe('project')
   })
 
   it('allows overriding individual services', () => {
     const customLogger = new MockLogger()
-    const ctx = createMockContext({ logger: customLogger })
+    const ctx = createMockSupervisorContext({ logger: customLogger })
 
     expect(ctx.logger).toBe(customLogger)
-  })
-
-  it('allows overriding scope', () => {
-    const ctx = createMockContext({ scope: 'user' })
-
-    expect(ctx.scope).toBe('user')
   })
 
   it('allows overriding paths', () => {
     const customPaths = {
       projectDir: '/custom/project',
-      userDir: '/custom/home',
-      configDir: '/custom/config',
-      assetsDir: '/custom/assets',
-      logsDir: '/custom/logs',
+      userConfigDir: '/custom/home/.sidekick',
+      projectConfigDir: '/custom/project/.sidekick',
     }
-    const ctx = createMockContext({ paths: customPaths })
+    const ctx = createMockSupervisorContext({ paths: customPaths })
 
     expect(ctx.paths.projectDir).toBe('/custom/project')
   })
@@ -696,9 +688,9 @@ describe('MockHandlerRegistry', () => {
   })
 })
 
-describe('createMockContext with handlers', () => {
+describe('createMockSupervisorContext with handlers', () => {
   it('includes handlers in context', () => {
-    const ctx = createMockContext()
+    const ctx = createMockSupervisorContext()
 
     expect(ctx.handlers).toBeInstanceOf(MockHandlerRegistry)
   })
@@ -707,9 +699,10 @@ describe('createMockContext with handlers', () => {
     const customHandlers = new MockHandlerRegistry()
     customHandlers.defaultHookResponse = { blocking: true }
 
-    const ctx = createMockContext({ handlers: customHandlers })
+    const ctx = createMockSupervisorContext({ handlers: customHandlers })
 
     expect(ctx.handlers).toBe(customHandlers)
-    expect(ctx.handlers.defaultHookResponse.blocking).toBe(true)
+    // Access mock-specific property through the typed reference
+    expect(customHandlers.defaultHookResponse.blocking).toBe(true)
   })
 })

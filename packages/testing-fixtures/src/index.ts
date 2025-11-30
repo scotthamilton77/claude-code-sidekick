@@ -4,6 +4,8 @@
  * Provides shared mocks, factories, and test utilities for the Sidekick
  * Node runtime packages. Implements Phase 4 Track C per docs/design/TEST-FIXTURES.md.
  *
+ * Updated for Phase 4.1 discriminated union context types.
+ *
  * @see docs/design/TEST-FIXTURES.md
  * @see docs/ROADMAP.md Phase 4 Track C
  */
@@ -25,9 +27,20 @@ export { MockAssetResolver } from './mocks/MockAssetResolver'
 export { MockHandlerRegistry } from './mocks/MockHandlerRegistry'
 export type { RegisteredHandler } from './mocks/MockHandlerRegistry'
 
+export { MockStagingService } from './mocks/MockStagingService'
+
+export { MockTranscriptService } from './mocks/MockTranscriptService'
+
 // Factories
-export { createMockContext } from './factories/context.factory'
-export type { RuntimeContext, RuntimePaths, Scope } from './factories/context.factory'
+export { createMockSupervisorContext, createMockCLIContext, MockSupervisorClient } from './factories/context.factory'
+export type {
+  RuntimeContext,
+  CLIContext,
+  SupervisorContext,
+  RuntimePaths,
+  MockSupervisorContextOptions,
+  MockCLIContextOptions,
+} from './factories/context.factory'
 
 export { createTestConfig } from './factories/config.factory'
 

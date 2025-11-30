@@ -22,10 +22,8 @@ import { sidekickEventsToUIEvents } from '../lib/event-adapter'
 import type { ParsedLogRecord } from '../lib/log-parser'
 import { logRecordsToUIEvents } from '../lib/event-adapter'
 
-// Re-export types for backward compatibility
+// Re-export types for convenience
 export type { Session, StateSnapshot, UIEvent }
-/** @deprecated Use UIEvent instead */
-export type { Event } from '../types'
 
 // ============================================================================
 // Session Data
