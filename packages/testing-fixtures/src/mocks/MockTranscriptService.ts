@@ -7,17 +7,51 @@
  * @see docs/design/TRANSCRIPT-PROCESSING.md
  */
 
-import type { TranscriptService, TranscriptMetrics, CompactionEntry, Unsubscribe } from '@sidekick/types'
+import type {
+  TranscriptService,
+  TranscriptMetrics,
+  TokenUsageMetrics,
+  CompactionEntry,
+  Unsubscribe,
+} from '@sidekick/types'
 
-const DEFAULT_METRICS: TranscriptMetrics = {
-  turnCount: 0,
-  toolCount: 0,
-  toolsThisTurn: 0,
-  totalTokens: 0,
+/**
+ * Creates default token usage metrics with all zeros.
+ */
+export function createDefaultTokenUsage(): TokenUsageMetrics {
+  return {
+    inputTokens: 0,
+    outputTokens: 0,
+    totalTokens: 0,
+    cacheCreationInputTokens: 0,
+    cacheReadInputTokens: 0,
+    cacheTiers: {
+      ephemeral5mInputTokens: 0,
+      ephemeral1hInputTokens: 0,
+    },
+    serviceTierCounts: {},
+    byModel: {},
+  }
+}
+
+/**
+ * Creates default transcript metrics with all zeros.
+ */
+export function createDefaultMetrics(): TranscriptMetrics {
+  return {
+    turnCount: 0,
+    toolCount: 0,
+    toolsThisTurn: 0,
+    messageCount: 0,
+    tokenUsage: createDefaultTokenUsage(),
+    toolsPerTurn: 0,
+    lastProcessedLine: 0,
+    lastUpdatedAt: 0,
+  }
 }
 
 export class MockTranscriptService implements TranscriptService {
-  private metrics: TranscriptMetrics = { ...DEFAULT_METRICS }
+  private metrics: TranscriptMetrics = createDefaultMetrics()
   private compactionHistory: CompactionEntry[] = []
   private metricsCallbacks: Array<(metrics: TranscriptMetrics) => void> = []
   private thresholdCallbacks: Array<{
@@ -32,7 +66,7 @@ export class MockTranscriptService implements TranscriptService {
   initialize(sessionId: string, transcriptPath: string): Promise<void> {
     this.sessionId = sessionId
     this.transcriptPath = transcriptPath
-    this.metrics = { ...DEFAULT_METRICS }
+    this.metrics = createDefaultMetrics()
     this.compactionHistory = []
     return Promise.resolve()
   }
@@ -46,7 +80,7 @@ export class MockTranscriptService implements TranscriptService {
   }
 
   getMetrics(): TranscriptMetrics {
-    return { ...this.metrics }
+    return this.deepCloneMetrics()
   }
 
   getMetric<K extends keyof TranscriptMetrics>(key: K): TranscriptMetrics[K] {
@@ -94,7 +128,7 @@ export class MockTranscriptService implements TranscriptService {
    * Reset the service to initial state.
    */
   reset(): void {
-    this.metrics = { ...DEFAULT_METRICS }
+    this.metrics = createDefaultMetrics()
     this.compactionHistory = []
     this.metricsCallbacks = []
     this.thresholdCallbacks = []
@@ -104,44 +138,144 @@ export class MockTranscriptService implements TranscriptService {
 
   /**
    * Set metrics directly (for test setup).
+   * Deep-merges tokenUsage if provided.
    * Notifies callbacks and checks thresholds.
    */
   setMetrics(newMetrics: Partial<TranscriptMetrics>): void {
-    const oldMetrics = { ...this.metrics }
-    this.metrics = { ...this.metrics, ...newMetrics }
+    const oldMetrics = this.deepCloneMetrics()
+
+    // Deep-merge tokenUsage if provided
+    if (newMetrics.tokenUsage) {
+      this.metrics = {
+        ...this.metrics,
+        ...newMetrics,
+        tokenUsage: {
+          ...this.metrics.tokenUsage,
+          ...newMetrics.tokenUsage,
+          cacheTiers: {
+            ...this.metrics.tokenUsage.cacheTiers,
+            ...(newMetrics.tokenUsage.cacheTiers ?? {}),
+          },
+          serviceTierCounts: {
+            ...this.metrics.tokenUsage.serviceTierCounts,
+            ...(newMetrics.tokenUsage.serviceTierCounts ?? {}),
+          },
+          byModel: {
+            ...this.metrics.tokenUsage.byModel,
+            ...(newMetrics.tokenUsage.byModel ?? {}),
+          },
+        },
+      }
+    } else {
+      this.metrics = { ...this.metrics, ...newMetrics }
+    }
+
+    // Update lastUpdatedAt timestamp
+    this.metrics.lastUpdatedAt = Date.now()
 
     // Notify callbacks
     for (const callback of this.metricsCallbacks) {
-      callback(this.metrics)
+      callback(this.deepCloneMetrics())
     }
 
-    // Check thresholds
+    // Check thresholds (only numeric metrics)
     for (const { metric, threshold, callback } of this.thresholdCallbacks) {
       const oldValue = oldMetrics[metric]
       const newValue = this.metrics[metric]
-      if (oldValue < threshold && newValue >= threshold) {
-        callback()
+      if (typeof oldValue === 'number' && typeof newValue === 'number') {
+        if (oldValue < threshold && newValue >= threshold) {
+          callback()
+        }
       }
     }
   }
 
   /**
-   * Simulate a turn (increments turnCount, resets toolsThisTurn).
+   * Simulate a user turn (increments turnCount and messageCount, resets toolsThisTurn).
+   * Updates toolsPerTurn derived metric.
    */
   simulateTurn(): void {
+    const newTurnCount = this.metrics.turnCount + 1
     this.setMetrics({
-      turnCount: this.metrics.turnCount + 1,
+      turnCount: newTurnCount,
+      messageCount: this.metrics.messageCount + 1,
       toolsThisTurn: 0,
+      toolsPerTurn: newTurnCount > 0 ? this.metrics.toolCount / newTurnCount : 0,
+    })
+  }
+
+  /**
+   * Simulate an assistant message (increments messageCount).
+   */
+  simulateAssistantMessage(): void {
+    this.setMetrics({
+      messageCount: this.metrics.messageCount + 1,
     })
   }
 
   /**
    * Simulate a tool call (increments toolCount and toolsThisTurn).
+   * Updates toolsPerTurn derived metric.
    */
   simulateToolCall(): void {
+    const newToolCount = this.metrics.toolCount + 1
+    const newToolsThisTurn = this.metrics.toolsThisTurn + 1
     this.setMetrics({
-      toolCount: this.metrics.toolCount + 1,
-      toolsThisTurn: this.metrics.toolsThisTurn + 1,
+      toolCount: newToolCount,
+      toolsThisTurn: newToolsThisTurn,
+      toolsPerTurn: this.metrics.turnCount > 0 ? newToolCount / this.metrics.turnCount : 0,
+    })
+  }
+
+  /**
+   * Simulate token usage from an API response.
+   * Accumulates tokens into the running totals.
+   */
+  simulateTokenUsage(usage: {
+    inputTokens: number
+    outputTokens: number
+    model?: string
+    serviceTier?: string
+    cacheCreationInputTokens?: number
+    cacheReadInputTokens?: number
+  }): void {
+    const current = this.metrics.tokenUsage
+
+    const updatedByModel = { ...current.byModel }
+    if (usage.model) {
+      const existing = updatedByModel[usage.model] ?? { inputTokens: 0, outputTokens: 0, requestCount: 0 }
+      updatedByModel[usage.model] = {
+        inputTokens: existing.inputTokens + usage.inputTokens,
+        outputTokens: existing.outputTokens + usage.outputTokens,
+        requestCount: existing.requestCount + 1,
+      }
+    }
+
+    const updatedServiceTierCounts = { ...current.serviceTierCounts }
+    if (usage.serviceTier) {
+      updatedServiceTierCounts[usage.serviceTier] = (updatedServiceTierCounts[usage.serviceTier] ?? 0) + 1
+    }
+
+    this.setMetrics({
+      tokenUsage: {
+        inputTokens: current.inputTokens + usage.inputTokens,
+        outputTokens: current.outputTokens + usage.outputTokens,
+        totalTokens: current.totalTokens + usage.inputTokens + usage.outputTokens,
+        cacheCreationInputTokens: current.cacheCreationInputTokens + (usage.cacheCreationInputTokens ?? 0),
+        cacheReadInputTokens: current.cacheReadInputTokens + (usage.cacheReadInputTokens ?? 0),
+        cacheTiers: current.cacheTiers,
+        serviceTierCounts: updatedServiceTierCounts,
+        byModel: updatedByModel,
+      },
+    })
+  }
+
+  /**
+   * Simulate processing a line (increments lastProcessedLine).
+   */
+  simulateLineProcessed(): void {
+    this.setMetrics({
+      lastProcessedLine: this.metrics.lastProcessedLine + 1,
     })
   }
 
@@ -150,5 +284,30 @@ export class MockTranscriptService implements TranscriptService {
    */
   getSessionInfo(): { sessionId: string | null; transcriptPath: string | null } {
     return { sessionId: this.sessionId, transcriptPath: this.transcriptPath }
+  }
+
+  /**
+   * Get callback counts for test assertions.
+   */
+  getCallbackCounts(): { metricsCallbacks: number; thresholdCallbacks: number } {
+    return {
+      metricsCallbacks: this.metricsCallbacks.length,
+      thresholdCallbacks: this.thresholdCallbacks.length,
+    }
+  }
+
+  /**
+   * Deep clone metrics to avoid mutation issues.
+   */
+  private deepCloneMetrics(): TranscriptMetrics {
+    return {
+      ...this.metrics,
+      tokenUsage: {
+        ...this.metrics.tokenUsage,
+        cacheTiers: { ...this.metrics.tokenUsage.cacheTiers },
+        serviceTierCounts: { ...this.metrics.tokenUsage.serviceTierCounts },
+        byModel: Object.fromEntries(Object.entries(this.metrics.tokenUsage.byModel).map(([k, v]) => [k, { ...v }])),
+      },
+    }
   }
 }

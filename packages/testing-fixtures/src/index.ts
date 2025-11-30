@@ -29,7 +29,7 @@ export type { RegisteredHandler } from './mocks/MockHandlerRegistry'
 
 export { MockStagingService } from './mocks/MockStagingService'
 
-export { MockTranscriptService } from './mocks/MockTranscriptService'
+export { MockTranscriptService, createDefaultMetrics, createDefaultTokenUsage } from './mocks/MockTranscriptService'
 
 // Factories
 export { createMockSupervisorContext, createMockCLIContext, MockSupervisorClient } from './factories/context.factory'

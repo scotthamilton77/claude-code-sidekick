@@ -9,6 +9,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import {
   createInitialState,
+  createDefaultMetrics,
   cloneState,
   isStateChangingEvent,
   extractStateDelta,
@@ -20,6 +21,7 @@ import {
   type ReplayState,
   type StagedReminder,
 } from '../replay-engine'
+import type { TranscriptMetrics } from '@sidekick/types'
 import type { ParsedLogRecord, PinoFields } from '../log-parser'
 
 // ============================================================================
@@ -81,18 +83,30 @@ const remindersClearedRecord = createRecord(4000, 'RemindersCleared', {
   hookName: 'UserPromptSubmit',
 })
 
+/** Create a metrics object for testing */
+function createTestMetrics(overrides: Partial<TranscriptMetrics> = {}): TranscriptMetrics {
+  return {
+    ...createDefaultMetrics(),
+    ...overrides,
+    tokenUsage: {
+      ...createDefaultMetrics().tokenUsage,
+      ...(overrides.tokenUsage ?? {}),
+    },
+  }
+}
+
 /** TranscriptMetricsUpdated event */
 const metricsUpdatedRecord = createRecord(
   5000,
   'TranscriptMetricsUpdated',
   {},
   {
-    metrics: {
+    metrics: createTestMetrics({
       turnCount: 5,
       toolCount: 12,
       toolsThisTurn: 3,
-      totalTokens: 5000,
-    },
+      tokenUsage: { ...createDefaultMetrics().tokenUsage, totalTokens: 5000 },
+    }),
   }
 )
 
@@ -115,12 +129,11 @@ describe('createInitialState', () => {
     const state = createInitialState()
 
     expect(state.summary).toEqual({})
-    expect(state.metrics).toEqual({
-      turnCount: 0,
-      toolCount: 0,
-      toolsThisTurn: 0,
-      totalTokens: 0,
-    })
+    expect(state.metrics.turnCount).toBe(0)
+    expect(state.metrics.toolCount).toBe(0)
+    expect(state.metrics.toolsThisTurn).toBe(0)
+    expect(state.metrics.messageCount).toBe(0)
+    expect(state.metrics.tokenUsage.totalTokens).toBe(0)
     expect(state.stagedReminders.size).toBe(0)
     expect(state.supervisorHealth).toBeUndefined()
   })
@@ -145,7 +158,12 @@ describe('cloneState', () => {
   it('creates deep copy of state', () => {
     const original: ReplayState = {
       summary: { title: 'Original' },
-      metrics: { turnCount: 5, toolCount: 10, toolsThisTurn: 2, totalTokens: 1000 },
+      metrics: createTestMetrics({
+        turnCount: 5,
+        toolCount: 10,
+        toolsThisTurn: 2,
+        tokenUsage: { ...createDefaultMetrics().tokenUsage, totalTokens: 1000 },
+      }),
       stagedReminders: new Map([
         ['hook1', [{ name: 'r1', blocking: false, priority: 10, persistent: true, stagedAt: 1000 }]],
       ]),
@@ -223,7 +241,12 @@ describe('isStateChangingEvent', () => {
         payload: { lineNumber: 1, entry: {} },
         metadata: {
           transcriptPath: '/path',
-          metrics: { turnCount: 1, toolCount: 1, toolsThisTurn: 1, totalTokens: 100 },
+          metrics: createTestMetrics({
+            turnCount: 1,
+            toolCount: 1,
+            toolsThisTurn: 1,
+            tokenUsage: { ...createDefaultMetrics().tokenUsage, totalTokens: 100 },
+          }),
         },
       },
     }
@@ -312,18 +335,21 @@ describe('extractStateDelta', () => {
     const currentState = createInitialState()
     const delta = extractStateDelta(metricsUpdatedRecord, currentState)
 
-    expect(delta.metrics).toEqual({
-      turnCount: 5,
-      toolCount: 12,
-      toolsThisTurn: 3,
-      totalTokens: 5000,
-    })
+    expect(delta.metrics?.turnCount).toBe(5)
+    expect(delta.metrics?.toolCount).toBe(12)
+    expect(delta.metrics?.toolsThisTurn).toBe(3)
+    expect(delta.metrics?.tokenUsage.totalTokens).toBe(5000)
   })
 
   it('resets state on SessionStart with startup type', () => {
     const currentState: ReplayState = {
       summary: { title: 'Old Session' },
-      metrics: { turnCount: 10, toolCount: 50, toolsThisTurn: 5, totalTokens: 10000 },
+      metrics: createTestMetrics({
+        turnCount: 10,
+        toolCount: 50,
+        toolsThisTurn: 5,
+        tokenUsage: { ...createDefaultMetrics().tokenUsage, totalTokens: 10000 },
+      }),
       stagedReminders: new Map([['hook1', []]]),
       supervisorHealth: undefined,
     }
@@ -331,16 +357,20 @@ describe('extractStateDelta', () => {
     const delta = extractStateDelta(sessionStartRecord, currentState)
 
     expect(delta.summary).toEqual({})
-    expect(delta.metrics).toEqual({
-      turnCount: 0,
-      toolCount: 0,
-      toolsThisTurn: 0,
-      totalTokens: 0,
-    })
+    expect(delta.metrics?.turnCount).toBe(0)
+    expect(delta.metrics?.toolCount).toBe(0)
+    expect(delta.metrics?.toolsThisTurn).toBe(0)
+    expect(delta.metrics?.tokenUsage.totalTokens).toBe(0)
     expect(delta.stagedReminders?.size).toBe(0)
   })
 
   it('extracts metrics from embedded transcript event', () => {
+    const testMetrics = createTestMetrics({
+      turnCount: 3,
+      toolCount: 7,
+      toolsThisTurn: 2,
+      tokenUsage: { ...createDefaultMetrics().tokenUsage, totalTokens: 2500 },
+    })
     const record: ParsedLogRecord = {
       pino: createPinoFields(1000),
       source: 'supervisor',
@@ -352,19 +382,17 @@ describe('extractStateDelta', () => {
         payload: { lineNumber: 1, entry: {} },
         metadata: {
           transcriptPath: '/path',
-          metrics: { turnCount: 3, toolCount: 7, toolsThisTurn: 2, totalTokens: 2500 },
+          metrics: testMetrics,
         },
       },
     }
 
     const delta = extractStateDelta(record, createInitialState())
 
-    expect(delta.metrics).toEqual({
-      turnCount: 3,
-      toolCount: 7,
-      toolsThisTurn: 2,
-      totalTokens: 2500,
-    })
+    expect(delta.metrics?.turnCount).toBe(3)
+    expect(delta.metrics?.toolCount).toBe(7)
+    expect(delta.metrics?.toolsThisTurn).toBe(2)
+    expect(delta.metrics?.tokenUsage.totalTokens).toBe(2500)
   })
 })
 
@@ -398,13 +426,22 @@ describe('applyDelta', () => {
 
   it('replaces metrics entirely', () => {
     const current = createInitialState()
+    const newMetrics = createTestMetrics({
+      turnCount: 5,
+      toolCount: 10,
+      toolsThisTurn: 2,
+      tokenUsage: { ...createDefaultMetrics().tokenUsage, totalTokens: 1000 },
+    })
     const delta = {
-      metrics: { turnCount: 5, toolCount: 10, toolsThisTurn: 2, totalTokens: 1000 },
+      metrics: newMetrics,
     }
 
     const result = applyDelta(current, delta)
 
-    expect(result.metrics).toEqual(delta.metrics)
+    expect(result.metrics.turnCount).toBe(5)
+    expect(result.metrics.toolCount).toBe(10)
+    expect(result.metrics.toolsThisTurn).toBe(2)
+    expect(result.metrics.tokenUsage.totalTokens).toBe(1000)
   })
 
   it('replaces stagedReminders map', () => {
@@ -481,7 +518,12 @@ describe('buildTimeline', () => {
   it('respects custom initial state', () => {
     const initialState: ReplayState = {
       summary: { title: 'Initial' },
-      metrics: { turnCount: 10, toolCount: 50, toolsThisTurn: 0, totalTokens: 5000 },
+      metrics: createTestMetrics({
+        turnCount: 10,
+        toolCount: 50,
+        toolsThisTurn: 0,
+        tokenUsage: { ...createDefaultMetrics().tokenUsage, totalTokens: 5000 },
+      }),
       stagedReminders: new Map(),
       supervisorHealth: undefined,
     }
@@ -740,7 +782,12 @@ describe('computeDiff', () => {
     const state1 = createInitialState()
     const state2 = {
       ...createInitialState(),
-      metrics: { turnCount: 5, toolCount: 10, toolsThisTurn: 2, totalTokens: 1000 },
+      metrics: createTestMetrics({
+        turnCount: 5,
+        toolCount: 10,
+        toolsThisTurn: 2,
+        tokenUsage: { ...createDefaultMetrics().tokenUsage, totalTokens: 1000 },
+      }),
     }
 
     const diff = computeDiff(state1, state2)

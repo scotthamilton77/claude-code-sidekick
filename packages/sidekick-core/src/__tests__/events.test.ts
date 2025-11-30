@@ -17,7 +17,37 @@ import {
   isStopEvent,
   isPreCompactEvent,
 } from '../index'
-import type { SidekickEvent, HookEvent, SessionStartHookEvent, TranscriptEvent, EventContext } from '../index'
+import type {
+  SidekickEvent,
+  HookEvent,
+  SessionStartHookEvent,
+  TranscriptEvent,
+  EventContext,
+  TranscriptMetrics,
+} from '../index'
+
+/** Create test metrics with defaults */
+function createTestMetrics(): TranscriptMetrics {
+  return {
+    turnCount: 1,
+    toolCount: 0,
+    toolsThisTurn: 0,
+    messageCount: 0,
+    tokenUsage: {
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 100,
+      cacheCreationInputTokens: 0,
+      cacheReadInputTokens: 0,
+      cacheTiers: { ephemeral5mInputTokens: 0, ephemeral1hInputTokens: 0 },
+      serviceTierCounts: {},
+      byModel: {},
+    },
+    toolsPerTurn: 0,
+    lastProcessedLine: 0,
+    lastUpdatedAt: 0,
+  }
+}
 
 // Test fixtures
 const baseContext: EventContext = {
@@ -47,12 +77,7 @@ const transcriptEvent: TranscriptEvent = {
   },
   metadata: {
     transcriptPath: '/path/to/transcript.jsonl',
-    metrics: {
-      turnCount: 1,
-      toolCount: 0,
-      toolsThisTurn: 0,
-      totalTokens: 100,
-    },
+    metrics: createTestMetrics(),
   },
 }
 

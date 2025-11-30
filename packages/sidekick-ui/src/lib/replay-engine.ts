@@ -13,8 +13,43 @@
  * @see docs/design/flow.md §3.2 Event Schema
  */
 
-import type { TranscriptMetrics } from '@sidekick/types'
+import type { TranscriptMetrics, TokenUsageMetrics } from '@sidekick/types'
 import type { ParsedLogRecord } from './log-parser'
+
+/**
+ * Creates default token usage metrics for initial state.
+ */
+function createDefaultTokenUsage(): TokenUsageMetrics {
+  return {
+    inputTokens: 0,
+    outputTokens: 0,
+    totalTokens: 0,
+    cacheCreationInputTokens: 0,
+    cacheReadInputTokens: 0,
+    cacheTiers: {
+      ephemeral5mInputTokens: 0,
+      ephemeral1hInputTokens: 0,
+    },
+    serviceTierCounts: {},
+    byModel: {},
+  }
+}
+
+/**
+ * Creates default transcript metrics for initial state.
+ */
+export function createDefaultMetrics(): TranscriptMetrics {
+  return {
+    turnCount: 0,
+    toolCount: 0,
+    toolsThisTurn: 0,
+    messageCount: 0,
+    tokenUsage: createDefaultTokenUsage(),
+    toolsPerTurn: 0,
+    lastProcessedLine: 0,
+    lastUpdatedAt: 0,
+  }
+}
 
 // ============================================================================
 // State Types
@@ -92,12 +127,7 @@ export interface TimelineEntry {
 export function createInitialState(): ReplayState {
   return {
     summary: {},
-    metrics: {
-      turnCount: 0,
-      toolCount: 0,
-      toolsThisTurn: 0,
-      totalTokens: 0,
-    },
+    metrics: createDefaultMetrics(),
     stagedReminders: new Map(),
     supervisorHealth: undefined,
   }
@@ -109,7 +139,15 @@ export function createInitialState(): ReplayState {
 export function cloneState(state: ReplayState): ReplayState {
   return {
     summary: { ...state.summary },
-    metrics: { ...state.metrics },
+    metrics: {
+      ...state.metrics,
+      tokenUsage: {
+        ...state.metrics.tokenUsage,
+        cacheTiers: { ...state.metrics.tokenUsage.cacheTiers },
+        serviceTierCounts: { ...state.metrics.tokenUsage.serviceTierCounts },
+        byModel: Object.fromEntries(Object.entries(state.metrics.tokenUsage.byModel).map(([k, v]) => [k, { ...v }])),
+      },
+    },
     stagedReminders: new Map(
       Array.from(state.stagedReminders.entries()).map(([k, v]) => [k, v.map((r) => ({ ...r }))])
     ),
@@ -254,12 +292,7 @@ export function extractStateDelta(record: ParsedLogRecord, currentState: ReplayS
       if (payload?.startType === 'startup' || payload?.startType === 'clear') {
         delta.stagedReminders = new Map()
         delta.summary = {}
-        delta.metrics = {
-          turnCount: 0,
-          toolCount: 0,
-          toolsThisTurn: 0,
-          totalTokens: 0,
-        }
+        delta.metrics = createDefaultMetrics()
       }
       break
     }

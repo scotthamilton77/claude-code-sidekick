@@ -16,7 +16,36 @@ import type {
   PreToolUseHookEvent,
   PostToolUseHookEvent,
   TranscriptEvent,
+  TranscriptMetrics,
 } from '@sidekick/types'
+
+/** Create mock metrics for test data */
+function createMockMetrics(overrides: {
+  turnCount?: number
+  toolCount?: number
+  toolsThisTurn?: number
+  totalTokens?: number
+}): TranscriptMetrics {
+  return {
+    turnCount: overrides.turnCount ?? 0,
+    toolCount: overrides.toolCount ?? 0,
+    toolsThisTurn: overrides.toolsThisTurn ?? 0,
+    messageCount: 0,
+    tokenUsage: {
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: overrides.totalTokens ?? 0,
+      cacheCreationInputTokens: 0,
+      cacheReadInputTokens: 0,
+      cacheTiers: { ephemeral5mInputTokens: 0, ephemeral1hInputTokens: 0 },
+      serviceTierCounts: {},
+      byModel: {},
+    },
+    toolsPerTurn: 0,
+    lastProcessedLine: 0,
+    lastUpdatedAt: 0,
+  }
+}
 import type { Session, StateSnapshot, UIEvent } from '../types'
 import { sidekickEventsToUIEvents } from '../lib/event-adapter'
 import type { ParsedLogRecord } from '../lib/log-parser'
@@ -105,12 +134,7 @@ export const rawSidekickEvents: SidekickEvent[] = [
     },
     metadata: {
       transcriptPath: '/workspace/.claude/transcript.jsonl',
-      metrics: {
-        turnCount: 1,
-        toolCount: 0,
-        toolsThisTurn: 0,
-        totalTokens: 1250,
-      },
+      metrics: createMockMetrics({ turnCount: 1, toolCount: 0, toolsThisTurn: 0, totalTokens: 1250 }),
     },
   } as TranscriptEvent,
 
@@ -168,12 +192,7 @@ export const rawSidekickEvents: SidekickEvent[] = [
     },
     metadata: {
       transcriptPath: '/workspace/.claude/transcript.jsonl',
-      metrics: {
-        turnCount: 1,
-        toolCount: 1,
-        toolsThisTurn: 1,
-        totalTokens: 3500,
-      },
+      metrics: createMockMetrics({ turnCount: 1, toolCount: 1, toolsThisTurn: 1, totalTokens: 3500 }),
     },
   } as TranscriptEvent,
 
@@ -235,12 +254,7 @@ export const rawSidekickEvents: SidekickEvent[] = [
     },
     metadata: {
       transcriptPath: '/workspace/.claude/transcript.jsonl',
-      metrics: {
-        turnCount: 1,
-        toolCount: 2,
-        toolsThisTurn: 2,
-        totalTokens: 4800,
-      },
+      metrics: createMockMetrics({ turnCount: 1, toolCount: 2, toolsThisTurn: 2, totalTokens: 4800 }),
     },
   } as TranscriptEvent,
 ]

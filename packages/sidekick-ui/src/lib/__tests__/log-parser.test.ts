@@ -652,6 +652,7 @@ describe('type guards', () => {
   })
 
   it('isTranscriptEvent identifies transcript events', () => {
+    // Type guard only checks kind === 'transcript', so we use partial object
     const transcriptEvent = {
       kind: 'transcript' as const,
       eventType: 'UserPrompt' as const,
@@ -659,9 +660,9 @@ describe('type guards', () => {
       payload: { lineNumber: 1, entry: {} },
       metadata: {
         transcriptPath: '/path',
-        metrics: { turnCount: 1, toolCount: 0, toolsThisTurn: 0, totalTokens: 100 },
+        metrics: {}, // Full TranscriptMetrics not needed for type guard test
       },
-    }
+    } as unknown as import('@sidekick/types').SidekickEvent
 
     expect(isTranscriptEvent(transcriptEvent)).toBe(true)
   })
