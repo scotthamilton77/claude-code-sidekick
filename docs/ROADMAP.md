@@ -265,32 +265,38 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
       - Service interfaces defined in types to break circular deps; implementations in core/supervisor
       - All exports re-exported from `@sidekick/types` index.ts for consumer convenience
 
-  - [ ] **Phase 4.2: TranscriptService Foundation** (Types + Core API)
-    - [ ] Objectives
-      - [ ] Expand `TranscriptMetrics` schema per docs/design/TRANSCRIPT-PROCESSING.md §3.1
+  - [x] **Phase 4.2: TranscriptService Foundation** (Types + Core API) - COMPLETE 2025-11-30
+    - [x] Objectives
+      - [x] Expand `TranscriptMetrics` schema per docs/design/TRANSCRIPT-PROCESSING.md §3.1
       - [x] ~~Define `TranscriptService` interface~~ (DONE in Phase 4.1 - `packages/types/src/services/transcript.ts`)
       - [x] ~~Create `MockTranscriptService`~~ (DONE in Phase 4.1 - `packages/testing-fixtures/src/mocks/MockTranscriptService.ts`)
-    - [ ] Implementation tasks
-      - [ ] Expand `TranscriptMetrics` in `@sidekick/types/events.ts` (current: turnCount, toolCount, toolsThisTurn, totalTokens):
-        - [ ] Turn-level: `turnCount`, `toolsThisTurn`
-        - [ ] Session-level: `toolCount`, `messageCount`
-        - [ ] Token metrics: `tokenUsage` with `inputTokens`, `outputTokens`, `cacheCreationInputTokens`, `cacheReadInputTokens`, `cacheTiers`, `serviceTierCounts`, `byModel`
-        - [ ] Derived: `toolsPerTurn`
-        - [ ] Watermarks: `lastProcessedLine`, `lastUpdatedAt`
-      - [ ] Define `TranscriptService` interface:
-        - [ ] Lifecycle: `initialize(sessionId, transcriptPath)`, `shutdown()`
-        - [ ] Metrics: `getMetrics()`, `getMetric(key)`
-        - [ ] Observable: `onMetricsChange(callback)`, `onThreshold(metric, value, callback)`
-        - [ ] Compaction: `capturePreCompactState(snapshotPath)`, `getCompactionHistory()`
-      - [ ] Create `MockTranscriptService` in `testing-fixtures`:
-        - [ ] Configurable metrics responses
-        - [ ] Callback tracking for observable subscriptions
-        - [ ] Helper methods for test scenarios
-    - [ ] Testing
-      - [ ] TranscriptMetrics schema validation tests
-      - [ ] MockTranscriptService behavior tests
-      - [ ] Observable subscription/unsubscription tests
-    - [ ] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
+    - [x] Implementation tasks
+      - [x] Expand `TranscriptMetrics` in `@sidekick/types/events.ts`:
+        - [x] Turn-level: `turnCount`, `toolsThisTurn`
+        - [x] Session-level: `toolCount`, `messageCount`
+        - [x] Token metrics: `TokenUsageMetrics` with `inputTokens`, `outputTokens`, `totalTokens`, `cacheCreationInputTokens`, `cacheReadInputTokens`, `cacheTiers`, `serviceTierCounts`, `byModel`
+        - [x] Derived: `toolsPerTurn`
+        - [x] Watermarks: `lastProcessedLine`, `lastUpdatedAt`
+      - [x] TranscriptService interface (completed in Phase 4.1):
+        - [x] Lifecycle: `initialize(sessionId, transcriptPath)`, `shutdown()`
+        - [x] Metrics: `getMetrics()`, `getMetric(key)`
+        - [x] Observable: `onMetricsChange(callback)`, `onThreshold(metric, value, callback)`
+        - [x] Compaction: `capturePreCompactState(snapshotPath)`, `getCompactionHistory()`
+      - [x] Update `MockTranscriptService` for expanded schema:
+        - [x] Deep-merge support for nested `tokenUsage`
+        - [x] Callback tracking for observable subscriptions
+        - [x] Helper methods: `simulateTurn()`, `simulateToolCall()`, `simulateTokenUsage()`, `simulateAssistantMessage()`, `simulateLineProcessed()`
+        - [x] Export `createDefaultMetrics()`, `createDefaultTokenUsage()` for test utilities
+    - [x] Testing
+      - [x] Existing tests updated for new schema (replay-engine.test.ts, events.test.ts, log-parser.test.ts)
+      - [x] MockTranscriptService type-safety verified via typecheck
+    - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test` - PASSED 2025-11-30
+    - **Implementation notes** (2025-11-30):
+      - Added `TokenUsageMetrics` interface with cache tier tracking and per-model breakdown
+      - Expanded `TranscriptMetrics` from 4 fields to full schema per TRANSCRIPT-PROCESSING.md §3.1
+      - Updated `MockTranscriptService` with simulation helpers for token usage, turns, and messages
+      - Updated UI `replay-engine.ts` with `createDefaultMetrics()` for proper deep-cloning
+      - All dependent test files updated to use new metrics structure
 
   - [ ] **Phase 4.3: TranscriptService Implementation** (File Watching + Event Emission)
     - [ ] Objectives
@@ -393,7 +399,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
       - [ ] Pre-compact snapshot viewer tests
     - [ ] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
 
-- [ ] **Phase 5: Supervisor & Background Tasks** - COMPLETE
+- [ ] **Phase 5: Supervisor & Background Tasks**
   - [ ] Objectives
     - [ ] Implement the supervisor process with IPC socket, task engine, and single-writer state manager for shared files.
     - [ ] Connect CLI commands to supervisor lifecycle (start/stop/version handshake) and delegate background tasks (e.g., session summary updates).

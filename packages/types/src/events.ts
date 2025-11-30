@@ -157,20 +157,79 @@ export type TranscriptEventType = 'UserPrompt' | 'AssistantMessage' | 'ToolCall'
 export type TranscriptEntry = Record<string, unknown>
 
 /**
- * Metrics snapshot embedded in TranscriptEvent.
- * Subset of full TranscriptMetrics for event payload.
+ * Token usage metrics extracted from native transcript metadata.
+ * Cumulative totals across session.
  *
- * @see docs/design/TRANSCRIPT-PROCESSING.md §3.1 for full schema
+ * @see docs/design/TRANSCRIPT-PROCESSING.md §3.1, §3.4
+ */
+export interface TokenUsageMetrics {
+  /** Sum of usage.input_tokens across all assistant responses */
+  inputTokens: number
+  /** Sum of usage.output_tokens across all assistant responses */
+  outputTokens: number
+  /** inputTokens + outputTokens */
+  totalTokens: number
+
+  // Cache metrics (critical for cost analysis)
+  /** Sum of cache_creation_input_tokens */
+  cacheCreationInputTokens: number
+  /** Sum of cache_read_input_tokens (cache hits) */
+  cacheReadInputTokens: number
+
+  /** Cache tier breakdown */
+  cacheTiers: {
+    /** cache_creation.ephemeral_5m_input_tokens */
+    ephemeral5mInputTokens: number
+    /** cache_creation.ephemeral_1h_input_tokens */
+    ephemeral1hInputTokens: number
+  }
+
+  /** Service tier tracking (for cost/performance analysis) */
+  serviceTierCounts: Record<string, number>
+
+  /** Per-model breakdown (sessions may span model switches) */
+  byModel: Record<
+    string,
+    {
+      inputTokens: number
+      outputTokens: number
+      requestCount: number
+    }
+  >
+}
+
+/**
+ * Full transcript metrics schema.
+ * Single source of truth for transcript-derived metrics.
+ *
+ * @see docs/design/TRANSCRIPT-PROCESSING.md §3.1
  */
 export interface TranscriptMetrics {
+  // Turn-level metrics
   /** Total user prompts in session */
   turnCount: number
-  /** Total tool invocations in session */
-  toolCount: number
-  /** Tools since last UserPrompt */
+  /** Tools since last UserPrompt (reset on UserPrompt) */
   toolsThisTurn: number
-  /** Estimated total tokens in transcript */
-  totalTokens: number
+
+  // Session-level metrics
+  /** Total tool invocations across session */
+  toolCount: number
+  /** Total messages (user + assistant + system) */
+  messageCount: number
+
+  // Token metrics (extracted from native transcript metadata)
+  /** Token usage metrics from API responses */
+  tokenUsage: TokenUsageMetrics
+
+  // Derived ratios
+  /** Average tools per turn (toolCount / turnCount) */
+  toolsPerTurn: number
+
+  // Watermarks
+  /** Line number of last processed transcript entry */
+  lastProcessedLine: number
+  /** Timestamp of last metrics update (Unix ms) */
+  lastUpdatedAt: number
 }
 
 /**
