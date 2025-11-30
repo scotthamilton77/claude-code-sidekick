@@ -257,3 +257,211 @@ export function isStopEvent(event: HookEvent): event is StopHookEvent {
 export function isPreCompactEvent(event: HookEvent): event is PreCompactHookEvent {
   return event.hook === 'PreCompact'
 }
+
+// ============================================================================
+// Internal Logging Events
+// ============================================================================
+
+/**
+ * Component source for logging events.
+ * Each component writes to its own log file.
+ */
+export type LogSource = 'cli' | 'supervisor'
+
+/**
+ * Base interface for all logging events.
+ * These events are logged for observability but don't trigger handlers.
+ *
+ * @see docs/design/STRUCTURED-LOGGING.md §3.3 Log Record Format
+ * @see docs/design/flow.md §7 Logging Events
+ */
+export interface LoggingEventBase {
+  /** Event type discriminator */
+  type: string
+  /** Unix timestamp (ms) - when the event occurred */
+  time: number
+  /** Which component emitted this event */
+  source: LogSource
+  /** Correlation context */
+  context: {
+    sessionId: string
+    scope?: 'project' | 'user'
+    correlationId?: string
+    traceId?: string
+    hook?: string
+    taskId?: string
+  }
+  /** Event-specific payload */
+  payload: {
+    state?: Record<string, unknown>
+    metadata?: Record<string, unknown>
+    reason?: string
+  }
+}
+
+// --- CLI-Logged Events (per docs/design/flow.md §7.1) ---
+
+export interface HookReceivedEvent extends LoggingEventBase {
+  type: 'HookReceived'
+  source: 'cli'
+  context: LoggingEventBase['context'] & {
+    hook: string
+  }
+  payload: {
+    metadata: {
+      cwd?: string
+      mode?: 'hook' | 'interactive'
+    }
+  }
+}
+
+export interface ReminderConsumedEvent extends LoggingEventBase {
+  type: 'ReminderConsumed'
+  source: 'cli'
+  payload: {
+    state: {
+      reminderName: string
+      reminderReturned: boolean
+      blocking?: boolean
+      priority?: number
+      persistent?: boolean
+    }
+    metadata?: {
+      stagingPath?: string
+    }
+  }
+}
+
+export interface HookCompletedEvent extends LoggingEventBase {
+  type: 'HookCompleted'
+  source: 'cli'
+  context: LoggingEventBase['context'] & {
+    hook: string
+  }
+  payload: {
+    state?: {
+      reminderReturned?: boolean
+      responseType?: string
+    }
+    metadata: {
+      durationMs: number
+    }
+  }
+}
+
+// --- Supervisor-Logged Events (per docs/design/flow.md §7.2) ---
+
+export interface EventReceivedEvent extends LoggingEventBase {
+  type: 'EventReceived'
+  source: 'supervisor'
+  payload: {
+    metadata: {
+      eventKind: 'hook' | 'transcript'
+      eventType?: string
+      hook?: string
+    }
+  }
+}
+
+export interface HandlerExecutedEvent extends LoggingEventBase {
+  type: 'HandlerExecuted'
+  source: 'supervisor'
+  payload: {
+    state: {
+      handlerId: string
+      success: boolean
+      stopped?: boolean
+    }
+    metadata: {
+      durationMs: number
+      error?: string
+    }
+  }
+}
+
+export interface ReminderStagedEvent extends LoggingEventBase {
+  type: 'ReminderStaged'
+  source: 'supervisor'
+  payload: {
+    state: {
+      reminderName: string
+      hookName: string
+      blocking: boolean
+      priority: number
+      persistent: boolean
+    }
+    metadata?: {
+      stagingPath?: string
+    }
+  }
+}
+
+export interface SummaryUpdatedEvent extends LoggingEventBase {
+  type: 'SummaryUpdated'
+  source: 'supervisor'
+  payload: {
+    state?: {
+      previousSummary?: string
+      newSummary?: string
+    }
+    reason: string
+    metadata?: {
+      durationMs?: number
+      tokenCount?: number
+    }
+  }
+}
+
+export interface RemindersClearedEvent extends LoggingEventBase {
+  type: 'RemindersCleared'
+  source: 'supervisor'
+  payload: {
+    state: {
+      clearedCount: number
+      hookNames?: string[]
+    }
+    reason: 'session_start' | 'manual'
+  }
+}
+
+/**
+ * Union of all CLI logging events.
+ */
+export type CLILoggingEvent = HookReceivedEvent | ReminderConsumedEvent | HookCompletedEvent
+
+/**
+ * Union of all Supervisor logging events.
+ */
+export type SupervisorLoggingEvent =
+  | EventReceivedEvent
+  | HandlerExecutedEvent
+  | ReminderStagedEvent
+  | SummaryUpdatedEvent
+  | RemindersClearedEvent
+
+/**
+ * Union of all logging events (internal, non-triggering).
+ */
+export type LoggingEvent = CLILoggingEvent | SupervisorLoggingEvent
+
+// Type guards for logging events
+
+export function isLoggingEvent(obj: unknown): obj is LoggingEvent {
+  return (
+    typeof obj === 'object' &&
+    obj !== null &&
+    'type' in obj &&
+    'time' in obj &&
+    'source' in obj &&
+    'context' in obj &&
+    'payload' in obj
+  )
+}
+
+export function isCLILoggingEvent(event: LoggingEvent): event is CLILoggingEvent {
+  return event.source === 'cli'
+}
+
+export function isSupervisorLoggingEvent(event: LoggingEvent): event is SupervisorLoggingEvent {
+  return event.source === 'supervisor'
+}
