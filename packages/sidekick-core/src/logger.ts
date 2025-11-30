@@ -1,12 +1,11 @@
 /**
- * Simple Console Logger (Phase 1 Bootstrap Logger)
+ * Simple Console Logger
  *
- * Provides a minimal console logger for early bootstrap before the full
- * Pino-based structured logging system initializes.
+ * A minimal, dependency-light console logger suitable for:
+ * - Early bootstrap before full Pino logging initializes
+ * - Unit tests where full structured logging is overkill
  *
- * @deprecated Superseded by structured-logging.ts in Phase 3. This module
- * remains for backward compatibility but new code should use createLogManager()
- * or createLoggerFacade() from structured-logging.ts instead.
+ * For production runtime logging, use createLogManager() from structured-logging.ts.
  *
  * @see structured-logging.ts for the production logging system
  */

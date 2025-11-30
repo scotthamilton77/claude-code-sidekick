@@ -151,7 +151,3 @@ export interface UIEvent {
   /** Original SidekickEvent (for drill-down in 1.5.4) */
   rawEvent?: import('@sidekick/types').SidekickEvent
 }
-
-// Legacy alias - remove after component migration
-/** @deprecated Use UIEvent instead */
-export type Event = UIEvent

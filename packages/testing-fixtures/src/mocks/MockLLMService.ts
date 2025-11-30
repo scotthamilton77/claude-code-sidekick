@@ -3,6 +3,7 @@
  *
  * Provides a deterministic, queue-based mock for LLM API calls.
  * Supports queuing responses, recording requests, and assertion helpers.
+ * Implements LLMProvider interface from @sidekick/types.
  *
  * @example
  * ```typescript
@@ -13,21 +14,15 @@
  * ```
  */
 
-export interface LLMRequest {
-  messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>
-  system?: string
-  model?: string
-  temperature?: number
-  maxTokens?: number
-}
+import type { LLMProvider, LLMRequest, LLMResponse } from '@sidekick/types'
 
-export interface LLMResponse {
-  content: string
-  model: string
-  usage?: { inputTokens: number; outputTokens: number }
-}
+// Re-export types for convenience
+export type { LLMRequest, LLMResponse }
 
-export class MockLLMService {
+export class MockLLMService implements LLMProvider {
+  /** Provider identifier - implements LLMProvider.id */
+  readonly id = 'mock-llm'
+
   private responseQueue: string[] = []
   private defaultResponse = 'Mock LLM response'
 
@@ -65,6 +60,7 @@ export class MockLLMService {
 
   /**
    * Main LLM completion method - returns queued response or default.
+   * Implements LLMProvider.complete()
    */
   complete(request: LLMRequest): Promise<LLMResponse> {
     this.recordedRequests.push(request)
@@ -77,6 +73,10 @@ export class MockLLMService {
       usage: {
         inputTokens: this.estimateTokens(request),
         outputTokens: this.estimateTokens({ messages: [{ role: 'assistant', content }] }),
+      },
+      rawResponse: {
+        status: 200,
+        body: JSON.stringify({ content }),
       },
     })
   }
