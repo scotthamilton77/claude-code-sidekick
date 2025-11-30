@@ -336,33 +336,40 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
       - Observable API: `onMetricsChange()` and `onThreshold()` with unsubscribe support
       - 233 tests passing including 25 new transcript-service tests
 
-  - [ ] **Phase 4.4: StagingService** (Atomic File Staging)
-    - [ ] Objectives
-      - [ ] Implement atomic file staging for reminder system
+  - [x] **Phase 4.4: StagingService** (Atomic File Staging) - COMPLETE 2025-11-30
+    - [x] Objectives
+      - [x] Implement atomic file staging for reminder system
       - [x] ~~Create `MockStagingService` for testing~~ (DONE in Phase 4.1 - `packages/testing-fixtures/src/mocks/MockStagingService.ts`)
-    - [ ] Implementation tasks
+    - [x] Implementation tasks
       - [x] ~~Define `StagingService` interface~~ (DONE in Phase 4.1 - `packages/types/src/services/staging.ts`):
         - [x] `stageReminder(hookName, reminderName, data): Promise<void>`
         - [x] `readReminder(hookName, reminderName): Promise<StagedReminder | null>`
         - [x] `clearStaging(hookName?): Promise<void>`
         - [x] `suppressHook(hookName): Promise<void>`
         - [x] `isHookSuppressed(hookName): Promise<boolean>`
-      - [ ] Create `StagingServiceImpl` in `sidekick-core`:
-        - [ ] Write to `.sidekick/sessions/{session_id}/stage/{hook_name}/{reminder_name}.json`
-        - [ ] Atomic writes: write to temp file, then rename
-        - [ ] Log `ReminderStaged` events via ContextLogger
-        - [ ] Suppression via marker files: `.sidekick/sessions/{session_id}/stage/{hook_name}/.suppressed`
+      - [x] Create `StagingServiceImpl` in `sidekick-core`:
+        - [x] Write to `.sidekick/sessions/{session_id}/stage/{hook_name}/{reminder_name}.json`
+        - [x] Atomic writes: write to temp file, then rename
+        - [x] Log `ReminderStaged` events via ContextLogger
+        - [x] Suppression via marker files: `.sidekick/sessions/{session_id}/stage/{hook_name}/.suppressed`
       - [x] ~~Create `MockStagingService` in `testing-fixtures`~~ (DONE in Phase 4.1):
         - [x] In-memory staging store
         - [x] Staged reminder tracking
-        - [ ] Enhance with helper methods for test assertions (if needed)
-    - [ ] Testing
-      - [ ] Atomic write tests (temp file + rename pattern)
-      - [ ] Directory creation tests (nested path handling)
-      - [ ] Suppression marker tests
-      - [ ] ReminderStaged event logging tests
+        - [x] Helper methods: `getRemindersForHook()`, `getAllReminders()`, `getSuppressedHooks()`, `reset()`
+    - [x] Testing
+      - [x] Atomic write tests (temp file + rename pattern)
+      - [x] Directory creation tests (nested path handling)
+      - [x] Suppression marker tests
+      - [x] ReminderStaged event logging tests
       - [x] ~~MockStagingService behavior tests~~ (basic tests in mocks.test.ts)
-    - [ ] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
+    - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test` - PASSED 2025-11-30
+    - **Implementation notes** (2025-11-30):
+      - Created `StagingServiceImpl` in `packages/sidekick-core/src/staging-service.ts`
+      - Atomic writes using crypto.randomBytes for temp file suffix + rename
+      - Both async and sync APIs provided (sync for CLI usage where async is inconvenient)
+      - Additional methods: `listReminders()` (sorted by priority), `deleteReminder()`, `clearSuppression()`
+      - 31 tests covering staging, reading, listing, clearing, suppression, and edge cases
+      - Exports from `@sidekick/core`: `StagingServiceImpl`, `StagingServiceOptions`
 
   - [ ] **Phase 4.5: Integration & Verification** (End-to-End Testing)
     - [ ] Objectives
