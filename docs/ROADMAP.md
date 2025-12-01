@@ -194,25 +194,25 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
     - Created `LogEvents` factory object with type-safe event constructors
     - Created `logEvent()` helper for emitting events via logger
 
-- [ ] **Phase 4: Core Services & Providers**
-  - [ ] Objectives
-    - [ ] Build LLM provider interfaces and factory with retry/fallback logic, using shared provider adapters.
-    - [ ] Flesh out core runtime services (feature registry wiring, LLM service) to support feature packages.
-  - [ ] Relevant documents/sections
-    - [ ] `{project_root_dir}/docs/ARCHITECTURE.md` (§3.4 TranscriptService, §3.5 Staging Pattern, §3.8 LLM Providers & Telemetry)
-    - [ ] `{project_root_dir}/docs/design/flow.md` (§2.2 Staging Pattern, §3.2 Event Schema) — **staging pattern source of truth**
-    - [ ] `{project_root_dir}/docs/design/CORE-RUNTIME.md` (§3.4 Feature Registry, §3.5 Handler Registry, §3.6 LLM Service, §3.7 Transcript Service, §4.1 Runtime Context) — **core services architecture**
-    - [ ] `{project_root_dir}/docs/design/TRANSCRIPT-PROCESSING.md` (§2.2 Components, §3 Metrics System) — **TranscriptService specification**
-    - [ ] `{project_root_dir}/docs/design/LLM-PROVIDERS.md` (§2 Core Architecture, §3 Interfaces & Types, §5 Resilience & Reliability)
-    - [ ] `{project_root_dir}/docs/design/TEST-FIXTURES.md` (§3 Core Mocks for LLM, §5 Integration Test Harness)
-  - [ ] Testing
-    - [ ] Create tests first
-  - [ ] Acceptance criteria - REQUIRES RE-VERIFICATION after RuntimeContext refactor
-    - [ ] We're utilizing open source to its maximum potential - no unnecessary wheel reinvention!
-    - [ ] We're testing OUR code, not open source behaviors.
-    - [ ] Code complexity is kept low using stated architecture principles and guidelines. (See `docs/ARCHITECTURE.md` Guiding Principles).
-    - [ ] Providers honor credential precedence and retry/fallback policies, returning structured errors on exhaustion.
-    - [ ] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
+- [x] **Phase 4: Core Services & Providers** - COMPLETE 2025-12-01
+  - [x] Objectives
+    - [x] Build LLM provider interfaces and factory with retry/fallback logic, using shared provider adapters.
+    - [x] Flesh out core runtime services (feature registry wiring, LLM service) to support feature packages.
+  - [x] Relevant documents/sections
+    - [x] `{project_root_dir}/docs/ARCHITECTURE.md` (§3.4 TranscriptService, §3.5 Staging Pattern, §3.8 LLM Providers & Telemetry)
+    - [x] `{project_root_dir}/docs/design/flow.md` (§2.2 Staging Pattern, §3.2 Event Schema) — **staging pattern source of truth**
+    - [x] `{project_root_dir}/docs/design/CORE-RUNTIME.md` (§3.4 Feature Registry, §3.5 Handler Registry, §3.6 LLM Service, §3.7 Transcript Service, §4.1 Runtime Context) — **core services architecture**
+    - [x] `{project_root_dir}/docs/design/TRANSCRIPT-PROCESSING.md` (§2.2 Components, §3 Metrics System) — **TranscriptService specification**
+    - [x] `{project_root_dir}/docs/design/LLM-PROVIDERS.md` (§2 Core Architecture, §3 Interfaces & Types, §5 Resilience & Reliability)
+    - [x] `{project_root_dir}/docs/design/TEST-FIXTURES.md` (§3 Core Mocks for LLM, §5 Integration Test Harness)
+  - [x] Testing
+    - [x] Create tests first
+  - [x] Acceptance criteria - VERIFIED 2025-12-01
+    - [x] We're utilizing open source to its maximum potential - no unnecessary wheel reinvention!
+    - [x] We're testing OUR code, not open source behaviors.
+    - [x] Code complexity is kept low using stated architecture principles and guidelines. (See `docs/ARCHITECTURE.md` Guiding Principles).
+    - [x] Providers honor credential precedence and retry/fallback policies, returning structured errors on exhaustion.
+    - [x] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
   - [x] Final integration task - COMPLETE (see `packages/sidekick-core/src/__tests__/feature-llm-integration.test.ts`)
     - [x] Create integration test demonstrating end-to-end feature → LLM flow
     - [x] Acceptance criteria for integration test:

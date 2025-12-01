@@ -82,12 +82,7 @@ interface Point {
  * Calculate sparkline points from data.
  * Extracted from Sparkline component for testing.
  */
-function calculateSparklinePoints(
-  data: number[],
-  width: number,
-  height: number,
-  padding: number
-): Point[] {
+function calculateSparklinePoints(data: number[], width: number, height: number, padding: number): Point[] {
   if (data.length === 0) return []
 
   const min = Math.min(...data)
@@ -211,19 +206,31 @@ describe('findEventIndexAtTimestamp', () => {
   })
 
   it('finds correct index for timestamp matching first event', () => {
-    const events = [{ time: '2024-01-01T10:00:00Z' }, { time: '2024-01-01T11:00:00Z' }, { time: '2024-01-01T12:00:00Z' }]
+    const events = [
+      { time: '2024-01-01T10:00:00Z' },
+      { time: '2024-01-01T11:00:00Z' },
+      { time: '2024-01-01T12:00:00Z' },
+    ]
     const firstTimestamp = new Date('2024-01-01T10:00:00Z').getTime()
     expect(findEventIndexAtTimestamp(events, firstTimestamp)).toBe(0)
   })
 
   it('finds correct index for timestamp matching last event', () => {
-    const events = [{ time: '2024-01-01T10:00:00Z' }, { time: '2024-01-01T11:00:00Z' }, { time: '2024-01-01T12:00:00Z' }]
+    const events = [
+      { time: '2024-01-01T10:00:00Z' },
+      { time: '2024-01-01T11:00:00Z' },
+      { time: '2024-01-01T12:00:00Z' },
+    ]
     const lastTimestamp = new Date('2024-01-01T12:00:00Z').getTime()
     expect(findEventIndexAtTimestamp(events, lastTimestamp)).toBe(2)
   })
 
   it('finds correct index for timestamp between events', () => {
-    const events = [{ time: '2024-01-01T10:00:00Z' }, { time: '2024-01-01T11:00:00Z' }, { time: '2024-01-01T12:00:00Z' }]
+    const events = [
+      { time: '2024-01-01T10:00:00Z' },
+      { time: '2024-01-01T11:00:00Z' },
+      { time: '2024-01-01T12:00:00Z' },
+    ]
     const midTimestamp = new Date('2024-01-01T10:30:00Z').getTime()
     // Should return index 1 (first event >= timestamp)
     expect(findEventIndexAtTimestamp(events, midTimestamp)).toBe(1)
