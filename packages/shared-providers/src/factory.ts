@@ -3,6 +3,10 @@
  *
  * Config-driven instantiation of LLM providers. Handles provider selection
  * and configuration based on runtime config.
+ *
+ * Credential Precedence (per docs/design/LLM-PROVIDERS.md §6.1):
+ * 1. Environment Variables (highest priority): OPENAI_API_KEY, OPENROUTER_API_KEY
+ * 2. Configuration File: apiKey in config object
  */
 
 import type { Logger, LLMProvider } from '@sidekick/types'
@@ -20,6 +24,14 @@ export interface ProviderConfig {
   maxRetries?: number
   timeout?: number
   cliPath?: string
+}
+
+/**
+ * Environment variable names for API keys by provider.
+ */
+const ENV_VAR_NAMES: Record<string, string> = {
+  openai: 'OPENAI_API_KEY',
+  openrouter: 'OPENROUTER_API_KEY',
 }
 
 export class ProviderFactory {
@@ -43,8 +55,28 @@ export class ProviderFactory {
     }
   }
 
+  /**
+   * Resolve API key with precedence: env var > config.
+   * Per docs/design/LLM-PROVIDERS.md §6.1
+   */
+  private resolveApiKey(provider: string): string | undefined {
+    const envVarName = ENV_VAR_NAMES[provider]
+    if (envVarName) {
+      const envValue = process.env[envVarName]
+      if (envValue) {
+        this.logger.debug('Using API key from environment variable', {
+          provider,
+          envVar: envVarName,
+        })
+        return envValue
+      }
+    }
+    return this.config.apiKey
+  }
+
   private createOpenAI(): LLMProvider {
-    if (!this.config.apiKey) {
+    const apiKey = this.resolveApiKey('openai')
+    if (!apiKey) {
       throw new ProviderError(
         'OpenAI requires apiKey in config or OPENAI_API_KEY environment variable',
         'openai',
@@ -53,7 +85,7 @@ export class ProviderFactory {
     }
 
     const openaiConfig: OpenAINativeConfig = {
-      apiKey: this.config.apiKey,
+      apiKey,
       model: this.config.model,
       maxRetries: this.config.maxRetries,
       timeout: this.config.timeout,
@@ -63,7 +95,8 @@ export class ProviderFactory {
   }
 
   private createOpenRouter(): LLMProvider {
-    if (!this.config.apiKey) {
+    const apiKey = this.resolveApiKey('openrouter')
+    if (!apiKey) {
       throw new ProviderError(
         'OpenRouter requires apiKey in config or OPENROUTER_API_KEY environment variable',
         'openrouter',
@@ -72,7 +105,7 @@ export class ProviderFactory {
     }
 
     const openrouterConfig: OpenAINativeConfig = {
-      apiKey: this.config.apiKey,
+      apiKey,
       baseURL: this.config.baseURL ?? 'https://openrouter.ai/api/v1',
       model: this.config.model,
       maxRetries: this.config.maxRetries,
