@@ -5,30 +5,36 @@
  * Enables the UI to read local log files during development.
  *
  * API Endpoints:
- * - GET /api/logs/cli - Returns cli.log content
- * - GET /api/logs/supervisor - Returns supervisor.log content
- * - GET /api/logs/sessions - Returns list of unique session IDs
  * - GET /api/config - Returns paths configuration
+ * - GET /api/logs/sessions - Returns list of unique session IDs
+ * - GET /api/logs/:type - Returns cli.log or supervisor.log content
+ * - GET /api/sessions/:sessionId/compaction-history - Returns compaction history
+ * - GET /api/sessions/:sessionId/metrics - Returns current transcript metrics
+ * - GET /api/sessions/:sessionId/pre-compact/:timestamp - Returns pre-compact snapshot
  *
- * Query params:
+ * Query params (for /api/logs/:type):
  * - ?since=<timestamp> - Return only lines after timestamp (for polling)
  * - ?sessionId=<id> - Filter to specific session
  *
  * @see packages/sidekick-ui/docs/MONITORING-UI.md §2.2 Data Flow
+ * @see packages/sidekick-ui/docs/MONITORING-UI.md §3.1 Compaction Timeline
  */
 
 import type { Plugin, ViteDevServer } from 'vite'
-import { existsSync, readFileSync, statSync } from 'fs'
-import { join, resolve } from 'path'
 import type { IncomingMessage, ServerResponse } from 'http'
+import { Router, type IRequest, type RouterType } from 'itty-router'
+import type { ApiContext, ApiRequest } from './types'
+import { findLogsPath, findSessionsPath, errorResponse } from './utils'
+import {
+  handleConfig,
+  handleSessions,
+  handleLogs,
+  handleCompactionHistory,
+  handleMetrics,
+  handlePreCompact,
+} from './handlers'
 
-// Default log directory paths
-const DEFAULT_PATHS = {
-  user: join(process.env.HOME ?? '~', '.sidekick', 'logs'),
-  project: '.sidekick/logs',
-}
-
-interface ApiConfig {
+export interface ApiConfig {
   /** Base path for sidekick logs. Defaults to .sidekick/logs or ~/.sidekick/logs */
   logsPath?: string
   /** Whether to look for project-local logs first */
@@ -36,225 +42,110 @@ interface ApiConfig {
 }
 
 /**
- * Parse NDJSON and extract unique session IDs.
+ * Create the itty-router with all API routes.
  */
-function extractSessionIds(content: string): string[] {
-  const sessions = new Set<string>()
-  const lines = content.split('\n')
+function createRouter(): RouterType<ApiRequest> {
+  const router = Router<ApiRequest>({ base: '/api' })
 
-  for (const line of lines) {
-    if (!line.trim()) continue
-    try {
-      const parsed = JSON.parse(line) as Record<string, unknown>
-      const ctx = parsed.context as Record<string, unknown> | undefined
-      const sessionId = ctx?.sessionId ?? ctx?.session_id
-      if (typeof sessionId === 'string') {
-        sessions.add(sessionId)
-      }
-    } catch {
-      // Skip malformed lines
-    }
-  }
+  // Config endpoint
+  router.get('/config', handleConfig)
 
-  return Array.from(sessions)
+  // Log endpoints
+  router.get('/logs/sessions', handleSessions)
+  router.get('/logs/:type', handleLogs)
+
+  // Session endpoints
+  router.get('/sessions/:sessionId/compaction-history', handleCompactionHistory)
+  router.get('/sessions/:sessionId/metrics', handleMetrics)
+  router.get('/sessions/:sessionId/pre-compact/:timestamp', handlePreCompact)
+
+  // 404 fallback
+  router.all('*', () => errorResponse('Not found', 404))
+
+  return router
 }
 
 /**
- * Filter NDJSON lines by timestamp and session.
+ * Convert Node IncomingMessage to Request-like object for itty-router.
  */
-function filterLogContent(content: string, options: { since?: number; sessionId?: string }): string {
-  const lines = content.split('\n')
-  const filtered: string[] = []
+function toRequest(req: IncomingMessage, ctx: ApiContext): ApiRequest {
+  const url = new URL(req.url ?? '/', `http://${req.headers.host}`)
 
-  for (const line of lines) {
-    if (!line.trim()) continue
-    try {
-      const parsed = JSON.parse(line) as Record<string, unknown>
+  // Parse query params into simple object
+  const query: Record<string, string | undefined> = {}
+  url.searchParams.forEach((value, key) => {
+    query[key] = value
+  })
 
-      // Filter by timestamp
-      if (options.since !== undefined) {
-        const time = parsed.time as number | undefined
-        if (time !== undefined && time <= options.since) {
-          continue
-        }
-      }
-
-      // Filter by session
-      if (options.sessionId !== undefined) {
-        const ctx = parsed.context as Record<string, unknown> | undefined
-        const lineSessionId = ctx?.sessionId ?? ctx?.session_id
-        if (lineSessionId !== options.sessionId) {
-          continue
-        }
-      }
-
-      filtered.push(line)
-    } catch {
-      // Skip malformed lines
-    }
-  }
-
-  return filtered.join('\n')
+  return {
+    method: req.method ?? 'GET',
+    url: url.href,
+    params: {},
+    query,
+    ctx,
+  } as ApiRequest
 }
 
 /**
- * Find the logs directory, preferring project-local over user.
+ * Write Response to ServerResponse.
  */
-function findLogsPath(config: ApiConfig, cwd: string): string | null {
-  if (config.logsPath) {
-    const resolved = resolve(cwd, config.logsPath)
-    return existsSync(resolved) ? resolved : null
-  }
+async function writeResponse(response: Response, res: ServerResponse): Promise<void> {
+  res.statusCode = response.status
 
-  // Check project-local first
-  if (config.preferProject !== false) {
-    const projectPath = resolve(cwd, DEFAULT_PATHS.project)
-    if (existsSync(projectPath)) {
-      return projectPath
-    }
-  }
+  // Copy headers
+  response.headers.forEach((value, key) => {
+    res.setHeader(key, value)
+  })
 
-  // Fall back to user directory
-  const userPath = DEFAULT_PATHS.user
-  if (existsSync(userPath)) {
-    return userPath
-  }
-
-  return null
-}
-
-/**
- * Send JSON response.
- */
-function sendJson(res: ServerResponse, data: unknown, status = 200): void {
-  res.statusCode = status
-  res.setHeader('Content-Type', 'application/json')
-  res.end(JSON.stringify(data))
-}
-
-/**
- * Send NDJSON response.
- */
-function sendNdjson(res: ServerResponse, content: string, status = 200): void {
-  res.statusCode = status
-  res.setHeader('Content-Type', 'application/x-ndjson')
-  res.end(content)
-}
-
-/**
- * Send error response.
- */
-function sendError(res: ServerResponse, message: string, status = 500): void {
-  sendJson(res, { error: message }, status)
+  // Write body
+  const body = await response.text()
+  res.end(body)
 }
 
 /**
  * Create the Vite API plugin.
  */
 export function sidekickApiPlugin(config: ApiConfig = {}): Plugin {
-  let logsPath: string | null = null
+  const router = createRouter()
+  let ctx: ApiContext = { logsPath: null, sessionsPath: null }
 
   return {
     name: 'sidekick-api',
     configureServer(server: ViteDevServer) {
-      // Find logs path on server start
-      logsPath = findLogsPath(config, server.config.root)
+      // Resolve paths on server start
+      const preferProject = config.preferProject !== false
+      ctx = {
+        logsPath: findLogsPath(config.logsPath, preferProject, server.config.root),
+        sessionsPath: findSessionsPath(preferProject, server.config.root),
+      }
 
       server.middlewares.use((req: IncomingMessage, res: ServerResponse, next: () => void) => {
-        const url = new URL(req.url ?? '/', `http://${req.headers.host}`)
-
         // Only handle /api routes
-        if (!url.pathname.startsWith('/api/')) {
-          return next()
+        if (!req.url?.startsWith('/api/')) {
+          next()
+          return
         }
 
-        // Parse query params
-        const since = url.searchParams.get('since')
-        const sessionId = url.searchParams.get('sessionId')
-        const filterOptions = {
-          since: since ? parseInt(since, 10) : undefined,
-          sessionId: sessionId ?? undefined,
-        }
+        const request = toRequest(req, ctx)
 
-        // GET /api/config
-        if (url.pathname === '/api/config') {
-          return sendJson(res, {
-            logsPath,
-            available: logsPath !== null,
-            defaultPaths: DEFAULT_PATHS,
-          })
-        }
+        // Handle async routing without returning the promise
+        void (async () => {
+          try {
+            const response = (await router.fetch(request as unknown as IRequest)) as Response | undefined
 
-        // GET /api/logs/sessions
-        if (url.pathname === '/api/logs/sessions') {
-          if (!logsPath) {
-            return sendJson(res, { sessions: [], error: 'Logs directory not found' })
-          }
-
-          const sessions = new Set<string>()
-
-          // Extract from both log files
-          for (const file of ['cli.log', 'supervisor.log']) {
-            const filePath = join(logsPath, file)
-            if (existsSync(filePath)) {
-              const content = readFileSync(filePath, 'utf-8')
-              for (const id of extractSessionIds(content)) {
-                sessions.add(id)
-              }
+            if (response) {
+              await writeResponse(response, res)
+            } else {
+              // Should not happen with our catch-all route
+              next()
             }
-          }
-
-          return sendJson(res, { sessions: Array.from(sessions) })
-        }
-
-        // GET /api/logs/cli
-        if (url.pathname === '/api/logs/cli') {
-          if (!logsPath) {
-            return sendError(res, 'Logs directory not found', 404)
-          }
-
-          const filePath = join(logsPath, 'cli.log')
-          if (!existsSync(filePath)) {
-            return sendNdjson(res, '', 200) // Empty is OK - no logs yet
-          }
-
-          try {
-            const content = readFileSync(filePath, 'utf-8')
-            const filtered = filterLogContent(content, filterOptions)
-            const stat = statSync(filePath)
-            res.setHeader('X-File-Mtime', stat.mtimeMs.toString())
-            return sendNdjson(res, filtered)
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err)
-            return sendError(res, `Failed to read cli.log: ${msg}`)
+            res.statusCode = 500
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ error: `Internal error: ${msg}` }))
           }
-        }
-
-        // GET /api/logs/supervisor
-        if (url.pathname === '/api/logs/supervisor') {
-          if (!logsPath) {
-            return sendError(res, 'Logs directory not found', 404)
-          }
-
-          const filePath = join(logsPath, 'supervisor.log')
-          if (!existsSync(filePath)) {
-            return sendNdjson(res, '', 200) // Empty is OK - no logs yet
-          }
-
-          try {
-            const content = readFileSync(filePath, 'utf-8')
-            const filtered = filterLogContent(content, filterOptions)
-            const stat = statSync(filePath)
-            res.setHeader('X-File-Mtime', stat.mtimeMs.toString())
-            return sendNdjson(res, filtered)
-          } catch (err) {
-            const msg = err instanceof Error ? err.message : String(err)
-            return sendError(res, `Failed to read supervisor.log: ${msg}`)
-          }
-        }
-
-        // Unknown API route
-        return sendError(res, 'Not found', 404)
+        })()
       })
     },
   }
