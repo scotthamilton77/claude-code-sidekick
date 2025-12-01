@@ -371,27 +371,29 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
       - 31 tests covering staging, reading, listing, clearing, suppression, and edge cases
       - Exports from `@sidekick/core`: `StagingServiceImpl`, `StagingServiceOptions`
 
-  - [ ] **Phase 4.5: Integration & Verification** (End-to-End Testing)
-    - [ ] Objectives
-      - [ ] Verify RuntimeContext wiring: config → services → feature
-      - [ ] Complete integration test demonstrating full flow
-    - [ ] Implementation tasks
-      - [ ] Integration test: Feature → LLM flow
-        - [ ] Sample feature registered via FeatureRegistry calls `ctx.llm.complete()`
-        - [ ] MockLLMService returns deterministic canned response
-        - [ ] Telemetry events emitted for LLM request (duration, success)
-        - [ ] Test runs without real API calls (fully mocked)
-        - [ ] Test demonstrates RuntimeContext wiring (config → provider → service → feature)
-      - [ ] Integration test: TranscriptService → Handler flow
-        - [ ] TranscriptService emits events on file change
-        - [ ] Registered handlers receive events with correct metrics
-        - [ ] Handler can access `ctx.staging` to stage reminders
-      - [ ] Verify LLM provider credential precedence (env vars > config file)
-      - [ ] Verify structured errors on provider exhaustion
-    - [ ] Testing
-      - [ ] Full integration test suite
-      - [ ] Error scenario tests (provider failures, fallback behavior)
-    - [ ] **Final verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
+  - [x] **Phase 4.5: Integration & Verification** (End-to-End Testing) - COMPLETE 2025-12-01
+    - [x] Objectives
+      - [x] Verify RuntimeContext wiring: config → services → feature
+      - [x] Complete integration test demonstrating full flow
+    - [x] Implementation tasks
+      - [x] Integration test: Feature → LLM flow (see `packages/sidekick-core/src/__tests__/feature-llm-integration.test.ts`)
+        - [x] Sample feature registered via FeatureRegistry calls `ctx.llm.complete()`
+        - [x] MockLLMService returns deterministic canned response
+        - [x] Telemetry events emitted for LLM request (duration, success)
+        - [x] Test runs without real API calls (fully mocked)
+        - [x] Test demonstrates RuntimeContext wiring (config → provider → service → feature)
+      - [x] Integration test: TranscriptService → Handler flow (see `packages/sidekick-core/src/__tests__/phase-4.5-integration.test.ts`)
+        - [x] TranscriptService emits events on file change
+        - [x] Registered handlers receive events with correct metrics
+        - [x] Handler can access `ctx.staging` to stage reminders
+      - [x] Verify LLM provider credential precedence (env vars > config file)
+        - [x] Implemented in `packages/shared-providers/src/factory.ts` with `resolveApiKey()`
+        - [x] Tests in `packages/shared-providers/src/__tests__/factory.test.ts`
+      - [x] Verify structured errors on provider exhaustion (see `packages/shared-providers/src/__tests__/fallback.test.ts`)
+    - [x] Testing
+      - [x] Full integration test suite (10 tests in phase-4.5-integration.test.ts)
+      - [x] Error scenario tests (provider failures, fallback behavior)
+    - [x] **Final verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test` - PASSED 2025-12-01
 
   - [ ] **Phase 4.6: UI Integration** (Metrics Display + Compaction Timeline)
     - [ ] Objectives
