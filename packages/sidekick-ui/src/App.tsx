@@ -1,11 +1,14 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import Header from './components/Header'
 import Layout from './components/Layout'
 import StateInspector from './components/StateInspector'
 import Timeline from './components/Timeline'
 import Transcript from './components/Transcript'
+import PreCompactViewer from './components/PreCompactViewer'
 import type { Session } from './types'
+import type { TranscriptMetrics } from '@sidekick/types'
 import { useLogService } from './hooks/useLogService'
+import { useCompactionHistory } from './hooks/useCompactionHistory'
 import { filterEvents } from './lib/filter-parser'
 import {
   events as mockEvents,
@@ -21,6 +24,38 @@ function App() {
   // Fallback to mock data when API unavailable
   const useRealData = logService.apiAvailable && logService.events.length > 0
   const events = useRealData ? logService.events : mockEvents
+
+  // Compaction history for the current session
+  const compactionHistory = useCompactionHistory(logService.selectedSession)
+
+  // Metrics state - fetched from API
+  const [metrics, setMetrics] = useState<TranscriptMetrics | null>(null)
+  const [metricsHistory, setMetricsHistory] = useState<TranscriptMetrics[]>([])
+
+  // Fetch metrics when session changes
+  useEffect(() => {
+    if (!logService.selectedSession || !logService.apiAvailable) {
+      setMetrics(null)
+      setMetricsHistory([])
+      return
+    }
+
+    const fetchMetrics = async () => {
+      try {
+        const res = await fetch(`/api/sessions/${logService.selectedSession}/metrics`)
+        if (res.ok) {
+          const data = (await res.json()) as { metrics: TranscriptMetrics }
+          setMetrics(data.metrics)
+          // Append to history for sparkline (keep last 20)
+          setMetricsHistory((prev) => [...prev.slice(-19), data.metrics])
+        }
+      } catch {
+        // Silent fail - metrics are optional
+      }
+    }
+
+    void fetchMetrics()
+  }, [logService.selectedSession, logService.apiAvailable, logService.lastFetch])
 
   // Session management - derive from real sessions or use mock
   const realSessions: Session[] = useMemo(() => {
@@ -121,37 +156,60 @@ function App() {
   const isLive = useRealData ? logService.isLive : false
 
   return (
-    <Layout
-      header={
-        <Header
-          currentSession={currentSession}
-          otherSessions={otherSessions.filter((s) => s.id !== currentSession.id)}
-          isLive={isLive}
-          onToggleLive={handleToggleLive}
-          onSelectSession={handleSelectSession}
+    <>
+      <Layout
+        header={
+          <Header
+            currentSession={currentSession}
+            otherSessions={otherSessions.filter((s) => s.id !== currentSession.id)}
+            isLive={isLive}
+            onToggleLive={handleToggleLive}
+            onSelectSession={handleSelectSession}
+          />
+        }
+        timeline={
+          <Timeline
+            events={events}
+            currentEventId={currentEventId}
+            filteredEvents={filteredEvents}
+            onEventSelect={setCurrentEventId}
+            getEventColor={getEventColor}
+            compactionEntries={compactionHistory.history}
+            selectedCompaction={compactionHistory.selectedCompaction}
+            onCompactionSelect={(entry) => void compactionHistory.loadSnapshot(entry)}
+          />
+        }
+        transcript={
+          <Transcript
+            filteredEvents={filteredEvents}
+            currentEventId={currentEventId}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            filterType={filterType}
+            onFilterChange={setFilterType}
+          />
+        }
+        inspector={
+          <StateInspector
+            stateData={stateData}
+            currentTime={events[currentEventId]?.time || ''}
+            metrics={metrics}
+            metricsHistory={metricsHistory}
+            showMetrics={useRealData}
+          />
+        }
+      />
+
+      {/* Pre-Compaction Viewer Modal */}
+      {compactionHistory.selectedCompaction && (
+        <PreCompactViewer
+          entry={compactionHistory.selectedCompaction}
+          content={compactionHistory.snapshotContent}
+          loading={compactionHistory.loadingSnapshot}
+          onClose={() => compactionHistory.selectCompaction(null)}
         />
-      }
-      timeline={
-        <Timeline
-          events={events}
-          currentEventId={currentEventId}
-          filteredEvents={filteredEvents}
-          onEventSelect={setCurrentEventId}
-          getEventColor={getEventColor}
-        />
-      }
-      transcript={
-        <Transcript
-          filteredEvents={filteredEvents}
-          currentEventId={currentEventId}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          filterType={filterType}
-          onFilterChange={setFilterType}
-        />
-      }
-      inspector={<StateInspector stateData={stateData} currentTime={events[currentEventId]?.time || ''} />}
-    />
+      )}
+    </>
   )
 }
 

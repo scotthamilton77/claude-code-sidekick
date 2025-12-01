@@ -1,5 +1,6 @@
-import React from 'react'
+import React, { useMemo } from 'react'
 import type { UIEvent } from '../types'
+import { CompactionDot, type CompactionEntry } from './CompactionMarker'
 
 interface TimelineProps {
   events: UIEvent[]
@@ -7,6 +8,36 @@ interface TimelineProps {
   filteredEvents: UIEvent[]
   onEventSelect: (id: number) => void
   getEventColor: (type: string) => string
+  /** Compaction history entries to display on timeline */
+  compactionEntries?: CompactionEntry[]
+  /** Currently selected compaction entry */
+  selectedCompaction?: CompactionEntry | null
+  /** Handler for compaction marker click */
+  onCompactionSelect?: (entry: CompactionEntry) => void
+}
+
+/**
+ * Find the event index closest to a given timestamp.
+ */
+function findEventIndexAtTimestamp(events: UIEvent[], timestamp: number): number {
+  if (events.length === 0) return 0
+
+  // Binary search for closest event
+  let low = 0
+  let high = events.length - 1
+
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2)
+    const eventTime = new Date(events[mid].time).getTime()
+
+    if (eventTime < timestamp) {
+      low = mid + 1
+    } else {
+      high = mid
+    }
+  }
+
+  return low
 }
 
 const Timeline: React.FC<TimelineProps> = ({
@@ -15,7 +46,21 @@ const Timeline: React.FC<TimelineProps> = ({
   filteredEvents,
   onEventSelect,
   getEventColor,
+  compactionEntries = [],
+  selectedCompaction,
+  onCompactionSelect,
 }) => {
+  // Map compaction entries to their approximate event indices
+  const compactionPositions = useMemo(() => {
+    return compactionEntries.map((entry) => ({
+      entry,
+      eventIndex: findEventIndexAtTimestamp(events, entry.compactedAt),
+    }))
+  }, [events, compactionEntries])
+
+  // Get current event's approximate timestamp position
+  const currentEventTime = events[currentEventId] ? new Date(events[currentEventId].time).getTime() : 0
+
   return (
     <div className="w-28 bg-white border-r border-slate-200 flex flex-col">
       <div className="flex-1 relative py-4 px-2">
@@ -65,6 +110,28 @@ const Timeline: React.FC<TimelineProps> = ({
             )
           })}
         </div>
+
+        {/* Compaction Markers - positioned absolutely based on percentage */}
+        {compactionPositions.map(({ entry, eventIndex }) => {
+          const percentage = events.length > 1 ? (eventIndex / (events.length - 1)) * 100 : 0
+          const isSelected = selectedCompaction?.compactedAt === entry.compactedAt
+          const isFuture = entry.compactedAt > currentEventTime
+
+          return (
+            <div
+              key={`compaction-${entry.compactedAt}`}
+              className="absolute left-4"
+              style={{ top: `calc(1rem + ${percentage}% * (100% - 2rem) / 100)` }}
+            >
+              <CompactionDot
+                entry={entry}
+                isSelected={isSelected}
+                isFuture={isFuture}
+                onClick={() => onCompactionSelect?.(entry)}
+              />
+            </div>
+          )
+        })}
 
         {/* Invisible Slider Overlay */}
         <input

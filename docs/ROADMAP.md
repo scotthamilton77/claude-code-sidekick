@@ -395,27 +395,60 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
       - [x] Error scenario tests (provider failures, fallback behavior)
     - [x] **Final verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test` - PASSED 2025-12-01
 
-  - [ ] **Phase 4.6: UI Integration** (Metrics Display + Compaction Timeline)
-    - [ ] Objectives
-      - [ ] Display TranscriptMetrics in State Inspector panel
-      - [ ] Implement Compaction Timeline for time-travel debugging
-    - [ ] Implementation tasks
-      - [ ] TranscriptMetrics display (per packages/sidekick-ui/docs/MONITORING-UI.md §4.2):
-        - [ ] `turnCount`, `toolsThisTurn`, `toolCount`, `messageCount` display
-        - [ ] `tokenUsage` (input, output, total) display
-        - [ ] `toolsPerTurn` derived ratio display
-      - [ ] Metrics sparklines (turnCount, toolCount evolution over time)
-      - [ ] Compaction Timeline (per packages/sidekick-ui/docs/MONITORING-UI.md §3.1):
-        - [ ] Read `.sidekick/sessions/{sessionId}/state/compaction-history.json`
-        - [ ] Display compaction markers (scissors icon) on timeline
-        - [ ] Segment navigation between pre-compact and post-compact transcript
-        - [ ] Pre-compact snapshot viewer on marker click
-    - [ ] Testing
-      - [ ] Metrics display component tests
-      - [ ] Sparkline rendering tests
-      - [ ] Compaction timeline navigation tests
-      - [ ] Pre-compact snapshot viewer tests
-    - [ ] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
+  - [x] **Phase 4.6: UI Integration** (Metrics Display + Compaction Timeline) - COMPLETE 2025-12-01
+    - [x] Objectives
+      - [x] Display TranscriptMetrics in State Inspector panel
+      - [x] Implement Compaction Timeline for time-travel debugging
+    - [x] Implementation tasks
+      - [x] TranscriptMetrics display (per packages/sidekick-ui/docs/MONITORING-UI.md §4.2):
+        - [x] `turnCount`, `toolsThisTurn`, `toolCount`, `messageCount` display
+        - [x] `tokenUsage` (input, output, total) display with cache hit rate
+        - [x] `toolsPerTurn` derived ratio display
+        - [x] Created `MetricsPanel.tsx` component with metric cards
+      - [x] Metrics sparklines (turnCount, toolCount evolution over time)
+        - [x] Created `Sparkline.tsx` SVG component with gradient fill
+      - [x] StateInspector integration:
+        - [x] Added State/Metrics tab toggle to StateInspector
+        - [x] MetricsPanel renders in Metrics tab
+      - [x] Compaction Timeline API endpoints (per packages/sidekick-ui/docs/MONITORING-UI.md §3.1):
+        - [x] Added `GET /api/sessions/:sessionId/compaction-history` endpoint
+        - [x] Added `GET /api/sessions/:sessionId/metrics` endpoint
+        - [x] Added `GET /api/sessions/:sessionId/pre-compact/:timestamp` endpoint
+        - [x] Created `useCompactionHistory.ts` hook for API integration
+      - [x] Compaction marker components:
+        - [x] Created `CompactionMarker.tsx` with scissors icon and `CompactionDot` variant
+        - [x] Created `PreCompactViewer.tsx` modal for snapshot viewing
+      - [x] Wire compaction markers into Timeline component:
+        - [x] Added `compactionEntries`, `selectedCompaction`, `onCompactionSelect` props
+        - [x] `findEventIndexAtTimestamp()` binary search for marker positioning
+        - [x] CompactionDot markers rendered with absolute positioning on rail
+      - [x] Wire App.tsx integration:
+        - [x] Added `useCompactionHistory` hook for current session
+        - [x] Added metrics fetch from `/api/sessions/:sessionId/metrics`
+        - [x] Pass metrics/metricsHistory to StateInspector
+        - [x] Pass compaction data to Timeline
+        - [x] PreCompactViewer modal on marker click
+    - [x] Testing
+      - [x] Created `metrics-utils.test.ts` (17 tests):
+        - [x] formatNumber tests (K/M suffix formatting)
+        - [x] formatRatio tests (decimal formatting)
+        - [x] calculateSparklinePoints tests (SVG point calculation)
+        - [x] formatTime tests (timestamp display)
+        - [x] findEventIndexAtTimestamp tests (binary search)
+    - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test` - PASSED 2025-12-01
+    - **Implementation notes** (2025-12-01):
+      - New files created:
+        - `packages/sidekick-ui/src/components/MetricsPanel.tsx` - dashboard-style metrics cards
+        - `packages/sidekick-ui/src/components/Sparkline.tsx` - SVG sparkline with gradient
+        - `packages/sidekick-ui/src/components/CompactionMarker.tsx` - scissors markers + CompactionDot
+        - `packages/sidekick-ui/src/components/PreCompactViewer.tsx` - modal for snapshot viewing
+        - `packages/sidekick-ui/src/hooks/useCompactionHistory.ts` - API hook
+        - `packages/sidekick-ui/src/components/__tests__/metrics-utils.test.ts` - utility tests
+      - Modified files:
+        - `packages/sidekick-ui/server/api-plugin.ts` - 3 new endpoints
+        - `packages/sidekick-ui/src/components/StateInspector.tsx` - State/Metrics tabs
+        - `packages/sidekick-ui/src/components/Timeline.tsx` - compaction marker support
+        - `packages/sidekick-ui/src/App.tsx` - full integration wiring
 
 - [ ] **Phase 5: Supervisor & Background Tasks**
   - [ ] Objectives
