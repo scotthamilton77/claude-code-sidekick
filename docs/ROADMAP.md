@@ -2,453 +2,65 @@
 
 This plan sequences the Node/TypeScript rewrite into phases that each end with working, demoable software. Every phase lists objectives, relevant design documents/sections, acceptance criteria, and a reminder that tests are authored at the start to cover the criteria.
 
-- [x] **Phase 1: Bootstrap CLI & Runtime Skeleton**
-  - [x] Objectives
-    - [x] Deliver a minimal Node-based CLI that can be invoked via bash hook wrappers and echoes simple outputs for at least one hook (e.g., `session-start`).
-    - [x] Implement scope detection and bootstrap sequence sufficient to locate project vs. user installs and initialize a lightweight runtime shell.
-  - [x] Relevant documents/sections
-    - [x] `{project_root_dir}/docs/ARCHITECTURE.md` (§3.1 Hook Wrapper Architecture, §3.2 CLI/Supervisor Relationship, §3.3 Event Model)
-    - [x] `{project_root_dir}/docs/design/flow.md` (§2.1 CLI/Supervisor Relationship, §2.3 Handler Registration, §3.1-3.2 Event Types and Schema) — **architectural source of truth for event model**
-    - [x] `{project_root_dir}/docs/design/CLI.md` (§3 Hook Wrapper Layer, §3.4 Bootstrap Sequence, §6 Scope Resolution)
-    - [x] `{project_root_dir}/docs/design/CORE-RUNTIME.md` (§3.1 Bootstrap & Lifecycle, §3.2 Configuration Service outline, §3.5 Handler Registration)
-  - [x] **Architectural alignment tasks** (added post-architecture-pivot)
-    - [x] Add Event Model types to `@sidekick/types`: `SidekickEvent` discriminated union, `HookEvent` variants, `TranscriptEvent`, `EventContext` (per docs/design/flow.md §3.2)
-    - [x] Add type guards: `isHookEvent()`, `isTranscriptEvent()`, `isSessionStartEvent()`, etc. (per docs/design/flow.md §3.2)
-    - [x] Add `HandlerRegistry` interface to `@sidekick/types`: `register()`, `HandlerFilter`, `EventHandler`, `HandlerResult` (per docs/design/flow.md §2.3) — placed in types package to avoid circular dependencies
-    - [x] Wire `HandlerRegistry` into `RuntimeContext` as `ctx.handlers` (per docs/design/CORE-RUNTIME.md §3.5)
-    - [x] **Testing for alignment tasks**:
-      - [x] Event type discrimination tests (type guards work correctly)
-      - [x] HandlerRegistry registration and filter matching tests
-      - [x] RuntimeContext.handlers wiring tests
-    - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
-    - Note: Config format migration (JSONC → YAML) deferred to Phase 2 scope
-  - [x] Acceptance criteria - VERIFIED 2025-11-29
-    - [x] Node CLI correctly detects user vs project scope when invoked with `--hook-script-path` argument (verified via direct invocation: `node packages/sidekick-cli/dist/bin.js session-start --hook --hook-script-path /path/to/hook`). Note: Bash hook wrapper installation that invokes Node CLI is Phase 8 scope.
-    - [x] CLI supports a demo `session-start` command that returns a structured placeholder response without errors.
-    - [x] Startup logs show the parsed hook context and do not crash when optional supervisor endpoints are absent (logs "Supervisor endpoint unavailable - skipped handshake for bootstrap skeleton").
-    - [x] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
+> **Note**: Full details for completed phases are archived in [ROADMAP-COMPLETED.md](./ROADMAP-COMPLETED.md).
 
-- [x] **Phase 1.5: UI Foundation** (can start immediately, parallel to Phase 1 alignment)
-  - [x] Objectives
-    - [x] Align UI types with `SidekickEvent` schema from docs/design/flow.md
-    - [x] Build log parsing infrastructure (NDJSON reader, sessionId filtering)
-    - [x] Create Replay Engine core (state reconstruction from events)
-  - [x] Relevant documents/sections
-    - [x] `{project_root_dir}/packages/sidekick-ui/docs/MONITORING-UI.md` (§2 Architecture, §3.2 Time Travel, §4 Data Sources)
-    - [x] `{project_root_dir}/docs/design/flow.md` (§3.2 Event Schema)
-    - [x] `{project_root_dir}/docs/design/STRUCTURED-LOGGING.md` (§3 Event Schema)
-  - [x] **1.5.1 Type Alignment** (depends on Phase 1 architectural alignment completing first)
-    - [x] Import `SidekickEvent`, `HookEvent`, `TranscriptEvent` from `@sidekick/types`
-    - [x] Import `EventContext`, `TranscriptMetrics` from `@sidekick/types`
-    - [x] Add `@sidekick/types` as dependency to `@sidekick/ui` package.json
-    - [x] Update `@sidekick/ui` to use shared types (remove duplicate definitions from `mockData.ts`)
-  - [x] **1.5.2 Log Parsing Infrastructure** (`@sidekick/ui`)
-    - [x] NDJSON line parser with streaming support
-    - [x] Session filter: `filterBySessionId(events, sessionId)`
-    - [x] Log merger: `mergeLogStreams(cliLog, supervisorLog)` by timestamp
-    - [x] Event type guards: `isHookEvent()`, `isTranscriptEvent()` (re-exported from `@sidekick/types`)
-  - [x] **1.5.3 Replay Engine Core** (`@sidekick/ui`)
-    - [x] State reconstructor: build timeline from event sequence
-    - [x] Time travel store: `getStateAt(timestamp)` API
-    - [x] Diff calculator: compute state deltas between snapshots
-  - [x] **1.5.4 UI Component Updates**
-    - [x] Update mock data to use `SidekickEvent` schema
-    - [x] Add event type badges (hook vs transcript vs internal)
-    - [x] Add `source` indicator (cli vs supervisor)
-  - [x] Testing
-    - [x] Log parser tests with sample NDJSON files in `test-data/`
-    - [x] Event merge tests (proper timestamp ordering)
-    - [x] State reconstruction tests (known event sequence → expected state)
-    - [x] Type guard tests for event discrimination
-  - [x] Acceptance criteria
-    - [x] UI can load sample log files and display events in timeline
-    - [x] Time travel slider reconstructs state at any point
-    - [x] Events filtered correctly by sessionId
-    - [x] Shared types used by both UI and backend packages
-  - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
+---
 
-- [x] **Phase 2: Configuration & Asset Resolution Foundations**
-  - [x] **PRIORITY ANALYSIS TASK**: Ensure that the config structure change(s) are aligned with `docs/design/CONFIG-SYSTEM.md` - verify it aligns with the implementation, and if it does not, discuss with the user
-  - [x] Objectives
-    - [x] Implement the configuration cascade (env + config files) with deep-merge semantics and validation.
-    - [x] Add asset resolver capable of reading defaults from `assets/sidekick/` and honoring override layers for user/project scopes.
-  - [x] Relevant documents/sections
-    - [x] `{project_root_dir}/docs/ARCHITECTURE.md` (§3.6 Configuration Cascade, §2.3 Static Assets)
-    - [x] `{project_root_dir}/docs/design/CONFIG-SYSTEM.md` (§3 Configuration Domains, §4 Configuration Cascade, §5 Data Structures, §8 Component Architecture) — **authoritative for config format and cascade**
-    - [x] `{project_root_dir}/docs/design/SCHEMA-CONTRACTS.md` (§3 Core Schemas, §4 Asset Synchronization, §5 Versioning Strategy)
-      - [x] §6.4 "Strictness": Use `z.strict()` by default to reject unknown config keys
-    - [x] `{project_root_dir}/docs/design/CORE-RUNTIME.md` (§3.2 Configuration Service, §3.3 Asset Resolver)
-  - [x] Acceptance criteria - VERIFIED 2025-11-30
-    - [x] Config loader reads env files and config layers in the documented order, producing a validated runtime config object.
-    - [x] Asset resolver returns defaults from `assets/sidekick/` when no overrides exist and correctly prefers project-local overrides when present.
-    - [x] CLI commands can access config and assets through the runtime shell, with errors surfaced via clear validation messages.
-    - [x] Config object is immutable after loading (per CONFIG-SYSTEM §2).
-    - [x] Zod schemas use strict mode to reject unknown keys (per SCHEMA-CONTRACTS §6.4).
-    - [x] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
-  - [x] Testing
-    - [x] Author tests upfront that cover requirements to be implemented/updated
-  - [x] **Architectural alignment tasks** (added post-architecture-pivot)
-    - [x] Migrate config format from JSONC to YAML domain files (per docs/design/CONFIG-SYSTEM.md §3):
-      - [x] `config.yaml` (core: paths, logging) — implemented as `CoreConfigSchema`
-      - [x] `llm.yaml` (provider settings, model selection) — implemented as `LlmConfigSchema`
-      - [x] `transcript.yaml` (watchDebounceMs, metricsPersistIntervalMs) — implemented as `TranscriptConfigSchema`
-      - [x] `features.yaml` (feature flags and feature-specific settings) — implemented as `FeaturesConfigSchema`
-    - [x] Add `sidekick.config` unified override support (bash-style dot-notation, per docs/design/CONFIG-SYSTEM.md §4.2)
-      - [x] Implemented `parseUnifiedConfig()` function with type coercion (boolean, number, JSON, string)
-    - [x] Update cascade order to match docs/design/CONFIG-SYSTEM.md §4: internal defaults → env/.env → user unified → user domain → project unified → project domain → project-local
-      - [x] 7-layer cascade implemented in `loadDomainConfig()`
-    - [x] Add `TranscriptConfigSchema` Zod schema (per docs/design/CONFIG-SYSTEM.md §5.3)
-    - [x] Add derived path helpers for staging directories: `{paths.state}/sessions/{session_id}/stage/{hook_name}/` (per docs/design/CONFIG-SYSTEM.md §6)
-      - [x] Implemented `DerivedPaths` interface with `sessionRoot()`, `stagingRoot()`, `hookStaging()`, `sessionState()`, `logsDir()`
-    - [x] **Testing for alignment tasks**:
-      - [x] YAML parsing tests (valid/invalid domain files) — 8 tests
-      - [x] Domain file cascade precedence tests — 8 tests
-      - [x] `sidekick.config` dot-notation parsing tests — 8 tests
-      - [x] Derived path helper tests (staging directories) — 7 tests
-    - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test` - PASSED 2025-11-30
-  - [x] **Breaking change migration tasks** (added 2024-11-30)
-    - [x] Add `supervisor` settings to `CoreConfig` schema (idleTimeoutMs, shutdownTimeoutMs)
-      - Decision: Supervisor settings belong in core domain as operational/runtime config
-    - [x] Update `sidekick-cli` for new config structure:
-      - [x] Replace `config.get('logLevel')` → `config.core.logging.level`
-      - [x] Replace `config.get('llm').provider` → `config.llm.provider`
-    - [x] Update `sidekick-supervisor` for new config structure:
-      - [x] Replace `config.logLevel` → `config.core.logging.level`
-      - [x] Replace `config.consoleLogging` → `config.core.logging.consoleEnabled`
-      - [x] Replace `config.supervisor.idleTimeoutMs` → `config.core.supervisor.idleTimeoutMs`
-      - [x] Replace `config.supervisor.shutdownTimeoutMs` → `config.core.supervisor.shutdownTimeoutMs`
-    - [x] Update `testing-fixtures` tests for new config structure:
-      - [x] Fix `openai-api` → `openai` provider enum value
-      - [x] Remove `circuitBreaker` references (no longer in LlmConfig)
-      - [x] Update tests to use domain accessors
-    - [x] Update `feature-llm-integration.test.ts` MockConfigService usage (already compliant)
-    - [x] Final verification gate: `pnpm build && pnpm lint && pnpm typecheck && pnpm test` - PASSED 2025-11-30
-  - **Implementation notes** (2024-11-30):
-    - Config structure changed from flat to domain-based:
-      - Old: `{ logLevel, features: { statusline: true }, llm: { provider, circuitBreaker }, supervisor }`
-      - New: `{ core: { logging, paths }, llm: { provider, timeout }, transcript: { watchDebounceMs }, features: { name: { enabled, settings } } }`
-    - `ConfigService` interface changed:
-      - Old: `get(key)`, `getAll()`
-      - New: Domain accessors (`core`, `llm`, `transcript`, `features`), `getFeature(name)`, `paths`, `getAll()`
-    - Feature config structure changed:
-      - Old: `features.statusline: boolean`
-      - New: `features.statusline: { enabled: boolean, settings: Record<string, unknown> }`
-    - LLM provider enum changed: `openai-api` → `openai`
-    - Removed from LlmConfig: `circuitBreaker` (defer to Phase 4 resilience work)
+## Completed Phases Summary
 
-- [x] **Phase 3: Structured Logging & Telemetry** - COMPLETE 2025-11-30
-  - [x] Objectives
-    - [x] Add a two-phase logging pipeline (bootstrap console → Pino-based structured logger) with redaction and telemetry events.
-    - [x] Provide logger access through runtime so commands/features emit structured entries tied to scope and command context.
-  - [x] Relevant documents/sections
-    - [x] `{project_root_dir}/docs/ARCHITECTURE.md` (§1 Guiding Principles: Observability-First, §3.2 CLI/Supervisor Relationship)
-    - [x] `{project_root_dir}/docs/design/STRUCTURED-LOGGING.md` (§2 Architecture, §3 Event Schema, §4 Configuration & Routing) — **authoritative for log format and event schema**
-    - [x] `{project_root_dir}/docs/design/flow.md` (§3.2 Event Schema, §7 Logging Events) — **canonical event model**
-    - [x] `{project_root_dir}/docs/design/CLI.md` (§8 Telemetry & Logging Bootstrap)
-    - [x] `{project_root_dir}/docs/design/CORE-RUNTIME.md` (§3.1 Bootstrap stages, §5 Error Handling Strategy)
-  - [x] Acceptance criteria - VERIFIED 2025-11-30
-    - [x] Logs include standard fields (timestamp, scope, command, correlation IDs) and redact sensitive payload fields per design.
-    - [x] Telemetry counters/timers are emitted alongside logs for hook executions.
-    - [x] Fallback to the bootstrap console logger occurs gracefully if Pino initialization fails, without dropping log lines.
-    - [x] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
-  - [x] Testing
-    - [x] Tests written before implementation (TDD approach)
-    - [x] 35 structured-logging tests passing
-  - [x] **Architectural alignment tasks** (added post-architecture-pivot) - COMPLETE 2025-11-30
-    - [x] Split log files by component (per docs/design/STRUCTURED-LOGGING.md §2.2):
-      - [x] CLI logs to `.sidekick/logs/cli.log`
-      - [x] Supervisor logs to `.sidekick/logs/supervisor.log`
-    - [x] Add `source: 'cli' | 'supervisor'` field to distinguish component in logs (per docs/design/STRUCTURED-LOGGING.md §3.1)
-    - [x] Implement `ContextLogger` wrapper for deep-merging `context` across child loggers (per docs/design/STRUCTURED-LOGGING.md §3.7)
-    - [x] Align log record format with `SidekickEvent` schema from docs/design/flow.md §3.2 (type, time, source, context, payload)
-    - [x] Add CLI-logged events: `HookReceived`, `ReminderConsumed`, `HookCompleted` (per docs/design/flow.md §7.1)
-    - [x] Add Supervisor-logged events: `EventReceived`, `HandlerExecuted`, `ReminderStaged`, `SummaryUpdated`, `RemindersCleared` (per docs/design/flow.md §7.2)
-    - [x] **Testing for alignment tasks**:
-      - [x] Separate log file tests (CLI writes to cli.log, Supervisor writes to supervisor.log) — 2 tests
-      - [x] ContextLogger deep-merge tests — 5 tests
-      - [x] Event type logging tests (HookReceived, etc.) — 9 tests
-    - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test` - PASSED 2025-11-30
-  - [x] **UI Integration (Phase 3)** - COMPLETE 2025-11-30
-    - [x] Wire UI to read `.sidekick/logs/cli.log` and `supervisor.log` (per packages/sidekick-ui/docs/MONITORING-UI.md §2.2)
-      - [x] Vite dev server API plugin (`server/api-plugin.ts`) serving log files
-      - [x] `useLogService` hook for fetching/polling logs with session filtering
-    - [x] Add file polling for "Live Mode" (follow new events in real-time)
-      - [x] Configurable poll interval, mtime-based change detection
-    - [x] Display `source: 'cli' | 'supervisor'` badge on events in stream
-      - [x] Already implemented in Phase 1.5.4 (`SourceBadge` component)
-    - [x] Implement search/filter UI per packages/sidekick-ui/docs/MONITORING-UI.md §5.2:
-      - [x] `kind:hook`, `kind:transcript`, `kind:internal` filtering
-      - [x] `type:ReminderStaged`, `type:SummaryUpdated` filtering
-      - [x] `hook:UserPromptSubmit`, `hook:PreToolUse` filtering
-      - [x] `source:cli`, `source:supervisor` filtering
-      - [x] Free text search with quoted string support
-    - [x] Filter parser: `src/lib/filter-parser.ts` with `compileFilter()` and `filterEvents()`
-    - [x] App.tsx wired to use real logs (with mock data fallback when API unavailable)
-  - **Implementation notes** (2025-11-30):
-    - Added `LogSource` type and `LoggingEventBase` interface to `@sidekick/types/events.ts`
-    - Added 8 logging event types: `HookReceivedEvent`, `HookCompletedEvent`, `ReminderConsumedEvent`, `EventReceivedEvent`, `HandlerExecutedEvent`, `ReminderStagedEvent`, `SummaryUpdatedEvent`, `RemindersClearedEvent`
-    - Created `createContextLogger()` function in `structured-logging.ts` with:
-      - Deep-merging context on child logger creation
-      - Source-based log file routing (cli.log / supervisor.log)
-      - `source` field added to all log records
-    - Created `LogEvents` factory object with type-safe event constructors
-    - Created `logEvent()` helper for emitting events via logger
+### Phase 1: Bootstrap CLI & Runtime Skeleton - COMPLETE 2025-11-29
 
-- [x] **Phase 4: Core Services & Providers** - COMPLETE 2025-12-01
-  - [x] Objectives
-    - [x] Build LLM provider interfaces and factory with retry/fallback logic, using shared provider adapters.
-    - [x] Flesh out core runtime services (feature registry wiring, LLM service) to support feature packages.
-  - [x] Relevant documents/sections
-    - [x] `{project_root_dir}/docs/ARCHITECTURE.md` (§3.4 TranscriptService, §3.5 Staging Pattern, §3.8 LLM Providers & Telemetry)
-    - [x] `{project_root_dir}/docs/design/flow.md` (§2.2 Staging Pattern, §3.2 Event Schema) — **staging pattern source of truth**
-    - [x] `{project_root_dir}/docs/design/CORE-RUNTIME.md` (§3.4 Feature Registry, §3.5 Handler Registry, §3.6 LLM Service, §3.7 Transcript Service, §4.1 Runtime Context) — **core services architecture**
-    - [x] `{project_root_dir}/docs/design/TRANSCRIPT-PROCESSING.md` (§2.2 Components, §3 Metrics System) — **TranscriptService specification**
-    - [x] `{project_root_dir}/docs/design/LLM-PROVIDERS.md` (§2 Core Architecture, §3 Interfaces & Types, §5 Resilience & Reliability)
-    - [x] `{project_root_dir}/docs/design/TEST-FIXTURES.md` (§3 Core Mocks for LLM, §5 Integration Test Harness)
-  - [x] Testing
-    - [x] Create tests first
-  - [x] Acceptance criteria - VERIFIED 2025-12-01
-    - [x] We're utilizing open source to its maximum potential - no unnecessary wheel reinvention!
-    - [x] We're testing OUR code, not open source behaviors.
-    - [x] Code complexity is kept low using stated architecture principles and guidelines. (See `docs/ARCHITECTURE.md` Guiding Principles).
-    - [x] Providers honor credential precedence and retry/fallback policies, returning structured errors on exhaustion.
-    - [x] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
-  - [x] Final integration task - COMPLETE (see `packages/sidekick-core/src/__tests__/feature-llm-integration.test.ts`)
-    - [x] Create integration test demonstrating end-to-end feature → LLM flow
-    - [x] Acceptance criteria for integration test:
-      - [x] Sample feature registered via FeatureRegistry calls LLMService.complete()
-      - [x] MockLLMService returns deterministic canned response (via mocked ProviderFactory)
-      - [x] Telemetry events emitted for LLM request (duration, success)
-      - [x] Test runs without real API calls (fully mocked)
-      - [x] Test demonstrates RuntimeContext wiring (config → provider → service → feature)
-    - [x] CLI commands can invoke the LLM service through the registry without tight coupling to provider implementations
-    - **Note**: Test uses `SupervisorContext` with discriminated union pattern from Phase 4.1
+Delivered minimal Node-based CLI with scope detection and bootstrap sequence. Key outcomes:
+- Event Model types (`SidekickEvent`, `HookEvent`, `TranscriptEvent`) in `@sidekick/types`
+- Type guards for event discrimination
+- `HandlerRegistry` interface wired into `RuntimeContext`
+- CLI detects user vs project scope via `--hook-script-path` argument
 
-  - [x] **Phase 4.1: RuntimeContext Discriminated Union** (Foundation) - COMPLETE 2025-11-30
-    - [x] Objectives
-      - [x] Refactor `RuntimeContext` to discriminated union per docs/design/CORE-RUNTIME.md §4.1
-      - [x] Enable type-safe role detection for CLI vs Supervisor contexts
-    - [x] Implementation tasks
-      - [x] Define `BaseContext` interface with shared services: `config`, `logger`, `assets`, `paths`, `handlers`
-      - [x] Define `CLIContext extends BaseContext { role: 'cli'; supervisor: SupervisorClient }`
-      - [x] Define `SupervisorContext extends BaseContext { role: 'supervisor'; llm: LLMService; staging: StagingService; transcript: TranscriptService }`
-      - [x] Export `RuntimeContext = CLIContext | SupervisorContext` discriminated union
-      - [x] Add type guards: `isCLIContext()`, `isSupervisorContext()`
-      - [x] Update `@sidekick/types` with service interfaces: `TranscriptService`, `StagingService`
-    - [x] Migration tasks
-      - [x] Update `testing-fixtures` with `createMockCLIContext()`, `createMockSupervisorContext()` helpers
-      - [x] Update existing tests for new context structure (feature-llm-integration.test.ts, mocks.test.ts)
-      - [x] Add `MockStagingService`, `MockTranscriptService`, `MockSupervisorClient` to testing-fixtures
-      - [x] Update `MockLLMService` to implement `LLMProvider` interface
-    - [x] Testing
-      - [x] Type narrowing tests (TypeScript compile-time verification via typecheck)
-      - [x] Runtime type guard tests (isCLIContext, isSupervisorContext)
-      - [x] Feature registration tests with role-specific handlers (context.role === 'supervisor' narrowing)
-    - [x] **Verification gate**: `pnpm build && pnpm typecheck && pnpm test` - PASSED 2025-11-30
-    - **Implementation notes** (2025-11-30):
-      - Created discriminated union type system in `@sidekick/types`
-      - `BaseContext` uses `MinimalConfigService` and `MinimalAssetResolver` to avoid circular deps
-      - Features that need LLM access narrow context with `if (ctx.role !== 'supervisor') throw ...`
-      - CLI/Supervisor context creation deferred to Phase 5 (actual process implementation)
-      - **Domain-based file structure** (refactored from monolithic `context.ts`):
-        ```
-        packages/types/src/
-        ├── paths.ts              # RuntimePaths
-        ├── services/
-        │   ├── index.ts          # Barrel export
-        │   ├── config.ts         # MinimalConfigService, MinimalAssetResolver
-        │   ├── transcript.ts     # TranscriptService, CompactionEntry, Unsubscribe
-        │   ├── staging.ts        # StagingService, StagedReminder
-        │   └── supervisor-client.ts  # SupervisorClient
-        └── context.ts            # Union types + guards only (~100 lines)
-        ```
-      - Service interfaces defined in types to break circular deps; implementations in core/supervisor
-      - All exports re-exported from `@sidekick/types` index.ts for consumer convenience
+### Phase 1.5: UI Foundation - COMPLETE 2025-11-29
 
-  - [x] **Phase 4.2: TranscriptService Foundation** (Types + Core API) - COMPLETE 2025-11-30
-    - [x] Objectives
-      - [x] Expand `TranscriptMetrics` schema per docs/design/TRANSCRIPT-PROCESSING.md §3.1
-      - [x] ~~Define `TranscriptService` interface~~ (DONE in Phase 4.1 - `packages/types/src/services/transcript.ts`)
-      - [x] ~~Create `MockTranscriptService`~~ (DONE in Phase 4.1 - `packages/testing-fixtures/src/mocks/MockTranscriptService.ts`)
-    - [x] Implementation tasks
-      - [x] Expand `TranscriptMetrics` in `@sidekick/types/events.ts`:
-        - [x] Turn-level: `turnCount`, `toolsThisTurn`
-        - [x] Session-level: `toolCount`, `messageCount`
-        - [x] Token metrics: `TokenUsageMetrics` with `inputTokens`, `outputTokens`, `totalTokens`, `cacheCreationInputTokens`, `cacheReadInputTokens`, `cacheTiers`, `serviceTierCounts`, `byModel`
-        - [x] Derived: `toolsPerTurn`
-        - [x] Watermarks: `lastProcessedLine`, `lastUpdatedAt`
-      - [x] TranscriptService interface (completed in Phase 4.1):
-        - [x] Lifecycle: `initialize(sessionId, transcriptPath)`, `shutdown()`
-        - [x] Metrics: `getMetrics()`, `getMetric(key)`
-        - [x] Observable: `onMetricsChange(callback)`, `onThreshold(metric, value, callback)`
-        - [x] Compaction: `capturePreCompactState(snapshotPath)`, `getCompactionHistory()`
-      - [x] Update `MockTranscriptService` for expanded schema:
-        - [x] Deep-merge support for nested `tokenUsage`
-        - [x] Callback tracking for observable subscriptions
-        - [x] Helper methods: `simulateTurn()`, `simulateToolCall()`, `simulateTokenUsage()`, `simulateAssistantMessage()`, `simulateLineProcessed()`
-        - [x] Export `createDefaultMetrics()`, `createDefaultTokenUsage()` for test utilities
-    - [x] Testing
-      - [x] Existing tests updated for new schema (replay-engine.test.ts, events.test.ts, log-parser.test.ts)
-      - [x] MockTranscriptService type-safety verified via typecheck
-    - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test` - PASSED 2025-11-30
-    - **Implementation notes** (2025-11-30):
-      - Added `TokenUsageMetrics` interface with cache tier tracking and per-model breakdown
-      - Expanded `TranscriptMetrics` from 4 fields to full schema per TRANSCRIPT-PROCESSING.md §3.1
-      - Updated `MockTranscriptService` with simulation helpers for token usage, turns, and messages
-      - Updated UI `replay-engine.ts` with `createDefaultMetrics()` for proper deep-cloning
-      - All dependent test files updated to use new metrics structure
+Built monitoring UI infrastructure. Key outcomes:
+- Log parsing (NDJSON reader, session filtering, log merging)
+- Replay Engine with time-travel state reconstruction
+- Shared types between UI and backend packages
+- Event type badges and source indicators
 
-  - [x] **Phase 4.3: TranscriptService Implementation** (File Watching + Event Emission) - COMPLETE 2025-11-30
-    - [x] Objectives
-      - [x] Implement file watching with chokidar
-      - [x] Implement incremental processing via watermark
-      - [x] Implement compaction detection and history management
-    - [x] Implementation tasks
-      - [x] Create `TranscriptServiceImpl` in `sidekick-core`:
-        - [x] File watching with chokidar (100ms debounce configurable via `transcript.debounceMs`)
-        - [x] Incremental processing: track `lastProcessedLine`, process only new lines
-        - [x] Metrics computation from transcript entries (turn boundaries, tool counts, tokens)
-        - [x] Compaction detection: `currentLineCount < lastProcessedLine` triggers full recompute
-        - [x] Shutdown via `watcher.close()` (chokidar doesn't expose `unref()`)
-      - [x] Compaction history management:
-        - [x] `capturePreCompactState()` writes to `compaction-history.json`
-        - [x] Store `CompactionEntry`: `compactedAt`, `transcriptSnapshotPath`, `metricsAtCompaction`, `postCompactLineCount`
-      - [x] Event emission to HandlerRegistry:
-        - [x] Emit `TranscriptEvent` for each new entry (`UserPrompt`, `AssistantMessage`, `ToolCall`, `ToolResult`, `Compact`)
-        - [x] Metrics snapshot embedded in event metadata (after update)
-      - [x] Metrics persistence:
-        - [x] Write to `.sidekick/sessions/{session_id}/state/transcript-metrics.json`
-        - [x] Debounced writes (100ms), immediate on shutdown, periodic (30s safety net)
-    - [x] Testing
-      - [x] File watching tests (change detection, debouncing)
-      - [x] Incremental processing tests (watermark behavior)
-      - [x] Compaction detection tests (line count reduction triggers recompute)
-      - [x] Event emission tests (correct event types, metrics snapshots)
-      - [x] Metrics persistence tests (debounce, shutdown, recovery)
-    - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test` - PASSED 2025-11-30
-    - **Implementation notes** (2025-11-30):
-      - Created `TranscriptServiceImpl` in `packages/sidekick-core/src/transcript-service.ts`
-      - File watching uses chokidar with `awaitWriteFinish` for debouncing
-      - Token usage extraction from assistant message `usage` metadata (input, output, cache metrics, service tier)
-      - Per-model token breakdown tracked in `tokenUsage.byModel`
-      - Compaction detection: when `currentLineCount < lastProcessedLine`, emits `Compact` event
-      - Metrics additive across compaction (per TRANSCRIPT-PROCESSING.md §3.2)
-      - Observable API: `onMetricsChange()` and `onThreshold()` with unsubscribe support
-      - 233 tests passing including 25 new transcript-service tests
+### Phase 2: Configuration & Asset Resolution - COMPLETE 2025-11-30
 
-  - [x] **Phase 4.4: StagingService** (Atomic File Staging) - COMPLETE 2025-11-30
-    - [x] Objectives
-      - [x] Implement atomic file staging for reminder system
-      - [x] ~~Create `MockStagingService` for testing~~ (DONE in Phase 4.1 - `packages/testing-fixtures/src/mocks/MockStagingService.ts`)
-    - [x] Implementation tasks
-      - [x] ~~Define `StagingService` interface~~ (DONE in Phase 4.1 - `packages/types/src/services/staging.ts`):
-        - [x] `stageReminder(hookName, reminderName, data): Promise<void>`
-        - [x] `readReminder(hookName, reminderName): Promise<StagedReminder | null>`
-        - [x] `clearStaging(hookName?): Promise<void>`
-        - [x] `suppressHook(hookName): Promise<void>`
-        - [x] `isHookSuppressed(hookName): Promise<boolean>`
-      - [x] Create `StagingServiceImpl` in `sidekick-core`:
-        - [x] Write to `.sidekick/sessions/{session_id}/stage/{hook_name}/{reminder_name}.json`
-        - [x] Atomic writes: write to temp file, then rename
-        - [x] Log `ReminderStaged` events via ContextLogger
-        - [x] Suppression via marker files: `.sidekick/sessions/{session_id}/stage/{hook_name}/.suppressed`
-      - [x] ~~Create `MockStagingService` in `testing-fixtures`~~ (DONE in Phase 4.1):
-        - [x] In-memory staging store
-        - [x] Staged reminder tracking
-        - [x] Helper methods: `getRemindersForHook()`, `getAllReminders()`, `getSuppressedHooks()`, `reset()`
-    - [x] Testing
-      - [x] Atomic write tests (temp file + rename pattern)
-      - [x] Directory creation tests (nested path handling)
-      - [x] Suppression marker tests
-      - [x] ReminderStaged event logging tests
-      - [x] ~~MockStagingService behavior tests~~ (basic tests in mocks.test.ts)
-    - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test` - PASSED 2025-11-30
-    - **Implementation notes** (2025-11-30):
-      - Created `StagingServiceImpl` in `packages/sidekick-core/src/staging-service.ts`
-      - Atomic writes using crypto.randomBytes for temp file suffix + rename
-      - Both async and sync APIs provided (sync for CLI usage where async is inconvenient)
-      - Additional methods: `listReminders()` (sorted by priority), `deleteReminder()`, `clearSuppression()`
-      - 31 tests covering staging, reading, listing, clearing, suppression, and edge cases
-      - Exports from `@sidekick/core`: `StagingServiceImpl`, `StagingServiceOptions`
+Implemented configuration cascade with YAML domain files. Key outcomes:
+- 4 domain files: `config.yaml`, `llm.yaml`, `transcript.yaml`, `features.yaml`
+- 7-layer cascade: defaults → env → user unified → user domain → project unified → project domain → project-local
+- `sidekick.config` unified override support (dot-notation)
+- Derived path helpers for staging directories
+- Breaking change: flat config → domain-based (`config.core.logging.level`, etc.)
 
-  - [x] **Phase 4.5: Integration & Verification** (End-to-End Testing) - COMPLETE 2025-12-01
-    - [x] Objectives
-      - [x] Verify RuntimeContext wiring: config → services → feature
-      - [x] Complete integration test demonstrating full flow
-    - [x] Implementation tasks
-      - [x] Integration test: Feature → LLM flow (see `packages/sidekick-core/src/__tests__/feature-llm-integration.test.ts`)
-        - [x] Sample feature registered via FeatureRegistry calls `ctx.llm.complete()`
-        - [x] MockLLMService returns deterministic canned response
-        - [x] Telemetry events emitted for LLM request (duration, success)
-        - [x] Test runs without real API calls (fully mocked)
-        - [x] Test demonstrates RuntimeContext wiring (config → provider → service → feature)
-      - [x] Integration test: TranscriptService → Handler flow (see `packages/sidekick-core/src/__tests__/phase-4.5-integration.test.ts`)
-        - [x] TranscriptService emits events on file change
-        - [x] Registered handlers receive events with correct metrics
-        - [x] Handler can access `ctx.staging` to stage reminders
-      - [x] Verify LLM provider credential precedence (env vars > config file)
-        - [x] Implemented in `packages/shared-providers/src/factory.ts` with `resolveApiKey()`
-        - [x] Tests in `packages/shared-providers/src/__tests__/factory.test.ts`
-      - [x] Verify structured errors on provider exhaustion (see `packages/shared-providers/src/__tests__/fallback.test.ts`)
-    - [x] Testing
-      - [x] Full integration test suite (10 tests in phase-4.5-integration.test.ts)
-      - [x] Error scenario tests (provider failures, fallback behavior)
-    - [x] **Final verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test` - PASSED 2025-12-01
+### Phase 3: Structured Logging & Telemetry - COMPLETE 2025-11-30
 
-  - [x] **Phase 4.6: UI Integration** (Metrics Display + Compaction Timeline) - COMPLETE 2025-12-01
-    - [x] Objectives
-      - [x] Display TranscriptMetrics in State Inspector panel
-      - [x] Implement Compaction Timeline for time-travel debugging
-    - [x] Implementation tasks
-      - [x] TranscriptMetrics display (per packages/sidekick-ui/docs/MONITORING-UI.md §4.2):
-        - [x] `turnCount`, `toolsThisTurn`, `toolCount`, `messageCount` display
-        - [x] `tokenUsage` (input, output, total) display with cache hit rate
-        - [x] `toolsPerTurn` derived ratio display
-        - [x] Created `MetricsPanel.tsx` component with metric cards
-      - [x] Metrics sparklines (turnCount, toolCount evolution over time)
-        - [x] Created `Sparkline.tsx` SVG component with gradient fill
-      - [x] StateInspector integration:
-        - [x] Added State/Metrics tab toggle to StateInspector
-        - [x] MetricsPanel renders in Metrics tab
-      - [x] Compaction Timeline API endpoints (per packages/sidekick-ui/docs/MONITORING-UI.md §3.1):
-        - [x] Added `GET /api/sessions/:sessionId/compaction-history` endpoint
-        - [x] Added `GET /api/sessions/:sessionId/metrics` endpoint
-        - [x] Added `GET /api/sessions/:sessionId/pre-compact/:timestamp` endpoint
-        - [x] Created `useCompactionHistory.ts` hook for API integration
-      - [x] Compaction marker components:
-        - [x] Created `CompactionMarker.tsx` with scissors icon and `CompactionDot` variant
-        - [x] Created `PreCompactViewer.tsx` modal for snapshot viewing
-      - [x] Wire compaction markers into Timeline component:
-        - [x] Added `compactionEntries`, `selectedCompaction`, `onCompactionSelect` props
-        - [x] `findEventIndexAtTimestamp()` binary search for marker positioning
-        - [x] CompactionDot markers rendered with absolute positioning on rail
-      - [x] Wire App.tsx integration:
-        - [x] Added `useCompactionHistory` hook for current session
-        - [x] Added metrics fetch from `/api/sessions/:sessionId/metrics`
-        - [x] Pass metrics/metricsHistory to StateInspector
-        - [x] Pass compaction data to Timeline
-        - [x] PreCompactViewer modal on marker click
-    - [x] Testing
-      - [x] Created `metrics-utils.test.ts` (17 tests):
-        - [x] formatNumber tests (K/M suffix formatting)
-        - [x] formatRatio tests (decimal formatting)
-        - [x] calculateSparklinePoints tests (SVG point calculation)
-        - [x] formatTime tests (timestamp display)
-        - [x] findEventIndexAtTimestamp tests (binary search)
-    - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test` - PASSED 2025-12-01
-    - **Implementation notes** (2025-12-01):
-      - New files created:
-        - `packages/sidekick-ui/src/components/MetricsPanel.tsx` - dashboard-style metrics cards
-        - `packages/sidekick-ui/src/components/Sparkline.tsx` - SVG sparkline with gradient
-        - `packages/sidekick-ui/src/components/CompactionMarker.tsx` - scissors markers + CompactionDot
-        - `packages/sidekick-ui/src/components/PreCompactViewer.tsx` - modal for snapshot viewing
-        - `packages/sidekick-ui/src/hooks/useCompactionHistory.ts` - API hook
-        - `packages/sidekick-ui/src/components/__tests__/metrics-utils.test.ts` - utility tests
-      - Modified files:
-        - `packages/sidekick-ui/server/api-plugin.ts` - 3 new endpoints
-        - `packages/sidekick-ui/src/components/StateInspector.tsx` - State/Metrics tabs
-        - `packages/sidekick-ui/src/components/Timeline.tsx` - compaction marker support
-        - `packages/sidekick-ui/src/App.tsx` - full integration wiring
+Added two-phase logging pipeline. Key outcomes:
+- Split log files: `cli.log` / `supervisor.log`
+- `source` field distinguishing CLI vs Supervisor
+- `ContextLogger` with deep-merge context
+- 8 logging event types (HookReceived, HookCompleted, ReminderStaged, etc.)
+- UI wired to read real logs with filter/search capabilities
+
+### Phase 4: Core Services & Providers - COMPLETE 2025-12-01
+
+Built LLM providers, TranscriptService, and StagingService. Key outcomes:
+
+**4.1 RuntimeContext Discriminated Union**: `CLIContext | SupervisorContext` with type guards, service interfaces in `@sidekick/types`
+
+**4.2 TranscriptService Foundation**: Expanded `TranscriptMetrics` schema with token usage, cache tiers, per-model breakdown
+
+**4.3 TranscriptService Implementation**: File watching (chokidar), incremental processing, compaction detection, metrics persistence
+
+**4.4 StagingService**: Atomic file staging, suppression markers, sync/async APIs
+
+**4.5 Integration & Verification**: End-to-end tests for Feature → LLM flow, TranscriptService → Handler flow, credential precedence
+
+**4.6 UI Integration**: MetricsPanel with sparklines, Compaction Timeline markers, StateInspector tabs, API endpoints for session data
+
+---
+
+## Pending Phases
 
 - [ ] **Phase 5: Supervisor & Background Tasks**
   - [ ] Objectives
