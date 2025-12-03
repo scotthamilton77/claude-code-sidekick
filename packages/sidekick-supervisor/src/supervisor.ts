@@ -5,12 +5,15 @@ import {
   getTokenPath,
   getUserPidPath,
   getUserSupervisorsDir,
+  HandlerRegistryImpl,
   IpcServer,
   loadConfig,
   Logger,
   LogManager,
   SidekickConfig,
+  TranscriptServiceImpl,
 } from '@sidekick/core'
+import type { HandlerRegistry, TranscriptService, HookName, HookEvent } from '@sidekick/types'
 import { randomBytes } from 'crypto'
 import fs from 'fs/promises'
 import path from 'path'
@@ -51,6 +54,8 @@ export class Supervisor {
   private taskRegistry: TaskRegistry
   private ipcServer: IpcServer
   private configWatcher: ConfigWatcher
+  private handlerRegistry: HandlerRegistry
+  private transcriptService: TranscriptService | null = null
   private token: string = ''
   private lastActivityTime: number = Date.now()
   private idleCheckInterval: ReturnType<typeof setInterval> | null = null
@@ -82,6 +87,13 @@ export class Supervisor {
 
     // Initialize Config Watcher for hot-reload (design/SUPERVISOR.md §4.3)
     this.configWatcher = new ConfigWatcher(projectDir, this.logger, this.handleConfigChange.bind(this))
+
+    // Initialize Handler Registry (Phase 5.3)
+    this.handlerRegistry = new HandlerRegistryImpl({
+      logger: this.logger,
+      sessionId: '', // Updated on SessionStart
+      scope: 'project',
+    })
 
     // Initialize IPC
     const socketPath = getSocketPath(projectDir)
@@ -144,6 +156,18 @@ export class Supervisor {
 
     // Stop config watcher
     this.configWatcher.stop()
+
+    // Stop TranscriptService file watcher (Phase 5.3 requirement)
+    // Per docs/design/SUPERVISOR.md §2.2: Shutdown sequence must stop TranscriptService
+    try {
+      if (this.transcriptService) {
+        await this.transcriptService.shutdown()
+        this.transcriptService = null
+        this.logger.info('TranscriptService shutdown complete')
+      }
+    } catch (err) {
+      this.logger.error('Failed to shutdown TranscriptService', { error: err })
+    }
 
     try {
       // Stop accepting new IPC
@@ -237,6 +261,8 @@ export class Supervisor {
         )
       case 'ping':
         return 'pong'
+      case 'hook.invoke':
+        return this.handleHookInvoke(p)
       default:
         throw new Error(`Method not found: ${method}`)
     }
@@ -247,6 +273,92 @@ export class Supervisor {
       throw new Error('Invalid token')
     }
     return { version: VERSION, status: 'ok' }
+  }
+
+  /**
+   * Handle hook event invocation from CLI.
+   * Dispatches the event to registered handlers and returns aggregated response.
+   *
+   * @see docs/design/SUPERVISOR.md §4.2 Handler System
+   */
+  private async handleHookInvoke(params: Record<string, unknown> | undefined): Promise<unknown> {
+    const hook = params?.hook as HookName | undefined
+    const event = params?.event as HookEvent | undefined
+
+    if (!hook || !event) {
+      throw new Error('hook.invoke requires hook and event parameters')
+    }
+
+    this.logger.debug('Handling hook invocation', { hook, sessionId: event.context?.sessionId })
+
+    // Handle SessionStart: initialize TranscriptService
+    if (hook === 'SessionStart') {
+      await this.handleSessionStart(event)
+    }
+
+    // Handle SessionEnd: shutdown TranscriptService
+    if (hook === 'SessionEnd') {
+      await this.handleSessionEnd()
+    }
+
+    // Dispatch to registered handlers
+    const response = await this.handlerRegistry.invokeHook(hook, event)
+
+    return response
+  }
+
+  /**
+   * Initialize TranscriptService on SessionStart.
+   * Per docs/design/SUPERVISOR.md §4.7 and docs/design/TRANSCRIPT-PROCESSING.md §6.
+   */
+  private async handleSessionStart(event: HookEvent): Promise<void> {
+    const payload = event.payload as { transcriptPath?: string; startType?: string }
+    const sessionId = event.context?.sessionId
+
+    if (!sessionId) {
+      this.logger.warn('SessionStart event missing sessionId')
+      return
+    }
+
+    // Update handler registry with session info
+    if (this.handlerRegistry instanceof HandlerRegistryImpl) {
+      this.handlerRegistry.updateSession({
+        sessionId,
+        transcriptPath: payload.transcriptPath,
+      })
+    }
+
+    // Create and initialize TranscriptService
+    if (payload.transcriptPath) {
+      this.transcriptService = new TranscriptServiceImpl({
+        watchDebounceMs: this.config.transcript.watchDebounceMs,
+        metricsPersistIntervalMs: this.config.transcript.metricsPersistIntervalMs,
+        handlers: this.handlerRegistry,
+        logger: this.logger,
+        stateDir: path.join(this.projectDir, '.sidekick'),
+      })
+
+      await this.transcriptService.initialize(sessionId, payload.transcriptPath)
+
+      // Provide metrics getter to handler registry
+      if (this.handlerRegistry instanceof HandlerRegistryImpl) {
+        this.handlerRegistry.setMetricsProvider(() => this.transcriptService!.getMetrics())
+      }
+
+      this.logger.info('TranscriptService initialized', { sessionId, transcriptPath: payload.transcriptPath })
+    }
+  }
+
+  /**
+   * Shutdown TranscriptService on SessionEnd.
+   * Per docs/design/SUPERVISOR.md §4.7.
+   */
+  private async handleSessionEnd(): Promise<void> {
+    if (this.transcriptService) {
+      await this.transcriptService.shutdown()
+      this.transcriptService = null
+      this.logger.info('TranscriptService shutdown on SessionEnd')
+    }
   }
 
   /**

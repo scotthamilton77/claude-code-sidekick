@@ -103,6 +103,7 @@ export {
 
 export { killAllSupervisors, SupervisorClient, type KillResult, type UserPidInfo } from './supervisor-client'
 export { StagingServiceImpl, type StagingServiceOptions } from './staging-service'
+export { HandlerRegistryImpl, type HandlerRegistryOptions } from './handler-registry'
 export {
   createDefaultMetrics,
   createDefaultTokenUsage,
