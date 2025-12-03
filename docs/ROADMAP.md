@@ -11,6 +11,7 @@ This plan sequences the Node/TypeScript rewrite into phases that each end with w
 ### Phase 1: Bootstrap CLI & Runtime Skeleton - COMPLETE 2025-11-29
 
 Delivered minimal Node-based CLI with scope detection and bootstrap sequence. Key outcomes:
+
 - Event Model types (`SidekickEvent`, `HookEvent`, `TranscriptEvent`) in `@sidekick/types`
 - Type guards for event discrimination
 - `HandlerRegistry` interface wired into `RuntimeContext`
@@ -19,6 +20,7 @@ Delivered minimal Node-based CLI with scope detection and bootstrap sequence. Ke
 ### Phase 1.5: UI Foundation - COMPLETE 2025-11-29
 
 Built monitoring UI infrastructure. Key outcomes:
+
 - Log parsing (NDJSON reader, session filtering, log merging)
 - Replay Engine with time-travel state reconstruction
 - Shared types between UI and backend packages
@@ -27,6 +29,7 @@ Built monitoring UI infrastructure. Key outcomes:
 ### Phase 2: Configuration & Asset Resolution - COMPLETE 2025-11-30
 
 Implemented configuration cascade with YAML domain files. Key outcomes:
+
 - 4 domain files: `config.yaml`, `llm.yaml`, `transcript.yaml`, `features.yaml`
 - 7-layer cascade: defaults → env → user unified → user domain → project unified → project domain → project-local
 - `sidekick.config` unified override support (dot-notation)
@@ -36,6 +39,7 @@ Implemented configuration cascade with YAML domain files. Key outcomes:
 ### Phase 3: Structured Logging & Telemetry - COMPLETE 2025-11-30
 
 Added two-phase logging pipeline. Key outcomes:
+
 - Split log files: `cli.log` / `supervisor.log`
 - `source` field distinguishing CLI vs Supervisor
 - `ContextLogger` with deep-merge context
@@ -78,6 +82,7 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
     - [ ] Code complexity is kept low using stated architecture principles and guidelines. (See `docs/ARCHITECTURE.md` Guiding Principles).
     - [ ] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
     - [ ] Code-review agent has reviewed your work and all blocking issues have been addressed
+    - [ ] No suppressing lint or typescript errors unless architecturally justified - and then add rationale comment
     - [ ] No lint or typescript warnings or errors
     - [ ] All tests pass
   - [x] **5.1 Core Supervisor Process** - COMPLETE 2025-12-02
@@ -95,37 +100,20 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
     - [x] Task types: `session_summary`, `resume_generation`, `cleanup`, `metrics_persist`
     - [x] Orphan prevention: tasks tracked in state via TaskRegistry, cleaned on supervisor restart
     - [x] Testing: State atomicity, queue ordering, timeout behavior, orphan cleanup
-    - [x] **5.2.1 Modularization** (code-review finding: prepare for Phase 6 handler complexity)
-      - [x] Extract `TaskRegistry` class to `task-registry.ts`
-      - [x] Create `handlers/` directory structure
-      - [x] Extract `session-summary.handler.ts` with factory function
-      - [x] Extract `resume-generation.handler.ts` with factory function
-      - [x] Extract `cleanup.handler.ts` with factory function
-      - [x] Extract `metrics-persist.handler.ts` with factory function
-      - [x] Reduce `task-handlers.ts` to registration orchestration only (~50 lines)
-      - [x] Update tests to match new structure (parallel test files in `handlers/__tests__/`)
-    - [x] **5.2.2 Bug Fixes** (code-review SHOULD FIX)
-      - [x] Fix `markTaskStarted` receives sessionId instead of taskId (task-handlers.ts:59)
-      - [x] Make task tracking consistent across all handlers (not just SESSION_SUMMARY)
-      - [x] Add Zod validation for handler payloads (replace unsafe `as unknown as` casts)
-    - [x] **5.2.3 Hardening** (code-review CONSIDER)
-      - [x] Document or mutex the read-modify-write assumption in `TaskRegistry.getState()`
-      - [x] Add sessionId format validation before path construction
-      - [x] Fix cleanup handler to skip `updateLastCleanup()` when aborted mid-iteration
-      - [x] Make `METRICS_PERSIST` handler async for consistency
     - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
-  - [ ] **5.3 TranscriptService Integration**
-    - [ ] Initialize TranscriptService on `SessionStart` handler (per docs/design/SUPERVISOR.md §4, docs/design/TRANSCRIPT-PROCESSING.md §6)
-    - [ ] Stop TranscriptService on `SessionEnd` handler
-    - [ ] Ensure `shutdown()` is called before process exit (watcher.close() releases handle)
-    - [ ] Metrics persistence via task engine (periodic flush to state files)
-    - [ ] Testing: Lifecycle tests (initialize on SessionStart, stop on SessionEnd), watcher cleanup verification
-    - [ ] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
-  - [ ] **5.4 HandlerRegistry & Event Dispatch**
-    - [ ] Wire HandlerRegistry into Supervisor for event dispatch (per docs/design/flow.md §2.3)
-    - [ ] `invokeHook()` for hook events received via IPC from CLI
-    - [ ] `emitTranscriptEvent()` called by TranscriptService when file changes detected
-    - [ ] Sequential execution for hook handlers, concurrent for transcript handlers
+  - [x] **5.3 TranscriptService Integration** - COMPLETE 2025-12-03
+    - [x] Initialize TranscriptService on `SessionStart` handler (per docs/design/SUPERVISOR.md §4, docs/design/TRANSCRIPT-PROCESSING.md §6)
+    - [x] Stop TranscriptService on `SessionEnd` handler
+    - [x] Ensure `shutdown()` is called before process exit (watcher.close() releases handle)
+    - [x] Implement HandlerRegistryImpl in sidekick-core with invokeHook() and emitTranscriptEvent()
+    - [x] Add hook.invoke IPC method for CLI to dispatch events to Supervisor
+    - [x] Testing: Lifecycle tests (initialize on SessionStart, stop on SessionEnd), handler dispatch tests
+    - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
+  - [ ] **5.4 Handler Event Dispatch & Staging**
+    - [x] Wire HandlerRegistry into Supervisor for event dispatch (per docs/design/flow.md §2.3)
+    - [x] `invokeHook()` for hook events received via IPC from CLI
+    - [x] `emitTranscriptEvent()` called by TranscriptService when file changes detected
+    - [x] Sequential execution for hook handlers, concurrent for transcript handlers
     - [ ] Staging directory management (per docs/design/flow.md §2.2):
       - [ ] Create session staging directories: `.sidekick/sessions/{session_id}/stage/{hook_name}/`
       - [ ] Clean staging directories on `SessionStart` (type: startup|clear)
