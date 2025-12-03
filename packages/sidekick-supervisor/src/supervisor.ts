@@ -16,6 +16,7 @@ import fs from 'fs/promises'
 import path from 'path'
 import { ConfigChangeEvent, ConfigWatcher } from './config-watcher.js'
 import { StateManager } from './state-manager.js'
+import { createTaskRegistry, registerStandardTaskHandlers, TaskRegistry } from './task-handlers.js'
 import { TaskEngine } from './task-engine.js'
 
 // Read version from package.json at startup
@@ -47,6 +48,7 @@ export class Supervisor {
   private logManager: LogManager
   private stateManager: StateManager
   private taskEngine: TaskEngine
+  private taskRegistry: TaskRegistry
   private ipcServer: IpcServer
   private configWatcher: ConfigWatcher
   private token: string = ''
@@ -76,6 +78,7 @@ export class Supervisor {
     // Initialize Components
     this.stateManager = new StateManager(path.join(projectDir, '.sidekick', 'state'), this.logger)
     this.taskEngine = new TaskEngine(this.logger)
+    this.taskRegistry = createTaskRegistry(this.stateManager, this.logger)
 
     // Initialize Config Watcher for hot-reload (design/SUPERVISOR.md §4.3)
     this.configWatcher = new ConfigWatcher(projectDir, this.logger, this.handleConfigChange.bind(this))
@@ -101,16 +104,25 @@ export class Supervisor {
       // 3. Initialize State Manager
       await this.stateManager.initialize()
 
-      // 4. Start IPC Server
+      // 4. Clean up orphaned tasks from previous runs (Phase 5.2 orphan prevention)
+      const orphanCount = await this.taskRegistry.cleanupOrphans()
+      if (orphanCount > 0) {
+        this.logger.info('Cleaned up orphaned tasks', { orphanCount })
+      }
+
+      // 5. Register standard task handlers (Phase 5.2 task types)
+      registerStandardTaskHandlers(this.taskEngine, this.stateManager, this.projectDir, this.logger)
+
+      // 6. Start IPC Server
       await this.ipcServer.start()
 
-      // 5. Start config watcher for hot-reload
+      // 7. Start config watcher for hot-reload
       this.configWatcher.start()
 
-      // 6. Start idle timeout checker
+      // 8. Start idle timeout checker
       this.startIdleCheck()
 
-      // 7. Start heartbeat for monitoring UI
+      // 9. Start heartbeat for monitoring UI
       this.startHeartbeat()
 
       this.logger.info('Supervisor started successfully')

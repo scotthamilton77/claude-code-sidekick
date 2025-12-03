@@ -36,6 +36,24 @@ export type {
   EventHandler,
   HandlerRegistration,
   HandlerRegistry,
+  // Task types (Phase 5.2)
+  TaskType,
+  TaskPayload,
+  SessionSummaryPayload,
+  ResumeGenerationPayload,
+  CleanupPayload,
+  MetricsPersistPayload,
+  TrackedTask,
+  TaskRegistryState,
+} from '@sidekick/types'
+
+// Re-export task type constants and schemas
+export {
+  TaskTypes,
+  SessionSummaryPayloadSchema,
+  ResumeGenerationPayloadSchema,
+  CleanupPayloadSchema,
+  MetricsPersistPayloadSchema,
 } from '@sidekick/types'
 
 // Re-export type guards from @sidekick/types

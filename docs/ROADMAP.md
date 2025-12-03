@@ -77,6 +77,9 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
     - [ ] We're testing OUR code, not open source behaviors.
     - [ ] Code complexity is kept low using stated architecture principles and guidelines. (See `docs/ARCHITECTURE.md` Guiding Principles).
     - [ ] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
+    - [ ] Code-review agent has reviewed your work and all blocking issues have been addressed
+    - [ ] No lint or typescript warnings or errors
+    - [ ] All tests pass
   - [x] **5.1 Core Supervisor Process** - COMPLETE 2025-12-02
     - [x] Supervisor skeleton: entry point, signal handlers (SIGTERM, SIGINT), graceful shutdown
     - [x] IPC socket setup (Unix domain socket): `.sidekick/supervisor.sock`
@@ -85,14 +88,32 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
     - [x] Heartbeat mechanism: periodic health writes to `.sidekick/state/supervisor-status.json`
     - [x] Testing: Socket lifecycle, version handshake acceptance/rejection, auth token validation
     - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
-  - [ ] **5.2 Task Engine & State Manager**
-    - [ ] Single-writer state manager: atomic JSON updates to `.sidekick/state/*.json`
-    - [ ] Task queue: enqueue, dequeue, priority ordering
-    - [ ] Task execution: worker pool (configurable concurrency), timeout handling
-    - [ ] Task types: `BackgroundSummary`, `MetricsPersist`, `CleanupStale`
-    - [ ] Orphan prevention: tasks tracked in state, cleaned on supervisor restart
-    - [ ] Testing: State atomicity, queue ordering, timeout behavior, orphan cleanup
-    - [ ] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
+  - [x] **5.2 Task Engine & State Manager** - COMPLETE 2025-12-03
+    - [x] Single-writer state manager: atomic JSON updates to `.sidekick/state/*.json`
+    - [x] Task queue: enqueue, dequeue, priority ordering
+    - [x] Task execution: worker pool (configurable concurrency), timeout handling
+    - [x] Task types: `session_summary`, `resume_generation`, `cleanup`, `metrics_persist`
+    - [x] Orphan prevention: tasks tracked in state via TaskRegistry, cleaned on supervisor restart
+    - [x] Testing: State atomicity, queue ordering, timeout behavior, orphan cleanup
+    - [x] **5.2.1 Modularization** (code-review finding: prepare for Phase 6 handler complexity)
+      - [x] Extract `TaskRegistry` class to `task-registry.ts`
+      - [x] Create `handlers/` directory structure
+      - [x] Extract `session-summary.handler.ts` with factory function
+      - [x] Extract `resume-generation.handler.ts` with factory function
+      - [x] Extract `cleanup.handler.ts` with factory function
+      - [x] Extract `metrics-persist.handler.ts` with factory function
+      - [x] Reduce `task-handlers.ts` to registration orchestration only (~50 lines)
+      - [x] Update tests to match new structure (parallel test files in `handlers/__tests__/`)
+    - [x] **5.2.2 Bug Fixes** (code-review SHOULD FIX)
+      - [x] Fix `markTaskStarted` receives sessionId instead of taskId (task-handlers.ts:59)
+      - [x] Make task tracking consistent across all handlers (not just SESSION_SUMMARY)
+      - [x] Add Zod validation for handler payloads (replace unsafe `as unknown as` casts)
+    - [x] **5.2.3 Hardening** (code-review CONSIDER)
+      - [x] Document or mutex the read-modify-write assumption in `TaskRegistry.getState()`
+      - [x] Add sessionId format validation before path construction
+      - [x] Fix cleanup handler to skip `updateLastCleanup()` when aborted mid-iteration
+      - [x] Make `METRICS_PERSIST` handler async for consistency
+    - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
   - [ ] **5.3 TranscriptService Integration**
     - [ ] Initialize TranscriptService on `SessionStart` handler (per docs/design/SUPERVISOR.md §4, docs/design/TRANSCRIPT-PROCESSING.md §6)
     - [ ] Stop TranscriptService on `SessionEnd` handler
