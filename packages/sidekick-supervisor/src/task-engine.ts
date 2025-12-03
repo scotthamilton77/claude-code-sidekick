@@ -20,6 +20,8 @@ export interface Task {
  * Context passed to task handlers for cancellation support.
  */
 export interface TaskContext {
+  /** Task ID for tracking in TaskRegistry */
+  taskId: string
   /** AbortSignal for cancellation - handlers should check this periodically */
   signal: AbortSignal
   /** Logger scoped to this task */
@@ -158,6 +160,7 @@ export class TaskEngine {
 
     // Create task context with AbortSignal for cancellation
     const context: TaskContext = {
+      taskId: task.id,
       signal: abortController.signal,
       logger: this.logger,
     }
