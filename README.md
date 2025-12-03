@@ -12,6 +12,7 @@ This repository serves as a development and testing environment for [Claude Code
 
 ### Sidekick
 
+- should we block and wait (with timeout of p95 of completion latency?) for session summary when we have low confidence?
 - snarky comment generator
   - needs a fallback model
 - refine the transcript analysis process
