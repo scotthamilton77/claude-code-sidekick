@@ -74,6 +74,7 @@ export class TaskEngine {
   private isShuttingDown = false
   private shutdownResolve: (() => void) | null = null
   private activeAbortControllers = new Map<string, AbortController>()
+  private activeTaskMeta = new Map<string, { type: string; startTime: number }>()
 
   constructor(logger: Logger, maxConcurrency = 2, defaultTimeoutMs = DEFAULT_TASK_TIMEOUT_MS) {
     this.logger = logger
@@ -150,6 +151,7 @@ export class TaskEngine {
     const timeoutMs = task.timeoutMs ?? this.defaultTimeoutMs
     const abortController = new AbortController()
     this.activeAbortControllers.set(task.id, abortController)
+    this.activeTaskMeta.set(task.id, { type: task.type, startTime: Date.now() })
 
     this.logger.info('Starting task', { type: task.type, id: task.id, timeoutMs })
     const start = Date.now()
@@ -193,6 +195,7 @@ export class TaskEngine {
       }
     } finally {
       this.activeAbortControllers.delete(task.id)
+      this.activeTaskMeta.delete(task.id)
     }
   }
 
@@ -291,4 +294,37 @@ export class TaskEngine {
       this.shutdownResolve = null
     }
   }
+
+  /**
+   * Get current task engine status for heartbeat/monitoring.
+   * Per design/SUPERVISOR.md §4.6: Expose queue depth and active task info.
+   */
+  getStatus(): TaskEngineStatus {
+    const activeTasks: TaskEngineStatus['activeTasks'] = []
+    for (const [id, meta] of this.activeTaskMeta) {
+      activeTasks.push({
+        id,
+        type: meta.type,
+        startTime: meta.startTime,
+      })
+    }
+    return {
+      pending: this.queue.length,
+      active: this.running,
+      activeTasks,
+    }
+  }
+}
+
+/**
+ * Task engine status for heartbeat monitoring.
+ */
+export interface TaskEngineStatus {
+  pending: number
+  active: number
+  activeTasks: Array<{
+    id: string
+    type: string
+    startTime: number
+  }>
 }
