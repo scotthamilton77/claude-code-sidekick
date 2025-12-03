@@ -72,34 +72,54 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
     - [ ] `{project_root_dir}/docs/design/SUPERVISOR.md` (§2 Process Architecture, §3 Communication Layer, §4 Subsystems) — **Supervisor process specification**
     - [ ] `{project_root_dir}/docs/design/CLI.md` (§4 Supervisor Interaction, §7 Supervisor Lifecycle Management)
     - [ ] `{project_root_dir}/docs/design/TRANSCRIPT-PROCESSING.md` (§2 Components, §6 Implementation Details) — **TranscriptService integration**
-  - [ ] Acceptance criteria - REQUIRES RE-VERIFICATION after TranscriptService/HandlerRegistry integration
+  - [ ] Acceptance criteria (applies to all sub-phases)
     - [ ] We're utilizing open source to its maximum potential - no unnecessary wheel reinvention!
     - [ ] We're testing OUR code, not open source behaviors.
     - [ ] Code complexity is kept low using stated architecture principles and guidelines. (See `docs/ARCHITECTURE.md` Guiding Principles).
-    - [ ] Supervisor starts, responds to version handshake, and serializes state updates to `.sidekick/state/*.json` atomically.
-    - [ ] IPC layer enforces token security and handles timeouts/retries without orphaning tasks.
-    - [ ] CLI gracefully falls back when supervisor is unavailable, logging warnings and proceeding with degraded sync paths.
     - [ ] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
-  - [ ] **Architectural alignment tasks** (added post-architecture-pivot)
-    - [ ] Integrate TranscriptService with Supervisor (per docs/design/SUPERVISOR.md §4, docs/design/TRANSCRIPT-PROCESSING.md §6):
-      - [ ] Initialize TranscriptService on `SessionStart` handler
-      - [ ] Stop TranscriptService on `SessionEnd` handler
-      - [ ] Ensure `shutdown()` is called before process exit (watcher.close() releases handle)
-    - [ ] Wire HandlerRegistry into Supervisor for event dispatch (per docs/design/flow.md §2.3):
-      - [ ] `invokeHook()` for hook events received via IPC from CLI
-      - [ ] `emitTranscriptEvent()` called by TranscriptService when file changes detected
-      - [ ] Sequential execution for hook handlers, concurrent for transcript handlers
-    - [ ] Add staging directory management (per docs/design/flow.md §2.2):
+  - [x] **5.1 Core Supervisor Process** - COMPLETE 2025-12-02
+    - [x] Supervisor skeleton: entry point, signal handlers (SIGTERM, SIGINT), graceful shutdown
+    - [x] IPC socket setup (Unix domain socket): `.sidekick/supervisor.sock`
+    - [x] Version handshake protocol: CLI sends version, supervisor validates compatibility
+    - [x] Token-based authentication for IPC connections (per docs/design/SUPERVISOR.md §3)
+    - [x] Heartbeat mechanism: periodic health writes to `.sidekick/state/supervisor-status.json`
+    - [x] Testing: Socket lifecycle, version handshake acceptance/rejection, auth token validation
+    - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
+  - [ ] **5.2 Task Engine & State Manager**
+    - [ ] Single-writer state manager: atomic JSON updates to `.sidekick/state/*.json`
+    - [ ] Task queue: enqueue, dequeue, priority ordering
+    - [ ] Task execution: worker pool (configurable concurrency), timeout handling
+    - [ ] Task types: `BackgroundSummary`, `MetricsPersist`, `CleanupStale`
+    - [ ] Orphan prevention: tasks tracked in state, cleaned on supervisor restart
+    - [ ] Testing: State atomicity, queue ordering, timeout behavior, orphan cleanup
+    - [ ] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
+  - [ ] **5.3 TranscriptService Integration**
+    - [ ] Initialize TranscriptService on `SessionStart` handler (per docs/design/SUPERVISOR.md §4, docs/design/TRANSCRIPT-PROCESSING.md §6)
+    - [ ] Stop TranscriptService on `SessionEnd` handler
+    - [ ] Ensure `shutdown()` is called before process exit (watcher.close() releases handle)
+    - [ ] Metrics persistence via task engine (periodic flush to state files)
+    - [ ] Testing: Lifecycle tests (initialize on SessionStart, stop on SessionEnd), watcher cleanup verification
+    - [ ] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
+  - [ ] **5.4 HandlerRegistry & Event Dispatch**
+    - [ ] Wire HandlerRegistry into Supervisor for event dispatch (per docs/design/flow.md §2.3)
+    - [ ] `invokeHook()` for hook events received via IPC from CLI
+    - [ ] `emitTranscriptEvent()` called by TranscriptService when file changes detected
+    - [ ] Sequential execution for hook handlers, concurrent for transcript handlers
+    - [ ] Staging directory management (per docs/design/flow.md §2.2):
       - [ ] Create session staging directories: `.sidekick/sessions/{session_id}/stage/{hook_name}/`
       - [ ] Clean staging directories on `SessionStart` (type: startup|clear)
     - [ ] Log to separate supervisor log file: `.sidekick/logs/supervisor.log` (per docs/design/STRUCTURED-LOGGING.md §2.2)
-    - [ ] **Testing for alignment tasks**:
-      - [ ] TranscriptService lifecycle tests (initialize on SessionStart, stop on SessionEnd)
-      - [ ] HandlerRegistry dispatch tests (hook events sequential, transcript events concurrent)
-      - [ ] Staging directory management tests (create, clean on SessionStart)
-      - [ ] Supervisor log file isolation tests
+    - [ ] Testing: Handler dispatch (sequential vs concurrent), staging directory lifecycle, log isolation
     - [ ] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
-  - [ ] **UI Integration (Phase 5)**
+  - [ ] **5.5 CLI Integration & Graceful Fallback**
+    - [ ] CLI commands: `sidekick supervisor start`, `sidekick supervisor stop`, `sidekick supervisor status`
+    - [ ] Supervisor auto-start on first hook invocation (if not running)
+    - [ ] Connection pooling: reuse socket across hook invocations within CLI process
+    - [ ] Graceful degradation: CLI proceeds with sync paths when supervisor unavailable, logging warnings
+    - [ ] Timeout/retry logic for IPC calls (configurable via `config.yaml`)
+    - [ ] Testing: CLI lifecycle commands, auto-start behavior, fallback paths, timeout handling
+    - [ ] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
+  - [ ] **5.6 UI Integration**
     - [ ] System Health dashboard (per packages/sidekick-ui/docs/MONITORING-UI.md §3.2.E)
       - [ ] Read `.sidekick/state/supervisor-status.json` for health metrics
       - [ ] Display: Uptime, Memory Usage (Heap/RSS), Queue Depth, Active Tasks
@@ -111,6 +131,7 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
       - [ ] Read `.sidekick/sessions/{sessionId}/state/*.json`
       - [ ] Read staged reminders from `.sidekick/sessions/{sessionId}/stage/{hookName}/*.json`
     - [ ] Testing: Health dashboard tests, offline detection tests
+    - [ ] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
 
 - [ ] **Phase 6: Feature Enablement & Integration**
   - [ ] Objectives

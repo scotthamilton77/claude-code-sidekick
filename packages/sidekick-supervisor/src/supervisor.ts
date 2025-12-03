@@ -26,6 +26,9 @@ const VERSION: string = require('../package.json').version
 // Idle check interval (how often to check for idle timeout)
 const IDLE_CHECK_INTERVAL_MS = 30 * 1000 // Check every 30 seconds
 
+// Heartbeat interval: write supervisor status every 5 seconds per design/SUPERVISOR.md §4.6
+const HEARTBEAT_INTERVAL_MS = 5 * 1000
+
 /**
  * Supervisor Process Entrypoint
  *
@@ -49,6 +52,8 @@ export class Supervisor {
   private token: string = ''
   private lastActivityTime: number = Date.now()
   private idleCheckInterval: ReturnType<typeof setInterval> | null = null
+  private heartbeatInterval: ReturnType<typeof setInterval> | null = null
+  private startTime: number = Date.now()
 
   constructor(projectDir: string) {
     this.projectDir = projectDir
@@ -105,6 +110,9 @@ export class Supervisor {
       // 6. Start idle timeout checker
       this.startIdleCheck()
 
+      // 7. Start heartbeat for monitoring UI
+      this.startHeartbeat()
+
       this.logger.info('Supervisor started successfully')
     } catch (err) {
       this.logger.fatal('Failed to start supervisor', { error: err })
@@ -118,6 +126,9 @@ export class Supervisor {
 
     // Stop idle checker
     this.stopIdleCheck()
+
+    // Stop heartbeat
+    this.stopHeartbeat()
 
     // Stop config watcher
     this.configWatcher.stop()
@@ -319,6 +330,66 @@ export class Supervisor {
   }
 
   /**
+   * Start the heartbeat mechanism.
+   * Per design/SUPERVISOR.md §4.6: Write supervisor status every 5 seconds for Monitoring UI.
+   */
+  private startHeartbeat(): void {
+    // Write initial heartbeat immediately
+    void this.writeHeartbeat()
+
+    this.heartbeatInterval = setInterval(() => {
+      void this.writeHeartbeat()
+    }, HEARTBEAT_INTERVAL_MS)
+
+    // Don't let the interval keep the process alive
+    this.heartbeatInterval.unref()
+
+    this.logger.debug('Heartbeat started', { intervalMs: HEARTBEAT_INTERVAL_MS })
+  }
+
+  private stopHeartbeat(): void {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval)
+      this.heartbeatInterval = null
+    }
+  }
+
+  /**
+   * Write current supervisor status to state file.
+   * Per design/SUPERVISOR.md §4.6: Includes timestamp, pid, uptime, memory, queue stats.
+   */
+  private async writeHeartbeat(): Promise<void> {
+    const memUsage = process.memoryUsage()
+    const taskStatus = this.taskEngine.getStatus()
+
+    const status: SupervisorStatus = {
+      timestamp: Date.now(),
+      pid: process.pid,
+      version: VERSION,
+      uptimeSeconds: Math.floor((Date.now() - this.startTime) / 1000),
+      memory: {
+        heapUsed: memUsage.heapUsed,
+        heapTotal: memUsage.heapTotal,
+        rss: memUsage.rss,
+      },
+      queue: {
+        pending: taskStatus.pending,
+        active: taskStatus.active,
+      },
+      activeTasks: taskStatus.activeTasks,
+    }
+
+    try {
+      await this.stateManager.update('supervisor-status', status as unknown as Record<string, unknown>)
+    } catch (err) {
+      // Log but don't crash - heartbeat is non-critical
+      this.logger.warn('Failed to write heartbeat status', {
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+  }
+
+  /**
    * Set up process-level error handlers for uncaught exceptions and unhandled rejections.
    * Per design/SUPERVISOR.md §5: Log fatal error to supervisor.log, attempt graceful cleanup, exit.
    * CLI will restart the supervisor on next run.
@@ -367,4 +438,29 @@ export class Supervisor {
 
     this.logger.debug('Process error handlers installed')
   }
+}
+
+/**
+ * Supervisor status for heartbeat monitoring.
+ * Per design/SUPERVISOR.md §4.6: Written to state/supervisor-status.json every 5 seconds.
+ */
+export interface SupervisorStatus {
+  timestamp: number
+  pid: number
+  version: string
+  uptimeSeconds: number
+  memory: {
+    heapUsed: number
+    heapTotal: number
+    rss: number
+  }
+  queue: {
+    pending: number
+    active: number
+  }
+  activeTasks: Array<{
+    id: string
+    type: string
+    startTime: number
+  }>
 }
