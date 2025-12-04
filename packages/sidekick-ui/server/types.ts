@@ -6,10 +6,11 @@
 
 import type { IRequest } from 'itty-router'
 
-/** Resolved paths for log and session directories */
+/** Resolved paths for log, session, and state directories */
 export interface ApiContext {
   logsPath: string | null
   sessionsPath: string | null
+  statePath: string | null
 }
 
 /** Default log directory paths */
@@ -22,6 +23,12 @@ export const DEFAULT_PATHS = {
 export const SESSIONS_PATHS = {
   user: `${process.env.HOME ?? '~'}/.sidekick/sessions`,
   project: '.sidekick/sessions',
+} as const
+
+/** State directory paths (sibling to logs) */
+export const STATE_PATHS = {
+  user: `${process.env.HOME ?? '~'}/.sidekick/state`,
+  project: '.sidekick/state',
 } as const
 
 /** Extended request with context and typed params */
