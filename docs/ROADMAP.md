@@ -109,17 +109,17 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
     - [x] Add hook.invoke IPC method for CLI to dispatch events to Supervisor
     - [x] Testing: Lifecycle tests (initialize on SessionStart, stop on SessionEnd), handler dispatch tests
     - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
-  - [ ] **5.4 Handler Event Dispatch & Staging**
+  - [x] **5.4 Handler Event Dispatch & Staging** - COMPLETE 2025-12-04
     - [x] Wire HandlerRegistry into Supervisor for event dispatch (per docs/design/flow.md §2.3)
     - [x] `invokeHook()` for hook events received via IPC from CLI
     - [x] `emitTranscriptEvent()` called by TranscriptService when file changes detected
     - [x] Sequential execution for hook handlers, concurrent for transcript handlers
-    - [ ] Staging directory management (per docs/design/flow.md §2.2):
-      - [ ] Create session staging directories: `.sidekick/sessions/{session_id}/stage/{hook_name}/`
-      - [ ] Clean staging directories on `SessionStart` (type: startup|clear)
-    - [ ] Log to separate supervisor log file: `.sidekick/logs/supervisor.log` (per docs/design/STRUCTURED-LOGGING.md §2.2)
-    - [ ] Testing: Handler dispatch (sequential vs concurrent), staging directory lifecycle, log isolation
-    - [ ] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
+    - [x] Staging directory management (per docs/design/flow.md §2.2):
+      - [x] Create session staging directories: `.sidekick/sessions/{session_id}/stage/{hook_name}/`
+      - [x] Clean staging directories on `SessionStart` (type: startup|clear)
+    - [x] Log to separate supervisor log file: `.sidekick/logs/supervisor.log` (per docs/design/STRUCTURED-LOGGING.md §2.2)
+    - [x] Testing: Handler dispatch (sequential vs concurrent), staging directory lifecycle, log isolation
+    - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
   - [ ] **5.5 CLI Integration & Graceful Fallback**
     - [ ] CLI commands: `sidekick supervisor start`, `sidekick supervisor stop`, `sidekick supervisor status`
     - [ ] Supervisor auto-start on first hook invocation (if not running)

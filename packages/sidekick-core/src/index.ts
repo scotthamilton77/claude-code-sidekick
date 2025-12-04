@@ -93,6 +93,8 @@ export {
   createLogManager,
   createLoggerFacade,
   setupGlobalErrorHandlers,
+  LogEvents,
+  logEvent,
   type LogContext,
   type LogManager,
   type LogManagerOptions,
