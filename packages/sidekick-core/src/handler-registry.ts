@@ -26,6 +26,7 @@ import type {
   HandlerContext,
   Logger,
   TranscriptMetrics,
+  StagingService,
 } from '@sidekick/types'
 
 // ============================================================================
@@ -46,6 +47,8 @@ export interface HandlerRegistryOptions {
   scope?: 'project' | 'user'
   /** Function to get current metrics (for transcript events) */
   getMetrics?: () => TranscriptMetrics
+  /** Function to get current staging service (Phase 5.4) */
+  getStaging?: () => StagingService
 }
 
 /**
@@ -107,6 +110,16 @@ export class HandlerRegistryImpl implements HandlerRegistry {
    */
   setMetricsProvider(getMetrics: () => TranscriptMetrics): void {
     ;(this.options as { getMetrics?: () => TranscriptMetrics }).getMetrics = getMetrics
+  }
+
+  /**
+   * Set the staging service provider function for reminder handlers.
+   * Called after StagingService is initialized (Phase 5.4).
+   *
+   * @see docs/design/FEATURE-REMINDERS.md §4.1
+   */
+  setStagingProvider(getStaging: () => StagingService): void {
+    ;(this.options as { getStaging?: () => StagingService }).getStaging = getStaging
   }
 
   // ============================================================================

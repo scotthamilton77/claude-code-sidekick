@@ -11,9 +11,12 @@ import {
   Logger,
   LogManager,
   SidekickConfig,
+  StagingServiceImpl,
   TranscriptServiceImpl,
+  LogEvents,
+  logEvent,
 } from '@sidekick/core'
-import type { HandlerRegistry, TranscriptService, HookName, HookEvent } from '@sidekick/types'
+import type { HandlerRegistry, TranscriptService, StagingService, HookName, HookEvent } from '@sidekick/types'
 import { randomBytes } from 'crypto'
 import fs from 'fs/promises'
 import path from 'path'
@@ -56,6 +59,7 @@ export class Supervisor {
   private configWatcher: ConfigWatcher
   private handlerRegistry: HandlerRegistry
   private transcriptService: TranscriptService | null = null
+  private stagingService: StagingService | null = null
   private token: string = ''
   private lastActivityTime: number = Date.now()
   private idleCheckInterval: ReturnType<typeof setInterval> | null = null
@@ -308,8 +312,9 @@ export class Supervisor {
   }
 
   /**
-   * Initialize TranscriptService on SessionStart.
+   * Initialize TranscriptService and StagingService on SessionStart.
    * Per docs/design/SUPERVISOR.md §4.7 and docs/design/TRANSCRIPT-PROCESSING.md §6.
+   * Per docs/design/FEATURE-REMINDERS.md §4.1: Clear staging on startup/clear.
    */
   private async handleSessionStart(event: HookEvent): Promise<void> {
     const payload = event.payload as { transcriptPath?: string; startType?: string }
@@ -328,6 +333,36 @@ export class Supervisor {
       })
     }
 
+    // Initialize StagingService for this session (Phase 5.4)
+    const stateDir = path.join(this.projectDir, '.sidekick')
+    this.stagingService = new StagingServiceImpl({
+      sessionId,
+      stateDir,
+      logger: this.logger,
+      scope: 'project',
+    })
+
+    // Clean staging on startup or clear (Phase 5.4)
+    const startType = payload.startType
+    if (startType === 'startup' || startType === 'clear') {
+      await this.stagingService.clearStaging()
+
+      // Log RemindersCleared event
+      const clearEvent = LogEvents.remindersCleared(
+        { sessionId, scope: 'project' },
+        { clearedCount: 0 }, // Count not tracked - acceptable for startup cleanup
+        'session_start'
+      )
+      logEvent(this.logger, clearEvent)
+
+      this.logger.info('Staging cleared on session start', { startType })
+    }
+
+    // Provide StagingService to handler registry (Phase 5.4)
+    if (this.handlerRegistry instanceof HandlerRegistryImpl) {
+      this.handlerRegistry.setStagingProvider(() => this.stagingService!)
+    }
+
     // Create and initialize TranscriptService
     if (payload.transcriptPath) {
       this.transcriptService = new TranscriptServiceImpl({
@@ -335,7 +370,7 @@ export class Supervisor {
         metricsPersistIntervalMs: this.config.transcript.metricsPersistIntervalMs,
         handlers: this.handlerRegistry,
         logger: this.logger,
-        stateDir: path.join(this.projectDir, '.sidekick'),
+        stateDir,
       })
 
       await this.transcriptService.initialize(sessionId, payload.transcriptPath)
