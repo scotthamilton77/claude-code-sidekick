@@ -120,14 +120,14 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
     - [x] Log to separate supervisor log file: `.sidekick/logs/supervisor.log` (per docs/design/STRUCTURED-LOGGING.md §2.2)
     - [x] Testing: Handler dispatch (sequential vs concurrent), staging directory lifecycle, log isolation
     - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
-  - [ ] **5.5 CLI Integration & Graceful Fallback**
-    - [ ] CLI commands: `sidekick supervisor start`, `sidekick supervisor stop`, `sidekick supervisor status`
-    - [ ] Supervisor auto-start on first hook invocation (if not running)
-    - [ ] Connection pooling: reuse socket across hook invocations within CLI process
-    - [ ] Graceful degradation: CLI proceeds with sync paths when supervisor unavailable, logging warnings
-    - [ ] Timeout/retry logic for IPC calls (configurable via `config.yaml`)
-    - [ ] Testing: CLI lifecycle commands, auto-start behavior, fallback paths, timeout handling
-    - [ ] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
+  - [x] **5.5 CLI Integration & Graceful Fallback** - COMPLETE 2025-12-04
+    - [x] CLI commands: `sidekick supervisor start`, `sidekick supervisor stop`, `sidekick supervisor status`
+    - [x] Supervisor auto-start on first hook invocation (if not running)
+    - [x] Connection pooling: reuse socket across hook invocations within CLI process
+    - [x] Graceful degradation: CLI proceeds with sync paths when supervisor unavailable, logging warnings
+    - [x] Timeout/retry logic for IPC calls (configurable via `config.yaml`)
+    - [x] Testing: CLI lifecycle commands, auto-start behavior, fallback paths, timeout handling
+    - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
   - [ ] **5.6 UI Integration**
     - [ ] System Health dashboard (per packages/sidekick-ui/docs/MONITORING-UI.md §3.2.E)
       - [ ] Read `.sidekick/state/supervisor-status.json` for health metrics
