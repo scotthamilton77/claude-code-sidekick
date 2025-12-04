@@ -6,10 +6,13 @@
  * - Connection pooling (connection reused within CLI session)
  * - Automatic reconnection on transient failures
  * - Graceful degradation when supervisor unavailable
+ * - Configurable timeout/retry settings from config.yaml
  *
  * @see docs/design/CLI.md §4 Supervisor Interaction
+ * @see docs/design/CONFIG-SYSTEM.md (ipc config settings)
  */
 import fs from 'fs/promises'
+import { CoreConfig } from './config.js'
 import { IpcClient, IpcClientOptions } from './ipc/client.js'
 import { getSocketPath, getTokenPath } from './ipc/transport.js'
 import { Logger } from './logger.js'
@@ -31,6 +34,10 @@ const DEFAULT_OPTIONS: IpcServiceOptions = {
  *
  * @example
  * ```typescript
+ * // Create from config
+ * const ipc = IpcService.fromConfig(projectDir, logger, config.core);
+ *
+ * // Or create with manual options
  * const ipc = new IpcService(projectDir, logger);
  *
  * // Simple send with graceful degradation
@@ -53,6 +60,21 @@ export class IpcService {
     this.logger = logger
     this.options = { ...DEFAULT_OPTIONS, ...options }
     this.client = new IpcClient(getSocketPath(projectDir), logger, options)
+  }
+
+  /**
+   * Create IpcService from CoreConfig, using IPC settings from config.yaml.
+   *
+   * @param projectDir - Project directory path
+   * @param logger - Logger instance
+   * @param config - Core config containing IPC settings
+   * @returns Configured IpcService instance
+   */
+  static fromConfig(projectDir: string, logger: Logger, config: CoreConfig): IpcService {
+    return new IpcService(projectDir, logger, {
+      ...config.ipc,
+      gracefulDegradation: true,
+    })
   }
 
   /**

@@ -55,7 +55,6 @@ describe('Staging Lifecycle', () => {
     }
   })
 
-
   describe('StagingService initialization on SessionStart', () => {
     it('should create staging directory structure on first stage', async () => {
       const sessionId = 'new-session-abc'

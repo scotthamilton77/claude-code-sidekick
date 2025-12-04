@@ -115,17 +115,41 @@ const SupervisorSchema = z
     shutdownTimeoutMs: val.shutdownTimeoutMs ?? SUPERVISOR_DEFAULTS.shutdownTimeoutMs,
   }))
 
+const IPC_DEFAULTS = {
+  connectTimeoutMs: 5000,
+  requestTimeoutMs: 30000,
+  maxRetries: 3,
+  retryDelayMs: 100,
+}
+
+const IpcSchema = z
+  .object({
+    connectTimeoutMs: z.number().min(0).optional(),
+    requestTimeoutMs: z.number().min(0).optional(),
+    maxRetries: z.number().min(0).optional(),
+    retryDelayMs: z.number().min(0).optional(),
+  })
+  .strict()
+  .transform((val) => ({
+    connectTimeoutMs: val.connectTimeoutMs ?? IPC_DEFAULTS.connectTimeoutMs,
+    requestTimeoutMs: val.requestTimeoutMs ?? IPC_DEFAULTS.requestTimeoutMs,
+    maxRetries: val.maxRetries ?? IPC_DEFAULTS.maxRetries,
+    retryDelayMs: val.retryDelayMs ?? IPC_DEFAULTS.retryDelayMs,
+  }))
+
 export const CoreConfigSchema = z
   .object({
     logging: LoggingSchema.optional(),
     paths: PathsSchema.optional(),
     supervisor: SupervisorSchema.optional(),
+    ipc: IpcSchema.optional(),
   })
   .strict()
   .transform((val) => ({
     logging: val.logging ?? { level: 'info' as const, format: 'pretty' as const, consoleEnabled: false },
     paths: val.paths ?? { state: '.sidekick' },
     supervisor: val.supervisor ?? SUPERVISOR_DEFAULTS,
+    ipc: val.ipc ?? IPC_DEFAULTS,
   }))
 
 export type CoreConfig = z.infer<typeof CoreConfigSchema>
@@ -229,6 +253,7 @@ export const SidekickConfigSchema = z.object({
         logging: { level: 'info' as const, format: 'pretty' as const, consoleEnabled: false },
         paths: { state: '.sidekick' },
         supervisor: SUPERVISOR_DEFAULTS,
+        ipc: IPC_DEFAULTS,
       }
   ),
   llm: LlmConfigSchema.optional().transform(

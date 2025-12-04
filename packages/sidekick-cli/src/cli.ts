@@ -99,6 +99,22 @@ export async function runCli(options: RunCliOptions): Promise<{ exitCode: number
     return Promise.resolve({ exitCode: 0, stdout: '', stderr: '' })
   }
 
+  // Auto-start supervisor on hook mode (not interactive mode)
+  if (parsed.hookMode && runtime.scope.projectRoot) {
+    try {
+      const { SupervisorClient } = await import('@sidekick/core')
+      const supervisorClient = new SupervisorClient(runtime.scope.projectRoot, runtime.logger)
+      await supervisorClient.start()
+      runtime.logger.debug('Supervisor auto-started for hook execution')
+    } catch (err) {
+      // Graceful degradation: log warning but don't fail the hook
+      const error = err instanceof Error ? err : new Error(String(err))
+      runtime.logger.warn('Failed to auto-start supervisor, proceeding with sync paths', {
+        error: error.message,
+      })
+    }
+  }
+
   const payload = {
     command: parsed.command,
     status: 'ok' as const,
