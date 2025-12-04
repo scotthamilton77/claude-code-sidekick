@@ -16,7 +16,14 @@ import {
   LogEvents,
   logEvent,
 } from '@sidekick/core'
-import type { HandlerRegistry, TranscriptService, StagingService, HookName, HookEvent } from '@sidekick/types'
+import type {
+  HandlerRegistry,
+  TranscriptService,
+  StagingService,
+  HookName,
+  HookEvent,
+  SupervisorStatus,
+} from '@sidekick/types'
 import { randomBytes } from 'crypto'
 import fs from 'fs/promises'
 import path from 'path'
@@ -599,27 +606,5 @@ export class Supervisor {
   }
 }
 
-/**
- * Supervisor status for heartbeat monitoring.
- * Per design/SUPERVISOR.md §4.6: Written to state/supervisor-status.json every 5 seconds.
- */
-export interface SupervisorStatus {
-  timestamp: number
-  pid: number
-  version: string
-  uptimeSeconds: number
-  memory: {
-    heapUsed: number
-    heapTotal: number
-    rss: number
-  }
-  queue: {
-    pending: number
-    active: number
-  }
-  activeTasks: Array<{
-    id: string
-    type: string
-    startTime: number
-  }>
-}
+// Re-export SupervisorStatus from @sidekick/types for backward compatibility with tests
+export type { SupervisorStatus } from '@sidekick/types'

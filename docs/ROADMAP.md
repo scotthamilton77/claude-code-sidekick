@@ -66,25 +66,25 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
 
 ## Pending Phases
 
-- [ ] **Phase 5: Supervisor & Background Tasks**
-  - [ ] Objectives
-    - [ ] Implement the supervisor process with IPC socket, task engine, and single-writer state manager for shared files.
-    - [ ] Connect CLI commands to supervisor lifecycle (start/stop/version handshake) and delegate background tasks (e.g., session summary updates).
-  - [ ] Relevant documents/sections
-    - [ ] `{project_root_dir}/docs/ARCHITECTURE.md` (§3.7 Background Supervisor)
-    - [ ] `{project_root_dir}/docs/design/flow.md` (§2.1 CLI/Supervisor Relationship, §5 Complete Hook Flows) — **CLI/Supervisor interaction patterns**
-    - [ ] `{project_root_dir}/docs/design/SUPERVISOR.md` (§2 Process Architecture, §3 Communication Layer, §4 Subsystems) — **Supervisor process specification**
-    - [ ] `{project_root_dir}/docs/design/CLI.md` (§4 Supervisor Interaction, §7 Supervisor Lifecycle Management)
-    - [ ] `{project_root_dir}/docs/design/TRANSCRIPT-PROCESSING.md` (§2 Components, §6 Implementation Details) — **TranscriptService integration**
-  - [ ] Acceptance criteria (applies to all sub-phases)
-    - [ ] We're utilizing open source to its maximum potential - no unnecessary wheel reinvention!
-    - [ ] We're testing OUR code, not open source behaviors.
-    - [ ] Code complexity is kept low using stated architecture principles and guidelines. (See `docs/ARCHITECTURE.md` Guiding Principles).
-    - [ ] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
-    - [ ] Code-review agent has reviewed your work and all blocking issues have been addressed
-    - [ ] No suppressing lint or typescript errors unless architecturally justified - and then add rationale comment
-    - [ ] No lint or typescript warnings or errors
-    - [ ] All tests pass
+- [x] **Phase 5: Supervisor & Background Tasks** - COMPLETE 2025-12-04
+  - [x] Objectives
+    - [x] Implement the supervisor process with IPC socket, task engine, and single-writer state manager for shared files.
+    - [x] Connect CLI commands to supervisor lifecycle (start/stop/version handshake) and delegate background tasks (e.g., session summary updates).
+  - [x] Relevant documents/sections
+    - [x] `{project_root_dir}/docs/ARCHITECTURE.md` (§3.7 Background Supervisor)
+    - [x] `{project_root_dir}/docs/design/flow.md` (§2.1 CLI/Supervisor Relationship, §5 Complete Hook Flows) — **CLI/Supervisor interaction patterns**
+    - [x] `{project_root_dir}/docs/design/SUPERVISOR.md` (§2 Process Architecture, §3 Communication Layer, §4 Subsystems) — **Supervisor process specification**
+    - [x] `{project_root_dir}/docs/design/CLI.md` (§4 Supervisor Interaction, §7 Supervisor Lifecycle Management)
+    - [x] `{project_root_dir}/docs/design/TRANSCRIPT-PROCESSING.md` (§2 Components, §6 Implementation Details) — **TranscriptService integration**
+  - [x] Acceptance criteria (applies to all sub-phases)
+    - [x] We're utilizing open source to its maximum potential - no unnecessary wheel reinvention!
+    - [x] We're testing OUR code, not open source behaviors.
+    - [x] Code complexity is kept low using stated architecture principles and guidelines. (See `docs/ARCHITECTURE.md` Guiding Principles).
+    - [x] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
+    - [x] Code-review agent has reviewed your work and all blocking issues have been addressed
+    - [x] No suppressing lint or typescript errors unless architecturally justified - and then add rationale comment
+    - [x] No lint or typescript warnings or errors
+    - [x] All tests pass
   - [x] **5.1 Core Supervisor Process** - COMPLETE 2025-12-02
     - [x] Supervisor skeleton: entry point, signal handlers (SIGTERM, SIGINT), graceful shutdown
     - [x] IPC socket setup (Unix domain socket): `.sidekick/supervisor.sock`
@@ -128,19 +128,19 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
     - [x] Timeout/retry logic for IPC calls (configurable via `config.yaml`)
     - [x] Testing: CLI lifecycle commands, auto-start behavior, fallback paths, timeout handling
     - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
-  - [ ] **5.6 UI Integration**
-    - [ ] System Health dashboard (per packages/sidekick-ui/docs/MONITORING-UI.md §3.2.E)
-      - [ ] Read `.sidekick/state/supervisor-status.json` for health metrics
-      - [ ] Display: Uptime, Memory Usage (Heap/RSS), Queue Depth, Active Tasks
-      - [ ] Memory/queue sparklines for trend visualization
-    - [ ] Offline detection:
-      - [ ] Poll file mtime; if > 30s old, show "Supervisor Offline" state
-      - [ ] Red/grey badge with last-known timestamp
-    - [ ] Session state files (per packages/sidekick-ui/docs/MONITORING-UI.md §2.2):
-      - [ ] Read `.sidekick/sessions/{sessionId}/state/*.json`
-      - [ ] Read staged reminders from `.sidekick/sessions/{sessionId}/stage/{hookName}/*.json`
-    - [ ] Testing: Health dashboard tests, offline detection tests
-    - [ ] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
+  - [x] **5.6 UI Integration** - COMPLETE 2025-12-04
+    - [x] System Health dashboard (per packages/sidekick-ui/docs/MONITORING-UI.md §3.2.E)
+      - [x] Read `.sidekick/state/supervisor-status.json` for health metrics
+      - [x] Display: Uptime, Memory Usage (Heap/RSS), Queue Depth, Active Tasks
+      - [x] Memory/queue sparklines for trend visualization
+    - [x] Offline detection:
+      - [x] Poll file mtime; if > 30s old, show "Supervisor Offline" state
+      - [x] Red/grey badge with last-known timestamp
+    - [x] Session state files (per packages/sidekick-ui/docs/MONITORING-UI.md §2.2):
+      - [x] Read `.sidekick/sessions/{sessionId}/state/*.json`
+      - [x] Read staged reminders from `.sidekick/sessions/{sessionId}/stage/{hookName}/*.json`
+    - [x] Testing: Health dashboard tests, offline detection tests
+    - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
 
 - [ ] **Phase 6: Feature Enablement & Integration**
   - [ ] Objectives

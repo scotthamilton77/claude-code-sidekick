@@ -7,7 +7,7 @@
 import { existsSync } from 'fs'
 import { resolve } from 'path'
 import type { FilterOptions, ApiContext } from './types'
-import { DEFAULT_PATHS, SESSIONS_PATHS } from './types'
+import { DEFAULT_PATHS, SESSIONS_PATHS, STATE_PATHS } from './types'
 
 /**
  * Parse NDJSON and extract unique session IDs.
@@ -117,6 +117,26 @@ export function findSessionsPath(preferProject: boolean, cwd: string): string | 
 }
 
 /**
+ * Find the state directory, preferring project-local over user.
+ */
+export function findStatePath(preferProject: boolean, cwd: string): string | null {
+  // Check project-local first
+  if (preferProject) {
+    const projectPath = resolve(cwd, STATE_PATHS.project)
+    if (existsSync(projectPath)) {
+      return projectPath
+    }
+  }
+
+  // Fall back to user directory
+  if (existsSync(STATE_PATHS.user)) {
+    return STATE_PATHS.user
+  }
+
+  return null
+}
+
+/**
  * Create JSON Response with proper headers.
  */
 export function jsonResponse(data: unknown, status = 200): Response {
@@ -164,6 +184,10 @@ export function isValidSessionId(sessionId: string): boolean {
 /**
  * Create context from resolved paths.
  */
-export function createContext(logsPath: string | null, sessionsPath: string | null): ApiContext {
-  return { logsPath, sessionsPath }
+export function createContext(
+  logsPath: string | null,
+  sessionsPath: string | null,
+  statePath: string | null
+): ApiContext {
+  return { logsPath, sessionsPath, statePath }
 }

@@ -9,6 +9,7 @@ import type { Session } from './types'
 import type { TranscriptMetrics } from '@sidekick/types'
 import { useLogService } from './hooks/useLogService'
 import { useCompactionHistory } from './hooks/useCompactionHistory'
+import { useSupervisorStatus } from './hooks/useSupervisorStatus'
 import { filterEvents } from './lib/filter-parser'
 import {
   events as mockEvents,
@@ -27,6 +28,9 @@ function App() {
 
   // Compaction history for the current session
   const compactionHistory = useCompactionHistory(logService.selectedSession)
+
+  // Supervisor status for health monitoring
+  const supervisorStatus = useSupervisorStatus()
 
   // Metrics state - fetched from API
   const [metrics, setMetrics] = useState<TranscriptMetrics | null>(null)
@@ -196,6 +200,9 @@ function App() {
             metrics={metrics}
             metricsHistory={metricsHistory}
             showMetrics={useRealData}
+            supervisorStatus={supervisorStatus.status}
+            supervisorStatusHistory={supervisorStatus.statusHistory}
+            supervisorIsOnline={supervisorStatus.isOnline}
           />
         }
       />

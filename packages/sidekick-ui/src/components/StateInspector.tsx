@@ -1,8 +1,9 @@
 import React, { useState } from 'react'
 import type { StateSnapshot } from '../types'
-import type { TranscriptMetrics } from '@sidekick/types'
+import type { TranscriptMetrics, SupervisorStatusWithHealth } from '@sidekick/types'
 import Icon from './Icon'
 import MetricsPanel from './MetricsPanel'
+import SystemHealth from './SystemHealth'
 
 interface StateInspectorProps {
   stateData: {
@@ -16,9 +17,15 @@ interface StateInspectorProps {
   metricsHistory?: TranscriptMetrics[]
   /** Show metrics tab */
   showMetrics?: boolean
+  /** Supervisor status for health tab */
+  supervisorStatus?: SupervisorStatusWithHealth | null
+  /** Supervisor status history for sparklines */
+  supervisorStatusHistory?: SupervisorStatusWithHealth[]
+  /** Whether supervisor is online */
+  supervisorIsOnline?: boolean
 }
 
-type TabType = 'state' | 'metrics'
+type TabType = 'state' | 'metrics' | 'health'
 
 const StateInspector: React.FC<StateInspectorProps> = ({
   stateData,
@@ -26,6 +33,9 @@ const StateInspector: React.FC<StateInspectorProps> = ({
   metrics,
   metricsHistory = [],
   showMetrics = true,
+  supervisorStatus,
+  supervisorStatusHistory = [],
+  supervisorIsOnline = false,
 }) => {
   const [showDiff, setShowDiff] = useState(false)
   const [activeTab, setActiveTab] = useState<TabType>('state')
@@ -39,19 +49,19 @@ const StateInspector: React.FC<StateInspectorProps> = ({
           <span className="text-sm font-medium text-slate-700">State Inspector</span>
         </div>
 
-        {/* Tab selector when metrics available */}
-        {showMetrics && metrics && (
-          <div className="flex items-center bg-slate-100 rounded-lg p-0.5">
-            <button
-              onClick={() => setActiveTab('state')}
-              className={`px-3 py-1 text-sm rounded-md transition-colors ${
-                activeTab === 'state'
-                  ? 'bg-white shadow-sm text-slate-800 font-medium'
-                  : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              State
-            </button>
+        {/* Tab selector */}
+        <div className="flex items-center bg-slate-100 rounded-lg p-0.5">
+          <button
+            onClick={() => setActiveTab('state')}
+            className={`px-3 py-1 text-sm rounded-md transition-colors ${
+              activeTab === 'state'
+                ? 'bg-white shadow-sm text-slate-800 font-medium'
+                : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            State
+          </button>
+          {showMetrics && metrics && (
             <button
               onClick={() => setActiveTab('metrics')}
               className={`px-3 py-1 text-sm rounded-md transition-colors ${
@@ -62,8 +72,18 @@ const StateInspector: React.FC<StateInspectorProps> = ({
             >
               Metrics
             </button>
-          </div>
-        )}
+          )}
+          <button
+            onClick={() => setActiveTab('health')}
+            className={`px-3 py-1 text-sm rounded-md transition-colors ${
+              activeTab === 'health'
+                ? 'bg-white shadow-sm text-slate-800 font-medium'
+                : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            Health
+          </button>
+        </div>
 
         {/* Raw/Diff toggle (only in state tab) */}
         {activeTab === 'state' && (
@@ -92,6 +112,17 @@ const StateInspector: React.FC<StateInspectorProps> = ({
       {activeTab === 'metrics' && metrics && (
         <div className="flex-1 overflow-y-auto p-4">
           <MetricsPanel metrics={metrics} metricsHistory={metricsHistory} showSparklines={metricsHistory.length > 1} />
+        </div>
+      )}
+
+      {/* Health Tab */}
+      {activeTab === 'health' && (
+        <div className="flex-1 overflow-y-auto p-4">
+          <SystemHealth
+            status={supervisorStatus ?? null}
+            isOnline={supervisorIsOnline}
+            statusHistory={supervisorStatusHistory}
+          />
         </div>
       )}
 

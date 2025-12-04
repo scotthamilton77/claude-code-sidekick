@@ -11,6 +11,7 @@
  * - GET /api/sessions/:sessionId/compaction-history - Returns compaction history
  * - GET /api/sessions/:sessionId/metrics - Returns current transcript metrics
  * - GET /api/sessions/:sessionId/pre-compact/:timestamp - Returns pre-compact snapshot
+ * - GET /api/supervisor/status - Returns supervisor status with offline detection
  *
  * Query params (for /api/logs/:type):
  * - ?since=<timestamp> - Return only lines after timestamp (for polling)
@@ -18,13 +19,14 @@
  *
  * @see packages/sidekick-ui/docs/MONITORING-UI.md §2.2 Data Flow
  * @see packages/sidekick-ui/docs/MONITORING-UI.md §3.1 Compaction Timeline
+ * @see packages/sidekick-ui/docs/MONITORING-UI.md §3.2.E System Health
  */
 
 import type { Plugin, ViteDevServer } from 'vite'
 import type { IncomingMessage, ServerResponse } from 'http'
 import { Router, type IRequest, type RouterType } from 'itty-router'
 import type { ApiContext, ApiRequest } from './types'
-import { findLogsPath, findSessionsPath, errorResponse } from './utils'
+import { findLogsPath, findSessionsPath, findStatePath, errorResponse } from './utils'
 import {
   handleConfig,
   handleSessions,
@@ -32,6 +34,7 @@ import {
   handleCompactionHistory,
   handleMetrics,
   handlePreCompact,
+  handleSupervisorStatus,
 } from './handlers'
 
 export interface ApiConfig {
@@ -58,6 +61,9 @@ function createRouter(): RouterType<ApiRequest> {
   router.get('/sessions/:sessionId/compaction-history', handleCompactionHistory)
   router.get('/sessions/:sessionId/metrics', handleMetrics)
   router.get('/sessions/:sessionId/pre-compact/:timestamp', handlePreCompact)
+
+  // Supervisor endpoints
+  router.get('/supervisor/status', handleSupervisorStatus)
 
   // 404 fallback
   router.all('*', () => errorResponse('Not found', 404))
@@ -107,7 +113,7 @@ async function writeResponse(response: Response, res: ServerResponse): Promise<v
  */
 export function sidekickApiPlugin(config: ApiConfig = {}): Plugin {
   const router = createRouter()
-  let ctx: ApiContext = { logsPath: null, sessionsPath: null }
+  let ctx: ApiContext = { logsPath: null, sessionsPath: null, statePath: null }
 
   return {
     name: 'sidekick-api',
@@ -117,6 +123,7 @@ export function sidekickApiPlugin(config: ApiConfig = {}): Plugin {
       ctx = {
         logsPath: findLogsPath(config.logsPath, preferProject, server.config.root),
         sessionsPath: findSessionsPath(preferProject, server.config.root),
+        statePath: findStatePath(preferProject, server.config.root),
       }
 
       server.middlewares.use((req: IncomingMessage, res: ServerResponse, next: () => void) => {
