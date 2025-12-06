@@ -34,9 +34,9 @@ This repository serves as a development and testing environment for [Claude Code
 - BUG: uninstall from project leaves empty hooks folder
 - how do subagents work - can we detect their connection to the parent agent, and do we care? (for statusline, maybe not, but for analytics?)
 - skills and agents - review carefully and attribute to https://github.com/obra/superpowers
-- learning mode? investigate https://medium.com/coding-nexus/rip-fine-tuning-how-stanfords-ace-framework-teaches-ai-to-learn-without-retraining-510f412d8579
-- is it time to move to something more robust than bash?
-  - incorporate https://github.com/johannschopplich/toon
+- feedback loops
+  - Add a "confession" at the end of a task where the agent confesses what they did wrong, use for a learnings log?
+  - learning mode? investigate https://medium.com/coding-nexus/rip-fine-tuning-how-stanfords-ace-framework-teaches-ai-to-learn-without-retraining-510f412d8579
 
 ### Nice to Haves
 
