@@ -455,19 +455,49 @@ export interface ReminderStagedEvent extends LoggingEventBase {
   }
 }
 
+/**
+ * Internal event: Summary recalculated successfully
+ * Emitted when session summary is updated via LLM analysis.
+ *
+ * @see docs/design/FEATURE-SESSION-SUMMARY.md §3.4
+ */
 export interface SummaryUpdatedEvent extends LoggingEventBase {
   type: 'SummaryUpdated'
   source: 'supervisor'
   payload: {
-    state?: {
-      previousSummary?: string
-      newSummary?: string
+    state: {
+      session_title: string
+      session_title_confidence: number
+      latest_intent: string
+      latest_intent_confidence: number
     }
-    reason: string
-    metadata?: {
-      durationMs?: number
-      tokenCount?: number
+    metadata: {
+      countdown_reset_to: number
+      tokens_used?: number
+      processing_time_ms?: number
+      pivot_detected: boolean
+      old_title?: string
+      old_intent?: string
     }
+    reason: 'user_prompt_forced' | 'countdown_reached' | 'compaction_reset'
+  }
+}
+
+/**
+ * Internal event: Summary update skipped (countdown active)
+ * Emitted when countdown threshold hasn't been reached and analysis is deferred.
+ *
+ * @see docs/design/FEATURE-SESSION-SUMMARY.md §3.4
+ */
+export interface SummarySkippedEvent extends LoggingEventBase {
+  type: 'SummarySkipped'
+  source: 'supervisor'
+  payload: {
+    metadata: {
+      countdown: number
+      countdown_threshold: number
+    }
+    reason: 'countdown_active'
   }
 }
 
@@ -496,6 +526,7 @@ export type SupervisorLoggingEvent =
   | HandlerExecutedEvent
   | ReminderStagedEvent
   | SummaryUpdatedEvent
+  | SummarySkippedEvent
   | RemindersClearedEvent
 
 /**

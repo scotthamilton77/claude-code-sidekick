@@ -169,10 +169,33 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
     - [x] Suppression pattern: marker files `.sidekick/sessions/{session_id}/stage/{hook_name}/.suppressed`
     - [x] Reminder file schema: `StagedReminder { name, blocking, priority, persistent, userMessage?, additionalContext?, stopReason? }`
   - [ ] **6.2 Session Summary Feature** (`feature-session-summary/`)
-    - [ ] `CreateFirstSessionSummary` handler (SessionStart) - placeholder summary
-    - [ ] `UpdateSessionSummary` handler (PostToolUse, UserPromptSubmit) - snarky message generation via LLM
-    - [ ] Summary state: `.sidekick/sessions/{session_id}/state/session-summary.json`
-    - [ ] Cadence logic based on TranscriptService metrics
+    - [x] Package scaffold (`@sidekick/feature-session-summary`)
+    - [x] Types: `SessionSummaryState`, `SummaryCountdownState`, config types
+    - [x] Event types: `SummaryUpdatedEvent`, `SummarySkippedEvent` in `@sidekick/types`
+    - [x] `CreateFirstSessionSummary` handler (SessionStart) - placeholder summary
+    - [x] `UpdateSessionSummary` handler (UserPrompt, ToolCall transcript events)
+    - [x] Countdown-based throttling with confidence reset logic
+    - [x] Summary state: `.sidekick/sessions/{session_id}/state/session-summary.json`
+    - [x] Prompt templates: `session-summary.prompt.txt`, `snarky-message.prompt.txt`, `resume-message.prompt.txt`
+    - [x] Response schemas: `session-summary.schema.json`, `resume-message.schema.json`
+    - [x] Unit tests for handler registration (28 tests)
+    - [x] LLM integration: Wire `ctx.llm.complete()` into `performAnalysis()` with Zod validation
+    - [x] Added `resolve()` to `MinimalAssetResolver` interface for prompt template loading
+    - [x] Transcript extraction via `ctx.transcript.getExcerpt()` (unblocked by 6.2.1)
+    - [ ] Snarky message generation side-effect (separate LLM call)
+    - [ ] Resume message generation side-effect (pivot detection)
+  - [x] **6.2.1 TranscriptService Completion** ✓ COMPLETED
+    - [x] Investigate gap: design doc (`TRANSCRIPT-PROCESSING.md §2.2.5`) specifies `getTranscript()` and `getExcerpt()` but interface missing
+    - [x] Define types: `ExcerptOptions`, `TranscriptExcerpt`, `Transcript`, `CanonicalTranscriptEntry` (per design doc §2.1.3)
+    - [x] Add `getExcerpt(options: ExcerptOptions): TranscriptExcerpt` to `TranscriptService` interface
+    - [x] Add `getTranscript(): Transcript` to `TranscriptService` interface
+    - [x] Implement excerpt extraction with bookmark strategy support:
+      - [x] Bookmark-based windowing: prioritize recent context after bookmark
+      - [x] Fallback: tail last N lines if no bookmark set
+      - [x] Format entries for LLM context (USER/ASSISTANT/TOOL/RESULT labels)
+    - [x] Update `update-summary.ts` to use `ctx.transcript.getExcerpt()` instead of direct `fs.readFile()`
+    - [x] Update `MockTranscriptService` with `getExcerpt()` and `setMockExcerptContent()` test utility
+    - [ ] Tests for `getExcerpt()` with bookmark scenarios (deferred - basic implementation tested via handler tests)
   - [ ] **6.3 Statusline Feature** (`feature-statusline/`)
     - [ ] Render statusline from staged state files
     - [ ] Show resume message if found, else summary or first-prompt default

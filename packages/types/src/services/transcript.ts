@@ -14,6 +14,88 @@ import type { TranscriptMetrics } from '../events.js'
  */
 export type Unsubscribe = () => void
 
+// ============================================================================
+// Canonical Transcript Types (per §2.1.2, §2.1.3)
+// ============================================================================
+
+/**
+ * Canonical transcript entry - normalized from raw JSONL.
+ * Provider-agnostic representation used by features.
+ *
+ * Note: Different from TranscriptEvent in events.ts which is a file-watching event.
+ * @see docs/design/TRANSCRIPT-PROCESSING.md §2.1.2
+ */
+export interface CanonicalTranscriptEntry {
+  id: string
+  timestamp: Date
+  role: 'user' | 'assistant' | 'system'
+  type: 'text' | 'tool_use' | 'tool_result'
+  content: string | Record<string, unknown>
+  metadata: {
+    provider: string
+    originalId?: string
+    lineNumber?: number
+    [key: string]: unknown
+  }
+}
+
+/**
+ * Transcript metadata.
+ */
+export interface TranscriptMetadata {
+  sessionId: string
+  transcriptPath: string
+  lineCount: number
+  lastModified: number
+}
+
+/**
+ * Transcript wrapper with utility methods.
+ * @see docs/design/TRANSCRIPT-PROCESSING.md §2.1.3
+ */
+export interface Transcript {
+  entries: CanonicalTranscriptEntry[]
+  metadata: TranscriptMetadata
+  toString(): string
+}
+
+// ============================================================================
+// Excerpt Types (for LLM context windows)
+// ============================================================================
+
+/**
+ * Options for extracting a transcript excerpt.
+ * Supports the bookmark strategy per §3.2.2 of FEATURE-SESSION-SUMMARY.md
+ */
+export interface ExcerptOptions {
+  /** Maximum lines to include (default: 80) */
+  maxLines?: number
+  /** Bookmark line for tiered extraction (0 = no bookmark) */
+  bookmarkLine?: number
+  /** Filtering level for historical context (before bookmark) */
+  historicalFilterLevel?: 'aggressive' | 'light' | 'none'
+  /** Filtering level for recent context (after bookmark) */
+  recentFilterLevel?: 'aggressive' | 'light' | 'none'
+  /** Include tool outputs in excerpt */
+  includeToolOutputs?: boolean
+}
+
+/**
+ * Extracted transcript excerpt ready for LLM context.
+ */
+export interface TranscriptExcerpt {
+  /** Formatted text content for LLM prompt */
+  content: string
+  /** Number of lines included */
+  lineCount: number
+  /** Start line number in original transcript */
+  startLine: number
+  /** End line number in original transcript */
+  endLine: number
+  /** Whether bookmark strategy was applied */
+  bookmarkApplied: boolean
+}
+
 /**
  * Compaction entry for timeline tracking.
  *
@@ -49,6 +131,23 @@ export interface TranscriptService {
    */
   shutdown(): Promise<void>
 
+  // ---- Transcript Access ----
+
+  /**
+   * Get the current normalized transcript.
+   * @see docs/design/TRANSCRIPT-PROCESSING.md §2.2.5
+   */
+  getTranscript(): Transcript
+
+  /**
+   * Get a windowed excerpt for LLM context.
+   * Supports bookmark-based tiered extraction.
+   * @see docs/design/FEATURE-SESSION-SUMMARY.md §3.2.2
+   */
+  getExcerpt(options?: ExcerptOptions): TranscriptExcerpt
+
+  // ---- Metrics Access ----
+
   /**
    * Get current transcript metrics.
    * Synchronous getter - returns cached metrics.
@@ -59,6 +158,8 @@ export interface TranscriptService {
    * Get a specific metric value.
    */
   getMetric<K extends keyof TranscriptMetrics>(key: K): TranscriptMetrics[K]
+
+  // ---- Observable API ----
 
   /**
    * Subscribe to metrics changes.
@@ -71,6 +172,8 @@ export interface TranscriptService {
    * Callback invoked when metric crosses threshold.
    */
   onThreshold(metric: keyof TranscriptMetrics, threshold: number, callback: () => void): Unsubscribe
+
+  // ---- Compaction Management ----
 
   /**
    * Capture pre-compaction state for timeline.

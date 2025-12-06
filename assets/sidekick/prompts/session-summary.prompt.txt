@@ -1,0 +1,51 @@
+You are analyzing a coding session transcript to provide a persistent summary.
+This helps the user quickly identify this session when multitasking across multiple terminals.
+
+<previous_analysis confidence="{{previousConfidence}}">
+{{previousAnalysis}}
+</previous_analysis>
+
+<transcript>
+{{transcript}}
+</transcript>
+
+Output JSON matching the provided schema with these behavioral guidelines:
+
+CONFIDENCE CALIBRATION:
+- >0.8: Clear focus, specific terms/files, minimal context switching
+  * Multiple explicit mentions of the same goal
+  * Specific technical terms/file names referenced
+- 0.6-0.8: General topic clear but approach uncertain
+  * Some context switching within related domain
+- <=0.5: Hard pivot detected, vague direction, or multiple interpretations
+  * User switched to completely different task
+  * Exploratory questions without clear goal
+- Reset to <=0.5 on hard pivot (even if new task is clear, confidence needs rebuilding)
+
+PIVOT DETECTION:
+- Unchanged: New info doesn't materially change title
+- Refinement: More specific on same topic (maintain/increase confidence)
+  Example: "Refactoring feature flags" -> "Refactoring feature flag dependencies"
+- Hard pivot: Completely different task (reset confidence)
+  Example: "Refactoring feature flags" -> "Debugging LLM providers"
+
+SESSION TITLE:
+- Max 8 words, like a short book or research paper title
+- Persistent but can evolve/refine over time
+- Compare to previous title to determine change type
+
+LATEST INTENT:
+- Max 12 words, what the user wanted in their most recent prompt
+- Use context to interpret vague prompts ("do it", "yes", "continue")
+- If multi-instruction, capture ALL instructions
+
+META-REQUEST FILTERING:
+Don't update latest_intent for session-state queries:
+- "what are we doing?", "/context", "show me status"
+- "what was my last request?", "summarize progress"
+- "review what we've done"
+
+KEY PHRASES:
+Extract specific terms, file names, feature names from user messages.
+High confidence: ["refactoring feature flags", "session-summary.sh", "LLM prompt redesign"]
+Low confidence: ["working on the code", "fixing stuff", "doing some updates"]

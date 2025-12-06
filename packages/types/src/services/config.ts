@@ -24,4 +24,9 @@ export interface MinimalConfigService {
  */
 export interface MinimalAssetResolver {
   readonly cascadeLayers: string[]
+  /**
+   * Resolve an asset by relative path, returning its content.
+   * Returns null if the asset is not found in any cascade layer.
+   */
+  resolve(relativePath: string): string | null
 }

@@ -28,6 +28,9 @@ import type {
   TranscriptEntry,
   HandlerRegistry,
   Logger,
+  Transcript,
+  ExcerptOptions,
+  TranscriptExcerpt,
 } from '@sidekick/types'
 
 // ============================================================================
@@ -226,6 +229,111 @@ export class TranscriptServiceImpl implements TranscriptService {
 
     this.sessionId = null
     this.transcriptPath = null
+  }
+
+  // ============================================================================
+  // Transcript Access
+  // ============================================================================
+
+  getTranscript(): Transcript {
+    // TODO: Implement full transcript parsing and normalization
+    // For now, return a minimal stub
+    return {
+      entries: [],
+      metadata: {
+        sessionId: this.sessionId ?? '',
+        transcriptPath: this.transcriptPath ?? '',
+        lineCount: this.metrics.lastProcessedLine,
+        lastModified: this.metrics.lastUpdatedAt,
+      },
+      toString: () => '',
+    }
+  }
+
+  getExcerpt(options: ExcerptOptions = {}): TranscriptExcerpt {
+    const maxLines = options.maxLines ?? 80
+    const bookmarkLine = options.bookmarkLine ?? 0
+    const includeToolOutputs = options.includeToolOutputs ?? false
+
+    if (!this.transcriptPath) {
+      return {
+        content: '',
+        lineCount: 0,
+        startLine: 0,
+        endLine: 0,
+        bookmarkApplied: false,
+      }
+    }
+
+    try {
+      const content = readFileSync(this.transcriptPath, 'utf-8')
+      const lines = content.trim().split('\n')
+      const totalLines = lines.length
+
+      // Determine extraction window
+      let startLine: number
+      const endLine = totalLines
+      let bookmarkApplied = false
+
+      if (bookmarkLine > 0 && bookmarkLine < totalLines) {
+        // Bookmark strategy: prioritize recent context
+        const recentLines = Math.min(maxLines, totalLines - bookmarkLine)
+        startLine = Math.max(0, totalLines - recentLines)
+        bookmarkApplied = true
+      } else {
+        // Fallback: simple tail
+        startLine = Math.max(0, totalLines - maxLines)
+      }
+
+      // Extract and format lines
+      const excerpt = lines.slice(startLine, endLine)
+      const formatted = excerpt
+        .map((line) => {
+          try {
+            const entry = JSON.parse(line) as {
+              type?: string
+              name?: string
+              content?: string
+              message?: { content?: string }
+            }
+            const entryType = entry.type ?? 'unknown'
+            if (entryType === 'user') {
+              return `[USER]: ${entry.message?.content ?? entry.content ?? JSON.stringify(entry)}`
+            } else if (entryType === 'assistant') {
+              return `[ASSISTANT]: ${entry.message?.content ?? entry.content ?? '(tool use)'}`
+            } else if (entryType === 'tool_use') {
+              return `[TOOL]: ${entry.name ?? 'unknown'}`
+            } else if (entryType === 'tool_result') {
+              return includeToolOutputs
+                ? `[RESULT]: ${JSON.stringify(entry).slice(0, 500)}`
+                : '[RESULT]: (output omitted)'
+            }
+            return `[${entryType.toUpperCase()}]: ${JSON.stringify(entry).slice(0, 100)}`
+          } catch {
+            return line.slice(0, 200)
+          }
+        })
+        .join('\n')
+
+      return {
+        content: formatted,
+        lineCount: excerpt.length,
+        startLine: startLine + 1, // 1-indexed
+        endLine,
+        bookmarkApplied,
+      }
+    } catch (err) {
+      this.options.logger.error('Failed to extract transcript excerpt', {
+        error: err instanceof Error ? err.message : String(err),
+      })
+      return {
+        content: '',
+        lineCount: 0,
+        startLine: 0,
+        endLine: 0,
+        bookmarkApplied: false,
+      }
+    }
   }
 
   // ============================================================================

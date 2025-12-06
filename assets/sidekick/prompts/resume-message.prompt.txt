@@ -1,0 +1,28 @@
+Generate a resume message for a developer returning to this coding session.
+
+<session_topic>
+Title: {{sessionTitle}} (confidence: {{confidence}})
+Latest intent: {{latestIntent}}
+Key phrases: {{keyPhrases}}
+</session_topic>
+
+<transcript>
+{{transcript}}
+</transcript>
+
+Output JSON with these fields:
+
+- resume_message: Question format starting with "Shall we resume" or "Want to continue", followed by brief reference to what they were working on. Max 60 characters.
+
+- objective_in_progress: An imaginative, SciFi-themed description of the actual work (Star Trek, Blade Runner, Matrix, etc). Match the tone to the work:
+  * Debugging = "hunting bugs in the Matrix"
+  * Refactoring = "reorganizing the Enterprise deck plans"
+  * Testing = "running holodeck simulations"
+  Max 60 characters.
+
+- snarky_welcome: Channel a sarcastic software architect with SciFi references. Acknowledge the odd human-AI relationship and the fact they're coming back for more. Be witty, not mean. Reference the actual work context. Max 120 characters.
+
+Guidelines:
+- Use BOTH session_topic and transcript to understand what was actually being worked on
+- Be concise, witty, and accurate
+- Extract meaningful context from recent conversation
