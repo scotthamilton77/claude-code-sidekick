@@ -1,0 +1,34 @@
+# verify-completion.yaml
+# Blocks execution before task completion to enforce verification
+id: verify-completion
+blocking: true
+priority: 50
+persistent: false
+
+additionalContext: |
+  <system-reminder>
+  COMPLETION VERIFICATION REQUIRED
+
+  Before claiming this task is complete, you must verify:
+
+  For Code Changes:
+  - Run type-check: `pnpm typecheck` (includes test files)
+  - Run build: `pnpm build` (excludes test files - both required)
+  - Run lint: `pnpm lint` (must show zero warnings)
+  - Run relevant tests: `pnpm test` (targeted tests for changed code)
+  - If your changes impact existing documentation that you haven't already updated, inform the user and ask whether this should be updated as a next step.
+
+  For Documentation/Config:
+  - Verify file paths and references are correct
+  - Check formatting and schema compliance (if applicable)
+
+  General:
+  - Confirm all requirements from the original request are met
+  - Check for unintended side effects or regressions
+  - Ensure no temporary files, debug code, or stray changes remain
+  - DON'T COMMIT unless explicitly instructed. User says "make changes" ≠ "commit changes". Wait for explicit approval.
+
+  Evidence before assertions. Don't claim success without verification.
+  </system-reminder>
+
+stopReason: "Verify completion before stopping - did you run tests and checks?"

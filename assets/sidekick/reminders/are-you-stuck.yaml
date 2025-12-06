@@ -1,0 +1,25 @@
+# are-you-stuck.yaml
+# Blocks execution when tool usage suggests thrashing or infinite loops
+id: are-you-stuck
+blocking: true
+priority: 80
+persistent: false
+
+additionalContext: |
+  <system-reminder>
+  CIRCUIT BREAKER TRIGGERED
+
+  You've used {{toolsThisTurn}} tools this turn, which suggests you may be stuck in a loop or thrashing.
+
+  Stop and assess:
+  - Are you making actual progress, or repeatedly trying the same failing approach?
+  - Are dependencies not working as expected?  (Do you need to refresh your knowledge of dependencies whose version postdates your training cutoff date?)
+  - Do you need to ask the user for clarification or additional information?
+  - Should you use an appropriate agent or skill to help troubleshoot and plan?
+  - Would it help to summarize what you've learned so far and propose next steps?
+
+  IF YOU ARE STUCK: Stop. Explain to the user what you've tried, what's not working, and what you need to move forward.
+  ELSE: Proceed with your intended next action(s).
+  </system-reminder>
+
+stopReason: "Agent may be stuck - {{toolsThisTurn}} tools used this turn"

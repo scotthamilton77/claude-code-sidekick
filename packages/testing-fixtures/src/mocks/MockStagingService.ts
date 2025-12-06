@@ -50,6 +50,27 @@ export class MockStagingService implements StagingService {
     return Promise.resolve(this.suppressedHooks.has(hookName))
   }
 
+  clearSuppression(hookName: string): Promise<void> {
+    this.suppressedHooks.delete(hookName)
+    return Promise.resolve()
+  }
+
+  listReminders(hookName: string): Promise<StagedReminder[]> {
+    const results: StagedReminder[] = []
+    for (const [key, reminder] of this.reminders) {
+      if (key.startsWith(`${hookName}:`)) {
+        results.push(reminder)
+      }
+    }
+    return Promise.resolve(results)
+  }
+
+  deleteReminder(hookName: string, reminderName: string): Promise<void> {
+    const key = this.key(hookName, reminderName)
+    this.reminders.delete(key)
+    return Promise.resolve()
+  }
+
   // Test utilities
 
   /**

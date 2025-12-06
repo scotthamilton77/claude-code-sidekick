@@ -62,4 +62,19 @@ export interface StagingService {
    * Check if a hook is suppressed.
    */
   isHookSuppressed(hookName: string): Promise<boolean>
+
+  /**
+   * Clear suppression for a hook.
+   */
+  clearSuppression(hookName: string): Promise<void>
+
+  /**
+   * List all staged reminders for a hook, sorted by priority (highest first).
+   */
+  listReminders(hookName: string): Promise<StagedReminder[]>
+
+  /**
+   * Delete a specific staged reminder.
+   */
+  deleteReminder(hookName: string, reminderName: string): Promise<void>
 }
