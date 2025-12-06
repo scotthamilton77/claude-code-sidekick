@@ -157,17 +157,17 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
     - [ ] `{project_root_dir}/docs/design/FEATURE-RESUME.md` (artifact discovery, message generation)
     - [ ] `{project_root_dir}/docs/design/TRANSCRIPT-PROCESSING.md` (§3 Metrics System, §5 Event Emission)
     - [ ] `{project_root_dir}/docs/design/TEST-FIXTURES.md` (§4 Test Data Management)
-  - [ ] **6.1 Reminders Feature** (`feature-reminders/`)
-    - [ ] Implement `ReminderUtils` module: `resolveReminder()`, `stageReminder()`, `consumeReminder()`, `suppressHook()`
-    - [ ] Staging handlers (Supervisor, transcript events per docs/design/FEATURE-REMINDERS.md §3.1):
-      - [ ] `StageDefaultUserPromptReminder` (SessionStart hook)
-      - [ ] `StageAreYouStuckReminder` (ToolCall transcript, `toolsThisTurn >= stuck_threshold`)
-      - [ ] `StageTimeForUserUpdateReminder` (ToolCall transcript, `toolsThisTurn >= update_threshold`)
-      - [ ] `StageStopReminders` (ToolCall transcript, on file edit tools)
-    - [ ] Consumption handlers (CLI, hook events):
-      - [ ] `InjectUserPromptSubmitReminders`, `InjectPreToolUseReminders`, `InjectPostToolUseReminders`, `InjectStopReminders`
-    - [ ] Suppression pattern: marker files `.sidekick/sessions/{session_id}/stage/{hook_name}/.suppressed`
-    - [ ] Reminder file schema: `StagedReminder { name, blocking, priority, persistent, userMessage?, additionalContext?, stopReason? }`
+  - [x] **6.1 Reminders Feature** (`feature-reminders/`) - COMPLETE 2025-12-04
+    - [x] Implement `ReminderUtils` module: `resolveReminder()`, `stageReminder()`, `consumeReminder()`, `suppressHook()`
+    - [x] Staging handlers (Supervisor, transcript events per docs/design/FEATURE-REMINDERS.md §3.1):
+      - [x] `StageDefaultUserPromptReminder` (SessionStart hook)
+      - [x] `StageAreYouStuckReminder` (ToolCall transcript, `toolsThisTurn >= stuck_threshold`)
+      - [x] `StageTimeForUserUpdateReminder` (ToolCall transcript, `toolsThisTurn >= update_threshold`)
+      - [x] `StageStopReminders` (ToolCall transcript, on file edit tools)
+    - [x] Consumption handlers (CLI, hook events):
+      - [x] `InjectUserPromptSubmitReminders`, `InjectPreToolUseReminders`, `InjectPostToolUseReminders`, `InjectStopReminders`
+    - [x] Suppression pattern: marker files `.sidekick/sessions/{session_id}/stage/{hook_name}/.suppressed`
+    - [x] Reminder file schema: `StagedReminder { name, blocking, priority, persistent, userMessage?, additionalContext?, stopReason? }`
   - [ ] **6.2 Session Summary Feature** (`feature-session-summary/`)
     - [ ] `CreateFirstSessionSummary` handler (SessionStart) - placeholder summary
     - [ ] `UpdateSessionSummary` handler (PostToolUse, UserPromptSubmit) - snarky message generation via LLM

@@ -1,0 +1,23 @@
+# time-for-user-update.yaml
+# Blocks execution to enforce user communication after extensive tool usage
+id: time-for-user-update
+blocking: true
+priority: 70
+persistent: false
+
+additionalContext: |
+  <system-reminder>
+  PROGRESS CHECKPOINT
+
+  You've used {{toolsThisTurn}} tools this turn without updating the user.
+
+  Pause and provide a status update:
+  - Summarize what you've accomplished so far
+  - Report any blockers, errors, or unexpected findings
+  - If using TodoWrite, show current progress through the task list
+  - Explain what you plan to do next (if not yet complete)
+
+  The user needs visibility into your progress. Don't disappear into a long stream of tool calls without communication.
+  </system-reminder>
+
+stopReason: "Time for a user update - {{toolsThisTurn}} tools used this turn"

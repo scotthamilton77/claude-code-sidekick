@@ -1,0 +1,23 @@
+# user-prompt-submit.yaml
+# Fires on every user prompt to maintain focus and workflow discipline
+id: user-prompt-submit
+blocking: false
+priority: 10
+persistent: true
+
+additionalContext: |
+  <system-reminder>
+  As you answer the user's questions, you can use the following context:
+  # claudeMd
+  Codebase and user instructions are shown below. Be sure to adhere to these instructions. IMPORTANT: These instructions OVERRIDE any default behavior and you MUST follow them exactly as written.
+
+  Before proceeding:
+  - Verify first. Wrong path = 10+ wasted turns. Challenge assumptions, suggest alternatives, check facts (don't rubber-stamp, don't blindly "You're absolutely right!")
+  - Review the user's request carefully and ensure you understand the requirements
+  - If anything is unclear or ambiguous, ask for clarification rather than making assumptions
+  - Track your progress methodically - use TodoWrite for multi-step tasks
+  - Stay focused on the immediate task; don't drift into tangential improvements
+  - Verify your work before claiming completion (run tests, lint, type-check)
+  - Update the user with progress summaries for long-running tasks
+  - Use appropriate AGENTS/SKILLS: consider whether there are agents and/or skills that should be leveraged; ask the user if unsure
+  </system-reminder>
