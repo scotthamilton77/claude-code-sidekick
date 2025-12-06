@@ -71,8 +71,11 @@ export function createStagingHandler(context: RuntimeContext, config: StagingHan
       if (existing.some((r) => r.name === action.reminderId)) return
     }
 
-    // Resolve reminder
-    const reminder = resolveReminder(action.reminderId, action.templateContext ?? {})
+    // Resolve reminder using context's asset resolver
+    const reminder = resolveReminder(action.reminderId, {
+      context: action.templateContext ?? {},
+      assets: supervisorCtx.assets,
+    })
     if (!reminder) {
       supervisorCtx.logger.warn('Failed to resolve reminder', { reminderId: action.reminderId })
       return

@@ -14,6 +14,7 @@ import { join } from 'node:path'
 import * as yaml from 'js-yaml'
 import { z } from 'zod'
 import type { StagedReminder, SupervisorContext } from '@sidekick/types'
+import type { AssetResolver } from '@sidekick/core'
 import type { TemplateContext } from './types'
 
 /**
@@ -48,29 +49,66 @@ export function interpolateTemplate(template: string, context: TemplateContext):
 }
 
 /**
+ * Options for resolving reminder definitions
+ */
+export interface ResolveReminderOptions {
+  /** Template variables for interpolation */
+  context?: TemplateContext
+  /** Asset resolver (uses file system if not provided) */
+  assets?: AssetResolver
+  /** Base assets directory (fallback for testing) */
+  assetsDir?: string
+}
+
+/**
  * Load and resolve a reminder definition from YAML.
  * Uses asset cascade: project → user → bundled defaults.
  *
  * @param reminderId - Reminder ID (matches filename without .yaml)
- * @param context - Template variables for interpolation
- * @param assetsDir - Base assets directory (for testing)
+ * @param contextOrOptions - Template variables or full options object
+ * @param assetsDir - Base assets directory (for testing, deprecated - use options.assetsDir)
  * @returns Resolved StagedReminder ready for staging, or null if not found
  */
 export function resolveReminder(
   reminderId: string,
-  context: TemplateContext,
+  contextOrOptions: TemplateContext | ResolveReminderOptions = {},
   assetsDir?: string
 ): StagedReminder | null {
-  // Try to load from assets directory
-  const baseDir = assetsDir ?? join(process.cwd(), 'assets', 'sidekick')
-  const yamlPath = join(baseDir, REMINDER_ASSET_DIR, `${reminderId}.yaml`)
+  // Handle overloaded arguments
+  let context: TemplateContext
+  let assets: AssetResolver | undefined
+  let baseAssetsDir: string | undefined
 
-  if (!existsSync(yamlPath)) {
-    return null
+  if ('assets' in contextOrOptions || 'assetsDir' in contextOrOptions || 'context' in contextOrOptions) {
+    const opts = contextOrOptions as ResolveReminderOptions
+    context = opts.context ?? {}
+    assets = opts.assets
+    baseAssetsDir = opts.assetsDir ?? assetsDir
+  } else {
+    context = contextOrOptions as TemplateContext
+    baseAssetsDir = assetsDir
+  }
+
+  // Try asset resolver first if available
+  const relativePath = `${REMINDER_ASSET_DIR}/${reminderId}.yaml`
+  let content: string | null = null
+
+  if (assets) {
+    content = assets.resolve(relativePath)
+  }
+
+  // Fall back to file system if no content from resolver
+  if (!content) {
+    const baseDir = baseAssetsDir ?? join(process.cwd(), 'assets', 'sidekick')
+    const yamlPath = join(baseDir, REMINDER_ASSET_DIR, `${reminderId}.yaml`)
+
+    if (!existsSync(yamlPath)) {
+      return null
+    }
+    content = readFileSync(yamlPath, 'utf-8')
   }
 
   try {
-    const content = readFileSync(yamlPath, 'utf-8')
     const parsed = yaml.load(content)
     const def = ReminderDefinitionSchema.parse(parsed)
 
@@ -112,13 +150,14 @@ export async function consumeReminder(ctx: SupervisorContext, hookName: string):
     return null
   }
 
-  // Get all reminders for this hook, sorted by priority
+  // Get all reminders for this hook
   const reminders = await ctx.staging.listReminders(hookName)
   if (reminders.length === 0) {
     return null
   }
 
-  // Take highest priority (already sorted)
+  // Sort by priority descending and take highest
+  reminders.sort((a, b) => b.priority - a.priority)
   const reminder = reminders[0]
 
   // Delete if not persistent
