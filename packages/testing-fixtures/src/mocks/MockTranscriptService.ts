@@ -13,6 +13,9 @@ import type {
   TokenUsageMetrics,
   CompactionEntry,
   Unsubscribe,
+  Transcript,
+  ExcerptOptions,
+  TranscriptExcerpt,
 } from '@sidekick/types'
 
 /**
@@ -63,6 +66,9 @@ export class MockTranscriptService implements TranscriptService {
   private sessionId: string | null = null
   private transcriptPath: string | null = null
 
+  /** Mock content returned by getExcerpt() - set via setMockExcerptContent() */
+  private mockExcerptContent: string = ''
+
   initialize(sessionId: string, transcriptPath: string): Promise<void> {
     this.sessionId = sessionId
     this.transcriptPath = transcriptPath
@@ -77,6 +83,30 @@ export class MockTranscriptService implements TranscriptService {
     this.metricsCallbacks = []
     this.thresholdCallbacks = []
     return Promise.resolve()
+  }
+
+  getTranscript(): Transcript {
+    return {
+      entries: [],
+      metadata: {
+        sessionId: this.sessionId ?? '',
+        transcriptPath: this.transcriptPath ?? '',
+        lineCount: this.metrics.lastProcessedLine,
+        lastModified: this.metrics.lastUpdatedAt,
+      },
+      toString: () => '',
+    }
+  }
+
+  getExcerpt(options: ExcerptOptions = {}): TranscriptExcerpt {
+    const maxLines = options.maxLines ?? 80
+    return {
+      content: this.mockExcerptContent,
+      lineCount: Math.min(maxLines, this.metrics.lastProcessedLine),
+      startLine: Math.max(1, this.metrics.lastProcessedLine - maxLines + 1),
+      endLine: this.metrics.lastProcessedLine,
+      bookmarkApplied: (options.bookmarkLine ?? 0) > 0,
+    }
   }
 
   getMetrics(): TranscriptMetrics {
@@ -134,6 +164,14 @@ export class MockTranscriptService implements TranscriptService {
     this.thresholdCallbacks = []
     this.sessionId = null
     this.transcriptPath = null
+    this.mockExcerptContent = ''
+  }
+
+  /**
+   * Set mock excerpt content for getExcerpt() to return.
+   */
+  setMockExcerptContent(content: string): void {
+    this.mockExcerptContent = content
   }
 
   /**

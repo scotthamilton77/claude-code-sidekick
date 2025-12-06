@@ -602,6 +602,7 @@ import type {
   HandlerExecutedEvent,
   ReminderStagedEvent,
   SummaryUpdatedEvent,
+  SummarySkippedEvent,
   RemindersClearedEvent,
   LoggingEventBase,
 } from '@sidekick/types'
@@ -680,6 +681,7 @@ export const LogEvents = {
 
   /**
    * Create a ReminderConsumed event (logged when CLI returns a staged reminder).
+   * FIXME these events should be feature-specific and live in their respective packages
    */
   reminderConsumed(
     context: EventLogContext,
@@ -766,6 +768,7 @@ export const LogEvents = {
 
   /**
    * Create a ReminderStaged event (logged when Supervisor stages a reminder file).
+   * FIXME these events should be feature-specific and live in their respective packages
    */
   reminderStaged(
     context: EventLogContext,
@@ -799,12 +802,26 @@ export const LogEvents = {
 
   /**
    * Create a SummaryUpdated event (logged when session summary is recalculated).
+   * @see docs/design/FEATURE-SESSION-SUMMARY.md §3.4
+   * FIXME these events should be feature-specific and live in their respective packages
    */
   summaryUpdated(
     context: EventLogContext,
-    reason: string,
-    state?: { previousSummary?: string; newSummary?: string },
-    metadata?: { durationMs?: number; tokenCount?: number }
+    state: {
+      session_title: string
+      session_title_confidence: number
+      latest_intent: string
+      latest_intent_confidence: number
+    },
+    metadata: {
+      countdown_reset_to: number
+      tokens_used?: number
+      processing_time_ms?: number
+      pivot_detected: boolean
+      old_title?: string
+      old_intent?: string
+    },
+    reason: 'user_prompt_forced' | 'countdown_reached' | 'compaction_reset'
   ): SummaryUpdatedEvent {
     return {
       type: 'SummaryUpdated',
@@ -820,14 +837,46 @@ export const LogEvents = {
       },
       payload: {
         state,
-        reason,
         metadata,
+        reason,
+      },
+    }
+  },
+
+  /**
+   * Create a SummarySkipped event (logged when summary update is deferred).
+   * @see docs/design/FEATURE-SESSION-SUMMARY.md §3.4
+   * FIXME these events should be feature-specific and live in their respective packages
+   */
+  summarySkipped(
+    context: EventLogContext,
+    metadata: {
+      countdown: number
+      countdown_threshold: number
+    }
+  ): SummarySkippedEvent {
+    return {
+      type: 'SummarySkipped',
+      time: Date.now(),
+      source: 'supervisor',
+      context: {
+        sessionId: context.sessionId,
+        scope: context.scope,
+        correlationId: context.correlationId,
+        traceId: context.traceId,
+        hook: context.hook,
+        taskId: context.taskId,
+      },
+      payload: {
+        metadata,
+        reason: 'countdown_active',
       },
     }
   },
 
   /**
    * Create a RemindersCleared event (logged when staging directory is cleaned).
+   * FIXME these events should be feature-specific and live in their respective packages
    */
   remindersCleared(
     context: EventLogContext,

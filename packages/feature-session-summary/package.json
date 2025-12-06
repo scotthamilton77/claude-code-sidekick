@@ -1,0 +1,25 @@
+{
+  "name": "@sidekick/feature-session-summary",
+  "version": "0.0.0",
+  "description": "Session title and intent tracking via LLM analysis for Sidekick",
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@sidekick/types": "workspace:*",
+    "@sidekick/core": "workspace:*",
+    "@sidekick/shared-providers": "workspace:*",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@sidekick/testing-fixtures": "workspace:*",
+    "@types/node": "^22.10.1",
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.8"
+  }
+}

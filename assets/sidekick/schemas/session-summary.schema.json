@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["session_title", "session_title_confidence", "latest_intent", "latest_intent_confidence", "pivot_detected"],
+  "properties": {
+    "session_title": {
+      "type": "string",
+      "maxLength": 80,
+      "description": "Concise description of what the user is working on (max 8 words, ~80 chars)"
+    },
+    "session_title_confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Confidence in the session title (0-1). >0.8=clear, 0.6-0.8=uncertain, <=0.5=pivot/vague"
+    },
+    "session_title_key_phrases": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 3,
+      "maxItems": 7,
+      "description": "Key terms/files related to the session title (3-7 phrases)"
+    },
+    "latest_intent": {
+      "type": "string",
+      "maxLength": 120,
+      "description": "Specific last request or goal (max 12 words, ~120 chars)"
+    },
+    "latest_intent_confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Confidence in the latest intent (0-1). >0.8=explicit, <0.6=needs context"
+    },
+    "latest_intent_key_phrases": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 2,
+      "maxItems": 5,
+      "description": "Key terms related to the latest intent (2-5 phrases)"
+    },
+    "pivot_detected": {
+      "type": "boolean",
+      "description": "Whether user has significantly changed their focus (hard pivot)"
+    }
+  }
+}

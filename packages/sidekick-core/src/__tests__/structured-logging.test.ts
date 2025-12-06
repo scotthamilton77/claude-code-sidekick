@@ -933,15 +933,39 @@ describe('Structured Logging', () => {
 
       const event = LogEvents.summaryUpdated(
         { sessionId: 'sess-123' },
-        'cadence_met',
-        { previousSummary: 'old', newSummary: 'new' },
-        { durationMs: 200, tokenCount: 150 }
+        {
+          session_title: 'Working on OAuth',
+          session_title_confidence: 0.95,
+          latest_intent: 'Fixing token expiration',
+          latest_intent_confidence: 0.88,
+        },
+        {
+          countdown_reset_to: 20,
+          tokens_used: 150,
+          processing_time_ms: 200,
+          pivot_detected: false,
+          old_title: 'Setting up OAuth',
+          old_intent: 'Configuring provider',
+        },
+        'user_prompt_forced'
       )
 
       expect(event.type).toBe('SummaryUpdated')
       expect(event.source).toBe('supervisor')
-      expect(event.payload.reason).toBe('cadence_met')
-      expect(event.payload.state?.newSummary).toBe('new')
+      expect(event.payload.reason).toBe('user_prompt_forced')
+      expect(event.payload.state.session_title).toBe('Working on OAuth')
+      expect(event.payload.metadata.pivot_detected).toBe(false)
+    })
+
+    it('should create SummarySkipped events', async () => {
+      const { LogEvents } = await import('../structured-logging')
+
+      const event = LogEvents.summarySkipped({ sessionId: 'sess-123' }, { countdown: 5, countdown_threshold: 0 })
+
+      expect(event.type).toBe('SummarySkipped')
+      expect(event.source).toBe('supervisor')
+      expect(event.payload.metadata.countdown).toBe(5)
+      expect(event.payload.reason).toBe('countdown_active')
     })
 
     it('should create RemindersCleared events', async () => {
