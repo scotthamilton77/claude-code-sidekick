@@ -60,6 +60,9 @@ importers:
         specifier: ^3.23.8
         version: 3.25.76
     devDependencies:
+      '@sidekick/testing-fixtures':
+        specifier: workspace:*
+        version: link:../testing-fixtures
       '@types/js-yaml':
         specifier: ^4.0.9
         version: 4.0.9
