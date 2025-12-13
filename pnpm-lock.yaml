@@ -104,6 +104,31 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.19.1)
 
+  packages/feature-statusline:
+    dependencies:
+      '@sidekick/core':
+        specifier: workspace:*
+        version: link:../sidekick-core
+      '@sidekick/types':
+        specifier: workspace:*
+        version: link:../types
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+    devDependencies:
+      '@sidekick/testing-fixtures':
+        specifier: workspace:*
+        version: link:../testing-fixtures
+      '@types/node':
+        specifier: ^22.10.1
+        version: 22.19.1
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.19.1)
+
   packages/shared-providers:
     dependencies:
       '@sidekick/types':
@@ -134,6 +159,9 @@ importers:
       '@sidekick/core':
         specifier: workspace:*
         version: link:../sidekick-core
+      '@sidekick/feature-statusline':
+        specifier: workspace:*
+        version: link:../feature-statusline
       yargs-parser:
         specifier: ^21.1.1
         version: 21.1.1

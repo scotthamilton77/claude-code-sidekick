@@ -28,6 +28,8 @@ interface ParsedArgs {
   scopeOverride?: 'user' | 'project'
   logLevel?: 'debug' | 'info' | 'warn' | 'error'
   wait?: boolean
+  format?: 'text' | 'json'
+  sessionId?: string
   _?: (string | number)[]
 }
 
@@ -49,7 +51,7 @@ interface RunCliOptions {
 function parseArgs(argv: string[]): ParsedArgs {
   const parsed = yargsParser(argv, {
     boolean: ['hook', 'wait'],
-    string: ['hook-script-path', 'project-dir', 'scope', 'log-level'],
+    string: ['hook-script-path', 'project-dir', 'scope', 'log-level', 'format', 'session-id'],
     configuration: {
       'camel-case-expansion': false,
     },
@@ -65,6 +67,8 @@ function parseArgs(argv: string[]): ParsedArgs {
     scopeOverride: parsed.scope as 'user' | 'project' | undefined,
     logLevel: (parsed['log-level'] as ParsedArgs['logLevel']) ?? 'info',
     wait: Boolean(parsed.wait),
+    format: parsed.format as 'text' | 'json' | undefined,
+    sessionId: parsed['session-id'] as string | undefined,
     _: parsed._,
   }
 }
@@ -134,7 +138,6 @@ export async function runCli(options: RunCliOptions): Promise<{ exitCode: number
 
   if (parsed.command === 'supervisor') {
     const subcommand = (parsed._ && (parsed._[1] as string)) || 'status'
-    // Dynamic import to avoid circular deps if any, or just keep it simple
     const { handleSupervisorCommand } = await import('./commands/supervisor.js')
     const result = await handleSupervisorCommand(
       subcommand,
@@ -143,6 +146,15 @@ export async function runCli(options: RunCliOptions): Promise<{ exitCode: number
       stdout,
       { wait: parsed.wait }
     )
+    return { exitCode: result.exitCode, stdout: '', stderr: '' }
+  }
+
+  if (parsed.command === 'statusline') {
+    const { handleStatuslineCommand } = await import('./commands/statusline.js')
+    const result = await handleStatuslineCommand(runtime.scope.projectRoot || process.cwd(), runtime.logger, stdout, {
+      format: parsed.format,
+      sessionId: parsed.sessionId,
+    })
     return { exitCode: result.exitCode, stdout: '', stderr: '' }
   }
 

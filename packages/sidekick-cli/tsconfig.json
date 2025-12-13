@@ -13,6 +13,9 @@
   "references": [
     {
       "path": "../sidekick-core"
+    },
+    {
+      "path": "../feature-statusline"
     }
   ]
 }
