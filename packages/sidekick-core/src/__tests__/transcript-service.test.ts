@@ -786,4 +786,293 @@ describe('TranscriptServiceImpl', () => {
       expect(service.getMetric('messageCount')).toBe(1)
     })
   })
+
+  // --------------------------------------------------------------------------
+  // getExcerpt Tests
+  // --------------------------------------------------------------------------
+
+  describe('getExcerpt', () => {
+    // Helper to create transcript with N lines
+    function createTranscriptLines(count: number): string[] {
+      return Array.from({ length: count }, (_, i) =>
+        JSON.stringify({ type: 'user', message: { role: 'user', content: `Message ${i + 1}` } })
+      )
+    }
+
+    describe('bookmark edge cases', () => {
+      it('returns empty excerpt when transcriptPath is null (not initialized)', () => {
+        // Don't initialize - transcriptPath remains null
+        const excerpt = service.getExcerpt({ bookmarkLine: 5 })
+
+        expect(excerpt.content).toBe('')
+        expect(excerpt.lineCount).toBe(0)
+        expect(excerpt.startLine).toBe(0)
+        expect(excerpt.endLine).toBe(0)
+        expect(excerpt.bookmarkApplied).toBe(false)
+      })
+
+      it('ignores bookmark when bookmarkLine > file length', async () => {
+        const lines = createTranscriptLines(5) // 5 lines
+        writeFileSync(transcriptPath, lines.join('\n'))
+        await service.initialize('test-session', transcriptPath)
+
+        // Bookmark at line 10, but file only has 5 lines
+        const excerpt = service.getExcerpt({ bookmarkLine: 10, maxLines: 3 })
+
+        // Should fall back to simple tail (last 3 lines)
+        expect(excerpt.bookmarkApplied).toBe(false)
+        expect(excerpt.lineCount).toBe(3)
+        expect(excerpt.startLine).toBe(3) // Lines 3-5 (1-indexed)
+        expect(excerpt.endLine).toBe(5)
+      })
+
+      it('ignores bookmark when bookmarkLine equals file length', async () => {
+        const lines = createTranscriptLines(5)
+        writeFileSync(transcriptPath, lines.join('\n'))
+        await service.initialize('test-session', transcriptPath)
+
+        // bookmarkLine === totalLines, condition is bookmarkLine < totalLines
+        const excerpt = service.getExcerpt({ bookmarkLine: 5, maxLines: 3 })
+
+        expect(excerpt.bookmarkApplied).toBe(false)
+        expect(excerpt.lineCount).toBe(3)
+      })
+
+      it('ignores bookmark when bookmarkLine is 0', async () => {
+        const lines = createTranscriptLines(5)
+        writeFileSync(transcriptPath, lines.join('\n'))
+        await service.initialize('test-session', transcriptPath)
+
+        const excerpt = service.getExcerpt({ bookmarkLine: 0, maxLines: 3 })
+
+        expect(excerpt.bookmarkApplied).toBe(false)
+        expect(excerpt.lineCount).toBe(3)
+      })
+
+      it('applies bookmark correctly for valid bookmarkLine', async () => {
+        const lines = createTranscriptLines(10)
+        writeFileSync(transcriptPath, lines.join('\n'))
+        await service.initialize('test-session', transcriptPath)
+
+        // Bookmark at line 5, maxLines 20 - should get lines 5-10 (6 lines)
+        const excerpt = service.getExcerpt({ bookmarkLine: 5, maxLines: 20 })
+
+        expect(excerpt.bookmarkApplied).toBe(true)
+        // recentLines = min(20, 10 - 5) = 5
+        // startLine = max(0, 10 - 5) = 5 (0-indexed), so 1-indexed = 6
+        expect(excerpt.lineCount).toBe(5)
+        expect(excerpt.startLine).toBe(6)
+        expect(excerpt.endLine).toBe(10)
+      })
+
+      it('handles bookmark at line 1', async () => {
+        const lines = createTranscriptLines(5)
+        writeFileSync(transcriptPath, lines.join('\n'))
+        await service.initialize('test-session', transcriptPath)
+
+        // Bookmark at line 1, should get remaining 4 lines
+        const excerpt = service.getExcerpt({ bookmarkLine: 1, maxLines: 20 })
+
+        expect(excerpt.bookmarkApplied).toBe(true)
+        expect(excerpt.lineCount).toBe(4)
+        expect(excerpt.startLine).toBe(2)
+        expect(excerpt.endLine).toBe(5)
+      })
+    })
+
+    describe('maxLines boundary conditions', () => {
+      it('returns all lines when maxLines > totalLines', async () => {
+        const lines = createTranscriptLines(5)
+        writeFileSync(transcriptPath, lines.join('\n'))
+        await service.initialize('test-session', transcriptPath)
+
+        const excerpt = service.getExcerpt({ maxLines: 100 })
+
+        expect(excerpt.lineCount).toBe(5)
+        expect(excerpt.startLine).toBe(1)
+        expect(excerpt.endLine).toBe(5)
+      })
+
+      it('returns exactly maxLines when maxLines < totalLines', async () => {
+        const lines = createTranscriptLines(10)
+        writeFileSync(transcriptPath, lines.join('\n'))
+        await service.initialize('test-session', transcriptPath)
+
+        const excerpt = service.getExcerpt({ maxLines: 3 })
+
+        expect(excerpt.lineCount).toBe(3)
+        expect(excerpt.startLine).toBe(8) // Last 3 of 10
+        expect(excerpt.endLine).toBe(10)
+      })
+
+      it('returns all lines when maxLines equals totalLines', async () => {
+        const lines = createTranscriptLines(5)
+        writeFileSync(transcriptPath, lines.join('\n'))
+        await service.initialize('test-session', transcriptPath)
+
+        const excerpt = service.getExcerpt({ maxLines: 5 })
+
+        expect(excerpt.lineCount).toBe(5)
+        expect(excerpt.startLine).toBe(1)
+        expect(excerpt.endLine).toBe(5)
+      })
+
+      it('defaults to 80 maxLines when not specified', async () => {
+        const lines = createTranscriptLines(100)
+        writeFileSync(transcriptPath, lines.join('\n'))
+        await service.initialize('test-session', transcriptPath)
+
+        const excerpt = service.getExcerpt({})
+
+        expect(excerpt.lineCount).toBe(80)
+        expect(excerpt.startLine).toBe(21) // Lines 21-100
+        expect(excerpt.endLine).toBe(100)
+      })
+
+      it('handles empty transcript', async () => {
+        writeFileSync(transcriptPath, '')
+        await service.initialize('test-session', transcriptPath)
+
+        const excerpt = service.getExcerpt({ maxLines: 10 })
+
+        // Empty file after trim().split('\n') gives [''], but we're slicing from max(0, 1-10)=0
+        // Actually an empty string trimmed and split gives [''] which has length 1
+        // Wait, let me think: ''.trim() = '', ''.split('\n') = ['']
+        // So totalLines = 1 (the empty string), but that line is ''
+        expect(excerpt.lineCount).toBe(1)
+      })
+    })
+
+    describe('line filtering behavior', () => {
+      it('formats user messages correctly', async () => {
+        const transcript = [JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello world' } })].join(
+          '\n'
+        )
+        writeFileSync(transcriptPath, transcript)
+        await service.initialize('test-session', transcriptPath)
+
+        const excerpt = service.getExcerpt({})
+
+        expect(excerpt.content).toContain('[USER]:')
+        expect(excerpt.content).toContain('Hello world')
+      })
+
+      it('formats assistant messages correctly', async () => {
+        const transcript = [JSON.stringify({ type: 'assistant', message: { content: 'I can help' } })].join('\n')
+        writeFileSync(transcriptPath, transcript)
+        await service.initialize('test-session', transcriptPath)
+
+        const excerpt = service.getExcerpt({})
+
+        expect(excerpt.content).toContain('[ASSISTANT]:')
+        expect(excerpt.content).toContain('I can help')
+      })
+
+      it('formats tool_use entries correctly', async () => {
+        const transcript = [JSON.stringify({ type: 'tool_use', name: 'Read' })].join('\n')
+        writeFileSync(transcriptPath, transcript)
+        await service.initialize('test-session', transcriptPath)
+
+        const excerpt = service.getExcerpt({})
+
+        expect(excerpt.content).toContain('[TOOL]:')
+        expect(excerpt.content).toContain('Read')
+      })
+
+      it('omits tool_result output when includeToolOutputs is false', async () => {
+        const transcript = [JSON.stringify({ type: 'tool_result', content: 'sensitive file contents here' })].join('\n')
+        writeFileSync(transcriptPath, transcript)
+        await service.initialize('test-session', transcriptPath)
+
+        const excerpt = service.getExcerpt({ includeToolOutputs: false })
+
+        expect(excerpt.content).toContain('[RESULT]:')
+        expect(excerpt.content).toContain('(output omitted)')
+        expect(excerpt.content).not.toContain('sensitive file contents')
+      })
+
+      it('includes tool_result output when includeToolOutputs is true', async () => {
+        const transcript = [JSON.stringify({ type: 'tool_result', content: 'file contents here' })].join('\n')
+        writeFileSync(transcriptPath, transcript)
+        await service.initialize('test-session', transcriptPath)
+
+        const excerpt = service.getExcerpt({ includeToolOutputs: true })
+
+        expect(excerpt.content).toContain('[RESULT]:')
+        expect(excerpt.content).toContain('file contents here')
+        expect(excerpt.content).not.toContain('(output omitted)')
+      })
+
+      it('handles unknown entry types', async () => {
+        const transcript = [JSON.stringify({ type: 'summary', data: { foo: 'bar' } })].join('\n')
+        writeFileSync(transcriptPath, transcript)
+        await service.initialize('test-session', transcriptPath)
+
+        const excerpt = service.getExcerpt({})
+
+        expect(excerpt.content).toContain('[SUMMARY]:')
+      })
+
+      it('handles malformed JSON lines gracefully', async () => {
+        const transcript = [
+          'not valid json at all',
+          JSON.stringify({ type: 'user', message: { content: 'Valid message' } }),
+        ].join('\n')
+        writeFileSync(transcriptPath, transcript)
+        await service.initialize('test-session', transcriptPath)
+
+        const excerpt = service.getExcerpt({})
+
+        expect(excerpt.lineCount).toBe(2)
+        // Malformed line should be truncated to 200 chars
+        expect(excerpt.content).toContain('not valid json')
+        expect(excerpt.content).toContain('[USER]:')
+      })
+
+      it('truncates very long malformed lines', async () => {
+        const longLine = 'x'.repeat(500) // 500 char line
+        const transcript = [longLine].join('\n')
+        writeFileSync(transcriptPath, transcript)
+        await service.initialize('test-session', transcriptPath)
+
+        const excerpt = service.getExcerpt({})
+
+        // Should be truncated to 200 chars
+        expect(excerpt.content.length).toBeLessThanOrEqual(200)
+      })
+
+      it('handles assistant with tool_use marker correctly', async () => {
+        const transcript = [
+          JSON.stringify({
+            type: 'assistant',
+            message: { content: [{ type: 'tool_use', name: 'Edit' }] },
+          }),
+        ].join('\n')
+        writeFileSync(transcriptPath, transcript)
+        await service.initialize('test-session', transcriptPath)
+
+        const excerpt = service.getExcerpt({})
+
+        // When content is an array (not a string), falls through to JSON stringify
+        expect(excerpt.content).toContain('[ASSISTANT]:')
+      })
+    })
+
+    describe('error handling', () => {
+      it('returns empty excerpt when file read fails', async () => {
+        writeFileSync(transcriptPath, 'test')
+        await service.initialize('test-session', transcriptPath)
+
+        // Delete the file after initialization
+        rmSync(transcriptPath)
+
+        const excerpt = service.getExcerpt({})
+
+        expect(excerpt.content).toBe('')
+        expect(excerpt.lineCount).toBe(0)
+        expect(excerpt.bookmarkApplied).toBe(false)
+        expect(logger.error).toHaveBeenCalledWith('Failed to extract transcript excerpt', expect.any(Object))
+      })
+    })
+  })
 })
