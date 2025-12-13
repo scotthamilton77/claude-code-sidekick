@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "start": "node server/production.js",
     "lint": "eslint . --max-warnings 0",
     "preview": "vite preview",
     "test": "vitest run",
@@ -16,6 +17,7 @@
     "@sidekick/types": "workspace:*",
     "itty-router": "^5.0.22",
     "lucide-react": "^0.292.0",
+    "microdiff": "^1.5.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },

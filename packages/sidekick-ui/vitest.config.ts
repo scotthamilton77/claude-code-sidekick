@@ -13,7 +13,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['src/**/__tests__/**/*.test.ts'],
+    include: ['src/**/__tests__/**/*.test.ts', 'server/**/__tests__/**/*.test.ts'],
     coverage: {
       enabled: true,
       provider: 'v8',
@@ -50,8 +50,8 @@ export default defineConfig({
         // Entry point (just wiring)
         'src/main.tsx',
 
-        // Server API handlers (Vite dev server plugins, not business logic)
-        'server/**',
+        // Server API plugin (Vite dev server middleware)
+        'server/api-plugin.ts',
 
         // Type guards in types/index.ts have runtime code but minimal ROI
         // (simple discriminated union checks - defer until Phase 2 if needed)

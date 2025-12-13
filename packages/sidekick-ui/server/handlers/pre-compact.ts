@@ -6,7 +6,7 @@ import { readFile } from 'fs/promises'
 import { existsSync } from 'fs'
 import { join } from 'path'
 import type { ApiRequest } from '../types'
-import { errorResponse, ndjsonResponse, isValidSessionId } from '../utils'
+import { errorResponse, ndjsonResponse, isValidSessionId, isValidTimestamp } from '../utils'
 
 export async function handlePreCompact(request: ApiRequest): Promise<Response> {
   const { sessionsPath } = request.ctx
@@ -17,8 +17,8 @@ export async function handlePreCompact(request: ApiRequest): Promise<Response> {
     return errorResponse('Invalid session ID format', 400)
   }
 
-  // Validate timestamp (numeric only)
-  if (!/^\d+$/.test(timestamp)) {
+  // Validate timestamp format
+  if (!isValidTimestamp(timestamp)) {
     return errorResponse('Invalid timestamp format', 400)
   }
 

@@ -1,16 +1,17 @@
-import React, { useState } from 'react'
-import type { StateSnapshot, UIEvent, DecisionLogFilter } from '../types'
+import React, { useState, useMemo } from 'react'
+import type { UIEvent, DecisionLogFilter } from '../types'
 import type { TranscriptMetrics, SupervisorStatusWithHealth } from '@sidekick/types'
 import Icon from './Icon'
 import MetricsPanel from './MetricsPanel'
 import SystemHealth from './SystemHealth'
 import { DecisionLog } from './views'
+import { JsonTreeViewer } from './common'
+import type { ReplayState, TimeTravelStore } from '../lib/replay-engine'
+import SnapshotDiffView from './SnapshotDiffView'
 
 interface StateInspectorProps {
-  stateData: {
-    current: StateSnapshot
-    previous: StateSnapshot
-  }
+  /** Replay state at current scrub position */
+  replayState: ReplayState
   currentTime: string
   /** Transcript metrics to display */
   metrics?: TranscriptMetrics | null
@@ -34,12 +35,16 @@ interface StateInspectorProps {
   onEventSelect?: (eventId: number) => void
   /** Handler for trace selection */
   onTraceSelect?: (traceId: string) => void
+  /** Current event ID for computing previous state */
+  currentEventId?: number
+  /** TimeTravelStore for accessing timeline */
+  timeTravelStore?: TimeTravelStore
 }
 
 type TabType = 'state' | 'metrics' | 'health' | 'decisions'
 
 const StateInspector: React.FC<StateInspectorProps> = ({
-  stateData,
+  replayState,
   currentTime,
   metrics,
   metricsHistory = [],
@@ -52,9 +57,70 @@ const StateInspector: React.FC<StateInspectorProps> = ({
   onDecisionFilterChange,
   onEventSelect,
   onTraceSelect,
+  currentEventId,
+  timeTravelStore,
 }) => {
   const [showDiff, setShowDiff] = useState(false)
   const [activeTab, setActiveTab] = useState<TabType>('state')
+
+  // Compute previous state for Diff view
+  const previousState = useMemo(() => {
+    if (!timeTravelStore || currentEventId === undefined) {
+      return replayState
+    }
+
+    const timeline = timeTravelStore.getTimeline()
+    if (timeline.length === 0 || currentEventId === 0) {
+      return replayState
+    }
+
+    // Get the previous timeline entry
+    const prevIndex = Math.max(0, currentEventId - 1)
+    const prevEntry = timeline[prevIndex]
+    return prevEntry?.stateAfter ?? replayState
+  }, [replayState, currentEventId, timeTravelStore])
+
+  // Convert ReplayState to display-friendly JSON (with proper type coercion)
+  const stateJson = useMemo(() => {
+    return {
+      summary: replayState.summary as Record<string, unknown>,
+      metrics: {
+        turnCount: replayState.metrics.turnCount,
+        toolCount: replayState.metrics.toolCount,
+        toolsThisTurn: replayState.metrics.toolsThisTurn,
+        messageCount: replayState.metrics.messageCount,
+        toolsPerTurn: replayState.metrics.toolsPerTurn,
+        tokens: {
+          input: replayState.metrics.tokenUsage.inputTokens,
+          output: replayState.metrics.tokenUsage.outputTokens,
+          total: replayState.metrics.tokenUsage.totalTokens,
+        },
+      },
+      stagedReminders: Object.fromEntries(replayState.stagedReminders) as Record<string, unknown>,
+      supervisorHealth: replayState.supervisorHealth as Record<string, unknown> | undefined,
+    } as Record<string, unknown>
+  }, [replayState])
+
+  const previousStateJson = useMemo(() => {
+    if (!previousState) return {} as Record<string, unknown>
+    return {
+      summary: previousState.summary as Record<string, unknown>,
+      metrics: {
+        turnCount: previousState.metrics.turnCount,
+        toolCount: previousState.metrics.toolCount,
+        toolsThisTurn: previousState.metrics.toolsThisTurn,
+        messageCount: previousState.metrics.messageCount,
+        toolsPerTurn: previousState.metrics.toolsPerTurn,
+        tokens: {
+          input: previousState.metrics.tokenUsage.inputTokens,
+          output: previousState.metrics.tokenUsage.outputTokens,
+          total: previousState.metrics.tokenUsage.totalTokens,
+        },
+      },
+      stagedReminders: Object.fromEntries(previousState.stagedReminders) as Record<string, unknown>,
+      supervisorHealth: previousState.supervisorHealth as Record<string, unknown> | undefined,
+    } as Record<string, unknown>
+  }, [previousState])
 
   return (
     <div className="w-[420px] bg-white border-l border-slate-200 flex flex-col">
@@ -170,130 +236,18 @@ const StateInspector: React.FC<StateInspectorProps> = ({
         <>
           {/* File Name */}
           <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-            <span className="text-xs font-mono text-slate-600">session-summary.json</span>
+            <span className="text-xs font-mono text-slate-600">replay-state.json</span>
             <span className="text-xs text-slate-400">@ {currentTime}</span>
           </div>
 
           {/* State Content */}
           <div className="flex-1 overflow-y-auto">
             {showDiff ? (
-              // Diff View - Full context with inline changes
-              <div className="font-mono text-xs leading-relaxed">
-                <div className="px-4 py-2 text-slate-600">{'{'}</div>
-                <div className="px-4 py-1 text-slate-600 pl-8">"session_id": "{stateData.current.session_id}",</div>
-                <div className="px-4 py-1 text-slate-600 pl-8">
-                  "session_title": "{stateData.current.session_title}",
-                </div>
-
-                {/* Changed: session_title_confidence */}
-                <div className="bg-red-50 border-l-2 border-red-400">
-                  <div className="px-4 py-0.5 text-red-700 pl-8">
-                    <span className="select-none text-red-400 mr-2">-</span>
-                    "session_title_confidence": {stateData.previous.session_title_confidence},
-                  </div>
-                </div>
-                <div className="bg-green-50 border-l-2 border-green-400">
-                  <div className="px-4 py-0.5 text-green-700 pl-8">
-                    <span className="select-none text-green-400 mr-2">+</span>
-                    "session_title_confidence": {stateData.current.session_title_confidence},
-                  </div>
-                </div>
-
-                {/* Changed: latest_intent */}
-                <div className="bg-red-50 border-l-2 border-red-400">
-                  <div className="px-4 py-0.5 text-red-700 pl-8">
-                    <span className="select-none text-red-400 mr-2">-</span>
-                    "latest_intent": "{stateData.previous.latest_intent}",
-                  </div>
-                </div>
-                <div className="bg-green-50 border-l-2 border-green-400">
-                  <div className="px-4 py-0.5 text-green-700 pl-8">
-                    <span className="select-none text-green-400 mr-2">+</span>
-                    "latest_intent": "{stateData.current.latest_intent}",
-                  </div>
-                </div>
-
-                {/* Changed: latest_intent_confidence */}
-                <div className="bg-red-50 border-l-2 border-red-400">
-                  <div className="px-4 py-0.5 text-red-700 pl-8">
-                    <span className="select-none text-red-400 mr-2">-</span>
-                    "latest_intent_confidence": {stateData.previous.latest_intent_confidence},
-                  </div>
-                </div>
-                <div className="bg-green-50 border-l-2 border-green-400">
-                  <div className="px-4 py-0.5 text-green-700 pl-8">
-                    <span className="select-none text-green-400 mr-2">+</span>
-                    "latest_intent_confidence": {stateData.current.latest_intent_confidence},
-                  </div>
-                </div>
-
-                <div className="px-4 py-1 text-slate-600 pl-8">"tokens": {'{'}</div>
-
-                {/* Changed: tokens.input */}
-                <div className="bg-red-50 border-l-2 border-red-400">
-                  <div className="px-4 py-0.5 text-red-700 pl-12">
-                    <span className="select-none text-red-400 mr-2">-</span>
-                    "input": {stateData.previous.tokens.input},
-                  </div>
-                </div>
-                <div className="bg-green-50 border-l-2 border-green-400">
-                  <div className="px-4 py-0.5 text-green-700 pl-12">
-                    <span className="select-none text-green-400 mr-2">+</span>
-                    "input": {stateData.current.tokens.input},
-                  </div>
-                </div>
-
-                {/* Changed: tokens.output */}
-                <div className="bg-red-50 border-l-2 border-red-400">
-                  <div className="px-4 py-0.5 text-red-700 pl-12">
-                    <span className="select-none text-red-400 mr-2">-</span>
-                    "output": {stateData.previous.tokens.output}
-                  </div>
-                </div>
-                <div className="bg-green-50 border-l-2 border-green-400">
-                  <div className="px-4 py-0.5 text-green-700 pl-12">
-                    <span className="select-none text-green-400 mr-2">+</span>
-                    "output": {stateData.current.tokens.output}
-                  </div>
-                </div>
-
-                <div className="px-4 py-1 text-slate-600 pl-8">{'},'}</div>
-
-                {/* Changed: cost_usd */}
-                <div className="bg-red-50 border-l-2 border-red-400">
-                  <div className="px-4 py-0.5 text-red-700 pl-8">
-                    <span className="select-none text-red-400 mr-2">-</span>
-                    "cost_usd": {stateData.previous.cost_usd},
-                  </div>
-                </div>
-                <div className="bg-green-50 border-l-2 border-green-400">
-                  <div className="px-4 py-0.5 text-green-700 pl-8">
-                    <span className="select-none text-green-400 mr-2">+</span>
-                    "cost_usd": {stateData.current.cost_usd},
-                  </div>
-                </div>
-
-                {/* Changed: duration_sec */}
-                <div className="bg-red-50 border-l-2 border-red-400">
-                  <div className="px-4 py-0.5 text-red-700 pl-8">
-                    <span className="select-none text-red-400 mr-2">-</span>
-                    "duration_sec": {stateData.previous.duration_sec}
-                  </div>
-                </div>
-                <div className="bg-green-50 border-l-2 border-green-400">
-                  <div className="px-4 py-0.5 text-green-700 pl-8">
-                    <span className="select-none text-green-400 mr-2">+</span>
-                    "duration_sec": {stateData.current.duration_sec}
-                  </div>
-                </div>
-
-                <div className="px-4 py-2 text-slate-600">{'}'}</div>
-              </div>
+              // Diff View - Generic computed diff (Phase 7.B.3)
+              <SnapshotDiffView previous={previousStateJson} current={stateJson} />
             ) : (
-              // Raw View
-              <div className="p-4 font-mono text-xs">
-                <pre className="text-slate-700 whitespace-pre-wrap">{JSON.stringify(stateData.current, null, 2)}</pre>
-              </div>
+              // Raw View - Generic JSON tree viewer
+              <JsonTreeViewer data={stateJson} defaultExpanded={true} />
             )}
           </div>
 
@@ -301,20 +255,17 @@ const StateInspector: React.FC<StateInspectorProps> = ({
           <div className="border-t border-slate-200 p-3 grid grid-cols-3 gap-3 bg-slate-50">
             <div className="text-center">
               <p className="text-lg font-semibold text-slate-800">
-                {(stateData.current.tokens.input + stateData.current.tokens.output) / 1000}k
+                {(replayState.metrics.tokenUsage.totalTokens / 1000).toFixed(1)}k
               </p>
               <p className="text-xs text-slate-500">Tokens</p>
             </div>
             <div className="text-center">
-              <p className="text-lg font-semibold text-slate-800">${stateData.current.cost_usd}</p>
-              <p className="text-xs text-slate-500">Cost</p>
+              <p className="text-lg font-semibold text-slate-800">{replayState.metrics.turnCount}</p>
+              <p className="text-xs text-slate-500">Turns</p>
             </div>
             <div className="text-center">
-              <p className="text-lg font-semibold text-slate-800">
-                {Math.floor(stateData.current.duration_sec / 60)}:
-                {String(stateData.current.duration_sec % 60).padStart(2, '0')}
-              </p>
-              <p className="text-xs text-slate-500">Duration</p>
+              <p className="text-lg font-semibold text-slate-800">{replayState.metrics.toolCount}</p>
+              <p className="text-xs text-slate-500">Tools</p>
             </div>
           </div>
         </>

@@ -30,6 +30,10 @@ interface ParsedArgs {
   wait?: boolean
   format?: 'text' | 'json'
   sessionId?: string
+  port?: number
+  host?: string
+  open?: boolean
+  preferProject?: boolean
   _?: (string | number)[]
 }
 
@@ -50,8 +54,9 @@ interface RunCliOptions {
  */
 function parseArgs(argv: string[]): ParsedArgs {
   const parsed = yargsParser(argv, {
-    boolean: ['hook', 'wait'],
-    string: ['hook-script-path', 'project-dir', 'scope', 'log-level', 'format', 'session-id'],
+    boolean: ['hook', 'wait', 'open', 'prefer-project'],
+    string: ['hook-script-path', 'project-dir', 'scope', 'log-level', 'format', 'session-id', 'host'],
+    number: ['port'],
     configuration: {
       'camel-case-expansion': false,
     },
@@ -69,6 +74,10 @@ function parseArgs(argv: string[]): ParsedArgs {
     wait: Boolean(parsed.wait),
     format: parsed.format as 'text' | 'json' | undefined,
     sessionId: parsed['session-id'] as string | undefined,
+    port: parsed.port as number | undefined,
+    host: parsed.host as string | undefined,
+    open: parsed.open as boolean | undefined,
+    preferProject: parsed['prefer-project'] as boolean | undefined,
     _: parsed._,
   }
 }
@@ -154,6 +163,17 @@ export async function runCli(options: RunCliOptions): Promise<{ exitCode: number
     const result = await handleStatuslineCommand(runtime.scope.projectRoot || process.cwd(), runtime.logger, stdout, {
       format: parsed.format,
       sessionId: parsed.sessionId,
+    })
+    return { exitCode: result.exitCode, stdout: '', stderr: '' }
+  }
+
+  if (parsed.command === 'ui') {
+    const { handleUiCommand } = await import('./commands/ui.js')
+    const result = await handleUiCommand(runtime.scope.projectRoot || process.cwd(), runtime.logger, stdout, {
+      port: parsed.port,
+      host: parsed.host,
+      open: parsed.open,
+      preferProject: parsed.preferProject,
     })
     return { exitCode: result.exitCode, stdout: '', stderr: '' }
   }

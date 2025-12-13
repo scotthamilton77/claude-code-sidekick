@@ -7,15 +7,24 @@
  * API Endpoints:
  * - GET /api/config - Returns paths configuration
  * - GET /api/logs/sessions - Returns list of unique session IDs
- * - GET /api/logs/:type - Returns cli.log or supervisor.log content
+ * - GET /api/logs/:type - Returns cli.log or supervisor.log content (supports incremental fetching)
  * - GET /api/sessions/:sessionId/compaction-history - Returns compaction history
  * - GET /api/sessions/:sessionId/metrics - Returns current transcript metrics
  * - GET /api/sessions/:sessionId/pre-compact/:timestamp - Returns pre-compact snapshot
+ * - GET /api/sessions/:sessionId/state/session-summary - Returns session summary state
+ * - GET /api/sessions/:sessionId/state/session-state - Returns session state
+ * - GET /api/sessions/:sessionId/stage/:hookName - Returns staged reminders for hook
  * - GET /api/supervisor/status - Returns supervisor status with offline detection
  *
  * Query params (for /api/logs/:type):
- * - ?since=<timestamp> - Return only lines after timestamp (for polling)
+ * - ?offset=<bytes> - Start reading from byte offset (incremental fetching, recommended)
+ * - ?since=<timestamp> - Return only lines after timestamp (deprecated, use offset instead)
  * - ?sessionId=<id> - Filter to specific session
+ *
+ * Response headers (for /api/logs/:type):
+ * - X-File-Size: Current file size in bytes (use as offset for next poll)
+ * - X-File-Mtime: Last modified time in milliseconds
+ * - X-Log-Rotated: "true" if log rotation was detected (client should reset offset)
  *
  * @see packages/sidekick-ui/docs/MONITORING-UI.md §2.2 Data Flow
  * @see packages/sidekick-ui/docs/MONITORING-UI.md §3.1 Compaction Timeline
@@ -35,6 +44,9 @@ import {
   handleMetrics,
   handlePreCompact,
   handleSupervisorStatus,
+  handleSessionSummary,
+  handleSessionState,
+  handleStagedReminders,
 } from './handlers'
 
 export interface ApiConfig {
@@ -46,8 +58,9 @@ export interface ApiConfig {
 
 /**
  * Create the itty-router with all API routes.
+ * Exported for use in production server.
  */
-function createRouter(): RouterType<ApiRequest> {
+export function createRouter(): RouterType<ApiRequest> {
   const router = Router<ApiRequest>({ base: '/api' })
 
   // Config endpoint
@@ -61,6 +74,9 @@ function createRouter(): RouterType<ApiRequest> {
   router.get('/sessions/:sessionId/compaction-history', handleCompactionHistory)
   router.get('/sessions/:sessionId/metrics', handleMetrics)
   router.get('/sessions/:sessionId/pre-compact/:timestamp', handlePreCompact)
+  router.get('/sessions/:sessionId/state/session-summary', handleSessionSummary)
+  router.get('/sessions/:sessionId/state/session-state', handleSessionState)
+  router.get('/sessions/:sessionId/stage/:hookName', handleStagedReminders)
 
   // Supervisor endpoints
   router.get('/supervisor/status', handleSupervisorStatus)
@@ -73,8 +89,9 @@ function createRouter(): RouterType<ApiRequest> {
 
 /**
  * Convert Node IncomingMessage to Request-like object for itty-router.
+ * Exported for use in production server.
  */
-function toRequest(req: IncomingMessage, ctx: ApiContext): ApiRequest {
+export function toRequest(req: IncomingMessage, ctx: ApiContext): ApiRequest {
   const url = new URL(req.url ?? '/', `http://${req.headers.host}`)
 
   // Parse query params into simple object
@@ -94,8 +111,9 @@ function toRequest(req: IncomingMessage, ctx: ApiContext): ApiRequest {
 
 /**
  * Write Response to ServerResponse.
+ * Exported for use in production server.
  */
-async function writeResponse(response: Response, res: ServerResponse): Promise<void> {
+export async function writeResponse(response: Response, res: ServerResponse): Promise<void> {
   res.statusCode = response.status
 
   // Copy headers

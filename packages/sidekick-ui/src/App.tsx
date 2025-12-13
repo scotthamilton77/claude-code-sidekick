@@ -1,9 +1,9 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import Header from './components/Header'
 import Layout from './components/Layout'
 import StateInspector from './components/StateInspector'
 import Timeline from './components/Timeline'
-import Transcript from './components/Transcript'
+import Transcript, { type TranscriptRef } from './components/Transcript'
 import PreCompactViewer from './components/PreCompactViewer'
 import type { Session, DecisionLogFilter } from './types'
 import type { TranscriptMetrics } from '@sidekick/types'
@@ -11,11 +11,11 @@ import { useLogService } from './hooks/useLogService'
 import { useCompactionHistory } from './hooks/useCompactionHistory'
 import { useSupervisorStatus } from './hooks/useSupervisorStatus'
 import { filterEvents } from './lib/filter-parser'
+import type { ReplayState } from './lib/replay-engine'
 import {
   events as mockEvents,
   currentSession as initialSession,
   otherSessions as mockOtherSessions,
-  stateData,
 } from './data/mockData'
 
 function App() {
@@ -88,6 +88,25 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const [decisionFilter, setDecisionFilter] = useState<DecisionLogFilter>({ category: 'all' })
 
+  // Playback mode: 'live' follows new events, 'paused' stays at selected event
+  const [playbackMode, setPlaybackMode] = useState<'live' | 'paused'>('live')
+
+  // Ref to Transcript component for auto-scroll in live mode
+  const transcriptRef = useRef<TranscriptRef>(null)
+
+  // Get replay state at current event timestamp
+  const currentReplayState = useMemo<ReplayState>(() => {
+    if (events.length === 0 || currentEventId < 0 || currentEventId >= events.length) {
+      return logService.getStateAt(0) // Return initial state
+    }
+    const currentEvent = events[currentEventId]
+    // Parse timestamp from event.id (which is a string representation of timestamp)
+    // For now, use the event's original timestamp from the log records
+    const timestamp =
+      logService.records.find((r) => r.pino.time.toString() === currentEvent.id.toString())?.pino.time ?? 0
+    return logService.getStateAt(timestamp)
+  }, [events, currentEventId, logService])
+
   const getEventColor = (type: string) => {
     const colors: Record<string, string> = {
       session: 'bg-slate-400',
@@ -151,7 +170,31 @@ function App() {
     }
   }
 
-  // Handle live toggle
+  // Auto-advance to latest event when in live mode and new events arrive
+  useEffect(() => {
+    if (playbackMode === 'live' && events.length > 0) {
+      setCurrentEventId(events.length - 1)
+      // Auto-scroll transcript to bottom in live mode
+      transcriptRef.current?.scrollToBottom()
+    }
+  }, [events.length, playbackMode])
+
+  // Handle event selection - switches to paused mode
+  const handleEventSelect = (eventId: number) => {
+    setCurrentEventId(eventId)
+    setPlaybackMode('paused')
+  }
+
+  // Handle "Go Live" - returns to live mode
+  const handleGoLive = () => {
+    setPlaybackMode('live')
+    setCurrentEventId(events.length > 0 ? events.length - 1 : 0)
+    if (useRealData && !logService.isLive) {
+      logService.toggleLive()
+    }
+  }
+
+  // Handle live toggle (polling on/off)
   const handleToggleLive = () => {
     if (useRealData) {
       logService.toggleLive()
@@ -168,7 +211,9 @@ function App() {
             currentSession={currentSession}
             otherSessions={otherSessions.filter((s) => s.id !== currentSession.id)}
             isLive={isLive}
+            playbackMode={playbackMode}
             onToggleLive={handleToggleLive}
+            onGoLive={handleGoLive}
             onSelectSession={handleSelectSession}
           />
         }
@@ -177,7 +222,7 @@ function App() {
             events={events}
             currentEventId={currentEventId}
             filteredEvents={filteredEvents}
-            onEventSelect={setCurrentEventId}
+            onEventSelect={handleEventSelect}
             getEventColor={getEventColor}
             compactionEntries={compactionHistory.history}
             selectedCompaction={compactionHistory.selectedCompaction}
@@ -186,17 +231,19 @@ function App() {
         }
         transcript={
           <Transcript
+            ref={transcriptRef}
             filteredEvents={filteredEvents}
             currentEventId={currentEventId}
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
             filterType={filterType}
             onFilterChange={setFilterType}
+            onEventSelect={handleEventSelect}
           />
         }
         inspector={
           <StateInspector
-            stateData={stateData}
+            replayState={currentReplayState}
             currentTime={events[currentEventId]?.time || ''}
             metrics={metrics}
             metricsHistory={metricsHistory}
@@ -207,7 +254,9 @@ function App() {
             events={events}
             decisionFilter={decisionFilter}
             onDecisionFilterChange={setDecisionFilter}
-            onEventSelect={setCurrentEventId}
+            onEventSelect={handleEventSelect}
+            currentEventId={currentEventId}
+            timeTravelStore={logService.timeTravelStore}
           />
         }
       />
