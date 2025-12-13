@@ -247,6 +247,8 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
     - [ ] Replace mock-only state inspection with real, compaction-aware, replay-derived state inspection.
     - [ ] Make the Monitoring UI runnable outside Vite dev mode (production-local runtime) while preserving dual-scope behavior.
     - [ ] Improve performance and robustness for large sessions/logs.
+  - [ ] Execution model
+    - [ ] Top-level groups 7.A → 7.E are sequential. Subtracks within each group can be done concurrently.
   - [ ] Relevant documents/sections
     - [ ] `packages/sidekick-ui/docs/MONITORING-UI.md` (§3.1 Compaction Timeline, §3.2 Time Travel, §5 Unified Cockpit)
     - [ ] `{project_root_dir}/docs/design/flow.md` (§3.2 Event Schema)
@@ -259,35 +261,52 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
     - [ ] Compaction markers and snapshot viewing work for multi-compaction sessions.
     - [ ] Large log files remain usable (no multi-second UI freezes on refresh/poll).
     - [ ] All tests pass and no lint/typecheck warnings.
-  - [ ] **7.1 Wire Replay Engine into the UI (Real State Inspector)**
-    - [ ] Replace `stateData` mock plumbing with replay-derived state snapshots per timestamp.
-      - [ ] Use `TimeTravelStore` / replay timeline as the canonical “state at time” for the inspector.
+  - [ ] **7.A Contracts & Data Surfaces (must complete before 7.B)**
+    - [ ] **7.A.1 API endpoints: session state & stage reading** (parallel)
+      - [ ] Add/finish endpoints to read inspector-backed data:
+        - [ ] `.sidekick/sessions/{sessionId}/state/session-summary.json`
+        - [ ] `.sidekick/sessions/{sessionId}/state/session-state.json` (if present)
+        - [ ] `.sidekick/sessions/{sessionId}/stage/{hookName}/*.json` and suppression markers
+    - [ ] **7.A.2 Request/response contracts in `@sidekick/types`** (parallel)
+      - [ ] Define stable response schemas for the UI (state domains, staged reminders, compaction metadata as needed).
+    - [ ] **7.A.3 Validation & security hardening** (parallel)
+      - [ ] Validate/sanitize all path parameters (`sessionId`, `hookName`, filenames) to prevent traversal.
+      - [ ] Dual-scope resolution tests (project vs user) and missing/empty file cases.
+  - [ ] **7.B Real State Inspector (Replay-Driven)**
+    - [ ] **7.B.1 Wire replay engine into UI state selection** (parallel)
+      - [ ] Replace `stateData` mock plumbing with replay-derived snapshots keyed by time.
+      - [ ] Use `TimeTravelStore` / replay timeline as canonical “state at time”.
       - [ ] Ensure staged reminders (`stage/{hookName}`) and summary state participate in replay state.
-    - [ ] Implement a generic JSON tree viewer for state (read-only) instead of `session-summary.json`-specific rendering.
-    - [ ] Implement computed diff view between consecutive snapshots (Git-style), not a hard-coded field diff.
-    - [ ] Add tests for: state reconstruction correctness, snapshot selection by scrub position, diff calculation correctness.
-  - [ ] **7.2 Session State & Stage Directory Reading (Backed by Files)**
-    - [ ] Add/finish API endpoints to read session state domains needed by the inspector:
-      - [ ] `.sidekick/sessions/{sessionId}/state/session-summary.json`
-      - [ ] `.sidekick/sessions/{sessionId}/state/session-state.json` (if present)
-      - [ ] `.sidekick/sessions/{sessionId}/stage/{hookName}/*.json` and suppression markers
-    - [ ] Validate and sanitize all path parameters (`sessionId`, `hookName`, filenames) to prevent traversal.
-    - [ ] Define a small, stable API response schema in `@sidekick/types` for UI consumption.
-    - [ ] Add unit tests for handlers (missing files, empty dirs, invalid IDs, dual-scope resolution).
-  - [ ] **7.3 Unified Cockpit UX Parity (Spec Alignment)**
-    - [ ] Add the time-travel “current time indicator” that visually cuts the stream at the selected timestamp.
-    - [ ] Make stream items clickable to snap time (not only the timeline rail).
-    - [ ] Ensure “Live” mode follows new events and reliably returns to “paused” when user scrubs.
-    - [ ] Ensure search UX matches spec intent (filters + free-text) and operates on displayed event content.
-  - [ ] **7.4 Performance & Reliability for Large Sessions**
-    - [ ] Stop re-parsing full logs on every poll; add a cheap “mtime-only” check or incremental fetch behavior.
-    - [ ] Use the existing streaming NDJSON parser for incremental ingestion.
-    - [ ] Add guardrails for edge cases: 0–1 events (timeline math), missing timestamps, malformed NDJSON lines.
-    - [ ] Add focused perf regression tests/benchmarks (lightweight; no external API calls).
-  - [ ] **7.5 Production-Local Runtime (Beyond Vite Dev Middleware)**
-    - [ ] Provide a Node runtime that serves the built SPA and hosts the same `/api/*` endpoints.
-    - [ ] Add a CLI entrypoint (e.g., `sidekick ui`) to launch the server and open/print the URL.
-    - [ ] Verify dual-scope path resolution in both `.sidekick/` and `~/.sidekick/` contexts.
+    - [ ] **7.B.2 Generic JSON tree viewer (read-only)** (parallel)
+      - [ ] Replace `session-summary.json`-specific rendering with a generic inspector for arbitrary JSON.
+    - [ ] **7.B.3 Snapshot diff view (generic, computed)** (parallel)
+      - [ ] Implement a computed diff view between consecutive snapshots (Git-style), not hard-coded field diffs.
+    - [ ] **7.B.4 Tests** (parallel)
+      - [ ] State reconstruction correctness, snapshot selection by scrub position, diff calculation correctness.
+  - [ ] **7.C Unified Cockpit UX Parity (Spec Alignment)**
+    - [ ] **7.C.1 Time-cut indicator in stream** (parallel)
+      - [ ] Add the time-travel “current time indicator” that visually cuts the stream at the selected timestamp.
+    - [ ] **7.C.2 Click-to-snap from stream events** (parallel)
+      - [ ] Make stream items clickable to snap time (not only the timeline rail).
+    - [ ] **7.C.3 Live vs paused mode behavior** (parallel)
+      - [ ] Ensure “Live” mode follows new events and reliably returns to “paused” when user scrubs.
+    - [ ] **7.C.4 Search UX alignment** (parallel)
+      - [ ] Ensure search (filters + free-text) operates on displayed event content per spec intent.
+  - [ ] **7.D Performance & Reliability for Large Sessions**
+    - [ ] **7.D.1 Incremental ingestion (avoid full re-parse)** (parallel)
+      - [ ] Stop re-parsing full logs on every poll; use a cheap “mtime-only” check and/or incremental fetch behavior.
+      - [ ] Use the existing streaming NDJSON parser for incremental ingestion.
+    - [ ] **7.D.2 Robustness guardrails** (parallel)
+      - [ ] Edge cases: 0–1 events (timeline math), missing timestamps, malformed NDJSON lines.
+    - [ ] **7.D.3 Focused perf regression tests/benchmarks** (parallel)
+      - [ ] Lightweight perf coverage (no external API calls).
+  - [ ] **7.E Production-Local Runtime (Beyond Vite Dev Middleware)**
+    - [ ] **7.E.1 Node server: serve built SPA + `/api/*`** (parallel)
+      - [ ] Provide a Node runtime that serves the built UI and hosts the same API endpoints.
+    - [ ] **7.E.2 CLI entrypoint** (parallel)
+      - [ ] Add `sidekick ui` (or similar) to launch server and open/print the URL.
+    - [ ] **7.E.3 Dual-scope verification** (parallel)
+      - [ ] Verify path resolution in both `.sidekick/` and `~/.sidekick/` contexts.
     - [ ] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
 
 - [ ] **Phase 8: Feature Parity and Legacy Cleanup**
