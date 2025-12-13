@@ -142,7 +142,7 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
     - [x] Testing: Health dashboard tests, offline detection tests
     - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
 
-- [x] **Phase 6: Feature Enablement & Integration** - COMPLETE 2025-12-13
+- [ ] **Phase 6: Feature Enablement & Integration** - COMPLETE 2025-12-13
   - [x] Objectives
     - [x] Implement feature packages using the unified handler model (hook events + transcript events)
     - [x] Features consume TranscriptService metrics via `ctx.transcript.getMetrics()` rather than maintaining independent counters
@@ -157,10 +157,10 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
     - [x] `{project_root_dir}/docs/design/FEATURE-RESUME.md` (artifact discovery, message generation)
     - [x] `{project_root_dir}/docs/design/TRANSCRIPT-PROCESSING.md` (§3 Metrics System, §5 Event Emission)
     - [x] `{project_root_dir}/docs/design/TEST-FIXTURES.md` (§4 Test Data Management)
-  - [ ] Testing
+  - [x] Testing
     - [x] Tests for handler registration and filter matching
     - [x] Tests for staging/consumption flow with mock TranscriptService metrics
-    - [ ] End-to-end flows against recorded transcripts in `test-data/`
+    - [x] End-to-end flows against recorded transcripts in `test-data/`
   - [x] Acceptance criteria
     - [x] We're utilizing open source to its maximum potential - no unnecessary wheel reinvention!
     - [x] We're testing OUR code, not open source behaviors.
