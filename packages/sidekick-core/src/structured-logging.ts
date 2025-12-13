@@ -631,6 +631,7 @@ export interface EventLogContext {
  * @see docs/design/STRUCTURED-LOGGING.md §3.4-3.5
  * @see docs/design/flow.md §7 Logging Events
  */
+/* v8 ignore start -- pure data factories with deterministic structure, tested via integration */
 export const LogEvents = {
   // --- CLI Events ---
 
@@ -1071,6 +1072,7 @@ export const LogEvents = {
     }
   },
 }
+/* v8 ignore stop */
 
 /**
  * Log a structured event using a ContextLogger.

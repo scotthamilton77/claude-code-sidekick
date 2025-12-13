@@ -661,40 +661,7 @@ export class TranscriptServiceImpl implements TranscriptService {
    * Metrics are updated BEFORE emitting, so handlers see current state.
    */
   private emitEvent(eventType: TranscriptEventType, entry: TranscriptEntry, lineNumber: number): void {
-    // Note: content and toolName extraction available for future payload enrichment
-    // const _content = this.extractContent(entry)
-    // const _toolName = this.extractToolName(entry)
-
     this.options.handlers.emitTranscriptEvent(eventType, entry, lineNumber)
-  }
-
-  private _extractContent(entry: TranscriptEntry): string | undefined {
-    const message = entry.message as { content?: string | Array<{ text?: string }> } | undefined
-    if (!message?.content) return undefined
-
-    if (typeof message.content === 'string') {
-      return message.content
-    }
-
-    // Array of content blocks (e.g., [{ type: 'text', text: '...' }])
-    if (Array.isArray(message.content)) {
-      const textBlocks = message.content.filter((b) => typeof b === 'object' && b.text)
-      return textBlocks.map((b) => b.text).join('\n')
-    }
-
-    return undefined
-  }
-
-  private _extractToolName(entry: TranscriptEntry): string | undefined {
-    // For tool_use entries
-    if (entry.type === 'tool_use') {
-      return (entry as { name?: string }).name
-    }
-    // For tool_result entries
-    if (entry.type === 'tool_result') {
-      return (entry as { tool_name?: string }).tool_name
-    }
-    return undefined
   }
 
   // ============================================================================
