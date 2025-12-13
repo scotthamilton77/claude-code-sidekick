@@ -206,6 +206,9 @@ importers:
         specifier: ^4.1.13
         version: 4.1.13
     devDependencies:
+      '@sidekick/testing-fixtures':
+        specifier: workspace:*
+        version: link:../testing-fixtures
       '@types/chokidar':
         specifier: ^2.1.7
         version: 2.1.7
