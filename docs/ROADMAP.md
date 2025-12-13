@@ -196,7 +196,7 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
       - [x] Format entries for LLM context (USER/ASSISTANT/TOOL/RESULT labels)
     - [x] Update `update-summary.ts` to use `ctx.transcript.getExcerpt()` instead of direct `fs.readFile()`
     - [x] Update `MockTranscriptService` with `getExcerpt()` and `setMockExcerptContent()` test utility
-    - [ ] Tests for `getExcerpt()` with bookmark scenarios (deferred - basic implementation tested via handler tests)
+    - [x] Tests for `getExcerpt()` with bookmark scenarios
   - [ ] **6.3 Statusline Feature** (`feature-statusline/`)
     - [ ] Render statusline from staged state files
     - [ ] Show resume message if found, else summary or first-prompt default
