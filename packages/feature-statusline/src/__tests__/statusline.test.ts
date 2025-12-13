@@ -292,4 +292,59 @@ describe('StatuslineService', () => {
 
     expect(result.viewModel.summary).toBe('Battling the auth gremlins!')
   })
+
+  it('appends (stale) indicator when data is stale', async () => {
+    // Write state file with old timestamp (simulate stale data)
+    const stateFile = path.join(testDir, 'session-state.json')
+    await fs.writeFile(
+      stateFile,
+      JSON.stringify({
+        sessionId: 'test-123',
+        timestamp: Date.now(),
+        tokens: 1000,
+        cost: 0.01,
+        durationMs: 5000,
+        modelName: 'claude-3-5-sonnet',
+      })
+    )
+    // Set mtime to 2 minutes ago to trigger staleness
+    const twoMinutesAgo = new Date(Date.now() - 120_000)
+    await fs.utimes(stateFile, twoMinutesAgo, twoMinutesAgo)
+
+    const service = createStatuslineService({
+      sessionStateDir: testDir,
+      cwd: '/test',
+      useColors: false,
+    })
+
+    const result = await service.render()
+
+    expect(result.staleData).toBe(true)
+    expect(result.text).toContain('(stale)')
+  })
+
+  it('does not append (stale) when data is fresh', async () => {
+    await fs.writeFile(
+      path.join(testDir, 'session-state.json'),
+      JSON.stringify({
+        sessionId: 'test-123',
+        timestamp: Date.now(),
+        tokens: 1000,
+        cost: 0.01,
+        durationMs: 5000,
+        modelName: 'claude-3-5-sonnet',
+      })
+    )
+
+    const service = createStatuslineService({
+      sessionStateDir: testDir,
+      cwd: '/test',
+      useColors: false,
+    })
+
+    const result = await service.render()
+
+    expect(result.staleData).toBe(false)
+    expect(result.text).not.toContain('(stale)')
+  })
 })

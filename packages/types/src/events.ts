@@ -513,10 +513,58 @@ export interface RemindersClearedEvent extends LoggingEventBase {
   }
 }
 
+// --- Statusline Events (per docs/design/FEATURE-STATUSLINE.md §8.5) ---
+
+/**
+ * Statusline rendered successfully.
+ * Emitted when statusline produces output.
+ *
+ * @see docs/design/FEATURE-STATUSLINE.md §8.5
+ */
+export interface StatuslineRenderedEvent extends LoggingEventBase {
+  type: 'StatuslineRendered'
+  source: 'cli'
+  payload: {
+    state: {
+      displayMode: 'session_summary' | 'resume_message' | 'first_prompt' | 'empty_summary'
+      staleData: boolean
+    }
+    metadata: {
+      model?: string
+      tokens?: number
+      durationMs: number
+    }
+  }
+}
+
+/**
+ * Statusline render error (graceful fallback used).
+ * Emitted when statusline encounters an error but recovers with defaults.
+ *
+ * @see docs/design/FEATURE-STATUSLINE.md §8.5
+ */
+export interface StatuslineErrorEvent extends LoggingEventBase {
+  type: 'StatuslineError'
+  source: 'cli'
+  payload: {
+    reason: 'state_file_missing' | 'parse_error' | 'git_timeout' | 'unknown'
+    metadata: {
+      file?: string
+      fallbackUsed: boolean
+      error?: string
+    }
+  }
+}
+
 /**
  * Union of all CLI logging events.
  */
-export type CLILoggingEvent = HookReceivedEvent | ReminderConsumedEvent | HookCompletedEvent
+export type CLILoggingEvent =
+  | HookReceivedEvent
+  | ReminderConsumedEvent
+  | HookCompletedEvent
+  | StatuslineRenderedEvent
+  | StatuslineErrorEvent
 
 /**
  * Union of all Supervisor logging events.

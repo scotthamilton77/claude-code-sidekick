@@ -221,7 +221,7 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
     - [ ] Staging/consumption separation: Supervisor handles staging, CLI handles consumption
     - [ ] Dual-scope parity verified: features behave identically in user and project contexts
     - [ ] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
-  - [ ] **UI Integration (Phase 6)**
+  - [ ] **6.5 UI Integration**
     - [ ] Reminder event visualization (per packages/sidekick-ui/docs/MONITORING-UI.md §4.1):
       - [ ] `ReminderStaged` cards with name, priority, blocking status
       - [ ] `ReminderConsumed` cards showing which reminder was returned
@@ -249,7 +249,7 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
     - [ ] Audit `benchmark-next/` for unported features (early TypeScript exploration, largely stale)
     - [ ] Audit `src/sidekick/` (bash runtime) for behaviors not yet in TypeScript packages
     - [ ] Audit `scripts/` for analysis tools that should migrate (e.g., `analyze-session-at-line.sh`, `simulate-session.py`)
-    - [ ] Audit transcript processing
+    - [ ] Audit transcript processing logic
     - [ ] Document feature gaps and create tasks for each
   - [ ] **7.2 Migration Tasks** (populated by audit)
     - [ ] Placeholder: Tasks added based on audit findings
