@@ -168,7 +168,7 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
       - [x] `InjectUserPromptSubmitReminders`, `InjectPreToolUseReminders`, `InjectPostToolUseReminders`, `InjectStopReminders`
     - [x] Suppression pattern: marker files `.sidekick/sessions/{session_id}/stage/{hook_name}/.suppressed`
     - [x] Reminder file schema: `StagedReminder { name, blocking, priority, persistent, userMessage?, additionalContext?, stopReason? }`
-  - [ ] **6.2 Session Summary Feature** (`feature-session-summary/`)
+  - [x] **6.2 Session Summary Feature** (`feature-session-summary/`) ✓ COMPLETED
     - [x] Package scaffold (`@sidekick/feature-session-summary`)
     - [x] Types: `SessionSummaryState`, `SummaryCountdownState`, config types
     - [x] Event types: `SummaryUpdatedEvent`, `SummarySkippedEvent` in `@sidekick/types`
@@ -182,8 +182,9 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
     - [x] LLM integration: Wire `ctx.llm.complete()` into `performAnalysis()` with Zod validation
     - [x] Added `resolve()` to `MinimalAssetResolver` interface for prompt template loading
     - [x] Transcript extraction via `ctx.transcript.getExcerpt()` (unblocked by 6.2.1)
-    - [ ] Snarky message generation side-effect (separate LLM call)
-    - [ ] Resume message generation side-effect (pivot detection)
+    - [x] Snarky message generation side-effect (separate LLM call)
+    - [x] Resume message generation side-effect (pivot detection)
+    - [x] Unit tests for side-effect generation (7 tests)
   - [x] **6.2.1 TranscriptService Completion** ✓ COMPLETED
     - [x] Investigate gap: design doc (`TRANSCRIPT-PROCESSING.md §2.2.5`) specifies `getTranscript()` and `getExcerpt()` but interface missing
     - [x] Define types: `ExcerptOptions`, `TranscriptExcerpt`, `Transcript`, `CanonicalTranscriptEntry` (per design doc §2.1.3)

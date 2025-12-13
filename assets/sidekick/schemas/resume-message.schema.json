@@ -1,22 +1,17 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
-  "required": ["resume_message", "objective_in_progress", "snarky_welcome"],
+  "required": ["resume_message", "snarky_welcome"],
   "properties": {
     "resume_message": {
       "type": "string",
       "maxLength": 60,
-      "description": "Question format ('Shall we resume...'), max 60 chars"
-    },
-    "objective_in_progress": {
-      "type": "string",
-      "maxLength": 60,
-      "description": "SciFi-themed description of work (Star Trek, Matrix, etc), max 60 chars"
+      "description": "Reference to last major work: 'The last thing I recall you were working on...' (max 60 chars)"
     },
     "snarky_welcome": {
       "type": "string",
-      "maxLength": 120,
-      "description": "Sarcastic software architect tone with SciFi references, max 120 chars"
+      "maxLength": 80,
+      "description": "Sarcastic follow-up question about resuming or starting something new (max 80 chars)"
     }
   }
 }

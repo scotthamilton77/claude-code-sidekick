@@ -30,14 +30,14 @@ PIVOT DETECTION:
   Example: "Refactoring feature flags" -> "Debugging LLM providers"
 
 SESSION TITLE:
-- Max 8 words, like a short book or research paper title
+- Max 6 words, Title Case, like a short book or research paper title
 - Persistent but can evolve/refine over time
 - Compare to previous title to determine change type
 
 LATEST INTENT:
-- Max 12 words, what the user wanted in their most recent prompt
+- Max 8 words, what the user wanted in their most recent prompt(s)
 - Use context to interpret vague prompts ("do it", "yes", "continue")
-- If multi-instruction, capture ALL instructions
+- If multi-instruction, capture most relevant instructions to recent context
 
 META-REQUEST FILTERING:
 Don't update latest_intent for session-state queries:

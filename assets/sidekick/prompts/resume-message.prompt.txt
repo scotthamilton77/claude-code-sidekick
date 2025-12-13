@@ -12,17 +12,15 @@ Key phrases: {{keyPhrases}}
 
 Output JSON with these fields:
 
-- resume_message: Question format starting with "Shall we resume" or "Want to continue", followed by brief reference to what they were working on. Max 60 characters.
-
-- objective_in_progress: An imaginative, SciFi-themed description of the actual work (Star Trek, Blade Runner, Matrix, etc). Match the tone to the work:
-  * Debugging = "hunting bugs in the Matrix"
-  * Refactoring = "reorganizing the Enterprise deck plans"
-  * Testing = "running holodeck simulations"
+- resume_message: Reference the last major thing the user was working on (from the session_topic) in a creative way to indicate it was a recent activity, e.g.
+  * "The last thing I recall you were working on adding OAuth to the project."
+  * "If I recall correctly, your last objective was to add OAuth to this project."
+  * "Last task: add OAuth."
   Max 60 characters.
 
-- snarky_welcome: Channel a sarcastic software architect with SciFi references. Acknowledge the odd human-AI relationship and the fact they're coming back for more. Be witty, not mean. Reference the actual work context. Max 120 characters.
+- snarky_welcome: Follow up the resume_message with a sarcastic, insulting question about resuming the work or starting something new. Be witty, not mean. Max 80 characters.
 
 Guidelines:
 - Use BOTH session_topic and transcript to understand what was actually being worked on
 - Be concise, witty, and accurate
-- Extract meaningful context from recent conversation
+- Extract meaningful context from recent conversation but weight the session_topic's content
