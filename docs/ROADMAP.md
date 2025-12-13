@@ -142,7 +142,7 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
     - [x] Testing: Health dashboard tests, offline detection tests
     - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
 
-- [ ] **Phase 6: Feature Enablement & Integration** - COMPLETE 2025-12-13
+- [x] **Phase 6: Feature Enablement & Integration** - COMPLETE 2025-12-13
   - [x] Objectives
     - [x] Implement feature packages using the unified handler model (hook events + transcript events)
     - [x] Features consume TranscriptService metrics via `ctx.transcript.getMetrics()` rather than maintaining independent counters
@@ -241,7 +241,56 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
     - [x] Testing: trace-correlator tests (17), event-adapter extraction tests (30)
       - Note: React component tests excluded per vitest.config.ts (deliberate scope limitation)
 
-- [ ] **Phase 7: Feature Parity and Legacy Cleanup**
+- [ ] **Phase 7: Monitoring UI Completion & Hardening**
+  - [ ] Objectives
+    - [ ] Close remaining gaps against `packages/sidekick-ui/docs/MONITORING-UI.md` so the UI is truly usable for time-travel debugging (not just log viewing).
+    - [ ] Replace mock-only state inspection with real, compaction-aware, replay-derived state inspection.
+    - [ ] Make the Monitoring UI runnable outside Vite dev mode (production-local runtime) while preserving dual-scope behavior.
+    - [ ] Improve performance and robustness for large sessions/logs.
+  - [ ] Relevant documents/sections
+    - [ ] `packages/sidekick-ui/docs/MONITORING-UI.md` (§3.1 Compaction Timeline, §3.2 Time Travel, §5 Unified Cockpit)
+    - [ ] `{project_root_dir}/docs/design/flow.md` (§3.2 Event Schema)
+    - [ ] `{project_root_dir}/docs/design/STRUCTURED-LOGGING.md` (§2.2 Log File Strategy, §3 Log Record Format)
+    - [ ] `{project_root_dir}/docs/design/TRANSCRIPT-PROCESSING.md` (§3 Metrics System, §4.2 Compaction History Schema)
+    - [ ] `{project_root_dir}/docs/design/SUPERVISOR.md` (§4.6 Heartbeat Mechanism)
+  - [ ] Acceptance criteria (applies to all sub-phases)
+    - [ ] UI can be launched in a “real logs” mode and all panels are backed by real data (no hard-coded mock state except in an explicit demo mode).
+    - [ ] Time travel changes the inspected state deterministically (scrubbing produces consistent snapshots).
+    - [ ] Compaction markers and snapshot viewing work for multi-compaction sessions.
+    - [ ] Large log files remain usable (no multi-second UI freezes on refresh/poll).
+    - [ ] All tests pass and no lint/typecheck warnings.
+  - [ ] **7.1 Wire Replay Engine into the UI (Real State Inspector)**
+    - [ ] Replace `stateData` mock plumbing with replay-derived state snapshots per timestamp.
+      - [ ] Use `TimeTravelStore` / replay timeline as the canonical “state at time” for the inspector.
+      - [ ] Ensure staged reminders (`stage/{hookName}`) and summary state participate in replay state.
+    - [ ] Implement a generic JSON tree viewer for state (read-only) instead of `session-summary.json`-specific rendering.
+    - [ ] Implement computed diff view between consecutive snapshots (Git-style), not a hard-coded field diff.
+    - [ ] Add tests for: state reconstruction correctness, snapshot selection by scrub position, diff calculation correctness.
+  - [ ] **7.2 Session State & Stage Directory Reading (Backed by Files)**
+    - [ ] Add/finish API endpoints to read session state domains needed by the inspector:
+      - [ ] `.sidekick/sessions/{sessionId}/state/session-summary.json`
+      - [ ] `.sidekick/sessions/{sessionId}/state/session-state.json` (if present)
+      - [ ] `.sidekick/sessions/{sessionId}/stage/{hookName}/*.json` and suppression markers
+    - [ ] Validate and sanitize all path parameters (`sessionId`, `hookName`, filenames) to prevent traversal.
+    - [ ] Define a small, stable API response schema in `@sidekick/types` for UI consumption.
+    - [ ] Add unit tests for handlers (missing files, empty dirs, invalid IDs, dual-scope resolution).
+  - [ ] **7.3 Unified Cockpit UX Parity (Spec Alignment)**
+    - [ ] Add the time-travel “current time indicator” that visually cuts the stream at the selected timestamp.
+    - [ ] Make stream items clickable to snap time (not only the timeline rail).
+    - [ ] Ensure “Live” mode follows new events and reliably returns to “paused” when user scrubs.
+    - [ ] Ensure search UX matches spec intent (filters + free-text) and operates on displayed event content.
+  - [ ] **7.4 Performance & Reliability for Large Sessions**
+    - [ ] Stop re-parsing full logs on every poll; add a cheap “mtime-only” check or incremental fetch behavior.
+    - [ ] Use the existing streaming NDJSON parser for incremental ingestion.
+    - [ ] Add guardrails for edge cases: 0–1 events (timeline math), missing timestamps, malformed NDJSON lines.
+    - [ ] Add focused perf regression tests/benchmarks (lightweight; no external API calls).
+  - [ ] **7.5 Production-Local Runtime (Beyond Vite Dev Middleware)**
+    - [ ] Provide a Node runtime that serves the built SPA and hosts the same `/api/*` endpoints.
+    - [ ] Add a CLI entrypoint (e.g., `sidekick ui`) to launch the server and open/print the URL.
+    - [ ] Verify dual-scope path resolution in both `.sidekick/` and `~/.sidekick/` contexts.
+    - [ ] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
+
+- [ ] **Phase 8: Feature Parity and Legacy Cleanup**
   - [ ] Objectives
     - [ ] Audit legacy implementations against TypeScript rewrite for feature parity
     - [ ] Port remaining functionality not obsolete or in conflict with new designs; document intentional omissions
@@ -249,15 +298,15 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
   - [ ] Relevant documents/sections
     - [ ] `{project_root_dir}/docs/ARCHITECTURE.md` (§1 Guiding Principles)
     - [ ] `{project_root_dir}/docs/design/flow.md` (complete hook flows as feature reference)
-  - [ ] **7.1 Legacy Audit**
+  - [ ] **8.1 Legacy Audit**
     - [ ] Audit `benchmark-next/` for unported features (early TypeScript exploration, largely stale)
     - [ ] Audit `src/sidekick/` (bash runtime) for behaviors not yet in TypeScript packages
     - [ ] Audit `scripts/` for analysis tools that should migrate (e.g., `analyze-session-at-line.sh`, `simulate-session.py`)
     - [ ] Audit transcript processing logic
     - [ ] Document feature gaps and create tasks for each
-  - [ ] **7.2 Migration Tasks** (populated by audit)
+  - [ ] **8.2 Migration Tasks** (populated by audit)
     - [ ] Placeholder: Tasks added based on audit findings
-  - [ ] **7.3 Legacy Cleanup**
+  - [ ] **8.3 Legacy Cleanup**
     - [ ] Archive `benchmark-next/` (mark as superseded in README)
     - [ ] Decide: retain bash runtime as fallback or deprecate entirely
     - [ ] Update `AGENTS.md` to reflect final state
@@ -267,7 +316,7 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
     - [ ] Code complexity is kept low using stated architecture principles and guidelines
     - [ ] All new and modified files are documented
 
-- [ ] **Phase 8: Installation & Distribution Hardening**
+- [ ] **Phase 9: Installation & Distribution Hardening**
   - [ ] Objectives
     - [ ] Evaluate Claude Code Plugins as potential distribution mechanism
     - [ ] Finalize installer scripts for bash wrappers, assets, and dual-scope support
@@ -276,16 +325,16 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
     - [ ] `{project_root_dir}/docs/ARCHITECTURE.md` (§4 Installation & Distribution)
     - [ ] `{project_root_dir}/docs/design/CLI.md` (§3 Hook Wrapper Layer, §6 Scope Resolution)
     - [ ] `{project_root_dir}/docs/design/CONFIG-SYSTEM.md` (§3 Configuration Domains, §4 Configuration Cascade) — **YAML format spec**
-  - [ ] **8.1 Installer Implementation**
+  - [ ] **9.1 Installer Implementation**
     - [ ] Hook wrapper generation: bash scripts that invoke `npx @sidekick/cli` or global install
     - [ ] Asset bundling: copy `assets/sidekick/` to installed location
     - [ ] Dual-scope detection: warn when both user and project hooks are installed
     - [ ] CLI commands: `sidekick install --project`, `sidekick install --user`, `sidekick uninstall`
-  - [ ] **8.2 Config Migration**
+  - [ ] **9.2 Config Migration**
     - [ ] Legacy `.conf` → YAML converter: parse bash-style key=value, emit domain YAML files
     - [ ] `sidekick.config` support: unified override file with dot-notation (per docs/design/CONFIG-SYSTEM.md §4.2)
     - [ ] Migration reporting: show what was converted, warn on unrecognized keys
-  - [ ] **8.3 Distribution Options**
+  - [ ] **9.3 Distribution Options**
     - [ ] npm package: `@sidekick/cli` with `npx` support
     - [ ] Global install: `npm i -g @sidekick/cli`
     - [ ] Claude Code Plugins: evaluate if/how to integrate
@@ -300,22 +349,22 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
     - [ ] Migration tool converts legacy configs with clear reporting
     - [ ] All new and modified files documented
 
-- [ ] **Phase 9: Documentation & Polish**
+- [ ] **Phase 10: Documentation & Polish**
   - [ ] Objectives
     - [ ] Finalize user-facing documentation
     - [ ] Clean up development artifacts
     - [ ] Prepare for release
-  - [ ] **9.1 Documentation**
+  - [ ] **10.1 Documentation**
     - [ ] Update README.md for TypeScript runtime (replace bash-focused content)
     - [ ] User guide: installation, configuration, troubleshooting
     - [ ] Developer guide: architecture overview, contributing
     - [ ] Ensure all LLDs are current with implementation
     - [ ] Ensure all source code documentation is up-to-date (not in conflict with requirements or implementation), clean and lean (not over-documenting), and remove all references to implementation phases (how we planned the work should be irrelevant to code documentation).
-  - [ ] **9.2 Cleanup**
+  - [ ] **10.2 Cleanup**
     - [ ] Remove or archive stale files (benchmark-next/, legacy scripts)
     - [ ] Verify all `// TODO` and `// FIXME` comments addressed
     - [ ] Final lint/typecheck/test pass
-  - [ ] **9.3 Release Preparation**
+  - [ ] **10.3 Release Preparation**
     - [ ] Version bump and changelog
     - [ ] npm publish dry-run
     - [ ] Final dual-scope verification
