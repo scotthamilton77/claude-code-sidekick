@@ -1,6 +1,7 @@
 /**
  * Type definitions for Session Summary feature
  * @see docs/design/FEATURE-SESSION-SUMMARY.md
+ * @see docs/design/FEATURE-RESUME.md
  */
 
 /**
@@ -81,3 +82,26 @@ export const DEFAULT_SESSION_SUMMARY_CONFIG: SessionSummaryConfig = {
   minUserMessages: 5,
   minRecentLines: 50,
 }
+
+/**
+ * Resume message state persisted to disk.
+ * Generated as a side-effect of session summary updates when pivot is detected.
+ * Location: .sidekick/sessions/{session_id}/state/resume-message.json
+ * @see docs/design/FEATURE-RESUME.md
+ */
+export interface ResumeMessageState {
+  /** Most recent task ID from the summary, if available */
+  last_task_id: string | null
+  /** Question format: "Shall we resume..." or "Want to continue..." */
+  resume_last_goal_message: string
+  /** Snarky welcome message for returning user */
+  snarky_comment: string
+  /** ISO8601 timestamp when this was generated */
+  timestamp: string
+}
+
+/**
+ * Minimum confidence threshold for generating resume artifacts.
+ * Both title and intent confidence must be >= this value.
+ */
+export const RESUME_MIN_CONFIDENCE = 0.7

@@ -14,28 +14,45 @@ import type { SupervisorContext } from '@sidekick/types'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { z } from 'zod'
-import type { SessionSummaryState, SummaryCountdownState } from '../types.js'
-import { DEFAULT_SESSION_SUMMARY_CONFIG } from '../types.js'
+import type { ResumeMessageState, SessionSummaryState, SummaryCountdownState } from '../types.js'
+import { DEFAULT_SESSION_SUMMARY_CONFIG, RESUME_MIN_CONFIDENCE } from '../types.js'
 
 const STATE_FILE = 'session-summary.json'
 const COUNTDOWN_FILE = 'summary-countdown.json'
+const RESUME_FILE = 'resume-message.json'
+const SNARKY_FILE = 'snarky-message.txt'
 const PROMPT_FILE = 'prompts/session-summary.prompt.txt'
+const SNARKY_PROMPT_FILE = 'prompts/snarky-message.prompt.txt'
+const RESUME_PROMPT_FILE = 'prompts/resume-message.prompt.txt'
 
 /**
  * Zod schema for LLM response validation.
  * Matches assets/sidekick/schemas/session-summary.schema.json
+ * Note: No .max() constraints - prompts specify limits, we accept if LLM overshoots.
  */
 const SessionSummaryResponseSchema = z.object({
-  session_title: z.string().max(80),
+  session_title: z.string(),
   session_title_confidence: z.number().min(0).max(1),
-  session_title_key_phrases: z.array(z.string()).min(3).max(7).optional(),
-  latest_intent: z.string().max(120),
+  session_title_key_phrases: z.array(z.string()).optional(),
+  latest_intent: z.string(),
   latest_intent_confidence: z.number().min(0).max(1),
-  latest_intent_key_phrases: z.array(z.string()).min(2).max(5).optional(),
+  latest_intent_key_phrases: z.array(z.string()).optional(),
   pivot_detected: z.boolean(),
 })
 
 type SessionSummaryResponse = z.infer<typeof SessionSummaryResponseSchema>
+
+/**
+ * Zod schema for resume message LLM response validation.
+ * Matches assets/sidekick/schemas/resume-message.schema.json
+ * Note: No .max() constraints - prompts specify limits, we accept if LLM overshoots.
+ */
+const ResumeMessageResponseSchema = z.object({
+  resume_message: z.string(),
+  snarky_welcome: z.string(),
+})
+
+type ResumeMessageResponse = z.infer<typeof ResumeMessageResponseSchema>
 
 /**
  * Update session summary based on transcript events
@@ -128,6 +145,7 @@ async function performAnalysis(
   event: TranscriptEvent,
   ctx: SupervisorContext,
   countdown: SummaryCountdownState,
+  // Note: compaction_reset reserved for future compaction-triggered re-analysis
   reason: 'user_prompt_forced' | 'countdown_reached' | 'compaction_reset'
 ): Promise<void> {
   const { sessionId } = event.context
@@ -178,7 +196,7 @@ async function performAnalysis(
   try {
     const response = await ctx.llm.complete({
       messages: [{ role: 'user', content: prompt }],
-      temperature: 0.3, // Low temperature for consistent analysis
+      temperature: 0, // Zero temperature for deterministic classification
       maxTokens: 1000,
     })
 
@@ -234,6 +252,28 @@ async function performAnalysis(
     bookmark_line: bookmarkLine,
   })
 
+  // Generate side-effects in parallel (if conditions met)
+  // Side-effects are independent LLM calls that don't affect the main summary flow
+  const sideEffects: Promise<void>[] = []
+
+  // Snarky message: generate when title or intent changed significantly
+  const changes = hasSignificantChange(updatedSummary, currentSummary)
+  if (config.snarkyMessages && (changes.titleChanged || changes.intentChanged)) {
+    // Note: We don't delete the old file first. If LLM fails, we keep stale over nothing.
+    sideEffects.push(generateSnarkyMessage(ctx, sessionId, updatedSummary))
+  }
+
+  // Resume message: generate when pivot detected (significant topic change)
+  if (updatedSummary.pivot_detected) {
+    // we don't need to proactively delete the old resume message - it's ok if that is stale for a short while
+    sideEffects.push(generateResumeMessage(ctx, sessionId, updatedSummary, transcript))
+  }
+
+  // Await all side-effects (errors are logged internally, won't fail main flow)
+  if (sideEffects.length > 0) {
+    await Promise.all(sideEffects)
+  }
+
   // Log update event
   logEvent(
     ctx.logger,
@@ -282,4 +322,166 @@ async function saveSummary(ctx: SupervisorContext, sessionId: string, summary: S
   const statePath = path.join(stateDir, 'sessions', sessionId, 'state', STATE_FILE)
   await fs.mkdir(path.dirname(statePath), { recursive: true })
   await fs.writeFile(statePath, JSON.stringify(summary, null, 2), 'utf-8')
+}
+
+/**
+ * Check if title or intent changed significantly.
+ * A significant change is when the text content differs (not just confidence).
+ *
+ * Note: This is intentionally different from pivot_detected:
+ * - pivot_detected = hard topic shift → triggers resume message
+ * - hasSignificantChange = any text change → triggers snarky message
+ * Snarky messages fire on incremental changes within the same topic.
+ */
+function hasSignificantChange(
+  current: SessionSummaryState,
+  previous: SessionSummaryState | null
+): { titleChanged: boolean; intentChanged: boolean } {
+  if (!previous) {
+    return { titleChanged: false, intentChanged: false }
+  }
+  return {
+    titleChanged: current.session_title !== previous.session_title,
+    intentChanged: current.latest_intent !== previous.latest_intent,
+  }
+}
+
+/**
+ * Generate snarky message as a side-effect.
+ * Called when title or intent changed significantly.
+ * Uses separate LLM call with higher temperature for creativity.
+ * @see docs/design/FEATURE-SESSION-SUMMARY.md §3.2.4
+ */
+async function generateSnarkyMessage(
+  ctx: SupervisorContext,
+  sessionId: string,
+  summary: SessionSummaryState
+): Promise<void> {
+  const promptTemplate = ctx.assets.resolve(SNARKY_PROMPT_FILE)
+  if (!promptTemplate) {
+    ctx.logger.warn('Snarky message prompt not found', { path: SNARKY_PROMPT_FILE })
+    return
+  }
+
+  // Interpolate prompt with session summary data
+  const prompt = promptTemplate
+    .replace(/\{\{session_title\}\}/g, summary.session_title)
+    .replace(/\{\{latest_intent\}\}/g, summary.latest_intent)
+    .replace(/\{\{turn_count\}\}/g, String(ctx.transcript.getMetrics().turnCount))
+    .replace(/\{\{tool_count\}\}/g, String(ctx.transcript.getMetrics().toolCount))
+    .replace(/\{\{sessionSummary\}\}/g, JSON.stringify(summary, null, 2))
+
+  try {
+    const response = await ctx.llm.complete({
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 1.2, // High temperature for creative snark
+      maxTokens: 100,
+    })
+
+    // Snarky message is plain text, no JSON parsing needed
+    const snarkyMessage = response.content.trim()
+
+    // Save to state file
+    const stateDir = ctx.paths.projectConfigDir ?? ctx.paths.userConfigDir
+    const snarkyPath = path.join(stateDir, 'sessions', sessionId, 'state', SNARKY_FILE)
+    await fs.writeFile(snarkyPath, snarkyMessage, 'utf-8')
+
+    ctx.logger.debug('Generated snarky message', { sessionId, message: snarkyMessage.slice(0, 50) })
+  } catch (err) {
+    ctx.logger.warn('Failed to generate snarky message', { sessionId, error: String(err) })
+  }
+}
+
+/**
+ * Parse and validate resume message LLM response.
+ */
+function parseResumeResponse(content: string): ResumeMessageResponse | null {
+  try {
+    let jsonStr = content
+    const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/)
+    if (jsonMatch) {
+      jsonStr = jsonMatch[1].trim()
+    }
+    const parsed: unknown = JSON.parse(jsonStr)
+    return ResumeMessageResponseSchema.parse(parsed)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Generate resume message as a side-effect.
+ * Called when pivot is detected in summary analysis.
+ * Uses separate LLM call with higher temperature for creativity.
+ * @see docs/design/FEATURE-RESUME.md §3.2
+ */
+async function generateResumeMessage(
+  ctx: SupervisorContext,
+  sessionId: string,
+  summary: SessionSummaryState,
+  transcriptExcerpt: string
+): Promise<void> {
+  // Check confidence thresholds
+  if (
+    summary.session_title_confidence < RESUME_MIN_CONFIDENCE ||
+    summary.latest_intent_confidence < RESUME_MIN_CONFIDENCE
+  ) {
+    ctx.logger.debug('Skipping resume message - confidence below threshold', {
+      sessionId,
+      titleConfidence: summary.session_title_confidence,
+      intentConfidence: summary.latest_intent_confidence,
+      threshold: RESUME_MIN_CONFIDENCE,
+    })
+    return
+  }
+
+  const promptTemplate = ctx.assets.resolve(RESUME_PROMPT_FILE)
+  if (!promptTemplate) {
+    ctx.logger.warn('Resume message prompt not found', { path: RESUME_PROMPT_FILE })
+    return
+  }
+
+  // Interpolate prompt with session data
+  const keyPhrases = summary.session_title_key_phrases?.join(', ') ?? ''
+  const prompt = promptTemplate
+    .replace(/\{\{sessionTitle\}\}/g, summary.session_title)
+    .replace(/\{\{confidence\}\}/g, String(summary.session_title_confidence))
+    .replace(/\{\{latestIntent\}\}/g, summary.latest_intent)
+    .replace(/\{\{keyPhrases\}\}/g, keyPhrases)
+    .replace(/\{\{transcript\}\}/g, transcriptExcerpt)
+
+  try {
+    const response = await ctx.llm.complete({
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 1.2, // High temperature for creative messages
+      maxTokens: 500,
+    })
+
+    const parsed = parseResumeResponse(response.content)
+    if (!parsed) {
+      ctx.logger.warn('Failed to parse resume message response', {
+        sessionId,
+        content: response.content.slice(0, 200),
+      })
+      return
+    }
+
+    // Build resume message state
+    const resumeState: ResumeMessageState = {
+      last_task_id: null, // Not tracked in summary
+      resume_last_goal_message: parsed.resume_message,
+      snarky_comment: parsed.snarky_welcome,
+      timestamp: new Date().toISOString(),
+    }
+
+    // Save to state file
+    const stateDir = ctx.paths.projectConfigDir ?? ctx.paths.userConfigDir
+    const resumePath = path.join(stateDir, 'sessions', sessionId, 'state', RESUME_FILE)
+    await fs.mkdir(path.dirname(resumePath), { recursive: true })
+    await fs.writeFile(resumePath, JSON.stringify(resumeState, null, 2), 'utf-8')
+
+    ctx.logger.info('Generated resume message', { sessionId, message: parsed.resume_message })
+  } catch (err) {
+    ctx.logger.warn('Failed to generate resume message', { sessionId, error: String(err) })
+  }
 }
