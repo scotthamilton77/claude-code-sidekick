@@ -197,10 +197,14 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
     - [x] Update `update-summary.ts` to use `ctx.transcript.getExcerpt()` instead of direct `fs.readFile()`
     - [x] Update `MockTranscriptService` with `getExcerpt()` and `setMockExcerptContent()` test utility
     - [x] Tests for `getExcerpt()` with bookmark scenarios
-  - [ ] **6.3 Statusline Feature** (`feature-statusline/`)
-    - [ ] Render statusline from staged state files
-    - [ ] Show resume message if found, else summary or first-prompt default
-    - [ ] Integration with supervisor status
+  - [x] **6.3 Statusline Feature** (`feature-statusline/`) - COMPLETE
+    - [x] Package scaffold with Zod schemas (StatuslineConfig, SessionState, SessionSummary)
+    - [x] StateReader: Safe JSON reading with fallback defaults, staleness detection
+    - [x] GitProvider: Branch detection with 10ms timeout protection
+    - [x] Formatter: Template interpolation with ANSI color support, threshold coloring
+    - [x] StatuslineService: Parallel data fetching, display mode selection, view model building
+    - [x] CLI command: `sidekick statusline [--format text|json]`
+    - [x] Unit tests (25 tests covering formatter, state reader, service)
   - [ ] **6.4 Resume Feature** (`feature-resume/`)
     - [ ] Generate resume message on significant title change
     - [ ] Artifact discovery from session state
@@ -245,6 +249,7 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
     - [ ] Audit `benchmark-next/` for unported features (early TypeScript exploration, largely stale)
     - [ ] Audit `src/sidekick/` (bash runtime) for behaviors not yet in TypeScript packages
     - [ ] Audit `scripts/` for analysis tools that should migrate (e.g., `analyze-session-at-line.sh`, `simulate-session.py`)
+    - [ ] Audit transcript processing
     - [ ] Document feature gaps and create tasks for each
   - [ ] **7.2 Migration Tasks** (populated by audit)
     - [ ] Placeholder: Tasks added based on audit findings

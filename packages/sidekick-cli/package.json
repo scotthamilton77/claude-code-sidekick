@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@sidekick/core": "workspace:*",
+    "@sidekick/feature-statusline": "workspace:*",
     "yargs-parser": "^21.1.1"
   },
   "devDependencies": {
