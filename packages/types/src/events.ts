@@ -501,6 +501,64 @@ export interface SummarySkippedEvent extends LoggingEventBase {
   }
 }
 
+// --- Resume Events (per docs/design/FEATURE-RESUME.md §5.3) ---
+
+/**
+ * Internal event: Resume generation triggered.
+ * Emitted when pivot is detected with sufficient confidence.
+ *
+ * @see docs/design/FEATURE-RESUME.md §5.3
+ */
+export interface ResumeGeneratingEvent extends LoggingEventBase {
+  type: 'ResumeGenerating'
+  source: 'supervisor'
+  payload: {
+    metadata: {
+      title_confidence: number
+      intent_confidence: number
+    }
+    reason: 'pivot_detected'
+  }
+}
+
+/**
+ * Internal event: Resume artifact updated.
+ * Emitted when resume-message.json is written successfully.
+ *
+ * @see docs/design/FEATURE-RESUME.md §5.3
+ */
+export interface ResumeUpdatedEvent extends LoggingEventBase {
+  type: 'ResumeUpdated'
+  source: 'supervisor'
+  payload: {
+    state: {
+      resume_last_goal_message: string
+      snarky_comment: string
+      timestamp: string
+    }
+    reason: 'generation_complete'
+  }
+}
+
+/**
+ * Internal event: Resume generation skipped.
+ * Emitted when conditions for resume generation are not met.
+ *
+ * @see docs/design/FEATURE-RESUME.md §5.3
+ */
+export interface ResumeSkippedEvent extends LoggingEventBase {
+  type: 'ResumeSkipped'
+  source: 'supervisor'
+  payload: {
+    metadata: {
+      title_confidence: number
+      intent_confidence: number
+      min_confidence: number
+    }
+    reason: 'confidence_below_threshold' | 'no_pivot_detected'
+  }
+}
+
 export interface RemindersClearedEvent extends LoggingEventBase {
   type: 'RemindersCleared'
   source: 'supervisor'
@@ -575,6 +633,9 @@ export type SupervisorLoggingEvent =
   | ReminderStagedEvent
   | SummaryUpdatedEvent
   | SummarySkippedEvent
+  | ResumeGeneratingEvent
+  | ResumeUpdatedEvent
+  | ResumeSkippedEvent
   | RemindersClearedEvent
 
 /**

@@ -10,7 +10,7 @@
 
 import type { TranscriptEvent } from '@sidekick/core'
 import { logEvent, LogEvents } from '@sidekick/core'
-import type { SupervisorContext } from '@sidekick/types'
+import type { SupervisorContext, EventContext } from '@sidekick/types'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { z } from 'zod'
@@ -266,7 +266,7 @@ async function performAnalysis(
   // Resume message: generate when pivot detected (significant topic change)
   if (updatedSummary.pivot_detected) {
     // we don't need to proactively delete the old resume message - it's ok if that is stale for a short while
-    sideEffects.push(generateResumeMessage(ctx, sessionId, updatedSummary, transcript))
+    sideEffects.push(generateResumeMessage(ctx, event.context, updatedSummary, transcript))
   }
 
   // Await all side-effects (errors are logged internally, won't fail main flow)
@@ -417,21 +417,30 @@ function parseResumeResponse(content: string): ResumeMessageResponse | null {
  */
 async function generateResumeMessage(
   ctx: SupervisorContext,
-  sessionId: string,
+  eventContext: EventContext,
   summary: SessionSummaryState,
   transcriptExcerpt: string
 ): Promise<void> {
+  const { sessionId } = eventContext
+
   // Check confidence thresholds
   if (
     summary.session_title_confidence < RESUME_MIN_CONFIDENCE ||
     summary.latest_intent_confidence < RESUME_MIN_CONFIDENCE
   ) {
-    ctx.logger.debug('Skipping resume message - confidence below threshold', {
-      sessionId,
-      titleConfidence: summary.session_title_confidence,
-      intentConfidence: summary.latest_intent_confidence,
-      threshold: RESUME_MIN_CONFIDENCE,
-    })
+    // Log structured skip event
+    logEvent(
+      ctx.logger,
+      LogEvents.resumeSkipped(
+        { sessionId, scope: eventContext.scope },
+        {
+          title_confidence: summary.session_title_confidence,
+          intent_confidence: summary.latest_intent_confidence,
+          min_confidence: RESUME_MIN_CONFIDENCE,
+        },
+        'confidence_below_threshold'
+      )
+    )
     return
   }
 
@@ -440,6 +449,18 @@ async function generateResumeMessage(
     ctx.logger.warn('Resume message prompt not found', { path: RESUME_PROMPT_FILE })
     return
   }
+
+  // Log resume generation start
+  logEvent(
+    ctx.logger,
+    LogEvents.resumeGenerating(
+      { sessionId, scope: eventContext.scope },
+      {
+        title_confidence: summary.session_title_confidence,
+        intent_confidence: summary.latest_intent_confidence,
+      }
+    )
+  )
 
   // Interpolate prompt with session data
   const keyPhrases = summary.session_title_key_phrases?.join(', ') ?? ''
@@ -480,7 +501,18 @@ async function generateResumeMessage(
     await fs.mkdir(path.dirname(resumePath), { recursive: true })
     await fs.writeFile(resumePath, JSON.stringify(resumeState, null, 2), 'utf-8')
 
-    ctx.logger.info('Generated resume message', { sessionId, message: parsed.resume_message })
+    // Log resume updated event
+    logEvent(
+      ctx.logger,
+      LogEvents.resumeUpdated(
+        { sessionId, scope: eventContext.scope },
+        {
+          resume_last_goal_message: resumeState.resume_last_goal_message,
+          snarky_comment: resumeState.snarky_comment,
+          timestamp: resumeState.timestamp,
+        }
+      )
+    )
   } catch (err) {
     ctx.logger.warn('Failed to generate resume message', { sessionId, error: String(err) })
   }

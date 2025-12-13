@@ -17,7 +17,7 @@ import type {
   ResumeMessageState,
 } from './types.js'
 import { DEFAULT_STATUSLINE_CONFIG, DEFAULT_PLACEHOLDERS } from './types.js'
-import { StateReader, createStateReader } from './state-reader.js'
+import { StateReader, createStateReader, discoverPreviousResumeMessage } from './state-reader.js'
 import { GitProvider, createGitProvider } from './git-provider.js'
 import {
   Formatter,
@@ -50,6 +50,10 @@ export interface StatuslineServiceConfig {
   isResumedSession?: boolean
   /** Whether to output ANSI colors */
   useColors?: boolean
+  /** Path to sessions directory for artifact discovery (e.g., .sidekick/sessions/) */
+  sessionsDir?: string
+  /** Current session ID for excluding from discovery */
+  currentSessionId?: string
 }
 
 // ============================================================================
@@ -69,6 +73,8 @@ export class StatuslineService {
   private readonly homeDir?: string
   private readonly isResumedSession: boolean
   private readonly useColors: boolean
+  private readonly sessionsDir?: string
+  private readonly currentSessionId?: string
 
   constructor(serviceConfig: StatuslineServiceConfig) {
     this.config = { ...DEFAULT_STATUSLINE_CONFIG, ...serviceConfig.config }
@@ -76,6 +82,8 @@ export class StatuslineService {
     this.homeDir = serviceConfig.homeDir
     this.isResumedSession = serviceConfig.isResumedSession ?? false
     this.useColors = serviceConfig.useColors ?? true
+    this.sessionsDir = serviceConfig.sessionsDir
+    this.currentSessionId = serviceConfig.currentSessionId
 
     this.stateReader = createStateReader(serviceConfig.sessionStateDir)
     this.gitProvider = createGitProvider(serviceConfig.cwd)
@@ -100,11 +108,23 @@ export class StatuslineService {
       this.gitProvider.getCurrentBranch(),
     ])
 
+    // Artifact discovery: if this is a new session (no summary yet), try to find
+    // a resume message from a previous session per docs/design/FEATURE-RESUME.md §3.1
+    let effectiveResumeData = resumeResult.data
+    const isNewSession = !summaryResult.data.session_title || summaryResult.data.session_title === ''
+
+    if (isNewSession && !effectiveResumeData && this.sessionsDir && this.currentSessionId) {
+      const discovery = await discoverPreviousResumeMessage(this.sessionsDir, this.currentSessionId)
+      if (discovery.source === 'discovered' && discovery.data) {
+        effectiveResumeData = discovery.data
+      }
+    }
+
     // Build view model
     const viewModel = this.buildViewModel(
       stateResult.data,
       summaryResult.data,
-      resumeResult.data,
+      effectiveResumeData,
       snarkyResult.data,
       branchResult.branch
     )
@@ -178,17 +198,18 @@ export class StatuslineService {
    * 4. Session summary (normal operation)
    */
   private determineDisplayMode(summary: SessionSummaryState, resume: ResumeMessageState | null): DisplayMode {
-    // Check for resume message on resumed sessions
-    if (this.isResumedSession && resume) {
-      return 'resume_message'
-    }
-
     // Check if we have a meaningful summary
     const hasSummary = summary.session_title && summary.session_title !== ''
 
+    // Show resume message if:
+    // 1. Session was explicitly resumed (--continue) and has resume message
+    // 2. New session with discovered resume message from previous session
+    if (resume && (this.isResumedSession || !hasSummary)) {
+      return 'resume_message'
+    }
+
     if (!hasSummary) {
-      // No summary yet - could be new session or awaiting first turn
-      // Use empty_summary for brand new sessions
+      // No summary yet and no resume - brand new session
       return 'empty_summary'
     }
 

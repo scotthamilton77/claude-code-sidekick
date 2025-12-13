@@ -18,7 +18,7 @@ import {
   getThresholdStatus,
   createFormatter,
 } from '../formatter.js'
-import { createStateReader } from '../state-reader.js'
+import { createStateReader, discoverPreviousResumeMessage } from '../state-reader.js'
 import { createStatuslineService } from '../statusline-service.js'
 import { DEFAULT_STATUSLINE_CONFIG } from '../types.js'
 
@@ -201,6 +201,164 @@ describe('StateReader', () => {
 })
 
 // ============================================================================
+// discoverPreviousResumeMessage Tests
+// ============================================================================
+
+describe('discoverPreviousResumeMessage', () => {
+  let sessionsDir: string
+
+  beforeEach(async () => {
+    sessionsDir = path.join(tmpdir(), `sessions-test-${Date.now()}`)
+    await fs.mkdir(sessionsDir, { recursive: true })
+  })
+
+  it('returns not_found when sessions directory is empty', async () => {
+    const result = await discoverPreviousResumeMessage(sessionsDir, 'current-session')
+
+    expect(result.source).toBe('not_found')
+    expect(result.data).toBeNull()
+    expect(result.sessionId).toBeNull()
+  })
+
+  it('returns not_found when only current session exists', async () => {
+    // Create current session with resume message
+    const currentDir = path.join(sessionsDir, 'current-session', 'state')
+    await fs.mkdir(currentDir, { recursive: true })
+    await fs.writeFile(
+      path.join(currentDir, 'resume-message.json'),
+      JSON.stringify({
+        last_task_id: null,
+        resume_last_goal_message: 'Current session message',
+        snarky_comment: 'Hello!',
+        timestamp: new Date().toISOString(),
+      })
+    )
+
+    const result = await discoverPreviousResumeMessage(sessionsDir, 'current-session')
+
+    expect(result.source).toBe('not_found')
+    expect(result.data).toBeNull()
+  })
+
+  it('discovers resume message from previous session', async () => {
+    // Create previous session with resume message
+    const prevDir = path.join(sessionsDir, 'prev-session', 'state')
+    await fs.mkdir(prevDir, { recursive: true })
+    await fs.writeFile(
+      path.join(prevDir, 'resume-message.json'),
+      JSON.stringify({
+        last_task_id: 'task-123',
+        resume_last_goal_message: 'Working on auth refactor',
+        snarky_comment: 'Back for more punishment?',
+        timestamp: '2024-01-15T10:30:00Z',
+      })
+    )
+
+    const result = await discoverPreviousResumeMessage(sessionsDir, 'current-session')
+
+    expect(result.source).toBe('discovered')
+    expect(result.sessionId).toBe('prev-session')
+    expect(result.data?.resume_last_goal_message).toBe('Working on auth refactor')
+    expect(result.data?.snarky_comment).toBe('Back for more punishment?')
+  })
+
+  it('returns most recent resume message when multiple exist', async () => {
+    // Create older session
+    const olderDir = path.join(sessionsDir, 'older-session', 'state')
+    await fs.mkdir(olderDir, { recursive: true })
+    const olderFile = path.join(olderDir, 'resume-message.json')
+    await fs.writeFile(
+      olderFile,
+      JSON.stringify({
+        last_task_id: null,
+        resume_last_goal_message: 'Older message',
+        snarky_comment: 'Old news',
+        timestamp: '2024-01-10T10:00:00Z',
+      })
+    )
+    // Set mtime to past
+    const oldTime = new Date(Date.now() - 3600_000)
+    await fs.utimes(olderFile, oldTime, oldTime)
+
+    // Create newer session
+    const newerDir = path.join(sessionsDir, 'newer-session', 'state')
+    await fs.mkdir(newerDir, { recursive: true })
+    await fs.writeFile(
+      path.join(newerDir, 'resume-message.json'),
+      JSON.stringify({
+        last_task_id: null,
+        resume_last_goal_message: 'Newer message',
+        snarky_comment: 'Fresh content',
+        timestamp: '2024-01-15T10:00:00Z',
+      })
+    )
+
+    const result = await discoverPreviousResumeMessage(sessionsDir, 'current-session')
+
+    expect(result.source).toBe('discovered')
+    expect(result.sessionId).toBe('newer-session')
+    expect(result.data?.resume_last_goal_message).toBe('Newer message')
+  })
+
+  it('skips sessions with invalid resume-message.json', async () => {
+    // Create session with invalid JSON
+    const invalidDir = path.join(sessionsDir, 'invalid-session', 'state')
+    await fs.mkdir(invalidDir, { recursive: true })
+    await fs.writeFile(path.join(invalidDir, 'resume-message.json'), 'not valid json')
+
+    // Create session with valid JSON
+    const validDir = path.join(sessionsDir, 'valid-session', 'state')
+    await fs.mkdir(validDir, { recursive: true })
+    await fs.writeFile(
+      path.join(validDir, 'resume-message.json'),
+      JSON.stringify({
+        last_task_id: null,
+        resume_last_goal_message: 'Valid message',
+        snarky_comment: 'Works!',
+        timestamp: new Date().toISOString(),
+      })
+    )
+
+    const result = await discoverPreviousResumeMessage(sessionsDir, 'current-session')
+
+    expect(result.source).toBe('discovered')
+    expect(result.sessionId).toBe('valid-session')
+  })
+
+  it('skips sessions without resume-message.json', async () => {
+    // Create session without resume message
+    const noResumeDir = path.join(sessionsDir, 'no-resume-session', 'state')
+    await fs.mkdir(noResumeDir, { recursive: true })
+    await fs.writeFile(path.join(noResumeDir, 'session-state.json'), '{}')
+
+    // Create session with resume message
+    const withResumeDir = path.join(sessionsDir, 'with-resume-session', 'state')
+    await fs.mkdir(withResumeDir, { recursive: true })
+    await fs.writeFile(
+      path.join(withResumeDir, 'resume-message.json'),
+      JSON.stringify({
+        last_task_id: null,
+        resume_last_goal_message: 'Has resume',
+        snarky_comment: 'Found me!',
+        timestamp: new Date().toISOString(),
+      })
+    )
+
+    const result = await discoverPreviousResumeMessage(sessionsDir, 'current-session')
+
+    expect(result.source).toBe('discovered')
+    expect(result.sessionId).toBe('with-resume-session')
+  })
+
+  it('returns not_found when sessions directory does not exist', async () => {
+    const result = await discoverPreviousResumeMessage('/nonexistent/path', 'current')
+
+    expect(result.source).toBe('not_found')
+    expect(result.data).toBeNull()
+  })
+})
+
+// ============================================================================
 // StatuslineService Tests
 // ============================================================================
 
@@ -346,5 +504,107 @@ describe('StatuslineService', () => {
 
     expect(result.staleData).toBe(false)
     expect(result.text).not.toContain('(stale)')
+  })
+
+  describe('artifact discovery for new sessions', () => {
+    let sessionsDir: string
+
+    beforeEach(async () => {
+      sessionsDir = path.join(tmpdir(), `sessions-discovery-${Date.now()}`)
+      await fs.mkdir(sessionsDir, { recursive: true })
+    })
+
+    it('discovers resume message from previous session when current has no summary', async () => {
+      const currentSessionId = 'current-session'
+      const currentStateDir = path.join(sessionsDir, currentSessionId, 'state')
+      await fs.mkdir(currentStateDir, { recursive: true })
+
+      // Create previous session with resume message
+      const prevDir = path.join(sessionsDir, 'prev-session', 'state')
+      await fs.mkdir(prevDir, { recursive: true })
+      await fs.writeFile(
+        path.join(prevDir, 'resume-message.json'),
+        JSON.stringify({
+          last_task_id: null,
+          resume_last_goal_message: 'Working on feature X',
+          snarky_comment: 'Back for more?',
+          timestamp: new Date().toISOString(),
+        })
+      )
+
+      const service = createStatuslineService({
+        sessionStateDir: currentStateDir,
+        cwd: '/test',
+        useColors: false,
+        sessionsDir,
+        currentSessionId,
+      })
+
+      const result = await service.render()
+
+      // Should discover and display the previous session's resume message
+      expect(result.displayMode).toBe('resume_message')
+      expect(result.viewModel.summary).toBe('Working on feature X')
+    })
+
+    it('does not discover when current session has a summary', async () => {
+      const currentSessionId = 'current-session'
+      const currentStateDir = path.join(sessionsDir, currentSessionId, 'state')
+      await fs.mkdir(currentStateDir, { recursive: true })
+
+      // Current session has a summary
+      await fs.writeFile(
+        path.join(currentStateDir, 'session-summary.json'),
+        JSON.stringify({
+          session_id: currentSessionId,
+          timestamp: new Date().toISOString(),
+          session_title: 'Current work',
+          session_title_confidence: 0.9,
+          latest_intent: 'Doing stuff',
+          latest_intent_confidence: 0.85,
+        })
+      )
+
+      // Previous session has resume message
+      const prevDir = path.join(sessionsDir, 'prev-session', 'state')
+      await fs.mkdir(prevDir, { recursive: true })
+      await fs.writeFile(
+        path.join(prevDir, 'resume-message.json'),
+        JSON.stringify({
+          last_task_id: null,
+          resume_last_goal_message: 'Old work',
+          snarky_comment: 'Old stuff',
+          timestamp: new Date().toISOString(),
+        })
+      )
+
+      const service = createStatuslineService({
+        sessionStateDir: currentStateDir,
+        cwd: '/test',
+        useColors: false,
+        sessionsDir,
+        currentSessionId,
+      })
+
+      const result = await service.render()
+
+      // Should use current session's summary, not discover previous
+      expect(result.displayMode).toBe('session_summary')
+      expect(result.viewModel.title).toBe('Current work')
+    })
+
+    it('falls back gracefully when discovery config not provided', async () => {
+      // No sessionsDir or currentSessionId provided
+      const service = createStatuslineService({
+        sessionStateDir: testDir,
+        cwd: '/test',
+        useColors: false,
+      })
+
+      const result = await service.render()
+
+      // Should work normally without discovery
+      expect(result.displayMode).toBe('empty_summary')
+    })
   })
 })
