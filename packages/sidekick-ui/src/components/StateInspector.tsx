@@ -1,9 +1,10 @@
 import React, { useState } from 'react'
-import type { StateSnapshot } from '../types'
+import type { StateSnapshot, UIEvent, DecisionLogFilter } from '../types'
 import type { TranscriptMetrics, SupervisorStatusWithHealth } from '@sidekick/types'
 import Icon from './Icon'
 import MetricsPanel from './MetricsPanel'
 import SystemHealth from './SystemHealth'
+import { DecisionLog } from './views'
 
 interface StateInspectorProps {
   stateData: {
@@ -23,9 +24,19 @@ interface StateInspectorProps {
   supervisorStatusHistory?: SupervisorStatusWithHealth[]
   /** Whether supervisor is online */
   supervisorIsOnline?: boolean
+  /** Events for decision log */
+  events?: UIEvent[]
+  /** Decision log filter state */
+  decisionFilter?: DecisionLogFilter
+  /** Handler for filter changes */
+  onDecisionFilterChange?: (filter: DecisionLogFilter) => void
+  /** Handler for event selection from decision log */
+  onEventSelect?: (eventId: number) => void
+  /** Handler for trace selection */
+  onTraceSelect?: (traceId: string) => void
 }
 
-type TabType = 'state' | 'metrics' | 'health'
+type TabType = 'state' | 'metrics' | 'health' | 'decisions'
 
 const StateInspector: React.FC<StateInspectorProps> = ({
   stateData,
@@ -36,6 +47,11 @@ const StateInspector: React.FC<StateInspectorProps> = ({
   supervisorStatus,
   supervisorStatusHistory = [],
   supervisorIsOnline = false,
+  events = [],
+  decisionFilter,
+  onDecisionFilterChange,
+  onEventSelect,
+  onTraceSelect,
 }) => {
   const [showDiff, setShowDiff] = useState(false)
   const [activeTab, setActiveTab] = useState<TabType>('state')
@@ -83,6 +99,18 @@ const StateInspector: React.FC<StateInspectorProps> = ({
           >
             Health
           </button>
+          {decisionFilter && onDecisionFilterChange && (
+            <button
+              onClick={() => setActiveTab('decisions')}
+              className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                activeTab === 'decisions'
+                  ? 'bg-white shadow-sm text-slate-800 font-medium'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              Decisions
+            </button>
+          )}
         </div>
 
         {/* Raw/Diff toggle (only in state tab) */}
@@ -124,6 +152,17 @@ const StateInspector: React.FC<StateInspectorProps> = ({
             statusHistory={supervisorStatusHistory}
           />
         </div>
+      )}
+
+      {/* Decisions Tab */}
+      {activeTab === 'decisions' && decisionFilter && onDecisionFilterChange && onEventSelect && (
+        <DecisionLog
+          events={events}
+          filter={decisionFilter}
+          onFilterChange={onDecisionFilterChange}
+          onEventSelect={onEventSelect}
+          onTraceSelect={onTraceSelect}
+        />
       )}
 
       {/* State Tab */}

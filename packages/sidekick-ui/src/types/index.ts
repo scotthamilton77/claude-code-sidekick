@@ -150,4 +150,123 @@ export interface UIEvent {
   source?: 'cli' | 'supervisor'
   /** Original SidekickEvent (for drill-down in 1.5.4) */
   rawEvent?: import('@sidekick/types').SidekickEvent
+  /** Trace ID for correlating related events */
+  traceId?: string
+  /** Structured reminder data for reminder events */
+  reminderData?: ReminderData
+  /** Structured summary data for summary events */
+  summaryData?: SummaryData
+  /** Structured decision data for decision events */
+  decisionData?: DecisionData
+}
+
+// ============================================================================
+// Phase 6.5: Enhanced Event Data Types
+// ============================================================================
+
+/**
+ * Structured data extracted from reminder events.
+ * Used by ReminderCard for rich rendering.
+ *
+ * @see packages/types/src/events.ts ReminderStagedEvent, ReminderConsumedEvent
+ */
+export interface ReminderData {
+  /** The reminder action type */
+  action: 'staged' | 'consumed' | 'cleared'
+  /** Name of the reminder (e.g., "AreYouStuckReminder") */
+  reminderName?: string
+  /** Target hook for the reminder */
+  hookName?: string
+  /** Whether the reminder blocks the action */
+  blocking?: boolean
+  /** Priority for consumption ordering (higher = consumed first) */
+  priority?: number
+  /** Whether the reminder persists after consumption */
+  persistent?: boolean
+  /** Number of reminders cleared (for cleared action) */
+  clearedCount?: number
+  /** Whether a reminder was actually returned to Claude */
+  reminderReturned?: boolean
+}
+
+/**
+ * Structured data extracted from summary events.
+ * Used by SummaryUpdatedCard for diff rendering.
+ *
+ * @see packages/types/src/events.ts SummaryUpdatedEvent, SummarySkippedEvent
+ */
+export interface SummaryData {
+  /** Whether summary was updated or skipped */
+  action: 'updated' | 'skipped'
+  /** Reason for the action */
+  reason: 'user_prompt_forced' | 'countdown_reached' | 'compaction_reset' | 'countdown_active'
+  /** Current session title */
+  sessionTitle?: string
+  /** Confidence in session title (0-1) */
+  titleConfidence?: number
+  /** Current latest intent */
+  latestIntent?: string
+  /** Confidence in latest intent (0-1) */
+  intentConfidence?: number
+  /** Previous session title (for diff display) */
+  oldTitle?: string
+  /** Previous intent (for diff display) */
+  oldIntent?: string
+  /** Whether a significant pivot was detected */
+  pivotDetected?: boolean
+  /** Countdown reset value after update */
+  countdownResetTo?: number
+}
+
+/**
+ * Decision event categories for filtering.
+ */
+export type DecisionCategory = 'summary' | 'reminder' | 'context_prune' | 'handler'
+
+/**
+ * Structured data extracted from decision events.
+ * Used by DecisionCard for categorized rendering.
+ */
+export interface DecisionData {
+  /** Category of the decision */
+  category: DecisionCategory
+  /** Handler ID if applicable */
+  handlerId?: string
+  /** Whether the operation succeeded */
+  success?: boolean
+  /** Duration in milliseconds */
+  durationMs?: number
+  /** Error message if failed */
+  error?: string
+}
+
+/**
+ * Filter options for the Decision Log view.
+ */
+export type DecisionLogFilterCategory = 'all' | DecisionCategory
+
+export interface DecisionLogFilter {
+  /** Filter by decision category */
+  category: DecisionLogFilterCategory
+  /** Filter by session ID */
+  sessionId?: string
+  /** Filter by trace ID to show related events */
+  traceId?: string
+}
+
+/**
+ * Group of events linked by traceId for flow visualization.
+ * Represents a causal chain from hook → handlers → side effects.
+ */
+export interface TraceGroup {
+  /** The trace ID linking these events */
+  traceId: string
+  /** All events in this trace group, ordered by time */
+  events: UIEvent[]
+  /** Timestamp of first event */
+  startTime: number
+  /** Timestamp of last event */
+  endTime: number
+  /** Hook that initiated this trace (if known) */
+  hookName?: string
 }
