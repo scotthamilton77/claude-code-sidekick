@@ -6,4 +6,8 @@ export default defineWorkspace([
   'packages/shared-providers',
   'packages/sidekick-supervisor',
   'packages/testing-fixtures',
+  'packages/feature-reminders',
+  'packages/feature-session-summary',
+  'packages/feature-statusline',
+  'packages/sidekick-ui',
 ])
