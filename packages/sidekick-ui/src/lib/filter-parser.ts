@@ -194,11 +194,40 @@ function matchEventToken(event: UIEvent, token: FilterToken): boolean {
       return event.source === token.value
 
     case 'text': {
-      // Free text search against label and content
+      // Free text search against label, content, and structured payload fields
       const searchValue = token.value.toLowerCase()
-      const labelMatch = event.label.toLowerCase().includes(searchValue)
-      const contentMatch = event.content?.toLowerCase().includes(searchValue) ?? false
-      return labelMatch || contentMatch
+
+      // Search in label and content
+      if (event.label.toLowerCase().includes(searchValue)) return true
+      if (event.content?.toLowerCase().includes(searchValue)) return true
+
+      // Search in structured reminder data
+      if (event.reminderData) {
+        const rd = event.reminderData
+        if (rd.reminderName?.toLowerCase().includes(searchValue)) return true
+        if (rd.hookName?.toLowerCase().includes(searchValue)) return true
+        if (rd.action.toLowerCase().includes(searchValue)) return true
+      }
+
+      // Search in structured summary data
+      if (event.summaryData) {
+        const sd = event.summaryData
+        if (sd.sessionTitle?.toLowerCase().includes(searchValue)) return true
+        if (sd.latestIntent?.toLowerCase().includes(searchValue)) return true
+        if (sd.oldTitle?.toLowerCase().includes(searchValue)) return true
+        if (sd.oldIntent?.toLowerCase().includes(searchValue)) return true
+        if (sd.reason.toLowerCase().includes(searchValue)) return true
+      }
+
+      // Search in structured decision data
+      if (event.decisionData) {
+        const dd = event.decisionData
+        if (dd.category.toLowerCase().includes(searchValue)) return true
+        if (dd.handlerId?.toLowerCase().includes(searchValue)) return true
+        if (dd.error?.toLowerCase().includes(searchValue)) return true
+      }
+
+      return false
     }
   }
 }

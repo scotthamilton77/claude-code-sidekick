@@ -428,7 +428,7 @@ function logRecordToContent(record: ParsedLogRecord): string | undefined {
   }
 
   // For internal events, use msg or summarize payload
-  if (record.pino.msg) {
+  if (record.pino?.msg) {
     return record.pino.msg
   }
 
@@ -449,9 +449,21 @@ function logRecordToContent(record: ParsedLogRecord): string | undefined {
 
 /**
  * Format a Unix timestamp to HH:MM:SS.
+ * Returns placeholder if timestamp is invalid.
  */
-export function formatTime(timestamp: number): string {
+export function formatTime(timestamp: number | undefined | null): string {
+  // Guard against missing or invalid timestamps
+  if (timestamp === undefined || timestamp === null || !Number.isFinite(timestamp)) {
+    return '--:--:--'
+  }
+
   const date = new Date(timestamp)
+
+  // Guard against invalid dates
+  if (isNaN(date.getTime())) {
+    return '--:--:--'
+  }
+
   return date.toLocaleTimeString('en-US', {
     hour12: false,
     hour: '2-digit',
@@ -475,9 +487,12 @@ export function formatTime(timestamp: number): string {
 export function sidekickEventToUIEvent(event: SidekickEvent, id: number, source?: LogSource): UIEvent {
   const isHook = isHookEvent(event)
 
+  // Guard against missing timestamp - use current time as fallback
+  const timestamp = event.context?.timestamp ?? Date.now()
+
   const uiEvent: UIEvent = {
     id,
-    time: formatTime(event.context.timestamp),
+    time: formatTime(timestamp),
     type: isHook ? hookEventToUIType(event) : transcriptEventToUIType(event),
     label: isHook ? hookEventToLabel(event) : transcriptEventToLabel(event),
     content: isHook ? hookEventToContent(event) : transcriptEventToContent(event),
@@ -510,10 +525,13 @@ export function logRecordToUIEvent(record: ParsedLogRecord, id: number): UIEvent
   const summaryData = extractSummaryData(record)
   const decisionData = extractDecisionData(record)
 
+  // Guard against missing pino.time - use current time as fallback
+  const timestamp = record.pino?.time ?? Date.now()
+
   // Otherwise, convert the log record directly
   const uiEvent: UIEvent = {
     id,
-    time: formatTime(record.pino.time),
+    time: formatTime(timestamp),
     type: logRecordTypeToUIType(record.type),
     label: logRecordToLabel(record),
     content: logRecordToContent(record),

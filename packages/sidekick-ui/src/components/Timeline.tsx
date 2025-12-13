@@ -70,7 +70,7 @@ const Timeline: React.FC<TimelineProps> = ({
         {/* Slider Progress Fill */}
         <div
           className="absolute left-4 top-4 w-1 bg-indigo-400 rounded-full transition-all"
-          style={{ height: `${(currentEventId / (events.length - 1)) * (100 - 8)}%` }}
+          style={{ height: events.length > 1 ? `${(currentEventId / (events.length - 1)) * (100 - 8)}%` : '0%' }}
         />
 
         {/* Event Markers on Rail */}
@@ -137,11 +137,12 @@ const Timeline: React.FC<TimelineProps> = ({
         <input
           type="range"
           min="0"
-          max={events.length - 1}
+          max={Math.max(0, events.length - 1)}
           value={currentEventId}
           onChange={(e) => onEventSelect(Number(e.target.value))}
           className="timeline-slider absolute left-2 top-4 bottom-4 z-10 opacity-0 cursor-pointer"
           style={{ height: 'calc(100% - 32px)' }}
+          disabled={events.length === 0}
         />
       </div>
 

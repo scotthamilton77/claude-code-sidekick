@@ -174,19 +174,27 @@ export function parseLine(line: string): ParseResult {
 
 /**
  * Parse multiple NDJSON lines into an array of records.
- * Silently skips malformed lines.
+ * Logs warnings for malformed lines and skips them.
  *
  * @param content - NDJSON content (multiple lines)
+ * @param silent - If true, suppress console warnings (default: false)
  * @returns Array of successfully parsed records
  */
-export function parseNdjson(content: string): ParsedLogRecord[] {
+export function parseNdjson(content: string, silent = false): ParsedLogRecord[] {
   const lines = content.split('\n')
   const records: ParsedLogRecord[] = []
 
-  for (const line of lines) {
-    const result = parseLine(line)
+  for (let i = 0; i < lines.length; i++) {
+    const result = parseLine(lines[i])
     if (result.ok) {
       records.push(result.record)
+    } else if (result.line.trim()) {
+      // Only warn for non-empty lines
+      if (!silent) {
+        console.warn(`[NDJSON Parser] Skipping malformed line ${i + 1}: ${result.error}`, {
+          line: result.line.slice(0, 100), // Truncate long lines
+        })
+      }
     }
   }
 
@@ -238,9 +246,10 @@ export class NdjsonStreamParser {
    * Buffers partial lines until complete.
    *
    * @param chunk - Partial or complete NDJSON content
+   * @param silent - If true, suppress console warnings for malformed lines
    * @returns New records parsed from this chunk
    */
-  push(chunk: string): ParsedLogRecord[] {
+  push(chunk: string, silent = false): ParsedLogRecord[] {
     this.buffer += chunk
     const lines = this.buffer.split('\n')
 
@@ -248,11 +257,18 @@ export class NdjsonStreamParser {
     this.buffer = lines.pop() ?? ''
 
     const newRecords: ParsedLogRecord[] = []
-    for (const line of lines) {
-      const result = parseLine(line)
+    for (let i = 0; i < lines.length; i++) {
+      const result = parseLine(lines[i])
       if (result.ok) {
         newRecords.push(result.record)
         this.records.push(result.record)
+      } else if (result.line.trim()) {
+        // Only warn for non-empty lines
+        if (!silent) {
+          console.warn(`[NDJSON Stream Parser] Skipping malformed line: ${result.error}`, {
+            line: result.line.slice(0, 100), // Truncate long lines
+          })
+        }
       }
     }
 
