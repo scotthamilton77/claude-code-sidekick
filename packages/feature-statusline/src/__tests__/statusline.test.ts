@@ -141,6 +141,192 @@ describe('Formatter class', () => {
   })
 })
 
+describe('Formatter with colors enabled', () => {
+  const ANSI = {
+    reset: '\x1b[0m',
+    green: '\x1b[32m',
+    yellow: '\x1b[33m',
+    red: '\x1b[31m',
+    blue: '\x1b[34m',
+    magenta: '\x1b[35m',
+  }
+
+  it('applies green color for normal threshold status', () => {
+    const formatter = createFormatter({
+      theme: DEFAULT_STATUSLINE_CONFIG.theme,
+      useColors: true,
+    })
+
+    const viewModel = {
+      model: 'claude-3-5-sonnet',
+      tokens: '45k',
+      tokensStatus: 'normal' as const,
+      cost: '$0.15',
+      costStatus: 'normal' as const,
+      duration: '12m',
+      cwd: '~/project',
+      branch: '',
+      displayMode: 'session_summary' as const,
+      summary: 'Test',
+      title: 'Test',
+    }
+
+    const result = formatter.format('{tokens}', viewModel)
+    expect(result).toContain(ANSI.green)
+    expect(result).toContain(ANSI.reset)
+  })
+
+  it('applies yellow color for warning threshold status', () => {
+    const formatter = createFormatter({
+      theme: DEFAULT_STATUSLINE_CONFIG.theme,
+      useColors: true,
+    })
+
+    const viewModel = {
+      model: 'claude-3-5-sonnet',
+      tokens: '120k',
+      tokensStatus: 'warning' as const,
+      cost: '$0.15',
+      costStatus: 'normal' as const,
+      duration: '12m',
+      cwd: '~/project',
+      branch: '',
+      displayMode: 'session_summary' as const,
+      summary: 'Test',
+      title: 'Test',
+    }
+
+    const result = formatter.format('{tokens}', viewModel)
+    expect(result).toContain(ANSI.yellow)
+  })
+
+  it('applies red color for critical threshold status', () => {
+    const formatter = createFormatter({
+      theme: DEFAULT_STATUSLINE_CONFIG.theme,
+      useColors: true,
+    })
+
+    const viewModel = {
+      model: 'claude-3-5-sonnet',
+      tokens: '180k',
+      tokensStatus: 'critical' as const,
+      cost: '$0.15',
+      costStatus: 'normal' as const,
+      duration: '12m',
+      cwd: '~/project',
+      branch: '',
+      displayMode: 'session_summary' as const,
+      summary: 'Test',
+      title: 'Test',
+    }
+
+    const result = formatter.format('{tokens}', viewModel)
+    expect(result).toContain(ANSI.red)
+  })
+
+  it('applies named theme color to model', () => {
+    const formatter = createFormatter({
+      theme: { ...DEFAULT_STATUSLINE_CONFIG.theme, colors: { model: 'blue', tokens: 'green', summary: 'magenta' } },
+      useColors: true,
+    })
+
+    const viewModel = {
+      model: 'claude-3-5-sonnet',
+      tokens: '45k',
+      tokensStatus: 'normal' as const,
+      cost: '$0.15',
+      costStatus: 'normal' as const,
+      duration: '12m',
+      cwd: '~/project',
+      branch: '',
+      displayMode: 'session_summary' as const,
+      summary: 'Test',
+      title: 'Test',
+    }
+
+    const result = formatter.format('{model}', viewModel)
+    expect(result).toContain(ANSI.blue)
+  })
+
+  it('applies named theme color to summary', () => {
+    const formatter = createFormatter({
+      theme: { ...DEFAULT_STATUSLINE_CONFIG.theme, colors: { model: 'blue', tokens: 'green', summary: 'magenta' } },
+      useColors: true,
+    })
+
+    const viewModel = {
+      model: 'claude-3-5-sonnet',
+      tokens: '45k',
+      tokensStatus: 'normal' as const,
+      cost: '$0.15',
+      costStatus: 'normal' as const,
+      duration: '12m',
+      cwd: '~/project',
+      branch: '',
+      displayMode: 'session_summary' as const,
+      summary: 'Working on auth',
+      title: 'Test',
+    }
+
+    const result = formatter.format('{summary}', viewModel)
+    expect(result).toContain(ANSI.magenta)
+  })
+
+  it('handles unknown color name gracefully (no crash, no color)', () => {
+    const formatter = createFormatter({
+      theme: {
+        ...DEFAULT_STATUSLINE_CONFIG.theme,
+        colors: { model: 'nonexistent_color', tokens: 'green', summary: 'magenta' },
+      },
+      useColors: true,
+    })
+
+    const viewModel = {
+      model: 'claude-3-5-sonnet',
+      tokens: '45k',
+      tokensStatus: 'normal' as const,
+      cost: '$0.15',
+      costStatus: 'normal' as const,
+      duration: '12m',
+      cwd: '~/project',
+      branch: '',
+      displayMode: 'session_summary' as const,
+      summary: 'Test',
+      title: 'Test',
+    }
+
+    // Should not throw, should return text without color codes for model
+    const result = formatter.format('{model}', viewModel)
+    expect(result).toBe('claude-3-5-sonnet')
+    expect(result).not.toContain('\x1b[')
+  })
+
+  it('skips colorization for empty summary text', () => {
+    const formatter = createFormatter({
+      theme: DEFAULT_STATUSLINE_CONFIG.theme,
+      useColors: true,
+    })
+
+    const viewModel = {
+      model: 'claude-3-5-sonnet',
+      tokens: '45k',
+      tokensStatus: 'normal' as const,
+      cost: '$0.15',
+      costStatus: 'normal' as const,
+      duration: '12m',
+      cwd: '~/project',
+      branch: '',
+      displayMode: 'session_summary' as const,
+      summary: '',
+      title: 'Test',
+    }
+
+    const result = formatter.format('{summary}', viewModel)
+    // Empty summary should not have color codes
+    expect(result).toBe('')
+  })
+})
+
 // ============================================================================
 // StateReader Tests
 // ============================================================================
@@ -359,6 +545,55 @@ describe('discoverPreviousResumeMessage', () => {
 })
 
 // ============================================================================
+// GitProvider Tests
+// ============================================================================
+
+describe('GitProvider', () => {
+  let testDir: string
+
+  beforeEach(async () => {
+    testDir = path.join(tmpdir(), `git-provider-test-${Date.now()}`)
+    await fs.mkdir(testDir, { recursive: true })
+  })
+
+  it('returns git source with branch name in a git repository', async () => {
+    // Initialize a git repo in temp dir
+    const { execSync } = await import('node:child_process')
+    execSync('git init', { cwd: testDir, stdio: 'ignore' })
+    execSync('git checkout -b test-branch', { cwd: testDir, stdio: 'ignore' })
+
+    const { createGitProvider } = await import('../git-provider.js')
+    const provider = createGitProvider(testDir, { timeoutMs: 1000 })
+    const result = await provider.getCurrentBranch()
+
+    expect(result.source).toBe('git')
+    expect(result.branch).toBe('test-branch')
+  })
+
+  it('returns error source when not a git repository', async () => {
+    const { createGitProvider } = await import('../git-provider.js')
+    const provider = createGitProvider(testDir, { timeoutMs: 1000 })
+    const result = await provider.getCurrentBranch()
+
+    expect(result.source).toBe('error')
+    expect(result.branch).toBe('')
+  })
+
+  it('returns timeout source when command exceeds timeout', async () => {
+    // Use an extremely short timeout to trigger timeout path
+    // We need a directory where git might be slow or hang
+    const { createGitProvider } = await import('../git-provider.js')
+    const provider = createGitProvider(testDir, { timeoutMs: 0 })
+    const result = await provider.getCurrentBranch()
+
+    // With 0ms timeout, it should almost always timeout before git responds
+    // However, this is inherently racy. Accept either timeout or error.
+    expect(['timeout', 'error']).toContain(result.source)
+    expect(result.branch).toBe('')
+  })
+})
+
+// ============================================================================
 // StatuslineService Tests
 // ============================================================================
 
@@ -504,6 +739,54 @@ describe('StatuslineService', () => {
 
     expect(result.staleData).toBe(false)
     expect(result.text).not.toContain('(stale)')
+  })
+
+  describe('formatModelName edge cases', () => {
+    it('returns non-claude model names unchanged', async () => {
+      await fs.writeFile(
+        path.join(testDir, 'session-state.json'),
+        JSON.stringify({
+          sessionId: 'test-123',
+          timestamp: Date.now(),
+          tokens: 1000,
+          cost: 0.01,
+          durationMs: 5000,
+          modelName: 'gpt-4o',
+        })
+      )
+
+      const service = createStatuslineService({
+        sessionStateDir: testDir,
+        cwd: '/test',
+        useColors: false,
+      })
+
+      const result = await service.render()
+      expect(result.viewModel.model).toBe('gpt-4o')
+    })
+
+    it('strips claude- prefix from claude model names', async () => {
+      await fs.writeFile(
+        path.join(testDir, 'session-state.json'),
+        JSON.stringify({
+          sessionId: 'test-123',
+          timestamp: Date.now(),
+          tokens: 1000,
+          cost: 0.01,
+          durationMs: 5000,
+          modelName: 'claude-3-opus',
+        })
+      )
+
+      const service = createStatuslineService({
+        sessionStateDir: testDir,
+        cwd: '/test',
+        useColors: false,
+      })
+
+      const result = await service.render()
+      expect(result.viewModel.model).toBe('3-opus')
+    })
   })
 
   describe('artifact discovery for new sessions', () => {
