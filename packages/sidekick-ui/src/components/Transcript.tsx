@@ -1,6 +1,7 @@
 import React from 'react'
 import type { UIEvent } from '../types'
 import Icon from './Icon'
+import { ReminderCard, SummaryUpdatedCard } from './events'
 
 interface TranscriptProps {
   filteredEvents: UIEvent[]
@@ -9,6 +10,7 @@ interface TranscriptProps {
   onSearchChange: (query: string) => void
   filterType: string
   onFilterChange: (type: string) => void
+  onTraceClick?: (traceId: string) => void
 }
 
 /**
@@ -109,6 +111,7 @@ const Transcript: React.FC<TranscriptProps> = ({
   onSearchChange,
   filterType,
   onFilterChange,
+  onTraceClick,
 }) => {
   return (
     <div className="flex-1 flex flex-col min-w-0 bg-slate-50">
@@ -298,69 +301,14 @@ const Transcript: React.FC<TranscriptProps> = ({
                 </div>
               )}
 
-              {/* State Change */}
+              {/* State Change - use SummaryUpdatedCard for rich diff rendering */}
               {event.type === 'state' && (
-                <div className="flex gap-3">
-                  <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                      isFuture ? 'bg-slate-200' : 'bg-purple-100'
-                    }`}
-                  >
-                    <Icon name="cpu" className={`w-4 h-4 ${isFuture ? 'text-slate-400' : 'text-purple-600'}`} />
-                  </div>
-                  <div
-                    className={`flex-1 rounded-lg px-4 py-2 ${
-                      isFuture ? 'bg-slate-100 border border-slate-200' : 'bg-purple-50 border border-purple-200'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
-                      <span className={`text-sm font-medium ${isFuture ? 'text-slate-500' : 'text-purple-700'}`}>
-                        State: {event.label}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <EventBadges event={event} isFuture={isFuture} />
-                        <span className={`text-xs ${isFuture ? 'text-slate-400' : 'text-purple-600'}`}>
-                          {event.time}
-                        </span>
-                      </div>
-                    </div>
-                    <p className={`text-sm font-mono ${isFuture ? 'text-slate-500' : 'text-purple-800'}`}>
-                      {event.content}
-                    </p>
-                  </div>
-                </div>
+                <SummaryUpdatedCard event={event} isFuture={isFuture} onTraceClick={onTraceClick} />
               )}
 
-              {/* Reminder */}
+              {/* Reminder - use ReminderCard for rich rendering */}
               {event.type === 'reminder' && (
-                <div className="flex gap-3">
-                  <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                      isFuture ? 'bg-slate-200' : 'bg-rose-100'
-                    }`}
-                  >
-                    <Icon
-                      name="alert-triangle"
-                      className={`w-4 h-4 ${isFuture ? 'text-slate-400' : 'text-rose-600'}`}
-                    />
-                  </div>
-                  <div
-                    className={`flex-1 rounded-lg px-4 py-2 ${
-                      isFuture ? 'bg-slate-100 border border-slate-200' : 'bg-rose-50 border border-rose-200'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
-                      <span className={`text-sm font-medium ${isFuture ? 'text-slate-500' : 'text-rose-700'}`}>
-                        Reminder: {event.label}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <EventBadges event={event} isFuture={isFuture} />
-                        <span className={`text-xs ${isFuture ? 'text-slate-400' : 'text-rose-600'}`}>{event.time}</span>
-                      </div>
-                    </div>
-                    <p className={`text-sm ${isFuture ? 'text-slate-500' : 'text-rose-800'}`}>{event.content}</p>
-                  </div>
-                </div>
+                <ReminderCard event={event} isFuture={isFuture} onTraceClick={onTraceClick} />
               )}
 
               {/* Session Start */}

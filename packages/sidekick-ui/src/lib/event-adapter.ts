@@ -9,7 +9,7 @@
  */
 
 import type { SidekickEvent, HookEvent, TranscriptEvent } from '@sidekick/types'
-import type { UIEvent, UIEventType } from '../types'
+import type { UIEvent, UIEventType, ReminderData, SummaryData, DecisionData } from '../types'
 import { isHookEvent, isTranscriptEvent } from '../types'
 import type { ParsedLogRecord, LogSource } from './log-parser'
 
@@ -205,6 +205,173 @@ function logRecordToLabel(record: ParsedLogRecord): string {
 }
 
 // ============================================================================
+// Structured Payload Extraction
+// ============================================================================
+
+/**
+ * Extract structured reminder data from ReminderStaged/ReminderConsumed/RemindersCleared events.
+ * Returns undefined for non-reminder events.
+ */
+function extractReminderData(record: ParsedLogRecord): ReminderData | undefined {
+  if (!record.type) return undefined
+
+  switch (record.type) {
+    case 'ReminderStaged': {
+      const state = record.payload?.state as {
+        reminderName?: string
+        hookName?: string
+        blocking?: boolean
+        priority?: number
+        persistent?: boolean
+      }
+      return {
+        action: 'staged',
+        reminderName: state?.reminderName,
+        hookName: state?.hookName,
+        blocking: state?.blocking,
+        priority: state?.priority,
+        persistent: state?.persistent,
+      }
+    }
+
+    case 'ReminderConsumed': {
+      const state = record.payload?.state as {
+        reminderName?: string
+        reminderReturned?: boolean
+        blocking?: boolean
+        priority?: number
+        persistent?: boolean
+      }
+      return {
+        action: 'consumed',
+        reminderName: state?.reminderName,
+        reminderReturned: state?.reminderReturned,
+        blocking: state?.blocking,
+        priority: state?.priority,
+        persistent: state?.persistent,
+      }
+    }
+
+    case 'RemindersCleared': {
+      const state = record.payload?.state as {
+        clearedCount?: number
+        hookNames?: string[]
+      }
+      return {
+        action: 'cleared',
+        clearedCount: state?.clearedCount,
+      }
+    }
+
+    default:
+      return undefined
+  }
+}
+
+/**
+ * Extract structured summary data from SummaryUpdated/SummarySkipped events.
+ * Returns undefined for non-summary events.
+ */
+function extractSummaryData(record: ParsedLogRecord): SummaryData | undefined {
+  if (!record.type) return undefined
+
+  switch (record.type) {
+    case 'SummaryUpdated': {
+      const state = record.payload?.state as {
+        session_title?: string
+        session_title_confidence?: number
+        latest_intent?: string
+        latest_intent_confidence?: number
+      }
+      const metadata = record.payload?.metadata as {
+        countdown_reset_to?: number
+        pivot_detected?: boolean
+        old_title?: string
+        old_intent?: string
+      }
+      const reason = record.payload?.reason as
+        | 'user_prompt_forced'
+        | 'countdown_reached'
+        | 'compaction_reset'
+        | undefined
+
+      return {
+        action: 'updated',
+        reason: reason ?? 'countdown_reached',
+        sessionTitle: state?.session_title,
+        titleConfidence: state?.session_title_confidence,
+        latestIntent: state?.latest_intent,
+        intentConfidence: state?.latest_intent_confidence,
+        oldTitle: metadata?.old_title,
+        oldIntent: metadata?.old_intent,
+        pivotDetected: metadata?.pivot_detected,
+        countdownResetTo: metadata?.countdown_reset_to,
+      }
+    }
+
+    case 'SummarySkipped': {
+      return {
+        action: 'skipped',
+        reason: 'countdown_active',
+      }
+    }
+
+    default:
+      return undefined
+  }
+}
+
+/**
+ * Extract structured decision data from decision-related events.
+ * Categorizes HandlerExecuted, ContextPruned, and summary/reminder events.
+ * Returns undefined for non-decision events.
+ */
+function extractDecisionData(record: ParsedLogRecord): DecisionData | undefined {
+  if (!record.type) return undefined
+
+  switch (record.type) {
+    case 'HandlerExecuted': {
+      const state = record.payload?.state as {
+        handlerId?: string
+        success?: boolean
+      }
+      const metadata = record.payload?.metadata as {
+        durationMs?: number
+        error?: string
+      }
+      return {
+        category: 'handler',
+        handlerId: state?.handlerId,
+        success: state?.success,
+        durationMs: metadata?.durationMs,
+        error: metadata?.error,
+      }
+    }
+
+    case 'ContextPruned':
+      return {
+        category: 'context_prune',
+      }
+
+    case 'SummaryUpdated':
+    case 'SummarySkipped':
+      return {
+        category: 'summary',
+      }
+
+    case 'ReminderStaged':
+    case 'ReminderConsumed':
+    case 'RemindersCleared':
+      return {
+        category: 'reminder',
+      }
+
+    default:
+      return undefined
+  }
+}
+
+// ============================================================================
 // Content Extraction
 // ============================================================================
 
@@ -335,6 +502,14 @@ export function logRecordToUIEvent(record: ParsedLogRecord, id: number): UIEvent
     return sidekickEventToUIEvent(record.event, id, record.source)
   }
 
+  // Extract traceId from context
+  const traceId = record.context?.traceId
+
+  // Extract structured payload data
+  const reminderData = extractReminderData(record)
+  const summaryData = extractSummaryData(record)
+  const decisionData = extractDecisionData(record)
+
   // Otherwise, convert the log record directly
   const uiEvent: UIEvent = {
     id,
@@ -343,6 +518,10 @@ export function logRecordToUIEvent(record: ParsedLogRecord, id: number): UIEvent
     label: logRecordToLabel(record),
     content: logRecordToContent(record),
     source: record.source,
+    traceId,
+    reminderData,
+    summaryData,
+    decisionData,
   }
 
   return uiEvent

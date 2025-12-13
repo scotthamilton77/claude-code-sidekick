@@ -5,7 +5,7 @@ import StateInspector from './components/StateInspector'
 import Timeline from './components/Timeline'
 import Transcript from './components/Transcript'
 import PreCompactViewer from './components/PreCompactViewer'
-import type { Session } from './types'
+import type { Session, DecisionLogFilter } from './types'
 import type { TranscriptMetrics } from '@sidekick/types'
 import { useLogService } from './hooks/useLogService'
 import { useCompactionHistory } from './hooks/useCompactionHistory'
@@ -86,6 +86,7 @@ function App() {
   const [currentEventId, setCurrentEventId] = useState(events.length > 0 ? events.length - 1 : 0)
   const [filterType, setFilterType] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
+  const [decisionFilter, setDecisionFilter] = useState<DecisionLogFilter>({ category: 'all' })
 
   const getEventColor = (type: string) => {
     const colors: Record<string, string> = {
@@ -203,6 +204,10 @@ function App() {
             supervisorStatus={supervisorStatus.status}
             supervisorStatusHistory={supervisorStatus.statusHistory}
             supervisorIsOnline={supervisorStatus.isOnline}
+            events={events}
+            decisionFilter={decisionFilter}
+            onDecisionFilterChange={setDecisionFilter}
+            onEventSelect={setCurrentEventId}
           />
         }
       />

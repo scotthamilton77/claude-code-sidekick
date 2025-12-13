@@ -73,3 +73,12 @@ test-data/simulation-test/
 # Node workspace outputs
 packages/*/dist/
 packages/*/tsconfig.tsbuildinfo
+
+# Build artifacts in source-adjacent locations (sidekick-ui vite server)
+packages/sidekick-ui/server/**/*.js
+packages/sidekick-ui/server/**/*.d.ts
+packages/sidekick-ui/*.tsbuildinfo
+packages/sidekick-ui/vite.config.js
+packages/sidekick-ui/vite.config.d.ts
+packages/sidekick-ui/vitest.config.js
+packages/sidekick-ui/vitest.config.d.ts

@@ -24,6 +24,10 @@ export default tseslint.config(
       'assets/**',
       '**/*.config.ts',
       '**/*.config.js',
+      // Build artifacts generated in source-adjacent locations (sidekick-ui vite server)
+      'packages/sidekick-ui/server/**/*.js',
+      'packages/sidekick-ui/server/**/*.d.ts',
+      'packages/sidekick-ui/*.d.ts',
     ],
   },
 
