@@ -68,18 +68,20 @@ export class StatuslineService {
   private readonly cwd: string
   private readonly homeDir?: string
   private readonly isResumedSession: boolean
+  private readonly useColors: boolean
 
   constructor(serviceConfig: StatuslineServiceConfig) {
     this.config = { ...DEFAULT_STATUSLINE_CONFIG, ...serviceConfig.config }
     this.cwd = serviceConfig.cwd
     this.homeDir = serviceConfig.homeDir
     this.isResumedSession = serviceConfig.isResumedSession ?? false
+    this.useColors = serviceConfig.useColors ?? true
 
     this.stateReader = createStateReader(serviceConfig.sessionStateDir)
     this.gitProvider = createGitProvider(serviceConfig.cwd)
     this.formatter = createFormatter({
       theme: this.config.theme,
-      useColors: serviceConfig.useColors ?? true,
+      useColors: this.useColors,
     })
   }
 
@@ -108,7 +110,7 @@ export class StatuslineService {
     )
 
     // Format output
-    const text = this.formatter.format(this.config.format, viewModel)
+    let text = this.formatter.format(this.config.format, viewModel)
 
     // Determine if any stale data was used
     const staleData =
@@ -116,6 +118,14 @@ export class StatuslineService {
       summaryResult.source === 'stale' ||
       resumeResult.source === 'stale' ||
       snarkyResult.source === 'stale'
+
+    // Append visual stale indicator per docs/design/FEATURE-STATUSLINE.md §8.2
+    if (staleData) {
+      const ANSI_DIM = '\x1b[2m'
+      const ANSI_RESET = '\x1b[0m'
+      const indicator = this.useColors ? `${ANSI_DIM}(stale)${ANSI_RESET}` : '(stale)'
+      text = `${text} ${indicator}`
+    }
 
     return {
       text,

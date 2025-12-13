@@ -95,6 +95,7 @@ export {
   setupGlobalErrorHandlers,
   LogEvents,
   logEvent,
+  type EventLogContext,
   type LogContext,
   type LogManager,
   type LogManagerOptions,

@@ -604,6 +604,8 @@ import type {
   SummaryUpdatedEvent,
   SummarySkippedEvent,
   RemindersClearedEvent,
+  StatuslineRenderedEvent,
+  StatuslineErrorEvent,
   LoggingEventBase,
 } from '@sidekick/types'
 
@@ -898,6 +900,75 @@ export const LogEvents = {
       payload: {
         state,
         reason,
+      },
+    }
+  },
+
+  // --- Statusline Events ---
+
+  /**
+   * Create a StatuslineRendered event (logged when statusline renders successfully).
+   * @see docs/design/FEATURE-STATUSLINE.md §8.5
+   */
+  statuslineRendered(
+    context: EventLogContext,
+    state: {
+      displayMode: 'session_summary' | 'resume_message' | 'first_prompt' | 'empty_summary'
+      staleData: boolean
+    },
+    metadata: {
+      model?: string
+      tokens?: number
+      durationMs: number
+    }
+  ): StatuslineRenderedEvent {
+    return {
+      type: 'StatuslineRendered',
+      time: Date.now(),
+      source: 'cli',
+      context: {
+        sessionId: context.sessionId,
+        scope: context.scope,
+        correlationId: context.correlationId,
+        traceId: context.traceId,
+        hook: context.hook,
+        taskId: context.taskId,
+      },
+      payload: {
+        state,
+        metadata,
+      },
+    }
+  },
+
+  /**
+   * Create a StatuslineError event (logged when statusline render fails with fallback).
+   * @see docs/design/FEATURE-STATUSLINE.md §8.5
+   */
+  statuslineError(
+    context: EventLogContext,
+    reason: 'state_file_missing' | 'parse_error' | 'git_timeout' | 'unknown',
+    metadata: {
+      file?: string
+      fallbackUsed: boolean
+      error?: string
+    }
+  ): StatuslineErrorEvent {
+    return {
+      type: 'StatuslineError',
+      time: Date.now(),
+      source: 'cli',
+      context: {
+        sessionId: context.sessionId,
+        scope: context.scope,
+        correlationId: context.correlationId,
+        traceId: context.traceId,
+        hook: context.hook,
+        taskId: context.taskId,
+      },
+      payload: {
+        reason,
+        metadata,
       },
     }
   },
