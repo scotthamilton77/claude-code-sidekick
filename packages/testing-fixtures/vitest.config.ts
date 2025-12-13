@@ -18,7 +18,15 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
       reportsDirectory: resolve(rootDir, 'coverage'),
-      exclude: ['dist/**', 'coverage/**'],
+      exclude: [
+        'dist/**',
+        'coverage/**',
+        // Config files
+        'vitest.config.ts',
+        // Test infrastructure - this entire package is test support code
+        // Testing test infrastructure has low ROI; core functionality verified in mocks.test.ts
+        'src/**/__tests__/**',
+      ],
     },
   },
 })

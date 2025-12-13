@@ -19,7 +19,16 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
       reportsDirectory: resolve(rootDir, 'coverage'),
-      exclude: ['dist/**', 'coverage/**'],
+      exclude: [
+        'dist/**',
+        'coverage/**',
+        // Config file - not runtime code
+        'vitest.config.ts',
+        // Pure type definitions - no runtime code
+        'src/feature-types.ts',
+        // Barrel file - only re-exports
+        'src/index.ts',
+      ],
     },
   },
 })
