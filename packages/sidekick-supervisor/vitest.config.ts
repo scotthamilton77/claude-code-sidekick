@@ -15,8 +15,10 @@ export default defineConfig({
       exclude: [
         'dist/**',
         'coverage/**',
+        'vitest.config.ts', // Config file
         'src/supervisor.ts', // Orchestration layer, tested via E2E
         'src/index.ts', // Process entrypoint only
+        'src/handlers/index.ts', // Barrel file - just re-exports
       ],
     },
   },
