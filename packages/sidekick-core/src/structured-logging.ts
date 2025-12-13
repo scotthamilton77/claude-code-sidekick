@@ -603,6 +603,9 @@ import type {
   ReminderStagedEvent,
   SummaryUpdatedEvent,
   SummarySkippedEvent,
+  ResumeGeneratingEvent,
+  ResumeUpdatedEvent,
+  ResumeSkippedEvent,
   RemindersClearedEvent,
   StatuslineRenderedEvent,
   StatuslineErrorEvent,
@@ -969,6 +972,101 @@ export const LogEvents = {
       payload: {
         reason,
         metadata,
+      },
+    }
+  },
+
+  // --- Resume Events ---
+
+  /**
+   * Create a ResumeGenerating event (logged when resume generation starts).
+   * @see docs/design/FEATURE-RESUME.md §5.3
+   */
+  resumeGenerating(
+    context: EventLogContext,
+    metadata: {
+      title_confidence: number
+      intent_confidence: number
+    }
+  ): ResumeGeneratingEvent {
+    return {
+      type: 'ResumeGenerating',
+      time: Date.now(),
+      source: 'supervisor',
+      context: {
+        sessionId: context.sessionId,
+        scope: context.scope,
+        correlationId: context.correlationId,
+        traceId: context.traceId,
+        hook: context.hook,
+        taskId: context.taskId,
+      },
+      payload: {
+        metadata,
+        reason: 'pivot_detected',
+      },
+    }
+  },
+
+  /**
+   * Create a ResumeUpdated event (logged when resume artifact is written).
+   * @see docs/design/FEATURE-RESUME.md §5.3
+   */
+  resumeUpdated(
+    context: EventLogContext,
+    state: {
+      resume_last_goal_message: string
+      snarky_comment: string
+      timestamp: string
+    }
+  ): ResumeUpdatedEvent {
+    return {
+      type: 'ResumeUpdated',
+      time: Date.now(),
+      source: 'supervisor',
+      context: {
+        sessionId: context.sessionId,
+        scope: context.scope,
+        correlationId: context.correlationId,
+        traceId: context.traceId,
+        hook: context.hook,
+        taskId: context.taskId,
+      },
+      payload: {
+        state,
+        reason: 'generation_complete',
+      },
+    }
+  },
+
+  /**
+   * Create a ResumeSkipped event (logged when resume generation is skipped).
+   * @see docs/design/FEATURE-RESUME.md §5.3
+   */
+  resumeSkipped(
+    context: EventLogContext,
+    metadata: {
+      title_confidence: number
+      intent_confidence: number
+      min_confidence: number
+    },
+    reason: 'confidence_below_threshold' | 'no_pivot_detected'
+  ): ResumeSkippedEvent {
+    return {
+      type: 'ResumeSkipped',
+      time: Date.now(),
+      source: 'supervisor',
+      context: {
+        sessionId: context.sessionId,
+        scope: context.scope,
+        correlationId: context.correlationId,
+        traceId: context.traceId,
+        hook: context.hook,
+        taskId: context.taskId,
+      },
+      payload: {
+        metadata,
+        reason,
       },
     }
   },

@@ -157,6 +157,19 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
     - [ ] `{project_root_dir}/docs/design/FEATURE-RESUME.md` (artifact discovery, message generation)
     - [ ] `{project_root_dir}/docs/design/TRANSCRIPT-PROCESSING.md` (§3 Metrics System, §5 Event Emission)
     - [ ] `{project_root_dir}/docs/design/TEST-FIXTURES.md` (§4 Test Data Management)
+  - [ ] Testing
+    - [ ] Tests for handler registration and filter matching
+    - [ ] Tests for staging/consumption flow with mock TranscriptService metrics
+    - [ ] End-to-end flows against recorded transcripts in `test-data/`
+  - [ ] Acceptance criteria
+    - [ ] We're utilizing open source to its maximum potential - no unnecessary wheel reinvention!
+    - [ ] We're testing OUR code, not open source behaviors.
+    - [ ] Code complexity is kept low using stated architecture principles and guidelines. (See `docs/ARCHITECTURE.md` Guiding Principles).
+    - [ ] Features register handlers via `ctx.handlers.register()` with appropriate filters (hook vs transcript events)
+    - [ ] Features consume metrics from `ctx.transcript.getMetrics()` - no independent counters
+    - [ ] Staging/consumption separation: Supervisor handles staging, CLI handles consumption
+    - [ ] Dual-scope parity verified: features behave identically in user and project contexts
+    - [ ] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
   - [x] **6.1 Reminders Feature** (`feature-reminders/`) - COMPLETE 2025-12-04
     - [x] Implement `ReminderUtils` module: `resolveReminder()`, `stageReminder()`, `consumeReminder()`, `suppressHook()`
     - [x] Staging handlers (Supervisor, transcript events per docs/design/FEATURE-REMINDERS.md §3.1):
@@ -205,22 +218,12 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
     - [x] StatuslineService: Parallel data fetching, display mode selection, view model building
     - [x] CLI command: `sidekick statusline [--format text|json]`
     - [x] Unit tests (25 tests covering formatter, state reader, service)
-  - [ ] **6.4 Resume Feature** (`feature-resume/`)
-    - [ ] Generate resume message on significant title change
-    - [ ] Artifact discovery from session state
-  - [ ] Testing
-    - [ ] Tests for handler registration and filter matching
-    - [ ] Tests for staging/consumption flow with mock TranscriptService metrics
-    - [ ] End-to-end flows against recorded transcripts in `test-data/`
-  - [ ] Acceptance criteria
-    - [ ] We're utilizing open source to its maximum potential - no unnecessary wheel reinvention!
-    - [ ] We're testing OUR code, not open source behaviors.
-    - [ ] Code complexity is kept low using stated architecture principles and guidelines. (See `docs/ARCHITECTURE.md` Guiding Principles).
-    - [ ] Features register handlers via `ctx.handlers.register()` with appropriate filters (hook vs transcript events)
-    - [ ] Features consume metrics from `ctx.transcript.getMetrics()` - no independent counters
-    - [ ] Staging/consumption separation: Supervisor handles staging, CLI handles consumption
-    - [ ] Dual-scope parity verified: features behave identically in user and project contexts
-    - [ ] All new and modified files are documented in the project's documentation with header comments describing purpose and any breaking changes.
+  - [x] **6.4 Resume Feature** (`feature-resume/`) - COMPLETE 2025-12-13
+    - [x] Generate resume message on significant title change (implemented as side-effect in `UpdateSessionSummary`)
+    - [x] Artifact discovery from session state (`discoverPreviousResumeMessage()` in StateReader)
+    - [x] Resume logging events: `ResumeGenerating`, `ResumeUpdated`, `ResumeSkipped` in @sidekick/types
+    - [x] LogEvents factory functions for resume events in sidekick-core
+    - [x] StatuslineService integration: discovers previous session's resume-message.json for new sessions
   - [ ] **6.5 UI Integration**
     - [ ] Reminder event visualization (per packages/sidekick-ui/docs/MONITORING-UI.md §4.1):
       - [ ] `ReminderStaged` cards with name, priority, blocking status
