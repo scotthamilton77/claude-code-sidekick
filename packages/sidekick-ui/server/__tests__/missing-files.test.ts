@@ -5,15 +5,14 @@
  * and malformed content without exposing internal errors.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdirSync, rmSync, writeFileSync, existsSync } from 'fs'
-import { join } from 'path'
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
-import { handleSessionSummary } from '../handlers/session-summary'
-import { handleSessionState } from '../handlers/session-state'
+import { join } from 'path'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { handleCompactionHistory } from '../handlers/compaction'
 import { handleMetrics } from '../handlers/metrics'
 import { handlePreCompact } from '../handlers/pre-compact'
+import { handleSessionSummary } from '../handlers/session-summary'
 import { handleStagedReminders } from '../handlers/staged-reminders'
 import type { ApiRequest } from '../types'
 
@@ -88,17 +87,6 @@ describe('Missing file handling', () => {
       expect(response.status).toBe(500)
       const data = await response.json()
       expect(data).toHaveProperty('error')
-    })
-  })
-
-  describe('handleSessionState', () => {
-    it('returns empty object when state file missing', async () => {
-      const request = createRequest('valid-session')
-      const response = await handleSessionState(request)
-
-      expect(response.status).toBe(200)
-      const data = await response.json()
-      expect(data).toEqual({})
     })
   })
 

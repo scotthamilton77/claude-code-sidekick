@@ -7,10 +7,10 @@
  * @see docs/design/CLI.md §6 Scope Resolution
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdirSync, rmSync, writeFileSync, existsSync, readFileSync } from 'fs'
-import { join } from 'path'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
+import { join } from 'path'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { findLogsPath, findSessionsPath, findStatePath } from '../utils'
 
 describe('Dual-scope resolution', () => {
@@ -201,13 +201,13 @@ describe('Dual-scope resolution', () => {
       const sessionStateDir = join(userSessions, sessionId, 'state')
 
       mkdirSync(sessionStateDir, { recursive: true })
-      writeFileSync(join(sessionStateDir, 'session-state.json'), '{"status": "active"}')
+      writeFileSync(join(sessionStateDir, 'transcript-metrics.json'), '{"status": "active"}')
 
       const sessionsPath = findSessionsPath(true, projectDir, join(testRoot, 'home'))
       expect(sessionsPath).toBe(userSessions)
 
       // Verify we can read the session state
-      const statePath = join(sessionsPath!, sessionId, 'state', 'session-state.json')
+      const statePath = join(sessionsPath!, sessionId, 'state', 'transcript-metrics.json')
       expect(existsSync(statePath)).toBe(true)
 
       const content = JSON.parse(readFileSync(statePath, 'utf-8'))

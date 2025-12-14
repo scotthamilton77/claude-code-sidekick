@@ -12,7 +12,6 @@
  * - GET /api/sessions/:sessionId/metrics - Returns current transcript metrics
  * - GET /api/sessions/:sessionId/pre-compact/:timestamp - Returns pre-compact snapshot
  * - GET /api/sessions/:sessionId/state/session-summary - Returns session summary state
- * - GET /api/sessions/:sessionId/state/session-state - Returns session state
  * - GET /api/sessions/:sessionId/stage/:hookName - Returns staged reminders for hook
  * - GET /api/supervisor/status - Returns supervisor status with offline detection
  *
@@ -31,23 +30,22 @@
  * @see packages/sidekick-ui/docs/MONITORING-UI.md §3.2.E System Health
  */
 
-import type { Plugin, ViteDevServer } from 'vite'
 import type { IncomingMessage, ServerResponse } from 'http'
 import { Router, type IRequest, type RouterType } from 'itty-router'
-import type { ApiContext, ApiRequest } from './types'
-import { findLogsPath, findSessionsPath, findStatePath, errorResponse } from './utils'
+import type { Plugin, ViteDevServer } from 'vite'
 import {
-  handleConfig,
-  handleSessions,
-  handleLogs,
   handleCompactionHistory,
+  handleConfig,
+  handleLogs,
   handleMetrics,
   handlePreCompact,
-  handleSupervisorStatus,
+  handleSessions,
   handleSessionSummary,
-  handleSessionState,
   handleStagedReminders,
+  handleSupervisorStatus,
 } from './handlers'
+import type { ApiContext, ApiRequest } from './types'
+import { errorResponse, findLogsPath, findSessionsPath, findStatePath } from './utils'
 
 export interface ApiConfig {
   /** Base path for sidekick logs. Defaults to .sidekick/logs or ~/.sidekick/logs */
@@ -75,7 +73,6 @@ export function createRouter(): RouterType<ApiRequest> {
   router.get('/sessions/:sessionId/metrics', handleMetrics)
   router.get('/sessions/:sessionId/pre-compact/:timestamp', handlePreCompact)
   router.get('/sessions/:sessionId/state/session-summary', handleSessionSummary)
-  router.get('/sessions/:sessionId/state/session-state', handleSessionState)
   router.get('/sessions/:sessionId/stage/:hookName', handleStagedReminders)
 
   // Supervisor endpoints

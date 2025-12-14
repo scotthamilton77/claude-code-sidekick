@@ -4,19 +4,19 @@
  * @see docs/design/FEATURE-STATUSLINE.md
  */
 
-import { describe, it, expect, beforeEach } from 'vitest'
 import * as fs from 'node:fs/promises'
-import * as path from 'node:path'
 import { tmpdir } from 'node:os'
+import * as path from 'node:path'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import {
-  formatTokens,
+  createFormatter,
+  formatBranch,
   formatCost,
   formatDuration,
-  shortenPath,
-  formatBranch,
+  formatTokens,
   getThresholdStatus,
-  createFormatter,
+  shortenPath,
 } from '../formatter.js'
 import { createStateReader, discoverPreviousResumeMessage } from '../state-reader.js'
 import { createStatuslineService } from '../statusline-service.js'
@@ -344,30 +344,39 @@ describe('StateReader', () => {
     const result = await reader.getSessionState()
 
     expect(result.source).toBe('default')
-    expect(result.data.tokens).toBe(0)
+    expect(result.data.tokens.total).toBe(0)
   })
 
   it('reads valid session state', async () => {
     const state = {
       sessionId: 'test-123',
-      timestamp: Date.now(),
-      tokens: 45000,
-      cost: 0.15,
-      durationMs: 720000,
-      modelName: 'claude-3-5-sonnet',
+      metrics: {
+        tokenUsage: {
+          inputTokens: 30000,
+          outputTokens: 15000,
+          totalTokens: 45000,
+          cacheCreationInputTokens: 0,
+          cacheReadInputTokens: 0,
+        },
+        costUsd: 0.15,
+        durationSeconds: 720,
+        primaryModel: 'claude-3-5-sonnet',
+        lastUpdatedAt: Date.now(),
+      },
+      persistedAt: Date.now(),
     }
-    await fs.writeFile(path.join(testDir, 'session-state.json'), JSON.stringify(state))
+    await fs.writeFile(path.join(testDir, 'transcript-metrics.json'), JSON.stringify(state))
 
     const reader = createStateReader(testDir)
     const result = await reader.getSessionState()
 
     expect(result.source).toBe('fresh')
-    expect(result.data.tokens).toBe(45000)
-    expect(result.data.modelName).toBe('claude-3-5-sonnet')
+    expect(result.data.tokens.total).toBe(45000)
+    expect(result.data.primaryModel).toBe('claude-3-5-sonnet')
   })
 
   it('returns default for invalid JSON', async () => {
-    await fs.writeFile(path.join(testDir, 'session-state.json'), 'not json')
+    await fs.writeFile(path.join(testDir, 'transcript-metrics.json'), 'not json')
 
     const reader = createStateReader(testDir)
     const result = await reader.getSessionState()
@@ -622,14 +631,23 @@ describe('StatuslineService', () => {
   it('renders session summary when available', async () => {
     // Write session state
     await fs.writeFile(
-      path.join(testDir, 'session-state.json'),
+      path.join(testDir, 'transcript-metrics.json'),
       JSON.stringify({
         sessionId: 'test-123',
-        timestamp: Date.now(),
-        tokens: 45000,
-        cost: 0.15,
-        durationMs: 720000,
-        modelName: 'claude-3-5-sonnet',
+        metrics: {
+          tokenUsage: {
+            inputTokens: 30000,
+            outputTokens: 15000,
+            totalTokens: 45000,
+            cacheCreationInputTokens: 0,
+            cacheReadInputTokens: 0,
+          },
+          costUsd: 0.15,
+          durationSeconds: 720,
+          primaryModel: 'claude-3-5-sonnet',
+          lastUpdatedAt: Date.now(),
+        },
+        persistedAt: Date.now(),
       })
     )
 
@@ -688,16 +706,25 @@ describe('StatuslineService', () => {
 
   it('appends (stale) indicator when data is stale', async () => {
     // Write state file with old timestamp (simulate stale data)
-    const stateFile = path.join(testDir, 'session-state.json')
+    const stateFile = path.join(testDir, 'transcript-metrics.json')
     await fs.writeFile(
       stateFile,
       JSON.stringify({
         sessionId: 'test-123',
-        timestamp: Date.now(),
-        tokens: 1000,
-        cost: 0.01,
-        durationMs: 5000,
-        modelName: 'claude-3-5-sonnet',
+        metrics: {
+          tokenUsage: {
+            inputTokens: 1000,
+            outputTokens: 0,
+            totalTokens: 1000,
+            cacheCreationInputTokens: 0,
+            cacheReadInputTokens: 0,
+          },
+          costUsd: 0.01,
+          durationSeconds: 5,
+          primaryModel: 'claude-3-5-sonnet',
+          lastUpdatedAt: Date.now(),
+        },
+        persistedAt: Date.now(),
       })
     )
     // Set mtime to 2 minutes ago to trigger staleness
@@ -718,14 +745,23 @@ describe('StatuslineService', () => {
 
   it('does not append (stale) when data is fresh', async () => {
     await fs.writeFile(
-      path.join(testDir, 'session-state.json'),
+      path.join(testDir, 'transcript-metrics.json'),
       JSON.stringify({
         sessionId: 'test-123',
-        timestamp: Date.now(),
-        tokens: 1000,
-        cost: 0.01,
-        durationMs: 5000,
-        modelName: 'claude-3-5-sonnet',
+        metrics: {
+          tokenUsage: {
+            inputTokens: 1000,
+            outputTokens: 0,
+            totalTokens: 1000,
+            cacheCreationInputTokens: 0,
+            cacheReadInputTokens: 0,
+          },
+          costUsd: 0.01,
+          durationSeconds: 5,
+          primaryModel: 'claude-3-5-sonnet',
+          lastUpdatedAt: Date.now(),
+        },
+        persistedAt: Date.now(),
       })
     )
 
@@ -744,14 +780,23 @@ describe('StatuslineService', () => {
   describe('formatModelName edge cases', () => {
     it('returns non-claude model names unchanged', async () => {
       await fs.writeFile(
-        path.join(testDir, 'session-state.json'),
+        path.join(testDir, 'transcript-metrics.json'),
         JSON.stringify({
           sessionId: 'test-123',
-          timestamp: Date.now(),
-          tokens: 1000,
-          cost: 0.01,
-          durationMs: 5000,
-          modelName: 'gpt-4o',
+          metrics: {
+            tokenUsage: {
+              inputTokens: 1000,
+              outputTokens: 0,
+              totalTokens: 1000,
+              cacheCreationInputTokens: 0,
+              cacheReadInputTokens: 0,
+            },
+            costUsd: 0.01,
+            durationSeconds: 5,
+            primaryModel: 'gpt-4o',
+            lastUpdatedAt: Date.now(),
+          },
+          persistedAt: Date.now(),
         })
       )
 
@@ -767,14 +812,23 @@ describe('StatuslineService', () => {
 
     it('strips claude- prefix from claude model names', async () => {
       await fs.writeFile(
-        path.join(testDir, 'session-state.json'),
+        path.join(testDir, 'transcript-metrics.json'),
         JSON.stringify({
           sessionId: 'test-123',
-          timestamp: Date.now(),
-          tokens: 1000,
-          cost: 0.01,
-          durationMs: 5000,
-          modelName: 'claude-3-opus',
+          metrics: {
+            tokenUsage: {
+              inputTokens: 1000,
+              outputTokens: 0,
+              totalTokens: 1000,
+              cacheCreationInputTokens: 0,
+              cacheReadInputTokens: 0,
+            },
+            costUsd: 0.01,
+            durationSeconds: 5,
+            primaryModel: 'claude-3-opus',
+            lastUpdatedAt: Date.now(),
+          },
+          persistedAt: Date.now(),
         })
       )
 

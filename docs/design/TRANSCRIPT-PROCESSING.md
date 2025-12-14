@@ -41,12 +41,14 @@ type RawTranscriptEvent = Record<string, unknown>
 **Claude Code Transcript Structure (observed):**
 
 Real Claude Code transcripts use these top-level entry types:
+
 - `user` - User messages (may contain nested `tool_result` blocks in `message.content[]`)
 - `assistant` - Assistant responses (may contain nested `tool_use` blocks in `message.content[]`)
 - `summary` - Conversation summaries
 - `file-history-snapshot` - File state snapshots
 
 Tool interactions are **nested**, not top-level:
+
 - `tool_use` → `assistant.message.content[{type: 'tool_use', name, id, input}]`
 - `tool_result` → `user.message.content[{type: 'tool_result', tool_use_id, content}]`
 
@@ -310,6 +312,7 @@ Token counts are accumulated incrementally as new entries arrive. Each assistant
 ### 3.5 Metrics Persistence
 
 **File Location**: `.sidekick/sessions/{session_id}/state/transcript-metrics.json`
+Defined in `packages/types/src/services/state.ts` via `SessionMetricsStateSchema`.
 
 ```typescript
 interface PersistedTranscriptState {
@@ -441,7 +444,7 @@ transcript file changed
 
 ### 6.2 Schema Contracts
 
-The `packages/schema-contracts` package will host:
+The `packages/types` package will host:
 
 1.  `CanonicalTranscriptSchema`: The strict Zod schema for our internal `TranscriptEvent`.
 2.  `TranscriptMetricsSchema`: Schema for metrics persistence.

@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-The `packages/schema-contracts` package serves as the **single source of truth** for all data structures, API interfaces, and configuration formats used across the Sidekick ecosystem. It ensures type safety for the TypeScript runtime (`sidekick-core`, `sidekick-cli`) and provides language-agnostic JSON Schemas for external tools (Python scripts).
+The `packages/types` package serves as the **single source of truth** for all data structures, API interfaces, and configuration formats used across the Sidekick ecosystem. It ensures type safety for the TypeScript runtime (`sidekick-core`, `sidekick-cli`) and provides language-agnostic JSON Schemas for external tools (Python scripts).
 
 ### 1.1 Goals
 
@@ -21,14 +21,14 @@ The `packages/schema-contracts` package serves as the **single source of truth**
 ### 2.1 Directory Structure
 
 ```
-packages/schema-contracts/
+packages/types/
 ├── src/
-│   ├── config/          # Configuration file schemas (sidekick.yaml)
-│   ├── events/          # Event schemas (HookEvent, TranscriptEvent)
-│   ├── session/         # Session transcript and state schemas
-│   ├── features/        # Feature-specific schemas (reminders, statusline)
-│   ├── ipc/             # Supervisor IPC message protocols
-│   ├── prompts/         # Prompt template frontmatter schemas
+│   ├── services/        # Service-specific schemas
+│   │   ├── config.ts    # Configuration file schemas
+│   │   ├── state.ts     # Session state schemas
+│   │   └── ...
+│   ├── events.ts        # Event schemas (HookEvent, TranscriptEvent)
+│   ├── llm.ts           # LLM provider interfaces
 │   └── index.ts         # Main export
 ├── scripts/
 │   └── generate-schemas.ts # Build script to emit JSON Schemas
