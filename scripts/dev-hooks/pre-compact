@@ -13,6 +13,7 @@ fi
 
 exec node "${CLI_BIN}" pre-compact \
   --hook \
+  --scope=project \
   --hook-script-path="${CLAUDE_PROJECT_DIR}/scripts/dev-hooks/pre-compact" \
   --project-dir="${CLAUDE_PROJECT_DIR}" \
   "$@"
