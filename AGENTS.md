@@ -61,6 +61,7 @@ benchmark-next/         # ⚠️ STALE—see benchmark-next/AGENTS.md
 | Dev-mode enable | `scripts/dev-mode.sh enable` |
 | Dev-mode disable | `scripts/dev-mode.sh disable` |
 | Dev-mode status | `scripts/dev-mode.sh status` |
+| Dev-mode clean | `scripts/dev-mode.sh clean` (truncate logs, kill supervisor, check zombies) |
 
 ⚠️ Run **both** `pnpm build` AND `pnpm typecheck` before completion—build excludes test files.
 

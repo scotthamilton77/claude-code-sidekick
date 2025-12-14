@@ -326,6 +326,148 @@ do_status() {
   done
 }
 
+# Clean up logs, kill supervisor, check for zombies
+do_clean() {
+  log_step "Cleaning up sidekick state..."
+
+  local sidekick_dir="${PROJECT_ROOT}/.sidekick"
+  local logs_dir="${sidekick_dir}/logs"
+  local pid_file="${sidekick_dir}/supervisor.pid"
+  local socket_file="${sidekick_dir}/supervisor.sock"
+  local token_file="${sidekick_dir}/supervisor.token"
+  local user_supervisors_dir="${HOME}/.sidekick/supervisors"
+
+  # 1. Kill project-local supervisor if running
+  if [[ -f "${pid_file}" ]]; then
+    local pid
+    pid=$(cat "${pid_file}" 2>/dev/null || echo "")
+    if [[ -n "${pid}" ]] && kill -0 "${pid}" 2>/dev/null; then
+      log_info "Killing project supervisor (PID ${pid})..."
+      kill "${pid}" 2>/dev/null || true
+      sleep 0.5
+      # Force kill if still alive
+      if kill -0 "${pid}" 2>/dev/null; then
+        log_warn "Supervisor didn't stop gracefully, sending SIGKILL..."
+        kill -9 "${pid}" 2>/dev/null || true
+      fi
+      log_info "Supervisor killed"
+    else
+      log_info "No running supervisor found for this project"
+    fi
+    rm -f "${pid_file}"
+  else
+    log_info "No supervisor PID file found"
+  fi
+
+  # Clean up supervisor files
+  rm -f "${socket_file}" "${token_file}" 2>/dev/null || true
+
+  # 2. Truncate or delete log files
+  if [[ -d "${logs_dir}" ]]; then
+    log_info "Cleaning log files in ${logs_dir}..."
+    for log_file in "${logs_dir}"/*.log; do
+      if [[ -f "${log_file}" ]]; then
+        local filename
+        filename=$(basename "${log_file}")
+        : > "${log_file}"  # Truncate
+        log_info "  Truncated: ${filename}"
+      fi
+    done
+  else
+    log_info "No logs directory found"
+  fi
+
+  # 3. Check for zombie supervisor processes
+  echo ""
+  log_step "Checking for zombie supervisor processes..."
+
+  local zombies=()
+  local zombie_info=()
+
+  # Method 1: Check user-level PID files
+  if [[ -d "${user_supervisors_dir}" ]]; then
+    for pid_file in "${user_supervisors_dir}"/*.pid; do
+      [[ -f "${pid_file}" ]] || continue
+
+      # Parse JSON pid file
+      local pid project_dir
+      pid=$(jq -r '.pid // empty' "${pid_file}" 2>/dev/null || echo "")
+      project_dir=$(jq -r '.projectDir // empty' "${pid_file}" 2>/dev/null || echo "")
+
+      if [[ -n "${pid}" ]] && [[ "${project_dir}" != "${PROJECT_ROOT}" ]]; then
+        if kill -0 "${pid}" 2>/dev/null; then
+          zombies+=("${pid}")
+          zombie_info+=("PID ${pid}: ${project_dir}")
+        else
+          # Stale PID file, clean it up
+          rm -f "${pid_file}" 2>/dev/null || true
+        fi
+      fi
+    done
+  fi
+
+  # Method 2: Find any sidekick-supervisor processes via pgrep
+  local pgrep_pids
+  pgrep_pids=$(pgrep -f "sidekick-supervisor" 2>/dev/null || true)
+  if [[ -n "${pgrep_pids}" ]]; then
+    while IFS= read -r pid; do
+      # Skip if already in our list
+      local already_found=false
+      for z in "${zombies[@]:-}"; do
+        if [[ "${z}" == "${pid}" ]]; then
+          already_found=true
+          break
+        fi
+      done
+
+      if [[ "${already_found}" == "false" ]]; then
+        # Get command line to identify the project
+        local cmdline
+        cmdline=$(ps -p "${pid}" -o args= 2>/dev/null || echo "unknown")
+        zombies+=("${pid}")
+        zombie_info+=("PID ${pid}: ${cmdline}")
+      fi
+    done <<< "${pgrep_pids}"
+  fi
+
+  if [[ ${#zombies[@]} -eq 0 ]]; then
+    log_info "No zombie supervisor processes found"
+  else
+    echo ""
+    echo -e "${YELLOW}Found ${#zombies[@]} potential zombie supervisor process(es):${NC}"
+    for info in "${zombie_info[@]}"; do
+      echo "  - ${info}"
+    done
+    echo ""
+
+    read -r -p "Kill these processes? [y/N] " response
+    case "${response}" in
+      [yY][eE][sS]|[yY])
+        for pid in "${zombies[@]}"; do
+          log_info "Killing PID ${pid}..."
+          kill "${pid}" 2>/dev/null || true
+          sleep 0.3
+          if kill -0 "${pid}" 2>/dev/null; then
+            kill -9 "${pid}" 2>/dev/null || true
+          fi
+        done
+        log_info "Zombie processes killed"
+
+        # Clean up user-level PID files
+        if [[ -d "${user_supervisors_dir}" ]]; then
+          rm -f "${user_supervisors_dir}"/*.pid 2>/dev/null || true
+        fi
+        ;;
+      *)
+        log_info "Skipping zombie cleanup"
+        ;;
+    esac
+  fi
+
+  echo ""
+  log_info "Clean complete. Restart Claude Code with: claude --continue"
+}
+
 # Show help
 show_help() {
   cat <<EOF
@@ -338,6 +480,7 @@ Commands:
   enable    Add dev-hooks to .claude/settings.local.json
   disable   Remove dev-hooks from .claude/settings.local.json
   status    Show current dev-mode state
+  clean     Truncate logs, kill supervisor, check for zombies
 
 The dev-mode hooks use \$CLAUDE_PROJECT_DIR paths for Docker compatibility.
 They point to scripts/dev-hooks/ which call the workspace CLI at:
@@ -365,6 +508,9 @@ main() {
       ;;
     status)
       do_status
+      ;;
+    clean)
+      do_clean
       ;;
     -h|--help|help)
       show_help
