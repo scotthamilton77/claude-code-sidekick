@@ -155,6 +155,116 @@ export const FirstPromptSummaryStateSchema = z.object({
 export type FirstPromptSummaryState = z.infer<typeof FirstPromptSummaryStateSchema>
 
 // ============================================================================
+// First-Prompt Summary Configuration
+// ============================================================================
+
+/**
+ * LLM provider model configuration.
+ *
+ * @see docs/design/FEATURE-FIRST-PROMPT-SUMMARY.md §5.2
+ */
+export const FirstPromptModelConfigSchema = z.object({
+  /** LLM provider */
+  provider: z.enum(['claude-cli', 'openrouter', 'openai']),
+  /** Model identifier */
+  model: z.string(),
+})
+
+export type FirstPromptModelConfig = z.infer<typeof FirstPromptModelConfigSchema>
+
+/**
+ * First-prompt summary feature configuration.
+ * Configures LLM generation, fallback behavior, and slash command handling.
+ *
+ * @see docs/design/FEATURE-FIRST-PROMPT-SUMMARY.md §5.2
+ */
+export const FirstPromptConfigSchema = z.object({
+  /** Enable/disable the feature */
+  enabled: z.boolean().default(true),
+
+  /** Model configuration with fallback chain */
+  model: z
+    .object({
+      primary: FirstPromptModelConfigSchema.default({
+        provider: 'claude-cli',
+        model: 'haiku',
+      }),
+      fallback: FirstPromptModelConfigSchema.nullable().default({
+        provider: 'openrouter',
+        model: 'google/gemini-2.0-flash-lite-001',
+      }),
+    })
+    .default({
+      primary: { provider: 'claude-cli', model: 'haiku' },
+      fallback: { provider: 'openrouter', model: 'google/gemini-2.0-flash-lite-001' },
+    }),
+
+  /** Message shown when LLM call fails */
+  staticFallbackMessage: z.string().default('Deciphering intent...'),
+
+  /** Commands that skip LLM generation entirely */
+  skipCommands: z
+    .array(z.string())
+    .default([
+      'add-dir',
+      'agents',
+      'bashes',
+      'bug',
+      'clear',
+      'compact',
+      'config',
+      'context',
+      'cost',
+      'doctor',
+      'exit',
+      'export',
+      'help',
+      'hooks',
+      'ide',
+      'install-github-app',
+      'login',
+      'logout',
+      'mcp',
+      'memory',
+      'output-style',
+      'permissions',
+      'plugin',
+      'pr-comments',
+      'privacy-settings',
+      'release-notes',
+      'resume',
+      'rewind',
+      'sandbox',
+      'security-review',
+      'stats',
+      'status',
+      'statusline',
+      'terminal-setup',
+      'todos',
+      'usage',
+      'vim',
+    ]),
+
+  /** Message shown for skipped commands (null = no file written) */
+  staticSkipMessage: z.string().nullable().default(null),
+
+  /** Confidence threshold for preferring first-prompt over low-confidence summary */
+  confidenceThreshold: z.number().default(0.6),
+
+  /** LLM call timeout in milliseconds */
+  llmTimeoutMs: z.number().default(10000),
+})
+
+export type FirstPromptConfig = z.infer<typeof FirstPromptConfigSchema>
+
+/**
+ * Default configuration for first-prompt summary generation.
+ *
+ * @see docs/design/FEATURE-FIRST-PROMPT-SUMMARY.md §5.3
+ */
+export const DEFAULT_FIRST_PROMPT_CONFIG: FirstPromptConfig = FirstPromptConfigSchema.parse({})
+
+// ============================================================================
 // Session Metrics State
 // ============================================================================
 

@@ -6,7 +6,12 @@
  * @see docs/design/FEATURE-FIRST-PROMPT-SUMMARY.md
  */
 
-import { FirstPromptSummaryPayloadSchema, FirstPromptSummaryStateSchema } from '@sidekick/core'
+import {
+  DEFAULT_FIRST_PROMPT_CONFIG,
+  FirstPromptConfigSchema,
+  FirstPromptSummaryPayloadSchema,
+  FirstPromptSummaryStateSchema,
+} from '@sidekick/core'
 import { describe, expect, it } from 'vitest'
 import { buildPrompt, classifyPrompt, PromptClassification } from '../first-prompt-summary.handler.js'
 
@@ -442,5 +447,230 @@ describe('FirstPromptSummaryStateSchema', () => {
       const result = FirstPromptSummaryStateSchema.safeParse(state)
       expect(result.success).toBe(false)
     })
+  })
+})
+
+describe('FirstPromptConfigSchema', () => {
+  describe('default values', () => {
+    it('should provide defaults when parsing empty object', () => {
+      const result = FirstPromptConfigSchema.safeParse({})
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.enabled).toBe(true)
+        expect(result.data.staticFallbackMessage).toBe('Deciphering intent...')
+        expect(result.data.staticSkipMessage).toBeNull()
+        expect(result.data.confidenceThreshold).toBe(0.6)
+        expect(result.data.llmTimeoutMs).toBe(10000)
+      }
+    })
+
+    it('should provide default model configuration', () => {
+      const result = FirstPromptConfigSchema.safeParse({})
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.model.primary.provider).toBe('claude-cli')
+        expect(result.data.model.primary.model).toBe('haiku')
+        expect(result.data.model.fallback).not.toBeNull()
+        expect(result.data.model.fallback?.provider).toBe('openrouter')
+        expect(result.data.model.fallback?.model).toBe('google/gemini-2.0-flash-lite-001')
+      }
+    })
+
+    it('should provide default skipCommands list', () => {
+      const result = FirstPromptConfigSchema.safeParse({})
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.skipCommands).toContain('help')
+        expect(result.data.skipCommands).toContain('clear')
+        expect(result.data.skipCommands).toContain('config')
+        expect(result.data.skipCommands).toContain('vim')
+        expect(result.data.skipCommands.length).toBeGreaterThan(30)
+      }
+    })
+  })
+
+  describe('valid configurations', () => {
+    it('should accept partial overrides', () => {
+      const config = {
+        enabled: false,
+        staticFallbackMessage: 'Custom fallback...',
+      }
+
+      const result = FirstPromptConfigSchema.safeParse(config)
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.enabled).toBe(false)
+        expect(result.data.staticFallbackMessage).toBe('Custom fallback...')
+        // Defaults should still apply for other fields
+        expect(result.data.confidenceThreshold).toBe(0.6)
+      }
+    })
+
+    it('should accept custom model configuration', () => {
+      const config = {
+        model: {
+          primary: {
+            provider: 'openai',
+            model: 'gpt-4o-mini',
+          },
+          fallback: null,
+        },
+      }
+
+      const result = FirstPromptConfigSchema.safeParse(config)
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.model.primary.provider).toBe('openai')
+        expect(result.data.model.primary.model).toBe('gpt-4o-mini')
+        expect(result.data.model.fallback).toBeNull()
+      }
+    })
+
+    it('should accept custom skipCommands', () => {
+      const config = {
+        skipCommands: ['help', 'exit', 'custom-meta-command'],
+      }
+
+      const result = FirstPromptConfigSchema.safeParse(config)
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.skipCommands).toEqual(['help', 'exit', 'custom-meta-command'])
+      }
+    })
+
+    it('should accept staticSkipMessage string', () => {
+      const config = {
+        staticSkipMessage: 'Configuring settings...',
+      }
+
+      const result = FirstPromptConfigSchema.safeParse(config)
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.staticSkipMessage).toBe('Configuring settings...')
+      }
+    })
+  })
+
+  describe('invalid configurations', () => {
+    it('should reject invalid provider', () => {
+      const config = {
+        model: {
+          primary: {
+            provider: 'invalid-provider',
+            model: 'test',
+          },
+        },
+      }
+
+      const result = FirstPromptConfigSchema.safeParse(config)
+      expect(result.success).toBe(false)
+    })
+
+    it('should reject non-boolean enabled', () => {
+      const config = {
+        enabled: 'true',
+      }
+
+      const result = FirstPromptConfigSchema.safeParse(config)
+      expect(result.success).toBe(false)
+    })
+
+    it('should reject non-array skipCommands', () => {
+      const config = {
+        skipCommands: 'help,exit,clear',
+      }
+
+      const result = FirstPromptConfigSchema.safeParse(config)
+      expect(result.success).toBe(false)
+    })
+  })
+})
+
+describe('DEFAULT_FIRST_PROMPT_CONFIG', () => {
+  it('should match documented defaults from design doc §5.3', () => {
+    expect(DEFAULT_FIRST_PROMPT_CONFIG.enabled).toBe(true)
+    expect(DEFAULT_FIRST_PROMPT_CONFIG.model.primary.provider).toBe('claude-cli')
+    expect(DEFAULT_FIRST_PROMPT_CONFIG.model.primary.model).toBe('haiku')
+    expect(DEFAULT_FIRST_PROMPT_CONFIG.model.fallback?.provider).toBe('openrouter')
+    expect(DEFAULT_FIRST_PROMPT_CONFIG.model.fallback?.model).toBe('google/gemini-2.0-flash-lite-001')
+    expect(DEFAULT_FIRST_PROMPT_CONFIG.staticFallbackMessage).toBe('Deciphering intent...')
+    expect(DEFAULT_FIRST_PROMPT_CONFIG.staticSkipMessage).toBeNull()
+    expect(DEFAULT_FIRST_PROMPT_CONFIG.confidenceThreshold).toBe(0.6)
+  })
+
+  it('should contain all documented skip commands', () => {
+    const documentedSkipCommands = [
+      'add-dir',
+      'agents',
+      'bashes',
+      'bug',
+      'clear',
+      'compact',
+      'config',
+      'context',
+      'cost',
+      'doctor',
+      'exit',
+      'export',
+      'help',
+      'hooks',
+      'ide',
+      'install-github-app',
+      'login',
+      'logout',
+      'mcp',
+      'memory',
+      'output-style',
+      'permissions',
+      'plugin',
+      'pr-comments',
+      'privacy-settings',
+      'release-notes',
+      'resume',
+      'rewind',
+      'sandbox',
+      'security-review',
+      'stats',
+      'status',
+      'statusline',
+      'terminal-setup',
+      'todos',
+      'usage',
+      'vim',
+    ]
+
+    for (const cmd of documentedSkipCommands) {
+      expect(DEFAULT_FIRST_PROMPT_CONFIG.skipCommands).toContain(cmd)
+    }
+  })
+})
+
+describe('classifyPrompt with custom skipCommands', () => {
+  it('should use provided skipCommands set', () => {
+    const customSkipCommands = new Set(['custom-skip', 'another-skip'])
+
+    // Custom command in set should be skipped
+    expect(classifyPrompt('/custom-skip', customSkipCommands)).toBe('skip')
+    expect(classifyPrompt('/another-skip', customSkipCommands)).toBe('skip')
+
+    // Default skip command NOT in custom set should go to LLM
+    expect(classifyPrompt('/help', customSkipCommands)).toBe('llm')
+    expect(classifyPrompt('/config', customSkipCommands)).toBe('llm')
+  })
+
+  it('should fall back to defaults when skipCommands not provided', () => {
+    // Default behavior when no skipCommands provided
+    expect(classifyPrompt('/help')).toBe('skip')
+    expect(classifyPrompt('/config')).toBe('skip')
+    expect(classifyPrompt('/init')).toBe('llm')
+  })
+
+  it('should handle empty skipCommands set', () => {
+    const emptySkipCommands = new Set<string>()
+
+    // With empty set, all slash commands should go to LLM
+    expect(classifyPrompt('/help', emptySkipCommands)).toBe('llm')
+    expect(classifyPrompt('/config', emptySkipCommands)).toBe('llm')
+    expect(classifyPrompt('/clear', emptySkipCommands)).toBe('llm')
   })
 })
