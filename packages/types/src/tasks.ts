@@ -23,6 +23,8 @@ export const TaskTypes = {
   CLEANUP: 'cleanup',
   /** Persist metrics to state files. Periodic flush of TranscriptService metrics. */
   METRICS_PERSIST: 'metrics_persist',
+  /** Generate first-prompt summary on UserPromptSubmit. Writes to sessions/{id}/state/first-prompt-summary.json */
+  FIRST_PROMPT_SUMMARY: 'first_prompt_summary',
 } as const
 
 export type TaskType = (typeof TaskTypes)[keyof typeof TaskTypes]
@@ -74,9 +76,30 @@ export interface MetricsPersistPayload extends TaskPayloadBase {
 }
 
 /**
+ * Payload for first_prompt_summary task.
+ * Triggered on UserPromptSubmit when no session summary exists.
+ *
+ * @see docs/design/FEATURE-FIRST-PROMPT-SUMMARY.md §2
+ */
+export interface FirstPromptSummaryPayload extends TaskPayloadBase {
+  sessionId: string
+  /** User's first prompt text */
+  userPrompt: string
+  /** Path to state directory for this session */
+  stateDir: string
+  /** Resume message content (if resuming from previous session) */
+  resumeContext?: string
+}
+
+/**
  * Union type for all task payloads.
  */
-export type TaskPayload = SessionSummaryPayload | ResumeGenerationPayload | CleanupPayload | MetricsPersistPayload
+export type TaskPayload =
+  | SessionSummaryPayload
+  | ResumeGenerationPayload
+  | CleanupPayload
+  | MetricsPersistPayload
+  | FirstPromptSummaryPayload
 
 /**
  * Zod schemas for runtime payload validation.
@@ -101,6 +124,13 @@ export const CleanupPayloadSchema = z.object({
 export const MetricsPersistPayloadSchema = z.object({
   sessionId: z.string(),
   metricsPath: z.string(),
+})
+
+export const FirstPromptSummaryPayloadSchema = z.object({
+  sessionId: z.string(),
+  userPrompt: z.string(),
+  stateDir: z.string(),
+  resumeContext: z.string().optional(),
 })
 
 /**

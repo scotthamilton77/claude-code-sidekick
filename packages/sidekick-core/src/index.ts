@@ -43,8 +43,12 @@ export type {
   ResumeGenerationPayload,
   CleanupPayload,
   MetricsPersistPayload,
+  FirstPromptSummaryPayload,
   TrackedTask,
   TaskRegistryState,
+  // State types
+  FirstPromptClassification,
+  FirstPromptSummaryState,
 } from '@sidekick/types'
 
 // Re-export task type constants and schemas
@@ -54,6 +58,10 @@ export {
   ResumeGenerationPayloadSchema,
   CleanupPayloadSchema,
   MetricsPersistPayloadSchema,
+  FirstPromptSummaryPayloadSchema,
+  // State schemas
+  FirstPromptClassificationSchema,
+  FirstPromptSummaryStateSchema,
 } from '@sidekick/types'
 
 // Re-export type guards from @sidekick/types

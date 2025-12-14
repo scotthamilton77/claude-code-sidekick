@@ -352,4 +352,171 @@ describe('Standard Task Handlers', () => {
       await new Promise((r) => setTimeout(r, 100))
     })
   })
+
+  describe('first_prompt_summary handler', () => {
+    it('should create first-prompt summary file for actionable prompts', async () => {
+      const sessionId = 'test-session-fps-1'
+      const stateDir = path.join(projectDir, '.sidekick', 'sessions', sessionId, 'state')
+      const completed = vi.fn()
+
+      taskEngine.enqueue(TaskTypes.FIRST_PROMPT_SUMMARY, {
+        sessionId,
+        userPrompt: 'Help me fix this bug in the login form',
+        stateDir,
+      })
+
+      await vi.waitFor(
+        async () => {
+          const summaryPath = path.join(stateDir, 'first-prompt-summary.json')
+          try {
+            await fs.access(summaryPath)
+            completed()
+          } catch {
+            // File not yet created
+          }
+          expect(completed).toHaveBeenCalled()
+        },
+        { timeout: 5000 }
+      )
+
+      const summaryPath = path.join(stateDir, 'first-prompt-summary.json')
+      const content = await fs.readFile(summaryPath, 'utf-8')
+      const summary = JSON.parse(content) as {
+        session_id: string
+        message: string
+        source: string
+        user_prompt: string
+        had_resume_context: boolean
+      }
+
+      expect(summary.session_id).toBe(sessionId)
+      expect(summary.message).toBeDefined()
+      expect(summary.source).toBe('llm') // placeholder returns 'llm' source
+      expect(summary.user_prompt).toBe('Help me fix this bug in the login form')
+      expect(summary.had_resume_context).toBe(false)
+    })
+
+    it('should skip generation for meta commands like /help', async () => {
+      const sessionId = 'test-session-fps-2'
+      const stateDir = path.join(projectDir, '.sidekick', 'sessions', sessionId, 'state')
+
+      taskEngine.enqueue(TaskTypes.FIRST_PROMPT_SUMMARY, {
+        sessionId,
+        userPrompt: '/help',
+        stateDir,
+      })
+
+      // Wait for task to process
+      await new Promise((r) => setTimeout(r, 200))
+
+      // File should NOT be created for skip commands
+      const summaryPath = path.join(stateDir, 'first-prompt-summary.json')
+      const exists = await fs
+        .access(summaryPath)
+        .then(() => true)
+        .catch(() => false)
+      expect(exists).toBe(false)
+    })
+
+    it('should include resume context when provided', async () => {
+      const sessionId = 'test-session-fps-3'
+      const stateDir = path.join(projectDir, '.sidekick', 'sessions', sessionId, 'state')
+      const completed = vi.fn()
+
+      taskEngine.enqueue(TaskTypes.FIRST_PROMPT_SUMMARY, {
+        sessionId,
+        userPrompt: 'Continue the refactoring',
+        stateDir,
+        resumeContext: 'Refactoring the authentication module',
+      })
+
+      await vi.waitFor(
+        async () => {
+          const summaryPath = path.join(stateDir, 'first-prompt-summary.json')
+          try {
+            await fs.access(summaryPath)
+            completed()
+          } catch {
+            // File not yet created
+          }
+          expect(completed).toHaveBeenCalled()
+        },
+        { timeout: 5000 }
+      )
+
+      const summaryPath = path.join(stateDir, 'first-prompt-summary.json')
+      const content = await fs.readFile(summaryPath, 'utf-8')
+      const summary = JSON.parse(content) as { had_resume_context: boolean }
+
+      expect(summary.had_resume_context).toBe(true)
+    })
+
+    it('should be idempotent - skip if file already exists', async () => {
+      const sessionId = 'test-session-fps-4'
+      const stateDir = path.join(projectDir, '.sidekick', 'sessions', sessionId, 'state')
+      const summaryPath = path.join(stateDir, 'first-prompt-summary.json')
+
+      // Pre-create the file
+      await fs.mkdir(stateDir, { recursive: true })
+      const existingContent = {
+        session_id: sessionId,
+        timestamp: '2024-01-01T00:00:00.000Z',
+        message: 'Pre-existing message',
+        source: 'static',
+        user_prompt: 'original prompt',
+        had_resume_context: false,
+      }
+      await fs.writeFile(summaryPath, JSON.stringify(existingContent, null, 2))
+
+      // Enqueue task
+      taskEngine.enqueue(TaskTypes.FIRST_PROMPT_SUMMARY, {
+        sessionId,
+        userPrompt: 'New prompt that should be ignored',
+        stateDir,
+      })
+
+      // Wait for task to process
+      await new Promise((r) => setTimeout(r, 200))
+
+      // Verify file was NOT overwritten
+      const content = await fs.readFile(summaryPath, 'utf-8')
+      const summary = JSON.parse(content) as { message: string; user_prompt: string }
+
+      expect(summary.message).toBe('Pre-existing message')
+      expect(summary.user_prompt).toBe('original prompt')
+    })
+
+    it('should process /init command via LLM (not skipped)', async () => {
+      const sessionId = 'test-session-fps-5'
+      const stateDir = path.join(projectDir, '.sidekick', 'sessions', sessionId, 'state')
+      const completed = vi.fn()
+
+      taskEngine.enqueue(TaskTypes.FIRST_PROMPT_SUMMARY, {
+        sessionId,
+        userPrompt: '/init new-typescript-project',
+        stateDir,
+      })
+
+      await vi.waitFor(
+        async () => {
+          const summaryPath = path.join(stateDir, 'first-prompt-summary.json')
+          try {
+            await fs.access(summaryPath)
+            completed()
+          } catch {
+            // File not yet created
+          }
+          expect(completed).toHaveBeenCalled()
+        },
+        { timeout: 5000 }
+      )
+
+      // File should be created for /init (goes to LLM)
+      const summaryPath = path.join(stateDir, 'first-prompt-summary.json')
+      const content = await fs.readFile(summaryPath, 'utf-8')
+      const summary = JSON.parse(content) as { source: string }
+
+      expect(summary.source).toBe('llm')
+    })
+  })
 })
