@@ -31,6 +31,8 @@ src/sidekick/           # Source (edit here)
 
 scripts/
 ├── install.sh          # Deploy --user, --project, or --both
+├── dev-mode.sh         # Toggle dev-mode hooks (see below)
+├── dev-hooks/          # Thin wrappers → workspace CLI
 ├── analyze-session-at-line.sh  # Surgical session debug
 ├── simulate-session.py         # Session simulation
 └── tests/              # run-unit-tests.sh (mocked, free)
@@ -56,8 +58,25 @@ benchmark-next/         # ⚠️ STALE—see benchmark-next/AGENTS.md
 | Lint | `pnpm lint` (zero warnings) |
 | Coverage | `pnpm test:coverage` |
 | Clean artifacts | `find packages/*/src \( -name "*.js" -o -name "*.d.ts" \) -delete` |
+| Dev-mode enable | `scripts/dev-mode.sh enable` |
+| Dev-mode disable | `scripts/dev-mode.sh disable` |
+| Dev-mode status | `scripts/dev-mode.sh status` |
 
 ⚠️ Run **both** `pnpm build` AND `pnpm typecheck` before completion—build excludes test files.
+
+## Dev-Mode Testing
+
+Dev-mode allows testing the TypeScript CLI (`packages/sidekick-cli/dist/bin.js`) without a full install. It registers hooks in `.claude/settings.local.json` pointing to `scripts/dev-hooks/`, which delegate to the workspace CLI.
+
+**Enable**: `scripts/dev-mode.sh enable` → registers all 7 hooks + statusline
+**Disable**: `scripts/dev-mode.sh disable` → removes dev hooks
+**Check status**: `scripts/dev-mode.sh status` → shows enabled/disabled + CLI build state
+
+**How to tell if enabled**:
+- Run `scripts/dev-mode.sh status` (shows `Dev-mode: ENABLED/DISABLED`)
+- Check `.claude/settings.local.json` for hooks containing `dev-hooks` in path
+
+**Prerequisites**: `pnpm build` (CLI must be built). After enable/disable, restart Claude Code.
 
 ## Reference Docs
 
