@@ -73,7 +73,13 @@ const SummaryUpdatedCard: React.FC<SummaryUpdatedCardProps> = ({ event, isFuture
     },
   }
 
-  const reasonStyle = reasonStyles[reason]
+  const defaultStyle = {
+    bg: isFuture ? 'bg-slate-100' : 'bg-slate-50',
+    text: isFuture ? 'text-slate-400' : 'text-slate-600',
+    border: isFuture ? 'border-slate-200' : 'border-slate-300',
+    label: reason ?? 'Unknown',
+  }
+  const reasonStyle = reasonStyles[reason] ?? defaultStyle
 
   // Format confidence as percentage
   const formatConfidence = (confidence?: number): string => {
