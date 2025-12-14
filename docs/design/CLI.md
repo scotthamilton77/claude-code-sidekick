@@ -43,22 +43,32 @@ The `sidekick-cli` is a **thin, pluggable framework**. It does not contain busin
 
 #### 3.1.1 Hook Input Structure
 
-Claude Code invokes hooks with a JSON structure passed via stdin. The structure varies by hook type but always includes core context fields:
+Claude Code invokes hooks with a JSON structure passed via stdin. The structure varies by hook type but always includes core context fields.
+
+**Reference**: See [Claude Code Hooks Documentation](https://code.claude.com/docs/en/hooks) for the authoritative specification.
 
 **Common Fields** (all hooks):
 - `session_id` (string): Unique identifier for the current Claude session
 - `transcript_path` (string): Absolute path to the session transcript file
-- `cwd` (string): Current working directory when hook was triggered
+- `cwd` (string, optional): Current working directory (not present in Stop, SessionStart)
+- `permission_mode` (string): Current permission level ("default", "plan", "acceptEdits", "bypassPermissions")
 - `hook_event_name` (string): Name of the triggered hook (e.g., "UserPromptSubmit", "SessionStart")
 
-**Hook-Specific Fields** (examples):
-- `UserPromptSubmit`: `user_prompt` (string) - the user's message
-- `StatusLine`: (no additional fields)
-- `SessionSummary`: Previous summary context (if available)
+**Hook-Specific Fields**:
 
-**Field Mapping**: Raw Claude Code field names are mapped to internal event payload fields. For example, `user_prompt` in raw input becomes `prompt` in `UserPromptSubmitHookEvent.payload` (see **docs/design/flow.md §3.2**).
+| Hook | Additional Fields |
+|------|-------------------|
+| `UserPromptSubmit` | `prompt` (string) - the user's message |
+| `PreToolUse` | `tool_name`, `tool_input` (object), `tool_use_id` |
+| `PostToolUse` | `tool_name`, `tool_input`, `tool_response` (object), `tool_use_id` |
+| `Stop` / `SubagentStop` | `stop_hook_active` (boolean) - true if continuing from previous stop |
+| `SessionStart` | `source` ("startup", "resume", "clear", "compact") |
+| `SessionEnd` | `reason` ("exit", "clear", "logout", "prompt_input_exit", "other") |
+| `PreCompact` | `trigger` ("manual", "auto"), `custom_instructions` (string) |
+| `Notification` | `message` (string), `notification_type` (string) |
+| `StatusLine` | (no additional fields) |
 
-**Reference**: See [Claude Code Hooks Documentation](https://docs.anthropic.com/en/docs/claude-code/hooks#hook-input) for complete specification.
+**Type Definitions**: See `@sidekick/types` package (`packages/types/src/hook-input.ts`) for Zod schemas.
 
 **Session ID Extraction**: The CLI extracts `session_id` directly from the hook input JSON. This is the authoritative session identifier used for:
 - Correlating logs and events

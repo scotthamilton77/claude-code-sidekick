@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Dev-mode hook wrapper for PreToolUse
 # Uses $CLAUDE_PROJECT_DIR for Docker volume mount compatibility
+#
+# Hook input JSON is piped via stdin to the CLI, which extracts session_id
+# per CLI.md §3.1.1 Hook Input Structure.
 set -euo pipefail
 
 CLI_BIN="${CLAUDE_PROJECT_DIR}/packages/sidekick-cli/dist/bin.js"
@@ -11,9 +14,9 @@ if [[ ! -f "${CLI_BIN}" ]]; then
   exit 1
 fi
 
+# exec inherits stdin from parent - CLI reads hook input JSON directly
 exec node "${CLI_BIN}" pre-tool-use \
   --hook \
   --scope=project \
   --hook-script-path="${CLAUDE_PROJECT_DIR}/scripts/dev-hooks/pre-tool-use" \
-  --project-dir="${CLAUDE_PROJECT_DIR}" \
-  "$@"
+  --project-dir="${CLAUDE_PROJECT_DIR}"
