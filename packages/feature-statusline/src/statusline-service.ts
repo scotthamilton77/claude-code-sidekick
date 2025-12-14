@@ -7,28 +7,28 @@
  * @see docs/design/FEATURE-STATUSLINE.md §5.1 StatuslineService
  */
 
-import type {
-  StatuslineConfig,
-  StatuslineViewModel,
-  StatuslineRenderResult,
-  DisplayMode,
-  SessionState,
-  SessionSummaryState,
-  ResumeMessageState,
-} from './types.js'
-import { DEFAULT_STATUSLINE_CONFIG, DEFAULT_PLACEHOLDERS } from './types.js'
-import { StateReader, createStateReader, discoverPreviousResumeMessage } from './state-reader.js'
-import { GitProvider, createGitProvider } from './git-provider.js'
 import {
   Formatter,
   createFormatter,
-  formatTokens,
+  formatBranch,
   formatCost,
   formatDuration,
-  shortenPath,
-  formatBranch,
+  formatTokens,
   getThresholdStatus,
+  shortenPath,
 } from './formatter.js'
+import { GitProvider, createGitProvider } from './git-provider.js'
+import { StateReader, createStateReader, discoverPreviousResumeMessage } from './state-reader.js'
+import type {
+  DisplayMode,
+  ResumeMessageState,
+  SessionMetricsState,
+  SessionSummaryState,
+  StatuslineConfig,
+  StatuslineRenderResult,
+  StatuslineViewModel,
+} from './types.js'
+import { DEFAULT_PLACEHOLDERS, DEFAULT_STATUSLINE_CONFIG } from './types.js'
 
 // ============================================================================
 // Service Configuration
@@ -160,7 +160,7 @@ export class StatuslineService {
    * Implements display mode selection per docs/design/FEATURE-STATUSLINE.md §6.2.
    */
   private buildViewModel(
-    state: SessionState,
+    state: SessionMetricsState,
     summary: SessionSummaryState,
     resume: ResumeMessageState | null,
     snarkyMessage: string,
@@ -173,12 +173,12 @@ export class StatuslineService {
     const { summaryText, title } = this.getSummaryContent(displayMode, summary, resume, snarkyMessage)
 
     return {
-      model: this.formatModelName(state.modelName),
-      tokens: formatTokens(state.tokens),
-      tokensStatus: getThresholdStatus(state.tokens, this.config.thresholds.tokens),
-      cost: formatCost(state.cost),
-      costStatus: getThresholdStatus(state.cost, this.config.thresholds.cost),
-      duration: formatDuration(state.durationMs),
+      model: this.formatModelName(state.primaryModel || 'unknown'),
+      tokens: formatTokens(state.tokens.total),
+      tokensStatus: getThresholdStatus(state.tokens.total, this.config.thresholds.tokens),
+      cost: formatCost(state.costUsd),
+      costStatus: getThresholdStatus(state.costUsd, this.config.thresholds.cost),
+      duration: formatDuration(state.durationSeconds * 1000),
       cwd: shortenPath(this.cwd, this.homeDir),
       branch: formatBranch(branch, this.config.theme.useNerdFonts),
       displayMode,

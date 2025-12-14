@@ -16,15 +16,16 @@
 
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
-import type { ZodTypeAny } from 'zod'
+import type { ZodType } from 'zod'
 
-import type { StateReadResult, SessionState, SessionSummaryState, ResumeMessageState } from './types.js'
+import type { ResumeMessageState, SessionMetricsState, SessionSummaryState, StateReadResult } from './types.js'
 import {
-  SessionStateSchema,
-  SessionSummaryStateSchema,
-  ResumeMessageStateSchema,
+  EMPTY_PERSISTED_STATE,
   EMPTY_SESSION_STATE,
   EMPTY_SESSION_SUMMARY,
+  PersistedTranscriptStateSchema,
+  ResumeMessageStateSchema,
+  SessionSummaryStateSchema,
 } from './types.js'
 
 /** Maximum age (ms) before data is considered stale */
@@ -54,10 +55,37 @@ export class StateReader {
   }
 
   /**
-   * Read and parse session state from session-state.json.
+   * Read and parse session state from transcript-metrics.json.
+   * Maps the persisted transcript metrics to the UI-friendly SessionMetricsState.
    */
-  async getSessionState(): Promise<StateReadResult<SessionState>> {
-    return this.readAndParse('session-state.json', SessionStateSchema, EMPTY_SESSION_STATE)
+  async getSessionState(): Promise<StateReadResult<SessionMetricsState>> {
+    const result = await this.readAndParse(
+      'transcript-metrics.json',
+      PersistedTranscriptStateSchema,
+      EMPTY_PERSISTED_STATE
+    )
+
+    if (result.source === 'default') {
+      return { source: 'default', data: EMPTY_SESSION_STATE }
+    }
+
+    const metrics = result.data.metrics
+    const state: SessionMetricsState = {
+      sessionId: result.data.sessionId,
+      lastUpdatedAt: metrics.lastUpdatedAt,
+      durationSeconds: metrics.durationSeconds,
+      costUsd: metrics.costUsd,
+      primaryModel: metrics.primaryModel,
+      tokens: {
+        input: metrics.tokenUsage.inputTokens,
+        output: metrics.tokenUsage.outputTokens,
+        total: metrics.tokenUsage.totalTokens,
+        cacheCreation: metrics.tokenUsage.cacheCreationInputTokens,
+        cacheRead: metrics.tokenUsage.cacheReadInputTokens,
+      },
+    }
+
+    return { source: result.source, data: state }
   }
 
   /**
@@ -119,7 +147,7 @@ export class StateReader {
   /**
    * Generic read-and-parse helper with Zod validation.
    */
-  private async readAndParse<T>(filename: string, schema: ZodTypeAny, defaultValue: T): Promise<StateReadResult<T>> {
+  private async readAndParse<T>(filename: string, schema: ZodType<T>, defaultValue: T): Promise<StateReadResult<T>> {
     const filePath = path.join(this.stateDir, filename)
 
     try {
@@ -133,7 +161,7 @@ export class StateReader {
 
       const isStale = Date.now() - stat.mtimeMs > this.staleThresholdMs
       return {
-        data: parsed.data as T,
+        data: parsed.data,
         source: isStale ? 'stale' : 'fresh',
         mtime: stat.mtimeMs,
       }

@@ -2,13 +2,12 @@
  * Re-export all API handlers.
  */
 
-export { handleConfig } from './config'
-export { handleSessions } from './sessions'
-export { handleLogs } from './logs'
 export { handleCompactionHistory } from './compaction'
+export { handleConfig } from './config'
+export { handleLogs } from './logs'
 export { handleMetrics } from './metrics'
 export { handlePreCompact } from './pre-compact'
-export { handleSupervisorStatus } from './supervisor-status'
 export { handleSessionSummary } from './session-summary'
-export { handleSessionState } from './session-state'
+export { handleSessions } from './sessions'
 export { handleStagedReminders } from './staged-reminders'
+export { handleSupervisorStatus } from './supervisor-status'

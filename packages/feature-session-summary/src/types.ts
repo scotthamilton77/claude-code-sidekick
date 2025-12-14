@@ -4,36 +4,9 @@
  * @see docs/design/FEATURE-RESUME.md
  */
 
-/**
- * Session summary state persisted to disk
- * Location: .sidekick/sessions/{session_id}/state/session-summary.json
- */
-export interface SessionSummaryState {
-  session_id: string
-  timestamp: string // ISO8601
-  session_title: string
-  session_title_confidence: number // 0-1
-  session_title_key_phrases?: string[]
-  latest_intent: string
-  latest_intent_confidence: number // 0-1
-  latest_intent_key_phrases?: string[]
-  pivot_detected?: boolean
-  previous_title?: string
-  previous_intent?: string
-  stats?: {
-    total_tokens?: number
-    processing_time_ms?: number
-  }
-}
+import type { ResumeMessageState, SessionSummaryState, SummaryCountdownState } from '@sidekick/types'
 
-/**
- * Internal countdown state for throttling
- * Stored alongside session summary
- */
-export interface SummaryCountdownState {
-  countdown: number // Tool uses until next analysis
-  bookmark_line: number // Transcript line where we had high confidence
-}
+export type { ResumeMessageState, SessionSummaryState, SummaryCountdownState }
 
 /**
  * Configuration for session summary feature
@@ -81,23 +54,6 @@ export const DEFAULT_SESSION_SUMMARY_CONFIG: SessionSummaryConfig = {
   },
   minUserMessages: 5,
   minRecentLines: 50,
-}
-
-/**
- * Resume message state persisted to disk.
- * Generated as a side-effect of session summary updates when pivot is detected.
- * Location: .sidekick/sessions/{session_id}/state/resume-message.json
- * @see docs/design/FEATURE-RESUME.md
- */
-export interface ResumeMessageState {
-  /** Most recent task ID from the summary, if available */
-  last_task_id: string | null
-  /** Question format: "Shall we resume..." or "Want to continue..." */
-  resume_last_goal_message: string
-  /** Snarky welcome message for returning user */
-  snarky_comment: string
-  /** ISO8601 timestamp when this was generated */
-  timestamp: string
 }
 
 /**

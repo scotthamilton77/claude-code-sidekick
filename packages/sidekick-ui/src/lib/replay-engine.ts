@@ -13,7 +13,7 @@
  * @see docs/design/flow.md §3.2 Event Schema
  */
 
-import type { TranscriptMetrics, TokenUsageMetrics } from '@sidekick/types'
+import type { TokenUsageMetrics, TranscriptMetrics } from '@sidekick/types'
 import type { ParsedLogRecord } from './log-parser'
 
 /**
@@ -55,6 +55,8 @@ export function createDefaultMetrics(): TranscriptMetrics {
 // State Types
 // ============================================================================
 
+import type { SessionSummaryState as BackendSessionSummaryState } from '@sidekick/types'
+
 /**
  * Session summary state as stored in session-summary.json.
  * Matches the backend SessionSummary schema.
@@ -65,6 +67,19 @@ export interface SessionSummaryState {
   intent?: string
   intentConfidence?: number
   topics?: string[]
+}
+
+/**
+ * Helper to convert backend snake_case state to UI camelCase state
+ */
+export function mapSessionSummary(backend: BackendSessionSummaryState): SessionSummaryState {
+  return {
+    title: backend.session_title,
+    titleConfidence: backend.session_title_confidence,
+    intent: backend.latest_intent,
+    intentConfidence: backend.latest_intent_confidence,
+    topics: backend.session_title_key_phrases,
+  }
 }
 
 /**

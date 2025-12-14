@@ -7,7 +7,24 @@
  * @see docs/design/FEATURE-STATUSLINE.md
  */
 
+import {
+  ResumeMessageStateSchema,
+  SessionMetricsStateSchema,
+  SessionSummaryStateSchema,
+  type ResumeMessageState,
+  type SessionMetricsState,
+  type SessionSummaryState,
+} from '@sidekick/types'
 import { z } from 'zod'
+
+export {
+  ResumeMessageStateSchema,
+  SessionMetricsStateSchema,
+  SessionSummaryStateSchema,
+  type ResumeMessageState,
+  type SessionMetricsState,
+  type SessionSummaryState,
+}
 
 // ============================================================================
 // Configuration Schema
@@ -27,15 +44,30 @@ export const StatuslineConfigSchema = z.object({
           warning: z.number().default(100000),
           critical: z.number().default(160000),
         })
-        .default({}),
+        .default({
+          warning: 100000,
+          critical: 160000,
+        }),
       cost: z
         .object({
           warning: z.number().default(0.5),
           critical: z.number().default(1.0),
         })
-        .default({}),
+        .default({
+          warning: 0.5,
+          critical: 1.0,
+        }),
     })
-    .default({}),
+    .default({
+      tokens: {
+        warning: 100000,
+        critical: 160000,
+      },
+      cost: {
+        warning: 0.5,
+        critical: 1.0,
+      },
+    }),
   theme: z
     .object({
       useNerdFonts: z.boolean().default(true),
@@ -45,9 +77,20 @@ export const StatuslineConfigSchema = z.object({
           tokens: z.string().default('green'),
           summary: z.string().default('magenta'),
         })
-        .default({}),
+        .default({
+          model: 'blue',
+          tokens: 'green',
+          summary: 'magenta',
+        }),
     })
-    .default({}),
+    .default({
+      useNerdFonts: true,
+      colors: {
+        model: 'blue',
+        tokens: 'green',
+        summary: 'magenta',
+      },
+    }),
 })
 
 export type StatuslineConfig = z.infer<typeof StatuslineConfigSchema>
@@ -58,53 +101,7 @@ export const DEFAULT_STATUSLINE_CONFIG: StatuslineConfig = StatuslineConfigSchem
 // State File Schemas (Read-Only)
 // ============================================================================
 
-/**
- * Session state from .sidekick/sessions/{id}/state/session-state.json
- * Written by Supervisor with token/cost metrics.
- */
-export const SessionStateSchema = z.object({
-  sessionId: z.string(),
-  timestamp: z.number(),
-  tokens: z.number().default(0),
-  cost: z.number().default(0),
-  durationMs: z.number().default(0),
-  modelName: z.string().default('unknown'),
-})
-
-export type SessionState = z.infer<typeof SessionStateSchema>
-
-/**
- * Session summary from .sidekick/sessions/{id}/state/session-summary.json
- * Written by feature-session-summary.
- */
-export const SessionSummaryStateSchema = z.object({
-  session_id: z.string(),
-  timestamp: z.string(),
-  session_title: z.string(),
-  session_title_confidence: z.number(),
-  session_title_key_phrases: z.array(z.string()).optional(),
-  latest_intent: z.string(),
-  latest_intent_confidence: z.number(),
-  latest_intent_key_phrases: z.array(z.string()).optional(),
-  pivot_detected: z.boolean().optional(),
-  previous_title: z.string().optional(),
-  previous_intent: z.string().optional(),
-})
-
-export type SessionSummaryState = z.infer<typeof SessionSummaryStateSchema>
-
-/**
- * Resume message from .sidekick/sessions/{id}/state/resume-message.json
- * Written by feature-session-summary on pivot detection.
- */
-export const ResumeMessageStateSchema = z.object({
-  last_task_id: z.string().nullable(),
-  resume_last_goal_message: z.string(),
-  snarky_comment: z.string(),
-  timestamp: z.string(),
-})
-
-export type ResumeMessageState = z.infer<typeof ResumeMessageStateSchema>
+// Imported from @sidekick/types
 
 // ============================================================================
 // Display Mode
@@ -189,13 +186,19 @@ export interface StatuslineRenderResult {
 // Default Values
 // ============================================================================
 
-export const EMPTY_SESSION_STATE: SessionState = {
+export const EMPTY_SESSION_STATE: SessionMetricsState = {
   sessionId: '',
-  timestamp: 0,
-  tokens: 0,
-  cost: 0,
-  durationMs: 0,
-  modelName: 'unknown',
+  lastUpdatedAt: 0,
+  durationSeconds: 0,
+  costUsd: 0,
+  primaryModel: 'unknown',
+  tokens: {
+    input: 0,
+    output: 0,
+    total: 0,
+    cacheCreation: 0,
+    cacheRead: 0,
+  },
 }
 
 export const EMPTY_SESSION_SUMMARY: SessionSummaryState = {
@@ -211,3 +214,41 @@ export const DEFAULT_PLACEHOLDERS = {
   newSession: 'New session',
   awaitingFirstTurn: 'Awaiting first turn',
 } as const
+
+export const PersistedTranscriptStateSchema = z.object({
+  sessionId: z.string(),
+  metrics: z.object({
+    tokenUsage: z.object({
+      inputTokens: z.number(),
+      outputTokens: z.number(),
+      totalTokens: z.number(),
+      cacheCreationInputTokens: z.number(),
+      cacheReadInputTokens: z.number(),
+    }),
+    costUsd: z.number(),
+    durationSeconds: z.number(),
+    primaryModel: z.string().optional(),
+    lastUpdatedAt: z.number(),
+  }),
+  persistedAt: z.number(),
+})
+
+export type PersistedTranscriptState = z.infer<typeof PersistedTranscriptStateSchema>
+
+export const EMPTY_PERSISTED_STATE: PersistedTranscriptState = {
+  sessionId: '',
+  metrics: {
+    tokenUsage: {
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      cacheCreationInputTokens: 0,
+      cacheReadInputTokens: 0,
+    },
+    costUsd: 0,
+    durationSeconds: 0,
+    primaryModel: 'unknown',
+    lastUpdatedAt: 0,
+  },
+  persistedAt: 0,
+}

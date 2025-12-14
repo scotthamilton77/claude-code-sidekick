@@ -14,7 +14,7 @@
     "@sidekick/types": "workspace:*",
     "@sidekick/core": "workspace:*",
     "@sidekick/shared-providers": "workspace:*",
-    "zod": "^3.23.8"
+    "zod": "^4.1.13"
   },
   "devDependencies": {
     "@sidekick/testing-fixtures": "workspace:*",

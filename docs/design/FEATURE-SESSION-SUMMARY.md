@@ -29,18 +29,18 @@ export const manifest: FeatureManifest = {
   version: '1.0.0',
   description: 'Maintains session title and intent via LLM analysis',
   needs: [], // No dependencies on other features
-};
+}
 ```
 
 ### 2.2 Registered Handlers (Unified Event Model)
 
 Per **docs/design/flow.md §2.3**, handlers register with filters to specify which events they process:
 
-| Filter Type  | Event(s)        | Handler                    | Priority | Description                                      |
-| ------------ | --------------- | -------------------------- | -------- | ------------------------------------------------ |
-| hook         | `SessionStart`  | `CreateFirstSessionSummary`| 80       | Create placeholder summary (first-prompt default)|
-| transcript   | `UserPrompt`    | `UpdateSessionSummary`     | 80       | Force immediate analysis (new user intent)       |
-| transcript   | `ToolCall`      | `UpdateSessionSummary`     | 70       | Conditional analysis (if cadence met)            |
+| Filter Type | Event(s)       | Handler                     | Priority | Description                                       |
+| ----------- | -------------- | --------------------------- | -------- | ------------------------------------------------- |
+| hook        | `SessionStart` | `CreateFirstSessionSummary` | 80       | Create placeholder summary (first-prompt default) |
+| transcript  | `UserPrompt`   | `UpdateSessionSummary`      | 80       | Force immediate analysis (new user intent)        |
+| transcript  | `ToolCall`     | `UpdateSessionSummary`      | 70       | Conditional analysis (if cadence met)             |
 
 **Key Change**: Summary updates are now triggered by transcript events rather than hook events. This ensures the feature reacts to actual transcript content changes rather than hook timing.
 
@@ -48,9 +48,9 @@ Per **docs/design/flow.md §2.3**, handlers register with filters to specify whi
 
 ### 2.3 State Files
 
-| File                                                        | Owner      | Description                           |
-| ----------------------------------------------------------- | ---------- | ------------------------------------- |
-| `.sidekick/sessions/{session_id}/state/session-summary.json`| Supervisor | Current summary (title, intent, etc.) |
+| File                                                         | Owner      | Description                           |
+| ------------------------------------------------------------ | ---------- | ------------------------------------- |
+| `.sidekick/sessions/{session_id}/state/session-summary.json` | Supervisor | Current summary (title, intent, etc.) |
 
 ### 2.4 Data Flow
 
@@ -93,14 +93,14 @@ export function register(context: RuntimeContext): void {
       id: 'session-summary:init',
       filter: { kind: 'hook', hooks: ['SessionStart'] },
       handler: createFirstSessionSummary,
-      priority: 80
-    });
+      priority: 80,
+    })
     context.handlers.register({
       id: 'session-summary:update',
       filter: { kind: 'transcript', eventTypes: ['UserPrompt'] },
       handler: updateSessionSummary,
-      priority: 80
-    });
+      priority: 80,
+    })
   }
   // CLI: No direct handlers (state consumed via Statusline)
 }
@@ -117,12 +117,9 @@ This feature registers handlers on **Supervisor only**. The CLI consumes the ses
 Creates a placeholder summary when a session begins, ensuring the Statusline always has content to display.
 
 ```typescript
-async function createFirstSessionSummary(
-  event: SessionStartHookEvent,
-  ctx: SupervisorContext
-): Promise<void> {
-  const { sessionId } = event.context;
-  const { startType } = event.payload;
+async function createFirstSessionSummary(event: SessionStartHookEvent, ctx: SupervisorContext): Promise<void> {
+  const { sessionId } = event.context
+  const { startType } = event.payload
 
   if (startType === 'startup' || startType === 'clear') {
     // Fresh session: write placeholder
@@ -133,7 +130,7 @@ async function createFirstSessionSummary(
       session_title_confidence: 0,
       latest_intent: 'Awaiting first prompt...',
       latest_intent_confidence: 0,
-    });
+    })
   }
   // resume/compact: preserve existing summary
 }
@@ -147,10 +144,10 @@ Performs LLM-based transcript analysis to update the session summary. Uses confi
 
 #### 3.2.1 Trigger Logic & Throttling
 
-| Trigger (Event)          | Behavior                                                                 |
-| ------------------------ | ------------------------------------------------------------------------ |
-| `UserPrompt` (transcript)| **Force** analysis (user intent likely changed)                          |
-| `ToolCall` (transcript)  | **Conditional**: only if countdown reached zero                          |
+| Trigger (Event)           | Behavior                                        |
+| ------------------------- | ----------------------------------------------- |
+| `UserPrompt` (transcript) | **Force** analysis (user intent likely changed) |
+| `ToolCall` (transcript)   | **Conditional**: only if countdown reached zero |
 
 **Key Change**: Triggers are now based on transcript events rather than hook events. This decouples summary updates from hook timing and allows reaction to actual transcript content.
 
@@ -176,6 +173,7 @@ To handle long sessions without hitting token limits, we use a **Tiered Extracti
 4. **Fallback**: If bookmark strategy yields insufficient context, fall back to a standard "tail" of the last N lines.
 
 **Compaction Behavior**: The bookmark line is a line number in the transcript file. When compaction occurs:
+
 - The transcript file is truncated/rewritten
 - **Bookmark must be reset to 0** (start of file)
 - **Immediate re-analysis is required** to re-establish confidence on the compacted transcript
@@ -185,19 +183,21 @@ To handle long sessions without hitting token limits, we use a **Tiered Extracti
 
 **Provider Configuration**: Each LLM task has its own provider/model configuration with fallback:
 
-| Task               | Config Key                     | Default Provider | Default Model                     | Fallback Provider | Fallback Model  |
-| ------------------ | ------------------------------ | ---------------- | --------------------------------- | ----------------- | --------------- |
-| **Summary**        | `llm.summary.*`                | `openrouter`     | `google/gemini-2.0-flash-lite-001`| `openai-api`      | `gpt-5-nano`    |
-| **Snarky Message** | `llm.snarkyComment.*`          | `openrouter`     | `qwen/qwen3-235b-a22b-2507`       | `openai-api`      | `gpt-5-nano`    |
-| **Resume Message** | `llm.resume.*`                 | `openrouter`     | `qwen/qwen3-235b-a22b-2507`       | `openai-api`      | `gpt-5-nano`    |
+| Task               | Config Key            | Default Provider | Default Model                      | Fallback Provider | Fallback Model |
+| ------------------ | --------------------- | ---------------- | ---------------------------------- | ----------------- | -------------- |
+| **Summary**        | `llm.summary.*`       | `openrouter`     | `google/gemini-2.0-flash-lite-001` | `openai-api`      | `gpt-5-nano`   |
+| **Snarky Message** | `llm.snarkyComment.*` | `openrouter`     | `qwen/qwen3-235b-a22b-2507`        | `openai-api`      | `gpt-5-nano`   |
+| **Resume Message** | `llm.resume.*`        | `openrouter`     | `qwen/qwen3-235b-a22b-2507`        | `openai-api`      | `gpt-5-nano`   |
 
 **Prompt Templates** (in `assets/sidekick/prompts/`):
+
 - `session-summary.prompt.txt`: Standard full analysis
 - `session-summary-bookmark.prompt.txt`: Tiered analysis (Historical + Recent)
 - `snarky-comment.prompt.txt`: Snarky commentary generation
 - `resume-message.prompt.txt`: Resume message generation
 
 **Response Schema** (in `assets/sidekick/schemas/`):
+
 - `session-summary.schema.json`: Summary response with pivot detection flag
 - `snarky-comment.schema.json`: Snarky message response
 - `resume-message.schema.json`: Resume message response
@@ -206,12 +206,13 @@ To handle long sessions without hitting token limits, we use a **Tiered Extracti
 
 After successful summary generation, `UpdateSessionSummary` triggers **separate LLM calls** for side-effects:
 
-| Side Effect              | Condition                                    | LLM Call | Output                               |
-| ------------------------ | -------------------------------------------- | -------- | ------------------------------------ |
-| **Snarky Message**       | Title or intent changed significantly        | Separate | `state/snarky-message.txt`           |
-| **Resume Message**       | `pivot_detected: true` in summary response   | Separate | `state/resume-message.txt`           |
+| Side Effect        | Condition                                  | LLM Call | Output                     |
+| ------------------ | ------------------------------------------ | -------- | -------------------------- |
+| **Snarky Message** | Title or intent changed significantly      | Separate | `state/snarky-message.txt` |
+| **Resume Message** | `pivot_detected: true` in summary response | Separate | `state/resume-message.txt` |
 
 **Important**: Each side-effect is a **separate LLM call** with its own provider/model configuration (see §3.2.3). This allows:
+
 - Different models optimized for each task (summary = fast/cheap, snarky = creative/larger)
 - Independent fallback behavior
 - Parallel execution when both are triggered
@@ -221,6 +222,8 @@ After successful summary generation, `UpdateSessionSummary` triggers **separate 
 These outputs are consumed by other features (Statusline, Resume) but generated as part of this feature's handler to ensure consistency between summary and messages.
 
 ### 3.3 State Schema (`state/session-summary.json`)
+
+Defined in `packages/types/src/services/state.ts` via `SessionSummaryStateSchema`.
 
 ```json
 {
@@ -250,10 +253,10 @@ The Session Summary feature emits `SidekickEvent` events (per **docs/design/flow
 
 **Event Types**:
 
-| Event Type       | When                                | Logged By   |
-| ---------------- | ----------------------------------- | ----------- |
-| `SummaryUpdated` | Summary recalculated successfully   | Supervisor  |
-| `SummarySkipped` | Countdown active, analysis deferred | Supervisor  |
+| Event Type       | When                                | Logged By  |
+| ---------------- | ----------------------------------- | ---------- |
+| `SummaryUpdated` | Summary recalculated successfully   | Supervisor |
+| `SummarySkipped` | Countdown active, analysis deferred | Supervisor |
 
 **Example Events** (conforming to `SidekickEvent` schema):
 
@@ -323,28 +326,28 @@ This feature defines the `sessionSummary` configuration domain. Defaults are def
 # .sidekick/features.yaml (sessionSummary section)
 features:
   sessionSummary:
-    enabled: true                     # Master toggle
-    excerptLines: 80                  # Transcript lines to analyze (≈3-5 messages)
-    filterToolMessages: true          # Remove tool_use/tool_result from analysis
-    keepHistory: false                # Keep backup of previous summary files
-    maxTitleWords: 8                  # Maximum words for session_title
-    maxIntentWords: 12                # Maximum words for latest_intent
-    snarkyMessages: true              # Generate snarky commentary on changes
+    enabled: true # Master toggle
+    excerptLines: 80 # Transcript lines to analyze (≈3-5 messages)
+    filterToolMessages: true # Remove tool_use/tool_result from analysis
+    keepHistory: false # Keep backup of previous summary files
+    maxTitleWords: 8 # Maximum words for session_title
+    maxIntentWords: 12 # Maximum words for latest_intent
+    snarkyMessages: true # Generate snarky commentary on changes
 
     # Countdown-based throttling (tool uses before re-analysis)
     countdown:
-      lowConfidence: 5                # confidence < 0.6
-      mediumConfidence: 20            # confidence 0.6-0.8
-      highConfidence: 10000           # confidence > 0.8 (effectively user-prompt only)
+      lowConfidence: 5 # confidence < 0.6
+      mediumConfidence: 20 # confidence 0.6-0.8
+      highConfidence: 10000 # confidence > 0.8 (effectively user-prompt only)
 
     # Bookmark optimization thresholds
     bookmark:
-      confidenceThreshold: 0.8        # Set bookmark when title reaches this confidence
-      resetThreshold: 0.7             # Reset bookmark if confidence drops below this
+      confidenceThreshold: 0.8 # Set bookmark when title reaches this confidence
+      resetThreshold: 0.7 # Reset bookmark if confidence drops below this
 
     # Filtering safety nets
-    minUserMessages: 5                # Preserve at least N user messages
-    minRecentLines: 50                # Preserve at least N recent transcript lines
+    minUserMessages: 5 # Preserve at least N user messages
+    minRecentLines: 50 # Preserve at least N recent transcript lines
 ```
 
 ### 4.2 LLM Configuration
@@ -361,7 +364,7 @@ llm:
     fallbackProvider: openai-api
     fallbackModel: gpt-5-nano
     timeout: 10
-    temperature: 0.3                  # Low temperature for consistent extraction
+    temperature: 0.3 # Low temperature for consistent extraction
 
   # Snarky comment generation (separate LLM call)
   snarkyComment:
@@ -370,7 +373,7 @@ llm:
     fallbackProvider: openai-api
     fallbackModel: gpt-5-nano
     timeout: 15
-    temperature: 1.2                  # High temperature for creative snark
+    temperature: 1.2 # High temperature for creative snark
 
   # Resume message generation (separate LLM call)
   resume:
@@ -379,8 +382,8 @@ llm:
     fallbackProvider: openai-api
     fallbackModel: gpt-5-nano
     timeout: 30
-    temperature: 1.2                  # High temperature for natural messages
-    minConfidence: 0.7                # Only generate if both confidences >= this
+    temperature: 1.2 # High temperature for natural messages
+    minConfidence: 0.7 # Only generate if both confidences >= this
 ```
 
 ## 5. Implementation Plan
@@ -415,10 +418,10 @@ llm:
 
 ## 6. Resolved Questions
 
-| Question | Resolution |
-| -------- | ---------- |
-| Snarky commentary: separate feature? | **No**. Side-effect of `UpdateSessionSummary`. Config toggle: `snarkyMessages`. |
-| Sleeper process? | **Removed**. Supervisor handles scheduled/delayed tasks if needed. |
-| Dual-Registration Pattern | Per **docs/design/CORE-RUNTIME.md §6.10**: Use role discriminant (`context.role === 'supervisor'`). See §2.5. |
-| Resume message trigger | **LLM-based pivot detection**. Summary LLM returns `pivot_detected: boolean`. Replaces heuristic distance calculations. See §3.2.4. |
+| Question                                     | Resolution                                                                                                                                         |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Snarky commentary: separate feature?         | **No**. Side-effect of `UpdateSessionSummary`. Config toggle: `snarkyMessages`.                                                                    |
+| Sleeper process?                             | **Removed**. Supervisor handles scheduled/delayed tasks if needed.                                                                                 |
+| Dual-Registration Pattern                    | Per **docs/design/CORE-RUNTIME.md §6.10**: Use role discriminant (`context.role === 'supervisor'`). See §2.5.                                      |
+| Resume message trigger                       | **LLM-based pivot detection**. Summary LLM returns `pivot_detected: boolean`. Replaces heuristic distance calculations. See §3.2.4.                |
 | Snarky message: single or separate LLM call? | **Separate LLM call** with its own provider/model/temperature config. Allows creative model for snark, fast model for summary. See §3.2.3, §3.2.4. |

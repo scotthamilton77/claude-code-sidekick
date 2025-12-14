@@ -311,8 +311,8 @@ interface HandlerRegistry {
 Configuration schemas are defined in **docs/design/CONFIG-SYSTEM.md**. Key types:
 
 ```typescript
-// Re-exported from schema-contracts
-import type { SidekickConfig, CoreConfig, LlmConfig, RemindersConfig } from '@sidekick/schema-contracts'
+// Re-exported from types
+import type { SidekickConfig, CoreConfig, LlmConfig, RemindersConfig } from '@sidekick/types'
 ```
 
 ## 5. Error Handling Strategy

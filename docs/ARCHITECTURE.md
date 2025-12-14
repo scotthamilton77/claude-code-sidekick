@@ -33,9 +33,8 @@ packages/
 ├── feature-statusline/     # Statusline rendering (see docs/design/FEATURE-STATUSLINE.md)
 ├── feature-resume/         # Resume message generation (see docs/design/FEATURE-RESUME.md)
 ├── shared-providers/       # LLM provider adapters (see docs/design/LLM-PROVIDERS.md)
-├── schema-contracts/       # Type definitions + Zod schemas (see docs/design/SCHEMA-CONTRACTS.md)
 ├── testing-fixtures/       # Shared test infrastructure (see docs/design/TEST-FIXTURES.md)
-└── types/                  # Shared TypeScript types
+└── types/                  # Shared TypeScript types + Zod schemas (see docs/design/SCHEMA-CONTRACTS.md)
 ```
 
 ### 2.2 Interface Contracts
@@ -46,7 +45,7 @@ packages/
 ### 2.3 Static Assets (`assets/sidekick/`)
 
 - **Authoritative Location**: Contains all shipped defaults—prompts (`prompts/*.prompt.txt`), schemas (`schemas/*.json`), reminders (`reminders/*.yaml`), and templates.
-- **Monorepo Lockstep**: `assets/sidekick` represents the current development state (HEAD). Compatibility is enforced by `packages/schema-contracts` (Zod/TS types) during the build.
+- **Monorepo Lockstep**: `assets/sidekick` represents the current development state (HEAD). Compatibility is enforced by `packages/types` (Zod/TS types) during the build.
 - **Runtime Access**: `sidekick-core` exposes helpers (`assetResolver.resolve(...)`) that read from assets by default, respecting the cascade. See **docs/design/CORE-RUNTIME.md §3.3** for cascade order.
 
 ## 3. Runtime Architecture
@@ -66,9 +65,9 @@ This decouples Claude Code's hook registration from the Node.js runtime. See **d
 
 The CLI and Supervisor operate as **separate processes** with distinct responsibilities:
 
-| Component | Responsibilities | Log File |
-|-----------|-----------------|----------|
-| **CLI** | Synchronous hook responses, reads staged files, logs events | `.sidekick/logs/cli.log` |
+| Component      | Responsibilities                                                     | Log File                        |
+| -------------- | -------------------------------------------------------------------- | ------------------------------- |
+| **CLI**        | Synchronous hook responses, reads staged files, logs events          | `.sidekick/logs/cli.log`        |
 | **Supervisor** | Async background work (LLM calls, transcript analysis), stages files | `.sidekick/logs/supervisor.log` |
 
 **Communication**: CLI sends events to Supervisor via IPC (fire-and-forget). Supervisor "responds" by staging files that CLI reads on subsequent hook invocations.
@@ -126,6 +125,7 @@ Configuration uses **YAML** for domain-specific files with a bash-style `sidekic
 **Domain Files**: `config.yaml`, `llm.yaml`, `transcript.yaml`, `features.yaml`
 
 **Cascade Order** (lowest to highest priority):
+
 1. Internal Defaults
 2. Environment Variables (`SIDEKICK_*`) + `.env` files
 3. User Unified Config (`~/.sidekick/sidekick.config`)
@@ -170,20 +170,20 @@ See **docs/design/TEST-FIXTURES.md** for complete testing infrastructure.
 
 ## 6. LLD Reference Index
 
-| Document | Scope |
-|----------|-------|
-| **docs/design/flow.md** | Event model, hook flows, handler registration, staging pattern (architectural source of truth) |
-| **docs/design/CORE-RUNTIME.md** | RuntimeContext, services, feature registration, bootstrap sequence |
-| **docs/design/CLI.md** | CLI framework, hook dispatcher, scope resolution, supervisor lifecycle |
-| **docs/design/SUPERVISOR.md** | Background process, IPC, state management, task execution |
-| **docs/design/CONFIG-SYSTEM.md** | Configuration cascade, YAML schemas, domain separation |
-| **docs/design/TRANSCRIPT-PROCESSING.md** | TranscriptService, metrics ownership, compaction handling |
-| **docs/design/STRUCTURED-LOGGING.md** | Pino logging, event schema, redaction, log rotation |
-| **docs/design/SCHEMA-CONTRACTS.md** | Zod schemas, JSON Schema generation, type contracts |
-| **docs/design/LLM-PROVIDERS.md** | Provider adapters, retry/fallback, observability |
-| **docs/design/FEATURE-REMINDERS.md** | Reminder handlers, staging, suppression pattern |
-| **docs/design/FEATURE-SESSION-SUMMARY.md** | Summary generation, bookmark system, snarky messages |
-| **docs/design/FEATURE-STATUSLINE.md** | Statusline rendering, state consumption |
-| **docs/design/FEATURE-RESUME.md** | Resume message generation, artifact discovery |
-| **docs/design/TEST-FIXTURES.md** | Mocks, factories, test harnesses |
-| **packages/sidekick-ui/docs/MONITORING-UI.md** | Time-travel debugging UI, log aggregation |
+| Document                                       | Scope                                                                                          |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| **docs/design/flow.md**                        | Event model, hook flows, handler registration, staging pattern (architectural source of truth) |
+| **docs/design/CORE-RUNTIME.md**                | RuntimeContext, services, feature registration, bootstrap sequence                             |
+| **docs/design/CLI.md**                         | CLI framework, hook dispatcher, scope resolution, supervisor lifecycle                         |
+| **docs/design/SUPERVISOR.md**                  | Background process, IPC, state management, task execution                                      |
+| **docs/design/CONFIG-SYSTEM.md**               | Configuration cascade, YAML schemas, domain separation                                         |
+| **docs/design/TRANSCRIPT-PROCESSING.md**       | TranscriptService, metrics ownership, compaction handling                                      |
+| **docs/design/STRUCTURED-LOGGING.md**          | Pino logging, event schema, redaction, log rotation                                            |
+| **docs/design/SCHEMA-CONTRACTS.md**            | Zod schemas, JSON Schema generation, type contracts                                            |
+| **docs/design/LLM-PROVIDERS.md**               | Provider adapters, retry/fallback, observability                                               |
+| **docs/design/FEATURE-REMINDERS.md**           | Reminder handlers, staging, suppression pattern                                                |
+| **docs/design/FEATURE-SESSION-SUMMARY.md**     | Summary generation, bookmark system, snarky messages                                           |
+| **docs/design/FEATURE-STATUSLINE.md**          | Statusline rendering, state consumption                                                        |
+| **docs/design/FEATURE-RESUME.md**              | Resume message generation, artifact discovery                                                  |
+| **docs/design/TEST-FIXTURES.md**               | Mocks, factories, test harnesses                                                               |
+| **packages/sidekick-ui/docs/MONITORING-UI.md** | Time-travel debugging UI, log aggregation                                                      |
