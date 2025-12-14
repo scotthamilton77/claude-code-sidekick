@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Dev-mode wrapper for statusline command
+# Uses $CLAUDE_PROJECT_DIR for Docker volume mount compatibility
+set -euo pipefail
+
+CLI_BIN="${CLAUDE_PROJECT_DIR}/packages/sidekick-cli/dist/bin.js"
+
+if [[ ! -f "${CLI_BIN}" ]]; then
+  # Statusline should fail silently - don't break the prompt
+  exit 0
+fi
+
+exec node "${CLI_BIN}" statusline \
+  --hook \
+  --project-dir="${CLAUDE_PROJECT_DIR}" \
+  "$@"

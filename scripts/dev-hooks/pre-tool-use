@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Dev-mode hook wrapper for PreToolUse
+# Uses $CLAUDE_PROJECT_DIR for Docker volume mount compatibility
+set -euo pipefail
+
+CLI_BIN="${CLAUDE_PROJECT_DIR}/packages/sidekick-cli/dist/bin.js"
+
+if [[ ! -f "${CLI_BIN}" ]]; then
+  echo "ERROR: CLI not built. Run 'pnpm build' first." >&2
+  echo '{"error": "dev-hooks: CLI not built"}' >&2
+  exit 1
+fi
+
+exec node "${CLI_BIN}" pre-tool-use \
+  --hook \
+  --hook-script-path="${CLAUDE_PROJECT_DIR}/scripts/dev-hooks/pre-tool-use" \
+  --project-dir="${CLAUDE_PROJECT_DIR}" \
+  "$@"
