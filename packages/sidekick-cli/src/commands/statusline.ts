@@ -2,11 +2,13 @@
  * Statusline Command Handler
  *
  * Renders the statusline from session state files.
+ * Session ID is extracted from hook input JSON (per CLI.md §3.1.1).
  *
  * Usage:
- *   sidekick statusline [--format <text|json>] [--session-id <id>]
+ *   sidekick statusline [--format <text|json>]
  *
  * @see docs/design/FEATURE-STATUSLINE.md §7 Invocation Model
+ * @see docs/design/CLI.md §3.1.1 Hook Input Structure
  */
 
 import * as path from 'node:path'
@@ -45,9 +47,10 @@ export async function handleStatuslineCommand(
   const { createStatuslineService } = await import('@sidekick/feature-statusline')
 
   // Determine session state directory
-  // Default: .sidekick/sessions/{sessionId}/state/
+  // Session ID extracted from hook input JSON by CLI (per CLI.md §3.1.1)
+  // Falls back to 'current' for backward compatibility / interactive mode
   const sidekickDir = path.join(projectDir, '.sidekick')
-  const sessionId = options.sessionId ?? 'current' // TODO: Implement session detection
+  const sessionId = options.sessionId ?? 'current'
   const sessionStateDir = path.join(sidekickDir, 'sessions', sessionId, 'state')
 
   // Build event context for structured logging
