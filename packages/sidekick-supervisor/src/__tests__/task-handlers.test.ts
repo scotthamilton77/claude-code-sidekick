@@ -7,7 +7,7 @@
  * @see docs/ROADMAP.md Phase 5.2
  */
 
-import { createConsoleLogger, TaskTypes, TrackedTask } from '@sidekick/core'
+import { createConsoleLogger, SidekickConfig, TaskTypes, TrackedTask } from '@sidekick/core'
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
@@ -17,6 +17,32 @@ import { createTaskRegistry, registerStandardTaskHandlers, TaskRegistry } from '
 import { TaskEngine } from '../task-engine.js'
 
 const logger = createConsoleLogger({ minimumLevel: 'error' })
+
+// Mock config for testing - uses defaults
+const mockConfig: SidekickConfig = {
+  core: {
+    logging: { level: 'error', format: 'json', consoleEnabled: false },
+    paths: { state: '.sidekick' },
+    supervisor: { idleTimeoutMs: 300000, shutdownTimeoutMs: 30000 },
+    ipc: { connectTimeoutMs: 5000, requestTimeoutMs: 30000, maxRetries: 3, retryDelayMs: 100 },
+  },
+  llm: {
+    provider: 'claude-cli',
+    model: undefined,
+    temperature: 0,
+    maxTokens: undefined,
+    fallbackProvider: undefined,
+    fallbackModel: undefined,
+    timeout: 30,
+    timeoutMaxRetries: 3,
+    debugDumpEnabled: false,
+  },
+  transcript: {
+    watchDebounceMs: 100,
+    metricsPersistIntervalMs: 5000,
+  },
+  features: {},
+}
 
 describe('TaskRegistry (Orphan Prevention)', () => {
   let tmpDir: string
@@ -180,7 +206,7 @@ describe('Standard Task Handlers', () => {
     taskEngine = new TaskEngine(logger, 2, 10000)
 
     // Register handlers
-    registerStandardTaskHandlers(taskEngine, stateManager, projectDir, logger)
+    registerStandardTaskHandlers(taskEngine, stateManager, projectDir, logger, mockConfig)
   })
 
   afterEach(async () => {
@@ -391,7 +417,9 @@ describe('Standard Task Handlers', () => {
 
       expect(summary.session_id).toBe(sessionId)
       expect(summary.message).toBeDefined()
-      expect(summary.source).toBe('llm') // placeholder returns 'llm' source
+      // In test env without API keys, LLM fails and falls back to static message
+      // Both 'llm' and 'fallback' are valid outcomes depending on provider availability
+      expect(['llm', 'fallback']).toContain(summary.source)
       expect(summary.user_prompt).toBe('Help me fix this bug in the login form')
       expect(summary.had_resume_context).toBe(false)
     })
@@ -511,12 +539,13 @@ describe('Standard Task Handlers', () => {
         { timeout: 5000 }
       )
 
-      // File should be created for /init (goes to LLM)
+      // File should be created for /init (goes to LLM, may fall back in test env)
       const summaryPath = path.join(stateDir, 'first-prompt-summary.json')
       const content = await fs.readFile(summaryPath, 'utf-8')
       const summary = JSON.parse(content) as { source: string }
 
-      expect(summary.source).toBe('llm')
+      // In test env without API keys, LLM may fail and fall back to static message
+      expect(['llm', 'fallback']).toContain(summary.source)
     })
   })
 })
