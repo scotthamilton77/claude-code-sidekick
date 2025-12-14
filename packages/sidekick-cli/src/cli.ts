@@ -11,10 +11,12 @@
  * - Interactive mode: Human-readable output for debugging
  * - Scope detection with dual-install awareness
  * - Hook input JSON parsing from stdin (per CLI.md §3.1)
+ * - Hook event dispatch to Supervisor via IPC (Phase 8)
  *
  * @see docs/design/CLI.md §3 Hook Wrapper Layer
  * @see docs/design/CLI.md §3.1.1 Hook Input Structure
  * @see docs/design/CLI.md §9 Process Model for Hooks
+ * @see docs/design/flow.md §5 Complete Hook Flows
  */
 
 import { mkdir } from 'node:fs/promises'
@@ -24,6 +26,7 @@ import yargsParser from 'yargs-parser'
 
 import type { ParsedHookInput } from '@sidekick/types'
 import { bootstrapRuntime } from './runtime'
+import { getHookName, handleHookCommand, isHookCommand } from './commands/hook.js'
 
 interface ParsedArgs {
   command: string
@@ -38,6 +41,7 @@ interface ParsedArgs {
   host?: string
   open?: boolean
   preferProject?: boolean
+  sessionIdArg?: string
   _?: (string | number)[]
 }
 
@@ -59,7 +63,7 @@ interface RunCliOptions {
 function parseArgs(argv: string[]): ParsedArgs {
   const parsed = yargsParser(argv, {
     boolean: ['hook', 'wait', 'open', 'prefer-project'],
-    string: ['hook-script-path', 'project-dir', 'scope', 'log-level', 'format', 'host'],
+    string: ['hook-script-path', 'project-dir', 'scope', 'log-level', 'format', 'host', 'session-id'],
     number: ['port'],
     configuration: {
       'camel-case-expansion': false,
@@ -81,6 +85,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     host: parsed.host as string | undefined,
     open: parsed.open as boolean | undefined,
     preferProject: parsed['prefer-project'] as boolean | undefined,
+    sessionIdArg: parsed['session-id'] as string | undefined,
     _: parsed._,
   }
 }
@@ -159,8 +164,9 @@ export async function runCli(options: RunCliOptions): Promise<{ exitCode: number
     return Promise.resolve({ exitCode: 0, stdout: '', stderr: '' })
   }
 
-  // Create session directory if we have a session ID (per CLI.md §3.1.1)
-  const sessionId = hookInput?.sessionId
+  // Session ID can come from CLI arg (--session-id) or hook input (stdin JSON)
+  // CLI arg takes precedence for interactive commands like statusline
+  const sessionId = parsed.sessionIdArg ?? hookInput?.sessionId
   if (sessionId && runtime.scope.projectRoot) {
     const sessionDir = join(runtime.scope.projectRoot, '.sidekick', 'sessions', sessionId)
     try {
@@ -173,11 +179,13 @@ export async function runCli(options: RunCliOptions): Promise<{ exitCode: number
   }
 
   // Auto-start supervisor on hook mode (not interactive mode)
+  let supervisorStarted = false
   if (parsed.hookMode && runtime.scope.projectRoot) {
     try {
       const { SupervisorClient } = await import('@sidekick/core')
       const supervisorClient = new SupervisorClient(runtime.scope.projectRoot, runtime.logger)
       await supervisorClient.start()
+      supervisorStarted = true
       runtime.logger.debug('Supervisor auto-started for hook execution')
     } catch (err) {
       // Graceful degradation: log warning but don't fail the hook
@@ -188,22 +196,36 @@ export async function runCli(options: RunCliOptions): Promise<{ exitCode: number
     }
   }
 
-  const payload = {
-    command: parsed.command,
-    status: 'ok' as const,
-    message: 'Node runtime skeleton ready',
-    scope: runtime.scope.scope,
-    projectRoot: runtime.scope.projectRoot ?? null,
-    hookScriptPath: runtime.scope.hookScriptPath ?? null,
-    sessionId: sessionId ?? null,
-    config: {
-      logLevel: runtime.config.core.logging.level,
-      llmProvider: runtime.config.llm.provider,
-      configSources: runtime.config.sources,
-    },
-    assets: {
-      cascadeLayers: runtime.assets.cascadeLayers,
-    },
+  // Handle hook commands by dispatching to supervisor (Phase 8)
+  // Per docs/design/flow.md §5: CLI sends event to Supervisor via IPC
+  if (parsed.hookMode && isHookCommand(parsed.command) && hookInput && runtime.scope.projectRoot) {
+    const hookName = getHookName(parsed.command)
+    if (hookName) {
+      const result = await handleHookCommand(
+        hookName,
+        {
+          projectRoot: runtime.scope.projectRoot,
+          sessionId: hookInput.sessionId,
+          hookInput,
+          correlationId: runtime.correlationId,
+          scope: runtime.scope.scope,
+        },
+        runtime.logger,
+        stdout
+      )
+      return { exitCode: result.exitCode, stdout: result.output, stderr: '' }
+    }
+  }
+
+  // Fallback: If hook input is missing or not recognized, return empty response
+  // This handles edge cases like malformed stdin or unknown hook types
+  if (parsed.hookMode && !hookInput) {
+    runtime.logger.warn('Hook mode invoked without valid hook input, returning empty response', {
+      command: parsed.command,
+      supervisorStarted,
+    })
+    stdout.write('{}\n')
+    return { exitCode: 0, stdout: '{}', stderr: '' }
   }
 
   if (parsed.command === 'supervisor') {
@@ -239,10 +261,10 @@ export async function runCli(options: RunCliOptions): Promise<{ exitCode: number
     return { exitCode: result.exitCode, stdout: '', stderr: '' }
   }
 
-  if (parsed.hookMode) {
-    stdout.write(`${JSON.stringify(payload)}\n`)
-  } else {
-    stdout.write(`Sidekick CLI stub executed ${parsed.command} in ${runtime.scope.scope} scope\n`)
+  // Interactive mode: show informational message
+  // Hook mode falls through here only if command isn't recognized as a hook
+  if (!parsed.hookMode) {
+    stdout.write(`Sidekick CLI executed ${parsed.command} in ${runtime.scope.scope} scope\n`)
   }
 
   return Promise.resolve({ exitCode: 0, stdout: '', stderr: '' })

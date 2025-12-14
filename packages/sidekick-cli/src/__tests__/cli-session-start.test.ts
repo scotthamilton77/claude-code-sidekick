@@ -16,17 +16,19 @@ class CollectingWritable extends Writable {
 }
 
 describe('runCli', () => {
-  test('returns placeholder response for session-start', async () => {
+  test('returns empty response when hook input missing', async () => {
     const stdout = new CollectingWritable()
     const stderr = new CollectingWritable()
 
+    // Without valid stdin hook input, CLI returns empty response (graceful degradation)
     await runCli({
       argv: ['session-start', '--hook', '--hook-script-path', '/tmp/project/.claude/hooks/sidekick/session-start'],
       stdout,
       stderr,
     })
 
-    expect(stdout.data.trim()).toContain('Node runtime skeleton ready')
+    // Per Phase 8: Without hook input, returns empty JSON response
+    expect(stdout.data.trim()).toBe('{}')
   })
 
   test('detects project scope from hook wrapper path', async () => {
