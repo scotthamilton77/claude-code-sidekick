@@ -12,5 +12,6 @@ fi
 
 exec node "${CLI_BIN}" statusline \
   --hook \
+  --scope=project \
   --project-dir="${CLAUDE_PROJECT_DIR}" \
   "$@"

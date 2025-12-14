@@ -13,6 +13,7 @@ fi
 
 exec node "${CLI_BIN}" pre-tool-use \
   --hook \
+  --scope=project \
   --hook-script-path="${CLAUDE_PROJECT_DIR}/scripts/dev-hooks/pre-tool-use" \
   --project-dir="${CLAUDE_PROJECT_DIR}" \
   "$@"
