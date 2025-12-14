@@ -359,6 +359,8 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
     - [ ] Live testing in dev-mode shows session state files being written
     - [ ] No errors/warnings in the logs
 
+- [ ] **Phase Insertion Placeholder** to go through the code to analyze modularity, correct responsibilities (SOLID), DRY, TODOs and FIXMEs
+
 - [ ] **Phase 9: Feature Parity and Legacy Cleanup**
   - [ ] Objectives
     - [ ] Audit legacy implementations against TypeScript rewrite for feature parity
@@ -418,7 +420,7 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
     - [ ] Migration tool converts legacy configs with clear reporting
     - [ ] All new and modified files documented
 
-- [ ] **Phase 11: Documentation & Polish**
+- [ ] **Phase 12: Documentation & Polish**
   - [ ] Objectives
     - [ ] Finalize user-facing documentation
     - [ ] Clean up development artifacts
