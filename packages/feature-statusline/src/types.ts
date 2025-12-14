@@ -8,9 +8,11 @@
  */
 
 import {
+  FirstPromptSummaryStateSchema,
   ResumeMessageStateSchema,
   SessionMetricsStateSchema,
   SessionSummaryStateSchema,
+  type FirstPromptSummaryState,
   type ResumeMessageState,
   type SessionMetricsState,
   type SessionSummaryState,
@@ -18,9 +20,11 @@ import {
 import { z } from 'zod'
 
 export {
+  FirstPromptSummaryStateSchema,
   ResumeMessageStateSchema,
   SessionMetricsStateSchema,
   SessionSummaryStateSchema,
+  type FirstPromptSummaryState,
   type ResumeMessageState,
   type SessionMetricsState,
   type SessionSummaryState,
@@ -37,6 +41,8 @@ export {
 export const StatuslineConfigSchema = z.object({
   enabled: z.boolean().default(true),
   format: z.string().default('[{model}] | {tokens} | {cwd}{branch} | {summary}'),
+  /** Confidence threshold for preferring session summary over first-prompt */
+  confidenceThreshold: z.number().default(0.6),
   thresholds: z
     .object({
       tokens: z

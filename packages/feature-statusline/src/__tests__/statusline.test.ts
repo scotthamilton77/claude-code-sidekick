@@ -554,6 +554,87 @@ describe('discoverPreviousResumeMessage', () => {
 })
 
 // ============================================================================
+// StateReader First-Prompt Summary Tests (Phase 3)
+// ============================================================================
+
+describe('StateReader.getFirstPromptSummary', () => {
+  let testDir: string
+
+  beforeEach(async () => {
+    testDir = path.join(tmpdir(), `first-prompt-test-${Date.now()}`)
+    await fs.mkdir(testDir, { recursive: true })
+  })
+
+  it('returns null when file is missing', async () => {
+    const reader = createStateReader(testDir)
+    const result = await reader.getFirstPromptSummary()
+
+    expect(result.source).toBe('default')
+    expect(result.data).toBeNull()
+  })
+
+  it('reads valid first-prompt-summary.json', async () => {
+    await fs.writeFile(
+      path.join(testDir, 'first-prompt-summary.json'),
+      JSON.stringify({
+        session_id: 'test-123',
+        timestamp: new Date().toISOString(),
+        message: 'Refactoring auth... what could go wrong?',
+        classification: 'actionable',
+        source: 'llm',
+        model: 'claude-3-5-haiku',
+        latency_ms: 4823,
+        user_prompt: 'refactor the authentication module',
+        had_resume_context: false,
+      })
+    )
+
+    const reader = createStateReader(testDir)
+    const result = await reader.getFirstPromptSummary()
+
+    expect(result.source).toBe('fresh')
+    expect(result.data).not.toBeNull()
+    expect(result.data?.message).toBe('Refactoring auth... what could go wrong?')
+    expect(result.data?.classification).toBe('actionable')
+    expect(result.data?.source).toBe('llm')
+  })
+
+  it('returns null for invalid JSON', async () => {
+    await fs.writeFile(path.join(testDir, 'first-prompt-summary.json'), 'not valid json')
+
+    const reader = createStateReader(testDir)
+    const result = await reader.getFirstPromptSummary()
+
+    expect(result.source).toBe('default')
+    expect(result.data).toBeNull()
+  })
+
+  it('detects stale first-prompt summary', async () => {
+    const filePath = path.join(testDir, 'first-prompt-summary.json')
+    await fs.writeFile(
+      filePath,
+      JSON.stringify({
+        session_id: 'test-123',
+        timestamp: new Date().toISOString(),
+        message: 'Old message',
+        source: 'llm',
+        user_prompt: 'test',
+        had_resume_context: false,
+      })
+    )
+    // Set mtime to 2 minutes ago
+    const twoMinutesAgo = new Date(Date.now() - 120_000)
+    await fs.utimes(filePath, twoMinutesAgo, twoMinutesAgo)
+
+    const reader = createStateReader(testDir)
+    const result = await reader.getFirstPromptSummary()
+
+    expect(result.source).toBe('stale')
+    expect(result.data?.message).toBe('Old message')
+  })
+})
+
+// ============================================================================
 // GitProvider Tests
 // ============================================================================
 
@@ -942,6 +1023,248 @@ describe('StatuslineService', () => {
 
       // Should work normally without discovery
       expect(result.displayMode).toBe('empty_summary')
+    })
+  })
+
+  describe('first-prompt summary integration (Phase 3)', () => {
+    it('displays first-prompt message when no session summary exists', async () => {
+      // Write first-prompt summary
+      await fs.writeFile(
+        path.join(testDir, 'first-prompt-summary.json'),
+        JSON.stringify({
+          session_id: 'test-123',
+          timestamp: new Date().toISOString(),
+          message: 'Refactoring auth... what could go wrong?',
+          classification: 'actionable',
+          source: 'llm',
+          user_prompt: 'refactor auth',
+          had_resume_context: false,
+        })
+      )
+
+      const service = createStatuslineService({
+        sessionStateDir: testDir,
+        cwd: '/test',
+        useColors: false,
+      })
+
+      const result = await service.render()
+
+      expect(result.displayMode).toBe('first_prompt')
+      expect(result.viewModel.summary).toBe('Refactoring auth... what could go wrong?')
+    })
+
+    it('displays first-prompt over low-confidence summary', async () => {
+      // Write low-confidence session summary
+      await fs.writeFile(
+        path.join(testDir, 'session-summary.json'),
+        JSON.stringify({
+          session_id: 'test-123',
+          timestamp: new Date().toISOString(),
+          session_title: 'Low confidence title',
+          session_title_confidence: 0.3, // Below default threshold of 0.6
+          latest_intent: 'Some intent',
+          latest_intent_confidence: 0.4,
+        })
+      )
+
+      // Write first-prompt summary
+      await fs.writeFile(
+        path.join(testDir, 'first-prompt-summary.json'),
+        JSON.stringify({
+          session_id: 'test-123',
+          timestamp: new Date().toISOString(),
+          message: 'Deciphering your cryptic request...',
+          source: 'llm',
+          user_prompt: 'do the thing',
+          had_resume_context: false,
+        })
+      )
+
+      const service = createStatuslineService({
+        sessionStateDir: testDir,
+        cwd: '/test',
+        useColors: false,
+      })
+
+      const result = await service.render()
+
+      expect(result.displayMode).toBe('first_prompt')
+      expect(result.viewModel.summary).toBe('Deciphering your cryptic request...')
+    })
+
+    it('displays session summary when confidence exceeds threshold', async () => {
+      // Write high-confidence session summary
+      await fs.writeFile(
+        path.join(testDir, 'session-summary.json'),
+        JSON.stringify({
+          session_id: 'test-123',
+          timestamp: new Date().toISOString(),
+          session_title: 'Auth Refactoring',
+          session_title_confidence: 0.85, // Above threshold
+          latest_intent: 'Working on auth module',
+          latest_intent_confidence: 0.9,
+        })
+      )
+
+      // Write first-prompt summary (should be ignored)
+      await fs.writeFile(
+        path.join(testDir, 'first-prompt-summary.json'),
+        JSON.stringify({
+          session_id: 'test-123',
+          timestamp: new Date().toISOString(),
+          message: 'Old first prompt message',
+          source: 'llm',
+          user_prompt: 'refactor auth',
+          had_resume_context: false,
+        })
+      )
+
+      const service = createStatuslineService({
+        sessionStateDir: testDir,
+        cwd: '/test',
+        useColors: false,
+      })
+
+      const result = await service.render()
+
+      expect(result.displayMode).toBe('session_summary')
+      expect(result.viewModel.title).toBe('Auth Refactoring')
+    })
+
+    it('falls back to low-confidence summary when no first-prompt exists', async () => {
+      // Write low-confidence session summary, no first-prompt
+      await fs.writeFile(
+        path.join(testDir, 'session-summary.json'),
+        JSON.stringify({
+          session_id: 'test-123',
+          timestamp: new Date().toISOString(),
+          session_title: 'Low confidence but only option',
+          session_title_confidence: 0.3,
+          latest_intent: 'Some intent',
+          latest_intent_confidence: 0.4,
+        })
+      )
+
+      const service = createStatuslineService({
+        sessionStateDir: testDir,
+        cwd: '/test',
+        useColors: false,
+      })
+
+      const result = await service.render()
+
+      // Should fall back to session_summary since no first-prompt exists
+      expect(result.displayMode).toBe('session_summary')
+      expect(result.viewModel.title).toBe('Low confidence but only option')
+    })
+
+    it('respects custom confidence threshold from config', async () => {
+      // Write session summary with confidence 0.5
+      await fs.writeFile(
+        path.join(testDir, 'session-summary.json'),
+        JSON.stringify({
+          session_id: 'test-123',
+          timestamp: new Date().toISOString(),
+          session_title: 'Moderate confidence',
+          session_title_confidence: 0.5,
+          latest_intent: 'Intent',
+          latest_intent_confidence: 0.5,
+        })
+      )
+
+      // Write first-prompt summary
+      await fs.writeFile(
+        path.join(testDir, 'first-prompt-summary.json'),
+        JSON.stringify({
+          session_id: 'test-123',
+          timestamp: new Date().toISOString(),
+          message: 'First prompt message',
+          source: 'llm',
+          user_prompt: 'test',
+          had_resume_context: false,
+        })
+      )
+
+      // Use lower threshold (0.4) so 0.5 confidence is sufficient
+      const service = createStatuslineService({
+        sessionStateDir: testDir,
+        cwd: '/test',
+        useColors: false,
+        config: { confidenceThreshold: 0.4 },
+      })
+
+      const result = await service.render()
+
+      // With threshold 0.4, confidence 0.5 should show session_summary
+      expect(result.displayMode).toBe('session_summary')
+    })
+
+    it('resume message takes priority over first-prompt when session is resumed', async () => {
+      // Write resume message
+      await fs.writeFile(
+        path.join(testDir, 'resume-message.json'),
+        JSON.stringify({
+          last_task_id: null,
+          resume_last_goal_message: 'Continue refactoring?',
+          snarky_comment: 'Back for more?',
+          timestamp: new Date().toISOString(),
+        })
+      )
+
+      // Write first-prompt summary
+      await fs.writeFile(
+        path.join(testDir, 'first-prompt-summary.json'),
+        JSON.stringify({
+          session_id: 'test-123',
+          timestamp: new Date().toISOString(),
+          message: 'First prompt message',
+          source: 'llm',
+          user_prompt: 'test',
+          had_resume_context: true,
+        })
+      )
+
+      const service = createStatuslineService({
+        sessionStateDir: testDir,
+        cwd: '/test',
+        useColors: false,
+        isResumedSession: true,
+      })
+
+      const result = await service.render()
+
+      expect(result.displayMode).toBe('resume_message')
+      expect(result.viewModel.summary).toBe('Continue refactoring?')
+    })
+
+    it('includes first-prompt staleness in overall stale detection', async () => {
+      const filePath = path.join(testDir, 'first-prompt-summary.json')
+      await fs.writeFile(
+        filePath,
+        JSON.stringify({
+          session_id: 'test-123',
+          timestamp: new Date().toISOString(),
+          message: 'Stale message',
+          source: 'llm',
+          user_prompt: 'test',
+          had_resume_context: false,
+        })
+      )
+      // Set mtime to 2 minutes ago
+      const twoMinutesAgo = new Date(Date.now() - 120_000)
+      await fs.utimes(filePath, twoMinutesAgo, twoMinutesAgo)
+
+      const service = createStatuslineService({
+        sessionStateDir: testDir,
+        cwd: '/test',
+        useColors: false,
+      })
+
+      const result = await service.render()
+
+      expect(result.staleData).toBe(true)
+      expect(result.text).toContain('(stale)')
     })
   })
 })

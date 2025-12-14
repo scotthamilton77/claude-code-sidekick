@@ -18,11 +18,18 @@ import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import type { ZodType } from 'zod'
 
-import type { ResumeMessageState, SessionMetricsState, SessionSummaryState, StateReadResult } from './types.js'
+import type {
+  FirstPromptSummaryState,
+  ResumeMessageState,
+  SessionMetricsState,
+  SessionSummaryState,
+  StateReadResult,
+} from './types.js'
 import {
   EMPTY_PERSISTED_STATE,
   EMPTY_SESSION_STATE,
   EMPTY_SESSION_SUMMARY,
+  FirstPromptSummaryStateSchema,
   PersistedTranscriptStateSchema,
   ResumeMessageStateSchema,
   SessionSummaryStateSchema,
@@ -141,6 +148,35 @@ export class StateReader {
       }
     } catch {
       return { data: '', source: 'default' }
+    }
+  }
+
+  /**
+   * Read first-prompt summary from first-prompt-summary.json.
+   * Returns null data if file doesn't exist (not an error case).
+   *
+   * @see docs/design/FEATURE-FIRST-PROMPT-SUMMARY.md §6
+   */
+  async getFirstPromptSummary(): Promise<StateReadResult<FirstPromptSummaryState | null>> {
+    const filePath = path.join(this.stateDir, 'first-prompt-summary.json')
+
+    try {
+      const stat = await fs.stat(filePath)
+      const content = await fs.readFile(filePath, 'utf-8')
+      const parsed = FirstPromptSummaryStateSchema.safeParse(JSON.parse(content))
+
+      if (!parsed.success) {
+        return { data: null, source: 'default' }
+      }
+
+      const isStale = Date.now() - stat.mtimeMs > this.staleThresholdMs
+      return {
+        data: parsed.data,
+        source: isStale ? 'stale' : 'fresh',
+        mtime: stat.mtimeMs,
+      }
+    } catch {
+      return { data: null, source: 'default' }
     }
   }
 

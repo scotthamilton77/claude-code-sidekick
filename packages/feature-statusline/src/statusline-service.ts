@@ -21,6 +21,7 @@ import { GitProvider, createGitProvider } from './git-provider.js'
 import { StateReader, createStateReader, discoverPreviousResumeMessage } from './state-reader.js'
 import type {
   DisplayMode,
+  FirstPromptSummaryState,
   ResumeMessageState,
   SessionMetricsState,
   SessionSummaryState,
@@ -100,13 +101,16 @@ export class StatuslineService {
    */
   async render(): Promise<StatuslineRenderResult> {
     // Parallel data fetch (critical for <50ms target)
-    const [stateResult, summaryResult, resumeResult, snarkyResult, branchResult] = await Promise.all([
-      this.stateReader.getSessionState(),
-      this.stateReader.getSessionSummary(),
-      this.stateReader.getResumeMessage(),
-      this.stateReader.getSnarkyMessage(),
-      this.gitProvider.getCurrentBranch(),
-    ])
+    const [stateResult, summaryResult, resumeResult, snarkyResult, firstPromptResult, branchResult] = await Promise.all(
+      [
+        this.stateReader.getSessionState(),
+        this.stateReader.getSessionSummary(),
+        this.stateReader.getResumeMessage(),
+        this.stateReader.getSnarkyMessage(),
+        this.stateReader.getFirstPromptSummary(),
+        this.gitProvider.getCurrentBranch(),
+      ]
+    )
 
     // Artifact discovery: if this is a new session (no summary yet), try to find
     // a resume message from a previous session per docs/design/FEATURE-RESUME.md §3.1
@@ -126,6 +130,7 @@ export class StatuslineService {
       summaryResult.data,
       effectiveResumeData,
       snarkyResult.data,
+      firstPromptResult.data,
       branchResult.branch
     )
 
@@ -137,7 +142,8 @@ export class StatuslineService {
       stateResult.source === 'stale' ||
       summaryResult.source === 'stale' ||
       resumeResult.source === 'stale' ||
-      snarkyResult.source === 'stale'
+      snarkyResult.source === 'stale' ||
+      firstPromptResult.source === 'stale'
 
     // Append visual stale indicator per docs/design/FEATURE-STATUSLINE.md §8.2
     if (staleData) {
@@ -164,13 +170,20 @@ export class StatuslineService {
     summary: SessionSummaryState,
     resume: ResumeMessageState | null,
     snarkyMessage: string,
+    firstPromptSummary: FirstPromptSummaryState | null,
     branch: string
   ): StatuslineViewModel {
-    // Determine display mode
-    const displayMode = this.determineDisplayMode(summary, resume)
+    // Determine display mode (confidence-aware per FEATURE-FIRST-PROMPT-SUMMARY.md §7.1)
+    const displayMode = this.determineDisplayMode(summary, resume, firstPromptSummary)
 
     // Determine summary text based on display mode
-    const { summaryText, title } = this.getSummaryContent(displayMode, summary, resume, snarkyMessage)
+    const { summaryText, title } = this.getSummaryContent(
+      displayMode,
+      summary,
+      resume,
+      snarkyMessage,
+      firstPromptSummary
+    )
 
     return {
       model: this.formatModelName(state.primaryModel || 'unknown'),
@@ -191,30 +204,49 @@ export class StatuslineService {
   /**
    * Determine display mode based on available data.
    *
-   * Priority order (per docs/design/FEATURE-STATUSLINE.md §6.2):
+   * Priority order (per docs/design/FEATURE-FIRST-PROMPT-SUMMARY.md §7.1):
    * 1. Resume message (if session was resumed and resume-message exists)
-   * 2. Empty-summary default (no summary yet, new session)
-   * 3. First-prompt default (UserPromptSubmit before summary exists)
-   * 4. Session summary (normal operation)
+   * 2. Confident session summary (confidence >= threshold)
+   * 3. First-prompt summary (when summary missing or low confidence)
+   * 4. Low-confidence session summary (better than nothing)
+   * 5. Empty (brand new, nothing submitted)
    */
-  private determineDisplayMode(summary: SessionSummaryState, resume: ResumeMessageState | null): DisplayMode {
+  private determineDisplayMode(
+    summary: SessionSummaryState,
+    resume: ResumeMessageState | null,
+    firstPromptSummary: FirstPromptSummaryState | null
+  ): DisplayMode {
     // Check if we have a meaningful summary
     const hasSummary = summary.session_title && summary.session_title !== ''
+    const summaryConfident = (summary.session_title_confidence ?? 0) >= this.config.confidenceThreshold
 
-    // Show resume message if:
-    // 1. Session was explicitly resumed (--continue) and has resume message
-    // 2. New session with discovered resume message from previous session
-    if (resume && (this.isResumedSession || !hasSummary)) {
+    // Priority 1: Resume message (explicit session continuation)
+    if (resume && this.isResumedSession) {
       return 'resume_message'
     }
 
-    if (!hasSummary) {
-      // No summary yet and no resume - brand new session
-      return 'empty_summary'
+    // Priority 2: Confident session summary
+    if (hasSummary && summaryConfident) {
+      return 'session_summary'
     }
 
-    // Normal operation with summary available
-    return 'session_summary'
+    // Priority 3: First-prompt summary (when summary missing or low confidence)
+    if (firstPromptSummary) {
+      return 'first_prompt'
+    }
+
+    // Priority 4: Low-confidence session summary (better than nothing)
+    if (hasSummary) {
+      return 'session_summary'
+    }
+
+    // Priority 5: Empty (brand new, nothing submitted)
+    // Also check for discovered resume message from previous session
+    if (resume) {
+      return 'resume_message'
+    }
+
+    return 'empty_summary'
   }
 
   /**
@@ -224,7 +256,8 @@ export class StatuslineService {
     displayMode: DisplayMode,
     summary: SessionSummaryState,
     resume: ResumeMessageState | null,
-    snarkyMessage: string
+    snarkyMessage: string,
+    firstPromptSummary: FirstPromptSummaryState | null
   ): { summaryText: string; title: string } {
     switch (displayMode) {
       case 'resume_message':
@@ -241,7 +274,7 @@ export class StatuslineService {
 
       case 'first_prompt':
         return {
-          summaryText: DEFAULT_PLACEHOLDERS.awaitingFirstTurn,
+          summaryText: firstPromptSummary?.message || DEFAULT_PLACEHOLDERS.awaitingFirstTurn,
           title: '',
         }
 
