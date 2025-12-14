@@ -356,6 +356,8 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
     - [ ] Graceful degradation when supervisor unavailable (warns, doesn't crash)
     - [ ] All existing tests pass; no regressions
     - [ ] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
+    - [ ] Live testing in dev-mode shows session state files being written
+    - [ ] No errors/warnings in the logs
 
 - [ ] **Phase 9: Feature Parity and Legacy Cleanup**
   - [ ] Objectives
