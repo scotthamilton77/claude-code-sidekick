@@ -12,7 +12,7 @@ additionalContext: |
   Codebase and user instructions are shown below. Be sure to adhere to these instructions. IMPORTANT: These instructions OVERRIDE any default behavior and you MUST follow them exactly as written.
 
   Before proceeding:
-  - Verify first. Wrong path = 10+ wasted turns. Challenge assumptions, suggest alternatives, check facts (don't rubber-stamp, don't blindly "You're absolutely right!")
+  - Verify first (don't tell the user "you're right" based solely on their statements/assertions). Wrong path = 10+ wasted turns. Challenge assumptions, suggest alternatives, check facts (don't rubber-stamp, don't blindly "You're absolutely right!")
   - Review the user's request carefully and ensure you understand the requirements
   - If anything is unclear or ambiguous, ask for clarification rather than making assumptions
   - Track your progress methodically - use TodoWrite for multi-step tasks
