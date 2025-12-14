@@ -29,7 +29,12 @@ import fs from 'fs/promises'
 import path from 'path'
 import { ConfigChangeEvent, ConfigWatcher } from './config-watcher.js'
 import { StateManager } from './state-manager.js'
-import { createTaskRegistry, registerStandardTaskHandlers, TaskRegistry } from './task-handlers.js'
+import {
+  createTaskRegistry,
+  getFirstPromptConfig,
+  registerStandardTaskHandlers,
+  TaskRegistry,
+} from './task-handlers.js'
 import { TaskEngine } from './task-engine.js'
 
 // Read version from root package.json (single source of truth for monorepo)
@@ -134,7 +139,7 @@ export class Supervisor {
       }
 
       // 5. Register standard task handlers (Phase 5.2 task types)
-      registerStandardTaskHandlers(this.taskEngine, this.stateManager, this.projectDir, this.logger)
+      registerStandardTaskHandlers(this.taskEngine, this.stateManager, this.projectDir, this.logger, this.config)
 
       // 6. Start IPC Server
       await this.ipcServer.start()
@@ -445,12 +450,21 @@ export class Supervisor {
       // File doesn't exist, continue
     }
 
+    // Get first-prompt config from features
+    const firstPromptConfig = getFirstPromptConfig(this.config, this.logger)
+
+    // Check if feature is enabled
+    if (!firstPromptConfig.enabled) {
+      this.logger.debug('First-prompt summary feature is disabled')
+      return
+    }
+
     // Check if session-summary exists with sufficient confidence
     try {
       const summaryContent = await fs.readFile(sessionSummaryPath, 'utf-8')
       const summary = JSON.parse(summaryContent) as { session_title_confidence?: number }
       const confidence = summary.session_title_confidence ?? 0
-      const threshold = 0.6 // TODO: Make configurable
+      const threshold = firstPromptConfig.confidenceThreshold
 
       if (confidence >= threshold) {
         this.logger.debug('Session summary exists with sufficient confidence, skipping first-prompt', {

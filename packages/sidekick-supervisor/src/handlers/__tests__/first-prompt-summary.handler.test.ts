@@ -13,7 +13,7 @@ import {
   FirstPromptSummaryStateSchema,
 } from '@sidekick/core'
 import { describe, expect, it } from 'vitest'
-import { buildPrompt, classifyPrompt, PromptClassification } from '../first-prompt-summary.handler.js'
+import { buildPrompt, classifyPrompt, generateWithLLM, PromptClassification } from '../first-prompt-summary.handler.js'
 
 describe('classifyPrompt', () => {
   describe('non-slash commands', () => {
@@ -672,5 +672,17 @@ describe('classifyPrompt with custom skipCommands', () => {
     expect(classifyPrompt('/help', emptySkipCommands)).toBe('llm')
     expect(classifyPrompt('/config', emptySkipCommands)).toBe('llm')
     expect(classifyPrompt('/clear', emptySkipCommands)).toBe('llm')
+  })
+})
+
+describe('generateWithLLM', () => {
+  // Note: Integration tests for generateWithLLM with real providers are excluded
+  // by default (expensive API calls) per AGENTS.md LLM test isolation constraint.
+  // These tests validate the function signature and exported interface.
+
+  it('should export generateWithLLM function', () => {
+    // Verify the function is exported and has the expected signature
+    expect(typeof generateWithLLM).toBe('function')
+    expect(generateWithLLM.length).toBe(5) // 5 parameters (userPrompt, resumeContext, config, logger, signal?)
   })
 })

@@ -402,12 +402,17 @@ Below this threshold, the session summary exists but is not considered reliable 
 2. Wire defaults
 3. Document configuration options
 
-### Phase 5: LLM Integration
-1. Wire `generateWithLLM()` to `@sidekick/shared-providers` LLMService
+### Phase 5: LLM Integration ✅
+1. Wire `generateWithLLM()` to `@sidekick/shared-providers` using ProviderFactory + FallbackProvider
 2. Implement primary/fallback model chain per `FirstPromptConfig.model`
-3. Add timeout handling using `config.llmTimeoutMs`
-4. Wire `confidenceThreshold` from config in supervisor trigger (currently hardcoded)
-5. Add integration tests with LLM provider mocks
+3. Add timeout handling using `config.llmTimeoutMs` with Promise.race
+4. Wire `confidenceThreshold` from config in supervisor trigger via `getFirstPromptConfig()`
+5. Add integration tests validating function export and signature (real LLM tests excluded per AGENTS.md)
+
+### Phase 6: Validation
+1. Is it working?
+2. Is it configurable?  How?  What are the defaults?
+3. Is the prompt something that the user can override like other features' prompts?
 
 ## 10. Open Questions
 

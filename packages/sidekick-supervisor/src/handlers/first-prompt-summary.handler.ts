@@ -15,6 +15,13 @@ import {
   type FirstPromptSummaryState,
   type Logger,
 } from '@sidekick/core'
+import {
+  FallbackProvider,
+  ProviderFactory,
+  TimeoutError as ProviderTimeoutError,
+  type LLMProvider,
+  type ProviderType,
+} from '@sidekick/shared-providers'
 import fs from 'fs/promises'
 import path from 'path'
 import { TaskContext, TaskHandler } from '../task-engine.js'
@@ -189,7 +196,7 @@ export function createFirstPromptSummaryHandler(deps: FirstPromptSummaryHandlerD
     if (classification === 'llm') {
       // Try LLM generation
       try {
-        const llmResult = await generateWithLLM(p.userPrompt, p.resumeContext, config, ctx.logger)
+        const llmResult = await generateWithLLM(p.userPrompt, p.resumeContext, config, ctx.logger, ctx.signal)
         message = llmResult.message
         source = 'llm'
         llmClassification = llmResult.classification
@@ -275,7 +282,7 @@ async function writeStaticMessage(
 }
 
 // ============================================================================
-// LLM Integration (Placeholder)
+// LLM Integration
 // ============================================================================
 
 interface LLMGenerationResult {
@@ -285,66 +292,149 @@ interface LLMGenerationResult {
 }
 
 /**
+ * Create an LLM provider from config using ProviderFactory.
+ */
+function createProvider(
+  providerConfig: { provider: string; model: string },
+  timeout: number,
+  logger: Logger
+): LLMProvider {
+  const factory = new ProviderFactory(
+    {
+      // Provider type is validated by FirstPromptConfigSchema - safe to cast
+      provider: providerConfig.provider as ProviderType,
+      model: providerConfig.model,
+      timeout,
+      maxRetries: 2, // Quick retries for snark generation
+    },
+    logger
+  )
+  return factory.create()
+}
+
+/**
  * Generate first-prompt summary using LLM.
  *
  * Uses the model configuration from FirstPromptConfig to select provider and model.
- * Falls back to staticFallbackMessage if both primary and fallback providers fail.
+ * Implements primary/fallback chain with timeout handling.
+ * Falls back to staticFallbackMessage if both providers fail (handled by caller).
  *
  * @see docs/design/FEATURE-FIRST-PROMPT-SUMMARY.md §5
  */
-function generateWithLLM(
+export async function generateWithLLM(
   userPrompt: string,
   resumeContext: string | undefined,
   config: FirstPromptConfig,
-  logger: Logger
+  logger: Logger,
+  signal?: AbortSignal
 ): Promise<LLMGenerationResult> {
-  // Build the prompt (for logging/debugging)
   const prompt = buildPrompt(userPrompt, resumeContext)
-  logger.debug('Built LLM prompt', {
+  const timeoutMs = config.llmTimeoutMs
+
+  logger.debug('Starting LLM generation', {
     promptLength: prompt.length,
     primaryProvider: config.model.primary.provider,
     primaryModel: config.model.primary.model,
     hasFallback: config.model.fallback !== null,
+    timeoutMs,
   })
 
-  // TODO: Integrate with LLMService from @sidekick/shared-providers
-  // Future implementation will use config.model.primary and config.model.fallback
-  // with config.llmTimeoutMs for timeout handling
-  //
-  // const llmService = createLLMService({
-  //   provider: config.model.primary.provider,
-  //   model: config.model.primary.model,
-  //   timeout: config.llmTimeoutMs,
-  // })
-  // try {
-  //   const response = await llmService.complete({
-  //     messages: [{ role: 'user', content: prompt }],
-  //     maxTokens: 100,
-  //   })
-  //   return {
-  //     message: response.content.trim(),
-  //     classification: inferClassification(response.content),
-  //     model: response.model,
-  //   }
-  // } catch (primaryError) {
-  //   if (config.model.fallback) {
-  //     // Try fallback provider
-  //     const fallbackService = createLLMService({
-  //       provider: config.model.fallback.provider,
-  //       model: config.model.fallback.model,
-  //       timeout: config.llmTimeoutMs,
-  //     })
-  //     const response = await fallbackService.complete(...)
-  //     return { ... }
-  //   }
-  //   throw primaryError
-  // }
+  // Create primary provider
+  const primaryProvider = createProvider(config.model.primary, timeoutMs, logger)
 
-  // Placeholder: Return a static message until LLM integration is complete
-  // This allows testing the full flow without LLM calls
-  return Promise.resolve({
-    message: 'Processing your request...',
-    classification: 'actionable',
-    model: `${config.model.primary.provider}/${config.model.primary.model}`,
+  // Create provider with fallback chain if configured
+  let provider: LLMProvider
+  if (config.model.fallback) {
+    const fallbackProvider = createProvider(config.model.fallback, timeoutMs, logger)
+    provider = new FallbackProvider(primaryProvider, [fallbackProvider], logger)
+  } else {
+    provider = primaryProvider
+  }
+
+  // Make the LLM request with timeout
+  const request = {
+    messages: [{ role: 'user' as const, content: prompt }],
+    maxTokens: 100, // Short response for snark
+    temperature: 0.8, // Higher temperature for creative snark
+  }
+
+  // Race against timeout and abort signal
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    const timer = setTimeout(() => {
+      reject(new ProviderTimeoutError('first-prompt'))
+    }, timeoutMs)
+    // Clear timeout if signal aborts first
+    signal?.addEventListener('abort', () => clearTimeout(timer))
   })
+
+  const abortPromise = signal
+    ? new Promise<never>((_, reject) => {
+        signal.addEventListener('abort', () => reject(new Error('Task cancelled')))
+      })
+    : null
+
+  try {
+    const promises: Promise<unknown>[] = [provider.complete(request), timeoutPromise]
+    if (abortPromise) {
+      promises.push(abortPromise)
+    }
+
+    const response = (await Promise.race(promises)) as Awaited<ReturnType<typeof provider.complete>>
+
+    // Extract and clean the message
+    const rawMessage = response.content.trim()
+    // Remove quotes if the model wrapped the response
+    const message = rawMessage.replace(/^["']|["']$/g, '')
+
+    // Infer classification from the response if possible
+    // (The model may include it despite instructions, or we can infer from content)
+    const classification = inferClassification(message)
+
+    const modelUsed = response.model ?? `${config.model.primary.provider}/${config.model.primary.model}`
+
+    logger.info('LLM generation completed', {
+      modelUsed,
+      messageLength: message.length,
+      inputTokens: response.usage?.inputTokens,
+      outputTokens: response.usage?.outputTokens,
+    })
+
+    return {
+      message,
+      classification,
+      model: modelUsed,
+    }
+  } catch (err) {
+    // Let the caller handle errors and use static fallback
+    logger.warn('LLM generation failed', {
+      error: err instanceof Error ? err.message : String(err),
+      errorType: err instanceof Error ? err.constructor.name : 'unknown',
+    })
+    throw err
+  }
+}
+
+/**
+ * Attempt to infer classification from the generated message.
+ * This is best-effort since the LLM only returns the snarky message.
+ */
+function inferClassification(message: string): FirstPromptClassification | undefined {
+  const lowerMessage = message.toLowerCase()
+
+  // Look for keywords that might indicate classification
+  if (lowerMessage.includes('configur') || lowerMessage.includes('setting')) {
+    return 'command'
+  }
+  if (lowerMessage.includes('hello') || lowerMessage.includes('greet') || lowerMessage.includes('chat')) {
+    return 'conversational'
+  }
+  if (lowerMessage.includes('explor') || lowerMessage.includes('investigat') || lowerMessage.includes('search')) {
+    return 'interrogative'
+  }
+  if (lowerMessage.includes('unclear') || lowerMessage.includes('vague') || lowerMessage.includes('hmm')) {
+    return 'ambiguous'
+  }
+
+  // Default to actionable for clear task-oriented messages
+  return 'actionable'
 }
