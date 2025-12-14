@@ -309,7 +309,55 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
       - [x] Verify path resolution in both `.sidekick/` and `~/.sidekick/` contexts.
     - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
 
-- [ ] **Phase 8: Feature Parity and Legacy Cleanup**
+- [ ] **Phase 8: CLI→Supervisor Event Dispatch**
+  - [ ] Objectives
+    - [ ] Wire CLI hook commands to dispatch events to Supervisor via IPC
+    - [ ] Enable handler execution for hook events (SessionStart, UserPromptSubmit, etc.)
+    - [ ] Complete the event flow: CLI → IpcService → Supervisor → HandlerRegistry → Handlers
+  - [ ] Relevant documents/sections
+    - [ ] `{project_root_dir}/docs/design/flow.md` (§5 Complete Hook Flows) — **CLI/Supervisor event dispatch patterns**
+    - [ ] `{project_root_dir}/docs/design/CLI.md` (§4 Supervisor Interaction)
+    - [ ] `{project_root_dir}/docs/design/SUPERVISOR.md` (§3 Communication Layer, §4.3 IPC Protocol)
+  - [ ] Background
+    - Phase 5 implemented supervisor lifecycle (start/stop/status) and IPC infrastructure
+    - Phase 6 implemented feature handlers that register with HandlerRegistry
+    - **Gap identified**: CLI starts supervisor but never sends hook events via IPC
+    - Result: Handlers are registered but never invoked; session data is never written
+  - [ ] **8.1 CLI Event Dispatch Integration**
+    - [ ] Import `IpcService` in CLI hook command path
+    - [ ] Build `HookEvent` from parsed CLI arguments and stdin JSON
+    - [ ] Call `ipc.send('hook.invoke', { hook, event })` for each hook command
+    - [ ] Handle supervisor response (reminders, blocking status, errors)
+    - [ ] Remove "Node runtime skeleton ready" placeholder message
+  - [ ] **8.2 Hook-Specific Event Construction**
+    - [ ] `SessionStart`: Extract `sessionId`, `transcriptPath`, `startupType` from stdin
+    - [ ] `UserPromptSubmit`: Extract `prompt`, `sessionId` from stdin
+    - [ ] `PreToolUse` / `PostToolUse`: Extract `toolName`, `toolInput`, `toolResult` from stdin
+    - [ ] `Stop`: Extract `stopReason`, `sessionId` from stdin
+    - [ ] `SessionEnd`: Extract `sessionId`, `endReason` from stdin
+  - [ ] **8.3 Response Handling & Output**
+    - [ ] Parse `HookResponse` from supervisor (reminders, additionalContext, blocking)
+    - [ ] Format CLI output per Claude Code hook contract (JSON to stdout)
+    - [ ] Handle `blocking: true` responses appropriately
+    - [ ] Log handler execution results via structured logging
+  - [ ] **8.4 Graceful Degradation**
+    - [ ] When supervisor unavailable: proceed with sync-only path (existing behavior)
+    - [ ] Log warning when falling back to sync path
+    - [ ] Ensure CLI never blocks indefinitely on supervisor communication
+  - [ ] Testing
+    - [ ] Unit tests for event construction from stdin JSON
+    - [ ] Integration tests for CLI → Supervisor → Handler flow
+    - [ ] Graceful degradation tests (supervisor unavailable scenarios)
+    - [ ] End-to-end tests with recorded transcript data
+  - [ ] Acceptance criteria
+    - [ ] Hook commands dispatch events to supervisor via `hook.invoke` IPC
+    - [ ] Registered handlers execute and write session state files
+    - [ ] `.sidekick/sessions/{sessionId}/state/` contains handler output
+    - [ ] Graceful degradation when supervisor unavailable (warns, doesn't crash)
+    - [ ] All existing tests pass; no regressions
+    - [ ] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
+
+- [ ] **Phase 9: Feature Parity and Legacy Cleanup**
   - [ ] Objectives
     - [ ] Audit legacy implementations against TypeScript rewrite for feature parity
     - [ ] Port remaining functionality not obsolete or in conflict with new designs; document intentional omissions
@@ -317,15 +365,15 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
   - [ ] Relevant documents/sections
     - [ ] `{project_root_dir}/docs/ARCHITECTURE.md` (§1 Guiding Principles)
     - [ ] `{project_root_dir}/docs/design/flow.md` (complete hook flows as feature reference)
-  - [ ] **8.1 Legacy Audit**
+  - [ ] **9.1 Legacy Audit**
     - [ ] Audit `benchmark-next/` for unported features (early TypeScript exploration, largely stale)
     - [ ] Audit `src/sidekick/` (bash runtime) for behaviors not yet in TypeScript packages
     - [ ] Audit `scripts/` for analysis tools that should migrate (e.g., `analyze-session-at-line.sh`, `simulate-session.py`)
     - [ ] Audit transcript processing logic
     - [ ] Document feature gaps and create tasks for each
-  - [ ] **8.2 Migration Tasks** (populated by audit)
+  - [ ] **9.2 Migration Tasks** (populated by audit)
     - [ ] Placeholder: Tasks added based on audit findings
-  - [ ] **8.3 Legacy Cleanup**
+  - [ ] **9.3 Legacy Cleanup**
     - [ ] Archive `benchmark-next/` (mark as superseded in README)
     - [ ] Decide: retain bash runtime as fallback or deprecate entirely
     - [ ] Update `AGENTS.md` to reflect final state
@@ -335,7 +383,7 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
     - [ ] Code complexity is kept low using stated architecture principles and guidelines
     - [ ] All new and modified files are documented
 
-- [ ] **Phase 9: Installation & Distribution Hardening**
+- [ ] **Phase 10: Installation & Distribution Hardening**
   - [ ] Objectives
     - [ ] Evaluate Claude Code Plugins as potential distribution mechanism
     - [ ] Finalize installer scripts for bash wrappers, assets, and dual-scope support
@@ -344,16 +392,16 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
     - [ ] `{project_root_dir}/docs/ARCHITECTURE.md` (§4 Installation & Distribution)
     - [ ] `{project_root_dir}/docs/design/CLI.md` (§3 Hook Wrapper Layer, §6 Scope Resolution)
     - [ ] `{project_root_dir}/docs/design/CONFIG-SYSTEM.md` (§3 Configuration Domains, §4 Configuration Cascade) — **YAML format spec**
-  - [ ] **9.1 Installer Implementation**
+  - [ ] **10.1 Installer Implementation**
     - [ ] Hook wrapper generation: bash scripts that invoke `npx @sidekick/cli` or global install
     - [ ] Asset bundling: copy `assets/sidekick/` to installed location
     - [ ] Dual-scope detection: warn when both user and project hooks are installed
     - [ ] CLI commands: `sidekick install --project`, `sidekick install --user`, `sidekick uninstall`
-  - [ ] **9.2 Config Migration**
+  - [ ] **10.2 Config Migration**
     - [ ] Legacy `.conf` → YAML converter: parse bash-style key=value, emit domain YAML files
     - [ ] `sidekick.config` support: unified override file with dot-notation (per docs/design/CONFIG-SYSTEM.md §4.2)
     - [ ] Migration reporting: show what was converted, warn on unrecognized keys
-  - [ ] **9.3 Distribution Options**
+  - [ ] **10.3 Distribution Options**
     - [ ] npm package: `@sidekick/cli` with `npx` support
     - [ ] Global install: `npm i -g @sidekick/cli`
     - [ ] Claude Code Plugins: evaluate if/how to integrate
@@ -368,22 +416,22 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
     - [ ] Migration tool converts legacy configs with clear reporting
     - [ ] All new and modified files documented
 
-- [ ] **Phase 10: Documentation & Polish**
+- [ ] **Phase 11: Documentation & Polish**
   - [ ] Objectives
     - [ ] Finalize user-facing documentation
     - [ ] Clean up development artifacts
     - [ ] Prepare for release
-  - [ ] **10.1 Documentation**
+  - [ ] **11.1 Documentation**
     - [ ] Update README.md for TypeScript runtime (replace bash-focused content)
     - [ ] User guide: installation, configuration, troubleshooting
     - [ ] Developer guide: architecture overview, contributing
     - [ ] Ensure all LLDs are current with implementation
     - [ ] Ensure all source code documentation is up-to-date (not in conflict with requirements or implementation), clean and lean (not over-documenting), and remove all references to implementation phases (how we planned the work should be irrelevant to code documentation).
-  - [ ] **10.2 Cleanup**
+  - [ ] **11.2 Cleanup**
     - [ ] Remove or archive stale files (benchmark-next/, legacy scripts)
     - [ ] Verify all `// TODO` and `// FIXME` comments addressed
     - [ ] Final lint/typecheck/test pass
-  - [ ] **10.3 Release Preparation**
+  - [ ] **11.3 Release Preparation**
     - [ ] Version bump and changelog
     - [ ] npm publish dry-run
     - [ ] Final dual-scope verification
