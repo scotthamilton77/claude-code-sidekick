@@ -178,8 +178,6 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
     telemetry.increment('dual_install_detected', { scope: scope.scope })
   }
 
-  logger.warn('Supervisor endpoint unavailable - skipped handshake for bootstrap skeleton')
-
   // Return the runtime shell
   return {
     logger,
