@@ -24,7 +24,11 @@ export async function handleSupervisorStatus(request: ApiRequest): Promise<Respo
   const { statePath } = request.ctx
 
   if (!statePath) {
-    return errorResponse('State directory not found', 404)
+    // No state directory = supervisor never started, return offline status gracefully
+    return jsonResponse({
+      isOnline: false,
+      error: 'State directory not found - supervisor may not be running',
+    })
   }
 
   const statusFilePath = join(statePath, 'supervisor-status.json')
