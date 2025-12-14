@@ -49,6 +49,9 @@ export type {
   // State types
   FirstPromptClassification,
   FirstPromptSummaryState,
+  // Config types
+  FirstPromptConfig,
+  FirstPromptModelConfig,
 } from '@sidekick/types'
 
 // Re-export task type constants and schemas
@@ -62,6 +65,10 @@ export {
   // State schemas
   FirstPromptClassificationSchema,
   FirstPromptSummaryStateSchema,
+  // Config schemas
+  FirstPromptConfigSchema,
+  FirstPromptModelConfigSchema,
+  DEFAULT_FIRST_PROMPT_CONFIG,
 } from '@sidekick/types'
 
 // Re-export type guards from @sidekick/types

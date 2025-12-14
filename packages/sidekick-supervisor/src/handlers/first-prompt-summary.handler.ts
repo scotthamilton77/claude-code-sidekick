@@ -7,8 +7,14 @@
  * @see docs/design/FEATURE-FIRST-PROMPT-SUMMARY.md
  */
 
-import { FirstPromptSummaryPayloadSchema, Logger } from '@sidekick/core'
-import type { FirstPromptClassification, FirstPromptSummaryState } from '@sidekick/types'
+import {
+  DEFAULT_FIRST_PROMPT_CONFIG,
+  FirstPromptSummaryPayloadSchema,
+  type FirstPromptClassification,
+  type FirstPromptConfig,
+  type FirstPromptSummaryState,
+  type Logger,
+} from '@sidekick/core'
 import fs from 'fs/promises'
 import path from 'path'
 import { TaskContext, TaskHandler } from '../task-engine.js'
@@ -18,63 +24,21 @@ import { TaskRegistry, validateSessionId } from '../task-registry.js'
 // Slash Command Classification
 // ============================================================================
 
-/**
- * Commands that should skip LLM generation entirely.
- * These are meta-operations that don't warrant creative commentary.
- *
- * @see docs/design/FEATURE-FIRST-PROMPT-SUMMARY.md §3.1
- */
-const SKIP_LLM_COMMANDS = new Set([
-  'add-dir',
-  'agents',
-  'bashes',
-  'bug',
-  'clear',
-  'compact',
-  'config',
-  'context',
-  'cost',
-  'doctor',
-  'exit',
-  'export',
-  'help',
-  'hooks',
-  'ide',
-  'install-github-app',
-  'login',
-  'logout',
-  'mcp',
-  'memory',
-  'output-style',
-  'permissions',
-  'plugin',
-  'pr-comments',
-  'privacy-settings',
-  'release-notes',
-  'resume',
-  'rewind',
-  'sandbox',
-  'security-review',
-  'stats',
-  'status',
-  'statusline',
-  'terminal-setup',
-  'todos',
-  'usage',
-  'vim',
-])
-
 /** Classification result for prompt analysis */
 export type PromptClassification = 'skip' | 'static' | 'llm'
 
 /**
  * Determine whether to generate first-prompt summary via LLM.
  *
+ * @param userPrompt - The user's input text
+ * @param skipCommands - Set of slash commands that should skip LLM generation
  * @returns 'skip' for commands that shouldn't generate anything,
  *          'static' for commands with static message,
  *          'llm' for prompts requiring LLM generation
+ *
+ * @see docs/design/FEATURE-FIRST-PROMPT-SUMMARY.md §3.1
  */
-export function classifyPrompt(userPrompt: string): PromptClassification {
+export function classifyPrompt(userPrompt: string, skipCommands?: Set<string>): PromptClassification {
   const trimmed = userPrompt.trim()
 
   // Check for slash command
@@ -84,7 +48,8 @@ export function classifyPrompt(userPrompt: string): PromptClassification {
   }
 
   const command = slashMatch[1]
-  if (SKIP_LLM_COMMANDS.has(command)) {
+  const skipSet = skipCommands ?? new Set(DEFAULT_FIRST_PROMPT_CONFIG.skipCommands)
+  if (skipSet.has(command)) {
     return 'skip' // Skip generation entirely
   }
 
@@ -141,16 +106,8 @@ export interface FirstPromptSummaryHandlerDeps {
   taskRegistry: TaskRegistry
   projectDir: string
   logger: Logger
-}
-
-/**
- * Default configuration for first-prompt summary generation.
- * TODO: Make configurable via sidekick config in Phase 4.
- */
-const DEFAULT_CONFIG = {
-  staticFallbackMessage: 'Deciphering intent...',
-  /** LLM call timeout in ms */
-  llmTimeoutMs: 10000,
+  /** Feature configuration. Uses defaults if not provided. */
+  config?: FirstPromptConfig
 }
 
 // ============================================================================
@@ -158,8 +115,18 @@ const DEFAULT_CONFIG = {
 // ============================================================================
 
 export function createFirstPromptSummaryHandler(deps: FirstPromptSummaryHandlerDeps): TaskHandler {
+  // Merge provided config with defaults
+  const config = deps.config ?? DEFAULT_FIRST_PROMPT_CONFIG
+  const skipCommandsSet = new Set(config.skipCommands)
+
   return async (payload, ctx: TaskContext) => {
     const startTime = performance.now()
+
+    // Check if feature is enabled
+    if (!config.enabled) {
+      ctx.logger.debug('First-prompt summary feature is disabled')
+      return
+    }
 
     // Validate payload
     const result = FirstPromptSummaryPayloadSchema.safeParse(payload)
@@ -185,13 +152,18 @@ export function createFirstPromptSummaryHandler(deps: FirstPromptSummaryHandlerD
       return
     }
 
-    // Classify the prompt
-    const classification = classifyPrompt(p.userPrompt)
+    // Classify the prompt using configurable skip commands
+    const classification = classifyPrompt(p.userPrompt, skipCommandsSet)
 
     if (classification === 'skip') {
-      ctx.logger.info('Skipping first-prompt summary for meta command', {
-        sessionId: p.sessionId,
-      })
+      // Check if we should write a static skip message
+      if (config.staticSkipMessage !== null) {
+        await writeStaticMessage(p, config.staticSkipMessage, startTime, ctx.logger)
+      } else {
+        ctx.logger.info('Skipping first-prompt summary for meta command', {
+          sessionId: p.sessionId,
+        })
+      }
       return
     }
 
@@ -217,7 +189,7 @@ export function createFirstPromptSummaryHandler(deps: FirstPromptSummaryHandlerD
     if (classification === 'llm') {
       // Try LLM generation
       try {
-        const llmResult = await generateWithLLM(p.userPrompt, p.resumeContext, ctx.logger)
+        const llmResult = await generateWithLLM(p.userPrompt, p.resumeContext, config, ctx.logger)
         message = llmResult.message
         source = 'llm'
         llmClassification = llmResult.classification
@@ -226,12 +198,12 @@ export function createFirstPromptSummaryHandler(deps: FirstPromptSummaryHandlerD
         ctx.logger.warn('LLM generation failed, using fallback', {
           error: err instanceof Error ? err.message : String(err),
         })
-        message = DEFAULT_CONFIG.staticFallbackMessage
+        message = config.staticFallbackMessage
         source = 'fallback'
       }
     } else {
       // Static message for skipped commands
-      message = DEFAULT_CONFIG.staticFallbackMessage
+      message = config.staticFallbackMessage
       source = 'static'
     }
 
@@ -267,6 +239,41 @@ export function createFirstPromptSummaryHandler(deps: FirstPromptSummaryHandlerD
   }
 }
 
+/**
+ * Write a static message file for skipped commands when staticSkipMessage is configured.
+ */
+async function writeStaticMessage(
+  payload: { sessionId: string; userPrompt: string; stateDir: string; resumeContext?: string },
+  message: string,
+  startTime: number,
+  logger: Logger
+): Promise<void> {
+  const summaryPath = path.join(payload.stateDir, 'first-prompt-summary.json')
+
+  const state: FirstPromptSummaryState = {
+    session_id: payload.sessionId,
+    timestamp: new Date().toISOString(),
+    message,
+    source: 'static',
+    latency_ms: Math.round(performance.now() - startTime),
+    user_prompt: payload.userPrompt,
+    had_resume_context: !!payload.resumeContext,
+  }
+
+  try {
+    await fs.mkdir(path.dirname(summaryPath), { recursive: true })
+    await fs.writeFile(summaryPath, JSON.stringify(state, null, 2), 'utf-8')
+    logger.info('First-prompt summary static message written', {
+      sessionId: payload.sessionId,
+    })
+  } catch (err) {
+    logger.error('Failed to write static first-prompt summary', {
+      sessionId: payload.sessionId,
+      error: err instanceof Error ? err.message : String(err),
+    })
+  }
+}
+
 // ============================================================================
 // LLM Integration (Placeholder)
 // ============================================================================
@@ -280,31 +287,57 @@ interface LLMGenerationResult {
 /**
  * Generate first-prompt summary using LLM.
  *
- * TODO: Phase 2 implementation - integrate with @sidekick/shared-providers
- * For now, returns a placeholder to allow testing the flow.
+ * Uses the model configuration from FirstPromptConfig to select provider and model.
+ * Falls back to staticFallbackMessage if both primary and fallback providers fail.
+ *
+ * @see docs/design/FEATURE-FIRST-PROMPT-SUMMARY.md §5
  */
 function generateWithLLM(
   userPrompt: string,
   resumeContext: string | undefined,
+  config: FirstPromptConfig,
   logger: Logger
 ): Promise<LLMGenerationResult> {
   // Build the prompt (for logging/debugging)
   const prompt = buildPrompt(userPrompt, resumeContext)
-  logger.debug('Built LLM prompt', { promptLength: prompt.length })
+  logger.debug('Built LLM prompt', {
+    promptLength: prompt.length,
+    primaryProvider: config.model.primary.provider,
+    primaryModel: config.model.primary.model,
+    hasFallback: config.model.fallback !== null,
+  })
 
   // TODO: Integrate with LLMService from @sidekick/shared-providers
-  // For now, return a placeholder that demonstrates the pattern
+  // Future implementation will use config.model.primary and config.model.fallback
+  // with config.llmTimeoutMs for timeout handling
   //
-  // Future implementation:
-  // const llmService = createLLMService(config)
-  // const response = await llmService.complete({
-  //   messages: [{ role: 'user', content: prompt }],
-  //   maxTokens: 100,
+  // const llmService = createLLMService({
+  //   provider: config.model.primary.provider,
+  //   model: config.model.primary.model,
+  //   timeout: config.llmTimeoutMs,
   // })
-  // return {
-  //   message: response.content.trim(),
-  //   classification: inferClassification(response.content),
-  //   model: response.model,
+  // try {
+  //   const response = await llmService.complete({
+  //     messages: [{ role: 'user', content: prompt }],
+  //     maxTokens: 100,
+  //   })
+  //   return {
+  //     message: response.content.trim(),
+  //     classification: inferClassification(response.content),
+  //     model: response.model,
+  //   }
+  // } catch (primaryError) {
+  //   if (config.model.fallback) {
+  //     // Try fallback provider
+  //     const fallbackService = createLLMService({
+  //       provider: config.model.fallback.provider,
+  //       model: config.model.fallback.model,
+  //       timeout: config.llmTimeoutMs,
+  //     })
+  //     const response = await fallbackService.complete(...)
+  //     return { ... }
+  //   }
+  //   throw primaryError
   // }
 
   // Placeholder: Return a static message until LLM integration is complete
@@ -312,6 +345,6 @@ function generateWithLLM(
   return Promise.resolve({
     message: 'Processing your request...',
     classification: 'actionable',
-    model: 'placeholder',
+    model: `${config.model.primary.provider}/${config.model.primary.model}`,
   })
 }
