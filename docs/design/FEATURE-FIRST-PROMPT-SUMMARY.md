@@ -379,28 +379,35 @@ Below this threshold, the session summary exists but is not considered reliable 
 
 ## 9. Implementation Plan
 
-### Phase 1: Schema & Types
+### Phase 1: Schema & Types ✅
 1. Add `FirstPromptSummarySchema` to `@sidekick/types`
 2. Add `FirstPromptConfig` schema
 3. Export types from package
 
-### Phase 2: Supervisor Integration
+### Phase 2: Supervisor Integration ✅
 1. Add `UserPromptSubmit` handler in Supervisor
 2. Implement slash command classification
-3. Implement LLM prompt generation
-4. Implement model fallback chain
+3. Implement LLM prompt generation (placeholder pending Phase 5)
+4. Implement model fallback chain (placeholder pending Phase 5)
 5. Write `first-prompt-summary.json`
 
-### Phase 3: Statusline Integration
+### Phase 3: Statusline Integration ✅
 1. Add `getFirstPromptSummary()` to StateReader
 2. Update `determineDisplayMode()` with confidence-aware logic
 3. Update `getSummaryContent()` for `first_prompt` case
 4. Update `StatuslineServiceConfig` for confidence threshold
 
-### Phase 4: Configuration
+### Phase 4: Configuration ✅
 1. Add `first-prompt` section to config schema
 2. Wire defaults
 3. Document configuration options
+
+### Phase 5: LLM Integration
+1. Wire `generateWithLLM()` to `@sidekick/shared-providers` LLMService
+2. Implement primary/fallback model chain per `FirstPromptConfig.model`
+3. Add timeout handling using `config.llmTimeoutMs`
+4. Wire `confidenceThreshold` from config in supervisor trigger (currently hardcoded)
+5. Add integration tests with LLM provider mocks
 
 ## 10. Open Questions
 
