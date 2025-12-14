@@ -32,10 +32,10 @@ import { StateManager } from './state-manager.js'
 import { createTaskRegistry, registerStandardTaskHandlers, TaskRegistry } from './task-handlers.js'
 import { TaskEngine } from './task-engine.js'
 
-// Read version from package.json at startup
-// Path is relative to dist/ output location
+// Read version from root package.json (single source of truth for monorepo)
+// Path is relative to dist/ output location: dist/ → packages/pkg/ → packages/ → root/
 // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-const VERSION: string = require('../package.json').version
+const VERSION: string = require('../../../package.json').version
 
 // Idle check interval (how often to check for idle timeout)
 const IDLE_CHECK_INTERVAL_MS = 30 * 1000 // Check every 30 seconds

@@ -33,9 +33,9 @@ interface HandshakeResponse {
   status: string
 }
 
-// Read version from package.json at module load
+// Read version from root package.json (single source of truth for monorepo)
 // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-const CLIENT_VERSION: string = require('../package.json').version
+const CLIENT_VERSION: string = require('../../../package.json').version
 
 export class SupervisorClient {
   private projectDir: string
