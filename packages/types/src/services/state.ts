@@ -104,6 +104,57 @@ export const ResumeMessageStateSchema = z.object({
 export type ResumeMessageState = z.infer<typeof ResumeMessageStateSchema>
 
 // ============================================================================
+// First-Prompt Summary State
+// ============================================================================
+
+/**
+ * Classification of the user's first prompt for appropriate response tone.
+ *
+ * @see docs/design/FEATURE-FIRST-PROMPT-SUMMARY.md §4.2
+ */
+export const FirstPromptClassificationSchema = z.enum([
+  'command', // Slash command or configuration action
+  'conversational', // Greeting, small talk, or social interaction
+  'interrogative', // Question about codebase, capabilities, or exploration
+  'ambiguous', // Context-setting but unclear specific goal
+  'actionable', // Clear task with specific intent
+])
+
+export type FirstPromptClassification = z.infer<typeof FirstPromptClassificationSchema>
+
+/**
+ * First-prompt summary state persisted to disk.
+ * Generated on UserPromptSubmit when no session summary exists.
+ * Provides snarky, contextual feedback during the first turn.
+ *
+ * Location: `.sidekick/sessions/{sessionId}/state/first-prompt-summary.json`
+ *
+ * @see docs/design/FEATURE-FIRST-PROMPT-SUMMARY.md §6
+ */
+export const FirstPromptSummaryStateSchema = z.object({
+  /** Session identifier */
+  session_id: z.string(),
+  /** ISO8601 timestamp of generation */
+  timestamp: z.string(),
+  /** The generated snarky message (max 60 chars) */
+  message: z.string(),
+  /** Classification determined by LLM */
+  classification: FirstPromptClassificationSchema.optional(),
+  /** Source of the message */
+  source: z.enum(['llm', 'static', 'fallback']),
+  /** Model used (if LLM-generated) */
+  model: z.string().optional(),
+  /** Generation latency in ms */
+  latency_ms: z.number().optional(),
+  /** Original user prompt (for debugging) */
+  user_prompt: z.string(),
+  /** Whether resume context was available */
+  had_resume_context: z.boolean(),
+})
+
+export type FirstPromptSummaryState = z.infer<typeof FirstPromptSummaryStateSchema>
+
+// ============================================================================
 // Session Metrics State
 // ============================================================================
 
@@ -235,6 +286,8 @@ export interface SessionStateSnapshot {
   timestamp: number
   /** Session summary state (if available) */
   summary?: SessionSummaryState
+  /** First-prompt summary state (if available) */
+  firstPromptSummary?: FirstPromptSummaryState
   /** Resume message state (if available) */
   resume?: ResumeMessageState
   /** Session metrics (if available) */

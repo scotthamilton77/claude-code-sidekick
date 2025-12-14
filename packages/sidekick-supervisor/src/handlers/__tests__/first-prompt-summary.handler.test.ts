@@ -1,0 +1,446 @@
+/**
+ * Unit tests for First-Prompt Summary Handler
+ *
+ * Tests the classifyPrompt and buildPrompt functions, plus schema validation.
+ *
+ * @see docs/design/FEATURE-FIRST-PROMPT-SUMMARY.md
+ */
+
+import { FirstPromptSummaryPayloadSchema, FirstPromptSummaryStateSchema } from '@sidekick/core'
+import { describe, expect, it } from 'vitest'
+import { buildPrompt, classifyPrompt, PromptClassification } from '../first-prompt-summary.handler.js'
+
+describe('classifyPrompt', () => {
+  describe('non-slash commands', () => {
+    it('should return llm for plain text prompts', () => {
+      expect(classifyPrompt('Help me fix this bug')).toBe('llm')
+    })
+
+    it('should return llm for prompts starting with whitespace', () => {
+      expect(classifyPrompt('  Build a REST API')).toBe('llm')
+    })
+
+    it('should return llm for prompts with slash in middle', () => {
+      expect(classifyPrompt('Fix the src/components/Button.tsx file')).toBe('llm')
+    })
+
+    it('should return llm for questions', () => {
+      expect(classifyPrompt('What does this function do?')).toBe('llm')
+    })
+
+    it('should return llm for greetings', () => {
+      expect(classifyPrompt('Hello!')).toBe('llm')
+    })
+  })
+
+  describe('skip slash commands (meta-operations)', () => {
+    const skipCommands = [
+      'add-dir',
+      'agents',
+      'bashes',
+      'bug',
+      'clear',
+      'compact',
+      'config',
+      'context',
+      'cost',
+      'doctor',
+      'exit',
+      'export',
+      'help',
+      'hooks',
+      'ide',
+      'install-github-app',
+      'login',
+      'logout',
+      'mcp',
+      'memory',
+      'output-style',
+      'permissions',
+      'plugin',
+      'pr-comments',
+      'privacy-settings',
+      'release-notes',
+      'resume',
+      'rewind',
+      'sandbox',
+      'security-review',
+      'stats',
+      'status',
+      'statusline',
+      'terminal-setup',
+      'todos',
+      'usage',
+      'vim',
+    ]
+
+    it.each(skipCommands)('should return skip for /%s', (command) => {
+      expect(classifyPrompt(`/${command}`)).toBe('skip')
+    })
+
+    it('should return skip for commands with arguments', () => {
+      expect(classifyPrompt('/config get llmProvider')).toBe('skip')
+      expect(classifyPrompt('/help agents')).toBe('skip')
+      expect(classifyPrompt('/resume session-123')).toBe('skip')
+    })
+
+    it('should return skip for commands with leading whitespace', () => {
+      expect(classifyPrompt('  /help')).toBe('skip')
+    })
+  })
+
+  describe('llm slash commands (meaningful actions)', () => {
+    const llmCommands = ['init', 'model', 'review', 'custom-command', 'my-workflow']
+
+    it.each(llmCommands)('should return llm for /%s', (command) => {
+      expect(classifyPrompt(`/${command}`)).toBe('llm')
+    })
+
+    it('should return llm for /init with arguments', () => {
+      expect(classifyPrompt('/init typescript-project')).toBe('llm')
+    })
+  })
+
+  describe('edge cases', () => {
+    it('should handle empty string', () => {
+      expect(classifyPrompt('')).toBe('llm')
+    })
+
+    it('should handle whitespace-only string', () => {
+      expect(classifyPrompt('   ')).toBe('llm')
+    })
+
+    it('should handle single slash', () => {
+      // Single slash is not a valid command, treated as llm
+      expect(classifyPrompt('/')).toBe('llm')
+    })
+
+    it('should be case-sensitive for commands', () => {
+      // /HELP is not in the skip list (case-sensitive)
+      expect(classifyPrompt('/HELP')).toBe('llm')
+      expect(classifyPrompt('/Help')).toBe('llm')
+    })
+  })
+})
+
+describe('buildPrompt', () => {
+  describe('context section', () => {
+    it('should include brand new session context when no resume context', () => {
+      const prompt = buildPrompt('Fix the login bug')
+      expect(prompt).toContain('This is a brand new session (no prior context)')
+      expect(prompt).not.toContain('Previous session goal')
+    })
+
+    it('should include resume context when provided', () => {
+      const prompt = buildPrompt('Continue where we left off', 'Implementing user auth')
+      expect(prompt).toContain('Previous session goal: Implementing user auth')
+      expect(prompt).not.toContain('brand new session')
+    })
+  })
+
+  describe('user input section', () => {
+    it('should include the user prompt verbatim', () => {
+      const userInput = 'Help me refactor the database layer'
+      const prompt = buildPrompt(userInput)
+      expect(prompt).toContain(`## User's First Input\n${userInput}`)
+    })
+
+    it('should preserve special characters in user prompt', () => {
+      const userInput = 'Fix the `handleClick()` function in <Button />'
+      const prompt = buildPrompt(userInput)
+      expect(prompt).toContain(userInput)
+    })
+  })
+
+  describe('instructions section', () => {
+    it('should include classification categories', () => {
+      const prompt = buildPrompt('test')
+      expect(prompt).toContain('COMMAND')
+      expect(prompt).toContain('CONVERSATIONAL')
+      expect(prompt).toContain('INTERROGATIVE')
+      expect(prompt).toContain('AMBIGUOUS')
+      expect(prompt).toContain('ACTIONABLE')
+    })
+
+    it('should include character limit instruction', () => {
+      const prompt = buildPrompt('test')
+      expect(prompt).toContain('max 60 characters')
+    })
+  })
+
+  describe('tone guidelines', () => {
+    it('should include sci-fi reference guideline', () => {
+      const prompt = buildPrompt('test')
+      expect(prompt).toContain("Hitchhiker's")
+      expect(prompt).toContain('Star Trek')
+    })
+
+    it('should include sardonic tone guideline', () => {
+      const prompt = buildPrompt('test')
+      expect(prompt).toContain('sardonic')
+      expect(prompt).toContain('never mean')
+    })
+  })
+
+  describe('output format', () => {
+    it('should specify single line output', () => {
+      const prompt = buildPrompt('test')
+      expect(prompt).toContain('single line')
+      expect(prompt).toContain('no explanation')
+    })
+  })
+})
+
+describe('type safety', () => {
+  it('classifyPrompt should return valid PromptClassification', () => {
+    const validResults: PromptClassification[] = ['skip', 'static', 'llm']
+
+    expect(validResults).toContain(classifyPrompt('/help'))
+    expect(validResults).toContain(classifyPrompt('/init'))
+    expect(validResults).toContain(classifyPrompt('plain text'))
+  })
+})
+
+describe('FirstPromptSummaryPayloadSchema', () => {
+  describe('valid payloads', () => {
+    it('should accept minimal valid payload', () => {
+      const payload = {
+        sessionId: 'session-123',
+        userPrompt: 'Help me fix a bug',
+        stateDir: '/path/to/state',
+      }
+
+      const result = FirstPromptSummaryPayloadSchema.safeParse(payload)
+      expect(result.success).toBe(true)
+    })
+
+    it('should accept payload with resumeContext', () => {
+      const payload = {
+        sessionId: 'session-456',
+        userPrompt: 'Continue where we left off',
+        stateDir: '/path/to/state',
+        resumeContext: 'Implementing user authentication',
+      }
+
+      const result = FirstPromptSummaryPayloadSchema.safeParse(payload)
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.resumeContext).toBe('Implementing user authentication')
+      }
+    })
+  })
+
+  describe('invalid payloads', () => {
+    it('should reject missing sessionId', () => {
+      const payload = {
+        userPrompt: 'Help me',
+        stateDir: '/path/to/state',
+      }
+
+      const result = FirstPromptSummaryPayloadSchema.safeParse(payload)
+      expect(result.success).toBe(false)
+    })
+
+    it('should reject missing userPrompt', () => {
+      const payload = {
+        sessionId: 'session-123',
+        stateDir: '/path/to/state',
+      }
+
+      const result = FirstPromptSummaryPayloadSchema.safeParse(payload)
+      expect(result.success).toBe(false)
+    })
+
+    it('should reject missing stateDir', () => {
+      const payload = {
+        sessionId: 'session-123',
+        userPrompt: 'Help me',
+      }
+
+      const result = FirstPromptSummaryPayloadSchema.safeParse(payload)
+      expect(result.success).toBe(false)
+    })
+
+    it('should reject non-string values', () => {
+      const payload = {
+        sessionId: 123,
+        userPrompt: 'Help me',
+        stateDir: '/path/to/state',
+      }
+
+      const result = FirstPromptSummaryPayloadSchema.safeParse(payload)
+      expect(result.success).toBe(false)
+    })
+  })
+})
+
+describe('FirstPromptSummaryStateSchema', () => {
+  describe('valid states', () => {
+    it('should accept minimal valid state (llm source)', () => {
+      const state = {
+        session_id: 'session-123',
+        timestamp: '2024-01-15T10:30:00.000Z',
+        message: 'Processing your request...',
+        source: 'llm',
+        model: 'claude-3-5-haiku',
+        user_prompt: 'Help me fix a bug',
+        had_resume_context: false,
+      }
+
+      const result = FirstPromptSummaryStateSchema.safeParse(state)
+      expect(result.success).toBe(true)
+    })
+
+    it('should accept state with classification', () => {
+      const state = {
+        session_id: 'session-123',
+        timestamp: '2024-01-15T10:30:00.000Z',
+        message: 'Engaging problem-solving subroutines...',
+        classification: 'actionable',
+        source: 'llm',
+        model: 'claude-3-5-haiku',
+        latency_ms: 150,
+        user_prompt: 'Refactor the database layer',
+        had_resume_context: false,
+      }
+
+      const result = FirstPromptSummaryStateSchema.safeParse(state)
+      expect(result.success).toBe(true)
+    })
+
+    it('should accept state with static source (no model)', () => {
+      const state = {
+        session_id: 'session-123',
+        timestamp: '2024-01-15T10:30:00.000Z',
+        message: 'Deciphering intent...',
+        source: 'static',
+        user_prompt: '/config',
+        had_resume_context: false,
+      }
+
+      const result = FirstPromptSummaryStateSchema.safeParse(state)
+      expect(result.success).toBe(true)
+    })
+
+    it('should accept state with fallback source', () => {
+      const state = {
+        session_id: 'session-123',
+        timestamp: '2024-01-15T10:30:00.000Z',
+        message: 'Deciphering intent...',
+        source: 'fallback',
+        user_prompt: 'Complex prompt here',
+        had_resume_context: true,
+      }
+
+      const result = FirstPromptSummaryStateSchema.safeParse(state)
+      expect(result.success).toBe(true)
+    })
+  })
+
+  describe('classification validation', () => {
+    const validClassifications = ['command', 'conversational', 'interrogative', 'ambiguous', 'actionable']
+
+    it.each(validClassifications)('should accept classification: %s', (classification) => {
+      const state = {
+        session_id: 'session-123',
+        timestamp: '2024-01-15T10:30:00.000Z',
+        message: 'Test message',
+        classification,
+        source: 'llm',
+        model: 'test-model',
+        user_prompt: 'Test prompt',
+        had_resume_context: false,
+      }
+
+      const result = FirstPromptSummaryStateSchema.safeParse(state)
+      expect(result.success).toBe(true)
+    })
+
+    it('should reject invalid classification', () => {
+      const state = {
+        session_id: 'session-123',
+        timestamp: '2024-01-15T10:30:00.000Z',
+        message: 'Test message',
+        classification: 'invalid_classification',
+        source: 'llm',
+        model: 'test-model',
+        user_prompt: 'Test prompt',
+        had_resume_context: false,
+      }
+
+      const result = FirstPromptSummaryStateSchema.safeParse(state)
+      expect(result.success).toBe(false)
+    })
+  })
+
+  describe('source validation', () => {
+    it.each(['llm', 'static', 'fallback'])('should accept source: %s', (source) => {
+      const state = {
+        session_id: 'session-123',
+        timestamp: '2024-01-15T10:30:00.000Z',
+        message: 'Test message',
+        source,
+        user_prompt: 'Test prompt',
+        had_resume_context: false,
+      }
+
+      const result = FirstPromptSummaryStateSchema.safeParse(state)
+      expect(result.success).toBe(true)
+    })
+
+    it('should reject invalid source', () => {
+      const state = {
+        session_id: 'session-123',
+        timestamp: '2024-01-15T10:30:00.000Z',
+        message: 'Test message',
+        source: 'invalid_source',
+        user_prompt: 'Test prompt',
+        had_resume_context: false,
+      }
+
+      const result = FirstPromptSummaryStateSchema.safeParse(state)
+      expect(result.success).toBe(false)
+    })
+  })
+
+  describe('invalid states', () => {
+    it('should reject missing required fields', () => {
+      const state = {
+        session_id: 'session-123',
+        // missing timestamp, message, source, user_prompt, had_resume_context
+      }
+
+      const result = FirstPromptSummaryStateSchema.safeParse(state)
+      expect(result.success).toBe(false)
+    })
+
+    it('should reject non-boolean had_resume_context', () => {
+      const state = {
+        session_id: 'session-123',
+        timestamp: '2024-01-15T10:30:00.000Z',
+        message: 'Test message',
+        source: 'llm',
+        user_prompt: 'Test prompt',
+        had_resume_context: 'yes', // should be boolean
+      }
+
+      const result = FirstPromptSummaryStateSchema.safeParse(state)
+      expect(result.success).toBe(false)
+    })
+
+    it('should reject non-number latency_ms', () => {
+      const state = {
+        session_id: 'session-123',
+        timestamp: '2024-01-15T10:30:00.000Z',
+        message: 'Test message',
+        source: 'llm',
+        latency_ms: '150ms', // should be number
+        user_prompt: 'Test prompt',
+        had_resume_context: false,
+      }
+
+      const result = FirstPromptSummaryStateSchema.safeParse(state)
+      expect(result.success).toBe(false)
+    })
+  })
+})

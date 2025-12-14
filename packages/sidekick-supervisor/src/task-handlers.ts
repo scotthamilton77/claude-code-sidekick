@@ -14,6 +14,7 @@
 import { Logger, TaskTypes } from '@sidekick/core'
 import {
   createCleanupHandler,
+  createFirstPromptSummaryHandler,
   createMetricsPersistHandler,
   createResumeGenerationHandler,
   createSessionSummaryHandler,
@@ -49,6 +50,7 @@ export function registerStandardTaskHandlers(
   taskEngine.registerHandler(TaskTypes.RESUME_GENERATION, createResumeGenerationHandler(deps))
   taskEngine.registerHandler(TaskTypes.CLEANUP, createCleanupHandler(deps))
   taskEngine.registerHandler(TaskTypes.METRICS_PERSIST, createMetricsPersistHandler(deps))
+  taskEngine.registerHandler(TaskTypes.FIRST_PROMPT_SUMMARY, createFirstPromptSummaryHandler(deps))
 
   logger.info('Standard task handlers registered', {
     types: Object.values(TaskTypes),

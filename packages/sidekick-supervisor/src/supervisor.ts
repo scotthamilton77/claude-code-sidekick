@@ -312,6 +312,11 @@ export class Supervisor {
       await this.handleSessionEnd()
     }
 
+    // Handle UserPromptSubmit: trigger first-prompt summary generation
+    if (hook === 'UserPromptSubmit') {
+      await this.handleUserPromptSubmit(event)
+    }
+
     // Dispatch to registered handlers
     const response = await this.handlerRegistry.invokeHook(hook, event)
 
@@ -401,6 +406,91 @@ export class Supervisor {
       this.transcriptService = null
       this.logger.info('TranscriptService shutdown on SessionEnd')
     }
+  }
+
+  /**
+   * Handle UserPromptSubmit: trigger first-prompt summary generation if conditions met.
+   *
+   * Conditions for triggering (all must be true):
+   * 1. No session-summary.json exists (or confidence below threshold)
+   * 2. No first-prompt-summary.json exists
+   *
+   * @see docs/design/FEATURE-FIRST-PROMPT-SUMMARY.md §2
+   */
+  private async handleUserPromptSubmit(event: HookEvent): Promise<void> {
+    const payload = event.payload as { prompt?: string }
+    const sessionId = event.context?.sessionId
+
+    if (!sessionId) {
+      this.logger.warn('UserPromptSubmit event missing sessionId')
+      return
+    }
+
+    if (!payload.prompt) {
+      this.logger.warn('UserPromptSubmit event missing prompt')
+      return
+    }
+
+    // Build state directory path
+    const stateDir = path.join(this.projectDir, '.sidekick', 'sessions', sessionId, 'state')
+    const sessionSummaryPath = path.join(stateDir, 'session-summary.json')
+    const firstPromptSummaryPath = path.join(stateDir, 'first-prompt-summary.json')
+
+    // Check if first-prompt-summary already exists (idempotency)
+    try {
+      await fs.access(firstPromptSummaryPath)
+      this.logger.debug('First-prompt summary already exists, skipping', { sessionId })
+      return
+    } catch {
+      // File doesn't exist, continue
+    }
+
+    // Check if session-summary exists with sufficient confidence
+    try {
+      const summaryContent = await fs.readFile(sessionSummaryPath, 'utf-8')
+      const summary = JSON.parse(summaryContent) as { session_title_confidence?: number }
+      const confidence = summary.session_title_confidence ?? 0
+      const threshold = 0.6 // TODO: Make configurable
+
+      if (confidence >= threshold) {
+        this.logger.debug('Session summary exists with sufficient confidence, skipping first-prompt', {
+          sessionId,
+          confidence,
+          threshold,
+        })
+        return
+      }
+    } catch {
+      // Session summary doesn't exist or can't be read, proceed with first-prompt generation
+    }
+
+    // Try to read resume context from resume-message.json
+    let resumeContext: string | undefined
+    const resumeMessagePath = path.join(stateDir, 'resume-message.json')
+    try {
+      const resumeContent = await fs.readFile(resumeMessagePath, 'utf-8')
+      const resume = JSON.parse(resumeContent) as { resume_last_goal_message?: string }
+      resumeContext = resume.resume_last_goal_message
+    } catch {
+      // No resume context available
+    }
+
+    // Enqueue first-prompt summary task
+    this.logger.info('Enqueueing first-prompt summary task', {
+      sessionId,
+      hasResumeContext: !!resumeContext,
+    })
+
+    this.taskEngine.enqueue(
+      'first_prompt_summary',
+      {
+        sessionId,
+        userPrompt: payload.prompt,
+        stateDir,
+        resumeContext,
+      },
+      1 // Low priority - don't block other tasks
+    )
   }
 
   /**
