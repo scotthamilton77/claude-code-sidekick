@@ -161,7 +161,7 @@ Closed gaps for production-ready monitoring UI. Key outcomes:
     - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
     - [ ] Live testing in dev-mode shows session state files being written
     - [ ] No errors/warnings in the logs
-  - [ ] **8.5 Refactoring** - Code review follow-up tasks
+  - [x] **8.5 Refactoring** - Code review follow-up tasks - COMPLETE 2025-12-20
     - [x] **8.5.1 Fix or Remove normalizeHookName()** - COMPLETE 2025-12-20
       - [x] Removed `normalizeHookName()`, split into `validateHookName()` + `getHookName()`
       - [x] `validateHookName()`: validates PascalCase from stdin's `hookEventName`
@@ -190,14 +190,25 @@ Closed gaps for production-ready monitoring UI. Key outcomes:
       - [x] Context wiring internalized in factory (fixes leaky abstraction)
       - [x] Added `@sidekick/feature-reminders` dependency to CLI
       - [x] Files: `packages/sidekick-cli/src/context.ts`, `packages/sidekick-cli/src/commands/hook.ts`
-    - [ ] **8.5.5 Simplify Hook Response Format** (depends on 8.5.4)
-      - [ ] Problem: Node CLI formats output for Claude Code directly; shell scripts better positioned
-      - [ ] Node CLI should return standardized internal response (not Claude Code specific)
-      - [ ] Shell scripts in `scripts/dev-hooks/` translate to Claude Code format
-      - [ ] Remove `ClaudeCodeHookOutput` from hook.ts
-      - [ ] Internal format: `{ blocking?, reason?, additionalContext?, ... }`
-      - [ ] Claude Code format ref: `{ continue, stopReason, suppressOutput, systemMessage, hookSpecificOutput }`
-      - [ ] Files: `packages/sidekick-cli/src/commands/hook.ts`, `scripts/dev-hooks/*`
+    - [x] **8.5.5 Simplify Hook Response Format** - COMPLETE 2025-12-20
+      - [x] Removed `ClaudeCodeHookOutput` interface from hook.ts
+      - [x] Removed `formatClaudeCodeOutput()` function from hook.ts
+      - [x] CLI outputs internal `HookResponse`: `{ blocking?, reason?, additionalContext?, userMessage? }`
+      - [x] Shell scripts translate to hook-specific Claude Code format using jq:
+        - `userMessage` → `systemMessage` (common field, shown to user)
+        - `additionalContext` → `hookSpecificOutput.additionalContext` (most hooks)
+        - `additionalContext` → `hookSpecificOutput.permissionDecisionReason` (PreToolUse)
+        - `additionalContext` → appended to `reason` (Stop, no hookSpecificOutput)
+        - `blocking`/`reason` → hook-specific blocking mechanism
+      - [x] Hook-specific blocking formats:
+        - PreToolUse: `hookSpecificOutput.permissionDecision: "deny"`, `permissionDecisionReason`
+        - PostToolUse: `decision: "block"`, `reason`
+        - Stop: `decision: "block"`, `reason`
+        - UserPromptSubmit: `decision: "block"`, `reason`
+        - SessionStart/PreCompact: `continue: false`, `stopReason`
+        - SessionEnd: passthrough (cannot block)
+      - [x] Graceful fallback when jq unavailable (passthrough)
+      - [x] Files: `packages/sidekick-cli/src/commands/hook.ts`, `scripts/dev-hooks/*`
 
 - [ ] **Phase Insertion Placeholder** to go through the code to analyze modularity, correct responsibilities (SOLID), DRY, TODOs and FIXMEs
   - Refactoring opportunity: several files contain implementation blocks for all hooks or all features together in the same file. this is a smell.  Ideally we keep all feature and hook logic separate from each other and register handlers centrally.

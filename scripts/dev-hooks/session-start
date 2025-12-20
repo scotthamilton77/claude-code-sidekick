@@ -14,9 +14,26 @@ if [[ ! -f "${CLI_BIN}" ]]; then
   exit 1
 fi
 
-# exec inherits stdin from parent - CLI reads hook input JSON directly
-exec node "${CLI_BIN}" session-start \
+# Capture stdin and pass to CLI, then translate internal format to Claude Code format
+INTERNAL_RESPONSE=$(node "${CLI_BIN}" session-start \
   --hook \
   --scope=project \
   --hook-script-path="${CLAUDE_PROJECT_DIR}/scripts/dev-hooks/session-start" \
-  --project-dir="${CLAUDE_PROJECT_DIR}"
+  --project-dir="${CLAUDE_PROJECT_DIR}")
+
+# Translate internal HookResponse to Claude Code SessionStart format
+# - blocking/reason → continue: false, stopReason
+# - userMessage → systemMessage (shown to user)
+# - additionalContext → hookSpecificOutput.additionalContext
+# See: https://code.claude.com/docs/en/hooks
+if command -v jq &> /dev/null; then
+  echo "$INTERNAL_RESPONSE" | jq -c '
+    {}
+    + (if .blocking == true then { continue: false, stopReason: (.reason // "Blocked by Sidekick") } else {} end)
+    + (if .userMessage then { systemMessage: .userMessage } else {} end)
+    + (if .additionalContext then { hookSpecificOutput: { additionalContext: .additionalContext } } else {} end)
+  '
+else
+  # Fallback: passthrough if jq not available
+  echo "$INTERNAL_RESPONSE"
+fi
