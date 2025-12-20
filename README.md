@@ -68,9 +68,38 @@ This repository serves as a development and testing environment for [Claude Code
 
 ### Prerequisites
 
-- [Claude Code CLI](https://docs.claude.com/en/docs/claude-code) installed
-- `jq` for JSON manipulation: `sudo apt-get install jq` (or `brew install jq` on macOS)
-- Bash shell environment
+**Required for all functionality:**
+
+| Tool | Version | Check Command | Install (macOS) |
+|------|---------|---------------|-----------------|
+| [Claude Code CLI](https://docs.claude.com/en/docs/claude-code) | Latest | `claude --version` | `npm install -g @anthropic-ai/claude-code` |
+| [Node.js](https://nodejs.org/) | ≥20.x | `node --version` | `brew install node` |
+| [pnpm](https://pnpm.io/) | 9.12.2 | `pnpm --version` | `npm install -g pnpm@9.12.2` or `corepack enable` |
+| [jq](https://stedolan.github.io/jq/) | ≥1.6 | `jq --version` | `brew install jq` |
+| Git | ≥2.x | `git --version` | `brew install git` |
+| Bash | ≥3.2 | `bash --version` | Built-in on macOS |
+
+**Optional (for development scripts):**
+
+| Tool | Version | Check Command | Install (macOS) |
+|------|---------|---------------|-----------------|
+| Python 3 | ≥3.9 | `python3 --version` | `brew install python3` |
+
+**Quick install of missing tools (macOS):**
+
+```bash
+# Install Homebrew if needed
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Install required tools
+brew install node jq
+
+# Install pnpm (via corepack, recommended)
+corepack enable && corepack prepare pnpm@9.12.2 --activate
+
+# Or install pnpm via npm
+npm install -g pnpm@9.12.2
+```
 
 ### Installation
 
