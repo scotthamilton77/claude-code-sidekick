@@ -12,6 +12,31 @@ INSTALL_GEMINI_CLI=${INSTALL_GEMINI_CLI:-false}
 INSTALL_CODEX_CLI=${INSTALL_CODEX_CLI:-false}
 INSTALL_SPECIFY_CLI=${INSTALL_SPECIFY_CLI:-false}
 PYTHON_VERSION=${PYTHON_VERSION:-3.12.3}
+PNPM_VERSION=${PNPM_VERSION:-9.12.2}
+
+ensure_pnpm() {
+  # If correct version already present, keep it
+  if command -v pnpm >/dev/null 2>&1; then
+    if pnpm --version | grep -q "^${PNPM_VERSION}"; then
+      return
+    fi
+  fi
+
+  if command -v corepack >/dev/null 2>&1; then
+    if command -v sudo >/dev/null 2>&1; then
+      sudo corepack enable pnpm 2>/dev/null || true
+      sudo corepack prepare "pnpm@${PNPM_VERSION}" --activate 2>/dev/null && return
+    else
+      corepack enable pnpm 2>/dev/null || true
+      corepack prepare "pnpm@${PNPM_VERSION}" --activate 2>/dev/null && return
+    fi
+  fi
+
+  npm install -g "pnpm@${PNPM_VERSION}"
+}
+
+echo "🧰 Ensuring pnpm ${PNPM_VERSION} is available..."
+ensure_pnpm
 
 # Install uv if requested
 if [ "$INSTALL_UV" = "true" ]; then
@@ -66,14 +91,15 @@ fi
 
 # Install project dependencies if package.json exists
 if [ -f "package.json" ]; then
-  echo "📚 Installing project dependencies..."
-  npm install
+  echo "📚 Installing project dependencies with pnpm..."
+  # Force non-interactive install to avoid prompts about reinstalling node_modules
+  CI=${CI:-true} pnpm install --force
 fi
 
 # Run TypeScript compiler check if tsconfig.json exists
 if [ -f "tsconfig.json" ]; then
   echo "🔍 Running TypeScript compiler check..."
-  npx tsc --noEmit || echo "⚠️  TypeScript errors found - fix before committing"
+  pnpm exec tsc --noEmit || echo "⚠️  TypeScript errors found - fix before committing"
 fi
 
 # Test database connection if credentials are provided
