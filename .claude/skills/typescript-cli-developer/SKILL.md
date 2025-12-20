@@ -1,6 +1,6 @@
 ---
 name: typescript-cli-developer
-description: Build production-ready command-line tools with TypeScript. Use when creating CLI apps, working with argv, terminal UI, interactive prompts, spinners, progress bars, testing CLIs, or packaging for npm. Covers yargs, commander, chalk, ora, inquirer, execa, and CLI best practices.
+description: Use when creating CLI apps, working with argv, terminal UI, interactive prompts, spinners, progress bars, testing CLIs, or packaging for pnpm or npm. Covers yargs, commander, chalk, ora, inquirer, execa, and CLI best practices.
 ---
 
 # TypeScript CLI Developer

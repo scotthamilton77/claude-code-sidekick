@@ -1,6 +1,6 @@
 ---
 name: typescript-developer
-description: TypeScript development best practices covering dependency management with training-cutoff awareness, repository structure for single-project and monorepos, ESLint and Prettier configuration, TypeScript compiler issue resolution, SOLID principles in TypeScript, type safety patterns, generics, discriminated unions, error handling, and testing strategies. Includes context7 annotations for post-cutoff dependencies.
+description: Use when designing and implementing TypeScript-based code.
 ---
 
 # TypeScript Developer
