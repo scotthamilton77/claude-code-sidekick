@@ -8,7 +8,7 @@
  */
 import { describe, expect, test, vi } from 'vitest'
 import type { ParsedHookInput } from '@sidekick/types'
-import { buildHookEvent, getHookName, isHookCommand } from '../hook.js'
+import { buildHookEvent, getHookName, isHookCommand, validateHookName } from '../hook.js'
 
 // Mock @sidekick/core IpcService
 vi.mock('@sidekick/core', async (importOriginal) => {
@@ -23,25 +23,35 @@ vi.mock('@sidekick/core', async (importOriginal) => {
 })
 
 describe('hook command utilities', () => {
-  describe('isHookCommand', () => {
-    test('returns true for valid hook commands (PascalCase)', () => {
-      expect(isHookCommand('SessionStart')).toBe(true)
-      expect(isHookCommand('SessionEnd')).toBe(true)
-      expect(isHookCommand('UserPromptSubmit')).toBe(true)
-      expect(isHookCommand('PreToolUse')).toBe(true)
-      expect(isHookCommand('PostToolUse')).toBe(true)
-      expect(isHookCommand('Stop')).toBe(true)
-      expect(isHookCommand('PreCompact')).toBe(true)
+  describe('validateHookName', () => {
+    test('returns HookName for valid PascalCase hook names', () => {
+      expect(validateHookName('SessionStart')).toBe('SessionStart')
+      expect(validateHookName('SessionEnd')).toBe('SessionEnd')
+      expect(validateHookName('UserPromptSubmit')).toBe('UserPromptSubmit')
+      expect(validateHookName('PreToolUse')).toBe('PreToolUse')
+      expect(validateHookName('PostToolUse')).toBe('PostToolUse')
+      expect(validateHookName('Stop')).toBe('Stop')
+      expect(validateHookName('PreCompact')).toBe('PreCompact')
     })
 
-    test('returns true for valid hook commands (snake_case)', () => {
-      expect(isHookCommand('session_start')).toBe(true)
-      expect(isHookCommand('session_end')).toBe(true)
-      expect(isHookCommand('user_prompt_submit')).toBe(true)
-      expect(isHookCommand('pre_tool_use')).toBe(true)
-      expect(isHookCommand('post_tool_use')).toBe(true)
+    test('returns undefined for invalid hook names', () => {
+      expect(validateHookName('session_start')).toBeUndefined()
+      expect(validateHookName('session-start')).toBeUndefined()
+      expect(validateHookName('supervisor')).toBeUndefined()
+      expect(validateHookName('unknown')).toBeUndefined()
+      expect(validateHookName('')).toBeUndefined()
+    })
+  })
+
+  describe('isHookCommand', () => {
+    test('returns true for valid kebab-case CLI commands', () => {
+      expect(isHookCommand('session-start')).toBe(true)
+      expect(isHookCommand('session-end')).toBe(true)
+      expect(isHookCommand('user-prompt-submit')).toBe(true)
+      expect(isHookCommand('pre-tool-use')).toBe(true)
+      expect(isHookCommand('post-tool-use')).toBe(true)
       expect(isHookCommand('stop')).toBe(true)
-      expect(isHookCommand('pre_compact')).toBe(true)
+      expect(isHookCommand('pre-compact')).toBe(true)
     })
 
     test('returns false for non-hook commands', () => {
@@ -50,20 +60,27 @@ describe('hook command utilities', () => {
       expect(isHookCommand('ui')).toBe(false)
       expect(isHookCommand('unknown')).toBe(false)
       expect(isHookCommand('')).toBe(false)
+      expect(isHookCommand('SessionStart')).toBe(false)
+      expect(isHookCommand('session_start')).toBe(false)
     })
   })
 
   describe('getHookName', () => {
-    test('normalizes hook commands to canonical HookName', () => {
-      expect(getHookName('SessionStart')).toBe('SessionStart')
-      expect(getHookName('session_start')).toBe('SessionStart')
-      expect(getHookName('UserPromptSubmit')).toBe('UserPromptSubmit')
-      expect(getHookName('user_prompt_submit')).toBe('UserPromptSubmit')
+    test('maps kebab-case CLI commands to PascalCase HookName', () => {
+      expect(getHookName('session-start')).toBe('SessionStart')
+      expect(getHookName('session-end')).toBe('SessionEnd')
+      expect(getHookName('user-prompt-submit')).toBe('UserPromptSubmit')
+      expect(getHookName('pre-tool-use')).toBe('PreToolUse')
+      expect(getHookName('post-tool-use')).toBe('PostToolUse')
+      expect(getHookName('stop')).toBe('Stop')
+      expect(getHookName('pre-compact')).toBe('PreCompact')
     })
 
     test('returns undefined for non-hook commands', () => {
       expect(getHookName('supervisor')).toBeUndefined()
       expect(getHookName('invalid')).toBeUndefined()
+      expect(getHookName('SessionStart')).toBeUndefined()
+      expect(getHookName('session_start')).toBeUndefined()
     })
   })
 })

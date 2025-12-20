@@ -60,27 +60,187 @@ export interface ClaudeCodeHookOutput {
 }
 
 /**
- * Map hook event name from Claude Code format to internal HookName.
- * Claude Code uses snake_case, we use PascalCase.
+ * Valid hook names (PascalCase).
  */
-function normalizeHookName(hookEventName: string): HookName | undefined {
-  const mapping: Record<string, HookName> = {
-    SessionStart: 'SessionStart',
-    session_start: 'SessionStart',
-    SessionEnd: 'SessionEnd',
-    session_end: 'SessionEnd',
-    UserPromptSubmit: 'UserPromptSubmit',
-    user_prompt_submit: 'UserPromptSubmit',
-    PreToolUse: 'PreToolUse',
-    pre_tool_use: 'PreToolUse',
-    PostToolUse: 'PostToolUse',
-    post_tool_use: 'PostToolUse',
-    Stop: 'Stop',
-    stop: 'Stop',
-    PreCompact: 'PreCompact',
-    pre_compact: 'PreCompact',
-  }
-  return mapping[hookEventName]
+const VALID_HOOK_NAMES = new Set<HookName>([
+  'SessionStart',
+  'SessionEnd',
+  'UserPromptSubmit',
+  'PreToolUse',
+  'PostToolUse',
+  'Stop',
+  'PreCompact',
+])
+
+/**
+ * Validate that a hook event name is a valid PascalCase HookName.
+ * Used to validate hookInput.hookEventName from stdin.
+ */
+export function validateHookName(hookEventName: string): HookName | undefined {
+  return VALID_HOOK_NAMES.has(hookEventName as HookName) ? (hookEventName as HookName) : undefined
+}
+
+/**
+ * Map CLI command (kebab-case) to internal HookName (PascalCase).
+ * Used for CLI routing when command is passed as argv (e.g. during testing).
+ */
+const CLI_COMMAND_TO_HOOK: Record<string, HookName> = {
+  'session-start': 'SessionStart',
+  'session-end': 'SessionEnd',
+  'user-prompt-submit': 'UserPromptSubmit',
+  'pre-tool-use': 'PreToolUse',
+  'post-tool-use': 'PostToolUse',
+  stop: 'Stop',
+  'pre-compact': 'PreCompact',
+}
+
+/**
+ * Shared context for all hook events.
+ */
+interface EventContext {
+  sessionId: string
+  timestamp: number
+  scope: 'project' | 'user'
+  correlationId: string
+}
+
+/**
+ * Extract tool-related fields from raw hook input.
+ * Shared by PreToolUse and PostToolUse events.
+ */
+function extractToolFields(raw: Record<string, unknown>): {
+  toolName: string
+  toolInput: Record<string, unknown>
+} {
+  const toolName = typeof raw.tool_name === 'string' ? raw.tool_name : 'unknown'
+  const toolInput =
+    typeof raw.tool_input === 'object' && raw.tool_input !== null ? (raw.tool_input as Record<string, unknown>) : {}
+  return { toolName, toolInput }
+}
+
+/**
+ * Build SessionStart hook event.
+ */
+function buildSessionStartEvent(context: EventContext, input: ParsedHookInput): SessionStartHookEvent {
+  const raw = input.raw
+  // Map 'source' field to 'startType' per flow.md
+  const source = typeof raw.source === 'string' ? raw.source : 'startup'
+  const startType = source as 'startup' | 'resume' | 'clear' | 'compact'
+  return {
+    kind: 'hook',
+    hook: 'SessionStart',
+    context,
+    payload: {
+      startType,
+      transcriptPath: input.transcriptPath,
+    },
+  } satisfies SessionStartHookEvent
+}
+
+/**
+ * Build SessionEnd hook event.
+ */
+function buildSessionEndEvent(context: EventContext, input: ParsedHookInput): SessionEndHookEvent {
+  const raw = input.raw
+  const reason = typeof raw.reason === 'string' ? raw.reason : 'other'
+  return {
+    kind: 'hook',
+    hook: 'SessionEnd',
+    context,
+    payload: {
+      endReason: reason as 'clear' | 'logout' | 'prompt_input_exit' | 'other',
+    },
+  } satisfies SessionEndHookEvent
+}
+
+/**
+ * Build UserPromptSubmit hook event.
+ */
+function buildUserPromptSubmitEvent(context: EventContext, input: ParsedHookInput): UserPromptSubmitHookEvent {
+  const raw = input.raw
+  const prompt = typeof raw.prompt === 'string' ? raw.prompt : ''
+  const permissionMode = input.permissionMode ?? 'default'
+  return {
+    kind: 'hook',
+    hook: 'UserPromptSubmit',
+    context,
+    payload: {
+      prompt,
+      transcriptPath: input.transcriptPath,
+      cwd: input.cwd ?? process.cwd(),
+      permissionMode,
+    },
+  } satisfies UserPromptSubmitHookEvent
+}
+
+/**
+ * Build PreToolUse hook event.
+ */
+function buildPreToolUseEvent(context: EventContext, input: ParsedHookInput): PreToolUseHookEvent {
+  const { toolName, toolInput } = extractToolFields(input.raw)
+  return {
+    kind: 'hook',
+    hook: 'PreToolUse',
+    context,
+    payload: {
+      toolName,
+      toolInput,
+    },
+  } satisfies PreToolUseHookEvent
+}
+
+/**
+ * Build PostToolUse hook event.
+ */
+function buildPostToolUseEvent(context: EventContext, input: ParsedHookInput): PostToolUseHookEvent {
+  const { toolName, toolInput } = extractToolFields(input.raw)
+  const toolResult = input.raw.tool_response ?? null
+  return {
+    kind: 'hook',
+    hook: 'PostToolUse',
+    context,
+    payload: {
+      toolName,
+      toolInput,
+      toolResult,
+    },
+  } satisfies PostToolUseHookEvent
+}
+
+/**
+ * Build Stop hook event.
+ */
+function buildStopEvent(context: EventContext, input: ParsedHookInput): StopHookEvent {
+  const raw = input.raw
+  const stopHookActive = raw.stop_hook_active === true
+  const permissionMode = input.permissionMode ?? 'default'
+  return {
+    kind: 'hook',
+    hook: 'Stop',
+    context,
+    payload: {
+      transcriptPath: input.transcriptPath,
+      permissionMode,
+      stopHookActive,
+    },
+  } satisfies StopHookEvent
+}
+
+/**
+ * Build PreCompact hook event.
+ */
+function buildPreCompactEvent(context: EventContext, input: ParsedHookInput): PreCompactHookEvent {
+  // CLI would have already copied transcript before calling this
+  // For now, use empty string as we don't have the snapshot path
+  return {
+    kind: 'hook',
+    hook: 'PreCompact',
+    context,
+    payload: {
+      transcriptPath: input.transcriptPath,
+      transcriptSnapshotPath: '', // Will be populated by CLI before dispatch
+    },
+  } satisfies PreCompactHookEvent
 }
 
 /**
@@ -95,120 +255,60 @@ export function buildHookEvent(
   correlationId: string,
   scope: 'project' | 'user'
 ): HookEvent {
-  const context = {
+  const context: EventContext = {
     sessionId: input.sessionId,
     timestamp: Date.now(),
     scope,
     correlationId,
   }
 
-  const raw = input.raw
-
   switch (hookName) {
-    case 'SessionStart': {
-      // Map 'source' field to 'startType' per flow.md
-      const source = typeof raw.source === 'string' ? raw.source : 'startup'
-      const startType = source as 'startup' | 'resume' | 'clear' | 'compact'
-      return {
-        kind: 'hook',
-        hook: 'SessionStart',
-        context,
-        payload: {
-          startType,
-          transcriptPath: input.transcriptPath,
-        },
-      } satisfies SessionStartHookEvent
-    }
-
-    case 'SessionEnd': {
-      const reason = typeof raw.reason === 'string' ? raw.reason : 'other'
-      return {
-        kind: 'hook',
-        hook: 'SessionEnd',
-        context,
-        payload: {
-          endReason: reason as 'clear' | 'logout' | 'prompt_input_exit' | 'other',
-        },
-      } satisfies SessionEndHookEvent
-    }
-
-    case 'UserPromptSubmit': {
-      const prompt = typeof raw.prompt === 'string' ? raw.prompt : ''
-      const permissionMode = input.permissionMode ?? 'default'
-      return {
-        kind: 'hook',
-        hook: 'UserPromptSubmit',
-        context,
-        payload: {
-          prompt,
-          transcriptPath: input.transcriptPath,
-          cwd: input.cwd ?? process.cwd(),
-          permissionMode,
-        },
-      } satisfies UserPromptSubmitHookEvent
-    }
-
-    case 'PreToolUse': {
-      const toolName = typeof raw.tool_name === 'string' ? raw.tool_name : 'unknown'
-      const toolInput =
-        typeof raw.tool_input === 'object' && raw.tool_input !== null ? (raw.tool_input as Record<string, unknown>) : {}
-      return {
-        kind: 'hook',
-        hook: 'PreToolUse',
-        context,
-        payload: {
-          toolName,
-          toolInput,
-        },
-      } satisfies PreToolUseHookEvent
-    }
-
-    case 'PostToolUse': {
-      const toolName = typeof raw.tool_name === 'string' ? raw.tool_name : 'unknown'
-      const toolInput =
-        typeof raw.tool_input === 'object' && raw.tool_input !== null ? (raw.tool_input as Record<string, unknown>) : {}
-      const toolResult = raw.tool_response ?? null
-      return {
-        kind: 'hook',
-        hook: 'PostToolUse',
-        context,
-        payload: {
-          toolName,
-          toolInput,
-          toolResult,
-        },
-      } satisfies PostToolUseHookEvent
-    }
-
-    case 'Stop': {
-      const stopHookActive = raw.stop_hook_active === true
-      const permissionMode = input.permissionMode ?? 'default'
-      return {
-        kind: 'hook',
-        hook: 'Stop',
-        context,
-        payload: {
-          transcriptPath: input.transcriptPath,
-          permissionMode,
-          stopHookActive,
-        },
-      } satisfies StopHookEvent
-    }
-
-    case 'PreCompact': {
-      // CLI would have already copied transcript before calling this
-      // For now, use empty string as we don't have the snapshot path
-      return {
-        kind: 'hook',
-        hook: 'PreCompact',
-        context,
-        payload: {
-          transcriptPath: input.transcriptPath,
-          transcriptSnapshotPath: '', // Will be populated by CLI before dispatch
-        },
-      } satisfies PreCompactHookEvent
-    }
+    case 'SessionStart':
+      return buildSessionStartEvent(context, input)
+    case 'SessionEnd':
+      return buildSessionEndEvent(context, input)
+    case 'UserPromptSubmit':
+      return buildUserPromptSubmitEvent(context, input)
+    case 'PreToolUse':
+      return buildPreToolUseEvent(context, input)
+    case 'PostToolUse':
+      return buildPostToolUseEvent(context, input)
+    case 'Stop':
+      return buildStopEvent(context, input)
+    case 'PreCompact':
+      return buildPreCompactEvent(context, input)
   }
+}
+
+/**
+ * Merge CLI and Supervisor hook responses.
+ * CLI response takes precedence for reminder fields (blocking, reason, userMessage).
+ * additionalContext is concatenated (CLI first, then Supervisor).
+ *
+ * Note: Reserved for future Phase 8.5.4 implementation.
+ */
+function _mergeHookResponses(supervisorResponse: HookResponse | null, cliResponse: HookResponse): HookResponse {
+  const merged: HookResponse = { ...supervisorResponse }
+
+  // CLI response takes precedence for these fields
+  if (cliResponse.blocking !== undefined) {
+    merged.blocking = cliResponse.blocking
+  }
+  if (cliResponse.reason !== undefined) {
+    merged.reason = cliResponse.reason
+  }
+  if (cliResponse.userMessage !== undefined) {
+    merged.userMessage = cliResponse.userMessage
+  }
+
+  // Concatenate additionalContext (CLI first, then Supervisor)
+  if (cliResponse.additionalContext !== undefined) {
+    merged.additionalContext = supervisorResponse?.additionalContext
+      ? `${cliResponse.additionalContext}\n\n${supervisorResponse.additionalContext}`
+      : cliResponse.additionalContext
+  }
+
+  return merged
 }
 
 /**
@@ -260,7 +360,12 @@ export interface HandleHookResult {
 }
 
 /**
- * Handle a hook command by dispatching to Supervisor and formatting response.
+ * Handle a hook command by dispatching to Supervisor.
+ *
+ * Process flow:
+ * 1. Build typed HookEvent from parsed input
+ * 2. Dispatch to Supervisor via IPC (hook.invoke)
+ * 3. Format response for Claude Code
  *
  * @param hookName - The hook being invoked
  * @param options - Hook execution options
@@ -290,27 +395,23 @@ export async function handleHookCommand(
   try {
     // Send hook event to supervisor via IPC
     // Graceful degradation: returns null if supervisor unavailable
-    const response = await ipcService.send<HookResponse>('hook.invoke', {
+    const supervisorResponse = await ipcService.send<HookResponse>('hook.invoke', {
       hook: hookName,
       event,
     })
 
-    if (response === null) {
-      // Supervisor unavailable - graceful degradation
-      // Log warning and return empty response (allow action to proceed)
-      logger.warn('Supervisor unavailable, returning empty hook response', { hook: hookName })
-      stdout.write('{}\n')
-      return { exitCode: 0, output: '{}' }
+    if (supervisorResponse === null) {
+      logger.warn('Supervisor unavailable for hook', { hook: hookName })
+    } else {
+      logger.debug('Received hook response from supervisor', {
+        hook: hookName,
+        hasBlocking: supervisorResponse?.blocking,
+        hasContext: !!supervisorResponse?.additionalContext,
+      })
     }
 
-    logger.debug('Received hook response from supervisor', {
-      hook: hookName,
-      hasBlocking: response?.blocking,
-      hasContext: !!response?.additionalContext,
-    })
-
     // Format response for Claude Code
-    const output = formatClaudeCodeOutput(hookName, response)
+    const output = formatClaudeCodeOutput(hookName, supervisorResponse || {})
 
     if (output) {
       const outputStr = JSON.stringify(output)
@@ -332,17 +433,18 @@ export async function handleHookCommand(
     ipcService.close()
   }
 }
-
 /**
- * Check if a command string represents a hook command.
+ * Check if a CLI command string represents a hook command.
+ * Handles kebab-case CLI commands (e.g., 'session-start').
  */
 export function isHookCommand(command: string): boolean {
-  return normalizeHookName(command) !== undefined
+  return CLI_COMMAND_TO_HOOK[command] !== undefined
 }
 
 /**
- * Get the normalized hook name for a command, or undefined if not a hook.
+ * Get the HookName for a CLI command, or undefined if not a hook.
+ * Maps kebab-case CLI commands to PascalCase HookName.
  */
 export function getHookName(command: string): HookName | undefined {
-  return normalizeHookName(command)
+  return CLI_COMMAND_TO_HOOK[command]
 }

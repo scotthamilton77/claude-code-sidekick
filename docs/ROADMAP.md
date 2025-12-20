@@ -112,7 +112,7 @@ Closed gaps for production-ready monitoring UI. Key outcomes:
 
 ## Pending Phases
 
-- [ ] **Phase 8: CLI→Supervisor Event Dispatch** - COMPLETE 2025-12-14
+- [ ] **Phase 8: CLI→Supervisor Event Dispatch**\
   - [x] Objectives
     - [x] Wire CLI hook commands to dispatch events to Supervisor via IPC
     - [x] Enable handler execution for hook events (SessionStart, UserPromptSubmit, etc.)
@@ -157,173 +157,52 @@ Closed gaps for production-ready monitoring UI. Key outcomes:
     - [x] Registered handlers execute and write session state files
     - [x] `.sidekick/sessions/{sessionId}/state/` contains handler output
     - [x] Graceful degradation when supervisor unavailable (warns, doesn't crash)
-    - [ ] All existing tests pass; no regressions (44 CLI tests, 200+ total)
-    - [ ] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
+    - [x] All existing tests pass; no regressions (45 CLI tests, 218+ total)
+    - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
     - [ ] Live testing in dev-mode shows session state files being written
     - [ ] No errors/warnings in the logs
-  - [ ] **8.5 Refactoring**  See Claude's proposed plan:
-```markdown
-# Phase 8 Follow-up: Code Review Fixes
-
-## Background
-
-Code review of Phase 8 (CLI→Supervisor Event Dispatch) identified several issues that need addressing.
-
----
-
-## Task 1: Simplify Hook Response Format (Move Claude Code Formatting to Shell Scripts)
-
-**Problem**: The Node CLI currently tries to format output for Claude Code directly, but the shell scripts are better positioned to handle hook-specific Claude Code formatting.
-
-**Claude Code Output Format Reference** (from https://code.claude.com/docs/en/hooks):
-- Common: `{ continue, stopReason, suppressOutput, systemMessage }`
-- Hook-specific: `hookSpecificOutput` with different structures per hook type
-- PreToolUse: `{ permissionDecision, permissionDecisionReason, updatedInput }`
-- PostToolUse/UserPromptSubmit: `{ decision, reason, hookSpecificOutput: { additionalContext } }`
-- Stop: `{ decision, reason }`
-
-**Solution**:
-- Node CLI returns a **standardized internal response** (not Claude Code specific)
-- Shell scripts in `scripts/dev-hooks/` translate to Claude Code format
-
-**Files to Modify**:
-- `packages/sidekick-cli/src/commands/hook.ts`: Remove `ClaudeCodeHookOutput`, simplify to internal format
-- `scripts/dev-hooks/*`: Add translation from internal format to Claude Code format
-
-**Internal Response Format** (proposed):
-```typescript
-interface InternalHookResponse {
-  blocking?: boolean
-  reason?: string
-  additionalContext?: string
-  // Hook-specific fields as needed
-}
-```
-
----
-
-## Task 2: Fix or Remove normalizeHookName()
-
-**Problem**: Function maps PascalCase and snake_case, but:
-- Claude Code sends `hook_event_name` in PascalCase in stdin JSON
-- CLI command argument is kebab-case (from filename: `session-start`)
-- The mapping is confused about its purpose
-
-**Current Implementation** (`hook.ts:66-84`):
-```typescript
-const mapping: Record<string, HookName> = {
-  SessionStart: 'SessionStart',
-  session_start: 'SessionStart',  // snake_case - not needed
-  ...
-}
-```
-
-**Solution**:
-- Change to map **kebab-case CLI commands** to PascalCase HookName
-- Remove unnecessary snake_case mappings
-- Or remove entirely if we use `hookInput.hookEventName` directly
-
-**Files to Modify**:
-- `packages/sidekick-cli/src/commands/hook.ts`
-
----
-
-## Task 3: Refactor buildHookEvent() into Smaller Methods
-
-**Problem**: 100+ line switch statement is hard to read/maintain.
-
-**Solution**: Extract each case into a private method:
-- `buildSessionStartEvent()`
-- `buildSessionEndEvent()`
-- `buildUserPromptSubmitEvent()`
-- `buildPreToolUseEvent()`
-- `buildPostToolUseEvent()`
-- `buildStopEvent()`
-- `buildPreCompactEvent()`
-
-**Files to Modify**:
-- `packages/sidekick-cli/src/commands/hook.ts`
-
----
-
-## Task 4: Refactor cli.ts runCli() into Smaller Methods
-
-**Problem**: 132 lines with mixed responsibilities.
-
-**Current Responsibilities**:
-1. Parse args and hook input
-2. Bootstrap runtime
-3. Check dual install
-4. Create session directory
-5. Auto-start supervisor
-6. Route hook commands
-7. Route other commands (supervisor/statusline/ui)
-8. Handle fallbacks
-
-**Solution**: Extract into cohesive methods:
-- `initializeRuntime()` - bootstrap, dual-install check
-- `initializeSession()` - session directory creation
-- `ensureSupervisor()` - auto-start logic
-- `routeCommand()` - command routing switch
-
-**Files to Modify**:
-- `packages/sidekick-cli/src/cli.ts`
-
----
-
-## Task 5: Wire Reminder Consumption Handlers in CLI
-
-**Problem**: Critical gap - reminders are staged on Supervisor but never consumed!
-
-**Clarification from flow.md §5.2-5.5**: The call chain explicitly shows CLI must invoke its own handlers AFTER receiving the Supervisor response:
-
-```
-├─[CLI] Send UserPromptSubmit event to supervisor
-│   └─[Supervisor] Invoke UserPromptSubmit handlers (staging)
-├─[CLI] Invoke UserPromptSubmit handlers  <-- CLI-SIDE HANDLERS
-│   └─[InjectUserPromptSubmitReminders] Check staged reminders...
-└─[CLI] Return result
-```
-
-**Current Implementation (broken)**:
-- CLI sends event to Supervisor via IPC
-- CLI receives response from Supervisor
-- CLI formats response → returns to shell script
-- ❌ **CLI never invokes its own handlers** (consumption is skipped)
-
-**Required Fix**:
-- CLI must run consumption handlers after IPC returns
-- `registerConsumptionHandlers()` exists but is never called
-- `CLIStagingReader` exists but is never used in the hook flow
-
-**Implementation Steps**:
-1. In `handleHookCommand()` (after IPC response received):
-   - Create `CLIStagingReader` with session paths
-   - Call consumption logic to read staged reminders
-   - Merge reminder data into response
-2. Or: Register consumption handlers during CLI bootstrap and invoke via HandlerRegistry
-
-**Files to Modify**:
-- `packages/sidekick-cli/src/commands/hook.ts`: Add consumption after IPC call
-
-**Key Files**:
-- `packages/feature-reminders/src/handlers/consumption/index.ts` - `registerConsumptionHandlers()`
-- `packages/feature-reminders/src/cli-staging-reader.ts` - `CLIStagingReader`
-- `packages/feature-reminders/src/handlers/consumption/consumption-handler-factory.ts` - Pattern
-
----
-
-## Execution Order
-
-1. **Task 2** (normalizeHookName) - Small, isolated fix
-2. **Task 3** (buildHookEvent refactor) - Internal cleanup
-3. **Task 4** (cli.ts refactor) - Internal cleanup
-4. **Task 5** (Reminder consumption) - Critical bug fix
-5. **Task 1** (Hook response format) - Requires Task 5 first
-
-```
+  - [ ] **8.5 Refactoring** - Code review follow-up tasks
+    - [x] **8.5.1 Fix or Remove normalizeHookName()** - COMPLETE 2025-12-20
+      - [x] Removed `normalizeHookName()`, split into `validateHookName()` + `getHookName()`
+      - [x] `validateHookName()`: validates PascalCase from stdin's `hookEventName`
+      - [x] `getHookName()`: maps kebab-case CLI commands → PascalCase HookName
+      - [x] Removed all snake_case mappings
+      - [x] Files: `packages/sidekick-cli/src/commands/hook.ts`
+    - [x] **8.5.2 Refactor buildHookEvent() into Smaller Methods** - COMPLETE 2025-12-20
+      - [x] Extract `buildSessionStartEvent()`
+      - [x] Extract `buildSessionEndEvent()`
+      - [x] Extract `buildUserPromptSubmitEvent()`
+      - [x] Extract `buildPreToolUseEvent()`
+      - [x] Extract `buildPostToolUseEvent()`
+      - [x] Extract `buildStopEvent()`
+      - [x] Extract `buildPreCompactEvent()`
+      - [x] Files: `packages/sidekick-cli/src/commands/hook.ts`
+    - [x] **8.5.3 Refactor cli.ts runCli() into Smaller Methods** - COMPLETE 2025-12-20
+      - [x] Extract `initializeRuntime()` - bootstrap, dual-install check
+      - [x] Extract `initializeSession()` - session directory creation
+      - [x] Extract `ensureSupervisor()` - auto-start logic
+      - [x] Extract `routeCommand()` - command routing switch
+      - [x] Files: `packages/sidekick-cli/src/cli.ts`
+    - [ ] **8.5.4 Wire Reminder Consumption Handlers in CLI** ⚠️ CRITICAL
+      - [ ] Problem: Reminders staged by Supervisor but never consumed by CLI
+      - [ ] Per `flow.md §5.2-5.5`: CLI must invoke handlers AFTER IPC response
+      - [ ] In `handleHookCommand()` after IPC response: create `CLIStagingReader`
+      - [ ] Call consumption logic to read staged reminders
+      - [ ] Merge reminder data into response
+      - [ ] Alternative: Register consumption handlers during CLI bootstrap, invoke via HandlerRegistry
+      - [ ] Files: `packages/sidekick-cli/src/commands/hook.ts`
+      - [ ] Key refs: `packages/feature-reminders/src/handlers/consumption/index.ts`, `packages/feature-reminders/src/cli-staging-reader.ts`
+    - [ ] **8.5.5 Simplify Hook Response Format** (depends on 8.5.4)
+      - [ ] Problem: Node CLI formats output for Claude Code directly; shell scripts better positioned
+      - [ ] Node CLI should return standardized internal response (not Claude Code specific)
+      - [ ] Shell scripts in `scripts/dev-hooks/` translate to Claude Code format
+      - [ ] Remove `ClaudeCodeHookOutput` from hook.ts
+      - [ ] Internal format: `{ blocking?, reason?, additionalContext?, ... }`
+      - [ ] Claude Code format ref: `{ continue, stopReason, suppressOutput, systemMessage, hookSpecificOutput }`
+      - [ ] Files: `packages/sidekick-cli/src/commands/hook.ts`, `scripts/dev-hooks/*`
 
 - [ ] **Phase Insertion Placeholder** to go through the code to analyze modularity, correct responsibilities (SOLID), DRY, TODOs and FIXMEs
+  - Refactoring opportunity: several files contain implementation blocks for all hooks or all features together in the same file. this is a smell.  Ideally we keep all feature and hook logic separate from each other and register handlers centrally.
 
 - [ ] **Phase 9: Feature Parity and Legacy Cleanup**
   - [ ] Objectives

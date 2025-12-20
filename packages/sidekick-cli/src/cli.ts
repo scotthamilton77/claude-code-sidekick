@@ -25,8 +25,9 @@ import { PassThrough, Writable } from 'node:stream'
 import yargsParser from 'yargs-parser'
 
 import type { ParsedHookInput } from '@sidekick/types'
-import { bootstrapRuntime } from './runtime'
-import { getHookName, handleHookCommand, isHookCommand } from './commands/hook.js'
+import type { Logger } from '@sidekick/core'
+import { bootstrapRuntime, type RuntimeShell } from './runtime'
+import { getHookName, handleHookCommand, validateHookName } from './commands/hook.js'
 
 interface ParsedArgs {
   command: string
@@ -132,13 +133,23 @@ function parseHookInput(stdinData: string | undefined): ParsedHookInput | undefi
 }
 
 /**
- * Execute the Sidekick Node CLI entrypoint.
- *
- * This function is intentionally side-effect free aside from writes to the provided output streams,
- * making it easy to exercise via unit tests without spawning a separate process.
+ * Result of runtime initialization.
  */
-export async function runCli(options: RunCliOptions): Promise<{ exitCode: number; stdout: string; stderr: string }> {
-  const stdout = options.stdout ?? new PassThrough()
+interface InitializeRuntimeResult {
+  runtime: RuntimeShell
+  hookInput: ParsedHookInput | undefined
+  parsed: ParsedArgs
+  shouldExit: boolean
+}
+
+/**
+ * Initialize runtime shell, parse arguments and hook input.
+ * Returns early-exit flag if dual-install is detected.
+ *
+ * @param options - CLI options including argv, stdin, streams, environment
+ * @returns Runtime, parsed args, hook input, and early-exit flag
+ */
+export function initializeRuntime(options: RunCliOptions): InitializeRuntimeResult {
   const stderr = options.stderr ?? new PassThrough()
   const parsed = parseArgs(options.argv)
   const homeDir = options.homeDir ?? options.env?.HOME
@@ -159,47 +170,101 @@ export async function runCli(options: RunCliOptions): Promise<{ exitCode: number
     enableFileLogging: options.enableFileLogging ?? true,
   })
 
-  if (runtime.scope.dualInstallDetected && parsed.scopeOverride !== 'project') {
+  // Check for dual-install scenario
+  const shouldExit = runtime.scope.dualInstallDetected && parsed.scopeOverride !== 'project'
+  if (shouldExit) {
     runtime.logger.warn('User-scope hook detected project installation. Exiting to prevent duplicate execution.')
-    return Promise.resolve({ exitCode: 0, stdout: '', stderr: '' })
   }
 
-  // Session ID can come from CLI arg (--session-id) or hook input (stdin JSON)
-  // CLI arg takes precedence for interactive commands like statusline
-  const sessionId = parsed.sessionIdArg ?? hookInput?.sessionId
-  if (sessionId && runtime.scope.projectRoot) {
-    const sessionDir = join(runtime.scope.projectRoot, '.sidekick', 'sessions', sessionId)
-    try {
-      await mkdir(sessionDir, { recursive: true })
-      runtime.logger.debug('Session directory created', { sessionId, sessionDir })
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err))
-      runtime.logger.warn('Failed to create session directory', { sessionId, error: error.message })
-    }
+  return {
+    runtime,
+    hookInput,
+    parsed,
+    shouldExit,
+  }
+}
+
+/**
+ * Create session directory if session ID and project root are available.
+ * Non-throwing: logs errors but continues execution.
+ *
+ * @param options - Session ID, project root, and logger
+ */
+export async function initializeSession(options: {
+  sessionId: string | undefined
+  projectRoot: string | undefined
+  logger: Logger
+}): Promise<void> {
+  const { sessionId, projectRoot, logger } = options
+
+  if (!sessionId || !projectRoot) {
+    return
   }
 
-  // Auto-start supervisor on hook mode (not interactive mode)
-  let supervisorStarted = false
-  if (parsed.hookMode && runtime.scope.projectRoot) {
-    try {
-      const { SupervisorClient } = await import('@sidekick/core')
-      const supervisorClient = new SupervisorClient(runtime.scope.projectRoot, runtime.logger)
-      await supervisorClient.start()
-      supervisorStarted = true
-      runtime.logger.debug('Supervisor auto-started for hook execution')
-    } catch (err) {
-      // Graceful degradation: log warning but don't fail the hook
-      const error = err instanceof Error ? err : new Error(String(err))
-      runtime.logger.warn('Failed to auto-start supervisor, proceeding with sync paths', {
-        error: error.message,
-      })
-    }
+  const sessionDir = join(projectRoot, '.sidekick', 'sessions', sessionId)
+  try {
+    await mkdir(sessionDir, { recursive: true })
+    logger.debug('Session directory created', { sessionId, sessionDir })
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err))
+    logger.warn('Failed to create session directory', { sessionId, error: error.message })
   }
+}
+
+/**
+ * Auto-start supervisor if in hook mode with a project root.
+ * Non-throwing: logs warnings on failure and gracefully degrades.
+ *
+ * @param options - Hook mode flag, project root, and logger
+ * @returns Whether supervisor was successfully started
+ */
+export async function ensureSupervisor(options: {
+  hookMode: boolean
+  projectRoot: string | undefined
+  logger: Logger
+}): Promise<{ started: boolean }> {
+  const { hookMode, projectRoot, logger } = options
+
+  if (!hookMode || !projectRoot) {
+    return { started: false }
+  }
+
+  try {
+    const { SupervisorClient } = await import('@sidekick/core')
+    const supervisorClient = new SupervisorClient(projectRoot, logger)
+    await supervisorClient.start()
+    logger.debug('Supervisor auto-started for hook execution')
+    return { started: true }
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err))
+    logger.warn('Failed to auto-start supervisor, proceeding with sync paths', {
+      error: error.message,
+    })
+    return { started: false }
+  }
+}
+
+/**
+ * Route command to appropriate handler based on command type.
+ * Handles hook commands, supervisor, statusline, ui, and fallback cases.
+ *
+ * @param context - Parsed args, runtime, hook input, output stream, supervisor state
+ * @returns Exit code and output strings
+ */
+export async function routeCommand(context: {
+  parsed: ParsedArgs
+  runtime: RuntimeShell
+  hookInput: ParsedHookInput | undefined
+  stdout: Writable
+  supervisorStarted: boolean
+}): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+  const { parsed, runtime, hookInput, stdout, supervisorStarted } = context
 
   // Handle hook commands by dispatching to supervisor (Phase 8)
   // Per docs/design/flow.md §5: CLI sends event to Supervisor via IPC
-  if (parsed.hookMode && isHookCommand(parsed.command) && hookInput && runtime.scope.projectRoot) {
-    const hookName = getHookName(parsed.command)
+  if (parsed.hookMode && hookInput && runtime.scope.projectRoot) {
+    // Prefer hookInput.hookEventName (PascalCase from stdin), fall back to parsed.command (kebab-case from argv)
+    const hookName = validateHookName(hookInput.hookEventName) ?? getHookName(parsed.command)
     if (hookName) {
       const result = await handleHookCommand(
         hookName,
@@ -243,6 +308,9 @@ export async function runCli(options: RunCliOptions): Promise<{ exitCode: number
 
   if (parsed.command === 'statusline') {
     const { handleStatuslineCommand } = await import('./commands/statusline.js')
+    // Session ID can come from CLI arg (--session-id) or hook input (stdin JSON)
+    // CLI arg takes precedence for interactive commands like statusline
+    const sessionId = parsed.sessionIdArg ?? hookInput?.sessionId
     const result = await handleStatuslineCommand(runtime.scope.projectRoot || process.cwd(), runtime.logger, stdout, {
       format: parsed.format,
       sessionId,
@@ -268,4 +336,48 @@ export async function runCli(options: RunCliOptions): Promise<{ exitCode: number
   }
 
   return Promise.resolve({ exitCode: 0, stdout: '', stderr: '' })
+}
+
+/**
+ * Execute the Sidekick Node CLI entrypoint.
+ *
+ * This function is intentionally side-effect free aside from writes to the provided output streams,
+ * making it easy to exercise via unit tests without spawning a separate process.
+ *
+ * Now refactored into orchestration of smaller functions for better testability.
+ */
+export async function runCli(options: RunCliOptions): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+  const stdout = options.stdout ?? new PassThrough()
+
+  // 1. Initialize runtime (synchronous)
+  const initResult = initializeRuntime(options)
+  if (initResult.shouldExit) {
+    return { exitCode: 0, stdout: '', stderr: '' }
+  }
+
+  const { runtime, hookInput, parsed } = initResult
+
+  // 2. Initialize session directory (async, no-throw)
+  const sessionId = parsed.sessionIdArg ?? hookInput?.sessionId
+  await initializeSession({
+    sessionId,
+    projectRoot: runtime.scope.projectRoot,
+    logger: runtime.logger,
+  })
+
+  // 3. Ensure supervisor is running (async, no-throw)
+  const { started: supervisorStarted } = await ensureSupervisor({
+    hookMode: parsed.hookMode,
+    projectRoot: runtime.scope.projectRoot,
+    logger: runtime.logger,
+  })
+
+  // 4. Route command to appropriate handler
+  return routeCommand({
+    parsed,
+    runtime,
+    hookInput,
+    stdout,
+    supervisorStarted,
+  })
 }
