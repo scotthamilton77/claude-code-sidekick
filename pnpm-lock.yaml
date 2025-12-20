@@ -159,9 +159,15 @@ importers:
       '@sidekick/core':
         specifier: workspace:*
         version: link:../sidekick-core
+      '@sidekick/feature-reminders':
+        specifier: workspace:*
+        version: link:../feature-reminders
       '@sidekick/feature-statusline':
         specifier: workspace:*
         version: link:../feature-statusline
+      '@sidekick/types':
+        specifier: workspace:*
+        version: link:../types
       yargs-parser:
         specifier: ^21.1.1
         version: 21.1.1
