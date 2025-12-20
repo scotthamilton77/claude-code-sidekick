@@ -11,6 +11,13 @@ These templates eliminate the "works on my machine" problem by providing reprodu
 - **Configuration-Driven**: Control features via `.env` files
 - **Composable**: Mix and match features for your needs
 - **Secure by Default**: Optional features documented with security implications
+- **Isolated by Default**: Containers do not mount host configuration (see below)
+
+### Host Configuration Isolation
+
+By default, containers created from these templates **do not** include any of the host's configuration files (such as `~/.claude/`, installed plugins, registered marketplaces, or other user-specific settings). This is intentional for portability and security.
+
+If you need host configuration inside the container, individual templates may provide optional mount configurations. For example, `node-ai-stack` supports mounting `~/.claude` via an opt-in setting in `devcontainer.json`. See each template's README for available mount options.
 
 ## 📦 Available Templates
 
