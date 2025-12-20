@@ -49,19 +49,6 @@ export interface HookResponse {
 }
 
 /**
- * Claude Code hook output format.
- * This is what we write to stdout for Claude Code to consume.
- */
-export interface ClaudeCodeHookOutput {
-  /** Continue or block decision (optional for non-blocking hooks) */
-  continue?: boolean
-  /** Reason text for blocking or context injection */
-  reason?: string
-  /** Suppress default behavior for this hook */
-  suppressDefaultBehavior?: boolean
-}
-
-/**
  * Valid hook names (PascalCase).
  */
 const VALID_HOOK_NAMES = new Set<HookName>([
@@ -313,41 +300,6 @@ export function mergeHookResponses(supervisorResponse: HookResponse | null, cliR
   return merged
 }
 
-/**
- * Format supervisor response for Claude Code output.
- *
- * Claude Code expects specific fields per hook type:
- * - UserPromptSubmit: { continue: true } or no output
- * - PreToolUse/PostToolUse: { continue: false, reason: "..." } to block
- * - Stop: { continue: false, reason: "..." } to prevent stop
- *
- * @see https://code.claude.com/docs/en/hooks
- */
-function formatClaudeCodeOutput(response: HookResponse | null): ClaudeCodeHookOutput | null {
-  if (!response) {
-    return null
-  }
-
-  // If blocking, format as Claude Code expects
-  if (response.blocking) {
-    return {
-      continue: false,
-      reason: response.reason ?? response.additionalContext ?? 'Sidekick reminder',
-    }
-  }
-
-  // If there's additional context to inject (non-blocking reminder)
-  if (response.additionalContext || response.userMessage) {
-    return {
-      continue: true,
-      reason: response.additionalContext ?? response.userMessage,
-    }
-  }
-
-  // No action needed
-  return null
-}
-
 export interface HandleHookOptions {
   projectRoot: string
   sessionId: string
@@ -433,18 +385,10 @@ export async function handleHookCommand(
     // Merge responses (CLI takes precedence)
     const mergedResponse = mergeHookResponses(supervisorResponse, cliResponse ?? {})
 
-    // Format response for Claude Code
-    const output = formatClaudeCodeOutput(mergedResponse)
-
-    if (output) {
-      const outputStr = JSON.stringify(output)
-      stdout.write(`${outputStr}\n`)
-      return { exitCode: 0, output: outputStr }
-    }
-
-    // No output needed (empty response)
-    stdout.write('{}\n')
-    return { exitCode: 0, output: '{}' }
+    // Output internal HookResponse format (shell scripts will translate to Claude Code format)
+    const outputStr = JSON.stringify(mergedResponse)
+    stdout.write(`${outputStr}\n`)
+    return { exitCode: 0, output: outputStr }
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err))
     logger.error('Hook dispatch failed', { hook: hookName, error: error.message })
