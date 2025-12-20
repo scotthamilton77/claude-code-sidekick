@@ -18,17 +18,47 @@ export function getProjectHash(projectDir: string): string {
   return crypto.createHash('sha256').update(projectDir).digest('hex').substring(0, 16)
 }
 
-export function getSocketPath(projectDir: string): string {
-  const isWindows = os.platform() === 'win32'
+/**
+ * Unix domain sockets have a path length limit of 108 bytes (including null terminator).
+ * This is defined by struct sockaddr_un.sun_path[] in POSIX.
+ */
+export const UNIX_PATH_MAX = 107
 
-  if (isWindows) {
+/**
+ * Get the base directory for Unix domain sockets.
+ * Uses XDG_RUNTIME_DIR on Linux (per-user, auto-cleaned), /tmp elsewhere.
+ */
+function getSocketBaseDir(): string {
+  const xdgRuntime = process.env.XDG_RUNTIME_DIR
+  if (xdgRuntime && os.platform() === 'linux') {
+    return xdgRuntime
+  }
+  return os.tmpdir()
+}
+
+export function getSocketPath(projectDir: string): string {
+  const hash = getProjectHash(projectDir)
+
+  if (os.platform() === 'win32') {
     // On Windows, use named pipes.
-    // We hash the project path to create a unique but deterministic pipe name.
-    const hash = getProjectHash(projectDir)
     return `\\\\.\\pipe\\sidekick-${hash}-sock`
   } else {
-    // On Unix, use domain sockets in the .sidekick directory.
-    return path.join(projectDir, '.sidekick', 'supervisor.sock')
+    // On Unix, use domain sockets in a short base directory with hash.
+    // This avoids the 108-byte path limit for Unix domain sockets.
+    const baseDir = getSocketBaseDir()
+    return path.join(baseDir, `sidekick-${hash}.sock`)
+  }
+}
+
+/**
+ * Validate that a socket path doesn't exceed Unix limits.
+ * Throws an error with a helpful message if the path is too long.
+ */
+export function validateSocketPath(socketPath: string): void {
+  if (os.platform() !== 'win32' && socketPath.length > UNIX_PATH_MAX) {
+    throw new Error(
+      `Socket path exceeds Unix limit of ${UNIX_PATH_MAX} characters (got ${socketPath.length}): ${socketPath}`
+    )
   }
 }
 

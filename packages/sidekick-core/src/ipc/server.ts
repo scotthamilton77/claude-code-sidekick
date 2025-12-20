@@ -8,6 +8,7 @@ import fs from 'fs/promises'
 import net from 'net'
 import { Logger } from '../logger.js'
 import { ErrorCodes, IpcHandler, JSONRPC_VERSION, JsonRpcRequestSchema, JsonRpcResponse } from './protocol.js'
+import { validateSocketPath } from './transport.js'
 
 export class IpcServer {
   private server: net.Server
@@ -94,6 +95,9 @@ export class IpcServer {
   }
 
   async start(): Promise<void> {
+    // Validate socket path length before attempting to listen
+    validateSocketPath(this.socketPath)
+
     // Cleanup existing socket file if it exists (Unix only)
     if (process.platform !== 'win32') {
       try {
