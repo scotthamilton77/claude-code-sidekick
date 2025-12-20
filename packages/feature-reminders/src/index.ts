@@ -34,3 +34,6 @@ export default feature
 // Re-export types and utilities
 export * from './types'
 export * from './reminder-utils'
+
+// Re-export consumption handlers for CLI use (Phase 8.5.4)
+export { registerConsumptionHandlers } from './handlers/consumption'
