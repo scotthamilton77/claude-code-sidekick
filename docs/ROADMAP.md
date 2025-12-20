@@ -183,15 +183,13 @@ Closed gaps for production-ready monitoring UI. Key outcomes:
       - [x] Extract `ensureSupervisor()` - auto-start logic
       - [x] Extract `routeCommand()` - command routing switch
       - [x] Files: `packages/sidekick-cli/src/cli.ts`
-    - [ ] **8.5.4 Wire Reminder Consumption Handlers in CLI** ⚠️ CRITICAL
-      - [ ] Problem: Reminders staged by Supervisor but never consumed by CLI
-      - [ ] Per `flow.md §5.2-5.5`: CLI must invoke handlers AFTER IPC response
-      - [ ] In `handleHookCommand()` after IPC response: create `CLIStagingReader`
-      - [ ] Call consumption logic to read staged reminders
-      - [ ] Merge reminder data into response
-      - [ ] Alternative: Register consumption handlers during CLI bootstrap, invoke via HandlerRegistry
-      - [ ] Files: `packages/sidekick-cli/src/commands/hook.ts`
-      - [ ] Key refs: `packages/feature-reminders/src/handlers/consumption/index.ts`, `packages/feature-reminders/src/cli-staging-reader.ts`
+    - [x] **8.5.4 Wire Reminder Consumption Handlers in CLI** - COMPLETE 2025-12-20
+      - [x] Created `context.ts` with `buildCLIContext()` factory and `registerCLIFeatures()`
+      - [x] CLI invokes handlers via HandlerRegistry after IPC response
+      - [x] `mergeHookResponses()` merges CLI and Supervisor responses (CLI takes precedence)
+      - [x] Context wiring internalized in factory (fixes leaky abstraction)
+      - [x] Added `@sidekick/feature-reminders` dependency to CLI
+      - [x] Files: `packages/sidekick-cli/src/context.ts`, `packages/sidekick-cli/src/commands/hook.ts`
     - [ ] **8.5.5 Simplify Hook Response Format** (depends on 8.5.4)
       - [ ] Problem: Node CLI formats output for Claude Code directly; shell scripts better positioned
       - [ ] Node CLI should return standardized internal response (not Claude Code specific)

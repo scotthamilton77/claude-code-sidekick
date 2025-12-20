@@ -8,7 +8,7 @@
  */
 import { describe, expect, test, vi } from 'vitest'
 import type { ParsedHookInput } from '@sidekick/types'
-import { buildHookEvent, getHookName, isHookCommand, validateHookName } from '../hook.js'
+import { buildHookEvent, getHookName, isHookCommand, mergeHookResponses, validateHookName } from '../hook.js'
 
 // Mock @sidekick/core IpcService
 vi.mock('@sidekick/core', async (importOriginal) => {
@@ -295,5 +295,68 @@ describe('buildHookEvent', () => {
         transcriptSnapshotPath: '', // Placeholder until CLI populates
       })
     })
+  })
+})
+
+describe('mergeHookResponses', () => {
+  test('CLI blocking takes precedence over supervisor', () => {
+    const supervisorResponse = { blocking: false, reason: 'supervisor reason' }
+    const cliResponse = { blocking: true, reason: 'cli reason' }
+
+    const merged = mergeHookResponses(supervisorResponse, cliResponse)
+
+    expect(merged.blocking).toBe(true)
+    expect(merged.reason).toBe('cli reason')
+  })
+
+  test('additionalContext concatenates with CLI first', () => {
+    const supervisorResponse = { additionalContext: 'supervisor context' }
+    const cliResponse = { additionalContext: 'cli context' }
+
+    const merged = mergeHookResponses(supervisorResponse, cliResponse)
+
+    expect(merged.additionalContext).toBe('cli context\n\nsupervisor context')
+  })
+
+  test('userMessage from CLI overrides supervisor', () => {
+    const supervisorResponse = { userMessage: 'supervisor message' }
+    const cliResponse = { userMessage: 'cli message' }
+
+    const merged = mergeHookResponses(supervisorResponse, cliResponse)
+
+    expect(merged.userMessage).toBe('cli message')
+  })
+
+  test('handles null supervisor response', () => {
+    const cliResponse = { blocking: true, reason: 'cli only' }
+
+    const merged = mergeHookResponses(null, cliResponse)
+
+    expect(merged.blocking).toBe(true)
+    expect(merged.reason).toBe('cli only')
+  })
+
+  test('handles empty CLI response', () => {
+    const supervisorResponse = { blocking: true, reason: 'supervisor only' }
+    const cliResponse = {}
+
+    const merged = mergeHookResponses(supervisorResponse, cliResponse)
+
+    expect(merged.blocking).toBe(true)
+    expect(merged.reason).toBe('supervisor only')
+  })
+
+  test('preserves supervisor fields when CLI response is empty', () => {
+    const supervisorResponse = {
+      blocking: true,
+      reason: 'supervisor reason',
+      additionalContext: 'supervisor context',
+      userMessage: 'supervisor message',
+    }
+    const cliResponse = {}
+
+    const merged = mergeHookResponses(supervisorResponse, cliResponse)
+
+    expect(merged).toEqual(supervisorResponse)
   })
 })

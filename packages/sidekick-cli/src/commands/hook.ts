@@ -30,6 +30,8 @@ import type {
   StopHookEvent,
   PreCompactHookEvent,
 } from '@sidekick/types'
+import { buildCLIContext, registerCLIFeatures } from '../context.js'
+import type { RuntimeShell } from '../runtime.js'
 
 /**
  * Hook response from Supervisor.
@@ -285,9 +287,9 @@ export function buildHookEvent(
  * CLI response takes precedence for reminder fields (blocking, reason, userMessage).
  * additionalContext is concatenated (CLI first, then Supervisor).
  *
- * Note: Reserved for future Phase 8.5.4 implementation.
+ * Phase 8.5.4: Used to merge reminder consumption responses with supervisor responses.
  */
-function _mergeHookResponses(supervisorResponse: HookResponse | null, cliResponse: HookResponse): HookResponse {
+export function mergeHookResponses(supervisorResponse: HookResponse | null, cliResponse: HookResponse): HookResponse {
   const merged: HookResponse = { ...supervisorResponse }
 
   // CLI response takes precedence for these fields
@@ -321,7 +323,7 @@ function _mergeHookResponses(supervisorResponse: HookResponse | null, cliRespons
  *
  * @see https://code.claude.com/docs/en/hooks
  */
-function formatClaudeCodeOutput(hookName: HookName, response: HookResponse | null): ClaudeCodeHookOutput | null {
+function formatClaudeCodeOutput(response: HookResponse | null): ClaudeCodeHookOutput | null {
   if (!response) {
     return null
   }
@@ -352,6 +354,7 @@ export interface HandleHookOptions {
   hookInput: ParsedHookInput
   correlationId: string
   scope: 'project' | 'user'
+  runtime: RuntimeShell
 }
 
 export interface HandleHookResult {
@@ -379,7 +382,7 @@ export async function handleHookCommand(
   logger: Logger,
   stdout: Writable
 ): Promise<HandleHookResult> {
-  const { projectRoot, hookInput, correlationId, scope } = options
+  const { projectRoot, hookInput, correlationId, scope, runtime } = options
 
   // Build typed HookEvent from parsed input
   const event = buildHookEvent(hookName, hookInput, correlationId, scope)
@@ -388,6 +391,14 @@ export async function handleHookCommand(
     hook: hookName,
     sessionId: hookInput.sessionId,
   })
+
+  // Build CLIContext and register consumption handlers (Phase 8.5.4)
+  const cliContext = buildCLIContext({
+    runtime,
+    sessionId: hookInput.sessionId,
+    transcriptPath: hookInput.transcriptPath,
+  })
+  registerCLIFeatures(cliContext)
 
   // Create IpcService for supervisor communication
   const ipcService = new IpcService(projectRoot, logger)
@@ -410,8 +421,20 @@ export async function handleHookCommand(
       })
     }
 
+    // Invoke CLI-side consumption handlers (Phase 8.5.4)
+    const cliResponse = await cliContext.handlers.invokeHook(hookName, event)
+
+    logger.debug('CLI handlers invoked', {
+      hook: hookName,
+      hasCliResponse: !!cliResponse,
+      hasBlocking: cliResponse?.blocking,
+    })
+
+    // Merge responses (CLI takes precedence)
+    const mergedResponse = mergeHookResponses(supervisorResponse, cliResponse ?? {})
+
     // Format response for Claude Code
-    const output = formatClaudeCodeOutput(hookName, supervisorResponse || {})
+    const output = formatClaudeCodeOutput(mergedResponse)
 
     if (output) {
       const outputStr = JSON.stringify(output)

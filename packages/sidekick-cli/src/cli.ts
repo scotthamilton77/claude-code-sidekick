@@ -274,6 +274,7 @@ export async function routeCommand(context: {
           hookInput,
           correlationId: runtime.correlationId,
           scope: runtime.scope.scope,
+          runtime,
         },
         runtime.logger,
         stdout
