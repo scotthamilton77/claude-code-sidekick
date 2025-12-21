@@ -75,9 +75,7 @@ export class ClaudeCliEmulator extends AbstractProvider {
 
   private spawnScript(model: string): Promise<string> {
     return new Promise((resolve, reject) => {
-      const args = this.scriptPath
-        ? [this.scriptPath, model]
-        : ['-c', EMULATOR_SCRIPT, 'bash', model]
+      const args = this.scriptPath ? [this.scriptPath, model] : ['-c', EMULATOR_SCRIPT, 'bash', model]
 
       const proc = spawn('bash', args, {
         env: {
