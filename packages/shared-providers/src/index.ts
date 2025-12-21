@@ -29,7 +29,12 @@ export type { Message, LLMRequest, LLMResponse, LLMProvider } from '@sidekick/ty
 export { ProviderError, RateLimitError, AuthError, TimeoutError } from './errors'
 
 // Factory
-export { ProviderFactory, type ProviderConfig, type ProviderType } from './factory'
+export {
+  ProviderFactory,
+  type ProviderConfig,
+  type ProviderType,
+  type EmulatedProviderType,
+} from './factory'
 
 // Fallback wrapper
 export { FallbackProvider } from './fallback'
@@ -38,6 +43,19 @@ export { FallbackProvider } from './fallback'
 export { OpenAINativeProvider, type OpenAINativeConfig } from './providers/openai-native'
 export { AnthropicCliProvider, type AnthropicCliConfig } from './providers/anthropic-cli'
 export { AbstractProvider } from './providers/base'
+
+// Emulator implementations (for cost-effective testing)
+export {
+  AbstractEmulator,
+  EmulatorStateManager,
+  OpenAIEmulator,
+  OpenRouterEmulator,
+  ClaudeCliEmulator,
+  type EmulatorConfig,
+  type EmulatorState,
+  type ProviderCallState,
+  type ClaudeCliEmulatorConfig,
+} from './providers/emulators'
 
 // LLM Service (high-level wrapper with telemetry)
 export { LLMService, type LLMServiceConfig } from './llm-service'

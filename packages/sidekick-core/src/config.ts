@@ -156,7 +156,9 @@ export type CoreConfig = z.infer<typeof CoreConfigSchema>
 
 // --- LLM Config Schema (§5.2) ---
 
-const LlmProviderSchema = z.enum(['claude-cli', 'openai', 'openrouter', 'custom'])
+const LlmProviderSchema = z.enum(['claude-cli', 'openai', 'openrouter', 'custom', 'emulator'])
+
+const EmulatedProviderSchema = z.enum(['claude-cli', 'openai', 'openrouter'])
 
 const LLM_DEFAULTS = {
   provider: 'claude-cli' as const,
@@ -169,6 +171,7 @@ const LLM_DEFAULTS = {
 export const LlmConfigSchema = z
   .object({
     provider: LlmProviderSchema.optional(),
+    emulatedProvider: EmulatedProviderSchema.optional(),
     model: z.string().optional(),
     temperature: z.number().min(0).max(1).optional(),
     maxTokens: z.number().optional(),
@@ -181,6 +184,7 @@ export const LlmConfigSchema = z
   .strict()
   .transform((val) => ({
     provider: val.provider ?? LLM_DEFAULTS.provider,
+    emulatedProvider: val.emulatedProvider,
     model: val.model,
     temperature: val.temperature ?? LLM_DEFAULTS.temperature,
     maxTokens: val.maxTokens,
@@ -260,6 +264,7 @@ export const SidekickConfigSchema = z.object({
     (val) =>
       val ?? {
         ...LLM_DEFAULTS,
+        emulatedProvider: undefined,
         model: undefined,
         maxTokens: undefined,
         fallbackProvider: undefined,
@@ -500,6 +505,7 @@ function envToConfig(env: NodeJS.ProcessEnv): Record<string, Record<string, unkn
 
     // LLM domain
     SIDEKICK_LLM_PROVIDER: { domain: 'llm', path: ['provider'] },
+    SIDEKICK_EMULATED_PROVIDER: { domain: 'llm', path: ['emulatedProvider'] },
     SIDEKICK_LLM_MODEL: { domain: 'llm', path: ['model'] },
     SIDEKICK_LLM_TEMPERATURE: { domain: 'llm', path: ['temperature'] },
     SIDEKICK_LLM_MAX_TOKENS: { domain: 'llm', path: ['maxTokens'] },

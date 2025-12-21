@@ -12,12 +12,22 @@
 import type { Logger, LLMProvider } from '@sidekick/types'
 import { OpenAINativeProvider, type OpenAINativeConfig } from './providers/openai-native'
 import { AnthropicCliProvider, type AnthropicCliConfig } from './providers/anthropic-cli'
+import {
+  EmulatorStateManager,
+  OpenAIEmulator,
+  OpenRouterEmulator,
+  ClaudeCliEmulator,
+} from './providers/emulators'
 import { ProviderError } from './errors'
 
-export type ProviderType = 'openai' | 'openrouter' | 'claude-cli'
+export type ProviderType = 'openai' | 'openrouter' | 'claude-cli' | 'emulator'
+
+export type EmulatedProviderType = 'openai' | 'openrouter' | 'claude-cli'
 
 export interface ProviderConfig {
   provider: ProviderType
+  emulatedProvider?: EmulatedProviderType
+  emulatorStatePath?: string
   apiKey?: string
   baseURL?: string
   model: string
@@ -50,6 +60,8 @@ export class ProviderFactory {
         return this.createOpenAI()
       case 'openrouter':
         return this.createOpenRouter()
+      case 'emulator':
+        return this.createEmulator()
       default:
         throw new ProviderError(`Unknown provider type: ${provider as string}`, 'factory', false)
     }
@@ -130,5 +142,36 @@ export class ProviderFactory {
     })
 
     return new AnthropicCliProvider(cliConfig, this.logger)
+  }
+
+  private createEmulator(): LLMProvider {
+    const emulatedProvider = this.config.emulatedProvider ?? 'openai'
+    const statePath = this.config.emulatorStatePath ?? '.sidekick/emulator-state/call-counts.json'
+
+    this.logger.debug('Creating emulator provider', {
+      emulatedProvider,
+      model: this.config.model,
+      statePath,
+    })
+
+    switch (emulatedProvider) {
+      case 'openai': {
+        const stateManager = new EmulatorStateManager(statePath, this.logger)
+        return new OpenAIEmulator(stateManager, { model: this.config.model }, this.logger)
+      }
+      case 'openrouter': {
+        const stateManager = new EmulatorStateManager(statePath, this.logger)
+        return new OpenRouterEmulator(stateManager, { model: this.config.model }, this.logger)
+      }
+      case 'claude-cli':
+        // ClaudeCliEmulator spawns a real script, manages its own state
+        return new ClaudeCliEmulator({ model: this.config.model, statePath }, this.logger)
+      default:
+        throw new ProviderError(
+          `Unknown emulated provider: ${emulatedProvider as string}`,
+          'emulator',
+          false
+        )
+    }
   }
 }

@@ -48,6 +48,7 @@ const DEFAULT_CONFIG: SidekickConfig = {
   },
   llm: {
     provider: 'claude-cli',
+    emulatedProvider: undefined,
     model: undefined,
     temperature: 0,
     maxTokens: undefined,

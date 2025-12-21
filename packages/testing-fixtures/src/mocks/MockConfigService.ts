@@ -45,6 +45,7 @@ const DEFAULT_CORE: CoreConfig = {
 
 const DEFAULT_LLM: LlmConfig = {
   provider: 'claude-cli',
+  emulatedProvider: undefined,
   model: undefined,
   temperature: 0,
   maxTokens: undefined,
