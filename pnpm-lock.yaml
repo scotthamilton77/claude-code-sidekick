@@ -239,6 +239,9 @@ importers:
       '@sidekick/core':
         specifier: workspace:*
         version: link:../sidekick-core
+      '@sidekick/feature-reminders':
+        specifier: workspace:*
+        version: link:../feature-reminders
       '@sidekick/shared-providers':
         specifier: workspace:*
         version: link:../shared-providers

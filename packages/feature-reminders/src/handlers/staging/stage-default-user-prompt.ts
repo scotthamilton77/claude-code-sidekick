@@ -15,11 +15,7 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
     execute: (event) => {
       if (!isHookEvent(event) || !isSessionStartEvent(event)) return undefined
 
-      // Only stage on startup or clear (fresh session)
-      if (event.payload.startType !== 'startup' && event.payload.startType !== 'clear') {
-        return undefined
-      }
-
+      // Stage on every session start (startup, resume, or clear)
       return {
         reminderId: ReminderIds.USER_PROMPT_SUBMIT,
         targetHook: 'UserPromptSubmit',

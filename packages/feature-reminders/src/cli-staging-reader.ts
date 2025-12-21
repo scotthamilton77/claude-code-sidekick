@@ -34,9 +34,12 @@ export class CLIStagingReader {
   private readonly stagingRoot: string
 
   constructor(options: StagingReaderOptions) {
-    // State dir is always under userConfigDir
-    const stateDir = join(options.paths.userConfigDir, 'state')
-    this.stagingRoot = join(stateDir, 'sessions', options.sessionId, 'stage')
+    // State dir is under projectConfigDir (matches Supervisor's StagingService)
+    // Consumption handlers only run in project scope, so this is always defined
+    if (!options.paths.projectConfigDir) {
+      throw new Error('CLIStagingReader requires project scope (projectConfigDir must be defined)')
+    }
+    this.stagingRoot = join(options.paths.projectConfigDir, 'sessions', options.sessionId, 'stage')
   }
 
   /**
