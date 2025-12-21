@@ -37,3 +37,6 @@ export * from './reminder-utils'
 
 // Re-export consumption handlers for CLI use (Phase 8.5.4)
 export { registerConsumptionHandlers } from './handlers/consumption'
+
+// Re-export staging handlers for Supervisor use (Phase 8.5)
+export { registerStagingHandlers } from './handlers/staging'

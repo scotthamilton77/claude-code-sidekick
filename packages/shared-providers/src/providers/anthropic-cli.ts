@@ -77,7 +77,7 @@ export class AnthropicCliProvider extends AbstractProvider {
 
   private async executeCliRequest(request: LLMRequest): Promise<LLMResponse> {
     return new Promise((resolve, reject) => {
-      const args = ['--model', request.model ?? this.defaultModel, '--format', 'json']
+      const args = ['-p', '--model', request.model ?? this.defaultModel, '--output-format', 'json']
 
       // Build prompt from messages
       const prompt = this.buildPrompt(request)

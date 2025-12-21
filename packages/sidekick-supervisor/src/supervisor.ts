@@ -1,5 +1,7 @@
 import {
+  createAssetResolver,
   createLogManager,
+  getDefaultAssetsDir,
   getPidPath,
   getSocketPath,
   getTokenPath,
@@ -16,6 +18,7 @@ import {
   LogEvents,
   logEvent,
 } from '@sidekick/core'
+import { registerStagingHandlers } from '@sidekick/feature-reminders'
 import type {
   HandlerRegistry,
   TranscriptService,
@@ -23,8 +26,13 @@ import type {
   HookName,
   HookEvent,
   SupervisorStatus,
+  SupervisorContext,
+  RuntimePaths,
+  MinimalAssetResolver,
 } from '@sidekick/types'
+import { ProviderFactory, type LLMProvider } from '@sidekick/shared-providers'
 import { randomBytes } from 'crypto'
+import { homedir } from 'os'
 import fs from 'fs/promises'
 import path from 'path'
 import { ConfigChangeEvent, ConfigWatcher } from './config-watcher.js'
@@ -72,6 +80,8 @@ export class Supervisor {
   private handlerRegistry: HandlerRegistry
   private transcriptService: TranscriptService | null = null
   private stagingService: StagingService | null = null
+  private assetResolver: MinimalAssetResolver
+  private llmProvider: LLMProvider | null = null
   private token: string = ''
   private lastActivityTime: number = Date.now()
   private idleCheckInterval: ReturnType<typeof setInterval> | null = null
@@ -110,6 +120,17 @@ export class Supervisor {
       sessionId: '', // Updated on SessionStart
       scope: 'project',
     })
+
+    // Initialize Asset Resolver for reminder templates
+    this.assetResolver = createAssetResolver({
+      defaultAssetsDir: getDefaultAssetsDir(),
+      projectRoot: projectDir,
+    })
+
+    // Register staging handlers (Phase 8.5 - Reminders feature)
+    // These handlers listen for SessionStart/transcript events and stage reminders
+    // for CLI consumption. They need SupervisorContext at invocation time.
+    this.registerStagingHandlers()
 
     // Initialize IPC
     const socketPath = getSocketPath(projectDir)
@@ -399,6 +420,50 @@ export class Supervisor {
 
       this.logger.info('TranscriptService initialized', { sessionId, transcriptPath: payload.transcriptPath })
     }
+
+    // Set full SupervisorContext for handler invocation (Phase 8.5 - Reminders)
+    // This replaces the registration-time placeholders with real services
+    if (this.handlerRegistry instanceof HandlerRegistryImpl) {
+      const paths: RuntimePaths = {
+        projectDir: this.projectDir,
+        userConfigDir: path.join(homedir(), '.sidekick'),
+        projectConfigDir: path.join(this.projectDir, '.sidekick'),
+        hookScriptPath: undefined,
+      }
+
+      // Create LLM provider for handlers that need it
+      if (!this.llmProvider) {
+        const factory = new ProviderFactory(
+          {
+            provider: 'openrouter',
+            model: 'google/gemini-2.0-flash-lite-001',
+            timeout: 30000,
+            maxRetries: 2,
+          },
+          this.logger
+        )
+        this.llmProvider = factory.create()
+      }
+
+      const supervisorContext: SupervisorContext = {
+        role: 'supervisor',
+        config: {
+          core: { logging: { level: this.config.core.logging.level } },
+          llm: { provider: this.config.llm.provider },
+          getAll: () => this.config,
+        },
+        logger: this.logger,
+        assets: this.assetResolver,
+        paths,
+        handlers: this.handlerRegistry,
+        llm: this.llmProvider,
+        staging: this.stagingService,
+        transcript: this.transcriptService ?? (null as unknown as TranscriptService),
+      }
+
+      this.handlerRegistry.setContext(supervisorContext as unknown as Record<string, unknown>)
+      this.logger.debug('SupervisorContext set for handler invocation')
+    }
   }
 
   /**
@@ -657,6 +722,50 @@ export class Supervisor {
         error: err instanceof Error ? err.message : String(err),
       })
     }
+  }
+
+  /**
+   * Register staging handlers for the Reminders feature.
+   *
+   * Staging handlers listen for SessionStart and transcript events,
+   * then stage reminders for CLI consumption. They require SupervisorContext
+   * at invocation time (not registration time), which is set in handleSessionStart.
+   *
+   * @see docs/design/FEATURE-REMINDERS.md §3.1 Staging Handlers
+   */
+  private registerStagingHandlers(): void {
+    // Build RuntimePaths for the context
+    const paths: RuntimePaths = {
+      projectDir: this.projectDir,
+      userConfigDir: path.join(homedir(), '.sidekick'),
+      projectConfigDir: path.join(this.projectDir, '.sidekick'),
+      hookScriptPath: undefined, // Not applicable for supervisor
+    }
+
+    // Create a registration context with role='supervisor' for type guards.
+    // Services (staging, transcript, llm) aren't available yet - they're created
+    // per-session in handleSessionStart. The handlers access them via the
+    // HandlerContext passed at invocation time.
+    const registrationContext: SupervisorContext = {
+      role: 'supervisor',
+      config: {
+        core: { logging: { level: this.config.core.logging.level } },
+        llm: { provider: this.config.llm.provider },
+        getAll: () => this.config,
+      },
+      logger: this.logger,
+      assets: this.assetResolver,
+      paths,
+      handlers: this.handlerRegistry,
+      // Placeholder services - will be replaced via setContext() in handleSessionStart
+      llm: null as unknown as LLMProvider,
+      staging: null as unknown as StagingService,
+      transcript: null as unknown as TranscriptService,
+    }
+
+    // Register handlers - they'll receive full context at invocation time
+    registerStagingHandlers(registrationContext)
+    this.logger.debug('Staging handlers registered for Reminders feature')
   }
 
   /**
