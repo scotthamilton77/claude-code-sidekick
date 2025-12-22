@@ -85,50 +85,106 @@ function shouldGenerateFirstPrompt(userPrompt: string): 'skip' | 'static' | 'llm
 }
 ```
 
-### 4.2 LLM Prompt Template
+### 4.2 LLM Prompt Structure
 
-```markdown
-You are generating a brief, snarky status message for a coding assistant's status line.
+The prompt uses **system/user message separation** for better role enforcement and format compliance.
 
-## Context
-{{#if resumeMessage}}
-Previous session goal: {{resumeMessage}}
-{{else}}
-This is a brand new session (no prior context).
-{{/if}}
+#### System Message
 
-## User's First Input
-{{userPrompt}}
+The system message enforces role, provides rules, negative examples (what NOT to do), and diverse few-shot examples:
 
-## Instructions
-1. Classify the input:
-   - COMMAND: Slash command or configuration action
-   - CONVERSATIONAL: Greeting, small talk, or social interaction
-   - INTERROGATIVE: Question about codebase, capabilities, or exploration
-   - AMBIGUOUS: Context-setting but unclear specific goal
-   - ACTIONABLE: Clear task with specific intent
+```
+You are a status-line message generator. Output JSON: { "message": "<text>" }
 
-2. Generate a single snarky line (max 60 characters) appropriate to the classification.
-
-## Tone Guidelines
-- Witty and slightly sardonic, never mean
+RULES:
+- Max 60 characters
+- Single line, no newlines
+- Snarky/witty tone, never mean
+- Summarize user intent, don't respond to it
 - Self-aware about AI limitations
-- References to sci-fi welcome (Hitchhiker's, Star Trek, etc.)
-- Match energy: serious tasks get wry acknowledgment, casual inputs get playful response
+- Sci-fi references welcome (Hitchhiker's, Star Trek, etc.)
 
-## Output Format
-Return ONLY the snarky message, no explanation or classification label.
+NEVER output:
+- Clarifying questions ("Let me clarify...", "Are you asking...")
+- Helpful preambles ("I'd be happy to...", "Sure, I can...")
+- Multiple lines or paragraphs
+- Anything over 60 characters
+- Explanations of what you're doing
+
+EXAMPLES:
+User: "Help me debug the login flow" → { "message": "Debugging: the eternal optimism" }
+User: "What's the project structure?" → { "message": "Mapping the labyrinth" }
+User: "hello!" → { "message": "Greetings acknowledged" }
+User: "refactor auth to use JWT" → { "message": "JWT conversion incoming" }
+User: "test something quick" → { "message": "Quick test, famous last words" }
 ```
 
-### 4.3 Classification-Specific Flavor
+#### User Message
 
-| Classification | Flavor |
-|----------------|--------|
-| COMMAND | Acknowledge the meta-action with mild resignation |
-| CONVERSATIONAL | Playful deflection toward actual work |
-| INTERROGATIVE | Note the exploration/discovery mode |
-| AMBIGUOUS | Express witty uncertainty about intent |
-| ACTIONABLE | Confident acknowledgment of the mission |
+The user message contains only context and the input to summarize:
+
+```
+{{#if resumeMessage}}
+Previous session: {{resumeMessage}}
+{{else}}
+New session
+{{/if}}
+User input: "{{userPrompt}}"
+
+Output JSON:
+```
+
+#### Output Schema
+
+See `assets/sidekick/schemas/first-prompt-summary.schema.json`:
+
+```json
+{
+  "type": "object",
+  "required": ["message"],
+  "properties": {
+    "message": {
+      "type": "string",
+      "maxLength": 60,
+      "description": "Snarky status-line message (max 60 chars, single line)"
+    }
+  }
+}
+```
+
+#### Response Parsing
+
+The handler parses JSON responses robustly:
+1. Try `JSON.parse()` and extract `message` field
+2. Fallback: regex extraction of `{ "message": "..." }` pattern
+3. Final fallback: treat raw text as message, truncate to 60 chars
+
+### 4.3 Classification (Inferred)
+
+Classification is no longer requested from the LLM — it's **inferred** from the generated message content using keyword matching:
+
+```typescript
+function inferClassification(message: string): FirstPromptClassification | undefined {
+  const lowerMessage = message.toLowerCase()
+
+  if (lowerMessage.includes('configur') || lowerMessage.includes('setting')) {
+    return 'command'
+  }
+  if (lowerMessage.includes('hello') || lowerMessage.includes('greet')) {
+    return 'conversational'
+  }
+  if (lowerMessage.includes('explor') || lowerMessage.includes('investigat')) {
+    return 'interrogative'
+  }
+  if (lowerMessage.includes('unclear') || lowerMessage.includes('vague')) {
+    return 'ambiguous'
+  }
+
+  return 'actionable'  // Default for task-oriented messages
+}
+```
+
+This simplifies the LLM prompt and improves format compliance by removing the classification task.
 
 ## 5. Model Configuration
 
@@ -425,3 +481,4 @@ None — all design decisions resolved in discussion.
 - `docs/design/flow.md` — Hook event flow
 - `src/sidekick/llm-providers.defaults` — Model configuration
 - `docs/model-analysis-report.md` — Benchmark data
+- `assets/sidekick/schemas/first-prompt-summary.schema.json` — LLM output JSON schema

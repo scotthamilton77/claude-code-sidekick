@@ -13,7 +13,13 @@ import {
   FirstPromptSummaryStateSchema,
 } from '@sidekick/core'
 import { describe, expect, it } from 'vitest'
-import { buildPrompt, classifyPrompt, generateWithLLM, PromptClassification } from '../first-prompt-summary.handler.js'
+import {
+  buildPrompt,
+  classifyPrompt,
+  generateWithLLM,
+  PromptClassification,
+  PromptParts,
+} from '../first-prompt-summary.handler.js'
 
 describe('classifyPrompt', () => {
   describe('non-slash commands', () => {
@@ -129,69 +135,92 @@ describe('classifyPrompt', () => {
 })
 
 describe('buildPrompt', () => {
-  describe('context section', () => {
-    it('should include brand new session context when no resume context', () => {
-      const prompt = buildPrompt('Fix the login bug')
-      expect(prompt).toContain('This is a brand new session (no prior context)')
-      expect(prompt).not.toContain('Previous session goal')
+  describe('return structure', () => {
+    it('should return PromptParts with system and user fields', () => {
+      const result = buildPrompt('Fix the login bug')
+      expect(result).toHaveProperty('system')
+      expect(result).toHaveProperty('user')
+      expect(typeof result.system).toBe('string')
+      expect(typeof result.user).toBe('string')
+    })
+  })
+
+  describe('context section (in user message)', () => {
+    it('should include new session context when no resume context', () => {
+      const { user } = buildPrompt('Fix the login bug')
+      expect(user).toContain('New session')
+      expect(user).not.toContain('Previous session')
     })
 
     it('should include resume context when provided', () => {
-      const prompt = buildPrompt('Continue where we left off', 'Implementing user auth')
-      expect(prompt).toContain('Previous session goal: Implementing user auth')
-      expect(prompt).not.toContain('brand new session')
+      const { user } = buildPrompt('Continue where we left off', 'Implementing user auth')
+      expect(user).toContain('Previous session: Implementing user auth')
+      expect(user).not.toContain('New session')
     })
   })
 
   describe('user input section', () => {
-    it('should include the user prompt verbatim', () => {
+    it('should include the user prompt in user message', () => {
       const userInput = 'Help me refactor the database layer'
-      const prompt = buildPrompt(userInput)
-      expect(prompt).toContain(`## User's First Input\n${userInput}`)
+      const { user } = buildPrompt(userInput)
+      expect(user).toContain(`User input: "${userInput}"`)
     })
 
     it('should preserve special characters in user prompt', () => {
       const userInput = 'Fix the `handleClick()` function in <Button />'
-      const prompt = buildPrompt(userInput)
-      expect(prompt).toContain(userInput)
+      const { user } = buildPrompt(userInput)
+      expect(user).toContain(userInput)
     })
   })
 
-  describe('instructions section', () => {
-    it('should include classification categories', () => {
-      const prompt = buildPrompt('test')
-      expect(prompt).toContain('COMMAND')
-      expect(prompt).toContain('CONVERSATIONAL')
-      expect(prompt).toContain('INTERROGATIVE')
-      expect(prompt).toContain('AMBIGUOUS')
-      expect(prompt).toContain('ACTIONABLE')
+  describe('system message constraints', () => {
+    it('should include character limit instruction', () => {
+      const { system } = buildPrompt('test')
+      expect(system).toContain('Max 60 characters')
     })
 
-    it('should include character limit instruction', () => {
-      const prompt = buildPrompt('test')
-      expect(prompt).toContain('max 60 characters')
+    it('should include JSON output format', () => {
+      const { system } = buildPrompt('test')
+      expect(system).toContain('Output JSON')
+      expect(system).toContain('"message"')
+    })
+
+    it('should include single line constraint', () => {
+      const { system } = buildPrompt('test')
+      expect(system).toContain('Single line')
+    })
+  })
+
+  describe('negative examples (NEVER section)', () => {
+    it('should include negative examples to prevent assistant mode', () => {
+      const { system } = buildPrompt('test')
+      expect(system).toContain('NEVER')
+      expect(system).toContain('Clarifying questions')
+      expect(system).toContain('Helpful preambles')
+    })
+  })
+
+  describe('few-shot examples', () => {
+    it('should include diverse few-shot examples', () => {
+      const { system } = buildPrompt('test')
+      expect(system).toContain('EXAMPLES')
+      expect(system).toContain('debug')
+      expect(system).toContain('hello!')
+      expect(system).toContain('JWT')
     })
   })
 
   describe('tone guidelines', () => {
     it('should include sci-fi reference guideline', () => {
-      const prompt = buildPrompt('test')
-      expect(prompt).toContain("Hitchhiker's")
-      expect(prompt).toContain('Star Trek')
+      const { system } = buildPrompt('test')
+      expect(system).toContain("Hitchhiker's")
+      expect(system).toContain('Star Trek')
     })
 
-    it('should include sardonic tone guideline', () => {
-      const prompt = buildPrompt('test')
-      expect(prompt).toContain('sardonic')
-      expect(prompt).toContain('never mean')
-    })
-  })
-
-  describe('output format', () => {
-    it('should specify single line output', () => {
-      const prompt = buildPrompt('test')
-      expect(prompt).toContain('single line')
-      expect(prompt).toContain('no explanation')
+    it('should include snarky tone guideline', () => {
+      const { system } = buildPrompt('test')
+      expect(system).toContain('Snarky')
+      expect(system).toContain('never mean')
     })
   })
 })
