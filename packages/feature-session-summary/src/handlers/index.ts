@@ -5,6 +5,7 @@
 
 import type { RuntimeContext } from '@sidekick/core'
 import { isHookEvent, isSessionStartEvent, isTranscriptEvent } from '@sidekick/core'
+import type { SupervisorContext } from '@sidekick/types'
 import { createFirstSessionSummary } from './create-first-summary.js'
 import { updateSessionSummary } from './update-summary.js'
 
@@ -30,9 +31,9 @@ export function registerHandlers(context: RuntimeContext): void {
     id: 'session-summary:update-user-prompt',
     priority: 80,
     filter: { kind: 'transcript', eventTypes: ['UserPrompt'] },
-    handler: async (event) => {
+    handler: async (event, context) => {
       if (!isTranscriptEvent(event)) return
-      await updateSessionSummary(event, ctx)
+      await updateSessionSummary(event, context as unknown as SupervisorContext)
     },
   })
 
@@ -41,9 +42,9 @@ export function registerHandlers(context: RuntimeContext): void {
     id: 'session-summary:update-tool-call',
     priority: 70,
     filter: { kind: 'transcript', eventTypes: ['ToolCall'] },
-    handler: async (event) => {
+    handler: async (event, context) => {
       if (!isTranscriptEvent(event)) return
-      await updateSessionSummary(event, ctx)
+      await updateSessionSummary(event, context as unknown as SupervisorContext)
     },
   })
 }
