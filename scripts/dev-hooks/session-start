@@ -14,8 +14,11 @@ if [[ ! -f "${CLI_BIN}" ]]; then
   exit 1
 fi
 
-# Capture stdin and pass to CLI, then translate internal format to Claude Code format
-INTERNAL_RESPONSE=$(node "${CLI_BIN}" session-start \
+# Capture stdin first (Claude Code hook input JSON)
+STDIN_DATA=$(cat)
+
+# Pass stdin to CLI, then translate internal format to Claude Code format
+INTERNAL_RESPONSE=$(echo "$STDIN_DATA" | node "${CLI_BIN}" session-start \
   --hook \
   --scope=project \
   --hook-script-path="${CLAUDE_PROJECT_DIR}/scripts/dev-hooks/session-start" \
