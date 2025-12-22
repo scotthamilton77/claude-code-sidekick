@@ -25,6 +25,7 @@ import type {
   ResumeMessageState,
   SessionMetricsState,
   SessionSummaryState,
+  StateReadResult,
   StatuslineConfig,
   StatuslineRenderResult,
   StatuslineViewModel,
@@ -34,6 +35,31 @@ import { DEFAULT_PLACEHOLDERS, DEFAULT_STATUSLINE_CONFIG } from './types.js'
 // ============================================================================
 // Service Configuration
 // ============================================================================
+
+/**
+ * Metrics provided directly by Claude Code in statusline hook input.
+ * When provided, these values are used instead of reading from state files.
+ *
+ * @see https://code.claude.com/docs/en/statusline
+ */
+export interface HookMetrics {
+  /** Model display name (e.g., "Opus") - directly from Claude Code */
+  modelDisplayName: string
+  /** Model ID (e.g., "claude-opus-4-1") */
+  modelId?: string
+  /** Total input tokens from context_window */
+  totalInputTokens?: number
+  /** Total output tokens from context_window */
+  totalOutputTokens?: number
+  /** Context window size from context_window */
+  contextWindowSize?: number
+  /** Total cost in USD from cost object */
+  totalCostUsd?: number
+  /** Total duration in milliseconds from cost object */
+  totalDurationMs?: number
+  /** Current working directory */
+  cwd?: string
+}
 
 /**
  * Configuration for StatuslineService.
@@ -55,6 +81,11 @@ export interface StatuslineServiceConfig {
   sessionsDir?: string
   /** Current session ID for excluding from discovery */
   currentSessionId?: string
+  /**
+   * Metrics from Claude Code hook input.
+   * When provided, uses these directly instead of reading state files.
+   */
+  hookMetrics?: HookMetrics
 }
 
 // ============================================================================
@@ -64,6 +95,9 @@ export interface StatuslineServiceConfig {
 /**
  * Main service for rendering the statusline.
  * Orchestrates StateReader, GitProvider, and Formatter.
+ *
+ * When hookMetrics are provided (from Claude Code's statusline input),
+ * uses those directly for model/tokens/cost instead of reading state files.
  */
 export class StatuslineService {
   private readonly stateReader: StateReader
@@ -76,6 +110,7 @@ export class StatuslineService {
   private readonly useColors: boolean
   private readonly sessionsDir?: string
   private readonly currentSessionId?: string
+  private readonly hookMetrics?: HookMetrics
 
   constructor(serviceConfig: StatuslineServiceConfig) {
     this.config = { ...DEFAULT_STATUSLINE_CONFIG, ...serviceConfig.config }
@@ -85,6 +120,7 @@ export class StatuslineService {
     this.useColors = serviceConfig.useColors ?? true
     this.sessionsDir = serviceConfig.sessionsDir
     this.currentSessionId = serviceConfig.currentSessionId
+    this.hookMetrics = serviceConfig.hookMetrics
 
     this.stateReader = createStateReader(serviceConfig.sessionStateDir)
     this.gitProvider = createGitProvider(serviceConfig.cwd)
@@ -98,12 +134,21 @@ export class StatuslineService {
    * Render the statusline by fetching all data in parallel and formatting.
    *
    * Performance target: <50ms total execution time.
+   *
+   * When hookMetrics is provided (from Claude Code), uses those values directly
+   * for model/tokens/cost/duration instead of reading from state files.
    */
   async render(): Promise<StatuslineRenderResult> {
+    // Determine what data to fetch based on whether hookMetrics is available
+    // When hookMetrics is provided, we skip session state (Claude Code gives us metrics)
+    // but still need summary/resume/snarky/firstPrompt (Sidekick-specific content)
+    const hasHookMetrics = !!this.hookMetrics
+
     // Parallel data fetch (critical for <50ms target)
+    // When hookMetrics provided, skip getSessionState() - Claude Code already gave us metrics
     const [stateResult, summaryResult, resumeResult, snarkyResult, firstPromptResult, branchResult] = await Promise.all(
       [
-        this.stateReader.getSessionState(),
+        hasHookMetrics ? Promise.resolve(this.buildStateFromHookMetrics()) : this.stateReader.getSessionState(),
         this.stateReader.getSessionSummary(),
         this.stateReader.getResumeMessage(),
         this.stateReader.getSnarkyMessage(),
@@ -137,9 +182,9 @@ export class StatuslineService {
     // Format output
     let text = this.formatter.format(this.config.format, viewModel)
 
-    // Determine if any stale data was used
+    // Determine if any stale data was used (hookMetrics is always fresh)
     const staleData =
-      stateResult.source === 'stale' ||
+      (!hasHookMetrics && stateResult.source === 'stale') ||
       summaryResult.source === 'stale' ||
       resumeResult.source === 'stale' ||
       snarkyResult.source === 'stale' ||
@@ -158,6 +203,35 @@ export class StatuslineService {
       displayMode: viewModel.displayMode,
       staleData,
       viewModel,
+    }
+  }
+
+  /**
+   * Build a synthetic StateReadResult from hook metrics.
+   * Used when Claude Code provides metrics directly in the statusline input.
+   */
+  private buildStateFromHookMetrics(): StateReadResult<SessionMetricsState> {
+    const metrics = this.hookMetrics!
+    const totalTokens = (metrics.totalInputTokens ?? 0) + (metrics.totalOutputTokens ?? 0)
+
+    return {
+      data: {
+        sessionId: '',
+        lastUpdatedAt: Date.now(),
+        // Use display name directly - Claude Code already formatted it
+        primaryModel: metrics.modelDisplayName,
+        tokens: {
+          input: metrics.totalInputTokens ?? 0,
+          output: metrics.totalOutputTokens ?? 0,
+          total: totalTokens,
+          cacheCreation: 0,
+          cacheRead: 0,
+        },
+        costUsd: metrics.totalCostUsd ?? 0,
+        // Convert milliseconds to seconds
+        durationSeconds: (metrics.totalDurationMs ?? 0) / 1000,
+      },
+      source: 'fresh', // Hook metrics are always fresh
     }
   }
 

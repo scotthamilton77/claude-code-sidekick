@@ -113,6 +113,88 @@ export const NotificationInputSchema = HookInputBaseSchema.extend({
   notification_type: z.string(),
 })
 
+// ============================================================================
+// Statusline Input Schema (special hook - not routed through hook dispatcher)
+// ============================================================================
+
+/**
+ * Model information provided by Claude Code in statusline input.
+ * @see https://code.claude.com/docs/en/statusline
+ */
+export const StatuslineModelSchema = z.object({
+  /** Full model identifier (e.g., "claude-opus-4-1") */
+  id: z.string(),
+  /** Human-readable display name (e.g., "Opus") */
+  display_name: z.string(),
+})
+
+/**
+ * Context window usage provided by Claude Code in statusline input.
+ */
+export const StatuslineContextWindowSchema = z.object({
+  /** Total input tokens used in session */
+  total_input_tokens: z.number(),
+  /** Total output tokens used in session */
+  total_output_tokens: z.number().optional(),
+  /** Maximum context window size for the model */
+  context_window_size: z.number().optional(),
+})
+
+/**
+ * Cost and duration information provided by Claude Code in statusline input.
+ */
+export const StatuslineCostSchema = z.object({
+  /** Total cost in USD for the session */
+  total_cost_usd: z.number(),
+  /** Total duration in milliseconds */
+  total_duration_ms: z.number().optional(),
+  /** Total API request duration in milliseconds */
+  total_api_duration_ms: z.number().optional(),
+  /** Total lines added in session */
+  total_lines_added: z.number().optional(),
+  /** Total lines removed in session */
+  total_lines_removed: z.number().optional(),
+})
+
+/**
+ * Workspace information provided by Claude Code in statusline input.
+ */
+export const StatuslineWorkspaceSchema = z.object({
+  /** Current working directory */
+  current_dir: z.string(),
+  /** Original project directory */
+  project_dir: z.string(),
+})
+
+/**
+ * Statusline hook input from Claude Code.
+ * This contains all the metrics data directly, unlike other hooks.
+ *
+ * @see https://code.claude.com/docs/en/statusline
+ */
+export const StatuslineInputSchema = z.object({
+  /** Hook event name (always "Status" for statusline) */
+  hook_event_name: z.literal('Status').optional(),
+  /** Session identifier */
+  session_id: z.string(),
+  /** Path to transcript file */
+  transcript_path: z.string().optional(),
+  /** Current working directory */
+  cwd: z.string().optional(),
+  /** Claude Code version */
+  version: z.string().optional(),
+  /** Model information with id and display_name */
+  model: StatuslineModelSchema,
+  /** Workspace paths */
+  workspace: StatuslineWorkspaceSchema.optional(),
+  /** Cost and duration metrics */
+  cost: StatuslineCostSchema.optional(),
+  /** Context window usage */
+  context_window: StatuslineContextWindowSchema.optional(),
+  /** Output style configuration */
+  output_style: z.object({ name: z.string() }).optional(),
+})
+
 /**
  * Union type for all hook inputs.
  * CLI parses this to extract common fields.
@@ -143,6 +225,13 @@ export type SessionEndInput = z.infer<typeof SessionEndInputSchema>
 export type PreCompactInput = z.infer<typeof PreCompactInputSchema>
 export type NotificationInput = z.infer<typeof NotificationInputSchema>
 export type HookInput = z.infer<typeof HookInputSchema>
+
+// Statusline types (not part of HookInput union - handled separately)
+export type StatuslineModel = z.infer<typeof StatuslineModelSchema>
+export type StatuslineContextWindow = z.infer<typeof StatuslineContextWindowSchema>
+export type StatuslineCost = z.infer<typeof StatuslineCostSchema>
+export type StatuslineWorkspace = z.infer<typeof StatuslineWorkspaceSchema>
+export type StatuslineInput = z.infer<typeof StatuslineInputSchema>
 
 /**
  * Parsed hook input with guaranteed common fields.

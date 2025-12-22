@@ -308,13 +308,19 @@ export async function routeCommand(context: {
   }
 
   if (parsed.command === 'statusline') {
-    const { handleStatuslineCommand } = await import('./commands/statusline.js')
+    const { handleStatuslineCommand, parseStatuslineInput } = await import('./commands/statusline.js')
     // Session ID can come from CLI arg (--session-id) or hook input (stdin JSON)
     // CLI arg takes precedence for interactive commands like statusline
     const sessionId = parsed.sessionIdArg ?? hookInput?.sessionId
+
+    // Parse statusline-specific metrics from hook input if available
+    // Claude Code provides model, tokens, cost directly - no need to read state files
+    const hookMetrics = hookInput?.raw ? parseStatuslineInput(hookInput.raw) : undefined
+
     const result = await handleStatuslineCommand(runtime.scope.projectRoot || process.cwd(), runtime.logger, stdout, {
       format: parsed.format,
       sessionId,
+      hookMetrics,
     })
     return { exitCode: result.exitCode, stdout: '', stderr: '' }
   }

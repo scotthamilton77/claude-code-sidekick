@@ -28,4 +28,9 @@ export {
   getThresholdStatus,
   type FormatterConfig,
 } from './formatter.js'
-export { StatuslineService, createStatuslineService, type StatuslineServiceConfig } from './statusline-service.js'
+export {
+  StatuslineService,
+  createStatuslineService,
+  type StatuslineServiceConfig,
+  type HookMetrics,
+} from './statusline-service.js'
