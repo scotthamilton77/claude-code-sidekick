@@ -402,7 +402,7 @@ export class Supervisor {
       this.handlerRegistry.setStagingProvider(() => this.stagingService!)
     }
 
-    // Create and initialize TranscriptService
+    // Create TranscriptService (but don't initialize yet - it emits events during init)
     if (payload.transcriptPath) {
       this.transcriptService = new TranscriptServiceImpl({
         watchDebounceMs: this.config.transcript.watchDebounceMs,
@@ -412,18 +412,14 @@ export class Supervisor {
         stateDir,
       })
 
-      await this.transcriptService.initialize(sessionId, payload.transcriptPath)
-
       // Provide metrics getter to handler registry
       if (this.handlerRegistry instanceof HandlerRegistryImpl) {
         this.handlerRegistry.setMetricsProvider(() => this.transcriptService!.getMetrics())
       }
-
-      this.logger.info('TranscriptService initialized', { sessionId, transcriptPath: payload.transcriptPath })
     }
 
-    // Set full SupervisorContext for handler invocation (Phase 8.5 - Reminders)
-    // This replaces the registration-time placeholders with real services
+    // Set full SupervisorContext for handler invocation BEFORE TranscriptService.initialize()
+    // This is critical: initialize() emits events, and handlers need context with real services
     if (this.handlerRegistry instanceof HandlerRegistryImpl) {
       const paths: RuntimePaths = {
         projectDir: this.projectDir,
@@ -464,6 +460,12 @@ export class Supervisor {
 
       this.handlerRegistry.setContext(supervisorContext as unknown as Record<string, unknown>)
       this.logger.debug('SupervisorContext set for handler invocation')
+    }
+
+    // NOW initialize TranscriptService - events emitted here will see proper context
+    if (this.transcriptService && payload.transcriptPath) {
+      await this.transcriptService.initialize(sessionId, payload.transcriptPath)
+      this.logger.info('TranscriptService initialized', { sessionId, transcriptPath: payload.transcriptPath })
     }
   }
 
