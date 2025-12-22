@@ -161,7 +161,7 @@ const LlmProviderSchema = z.enum(['claude-cli', 'openai', 'openrouter', 'custom'
 const EmulatedProviderSchema = z.enum(['claude-cli', 'openai', 'openrouter'])
 
 const LLM_DEFAULTS = {
-  provider: 'claude-cli' as const,
+  provider: 'openrouter' as const,
   temperature: 0,
   timeout: 30,
   timeoutMaxRetries: 3,

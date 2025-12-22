@@ -201,7 +201,7 @@ describe('loadConfig - YAML parsing', () => {
     expect(config.core.paths.state).toBe('.sidekick')
 
     // LLM defaults
-    expect(config.llm.provider).toBe('claude-cli')
+    expect(config.llm.provider).toBe('openrouter')
     expect(config.llm.temperature).toBe(0)
     expect(config.llm.timeout).toBe(30)
 
@@ -670,7 +670,7 @@ describe('ConfigService', () => {
     })
 
     expect(service.core.logging.level).toBe('info')
-    expect(service.llm.provider).toBe('claude-cli')
+    expect(service.llm.provider).toBe('openrouter')
     expect(service.transcript.watchDebounceMs).toBe(100)
     expect(service.features).toEqual({})
   })

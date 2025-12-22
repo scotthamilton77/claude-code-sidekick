@@ -44,13 +44,13 @@ const DEFAULT_CORE: CoreConfig = {
 }
 
 const DEFAULT_LLM: LlmConfig = {
-  provider: 'claude-cli',
+  provider: 'openrouter',
   emulatedProvider: undefined,
-  model: undefined,
+  model: 'x-ai/grok-4-fast',
   temperature: 0,
   maxTokens: undefined,
-  fallbackProvider: undefined,
-  fallbackModel: undefined,
+  fallbackProvider: 'openrouter',
+  fallbackModel: 'google/gemini-2.5-flash-lite',
   timeout: 30,
   timeoutMaxRetries: 3,
   debugDumpEnabled: false,
