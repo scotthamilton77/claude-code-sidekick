@@ -242,6 +242,9 @@ importers:
       '@sidekick/feature-reminders':
         specifier: workspace:*
         version: link:../feature-reminders
+      '@sidekick/feature-session-summary':
+        specifier: workspace:*
+        version: link:../feature-session-summary
       '@sidekick/shared-providers':
         specifier: workspace:*
         version: link:../shared-providers

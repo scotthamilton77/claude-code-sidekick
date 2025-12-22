@@ -19,6 +19,7 @@ import {
   logEvent,
 } from '@sidekick/core'
 import { registerStagingHandlers } from '@sidekick/feature-reminders'
+import { registerHandlers as registerSessionSummaryHandlers } from '@sidekick/feature-session-summary'
 import type {
   HandlerRegistry,
   TranscriptService,
@@ -765,7 +766,8 @@ export class Supervisor {
 
     // Register handlers - they'll receive full context at invocation time
     registerStagingHandlers(registrationContext)
-    this.logger.debug('Staging handlers registered for Reminders feature')
+    registerSessionSummaryHandlers(registrationContext)
+    this.logger.debug('Feature handlers registered (Reminders, Session Summary)')
   }
 
   /**

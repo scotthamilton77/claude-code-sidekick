@@ -15,6 +15,7 @@
   "dependencies": {
     "@sidekick/core": "workspace:*",
     "@sidekick/feature-reminders": "workspace:*",
+    "@sidekick/feature-session-summary": "workspace:*",
     "@sidekick/shared-providers": "workspace:*",
     "pino": "^9.0.0",
     "zod": "^3.22.4"
