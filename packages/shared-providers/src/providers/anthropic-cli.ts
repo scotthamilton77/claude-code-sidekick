@@ -7,6 +7,7 @@
  */
 
 import { spawn } from 'node:child_process'
+import { tmpdir } from 'node:os'
 import type { Logger, LLMRequest, LLMResponse } from '@sidekick/types'
 import { AbstractProvider } from './base'
 import { AuthError, TimeoutError, ProviderError } from '../errors'
@@ -77,7 +78,16 @@ export class AnthropicCliProvider extends AbstractProvider {
 
   private async executeCliRequest(request: LLMRequest): Promise<LLMResponse> {
     return new Promise((resolve, reject) => {
-      const args = ['-p', '--model', request.model ?? this.defaultModel, '--output-format', 'json']
+      const args = [
+        '-p',
+        '--no-session-persistence',
+        '--setting-sources',
+        'local',
+        '--model',
+        request.model ?? this.defaultModel,
+        '--output-format',
+        'json',
+      ]
 
       // Build prompt from messages
       const prompt = this.buildPrompt(request)
@@ -90,6 +100,7 @@ export class AnthropicCliProvider extends AbstractProvider {
 
       const child = spawn(this.cliPath, args, {
         timeout: this.timeout,
+        cwd: tmpdir(),
       })
 
       let stdout = ''
