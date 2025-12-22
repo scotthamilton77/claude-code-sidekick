@@ -132,12 +132,14 @@ export class AnthropicCliProvider extends AbstractProvider {
         if (code === 0) {
           try {
             const parsed = JSON.parse(stdout) as {
+              result?: string
               content?: string
               message?: string
               usage?: { input_tokens?: number; output_tokens?: number }
             }
             const response: LLMResponse = {
-              content: parsed.content ?? parsed.message ?? stdout,
+              // Claude CLI --output-format json uses 'result' field for the response text
+              content: parsed.result ?? parsed.content ?? parsed.message ?? stdout,
               model: request.model ?? this.defaultModel,
               usage: parsed.usage
                 ? {
