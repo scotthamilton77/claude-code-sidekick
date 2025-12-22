@@ -31,7 +31,7 @@ if command -v jq &> /dev/null; then
     {}
     + (if .blocking == true then { decision: "block", reason: (.reason // "Blocked by Sidekick") } else {} end)
     + (if .userMessage then { systemMessage: .userMessage } else {} end)
-    + (if .additionalContext then { hookSpecificOutput: { additionalContext: .additionalContext } } else {} end)
+    + (if .additionalContext then { hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: .additionalContext } } else {} end)
   '
 else
   # Fallback: passthrough if jq not available

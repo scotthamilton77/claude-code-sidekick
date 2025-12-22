@@ -31,6 +31,7 @@ if command -v jq &> /dev/null; then
     {}
     + (if .blocking == true then
         { hookSpecificOutput: {
+            hookEventName: "PreToolUse",
             permissionDecision: "deny",
             permissionDecisionReason: (.reason // "Blocked by Sidekick")
           }
@@ -38,6 +39,7 @@ if command -v jq &> /dev/null; then
       elif .additionalContext then
         # Non-blocking but with context - use permissionDecisionReason
         { hookSpecificOutput: {
+            hookEventName: "PreToolUse",
             permissionDecision: "allow",
             permissionDecisionReason: .additionalContext
           }
