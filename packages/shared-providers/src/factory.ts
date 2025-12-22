@@ -12,12 +12,7 @@
 import type { Logger, LLMProvider } from '@sidekick/types'
 import { OpenAINativeProvider, type OpenAINativeConfig } from './providers/openai-native'
 import { AnthropicCliProvider, type AnthropicCliConfig } from './providers/anthropic-cli'
-import {
-  EmulatorStateManager,
-  OpenAIEmulator,
-  OpenRouterEmulator,
-  ClaudeCliEmulator,
-} from './providers/emulators'
+import { EmulatorStateManager, OpenAIEmulator, OpenRouterEmulator, ClaudeCliEmulator } from './providers/emulators'
 import { ProviderError } from './errors'
 
 export type ProviderType = 'openai' | 'openrouter' | 'claude-cli' | 'emulator'
@@ -167,11 +162,7 @@ export class ProviderFactory {
         // ClaudeCliEmulator spawns a real script, manages its own state
         return new ClaudeCliEmulator({ model: this.config.model, statePath }, this.logger)
       default:
-        throw new ProviderError(
-          `Unknown emulated provider: ${emulatedProvider as string}`,
-          'emulator',
-          false
-        )
+        throw new ProviderError(`Unknown emulated provider: ${emulatedProvider as string}`, 'emulator', false)
     }
   }
 }

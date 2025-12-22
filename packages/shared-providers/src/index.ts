@@ -29,12 +29,7 @@ export type { Message, LLMRequest, LLMResponse, LLMProvider } from '@sidekick/ty
 export { ProviderError, RateLimitError, AuthError, TimeoutError } from './errors'
 
 // Factory
-export {
-  ProviderFactory,
-  type ProviderConfig,
-  type ProviderType,
-  type EmulatedProviderType,
-} from './factory'
+export { ProviderFactory, type ProviderConfig, type ProviderType, type EmulatedProviderType } from './factory'
 
 // Fallback wrapper
 export { FallbackProvider } from './fallback'

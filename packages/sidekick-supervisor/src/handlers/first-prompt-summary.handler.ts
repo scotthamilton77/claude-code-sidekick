@@ -68,41 +68,57 @@ export function classifyPrompt(userPrompt: string, skipCommands?: Set<string>): 
 // ============================================================================
 
 /**
+ * Prompt structure with separate system and user messages.
+ * System message handles role enforcement and examples.
+ * User message contains only the input to summarize.
+ */
+export interface PromptParts {
+  system: string
+  user: string
+}
+
+/**
  * Build the LLM prompt for first-prompt summary generation.
+ *
+ * Uses a structured approach with:
+ * - System message: Role enforcement, rules, negative examples, few-shot examples
+ * - User message: Just the input to summarize
  *
  * @see docs/design/FEATURE-FIRST-PROMPT-SUMMARY.md §4.2
  */
-export function buildPrompt(userPrompt: string, resumeContext?: string): string {
-  const contextSection = resumeContext
-    ? `## Context\nPrevious session goal: ${resumeContext}`
-    : `## Context\nThis is a brand new session (no prior context).`
+export function buildPrompt(userPrompt: string, resumeContext?: string): PromptParts {
+  const context = resumeContext ? `Previous session: ${resumeContext}` : 'New session'
 
-  return `You are generating a brief, snarky status message for a coding assistant's status line.
+  const system = `You are a status-line message generator. Output JSON: { "message": "<text>" }
 
-${contextSection}
-
-## User's First Input
-${userPrompt}
-
-## Instructions
-1. Classify the input:
-   - COMMAND: Slash command or configuration action
-   - CONVERSATIONAL: Greeting, small talk, or social interaction
-   - INTERROGATIVE: Question about codebase, capabilities, or exploration
-   - AMBIGUOUS: Context-setting but unclear specific goal
-   - ACTIONABLE: Clear task with specific intent
-
-2. Generate a single snarky line (max 60 characters) appropriate to the classification.
-
-## Tone Guidelines
-- Witty and slightly sardonic, never mean
+RULES:
+- Max 60 characters
+- Single line, no newlines
+- Snarky/witty tone, never mean
+- Summarize user intent, don't respond to it
 - Self-aware about AI limitations
-- References to sci-fi welcome (Hitchhiker's, Star Trek, etc.)
-- Match energy: serious tasks get wry acknowledgment, casual inputs get playful response
+- Sci-fi references welcome (Hitchhiker's, Star Trek, etc.)
 
-## Output Format
-Return ONLY the snarky message on a single line, no explanation or classification label.
-Do not include quotes around the message.`
+NEVER output:
+- Clarifying questions ("Let me clarify...", "Are you asking...")
+- Helpful preambles ("I'd be happy to...", "Sure, I can...")
+- Multiple lines or paragraphs
+- Anything over 60 characters
+- Explanations of what you're doing
+
+EXAMPLES:
+User: "Help me debug the login flow" → { "message": "Debugging: the eternal optimism" }
+User: "What's the project structure?" → { "message": "Mapping the labyrinth" }
+User: "hello!" → { "message": "Greetings acknowledged" }
+User: "refactor auth to use JWT" → { "message": "JWT conversion incoming" }
+User: "test something quick" → { "message": "Quick test, famous last words" }`
+
+  const user = `${context}
+User input: "${userPrompt}"
+
+Output JSON:`
+
+  return { system, user }
 }
 
 // ============================================================================
@@ -313,6 +329,42 @@ function createProvider(
 }
 
 /**
+ * Parse JSON response from LLM, extracting the message field.
+ * Handles various edge cases like wrapped quotes, malformed JSON, etc.
+ */
+function parseJsonResponse(rawContent: string, logger: Logger): string {
+  const content = rawContent.trim()
+
+  // Try to parse as JSON first
+  try {
+    const parsed = JSON.parse(content) as { message?: string }
+    if (parsed.message && typeof parsed.message === 'string') {
+      return parsed.message.trim()
+    }
+  } catch {
+    // Not valid JSON, try to extract message field
+    logger.debug('Response not valid JSON, attempting extraction', { content })
+  }
+
+  // Try to extract JSON from response (model might include extra text)
+  const jsonMatch = content.match(/\{\s*"message"\s*:\s*"([^"]+)"\s*\}/)
+  if (jsonMatch?.[1]) {
+    return jsonMatch[1].trim()
+  }
+
+  // Fallback: treat entire response as the message (remove quotes if wrapped)
+  const cleaned = content.replace(/^["']|["']$/g, '').trim()
+
+  // If still too long or has newlines, truncate/clean
+  if (cleaned.includes('\n')) {
+    // Take first line only
+    return cleaned.split('\n')[0].slice(0, 60)
+  }
+
+  return cleaned.slice(0, 60)
+}
+
+/**
  * Generate first-prompt summary using LLM.
  *
  * Uses the model configuration from FirstPromptConfig to select provider and model.
@@ -328,11 +380,12 @@ export async function generateWithLLM(
   logger: Logger,
   signal?: AbortSignal
 ): Promise<LLMGenerationResult> {
-  const prompt = buildPrompt(userPrompt, resumeContext)
+  const promptParts = buildPrompt(userPrompt, resumeContext)
   const timeoutMs = config.llmTimeoutMs
 
   logger.debug('Starting LLM generation', {
-    promptLength: prompt.length,
+    systemLength: promptParts.system.length,
+    userLength: promptParts.user.length,
     primaryProvider: config.model.primary.provider,
     primaryModel: config.model.primary.model,
     hasFallback: config.model.fallback !== null,
@@ -351,10 +404,11 @@ export async function generateWithLLM(
     provider = primaryProvider
   }
 
-  // Make the LLM request with timeout
+  // Make the LLM request with system message and reduced token limit
   const request = {
-    messages: [{ role: 'user' as const, content: prompt }],
-    maxTokens: 100, // Short response for snark
+    system: promptParts.system,
+    messages: [{ role: 'user' as const, content: promptParts.user }],
+    maxTokens: 50, // Reduced: JSON response should be ~30 tokens max
     temperature: 0.8, // Higher temperature for creative snark
   }
 
@@ -381,13 +435,10 @@ export async function generateWithLLM(
 
     const response = (await Promise.race(promises)) as Awaited<ReturnType<typeof provider.complete>>
 
-    // Extract and clean the message
-    const rawMessage = response.content.trim()
-    // Remove quotes if the model wrapped the response
-    const message = rawMessage.replace(/^["']|["']$/g, '')
+    // Parse JSON response to extract message
+    const message = parseJsonResponse(response.content, logger)
 
     // Infer classification from the response if possible
-    // (The model may include it despite instructions, or we can infer from content)
     const classification = inferClassification(message)
 
     const modelUsed = response.model ?? `${config.model.primary.provider}/${config.model.primary.model}`
