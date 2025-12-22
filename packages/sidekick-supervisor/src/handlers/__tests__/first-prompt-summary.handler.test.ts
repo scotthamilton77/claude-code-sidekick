@@ -497,11 +497,11 @@ describe('FirstPromptConfigSchema', () => {
       const result = FirstPromptConfigSchema.safeParse({})
       expect(result.success).toBe(true)
       if (result.success) {
-        expect(result.data.model.primary.provider).toBe('claude-cli')
-        expect(result.data.model.primary.model).toBe('haiku')
+        expect(result.data.model.primary.provider).toBe('openrouter')
+        expect(result.data.model.primary.model).toBe('x-ai/grok-4-fast')
         expect(result.data.model.fallback).not.toBeNull()
         expect(result.data.model.fallback?.provider).toBe('openrouter')
-        expect(result.data.model.fallback?.model).toBe('google/gemini-2.0-flash-lite-001')
+        expect(result.data.model.fallback?.model).toBe('google/gemini-2.5-flash-lite')
       }
     })
 
@@ -618,10 +618,10 @@ describe('FirstPromptConfigSchema', () => {
 describe('DEFAULT_FIRST_PROMPT_CONFIG', () => {
   it('should match documented defaults from design doc §5.3', () => {
     expect(DEFAULT_FIRST_PROMPT_CONFIG.enabled).toBe(true)
-    expect(DEFAULT_FIRST_PROMPT_CONFIG.model.primary.provider).toBe('claude-cli')
-    expect(DEFAULT_FIRST_PROMPT_CONFIG.model.primary.model).toBe('haiku')
+    expect(DEFAULT_FIRST_PROMPT_CONFIG.model.primary.provider).toBe('openrouter')
+    expect(DEFAULT_FIRST_PROMPT_CONFIG.model.primary.model).toBe('x-ai/grok-4-fast')
     expect(DEFAULT_FIRST_PROMPT_CONFIG.model.fallback?.provider).toBe('openrouter')
-    expect(DEFAULT_FIRST_PROMPT_CONFIG.model.fallback?.model).toBe('google/gemini-2.0-flash-lite-001')
+    expect(DEFAULT_FIRST_PROMPT_CONFIG.model.fallback?.model).toBe('google/gemini-2.5-flash-lite')
     expect(DEFAULT_FIRST_PROMPT_CONFIG.staticFallbackMessage).toBe('Deciphering intent...')
     expect(DEFAULT_FIRST_PROMPT_CONFIG.staticSkipMessage).toBeNull()
     expect(DEFAULT_FIRST_PROMPT_CONFIG.confidenceThreshold).toBe(0.6)

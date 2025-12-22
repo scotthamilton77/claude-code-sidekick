@@ -186,17 +186,17 @@ export const FirstPromptConfigSchema = z.object({
   model: z
     .object({
       primary: FirstPromptModelConfigSchema.default({
-        provider: 'claude-cli',
-        model: 'haiku',
+        provider: 'openrouter',
+        model: 'x-ai/grok-4-fast',
       }),
       fallback: FirstPromptModelConfigSchema.nullable().default({
         provider: 'openrouter',
-        model: 'google/gemini-2.0-flash-lite-001',
+        model: 'google/gemini-2.5-flash-lite',
       }),
     })
     .default({
-      primary: { provider: 'claude-cli', model: 'haiku' },
-      fallback: { provider: 'openrouter', model: 'google/gemini-2.0-flash-lite-001' },
+      primary: { provider: 'openrouter', model: 'x-ai/grok-4-fast' },
+      fallback: { provider: 'openrouter', model: 'google/gemini-2.5-flash-lite' },
     }),
 
   /** Message shown when LLM call fails */

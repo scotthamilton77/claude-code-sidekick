@@ -194,7 +194,7 @@ describe('MockConfigService', () => {
   it('provides domain accessors with defaults', () => {
     // All domain accessors should return defaults
     expect(config.core.logging.level).toBe('info')
-    expect(config.llm.provider).toBe('claude-cli')
+    expect(config.llm.provider).toBe('openrouter')
     expect(config.transcript.watchDebounceMs).toBe(100)
     expect(config.features).toEqual({})
   })
@@ -237,7 +237,7 @@ describe('MockConfigService', () => {
     config.set({ llm: { provider: 'openai' } })
     config.reset()
 
-    expect(config.llm.provider).toBe('claude-cli')
+    expect(config.llm.provider).toBe('openrouter')
     expect(config.core.logging.level).toBe('info')
   })
 
@@ -361,7 +361,7 @@ describe('createTestConfig', () => {
   it('creates config with sensible defaults', () => {
     const config = createTestConfig()
 
-    expect(config.llm.provider).toBe('claude-cli')
+    expect(config.llm.provider).toBe('openrouter')
     expect(config.core.logging.level).toBe('info')
     expect(config.core.supervisor.idleTimeoutMs).toBe(300000)
     expect(config.transcript.watchDebounceMs).toBe(100)
