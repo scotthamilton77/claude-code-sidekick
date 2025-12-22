@@ -468,6 +468,74 @@ do_clean() {
   log_info "Clean complete. Restart Claude Code with: claude --continue"
 }
 
+# Clean all sidekick state including session directories
+do_clean_all() {
+  # First run the standard clean
+  do_clean
+
+  local sidekick_dir="${PROJECT_ROOT}/.sidekick"
+  local sessions_dir="${sidekick_dir}/sessions"
+  local state_dir="${sidekick_dir}/state"
+
+  echo ""
+  log_step "Cleaning session and state directories..."
+
+  # Clean session directories
+  if [[ -d "${sessions_dir}" ]]; then
+    local session_count
+    session_count=$(find "${sessions_dir}" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
+
+    if [[ "${session_count}" -gt 0 ]]; then
+      local sessions_size
+      sessions_size=$(du -sh "${sessions_dir}" 2>/dev/null | cut -f1)
+      log_info "Found ${session_count} session directories (${sessions_size})"
+
+      read -r -p "Remove all session directories? [y/N] " response
+      case "${response}" in
+        [yY][eE][sS]|[yY])
+          rm -rf "${sessions_dir:?}"/*
+          log_info "Session directories removed"
+          ;;
+        *)
+          log_info "Skipping session cleanup"
+          ;;
+      esac
+    else
+      log_info "No session directories found"
+    fi
+  else
+    log_info "No sessions directory found"
+  fi
+
+  # Clean state directory (except supervisor-status.json which is just status info)
+  if [[ -d "${state_dir}" ]]; then
+    local state_files
+    state_files=$(find "${state_dir}" -type f -name "*.json" ! -name "supervisor-status.json" 2>/dev/null | wc -l | tr -d ' ')
+
+    if [[ "${state_files}" -gt 0 ]]; then
+      log_info "Found ${state_files} state files"
+      find "${state_dir}" -type f -name "*.json" ! -name "supervisor-status.json" -delete 2>/dev/null || true
+      log_info "State files cleaned (kept supervisor-status.json)"
+    else
+      log_info "No extra state files to clean"
+    fi
+  fi
+
+  # Clean /tmp sidekick sockets (stale sockets from crashed sessions)
+  local tmp_sockets
+  tmp_sockets=$(find /tmp -maxdepth 1 -name "sidekick-*.sock" -user "$(whoami)" 2>/dev/null || true)
+  if [[ -n "${tmp_sockets}" ]]; then
+    local socket_count
+    socket_count=$(echo "${tmp_sockets}" | wc -l | tr -d ' ')
+    log_info "Found ${socket_count} stale socket(s) in /tmp"
+    echo "${tmp_sockets}" | xargs rm -f 2>/dev/null || true
+    log_info "Stale sockets removed"
+  fi
+
+  echo ""
+  log_info "Full clean complete. Restart Claude Code with: claude --continue"
+}
+
 # Show help
 show_help() {
   cat <<EOF
@@ -477,10 +545,11 @@ Usage:
   dev-mode.sh <command>
 
 Commands:
-  enable    Add dev-hooks to .claude/settings.local.json
-  disable   Remove dev-hooks from .claude/settings.local.json
-  status    Show current dev-mode state
-  clean     Truncate logs, kill supervisor, check for zombies
+  enable     Add dev-hooks to .claude/settings.local.json
+  disable    Remove dev-hooks from .claude/settings.local.json
+  status     Show current dev-mode state
+  clean      Truncate logs, kill supervisor, check for zombies
+  clean-all  Full cleanup: clean + session dirs + stale sockets
 
 The dev-mode hooks use \$CLAUDE_PROJECT_DIR paths for Docker compatibility.
 They point to scripts/dev-hooks/ which call the workspace CLI at:
@@ -511,6 +580,9 @@ main() {
       ;;
     clean)
       do_clean
+      ;;
+    clean-all)
+      do_clean_all
       ;;
     -h|--help|help)
       show_help
