@@ -12,7 +12,14 @@ This repository serves as a development and testing environment for [Claude Code
 
 ### Sidekick
 
-- CRITICAL DEBUG: the sidekick.log seems full of too many session-start and session-end - we had an overrun of claude processes too that trashed our docker container and the macos
+- reminder testing
+  - tool usage hooks (are you stuck and checkpoint)
+  - stop hook
+- reminder tuning
+  - System messages vs. additional context (for each)
+  - stop message staging based on regex of file modifications
+- statusline always says (stale)?
+  - Also, shouldn't this update more often during the convo?
 - should we block and wait (with timeout of p95 of completion latency?) for session summary when we have low confidence?
 - snarky comment generator
   - needs a fallback model
