@@ -15,6 +15,7 @@ import {
   formatCost,
   formatDuration,
   formatTokens,
+  getBranchColor,
   getThresholdStatus,
   shortenPath,
 } from '../formatter.js'
@@ -28,17 +29,17 @@ import { DEFAULT_STATUSLINE_CONFIG } from '../types.js'
 
 describe('Formatter utilities', () => {
   describe('formatTokens', () => {
-    it('formats small numbers as-is', () => {
-      expect(formatTokens(500)).toBe('500')
+    it('formats small numbers with coin icon', () => {
+      expect(formatTokens(500)).toBe('🪙 500')
     })
 
-    it('formats thousands with k suffix', () => {
-      expect(formatTokens(45000)).toBe('45k')
-      expect(formatTokens(1000)).toBe('1k')
+    it('formats thousands with k suffix and coin icon', () => {
+      expect(formatTokens(45000)).toBe('🪙 45k')
+      expect(formatTokens(1000)).toBe('🪙 1k')
     })
 
-    it('formats millions with M suffix', () => {
-      expect(formatTokens(1_500_000)).toBe('1.5M')
+    it('formats millions with M suffix and coin icon', () => {
+      expect(formatTokens(1_500_000)).toBe('🪙 1.5M')
     })
   })
 
@@ -87,12 +88,35 @@ describe('Formatter utilities', () => {
       expect(formatBranch('', true)).toBe('')
     })
 
-    it('uses nerd font icon when enabled', () => {
-      expect(formatBranch('main', true)).toBe('main')
+    it('formats branch with ⎇ icon', () => {
+      expect(formatBranch('main', true)).toBe('⎇ main')
+      expect(formatBranch('main', false)).toBe('⎇ main')
+    })
+  })
+
+  describe('getBranchColor', () => {
+    it('returns empty string for empty branch', () => {
+      expect(getBranchColor('')).toBe('')
     })
 
-    it('uses parentheses when nerd fonts disabled', () => {
-      expect(formatBranch('main', false)).toBe('(main)')
+    it('returns green for main/master', () => {
+      expect(getBranchColor('main')).toBe('green')
+      expect(getBranchColor('master')).toBe('green')
+    })
+
+    it('returns blue for feature branches', () => {
+      expect(getBranchColor('feature/auth')).toBe('blue')
+      expect(getBranchColor('feat/new-thing')).toBe('blue')
+    })
+
+    it('returns red for hotfix/fix branches', () => {
+      expect(getBranchColor('hotfix/urgent')).toBe('red')
+      expect(getBranchColor('fix/bug-123')).toBe('red')
+    })
+
+    it('returns magenta for other branches', () => {
+      expect(getBranchColor('develop')).toBe('magenta')
+      expect(getBranchColor('some-branch')).toBe('magenta')
     })
   })
 
@@ -130,7 +154,8 @@ describe('Formatter class', () => {
       costStatus: 'normal' as const,
       duration: '12m',
       cwd: '~/project',
-      branch: '(main)',
+      branch: '⎇ main',
+      branchColor: 'green',
       displayMode: 'session_summary' as const,
       summary: 'Fixing auth bug',
       title: 'Auth bug fix',
@@ -166,6 +191,7 @@ describe('Formatter with colors enabled', () => {
       duration: '12m',
       cwd: '~/project',
       branch: '',
+      branchColor: '',
       displayMode: 'session_summary' as const,
       summary: 'Test',
       title: 'Test',
@@ -191,6 +217,7 @@ describe('Formatter with colors enabled', () => {
       duration: '12m',
       cwd: '~/project',
       branch: '',
+      branchColor: '',
       displayMode: 'session_summary' as const,
       summary: 'Test',
       title: 'Test',
@@ -215,6 +242,7 @@ describe('Formatter with colors enabled', () => {
       duration: '12m',
       cwd: '~/project',
       branch: '',
+      branchColor: '',
       displayMode: 'session_summary' as const,
       summary: 'Test',
       title: 'Test',
@@ -239,6 +267,7 @@ describe('Formatter with colors enabled', () => {
       duration: '12m',
       cwd: '~/project',
       branch: '',
+      branchColor: '',
       displayMode: 'session_summary' as const,
       summary: 'Test',
       title: 'Test',
@@ -263,6 +292,7 @@ describe('Formatter with colors enabled', () => {
       duration: '12m',
       cwd: '~/project',
       branch: '',
+      branchColor: '',
       displayMode: 'session_summary' as const,
       summary: 'Working on auth',
       title: 'Test',
@@ -290,6 +320,7 @@ describe('Formatter with colors enabled', () => {
       duration: '12m',
       cwd: '~/project',
       branch: '',
+      branchColor: '',
       displayMode: 'session_summary' as const,
       summary: 'Test',
       title: 'Test',
@@ -316,6 +347,7 @@ describe('Formatter with colors enabled', () => {
       duration: '12m',
       cwd: '~/project',
       branch: '',
+      branchColor: '',
       displayMode: 'session_summary' as const,
       summary: '',
       title: 'Test',
@@ -324,6 +356,32 @@ describe('Formatter with colors enabled', () => {
     const result = formatter.format('{summary}', viewModel)
     // Empty summary should not have color codes
     expect(result).toBe('')
+  })
+
+  it('applies branch color based on pattern', () => {
+    const formatter = createFormatter({
+      theme: DEFAULT_STATUSLINE_CONFIG.theme,
+      useColors: true,
+    })
+
+    const viewModel = {
+      model: 'claude-3-5-sonnet',
+      tokens: '45k',
+      tokensStatus: 'normal' as const,
+      cost: '$0.15',
+      costStatus: 'normal' as const,
+      duration: '12m',
+      cwd: '~/project',
+      branch: '⎇ main',
+      branchColor: 'green',
+      displayMode: 'session_summary' as const,
+      summary: 'Test',
+      title: 'Test',
+    }
+
+    const result = formatter.format('{branch}', viewModel)
+    expect(result).toContain(ANSI.green)
+    expect(result).toContain('⎇ main')
   })
 })
 
@@ -756,7 +814,7 @@ describe('StatuslineService', () => {
 
     expect(result.displayMode).toBe('session_summary')
     expect(result.viewModel.model).toBe('3-5-sonnet')
-    expect(result.viewModel.tokens).toBe('45k')
+    expect(result.viewModel.tokens).toBe('🪙 45k')
     expect(result.viewModel.title).toBe('Auth bug fix')
   })
 

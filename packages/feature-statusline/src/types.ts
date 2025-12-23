@@ -147,8 +147,10 @@ export interface StatuslineViewModel {
   duration: string
   /** Current working directory (shortened) */
   cwd: string
-  /** Git branch with optional icon (e.g., "⎇ main" or "(main)") */
+  /** Git branch with icon (e.g., "⎇ main") */
   branch: string
+  /** Color name for branch based on pattern (main=green, feature=blue, hotfix=red, other=magenta) */
+  branchColor: string
   /** Display mode determines summary content */
   displayMode: DisplayMode
   /** Summary text (varies by display mode) */

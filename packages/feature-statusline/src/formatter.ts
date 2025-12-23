@@ -94,7 +94,7 @@ export class Formatter {
       cost: this.colorizeByStatus(viewModel.cost, viewModel.costStatus),
       duration: viewModel.duration,
       cwd: viewModel.cwd,
-      branch: viewModel.branch ? ` ${viewModel.branch}` : '',
+      branch: viewModel.branch ? ` ${this.colorize(viewModel.branch, viewModel.branchColor)}` : '',
       summary: this.colorize(viewModel.summary, this.theme.colors.summary),
       title: viewModel.title,
     }
@@ -137,16 +137,18 @@ export class Formatter {
 // ============================================================================
 
 /**
- * Format token count for display (e.g., 45000 → "45k").
+ * Format token count for display (e.g., 45000 → "🪙 45k").
  */
 export function formatTokens(tokens: number): string {
+  let value: string
   if (tokens >= 1_000_000) {
-    return `${(tokens / 1_000_000).toFixed(1)}M`
+    value = `${(tokens / 1_000_000).toFixed(1)}M`
+  } else if (tokens >= 1_000) {
+    value = `${Math.round(tokens / 1_000)}k`
+  } else {
+    value = String(tokens)
   }
-  if (tokens >= 1_000) {
-    return `${Math.round(tokens / 1_000)}k`
-  }
-  return String(tokens)
+  return `🪙 ${value}`
 }
 
 /**
@@ -192,13 +194,39 @@ export function shortenPath(fullPath: string, homeDir?: string): string {
 }
 
 /**
- * Format git branch with optional icon.
+ * Format cwd for display with folder icon (e.g., "📁 ~/project").
  */
-export function formatBranch(branch: string, useNerdFonts: boolean): string {
+export function formatCwd(fullPath: string, homeDir?: string): string {
+  return `📁 ${shortenPath(fullPath, homeDir)}`
+}
+
+/**
+ * Format git branch with ⎇ icon.
+ */
+export function formatBranch(branch: string, _useNerdFonts: boolean): string {
   if (!branch) return ''
-  const icon = useNerdFonts ? '' : '('
-  const suffix = useNerdFonts ? '' : ')'
-  return `${icon}${branch}${suffix}`
+  return `⎇ ${branch}`
+}
+
+/**
+ * Get color name for git branch based on naming pattern.
+ * - main/master → green
+ * - feature/..., feat/... → blue
+ * - hotfix/..., fix/... → red
+ * - other → magenta
+ */
+export function getBranchColor(branch: string): string {
+  if (!branch) return ''
+  if (branch === 'main' || branch === 'master') {
+    return 'green'
+  }
+  if (branch.startsWith('feature/') || branch.startsWith('feat/')) {
+    return 'blue'
+  }
+  if (branch.startsWith('hotfix/') || branch.startsWith('fix/')) {
+    return 'red'
+  }
+  return 'magenta'
 }
 
 /**
