@@ -29,6 +29,7 @@ import type {
   HandlerRegistry,
   Logger,
   Transcript,
+  CanonicalTranscriptEntry,
   ExcerptOptions,
   TranscriptExcerpt,
 } from '@sidekick/types'
@@ -236,18 +237,183 @@ export class TranscriptServiceImpl implements TranscriptService {
   // ============================================================================
 
   getTranscript(): Transcript {
-    // TODO: Implement full transcript parsing and normalization
-    // For now, return a minimal stub
-    return {
-      entries: [],
-      metadata: {
-        sessionId: this.sessionId ?? '',
-        transcriptPath: this.transcriptPath ?? '',
-        lineCount: this.metrics.lastProcessedLine,
-        lastModified: this.metrics.lastUpdatedAt,
-      },
-      toString: () => '',
+    if (!this.transcriptPath || !existsSync(this.transcriptPath)) {
+      return {
+        entries: [],
+        metadata: {
+          sessionId: this.sessionId ?? '',
+          transcriptPath: this.transcriptPath ?? '',
+          lineCount: 0,
+          lastModified: 0,
+        },
+        toString: () => '',
+      }
     }
+
+    // Parse the JSONL transcript file into canonical entries
+    const entries: CanonicalTranscriptEntry[] = []
+    const content = readFileSync(this.transcriptPath, 'utf-8')
+    const lines = content.split('\n').filter((line) => line.trim())
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      try {
+        const rawEntry = JSON.parse(line) as TranscriptEntry
+        const normalized = this.normalizeEntry(rawEntry, i + 1)
+        if (normalized) {
+          entries.push(...normalized)
+        }
+      } catch (err) {
+        this.options.logger.warn('Skipping malformed transcript line', {
+          sessionId: this.sessionId,
+          line: i + 1,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
+    }
+
+    const metadata = {
+      sessionId: this.sessionId ?? '',
+      transcriptPath: this.transcriptPath,
+      lineCount: lines.length,
+      lastModified: this.metrics.lastUpdatedAt,
+    }
+
+    return {
+      entries,
+      metadata,
+      toString: () => this.renderTranscriptString(entries),
+    }
+  }
+
+  /**
+   * Normalize a raw transcript entry into canonical form.
+   * Handles nested tool_use and tool_result blocks.
+   * Returns array because one raw entry can produce multiple canonical entries.
+   */
+  private normalizeEntry(rawEntry: TranscriptEntry, lineNumber: number): CanonicalTranscriptEntry[] | null {
+    const entryType = rawEntry.type as string | undefined
+
+    // Skip non-message entry types (file-history-snapshot, summary, etc.)
+    if (entryType !== 'user' && entryType !== 'assistant') {
+      return null
+    }
+
+    const results: CanonicalTranscriptEntry[] = []
+    const message = rawEntry.message as {
+      role?: string
+      content?: string | Array<{ type?: string; text?: string; [key: string]: unknown }>
+      model?: string
+      id?: string
+    }
+
+    if (!message) {
+      return null
+    }
+
+    const role = message.role as 'user' | 'assistant' | 'system'
+    const timestamp = new Date((rawEntry.timestamp as string) ?? Date.now())
+    const uuid = (rawEntry.uuid as string) ?? `line-${lineNumber}`
+
+    // Handle message content
+    const content = message.content
+
+    if (typeof content === 'string') {
+      // Simple text message
+      results.push({
+        id: uuid,
+        timestamp,
+        role,
+        type: 'text',
+        content,
+        metadata: {
+          provider: 'claude',
+          originalId: message.id,
+          lineNumber,
+        },
+      })
+    } else if (Array.isArray(content)) {
+      // Complex message with nested blocks
+      for (const block of content) {
+        const blockType = block.type
+
+        if (blockType === 'text') {
+          // Text block
+          results.push({
+            id: `${uuid}-text-${results.length}`,
+            timestamp,
+            role,
+            type: 'text',
+            content: (block.text as string) ?? '',
+            metadata: {
+              provider: 'claude',
+              originalId: message.id,
+              lineNumber,
+            },
+          })
+        } else if (blockType === 'tool_use') {
+          // Tool use block (nested in assistant message)
+          results.push({
+            id: (block.id as string) ?? `${uuid}-tool-${results.length}`,
+            timestamp,
+            role: 'assistant',
+            type: 'tool_use',
+            content: {
+              name: block.name,
+              input: block.input,
+            },
+            metadata: {
+              provider: 'claude',
+              originalId: message.id,
+              lineNumber,
+              toolName: block.name as string,
+            },
+          })
+        } else if (blockType === 'tool_result') {
+          // Tool result block (nested in user message)
+          results.push({
+            id: (block.tool_use_id as string) ?? `${uuid}-result-${results.length}`,
+            timestamp,
+            role: 'user',
+            type: 'tool_result',
+            content: block,
+            metadata: {
+              provider: 'claude',
+              originalId: message.id,
+              lineNumber,
+              toolUseId: block.tool_use_id as string,
+              isError: block.is_error as boolean,
+            },
+          })
+        }
+      }
+    }
+
+    return results.length > 0 ? results : null
+  }
+
+  /**
+   * Render transcript as a human-readable string.
+   */
+  private renderTranscriptString(entries: CanonicalTranscriptEntry[]): string {
+    return entries
+      .map((entry) => {
+        const timestamp = entry.timestamp.toISOString()
+        const role = entry.role.toUpperCase()
+        const type = entry.type
+
+        if (type === 'text') {
+          const content = typeof entry.content === 'string' ? entry.content : JSON.stringify(entry.content)
+          return `[${timestamp}] ${role}: ${content}`
+        } else if (type === 'tool_use') {
+          const toolContent = entry.content as Record<string, unknown>
+          return `[${timestamp}] ${role} TOOL_USE: ${String(toolContent.name)}`
+        } else if (type === 'tool_result') {
+          return `[${timestamp}] ${role} TOOL_RESULT`
+        }
+        return `[${timestamp}] ${role}: ${JSON.stringify(entry.content)}`
+      })
+      .join('\n')
   }
 
   getExcerpt(options: ExcerptOptions = {}): TranscriptExcerpt {

@@ -1,13 +1,20 @@
 /**
  * ConfigWatcher - Watches configuration files for hot-reload.
  *
- * Per design/SUPERVISOR.md §4.3: Watches `.sidekick/config.jsonc` and `.env` for changes.
+ * Per design/SUPERVISOR.md §4.3: Watches config files for changes.
  * On change, triggers a callback for config reload.
+ *
+ * Watches all config files used by the config system:
+ * - sidekick.config (unified config)
+ * - config.yaml, llm.yaml, transcript.yaml, features.yaml (domain configs)
+ * - *.yaml.local (local overrides)
+ * - .env, .env.local (environment files)
  *
  * Uses Node's built-in fs.watch for simplicity. For production use with many files
  * or cross-platform reliability, consider chokidar.
  *
  * @see docs/design/SUPERVISOR.md §4.3
+ * @see docs/design/CONFIG-SYSTEM.md
  */
 
 import { Logger } from '@sidekick/core'
@@ -51,12 +58,30 @@ export class ConfigWatcher {
   /**
    * Start watching configuration files.
    * Watches:
-   * - .sidekick/config.jsonc (main config)
+   * - .sidekick/sidekick.config (unified config)
+   * - .sidekick/config.yaml (core domain config)
+   * - .sidekick/llm.yaml (llm domain config)
+   * - .sidekick/transcript.yaml (transcript domain config)
+   * - .sidekick/features.yaml (features domain config)
+   * - .sidekick/*.yaml.local (local overrides)
    * - .sidekick/.env (environment variables)
+   * - .sidekick/.env.local (local environment overrides)
    */
   start(): void {
     const sidekickDir = path.join(this.projectDir, '.sidekick')
-    const filesToWatch = ['config.jsonc', '.env']
+    const filesToWatch = [
+      'sidekick.config',
+      'config.yaml',
+      'llm.yaml',
+      'transcript.yaml',
+      'features.yaml',
+      'config.yaml.local',
+      'llm.yaml.local',
+      'transcript.yaml.local',
+      'features.yaml.local',
+      '.env',
+      '.env.local',
+    ]
 
     for (const filename of filesToWatch) {
       const filePath = path.join(sidekickDir, filename)
