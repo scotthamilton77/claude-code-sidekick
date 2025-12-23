@@ -12,10 +12,11 @@ import {
   createFormatter,
   formatBranch,
   formatCost,
+  formatCwd,
   formatDuration,
   formatTokens,
+  getBranchColor,
   getThresholdStatus,
-  shortenPath,
 } from './formatter.js'
 import { GitProvider, createGitProvider } from './git-provider.js'
 import { StateReader, createStateReader, discoverPreviousResumeMessage } from './state-reader.js'
@@ -266,8 +267,9 @@ export class StatuslineService {
       cost: formatCost(state.costUsd),
       costStatus: getThresholdStatus(state.costUsd, this.config.thresholds.cost),
       duration: formatDuration(state.durationSeconds * 1000),
-      cwd: shortenPath(this.cwd, this.homeDir),
+      cwd: formatCwd(this.cwd, this.homeDir),
       branch: formatBranch(branch, this.config.theme.useNerdFonts),
+      branchColor: getBranchColor(branch),
       displayMode,
       summary: summaryText,
       title,
