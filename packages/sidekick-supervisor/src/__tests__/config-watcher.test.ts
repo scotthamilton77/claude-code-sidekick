@@ -25,8 +25,8 @@ describe('ConfigWatcher', () => {
 
   it('should call onChange when watched config file changes', async () => {
     // Create config file
-    const configPath = path.join(tmpDir, '.sidekick', 'config.jsonc')
-    await fs.writeFile(configPath, '{}', 'utf-8')
+    const configPath = path.join(tmpDir, '.sidekick', 'config.yaml')
+    await fs.writeFile(configPath, 'logging:\n  level: info\n', 'utf-8')
 
     const onChange = vi.fn()
     const watcher = new ConfigWatcher(tmpDir, logger, onChange)
@@ -34,7 +34,7 @@ describe('ConfigWatcher', () => {
     watcher.start()
 
     // Modify the config file
-    await fs.writeFile(configPath, '{ "test": true }', 'utf-8')
+    await fs.writeFile(configPath, 'logging:\n  level: debug\n', 'utf-8')
 
     // Wait for debounce + fs.watch latency
     await vi.waitFor(
@@ -45,7 +45,7 @@ describe('ConfigWatcher', () => {
     )
 
     const event: ConfigChangeEvent = onChange.mock.calls[0][0] as ConfigChangeEvent
-    expect(event.file).toBe('config.jsonc')
+    expect(event.file).toBe('config.yaml')
 
     watcher.stop()
   })
@@ -54,7 +54,7 @@ describe('ConfigWatcher', () => {
     const onChange = vi.fn()
     const watcher = new ConfigWatcher(tmpDir, logger, onChange)
 
-    // Should not throw even though config.jsonc doesn't exist
+    // Should not throw even though config files don't exist
     expect(() => watcher.start()).not.toThrow()
 
     watcher.stop()
@@ -62,8 +62,8 @@ describe('ConfigWatcher', () => {
 
   it('should debounce rapid file changes', async () => {
     // Create config file
-    const configPath = path.join(tmpDir, '.sidekick', 'config.jsonc')
-    await fs.writeFile(configPath, '{}', 'utf-8')
+    const configPath = path.join(tmpDir, '.sidekick', 'llm.yaml')
+    await fs.writeFile(configPath, 'provider: openrouter\n', 'utf-8')
 
     const onChange = vi.fn()
     const watcher = new ConfigWatcher(tmpDir, logger, onChange)
@@ -71,9 +71,9 @@ describe('ConfigWatcher', () => {
     watcher.start()
 
     // Simulate rapid changes (like editor save)
-    await fs.writeFile(configPath, '{ "v": 1 }', 'utf-8')
-    await fs.writeFile(configPath, '{ "v": 2 }', 'utf-8')
-    await fs.writeFile(configPath, '{ "v": 3 }', 'utf-8')
+    await fs.writeFile(configPath, 'provider: openrouter\ntemperature: 0.1\n', 'utf-8')
+    await fs.writeFile(configPath, 'provider: openrouter\ntemperature: 0.2\n', 'utf-8')
+    await fs.writeFile(configPath, 'provider: openrouter\ntemperature: 0.3\n', 'utf-8')
 
     // Wait for debounce to settle
     await new Promise((r) => setTimeout(r, 300))
@@ -87,8 +87,8 @@ describe('ConfigWatcher', () => {
 
   it('should stop watching when stop() is called', async () => {
     // Create config file
-    const configPath = path.join(tmpDir, '.sidekick', 'config.jsonc')
-    await fs.writeFile(configPath, '{}', 'utf-8')
+    const configPath = path.join(tmpDir, '.sidekick', 'transcript.yaml')
+    await fs.writeFile(configPath, 'watchDebounceMs: 100\n', 'utf-8')
 
     const onChange = vi.fn()
     const watcher = new ConfigWatcher(tmpDir, logger, onChange)
@@ -97,7 +97,7 @@ describe('ConfigWatcher', () => {
     watcher.stop()
 
     // Modify after stop
-    await fs.writeFile(configPath, '{ "after": "stop" }', 'utf-8')
+    await fs.writeFile(configPath, 'watchDebounceMs: 200\n', 'utf-8')
 
     // Give time for any potential callback
     await new Promise((r) => setTimeout(r, 200))
