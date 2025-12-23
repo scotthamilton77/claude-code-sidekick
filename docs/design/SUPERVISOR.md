@@ -183,11 +183,12 @@ Handlers may trigger **tasks**—long-running async jobs that run off the critic
 
 **Standard Task Types:**
 
-| Task Type          | Triggered By               | Output                                     |
-| ------------------ | -------------------------- | ------------------------------------------ |
-| `session_summary`  | `UpdateSessionSummary`     | Writes `sessions/{id}/summary.json`        |
-| `resume_generation`| `UpdateSessionSummary`     | Writes `sessions/{id}/resume-message.json` |
-| `cleanup`          | Periodic timer             | Prunes old session data                    |
+| Task Type             | Triggered By               | Output                                        |
+| --------------------- | -------------------------- | --------------------------------------------- |
+| `cleanup`             | Periodic timer             | Prunes old session data                       |
+| `first_prompt_summary`| First `UserPromptSubmit`   | Writes `sessions/{id}/state/first-prompt-summary.json` |
+
+> **Note**: Session summary and resume generation are handled by event-driven handlers in `feature-session-summary`, not by background tasks. See `docs/design/FEATURE-SESSION-SUMMARY.md`.
 
 ### 4.4 Watcher Service
 
@@ -318,7 +319,7 @@ To allow the Monitoring UI to display system health, the Supervisor must periodi
   "active_tasks": [
     {
       "id": "task-1",
-      "type": "session_summary",
+      "type": "first_prompt_summary",
       "start_time": 1678888880000
     }
   ]

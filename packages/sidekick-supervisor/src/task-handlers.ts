@@ -2,14 +2,10 @@
  * Standard Task Handlers Registration
  *
  * Registers handlers for the standard task types:
- * - session_summary: Generate session summary (placeholder, actual logic in Phase 6)
- * - resume_generation: Generate resume message (placeholder, actual logic in Phase 6)
  * - cleanup: Prune old session data
- * - metrics_persist: Persist TranscriptService metrics
  * - first_prompt_summary: Generate first-prompt snarky message
  *
  * @see docs/design/SUPERVISOR.md §4.3 Task Execution Engine
- * @see docs/ROADMAP.md Phase 5.2.1
  */
 
 import {
@@ -20,13 +16,7 @@ import {
   TaskTypes,
   type FirstPromptConfig,
 } from '@sidekick/core'
-import {
-  createCleanupHandler,
-  createFirstPromptSummaryHandler,
-  createMetricsPersistHandler,
-  createResumeGenerationHandler,
-  createSessionSummaryHandler,
-} from './handlers/index.js'
+import { createCleanupHandler, createFirstPromptSummaryHandler } from './handlers/index.js'
 import { StateManager } from './state-manager.js'
 import { TaskEngine } from './task-engine.js'
 import { createTaskRegistry } from './task-registry.js'
@@ -79,21 +69,15 @@ export function registerStandardTaskHandlers(
   // Get first-prompt config from features
   const firstPromptConfig = getFirstPromptConfig(config, logger)
 
-  // Register all handlers
-  // NOTE: Placeholder handlers for Phase 5. In Phase 6, features will
-  // self-register their task handlers via context.tasks.registerHandler().
-  // Only infrastructure tasks (cleanup, metrics_persist) will remain here.
-  taskEngine.registerHandler(TaskTypes.SESSION_SUMMARY, createSessionSummaryHandler(deps))
-  taskEngine.registerHandler(TaskTypes.RESUME_GENERATION, createResumeGenerationHandler(deps))
+  // Register infrastructure task handlers
   taskEngine.registerHandler(TaskTypes.CLEANUP, createCleanupHandler(deps))
-  taskEngine.registerHandler(TaskTypes.METRICS_PERSIST, createMetricsPersistHandler(deps))
   taskEngine.registerHandler(
     TaskTypes.FIRST_PROMPT_SUMMARY,
     createFirstPromptSummaryHandler({ ...deps, config: firstPromptConfig })
   )
 
   logger.info('Standard task handlers registered', {
-    types: Object.values(TaskTypes),
+    types: [TaskTypes.CLEANUP, TaskTypes.FIRST_PROMPT_SUMMARY],
   })
 }
 

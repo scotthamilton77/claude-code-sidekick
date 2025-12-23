@@ -1,10 +1,8 @@
 /**
  * Tests for Task Handlers and Orphan Prevention
  *
- * Tests the standard task types (session_summary, resume_generation, cleanup, metrics_persist)
+ * Tests the standard task types (cleanup, first_prompt_summary)
  * and the TaskRegistry for orphan prevention.
- *
- * @see docs/ROADMAP.md Phase 5.2
  */
 
 import { createConsoleLogger, SidekickConfig, TaskTypes, TrackedTask } from '@sidekick/core'
@@ -71,7 +69,7 @@ describe('TaskRegistry (Orphan Prevention)', () => {
     it('should track a new task', async () => {
       const task: TrackedTask = {
         id: 'task-123',
-        type: TaskTypes.SESSION_SUMMARY,
+        type: TaskTypes.CLEANUP,
         sessionId: 'session-abc',
         enqueuedAt: Date.now(),
       }
@@ -86,12 +84,12 @@ describe('TaskRegistry (Orphan Prevention)', () => {
     it('should track multiple tasks', async () => {
       const task1: TrackedTask = {
         id: 'task-1',
-        type: TaskTypes.SESSION_SUMMARY,
+        type: TaskTypes.CLEANUP,
         enqueuedAt: Date.now(),
       }
       const task2: TrackedTask = {
         id: 'task-2',
-        type: TaskTypes.CLEANUP,
+        type: TaskTypes.FIRST_PROMPT_SUMMARY,
         enqueuedAt: Date.now(),
       }
 
@@ -105,7 +103,7 @@ describe('TaskRegistry (Orphan Prevention)', () => {
     it('should mark task as started', async () => {
       const task: TrackedTask = {
         id: 'task-123',
-        type: TaskTypes.SESSION_SUMMARY,
+        type: TaskTypes.CLEANUP,
         enqueuedAt: Date.now(),
       }
 
@@ -120,7 +118,7 @@ describe('TaskRegistry (Orphan Prevention)', () => {
     it('should untrack a completed task', async () => {
       const task: TrackedTask = {
         id: 'task-123',
-        type: TaskTypes.SESSION_SUMMARY,
+        type: TaskTypes.CLEANUP,
         enqueuedAt: Date.now(),
       }
 
@@ -136,8 +134,8 @@ describe('TaskRegistry (Orphan Prevention)', () => {
     it('should clean up orphaned tasks on restart', async () => {
       // Simulate orphaned tasks from a crashed supervisor
       const orphanedTasks: TrackedTask[] = [
-        { id: 'orphan-1', type: TaskTypes.SESSION_SUMMARY, enqueuedAt: Date.now() - 10000 },
-        { id: 'orphan-2', type: TaskTypes.CLEANUP, enqueuedAt: Date.now() - 5000 },
+        { id: 'orphan-1', type: TaskTypes.CLEANUP, enqueuedAt: Date.now() - 10000 },
+        { id: 'orphan-2', type: TaskTypes.FIRST_PROMPT_SUMMARY, enqueuedAt: Date.now() - 5000 },
       ]
 
       for (const task of orphanedTasks) {
@@ -169,7 +167,7 @@ describe('TaskRegistry (Orphan Prevention)', () => {
       // Add and clean orphan
       await taskRegistry.trackTask({
         id: 'orphan-1',
-        type: TaskTypes.SESSION_SUMMARY,
+        type: TaskTypes.CLEANUP,
         enqueuedAt: Date.now(),
       })
       await taskRegistry.cleanupOrphans()
@@ -217,75 +215,6 @@ describe('Standard Task Handlers', () => {
     } catch {
       // Cleanup may fail
     }
-  })
-
-  describe('session_summary handler', () => {
-    it('should create session summary file', async () => {
-      const sessionId = 'test-session-123'
-      const completed = vi.fn()
-
-      // Enqueue session summary task
-      taskEngine.enqueue(TaskTypes.SESSION_SUMMARY, {
-        sessionId,
-        transcriptPath: '/fake/path/transcript.jsonl',
-        reason: 'cadence_met',
-      })
-
-      // Wait for task to complete
-      await vi.waitFor(
-        async () => {
-          const summaryPath = path.join(projectDir, '.sidekick', 'sessions', sessionId, 'state', 'session-summary.json')
-          try {
-            await fs.access(summaryPath)
-            completed()
-          } catch {
-            // File not yet created
-          }
-          expect(completed).toHaveBeenCalled()
-        },
-        { timeout: 5000 }
-      )
-
-      // Verify file contents
-      const summaryPath = path.join(projectDir, '.sidekick', 'sessions', sessionId, 'state', 'session-summary.json')
-      const content = await fs.readFile(summaryPath, 'utf-8')
-      const summary = JSON.parse(content) as { sessionId: string; reason: string }
-
-      expect(summary.sessionId).toBe(sessionId)
-      expect(summary.reason).toBe('cadence_met')
-    })
-  })
-
-  describe('resume_generation handler', () => {
-    it('should create resume message file', async () => {
-      const sessionId = 'test-session-456'
-      const completed = vi.fn()
-
-      taskEngine.enqueue(TaskTypes.RESUME_GENERATION, {
-        sessionId,
-        summaryPath: '/fake/path/summary.json',
-      })
-
-      await vi.waitFor(
-        async () => {
-          const resumePath = path.join(projectDir, '.sidekick', 'sessions', sessionId, 'state', 'resume-message.json')
-          try {
-            await fs.access(resumePath)
-            completed()
-          } catch {
-            // File not yet created
-          }
-          expect(completed).toHaveBeenCalled()
-        },
-        { timeout: 5000 }
-      )
-
-      const resumePath = path.join(projectDir, '.sidekick', 'sessions', sessionId, 'state', 'resume-message.json')
-      const content = await fs.readFile(resumePath, 'utf-8')
-      const resume = JSON.parse(content) as { sessionId: string }
-
-      expect(resume.sessionId).toBe(sessionId)
-    })
   })
 
   describe('cleanup handler', () => {
@@ -364,19 +293,6 @@ describe('Standard Task Handlers', () => {
         .then(() => true)
         .catch(() => false)
       expect(exists).toBe(true)
-    })
-  })
-
-  describe('metrics_persist handler', () => {
-    it('should acknowledge metrics persist task (placeholder)', async () => {
-      // This is a placeholder test - actual metrics persistence is in Phase 5.3
-      taskEngine.enqueue(TaskTypes.METRICS_PERSIST, {
-        sessionId: 'test-session',
-        metricsPath: '/fake/path/metrics.json',
-      })
-
-      // Task should complete without error
-      await new Promise((r) => setTimeout(r, 100))
     })
   })
 
