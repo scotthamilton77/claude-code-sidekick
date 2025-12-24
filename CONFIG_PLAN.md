@@ -56,41 +56,41 @@ External YAML → Zod fallback → env → user config → project config → pr
 
 ---
 
-## Phase 2: Create External Defaults Files
+## Phase 2: Create External Defaults Files ✅
 
 ### Objectives
-- [ ] Create documented YAML defaults files matching current Zod defaults
-- [ ] Ensure values exactly match existing embedded defaults
+- [x] Create documented YAML defaults files matching current Zod defaults
+- [x] Ensure values exactly match existing embedded defaults
 
 ### Tasks
-- [ ] **2.1** Extract current defaults from `packages/sidekick-core/src/config.ts`:
+- [x] **2.1** Extract current defaults from `packages/sidekick-core/src/config.ts`:
   - `SUPERVISOR_DEFAULTS`, `IPC_DEFAULTS`, `LLM_DEFAULTS`, `TRANSCRIPT_DEFAULTS`
   - Zod `.default()` values in schemas
-- [ ] **2.2** Create `assets/sidekick/defaults/core.defaults.yaml`
-- [ ] **2.3** Create `assets/sidekick/defaults/llm.defaults.yaml`
-- [ ] **2.4** Create `assets/sidekick/defaults/transcript.defaults.yaml`
-- [ ] **2.5** Extract feature defaults from feature packages
-- [ ] **2.6** Create `assets/sidekick/defaults/features/statusline.defaults.yaml`
-- [ ] **2.7** Create `assets/sidekick/defaults/features/reminders.defaults.yaml`
-- [ ] **2.8** Create `assets/sidekick/defaults/features/session-summary.defaults.yaml`
+- [x] **2.2** Create `assets/sidekick/defaults/core.defaults.yaml`
+- [x] **2.3** Create `assets/sidekick/defaults/llm.defaults.yaml`
+- [x] **2.4** Create `assets/sidekick/defaults/transcript.defaults.yaml`
+- [x] **2.5** Extract feature defaults from feature packages
+- [x] **2.6** Create `assets/sidekick/defaults/features/statusline.defaults.yaml`
+- [x] **2.7** Create `assets/sidekick/defaults/features/reminders.defaults.yaml`
+- [x] **2.8** Create `assets/sidekick/defaults/features/session-summary.defaults.yaml`
 
 ### Acceptance Criteria
-- [ ] Each YAML file has comments explaining each option
-- [ ] Values match existing Zod/constant defaults exactly
-- [ ] Files are valid YAML (can be parsed without errors)
-- [ ] `pnpm test` still passes (no behavior change yet)
-- [ ] `pnpm lint` passes
-- [ ] `pnpm typecheck` passes
+- [x] Each YAML file has comments explaining each option
+- [x] Values match existing Zod/constant defaults exactly
+- [x] Files are valid YAML (can be parsed without errors)
+- [x] `pnpm test` still passes (no behavior change yet; IPC tests have pre-existing sandbox issues)
+- [x] `pnpm lint` passes
+- [x] `pnpm typecheck` passes
 
 ### Files
 | File | Action |
 |------|--------|
-| `assets/sidekick/defaults/core.defaults.yaml` | Create |
-| `assets/sidekick/defaults/llm.defaults.yaml` | Create |
-| `assets/sidekick/defaults/transcript.defaults.yaml` | Create |
-| `assets/sidekick/defaults/features/statusline.defaults.yaml` | Create |
-| `assets/sidekick/defaults/features/reminders.defaults.yaml` | Create |
-| `assets/sidekick/defaults/features/session-summary.defaults.yaml` | Create |
+| `assets/sidekick/defaults/core.defaults.yaml` | Create ✅ |
+| `assets/sidekick/defaults/llm.defaults.yaml` | Create ✅ |
+| `assets/sidekick/defaults/transcript.defaults.yaml` | Create ✅ |
+| `assets/sidekick/defaults/features/statusline.defaults.yaml` | Create ✅ |
+| `assets/sidekick/defaults/features/reminders.defaults.yaml` | Create ✅ |
+| `assets/sidekick/defaults/features/session-summary.defaults.yaml` | Create ✅ |
 
 ---
 

@@ -1,0 +1,33 @@
+# LLM Configuration Defaults
+# This file defines default values for LLM provider settings.
+# Override in ~/.sidekick/llm.yaml or .sidekick/llm.yaml
+
+# LLM provider: claude-cli, openai, openrouter, custom, emulator
+provider: openrouter
+
+# Provider to emulate when using emulator provider
+# emulatedProvider: openrouter
+
+# Model identifier (provider-specific, omit to use provider default)
+# model: anthropic/claude-3.5-sonnet
+
+# Sampling temperature (0 = deterministic, 1 = creative)
+temperature: 0
+
+# Maximum tokens to generate (omit to use provider default)
+# maxTokens: 4096
+
+# Fallback provider if primary fails
+# fallbackProvider: openai
+
+# Fallback model if primary fails
+# fallbackModel: gpt-4o
+
+# Request timeout in seconds (1-300)
+timeout: 30
+
+# Maximum retries on timeout (0-10)
+timeoutMaxRetries: 3
+
+# Enable debug request/response dumps
+debugDumpEnabled: false
