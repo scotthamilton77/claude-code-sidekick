@@ -1,0 +1,15 @@
+# Reminders Feature Defaults
+# This file defines default values for the reminders feature.
+# Override in ~/.sidekick/features.yaml or .sidekick/features.yaml under features.reminders
+
+# Enable or disable the reminders feature
+enabled: true
+
+# Number of turns between regular reminder injections
+turn_cadence: 4
+
+# Turn threshold after which "time for update" reminder is triggered
+update_threshold: 15
+
+# Turn threshold after which "are you stuck" reminder is triggered
+stuck_threshold: 20

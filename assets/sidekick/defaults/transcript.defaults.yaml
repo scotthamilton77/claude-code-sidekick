@@ -1,0 +1,11 @@
+# Transcript Processing Defaults
+# This file defines default values for transcript watching and metrics.
+# Override in ~/.sidekick/transcript.yaml or .sidekick/transcript.yaml
+
+# Debounce time in ms for transcript file watch events
+# Prevents excessive processing during rapid file updates
+watchDebounceMs: 100
+
+# Interval in ms between metrics persistence writes
+# Lower values = more frequent disk writes, higher values = potential data loss
+metricsPersistIntervalMs: 5000

@@ -1,0 +1,37 @@
+# Core Configuration Defaults
+# This file defines default values for logging, paths, supervisor, and IPC settings.
+# Override in ~/.sidekick/config.yaml or .sidekick/config.yaml
+
+# Logging configuration
+logging:
+  # Log level: debug, info, warn, error
+  level: info
+  # Output format: pretty (human-readable) or json (structured)
+  format: pretty
+  # Enable console output in addition to file logging
+  consoleEnabled: false
+
+# Path configuration
+paths:
+  # State directory relative to project root (session data, logs, etc.)
+  state: .sidekick
+  # Optional: Custom assets directory path (omit to use defaults)
+  # assets: /path/to/custom/assets
+
+# Supervisor process configuration
+supervisor:
+  # Time in ms before idle supervisor shuts down (5 minutes)
+  idleTimeoutMs: 300000
+  # Graceful shutdown timeout in ms (30 seconds)
+  shutdownTimeoutMs: 30000
+
+# IPC (Inter-Process Communication) configuration
+ipc:
+  # Connection timeout in ms
+  connectTimeoutMs: 5000
+  # Request timeout in ms
+  requestTimeoutMs: 30000
+  # Maximum retry attempts for failed connections
+  maxRetries: 3
+  # Delay between retries in ms
+  retryDelayMs: 100
