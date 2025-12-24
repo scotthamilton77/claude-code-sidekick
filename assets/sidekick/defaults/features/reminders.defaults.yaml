@@ -5,11 +5,20 @@
 # Enable or disable the reminders feature
 enabled: true
 
-# Number of turns between regular reminder injections
+# Number of user prompts between periodic reminder injections.
+# A countdown decrements on each UserPromptSubmit; when it reaches 0,
+# the user-prompt-submit reminder fires and the countdown resets.
+# Example: turn_cadence=4 means a reminder every 4 user messages.
 turn_cadence: 4
 
-# Turn threshold after which "time for update" reminder is triggered
+# Tool calls per turn that trigger the "time for user update" reminder.
+# Counts tool invocations since the last user prompt (toolsThisTurn metric).
+# Fires when: update_threshold <= toolsThisTurn < stuck_threshold
+# Example: With defaults (15, 20), fires at 15-19 tool calls per turn.
 update_threshold: 15
 
-# Turn threshold after which "are you stuck" reminder is triggered
+# Tool calls per turn that trigger the "are you stuck" reminder.
+# Fires when: toolsThisTurn >= stuck_threshold
+# Takes priority over update_threshold (higher priority: 80 vs 70).
+# Example: With default 20, fires when Claude uses 20+ tools without user input.
 stuck_threshold: 20
