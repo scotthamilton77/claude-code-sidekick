@@ -12,6 +12,7 @@
  * Minimal config service constraint for context typing.
  * The actual ConfigService interface is defined in @sidekick/core.
  */
+// FIXME these "minimal" interfaces are a smell; should we have full types here in types/?
 export interface MinimalConfigService {
   readonly core: { readonly logging: { readonly level: string } }
   readonly llm: { readonly provider: string }
