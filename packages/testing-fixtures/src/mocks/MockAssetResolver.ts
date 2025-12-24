@@ -13,6 +13,7 @@
  */
 
 import type { AssetResolver } from '@sidekick/core'
+import { parse as parseYaml } from 'yaml'
 
 export class MockAssetResolver implements AssetResolver {
   private assets = new Map<string, string>()
@@ -59,6 +60,20 @@ export class MockAssetResolver implements AssetResolver {
       return null
     }
     return JSON.parse(content) as T
+  }
+
+  resolveYaml<T = unknown>(relativePath: string): T | null {
+    const content = this.resolve(relativePath)
+    if (content === null) {
+      return null
+    }
+    try {
+      return parseYaml(content) as T
+    } catch (error) {
+      throw new Error(
+        `Failed to parse YAML asset ${relativePath}: ${error instanceof Error ? error.message : String(error)}`
+      )
+    }
   }
 
   /**

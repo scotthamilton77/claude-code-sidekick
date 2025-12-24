@@ -15,7 +15,8 @@
   },
   "dependencies": {
     "@sidekick/types": "workspace:*",
-    "@sidekick/core": "workspace:*"
+    "@sidekick/core": "workspace:*",
+    "yaml": "^2.8.2"
   },
   "devDependencies": {
     "@types/node": "^22.7.4",

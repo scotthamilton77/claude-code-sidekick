@@ -21,6 +21,7 @@
 
 import { parse as parseJsonc } from 'jsonc-parser'
 import { existsSync, readFileSync } from 'node:fs'
+import { parse as parseYaml } from 'yaml'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
@@ -57,6 +58,12 @@ export interface AssetResolver {
    * Returns null if the asset is not found.
    */
   resolveJson<T = unknown>(relativePath: string): T | null
+
+  /**
+   * Resolve and parse a YAML asset.
+   * Returns null if the asset is not found.
+   */
+  resolveYaml<T = unknown>(relativePath: string): T | null
 
   /**
    * The cascade layers in order of precedence (lowest to highest).
@@ -157,6 +164,21 @@ export function createAssetResolver(options: AssetResolverOptions): AssetResolve
       }
 
       return parsed
+    },
+
+    resolveYaml<T = unknown>(relativePath: string): T | null {
+      const content = this.resolve(relativePath)
+      if (content === null) {
+        return null
+      }
+
+      try {
+        return parseYaml(content) as T
+      } catch (error) {
+        throw new Error(
+          `Failed to parse YAML asset ${relativePath}: ${error instanceof Error ? error.message : String(error)}`
+        )
+      }
     },
 
     cascadeLayers,

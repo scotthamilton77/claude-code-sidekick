@@ -14,6 +14,7 @@ describe('AssetResolver', () => {
     // Create default assets directory structure
     mkdirSync(join(defaultAssetsDir, 'prompts'), { recursive: true })
     mkdirSync(join(defaultAssetsDir, 'schemas'), { recursive: true })
+    mkdirSync(join(defaultAssetsDir, 'defaults'), { recursive: true })
   })
 
   afterEach(() => {
@@ -190,5 +191,80 @@ describe('AssetResolver', () => {
     const content = resolver.resolve('prompts/test.prompt.txt')
 
     expect(content).toBe('User override')
+  })
+
+  describe('resolveYaml', () => {
+    test('parses valid YAML and returns object', () => {
+      writeFileSync(
+        join(defaultAssetsDir, 'defaults', 'core.defaults.yaml'),
+        `# Core defaults
+logging:
+  level: info
+  format: json
+supervisor:
+  enabled: true
+  heartbeatMs: 5000
+`
+      )
+
+      const resolver = createAssetResolver({
+        defaultAssetsDir,
+        projectRoot: join(tempRoot, 'project'),
+        homeDir: join(tempRoot, 'home'),
+      })
+
+      const data = resolver.resolveYaml('defaults/core.defaults.yaml')
+
+      expect(data).toEqual({
+        logging: { level: 'info', format: 'json' },
+        supervisor: { enabled: true, heartbeatMs: 5000 },
+      })
+    })
+
+    test('returns null for missing YAML file', () => {
+      const resolver = createAssetResolver({
+        defaultAssetsDir,
+        projectRoot: join(tempRoot, 'project'),
+        homeDir: join(tempRoot, 'home'),
+      })
+
+      const data = resolver.resolveYaml('defaults/nonexistent.yaml')
+
+      expect(data).toBeNull()
+    })
+
+    test('throws on malformed YAML', () => {
+      writeFileSync(join(defaultAssetsDir, 'defaults', 'malformed.yaml'), `invalid: yaml: content: [unclosed`)
+
+      const resolver = createAssetResolver({
+        defaultAssetsDir,
+        projectRoot: join(tempRoot, 'project'),
+        homeDir: join(tempRoot, 'home'),
+      })
+
+      expect(() => resolver.resolveYaml('defaults/malformed.yaml')).toThrow(/parse|yaml/i)
+    })
+
+    test('follows same cascade as other resolve methods', () => {
+      // Create default YAML
+      mkdirSync(join(defaultAssetsDir, 'defaults'), { recursive: true })
+      writeFileSync(join(defaultAssetsDir, 'defaults', 'test.yaml'), 'source: default\nvalue: 1')
+
+      // Create project override
+      const projectDir = join(tempRoot, 'project')
+      const projectAssets = join(projectDir, '.sidekick', 'assets', 'defaults')
+      mkdirSync(projectAssets, { recursive: true })
+      writeFileSync(join(projectAssets, 'test.yaml'), 'source: project\nvalue: 2')
+
+      const resolver = createAssetResolver({
+        defaultAssetsDir,
+        projectRoot: projectDir,
+        homeDir: join(tempRoot, 'home'),
+      })
+
+      const data = resolver.resolveYaml('defaults/test.yaml')
+
+      expect(data).toEqual({ source: 'project', value: 2 })
+    })
   })
 })
