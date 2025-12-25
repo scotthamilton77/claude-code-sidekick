@@ -5,12 +5,6 @@
 # Enable or disable the reminders feature
 enabled: true
 
-# Number of user prompts between periodic reminder injections.
-# A countdown decrements on each UserPromptSubmit; when it reaches 0,
-# the user-prompt-submit reminder fires and the countdown resets.
-# Example: turn_cadence=4 means a reminder every 4 user messages.
-turn_cadence: 4
-
 # Tool calls per turn that trigger the "time for user update" reminder.
 # Counts tool invocations since the last user prompt (toolsThisTurn metric).
 # Fires when: update_threshold <= toolsThisTurn < stuck_threshold
