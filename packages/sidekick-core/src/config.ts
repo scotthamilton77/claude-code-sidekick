@@ -778,9 +778,38 @@ export interface ConfigService {
   sources: string[]
 }
 
+/**
+ * Load feature defaults from YAML and convert to FeatureConfig format.
+ * The YAML file has a flat structure (enabled + settings at top level),
+ * which is converted to { enabled, settings: {...rest} }.
+ */
+function loadFeatureDefaults(
+  featureName: string,
+  assets?: AssetResolver
+): { enabled: boolean; settings: Record<string, unknown> } | null {
+  if (!assets) {
+    return null
+  }
+
+  const filePath = `defaults/features/${featureName}.defaults.yaml`
+  const defaults = assets.resolveYaml<Record<string, unknown>>(filePath)
+
+  if (!defaults) {
+    return null
+  }
+
+  // Extract 'enabled' and put everything else in 'settings'
+  const { enabled, ...settings } = defaults
+  return {
+    enabled: typeof enabled === 'boolean' ? enabled : true,
+    settings,
+  }
+}
+
 export function createConfigService(options: ConfigServiceOptions): ConfigService {
   const homeDir = options.homeDir ?? homedir()
   const projectRoot = options.projectRoot
+  const assets = options.assets
 
   // Collect sources for debugging
   const sources: string[] = []
@@ -849,8 +878,35 @@ export function createConfigService(options: ConfigServiceOptions): ConfigServic
       return config
     },
     getFeature<T = Record<string, unknown>>(name: string): FeatureConfig & { settings: T } {
-      const feature = config.features[name] ?? { enabled: true, settings: {} }
-      return feature as FeatureConfig & { settings: T }
+      // Load external feature defaults (if available)
+      const externalDefaults = loadFeatureDefaults(name, assets)
+
+      // Get user/project feature config
+      const userConfig = config.features[name]
+
+      // If no external defaults and no user config, return standard defaults
+      if (!externalDefaults && !userConfig) {
+        return { enabled: true, settings: {} } as FeatureConfig & { settings: T }
+      }
+
+      // If no external defaults, return user config as-is
+      if (!externalDefaults) {
+        return userConfig as FeatureConfig & { settings: T }
+      }
+
+      // If no user config, return external defaults
+      if (!userConfig) {
+        return externalDefaults as FeatureConfig & { settings: T }
+      }
+
+      // Deep merge: external defaults as base, user config as override
+      const mergedSettings = deepMerge(externalDefaults.settings, userConfig.settings)
+
+      return {
+        // User enabled takes precedence if explicitly set
+        enabled: userConfig.enabled,
+        settings: mergedSettings,
+      } as FeatureConfig & { settings: T }
     },
     paths: derivedPaths,
     sources,

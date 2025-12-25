@@ -1057,6 +1057,212 @@ describe('loadConfig - external defaults', () => {
   })
 })
 
+// =============================================================================
+// Feature Defaults Tests (Phase 4)
+// =============================================================================
+
+describe('ConfigService - getFeature with external defaults', () => {
+  const tempRoot = join(tmpdir(), 'sidekick-feature-defaults-tests')
+
+  beforeEach(() => {
+    mkdirSync(tempRoot, { recursive: true })
+  })
+
+  afterEach(() => {
+    if (existsSync(tempRoot)) {
+      rmSync(tempRoot, { recursive: true, force: true })
+    }
+  })
+
+  test('getFeature returns YAML defaults when no user config', () => {
+    const mockAssets: AssetResolver = {
+      resolve: () => null,
+      resolveOrThrow: () => {
+        throw new Error('not found')
+      },
+      resolvePath: () => null,
+      resolveJson: () => null,
+      resolveYaml: <T>(path: string): T | null => {
+        if (path === 'defaults/features/statusline.defaults.yaml') {
+          return {
+            enabled: true,
+            format: '[{model}] | {tokens}',
+            confidenceThreshold: 0.6,
+            thresholds: { tokens: { warning: 100000 } },
+          } as T
+        }
+        return null
+      },
+      cascadeLayers: ['/mock/assets'],
+    }
+
+    const service = createConfigService({
+      projectRoot: join(tempRoot, 'project'),
+      homeDir: join(tempRoot, 'home'),
+      assets: mockAssets,
+    })
+
+    interface StatuslineSettings {
+      format: string
+      confidenceThreshold: number
+      thresholds: { tokens: { warning: number } }
+    }
+
+    const feature = service.getFeature<StatuslineSettings>('statusline')
+
+    expect(feature.enabled).toBe(true)
+    expect(feature.settings.format).toBe('[{model}] | {tokens}')
+    expect(feature.settings.confidenceThreshold).toBe(0.6)
+    expect(feature.settings.thresholds).toEqual({ tokens: { warning: 100000 } })
+  })
+
+  test('user config overrides feature defaults', () => {
+    const projectDir = join(tempRoot, 'project')
+    const projectSidekick = join(projectDir, '.sidekick')
+    mkdirSync(projectSidekick, { recursive: true })
+
+    // User overrides enabled and format
+    writeFileSync(
+      join(projectSidekick, 'features.yaml'),
+      `
+statusline:
+  enabled: false
+  settings:
+    format: "custom format"
+`
+    )
+
+    const mockAssets: AssetResolver = {
+      resolve: () => null,
+      resolveOrThrow: () => {
+        throw new Error('not found')
+      },
+      resolvePath: () => null,
+      resolveJson: () => null,
+      resolveYaml: <T>(path: string): T | null => {
+        if (path === 'defaults/features/statusline.defaults.yaml') {
+          return {
+            enabled: true,
+            format: '[{model}] | {tokens}',
+            confidenceThreshold: 0.6,
+          } as T
+        }
+        return null
+      },
+      cascadeLayers: ['/mock/assets'],
+    }
+
+    const service = createConfigService({
+      projectRoot: projectDir,
+      homeDir: join(tempRoot, 'home'),
+      assets: mockAssets,
+    })
+
+    interface StatuslineSettings {
+      format: string
+      confidenceThreshold: number
+    }
+
+    const feature = service.getFeature<StatuslineSettings>('statusline')
+
+    // User overrides should take precedence
+    expect(feature.enabled).toBe(false)
+    expect(feature.settings.format).toBe('custom format')
+    // Defaults should still apply for non-overridden settings
+    expect(feature.settings.confidenceThreshold).toBe(0.6)
+  })
+
+  test('getFeature falls back gracefully when feature YAML missing', () => {
+    const mockAssets: AssetResolver = {
+      resolve: () => null,
+      resolveOrThrow: () => {
+        throw new Error('not found')
+      },
+      resolvePath: () => null,
+      resolveJson: () => null,
+      resolveYaml: () => null, // No feature defaults available
+      cascadeLayers: ['/mock/assets'],
+    }
+
+    const service = createConfigService({
+      projectRoot: join(tempRoot, 'project'),
+      homeDir: join(tempRoot, 'home'),
+      assets: mockAssets,
+    })
+
+    const feature = service.getFeature('nonexistent')
+
+    // Should return standard defaults
+    expect(feature.enabled).toBe(true)
+    expect(feature.settings).toEqual({})
+  })
+
+  test('deep merges feature settings correctly', () => {
+    const projectDir = join(tempRoot, 'project')
+    const projectSidekick = join(projectDir, '.sidekick')
+    mkdirSync(projectSidekick, { recursive: true })
+
+    // User only overrides one nested value
+    writeFileSync(
+      join(projectSidekick, 'features.yaml'),
+      `
+statusline:
+  settings:
+    thresholds:
+      tokens:
+        warning: 50000
+`
+    )
+
+    const mockAssets: AssetResolver = {
+      resolve: () => null,
+      resolveOrThrow: () => {
+        throw new Error('not found')
+      },
+      resolvePath: () => null,
+      resolveJson: () => null,
+      resolveYaml: <T>(path: string): T | null => {
+        if (path === 'defaults/features/statusline.defaults.yaml') {
+          return {
+            enabled: true,
+            format: '[{model}]',
+            thresholds: {
+              tokens: { warning: 100000, critical: 160000 },
+              cost: { warning: 0.5, critical: 1.0 },
+            },
+          } as T
+        }
+        return null
+      },
+      cascadeLayers: ['/mock/assets'],
+    }
+
+    const service = createConfigService({
+      projectRoot: projectDir,
+      homeDir: join(tempRoot, 'home'),
+      assets: mockAssets,
+    })
+
+    interface StatuslineSettings {
+      format: string
+      thresholds: {
+        tokens: { warning: number; critical: number }
+        cost: { warning: number; critical: number }
+      }
+    }
+
+    const feature = service.getFeature<StatuslineSettings>('statusline')
+
+    // User override should take precedence
+    expect(feature.settings.thresholds.tokens.warning).toBe(50000)
+    // Other nested values should be preserved from defaults
+    expect(feature.settings.thresholds.tokens.critical).toBe(160000)
+    expect(feature.settings.thresholds.cost).toEqual({ warning: 0.5, critical: 1.0 })
+    // Format should come from defaults
+    expect(feature.settings.format).toBe('[{model}]')
+  })
+})
+
 describe('loadConfig - validation', () => {
   const tempRoot = join(tmpdir(), 'sidekick-validation-tests')
 

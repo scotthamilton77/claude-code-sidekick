@@ -133,36 +133,37 @@ Note: At each scope (user/project), `sidekick.config` overrides the domain-speci
 
 ---
 
-## Phase 4: Feature Defaults Integration
+## Phase 4: Feature Defaults Integration ✅
 
 ### Objectives
-- [ ] `getFeature<T>()` loads feature-specific defaults from YAML
-- [ ] Feature defaults merge with user settings correctly
+- [x] `getFeature<T>()` loads feature-specific defaults from YAML
+- [x] Feature defaults merge with user settings correctly
 
 ### Tasks
-- [ ] **4.1** Read current `getFeature()` implementation in `config.ts`
-- [ ] **4.2** Read feature type definitions (statusline, reminders)
-- [ ] **4.3** Write test cases for feature defaults loading (TDD: tests first)
+- [x] **4.1** Read current `getFeature()` implementation in `config.ts`
+- [x] **4.2** Read feature type definitions (statusline, reminders)
+- [x] **4.3** Write test cases for feature defaults loading (TDD: tests first)
   - Test: `getFeature('statusline')` returns YAML defaults when no user config
   - Test: User settings override feature defaults
   - Test: Falls back gracefully when feature YAML missing
-- [ ] **4.4** Run tests, verify new tests fail (red phase)
-- [ ] **4.5** Update `getFeature<T>()` to load from `defaults/features/{name}.defaults.yaml`
-- [ ] **4.6** Store `assets` reference in ConfigService for runtime access
-- [ ] **4.7** Run tests, verify they pass (green phase)
+  - Test: Deep merges feature settings correctly
+- [x] **4.4** Run tests, verify new tests fail (red phase)
+- [x] **4.5** Update `getFeature<T>()` to load from `defaults/features/{name}.defaults.yaml`
+- [x] **4.6** Store `assets` reference in ConfigService for runtime access
+- [x] **4.7** Run tests, verify they pass (green phase)
 
 ### Acceptance Criteria
-- [ ] `pnpm test` passes
-- [ ] `pnpm lint` passes
-- [ ] `pnpm typecheck` passes
-- [ ] Feature defaults load from YAML files
-- [ ] Deep merge works correctly for nested feature settings
+- [x] `pnpm test` passes
+- [x] `pnpm lint` passes
+- [x] `pnpm typecheck` passes
+- [x] Feature defaults load from YAML files
+- [x] Deep merge works correctly for nested feature settings
 
 ### Files
 | File | Action |
 |------|--------|
-| `packages/sidekick-core/src/config.ts` | Update `getFeature()`, store assets ref |
-| `packages/sidekick-core/src/__tests__/config-service.test.ts` | Add feature tests |
+| `packages/sidekick-core/src/config.ts` | Update `getFeature()`, store assets ref ✅ |
+| `packages/sidekick-core/src/__tests__/config-service.test.ts` | Add feature tests ✅ |
 
 ---
 
