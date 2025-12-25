@@ -36,6 +36,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { parse as parseYaml } from 'yaml'
 import { z } from 'zod/v4'
+import type { AssetResolver } from './assets'
 
 // =============================================================================
 // Deep Freeze Utility
@@ -536,6 +537,8 @@ function envToConfig(env: NodeJS.ProcessEnv): Record<string, Record<string, unkn
 export interface ConfigServiceOptions {
   projectRoot?: string
   homeDir?: string
+  /** AssetResolver for loading external defaults from YAML files */
+  assets?: AssetResolver
 }
 
 interface LoadedSource {
@@ -544,15 +547,40 @@ interface LoadedSource {
 }
 
 /**
+ * External YAML defaults file paths by domain.
+ * These are loaded from assets as Layer 0 of the cascade.
+ */
+const EXTERNAL_DEFAULTS_FILES: Record<ConfigDomain, string> = {
+  core: 'defaults/core.defaults.yaml',
+  llm: 'defaults/llm.defaults.yaml',
+  transcript: 'defaults/transcript.defaults.yaml',
+  features: 'defaults/features.defaults.yaml',
+}
+
+/**
+ * Load external defaults from YAML asset files.
+ * Returns null if no asset resolver provided or file not found.
+ */
+function loadExternalDefaults(domain: ConfigDomain, assets?: AssetResolver): Record<string, unknown> | null {
+  if (!assets) {
+    return null
+  }
+
+  const filePath = EXTERNAL_DEFAULTS_FILES[domain]
+  return assets.resolveYaml<Record<string, unknown>>(filePath) ?? null
+}
+
+/**
  * Load domain configuration with full cascade.
  *
  * Cascade order per docs/design/CONFIG-SYSTEM.md §4:
+ * 0. External YAML defaults (from assets)
  * 1. Internal defaults (via Zod)
  * 2. Environment variables
- * 3. User unified config (~/.sidekick/sidekick.config)
- * 4. User domain config (~/.sidekick/{domain}.yaml)
- * 5. Project unified config (.sidekick/sidekick.config)
- * 6. Project domain config (.sidekick/{domain}.yaml)
+ * 3. User domain config (~/.sidekick/{domain}.yaml)
+ * 4. User unified config (~/.sidekick/sidekick.config) - overrides domain YAML
+ * 5. Project domain config (.sidekick/{domain}.yaml)
+ * 6. Project unified config (.sidekick/sidekick.config) - overrides domain YAML
  * 7. Project-local override (.sidekick/{domain}.yaml.local)
  */
 function loadDomainConfig(
@@ -562,10 +590,18 @@ function loadDomainConfig(
   userDomainPath: string,
   projectUnified: Record<string, Record<string, unknown>> | null,
   projectDomainPath: string | null,
-  projectLocalPath: string | null
+  projectLocalPath: string | null,
+  assets?: AssetResolver
 ): { config: Record<string, unknown>; sources: LoadedSource[] } {
   const sources: LoadedSource[] = []
   let merged: Record<string, unknown> = {}
+
+  // 0. External YAML defaults (Layer 0 - lowest priority)
+  const externalDefaults = loadExternalDefaults(domain, assets)
+  if (externalDefaults) {
+    merged = deepMerge(merged, externalDefaults)
+    sources.push({ source: `assets:${EXTERNAL_DEFAULTS_FILES[domain]}`, domain })
+  }
 
   // 2. Environment variables for this domain
   if (envConfig[domain]) {
@@ -573,32 +609,32 @@ function loadDomainConfig(
     sources.push({ source: 'environment', domain })
   }
 
-  // 3. User unified config for this domain
-  if (userUnified?.[domain]) {
-    merged = deepMerge(merged, userUnified[domain])
-    sources.push({ source: 'user:sidekick.config', domain })
-  }
-
-  // 4. User domain YAML
+  // 3. User domain YAML
   const userDomain = tryReadYaml(userDomainPath)
   if (userDomain) {
     merged = deepMerge(merged, userDomain)
     sources.push({ source: userDomainPath, domain })
   }
 
-  // 5. Project unified config for this domain
-  if (projectUnified?.[domain]) {
-    merged = deepMerge(merged, projectUnified[domain])
-    sources.push({ source: 'project:sidekick.config', domain })
+  // 4. User unified config (sidekick.config overrides domain YAML)
+  if (userUnified?.[domain]) {
+    merged = deepMerge(merged, userUnified[domain])
+    sources.push({ source: 'user:sidekick.config', domain })
   }
 
-  // 6. Project domain YAML
+  // 5. Project domain YAML
   if (projectDomainPath) {
     const projectDomain = tryReadYaml(projectDomainPath)
     if (projectDomain) {
       merged = deepMerge(merged, projectDomain)
       sources.push({ source: projectDomainPath, domain })
     }
+  }
+
+  // 6. Project unified config (sidekick.config overrides domain YAML)
+  if (projectUnified?.[domain]) {
+    merged = deepMerge(merged, projectUnified[domain])
+    sources.push({ source: 'project:sidekick.config', domain })
   }
 
   // 7. Project-local override
@@ -654,7 +690,8 @@ export function loadConfig(options: ConfigServiceOptions): SidekickConfig {
       userDomainPath,
       projectUnified,
       projectDomainPath,
-      projectLocalPath
+      projectLocalPath,
+      options.assets
     )
 
     domainConfigs[domain] = config

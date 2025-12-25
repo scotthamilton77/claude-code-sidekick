@@ -24,6 +24,7 @@ import {
   type CoreConfig,
   type SidekickConfig,
 } from '../config'
+import type { AssetResolver } from '../assets'
 
 // =============================================================================
 // Test Setup: Environment Isolation
@@ -368,20 +369,21 @@ describe('loadConfig - cascade precedence', () => {
     expect(config.core.logging.level).toBe('warn')
   })
 
-  test('user domain YAML overrides user unified config', () => {
+  test('user unified config overrides user domain YAML', () => {
     const homeDir = join(tempRoot, 'home')
     const userSidekick = join(homeDir, '.sidekick')
     mkdirSync(userSidekick, { recursive: true })
 
-    writeFileSync(join(userSidekick, 'sidekick.config'), `core.logging.level=warn`)
     writeFileSync(join(userSidekick, 'config.yaml'), `logging:\n  level: error`)
+    writeFileSync(join(userSidekick, 'sidekick.config'), `core.logging.level=warn`)
 
     const config = loadConfig({
       projectRoot: join(tempRoot, 'project'),
       homeDir,
     })
 
-    expect(config.core.logging.level).toBe('error')
+    // sidekick.config overrides domain YAML
+    expect(config.core.logging.level).toBe('warn')
   })
 
   test('project unified config overrides user domain YAML', () => {
@@ -403,21 +405,22 @@ describe('loadConfig - cascade precedence', () => {
     expect(config.core.logging.level).toBe('error')
   })
 
-  test('project domain YAML overrides project unified config', () => {
+  test('project unified config overrides project domain YAML', () => {
     const homeDir = join(tempRoot, 'home')
     const projectDir = join(tempRoot, 'project')
     const projectSidekick = join(projectDir, '.sidekick')
     mkdirSync(projectSidekick, { recursive: true })
 
-    writeFileSync(join(projectSidekick, 'sidekick.config'), `core.logging.level=warn`)
     writeFileSync(join(projectSidekick, 'config.yaml'), `logging:\n  level: error`)
+    writeFileSync(join(projectSidekick, 'sidekick.config'), `core.logging.level=warn`)
 
     const config = loadConfig({
       projectRoot: projectDir,
       homeDir,
     })
 
-    expect(config.core.logging.level).toBe('error')
+    // sidekick.config overrides domain YAML
+    expect(config.core.logging.level).toBe('warn')
   })
 
   test('project-local (.yaml.local) has highest priority', () => {
@@ -903,6 +906,156 @@ describe('loadConfig - environment variables', () => {
 // =============================================================================
 // Validation Tests
 // =============================================================================
+
+// =============================================================================
+// External Defaults Tests (Phase 3)
+// =============================================================================
+
+describe('loadConfig - external defaults', () => {
+  const tempRoot = join(tmpdir(), 'sidekick-external-defaults-tests')
+
+  beforeEach(() => {
+    mkdirSync(tempRoot, { recursive: true })
+  })
+
+  afterEach(() => {
+    if (existsSync(tempRoot)) {
+      rmSync(tempRoot, { recursive: true, force: true })
+    }
+  })
+
+  test('uses external YAML defaults as base layer when assets provided', () => {
+    const mockAssets: AssetResolver = {
+      resolve: () => null,
+      resolveOrThrow: () => {
+        throw new Error('not found')
+      },
+      resolvePath: () => null,
+      resolveJson: () => null,
+      resolveYaml: <T>(path: string): T | null => {
+        if (path === 'defaults/core.defaults.yaml') {
+          return { logging: { level: 'debug', format: 'json' }, paths: { state: '.custom-state' } } as T
+        }
+        if (path === 'defaults/llm.defaults.yaml') {
+          return { provider: 'openai', temperature: 0.5, timeout: 60 } as T
+        }
+        if (path === 'defaults/transcript.defaults.yaml') {
+          return { watchDebounceMs: 250, metricsPersistIntervalMs: 10000 } as T
+        }
+        return null
+      },
+      cascadeLayers: ['/mock/assets'],
+    }
+
+    const config = loadConfig({
+      projectRoot: join(tempRoot, 'project'),
+      homeDir: join(tempRoot, 'home'),
+      assets: mockAssets,
+    })
+
+    expect(config.core.logging.level).toBe('debug')
+    expect(config.core.logging.format).toBe('json')
+    expect(config.core.paths.state).toBe('.custom-state')
+    expect(config.llm.provider).toBe('openai')
+    expect(config.llm.temperature).toBe(0.5)
+    expect(config.llm.timeout).toBe(60)
+    expect(config.transcript.watchDebounceMs).toBe(250)
+    expect(config.transcript.metricsPersistIntervalMs).toBe(10000)
+  })
+
+  test('user/project config overrides external defaults', () => {
+    const projectDir = join(tempRoot, 'project')
+    const projectSidekick = join(projectDir, '.sidekick')
+    mkdirSync(projectSidekick, { recursive: true })
+    writeFileSync(join(projectSidekick, 'config.yaml'), `logging:\n  level: error`)
+
+    const mockAssets: AssetResolver = {
+      resolve: () => null,
+      resolveOrThrow: () => {
+        throw new Error('not found')
+      },
+      resolvePath: () => null,
+      resolveJson: () => null,
+      resolveYaml: <T>(path: string): T | null => {
+        if (path === 'defaults/core.defaults.yaml') {
+          return { logging: { level: 'debug', format: 'json' } } as T
+        }
+        return null
+      },
+      cascadeLayers: ['/mock/assets'],
+    }
+
+    const config = loadConfig({
+      projectRoot: projectDir,
+      homeDir: join(tempRoot, 'home'),
+      assets: mockAssets,
+    })
+
+    expect(config.core.logging.level).toBe('error')
+    expect(config.core.logging.format).toBe('json')
+  })
+
+  test('falls back to Zod defaults when assets not provided', () => {
+    const config = loadConfig({
+      projectRoot: join(tempRoot, 'project'),
+      homeDir: join(tempRoot, 'home'),
+    })
+
+    expect(config.core.logging.level).toBe('info')
+    expect(config.core.logging.format).toBe('pretty')
+    expect(config.llm.provider).toBe('openrouter')
+  })
+
+  test('falls back to Zod defaults when YAML file missing', () => {
+    const mockAssets: AssetResolver = {
+      resolve: () => null,
+      resolveOrThrow: () => {
+        throw new Error('not found')
+      },
+      resolvePath: () => null,
+      resolveJson: () => null,
+      resolveYaml: () => null,
+      cascadeLayers: ['/mock/assets'],
+    }
+
+    const config = loadConfig({
+      projectRoot: join(tempRoot, 'project'),
+      homeDir: join(tempRoot, 'home'),
+      assets: mockAssets,
+    })
+
+    expect(config.core.logging.level).toBe('info')
+    expect(config.llm.provider).toBe('openrouter')
+  })
+
+  test('env variables override external defaults', () => {
+    process.env.SIDEKICK_LOG_LEVEL = 'warn'
+
+    const mockAssets: AssetResolver = {
+      resolve: () => null,
+      resolveOrThrow: () => {
+        throw new Error('not found')
+      },
+      resolvePath: () => null,
+      resolveJson: () => null,
+      resolveYaml: <T>(path: string): T | null => {
+        if (path === 'defaults/core.defaults.yaml') {
+          return { logging: { level: 'debug' } } as T
+        }
+        return null
+      },
+      cascadeLayers: ['/mock/assets'],
+    }
+
+    const config = loadConfig({
+      projectRoot: join(tempRoot, 'project'),
+      homeDir: join(tempRoot, 'home'),
+      assets: mockAssets,
+    })
+
+    expect(config.core.logging.level).toBe('warn')
+  })
+})
 
 describe('loadConfig - validation', () => {
   const tempRoot = join(tmpdir(), 'sidekick-validation-tests')
