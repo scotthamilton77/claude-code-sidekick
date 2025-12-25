@@ -40,7 +40,7 @@ export {
  */
 export const StatuslineConfigSchema = z.object({
   enabled: z.boolean().default(true),
-  format: z.string().default('[{model}] | {tokens} | {cwd}{branch} | {summary}'),
+  format: z.string().default('[{model}] | {contextBar} {tokens} | {summary}'),
   /** Confidence threshold for preferring session summary over first-prompt */
   confidenceThreshold: z.number().default(0.6),
   thresholds: z
@@ -129,6 +129,27 @@ export type DisplayMode = 'resume_message' | 'empty_summary' | 'first_prompt' | 
 export type ThresholdStatus = 'normal' | 'warning' | 'critical'
 
 /**
+ * Context bar status for color coding based on proximity to compaction.
+ */
+export type ContextBarStatus = 'low' | 'medium' | 'high'
+
+/**
+ * Context usage data for the context bar visualization.
+ */
+export interface ContextUsageData {
+  /** Total tokens used (input + output) */
+  totalTokens: number
+  /** Context window size */
+  contextWindowSize: number
+  /** Effective limit before autocompact (~77.5% of window) */
+  effectiveLimit: number
+  /** Usage as fraction of effective limit (0-1+) */
+  usageFraction: number
+  /** Status for color coding */
+  status: ContextBarStatus
+}
+
+/**
  * Processed view model ready for template rendering.
  * All values are pre-computed strings or formatted data.
  */
@@ -159,6 +180,8 @@ export interface StatuslineViewModel {
   title: string
   /** Snarky comment if available */
   snarkyComment?: string
+  /** Context usage data for bar visualization (optional - only when hook provides context_window) */
+  contextUsage?: ContextUsageData
 }
 
 // ============================================================================

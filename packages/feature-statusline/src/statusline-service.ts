@@ -9,6 +9,7 @@
 
 import {
   Formatter,
+  calculateContextUsage,
   createFormatter,
   formatBranch,
   formatCost,
@@ -260,6 +261,15 @@ export class StatuslineService {
       firstPromptSummary
     )
 
+    // Calculate context usage if hook metrics provide context window data
+    const contextUsage = this.hookMetrics
+      ? calculateContextUsage(
+          this.hookMetrics.totalInputTokens,
+          this.hookMetrics.totalOutputTokens,
+          this.hookMetrics.contextWindowSize
+        )
+      : undefined
+
     return {
       model: this.formatModelName(state.primaryModel || 'unknown'),
       tokens: formatTokens(state.tokens.total),
@@ -274,6 +284,7 @@ export class StatuslineService {
       summary: summaryText,
       title,
       snarkyComment: snarkyMessage || undefined,
+      contextUsage,
     }
   }
 

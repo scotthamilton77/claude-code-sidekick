@@ -9,7 +9,13 @@
  * @see docs/design/FEATURE-STATUSLINE.md §5.3 Formatter, §8.1 Template Engine
  */
 
-import type { StatuslineConfig, StatuslineViewModel, ThresholdStatus } from './types.js'
+import type {
+  ContextBarStatus,
+  ContextUsageData,
+  StatuslineConfig,
+  StatuslineViewModel,
+  ThresholdStatus,
+} from './types.js'
 
 // ============================================================================
 // ANSI Color Codes
@@ -97,6 +103,7 @@ export class Formatter {
       branch: viewModel.branch ? ` ${this.colorize(viewModel.branch, viewModel.branchColor)}` : '',
       summary: this.colorize(viewModel.summary, this.theme.colors.summary),
       title: viewModel.title,
+      contextBar: formatContextBar(viewModel.contextUsage, this.useColors),
     }
 
     // Replace {token} patterns
@@ -137,18 +144,16 @@ export class Formatter {
 // ============================================================================
 
 /**
- * Format token count for display (e.g., 45000 → "🪙 45k").
+ * Format token count for display (e.g., 45000 → "45k").
+ * Note: Icon moved to context bar prefix.
  */
 export function formatTokens(tokens: number): string {
-  let value: string
   if (tokens >= 1_000_000) {
-    value = `${(tokens / 1_000_000).toFixed(1)}M`
+    return `${(tokens / 1_000_000).toFixed(1)}M`
   } else if (tokens >= 1_000) {
-    value = `${Math.round(tokens / 1_000)}k`
-  } else {
-    value = String(tokens)
+    return `${Math.round(tokens / 1_000)}k`
   }
-  return `🪙 ${value}`
+  return String(tokens)
 }
 
 /**
@@ -243,4 +248,137 @@ export function getThresholdStatus(value: number, thresholds: { warning: number;
  */
 export function createFormatter(config: FormatterConfig): Formatter {
   return new Formatter(config)
+}
+
+// ============================================================================
+// Context Bar Formatting
+// ============================================================================
+
+/**
+ * Bar characters for context visualization.
+ */
+const BAR_CHARS = {
+  filled: '▓',
+  empty: '░',
+  threshold: '│',
+} as const
+
+/**
+ * Get ANSI color for context bar based on status.
+ */
+function getContextBarColor(status: ContextBarStatus): string {
+  switch (status) {
+    case 'high':
+      return ANSI.red
+    case 'medium':
+      return ANSI.yellow
+    case 'low':
+    default:
+      return ANSI.green
+  }
+}
+
+/**
+ * Format context bar with 8 characters showing usage relative to compaction threshold.
+ *
+ * Layout (8 chars):
+ * - Positions 0-5: Main context area (0-75% of window)
+ * - Position 6: Threshold marker │ (~77.5% compaction point)
+ * - Position 7: Autocompact buffer zone (87.5-100%)
+ *
+ * Example outputs:
+ * - Low usage:    🪙 ▓▓░░░░│░
+ * - Medium usage: 🪙 ▓▓▓▓░░│░
+ * - High usage:   🪙 ▓▓▓▓▓▓│░
+ * - Over limit:   🪙 ▓▓▓▓▓▓▓│
+ *
+ * @param contextUsage - Context usage data from hook metrics
+ * @param useColors - Whether to apply ANSI colors
+ * @returns Formatted bar string with icon prefix
+ */
+export function formatContextBar(contextUsage: ContextUsageData | undefined, useColors: boolean): string {
+  if (!contextUsage) {
+    return ''
+  }
+
+  const { totalTokens, contextWindowSize, status } = contextUsage
+
+  // Calculate how many of the first 6 positions should be filled
+  // Each of the 6 positions represents 1/8 of the context window (12.5% each)
+  // Position 6 is the threshold marker, position 7 is buffer
+  const tokensPerPosition = contextWindowSize / 8
+  const filledPositions = Math.min(7, Math.floor(totalTokens / tokensPerPosition))
+
+  // Build the bar
+  const barParts: string[] = []
+
+  // Positions 0-5: Main context area
+  for (let i = 0; i < 6; i++) {
+    barParts.push(i < filledPositions ? BAR_CHARS.filled : BAR_CHARS.empty)
+  }
+
+  // Position 6: Threshold marker (always │)
+  barParts.push(BAR_CHARS.threshold)
+
+  // Position 7: Buffer zone (filled if usage exceeds threshold)
+  barParts.push(filledPositions >= 7 ? BAR_CHARS.filled : BAR_CHARS.empty)
+
+  const bar = barParts.join('')
+
+  if (!useColors) {
+    return `🪙 ${bar}`
+  }
+
+  // Apply color to the filled portion only
+  const color = getContextBarColor(status)
+  const filledPart = bar.slice(0, filledPositions)
+  const restPart = bar.slice(filledPositions)
+
+  return `🪙 ${color}${filledPart}${ANSI.reset}${restPart}`
+}
+
+/**
+ * Determine context bar status based on usage fraction.
+ * - Low: < 50% of effective limit
+ * - Medium: 50-80% of effective limit
+ * - High: > 80% of effective limit
+ */
+export function getContextBarStatus(usageFraction: number): ContextBarStatus {
+  if (usageFraction >= 0.8) return 'high'
+  if (usageFraction >= 0.5) return 'medium'
+  return 'low'
+}
+
+/**
+ * Calculate context usage data from hook metrics.
+ *
+ * @param totalInputTokens - Input tokens from hook
+ * @param totalOutputTokens - Output tokens from hook
+ * @param contextWindowSize - Context window size from hook
+ * @returns Context usage data for bar rendering
+ */
+export function calculateContextUsage(
+  totalInputTokens: number | undefined,
+  totalOutputTokens: number | undefined,
+  contextWindowSize: number | undefined
+): ContextUsageData | undefined {
+  if (!contextWindowSize || contextWindowSize <= 0) {
+    return undefined
+  }
+
+  const totalTokens = (totalInputTokens ?? 0) + (totalOutputTokens ?? 0)
+
+  // Effective limit is ~77.5% of context window (before autocompact kicks in)
+  const effectiveLimit = Math.floor(contextWindowSize * 0.775)
+
+  // Usage fraction relative to effective limit
+  const usageFraction = totalTokens / effectiveLimit
+
+  return {
+    totalTokens,
+    contextWindowSize,
+    effectiveLimit,
+    usageFraction,
+    status: getContextBarStatus(usageFraction),
+  }
 }
