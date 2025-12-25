@@ -46,6 +46,12 @@ packages/               # Node/TS migration workspace (see docs/ARCHITECTURE.md)
 ├── testing-fixtures/  # Test utilities
 └── types/             # Shared TypeScript types
 
+assets/sidekick/defaults/  # External YAML defaults (see README.md inside)
+├── core.defaults.yaml     # logging, paths, supervisor, ipc
+├── llm.defaults.yaml      # provider, model, temperature
+├── transcript.defaults.yaml
+└── features/              # Feature-specific defaults
+
 benchmark-next/         # ⚠️ STALE—see benchmark-next/AGENTS.md
 ```
 
