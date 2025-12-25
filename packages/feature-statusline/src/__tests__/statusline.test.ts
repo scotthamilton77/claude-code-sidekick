@@ -29,17 +29,17 @@ import { DEFAULT_STATUSLINE_CONFIG } from '../types.js'
 
 describe('Formatter utilities', () => {
   describe('formatTokens', () => {
-    it('formats small numbers with coin icon', () => {
-      expect(formatTokens(500)).toBe('🪙 500')
+    it('formats small numbers', () => {
+      expect(formatTokens(500)).toBe('500')
     })
 
-    it('formats thousands with k suffix and coin icon', () => {
-      expect(formatTokens(45000)).toBe('🪙 45k')
-      expect(formatTokens(1000)).toBe('🪙 1k')
+    it('formats thousands with k suffix', () => {
+      expect(formatTokens(45000)).toBe('45k')
+      expect(formatTokens(1000)).toBe('1k')
     })
 
-    it('formats millions with M suffix and coin icon', () => {
-      expect(formatTokens(1_500_000)).toBe('🪙 1.5M')
+    it('formats millions with M suffix', () => {
+      expect(formatTokens(1_500_000)).toBe('1.5M')
     })
   })
 
@@ -814,7 +814,7 @@ describe('StatuslineService', () => {
 
     expect(result.displayMode).toBe('session_summary')
     expect(result.viewModel.model).toBe('3-5-sonnet')
-    expect(result.viewModel.tokens).toBe('🪙 45k')
+    expect(result.viewModel.tokens).toBe('45k')
     expect(result.viewModel.title).toBe('Auth bug fix')
   })
 
