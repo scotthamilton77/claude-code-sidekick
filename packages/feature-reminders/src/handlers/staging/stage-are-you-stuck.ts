@@ -2,7 +2,7 @@
  * Stage "are you stuck?" reminder when toolsThisTurn exceeds threshold
  * @see docs/design/FEATURE-REMINDERS.md §5.2
  */
-import type { RuntimeContext, ConfigService } from '@sidekick/core'
+import type { RuntimeContext, FeaturesConfig } from '@sidekick/core'
 import { isTranscriptEvent } from '@sidekick/types'
 import { createStagingHandler } from './staging-handler-utils.js'
 import { ReminderIds, DEFAULT_REMINDER_CONFIG, type ReminderConfig } from '../../types.js'
@@ -16,8 +16,9 @@ export function registerStageAreYouStuck(context: RuntimeContext): void {
       if (!isTranscriptEvent(event)) return undefined
 
       const metrics = event.metadata.metrics
-      const featureConfig = (context.config as ConfigService).getFeature<ReminderConfig>('reminders')
-      const config = { ...DEFAULT_REMINDER_CONFIG, ...featureConfig.settings }
+      const allConfig = context.config.getAll() as { features: FeaturesConfig }
+      const featureConfig = allConfig.features['reminders'] ?? { enabled: true, settings: {} }
+      const config = { ...DEFAULT_REMINDER_CONFIG, ...(featureConfig.settings as Partial<ReminderConfig>) }
 
       if (metrics.toolsThisTurn < config.stuck_threshold) return undefined
 

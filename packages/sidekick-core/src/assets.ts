@@ -189,13 +189,13 @@ export function createAssetResolver(options: AssetResolverOptions): AssetResolve
  * Get the default assets directory path.
  * In development (vitest), this is relative to src/.
  * When compiled, this is relative to dist/.
- * Both require navigating 4 levels up to workspace root.
+ * Both require navigating 3 levels up to workspace root.
  *
  * Structure:
- * - Compiled: packages/sidekick-core/dist/assets.js -> ../../../../assets/sidekick
- * - Dev/Test: packages/sidekick-core/src/assets.ts -> ../../../../assets/sidekick
+ * - Compiled: packages/sidekick-core/dist/assets.js -> ../../../assets/sidekick
+ * - Dev/Test: packages/sidekick-core/src/assets.ts -> ../../../assets/sidekick
  */
 export function getDefaultAssetsDir(): string {
-  const workspaceRoot = join(__dirname, '..', '..', '..', '..')
+  const workspaceRoot = join(__dirname, '..', '..', '..')
   return join(workspaceRoot, 'assets', 'sidekick')
 }
