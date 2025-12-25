@@ -512,7 +512,8 @@ describe('Feature E2E: Threshold Logic with Synthetic Data', () => {
     // Should count all tool_results in the single user message
     expect(metrics.toolCount).toBe(numTools)
     expect(metrics.toolsThisTurn).toBe(numTools)
-    expect(metrics.turnCount).toBe(1)
+    // Tool-result-only messages don't count as turns (they're wrapper messages)
+    expect(metrics.turnCount).toBe(0)
   })
 
   it('triggers stuck handler when toolsThisTurn >= stuck_threshold', async () => {
@@ -586,10 +587,11 @@ describe('Feature E2E: Threshold Logic with Synthetic Data', () => {
 
     // Total tools: 10 + 0 + 5 = 15
     expect(metrics.toolCount).toBe(15)
-    // toolsThisTurn should be 5 (from the last user message)
+    // toolsThisTurn should be 5 (from the last batch after reset by "Continue")
     expect(metrics.toolsThisTurn).toBe(5)
-    // Three user messages = 3 turns
-    expect(metrics.turnCount).toBe(3)
+    // Only the text message "Continue" counts as a turn
+    // Tool-result-only messages are wrapper messages, not turns
+    expect(metrics.turnCount).toBe(1)
   })
 })
 

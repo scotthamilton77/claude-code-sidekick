@@ -690,17 +690,28 @@ export class TranscriptServiceImpl implements TranscriptService {
     const entryType = entry.type as string | undefined
 
     switch (entryType) {
-      case 'user':
-        // User message: increment turnCount and messageCount, reset toolsThisTurn
-        this.metrics.turnCount++
-        this.metrics.messageCount++
-        this.metrics.toolsThisTurn = 0
-        this.updateToolsPerTurn()
-        this.emitEvent('UserPrompt', entry, lineNumber)
+      case 'user': {
+        // Check if this is a tool_result wrapper (not a real user prompt)
+        // Tool result wrappers have content as an array containing ONLY tool_result blocks
+        const isToolResultWrapper = this.isToolResultOnlyMessage(entry)
+
+        if (isToolResultWrapper) {
+          // Tool result wrapper: increment messageCount but DON'T reset toolsThisTurn
+          // This allows toolsThisTurn to accumulate across multiple tool calls
+          this.metrics.messageCount++
+        } else {
+          // Real user prompt: new turn, reset toolsThisTurn
+          this.metrics.turnCount++
+          this.metrics.messageCount++
+          this.metrics.toolsThisTurn = 0
+          this.updateToolsPerTurn()
+          this.emitEvent('UserPrompt', entry, lineNumber)
+        }
 
         // Process tool_result blocks nested in user message content
         this.processNestedToolResults(entry, lineNumber)
         break
+      }
 
       case 'assistant':
         // Assistant message: increment messageCount, extract token usage
@@ -714,6 +725,35 @@ export class TranscriptServiceImpl implements TranscriptService {
 
       // Skip other entry types (summary, file-history-snapshot, etc.)
     }
+  }
+
+  /**
+   * Check if a user message contains ONLY tool_result blocks (no actual user text).
+   * Tool result wrappers should not reset toolsThisTurn or increment turnCount.
+   *
+   * Real user prompts have:
+   * - content as a string (plain text)
+   * - content as array with 'text' blocks
+   * - content as array with 'document' blocks (file uploads)
+   *
+   * Tool result wrappers have:
+   * - content as array with ONLY 'tool_result' blocks
+   */
+  private isToolResultOnlyMessage(entry: TranscriptEntry): boolean {
+    const message = entry.message as { content?: string | Array<{ type?: string }> } | undefined
+    if (!message?.content) return false
+
+    // String content = real user prompt
+    if (typeof message.content === 'string') return false
+
+    // Not an array = unknown format, treat as real user prompt
+    if (!Array.isArray(message.content)) return false
+
+    // Empty array = treat as real user prompt (edge case)
+    if (message.content.length === 0) return false
+
+    // Check if ALL blocks are tool_result type
+    return message.content.every((block) => block.type === 'tool_result')
   }
 
   /**

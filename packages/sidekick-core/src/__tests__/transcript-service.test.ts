@@ -225,9 +225,11 @@ describe('TranscriptServiceImpl', () => {
       expect(metrics.toolsThisTurn).toBe(2)
     })
 
-    it('resets toolsThisTurn on new user message', async () => {
+    it('resets toolsThisTurn on real user message (not tool_result wrapper)', async () => {
       const transcript = [
-        // First turn: user message with tool results
+        // Real user prompt starts a turn
+        JSON.stringify({ type: 'user', message: { role: 'user', content: 'First prompt' } }),
+        // Tool result wrapper: does NOT start a new turn
         JSON.stringify({
           type: 'user',
           message: {
@@ -238,22 +240,60 @@ describe('TranscriptServiceImpl', () => {
             ],
           },
         }),
-        // Second turn: plain user message (no tool results)
-        JSON.stringify({ type: 'user', message: { role: 'user', content: 'Second' } }),
+        // Another real user prompt: starts new turn, resets toolsThisTurn
+        JSON.stringify({ type: 'user', message: { role: 'user', content: 'Second prompt' } }),
       ].join('\n')
       writeFileSync(transcriptPath, transcript)
 
       await service.initialize('test-session', transcriptPath)
 
       const metrics = service.getMetrics()
-      expect(metrics.turnCount).toBe(2)
+      expect(metrics.turnCount).toBe(2) // Only real user prompts count as turns
       expect(metrics.toolCount).toBe(2)
-      expect(metrics.toolsThisTurn).toBe(0) // Reset after second user message
+      expect(metrics.toolsThisTurn).toBe(0) // Reset by second real user prompt
+    })
+
+    it('accumulates toolsThisTurn across consecutive tool_result wrappers', async () => {
+      const transcript = [
+        // Real user prompt starts a turn
+        JSON.stringify({ type: 'user', message: { role: 'user', content: 'User prompt' } }),
+        // Multiple tool result wrappers - should NOT reset toolsThisTurn
+        JSON.stringify({
+          type: 'user',
+          message: {
+            role: 'user',
+            content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: 'result 1' }],
+          },
+        }),
+        JSON.stringify({
+          type: 'user',
+          message: {
+            role: 'user',
+            content: [{ type: 'tool_result', tool_use_id: 'tool-2', content: 'result 2' }],
+          },
+        }),
+        JSON.stringify({
+          type: 'user',
+          message: {
+            role: 'user',
+            content: [{ type: 'tool_result', tool_use_id: 'tool-3', content: 'result 3' }],
+          },
+        }),
+      ].join('\n')
+      writeFileSync(transcriptPath, transcript)
+
+      await service.initialize('test-session', transcriptPath)
+
+      const metrics = service.getMetrics()
+      expect(metrics.turnCount).toBe(1) // Only the real user prompt counts as a turn
+      expect(metrics.toolCount).toBe(3)
+      expect(metrics.toolsThisTurn).toBe(3) // Accumulated across all tool_result wrappers
     })
 
     it('calculates toolsPerTurn', async () => {
       const transcript = [
-        // First turn: 2 tool results
+        // First turn: real user prompt followed by 2 tool results
+        JSON.stringify({ type: 'user', message: { role: 'user', content: 'First prompt' } }),
         JSON.stringify({
           type: 'user',
           message: {
@@ -264,7 +304,8 @@ describe('TranscriptServiceImpl', () => {
             ],
           },
         }),
-        // Second turn: 2 more tool results
+        // Second turn: real user prompt followed by 2 more tool results
+        JSON.stringify({ type: 'user', message: { role: 'user', content: 'Second prompt' } }),
         JSON.stringify({
           type: 'user',
           message: {
@@ -282,7 +323,7 @@ describe('TranscriptServiceImpl', () => {
 
       const metrics = service.getMetrics()
       expect(metrics.toolCount).toBe(4)
-      expect(metrics.turnCount).toBe(2)
+      expect(metrics.turnCount).toBe(2) // Only real user prompts count as turns
       expect(metrics.toolsPerTurn).toBe(2) // 4 tools / 2 turns
     })
   })
@@ -769,6 +810,9 @@ describe('TranscriptServiceImpl', () => {
   describe('getMetric', () => {
     it('returns individual metric values', async () => {
       const transcript = [
+        // Real user prompt (counts as a turn)
+        JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } }),
+        // Tool result wrapper (counts as message and tool, but not a turn)
         JSON.stringify({
           type: 'user',
           message: {
@@ -781,9 +825,9 @@ describe('TranscriptServiceImpl', () => {
 
       await service.initialize('test-session', transcriptPath)
 
-      expect(service.getMetric('turnCount')).toBe(1)
+      expect(service.getMetric('turnCount')).toBe(1) // Only real user prompt counts
       expect(service.getMetric('toolCount')).toBe(1)
-      expect(service.getMetric('messageCount')).toBe(1)
+      expect(service.getMetric('messageCount')).toBe(2) // Both messages count
     })
   })
 
