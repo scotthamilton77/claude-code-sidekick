@@ -4,6 +4,9 @@
 #
 # Hook input JSON is piped via stdin to the CLI, which extracts session_id
 # per CLI.md §3.1.1 Hook Input Structure.
+#
+# Environment variables:
+#   SIDEKICK_LOG_LEVEL - Override log level (debug|info|warn|error)
 set -euo pipefail
 
 CLI_BIN="${CLAUDE_PROJECT_DIR}/packages/sidekick-cli/dist/bin.js"
@@ -14,15 +17,19 @@ if [[ ! -f "${CLI_BIN}" ]]; then
   exit 1
 fi
 
+# Build CLI args
+CLI_ARGS=(stop --hook --scope=project)
+CLI_ARGS+=(--hook-script-path="${CLAUDE_PROJECT_DIR}/scripts/dev-hooks/stop")
+CLI_ARGS+=(--project-dir="${CLAUDE_PROJECT_DIR}")
+if [[ -n "${SIDEKICK_LOG_LEVEL:-}" ]]; then
+  CLI_ARGS+=(--log-level "${SIDEKICK_LOG_LEVEL}")
+fi
+
 # Capture stdin first (Claude Code hook input JSON)
 STDIN_DATA=$(cat)
 
 # Pass stdin to CLI, then translate internal format to Claude Code format
-INTERNAL_RESPONSE=$(echo "$STDIN_DATA" | node "${CLI_BIN}" stop \
-  --hook \
-  --scope=project \
-  --hook-script-path="${CLAUDE_PROJECT_DIR}/scripts/dev-hooks/stop" \
-  --project-dir="${CLAUDE_PROJECT_DIR}")
+INTERNAL_RESPONSE=$(echo "$STDIN_DATA" | node "${CLI_BIN}" "${CLI_ARGS[@]}")
 
 # Translate internal HookResponse to Claude Code Stop format
 # - blocking/reason → decision: "block", reason (required when blocking)

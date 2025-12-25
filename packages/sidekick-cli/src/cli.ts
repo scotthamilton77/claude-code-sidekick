@@ -170,6 +170,11 @@ export function initializeRuntime(options: RunCliOptions): InitializeRuntimeResu
     enableFileLogging: options.enableFileLogging ?? true,
   })
 
+  // Debug log the full hook input for troubleshooting
+  if (hookInput) {
+    runtime.logger.debug('Hook input received', { hookInput: hookInput.raw })
+  }
+
   // Check for dual-install scenario
   const shouldExit = runtime.scope.dualInstallDetected && parsed.scopeOverride !== 'project'
   if (shouldExit) {

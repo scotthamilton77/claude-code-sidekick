@@ -36,6 +36,7 @@ vi.mock('../commands/supervisor.js', () => ({
 
 vi.mock('../commands/statusline.js', () => ({
   handleStatuslineCommand: mockHandleStatuslineCommand,
+  parseStatuslineInput: vi.fn(() => undefined),
 }))
 
 // Mock @sidekick/core to prevent actual supervisor operations
