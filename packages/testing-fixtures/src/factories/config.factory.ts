@@ -67,8 +67,7 @@ const DEFAULT_CONFIG: SidekickConfig = {
     reminders: {
       enabled: true,
       settings: {
-        turnCadence: 4,
-        toolCadence: 50,
+        updateThreshold: 15,
         stuckThreshold: 20,
       },
     },

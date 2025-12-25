@@ -8,7 +8,6 @@
  */
 export interface ReminderConfig {
   enabled: boolean
-  turn_cadence: number
   update_threshold: number
   stuck_threshold: number
 }
@@ -41,7 +40,6 @@ export interface TemplateContext {
  */
 export const DEFAULT_REMINDER_CONFIG: ReminderConfig = {
   enabled: true,
-  turn_cadence: 4,
   update_threshold: 15,
   stuck_threshold: 20,
 }

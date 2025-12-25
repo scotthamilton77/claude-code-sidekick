@@ -712,7 +712,7 @@ describe('ConfigService', () => {
 reminders:
   enabled: false
   settings:
-    turnCadence: 5
+    stuckThreshold: 25
 `
     )
 
@@ -722,13 +722,13 @@ reminders:
     })
 
     interface RemindersSettings {
-      turnCadence: number
+      stuckThreshold: number
     }
 
     const feature = service.getFeature<RemindersSettings>('reminders')
 
     expect(feature.enabled).toBe(false)
-    expect(feature.settings.turnCadence).toBe(5)
+    expect(feature.settings.stuckThreshold).toBe(25)
   })
 
   test('provides derived paths', () => {
