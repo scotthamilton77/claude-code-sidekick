@@ -2,10 +2,10 @@
  * Stage "time for user update" reminder
  * @see docs/design/FEATURE-REMINDERS.md §5.4
  */
-import type { RuntimeContext } from '@sidekick/core'
+import type { RuntimeContext, FeaturesConfig } from '@sidekick/core'
 import { isTranscriptEvent } from '@sidekick/types'
 import { createStagingHandler } from './staging-handler-utils.js'
-import { ReminderIds, DEFAULT_REMINDER_CONFIG } from '../../types.js'
+import { ReminderIds, DEFAULT_REMINDER_CONFIG, type ReminderConfig } from '../../types.js'
 
 export function registerStageTimeForUpdate(context: RuntimeContext): void {
   createStagingHandler(context, {
@@ -16,7 +16,9 @@ export function registerStageTimeForUpdate(context: RuntimeContext): void {
       if (!isTranscriptEvent(event)) return undefined
 
       const metrics = event.metadata.metrics
-      const config = DEFAULT_REMINDER_CONFIG
+      const allConfig = context.config.getAll() as { features: FeaturesConfig }
+      const featureConfig = allConfig.features['reminders'] ?? { enabled: true, settings: {} }
+      const config = { ...DEFAULT_REMINDER_CONFIG, ...(featureConfig.settings as Partial<ReminderConfig>) }
 
       // Only trigger if below stuck threshold but above update threshold
       if (metrics.toolsThisTurn < config.update_threshold) return undefined
