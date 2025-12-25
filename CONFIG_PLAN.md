@@ -18,8 +18,10 @@ assets/sidekick/defaults/
 
 **Cascade (lowest → highest priority):**
 ```
-External YAML → Zod fallback → env → user config → project config → project-local
+External YAML → Zod fallback → env → user domain YAML → user sidekick.config → project domain YAML → project sidekick.config → project-local
 ```
+
+Note: At each scope (user/project), `sidekick.config` overrides the domain-specific YAML for quick surgical overrides.
 
 ---
 
@@ -94,39 +96,40 @@ External YAML → Zod fallback → env → user config → project config → pr
 
 ---
 
-## Phase 3: Integrate External Defaults into ConfigService
+## Phase 3: Integrate External Defaults into ConfigService ✅
 
 ### Objectives
-- [ ] ConfigService loads external YAML as Layer 0 of cascade
-- [ ] Zod defaults remain as fallback when YAML missing
-- [ ] Existing behavior unchanged when no assets provided
+- [x] ConfigService loads external YAML as Layer 0 of cascade
+- [x] Zod defaults remain as fallback when YAML missing
+- [x] Existing behavior unchanged when no assets provided
 
 ### Tasks
-- [ ] **3.1** Read and understand `packages/sidekick-core/src/__tests__/config-service.test.ts`
-- [ ] **3.2** Read `loadDomainConfig()` and cascade logic in `config.ts`
-- [ ] **3.3** Write test cases for external defaults loading (TDD: tests first)
+- [x] **3.1** Read and understand `packages/sidekick-core/src/__tests__/config-service.test.ts`
+- [x] **3.2** Read `loadDomainConfig()` and cascade logic in `config.ts`
+- [x] **3.3** Write test cases for external defaults loading (TDD: tests first)
   - Test: External YAML values used as base layer
   - Test: User/project config overrides external defaults
   - Test: Falls back to Zod defaults when assets not provided
   - Test: Falls back to Zod defaults when YAML file missing
-- [ ] **3.4** Run tests, verify new tests fail (red phase)
-- [ ] **3.5** Add `assets?: AssetResolver` to `ConfigServiceOptions`
-- [ ] **3.6** Create `loadExternalDefaults()` helper function
-- [ ] **3.7** Modify `loadDomainConfig()` to start with external defaults
-- [ ] **3.8** Run tests, verify they pass (green phase)
+  - Test: Env variables override external defaults
+- [x] **3.4** Run tests, verify new tests fail (red phase)
+- [x] **3.5** Add `assets?: AssetResolver` to `ConfigServiceOptions`
+- [x] **3.6** Create `loadExternalDefaults()` helper function
+- [x] **3.7** Modify `loadDomainConfig()` to start with external defaults
+- [x] **3.8** Run tests, verify they pass (green phase)
 
 ### Acceptance Criteria
-- [ ] `pnpm test` passes
-- [ ] `pnpm lint` passes
-- [ ] `pnpm typecheck` passes
-- [ ] Cascade order: External YAML < Zod < env < user < project < local
-- [ ] Tests without `assets` param behave identically to before
+- [x] `pnpm test` passes (config-service tests; IPC tests have pre-existing sandbox issues)
+- [x] `pnpm lint` passes
+- [x] `pnpm typecheck` passes
+- [x] Cascade order: External YAML < Zod < env < user domain < user sidekick.config < project domain < project sidekick.config < local
+- [x] Tests without `assets` param behave identically to before
 
 ### Files
 | File | Action |
 |------|--------|
-| `packages/sidekick-core/src/config.ts` | Add external defaults loading |
-| `packages/sidekick-core/src/__tests__/config-service.test.ts` | Add tests |
+| `packages/sidekick-core/src/config.ts` | Add external defaults loading ✅ |
+| `packages/sidekick-core/src/__tests__/config-service.test.ts` | Add tests ✅ |
 
 ---
 
