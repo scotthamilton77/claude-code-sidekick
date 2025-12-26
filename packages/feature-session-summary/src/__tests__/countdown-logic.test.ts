@@ -1,10 +1,10 @@
 /**
- * Tests for Session Summary countdown logic (ToolCall event handling)
+ * Tests for Session Summary countdown logic (ToolResult event handling)
  * @see docs/design/FEATURE-SESSION-SUMMARY.md §3.2.2
  *
  * Coverage:
- * - ToolCall decrements countdown when countdown > 0
- * - ToolCall triggers analysis when countdown = 0
+ * - ToolResult decrements countdown when countdown > 0
+ * - ToolResult triggers analysis when countdown = 0
  * - Countdown reset based on confidence tiers:
  *   - High confidence (avg > 0.8): countdown = 10000
  *   - Medium confidence (0.6 < avg ≤ 0.8): countdown = 20
@@ -77,22 +77,36 @@ describe('Session Summary Countdown Logic', () => {
   })
 
   /**
-   * Helper to create ToolCall events
+   * Helper to create ToolResult events
    */
-  function createToolCallEvent(sessionId: string, lineNumber = 100): TranscriptEvent {
+  function createToolResultEvent(sessionId: string, lineNumber = 100): TranscriptEvent {
     return {
       kind: 'transcript',
-      eventType: 'ToolCall',
+      eventType: 'ToolResult',
       context: {
         sessionId,
         scope: 'project',
+        timestamp: Date.now(),
       },
       payload: {
         lineNumber,
-        toolName: 'Read',
-        content: 'Reading /path/to/file.ts',
+        entry: { type: 'tool_result', tool_use_id: 'tool-use-123' },
+        content: 'File content here...',
       },
-    } as TranscriptEvent
+      metadata: {
+        transcriptPath: '/tmp/transcript.jsonl',
+        metrics: {
+          turnCount: 1,
+          toolCount: 1,
+          messageCount: 2,
+          lastProcessedLine: lineNumber,
+          toolsThisTurn: 1,
+          tokenUsage: {},
+          toolsPerTurn: { history: [1], average: 1 },
+          lastUpdatedAt: Date.now(),
+        },
+      },
+    } as unknown as TranscriptEvent
   }
 
   /**
@@ -115,14 +129,14 @@ describe('Session Summary Countdown Logic', () => {
     await fs.writeFile(countdownPath, JSON.stringify(state, null, 2), 'utf-8')
   }
 
-  describe('ToolCall Countdown Decrement', () => {
+  describe('ToolResult Countdown Decrement', () => {
     it('decrements countdown when countdown > 0', async () => {
       const sessionId = 'test-countdown-1'
 
       // Pre-seed countdown state with countdown = 5
       await writeCountdownState(sessionId, { countdown: 5, bookmark_line: 0 })
 
-      await updateSessionSummary(createToolCallEvent(sessionId), ctx)
+      await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
       // Countdown should be decremented to 4
       const state = await readCountdownState(sessionId)
@@ -137,7 +151,7 @@ describe('Session Summary Countdown Logic', () => {
 
       await writeCountdownState(sessionId, { countdown: 3, bookmark_line: 50 })
 
-      await updateSessionSummary(createToolCallEvent(sessionId), ctx)
+      await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
       const state = await readCountdownState(sessionId)
       expect(state.countdown).toBe(2)
@@ -149,7 +163,7 @@ describe('Session Summary Countdown Logic', () => {
 
       await writeCountdownState(sessionId, { countdown: 1, bookmark_line: 100 })
 
-      await updateSessionSummary(createToolCallEvent(sessionId), ctx)
+      await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
       const state = await readCountdownState(sessionId)
       expect(state.countdown).toBe(0)
@@ -159,7 +173,7 @@ describe('Session Summary Countdown Logic', () => {
     })
   })
 
-  describe('ToolCall Triggers Analysis at Zero', () => {
+  describe('ToolResult Triggers Analysis at Zero', () => {
     it('triggers analysis when countdown = 0', async () => {
       const sessionId = 'test-zero-1'
 
@@ -177,7 +191,7 @@ describe('Session Summary Countdown Logic', () => {
         })
       )
 
-      await updateSessionSummary(createToolCallEvent(sessionId, 120), ctx)
+      await updateSessionSummary(createToolResultEvent(sessionId, 120), ctx)
 
       // LLM should be called
       expect(llm.recordedRequests).toHaveLength(1)
@@ -206,7 +220,7 @@ describe('Session Summary Countdown Logic', () => {
         })
       )
 
-      await updateSessionSummary(createToolCallEvent(sessionId), ctx)
+      await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
       // LLM called
       expect(llm.recordedRequests).toHaveLength(1)
@@ -234,7 +248,7 @@ describe('Session Summary Countdown Logic', () => {
         })
       )
 
-      await updateSessionSummary(createToolCallEvent(sessionId), ctx)
+      await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
       const state = await readCountdownState(sessionId)
       expect(state.countdown).toBe(10000) // High confidence threshold
@@ -256,7 +270,7 @@ describe('Session Summary Countdown Logic', () => {
         })
       )
 
-      await updateSessionSummary(createToolCallEvent(sessionId), ctx)
+      await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
       const state = await readCountdownState(sessionId)
       expect(state.countdown).toBe(10000)
@@ -278,7 +292,7 @@ describe('Session Summary Countdown Logic', () => {
         })
       )
 
-      await updateSessionSummary(createToolCallEvent(sessionId), ctx)
+      await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
       const state = await readCountdownState(sessionId)
       expect(state.countdown).toBe(10000)
@@ -302,7 +316,7 @@ describe('Session Summary Countdown Logic', () => {
         })
       )
 
-      await updateSessionSummary(createToolCallEvent(sessionId), ctx)
+      await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
       const state = await readCountdownState(sessionId)
       expect(state.countdown).toBe(20) // Medium confidence threshold
@@ -325,7 +339,7 @@ describe('Session Summary Countdown Logic', () => {
         })
       )
 
-      await updateSessionSummary(createToolCallEvent(sessionId), ctx)
+      await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
       const state = await readCountdownState(sessionId)
       expect(state.countdown).toBe(20)
@@ -347,7 +361,7 @@ describe('Session Summary Countdown Logic', () => {
         })
       )
 
-      await updateSessionSummary(createToolCallEvent(sessionId), ctx)
+      await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
       const state = await readCountdownState(sessionId)
       expect(state.countdown).toBe(20)
@@ -371,7 +385,7 @@ describe('Session Summary Countdown Logic', () => {
         })
       )
 
-      await updateSessionSummary(createToolCallEvent(sessionId), ctx)
+      await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
       const state = await readCountdownState(sessionId)
       expect(state.countdown).toBe(5) // Low confidence threshold
@@ -394,7 +408,7 @@ describe('Session Summary Countdown Logic', () => {
         })
       )
 
-      await updateSessionSummary(createToolCallEvent(sessionId), ctx)
+      await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
       const state = await readCountdownState(sessionId)
       expect(state.countdown).toBe(5)
@@ -416,7 +430,7 @@ describe('Session Summary Countdown Logic', () => {
         })
       )
 
-      await updateSessionSummary(createToolCallEvent(sessionId), ctx)
+      await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
       const state = await readCountdownState(sessionId)
       expect(state.countdown).toBe(5)
@@ -438,7 +452,7 @@ describe('Session Summary Countdown Logic', () => {
         })
       )
 
-      await updateSessionSummary(createToolCallEvent(sessionId), ctx)
+      await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
       const state = await readCountdownState(sessionId)
       expect(state.countdown).toBe(5)
@@ -461,7 +475,7 @@ describe('Session Summary Countdown Logic', () => {
         })
       )
 
-      await updateSessionSummary(createToolCallEvent(sessionId), ctx)
+      await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
       // With no state file, countdown starts at 0, triggers analysis immediately
       expect(llm.recordedRequests).toHaveLength(1)
@@ -472,25 +486,25 @@ describe('Session Summary Countdown Logic', () => {
     })
   })
 
-  describe('Sequential ToolCall Countdown Flow', () => {
-    it('processes multiple ToolCall events in sequence', async () => {
+  describe('Sequential ToolResult Countdown Flow', () => {
+    it('processes multiple ToolResult events in sequence', async () => {
       const sessionId = 'test-sequence-1'
 
       // Start with countdown = 3
       await writeCountdownState(sessionId, { countdown: 3, bookmark_line: 0 })
 
       // Event 1: countdown 3 → 2
-      await updateSessionSummary(createToolCallEvent(sessionId, 100), ctx)
+      await updateSessionSummary(createToolResultEvent(sessionId, 100), ctx)
       expect((await readCountdownState(sessionId)).countdown).toBe(2)
       expect(llm.recordedRequests).toHaveLength(0)
 
       // Event 2: countdown 2 → 1
-      await updateSessionSummary(createToolCallEvent(sessionId, 105), ctx)
+      await updateSessionSummary(createToolResultEvent(sessionId, 105), ctx)
       expect((await readCountdownState(sessionId)).countdown).toBe(1)
       expect(llm.recordedRequests).toHaveLength(0)
 
       // Event 3: countdown 1 → 0
-      await updateSessionSummary(createToolCallEvent(sessionId, 110), ctx)
+      await updateSessionSummary(createToolResultEvent(sessionId, 110), ctx)
       expect((await readCountdownState(sessionId)).countdown).toBe(0)
       expect(llm.recordedRequests).toHaveLength(0)
 
@@ -505,7 +519,7 @@ describe('Session Summary Countdown Logic', () => {
         })
       )
 
-      await updateSessionSummary(createToolCallEvent(sessionId, 115), ctx)
+      await updateSessionSummary(createToolResultEvent(sessionId, 115), ctx)
       expect(llm.recordedRequests).toHaveLength(1)
 
       // Countdown reset to 10000 (high confidence: (0.9 + 0.85) / 2 = 0.875 > 0.8)

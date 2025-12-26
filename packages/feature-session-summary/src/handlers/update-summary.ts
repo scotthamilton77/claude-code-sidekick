@@ -3,7 +3,7 @@
  *
  * Performs LLM-based transcript analysis. Triggered by:
  * - UserPrompt events (force analysis)
- * - ToolCall events (conditional, based on countdown)
+ * - ToolResult events (conditional, based on countdown)
  *
  * @see docs/design/FEATURE-SESSION-SUMMARY.md §3.2
  */
@@ -70,7 +70,7 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: Supervis
     return
   }
 
-  // ToolCall: check countdown
+  // ToolResult: check countdown
   if (countdown.countdown > 0) {
     countdown.countdown--
     await saveCountdownState(ctx, sessionId, countdown)

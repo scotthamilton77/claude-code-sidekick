@@ -37,11 +37,11 @@ export function registerHandlers(context: RuntimeContext): void {
     },
   })
 
-  // UpdateSessionSummary - ToolCall transcript event (conditional)
+  // UpdateSessionSummary - ToolResult transcript event (conditional)
   ctx.handlers.register({
-    id: 'session-summary:update-tool-call',
+    id: 'session-summary:update-tool-result',
     priority: 70,
-    filter: { kind: 'transcript', eventTypes: ['ToolCall'] },
+    filter: { kind: 'transcript', eventTypes: ['ToolResult'] },
     handler: async (event, context) => {
       if (!isTranscriptEvent(event)) return
       await updateSessionSummary(event, context as unknown as SupervisorContext)

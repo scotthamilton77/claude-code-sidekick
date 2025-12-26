@@ -83,30 +83,30 @@ describe('Session Summary Handlers', () => {
       expect(userPromptHandler?.filter).toEqual({ kind: 'transcript', eventTypes: ['UserPrompt'] })
     })
 
-    it('registers update-tool-call handler for ToolCall events', () => {
+    it('registers update-tool-result handler for ToolResult events', () => {
       registerHandlers(ctx)
 
-      const registrations = handlers.getHandlersForTranscriptEvent('ToolCall')
-      const updateHandler = registrations.find((h) => h.id === 'session-summary:update-tool-call')
+      const registrations = handlers.getHandlersForTranscriptEvent('ToolResult')
+      const updateHandler = registrations.find((h) => h.id === 'session-summary:update-tool-result')
       expect(updateHandler).toBeDefined()
-      expect(updateHandler?.id).toBe('session-summary:update-tool-call')
+      expect(updateHandler?.id).toBe('session-summary:update-tool-result')
     })
 
-    it('update-tool-call handler has priority 70', () => {
+    it('update-tool-result handler has priority 70', () => {
       registerHandlers(ctx)
 
       const registrations = handlers.getRegistrations()
-      const toolCallHandler = registrations.find((h) => h.id === 'session-summary:update-tool-call')
-      expect(toolCallHandler?.priority).toBe(70)
+      const toolResultHandler = registrations.find((h) => h.id === 'session-summary:update-tool-result')
+      expect(toolResultHandler?.priority).toBe(70)
     })
 
-    it('update-tool-call handler uses transcript filter', () => {
+    it('update-tool-result handler uses transcript filter', () => {
       registerHandlers(ctx)
 
       const registrations = handlers.getRegistrations()
-      const toolCallHandler = registrations.find((h) => h.id === 'session-summary:update-tool-call')
+      const toolResultHandler = registrations.find((h) => h.id === 'session-summary:update-tool-result')
 
-      expect(toolCallHandler?.filter).toEqual({ kind: 'transcript', eventTypes: ['ToolCall'] })
+      expect(toolResultHandler?.filter).toEqual({ kind: 'transcript', eventTypes: ['ToolResult'] })
     })
 
     it('all handlers have handler functions defined', () => {
@@ -114,11 +114,11 @@ describe('Session Summary Handlers', () => {
 
       const initHandler = handlers.getHandler('session-summary:init')
       const userPromptHandler = handlers.getHandler('session-summary:update-user-prompt')
-      const toolCallHandler = handlers.getHandler('session-summary:update-tool-call')
+      const toolResultHandler = handlers.getHandler('session-summary:update-tool-result')
 
       expect(initHandler?.handler).toBeDefined()
       expect(userPromptHandler?.handler).toBeDefined()
-      expect(toolCallHandler?.handler).toBeDefined()
+      expect(toolResultHandler?.handler).toBeDefined()
     })
   })
 
@@ -181,7 +181,7 @@ describe('Session Summary Handlers', () => {
       const transcriptHandlers = handlers.getHandlersByKind('transcript')
       expect(transcriptHandlers).toHaveLength(2)
       expect(transcriptHandlers.map((h) => h.id).sort()).toEqual([
-        'session-summary:update-tool-call',
+        'session-summary:update-tool-result',
         'session-summary:update-user-prompt',
       ])
     })
@@ -204,24 +204,24 @@ describe('Session Summary Handlers', () => {
       expect(updateHandler).toBeDefined()
     })
 
-    it('ToolCall transcript events route to update-tool-call handler', () => {
+    it('ToolResult transcript events route to update-tool-result handler', () => {
       registerHandlers(ctx)
 
-      const toolCallHandlers = handlers.getHandlersForTranscriptEvent('ToolCall')
-      const updateHandler = toolCallHandlers.find((h) => h.id === 'session-summary:update-tool-call')
+      const toolResultHandlers = handlers.getHandlersForTranscriptEvent('ToolResult')
+      const updateHandler = toolResultHandlers.find((h) => h.id === 'session-summary:update-tool-result')
       expect(updateHandler).toBeDefined()
     })
   })
 
   describe('Handler Registration - Priorities', () => {
-    it('init handler (80) has higher priority than update-tool-call (70)', () => {
+    it('init handler (80) has higher priority than update-tool-result (70)', () => {
       registerHandlers(ctx)
 
       const registrations = handlers.getRegistrations()
       const initHandler = registrations.find((h) => h.id === 'session-summary:init')
-      const toolCallHandler = registrations.find((h) => h.id === 'session-summary:update-tool-call')
+      const toolResultHandler = registrations.find((h) => h.id === 'session-summary:update-tool-result')
 
-      expect(initHandler?.priority).toBeGreaterThan(toolCallHandler?.priority ?? 0)
+      expect(initHandler?.priority).toBeGreaterThan(toolResultHandler?.priority ?? 0)
     })
 
     it('update-user-prompt handler (80) has equal priority to init handler', () => {
@@ -234,14 +234,14 @@ describe('Session Summary Handlers', () => {
       expect(initHandler?.priority).toBe(userPromptHandler?.priority)
     })
 
-    it('update-user-prompt handler (80) has higher priority than update-tool-call (70)', () => {
+    it('update-user-prompt handler (80) has higher priority than update-tool-result (70)', () => {
       registerHandlers(ctx)
 
       const registrations = handlers.getRegistrations()
       const userPromptHandler = registrations.find((h) => h.id === 'session-summary:update-user-prompt')
-      const toolCallHandler = registrations.find((h) => h.id === 'session-summary:update-tool-call')
+      const toolResultHandler = registrations.find((h) => h.id === 'session-summary:update-tool-result')
 
-      expect(userPromptHandler?.priority).toBeGreaterThan(toolCallHandler?.priority ?? 0)
+      expect(userPromptHandler?.priority).toBeGreaterThan(toolResultHandler?.priority ?? 0)
     })
   })
 
@@ -271,7 +271,7 @@ describe('Session Summary Handlers', () => {
 
       expect(ids).toEqual([
         'session-summary:init',
-        'session-summary:update-tool-call',
+        'session-summary:update-tool-result',
         'session-summary:update-user-prompt',
       ])
     })

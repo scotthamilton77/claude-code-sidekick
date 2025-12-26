@@ -15,6 +15,7 @@ This repository serves as a development and testing environment for [Claude Code
 - reminder testing
   - tool usage hooks (are you stuck and checkpoint)
   - stop hook
+- statusline token usage - statistics from statusline input are wrong - use transcript state?
 - reminder tuning
   - System messages vs. additional context (for each)
   - stop message staging based on regex of file modifications
