@@ -24,13 +24,14 @@ maxIntentWords: 12
 snarkyMessages: true
 
 # Countdown configuration for summary refresh timing
+# Counts ToolResult events (each tool use decrements by 1)
 # Lower values = more frequent updates (more LLM calls)
 countdown:
-  # Turns until next summary when confidence is low (<0.5)
+  # Tool results until next summary when confidence is low (≤0.6)
   lowConfidence: 5
-  # Turns until next summary when confidence is medium (0.5-0.8)
-  mediumConfidence: 20
-  # Turns until next summary when confidence is high (>0.8)
+  # Tool results until next summary when confidence is medium (0.6-0.8)
+  mediumConfidence: 10
+  # Tool results until next summary when confidence is high (>0.8)
   # Set very high to effectively disable automatic refresh
   highConfidence: 10000
 
@@ -42,7 +43,7 @@ bookmark:
   resetThreshold: 0.7
 
 # Minimum user messages required before generating first summary
-minUserMessages: 5
+minUserMessages: 1
 
 # Minimum recent transcript lines required for summary generation
-minRecentLines: 50
+minRecentLines: 5
