@@ -85,6 +85,7 @@ export {
 } from '@sidekick/types'
 
 export * from './assets'
+export { encodeProjectPath, reconstructTranscriptPath } from './claude-paths'
 export * from './config'
 export * from './feature-registry'
 export * from './feature-types'
