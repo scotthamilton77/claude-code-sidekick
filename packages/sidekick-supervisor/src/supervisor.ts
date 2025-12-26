@@ -12,6 +12,7 @@ import {
   loadConfig,
   Logger,
   LogManager,
+  reconstructTranscriptPath,
   SidekickConfig,
   StagingServiceImpl,
   TranscriptServiceImpl,
@@ -35,6 +36,7 @@ import { ProviderFactory, type LLMProvider } from '@sidekick/shared-providers'
 import { randomBytes } from 'crypto'
 import { homedir } from 'os'
 import fs from 'fs/promises'
+import { existsSync } from 'fs'
 import path from 'path'
 import { ConfigChangeEvent, ConfigWatcher } from './config-watcher.js'
 import { StateManager } from './state-manager.js'
@@ -329,7 +331,14 @@ export class Supervisor {
 
     this.logger.debug('Handling hook invocation', { hook, sessionId: event.context?.sessionId })
 
-    // Handle SessionStart: initialize TranscriptService
+    // Initialize session first for ANY hook (idempotent - handles both fresh and resumed sessions)
+    // This ensures TranscriptService is ready before hook-specific processing
+    if (event.context?.sessionId && hook !== 'SessionEnd') {
+      const payload = event.payload as { transcriptPath?: string } | undefined
+      await this.initializeSession(event.context.sessionId, payload?.transcriptPath)
+    }
+
+    // Handle SessionStart: clear staging on startup/clear
     if (hook === 'SessionStart') {
       await this.handleSessionStart(event)
     }
@@ -351,12 +360,13 @@ export class Supervisor {
   }
 
   /**
-   * Initialize TranscriptService and StagingService on SessionStart.
-   * Per docs/design/SUPERVISOR.md §4.7 and docs/design/TRANSCRIPT-PROCESSING.md §6.
+   * Handle SessionStart-specific logic: clear staging on startup/clear.
+   * Session initialization is handled by initializeSession() called earlier in handleHookInvoke().
+   *
    * Per docs/design/FEATURE-REMINDERS.md §4.1: Clear staging on startup/clear.
    */
   private async handleSessionStart(event: HookEvent): Promise<void> {
-    const payload = event.payload as { transcriptPath?: string; startType?: string }
+    const payload = event.payload as { startType?: string }
     const sessionId = event.context?.sessionId
 
     if (!sessionId) {
@@ -364,26 +374,9 @@ export class Supervisor {
       return
     }
 
-    // Update handler registry with session info
-    if (this.handlerRegistry instanceof HandlerRegistryImpl) {
-      this.handlerRegistry.updateSession({
-        sessionId,
-        transcriptPath: payload.transcriptPath,
-      })
-    }
-
-    // Initialize StagingService for this session (Phase 5.4)
-    const stateDir = path.join(this.projectDir, '.sidekick')
-    this.stagingService = new StagingServiceImpl({
-      sessionId,
-      stateDir,
-      logger: this.logger,
-      scope: 'project',
-    })
-
     // Clean staging on startup or clear (Phase 5.4)
     const startType = payload.startType
-    if (startType === 'startup' || startType === 'clear') {
+    if ((startType === 'startup' || startType === 'clear') && this.stagingService) {
       await this.stagingService.clearStaging()
 
       // Log RemindersCleared event
@@ -396,29 +389,86 @@ export class Supervisor {
 
       this.logger.info('Staging cleared on session start', { startType })
     }
+  }
 
-    // Provide StagingService to handler registry (Phase 5.4)
+  /**
+   * Shutdown TranscriptService on SessionEnd.
+   * Per docs/design/SUPERVISOR.md §4.7.
+   */
+  private async handleSessionEnd(): Promise<void> {
+    if (this.transcriptService) {
+      await this.transcriptService.shutdown()
+      this.transcriptService = null
+      this.logger.info('TranscriptService shutdown on SessionEnd')
+    }
+  }
+
+  /**
+   * Initialize session services (StagingService, TranscriptService, SupervisorContext).
+   * Idempotent - returns early if already initialized.
+   *
+   * This is the single source of truth for session initialization, called by:
+   * - handleHookInvoke() early for ANY hook (lazy init if supervisor restarted mid-session)
+   * - Works for both fresh sessions (SessionStart) and resumed sessions (other hooks)
+   *
+   * @param sessionId - Session ID from event context
+   * @param providedTranscriptPath - Optional transcript path from event payload
+   */
+  private async initializeSession(sessionId: string, providedTranscriptPath?: string): Promise<void> {
+    // Already initialized - idempotent
+    if (this.transcriptService) {
+      return
+    }
+
+    // Determine transcript path: use provided or reconstruct using utility
+    let transcriptPath = providedTranscriptPath
+    if (!transcriptPath) {
+      transcriptPath = reconstructTranscriptPath(this.projectDir, sessionId)
+      this.logger.debug('Reconstructed transcript path', { sessionId, transcriptPath })
+    }
+
+    // Verify transcript file exists
+    if (!existsSync(transcriptPath)) {
+      this.logger.warn('Cannot initialize session: transcript file not found', {
+        sessionId,
+        transcriptPath,
+        wasReconstructed: !providedTranscriptPath,
+      })
+      return
+    }
+
+    this.logger.info('Initializing session', { sessionId, transcriptPath })
+
+    // Initialize StagingService
+    const stateDir = path.join(this.projectDir, '.sidekick')
+    this.stagingService = new StagingServiceImpl({
+      sessionId,
+      stateDir,
+      logger: this.logger,
+      scope: 'project',
+    })
+
+    // Update handler registry with session info and StagingService
     if (this.handlerRegistry instanceof HandlerRegistryImpl) {
+      this.handlerRegistry.updateSession({ sessionId, transcriptPath })
       this.handlerRegistry.setStagingProvider(() => this.stagingService!)
     }
 
-    // Create TranscriptService (but don't initialize yet - it emits events during init)
-    if (payload.transcriptPath) {
-      this.transcriptService = new TranscriptServiceImpl({
-        watchDebounceMs: this.config.transcript.watchDebounceMs,
-        metricsPersistIntervalMs: this.config.transcript.metricsPersistIntervalMs,
-        handlers: this.handlerRegistry,
-        logger: this.logger,
-        stateDir,
-      })
+    // Create TranscriptService
+    this.transcriptService = new TranscriptServiceImpl({
+      watchDebounceMs: this.config.transcript.watchDebounceMs,
+      metricsPersistIntervalMs: this.config.transcript.metricsPersistIntervalMs,
+      handlers: this.handlerRegistry,
+      logger: this.logger,
+      stateDir,
+    })
 
-      // Provide metrics getter to handler registry
-      if (this.handlerRegistry instanceof HandlerRegistryImpl) {
-        this.handlerRegistry.setMetricsProvider(() => this.transcriptService!.getMetrics())
-      }
+    // Provide metrics getter to handler registry
+    if (this.handlerRegistry instanceof HandlerRegistryImpl) {
+      this.handlerRegistry.setMetricsProvider(() => this.transcriptService!.getMetrics())
     }
 
-    // Set full SupervisorContext for handler invocation BEFORE TranscriptService.initialize()
+    // Set SupervisorContext for handler invocation BEFORE TranscriptService.initialize()
     // This is critical: initialize() emits events, and handlers need context with real services
     if (this.handlerRegistry instanceof HandlerRegistryImpl) {
       const paths: RuntimePaths = {
@@ -428,7 +478,7 @@ export class Supervisor {
         hookScriptPath: undefined,
       }
 
-      // Create LLM provider for handlers that need it
+      // Create LLM provider if needed
       if (!this.llmProvider) {
         const factory = new ProviderFactory(
           {
@@ -455,30 +505,16 @@ export class Supervisor {
         handlers: this.handlerRegistry,
         llm: this.llmProvider,
         staging: this.stagingService,
-        transcript: this.transcriptService ?? (null as unknown as TranscriptService),
+        transcript: this.transcriptService,
       }
 
       this.handlerRegistry.setContext(supervisorContext as unknown as Record<string, unknown>)
       this.logger.debug('SupervisorContext set for handler invocation')
     }
 
-    // NOW initialize TranscriptService - events emitted here will see proper context
-    if (this.transcriptService && payload.transcriptPath) {
-      await this.transcriptService.initialize(sessionId, payload.transcriptPath)
-      this.logger.info('TranscriptService initialized', { sessionId, transcriptPath: payload.transcriptPath })
-    }
-  }
-
-  /**
-   * Shutdown TranscriptService on SessionEnd.
-   * Per docs/design/SUPERVISOR.md §4.7.
-   */
-  private async handleSessionEnd(): Promise<void> {
-    if (this.transcriptService) {
-      await this.transcriptService.shutdown()
-      this.transcriptService = null
-      this.logger.info('TranscriptService shutdown on SessionEnd')
-    }
+    // Initialize TranscriptService (starts file watching, processes existing content)
+    await this.transcriptService.initialize(sessionId, transcriptPath)
+    this.logger.info('TranscriptService initialized', { sessionId, transcriptPath })
   }
 
   /**
