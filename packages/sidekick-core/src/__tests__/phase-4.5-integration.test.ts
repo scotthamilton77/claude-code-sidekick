@@ -14,7 +14,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { TranscriptServiceImpl, type TranscriptServiceOptions } from '../transcript-service'
-import { StagingServiceImpl, type StagingServiceOptions } from '../staging-service'
+import { StagingServiceCore, SessionScopedStagingService, type StagingServiceCoreOptions } from '../staging-service'
 import type {
   HandlerRegistry,
   HandlerRegistration,
@@ -166,7 +166,7 @@ describe('Phase 4.5: TranscriptService → Handler Integration', () => {
   let stateDir: string
   let transcriptPath: string
   let logger: Logger
-  let stagingService: StagingServiceImpl
+  let stagingService: SessionScopedStagingService
   let transcriptService: TranscriptServiceImpl
   let handlerRegistry: TestHandlerRegistry
 
@@ -177,12 +177,13 @@ describe('Phase 4.5: TranscriptService → Handler Integration', () => {
     logger = createMockLogger()
 
     // Create staging service
-    const stagingOptions: StagingServiceOptions = {
-      sessionId: 'test-session',
+    const stagingOptions: StagingServiceCoreOptions = {
       stateDir,
       logger,
+      scope: 'project',
     }
-    stagingService = new StagingServiceImpl(stagingOptions)
+    const core = new StagingServiceCore(stagingOptions)
+    stagingService = new SessionScopedStagingService(core, 'test-session', 'project')
 
     // Create test handler context with staging access
     const getMetrics = (): TranscriptMetrics => transcriptService.getMetrics()

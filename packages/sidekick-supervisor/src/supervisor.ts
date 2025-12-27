@@ -36,7 +36,6 @@ import { ProviderFactory, type LLMProvider } from '@sidekick/shared-providers'
 import { randomBytes } from 'crypto'
 import { homedir } from 'os'
 import fs from 'fs/promises'
-import { existsSync } from 'fs'
 import path from 'path'
 import { ConfigChangeEvent, ConfigWatcher } from './config-watcher.js'
 import { StateManager } from './state-manager.js'
@@ -82,9 +81,6 @@ export class Supervisor {
   private configWatcher: ConfigWatcher
   private handlerRegistry: HandlerRegistry
   private serviceFactory: ServiceFactory
-  private currentSessionId: string | null = null
-  private transcriptService: TranscriptService | null = null
-  private stagingService: StagingService | null = null
   private assetResolver: MinimalAssetResolver
   private llmProvider: LLMProvider | null = null
   private token: string = ''
@@ -217,15 +213,12 @@ export class Supervisor {
     // Stop config watcher
     this.configWatcher.stop()
 
-    // Shutdown current session services via factory (Phase 5.3 requirement)
+    // Shutdown all session services via factory
     // Per docs/design/SUPERVISOR.md §2.2: Shutdown sequence must stop TranscriptService
     try {
-      if (this.currentSessionId) {
-        await this.serviceFactory.shutdownSession(this.currentSessionId)
-        this.transcriptService = null
-        this.stagingService = null
-        this.currentSessionId = null
-        this.logger.info('Session services shutdown complete')
+      const count = await this.serviceFactory.shutdownAllSessions()
+      if (count > 0) {
+        this.logger.info('Session services shutdown complete', { count })
       }
     } catch (err) {
       this.logger.error('Failed to shutdown session services', { error: err })
@@ -351,13 +344,14 @@ export class Supervisor {
       throw new Error('hook.invoke requires hook and event parameters')
     }
 
-    this.logger.debug('Handling hook invocation', { hook, sessionId: event.context?.sessionId })
+    const sessionId = event.context?.sessionId
+    this.logger.debug('Handling hook invocation', { hook, sessionId })
 
-    // Initialize session first for ANY hook (idempotent - handles both fresh and resumed sessions)
-    // This ensures TranscriptService is ready before hook-specific processing
-    if (event.context?.sessionId && hook !== 'SessionEnd') {
+    // Ensure TranscriptService is cached and build context for non-SessionEnd hooks
+    if (sessionId && hook !== 'SessionEnd') {
       const payload = event.payload as { transcriptPath?: string } | undefined
-      await this.initializeSession(event.context.sessionId, payload?.transcriptPath)
+      const transcriptPath = await this.ensureTranscriptService(sessionId, payload?.transcriptPath)
+      await this.setContextForHook(sessionId, transcriptPath)
     }
 
     // Handle SessionStart: clear staging on startup/clear
@@ -383,7 +377,6 @@ export class Supervisor {
 
   /**
    * Handle SessionStart-specific logic: clear staging on startup/clear.
-   * Session initialization is handled by initializeSession() called earlier in handleHookInvoke().
    *
    * Per docs/design/FEATURE-REMINDERS.md §4.1: Clear staging on startup/clear.
    */
@@ -398,8 +391,9 @@ export class Supervisor {
 
     // Clean staging on startup or clear (Phase 5.4)
     const startType = payload.startType
-    if ((startType === 'startup' || startType === 'clear') && this.stagingService) {
-      await this.stagingService.clearStaging()
+    if (startType === 'startup' || startType === 'clear') {
+      const stagingService = this.serviceFactory.getStagingService(sessionId)
+      await stagingService.clearStaging()
 
       // Log RemindersCleared event
       const clearEvent = LogEvents.remindersCleared(
@@ -417,138 +411,100 @@ export class Supervisor {
    * Shutdown session services on SessionEnd.
    * Uses ServiceFactory for proper cleanup.
    * Per docs/design/SUPERVISOR.md §4.7.
-   *
-   * Note: IPC requests are handled sequentially via handleIpcRequest(), which
-   * prevents race conditions with currentSessionId tracking. Each hook invocation
-   * completes before the next one starts, so there's no concurrent access to
-   * session state.
    */
   private async handleSessionEnd(event: HookEvent): Promise<void> {
     const sessionId = event.context?.sessionId
     if (sessionId) {
       await this.serviceFactory.shutdownSession(sessionId)
-      this.transcriptService = null
-      this.stagingService = null
-      this.currentSessionId = null
       this.logger.info('Session ended', { sessionId })
     }
   }
 
   /**
-   * Initialize session services (StagingService, TranscriptService, SupervisorContext).
-   * Idempotent - returns early if already initialized.
+   * Ensure TranscriptService is cached for a session.
+   * Called by handleHookInvoke() to lazy-init transcript tracking.
    *
-   * This is the single source of truth for session initialization, called by:
-   * - handleHookInvoke() early for ANY hook (lazy init if supervisor restarted mid-session)
-   * - Works for both fresh sessions (SessionStart) and resumed sessions (other hooks)
-   *
-   * Note: IPC requests are handled sequentially via handleIpcRequest(), which
-   * prevents race conditions with currentSessionId tracking. Each hook invocation
-   * completes before the next one starts, so there's no concurrent access to
-   * session state.
+   * Note: Does not check if transcript file exists - TranscriptService handles
+   * missing files gracefully, and the file may appear shortly after hook fires.
    *
    * @param sessionId - Session ID from event context
    * @param providedTranscriptPath - Optional transcript path from event payload
+   * @returns The resolved transcript path
    */
-  private async initializeSession(sessionId: string, providedTranscriptPath?: string): Promise<void> {
-    // Detect session change - shutdown old session if different
-    if (this.currentSessionId && this.currentSessionId !== sessionId) {
-      this.logger.info('Session changed, shutting down previous session', {
-        from: this.currentSessionId,
-        to: sessionId,
-      })
-      await this.serviceFactory.shutdownSession(this.currentSessionId)
-      this.transcriptService = null
-      this.stagingService = null
-    }
-
-    // Already initialized for THIS session - idempotent
-    if (this.currentSessionId === sessionId && this.transcriptService) {
-      return
-    }
-
+  private async ensureTranscriptService(sessionId: string, providedTranscriptPath?: string): Promise<string> {
     // Determine transcript path: use provided or reconstruct using utility
-    let transcriptPath = providedTranscriptPath
-    if (!transcriptPath) {
-      transcriptPath = reconstructTranscriptPath(this.projectDir, sessionId)
+    const transcriptPath = providedTranscriptPath ?? reconstructTranscriptPath(this.projectDir, sessionId)
+    if (!providedTranscriptPath) {
       this.logger.debug('Reconstructed transcript path', { sessionId, transcriptPath })
     }
 
-    // Verify transcript file exists
-    if (!existsSync(transcriptPath)) {
-      this.logger.warn('Cannot initialize session: transcript file not found', {
-        sessionId,
-        transcriptPath,
-        wasReconstructed: !providedTranscriptPath,
-      })
+    // Ensure TranscriptService is cached in factory (handles missing files gracefully)
+    await this.serviceFactory.getTranscriptService(sessionId, transcriptPath)
+    return transcriptPath
+  }
+
+  /**
+   * Build and set SupervisorContext for the current hook invocation.
+   * Called per-request to ensure handlers receive correct session-scoped services.
+   *
+   * @param sessionId - Session ID from event context
+   * @param transcriptPath - Transcript path for this session
+   */
+  private async setContextForHook(sessionId: string, transcriptPath: string): Promise<void> {
+    if (!(this.handlerRegistry instanceof HandlerRegistryImpl)) {
       return
     }
 
-    this.logger.info('Initializing session', { sessionId, transcriptPath })
+    // Get session-scoped services from factory
+    const stagingService = this.serviceFactory.getStagingService(sessionId)
+    const transcriptService = await this.serviceFactory.getTranscriptService(sessionId, transcriptPath)
 
-    // Track current session
-    this.currentSessionId = sessionId
+    // Update handler registry with session info
+    this.handlerRegistry.updateSession({ sessionId, transcriptPath })
+    this.handlerRegistry.setStagingProvider(() => stagingService)
+    this.handlerRegistry.setMetricsProvider(() => transcriptService.getMetrics())
 
-    // Get services from factory
-    this.stagingService = this.serviceFactory.getStagingService(sessionId)
-    this.transcriptService = await this.serviceFactory.getTranscriptService(sessionId, transcriptPath)
-
-    // Update handler registry with session info and StagingService
-    if (this.handlerRegistry instanceof HandlerRegistryImpl) {
-      this.handlerRegistry.updateSession({ sessionId, transcriptPath })
-      this.handlerRegistry.setStagingProvider(() => this.stagingService!)
+    // Build runtime paths
+    const paths: RuntimePaths = {
+      projectDir: this.projectDir,
+      userConfigDir: path.join(homedir(), '.sidekick'),
+      projectConfigDir: path.join(this.projectDir, '.sidekick'),
+      hookScriptPath: undefined,
     }
 
-    // Provide metrics getter to handler registry
-    if (this.handlerRegistry instanceof HandlerRegistryImpl) {
-      this.handlerRegistry.setMetricsProvider(() => this.transcriptService!.getMetrics())
-    }
-
-    // Set SupervisorContext for handler invocation
-    // This is critical: handlers need context with real services
-    if (this.handlerRegistry instanceof HandlerRegistryImpl) {
-      const paths: RuntimePaths = {
-        projectDir: this.projectDir,
-        userConfigDir: path.join(homedir(), '.sidekick'),
-        projectConfigDir: path.join(this.projectDir, '.sidekick'),
-        hookScriptPath: undefined,
-      }
-
-      // Create LLM provider if needed
-      if (!this.llmProvider) {
-        const factory = new ProviderFactory(
-          {
-            provider: 'openrouter',
-            model: 'google/gemini-2.0-flash-lite-001',
-            timeout: 30000,
-            maxRetries: 2,
-          },
-          this.logger
-        )
-        this.llmProvider = factory.create()
-      }
-
-      const supervisorContext: SupervisorContext = {
-        role: 'supervisor',
-        config: {
-          core: { logging: { level: this.config.core.logging.level } },
-          llm: { provider: this.config.llm.provider },
-          getAll: () => this.config,
+    // Create LLM provider if needed (lazy init, reused across requests)
+    if (!this.llmProvider) {
+      const factory = new ProviderFactory(
+        {
+          provider: 'openrouter',
+          model: 'google/gemini-2.0-flash-lite-001',
+          timeout: 30000,
+          maxRetries: 2,
         },
-        logger: this.logger,
-        assets: this.assetResolver,
-        paths,
-        handlers: this.handlerRegistry,
-        llm: this.llmProvider,
-        staging: this.stagingService,
-        transcript: this.transcriptService,
-      }
-
-      this.handlerRegistry.setContext(supervisorContext as unknown as Record<string, unknown>)
-      this.logger.debug('SupervisorContext set for handler invocation')
+        this.logger
+      )
+      this.llmProvider = factory.create()
     }
 
-    this.logger.info('Session initialized', { sessionId, transcriptPath })
+    // Build and set SupervisorContext
+    const supervisorContext: SupervisorContext = {
+      role: 'supervisor',
+      config: {
+        core: { logging: { level: this.config.core.logging.level } },
+        llm: { provider: this.config.llm.provider },
+        getAll: () => this.config,
+      },
+      logger: this.logger,
+      assets: this.assetResolver,
+      paths,
+      handlers: this.handlerRegistry,
+      llm: this.llmProvider,
+      staging: stagingService,
+      transcript: transcriptService,
+    }
+
+    this.handlerRegistry.setContext(supervisorContext as unknown as Record<string, unknown>)
+    this.logger.debug('SupervisorContext set for handler invocation', { sessionId })
   }
 
   /**

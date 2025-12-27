@@ -136,6 +136,22 @@ export class ServiceFactoryImpl implements ServiceFactory {
   }
 
   /**
+   * Shutdown all sessions (called on supervisor stop).
+   * Returns count of sessions shutdown.
+   */
+  async shutdownAllSessions(): Promise<number> {
+    const sessionIds = [...this.transcriptServices.keys()]
+    const count = sessionIds.length
+    for (const sessionId of sessionIds) {
+      await this.shutdownSession(sessionId)
+    }
+    if (count > 0) {
+      this.options.logger.info('Shutdown all sessions', { count })
+    }
+    return count
+  }
+
+  /**
    * Update the last access timestamp for a session.
    */
   private touchSession(sessionId: string): void {

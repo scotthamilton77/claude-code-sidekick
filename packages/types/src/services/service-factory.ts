@@ -42,4 +42,10 @@ export interface ServiceFactory {
    * Returns count of evicted sessions.
    */
   evictStaleSessions(): Promise<number>
+
+  /**
+   * Shutdown all sessions (called on supervisor stop).
+   * Returns count of sessions shutdown.
+   */
+  shutdownAllSessions(): Promise<number>
 }
