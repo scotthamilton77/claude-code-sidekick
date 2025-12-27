@@ -9,6 +9,23 @@
  */
 
 /**
+ * Metrics snapshot captured when a reminder is staged.
+ * Used by Supervisor to determine reactivation after consumption.
+ *
+ * @see docs/design/FEATURE-REMINDERS.md §3.3
+ */
+export interface StagingMetrics {
+  /** Unix timestamp in milliseconds when reminder was staged */
+  timestamp: number
+  /** Turn count at staging time */
+  turnCount: number
+  /** Tool count within the turn at staging time */
+  toolsThisTurn: number
+  /** Total tool count at staging time */
+  toolCount: number
+}
+
+/**
  * Staged reminder data structure.
  *
  * @see docs/design/FEATURE-REMINDERS.md §3.3
@@ -28,6 +45,8 @@ export interface StagedReminder {
   additionalContext?: string
   /** Stop reason (for stop reminders) */
   stopReason?: string
+  /** Metrics snapshot at staging time (for reactivation decisions) */
+  stagedAt?: StagingMetrics
 }
 
 /**
@@ -77,4 +96,17 @@ export interface StagingService {
    * Delete a specific staged reminder.
    */
   deleteReminder(hookName: string, reminderName: string): Promise<void>
+
+  /**
+   * List consumed reminder files for a specific reminder ID.
+   * Consumed files have pattern: {reminderName}.{timestamp}.json
+   * Returns reminders sorted by timestamp (newest first).
+   */
+  listConsumedReminders(hookName: string, reminderName: string): Promise<StagedReminder[]>
+
+  /**
+   * Get the most recently consumed reminder for a specific reminder ID.
+   * Used by staging handlers to determine if reactivation is needed.
+   */
+  getLastConsumed(hookName: string, reminderName: string): Promise<StagedReminder | null>
 }

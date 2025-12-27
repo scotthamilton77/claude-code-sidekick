@@ -13,16 +13,18 @@ describe('consumption-handlers', () => {
   describe('CLIStagingReader', () => {
     const testStateDir = '/tmp/test-state-reminders'
     const sessionId = 'test-session-123'
+    // CLIStagingReader uses projectConfigDir/sessions/sessionId/stage/hook
     const mockPaths: RuntimePaths = {
       projectDir: '/mock/project',
-      userConfigDir: testStateDir,
-      projectConfigDir: '/mock/project/.sidekick',
+      userConfigDir: '/mock/user',
+      projectConfigDir: testStateDir, // Points to our test directory
     }
 
     beforeEach(() => {
       const stagingDirs = ['PreToolUse', 'Stop', 'PostToolUse']
       stagingDirs.forEach((hook) => {
-        const dir = join(testStateDir, 'state', 'sessions', sessionId, 'stage', hook)
+        // Path must match what CLIStagingReader expects: projectConfigDir/sessions/sessionId/stage/hook
+        const dir = join(testStateDir, 'sessions', sessionId, 'stage', hook)
         mkdirSync(dir, { recursive: true })
       })
     })
@@ -41,7 +43,7 @@ describe('consumption-handlers', () => {
     })
 
     it('returns reminders sorted by priority (highest first)', () => {
-      const stagingDir = join(testStateDir, 'state', 'sessions', sessionId, 'stage', 'PreToolUse')
+      const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'PreToolUse')
 
       writeFileSync(
         join(stagingDir, 'low-priority.json'),
@@ -87,7 +89,7 @@ describe('consumption-handlers', () => {
     })
 
     it('handles suppression marker', () => {
-      const stagingDir = join(testStateDir, 'state', 'sessions', sessionId, 'stage', 'Stop')
+      const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'Stop')
       const suppressedMarker = join(stagingDir, '.suppressed')
       writeFileSync(suppressedMarker, '')
 
@@ -111,7 +113,7 @@ describe('consumption-handlers', () => {
     })
 
     it('deletes reminder file', () => {
-      const stagingDir = join(testStateDir, 'state', 'sessions', sessionId, 'stage', 'PreToolUse')
+      const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'PreToolUse')
       const reminderPath = join(stagingDir, 'test-reminder.json')
       writeFileSync(
         reminderPath,
@@ -156,7 +158,7 @@ describe('consumption-handlers', () => {
     })
 
     it('skips malformed JSON files', () => {
-      const stagingDir = join(testStateDir, 'state', 'sessions', sessionId, 'stage', 'PreToolUse')
+      const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'PreToolUse')
 
       writeFileSync(join(stagingDir, 'valid.json'), JSON.stringify({ name: 'valid', priority: 50 }))
       writeFileSync(join(stagingDir, 'malformed.json'), 'not valid json {')
@@ -172,7 +174,7 @@ describe('consumption-handlers', () => {
     })
 
     it('only reads JSON files', () => {
-      const stagingDir = join(testStateDir, 'state', 'sessions', sessionId, 'stage', 'PreToolUse')
+      const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'PreToolUse')
 
       writeFileSync(join(stagingDir, 'reminder.json'), JSON.stringify({ name: 'json-file', priority: 50 }))
       writeFileSync(join(stagingDir, 'readme.txt'), 'This is a text file')
@@ -188,9 +190,35 @@ describe('consumption-handlers', () => {
       expect(reminders[0].name).toBe('json-file')
     })
 
+    it('excludes consumed reminders (files with timestamp suffix)', () => {
+      const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'PreToolUse')
+
+      // Active reminder (should be included)
+      writeFileSync(join(stagingDir, 'active-reminder.json'), JSON.stringify({ name: 'active-reminder', priority: 50 }))
+
+      // Consumed reminders with timestamp suffixes (should be excluded)
+      writeFileSync(
+        join(stagingDir, 'consumed-reminder.1766841830298.json'),
+        JSON.stringify({ name: 'consumed-reminder', priority: 60 })
+      )
+      writeFileSync(
+        join(stagingDir, 'another.999.json'),
+        JSON.stringify({ name: 'another', priority: 70 })
+      )
+
+      const reader = new CLIStagingReader({
+        paths: mockPaths,
+        sessionId,
+      })
+
+      const reminders = reader.listReminders('PreToolUse')
+      expect(reminders).toHaveLength(1)
+      expect(reminders[0].name).toBe('active-reminder')
+    })
+
     it('handles multiple hooks independently', () => {
-      const preToolUseDir = join(testStateDir, 'state', 'sessions', sessionId, 'stage', 'PreToolUse')
-      const stopDir = join(testStateDir, 'state', 'sessions', sessionId, 'stage', 'Stop')
+      const preToolUseDir = join(testStateDir, 'sessions', sessionId, 'stage', 'PreToolUse')
+      const stopDir = join(testStateDir, 'sessions', sessionId, 'stage', 'Stop')
 
       writeFileSync(
         join(preToolUseDir, 'pretool-reminder.json'),
@@ -213,15 +241,16 @@ describe('consumption-handlers', () => {
       expect(stopReminders[0].name).toBe('stop-reminder')
     })
 
-    it('constructs correct staging path from userConfigDir', () => {
+    it('constructs correct staging path from projectConfigDir', () => {
       const customStateDir = '/tmp/custom-state-test'
       const customPaths: RuntimePaths = {
         projectDir: '/mock/project',
-        userConfigDir: customStateDir,
-        projectConfigDir: '/mock/project/.sidekick',
+        userConfigDir: '/mock/user',
+        projectConfigDir: customStateDir, // CLIStagingReader uses projectConfigDir
       }
 
-      const expectedPath = join(customStateDir, 'state', 'sessions', sessionId, 'stage', 'PreToolUse')
+      // Path follows CLIStagingReader convention: projectConfigDir/sessions/sessionId/stage/hook
+      const expectedPath = join(customStateDir, 'sessions', sessionId, 'stage', 'PreToolUse')
       mkdirSync(expectedPath, { recursive: true })
 
       writeFileSync(join(expectedPath, 'test.json'), JSON.stringify({ name: 'test', priority: 50 }))

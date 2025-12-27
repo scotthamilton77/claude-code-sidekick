@@ -12,6 +12,8 @@ import type { StagingService, StagedReminder } from '@sidekick/types'
 export class MockStagingService implements StagingService {
   private reminders = new Map<string, StagedReminder>()
   private suppressedHooks = new Set<string>()
+  /** Consumed reminders: key is `${hookName}:${reminderName}`, value is array of consumed reminders (newest first) */
+  private consumedReminders = new Map<string, StagedReminder[]>()
 
   /** Get the storage key for a reminder */
   private key(hookName: string, reminderName: string): string {
@@ -71,14 +73,35 @@ export class MockStagingService implements StagingService {
     return Promise.resolve()
   }
 
+  listConsumedReminders(hookName: string, reminderName: string): Promise<StagedReminder[]> {
+    const key = this.key(hookName, reminderName)
+    return Promise.resolve(this.consumedReminders.get(key) ?? [])
+  }
+
+  getLastConsumed(hookName: string, reminderName: string): Promise<StagedReminder | null> {
+    const key = this.key(hookName, reminderName)
+    const consumed = this.consumedReminders.get(key)
+    return Promise.resolve(consumed?.[0] ?? null)
+  }
+
   // Test utilities
 
   /**
-   * Reset all staged reminders and suppressed hooks.
+   * Reset all staged reminders, suppressed hooks, and consumed reminders.
    */
   reset(): void {
     this.reminders.clear()
     this.suppressedHooks.clear()
+    this.consumedReminders.clear()
+  }
+
+  /**
+   * Add a consumed reminder (for testing reactivation logic).
+   */
+  addConsumedReminder(hookName: string, reminderName: string, reminder: StagedReminder): void {
+    const key = this.key(hookName, reminderName)
+    const existing = this.consumedReminders.get(key) ?? []
+    this.consumedReminders.set(key, [reminder, ...existing])
   }
 
   /**
