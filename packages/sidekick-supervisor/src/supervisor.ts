@@ -13,9 +13,8 @@ import {
   Logger,
   LogManager,
   reconstructTranscriptPath,
+  ServiceFactoryImpl,
   SidekickConfig,
-  StagingServiceImpl,
-  TranscriptServiceImpl,
   LogEvents,
   logEvent,
 } from '@sidekick/core'
@@ -25,6 +24,7 @@ import type {
   HandlerRegistry,
   TranscriptService,
   StagingService,
+  ServiceFactory,
   HookName,
   HookEvent,
   SupervisorStatus,
@@ -81,6 +81,8 @@ export class Supervisor {
   private ipcServer: IpcServer
   private configWatcher: ConfigWatcher
   private handlerRegistry: HandlerRegistry
+  private serviceFactory: ServiceFactory
+  private currentSessionId: string | null = null
   private transcriptService: TranscriptService | null = null
   private stagingService: StagingService | null = null
   private assetResolver: MinimalAssetResolver
@@ -89,6 +91,7 @@ export class Supervisor {
   private lastActivityTime: number = Date.now()
   private idleCheckInterval: ReturnType<typeof setInterval> | null = null
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null
+  private evictionTimer: ReturnType<typeof setInterval> | null = null
   private startTime: number = Date.now()
 
   constructor(projectDir: string) {
@@ -122,6 +125,17 @@ export class Supervisor {
       logger: this.logger,
       sessionId: '', // Updated on SessionStart
       scope: 'project',
+    })
+
+    // Initialize Service Factory for session-scoped services (Phase 4)
+    const stateDir = path.join(projectDir, '.sidekick')
+    this.serviceFactory = new ServiceFactoryImpl({
+      stateDir,
+      logger: this.logger,
+      scope: 'project',
+      handlers: this.handlerRegistry,
+      watchDebounceMs: this.config.transcript.watchDebounceMs,
+      metricsPersistIntervalMs: this.config.transcript.metricsPersistIntervalMs,
     })
 
     // Initialize Asset Resolver for reminder templates
@@ -177,6 +191,9 @@ export class Supervisor {
       // 9. Start heartbeat for monitoring UI
       this.startHeartbeat()
 
+      // 10. Start periodic session eviction (Phase 6)
+      this.startEvictionTimer()
+
       this.logger.info('Supervisor started successfully')
     } catch (err) {
       this.logger.fatal('Failed to start supervisor', { error: err })
@@ -194,19 +211,24 @@ export class Supervisor {
     // Stop heartbeat
     this.stopHeartbeat()
 
+    // Clear eviction timer
+    this.stopEvictionTimer()
+
     // Stop config watcher
     this.configWatcher.stop()
 
-    // Stop TranscriptService file watcher (Phase 5.3 requirement)
+    // Shutdown current session services via factory (Phase 5.3 requirement)
     // Per docs/design/SUPERVISOR.md §2.2: Shutdown sequence must stop TranscriptService
     try {
-      if (this.transcriptService) {
-        await this.transcriptService.shutdown()
+      if (this.currentSessionId) {
+        await this.serviceFactory.shutdownSession(this.currentSessionId)
         this.transcriptService = null
-        this.logger.info('TranscriptService shutdown complete')
+        this.stagingService = null
+        this.currentSessionId = null
+        this.logger.info('Session services shutdown complete')
       }
     } catch (err) {
-      this.logger.error('Failed to shutdown TranscriptService', { error: err })
+      this.logger.error('Failed to shutdown session services', { error: err })
     }
 
     try {
@@ -343,9 +365,9 @@ export class Supervisor {
       await this.handleSessionStart(event)
     }
 
-    // Handle SessionEnd: shutdown TranscriptService
+    // Handle SessionEnd: shutdown session services
     if (hook === 'SessionEnd') {
-      await this.handleSessionEnd()
+      await this.handleSessionEnd(event)
     }
 
     // Handle UserPromptSubmit: trigger first-prompt summary generation
@@ -392,14 +414,23 @@ export class Supervisor {
   }
 
   /**
-   * Shutdown TranscriptService on SessionEnd.
+   * Shutdown session services on SessionEnd.
+   * Uses ServiceFactory for proper cleanup.
    * Per docs/design/SUPERVISOR.md §4.7.
+   *
+   * Note: IPC requests are handled sequentially via handleIpcRequest(), which
+   * prevents race conditions with currentSessionId tracking. Each hook invocation
+   * completes before the next one starts, so there's no concurrent access to
+   * session state.
    */
-  private async handleSessionEnd(): Promise<void> {
-    if (this.transcriptService) {
-      await this.transcriptService.shutdown()
+  private async handleSessionEnd(event: HookEvent): Promise<void> {
+    const sessionId = event.context?.sessionId
+    if (sessionId) {
+      await this.serviceFactory.shutdownSession(sessionId)
       this.transcriptService = null
-      this.logger.info('TranscriptService shutdown on SessionEnd')
+      this.stagingService = null
+      this.currentSessionId = null
+      this.logger.info('Session ended', { sessionId })
     }
   }
 
@@ -411,12 +442,28 @@ export class Supervisor {
    * - handleHookInvoke() early for ANY hook (lazy init if supervisor restarted mid-session)
    * - Works for both fresh sessions (SessionStart) and resumed sessions (other hooks)
    *
+   * Note: IPC requests are handled sequentially via handleIpcRequest(), which
+   * prevents race conditions with currentSessionId tracking. Each hook invocation
+   * completes before the next one starts, so there's no concurrent access to
+   * session state.
+   *
    * @param sessionId - Session ID from event context
    * @param providedTranscriptPath - Optional transcript path from event payload
    */
   private async initializeSession(sessionId: string, providedTranscriptPath?: string): Promise<void> {
-    // Already initialized - idempotent
-    if (this.transcriptService) {
+    // Detect session change - shutdown old session if different
+    if (this.currentSessionId && this.currentSessionId !== sessionId) {
+      this.logger.info('Session changed, shutting down previous session', {
+        from: this.currentSessionId,
+        to: sessionId,
+      })
+      await this.serviceFactory.shutdownSession(this.currentSessionId)
+      this.transcriptService = null
+      this.stagingService = null
+    }
+
+    // Already initialized for THIS session - idempotent
+    if (this.currentSessionId === sessionId && this.transcriptService) {
       return
     }
 
@@ -439,14 +486,12 @@ export class Supervisor {
 
     this.logger.info('Initializing session', { sessionId, transcriptPath })
 
-    // Initialize StagingService
-    const stateDir = path.join(this.projectDir, '.sidekick')
-    this.stagingService = new StagingServiceImpl({
-      sessionId,
-      stateDir,
-      logger: this.logger,
-      scope: 'project',
-    })
+    // Track current session
+    this.currentSessionId = sessionId
+
+    // Get services from factory
+    this.stagingService = this.serviceFactory.getStagingService(sessionId)
+    this.transcriptService = await this.serviceFactory.getTranscriptService(sessionId, transcriptPath)
 
     // Update handler registry with session info and StagingService
     if (this.handlerRegistry instanceof HandlerRegistryImpl) {
@@ -454,22 +499,13 @@ export class Supervisor {
       this.handlerRegistry.setStagingProvider(() => this.stagingService!)
     }
 
-    // Create TranscriptService
-    this.transcriptService = new TranscriptServiceImpl({
-      watchDebounceMs: this.config.transcript.watchDebounceMs,
-      metricsPersistIntervalMs: this.config.transcript.metricsPersistIntervalMs,
-      handlers: this.handlerRegistry,
-      logger: this.logger,
-      stateDir,
-    })
-
     // Provide metrics getter to handler registry
     if (this.handlerRegistry instanceof HandlerRegistryImpl) {
       this.handlerRegistry.setMetricsProvider(() => this.transcriptService!.getMetrics())
     }
 
-    // Set SupervisorContext for handler invocation BEFORE TranscriptService.initialize()
-    // This is critical: initialize() emits events, and handlers need context with real services
+    // Set SupervisorContext for handler invocation
+    // This is critical: handlers need context with real services
     if (this.handlerRegistry instanceof HandlerRegistryImpl) {
       const paths: RuntimePaths = {
         projectDir: this.projectDir,
@@ -512,9 +548,7 @@ export class Supervisor {
       this.logger.debug('SupervisorContext set for handler invocation')
     }
 
-    // Initialize TranscriptService (starts file watching, processes existing content)
-    await this.transcriptService.initialize(sessionId, transcriptPath)
-    this.logger.info('TranscriptService initialized', { sessionId, transcriptPath })
+    this.logger.info('Session initialized', { sessionId, transcriptPath })
   }
 
   /**
@@ -725,6 +759,31 @@ export class Supervisor {
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval)
       this.heartbeatInterval = null
+    }
+  }
+
+  /**
+   * Start periodic session eviction timer.
+   * Per Phase 6: Evicts orphaned sessions (e.g., from crashed Claude Code instances)
+   * to prevent memory leaks. Runs every 5 minutes.
+   */
+  private startEvictionTimer(): void {
+    const EVICTION_INTERVAL_MS = 5 * 60 * 1000 // Every 5 minutes
+
+    this.evictionTimer = setInterval(() => {
+      void this.serviceFactory.evictStaleSessions()
+    }, EVICTION_INTERVAL_MS)
+
+    // Don't let the interval keep the process alive
+    this.evictionTimer.unref()
+
+    this.logger.info('Session eviction timer started', { intervalMs: EVICTION_INTERVAL_MS })
+  }
+
+  private stopEvictionTimer(): void {
+    if (this.evictionTimer) {
+      clearInterval(this.evictionTimer)
+      this.evictionTimer = null
     }
   }
 

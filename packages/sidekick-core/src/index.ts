@@ -121,7 +121,13 @@ export {
 } from './structured-logging'
 
 export { killAllSupervisors, SupervisorClient, type KillResult, type UserPidInfo } from './supervisor-client'
-export { StagingServiceImpl, type StagingServiceOptions } from './staging-service'
+export {
+  StagingServiceImpl,
+  StagingServiceCore,
+  SessionScopedStagingService,
+  type StagingServiceOptions,
+  type StagingServiceCoreOptions,
+} from './staging-service'
 export { HandlerRegistryImpl, type HandlerRegistryOptions } from './handler-registry'
 export {
   createDefaultMetrics,
@@ -129,6 +135,7 @@ export {
   TranscriptServiceImpl,
   type TranscriptServiceOptions,
 } from './transcript-service'
+export { ServiceFactoryImpl, type ServiceFactoryOptions } from './service-factory'
 
 // Note: LLMService should be imported directly from '@sidekick/shared-providers'
 // to avoid circular dependencies between packages
