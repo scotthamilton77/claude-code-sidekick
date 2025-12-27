@@ -2,7 +2,6 @@
  * Tests for StagingService implementations
  *
  * Tests cover:
- * - StagingServiceImpl (legacy, for backward compatibility)
  * - StagingServiceCore (stateless singleton with sessionId parameter)
  * - SessionScopedStagingService (per-session wrapper)
  *
@@ -15,14 +14,8 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { randomBytes } from 'node:crypto'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import type { StagedReminder, Logger } from '@sidekick/types'
-import {
-  StagingServiceImpl,
-  StagingServiceCore,
-  SessionScopedStagingService,
-  type StagingServiceOptions,
-  type StagingServiceCoreOptions,
-} from '../staging-service'
+import type { StagedReminder, Logger, StagingService } from '@sidekick/types'
+import { StagingServiceCore, SessionScopedStagingService, type StagingServiceCoreOptions } from '../staging-service'
 
 // ============================================================================
 // Test Utilities
@@ -59,13 +52,16 @@ function createTestReminder(overrides: Partial<StagedReminder> = {}): StagedRemi
   }
 }
 
-function createService(testDir: string, overrides: Partial<StagingServiceOptions> = {}): StagingServiceImpl {
-  return new StagingServiceImpl({
-    sessionId: 'test-session-123',
+function createService(
+  testDir: string,
+  overrides: Partial<StagingServiceCoreOptions> = {}
+): SessionScopedStagingService {
+  const core = new StagingServiceCore({
     stateDir: testDir,
-    logger: createMockLogger(),
-    ...overrides,
+    logger: overrides.logger ?? createMockLogger(),
+    scope: overrides.scope ?? 'project',
   })
+  return new SessionScopedStagingService(core, 'test-session-123', overrides.scope ?? 'project')
 }
 
 function createCore(testDir: string, overrides: Partial<StagingServiceCoreOptions> = {}): StagingServiceCore {
@@ -85,10 +81,10 @@ function createSessionScoped(
 }
 
 // ============================================================================
-// Tests for StagingServiceImpl (Legacy)
+// Tests for SessionScopedStagingService (via createService helper)
 // ============================================================================
 
-describe('StagingServiceImpl', () => {
+describe('SessionScopedStagingService (via createService)', () => {
   let testDir: string
 
   beforeEach(() => {

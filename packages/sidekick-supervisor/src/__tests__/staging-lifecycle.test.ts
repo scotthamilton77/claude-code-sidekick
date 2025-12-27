@@ -15,7 +15,7 @@ import { existsSync, mkdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { randomBytes } from 'node:crypto'
-import { StagingServiceImpl, createConsoleLogger } from '@sidekick/core'
+import { StagingServiceCore, SessionScopedStagingService, createConsoleLogger } from '@sidekick/core'
 import type { StagedReminder } from '@sidekick/types'
 
 const logger = createConsoleLogger({ minimumLevel: 'error' })
@@ -58,12 +58,8 @@ describe('Staging Lifecycle', () => {
   describe('StagingService initialization on SessionStart', () => {
     it('should create staging directory structure on first stage', async () => {
       const sessionId = 'new-session-abc'
-      const service = new StagingServiceImpl({
-        sessionId,
-        stateDir: testDir,
-        logger,
-        scope: 'project',
-      })
+      const core = new StagingServiceCore({ stateDir: testDir, logger, scope: 'project' })
+      const service = new SessionScopedStagingService(core, sessionId, 'project')
 
       await service.stageReminder('PreToolUse', 'TestReminder', createTestReminder('TestReminder'))
 
@@ -77,12 +73,8 @@ describe('Staging Lifecycle', () => {
       const sessionId = 'cleanup-session-1'
 
       // Pre-populate staging (simulating previous session state)
-      const service = new StagingServiceImpl({
-        sessionId,
-        stateDir: testDir,
-        logger,
-        scope: 'project',
-      })
+      const core = new StagingServiceCore({ stateDir: testDir, logger, scope: 'project' })
+      const service = new SessionScopedStagingService(core, sessionId, 'project')
 
       await service.stageReminder('PreToolUse', 'OldReminder1', createTestReminder('OldReminder1'))
       await service.stageReminder('Stop', 'OldReminder2', createTestReminder('OldReminder2'))
@@ -102,12 +94,8 @@ describe('Staging Lifecycle', () => {
     it('should clear all staging when startType is clear', async () => {
       const sessionId = 'cleanup-session-2'
 
-      const service = new StagingServiceImpl({
-        sessionId,
-        stateDir: testDir,
-        logger,
-        scope: 'project',
-      })
+      const core = new StagingServiceCore({ stateDir: testDir, logger, scope: 'project' })
+      const service = new SessionScopedStagingService(core, sessionId, 'project')
 
       await service.stageReminder('UserPromptSubmit', 'Reminder1', createTestReminder('Reminder1'))
       await service.suppressHook('Stop')
@@ -128,12 +116,8 @@ describe('Staging Lifecycle', () => {
     it('should NOT clear staging when startType is resume', async () => {
       const sessionId = 'resume-session-1'
 
-      const service = new StagingServiceImpl({
-        sessionId,
-        stateDir: testDir,
-        logger,
-        scope: 'project',
-      })
+      const core = new StagingServiceCore({ stateDir: testDir, logger, scope: 'project' })
+      const service = new SessionScopedStagingService(core, sessionId, 'project')
 
       await service.stageReminder('PreToolUse', 'PersistentReminder', createTestReminder('PersistentReminder'))
 
@@ -145,12 +129,8 @@ describe('Staging Lifecycle', () => {
     it('should NOT clear staging when startType is compact', async () => {
       const sessionId = 'compact-session-1'
 
-      const service = new StagingServiceImpl({
-        sessionId,
-        stateDir: testDir,
-        logger,
-        scope: 'project',
-      })
+      const core = new StagingServiceCore({ stateDir: testDir, logger, scope: 'project' })
+      const service = new SessionScopedStagingService(core, sessionId, 'project')
 
       await service.stageReminder('Stop', 'CompactReminder', createTestReminder('CompactReminder'))
 
@@ -161,19 +141,9 @@ describe('Staging Lifecycle', () => {
 
   describe('Staging isolation between sessions', () => {
     it('should isolate staging between different session IDs', async () => {
-      const session1 = new StagingServiceImpl({
-        sessionId: 'session-aaa',
-        stateDir: testDir,
-        logger,
-        scope: 'project',
-      })
-
-      const session2 = new StagingServiceImpl({
-        sessionId: 'session-bbb',
-        stateDir: testDir,
-        logger,
-        scope: 'project',
-      })
+      const core = new StagingServiceCore({ stateDir: testDir, logger, scope: 'project' })
+      const session1 = new SessionScopedStagingService(core, 'session-aaa', 'project')
+      const session2 = new SessionScopedStagingService(core, 'session-bbb', 'project')
 
       await session1.stageReminder('PreToolUse', 'Session1Reminder', createTestReminder('Session1Reminder'))
       await session2.stageReminder('PreToolUse', 'Session2Reminder', createTestReminder('Session2Reminder'))
@@ -190,19 +160,9 @@ describe('Staging Lifecycle', () => {
     })
 
     it('should not affect other sessions when clearing staging', async () => {
-      const session1 = new StagingServiceImpl({
-        sessionId: 'session-xxx',
-        stateDir: testDir,
-        logger,
-        scope: 'project',
-      })
-
-      const session2 = new StagingServiceImpl({
-        sessionId: 'session-yyy',
-        stateDir: testDir,
-        logger,
-        scope: 'project',
-      })
+      const core = new StagingServiceCore({ stateDir: testDir, logger, scope: 'project' })
+      const session1 = new SessionScopedStagingService(core, 'session-xxx', 'project')
+      const session2 = new SessionScopedStagingService(core, 'session-yyy', 'project')
 
       await session1.stageReminder('PreToolUse', 'Reminder1', createTestReminder('Reminder1'))
       await session2.stageReminder('PreToolUse', 'Reminder2', createTestReminder('Reminder2'))
@@ -219,15 +179,11 @@ describe('Staging Lifecycle', () => {
   describe('Handler dispatch integration', () => {
     it('should be able to provide staging to handlers via setStagingProvider pattern', () => {
       const sessionId = 'handler-test-session'
-      const service = new StagingServiceImpl({
-        sessionId,
-        stateDir: testDir,
-        logger,
-        scope: 'project',
-      })
+      const core = new StagingServiceCore({ stateDir: testDir, logger, scope: 'project' })
+      const service = new SessionScopedStagingService(core, sessionId, 'project')
 
       // Simulate the pattern used in Supervisor
-      const getStagingService = (): StagingServiceImpl => service
+      const getStagingService = (): SessionScopedStagingService => service
 
       // Handler can access staging
       const staging = getStagingService()

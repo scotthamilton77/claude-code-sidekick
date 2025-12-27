@@ -18,7 +18,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { TranscriptServiceImpl, type TranscriptServiceOptions } from '../transcript-service'
-import { StagingServiceImpl, type StagingServiceOptions } from '../staging-service'
+import { StagingServiceCore, SessionScopedStagingService, type StagingServiceCoreOptions } from '../staging-service'
 import { HandlerRegistryImpl, type HandlerRegistryOptions } from '../handler-registry'
 import { isTranscriptEvent } from '@sidekick/types'
 import type { Logger, TranscriptEvent, StagedReminder } from '@sidekick/types'
@@ -79,7 +79,7 @@ interface TestContext {
   stateDir: string
   transcriptPath: string
   logger: Logger
-  stagingService: StagingServiceImpl
+  stagingService: SessionScopedStagingService
   transcriptService: TranscriptServiceImpl
   handlerRegistry: HandlerRegistryImpl
 }
@@ -91,12 +91,13 @@ function createTestContext(): TestContext {
   const logger = createMockLogger()
 
   // Create staging service
-  const stagingOptions: StagingServiceOptions = {
-    sessionId: 'test-session',
+  const stagingOptions: StagingServiceCoreOptions = {
     stateDir,
     logger,
+    scope: 'project',
   }
-  const stagingService = new StagingServiceImpl(stagingOptions)
+  const core = new StagingServiceCore(stagingOptions)
+  const stagingService = new SessionScopedStagingService(core, 'test-session', 'project')
 
   // Create handler registry
   const handlerOptions: HandlerRegistryOptions = {
@@ -142,7 +143,7 @@ function createTestContext(): TestContext {
  */
 function registerStuckHandler(
   handlerRegistry: HandlerRegistryImpl,
-  stagingService: StagingServiceImpl,
+  stagingService: SessionScopedStagingService,
   getMetrics: () => { toolsThisTurn: number }
 ): void {
   handlerRegistry.register({
@@ -176,7 +177,7 @@ function registerStuckHandler(
  */
 function registerUpdateHandler(
   handlerRegistry: HandlerRegistryImpl,
-  stagingService: StagingServiceImpl,
+  stagingService: SessionScopedStagingService,
   getMetrics: () => { toolsThisTurn: number }
 ): void {
   handlerRegistry.register({

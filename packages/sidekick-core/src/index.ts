@@ -121,13 +121,7 @@ export {
 } from './structured-logging'
 
 export { killAllSupervisors, SupervisorClient, type KillResult, type UserPidInfo } from './supervisor-client'
-export {
-  StagingServiceImpl,
-  StagingServiceCore,
-  SessionScopedStagingService,
-  type StagingServiceOptions,
-  type StagingServiceCoreOptions,
-} from './staging-service'
+export { StagingServiceCore, SessionScopedStagingService, type StagingServiceCoreOptions } from './staging-service'
 export { HandlerRegistryImpl, type HandlerRegistryOptions } from './handler-registry'
 export {
   createDefaultMetrics,
