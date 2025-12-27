@@ -150,12 +150,7 @@ export class StagingServiceCore {
    *
    * @throws Error if hookName or reminderName contain path traversal characters
    */
-  async stageReminder(
-    sessionId: string,
-    hookName: string,
-    reminderName: string,
-    data: StagedReminder
-  ): Promise<void> {
+  async stageReminder(sessionId: string, hookName: string, reminderName: string, data: StagedReminder): Promise<void> {
     validatePathSegment(hookName, 'hookName')
     validatePathSegment(reminderName, 'reminderName')
 
@@ -207,11 +202,7 @@ export class StagingServiceCore {
    *
    * @throws Error if hookName or reminderName contain path traversal characters
    */
-  async readReminder(
-    sessionId: string,
-    hookName: string,
-    reminderName: string
-  ): Promise<StagedReminder | null> {
+  async readReminder(sessionId: string, hookName: string, reminderName: string): Promise<StagedReminder | null> {
     validatePathSegment(hookName, 'hookName')
     validatePathSegment(reminderName, 'reminderName')
 
@@ -365,11 +356,7 @@ export class StagingServiceCore {
    *
    * @throws Error if hookName or reminderName contain path traversal characters
    */
-  async listConsumedReminders(
-    sessionId: string,
-    hookName: string,
-    reminderName: string
-  ): Promise<StagedReminder[]> {
+  async listConsumedReminders(sessionId: string, hookName: string, reminderName: string): Promise<StagedReminder[]> {
     validatePathSegment(hookName, 'hookName')
     validatePathSegment(reminderName, 'reminderName')
 
@@ -409,11 +396,7 @@ export class StagingServiceCore {
    *
    * @throws Error if hookName or reminderName contain path traversal characters
    */
-  async getLastConsumed(
-    sessionId: string,
-    hookName: string,
-    reminderName: string
-  ): Promise<StagedReminder | null> {
+  async getLastConsumed(sessionId: string, hookName: string, reminderName: string): Promise<StagedReminder | null> {
     const consumed = await this.listConsumedReminders(sessionId, hookName, reminderName)
     return consumed.length > 0 ? consumed[0] : null
   }
@@ -428,12 +411,7 @@ export class StagingServiceCore {
    *
    * @throws Error if hookName or reminderName contain path traversal characters
    */
-  stageReminderSync(
-    sessionId: string,
-    hookName: string,
-    reminderName: string,
-    data: StagedReminder
-  ): void {
+  stageReminderSync(sessionId: string, hookName: string, reminderName: string, data: StagedReminder): void {
     validatePathSegment(hookName, 'hookName')
     validatePathSegment(reminderName, 'reminderName')
 
