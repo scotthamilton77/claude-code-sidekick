@@ -40,7 +40,7 @@ export {
  */
 export const StatuslineConfigSchema = z.object({
   enabled: z.boolean().default(true),
-  format: z.string().default('[{model}] | {contextBar} {tokens} | {summary}'),
+  format: z.string().default('[{model}] | {contextBar} {tokens} | {cwd}{branch} | {summary}'),
   /** Confidence threshold for preferring session summary over first-prompt */
   confidenceThreshold: z.number().default(0.6),
   thresholds: z

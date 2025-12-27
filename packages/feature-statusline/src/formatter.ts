@@ -184,18 +184,46 @@ export function formatDuration(durationMs: number): string {
 }
 
 /**
- * Shorten path for display (e.g., "/home/user/project" → "~/project").
+ * Shorten path for display.
+ * Uses ellipsis at start + last two subfolders, capped at 20 chars.
+ * No trailing ellipsis - truncates from the right if needed.
+ * Examples:
+ *   "/home/user/projects/claude-config" → "…/projects/claude-co"
+ *   "/home/user/very-long/name" → "…/very-long/name"
+ *   "/Users/scott/src" → "…/scott/src"
+ *   "/short" → "/short"
  */
 export function shortenPath(fullPath: string, homeDir?: string): string {
-  if (homeDir && fullPath.startsWith(homeDir)) {
-    return '~' + fullPath.slice(homeDir.length)
+  const MAX_LENGTH = 20
+
+  // Replace home dir with ~ first
+  let path = fullPath
+  if (homeDir && path.startsWith(homeDir)) {
+    path = '~' + path.slice(homeDir.length)
   }
-  // Just return the last directory name if path is long
-  const parts = fullPath.split('/')
-  if (parts.length > 3) {
-    return '.../' + parts.slice(-2).join('/')
+
+  // If already short enough, return as-is
+  if (path.length <= MAX_LENGTH) {
+    return path
   }
-  return fullPath
+
+  // Use ellipsis + last two path segments
+  const parts = path.split('/')
+  if (parts.length >= 2) {
+    let shortened = '…/' + parts.slice(-2).join('/')
+    // If still too long, try just the last segment
+    if (shortened.length > MAX_LENGTH) {
+      shortened = '…/' + parts.slice(-1)[0]
+    }
+    // If still too long, hard truncate (no trailing ellipsis)
+    if (shortened.length > MAX_LENGTH) {
+      return shortened.slice(0, MAX_LENGTH)
+    }
+    return shortened
+  }
+
+  // Single segment that's too long - hard truncate with leading ellipsis
+  return '…' + path.slice(-(MAX_LENGTH - 1))
 }
 
 /**
