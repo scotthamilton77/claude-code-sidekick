@@ -410,6 +410,11 @@ export class Supervisor {
    * Shutdown session services on SessionEnd.
    * Uses ServiceFactory for proper cleanup.
    * Per docs/design/SUPERVISOR.md §4.7.
+   *
+   * Note: IPC requests are handled sequentially via handleIpcRequest(), which
+   * prevents race conditions with currentSessionId tracking. Each hook invocation
+   * completes before the next one starts, so there's no concurrent access to
+   * session state.
    */
   private async handleSessionEnd(event: HookEvent): Promise<void> {
     const sessionId = event.context?.sessionId
@@ -429,6 +434,11 @@ export class Supervisor {
    * This is the single source of truth for session initialization, called by:
    * - handleHookInvoke() early for ANY hook (lazy init if supervisor restarted mid-session)
    * - Works for both fresh sessions (SessionStart) and resumed sessions (other hooks)
+   *
+   * Note: IPC requests are handled sequentially via handleIpcRequest(), which
+   * prevents race conditions with currentSessionId tracking. Each hook invocation
+   * completes before the next one starts, so there's no concurrent access to
+   * session state.
    *
    * @param sessionId - Session ID from event context
    * @param providedTranscriptPath - Optional transcript path from event payload
