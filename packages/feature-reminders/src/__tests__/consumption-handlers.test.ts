@@ -201,10 +201,7 @@ describe('consumption-handlers', () => {
         join(stagingDir, 'consumed-reminder.1766841830298.json'),
         JSON.stringify({ name: 'consumed-reminder', priority: 60 })
       )
-      writeFileSync(
-        join(stagingDir, 'another.999.json'),
-        JSON.stringify({ name: 'another', priority: 70 })
-      )
+      writeFileSync(join(stagingDir, 'another.999.json'), JSON.stringify({ name: 'another', priority: 70 }))
 
       const reader = new CLIStagingReader({
         paths: mockPaths,
