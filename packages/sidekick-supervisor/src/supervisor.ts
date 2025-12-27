@@ -91,6 +91,7 @@ export class Supervisor {
   private lastActivityTime: number = Date.now()
   private idleCheckInterval: ReturnType<typeof setInterval> | null = null
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null
+  private evictionTimer: ReturnType<typeof setInterval> | null = null
   private startTime: number = Date.now()
 
   constructor(projectDir: string) {
@@ -190,6 +191,9 @@ export class Supervisor {
       // 9. Start heartbeat for monitoring UI
       this.startHeartbeat()
 
+      // 10. Start periodic session eviction (Phase 6)
+      this.startEvictionTimer()
+
       this.logger.info('Supervisor started successfully')
     } catch (err) {
       this.logger.fatal('Failed to start supervisor', { error: err })
@@ -206,6 +210,9 @@ export class Supervisor {
 
     // Stop heartbeat
     this.stopHeartbeat()
+
+    // Clear eviction timer
+    this.stopEvictionTimer()
 
     // Stop config watcher
     this.configWatcher.stop()
@@ -752,6 +759,31 @@ export class Supervisor {
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval)
       this.heartbeatInterval = null
+    }
+  }
+
+  /**
+   * Start periodic session eviction timer.
+   * Per Phase 6: Evicts orphaned sessions (e.g., from crashed Claude Code instances)
+   * to prevent memory leaks. Runs every 5 minutes.
+   */
+  private startEvictionTimer(): void {
+    const EVICTION_INTERVAL_MS = 5 * 60 * 1000 // Every 5 minutes
+
+    this.evictionTimer = setInterval(() => {
+      void this.serviceFactory.evictStaleSessions()
+    }, EVICTION_INTERVAL_MS)
+
+    // Don't let the interval keep the process alive
+    this.evictionTimer.unref()
+
+    this.logger.info('Session eviction timer started', { intervalMs: EVICTION_INTERVAL_MS })
+  }
+
+  private stopEvictionTimer(): void {
+    if (this.evictionTimer) {
+      clearInterval(this.evictionTimer)
+      this.evictionTimer = null
     }
   }
 
