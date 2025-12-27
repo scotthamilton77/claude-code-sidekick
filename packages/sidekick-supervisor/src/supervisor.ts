@@ -530,6 +530,15 @@ export class Supervisor {
       return
     }
 
+    // Clear any pending reminders staged for tool-use and stop hooks
+    // User submitting a prompt resets the context - stale reminders should not fire
+    const stagingService = this.serviceFactory.getStagingService(sessionId)
+    const hooksToClear: Array<'PreToolUse' | 'PostToolUse' | 'Stop'> = ['PreToolUse', 'PostToolUse', 'Stop']
+    for (const hook of hooksToClear) {
+      await stagingService.clearStaging(hook)
+    }
+    this.logger.debug('Cleared staged reminders on UserPromptSubmit', { sessionId, hooks: hooksToClear })
+
     // Build state directory path
     const stateDir = path.join(this.projectDir, '.sidekick', 'sessions', sessionId, 'state')
     const sessionSummaryPath = path.join(stateDir, 'session-summary.json')
