@@ -182,9 +182,7 @@ describe('Supervisor eviction timer', () => {
       [Symbol.toPrimitive]: vi.fn(),
       [Symbol.dispose]: vi.fn(),
     }
-    vi.spyOn(globalThis, 'setInterval').mockImplementation(
-      (() => mockTimer) as unknown as typeof setInterval
-    )
+    vi.spyOn(globalThis, 'setInterval').mockImplementation((() => mockTimer) as unknown as typeof setInterval)
 
     sup.startEvictionTimer()
 
