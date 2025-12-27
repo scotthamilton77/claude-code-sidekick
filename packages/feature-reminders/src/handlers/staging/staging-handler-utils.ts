@@ -17,8 +17,9 @@ import type {
   SidekickEvent,
   HandlerContext,
   HandlerFilter,
+  StagingMetrics,
 } from '@sidekick/types'
-import { isSupervisorContext } from '@sidekick/types'
+import { isSupervisorContext, isTranscriptEvent } from '@sidekick/types'
 import { resolveReminder, stageReminder, suppressHook } from '../../reminder-utils.js'
 import type { TemplateContext } from '../../types.js'
 
@@ -81,8 +82,20 @@ export function createStagingHandler(context: RuntimeContext, config: StagingHan
       return
     }
 
-    // Stage reminder
-    await stageReminder(supervisorCtx, action.targetHook, reminder)
+    // Add stagedAt metrics for reactivation decisions (only for transcript events with metrics)
+    let stagedAt: StagingMetrics | undefined
+    if (isTranscriptEvent(event)) {
+      const metrics = event.metadata.metrics
+      stagedAt = {
+        timestamp: Date.now(),
+        turnCount: metrics.turnCount,
+        toolsThisTurn: metrics.toolsThisTurn,
+        toolCount: metrics.toolCount,
+      }
+    }
+
+    // Stage reminder with stagedAt metrics
+    await stageReminder(supervisorCtx, action.targetHook, { ...reminder, stagedAt })
 
     // Suppress hooks if requested
     if (action.suppressHooks) {

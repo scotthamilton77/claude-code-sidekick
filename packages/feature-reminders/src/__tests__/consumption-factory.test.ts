@@ -51,7 +51,8 @@ describe('createConsumptionHandler', () => {
     handlers = new MockHandlerRegistry()
 
     // Create staging directory structure
-    const stagingDir = join(testStateDir, 'state', 'sessions', sessionId, 'stage')
+    // CLIStagingReader uses: projectConfigDir/sessions/sessionId/stage/hook
+    const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage')
     mkdirSync(join(stagingDir, 'PreToolUse'), { recursive: true })
     mkdirSync(join(stagingDir, 'Stop'), { recursive: true })
 
@@ -60,8 +61,8 @@ describe('createConsumptionHandler', () => {
       handlers,
       paths: {
         projectDir: '/mock/project',
-        userConfigDir: testStateDir,
-        projectConfigDir: '/mock/project/.sidekick',
+        userConfigDir: '/mock/user',
+        projectConfigDir: testStateDir, // CLIStagingReader uses projectConfigDir
       },
     })
   })
@@ -140,7 +141,7 @@ describe('createConsumptionHandler', () => {
     })
 
     it('returns reminder content from staged file', async () => {
-      const stagingDir = join(testStateDir, 'state', 'sessions', sessionId, 'stage', 'PreToolUse')
+      const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'PreToolUse')
       writeFileSync(
         join(stagingDir, 'test-reminder.json'),
         JSON.stringify({
@@ -169,7 +170,7 @@ describe('createConsumptionHandler', () => {
     })
 
     it('includes userMessage in response when present', async () => {
-      const stagingDir = join(testStateDir, 'state', 'sessions', sessionId, 'stage', 'PreToolUse')
+      const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'PreToolUse')
       writeFileSync(
         join(stagingDir, 'test.json'),
         JSON.stringify({
@@ -200,7 +201,7 @@ describe('createConsumptionHandler', () => {
     })
 
     it('deletes non-persistent reminder after consumption', async () => {
-      const stagingDir = join(testStateDir, 'state', 'sessions', sessionId, 'stage', 'PreToolUse')
+      const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'PreToolUse')
       const reminderPath = join(stagingDir, 'one-shot.json')
       writeFileSync(
         reminderPath,
@@ -223,7 +224,7 @@ describe('createConsumptionHandler', () => {
     })
 
     it('preserves persistent reminder after consumption', async () => {
-      const stagingDir = join(testStateDir, 'state', 'sessions', sessionId, 'stage', 'PreToolUse')
+      const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'PreToolUse')
       const reminderPath = join(stagingDir, 'persistent.json')
       writeFileSync(
         reminderPath,
@@ -248,7 +249,7 @@ describe('createConsumptionHandler', () => {
 
   describe('blocking behavior', () => {
     it('does not include blocking fields when supportsBlocking is false', async () => {
-      const stagingDir = join(testStateDir, 'state', 'sessions', sessionId, 'stage', 'PreToolUse')
+      const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'PreToolUse')
       writeFileSync(
         join(stagingDir, 'blocking.json'),
         JSON.stringify({
@@ -276,7 +277,7 @@ describe('createConsumptionHandler', () => {
     })
 
     it('includes blocking fields when supportsBlocking is true', async () => {
-      const stagingDir = join(testStateDir, 'state', 'sessions', sessionId, 'stage', 'Stop')
+      const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'Stop')
       writeFileSync(
         join(stagingDir, 'blocking.json'),
         JSON.stringify({
@@ -308,7 +309,7 @@ describe('createConsumptionHandler', () => {
     })
 
     it('does not block when reminder.blocking is false', async () => {
-      const stagingDir = join(testStateDir, 'state', 'sessions', sessionId, 'stage', 'Stop')
+      const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'Stop')
       writeFileSync(
         join(stagingDir, 'non-blocking.json'),
         JSON.stringify({
@@ -339,7 +340,7 @@ describe('createConsumptionHandler', () => {
 
   describe('suppression behavior', () => {
     it('returns empty response when hook is suppressed', async () => {
-      const stagingDir = join(testStateDir, 'state', 'sessions', sessionId, 'stage', 'Stop')
+      const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'Stop')
       writeFileSync(join(stagingDir, 'reminder.json'), JSON.stringify({ name: 'reminder', priority: 50 }))
       writeFileSync(join(stagingDir, '.suppressed'), '')
 
@@ -358,7 +359,7 @@ describe('createConsumptionHandler', () => {
     })
 
     it('clears suppression marker after check', async () => {
-      const stagingDir = join(testStateDir, 'state', 'sessions', sessionId, 'stage', 'Stop')
+      const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'Stop')
       const suppressedPath = join(stagingDir, '.suppressed')
       writeFileSync(suppressedPath, '')
 
@@ -376,7 +377,7 @@ describe('createConsumptionHandler', () => {
 
   describe('logging', () => {
     it('logs when reminder is injected', async () => {
-      const stagingDir = join(testStateDir, 'state', 'sessions', sessionId, 'stage', 'PreToolUse')
+      const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'PreToolUse')
       writeFileSync(join(stagingDir, 'test.json'), JSON.stringify({ name: 'test', priority: 50 }))
 
       createConsumptionHandler(ctx, {

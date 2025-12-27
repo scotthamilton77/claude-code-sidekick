@@ -170,6 +170,7 @@ export class StagingServiceImpl implements StagingService {
   /**
    * List all staged reminders for a hook.
    * Returns reminders sorted by priority (highest first).
+   * Excludes consumed reminders (files with timestamp suffix like `name.1234567890.json`).
    *
    * @throws Error if hookName contains path traversal characters
    */
@@ -182,7 +183,9 @@ export class StagingServiceImpl implements StagingService {
       return []
     }
 
-    const files = readdirSync(hookDir).filter((f) => f.endsWith('.json'))
+    // Filter to .json files, excluding consumed files (name.{timestamp}.json)
+    // Consumed files have a numeric timestamp suffix before .json
+    const files = readdirSync(hookDir).filter((f) => f.endsWith('.json') && !/\.\d+\.json$/.test(f))
     const reminders: StagedReminder[] = []
 
     for (const file of files) {
@@ -284,6 +287,58 @@ export class StagingServiceImpl implements StagingService {
     if (existsSync(reminderPath)) {
       await unlink(reminderPath)
     }
+  }
+
+  /**
+   * List consumed reminder files for a specific reminder ID.
+   * Consumed files have pattern: {reminderName}.{timestamp}.json
+   * Returns reminders sorted by timestamp (newest first).
+   *
+   * @throws Error if hookName or reminderName contain path traversal characters
+   */
+  async listConsumedReminders(hookName: string, reminderName: string): Promise<StagedReminder[]> {
+    validatePathSegment(hookName, 'hookName')
+    validatePathSegment(reminderName, 'reminderName')
+
+    const hookDir = this.getHookDir(hookName)
+    if (!existsSync(hookDir)) {
+      return []
+    }
+
+    // Pattern: {reminderName}.{timestamp}.json where timestamp is unix ms
+    const pattern = new RegExp(`^${reminderName}\\.(\\d+)\\.json$`)
+    const files = readdirSync(hookDir)
+      .filter((f) => pattern.test(f))
+      .map((f) => ({
+        file: f,
+        timestamp: parseInt(pattern.exec(f)![1], 10),
+      }))
+      .sort((a, b) => b.timestamp - a.timestamp) // newest first
+
+    const reminders: StagedReminder[] = []
+    for (const { file } of files) {
+      const reminderPath = join(hookDir, file)
+      try {
+        const content = await readFile(reminderPath, 'utf-8')
+        reminders.push(JSON.parse(content) as StagedReminder)
+      } catch {
+        // Skip malformed files
+        this.options.logger.warn('Skipping malformed consumed reminder file', { path: reminderPath })
+      }
+    }
+
+    return reminders
+  }
+
+  /**
+   * Get the most recently consumed reminder for a specific reminder ID.
+   * Used by staging handlers to determine if reactivation is needed.
+   *
+   * @throws Error if hookName or reminderName contain path traversal characters
+   */
+  async getLastConsumed(hookName: string, reminderName: string): Promise<StagedReminder | null> {
+    const consumed = await this.listConsumedReminders(hookName, reminderName)
+    return consumed.length > 0 ? consumed[0] : null
   }
 
   // ============================================================================

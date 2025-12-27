@@ -66,9 +66,9 @@ export function createConsumptionHandler(context: RuntimeContext, config: Consum
 
       const reminder = reminders[0]
 
-      // Delete if not persistent
+      // Rename if not persistent (preserves consumption history for reactivation)
       if (!reminder.persistent) {
-        reader.deleteReminder(hook, reminder.name)
+        reader.renameReminder(hook, reminder.name)
       }
 
       // Build response

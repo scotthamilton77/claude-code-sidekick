@@ -7,7 +7,7 @@
  * @see docs/design/FEATURE-REMINDERS.md §3.1 Consumption Handlers
  */
 
-import { existsSync, readdirSync, readFileSync, unlinkSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, renameSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import type { StagedReminder, RuntimePaths } from '@sidekick/types'
 
@@ -58,13 +58,16 @@ export class CLIStagingReader {
 
   /**
    * List all staged reminders for a hook, sorted by priority (highest first).
+   * Excludes consumed reminders (files with timestamp suffix like `name.1234567890.json`).
    */
   listReminders(hookName: string): StagedReminder[] {
     if (!isValidPathSegment(hookName)) return []
     const hookDir = join(this.stagingRoot, hookName)
     if (!existsSync(hookDir)) return []
 
-    const files = readdirSync(hookDir).filter((f) => f.endsWith('.json'))
+    // Filter to .json files, excluding consumed files (name.{timestamp}.json)
+    // Consumed files have a numeric timestamp suffix before .json
+    const files = readdirSync(hookDir).filter((f) => f.endsWith('.json') && !/\.\d+\.json$/.test(f))
     const reminders: StagedReminder[] = []
 
     for (const file of files) {
@@ -87,6 +90,20 @@ export class CLIStagingReader {
     const path = join(this.stagingRoot, hookName, `${reminderName}.json`)
     if (existsSync(path)) {
       unlinkSync(path)
+    }
+  }
+
+  /**
+   * Rename a consumed reminder file to preserve consumption history.
+   * Renames {reminderName}.json to {reminderName}.{timestamp}.json
+   * This allows Supervisor to determine reactivation timing.
+   */
+  renameReminder(hookName: string, reminderName: string): void {
+    if (!isValidPathSegment(hookName) || !isValidPathSegment(reminderName)) return
+    const src = join(this.stagingRoot, hookName, `${reminderName}.json`)
+    const dst = join(this.stagingRoot, hookName, `${reminderName}.${Date.now()}.json`)
+    if (existsSync(src)) {
+      renameSync(src, dst)
     }
   }
 }
