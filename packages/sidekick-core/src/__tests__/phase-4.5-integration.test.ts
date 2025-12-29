@@ -337,15 +337,15 @@ describe('Phase 4.5: TranscriptService → Handler Integration', () => {
     it('handlers can stage reminders via context.staging', async () => {
       // Register handler that stages a reminder on ToolResult
       handlerRegistry.register<TestHandlerContext>({
-        id: 'test:stuck-detector',
+        id: 'test:checkpoint-detector',
         priority: 100,
         filter: { kind: 'transcript', eventTypes: ['ToolResult'] },
         handler: async (_event, ctx) => {
           const metrics = ctx.getMetrics()
-          // Simulate "are you stuck?" reminder staging when tool count is high
+          // Simulate "pause and reflect" reminder staging when tool count is high
           if (metrics.toolsThisTurn >= 1) {
-            await ctx.staging.stageReminder('UserPromptSubmit', 'are-you-stuck', {
-              name: 'are-you-stuck',
+            await ctx.staging.stageReminder('UserPromptSubmit', 'pause-and-reflect', {
+              name: 'pause-and-reflect',
               blocking: false,
               priority: 50,
               persistent: false,
@@ -371,9 +371,9 @@ describe('Phase 4.5: TranscriptService → Handler Integration', () => {
       await new Promise((resolve) => setTimeout(resolve, 150))
 
       // Verify reminder was staged
-      const reminder = await stagingService.readReminder('UserPromptSubmit', 'are-you-stuck')
+      const reminder = await stagingService.readReminder('UserPromptSubmit', 'pause-and-reflect')
       expect(reminder).not.toBeNull()
-      expect(reminder?.name).toBe('are-you-stuck')
+      expect(reminder?.name).toBe('pause-and-reflect')
       expect(reminder?.additionalContext).toContain('1 tools this turn')
     })
 

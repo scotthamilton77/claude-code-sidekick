@@ -9,8 +9,7 @@
 
 import type { RuntimeContext } from '@sidekick/core'
 import { registerStageDefaultUserPrompt } from './stage-default-user-prompt'
-import { registerStageAreYouStuck } from './stage-are-you-stuck'
-import { registerStageTimeForUpdate } from './stage-time-for-update'
+import { registerStagePauseAndReflect } from './stage-pause-and-reflect'
 import { registerStageStopReminders } from './stage-stop-reminders'
 
 /**
@@ -18,7 +17,6 @@ import { registerStageStopReminders } from './stage-stop-reminders'
  */
 export function registerStagingHandlers(context: RuntimeContext): void {
   registerStageDefaultUserPrompt(context)
-  registerStageAreYouStuck(context)
-  registerStageTimeForUpdate(context)
+  registerStagePauseAndReflect(context)
   registerStageStopReminders(context)
 }

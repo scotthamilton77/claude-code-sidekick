@@ -60,13 +60,11 @@ const TEST_DATA_DIR = join(process.cwd(), '../../test-data/transcripts')
 // ============================================================================
 
 const REMINDER_THRESHOLDS = {
-  update_threshold: 15,
-  stuck_threshold: 20,
+  pause_and_reflect_threshold: 15,
 } as const
 
 const REMINDER_IDS = {
-  ARE_YOU_STUCK: 'are-you-stuck',
-  TIME_FOR_USER_UPDATE: 'time-for-user-update',
+  PAUSE_AND_REFLECT: 'pause-and-reflect',
   VERIFY_COMPLETION: 'verify-completion',
 } as const
 
@@ -138,68 +136,35 @@ function createTestContext(): TestContext {
 // ============================================================================
 
 /**
- * Register a handler that mimics the "are you stuck?" reminder staging logic.
- * Stages a reminder when toolsThisTurn >= stuck_threshold.
+ * Register a handler that mimics the "pause and reflect" reminder staging logic.
+ * Stages a reminder when toolsThisTurn >= pause_and_reflect_threshold.
  */
-function registerStuckHandler(
+function registerPauseAndReflectHandler(
   handlerRegistry: HandlerRegistryImpl,
   stagingService: SessionScopedStagingService,
   getMetrics: () => { toolsThisTurn: number }
 ): void {
   handlerRegistry.register({
-    id: 'e2e:stage-are-you-stuck',
+    id: 'e2e:stage-pause-and-reflect',
     priority: 80,
     filter: { kind: 'transcript', eventTypes: ['ToolCall'] },
     handler: async (event: unknown) => {
       if (!isTranscriptEvent(event as TranscriptEvent)) return
 
       const metrics = getMetrics()
-      if (metrics.toolsThisTurn < REMINDER_THRESHOLDS.stuck_threshold) return
+      if (metrics.toolsThisTurn < REMINDER_THRESHOLDS.pause_and_reflect_threshold) return
 
       const reminder: StagedReminder = {
-        name: REMINDER_IDS.ARE_YOU_STUCK,
+        name: REMINDER_IDS.PAUSE_AND_REFLECT,
         blocking: true,
         priority: 80,
         persistent: false,
-        additionalContext: `Stuck at ${metrics.toolsThisTurn} tools this turn`,
-        stopReason: 'Agent appears stuck',
+        additionalContext: `Checkpoint at ${metrics.toolsThisTurn} tools this turn`,
+        stopReason: 'Checkpoint triggered',
       }
 
-      await stagingService.stageReminder('PreToolUse', REMINDER_IDS.ARE_YOU_STUCK, reminder)
+      await stagingService.stageReminder('PreToolUse', REMINDER_IDS.PAUSE_AND_REFLECT, reminder)
       await stagingService.suppressHook('Stop') // Avoid double-nagging
-    },
-  })
-}
-
-/**
- * Register a handler that mimics the "time for user update" reminder staging logic.
- * Stages when update_threshold <= toolsThisTurn < stuck_threshold.
- */
-function registerUpdateHandler(
-  handlerRegistry: HandlerRegistryImpl,
-  stagingService: SessionScopedStagingService,
-  getMetrics: () => { toolsThisTurn: number }
-): void {
-  handlerRegistry.register({
-    id: 'e2e:stage-time-for-update',
-    priority: 70,
-    filter: { kind: 'transcript', eventTypes: ['ToolCall'] },
-    handler: async (event: unknown) => {
-      if (!isTranscriptEvent(event as TranscriptEvent)) return
-
-      const metrics = getMetrics()
-      if (metrics.toolsThisTurn < REMINDER_THRESHOLDS.update_threshold) return
-      if (metrics.toolsThisTurn >= REMINDER_THRESHOLDS.stuck_threshold) return
-
-      const reminder: StagedReminder = {
-        name: REMINDER_IDS.TIME_FOR_USER_UPDATE,
-        blocking: true,
-        priority: 70,
-        persistent: false,
-        additionalContext: `Progress update at ${metrics.toolsThisTurn} tools`,
-      }
-
-      await stagingService.stageReminder('PreToolUse', REMINDER_IDS.TIME_FOR_USER_UPDATE, reminder)
     },
   })
 }
@@ -225,11 +190,11 @@ describe('Feature E2E: Reminders with Real Transcripts', () => {
   // --------------------------------------------------------------------------
 
   describe('toolsThisTurn threshold triggers', () => {
-    it('stages AreYouStuck reminder when toolsThisTurn >= stuck_threshold', async () => {
-      // Register inline handler that mimics stuck detection
-      registerStuckHandler(ctx.handlerRegistry, ctx.stagingService, () => ctx.transcriptService.getMetrics())
+    it('stages PauseAndReflect reminder when toolsThisTurn >= pause_and_reflect_threshold', async () => {
+      // Register inline handler that mimics checkpoint detection
+      registerPauseAndReflectHandler(ctx.handlerRegistry, ctx.stagingService, () => ctx.transcriptService.getMetrics())
 
-      // medium-003.jsonl has 22 tool_use blocks (> stuck_threshold of 20)
+      // medium-003.jsonl has 22 tool_use blocks (> pause_and_reflect_threshold of 15)
       const sourceFile = join(TEST_DATA_DIR, 'medium-003.jsonl')
       if (!existsSync(sourceFile)) {
         console.warn('Skipping integration test - test data not available')
@@ -254,11 +219,11 @@ describe('Feature E2E: Reminders with Real Transcripts', () => {
       // Check what was staged - may be empty if no single turn had enough tools
       const reminders = await ctx.stagingService.listReminders('PreToolUse')
 
-      // If stuck reminder was staged, verify its properties
-      const stuckReminder = reminders.find((r) => r.name === REMINDER_IDS.ARE_YOU_STUCK)
-      if (stuckReminder) {
-        expect(stuckReminder.blocking).toBe(true)
-        expect(stuckReminder.priority).toBe(80)
+      // If pause-and-reflect reminder was staged, verify its properties
+      const pauseReminder = reminders.find((r) => r.name === REMINDER_IDS.PAUSE_AND_REFLECT)
+      if (pauseReminder) {
+        expect(pauseReminder.blocking).toBe(true)
+        expect(pauseReminder.priority).toBe(80)
       }
 
       // Test passes if either: threshold was hit and reminder staged, or
@@ -266,10 +231,8 @@ describe('Feature E2E: Reminders with Real Transcripts', () => {
       expect(metrics.lastProcessedLine).toBeGreaterThan(0)
     })
 
-    it('stages TimeForUserUpdate when in update range', async () => {
-      // Register both handlers - stuck has higher priority
-      registerStuckHandler(ctx.handlerRegistry, ctx.stagingService, () => ctx.transcriptService.getMetrics())
-      registerUpdateHandler(ctx.handlerRegistry, ctx.stagingService, () => ctx.transcriptService.getMetrics())
+    it('processes long transcript with many tools spread across turns', async () => {
+      registerPauseAndReflectHandler(ctx.handlerRegistry, ctx.stagingService, () => ctx.transcriptService.getMetrics())
 
       // Use long-001 which has many tools spread across turns
       const sourceFile = join(TEST_DATA_DIR, 'long-001.jsonl')
@@ -357,17 +320,14 @@ describe('Feature E2E: Reminders with Real Transcripts', () => {
   // --------------------------------------------------------------------------
 
   describe('handler priority ordering', () => {
-    it('registers handlers in priority order (higher first)', () => {
-      registerStuckHandler(ctx.handlerRegistry, ctx.stagingService, () => ctx.transcriptService.getMetrics())
-      registerUpdateHandler(ctx.handlerRegistry, ctx.stagingService, () => ctx.transcriptService.getMetrics())
+    it('registers handler with correct priority', () => {
+      registerPauseAndReflectHandler(ctx.handlerRegistry, ctx.stagingService, () => ctx.transcriptService.getMetrics())
 
       const handlerIds = ctx.handlerRegistry.getHandlerIds()
 
-      // stuck (priority 80) should come before update (priority 70)
-      const stuckIdx = handlerIds.findIndex((id) => id.includes('stuck'))
-      const updateIdx = handlerIds.findIndex((id) => id.includes('update'))
-
-      expect(stuckIdx).toBeLessThan(updateIdx)
+      // pause-and-reflect should be registered
+      const pauseIdx = handlerIds.findIndex((id) => id.includes('pause-and-reflect'))
+      expect(pauseIdx).toBeGreaterThanOrEqual(0)
     })
   })
 })
@@ -385,7 +345,7 @@ describe('Feature E2E: Staging and Consumption Flow', () => {
   })
 
   it('reminder staged by transcript event can be consumed by hook invocation', async () => {
-    registerStuckHandler(ctx.handlerRegistry, ctx.stagingService, () => ctx.transcriptService.getMetrics())
+    registerPauseAndReflectHandler(ctx.handlerRegistry, ctx.stagingService, () => ctx.transcriptService.getMetrics())
 
     const sourceFile = join(TEST_DATA_DIR, 'medium-003.jsonl')
     if (!existsSync(sourceFile)) {
@@ -412,8 +372,8 @@ describe('Feature E2E: Staging and Consumption Flow', () => {
     }
   })
 
-  it('suppression marker prevents Stop hook from firing after stuck reminder', async () => {
-    registerStuckHandler(ctx.handlerRegistry, ctx.stagingService, () => ctx.transcriptService.getMetrics())
+  it('suppression marker prevents Stop hook from firing after pause-and-reflect reminder', async () => {
+    registerPauseAndReflectHandler(ctx.handlerRegistry, ctx.stagingService, () => ctx.transcriptService.getMetrics())
 
     const sourceFile = join(TEST_DATA_DIR, 'medium-003.jsonl')
     if (!existsSync(sourceFile)) {
@@ -425,12 +385,12 @@ describe('Feature E2E: Staging and Consumption Flow', () => {
     await ctx.transcriptService.initialize('test-session', ctx.transcriptPath)
     await new Promise((resolve) => setTimeout(resolve, 300))
 
-    // AreYouStuck handler should suppress Stop hook
+    // PauseAndReflect handler should suppress Stop hook
     const isSuppressed = await ctx.stagingService.isHookSuppressed('Stop')
 
-    // If stuck reminder was staged, Stop should be suppressed
-    const stuckReminder = await ctx.stagingService.readReminder('PreToolUse', REMINDER_IDS.ARE_YOU_STUCK)
-    if (stuckReminder) {
+    // If pause-and-reflect reminder was staged, Stop should be suppressed
+    const pauseReminder = await ctx.stagingService.readReminder('PreToolUse', REMINDER_IDS.PAUSE_AND_REFLECT)
+    if (pauseReminder) {
       expect(isSuppressed).toBe(true)
     }
   })
@@ -487,7 +447,7 @@ describe('Feature E2E: Threshold Logic with Synthetic Data', () => {
     // When a new user message arrives, turnCount increments and toolsThisTurn resets
 
     const entries = []
-    const numTools = 25 // More than stuck_threshold
+    const numTools = 25 // More than pause_and_reflect_threshold
 
     // User message with MULTIPLE tool_result blocks (this is how Claude Code structures it)
     const toolResults = []
@@ -517,13 +477,13 @@ describe('Feature E2E: Threshold Logic with Synthetic Data', () => {
     expect(metrics.turnCount).toBe(0)
   })
 
-  it('triggers stuck handler when toolsThisTurn >= stuck_threshold', async () => {
+  it('triggers checkpoint handler when toolsThisTurn >= pause_and_reflect_threshold', async () => {
     // Use ToolResult event handler since that's when tools are counted
     // Our inline handlers listen to ToolCall, but the real feature listens to ToolResult
     // Let's verify the metrics and handler invocation manually
 
     const entries = []
-    const numTools = REMINDER_THRESHOLDS.stuck_threshold + 2
+    const numTools = REMINDER_THRESHOLDS.pause_and_reflect_threshold + 2
 
     // Single user message with many tool_results
     const toolResults = []
@@ -542,7 +502,7 @@ describe('Feature E2E: Threshold Logic with Synthetic Data', () => {
     await ctx.transcriptService.initialize('test-session', ctx.transcriptPath)
 
     const metrics = ctx.transcriptService.getMetrics()
-    expect(metrics.toolsThisTurn).toBeGreaterThanOrEqual(REMINDER_THRESHOLDS.stuck_threshold)
+    expect(metrics.toolsThisTurn).toBeGreaterThanOrEqual(REMINDER_THRESHOLDS.pause_and_reflect_threshold)
   })
 
   it('resets toolsThisTurn counter on new user message', async () => {

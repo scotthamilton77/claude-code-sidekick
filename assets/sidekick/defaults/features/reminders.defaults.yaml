@@ -5,14 +5,7 @@
 # Enable or disable the reminders feature
 enabled: true
 
-# Tool calls per turn that trigger the "time for user update" reminder.
+# Tool calls per turn that trigger the "pause and reflect" reminder.
 # Counts tool invocations since the last user prompt (toolsThisTurn metric).
-# Fires when: update_threshold <= toolsThisTurn < stuck_threshold
-# Example: With defaults (15, 20), fires at 15-19 tool calls per turn.
-update_threshold: 15
-
-# Tool calls per turn that trigger the "are you stuck" reminder.
-# Fires when: toolsThisTurn >= stuck_threshold
-# Takes priority over update_threshold (higher priority: 80 vs 70).
-# Example: With default 20, fires when Claude uses 20+ tools without user input.
-stuck_threshold: 20
+# Fires when: toolsThisTurn >= pause_and_reflect_threshold
+pause_and_reflect_threshold: 15

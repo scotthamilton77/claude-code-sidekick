@@ -14,8 +14,7 @@ import {
   createDefaultMetrics,
 } from '@sidekick/testing-fixtures'
 import type { SupervisorContext, TranscriptEvent, TranscriptMetrics } from '@sidekick/types'
-import { registerStageAreYouStuck } from '../handlers/staging/stage-are-you-stuck'
-import { registerStageTimeForUpdate } from '../handlers/staging/stage-time-for-update'
+import { registerStagePauseAndReflect } from '../handlers/staging/stage-pause-and-reflect'
 import { registerStageDefaultUserPrompt } from '../handlers/staging/stage-default-user-prompt'
 import { registerStageStopReminders } from '../handlers/staging/stage-stop-reminders'
 
@@ -54,18 +53,12 @@ describe('staging handlers', () => {
 
     // Register test reminder definitions using MockAssetResolver
     assets.registerAll({
-      'reminders/are-you-stuck.yaml': `id: are-you-stuck
+      'reminders/pause-and-reflect.yaml': `id: pause-and-reflect
 blocking: true
 priority: 80
 persistent: false
-additionalContext: "Stuck at {{toolsThisTurn}} tools"
-stopReason: "Agent stuck - {{toolsThisTurn}} tools used"
-`,
-      'reminders/time-for-user-update.yaml': `id: time-for-user-update
-blocking: true
-priority: 70
-persistent: false
-additionalContext: "Update at {{toolsThisTurn}} tools"
+additionalContext: "Checkpoint at {{toolsThisTurn}} tools"
+stopReason: "Checkpoint - {{toolsThisTurn}} tools used"
 `,
       'reminders/user-prompt-submit.yaml': `id: user-prompt-submit
 blocking: false
@@ -89,21 +82,21 @@ stopReason: "Verify completion before stopping"
       const cliCtx = createMockCLIContext()
 
       // Try to register in CLI context - should not register
-      registerStageAreYouStuck(cliCtx as unknown as SupervisorContext)
+      registerStagePauseAndReflect(cliCtx as unknown as SupervisorContext)
 
       expect((cliCtx.handlers as MockHandlerRegistry).getRegistrations()).toHaveLength(0)
     })
 
     it('registers handler in supervisor context', () => {
-      registerStageAreYouStuck(ctx)
+      registerStagePauseAndReflect(ctx)
 
       const registrations = handlers.getRegistrations()
       expect(registrations).toHaveLength(1)
-      expect(registrations[0].id).toBe('reminders:stage-are-you-stuck')
+      expect(registrations[0].id).toBe('reminders:stage-pause-and-reflect')
     })
 
     it('registers handler with correct filter type', () => {
-      registerStageAreYouStuck(ctx)
+      registerStagePauseAndReflect(ctx)
 
       const registrations = handlers.getHandlersByKind('transcript')
       expect(registrations).toHaveLength(1)
@@ -114,27 +107,27 @@ stopReason: "Verify completion before stopping"
     })
 
     it('registers handler with correct priority', () => {
-      registerStageAreYouStuck(ctx)
+      registerStagePauseAndReflect(ctx)
 
       const registrations = handlers.getRegistrations()
       expect(registrations[0].priority).toBe(80)
     })
   })
 
-  describe('registerStageAreYouStuck', () => {
+  describe('registerStagePauseAndReflect', () => {
     it('registers with transcript filter for ToolCall events', () => {
-      registerStageAreYouStuck(ctx)
+      registerStagePauseAndReflect(ctx)
 
       const registrations = handlers.getHandlersForTranscriptEvent('ToolCall')
       expect(registrations).toHaveLength(1)
-      expect(registrations[0].id).toBe('reminders:stage-are-you-stuck')
+      expect(registrations[0].id).toBe('reminders:stage-pause-and-reflect')
     })
 
     it('does not stage reminder when below threshold', async () => {
-      registerStageAreYouStuck(ctx)
+      registerStagePauseAndReflect(ctx)
 
-      const handler = handlers.getHandler('reminders:stage-are-you-stuck')
-      const event = createTestTranscriptEvent({ toolsThisTurn: 15 }) // Below default 20
+      const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
+      const event = createTestTranscriptEvent({ toolsThisTurn: 10 }) // Below default 15
 
       await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
 
@@ -142,25 +135,25 @@ stopReason: "Verify completion before stopping"
     })
 
     it('stages reminder when at or above threshold', async () => {
-      registerStageAreYouStuck(ctx)
+      registerStagePauseAndReflect(ctx)
 
-      const handler = handlers.getHandler('reminders:stage-are-you-stuck')
-      const event = createTestTranscriptEvent({ toolsThisTurn: 20 })
+      const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
+      const event = createTestTranscriptEvent({ toolsThisTurn: 15 })
 
       await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
 
       const reminders = staging.getRemindersForHook('PreToolUse')
       expect(reminders).toHaveLength(1)
-      expect(reminders[0].name).toBe('are-you-stuck')
+      expect(reminders[0].name).toBe('pause-and-reflect')
       expect(reminders[0].priority).toBe(80)
       expect(reminders[0].blocking).toBe(true)
     })
 
     it('suppresses Stop hook after staging', async () => {
-      registerStageAreYouStuck(ctx)
+      registerStagePauseAndReflect(ctx)
 
-      const handler = handlers.getHandler('reminders:stage-are-you-stuck')
-      const event = createTestTranscriptEvent({ toolsThisTurn: 25 })
+      const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
+      const event = createTestTranscriptEvent({ toolsThisTurn: 20 })
 
       await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
 
@@ -168,10 +161,10 @@ stopReason: "Verify completion before stopping"
     })
 
     it('is idempotent - does not re-stage if already exists', async () => {
-      registerStageAreYouStuck(ctx)
+      registerStagePauseAndReflect(ctx)
 
-      const handler = handlers.getHandler('reminders:stage-are-you-stuck')
-      const event = createTestTranscriptEvent({ toolsThisTurn: 25 })
+      const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
+      const event = createTestTranscriptEvent({ toolsThisTurn: 20 })
 
       // First call stages
       await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
@@ -183,49 +176,16 @@ stopReason: "Verify completion before stopping"
     })
 
     it('interpolates template variables', async () => {
-      registerStageAreYouStuck(ctx)
+      registerStagePauseAndReflect(ctx)
 
-      const handler = handlers.getHandler('reminders:stage-are-you-stuck')
+      const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
       const event = createTestTranscriptEvent({ toolsThisTurn: 30 })
 
       await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
 
       const reminders = staging.getRemindersForHook('PreToolUse')
-      expect(reminders[0].additionalContext).toBe('Stuck at 30 tools')
-      expect(reminders[0].stopReason).toBe('Agent stuck - 30 tools used')
-    })
-  })
-
-  describe('registerStageTimeForUpdate', () => {
-    it('registers with lower priority than are-you-stuck', () => {
-      registerStageTimeForUpdate(ctx)
-
-      const registrations = handlers.getRegistrations()
-      expect(registrations[0].priority).toBe(70)
-    })
-
-    it('stages reminder at update threshold (15)', async () => {
-      registerStageTimeForUpdate(ctx)
-
-      const handler = handlers.getHandler('reminders:stage-time-for-update')
-      const event = createTestTranscriptEvent({ toolsThisTurn: 15 })
-
-      await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
-
-      const reminders = staging.getRemindersForHook('PreToolUse')
-      expect(reminders).toHaveLength(1)
-      expect(reminders[0].name).toBe('time-for-user-update')
-    })
-
-    it('does not stage when below threshold', async () => {
-      registerStageTimeForUpdate(ctx)
-
-      const handler = handlers.getHandler('reminders:stage-time-for-update')
-      const event = createTestTranscriptEvent({ toolsThisTurn: 10 })
-
-      await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
-
-      expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(0)
+      expect(reminders[0].additionalContext).toBe('Checkpoint at 30 tools')
+      expect(reminders[0].stopReason).toBe('Checkpoint - 30 tools used')
     })
   })
 
@@ -319,12 +279,11 @@ stopReason: "Verify completion before stopping"
 
   describe('handler registration filters', () => {
     it('staging handlers use transcript filters', () => {
-      registerStageAreYouStuck(ctx)
-      registerStageTimeForUpdate(ctx)
+      registerStagePauseAndReflect(ctx)
       registerStageStopReminders(ctx)
 
       const transcriptHandlers = handlers.getHandlersByKind('transcript')
-      expect(transcriptHandlers).toHaveLength(3)
+      expect(transcriptHandlers).toHaveLength(2)
     })
 
     it('SessionStart handler uses hook filter', () => {

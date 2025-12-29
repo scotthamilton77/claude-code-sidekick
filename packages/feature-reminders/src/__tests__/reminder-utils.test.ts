@@ -94,18 +94,18 @@ additionalContext: "Test context"
     })
 
     it('interpolates template variables in content fields', () => {
-      const yamlContent = `id: are-you-stuck
+      const yamlContent = `id: pause-and-reflect
 blocking: true
 priority: 80
 persistent: false
 additionalContext: "Used {{toolsThisTurn}} tools"
-stopReason: "Stuck at {{toolsThisTurn}} tools"
+stopReason: "Checkpoint at {{toolsThisTurn}} tools"
 `
-      writeFileSync(join(testAssetsDir, 'reminders', 'are-you-stuck.yaml'), yamlContent)
+      writeFileSync(join(testAssetsDir, 'reminders', 'pause-and-reflect.yaml'), yamlContent)
 
-      const result = resolveReminder('are-you-stuck', { toolsThisTurn: 25 }, testAssetsDir)
+      const result = resolveReminder('pause-and-reflect', { toolsThisTurn: 25 }, testAssetsDir)
       expect(result?.additionalContext).toBe('Used 25 tools')
-      expect(result?.stopReason).toBe('Stuck at 25 tools')
+      expect(result?.stopReason).toBe('Checkpoint at 25 tools')
     })
 
     it('handles all optional fields', () => {

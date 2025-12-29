@@ -8,8 +8,7 @@
  */
 export interface ReminderConfig {
   enabled: boolean
-  update_threshold: number
-  stuck_threshold: number
+  pause_and_reflect_threshold: number
 }
 
 /**
@@ -40,8 +39,7 @@ export interface TemplateContext {
  */
 export const DEFAULT_REMINDER_CONFIG: ReminderConfig = {
   enabled: true,
-  update_threshold: 15,
-  stuck_threshold: 20,
+  pause_and_reflect_threshold: 15,
 }
 
 /**
@@ -49,8 +47,7 @@ export const DEFAULT_REMINDER_CONFIG: ReminderConfig = {
  */
 export const ReminderIds = {
   USER_PROMPT_SUBMIT: 'user-prompt-submit',
-  ARE_YOU_STUCK: 'are-you-stuck',
-  TIME_FOR_USER_UPDATE: 'time-for-user-update',
+  PAUSE_AND_REFLECT: 'pause-and-reflect',
   VERIFY_COMPLETION: 'verify-completion',
 } as const
 
