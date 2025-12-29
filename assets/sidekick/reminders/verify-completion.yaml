@@ -6,7 +6,6 @@ priority: 50
 persistent: false
 
 additionalContext: |
-  <system-reminder>
   COMPLETION VERIFICATION REQUIRED
 
   Before claiming this task is complete, you must verify:
@@ -29,6 +28,7 @@ additionalContext: |
   - DON'T COMMIT unless explicitly instructed. User says "make changes" ≠ "commit changes". Wait for explicit approval.
 
   Evidence before assertions. Don't claim success without verification.
-  </system-reminder>
 
-stopReason: "Verify completion before stopping - did you run tests and checks?"
+userMessage: "Asking the agent to verify completion before stopping..."
+
+reason: "Verify completion before stopping - did you run tests and checks?"

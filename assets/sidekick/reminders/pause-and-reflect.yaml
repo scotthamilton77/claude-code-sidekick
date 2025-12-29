@@ -6,13 +6,13 @@ priority: 80
 persistent: false
 
 additionalContext: |
-  <system-reminder>
   You've made {{toolsThisTurn}} tool calls this turn.
 
   Pause. Are you making progress, or spinning?
 
   If stuck: Tell the user what's not working and what you need.
   If progressing: Give a brief update, then continue.
-  </system-reminder>
 
-stopReason: "Checkpoint - {{toolsThisTurn}} tools used this turn"
+userMessage: "Checkpoint: asking the agent to report on progress..."
+
+reason: "Checkpoint - {{toolsThisTurn}} tools used this turn"

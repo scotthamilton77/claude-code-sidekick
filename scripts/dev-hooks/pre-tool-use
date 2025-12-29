@@ -43,7 +43,13 @@ if command -v jq &> /dev/null; then
         { hookSpecificOutput: {
             hookEventName: "PreToolUse",
             permissionDecision: "deny",
-            permissionDecisionReason: (.reason // "Blocked by Sidekick")
+            permissionDecisionReason: (
+              if .reason and .additionalContext then "\(.reason)\n\n\(.additionalContext)"
+              elif .reason then .reason
+              elif .additionalContext then .additionalContext
+              else "Blocked by Sidekick"
+              end
+            )
           }
         }
       elif .additionalContext then

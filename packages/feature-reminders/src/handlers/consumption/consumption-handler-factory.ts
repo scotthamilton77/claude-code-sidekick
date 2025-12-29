@@ -76,7 +76,7 @@ export function createConsumptionHandler(context: RuntimeContext, config: Consum
 
       if (supportsBlocking && reminder.blocking) {
         response.blocking = true
-        response.reason = reminder.stopReason
+        response.reason = reminder.reason
       }
       if (reminder.additionalContext) {
         response.additionalContext = reminder.additionalContext

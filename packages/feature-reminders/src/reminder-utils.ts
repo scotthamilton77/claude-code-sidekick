@@ -28,7 +28,7 @@ const ReminderDefinitionSchema = z.object({
   persistent: z.boolean(),
   userMessage: z.string().optional(),
   additionalContext: z.string().optional(),
-  stopReason: z.string().optional(),
+  reason: z.string().optional(),
 })
 
 // Asset paths for reminder definitions
@@ -120,7 +120,7 @@ export function resolveReminder(
       persistent: def.persistent,
       userMessage: def.userMessage ? interpolateTemplate(def.userMessage, context) : undefined,
       additionalContext: def.additionalContext ? interpolateTemplate(def.additionalContext, context) : undefined,
-      stopReason: def.stopReason ? interpolateTemplate(def.stopReason, context) : undefined,
+      reason: def.reason ? interpolateTemplate(def.reason, context) : undefined,
     }
   } catch (err) {
     console.error(`Failed to load reminder ${reminderId}:`, err)

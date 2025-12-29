@@ -302,7 +302,7 @@ interface StagedReminder {
   // Text fields (all optional, pre-interpolated from YAML template)
   userMessage?: string // Shown to user in chat UI
   additionalContext?: string // Injected as system context
-  stopReason?: string // Used as blocking reason
+  reason?: string // Used as blocking reason
 }
 ```
 
@@ -314,7 +314,7 @@ interface StagedReminder {
 | `persistent`        | boolean | If true, file is not deleted on consumption            |
 | `userMessage`       | string? | Text shown to user in chat UI                          |
 | `additionalContext` | string? | Text injected as system context                        |
-| `stopReason`        | string? | Text used as blocking reason                           |
+| `reason`        | string? | Text used as blocking reason                           |
 
 **Note**: Suppression is handled via marker files (§4.5), not per-reminder state.
 
@@ -343,7 +343,7 @@ When a hook fires, the CLI:
 6. If `persistent: false` → delete file
 7. If `persistent: true` → leave file
 8. Log `ReminderConsumed` event to CLI log
-9. Return reminder fields in hook response (`blocking`, `stopReason`, `additionalContext`, etc.)
+9. Return reminder fields in hook response (`blocking`, `reason`, `additionalContext`, etc.)
 
 ### 4.4 Supervisor Staging Logic
 

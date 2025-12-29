@@ -17,7 +17,7 @@ interface StagedReminder {
   persistent: boolean
   userMessage?: string
   additionalContext?: string
-  stopReason?: string
+  reason?: string
 }
 
 interface StagedRemindersResponse {

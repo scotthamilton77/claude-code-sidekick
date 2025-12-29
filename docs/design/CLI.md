@@ -398,7 +398,7 @@ The CLI consumes files staged by the Supervisor (see **docs/design/flow.md §4.3
 4. Sort by `priority` (descending)
 5. Take highest priority reminder
 6. Delete file if `persistent: false`
-7. Return reminder fields in hook response (`blocking`, `stopReason`, `additionalContext`, etc.)
+7. Return reminder fields in hook response (`blocking`, `reason`, `additionalContext`, etc.)
 
 ### 9.5 PreCompact Transcript Capture
 

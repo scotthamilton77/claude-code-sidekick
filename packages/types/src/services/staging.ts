@@ -43,8 +43,8 @@ export interface StagedReminder {
   userMessage?: string
   /** Additional context for the agent */
   additionalContext?: string
-  /** Stop reason (for stop reminders) */
-  stopReason?: string
+  /** Reason for blocking (blocking reminders) */
+  reason?: string
   /** Metrics snapshot at staging time (for reactivation decisions) */
   stagedAt?: StagingMetrics
 }

@@ -330,8 +330,8 @@ export interface StagedReminderWithContext {
   userMessage?: string
   /** Additional context for the agent */
   additionalContext?: string
-  /** Stop reason (for stop reminders) */
-  stopReason?: string
+  /** Reason for blocking (blocking reminders) */
+  reason?: string
   /** Whether the reminder is currently suppressed */
   suppressed: boolean
   /** Timestamp when staged (Unix ms) */

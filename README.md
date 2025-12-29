@@ -12,19 +12,15 @@ This repository serves as a development and testing environment for [Claude Code
 
 ### Sidekick
 
+- reminder tuning
+  - System messages vs. additional context (for each)
+  - stop message staging based on regex of file modifications
 - reminder testing
-  - tool usage
-    - sidekick.config value not picked up - let's throw some logging on that
-    - staging seems to happen late (1-2 tool usages after) - shouldn't matter too much but we should figure out why
-    - "note the result was an error, not the echo output."
   - stop hook
     - validate tool usage detection
     - only source code
     - test disablement
     - test user prompt submit clearing
-- reminder tuning
-  - System messages vs. additional context (for each)
-  - stop message staging based on regex of file modifications
 - statusline token usage - statistics from statusline input are wrong - use transcript state?
 - statusline always says (stale)?
   - Also, shouldn't this update more often during the convo?

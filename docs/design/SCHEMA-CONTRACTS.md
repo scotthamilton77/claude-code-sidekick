@@ -301,7 +301,7 @@ interface StagedReminder {
   // Text fields (all optional, pre-interpolated from YAML template)
   userMessage?: string // Shown to user in chat UI
   additionalContext?: string // Injected as system context
-  stopReason?: string // Used as blocking reason
+  reason?: string // Used as blocking reason
 }
 ```
 
@@ -320,7 +320,7 @@ interface ReminderDefinition {
   // Content fields (support {{variable}} interpolation)
   userMessage?: string
   additionalContext?: string
-  stopReason?: string
+  reason?: string
 }
 ```
 

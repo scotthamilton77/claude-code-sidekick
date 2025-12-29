@@ -214,7 +214,7 @@ describe('SessionScopedStagingService (via createService)', () => {
         name: 'ReadTest',
         blocking: true,
         priority: 90,
-        stopReason: 'Test stop reason',
+        reason: 'Test stop reason',
       })
 
       await service.stageReminder('Stop', 'ReadTest', reminder)
@@ -567,7 +567,7 @@ describe('SessionScopedStagingService (via createService)', () => {
         persistent: true,
         userMessage: 'User message with "quotes" and special chars: é, ñ',
         additionalContext: 'Multi\nline\ncontext',
-        stopReason: 'Test stop reason',
+        reason: 'Test stop reason',
       }
 
       await service.stageReminder('Stop', 'FullReminder', reminder)

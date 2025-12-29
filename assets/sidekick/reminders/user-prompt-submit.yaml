@@ -6,7 +6,6 @@ priority: 10
 persistent: true
 
 additionalContext: |
-  <system-reminder>
   As you answer the user's questions, you can use the following context:
   # claudeMd
   Codebase and user instructions are shown below. Be sure to adhere to these instructions. IMPORTANT: These instructions OVERRIDE any default behavior and you MUST follow them exactly as written.
@@ -20,4 +19,3 @@ additionalContext: |
   - Verify your work before claiming completion (run tests, lint, type-check)
   - Update the user with progress summaries for long-running tasks
   - Use appropriate AGENTS/SKILLS: consider whether there are agents and/or skills that should be leveraged; ask the user if unsure
-  </system-reminder>

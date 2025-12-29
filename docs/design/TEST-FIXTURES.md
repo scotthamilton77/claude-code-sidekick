@@ -367,7 +367,7 @@ export function createReminder(overrides: Partial<StagedReminder> = {}): StagedR
     // Text fields (all optional)
     userMessage: undefined,
     additionalContext: undefined,
-    stopReason: undefined,
+    reason: undefined,
     ...overrides,
   };
 }
@@ -385,20 +385,20 @@ export const reminderPresets = {
     blocking: true,
     priority: 80,
     additionalContext: 'STOP AND RECONSIDER: You may be stuck.',
-    stopReason: 'Agent may be stuck - too many tools this turn',
+    reason: 'Agent may be stuck - too many tools this turn',
   }),
   verifyCompletion: () => createReminder({
     name: 'VerifyCompletionReminder',
     blocking: true,
     priority: 50,
-    stopReason: 'Verify completion before finishing',
+    reason: 'Verify completion before finishing',
   }),
   timeForUserUpdate: () => createReminder({
     name: 'TimeForUserUpdateReminder',
     blocking: true,
     priority: 70,
     additionalContext: 'Time to update the user on progress.',
-    stopReason: 'Time for user update',
+    reason: 'Time for user update',
   }),
 };
 ```
