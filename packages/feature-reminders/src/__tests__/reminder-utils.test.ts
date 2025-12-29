@@ -89,7 +89,7 @@ additionalContext: "Test context"
         persistent: false,
         additionalContext: 'Test context',
         userMessage: undefined,
-        stopReason: undefined,
+        reason: undefined,
       })
     })
 
@@ -99,13 +99,13 @@ blocking: true
 priority: 80
 persistent: false
 additionalContext: "Used {{toolsThisTurn}} tools"
-stopReason: "Checkpoint at {{toolsThisTurn}} tools"
+reason: "Checkpoint at {{toolsThisTurn}} tools"
 `
       writeFileSync(join(testAssetsDir, 'reminders', 'pause-and-reflect.yaml'), yamlContent)
 
       const result = resolveReminder('pause-and-reflect', { toolsThisTurn: 25 }, testAssetsDir)
       expect(result?.additionalContext).toBe('Used 25 tools')
-      expect(result?.stopReason).toBe('Checkpoint at 25 tools')
+      expect(result?.reason).toBe('Checkpoint at 25 tools')
     })
 
     it('handles all optional fields', () => {
@@ -115,7 +115,7 @@ priority: 50
 persistent: true
 userMessage: "User message with {{count}}"
 additionalContext: "Additional context with {{count}}"
-stopReason: "Stop reason with {{count}}"
+reason: "Stop reason with {{count}}"
 `
       writeFileSync(join(testAssetsDir, 'reminders', 'full-reminder.yaml'), yamlContent)
 
@@ -127,7 +127,7 @@ stopReason: "Stop reason with {{count}}"
         persistent: true,
         userMessage: 'User message with 10',
         additionalContext: 'Additional context with 10',
-        stopReason: 'Stop reason with 10',
+        reason: 'Stop reason with 10',
       })
     })
 
@@ -147,7 +147,7 @@ persistent: false
         persistent: false,
         userMessage: undefined,
         additionalContext: undefined,
-        stopReason: undefined,
+        reason: undefined,
       })
     })
 

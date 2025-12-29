@@ -58,7 +58,7 @@ blocking: true
 priority: 80
 persistent: false
 additionalContext: "Checkpoint at {{toolsThisTurn}} tools"
-stopReason: "Checkpoint - {{toolsThisTurn}} tools used"
+reason: "Checkpoint - {{toolsThisTurn}} tools used"
 `,
       'reminders/user-prompt-submit.yaml': `id: user-prompt-submit
 blocking: false
@@ -70,7 +70,7 @@ additionalContext: "Standard user prompt reminder"
 blocking: true
 priority: 50
 persistent: false
-stopReason: "Verify completion before stopping"
+reason: "Verify completion before stopping"
 `,
     })
 
@@ -185,7 +185,7 @@ stopReason: "Verify completion before stopping"
 
       const reminders = staging.getRemindersForHook('PreToolUse')
       expect(reminders[0].additionalContext).toBe('Checkpoint at 30 tools')
-      expect(reminders[0].stopReason).toBe('Checkpoint - 30 tools used')
+      expect(reminders[0].reason).toBe('Checkpoint - 30 tools used')
     })
   })
 

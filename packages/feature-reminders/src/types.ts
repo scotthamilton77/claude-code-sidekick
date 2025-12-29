@@ -20,7 +20,7 @@ export interface ReminderDefinition {
   persistent: boolean
   userMessage?: string
   additionalContext?: string
-  stopReason?: string
+  reason?: string
 }
 
 /**

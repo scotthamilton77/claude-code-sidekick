@@ -39,9 +39,18 @@ INTERNAL_RESPONSE=$(echo "$STDIN_DATA" | node "${CLI_BIN}" "${CLI_ARGS[@]}")
 if command -v jq &> /dev/null; then
   echo "$INTERNAL_RESPONSE" | jq -c '
     {}
-    + (if .blocking == true then { decision: "block", reason: (.reason // "Blocked by Sidekick") } else {} end)
+    + (if .blocking == true then
+        { decision: "block", reason: (
+            if .reason and .additionalContext then "\(.reason)\n\n\(.additionalContext)"
+            elif .reason then .reason
+            elif .additionalContext then .additionalContext
+            else "Blocked by Sidekick"
+            end
+          )
+        }
+      else {} end)
     + (if .userMessage then { systemMessage: .userMessage } else {} end)
-    + (if .additionalContext then { hookSpecificOutput: { hookEventName: "PostToolUse", additionalContext: .additionalContext } } else {} end)
+    + (if .additionalContext and .blocking != true then { hookSpecificOutput: { hookEventName: "PostToolUse", additionalContext: .additionalContext } } else {} end)
   '
 else
   # Fallback: passthrough if jq not available

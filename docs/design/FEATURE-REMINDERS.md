@@ -76,7 +76,7 @@ context.handlers.register({
       return {
         response: {
           blocking: reminder.blocking,
-          reason: reminder.stopReason,
+          reason: reminder.reason,
           additionalContext: reminder.additionalContext,
         },
       }
@@ -124,7 +124,7 @@ interface StagedReminder {
   // Text fields (all optional, pre-interpolated from YAML template)
   userMessage?: string // Shown to user in chat
   additionalContext?: string // Injected as system context
-  stopReason?: string // Used as blocking reason
+  reason?: string // Used as blocking reason
 }
 ```
 
@@ -237,7 +237,7 @@ This is more efficient than checking thresholds on every ToolCall event.
 **Consumption** (CLI, HookEvent: PreToolUse):
 
 1. `InjectPreToolUseReminders` finds the staged reminder
-2. Returns `{ blocking: true, reason: reminder.stopReason }`
+2. Returns `{ blocking: true, reason: reminder.reason }`
 3. Deletes file (one-shot)
 4. Agent stops
 
@@ -262,7 +262,7 @@ This is more efficient than checking thresholds on every ToolCall event.
 
 1. `InjectStopReminders` checks for `.suppressed` marker first
 2. If suppressed: deletes marker, returns empty
-3. If not suppressed: finds pending reminder, returns `{ blocking: true, reason: reminder.stopReason }`
+3. If not suppressed: finds pending reminder, returns `{ blocking: true, reason: reminder.reason }`
 4. Deletes file (one-shot, so next stop succeeds)
 
 ### 5.4 Time For User Update (Transcript → PreToolUse)
@@ -318,9 +318,9 @@ function consumeReminder(ctx: RuntimeContext, hookName: string): HookResult {
 
   // Build response from text fields
   const result: HookResult = {}
-  if (reminder.blocking && reminder.stopReason) {
+  if (reminder.blocking && reminder.reason) {
     result.blocking = true
-    result.reason = reminder.stopReason
+    result.reason = reminder.reason
   }
   if (reminder.additionalContext) {
     result.additionalContext = reminder.additionalContext
@@ -380,7 +380,7 @@ userMessage: |
 additionalContext: |
   Multi-line text injected as system context
 
-stopReason: |
+reason: |
   Single-line text used as blocking reason
 ```
 
@@ -393,7 +393,6 @@ priority: 80
 persistent: false
 
 additionalContext: |
-  <system-reminder>
   STOP AND RECONSIDER: You've used {{toolsThisTurn}} tools this turn without
   completing. This often indicates you're stuck in a loop or approaching
   the problem incorrectly.
@@ -402,9 +401,8 @@ additionalContext: |
   1. Summarize what you've tried and why it hasn't worked
   2. Consider alternative approaches
   3. Ask the user for clarification if needed
-  </system-reminder>
 
-stopReason: Agent may be stuck - {{toolsThisTurn}} tools used this turn
+reason: Agent may be stuck - {{toolsThisTurn}} tools used this turn
 ```
 
 **Available Reminder IDs**:

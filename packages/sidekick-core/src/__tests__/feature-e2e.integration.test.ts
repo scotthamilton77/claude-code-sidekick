@@ -160,7 +160,7 @@ function registerPauseAndReflectHandler(
         priority: 80,
         persistent: false,
         additionalContext: `Checkpoint at ${metrics.toolsThisTurn} tools this turn`,
-        stopReason: 'Checkpoint triggered',
+        reason: 'Checkpoint triggered',
       }
 
       await stagingService.stageReminder('PreToolUse', REMINDER_IDS.PAUSE_AND_REFLECT, reminder)

@@ -578,7 +578,7 @@ This document preserves the full implementation details of completed phases from
     - [x] Consumption handlers (CLI, hook events):
       - [x] `InjectUserPromptSubmitReminders`, `InjectPreToolUseReminders`, `InjectPostToolUseReminders`, `InjectStopReminders`
     - [x] Suppression pattern: marker files `.sidekick/sessions/{session_id}/stage/{hook_name}/.suppressed`
-    - [x] Reminder file schema: `StagedReminder { name, blocking, priority, persistent, userMessage?, additionalContext?, stopReason? }`
+    - [x] Reminder file schema: `StagedReminder { name, blocking, priority, persistent, userMessage?, additionalContext?, reason? }`
   - [x] **6.2 Session Summary Feature** (`feature-session-summary/`) ✓ COMPLETED
     - [x] Package scaffold (`@sidekick/feature-session-summary`)
     - [x] Types: `SessionSummaryState`, `SummaryCountdownState`, config types

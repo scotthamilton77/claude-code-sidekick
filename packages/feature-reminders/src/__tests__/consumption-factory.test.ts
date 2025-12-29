@@ -256,7 +256,7 @@ describe('createConsumptionHandler', () => {
           name: 'blocking',
           blocking: true,
           priority: 80,
-          stopReason: 'Should not appear',
+          reason: 'Should not appear',
         })
       )
 
@@ -284,7 +284,7 @@ describe('createConsumptionHandler', () => {
           name: 'blocking',
           blocking: true,
           priority: 80,
-          stopReason: 'Verify completion',
+          reason: 'Verify completion',
         })
       )
 
