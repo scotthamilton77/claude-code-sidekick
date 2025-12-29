@@ -766,6 +766,11 @@ export class TranscriptServiceImpl implements TranscriptService {
 
     for (const block of message.content) {
       if (block.type === 'tool_use') {
+        // Count the tool call (increment here so metrics are current when ToolCall event fires)
+        this.metrics.toolCount++
+        this.metrics.toolsThisTurn++
+        this.updateToolsPerTurn()
+
         // Emit ToolCall event for each tool_use block
         // Create a synthetic entry for the event with the tool info
         const toolEntry: TranscriptEntry = {
@@ -781,6 +786,7 @@ export class TranscriptServiceImpl implements TranscriptService {
   /**
    * Process nested tool_result blocks inside user message content.
    * Real transcripts have: user.message.content[{type: 'tool_result', ...}]
+   * Note: Tool counting happens in processNestedToolUses (on ToolCall), not here.
    */
   private processNestedToolResults(entry: TranscriptEntry, lineNumber: number): void {
     const message = entry.message as { content?: Array<{ type?: string; tool_use_id?: string }> } | undefined
@@ -788,11 +794,6 @@ export class TranscriptServiceImpl implements TranscriptService {
 
     for (const block of message.content) {
       if (block.type === 'tool_result') {
-        // Count the tool result
-        this.metrics.toolCount++
-        this.metrics.toolsThisTurn++
-        this.updateToolsPerTurn()
-
         // Emit ToolResult event for each tool_result block
         const toolEntry: TranscriptEntry = {
           type: 'tool_result',

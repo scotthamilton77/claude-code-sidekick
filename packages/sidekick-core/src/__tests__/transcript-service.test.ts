@@ -203,8 +203,18 @@ describe('TranscriptServiceImpl', () => {
       expect(metrics.messageCount).toBe(2)
     })
 
-    it('increments toolCount on tool_result in user message content', async () => {
+    it('increments toolCount on tool_use in assistant message content', async () => {
       const transcript = [
+        JSON.stringify({
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: [
+              { type: 'tool_use', id: 'tool-1', name: 'Read', input: { file_path: '/test' } },
+              { type: 'tool_use', id: 'tool-2', name: 'Write', input: { file_path: '/test' } },
+            ],
+          },
+        }),
         JSON.stringify({
           type: 'user',
           message: {
@@ -229,6 +239,17 @@ describe('TranscriptServiceImpl', () => {
       const transcript = [
         // Real user prompt starts a turn
         JSON.stringify({ type: 'user', message: { role: 'user', content: 'First prompt' } }),
+        // Assistant requests tools
+        JSON.stringify({
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: [
+              { type: 'tool_use', id: 'tool-1', name: 'Read', input: { file_path: '/test1' } },
+              { type: 'tool_use', id: 'tool-2', name: 'Read', input: { file_path: '/test2' } },
+            ],
+          },
+        }),
         // Tool result wrapper: does NOT start a new turn
         JSON.stringify({
           type: 'user',
@@ -253,11 +274,18 @@ describe('TranscriptServiceImpl', () => {
       expect(metrics.toolsThisTurn).toBe(0) // Reset by second real user prompt
     })
 
-    it('accumulates toolsThisTurn across consecutive tool_result wrappers', async () => {
+    it('accumulates toolsThisTurn across consecutive tool_use blocks', async () => {
       const transcript = [
         // Real user prompt starts a turn
         JSON.stringify({ type: 'user', message: { role: 'user', content: 'User prompt' } }),
-        // Multiple tool result wrappers - should NOT reset toolsThisTurn
+        // Multiple assistant messages with tool_use blocks
+        JSON.stringify({
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: [{ type: 'tool_use', id: 'tool-1', name: 'Read', input: { file_path: '/test1' } }],
+          },
+        }),
         JSON.stringify({
           type: 'user',
           message: {
@@ -266,10 +294,24 @@ describe('TranscriptServiceImpl', () => {
           },
         }),
         JSON.stringify({
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: [{ type: 'tool_use', id: 'tool-2', name: 'Read', input: { file_path: '/test2' } }],
+          },
+        }),
+        JSON.stringify({
           type: 'user',
           message: {
             role: 'user',
             content: [{ type: 'tool_result', tool_use_id: 'tool-2', content: 'result 2' }],
+          },
+        }),
+        JSON.stringify({
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: [{ type: 'tool_use', id: 'tool-3', name: 'Read', input: { file_path: '/test3' } }],
           },
         }),
         JSON.stringify({
@@ -287,13 +329,23 @@ describe('TranscriptServiceImpl', () => {
       const metrics = service.getMetrics()
       expect(metrics.turnCount).toBe(1) // Only the real user prompt counts as a turn
       expect(metrics.toolCount).toBe(3)
-      expect(metrics.toolsThisTurn).toBe(3) // Accumulated across all tool_result wrappers
+      expect(metrics.toolsThisTurn).toBe(3) // Accumulated across all tool_use blocks
     })
 
     it('calculates toolsPerTurn', async () => {
       const transcript = [
-        // First turn: real user prompt followed by 2 tool results
+        // First turn: real user prompt followed by 2 tool uses
         JSON.stringify({ type: 'user', message: { role: 'user', content: 'First prompt' } }),
+        JSON.stringify({
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: [
+              { type: 'tool_use', id: 'tool-1', name: 'Read', input: { file_path: '/test1' } },
+              { type: 'tool_use', id: 'tool-2', name: 'Read', input: { file_path: '/test2' } },
+            ],
+          },
+        }),
         JSON.stringify({
           type: 'user',
           message: {
@@ -304,8 +356,18 @@ describe('TranscriptServiceImpl', () => {
             ],
           },
         }),
-        // Second turn: real user prompt followed by 2 more tool results
+        // Second turn: real user prompt followed by 2 more tool uses
         JSON.stringify({ type: 'user', message: { role: 'user', content: 'Second prompt' } }),
+        JSON.stringify({
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: [
+              { type: 'tool_use', id: 'tool-3', name: 'Read', input: { file_path: '/test3' } },
+              { type: 'tool_use', id: 'tool-4', name: 'Read', input: { file_path: '/test4' } },
+            ],
+          },
+        }),
         JSON.stringify({
           type: 'user',
           message: {
@@ -812,7 +874,15 @@ describe('TranscriptServiceImpl', () => {
       const transcript = [
         // Real user prompt (counts as a turn)
         JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } }),
-        // Tool result wrapper (counts as message and tool, but not a turn)
+        // Assistant requests a tool (counts as tool and message)
+        JSON.stringify({
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: [{ type: 'tool_use', id: 'tool-1', name: 'Read', input: { file_path: '/test' } }],
+          },
+        }),
+        // Tool result wrapper (counts as message, but not a turn or tool)
         JSON.stringify({
           type: 'user',
           message: {
@@ -827,7 +897,7 @@ describe('TranscriptServiceImpl', () => {
 
       expect(service.getMetric('turnCount')).toBe(1) // Only real user prompt counts
       expect(service.getMetric('toolCount')).toBe(1)
-      expect(service.getMetric('messageCount')).toBe(2) // Both messages count
+      expect(service.getMetric('messageCount')).toBe(3) // All three messages count
     })
   })
 

@@ -355,8 +355,15 @@ describe('Phase 4.5: TranscriptService → Handler Integration', () => {
         },
       })
 
-      // Create transcript with tool results
+      // Create transcript with tool_use and tool_result
       const transcript = [
+        JSON.stringify({
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: [{ type: 'tool_use', id: 'tool-1', name: 'Read', input: { file_path: '/test' } }],
+          },
+        }),
         JSON.stringify({
           type: 'user',
           message: {
@@ -512,8 +519,18 @@ describe('Phase 4.5: TranscriptService → Handler Integration', () => {
         },
       })
 
-      // Transcript with multiple tool results in a turn
+      // Transcript with multiple tool_use and tool_result in a turn
       const transcript = [
+        JSON.stringify({
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: [
+              { type: 'tool_use', id: 'tool-1', name: 'Read', input: { file_path: '/test1' } },
+              { type: 'tool_use', id: 'tool-2', name: 'Read', input: { file_path: '/test2' } },
+            ],
+          },
+        }),
         JSON.stringify({
           type: 'user',
           message: {

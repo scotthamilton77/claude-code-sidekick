@@ -441,15 +441,30 @@ describe('Feature E2E: Threshold Logic with Synthetic Data', () => {
     cleanupTestDir(ctx.testDir)
   })
 
-  it('counts tool_results in single user message correctly', async () => {
-    // TranscriptService counts tool_result entries within user messages
-    // toolsThisTurn is the count of tool_results within the CURRENT turn
+  it('counts tool_use blocks in assistant message correctly', async () => {
+    // TranscriptService counts tool_use entries within assistant messages
+    // toolsThisTurn is the count of tool_use blocks within the CURRENT turn
     // When a new user message arrives, turnCount increments and toolsThisTurn resets
 
     const entries = []
     const numTools = 25 // More than pause_and_reflect_threshold
 
-    // User message with MULTIPLE tool_result blocks (this is how Claude Code structures it)
+    // Assistant message with MULTIPLE tool_use blocks (this is how Claude Code structures it)
+    const toolUses = []
+    for (let i = 0; i < numTools; i++) {
+      toolUses.push({ type: 'tool_use', id: `tool-${i}`, name: 'Bash', input: { command: `echo ${i}` } })
+    }
+    entries.push(
+      JSON.stringify({
+        type: 'assistant',
+        message: {
+          role: 'assistant',
+          content: toolUses,
+        },
+      })
+    )
+
+    // Corresponding user message with tool_results (doesn't affect count)
     const toolResults = []
     for (let i = 0; i < numTools; i++) {
       toolResults.push({ type: 'tool_result', tool_use_id: `tool-${i}`, content: `result ${i}` })
@@ -470,7 +485,7 @@ describe('Feature E2E: Threshold Logic with Synthetic Data', () => {
 
     const metrics = ctx.transcriptService.getMetrics()
 
-    // Should count all tool_results in the single user message
+    // Should count all tool_use blocks in the assistant message
     expect(metrics.toolCount).toBe(numTools)
     expect(metrics.toolsThisTurn).toBe(numTools)
     // Tool-result-only messages don't count as turns (they're wrapper messages)
@@ -478,14 +493,25 @@ describe('Feature E2E: Threshold Logic with Synthetic Data', () => {
   })
 
   it('triggers checkpoint handler when toolsThisTurn >= pause_and_reflect_threshold', async () => {
-    // Use ToolResult event handler since that's when tools are counted
-    // Our inline handlers listen to ToolCall, but the real feature listens to ToolResult
+    // Tool counting happens on tool_use blocks in assistant messages
     // Let's verify the metrics and handler invocation manually
 
     const entries = []
     const numTools = REMINDER_THRESHOLDS.pause_and_reflect_threshold + 2
 
-    // Single user message with many tool_results
+    // Assistant message with many tool_use blocks
+    const toolUses = []
+    for (let i = 0; i < numTools; i++) {
+      toolUses.push({ type: 'tool_use', id: `tool-${i}`, name: 'Bash', input: { command: `echo ${i}` } })
+    }
+    entries.push(
+      JSON.stringify({
+        type: 'assistant',
+        message: { role: 'assistant', content: toolUses },
+      })
+    )
+
+    // Corresponding user message with tool_results
     const toolResults = []
     for (let i = 0; i < numTools; i++) {
       toolResults.push({ type: 'tool_result', tool_use_id: `tool-${i}`, content: `result ${i}` })
@@ -508,7 +534,19 @@ describe('Feature E2E: Threshold Logic with Synthetic Data', () => {
   it('resets toolsThisTurn counter on new user message', async () => {
     const entries = []
 
-    // First user message with 10 tool_results
+    // First assistant message with 10 tool_use blocks
+    const toolUses1 = []
+    for (let i = 0; i < 10; i++) {
+      toolUses1.push({ type: 'tool_use', id: `tool-a-${i}`, name: 'Bash', input: { command: `echo ${i}` } })
+    }
+    entries.push(
+      JSON.stringify({
+        type: 'assistant',
+        message: { role: 'assistant', content: toolUses1 },
+      })
+    )
+
+    // First user message with 10 tool_results (doesn't affect count)
     const batch1 = []
     for (let i = 0; i < 10; i++) {
       batch1.push({ type: 'tool_result', tool_use_id: `tool-a-${i}`, content: `result ${i}` })
@@ -528,7 +566,19 @@ describe('Feature E2E: Threshold Logic with Synthetic Data', () => {
       })
     )
 
-    // Third user message with 5 tool_results
+    // Second assistant message with 5 tool_use blocks
+    const toolUses2 = []
+    for (let i = 0; i < 5; i++) {
+      toolUses2.push({ type: 'tool_use', id: `tool-b-${i}`, name: 'Bash', input: { command: `echo ${i}` } })
+    }
+    entries.push(
+      JSON.stringify({
+        type: 'assistant',
+        message: { role: 'assistant', content: toolUses2 },
+      })
+    )
+
+    // Third user message with 5 tool_results (doesn't affect count)
     const batch2 = []
     for (let i = 0; i < 5; i++) {
       batch2.push({ type: 'tool_result', tool_use_id: `tool-b-${i}`, content: `result ${i}` })
