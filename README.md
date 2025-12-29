@@ -13,12 +13,15 @@ This repository serves as a development and testing environment for [Claude Code
 ### Sidekick
 
 - reminder testing
-  - tool usage hooks (are you stuck and checkpoint)
   - stop hook
-- statusline token usage - statistics from statusline input are wrong - use transcript state?
+    - validate tool usage detection
+    - only source code
+    - test disablement
+    - test user prompt submit clearing
 - reminder tuning
   - System messages vs. additional context (for each)
   - stop message staging based on regex of file modifications
+- statusline token usage - statistics from statusline input are wrong - use transcript state?
 - statusline always says (stale)?
   - Also, shouldn't this update more often during the convo?
 - should we block and wait (with timeout of p95 of completion latency?) for session summary when we have low confidence?
