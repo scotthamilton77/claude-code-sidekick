@@ -17,6 +17,7 @@ export interface MinimalConfigService {
   readonly core: { readonly logging: { readonly level: string } }
   readonly llm: { readonly provider: string }
   getAll(): unknown
+  getFeature<T = Record<string, unknown>>(name: string): { enabled: boolean; settings: T }
 }
 
 /**

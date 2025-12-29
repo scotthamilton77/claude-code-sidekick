@@ -67,13 +67,35 @@ core.logging.level=debug
 `
     const result = parseUnifiedConfig(content)
 
-    expect(result.llm).toEqual({
+    expect(result.config.llm).toEqual({
       provider: 'openai',
       model: 'gpt-4o',
     })
-    expect(result.core).toEqual({
+    expect(result.config.core).toEqual({
       logging: { level: 'debug' },
     })
+  })
+
+  test('accepts both = and : as delimiters', () => {
+    const content = `
+llm.provider=openai
+llm.model: gpt-4o
+core.logging.level:debug
+features.reminders.settings.threshold = 10
+`
+    const result = parseUnifiedConfig(content)
+
+    expect(result.config.llm).toEqual({
+      provider: 'openai',
+      model: 'gpt-4o',
+    })
+    expect(result.config.core).toEqual({
+      logging: { level: 'debug' },
+    })
+    expect(result.config.features).toEqual({
+      reminders: { settings: { threshold: 10 } },
+    })
+    expect(result.warnings).toHaveLength(0)
   })
 
   test('skips comments and empty lines', () => {
@@ -86,7 +108,7 @@ llm.model=gpt-4o
 `
     const result = parseUnifiedConfig(content)
 
-    expect(result.llm).toEqual({
+    expect(result.config.llm).toEqual({
       provider: 'openai',
       model: 'gpt-4o',
     })
@@ -99,8 +121,8 @@ features.reminders.enabled=false
 `
     const result = parseUnifiedConfig(content)
 
-    expect(result.llm?.debugDumpEnabled).toBe(true)
-    expect(result.features?.reminders).toEqual({ enabled: false })
+    expect(result.config.llm?.debugDumpEnabled).toBe(true)
+    expect(result.config.features?.reminders).toEqual({ enabled: false })
   })
 
   test('coerces numeric values', () => {
@@ -111,16 +133,16 @@ transcript.watchDebounceMs=200
 `
     const result = parseUnifiedConfig(content)
 
-    expect(result.llm?.temperature).toBe(0.7)
-    expect(result.llm?.timeout).toBe(60)
-    expect(result.transcript?.watchDebounceMs).toBe(200)
+    expect(result.config.llm?.temperature).toBe(0.7)
+    expect(result.config.llm?.timeout).toBe(60)
+    expect(result.config.transcript?.watchDebounceMs).toBe(200)
   })
 
   test('parses JSON arrays', () => {
     const content = `features.test.settings.items=["a","b","c"]`
     const result = parseUnifiedConfig(content)
 
-    expect(result.features?.test).toEqual({
+    expect(result.config.features?.test).toEqual({
       settings: { items: ['a', 'b', 'c'] },
     })
   })
@@ -129,7 +151,7 @@ transcript.watchDebounceMs=200
     const content = `features.test.settings.nested={"key":"value","num":42}`
     const result = parseUnifiedConfig(content)
 
-    expect(result.features?.test).toEqual({
+    expect(result.config.features?.test).toEqual({
       settings: { nested: { key: 'value', num: 42 } },
     })
   })
@@ -141,11 +163,11 @@ core.paths.state='custom-state'
 `
     const result = parseUnifiedConfig(content)
 
-    expect(result.llm?.model).toBe('gpt-4o-mini')
-    expect(result.core?.paths).toEqual({ state: 'custom-state' })
+    expect(result.config.llm?.model).toBe('gpt-4o-mini')
+    expect(result.config.core?.paths).toEqual({ state: 'custom-state' })
   })
 
-  test('ignores malformed lines', () => {
+  test('ignores malformed lines and collects warnings', () => {
     const content = `
 llm.provider=openai
 invalid line without equals
@@ -155,7 +177,7 @@ llm.model=gpt-4o
 `
     const result = parseUnifiedConfig(content)
 
-    expect(result.llm).toEqual({
+    expect(result.config.llm).toEqual({
       provider: 'openai',
       model: 'gpt-4o',
     })
@@ -165,11 +187,41 @@ llm.model=gpt-4o
     const content = `features.reminders.settings.thresholds.stuck=40`
     const result = parseUnifiedConfig(content)
 
-    expect(result.features?.reminders).toEqual({
+    expect(result.config.features?.reminders).toEqual({
       settings: {
         thresholds: { stuck: 40 },
       },
     })
+  })
+
+  test('collects overrides for logging', () => {
+    const content = `
+llm.provider=openai
+llm.model=gpt-4o
+`
+    const result = parseUnifiedConfig(content)
+
+    expect(result.overrides).toHaveLength(2)
+    expect(result.overrides).toContainEqual({ key: 'llm.provider', value: 'openai' })
+    expect(result.overrides).toContainEqual({ key: 'llm.model', value: 'gpt-4o' })
+  })
+
+  test('collects warnings for malformed lines', () => {
+    const content = `
+llm.provider=openai
+features.reminders.threshold: 4
+no_delimiter_here
+single=value
+`
+    const result = parseUnifiedConfig(content, 'test.config')
+
+    // Line 3 (features.reminders.threshold: 4) is valid now that we accept ':'
+    // Line 4 has no delimiter, line 5 has invalid key format (not dot-notation)
+    expect(result.warnings).toHaveLength(2)
+    expect(result.warnings[0]).toContain('test.config:4')
+    expect(result.warnings[0]).toContain("missing '=' or ':'")
+    expect(result.warnings[1]).toContain('test.config:5')
+    expect(result.warnings[1]).toContain('invalid key format')
   })
 })
 
@@ -1084,11 +1136,14 @@ describe('ConfigService - getFeature with external defaults', () => {
       resolveJson: () => null,
       resolveYaml: <T>(path: string): T | null => {
         if (path === 'defaults/features/statusline.defaults.yaml') {
+          // New nested structure: { enabled, settings: { ...settings } }
           return {
             enabled: true,
-            format: '[{model}] | {tokens}',
-            confidenceThreshold: 0.6,
-            thresholds: { tokens: { warning: 100000 } },
+            settings: {
+              format: '[{model}] | {tokens}',
+              confidenceThreshold: 0.6,
+              thresholds: { tokens: { warning: 100000 } },
+            },
           } as T
         }
         return null
@@ -1141,10 +1196,13 @@ statusline:
       resolveJson: () => null,
       resolveYaml: <T>(path: string): T | null => {
         if (path === 'defaults/features/statusline.defaults.yaml') {
+          // New nested structure: { enabled, settings: { ...settings } }
           return {
             enabled: true,
-            format: '[{model}] | {tokens}',
-            confidenceThreshold: 0.6,
+            settings: {
+              format: '[{model}] | {tokens}',
+              confidenceThreshold: 0.6,
+            },
           } as T
         }
         return null
@@ -1223,12 +1281,15 @@ statusline:
       resolveJson: () => null,
       resolveYaml: <T>(path: string): T | null => {
         if (path === 'defaults/features/statusline.defaults.yaml') {
+          // New nested structure: { enabled, settings: { ...settings } }
           return {
             enabled: true,
-            format: '[{model}]',
-            thresholds: {
-              tokens: { warning: 100000, critical: 160000 },
-              cost: { warning: 0.5, critical: 1.0 },
+            settings: {
+              format: '[{model}]',
+              thresholds: {
+                tokens: { warning: 100000, critical: 160000 },
+                cost: { warning: 0.5, critical: 1.0 },
+              },
             },
           } as T
         }

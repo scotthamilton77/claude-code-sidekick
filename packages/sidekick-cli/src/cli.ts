@@ -326,6 +326,7 @@ export async function routeCommand(context: {
       format: parsed.format,
       sessionId,
       hookMetrics,
+      configService: runtime.config,
     })
     return { exitCode: result.exitCode, stdout: '', stderr: '' }
   }

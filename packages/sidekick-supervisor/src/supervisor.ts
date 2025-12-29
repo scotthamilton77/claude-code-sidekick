@@ -256,14 +256,10 @@ export class Supervisor {
     try {
       const newConfig = loadConfig({ projectRoot: this.projectDir })
 
-      // Apply critical config changes immediately
-      if (newConfig.core.logging.level !== this.config.core.logging.level) {
-        this.logger.info('Log level changed, updating logger', {
-          old: this.config.core.logging.level,
-          new: newConfig.core.logging.level,
-        })
-        // Note: Full log level change would require recreating the logger
-        // For now, we just note it. Full implementation would update the Pino level.
+      // Log all config value changes
+      const changes = this.diffConfigs(this.config, newConfig)
+      if (changes.length > 0) {
+        this.logger.info('Configuration values changed', { changes })
       }
 
       // Update stored config
@@ -275,6 +271,54 @@ export class Supervisor {
         error: err instanceof Error ? err.message : String(err),
       })
     }
+  }
+
+  /**
+   * Compare two config objects and return a list of changed values.
+   */
+  private diffConfigs(
+    oldConfig: SidekickConfig,
+    newConfig: SidekickConfig,
+    path: string[] = []
+  ): Array<{ path: string; old: unknown; new: unknown }> {
+    const changes: Array<{ path: string; old: unknown; new: unknown }> = []
+
+    const compareObjects = (
+      oldObj: Record<string, unknown>,
+      newObj: Record<string, unknown>,
+      currentPath: string[]
+    ): void => {
+      const allKeys = new Set([...Object.keys(oldObj), ...Object.keys(newObj)])
+
+      for (const key of allKeys) {
+        const oldVal = oldObj[key]
+        const newVal = newObj[key]
+        const keyPath = [...currentPath, key]
+
+        if (oldVal === newVal) continue
+
+        if (
+          oldVal !== null &&
+          newVal !== null &&
+          typeof oldVal === 'object' &&
+          typeof newVal === 'object' &&
+          !Array.isArray(oldVal) &&
+          !Array.isArray(newVal)
+        ) {
+          // Recurse into nested objects
+          compareObjects(oldVal as Record<string, unknown>, newVal as Record<string, unknown>, keyPath)
+        } else if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
+          changes.push({ path: keyPath.join('.'), old: oldVal, new: newVal })
+        }
+      }
+    }
+
+    compareObjects(
+      oldConfig as unknown as Record<string, unknown>,
+      newConfig as unknown as Record<string, unknown>,
+      path
+    )
+    return changes
   }
 
   private async handleIpcRequest(method: string, params: unknown): Promise<unknown> {
@@ -493,6 +537,12 @@ export class Supervisor {
         core: { logging: { level: this.config.core.logging.level } },
         llm: { provider: this.config.llm.provider },
         getAll: () => this.config,
+        getFeature: <T = Record<string, unknown>>(name: string) => {
+          const featureConfig = this.config.features[name]
+          return featureConfig
+            ? (featureConfig as { enabled: boolean; settings: T })
+            : { enabled: true, settings: {} as T }
+        },
       },
       logger: this.logger,
       assets: this.assetResolver,
@@ -815,6 +865,12 @@ export class Supervisor {
         core: { logging: { level: this.config.core.logging.level } },
         llm: { provider: this.config.llm.provider },
         getAll: () => this.config,
+        getFeature: <T = Record<string, unknown>>(name: string) => {
+          const featureConfig = this.config.features[name]
+          return featureConfig
+            ? (featureConfig as { enabled: boolean; settings: T })
+            : { enabled: true, settings: {} as T }
+        },
       },
       logger: this.logger,
       assets: this.assetResolver,

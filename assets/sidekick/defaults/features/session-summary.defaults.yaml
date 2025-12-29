@@ -5,45 +5,46 @@
 # Enable or disable the session summary feature
 enabled: true
 
-# Number of transcript lines to include in excerpt for LLM analysis
-excerptLines: 80
+settings:
+  # Number of transcript lines to include in excerpt for LLM analysis
+  excerptLines: 80
 
-# Filter out tool use messages from excerpt (reduces noise)
-filterToolMessages: true
+  # Filter out tool use messages from excerpt (reduces noise)
+  filterToolMessages: true
 
-# Keep summary history across compactions
-keepHistory: false
+  # Keep summary history across compactions
+  keepHistory: false
 
-# Maximum words for generated session title
-maxTitleWords: 8
+  # Maximum words for generated session title
+  maxTitleWords: 8
 
-# Maximum words for generated intent description
-maxIntentWords: 12
+  # Maximum words for generated intent description
+  maxIntentWords: 12
 
-# Enable snarky/humorous comments in summaries
-snarkyMessages: true
+  # Enable snarky/humorous comments in summaries
+  snarkyMessages: true
 
-# Countdown configuration for summary refresh timing
-# Counts ToolResult events (each tool use decrements by 1)
-# Lower values = more frequent updates (more LLM calls)
-countdown:
-  # Tool results until next summary when confidence is low (≤0.6)
-  lowConfidence: 5
-  # Tool results until next summary when confidence is medium (0.6-0.8)
-  mediumConfidence: 10
-  # Tool results until next summary when confidence is high (>0.8)
-  # Set very high to effectively disable automatic refresh
-  highConfidence: 10000
+  # Countdown configuration for summary refresh timing
+  # Counts ToolResult events (each tool use decrements by 1)
+  # Lower values = more frequent updates (more LLM calls)
+  countdown:
+    # Tool results until next summary when confidence is low (≤0.6)
+    lowConfidence: 5
+    # Tool results until next summary when confidence is medium (0.6-0.8)
+    mediumConfidence: 10
+    # Tool results until next summary when confidence is high (>0.8)
+    # Set very high to effectively disable automatic refresh
+    highConfidence: 10000
 
-# Bookmark configuration for tracking session progress
-bookmark:
-  # Minimum confidence required to create a bookmark
-  confidenceThreshold: 0.8
-  # Confidence drop below which bookmark resets
-  resetThreshold: 0.7
+  # Bookmark configuration for tracking session progress
+  bookmark:
+    # Minimum confidence required to create a bookmark
+    confidenceThreshold: 0.8
+    # Confidence drop below which bookmark resets
+    resetThreshold: 0.7
 
-# Minimum user messages required before generating first summary
-minUserMessages: 1
+  # Minimum user messages required before generating first summary
+  minUserMessages: 1
 
-# Minimum recent transcript lines required for summary generation
-minRecentLines: 5
+  # Minimum recent transcript lines required for summary generation
+  minRecentLines: 5
