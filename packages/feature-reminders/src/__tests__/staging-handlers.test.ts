@@ -18,7 +18,11 @@ import { registerStagePauseAndReflect } from '../handlers/staging/stage-pause-an
 import { registerStageDefaultUserPrompt } from '../handlers/staging/stage-default-user-prompt'
 import { registerStageStopReminders } from '../handlers/staging/stage-stop-reminders'
 
-function createTestTranscriptEvent(metrics: Partial<TranscriptMetrics>, toolName?: string): TranscriptEvent {
+function createTestTranscriptEvent(
+  metrics: Partial<TranscriptMetrics>,
+  toolName?: string,
+  filePath?: string
+): TranscriptEvent {
   return {
     kind: 'transcript',
     eventType: 'ToolCall',
@@ -28,7 +32,7 @@ function createTestTranscriptEvent(metrics: Partial<TranscriptMetrics>, toolName
     },
     payload: {
       lineNumber: 1,
-      entry: {},
+      entry: filePath ? { input: { file_path: filePath } } : {},
       toolName,
     },
     metadata: {
@@ -191,7 +195,7 @@ reason: "Verify completion before stopping"
       registerStageStopReminders(ctx)
 
       const handler = handlers.getHandler('reminders:stage-stop-reminders')
-      const event = createTestTranscriptEvent({ toolsThisTurn: 1 }, 'Write')
+      const event = createTestTranscriptEvent({ toolsThisTurn: 1 }, 'Write', '/src/app.ts')
 
       await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
 
@@ -204,7 +208,7 @@ reason: "Verify completion before stopping"
       registerStageStopReminders(ctx)
 
       const handler = handlers.getHandler('reminders:stage-stop-reminders')
-      const event = createTestTranscriptEvent({ toolsThisTurn: 1 }, 'Edit')
+      const event = createTestTranscriptEvent({ toolsThisTurn: 1 }, 'Edit', '/src/utils.js')
 
       await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
 
@@ -216,7 +220,7 @@ reason: "Verify completion before stopping"
       registerStageStopReminders(ctx)
 
       const handler = handlers.getHandler('reminders:stage-stop-reminders')
-      const event = createTestTranscriptEvent({ toolsThisTurn: 1 }, 'MultiEdit')
+      const event = createTestTranscriptEvent({ toolsThisTurn: 1 }, 'MultiEdit', '/src/index.py')
 
       await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
 
@@ -233,6 +237,95 @@ reason: "Verify completion before stopping"
       await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
 
       expect(staging.getRemindersForHook('Stop')).toHaveLength(0)
+    })
+
+    describe('source code pattern filtering', () => {
+      it('stages reminder when editing source code file (.ts)', async () => {
+        registerStageStopReminders(ctx)
+
+        const handler = handlers.getHandler('reminders:stage-stop-reminders')
+        const event = createTestTranscriptEvent({ toolsThisTurn: 1 }, 'Edit', '/src/app.ts')
+
+        await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+
+        const reminders = staging.getRemindersForHook('Stop')
+        expect(reminders).toHaveLength(1)
+        expect(reminders[0].name).toBe('verify-completion')
+      })
+
+      it('stages reminder when editing package.json', async () => {
+        registerStageStopReminders(ctx)
+
+        const handler = handlers.getHandler('reminders:stage-stop-reminders')
+        const event = createTestTranscriptEvent({ toolsThisTurn: 1 }, 'Edit', '/project/package.json')
+
+        await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+
+        const reminders = staging.getRemindersForHook('Stop')
+        expect(reminders).toHaveLength(1)
+      })
+
+      it('does not stage reminder when editing documentation file (.md)', async () => {
+        registerStageStopReminders(ctx)
+
+        const handler = handlers.getHandler('reminders:stage-stop-reminders')
+        const event = createTestTranscriptEvent({ toolsThisTurn: 1 }, 'Edit', '/docs/README.md')
+
+        await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+
+        expect(staging.getRemindersForHook('Stop')).toHaveLength(0)
+      })
+
+      it('does not stage reminder when editing CLAUDE.md', async () => {
+        registerStageStopReminders(ctx)
+
+        const handler = handlers.getHandler('reminders:stage-stop-reminders')
+        const event = createTestTranscriptEvent({ toolsThisTurn: 1 }, 'Write', '/project/CLAUDE.md')
+
+        await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+
+        expect(staging.getRemindersForHook('Stop')).toHaveLength(0)
+      })
+
+      it('uses configured source_code_patterns', async () => {
+        // Configure only .py and .rb patterns
+        ;(ctx.config as import('@sidekick/testing-fixtures').MockConfigService).set({
+          features: {
+            reminders: {
+              enabled: true,
+              settings: {
+                source_code_patterns: ['**/*.py', '**/*.rb'],
+              },
+            },
+          },
+        })
+
+        registerStageStopReminders(ctx)
+
+        const handler = handlers.getHandler('reminders:stage-stop-reminders')
+
+        // .ts should NOT trigger (not in custom patterns)
+        const tsEvent = createTestTranscriptEvent({ toolsThisTurn: 1 }, 'Edit', '/src/app.ts')
+        await handler?.handler(tsEvent, ctx as unknown as import('@sidekick/types').HandlerContext)
+        expect(staging.getRemindersForHook('Stop')).toHaveLength(0)
+
+        // .py SHOULD trigger
+        const pyEvent = createTestTranscriptEvent({ toolsThisTurn: 1, toolCount: 2 }, 'Edit', '/src/app.py')
+        await handler?.handler(pyEvent, ctx as unknown as import('@sidekick/types').HandlerContext)
+        expect(staging.getRemindersForHook('Stop')).toHaveLength(1)
+      })
+
+      it('handles missing file_path gracefully (no staging)', async () => {
+        registerStageStopReminders(ctx)
+
+        const handler = handlers.getHandler('reminders:stage-stop-reminders')
+        // No file path provided
+        const event = createTestTranscriptEvent({ toolsThisTurn: 1 }, 'Edit')
+
+        await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+
+        expect(staging.getRemindersForHook('Stop')).toHaveLength(0)
+      })
     })
   })
 

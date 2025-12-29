@@ -4,8 +4,9 @@
  */
 import type { RuntimeContext } from '@sidekick/core'
 import { isTranscriptEvent } from '@sidekick/types'
+import picomatch from 'picomatch'
 import { createStagingHandler } from './staging-handler-utils.js'
-import { ReminderIds } from '../../types.js'
+import { ReminderIds, DEFAULT_REMINDERS_SETTINGS, type RemindersSettings } from '../../types.js'
 
 const FILE_EDIT_TOOLS = ['Write', 'Edit', 'MultiEdit']
 
@@ -20,6 +21,19 @@ export function registerStageStopReminders(context: RuntimeContext): void {
       // Check if this is a file edit tool
       const toolName = event.payload.toolName
       if (!toolName || !FILE_EDIT_TOOLS.includes(toolName)) return undefined
+
+      // Get config for source code pattern filtering
+      const featureConfig = context.config.getFeature<RemindersSettings>('reminders')
+      const config = { ...DEFAULT_REMINDERS_SETTINGS, ...featureConfig.settings }
+
+      // Extract file path from tool input
+      const entry = event.payload.entry as { input?: { file_path?: string } }
+      const filePath = entry?.input?.file_path
+      if (!filePath) return undefined
+
+      // Check if file path matches any configured source code patterns
+      const isMatch = picomatch.isMatch(filePath, config.source_code_patterns)
+      if (!isMatch) return undefined
 
       const metrics = event.metadata.metrics
 

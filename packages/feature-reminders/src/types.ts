@@ -8,6 +8,7 @@
  */
 export interface RemindersSettings {
   pause_and_reflect_threshold: number
+  source_code_patterns: string[]
 }
 
 /**
@@ -34,10 +35,57 @@ export interface TemplateContext {
 }
 
 /**
+ * Default source code file patterns for verify-completion triggering.
+ * Uses glob patterns matched against file paths.
+ */
+export const DEFAULT_SOURCE_CODE_PATTERNS = [
+  // TypeScript/JavaScript
+  '**/*.ts',
+  '**/*.tsx',
+  '**/*.js',
+  '**/*.jsx',
+  // Python
+  '**/*.py',
+  // Go
+  '**/*.go',
+  // Rust
+  '**/*.rs',
+  // JVM languages
+  '**/*.java',
+  '**/*.kt',
+  '**/*.scala',
+  // Swift
+  '**/*.swift',
+  // C/C++
+  '**/*.c',
+  '**/*.cpp',
+  '**/*.h',
+  '**/*.hpp',
+  // Ruby
+  '**/*.rb',
+  // PHP
+  '**/*.php',
+  // C#
+  '**/*.cs',
+  // Shell
+  '**/*.sh',
+  // Config files (commonly edited with code)
+  '**/*.yaml',
+  '**/*.yml',
+  '**/*.toml',
+  // Specific important files
+  '**/package.json',
+  '**/tsconfig.json',
+  '**/Dockerfile',
+  '**/Makefile',
+]
+
+/**
  * Default reminder settings values
  */
 export const DEFAULT_REMINDERS_SETTINGS: RemindersSettings = {
   pause_and_reflect_threshold: 15,
+  source_code_patterns: DEFAULT_SOURCE_CODE_PATTERNS,
 }
 
 /**
