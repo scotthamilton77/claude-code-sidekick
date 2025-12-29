@@ -20,7 +20,7 @@ import type {
   StagingMetrics,
 } from '@sidekick/types'
 import { isSupervisorContext, isTranscriptEvent } from '@sidekick/types'
-import { resolveReminder, stageReminder, suppressHook } from '../../reminder-utils.js'
+import { resolveReminder, stageReminder } from '../../reminder-utils.js'
 import type { TemplateContext } from '../../types.js'
 
 export interface StagingAction {
@@ -30,8 +30,6 @@ export interface StagingAction {
   targetHook: HookName
   /** Template context for interpolation */
   templateContext?: TemplateContext
-  /** Hooks to suppress after staging */
-  suppressHooks?: HookName[]
   /** Skip if reminder already exists for this hook (default: true) */
   skipIfExists?: boolean
 }
@@ -96,13 +94,6 @@ export function createStagingHandler(context: RuntimeContext, config: StagingHan
 
     // Stage reminder with stagedAt metrics
     await stageReminder(supervisorCtx, action.targetHook, { ...reminder, stagedAt })
-
-    // Suppress hooks if requested
-    if (action.suppressHooks) {
-      for (const hook of action.suppressHooks) {
-        await suppressHook(supervisorCtx, hook)
-      }
-    }
   }
 
   context.handlers.register({ id, priority, filter, handler })

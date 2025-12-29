@@ -338,43 +338,6 @@ describe('createConsumptionHandler', () => {
     })
   })
 
-  describe('suppression behavior', () => {
-    it('returns empty response when hook is suppressed', async () => {
-      const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'Stop')
-      writeFileSync(join(stagingDir, 'reminder.json'), JSON.stringify({ name: 'reminder', priority: 50 }))
-      writeFileSync(join(stagingDir, '.suppressed'), '')
-
-      createConsumptionHandler(ctx, {
-        id: 'test:consume',
-        hook: 'Stop',
-      })
-
-      const handler = handlers.getHandler('test:consume')
-      const result = await handler?.handler(
-        createStopEvent(),
-        ctx as unknown as import('@sidekick/types').HandlerContext
-      )
-
-      expect(result).toEqual({ response: {} })
-    })
-
-    it('clears suppression marker after check', async () => {
-      const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'Stop')
-      const suppressedPath = join(stagingDir, '.suppressed')
-      writeFileSync(suppressedPath, '')
-
-      createConsumptionHandler(ctx, {
-        id: 'test:consume',
-        hook: 'Stop',
-      })
-
-      const handler = handlers.getHandler('test:consume')
-      await handler?.handler(createStopEvent(), ctx as unknown as import('@sidekick/types').HandlerContext)
-
-      expect(existsSync(suppressedPath)).toBe(false)
-    })
-  })
-
   describe('logging', () => {
     it('logs when reminder is injected', async () => {
       const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'PreToolUse')

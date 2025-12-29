@@ -98,19 +98,15 @@ describe('Staging Lifecycle', () => {
       const service = new SessionScopedStagingService(core, sessionId, 'project')
 
       await service.stageReminder('UserPromptSubmit', 'Reminder1', createTestReminder('Reminder1'))
-      await service.suppressHook('Stop')
 
       // Verify state exists
       expect(await service.listReminders('UserPromptSubmit')).toHaveLength(1)
-      expect(await service.isHookSuppressed('Stop')).toBe(true)
 
       // Clear staging (simulating SessionStart with startType='clear')
       await service.clearStaging()
 
-      // Verify everything is cleared including suppression markers
+      // Verify everything is cleared
       expect(await service.listReminders('UserPromptSubmit')).toHaveLength(0)
-      // Note: clearStaging removes the entire staging directory, including markers
-      expect(await service.isHookSuppressed('Stop')).toBe(false)
     })
 
     it('should NOT clear staging when startType is resume', async () => {

@@ -73,21 +73,6 @@ export interface StagingService {
   clearStaging(hookName?: string): Promise<void>
 
   /**
-   * Suppress a hook (marker file prevents reminder injection).
-   */
-  suppressHook(hookName: string): Promise<void>
-
-  /**
-   * Check if a hook is suppressed.
-   */
-  isHookSuppressed(hookName: string): Promise<boolean>
-
-  /**
-   * Clear suppression for a hook.
-   */
-  clearSuppression(hookName: string): Promise<void>
-
-  /**
    * List all staged reminders for a hook, sorted by priority (highest first).
    */
   listReminders(hookName: string): Promise<StagedReminder[]>

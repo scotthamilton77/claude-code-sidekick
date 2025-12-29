@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest'
-import { stageReminder, consumeReminder, suppressHook, clearSuppression } from '../reminder-utils'
+import { stageReminder, consumeReminder } from '../reminder-utils'
 import { createMockSupervisorContext, MockStagingService, MockLogger } from '@sidekick/testing-fixtures'
 import type { StagedReminder, SupervisorContext } from '@sidekick/types'
 
@@ -106,21 +106,6 @@ describe('reminder staging/consumption', () => {
       expect(remaining).not.toBeNull()
     })
 
-    it('returns null and clears suppression when hook is suppressed', async () => {
-      await staging.stageReminder('Stop', 'reminder', {
-        name: 'reminder',
-        blocking: true,
-        priority: 50,
-        persistent: false,
-      })
-      await staging.suppressHook('Stop')
-
-      const result = await consumeReminder(ctx, 'Stop')
-
-      expect(result).toBeNull()
-      expect(await staging.isHookSuppressed('Stop')).toBe(false)
-    })
-
     it('logs consumption action', async () => {
       await staging.stageReminder('PreToolUse', 'test', {
         name: 'test',
@@ -138,41 +123,6 @@ describe('reminder staging/consumption', () => {
         reminderName: 'test',
         persistent: false,
       })
-    })
-
-    it('logs suppression cleared when suppressed', async () => {
-      await staging.suppressHook('Stop')
-
-      await consumeReminder(ctx, 'Stop')
-
-      expect(logger.wasLoggedAtLevel('Suppression cleared, no reminder consumed', 'debug')).toBe(true)
-    })
-  })
-
-  describe('suppressHook', () => {
-    it('delegates to StagingService.suppressHook', async () => {
-      await suppressHook(ctx, 'PreToolUse')
-
-      expect(await staging.isHookSuppressed('PreToolUse')).toBe(true)
-    })
-
-    it('logs suppression action', async () => {
-      await suppressHook(ctx, 'Stop')
-
-      expect(logger.wasLoggedAtLevel('Suppressed hook', 'debug')).toBe(true)
-      const log = logger.recordedLogs.find((l) => l.msg === 'Suppressed hook')
-      expect(log?.meta).toEqual({ hookName: 'Stop' })
-    })
-  })
-
-  describe('clearSuppression', () => {
-    it('delegates to StagingService.clearSuppression', async () => {
-      await staging.suppressHook('PreToolUse')
-      expect(await staging.isHookSuppressed('PreToolUse')).toBe(true)
-
-      await clearSuppression(ctx, 'PreToolUse')
-
-      expect(await staging.isHookSuppressed('PreToolUse')).toBe(false)
     })
   })
 })

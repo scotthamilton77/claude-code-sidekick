@@ -139,17 +139,9 @@ export async function stageReminder(ctx: SupervisorContext, hookName: string, re
 
 /**
  * Consume the highest-priority staged reminder for a hook.
- * Checks suppression first, then returns and optionally deletes the reminder.
+ * Returns and optionally deletes the reminder.
  */
 export async function consumeReminder(ctx: SupervisorContext, hookName: string): Promise<StagedReminder | null> {
-  // Check suppression first
-  const suppressed = await ctx.staging.isHookSuppressed(hookName)
-  if (suppressed) {
-    await ctx.staging.clearSuppression(hookName)
-    ctx.logger.debug('Suppression cleared, no reminder consumed', { hookName })
-    return null
-  }
-
   // Get all reminders for this hook
   const reminders = await ctx.staging.listReminders(hookName)
   if (reminders.length === 0) {
@@ -171,20 +163,4 @@ export async function consumeReminder(ctx: SupervisorContext, hookName: string):
     persistent: reminder.persistent,
   })
   return reminder
-}
-
-/**
- * Suppress all reminders for a hook.
- * Creates marker file that causes next consumption to return null.
- */
-export async function suppressHook(ctx: SupervisorContext, hookName: string): Promise<void> {
-  await ctx.staging.suppressHook(hookName)
-  ctx.logger.debug('Suppressed hook', { hookName })
-}
-
-/**
- * Clear suppression for a hook.
- */
-export async function clearSuppression(ctx: SupervisorContext, hookName: string): Promise<void> {
-  await ctx.staging.clearSuppression(hookName)
 }

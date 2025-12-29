@@ -335,68 +335,6 @@ describe('SessionScopedStagingService (via createService)', () => {
   })
 
   // ==========================================================================
-  // Suppression tests
-  // ==========================================================================
-
-  describe('suppressHook', () => {
-    it('should create .suppressed marker file', async () => {
-      const service = createService(testDir)
-
-      await service.suppressHook('Stop')
-
-      const markerPath = join(testDir, 'sessions', 'test-session-123', 'stage', 'Stop', '.suppressed')
-      expect(existsSync(markerPath)).toBe(true)
-    })
-
-    it('should create hook directory if it does not exist', async () => {
-      const service = createService(testDir)
-
-      await service.suppressHook('NewHook')
-
-      const hookDir = join(testDir, 'sessions', 'test-session-123', 'stage', 'NewHook')
-      expect(existsSync(hookDir)).toBe(true)
-    })
-  })
-
-  describe('isHookSuppressed', () => {
-    it('should return false for non-suppressed hook', async () => {
-      const service = createService(testDir)
-
-      const result = await service.isHookSuppressed('Stop')
-
-      expect(result).toBe(false)
-    })
-
-    it('should return true for suppressed hook', async () => {
-      const service = createService(testDir)
-
-      await service.suppressHook('Stop')
-      const result = await service.isHookSuppressed('Stop')
-
-      expect(result).toBe(true)
-    })
-  })
-
-  describe('clearSuppression', () => {
-    it('should remove .suppressed marker', async () => {
-      const service = createService(testDir)
-
-      await service.suppressHook('Stop')
-      expect(await service.isHookSuppressed('Stop')).toBe(true)
-
-      await service.clearSuppression('Stop')
-      expect(await service.isHookSuppressed('Stop')).toBe(false)
-    })
-
-    it('should handle clearing non-existent suppression gracefully', async () => {
-      const service = createService(testDir)
-
-      // Should not throw
-      await expect(service.clearSuppression('NonSuppressed')).resolves.toBeUndefined()
-    })
-  })
-
-  // ==========================================================================
   // deleteReminder tests
   // ==========================================================================
 
@@ -446,23 +384,6 @@ describe('SessionScopedStagingService (via createService)', () => {
       const stopDir = join(testDir, 'sessions', 'test-session-123', 'stage', 'Stop')
       expect(existsSync(preToolDir)).toBe(false)
       expect(existsSync(stopDir)).toBe(true)
-    })
-
-    it('suppressHookSync should create marker', () => {
-      const service = createService(testDir)
-
-      service.suppressHookSync('Stop')
-
-      expect(service.isHookSuppressedSync('Stop')).toBe(true)
-    })
-
-    it('clearSuppressionSync should remove marker', () => {
-      const service = createService(testDir)
-
-      service.suppressHookSync('Stop')
-      service.clearSuppressionSync('Stop')
-
-      expect(service.isHookSuppressedSync('Stop')).toBe(false)
     })
 
     it('deleteReminderSync should delete reminder', () => {
@@ -642,15 +563,6 @@ describe('StagingServiceCore', () => {
       expect(await core.listReminders('session-a', 'PreToolUse')).toEqual([])
       expect(await core.listReminders('session-b', 'PreToolUse')).toHaveLength(1)
     })
-
-    it('should suppress hooks independently per session', async () => {
-      const core = createCore(testDir)
-
-      await core.suppressHook('session-a', 'Stop')
-
-      expect(await core.isHookSuppressed('session-a', 'Stop')).toBe(true)
-      expect(await core.isHookSuppressed('session-b', 'Stop')).toBe(false)
-    })
   })
 
   describe('getStagingRoot', () => {
@@ -681,18 +593,6 @@ describe('StagingServiceCore', () => {
       const result = await core.readReminder('session-1', 'PreToolUse', 'ToDelete')
       expect(result).toBeNull()
     })
-
-    it('should handle suppression lifecycle', async () => {
-      const core = createCore(testDir)
-
-      expect(await core.isHookSuppressed('session-1', 'Stop')).toBe(false)
-
-      await core.suppressHook('session-1', 'Stop')
-      expect(await core.isHookSuppressed('session-1', 'Stop')).toBe(true)
-
-      await core.clearSuppression('session-1', 'Stop')
-      expect(await core.isHookSuppressed('session-1', 'Stop')).toBe(false)
-    })
   })
 
   describe('sync API', () => {
@@ -714,18 +614,6 @@ describe('StagingServiceCore', () => {
 
       const hookDir = join(testDir, 'sessions', 'session-1', 'stage', 'PreToolUse')
       expect(existsSync(hookDir)).toBe(false)
-    })
-
-    it('should handle suppression synchronously', () => {
-      const core = createCore(testDir)
-
-      expect(core.isHookSuppressedSync('session-1', 'Stop')).toBe(false)
-
-      core.suppressHookSync('session-1', 'Stop')
-      expect(core.isHookSuppressedSync('session-1', 'Stop')).toBe(true)
-
-      core.clearSuppressionSync('session-1', 'Stop')
-      expect(core.isHookSuppressedSync('session-1', 'Stop')).toBe(false)
     })
 
     it('should delete reminders synchronously', () => {
@@ -884,31 +772,6 @@ describe('SessionScopedStagingService', () => {
       expect(await core.listReminders('other-session', 'PreToolUse')).toHaveLength(1)
     })
 
-    it('should delegate suppressHook to core', async () => {
-      const wrapper = createSessionScoped(core, 'wrapped-session')
-
-      await wrapper.suppressHook('Stop')
-
-      expect(await core.isHookSuppressed('wrapped-session', 'Stop')).toBe(true)
-    })
-
-    it('should delegate isHookSuppressed to core', async () => {
-      const wrapper = createSessionScoped(core, 'wrapped-session')
-
-      await core.suppressHook('wrapped-session', 'Stop')
-
-      expect(await wrapper.isHookSuppressed('Stop')).toBe(true)
-    })
-
-    it('should delegate clearSuppression to core', async () => {
-      const wrapper = createSessionScoped(core, 'wrapped-session')
-
-      await core.suppressHook('wrapped-session', 'Stop')
-      await wrapper.clearSuppression('Stop')
-
-      expect(await core.isHookSuppressed('wrapped-session', 'Stop')).toBe(false)
-    })
-
     it('should delegate deleteReminder to core', async () => {
       const wrapper = createSessionScoped(core, 'wrapped-session')
 
@@ -966,31 +829,6 @@ describe('SessionScopedStagingService', () => {
 
       const hookDir = join(testDir, 'sessions', 'wrapped-session', 'stage', 'PreToolUse')
       expect(existsSync(hookDir)).toBe(false)
-    })
-
-    it('should delegate suppressHookSync to core', () => {
-      const wrapper = createSessionScoped(core, 'wrapped-session')
-
-      wrapper.suppressHookSync('Stop')
-
-      expect(core.isHookSuppressedSync('wrapped-session', 'Stop')).toBe(true)
-    })
-
-    it('should delegate isHookSuppressedSync to core', () => {
-      const wrapper = createSessionScoped(core, 'wrapped-session')
-
-      core.suppressHookSync('wrapped-session', 'Stop')
-
-      expect(wrapper.isHookSuppressedSync('Stop')).toBe(true)
-    })
-
-    it('should delegate clearSuppressionSync to core', () => {
-      const wrapper = createSessionScoped(core, 'wrapped-session')
-
-      core.suppressHookSync('wrapped-session', 'Stop')
-      wrapper.clearSuppressionSync('Stop')
-
-      expect(core.isHookSuppressedSync('wrapped-session', 'Stop')).toBe(false)
     })
 
     it('should delegate deleteReminderSync to core', () => {
@@ -1054,9 +892,6 @@ describe('SessionScopedStagingService', () => {
       await wrapper.readReminder('PreToolUse', 'Test')
       await wrapper.listReminders('PreToolUse')
       await wrapper.clearStaging('PreToolUse')
-      await wrapper.suppressHook('Stop')
-      await wrapper.isHookSuppressed('Stop')
-      await wrapper.clearSuppression('Stop')
       await wrapper.deleteReminder('PreToolUse', 'Test')
       await wrapper.listConsumedReminders('PreToolUse', 'Test')
       await wrapper.getLastConsumed('PreToolUse', 'Test')

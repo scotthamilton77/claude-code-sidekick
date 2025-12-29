@@ -316,34 +316,27 @@ interface StagedReminder {
 | `additionalContext` | string? | Text injected as system context                        |
 | `reason`        | string? | Text used as blocking reason                           |
 
-**Note**: Suppression is handled via marker files (§4.5), not per-reminder state.
-
 ### 4.2 Reminder Personalities
 
 | Type           | Example                  | `persistent` | Behavior                           |
 | -------------- | ------------------------ | ------------ | ---------------------------------- |
 | **Persistent** | UserPromptSubmitReminder | `true`       | Always fires, never deleted        |
-| **One-shot**   | AreYouStuckReminder      | `false`      | Fires once, deleted on consumption |
+| **One-shot**   | PauseAndReflectReminder  | `false`      | Fires once, deleted on consumption |
 | **One-shot**   | VerifyCompletionReminder | `false`      | Fires once, deleted on consumption |
 
-**Note**: Suppression is orthogonal to personality—any hook's reminders can be suppressed via marker files.
+**Note**: Reminders can also be unstaged (deleted before consumption) when context changes—for example, `VerifyCompletionReminder` is unstaged on UserPromptSubmit since a new prompt triggers the user-prompt-submit reminder which helps compensate for claude code's forgetfulness.
 
 ### 4.3 CLI Consumption Logic
 
 When a hook fires, the CLI:
 
-1. Check for `.sidekick/sessions/{session_id}/stage/{hook_name}/.suppressed` marker
-2. If marker exists:
-   a. Delete the marker
-   b. Log `SuppressionCleared` event
-   c. Return empty response (allows action to proceed)
-3. Scan `.sidekick/sessions/{session_id}/stage/{hook_name}/*.json`
-4. Sort by `priority` (descending)
-5. Take highest priority reminder
-6. If `persistent: false` → delete file
-7. If `persistent: true` → leave file
-8. Log `ReminderConsumed` event to CLI log
-9. Return reminder fields in hook response (`blocking`, `reason`, `additionalContext`, etc.)
+1. Scan `.sidekick/sessions/{session_id}/stage/{hook_name}/*.json`
+2. Sort by `priority` (descending)
+3. Take highest priority reminder
+4. If `persistent: false` → delete file
+5. If `persistent: true` → leave file
+6. Log `ReminderConsumed` event to CLI log
+7. Return reminder fields in hook response (`blocking`, `reason`, `additionalContext`, etc.)
 
 ### 4.4 Supervisor Staging Logic
 
@@ -351,26 +344,15 @@ When conditions are met to stage a reminder:
 
 1. Create/overwrite `.sidekick/sessions/{session_id}/stage/{hook_name}/{reminder_name}.json`
 2. Log `ReminderStaged` event to Supervisor log
-3. Handler-specific business logic: If staging `AreYouStuckReminder` → create `.suppressed` marker in `Stop/`
 
-### 4.5 Suppression Pattern
+### 4.5 Supervisor Unstaging Logic
 
-Per **docs/design/FEATURE-REMINDERS.md §3.3**, suppression uses marker files rather than per-reminder state.
+When context changes require removing a staged reminder:
 
-**Marker Location**: `.sidekick/sessions/{session_id}/stage/{hook_name}/.suppressed`
+1. Delete `.sidekick/sessions/{session_id}/stage/{hook_name}/{reminder_name}.json` if exists
+2. Log `ReminderUnstaged` event to Supervisor log
 
-The "one-time-suppress" pattern handles this edge case:
-
-- AreYouStuck fires → agent stops → Stop hook triggers → don't fire stop reminder → but keep it for potential "continue"
-
-**Flow**:
-
-1. Supervisor transcript handler (on ToolCall when stuck threshold met):
-   a. Stages `AreYouStuckReminder` in `PreToolUse/`
-   b. Creates `.suppressed` marker in `Stop/` directory
-2. `PreToolUse` hook fires → CLI returns AreYouStuck content → agent stops
-3. `Stop` hook fires → CLI finds `.suppressed` marker → deletes marker → returns empty (allows stop)
-4. User prompts "continue" → eventual Stop → no marker exists → reminder fires normally
+**Example**: `UnstageVerifyCompletion` handler deletes `VerifyCompletionReminder` on `UserPromptSubmit` event, since a new prompt includes its own reminders to compensate for Claude Code's forgetfulness.
 
 ## 5. Complete Hook Flows
 
@@ -431,12 +413,13 @@ The "one-time-suppress" pattern handles this edge case:
   │   ├─[CLI] If command (clear|compact): return {}
   │   ├─[CLI] Send UserPromptSubmit event to supervisor
   │   │   └─[Supervisor] Invoke UserPromptSubmit handlers
-  │   │       └─[UpdateSessionSummary] Initiate async summary calculation
-  │   │           └─ Initiates snarky message generation
+  │   │       ├─[UpdateSessionSummary] Initiate async summary calculation
+  │   │       │   └─ Initiates snarky message generation
+  │   │       └─[UnstageVerifyCompletion] Delete Stop/VerifyCompletionReminder if exists
+  │   │           └─ New prompt means previous task is complete
   │   ├─[CLI] Invoke UserPromptSubmit handlers
-  │   │   └─[InjectUserPromptSubmitReminders] Check staged reminders in `.sidekick/sessions/{session_id}/stage/UserPromptSubmit/`, select highest-priority reminder
-  │   │       ├─[CLI] Pick highest-priority pending reminder (skip suppressed)
-  │   │       ├─[CLI] Flip any suppressed reminders back to pending
+  │   │   └─[InjectUserPromptSubmitReminders] Check staged reminders, select highest-priority
+  │   │       ├─[CLI] Pick highest-priority pending reminder
   │   │       └─[CLI] Delete consumed reminder (if not persistent)
   │   └─[CLI] Return result: { "showReminder": "..." } or {}
   └─[sidekick-hook.sh] Format and return CC hook result
@@ -457,8 +440,7 @@ The "one-time-suppress" pattern handles this edge case:
 
 **Sidekick Effects**:
 
-- AreYouStuck blocking reminder issued (if staged)
-- TimeForUserUpdate blocking reminder issued (if staged)
+- PauseAndReflect blocking reminder issued (if staged)
 
 **Call Chain**:
 
@@ -469,9 +451,8 @@ The "one-time-suppress" pattern handles this edge case:
   │   │   └─[Supervisor] Invoke PreToolUse handlers
   │   │       └─[Supervisor] No-op (no handlers registered)
   │   ├─[CLI] Invoke PreToolUse handlers
-  │   │   └─[InjectPreToolUseReminders] Check staged reminders in `.sidekick/sessions/{session_id}/stage/PreToolUse/`, select highest-priority reminder
-  │   │       ├─[CLI] Pick highest-priority pending reminder (skip suppressed)
-  │   │       ├─[CLI] Flip any suppressed reminders back to pending
+  │   │   └─[InjectPreToolUseReminders] Check staged reminders, select highest-priority
+  │   │       ├─[CLI] Pick highest-priority pending reminder
   │   │       └─[CLI] Delete consumed reminder (if not persistent)
   │   └─[CLI] Return result: { "blocking": true, "reason": "..." } or {}
   └─[sidekick-hook.sh] Format and return CC hook result
@@ -498,16 +479,12 @@ The "one-time-suppress" pattern handles this edge case:
   │   │       │   ├─ Reads metrics from TranscriptService.getMetrics()
   │   │       │   ├─ Initiates snarky message generation
   │   │       │   └─ Initiates resume message if significant title change
-  │   │       ├─[StageAreYouStuckReminder] Stage if threshold met
-  │   │       │   ├─ Reads toolsThisTurn from TranscriptService.getMetrics()
-  │   │       │   └─ Also suppresses Stop reminders
-  │   │       ├─[StageTimeForUserUpdateReminder] Stage if cadence met
-  │   │       │   └─ Reads toolCount from TranscriptService.getMetrics()
+  │   │       ├─[StagePauseAndReflect] Stage if threshold met
+  │   │       │   └─ Reads toolsThisTurn from TranscriptService.getMetrics()
   │   │       └─[StageStopReminders] Stage based on tool type (e.g., file edit)
   │   ├─[CLI] Invoke PostToolUse handlers
-  │   │   └─[InjectPostToolUseReminders] Check staged reminders in `.sidekick/sessions/{session_id}/stage/PostToolUse/`, select highest-priority reminder
-  │   │       ├─[CLI] Pick highest-priority pending reminder (skip suppressed)
-  │   │       ├─[CLI] Flip any suppressed reminders back to pending
+  │   │   └─[InjectPostToolUseReminders] Check staged reminders, select highest-priority
+  │   │       ├─[CLI] Pick highest-priority pending reminder
   │   │       └─[CLI] Delete consumed reminder (if not persistent)
   │   └─[CLI] Return result: { "blocking": true, "reason": "..." } or {}
   └─[sidekick-hook.sh] Format and return CC hook result
@@ -528,8 +505,7 @@ The "one-time-suppress" pattern handles this edge case:
 
 **Sidekick Effects**:
 
-- Blocking stop reminder issued (if staged and pending)
-- Suppressed reminders returned to pending state
+- Blocking stop reminder issued (if staged)
 
 **Call Chain**:
 
@@ -540,9 +516,8 @@ The "one-time-suppress" pattern handles this edge case:
   │   │   └─[Supervisor] Invoke Stop handlers
   │   │       └─[Supervisor] No-op (no handlers registered)
   │   ├─[CLI] Invoke Stop handlers
-  │   │   └─[InjectStopReminders] Check staged reminders in `.sidekick/sessions/{session_id}/stage/Stop/`, select highest-priority reminder
-  │   │       ├─[CLI] Pick highest-priority pending reminder (skip suppressed)
-  │   │       ├─[CLI] Flip any suppressed reminders back to pending
+  │   │   └─[InjectStopReminders] Check staged reminders, select highest-priority
+  │   │       ├─[CLI] Pick highest-priority pending reminder
   │   │       └─[CLI] Delete consumed reminder (if not persistent)
   │   └─[CLI] Return result: { "blocking": true, "reason": "..." } or {}
   └─[sidekick-hook.sh] Format and return CC hook result

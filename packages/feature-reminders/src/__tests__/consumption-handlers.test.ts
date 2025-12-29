@@ -88,30 +88,6 @@ describe('consumption-handlers', () => {
       expect(reminders[2].priority).toBe(10)
     })
 
-    it('handles suppression marker', () => {
-      const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'Stop')
-      const suppressedMarker = join(stagingDir, '.suppressed')
-      writeFileSync(suppressedMarker, '')
-
-      const reader = new CLIStagingReader({
-        paths: mockPaths,
-        sessionId,
-      })
-
-      expect(existsSync(suppressedMarker)).toBe(true)
-      expect(reader.checkAndClearSuppression('Stop')).toBe(true)
-      expect(existsSync(suppressedMarker)).toBe(false)
-    })
-
-    it('returns false when checking suppression on non-suppressed hook', () => {
-      const reader = new CLIStagingReader({
-        paths: mockPaths,
-        sessionId,
-      })
-
-      expect(reader.checkAndClearSuppression('PreToolUse')).toBe(false)
-    })
-
     it('deletes reminder file', () => {
       const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'PreToolUse')
       const reminderPath = join(stagingDir, 'test-reminder.json')
