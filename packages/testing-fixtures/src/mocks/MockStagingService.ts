@@ -11,7 +11,6 @@ import type { StagingService, StagedReminder } from '@sidekick/types'
 
 export class MockStagingService implements StagingService {
   private reminders = new Map<string, StagedReminder>()
-  private suppressedHooks = new Set<string>()
   /** Consumed reminders: key is `${hookName}:${reminderName}`, value is array of consumed reminders (newest first) */
   private consumedReminders = new Map<string, StagedReminder[]>()
 
@@ -40,20 +39,6 @@ export class MockStagingService implements StagingService {
     } else {
       this.reminders.clear()
     }
-    return Promise.resolve()
-  }
-
-  suppressHook(hookName: string): Promise<void> {
-    this.suppressedHooks.add(hookName)
-    return Promise.resolve()
-  }
-
-  isHookSuppressed(hookName: string): Promise<boolean> {
-    return Promise.resolve(this.suppressedHooks.has(hookName))
-  }
-
-  clearSuppression(hookName: string): Promise<void> {
-    this.suppressedHooks.delete(hookName)
     return Promise.resolve()
   }
 
@@ -87,11 +72,10 @@ export class MockStagingService implements StagingService {
   // Test utilities
 
   /**
-   * Reset all staged reminders, suppressed hooks, and consumed reminders.
+   * Reset all staged reminders and consumed reminders.
    */
   reset(): void {
     this.reminders.clear()
-    this.suppressedHooks.clear()
     this.consumedReminders.clear()
   }
 
@@ -109,13 +93,6 @@ export class MockStagingService implements StagingService {
    */
   getAllReminders(): Map<string, StagedReminder> {
     return new Map(this.reminders)
-  }
-
-  /**
-   * Get all suppressed hooks.
-   */
-  getSuppressedHooks(): Set<string> {
-    return new Set(this.suppressedHooks)
   }
 
   /**

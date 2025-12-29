@@ -169,7 +169,7 @@ describe('Missing file handling', () => {
 
       expect(response.status).toBe(200)
       const data = await response.json()
-      expect(data).toEqual({ reminders: [], suppressed: false })
+      expect(data).toEqual({ reminders: [] })
     })
 
     it('returns empty reminders when stage directory is empty', async () => {
@@ -181,20 +181,7 @@ describe('Missing file handling', () => {
 
       expect(response.status).toBe(200)
       const data = await response.json()
-      expect(data).toEqual({ reminders: [], suppressed: false })
-    })
-
-    it('detects suppression marker', async () => {
-      const stageDir = join(sessionsPath, 'valid-session', 'stage', 'UserPromptSubmit')
-      mkdirSync(stageDir, { recursive: true })
-      writeFileSync(join(stageDir, '.suppressed'), '')
-
-      const request = createRequest('valid-session', { hookName: 'UserPromptSubmit' })
-      const response = await handleStagedReminders(request)
-
-      expect(response.status).toBe(200)
-      const data = await response.json()
-      expect(data).toEqual({ reminders: [], suppressed: true })
+      expect(data).toEqual({ reminders: [] })
     })
 
     it('skips malformed reminder files', async () => {
@@ -336,7 +323,6 @@ describe('Missing file handling', () => {
       const data = await response.json()
       expect(data).toEqual({
         reminders: [],
-        suppressed: false,
         error: 'Sessions directory not found',
       })
     })

@@ -1,7 +1,7 @@
 /**
  * GET /api/sessions/:sessionId/stage/:hookName - Returns staged reminders for a hook.
  *
- * Returns all JSON files in the stage directory, plus suppression status.
+ * Returns all JSON files in the stage directory.
  */
 
 import { readdir, readFile } from 'fs/promises'
@@ -22,7 +22,6 @@ interface StagedReminder {
 
 interface StagedRemindersResponse {
   reminders: StagedReminder[]
-  suppressed: boolean
   error?: string
 }
 
@@ -42,7 +41,6 @@ export async function handleStagedReminders(request: ApiRequest): Promise<Respon
   if (!sessionsPath) {
     const response: StagedRemindersResponse = {
       reminders: [],
-      suppressed: false,
       error: 'Sessions directory not found',
     }
     return jsonResponse(response)
@@ -53,22 +51,17 @@ export async function handleStagedReminders(request: ApiRequest): Promise<Respon
     // No stage directory - return empty
     const response: StagedRemindersResponse = {
       reminders: [],
-      suppressed: false,
     }
     return jsonResponse(response)
   }
 
   try {
-    // Check for suppression marker
-    const suppressionMarker = join(stageDir, '.suppressed')
-    const suppressed = existsSync(suppressionMarker)
-
     // Read all JSON files in stage directory
     const files = await readdir(stageDir)
     const reminders: StagedReminder[] = []
 
     for (const file of files) {
-      // Skip non-JSON files and suppression marker
+      // Skip non-JSON files and hidden files
       if (!file.endsWith('.json') || file.startsWith('.')) {
         continue
       }
@@ -89,7 +82,6 @@ export async function handleStagedReminders(request: ApiRequest): Promise<Respon
 
     const response: StagedRemindersResponse = {
       reminders,
-      suppressed,
     }
     return jsonResponse(response)
   } catch (err) {

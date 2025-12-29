@@ -149,17 +149,6 @@ reason: "Verify completion before stopping"
       expect(reminders[0].blocking).toBe(true)
     })
 
-    it('suppresses Stop hook after staging', async () => {
-      registerStagePauseAndReflect(ctx)
-
-      const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
-      const event = createTestTranscriptEvent({ toolsThisTurn: 20 })
-
-      await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
-
-      expect(await staging.isHookSuppressed('Stop')).toBe(true)
-    })
-
     it('is idempotent - does not re-stage if already exists', async () => {
       registerStagePauseAndReflect(ctx)
 

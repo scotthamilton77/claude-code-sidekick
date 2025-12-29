@@ -4,10 +4,9 @@
  * All consumption handlers follow the same pattern:
  * 1. CLI context guard
  * 2. Create staging reader
- * 3. Check suppression
- * 4. Get highest priority reminder
- * 5. Delete if not persistent
- * 6. Build HookResponse
+ * 3. Get highest priority reminder
+ * 4. Rename if not persistent (preserves consumption history)
+ * 5. Build HookResponse
  *
  * @see docs/design/FEATURE-REMINDERS.md §3.1 Consumption Handlers
  */
@@ -51,12 +50,6 @@ export function createConsumptionHandler(context: RuntimeContext, config: Consum
         paths: cliCtx.paths,
         sessionId,
       })
-
-      // Check suppression first
-      if (reader.checkAndClearSuppression(hook)) {
-        cliCtx.logger.debug('Hook suppressed, skipping reminder injection')
-        return { response: {} }
-      }
 
       // Get highest priority reminder
       const reminders = reader.listReminders(hook)

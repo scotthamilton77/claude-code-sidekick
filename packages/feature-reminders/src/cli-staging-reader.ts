@@ -11,8 +11,6 @@ import { existsSync, readdirSync, readFileSync, renameSync, unlinkSync } from 'n
 import { join } from 'node:path'
 import type { StagedReminder, RuntimePaths } from '@sidekick/types'
 
-const SUPPRESSED_MARKER = '.suppressed'
-
 /**
  * Validate a path segment to prevent path traversal attacks.
  * Only allows alphanumeric, hyphens, and underscores.
@@ -40,20 +38,6 @@ export class CLIStagingReader {
       throw new Error('CLIStagingReader requires project scope (projectConfigDir must be defined)')
     }
     this.stagingRoot = join(options.paths.projectConfigDir, 'sessions', options.sessionId, 'stage')
-  }
-
-  /**
-   * Check if hook is suppressed and clear if so.
-   * Returns true if suppressed (and cleared), false otherwise.
-   */
-  checkAndClearSuppression(hookName: string): boolean {
-    if (!isValidPathSegment(hookName)) return false
-    const markerPath = join(this.stagingRoot, hookName, SUPPRESSED_MARKER)
-    if (existsSync(markerPath)) {
-      unlinkSync(markerPath)
-      return true
-    }
-    return false
   }
 
   /**

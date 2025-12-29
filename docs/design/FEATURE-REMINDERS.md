@@ -16,7 +16,7 @@ The Reminders feature ensures the user and the LLM stay on track by injecting co
 
 - **Cadence-based Reminders**: Inject reminders after N turns or M tool uses.
 - **Event-based Reminders**: Inject reminders when specific patterns are detected (e.g., "stuck" detection, pre-completion verification).
-- **Suppression Pattern**: Coordinate between reminders to avoid double-nagging (e.g., suppress Stop reminder after AreYouStuck fires).
+- **Unstaging Pattern**: Clear non-persistent reminders on new user prompt.
 
 ## 3. Architecture
 
@@ -27,15 +27,15 @@ Per **docs/design/flow.md §2.3**, handlers register with filters to specify whi
 | Handler                           | Filter Type | Event(s)         | Priority | Responsibility                                              |
 | --------------------------------- | ----------- | ---------------- | -------- | ----------------------------------------------------------- |
 | `StageDefaultUserPromptReminder`  | hook        | SessionStart     | 50       | Stage initial turn-cadence reminder                         |
-| `StageAreYouStuckReminder`        | transcript  | ToolCall         | 80       | Stage if `toolsThisTurn` ≥ `stuck_threshold` (default: 20)  |
-| `StageTimeForUserUpdateReminder`  | transcript  | ToolCall         | 70       | Stage if `toolsThisTurn` ≥ `update_threshold` (default: 15) |
+| `StagePauseAndReflect`            | transcript  | ToolCall         | 80       | Stage if `toolsThisTurn` ≥ threshold (default: 15)          |
 | `StageStopReminders`              | transcript  | ToolCall         | 60       | Stage on source file edit (Write, Edit tools)               |
+| `UnstageVerifyCompletion`         | hook        | UserPromptSubmit | 45       | Delete verify-completion reminder (new prompt = task done)  |
 | `InjectUserPromptSubmitReminders` | hook        | UserPromptSubmit | 50       | Consume staged reminder, return in hook response            |
 | `InjectPreToolUseReminders`       | hook        | PreToolUse       | 50       | Consume staged reminder, return blocking response           |
 | `InjectPostToolUseReminders`      | hook        | PostToolUse      | 50       | Consume staged reminder, return in hook response            |
 | `InjectStopReminders`             | hook        | Stop             | 50       | Consume staged reminder, return blocking response           |
 
-**Note**: Both `StageAreYouStuckReminder` and `StageTimeForUserUpdateReminder` watch `toolsThisTurn`. Since both can stage before CLI consumes, the staged reminder's `priority` field determines which is returned (higher wins). Stuck (priority 80) beats update (priority 70).
+**Note**: The `StagePauseAndReflect` handler watches `toolsThisTurn` and stages a reminder when the threshold is exceeded. The reminder's `priority` field determines consumption order when multiple are staged (higher wins).
 
 **Dual-Registration via Event Routing**: This feature demonstrates **Pattern 2** from **docs/design/CORE-RUNTIME.md §6.10**. Role separation is achieved through event filter types rather than explicit context discrimination:
 
@@ -47,20 +47,18 @@ This pattern is ideal when feature concerns naturally align with event types. Fo
 **Registration Example**:
 
 ```typescript
-// Staging handler: watches toolsThisTurn for "stuck" condition
+// Staging handler: watches toolsThisTurn for pause-and-reflect condition
 context.handlers.register({
-  id: 'reminders:are-you-stuck',
+  id: 'reminders:stage-pause-and-reflect',
   priority: 80, // Higher priority handler runs first
   filter: { kind: 'transcript', eventTypes: ['ToolCall'] },
   handler: async (event, ctx) => {
     const metrics = ctx.transcript.getMetrics()
-    if (metrics.toolsThisTurn >= ctx.config.reminders.stuck_threshold) {
-      const reminder = await ReminderUtils.resolveReminder('are-you-stuck', {
+    if (metrics.toolsThisTurn >= ctx.config.reminders.pause_threshold) {
+      const reminder = await ReminderUtils.resolveReminder('pause-and-reflect', {
         toolsThisTurn: metrics.toolsThisTurn,
       })
       await ReminderUtils.stageReminder(ctx, 'PreToolUse', reminder)
-      // Suppress Stop reminders to avoid double-nagging
-      await ReminderUtils.suppressHook(ctx, 'Stop')
     }
   },
 })
@@ -98,14 +96,8 @@ export const ReminderUtils = {
   // Stage a reminder file (idempotent - won't re-stage if already exists)
   stageReminder(ctx: RuntimeContext, hookName: string, reminder: StagedReminder): void
 
-  // Consume highest-priority reminder (respects suppression marker)
+  // Consume highest-priority reminder
   consumeReminder(ctx: RuntimeContext, hookName: string): StagedReminder | null
-
-  // Suppress all reminders for a hook (creates .suppressed marker)
-  suppressHook(ctx: RuntimeContext, hookName: string): void
-
-  // Clear suppression for a hook (deletes .suppressed marker)
-  clearSuppression(ctx: RuntimeContext, hookName: string): void
 }
 ```
 
@@ -128,28 +120,16 @@ interface StagedReminder {
 }
 ```
 
-#### Suppression Marker
-
-**Location**: `.sidekick/sessions/{session_id}/stage/{hook_name}/.suppressed`
-
-Suppression is decoupled from individual reminder files. If `.suppressed` marker exists in a hook's stage directory:
-
-- All reminders in that directory are considered suppressed
-- CLI consumption returns empty and deletes the marker
-- Next consumption proceeds normally
-
-This avoids race conditions when multiple handlers stage reminders in the same PostToolUse context.
-
 #### Reminder Personalities
 
 | Type           | Example                    | `persistent` | Behavior                           |
 | -------------- | -------------------------- | ------------ | ---------------------------------- |
 | **Persistent** | UserPromptSubmitReminder   | `true`       | Always fires, never deleted        |
-| **One-shot**   | AreYouStuckReminder        | `false`      | Fires once, deleted on consumption |
+| **One-shot**   | PauseAndReflectReminder    | `false`      | Fires once, deleted on consumption |
 | **One-shot**   | VerifyCompletionReminder   | `false`      | Fires once, deleted on consumption |
-| **One-shot**   | TimeForUserUpdateReminder  | `false`      | Fires once, deleted on consumption |
 
-**Note**: Suppression is orthogonal to personality—any hook's reminders can be suppressed via the `.suppressed` marker.
+**Note**: Reminders can also be unstaged (deleted before consumption) when context changes—for example, `VerifyCompletionReminder` is unstaged on UserPromptSubmit since a the UserPromptSubmit reminder will help
+compensate for Claude Code forgetfulness.
 
 ## 4. State Management
 
@@ -176,7 +156,6 @@ interface TranscriptMetrics {
 The reminders feature maintains **no persistent state** beyond staged files:
 
 - **Counters**: Derived from `TranscriptService.getMetrics()` (§4.1)
-- **Suppression**: Managed via `.suppressed` marker files (§3.3)
 - **"Has edit occurred?"**: Implicit in staged `VerifyCompletionReminder` existence
 
 This stateless design simplifies testing and eliminates state synchronization issues.
@@ -220,17 +199,16 @@ This is more efficient than checking thresholds on every ToolCall event.
 
 1. If turn cadence met, re-stage with fresh content (summary update, etc.)
 
-### 5.2 Tool-Based "Are You Stuck?" (Transcript → PreToolUse)
+### 5.2 Tool-Based "Pause and Reflect" (Transcript → PreToolUse)
 
 **Staging** (Supervisor, TranscriptEvent: ToolCall):
 
-1. `StageAreYouStuckReminder` receives ToolCall transcript event
+1. `StagePauseAndReflect` receives ToolCall transcript event
 2. Queries `ctx.transcript.getMetrics().toolsThisTurn`
-3. If `toolsThisTurn >= stuck_threshold`:
-   - Resolves `are-you-stuck` reminder definition
-   - Stages to `.sidekick/sessions/{id}/stage/PreToolUse/AreYouStuckReminder.json`
+3. If `toolsThisTurn >= pause_threshold`:
+   - Resolves `pause-and-reflect` reminder definition
+   - Stages to `.sidekick/sessions/{id}/stage/PreToolUse/PauseAndReflectReminder.json`
    - Sets `blocking: true`, `persistent: false`, `priority: 80`
-   - Creates `.sidekick/sessions/{id}/stage/Stop/.suppressed` marker
 
 **Alternative**: Use threshold subscription (see §4.3) for more efficient detection.
 
@@ -239,13 +217,7 @@ This is more efficient than checking thresholds on every ToolCall event.
 1. `InjectPreToolUseReminders` finds the staged reminder
 2. Returns `{ blocking: true, reason: reminder.reason }`
 3. Deletes file (one-shot)
-4. Agent stops
-
-**Stop Hook** (CLI, HookEvent: Stop):
-
-1. `InjectStopReminders` checks for `.suppressed` marker
-2. If marker exists: deletes marker, returns empty (allows stop)
-3. If no marker: proceeds with normal consumption
+4. Agent pauses to reflect
 
 ### 5.3 Pre-Completion Verification (Stop)
 
@@ -258,29 +230,17 @@ This is more efficient than checking thresholds on every ToolCall event.
    - Stages `.sidekick/sessions/{id}/stage/Stop/VerifyCompletionReminder.json`
    - Sets `blocking: true`, `persistent: false`, `priority: 50`
 
+**Unstaging** (Supervisor, HookEvent: UserPromptSubmit):
+
+1. `UnstageVerifyCompletion` receives UserPromptSubmit hook event
+2. Deletes `stage/Stop/VerifyCompletionReminder.json` if it exists
+3. Rationale: A new user prompt means the previous task is complete—no need to verify
+
 **Consumption** (CLI, HookEvent: Stop):
 
-1. `InjectStopReminders` checks for `.suppressed` marker first
-2. If suppressed: deletes marker, returns empty
-3. If not suppressed: finds pending reminder, returns `{ blocking: true, reason: reminder.reason }`
-4. Deletes file (one-shot, so next stop succeeds)
-
-### 5.4 Time For User Update (Transcript → PreToolUse)
-
-**Staging** (Supervisor, TranscriptEvent: ToolCall):
-
-1. `StageTimeForUserUpdateReminder` receives ToolCall event
-2. Queries `ctx.transcript.getMetrics().toolsThisTurn`
-3. If `toolsThisTurn >= update_threshold` (and not already staged):
-   - Resolves `time-for-user-update` reminder definition
-   - Stages to `.sidekick/sessions/{id}/stage/PreToolUse/TimeForUserUpdateReminder.json`
-   - Sets `blocking: true`, `persistent: false`, `priority: 70`
-
-**Note**: Since `stuck_threshold > update_threshold` and stuck has higher priority (80 vs 70), if both thresholds are met, the stuck reminder will be consumed first.
-
-**Consumption** (CLI, HookEvent: PreToolUse):
-
-1. Same pattern as AreYouStuck—highest priority wins
+1. `InjectStopReminders` finds pending reminder
+2. Returns `{ blocking: true, reason: reminder.reason }`
+3. Deletes file (one-shot, so next stop succeeds)
 
 ## 6. CLI Consumption Algorithm
 
@@ -289,14 +249,6 @@ When a hook fires, the CLI consumption handler:
 ```typescript
 function consumeReminder(ctx: RuntimeContext, hookName: string): HookResult {
   const stageDir = `.sidekick/sessions/${ctx.sessionId}/stage/${hookName}/`
-
-  // Check suppression marker first
-  const suppressedMarker = `${stageDir}.suppressed`
-  if (exists(suppressedMarker)) {
-    unlink(suppressedMarker)
-    log({ type: 'SuppressionCleared', hook: hookName })
-    return {}
-  }
 
   // Find all staged reminders, sort by priority descending
   const files = glob(`${stageDir}/*.json`)
@@ -336,12 +288,11 @@ function consumeReminder(ctx: RuntimeContext, hookName: string): HookResult {
 
 Aligned with `docs/design/flow.md` event taxonomy:
 
-| Event                | Source     | When                              |
-| -------------------- | ---------- | --------------------------------- |
-| `ReminderStaged`     | Supervisor | Reminder file created             |
-| `ReminderConsumed`   | CLI        | Reminder returned in hook         |
-| `SuppressionCreated` | Supervisor | `.suppressed` marker created      |
-| `SuppressionCleared` | CLI        | `.suppressed` marker deleted      |
+| Event              | Source     | When                              |
+| ------------------ | ---------- | --------------------------------- |
+| `ReminderStaged`   | Supervisor | Reminder file created             |
+| `ReminderUnstaged` | Supervisor | Reminder file deleted (unstaging) |
+| `ReminderConsumed` | CLI        | Reminder returned in hook         |
 
 Event payloads include the reminder `name`, `hook`, and relevant context.
 
@@ -352,9 +303,7 @@ Configuration cascades from defaults to user overrides:
 | Key                          | Default | Description                                       |
 | :--------------------------- | :------ | :------------------------------------------------ |
 | `reminders.enabled`          | `true`  | Master switch for the feature                     |
-| `reminders.turn_cadence`     | `4`     | Number of user turns between prompts              |
-| `reminders.update_threshold` | `15`    | Tools per turn before "time for update" reminder  |
-| `reminders.stuck_threshold`  | `20`    | Tools per turn before "stuck" warning             |
+| `reminders.pause_and_reflect_threshold`  | `15`    | Tools per turn before "pause and reflect" reminder |
 
 ### 8.1 Reminder Definitions (YAML)
 
@@ -384,42 +333,39 @@ reason: |
   Single-line text used as blocking reason
 ```
 
-**Example** (`are-you-stuck.yaml`):
+**Example** (`pause-and-reflect.yaml`):
 
 ```yaml
-id: are-you-stuck
+id: pause-and-reflect
 blocking: true
 priority: 80
 persistent: false
 
 additionalContext: |
-  STOP AND RECONSIDER: You've used {{toolsThisTurn}} tools this turn without
-  completing. This often indicates you're stuck in a loop or approaching
-  the problem incorrectly.
+  PAUSE AND REFLECT: You've used {{toolsThisTurn}} tools this turn.
+  Before continuing, take a moment to:
 
-  Before continuing:
-  1. Summarize what you've tried and why it hasn't worked
-  2. Consider alternative approaches
-  3. Ask the user for clarification if needed
+  1. Summarize progress toward the goal
+  2. Identify any blockers or issues
+  3. Consider if user input would help
 
-reason: Agent may be stuck - {{toolsThisTurn}} tools used this turn
+reason: Checkpoint - {{toolsThisTurn}} tools used this turn
 ```
 
 **Available Reminder IDs**:
 
-| ID                     | Default Priority | Typical Hook   |
-| ---------------------- | ---------------- | -------------- |
-| `user-prompt-submit`   | 10               | UserPromptSubmit |
-| `are-you-stuck`        | 80               | PreToolUse     |
-| `time-for-user-update` | 70               | PreToolUse     |
-| `verify-completion`    | 50               | Stop           |
+| ID                   | Default Priority | Typical Hook     |
+| -------------------- | ---------------- | ---------------- |
+| `user-prompt-submit` | 10               | UserPromptSubmit |
+| `pause-and-reflect`  | 80               | PreToolUse       |
+| `verify-completion`  | 50               | Stop             |
 
 ## 9. Integration Points
 
 - **TranscriptService**: Provides `getMetrics()` for threshold evaluation, `onThreshold()` for efficient subscription
 - **Asset Resolver**: Locates YAML reminder definitions in the cascade, performs `{{variable}}` interpolation
-- **HandlerRegistry**: Unified registration with filters for hook events (`InjectXXX`) and transcript events (`StageXXX`)
-- **File System**: Direct file operations for staging, consumption, and suppression markers (no state manager needed)
+- **HandlerRegistry**: Unified registration with filters for hook events (`InjectXXX`, `UnstageXXX`) and transcript events (`StageXXX`)
+- **File System**: Direct file operations for staging, unstaging, and consumption (no state manager needed)
 
 ## 10. Migration from Legacy
 

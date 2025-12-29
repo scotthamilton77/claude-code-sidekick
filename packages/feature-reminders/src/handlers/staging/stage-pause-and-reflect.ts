@@ -36,7 +36,6 @@ export function registerStagePauseAndReflect(context: RuntimeContext): void {
         reminderId: ReminderIds.PAUSE_AND_REFLECT,
         targetHook: 'PreToolUse',
         templateContext: { toolsThisTurn: metrics.toolsThisTurn },
-        suppressHooks: ['Stop'], // Avoid double-nagging
       }
     },
   })

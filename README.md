@@ -13,7 +13,6 @@ This repository serves as a development and testing environment for [Claude Code
 ### Sidekick
 
 - reminder tuning
-  - System messages vs. additional context (for each)
   - stop message staging based on regex of file modifications
 - reminder testing
   - stop hook

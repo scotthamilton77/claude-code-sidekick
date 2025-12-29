@@ -164,7 +164,6 @@ function registerPauseAndReflectHandler(
       }
 
       await stagingService.stageReminder('PreToolUse', REMINDER_IDS.PAUSE_AND_REFLECT, reminder)
-      await stagingService.suppressHook('Stop') // Avoid double-nagging
     },
   })
 }
@@ -385,14 +384,9 @@ describe('Feature E2E: Staging and Consumption Flow', () => {
     await ctx.transcriptService.initialize('test-session', ctx.transcriptPath)
     await new Promise((resolve) => setTimeout(resolve, 300))
 
-    // PauseAndReflect handler should suppress Stop hook
-    const isSuppressed = await ctx.stagingService.isHookSuppressed('Stop')
-
-    // If pause-and-reflect reminder was staged, Stop should be suppressed
+    // PauseAndReflect handler should stage a reminder
     const pauseReminder = await ctx.stagingService.readReminder('PreToolUse', REMINDER_IDS.PAUSE_AND_REFLECT)
-    if (pauseReminder) {
-      expect(isSuppressed).toBe(true)
-    }
+    expect(pauseReminder).not.toBeNull()
   })
 })
 

@@ -43,11 +43,6 @@ export interface StagingServiceCoreOptions {
 }
 
 /**
- * Marker filename for hook suppression.
- */
-const SUPPRESSED_MARKER = '.suppressed'
-
-/**
  * Validate a path segment to prevent path traversal attacks.
  * Rejects segments containing path separators or parent directory references.
  *
@@ -269,55 +264,6 @@ export class StagingServiceCore {
   }
 
   /**
-   * Suppress a hook (marker file prevents reminder injection).
-   * Creates `.suppressed` marker in the hook's staging directory.
-   *
-   * @throws Error if hookName contains path traversal characters
-   */
-  async suppressHook(sessionId: string, hookName: string): Promise<void> {
-    validatePathSegment(hookName, 'hookName')
-
-    const hookDir = this.getHookDir(sessionId, hookName)
-    const markerPath = join(hookDir, SUPPRESSED_MARKER)
-
-    // Ensure directory exists
-    await this.ensureDir(hookDir)
-
-    // Create marker file (empty file is sufficient)
-    await writeFile(markerPath, '', 'utf-8')
-
-    this.options.logger.debug('Created suppression marker', { hookName, markerPath })
-  }
-
-  /**
-   * Check if a hook is suppressed.
-   *
-   * @throws Error if hookName contains path traversal characters
-   */
-  isHookSuppressed(sessionId: string, hookName: string): Promise<boolean> {
-    validatePathSegment(hookName, 'hookName')
-
-    const markerPath = join(this.getHookDir(sessionId, hookName), SUPPRESSED_MARKER)
-    return Promise.resolve(existsSync(markerPath))
-  }
-
-  /**
-   * Clear suppression for a hook.
-   * Deletes the `.suppressed` marker if it exists.
-   *
-   * @throws Error if hookName contains path traversal characters
-   */
-  async clearSuppression(sessionId: string, hookName: string): Promise<void> {
-    validatePathSegment(hookName, 'hookName')
-
-    const markerPath = join(this.getHookDir(sessionId, hookName), SUPPRESSED_MARKER)
-    if (existsSync(markerPath)) {
-      await unlink(markerPath)
-      this.options.logger.debug('Cleared suppression marker', { hookName, markerPath })
-    }
-  }
-
-  /**
    * Delete a specific staged reminder.
    * Used after consumption of one-shot reminders.
    *
@@ -462,47 +408,6 @@ export class StagingServiceCore {
   }
 
   /**
-   * Suppress a hook synchronously.
-   *
-   * @throws Error if hookName contains path traversal characters
-   */
-  suppressHookSync(sessionId: string, hookName: string): void {
-    validatePathSegment(hookName, 'hookName')
-
-    const hookDir = this.getHookDir(sessionId, hookName)
-    const markerPath = join(hookDir, SUPPRESSED_MARKER)
-
-    this.ensureDirSync(hookDir)
-    writeFileSync(markerPath, '', 'utf-8')
-  }
-
-  /**
-   * Check if a hook is suppressed (synchronous).
-   *
-   * @throws Error if hookName contains path traversal characters
-   */
-  isHookSuppressedSync(sessionId: string, hookName: string): boolean {
-    validatePathSegment(hookName, 'hookName')
-
-    const markerPath = join(this.getHookDir(sessionId, hookName), SUPPRESSED_MARKER)
-    return existsSync(markerPath)
-  }
-
-  /**
-   * Clear suppression synchronously.
-   *
-   * @throws Error if hookName contains path traversal characters
-   */
-  clearSuppressionSync(sessionId: string, hookName: string): void {
-    validatePathSegment(hookName, 'hookName')
-
-    const markerPath = join(this.getHookDir(sessionId, hookName), SUPPRESSED_MARKER)
-    if (existsSync(markerPath)) {
-      unlinkSync(markerPath)
-    }
-  }
-
-  /**
    * Delete a reminder synchronously.
    *
    * @throws Error if hookName or reminderName contain path traversal characters
@@ -557,18 +462,6 @@ export class SessionScopedStagingService implements StagingService {
     return this.core.clearStaging(this.sessionId, hookName)
   }
 
-  async suppressHook(hookName: string): Promise<void> {
-    return this.core.suppressHook(this.sessionId, hookName)
-  }
-
-  isHookSuppressed(hookName: string): Promise<boolean> {
-    return this.core.isHookSuppressed(this.sessionId, hookName)
-  }
-
-  async clearSuppression(hookName: string): Promise<void> {
-    return this.core.clearSuppression(this.sessionId, hookName)
-  }
-
   async deleteReminder(hookName: string, reminderName: string): Promise<void> {
     return this.core.deleteReminder(this.sessionId, hookName, reminderName)
   }
@@ -591,18 +484,6 @@ export class SessionScopedStagingService implements StagingService {
 
   clearStagingSync(hookName?: string): void {
     return this.core.clearStagingSync(this.sessionId, hookName)
-  }
-
-  suppressHookSync(hookName: string): void {
-    return this.core.suppressHookSync(this.sessionId, hookName)
-  }
-
-  isHookSuppressedSync(hookName: string): boolean {
-    return this.core.isHookSuppressedSync(this.sessionId, hookName)
-  }
-
-  clearSuppressionSync(hookName: string): void {
-    return this.core.clearSuppressionSync(this.sessionId, hookName)
   }
 
   deleteReminderSync(hookName: string, reminderName: string): void {
