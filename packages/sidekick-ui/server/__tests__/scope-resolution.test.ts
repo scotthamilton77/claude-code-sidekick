@@ -251,9 +251,9 @@ describe('Dual-scope resolution', () => {
 
       mkdirSync(stageDir, { recursive: true })
       writeFileSync(
-        join(stageDir, 'are-you-stuck.json'),
+        join(stageDir, 'pause-and-reflect.json'),
         JSON.stringify({
-          name: 'are-you-stuck',
+          name: 'pause-and-reflect',
           blocking: true,
           priority: 100,
           persistent: false,
@@ -264,12 +264,12 @@ describe('Dual-scope resolution', () => {
       expect(sessionsPath).toBe(userSessions)
 
       // Verify we can read staged reminders
-      const reminderPath = join(sessionsPath!, sessionId, 'stage', 'PreToolUse', 'are-you-stuck.json')
+      const reminderPath = join(sessionsPath!, sessionId, 'stage', 'PreToolUse', 'pause-and-reflect.json')
       expect(existsSync(reminderPath)).toBe(true)
 
       const reminder = JSON.parse(readFileSync(reminderPath, 'utf-8'))
       expect(reminder).toMatchObject({
-        name: 'are-you-stuck',
+        name: 'pause-and-reflect',
         blocking: true,
         priority: 100,
         persistent: false,

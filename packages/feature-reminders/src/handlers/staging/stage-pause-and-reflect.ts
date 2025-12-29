@@ -1,16 +1,16 @@
 /**
- * Stage "time for user update" reminder
- * @see docs/design/FEATURE-REMINDERS.md §5.4
+ * Stage "pause and reflect" reminder when toolsThisTurn exceeds threshold
+ * @see docs/design/FEATURE-REMINDERS.md
  */
 import type { RuntimeContext, FeaturesConfig } from '@sidekick/core'
 import { isTranscriptEvent } from '@sidekick/types'
 import { createStagingHandler } from './staging-handler-utils.js'
 import { ReminderIds, DEFAULT_REMINDER_CONFIG, type ReminderConfig } from '../../types.js'
 
-export function registerStageTimeForUpdate(context: RuntimeContext): void {
+export function registerStagePauseAndReflect(context: RuntimeContext): void {
   createStagingHandler(context, {
-    id: 'reminders:stage-time-for-update',
-    priority: 70, // Lower than stuck (80), so stuck wins
+    id: 'reminders:stage-pause-and-reflect',
+    priority: 80,
     filter: { kind: 'transcript', eventTypes: ['ToolCall'] },
     execute: async (event, ctx) => {
       if (!isTranscriptEvent(event)) return undefined
@@ -21,24 +21,23 @@ export function registerStageTimeForUpdate(context: RuntimeContext): void {
       const config = { ...DEFAULT_REMINDER_CONFIG, ...(featureConfig.settings as Partial<ReminderConfig>) }
 
       // Check consumption history for reactivation decision
-      const lastConsumed = await ctx.staging.getLastConsumed('PreToolUse', ReminderIds.TIME_FOR_USER_UPDATE)
+      const lastConsumed = await ctx.staging.getLastConsumed('PreToolUse', ReminderIds.PAUSE_AND_REFLECT)
       if (lastConsumed?.stagedAt) {
         // Reactivate only on new turn OR after threshold more tools
         const shouldReactivate =
           metrics.turnCount > lastConsumed.stagedAt.turnCount ||
-          metrics.toolsThisTurn >= lastConsumed.stagedAt.toolsThisTurn + config.update_threshold
+          metrics.toolsThisTurn >= lastConsumed.stagedAt.toolsThisTurn + config.pause_and_reflect_threshold
 
         if (!shouldReactivate) return undefined
       }
 
-      // Only trigger if below stuck threshold but above update threshold
-      if (metrics.toolsThisTurn < config.update_threshold) return undefined
-      if (metrics.toolsThisTurn >= config.stuck_threshold) return undefined
+      if (metrics.toolsThisTurn < config.pause_and_reflect_threshold) return undefined
 
       return {
-        reminderId: ReminderIds.TIME_FOR_USER_UPDATE,
+        reminderId: ReminderIds.PAUSE_AND_REFLECT,
         targetHook: 'PreToolUse',
         templateContext: { toolsThisTurn: metrics.toolsThisTurn },
+        suppressHooks: ['Stop'], // Avoid double-nagging
       }
     },
   })
