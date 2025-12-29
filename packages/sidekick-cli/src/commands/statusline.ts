@@ -12,7 +12,7 @@
  */
 
 import * as path from 'node:path'
-import type { Logger } from '@sidekick/core'
+import type { Logger, ConfigService } from '@sidekick/core'
 import { LogEvents, logEvent, type EventLogContext } from '@sidekick/core'
 
 /**
@@ -47,6 +47,8 @@ export interface StatuslineCommandOptions {
   isResumed?: boolean
   /** Metrics from Claude Code hook input (avoids reading state files) */
   hookMetrics?: StatuslineHookMetrics
+  /** Config service for loading settings from the config cascade */
+  configService?: ConfigService
 }
 
 /**
@@ -134,6 +136,8 @@ export async function handleStatuslineCommand(
     useColors,
     // Pass hook metrics directly - service will use these instead of reading state files
     hookMetrics: options.hookMetrics,
+    // Pass config service for cascade-based configuration
+    configService: options.configService,
   })
 
   try {

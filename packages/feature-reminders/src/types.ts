@@ -4,10 +4,9 @@
  */
 
 /**
- * Reminder configuration from features.yaml
+ * Reminder settings (the inner settings object from features.yaml)
  */
-export interface ReminderConfig {
-  enabled: boolean
+export interface RemindersSettings {
   pause_and_reflect_threshold: number
 }
 
@@ -35,10 +34,9 @@ export interface TemplateContext {
 }
 
 /**
- * Default reminder configuration values
+ * Default reminder settings values
  */
-export const DEFAULT_REMINDER_CONFIG: ReminderConfig = {
-  enabled: true,
+export const DEFAULT_REMINDERS_SETTINGS: RemindersSettings = {
   pause_and_reflect_threshold: 15,
 }
 

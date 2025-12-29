@@ -13,6 +13,10 @@ This repository serves as a development and testing environment for [Claude Code
 ### Sidekick
 
 - reminder testing
+  - tool usage
+    - sidekick.config value not picked up - let's throw some logging on that
+    - staging seems to happen late (1-2 tool usages after) - shouldn't matter too much but we should figure out why
+    - "note the result was an error, not the echo output."
   - stop hook
     - validate tool usage detection
     - only source code

@@ -2,10 +2,10 @@
  * Stage "pause and reflect" reminder when toolsThisTurn exceeds threshold
  * @see docs/design/FEATURE-REMINDERS.md
  */
-import type { RuntimeContext, FeaturesConfig } from '@sidekick/core'
+import type { RuntimeContext } from '@sidekick/core'
 import { isTranscriptEvent } from '@sidekick/types'
 import { createStagingHandler } from './staging-handler-utils.js'
-import { ReminderIds, DEFAULT_REMINDER_CONFIG, type ReminderConfig } from '../../types.js'
+import { ReminderIds, DEFAULT_REMINDERS_SETTINGS, type RemindersSettings } from '../../types.js'
 
 export function registerStagePauseAndReflect(context: RuntimeContext): void {
   createStagingHandler(context, {
@@ -16,9 +16,8 @@ export function registerStagePauseAndReflect(context: RuntimeContext): void {
       if (!isTranscriptEvent(event)) return undefined
 
       const metrics = event.metadata.metrics
-      const allConfig = context.config.getAll() as { features: FeaturesConfig }
-      const featureConfig = allConfig.features['reminders'] ?? { enabled: true, settings: {} }
-      const config = { ...DEFAULT_REMINDER_CONFIG, ...(featureConfig.settings as Partial<ReminderConfig>) }
+      const featureConfig = context.config.getFeature<RemindersSettings>('reminders')
+      const config = { ...DEFAULT_REMINDERS_SETTINGS, ...featureConfig.settings }
 
       // Check consumption history for reactivation decision
       const lastConsumed = await ctx.staging.getLastConsumed('PreToolUse', ReminderIds.PAUSE_AND_REFLECT)

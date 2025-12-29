@@ -14,7 +14,7 @@ import type { SupervisorContext, EventContext } from '@sidekick/types'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { z } from 'zod'
-import type { ResumeMessageState, SessionSummaryState, SummaryCountdownState } from '../types.js'
+import type { ResumeMessageState, SessionSummaryConfig, SessionSummaryState, SummaryCountdownState } from '../types.js'
 import { DEFAULT_SESSION_SUMMARY_CONFIG, RESUME_MIN_CONFIDENCE } from '../types.js'
 
 const STATE_FILE = 'session-summary.json'
@@ -150,7 +150,9 @@ async function performAnalysis(
 ): Promise<void> {
   const { sessionId } = event.context
   const startTime = Date.now()
-  const config = DEFAULT_SESSION_SUMMARY_CONFIG
+  // Use getFeature() to get merged config from cascade
+  const featureConfig = ctx.config.getFeature<SessionSummaryConfig>('session-summary')
+  const config = { ...DEFAULT_SESSION_SUMMARY_CONFIG, ...featureConfig.settings }
 
   // Load current summary
   const currentSummary = await loadCurrentSummary(ctx, sessionId)

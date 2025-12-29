@@ -37,6 +37,7 @@ import { join } from 'node:path'
 import { parse as parseYaml } from 'yaml'
 import { z } from 'zod/v4'
 import type { AssetResolver } from './assets'
+import type { Logger } from '@sidekick/types'
 
 // =============================================================================
 // Deep Freeze Utility
@@ -315,6 +316,17 @@ function deepMerge<T extends Record<string, unknown>>(base: T, override: Record<
 // =============================================================================
 
 /**
+ * Result of parsing a unified config file.
+ */
+interface ParsedUnifiedConfig {
+  config: Record<string, Record<string, unknown>>
+  /** Parsed key-value pairs for logging */
+  overrides: Array<{ key: string; value: unknown }>
+  /** Warnings about malformed lines */
+  warnings: string[]
+}
+
+/**
  * Parse a sidekick.config file with bash-style dot-notation.
  * Per docs/design/CONFIG-SYSTEM.md §4.2
  *
@@ -324,11 +336,15 @@ function deepMerge<T extends Record<string, unknown>>(base: T, override: Record<
  * - Values are coerced to appropriate types (number, boolean, string)
  * - Arrays use JSON syntax: some.array=["a","b","c"]
  */
-function parseUnifiedConfig(content: string): Record<string, Record<string, unknown>> {
+function parseUnifiedConfig(content: string, sourcePath?: string): ParsedUnifiedConfig {
   const result: Record<string, Record<string, unknown>> = {}
+  const overrides: Array<{ key: string; value: unknown }> = []
+  const warnings: string[] = []
+  const sourceLabel = sourcePath ?? 'sidekick.config'
 
   const lines = content.split('\n')
-  for (const line of lines) {
+  for (let lineNum = 0; lineNum < lines.length; lineNum++) {
+    const line = lines[lineNum]
     const trimmed = line.trim()
 
     // Skip empty lines and comments
@@ -336,19 +352,25 @@ function parseUnifiedConfig(content: string): Record<string, Record<string, unkn
       continue
     }
 
-    // Parse key=value
+    // Find delimiter (= or :)
     const eqIndex = trimmed.indexOf('=')
-    if (eqIndex === -1) {
+    const colonIndex = trimmed.indexOf(':')
+
+    // Use whichever comes first, preferring = if both present
+    if (eqIndex === -1 && colonIndex === -1) {
+      warnings.push(`${sourceLabel}:${lineNum + 1}: malformed line (missing '=' or ':'): ${trimmed}`)
       continue
     }
+    const delimIndex = eqIndex === -1 ? colonIndex : colonIndex === -1 ? eqIndex : Math.min(eqIndex, colonIndex)
 
-    const key = trimmed.substring(0, eqIndex).trim()
-    const rawValue = trimmed.substring(eqIndex + 1).trim()
+    const key = trimmed.substring(0, delimIndex).trim()
+    const rawValue = trimmed.substring(delimIndex + 1).trim()
 
     // Parse the key path (e.g., "llm.provider" -> ["llm", "provider"])
     const parts = key.split('.')
     if (parts.length < 2) {
       // Invalid format - need at least domain.key
+      warnings.push(`${sourceLabel}:${lineNum + 1}: invalid key format (need domain.key): ${key}`)
       continue
     }
 
@@ -365,9 +387,10 @@ function parseUnifiedConfig(content: string): Record<string, Record<string, unkn
     }
 
     setNestedValue(result[domain], path, value)
+    overrides.push({ key, value })
   }
 
-  return result
+  return { config: result, overrides, warnings }
 }
 
 /**
@@ -443,13 +466,13 @@ function tryReadYaml(filePath: string): Record<string, unknown> | null {
 /**
  * Try to read a unified config file. Returns null if file doesn't exist.
  */
-function tryReadUnifiedConfig(filePath: string): Record<string, Record<string, unknown>> | null {
+function tryReadUnifiedConfig(filePath: string): ParsedUnifiedConfig | null {
   if (!existsSync(filePath)) {
     return null
   }
 
   const content = readFileSync(filePath, 'utf8')
-  return parseUnifiedConfig(content)
+  return parseUnifiedConfig(content, filePath)
 }
 
 // =============================================================================
@@ -539,6 +562,8 @@ export interface ConfigServiceOptions {
   homeDir?: string
   /** AssetResolver for loading external defaults from YAML files */
   assets?: AssetResolver
+  /** Logger for config loading diagnostics (overrides, warnings) */
+  logger?: Logger
 }
 
 interface LoadedSource {
@@ -664,10 +689,14 @@ export function loadConfig(options: ConfigServiceOptions): SidekickConfig {
 
   // Step 3: Load unified config files
   const userUnifiedPath = join(homeDir, '.sidekick', 'sidekick.config')
-  const userUnified = tryReadUnifiedConfig(userUnifiedPath)
+  const userUnifiedParsed = tryReadUnifiedConfig(userUnifiedPath)
 
   const projectUnifiedPath = projectRoot ? join(projectRoot, '.sidekick', 'sidekick.config') : null
-  const projectUnified = projectUnifiedPath ? tryReadUnifiedConfig(projectUnifiedPath) : null
+  const projectUnifiedParsed = projectUnifiedPath ? tryReadUnifiedConfig(projectUnifiedPath) : null
+
+  // Extract config objects for domain loading
+  const userUnified = userUnifiedParsed?.config ?? null
+  const projectUnified = projectUnifiedParsed?.config ?? null
 
   // Step 4: Build paths for domain files
   const userSidekick = join(homeDir, '.sidekick')
@@ -779,9 +808,8 @@ export interface ConfigService {
 }
 
 /**
- * Load feature defaults from YAML and convert to FeatureConfig format.
- * The YAML file has a flat structure (enabled + settings at top level),
- * which is converted to { enabled, settings: {...rest} }.
+ * Load feature defaults from YAML.
+ * The YAML file is expected to have nested structure: { enabled, settings }.
  */
 function loadFeatureDefaults(
   featureName: string,
@@ -798,18 +826,16 @@ function loadFeatureDefaults(
     return null
   }
 
-  // Extract 'enabled' and put everything else in 'settings'
-  const { enabled, ...settings } = defaults
-  return {
-    enabled: typeof enabled === 'boolean' ? enabled : true,
-    settings,
-  }
+  // Expect YAML to already have { enabled, settings } structure
+  const validated = FeatureEntrySchema.parse(defaults)
+  return validated
 }
 
 export function createConfigService(options: ConfigServiceOptions): ConfigService {
   const homeDir = options.homeDir ?? homedir()
   const projectRoot = options.projectRoot
   const assets = options.assets
+  const logger = options.logger
 
   // Collect sources for debugging
   const sources: string[] = []
@@ -823,15 +849,39 @@ export function createConfigService(options: ConfigServiceOptions): ConfigServic
     sources.push('environment')
   }
 
-  // Check for unified config files
+  // Check for unified config files and log their contents
   const userUnifiedPath = join(homeDir, '.sidekick', 'sidekick.config')
-  if (existsSync(userUnifiedPath)) {
+  const userUnifiedParsed = tryReadUnifiedConfig(userUnifiedPath)
+  if (userUnifiedParsed) {
     sources.push(userUnifiedPath)
+    // Log warnings about malformed lines
+    for (const warning of userUnifiedParsed.warnings) {
+      logger?.warn('Config parse warning', { warning })
+    }
+    // Log overrides at info level
+    if (userUnifiedParsed.overrides.length > 0 && logger) {
+      logger.info('User config overrides loaded', {
+        source: userUnifiedPath,
+        overrides: userUnifiedParsed.overrides,
+      })
+    }
   }
 
   const projectUnifiedPath = projectRoot ? join(projectRoot, '.sidekick', 'sidekick.config') : null
-  if (projectUnifiedPath && existsSync(projectUnifiedPath)) {
-    sources.push(projectUnifiedPath)
+  const projectUnifiedParsed = projectUnifiedPath ? tryReadUnifiedConfig(projectUnifiedPath) : null
+  if (projectUnifiedParsed) {
+    sources.push(projectUnifiedPath!)
+    // Log warnings about malformed lines
+    for (const warning of projectUnifiedParsed.warnings) {
+      logger?.warn('Config parse warning', { warning })
+    }
+    // Log overrides at info level
+    if (projectUnifiedParsed.overrides.length > 0 && logger) {
+      logger.info('Project config overrides loaded', {
+        source: projectUnifiedPath,
+        overrides: projectUnifiedParsed.overrides,
+      })
+    }
   }
 
   // Check for domain files

@@ -5,34 +5,35 @@
 # Enable or disable the statusline feature
 enabled: true
 
-# Format string for statusline output
-# Available placeholders: {model}, {tokens}, {cost}, {duration}, {cwd}, {branch}, {summary}, {title}
-format: "[{model}] | {tokens} | {cwd}{branch} | {summary}"
+settings:
+  # Format string for statusline output
+  # Available placeholders: {model}, {tokens}, {cost}, {duration}, {cwd}, {branch}, {summary}, {title}
+  format: "[{model}] | {tokens} | {cwd}{branch} | {summary}"
 
-# Confidence threshold for preferring session summary over first-prompt summary
-confidenceThreshold: 0.6
+  # Confidence threshold for preferring session summary over first-prompt summary
+  confidenceThreshold: 0.6
 
-# Threshold configuration for visual warnings
-thresholds:
-  # Token usage thresholds
-  tokens:
-    # Token count at which to show warning color
-    warning: 100000
-    # Token count at which to show critical color
-    critical: 160000
-  # Cost thresholds in USD
-  cost:
-    # Cost at which to show warning color
-    warning: 0.5
-    # Cost at which to show critical color
-    critical: 1.0
+  # Threshold configuration for visual warnings
+  thresholds:
+    # Token usage thresholds
+    tokens:
+      # Token count at which to show warning color
+      warning: 100000
+      # Token count at which to show critical color
+      critical: 160000
+    # Cost thresholds in USD
+    cost:
+      # Cost at which to show warning color
+      warning: 0.5
+      # Cost at which to show critical color
+      critical: 1.0
 
-# Theme configuration
-theme:
-  # Use Nerd Font icons for enhanced display
-  useNerdFonts: true
-  # Color assignments for statusline elements
-  colors:
-    model: blue
-    tokens: green
-    summary: magenta
+  # Theme configuration
+  theme:
+    # Use Nerd Font icons for enhanced display
+    useNerdFonts: true
+    # Color assignments for statusline elements
+    colors:
+      model: blue
+      tokens: green
+      summary: magenta

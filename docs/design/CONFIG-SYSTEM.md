@@ -165,7 +165,11 @@ export type FeatureConfig = z.infer<typeof FeatureConfigSchema>;
 export type FeaturesConfig = z.infer<typeof FeaturesConfigSchema>;
 ```
 
-**Note**: Each feature defines its own `settings` schema in its feature LLD. The config system treats `settings` as opaque `Record<string, unknown>` and passes it to the feature for validation.
+**Note**: Each feature uses the standardized `{ enabled, settings }` structure:
+- `enabled`: Boolean flag to enable/disable the feature
+- `settings`: Feature-specific configuration (opaque to the config system)
+
+Features define their own `settings` schema in their feature LLD. The config system treats `settings` as opaque `Record<string, unknown>` and passes it to the feature for validation. Use `configService.getFeature<T>(name)` for type-safe access to feature settings.
 
 ### 5.5 Unified Config Type
 
@@ -246,6 +250,24 @@ class ConfigService {
 }
 ```
 
+**Feature Access Pattern**: Use `getFeature<T>()` for type-safe access to feature configuration:
+
+```typescript
+// Define feature settings type
+interface RemindersSettings {
+  turn_cadence: number;
+  tool_cadence: number;
+  pause_and_reflect_threshold: number;
+}
+
+// Access feature config with type safety
+const reminders = configService.getFeature<RemindersSettings>('reminders');
+if (reminders.enabled) {
+  const threshold = reminders.settings.pause_and_reflect_threshold;
+  // ...
+}
+```
+
 ### 8.2 `AssetResolver`
 
 Resolves asset paths through the cascade.
@@ -317,7 +339,63 @@ session_summary:
     snarky_mode: true
 ```
 
-## 10. Internal Implementation Details
+## 10. Configuration Logging
+
+The configuration system provides diagnostic logging to help troubleshoot configuration issues.
+
+### 10.1 Load-Time Logging
+
+When configuration is loaded via `createConfigService()`, the following is logged:
+
+| Level | Condition | Message |
+|-------|-----------|---------|
+| `warn` | Malformed line in `sidekick.config` | `Config parse warning` with line number and issue (missing `=`, invalid key format) |
+| `info` | User config overrides found | `User config overrides loaded` with source path and key-value pairs |
+| `info` | Project config overrides found | `Project config overrides loaded` with source path and key-value pairs |
+
+**Example warnings:**
+```
+warn: Config parse warning { warning: "sidekick.config:18: malformed line (missing '='): features.reminders.threshold: 4" }
+warn: Config parse warning { warning: "sidekick.config:5: invalid key format (need domain.key): single" }
+```
+
+**Example info:**
+```
+info: Project config overrides loaded { source: ".sidekick/sidekick.config", overrides: [{ key: "features.reminders.enabled", value: true }] }
+```
+
+### 10.2 Hot-Reload Logging
+
+When configuration files change and the supervisor reloads config, the following is logged:
+
+| Level | Condition | Message |
+|-------|-----------|---------|
+| `info` | File change detected | `Configuration change detected` with filename and event type |
+| `info` | Values changed | `Configuration values changed` with array of `{ path, old, new }` diffs |
+| `info` | Reload complete | `Configuration reloaded successfully` |
+| `error` | Reload failed | `Failed to reload configuration` with error message |
+
+**Example:**
+```
+info: Configuration change detected { file: "sidekick.config", eventType: "change" }
+info: Configuration values changed { changes: [{ path: "features.reminders.settings.pause_and_reflect_threshold", old: 15, new: 4 }] }
+info: Configuration reloaded successfully
+```
+
+### 10.3 Enabling Config Logging
+
+To see config logging, pass a logger to `createConfigService()`:
+
+```typescript
+const configService = createConfigService({
+  projectRoot: process.cwd(),
+  logger: myLogger,  // Optional - enables load-time logging
+});
+```
+
+Hot-reload logging uses the supervisor's logger automatically.
+
+## 11. Internal Implementation Details
 
 The following are internal implementation concerns, not exposed via configuration:
 
@@ -325,7 +403,7 @@ The following are internal implementation concerns, not exposed via configuratio
 - **Staging directory structure**: Fixed at `{paths.state}/sessions/{session_id}/stage/{hook_name}/`.
 - **Event schema**: Defined in code, not configurable (see docs/design/flow.md Section 3.2).
 
-## 11. Decisions
+## 12. Decisions
 
 - **Domain-based files**: Configuration split by functional domain for clarity and independent override.
 - **Unified config convenience**: `sidekick.config` provides quick bash-style overrides without editing multiple files.

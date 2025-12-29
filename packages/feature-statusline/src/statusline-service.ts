@@ -7,6 +7,7 @@
  * @see docs/design/FEATURE-STATUSLINE.md §5.1 StatuslineService
  */
 
+import type { MinimalConfigService } from '@sidekick/types'
 import {
   Formatter,
   calculateContextUsage,
@@ -75,6 +76,8 @@ export interface StatuslineServiceConfig {
   homeDir?: string
   /** Statusline configuration (merged with defaults) */
   config?: Partial<StatuslineConfig>
+  /** Config service for loading settings from the config cascade */
+  configService?: MinimalConfigService
   /** Whether session was resumed (affects display mode) */
   isResumedSession?: boolean
   /** Whether to output ANSI colors */
@@ -115,7 +118,8 @@ export class StatuslineService {
   private readonly hookMetrics?: HookMetrics
 
   constructor(serviceConfig: StatuslineServiceConfig) {
-    this.config = { ...DEFAULT_STATUSLINE_CONFIG, ...serviceConfig.config }
+    // Build config from cascade: configService takes precedence, then direct config, then defaults
+    this.config = this.buildConfig(serviceConfig)
     this.cwd = serviceConfig.cwd
     this.homeDir = serviceConfig.homeDir
     this.isResumedSession = serviceConfig.isResumedSession ?? false
@@ -130,6 +134,22 @@ export class StatuslineService {
       theme: this.config.theme,
       useColors: this.useColors,
     })
+  }
+
+  /**
+   * Build the final StatuslineConfig.
+   * Priority: configService cascade > direct config > defaults
+   */
+  private buildConfig(serviceConfig: StatuslineServiceConfig): StatuslineConfig {
+    if (serviceConfig.configService) {
+      const featureConfig = serviceConfig.configService.getFeature<Partial<StatuslineConfig>>('statusline')
+      return {
+        ...DEFAULT_STATUSLINE_CONFIG,
+        ...featureConfig.settings,
+        ...(serviceConfig.config ?? {}),
+      }
+    }
+    return { ...DEFAULT_STATUSLINE_CONFIG, ...serviceConfig.config }
   }
 
   /**
