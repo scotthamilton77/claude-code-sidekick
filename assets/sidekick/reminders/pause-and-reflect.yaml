@@ -6,8 +6,6 @@ priority: 80
 persistent: false
 
 additionalContext: |
-  You've made {{toolsThisTurn}} tool calls this turn.
-
   Pause. Are you making progress, or spinning?
 
   If stuck: Tell the user what's not working and what you need.
