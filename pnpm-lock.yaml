@@ -56,6 +56,9 @@ importers:
       js-yaml:
         specifier: ^4.1.0
         version: 4.1.1
+      picomatch:
+        specifier: ^4.0.3
+        version: 4.0.3
       zod:
         specifier: ^3.23.8
         version: 3.25.76
@@ -69,6 +72,9 @@ importers:
       '@types/node':
         specifier: ^22.10.1
         version: 22.19.1
+      '@types/picomatch':
+        specifier: ^3.0.2
+        version: 3.0.2
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -830,6 +836,9 @@ packages:
 
   '@types/node@22.19.1':
     resolution: {integrity: sha512-LCCV0HdSZZZb34qifBsyWlUmok6W7ouER+oQIGBScS8EsZsQbrtFTUrDX4hOl+CS6p7cnNC4td+qrSVGSCTUfQ==}
+
+  '@types/picomatch@3.0.2':
+    resolution: {integrity: sha512-n0i8TD3UDB7paoMMxA3Y65vUncFJXjcUf7lQY7YyKGl6031FNjfsLs6pdLFCy2GNFxItPJG8GvvpbZc2skH7WA==}
 
   '@types/pino-pretty@5.0.0':
     resolution: {integrity: sha512-N1uzqSzioqz8R3AkDbSJwcfDWeI3YMPNapSQQhnB2ISU4NYgUIcAh+hYT5ygqBM+klX4htpEhXMmoJv3J7GrdA==}
@@ -2594,6 +2603,8 @@ snapshots:
   '@types/node@22.19.1':
     dependencies:
       undici-types: 6.21.0
+
+  '@types/picomatch@3.0.2': {}
 
   '@types/pino-pretty@5.0.0':
     dependencies:

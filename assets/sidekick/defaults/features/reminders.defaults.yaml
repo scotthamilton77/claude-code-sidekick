@@ -10,3 +10,48 @@ settings:
   # Counts tool invocations since the last user prompt (toolsThisTurn metric).
   # Fires when: toolsThisTurn >= pause_and_reflect_threshold
   pause_and_reflect_threshold: 20
+
+  # Glob patterns that trigger verify-completion reminder on file edit.
+  # Uses picomatch syntax: https://github.com/micromatch/picomatch
+  # Only edits to files matching these patterns will stage the reminder.
+  # Documentation files (*.md) are excluded by default.
+  source_code_patterns:
+    # TypeScript/JavaScript
+    - "**/*.ts"
+    - "**/*.tsx"
+    - "**/*.js"
+    - "**/*.jsx"
+    # Python
+    - "**/*.py"
+    # Go
+    - "**/*.go"
+    # Rust
+    - "**/*.rs"
+    # JVM languages
+    - "**/*.java"
+    - "**/*.kt"
+    - "**/*.scala"
+    # Swift
+    - "**/*.swift"
+    # C/C++
+    - "**/*.c"
+    - "**/*.cpp"
+    - "**/*.h"
+    - "**/*.hpp"
+    # Ruby
+    - "**/*.rb"
+    # PHP
+    - "**/*.php"
+    # C#
+    - "**/*.cs"
+    # Shell
+    - "**/*.sh"
+    # Config files
+    - "**/*.yaml"
+    - "**/*.yml"
+    - "**/*.toml"
+    # Specific important files
+    - "**/package.json"
+    - "**/tsconfig.json"
+    - "**/Dockerfile"
+    - "**/Makefile"

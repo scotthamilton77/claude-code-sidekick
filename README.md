@@ -12,14 +12,6 @@ This repository serves as a development and testing environment for [Claude Code
 
 ### Sidekick
 
-- reminder tuning
-  - stop message staging based on regex of file modifications
-- reminder testing
-  - stop hook
-    - validate tool usage detection
-    - only source code
-    - test disablement
-    - test user prompt submit clearing
 - statusline token usage - statistics from statusline input are wrong - use transcript state?
 - statusline always says (stale)?
   - Also, shouldn't this update more often during the convo?
