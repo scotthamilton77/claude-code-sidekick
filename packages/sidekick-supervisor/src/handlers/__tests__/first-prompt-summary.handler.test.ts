@@ -12,6 +12,8 @@ import {
   FirstPromptSummaryPayloadSchema,
   FirstPromptSummaryStateSchema,
 } from '@sidekick/core'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 import { describe, expect, it } from 'vitest'
 import {
   buildPrompt,
@@ -20,6 +22,11 @@ import {
   PromptClassification,
   PromptParts,
 } from '../first-prompt-summary.handler.js'
+
+// Load the actual system prompt from assets for testing
+// Path: from packages/sidekick-supervisor/src/handlers/__tests__/ to assets/sidekick/
+const ASSETS_DIR = join(__dirname, '../../../../../assets/sidekick')
+const SYSTEM_PROMPT = readFileSync(join(ASSETS_DIR, 'prompts/first-prompt-summary.prompt.txt'), 'utf-8')
 
 describe('classifyPrompt', () => {
   describe('non-slash commands', () => {
@@ -137,23 +144,29 @@ describe('classifyPrompt', () => {
 describe('buildPrompt', () => {
   describe('return structure', () => {
     it('should return PromptParts with system and user fields', () => {
-      const result = buildPrompt('Fix the login bug')
+      const result = buildPrompt(SYSTEM_PROMPT, 'Fix the login bug')
       expect(result).toHaveProperty('system')
       expect(result).toHaveProperty('user')
       expect(typeof result.system).toBe('string')
       expect(typeof result.user).toBe('string')
     })
+
+    it('should use provided system prompt', () => {
+      const customSystemPrompt = 'Custom system prompt for testing'
+      const { system } = buildPrompt(customSystemPrompt, 'test')
+      expect(system).toBe(customSystemPrompt)
+    })
   })
 
   describe('context section (in user message)', () => {
     it('should include new session context when no resume context', () => {
-      const { user } = buildPrompt('Fix the login bug')
+      const { user } = buildPrompt(SYSTEM_PROMPT, 'Fix the login bug')
       expect(user).toContain('New session')
       expect(user).not.toContain('Previous session')
     })
 
     it('should include resume context when provided', () => {
-      const { user } = buildPrompt('Continue where we left off', 'Implementing user auth')
+      const { user } = buildPrompt(SYSTEM_PROMPT, 'Continue where we left off', 'Implementing user auth')
       expect(user).toContain('Previous session: Implementing user auth')
       expect(user).not.toContain('New session')
     })
@@ -162,65 +175,60 @@ describe('buildPrompt', () => {
   describe('user input section', () => {
     it('should include the user prompt in user message', () => {
       const userInput = 'Help me refactor the database layer'
-      const { user } = buildPrompt(userInput)
+      const { user } = buildPrompt(SYSTEM_PROMPT, userInput)
       expect(user).toContain(`User input: "${userInput}"`)
     })
 
     it('should preserve special characters in user prompt', () => {
       const userInput = 'Fix the `handleClick()` function in <Button />'
-      const { user } = buildPrompt(userInput)
+      const { user } = buildPrompt(SYSTEM_PROMPT, userInput)
       expect(user).toContain(userInput)
     })
   })
+})
 
+describe('system prompt asset', () => {
   describe('system message constraints', () => {
     it('should include character limit instruction', () => {
-      const { system } = buildPrompt('test')
-      expect(system).toContain('Max 60 characters')
+      expect(SYSTEM_PROMPT).toContain('Max 60 characters')
     })
 
     it('should include JSON output format', () => {
-      const { system } = buildPrompt('test')
-      expect(system).toContain('Output JSON')
-      expect(system).toContain('"message"')
+      expect(SYSTEM_PROMPT).toContain('Output JSON')
+      expect(SYSTEM_PROMPT).toContain('"message"')
     })
 
     it('should include single line constraint', () => {
-      const { system } = buildPrompt('test')
-      expect(system).toContain('Single line')
+      expect(SYSTEM_PROMPT).toContain('Single line')
     })
   })
 
   describe('negative examples (NEVER section)', () => {
     it('should include negative examples to prevent assistant mode', () => {
-      const { system } = buildPrompt('test')
-      expect(system).toContain('NEVER')
-      expect(system).toContain('Clarifying questions')
-      expect(system).toContain('Helpful preambles')
+      expect(SYSTEM_PROMPT).toContain('NEVER')
+      expect(SYSTEM_PROMPT).toContain('Clarifying questions')
+      expect(SYSTEM_PROMPT).toContain('Helpful preambles')
     })
   })
 
   describe('few-shot examples', () => {
     it('should include diverse few-shot examples', () => {
-      const { system } = buildPrompt('test')
-      expect(system).toContain('EXAMPLES')
-      expect(system).toContain('debug')
-      expect(system).toContain('hello!')
-      expect(system).toContain('JWT')
+      expect(SYSTEM_PROMPT).toContain('EXAMPLES')
+      expect(SYSTEM_PROMPT).toContain('debug')
+      expect(SYSTEM_PROMPT).toContain('hello!')
+      expect(SYSTEM_PROMPT).toContain('JWT')
     })
   })
 
   describe('tone guidelines', () => {
     it('should include sci-fi reference guideline', () => {
-      const { system } = buildPrompt('test')
-      expect(system).toContain("Hitchhiker's")
-      expect(system).toContain('Star Trek')
+      expect(SYSTEM_PROMPT).toContain("Hitchhiker's")
+      expect(SYSTEM_PROMPT).toContain('Star Trek')
     })
 
     it('should include snarky tone guideline', () => {
-      const { system } = buildPrompt('test')
-      expect(system).toContain('Snarky')
-      expect(system).toContain('never mean')
+      expect(SYSTEM_PROMPT).toContain('Snarky')
+      expect(SYSTEM_PROMPT).toContain('never mean')
     })
   })
 })
@@ -712,6 +720,6 @@ describe('generateWithLLM', () => {
   it('should export generateWithLLM function', () => {
     // Verify the function is exported and has the expected signature
     expect(typeof generateWithLLM).toBe('function')
-    expect(generateWithLLM.length).toBe(5) // 5 parameters (userPrompt, resumeContext, config, logger, signal?)
+    expect(generateWithLLM.length).toBe(6) // 6 parameters (userPrompt, resumeContext, config, logger, assetResolver, signal?)
   })
 })

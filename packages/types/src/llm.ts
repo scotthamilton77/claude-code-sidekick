@@ -12,12 +12,31 @@ export interface Message {
   content: string
 }
 
+/**
+ * JSON Schema configuration for structured output.
+ * When provided, compatible providers will use response_format to enforce the schema.
+ */
+export interface JsonSchemaConfig {
+  /** Name for the schema (used in API requests) */
+  name: string
+  /** JSON Schema object defining the expected response structure */
+  schema: Record<string, unknown>
+  /** Whether to enforce strict schema adherence (default: true) */
+  strict?: boolean
+}
+
 export interface LLMRequest {
   messages: Message[]
   system?: string
   model?: string
   temperature?: number
   maxTokens?: number
+  /**
+   * JSON Schema for structured output.
+   * When provided, the provider will attempt to use native structured output support.
+   * Falls back to prompt-based schema guidance for providers that don't support it.
+   */
+  jsonSchema?: JsonSchemaConfig
   additionalParams?: Record<string, unknown>
 }
 

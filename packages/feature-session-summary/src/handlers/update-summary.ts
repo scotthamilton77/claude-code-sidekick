@@ -24,6 +24,8 @@ const SNARKY_FILE = 'snarky-message.txt'
 const PROMPT_FILE = 'prompts/session-summary.prompt.txt'
 const SNARKY_PROMPT_FILE = 'prompts/snarky-message.prompt.txt'
 const RESUME_PROMPT_FILE = 'prompts/resume-message.prompt.txt'
+const SESSION_SUMMARY_SCHEMA_FILE = 'schemas/session-summary.schema.json'
+const RESUME_MESSAGE_SCHEMA_FILE = 'schemas/resume-message.schema.json'
 
 /**
  * Zod schema for LLM response validation.
@@ -191,6 +193,15 @@ async function performAnalysis(
     previousAnalysis,
   })
 
+  // Load JSON schema for structured output
+  const schemaContent = ctx.assets.resolve(SESSION_SUMMARY_SCHEMA_FILE)
+  const jsonSchema = schemaContent
+    ? {
+        name: 'session-summary',
+        schema: JSON.parse(schemaContent) as Record<string, unknown>,
+      }
+    : undefined
+
   // Call LLM
   let llmResponse: SessionSummaryResponse | null = null
   let tokensUsed = 0
@@ -200,6 +211,7 @@ async function performAnalysis(
       messages: [{ role: 'user', content: prompt }],
       temperature: 0, // Zero temperature for deterministic classification
       maxTokens: 1000,
+      jsonSchema,
     })
 
     tokensUsed = (response.usage?.inputTokens ?? 0) + (response.usage?.outputTokens ?? 0)
@@ -464,6 +476,15 @@ async function generateResumeMessage(
     )
   )
 
+  // Load JSON schema for structured output
+  const resumeSchemaContent = ctx.assets.resolve(RESUME_MESSAGE_SCHEMA_FILE)
+  const resumeJsonSchema = resumeSchemaContent
+    ? {
+        name: 'resume-message',
+        schema: JSON.parse(resumeSchemaContent) as Record<string, unknown>,
+      }
+    : undefined
+
   // Interpolate prompt with session data
   const keyPhrases = summary.session_title_key_phrases?.join(', ') ?? ''
   const prompt = promptTemplate
@@ -478,6 +499,7 @@ async function generateResumeMessage(
       messages: [{ role: 'user', content: prompt }],
       temperature: 1.2, // High temperature for creative messages
       maxTokens: 500,
+      jsonSchema: resumeJsonSchema,
     })
 
     const parsed = parseResumeResponse(response.content)

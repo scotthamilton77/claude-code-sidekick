@@ -6,6 +6,8 @@
  */
 
 import { createConsoleLogger, SidekickConfig, TaskTypes, TrackedTask } from '@sidekick/core'
+import type { MinimalAssetResolver } from '@sidekick/types'
+import { readFileSync } from 'fs'
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
@@ -15,6 +17,22 @@ import { createTaskRegistry, registerStandardTaskHandlers, TaskRegistry } from '
 import { TaskEngine } from '../task-engine.js'
 
 const logger = createConsoleLogger({ minimumLevel: 'error' })
+
+// Path to assets directory for loading real prompt/schema files
+const ASSETS_DIR = path.join(__dirname, '../../../../assets/sidekick')
+
+// Mock asset resolver that returns real assets for testing
+const mockAssetResolver: MinimalAssetResolver = {
+  cascadeLayers: [ASSETS_DIR],
+  resolve: (assetPath: string): string | null => {
+    try {
+      const fullPath = path.join(ASSETS_DIR, assetPath)
+      return readFileSync(fullPath, 'utf-8')
+    } catch {
+      return null
+    }
+  },
+}
 
 // Mock config for testing - uses defaults
 const mockConfig: SidekickConfig = {
@@ -205,7 +223,7 @@ describe('Standard Task Handlers', () => {
     taskEngine = new TaskEngine(logger, 2, 10000)
 
     // Register handlers
-    registerStandardTaskHandlers(taskEngine, stateManager, projectDir, logger, mockConfig)
+    registerStandardTaskHandlers(taskEngine, stateManager, projectDir, logger, mockConfig, mockAssetResolver)
   })
 
   afterEach(async () => {
