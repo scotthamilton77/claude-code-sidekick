@@ -9,7 +9,7 @@ settings:
   # Tool calls per turn that trigger the "pause and reflect" reminder.
   # Counts tool invocations since the last user prompt (toolsThisTurn metric).
   # Fires when: toolsThisTurn >= pause_and_reflect_threshold
-  pause_and_reflect_threshold: 20
+  pause_and_reflect_threshold: 30
 
   # Glob patterns that trigger verify-completion reminder on file edit.
   # Uses picomatch syntax: https://github.com/micromatch/picomatch
