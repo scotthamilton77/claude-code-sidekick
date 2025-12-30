@@ -157,15 +157,32 @@ export class TranscriptServiceImpl implements TranscriptService {
   private persistIntervalTimer: ReturnType<typeof setInterval> | null = null
   private lastPersistedAt = 0
 
+  /** Track whether prepare() has been called */
+  private prepared = false
+
   constructor(private readonly options: TranscriptServiceOptions) {}
 
   // ============================================================================
   // Lifecycle Methods
   // ============================================================================
 
+  /**
+   * Initialize the service (legacy API).
+   * @deprecated Use prepare() + start() for explicit lifecycle control.
+   */
   async initialize(sessionId: string, transcriptPath: string): Promise<void> {
+    await this.prepare(sessionId, transcriptPath)
+    await this.start()
+  }
+
+  /**
+   * Prepare the service without starting event emission.
+   * Sets up paths, loads persisted state, but does NOT start file watching
+   * or process the transcript file.
+   */
+  prepare(sessionId: string, transcriptPath: string): Promise<void> {
     if (this.sessionId !== null) {
-      throw new Error('TranscriptService already initialized - call shutdown() first')
+      throw new Error('TranscriptService already prepared - call shutdown() first')
     }
     this.sessionId = sessionId
     this.transcriptPath = transcriptPath
@@ -185,6 +202,21 @@ export class TranscriptServiceImpl implements TranscriptService {
     // Load compaction history
     this.loadCompactionHistory()
 
+    this.prepared = true
+    this.options.logger.debug('TranscriptService prepared', { sessionId, transcriptPath })
+    return Promise.resolve()
+  }
+
+  /**
+   * Start file watching and process existing content.
+   * Events will be emitted to handlers during this call.
+   * Must call prepare() first.
+   */
+  async start(): Promise<void> {
+    if (!this.prepared || this.sessionId === null) {
+      throw new Error('TranscriptService.start() called before prepare()')
+    }
+
     // Start file watcher
     this.startWatching()
 
@@ -197,10 +229,10 @@ export class TranscriptServiceImpl implements TranscriptService {
       this.persistIntervalTimer.unref()
     }
 
-    // Process existing content
+    // Process existing content (emits events)
     await this.processTranscriptFile()
 
-    this.options.logger.info('TranscriptService initialized', { sessionId, transcriptPath })
+    this.options.logger.info('TranscriptService started', { sessionId: this.sessionId })
   }
 
   async shutdown(): Promise<void> {
@@ -235,6 +267,7 @@ export class TranscriptServiceImpl implements TranscriptService {
 
     this.sessionId = null
     this.transcriptPath = null
+    this.prepared = false
   }
 
   // ============================================================================

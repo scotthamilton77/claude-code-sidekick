@@ -84,6 +84,8 @@ export class ServiceFactoryImpl implements ServiceFactory {
   /**
    * Get a session-scoped TranscriptService.
    * Returns actual instance (created on demand, cached by sessionId).
+   *
+   * @deprecated Use prepareTranscriptService() + transcriptService.start() for explicit lifecycle control.
    */
   async getTranscriptService(sessionId: string, transcriptPath: string): Promise<TranscriptService> {
     this.touchSession(sessionId)
@@ -98,6 +100,32 @@ export class ServiceFactoryImpl implements ServiceFactory {
         metricsPersistIntervalMs: this.options.metricsPersistIntervalMs ?? 30000,
       })
       await service.initialize(sessionId, transcriptPath)
+      this.transcriptServices.set(sessionId, service)
+    }
+    return service
+  }
+
+  /**
+   * Prepare a session-scoped TranscriptService without starting event emission.
+   * Returns actual instance (created on demand, cached by sessionId).
+   *
+   * The service is prepared but NOT started - call transcriptService.start() after
+   * wiring up handler context to begin event emission.
+   */
+  async prepareTranscriptService(sessionId: string, transcriptPath: string): Promise<TranscriptService> {
+    this.touchSession(sessionId)
+
+    let service = this.transcriptServices.get(sessionId)
+    if (!service) {
+      service = new TranscriptServiceImpl({
+        stateDir: this.options.stateDir,
+        logger: this.options.logger,
+        handlers: this.options.handlers,
+        watchDebounceMs: this.options.watchDebounceMs ?? 100,
+        metricsPersistIntervalMs: this.options.metricsPersistIntervalMs ?? 30000,
+      })
+      // Only prepare, don't start - caller must call service.start() after wiring context
+      await service.prepare(sessionId, transcriptPath)
       this.transcriptServices.set(sessionId, service)
     }
     return service

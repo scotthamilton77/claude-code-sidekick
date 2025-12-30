@@ -161,7 +161,8 @@ describe('TranscriptServiceImpl', () => {
       writeFileSync(transcriptPath, '')
       await service.initialize('test-session', transcriptPath)
 
-      expect(logger.info).toHaveBeenCalledWith('TranscriptService initialized', expect.any(Object))
+      // initialize() calls prepare() then start(), so we expect the "started" log
+      expect(logger.info).toHaveBeenCalledWith('TranscriptService started', expect.any(Object))
     })
 
     it('logs shutdown', async () => {

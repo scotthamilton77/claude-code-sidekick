@@ -410,10 +410,12 @@ export class Supervisor {
     const sessionId = event.context?.sessionId
     this.logger.debug('Handling hook invocation', { hook, sessionId })
 
-    // Ensure TranscriptService is cached and build context for non-SessionEnd hooks
+    // Build context and start transcript service for non-SessionEnd hooks
+    // Note: resolveTranscriptPath does NOT create the service - setContextForHook does,
+    // AFTER setting initial context with config (to avoid race condition)
     if (sessionId && hook !== 'SessionEnd') {
       const payload = event.payload as { transcriptPath?: string } | undefined
-      const transcriptPath = await this.ensureTranscriptService(sessionId, payload?.transcriptPath)
+      const transcriptPath = this.resolveTranscriptPath(sessionId, payload?.transcriptPath)
       await this.setContextForHook(sessionId, transcriptPath)
     }
 
@@ -484,31 +486,34 @@ export class Supervisor {
   }
 
   /**
-   * Ensure TranscriptService is cached for a session.
-   * Called by handleHookInvoke() to lazy-init transcript tracking.
+   * Resolve transcript path for a session.
+   * Called by handleHookInvoke() before setting context.
    *
-   * Note: Does not check if transcript file exists - TranscriptService handles
-   * missing files gracefully, and the file may appear shortly after hook fires.
+   * Note: Does NOT create the TranscriptService - that happens in setContextForHook()
+   * AFTER the initial context is set. This avoids the race condition where transcript
+   * events fire before handlers have access to config.
    *
    * @param sessionId - Session ID from event context
    * @param providedTranscriptPath - Optional transcript path from event payload
    * @returns The resolved transcript path
    */
-  private async ensureTranscriptService(sessionId: string, providedTranscriptPath?: string): Promise<string> {
+  private resolveTranscriptPath(sessionId: string, providedTranscriptPath?: string): string {
     // Determine transcript path: use provided or reconstruct using utility
     const transcriptPath = providedTranscriptPath ?? reconstructTranscriptPath(this.projectDir, sessionId)
     if (!providedTranscriptPath) {
       this.logger.debug('Reconstructed transcript path', { sessionId, transcriptPath })
     }
-
-    // Ensure TranscriptService is cached in factory (handles missing files gracefully)
-    await this.serviceFactory.getTranscriptService(sessionId, transcriptPath)
     return transcriptPath
   }
 
   /**
    * Build and set SupervisorContext for the current hook invocation.
    * Called per-request to ensure handlers receive correct session-scoped services.
+   *
+   * Uses the prepare/start pattern to avoid race condition:
+   * 1. Prepare transcript service (no events yet)
+   * 2. Wire up full context with all services
+   * 3. Start transcript service (events fire with full context available)
    *
    * @param sessionId - Session ID from event context
    * @param transcriptPath - Transcript path for this session
@@ -517,15 +522,6 @@ export class Supervisor {
     if (!(this.handlerRegistry instanceof HandlerRegistryImpl)) {
       return
     }
-
-    // Get session-scoped services from factory
-    const stagingService = this.serviceFactory.getStagingService(sessionId)
-    const transcriptService = await this.serviceFactory.getTranscriptService(sessionId, transcriptPath)
-
-    // Update handler registry with session info
-    this.handlerRegistry.updateSession({ sessionId, transcriptPath })
-    this.handlerRegistry.setStagingProvider(() => stagingService)
-    this.handlerRegistry.setMetricsProvider(() => transcriptService.getMetrics())
 
     // Build runtime paths
     const paths: RuntimePaths = {
@@ -549,7 +545,14 @@ export class Supervisor {
       this.llmProvider = factory.create()
     }
 
-    // Build and set SupervisorContext
+    // Get staging service (doesn't trigger transcript events)
+    const stagingService = this.serviceFactory.getStagingService(sessionId)
+
+    // STEP 1: Prepare transcript service WITHOUT starting (no events yet)
+    const transcriptService = await this.serviceFactory.prepareTranscriptService(sessionId, transcriptPath)
+
+    // STEP 2: Wire up full context with all services
+    // Handlers will receive this context when events fire
     const supervisorContext: SupervisorContext = {
       role: 'supervisor',
       config: {
@@ -572,7 +575,17 @@ export class Supervisor {
       transcript: transcriptService,
     }
 
+    // Update handler registry with session info and providers
+    this.handlerRegistry.updateSession({ sessionId, transcriptPath })
+    this.handlerRegistry.setStagingProvider(() => stagingService)
+    this.handlerRegistry.setMetricsProvider(() => transcriptService.getMetrics())
+
+    // Set context BEFORE starting transcript service
     this.handlerRegistry.setContext(supervisorContext as unknown as Record<string, unknown>)
+
+    // STEP 3: Start transcript service - NOW events can fire with full context
+    await transcriptService.start()
+
     this.logger.debug('SupervisorContext set for handler invocation', { sessionId })
   }
 
