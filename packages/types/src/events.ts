@@ -218,8 +218,19 @@ export interface TranscriptMetrics {
   messageCount: number
 
   // Token metrics (extracted from native transcript metadata)
-  /** Token usage metrics from API responses */
+  /** Token usage metrics from API responses (cumulative, never resets) */
   tokenUsage: TokenUsageMetrics
+
+  /**
+   * Current context window tokens (resets on clear/compact).
+   * Unlike tokenUsage which tracks cumulative totals for cost analysis,
+   * this tracks only the tokens in the current transcript content.
+   */
+  currentContextTokens: {
+    inputTokens: number
+    outputTokens: number
+    totalTokens: number
+  }
 
   // Derived ratios
   /** Average tools per turn (toolCount / turnCount) */

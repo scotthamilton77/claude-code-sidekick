@@ -167,17 +167,28 @@ export class StatuslineService {
     const hasHookMetrics = !!this.hookMetrics
 
     // Parallel data fetch (critical for <50ms target)
-    // When hookMetrics provided, skip getSessionState() - Claude Code already gave us metrics
-    const [stateResult, summaryResult, resumeResult, snarkyResult, firstPromptResult, branchResult] = await Promise.all(
-      [
-        hasHookMetrics ? Promise.resolve(this.buildStateFromHookMetrics()) : this.stateReader.getSessionState(),
+    // Always fetch transcript metrics for currentContextTokens (needed for accurate post-compaction display)
+    // When hookMetrics provided, we merge currentContextTokens from transcript into hook-based state
+    const [transcriptResult, summaryResult, resumeResult, snarkyResult, firstPromptResult, branchResult] =
+      await Promise.all([
+        this.stateReader.getSessionState(),
         this.stateReader.getSessionSummary(),
         this.stateReader.getResumeMessage(),
         this.stateReader.getSnarkyMessage(),
         this.stateReader.getFirstPromptSummary(),
         this.gitProvider.getCurrentBranch(),
-      ]
-    )
+      ])
+
+    // Build state: use hook metrics if available, but always include currentContextTokens from transcript
+    const stateResult = hasHookMetrics
+      ? {
+          ...this.buildStateFromHookMetrics(),
+          data: {
+            ...this.buildStateFromHookMetrics().data,
+            currentContextTokens: transcriptResult.data.currentContextTokens,
+          },
+        }
+      : transcriptResult
 
     // Artifact discovery: if this is a new session (no summary yet), try to find
     // a resume message from a previous session per docs/design/FEATURE-RESUME.md §3.1
@@ -290,10 +301,19 @@ export class StatuslineService {
         )
       : undefined
 
+    // Calculate effective tokens for display using min(hook, transcript)
+    // After clear/compact, transcript tokens reset while hook tokens stay cumulative,
+    // so we use the smaller value to show accurate current context size
+    const hookTokens = this.hookMetrics
+      ? (this.hookMetrics.totalInputTokens ?? 0) + (this.hookMetrics.totalOutputTokens ?? 0)
+      : Infinity
+    const transcriptContextTokens = state.currentContextTokens?.total ?? state.tokens.total
+    const effectiveTokens = Math.min(hookTokens, transcriptContextTokens)
+
     return {
       model: this.formatModelName(state.primaryModel || 'unknown'),
-      tokens: formatTokens(state.tokens.total),
-      tokensStatus: getThresholdStatus(state.tokens.total, this.config.thresholds.tokens),
+      tokens: formatTokens(effectiveTokens),
+      tokensStatus: getThresholdStatus(effectiveTokens, this.config.thresholds.tokens),
       cost: formatCost(state.costUsd),
       costStatus: getThresholdStatus(state.costUsd, this.config.thresholds.cost),
       duration: formatDuration(state.durationSeconds * 1000),

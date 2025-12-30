@@ -288,7 +288,7 @@ export const SessionMetricsStateSchema = z.object({
   costUsd: z.number(),
   /** Primary model used in session */
   primaryModel: z.string().optional(),
-  /** Token usage summary (from transcript metrics) */
+  /** Token usage summary (from transcript metrics - cumulative) */
   tokens: z.object({
     /** Total input tokens */
     input: z.number(),
@@ -301,6 +301,17 @@ export const SessionMetricsStateSchema = z.object({
     /** Cache read tokens (cache hits) */
     cacheRead: z.number(),
   }),
+  /** Current context window tokens (resets on clear/compact) */
+  currentContextTokens: z
+    .object({
+      /** Input tokens in current context */
+      input: z.number(),
+      /** Output tokens in current context */
+      output: z.number(),
+      /** Total tokens in current context */
+      total: z.number(),
+    })
+    .optional(),
 })
 
 export type SessionMetricsState = z.infer<typeof SessionMetricsStateSchema>

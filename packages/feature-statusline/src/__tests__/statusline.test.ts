@@ -424,6 +424,10 @@ describe('StateReader', () => {
     const state = {
       sessionId: 'test-123',
       metrics: {
+        turnCount: 1,
+        toolsThisTurn: 0,
+        toolCount: 0,
+        messageCount: 2,
         tokenUsage: {
           inputTokens: 30000,
           outputTokens: 15000,
@@ -431,9 +435,8 @@ describe('StateReader', () => {
           cacheCreationInputTokens: 0,
           cacheReadInputTokens: 0,
         },
-        costUsd: 0.15,
-        durationSeconds: 720,
-        primaryModel: 'claude-3-5-sonnet',
+        toolsPerTurn: 0,
+        lastProcessedLine: 2,
         lastUpdatedAt: Date.now(),
       },
       persistedAt: Date.now(),
@@ -445,7 +448,8 @@ describe('StateReader', () => {
 
     expect(result.source).toBe('fresh')
     expect(result.data.tokens.total).toBe(45000)
-    expect(result.data.primaryModel).toBe('claude-3-5-sonnet')
+    // Note: primaryModel comes from hook metrics, not transcript-metrics.json
+    expect(result.data.primaryModel).toBeUndefined()
   })
 
   it('returns default for invalid JSON', async () => {
@@ -789,6 +793,10 @@ describe('StatuslineService', () => {
       JSON.stringify({
         sessionId: 'test-123',
         metrics: {
+          turnCount: 1,
+          toolsThisTurn: 0,
+          toolCount: 0,
+          messageCount: 2,
           tokenUsage: {
             inputTokens: 30000,
             outputTokens: 15000,
@@ -796,9 +804,8 @@ describe('StatuslineService', () => {
             cacheCreationInputTokens: 0,
             cacheReadInputTokens: 0,
           },
-          costUsd: 0.15,
-          durationSeconds: 720,
-          primaryModel: 'claude-3-5-sonnet',
+          toolsPerTurn: 0,
+          lastProcessedLine: 2,
           lastUpdatedAt: Date.now(),
         },
         persistedAt: Date.now(),
@@ -823,6 +830,12 @@ describe('StatuslineService', () => {
       cwd: '/home/user/project',
       homeDir: '/home/user',
       useColors: false,
+      // Model comes from hook metrics, not transcript-metrics.json
+      hookMetrics: {
+        modelDisplayName: 'claude-3-5-sonnet',
+        totalInputTokens: 30000,
+        totalOutputTokens: 15000,
+      },
     })
 
     const result = await service.render()
@@ -866,6 +879,10 @@ describe('StatuslineService', () => {
       JSON.stringify({
         sessionId: 'test-123',
         metrics: {
+          turnCount: 1,
+          toolsThisTurn: 0,
+          toolCount: 0,
+          messageCount: 1,
           tokenUsage: {
             inputTokens: 1000,
             outputTokens: 0,
@@ -873,9 +890,8 @@ describe('StatuslineService', () => {
             cacheCreationInputTokens: 0,
             cacheReadInputTokens: 0,
           },
-          costUsd: 0.01,
-          durationSeconds: 5,
-          primaryModel: 'claude-3-5-sonnet',
+          toolsPerTurn: 0,
+          lastProcessedLine: 1,
           lastUpdatedAt: Date.now(),
         },
         persistedAt: Date.now(),
@@ -903,6 +919,10 @@ describe('StatuslineService', () => {
       JSON.stringify({
         sessionId: 'test-123',
         metrics: {
+          turnCount: 1,
+          toolsThisTurn: 0,
+          toolCount: 0,
+          messageCount: 1,
           tokenUsage: {
             inputTokens: 1000,
             outputTokens: 0,
@@ -910,9 +930,8 @@ describe('StatuslineService', () => {
             cacheCreationInputTokens: 0,
             cacheReadInputTokens: 0,
           },
-          costUsd: 0.01,
-          durationSeconds: 5,
-          primaryModel: 'claude-3-5-sonnet',
+          toolsPerTurn: 0,
+          lastProcessedLine: 1,
           lastUpdatedAt: Date.now(),
         },
         persistedAt: Date.now(),
@@ -933,31 +952,16 @@ describe('StatuslineService', () => {
 
   describe('formatModelName edge cases', () => {
     it('returns non-claude model names unchanged', async () => {
-      await fs.writeFile(
-        path.join(testDir, 'transcript-metrics.json'),
-        JSON.stringify({
-          sessionId: 'test-123',
-          metrics: {
-            tokenUsage: {
-              inputTokens: 1000,
-              outputTokens: 0,
-              totalTokens: 1000,
-              cacheCreationInputTokens: 0,
-              cacheReadInputTokens: 0,
-            },
-            costUsd: 0.01,
-            durationSeconds: 5,
-            primaryModel: 'gpt-4o',
-            lastUpdatedAt: Date.now(),
-          },
-          persistedAt: Date.now(),
-        })
-      )
-
+      // Model name comes from hook metrics, not transcript-metrics.json
       const service = createStatuslineService({
         sessionStateDir: testDir,
         cwd: '/test',
         useColors: false,
+        hookMetrics: {
+          modelDisplayName: 'gpt-4o',
+          totalInputTokens: 1000,
+          totalOutputTokens: 0,
+        },
       })
 
       const result = await service.render()
@@ -965,31 +969,16 @@ describe('StatuslineService', () => {
     })
 
     it('strips claude- prefix from claude model names', async () => {
-      await fs.writeFile(
-        path.join(testDir, 'transcript-metrics.json'),
-        JSON.stringify({
-          sessionId: 'test-123',
-          metrics: {
-            tokenUsage: {
-              inputTokens: 1000,
-              outputTokens: 0,
-              totalTokens: 1000,
-              cacheCreationInputTokens: 0,
-              cacheReadInputTokens: 0,
-            },
-            costUsd: 0.01,
-            durationSeconds: 5,
-            primaryModel: 'claude-3-opus',
-            lastUpdatedAt: Date.now(),
-          },
-          persistedAt: Date.now(),
-        })
-      )
-
+      // Model name comes from hook metrics, not transcript-metrics.json
       const service = createStatuslineService({
         sessionStateDir: testDir,
         cwd: '/test',
         useColors: false,
+        hookMetrics: {
+          modelDisplayName: 'claude-3-opus',
+          totalInputTokens: 1000,
+          totalOutputTokens: 0,
+        },
       })
 
       const result = await service.render()

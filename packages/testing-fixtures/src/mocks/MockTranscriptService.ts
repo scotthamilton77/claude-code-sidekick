@@ -47,6 +47,11 @@ export function createDefaultMetrics(): TranscriptMetrics {
     toolsThisTurn: 0,
     messageCount: 0,
     tokenUsage: createDefaultTokenUsage(),
+    currentContextTokens: {
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+    },
     toolsPerTurn: 0,
     lastProcessedLine: 0,
     lastUpdatedAt: 0,
