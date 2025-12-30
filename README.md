@@ -12,11 +12,26 @@ This repository serves as a development and testing environment for [Claude Code
 
 ### Sidekick
 
+- stop reminder needs to be unstaged if we stage the pause and reflect reminder!
 - statusline token usage
   - transcript-metrics.json has two sections with input, output and total tokens - are they always the same value?
 - statusline always says (stale)?
   - Also, shouldn't this update more often during the convo?
   - Showing just the snarky comment loses the context (what we're doing)
+- stop hook needs some tuning
+  - make it conditional "if you are about to claim that you're done" 
+  - double check on reason vs. userMessage:
+```
+Should I delete the defaults file so we can test that the supervisor now properly captures metrics on next restart?
+  ⎿  Stop says: Asking the agent to verify completion before stopping...
+
+⏺ Ran 1 stop hook
+  ⎿  Stop hook error: Verify completion before stopping - did you run tests and checks?
+  COMPLETION VERIFICATION REQUIRED
+
+  Before claiming this task is complete, you must verify:
+```
+- investigate frequency of LLM calls and verify we're not wasting tokens
 - should we block and wait (with timeout of p95 of completion latency?) for session summary when we have low confidence?
 - snarky comment generator
   - needs a fallback model
