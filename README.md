@@ -13,7 +13,7 @@ This repository serves as a development and testing environment for [Claude Code
 ### Sidekick
 
 - statusline token usage
-  - statistics from statusline input are wrong - need to factor in stuff not in the transcript like system prompt, tools, etc. - how would we get those?
+  - transcript-metrics.json has two sections with input, output and total tokens - are they always the same value?
 - statusline always says (stale)?
   - Also, shouldn't this update more often during the convo?
   - Showing just the snarky comment loses the context (what we're doing)
