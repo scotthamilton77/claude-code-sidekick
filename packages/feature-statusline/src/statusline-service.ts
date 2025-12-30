@@ -298,15 +298,6 @@ export class StatuslineService {
       firstPromptSummary
     )
 
-    // Calculate context usage if hook metrics provide context window data
-    const contextUsage = this.hookMetrics
-      ? calculateContextUsage(
-          this.hookMetrics.totalInputTokens,
-          this.hookMetrics.totalOutputTokens,
-          this.hookMetrics.contextWindowSize
-        )
-      : undefined
-
     // Calculate effective tokens for display
     // When transcript-metrics.json is missing (transcriptSource === 'default'), this is a new
     // session and we should show 0 tokens, not fall back to hook metrics which are cumulative.
@@ -319,6 +310,12 @@ export class StatuslineService {
         ? 0 // New session - no transcript-metrics.json yet, use 0 not hook fallback
         : (state.currentContextTokens?.total ?? state.tokens.total)
     const effectiveTokens = Math.min(hookTokens, transcriptContextTokens)
+
+    // Calculate context usage using effective tokens (respects compaction/clear)
+    // Must use effectiveTokens, not raw hook metrics, so bar graph matches token display
+    const contextUsage = this.hookMetrics?.contextWindowSize
+      ? calculateContextUsage(effectiveTokens, 0, this.hookMetrics.contextWindowSize)
+      : undefined
 
     // Get cost/duration/model from hook metrics (Claude Code's statusline input)
     const costUsd = this.hookMetrics?.totalCostUsd ?? 0
