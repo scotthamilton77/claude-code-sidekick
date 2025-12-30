@@ -74,11 +74,41 @@ export class MockTranscriptService implements TranscriptService {
   /** Mock content returned by getExcerpt() - set via setMockExcerptContent() */
   private mockExcerptContent: string = ''
 
+  /** Track whether prepare() has been called */
+  private prepared = false
+
+  /**
+   * Initialize the service (legacy API).
+   * @deprecated Use prepare() + start() for explicit lifecycle control.
+   */
   initialize(sessionId: string, transcriptPath: string): Promise<void> {
     this.sessionId = sessionId
     this.transcriptPath = transcriptPath
     this.metrics = createDefaultMetrics()
     this.compactionHistory = []
+    this.prepared = true
+    return Promise.resolve()
+  }
+
+  /**
+   * Prepare the service without starting event emission.
+   */
+  prepare(sessionId: string, transcriptPath: string): Promise<void> {
+    this.sessionId = sessionId
+    this.transcriptPath = transcriptPath
+    this.metrics = createDefaultMetrics()
+    this.compactionHistory = []
+    this.prepared = true
+    return Promise.resolve()
+  }
+
+  /**
+   * Start event emission. No-op in mock since there's no file watching.
+   */
+  start(): Promise<void> {
+    if (!this.prepared) {
+      return Promise.reject(new Error('MockTranscriptService.start() called before prepare()'))
+    }
     return Promise.resolve()
   }
 
@@ -87,6 +117,7 @@ export class MockTranscriptService implements TranscriptService {
     this.transcriptPath = null
     this.metricsCallbacks = []
     this.thresholdCallbacks = []
+    this.prepared = false
     return Promise.resolve()
   }
 
