@@ -112,6 +112,11 @@ export function createDefaultMetrics(): TranscriptMetrics {
     toolsThisTurn: 0,
     messageCount: 0,
     tokenUsage: createDefaultTokenUsage(),
+    currentContextTokens: {
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+    },
     toolsPerTurn: 0,
     lastProcessedLine: 0,
     lastUpdatedAt: 0,
@@ -648,6 +653,14 @@ export class TranscriptServiceImpl implements TranscriptService {
       // Emit Compact event
       this.emitEvent('Compact', { type: 'compact' }, 0)
 
+      // Reset current context tokens (they'll be recalculated from compacted file)
+      // Note: tokenUsage stays cumulative for cost tracking per TRANSCRIPT-PROCESSING.md §3.2
+      this.metrics.currentContextTokens = {
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+      }
+
       // Reset watermark to reprocess the compacted file
       this.metrics.lastProcessedLine = 0
     }
@@ -822,6 +835,11 @@ export class TranscriptServiceImpl implements TranscriptService {
     this.metrics.tokenUsage.outputTokens += outputTokens
     this.metrics.tokenUsage.totalTokens += inputTokens + outputTokens
 
+    // Current context tokens (resets on compaction, unlike cumulative tokenUsage)
+    this.metrics.currentContextTokens.inputTokens += inputTokens
+    this.metrics.currentContextTokens.outputTokens += outputTokens
+    this.metrics.currentContextTokens.totalTokens += inputTokens + outputTokens
+
     // Cache metrics
     this.metrics.tokenUsage.cacheCreationInputTokens += usage.cache_creation_input_tokens ?? 0
     this.metrics.tokenUsage.cacheReadInputTokens += usage.cache_read_input_tokens ?? 0
@@ -968,7 +986,19 @@ export class TranscriptServiceImpl implements TranscriptService {
         return null
       }
 
-      return state.metrics
+      // Merge with defaults to ensure backward compatibility
+      // Older persisted files may be missing newer fields like currentContextTokens
+      const defaults = createDefaultMetrics()
+      return {
+        ...defaults,
+        ...state.metrics,
+        // Ensure nested objects are properly merged with defaults
+        tokenUsage: {
+          ...defaults.tokenUsage,
+          ...state.metrics.tokenUsage,
+        },
+        currentContextTokens: state.metrics.currentContextTokens ?? defaults.currentContextTokens,
+      }
     } catch (err) {
       this.options.logger.warn('Failed to load persisted transcript state', { err, statePath })
       return null
@@ -1034,6 +1064,7 @@ export class TranscriptServiceImpl implements TranscriptService {
         serviceTierCounts: { ...this.metrics.tokenUsage.serviceTierCounts },
         byModel: Object.fromEntries(Object.entries(this.metrics.tokenUsage.byModel).map(([k, v]) => [k, { ...v }])),
       },
+      currentContextTokens: { ...this.metrics.currentContextTokens },
     }
   }
 }
