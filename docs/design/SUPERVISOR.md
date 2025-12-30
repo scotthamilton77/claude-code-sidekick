@@ -388,6 +388,73 @@ Per **docs/design/flow.md §5.6** (PreCompact flow):
 4. TranscriptService snapshots current metrics and records compaction metadata.
 5. On next file change, TranscriptService detects shortened file → triggers full recompute.
 
+### 4.8 ContextMetricsService Integration
+
+The Supervisor owns the `ContextMetricsService` instance, which captures Claude Code's actual context window overhead. See **docs/design/TRANSCRIPT_METRICS.md** for complete specification.
+
+#### Purpose
+
+The Statusline displays context window utilization, but requires visibility into Claude Code's token overhead:
+- **System prompt**: ~3.2k tokens (Claude Code's base instructions)
+- **System tools**: ~17.9k tokens (built-in tool definitions)
+- **MCP tools**: Variable (project-specific MCP server tools)
+- **Custom agents**: Variable (plugin-defined agents)
+- **Memory files**: Variable (CLAUDE.md, AGENTS.md, etc.)
+- **Autocompact buffer**: ~45k tokens (reserved for context management)
+
+#### Initialization
+
+On `SessionStart`, the Supervisor initializes ContextMetricsService:
+
+```typescript
+// In supervisor constructor
+this.contextMetricsService = createContextMetricsService({
+  stateManager: this.stateManager,
+  sessionId: this.sessionId,
+  transcriptPath: this.transcriptPath,
+});
+
+// In start() method (step 4, after TranscriptService)
+await this.contextMetricsService.initialize();
+```
+
+The `initialize()` method:
+1. Writes default metrics immediately (statusline can use these right away)
+2. Async-captures real metrics via CLI (non-blocking)
+
+#### Transcript Monitoring
+
+ContextMetricsService monitors transcripts for `/context` command output:
+
+```typescript
+// Pattern-match on content (self-identifying)
+if (content.includes('<local-command-stdout>') &&
+    content.includes('System prompt') &&
+    content.includes('System tools')) {
+  const metrics = parseContextTable(content);
+  if (metrics) {
+    await this.updateProjectMetrics(metrics);
+  }
+}
+```
+
+#### State Files
+
+| File | Location | Contents | Updated When |
+|------|----------|----------|--------------|
+| `base-token-metrics.json` | `.sidekick/state/` | System prompt, system tools, autocompact buffer | Supervisor startup |
+| `project-context-metrics.json` | `.sidekick/state/` | MCP tools, custom agents, memory files | /context observed |
+| `context-metrics.json` | `.sidekick/sessions/{id}/state/` | Full context metrics for this session | /context observed |
+
+#### Statusline Integration
+
+Statusline reads context metrics to calculate accurate context utilization:
+
+```typescript
+// Effective limit = context window - overhead
+const effectiveLimit = contextWindowSize - getTotalOverhead();
+```
+
 ## 5. Error Handling & Resilience
 
 - **Uncaught Exceptions**: Log fatal error to `logs/supervisor.log`, attempt graceful cleanup, then exit. CLI will restart it on next run.

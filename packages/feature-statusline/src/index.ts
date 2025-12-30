@@ -34,3 +34,9 @@ export {
   type StatuslineServiceConfig,
   type HookMetrics,
 } from './statusline-service.js'
+export {
+  readContextOverhead,
+  getDefaultOverhead,
+  type ContextOverhead,
+  type ContextOverheadReaderConfig,
+} from './context-overhead-reader.js'
