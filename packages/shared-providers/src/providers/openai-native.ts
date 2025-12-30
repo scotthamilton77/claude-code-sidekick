@@ -53,11 +53,24 @@ export class OpenAINativeProvider extends AbstractProvider {
         ? [{ role: 'system' as const, content: request.system }, ...request.messages]
         : request.messages
 
+      // Build response_format if jsonSchema is provided
+      const responseFormat = request.jsonSchema
+        ? {
+            type: 'json_schema' as const,
+            json_schema: {
+              name: request.jsonSchema.name,
+              schema: request.jsonSchema.schema,
+              strict: request.jsonSchema.strict ?? true,
+            },
+          }
+        : undefined
+
       const completion = await this.client.chat.completions.create({
         model: request.model ?? this.defaultModel,
         messages,
         temperature: request.temperature,
         max_tokens: request.maxTokens,
+        response_format: responseFormat,
         ...request.additionalParams,
       })
 

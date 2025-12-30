@@ -15,6 +15,7 @@ import {
   type FirstPromptSummaryState,
   type Logger,
 } from '@sidekick/core'
+import type { MinimalAssetResolver } from '@sidekick/types'
 import {
   FallbackProvider,
   ProviderFactory,
@@ -26,6 +27,10 @@ import fs from 'fs/promises'
 import path from 'path'
 import { TaskContext, TaskHandler } from '../task-engine.js'
 import { TaskRegistry, validateSessionId } from '../task-registry.js'
+
+// Asset paths for externalized prompt and schema
+const PROMPT_FILE = 'prompts/first-prompt-summary.prompt.txt'
+const SCHEMA_FILE = 'schemas/first-prompt-summary.schema.json'
 
 // ============================================================================
 // Slash Command Classification
@@ -81,44 +86,20 @@ export interface PromptParts {
  * Build the LLM prompt for first-prompt summary generation.
  *
  * Uses a structured approach with:
- * - System message: Role enforcement, rules, negative examples, few-shot examples
- * - User message: Just the input to summarize
+ * - System message: Loaded from assets (role enforcement, rules, examples)
+ * - User message: Formats context and user input
  *
  * @see docs/design/FEATURE-FIRST-PROMPT-SUMMARY.md §4.2
  */
-export function buildPrompt(userPrompt: string, resumeContext?: string): PromptParts {
+export function buildPrompt(systemPrompt: string, userPrompt: string, resumeContext?: string): PromptParts {
   const context = resumeContext ? `Previous session: ${resumeContext}` : 'New session'
-
-  const system = `You are a status-line message generator. Output JSON: { "message": "<text>" }
-
-RULES:
-- Max 60 characters
-- Single line, no newlines
-- Snarky/witty tone, never mean
-- Summarize user intent, don't respond to it
-- Self-aware about AI limitations
-- Sci-fi references welcome (Hitchhiker's, Star Trek, etc.)
-
-NEVER output:
-- Clarifying questions ("Let me clarify...", "Are you asking...")
-- Helpful preambles ("I'd be happy to...", "Sure, I can...")
-- Multiple lines or paragraphs
-- Anything over 60 characters
-- Explanations of what you're doing
-
-EXAMPLES:
-User: "Help me debug the login flow" → { "message": "Debugging: the eternal optimism" }
-User: "What's the project structure?" → { "message": "Mapping the labyrinth" }
-User: "hello!" → { "message": "Greetings acknowledged" }
-User: "refactor auth to use JWT" → { "message": "JWT conversion incoming" }
-User: "test something quick" → { "message": "Quick test, famous last words" }`
 
   const user = `${context}
 User input: "${userPrompt}"
 
 Output JSON:`
 
-  return { system, user }
+  return { system: systemPrompt, user }
 }
 
 // ============================================================================
@@ -129,6 +110,7 @@ export interface FirstPromptSummaryHandlerDeps {
   taskRegistry: TaskRegistry
   projectDir: string
   logger: Logger
+  assetResolver: MinimalAssetResolver
   /** Feature configuration. Uses defaults if not provided. */
   config?: FirstPromptConfig
 }
@@ -212,7 +194,14 @@ export function createFirstPromptSummaryHandler(deps: FirstPromptSummaryHandlerD
     if (classification === 'llm') {
       // Try LLM generation
       try {
-        const llmResult = await generateWithLLM(p.userPrompt, p.resumeContext, config, ctx.logger, ctx.signal)
+        const llmResult = await generateWithLLM(
+          p.userPrompt,
+          p.resumeContext,
+          config,
+          ctx.logger,
+          deps.assetResolver,
+          ctx.signal
+        )
         message = llmResult.message
         source = 'llm'
         llmClassification = llmResult.classification
@@ -378,9 +367,22 @@ export async function generateWithLLM(
   resumeContext: string | undefined,
   config: FirstPromptConfig,
   logger: Logger,
+  assetResolver: MinimalAssetResolver,
   signal?: AbortSignal
 ): Promise<LLMGenerationResult> {
-  const promptParts = buildPrompt(userPrompt, resumeContext)
+  // Load system prompt from assets
+  const systemPrompt = assetResolver.resolve(PROMPT_FILE)
+  if (!systemPrompt) {
+    throw new Error(`First-prompt summary prompt not found: ${PROMPT_FILE}`)
+  }
+
+  // Load JSON schema from assets for structured output
+  const schemaContent = assetResolver.resolve(SCHEMA_FILE)
+  const jsonSchema = schemaContent
+    ? { name: 'first-prompt-summary', schema: JSON.parse(schemaContent) as Record<string, unknown> }
+    : undefined
+
+  const promptParts = buildPrompt(systemPrompt, userPrompt, resumeContext)
   const timeoutMs = config.llmTimeoutMs
 
   logger.debug('Starting LLM generation', {
@@ -390,6 +392,7 @@ export async function generateWithLLM(
     primaryModel: config.model.primary.model,
     hasFallback: config.model.fallback !== null,
     timeoutMs,
+    hasJsonSchema: !!jsonSchema,
   })
 
   // Create primary provider
@@ -410,6 +413,7 @@ export async function generateWithLLM(
     messages: [{ role: 'user' as const, content: promptParts.user }],
     maxTokens: 50, // Reduced: JSON response should be ~30 tokens max
     temperature: 0.8, // Higher temperature for creative snark
+    jsonSchema,
   }
 
   // Race against timeout and abort signal

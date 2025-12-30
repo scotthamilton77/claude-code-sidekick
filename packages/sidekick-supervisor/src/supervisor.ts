@@ -173,7 +173,14 @@ export class Supervisor {
       }
 
       // 5. Register standard task handlers (Phase 5.2 task types)
-      registerStandardTaskHandlers(this.taskEngine, this.stateManager, this.projectDir, this.logger, this.config)
+      registerStandardTaskHandlers(
+        this.taskEngine,
+        this.stateManager,
+        this.projectDir,
+        this.logger,
+        this.config,
+        this.assetResolver
+      )
 
       // 6. Start IPC Server
       await this.ipcServer.start()

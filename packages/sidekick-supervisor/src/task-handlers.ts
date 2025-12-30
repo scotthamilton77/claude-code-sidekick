@@ -16,6 +16,7 @@ import {
   TaskTypes,
   type FirstPromptConfig,
 } from '@sidekick/core'
+import type { MinimalAssetResolver } from '@sidekick/types'
 import { createCleanupHandler, createFirstPromptSummaryHandler } from './handlers/index.js'
 import { StateManager } from './state-manager.js'
 import { TaskEngine } from './task-engine.js'
@@ -55,7 +56,8 @@ export function registerStandardTaskHandlers(
   stateManager: StateManager,
   projectDir: string,
   logger: Logger,
-  config: SidekickConfig
+  config: SidekickConfig,
+  assetResolver: MinimalAssetResolver
 ): void {
   const taskRegistry = createTaskRegistry(stateManager, logger)
 
@@ -64,6 +66,7 @@ export function registerStandardTaskHandlers(
     taskRegistry,
     projectDir,
     logger,
+    assetResolver,
   }
 
   // Get first-prompt config from features
