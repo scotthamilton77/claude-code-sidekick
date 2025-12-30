@@ -324,7 +324,7 @@ interface StagedReminder {
 | **One-shot**   | PauseAndReflectReminder  | `false`      | Fires once, deleted on consumption |
 | **One-shot**   | VerifyCompletionReminder | `false`      | Fires once, deleted on consumption |
 
-**Note**: Reminders can also be unstaged (deleted before consumption) when context changes—for example, `VerifyCompletionReminder` is unstaged on UserPromptSubmit since a new prompt triggers the user-prompt-submit reminder which helps compensate for claude code's forgetfulness.
+**Note**: Reminders can also be unstaged (deleted before consumption) when context changes—for example, `VerifyCompletionReminder` is unstaged on UserPromptSubmit (new prompt = task complete) or when `PauseAndReflectReminder` is staged (prevents cascade where blocking triggers Stop hook prematurely).
 
 ### 4.3 CLI Consumption Logic
 

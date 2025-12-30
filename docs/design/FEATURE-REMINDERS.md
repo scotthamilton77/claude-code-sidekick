@@ -27,7 +27,7 @@ Per **docs/design/flow.md §2.3**, handlers register with filters to specify whi
 | Handler                           | Filter Type | Event(s)         | Priority | Responsibility                                              |
 | --------------------------------- | ----------- | ---------------- | -------- | ----------------------------------------------------------- |
 | `StageDefaultUserPromptReminder`  | hook        | SessionStart     | 50       | Stage initial turn-cadence reminder                         |
-| `StagePauseAndReflect`            | transcript  | ToolCall         | 80       | Stage if `toolsThisTurn` ≥ threshold (default: 15)          |
+| `StagePauseAndReflect`            | transcript  | ToolCall         | 80       | Stage if `toolsThisTurn` ≥ threshold; unstages verify-completion |
 | `StageStopReminders`              | transcript  | ToolCall         | 60       | Stage on source file edit (Write, Edit tools)               |
 | `UnstageVerifyCompletion`         | hook        | UserPromptSubmit | 45       | Delete verify-completion reminder (new prompt = task done)  |
 | `InjectUserPromptSubmitReminders` | hook        | UserPromptSubmit | 50       | Consume staged reminder, return in hook response            |
@@ -206,9 +206,12 @@ This is more efficient than checking thresholds on every ToolCall event.
 1. `StagePauseAndReflect` receives ToolCall transcript event
 2. Queries `ctx.transcript.getMetrics().toolsThisTurn`
 3. If `toolsThisTurn >= pause_threshold`:
+   - **Unstages `verify-completion`** if staged (prevents cascade—see rationale below)
    - Resolves `pause-and-reflect` reminder definition
    - Stages to `.sidekick/sessions/{id}/stage/PreToolUse/PauseAndReflectReminder.json`
    - Sets `blocking: true`, `persistent: false`, `priority: 80`
+
+**Rationale for unstaging verify-completion**: When pause-and-reflect blocks the model, the Stop hook fires. If verify-completion were still staged, it would be consumed immediately—defeating the purpose of pausing to reflect mid-turn. By unstaging verify-completion, the model can reflect and continue working without triggering premature completion verification.
 
 **Alternative**: Use threshold subscription (see §4.3) for more efficient detection.
 
@@ -230,11 +233,16 @@ This is more efficient than checking thresholds on every ToolCall event.
    - Stages `.sidekick/sessions/{id}/stage/Stop/VerifyCompletionReminder.json`
    - Sets `blocking: true`, `persistent: false`, `priority: 50`
 
-**Unstaging** (Supervisor, HookEvent: UserPromptSubmit):
+**Unstaging** (Supervisor):
 
-1. `UnstageVerifyCompletion` receives UserPromptSubmit hook event
-2. Deletes `stage/Stop/VerifyCompletionReminder.json` if it exists
-3. Rationale: A new user prompt means the previous task is complete—no need to verify
+The verify-completion reminder is unstaged in two scenarios:
+
+1. **UserPromptSubmit** (`UnstageVerifyCompletion` handler):
+   - A new user prompt means the previous task is complete—no need to verify
+
+2. **Pause-and-reflect staging** (`StagePauseAndReflect` handler):
+   - Prevents cascade where blocking triggers Stop hook, which would consume verify-completion
+   - See §5.2 for detailed rationale
 
 **Consumption** (CLI, HookEvent: Stop):
 
