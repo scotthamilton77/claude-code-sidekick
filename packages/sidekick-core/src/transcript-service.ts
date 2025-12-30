@@ -698,18 +698,24 @@ export class TranscriptServiceImpl implements TranscriptService {
    * - tool_use blocks are nested in assistant.message.content[]
    * - tool_result blocks are nested in user.message.content[]
    * - Other entry types (summary, file-history-snapshot) are skipped
+   *
+   * Messages that should NOT increment turnCount:
+   * - tool_result wrappers (arrays containing only tool_result blocks)
+   * - isMeta messages (disclaimer/caveat messages injected by Claude Code)
+   * - local-command-stdout messages (output from slash commands like /context)
    */
   private processEntry(entry: TranscriptEntry, lineNumber: number): void {
     const entryType = entry.type as string | undefined
 
     switch (entryType) {
       case 'user': {
-        // Check if this is a tool_result wrapper (not a real user prompt)
-        // Tool result wrappers have content as an array containing ONLY tool_result blocks
+        // Check conditions that should NOT increment turnCount
         const isToolResultWrapper = this.isToolResultOnlyMessage(entry)
+        const isMetaMessage = (entry as { isMeta?: boolean }).isMeta === true
+        const isLocalCommandOutput = this.isLocalCommandStdoutMessage(entry)
 
-        if (isToolResultWrapper) {
-          // Tool result wrapper: increment messageCount but DON'T reset toolsThisTurn
+        if (isToolResultWrapper || isMetaMessage || isLocalCommandOutput) {
+          // Non-user-prompt message: increment messageCount but DON'T increment turnCount
           // This allows toolsThisTurn to accumulate across multiple tool calls
           this.metrics.messageCount++
         } else {
@@ -767,6 +773,23 @@ export class TranscriptServiceImpl implements TranscriptService {
 
     // Check if ALL blocks are tool_result type
     return message.content.every((block) => block.type === 'tool_result')
+  }
+
+  /**
+   * Check if a user message is a local command stdout injection.
+   * These are output from slash commands like /context, /clear, etc.
+   * They should not increment turnCount as they're not actual user prompts.
+   *
+   * Local command stdout messages have string content containing <local-command-stdout>.
+   */
+  private isLocalCommandStdoutMessage(entry: TranscriptEntry): boolean {
+    const message = entry.message as { content?: string } | undefined
+    if (!message?.content) return false
+
+    // Only check string content
+    if (typeof message.content !== 'string') return false
+
+    return message.content.includes('<local-command-stdout>')
   }
 
   /**
