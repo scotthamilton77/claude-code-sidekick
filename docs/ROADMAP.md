@@ -210,7 +210,8 @@ Closed gaps for production-ready monitoring UI. Key outcomes:
       - [x] Graceful fallback when jq unavailable (passthrough)
       - [x] Files: `packages/sidekick-cli/src/commands/hook.ts`, `scripts/dev-hooks/*`
 
-- [ ] **Phase Insertion Placeholder** to go through the code to analyze modularity, correct responsibilities (SOLID), DRY, TODOs and FIXMEs
+- [ ] **Phase Insertion Placeholder** to go through the code to analyze modularity, correct responsibilities (SOLID), DRY, TODOs and FIXMEs, @deprecated usage
+  - FIRST get test coverage to an acceptable state!
   - Refactoring opportunity: several files contain implementation blocks for all hooks or all features together in the same file. this is a smell.  Ideally we keep all feature and hook logic separate from each other and register handlers centrally.
   - Refactoring opportunity: configuration defaults in both files and code - DRY!!
 
