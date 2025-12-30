@@ -9,9 +9,21 @@ This helps the user quickly identify this session when multitasking across multi
 {{transcript}}
 </transcript>
 
-Output JSON matching the provided schema with these behavioral guidelines:
+Output JSON matching this exact schema:
 
-CONFIDENCE CALIBRATION:
+```json
+{
+  "session_title": "string, max 6 words, Title Case",
+  "session_title_confidence": 0.0-1.0,
+  "session_title_key_phrases": ["optional", "array", "of", "key", "terms"],
+  "latest_intent": "string, max 8 words",
+  "latest_intent_confidence": 0.0-1.0,
+  "latest_intent_key_phrases": ["optional", "array"],
+  "pivot_detected": false
+}
+```
+
+CONFIDENCE CALIBRATION (applies to both session_title_confidence and latest_intent_confidence):
 - >0.8: Clear focus, specific terms/files, minimal context switching
   * Multiple explicit mentions of the same goal
   * Specific technical terms/file names referenced
@@ -22,12 +34,28 @@ CONFIDENCE CALIBRATION:
   * Exploratory questions without clear goal
 - Reset to <=0.5 on hard pivot (even if new task is clear, confidence needs rebuilding)
 
-PIVOT DETECTION:
-- Unchanged: New info doesn't materially change title
-- Refinement: More specific on same topic (maintain/increase confidence)
-  Example: "Refactoring feature flags" -> "Refactoring feature flag dependencies"
-- Hard pivot: Completely different task (reset confidence)
-  Example: "Refactoring feature flags" -> "Debugging LLM providers"
+USING previousConfidence:
+The confidence attribute on <previous_analysis> tells you how certain we were about the session direction.
+- High (>0.8): We had clear focus. A topic change likely indicates a deliberate pivot.
+- Medium (0.6-0.8): Direction was forming. Topic changes may be exploration vs pivot.
+- Low (<=0.5): Direction was unclear. Hard to distinguish pivot from clarification.
+
+Use previousConfidence to calibrate pivot detection: a dramatic topic shift from high confidence
+is more likely a true pivot than the same shift from low confidence (which may just be the
+user finally clarifying their actual goal).
+
+PIVOT DETECTION (pivot_detected is boolean):
+Set pivot_detected based on whether the user switched to a fundamentally different task:
+
+- pivot_detected: false
+  * Unchanged: New info doesn't materially change title
+  * Refinement: More specific on same topic (maintain/increase confidence)
+    Example: "Refactoring feature flags" -> "Refactoring feature flag dependencies"
+
+- pivot_detected: true
+  * Hard pivot: Completely different task domain (reset confidence to <=0.5)
+    Example: "Refactoring feature flags" -> "Debugging LLM providers"
+  * Only set true when the new direction is unrelated to the previous one
 
 SESSION TITLE:
 - Max 6 words, Title Case, like a short book or research paper title
