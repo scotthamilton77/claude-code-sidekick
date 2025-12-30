@@ -203,13 +203,15 @@ export class StatuslineService {
     }
 
     // Build view model
+    // Pass transcript source so we can handle missing file correctly (use 0 tokens, not hook fallback)
     const viewModel = this.buildViewModel(
       stateResult.data,
       summaryResult.data,
       effectiveResumeData,
       snarkyResult.data,
       firstPromptResult.data,
-      branchResult.branch
+      branchResult.branch,
+      transcriptResult.source
     )
 
     // Format output
@@ -270,6 +272,10 @@ export class StatuslineService {
    *
    * Token data comes from TranscriptMetricsState (persisted to disk).
    * Cost, duration, and model come from hookMetrics (Claude Code's statusline input).
+   *
+   * @param transcriptSource - Source of transcript data ('fresh', 'stale', or 'default').
+   *   When 'default', the transcript-metrics.json file was missing (new session),
+   *   so we use 0 tokens instead of falling back to hook metrics.
    */
   private buildViewModel(
     state: TranscriptMetricsState,
@@ -277,7 +283,8 @@ export class StatuslineService {
     resume: ResumeMessageState | null,
     snarkyMessage: string,
     firstPromptSummary: FirstPromptSummaryState | null,
-    branch: string
+    branch: string,
+    transcriptSource: 'fresh' | 'stale' | 'default'
   ): StatuslineViewModel {
     // Determine display mode (confidence-aware per FEATURE-FIRST-PROMPT-SUMMARY.md §7.1)
     const displayMode = this.determineDisplayMode(summary, resume, firstPromptSummary)
@@ -300,13 +307,17 @@ export class StatuslineService {
         )
       : undefined
 
-    // Calculate effective tokens for display using min(hook, transcript)
-    // After clear/compact, transcript tokens reset while hook tokens stay cumulative,
-    // so we use the smaller value to show accurate current context size
+    // Calculate effective tokens for display
+    // When transcript-metrics.json is missing (transcriptSource === 'default'), this is a new
+    // session and we should show 0 tokens, not fall back to hook metrics which are cumulative.
+    // When file exists, use min(hook, transcript) since transcript resets on clear/compact.
     const hookTokens = this.hookMetrics
       ? (this.hookMetrics.totalInputTokens ?? 0) + (this.hookMetrics.totalOutputTokens ?? 0)
       : Infinity
-    const transcriptContextTokens = state.currentContextTokens?.total ?? state.tokens.total
+    const transcriptContextTokens =
+      transcriptSource === 'default'
+        ? 0 // New session - no transcript-metrics.json yet, use 0 not hook fallback
+        : (state.currentContextTokens?.total ?? state.tokens.total)
     const effectiveTokens = Math.min(hookTokens, transcriptContextTokens)
 
     // Get cost/duration/model from hook metrics (Claude Code's statusline input)
