@@ -26,7 +26,7 @@ import type {
   DisplayMode,
   FirstPromptSummaryState,
   ResumeMessageState,
-  SessionMetricsState,
+  TranscriptMetricsState,
   SessionSummaryState,
   StateReadResult,
   StatuslineConfig,
@@ -242,8 +242,9 @@ export class StatuslineService {
   /**
    * Build a synthetic StateReadResult from hook metrics.
    * Used when Claude Code provides metrics directly in the statusline input.
+   * Only returns token-related data; cost/duration/model come from hookMetrics at display time.
    */
-  private buildStateFromHookMetrics(): StateReadResult<SessionMetricsState> {
+  private buildStateFromHookMetrics(): StateReadResult<TranscriptMetricsState> {
     const metrics = this.hookMetrics!
     const totalTokens = (metrics.totalInputTokens ?? 0) + (metrics.totalOutputTokens ?? 0)
 
@@ -251,8 +252,6 @@ export class StatuslineService {
       data: {
         sessionId: '',
         lastUpdatedAt: Date.now(),
-        // Use display name directly - Claude Code already formatted it
-        primaryModel: metrics.modelDisplayName,
         tokens: {
           input: metrics.totalInputTokens ?? 0,
           output: metrics.totalOutputTokens ?? 0,
@@ -260,9 +259,6 @@ export class StatuslineService {
           cacheCreation: 0,
           cacheRead: 0,
         },
-        costUsd: metrics.totalCostUsd ?? 0,
-        // Convert milliseconds to seconds
-        durationSeconds: (metrics.totalDurationMs ?? 0) / 1000,
       },
       source: 'fresh', // Hook metrics are always fresh
     }
@@ -271,9 +267,12 @@ export class StatuslineService {
   /**
    * Build the view model from raw state data.
    * Implements display mode selection per docs/design/FEATURE-STATUSLINE.md §6.2.
+   *
+   * Token data comes from TranscriptMetricsState (persisted to disk).
+   * Cost, duration, and model come from hookMetrics (Claude Code's statusline input).
    */
   private buildViewModel(
-    state: SessionMetricsState,
+    state: TranscriptMetricsState,
     summary: SessionSummaryState,
     resume: ResumeMessageState | null,
     snarkyMessage: string,
@@ -310,13 +309,18 @@ export class StatuslineService {
     const transcriptContextTokens = state.currentContextTokens?.total ?? state.tokens.total
     const effectiveTokens = Math.min(hookTokens, transcriptContextTokens)
 
+    // Get cost/duration/model from hook metrics (Claude Code's statusline input)
+    const costUsd = this.hookMetrics?.totalCostUsd ?? 0
+    const durationMs = this.hookMetrics?.totalDurationMs ?? 0
+    const modelName = this.hookMetrics?.modelDisplayName ?? 'unknown'
+
     return {
-      model: this.formatModelName(state.primaryModel || 'unknown'),
+      model: this.formatModelName(modelName),
       tokens: formatTokens(effectiveTokens),
       tokensStatus: getThresholdStatus(effectiveTokens, this.config.thresholds.tokens),
-      cost: formatCost(state.costUsd),
-      costStatus: getThresholdStatus(state.costUsd, this.config.thresholds.cost),
-      duration: formatDuration(state.durationSeconds * 1000),
+      cost: formatCost(costUsd),
+      costStatus: getThresholdStatus(costUsd, this.config.thresholds.cost),
+      duration: formatDuration(durationMs),
       cwd: formatCwd(this.cwd, this.homeDir),
       branch: formatBranch(branch, this.config.theme.useNerdFonts),
       branchColor: getBranchColor(branch),

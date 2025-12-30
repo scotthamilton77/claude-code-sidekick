@@ -448,8 +448,8 @@ describe('StateReader', () => {
 
     expect(result.source).toBe('fresh')
     expect(result.data.tokens.total).toBe(45000)
-    // Note: primaryModel comes from hook metrics, not transcript-metrics.json
-    expect(result.data.primaryModel).toBeUndefined()
+    // Note: cost/duration/model come from hook metrics, not transcript-metrics.json
+    // TranscriptMetricsState only contains token data
   })
 
   it('returns default for invalid JSON', async () => {
