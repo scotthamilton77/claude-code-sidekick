@@ -265,29 +265,24 @@ export type FirstPromptConfig = z.infer<typeof FirstPromptConfigSchema>
 export const DEFAULT_FIRST_PROMPT_CONFIG: FirstPromptConfig = FirstPromptConfigSchema.parse({})
 
 // ============================================================================
-// Session Metrics State
+// Transcript Metrics State
 // ============================================================================
 
 /**
- * General session metadata for UI display.
- * Extracted from transcript metrics and session summary.
+ * Projection of TranscriptMetrics for state file reading.
+ * Contains only fields that are persisted to transcript-metrics.json.
  *
- * Note: This is a UI projection - the source of truth is TranscriptMetrics
- * in transcript-metrics.json, but this provides a simplified view for display.
+ * Note: Cost, duration, and model come from Claude Code's statusline hook input,
+ * not from transcript-metrics.json. Those are merged at display time in
+ * StatuslineService.buildViewModel().
  *
  * @see docs/design/TRANSCRIPT-PROCESSING.md §3.1 (source: TranscriptMetrics)
  */
-export const SessionMetricsStateSchema = z.object({
+export const TranscriptMetricsStateSchema = z.object({
   /** Session identifier */
   sessionId: z.string(),
   /** Unix timestamp (ms) of last update */
   lastUpdatedAt: z.number(),
-  /** Session duration in seconds */
-  durationSeconds: z.number(),
-  /** Estimated cost in USD */
-  costUsd: z.number(),
-  /** Primary model used in session */
-  primaryModel: z.string().optional(),
   /** Token usage summary (from transcript metrics - cumulative) */
   tokens: z.object({
     /** Total input tokens */
@@ -314,7 +309,12 @@ export const SessionMetricsStateSchema = z.object({
     .optional(),
 })
 
-export type SessionMetricsState = z.infer<typeof SessionMetricsStateSchema>
+export type TranscriptMetricsState = z.infer<typeof TranscriptMetricsStateSchema>
+
+/** @deprecated Use TranscriptMetricsState instead */
+export const SessionMetricsStateSchema = TranscriptMetricsStateSchema
+/** @deprecated Use TranscriptMetricsState instead */
+export type SessionMetricsState = TranscriptMetricsState
 
 // ============================================================================
 // Staged Reminders State
@@ -411,8 +411,8 @@ export interface SessionStateSnapshot {
   firstPromptSummary?: FirstPromptSummaryState
   /** Resume message state (if available) */
   resume?: ResumeMessageState
-  /** Session metrics (if available) */
-  metrics?: SessionMetricsState
+  /** Transcript metrics (if available) */
+  metrics?: TranscriptMetricsState
   /** Staged reminders (if any) */
   stagedReminders?: StagedRemindersSnapshot
   /** Compaction history (if any) */

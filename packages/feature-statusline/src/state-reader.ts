@@ -21,13 +21,13 @@ import type { ZodType } from 'zod'
 import type {
   FirstPromptSummaryState,
   ResumeMessageState,
-  SessionMetricsState,
+  TranscriptMetricsState,
   SessionSummaryState,
   StateReadResult,
 } from './types.js'
 import {
   EMPTY_PERSISTED_STATE,
-  EMPTY_SESSION_STATE,
+  EMPTY_TRANSCRIPT_STATE,
   EMPTY_SESSION_SUMMARY,
   FirstPromptSummaryStateSchema,
   PersistedTranscriptStateSchema,
@@ -62,10 +62,10 @@ export class StateReader {
   }
 
   /**
-   * Read and parse session state from transcript-metrics.json.
-   * Maps the persisted transcript metrics to the UI-friendly SessionMetricsState.
+   * Read and parse transcript metrics from transcript-metrics.json.
+   * Returns only fields that are persisted by TranscriptService.
    */
-  async getSessionState(): Promise<StateReadResult<SessionMetricsState>> {
+  async getTranscriptMetrics(): Promise<StateReadResult<TranscriptMetricsState>> {
     const result = await this.readAndParse(
       'transcript-metrics.json',
       PersistedTranscriptStateSchema,
@@ -73,18 +73,13 @@ export class StateReader {
     )
 
     if (result.source === 'default') {
-      return { source: 'default', data: EMPTY_SESSION_STATE }
+      return { source: 'default', data: EMPTY_TRANSCRIPT_STATE }
     }
 
     const metrics = result.data.metrics
-    // Note: TranscriptMetrics doesn't include costUsd/durationSeconds/primaryModel
-    // Those come from hook metrics when available; use defaults when reading from file
-    const state: SessionMetricsState = {
+    const state: TranscriptMetricsState = {
       sessionId: result.data.sessionId,
       lastUpdatedAt: metrics.lastUpdatedAt,
-      durationSeconds: 0, // Not tracked in transcript-metrics.json
-      costUsd: 0, // Not tracked in transcript-metrics.json
-      primaryModel: undefined, // Not tracked in transcript-metrics.json
       tokens: {
         input: metrics.tokenUsage.inputTokens,
         output: metrics.tokenUsage.outputTokens,
@@ -92,7 +87,6 @@ export class StateReader {
         cacheCreation: metrics.tokenUsage.cacheCreationInputTokens,
         cacheRead: metrics.tokenUsage.cacheReadInputTokens,
       },
-      // Include current context tokens if available (for accurate post-compaction display)
       currentContextTokens: metrics.currentContextTokens
         ? {
             input: metrics.currentContextTokens.inputTokens,
@@ -103,6 +97,13 @@ export class StateReader {
     }
 
     return { source: result.source, data: state }
+  }
+
+  /**
+   * @deprecated Use getTranscriptMetrics() instead
+   */
+  async getSessionState(): Promise<StateReadResult<TranscriptMetricsState>> {
+    return this.getTranscriptMetrics()
   }
 
   /**

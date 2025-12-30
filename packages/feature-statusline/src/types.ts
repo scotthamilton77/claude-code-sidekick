@@ -10,11 +10,11 @@
 import {
   FirstPromptSummaryStateSchema,
   ResumeMessageStateSchema,
-  SessionMetricsStateSchema,
+  TranscriptMetricsStateSchema,
   SessionSummaryStateSchema,
   type FirstPromptSummaryState,
   type ResumeMessageState,
-  type SessionMetricsState,
+  type TranscriptMetricsState,
   type SessionSummaryState,
 } from '@sidekick/types'
 import { z } from 'zod'
@@ -22,11 +22,11 @@ import { z } from 'zod'
 export {
   FirstPromptSummaryStateSchema,
   ResumeMessageStateSchema,
-  SessionMetricsStateSchema,
+  TranscriptMetricsStateSchema,
   SessionSummaryStateSchema,
   type FirstPromptSummaryState,
   type ResumeMessageState,
-  type SessionMetricsState,
+  type TranscriptMetricsState,
   type SessionSummaryState,
 }
 
@@ -217,12 +217,9 @@ export interface StatuslineRenderResult {
 // Default Values
 // ============================================================================
 
-export const EMPTY_SESSION_STATE: SessionMetricsState = {
+export const EMPTY_TRANSCRIPT_STATE: TranscriptMetricsState = {
   sessionId: '',
   lastUpdatedAt: 0,
-  durationSeconds: 0,
-  costUsd: 0,
-  primaryModel: 'unknown',
   tokens: {
     input: 0,
     output: 0,
@@ -231,6 +228,9 @@ export const EMPTY_SESSION_STATE: SessionMetricsState = {
     cacheRead: 0,
   },
 }
+
+/** @deprecated Use EMPTY_TRANSCRIPT_STATE instead */
+export const EMPTY_SESSION_STATE = EMPTY_TRANSCRIPT_STATE
 
 export const EMPTY_SESSION_SUMMARY: SessionSummaryState = {
   session_id: '',
