@@ -91,33 +91,19 @@ The prompt uses **system/user message separation** for better role enforcement a
 
 #### System Message
 
-The system message enforces role, provides rules, negative examples (what NOT to do), and diverse few-shot examples:
+The system message is externalized to the asset cascade at `prompts/first-prompt-summary.prompt.txt`. This enables user/project customization through the standard asset priority layers:
 
 ```
-You are a status-line message generator. Output JSON: { "message": "<text>" }
-
-RULES:
-- Max 60 characters
-- Single line, no newlines
-- Snarky/witty tone, never mean
-- Summarize user intent, don't respond to it
-- Self-aware about AI limitations
-- Sci-fi references welcome (Hitchhiker's, Star Trek, etc.)
-
-NEVER output:
-- Clarifying questions ("Let me clarify...", "Are you asking...")
-- Helpful preambles ("I'd be happy to...", "Sure, I can...")
-- Multiple lines or paragraphs
-- Anything over 60 characters
-- Explanations of what you're doing
-
-EXAMPLES:
-User: "Help me debug the login flow" → { "message": "Debugging: the eternal optimism" }
-User: "What's the project structure?" → { "message": "Mapping the labyrinth" }
-User: "hello!" → { "message": "Greetings acknowledged" }
-User: "refactor auth to use JWT" → { "message": "JWT conversion incoming" }
-User: "test something quick" → { "message": "Quick test, famous last words" }
+Priority (lowest → highest):
+1. assets/sidekick/ (defaults)
+2. ~/.claude/hooks/sidekick/assets/ (user-installed)
+3. ~/.sidekick/assets/ (user-persistent)
+4. .claude/hooks/sidekick/assets/ (project-installed)
+5. .sidekick/assets/ (project-persistent)
+6. .sidekick/assets.local/ (project-local, highest)
 ```
+
+The default prompt enforces role, provides rules, negative examples (what NOT to do), and diverse few-shot examples. See `assets/sidekick/prompts/first-prompt-summary.prompt.txt` for the current content.
 
 #### User Message
 
@@ -465,10 +451,10 @@ Below this threshold, the session summary exists but is not considered reliable 
 4. Wire `confidenceThreshold` from config in supervisor trigger via `getFirstPromptConfig()`
 5. Add integration tests validating function export and signature (real LLM tests excluded per AGENTS.md)
 
-### Phase 6: Validation
-1. Is it working?
-2. Is it configurable?  How?  What are the defaults?
-3. Is the prompt something that the user can override like other features' prompts?
+### Phase 6: Validation ✅
+1. Is it working? — Yes, tests verify LLM and fallback paths
+2. Is it configurable? — Yes, via `features.first-prompt.settings` in sidekick config
+3. Is the prompt customizable? — Yes, via asset cascade at `prompts/first-prompt-summary.prompt.txt`
 
 ## 10. Open Questions
 
@@ -481,4 +467,5 @@ None — all design decisions resolved in discussion.
 - `docs/design/flow.md` — Hook event flow
 - `src/sidekick/llm-providers.defaults` — Model configuration
 - `docs/model-analysis-report.md` — Benchmark data
-- `assets/sidekick/schemas/first-prompt-summary.schema.json` — LLM output JSON schema
+- `assets/sidekick/prompts/first-prompt-summary.prompt.txt` — LLM system prompt (customizable via asset cascade)
+- `assets/sidekick/schemas/first-prompt-summary.schema.json` — LLM output JSON schema (customizable via asset cascade)
