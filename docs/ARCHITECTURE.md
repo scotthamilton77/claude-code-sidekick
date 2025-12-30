@@ -186,4 +186,5 @@ See **docs/design/TEST-FIXTURES.md** for complete testing infrastructure.
 | **docs/design/FEATURE-STATUSLINE.md**          | Statusline rendering, state consumption                                                        |
 | **docs/design/FEATURE-RESUME.md**              | Resume message generation, artifact discovery                                                  |
 | **docs/design/TEST-FIXTURES.md**               | Mocks, factories, test harnesses                                                               |
+| **docs/design/TRANSCRIPT_METRICS.md**          | Context metrics capture, /context parsing, overhead calculation                                |
 | **packages/sidekick-ui/docs/MONITORING-UI.md** | Time-travel debugging UI, log aggregation                                                      |

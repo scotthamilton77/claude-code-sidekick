@@ -10,6 +10,7 @@ import * as path from 'node:path'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import {
+  calculateContextUsage,
   createFormatter,
   formatBranch,
   formatCost,
@@ -19,6 +20,7 @@ import {
   getThresholdStatus,
   shortenPath,
 } from '../formatter.js'
+import { getDefaultOverhead } from '../context-overhead-reader.js'
 import { createStateReader, discoverPreviousResumeMessage } from '../state-reader.js'
 import { createStatuslineService } from '../statusline-service.js'
 import { DEFAULT_STATUSLINE_CONFIG } from '../types.js'
@@ -151,6 +153,75 @@ describe('Formatter utilities', () => {
       expect(getThresholdStatus(200, thresholds)).toBe('critical')
       expect(getThresholdStatus(300, thresholds)).toBe('critical')
     })
+  })
+
+  describe('calculateContextUsage', () => {
+    it('returns undefined when context window size is missing', () => {
+      expect(calculateContextUsage(1000, 500, undefined)).toBeUndefined()
+      expect(calculateContextUsage(1000, 500, 0)).toBeUndefined()
+    })
+
+    it('uses fallback 77.5% when no overhead provided', () => {
+      const result = calculateContextUsage(50000, 10000, 200000)
+      expect(result).toBeDefined()
+      expect(result!.effectiveLimit).toBe(155000) // 200000 * 0.775
+      expect(result!.totalTokens).toBe(60000)
+    })
+
+    it('uses overhead tokens when provided', () => {
+      // 200k window - 66k overhead = 134k effective
+      const result = calculateContextUsage(50000, 10000, 200000, 66100)
+      expect(result).toBeDefined()
+      expect(result!.effectiveLimit).toBe(133900) // 200000 - 66100
+      expect(result!.totalTokens).toBe(60000)
+    })
+
+    it('calculates correct usage fraction', () => {
+      // 60k tokens used / 134k effective = ~0.448
+      const result = calculateContextUsage(50000, 10000, 200000, 66000)
+      expect(result).toBeDefined()
+      expect(result!.usageFraction).toBeCloseTo(0.448, 2)
+    })
+
+    it('sets status based on usage fraction', () => {
+      // Low usage
+      const low = calculateContextUsage(10000, 5000, 200000, 66000)
+      expect(low!.status).toBe('low')
+
+      // Medium usage (50-75%)
+      const medium = calculateContextUsage(70000, 10000, 200000, 66000)
+      expect(medium!.status).toBe('medium')
+
+      // High usage (>75%)
+      const high = calculateContextUsage(100000, 20000, 200000, 66000)
+      expect(high!.status).toBe('high')
+    })
+
+    it('handles zero effective limit gracefully', () => {
+      // Overhead equals context window
+      const result = calculateContextUsage(1000, 500, 200000, 200000)
+      expect(result).toBeDefined()
+      expect(result!.effectiveLimit).toBe(0)
+      expect(result!.usageFraction).toBe(1) // Fallback to 1 when effectiveLimit is 0
+    })
+  })
+})
+
+describe('getDefaultOverhead', () => {
+  it('returns expected default values', () => {
+    const overhead = getDefaultOverhead()
+    expect(overhead.systemPromptTokens).toBe(3200)
+    expect(overhead.systemToolsTokens).toBe(17900)
+    expect(overhead.autocompactBufferTokens).toBe(45000)
+    expect(overhead.mcpToolsTokens).toBe(0)
+    expect(overhead.customAgentsTokens).toBe(0)
+    expect(overhead.memoryFilesTokens).toBe(0)
+    expect(overhead.usingDefaults).toBe(true)
+  })
+
+  it('calculates total overhead correctly', () => {
+    const overhead = getDefaultOverhead()
+    expect(overhead.totalOverhead).toBe(3200 + 17900 + 45000) // 66100
   })
 })
 

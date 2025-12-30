@@ -383,12 +383,15 @@ export function getContextBarStatus(usageFraction: number): ContextBarStatus {
  * @param totalInputTokens - Input tokens from hook
  * @param totalOutputTokens - Output tokens from hook
  * @param contextWindowSize - Context window size from hook
+ * @param overheadTokens - Optional overhead tokens (system prompt, tools, etc.)
+ *                         If not provided, uses fallback of 22.5% of window
  * @returns Context usage data for bar rendering
  */
 export function calculateContextUsage(
   totalInputTokens: number | undefined,
   totalOutputTokens: number | undefined,
-  contextWindowSize: number | undefined
+  contextWindowSize: number | undefined,
+  overheadTokens?: number
 ): ContextUsageData | undefined {
   if (!contextWindowSize || contextWindowSize <= 0) {
     return undefined
@@ -396,11 +399,15 @@ export function calculateContextUsage(
 
   const totalTokens = (totalInputTokens ?? 0) + (totalOutputTokens ?? 0)
 
-  // Effective limit is ~77.5% of context window (before autocompact kicks in)
-  const effectiveLimit = Math.floor(contextWindowSize * 0.775)
+  // Effective limit = context window - overhead
+  // If no overhead provided, fall back to ~77.5% of window (legacy behavior)
+  const effectiveLimit =
+    overheadTokens !== undefined
+      ? Math.max(0, contextWindowSize - overheadTokens)
+      : Math.floor(contextWindowSize * 0.775)
 
   // Usage fraction relative to effective limit
-  const usageFraction = totalTokens / effectiveLimit
+  const usageFraction = effectiveLimit > 0 ? totalTokens / effectiveLimit : 1
 
   return {
     totalTokens,

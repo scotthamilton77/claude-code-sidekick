@@ -38,6 +38,7 @@ import { homedir } from 'os'
 import fs from 'fs/promises'
 import path from 'path'
 import { ConfigChangeEvent, ConfigWatcher } from './config-watcher.js'
+import { ContextMetricsService, createContextMetricsService } from './context-metrics/index.js'
 import { StateManager } from './state-manager.js'
 import {
   createTaskRegistry,
@@ -83,6 +84,7 @@ export class Supervisor {
   private serviceFactory: ServiceFactory
   private assetResolver: MinimalAssetResolver
   private llmProvider: LLMProvider | null = null
+  private contextMetricsService: ContextMetricsService
   private token: string = ''
   private lastActivityTime: number = Date.now()
   private idleCheckInterval: ReturnType<typeof setInterval> | null = null
@@ -140,6 +142,13 @@ export class Supervisor {
       projectRoot: projectDir,
     })
 
+    // Initialize Context Metrics Service (METRICS_PLAN.md)
+    this.contextMetricsService = createContextMetricsService({
+      projectDir,
+      logger: this.logger,
+      skipCliCapture: false,
+    })
+
     // Register staging handlers (Phase 8.5 - Reminders feature)
     // These handlers listen for SessionStart/transcript events and stage reminders
     // for CLI consumption. They need SupervisorContext at invocation time.
@@ -166,13 +175,16 @@ export class Supervisor {
       // 3. Initialize State Manager
       await this.stateManager.initialize()
 
-      // 4. Clean up orphaned tasks from previous runs (Phase 5.2 orphan prevention)
+      // 4. Initialize Context Metrics (writes defaults, triggers async CLI capture)
+      await this.contextMetricsService.initialize()
+
+      // 5. Clean up orphaned tasks from previous runs (Phase 5.2 orphan prevention)
       const orphanCount = await this.taskRegistry.cleanupOrphans()
       if (orphanCount > 0) {
         this.logger.info('Cleaned up orphaned tasks', { orphanCount })
       }
 
-      // 5. Register standard task handlers (Phase 5.2 task types)
+      // 6. Register standard task handlers (Phase 5.2 task types)
       registerStandardTaskHandlers(
         this.taskEngine,
         this.stateManager,
@@ -182,19 +194,19 @@ export class Supervisor {
         this.assetResolver
       )
 
-      // 6. Start IPC Server
+      // 7. Start IPC Server
       await this.ipcServer.start()
 
-      // 7. Start config watcher for hot-reload
+      // 8. Start config watcher for hot-reload
       this.configWatcher.start()
 
-      // 8. Start idle timeout checker
+      // 9. Start idle timeout checker
       this.startIdleCheck()
 
-      // 9. Start heartbeat for monitoring UI
+      // 10. Start heartbeat for monitoring UI
       this.startHeartbeat()
 
-      // 10. Start periodic session eviction (Phase 6)
+      // 11. Start periodic session eviction (Phase 6)
       this.startEvictionTimer()
 
       this.logger.info('Supervisor started successfully')

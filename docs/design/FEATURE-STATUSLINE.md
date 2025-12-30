@@ -47,6 +47,8 @@ State files live in `.sidekick/sessions/{session_id}/state/`, parallel to the `s
 | `.sidekick/sessions/{id}/state/session-summary.json` | Session Title, Latest Intent            | Read File (JSON)            |
 | `.sidekick/sessions/{id}/state/snarky-message.txt`   | Snarky Comment                          | Read File (Text)            |
 | `.sidekick/sessions/{id}/state/resume-message.json`  | Resume message (for session resumption) | Read File (JSON)            |
+| `.sidekick/state/base-token-metrics.json`            | System prompt, tools, autocompact buffer| Read File (JSON)            |
+| `.sidekick/state/project-context-metrics.json`       | MCP tools, custom agents, memory files  | Read File (JSON)            |
 | **Git (Subprocess)**                                 | Current Branch                          | `git branch --show-current` |
 | **Environment**                                      | CWD, Project Root                       | `process.cwd()`, Config     |
 
@@ -171,6 +173,33 @@ The statusline displays different content based on session state. Per `docs/desi
 - Run `git branch --show-current` with a **10ms timeout**.
 - If it times out or fails (not a git repo), return empty string.
 - This prevents the statusline from hanging the shell in slow/networked filesystems.
+
+### 6.4 Context Bar Calculation
+
+The statusline displays context utilization as a visual bar (e.g., `[████████░░]`). To accurately represent available capacity, it accounts for Claude Code's context window overhead.
+
+**Overhead Components** (see `docs/design/TRANSCRIPT_METRICS.md`):
+- System prompt: ~3.2k tokens
+- System tools: ~17.9k tokens
+- MCP tools: Variable per project
+- Custom agents: Variable per project
+- Memory files: Variable (CLAUDE.md, AGENTS.md, etc.)
+- Autocompact buffer: ~45k tokens
+
+**Calculation:**
+
+```typescript
+// Read overhead from context metrics state files
+const overhead = readContextOverhead(); // ~66k tokens typical
+
+// Calculate effective limit (what's actually available for messages)
+const effectiveLimit = contextWindowSize - overhead;
+
+// Calculate utilization percentage
+const utilization = (inputTokens + outputTokens) / effectiveLimit;
+```
+
+**Fallback:** If context metrics are unavailable, apply a 22.5% default reduction factor (based on observed overhead ratios).
 
 ## 7. Invocation Model
 
