@@ -12,9 +12,11 @@ This repository serves as a development and testing environment for [Claude Code
 
 ### Sidekick
 
-- statusline token usage - statistics from statusline input are wrong - use transcript state?
+- statusline token usage
+  - statistics from statusline input are wrong - need to factor in stuff not in the transcript like system prompt, tools, etc. - how would we get those?
 - statusline always says (stale)?
   - Also, shouldn't this update more often during the convo?
+  - Showing just the snarky comment loses the context (what we're doing)
 - should we block and wait (with timeout of p95 of completion latency?) for session summary when we have low confidence?
 - snarky comment generator
   - needs a fallback model
