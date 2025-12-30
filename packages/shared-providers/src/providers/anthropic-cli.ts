@@ -2,15 +2,13 @@
  * Anthropic CLI Provider
  *
  * Wraps the local `claude` CLI command for LLM interactions.
- * Implements manual retry logic for transient failures since this
- * is a subprocess wrapper rather than an SDK.
+ * Uses shared spawnClaudeCli utility for subprocess management
+ * with automatic retry logic for transient failures.
  */
 
-import { spawn } from 'node:child_process'
-import { tmpdir } from 'node:os'
 import type { Logger, LLMRequest, LLMResponse } from '@sidekick/types'
 import { AbstractProvider } from './base'
-import { AuthError, TimeoutError, ProviderError } from '../errors'
+import { spawnClaudeCli } from '../claude-cli-spawn'
 
 export interface AnthropicCliConfig {
   model: string
@@ -44,145 +42,74 @@ export class AnthropicCliProvider extends AbstractProvider {
     const startTime = Date.now()
     this.logRequest(request)
 
-    let lastError: Error | undefined
+    const args = [
+      '-p',
+      '--no-session-persistence',
+      '--setting-sources',
+      'local',
+      '--model',
+      request.model ?? this.defaultModel,
+      '--output-format',
+      'json',
+    ]
 
-    for (let attempt = 0; attempt < this.maxRetries; attempt++) {
-      try {
-        const response = await this.executeCliRequest(request)
-        this.logResponse(response, Date.now() - startTime)
-        return response
-      } catch (error) {
-        lastError = error as Error
-        this.logger.warn('CLI request failed, retrying', {
-          provider: this.id,
-          attempt: attempt + 1,
-          maxRetries: this.maxRetries,
-          error: (error as Error).message,
-        })
+    // Build prompt from messages
+    const prompt = this.buildPrompt(request)
 
-        // Don't retry auth errors
-        if (error instanceof AuthError) {
-          throw error
-        }
+    try {
+      const result = await spawnClaudeCli({
+        args,
+        cliPath: this.cliPath,
+        timeout: this.timeout,
+        maxRetries: this.maxRetries,
+        stdin: prompt,
+        logger: this.logger,
+        providerId: this.id,
+      })
 
-        // Wait before retry with exponential backoff
-        if (attempt < this.maxRetries - 1) {
-          await this.sleep(Math.min(1000 * Math.pow(2, attempt), 10000))
-        }
-      }
+      const response = this.parseCliResponse(result.stdout, request.model ?? this.defaultModel)
+      this.logResponse(response, Date.now() - startTime)
+      return response
+    } catch (error) {
+      this.logError(error as Error)
+      throw error
     }
-
-    this.logError(lastError!)
-    throw new ProviderError(`Failed after ${this.maxRetries} retries: ${lastError!.message}`, this.id, false, lastError)
   }
 
-  private async executeCliRequest(request: LLMRequest): Promise<LLMResponse> {
-    return new Promise((resolve, reject) => {
-      const args = [
-        '-p',
-        '--no-session-persistence',
-        '--setting-sources',
-        'local',
-        '--model',
-        request.model ?? this.defaultModel,
-        '--output-format',
-        'json',
-      ]
-
-      // Build prompt from messages
-      const prompt = this.buildPrompt(request)
-
-      this.logger.debug('Spawning Claude CLI process', {
-        cliPath: this.cliPath,
-        args,
-        timeout: this.timeout,
-      })
-
-      const child = spawn(this.cliPath, args, {
-        timeout: this.timeout,
-        cwd: tmpdir(),
-      })
-
-      let stdout = ''
-      let stderr = ''
-
-      child.stdout.on('data', (data: Buffer) => {
-        stdout += data.toString()
-      })
-
-      child.stderr.on('data', (data: Buffer) => {
-        stderr += data.toString()
-      })
-
-      child.on('error', (error) => {
-        if (error.message.includes('ENOENT')) {
-          reject(new ProviderError(`Claude CLI not found at path: ${this.cliPath}`, this.id, false, error))
-        } else {
-          reject(new ProviderError(`Spawn error: ${error.message}`, this.id, true, error))
-        }
-      })
-
-      child.on('close', (code) => {
-        this.logger.debug('Claude CLI process exited', {
-          exitCode: code,
-          stdoutLength: stdout.length,
-          stderrLength: stderr.length,
-        })
-
-        if (code === 0) {
-          try {
-            const parsed = JSON.parse(stdout) as {
-              result?: string
-              content?: string
-              message?: string
-              usage?: { input_tokens?: number; output_tokens?: number }
+  private parseCliResponse(stdout: string, model: string): LLMResponse {
+    try {
+      const parsed = JSON.parse(stdout) as {
+        result?: string
+        content?: string
+        message?: string
+        usage?: { input_tokens?: number; output_tokens?: number }
+      }
+      return {
+        // Claude CLI --output-format json uses 'result' field for the response text
+        content: parsed.result ?? parsed.content ?? parsed.message ?? stdout,
+        model,
+        usage: parsed.usage
+          ? {
+              inputTokens: parsed.usage.input_tokens ?? 0,
+              outputTokens: parsed.usage.output_tokens ?? 0,
             }
-            const response: LLMResponse = {
-              // Claude CLI --output-format json uses 'result' field for the response text
-              content: parsed.result ?? parsed.content ?? parsed.message ?? stdout,
-              model: request.model ?? this.defaultModel,
-              usage: parsed.usage
-                ? {
-                    inputTokens: parsed.usage.input_tokens ?? 0,
-                    outputTokens: parsed.usage.output_tokens ?? 0,
-                  }
-                : undefined,
-              rawResponse: {
-                status: 200,
-                body: stdout,
-              },
-            }
-            resolve(response)
-          } catch {
-            // If JSON parsing fails, return raw output
-            resolve({
-              content: stdout,
-              model: request.model ?? this.defaultModel,
-              rawResponse: {
-                status: 200,
-                body: stdout,
-              },
-            })
-          }
-        } else if (code === 124) {
-          reject(new TimeoutError(this.id))
-        } else if (code === 401 || stderr.includes('authentication') || stderr.includes('unauthorized')) {
-          reject(new AuthError(this.id, new Error(stderr)))
-        } else {
-          reject(
-            new ProviderError(
-              `CLI exited with code ${code}: ${stderr || 'no error output'}`,
-              this.id,
-              code ? code >= 500 : false
-            )
-          )
-        }
-      })
-
-      // Send prompt to stdin
-      child.stdin.write(prompt)
-      child.stdin.end()
-    })
+          : undefined,
+        rawResponse: {
+          status: 200,
+          body: stdout,
+        },
+      }
+    } catch {
+      // If JSON parsing fails, return raw output
+      return {
+        content: stdout,
+        model,
+        rawResponse: {
+          status: 200,
+          body: stdout,
+        },
+      }
+    }
   }
 
   private buildPrompt(request: LLMRequest): string {
@@ -197,9 +124,5 @@ export class AnthropicCliProvider extends AbstractProvider {
     }
 
     return prompt
-  }
-
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms))
   }
 }

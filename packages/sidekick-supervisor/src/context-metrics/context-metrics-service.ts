@@ -10,9 +10,10 @@
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { spawn } from 'node:child_process'
 import { homedir } from 'node:os'
-import type { Logger } from '@sidekick/types'
+import type { Logger, HandlerRegistry, TranscriptEvent } from '@sidekick/core'
+import { isTranscriptEvent } from '@sidekick/core'
+import { spawnClaudeCli } from '@sidekick/shared-providers'
 import {
   type BaseTokenMetricsState,
   type ProjectContextMetrics,
@@ -32,6 +33,9 @@ import { parseContextTable, isContextCommandOutput } from './transcript-parser.j
 
 /** Timeout for CLI capture (ms) */
 const CLI_CAPTURE_TIMEOUT_MS = 30_000
+
+/** Retry interval after capture error (1 hour in ms) */
+const CAPTURE_RETRY_INTERVAL_MS = 60 * 60 * 1000
 
 /** Base metrics file name */
 const BASE_METRICS_FILE = 'base-token-metrics.json'
@@ -87,25 +91,62 @@ export class ContextMetricsService {
   /**
    * Initialize the context metrics service.
    * Writes defaults immediately, then triggers async capture if needed.
+   * Will retry capture if previous attempt failed (file has defaults).
    */
   async initialize(): Promise<void> {
+    this.logger.info('ContextMetricsService initializing', {
+      userConfigDir: this.userConfigDir,
+      projectStateDir: this.projectStateDir,
+      skipCliCapture: this.skipCliCapture,
+    })
+
     const exists = await this.baseMetricsFileExists()
+    let shouldCapture = false
 
     if (!exists) {
       // 1. Write defaults immediately (statusline can use these right away)
-      this.logger.info('Writing default base token metrics')
+      this.logger.info('Writing default base token metrics (file does not exist)')
       await this.writeBaseMetrics(DEFAULT_BASE_METRICS)
-
-      // 2. Async: Capture real metrics (non-blocking)
-      if (!this.skipCliCapture) {
-        void this.captureBaseMetrics().catch((err) => {
-          this.logger.warn('Failed to capture base metrics via CLI', {
-            error: err instanceof Error ? err.message : String(err),
+      shouldCapture = true
+    } else {
+      // Check if we have real metrics or just defaults
+      const currentMetrics = await this.readBaseMetrics()
+      if (currentMetrics.capturedFrom === 'defaults') {
+        // Check if we recently had an error - wait for retry interval
+        const now = Date.now()
+        const errorAge = currentMetrics.lastErrorAt ? now - currentMetrics.lastErrorAt : Infinity
+        if (errorAge < CAPTURE_RETRY_INTERVAL_MS) {
+          this.logger.info('Skipping capture - recent error, will retry later', {
+            lastErrorAt: new Date(currentMetrics.lastErrorAt!).toISOString(),
+            lastErrorMessage: currentMetrics.lastErrorMessage,
+            retryInMs: CAPTURE_RETRY_INTERVAL_MS - errorAge,
           })
+        } else {
+          this.logger.info('Base metrics file exists but contains defaults, will retry capture', {
+            capturedAt: currentMetrics.capturedAt,
+            lastErrorAt: currentMetrics.lastErrorAt ? new Date(currentMetrics.lastErrorAt).toISOString() : null,
+          })
+          shouldCapture = true
+        }
+      } else {
+        this.logger.info('Base token metrics already captured', {
+          capturedFrom: currentMetrics.capturedFrom,
+          capturedAt: new Date(currentMetrics.capturedAt).toISOString(),
+          systemPromptTokens: currentMetrics.systemPromptTokens,
+          systemToolsTokens: currentMetrics.systemToolsTokens,
         })
       }
-    } else {
-      this.logger.debug('Base token metrics already exist, skipping capture')
+    }
+
+    // Trigger async capture if needed
+    if (shouldCapture && !this.skipCliCapture) {
+      this.logger.info('Triggering async CLI capture for base metrics')
+      void this.captureBaseMetrics().catch((err) => {
+        this.logger.warn('Failed to capture base metrics via CLI', {
+          error: err instanceof Error ? err.message : String(err),
+          stack: err instanceof Error ? err.stack : undefined,
+        })
+      })
     }
   }
 
@@ -143,6 +184,24 @@ export class ContextMetricsService {
   }
 
   /**
+   * Record a capture error in the base metrics file.
+   * Preserves existing metrics but adds error timestamp/message.
+   */
+  private async recordCaptureError(errorMessage: string): Promise<void> {
+    const current = await this.readBaseMetrics()
+    const updated: BaseTokenMetricsState = {
+      ...current,
+      lastErrorAt: Date.now(),
+      lastErrorMessage: errorMessage,
+    }
+    await this.writeBaseMetrics(updated)
+    this.logger.debug('Recorded capture error', {
+      lastErrorAt: new Date(updated.lastErrorAt!).toISOString(),
+      lastErrorMessage: errorMessage,
+    })
+  }
+
+  /**
    * Read base metrics from file.
    */
   async readBaseMetrics(): Promise<BaseTokenMetricsState> {
@@ -162,12 +221,20 @@ export class ContextMetricsService {
   /**
    * Capture base metrics by running `claude -p "/context"`.
    * This is an expensive operation that spawns a new Claude session.
+   *
+   * IMPORTANT: The Claude CLI does NOT output to stdout. Instead, it writes
+   * all output to a transcript file at ~/.claude/projects/{encoded-cwd}/{session-id}.jsonl.
+   * We must read the transcript file after the CLI exits to get the /context output.
    */
   private async captureBaseMetrics(): Promise<void> {
     const sessionId = randomUUID()
     const tempDir = path.join('/tmp', 'sidekick', 'context-capture')
 
-    this.logger.info('Capturing base metrics via CLI', { sessionId })
+    this.logger.info('Capturing base metrics via CLI', {
+      sessionId,
+      tempDir,
+      timeout: CLI_CAPTURE_TIMEOUT_MS,
+    })
 
     try {
       // Create temp directory
@@ -175,7 +242,40 @@ export class ContextMetricsService {
 
       // Execute: claude --session-id={uuid} -p "/context"
       // Use temp directory as working directory to avoid project context
-      const output = await this.executeClaudeCli(sessionId, tempDir)
+      const args = ['--session-id', sessionId, '-p', '/context']
+
+      this.logger.debug('Spawning Claude CLI for /context capture', { args })
+
+      const result = await spawnClaudeCli({
+        args,
+        cwd: tempDir,
+        timeout: CLI_CAPTURE_TIMEOUT_MS,
+        maxRetries: 1, // Limited retries for capture (not critical path)
+        logger: this.logger,
+        providerId: 'context-metrics',
+      })
+
+      this.logger.debug('CLI process completed', {
+        exitCode: result.exitCode,
+        stdoutLength: result.stdout.length,
+        stderrLength: result.stderr.length,
+      })
+
+      // Read the /context output from the transcript file
+      // CLI writes to: ~/.claude/projects/{encoded-cwd}/{session-id}.jsonl
+      const output = await this.readContextOutputFromTranscript(tempDir, sessionId)
+
+      if (!output) {
+        const errorMessage = 'Failed to extract /context output from transcript'
+        this.logger.warn(errorMessage, { sessionId, tempDir })
+        await this.recordCaptureError(errorMessage)
+        return
+      }
+
+      this.logger.debug('Extracted /context output from transcript', {
+        outputLength: output.length,
+        outputPreview: output.slice(0, 200),
+      })
 
       // Parse the output
       if (isContextCommandOutput(output)) {
@@ -188,6 +288,9 @@ export class ContextMetricsService {
             capturedAt: Date.now(),
             capturedFrom: 'context_command',
             sessionId,
+            // Clear error state on success
+            lastErrorAt: null,
+            lastErrorMessage: null,
           }
 
           await this.writeBaseMetrics(metrics)
@@ -195,61 +298,98 @@ export class ContextMetricsService {
             systemPromptTokens: metrics.systemPromptTokens,
             systemToolsTokens: metrics.systemToolsTokens,
             autocompactBufferTokens: metrics.autocompactBufferTokens,
+            sessionId,
           })
           return
+        } else {
+          const errorMessage = 'Failed to parse /context table output'
+          this.logger.warn(errorMessage, {
+            outputLength: output.length,
+            outputPreview: output.slice(0, 500),
+          })
+          await this.recordCaptureError(errorMessage)
         }
+      } else {
+        const errorMessage = 'Transcript content does not appear to be /context output'
+        this.logger.warn(errorMessage, {
+          outputLength: output.length,
+          outputPreview: output.slice(0, 500),
+          hasLocalCommandTag: output.includes('<local-command-stdout>'),
+          hasSystemPrompt: output.includes('System prompt'),
+          hasSystemTools: output.includes('System tools'),
+        })
+        await this.recordCaptureError(errorMessage)
       }
-
-      this.logger.warn('Failed to parse /context output, keeping defaults')
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err)
       this.logger.warn('CLI capture failed', {
-        error: err instanceof Error ? err.message : String(err),
+        error: errorMessage,
+        stack: err instanceof Error ? err.stack : undefined,
       })
+      await this.recordCaptureError(errorMessage)
     }
   }
 
   /**
-   * Execute Claude CLI and return output.
+   * Read the /context output from the transcript file.
+   *
+   * Claude CLI writes output to: ~/.claude/projects/{encoded-cwd}/{session-id}.jsonl
+   * where encoded-cwd replaces / with - (e.g., /tmp/foo → -tmp-foo)
+   *
+   * @returns The content containing <local-command-stdout>, or null if not found
    */
-  private executeClaudeCli(sessionId: string, cwd: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const args = ['--session-id', sessionId, '-p', '/context']
-      const proc = spawn('claude', args, {
-        cwd,
-        stdio: ['pipe', 'pipe', 'pipe'],
-        timeout: CLI_CAPTURE_TIMEOUT_MS,
-      })
+  private async readContextOutputFromTranscript(cwd: string, sessionId: string): Promise<string | null> {
+    try {
+      // Resolve symlinks (macOS /tmp → /private/tmp)
+      const resolvedCwd = await fs.realpath(cwd)
 
-      let stdout = ''
-      let stderr = ''
+      // Encode the cwd path: /private/tmp/foo → -private-tmp-foo
+      const encodedPath = resolvedCwd.replace(/\//g, '-').replace(/^-/, '-')
 
-      proc.stdout?.on('data', (data: Buffer) => {
-        stdout += data.toString()
-      })
+      // Build transcript path
+      const transcriptPath = path.join(homedir(), '.claude', 'projects', encodedPath, `${sessionId}.jsonl`)
 
-      proc.stderr?.on('data', (data: Buffer) => {
-        stderr += data.toString()
-      })
+      this.logger.debug('Reading transcript file', { transcriptPath })
 
-      proc.on('error', (err) => {
-        reject(err)
-      })
+      // Wait a moment for file system to sync
+      await new Promise((resolve) => setTimeout(resolve, 100))
 
-      proc.on('close', (code) => {
-        if (code === 0) {
-          // Wrap output in local-command-stdout tags for parser compatibility
-          resolve(`<local-command-stdout>${stdout}</local-command-stdout>`)
-        } else {
-          reject(new Error(`Claude CLI exited with code ${code}: ${stderr}`))
+      // Check if file exists
+      try {
+        await fs.access(transcriptPath)
+      } catch {
+        this.logger.warn('Transcript file not found', { transcriptPath })
+        return null
+      }
+
+      // Read and parse the transcript
+      const content = await fs.readFile(transcriptPath, 'utf-8')
+      const lines = content.trim().split('\n').filter(Boolean)
+
+      // Find the line with <local-command-stdout> containing /context output
+      for (const line of lines) {
+        try {
+          const entry = JSON.parse(line) as { message?: { content?: string } }
+          const messageContent = entry.message?.content
+          if (typeof messageContent === 'string' && messageContent.includes('<local-command-stdout>')) {
+            return messageContent
+          }
+        } catch {
+          // Skip unparseable lines
         }
-      })
+      }
 
-      // Timeout handling
-      setTimeout(() => {
-        proc.kill('SIGTERM')
-        reject(new Error(`CLI capture timed out after ${CLI_CAPTURE_TIMEOUT_MS}ms`))
-      }, CLI_CAPTURE_TIMEOUT_MS)
-    })
+      this.logger.warn('No /context output found in transcript', {
+        transcriptPath,
+        lineCount: lines.length,
+      })
+      return null
+    } catch (err) {
+      this.logger.warn('Failed to read transcript file', {
+        error: err instanceof Error ? err.message : String(err),
+      })
+      return null
+    }
   }
 
   // ==========================================================================
@@ -449,6 +589,43 @@ export class ContextMetricsService {
   async getEffectiveLimit(contextWindowSize: number): Promise<number> {
     const overhead = await this.getTotalOverhead()
     return Math.max(0, contextWindowSize - overhead)
+  }
+
+  // ============================================================================
+  // Handler Registration
+  // ============================================================================
+
+  /**
+   * Register transcript event handlers for /context detection.
+   * Listens for UserPrompt events containing <local-command-stdout> from /context command.
+   *
+   * @param handlerRegistry - Handler registry to register with
+   */
+  registerHandlers(handlerRegistry: HandlerRegistry): void {
+    handlerRegistry.register({
+      id: 'context-metrics:detect-context-output',
+      priority: 50, // Lower priority - non-critical path
+      filter: { kind: 'transcript', eventTypes: ['UserPrompt'] },
+      handler: async (event) => {
+        if (!isTranscriptEvent(event as TranscriptEvent)) return
+
+        // Extract message content from the transcript entry
+        const entry = (event as TranscriptEvent).payload.entry as { message?: { content?: string } }
+        const content = entry.message?.content
+        if (!content) return
+
+        // Check for and process /context output
+        const sessionId = (event as TranscriptEvent).context.sessionId
+        if (sessionId) {
+          const updated = await this.handleTranscriptContent(sessionId, content)
+          if (updated) {
+            this.logger.info('Context metrics updated from /context output', { sessionId })
+          }
+        }
+      },
+    })
+
+    this.logger.debug('Context metrics handler registered')
   }
 }
 
