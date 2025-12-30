@@ -54,3 +54,6 @@ export {
 
 // LLM Service (high-level wrapper with telemetry)
 export { LLMService, type LLMServiceConfig } from './llm-service'
+
+// Claude CLI utilities
+export { spawnClaudeCli, type ClaudeCliSpawnOptions, type ClaudeCliSpawnResult } from './claude-cli-spawn'

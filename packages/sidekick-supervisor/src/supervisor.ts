@@ -917,7 +917,9 @@ export class Supervisor {
     // Register handlers - they'll receive full context at invocation time
     registerStagingHandlers(registrationContext)
     registerSessionSummaryHandlers(registrationContext)
-    this.logger.debug('Feature handlers registered (Reminders, Session Summary)')
+    this.contextMetricsService.registerHandlers(this.handlerRegistry)
+
+    this.logger.debug('Feature handlers registered (Reminders, Session Summary, Context Metrics)')
   }
 
   /**

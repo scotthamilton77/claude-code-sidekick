@@ -751,6 +751,12 @@ export class TranscriptServiceImpl implements TranscriptService {
           // Non-user-prompt message: increment messageCount but DON'T increment turnCount
           // This allows toolsThisTurn to accumulate across multiple tool calls
           this.metrics.messageCount++
+
+          // Still emit UserPrompt for local command output (e.g., /context) so handlers can process it
+          // Handlers that want to scrape /context output need to receive these events
+          if (isLocalCommandOutput) {
+            this.emitEvent('UserPrompt', entry, lineNumber)
+          }
         } else {
           // Real user prompt: new turn, reset toolsThisTurn
           this.metrics.turnCount++
