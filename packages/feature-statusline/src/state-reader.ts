@@ -77,12 +77,14 @@ export class StateReader {
     }
 
     const metrics = result.data.metrics
+    // Note: TranscriptMetrics doesn't include costUsd/durationSeconds/primaryModel
+    // Those come from hook metrics when available; use defaults when reading from file
     const state: SessionMetricsState = {
       sessionId: result.data.sessionId,
       lastUpdatedAt: metrics.lastUpdatedAt,
-      durationSeconds: metrics.durationSeconds,
-      costUsd: metrics.costUsd,
-      primaryModel: metrics.primaryModel,
+      durationSeconds: 0, // Not tracked in transcript-metrics.json
+      costUsd: 0, // Not tracked in transcript-metrics.json
+      primaryModel: undefined, // Not tracked in transcript-metrics.json
       tokens: {
         input: metrics.tokenUsage.inputTokens,
         output: metrics.tokenUsage.outputTokens,
@@ -90,6 +92,14 @@ export class StateReader {
         cacheCreation: metrics.tokenUsage.cacheCreationInputTokens,
         cacheRead: metrics.tokenUsage.cacheReadInputTokens,
       },
+      // Include current context tokens if available (for accurate post-compaction display)
+      currentContextTokens: metrics.currentContextTokens
+        ? {
+            input: metrics.currentContextTokens.inputTokens,
+            output: metrics.currentContextTokens.outputTokens,
+            total: metrics.currentContextTokens.totalTokens,
+          }
+        : undefined,
     }
 
     return { source: result.source, data: state }

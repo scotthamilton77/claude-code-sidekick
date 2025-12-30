@@ -246,19 +246,56 @@ export const DEFAULT_PLACEHOLDERS = {
   awaitingFirstTurn: 'Awaiting first turn',
 } as const
 
+/**
+ * Schema for transcript-metrics.json written by TranscriptService.
+ * Must match TranscriptMetrics interface from @sidekick/types.
+ */
 export const PersistedTranscriptStateSchema = z.object({
   sessionId: z.string(),
   metrics: z.object({
+    // Turn-level metrics
+    turnCount: z.number(),
+    toolsThisTurn: z.number(),
+    // Session-level metrics
+    toolCount: z.number(),
+    messageCount: z.number(),
+    // Token metrics
     tokenUsage: z.object({
       inputTokens: z.number(),
       outputTokens: z.number(),
       totalTokens: z.number(),
       cacheCreationInputTokens: z.number(),
       cacheReadInputTokens: z.number(),
+      cacheTiers: z
+        .object({
+          ephemeral5mInputTokens: z.number(),
+          ephemeral1hInputTokens: z.number(),
+        })
+        .optional(),
+      serviceTierCounts: z.record(z.string(), z.number()).optional(),
+      byModel: z
+        .record(
+          z.string(),
+          z.object({
+            inputTokens: z.number(),
+            outputTokens: z.number(),
+            requestCount: z.number(),
+          })
+        )
+        .optional(),
     }),
-    costUsd: z.number(),
-    durationSeconds: z.number(),
-    primaryModel: z.string().optional(),
+    // Current context tokens (resets on clear/compact) - optional for backward compat
+    currentContextTokens: z
+      .object({
+        inputTokens: z.number(),
+        outputTokens: z.number(),
+        totalTokens: z.number(),
+      })
+      .optional(),
+    // Derived ratios
+    toolsPerTurn: z.number(),
+    // Watermarks
+    lastProcessedLine: z.number(),
     lastUpdatedAt: z.number(),
   }),
   persistedAt: z.number(),
@@ -269,6 +306,10 @@ export type PersistedTranscriptState = z.infer<typeof PersistedTranscriptStateSc
 export const EMPTY_PERSISTED_STATE: PersistedTranscriptState = {
   sessionId: '',
   metrics: {
+    turnCount: 0,
+    toolsThisTurn: 0,
+    toolCount: 0,
+    messageCount: 0,
     tokenUsage: {
       inputTokens: 0,
       outputTokens: 0,
@@ -276,9 +317,8 @@ export const EMPTY_PERSISTED_STATE: PersistedTranscriptState = {
       cacheCreationInputTokens: 0,
       cacheReadInputTokens: 0,
     },
-    costUsd: 0,
-    durationSeconds: 0,
-    primaryModel: 'unknown',
+    toolsPerTurn: 0,
+    lastProcessedLine: 0,
     lastUpdatedAt: 0,
   },
   persistedAt: 0,
