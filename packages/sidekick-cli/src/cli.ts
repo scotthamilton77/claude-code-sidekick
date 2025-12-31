@@ -79,7 +79,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     hookScriptPath: parsed['hook-script-path'] as string | undefined,
     projectDir: parsed['project-dir'] as string | undefined,
     scopeOverride: parsed.scope as 'user' | 'project' | undefined,
-    logLevel: (parsed['log-level'] as ParsedArgs['logLevel']) ?? 'info',
+    logLevel: parsed['log-level'] as ParsedArgs['logLevel'],
     wait: Boolean(parsed.wait),
     format: parsed.format as 'text' | 'json' | undefined,
     port: parsed.port as number | undefined,
@@ -318,14 +318,14 @@ export async function routeCommand(context: {
     // CLI arg takes precedence for interactive commands like statusline
     const sessionId = parsed.sessionIdArg ?? hookInput?.sessionId
 
-    // Parse statusline-specific metrics from hook input if available
+    // Parse statusline-specific input from hook if available
     // Claude Code provides model, tokens, cost directly - no need to read state files
-    const hookMetrics = hookInput?.raw ? parseStatuslineInput(hookInput.raw) : undefined
+    const parsedHookInput = hookInput?.raw ? parseStatuslineInput(hookInput.raw) : undefined
 
     const result = await handleStatuslineCommand(runtime.scope.projectRoot || process.cwd(), runtime.logger, stdout, {
       format: parsed.format,
       sessionId,
-      hookMetrics,
+      hookInput: parsedHookInput,
       configService: runtime.config,
     })
     return { exitCode: result.exitCode, stdout: '', stderr: '' }

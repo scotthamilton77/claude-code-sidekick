@@ -32,7 +32,13 @@ export {
   StatuslineService,
   createStatuslineService,
   type StatuslineServiceConfig,
-  type HookMetrics,
+  type ClaudeCodeStatusInput,
+  type ClaudeCodeModel,
+  type ClaudeCodeWorkspace,
+  type ClaudeCodeOutputStyle,
+  type ClaudeCodeCost,
+  type ClaudeCodeCurrentUsage,
+  type ClaudeCodeContextWindow,
 } from './statusline-service.js'
 export {
   readContextOverhead,

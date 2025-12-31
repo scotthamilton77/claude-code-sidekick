@@ -161,7 +161,7 @@ describe('CLI command routing', () => {
         expect.any(String), // projectRoot or cwd
         expect.any(Object), // logger
         stdout,
-        { format: undefined, sessionId: undefined }
+        expect.objectContaining({ format: undefined, sessionId: undefined })
       )
       expect(result.exitCode).toBe(0)
     })
@@ -177,10 +177,15 @@ describe('CLI command routing', () => {
         enableFileLogging: false,
       })
 
-      expect(mockHandleStatuslineCommand).toHaveBeenCalledWith(expect.any(String), expect.any(Object), stdout, {
-        format: 'json',
-        sessionId: undefined,
-      })
+      expect(mockHandleStatuslineCommand).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(Object),
+        stdout,
+        expect.objectContaining({
+          format: 'json',
+          sessionId: undefined,
+        })
+      )
     })
 
     test('passes --session-id option to handler', async () => {
@@ -194,10 +199,15 @@ describe('CLI command routing', () => {
         enableFileLogging: false,
       })
 
-      expect(mockHandleStatuslineCommand).toHaveBeenCalledWith(expect.any(String), expect.any(Object), stdout, {
-        format: undefined,
-        sessionId: 'abc123',
-      })
+      expect(mockHandleStatuslineCommand).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(Object),
+        stdout,
+        expect.objectContaining({
+          format: undefined,
+          sessionId: 'abc123',
+        })
+      )
     })
 
     test('passes all options to handler', async () => {
@@ -211,10 +221,15 @@ describe('CLI command routing', () => {
         enableFileLogging: false,
       })
 
-      expect(mockHandleStatuslineCommand).toHaveBeenCalledWith(expect.any(String), expect.any(Object), stdout, {
-        format: 'text',
-        sessionId: 'xyz789',
-      })
+      expect(mockHandleStatuslineCommand).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(Object),
+        stdout,
+        expect.objectContaining({
+          format: 'text',
+          sessionId: 'xyz789',
+        })
+      )
     })
 
     test('returns handler exit code', async () => {
