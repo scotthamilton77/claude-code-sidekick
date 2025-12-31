@@ -251,6 +251,39 @@ describe('Structured Logging', () => {
       expect(parseLogLine(lines[4]).level).toBe(LOG_LEVELS.error)
       expect(parseLogLine(lines[5]).level).toBe(LOG_LEVELS.fatal)
     })
+
+    it('should support runtime log level changes via setLevel', async () => {
+      const { createLogManager } = await import('../structured-logging')
+      const { stream, lines } = createTestStream()
+
+      const logManager = createLogManager({
+        name: 'sidekick:test',
+        level: 'warn', // Start with warn level
+        testStream: stream,
+      })
+
+      const logger = logManager.getLogger()
+
+      // Debug should be filtered at warn level
+      logger.debug('Debug before setLevel')
+      logger.warn('Warn before setLevel')
+      await logger.flush()
+
+      expect(lines.length).toBe(1)
+      expect(parseLogLine(lines[0]).msg).toBe('Warn before setLevel')
+
+      // Change to debug level at runtime
+      logManager.setLevel('debug')
+
+      // Now debug should appear
+      logger.debug('Debug after setLevel')
+      logger.warn('Warn after setLevel')
+      await logger.flush()
+
+      expect(lines.length).toBe(3)
+      expect(parseLogLine(lines[1]).msg).toBe('Debug after setLevel')
+      expect(parseLogLine(lines[2]).msg).toBe('Warn after setLevel')
+    })
   })
 
   // ===========================================================================

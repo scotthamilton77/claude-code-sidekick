@@ -158,6 +158,7 @@ function wrapPinoLogger(pinoInstance: PinoLogger): Logger {
 export interface LogManager {
   getLogger(): Logger
   getTelemetry(): Telemetry
+  setLevel(level: LogLevel): void
 }
 
 export function createLogManager(options: LogManagerOptions): LogManager {
@@ -283,6 +284,9 @@ export function createLogManager(options: LogManagerOptions): LogManager {
   return {
     getLogger: () => logger,
     getTelemetry: () => telemetry,
+    setLevel: (newLevel: LogLevel) => {
+      pinoInstance.level = newLevel
+    },
   }
 }
 
