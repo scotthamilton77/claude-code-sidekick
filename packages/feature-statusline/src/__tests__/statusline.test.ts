@@ -22,8 +22,60 @@ import {
 } from '../formatter.js'
 import { getDefaultOverhead } from '../context-overhead-reader.js'
 import { createStateReader, discoverPreviousResumeMessage } from '../state-reader.js'
-import { createStatuslineService } from '../statusline-service.js'
+import { createStatuslineService, type ClaudeCodeStatusInput } from '../statusline-service.js'
 import { DEFAULT_STATUSLINE_CONFIG } from '../types.js'
+
+/**
+ * Create a test ClaudeCodeStatusInput with sensible defaults.
+ * Only specify the fields you care about for your test.
+ */
+function createTestHookInput(overrides: {
+  modelDisplayName?: string
+  modelId?: string
+  totalInputTokens?: number
+  totalOutputTokens?: number
+  contextWindowSize?: number
+  totalCostUsd?: number
+  totalDurationMs?: number
+  cwd?: string
+}): ClaudeCodeStatusInput {
+  return {
+    hook_event_name: 'Status',
+    session_id: 'test-session',
+    transcript_path: '/path/to/transcript.json',
+    cwd: overrides.cwd ?? '/test',
+    version: '1.0.0',
+    model: {
+      id: overrides.modelId ?? 'claude-opus-4-1',
+      display_name: overrides.modelDisplayName ?? 'Opus',
+    },
+    workspace: {
+      current_dir: overrides.cwd ?? '/test',
+      project_dir: '/test',
+    },
+    output_style: {
+      name: 'default',
+    },
+    cost: {
+      total_cost_usd: overrides.totalCostUsd ?? 0,
+      total_duration_ms: overrides.totalDurationMs ?? 0,
+      total_api_duration_ms: 0,
+      total_lines_added: 0,
+      total_lines_removed: 0,
+    },
+    context_window: {
+      total_input_tokens: overrides.totalInputTokens ?? 0,
+      total_output_tokens: overrides.totalOutputTokens ?? 0,
+      context_window_size: overrides.contextWindowSize ?? 200000,
+      current_usage: {
+        input_tokens: overrides.totalInputTokens ?? 0,
+        output_tokens: overrides.totalOutputTokens ?? 0,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 0,
+      },
+    },
+  }
+}
 
 // ============================================================================
 // Formatter Tests
@@ -905,12 +957,13 @@ describe('StatuslineService', () => {
       cwd: '/home/user/project',
       homeDir: '/home/user',
       useColors: false,
-      // Model comes from hook metrics, not transcript-metrics.json
-      hookMetrics: {
+      // Model comes from hook input, not transcript-metrics.json
+      hookInput: createTestHookInput({
         modelDisplayName: 'claude-3-5-sonnet',
         totalInputTokens: 30000,
         totalOutputTokens: 15000,
-      },
+        cwd: '/home/user/project',
+      }),
     })
 
     const result = await service.render()
@@ -1031,16 +1084,16 @@ describe('StatuslineService', () => {
 
   describe('formatModelName edge cases', () => {
     it('returns non-claude model names unchanged', async () => {
-      // Model name comes from hook metrics, not transcript-metrics.json
+      // Model name comes from hook input, not transcript-metrics.json
       const service = createStatuslineService({
         sessionStateDir: testDir,
         cwd: '/test',
         useColors: false,
-        hookMetrics: {
+        hookInput: createTestHookInput({
           modelDisplayName: 'gpt-4o',
           totalInputTokens: 1000,
           totalOutputTokens: 0,
-        },
+        }),
       })
 
       const result = await service.render()
@@ -1048,16 +1101,16 @@ describe('StatuslineService', () => {
     })
 
     it('strips claude- prefix from claude model names', async () => {
-      // Model name comes from hook metrics, not transcript-metrics.json
+      // Model name comes from hook input, not transcript-metrics.json
       const service = createStatuslineService({
         sessionStateDir: testDir,
         cwd: '/test',
         useColors: false,
-        hookMetrics: {
+        hookInput: createTestHookInput({
           modelDisplayName: 'claude-3-opus',
           totalInputTokens: 1000,
           totalOutputTokens: 0,
-        },
+        }),
       })
 
       const result = await service.render()

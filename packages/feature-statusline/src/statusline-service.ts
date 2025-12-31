@@ -7,7 +7,12 @@
  * @see docs/design/FEATURE-STATUSLINE.md §5.1 StatuslineService
  */
 
-import type { MinimalConfigService } from '@sidekick/types'
+import type { Logger } from '@sidekick/types'
+
+/** Minimal config service interface for feature packages */
+interface MinimalConfigService {
+  getFeature<T>(name: string): { settings: T }
+}
 import {
   Formatter,
   calculateContextUsage,
@@ -36,33 +41,113 @@ import type {
 import { DEFAULT_PLACEHOLDERS, DEFAULT_STATUSLINE_CONFIG } from './types.js'
 
 // ============================================================================
-// Service Configuration
+// Claude Code Hook Input Types
 // ============================================================================
 
 /**
- * Metrics provided directly by Claude Code in statusline hook input.
- * When provided, these values are used instead of reading from state files.
- *
- * @see https://code.claude.com/docs/en/statusline
+ * Model information from Claude Code status hook.
  */
-export interface HookMetrics {
-  /** Model display name (e.g., "Opus") - directly from Claude Code */
-  modelDisplayName: string
-  /** Model ID (e.g., "claude-opus-4-1") */
-  modelId?: string
-  /** Total input tokens from context_window */
-  totalInputTokens?: number
-  /** Total output tokens from context_window */
-  totalOutputTokens?: number
-  /** Context window size from context_window */
-  contextWindowSize?: number
-  /** Total cost in USD from cost object */
-  totalCostUsd?: number
-  /** Total duration in milliseconds from cost object */
-  totalDurationMs?: number
-  /** Current working directory */
-  cwd?: string
+export interface ClaudeCodeModel {
+  /** Model identifier (e.g., "claude-opus-4-1") */
+  id: string
+  /** Human-readable display name (e.g., "Opus") */
+  display_name: string
 }
+
+/**
+ * Workspace information from Claude Code status hook.
+ */
+export interface ClaudeCodeWorkspace {
+  /** Current working directory */
+  current_dir: string
+  /** Original project directory (where Claude Code was launched) */
+  project_dir: string
+}
+
+/**
+ * Output style configuration from Claude Code.
+ */
+export interface ClaudeCodeOutputStyle {
+  /** Style name (e.g., "default") */
+  name: string
+}
+
+/**
+ * Cost and duration metrics from Claude Code status hook.
+ */
+export interface ClaudeCodeCost {
+  /** Total accumulated cost in USD */
+  total_cost_usd: number
+  /** Total wall-clock duration in milliseconds */
+  total_duration_ms: number
+  /** Total time spent in API calls in milliseconds */
+  total_api_duration_ms: number
+  /** Total lines of code added during session */
+  total_lines_added: number
+  /** Total lines of code removed during session */
+  total_lines_removed: number
+}
+
+/**
+ * Current context window usage from Claude Code.
+ */
+export interface ClaudeCodeCurrentUsage {
+  /** Input tokens in current context */
+  input_tokens: number
+  /** Output tokens in current context */
+  output_tokens: number
+  /** Tokens used for cache creation */
+  cache_creation_input_tokens: number
+  /** Tokens read from cache */
+  cache_read_input_tokens: number
+}
+
+/**
+ * Context window information from Claude Code status hook.
+ */
+export interface ClaudeCodeContextWindow {
+  /** Cumulative input tokens across session */
+  total_input_tokens: number
+  /** Cumulative output tokens across session */
+  total_output_tokens: number
+  /** Maximum context window size for the model */
+  context_window_size: number
+  /** Current context window usage (resets on compact) */
+  current_usage: ClaudeCodeCurrentUsage
+}
+
+/**
+ * Complete status hook input from Claude Code.
+ * This is the exact structure passed to statusline hooks.
+ *
+ * @see https://docs.anthropic.com/en/docs/claude-code/hooks
+ */
+export interface ClaudeCodeStatusInput {
+  /** Event type (always "Status" for statusline hooks) */
+  hook_event_name: 'Status'
+  /** Session identifier */
+  session_id: string
+  /** Path to the transcript JSON file */
+  transcript_path: string
+  /** Current working directory */
+  cwd: string
+  /** Model information */
+  model: ClaudeCodeModel
+  /** Workspace paths */
+  workspace: ClaudeCodeWorkspace
+  /** Claude Code version */
+  version: string
+  /** Output style configuration */
+  output_style: ClaudeCodeOutputStyle
+  /** Cost and duration metrics */
+  cost: ClaudeCodeCost
+  /** Context window information */
+  context_window: ClaudeCodeContextWindow
+}
+
+// ============================================================================
+// Service Configuration
+// ============================================================================
 
 /**
  * Configuration for StatuslineService.
@@ -87,10 +172,15 @@ export interface StatuslineServiceConfig {
   /** Current session ID for excluding from discovery */
   currentSessionId?: string
   /**
-   * Metrics from Claude Code hook input.
+   * Complete status input from Claude Code hook.
    * When provided, uses these directly instead of reading state files.
    */
-  hookMetrics?: HookMetrics
+  hookInput?: ClaudeCodeStatusInput
+  /**
+   * Optional logger for debug output.
+   * When provided, logs intermediate values for troubleshooting token calculations.
+   */
+  logger?: Logger
 }
 
 // ============================================================================
@@ -115,7 +205,8 @@ export class StatuslineService {
   private readonly useColors: boolean
   private readonly sessionsDir?: string
   private readonly currentSessionId?: string
-  private readonly hookMetrics?: HookMetrics
+  private readonly hookInput?: ClaudeCodeStatusInput
+  private readonly logger?: Logger
 
   constructor(serviceConfig: StatuslineServiceConfig) {
     // Build config from cascade: configService takes precedence, then direct config, then defaults
@@ -126,7 +217,8 @@ export class StatuslineService {
     this.useColors = serviceConfig.useColors ?? true
     this.sessionsDir = serviceConfig.sessionsDir
     this.currentSessionId = serviceConfig.currentSessionId
-    this.hookMetrics = serviceConfig.hookMetrics
+    this.hookInput = serviceConfig.hookInput
+    this.logger = serviceConfig.logger
 
     this.stateReader = createStateReader(serviceConfig.sessionStateDir)
     this.gitProvider = createGitProvider(serviceConfig.cwd)
@@ -157,18 +249,18 @@ export class StatuslineService {
    *
    * Performance target: <50ms total execution time.
    *
-   * When hookMetrics is provided (from Claude Code), uses those values directly
+   * When hookInput is provided (from Claude Code), uses those values directly
    * for model/tokens/cost/duration instead of reading from state files.
    */
   async render(): Promise<StatuslineRenderResult> {
-    // Determine what data to fetch based on whether hookMetrics is available
-    // When hookMetrics is provided, we skip session state (Claude Code gives us metrics)
+    // Determine what data to fetch based on whether hookInput is available
+    // When hookInput is provided, we skip session state (Claude Code gives us metrics)
     // but still need summary/resume/snarky/firstPrompt (Sidekick-specific content)
-    const hasHookMetrics = !!this.hookMetrics
+    const hasHookInput = !!this.hookInput
 
     // Parallel data fetch (critical for <50ms target)
     // Always fetch transcript metrics for currentContextTokens (needed for accurate post-compaction display)
-    // When hookMetrics provided, we merge currentContextTokens from transcript into hook-based state
+    // When hookInput provided, we merge currentContextTokens from transcript into hook-based state
     const [transcriptResult, summaryResult, resumeResult, snarkyResult, firstPromptResult, branchResult] =
       await Promise.all([
         this.stateReader.getSessionState(),
@@ -179,12 +271,12 @@ export class StatuslineService {
         this.gitProvider.getCurrentBranch(),
       ])
 
-    // Build state: use hook metrics if available, but always include currentContextTokens from transcript
-    const stateResult = hasHookMetrics
+    // Build state: use hook input if available, but always include currentContextTokens from transcript
+    const stateResult = hasHookInput
       ? {
-          ...this.buildStateFromHookMetrics(),
+          ...this.buildStateFromHookInput(),
           data: {
-            ...this.buildStateFromHookMetrics().data,
+            ...this.buildStateFromHookInput().data,
             currentContextTokens: transcriptResult.data.currentContextTokens,
           },
         }
@@ -217,9 +309,9 @@ export class StatuslineService {
     // Format output
     let text = this.formatter.format(this.config.format, viewModel)
 
-    // Determine if any stale data was used (hookMetrics is always fresh)
+    // Determine if any stale data was used (hookInput is always fresh)
     const staleData =
-      (!hasHookMetrics && stateResult.source === 'stale') ||
+      (!hasHookInput && stateResult.source === 'stale') ||
       summaryResult.source === 'stale' ||
       resumeResult.source === 'stale' ||
       snarkyResult.source === 'stale' ||
@@ -242,27 +334,27 @@ export class StatuslineService {
   }
 
   /**
-   * Build a synthetic StateReadResult from hook metrics.
+   * Build a synthetic StateReadResult from hook input.
    * Used when Claude Code provides metrics directly in the statusline input.
-   * Only returns token-related data; cost/duration/model come from hookMetrics at display time.
+   * Only returns token-related data; cost/duration/model come from hookInput at display time.
    */
-  private buildStateFromHookMetrics(): StateReadResult<TranscriptMetricsState> {
-    const metrics = this.hookMetrics!
-    const totalTokens = (metrics.totalInputTokens ?? 0) + (metrics.totalOutputTokens ?? 0)
+  private buildStateFromHookInput(): StateReadResult<TranscriptMetricsState> {
+    const ctx = this.hookInput!.context_window
+    const totalTokens = ctx.total_input_tokens + ctx.total_output_tokens
 
     return {
       data: {
-        sessionId: '',
+        sessionId: this.hookInput!.session_id,
         lastUpdatedAt: Date.now(),
         tokens: {
-          input: metrics.totalInputTokens ?? 0,
-          output: metrics.totalOutputTokens ?? 0,
+          input: ctx.total_input_tokens,
+          output: ctx.total_output_tokens,
           total: totalTokens,
-          cacheCreation: 0,
-          cacheRead: 0,
+          cacheCreation: ctx.current_usage.cache_creation_input_tokens,
+          cacheRead: ctx.current_usage.cache_read_input_tokens,
         },
       },
-      source: 'fresh', // Hook metrics are always fresh
+      source: 'fresh', // Hook input is always fresh
     }
   }
 
@@ -271,11 +363,11 @@ export class StatuslineService {
    * Implements display mode selection per docs/design/FEATURE-STATUSLINE.md §6.2.
    *
    * Token data comes from TranscriptMetricsState (persisted to disk).
-   * Cost, duration, and model come from hookMetrics (Claude Code's statusline input).
+   * Cost, duration, and model come from hookInput (Claude Code's statusline input).
    *
    * @param transcriptSource - Source of transcript data ('fresh', 'stale', or 'default').
    *   When 'default', the transcript-metrics.json file was missing (new session),
-   *   so we use 0 tokens instead of falling back to hook metrics.
+   *   so we use 0 tokens instead of falling back to hook input.
    */
   private buildViewModel(
     state: TranscriptMetricsState,
@@ -300,10 +392,10 @@ export class StatuslineService {
 
     // Calculate effective tokens for display
     // When transcript-metrics.json is missing (transcriptSource === 'default'), this is a new
-    // session and we should show 0 tokens, not fall back to hook metrics which are cumulative.
+    // session and we should show 0 tokens, not fall back to hook input which are cumulative.
     // When file exists, use currentContextTokens from API usage (resets on compact, clean).
-    const hookTokens = this.hookMetrics
-      ? (this.hookMetrics.totalInputTokens ?? 0) + (this.hookMetrics.totalOutputTokens ?? 0)
+    const hookTokens = this.hookInput
+      ? this.hookInput.context_window.total_input_tokens + this.hookInput.context_window.total_output_tokens
       : Infinity
 
     // Handle post-compact indeterminate state
@@ -316,16 +408,40 @@ export class StatuslineService {
           : (state.currentContextTokens ?? state.tokens.total)
     const effectiveTokens = Math.min(hookTokens, transcriptContextTokens)
 
+    // Debug logging for token calculation tracing
+    this.logger?.debug('Statusline token calculation', {
+      hookInput: this.hookInput
+        ? {
+            totalInputTokens: this.hookInput.context_window.total_input_tokens,
+            totalOutputTokens: this.hookInput.context_window.total_output_tokens,
+            contextWindowSize: this.hookInput.context_window.context_window_size,
+          }
+        : null,
+      transcriptState: {
+        currentContextTokens: state.currentContextTokens,
+        tokensTotal: state.tokens.total,
+        isPostCompactIndeterminate: state.isPostCompactIndeterminate,
+      },
+      calculation: {
+        hookTokens,
+        transcriptContextTokens,
+        transcriptSource,
+        isIndeterminate,
+        effectiveTokens,
+        winner: hookTokens < transcriptContextTokens ? 'hook' : 'transcript',
+      },
+    })
+
     // Calculate context usage using effective tokens (respects compaction/clear)
-    // Must use effectiveTokens, not raw hook metrics, so bar graph matches token display
-    const contextUsage = this.hookMetrics?.contextWindowSize
-      ? calculateContextUsage(effectiveTokens, 0, this.hookMetrics.contextWindowSize)
+    // Must use effectiveTokens, not raw hook input, so bar graph matches token display
+    const contextUsage = this.hookInput?.context_window.context_window_size
+      ? calculateContextUsage(effectiveTokens, 0, this.hookInput.context_window.context_window_size)
       : undefined
 
-    // Get cost/duration/model from hook metrics (Claude Code's statusline input)
-    const costUsd = this.hookMetrics?.totalCostUsd ?? 0
-    const durationMs = this.hookMetrics?.totalDurationMs ?? 0
-    const modelName = this.hookMetrics?.modelDisplayName ?? 'unknown'
+    // Get cost/duration/model from hook input (Claude Code's statusline input)
+    const costUsd = this.hookInput?.cost.total_cost_usd ?? 0
+    const durationMs = this.hookInput?.cost.total_duration_ms ?? 0
+    const modelName = this.hookInput?.model.display_name ?? 'unknown'
 
     // Format tokens - show placeholder during indeterminate state
     const tokensDisplay = isIndeterminate ? '⟳ compacted' : formatTokens(effectiveTokens)
