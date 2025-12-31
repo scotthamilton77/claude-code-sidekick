@@ -227,6 +227,8 @@ export const EMPTY_TRANSCRIPT_STATE: TranscriptMetricsState = {
     cacheCreation: 0,
     cacheRead: 0,
   },
+  currentContextTokens: null,
+  isPostCompactIndeterminate: false,
 }
 
 /** @deprecated Use EMPTY_TRANSCRIPT_STATE instead */
@@ -284,14 +286,10 @@ export const PersistedTranscriptStateSchema = z.object({
         )
         .optional(),
     }),
-    // Current context tokens (resets on clear/compact) - optional for backward compat
-    currentContextTokens: z
-      .object({
-        inputTokens: z.number(),
-        outputTokens: z.number(),
-        totalTokens: z.number(),
-      })
-      .optional(),
+    // Current context window tokens (from API usage, resets on compact)
+    currentContextTokens: z.number().nullable(),
+    // True after compact_boundary detected until first usage block arrives
+    isPostCompactIndeterminate: z.boolean(),
     // Derived ratios
     toolsPerTurn: z.number(),
     // Watermarks
@@ -317,6 +315,8 @@ export const EMPTY_PERSISTED_STATE: PersistedTranscriptState = {
       cacheCreationInputTokens: 0,
       cacheReadInputTokens: 0,
     },
+    currentContextTokens: null,
+    isPostCompactIndeterminate: false,
     toolsPerTurn: 0,
     lastProcessedLine: 0,
     lastUpdatedAt: 0,

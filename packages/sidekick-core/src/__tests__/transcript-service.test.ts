@@ -766,51 +766,51 @@ describe('TranscriptServiceImpl', () => {
   // --------------------------------------------------------------------------
 
   describe('compaction detection', () => {
-    it('detects compaction when file is shorter than watermark', async () => {
-      // Initial transcript with 5 lines
+    it('detects compaction via compact_boundary entry', async () => {
+      // Initial transcript with user messages and usage
       const initial = [
         JSON.stringify({ type: 'user', message: { role: 'user', content: 'One' } }),
-        JSON.stringify({ type: 'user', message: { role: 'user', content: 'Two' } }),
-        JSON.stringify({ type: 'user', message: { role: 'user', content: 'Three' } }),
-        JSON.stringify({ type: 'user', message: { role: 'user', content: 'Four' } }),
-        JSON.stringify({ type: 'user', message: { role: 'user', content: 'Five' } }),
+        JSON.stringify({
+          type: 'assistant',
+          message: { role: 'assistant', content: 'Response', usage: { input_tokens: 100, output_tokens: 50 } },
+        }),
       ].join('\n')
       writeFileSync(transcriptPath, initial)
 
       await service.initialize('test-session', transcriptPath)
 
       let metrics = service.getMetrics()
-      expect(metrics.turnCount).toBe(5)
-      expect(metrics.lastProcessedLine).toBe(5)
+      expect(metrics.turnCount).toBe(1)
+      expect(metrics.currentContextTokens).toBe(100) // input_tokens only (context window)
+      expect(metrics.isPostCompactIndeterminate).toBe(false)
 
-      // Simulate compaction: file becomes shorter
-      const compacted = [JSON.stringify({ type: 'user', message: { role: 'user', content: 'Compacted' } })].join('\n')
-      writeFileSync(transcriptPath, compacted)
+      // Append compact_boundary entry (Claude Code appends this, doesn't truncate)
+      const withCompact = [
+        initial,
+        JSON.stringify({ type: 'system', subtype: 'compact_boundary', compactMetadata: { trigger: 'auto' } }),
+      ].join('\n')
+      writeFileSync(transcriptPath, withCompact)
 
-      // Manually trigger processing (normally done by file watcher)
-      // Access private method for testing
       await (service as unknown as { processTranscriptFile: () => Promise<void> }).processTranscriptFile()
 
       metrics = service.getMetrics()
-      // Per design: metrics are additive (don't reset to zero)
-      // Previous 5 turns + 1 new turn after compaction
-      expect(metrics.turnCount).toBe(6)
-      expect(metrics.lastProcessedLine).toBe(1)
+      // After compact_boundary: indeterminate state
+      expect(metrics.currentContextTokens).toBeNull()
+      expect(metrics.isPostCompactIndeterminate).toBe(true)
+      // turnCount stays the same (compact_boundary doesn't add turns)
+      expect(metrics.turnCount).toBe(1)
     })
 
-    it('emits Compact event on compaction detection', async () => {
-      const initial = [
-        JSON.stringify({ type: 'user', message: { role: 'user', content: 'One' } }),
-        JSON.stringify({ type: 'user', message: { role: 'user', content: 'Two' } }),
-      ].join('\n')
+    it('emits Compact event on compact_boundary detection', async () => {
+      const initial = [JSON.stringify({ type: 'user', message: { role: 'user', content: 'Test' } })].join('\n')
       writeFileSync(transcriptPath, initial)
 
       await service.initialize('test-session', transcriptPath)
-
       handlers.emittedEvents.length = 0 // Clear events
 
-      const compacted = [JSON.stringify({ type: 'user', message: { role: 'user', content: 'Compacted' } })].join('\n')
-      writeFileSync(transcriptPath, compacted)
+      // Append compact_boundary
+      const withCompact = [initial, JSON.stringify({ type: 'system', subtype: 'compact_boundary' })].join('\n')
+      writeFileSync(transcriptPath, withCompact)
 
       await (service as unknown as { processTranscriptFile: () => Promise<void> }).processTranscriptFile()
 
@@ -819,6 +819,47 @@ describe('TranscriptServiceImpl', () => {
           eventType: 'Compact',
         })
       )
+    })
+
+    it('clears indeterminate state when usage block arrives after compaction', async () => {
+      // Start with content including compact_boundary
+      const initial = [
+        JSON.stringify({ type: 'user', message: { role: 'user', content: 'Pre-compact' } }),
+        JSON.stringify({ type: 'system', subtype: 'compact_boundary' }),
+      ].join('\n')
+      writeFileSync(transcriptPath, initial)
+
+      await service.initialize('test-session', transcriptPath)
+
+      let metrics = service.getMetrics()
+      expect(metrics.isPostCompactIndeterminate).toBe(true)
+      expect(metrics.currentContextTokens).toBeNull()
+
+      // Append new assistant message with usage (post-compact response)
+      const withResponse = [
+        initial,
+        JSON.stringify({
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: 'Post-compact response',
+            usage: {
+              input_tokens: 200,
+              output_tokens: 75,
+              cache_creation_input_tokens: 50,
+              cache_read_input_tokens: 25,
+            },
+          },
+        }),
+      ].join('\n')
+      writeFileSync(transcriptPath, withResponse)
+
+      await (service as unknown as { processTranscriptFile: () => Promise<void> }).processTranscriptFile()
+
+      metrics = service.getMetrics()
+      // Indeterminate cleared, context tokens set from usage
+      expect(metrics.isPostCompactIndeterminate).toBe(false)
+      expect(metrics.currentContextTokens).toBe(275) // 200 + 50 + 25 (input + cache_creation + cache_read)
     })
   })
 

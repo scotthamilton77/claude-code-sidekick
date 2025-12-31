@@ -357,11 +357,8 @@ export class HandlerRegistryImpl implements HandlerRegistry {
         serviceTierCounts: {},
         byModel: {},
       },
-      currentContextTokens: {
-        inputTokens: 0,
-        outputTokens: 0,
-        totalTokens: 0,
-      },
+      currentContextTokens: null,
+      isPostCompactIndeterminate: false,
       toolsPerTurn: 0,
       lastProcessedLine: 0,
       lastUpdatedAt: 0,

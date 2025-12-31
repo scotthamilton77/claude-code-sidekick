@@ -457,7 +457,7 @@ describe('Phase 4.5: TranscriptService → Handler Integration', () => {
   // --------------------------------------------------------------------------
 
   describe('compaction detection', () => {
-    it('emits Compact event when file is shorter than watermark', async () => {
+    it('emits Compact event when compact_boundary entry detected', async () => {
       const compactHandlerCalled = vi.fn()
 
       handlerRegistry.register({
@@ -474,15 +474,14 @@ describe('Phase 4.5: TranscriptService → Handler Integration', () => {
       const initial = [
         JSON.stringify({ type: 'user', message: { role: 'user', content: 'One' } }),
         JSON.stringify({ type: 'user', message: { role: 'user', content: 'Two' } }),
-        JSON.stringify({ type: 'user', message: { role: 'user', content: 'Three' } }),
       ].join('\n')
       writeFileSync(transcriptPath, initial)
 
       await transcriptService.initialize('test-session', transcriptPath)
 
-      // Simulate compaction (file becomes shorter)
-      const compacted = [JSON.stringify({ type: 'user', message: { role: 'user', content: 'Compacted' } })].join('\n')
-      writeFileSync(transcriptPath, compacted)
+      // Append compact_boundary entry (Claude Code's transcript is append-only)
+      const withCompact = [initial, JSON.stringify({ type: 'system', subtype: 'compact_boundary' })].join('\n')
+      writeFileSync(transcriptPath, withCompact)
 
       await (transcriptService as unknown as { processTranscriptFile: () => Promise<void> }).processTranscriptFile()
       await new Promise((resolve) => setTimeout(resolve, 100))

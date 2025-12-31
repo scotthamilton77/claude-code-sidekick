@@ -87,13 +87,8 @@ export class StateReader {
         cacheCreation: metrics.tokenUsage.cacheCreationInputTokens,
         cacheRead: metrics.tokenUsage.cacheReadInputTokens,
       },
-      currentContextTokens: metrics.currentContextTokens
-        ? {
-            input: metrics.currentContextTokens.inputTokens,
-            output: metrics.currentContextTokens.outputTokens,
-            total: metrics.currentContextTokens.totalTokens,
-          }
-        : undefined,
+      currentContextTokens: metrics.currentContextTokens,
+      isPostCompactIndeterminate: metrics.isPostCompactIndeterminate,
     }
 
     return { source: result.source, data: state }
@@ -265,7 +260,7 @@ export async function discoverPreviousResumeMessage(
       return { data: null, sessionId: null, source: 'not_found' }
     }
 
-    // Collect resume messages with their mtimes
+    // Collect resume messages with their modification times
     const resumeCandidates: { sessionId: string; data: ResumeMessageState; mtime: number }[] = []
 
     for (const dir of sessionDirs) {

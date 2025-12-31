@@ -41,11 +41,8 @@ function createMockMetrics(overrides: {
       serviceTierCounts: {},
       byModel: {},
     },
-    currentContextTokens: {
-      inputTokens: 0,
-      outputTokens: 0,
-      totalTokens: overrides.totalTokens ?? 0,
-    },
+    currentContextTokens: overrides.totalTokens ?? null,
+    isPostCompactIndeterminate: false,
     toolsPerTurn: 0,
     lastProcessedLine: 0,
     lastUpdatedAt: 0,
