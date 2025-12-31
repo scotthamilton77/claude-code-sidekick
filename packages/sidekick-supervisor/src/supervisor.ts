@@ -281,6 +281,15 @@ export class Supervisor {
         this.logger.info('Configuration values changed', { changes })
       }
 
+      // Apply critical config changes immediately (per SUPERVISOR.md §4.4)
+      if (newConfig.core.logging.level !== this.config.core.logging.level) {
+        this.logManager.setLevel(newConfig.core.logging.level)
+        this.logger.info('Log level updated', {
+          oldLevel: this.config.core.logging.level,
+          newLevel: newConfig.core.logging.level,
+        })
+      }
+
       // Update stored config
       this.config = newConfig
 
