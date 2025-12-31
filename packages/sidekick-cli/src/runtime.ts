@@ -158,7 +158,7 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
     homeDir: options.homeDir,
   })
 
-  logger.info('Runtime bootstrap complete', {
+  logger.debug('Runtime bootstrap complete', {
     scope: scope.scope,
     projectRoot: scope.projectRoot ?? null,
     source: scope.source,

@@ -41,7 +41,7 @@ describe('runCli', () => {
     const stderr = new CollectingWritable()
 
     await runCli({
-      argv: ['session-start', '--hook', '--hook-script-path', hookScriptPath],
+      argv: ['session-start', '--hook', '--hook-script-path', hookScriptPath, '--log-level', 'debug'],
       stdout,
       stderr,
       cwd: projectDir,
@@ -49,7 +49,7 @@ describe('runCli', () => {
       enableFileLogging: false,
     })
 
-    // Now using structured JSON logs
+    // Now using structured JSON logs (bootstrap message is debug level)
     expect(stderr.data).toContain('Runtime bootstrap complete')
     expect(stderr.data).toContain('"scope":"project"')
   })
