@@ -296,17 +296,10 @@ export const TranscriptMetricsStateSchema = z.object({
     /** Cache read tokens (cache hits) */
     cacheRead: z.number(),
   }),
-  /** Current context window tokens (resets on clear/compact) */
-  currentContextTokens: z
-    .object({
-      /** Input tokens in current context */
-      input: z.number(),
-      /** Output tokens in current context */
-      output: z.number(),
-      /** Total tokens in current context */
-      total: z.number(),
-    })
-    .optional(),
+  /** Current context window tokens from API usage (resets on compact) */
+  currentContextTokens: z.number().nullable().optional(),
+  /** True after compact_boundary detected until first usage block arrives */
+  isPostCompactIndeterminate: z.boolean().optional(),
 })
 
 export type TranscriptMetricsState = z.infer<typeof TranscriptMetricsStateSchema>

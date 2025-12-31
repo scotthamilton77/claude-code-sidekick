@@ -112,11 +112,8 @@ export function createDefaultMetrics(): TranscriptMetrics {
     toolsThisTurn: 0,
     messageCount: 0,
     tokenUsage: createDefaultTokenUsage(),
-    currentContextTokens: {
-      inputTokens: 0,
-      outputTokens: 0,
-      totalTokens: 0,
-    },
+    currentContextTokens: null,
+    isPostCompactIndeterminate: false,
     toolsPerTurn: 0,
     lastProcessedLine: 0,
     lastUpdatedAt: 0,
@@ -217,11 +214,24 @@ export class TranscriptServiceImpl implements TranscriptService {
       throw new Error('TranscriptService.start() called before prepare()')
     }
 
+    // Guard against duplicate start() calls - return early if already running
+    // This prevents timer accumulation when setContextForHook() is called per-request
+    if (this.persistIntervalTimer) {
+      this.options.logger.debug('TranscriptService.start() called but already running, skipping', {
+        sessionId: this.sessionId,
+      })
+      return
+    }
+
     // Start file watcher
     this.startWatching()
 
     // Start periodic persistence timer (safety net)
     this.persistIntervalTimer = setInterval(() => {
+      this.options.logger.debug('Periodic persist timer fired', {
+        sessionId: this.sessionId,
+        intervalMs: this.options.metricsPersistIntervalMs,
+      })
       this.persistMetrics()
     }, this.options.metricsPersistIntervalMs)
     // Unref so it doesn't block shutdown
@@ -620,6 +630,14 @@ export class TranscriptServiceImpl implements TranscriptService {
   private startWatching(): void {
     if (!this.transcriptPath) return
 
+    // Guard against duplicate watcher creation
+    if (this.watcher) {
+      this.options.logger.debug('startWatching called but watcher already exists, skipping', {
+        sessionId: this.sessionId,
+      })
+      return
+    }
+
     this.watcher = chokidar.watch(this.transcriptPath, {
       persistent: true,
       ignoreInitial: true,
@@ -633,6 +651,7 @@ export class TranscriptServiceImpl implements TranscriptService {
     // to release the handle. Supervisor must call shutdown() before process exit.
 
     this.watcher.on('change', () => {
+      this.options.logger.debug('File watcher detected change', { sessionId: this.sessionId })
       // Debounce file change events
       if (this.debounceTimer) {
         clearTimeout(this.debounceTimer)
@@ -660,46 +679,19 @@ export class TranscriptServiceImpl implements TranscriptService {
 
     const content = readFileSync(this.transcriptPath, 'utf-8')
     const lines = content.split('\n').filter((line) => line.trim())
-    const currentLineCount = lines.length
 
-    // Compaction detection: file is shorter than what we've processed
-    if (currentLineCount < this.metrics.lastProcessedLine) {
-      this.options.logger.info('Compaction detected - full recompute required', {
-        sessionId: this.sessionId,
-        previousLines: this.metrics.lastProcessedLine,
-        currentLines: currentLineCount,
-      })
-
-      // Update last compaction entry with post-compact line count
-      if (this.compactionHistory.length > 0) {
-        const lastEntry = this.compactionHistory[this.compactionHistory.length - 1]
-        lastEntry.postCompactLineCount = currentLineCount
-        this.persistCompactionHistory()
-      }
-
-      // Full recompute: DON'T reset metrics (compaction is additive per design)
-      // Just update the watermark and process from start
-      // Actually, per TRANSCRIPT-PROCESSING.md §3.2: "DOES NOT reset all metrics to zero;
-      // the post-compaction transcript is additive to the pre-compaction metrics"
-      // So we keep the existing metrics and continue accumulating from the compacted transcript
-
-      // Emit Compact event
-      this.emitEvent('Compact', { type: 'compact' }, 0)
-
-      // Reset current context tokens (they'll be recalculated from compacted file)
-      // Note: tokenUsage stays cumulative for cost tracking per TRANSCRIPT-PROCESSING.md §3.2
-      this.metrics.currentContextTokens = {
-        inputTokens: 0,
-        outputTokens: 0,
-        totalTokens: 0,
-      }
-
-      // Reset watermark to reprocess the compacted file
-      this.metrics.lastProcessedLine = 0
-    }
+    // Note: Compaction detection is now done via compact_boundary entries in processEntry().
+    // The transcript is append-only, so file-size-based detection doesn't work.
 
     // Process only new lines (incremental)
     const startLine = this.metrics.lastProcessedLine
+    const newLineCount = lines.length - startLine
+    this.options.logger.debug('processTranscriptFile called', {
+      sessionId: this.sessionId,
+      totalLines: lines.length,
+      lastProcessedLine: startLine,
+      newLinesToProcess: newLineCount,
+    })
     for (let i = startLine; i < lines.length; i++) {
       const line = lines[i]
       try {
@@ -780,6 +772,16 @@ export class TranscriptServiceImpl implements TranscriptService {
         // Process tool_use blocks nested in assistant message content
         this.processNestedToolUses(entry, lineNumber)
         break
+
+      case 'system': {
+        // Check for compact_boundary entry (indicates compaction occurred)
+        const subtype = (entry as { subtype?: string }).subtype
+        if (subtype === 'compact_boundary') {
+          this.handleCompactBoundary(entry, lineNumber)
+        }
+        // Skip other system entry types
+        break
+      }
 
       // Skip other entry types (summary, file-history-snapshot, etc.)
     }
@@ -880,7 +882,33 @@ export class TranscriptServiceImpl implements TranscriptService {
   }
 
   /**
+   * Handle compact_boundary entry detected in transcript.
+   * Sets indeterminate state until next usage block arrives.
+   */
+  private handleCompactBoundary(entry: TranscriptEntry, lineNumber: number): void {
+    const metadata = (entry as { compactMetadata?: { trigger?: string; preTokens?: number } }).compactMetadata
+
+    this.options.logger.info('Compaction boundary detected in transcript', {
+      sessionId: this.sessionId,
+      lineNumber,
+      trigger: metadata?.trigger,
+      preTokens: metadata?.preTokens,
+    })
+
+    // Set indeterminate state - context size unknown until next API response
+    this.metrics.currentContextTokens = null
+    this.metrics.isPostCompactIndeterminate = true
+
+    // Emit Compact event for handlers
+    this.emitEvent('Compact', entry, lineNumber)
+  }
+
+  /**
    * Extract token usage from assistant message metadata.
+   *
+   * Token calculation per TOKEN_TRACKING_PLAN.md:
+   * - currentContextTokens: input + cache_creation + cache_read (actual context window size)
+   * - tokenUsage: cumulative totals including all cache tokens
    */
   private extractTokenUsage(entry: TranscriptEntry): void {
     const message = entry.message as { usage?: RawUsageMetadata; model?: string } | undefined
@@ -889,22 +917,28 @@ export class TranscriptServiceImpl implements TranscriptService {
     const usage = message.usage
     const model = message.model
 
-    // Accumulate token counts
+    // Extract all token fields
     const inputTokens = usage.input_tokens ?? 0
     const outputTokens = usage.output_tokens ?? 0
+    const cacheCreationTokens = usage.cache_creation_input_tokens ?? 0
+    const cacheReadTokens = usage.cache_read_input_tokens ?? 0
 
-    this.metrics.tokenUsage.inputTokens += inputTokens
+    // Current context window size: all input tokens including cache
+    // This represents the actual tokens in the context window for this request
+    const contextWindowTokens = inputTokens + cacheCreationTokens + cacheReadTokens
+    this.metrics.currentContextTokens = contextWindowTokens
+
+    // Clear indeterminate state - we now have accurate context size
+    this.metrics.isPostCompactIndeterminate = false
+
+    // Cumulative usage (all tokens sent to model, for cost tracking)
+    this.metrics.tokenUsage.inputTokens += inputTokens + cacheCreationTokens + cacheReadTokens
     this.metrics.tokenUsage.outputTokens += outputTokens
-    this.metrics.tokenUsage.totalTokens += inputTokens + outputTokens
+    this.metrics.tokenUsage.totalTokens += inputTokens + cacheCreationTokens + cacheReadTokens + outputTokens
 
-    // Current context tokens (resets on compaction, unlike cumulative tokenUsage)
-    this.metrics.currentContextTokens.inputTokens += inputTokens
-    this.metrics.currentContextTokens.outputTokens += outputTokens
-    this.metrics.currentContextTokens.totalTokens += inputTokens + outputTokens
-
-    // Cache metrics
-    this.metrics.tokenUsage.cacheCreationInputTokens += usage.cache_creation_input_tokens ?? 0
-    this.metrics.tokenUsage.cacheReadInputTokens += usage.cache_read_input_tokens ?? 0
+    // Cache metrics (for detailed breakdown)
+    this.metrics.tokenUsage.cacheCreationInputTokens += cacheCreationTokens
+    this.metrics.tokenUsage.cacheReadInputTokens += cacheReadTokens
 
     // Cache tiers
     if (usage.cache_creation) {
@@ -992,6 +1026,10 @@ export class TranscriptServiceImpl implements TranscriptService {
   // ============================================================================
 
   private schedulePersistence(): void {
+    this.options.logger.debug('schedulePersistence called', {
+      sessionId: this.sessionId,
+      debounceMs: this.options.watchDebounceMs,
+    })
     if (this.persistDebounceTimer) {
       clearTimeout(this.persistDebounceTimer)
     }
@@ -1004,10 +1042,23 @@ export class TranscriptServiceImpl implements TranscriptService {
     if (!this.sessionId) return
 
     const now = Date.now()
+    const timeSinceLastPersist = now - this.lastPersistedAt
     // Skip if recently persisted (unless immediate)
-    if (!immediate && now - this.lastPersistedAt < this.options.watchDebounceMs) {
+    if (!immediate && timeSinceLastPersist < this.options.watchDebounceMs) {
+      this.options.logger.debug('persistMetrics skipped (too recent)', {
+        sessionId: this.sessionId,
+        immediate,
+        timeSinceLastPersist,
+        threshold: this.options.watchDebounceMs,
+      })
       return
     }
+
+    this.options.logger.debug('persistMetrics writing', {
+      sessionId: this.sessionId,
+      immediate,
+      timeSinceLastPersist,
+    })
 
     const statePath = this.getMetricsStatePath()
     if (!statePath) return
@@ -1049,17 +1100,31 @@ export class TranscriptServiceImpl implements TranscriptService {
       }
 
       // Merge with defaults to ensure backward compatibility
-      // Older persisted files may be missing newer fields like currentContextTokens
       const defaults = createDefaultMetrics()
+
+      // FIXME this complexity can go away
+      // Handle old object format for backward compat migration
+      // Old format: { inputTokens, outputTokens, totalTokens }
+      // New format: number | null
+      const rawContextTokens = state.metrics.currentContextTokens as unknown
+      let currentContextTokens: number | null = null
+      if (typeof rawContextTokens === 'number') {
+        currentContextTokens = rawContextTokens
+      } else if (rawContextTokens && typeof rawContextTokens === 'object') {
+        currentContextTokens = (rawContextTokens as { totalTokens?: number }).totalTokens ?? null
+      }
+
+      const metrics = state.metrics
+
       return {
         ...defaults,
-        ...state.metrics,
-        // Ensure nested objects are properly merged with defaults
+        ...metrics,
         tokenUsage: {
           ...defaults.tokenUsage,
-          ...state.metrics.tokenUsage,
+          ...metrics.tokenUsage,
         },
-        currentContextTokens: state.metrics.currentContextTokens ?? defaults.currentContextTokens,
+        currentContextTokens,
+        isPostCompactIndeterminate: metrics.isPostCompactIndeterminate ?? false,
       }
     } catch (err) {
       this.options.logger.warn('Failed to load persisted transcript state', { err, statePath })
@@ -1126,7 +1191,6 @@ export class TranscriptServiceImpl implements TranscriptService {
         serviceTierCounts: { ...this.metrics.tokenUsage.serviceTierCounts },
         byModel: Object.fromEntries(Object.entries(this.metrics.tokenUsage.byModel).map(([k, v]) => [k, { ...v }])),
       },
-      currentContextTokens: { ...this.metrics.currentContextTokens },
     }
   }
 }

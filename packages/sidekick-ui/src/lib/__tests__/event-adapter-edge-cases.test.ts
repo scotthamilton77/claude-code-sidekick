@@ -139,11 +139,8 @@ describe('sidekickEventToUIEvent Edge Cases', () => {
             serviceTierCounts: {},
             byModel: {},
           },
-          currentContextTokens: {
-            inputTokens: 10,
-            outputTokens: 0,
-            totalTokens: 10,
-          },
+          currentContextTokens: 10,
+          isPostCompactIndeterminate: false,
           toolsPerTurn: 0,
           lastProcessedLine: 1,
           lastUpdatedAt: Date.now(),

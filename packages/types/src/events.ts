@@ -222,15 +222,21 @@ export interface TranscriptMetrics {
   tokenUsage: TokenUsageMetrics
 
   /**
-   * Current context window tokens (resets on clear/compact).
+   * Current context window tokens (resets on compact).
+   * Calculated from API usage: input_tokens + cache_creation_input_tokens + cache_read_input_tokens.
    * Unlike tokenUsage which tracks cumulative totals for cost analysis,
-   * this tracks only the tokens in the current transcript content.
+   * this tracks the actual tokens in the current context window.
+   *
+   * - null: New session (no usage blocks yet) or post-compact indeterminate state
+   * - number: Actual context window size from last API response
    */
-  currentContextTokens: {
-    inputTokens: number
-    outputTokens: number
-    totalTokens: number
-  }
+  currentContextTokens: number | null
+
+  /**
+   * True after compact_boundary detected until first usage block arrives.
+   * When true, statusline should show placeholder (e.g., "⟳ compacted").
+   */
+  isPostCompactIndeterminate: boolean
 
   // Derived ratios
   /** Average tools per turn (toolCount / turnCount) */

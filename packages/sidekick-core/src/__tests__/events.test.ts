@@ -43,11 +43,8 @@ function createTestMetrics(): TranscriptMetrics {
       serviceTierCounts: {},
       byModel: {},
     },
-    currentContextTokens: {
-      inputTokens: 0,
-      outputTokens: 0,
-      totalTokens: 100,
-    },
+    currentContextTokens: 100,
+    isPostCompactIndeterminate: false,
     toolsPerTurn: 0,
     lastProcessedLine: 0,
     lastUpdatedAt: 0,

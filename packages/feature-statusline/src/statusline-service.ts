@@ -301,14 +301,19 @@ export class StatuslineService {
     // Calculate effective tokens for display
     // When transcript-metrics.json is missing (transcriptSource === 'default'), this is a new
     // session and we should show 0 tokens, not fall back to hook metrics which are cumulative.
-    // When file exists, use min(hook, transcript) since transcript resets on clear/compact.
+    // When file exists, use currentContextTokens from API usage (resets on compact, clean).
     const hookTokens = this.hookMetrics
       ? (this.hookMetrics.totalInputTokens ?? 0) + (this.hookMetrics.totalOutputTokens ?? 0)
       : Infinity
+
+    // Handle post-compact indeterminate state
+    const isIndeterminate = state.isPostCompactIndeterminate === true
     const transcriptContextTokens =
       transcriptSource === 'default'
         ? 0 // New session - no transcript-metrics.json yet, use 0 not hook fallback
-        : (state.currentContextTokens?.total ?? state.tokens.total)
+        : isIndeterminate
+          ? 0 // Post-compact, waiting for first API response
+          : (state.currentContextTokens ?? state.tokens.total)
     const effectiveTokens = Math.min(hookTokens, transcriptContextTokens)
 
     // Calculate context usage using effective tokens (respects compaction/clear)
@@ -322,10 +327,13 @@ export class StatuslineService {
     const durationMs = this.hookMetrics?.totalDurationMs ?? 0
     const modelName = this.hookMetrics?.modelDisplayName ?? 'unknown'
 
+    // Format tokens - show placeholder during indeterminate state
+    const tokensDisplay = isIndeterminate ? '⟳ compacted' : formatTokens(effectiveTokens)
+
     return {
       model: this.formatModelName(modelName),
-      tokens: formatTokens(effectiveTokens),
-      tokensStatus: getThresholdStatus(effectiveTokens, this.config.thresholds.tokens),
+      tokens: tokensDisplay,
+      tokensStatus: isIndeterminate ? 'normal' : getThresholdStatus(effectiveTokens, this.config.thresholds.tokens),
       cost: formatCost(costUsd),
       costStatus: getThresholdStatus(costUsd, this.config.thresholds.cost),
       duration: formatDuration(durationMs),
