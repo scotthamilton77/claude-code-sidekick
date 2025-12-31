@@ -12,13 +12,16 @@ This repository serves as a development and testing environment for [Claude Code
 
 ### Sidekick
 
-- stop reminder needs to be unstaged if we stage the pause and reflect reminder!
 - statusline token usage
-  - transcript-metrics.json has two sections with input, output and total tokens - are they always the same value?
+  - compact not properly detected - need to catch the compact_boundary event and the user content message after and size that?
+  - TEST: does the counter closely track claude's POV?
+  - TEST: does it reset properly on clean?
+  - TEST: does it go to "compacted" and then catch the next usage metrics properly?
 - statusline always says (stale)?
   - Also, shouldn't this update more often during the convo?
   - Showing just the snarky comment loses the context (what we're doing)
 - stop hook needs some tuning
+  - if issued, we need to reset the counter for the pause-and-reflect reminder (so that if the P&R reminder was just one tool away from being staged, but then the agent decided to stop, then the verify-complete kicks in which will use more tools, triggering the P&R)
   - make it conditional "if you are about to claim that you're done" 
   - double check on reason vs. userMessage:
 ```
