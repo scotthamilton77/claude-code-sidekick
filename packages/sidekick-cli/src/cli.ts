@@ -374,6 +374,12 @@ export async function runCli(options: RunCliOptions): Promise<{ exitCode: number
 
   // 2. Initialize session directory (async, no-throw)
   const sessionId = parsed.sessionIdArg ?? hookInput?.sessionId
+
+  // Bind sessionId to logger context so all subsequent logs include it
+  if (sessionId) {
+    runtime.bindSessionId(sessionId)
+  }
+
   await initializeSession({
     sessionId,
     projectRoot: runtime.scope.projectRoot,

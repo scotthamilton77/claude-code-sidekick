@@ -54,6 +54,7 @@ function createMockRuntime(overrides: Partial<RuntimeShell> = {}): RuntimeShell 
     } as unknown as RuntimeShell['telemetry'],
     correlationId: 'test-correlation-id',
     cleanup: vi.fn(),
+    bindSessionId: vi.fn(),
     ...overrides,
   }
 }
