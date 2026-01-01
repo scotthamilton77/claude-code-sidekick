@@ -14,10 +14,12 @@ Core runtime library—config, logging, IPC, scope resolution, asset loading.
 
 | Domain | Exports |
 |--------|---------|
-| Config | `ConfigService`, `SidekickConfig`, cascade helpers |
+| Config | `ConfigService`, `SidekickConfig`, `getFeature()` with nested config |
 | IPC | `IpcClient`, `IpcServer`, `IpcService`, path helpers |
-| Logging | `createLogManager`, `createLoggerFacade`, `setupGlobalErrorHandlers` |
-| Assets | `assetResolver`, scope-aware file loading |
+| Logging | `createLogManager`, `createLoggerFacade`, runtime level changes |
+| Assets | `assetResolver`, scope-aware file loading, `resolveYaml()` |
+| Transcript | `TranscriptService`, token tracking, `currentContextTokens` |
+| Services | `ServiceFactory`, session-scoped service creation |
 | Features | `FeatureRegistry`, `FeatureContext`, handler registration |
 
 ## Constraints

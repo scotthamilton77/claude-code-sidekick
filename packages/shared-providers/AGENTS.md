@@ -2,7 +2,7 @@
 
 ## Role
 
-LLM provider abstraction layer—unified interface for OpenAI, OpenRouter, Anthropic CLI.
+LLM provider abstraction layer—unified interface for OpenRouter (default), OpenAI, Anthropic CLI.
 
 ## Architecture
 
@@ -13,6 +13,14 @@ ProviderFactory → AbstractProvider → (OpenAINativeProvider | AnthropicCliPro
        ↓
     LLMService (high-level wrapper with telemetry)
 ```
+
+**Claude CLI Spawn**: Separate module for spawning Claude CLI subprocesses with proper sandboxing.
+
+## Features
+
+- **JSON Schema Output**: Structured output via `responseFormat.jsonSchema` in `LLMRequest`
+- **Default Provider**: OpenRouter (switched from claude-cli for cost efficiency)
+- **CLI Spawn**: Dedicated `claude-cli-spawn.ts` for subprocess management
 
 ## Constraints
 
@@ -30,4 +38,4 @@ ProviderFactory → AbstractProvider → (OpenAINativeProvider | AnthropicCliPro
 
 ## Reference
 
-- `docs/design/LLM-PROVIDERS.md` for retry/fallback semantics
+- `docs/design/LLM-PROVIDERS.md` for retry/fallback semantics and JSON schema support
