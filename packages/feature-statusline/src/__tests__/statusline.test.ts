@@ -806,7 +806,9 @@ describe('StateReader.getFirstPromptSummary', () => {
     expect(result.data).toBeNull()
   })
 
-  it('detects stale first-prompt summary', async () => {
+  it('returns fresh for old first-prompt summary (content artifacts never stale)', async () => {
+    // Content artifacts (like first-prompt summary) don't have staleness.
+    // They remain valid until regenerated - file age doesn't matter.
     const filePath = path.join(testDir, 'first-prompt-summary.json')
     await fs.writeFile(
       filePath,
@@ -819,14 +821,14 @@ describe('StateReader.getFirstPromptSummary', () => {
         had_resume_context: false,
       })
     )
-    // Set mtime to 2 minutes ago
+    // Set mtime to 2 minutes ago - should NOT affect staleness for content artifacts
     const twoMinutesAgo = new Date(Date.now() - 120_000)
     await fs.utimes(filePath, twoMinutesAgo, twoMinutesAgo)
 
     const reader = createStateReader(testDir)
     const result = await reader.getFirstPromptSummary()
 
-    expect(result.source).toBe('stale')
+    expect(result.source).toBe('fresh') // Content artifacts are never stale
     expect(result.data?.message).toBe('Old message')
   })
 })
@@ -996,7 +998,9 @@ describe('StatuslineService', () => {
   })
 
   it('appends (stale) indicator when data is stale', async () => {
-    // Write state file with old timestamp (simulate stale data)
+    // Write state file with old persistedAt timestamp (simulate stale data)
+    // Staleness is now based on persistedAt in the content, not file mtime
+    const twoMinutesAgo = Date.now() - 120_000
     const stateFile = path.join(testDir, 'transcript-metrics.json')
     await fs.writeFile(
       stateFile,
@@ -1018,14 +1022,11 @@ describe('StatuslineService', () => {
           isPostCompactIndeterminate: false,
           toolsPerTurn: 0,
           lastProcessedLine: 1,
-          lastUpdatedAt: Date.now(),
+          lastUpdatedAt: twoMinutesAgo,
         },
-        persistedAt: Date.now(),
+        persistedAt: twoMinutesAgo, // Old persistedAt triggers staleness
       })
     )
-    // Set mtime to 2 minutes ago to trigger staleness
-    const twoMinutesAgo = new Date(Date.now() - 120_000)
-    await fs.utimes(stateFile, twoMinutesAgo, twoMinutesAgo)
 
     const service = createStatuslineService({
       sessionStateDir: testDir,
@@ -1428,20 +1429,22 @@ describe('StatuslineService', () => {
       expect(result.viewModel.summary).toBe('Continue refactoring?')
     })
 
-    it('includes first-prompt staleness in overall stale detection', async () => {
+    it('does not mark stale based on first-prompt age (content artifacts never stale)', async () => {
+      // Content artifacts like first-prompt don't affect staleness detection.
+      // Only transcript metrics (Supervisor heartbeat) determines staleness.
       const filePath = path.join(testDir, 'first-prompt-summary.json')
       await fs.writeFile(
         filePath,
         JSON.stringify({
           session_id: 'test-123',
           timestamp: new Date().toISOString(),
-          message: 'Stale message',
+          message: 'Old message',
           source: 'llm',
           user_prompt: 'test',
           had_resume_context: false,
         })
       )
-      // Set mtime to 2 minutes ago
+      // Set mtime to 2 minutes ago - should NOT affect staleness
       const twoMinutesAgo = new Date(Date.now() - 120_000)
       await fs.utimes(filePath, twoMinutesAgo, twoMinutesAgo)
 
@@ -1453,8 +1456,9 @@ describe('StatuslineService', () => {
 
       const result = await service.render()
 
-      expect(result.staleData).toBe(true)
-      expect(result.text).toContain('(stale)')
+      // Content artifact age doesn't trigger stale indicator
+      expect(result.staleData).toBe(false)
+      expect(result.text).not.toContain('(stale)')
     })
   })
 })

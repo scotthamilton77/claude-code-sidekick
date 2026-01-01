@@ -325,15 +325,13 @@ export class StatuslineService {
     // Format output
     let text = this.formatter.format(this.config.format, viewModel)
 
-    // Determine if any stale data was used (hookInput is always fresh)
-    const staleData =
-      (!hasHookInput && stateResult.source === 'stale') ||
-      summaryResult.source === 'stale' ||
-      resumeResult.source === 'stale' ||
-      snarkyResult.source === 'stale' ||
-      firstPromptResult.source === 'stale'
+    // Stale indicator: only transcript metrics can be stale (Supervisor heartbeat).
+    // Content artifacts (summary, snarky, resume, first-prompt) are point-in-time
+    // and remain valid until regenerated - they don't indicate Supervisor health.
+    // See docs/design/FEATURE-STATUSLINE.md §8.2
+    const staleData = !hasHookInput && stateResult.source === 'stale'
 
-    // Append visual stale indicator per docs/design/FEATURE-STATUSLINE.md §8.2
+    // Append visual stale indicator
     if (staleData) {
       const ANSI_DIM = '\x1b[2m'
       const ANSI_RESET = '\x1b[0m'

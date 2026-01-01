@@ -244,9 +244,19 @@ sidekick.cli statusline 2>/dev/null    # Render statusline (errors suppressed)
 
 **Decision**: **Graceful Fallback** (aligned with `docs/design/flow.md` §6).
 
-- If `session-state.json` is older than X seconds (e.g., 60s), the Supervisor might be down.
-- **Action**: Render the stale data but apply a "dim" style or append a specific indicator (e.g., `(stale)`) to alert the user without breaking the flow.
-- Per `docs/design/flow.md` §6.1, missing state is acceptable degradation—CLI continues with defaults.
+Staleness detection indicates whether the Supervisor is actively running and updating state.
+
+**Transcript Metrics Staleness**:
+- The `transcript-metrics.json` file contains a `persistedAt` timestamp updated by the Supervisor (default: every 5s).
+- If `persistedAt` is older than the threshold (default: 60s), the Supervisor may be down.
+- **Action**: Render the data but append a `(stale)` indicator to alert the user.
+
+**Content Artifacts (No Staleness)**:
+- Session summaries, snarky messages, resume messages, and first-prompt summaries are **point-in-time artifacts**.
+- They remain valid until explicitly regenerated—file age doesn't indicate staleness.
+- These files do NOT trigger the stale indicator.
+
+Per `docs/design/flow.md` §6.1, missing state is acceptable degradation—CLI continues with defaults.
 
 ### 8.3 Hook Contract
 

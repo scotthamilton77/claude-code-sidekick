@@ -26,7 +26,6 @@ import type {
   StateReadResult,
 } from './types.js'
 import {
-  EMPTY_PERSISTED_STATE,
   EMPTY_TRANSCRIPT_STATE,
   EMPTY_SESSION_SUMMARY,
   FirstPromptSummaryStateSchema,
@@ -64,34 +63,50 @@ export class StateReader {
   /**
    * Read and parse transcript metrics from transcript-metrics.json.
    * Returns only fields that are persisted by TranscriptService.
+   *
+   * Staleness is determined by the `persistedAt` timestamp in the file,
+   * not the file mtime. This detects if the Supervisor stopped updating.
    */
   async getTranscriptMetrics(): Promise<StateReadResult<TranscriptMetricsState>> {
-    const result = await this.readAndParse(
-      'transcript-metrics.json',
-      PersistedTranscriptStateSchema,
-      EMPTY_PERSISTED_STATE
-    )
+    const filePath = path.join(this.stateDir, 'transcript-metrics.json')
 
-    if (result.source === 'default') {
+    try {
+      const content = await fs.readFile(filePath, 'utf-8')
+      const parsed = PersistedTranscriptStateSchema.safeParse(JSON.parse(content))
+
+      if (!parsed.success) {
+        return { source: 'default', data: EMPTY_TRANSCRIPT_STATE }
+      }
+
+      const persistedState = parsed.data
+      const metrics = persistedState.metrics
+
+      // Use persistedAt timestamp for staleness, not file mtime
+      // This detects if Supervisor stopped updating (default interval: 5s)
+      const isStale = Date.now() - persistedState.persistedAt > this.staleThresholdMs
+
+      const state: TranscriptMetricsState = {
+        sessionId: persistedState.sessionId,
+        lastUpdatedAt: metrics.lastUpdatedAt,
+        tokens: {
+          input: metrics.tokenUsage.inputTokens,
+          output: metrics.tokenUsage.outputTokens,
+          total: metrics.tokenUsage.totalTokens,
+          cacheCreation: metrics.tokenUsage.cacheCreationInputTokens,
+          cacheRead: metrics.tokenUsage.cacheReadInputTokens,
+        },
+        currentContextTokens: metrics.currentContextTokens,
+        isPostCompactIndeterminate: metrics.isPostCompactIndeterminate,
+      }
+
+      return {
+        source: isStale ? 'stale' : 'fresh',
+        data: state,
+        mtime: persistedState.persistedAt,
+      }
+    } catch {
       return { source: 'default', data: EMPTY_TRANSCRIPT_STATE }
     }
-
-    const metrics = result.data.metrics
-    const state: TranscriptMetricsState = {
-      sessionId: result.data.sessionId,
-      lastUpdatedAt: metrics.lastUpdatedAt,
-      tokens: {
-        input: metrics.tokenUsage.inputTokens,
-        output: metrics.tokenUsage.outputTokens,
-        total: metrics.tokenUsage.totalTokens,
-        cacheCreation: metrics.tokenUsage.cacheCreationInputTokens,
-        cacheRead: metrics.tokenUsage.cacheReadInputTokens,
-      },
-      currentContextTokens: metrics.currentContextTokens,
-      isPostCompactIndeterminate: metrics.isPostCompactIndeterminate,
-    }
-
-    return { source: result.source, data: state }
   }
 
   /**
@@ -111,6 +126,8 @@ export class StateReader {
   /**
    * Read and parse resume message from resume-message.json.
    * Returns null data if file doesn't exist (not an error case).
+   *
+   * Content artifacts don't have staleness - they're valid until regenerated.
    */
   async getResumeMessage(): Promise<StateReadResult<ResumeMessageState | null>> {
     const filePath = path.join(this.stateDir, 'resume-message.json')
@@ -124,10 +141,9 @@ export class StateReader {
         return { data: null, source: 'default' }
       }
 
-      const isStale = Date.now() - stat.mtimeMs > this.staleThresholdMs
       return {
         data: parsed.data,
-        source: isStale ? 'stale' : 'fresh',
+        source: 'fresh',
         mtime: stat.mtimeMs,
       }
     } catch {
@@ -138,6 +154,8 @@ export class StateReader {
   /**
    * Read snarky message from snarky-message.txt.
    * Returns empty string if file doesn't exist.
+   *
+   * Content artifacts don't have staleness - they're valid until regenerated.
    */
   async getSnarkyMessage(): Promise<StateReadResult<string>> {
     const filePath = path.join(this.stateDir, 'snarky-message.txt')
@@ -145,11 +163,10 @@ export class StateReader {
     try {
       const stat = await fs.stat(filePath)
       const content = await fs.readFile(filePath, 'utf-8')
-      const isStale = Date.now() - stat.mtimeMs > this.staleThresholdMs
 
       return {
         data: content.trim(),
-        source: isStale ? 'stale' : 'fresh',
+        source: 'fresh',
         mtime: stat.mtimeMs,
       }
     } catch {
@@ -160,6 +177,8 @@ export class StateReader {
   /**
    * Read first-prompt summary from first-prompt-summary.json.
    * Returns null data if file doesn't exist (not an error case).
+   *
+   * Content artifacts don't have staleness - they're valid until regenerated.
    *
    * @see docs/design/FEATURE-FIRST-PROMPT-SUMMARY.md §6
    */
@@ -175,10 +194,9 @@ export class StateReader {
         return { data: null, source: 'default' }
       }
 
-      const isStale = Date.now() - stat.mtimeMs > this.staleThresholdMs
       return {
         data: parsed.data,
-        source: isStale ? 'stale' : 'fresh',
+        source: 'fresh',
         mtime: stat.mtimeMs,
       }
     } catch {
@@ -188,6 +206,8 @@ export class StateReader {
 
   /**
    * Generic read-and-parse helper with Zod validation.
+   *
+   * Used for content artifacts which don't have staleness - they're valid until regenerated.
    */
   private async readAndParse<T>(filename: string, schema: ZodType<T>, defaultValue: T): Promise<StateReadResult<T>> {
     const filePath = path.join(this.stateDir, filename)
@@ -201,10 +221,9 @@ export class StateReader {
         return { data: defaultValue, source: 'default' }
       }
 
-      const isStale = Date.now() - stat.mtimeMs > this.staleThresholdMs
       return {
         data: parsed.data,
-        source: isStale ? 'stale' : 'fresh',
+        source: 'fresh',
         mtime: stat.mtimeMs,
       }
     } catch {
