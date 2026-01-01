@@ -196,7 +196,7 @@ No state tracking between messages needed - we simply pattern-match on content.
 
 **Modify `packages/feature-statusline/src/state-reader.ts`:**
 - Add `getBaseTokenMetrics()` method
-- Read from `.sidekick/state/base-token-metrics.json`
+- Read from `~/.sidekick/state/baseline-user-context-token-metrics.json`
 
 **Modify `packages/feature-statusline/src/statusline-service.ts`:**
 - Use context metrics for accurate context bar calculation
@@ -230,8 +230,8 @@ By tracking both:
 
 | File | Location | Contents | Updated When |
 |------|----------|----------|--------------|
-| `base-token-metrics.json` | `.sidekick/state/` | System prompt, system tools, autocompact buffer | Supervisor startup (async CLI capture) |
-| `project-context-metrics.json` | `.sidekick/state/` | MCP tools, custom agents, memory files (minimum seen) | /context observed in any session |
+| `baseline-user-context-token-metrics.json` | `~/.sidekick/state/` | System prompt, system tools, autocompact buffer | Supervisor startup (async CLI capture) |
+| `baseline-project-context-token-metrics.json` | `.sidekick/state/` | MCP tools, custom agents, memory files (minimum seen) | /context observed in any session |
 | `context-metrics.json` | `.sidekick/sessions/{id}/state/` | Full context metrics for this session | /context observed in this session |
 
 ### Update Logic

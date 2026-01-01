@@ -27,6 +27,7 @@ import {
 } from './formatter.js'
 import { GitProvider, createGitProvider } from './git-provider.js'
 import { StateReader, createStateReader, discoverPreviousResumeMessage } from './state-reader.js'
+import { readContextOverhead, getDefaultOverhead, type ContextOverhead } from './context-overhead-reader.js'
 import type {
   DisplayMode,
   FirstPromptSummaryState,
@@ -181,6 +182,16 @@ export interface StatuslineServiceConfig {
    * When provided, logs intermediate values for troubleshooting token calculations.
    */
   logger?: Logger
+  /**
+   * User config directory (e.g., ~/.sidekick).
+   * Required for reading baseline user context metrics.
+   */
+  userConfigDir?: string
+  /**
+   * Project directory (e.g., /path/to/project).
+   * Required for reading baseline project context metrics.
+   */
+  projectDir?: string
 }
 
 // ============================================================================
@@ -207,6 +218,8 @@ export class StatuslineService {
   private readonly currentSessionId?: string
   private readonly hookInput?: ClaudeCodeStatusInput
   private readonly logger?: Logger
+  private readonly userConfigDir?: string
+  private readonly projectDir?: string
 
   constructor(serviceConfig: StatuslineServiceConfig) {
     // Build config from cascade: configService takes precedence, then direct config, then defaults
@@ -219,6 +232,8 @@ export class StatuslineService {
     this.currentSessionId = serviceConfig.currentSessionId
     this.hookInput = serviceConfig.hookInput
     this.logger = serviceConfig.logger
+    this.userConfigDir = serviceConfig.userConfigDir
+    this.projectDir = serviceConfig.projectDir
 
     this.stateReader = createStateReader(serviceConfig.sessionStateDir)
     this.gitProvider = createGitProvider(serviceConfig.cwd)
@@ -261,7 +276,8 @@ export class StatuslineService {
     // Parallel data fetch (critical for <50ms target)
     // Always fetch transcript metrics for currentContextTokens (needed for accurate post-compaction display)
     // When hookInput provided, we merge currentContextTokens from transcript into hook-based state
-    const [transcriptResult, summaryResult, resumeResult, snarkyResult, firstPromptResult, branchResult] =
+    // Also fetch baseline metrics for new session display (when current_usage is 0)
+    const [transcriptResult, summaryResult, resumeResult, snarkyResult, firstPromptResult, branchResult, baseline] =
       await Promise.all([
         this.stateReader.getSessionState(),
         this.stateReader.getSessionSummary(),
@@ -269,6 +285,7 @@ export class StatuslineService {
         this.stateReader.getSnarkyMessage(),
         this.stateReader.getFirstPromptSummary(),
         this.gitProvider.getCurrentBranch(),
+        this.readBaselineMetrics(),
       ])
 
     // Build state: use hook input if available, but always include currentContextTokens from transcript
@@ -301,7 +318,8 @@ export class StatuslineService {
       effectiveResumeData,
       snarkyResult.data,
       firstPromptResult.data,
-      branchResult.branch
+      branchResult.branch,
+      baseline
     )
 
     // Format output
@@ -357,10 +375,29 @@ export class StatuslineService {
   }
 
   /**
+   * Read baseline context metrics for new session display.
+   * Returns combined user + project baseline metrics, falling back to defaults if not available.
+   */
+  private async readBaselineMetrics(): Promise<ContextOverhead> {
+    if (this.userConfigDir && this.projectDir) {
+      try {
+        return await readContextOverhead({
+          userConfigDir: this.userConfigDir,
+          projectDir: this.projectDir,
+        })
+      } catch {
+        // Fall through to defaults
+      }
+    }
+    return getDefaultOverhead()
+  }
+
+  /**
    * Build the view model from raw state data.
    * Implements display mode selection per docs/design/FEATURE-STATUSLINE.md §6.2.
    *
    * Token data comes from hookInput's current_usage (Claude Code's statusline input).
+   * When current_usage is 0 (new session or /clear), uses baseline metrics.
    * Cost, duration, and model also come from hookInput.
    */
   private buildViewModel(
@@ -369,7 +406,8 @@ export class StatuslineService {
     resume: ResumeMessageState | null,
     snarkyMessage: string,
     firstPromptSummary: FirstPromptSummaryState | null,
-    branch: string
+    branch: string,
+    baseline: ContextOverhead
   ): StatuslineViewModel {
     // Determine display mode (confidence-aware per FEATURE-FIRST-PROMPT-SUMMARY.md §7.1)
     const displayMode = this.determineDisplayMode(summary, resume, firstPromptSummary)
@@ -388,10 +426,24 @@ export class StatuslineService {
     // current_usage resets on compact, so it accurately reflects post-compaction state
     const isIndeterminate = state.isPostCompactIndeterminate === true
     let effectiveTokens: number
+    let usingBaseline = false
 
     if (this.hookInput) {
       const usage = this.hookInput.context_window.current_usage
       effectiveTokens = usage.input_tokens + usage.cache_creation_input_tokens + usage.cache_read_input_tokens
+
+      // When current_usage is 0 (new session or /clear), use baseline estimate
+      // Baseline = systemPromptTokens + systemToolsTokens + mcpToolsTokens + customAgentsTokens + memoryFilesTokens
+      // Note: autocompactBufferTokens is NOT included as it's reserved buffer, not actual usage
+      if (effectiveTokens === 0) {
+        effectiveTokens =
+          baseline.systemPromptTokens +
+          baseline.systemToolsTokens +
+          baseline.mcpToolsTokens +
+          baseline.customAgentsTokens +
+          baseline.memoryFilesTokens
+        usingBaseline = true
+      }
     } else {
       // Fallback when no hook input (shouldn't happen in normal statusline flow)
       effectiveTokens = state.currentContextTokens ?? state.tokens.total
@@ -405,9 +457,20 @@ export class StatuslineService {
             contextWindowSize: this.hookInput.context_window.context_window_size,
           }
         : null,
+      baseline: usingBaseline
+        ? {
+            systemPromptTokens: baseline.systemPromptTokens,
+            systemToolsTokens: baseline.systemToolsTokens,
+            mcpToolsTokens: baseline.mcpToolsTokens,
+            customAgentsTokens: baseline.customAgentsTokens,
+            memoryFilesTokens: baseline.memoryFilesTokens,
+            usingDefaults: baseline.usingDefaults,
+          }
+        : null,
       calculation: {
         effectiveTokens,
         isIndeterminate,
+        usingBaseline,
       },
     })
 

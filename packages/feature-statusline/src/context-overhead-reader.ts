@@ -54,7 +54,7 @@ export interface ContextOverheadReaderConfig {
  * Read base token metrics from global state file.
  */
 async function readBaseMetrics(userConfigDir: string): Promise<BaseTokenMetricsState> {
-  const filePath = path.join(userConfigDir, 'state', 'base-token-metrics.json')
+  const filePath = path.join(userConfigDir, 'state', 'baseline-user-context-token-metrics.json')
   try {
     const content = await fs.readFile(filePath, 'utf-8')
     const parsed = BaseTokenMetricsStateSchema.safeParse(JSON.parse(content))
@@ -71,7 +71,7 @@ async function readBaseMetrics(userConfigDir: string): Promise<BaseTokenMetricsS
  * Read project context metrics from project state file.
  */
 async function readProjectMetrics(projectDir: string): Promise<ProjectContextMetrics> {
-  const filePath = path.join(projectDir, '.sidekick', 'state', 'project-context-metrics.json')
+  const filePath = path.join(projectDir, '.sidekick', 'state', 'baseline-project-context-token-metrics.json')
   try {
     const content = await fs.readFile(filePath, 'utf-8')
     const parsed = ProjectContextMetricsSchema.safeParse(JSON.parse(content))

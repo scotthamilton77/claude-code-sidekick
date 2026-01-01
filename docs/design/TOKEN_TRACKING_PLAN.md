@@ -176,4 +176,4 @@ function getDisplayTokens(metrics, baselineSystemPrompt): string {
 - **Transcript file with compaction**: `~/.claude/projects/-Users-scott-src-projects-claude-config/05e289e3-a996-4f2b-b25e-06a5b9285904.jsonl`
 - **Sidekick metrics**: `.sidekick/sessions/05e289e3-a996-4f2b-b25e-06a5b9285904/state/transcript-metrics.json`
 - **TranscriptService**: `packages/sidekick-core/src/transcript-service.ts`
-- **Baseline metrics**: `~/.sidekick/state/base-token-metrics.json`
+- **Baseline metrics**: `~/.sidekick/state/baseline-user-context-token-metrics.json`

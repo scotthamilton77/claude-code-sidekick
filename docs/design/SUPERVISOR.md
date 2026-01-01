@@ -442,8 +442,8 @@ if (content.includes('<local-command-stdout>') &&
 
 | File | Location | Contents | Updated When |
 |------|----------|----------|--------------|
-| `base-token-metrics.json` | `.sidekick/state/` | System prompt, system tools, autocompact buffer | Supervisor startup |
-| `project-context-metrics.json` | `.sidekick/state/` | MCP tools, custom agents, memory files | /context observed |
+| `baseline-user-context-token-metrics.json` | `~/.sidekick/state/` | System prompt, system tools, autocompact buffer | Supervisor startup |
+| `baseline-project-context-token-metrics.json` | `.sidekick/state/` | MCP tools, custom agents, memory files | /context observed |
 | `context-metrics.json` | `.sidekick/sessions/{id}/state/` | Full context metrics for this session | /context observed |
 
 #### Statusline Integration

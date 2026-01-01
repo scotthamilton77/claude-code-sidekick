@@ -37,11 +37,11 @@ const CLI_CAPTURE_TIMEOUT_MS = 30_000
 /** Retry interval after capture error (1 hour in ms) */
 const CAPTURE_RETRY_INTERVAL_MS = 60 * 60 * 1000
 
-/** Base metrics file name */
-const BASE_METRICS_FILE = 'base-token-metrics.json'
+/** Base metrics file name (user-level, in ~/.sidekick/state/) */
+const BASE_METRICS_FILE = 'baseline-user-context-token-metrics.json'
 
-/** Project metrics file name */
-const PROJECT_METRICS_FILE = 'project-context-metrics.json'
+/** Project metrics file name (project-level, in .sidekick/state/) */
+const PROJECT_METRICS_FILE = 'baseline-project-context-token-metrics.json'
 
 /** Session metrics file name */
 const SESSION_METRICS_FILE = 'context-metrics.json'

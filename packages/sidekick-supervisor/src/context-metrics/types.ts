@@ -27,7 +27,7 @@ export type MetricsSource = 'defaults' | 'context_command'
  * Base token metrics that are consistent across projects.
  * Captured once via `claude -p "/context"` and stored globally.
  *
- * Location: `~/.sidekick/state/base-token-metrics.json`
+ * Location: `~/.sidekick/state/baseline-user-context-token-metrics.json`
  */
 export const BaseTokenMetricsStateSchema = z.object({
   /** System prompt tokens (~3.2k) */
@@ -58,7 +58,7 @@ export type BaseTokenMetricsState = z.infer<typeof BaseTokenMetricsStateSchema>
  * Project-specific context metrics that vary per-project.
  * Updated when /context command output is observed in transcripts.
  *
- * Location: `.sidekick/state/project-context-metrics.json`
+ * Location: `.sidekick/state/baseline-project-context-token-metrics.json`
  */
 export const ProjectContextMetricsSchema = z.object({
   /** MCP tools tokens (variable per project) */
