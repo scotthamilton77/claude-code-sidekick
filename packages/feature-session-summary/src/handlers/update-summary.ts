@@ -95,6 +95,22 @@ async function loadCountdownState(ctx: SupervisorContext, sessionId: string): Pr
   }
 }
 
+/**
+ * Check if resume-message.json already exists for this session.
+ * Used to trigger initial resume generation even without pivot detection.
+ * @see docs/design/FEATURE-RESUME.md §3.2
+ */
+async function resumeMessageExists(ctx: SupervisorContext, sessionId: string): Promise<boolean> {
+  try {
+    const stateDir = ctx.paths.projectConfigDir ?? ctx.paths.userConfigDir
+    const resumePath = path.join(stateDir, 'sessions', sessionId, 'state', RESUME_FILE)
+    await fs.access(resumePath)
+    return true
+  } catch {
+    return false
+  }
+}
+
 async function saveCountdownState(
   ctx: SupervisorContext,
   sessionId: string,
@@ -277,9 +293,10 @@ async function performAnalysis(
     sideEffects.push(generateSnarkyMessage(ctx, sessionId, updatedSummary))
   }
 
-  // Resume message: generate when pivot detected (significant topic change)
-  if (updatedSummary.pivot_detected) {
-    // we don't need to proactively delete the old resume message - it's ok if that is stale for a short while
+  // Resume message: generate when pivot detected OR when no resume exists yet
+  // @see docs/design/FEATURE-RESUME.md §3.2: "a pivot was detected OR there is no resume-message.json already generated"
+  const hasResume = await resumeMessageExists(ctx, sessionId)
+  if (updatedSummary.pivot_detected || !hasResume) {
     sideEffects.push(generateResumeMessage(ctx, event.context, updatedSummary, transcript))
   }
 

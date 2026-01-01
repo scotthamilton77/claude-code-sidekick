@@ -230,6 +230,18 @@ describe('Session Summary Error Handling', () => {
   describe('JSON Extraction from Markdown Code Blocks', () => {
     it('extracts and parses JSON from ```json code block', async () => {
       const sessionId = 'test-session-markdown-json'
+      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
+      await fs.mkdir(stateDir, { recursive: true })
+
+      // Pre-create resume file so resume generation doesn't trigger
+      await fs.writeFile(
+        path.join(stateDir, 'resume-message.json'),
+        JSON.stringify({
+          resume_last_goal_message: 'Existing resume',
+          snarky_comment: 'Existing snarky',
+          timestamp: new Date().toISOString(),
+        })
+      )
 
       assets.register(
         'prompts/session-summary.prompt.txt',
@@ -254,7 +266,6 @@ describe('Session Summary Error Handling', () => {
       expect(warnLogs).toHaveLength(0)
 
       // Verify correct values were extracted and saved
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
       const statePath = path.join(stateDir, 'session-summary.json')
       const stateContent = JSON.parse(await fs.readFile(statePath, 'utf-8'))
 
