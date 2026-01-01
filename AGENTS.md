@@ -2,49 +2,46 @@
 
 ## Role
 
-Bash expert for dual-scope Claude Code hooks system (Sidekick), transitioning to Node/TypeScript runtime.
-
-**Current**: Bash runtime (`src/sidekick/`). Migration planned per `docs/ARCHITECTURE.md` and `docs/ROADMAP.md`.
+TypeScript/Bash developer for Claude Code hooks system (Sidekick).
 
 ## Constraints [PRESERVE]
 
 - **No backward compatibility**: Single-user project, breaking changes allowed
-- **Dual-scope testing**: Must work identically in `.claude/` and `~/.claude/` contexts
+- **Dual-scope**: Must work identically in `.claude/` and `~/.claude/`
 - **Install authorization**: Abort unless user message contains exact word "install" or "uninstall"
-- **Timestamp sync**: Sync file timestamps when copying files (install, runtime)
-- **Restart required**: Hook changes require `claude --continue` restart
-- **LLM test isolation**: Provider tests excluded from default runs (expensive API calls)
-- **Zod version conflict**: `openai@4.x` wants `zod@^3.23.8`, workspace uses `zod@^4.1.13`—accept warning until OpenAI 6.x
+- **Timestamp sync**: Preserve file timestamps when copying (install, runtime)
+- **Hook changes**: Require `claude --continue` restart
+- **LLM tests**: Provider tests excluded from default runs (expensive API calls)
 
 ## Critical Directives
 
-- **Architecture questions**: Cite `docs/ARCHITECTURE.md §N` or `docs/design/FOO.md §N`, don't guess
+- **Architecture questions**: Cite `docs/ARCHITECTURE.md §N` or `docs/design/FOO.md §N`—don't guess
+- **Verification**: Run `pnpm build && pnpm typecheck` before completion—build excludes test files
 
 ## Project Structure
 
 ```
-src/sidekick/           # Source (edit here)
-├── features/*.sh       # Plugins (add features here)
-├── handlers/*.sh       # Framework (NEVER edit)
-├── lib/*.sh            # Shared libs
-└── *.defaults          # Config domains (4 files)
+src/sidekick/           # LEGACY CODE - WILL EVENTUALLY BE DELETED
 
 scripts/
 ├── install.sh          # Deploy --user, --project, or --both
-├── dev-mode.sh         # Toggle dev-mode hooks (see below)
+├── dev-mode.sh         # enable|disable|status|clean
 ├── dev-hooks/          # Thin wrappers → workspace CLI
 ├── analyze-session-at-line.sh  # Surgical session debug
 ├── simulate-session.py         # Session simulation
 └── tests/              # run-unit-tests.sh (mocked, free)
 
 packages/               # Node/TS migration workspace (see docs/ARCHITECTURE.md)
-├── sidekick-core/     # Core runtime library
-├── sidekick-supervisor/ # Orchestration layer
-├── sidekick-cli/      # CLI wrapper
-├── sidekick-ui/       # Monitoring UI (React SPA mockup)
-├── shared-providers/  # LLM provider abstractions
-├── testing-fixtures/  # Test utilities
-└── types/             # Shared TypeScript types
+├── types/             # Shared TypeScript types (leaf dependency)
+├── sidekick-core/     # Core runtime: config, logging, IPC, transcript, services
+├── shared-providers/  # LLM provider abstractions (OpenRouter default)
+├── testing-fixtures/  # Test utilities and mocks
+├── feature-reminders/ # Reminder staging/consumption (pause-and-reflect, verify-completion)
+├── feature-session-summary/ # LLM-based conversation analysis
+├── feature-statusline/ # Token tracking, context bar, git branch display
+├── sidekick-supervisor/ # Orchestration: session management, context metrics
+├── sidekick-cli/      # CLI wrapper and hook dispatcher
+└── sidekick-ui/       # Monitoring UI (React SPA mockup)
 
 assets/sidekick/defaults/  # External YAML defaults (see README.md inside)
 ├── core.defaults.yaml     # logging, paths, supervisor, ipc
@@ -55,61 +52,15 @@ assets/sidekick/defaults/  # External YAML defaults (see README.md inside)
 benchmark-next/         # ⚠️ STALE—see benchmark-next/AGENTS.md
 ```
 
-## Commands
+## Dev-Mode
 
-| Task | Command |
-|------|---------|
-| Build | `pnpm build` (from root, never bare `tsc`) |
-| Typecheck (incl tests) | `pnpm typecheck` |
-| Lint | `pnpm lint` (zero warnings) |
-| Coverage | `pnpm test:coverage` |
-| Clean artifacts | `find packages/*/src \( -name "*.js" -o -name "*.d.ts" \) -delete` |
-| Dev-mode enable | `scripts/dev-mode.sh enable` |
-| Dev-mode disable | `scripts/dev-mode.sh disable` |
-| Dev-mode status | `scripts/dev-mode.sh status` |
-| Dev-mode clean | `scripts/dev-mode.sh clean` (truncate logs, kill supervisor, check zombies) |
-
-⚠️ Run **both** `pnpm build` AND `pnpm typecheck` before completion—build excludes test files.
-
-## Dev-Mode Testing
-
-Dev-mode allows testing the TypeScript CLI (`packages/sidekick-cli/dist/bin.js`) without a full install. It registers hooks in `.claude/settings.local.json` pointing to `scripts/dev-hooks/`, which delegate to the workspace CLI.
-
-**Enable**: `scripts/dev-mode.sh enable` → registers all 7 hooks + statusline
-**Disable**: `scripts/dev-mode.sh disable` → removes dev hooks
-**Check status**: `scripts/dev-mode.sh status` → shows enabled/disabled + CLI build state
-
-**How to tell if enabled**:
-- Run `scripts/dev-mode.sh status` (shows `Dev-mode: ENABLED/DISABLED`)
-- Check `.claude/settings.local.json` for hooks containing `dev-hooks` in path
-
-**Prerequisites**: `pnpm build` (CLI must be built). After enable/disable, restart Claude Code.
-
-## Reference Docs
-
-```
-docs/
-├── ARCHITECTURE.md        # High-level target architecture
-├── ROADMAP.md             # Phased migration roadmap (task tracking)
-└── design/                # Low-level design specifications
-    ├── CLI.md             # CLI framework, hook dispatcher
-    ├── CONFIG-SYSTEM.md   # Configuration cascade, YAML schemas
-    ├── CORE-RUNTIME.md    # RuntimeContext, services, bootstrap
-    ├── SUPERVISOR.md      # Background process, IPC, state mgmt
-    ├── TRANSCRIPT-PROCESSING.md  # TranscriptService, metrics
-    ├── STRUCTURED-LOGGING.md     # Pino logging, event schema
-    ├── SCHEMA-CONTRACTS.md       # Zod schemas, type contracts
-    ├── LLM-PROVIDERS.md          # Provider adapters, retry/fallback
-    ├── TEST-FIXTURES.md          # Mocks, factories, test harnesses
-    ├── flow.md                   # Complete event flows
-    └── FEATURE-*.md              # Feature-specific designs
-```
+Test TS CLI without install: `scripts/dev-mode.sh enable` (requires `pnpm build` first, restart Claude Code after).
 
 ## TypeScript Tooling [PRESERVE]
 
 Post-training-cutoff versions—use context7 for current docs:
 
-**Explicit Versions**: eslint 9.39.1, typescript-eslint 8.48.0, typescript 5.9.3
+**Versions**: eslint 9.39.1, typescript-eslint 8.48.0, typescript 5.9.3
 
 **ESLint v9 Flat Config** (Claude trained on legacy `.eslintrc.*`):
 - Config: `eslint.config.js` with `export default []`

@@ -38,8 +38,20 @@ core ← testing-fixtures
   ↑
 shared-providers
   ↑
-cli, supervisor (consumers)
+feature-reminders, feature-session-summary, feature-statusline
+  ↑
+supervisor (orchestration, context metrics)
+  ↑
+cli (hook dispatcher)
 ```
+
+## Feature Packages
+
+| Package | Purpose |
+|---------|---------|
+| `feature-reminders` | Reminder staging/consumption: pause-and-reflect, verify-completion |
+| `feature-session-summary` | LLM-based conversation analysis with adaptive polling |
+| `feature-statusline` | Token tracking, context bar, git branch, session title |
 
 ## Commands
 

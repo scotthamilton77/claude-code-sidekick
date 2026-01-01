@@ -191,14 +191,13 @@ The Sidekick system provides a **plugin-based hook architecture** that executes 
 - Plugins implement hook functions (e.g., `tracking_on_user_prompt_submit()`) which get invoked if defined
 - **Dependency resolution** ensures plugins load in correct order (e.g., reminder loads after tracking)
 
-**Available Plugins** (7 total):
+**Available Plugins** (6 total):
 
 - **session-summary**: LLM-based conversation analysis with adaptive polling
 - **resume**: Async background resume generation when session summary changes significantly
-- **statusline**: Enhanced statusline with token tracking, git branch, session title display
+- **statusline**: Enhanced statusline with token tracking, context bar, git branch display
 - **tracking**: Turn and tool counters for session management
-- **reminder**: Three-tier reminder system (turn-cadence, tool-cadence, tools-per-turn) with independent thresholds
-- **post-tool-use**: Tool activity tracking with cadence-based and threshold-based reminders
+- **reminder**: Two-tier reminder system: pause-and-reflect (tool cadence) and verify-completion (stop hook)
 - **cleanup**: Automatic garbage collection of old session directories
 
 **Plugin Features**:
@@ -419,12 +418,11 @@ Sidekick prompts and reminders use a 4-level file cascade, allowing you to overr
 3. `.claude/hooks/sidekick/prompts/` - Project installed (ephemeral)
 4. `.sidekick/prompts/` - Project persistent (git-committable)
 
-**Reminders** (four types):
+**Reminders** (three types):
 
-1. `user-prompt-submit-reminder.txt` - Fires every N user prompts (default: 4)
-2. `post-tool-use-cadence-reminder.txt` - Fires every N total tool calls (default: 50)
-3. `post-tool-use-stuck-reminder.txt` - Fires when single turn exceeds threshold (default: 20 tools, interruptive)
-4. `pre-completion-reminder.txt` - Fires when conversation stops after file modifications (Write/Edit/MultiEdit/NotebookEdit), blocks stop to verify completion
+1. `user-prompt-submit.yaml` - Fires on each user prompt submission
+2. `pause-and-reflect.yaml` - Unified cadence-based reminder (replaces are-you-stuck and time-for-user-update); fires based on tool count threshold (default: 40)
+3. `verify-completion.yaml` - Fires on stop hook after file modifications; includes source code pattern filtering to reduce false positives
 
 Each reminder type uses the same 4-level cascade:
 
@@ -435,13 +433,16 @@ Each reminder type uses the same 4-level cascade:
 
 **Reminder Templates**: The install script creates `.template` files for all three types in both `~/.sidekick/reminders/` (user scope) and `.sidekick/reminders/` (project scope). **Rename to remove `.template` suffix to activate your custom reminder**.
 
-**Configuration**:
+**Configuration** (via `assets/sidekick/defaults/features/reminders.defaults.yaml`):
 
-```bash
-# config.defaults or sidekick.conf
-USER_PROMPT_CADENCE=4              # Every 4 user prompts
-POST_TOOL_USE_CADENCE=50           # Every 50 total tool calls
-POST_TOOL_USE_STUCK_THRESHOLD=20   # When single turn exceeds 20 tools
+```yaml
+reminders:
+  pause_and_reflect_threshold: 40  # Tool count threshold for pause-and-reflect
+  verify_completion:
+    enabled: true
+    source_patterns:                # Skip verification for these file patterns
+      - "*.test.ts"
+      - "*.spec.ts"
 ```
 
 **Usage Examples**:
@@ -449,18 +450,18 @@ POST_TOOL_USE_STUCK_THRESHOLD=20   # When single turn exceeds 20 tools
 ```bash
 # Override session summary prompt for all projects
 mkdir -p ~/.sidekick/prompts
-cp ~/.claude/hooks/sidekick/prompts/session-summary.prompt.txt ~/.sidekick/prompts/
+cp assets/sidekick/prompts/session-summary.prompt.txt ~/.sidekick/prompts/
 # Edit ~/.sidekick/prompts/session-summary.prompt.txt
 
-# Override turn-cadence reminder for this project (using template)
-mv .sidekick/reminders/turn-cadence-reminder.txt.template .sidekick/reminders/turn-cadence-reminder.txt
-# Edit .sidekick/reminders/turn-cadence-reminder.txt
-git add .sidekick/reminders/turn-cadence-reminder.txt
-git commit -m "Add custom turn-cadence reminder"
+# Override pause-and-reflect reminder for this project
+cp assets/sidekick/reminders/pause-and-reflect.yaml .sidekick/reminders/
+# Edit .sidekick/reminders/pause-and-reflect.yaml
+git add .sidekick/reminders/pause-and-reflect.yaml
+git commit -m "Add custom pause-and-reflect reminder"
 
-# Override tools-per-turn reminder for all projects (using template)
-mv ~/.sidekick/reminders/tools-per-turn-reminder.txt.template ~/.sidekick/reminders/tools-per-turn-reminder.txt
-# Edit ~/.sidekick/reminders/tools-per-turn-reminder.txt
+# Override verify-completion reminder for all projects
+cp assets/sidekick/reminders/verify-completion.yaml ~/.sidekick/reminders/
+# Edit ~/.sidekick/reminders/verify-completion.yaml
 ```
 
 The first existing file in the cascade wins. Use `.sidekick/` for persistent overrides that survive install/uninstall.
@@ -471,27 +472,34 @@ The Sidekick system is being migrated from Bash to Node/TypeScript for improved 
 
 ### Current Status
 
-| Phase   | Description                      | Status   |
-| ------- | -------------------------------- | -------- |
-| Phase 1 | Bootstrap CLI & Runtime Skeleton | Complete |
-| Phase 2 | Configuration & Asset Resolution | Complete |
-| Phase 3 | Structured Logging & Telemetry   | Complete |
-| Phase 4 | Core Services & Providers        | Pending  |
-| Phase 5 | Supervisor & Background Tasks    | Pending  |
-| Phase 6 | Feature Enablement & Integration | Pending  |
-| Phase 7 | Installation & Distribution      | Pending  |
+| Phase   | Description                      | Status      |
+| ------- | -------------------------------- | ----------- |
+| Phase 1 | Bootstrap CLI & Runtime Skeleton | Complete    |
+| Phase 2 | Configuration & Asset Resolution | Complete    |
+| Phase 3 | Structured Logging & Telemetry   | Complete    |
+| Phase 4 | Core Services & Providers        | Complete    |
+| Phase 5 | Supervisor & Background Tasks    | Complete    |
+| Phase 6 | Feature Enablement & Integration | In Progress |
+| Phase 7 | Installation & Distribution      | Pending     |
 
 ### Package Structure
 
 ```
 packages/
-├── sidekick-cli/     # CLI entrypoint and runtime bootstrap
-└── sidekick-core/    # Core services (config, assets, logging, scope)
+├── types/                   # Shared TypeScript types
+├── sidekick-core/           # Core services (config, transcript, logging, scope)
+├── shared-providers/        # LLM provider abstractions (OpenRouter default)
+├── feature-reminders/       # Reminder staging (pause-and-reflect, verify-completion)
+├── feature-session-summary/ # LLM-based conversation analysis
+├── feature-statusline/      # Token tracking, context bar, git branch
+├── sidekick-supervisor/     # Orchestration, context metrics, session management
+├── sidekick-cli/            # CLI entrypoint and hook dispatcher
+└── sidekick-ui/             # Monitoring UI (React SPA mockup)
 
-assets/sidekick/      # Shared prompts, schemas, templates
+assets/sidekick/             # Shared prompts, schemas, defaults
+├── defaults/                # External YAML defaults (config cascade layer 0)
 ├── prompts/
-├── schemas/
-└── templates/
+└── reminders/
 ```
 
 ### Running the Node CLI (Development)
