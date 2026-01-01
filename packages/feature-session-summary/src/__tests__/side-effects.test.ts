@@ -178,6 +178,16 @@ describe('Session Summary Side-Effects', () => {
         })
       )
 
+      // Pre-create resume file so resume generation doesn't trigger
+      await fs.writeFile(
+        path.join(stateDir, 'resume-message.json'),
+        JSON.stringify({
+          resume_last_goal_message: 'Existing resume',
+          snarky_comment: 'Existing snarky',
+          timestamp: new Date().toISOString(),
+        })
+      )
+
       // LLM returns same title/intent
       llm.queueResponse(
         JSON.stringify({
@@ -230,10 +240,51 @@ describe('Session Summary Side-Effects', () => {
       expect(resumeContent.snarky_comment).toBe('Back from the void, ready to refactor?')
     })
 
-    it('does not generate resume message when pivot is not detected', async () => {
+    it('generates resume message when no resume exists (even without pivot)', async () => {
       const sessionId = 'test-session-5'
       const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
       await fs.mkdir(stateDir, { recursive: true })
+
+      // Queue LLM responses: 1) summary without pivot, 2) resume message
+      llm.queueResponses([
+        JSON.stringify({
+          session_title: 'Continuing work',
+          session_title_confidence: 0.9,
+          latest_intent: 'Same task',
+          latest_intent_confidence: 0.9,
+          pivot_detected: false,
+        }),
+        JSON.stringify({
+          resume_message: 'Ready to continue?',
+          snarky_welcome: 'Back already?',
+        }),
+      ])
+
+      await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+
+      // Should have 2 LLM calls (summary + resume) since no resume exists
+      expect(llm.recordedRequests).toHaveLength(2)
+
+      // Resume file should exist
+      const resumePath = path.join(stateDir, 'resume-message.json')
+      const resumeContent = JSON.parse(await fs.readFile(resumePath, 'utf-8'))
+      expect(resumeContent.resume_last_goal_message).toBe('Ready to continue?')
+    })
+
+    it('does not regenerate resume message when resume exists and no pivot', async () => {
+      const sessionId = 'test-session-5b'
+      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
+      await fs.mkdir(stateDir, { recursive: true })
+
+      // Pre-create resume file
+      await fs.writeFile(
+        path.join(stateDir, 'resume-message.json'),
+        JSON.stringify({
+          resume_last_goal_message: 'Original resume',
+          snarky_comment: 'Original snarky',
+          timestamp: new Date().toISOString(),
+        })
+      )
 
       llm.queueResponse(
         JSON.stringify({
@@ -247,12 +298,13 @@ describe('Session Summary Side-Effects', () => {
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
 
-      // Should only have 1 LLM call (summary)
+      // Should only have 1 LLM call (summary) - resume already exists
       expect(llm.recordedRequests).toHaveLength(1)
 
-      // No resume file should exist
+      // Resume file should still have original content
       const resumePath = path.join(stateDir, 'resume-message.json')
-      await expect(fs.access(resumePath)).rejects.toThrow()
+      const resumeContent = JSON.parse(await fs.readFile(resumePath, 'utf-8'))
+      expect(resumeContent.resume_last_goal_message).toBe('Original resume')
     })
 
     it('does not generate resume message when confidence is below threshold', async () => {
