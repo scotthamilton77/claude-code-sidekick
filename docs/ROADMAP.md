@@ -215,6 +215,7 @@ Closed gaps for production-ready monitoring UI. Key outcomes:
   - code documentation updates (file, method, key data structures)
   - Refactoring opportunity: several files contain implementation blocks for all hooks or all features together in the same file. this is a smell.  Ideally we keep all feature and hook logic separate from each other and register handlers centrally.
   - Refactoring opportunity: configuration defaults in both files and code - DRY!!
+  - Redesign opportunity: supervisor and CLI sometimes need the same files (e.g. supervisor writes metrics files, CLI reads them, supervisor stages reminders, CLI reads and renames them).  I want to make sure that where these points of coupling exist, there should be domain-specific code, e.g. the feature owns both the supervisor and CLI domain-specific behaviors.  The actual supervisor core and CLI core should NOT be coupled on domain-specific nuances.
 
 - [ ] **Phase 9: Feature Parity and Legacy Cleanup**
   - [ ] Objectives

@@ -381,15 +381,24 @@ export class StatuslineService {
   private async readBaselineMetrics(): Promise<ContextOverhead> {
     if (this.userConfigDir && this.projectDir) {
       try {
-        return await readContextOverhead({
+        this.logger?.debug('Reading baseline context overhead metrics', {
           userConfigDir: this.userConfigDir,
           projectDir: this.projectDir,
         })
-      } catch {
+        const overhead = await readContextOverhead({
+          userConfigDir: this.userConfigDir,
+          projectDir: this.projectDir,
+        })
+        this.logger?.debug('Successfully read baseline context overhead metrics', { overhead })
+        return overhead
+      } catch (error) {
+        this.logger?.warn('Failed to read baseline context overhead metrics, using defaults', { error })
         // Fall through to defaults
       }
     }
-    return getDefaultOverhead()
+    const defaultOverhead = getDefaultOverhead()
+    this.logger?.debug('Using default baseline context overhead metrics', { defaultOverhead })
+    return defaultOverhead
   }
 
   /**
