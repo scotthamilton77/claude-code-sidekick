@@ -295,15 +295,13 @@ export class StatuslineService {
     }
 
     // Build view model
-    // Pass transcript source so we can handle missing file correctly (use 0 tokens, not hook fallback)
     const viewModel = this.buildViewModel(
       stateResult.data,
       summaryResult.data,
       effectiveResumeData,
       snarkyResult.data,
       firstPromptResult.data,
-      branchResult.branch,
-      transcriptResult.source
+      branchResult.branch
     )
 
     // Format output
@@ -362,12 +360,8 @@ export class StatuslineService {
    * Build the view model from raw state data.
    * Implements display mode selection per docs/design/FEATURE-STATUSLINE.md §6.2.
    *
-   * Token data comes from TranscriptMetricsState (persisted to disk).
-   * Cost, duration, and model come from hookInput (Claude Code's statusline input).
-   *
-   * @param transcriptSource - Source of transcript data ('fresh', 'stale', or 'default').
-   *   When 'default', the transcript-metrics.json file was missing (new session),
-   *   so we use 0 tokens instead of falling back to hook input.
+   * Token data comes from hookInput's current_usage (Claude Code's statusline input).
+   * Cost, duration, and model also come from hookInput.
    */
   private buildViewModel(
     state: TranscriptMetricsState,
@@ -375,8 +369,7 @@ export class StatuslineService {
     resume: ResumeMessageState | null,
     snarkyMessage: string,
     firstPromptSummary: FirstPromptSummaryState | null,
-    branch: string,
-    transcriptSource: 'fresh' | 'stale' | 'default'
+    branch: string
   ): StatuslineViewModel {
     // Determine display mode (confidence-aware per FEATURE-FIRST-PROMPT-SUMMARY.md §7.1)
     const displayMode = this.determineDisplayMode(summary, resume, firstPromptSummary)
@@ -391,44 +384,30 @@ export class StatuslineService {
     )
 
     // Calculate effective tokens for display
-    // When transcript-metrics.json is missing (transcriptSource === 'default'), this is a new
-    // session and we should show 0 tokens, not fall back to hook input which are cumulative.
-    // When file exists, use currentContextTokens from API usage (resets on compact, clean).
-    const hookTokens = this.hookInput
-      ? this.hookInput.context_window.total_input_tokens + this.hookInput.context_window.total_output_tokens
-      : Infinity
-
-    // Handle post-compact indeterminate state
+    // Use current_usage from hook input: sum of input + cache tokens represents actual context window usage
+    // current_usage resets on compact, so it accurately reflects post-compaction state
     const isIndeterminate = state.isPostCompactIndeterminate === true
-    const transcriptContextTokens =
-      transcriptSource === 'default'
-        ? 0 // New session - no transcript-metrics.json yet, use 0 not hook fallback
-        : isIndeterminate
-          ? 0 // Post-compact, waiting for first API response
-          : (state.currentContextTokens ?? state.tokens.total)
-    const effectiveTokens = Math.min(hookTokens, transcriptContextTokens)
+    let effectiveTokens: number
+
+    if (this.hookInput) {
+      const usage = this.hookInput.context_window.current_usage
+      effectiveTokens = usage.input_tokens + usage.cache_creation_input_tokens + usage.cache_read_input_tokens
+    } else {
+      // Fallback when no hook input (shouldn't happen in normal statusline flow)
+      effectiveTokens = state.currentContextTokens ?? state.tokens.total
+    }
 
     // Debug logging for token calculation tracing
     this.logger?.debug('Statusline token calculation', {
       hookInput: this.hookInput
         ? {
-            totalInputTokens: this.hookInput.context_window.total_input_tokens,
-            totalOutputTokens: this.hookInput.context_window.total_output_tokens,
+            currentUsage: this.hookInput.context_window.current_usage,
             contextWindowSize: this.hookInput.context_window.context_window_size,
           }
         : null,
-      transcriptState: {
-        currentContextTokens: state.currentContextTokens,
-        tokensTotal: state.tokens.total,
-        isPostCompactIndeterminate: state.isPostCompactIndeterminate,
-      },
       calculation: {
-        hookTokens,
-        transcriptContextTokens,
-        transcriptSource,
-        isIndeterminate,
         effectiveTokens,
-        winner: hookTokens < transcriptContextTokens ? 'hook' : 'transcript',
+        isIndeterminate,
       },
     })
 

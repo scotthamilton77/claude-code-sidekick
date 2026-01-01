@@ -970,7 +970,8 @@ describe('StatuslineService', () => {
 
     expect(result.displayMode).toBe('session_summary')
     expect(result.viewModel.model).toBe('3-5-sonnet')
-    expect(result.viewModel.tokens).toBe('45k')
+    // Token count uses current_usage: input_tokens + cache tokens (30k, not total 45k)
+    expect(result.viewModel.tokens).toBe('30k')
     expect(result.viewModel.title).toBe('Auth bug fix')
   })
 
