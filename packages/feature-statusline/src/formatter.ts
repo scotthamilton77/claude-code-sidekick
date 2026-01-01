@@ -287,8 +287,9 @@ export function createFormatter(config: FormatterConfig): Formatter {
  */
 const BAR_CHARS = {
   filled: '▓',
+  buffer: '▒',
   empty: '░',
-  threshold: '│',
+  threshold: '|',
 } as const
 
 /**
@@ -307,18 +308,20 @@ function getContextBarColor(status: ContextBarStatus): string {
 }
 
 /**
- * Format context bar with 8 characters showing usage relative to compaction threshold.
+ * Format context bar with 8 characters showing usage relative to context window.
  *
  * Layout (8 chars):
- * - Positions 0-5: Main context area (0-75% of window)
- * - Position 6: Threshold marker │ (~77.5% compaction point)
- * - Position 7: Autocompact buffer zone (87.5-100%)
+ * - Left portion: Context tokens consumed (▓ filled, colored by status)
+ * - Middle portion: Autocompact buffer (~45k, ▒ medium shade, dimmed)
+ * - Threshold marker: | (compaction point)
+ * - Right portion: Remaining available context (░ empty)
  *
  * Example outputs:
- * - Low usage:    🪙 ▓▓░░░░│░
- * - Medium usage: 🪙 ▓▓▓▓░░│░
- * - High usage:   🪙 ▓▓▓▓▓▓│░
- * - Over limit:   🪙 ▓▓▓▓▓▓▓│
+ * - Low usage:    🪙 ▓▒|░░░░░
+ * - Medium usage: 🪙 ▓▓▒|░░░░
+ * - High usage:   🪙 ▓▓▓▓▒|░░
+ *
+ * Token counts are displayed separately via the {tokens} template placeholder.
  *
  * @param contextUsage - Context usage data from hook metrics
  * @param useColors - Whether to apply ANSI colors
@@ -329,27 +332,35 @@ export function formatContextBar(contextUsage: ContextUsageData | undefined, use
     return ''
   }
 
-  const { totalTokens, contextWindowSize, status } = contextUsage
+  const { contextTokens, bufferTokens, contextWindowSize, status } = contextUsage
 
-  // Calculate how many of the first 6 positions should be filled
-  // Each of the 6 positions represents 1/8 of the context window (12.5% each)
-  // Position 6 is the threshold marker, position 7 is buffer
-  const tokensPerPosition = contextWindowSize / 8
-  const filledPositions = Math.min(7, Math.floor(totalTokens / tokensPerPosition))
+  // Calculate positions proportionally to context window
+  // Total bar width is 8 characters (excluding threshold marker)
+  const BAR_WIDTH = 8
+  const tokensPerPosition = contextWindowSize / BAR_WIDTH
+
+  // Calculate filled positions for context and buffer
+  const contextPositions = Math.min(BAR_WIDTH, Math.floor(contextTokens / tokensPerPosition))
+  const bufferPositions = Math.min(
+    BAR_WIDTH - contextPositions,
+    Math.max(1, Math.floor(bufferTokens / tokensPerPosition))
+  )
+  const thresholdPosition = contextPositions + bufferPositions
 
   // Build the bar
   const barParts: string[] = []
 
-  // Positions 0-5: Main context area
-  for (let i = 0; i < 6; i++) {
-    barParts.push(i < filledPositions ? BAR_CHARS.filled : BAR_CHARS.empty)
+  for (let i = 0; i < BAR_WIDTH; i++) {
+    if (i < contextPositions) {
+      barParts.push(BAR_CHARS.filled)
+    } else if (i < thresholdPosition) {
+      barParts.push(BAR_CHARS.buffer)
+    } else if (i === thresholdPosition && thresholdPosition < BAR_WIDTH) {
+      barParts.push(BAR_CHARS.threshold)
+    } else {
+      barParts.push(BAR_CHARS.empty)
+    }
   }
-
-  // Position 6: Threshold marker (always │)
-  barParts.push(BAR_CHARS.threshold)
-
-  // Position 7: Buffer zone (filled if usage exceeds threshold)
-  barParts.push(filledPositions >= 7 ? BAR_CHARS.filled : BAR_CHARS.empty)
 
   const bar = barParts.join('')
 
@@ -357,12 +368,21 @@ export function formatContextBar(contextUsage: ContextUsageData | undefined, use
     return `🪙 ${bar}`
   }
 
-  // Apply color to the filled portion only
+  // Apply colors: context portion gets status color, buffer gets dim
   const color = getContextBarColor(status)
-  const filledPart = bar.slice(0, filledPositions)
-  const restPart = bar.slice(filledPositions)
+  let coloredBar = ''
 
-  return `🪙 ${color}${filledPart}${ANSI.reset}${restPart}`
+  for (let i = 0; i < BAR_WIDTH; i++) {
+    if (i < contextPositions) {
+      coloredBar += `${color}${barParts[i]}${ANSI.reset}`
+    } else if (i < thresholdPosition) {
+      coloredBar += `${ANSI.dim}${barParts[i]}${ANSI.reset}`
+    } else {
+      coloredBar += barParts[i]
+    }
+  }
+
+  return `🪙 ${coloredBar}`
 }
 
 /**
@@ -380,36 +400,33 @@ export function getContextBarStatus(usageFraction: number): ContextBarStatus {
 /**
  * Calculate context usage data from hook metrics.
  *
- * @param totalInputTokens - Input tokens from hook
- * @param totalOutputTokens - Output tokens from hook
+ * @param contextTokens - Context tokens (conversation content)
+ * @param bufferTokens - Autocompact buffer tokens (~45k reserved)
  * @param contextWindowSize - Context window size from hook
- * @param overheadTokens - Optional overhead tokens (system prompt, tools, etc.)
- *                         If not provided, uses fallback of 22.5% of window
  * @returns Context usage data for bar rendering
  */
 export function calculateContextUsage(
-  totalInputTokens: number | undefined,
-  totalOutputTokens: number | undefined,
-  contextWindowSize: number | undefined,
-  overheadTokens?: number
+  contextTokens: number | undefined,
+  bufferTokens: number | undefined,
+  contextWindowSize: number | undefined
 ): ContextUsageData | undefined {
   if (!contextWindowSize || contextWindowSize <= 0) {
     return undefined
   }
 
-  const totalTokens = (totalInputTokens ?? 0) + (totalOutputTokens ?? 0)
+  const effectiveContext = contextTokens ?? 0
+  const effectiveBuffer = bufferTokens ?? 0
+  const totalTokens = effectiveContext + effectiveBuffer
 
-  // Effective limit = context window - overhead
-  // If no overhead provided, fall back to ~77.5% of window (legacy behavior)
-  const effectiveLimit =
-    overheadTokens !== undefined
-      ? Math.max(0, contextWindowSize - overheadTokens)
-      : Math.floor(contextWindowSize * 0.775)
+  // Effective limit = context window - buffer
+  const effectiveLimit = Math.max(0, contextWindowSize - effectiveBuffer)
 
   // Usage fraction relative to effective limit
-  const usageFraction = effectiveLimit > 0 ? totalTokens / effectiveLimit : 1
+  const usageFraction = effectiveLimit > 0 ? effectiveContext / effectiveLimit : 1
 
   return {
+    contextTokens: effectiveContext,
+    bufferTokens: effectiveBuffer,
     totalTokens,
     contextWindowSize,
     effectiveLimit,
