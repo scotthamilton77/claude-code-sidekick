@@ -12,11 +12,6 @@ This repository serves as a development and testing environment for [Claude Code
 
 ### Sidekick
 
-- statusline token usage
-  - compact not properly detected - need to catch the compact_boundary event and the user content message after and size that?
-  - TEST: does the counter closely track claude's POV?
-  - TEST: does it reset properly on clean?
-  - TEST: does it go to "compacted" and then catch the next usage metrics properly?
 - statusline always says (stale)?
   - look at transcript summary type messages - are these useful?
   - Also, shouldn't this update more often during the convo?
