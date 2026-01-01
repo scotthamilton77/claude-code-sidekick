@@ -265,6 +265,8 @@ export async function routeCommand(context: {
 }): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   const { parsed, runtime, hookInput, stdout, supervisorStarted } = context
 
+  runtime.logger.debug('Raw hook input', { hookInput })
+
   // Handle hook commands by dispatching to supervisor (Phase 8)
   // Per docs/design/flow.md §5: CLI sends event to Supervisor via IPC
   if (parsed.hookMode && hookInput && runtime.scope.projectRoot) {
