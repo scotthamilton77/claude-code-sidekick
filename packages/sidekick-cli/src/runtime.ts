@@ -59,6 +59,12 @@ export interface RuntimeShell {
   assets: AssetResolver
   correlationId: string
   cleanup: () => void
+  /**
+   * Bind sessionId to the logger context.
+   * Should be called once after sessionId is parsed from hook input.
+   * All subsequent log calls will include sessionId in the context.
+   */
+  bindSessionId: (sessionId: string) => void
 }
 
 function getLogFilePath(scope: ScopeResolution): string {
@@ -98,7 +104,8 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
   const effectiveLogLevel = options.logLevel ?? config.core.logging.level
 
   // Build context for structured logs
-  const logContext: LogContext = {
+  // Use let so we can update with sessionId later
+  let logContext: LogContext = {
     scope: scope.scope,
     correlationId,
     command: options.command,
@@ -144,7 +151,8 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
   })
 
   // Get the logger and telemetry from the log manager
-  const logger = logManager.getLogger()
+  // Use mutable reference so bindSessionId can update it
+  let logger = logManager.getLogger()
   const telemetry = logManager.getTelemetry()
 
   // Set up global error handlers
@@ -179,8 +187,11 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
   }
 
   // Return the runtime shell
+  // Use getter for logger so bindSessionId updates are reflected
   return {
-    logger,
+    get logger() {
+      return logger
+    },
     telemetry,
     scope,
     config,
@@ -188,6 +199,25 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
     correlationId,
     cleanup: () => {
       cleanupErrorHandlers()
+    },
+    bindSessionId: (sessionId: string) => {
+      // Update logContext and recreate the logger with sessionId included
+      // This avoids duplicate context keys that would result from using child()
+      logContext = { ...logContext, sessionId }
+      const newLogManager = createLogManager({
+        name: scope.scope === 'project' ? 'sidekick:cli' : 'sidekick:cli:user',
+        level: effectiveLogLevel,
+        context: logContext,
+        destinations: {
+          file: enableFileLogging ? { path: logFilePath } : undefined,
+          console: {
+            enabled: isInteractive,
+            pretty: isInteractive,
+            stream: options.stderrSink,
+          },
+        },
+      })
+      logger = newLogManager.getLogger()
     },
   }
 }
