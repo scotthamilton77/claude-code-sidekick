@@ -40,7 +40,7 @@ export {
  */
 export const StatuslineConfigSchema = z.object({
   enabled: z.boolean().default(true),
-  format: z.string().default('[{model}] | {contextBar} {tokens} | {cwd}{branch} | {summary}'),
+  format: z.string().default('[{model}] | {contextBar} {tokens} | {cwd}{branch} | {title} | {summary}'),
   /** Confidence threshold for preferring session summary over first-prompt */
   confidenceThreshold: z.number().default(0.6),
   thresholds: z
@@ -81,12 +81,19 @@ export const StatuslineConfigSchema = z.object({
         .object({
           model: z.string().default('blue'),
           tokens: z.string().default('green'),
+          title: z.string().default('cyan'),
           summary: z.string().default('magenta'),
+          cwd: z.string().default('white'),
+          duration: z.string().default('white'),
+          branch: z.string().optional(), // Optional: if set, overrides pattern-based coloring
         })
         .default({
           model: 'blue',
           tokens: 'green',
+          title: 'cyan',
           summary: 'magenta',
+          cwd: 'white',
+          duration: 'white',
         }),
     })
     .default({
@@ -94,7 +101,10 @@ export const StatuslineConfigSchema = z.object({
       colors: {
         model: 'blue',
         tokens: 'green',
+        title: 'cyan',
         summary: 'magenta',
+        cwd: 'white',
+        duration: 'white',
       },
     }),
 })

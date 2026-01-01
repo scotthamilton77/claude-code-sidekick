@@ -91,31 +91,51 @@ export class Formatter {
 
   /**
    * Format the statusline using the template and view model.
+   *
+   * Supports both `|` and `\n` as separators in the format template.
+   * Empty token values are handled safely - separators in token values
+   * (e.g., a snarky comment containing "|") are preserved.
    */
   format(template: string, viewModel: StatuslineViewModel): string {
     // Build token map with formatted values
+    // Note: tokens/cost use threshold-based coloring (normal/warning/critical)
+    // Branch uses theme.colors.branch if set, otherwise pattern-based coloring from viewModel.branchColor
+    const branchColor = this.theme.colors.branch ?? viewModel.branchColor
     const tokens: Record<string, string> = {
       model: this.colorize(viewModel.model, this.theme.colors.model),
       tokens: this.colorizeByStatus(viewModel.tokens, viewModel.tokensStatus),
       cost: this.colorizeByStatus(viewModel.cost, viewModel.costStatus),
-      duration: viewModel.duration,
-      cwd: viewModel.cwd,
-      branch: viewModel.branch ? ` ${this.colorize(viewModel.branch, viewModel.branchColor)}` : '',
+      duration: this.colorize(viewModel.duration, this.theme.colors.duration),
+      cwd: this.colorize(viewModel.cwd, this.theme.colors.cwd),
+      branch: viewModel.branch ? ` ${this.colorize(viewModel.branch, branchColor)}` : '',
       summary: this.colorize(viewModel.summary, this.theme.colors.summary),
-      title: viewModel.title,
+      title: this.colorize(viewModel.title, this.theme.colors.title),
       contextBar: formatContextBar(viewModel.contextUsage, this.useColors),
     }
 
-    // Replace {token} patterns
+    // Marker for empty values - allows safe cleanup without affecting separator chars in token values
+    const EMPTY_MARKER = '\x00EMPTY\x00'
+
+    // Replace {token} patterns, marking empty values
     let result = template
     for (const [key, value] of Object.entries(tokens)) {
-      result = result.replace(new RegExp(`\\{${key}\\}`, 'g'), value)
+      const replacement = value || EMPTY_MARKER
+      result = result.replace(new RegExp(`\\{${key}\\}`, 'g'), replacement)
     }
 
-    // Clean up empty separators (e.g., " | |" → " |")
-    result = result.replace(/\s*\|\s*\|/g, ' |')
-    result = result.replace(/\|\s*$/g, '')
-    result = result.replace(/^\s*\|/g, '')
+    // Clean up separators around empty markers (handles both | and \n)
+    // Pattern: separator + optional whitespace + EMPTY + optional whitespace + separator → single separator
+    result = result.replace(new RegExp(`\\s*[|\\n]\\s*${EMPTY_MARKER}\\s*[|\\n]\\s*`, 'g'), ' | ')
+    // Pattern: EMPTY at start followed by separator → remove
+    result = result.replace(new RegExp(`${EMPTY_MARKER}\\s*[|\\n]\\s*`, 'g'), '')
+    // Pattern: separator followed by EMPTY at end → remove
+    result = result.replace(new RegExp(`\\s*[|\\n]\\s*${EMPTY_MARKER}`, 'g'), '')
+    // Remove any remaining empty markers (standalone)
+    result = result.replace(new RegExp(EMPTY_MARKER, 'g'), '')
+
+    // Final edge cleanup: trailing/leading separators
+    result = result.replace(/[|\n]\s*$/g, '')
+    result = result.replace(/^\s*[|\n]/g, '')
 
     return result.trim()
   }

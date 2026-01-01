@@ -624,7 +624,7 @@ export class StatuslineService {
       case 'session_summary':
       default: {
         // Priority: snarky message > latest intent > title
-        let summaryText = summary.session_title
+        let summaryText = ''
         if (snarkyMessage) {
           summaryText = snarkyMessage
         } else if (summary.latest_intent) {

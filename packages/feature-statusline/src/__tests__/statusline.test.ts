@@ -297,6 +297,109 @@ describe('Formatter class', () => {
     const result = formatter.format('[{model}] | {tokens} | {summary}', viewModel)
     expect(result).toBe('[claude-3-5-sonnet] | 45k | Fixing auth bug')
   })
+
+  it('cleans up empty tokens with pipe separator', () => {
+    const formatter = createFormatter({
+      theme: DEFAULT_STATUSLINE_CONFIG.theme,
+      useColors: false,
+    })
+
+    const viewModel = {
+      model: 'claude-3-5-sonnet',
+      tokens: '45k',
+      tokensStatus: 'normal' as const,
+      cost: '$0.15',
+      costStatus: 'normal' as const,
+      duration: '12m',
+      cwd: '~/project',
+      branch: '',
+      branchColor: '',
+      displayMode: 'session_summary' as const,
+      summary: 'Test summary',
+      title: '', // Empty title
+    }
+
+    // Empty {title} between two separators should be cleaned up
+    const result = formatter.format('{model} | {title} | {summary}', viewModel)
+    expect(result).toBe('claude-3-5-sonnet | Test summary')
+  })
+
+  it('cleans up empty tokens with newline separator', () => {
+    const formatter = createFormatter({
+      theme: DEFAULT_STATUSLINE_CONFIG.theme,
+      useColors: false,
+    })
+
+    const viewModel = {
+      model: 'claude-3-5-sonnet',
+      tokens: '45k',
+      tokensStatus: 'normal' as const,
+      cost: '$0.15',
+      costStatus: 'normal' as const,
+      duration: '12m',
+      cwd: '~/project',
+      branch: '',
+      branchColor: '',
+      displayMode: 'session_summary' as const,
+      summary: 'Test summary',
+      title: '', // Empty title
+    }
+
+    // Empty {title} between newline separators should be cleaned up
+    const result = formatter.format('{model}\n{title}\n{summary}', viewModel)
+    expect(result).toBe('claude-3-5-sonnet | Test summary')
+  })
+
+  it('preserves pipe characters inside token values', () => {
+    const formatter = createFormatter({
+      theme: DEFAULT_STATUSLINE_CONFIG.theme,
+      useColors: false,
+    })
+
+    const viewModel = {
+      model: 'claude-3-5-sonnet',
+      tokens: '45k',
+      tokensStatus: 'normal' as const,
+      cost: '$0.15',
+      costStatus: 'normal' as const,
+      duration: '12m',
+      cwd: '~/project',
+      branch: '',
+      branchColor: '',
+      displayMode: 'session_summary' as const,
+      summary: 'Working hard | or hardly working?', // Contains pipe
+      title: 'Test',
+    }
+
+    const result = formatter.format('{title} | {summary}', viewModel)
+    expect(result).toBe('Test | Working hard | or hardly working?')
+  })
+
+  it('handles mixed empty tokens and separators', () => {
+    const formatter = createFormatter({
+      theme: DEFAULT_STATUSLINE_CONFIG.theme,
+      useColors: false,
+    })
+
+    const viewModel = {
+      model: 'claude-3-5-sonnet',
+      tokens: '45k',
+      tokensStatus: 'normal' as const,
+      cost: '$0.15',
+      costStatus: 'normal' as const,
+      duration: '',
+      cwd: '~/project',
+      branch: '',
+      branchColor: '',
+      displayMode: 'session_summary' as const,
+      summary: '',
+      title: 'Test title',
+    }
+
+    // Multiple empty tokens should all be cleaned up
+    const result = formatter.format('{model} | {duration} | {title} | {summary}', viewModel)
+    expect(result).toBe('claude-3-5-sonnet | Test title')
+  })
 })
 
 describe('Formatter with colors enabled', () => {
@@ -387,7 +490,10 @@ describe('Formatter with colors enabled', () => {
 
   it('applies named theme color to model', () => {
     const formatter = createFormatter({
-      theme: { ...DEFAULT_STATUSLINE_CONFIG.theme, colors: { model: 'blue', tokens: 'green', summary: 'magenta' } },
+      theme: {
+        ...DEFAULT_STATUSLINE_CONFIG.theme,
+        colors: { model: 'blue', tokens: 'green', summary: 'magenta', title: 'cyan', cwd: 'white', duration: 'white' },
+      },
       useColors: true,
     })
 
@@ -412,7 +518,10 @@ describe('Formatter with colors enabled', () => {
 
   it('applies named theme color to summary', () => {
     const formatter = createFormatter({
-      theme: { ...DEFAULT_STATUSLINE_CONFIG.theme, colors: { model: 'blue', tokens: 'green', summary: 'magenta' } },
+      theme: {
+        ...DEFAULT_STATUSLINE_CONFIG.theme,
+        colors: { model: 'blue', tokens: 'green', summary: 'magenta', title: 'cyan', cwd: 'white', duration: 'white' },
+      },
       useColors: true,
     })
 
@@ -439,7 +548,14 @@ describe('Formatter with colors enabled', () => {
     const formatter = createFormatter({
       theme: {
         ...DEFAULT_STATUSLINE_CONFIG.theme,
-        colors: { model: 'nonexistent_color', tokens: 'green', summary: 'magenta' },
+        colors: {
+          model: 'nonexistent_color',
+          tokens: 'green',
+          summary: 'magenta',
+          title: 'cyan',
+          cwd: 'white',
+          duration: 'white',
+        },
       },
       useColors: true,
     })

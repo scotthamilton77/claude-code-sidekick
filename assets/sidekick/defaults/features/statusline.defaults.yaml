@@ -7,8 +7,9 @@ enabled: true
 
 settings:
   # Format string for statusline output
-  # Available placeholders: {model}, {tokens}, {cost}, {duration}, {cwd}, {branch}, {summary}, {title}
-  format: "[{model}] | {tokens} | {cwd}{branch} | {summary}"
+  # Separators: | or \n (empty tokens between separators are automatically cleaned up)
+  # Available placeholders: {model}, {contextBar}, {tokens}, {cost}, {duration}, {cwd}, {branch}, {summary}, {title}
+  format: "[{model}] | {contextBar} {tokens} | {cwd}{branch} | {title} | {summary}"
 
   # Confidence threshold for preferring session summary over first-prompt summary
   confidenceThreshold: 0.6
@@ -33,7 +34,14 @@ settings:
     # Use Nerd Font icons for enhanced display
     useNerdFonts: true
     # Color assignments for statusline elements
+    # Available colors: black, red, green, yellow, blue, magenta, cyan, white
+    # Also: brightRed, brightGreen, brightYellow (for emphasis)
     colors:
       model: blue
       tokens: green
+      title: blue
       summary: magenta
+      cwd: white
+      duration: white
+      # branch: magenta  # Optional: if set, overrides pattern-based coloring
+                         # Pattern-based defaults: main/master=green, feature/*=blue, hotfix/*=red, other=magenta

@@ -7,9 +7,9 @@
  * Orchestrates the multi-phase startup:
  * 1. Create bootstrap logger facade for early error capture
  * 2. Resolve execution scope (project vs user)
- * 3. Load cascaded configuration with validation
- * 4. Upgrade to structured Pino logger with file transport
- * 5. Initialize asset resolver
+ * 3. Initialize asset resolver (needed for config feature defaults)
+ * 4. Load cascaded configuration with validation
+ * 5. Upgrade to structured Pino logger with file transport
  * 6. Set up global error handlers
  *
  * Returns a RuntimeShell providing access to all core services:
@@ -86,12 +86,21 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
   // Resolve scope first
   const scope = resolveScope(options)
 
+  // Initialize asset resolver early (needed for config feature defaults from YAML)
+  const defaultAssetsDir = options.defaultAssetsDir ?? getDefaultAssetsDir()
+  const assets = createAssetResolver({
+    defaultAssetsDir,
+    projectRoot: scope.projectRoot,
+    homeDir: options.homeDir,
+  })
+
   // Load configuration with cascade
   let config: ConfigService
   try {
     config = createConfigService({
       projectRoot: scope.projectRoot,
       homeDir: options.homeDir,
+      assets,
     })
   } catch (err) {
     loggerFacade.error('Failed to load configuration', {
@@ -157,14 +166,6 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
 
   // Set up global error handlers
   const cleanupErrorHandlers = setupGlobalErrorHandlers(logger)
-
-  // Initialize asset resolver
-  const defaultAssetsDir = options.defaultAssetsDir ?? getDefaultAssetsDir()
-  const assets = createAssetResolver({
-    defaultAssetsDir,
-    projectRoot: scope.projectRoot,
-    homeDir: options.homeDir,
-  })
 
   logger.debug('Runtime bootstrap complete', {
     scope: scope.scope,
