@@ -213,45 +213,40 @@ describe('Formatter utilities', () => {
       expect(calculateContextUsage(1000, 500, 0)).toBeUndefined()
     })
 
-    it('uses fallback 77.5% when no overhead provided', () => {
-      const result = calculateContextUsage(50000, 10000, 200000)
+    it('calculates effective limit from buffer tokens', () => {
+      // 200k window - 45k buffer = 155k effective
+      const result = calculateContextUsage(50000, 45000, 200000)
       expect(result).toBeDefined()
-      expect(result!.effectiveLimit).toBe(155000) // 200000 * 0.775
-      expect(result!.totalTokens).toBe(60000)
-    })
-
-    it('uses overhead tokens when provided', () => {
-      // 200k window - 66k overhead = 134k effective
-      const result = calculateContextUsage(50000, 10000, 200000, 66100)
-      expect(result).toBeDefined()
-      expect(result!.effectiveLimit).toBe(133900) // 200000 - 66100
-      expect(result!.totalTokens).toBe(60000)
+      expect(result!.effectiveLimit).toBe(155000) // 200000 - 45000
+      expect(result!.contextTokens).toBe(50000)
+      expect(result!.bufferTokens).toBe(45000)
+      expect(result!.totalTokens).toBe(95000) // context + buffer
     })
 
     it('calculates correct usage fraction', () => {
-      // 60k tokens used / 134k effective = ~0.448
-      const result = calculateContextUsage(50000, 10000, 200000, 66000)
+      // 50k context / 155k effective = ~0.323
+      const result = calculateContextUsage(50000, 45000, 200000)
       expect(result).toBeDefined()
-      expect(result!.usageFraction).toBeCloseTo(0.448, 2)
+      expect(result!.usageFraction).toBeCloseTo(0.323, 2)
     })
 
     it('sets status based on usage fraction', () => {
-      // Low usage
-      const low = calculateContextUsage(10000, 5000, 200000, 66000)
+      // Low usage (< 50%)
+      const low = calculateContextUsage(10000, 45000, 200000)
       expect(low!.status).toBe('low')
 
-      // Medium usage (50-75%)
-      const medium = calculateContextUsage(70000, 10000, 200000, 66000)
+      // Medium usage (50-80%)
+      const medium = calculateContextUsage(85000, 45000, 200000)
       expect(medium!.status).toBe('medium')
 
-      // High usage (>75%)
-      const high = calculateContextUsage(100000, 20000, 200000, 66000)
+      // High usage (> 80%)
+      const high = calculateContextUsage(130000, 45000, 200000)
       expect(high!.status).toBe('high')
     })
 
     it('handles zero effective limit gracefully', () => {
-      // Overhead equals context window
-      const result = calculateContextUsage(1000, 500, 200000, 200000)
+      // Buffer equals context window
+      const result = calculateContextUsage(1000, 200000, 200000)
       expect(result).toBeDefined()
       expect(result!.effectiveLimit).toBe(0)
       expect(result!.usageFraction).toBe(1) // Fallback to 1 when effectiveLimit is 0
@@ -970,8 +965,8 @@ describe('StatuslineService', () => {
 
     expect(result.displayMode).toBe('session_summary')
     expect(result.viewModel.model).toBe('3-5-sonnet')
-    // Token count uses current_usage: input_tokens + cache tokens (30k, not total 45k)
-    expect(result.viewModel.tokens).toBe('30k')
+    // Token count shows context|total format: 30k context + 45k buffer = 75k total
+    expect(result.viewModel.tokens).toBe('30k|75k')
     expect(result.viewModel.title).toBe('Auth bug fix')
   })
 

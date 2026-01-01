@@ -137,7 +137,11 @@ export type ContextBarStatus = 'low' | 'medium' | 'high'
  * Context usage data for the context bar visualization.
  */
 export interface ContextUsageData {
-  /** Total tokens used (input + output) */
+  /** Context tokens used (conversation content) */
+  contextTokens: number
+  /** Autocompact buffer tokens (~45k reserved) */
+  bufferTokens: number
+  /** Total tokens (context + buffer) - matches /context report */
   totalTokens: number
   /** Context window size */
   contextWindowSize: number

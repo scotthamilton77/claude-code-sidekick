@@ -485,8 +485,13 @@ export class StatuslineService {
 
     // Calculate context usage using effective tokens (respects compaction/clear)
     // Must use effectiveTokens, not raw hook input, so bar graph matches token display
+    // Pass autocompactBufferTokens for the buffer portion of the bar
     const contextUsage = this.hookInput?.context_window.context_window_size
-      ? calculateContextUsage(effectiveTokens, 0, this.hookInput.context_window.context_window_size)
+      ? calculateContextUsage(
+          effectiveTokens,
+          baseline.autocompactBufferTokens,
+          this.hookInput.context_window.context_window_size
+        )
       : undefined
 
     // Get cost/duration/model from hook input (Claude Code's statusline input)
@@ -494,8 +499,12 @@ export class StatuslineService {
     const durationMs = this.hookInput?.cost.total_duration_ms ?? 0
     const modelName = this.hookInput?.model.display_name ?? 'unknown'
 
-    // Format tokens - show placeholder during indeterminate state
-    const tokensDisplay = isIndeterminate ? '⟳ compacted' : formatTokens(effectiveTokens)
+    // Format tokens - show compound format context|total (matches /context report)
+    // Total includes autocompact buffer for accurate comparison with /context output
+    const totalWithBuffer = effectiveTokens + baseline.autocompactBufferTokens
+    const tokensDisplay = isIndeterminate
+      ? '⟳ compacted'
+      : `${formatTokens(effectiveTokens)}|${formatTokens(totalWithBuffer)}`
 
     return {
       model: this.formatModelName(modelName),
