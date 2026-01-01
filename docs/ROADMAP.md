@@ -108,11 +108,7 @@ Closed gaps for production-ready monitoring UI. Key outcomes:
 
 **7.E Production-Local Runtime**: Node server for SPA + API, `sidekick ui` CLI command, dual-scope verification
 
----
-
-## Pending Phases
-
-- [ ] **Phase 8: CLI→Supervisor Event Dispatch**\
+- [x] **Phase 8: CLI→Supervisor Event Dispatch**\
   - [x] Objectives
     - [x] Wire CLI hook commands to dispatch events to Supervisor via IPC
     - [x] Enable handler execution for hook events (SessionStart, UserPromptSubmit, etc.)
@@ -209,6 +205,10 @@ Closed gaps for production-ready monitoring UI. Key outcomes:
         - SessionEnd: passthrough (cannot block)
       - [x] Graceful fallback when jq unavailable (passthrough)
       - [x] Files: `packages/sidekick-cli/src/commands/hook.ts`, `scripts/dev-hooks/*`
+
+---
+
+## Pending Phases
 
 - [ ] **Phase Insertion Placeholder** to go through the code to analyze modularity, correct responsibilities (SOLID), DRY, TODOs and FIXMEs, @deprecated usage
   - FIRST get test coverage to an acceptable state!
