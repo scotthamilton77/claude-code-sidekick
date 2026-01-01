@@ -389,7 +389,7 @@ export interface CompactionHistoryState {
  * Base token metrics that are consistent across projects.
  * Captured via `claude -p "/context"` and stored globally.
  *
- * Location: `~/.sidekick/state/base-token-metrics.json`
+ * Location: `~/.sidekick/state/baseline-user-context-token-metrics.json`
  *
  * @see METRICS_PLAN.md
  */
@@ -414,7 +414,7 @@ export type BaseTokenMetricsState = z.infer<typeof BaseTokenMetricsStateSchema>
  * Project-specific context metrics that vary per-project.
  * Updated when /context command output is observed in transcripts.
  *
- * Location: `.sidekick/state/project-context-metrics.json`
+ * Location: `.sidekick/state/baseline-project-context-token-metrics.json`
  *
  * @see METRICS_PLAN.md
  */
