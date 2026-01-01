@@ -16,18 +16,10 @@ This repository serves as a development and testing environment for [Claude Code
   - if issued, we should NOT re-issue it until a new UserPromptSubmit has happened (this prevents the stop hook from triggering more tools that modify files that re-stage the reminder what continues to cycle)
   - if issued, we need to reset the counter for the pause-and-reflect reminder (so that if the P&R reminder was just one tool away from being staged, but then the agent decided to stop, then the verify-complete kicks in which will use more tools, triggering the P&R)
   - make it conditional "if you are about to claim that you're done" 
-  - double check on reason vs. userMessage:
-```
-Should I delete the defaults file so we can test that the supervisor now properly captures metrics on next restart?
-  ⎿  Stop says: Asking the agent to verify completion before stopping...
-
-⏺ Ran 1 stop hook
-  ⎿  Stop hook error: Verify completion before stopping - did you run tests and checks?
-  COMPLETION VERIFICATION REQUIRED
-
-  Before claiming this task is complete, you must verify:
-```
 - investigate frequency of LLM calls and verify we're not wasting tokens
+- Initial statusline summary messages
+  - TEST: resume
+  - what if we optionally generate a library of snarky comments for new sessions on startup that we pick from randomly?  We could just statically generate this into a config file actually...
 - should we block and wait (with timeout of p95 of completion latency?) for session summary when we have low confidence?
 - snarky comment generator
   - needs a fallback model
@@ -35,7 +27,9 @@ Should I delete the defaults file so we can test that the supervisor now properl
   - tune the session summarizer to follow the last n turns (delta + 10?) - this combined with previous goal snapshot might be cheaper?
   - optmize transcript embedding in the prompts, e.g. we don't really need the full json, do we? And can we truncate tool results? (Might need to do some analysis here to get a sense of the range of output here.)
   - tune the instructions for the session summary (little shorter, more cynical)
-- PLAN.MD (executing ARCH.md)
+- can we be resilient to json file errors?  I just ran into a case of the session-summary.json being generated with trash after the last } which made it unreadable
+- finish ROADMAP.md
+- finish PLAN.MD (executing ARCH.md)
 - allow for different personalities - either explicit at install time or random per project or random per session or just random
   - moods: cynical, sarcastic, snarky, nerdy, arrogant, moody
   - persona: angry klingon, skeptical vulcan, Scotty, Bones, Dilbert
@@ -45,12 +39,9 @@ Should I delete the defaults file so we can test that the supervisor now properl
   - allow the line length hints to be configurable
   - allow the statusline topic format to be configurable
   - maybe just allow for project-level overrides (template file input parameter and/or user and project level overrides)
-- statusline token counter and context % are way off? If we can't get close to /context, let's remove the %
 - log rotation and log level to info by default
 - BUG: uninstall from project leaves empty hooks folder
 - how do subagents work - can we detect their connection to the parent agent, and do we care? (for statusline, maybe not, but for analytics?)
-- skills and agents - review carefully and attribute to https://github.com/obra/superpowers
-  - incorporate skill-inducer superpowers (currently installed in our .claude/hooks/ folder, but cleanly and separately, e.g. under a hooks/skill-inducer/ and as a separate feature (unless it just makes sense to be merged?))
 - feedback loops
   - Add a "confession" at the end of a task where the agent confesses what they did wrong, use for a learnings log?
   - learning mode? investigate https://medium.com/coding-nexus/rip-fine-tuning-how-stanfords-ace-framework-teaches-ai-to-learn-without-retraining-510f412d8579
@@ -62,6 +53,8 @@ Should I delete the defaults file so we can test that the supervisor now properl
   - if we do this, we should have a 2 stage pipeline: pre-process CLAUDE.md's into stage 1 (more verbose/complete), then use that against context to generate point-in-time reminder
 - add to the UserPromptSubmit a trigger to evaluate the user's prompt to see if the user is asking claude to do something that it should have already done, and record that as a possible RL item to factor into the reminder
 - would it make sense to scan the ToDos and suggest to Claude to add to its todos any specific items relevant to the reminders? (Would this be more context-efficient?)
+- make stop hook smarter?
+  - Break it up into subsections that are conditional based on observed patterns of behavior, e.g. modification of files through bash commands, docs vs. source code mods, etc.
 
 ## Agents and Skills and Hooks
 
