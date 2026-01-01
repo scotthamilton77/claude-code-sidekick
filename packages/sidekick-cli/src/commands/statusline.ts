@@ -32,31 +32,19 @@ export interface StatuslineCommandOptions {
 }
 
 /**
- * Parse and validate ClaudeCodeStatusInput from raw hook input JSON.
- * Returns the validated input or undefined if parsing fails.
+ * Parse ClaudeCodeStatusInput from raw hook input JSON.
+ * Uses lenient parsing with defaults - for a statusline, showing 0/"unknown"
+ * is better than failing entirely. Only truly required: session_id and cwd.
  */
 export function parseStatuslineInput(raw: Record<string, unknown>): ClaudeCodeStatusInput | undefined {
-  // Validate required top-level fields
-  // Note: hook_event_name is NOT sent by Claude Code for statusline hooks,
-  // so we don't validate it - we hardcode 'Status' in the return value
+  // Only session_id and cwd are truly required - we need to know which session and where
   if (typeof raw.session_id !== 'string') return undefined
-  if (typeof raw.transcript_path !== 'string') return undefined
   if (typeof raw.cwd !== 'string') return undefined
-  if (typeof raw.version !== 'string') return undefined
 
-  // Validate model
+  // Extract nested objects with safe typing
   const model = raw.model as { id?: string; display_name?: string } | undefined
-  if (!model?.id || !model?.display_name) return undefined
-
-  // Validate workspace
   const workspace = raw.workspace as { current_dir?: string; project_dir?: string } | undefined
-  if (!workspace?.current_dir || !workspace?.project_dir) return undefined
-
-  // Validate output_style
   const outputStyle = raw.output_style as { name?: string } | undefined
-  if (!outputStyle?.name) return undefined
-
-  // Validate cost
   const cost = raw.cost as
     | {
         total_cost_usd?: number
@@ -66,16 +54,6 @@ export function parseStatuslineInput(raw: Record<string, unknown>): ClaudeCodeSt
         total_lines_removed?: number
       }
     | undefined
-  if (
-    typeof cost?.total_cost_usd !== 'number' ||
-    typeof cost?.total_duration_ms !== 'number' ||
-    typeof cost?.total_api_duration_ms !== 'number' ||
-    typeof cost?.total_lines_added !== 'number' ||
-    typeof cost?.total_lines_removed !== 'number'
-  )
-    return undefined
-
-  // Validate context_window
   const contextWindow = raw.context_window as
     | {
         total_input_tokens?: number
@@ -86,53 +64,48 @@ export function parseStatuslineInput(raw: Record<string, unknown>): ClaudeCodeSt
           output_tokens?: number
           cache_creation_input_tokens?: number
           cache_read_input_tokens?: number
-        }
+        } | null
       }
     | undefined
-  if (
-    typeof contextWindow?.total_input_tokens !== 'number' ||
-    typeof contextWindow?.total_output_tokens !== 'number' ||
-    typeof contextWindow?.context_window_size !== 'number' ||
-    typeof contextWindow?.current_usage?.input_tokens !== 'number' ||
-    typeof contextWindow?.current_usage?.output_tokens !== 'number' ||
-    typeof contextWindow?.current_usage?.cache_creation_input_tokens !== 'number' ||
-    typeof contextWindow?.current_usage?.cache_read_input_tokens !== 'number'
-  )
-    return undefined
+  const currentUsage = contextWindow?.current_usage
+
+  // Helper to safely extract numbers with default
+  const num = (val: unknown, fallback: number): number => (typeof val === 'number' ? val : fallback)
 
   return {
     hook_event_name: 'Status',
     session_id: raw.session_id,
-    transcript_path: raw.transcript_path,
+    transcript_path: typeof raw.transcript_path === 'string' ? raw.transcript_path : '',
     cwd: raw.cwd,
-    version: raw.version,
+    version: typeof raw.version === 'string' ? raw.version : 'unknown',
     model: {
-      id: model.id,
-      display_name: model.display_name,
+      id: model?.id ?? 'unknown',
+      display_name: model?.display_name ?? 'unknown',
     },
     workspace: {
-      current_dir: workspace.current_dir,
-      project_dir: workspace.project_dir,
+      current_dir: workspace?.current_dir ?? raw.cwd,
+      project_dir: workspace?.project_dir ?? raw.cwd,
     },
     output_style: {
-      name: outputStyle.name,
+      name: outputStyle?.name ?? 'default',
     },
     cost: {
-      total_cost_usd: cost.total_cost_usd,
-      total_duration_ms: cost.total_duration_ms,
-      total_api_duration_ms: cost.total_api_duration_ms,
-      total_lines_added: cost.total_lines_added,
-      total_lines_removed: cost.total_lines_removed,
+      total_cost_usd: num(cost?.total_cost_usd, 0),
+      total_duration_ms: num(cost?.total_duration_ms, 0),
+      total_api_duration_ms: num(cost?.total_api_duration_ms, 0),
+      total_lines_added: num(cost?.total_lines_added, 0),
+      total_lines_removed: num(cost?.total_lines_removed, 0),
     },
     context_window: {
-      total_input_tokens: contextWindow.total_input_tokens,
-      total_output_tokens: contextWindow.total_output_tokens,
-      context_window_size: contextWindow.context_window_size,
+      total_input_tokens: num(contextWindow?.total_input_tokens, 0),
+      total_output_tokens: num(contextWindow?.total_output_tokens, 0),
+      // Default to 200k if not specified - reasonable for Claude models
+      context_window_size: num(contextWindow?.context_window_size, 200_000),
       current_usage: {
-        input_tokens: contextWindow.current_usage.input_tokens,
-        output_tokens: contextWindow.current_usage.output_tokens,
-        cache_creation_input_tokens: contextWindow.current_usage.cache_creation_input_tokens,
-        cache_read_input_tokens: contextWindow.current_usage.cache_read_input_tokens,
+        input_tokens: num(currentUsage?.input_tokens, 0),
+        output_tokens: num(currentUsage?.output_tokens, 0),
+        cache_creation_input_tokens: num(currentUsage?.cache_creation_input_tokens, 0),
+        cache_read_input_tokens: num(currentUsage?.cache_read_input_tokens, 0),
       },
     },
   }
@@ -183,6 +156,9 @@ export async function handleStatuslineCommand(
     logger.debug('ClaudeCodeContextWindow', { context_window: options.hookInput.context_window })
   }
 
+  // userConfigDir is ~/.sidekick for baseline user context metrics
+  const userConfigDir = process.env.HOME ? path.join(process.env.HOME, '.sidekick') : undefined
+
   const service = createStatuslineService({
     sessionStateDir,
     cwd,
@@ -195,6 +171,9 @@ export async function handleStatuslineCommand(
     configService: options.configService,
     // Pass logger for debug output in token calculations
     logger,
+    // Pass directories for baseline metrics reading (new session display)
+    userConfigDir,
+    projectDir,
   })
 
   try {
