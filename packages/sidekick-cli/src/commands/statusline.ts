@@ -101,12 +101,16 @@ export function parseStatuslineInput(raw: Record<string, unknown>): ClaudeCodeSt
       total_output_tokens: num(contextWindow?.total_output_tokens, 0),
       // Default to 200k if not specified - reasonable for Claude models
       context_window_size: num(contextWindow?.context_window_size, 200_000),
-      current_usage: {
-        input_tokens: num(currentUsage?.input_tokens, 0),
-        output_tokens: num(currentUsage?.output_tokens, 0),
-        cache_creation_input_tokens: num(currentUsage?.cache_creation_input_tokens, 0),
-        cache_read_input_tokens: num(currentUsage?.cache_read_input_tokens, 0),
-      },
+      // Preserve null when current_usage is null (can happen at session start)
+      // This allows StatuslineService to fall back to transcript metrics
+      current_usage: currentUsage
+        ? {
+            input_tokens: num(currentUsage.input_tokens, 0),
+            output_tokens: num(currentUsage.output_tokens, 0),
+            cache_creation_input_tokens: num(currentUsage.cache_creation_input_tokens, 0),
+            cache_read_input_tokens: num(currentUsage.cache_read_input_tokens, 0),
+          }
+        : null,
     },
   }
 }

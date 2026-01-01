@@ -113,8 +113,8 @@ export interface ClaudeCodeContextWindow {
   total_output_tokens: number
   /** Maximum context window size for the model */
   context_window_size: number
-  /** Current context window usage (resets on compact) */
-  current_usage: ClaudeCodeCurrentUsage
+  /** Current context window usage (resets on compact). May be null at session start. */
+  current_usage: ClaudeCodeCurrentUsage | null
 }
 
 /**
@@ -366,8 +366,8 @@ export class StatuslineService {
           input: ctx.total_input_tokens,
           output: ctx.total_output_tokens,
           total: totalTokens,
-          cacheCreation: ctx.current_usage.cache_creation_input_tokens,
-          cacheRead: ctx.current_usage.cache_read_input_tokens,
+          cacheCreation: ctx.current_usage?.cache_creation_input_tokens ?? 0,
+          cacheRead: ctx.current_usage?.cache_read_input_tokens ?? 0,
         },
       },
       source: 'fresh', // Hook input is always fresh
@@ -436,12 +436,28 @@ export class StatuslineService {
     const isIndeterminate = state.isPostCompactIndeterminate === true
     let effectiveTokens: number
     let usingBaseline = false
+    let usingTranscript = false
 
     if (this.hookInput) {
       const usage = this.hookInput.context_window.current_usage
-      effectiveTokens = usage.input_tokens + usage.cache_creation_input_tokens + usage.cache_read_input_tokens
 
-      // When current_usage is 0 (new session or /clear), use baseline estimate
+      if (usage) {
+        // Normal case: use current_usage from hook input
+        effectiveTokens = usage.input_tokens + usage.cache_creation_input_tokens + usage.cache_read_input_tokens
+      } else {
+        // current_usage is null (can happen at session start) - fallback to transcript metrics
+        // This prevents "flashing" baseline values when hook input arrives before current_usage is populated
+        const transcriptTokens = state.currentContextTokens
+        if (transcriptTokens != null && transcriptTokens > 0) {
+          effectiveTokens = transcriptTokens
+          usingTranscript = true
+        } else {
+          // No transcript data either, use baseline
+          effectiveTokens = 0
+        }
+      }
+
+      // When effectiveTokens is 0 (new session, /clear, or no data), use baseline estimate
       // Baseline = systemPromptTokens + systemToolsTokens + mcpToolsTokens + customAgentsTokens + memoryFilesTokens
       // Note: autocompactBufferTokens is NOT included as it's reserved buffer, not actual usage
       if (effectiveTokens === 0) {
@@ -476,10 +492,16 @@ export class StatuslineService {
             usingDefaults: baseline.usingDefaults,
           }
         : null,
+      transcriptMetrics: usingTranscript
+        ? {
+            currentContextTokens: state.currentContextTokens,
+          }
+        : null,
       calculation: {
         effectiveTokens,
         isIndeterminate,
         usingBaseline,
+        usingTranscript,
       },
     })
 
