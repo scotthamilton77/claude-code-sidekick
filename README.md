@@ -12,6 +12,8 @@ This repository serves as a development and testing environment for [Claude Code
 
 ### Sidekick
 
+- resume message is now being generated but not picked up by new sessions
+- make sure all tests are passing (seeing some timeout and sandbox related failures)
 - stop hook needs some tuning
   - if issued, we should NOT re-issue it until a new UserPromptSubmit has happened (this prevents the stop hook from triggering more tools that modify files that re-stage the reminder what continues to cycle)
   - if issued, we need to reset the counter for the pause-and-reflect reminder (so that if the P&R reminder was just one tool away from being staged, but then the agent decided to stop, then the verify-complete kicks in which will use more tools, triggering the P&R)
@@ -54,7 +56,7 @@ This repository serves as a development and testing environment for [Claude Code
 - add to the UserPromptSubmit a trigger to evaluate the user's prompt to see if the user is asking claude to do something that it should have already done, and record that as a possible RL item to factor into the reminder
 - would it make sense to scan the ToDos and suggest to Claude to add to its todos any specific items relevant to the reminders? (Would this be more context-efficient?)
 - make stop hook smarter?
-  - Break it up into subsections that are conditional based on observed patterns of behavior, e.g. modification of files through bash commands, docs vs. source code mods, etc.
+  - Break it up into subsections that are conditional based on observed patterns of behavior, e.g. modification of files through bash commands, docs vs. source code mods, etc. if we just did a build or lint or ran tests, we can exclude that part
 
 ## Agents and Skills and Hooks
 
