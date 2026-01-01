@@ -18,8 +18,10 @@ This repository serves as a development and testing environment for [Claude Code
   - TEST: does it reset properly on clean?
   - TEST: does it go to "compacted" and then catch the next usage metrics properly?
 - statusline always says (stale)?
+  - look at transcript summary type messages - are these useful?
   - Also, shouldn't this update more often during the convo?
   - Showing just the snarky comment loses the context (what we're doing)
+- sidekick.log needs sessionId
 - stop hook needs some tuning
   - if issued, we should NOT re-issue it until a new UserPromptSubmit has happened (this prevents the stop hook from triggering more tools that modify files that re-stage the reminder what continues to cycle)
   - if issued, we need to reset the counter for the pause-and-reflect reminder (so that if the P&R reminder was just one tool away from being staged, but then the agent decided to stop, then the verify-complete kicks in which will use more tools, triggering the P&R)

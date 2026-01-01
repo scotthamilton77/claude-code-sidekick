@@ -37,7 +37,8 @@ export interface StatuslineCommandOptions {
  */
 export function parseStatuslineInput(raw: Record<string, unknown>): ClaudeCodeStatusInput | undefined {
   // Validate required top-level fields
-  if (raw.hook_event_name !== 'Status') return undefined
+  // Note: hook_event_name is NOT sent by Claude Code for statusline hooks,
+  // so we don't validate it - we hardcode 'Status' in the return value
   if (typeof raw.session_id !== 'string') return undefined
   if (typeof raw.transcript_path !== 'string') return undefined
   if (typeof raw.cwd !== 'string') return undefined
