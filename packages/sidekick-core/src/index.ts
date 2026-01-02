@@ -124,6 +124,12 @@ export { killAllSupervisors, SupervisorClient, type KillResult, type UserPidInfo
 export { StagingServiceCore, SessionScopedStagingService, type StagingServiceCoreOptions } from './staging-service'
 export { HandlerRegistryImpl, type HandlerRegistryOptions } from './handler-registry'
 export {
+  extractContentPreview,
+  extractTextFromContent,
+  extractToolCallPreview,
+  extractToolResultPreview,
+} from './transcript-content'
+export {
   createDefaultMetrics,
   createDefaultTokenUsage,
   TranscriptServiceImpl,

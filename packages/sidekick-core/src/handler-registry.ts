@@ -28,6 +28,8 @@ import type {
   TranscriptMetrics,
   StagingService,
 } from '@sidekick/types'
+import { extractContentPreview } from './transcript-content.js'
+import { LogEvents, logEvent } from './structured-logging.js'
 
 // ============================================================================
 // Types
@@ -216,12 +218,34 @@ export class HandlerRegistryImpl implements HandlerRegistry {
   emitTranscriptEvent(eventType: TranscriptEventType, entry: TranscriptEntry, lineNumber: number): void {
     const matchingHandlers = this.getHandlersForTranscript(eventType)
 
+    // Build transcript event (needed for logging even if no handlers)
+    const event = this.buildTranscriptEvent(eventType, entry, lineNumber)
+
+    // Log TranscriptEventEmitted for timeline visibility
+    const metrics = this.options.getMetrics?.()
+    if (metrics) {
+      logEvent(
+        this.options.logger,
+        LogEvents.transcriptEventEmitted(
+          { sessionId: this.options.sessionId, scope: this.options.scope },
+          {
+            eventType,
+            lineNumber,
+            uuid: (entry as { uuid?: string }).uuid,
+            toolName: (entry as { tool_name?: string }).tool_name,
+          },
+          {
+            transcriptPath: this.options.transcriptPath ?? '',
+            contentPreview: extractContentPreview(entry, eventType),
+            metrics,
+          }
+        )
+      )
+    }
+
     if (matchingHandlers.length === 0) {
       return // No handlers, nothing to do
     }
-
-    // Build transcript event
-    const event = this.buildTranscriptEvent(eventType, entry, lineNumber)
 
     this.options.logger.debug('Emitting transcript event', {
       eventType,
@@ -238,20 +262,34 @@ export class HandlerRegistryImpl implements HandlerRegistry {
 
   private async invokeTranscriptHandler(handler: StoredHandler, event: TranscriptEvent): Promise<void> {
     const startTime = Date.now()
+    const logContext = {
+      sessionId: this.options.sessionId,
+      scope: this.options.scope,
+    }
+
     try {
       await handler.handler(event, this.context)
       const durationMs = Date.now() - startTime
 
-      this.options.logger.debug('Transcript handler executed', {
-        handlerId: handler.id,
-        eventType: event.eventType,
-        durationMs,
-      })
+      // Log EventProcessed for successful handler execution
+      logEvent(
+        this.options.logger,
+        LogEvents.eventProcessed(logContext, { handlerId: handler.id, success: true }, { durationMs })
+      )
     } catch (err) {
+      const durationMs = Date.now() - startTime
+      const errorMsg = err instanceof Error ? err.message : String(err)
+
+      // Log EventProcessed for failed handler execution
+      logEvent(
+        this.options.logger,
+        LogEvents.eventProcessed(logContext, { handlerId: handler.id, success: false }, { durationMs, error: errorMsg })
+      )
+
       this.options.logger.error('Transcript handler failed', {
         handlerId: handler.id,
         eventType: event.eventType,
-        error: err instanceof Error ? err.message : String(err),
+        error: errorMsg,
       })
     }
   }

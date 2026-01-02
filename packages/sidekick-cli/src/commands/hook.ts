@@ -17,7 +17,7 @@
 
 import type { Writable } from 'node:stream'
 import type { Logger } from '@sidekick/core'
-import { IpcService } from '@sidekick/core'
+import { IpcService, LogEvents, logEvent } from '@sidekick/core'
 import type {
   HookEvent,
   HookName,
@@ -335,6 +335,16 @@ export async function handleHookCommand(
   stdout: Writable
 ): Promise<HandleHookResult> {
   const { projectRoot, hookInput, correlationId, scope, runtime } = options
+  const startTime = Date.now()
+
+  // Log HookReceived event
+  const logContext = {
+    sessionId: hookInput.sessionId,
+    scope,
+    correlationId,
+    hook: hookName,
+  }
+  logEvent(logger, LogEvents.hookReceived(logContext, { cwd: hookInput.cwd, mode: 'hook' }))
 
   // Build typed HookEvent from parsed input
   const event = buildHookEvent(hookName, hookInput, correlationId, scope)
@@ -388,10 +398,24 @@ export async function handleHookCommand(
     // Output internal HookResponse format (shell scripts will translate to Claude Code format)
     const outputStr = JSON.stringify(mergedResponse)
     stdout.write(`${outputStr}\n`)
+
+    // Log HookCompleted event
+    logEvent(
+      logger,
+      LogEvents.hookCompleted(
+        logContext,
+        { durationMs: Date.now() - startTime },
+        { reminderReturned: !!mergedResponse.additionalContext }
+      )
+    )
+
     return { exitCode: 0, output: outputStr }
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err))
     logger.error('Hook dispatch failed', { hook: hookName, error: error.message })
+
+    // Log HookCompleted event (failure case)
+    logEvent(logger, LogEvents.hookCompleted(logContext, { durationMs: Date.now() - startTime }))
 
     // Return empty response to allow action to proceed
     stdout.write('{}\n')

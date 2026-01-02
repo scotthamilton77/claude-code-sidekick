@@ -341,8 +341,12 @@ export function isPreCompactEvent(event: HookEvent): event is PreCompactHookEven
 /**
  * Component source for logging events.
  * Each component writes to its own log file.
+ *
+ * - 'cli' → cli.log
+ * - 'supervisor' → supervisor.log
+ * - 'transcript' → transcript-events.log
  */
-export type LogSource = 'cli' | 'supervisor'
+export type LogSource = 'cli' | 'supervisor' | 'transcript'
 
 /**
  * Base interface for all logging events.
@@ -439,8 +443,13 @@ export interface EventReceivedEvent extends LoggingEventBase {
   }
 }
 
-export interface HandlerExecutedEvent extends LoggingEventBase {
-  type: 'HandlerExecuted'
+/**
+ * Internal event: Event processing completed.
+ * Emitted when a handler finishes processing an event.
+ * (Renamed from HandlerExecuted for consistency with EventReceived)
+ */
+export interface EventProcessedEvent extends LoggingEventBase {
+  type: 'EventProcessed'
   source: 'supervisor'
   payload: {
     state: {
@@ -631,6 +640,55 @@ export interface StatuslineErrorEvent extends LoggingEventBase {
   }
 }
 
+// --- Transcript Events (logged to transcript-events.log) ---
+
+/**
+ * Internal event: Transcript event emitted.
+ * Emitted when TranscriptService detects and emits a transcript event.
+ *
+ * @see docs/design/MONITORING-UI.md §4.1
+ */
+export interface TranscriptEventEmittedEvent extends LoggingEventBase {
+  type: 'TranscriptEventEmitted'
+  source: 'transcript'
+  payload: {
+    state: {
+      eventType: TranscriptEventType
+      lineNumber: number
+      /** UUID of the transcript line for quick lookup */
+      uuid?: string
+      toolName?: string
+    }
+    metadata: {
+      transcriptPath: string
+      contentPreview?: string // Truncated for logging
+      metrics: TranscriptMetrics
+    }
+  }
+}
+
+/**
+ * Internal event: Pre-compact snapshot captured.
+ * Emitted when CLI copies transcript before compaction.
+ *
+ * @see docs/design/MONITORING-UI.md §4.1
+ */
+export interface PreCompactCapturedEvent extends LoggingEventBase {
+  type: 'PreCompactCaptured'
+  source: 'transcript'
+  payload: {
+    state: {
+      snapshotPath: string
+      lineCount: number
+    }
+    metadata: {
+      transcriptPath: string
+      metrics: TranscriptMetrics
+    }
+    reason: 'pre_compact_hook'
+  }
+}
+
 /**
  * Union of all CLI logging events.
  */
@@ -646,7 +704,7 @@ export type CLILoggingEvent =
  */
 export type SupervisorLoggingEvent =
   | EventReceivedEvent
-  | HandlerExecutedEvent
+  | EventProcessedEvent
   | ReminderStagedEvent
   | SummaryUpdatedEvent
   | SummarySkippedEvent
@@ -656,9 +714,15 @@ export type SupervisorLoggingEvent =
   | RemindersClearedEvent
 
 /**
+ * Union of transcript-related logging events.
+ * These are written to a separate transcript-events.log file.
+ */
+export type TranscriptLoggingEvent = TranscriptEventEmittedEvent | PreCompactCapturedEvent
+
+/**
  * Union of all logging events (internal, non-triggering).
  */
-export type LoggingEvent = CLILoggingEvent | SupervisorLoggingEvent
+export type LoggingEvent = CLILoggingEvent | SupervisorLoggingEvent | TranscriptLoggingEvent
 
 // Type guards for logging events
 
@@ -680,4 +744,8 @@ export function isCLILoggingEvent(event: LoggingEvent): event is CLILoggingEvent
 
 export function isSupervisorLoggingEvent(event: LoggingEvent): event is SupervisorLoggingEvent {
   return event.source === 'supervisor'
+}
+
+export function isTranscriptLoggingEvent(event: LoggingEvent): event is TranscriptLoggingEvent {
+  return event.source === 'transcript'
 }

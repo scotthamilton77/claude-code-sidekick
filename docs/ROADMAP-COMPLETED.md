@@ -194,7 +194,7 @@ This document preserves the full implementation details of completed phases from
     - [x] App.tsx wired to use real logs (with mock data fallback when API unavailable)
   - **Implementation notes** (2025-11-30):
     - Added `LogSource` type and `LoggingEventBase` interface to `@sidekick/types/events.ts`
-    - Added 8 logging event types: `HookReceivedEvent`, `HookCompletedEvent`, `ReminderConsumedEvent`, `EventReceivedEvent`, `HandlerExecutedEvent`, `ReminderStagedEvent`, `SummaryUpdatedEvent`, `RemindersClearedEvent`
+    - Added 8 logging event types: `HookReceivedEvent`, `HookCompletedEvent`, `ReminderConsumedEvent`, `EventReceivedEvent`, `EventProcessedEvent`, `ReminderStagedEvent`, `SummaryUpdatedEvent`, `RemindersClearedEvent`
     - Created `createContextLogger()` function in `structured-logging.ts` with:
       - Deep-merging context on child logger creation
       - Source-based log file routing (cli.log / supervisor.log)

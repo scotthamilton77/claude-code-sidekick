@@ -334,14 +334,14 @@ export interface ContextLogger extends Logger {
  * ```typescript
  * const logger = createContextLogger({
  *   source: 'cli',
- *   context: { sessionId: 'sess-123' }
+ *   context: { sessionId: 'abc-123' }
  * })
  *
  * const hookLogger = logger.child({
  *   context: { hook: 'UserPromptSubmit' }
  * })
  *
- * // hookLogger has: { sessionId: 'sess-123', hook: 'UserPromptSubmit' }
+ * // hookLogger has: { sessionId: 'abc-123', hook: 'UserPromptSubmit' }
  * ```
  */
 export function createContextLogger(options: ContextLoggerOptions): ContextLogger {
@@ -380,7 +380,8 @@ export function createContextLogger(options: ContextLoggerOptions): ContextLogge
     pinoInstance = pino(pinoOptions, testStream)
   } else if (logsDir) {
     // File output based on source
-    const logFile = source === 'cli' ? 'cli.log' : 'supervisor.log'
+    // FIXME this is an inappropriate mixing of concerns - the logic of which file each event goes to should be handled elsewhere
+    const logFile = source === 'cli' ? 'cli.log' : source === 'transcript' ? 'transcript-events.log' : 'supervisor.log'
     const logPath = join(logsDir, logFile)
     const logDir = dirname(logPath)
 
@@ -603,7 +604,7 @@ import type {
   HookCompletedEvent,
   ReminderConsumedEvent,
   EventReceivedEvent,
-  HandlerExecutedEvent,
+  EventProcessedEvent,
   ReminderStagedEvent,
   SummaryUpdatedEvent,
   SummarySkippedEvent,
@@ -613,7 +614,11 @@ import type {
   RemindersClearedEvent,
   StatuslineRenderedEvent,
   StatuslineErrorEvent,
+  TranscriptEventEmittedEvent,
+  PreCompactCapturedEvent,
   LoggingEventBase,
+  TranscriptEventType,
+  TranscriptMetrics,
 } from '@sidekick/types'
 
 /**
@@ -750,15 +755,16 @@ export const LogEvents = {
   },
 
   /**
-   * Create a HandlerExecuted event (logged when a handler completes).
+   * Create an EventProcessed event (logged when a handler completes).
+   * (Renamed from handlerExecuted for consistency with eventReceived)
    */
-  handlerExecuted(
+  eventProcessed(
     context: EventLogContext,
     state: { handlerId: string; success: boolean; stopped?: boolean },
     metadata: { durationMs: number; error?: string }
-  ): HandlerExecutedEvent {
+  ): EventProcessedEvent {
     return {
-      type: 'HandlerExecuted',
+      type: 'EventProcessed',
       time: Date.now(),
       source: 'supervisor',
       context: {
@@ -1072,6 +1078,80 @@ export const LogEvents = {
       payload: {
         metadata,
         reason,
+      },
+    }
+  },
+
+  // --- Transcript Events (logged to transcript-events.log) ---
+
+  /**
+   * Create a TranscriptEventEmitted event (logged when TranscriptService emits an event).
+   * @see docs/design/MONITORING-UI.md §4.1
+   */
+  transcriptEventEmitted(
+    context: EventLogContext,
+    state: {
+      eventType: TranscriptEventType
+      lineNumber: number
+      uuid?: string
+      toolName?: string
+    },
+    metadata: {
+      transcriptPath: string
+      contentPreview?: string
+      metrics: TranscriptMetrics
+    }
+  ): TranscriptEventEmittedEvent {
+    return {
+      type: 'TranscriptEventEmitted',
+      time: Date.now(),
+      source: 'transcript',
+      context: {
+        sessionId: context.sessionId,
+        scope: context.scope,
+        correlationId: context.correlationId,
+        traceId: context.traceId,
+        hook: context.hook,
+        taskId: context.taskId,
+      },
+      payload: {
+        state,
+        metadata,
+      },
+    }
+  },
+
+  /**
+   * Create a PreCompactCaptured event (logged when pre-compact snapshot is saved).
+   * @see docs/design/MONITORING-UI.md §4.1
+   */
+  preCompactCaptured(
+    context: EventLogContext,
+    state: {
+      snapshotPath: string
+      lineCount: number
+    },
+    metadata: {
+      transcriptPath: string
+      metrics: TranscriptMetrics
+    }
+  ): PreCompactCapturedEvent {
+    return {
+      type: 'PreCompactCaptured',
+      time: Date.now(),
+      source: 'transcript',
+      context: {
+        sessionId: context.sessionId,
+        scope: context.scope,
+        correlationId: context.correlationId,
+        traceId: context.traceId,
+        hook: context.hook,
+        taskId: context.taskId,
+      },
+      payload: {
+        state,
+        metadata,
+        reason: 'pre_compact_hook',
       },
     }
   },

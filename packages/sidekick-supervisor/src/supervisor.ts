@@ -421,6 +421,11 @@ export class Supervisor {
     const sessionId = event.context?.sessionId
     this.logger.debug('Handling hook invocation', { hook, sessionId })
 
+    // Log EventReceived event
+    if (sessionId) {
+      logEvent(this.logger, LogEvents.eventReceived({ sessionId, scope: 'project', hook }, { eventKind: 'hook', hook }))
+    }
+
     // Build context and start transcript service for non-SessionEnd hooks
     // Note: resolveTranscriptPath does NOT create the service - setContextForHook does,
     // AFTER setting initial context with config (to avoid race condition)
