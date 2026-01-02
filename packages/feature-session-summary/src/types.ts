@@ -28,8 +28,6 @@ export interface SessionSummaryConfig {
     confidenceThreshold: number
     resetThreshold: number
   }
-  minUserMessages: number
-  minRecentLines: number
 }
 
 /**
@@ -45,15 +43,13 @@ export const DEFAULT_SESSION_SUMMARY_CONFIG: SessionSummaryConfig = {
   snarkyMessages: true,
   countdown: {
     lowConfidence: 5,
-    mediumConfidence: 20,
+    mediumConfidence: 10,
     highConfidence: 10000,
   },
   bookmark: {
     confidenceThreshold: 0.8,
     resetThreshold: 0.7,
   },
-  minUserMessages: 5,
-  minRecentLines: 50,
 }
 
 /**

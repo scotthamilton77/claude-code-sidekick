@@ -319,10 +319,10 @@ describe('Session Summary Countdown Logic', () => {
       await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
       const state = await readCountdownState(sessionId)
-      expect(state.countdown).toBe(20) // Medium confidence threshold
+      expect(state.countdown).toBe(10) // Medium confidence threshold
     })
 
-    it('resets countdown to 20 at upper boundary (average = 0.8)', async () => {
+    it('resets countdown to 10 at upper boundary (average = 0.8)', async () => {
       const sessionId = 'test-med-conf-2'
 
       await writeCountdownState(sessionId, { countdown: 0, bookmark_line: 0 })
@@ -342,10 +342,10 @@ describe('Session Summary Countdown Logic', () => {
       await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
       const state = await readCountdownState(sessionId)
-      expect(state.countdown).toBe(20)
+      expect(state.countdown).toBe(10)
     })
 
-    it('resets countdown to 20 at lower boundary (average = 0.61)', async () => {
+    it('resets countdown to 10 at lower boundary (average = 0.61)', async () => {
       const sessionId = 'test-med-conf-3'
 
       await writeCountdownState(sessionId, { countdown: 0, bookmark_line: 0 })
@@ -364,7 +364,7 @@ describe('Session Summary Countdown Logic', () => {
       await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
       const state = await readCountdownState(sessionId)
-      expect(state.countdown).toBe(20)
+      expect(state.countdown).toBe(10)
     })
   })
 
@@ -482,7 +482,7 @@ describe('Session Summary Countdown Logic', () => {
 
       // After analysis, countdown should be reset based on confidence
       const state = await readCountdownState(sessionId)
-      expect(state.countdown).toBe(20) // Medium confidence (0.8 average)
+      expect(state.countdown).toBe(10) // Medium confidence (0.8 average)
     })
   })
 
