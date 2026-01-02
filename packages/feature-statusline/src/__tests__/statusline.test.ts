@@ -400,6 +400,33 @@ describe('Formatter class', () => {
     const result = formatter.format('{model} | {duration} | {title} | {summary}', viewModel)
     expect(result).toBe('claude-3-5-sonnet | Test title')
   })
+
+  it('preserves separator when concatenated empty token precedes it', () => {
+    const formatter = createFormatter({
+      theme: DEFAULT_STATUSLINE_CONFIG.theme,
+      useColors: false,
+    })
+
+    const viewModel = {
+      model: 'claude-3-5-sonnet',
+      tokens: '45k',
+      tokensStatus: 'normal' as const,
+      cost: '$0.15',
+      costStatus: 'normal' as const,
+      duration: '12m',
+      cwd: '~/project',
+      branch: '', // Empty branch directly concatenated to cwd
+      branchColor: '',
+      displayMode: 'session_summary' as const,
+      summary: 'Test summary',
+      title: 'Test title',
+    }
+
+    // Template: {cwd}{branch} | {title} - branch is empty but separator should be preserved
+    // Bug: Previously, EMPTY_MARKER | was removed entirely, causing cwd to run into title
+    const result = formatter.format('{cwd}{branch} | {title}', viewModel)
+    expect(result).toBe('~/project | Test title')
+  })
 })
 
 describe('Formatter with colors enabled', () => {

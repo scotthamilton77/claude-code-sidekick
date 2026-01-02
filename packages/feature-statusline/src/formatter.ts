@@ -126,11 +126,11 @@ export class Formatter {
     // Clean up separators around empty markers (handles both | and \n)
     // Pattern: separator + optional whitespace + EMPTY + optional whitespace + separator → single separator
     result = result.replace(new RegExp(`\\s*[|\\n]\\s*${EMPTY_MARKER}\\s*[|\\n]\\s*`, 'g'), ' | ')
-    // Pattern: EMPTY at start followed by separator → remove
-    result = result.replace(new RegExp(`${EMPTY_MARKER}\\s*[|\\n]\\s*`, 'g'), '')
-    // Pattern: separator followed by EMPTY at end → remove
-    result = result.replace(new RegExp(`\\s*[|\\n]\\s*${EMPTY_MARKER}`, 'g'), '')
-    // Remove any remaining empty markers (standalone)
+    // Pattern: EMPTY at start followed by separator → remove (anchored to start)
+    result = result.replace(new RegExp(`^${EMPTY_MARKER}\\s*[|\\n]\\s*`), '')
+    // Pattern: separator followed by EMPTY at end → remove (anchored to end)
+    result = result.replace(new RegExp(`\\s*[|\\n]\\s*${EMPTY_MARKER}$`), '')
+    // Remove any remaining empty markers (standalone, preserves adjacent separators)
     result = result.replace(new RegExp(EMPTY_MARKER, 'g'), '')
 
     // Final edge cleanup: trailing/leading separators
