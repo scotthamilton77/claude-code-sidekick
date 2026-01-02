@@ -299,12 +299,17 @@ export class StatuslineService {
         }
       : transcriptResult
 
-    // Artifact discovery: if this is a new session (no summary yet), try to find
+    // Artifact discovery: if this is a new session (no meaningful summary yet), try to find
     // a resume message from a previous session per docs/design/FEATURE-RESUME.md §3.1
     let effectiveResumeData = resumeResult.data
-    const isNewSession = !summaryResult.data.session_title || summaryResult.data.session_title === ''
+    // A session is "new" if it has no title, a placeholder title, or zero confidence
+    // The InitSessionState handler creates a default with title="New Session" and confidence=0
+    const hasNoMeaningfulSummary =
+      !summaryResult.data.session_title ||
+      summaryResult.data.session_title === '' ||
+      (summaryResult.data.session_title_confidence ?? 0) === 0
 
-    if (isNewSession && !effectiveResumeData && this.sessionsDir && this.currentSessionId) {
+    if (hasNoMeaningfulSummary && !effectiveResumeData && this.sessionsDir && this.currentSessionId) {
       const discovery = await discoverPreviousResumeMessage(this.sessionsDir, this.currentSessionId)
       if (discovery.source === 'discovered' && discovery.data) {
         effectiveResumeData = discovery.data
@@ -578,15 +583,16 @@ export class StatuslineService {
       return 'first_prompt'
     }
 
-    // Priority 4: Low-confidence session summary (better than nothing)
-    if (hasSummary) {
-      return 'session_summary'
-    }
-
-    // Priority 5: Empty (brand new, nothing submitted)
-    // Also check for discovered resume message from previous session
+    // Priority 4: Discovered resume message from previous session
+    // Show this when we have no confident summary (new session with placeholder)
+    // This provides context about what the user was working on before
     if (resume) {
       return 'resume_message'
+    }
+
+    // Priority 5: Low-confidence session summary (better than nothing)
+    if (hasSummary) {
+      return 'session_summary'
     }
 
     return 'empty_summary'
@@ -603,11 +609,16 @@ export class StatuslineService {
     firstPromptSummary: FirstPromptSummaryState | null
   ): { summaryText: string; title: string } {
     switch (displayMode) {
-      case 'resume_message':
+      case 'resume_message': {
+        // Format: "{resume_last_goal_message} ({snarky_comment})"
+        const goalMessage = resume?.resume_last_goal_message || DEFAULT_PLACEHOLDERS.newSession
+        const snarky = resume?.snarky_comment
+        const summaryText = snarky ? `${goalMessage} (${snarky})` : goalMessage
         return {
-          summaryText: resume?.resume_last_goal_message || DEFAULT_PLACEHOLDERS.newSession,
+          summaryText,
           title: summary.session_title || '',
         }
+      }
 
       case 'empty_summary':
         return {

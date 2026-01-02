@@ -163,6 +163,9 @@ export async function handleStatuslineCommand(
   // userConfigDir is ~/.sidekick for baseline user context metrics
   const userConfigDir = process.env.HOME ? path.join(process.env.HOME, '.sidekick') : undefined
 
+  // Sessions directory for artifact discovery (finding previous session's resume message)
+  const sessionsDir = path.join(sidekickDir, 'sessions')
+
   const service = createStatuslineService({
     sessionStateDir,
     cwd,
@@ -178,6 +181,10 @@ export async function handleStatuslineCommand(
     // Pass directories for baseline metrics reading (new session display)
     userConfigDir,
     projectDir,
+    // Pass sessions directory and current session ID for resume message discovery
+    // Per docs/design/FEATURE-RESUME.md §3.1: discover previous session's resume message
+    sessionsDir,
+    currentSessionId: sessionId,
   })
 
   try {
