@@ -9,7 +9,7 @@
  */
 
 import type { TranscriptEvent } from '@sidekick/core'
-import { logEvent, LogEvents } from '@sidekick/core'
+import { backupIfDevMode, logEvent, LogEvents } from '@sidekick/core'
 import type { SupervisorContext, EventContext } from '@sidekick/types'
 import fs from 'node:fs/promises'
 import path from 'node:path'
@@ -352,6 +352,7 @@ async function saveSummary(ctx: SupervisorContext, sessionId: string, summary: S
   const stateDir = ctx.paths.projectConfigDir ?? ctx.paths.userConfigDir
   const statePath = path.join(stateDir, 'sessions', sessionId, 'state', STATE_FILE)
   await fs.mkdir(path.dirname(statePath), { recursive: true })
+  await backupIfDevMode(ctx.config.core.development.enabled, statePath, { logger: ctx.logger })
   await fs.writeFile(statePath, JSON.stringify(summary, null, 2), 'utf-8')
 }
 
@@ -415,6 +416,7 @@ async function generateSnarkyMessage(
     // Save to state file
     const stateDir = ctx.paths.projectConfigDir ?? ctx.paths.userConfigDir
     const snarkyPath = path.join(stateDir, 'sessions', sessionId, 'state', SNARKY_FILE)
+    await backupIfDevMode(ctx.config.core.development.enabled, snarkyPath, { logger: ctx.logger })
     await fs.writeFile(snarkyPath, snarkyMessage, 'utf-8')
 
     ctx.logger.debug('Generated snarky message', { sessionId, message: snarkyMessage.slice(0, 50) })
@@ -540,6 +542,7 @@ async function generateResumeMessage(
     const stateDir = ctx.paths.projectConfigDir ?? ctx.paths.userConfigDir
     const resumePath = path.join(stateDir, 'sessions', sessionId, 'state', RESUME_FILE)
     await fs.mkdir(path.dirname(resumePath), { recursive: true })
+    await backupIfDevMode(ctx.config.core.development.enabled, resumePath, { logger: ctx.logger })
     await fs.writeFile(resumePath, JSON.stringify(resumeState, null, 2), 'utf-8')
 
     // Log resume updated event

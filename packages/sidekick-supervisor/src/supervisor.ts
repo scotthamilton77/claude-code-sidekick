@@ -603,7 +603,10 @@ export class Supervisor {
     const supervisorContext: SupervisorContext = {
       role: 'supervisor',
       config: {
-        core: { logging: { level: this.config.core.logging.level } },
+        core: {
+          logging: { level: this.config.core.logging.level },
+          development: { enabled: this.config.core.development.enabled },
+        },
         llm: { provider: this.config.llm.provider },
         getAll: () => this.config,
         getFeature: <T = Record<string, unknown>>(name: string) => {
@@ -949,7 +952,10 @@ export class Supervisor {
     const registrationContext: SupervisorContext = {
       role: 'supervisor',
       config: {
-        core: { logging: { level: this.config.core.logging.level } },
+        core: {
+          logging: { level: this.config.core.logging.level },
+          development: { enabled: this.config.core.development.enabled },
+        },
         llm: { provider: this.config.llm.provider },
         getAll: () => this.config,
         getFeature: <T = Record<string, unknown>>(name: string) => {
