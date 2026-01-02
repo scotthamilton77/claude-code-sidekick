@@ -8,6 +8,7 @@
  */
 
 import type { SessionStartHookEvent } from '@sidekick/core'
+import { backupIfDevMode } from '@sidekick/core'
 import type { SupervisorContext } from '@sidekick/types'
 import type { SessionSummaryState } from '../types.js'
 import fs from 'node:fs/promises'
@@ -38,6 +39,7 @@ export async function createFirstSessionSummary(event: SessionStartHookEvent, ct
   const stateDir = ctx.paths.projectConfigDir ?? ctx.paths.userConfigDir
   const statePath = path.join(stateDir, 'sessions', sessionId, 'state', STATE_FILE)
   await fs.mkdir(path.dirname(statePath), { recursive: true })
+  await backupIfDevMode(ctx.config.core.development.enabled, statePath, { logger: ctx.logger })
   await fs.writeFile(statePath, JSON.stringify(placeholder, null, 2), 'utf-8')
 
   ctx.logger.info('Created placeholder session summary', { sessionId })

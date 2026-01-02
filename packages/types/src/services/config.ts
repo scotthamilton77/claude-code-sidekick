@@ -14,7 +14,10 @@
  */
 // FIXME these "minimal" interfaces are a smell; should we have full types here in types/?
 export interface MinimalConfigService {
-  readonly core: { readonly logging: { readonly level: string } }
+  readonly core: {
+    readonly logging: { readonly level: string }
+    readonly development: { readonly enabled: boolean }
+  }
   readonly llm: { readonly provider: string }
   getAll(): unknown
   getFeature<T = Record<string, unknown>>(name: string): { enabled: boolean; settings: T }

@@ -130,6 +130,15 @@ export {
   extractToolResultPreview,
 } from './transcript-content'
 export {
+  getTimestampedPath,
+  copyWithTimestamp,
+  renameWithTimestamp,
+  backupIfDevMode,
+  renameWithTimestampSync,
+  copyWithTimestampSync,
+  type TimestampedFileOptions,
+} from './file-utils'
+export {
   createDefaultMetrics,
   createDefaultTokenUsage,
   TranscriptServiceImpl,

@@ -7,8 +7,9 @@
  * @see docs/design/FEATURE-REMINDERS.md §3.1 Consumption Handlers
  */
 
-import { existsSync, readdirSync, readFileSync, renameSync, unlinkSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
+import { renameWithTimestampSync } from '@sidekick/core'
 import type { StagedReminder, RuntimePaths } from '@sidekick/types'
 
 /**
@@ -85,9 +86,6 @@ export class CLIStagingReader {
   renameReminder(hookName: string, reminderName: string): void {
     if (!isValidPathSegment(hookName) || !isValidPathSegment(reminderName)) return
     const src = join(this.stagingRoot, hookName, `${reminderName}.json`)
-    const dst = join(this.stagingRoot, hookName, `${reminderName}.${Date.now()}.json`)
-    if (existsSync(src)) {
-      renameSync(src, dst)
-    }
+    renameWithTimestampSync(src)
   }
 }
