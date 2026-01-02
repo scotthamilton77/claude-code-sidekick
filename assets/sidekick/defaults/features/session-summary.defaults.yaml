@@ -43,8 +43,3 @@ settings:
     # Confidence drop below which bookmark resets
     resetThreshold: 0.7
 
-  # Minimum user messages required before generating first summary
-  minUserMessages: 1
-
-  # Minimum recent transcript lines required for summary generation
-  minRecentLines: 5

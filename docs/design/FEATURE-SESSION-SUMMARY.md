@@ -337,17 +337,13 @@ features:
     # Countdown-based throttling (tool uses before re-analysis)
     countdown:
       lowConfidence: 5 # confidence < 0.6
-      mediumConfidence: 20 # confidence 0.6-0.8
+      mediumConfidence: 10 # confidence 0.6-0.8
       highConfidence: 10000 # confidence > 0.8 (effectively user-prompt only)
 
     # Bookmark optimization thresholds
     bookmark:
       confidenceThreshold: 0.8 # Set bookmark when title reaches this confidence
       resetThreshold: 0.7 # Reset bookmark if confidence drops below this
-
-    # Filtering safety nets
-    minUserMessages: 5 # Preserve at least N user messages
-    minRecentLines: 50 # Preserve at least N recent transcript lines
 ```
 
 ### 4.2 LLM Configuration

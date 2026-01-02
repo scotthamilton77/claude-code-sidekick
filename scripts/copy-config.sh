@@ -466,18 +466,6 @@ EOF
 EOF
     echo "features.session-summary.bookmark.resetThreshold=$(yaml_get "$file" '.bookmark.resetThreshold')"
     echo ""
-
-    cat <<'EOF'
-# Minimum user messages required before generating first summary
-EOF
-    echo "features.session-summary.minUserMessages=$(yaml_get "$file" '.minUserMessages')"
-    echo ""
-
-    cat <<'EOF'
-# Minimum recent transcript lines required for summary generation
-EOF
-    echo "features.session-summary.minRecentLines=$(yaml_get "$file" '.minRecentLines')"
-    echo ""
 }
 
 # ------------------------------------------------------------------------------
