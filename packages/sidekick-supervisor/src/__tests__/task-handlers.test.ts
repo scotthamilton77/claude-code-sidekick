@@ -43,9 +43,9 @@ const mockContextGetter: ContextGetter = () =>
     config: {
       core: { logging: { level: 'error' }, development: { enabled: false } },
       llm: {
-        defaultProfile: 'analytical',
+        defaultProfile: 'fast-lite',
         profiles: {
-          analytical: { provider: 'openrouter', model: 'test-model' },
+          'fast-lite': { provider: 'openrouter', model: 'test-model' },
           creative: { provider: 'openrouter', model: 'test-model' },
         },
         fallbacks: {
@@ -136,9 +136,9 @@ const mockConfig: SidekickConfig = {
     development: { enabled: false },
   },
   llm: {
-    defaultProfile: 'analytical',
+    defaultProfile: 'fast-lite',
     profiles: {
-      analytical: {
+      'fast-lite': {
         provider: 'openrouter',
         model: 'x-ai/grok-4-fast',
         temperature: 0,

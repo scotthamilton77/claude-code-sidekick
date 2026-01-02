@@ -45,16 +45,8 @@ const DEFAULT_CORE: CoreConfig = {
 }
 
 const DEFAULT_LLM: LlmConfig = {
-  defaultProfile: 'analytical',
+  defaultProfile: 'fast-lite',
   profiles: {
-    analytical: {
-      provider: 'openrouter',
-      model: 'x-ai/grok-4-fast',
-      temperature: 0,
-      maxTokens: 4096,
-      timeout: 30,
-      timeoutMaxRetries: 3,
-    },
     'fast-lite': {
       provider: 'openrouter',
       model: 'google/gemini-2.0-flash-lite-001',

@@ -194,30 +194,30 @@ describe('MockConfigService', () => {
   it('provides domain accessors with defaults', () => {
     // All domain accessors should return defaults
     expect(config.core.logging.level).toBe('info')
-    expect(config.llm.defaultProfile).toBe('analytical')
-    expect(config.llm.profiles.analytical.provider).toBe('openrouter')
+    expect(config.llm.defaultProfile).toBe('fast-lite')
+    expect(config.llm.profiles['fast-lite'].provider).toBe('openrouter')
     expect(config.transcript.watchDebounceMs).toBe(100)
     expect(config.features).toEqual({})
   })
 
   it('sets and gets configuration via domain accessors', () => {
-    config.set({ llm: { profiles: { analytical: { provider: 'openai' } } } })
+    config.set({ llm: { profiles: { 'fast-lite': { provider: 'openai' } } } })
 
-    expect(config.llm.profiles.analytical.provider).toBe('openai')
+    expect(config.llm.profiles['fast-lite'].provider).toBe('openai')
   })
 
   it('gets configuration by dot-path', () => {
-    config.set({ llm: { profiles: { analytical: { provider: 'openai' } } } })
+    config.set({ llm: { profiles: { 'fast-lite': { provider: 'openai' } } } })
 
-    expect(config.getPath('llm.profiles.analytical.provider')).toBe('openai')
+    expect(config.getPath('llm.profiles.fast-lite.provider')).toBe('openai')
   })
 
   it('merges configuration on set', () => {
-    config.set({ llm: { profiles: { analytical: { provider: 'openai' } } } })
-    config.set({ llm: { profiles: { analytical: { timeout: 60 } } } })
+    config.set({ llm: { profiles: { 'fast-lite': { provider: 'openai' } } } })
+    config.set({ llm: { profiles: { 'fast-lite': { timeout: 60 } } } })
 
-    expect(config.llm.profiles.analytical.provider).toBe('openai')
-    expect(config.llm.profiles.analytical.timeout).toBe(60)
+    expect(config.llm.profiles['fast-lite'].provider).toBe('openai')
+    expect(config.llm.profiles['fast-lite'].timeout).toBe(60)
   })
 
   it('returns undefined for missing paths', () => {
@@ -225,20 +225,20 @@ describe('MockConfigService', () => {
   })
 
   it('getAll returns entire config with all domains', () => {
-    config.set({ llm: { profiles: { analytical: { provider: 'openai' } } } })
+    config.set({ llm: { profiles: { 'fast-lite': { provider: 'openai' } } } })
 
     const all = config.getAll()
-    expect(all.llm.profiles.analytical.provider).toBe('openai')
+    expect(all.llm.profiles['fast-lite'].provider).toBe('openai')
     expect(all.core).toBeDefined()
     expect(all.transcript).toBeDefined()
     expect(all.features).toBeDefined()
   })
 
   it('reset restores defaults', () => {
-    config.set({ llm: { profiles: { analytical: { provider: 'openai' } } } })
+    config.set({ llm: { profiles: { 'fast-lite': { provider: 'openai' } } } })
     config.reset()
 
-    expect(config.llm.profiles.analytical.provider).toBe('openrouter')
+    expect(config.llm.profiles['fast-lite'].provider).toBe('openrouter')
     expect(config.core.logging.level).toBe('info')
   })
 
@@ -362,8 +362,8 @@ describe('createTestConfig', () => {
   it('creates config with sensible defaults', () => {
     const config = createTestConfig()
 
-    expect(config.llm.defaultProfile).toBe('analytical')
-    expect(config.llm.profiles.analytical.provider).toBe('openrouter')
+    expect(config.llm.defaultProfile).toBe('fast-lite')
+    expect(config.llm.profiles['fast-lite'].provider).toBe('openrouter')
     expect(config.core.logging.level).toBe('info')
     expect(config.core.supervisor.idleTimeoutMs).toBe(300000)
     expect(config.transcript.watchDebounceMs).toBe(100)
@@ -371,12 +371,12 @@ describe('createTestConfig', () => {
 
   it('merges overrides with defaults', () => {
     const config = createTestConfig({
-      llm: { profiles: { analytical: { provider: 'openai', timeout: 20 } } },
+      llm: { profiles: { 'fast-lite': { provider: 'openai', timeout: 20 } } },
     })
 
-    expect(config.llm.profiles.analytical.provider).toBe('openai')
-    expect(config.llm.profiles.analytical.timeout).toBe(20)
-    expect(config.llm.profiles.analytical.timeoutMaxRetries).toBe(3) // Default preserved
+    expect(config.llm.profiles['fast-lite'].provider).toBe('openai')
+    expect(config.llm.profiles['fast-lite'].timeout).toBe(20)
+    expect(config.llm.profiles['fast-lite'].timeoutMaxRetries).toBe(2) // Default preserved
   })
 
   it('deep merges nested objects', () => {
