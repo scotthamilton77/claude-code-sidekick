@@ -216,6 +216,9 @@ Closed gaps for production-ready monitoring UI. Key outcomes:
   - Refactoring opportunity: several files contain implementation blocks for all hooks or all features together in the same file. this is a smell.  Ideally we keep all feature and hook logic separate from each other and register handlers centrally.
   - Refactoring opportunity: configuration defaults in both files and code - DRY!!
   - Redesign opportunity: supervisor and CLI sometimes need the same files (e.g. supervisor writes metrics files, CLI reads them, supervisor stages reminders, CLI reads and renames them).  I want to make sure that where these points of coupling exist, there should be domain-specific code, e.g. the feature owns both the supervisor and CLI domain-specific behaviors.  The actual supervisor core and CLI core should NOT be coupled on domain-specific nuances.  This applies to potentially duplicated data structures as well.  e.g. look at state-reader.ts - shouldn't the logic for the file location, parsing and data structures be in a transcript-metrics-specific domain area?
+  - Looking at inject-stop.ts, stage-pause-and-reflect.ts, etc., I don't like the mixing of concerns here.  The relationships between the various reminders seems like it should be in some kind of feature controller class that listens to events and triggers business logic that concerns relationships between the reminders.  NOte that we also have the same problem across the user submit and the other two reminders.
+  - All of the code that seeks to read or write from the sidekick's state or session state files should go thru one class.  currently there are many repeats of `const stateDir = join(projectDir, '.sidekick', 'sessions', sessionId, 'state')`
+  - 
 
 - [ ] **Phase 9: Feature Parity and Legacy Cleanup**
   - [ ] Objectives
