@@ -56,6 +56,24 @@ benchmark-next/         # ⚠️ STALE—see benchmark-next/AGENTS.md
 
 Test TS CLI without install: `scripts/dev-mode.sh enable` (requires `pnpm build` first, restart Claude Code after).
 
+## Sandbox Mode Testing
+
+Development is done in Claude Code sandbox mode. Some tests require operations the sandbox blocks:
+
+| Package | Tests | Failure Reason |
+|---------|-------|----------------|
+| `@sidekick/core` | `ipc.test.ts`, `ipc-service.test.ts`, `supervisor-client.test.ts` | Unix socket `listen()` blocked (`EPERM`) |
+
+**Run @sidekick/core with IPC tests excluded:**
+```bash
+pnpm --filter @sidekick/core test -- --exclude '**/{ipc,ipc-service,supervisor-client}.test.ts'
+```
+
+**Run all tests** (requires user to run manually outside sandbox):
+```bash
+INTEGRATION_TESTS=1 pnpm test
+```
+
 ## TypeScript Tooling [PRESERVE]
 
 Post-training-cutoff versions—use context7 for current docs:
