@@ -31,6 +31,9 @@ export { ProviderError, RateLimitError, AuthError, TimeoutError } from './errors
 // Factory
 export { ProviderFactory, type ProviderConfig, type ProviderType, type EmulatedProviderType } from './factory'
 
+// Profile-based factory (reads config at call time)
+export { ProfileProviderFactory } from './profile-factory'
+
 // Fallback wrapper
 export { FallbackProvider } from './fallback'
 

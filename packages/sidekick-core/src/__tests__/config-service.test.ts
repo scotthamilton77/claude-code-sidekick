@@ -253,10 +253,11 @@ describe('loadConfig - YAML parsing', () => {
     expect(config.core.logging.format).toBe('pretty')
     expect(config.core.paths.state).toBe('.sidekick')
 
-    // LLM defaults
-    expect(config.llm.provider).toBe('openrouter')
-    expect(config.llm.temperature).toBe(0)
-    expect(config.llm.timeout).toBe(30)
+    // LLM defaults - profile-based structure
+    expect(config.llm.defaultProfile).toBe('analytical')
+    expect(config.llm.profiles.analytical.provider).toBe('openrouter')
+    expect(config.llm.profiles.analytical.temperature).toBe(0)
+    expect(config.llm.profiles.analytical.timeout).toBe(30)
 
     // Transcript defaults
     expect(config.transcript.watchDebounceMs).toBe(100)
@@ -571,18 +572,27 @@ test:
     mkdirSync(userSidekick, { recursive: true })
     mkdirSync(projectSidekick, { recursive: true })
 
-    // User sets LLM config
+    // User sets LLM profile config
     writeFileSync(
       join(userSidekick, 'llm.yaml'),
       `
-provider: openai
-model: gpt-4o
+profiles:
+  analytical:
+    provider: openai
+    model: gpt-4o
 `
     )
 
-    // Project sets core config and overrides LLM provider
+    // Project sets core config and overrides LLM profile provider
     writeFileSync(join(projectSidekick, 'config.yaml'), `logging:\n  level: debug`)
-    writeFileSync(join(projectSidekick, 'llm.yaml'), `provider: openrouter`)
+    writeFileSync(
+      join(projectSidekick, 'llm.yaml'),
+      `
+profiles:
+  analytical:
+    provider: openrouter
+`
+    )
 
     const config = loadConfig({
       projectRoot: projectDir,
@@ -592,8 +602,8 @@ model: gpt-4o
     // Core from project
     expect(config.core.logging.level).toBe('debug')
     // LLM: provider from project, model from user
-    expect(config.llm.provider).toBe('openrouter')
-    expect(config.llm.model).toBe('gpt-4o')
+    expect(config.llm.profiles.analytical.provider).toBe('openrouter')
+    expect(config.llm.profiles.analytical.model).toBe('gpt-4o')
   })
 })
 
@@ -732,7 +742,8 @@ describe('ConfigService', () => {
     })
 
     expect(service.core.logging.level).toBe('info')
-    expect(service.llm.provider).toBe('openrouter')
+    expect(service.llm.defaultProfile).toBe('analytical')
+    expect(service.llm.profiles.analytical.provider).toBe('openrouter')
     expect(service.transcript.watchDebounceMs).toBe(100)
     expect(service.features).toEqual({})
   })
@@ -934,18 +945,15 @@ describe('loadConfig - environment variables', () => {
   })
 
   test('maps LLM env vars correctly', () => {
-    process.env.SIDEKICK_LLM_PROVIDER = 'openai'
-    process.env.SIDEKICK_LLM_TIMEOUT = '60'
-    process.env.SIDEKICK_LLM_TEMPERATURE = '0.5'
+    // With profile-based config, only global LLM settings can be overridden via env
+    process.env.SIDEKICK_LLM_DEBUG_DUMP = 'true'
 
     const config = loadConfig({
       projectRoot: join(tempRoot, 'project'),
       homeDir: join(tempRoot, 'home'),
     })
 
-    expect(config.llm.provider).toBe('openai')
-    expect(config.llm.timeout).toBe(60)
-    expect(config.llm.temperature).toBe(0.5)
+    expect(config.llm.global?.debugDumpEnabled).toBe(true)
   })
 
   test('maps transcript env vars correctly', () => {
@@ -996,7 +1004,19 @@ describe('loadConfig - external defaults', () => {
           return { logging: { level: 'debug', format: 'json' }, paths: { state: '.custom-state' } } as T
         }
         if (path === 'defaults/llm.defaults.yaml') {
-          return { provider: 'openai', temperature: 0.5, timeout: 60 } as T
+          return {
+            defaultProfile: 'analytical',
+            profiles: {
+              analytical: {
+                provider: 'openai',
+                model: 'gpt-4',
+                temperature: 0.5,
+                maxTokens: 4096,
+                timeout: 60,
+                timeoutMaxRetries: 3,
+              },
+            },
+          } as T
         }
         if (path === 'defaults/transcript.defaults.yaml') {
           return { watchDebounceMs: 250, metricsPersistIntervalMs: 10000 } as T
@@ -1015,9 +1035,9 @@ describe('loadConfig - external defaults', () => {
     expect(config.core.logging.level).toBe('debug')
     expect(config.core.logging.format).toBe('json')
     expect(config.core.paths.state).toBe('.custom-state')
-    expect(config.llm.provider).toBe('openai')
-    expect(config.llm.temperature).toBe(0.5)
-    expect(config.llm.timeout).toBe(60)
+    expect(config.llm.profiles.analytical.provider).toBe('openai')
+    expect(config.llm.profiles.analytical.temperature).toBe(0.5)
+    expect(config.llm.profiles.analytical.timeout).toBe(60)
     expect(config.transcript.watchDebounceMs).toBe(250)
     expect(config.transcript.metricsPersistIntervalMs).toBe(10000)
   })
@@ -1062,7 +1082,7 @@ describe('loadConfig - external defaults', () => {
 
     expect(config.core.logging.level).toBe('info')
     expect(config.core.logging.format).toBe('pretty')
-    expect(config.llm.provider).toBe('openrouter')
+    expect(config.llm.defaultProfile).toBe('analytical')
   })
 
   test('falls back to Zod defaults when YAML file missing', () => {
@@ -1084,7 +1104,7 @@ describe('loadConfig - external defaults', () => {
     })
 
     expect(config.core.logging.level).toBe('info')
-    expect(config.llm.provider).toBe('openrouter')
+    expect(config.llm.defaultProfile).toBe('analytical')
   })
 
   test('env variables override external defaults', () => {
@@ -1123,6 +1143,21 @@ describe('loadConfig - external defaults', () => {
 describe('ConfigService - getFeature with external defaults', () => {
   const tempRoot = join(tmpdir(), 'sidekick-feature-defaults-tests')
 
+  // LLM defaults needed for config validation
+  const mockLlmDefaults = {
+    defaultProfile: 'analytical',
+    profiles: {
+      analytical: {
+        provider: 'openrouter',
+        model: 'test-model',
+        temperature: 0,
+        maxTokens: 4096,
+        timeout: 30,
+        timeoutMaxRetries: 3,
+      },
+    },
+  }
+
   beforeEach(() => {
     mkdirSync(tempRoot, { recursive: true })
   })
@@ -1142,6 +1177,9 @@ describe('ConfigService - getFeature with external defaults', () => {
       resolvePath: () => null,
       resolveJson: () => null,
       resolveYaml: <T>(path: string): T | null => {
+        if (path === 'defaults/llm.defaults.yaml') {
+          return mockLlmDefaults as T
+        }
         if (path === 'defaults/features/statusline.defaults.yaml') {
           // New nested structure: { enabled, settings: { ...settings } }
           return {
@@ -1202,6 +1240,9 @@ statusline:
       resolvePath: () => null,
       resolveJson: () => null,
       resolveYaml: <T>(path: string): T | null => {
+        if (path === 'defaults/llm.defaults.yaml') {
+          return mockLlmDefaults as T
+        }
         if (path === 'defaults/features/statusline.defaults.yaml') {
           // New nested structure: { enabled, settings: { ...settings } }
           return {
@@ -1245,7 +1286,12 @@ statusline:
       },
       resolvePath: () => null,
       resolveJson: () => null,
-      resolveYaml: () => null, // No feature defaults available
+      resolveYaml: <T>(path: string): T | null => {
+        if (path === 'defaults/llm.defaults.yaml') {
+          return mockLlmDefaults as T
+        }
+        return null // No feature defaults available
+      },
       cascadeLayers: ['/mock/assets'],
     }
 
@@ -1287,6 +1333,9 @@ statusline:
       resolvePath: () => null,
       resolveJson: () => null,
       resolveYaml: <T>(path: string): T | null => {
+        if (path === 'defaults/llm.defaults.yaml') {
+          return mockLlmDefaults as T
+        }
         if (path === 'defaults/features/statusline.defaults.yaml') {
           // New nested structure: { enabled, settings: { ...settings } }
           return {
@@ -1402,5 +1451,152 @@ describe('loadConfig - validation', () => {
         homeDir: join(tempRoot, 'home'),
       })
     ).toThrow(/timeout/)
+  })
+
+  test('throws validation error for invalid profile reference in feature config', () => {
+    const projectDir = join(tempRoot, 'project')
+    const projectSidekick = join(projectDir, '.sidekick')
+    mkdirSync(projectSidekick, { recursive: true })
+
+    // Feature references a profile that doesn't exist
+    writeFileSync(
+      join(projectSidekick, 'features.yaml'),
+      `
+session-summary:
+  enabled: true
+  settings:
+    llm:
+      sessionSummary:
+        profile: nonexistent-profile
+`
+    )
+
+    expect(() =>
+      loadConfig({
+        projectRoot: projectDir,
+        homeDir: join(tempRoot, 'home'),
+      })
+    ).toThrow(/Unknown profile "nonexistent-profile"/)
+  })
+
+  test('throws validation error when profile references fallback as primary', () => {
+    const projectDir = join(tempRoot, 'project')
+    const projectSidekick = join(projectDir, '.sidekick')
+    mkdirSync(projectSidekick, { recursive: true })
+
+    // Add the fallback to llm config so it exists
+    writeFileSync(
+      join(projectSidekick, 'llm.yaml'),
+      `
+fallbacks:
+  cheap-fallback:
+    provider: openrouter
+    model: test-model
+    temperature: 0
+    maxTokens: 1000
+    timeout: 30
+    timeoutMaxRetries: 2
+`
+    )
+
+    // Feature uses fallback profile ID as primary profile
+    writeFileSync(
+      join(projectSidekick, 'features.yaml'),
+      `
+session-summary:
+  enabled: true
+  settings:
+    llm:
+      sessionSummary:
+        profile: cheap-fallback
+`
+    )
+
+    expect(() =>
+      loadConfig({
+        projectRoot: projectDir,
+        homeDir: join(tempRoot, 'home'),
+      })
+    ).toThrow(/is a fallback profile, not a primary profile/)
+  })
+
+  test('throws validation error for invalid fallback profile reference', () => {
+    const projectDir = join(tempRoot, 'project')
+    const projectSidekick = join(projectDir, '.sidekick')
+    mkdirSync(projectSidekick, { recursive: true })
+
+    // Feature references a fallback that doesn't exist
+    writeFileSync(
+      join(projectSidekick, 'features.yaml'),
+      `
+session-summary:
+  enabled: true
+  settings:
+    llm:
+      sessionSummary:
+        profile: analytical
+        fallbackProfile: nonexistent-fallback
+`
+    )
+
+    expect(() =>
+      loadConfig({
+        projectRoot: projectDir,
+        homeDir: join(tempRoot, 'home'),
+      })
+    ).toThrow(/Unknown fallback "nonexistent-fallback"/)
+  })
+
+  test('passes validation with valid profile references', () => {
+    const projectDir = join(tempRoot, 'project')
+    const projectSidekick = join(projectDir, '.sidekick')
+    mkdirSync(projectSidekick, { recursive: true })
+
+    // Set up valid profiles including the default profile
+    writeFileSync(
+      join(projectSidekick, 'llm.yaml'),
+      `
+defaultProfile: custom-profile
+profiles:
+  custom-profile:
+    provider: openrouter
+    model: test-model
+    temperature: 0.5
+    maxTokens: 2000
+    timeout: 30
+    timeoutMaxRetries: 2
+fallbacks:
+  custom-fallback:
+    provider: openrouter
+    model: fallback-model
+    temperature: 0
+    maxTokens: 1000
+    timeout: 30
+    timeoutMaxRetries: 2
+`
+    )
+
+    // Feature references valid profiles
+    writeFileSync(
+      join(projectSidekick, 'features.yaml'),
+      `
+session-summary:
+  enabled: true
+  settings:
+    llm:
+      sessionSummary:
+        profile: custom-profile
+        fallbackProfile: custom-fallback
+`
+    )
+
+    // Should not throw
+    const config = loadConfig({
+      projectRoot: projectDir,
+      homeDir: join(tempRoot, 'home'),
+    })
+
+    expect(config.llm.profiles['custom-profile']).toBeDefined()
+    expect(config.llm.fallbacks['custom-fallback']).toBeDefined()
   })
 })

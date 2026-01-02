@@ -13,12 +13,29 @@
  * The actual ConfigService interface is defined in @sidekick/core.
  */
 // FIXME these "minimal" interfaces are a smell; should we have full types here in types/?
+/**
+ * LLM profile configuration used in MinimalConfigService.
+ * Contains the essential fields needed for provider creation.
+ */
+export interface MinimalLlmProfile {
+  readonly provider: string
+  readonly model: string
+  readonly temperature?: number
+  readonly maxTokens?: number
+  readonly timeout?: number
+  readonly timeoutMaxRetries?: number
+}
+
 export interface MinimalConfigService {
   readonly core: {
     readonly logging: { readonly level: string }
     readonly development: { readonly enabled: boolean }
   }
-  readonly llm: { readonly provider: string }
+  readonly llm: {
+    readonly defaultProfile: string
+    readonly profiles: Record<string, MinimalLlmProfile>
+    readonly fallbacks: Record<string, MinimalLlmProfile>
+  }
   getAll(): unknown
   getFeature<T = Record<string, unknown>>(name: string): { enabled: boolean; settings: T }
 }

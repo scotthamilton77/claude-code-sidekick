@@ -178,11 +178,33 @@ export type FirstPromptModelConfig = z.infer<typeof FirstPromptModelConfigSchema
  *
  * @see docs/design/FEATURE-FIRST-PROMPT-SUMMARY.md §5.2
  */
+/** LLM profile reference for sub-feature binding */
+export const LlmSubFeatureConfigSchema = z.object({
+  /** Profile ID from llm.profiles */
+  profile: z.string(),
+  /** Optional fallback profile ID from llm.fallbacks */
+  fallbackProfile: z.string().optional(),
+})
+
+export type LlmSubFeatureConfig = z.infer<typeof LlmSubFeatureConfigSchema>
+
 export const FirstPromptConfigSchema = z.object({
   /** Enable/disable the feature */
   enabled: z.boolean().default(true),
 
-  /** Model configuration with fallback chain */
+  /** LLM profiles for sub-features (preferred) */
+  llm: z
+    .object({
+      summary: LlmSubFeatureConfigSchema.default({
+        profile: 'creative',
+        fallbackProfile: 'cheap-fallback',
+      }),
+    })
+    .default({
+      summary: { profile: 'creative', fallbackProfile: 'cheap-fallback' },
+    }),
+
+  /** @deprecated Use llm.summary instead. Model configuration with fallback chain */
   model: z
     .object({
       primary: FirstPromptModelConfigSchema.default({

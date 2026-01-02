@@ -18,7 +18,15 @@
  * ```
  */
 
-import type { RuntimeContext, CLIContext, SupervisorContext, RuntimePaths, SupervisorClient } from '@sidekick/types'
+import type {
+  RuntimeContext,
+  CLIContext,
+  SupervisorContext,
+  RuntimePaths,
+  SupervisorClient,
+  ProfileProviderFactory,
+  LLMProvider,
+} from '@sidekick/types'
 import { MockConfigService } from '../mocks/MockConfigService'
 import { MockLogger } from '../mocks/MockLogger'
 import { MockLLMService } from '../mocks/MockLLMService'
@@ -34,6 +42,22 @@ const DEFAULT_PATHS: RuntimePaths = {
   projectDir: '/mock/project',
   userConfigDir: '/mock/home/.sidekick',
   projectConfigDir: '/mock/project/.sidekick',
+}
+
+/**
+ * Mock ProfileProviderFactory for testing.
+ * Returns the same MockLLMService for all profiles.
+ */
+export class MockProfileProviderFactory implements ProfileProviderFactory {
+  constructor(private readonly llm: LLMProvider = new MockLLMService()) {}
+
+  createForProfile(_profileId: string, _fallbackProfileId?: string): LLMProvider {
+    return this.llm
+  }
+
+  createDefault(): LLMProvider {
+    return this.llm
+  }
 }
 
 /**
@@ -86,6 +110,7 @@ export interface MockSupervisorContextOptions {
   handlers?: MockHandlerRegistry
   paths?: RuntimePaths
   llm?: MockLLMService
+  profileFactory?: MockProfileProviderFactory
   staging?: MockStagingService
   transcript?: MockTranscriptService
 }
@@ -107,6 +132,7 @@ export interface MockCLIContextOptions {
  * Use this when testing code that requires LLM, staging, or transcript services.
  */
 export function createMockSupervisorContext(overrides?: MockSupervisorContextOptions): SupervisorContext {
+  const llm = overrides?.llm ?? new MockLLMService()
   return {
     role: 'supervisor',
     config: overrides?.config ?? new MockConfigService(),
@@ -114,7 +140,8 @@ export function createMockSupervisorContext(overrides?: MockSupervisorContextOpt
     assets: overrides?.assets ?? new MockAssetResolver(),
     handlers: overrides?.handlers ?? new MockHandlerRegistry(),
     paths: overrides?.paths ?? DEFAULT_PATHS,
-    llm: overrides?.llm ?? new MockLLMService(),
+    llm,
+    profileFactory: overrides?.profileFactory ?? new MockProfileProviderFactory(llm),
     staging: overrides?.staging ?? new MockStagingService(),
     transcript: overrides?.transcript ?? new MockTranscriptService(),
   }

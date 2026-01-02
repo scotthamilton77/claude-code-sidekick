@@ -1,33 +1,58 @@
-# LLM Configuration Defaults
-# This file defines default values for LLM provider settings.
+# LLM Profile Configuration Defaults
+# This file defines named LLM profiles that features can reference.
 # Override in ~/.sidekick/llm.yaml or .sidekick/llm.yaml
 
-# LLM provider: claude-cli, openai, openrouter, custom, emulator
-provider: openrouter
+# Default profile used when no specific profile is requested
+defaultProfile: fast-lite
 
-# Provider to emulate when using emulator provider
-# emulatedProvider: openrouter
+# Primary profiles - referenced by features
+profiles:
+  # General-purpose analytical profile (default)
+  analytical:
+    provider: openrouter
+    model: x-ai/grok-4-fast
+    temperature: 0
+    maxTokens: 4096
+    timeout: 30
+    timeoutMaxRetries: 3
 
-# Model identifier (provider-specific, omit to use provider default)
-# model: anthropic/claude-3.5-sonnet
+  # Fast, cheap profile for simple tasks
+  fast-lite:
+    provider: openrouter
+    model: google/gemini-2.0-flash-lite-001
+    temperature: 0
+    maxTokens: 1000
+    timeout: 15
+    timeoutMaxRetries: 2
 
-# Sampling temperature (0 = deterministic, 1 = creative)
-temperature: 0
+  # Creative profile for short-form content
+  creative:
+    provider: openrouter
+    model: qwen/qwen3-235b-a22b-2507
+    temperature: 1.2
+    maxTokens: 100
+    timeout: 10
+    timeoutMaxRetries: 2
 
-# Maximum tokens to generate (omit to use provider default)
-# maxTokens: 4096
+  # Creative profile for longer content
+  creative-long:
+    provider: openrouter
+    model: qwen/qwen3-235b-a22b-2507
+    temperature: 1.2
+    maxTokens: 500
+    timeout: 20
+    timeoutMaxRetries: 2
 
-# Fallback provider if primary fails
-# fallbackProvider: openai
+# Fallback profiles - only used when primary fails
+fallbacks:
+  cheap-fallback:
+    provider: openrouter
+    model: google/gemini-2.5-flash-lite
+    temperature: 0
+    maxTokens: 1000
+    timeout: 30
+    timeoutMaxRetries: 3
 
-# Fallback model if primary fails
-# fallbackModel: gpt-4o
-
-# Request timeout in seconds (1-300)
-timeout: 30
-
-# Maximum retries on timeout (0-10)
-timeoutMaxRetries: 3
-
-# Enable debug request/response dumps
-debugDumpEnabled: false
+# Global settings
+global:
+  debugDumpEnabled: false

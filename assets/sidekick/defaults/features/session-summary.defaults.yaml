@@ -6,6 +6,21 @@
 enabled: true
 
 settings:
+  # LLM profiles for sub-features
+  llm:
+    # Profile for session summary generation (classification, title, intent)
+    sessionSummary:
+      profile: fast-lite
+      fallbackProfile: cheap-fallback
+    # Profile for snarky comment generation
+    snarkyComment:
+      profile: creative
+      fallbackProfile: cheap-fallback
+    # Profile for resume message generation
+    resumeMessage:
+      profile: creative-long
+      fallbackProfile: cheap-fallback
+
   # Number of transcript lines to include in excerpt for LLM analysis
   excerptLines: 80
 
@@ -42,4 +57,3 @@ settings:
     confidenceThreshold: 0.8
     # Confidence drop below which bookmark resets
     resetThreshold: 0.7
-

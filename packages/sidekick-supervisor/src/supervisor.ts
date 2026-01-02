@@ -34,7 +34,7 @@ import type {
   SupervisorContext,
   RuntimePaths,
 } from '@sidekick/types'
-import { ProviderFactory, type LLMProvider } from '@sidekick/shared-providers'
+import { ProfileProviderFactory, type LLMProvider } from '@sidekick/shared-providers'
 import { InstrumentedLLMProvider } from '@sidekick/core'
 import { randomBytes } from 'crypto'
 import { homedir } from 'os'
@@ -87,6 +87,7 @@ export class Supervisor {
   private serviceFactory: ServiceFactory
   private assetResolver: AssetResolver
   private llmProvider: LLMProvider | null = null
+  private profileProviderFactory: ProfileProviderFactory
   private instrumentedProviders = new Map<string, InstrumentedLLMProvider>()
   private contextMetricsService: ContextMetricsService
   private token: string = ''
@@ -155,6 +156,9 @@ export class Supervisor {
       logger: this.logger,
       skipCliCapture: false,
     })
+
+    // Initialize Profile Provider Factory for profile-based LLM provider creation
+    this.profileProviderFactory = new ProfileProviderFactory(this.configService, this.logger)
 
     // Register staging handlers (Phase 8.5 - Reminders feature)
     // These handlers listen for SessionStart/transcript events and stage reminders
@@ -602,18 +606,9 @@ export class Supervisor {
       hookScriptPath: undefined,
     }
 
-    // Create base LLM provider if needed (lazy init)
+    // Create base LLM provider if needed (lazy init, uses default profile)
     if (!this.llmProvider) {
-      const factory = new ProviderFactory(
-        {
-          provider: 'openrouter',
-          model: 'google/gemini-2.0-flash-lite-001',
-          timeout: 30000,
-          maxRetries: 2,
-        },
-        this.logger
-      )
-      this.llmProvider = factory.create()
+      this.llmProvider = this.profileProviderFactory.createDefault()
     }
 
     // Get the appropriate LLM provider
@@ -702,7 +697,11 @@ export class Supervisor {
           logging: { level: this.configService.core.logging.level },
           development: { enabled: this.configService.core.development.enabled },
         },
-        llm: { provider: this.configService.llm.provider },
+        llm: {
+          defaultProfile: this.configService.llm.defaultProfile,
+          profiles: this.configService.llm.profiles,
+          fallbacks: this.configService.llm.fallbacks,
+        },
         getAll: () => this.configService.getAll(),
         getFeature: <T = Record<string, unknown>>(name: string) => {
           return this.configService.getFeature<T>(name)
@@ -713,6 +712,7 @@ export class Supervisor {
       paths,
       handlers: this.handlerRegistry,
       llm: llmProvider,
+      profileFactory: this.profileProviderFactory,
       staging: stagingService,
       transcript: transcriptService,
     }
@@ -743,18 +743,9 @@ export class Supervisor {
       hookScriptPath: undefined,
     }
 
-    // Create LLM provider if needed (lazy init, reused across requests)
+    // Create LLM provider if needed (lazy init, uses default profile)
     if (!this.llmProvider) {
-      const factory = new ProviderFactory(
-        {
-          provider: 'openrouter',
-          model: 'google/gemini-2.0-flash-lite-001',
-          timeout: 30000,
-          maxRetries: 2,
-        },
-        this.logger
-      )
-      this.llmProvider = factory.create()
+      this.llmProvider = this.profileProviderFactory.createDefault()
     }
 
     // Get or create instrumented provider for this session (tracks metrics per-session)
@@ -786,7 +777,11 @@ export class Supervisor {
           logging: { level: this.configService.core.logging.level },
           development: { enabled: this.configService.core.development.enabled },
         },
-        llm: { provider: this.configService.llm.provider },
+        llm: {
+          defaultProfile: this.configService.llm.defaultProfile,
+          profiles: this.configService.llm.profiles,
+          fallbacks: this.configService.llm.fallbacks,
+        },
         getAll: () => this.configService.getAll(),
         getFeature: <T = Record<string, unknown>>(name: string) => this.configService.getFeature<T>(name),
       },
@@ -795,6 +790,7 @@ export class Supervisor {
       paths,
       handlers: this.handlerRegistry,
       llm: instrumentedProvider,
+      profileFactory: this.profileProviderFactory,
       staging: stagingService,
       transcript: transcriptService,
     }
@@ -1130,7 +1126,11 @@ export class Supervisor {
           logging: { level: this.configService.core.logging.level },
           development: { enabled: this.configService.core.development.enabled },
         },
-        llm: { provider: this.configService.llm.provider },
+        llm: {
+          defaultProfile: this.configService.llm.defaultProfile,
+          profiles: this.configService.llm.profiles,
+          fallbacks: this.configService.llm.fallbacks,
+        },
         getAll: () => this.configService.getAll(),
         getFeature: <T = Record<string, unknown>>(name: string) => this.configService.getFeature<T>(name),
       },
@@ -1140,6 +1140,7 @@ export class Supervisor {
       handlers: this.handlerRegistry,
       // Placeholder services - will be replaced via setContext() in handleSessionStart
       llm: null as unknown as LLMProvider,
+      profileFactory: this.profileProviderFactory,
       staging: null as unknown as StagingService,
       transcript: null as unknown as TranscriptService,
     }

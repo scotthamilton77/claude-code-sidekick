@@ -9,10 +9,27 @@ import type { ResumeMessageState, SessionSummaryState, SummaryCountdownState } f
 export type { ResumeMessageState, SessionSummaryState, SummaryCountdownState }
 
 /**
+ * LLM sub-feature configuration binding a profile to a specific task.
+ * Used to route different sub-features (summary, snarky, resume) to different profiles.
+ */
+export interface LlmSubFeatureConfig {
+  /** Profile ID from llm.profiles */
+  profile: string
+  /** Optional fallback profile ID from llm.fallbacks */
+  fallbackProfile?: string
+}
+
+/**
  * Configuration for session summary feature
  */
 export interface SessionSummaryConfig {
   enabled: boolean
+  /** LLM profiles for sub-features */
+  llm?: {
+    sessionSummary?: LlmSubFeatureConfig
+    snarkyComment?: LlmSubFeatureConfig
+    resumeMessage?: LlmSubFeatureConfig
+  }
   excerptLines: number
   filterToolMessages: boolean
   keepHistory: boolean
@@ -35,6 +52,11 @@ export interface SessionSummaryConfig {
  */
 export const DEFAULT_SESSION_SUMMARY_CONFIG: SessionSummaryConfig = {
   enabled: true,
+  llm: {
+    sessionSummary: { profile: 'fast-lite', fallbackProfile: 'cheap-fallback' },
+    snarkyComment: { profile: 'creative', fallbackProfile: 'cheap-fallback' },
+    resumeMessage: { profile: 'creative-long', fallbackProfile: 'cheap-fallback' },
+  },
   excerptLines: 80,
   filterToolMessages: true,
   keepHistory: false,

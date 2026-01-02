@@ -186,12 +186,19 @@ export function createFirstPromptSummaryHandler(deps: FirstPromptSummaryHandlerD
     let model: string | undefined
 
     if (classification === 'llm') {
+      // Get provider: use profile-based factory if llm config is present
+      let provider: LLMProvider = ctx.llm
+      if (config.llm?.summary) {
+        const { profile, fallbackProfile } = config.llm.summary
+        provider = ctx.profileFactory.createForProfile(profile, fallbackProfile)
+      }
+
       // Try LLM generation
       try {
         const llmResult = await generateWithLLM(
           p.userPrompt,
           p.resumeContext,
-          ctx.llm,
+          provider,
           config,
           ctx.logger,
           deps.assetResolver,
@@ -368,12 +375,10 @@ export async function generateWithLLM(
     hasJsonSchema: !!jsonSchema,
   })
 
-  // Make the LLM request with system message and reduced token limit
+  // Make the LLM request with system message
   const request = {
     system: promptParts.system,
     messages: [{ role: 'user' as const, content: promptParts.user }],
-    maxTokens: 50, // Reduced: JSON response should be ~30 tokens max
-    temperature: 0.8, // Higher temperature for creative snark
     jsonSchema,
   }
 

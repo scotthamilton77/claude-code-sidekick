@@ -12,22 +12,29 @@ import { AbstractProvider } from './base'
 import { AuthError, RateLimitError, TimeoutError, ProviderError } from '../errors'
 
 export interface OpenAINativeConfig {
+  profileName?: string
   apiKey: string
   baseURL?: string
   model: string
   maxRetries?: number
   timeout?: number
+  temperature?: number
+  maxTokens?: number
 }
 
 export class OpenAINativeProvider extends AbstractProvider {
   readonly id: string
   private readonly client: OpenAI
   private readonly defaultModel: string
+  private readonly temperature?: number
+  private readonly maxTokens?: number
 
   constructor(config: OpenAINativeConfig, logger: Logger) {
     super(logger)
     this.id = config.baseURL?.includes('openrouter') ? 'openrouter' : 'openai'
     this.defaultModel = config.model
+    this.temperature = config.temperature
+    this.maxTokens = config.maxTokens
 
     this.client = new OpenAI({
       apiKey: config.apiKey,
@@ -37,9 +44,12 @@ export class OpenAINativeProvider extends AbstractProvider {
     })
 
     this.logger.debug('OpenAI provider initialized', {
+      profile: config.profileName,
       provider: this.id,
       model: this.defaultModel,
       baseURL: config.baseURL,
+      temperature: this.temperature,
+      maxTokens: this.maxTokens,
       apiKey: this.redactApiKey(config.apiKey),
     })
   }
@@ -68,8 +78,8 @@ export class OpenAINativeProvider extends AbstractProvider {
       const completion = await this.client.chat.completions.create({
         model: request.model ?? this.defaultModel,
         messages,
-        temperature: request.temperature,
-        max_tokens: request.maxTokens,
+        temperature: this.temperature,
+        max_tokens: this.maxTokens,
         response_format: responseFormat,
         ...request.additionalParams,
       })

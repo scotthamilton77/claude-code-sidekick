@@ -232,15 +232,17 @@ async function performAnalysis(
       }
     : undefined
 
+  // Get profile configuration for session summary
+  const llmConfig = config.llm?.sessionSummary ?? DEFAULT_SESSION_SUMMARY_CONFIG.llm!.sessionSummary!
+  const provider = ctx.profileFactory.createForProfile(llmConfig.profile, llmConfig.fallbackProfile)
+
   // Call LLM
   let llmResponse: SessionSummaryResponse | null = null
   let tokensUsed = 0
 
   try {
-    const response = await ctx.llm.complete({
+    const response = await provider.complete({
       messages: [{ role: 'user', content: prompt }],
-      temperature: 0, // Zero temperature for deterministic classification
-      maxTokens: 1000,
       jsonSchema,
     })
 
@@ -304,14 +306,14 @@ async function performAnalysis(
   const changes = hasSignificantChange(updatedSummary, currentSummary)
   if (config.snarkyMessages && (changes.titleChanged || changes.intentChanged)) {
     // Note: We don't delete the old file first. If LLM fails, we keep stale over nothing.
-    sideEffects.push(generateSnarkyMessage(ctx, sessionId, updatedSummary))
+    sideEffects.push(generateSnarkyMessage(ctx, sessionId, updatedSummary, config))
   }
 
   // Resume message: generate when pivot detected OR when no resume exists yet
   // @see docs/design/FEATURE-RESUME.md §3.2: "a pivot was detected OR there is no resume-message.json already generated"
   const hasResume = await resumeMessageExists(ctx, sessionId)
   if (updatedSummary.pivot_detected || !hasResume) {
-    sideEffects.push(generateResumeMessage(ctx, event.context, updatedSummary, transcript))
+    sideEffects.push(generateResumeMessage(ctx, event.context, updatedSummary, transcript, config))
   }
 
   // Await all side-effects (errors are logged internally, won't fail main flow)
@@ -401,7 +403,8 @@ function hasSignificantChange(
 async function generateSnarkyMessage(
   ctx: SupervisorContext,
   sessionId: string,
-  summary: SessionSummaryState
+  summary: SessionSummaryState,
+  config: SessionSummaryConfig
 ): Promise<void> {
   const promptTemplate = ctx.assets.resolve(SNARKY_PROMPT_FILE)
   if (!promptTemplate) {
@@ -417,11 +420,13 @@ async function generateSnarkyMessage(
     .replace(/\{\{tool_count\}\}/g, String(ctx.transcript.getMetrics().toolCount))
     .replace(/\{\{sessionSummary\}\}/g, JSON.stringify(summary, null, 2))
 
+  // Get profile configuration for snarky comment (creative profile)
+  const llmConfig = config.llm?.snarkyComment ?? DEFAULT_SESSION_SUMMARY_CONFIG.llm!.snarkyComment!
+  const provider = ctx.profileFactory.createForProfile(llmConfig.profile, llmConfig.fallbackProfile)
+
   try {
-    const response = await ctx.llm.complete({
+    const response = await provider.complete({
       messages: [{ role: 'user', content: prompt }],
-      temperature: 1.2, // High temperature for creative snark
-      maxTokens: 100,
     })
 
     // Snarky message is plain text, no JSON parsing needed
@@ -466,7 +471,8 @@ async function generateResumeMessage(
   ctx: SupervisorContext,
   eventContext: EventContext,
   summary: SessionSummaryState,
-  transcriptExcerpt: string
+  transcriptExcerpt: string,
+  config: SessionSummaryConfig
 ): Promise<void> {
   const { sessionId } = eventContext
 
@@ -527,11 +533,13 @@ async function generateResumeMessage(
     .replace(/\{\{keyPhrases\}\}/g, keyPhrases)
     .replace(/\{\{transcript\}\}/g, transcriptExcerpt)
 
+  // Get profile configuration for resume message (creative-long profile)
+  const llmConfig = config.llm?.resumeMessage ?? DEFAULT_SESSION_SUMMARY_CONFIG.llm!.resumeMessage!
+  const provider = ctx.profileFactory.createForProfile(llmConfig.profile, llmConfig.fallbackProfile)
+
   try {
-    const response = await ctx.llm.complete({
+    const response = await provider.complete({
       messages: [{ role: 'user', content: prompt }],
-      temperature: 1.2, // High temperature for creative messages
-      maxTokens: 500,
       jsonSchema: resumeJsonSchema,
     })
 

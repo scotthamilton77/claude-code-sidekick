@@ -18,13 +18,40 @@ import { ContextGetter, TaskEngine } from '../task-engine.js'
 
 const logger = createConsoleLogger({ minimumLevel: 'error' })
 
+// Mock LLM provider
+const mockLlmProvider = {
+  id: 'mock',
+  complete: () =>
+    Promise.resolve({
+      content: '{"message": "Test mock response"}',
+      model: 'mock',
+      usage: { inputTokens: 0, outputTokens: 0 },
+      rawResponse: { status: 200, body: '' },
+    }),
+}
+
+// Mock profile factory that returns the mock LLM provider
+const mockProfileFactory = {
+  createForProfile: () => mockLlmProvider,
+  createDefault: () => mockLlmProvider,
+}
+
 // Mock context getter for tests
 const mockContextGetter: ContextGetter = () =>
   ({
     role: 'supervisor',
     config: {
       core: { logging: { level: 'error' }, development: { enabled: false } },
-      llm: {},
+      llm: {
+        defaultProfile: 'analytical',
+        profiles: {
+          analytical: { provider: 'openrouter', model: 'test-model' },
+          creative: { provider: 'openrouter', model: 'test-model' },
+        },
+        fallbacks: {
+          'cheap-fallback': { provider: 'openrouter', model: 'test-fallback' },
+        },
+      },
       getAll: () => ({}),
       getFeature: () => undefined,
     },
@@ -32,16 +59,8 @@ const mockContextGetter: ContextGetter = () =>
     assets: { resolve: () => undefined },
     paths: { userConfigDir: '/tmp', projectConfigDir: '/tmp' },
     handlers: { register: () => {}, dispatch: async () => {} },
-    llm: {
-      id: 'mock',
-      complete: () =>
-        Promise.resolve({
-          content: '',
-          model: 'mock',
-          usage: { inputTokens: 0, outputTokens: 0 },
-          rawResponse: { status: 200, body: '' },
-        }),
-    },
+    llm: mockLlmProvider,
+    profileFactory: mockProfileFactory,
     staging: {
       stageReminder: () => Promise.resolve(),
       readReminder: () => Promise.resolve(null),
@@ -107,7 +126,7 @@ const mockAssetResolver: MinimalAssetResolver = {
   },
 }
 
-// Mock config for testing - uses defaults
+// Mock config for testing - uses profile-based LLM structure
 const mockConfig: SidekickConfig = {
   core: {
     logging: { level: 'error', format: 'json', consoleEnabled: false },
@@ -117,16 +136,22 @@ const mockConfig: SidekickConfig = {
     development: { enabled: false },
   },
   llm: {
-    provider: 'claude-cli',
-    emulatedProvider: undefined,
-    model: undefined,
-    temperature: 0,
-    maxTokens: undefined,
-    fallbackProvider: undefined,
-    fallbackModel: undefined,
-    timeout: 30,
-    timeoutMaxRetries: 3,
-    debugDumpEnabled: false,
+    defaultProfile: 'analytical',
+    profiles: {
+      analytical: {
+        provider: 'openrouter',
+        model: 'x-ai/grok-4-fast',
+        temperature: 0,
+        maxTokens: 4096,
+        timeout: 30,
+        timeoutMaxRetries: 3,
+      },
+    },
+    fallbacks: {},
+    global: {
+      debugDumpEnabled: false,
+      emulatedProvider: undefined,
+    },
   },
   transcript: {
     watchDebounceMs: 100,

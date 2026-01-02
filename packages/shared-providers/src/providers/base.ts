@@ -25,8 +25,6 @@ export abstract class AbstractProvider implements LLMProvider {
       hasSystem: !!request.system,
       systemLength: request.system?.length,
       totalContentLength,
-      temperature: request.temperature,
-      maxTokens: request.maxTokens,
     })
   }
 
