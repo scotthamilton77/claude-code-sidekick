@@ -12,6 +12,7 @@
  */
 
 import type { RuntimeContext, HookResponse } from '@sidekick/core'
+import { LogEvents, logEvent } from '@sidekick/core'
 import type { CLIContext, HookName, StagedReminder } from '@sidekick/types'
 import { isCLIContext, isHookEvent } from '@sidekick/types'
 import { CLIStagingReader } from '../../cli-staging-reader.js'
@@ -97,11 +98,24 @@ export function createConsumptionHandler(context: RuntimeContext, config: Consum
         response.userMessage = reminder.userMessage
       }
 
-      cliCtx.logger.info('Injected reminder', {
-        hook,
-        reminder: reminder.name,
-        ...(supportsBlocking && { blocking: reminder.blocking }),
-      })
+      // Log ReminderConsumed event
+      logEvent(
+        cliCtx.logger,
+        LogEvents.reminderConsumed(
+          {
+            sessionId,
+            scope: cliCtx.paths.projectDir ? 'project' : 'user',
+            hook,
+          },
+          {
+            reminderName: reminder.name,
+            reminderReturned: true,
+            blocking: reminder.blocking,
+            priority: reminder.priority,
+            persistent: reminder.persistent,
+          }
+        )
+      )
 
       return { response }
     },

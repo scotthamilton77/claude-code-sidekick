@@ -16,8 +16,9 @@
  */
 
 import chokidar, { FSWatcher } from 'chokidar'
-import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { LogEvents, logEvent } from './structured-logging.js'
 import type {
   TranscriptService,
   TranscriptMetrics,
@@ -614,6 +615,19 @@ export class TranscriptServiceImpl implements TranscriptService {
 
     // Persist compaction history
     this.persistCompactionHistory()
+
+    // Log PreCompactCaptured event for timeline visibility
+    if (this.sessionId) {
+      const lineCount = statSync(snapshotPath).size > 0 ? this.metrics.lastProcessedLine : 0
+      logEvent(
+        this.options.logger,
+        LogEvents.preCompactCaptured(
+          { sessionId: this.sessionId, scope: 'project' },
+          { snapshotPath, lineCount },
+          { transcriptPath: this.transcriptPath ?? '', metrics: this.deepCloneMetrics() }
+        )
+      )
+    }
 
     this.options.logger.info('Captured pre-compact state', { sessionId: this.sessionId, snapshotPath })
     return Promise.resolve()

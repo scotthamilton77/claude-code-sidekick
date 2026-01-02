@@ -925,16 +925,16 @@ describe('Structured Logging', () => {
       expect(event.payload.metadata.hook).toBe('PostToolUse')
     })
 
-    it('should create HandlerExecuted events with success/failure', async () => {
+    it('should create EventProcessed events with success/failure', async () => {
       const { LogEvents } = await import('../structured-logging')
 
-      const event = LogEvents.handlerExecuted(
+      const event = LogEvents.eventProcessed(
         { sessionId: 'sess-123' },
         { handlerId: 'reminders:stage-stuck', success: true },
         { durationMs: 12 }
       )
 
-      expect(event.type).toBe('HandlerExecuted')
+      expect(event.type).toBe('EventProcessed')
       expect(event.source).toBe('supervisor')
       expect(event.payload.state.handlerId).toBe('reminders:stage-stuck')
       expect(event.payload.state.success).toBe(true)
@@ -1014,6 +1014,69 @@ describe('Structured Logging', () => {
       expect(event.source).toBe('supervisor')
       expect(event.payload.state.clearedCount).toBe(3)
       expect(event.payload.reason).toBe('session_start')
+    })
+
+    it('should create TranscriptEventEmitted events with uuid', async () => {
+      const { LogEvents } = await import('../structured-logging')
+      const { createDefaultMetrics } = await import('../transcript-service')
+
+      const metrics = {
+        ...createDefaultMetrics(),
+        turnCount: 5,
+        toolsThisTurn: 2,
+        toolCount: 10,
+        messageCount: 15,
+        lastProcessedLine: 42,
+      }
+
+      const event = LogEvents.transcriptEventEmitted(
+        { sessionId: 'sess-123', scope: 'project' },
+        {
+          eventType: 'ToolCall',
+          lineNumber: 42,
+          uuid: 'abc-123-def-456',
+          toolName: 'Bash',
+        },
+        {
+          transcriptPath: '/tmp/transcript.jsonl',
+          contentPreview: 'echo hello...',
+          metrics,
+        }
+      )
+
+      expect(event.type).toBe('TranscriptEventEmitted')
+      expect(event.source).toBe('transcript')
+      expect(event.payload.state.eventType).toBe('ToolCall')
+      expect(event.payload.state.lineNumber).toBe(42)
+      expect(event.payload.state.uuid).toBe('abc-123-def-456')
+      expect(event.payload.state.toolName).toBe('Bash')
+      expect(event.payload.metadata.contentPreview).toBe('echo hello...')
+    })
+
+    it('should create PreCompactCaptured events', async () => {
+      const { LogEvents } = await import('../structured-logging')
+      const { createDefaultMetrics } = await import('../transcript-service')
+
+      const metrics = {
+        ...createDefaultMetrics(),
+        turnCount: 10,
+        toolsThisTurn: 0,
+        toolCount: 25,
+        messageCount: 50,
+        lastProcessedLine: 100,
+      }
+
+      const event = LogEvents.preCompactCaptured(
+        { sessionId: 'sess-123', scope: 'project' },
+        { snapshotPath: '/tmp/snapshot.jsonl', lineCount: 100 },
+        { transcriptPath: '/tmp/transcript.jsonl', metrics }
+      )
+
+      expect(event.type).toBe('PreCompactCaptured')
+      expect(event.source).toBe('transcript')
+      expect(event.payload.state.snapshotPath).toBe('/tmp/snapshot.jsonl')
+      expect(event.payload.state.lineCount).toBe(100)
+      expect(event.payload.reason).toBe('pre_compact_hook')
     })
 
     it('should support logEvent helper to emit events via logger', async () => {
