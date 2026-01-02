@@ -4,14 +4,14 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs'
+import { mkdirSync, writeFileSync, rmSync, existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { CLIStagingReader } from '../cli-staging-reader'
 import type { RuntimePaths } from '@sidekick/types'
 
 describe('consumption-handlers', () => {
   describe('CLIStagingReader', () => {
-    const testStateDir = '/tmp/test-state-reminders'
+    const testStateDir = '/tmp/claude/test-state-reminders'
     const sessionId = 'test-session-123'
     // CLIStagingReader uses projectConfigDir/sessions/sessionId/stage/hook
     const mockPaths: RuntimePaths = {
@@ -215,7 +215,7 @@ describe('consumption-handlers', () => {
     })
 
     it('constructs correct staging path from projectConfigDir', () => {
-      const customStateDir = '/tmp/custom-state-test'
+      const customStateDir = '/tmp/claude/custom-state-test'
       const customPaths: RuntimePaths = {
         projectDir: '/mock/project',
         userConfigDir: '/mock/user',
@@ -238,6 +238,92 @@ describe('consumption-handlers', () => {
 
       // Cleanup
       rmSync(customStateDir, { recursive: true, force: true })
+    })
+
+    describe('renameReminder (consumption tracking)', () => {
+      it('renames reminder with timestamp suffix for consumption history', () => {
+        const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'Stop')
+        const originalPath = join(stagingDir, 'verify-completion.json')
+
+        writeFileSync(
+          originalPath,
+          JSON.stringify({
+            name: 'verify-completion',
+            blocking: true,
+            priority: 50,
+            persistent: false,
+          })
+        )
+
+        const reader = new CLIStagingReader({
+          paths: mockPaths,
+          sessionId,
+        })
+
+        expect(existsSync(originalPath)).toBe(true)
+        reader.renameReminder('Stop', 'verify-completion')
+
+        // Original file should be gone
+        expect(existsSync(originalPath)).toBe(false)
+
+        // Should have a timestamped file instead (verify-completion.{timestamp}.json)
+        const files = readdirSync(stagingDir).filter(
+          (f: string) => f.startsWith('verify-completion.') && f.endsWith('.json')
+        )
+        expect(files.length).toBe(1)
+        expect(files[0]).toMatch(/^verify-completion\.\d+\.json$/)
+      })
+    })
+
+    describe('inject-stop P&R cascade prevention', () => {
+      /**
+       * When consuming verify-completion, inject-stop should delete any staged
+       * pause-and-reflect reminder to prevent cascade confusion.
+       *
+       * NOTE: Full integration test with IPC requires INTEGRATION_TESTS=1.
+       * This test verifies the file deletion behavior only.
+       */
+      it('CLIStagingReader.deleteReminder removes P&R when consuming VC', () => {
+        // Set up: VC staged for Stop, P&R staged for PreToolUse
+        const stopDir = join(testStateDir, 'sessions', sessionId, 'stage', 'Stop')
+        const preToolDir = join(testStateDir, 'sessions', sessionId, 'stage', 'PreToolUse')
+
+        writeFileSync(
+          join(stopDir, 'verify-completion.json'),
+          JSON.stringify({
+            name: 'verify-completion',
+            blocking: true,
+            priority: 50,
+            persistent: false,
+          })
+        )
+        writeFileSync(
+          join(preToolDir, 'pause-and-reflect.json'),
+          JSON.stringify({
+            name: 'pause-and-reflect',
+            blocking: true,
+            priority: 80,
+            persistent: false,
+          })
+        )
+
+        const reader = new CLIStagingReader({
+          paths: mockPaths,
+          sessionId,
+        })
+
+        // Verify both exist
+        expect(reader.listReminders('Stop')).toHaveLength(1)
+        expect(reader.listReminders('PreToolUse')).toHaveLength(1)
+
+        // Simulate VC consumption: rename VC and delete P&R
+        reader.renameReminder('Stop', 'verify-completion')
+        reader.deleteReminder('PreToolUse', 'pause-and-reflect')
+
+        // VC should be consumed (renamed), P&R should be deleted
+        expect(reader.listReminders('Stop')).toHaveLength(0)
+        expect(reader.listReminders('PreToolUse')).toHaveLength(0)
+      })
     })
   })
 })

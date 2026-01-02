@@ -390,6 +390,8 @@ export class Supervisor {
         return 'pong'
       case 'hook.invoke':
         return this.handleHookInvoke(p)
+      case 'reminder.consumed':
+        return this.handleReminderConsumed(p)
       default:
         throw new Error(`Method not found: ${method}`)
     }
@@ -491,6 +493,37 @@ export class Supervisor {
     if (sessionId) {
       await this.serviceFactory.shutdownSession(sessionId)
       this.logger.info('Session ended', { sessionId })
+    }
+  }
+
+  /**
+   * Handle reminder.consumed IPC from CLI.
+   * When verify-completion is consumed, stores P&R baseline to reset threshold.
+   */
+  private async handleReminderConsumed(params: Record<string, unknown> | undefined): Promise<void> {
+    const sessionId = params?.sessionId as string | undefined
+    const reminderName = params?.reminderName as string | undefined
+    const metrics = params?.metrics as { turnCount: number; toolsThisTurn: number } | undefined
+
+    if (!sessionId || !reminderName || !metrics) {
+      throw new Error('reminder.consumed requires sessionId, reminderName, and metrics')
+    }
+
+    // Only update P&R baseline for verify-completion consumption
+    // FIXME this should go into a feature controller handler instead of supervisor directly.
+    if (reminderName === 'verify-completion') {
+      const stateDir = path.join(this.projectDir, '.sidekick', 'sessions', sessionId, 'state')
+      await fs.mkdir(stateDir, { recursive: true })
+
+      const baseline = {
+        turnCount: metrics.turnCount,
+        toolsThisTurn: metrics.toolsThisTurn,
+        timestamp: Date.now(),
+      }
+
+      await fs.writeFile(path.join(stateDir, 'pr-baseline.json'), JSON.stringify(baseline, null, 2))
+
+      this.logger.debug('Updated P&R baseline after VC consumption', { sessionId, baseline })
     }
   }
 
@@ -632,6 +665,14 @@ export class Supervisor {
 
     // Build state directory path
     const stateDir = path.join(this.projectDir, '.sidekick', 'sessions', sessionId, 'state')
+
+    // Clear P&R baseline on new user prompt (new turn resets threshold)
+    try {
+      await fs.unlink(path.join(stateDir, 'pr-baseline.json'))
+      this.logger.debug('Cleared P&R baseline on UserPromptSubmit', { sessionId })
+    } catch {
+      // File may not exist - ignore
+    }
     const sessionSummaryPath = path.join(stateDir, 'session-summary.json')
     const firstPromptSummaryPath = path.join(stateDir, 'first-prompt-summary.json')
 

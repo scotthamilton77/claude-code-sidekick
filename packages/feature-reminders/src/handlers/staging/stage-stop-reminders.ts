@@ -38,11 +38,10 @@ export function registerStageStopReminders(context: RuntimeContext): void {
       const metrics = event.metadata.metrics
 
       // Check consumption history for reactivation decision
+      // VC should only fire ONCE per turn - reactivate only on new turn
       const lastConsumed = await ctx.staging.getLastConsumed('Stop', ReminderIds.VERIFY_COMPLETION)
       if (lastConsumed?.stagedAt) {
-        // Reactivate only on new turn OR new file edit (toolCount increased)
-        const shouldReactivate =
-          metrics.turnCount > lastConsumed.stagedAt.turnCount || metrics.toolCount > lastConsumed.stagedAt.toolCount
+        const shouldReactivate = metrics.turnCount > lastConsumed.stagedAt.turnCount
 
         if (!shouldReactivate) return undefined
       }

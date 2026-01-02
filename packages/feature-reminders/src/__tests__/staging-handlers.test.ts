@@ -3,7 +3,9 @@
  * @see docs/design/FEATURE-REMINDERS.md §3.1
  */
 
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { join } from 'node:path'
 import {
   createMockSupervisorContext,
   createMockCLIContext,
@@ -13,7 +15,7 @@ import {
   MockAssetResolver,
   createDefaultMetrics,
 } from '@sidekick/testing-fixtures'
-import type { SupervisorContext, TranscriptEvent, TranscriptMetrics } from '@sidekick/types'
+import type { SupervisorContext, TranscriptEvent, TranscriptMetrics, PRBaselineState } from '@sidekick/types'
 import { registerStagePauseAndReflect } from '../handlers/staging/stage-pause-and-reflect'
 import { registerStageDefaultUserPrompt } from '../handlers/staging/stage-default-user-prompt'
 import { registerStageStopReminders } from '../handlers/staging/stage-stop-reminders'
@@ -180,6 +182,165 @@ reason: "Verify completion before stopping"
       expect(reminders[0].additionalContext).toBe('Checkpoint at 30 tools')
       expect(reminders[0].reason).toBe('Checkpoint - 30 tools used')
     })
+
+    describe('P&R baseline threshold adjustment', () => {
+      const testProjectDir = '/tmp/claude/test-pr-baseline'
+      const sessionId = 'test-session'
+
+      beforeEach(() => {
+        // Create state directory structure
+        const stateDir = join(testProjectDir, '.sidekick', 'sessions', sessionId, 'state')
+        mkdirSync(stateDir, { recursive: true })
+      })
+
+      afterEach(() => {
+        rmSync(testProjectDir, { recursive: true, force: true })
+      })
+
+      function createEventWithSession(metrics: Partial<TranscriptMetrics>, toolName?: string): TranscriptEvent {
+        return {
+          kind: 'transcript',
+          eventType: 'ToolCall',
+          context: {
+            sessionId,
+            timestamp: Date.now(),
+          },
+          payload: {
+            lineNumber: 1,
+            entry: {},
+            toolName,
+          },
+          metadata: {
+            transcriptPath: '/test/transcript.jsonl',
+            metrics: { ...createDefaultMetrics(), ...metrics },
+          },
+        }
+      }
+
+      it('uses default threshold when no baseline file exists', async () => {
+        // Create context with test project dir
+        const ctxWithPath = createMockSupervisorContext({
+          staging,
+          logger,
+          handlers,
+          assets,
+          paths: {
+            projectDir: testProjectDir,
+            userConfigDir: '/mock/user',
+            projectConfigDir: '/mock/project-config',
+          },
+        })
+
+        registerStagePauseAndReflect(ctxWithPath)
+
+        const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
+        // Default threshold is 15, so this should trigger
+        const event = createEventWithSession({ turnCount: 1, toolsThisTurn: 15, toolCount: 15 })
+
+        await handler?.handler(event, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
+
+        expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
+      })
+
+      it('adjusts threshold based on baseline when VC was consumed same turn', async () => {
+        // Write baseline file indicating VC was consumed at tool 8 on turn 1
+        const stateDir = join(testProjectDir, '.sidekick', 'sessions', sessionId, 'state')
+        const baseline: PRBaselineState = {
+          turnCount: 1,
+          toolsThisTurn: 8,
+          timestamp: Date.now(),
+        }
+        writeFileSync(join(stateDir, 'pr-baseline.json'), JSON.stringify(baseline))
+
+        const ctxWithPath = createMockSupervisorContext({
+          staging,
+          logger,
+          handlers,
+          assets,
+          paths: {
+            projectDir: testProjectDir,
+            userConfigDir: '/mock/user',
+            projectConfigDir: '/mock/project-config',
+          },
+        })
+
+        registerStagePauseAndReflect(ctxWithPath)
+
+        const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
+
+        // At tool 15 on turn 1: 15 - 8 = 7 < 15 threshold, should NOT fire
+        const event15 = createEventWithSession({ turnCount: 1, toolsThisTurn: 15, toolCount: 15 })
+        await handler?.handler(event15, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
+        expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(0)
+
+        // At tool 23 on turn 1: 23 - 8 = 15 >= 15 threshold, SHOULD fire
+        const event23 = createEventWithSession({ turnCount: 1, toolsThisTurn: 23, toolCount: 23 })
+        await handler?.handler(event23, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
+        expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
+      })
+
+      it('ignores baseline from different turn', async () => {
+        // Write baseline file from turn 1
+        const stateDir = join(testProjectDir, '.sidekick', 'sessions', sessionId, 'state')
+        const baseline: PRBaselineState = {
+          turnCount: 1,
+          toolsThisTurn: 8,
+          timestamp: Date.now(),
+        }
+        writeFileSync(join(stateDir, 'pr-baseline.json'), JSON.stringify(baseline))
+
+        const ctxWithPath = createMockSupervisorContext({
+          staging,
+          logger,
+          handlers,
+          assets,
+          paths: {
+            projectDir: testProjectDir,
+            userConfigDir: '/mock/user',
+            projectConfigDir: '/mock/project-config',
+          },
+        })
+
+        registerStagePauseAndReflect(ctxWithPath)
+
+        const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
+
+        // On turn 2, baseline from turn 1 should be ignored
+        // At tool 15 on turn 2: uses default threshold (0), so 15 >= 15, SHOULD fire
+        const event = createEventWithSession({ turnCount: 2, toolsThisTurn: 15, toolCount: 100 })
+        await handler?.handler(event, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
+
+        expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
+      })
+
+      it('handles malformed baseline file gracefully', async () => {
+        // Write invalid JSON
+        const stateDir = join(testProjectDir, '.sidekick', 'sessions', sessionId, 'state')
+        writeFileSync(join(stateDir, 'pr-baseline.json'), 'not valid json {')
+
+        const ctxWithPath = createMockSupervisorContext({
+          staging,
+          logger,
+          handlers,
+          assets,
+          paths: {
+            projectDir: testProjectDir,
+            userConfigDir: '/mock/user',
+            projectConfigDir: '/mock/project-config',
+          },
+        })
+
+        registerStagePauseAndReflect(ctxWithPath)
+
+        const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
+        // Should use default threshold (0) and not crash
+        const event = createEventWithSession({ turnCount: 1, toolsThisTurn: 15, toolCount: 15 })
+
+        await handler?.handler(event, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
+
+        expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
+      })
+    })
   })
 
   describe('registerStageStopReminders', () => {
@@ -325,6 +486,75 @@ reason: "Verify completion before stopping"
         await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
 
         expect(staging.getRemindersForHook('Stop')).toHaveLength(0)
+      })
+    })
+
+    describe('VC once-per-turn reactivation', () => {
+      it('does NOT re-stage VC after consumption within same turn', async () => {
+        registerStageStopReminders(ctx)
+
+        const handler = handlers.getHandler('reminders:stage-stop-reminders')
+
+        // First edit - stages VC
+        const event1 = createTestTranscriptEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, 'Edit', '/src/a.ts')
+        await handler?.handler(event1, ctx as unknown as import('@sidekick/types').HandlerContext)
+        expect(staging.getRemindersForHook('Stop')).toHaveLength(1)
+
+        // Simulate consumption: add to consumed list and clear staged
+        staging.addConsumedReminder('Stop', 'verify-completion', {
+          name: 'verify-completion',
+          blocking: true,
+          priority: 50,
+          persistent: false,
+          stagedAt: { timestamp: Date.now(), turnCount: 1, toolsThisTurn: 1, toolCount: 1 },
+        })
+        await staging.deleteReminder('Stop', 'verify-completion')
+        expect(staging.getRemindersForHook('Stop')).toHaveLength(0)
+
+        // Second edit in SAME turn - should NOT re-stage
+        const event2 = createTestTranscriptEvent({ turnCount: 1, toolsThisTurn: 5, toolCount: 5 }, 'Edit', '/src/b.ts')
+        await handler?.handler(event2, ctx as unknown as import('@sidekick/types').HandlerContext)
+
+        expect(staging.getRemindersForHook('Stop')).toHaveLength(0)
+      })
+
+      it('DOES re-stage VC after consumption on NEW turn', async () => {
+        registerStageStopReminders(ctx)
+
+        const handler = handlers.getHandler('reminders:stage-stop-reminders')
+
+        // First edit on turn 1 - stages VC
+        const event1 = createTestTranscriptEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, 'Edit', '/src/a.ts')
+        await handler?.handler(event1, ctx as unknown as import('@sidekick/types').HandlerContext)
+        expect(staging.getRemindersForHook('Stop')).toHaveLength(1)
+
+        // Simulate consumption
+        staging.addConsumedReminder('Stop', 'verify-completion', {
+          name: 'verify-completion',
+          blocking: true,
+          priority: 50,
+          persistent: false,
+          stagedAt: { timestamp: Date.now(), turnCount: 1, toolsThisTurn: 1, toolCount: 1 },
+        })
+        await staging.deleteReminder('Stop', 'verify-completion')
+
+        // Edit on NEW turn (turn 2) - SHOULD re-stage
+        const event2 = createTestTranscriptEvent({ turnCount: 2, toolsThisTurn: 1, toolCount: 10 }, 'Edit', '/src/b.ts')
+        await handler?.handler(event2, ctx as unknown as import('@sidekick/types').HandlerContext)
+
+        expect(staging.getRemindersForHook('Stop')).toHaveLength(1)
+      })
+
+      it('stages VC normally when no consumption history exists', async () => {
+        registerStageStopReminders(ctx)
+
+        const handler = handlers.getHandler('reminders:stage-stop-reminders')
+
+        // No prior consumption - should stage
+        const event = createTestTranscriptEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, 'Edit', '/src/a.ts')
+        await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+
+        expect(staging.getRemindersForHook('Stop')).toHaveLength(1)
       })
     })
   })
