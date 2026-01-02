@@ -12,36 +12,27 @@ This repository serves as a development and testing environment for [Claude Code
 
 ### Sidekick
 
-- investigate frequency of LLM calls and verify we're not wasting tokens
-  - check on the conditional "don't need to call LLM" logic and make sure we're getting the results we want
-- should we block and wait (with timeout of p95 of completion latency?) for session summary when we have low confidence?
 - snarky comment generator
   - needs a fallback model
-- refine the transcript analysis process
-  - tune the session summarizer to follow the last n turns (delta + 10?) - this combined with previous goal snapshot might be cheaper?
-  - optmize transcript embedding in the prompts, e.g. we don't really need the full json, do we? And can we truncate tool results? (Might need to do some analysis here to get a sense of the range of output here.)
-  - tune the instructions for the session summary (little shorter, more cynical)
-- can we be resilient to json file errors?  I just ran into a case of the session-summary.json being generated with trash after the last } which made it unreadable
 - finish ROADMAP.md
 - finish PLAN.MD (executing ARCH.md)
+- refine the transcript analysis process
+  - tune the session summarizer to follow the last n turns (delta + 10?) - this combined with previous goal snapshot might be cheaper?
+  - optimize transcript embedding in the prompts, e.g. we don't really need the full json, do we? And can we truncate tool results? (Might need to do some analysis here to get a sense of the range of output here.)
+- can we be resilient to json file errors?  I just ran into a case of the session-summary.json being generated with trash after the last } which made it unreadable
 - allow for different personalities - either explicit at install time or random per project or random per session or just random
   - moods: cynical, sarcastic, snarky, nerdy, arrogant, moody
   - persona: angry klingon, skeptical vulcan, Scotty, Bones, Dilbert
   - themes: scifi, crime drama, daytime television, soap opera, classic 80s tv sitcom, seinfeld & friends
-- add stakes and psychology to the user prompt reminder?  https://medium.com/@ichigoSan/i-accidentally-made-claude-45-smarter-heres-how-23ad0bf91ccf
 - allow a "concise" topic mode during setup that chooses concise template files
   - allow the line length hints to be configurable
-  - allow the statusline topic format to be configurable
-  - maybe just allow for project-level overrides (template file input parameter and/or user and project level overrides)
 - log rotation and log level to info by default
 - BUG: uninstall from project leaves empty hooks folder
 - how do subagents work - can we detect their connection to the parent agent, and do we care? (for statusline, maybe not, but for analytics?)
-- feedback loops
-  - Add a "confession" at the end of a task where the agent confesses what they did wrong, use for a learnings log?
-  - learning mode? investigate https://medium.com/coding-nexus/rip-fine-tuning-how-stanfords-ace-framework-teaches-ai-to-learn-without-retraining-510f412d8579
 
 ### Nice to Haves
 
+- add stakes and psychology to the user prompt reminder?  https://medium.com/@ichigoSan/i-accidentally-made-claude-45-smarter-heres-how-23ad0bf91ccf
 - should this be a claude code plugin? There are plugin hooks referenced here: https://code.claude.com/docs/en/hooks
 - take the reminder against the transcript to ask AI to evaluate which parts of the reminder may be most relevant for the situation and context
   - if we do this, we should have a 2 stage pipeline: pre-process CLAUDE.md's into stage 1 (more verbose/complete), then use that against context to generate point-in-time reminder
@@ -49,6 +40,9 @@ This repository serves as a development and testing environment for [Claude Code
 - would it make sense to scan the ToDos and suggest to Claude to add to its todos any specific items relevant to the reminders? (Would this be more context-efficient?)
 - make stop hook smarter?
   - Break it up into subsections that are conditional based on observed patterns of behavior, e.g. modification of files through bash commands, docs vs. source code mods, etc. if we just did a build or lint or ran tests, we can exclude that part
+- feedback loops
+  - Add a "confession" at the end of a task where the agent confesses what they did wrong, use for a learnings log?
+  - learning mode? investigate https://medium.com/coding-nexus/rip-fine-tuning-how-stanfords-ace-framework-teaches-ai-to-learn-without-retraining-510f412d8579
 
 ## Agents and Skills and Hooks
 
