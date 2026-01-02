@@ -827,21 +827,38 @@ export interface ConfigService {
  */
 function loadFeatureDefaults(
   featureName: string,
-  assets?: AssetResolver
+  assets?: AssetResolver,
+  logger?: Logger
 ): { enabled: boolean; settings: Record<string, unknown> } | null {
   if (!assets) {
+    logger?.debug('loadFeatureDefaults: no assets resolver', { featureName })
     return null
   }
 
   const filePath = `defaults/features/${featureName}.defaults.yaml`
+  const resolvedPath = assets.resolvePath(filePath)
+  logger?.debug('loadFeatureDefaults: resolving YAML', {
+    featureName,
+    filePath,
+    resolvedPath,
+    cascadeLayers: assets.cascadeLayers,
+  })
+
   const defaults = assets.resolveYaml<Record<string, unknown>>(filePath)
 
   if (!defaults) {
+    logger?.debug('loadFeatureDefaults: YAML not found or empty', { featureName, filePath })
     return null
   }
 
   // Expect YAML to already have { enabled, settings } structure
   const validated = FeatureEntrySchema.parse(defaults)
+  logger?.debug('loadFeatureDefaults: loaded and validated', {
+    featureName,
+    enabled: validated.enabled,
+    settingsKeys: Object.keys(validated.settings),
+    settings: validated.settings,
+  })
   return validated
 }
 
@@ -943,28 +960,47 @@ export function createConfigService(options: ConfigServiceOptions): ConfigServic
     },
     getFeature<T = Record<string, unknown>>(name: string): FeatureConfig & { settings: T } {
       // Load external feature defaults (if available)
-      const externalDefaults = loadFeatureDefaults(name, assets)
+      const externalDefaults = loadFeatureDefaults(name, assets, logger)
 
       // Get user/project feature config
       const userConfig = config.features[name]
 
+      logger?.debug('getFeature: loaded configs', {
+        featureName: name,
+        hasExternalDefaults: !!externalDefaults,
+        hasUserConfig: !!userConfig,
+        externalSettings: externalDefaults?.settings,
+        userSettings: userConfig?.settings,
+      })
+
       // If no external defaults and no user config, return standard defaults
       if (!externalDefaults && !userConfig) {
+        logger?.debug('getFeature: returning empty defaults (no external, no user)', { featureName: name })
         return { enabled: true, settings: {} } as FeatureConfig & { settings: T }
       }
 
       // If no external defaults, return user config as-is
       if (!externalDefaults) {
+        logger?.debug('getFeature: returning user config only', { featureName: name, settings: userConfig?.settings })
         return userConfig as FeatureConfig & { settings: T }
       }
 
       // If no user config, return external defaults
       if (!userConfig) {
+        logger?.debug('getFeature: returning external defaults only', {
+          featureName: name,
+          settings: externalDefaults.settings,
+        })
         return externalDefaults as FeatureConfig & { settings: T }
       }
 
       // Deep merge: external defaults as base, user config as override
       const mergedSettings = deepMerge(externalDefaults.settings, userConfig.settings)
+
+      logger?.debug('getFeature: returning merged config', {
+        featureName: name,
+        mergedSettings,
+      })
 
       return {
         // User enabled takes precedence if explicitly set

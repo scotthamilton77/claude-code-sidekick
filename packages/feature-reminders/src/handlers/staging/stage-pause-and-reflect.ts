@@ -28,6 +28,14 @@ export function registerStagePauseAndReflect(context: RuntimeContext): void {
       const featureConfig = context.config.getFeature<RemindersSettings>('reminders')
       const config = { ...DEFAULT_REMINDERS_SETTINGS, ...featureConfig.settings }
 
+      // Debug logging to trace threshold source
+      context.logger.debug('stage-pause-and-reflect: config resolution', {
+        DEFAULT_REMINDERS_SETTINGS,
+        featureConfigSettings: featureConfig.settings,
+        mergedConfig: config,
+        pause_and_reflect_threshold: config.pause_and_reflect_threshold,
+      })
+
       // Read P&R baseline set by VC consumption (if any)
       // FIXME wouldn't a countdown be simpler, and putting countdown resets into an event handler, and/or a feature controller class?
       let prBaseline: PRBaselineState | null = null
