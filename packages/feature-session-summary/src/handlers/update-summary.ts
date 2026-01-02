@@ -68,19 +68,33 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: Supervis
 
   // UserPrompt forces immediate analysis
   if (isUserPrompt) {
+    ctx.logger.info('LLM call: session-summary analysis', {
+      sessionId,
+      decision: 'calling',
+      reason: 'UserPrompt event forces immediate analysis',
+    })
     await performAnalysis(event, ctx, countdown, 'user_prompt_forced')
     return
   }
 
   // ToolResult: check countdown
   if (countdown.countdown > 0) {
+    ctx.logger.info('LLM call: session-summary analysis', {
+      sessionId,
+      decision: 'skipped',
+      reason: `countdown not reached (${countdown.countdown} tool results remaining)`,
+    })
     countdown.countdown--
     await saveCountdownState(ctx, sessionId, countdown)
-    ctx.logger.debug('Summary countdown decremented', { sessionId, countdown: countdown.countdown })
     return
   }
 
   // Countdown reached zero - perform analysis
+  ctx.logger.info('LLM call: session-summary analysis', {
+    sessionId,
+    decision: 'calling',
+    reason: 'countdown reached zero after ToolResult',
+  })
   await performAnalysis(event, ctx, countdown, 'countdown_reached')
 }
 
