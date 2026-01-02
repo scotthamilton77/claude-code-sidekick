@@ -12,7 +12,7 @@
  */
 
 import * as path from 'node:path'
-import type { Logger, ConfigService } from '@sidekick/core'
+import type { Logger, ConfigService, AssetResolver } from '@sidekick/core'
 import { LogEvents, logEvent, type EventLogContext } from '@sidekick/core'
 // Re-export for use by CLI
 export type { ClaudeCodeStatusInput } from '@sidekick/feature-statusline'
@@ -29,6 +29,8 @@ export interface StatuslineCommandOptions {
   hookInput?: ClaudeCodeStatusInput
   /** Config service for loading settings from the config cascade */
   configService?: ConfigService
+  /** Asset resolver for loading configurable assets (e.g., empty session messages) */
+  assets?: AssetResolver
 }
 
 /**
@@ -185,6 +187,8 @@ export async function handleStatuslineCommand(
     // Per docs/design/FEATURE-RESUME.md §3.1: discover previous session's resume message
     sessionsDir,
     currentSessionId: sessionId,
+    // Pass asset resolver for loading empty session messages
+    assets: options.assets,
   })
 
   try {
