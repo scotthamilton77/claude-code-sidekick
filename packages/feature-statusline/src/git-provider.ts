@@ -10,7 +10,7 @@
 import { spawn } from 'node:child_process'
 
 /** Default timeout for git commands (ms) */
-const DEFAULT_TIMEOUT_MS = 10
+const DEFAULT_TIMEOUT_MS = 50
 
 /**
  * Configuration for GitProvider.
@@ -18,7 +18,7 @@ const DEFAULT_TIMEOUT_MS = 10
 export interface GitProviderConfig {
   /** Working directory for git command */
   cwd: string
-  /** Timeout in ms (default: 10ms) */
+  /** Timeout in ms (default: 50ms) */
   timeoutMs?: number
 }
 
