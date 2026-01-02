@@ -1579,4 +1579,118 @@ describe('StatuslineService', () => {
       expect(result.text).not.toContain('(stale)')
     })
   })
+
+  describe('random empty session messages', () => {
+    /** Create a mock asset resolver that returns content for a specific path */
+    function createMockAssets(content: string | null): { resolve: (relativePath: string) => string | null } {
+      return {
+        resolve: (relativePath: string): string | null => {
+          if (relativePath === 'defaults/features/statusline-empty-messages.txt') {
+            return content
+          }
+          return null
+        },
+      }
+    }
+
+    it('picks a random message from the assets file', async () => {
+      const messages = ['Message one', 'Message two', 'Message three']
+      const assets = createMockAssets(messages.join('\n'))
+
+      const service = createStatuslineService({
+        sessionStateDir: testDir,
+        cwd: '/test',
+        useColors: false,
+        assets,
+      })
+
+      const result = await service.render()
+
+      expect(result.displayMode).toBe('empty_summary')
+      expect(messages).toContain(result.viewModel.summary)
+    })
+
+    it('falls back to default when assets not provided', async () => {
+      const service = createStatuslineService({
+        sessionStateDir: testDir,
+        cwd: '/test',
+        useColors: false,
+        // no assets
+      })
+
+      const result = await service.render()
+
+      expect(result.displayMode).toBe('empty_summary')
+      expect(result.viewModel.summary).toBe('New session')
+    })
+
+    it('falls back to default when messages file is missing', async () => {
+      const assets = createMockAssets(null) // file not found
+
+      const service = createStatuslineService({
+        sessionStateDir: testDir,
+        cwd: '/test',
+        useColors: false,
+        assets,
+      })
+
+      const result = await service.render()
+
+      expect(result.displayMode).toBe('empty_summary')
+      expect(result.viewModel.summary).toBe('New session')
+    })
+
+    it('falls back to default when messages file is empty', async () => {
+      const assets = createMockAssets('')
+
+      const service = createStatuslineService({
+        sessionStateDir: testDir,
+        cwd: '/test',
+        useColors: false,
+        assets,
+      })
+
+      const result = await service.render()
+
+      expect(result.displayMode).toBe('empty_summary')
+      expect(result.viewModel.summary).toBe('New session')
+    })
+
+    it('handles blank lines in messages file', async () => {
+      const messages = ['Message one', '', '  ', 'Message two']
+      const assets = createMockAssets(messages.join('\n'))
+
+      const service = createStatuslineService({
+        sessionStateDir: testDir,
+        cwd: '/test',
+        useColors: false,
+        assets,
+      })
+
+      const result = await service.render()
+
+      // Should only pick from non-empty messages
+      expect(['Message one', 'Message two']).toContain(result.viewModel.summary)
+    })
+
+    it('uses same message for entire service instance', async () => {
+      const messages = ['A', 'B', 'C', 'D', 'E']
+      const assets = createMockAssets(messages.join('\n'))
+
+      const service = createStatuslineService({
+        sessionStateDir: testDir,
+        cwd: '/test',
+        useColors: false,
+        assets,
+      })
+
+      // Multiple renders should return the same message
+      const result1 = await service.render()
+      const result2 = await service.render()
+      const result3 = await service.render()
+
+      expect(result1.viewModel.summary).toBe(result2.viewModel.summary)
+      expect(result2.viewModel.summary).toBe(result3.viewModel.summary)
+    })
+  })
 })
