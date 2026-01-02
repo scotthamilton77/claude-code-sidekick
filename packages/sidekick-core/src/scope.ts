@@ -93,12 +93,20 @@ function projectHasSidekickInstall(projectDir: string): boolean {
   })
 }
 
+function normalizeDir(dir: string): string {
+  try {
+    return realpathSync(path.resolve(dir))
+  } catch {
+    return path.resolve(dir)
+  }
+}
+
 export function resolveScope(input: ScopeResolutionInput): ScopeResolution {
   const warnings: string[] = []
   const cwd = input.cwd ? path.resolve(input.cwd) : process.cwd()
   const hookScriptPath = input.hookScriptPath ? normalizeHookPath(input.hookScriptPath) : undefined
   const providedProjectDir = input.projectDir ? path.resolve(input.projectDir) : undefined
-  const resolvedHomeDir = input.homeDir ? path.resolve(input.homeDir) : homedir()
+  const resolvedHomeDir = input.homeDir ? normalizeDir(input.homeDir) : normalizeDir(homedir())
 
   if (input.scopeOverride) {
     return {
