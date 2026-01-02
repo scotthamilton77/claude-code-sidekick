@@ -610,6 +610,7 @@ describe('createDerivedPaths', () => {
       paths: { state: '.sidekick' },
       supervisor: DEFAULT_SUPERVISOR,
       ipc: { connectTimeoutMs: 5000, requestTimeoutMs: 30000, maxRetries: 3, retryDelayMs: 100 },
+      development: { enabled: false },
     }
 
     const paths = createDerivedPaths(coreConfig, '/project')
@@ -623,6 +624,7 @@ describe('createDerivedPaths', () => {
       paths: { state: '.sidekick' },
       supervisor: DEFAULT_SUPERVISOR,
       ipc: { connectTimeoutMs: 5000, requestTimeoutMs: 30000, maxRetries: 3, retryDelayMs: 100 },
+      development: { enabled: false },
     }
 
     const paths = createDerivedPaths(coreConfig, '/project')
@@ -636,6 +638,7 @@ describe('createDerivedPaths', () => {
       paths: { state: '.sidekick' },
       supervisor: DEFAULT_SUPERVISOR,
       ipc: { connectTimeoutMs: 5000, requestTimeoutMs: 30000, maxRetries: 3, retryDelayMs: 100 },
+      development: { enabled: false },
     }
 
     const paths = createDerivedPaths(coreConfig, '/project')
@@ -651,6 +654,7 @@ describe('createDerivedPaths', () => {
       paths: { state: '.sidekick' },
       supervisor: DEFAULT_SUPERVISOR,
       ipc: { connectTimeoutMs: 5000, requestTimeoutMs: 30000, maxRetries: 3, retryDelayMs: 100 },
+      development: { enabled: false },
     }
 
     const paths = createDerivedPaths(coreConfig, '/project')
@@ -666,6 +670,7 @@ describe('createDerivedPaths', () => {
       paths: { state: '.sidekick' },
       supervisor: DEFAULT_SUPERVISOR,
       ipc: { connectTimeoutMs: 5000, requestTimeoutMs: 30000, maxRetries: 3, retryDelayMs: 100 },
+      development: { enabled: false },
     }
 
     const paths = createDerivedPaths(coreConfig, '/project')
@@ -679,6 +684,7 @@ describe('createDerivedPaths', () => {
       paths: { state: 'custom/state' },
       supervisor: DEFAULT_SUPERVISOR,
       ipc: { connectTimeoutMs: 5000, requestTimeoutMs: 30000, maxRetries: 3, retryDelayMs: 100 },
+      development: { enabled: false },
     }
 
     const paths = createDerivedPaths(coreConfig, '/project')
@@ -693,6 +699,7 @@ describe('createDerivedPaths', () => {
       paths: { state: '.sidekick' },
       supervisor: DEFAULT_SUPERVISOR,
       ipc: { connectTimeoutMs: 5000, requestTimeoutMs: 30000, maxRetries: 3, retryDelayMs: 100 },
+      development: { enabled: false },
     }
 
     const paths = createDerivedPaths(coreConfig)
