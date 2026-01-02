@@ -13,10 +13,7 @@ This repository serves as a development and testing environment for [Claude Code
 ### Sidekick
 
 - BUGS
-  - the test for `defaultProfile: nonexistent` gives hook stdout/stderr exceptions but nothing in the log - can we log this as an error, too?
-  - the tests for "check logs show xxxx profile model" revealed that we aren't logging the profile name, just the model - can we log which profile is active for lines like this one? `{"level":20,"time":1767391288290,"pid":59467,"hostname":"Scotts-MacBook-Pro.local","name":"supervisor","provider":"openrouter","model":"google/gemini-2.0-flash-lite-001","baseURL":"https://openrouter.ai/api/v1","temperature":0,"maxTokens":1000,"apiKey":"[Redacted]","msg":"OpenAI provider initialized"}`
   - completely new (no sessions), statusline is ugly - missing title or summary?  not triggering random statement!
-    - `[Opus 4.5] | 🪙 ▓▒|░░░░░ 32k|77k | 📁 …/claude-configLLM Profile Review and Test Plan | Testing LLM profiles manually? Brave. Or just avoiding automation?`
   - resume not updating when session title updates
 - statusline: could we show an indicator when there are warnings/errors in the log (as a configurable placeholder template)
 - snarky comment generator
