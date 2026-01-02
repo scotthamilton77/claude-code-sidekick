@@ -14,8 +14,6 @@ This repository serves as a development and testing environment for [Claude Code
 
 - investigate frequency of LLM calls and verify we're not wasting tokens
   - check on the conditional "don't need to call LLM" logic and make sure we're getting the results we want
-- Initial statusline summary messages
-  - what if we optionally generate a library of snarky comments for new sessions on startup that we pick from randomly?  We could just statically generate this into a config file actually...
 - should we block and wait (with timeout of p95 of completion latency?) for session summary when we have low confidence?
 - snarky comment generator
   - needs a fallback model

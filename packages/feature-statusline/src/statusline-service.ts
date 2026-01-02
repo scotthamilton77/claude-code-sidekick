@@ -13,6 +13,11 @@ import type { Logger } from '@sidekick/types'
 interface MinimalConfigService {
   getFeature<T>(name: string): { settings: T }
 }
+
+/** Minimal asset resolver interface for feature packages */
+interface MinimalAssetResolver {
+  resolve(relativePath: string): string | null
+}
 import {
   Formatter,
   calculateContextUsage,
@@ -192,6 +197,11 @@ export interface StatuslineServiceConfig {
    * Required for reading baseline project context metrics.
    */
   projectDir?: string
+  /**
+   * Asset resolver for loading configurable assets.
+   * Used to load empty session messages with cascade override support.
+   */
+  assets?: MinimalAssetResolver
 }
 
 // ============================================================================
@@ -220,6 +230,8 @@ export class StatuslineService {
   private readonly logger?: Logger
   private readonly userConfigDir?: string
   private readonly projectDir?: string
+  /** Random empty session message, picked once at construction */
+  private readonly emptySessionMessage: string
 
   constructor(serviceConfig: StatuslineServiceConfig) {
     // Build config from cascade: configService takes precedence, then direct config, then defaults
@@ -241,6 +253,37 @@ export class StatuslineService {
       theme: this.config.theme,
       useColors: this.useColors,
     })
+
+    // Load and pick random empty session message
+    this.emptySessionMessage = this.loadRandomEmptyMessage(serviceConfig.assets)
+  }
+
+  /**
+   * Load empty session messages from assets and pick one randomly.
+   * Uses the asset resolver cascade to support user/project overrides.
+   * Falls back to DEFAULT_PLACEHOLDERS.newSession if not found/empty.
+   */
+  private loadRandomEmptyMessage(assets?: MinimalAssetResolver): string {
+    if (!assets) {
+      return DEFAULT_PLACEHOLDERS.newSession
+    }
+
+    const content = assets.resolve('defaults/features/statusline-empty-messages.txt')
+    if (!content) {
+      return DEFAULT_PLACEHOLDERS.newSession
+    }
+
+    const messages = content
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+
+    if (messages.length === 0) {
+      return DEFAULT_PLACEHOLDERS.newSession
+    }
+
+    const randomIndex = Math.floor(Math.random() * messages.length)
+    return messages[randomIndex]
   }
 
   /**
@@ -611,7 +654,7 @@ export class StatuslineService {
     switch (displayMode) {
       case 'resume_message': {
         // Format: "{resume_last_goal_message} ({snarky_comment})"
-        const goalMessage = resume?.resume_last_goal_message || DEFAULT_PLACEHOLDERS.newSession
+        const goalMessage = resume?.resume_last_goal_message || this.emptySessionMessage
         const snarky = resume?.snarky_comment
         const summaryText = snarky ? `${goalMessage} (${snarky})` : goalMessage
         return {
@@ -622,13 +665,13 @@ export class StatuslineService {
 
       case 'empty_summary':
         return {
-          summaryText: DEFAULT_PLACEHOLDERS.newSession,
+          summaryText: this.emptySessionMessage,
           title: '',
         }
 
       case 'first_prompt':
         return {
-          summaryText: firstPromptSummary?.message || DEFAULT_PLACEHOLDERS.awaitingFirstTurn,
+          summaryText: firstPromptSummary?.message || this.emptySessionMessage,
           title: '',
         }
 
