@@ -15,8 +15,6 @@ This repository serves as a development and testing environment for [Claude Code
 - are we tracking history of session summaries in the logs?  Or should we rename with timestamp when updating?
   - rename might be good to do anyway, at least in dev mode?
 - stop hook needs some tuning
-  - if issued, we should NOT re-issue it until a new UserPromptSubmit has happened (this prevents the stop hook from triggering more tools that modify files that re-stage the reminder what continues to cycle)
-  - if issued, we need to reset the counter for the pause-and-reflect reminder (so that if the P&R reminder was just one tool away from being staged, but then the agent decided to stop, then the verify-complete kicks in which will use more tools, triggering the P&R)
   - make it conditional "if you are about to claim that you're done" 
 - investigate frequency of LLM calls and verify we're not wasting tokens
 - Initial statusline summary messages
