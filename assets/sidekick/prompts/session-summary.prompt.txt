@@ -15,7 +15,7 @@ Output JSON matching this exact schema:
 {
   "session_title": "string, max 6 words, Title Case",
   "session_title_confidence": 0.0-1.0,
-  "session_title_key_phrases": ["optional", "array", "of", "key", "terms"],
+  "session_title_key_phrases": ["optional", "array", "of", "key", "terms/phrases"],
   "latest_intent": "string, max 8 words",
   "latest_intent_confidence": 0.0-1.0,
   "latest_intent_key_phrases": ["optional", "array"],
@@ -74,6 +74,6 @@ Don't update latest_intent for session-state queries:
 - "review what we've done"
 
 KEY PHRASES:
-Extract specific terms, file names, feature names from user messages.
-High confidence: ["refactoring feature flags", "session-summary.sh", "LLM prompt redesign"]
-Low confidence: ["working on the code", "fixing stuff", "doing some updates"]
+Extract specific phrases, terms, file names, feature names from user messages and assistant responses that helped you clarify the title or intent
+- High confidence: ["refactoring feature flags", "session-summary.sh", "LLM prompt redesign"]
+- Low confidence: ["working on the code", "fixing stuff", "doing some updates"]

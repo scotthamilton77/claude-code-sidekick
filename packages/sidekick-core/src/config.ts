@@ -174,39 +174,69 @@ const LlmProviderSchema = z.enum(['claude-cli', 'openai', 'openrouter', 'custom'
 
 const EmulatedProviderSchema = z.enum(['claude-cli', 'openai', 'openrouter'])
 
+/**
+ * LLM Profile Schema - complete standalone configuration for an LLM.
+ * Profiles are referenced by ID from features.
+ */
+const LlmProfileSchema = z.object({
+  provider: LlmProviderSchema.default('openrouter'),
+  model: z.string().default('x-ai/grok-4-fast'),
+  temperature: z.number().min(0).max(2).default(0),
+  maxTokens: z.number().positive().default(4096),
+  timeout: z.number().min(1).max(300).default(30),
+  timeoutMaxRetries: z.number().min(0).max(10).default(3),
+})
+
+export type LlmProfile = z.infer<typeof LlmProfileSchema>
+
+const LLM_PROFILE_DEFAULTS = {
+  analytical: {
+    provider: 'openrouter' as const,
+    model: 'x-ai/grok-4-fast',
+    temperature: 0,
+    maxTokens: 4096,
+    timeout: 30,
+    timeoutMaxRetries: 3,
+  },
+}
+
 const LLM_DEFAULTS = {
-  provider: 'openrouter' as const,
-  temperature: 0,
-  timeout: 30,
-  timeoutMaxRetries: 3,
+  defaultProfile: 'analytical',
   debugDumpEnabled: false,
 }
 
 export const LlmConfigSchema = z
   .object({
-    provider: LlmProviderSchema.optional(),
-    emulatedProvider: EmulatedProviderSchema.optional(),
-    model: z.string().optional(),
-    temperature: z.number().min(0).max(1).optional(),
-    maxTokens: z.number().optional(),
-    fallbackProvider: LlmProviderSchema.optional(),
-    fallbackModel: z.string().optional(),
-    timeout: z.number().min(1).max(300).optional(),
-    timeoutMaxRetries: z.number().min(0).max(10).optional(),
-    debugDumpEnabled: z.boolean().optional(),
+    defaultProfile: z.string().default(LLM_DEFAULTS.defaultProfile),
+    profiles: z.record(z.string(), LlmProfileSchema).default(LLM_PROFILE_DEFAULTS),
+    fallbacks: z.record(z.string(), LlmProfileSchema).optional(),
+    global: z
+      .object({
+        debugDumpEnabled: z.boolean().optional(),
+        emulatedProvider: EmulatedProviderSchema.optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
+  .superRefine((data, ctx) => {
+    // Validate defaultProfile references an existing profile
+    if (!data.profiles[data.defaultProfile]) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `defaultProfile "${data.defaultProfile}" not found in profiles`,
+        path: ['defaultProfile'],
+      })
+    }
+  })
   .transform((val) => ({
-    provider: val.provider ?? LLM_DEFAULTS.provider,
-    emulatedProvider: val.emulatedProvider,
-    model: val.model,
-    temperature: val.temperature ?? LLM_DEFAULTS.temperature,
-    maxTokens: val.maxTokens,
-    fallbackProvider: val.fallbackProvider,
-    fallbackModel: val.fallbackModel,
-    timeout: val.timeout ?? LLM_DEFAULTS.timeout,
-    timeoutMaxRetries: val.timeoutMaxRetries ?? LLM_DEFAULTS.timeoutMaxRetries,
-    debugDumpEnabled: val.debugDumpEnabled ?? LLM_DEFAULTS.debugDumpEnabled,
+    defaultProfile: val.defaultProfile,
+    profiles: val.profiles,
+    fallbacks: val.fallbacks ?? {},
+    global: {
+      debugDumpEnabled: val.global?.debugDumpEnabled ?? LLM_DEFAULTS.debugDumpEnabled,
+      emulatedProvider: val.global?.emulatedProvider,
+    },
   }))
 
 export type LlmConfig = z.infer<typeof LlmConfigSchema>
@@ -278,12 +308,13 @@ export const SidekickConfigSchema = z.object({
   llm: LlmConfigSchema.optional().transform(
     (val) =>
       val ?? {
-        ...LLM_DEFAULTS,
-        emulatedProvider: undefined,
-        model: undefined,
-        maxTokens: undefined,
-        fallbackProvider: undefined,
-        fallbackModel: undefined,
+        defaultProfile: LLM_DEFAULTS.defaultProfile,
+        profiles: LLM_PROFILE_DEFAULTS,
+        fallbacks: {},
+        global: {
+          debugDumpEnabled: LLM_DEFAULTS.debugDumpEnabled,
+          emulatedProvider: undefined,
+        },
       }
   ),
   transcript: TranscriptConfigSchema.optional().transform((val) => val ?? TRANSCRIPT_DEFAULTS),
@@ -541,13 +572,9 @@ function envToConfig(env: NodeJS.ProcessEnv): Record<string, Record<string, unkn
     SIDEKICK_ASSETS_PATH: { domain: 'core', path: ['paths', 'assets'] },
     SIDEKICK_DEVELOPMENT_ENABLED: { domain: 'core', path: ['development', 'enabled'] },
 
-    // LLM domain
-    SIDEKICK_LLM_PROVIDER: { domain: 'llm', path: ['provider'] },
-    SIDEKICK_EMULATED_PROVIDER: { domain: 'llm', path: ['emulatedProvider'] },
-    SIDEKICK_LLM_MODEL: { domain: 'llm', path: ['model'] },
-    SIDEKICK_LLM_TEMPERATURE: { domain: 'llm', path: ['temperature'] },
-    SIDEKICK_LLM_MAX_TOKENS: { domain: 'llm', path: ['maxTokens'] },
-    SIDEKICK_LLM_TIMEOUT: { domain: 'llm', path: ['timeout'] },
+    // LLM domain (profile-based - limited env var support)
+    SIDEKICK_EMULATED_PROVIDER: { domain: 'llm', path: ['global', 'emulatedProvider'] },
+    SIDEKICK_LLM_DEBUG_DUMP: { domain: 'llm', path: ['global', 'debugDumpEnabled'] },
 
     // Transcript domain
     SIDEKICK_TRANSCRIPT_WATCH_DEBOUNCE: { domain: 'transcript', path: ['watchDebounceMs'] },
@@ -689,6 +716,49 @@ function loadDomainConfig(
 }
 
 /**
+ * Validate that all profile references in feature configs point to valid profiles.
+ * Called after Zod parsing to ensure referential integrity.
+ */
+function validateProfileReferences(config: SidekickConfig): void {
+  const validProfiles = new Set(Object.keys(config.llm.profiles))
+  const validFallbacks = new Set(Object.keys(config.llm.fallbacks))
+  const errors: string[] = []
+
+  for (const [featureName, featureConfig] of Object.entries(config.features)) {
+    const llmConfig = featureConfig.settings?.llm
+    if (!llmConfig || typeof llmConfig !== 'object') continue
+
+    for (const [subFeature, subConfig] of Object.entries(llmConfig as Record<string, unknown>)) {
+      if (typeof subConfig !== 'object' || subConfig === null) continue
+      const sub = subConfig as Record<string, unknown>
+
+      // profile must reference a primary profile (not a fallback)
+      if (typeof sub.profile === 'string') {
+        if (!validProfiles.has(sub.profile)) {
+          errors.push(`features.${featureName}.settings.llm.${subFeature}.profile: Unknown profile "${sub.profile}"`)
+        }
+        if (validFallbacks.has(sub.profile)) {
+          errors.push(
+            `features.${featureName}.settings.llm.${subFeature}.profile: "${sub.profile}" is a fallback profile, not a primary profile`
+          )
+        }
+      }
+
+      // fallbackProfile must reference a fallback profile
+      if (typeof sub.fallbackProfile === 'string' && !validFallbacks.has(sub.fallbackProfile)) {
+        errors.push(
+          `features.${featureName}.settings.llm.${subFeature}.fallbackProfile: Unknown fallback "${sub.fallbackProfile}"`
+        )
+      }
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new Error(`Invalid profile references:\n${errors.join('\n')}`)
+  }
+}
+
+/**
  * Load and validate the full Sidekick configuration.
  */
 export function loadConfig(options: ConfigServiceOptions): SidekickConfig {
@@ -744,10 +814,19 @@ export function loadConfig(options: ConfigServiceOptions): SidekickConfig {
   const result = SidekickConfigSchema.safeParse(domainConfigs)
   if (!result.success) {
     const issues = result.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ')
+    options.logger?.error('Configuration validation failed', { issues })
     throw new Error(`Configuration validation failed: ${issues}`)
   }
 
-  // Step 7: Freeze config for immutability
+  // Step 7: Validate profile references in feature configs
+  try {
+    validateProfileReferences(result.data)
+  } catch (err) {
+    options.logger?.error('Profile reference validation failed', { error: (err as Error).message })
+    throw err
+  }
+
+  // Step 8: Freeze config for immutability
   return deepFreeze(result.data)
 }
 

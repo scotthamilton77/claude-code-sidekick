@@ -21,6 +21,7 @@ export type EmulatedProviderType = 'openai' | 'openrouter' | 'claude-cli'
 
 export interface ProviderConfig {
   provider: ProviderType
+  profileName?: string
   emulatedProvider?: EmulatedProviderType
   emulatorStatePath?: string
   apiKey?: string
@@ -28,6 +29,8 @@ export interface ProviderConfig {
   model: string
   maxRetries?: number
   timeout?: number
+  temperature?: number
+  maxTokens?: number
   cliPath?: string
 }
 
@@ -92,10 +95,13 @@ export class ProviderFactory {
     }
 
     const openaiConfig: OpenAINativeConfig = {
+      profileName: this.config.profileName,
       apiKey,
       model: this.config.model,
       maxRetries: this.config.maxRetries,
       timeout: this.config.timeout,
+      temperature: this.config.temperature,
+      maxTokens: this.config.maxTokens,
     }
 
     return new OpenAINativeProvider(openaiConfig, this.logger)
@@ -112,11 +118,14 @@ export class ProviderFactory {
     }
 
     const openrouterConfig: OpenAINativeConfig = {
+      profileName: this.config.profileName,
       apiKey,
       baseURL: this.config.baseURL ?? 'https://openrouter.ai/api/v1',
       model: this.config.model,
       maxRetries: this.config.maxRetries,
       timeout: this.config.timeout,
+      temperature: this.config.temperature,
+      maxTokens: this.config.maxTokens,
     }
 
     return new OpenAINativeProvider(openrouterConfig, this.logger)

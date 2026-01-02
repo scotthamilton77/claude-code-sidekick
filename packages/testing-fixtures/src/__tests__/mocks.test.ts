@@ -56,11 +56,11 @@ describe('MockLLMService', () => {
     await llm.complete({
       messages: [{ role: 'user', content: 'Test' }],
       model: 'test-model',
-      temperature: 0.7,
+      system: 'Be helpful',
     })
 
     expect(llm.wasCalledWith({ model: 'test-model' })).toBe(true)
-    expect(llm.wasCalledWith({ temperature: 0.7 })).toBe(true)
+    expect(llm.wasCalledWith({ system: 'Be helpful' })).toBe(true)
     expect(llm.wasCalledWith({ model: 'other-model' })).toBe(false)
   })
 
@@ -194,29 +194,30 @@ describe('MockConfigService', () => {
   it('provides domain accessors with defaults', () => {
     // All domain accessors should return defaults
     expect(config.core.logging.level).toBe('info')
-    expect(config.llm.provider).toBe('openrouter')
+    expect(config.llm.defaultProfile).toBe('analytical')
+    expect(config.llm.profiles.analytical.provider).toBe('openrouter')
     expect(config.transcript.watchDebounceMs).toBe(100)
     expect(config.features).toEqual({})
   })
 
   it('sets and gets configuration via domain accessors', () => {
-    config.set({ llm: { provider: 'openai' } })
+    config.set({ llm: { profiles: { analytical: { provider: 'openai' } } } })
 
-    expect(config.llm.provider).toBe('openai')
+    expect(config.llm.profiles.analytical.provider).toBe('openai')
   })
 
   it('gets configuration by dot-path', () => {
-    config.set({ llm: { provider: 'openai' } })
+    config.set({ llm: { profiles: { analytical: { provider: 'openai' } } } })
 
-    expect(config.getPath('llm.provider')).toBe('openai')
+    expect(config.getPath('llm.profiles.analytical.provider')).toBe('openai')
   })
 
   it('merges configuration on set', () => {
-    config.set({ llm: { provider: 'openai' } })
-    config.set({ llm: { timeout: 60 } })
+    config.set({ llm: { profiles: { analytical: { provider: 'openai' } } } })
+    config.set({ llm: { profiles: { analytical: { timeout: 60 } } } })
 
-    expect(config.llm.provider).toBe('openai')
-    expect(config.llm.timeout).toBe(60)
+    expect(config.llm.profiles.analytical.provider).toBe('openai')
+    expect(config.llm.profiles.analytical.timeout).toBe(60)
   })
 
   it('returns undefined for missing paths', () => {
@@ -224,20 +225,20 @@ describe('MockConfigService', () => {
   })
 
   it('getAll returns entire config with all domains', () => {
-    config.set({ llm: { provider: 'openai' } })
+    config.set({ llm: { profiles: { analytical: { provider: 'openai' } } } })
 
     const all = config.getAll()
-    expect(all.llm.provider).toBe('openai')
+    expect(all.llm.profiles.analytical.provider).toBe('openai')
     expect(all.core).toBeDefined()
     expect(all.transcript).toBeDefined()
     expect(all.features).toBeDefined()
   })
 
   it('reset restores defaults', () => {
-    config.set({ llm: { provider: 'openai' } })
+    config.set({ llm: { profiles: { analytical: { provider: 'openai' } } } })
     config.reset()
 
-    expect(config.llm.provider).toBe('openrouter')
+    expect(config.llm.profiles.analytical.provider).toBe('openrouter')
     expect(config.core.logging.level).toBe('info')
   })
 
@@ -361,7 +362,8 @@ describe('createTestConfig', () => {
   it('creates config with sensible defaults', () => {
     const config = createTestConfig()
 
-    expect(config.llm.provider).toBe('openrouter')
+    expect(config.llm.defaultProfile).toBe('analytical')
+    expect(config.llm.profiles.analytical.provider).toBe('openrouter')
     expect(config.core.logging.level).toBe('info')
     expect(config.core.supervisor.idleTimeoutMs).toBe(300000)
     expect(config.transcript.watchDebounceMs).toBe(100)
@@ -369,12 +371,12 @@ describe('createTestConfig', () => {
 
   it('merges overrides with defaults', () => {
     const config = createTestConfig({
-      llm: { provider: 'openai', timeout: 20 },
+      llm: { profiles: { analytical: { provider: 'openai', timeout: 20 } } },
     })
 
-    expect(config.llm.provider).toBe('openai')
-    expect(config.llm.timeout).toBe(20)
-    expect(config.llm.timeoutMaxRetries).toBe(3) // Default preserved
+    expect(config.llm.profiles.analytical.provider).toBe('openai')
+    expect(config.llm.profiles.analytical.timeout).toBe(20)
+    expect(config.llm.profiles.analytical.timeoutMaxRetries).toBe(3) // Default preserved
   })
 
   it('deep merges nested objects', () => {

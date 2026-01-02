@@ -1,0 +1,28 @@
+# First-Prompt Summary Feature Defaults
+# This file defines default values for the first-prompt summary feature.
+# Override in ~/.sidekick/features.yaml or .sidekick/features.yaml under features.first-prompt
+
+# Enable or disable the first-prompt summary feature
+enabled: true
+
+settings:
+  # LLM profiles for first-prompt summary generation
+  llm:
+    # Profile for generating snarky first-prompt summaries
+    summary:
+      profile: creative
+      fallbackProfile: cheap-fallback
+
+  # Slash commands that skip LLM generation entirely
+  skipCommands:
+    - clear
+    - config
+    - bug
+    - cost
+    - doctor
+    - help
+    - login
+    - logout
+
+  # Maximum words for generated summary (enforced in prompt)
+  maxWords: 12

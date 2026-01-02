@@ -12,12 +12,21 @@ This repository serves as a development and testing environment for [Claude Code
 
 ### Sidekick
 
+- BUGS
+  - the test for `defaultProfile: nonexistent` gives hook stdout/stderr exceptions but nothing in the log - can we log this as an error, too?
+  - the tests for "check logs show xxxx profile model" revealed that we aren't logging the profile name, just the model - can we log which profile is active for lines like this one? `{"level":20,"time":1767391288290,"pid":59467,"hostname":"Scotts-MacBook-Pro.local","name":"supervisor","provider":"openrouter","model":"google/gemini-2.0-flash-lite-001","baseURL":"https://openrouter.ai/api/v1","temperature":0,"maxTokens":1000,"apiKey":"[Redacted]","msg":"OpenAI provider initialized"}`
+  - completely new (no sessions), statusline is ugly - missing title or summary?  not triggering random statement!
+    - `[Opus 4.5] | 🪙 ▓▒|░░░░░ 32k|77k | 📁 …/claude-configLLM Profile Review and Test Plan | Testing LLM profiles manually? Brave. Or just avoiding automation?`
+  - resume not updating when session title updates
+- statusline: could we show an indicator when there are warnings/errors in the log (as a configurable placeholder template)
 - snarky comment generator
   - needs a fallback model
+  - try "Generate 5 responses with their corresponding probabilities, then respond with the most probable answer"
+- is the first-prompt-summary actually useful / used?
+- optimization: after a clean-all if we resume an existing claude session, we reconstruct the state processing the transcript line by line.  This is inefficient in that we'll end up making multiple llm calls for potentially unused interim summary state.  Consider parsing larger chunks?
 - finish ROADMAP.md
 - finish PLAN.MD (executing ARCH.md)
 - refine the transcript analysis process
-  - tune the session summarizer to follow the last n turns (delta + 10?) - this combined with previous goal snapshot might be cheaper?
   - optimize transcript embedding in the prompts, e.g. we don't really need the full json, do we? And can we truncate tool results? (Might need to do some analysis here to get a sense of the range of output here.)
 - can we be resilient to json file errors?  I just ran into a case of the session-summary.json being generated with trash after the last } which made it unreadable
 - allow for different personalities - either explicit at install time or random per project or random per session or just random
@@ -43,6 +52,8 @@ This repository serves as a development and testing environment for [Claude Code
 - feedback loops
   - Add a "confession" at the end of a task where the agent confesses what they did wrong, use for a learnings log?
   - learning mode? investigate https://medium.com/coding-nexus/rip-fine-tuning-how-stanfords-ace-framework-teaches-ai-to-learn-without-retraining-510f412d8579
+- refine the transcript analysis process
+  - tune the session summarizer to follow the last n turns (delta + 10?) - this combined with previous goal snapshot might be cheaper?
 
 ## Agents and Skills and Hooks
 

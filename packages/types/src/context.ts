@@ -8,7 +8,7 @@
  */
 
 import type { HandlerRegistry } from './handler-registry.js'
-import type { LLMProvider } from './llm.js'
+import type { LLMProvider, ProfileProviderFactory } from './llm.js'
 import type { Logger } from './logger.js'
 import type { RuntimePaths } from './paths.js'
 import type { MinimalConfigService, MinimalAssetResolver } from './services/config.js'
@@ -59,8 +59,10 @@ export interface CLIContext extends BaseContext {
 export interface SupervisorContext extends BaseContext {
   /** Role discriminant for type narrowing */
   role: 'supervisor'
-  /** LLM provider for completions */
+  /** LLM provider for completions (default profile) */
   llm: LLMProvider
+  /** Profile-based provider factory for creating per-feature providers */
+  profileFactory: ProfileProviderFactory
   /** Staging service for reminder files */
   staging: StagingService
   /** Transcript service for metrics */

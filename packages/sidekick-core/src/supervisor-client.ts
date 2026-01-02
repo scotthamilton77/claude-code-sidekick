@@ -8,10 +8,25 @@
  */
 import { spawn } from 'child_process'
 import fs from 'fs/promises'
+import { constants as fsConstants } from 'fs'
 import path from 'path'
 import { IpcClient } from './ipc/client.js'
-import { getPidPath, getSocketPath, getTokenPath, getUserPidPath, getUserSupervisorsDir } from './ipc/transport.js'
+import {
+  getLockPath,
+  getPidPath,
+  getSocketPath,
+  getTokenPath,
+  getUserPidPath,
+  getUserSupervisorsDir,
+} from './ipc/transport.js'
 import { Logger } from './logger.js'
+
+/**
+ * Lockfile timeout and retry settings for supervisor startup serialization.
+ */
+const LOCK_TIMEOUT_MS = 10000 // Max time to wait for lock
+const LOCK_RETRY_INTERVAL_MS = 100 // Polling interval when waiting for lock
+const LOCK_STALE_THRESHOLD_MS = 30000 // Consider lock stale if older than this
 
 /**
  * User-level PID file format for --kill-all discovery.
@@ -50,50 +65,144 @@ export class SupervisorClient {
   }
 
   async start(): Promise<void> {
-    // Clean up stale files if process died without cleanup
-    await this.cleanupStaleFiles()
+    // Use lockfile to serialize concurrent startup attempts
+    await this.withStartupLock(async () => {
+      // Clean up stale files if process died without cleanup
+      await this.cleanupStaleFiles()
 
-    if (await this.isRunning()) {
-      // Check version compatibility
-      const versionMatch = await this.checkVersion()
-      if (versionMatch) {
-        this.logger.debug('Supervisor already running with matching version')
-        return
+      if (await this.isRunning()) {
+        // Check version compatibility
+        const versionMatch = await this.checkVersion()
+        if (versionMatch) {
+          this.logger.debug('Supervisor already running with matching version')
+          return
+        }
+
+        // Version mismatch - stop old supervisor before spawning new
+        this.logger.info('Version mismatch, restarting supervisor', {
+          clientVersion: CLIENT_VERSION,
+        })
+        await this.stop()
+        await this.waitForShutdown()
       }
 
-      // Version mismatch - stop old supervisor before spawning new
-      this.logger.info('Version mismatch, restarting supervisor', {
-        clientVersion: CLIENT_VERSION,
+      this.logger.info('Starting supervisor...')
+
+      // Resolve supervisor entry point
+      let supervisorPath: string
+      try {
+        const pkgPath = require.resolve('@sidekick/supervisor/package.json')
+        // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
+        const pkg: PackageJson = require(pkgPath)
+        const binPath = pkg.bin ? (typeof pkg.bin === 'string' ? pkg.bin : pkg.bin['sidekick-supervisor']) : pkg.main
+        supervisorPath = path.resolve(path.dirname(pkgPath), binPath ?? 'dist/index.js')
+      } catch {
+        // Fallback for dev environment: from dist/ → packages/sidekick-supervisor/dist/
+        supervisorPath = path.resolve(__dirname, '../../sidekick-supervisor/dist/index.js')
+      }
+
+      const child = spawn('node', [supervisorPath, this.projectDir], {
+        detached: true,
+        stdio: 'ignore',
+        cwd: this.projectDir,
       })
-      await this.stop()
-      await this.waitForShutdown()
-    }
 
-    this.logger.info('Starting supervisor...')
+      child.unref()
 
-    // Resolve supervisor entry point
-    let supervisorPath: string
-    try {
-      const pkgPath = require.resolve('@sidekick/supervisor/package.json')
-      // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
-      const pkg: PackageJson = require(pkgPath)
-      const binPath = pkg.bin ? (typeof pkg.bin === 'string' ? pkg.bin : pkg.bin['sidekick-supervisor']) : pkg.main
-      supervisorPath = path.resolve(path.dirname(pkgPath), binPath ?? 'dist/index.js')
-    } catch {
-      // Fallback for dev environment: from dist/ → packages/sidekick-supervisor/dist/
-      supervisorPath = path.resolve(__dirname, '../../sidekick-supervisor/dist/index.js')
-    }
-
-    const child = spawn('node', [supervisorPath, this.projectDir], {
-      detached: true,
-      stdio: 'ignore',
-      cwd: this.projectDir,
+      // Wait for startup
+      await this.waitForStartup()
     })
+  }
 
-    child.unref()
+  /**
+   * Execute a function while holding the startup lock.
+   * Prevents race conditions when multiple hooks try to start the supervisor.
+   */
+  private async withStartupLock<T>(fn: () => Promise<T>): Promise<T> {
+    const lockPath = getLockPath(this.projectDir)
+    const startTime = Date.now()
 
-    // Wait for startup
-    await this.waitForStartup()
+    // Ensure .sidekick directory exists
+    await fs.mkdir(path.dirname(lockPath), { recursive: true })
+
+    while (Date.now() - startTime < LOCK_TIMEOUT_MS) {
+      try {
+        // Try to create lockfile exclusively (O_CREAT | O_EXCL)
+        const handle = await fs.open(lockPath, fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY)
+
+        // Write our PID and timestamp for debugging
+        await handle.write(JSON.stringify({ pid: process.pid, timestamp: Date.now() }))
+        await handle.close()
+
+        this.logger.debug('Acquired startup lock', { lockPath, pid: process.pid })
+
+        try {
+          return await fn()
+        } finally {
+          // Release lock
+          await this.releaseLock(lockPath)
+        }
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code === 'EEXIST') {
+          // Lock exists - check if it's stale
+          if (await this.isLockStale(lockPath)) {
+            this.logger.debug('Removing stale lock', { lockPath })
+            await fs.unlink(lockPath).catch(() => {})
+            continue // Retry immediately
+          }
+
+          // Lock is held by another process, wait and retry
+          this.logger.debug('Waiting for startup lock', { lockPath })
+          await new Promise((resolve) => setTimeout(resolve, LOCK_RETRY_INTERVAL_MS))
+          continue
+        }
+        // Other error - rethrow
+        throw err
+      }
+    }
+
+    // Timeout - force remove lock and proceed (defensive)
+    this.logger.warn('Lock acquisition timeout, forcing removal', { lockPath })
+    await fs.unlink(lockPath).catch(() => {})
+    return fn()
+  }
+
+  /**
+   * Check if a lockfile is stale (owner process dead or too old).
+   */
+  private async isLockStale(lockPath: string): Promise<boolean> {
+    try {
+      const content = await fs.readFile(lockPath, 'utf-8')
+      const lockInfo = JSON.parse(content) as { pid: number; timestamp: number }
+
+      // Check if lock is too old
+      if (Date.now() - lockInfo.timestamp > LOCK_STALE_THRESHOLD_MS) {
+        return true
+      }
+
+      // Check if owning process is still alive
+      try {
+        process.kill(lockInfo.pid, 0)
+        return false // Process is alive
+      } catch {
+        return true // Process is dead
+      }
+    } catch {
+      // Can't read/parse lock - consider it stale
+      return true
+    }
+  }
+
+  /**
+   * Release the startup lock.
+   */
+  private async releaseLock(lockPath: string): Promise<void> {
+    try {
+      await fs.unlink(lockPath)
+      this.logger.debug('Released startup lock', { lockPath })
+    } catch {
+      // Lock may have been forcefully removed - that's ok
+    }
   }
 
   /**
@@ -281,6 +390,7 @@ export class SupervisorClient {
       getSocketPath(this.projectDir),
       getTokenPath(this.projectDir),
       getUserPidPath(this.projectDir),
+      getLockPath(this.projectDir),
     ]
 
     for (const file of filesToRemove) {

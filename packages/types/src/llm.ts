@@ -29,8 +29,6 @@ export interface LLMRequest {
   messages: Message[]
   system?: string
   model?: string
-  temperature?: number
-  maxTokens?: number
   /**
    * JSON Schema for structured output.
    * When provided, the provider will attempt to use native structured output support.
@@ -60,4 +58,27 @@ export interface LLMResponse {
 export interface LLMProvider {
   id: string
   complete(request: LLMRequest): Promise<LLMResponse>
+}
+
+/**
+ * Profile-based provider factory interface.
+ * Creates LLM providers from named profile configurations.
+ * Reads config at call time to enable runtime tunability.
+ *
+ * @see docs/design/LLM_PROFILES.md for profile system design
+ */
+export interface ProfileProviderFactory {
+  /**
+   * Creates a provider for a named profile.
+   * Wraps with FallbackProvider if fallbackProfileId is specified.
+   *
+   * @param profileId - Name of the profile in llm.profiles
+   * @param fallbackProfileId - Optional name of fallback profile in llm.fallbacks
+   */
+  createForProfile(profileId: string, fallbackProfileId?: string): LLMProvider
+
+  /**
+   * Creates a provider using the default profile (llm.defaultProfile).
+   */
+  createDefault(): LLMProvider
 }

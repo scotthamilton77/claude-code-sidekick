@@ -32,7 +32,12 @@ export { MockStagingService } from './mocks/MockStagingService'
 export { MockTranscriptService, createDefaultMetrics, createDefaultTokenUsage } from './mocks/MockTranscriptService'
 
 // Factories
-export { createMockSupervisorContext, createMockCLIContext, MockSupervisorClient } from './factories/context.factory'
+export {
+  createMockSupervisorContext,
+  createMockCLIContext,
+  MockSupervisorClient,
+  MockProfileProviderFactory,
+} from './factories/context.factory'
 export type {
   RuntimeContext,
   CLIContext,

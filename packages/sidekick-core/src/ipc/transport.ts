@@ -71,6 +71,14 @@ export function getPidPath(projectDir: string): string {
 }
 
 /**
+ * Get the lockfile path for supervisor startup serialization.
+ * Used to prevent race conditions when multiple hooks try to start the supervisor.
+ */
+export function getLockPath(projectDir: string): string {
+  return path.join(projectDir, '.sidekick', 'supervisor.lock')
+}
+
+/**
  * Get the user-level supervisors directory.
  * Per design/CLI.md §7: Store PID files at ~/.sidekick/supervisors/ for --kill-all.
  */
