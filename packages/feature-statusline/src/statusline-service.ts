@@ -634,7 +634,9 @@ export class StatuslineService {
     }
 
     // Priority 5: Low-confidence session summary (better than nothing)
-    if (hasSummary) {
+    // But only if it has SOME confidence - zero confidence means placeholder
+    // and we should show the empty session message instead
+    if (hasSummary && (summary.session_title_confidence ?? 0) > 0) {
       return 'session_summary'
     }
 
