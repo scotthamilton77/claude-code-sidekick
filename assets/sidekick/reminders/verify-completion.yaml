@@ -29,6 +29,11 @@ additionalContext: |
 
   Evidence before assertions. Don't claim success without verification.
 
+  You can skip this step only if:
+  - The user has explicitly instructed you to skip verification.
+  - The verification evidence is done just before this reminder was triggered.
+  - You're not claiming "done" but stopping to give an update or ask for more info.
+
 userMessage: "Asking the agent to verify completion before stopping..."
 
 reason: "Verify completion before stopping - did you run tests and checks?"
