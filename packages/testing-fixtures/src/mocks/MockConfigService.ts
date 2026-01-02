@@ -41,6 +41,7 @@ const DEFAULT_CORE: CoreConfig = {
   paths: { state: '.sidekick' },
   supervisor: { idleTimeoutMs: 300000, shutdownTimeoutMs: 30000 },
   ipc: { connectTimeoutMs: 5000, requestTimeoutMs: 30000, maxRetries: 3, retryDelayMs: 100 },
+  development: { enabled: false },
 }
 
 const DEFAULT_LLM: LlmConfig = {

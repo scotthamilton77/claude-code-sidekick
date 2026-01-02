@@ -35,3 +35,8 @@ ipc:
   maxRetries: 3
   # Delay between retries in ms
   retryDelayMs: 100
+
+# Development mode configuration
+development:
+  # Enable development mode (changes behavior for local development)
+  enabled: false

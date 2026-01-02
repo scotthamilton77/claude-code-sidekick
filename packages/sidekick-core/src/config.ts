@@ -124,6 +124,10 @@ const IPC_DEFAULTS = {
   retryDelayMs: 100,
 }
 
+const DEVELOPMENT_DEFAULTS = {
+  enabled: false,
+}
+
 const IpcSchema = z
   .object({
     connectTimeoutMs: z.number().min(0).optional(),
@@ -139,12 +143,19 @@ const IpcSchema = z
     retryDelayMs: val.retryDelayMs ?? IPC_DEFAULTS.retryDelayMs,
   }))
 
+const DevelopmentSchema = z
+  .object({
+    enabled: z.boolean().default(false),
+  })
+  .strict()
+
 export const CoreConfigSchema = z
   .object({
     logging: LoggingSchema.optional(),
     paths: PathsSchema.optional(),
     supervisor: SupervisorSchema.optional(),
     ipc: IpcSchema.optional(),
+    development: DevelopmentSchema.optional(),
   })
   .strict()
   .transform((val) => ({
@@ -152,6 +163,7 @@ export const CoreConfigSchema = z
     paths: val.paths ?? { state: '.sidekick' },
     supervisor: val.supervisor ?? SUPERVISOR_DEFAULTS,
     ipc: val.ipc ?? IPC_DEFAULTS,
+    development: val.development ?? DEVELOPMENT_DEFAULTS,
   }))
 
 export type CoreConfig = z.infer<typeof CoreConfigSchema>
@@ -260,6 +272,7 @@ export const SidekickConfigSchema = z.object({
         paths: { state: '.sidekick' },
         supervisor: SUPERVISOR_DEFAULTS,
         ipc: IPC_DEFAULTS,
+        development: DEVELOPMENT_DEFAULTS,
       }
   ),
   llm: LlmConfigSchema.optional().transform(
@@ -526,6 +539,7 @@ function envToConfig(env: NodeJS.ProcessEnv): Record<string, Record<string, unkn
     SIDEKICK_LOG_FORMAT: { domain: 'core', path: ['logging', 'format'] },
     SIDEKICK_STATE_PATH: { domain: 'core', path: ['paths', 'state'] },
     SIDEKICK_ASSETS_PATH: { domain: 'core', path: ['paths', 'assets'] },
+    SIDEKICK_DEVELOPMENT_ENABLED: { domain: 'core', path: ['development', 'enabled'] },
 
     // LLM domain
     SIDEKICK_LLM_PROVIDER: { domain: 'llm', path: ['provider'] },

@@ -45,6 +45,9 @@ const DEFAULT_CONFIG: SidekickConfig = {
       maxRetries: 3,
       retryDelayMs: 100,
     },
+    development: {
+      enabled: false,
+    },
   },
   llm: {
     provider: 'openrouter',
