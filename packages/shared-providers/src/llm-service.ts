@@ -119,13 +119,7 @@ export class LLMService implements LLMProvider {
         })
       }
 
-      this.logger.debug('LLM request completed', {
-        provider: this.config.provider,
-        model,
-        duration,
-        inputTokens: response.usage?.inputTokens,
-        outputTokens: response.usage?.outputTokens,
-      })
+      // Note: completion logging handled by base provider (logResponse)
 
       return response
     } catch (error) {
