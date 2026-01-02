@@ -273,14 +273,8 @@ describe('LLMService', () => {
         })
       )
 
-      expect(mockLogger.debug).toHaveBeenCalledWith(
-        'LLM request completed',
-        expect.objectContaining({
-          provider: 'claude-cli',
-          model: 'claude-sonnet-4',
-          duration: expect.any(Number),
-        })
-      )
+      // Note: 'LLM request completed' is logged by base provider, not LLMService
+      // to avoid duplicate logging
     })
 
     it('should handle responses without usage data', async () => {
