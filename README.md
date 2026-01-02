@@ -12,7 +12,8 @@ This repository serves as a development and testing environment for [Claude Code
 
 ### Sidekick
 
-- resume message is now being generated but not picked up by new sessions
+- are we tracking history of session summaries in the logs?  Or should we rename with timestamp when updating?
+  - rename might be good to do anyway, at least in dev mode?
 - make sure all tests are passing (seeing some timeout and sandbox related failures)
 - stop hook needs some tuning
   - if issued, we should NOT re-issue it until a new UserPromptSubmit has happened (this prevents the stop hook from triggering more tools that modify files that re-stage the reminder what continues to cycle)
