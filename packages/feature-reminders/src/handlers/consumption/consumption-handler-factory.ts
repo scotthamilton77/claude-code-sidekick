@@ -12,9 +12,21 @@
  */
 
 import type { RuntimeContext, HookResponse } from '@sidekick/core'
-import type { CLIContext, HookName } from '@sidekick/types'
+import type { CLIContext, HookName, StagedReminder } from '@sidekick/types'
 import { isCLIContext, isHookEvent } from '@sidekick/types'
 import { CLIStagingReader } from '../../cli-staging-reader.js'
+
+/** Parameters passed to the onConsume callback */
+export interface OnConsumeParams {
+  /** The reminder being consumed */
+  reminder: StagedReminder
+  /** Staging reader for additional operations */
+  reader: CLIStagingReader
+  /** CLI context for IPC, logging, etc. */
+  cliCtx: CLIContext
+  /** Current session ID */
+  sessionId: string
+}
 
 export interface ConsumptionHandlerConfig {
   /** Handler ID (e.g., 'reminders:inject-user-prompt-submit') */
@@ -25,6 +37,8 @@ export interface ConsumptionHandlerConfig {
   priority?: number
   /** Whether this hook can block (PreToolUse, Stop) */
   supportsBlocking?: boolean
+  /** Optional callback invoked after consumption, before building response */
+  onConsume?: (params: OnConsumeParams) => Promise<void>
 }
 
 /**
@@ -33,7 +47,7 @@ export interface ConsumptionHandlerConfig {
 export function createConsumptionHandler(context: RuntimeContext, config: ConsumptionHandlerConfig): void {
   if (!isCLIContext(context)) return
 
-  const { id, hook, priority = 50, supportsBlocking = false } = config
+  const { id, hook, priority = 50, supportsBlocking = false, onConsume } = config
 
   context.handlers.register({
     id,
@@ -62,6 +76,11 @@ export function createConsumptionHandler(context: RuntimeContext, config: Consum
       // Rename if not persistent (preserves consumption history for reactivation)
       if (!reminder.persistent) {
         reader.renameReminder(hook, reminder.name)
+      }
+
+      // Call optional onConsume callback for hook-specific logic
+      if (onConsume) {
+        await onConsume({ reminder, reader, cliCtx, sessionId })
       }
 
       // Build response

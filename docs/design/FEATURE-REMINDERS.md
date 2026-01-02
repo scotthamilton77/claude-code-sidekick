@@ -248,11 +248,104 @@ The verify-completion reminder is unstaged in two scenarios:
 
 1. `InjectStopReminders` finds pending reminder
 2. Returns `{ blocking: true, reason: reminder.reason }`
-3. Deletes file (one-shot, so next stop succeeds)
+3. Renames file with timestamp suffix (preserves consumption history)
+4. If consuming `verify-completion`:
+   - Deletes any staged `pause-and-reflect` (prevents cascade)
+   - Sends `reminder.consumed` IPC to Supervisor (resets P&R baseline)
 
-## 6. CLI Consumption Algorithm
+### 5.4 Reactivation Logic
 
-When a hook fires, the CLI consumption handler:
+Reminders track consumption history via timestamped files (e.g., `verify-completion.1736841830298.json`). This enables reactivation decisions:
+
+**Verify-Completion (VC)**: Only fires **once per turn**. After consumption, additional file edits in the same turn do NOT re-stage VC. A new user prompt (new turn) resets this.
+
+**Pause-and-Reflect (P&R)**: Uses a **baseline threshold** that resets after VC consumption:
+
+| Scenario | P&R Threshold Calculation |
+|----------|--------------------------|
+| Normal (no VC consumed) | `toolsThisTurn >= pause_threshold` (default: 15) |
+| After VC consumed | `toolsThisTurn - vcToolsThisTurn >= pause_threshold` |
+| New turn | Baseline resets to 0 |
+
+**Example**: If VC is consumed at tool 8 with threshold 15:
+- Tool 15: P&R does NOT fire (15 - 8 = 7 < 15)
+- Tool 23: P&R fires (23 - 8 = 15 ≥ 15)
+
+### 5.5 P&R Baseline Reset (IPC)
+
+When VC is consumed, the CLI sends `reminder.consumed` IPC to the Supervisor:
+
+```typescript
+await ipc.send('reminder.consumed', {
+  sessionId,
+  reminderName: 'verify-completion',
+  metrics: { turnCount, toolsThisTurn }
+})
+```
+
+The Supervisor stores the baseline in `.sidekick/sessions/{id}/state/pr-baseline.json`:
+
+```typescript
+interface PRBaselineState {
+  turnCount: number      // Turn when VC was consumed
+  toolsThisTurn: number  // Tools at consumption (new P&R baseline)
+  timestamp: number      // Unix timestamp
+}
+```
+
+The P&R staging handler reads this file and adjusts its threshold calculation accordingly. The baseline is cleared on `UserPromptSubmit` (new turn).
+
+## 6. CLI Consumption Handler Factory
+
+Consumption handlers follow a consistent pattern, implemented via `createConsumptionHandler()`:
+
+```typescript
+createConsumptionHandler(context, {
+  id: 'reminders:inject-stop',
+  hook: 'Stop',
+  supportsBlocking: true,
+  onConsume: async ({ reminder, reader, cliCtx, sessionId }) => {
+    // Hook-specific logic here (optional)
+  },
+})
+```
+
+**Factory Flow**:
+1. Guard: Only runs in CLI context
+2. List staged reminders, sorted by priority (highest first)
+3. Rename if not persistent (preserves consumption history for reactivation)
+4. Call `onConsume` callback if provided (for hook-specific side effects)
+5. Build and return `HookResponse`
+
+### 6.1 The `onConsume` Callback
+
+The optional `onConsume` callback allows hook-specific logic without duplicating the consumption flow:
+
+```typescript
+interface OnConsumeParams {
+  reminder: StagedReminder    // The reminder being consumed
+  reader: CLIStagingReader    // For additional staging operations
+  cliCtx: CLIContext          // For IPC, logging, etc.
+  sessionId: string           // Current session
+}
+```
+
+**Example: Stop hook with VC cascade prevention**:
+
+```typescript
+onConsume: async ({ reminder, reader, cliCtx, sessionId }) => {
+  if (reminder.name === 'verify-completion') {
+    // Delete any staged P&R to prevent cascade
+    reader.deleteReminder('PreToolUse', 'pause-and-reflect')
+
+    // Send IPC to reset P&R baseline threshold
+    const ipc = new IpcService(cliCtx.paths.projectDir, cliCtx.logger)
+    await ipc.send('reminder.consumed', { sessionId, reminderName: reminder.name, metrics })
+  }
+}
+```
+
+### 6.2 Consumption Algorithm (Internal)
 
 ```typescript
 function consumeReminder(ctx: RuntimeContext, hookName: string): HookResult {
@@ -268,9 +361,9 @@ function consumeReminder(ctx: RuntimeContext, hookName: string): HookResult {
 
   const reminder = reminders[0]
 
-  // Delete if not persistent
+  // Rename if not persistent (preserves consumption history)
   if (!reminder.persistent) {
-    unlink(reminder.path)
+    rename(reminder.path, `${reminder.name}.${Date.now()}.json`)
   }
 
   // Log and return

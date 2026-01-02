@@ -9,6 +9,21 @@
  */
 
 /**
+ * P&R baseline state stored after VC consumption.
+ * Used to reset P&R threshold after verify-completion is injected.
+ *
+ * @see docs/design/FEATURE-REMINDERS.md
+ */
+export interface PRBaselineState {
+  /** Turn count when VC was consumed */
+  turnCount: number
+  /** Tools in turn when VC was consumed (new P&R baseline) */
+  toolsThisTurn: number
+  /** Unix timestamp when baseline was set */
+  timestamp: number
+}
+
+/**
  * Metrics snapshot captured when a reminder is staged.
  * Used by Supervisor to determine reactivation after consumption.
  *
