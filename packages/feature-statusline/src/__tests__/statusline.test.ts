@@ -1268,8 +1268,9 @@ describe('StatuslineService', () => {
       const result = await service.render()
 
       // Should discover and display the previous session's resume message
+      // Format: "{resume_last_goal_message} ({snarky_comment})"
       expect(result.displayMode).toBe('resume_message')
-      expect(result.viewModel.summary).toBe('Working on feature X')
+      expect(result.viewModel.summary).toBe('Working on feature X (Back for more?)')
     })
 
     it('does not discover when current session has a summary', async () => {
@@ -1541,8 +1542,9 @@ describe('StatuslineService', () => {
 
       const result = await service.render()
 
+      // Format: "{resume_last_goal_message} ({snarky_comment})"
       expect(result.displayMode).toBe('resume_message')
-      expect(result.viewModel.summary).toBe('Continue refactoring?')
+      expect(result.viewModel.summary).toBe('Continue refactoring? (Back for more?)')
     })
 
     it('does not mark stale based on first-prompt age (content artifacts never stale)', async () => {
