@@ -190,18 +190,18 @@ const LlmProfileSchema = z.object({
 export type LlmProfile = z.infer<typeof LlmProfileSchema>
 
 const LLM_PROFILE_DEFAULTS = {
-  analytical: {
+  'fast-lite': {
     provider: 'openrouter' as const,
-    model: 'x-ai/grok-4-fast',
+    model: 'google/gemini-2.0-flash-lite-001',
     temperature: 0,
-    maxTokens: 4096,
-    timeout: 30,
-    timeoutMaxRetries: 3,
+    maxTokens: 1000,
+    timeout: 15,
+    timeoutMaxRetries: 2,
   },
 }
 
 const LLM_DEFAULTS = {
-  defaultProfile: 'analytical',
+  defaultProfile: 'fast-lite',
   debugDumpEnabled: false,
 }
 

@@ -254,10 +254,10 @@ describe('loadConfig - YAML parsing', () => {
     expect(config.core.paths.state).toBe('.sidekick')
 
     // LLM defaults - profile-based structure
-    expect(config.llm.defaultProfile).toBe('analytical')
-    expect(config.llm.profiles.analytical.provider).toBe('openrouter')
-    expect(config.llm.profiles.analytical.temperature).toBe(0)
-    expect(config.llm.profiles.analytical.timeout).toBe(30)
+    expect(config.llm.defaultProfile).toBe('fast-lite')
+    expect(config.llm.profiles['fast-lite'].provider).toBe('openrouter')
+    expect(config.llm.profiles['fast-lite'].temperature).toBe(0)
+    expect(config.llm.profiles['fast-lite'].timeout).toBe(15)
 
     // Transcript defaults
     expect(config.transcript.watchDebounceMs).toBe(100)
@@ -577,7 +577,7 @@ test:
       join(userSidekick, 'llm.yaml'),
       `
 profiles:
-  analytical:
+  fast-lite:
     provider: openai
     model: gpt-4o
 `
@@ -589,7 +589,7 @@ profiles:
       join(projectSidekick, 'llm.yaml'),
       `
 profiles:
-  analytical:
+  fast-lite:
     provider: openrouter
 `
     )
@@ -602,8 +602,8 @@ profiles:
     // Core from project
     expect(config.core.logging.level).toBe('debug')
     // LLM: provider from project, model from user
-    expect(config.llm.profiles.analytical.provider).toBe('openrouter')
-    expect(config.llm.profiles.analytical.model).toBe('gpt-4o')
+    expect(config.llm.profiles['fast-lite'].provider).toBe('openrouter')
+    expect(config.llm.profiles['fast-lite'].model).toBe('gpt-4o')
   })
 })
 
@@ -742,8 +742,8 @@ describe('ConfigService', () => {
     })
 
     expect(service.core.logging.level).toBe('info')
-    expect(service.llm.defaultProfile).toBe('analytical')
-    expect(service.llm.profiles.analytical.provider).toBe('openrouter')
+    expect(service.llm.defaultProfile).toBe('fast-lite')
+    expect(service.llm.profiles['fast-lite'].provider).toBe('openrouter')
     expect(service.transcript.watchDebounceMs).toBe(100)
     expect(service.features).toEqual({})
   })
@@ -1005,9 +1005,9 @@ describe('loadConfig - external defaults', () => {
         }
         if (path === 'defaults/llm.defaults.yaml') {
           return {
-            defaultProfile: 'analytical',
+            defaultProfile: 'fast-lite',
             profiles: {
-              analytical: {
+              'fast-lite': {
                 provider: 'openai',
                 model: 'gpt-4',
                 temperature: 0.5,
@@ -1035,9 +1035,9 @@ describe('loadConfig - external defaults', () => {
     expect(config.core.logging.level).toBe('debug')
     expect(config.core.logging.format).toBe('json')
     expect(config.core.paths.state).toBe('.custom-state')
-    expect(config.llm.profiles.analytical.provider).toBe('openai')
-    expect(config.llm.profiles.analytical.temperature).toBe(0.5)
-    expect(config.llm.profiles.analytical.timeout).toBe(60)
+    expect(config.llm.profiles['fast-lite'].provider).toBe('openai')
+    expect(config.llm.profiles['fast-lite'].temperature).toBe(0.5)
+    expect(config.llm.profiles['fast-lite'].timeout).toBe(60)
     expect(config.transcript.watchDebounceMs).toBe(250)
     expect(config.transcript.metricsPersistIntervalMs).toBe(10000)
   })
@@ -1082,7 +1082,7 @@ describe('loadConfig - external defaults', () => {
 
     expect(config.core.logging.level).toBe('info')
     expect(config.core.logging.format).toBe('pretty')
-    expect(config.llm.defaultProfile).toBe('analytical')
+    expect(config.llm.defaultProfile).toBe('fast-lite')
   })
 
   test('falls back to Zod defaults when YAML file missing', () => {
@@ -1104,7 +1104,7 @@ describe('loadConfig - external defaults', () => {
     })
 
     expect(config.core.logging.level).toBe('info')
-    expect(config.llm.defaultProfile).toBe('analytical')
+    expect(config.llm.defaultProfile).toBe('fast-lite')
   })
 
   test('env variables override external defaults', () => {
@@ -1145,9 +1145,9 @@ describe('ConfigService - getFeature with external defaults', () => {
 
   // LLM defaults needed for config validation
   const mockLlmDefaults = {
-    defaultProfile: 'analytical',
+    defaultProfile: 'fast-lite',
     profiles: {
-      analytical: {
+      'fast-lite': {
         provider: 'openrouter',
         model: 'test-model',
         temperature: 0,
@@ -1534,7 +1534,7 @@ session-summary:
   settings:
     llm:
       sessionSummary:
-        profile: analytical
+        profile: fast-lite
         fallbackProfile: nonexistent-fallback
 `
     )
