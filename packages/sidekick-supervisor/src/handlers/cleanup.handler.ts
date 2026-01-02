@@ -8,9 +8,10 @@
  */
 
 import { CleanupPayloadSchema, Logger } from '@sidekick/core'
+import type { TaskContext } from '@sidekick/types'
 import fs from 'fs/promises'
 import path from 'path'
-import { TaskContext, TaskHandler } from '../task-engine.js'
+import type { TaskHandler } from '../task-engine.js'
 import { TaskRegistry } from '../task-registry.js'
 
 /** Default max age for session cleanup: 7 days */

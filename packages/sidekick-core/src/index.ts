@@ -145,6 +145,7 @@ export {
   type TranscriptServiceOptions,
 } from './transcript-service'
 export { ServiceFactoryImpl, type ServiceFactoryOptions } from './service-factory'
+export { InstrumentedLLMProvider, type InstrumentedLLMProviderConfig } from './instrumented-llm-provider'
 
 // Note: LLMService should be imported directly from '@sidekick/shared-providers'
 // to avoid circular dependencies between packages

@@ -10,9 +10,86 @@ import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { SupervisorContext } from '@sidekick/types'
+import type { ContextGetter } from '../task-engine.js'
 import type { SupervisorStatus } from '../supervisor.js'
 
 let tmpDir: string
+
+// Mock context getter for tests
+const createMockContextGetter =
+  (logger: { info: unknown; error: unknown; warn: unknown; debug: unknown }): ContextGetter =>
+  () =>
+    ({
+      role: 'supervisor',
+      config: {
+        core: { logging: { level: 'error' }, development: { enabled: false } },
+        llm: {},
+        getAll: () => ({}),
+        getFeature: () => undefined,
+      },
+      logger,
+      assets: { resolve: () => undefined },
+      paths: { userConfigDir: '/tmp', projectConfigDir: '/tmp' },
+      handlers: { register: () => {}, dispatch: async () => {} },
+      llm: {
+        id: 'mock',
+        complete: () =>
+          Promise.resolve({
+            content: '',
+            model: 'mock',
+            usage: { inputTokens: 0, outputTokens: 0 },
+            rawResponse: { status: 200, body: '' },
+          }),
+      },
+      staging: {
+        stageReminder: () => Promise.resolve(),
+        readReminder: () => Promise.resolve(null),
+        clearStaging: () => Promise.resolve(),
+        listReminders: () => Promise.resolve([]),
+        deleteReminder: () => Promise.resolve(),
+        listConsumedReminders: () => Promise.resolve([]),
+        getLastConsumed: () => Promise.resolve(null),
+      },
+      transcript: {
+        initialize: async () => {},
+        prepare: async () => {},
+        start: async () => {},
+        shutdown: async () => {},
+        getTranscript: () => ({
+          entries: [],
+          metadata: { sessionId: '', transcriptPath: '', lineCount: 0, lastModified: 0 },
+          toString: () => '',
+        }),
+        getExcerpt: () => ({ content: '', lineCount: 0, startLine: 0, endLine: 0, bookmarkApplied: false }),
+        getMetrics: () => ({
+          turnCount: 0,
+          toolCount: 0,
+          toolsThisTurn: 0,
+          messageCount: 0,
+          tokenUsage: {
+            inputTokens: 0,
+            outputTokens: 0,
+            totalTokens: 0,
+            cacheCreationInputTokens: 0,
+            cacheReadInputTokens: 0,
+            cacheTiers: { ephemeral5mInputTokens: 0, ephemeral1hInputTokens: 0 },
+            serviceTierCounts: {},
+            byModel: {},
+          },
+          currentContextTokens: 0,
+          isPostCompactIndeterminate: false,
+          toolsPerTurn: 0,
+          lastProcessedLine: 0,
+          lastUpdatedAt: 0,
+        }),
+        getMetric: () => 0 as never,
+        onMetricsChange: () => () => {},
+        onThreshold: () => () => {},
+        capturePreCompactState: async () => {},
+        getCompactionHistory: () => [],
+      },
+    }) as unknown as SupervisorContext
 
 describe('TaskEngine.getStatus()', () => {
   beforeEach(async () => {
@@ -32,7 +109,7 @@ describe('TaskEngine.getStatus()', () => {
     const { createConsoleLogger } = await import('@sidekick/core')
 
     const logger = createConsoleLogger({ minimumLevel: 'error' })
-    const engine = new TaskEngine(logger, 1) // Max 1 concurrent task
+    const engine = new TaskEngine(logger, createMockContextGetter(logger), 1) // Max 1 concurrent task
 
     // Track when handler is called
     let handlerCalled = false
@@ -64,7 +141,7 @@ describe('TaskEngine.getStatus()', () => {
     const { createConsoleLogger } = await import('@sidekick/core')
 
     const logger = createConsoleLogger({ minimumLevel: 'error' })
-    const engine = new TaskEngine(logger)
+    const engine = new TaskEngine(logger, createMockContextGetter(logger))
 
     const status = engine.getStatus()
     expect(status.pending).toBe(0)

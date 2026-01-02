@@ -1,4 +1,5 @@
 import { Logger } from '@sidekick/core'
+import type { SupervisorContext, TaskContext } from '@sidekick/types'
 import crypto from 'crypto'
 
 /**
@@ -17,22 +18,20 @@ export interface Task {
 }
 
 /**
- * Context passed to task handlers for cancellation support.
+ * Function to get SupervisorContext for a session.
+ * If sessionId is provided, returns session-specific context (instrumented provider).
+ * If sessionId is undefined, returns base context (shared provider).
  */
-export interface TaskContext {
-  /** Task ID for tracking in TaskRegistry */
-  taskId: string
-  /** AbortSignal for cancellation - handlers should check this periodically */
-  signal: AbortSignal
-  /** Logger scoped to this task */
-  logger: Logger
-}
+export type ContextGetter = (sessionId?: string) => SupervisorContext
 
 /**
  * Task handler function signature.
- * Receives payload and context (with AbortSignal for cancellation).
+ * Receives payload and full TaskContext (extends SupervisorContext with task fields).
  */
 export type TaskHandler = (payload: Record<string, unknown>, context: TaskContext) => Promise<void>
+
+// Re-export TaskContext type for convenience
+export type { TaskContext } from '@sidekick/types'
 
 /**
  * Custom error class for task timeout.
@@ -73,13 +72,20 @@ export class TaskEngine {
   private readonly maxConcurrency: number
   private readonly defaultTimeoutMs: number
   private logger: Logger
+  private contextGetter: ContextGetter
   private isShuttingDown = false
   private shutdownResolve: (() => void) | null = null
   private activeAbortControllers = new Map<string, AbortController>()
   private activeTaskMeta = new Map<string, { type: string; startTime: number }>()
 
-  constructor(logger: Logger, maxConcurrency = 2, defaultTimeoutMs = DEFAULT_TASK_TIMEOUT_MS) {
+  constructor(
+    logger: Logger,
+    contextGetter: ContextGetter,
+    maxConcurrency = 2,
+    defaultTimeoutMs = DEFAULT_TASK_TIMEOUT_MS
+  ) {
     this.logger = logger
+    this.contextGetter = contextGetter
     this.maxConcurrency = maxConcurrency
     this.defaultTimeoutMs = defaultTimeoutMs
   }
@@ -158,11 +164,17 @@ export class TaskEngine {
     this.logger.info('Starting task', { type: task.type, id: task.id, timeoutMs })
     const start = Date.now()
 
-    // Create task context with AbortSignal for cancellation
+    // Extract sessionId from payload if present (most tasks have it)
+    const sessionId = typeof task.payload.sessionId === 'string' ? task.payload.sessionId : undefined
+
+    // Get SupervisorContext for this session (or base context if no sessionId)
+    const supervisorContext = this.contextGetter(sessionId)
+
+    // Build full TaskContext by extending SupervisorContext with task-specific fields
     const context: TaskContext = {
+      ...supervisorContext,
       taskId: task.id,
       signal: abortController.signal,
-      logger: this.logger,
     }
 
     try {

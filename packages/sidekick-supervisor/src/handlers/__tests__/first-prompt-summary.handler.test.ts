@@ -720,6 +720,6 @@ describe('generateWithLLM', () => {
   it('should export generateWithLLM function', () => {
     // Verify the function is exported and has the expected signature
     expect(typeof generateWithLLM).toBe('function')
-    expect(generateWithLLM.length).toBe(6) // 6 parameters (userPrompt, resumeContext, config, logger, assetResolver, signal?)
+    expect(generateWithLLM.length).toBe(7) // 7 parameters (userPrompt, resumeContext, provider, config, logger, assetResolver, signal?)
   })
 })

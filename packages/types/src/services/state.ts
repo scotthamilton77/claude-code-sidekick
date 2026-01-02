@@ -486,6 +486,148 @@ export const DEFAULT_PROJECT_METRICS: ProjectContextMetrics = {
 }
 
 // ============================================================================
+// LLM Metrics State
+// ============================================================================
+
+/**
+ * Latency statistics for LLM calls.
+ */
+export const LLMLatencyStatsSchema = z.object({
+  /** Minimum latency in ms */
+  min: z.number(),
+  /** Maximum latency in ms */
+  max: z.number(),
+  /** Sum of all latencies (for computing average) */
+  sum: z.number(),
+  /** Count of successful calls (for computing average) */
+  count: z.number(),
+  /** 50th percentile latency in ms */
+  p50: z.number(),
+  /** 90th percentile latency in ms */
+  p90: z.number(),
+  /** 95th percentile latency in ms */
+  p95: z.number(),
+})
+
+export type LLMLatencyStats = z.infer<typeof LLMLatencyStatsSchema>
+
+/**
+ * Per-model metrics within a provider.
+ */
+export const LLMModelMetricsSchema = z.object({
+  /** Total call count */
+  callCount: z.number(),
+  /** Successful call count */
+  successCount: z.number(),
+  /** Failed call count */
+  failedCount: z.number(),
+  /** Total input tokens */
+  inputTokens: z.number(),
+  /** Total output tokens */
+  outputTokens: z.number(),
+  /** Latency statistics */
+  latency: LLMLatencyStatsSchema,
+})
+
+export type LLMModelMetrics = z.infer<typeof LLMModelMetricsSchema>
+
+/**
+ * Per-provider metrics with model breakdown.
+ */
+export const LLMProviderMetricsSchema = z.object({
+  /** Total call count */
+  callCount: z.number(),
+  /** Successful call count */
+  successCount: z.number(),
+  /** Failed call count */
+  failedCount: z.number(),
+  /** Total input tokens */
+  inputTokens: z.number(),
+  /** Total output tokens */
+  outputTokens: z.number(),
+  /** Latency statistics */
+  latency: LLMLatencyStatsSchema,
+  /** Breakdown by model within this provider */
+  byModel: z.record(z.string(), LLMModelMetricsSchema),
+})
+
+export type LLMProviderMetrics = z.infer<typeof LLMProviderMetricsSchema>
+
+/**
+ * Session totals for convenience display.
+ */
+export const LLMSessionTotalsSchema = z.object({
+  /** Total call count */
+  callCount: z.number(),
+  /** Successful call count */
+  successCount: z.number(),
+  /** Failed call count */
+  failedCount: z.number(),
+  /** Total input tokens */
+  inputTokens: z.number(),
+  /** Total output tokens */
+  outputTokens: z.number(),
+  /** Total latency in ms */
+  totalLatencyMs: z.number(),
+  /** Average latency in ms (computed: totalLatencyMs / successCount) */
+  averageLatencyMs: z.number(),
+})
+
+export type LLMSessionTotals = z.infer<typeof LLMSessionTotalsSchema>
+
+/**
+ * LLM metrics aggregated per provider and model within a session.
+ * Tracks call counts, token usage, and latency statistics.
+ *
+ * Location: `.sidekick/sessions/{sessionId}/state/llm-metrics.json`
+ */
+export const LLMMetricsStateSchema = z.object({
+  /** Session identifier */
+  sessionId: z.string(),
+  /** Unix timestamp (ms) of last update */
+  lastUpdatedAt: z.number(),
+  /** Aggregated metrics by provider */
+  byProvider: z.record(z.string(), LLMProviderMetricsSchema),
+  /** Session-level totals (convenience) */
+  totals: LLMSessionTotalsSchema,
+})
+
+export type LLMMetricsState = z.infer<typeof LLMMetricsStateSchema>
+
+/**
+ * Default latency stats for initialization.
+ */
+export const DEFAULT_LATENCY_STATS: LLMLatencyStats = {
+  min: Infinity,
+  max: 0,
+  sum: 0,
+  count: 0,
+  p50: 0,
+  p90: 0,
+  p95: 0,
+}
+
+/**
+ * Create default LLM metrics state for a session.
+ */
+export function createDefaultLLMMetrics(sessionId: string): LLMMetricsState {
+  return {
+    sessionId,
+    lastUpdatedAt: Date.now(),
+    byProvider: {},
+    totals: {
+      callCount: 0,
+      successCount: 0,
+      failedCount: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      totalLatencyMs: 0,
+      averageLatencyMs: 0,
+    },
+  }
+}
+
+// ============================================================================
 // Unified Session State Response
 // ============================================================================
 
@@ -516,4 +658,6 @@ export interface SessionStateSnapshot {
   stagedReminders?: StagedRemindersSnapshot
   /** Compaction history (if any) */
   compactionHistory?: CompactionHistoryState
+  /** LLM metrics for this session (if available) */
+  llmMetrics?: LLMMetricsState
 }

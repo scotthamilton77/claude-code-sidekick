@@ -6,7 +6,7 @@
  */
 
 import { createConsoleLogger, SidekickConfig, TaskTypes, TrackedTask } from '@sidekick/core'
-import type { MinimalAssetResolver } from '@sidekick/types'
+import type { MinimalAssetResolver, SupervisorContext } from '@sidekick/types'
 import { readFileSync } from 'fs'
 import fs from 'fs/promises'
 import os from 'os'
@@ -14,9 +14,82 @@ import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { StateManager } from '../state-manager.js'
 import { createTaskRegistry, registerStandardTaskHandlers, TaskRegistry } from '../task-handlers.js'
-import { TaskEngine } from '../task-engine.js'
+import { ContextGetter, TaskEngine } from '../task-engine.js'
 
 const logger = createConsoleLogger({ minimumLevel: 'error' })
+
+// Mock context getter for tests
+const mockContextGetter: ContextGetter = () =>
+  ({
+    role: 'supervisor',
+    config: {
+      core: { logging: { level: 'error' }, development: { enabled: false } },
+      llm: {},
+      getAll: () => ({}),
+      getFeature: () => undefined,
+    },
+    logger,
+    assets: { resolve: () => undefined },
+    paths: { userConfigDir: '/tmp', projectConfigDir: '/tmp' },
+    handlers: { register: () => {}, dispatch: async () => {} },
+    llm: {
+      id: 'mock',
+      complete: () =>
+        Promise.resolve({
+          content: '',
+          model: 'mock',
+          usage: { inputTokens: 0, outputTokens: 0 },
+          rawResponse: { status: 200, body: '' },
+        }),
+    },
+    staging: {
+      stageReminder: () => Promise.resolve(),
+      readReminder: () => Promise.resolve(null),
+      clearStaging: () => Promise.resolve(),
+      listReminders: () => Promise.resolve([]),
+      deleteReminder: () => Promise.resolve(),
+      listConsumedReminders: () => Promise.resolve([]),
+      getLastConsumed: () => Promise.resolve(null),
+    },
+    transcript: {
+      initialize: async () => {},
+      prepare: async () => {},
+      start: async () => {},
+      shutdown: async () => {},
+      getTranscript: () => ({
+        entries: [],
+        metadata: { sessionId: '', transcriptPath: '', lineCount: 0, lastModified: 0 },
+        toString: () => '',
+      }),
+      getExcerpt: () => ({ content: '', lineCount: 0, startLine: 0, endLine: 0, bookmarkApplied: false }),
+      getMetrics: () => ({
+        turnCount: 0,
+        toolCount: 0,
+        toolsThisTurn: 0,
+        messageCount: 0,
+        tokenUsage: {
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          cacheCreationInputTokens: 0,
+          cacheReadInputTokens: 0,
+          cacheTiers: { ephemeral5mInputTokens: 0, ephemeral1hInputTokens: 0 },
+          serviceTierCounts: {},
+          byModel: {},
+        },
+        currentContextTokens: 0,
+        isPostCompactIndeterminate: false,
+        toolsPerTurn: 0,
+        lastProcessedLine: 0,
+        lastUpdatedAt: 0,
+      }),
+      getMetric: () => 0 as never,
+      onMetricsChange: () => () => {},
+      onThreshold: () => () => {},
+      capturePreCompactState: async () => {},
+      getCompactionHistory: () => [],
+    },
+  }) as unknown as SupervisorContext
 
 // Path to assets directory for loading real prompt/schema files
 const ASSETS_DIR = path.join(__dirname, '../../../../assets/sidekick')
@@ -221,7 +294,7 @@ describe('Standard Task Handlers', () => {
     stateManager = new StateManager(stateDir, logger)
     await stateManager.initialize()
     // Use longer timeout for tests (10s instead of 5min)
-    taskEngine = new TaskEngine(logger, 2, 10000)
+    taskEngine = new TaskEngine(logger, mockContextGetter, 2, 10000)
 
     // Register handlers
     registerStandardTaskHandlers(taskEngine, stateManager, projectDir, logger, mockConfig, mockAssetResolver)
