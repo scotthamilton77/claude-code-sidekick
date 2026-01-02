@@ -1,5 +1,6 @@
 import {
   createAssetResolver,
+  createConfigService,
   createLogManager,
   getDefaultAssetsDir,
   getPidPath,
@@ -9,20 +10,22 @@ import {
   getUserSupervisorsDir,
   HandlerRegistryImpl,
   IpcServer,
-  loadConfig,
   Logger,
   LogManager,
   reconstructTranscriptPath,
   ServiceFactoryImpl,
-  SidekickConfig,
   LogEvents,
   logEvent,
+  type AssetResolver,
+  type ConfigService,
+  type SidekickConfig,
 } from '@sidekick/core'
 import { registerStagingHandlers } from '@sidekick/feature-reminders'
 import { registerHandlers as registerSessionSummaryHandlers } from '@sidekick/feature-session-summary'
 import type {
   HandlerRegistry,
   TranscriptService,
+  TranscriptMetrics,
   StagingService,
   ServiceFactory,
   HookName,
@@ -30,9 +33,9 @@ import type {
   SupervisorStatus,
   SupervisorContext,
   RuntimePaths,
-  MinimalAssetResolver,
 } from '@sidekick/types'
 import { ProviderFactory, type LLMProvider } from '@sidekick/shared-providers'
+import { InstrumentedLLMProvider } from '@sidekick/core'
 import { randomBytes } from 'crypto'
 import { homedir } from 'os'
 import fs from 'fs/promises'
@@ -72,7 +75,7 @@ const HEARTBEAT_INTERVAL_MS = 5 * 1000
 
 export class Supervisor {
   private projectDir: string
-  private config: SidekickConfig
+  private configService: ConfigService
   private logger: Logger
   private logManager: LogManager
   private stateManager: StateManager
@@ -82,8 +85,9 @@ export class Supervisor {
   private configWatcher: ConfigWatcher
   private handlerRegistry: HandlerRegistry
   private serviceFactory: ServiceFactory
-  private assetResolver: MinimalAssetResolver
+  private assetResolver: AssetResolver
   private llmProvider: LLMProvider | null = null
+  private instrumentedProviders = new Map<string, InstrumentedLLMProvider>()
   private contextMetricsService: ContextMetricsService
   private token: string = ''
   private lastActivityTime: number = Date.now()
@@ -95,24 +99,33 @@ export class Supervisor {
   constructor(projectDir: string) {
     this.projectDir = projectDir
 
-    // Load config from project
-    this.config = loadConfig({ projectRoot: projectDir })
+    // Initialize Asset Resolver first (needed for configService YAML defaults)
+    this.assetResolver = createAssetResolver({
+      defaultAssetsDir: getDefaultAssetsDir(),
+      projectRoot: projectDir,
+    })
+
+    // Create ConfigService with assets to enable YAML feature defaults
+    this.configService = createConfigService({
+      projectRoot: projectDir,
+      assets: this.assetResolver,
+    })
 
     // Initialize Logger
     const logDir = path.join(projectDir, '.sidekick', 'logs')
     this.logManager = createLogManager({
       name: 'supervisor',
-      level: this.config.core.logging.level,
+      level: this.configService.core.logging.level,
       destinations: {
         file: { path: path.join(logDir, 'supervisor.log') },
-        console: { enabled: this.config.core.logging.consoleEnabled },
+        console: { enabled: this.configService.core.logging.consoleEnabled },
       },
     })
     this.logger = this.logManager.getLogger()
 
     // Initialize Components
     this.stateManager = new StateManager(path.join(projectDir, '.sidekick', 'state'), this.logger)
-    this.taskEngine = new TaskEngine(this.logger)
+    this.taskEngine = new TaskEngine(this.logger, this.getContextForTask.bind(this))
     this.taskRegistry = createTaskRegistry(this.stateManager, this.logger)
 
     // Initialize Config Watcher for hot-reload (design/SUPERVISOR.md §4.3)
@@ -132,14 +145,8 @@ export class Supervisor {
       logger: this.logger,
       scope: 'project',
       handlers: this.handlerRegistry,
-      watchDebounceMs: this.config.transcript.watchDebounceMs,
-      metricsPersistIntervalMs: this.config.transcript.metricsPersistIntervalMs,
-    })
-
-    // Initialize Asset Resolver for reminder templates
-    this.assetResolver = createAssetResolver({
-      defaultAssetsDir: getDefaultAssetsDir(),
-      projectRoot: projectDir,
+      watchDebounceMs: this.configService.transcript.watchDebounceMs,
+      metricsPersistIntervalMs: this.configService.transcript.metricsPersistIntervalMs,
     })
 
     // Initialize Context Metrics Service (METRICS_PLAN.md)
@@ -190,7 +197,7 @@ export class Supervisor {
         this.stateManager,
         this.projectDir,
         this.logger,
-        this.config,
+        this.configService.getAll(),
         this.assetResolver
       )
 
@@ -232,6 +239,17 @@ export class Supervisor {
     // Stop config watcher
     this.configWatcher.stop()
 
+    // Shutdown all instrumented LLM providers (persists final metrics)
+    try {
+      for (const [sessionId, provider] of this.instrumentedProviders) {
+        provider.shutdown()
+        this.logger.debug('Shutdown instrumented LLM provider', { sessionId })
+      }
+      this.instrumentedProviders.clear()
+    } catch (err) {
+      this.logger.error('Failed to shutdown instrumented LLM providers', { error: err })
+    }
+
     // Shutdown all session services via factory
     // Per docs/design/SUPERVISOR.md §2.2: Shutdown sequence must stop TranscriptService
     try {
@@ -252,7 +270,7 @@ export class Supervisor {
 
     try {
       // Shutdown Task Engine - wait for running tasks to complete
-      await this.taskEngine.shutdown(this.config.core.supervisor.shutdownTimeoutMs)
+      await this.taskEngine.shutdown(this.configService.core.supervisor.shutdownTimeoutMs)
     } catch (err) {
       this.logger.error('Failed to shutdown task engine', { error: err })
     }
@@ -273,25 +291,30 @@ export class Supervisor {
 
     // Reload configuration
     try {
-      const newConfig = loadConfig({ projectRoot: this.projectDir })
+      const oldConfig = this.configService.getAll()
+      const newConfigService = createConfigService({
+        projectRoot: this.projectDir,
+        assets: this.assetResolver,
+      })
+      const newConfig = newConfigService.getAll()
 
       // Log all config value changes
-      const changes = this.diffConfigs(this.config, newConfig)
+      const changes = this.diffConfigs(oldConfig, newConfig)
       if (changes.length > 0) {
         this.logger.info('Configuration values changed', { changes })
       }
 
       // Apply critical config changes immediately (per SUPERVISOR.md §4.4)
-      if (newConfig.core.logging.level !== this.config.core.logging.level) {
+      if (newConfig.core.logging.level !== oldConfig.core.logging.level) {
         this.logManager.setLevel(newConfig.core.logging.level)
         this.logger.info('Log level updated', {
-          oldLevel: this.config.core.logging.level,
+          oldLevel: oldConfig.core.logging.level,
           newLevel: newConfig.core.logging.level,
         })
       }
 
-      // Update stored config
-      this.config = newConfig
+      // Update stored config service
+      this.configService = newConfigService
 
       this.logger.info('Configuration reloaded successfully')
     } catch (err) {
@@ -496,6 +519,14 @@ export class Supervisor {
   private async handleSessionEnd(event: HookEvent): Promise<void> {
     const sessionId = event.context?.sessionId
     if (sessionId) {
+      // Shutdown instrumented LLM provider (persists final metrics)
+      const instrumentedProvider = this.instrumentedProviders.get(sessionId)
+      if (instrumentedProvider) {
+        instrumentedProvider.shutdown()
+        this.instrumentedProviders.delete(sessionId)
+        this.logger.debug('Shutdown instrumented LLM provider', { sessionId })
+      }
+
       await this.serviceFactory.shutdownSession(sessionId)
       this.logger.info('Session ended', { sessionId })
     }
@@ -554,6 +585,140 @@ export class Supervisor {
   }
 
   /**
+   * Get SupervisorContext for task execution.
+   *
+   * Used by TaskEngine to provide context to task handlers.
+   * If sessionId is provided, uses session-specific instrumented provider.
+   * If no sessionId, uses base provider (for global tasks like cleanup).
+   *
+   * @param sessionId - Optional session ID for session-specific context
+   */
+  private getContextForTask(sessionId?: string): SupervisorContext {
+    // Build runtime paths
+    const paths: RuntimePaths = {
+      projectDir: this.projectDir,
+      userConfigDir: path.join(homedir(), '.sidekick'),
+      projectConfigDir: path.join(this.projectDir, '.sidekick'),
+      hookScriptPath: undefined,
+    }
+
+    // Create base LLM provider if needed (lazy init)
+    if (!this.llmProvider) {
+      const factory = new ProviderFactory(
+        {
+          provider: 'openrouter',
+          model: 'google/gemini-2.0-flash-lite-001',
+          timeout: 30000,
+          maxRetries: 2,
+        },
+        this.logger
+      )
+      this.llmProvider = factory.create()
+    }
+
+    // Get the appropriate LLM provider
+    let llmProvider: LLMProvider = this.llmProvider
+    if (sessionId) {
+      // Try to get existing instrumented provider for this session
+      const instrumented = this.instrumentedProviders.get(sessionId)
+      if (instrumented) {
+        llmProvider = instrumented
+      } else {
+        // Create instrumented provider on-demand
+        const stateDir = path.join(paths.projectConfigDir ?? paths.userConfigDir, 'sessions', sessionId, 'state')
+        const newInstrumented = new InstrumentedLLMProvider(this.llmProvider, {
+          sessionId,
+          stateDir,
+          logger: this.logger,
+        })
+        newInstrumented.initialize()
+        this.instrumentedProviders.set(sessionId, newInstrumented)
+        this.logger.debug('Created instrumented LLM provider for task', { sessionId })
+        llmProvider = newInstrumented
+      }
+    }
+
+    // Get staging service if sessionId provided, otherwise use a no-op stub
+    const stagingService: StagingService = sessionId
+      ? this.serviceFactory.getStagingService(sessionId)
+      : {
+          stageReminder: async () => {},
+          readReminder: () => Promise.resolve(null),
+          clearStaging: async () => {},
+          listReminders: () => Promise.resolve([]),
+          deleteReminder: async () => {},
+          listConsumedReminders: () => Promise.resolve([]),
+          getLastConsumed: () => Promise.resolve(null),
+        }
+
+    // For tasks, we don't always have a transcript service - use a stub
+    const defaultMetrics: TranscriptMetrics = {
+      turnCount: 0,
+      toolCount: 0,
+      toolsThisTurn: 0,
+      messageCount: 0,
+      tokenUsage: {
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        cacheCreationInputTokens: 0,
+        cacheReadInputTokens: 0,
+        cacheTiers: {
+          ephemeral5mInputTokens: 0,
+          ephemeral1hInputTokens: 0,
+        },
+        serviceTierCounts: {},
+        byModel: {},
+      },
+      currentContextTokens: 0,
+      isPostCompactIndeterminate: false,
+      toolsPerTurn: 0,
+      lastProcessedLine: 0,
+      lastUpdatedAt: 0,
+    }
+    const transcriptService: TranscriptService = {
+      initialize: async () => {},
+      prepare: async () => {},
+      start: async () => {},
+      shutdown: async () => {},
+      getTranscript: () => ({
+        entries: [],
+        metadata: { sessionId: '', transcriptPath: '', lineCount: 0, lastModified: 0 },
+        toString: () => '',
+      }),
+      getExcerpt: () => ({ content: '', lineCount: 0, startLine: 0, endLine: 0, bookmarkApplied: false }),
+      getMetrics: () => defaultMetrics,
+      getMetric: <K extends keyof TranscriptMetrics>(key: K) => defaultMetrics[key],
+      onMetricsChange: () => () => {},
+      onThreshold: () => () => {},
+      capturePreCompactState: async () => {},
+      getCompactionHistory: () => [],
+    }
+
+    return {
+      role: 'supervisor',
+      config: {
+        core: {
+          logging: { level: this.configService.core.logging.level },
+          development: { enabled: this.configService.core.development.enabled },
+        },
+        llm: { provider: this.configService.llm.provider },
+        getAll: () => this.configService.getAll(),
+        getFeature: <T = Record<string, unknown>>(name: string) => {
+          return this.configService.getFeature<T>(name)
+        },
+      },
+      logger: this.logger,
+      assets: this.assetResolver,
+      paths,
+      handlers: this.handlerRegistry,
+      llm: llmProvider,
+      staging: stagingService,
+      transcript: transcriptService,
+    }
+  }
+
+  /**
    * Build and set SupervisorContext for the current hook invocation.
    * Called per-request to ensure handlers receive correct session-scoped services.
    *
@@ -592,6 +757,20 @@ export class Supervisor {
       this.llmProvider = factory.create()
     }
 
+    // Get or create instrumented provider for this session (tracks metrics per-session)
+    let instrumentedProvider = this.instrumentedProviders.get(sessionId)
+    if (!instrumentedProvider) {
+      const stateDir = path.join(paths.projectConfigDir ?? paths.userConfigDir, 'sessions', sessionId, 'state')
+      instrumentedProvider = new InstrumentedLLMProvider(this.llmProvider, {
+        sessionId,
+        stateDir,
+        logger: this.logger,
+      })
+      instrumentedProvider.initialize()
+      this.instrumentedProviders.set(sessionId, instrumentedProvider)
+      this.logger.debug('Created instrumented LLM provider for session', { sessionId })
+    }
+
     // Get staging service (doesn't trigger transcript events)
     const stagingService = this.serviceFactory.getStagingService(sessionId)
 
@@ -604,23 +783,18 @@ export class Supervisor {
       role: 'supervisor',
       config: {
         core: {
-          logging: { level: this.config.core.logging.level },
-          development: { enabled: this.config.core.development.enabled },
+          logging: { level: this.configService.core.logging.level },
+          development: { enabled: this.configService.core.development.enabled },
         },
-        llm: { provider: this.config.llm.provider },
-        getAll: () => this.config,
-        getFeature: <T = Record<string, unknown>>(name: string) => {
-          const featureConfig = this.config.features[name]
-          return featureConfig
-            ? (featureConfig as { enabled: boolean; settings: T })
-            : { enabled: true, settings: {} as T }
-        },
+        llm: { provider: this.configService.llm.provider },
+        getAll: () => this.configService.getAll(),
+        getFeature: <T = Record<string, unknown>>(name: string) => this.configService.getFeature<T>(name),
       },
       logger: this.logger,
       assets: this.assetResolver,
       paths,
       handlers: this.handlerRegistry,
-      llm: this.llmProvider,
+      llm: instrumentedProvider,
       staging: stagingService,
       transcript: transcriptService,
     }
@@ -694,7 +868,7 @@ export class Supervisor {
     }
 
     // Get first-prompt config from features
-    const firstPromptConfig = getFirstPromptConfig(this.config, this.logger)
+    const firstPromptConfig = getFirstPromptConfig(this.configService.getAll(), this.logger)
 
     // Check if feature is enabled
     if (!firstPromptConfig.enabled) {
@@ -811,7 +985,7 @@ export class Supervisor {
    * Set supervisor.idleTimeoutMs to 0 to disable idle timeout.
    */
   private startIdleCheck(): void {
-    const idleTimeoutMs = this.config.core.supervisor.idleTimeoutMs
+    const idleTimeoutMs = this.configService.core.supervisor.idleTimeoutMs
 
     // 0 = disabled
     if (idleTimeoutMs === 0) {
@@ -953,17 +1127,12 @@ export class Supervisor {
       role: 'supervisor',
       config: {
         core: {
-          logging: { level: this.config.core.logging.level },
-          development: { enabled: this.config.core.development.enabled },
+          logging: { level: this.configService.core.logging.level },
+          development: { enabled: this.configService.core.development.enabled },
         },
-        llm: { provider: this.config.llm.provider },
-        getAll: () => this.config,
-        getFeature: <T = Record<string, unknown>>(name: string) => {
-          const featureConfig = this.config.features[name]
-          return featureConfig
-            ? (featureConfig as { enabled: boolean; settings: T })
-            : { enabled: true, settings: {} as T }
-        },
+        llm: { provider: this.configService.llm.provider },
+        getAll: () => this.configService.getAll(),
+        getFeature: <T = Record<string, unknown>>(name: string) => this.configService.getFeature<T>(name),
       },
       logger: this.logger,
       assets: this.assetResolver,

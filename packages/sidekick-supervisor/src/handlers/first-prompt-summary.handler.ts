@@ -15,14 +15,8 @@ import {
   type FirstPromptSummaryState,
   type Logger,
 } from '@sidekick/core'
-import type { MinimalAssetResolver } from '@sidekick/types'
-import {
-  FallbackProvider,
-  ProviderFactory,
-  TimeoutError as ProviderTimeoutError,
-  type LLMProvider,
-  type ProviderType,
-} from '@sidekick/shared-providers'
+import type { LLMProvider, MinimalAssetResolver } from '@sidekick/types'
+import { TimeoutError as ProviderTimeoutError } from '@sidekick/shared-providers'
 import fs from 'fs/promises'
 import path from 'path'
 import { TaskContext, TaskHandler } from '../task-engine.js'
@@ -197,6 +191,7 @@ export function createFirstPromptSummaryHandler(deps: FirstPromptSummaryHandlerD
         const llmResult = await generateWithLLM(
           p.userPrompt,
           p.resumeContext,
+          ctx.llm,
           config,
           ctx.logger,
           deps.assetResolver,
@@ -297,27 +292,6 @@ interface LLMGenerationResult {
 }
 
 /**
- * Create an LLM provider from config using ProviderFactory.
- */
-function createProvider(
-  providerConfig: { provider: string; model: string },
-  timeout: number,
-  logger: Logger
-): LLMProvider {
-  const factory = new ProviderFactory(
-    {
-      // Provider type is validated by FirstPromptConfigSchema - safe to cast
-      provider: providerConfig.provider as ProviderType,
-      model: providerConfig.model,
-      timeout,
-      maxRetries: 2, // Quick retries for snark generation
-    },
-    logger
-  )
-  return factory.create()
-}
-
-/**
  * Parse JSON response from LLM, extracting the message field.
  * Handles various edge cases like wrapped quotes, malformed JSON, etc.
  */
@@ -356,15 +330,16 @@ function parseJsonResponse(rawContent: string, logger: Logger): string {
 /**
  * Generate first-prompt summary using LLM.
  *
- * Uses the model configuration from FirstPromptConfig to select provider and model.
- * Implements primary/fallback chain with timeout handling.
- * Falls back to staticFallbackMessage if both providers fail (handled by caller).
+ * Uses the provided LLM provider (from TaskContext) for generation.
+ * The provider is already instrumented for metrics tracking.
+ * Falls back to staticFallbackMessage if generation fails (handled by caller).
  *
  * @see docs/design/FEATURE-FIRST-PROMPT-SUMMARY.md §5
  */
 export async function generateWithLLM(
   userPrompt: string,
   resumeContext: string | undefined,
+  provider: LLMProvider,
   config: FirstPromptConfig,
   logger: Logger,
   assetResolver: MinimalAssetResolver,
@@ -388,24 +363,10 @@ export async function generateWithLLM(
   logger.debug('Starting LLM generation', {
     systemLength: promptParts.system.length,
     userLength: promptParts.user.length,
-    primaryProvider: config.model.primary.provider,
-    primaryModel: config.model.primary.model,
-    hasFallback: config.model.fallback !== null,
+    providerId: provider.id,
     timeoutMs,
     hasJsonSchema: !!jsonSchema,
   })
-
-  // Create primary provider
-  const primaryProvider = createProvider(config.model.primary, timeoutMs, logger)
-
-  // Create provider with fallback chain if configured
-  let provider: LLMProvider
-  if (config.model.fallback) {
-    const fallbackProvider = createProvider(config.model.fallback, timeoutMs, logger)
-    provider = new FallbackProvider(primaryProvider, [fallbackProvider], logger)
-  } else {
-    provider = primaryProvider
-  }
 
   // Make the LLM request with system message and reduced token limit
   const request = {
@@ -445,7 +406,7 @@ export async function generateWithLLM(
     // Infer classification from the response if possible
     const classification = inferClassification(message)
 
-    const modelUsed = response.model ?? `${config.model.primary.provider}/${config.model.primary.model}`
+    const modelUsed = response.model ?? provider.id
 
     logger.info('LLM generation completed', {
       modelUsed,
@@ -472,6 +433,7 @@ export async function generateWithLLM(
 /**
  * Attempt to infer classification from the generated message.
  * This is best-effort since the LLM only returns the snarky message.
+ * FIXME see if this classification is ever really used, and if not, remove this complexity.
  */
 function inferClassification(message: string): FirstPromptClassification | undefined {
   const lowerMessage = message.toLowerCase()

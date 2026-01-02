@@ -1,8 +1,82 @@
 import { createConsoleLogger } from '@sidekick/core'
+import type { SupervisorContext } from '@sidekick/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { TaskContext, TaskEngine, TaskTimeoutError } from '../task-engine.js'
+import { ContextGetter, TaskContext, TaskEngine, TaskTimeoutError } from '../task-engine.js'
 
 const logger = createConsoleLogger({ minimumLevel: 'error' })
+
+// Mock context getter for tests
+const mockContextGetter: ContextGetter = () =>
+  ({
+    role: 'supervisor',
+    config: {
+      core: { logging: { level: 'error' }, development: { enabled: false } },
+      llm: {},
+      getAll: () => ({}),
+      getFeature: () => undefined,
+    },
+    logger,
+    assets: { resolve: () => undefined },
+    paths: { userConfigDir: '/tmp', projectConfigDir: '/tmp' },
+    handlers: { register: () => {}, dispatch: async () => {} },
+    llm: {
+      id: 'mock',
+      complete: () =>
+        Promise.resolve({
+          content: '',
+          model: 'mock',
+          usage: { inputTokens: 0, outputTokens: 0 },
+          rawResponse: { status: 200, body: '' },
+        }),
+    },
+    staging: {
+      stageReminder: () => Promise.resolve(),
+      readReminder: () => Promise.resolve(null),
+      clearStaging: () => Promise.resolve(),
+      listReminders: () => Promise.resolve([]),
+      deleteReminder: () => Promise.resolve(),
+      listConsumedReminders: () => Promise.resolve([]),
+      getLastConsumed: () => Promise.resolve(null),
+    },
+    transcript: {
+      initialize: async () => {},
+      prepare: async () => {},
+      start: async () => {},
+      shutdown: async () => {},
+      getTranscript: () => ({
+        entries: [],
+        metadata: { sessionId: '', transcriptPath: '', lineCount: 0, lastModified: 0 },
+        toString: () => '',
+      }),
+      getExcerpt: () => ({ content: '', lineCount: 0, startLine: 0, endLine: 0, bookmarkApplied: false }),
+      getMetrics: () => ({
+        turnCount: 0,
+        toolCount: 0,
+        toolsThisTurn: 0,
+        messageCount: 0,
+        tokenUsage: {
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          cacheCreationInputTokens: 0,
+          cacheReadInputTokens: 0,
+          cacheTiers: { ephemeral5mInputTokens: 0, ephemeral1hInputTokens: 0 },
+          serviceTierCounts: {},
+          byModel: {},
+        },
+        currentContextTokens: 0,
+        isPostCompactIndeterminate: false,
+        toolsPerTurn: 0,
+        lastProcessedLine: 0,
+        lastUpdatedAt: 0,
+      }),
+      getMetric: () => 0 as never,
+      onMetricsChange: () => () => {},
+      onThreshold: () => () => {},
+      capturePreCompactState: async () => {},
+      getCompactionHistory: () => [],
+    },
+  }) as unknown as SupervisorContext
 
 // Helper to create a deferred promise for controlled task completion
 function createDeferred(): { promise: Promise<void>; resolve: () => void } {
@@ -18,7 +92,7 @@ describe('TaskEngine', () => {
 
   beforeEach(() => {
     // Use short default timeout for tests (100ms instead of 5 minutes)
-    engine = new TaskEngine(logger, 2, 100)
+    engine = new TaskEngine(logger, mockContextGetter, 2, 100)
   })
 
   it('should execute tasks', async () => {
@@ -39,7 +113,7 @@ describe('TaskEngine', () => {
   it('should respect priority', async () => {
     // Use maxConcurrency=1 so only one task runs at a time
     // Long timeout so blocking task doesn't timeout
-    const singleEngine = new TaskEngine(logger, 1, 60000)
+    const singleEngine = new TaskEngine(logger, mockContextGetter, 1, 60000)
     const executionOrder: string[] = []
 
     // Use a blocking handler that waits until we release it
@@ -88,7 +162,7 @@ describe('TaskEngine', () => {
 
   it('should wait for running tasks on shutdown', async () => {
     // Use longer timeout for shutdown test
-    const slowEngine = new TaskEngine(logger, 2, 60000)
+    const slowEngine = new TaskEngine(logger, mockContextGetter, 2, 60000)
     const taskDeferred = createDeferred()
     let taskCompleted = false
 
@@ -116,7 +190,7 @@ describe('TaskEngine', () => {
   describe('timeout enforcement', () => {
     it('should timeout tasks exceeding default timeout', async () => {
       // Engine with 50ms default timeout
-      const timeoutEngine = new TaskEngine(logger, 2, 50)
+      const timeoutEngine = new TaskEngine(logger, mockContextGetter, 2, 50)
       let taskTimedOut = false
 
       // Handler that runs forever (until aborted)
@@ -140,7 +214,7 @@ describe('TaskEngine', () => {
 
     it('should respect per-task timeout override', async () => {
       // Engine with long default timeout
-      const engine = new TaskEngine(logger, 2, 60000)
+      const engine = new TaskEngine(logger, mockContextGetter, 2, 60000)
       let taskTimedOut = false
 
       engine.registerHandler('slow', async (_payload, ctx: TaskContext) => {
@@ -181,7 +255,7 @@ describe('TaskEngine', () => {
 
     it('should cancel task via cancelTask method', async () => {
       // Engine with long timeout so we can test manual cancellation
-      const engine = new TaskEngine(logger, 2, 60000)
+      const engine = new TaskEngine(logger, mockContextGetter, 2, 60000)
       let wasCancelled = false
       const taskStarted = createDeferred()
 
@@ -241,7 +315,7 @@ describe('TaskEngine', () => {
     })
 
     it('should log cancellation differently from timeout', async () => {
-      const engine = new TaskEngine(logger, 2, 60000) // Long timeout
+      const engine = new TaskEngine(logger, mockContextGetter, 2, 60000) // Long timeout
       const taskStarted = createDeferred()
       let wasAborted = false
 
@@ -281,7 +355,7 @@ describe('TaskEngine', () => {
     it('should return immediately on subsequent shutdown calls', async () => {
       // This tests lines 252-253: early return when isShuttingDown is already true
       // We test this by starting shutdown, then calling it again while first is pending
-      const testEngine = new TaskEngine(logger, 2, 60000)
+      const testEngine = new TaskEngine(logger, mockContextGetter, 2, 60000)
       const taskStarted = createDeferred()
 
       // Register a handler that takes time to complete
@@ -324,7 +398,7 @@ describe('TaskEngine', () => {
   describe('concurrent task limits', () => {
     it('should process multiple enqueued tasks to completion', async () => {
       // This test verifies that queueing works - tasks queue up and eventually all complete
-      const limitedEngine = new TaskEngine(logger, 2, 60000)
+      const limitedEngine = new TaskEngine(logger, mockContextGetter, 2, 60000)
       const completed: string[] = []
 
       limitedEngine.registerHandler('multi', (payload: Record<string, unknown>, _ctx: TaskContext): Promise<void> => {
@@ -349,7 +423,7 @@ describe('TaskEngine', () => {
 
     it('should process tasks even with high concurrency limit', async () => {
       // With concurrency=10 and 5 tasks, all should complete
-      const highConcurrencyEngine = new TaskEngine(logger, 10, 60000)
+      const highConcurrencyEngine = new TaskEngine(logger, mockContextGetter, 10, 60000)
       const completed: string[] = []
 
       highConcurrencyEngine.registerHandler(
@@ -370,7 +444,7 @@ describe('TaskEngine', () => {
 
     it('should process tasks with concurrency=1', async () => {
       // Serial processing: all tasks complete in order
-      const serialEngine = new TaskEngine(logger, 1, 60000)
+      const serialEngine = new TaskEngine(logger, mockContextGetter, 1, 60000)
       const completed: string[] = []
 
       serialEngine.registerHandler('serial', (payload: Record<string, unknown>, _ctx: TaskContext): Promise<void> => {

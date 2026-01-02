@@ -68,6 +68,19 @@ export interface SupervisorContext extends BaseContext {
 }
 
 /**
+ * Task context extends SupervisorContext with task-specific fields.
+ * Used by TaskEngine handlers for background task execution.
+ *
+ * @see docs/design/SUPERVISOR.md §4.2 Task Execution Engine
+ */
+export interface TaskContext extends SupervisorContext {
+  /** Unique task identifier for tracking */
+  taskId: string
+  /** AbortSignal for task cancellation */
+  signal: AbortSignal
+}
+
+/**
  * Discriminated union of runtime contexts.
  * TypeScript narrows on `context.role` property.
  *
