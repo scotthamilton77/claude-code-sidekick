@@ -12,8 +12,6 @@ This repository serves as a development and testing environment for [Claude Code
 
 ### Sidekick
 
-- BUGS
-  - resume not updating when session title updates
 - statusline: could we show an indicator when there are warnings/errors in the log (as a configurable placeholder template)
 - snarky comment generator
   - needs a fallback model
@@ -22,8 +20,6 @@ This repository serves as a development and testing environment for [Claude Code
 - optimization: after a clean-all if we resume an existing claude session, we reconstruct the state processing the transcript line by line.  This is inefficient in that we'll end up making multiple llm calls for potentially unused interim summary state.  Consider parsing larger chunks?
 - finish ROADMAP.md
 - finish PLAN.MD (executing ARCH.md)
-- refine the transcript analysis process
-  - optimize transcript embedding in the prompts, e.g. we don't really need the full json, do we? And can we truncate tool results? (Might need to do some analysis here to get a sense of the range of output here.)
 - can we be resilient to json file errors?  I just ran into a case of the session-summary.json being generated with trash after the last } which made it unreadable
 - allow for different personalities - either explicit at install time or random per project or random per session or just random
   - moods: cynical, sarcastic, snarky, nerdy, arrogant, moody
@@ -49,8 +45,6 @@ This repository serves as a development and testing environment for [Claude Code
 - feedback loops
   - Add a "confession" at the end of a task where the agent confesses what they did wrong, use for a learnings log?
   - learning mode? investigate https://medium.com/coding-nexus/rip-fine-tuning-how-stanfords-ace-framework-teaches-ai-to-learn-without-retraining-510f412d8579
-- refine the transcript analysis process
-  - tune the session summarizer to follow the last n turns (delta + 10?) - this combined with previous goal snapshot might be cheaper?
 
 ## Agents and Skills and Hooks
 
