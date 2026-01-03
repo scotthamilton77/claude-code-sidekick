@@ -76,8 +76,25 @@ export interface ExcerptOptions {
   historicalFilterLevel?: 'aggressive' | 'light' | 'none'
   /** Filtering level for recent context (after bookmark) */
   recentFilterLevel?: 'aggressive' | 'light' | 'none'
-  /** Include tool outputs in excerpt */
+  /**
+   * Include tool messages ([TOOL]: and [RESULT]:) in excerpt.
+   * When false, both tool_use and tool_result entries are omitted entirely.
+   * @default true
+   */
+  includeToolMessages?: boolean
+  /**
+   * Include full tool output content in [RESULT]: lines.
+   * Only relevant when includeToolMessages is true.
+   * When false, shows "[RESULT]: (output omitted)" instead.
+   * @default false
+   */
   includeToolOutputs?: boolean
+  /**
+   * Include assistant thinking blocks in excerpt.
+   * When true, shows "[THINKING]: ..." for thinking content.
+   * @default false
+   */
+  includeAssistantThinking?: boolean
 }
 
 /**

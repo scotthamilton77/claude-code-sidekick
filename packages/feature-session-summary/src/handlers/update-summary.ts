@@ -216,6 +216,9 @@ async function performAnalysis(
   const excerpt = ctx.transcript.getExcerpt({
     maxLines: config.excerptLines,
     bookmarkLine: countdown.bookmark_line,
+    includeToolMessages: config.includeToolMessages,
+    includeToolOutputs: config.includeToolOutputs,
+    includeAssistantThinking: config.includeAssistantThinking,
   })
   const transcript = excerpt.content
 

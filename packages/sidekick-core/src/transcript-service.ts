@@ -471,7 +471,9 @@ export class TranscriptServiceImpl implements TranscriptService {
   getExcerpt(options: ExcerptOptions = {}): TranscriptExcerpt {
     const maxLines = options.maxLines ?? 80
     const bookmarkLine = options.bookmarkLine ?? 0
+    const includeToolMessages = options.includeToolMessages ?? true
     const includeToolOutputs = options.includeToolOutputs ?? false
+    const includeAssistantThinking = options.includeAssistantThinking ?? false
 
     if (!this.transcriptPath) {
       return {
@@ -512,6 +514,7 @@ export class TranscriptServiceImpl implements TranscriptService {
               type?: string
               name?: string
               content?: string
+              thinking?: string
               message?: { content?: string }
             }
             const entryType = entry.type ?? 'unknown'
@@ -519,9 +522,18 @@ export class TranscriptServiceImpl implements TranscriptService {
               return `[USER]: ${entry.message?.content ?? entry.content ?? JSON.stringify(entry)}`
             } else if (entryType === 'assistant') {
               return `[ASSISTANT]: ${entry.message?.content ?? entry.content ?? '(tool use)'}`
+            } else if (entryType === 'thinking') {
+              // Skip thinking unless explicitly included
+              if (!includeAssistantThinking) return null
+              const thinkingContent = entry.thinking ?? entry.content ?? ''
+              return `[THINKING]: ${String(thinkingContent)}`
             } else if (entryType === 'tool_use') {
+              // Skip tool messages if not included
+              if (!includeToolMessages) return null
               return `[TOOL]: ${entry.name ?? 'unknown'}`
             } else if (entryType === 'tool_result') {
+              // Skip tool messages if not included
+              if (!includeToolMessages) return null
               return includeToolOutputs
                 ? `[RESULT]: ${JSON.stringify(entry).slice(0, 500)}`
                 : '[RESULT]: (output omitted)'
@@ -531,6 +543,7 @@ export class TranscriptServiceImpl implements TranscriptService {
             return line.slice(0, 200)
           }
         })
+        .filter((line): line is string => line !== null)
         .join('\n')
 
       return {

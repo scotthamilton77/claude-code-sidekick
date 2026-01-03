@@ -31,7 +31,22 @@ export interface SessionSummaryConfig {
     resumeMessage?: LlmSubFeatureConfig
   }
   excerptLines: number
-  filterToolMessages: boolean
+  /**
+   * Include tool messages ([TOOL]: and [RESULT]:) in excerpt.
+   * When false, both tool_use and tool_result entries are omitted entirely.
+   */
+  includeToolMessages: boolean
+  /**
+   * Include full tool output content in [RESULT]: lines.
+   * Only relevant when includeToolMessages is true.
+   * When false, shows "[RESULT]: (output omitted)" instead.
+   */
+  includeToolOutputs: boolean
+  /**
+   * Include assistant thinking blocks in excerpt.
+   * When true, shows "[THINKING]: ..." for thinking content.
+   */
+  includeAssistantThinking: boolean
   keepHistory: boolean
   maxTitleWords: number
   maxIntentWords: number
@@ -58,7 +73,9 @@ export const DEFAULT_SESSION_SUMMARY_CONFIG: SessionSummaryConfig = {
     resumeMessage: { profile: 'creative-long', fallbackProfile: 'cheap-fallback' },
   },
   excerptLines: 80,
-  filterToolMessages: true,
+  includeToolMessages: true,
+  includeToolOutputs: false,
+  includeAssistantThinking: false,
   keepHistory: false,
   maxTitleWords: 8,
   maxIntentWords: 12,
