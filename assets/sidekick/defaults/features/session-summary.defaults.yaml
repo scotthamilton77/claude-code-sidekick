@@ -24,8 +24,18 @@ settings:
   # Number of transcript lines to include in excerpt for LLM analysis
   excerptLines: 80
 
-  # Filter out tool use messages from excerpt (reduces noise)
-  filterToolMessages: true
+  # Include tool messages ([TOOL]: and [RESULT]:) in excerpt
+  # When false, both tool usage and tool results are omitted
+  includeToolMessages: true
+
+  # Include full tool output content in [RESULT]: lines
+  # Only relevant when includeToolMessages is true
+  # When false, shows "[RESULT]: (output omitted)" instead
+  includeToolOutputs: false
+
+  # Include assistant thinking blocks in excerpt
+  # When true, shows "[THINKING]: ..." for thinking content
+  includeAssistantThinking: false
 
   # Keep summary history across compactions
   keepHistory: false
