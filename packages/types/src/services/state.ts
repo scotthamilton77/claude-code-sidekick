@@ -93,6 +93,8 @@ export type SummaryCountdownState = z.infer<typeof SummaryCountdownStateSchema>
 export const ResumeMessageStateSchema = z.object({
   /** Most recent task ID from the summary, if available */
   last_task_id: z.string().nullable(),
+  /** Source summary's session title */
+  session_title: z.string().nullable(),
   /** Question format: "Shall we resume..." or "Want to continue..." */
   resume_last_goal_message: z.string(),
   /** Snarky welcome message for returning user */

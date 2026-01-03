@@ -36,7 +36,7 @@ The following is true when there isn't already a session-summary.json in the cur
 
 1. **Discovery**: Scan the sessions directory (`.sidekick/sessions/` or `~/.sidekick/sessions/`) for the most recent _other_ session's `resume-message.json`.
 2. **Validation**: Check if the found `resume-message.json` exists and is valid.
-3. **Display**: Show the `resume_last_goal_message` or `snarky_comment` in the statusline.
+3. **Display**: Use `session_title` as the statusline title, and `snarky_comment` as the summary text.
 
 Note: The CLI's `InitSessionState` handler clears the _current_ session's state on startup/clear—it does not touch previous sessions' artifacts.
 
@@ -69,11 +69,20 @@ Defined in `packages/types/src/services/state.ts` via `ResumeMessageStateSchema`
 ```json
 {
   "last_task_id": "string | null",
+  "session_title": "string | null",
   "resume_last_goal_message": "string",
   "snarky_comment": "string",
   "timestamp": "ISO-8601 string"
 }
 ```
+
+| Field                      | Description                                                    |
+| :------------------------- | :------------------------------------------------------------- |
+| `last_task_id`             | Most recent task ID from the summary, if available.            |
+| `session_title`            | Source session's title (used as statusline title).             |
+| `resume_last_goal_message` | Full question format (e.g., "Shall we resume...").             |
+| `snarky_comment`           | Witty welcome message (used as statusline summary text).       |
+| `timestamp`                | ISO-8601 timestamp when this was generated.                    |
 
 ### 4.2 Configuration
 

@@ -18,7 +18,7 @@ Output JSON with these fields:
   * "Last task: add OAuth."
   Max 60 characters.
 
-- snarky_welcome: Follow up the resume_message with a sarcastic, insulting question about resuming the work or starting something new. Be witty, not mean. Max 80 characters.
+- snarky_welcome: Follow up the resume_message with a sarcastic, insulting question about resuming the work or starting something new. Be witty, not mean. 8-10 words max.
 
 Guidelines:
 - Use BOTH session_topic and transcript to understand what was actually being worked on

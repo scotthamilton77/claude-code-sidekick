@@ -13,7 +13,6 @@ This repository serves as a development and testing environment for [Claude Code
 ### Sidekick
 
 - BUGS
-  - completely new (no sessions), statusline is ugly - missing title or summary?  not triggering random statement!
   - resume not updating when session title updates
 - statusline: could we show an indicator when there are warnings/errors in the log (as a configurable placeholder template)
 - snarky comment generator
@@ -38,6 +37,7 @@ This repository serves as a development and testing environment for [Claude Code
 
 ### Nice to Haves
 
+- add support for task id extraction?
 - add stakes and psychology to the user prompt reminder?  https://medium.com/@ichigoSan/i-accidentally-made-claude-45-smarter-heres-how-23ad0bf91ccf
 - should this be a claude code plugin? There are plugin hooks referenced here: https://code.claude.com/docs/en/hooks
 - take the reminder against the transcript to ask AI to evaluate which parts of the reminder may be most relevant for the situation and context

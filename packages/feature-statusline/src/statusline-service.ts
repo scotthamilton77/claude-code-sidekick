@@ -656,25 +656,24 @@ export class StatuslineService {
     switch (displayMode) {
       case 'resume_message': {
         // Format: "{resume_last_goal_message} ({snarky_comment})"
-        const goalMessage = resume?.resume_last_goal_message || this.emptySessionMessage
-        const snarky = resume?.snarky_comment
-        const summaryText = snarky ? `${goalMessage} (${snarky})` : goalMessage
+        const resumeTitle = resume?.session_title || DEFAULT_PLACEHOLDERS.newSession
+        const resumeSummary = resume?.snarky_comment || this.emptySessionMessage
         return {
-          summaryText,
-          title: summary.session_title || '',
+          summaryText: resumeSummary,
+          title: resumeTitle,
         }
       }
 
       case 'empty_summary':
         return {
           summaryText: this.emptySessionMessage,
-          title: '',
+          title: DEFAULT_PLACEHOLDERS.newSession,
         }
 
       case 'first_prompt':
         return {
           summaryText: firstPromptSummary?.message || this.emptySessionMessage,
-          title: '',
+          title: DEFAULT_PLACEHOLDERS.newSession,
         }
 
       case 'session_summary':
