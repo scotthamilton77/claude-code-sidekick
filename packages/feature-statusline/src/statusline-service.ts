@@ -655,8 +655,9 @@ export class StatuslineService {
   ): { summaryText: string; title: string } {
     switch (displayMode) {
       case 'resume_message': {
-        // Format: "{resume_last_goal_message} ({snarky_comment})"
-        const resumeTitle = resume?.session_title || DEFAULT_PLACEHOLDERS.newSession
+        const resumeTitle = resume?.session_title
+          ? `Last Session: ${resume.session_title}`
+          : DEFAULT_PLACEHOLDERS.newSession
         const resumeSummary = resume?.snarky_comment || this.emptySessionMessage
         return {
           summaryText: resumeSummary,
