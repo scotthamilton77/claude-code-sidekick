@@ -555,6 +555,7 @@ async function generateResumeMessage(
     // Build resume message state
     const resumeState: ResumeMessageState = {
       last_task_id: null, // Not tracked in summary
+      session_title: summary.session_title,
       resume_last_goal_message: parsed.resume_message,
       snarky_comment: parsed.snarky_welcome,
       timestamp: new Date().toISOString(),

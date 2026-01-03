@@ -763,6 +763,7 @@ describe('discoverPreviousResumeMessage', () => {
       path.join(currentDir, 'resume-message.json'),
       JSON.stringify({
         last_task_id: null,
+        session_title: 'Current Session',
         resume_last_goal_message: 'Current session message',
         snarky_comment: 'Hello!',
         timestamp: new Date().toISOString(),
@@ -783,6 +784,7 @@ describe('discoverPreviousResumeMessage', () => {
       path.join(prevDir, 'resume-message.json'),
       JSON.stringify({
         last_task_id: 'task-123',
+        session_title: 'Auth Refactor',
         resume_last_goal_message: 'Working on auth refactor',
         snarky_comment: 'Back for more punishment?',
         timestamp: '2024-01-15T10:30:00Z',
@@ -806,6 +808,7 @@ describe('discoverPreviousResumeMessage', () => {
       olderFile,
       JSON.stringify({
         last_task_id: null,
+        session_title: 'Older Session',
         resume_last_goal_message: 'Older message',
         snarky_comment: 'Old news',
         timestamp: '2024-01-10T10:00:00Z',
@@ -822,6 +825,7 @@ describe('discoverPreviousResumeMessage', () => {
       path.join(newerDir, 'resume-message.json'),
       JSON.stringify({
         last_task_id: null,
+        session_title: 'Newer Session',
         resume_last_goal_message: 'Newer message',
         snarky_comment: 'Fresh content',
         timestamp: '2024-01-15T10:00:00Z',
@@ -848,6 +852,7 @@ describe('discoverPreviousResumeMessage', () => {
       path.join(validDir, 'resume-message.json'),
       JSON.stringify({
         last_task_id: null,
+        session_title: 'Valid Session',
         resume_last_goal_message: 'Valid message',
         snarky_comment: 'Works!',
         timestamp: new Date().toISOString(),
@@ -873,6 +878,7 @@ describe('discoverPreviousResumeMessage', () => {
       path.join(withResumeDir, 'resume-message.json'),
       JSON.stringify({
         last_task_id: null,
+        session_title: 'Has Resume Session',
         resume_last_goal_message: 'Has resume',
         snarky_comment: 'Found me!',
         timestamp: new Date().toISOString(),
@@ -1278,6 +1284,7 @@ describe('StatuslineService', () => {
         path.join(prevDir, 'resume-message.json'),
         JSON.stringify({
           last_task_id: null,
+          session_title: 'Feature X',
           resume_last_goal_message: 'Working on feature X',
           snarky_comment: 'Back for more?',
           timestamp: new Date().toISOString(),
@@ -1295,9 +1302,10 @@ describe('StatuslineService', () => {
       const result = await service.render()
 
       // Should discover and display the previous session's resume message
-      // Format: "{resume_last_goal_message} ({snarky_comment})"
+      // title from session_title, summary from snarky_comment
       expect(result.displayMode).toBe('resume_message')
-      expect(result.viewModel.summary).toBe('Working on feature X (Back for more?)')
+      expect(result.viewModel.title).toBe('Feature X')
+      expect(result.viewModel.summary).toBe('Back for more?')
     })
 
     it('does not discover when current session has a summary', async () => {
@@ -1325,6 +1333,7 @@ describe('StatuslineService', () => {
         path.join(prevDir, 'resume-message.json'),
         JSON.stringify({
           last_task_id: null,
+          session_title: 'Old Work Session',
           resume_last_goal_message: 'Old work',
           snarky_comment: 'Old stuff',
           timestamp: new Date().toISOString(),
@@ -1541,6 +1550,7 @@ describe('StatuslineService', () => {
         path.join(testDir, 'resume-message.json'),
         JSON.stringify({
           last_task_id: null,
+          session_title: 'Refactoring Session',
           resume_last_goal_message: 'Continue refactoring?',
           snarky_comment: 'Back for more?',
           timestamp: new Date().toISOString(),
@@ -1569,9 +1579,10 @@ describe('StatuslineService', () => {
 
       const result = await service.render()
 
-      // Format: "{resume_last_goal_message} ({snarky_comment})"
+      // title from session_title, summary from snarky_comment
       expect(result.displayMode).toBe('resume_message')
-      expect(result.viewModel.summary).toBe('Continue refactoring? (Back for more?)')
+      expect(result.viewModel.title).toBe('Refactoring Session')
+      expect(result.viewModel.summary).toBe('Back for more?')
     })
 
     it('does not mark stale based on first-prompt age (content artifacts never stale)', async () => {
