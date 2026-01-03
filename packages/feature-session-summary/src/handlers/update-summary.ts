@@ -63,6 +63,29 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: Supervis
   const { sessionId } = event.context
   const isUserPrompt = event.eventType === 'UserPrompt'
 
+  // Skip LLM calls during bulk processing (first-time transcript replay)
+  // Handlers will be triggered again with BulkProcessingComplete for single analysis
+  if (event.metadata?.isBulkProcessing) {
+    ctx.logger.debug('Skipping session summary during bulk processing', {
+      sessionId,
+      eventType: event.eventType,
+      lineNumber: event.payload.lineNumber,
+    })
+    return
+  }
+
+  // Handle BulkProcessingComplete - run one-time analysis after bulk replay
+  if (event.eventType === 'BulkProcessingComplete') {
+    ctx.logger.info('LLM call: session-summary analysis', {
+      sessionId,
+      decision: 'calling',
+      reason: 'BulkProcessingComplete - analyzing full transcript',
+    })
+    const countdown = await loadCountdownState(ctx, sessionId)
+    await performAnalysis(event, ctx, countdown, 'user_prompt_forced')
+    return
+  }
+
   // Load current countdown state
   const countdown = await loadCountdownState(ctx, sessionId)
 
@@ -303,8 +326,10 @@ async function performAnalysis(
   const sideEffects: Promise<void>[] = []
 
   // Snarky message: generate when title or intent changed significantly
+  // OR when this is the first summary (no previous state exists)
   const changes = hasSignificantChange(updatedSummary, currentSummary)
-  if (config.snarkyMessages && (changes.titleChanged || changes.intentChanged)) {
+  const isInitialAnalysis = !currentSummary
+  if (config.snarkyMessages && (isInitialAnalysis || changes.titleChanged || changes.intentChanged)) {
     // Note: We don't delete the old file first. If LLM fails, we keep stale over nothing.
     sideEffects.push(generateSnarkyMessage(ctx, sessionId, updatedSummary, config))
   }

@@ -233,6 +233,18 @@ describe('Session Summary Error Handling', () => {
       const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
       await fs.mkdir(stateDir, { recursive: true })
 
+      // Pre-create existing summary with SAME values (so no snarky message triggered)
+      await fs.writeFile(
+        path.join(stateDir, 'session-summary.json'),
+        JSON.stringify({
+          session_id: sessionId,
+          session_title: 'Bug Fixing Session',
+          session_title_confidence: 0.85,
+          latest_intent: 'Debugging authentication',
+          latest_intent_confidence: 0.8,
+        })
+      )
+
       // Pre-create resume file so resume generation doesn't trigger
       await fs.writeFile(
         path.join(stateDir, 'resume-message.json'),
@@ -248,7 +260,7 @@ describe('Session Summary Error Handling', () => {
         'Analyze this transcript: {{transcript}}\nPrevious: {{previousAnalysis}}'
       )
 
-      // Queue response wrapped in markdown code block
+      // Queue response wrapped in markdown code block (same values as existing, no snarky triggered)
       const validResponse = {
         session_title: 'Bug Fixing Session',
         session_title_confidence: 0.85,

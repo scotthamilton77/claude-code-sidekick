@@ -151,6 +151,12 @@ export interface HandlerRegistry {
    * @param eventType - The transcript event type
    * @param entry - Raw transcript entry
    * @param lineNumber - Line number in transcript file
+   * @param isBulkProcessing - True when replaying historical transcript data
    */
-  emitTranscriptEvent(eventType: TranscriptEventType, entry: TranscriptEntry, lineNumber: number): void
+  emitTranscriptEvent(
+    eventType: TranscriptEventType,
+    entry: TranscriptEntry,
+    lineNumber: number,
+    isBulkProcessing?: boolean
+  ): void
 }

@@ -29,7 +29,7 @@ describe('Session Summary Handlers', () => {
       registerHandlers(ctx)
 
       const registrations = handlers.getRegistrations()
-      expect(registrations).toHaveLength(3)
+      expect(registrations).toHaveLength(4)
     })
 
     it('registers init handler for SessionStart hook', () => {
@@ -127,7 +127,7 @@ describe('Session Summary Handlers', () => {
       registerHandlers(ctx)
 
       const supervisorRegistrations = handlers.getRegistrations()
-      expect(supervisorRegistrations).toHaveLength(3)
+      expect(supervisorRegistrations).toHaveLength(4)
     })
 
     it('does not register handlers in CLI context', () => {
@@ -179,8 +179,9 @@ describe('Session Summary Handlers', () => {
       registerHandlers(ctx)
 
       const transcriptHandlers = handlers.getHandlersByKind('transcript')
-      expect(transcriptHandlers).toHaveLength(2)
+      expect(transcriptHandlers).toHaveLength(3)
       expect(transcriptHandlers.map((h) => h.id).sort()).toEqual([
+        'session-summary:bulk-complete',
         'session-summary:update-tool-result',
         'session-summary:update-user-prompt',
       ])
@@ -270,6 +271,7 @@ describe('Session Summary Handlers', () => {
       const ids = registrations.map((h) => h.id).sort()
 
       expect(ids).toEqual([
+        'session-summary:bulk-complete',
         'session-summary:init',
         'session-summary:update-tool-result',
         'session-summary:update-user-prompt',

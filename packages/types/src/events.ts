@@ -148,7 +148,13 @@ export type HookEvent =
 /**
  * Transcript event types emitted by TranscriptService.
  */
-export type TranscriptEventType = 'UserPrompt' | 'AssistantMessage' | 'ToolCall' | 'ToolResult' | 'Compact'
+export type TranscriptEventType =
+  | 'UserPrompt'
+  | 'AssistantMessage'
+  | 'ToolCall'
+  | 'ToolResult'
+  | 'Compact'
+  | 'BulkProcessingComplete'
 
 /**
  * Raw transcript entry from JSONL file.
@@ -273,6 +279,8 @@ export interface TranscriptEvent {
     transcriptPath: string
     /** Snapshot of current metrics (after this event) */
     metrics: TranscriptMetrics
+    /** True when replaying historical transcript data (first-time processing) */
+    isBulkProcessing?: boolean
   }
 }
 
