@@ -927,7 +927,7 @@ export const LogEvents = {
   statuslineRendered(
     context: EventLogContext,
     state: {
-      displayMode: 'session_summary' | 'resume_message' | 'first_prompt' | 'empty_summary'
+      displayMode: 'session_summary' | 'resume_message' | 'empty_summary'
       staleData: boolean
     },
     metadata: {

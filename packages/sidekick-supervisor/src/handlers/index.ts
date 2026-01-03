@@ -5,4 +5,3 @@
  */
 
 export { createCleanupHandler } from './cleanup.handler.js'
-export { createFirstPromptSummaryHandler } from './first-prompt-summary.handler.js'

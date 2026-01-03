@@ -43,15 +43,8 @@ export type {
   ResumeGenerationPayload,
   CleanupPayload,
   MetricsPersistPayload,
-  FirstPromptSummaryPayload,
   TrackedTask,
   TaskRegistryState,
-  // State types
-  FirstPromptClassification,
-  FirstPromptSummaryState,
-  // Config types
-  FirstPromptConfig,
-  FirstPromptModelConfig,
 } from '@sidekick/types'
 
 // Re-export task type constants and schemas
@@ -61,14 +54,6 @@ export {
   ResumeGenerationPayloadSchema,
   CleanupPayloadSchema,
   MetricsPersistPayloadSchema,
-  FirstPromptSummaryPayloadSchema,
-  // State schemas
-  FirstPromptClassificationSchema,
-  FirstPromptSummaryStateSchema,
-  // Config schemas
-  FirstPromptConfigSchema,
-  FirstPromptModelConfigSchema,
-  DEFAULT_FIRST_PROMPT_CONFIG,
 } from '@sidekick/types'
 
 // Re-export type guards from @sidekick/types
@@ -146,6 +131,7 @@ export {
 } from './transcript-service'
 export { ServiceFactoryImpl, type ServiceFactoryOptions } from './service-factory'
 export { InstrumentedLLMProvider, type InstrumentedLLMProviderConfig } from './instrumented-llm-provider'
+export { createHookableLogger, type LogHook, type HookableLoggerOptions } from './hookable-logger'
 
 // Note: LLMService should be imported directly from '@sidekick/shared-providers'
 // to avoid circular dependencies between packages

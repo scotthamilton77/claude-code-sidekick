@@ -35,7 +35,6 @@ import { StateReader, createStateReader, discoverPreviousResumeMessage } from '.
 import { readContextOverhead, getDefaultOverhead, type ContextOverhead } from './context-overhead-reader.js'
 import type {
   DisplayMode,
-  FirstPromptSummaryState,
   ResumeMessageState,
   TranscriptMetricsState,
   SessionSummaryState,
@@ -43,6 +42,7 @@ import type {
   StatuslineConfig,
   StatuslineRenderResult,
   StatuslineViewModel,
+  LogMetricsState,
 } from './types.js'
 import { DEFAULT_PLACEHOLDERS, DEFAULT_STATUSLINE_CONFIG } from './types.js'
 
@@ -313,22 +313,22 @@ export class StatuslineService {
   async render(): Promise<StatuslineRenderResult> {
     // Determine what data to fetch based on whether hookInput is available
     // When hookInput is provided, we skip session state (Claude Code gives us metrics)
-    // but still need summary/resume/snarky/firstPrompt (Sidekick-specific content)
+    // but still need summary/resume/snarky (Sidekick-specific content)
     const hasHookInput = !!this.hookInput
 
     // Parallel data fetch (critical for <50ms target)
     // Always fetch transcript metrics for currentContextTokens (needed for accurate post-compaction display)
     // When hookInput provided, we merge currentContextTokens from transcript into hook-based state
     // Also fetch baseline metrics for new session display (when current_usage is 0)
-    const [transcriptResult, summaryResult, resumeResult, snarkyResult, firstPromptResult, branchResult, baseline] =
+    const [transcriptResult, summaryResult, resumeResult, snarkyResult, branchResult, baseline, logMetricsResult] =
       await Promise.all([
         this.stateReader.getSessionState(),
         this.stateReader.getSessionSummary(),
         this.stateReader.getResumeMessage(),
         this.stateReader.getSnarkyMessage(),
-        this.stateReader.getFirstPromptSummary(),
         this.gitProvider.getCurrentBranch(),
         this.readBaselineMetrics(),
+        this.stateReader.getLogMetrics(),
       ])
 
     // Build state: use hook input if available, but always include currentContextTokens from transcript
@@ -365,16 +365,16 @@ export class StatuslineService {
       summaryResult.data,
       effectiveResumeData,
       snarkyResult.data,
-      firstPromptResult.data,
       branchResult.branch,
-      baseline
+      baseline,
+      logMetricsResult.data
     )
 
     // Format output
     let text = this.formatter.format(this.config.format, viewModel)
 
     // Stale indicator: only transcript metrics can be stale (Supervisor heartbeat).
-    // Content artifacts (summary, snarky, resume, first-prompt) are point-in-time
+    // Content artifacts (summary, snarky, resume) are point-in-time
     // and remain valid until regenerated - they don't indicate Supervisor health.
     // See docs/design/FEATURE-STATUSLINE.md §8.2
     const staleData = !hasHookInput && stateResult.source === 'stale'
@@ -460,21 +460,15 @@ export class StatuslineService {
     summary: SessionSummaryState,
     resume: ResumeMessageState | null,
     snarkyMessage: string,
-    firstPromptSummary: FirstPromptSummaryState | null,
     branch: string,
-    baseline: ContextOverhead
+    baseline: ContextOverhead,
+    logMetrics: LogMetricsState
   ): StatuslineViewModel {
-    // Determine display mode (confidence-aware per FEATURE-FIRST-PROMPT-SUMMARY.md §7.1)
-    const displayMode = this.determineDisplayMode(summary, resume, firstPromptSummary)
+    // Determine display mode
+    const displayMode = this.determineDisplayMode(summary, resume)
 
     // Determine summary text based on display mode
-    const { summaryText, title } = this.getSummaryContent(
-      displayMode,
-      summary,
-      resume,
-      snarkyMessage,
-      firstPromptSummary
-    )
+    const { summaryText, title } = this.getSummaryContent(displayMode, summary, resume, snarkyMessage)
 
     // Calculate effective tokens for display
     // Use current_usage from hook input: sum of input + cache tokens represents actual context window usage
@@ -574,6 +568,14 @@ export class StatuslineService {
       ? '⟳ compacted'
       : `${formatTokens(effectiveTokens)}|${formatTokens(totalWithBuffer)}`
 
+    // Calculate log status: critical if any errors, warning if many warnings, else normal
+    const logStatus =
+      logMetrics.errorCount >= this.config.thresholds.logs.critical
+        ? 'critical'
+        : logMetrics.warningCount >= this.config.thresholds.logs.warning
+          ? 'warning'
+          : 'normal'
+
     return {
       model: this.formatModelName(modelName),
       tokens: tokensDisplay,
@@ -589,55 +591,40 @@ export class StatuslineService {
       title,
       snarkyComment: snarkyMessage || undefined,
       contextUsage,
+      warningCount: logMetrics.warningCount,
+      errorCount: logMetrics.errorCount,
+      logStatus,
     }
   }
 
   /**
    * Determine display mode based on available data.
    *
-   * Priority order (per docs/design/FEATURE-FIRST-PROMPT-SUMMARY.md §7.1):
+   * Priority order:
    * 1. Resume message (if session was resumed and resume-message exists)
-   * 2. Confident session summary (confidence >= threshold)
-   * 3. First-prompt summary (when summary missing or low confidence)
-   * 4. Low-confidence session summary (better than nothing)
-   * 5. Empty (brand new, nothing submitted)
+   * 2. Session summary (if exists with a title)
+   * 3. Empty (brand new, nothing submitted)
    */
-  private determineDisplayMode(
-    summary: SessionSummaryState,
-    resume: ResumeMessageState | null,
-    firstPromptSummary: FirstPromptSummaryState | null
-  ): DisplayMode {
+  private determineDisplayMode(summary: SessionSummaryState, resume: ResumeMessageState | null): DisplayMode {
     // Check if we have a meaningful summary
     const hasSummary = summary.session_title && summary.session_title !== ''
-    const summaryConfident = (summary.session_title_confidence ?? 0) >= this.config.confidenceThreshold
 
     // Priority 1: Resume message (explicit session continuation)
     if (resume && this.isResumedSession) {
       return 'resume_message'
     }
 
-    // Priority 2: Confident session summary
-    if (hasSummary && summaryConfident) {
+    // Priority 2: Session summary (if exists with title)
+    if (hasSummary) {
       return 'session_summary'
     }
 
-    // Priority 3: First-prompt summary (when summary missing or low confidence)
-    if (firstPromptSummary) {
-      return 'first_prompt'
-    }
-
-    // Priority 4: Discovered resume message from previous session
-    // Show this when we have no confident summary (new session with placeholder)
+    // Priority 3: Discovered resume message from previous session
+    // Show this when we have no summary (new session with placeholder)
     // This provides context about what the user was working on before
+    // FIXME is this necessary since it's covered in priority 1?
     if (resume) {
       return 'resume_message'
-    }
-
-    // Priority 5: Low-confidence session summary (better than nothing)
-    // But only if it has SOME confidence - zero confidence means placeholder
-    // and we should show the empty session message instead
-    if (hasSummary && (summary.session_title_confidence ?? 0) > 0) {
-      return 'session_summary'
     }
 
     return 'empty_summary'
@@ -650,8 +637,7 @@ export class StatuslineService {
     displayMode: DisplayMode,
     summary: SessionSummaryState,
     resume: ResumeMessageState | null,
-    snarkyMessage: string,
-    firstPromptSummary: FirstPromptSummaryState | null
+    snarkyMessage: string
   ): { summaryText: string; title: string } {
     switch (displayMode) {
       case 'resume_message': {
@@ -668,12 +654,6 @@ export class StatuslineService {
       case 'empty_summary':
         return {
           summaryText: this.emptySessionMessage,
-          title: DEFAULT_PLACEHOLDERS.newSession,
-        }
-
-      case 'first_prompt':
-        return {
-          summaryText: firstPromptSummary?.message || this.emptySessionMessage,
           title: DEFAULT_PLACEHOLDERS.newSession,
         }
 

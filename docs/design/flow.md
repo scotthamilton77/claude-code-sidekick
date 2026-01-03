@@ -382,7 +382,7 @@ When context changes require removing a staged reminder:
   │   │       │   ├─ startup|clear: reset metrics to zero
   │   │       │   ├─ resume: load persisted metrics, scan for gaps
   │   │       │   └─ compact: full recompute from truncated transcript
-  │   │       ├─[CreateFirstSessionSummary] Create placeholder summary (so-called first-prompt default)
+  │   │       ├─[CreateFirstSessionSummary] Create placeholder session summary
   │   │       └─[StageDefaultUserPromptReminder] Stage default UserPromptSubmit reminder
   │   ├─[CLI] Invoke SessionStart handlers
   │   │   └─[CLI] No-op (no handlers registered)
@@ -429,7 +429,7 @@ When context changes require removing a staged reminder:
   └─ Emits TranscriptEvent { kind: 'transcript', eventType: 'UserPrompt',
        metadata: { transcriptPath: "...", metrics: { turnCount: 2, toolCount: 0, toolsThisTurn: 0, totalTokens: 150 } } }
 
-[statusline.sh] Show session summary if found, else first-prompt default
+[statusline.sh] Show session summary if found
 ```
 
 **Note**: Turn counting is now handled by TranscriptService when it detects `UserPrompt` entries in the transcript file, not by hook handlers. This provides a single source of truth derived from the actual transcript.

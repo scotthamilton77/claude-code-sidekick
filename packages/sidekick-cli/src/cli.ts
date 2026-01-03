@@ -19,7 +19,7 @@
  * @see docs/design/flow.md §5 Complete Hook Flows
  */
 
-import { mkdir } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { PassThrough, Writable } from 'node:stream'
 import yargsParser from 'yargs-parser'
@@ -355,6 +355,44 @@ export async function routeCommand(context: {
 }
 
 /**
+ * Persist CLI log metrics to state directory.
+ * Writes cli-log-metrics.json with warning/error counts for statusline {logs} indicator.
+ *
+ * @param projectRoot - Project root directory
+ * @param sessionId - Session ID
+ * @param counts - Log counts to persist
+ * @param logger - Logger for debug/error messages
+ */
+async function persistCliLogMetrics(
+  projectRoot: string,
+  sessionId: string,
+  counts: { warnings: number; errors: number },
+  logger: Logger
+): Promise<void> {
+  const stateDir = join(projectRoot, '.sidekick', 'sessions', sessionId, 'state')
+  const logMetricsPath = join(stateDir, 'cli-log-metrics.json')
+
+  const logMetrics = {
+    sessionId,
+    warningCount: counts.warnings,
+    errorCount: counts.errors,
+    lastUpdatedAt: Date.now(),
+  }
+
+  try {
+    await mkdir(stateDir, { recursive: true })
+    await writeFile(logMetricsPath, JSON.stringify(logMetrics, null, 2))
+    logger.debug('CLI log metrics persisted', { sessionId, counts })
+  } catch (err) {
+    // Non-critical - log and continue
+    logger.warn('Failed to persist CLI log metrics', {
+      sessionId,
+      error: err instanceof Error ? err.message : String(err),
+    })
+  }
+}
+
+/**
  * Execute the Sidekick Node CLI entrypoint.
  *
  * This function is intentionally side-effect free aside from writes to the provided output streams,
@@ -395,11 +433,18 @@ export async function runCli(options: RunCliOptions): Promise<{ exitCode: number
   })
 
   // 4. Route command to appropriate handler
-  return routeCommand({
+  const result = await routeCommand({
     parsed,
     runtime,
     hookInput,
     stdout,
     supervisorStarted,
   })
+
+  // 5. Persist CLI log metrics (async, no-throw)
+  if (sessionId && runtime.scope.projectRoot) {
+    await persistCliLogMetrics(runtime.scope.projectRoot, sessionId, runtime.getLogCounts(), runtime.logger)
+  }
+
+  return result
 }

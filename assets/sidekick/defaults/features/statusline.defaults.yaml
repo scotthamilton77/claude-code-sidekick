@@ -8,11 +8,8 @@ enabled: true
 settings:
   # Format string for statusline output
   # Separators: | or \n (empty tokens between separators are automatically cleaned up)
-  # Available placeholders: {model}, {contextBar}, {tokens}, {cost}, {duration}, {cwd}, {branch}, {summary}, {title}
-  format: "[{model}] | {contextBar} {tokens} | {cwd}{branch} | {title} | {summary}"
-
-  # Confidence threshold for preferring session summary over first-prompt summary
-  confidenceThreshold: 0.6
+  # Available placeholders: {model}, {contextBar}, {tokens}, {logs}, {cost}, {duration}, {cwd}, {branch}, {summary}, {title}
+  format: "[{model}] | {contextBar} {tokens} | {logs} | {cwd}{branch} | {title} | {summary}"
 
   # Threshold configuration for visual warnings
   thresholds:
@@ -28,6 +25,12 @@ settings:
       warning: 0.5
       # Cost at which to show critical color
       critical: 1.0
+    # Log metrics thresholds (for {logs} indicator: ⚠N ✗N)
+    logs:
+      # Warning count at which to show yellow color
+      warning: 5
+      # Error count at which to show red color (any error = critical)
+      critical: 1
 
   # Theme configuration
   theme:

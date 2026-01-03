@@ -55,6 +55,8 @@ function createMockRuntime(overrides: Partial<RuntimeShell> = {}): RuntimeShell 
     correlationId: 'test-correlation-id',
     cleanup: vi.fn(),
     bindSessionId: vi.fn(),
+    getLogCounts: vi.fn().mockReturnValue({ warnings: 0, errors: 0 }),
+    resetLogCounts: vi.fn(),
     ...overrides,
   }
 }

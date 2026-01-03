@@ -153,13 +153,12 @@ A lightweight string interpolator.
 
 ### 6.2 Summary Selection
 
-The statusline displays different content based on session state. Per `docs/design/flow.md`, there are four distinct states:
+The statusline displays different content based on session state. Per `docs/design/flow.md`, there are three distinct states:
 
 | State                     | Trigger                                  | Display Content                                  |
 | :------------------------ | :--------------------------------------- | :----------------------------------------------- |
 | **Resume Message**        | `SessionStart` with `type: "resume"`     | Content from `resume-message.json` (if exists)   |
 | **Empty-Summary Default** | `SessionStart` without resume message    | Static placeholder (e.g., "New session")         |
-| **First-Prompt Default**  | `UserPromptSubmit` before summary exists | Static placeholder (e.g., "Awaiting first turn") |
 | **Session Summary**       | Normal operation (summary available)     | Snarky comment or latest intent                  |
 
 **Session Summary priority** (when in normal operation):
@@ -252,7 +251,7 @@ Staleness detection indicates whether the Supervisor is actively running and upd
 - **Action**: Render the data but append a `(stale)` indicator to alert the user.
 
 **Content Artifacts (No Staleness)**:
-- Session summaries, snarky messages, resume messages, and first-prompt summaries are **point-in-time artifacts**.
+- Session summaries, snarky messages, and resume messages are **point-in-time artifacts**.
 - They remain valid until explicitly regenerated—file age doesn't indicate staleness.
 - These files do NOT trigger the stale indicator.
 

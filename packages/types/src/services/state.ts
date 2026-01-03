@@ -106,189 +106,6 @@ export const ResumeMessageStateSchema = z.object({
 export type ResumeMessageState = z.infer<typeof ResumeMessageStateSchema>
 
 // ============================================================================
-// First-Prompt Summary State
-// ============================================================================
-
-/**
- * Classification of the user's first prompt for appropriate response tone.
- *
- * @see docs/design/FEATURE-FIRST-PROMPT-SUMMARY.md §4.2
- */
-export const FirstPromptClassificationSchema = z.enum([
-  'command', // Slash command or configuration action
-  'conversational', // Greeting, small talk, or social interaction
-  'interrogative', // Question about codebase, capabilities, or exploration
-  'ambiguous', // Context-setting but unclear specific goal
-  'actionable', // Clear task with specific intent
-])
-
-export type FirstPromptClassification = z.infer<typeof FirstPromptClassificationSchema>
-
-/**
- * First-prompt summary state persisted to disk.
- * Generated on UserPromptSubmit when no session summary exists.
- * Provides snarky, contextual feedback during the first turn.
- *
- * Location: `.sidekick/sessions/{sessionId}/state/first-prompt-summary.json`
- *
- * @see docs/design/FEATURE-FIRST-PROMPT-SUMMARY.md §6
- */
-export const FirstPromptSummaryStateSchema = z.object({
-  /** Session identifier */
-  session_id: z.string(),
-  /** ISO8601 timestamp of generation */
-  timestamp: z.string(),
-  /** The generated snarky message (max 60 chars) */
-  message: z.string(),
-  /** Classification determined by LLM */
-  classification: FirstPromptClassificationSchema.optional(),
-  /** Source of the message */
-  source: z.enum(['llm', 'static', 'fallback']),
-  /** Model used (if LLM-generated) */
-  model: z.string().optional(),
-  /** Generation latency in ms */
-  latency_ms: z.number().optional(),
-  /** Original user prompt (for debugging) */
-  user_prompt: z.string(),
-  /** Whether resume context was available */
-  had_resume_context: z.boolean(),
-})
-
-export type FirstPromptSummaryState = z.infer<typeof FirstPromptSummaryStateSchema>
-
-// ============================================================================
-// First-Prompt Summary Configuration
-// ============================================================================
-
-/**
- * LLM provider model configuration.
- *
- * @see docs/design/FEATURE-FIRST-PROMPT-SUMMARY.md §5.2
- */
-export const FirstPromptModelConfigSchema = z.object({
-  /** LLM provider */
-  provider: z.enum(['claude-cli', 'openrouter', 'openai']),
-  /** Model identifier */
-  model: z.string(),
-})
-
-export type FirstPromptModelConfig = z.infer<typeof FirstPromptModelConfigSchema>
-
-/**
- * First-prompt summary feature configuration.
- * Configures LLM generation, fallback behavior, and slash command handling.
- *
- * @see docs/design/FEATURE-FIRST-PROMPT-SUMMARY.md §5.2
- */
-/** LLM profile reference for sub-feature binding */
-export const LlmSubFeatureConfigSchema = z.object({
-  /** Profile ID from llm.profiles */
-  profile: z.string(),
-  /** Optional fallback profile ID from llm.fallbacks */
-  fallbackProfile: z.string().optional(),
-})
-
-export type LlmSubFeatureConfig = z.infer<typeof LlmSubFeatureConfigSchema>
-
-export const FirstPromptConfigSchema = z.object({
-  /** Enable/disable the feature */
-  enabled: z.boolean().default(true),
-
-  /** LLM profiles for sub-features (preferred) */
-  llm: z
-    .object({
-      summary: LlmSubFeatureConfigSchema.default({
-        profile: 'creative',
-        fallbackProfile: 'cheap-fallback',
-      }),
-    })
-    .default({
-      summary: { profile: 'creative', fallbackProfile: 'cheap-fallback' },
-    }),
-
-  /** @deprecated Use llm.summary instead. Model configuration with fallback chain */
-  model: z
-    .object({
-      primary: FirstPromptModelConfigSchema.default({
-        provider: 'openrouter',
-        model: 'x-ai/grok-4-fast',
-      }),
-      fallback: FirstPromptModelConfigSchema.nullable().default({
-        provider: 'openrouter',
-        model: 'google/gemini-2.5-flash-lite',
-      }),
-    })
-    .default({
-      primary: { provider: 'openrouter', model: 'x-ai/grok-4-fast' },
-      fallback: { provider: 'openrouter', model: 'google/gemini-2.5-flash-lite' },
-    }),
-
-  /** Message shown when LLM call fails */
-  staticFallbackMessage: z.string().default('Deciphering intent...'),
-
-  /** Commands that skip LLM generation entirely */
-  skipCommands: z
-    .array(z.string())
-    .default([
-      'add-dir',
-      'agents',
-      'bashes',
-      'bug',
-      'clear',
-      'compact',
-      'config',
-      'context',
-      'cost',
-      'doctor',
-      'exit',
-      'export',
-      'help',
-      'hooks',
-      'ide',
-      'install-github-app',
-      'login',
-      'logout',
-      'mcp',
-      'memory',
-      'output-style',
-      'permissions',
-      'plugin',
-      'pr-comments',
-      'privacy-settings',
-      'release-notes',
-      'resume',
-      'rewind',
-      'sandbox',
-      'security-review',
-      'stats',
-      'status',
-      'statusline',
-      'terminal-setup',
-      'todos',
-      'usage',
-      'vim',
-    ]),
-
-  /** Message shown for skipped commands (null = no file written) */
-  staticSkipMessage: z.string().nullable().default(null),
-
-  /** Confidence threshold for preferring first-prompt over low-confidence summary */
-  confidenceThreshold: z.number().default(0.6),
-
-  /** LLM call timeout in milliseconds */
-  llmTimeoutMs: z.number().default(10000),
-})
-
-export type FirstPromptConfig = z.infer<typeof FirstPromptConfigSchema>
-
-/**
- * Default configuration for first-prompt summary generation.
- *
- * @see docs/design/FEATURE-FIRST-PROMPT-SUMMARY.md §5.3
- */
-export const DEFAULT_FIRST_PROMPT_CONFIG: FirstPromptConfig = FirstPromptConfigSchema.parse({})
-
-// ============================================================================
 // Transcript Metrics State
 // ============================================================================
 
@@ -332,6 +149,42 @@ export type TranscriptMetricsState = z.infer<typeof TranscriptMetricsStateSchema
 export const SessionMetricsStateSchema = TranscriptMetricsStateSchema
 /** @deprecated Use TranscriptMetricsState instead */
 export type SessionMetricsState = TranscriptMetricsState
+
+// ============================================================================
+// Log Metrics State
+// ============================================================================
+
+/**
+ * Log metrics state for tracking warnings and errors per session.
+ * Supervisor maintains in-memory counters and persists during heartbeat.
+ * Statusline reads this for the {logs} template placeholder.
+ *
+ * Location: `.sidekick/sessions/{sessionId}/state/log-metrics.json`
+ *
+ * @see docs/design/FEATURE-STATUSLINE.md
+ */
+export const LogMetricsStateSchema = z.object({
+  /** Session identifier */
+  sessionId: z.string(),
+  /** Warning log count this session */
+  warningCount: z.number(),
+  /** Error log count this session */
+  errorCount: z.number(),
+  /** Unix timestamp (ms) of last update */
+  lastUpdatedAt: z.number(),
+})
+
+export type LogMetricsState = z.infer<typeof LogMetricsStateSchema>
+
+/**
+ * Default log metrics for new sessions or when file is missing.
+ */
+export const EMPTY_LOG_METRICS: LogMetricsState = {
+  sessionId: '',
+  warningCount: 0,
+  errorCount: 0,
+  lastUpdatedAt: 0,
+}
 
 // ============================================================================
 // Staged Reminders State
@@ -670,8 +523,6 @@ export interface SessionStateSnapshot {
   timestamp: number
   /** Session summary state (if available) */
   summary?: SessionSummaryState
-  /** First-prompt summary state (if available) */
-  firstPromptSummary?: FirstPromptSummaryState
   /** Resume message state (if available) */
   resume?: ResumeMessageState
   /** Transcript metrics (if available) */
@@ -684,4 +535,6 @@ export interface SessionStateSnapshot {
   compactionHistory?: CompactionHistoryState
   /** LLM metrics for this session (if available) */
   llmMetrics?: LLMMetricsState
+  /** Log metrics (warnings/errors) for this session (if available) */
+  logMetrics?: LogMetricsState
 }
