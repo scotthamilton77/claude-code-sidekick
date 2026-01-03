@@ -212,7 +212,19 @@ describe('Session Summary Side-Effects', () => {
       const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
       await fs.mkdir(stateDir, { recursive: true })
 
-      // Queue LLM responses: 1) summary with pivot, 2) resume message
+      // Pre-create existing summary (so this isn't initial analysis - avoids snarky side-effect)
+      await fs.writeFile(
+        path.join(stateDir, 'session-summary.json'),
+        JSON.stringify({
+          session_id: sessionId,
+          session_title: 'Old Project',
+          session_title_confidence: 0.8,
+          latest_intent: 'Old intent',
+          latest_intent_confidence: 0.8,
+        })
+      )
+
+      // Queue LLM responses: 1) summary with pivot, 2) snarky (title changed), 3) resume message
       llm.queueResponses([
         JSON.stringify({
           session_title: 'New Project',
@@ -222,6 +234,7 @@ describe('Session Summary Side-Effects', () => {
           latest_intent_confidence: 0.85,
           pivot_detected: true,
         }),
+        'Still working on that project, I see.',
         JSON.stringify({
           resume_message: 'Shall we resume refactoring?',
           snarky_welcome: 'Back from the void, ready to refactor?',
@@ -230,8 +243,8 @@ describe('Session Summary Side-Effects', () => {
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
 
-      // LLM should be called twice (1: summary, 2: resume)
-      expect(llm.recordedRequests).toHaveLength(2)
+      // LLM should be called 3 times (1: summary, 2: snarky, 3: resume)
+      expect(llm.recordedRequests).toHaveLength(3)
 
       // Check resume message was generated
       const resumePath = path.join(stateDir, 'resume-message.json')
@@ -245,7 +258,19 @@ describe('Session Summary Side-Effects', () => {
       const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
       await fs.mkdir(stateDir, { recursive: true })
 
-      // Queue LLM responses: 1) summary without pivot, 2) resume message
+      // Pre-create existing summary with SAME values (so no snarky message triggered)
+      await fs.writeFile(
+        path.join(stateDir, 'session-summary.json'),
+        JSON.stringify({
+          session_id: sessionId,
+          session_title: 'Continuing work',
+          session_title_confidence: 0.8,
+          latest_intent: 'Same task',
+          latest_intent_confidence: 0.8,
+        })
+      )
+
+      // Queue LLM responses: 1) summary without pivot (same values), 2) resume message
       llm.queueResponses([
         JSON.stringify({
           session_title: 'Continuing work',
@@ -262,7 +287,7 @@ describe('Session Summary Side-Effects', () => {
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
 
-      // Should have 2 LLM calls (summary + resume) since no resume exists
+      // Should have 2 LLM calls (summary + resume) since no resume exists, no snarky (same title/intent)
       expect(llm.recordedRequests).toHaveLength(2)
 
       // Resume file should exist
@@ -275,6 +300,18 @@ describe('Session Summary Side-Effects', () => {
       const sessionId = 'test-session-5b'
       const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
       await fs.mkdir(stateDir, { recursive: true })
+
+      // Pre-create existing summary with SAME values (so no snarky message triggered)
+      await fs.writeFile(
+        path.join(stateDir, 'session-summary.json'),
+        JSON.stringify({
+          session_id: sessionId,
+          session_title: 'Continuing work',
+          session_title_confidence: 0.8,
+          latest_intent: 'Same task',
+          latest_intent_confidence: 0.8,
+        })
+      )
 
       // Pre-create resume file
       await fs.writeFile(
@@ -298,7 +335,7 @@ describe('Session Summary Side-Effects', () => {
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
 
-      // Should only have 1 LLM call (summary) - resume already exists
+      // Should only have 1 LLM call (summary) - resume already exists, no snarky (same values)
       expect(llm.recordedRequests).toHaveLength(1)
 
       // Resume file should still have original content
@@ -311,6 +348,18 @@ describe('Session Summary Side-Effects', () => {
       const sessionId = 'test-session-6'
       const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
       await fs.mkdir(stateDir, { recursive: true })
+
+      // Pre-create existing summary with SAME values (so no snarky message triggered)
+      await fs.writeFile(
+        path.join(stateDir, 'session-summary.json'),
+        JSON.stringify({
+          session_id: sessionId,
+          session_title: 'New Direction',
+          session_title_confidence: 0.5,
+          latest_intent: 'Exploring options',
+          latest_intent_confidence: 0.5,
+        })
+      )
 
       // Pivot detected but low confidence
       llm.queueResponse(
@@ -325,7 +374,7 @@ describe('Session Summary Side-Effects', () => {
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
 
-      // Should only have 1 LLM call (summary) - resume skipped due to low confidence
+      // Should only have 1 LLM call (summary) - resume skipped due to low confidence, no snarky (same values)
       expect(llm.recordedRequests).toHaveLength(1)
     })
   })

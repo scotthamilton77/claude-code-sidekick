@@ -158,6 +158,9 @@ export class TranscriptServiceImpl implements TranscriptService {
   /** Track whether prepare() has been called */
   private prepared = false
 
+  /** Track whether we're in bulk processing mode (first-time transcript replay) */
+  private isBulkProcessing = false
+
   constructor(private readonly options: TranscriptServiceOptions) {}
 
   // ============================================================================
@@ -700,11 +703,23 @@ export class TranscriptServiceImpl implements TranscriptService {
     // Process only new lines (incremental)
     const startLine = this.metrics.lastProcessedLine
     const newLineCount = lines.length - startLine
+
+    // Detect bulk mode: first-time processing with historical data
+    const isBulkStart = startLine === 0 && newLineCount > 0
+    if (isBulkStart) {
+      this.isBulkProcessing = true
+      this.options.logger.info('Bulk processing started', {
+        sessionId: this.sessionId,
+        linesToProcess: newLineCount,
+      })
+    }
+
     this.options.logger.debug('processTranscriptFile called', {
       sessionId: this.sessionId,
       totalLines: lines.length,
       lastProcessedLine: startLine,
       newLinesToProcess: newLineCount,
+      isBulkProcessing: this.isBulkProcessing,
     })
     for (let i = startLine; i < lines.length; i++) {
       const line = lines[i]
@@ -720,6 +735,16 @@ export class TranscriptServiceImpl implements TranscriptService {
     // Update watermark
     this.metrics.lastProcessedLine = lines.length
     this.metrics.lastUpdatedAt = Date.now()
+
+    // Emit BulkProcessingComplete if we were in bulk mode
+    if (isBulkStart && this.isBulkProcessing) {
+      this.isBulkProcessing = false
+      this.emitEvent('BulkProcessingComplete', {} as TranscriptEntry, lines.length)
+      this.options.logger.info('Bulk processing complete', {
+        sessionId: this.sessionId,
+        totalLinesProcessed: lines.length,
+      })
+    }
 
     // Notify subscribers
     this.notifyMetricsChange()
@@ -996,7 +1021,7 @@ export class TranscriptServiceImpl implements TranscriptService {
    * Metrics are updated BEFORE emitting, so handlers see current state.
    */
   private emitEvent(eventType: TranscriptEventType, entry: TranscriptEntry, lineNumber: number): void {
-    this.options.handlers.emitTranscriptEvent(eventType, entry, lineNumber)
+    this.options.handlers.emitTranscriptEvent(eventType, entry, lineNumber, this.isBulkProcessing)
   }
 
   // ============================================================================

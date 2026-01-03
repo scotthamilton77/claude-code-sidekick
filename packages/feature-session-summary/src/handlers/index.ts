@@ -47,6 +47,17 @@ export function registerHandlers(context: RuntimeContext): void {
       await updateSessionSummary(event, context as unknown as SupervisorContext)
     },
   })
+
+  // BulkProcessingComplete - one-time analysis after bulk transcript replay
+  ctx.handlers.register({
+    id: 'session-summary:bulk-complete',
+    priority: 80,
+    filter: { kind: 'transcript', eventTypes: ['BulkProcessingComplete'] },
+    handler: async (event, context) => {
+      if (!isTranscriptEvent(event)) return
+      await updateSessionSummary(event, context as unknown as SupervisorContext)
+    },
+  })
 }
 
 export { createFirstSessionSummary } from './create-first-summary.js'

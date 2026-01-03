@@ -215,11 +215,16 @@ export class HandlerRegistryImpl implements HandlerRegistry {
   // Transcript Event Dispatch (Concurrent)
   // ============================================================================
 
-  emitTranscriptEvent(eventType: TranscriptEventType, entry: TranscriptEntry, lineNumber: number): void {
+  emitTranscriptEvent(
+    eventType: TranscriptEventType,
+    entry: TranscriptEntry,
+    lineNumber: number,
+    isBulkProcessing = false
+  ): void {
     const matchingHandlers = this.getHandlersForTranscript(eventType)
 
     // Build transcript event (needed for logging even if no handlers)
-    const event = this.buildTranscriptEvent(eventType, entry, lineNumber)
+    const event = this.buildTranscriptEvent(eventType, entry, lineNumber, isBulkProcessing)
 
     // Log TranscriptEventEmitted for timeline visibility
     const metrics = this.options.getMetrics?.()
@@ -325,7 +330,8 @@ export class HandlerRegistryImpl implements HandlerRegistry {
   private buildTranscriptEvent(
     eventType: TranscriptEventType,
     entry: TranscriptEntry,
-    lineNumber: number
+    lineNumber: number,
+    isBulkProcessing = false
   ): TranscriptEvent {
     const context: EventContext = {
       sessionId: this.options.sessionId,
@@ -349,6 +355,7 @@ export class HandlerRegistryImpl implements HandlerRegistry {
       metadata: {
         transcriptPath: this.options.transcriptPath ?? '',
         metrics,
+        isBulkProcessing,
       },
     }
   }
