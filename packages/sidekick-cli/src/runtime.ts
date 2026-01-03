@@ -27,6 +27,7 @@ import type { AssetResolver, ConfigService, LogContext, Logger, Telemetry } from
 import {
   createAssetResolver,
   createConfigService,
+  createHookableLogger,
   createLoggerFacade,
   createLogManager,
   getDefaultAssetsDir,
@@ -65,6 +66,16 @@ export interface RuntimeShell {
    * All subsequent log calls will include sessionId in the context.
    */
   bindSessionId: (sessionId: string) => void
+  /**
+   * Get current log counts (warnings and errors) for the CLI process.
+   * Used for statusline {logs} indicator.
+   */
+  getLogCounts: () => { warnings: number; errors: number }
+  /**
+   * Reset log counts to zero.
+   * Called when session starts or clears.
+   */
+  resetLogCounts: () => void
 }
 
 function getLogFilePath(scope: ScopeResolution): string {
@@ -76,6 +87,9 @@ function getLogFilePath(scope: ScopeResolution): string {
 
 export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
   const correlationId = options.correlationId ?? randomUUID()
+
+  // Log counters for statusline {logs} indicator
+  let logCounters = { warnings: 0, errors: 0 }
 
   // Phase 1: Create logger facade with bootstrap logger for early errors
   const loggerFacade = createLoggerFacade({
@@ -161,7 +175,14 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
 
   // Get the logger and telemetry from the log manager
   // Use mutable reference so bindSessionId can update it
-  let logger = logManager.getLogger()
+  // Wrap with hookable logger for counting warnings/errors
+  let logger = createHookableLogger(logManager.getLogger(), {
+    levels: ['warn', 'error', 'fatal'],
+    hook: (level) => {
+      if (level === 'warn') logCounters.warnings++
+      else logCounters.errors++ // error and fatal
+    },
+  })
   const telemetry = logManager.getTelemetry()
 
   // Set up global error handlers
@@ -218,7 +239,18 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
           },
         },
       })
-      logger = newLogManager.getLogger()
+      // Wrap with hookable logger to maintain counting
+      logger = createHookableLogger(newLogManager.getLogger(), {
+        levels: ['warn', 'error', 'fatal'],
+        hook: (level) => {
+          if (level === 'warn') logCounters.warnings++
+          else logCounters.errors++ // error and fatal
+        },
+      })
+    },
+    getLogCounts: () => ({ ...logCounters }),
+    resetLogCounts: () => {
+      logCounters = { warnings: 0, errors: 0 }
     },
   }
 }

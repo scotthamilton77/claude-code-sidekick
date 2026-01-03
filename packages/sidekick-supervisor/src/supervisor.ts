@@ -1,6 +1,7 @@
 import {
   createAssetResolver,
   createConfigService,
+  createHookableLogger,
   createLogManager,
   getDefaultAssetsDir,
   getPidPath,
@@ -43,12 +44,7 @@ import path from 'path'
 import { ConfigChangeEvent, ConfigWatcher } from './config-watcher.js'
 import { ContextMetricsService, createContextMetricsService } from './context-metrics/index.js'
 import { StateManager } from './state-manager.js'
-import {
-  createTaskRegistry,
-  getFirstPromptConfig,
-  registerStandardTaskHandlers,
-  TaskRegistry,
-} from './task-handlers.js'
+import { createTaskRegistry, registerStandardTaskHandlers, TaskRegistry } from './task-handlers.js'
 import { TaskEngine } from './task-engine.js'
 
 // Read version from root package.json (single source of truth for monorepo)
@@ -90,6 +86,8 @@ export class Supervisor {
   private profileProviderFactory: ProfileProviderFactory
   private instrumentedProviders = new Map<string, InstrumentedLLMProvider>()
   private contextMetricsService: ContextMetricsService
+  /** Per-session log counters for statusline {logs} indicator */
+  private logCounters = new Map<string, { warnings: number; errors: number }>()
   private token: string = ''
   private lastActivityTime: number = Date.now()
   private idleCheckInterval: ReturnType<typeof setInterval> | null = null
@@ -112,7 +110,7 @@ export class Supervisor {
       assets: this.assetResolver,
     })
 
-    // Initialize Logger
+    // Initialize Logger with counting wrapper for statusline {logs} indicator
     const logDir = path.join(projectDir, '.sidekick', 'logs')
     this.logManager = createLogManager({
       name: 'supervisor',
@@ -122,7 +120,23 @@ export class Supervisor {
         console: { enabled: this.configService.core.logging.consoleEnabled },
       },
     })
-    this.logger = this.logManager.getLogger()
+    // Wrap logger to count warnings/errors for statusline display
+    // Uses hookable logger pattern to extract sessionId from log metadata
+    this.logger = createHookableLogger(this.logManager.getLogger(), {
+      levels: ['warn', 'error', 'fatal'],
+      hook: (level, _msg, meta) => {
+        // Extract sessionId from log metadata context
+        const sessionId =
+          (meta?.context as { sessionId?: string })?.sessionId ?? (meta as { sessionId?: string })?.sessionId
+        if (sessionId) {
+          const counters = this.logCounters.get(sessionId)
+          if (counters) {
+            if (level === 'warn') counters.warnings++
+            else counters.errors++ // error and fatal
+          }
+        }
+      },
+    })
 
     // Initialize Components
     this.stateManager = new StateManager(path.join(projectDir, '.sidekick', 'state'), this.logger)
@@ -472,9 +486,9 @@ export class Supervisor {
       await this.handleSessionEnd(event)
     }
 
-    // Handle UserPromptSubmit: trigger first-prompt summary generation
+    // Handle UserPromptSubmit: clear staged reminders and P&R baseline
     if (hook === 'UserPromptSubmit') {
-      await this.handleUserPromptSubmit(event)
+      await this.handleUserPromptSubmitCleanup(event)
     }
 
     // Dispatch to registered handlers
@@ -511,7 +525,17 @@ export class Supervisor {
       )
       logEvent(this.logger, clearEvent)
 
+      // Reset log counters for new/cleared session
+      this.logCounters.set(sessionId, { warnings: 0, errors: 0 })
+      this.logger.debug('Log counters reset for session', { sessionId, startType })
+
       this.logger.info('Staging cleared on session start', { startType })
+    } else {
+      // For resume, initialize counters if not already tracking this session
+      if (!this.logCounters.has(sessionId)) {
+        this.logCounters.set(sessionId, { warnings: 0, errors: 0 })
+        this.logger.debug('Log counters initialized for resumed session', { sessionId, startType })
+      }
     }
   }
 
@@ -530,6 +554,9 @@ export class Supervisor {
         this.instrumentedProviders.delete(sessionId)
         this.logger.debug('Shutdown instrumented LLM provider', { sessionId })
       }
+
+      // Clean up log counters for this session
+      this.logCounters.delete(sessionId)
 
       await this.serviceFactory.shutdownSession(sessionId)
       this.logger.info('Session ended', { sessionId })
@@ -810,25 +837,17 @@ export class Supervisor {
   }
 
   /**
-   * Handle UserPromptSubmit: trigger first-prompt summary generation if conditions met.
+   * Handle UserPromptSubmit cleanup: clear staged reminders and P&R baseline.
    *
-   * Conditions for triggering (all must be true):
-   * 1. No session-summary.json exists (or confidence below threshold)
-   * 2. No first-prompt-summary.json exists
-   *
-   * @see docs/design/FEATURE-FIRST-PROMPT-SUMMARY.md §2
+   * User submitting a new prompt resets the context:
+   * - Stale reminders should not fire
+   * - P&R baseline resets for new turn threshold
    */
-  private async handleUserPromptSubmit(event: HookEvent): Promise<void> {
-    const payload = event.payload as { prompt?: string }
+  private async handleUserPromptSubmitCleanup(event: HookEvent): Promise<void> {
     const sessionId = event.context?.sessionId
 
     if (!sessionId) {
       this.logger.warn('UserPromptSubmit event missing sessionId')
-      return
-    }
-
-    if (!payload.prompt) {
-      this.logger.warn('UserPromptSubmit event missing prompt')
       return
     }
 
@@ -851,73 +870,6 @@ export class Supervisor {
     } catch {
       // File may not exist - ignore
     }
-    const sessionSummaryPath = path.join(stateDir, 'session-summary.json')
-    const firstPromptSummaryPath = path.join(stateDir, 'first-prompt-summary.json')
-
-    // Check if first-prompt-summary already exists (idempotency)
-    try {
-      await fs.access(firstPromptSummaryPath)
-      this.logger.debug('First-prompt summary already exists, skipping', { sessionId })
-      return
-    } catch {
-      // File doesn't exist, continue
-    }
-
-    // Get first-prompt config from features
-    const firstPromptConfig = getFirstPromptConfig(this.configService.getAll(), this.logger)
-
-    // Check if feature is enabled
-    if (!firstPromptConfig.enabled) {
-      this.logger.debug('First-prompt summary feature is disabled')
-      return
-    }
-
-    // Check if session-summary exists with sufficient confidence
-    try {
-      const summaryContent = await fs.readFile(sessionSummaryPath, 'utf-8')
-      const summary = JSON.parse(summaryContent) as { session_title_confidence?: number }
-      const confidence = summary.session_title_confidence ?? 0
-      const threshold = firstPromptConfig.confidenceThreshold
-
-      if (confidence >= threshold) {
-        this.logger.debug('Session summary exists with sufficient confidence, skipping first-prompt', {
-          sessionId,
-          confidence,
-          threshold,
-        })
-        return
-      }
-    } catch {
-      // Session summary doesn't exist or can't be read, proceed with first-prompt generation
-    }
-
-    // Try to read resume context from resume-message.json
-    let resumeContext: string | undefined
-    const resumeMessagePath = path.join(stateDir, 'resume-message.json')
-    try {
-      const resumeContent = await fs.readFile(resumeMessagePath, 'utf-8')
-      const resume = JSON.parse(resumeContent) as { resume_last_goal_message?: string }
-      resumeContext = resume.resume_last_goal_message
-    } catch {
-      // No resume context available
-    }
-
-    // Enqueue first-prompt summary task
-    this.logger.info('Enqueueing first-prompt summary task', {
-      sessionId,
-      hasResumeContext: !!resumeContext,
-    })
-
-    this.taskEngine.enqueue(
-      'first_prompt_summary',
-      {
-        sessionId,
-        userPrompt: payload.prompt,
-        stateDir,
-        resumeContext,
-      },
-      1 // Low priority - don't block other tasks
-    )
   }
 
   /**
@@ -1094,6 +1046,40 @@ export class Supervisor {
       this.logger.warn('Failed to write heartbeat status', {
         error: err instanceof Error ? err.message : String(err),
       })
+    }
+
+    // Persist log metrics for each active session
+    await this.persistLogMetrics()
+  }
+
+  /**
+   * Persist log metrics for all active sessions.
+   * Writes supervisor-log-metrics.json to each session's state directory.
+   */
+  private async persistLogMetrics(): Promise<void> {
+    const now = Date.now()
+
+    for (const [sessionId, counts] of this.logCounters) {
+      const stateDir = path.join(this.projectDir, '.sidekick', 'sessions', sessionId, 'state')
+      const logMetricsPath = path.join(stateDir, 'supervisor-log-metrics.json')
+
+      const logMetrics = {
+        sessionId,
+        warningCount: counts.warnings,
+        errorCount: counts.errors,
+        lastUpdatedAt: now,
+      }
+
+      try {
+        await fs.mkdir(stateDir, { recursive: true })
+        await fs.writeFile(logMetricsPath, JSON.stringify(logMetrics, null, 2))
+      } catch (err) {
+        // Log but don't crash - log metrics are non-critical
+        this.logger.warn('Failed to persist log metrics', {
+          sessionId,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
     }
   }
 

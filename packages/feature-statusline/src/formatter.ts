@@ -98,9 +98,10 @@ export class Formatter {
    */
   format(template: string, viewModel: StatuslineViewModel): string {
     // Build token map with formatted values
-    // Note: tokens/cost use threshold-based coloring (normal/warning/critical)
+    // Note: tokens/cost/logs use threshold-based coloring (normal/warning/critical)
     // Branch uses theme.colors.branch if set, otherwise pattern-based coloring from viewModel.branchColor
     const branchColor = this.theme.colors.branch ?? viewModel.branchColor
+    const logsText = formatLogs(viewModel.warningCount, viewModel.errorCount)
     const tokens: Record<string, string> = {
       model: this.colorize(viewModel.model, this.theme.colors.model),
       tokens: this.colorizeByStatus(viewModel.tokens, viewModel.tokensStatus),
@@ -111,6 +112,7 @@ export class Formatter {
       summary: this.colorize(viewModel.summary, this.theme.colors.summary),
       title: this.colorize(viewModel.title, this.theme.colors.title),
       contextBar: formatContextBar(viewModel.contextUsage, this.useColors),
+      logs: this.colorizeByStatus(logsText, viewModel.logStatus),
     }
 
     // Marker for empty values - allows safe cleanup without affecting separator chars in token values
@@ -259,6 +261,14 @@ export function formatCwd(fullPath: string, homeDir?: string): string {
 export function formatBranch(branch: string, _useNerdFonts: boolean): string {
   if (!branch) return ''
   return `⎇ ${branch}`
+}
+
+/**
+ * Format log metrics for display (e.g., "⚠0 ✗0" or "⚠3 ✗1").
+ * Uses Unicode warning triangle (U+26A0) and X mark (U+2717).
+ */
+export function formatLogs(warningCount: number, errorCount: number): string {
+  return `⚠${warningCount} ✗${errorCount}`
 }
 
 /**

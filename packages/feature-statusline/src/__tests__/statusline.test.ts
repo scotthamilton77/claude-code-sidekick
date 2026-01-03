@@ -292,6 +292,9 @@ describe('Formatter class', () => {
       displayMode: 'session_summary' as const,
       summary: 'Fixing auth bug',
       title: 'Auth bug fix',
+      warningCount: 0,
+      errorCount: 0,
+      logStatus: 'normal' as const,
     }
 
     const result = formatter.format('[{model}] | {tokens} | {summary}', viewModel)
@@ -317,6 +320,9 @@ describe('Formatter class', () => {
       displayMode: 'session_summary' as const,
       summary: 'Test summary',
       title: '', // Empty title
+      warningCount: 0,
+      errorCount: 0,
+      logStatus: 'normal' as const,
     }
 
     // Empty {title} between two separators should be cleaned up
@@ -343,6 +349,9 @@ describe('Formatter class', () => {
       displayMode: 'session_summary' as const,
       summary: 'Test summary',
       title: '', // Empty title
+      warningCount: 0,
+      errorCount: 0,
+      logStatus: 'normal' as const,
     }
 
     // Empty {title} between newline separators should be cleaned up
@@ -369,6 +378,9 @@ describe('Formatter class', () => {
       displayMode: 'session_summary' as const,
       summary: 'Working hard | or hardly working?', // Contains pipe
       title: 'Test',
+      warningCount: 0,
+      errorCount: 0,
+      logStatus: 'normal' as const,
     }
 
     const result = formatter.format('{title} | {summary}', viewModel)
@@ -394,6 +406,9 @@ describe('Formatter class', () => {
       displayMode: 'session_summary' as const,
       summary: '',
       title: 'Test title',
+      warningCount: 0,
+      errorCount: 0,
+      logStatus: 'normal' as const,
     }
 
     // Multiple empty tokens should all be cleaned up
@@ -420,6 +435,9 @@ describe('Formatter class', () => {
       displayMode: 'session_summary' as const,
       summary: 'Test summary',
       title: 'Test title',
+      warningCount: 0,
+      errorCount: 0,
+      logStatus: 'normal' as const,
     }
 
     // Template: {cwd}{branch} | {title} - branch is empty but separator should be preserved
@@ -458,6 +476,9 @@ describe('Formatter with colors enabled', () => {
       displayMode: 'session_summary' as const,
       summary: 'Test',
       title: 'Test',
+      warningCount: 0,
+      errorCount: 0,
+      logStatus: 'normal' as const,
     }
 
     const result = formatter.format('{tokens}', viewModel)
@@ -484,6 +505,9 @@ describe('Formatter with colors enabled', () => {
       displayMode: 'session_summary' as const,
       summary: 'Test',
       title: 'Test',
+      warningCount: 0,
+      errorCount: 0,
+      logStatus: 'normal' as const,
     }
 
     const result = formatter.format('{tokens}', viewModel)
@@ -509,6 +533,9 @@ describe('Formatter with colors enabled', () => {
       displayMode: 'session_summary' as const,
       summary: 'Test',
       title: 'Test',
+      warningCount: 0,
+      errorCount: 0,
+      logStatus: 'normal' as const,
     }
 
     const result = formatter.format('{tokens}', viewModel)
@@ -537,6 +564,9 @@ describe('Formatter with colors enabled', () => {
       displayMode: 'session_summary' as const,
       summary: 'Test',
       title: 'Test',
+      warningCount: 0,
+      errorCount: 0,
+      logStatus: 'normal' as const,
     }
 
     const result = formatter.format('{model}', viewModel)
@@ -565,6 +595,9 @@ describe('Formatter with colors enabled', () => {
       displayMode: 'session_summary' as const,
       summary: 'Working on auth',
       title: 'Test',
+      warningCount: 0,
+      errorCount: 0,
+      logStatus: 'normal' as const,
     }
 
     const result = formatter.format('{summary}', viewModel)
@@ -600,6 +633,9 @@ describe('Formatter with colors enabled', () => {
       displayMode: 'session_summary' as const,
       summary: 'Test',
       title: 'Test',
+      warningCount: 0,
+      errorCount: 0,
+      logStatus: 'normal' as const,
     }
 
     // Should not throw, should return text without color codes for model
@@ -627,6 +663,9 @@ describe('Formatter with colors enabled', () => {
       displayMode: 'session_summary' as const,
       summary: '',
       title: 'Test',
+      warningCount: 0,
+      errorCount: 0,
+      logStatus: 'normal' as const,
     }
 
     const result = formatter.format('{summary}', viewModel)
@@ -653,6 +692,9 @@ describe('Formatter with colors enabled', () => {
       displayMode: 'session_summary' as const,
       summary: 'Test',
       title: 'Test',
+      warningCount: 0,
+      errorCount: 0,
+      logStatus: 'normal' as const,
     }
 
     const result = formatter.format('{branch}', viewModel)
@@ -896,89 +938,6 @@ describe('discoverPreviousResumeMessage', () => {
 
     expect(result.source).toBe('not_found')
     expect(result.data).toBeNull()
-  })
-})
-
-// ============================================================================
-// StateReader First-Prompt Summary Tests (Phase 3)
-// ============================================================================
-
-describe('StateReader.getFirstPromptSummary', () => {
-  let testDir: string
-
-  beforeEach(async () => {
-    testDir = path.join(tmpdir(), `first-prompt-test-${Date.now()}`)
-    await fs.mkdir(testDir, { recursive: true })
-  })
-
-  it('returns null when file is missing', async () => {
-    const reader = createStateReader(testDir)
-    const result = await reader.getFirstPromptSummary()
-
-    expect(result.source).toBe('default')
-    expect(result.data).toBeNull()
-  })
-
-  it('reads valid first-prompt-summary.json', async () => {
-    await fs.writeFile(
-      path.join(testDir, 'first-prompt-summary.json'),
-      JSON.stringify({
-        session_id: 'test-123',
-        timestamp: new Date().toISOString(),
-        message: 'Refactoring auth... what could go wrong?',
-        classification: 'actionable',
-        source: 'llm',
-        model: 'claude-3-5-haiku',
-        latency_ms: 4823,
-        user_prompt: 'refactor the authentication module',
-        had_resume_context: false,
-      })
-    )
-
-    const reader = createStateReader(testDir)
-    const result = await reader.getFirstPromptSummary()
-
-    expect(result.source).toBe('fresh')
-    expect(result.data).not.toBeNull()
-    expect(result.data?.message).toBe('Refactoring auth... what could go wrong?')
-    expect(result.data?.classification).toBe('actionable')
-    expect(result.data?.source).toBe('llm')
-  })
-
-  it('returns null for invalid JSON', async () => {
-    await fs.writeFile(path.join(testDir, 'first-prompt-summary.json'), 'not valid json')
-
-    const reader = createStateReader(testDir)
-    const result = await reader.getFirstPromptSummary()
-
-    expect(result.source).toBe('default')
-    expect(result.data).toBeNull()
-  })
-
-  it('returns fresh for old first-prompt summary (content artifacts never stale)', async () => {
-    // Content artifacts (like first-prompt summary) don't have staleness.
-    // They remain valid until regenerated - file age doesn't matter.
-    const filePath = path.join(testDir, 'first-prompt-summary.json')
-    await fs.writeFile(
-      filePath,
-      JSON.stringify({
-        session_id: 'test-123',
-        timestamp: new Date().toISOString(),
-        message: 'Old message',
-        source: 'llm',
-        user_prompt: 'test',
-        had_resume_context: false,
-      })
-    )
-    // Set mtime to 2 minutes ago - should NOT affect staleness for content artifacts
-    const twoMinutesAgo = new Date(Date.now() - 120_000)
-    await fs.utimes(filePath, twoMinutesAgo, twoMinutesAgo)
-
-    const reader = createStateReader(testDir)
-    const result = await reader.getFirstPromptSummary()
-
-    expect(result.source).toBe('fresh') // Content artifacts are never stale
-    expect(result.data?.message).toBe('Old message')
   })
 })
 
@@ -1302,9 +1261,9 @@ describe('StatuslineService', () => {
       const result = await service.render()
 
       // Should discover and display the previous session's resume message
-      // title from session_title, summary from snarky_comment
+      // title includes "Last Session:" prefix, summary from snarky_comment
       expect(result.displayMode).toBe('resume_message')
-      expect(result.viewModel.title).toBe('Feature X')
+      expect(result.viewModel.title).toBe('Last Session: Feature X')
       expect(result.viewModel.summary).toBe('Back for more?')
     })
 
@@ -1367,254 +1326,6 @@ describe('StatuslineService', () => {
 
       // Should work normally without discovery
       expect(result.displayMode).toBe('empty_summary')
-    })
-  })
-
-  describe('first-prompt summary integration (Phase 3)', () => {
-    it('displays first-prompt message when no session summary exists', async () => {
-      // Write first-prompt summary
-      await fs.writeFile(
-        path.join(testDir, 'first-prompt-summary.json'),
-        JSON.stringify({
-          session_id: 'test-123',
-          timestamp: new Date().toISOString(),
-          message: 'Refactoring auth... what could go wrong?',
-          classification: 'actionable',
-          source: 'llm',
-          user_prompt: 'refactor auth',
-          had_resume_context: false,
-        })
-      )
-
-      const service = createStatuslineService({
-        sessionStateDir: testDir,
-        cwd: '/test',
-        useColors: false,
-      })
-
-      const result = await service.render()
-
-      expect(result.displayMode).toBe('first_prompt')
-      expect(result.viewModel.summary).toBe('Refactoring auth... what could go wrong?')
-    })
-
-    it('displays first-prompt over low-confidence summary', async () => {
-      // Write low-confidence session summary
-      await fs.writeFile(
-        path.join(testDir, 'session-summary.json'),
-        JSON.stringify({
-          session_id: 'test-123',
-          timestamp: new Date().toISOString(),
-          session_title: 'Low confidence title',
-          session_title_confidence: 0.3, // Below default threshold of 0.6
-          latest_intent: 'Some intent',
-          latest_intent_confidence: 0.4,
-        })
-      )
-
-      // Write first-prompt summary
-      await fs.writeFile(
-        path.join(testDir, 'first-prompt-summary.json'),
-        JSON.stringify({
-          session_id: 'test-123',
-          timestamp: new Date().toISOString(),
-          message: 'Deciphering your cryptic request...',
-          source: 'llm',
-          user_prompt: 'do the thing',
-          had_resume_context: false,
-        })
-      )
-
-      const service = createStatuslineService({
-        sessionStateDir: testDir,
-        cwd: '/test',
-        useColors: false,
-      })
-
-      const result = await service.render()
-
-      expect(result.displayMode).toBe('first_prompt')
-      expect(result.viewModel.summary).toBe('Deciphering your cryptic request...')
-    })
-
-    it('displays session summary when confidence exceeds threshold', async () => {
-      // Write high-confidence session summary
-      await fs.writeFile(
-        path.join(testDir, 'session-summary.json'),
-        JSON.stringify({
-          session_id: 'test-123',
-          timestamp: new Date().toISOString(),
-          session_title: 'Auth Refactoring',
-          session_title_confidence: 0.85, // Above threshold
-          latest_intent: 'Working on auth module',
-          latest_intent_confidence: 0.9,
-        })
-      )
-
-      // Write first-prompt summary (should be ignored)
-      await fs.writeFile(
-        path.join(testDir, 'first-prompt-summary.json'),
-        JSON.stringify({
-          session_id: 'test-123',
-          timestamp: new Date().toISOString(),
-          message: 'Old first prompt message',
-          source: 'llm',
-          user_prompt: 'refactor auth',
-          had_resume_context: false,
-        })
-      )
-
-      const service = createStatuslineService({
-        sessionStateDir: testDir,
-        cwd: '/test',
-        useColors: false,
-      })
-
-      const result = await service.render()
-
-      expect(result.displayMode).toBe('session_summary')
-      expect(result.viewModel.title).toBe('Auth Refactoring')
-    })
-
-    it('falls back to low-confidence summary when no first-prompt exists', async () => {
-      // Write low-confidence session summary, no first-prompt
-      await fs.writeFile(
-        path.join(testDir, 'session-summary.json'),
-        JSON.stringify({
-          session_id: 'test-123',
-          timestamp: new Date().toISOString(),
-          session_title: 'Low confidence but only option',
-          session_title_confidence: 0.3,
-          latest_intent: 'Some intent',
-          latest_intent_confidence: 0.4,
-        })
-      )
-
-      const service = createStatuslineService({
-        sessionStateDir: testDir,
-        cwd: '/test',
-        useColors: false,
-      })
-
-      const result = await service.render()
-
-      // Should fall back to session_summary since no first-prompt exists
-      expect(result.displayMode).toBe('session_summary')
-      expect(result.viewModel.title).toBe('Low confidence but only option')
-    })
-
-    it('respects custom confidence threshold from config', async () => {
-      // Write session summary with confidence 0.5
-      await fs.writeFile(
-        path.join(testDir, 'session-summary.json'),
-        JSON.stringify({
-          session_id: 'test-123',
-          timestamp: new Date().toISOString(),
-          session_title: 'Moderate confidence',
-          session_title_confidence: 0.5,
-          latest_intent: 'Intent',
-          latest_intent_confidence: 0.5,
-        })
-      )
-
-      // Write first-prompt summary
-      await fs.writeFile(
-        path.join(testDir, 'first-prompt-summary.json'),
-        JSON.stringify({
-          session_id: 'test-123',
-          timestamp: new Date().toISOString(),
-          message: 'First prompt message',
-          source: 'llm',
-          user_prompt: 'test',
-          had_resume_context: false,
-        })
-      )
-
-      // Use lower threshold (0.4) so 0.5 confidence is sufficient
-      const service = createStatuslineService({
-        sessionStateDir: testDir,
-        cwd: '/test',
-        useColors: false,
-        config: { confidenceThreshold: 0.4 },
-      })
-
-      const result = await service.render()
-
-      // With threshold 0.4, confidence 0.5 should show session_summary
-      expect(result.displayMode).toBe('session_summary')
-    })
-
-    it('resume message takes priority over first-prompt when session is resumed', async () => {
-      // Write resume message
-      await fs.writeFile(
-        path.join(testDir, 'resume-message.json'),
-        JSON.stringify({
-          last_task_id: null,
-          session_title: 'Refactoring Session',
-          resume_last_goal_message: 'Continue refactoring?',
-          snarky_comment: 'Back for more?',
-          timestamp: new Date().toISOString(),
-        })
-      )
-
-      // Write first-prompt summary
-      await fs.writeFile(
-        path.join(testDir, 'first-prompt-summary.json'),
-        JSON.stringify({
-          session_id: 'test-123',
-          timestamp: new Date().toISOString(),
-          message: 'First prompt message',
-          source: 'llm',
-          user_prompt: 'test',
-          had_resume_context: true,
-        })
-      )
-
-      const service = createStatuslineService({
-        sessionStateDir: testDir,
-        cwd: '/test',
-        useColors: false,
-        isResumedSession: true,
-      })
-
-      const result = await service.render()
-
-      // title from session_title, summary from snarky_comment
-      expect(result.displayMode).toBe('resume_message')
-      expect(result.viewModel.title).toBe('Refactoring Session')
-      expect(result.viewModel.summary).toBe('Back for more?')
-    })
-
-    it('does not mark stale based on first-prompt age (content artifacts never stale)', async () => {
-      // Content artifacts like first-prompt don't affect staleness detection.
-      // Only transcript metrics (Supervisor heartbeat) determines staleness.
-      const filePath = path.join(testDir, 'first-prompt-summary.json')
-      await fs.writeFile(
-        filePath,
-        JSON.stringify({
-          session_id: 'test-123',
-          timestamp: new Date().toISOString(),
-          message: 'Old message',
-          source: 'llm',
-          user_prompt: 'test',
-          had_resume_context: false,
-        })
-      )
-      // Set mtime to 2 minutes ago - should NOT affect staleness
-      const twoMinutesAgo = new Date(Date.now() - 120_000)
-      await fs.utimes(filePath, twoMinutesAgo, twoMinutesAgo)
-
-      const service = createStatuslineService({
-        sessionStateDir: testDir,
-        cwd: '/test',
-        useColors: false,
-      })
-
-      const result = await service.render()
-
-      // Content artifact age doesn't trigger stale indicator
-      expect(result.staleData).toBe(false)
-      expect(result.text).not.toContain('(stale)')
     })
   })
 

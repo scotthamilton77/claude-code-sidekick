@@ -186,7 +186,6 @@ Handlers may trigger **tasks**—long-running async jobs that run off the critic
 | Task Type             | Triggered By               | Output                                        |
 | --------------------- | -------------------------- | --------------------------------------------- |
 | `cleanup`             | Periodic timer             | Prunes old session data                       |
-| `first_prompt_summary`| First `UserPromptSubmit`   | Writes `sessions/{id}/state/first-prompt-summary.json` |
 
 > **Note**: Session summary and resume generation are handled by event-driven handlers in `feature-session-summary`, not by background tasks. See `docs/design/FEATURE-SESSION-SUMMARY.md`.
 
@@ -319,7 +318,7 @@ To allow the Monitoring UI to display system health, the Supervisor must periodi
   "active_tasks": [
     {
       "id": "task-1",
-      "type": "first_prompt_summary",
+      "type": "cleanup",
       "start_time": 1678888880000
     }
   ]

@@ -12,11 +12,11 @@ This repository serves as a development and testing environment for [Claude Code
 
 ### Sidekick
 
-- statusline: could we show an indicator when there are warnings/errors in the log (as a configurable placeholder template)
+- TEST: statusline: could we show an indicator when there are warnings/errors in the log (as a configurable placeholder template)
 - snarky comment generator
+  - snarky message needs de-quoting: "Missing return types? Congrats, you’ve found the *real* logging bug."
   - needs a fallback model
   - try "Generate 5 responses with their corresponding probabilities, then respond with the most probable answer"
-- is the first-prompt-summary actually useful / used?
 - optimization: after a clean-all if we resume an existing claude session, we reconstruct the state processing the transcript line by line.  This is inefficient in that we'll end up making multiple llm calls for potentially unused interim summary state.  Consider parsing larger chunks?
 - finish ROADMAP.md
 - finish PLAN.MD (executing ARCH.md)

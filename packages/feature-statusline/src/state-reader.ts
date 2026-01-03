@@ -19,19 +19,20 @@ import * as path from 'node:path'
 import type { ZodType } from 'zod'
 
 import type {
-  FirstPromptSummaryState,
   ResumeMessageState,
   TranscriptMetricsState,
   SessionSummaryState,
   StateReadResult,
+  LogMetricsState,
 } from './types.js'
 import {
   EMPTY_TRANSCRIPT_STATE,
   EMPTY_SESSION_SUMMARY,
-  FirstPromptSummaryStateSchema,
+  EMPTY_LOG_METRICS,
   PersistedTranscriptStateSchema,
   ResumeMessageStateSchema,
   SessionSummaryStateSchema,
+  LogMetricsStateSchema,
 } from './types.js'
 
 /** Maximum age (ms) before data is considered stale */
@@ -175,32 +176,71 @@ export class StateReader {
   }
 
   /**
-   * Read first-prompt summary from first-prompt-summary.json.
-   * Returns null data if file doesn't exist (not an error case).
+   * Read and parse log metrics from both supervisor and CLI metric files.
+   * Returns combined warning/error counts for the current session.
    *
-   * Content artifacts don't have staleness - they're valid until regenerated.
+   * Per STATUS_LOGS.md: Supervisor writes supervisor-log-metrics.json,
+   * CLI writes cli-log-metrics.json. StatuslineService reads and sums both.
    *
-   * @see docs/design/FEATURE-FIRST-PROMPT-SUMMARY.md §6
+   * Staleness is determined by the `lastUpdatedAt` timestamp in the files.
+   * This detects if the Supervisor or CLI stopped updating.
+   *
+   * @see docs/design/FEATURE-STATUSLINE.md
+   * @see STATUS_LOGS.md
    */
-  async getFirstPromptSummary(): Promise<StateReadResult<FirstPromptSummaryState | null>> {
-    const filePath = path.join(this.stateDir, 'first-prompt-summary.json')
+  async getLogMetrics(): Promise<StateReadResult<LogMetricsState>> {
+    const supervisorPath = path.join(this.stateDir, 'supervisor-log-metrics.json')
+    const cliPath = path.join(this.stateDir, 'cli-log-metrics.json')
 
+    const [supervisorResult, cliResult] = await Promise.all([
+      this.readLogMetricsFile(supervisorPath),
+      this.readLogMetricsFile(cliPath),
+    ])
+
+    // Sum counts from both sources
+    const combined: LogMetricsState = {
+      sessionId: supervisorResult.data.sessionId || cliResult.data.sessionId || '',
+      warningCount: supervisorResult.data.warningCount + cliResult.data.warningCount,
+      errorCount: supervisorResult.data.errorCount + cliResult.data.errorCount,
+      lastUpdatedAt: Math.max(supervisorResult.data.lastUpdatedAt, cliResult.data.lastUpdatedAt),
+    }
+
+    // Determine combined source status
+    const isStale = supervisorResult.source === 'stale' || cliResult.source === 'stale'
+    const isBothDefault = supervisorResult.source === 'default' && cliResult.source === 'default'
+
+    return {
+      source: isStale ? 'stale' : isBothDefault ? 'default' : 'fresh',
+      data: combined,
+      mtime: combined.lastUpdatedAt,
+    }
+  }
+
+  /**
+   * Read and parse a single log metrics file.
+   * Internal helper for getLogMetrics().
+   */
+  private async readLogMetricsFile(filePath: string): Promise<StateReadResult<LogMetricsState>> {
     try {
-      const stat = await fs.stat(filePath)
       const content = await fs.readFile(filePath, 'utf-8')
-      const parsed = FirstPromptSummaryStateSchema.safeParse(JSON.parse(content))
+      const parsed = LogMetricsStateSchema.safeParse(JSON.parse(content))
 
       if (!parsed.success) {
-        return { data: null, source: 'default' }
+        return { source: 'default', data: EMPTY_LOG_METRICS }
       }
 
+      const logMetrics = parsed.data
+
+      // Use lastUpdatedAt timestamp for staleness detection
+      const isStale = Date.now() - logMetrics.lastUpdatedAt > this.staleThresholdMs
+
       return {
-        data: parsed.data,
-        source: 'fresh',
-        mtime: stat.mtimeMs,
+        source: isStale ? 'stale' : 'fresh',
+        data: logMetrics,
+        mtime: logMetrics.lastUpdatedAt,
       }
     } catch {
-      return { data: null, source: 'default' }
+      return { source: 'default', data: EMPTY_LOG_METRICS }
     }
   }
 

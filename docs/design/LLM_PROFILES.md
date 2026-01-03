@@ -292,7 +292,6 @@ export class ProfileProviderFactory {
 **Files**:
 - `assets/sidekick/defaults/llm.defaults.yaml` - new profile structure (see YAML Structure section above)
 - `assets/sidekick/defaults/features/session-summary.defaults.yaml` - add `settings.llm` section
-- `assets/sidekick/defaults/features/first-prompt.defaults.yaml` - add `settings.llm` section
 
 ### Step 5: Update Supervisor
 
@@ -319,7 +318,6 @@ this.llmProvider = profileFactory.createDefault()
 
 **Files**:
 - `packages/feature-session-summary/src/handlers/update-summary.ts`
-- `packages/sidekick-supervisor/src/handlers/first-prompt-summary.handler.ts`
 
 **Hybrid approach**: `ctx.llm` provides default profile provider, handlers create their own for sub-feature-specific profiles.
 
@@ -345,7 +343,6 @@ const response = await provider.complete({
 
 **Files**:
 - `packages/types/src/features/session-summary.ts`
-- `packages/types/src/features/first-prompt.ts`
 
 ```typescript
 export interface LlmSubFeatureConfig {
@@ -376,12 +373,9 @@ export interface SessionSummarySettings {
 | `packages/shared-providers/src/index.ts` | Export ProfileProviderFactory |
 | `packages/sidekick-supervisor/src/supervisor.ts` | Use ProfileProviderFactory, wire `ctx.llm` and `ctx.profileFactory` |
 | `packages/feature-session-summary/src/handlers/update-summary.ts` | Use profiles via `ctx.profileFactory` |
-| `packages/sidekick-supervisor/src/handlers/first-prompt-summary.handler.ts` | Use profiles via `ctx.profileFactory` |
 | `packages/types/src/features/session-summary.ts` | Add LlmSubFeatureConfig types |
-| `packages/types/src/features/first-prompt.ts` | Add LlmSubFeatureConfig types |
 | `assets/sidekick/defaults/llm.defaults.yaml` | New profile structure |
 | `assets/sidekick/defaults/features/session-summary.defaults.yaml` | Add `settings.llm` section |
-| `assets/sidekick/defaults/features/first-prompt.defaults.yaml` | Add `settings.llm` section |
 
 ---
 
@@ -396,7 +390,6 @@ Make sure to capture these in the actual profiles configuration.
 | `update-summary.ts:240` | `temperature: 0, maxTokens: 1000` | `fast-lite` |
 | `update-summary.ts:421` | `temperature: 1.2, maxTokens: 100` | `creative` |
 | `update-summary.ts:531` | `temperature: 1.2, maxTokens: 500` | `creative-long` |
-| `first-prompt-summary.handler.ts:375` | `maxTokens: 50, temperature: 0.8` | `creative` |
 
 ---
 

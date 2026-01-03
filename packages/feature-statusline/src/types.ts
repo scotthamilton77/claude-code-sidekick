@@ -8,26 +8,28 @@
  */
 
 import {
-  FirstPromptSummaryStateSchema,
   ResumeMessageStateSchema,
   TranscriptMetricsStateSchema,
   SessionSummaryStateSchema,
-  type FirstPromptSummaryState,
+  LogMetricsStateSchema,
+  EMPTY_LOG_METRICS,
   type ResumeMessageState,
   type TranscriptMetricsState,
   type SessionSummaryState,
+  type LogMetricsState,
 } from '@sidekick/types'
 import { z } from 'zod'
 
 export {
-  FirstPromptSummaryStateSchema,
   ResumeMessageStateSchema,
   TranscriptMetricsStateSchema,
   SessionSummaryStateSchema,
-  type FirstPromptSummaryState,
+  LogMetricsStateSchema,
+  EMPTY_LOG_METRICS,
   type ResumeMessageState,
   type TranscriptMetricsState,
   type SessionSummaryState,
+  type LogMetricsState,
 }
 
 // ============================================================================
@@ -41,8 +43,6 @@ export {
 export const StatuslineConfigSchema = z.object({
   enabled: z.boolean().default(true),
   format: z.string().default('[{model}] | {contextBar} {tokens} | {cwd}{branch} | {title} | {summary}'),
-  /** Confidence threshold for preferring session summary over first-prompt */
-  confidenceThreshold: z.number().default(0.6),
   thresholds: z
     .object({
       tokens: z
@@ -63,6 +63,17 @@ export const StatuslineConfigSchema = z.object({
           warning: 0.5,
           critical: 1.0,
         }),
+      logs: z
+        .object({
+          /** Warning count threshold for yellow indicator */
+          warning: z.number().default(5),
+          /** Error count threshold for red indicator (any error = critical) */
+          critical: z.number().default(1),
+        })
+        .default({
+          warning: 5,
+          critical: 1,
+        }),
     })
     .default({
       tokens: {
@@ -72,6 +83,10 @@ export const StatuslineConfigSchema = z.object({
       cost: {
         warning: 0.5,
         critical: 1.0,
+      },
+      logs: {
+        warning: 5,
+        critical: 1,
       },
     }),
   theme: z
@@ -127,7 +142,7 @@ export const DEFAULT_STATUSLINE_CONFIG: StatuslineConfig = StatuslineConfigSchem
  * Statusline display modes per docs/design/FEATURE-STATUSLINE.md §6.2.
  * Determines what content to show based on session state.
  */
-export type DisplayMode = 'resume_message' | 'empty_summary' | 'first_prompt' | 'session_summary'
+export type DisplayMode = 'resume_message' | 'empty_summary' | 'session_summary'
 
 // ============================================================================
 // View Model
@@ -196,6 +211,12 @@ export interface StatuslineViewModel {
   snarkyComment?: string
   /** Context usage data for bar visualization (optional - only when hook provides context_window) */
   contextUsage?: ContextUsageData
+  /** Warning count this session */
+  warningCount: number
+  /** Error count this session */
+  errorCount: number
+  /** Log status for color coding (normal/warning/critical) */
+  logStatus: ThresholdStatus
 }
 
 // ============================================================================
