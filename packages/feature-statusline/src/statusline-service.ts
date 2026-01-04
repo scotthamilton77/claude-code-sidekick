@@ -7,6 +7,7 @@
  * @see docs/design/FEATURE-STATUSLINE.md §5.1 StatuslineService
  */
 
+import * as path from 'node:path'
 import type { Logger } from '@sidekick/types'
 
 /** Minimal config service interface for feature packages */
@@ -247,7 +248,9 @@ export class StatuslineService {
     this.userConfigDir = serviceConfig.userConfigDir
     this.projectDir = serviceConfig.projectDir
 
-    this.stateReader = createStateReader(serviceConfig.sessionStateDir)
+    this.stateReader = createStateReader(serviceConfig.sessionStateDir, {
+      projectStateDir: serviceConfig.projectDir ? path.join(serviceConfig.projectDir, '.sidekick', 'state') : undefined,
+    })
     this.gitProvider = createGitProvider(serviceConfig.cwd)
     this.formatter = createFormatter({
       theme: this.config.theme,

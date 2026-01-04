@@ -88,6 +88,8 @@ export class Supervisor {
   private contextMetricsService: ContextMetricsService
   /** Per-session log counters for statusline {logs} indicator */
   private logCounters = new Map<string, { warnings: number; errors: number }>()
+  /** Global log counters for supervisor-level errors (not tied to any session) */
+  private globalLogCounters = { warnings: 0, errors: 0 }
   private token: string = ''
   private lastActivityTime: number = Date.now()
   private idleCheckInterval: ReturnType<typeof setInterval> | null = null
@@ -129,11 +131,16 @@ export class Supervisor {
         const sessionId =
           (meta?.context as { sessionId?: string })?.sessionId ?? (meta as { sessionId?: string })?.sessionId
         if (sessionId) {
+          // Session-specific counter
           const counters = this.logCounters.get(sessionId)
           if (counters) {
             if (level === 'warn') counters.warnings++
             else counters.errors++ // error and fatal
           }
+        } else {
+          // Global counter for supervisor-level logs without session context
+          if (level === 'warn') this.globalLogCounters.warnings++
+          else this.globalLogCounters.errors++ // error and fatal
         }
       },
     })
@@ -1092,12 +1099,14 @@ export class Supervisor {
   }
 
   /**
-   * Persist log metrics for all active sessions.
-   * Writes supervisor-log-metrics.json to each session's state directory.
+   * Persist log metrics for all active sessions and global supervisor metrics.
+   * Writes supervisor-log-metrics.json to each session's state directory,
+   * and supervisor-global-log-metrics.json to the supervisor state directory.
    */
   private async persistLogMetrics(): Promise<void> {
     const now = Date.now()
 
+    // Persist per-session log metrics
     for (const [sessionId, counts] of this.logCounters) {
       const stateDir = path.join(this.projectDir, '.sidekick', 'sessions', sessionId, 'state')
       const logMetricsPath = path.join(stateDir, 'supervisor-log-metrics.json')
@@ -1119,6 +1128,24 @@ export class Supervisor {
           error: err instanceof Error ? err.message : String(err),
         })
       }
+    }
+
+    // Persist global supervisor log metrics (for logs without session context)
+    const globalMetrics = {
+      warningCount: this.globalLogCounters.warnings,
+      errorCount: this.globalLogCounters.errors,
+      lastUpdatedAt: now,
+    }
+
+    try {
+      await this.stateManager.update('supervisor-global-log-metrics', globalMetrics)
+    } catch (err) {
+      // Log but don't crash - log metrics are non-critical
+      // Note: This log itself won't cause infinite recursion since the hook
+      // only increments counters, it doesn't trigger persistence
+      this.logger.warn('Failed to persist global log metrics', {
+        error: err instanceof Error ? err.message : String(err),
+      })
     }
   }
 
