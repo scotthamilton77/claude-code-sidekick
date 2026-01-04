@@ -57,6 +57,7 @@ function createMockRuntime(overrides: Partial<RuntimeShell> = {}): RuntimeShell 
     bindSessionId: vi.fn(),
     getLogCounts: vi.fn().mockReturnValue({ warnings: 0, errors: 0 }),
     resetLogCounts: vi.fn(),
+    loadExistingLogCounts: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   }
 }

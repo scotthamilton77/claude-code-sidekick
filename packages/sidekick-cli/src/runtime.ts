@@ -38,6 +38,7 @@ import {
   type ScopeResolutionInput,
 } from '@sidekick/core'
 import { randomUUID } from 'node:crypto'
+import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { Writable } from 'node:stream'
@@ -76,6 +77,12 @@ export interface RuntimeShell {
    * Called when session starts or clears.
    */
   resetLogCounts: () => void
+  /**
+   * Load existing log counts from cli-log-metrics.json file.
+   * Adds existing counts to the current counters for cross-invocation accumulation.
+   * Called after bindSessionId when project root is available.
+   */
+  loadExistingLogCounts: (sessionId: string, projectRoot: string) => Promise<void>
 }
 
 function getLogFilePath(scope: ScopeResolution): string {
@@ -251,6 +258,26 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
     getLogCounts: () => ({ ...logCounters }),
     resetLogCounts: () => {
       logCounters = { warnings: 0, errors: 0 }
+    },
+    loadExistingLogCounts: async (sessionId: string, projectRoot: string) => {
+      const logMetricsPath = join(projectRoot, '.sidekick', 'sessions', sessionId, 'state', 'cli-log-metrics.json')
+      try {
+        const content = await readFile(logMetricsPath, 'utf-8')
+        const parsed = JSON.parse(content) as { warningCount?: number; errorCount?: number }
+        if (typeof parsed.warningCount === 'number') {
+          logCounters.warnings += parsed.warningCount
+        }
+        if (typeof parsed.errorCount === 'number') {
+          logCounters.errors += parsed.errorCount
+        }
+        logger.debug('Loaded existing CLI log counts', {
+          sessionId,
+          existing: { warnings: parsed.warningCount ?? 0, errors: parsed.errorCount ?? 0 },
+          total: logCounters,
+        })
+      } catch {
+        // File doesn't exist or is invalid - start fresh (normal for new sessions)
+      }
     },
   }
 }

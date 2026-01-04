@@ -491,6 +491,13 @@ export class Supervisor {
       await this.handleUserPromptSubmitCleanup(event)
     }
 
+    // Ensure log counters exist for this session (supervisor may have restarted)
+    if (sessionId && !this.logCounters.has(sessionId)) {
+      const existing = await this.loadExistingLogCounts(sessionId)
+      this.logCounters.set(sessionId, existing)
+      this.logger.debug('Log counters initialized from file for hook', { sessionId, hook, existing })
+    }
+
     // Dispatch to registered handlers
     const response = await this.handlerRegistry.invokeHook(hook, event)
 
@@ -525,16 +532,25 @@ export class Supervisor {
       )
       logEvent(this.logger, clearEvent)
 
-      // Reset log counters for new/cleared session
-      this.logCounters.set(sessionId, { warnings: 0, errors: 0 })
-      this.logger.debug('Log counters reset for session', { sessionId, startType })
+      // Initialize log counters for new/cleared session
+      // For startup: load existing counts (supervisor might have restarted mid-session)
+      // For clear: reset to 0 (user wants a fresh start)
+      if (startType === 'clear') {
+        this.logCounters.set(sessionId, { warnings: 0, errors: 0 })
+        this.logger.debug('Log counters reset for cleared session', { sessionId })
+      } else {
+        const existing = await this.loadExistingLogCounts(sessionId)
+        this.logCounters.set(sessionId, existing)
+        this.logger.debug('Log counters initialized from file for startup', { sessionId, existing })
+      }
 
       this.logger.info('Staging cleared on session start', { startType })
     } else {
-      // For resume, initialize counters if not already tracking this session
+      // For resume, load existing counts if not already tracking this session
       if (!this.logCounters.has(sessionId)) {
-        this.logCounters.set(sessionId, { warnings: 0, errors: 0 })
-        this.logger.debug('Log counters initialized for resumed session', { sessionId, startType })
+        const existing = await this.loadExistingLogCounts(sessionId)
+        this.logCounters.set(sessionId, existing)
+        this.logger.debug('Log counters loaded from file for resumed session', { sessionId, existing })
       }
     }
   }
@@ -1050,6 +1066,29 @@ export class Supervisor {
 
     // Persist log metrics for each active session
     await this.persistLogMetrics()
+  }
+
+  /**
+   * Load existing log counts from supervisor-log-metrics.json.
+   * Used to restore counts after supervisor restart mid-session.
+   */
+  private async loadExistingLogCounts(sessionId: string): Promise<{ warnings: number; errors: number }> {
+    const stateDir = path.join(this.projectDir, '.sidekick', 'sessions', sessionId, 'state')
+    const logMetricsPath = path.join(stateDir, 'supervisor-log-metrics.json')
+
+    try {
+      const content = await fs.readFile(logMetricsPath, 'utf-8')
+      const parsed = JSON.parse(content) as { warningCount?: number; errorCount?: number }
+      const existing = {
+        warnings: typeof parsed.warningCount === 'number' ? parsed.warningCount : 0,
+        errors: typeof parsed.errorCount === 'number' ? parsed.errorCount : 0,
+      }
+      this.logger.debug('Loaded existing supervisor log counts', { sessionId, existing })
+      return existing
+    } catch {
+      // File doesn't exist or is invalid - start fresh (normal for new sessions)
+      return { warnings: 0, errors: 0 }
+    }
   }
 
   /**
