@@ -1,7 +1,7 @@
 /**
  * Tests for hookable-logger.ts
  *
- * @see STATUS_LOGS.md for design context
+ * @see docs/design/FEATURE-STATUSLINE.md §6.2 for usage context
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -185,7 +185,7 @@ describe('createHookableLogger', () => {
 
   describe('use case: log counting', () => {
     it('should enable counting warnings and errors by session', () => {
-      // Simulate the use case from STATUS_LOGS.md
+      // Simulate the use case from docs/design/FEATURE-STATUSLINE.md §6.2
       const counters = new Map<string, { warnings: number; errors: number }>()
       counters.set('session-1', { warnings: 0, errors: 0 })
       counters.set('session-2', { warnings: 0, errors: 0 })

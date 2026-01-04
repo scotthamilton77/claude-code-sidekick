@@ -183,7 +183,7 @@ export class StateReader {
    * Read and parse log metrics from supervisor, CLI, and global metric files.
    * Returns combined warning/error counts for the current session plus global supervisor errors.
    *
-   * Per STATUS_LOGS.md: Supervisor writes supervisor-log-metrics.json (per-session),
+   * Supervisor writes supervisor-log-metrics.json (per-session),
    * CLI writes cli-log-metrics.json (per-session), and supervisor writes
    * supervisor-global-log-metrics.json (project-level, for logs without session context).
    * StatuslineService reads and sums all three.
@@ -191,8 +191,7 @@ export class StateReader {
    * Staleness is determined by the `lastUpdatedAt` timestamp in the files.
    * This detects if the Supervisor or CLI stopped updating.
    *
-   * @see docs/design/FEATURE-STATUSLINE.md
-   * @see STATUS_LOGS.md
+   * @see docs/design/FEATURE-STATUSLINE.md §6.2
    */
   async getLogMetrics(): Promise<StateReadResult<LogMetricsState>> {
     const supervisorPath = path.join(this.stateDir, 'supervisor-log-metrics.json')

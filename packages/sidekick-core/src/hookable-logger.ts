@@ -4,7 +4,7 @@
  * Enables log counting/monitoring by injecting hooks that fire for specific log levels.
  * Used by Supervisor and CLI to track warnings/errors per session.
  *
- * @see STATUS_LOGS.md for design context
+ * @see docs/design/FEATURE-STATUSLINE.md §6.2 for usage context
  */
 
 import type { Logger, LogLevel } from '@sidekick/types'

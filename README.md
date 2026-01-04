@@ -24,6 +24,7 @@ This repository serves as a development and testing environment for [Claude Code
 Now hit enter - you should see a debug line in stderr showing whether projectStateDir is set or null.
   ⎿  Stop says: Asking the agent to verify completion before stopping...
 ```
+- naming inconsistency: sidekick vs. supervisor; and sidekick vs. CLI - need consistency across docs, source, state files, folders, etc.
 - finish ROADMAP.md
 - finish PLAN.MD (executing ARCH.md)
 - can we be resilient to json file errors?  I just ran into a case of the session-summary.json being generated with trash after the last } which made it unreadable
@@ -179,7 +180,7 @@ The Sidekick system provides a **plugin-based hook architecture** that executes 
 
 - **session-summary**: LLM-based conversation analysis with adaptive polling
 - **resume**: Async background resume generation when session summary changes significantly
-- **statusline**: Enhanced statusline with token tracking, context bar, git branch display
+- **statusline**: Enhanced statusline with token tracking, context bar, git branch, error/warning indicators
 - **tracking**: Turn and tool counters for session management
 - **reminder**: Two-tier reminder system: pause-and-reflect (tool cadence) and verify-completion (stop hook)
 - **cleanup**: Automatic garbage collection of old session directories
@@ -475,7 +476,7 @@ packages/
 ├── shared-providers/        # LLM provider abstractions (OpenRouter default)
 ├── feature-reminders/       # Reminder staging (pause-and-reflect, verify-completion)
 ├── feature-session-summary/ # LLM-based conversation analysis
-├── feature-statusline/      # Token tracking, context bar, git branch
+├── feature-statusline/      # Token tracking, context bar, git branch, log metrics
 ├── sidekick-supervisor/     # Orchestration, context metrics, session management
 ├── sidekick-cli/            # CLI entrypoint and hook dispatcher
 └── sidekick-ui/             # Monitoring UI (React SPA mockup)
