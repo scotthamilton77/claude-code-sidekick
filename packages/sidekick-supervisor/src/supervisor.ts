@@ -117,6 +117,7 @@ export class Supervisor {
     this.logManager = createLogManager({
       name: 'supervisor',
       level: this.configService.core.logging.level,
+      context: { scope: 'project' },
       destinations: {
         file: { path: path.join(logDir, 'supervisor.log') },
         console: { enabled: this.configService.core.logging.consoleEnabled },
@@ -466,12 +467,22 @@ export class Supervisor {
       throw new Error('hook.invoke requires hook and event parameters')
     }
 
-    const sessionId = event.context?.sessionId
-    this.logger.debug('Handling hook invocation', { hook, sessionId })
+    const { sessionId, correlationId } = event.context ?? {}
+
+    // Create request-scoped logger with session and correlation context
+    // This logger is passed through the call chain for full request tracing
+    const requestLogger = this.logger.child({
+      context: { sessionId, correlationId },
+    })
+
+    requestLogger.debug('Handling hook invocation', { hook })
 
     // Log EventReceived event
     if (sessionId) {
-      logEvent(this.logger, LogEvents.eventReceived({ sessionId, scope: 'project', hook }, { eventKind: 'hook', hook }))
+      logEvent(
+        requestLogger,
+        LogEvents.eventReceived({ sessionId, scope: 'project', correlationId, hook }, { eventKind: 'hook', hook })
+      )
     }
 
     // Build context and start transcript service for non-SessionEnd hooks
@@ -480,33 +491,33 @@ export class Supervisor {
     if (sessionId && hook !== 'SessionEnd') {
       const payload = event.payload as { transcriptPath?: string } | undefined
       const transcriptPath = this.resolveTranscriptPath(sessionId, payload?.transcriptPath)
-      await this.setContextForHook(sessionId, transcriptPath)
+      await this.setContextForHook(sessionId, transcriptPath, { logger: requestLogger })
     }
 
     // Handle SessionStart: clear staging on startup/clear
     if (hook === 'SessionStart') {
-      await this.handleSessionStart(event)
+      await this.handleSessionStart(event, { logger: requestLogger })
     }
 
     // Handle SessionEnd: shutdown session services
     if (hook === 'SessionEnd') {
-      await this.handleSessionEnd(event)
+      await this.handleSessionEnd(event, { logger: requestLogger })
     }
 
     // Handle UserPromptSubmit: clear staged reminders and P&R baseline
     if (hook === 'UserPromptSubmit') {
-      await this.handleUserPromptSubmitCleanup(event)
+      await this.handleUserPromptSubmitCleanup(event, { logger: requestLogger })
     }
 
     // Ensure log counters exist for this session (supervisor may have restarted)
     if (sessionId && !this.logCounters.has(sessionId)) {
       const existing = await this.loadExistingLogCounts(sessionId)
       this.logCounters.set(sessionId, existing)
-      this.logger.debug('Log counters initialized from file for hook', { sessionId, hook, existing })
+      requestLogger.debug('Log counters initialized from file for hook', { hook, existing })
     }
 
     // Dispatch to registered handlers
-    const response = await this.handlerRegistry.invokeHook(hook, event)
+    const response = await this.handlerRegistry.invokeHook(hook, event, { logger: requestLogger })
 
     return response
   }
@@ -516,12 +527,13 @@ export class Supervisor {
    *
    * Per docs/design/FEATURE-REMINDERS.md §4.1: Clear staging on startup/clear.
    */
-  private async handleSessionStart(event: HookEvent): Promise<void> {
+  private async handleSessionStart(event: HookEvent, options?: { logger?: Logger }): Promise<void> {
+    const log = options?.logger ?? this.logger
     const payload = event.payload as { startType?: string }
     const sessionId = event.context?.sessionId
 
     if (!sessionId) {
-      this.logger.warn('SessionStart event missing sessionId')
+      log.warn('SessionStart event missing sessionId')
       return
     }
 
@@ -529,35 +541,36 @@ export class Supervisor {
     const startType = payload.startType
     if (startType === 'startup' || startType === 'clear') {
       const stagingService = this.serviceFactory.getStagingService(sessionId)
-      await stagingService.clearStaging()
+      await stagingService.clearStaging(undefined, { logger: log })
 
       // Log RemindersCleared event
+      const correlationId = event.context?.correlationId
       const clearEvent = LogEvents.remindersCleared(
-        { sessionId, scope: 'project' },
+        { sessionId, scope: 'project', correlationId },
         { clearedCount: 0 }, // Count not tracked - acceptable for startup cleanup
         'session_start'
       )
-      logEvent(this.logger, clearEvent)
+      logEvent(log, clearEvent)
 
       // Initialize log counters for new/cleared session
       // For startup: load existing counts (supervisor might have restarted mid-session)
       // For clear: reset to 0 (user wants a fresh start)
       if (startType === 'clear') {
         this.logCounters.set(sessionId, { warnings: 0, errors: 0 })
-        this.logger.debug('Log counters reset for cleared session', { sessionId })
+        log.debug('Log counters reset for cleared session')
       } else {
         const existing = await this.loadExistingLogCounts(sessionId)
         this.logCounters.set(sessionId, existing)
-        this.logger.debug('Log counters initialized from file for startup', { sessionId, existing })
+        log.debug('Log counters initialized from file for startup', { existing })
       }
 
-      this.logger.info('Staging cleared on session start', { startType })
+      log.info('Staging cleared on session start', { startType })
     } else {
       // For resume, load existing counts if not already tracking this session
       if (!this.logCounters.has(sessionId)) {
         const existing = await this.loadExistingLogCounts(sessionId)
         this.logCounters.set(sessionId, existing)
-        this.logger.debug('Log counters loaded from file for resumed session', { sessionId, existing })
+        log.debug('Log counters loaded from file for resumed session', { existing })
       }
     }
   }
@@ -567,7 +580,8 @@ export class Supervisor {
    * Uses ServiceFactory for proper cleanup.
    * Per docs/design/SUPERVISOR.md §4.7.
    */
-  private async handleSessionEnd(event: HookEvent): Promise<void> {
+  private async handleSessionEnd(event: HookEvent, options?: { logger?: Logger }): Promise<void> {
+    const log = options?.logger ?? this.logger
     const sessionId = event.context?.sessionId
     if (sessionId) {
       // Shutdown instrumented LLM provider (persists final metrics)
@@ -575,14 +589,14 @@ export class Supervisor {
       if (instrumentedProvider) {
         instrumentedProvider.shutdown()
         this.instrumentedProviders.delete(sessionId)
-        this.logger.debug('Shutdown instrumented LLM provider', { sessionId })
+        log.debug('Shutdown instrumented LLM provider')
       }
 
       // Clean up log counters for this session
       this.logCounters.delete(sessionId)
 
       await this.serviceFactory.shutdownSession(sessionId)
-      this.logger.info('Session ended', { sessionId })
+      log.info('Session ended')
     }
   }
 
@@ -780,7 +794,13 @@ export class Supervisor {
    * @param sessionId - Session ID from event context
    * @param transcriptPath - Transcript path for this session
    */
-  private async setContextForHook(sessionId: string, transcriptPath: string): Promise<void> {
+  private async setContextForHook(
+    sessionId: string,
+    transcriptPath: string,
+    options?: { logger?: Logger }
+  ): Promise<void> {
+    const log = options?.logger ?? this.logger
+
     if (!(this.handlerRegistry instanceof HandlerRegistryImpl)) {
       return
     }
@@ -805,11 +825,11 @@ export class Supervisor {
       instrumentedProvider = new InstrumentedLLMProvider(this.llmProvider, {
         sessionId,
         stateDir,
-        logger: this.logger,
+        logger: log,
       })
       instrumentedProvider.initialize()
       this.instrumentedProviders.set(sessionId, instrumentedProvider)
-      this.logger.debug('Created instrumented LLM provider for session', { sessionId })
+      log.debug('Created instrumented LLM provider for session')
     }
 
     // Get staging service (doesn't trigger transcript events)
@@ -820,6 +840,7 @@ export class Supervisor {
 
     // STEP 2: Wire up full context with all services
     // Handlers will receive this context when events fire
+    // Note: We pass the request-scoped logger so handlers can log with correlationId
     const supervisorContext: SupervisorContext = {
       role: 'supervisor',
       config: {
@@ -835,7 +856,7 @@ export class Supervisor {
         getAll: () => this.configService.getAll(),
         getFeature: <T = Record<string, unknown>>(name: string) => this.configService.getFeature<T>(name),
       },
-      logger: this.logger,
+      logger: log,
       assets: this.assetResolver,
       paths,
       handlers: this.handlerRegistry,
@@ -856,7 +877,7 @@ export class Supervisor {
     // STEP 3: Start transcript service - NOW events can fire with full context
     await transcriptService.start()
 
-    this.logger.debug('SupervisorContext set for handler invocation', { sessionId })
+    log.debug('SupervisorContext set for handler invocation')
   }
 
   /**
@@ -866,11 +887,12 @@ export class Supervisor {
    * - Stale reminders should not fire
    * - P&R baseline resets for new turn threshold
    */
-  private async handleUserPromptSubmitCleanup(event: HookEvent): Promise<void> {
+  private async handleUserPromptSubmitCleanup(event: HookEvent, options?: { logger?: Logger }): Promise<void> {
+    const log = options?.logger ?? this.logger
     const sessionId = event.context?.sessionId
 
     if (!sessionId) {
-      this.logger.warn('UserPromptSubmit event missing sessionId')
+      log.warn('UserPromptSubmit event missing sessionId')
       return
     }
 
@@ -879,9 +901,9 @@ export class Supervisor {
     const stagingService = this.serviceFactory.getStagingService(sessionId)
     const hooksToClear: Array<'PreToolUse' | 'PostToolUse' | 'Stop'> = ['PreToolUse', 'PostToolUse', 'Stop']
     for (const hook of hooksToClear) {
-      await stagingService.clearStaging(hook)
+      await stagingService.clearStaging(hook, { logger: log })
     }
-    this.logger.debug('Cleared staged reminders on UserPromptSubmit', { sessionId, hooks: hooksToClear })
+    log.debug('Cleared staged reminders on UserPromptSubmit', { hooks: hooksToClear })
 
     // Build state directory path
     const stateDir = path.join(this.projectDir, '.sidekick', 'sessions', sessionId, 'state')
@@ -889,7 +911,7 @@ export class Supervisor {
     // Clear P&R baseline on new user prompt (new turn resets threshold)
     try {
       await fs.unlink(path.join(stateDir, 'pr-baseline.json'))
-      this.logger.debug('Cleared P&R baseline on UserPromptSubmit', { sessionId })
+      log.debug('Cleared P&R baseline on UserPromptSubmit')
     } catch {
       // File may not exist - ignore
     }

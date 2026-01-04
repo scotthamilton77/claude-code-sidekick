@@ -156,15 +156,16 @@ export class HandlerRegistryImpl implements HandlerRegistry {
   // Hook Event Dispatch (Sequential)
   // ============================================================================
 
-  async invokeHook(hook: HookName, event: HookEvent): Promise<HookResponse> {
+  async invokeHook(hook: HookName, event: HookEvent, options?: { logger?: Logger }): Promise<HookResponse> {
+    const log = options?.logger ?? this.options.logger
     const matchingHandlers = this.getHandlersForHook(hook)
 
     if (matchingHandlers.length === 0) {
-      this.options.logger.debug('No handlers for hook', { hook })
+      log.debug('No handlers for hook', { hook })
       return {}
     }
 
-    this.options.logger.debug('Invoking hook handlers', {
+    log.debug('Invoking hook handlers', {
       hook,
       handlerCount: matchingHandlers.length,
     })
@@ -178,7 +179,7 @@ export class HandlerRegistryImpl implements HandlerRegistry {
         const result = await handler.handler(event, this.context)
         const durationMs = Date.now() - startTime
 
-        this.options.logger.debug('Handler executed', {
+        log.debug('Handler executed', {
           handlerId: handler.id,
           hook,
           durationMs,
@@ -195,12 +196,12 @@ export class HandlerRegistryImpl implements HandlerRegistry {
 
         // Check for stop flag
         if (result && typeof result === 'object' && 'stop' in result && (result as { stop?: boolean }).stop) {
-          this.options.logger.debug('Handler requested stop', { handlerId: handler.id })
+          log.debug('Handler requested stop', { handlerId: handler.id })
           break
         }
       } catch (err) {
         // Log error but continue to next handler
-        this.options.logger.error('Handler execution failed', {
+        log.error('Handler execution failed', {
           handlerId: handler.id,
           hook,
           error: err instanceof Error ? err.message : String(err),

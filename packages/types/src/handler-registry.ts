@@ -9,6 +9,7 @@
  */
 
 import type { HookName, HookEvent, TranscriptEventType, TranscriptEntry, SidekickEvent } from './events.js'
+import type { Logger } from './logger.js'
 
 // ============================================================================
 // Handler Filter
@@ -142,7 +143,7 @@ export interface HandlerRegistry {
    * @param event - The hook event
    * @returns Aggregated hook response
    */
-  invokeHook(hook: HookName, event: HookEvent): Promise<HookResponse>
+  invokeHook(hook: HookName, event: HookEvent, options?: { logger?: Logger }): Promise<HookResponse>
 
   /**
    * Emit a transcript event to matching handlers.

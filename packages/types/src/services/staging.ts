@@ -8,6 +8,8 @@
  * @see docs/design/FEATURE-REMINDERS.md
  */
 
+import type { Logger } from '../logger.js'
+
 /**
  * P&R baseline state stored after VC consumption.
  * Used to reset P&R threshold after verify-completion is injected.
@@ -84,8 +86,10 @@ export interface StagingService {
 
   /**
    * Clear all staged reminders for a hook (or all hooks).
+   * @param hookName - Optional hook name to clear (clears all if omitted)
+   * @param options - Optional options including request-scoped logger
    */
-  clearStaging(hookName?: string): Promise<void>
+  clearStaging(hookName?: string, options?: { logger?: Logger }): Promise<void>
 
   /**
    * List all staged reminders for a hook, sorted by priority (highest first).
