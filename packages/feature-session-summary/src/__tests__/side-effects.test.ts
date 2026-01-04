@@ -126,6 +126,114 @@ describe('Session Summary Side-Effects', () => {
       expect(snarkyContent).toBe('Still wrestling with bugs, I see.')
     })
 
+    it('strips surrounding double quotes from snarky message', async () => {
+      const sessionId = 'test-session-quotes-double'
+      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
+      await fs.mkdir(stateDir, { recursive: true })
+
+      // Write existing summary to trigger title change
+      await fs.writeFile(
+        path.join(stateDir, 'session-summary.json'),
+        JSON.stringify({
+          session_id: sessionId,
+          session_title: 'Old Title',
+          session_title_confidence: 0.8,
+          latest_intent: 'Old intent',
+          latest_intent_confidence: 0.8,
+        })
+      )
+
+      // LLM returns response with surrounding double quotes
+      llm.queueResponses([
+        JSON.stringify({
+          session_title: 'New Title',
+          session_title_confidence: 0.9,
+          latest_intent: 'Fixing bugs',
+          latest_intent_confidence: 0.9,
+          pivot_detected: false,
+        }),
+        '"Bugs beware, the fixer is here!"',
+      ])
+
+      await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+
+      const snarkyPath = path.join(stateDir, 'snarky-message.txt')
+      const snarkyContent = await fs.readFile(snarkyPath, 'utf-8')
+      expect(snarkyContent).toBe('Bugs beware, the fixer is here!')
+    })
+
+    it('strips surrounding single quotes from snarky message', async () => {
+      const sessionId = 'test-session-quotes-single'
+      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
+      await fs.mkdir(stateDir, { recursive: true })
+
+      // Write existing summary to trigger title change
+      await fs.writeFile(
+        path.join(stateDir, 'session-summary.json'),
+        JSON.stringify({
+          session_id: sessionId,
+          session_title: 'Old Title',
+          session_title_confidence: 0.8,
+          latest_intent: 'Old intent',
+          latest_intent_confidence: 0.8,
+        })
+      )
+
+      // LLM returns response with surrounding single quotes
+      llm.queueResponses([
+        JSON.stringify({
+          session_title: 'New Title',
+          session_title_confidence: 0.9,
+          latest_intent: 'Fixing bugs',
+          latest_intent_confidence: 0.9,
+          pivot_detected: false,
+        }),
+        "'Another day, another bug.'",
+      ])
+
+      await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+
+      const snarkyPath = path.join(stateDir, 'snarky-message.txt')
+      const snarkyContent = await fs.readFile(snarkyPath, 'utf-8')
+      expect(snarkyContent).toBe('Another day, another bug.')
+    })
+
+    it('preserves internal quotes in snarky message', async () => {
+      const sessionId = 'test-session-quotes-internal'
+      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
+      await fs.mkdir(stateDir, { recursive: true })
+
+      // Write existing summary to trigger title change
+      await fs.writeFile(
+        path.join(stateDir, 'session-summary.json'),
+        JSON.stringify({
+          session_id: sessionId,
+          session_title: 'Old Title',
+          session_title_confidence: 0.8,
+          latest_intent: 'Old intent',
+          latest_intent_confidence: 0.8,
+        })
+      )
+
+      // LLM returns response with quotes inside but not wrapping
+      llm.queueResponses([
+        JSON.stringify({
+          session_title: 'New Title',
+          session_title_confidence: 0.9,
+          latest_intent: 'Fixing bugs',
+          latest_intent_confidence: 0.9,
+          pivot_detected: false,
+        }),
+        'Bugs say "hello" to you.',
+      ])
+
+      await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+
+      const snarkyPath = path.join(stateDir, 'snarky-message.txt')
+      const snarkyContent = await fs.readFile(snarkyPath, 'utf-8')
+      expect(snarkyContent).toBe('Bugs say "hello" to you.')
+    })
+
     it('generates snarky message when intent changes', async () => {
       const sessionId = 'test-session-2'
       const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')

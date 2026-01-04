@@ -423,6 +423,21 @@ function hasSignificantChange(
 }
 
 /**
+ * Strip surrounding quotes from a string if they enclose the entire content.
+ * Handles both single and double quotes.
+ * Only strips if the string starts AND ends with matching quotes.
+ */
+function stripSurroundingQuotes(text: string): string {
+  if (text.length < 2) return text
+  const first = text[0]
+  const last = text[text.length - 1]
+  if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+    return text.slice(1, -1)
+  }
+  return text
+}
+
+/**
  * Generate snarky message as a side-effect.
  * Called when title or intent changed significantly.
  * Uses separate LLM call with higher temperature for creativity.
@@ -458,7 +473,8 @@ async function generateSnarkyMessage(
     })
 
     // Snarky message is plain text, no JSON parsing needed
-    const snarkyMessage = response.content.trim()
+    // Strip surrounding quotes if they enclose the entire response
+    const snarkyMessage = stripSurroundingQuotes(response.content.trim())
 
     // Save to state file
     const stateDir = ctx.paths.projectConfigDir ?? ctx.paths.userConfigDir
