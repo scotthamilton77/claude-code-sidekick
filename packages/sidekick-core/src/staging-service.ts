@@ -246,7 +246,8 @@ export class StagingServiceCore {
    *
    * @throws Error if hookName contains path traversal characters
    */
-  async clearStaging(sessionId: string, hookName?: string): Promise<void> {
+  async clearStaging(sessionId: string, hookName?: string, _options?: { logger?: Logger }): Promise<void> {
+    // Note: logger available via _options?.logger for future use
     if (hookName) {
       validatePathSegment(hookName, 'hookName')
       // Clear specific hook directory
@@ -458,8 +459,8 @@ export class SessionScopedStagingService implements StagingService {
     return this.core.listReminders(this.sessionId, hookName)
   }
 
-  async clearStaging(hookName?: string): Promise<void> {
-    return this.core.clearStaging(this.sessionId, hookName)
+  async clearStaging(hookName?: string, options?: { logger?: Logger }): Promise<void> {
+    return this.core.clearStaging(this.sessionId, hookName, options)
   }
 
   async deleteReminder(hookName: string, reminderName: string): Promise<void> {

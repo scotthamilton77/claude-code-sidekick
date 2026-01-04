@@ -489,6 +489,80 @@ export interface ReminderStagedEvent extends LoggingEventBase {
   }
 }
 
+// --- Supervisor Lifecycle Events ---
+
+/**
+ * Supervisor process starting.
+ * Emitted at the beginning of supervisor initialization.
+ */
+export interface SupervisorStartingEvent extends LoggingEventBase {
+  type: 'SupervisorStarting'
+  source: 'supervisor'
+  payload: {
+    metadata: {
+      projectDir: string
+      pid: number
+    }
+  }
+}
+
+/**
+ * Supervisor process started successfully.
+ * Emitted when all supervisor components are initialized.
+ */
+export interface SupervisorStartedEvent extends LoggingEventBase {
+  type: 'SupervisorStarted'
+  source: 'supervisor'
+  payload: {
+    metadata: {
+      startupDurationMs: number
+    }
+  }
+}
+
+/**
+ * IPC server started and listening.
+ * Emitted when Unix socket is ready to accept connections.
+ */
+export interface IpcServerStartedEvent extends LoggingEventBase {
+  type: 'IpcServerStarted'
+  source: 'supervisor'
+  payload: {
+    metadata: {
+      socketPath: string
+    }
+  }
+}
+
+/**
+ * Config watcher started.
+ * Emitted when file watcher begins monitoring config files.
+ */
+export interface ConfigWatcherStartedEvent extends LoggingEventBase {
+  type: 'ConfigWatcherStarted'
+  source: 'supervisor'
+  payload: {
+    metadata: {
+      projectDir: string
+      watchedFiles: string[]
+    }
+  }
+}
+
+/**
+ * Session eviction timer started.
+ * Emitted when idle session cleanup timer is activated.
+ */
+export interface SessionEvictionStartedEvent extends LoggingEventBase {
+  type: 'SessionEvictionStarted'
+  source: 'supervisor'
+  payload: {
+    metadata: {
+      intervalMs: number
+    }
+  }
+}
+
 /**
  * Internal event: Summary recalculated successfully
  * Emitted when session summary is updated via LLM analysis.
@@ -714,6 +788,11 @@ export type SupervisorLoggingEvent =
   | EventReceivedEvent
   | EventProcessedEvent
   | ReminderStagedEvent
+  | SupervisorStartingEvent
+  | SupervisorStartedEvent
+  | IpcServerStartedEvent
+  | ConfigWatcherStartedEvent
+  | SessionEvictionStartedEvent
   | SummaryUpdatedEvent
   | SummarySkippedEvent
   | ResumeGeneratingEvent

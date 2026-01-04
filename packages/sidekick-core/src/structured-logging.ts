@@ -606,6 +606,11 @@ import type {
   EventReceivedEvent,
   EventProcessedEvent,
   ReminderStagedEvent,
+  SupervisorStartingEvent,
+  SupervisorStartedEvent,
+  IpcServerStartedEvent,
+  ConfigWatcherStartedEvent,
+  SessionEvictionStartedEvent,
   SummaryUpdatedEvent,
   SummarySkippedEvent,
   ResumeGeneratingEvent,
@@ -777,6 +782,98 @@ export const LogEvents = {
       },
       payload: {
         state,
+        metadata,
+      },
+    }
+  },
+
+  // --- Supervisor Lifecycle Events ---
+
+  /**
+   * Create a SupervisorStarting event (logged at beginning of supervisor initialization).
+   */
+  supervisorStarting(metadata: { projectDir: string; pid: number }): SupervisorStartingEvent {
+    return {
+      type: 'SupervisorStarting',
+      time: Date.now(),
+      source: 'supervisor',
+      context: {
+        sessionId: '',
+        scope: 'project',
+      },
+      payload: {
+        metadata,
+      },
+    }
+  },
+
+  /**
+   * Create a SupervisorStarted event (logged when supervisor initialization completes).
+   */
+  supervisorStarted(metadata: { startupDurationMs: number }): SupervisorStartedEvent {
+    return {
+      type: 'SupervisorStarted',
+      time: Date.now(),
+      source: 'supervisor',
+      context: {
+        sessionId: '',
+        scope: 'project',
+      },
+      payload: {
+        metadata,
+      },
+    }
+  },
+
+  /**
+   * Create an IpcServerStarted event (logged when Unix socket is ready).
+   */
+  ipcServerStarted(metadata: { socketPath: string }): IpcServerStartedEvent {
+    return {
+      type: 'IpcServerStarted',
+      time: Date.now(),
+      source: 'supervisor',
+      context: {
+        sessionId: '',
+        scope: 'project',
+      },
+      payload: {
+        metadata,
+      },
+    }
+  },
+
+  /**
+   * Create a ConfigWatcherStarted event (logged when file watcher starts).
+   */
+  configWatcherStarted(metadata: { projectDir: string; watchedFiles: string[] }): ConfigWatcherStartedEvent {
+    return {
+      type: 'ConfigWatcherStarted',
+      time: Date.now(),
+      source: 'supervisor',
+      context: {
+        sessionId: '',
+        scope: 'project',
+      },
+      payload: {
+        metadata,
+      },
+    }
+  },
+
+  /**
+   * Create a SessionEvictionStarted event (logged when cleanup timer starts).
+   */
+  sessionEvictionStarted(metadata: { intervalMs: number }): SessionEvictionStartedEvent {
+    return {
+      type: 'SessionEvictionStarted',
+      time: Date.now(),
+      source: 'supervisor',
+      context: {
+        sessionId: '',
+        scope: 'project',
+      },
+      payload: {
         metadata,
       },
     }

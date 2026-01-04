@@ -12,7 +12,6 @@ This repository serves as a development and testing environment for [Claude Code
 
 ### Sidekick
 
-- format of supervisor vs. sidekick log are different
 - stop prompt enhancement: can we assess whether the agent is claiming completion or stopping to give an update or user instructions?
 ```
 Now hit enter - you should see a debug line in stderr showing whether projectStateDir is set or null.
