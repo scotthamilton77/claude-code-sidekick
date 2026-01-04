@@ -1,0 +1,32 @@
+{
+  "hook_event_name": "Status",
+  "session_id": "f7a2c8e1-3b9d-4f6a-a5e2-1c8d9b4e7f3a",
+  "transcript_path": "/Users/scott/.claude/projects/-Users-scott-src-projects-claude-config/f7a2c8e1-3b9d-4f6a-a5e2-1c8d9b4e7f3a.jsonl",
+  "cwd": "/Users/scott/src/projects/claude-config",
+  "model": {
+    "id": "claude-sonnet-4-20250514",
+    "display_name": "Sonnet"
+  },
+  "workspace": {
+    "current_dir": "/Users/scott/src/projects/claude-config",
+    "project_dir": "/Users/scott/src/projects/claude-config"
+  },
+  "version": "2.0.76",
+  "output_style": {
+    "name": "default"
+  },
+  "cost": {
+    "total_cost_usd": 0.0,
+    "total_duration_ms": 0,
+    "total_api_duration_ms": 0,
+    "total_lines_added": 0,
+    "total_lines_removed": 0
+  },
+  "context_window": {
+    "total_input_tokens": 0,
+    "total_output_tokens": 0,
+    "context_window_size": 200000,
+    "current_usage": null,
+    "exceeds_200k_tokens": false
+  }
+}

@@ -13,6 +13,7 @@ import {
   SessionSummaryStateSchema,
   LogMetricsStateSchema,
   EMPTY_LOG_METRICS,
+  SESSION_SUMMARY_PLACEHOLDERS,
   type ResumeMessageState,
   type TranscriptMetricsState,
   type SessionSummaryState,
@@ -278,9 +279,13 @@ export const EMPTY_SESSION_SUMMARY: SessionSummaryState = {
   latest_intent_confidence: 0,
 }
 
+/**
+ * Default placeholder values for statusline display.
+ * Derived from canonical SESSION_SUMMARY_PLACEHOLDERS in @sidekick/types.
+ */
 export const DEFAULT_PLACEHOLDERS = {
-  newSession: 'New session',
-  awaitingFirstTurn: 'Awaiting first turn',
+  newSession: SESSION_SUMMARY_PLACEHOLDERS.newSession,
+  awaitingFirstTurn: SESSION_SUMMARY_PLACEHOLDERS.awaitingFirstPrompt,
 } as const
 
 /**

@@ -481,6 +481,7 @@ export class StatuslineService {
     let usingBaseline = false
     let usingTranscript = false
 
+    // Determine the effective tokens used for context display
     if (this.hookInput) {
       const usage = this.hookInput.context_window.current_usage
 
@@ -610,15 +611,21 @@ export class StatuslineService {
    */
   private determineDisplayMode(summary: SessionSummaryState, resume: ResumeMessageState | null): DisplayMode {
     // Check if we have a meaningful summary
-    const hasSummary = summary.session_title && summary.session_title !== ''
+    const hasSummary =
+      summary.session_title &&
+      summary.session_title !== '' &&
+      summary.session_title !== DEFAULT_PLACEHOLDERS.newSession &&
+      summary.latest_intent !== DEFAULT_PLACEHOLDERS.awaitingFirstTurn
 
     // Priority 1: Resume message (explicit session continuation)
     if (resume && this.isResumedSession) {
+      this.logger?.debug('Display mode selected: resume_message (resumed session with resume message)')
       return 'resume_message'
     }
 
     // Priority 2: Session summary (if exists with title)
     if (hasSummary) {
+      this.logger?.debug('Display mode selected: session_summary (existing session summary)')
       return 'session_summary'
     }
 
@@ -627,9 +634,11 @@ export class StatuslineService {
     // This provides context about what the user was working on before
     // FIXME is this necessary since it's covered in priority 1?
     if (resume) {
+      this.logger?.debug('Display mode selected: resume_message (discovered resume message from previous session)')
       return 'resume_message'
     }
 
+    this.logger?.debug('Display mode selected: empty_summary (new session with no summary)')
     return 'empty_summary'
   }
 
