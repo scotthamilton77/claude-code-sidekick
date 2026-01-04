@@ -155,20 +155,22 @@ export type SessionMetricsState = TranscriptMetricsState
 // ============================================================================
 
 /**
- * Log metrics state for tracking warnings and errors per session.
+ * Log metrics state for tracking warnings and errors.
  * Supervisor maintains in-memory counters and persists during heartbeat.
  * Statusline reads this for the {logs} template placeholder.
  *
- * Location: `.sidekick/sessions/{sessionId}/state/log-metrics.json`
+ * Used for both per-session metrics (with sessionId) and global metrics (without sessionId).
+ * - Per-session: `.sidekick/sessions/{sessionId}/state/supervisor-log-metrics.json`
+ * - Global: `.sidekick/state/supervisor-global-log-metrics.json`
  *
  * @see docs/design/FEATURE-STATUSLINE.md
  */
 export const LogMetricsStateSchema = z.object({
-  /** Session identifier */
-  sessionId: z.string(),
-  /** Warning log count this session */
+  /** Session identifier (optional for global metrics) */
+  sessionId: z.string().optional(),
+  /** Warning log count */
   warningCount: z.number(),
-  /** Error log count this session */
+  /** Error log count */
   errorCount: z.number(),
   /** Unix timestamp (ms) of last update */
   lastUpdatedAt: z.number(),

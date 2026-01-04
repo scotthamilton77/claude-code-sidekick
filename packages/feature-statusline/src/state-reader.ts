@@ -44,6 +44,8 @@ const STALE_THRESHOLD_MS = 60_000 // 60 seconds
 export interface StateReaderConfig {
   /** Session state directory (e.g., .sidekick/sessions/{id}/state/) */
   stateDir: string
+  /** Project state directory (e.g., .sidekick/state/) for global supervisor metrics */
+  projectStateDir?: string
   /** Threshold in ms for staleness detection */
   staleThresholdMs?: number
 }
@@ -54,10 +56,12 @@ export interface StateReaderConfig {
  */
 export class StateReader {
   private readonly stateDir: string
+  private readonly projectStateDir: string | null
   private readonly staleThresholdMs: number
 
   constructor(config: StateReaderConfig) {
     this.stateDir = config.stateDir
+    this.projectStateDir = config.projectStateDir ?? null
     this.staleThresholdMs = config.staleThresholdMs ?? STALE_THRESHOLD_MS
   }
 
@@ -176,11 +180,13 @@ export class StateReader {
   }
 
   /**
-   * Read and parse log metrics from both supervisor and CLI metric files.
-   * Returns combined warning/error counts for the current session.
+   * Read and parse log metrics from supervisor, CLI, and global metric files.
+   * Returns combined warning/error counts for the current session plus global supervisor errors.
    *
-   * Per STATUS_LOGS.md: Supervisor writes supervisor-log-metrics.json,
-   * CLI writes cli-log-metrics.json. StatuslineService reads and sums both.
+   * Per STATUS_LOGS.md: Supervisor writes supervisor-log-metrics.json (per-session),
+   * CLI writes cli-log-metrics.json (per-session), and supervisor writes
+   * supervisor-global-log-metrics.json (project-level, for logs without session context).
+   * StatuslineService reads and sums all three.
    *
    * Staleness is determined by the `lastUpdatedAt` timestamp in the files.
    * This detects if the Supervisor or CLI stopped updating.
@@ -192,25 +198,50 @@ export class StateReader {
     const supervisorPath = path.join(this.stateDir, 'supervisor-log-metrics.json')
     const cliPath = path.join(this.stateDir, 'cli-log-metrics.json')
 
-    const [supervisorResult, cliResult] = await Promise.all([
+    const readPromises: Promise<StateReadResult<LogMetricsState>>[] = [
       this.readLogMetricsFile(supervisorPath),
       this.readLogMetricsFile(cliPath),
-    ])
+    ]
 
-    // Sum counts from both sources
+    // Also read global supervisor metrics if project state dir is configured
+    if (this.projectStateDir) {
+      const globalPath = path.join(this.projectStateDir, 'supervisor-global-log-metrics.json')
+      readPromises.push(this.readLogMetricsFile(globalPath))
+    }
+
+    const results = await Promise.all(readPromises)
+    const [supervisorResult, cliResult, globalResult] = results
+
+    // Sum counts from all sources
+    let warningCount = supervisorResult.data.warningCount + cliResult.data.warningCount
+    let errorCount = supervisorResult.data.errorCount + cliResult.data.errorCount
+    let lastUpdatedAt = Math.max(supervisorResult.data.lastUpdatedAt, cliResult.data.lastUpdatedAt)
+
+    if (globalResult) {
+      warningCount += globalResult.data.warningCount
+      errorCount += globalResult.data.errorCount
+      lastUpdatedAt = Math.max(lastUpdatedAt, globalResult.data.lastUpdatedAt)
+    }
+
     const combined: LogMetricsState = {
       sessionId: supervisorResult.data.sessionId || cliResult.data.sessionId || '',
-      warningCount: supervisorResult.data.warningCount + cliResult.data.warningCount,
-      errorCount: supervisorResult.data.errorCount + cliResult.data.errorCount,
-      lastUpdatedAt: Math.max(supervisorResult.data.lastUpdatedAt, cliResult.data.lastUpdatedAt),
+      warningCount,
+      errorCount,
+      lastUpdatedAt,
     }
 
     // Determine combined source status
-    const isStale = supervisorResult.source === 'stale' || cliResult.source === 'stale'
-    const isBothDefault = supervisorResult.source === 'default' && cliResult.source === 'default'
+    const isStale =
+      supervisorResult.source === 'stale' ||
+      cliResult.source === 'stale' ||
+      (globalResult !== undefined && globalResult.source === 'stale')
+    const isAllDefault =
+      supervisorResult.source === 'default' &&
+      cliResult.source === 'default' &&
+      (!globalResult || globalResult.source === 'default')
 
     return {
-      source: isStale ? 'stale' : isBothDefault ? 'default' : 'fresh',
+      source: isStale ? 'stale' : isAllDefault ? 'default' : 'fresh',
       data: combined,
       mtime: combined.lastUpdatedAt,
     }
@@ -275,9 +306,13 @@ export class StateReader {
 /**
  * Factory function to create StateReader for a session.
  */
-export function createStateReader(sessionStateDir: string, options?: { staleThresholdMs?: number }): StateReader {
+export function createStateReader(
+  sessionStateDir: string,
+  options?: { staleThresholdMs?: number; projectStateDir?: string }
+): StateReader {
   return new StateReader({
     stateDir: sessionStateDir,
+    projectStateDir: options?.projectStateDir,
     staleThresholdMs: options?.staleThresholdMs,
   })
 }
