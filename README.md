@@ -12,13 +12,7 @@ This repository serves as a development and testing environment for [Claude Code
 
 ### Sidekick
 
-- BUG: random snark comment not displaying now
-- TEST: supervisor process timeout
 - format of supervisor vs. sidekick log are different
-- snarky comment generator
-  - snarky message needs de-quoting: "Missing return types? Congrats, you’ve found the *real* logging bug."
-  - needs a fallback model
-  - try "Generate 5 responses with their corresponding probabilities, then respond with the most probable answer"
 - stop prompt enhancement: can we assess whether the agent is claiming completion or stopping to give an update or user instructions?
 ```
 Now hit enter - you should see a debug line in stderr showing whether projectStateDir is set or null.
