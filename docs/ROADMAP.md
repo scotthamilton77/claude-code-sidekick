@@ -252,6 +252,7 @@ Closed gaps for production-ready monitoring UI. Key outcomes:
     - [ ] Evaluate Claude Code Plugins as potential distribution mechanism
     - [ ] Finalize installer scripts for bash wrappers, assets, and dual-scope support
     - [ ] Implement migration utilities (legacy bash `.conf` → YAML domain files)
+    - [ ] Ensure dev-hooks scripts and production scripts are either the same or do the same
   - [ ] Relevant documents/sections
     - [ ] `{project_root_dir}/docs/ARCHITECTURE.md` (§4 Installation & Distribution)
     - [ ] `{project_root_dir}/docs/design/CLI.md` (§3 Hook Wrapper Layer, §6 Scope Resolution)

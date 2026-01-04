@@ -415,8 +415,12 @@ export async function runCli(options: RunCliOptions): Promise<{ exitCode: number
   const sessionId = parsed.sessionIdArg ?? hookInput?.sessionId
 
   // Bind sessionId to logger context so all subsequent logs include it
+  // Also load existing log counts for cross-invocation accumulation
   if (sessionId) {
     runtime.bindSessionId(sessionId)
+    if (runtime.scope.projectRoot) {
+      await runtime.loadExistingLogCounts(sessionId, runtime.scope.projectRoot)
+    }
   }
 
   await initializeSession({

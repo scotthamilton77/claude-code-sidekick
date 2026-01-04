@@ -13,11 +13,13 @@ This repository serves as a development and testing environment for [Claude Code
 ### Sidekick
 
 - TEST: statusline: could we show an indicator when there are warnings/errors in the log (as a configurable placeholder template)
+- BUG: random snark comment not displaying now
+- TEST: supervisor process timeout
+- format of supervisor vs. sidekick log are different
 - snarky comment generator
   - snarky message needs de-quoting: "Missing return types? Congrats, you’ve found the *real* logging bug."
   - needs a fallback model
   - try "Generate 5 responses with their corresponding probabilities, then respond with the most probable answer"
-- optimization: after a clean-all if we resume an existing claude session, we reconstruct the state processing the transcript line by line.  This is inefficient in that we'll end up making multiple llm calls for potentially unused interim summary state.  Consider parsing larger chunks?
 - finish ROADMAP.md
 - finish PLAN.MD (executing ARCH.md)
 - can we be resilient to json file errors?  I just ran into a case of the session-summary.json being generated with trash after the last } which made it unreadable
