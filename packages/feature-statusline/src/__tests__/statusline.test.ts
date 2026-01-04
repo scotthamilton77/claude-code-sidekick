@@ -1013,7 +1013,7 @@ describe('StatuslineService', () => {
     const result = await service.render()
 
     expect(result.displayMode).toBe('empty_summary')
-    expect(result.viewModel.summary).toBe('New session')
+    expect(result.viewModel.summary).toBe('New Session')
   })
 
   it('renders session summary when available', async () => {
@@ -1370,7 +1370,7 @@ describe('StatuslineService', () => {
       const result = await service.render()
 
       expect(result.displayMode).toBe('empty_summary')
-      expect(result.viewModel.summary).toBe('New session')
+      expect(result.viewModel.summary).toBe('New Session')
     })
 
     it('falls back to default when messages file is missing', async () => {
@@ -1386,7 +1386,7 @@ describe('StatuslineService', () => {
       const result = await service.render()
 
       expect(result.displayMode).toBe('empty_summary')
-      expect(result.viewModel.summary).toBe('New session')
+      expect(result.viewModel.summary).toBe('New Session')
     })
 
     it('falls back to default when messages file is empty', async () => {
@@ -1402,7 +1402,7 @@ describe('StatuslineService', () => {
       const result = await service.render()
 
       expect(result.displayMode).toBe('empty_summary')
-      expect(result.viewModel.summary).toBe('New session')
+      expect(result.viewModel.summary).toBe('New Session')
     })
 
     it('handles blank lines in messages file', async () => {

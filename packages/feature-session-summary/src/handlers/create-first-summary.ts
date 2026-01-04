@@ -9,8 +9,8 @@
 
 import type { SessionStartHookEvent } from '@sidekick/core'
 import { backupIfDevMode } from '@sidekick/core'
-import type { SupervisorContext } from '@sidekick/types'
-import type { SessionSummaryState } from '../types.js'
+import type { SupervisorContext, SessionSummaryState } from '@sidekick/types'
+import { SESSION_SUMMARY_PLACEHOLDERS } from '@sidekick/types'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
@@ -29,9 +29,9 @@ export async function createFirstSessionSummary(event: SessionStartHookEvent, ct
   const placeholder: SessionSummaryState = {
     session_id: sessionId,
     timestamp: new Date().toISOString(),
-    session_title: 'New Session',
+    session_title: SESSION_SUMMARY_PLACEHOLDERS.newSession,
     session_title_confidence: 0,
-    latest_intent: 'Awaiting first prompt...',
+    latest_intent: SESSION_SUMMARY_PLACEHOLDERS.awaitingFirstPrompt,
     latest_intent_confidence: 0,
   }
 

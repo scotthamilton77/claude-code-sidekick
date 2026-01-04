@@ -61,6 +61,19 @@ export const SessionSummaryStateSchema = z.object({
 export type SessionSummaryState = z.infer<typeof SessionSummaryStateSchema>
 
 /**
+ * Default placeholder values for session summary state.
+ * Used by create-first-summary handler and statusline service for consistent defaults.
+ *
+ * @see docs/design/FEATURE-SESSION-SUMMARY.md §3.1
+ */
+export const SESSION_SUMMARY_PLACEHOLDERS = {
+  /** Default title for new sessions before first analysis */
+  newSession: 'New Session',
+  /** Default intent message while awaiting first user prompt */
+  awaitingFirstPrompt: 'Awaiting first prompt...',
+} as const
+
+/**
  * Internal countdown state for throttling session summary updates.
  * Stored alongside session summary for persistence across Supervisor restarts.
  *

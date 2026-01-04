@@ -3,9 +3,11 @@
  * CLI Binary Entrypoint
  *
  * Reads hook input JSON from stdin (per CLI.md §3.1) and invokes the CLI.
+ * Supports --input-file=<path> for debugging (reads file instead of stdin).
  *
  * @see docs/design/CLI.md §3.1.1 Hook Input Structure
  */
+import { readFile } from 'node:fs/promises'
 import process from 'node:process'
 import { createInterface } from 'node:readline'
 
@@ -34,9 +36,19 @@ async function readStdin(): Promise<string> {
   return chunks.join('\n')
 }
 
+/**
+ * Extract --input-file=<path> from argv for debugging support.
+ * This allows VSCode debugging without piping stdin.
+ */
+function getInputFilePath(argv: string[]): string | undefined {
+  const arg = argv.find((a) => a.startsWith('--input-file='))
+  return arg?.split('=')[1]
+}
+
 async function main(): Promise<void> {
-  // Read hook input from stdin (per CLI.md §3.1)
-  const stdinData = await readStdin()
+  // Support --input-file for debugging (reads file instead of stdin)
+  const inputFile = getInputFilePath(process.argv)
+  const stdinData = inputFile ? await readFile(inputFile, 'utf-8') : await readStdin()
 
   const result = await runCli({
     argv: process.argv.slice(2),
