@@ -36,7 +36,12 @@ State files live in `.sidekick/sessions/{session_id}/state/`, parallel to the `s
 └── state/           # Statusline data (this feature)
     ├── session-state.json
     ├── session-summary.json
-    └── resume-message.json
+    ├── resume-message.json
+    ├── cli-log-metrics.json           # CLI warning/error counts
+    └── supervisor-log-metrics.json    # Supervisor warning/error counts
+
+.sidekick/state/                       # Project-level state (session-agnostic)
+└── supervisor-global-log-metrics.json # Global supervisor logs (no session context)
 ```
 
 ### 3.2 Input Data Sources
@@ -47,6 +52,9 @@ State files live in `.sidekick/sessions/{session_id}/state/`, parallel to the `s
 | `.sidekick/sessions/{id}/state/session-summary.json` | Session Title, Latest Intent            | Read File (JSON)            |
 | `.sidekick/sessions/{id}/state/snarky-message.txt`   | Snarky Comment                          | Read File (Text)            |
 | `.sidekick/sessions/{id}/state/resume-message.json`  | Resume message (for session resumption) | Read File (JSON)            |
+| `.sidekick/sessions/{id}/state/cli-log-metrics.json` | CLI warning/error counts                | Read File (JSON)            |
+| `.sidekick/sessions/{id}/state/supervisor-log-metrics.json` | Supervisor warning/error counts   | Read File (JSON)            |
+| `.sidekick/state/supervisor-global-log-metrics.json` | Global supervisor logs (no session)     | Read File (JSON)            |
 | `~/.sidekick/state/baseline-user-context-token-metrics.json` | System prompt, tools, autocompact buffer| Read File (JSON)            |
 | `.sidekick/state/baseline-project-context-token-metrics.json` | MCP tools, custom agents, memory files  | Read File (JSON)            |
 | **Git (Subprocess)**                                 | Current Branch                          | `git branch --show-current` |
@@ -69,8 +77,8 @@ interface StatuslineConfig {
   enabled: boolean
 
   // The visual template string
-  // Supported tokens: {model}, {tokens}, {cost}, {duration}, {branch}, {cwd}, {summary}
-  format: string // Default: "[{model}] | {tokens} | {cwd}{branch} | {summary}"
+  // Supported tokens: {model}, {contextBar}, {tokens}, {logs}, {cost}, {duration}, {branch}, {cwd}, {summary}, {title}
+  format: string // Default: "[{model}] | {contextBar} {tokens} | {logs} | {cwd}{branch} | {title} | {summary}"
 
   // Color thresholds
   thresholds: {
@@ -82,6 +90,10 @@ interface StatuslineConfig {
       warning: number // Default: 0.50
       critical: number // Default: 1.00
     }
+    logs: {
+      warning: number // Default: 5 (warning count threshold for yellow)
+      critical: number // Default: 1 (any error = critical/red)
+    }
   }
 
   // Visual preferences
@@ -90,6 +102,7 @@ interface StatuslineConfig {
     colors: {
       model: string // "blue"
       tokens: string // "green" (dynamic based on threshold)
+      title: string // "blue"
       summary: string // "magenta"
     }
   }
@@ -151,7 +164,26 @@ A lightweight string interpolator.
 - **Yellow**: >= Warning Threshold && < Critical Threshold
 - **Red**: >= Critical Threshold
 
-### 6.2 Summary Selection
+### 6.2 Log Metrics Indicator
+
+The `{logs}` placeholder displays warning and error counts from Sidekick's structured logging system. Counts are aggregated from three sources:
+
+1. **Per-session CLI metrics**: `.sidekick/sessions/{id}/state/cli-log-metrics.json`
+2. **Per-session Supervisor metrics**: `.sidekick/sessions/{id}/state/supervisor-log-metrics.json`
+3. **Global Supervisor metrics**: `.sidekick/state/supervisor-global-log-metrics.json` (logs without session context)
+
+**Display Format**: `⚠N ✗N` where N is the count of warnings/errors respectively.
+
+**Color Logic**:
+- **Hidden**: No warnings and no errors (indicator not displayed)
+- **Yellow**: Warning count >= threshold (default: 5) or any warnings present
+- **Red**: Any errors present (error count >= 1)
+
+**Persistence**: Counts accumulate across CLI process restarts and supervisor restarts within a session. The `loadExistingLogCounts()` helper restores counts from persisted state files on startup.
+
+**Hookable Logger**: Both CLI and Supervisor use `createHookableLogger()` from `@sidekick/core` to intercept warn/error/fatal log calls and increment counters. See `docs/.archive/STATUS_LOGS.md` for the original implementation design.
+
+### 6.3 Summary Selection
 
 The statusline displays different content based on session state. Per `docs/design/flow.md`, there are three distinct states:
 
@@ -167,13 +199,13 @@ The statusline displays different content based on session state. Per `docs/desi
 2.  If `snarky-message.txt` exists → Append snarky message content.
 3.  Else if `latest_intent` exists in `session-summary.json` → Append `latest_intent`.
 
-### 6.3 Git Integration
+### 6.4 Git Integration
 
 - Run `git branch --show-current` with a **10ms timeout**.
 - If it times out or fails (not a git repo), return empty string.
 - This prevents the statusline from hanging the shell in slow/networked filesystems.
 
-### 6.4 Context Bar Calculation
+### 6.5 Context Bar Calculation
 
 The statusline displays context utilization as a visual bar (e.g., `[████████░░]`). To accurately represent available capacity, it accounts for Claude Code's context window overhead.
 
