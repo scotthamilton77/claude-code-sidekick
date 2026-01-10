@@ -9,6 +9,7 @@ This helps the user quickly identify this session when multitasking across multi
 {{transcript}}
 </transcript>
 
+<output_format>
 Output JSON matching this exact schema:
 
 ```json
@@ -22,58 +23,103 @@ Output JSON matching this exact schema:
   "pivot_detected": false
 }
 ```
+</output_format>
 
-CONFIDENCE CALIBRATION (applies to both session_title_confidence and latest_intent_confidence):
-- >0.8: Clear focus, specific terms/files, minimal context switching
-  * Multiple explicit mentions of the same goal
-  * Specific technical terms/file names referenced
-- 0.6-0.8: General topic clear but approach uncertain
-  * Some context switching within related domain
-- <=0.5: Hard pivot detected, vague direction, or multiple interpretations
-  * User switched to completely different task
-  * Exploratory questions without clear goal
-- Reset to <=0.5 on hard pivot (even if new task is clear, confidence needs rebuilding)
+<confidence_calibration>
+Applies to both session_title_confidence and latest_intent_confidence:
 
-USING previousConfidence:
-The confidence attribute on <previous_analysis> tells you how certain we were about the session direction.
-- High (>0.8): We had clear focus. A topic change likely indicates a deliberate pivot.
-- Medium (0.6-0.8): Direction was forming. Topic changes may be exploration vs pivot.
-- Low (<=0.5): Direction was unclear. Hard to distinguish pivot from clarification.
+  <level range=">0.8">
+    Clear focus, specific terms/files, minimal context switching.
+    - Multiple explicit mentions of the same goal
+    - Specific technical terms/file names referenced
+  </level>
 
-Use previousConfidence to calibrate pivot detection: a dramatic topic shift from high confidence
-is more likely a true pivot than the same shift from low confidence (which may just be the
-user finally clarifying their actual goal).
+  <level range="0.6-0.8">
+    General topic clear but approach uncertain.
+    - Some context switching within related domain
+  </level>
 
-PIVOT DETECTION (pivot_detected is boolean):
+  <level range="<=0.5">
+    Hard pivot detected, vague direction, or multiple interpretations.
+    - User switched to completely different task
+    - Exploratory questions without clear goal
+  </level>
+
+Reset to <=0.5 on hard pivot (even if new task is clear, confidence needs rebuilding).
+</confidence_calibration>
+
+<using_previous_confidence>
+The confidence attribute on `<previous_analysis>` tells you how certain we were about the session direction.
+
+  <high range=">0.8">
+    We had clear focus. A topic change likely indicates a deliberate pivot.
+  </high>
+
+  <medium range="0.6-0.8">
+    Direction was forming. Topic changes may be exploration vs pivot.
+  </medium>
+
+  <low range="<=0.5">
+    Direction was unclear. Hard to distinguish pivot from clarification.
+  </low>
+
+Use previousConfidence to calibrate pivot detection: a dramatic topic shift from high confidence is more likely a true pivot than the same shift from low confidence (which may just be the user finally clarifying their actual goal).
+</using_previous_confidence>
+
+<pivot_detection>
 Set pivot_detected based on whether the user switched to a fundamentally different task:
 
-- pivot_detected: false
-  * Unchanged: New info doesn't materially change title
-  * Refinement: More specific on same topic (maintain/increase confidence)
-    Example: "Refactoring feature flags" -> "Refactoring feature flag dependencies"
+  <false_cases>
+    - Unchanged: New info doesn't materially change title
+    - Refinement: More specific on same topic (maintain/increase confidence)
+    <examples>
+      - "Refactoring feature flags" → "Refactoring feature flag dependencies"
+    </examples>
+  </false_cases>
 
-- pivot_detected: true
-  * Hard pivot: Completely different task domain (reset confidence to <=0.5)
-    Example: "Refactoring feature flags" -> "Debugging LLM providers"
-  * Only set true when the new direction is unrelated to the previous one
+  <true_cases>
+    - Hard pivot: Completely different task domain (reset confidence to <=0.5)
+    - Only set true when the new direction is unrelated to the previous one
+    <examples>
+      - "Refactoring feature flags" → "Debugging LLM providers"
+    </examples>
+  </true_cases>
+</pivot_detection>
 
-SESSION TITLE:
-- Max 6 words, Title Case, like a short book title or research paper title, focused on describing the user's and agent's main goal (what they're trying to accomplish - the most recent one if there was a pivot)
+<session_title_rules>
+- Max 6 words, Title Case
+- Like a short book title or research paper title
+- Focused on describing the user's and agent's main goal (what they're trying to accomplish - the most recent one if there was a pivot)
 - Persistent but can evolve/refine over time
 - Compare to previous title to determine change type
+</session_title_rules>
 
-LATEST INTENT:
-- Max 15 words, what the user wanted in their most recent USER messages (you may infer from ASSISTANT messages when the assistant provides clarity to the user's intent)
+<latest_intent_rules>
+- Max 15 words
+- What the user wanted in their most recent USER messages (you may infer from ASSISTANT messages when the assistant provides clarity to the user's intent)
 - Use context to interpret vague prompts ("do it", "yes", "continue")
 - If multi-instruction, capture most relevant instructions to recent context
+</latest_intent_rules>
 
-META-REQUEST FILTERING:
+<meta_request_filtering>
 Don't update latest_intent for session-state queries:
 - "what are we doing?", "/context", "show me status"
 - "what was my last request?", "summarize progress"
 - "review what we've done"
+</meta_request_filtering>
 
-KEY PHRASES:
-Extract specific phrases, terms, file names, feature names from user messages and assistant responses that helped you clarify the title or intent
-- High confidence: ["refactoring feature flags", "session-summary.sh", "LLM prompt redesign"]
-- Low confidence: ["working on the code", "fixing stuff", "doing some updates"]
+<key_phrases_rules>
+Extract specific phrases, terms, file names, feature names from user messages and assistant responses that helped you clarify the title or intent.
+
+  <examples confidence="high">
+    - "refactoring feature flags"
+    - "session-summary.sh"
+    - "LLM prompt redesign"
+  </examples>
+
+  <examples confidence="low">
+    - "working on the code"
+    - "fixing stuff"
+    - "doing some updates"
+  </examples>
+</key_phrases_rules>
