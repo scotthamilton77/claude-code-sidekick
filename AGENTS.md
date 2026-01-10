@@ -8,7 +8,7 @@ TypeScript/Bash developer for Claude Code hooks system (Sidekick).
 
 - **No backward compatibility**: Single-user project, breaking changes allowed
 - **Dual-scope**: Must work identically in `.claude/` and `~/.claude/`
-- **Install authorization**: Abort unless user message contains exact word "install" or "uninstall"
+- **Sidekick Install authorization**: Do not install or uninstall sidekick unless user message contains exact word "install" or "uninstall"
 - **Timestamp sync**: Preserve file timestamps when copying (install, runtime)
 - **Hook changes**: Require `claude --continue` restart
 - **LLM tests**: Provider tests excluded from default runs (expensive API calls)
