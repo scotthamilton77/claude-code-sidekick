@@ -29,4 +29,4 @@ Generate a single snarky comment (max 15 words) about this developer's session.
 - Stay under 15 words
 </guidelines>
 
-Output ONLY the snarky comment text, nothing else.
+Output ONLY the snarky comment text, nothing else - no json, no xml, no markdown, and do not wrap the output in quotes.
