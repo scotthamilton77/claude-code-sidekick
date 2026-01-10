@@ -67,6 +67,15 @@ function cleanupTestDir(dir: string): void {
 // When running tests, cwd is the workspace root
 const TEST_DATA_DIR = join(process.cwd(), '../../test-data/transcripts')
 
+// Test fixture paths - defined once to avoid repetition in skipIf conditions
+const FIXTURES = {
+  SHORT_002: join(TEST_DATA_DIR, 'short-002.jsonl'),
+  SHORT_003: join(TEST_DATA_DIR, 'short-003.jsonl'),
+  SHORT_175: join(TEST_DATA_DIR, 'short-175.jsonl'),
+  MEDIUM_003: join(TEST_DATA_DIR, 'medium-003.jsonl'),
+  LONG_001: join(TEST_DATA_DIR, 'long-001.jsonl'),
+} as const
+
 // ============================================================================
 // Integration Tests with Real Transcripts
 // ============================================================================
@@ -107,15 +116,9 @@ describe('TranscriptService Integration Tests', () => {
   // --------------------------------------------------------------------------
 
   describe('real transcript: short-003.jsonl', () => {
-    it('processes basic user/assistant transcript correctly', async () => {
+    it.skipIf(!existsSync(FIXTURES.SHORT_003))('processes basic user/assistant transcript correctly', async () => {
       // short-003.jsonl has: 1 user, 1 assistant (simple conversation)
-      const sourceFile = join(TEST_DATA_DIR, 'short-003.jsonl')
-      if (!existsSync(sourceFile)) {
-        console.warn('Skipping integration test - test data not available')
-        return
-      }
-
-      copyFileSync(sourceFile, transcriptPath)
+      copyFileSync(FIXTURES.SHORT_003, transcriptPath)
       await service.initialize('test-session', transcriptPath)
 
       const metrics = service.getMetrics()
@@ -128,14 +131,8 @@ describe('TranscriptService Integration Tests', () => {
       expect(metrics.lastProcessedLine).toBeGreaterThan(0)
     })
 
-    it('extracts token usage from real assistant message', async () => {
-      const sourceFile = join(TEST_DATA_DIR, 'short-003.jsonl')
-      if (!existsSync(sourceFile)) {
-        console.warn('Skipping integration test - test data not available')
-        return
-      }
-
-      copyFileSync(sourceFile, transcriptPath)
+    it.skipIf(!existsSync(FIXTURES.SHORT_003))('extracts token usage from real assistant message', async () => {
+      copyFileSync(FIXTURES.SHORT_003, transcriptPath)
       await service.initialize('test-session', transcriptPath)
 
       const metrics = service.getMetrics()
@@ -146,14 +143,8 @@ describe('TranscriptService Integration Tests', () => {
       expect(metrics.tokenUsage.totalTokens).toBeGreaterThan(0)
     })
 
-    it('tracks model usage from real transcript', async () => {
-      const sourceFile = join(TEST_DATA_DIR, 'short-003.jsonl')
-      if (!existsSync(sourceFile)) {
-        console.warn('Skipping integration test - test data not available')
-        return
-      }
-
-      copyFileSync(sourceFile, transcriptPath)
+    it.skipIf(!existsSync(FIXTURES.SHORT_003))('tracks model usage from real transcript', async () => {
+      copyFileSync(FIXTURES.SHORT_003, transcriptPath)
       await service.initialize('test-session', transcriptPath)
 
       const metrics = service.getMetrics()
@@ -170,15 +161,9 @@ describe('TranscriptService Integration Tests', () => {
   })
 
   describe('real transcript with tool usage: short-175.jsonl', () => {
-    it('counts tool_use blocks nested in assistant messages', async () => {
+    it.skipIf(!existsSync(FIXTURES.SHORT_175))('counts tool_use blocks nested in assistant messages', async () => {
       // short-175.jsonl has tool_use blocks inside assistant message content
-      const sourceFile = join(TEST_DATA_DIR, 'short-175.jsonl')
-      if (!existsSync(sourceFile)) {
-        console.warn('Skipping integration test - test data not available')
-        return
-      }
-
-      copyFileSync(sourceFile, transcriptPath)
+      copyFileSync(FIXTURES.SHORT_175, transcriptPath)
       await service.initialize('test-session', transcriptPath)
 
       const metrics = service.getMetrics()
@@ -188,14 +173,8 @@ describe('TranscriptService Integration Tests', () => {
       expect(metrics.toolCount).toBeGreaterThanOrEqual(1)
     })
 
-    it('emits ToolCall events for nested tool_use blocks', async () => {
-      const sourceFile = join(TEST_DATA_DIR, 'short-175.jsonl')
-      if (!existsSync(sourceFile)) {
-        console.warn('Skipping integration test - test data not available')
-        return
-      }
-
-      copyFileSync(sourceFile, transcriptPath)
+    it.skipIf(!existsSync(FIXTURES.SHORT_175))('emits ToolCall events for nested tool_use blocks', async () => {
+      copyFileSync(FIXTURES.SHORT_175, transcriptPath)
       await service.initialize('test-session', transcriptPath)
 
       // Should have emitted ToolCall events
@@ -203,14 +182,8 @@ describe('TranscriptService Integration Tests', () => {
       expect(toolCallEvents.length).toBeGreaterThanOrEqual(1)
     })
 
-    it('counts tool_result blocks nested in user messages', async () => {
-      const sourceFile = join(TEST_DATA_DIR, 'short-175.jsonl')
-      if (!existsSync(sourceFile)) {
-        console.warn('Skipping integration test - test data not available')
-        return
-      }
-
-      copyFileSync(sourceFile, transcriptPath)
+    it.skipIf(!existsSync(FIXTURES.SHORT_175))('counts tool_result blocks nested in user messages', async () => {
+      copyFileSync(FIXTURES.SHORT_175, transcriptPath)
       await service.initialize('test-session', transcriptPath)
 
       // Should have emitted ToolResult events
@@ -222,15 +195,9 @@ describe('TranscriptService Integration Tests', () => {
   })
 
   describe('real transcript with summary: long-001.jsonl', () => {
-    it('skips summary entries without error', async () => {
+    it.skipIf(!existsSync(FIXTURES.LONG_001))('skips summary entries without error', async () => {
       // long-001 has summary entries
-      const sourceFile = join(TEST_DATA_DIR, 'long-001.jsonl')
-      if (!existsSync(sourceFile)) {
-        console.warn('Skipping integration test - test data not available')
-        return
-      }
-
-      copyFileSync(sourceFile, transcriptPath)
+      copyFileSync(FIXTURES.LONG_001, transcriptPath)
       await service.initialize('test-session', transcriptPath)
 
       // Should not have any errors for unknown types
@@ -242,15 +209,9 @@ describe('TranscriptService Integration Tests', () => {
   })
 
   describe('real transcript with file-history-snapshot', () => {
-    it('skips file-history-snapshot entries without error', async () => {
+    it.skipIf(!existsSync(FIXTURES.SHORT_002))('skips file-history-snapshot entries without error', async () => {
       // short-002 is just file-history-snapshot entries
-      const sourceFile = join(TEST_DATA_DIR, 'short-002.jsonl')
-      if (!existsSync(sourceFile)) {
-        console.warn('Skipping integration test - test data not available')
-        return
-      }
-
-      copyFileSync(sourceFile, transcriptPath)
+      copyFileSync(FIXTURES.SHORT_002, transcriptPath)
       await service.initialize('test-session', transcriptPath)
 
       // Should not emit any standard events for non-message entries
@@ -269,14 +230,8 @@ describe('TranscriptService Integration Tests', () => {
   // --------------------------------------------------------------------------
 
   describe('edge cases', () => {
-    it('handles real transcript with cache metrics', async () => {
-      const sourceFile = join(TEST_DATA_DIR, 'short-003.jsonl')
-      if (!existsSync(sourceFile)) {
-        console.warn('Skipping integration test - test data not available')
-        return
-      }
-
-      copyFileSync(sourceFile, transcriptPath)
+    it.skipIf(!existsSync(FIXTURES.SHORT_003))('handles real transcript with cache metrics', async () => {
+      copyFileSync(FIXTURES.SHORT_003, transcriptPath)
       await service.initialize('test-session', transcriptPath)
 
       const metrics = service.getMetrics()
@@ -288,14 +243,8 @@ describe('TranscriptService Integration Tests', () => {
       expect(hasCacheMetrics).toBe(true)
     })
 
-    it('tracks service tier from real transcript', async () => {
-      const sourceFile = join(TEST_DATA_DIR, 'short-003.jsonl')
-      if (!existsSync(sourceFile)) {
-        console.warn('Skipping integration test - test data not available')
-        return
-      }
-
-      copyFileSync(sourceFile, transcriptPath)
+    it.skipIf(!existsSync(FIXTURES.SHORT_003))('tracks service tier from real transcript', async () => {
+      copyFileSync(FIXTURES.SHORT_003, transcriptPath)
       await service.initialize('test-session', transcriptPath)
 
       const metrics = service.getMetrics()

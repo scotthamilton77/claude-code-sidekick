@@ -65,24 +65,23 @@ describe('IPC', () => {
       expect(client.isConnected()).toBe(false)
     })
 
-    it('should timeout if server does not accept connection', async () => {
-      // Create a socket file but don't listen on it
-      const hangingSocketPath = path.join(tmpDir, 'hanging.sock')
-      const dummyServer = net.createServer()
-      // Listen but don't accept connections properly - just hold them
-      await new Promise<void>((resolve) => dummyServer.listen(hangingSocketPath, resolve))
+    it('connects successfully when server is listening (even with no handler)', async () => {
+      // TCP connection succeeds when server is listening, regardless of handler setup.
+      // This verifies IpcClient connection works with bare servers.
+      const listenOnlySocketPath = path.join(tmpDir, 'listen-only.sock')
+      const bareServer = net.createServer()
+      await new Promise<void>((resolve) => bareServer.listen(listenOnlySocketPath, resolve))
 
-      // Now create a server that accepts but never responds
-      const client = new IpcClient(hangingSocketPath, logger, {
+      const client = new IpcClient(listenOnlySocketPath, logger, {
         connectTimeoutMs: 100,
       })
 
-      // Connection will succeed since server is listening
+      // Connection succeeds because kernel accepts connections when server listens
       await client.connect()
       expect(client.isConnected()).toBe(true)
 
       client.close()
-      dummyServer.close()
+      bareServer.close()
     })
 
     it('should connect within timeout if server is responsive', async () => {
@@ -299,10 +298,15 @@ describe('IPC', () => {
     })
   })
 
-  describe('Token Validation', () => {
+  describe('Handler-Level Token Validation Pattern', () => {
+    // NOTE: Token validation is NOT built into IpcClient/IpcServer.
+    // This suite tests that handlers CAN implement token validation and
+    // that the IPC layer correctly propagates handler errors to clients.
+    // Production token enforcement lives in the supervisor handler, not the transport.
+
     const VALID_TOKEN = 'valid-test-token-abc123'
 
-    // Simulates supervisor's token validation behavior
+    // Creates a handler that implements token validation (like supervisor does)
     const createTokenValidatingHandler = (expectedToken: string): ReturnType<typeof vi.fn> => {
       return vi.fn().mockImplementation((method: string, params: unknown) => {
         const p = params as Record<string, unknown> | undefined
@@ -331,7 +335,7 @@ describe('IPC', () => {
       })
     }
 
-    it('should succeed with valid token', async () => {
+    it('propagates handler success when token is valid', async () => {
       const handler = createTokenValidatingHandler(VALID_TOKEN)
       const server = new IpcServer(socketPath, logger, handler)
       await server.start()
@@ -351,7 +355,7 @@ describe('IPC', () => {
       await server.stop()
     })
 
-    it('should reject invalid token on handshake', async () => {
+    it('propagates handler error when token is invalid on handshake', async () => {
       const handler = createTokenValidatingHandler(VALID_TOKEN)
       const server = new IpcServer(socketPath, logger, handler)
       await server.start()
@@ -366,7 +370,7 @@ describe('IPC', () => {
       await server.stop()
     })
 
-    it('should reject missing token on handshake', async () => {
+    it('propagates handler error when token is missing on handshake', async () => {
       const handler = createTokenValidatingHandler(VALID_TOKEN)
       const server = new IpcServer(socketPath, logger, handler)
       await server.start()
@@ -381,7 +385,7 @@ describe('IPC', () => {
       await server.stop()
     })
 
-    it('should reject unauthorized call without token', async () => {
+    it('propagates handler error when token is missing on subsequent call', async () => {
       const handler = createTokenValidatingHandler(VALID_TOKEN)
       const server = new IpcServer(socketPath, logger, handler)
       await server.start()
@@ -399,7 +403,7 @@ describe('IPC', () => {
       await server.stop()
     })
 
-    it('should reject unauthorized call with invalid token', async () => {
+    it('propagates handler error when token is tampered on subsequent call', async () => {
       const handler = createTokenValidatingHandler(VALID_TOKEN)
       const server = new IpcServer(socketPath, logger, handler)
       await server.start()

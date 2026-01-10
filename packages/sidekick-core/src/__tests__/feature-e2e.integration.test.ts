@@ -188,70 +188,52 @@ describe('Feature E2E: Reminders with Real Transcripts', () => {
   // Threshold Verification with Real Data
   // --------------------------------------------------------------------------
 
-  describe('toolsThisTurn threshold triggers', () => {
-    it('stages PauseAndReflect reminder when toolsThisTurn >= pause_and_reflect_threshold', async () => {
-      // Register inline handler that mimics checkpoint detection
-      registerPauseAndReflectHandler(ctx.handlerRegistry, ctx.stagingService, () => ctx.transcriptService.getMetrics())
+  describe('real transcript processing', () => {
+    it.skipIf(!existsSync(join(TEST_DATA_DIR, 'medium-003.jsonl')))(
+      'processes medium transcript and extracts tool metrics',
+      async () => {
+        // Register inline handler that mimics checkpoint detection
+        registerPauseAndReflectHandler(ctx.handlerRegistry, ctx.stagingService, () =>
+          ctx.transcriptService.getMetrics()
+        )
 
-      // medium-003.jsonl has 22 tool_use blocks (> pause_and_reflect_threshold of 15)
-      const sourceFile = join(TEST_DATA_DIR, 'medium-003.jsonl')
-      if (!existsSync(sourceFile)) {
-        console.warn('Skipping integration test - test data not available')
-        return
+        const sourceFile = join(TEST_DATA_DIR, 'medium-003.jsonl')
+        copyFileSync(sourceFile, ctx.transcriptPath)
+        await ctx.transcriptService.initialize('test-session', ctx.transcriptPath)
+
+        // Wait for async handlers to execute
+        await new Promise((resolve) => setTimeout(resolve, 300))
+
+        const metrics = ctx.transcriptService.getMetrics()
+
+        // Verify infrastructure processes the transcript correctly
+        expect(metrics.toolCount).toBeGreaterThan(0)
+        expect(metrics.lastProcessedLine).toBeGreaterThan(0)
+
+        // Note: Threshold-based staging is tested deterministically in
+        // "Feature E2E: Threshold Logic with Synthetic Data" suite
       }
+    )
 
-      copyFileSync(sourceFile, ctx.transcriptPath)
-      await ctx.transcriptService.initialize('test-session', ctx.transcriptPath)
+    it.skipIf(!existsSync(join(TEST_DATA_DIR, 'long-001.jsonl')))(
+      'processes long transcript with many tools spread across turns',
+      async () => {
+        registerPauseAndReflectHandler(ctx.handlerRegistry, ctx.stagingService, () =>
+          ctx.transcriptService.getMetrics()
+        )
 
-      // Wait for async handlers to execute
-      await new Promise((resolve) => setTimeout(resolve, 300))
+        const sourceFile = join(TEST_DATA_DIR, 'long-001.jsonl')
+        copyFileSync(sourceFile, ctx.transcriptPath)
+        await ctx.transcriptService.initialize('test-session', ctx.transcriptPath)
+        await new Promise((resolve) => setTimeout(resolve, 300))
 
-      const metrics = ctx.transcriptService.getMetrics()
+        const metrics = ctx.transcriptService.getMetrics()
 
-      // Note: toolsThisTurn resets per turn (user message), so even transcripts with
-      // many total tools may not exceed threshold within a single turn.
-      // This test validates the flow works when threshold IS exceeded.
-
-      // Verify we processed tools
-      expect(metrics.toolCount).toBeGreaterThan(0)
-
-      // Check what was staged - may be empty if no single turn had enough tools
-      const reminders = await ctx.stagingService.listReminders('PreToolUse')
-
-      // If pause-and-reflect reminder was staged, verify its properties
-      const pauseReminder = reminders.find((r) => r.name === REMINDER_IDS.PAUSE_AND_REFLECT)
-      if (pauseReminder) {
-        expect(pauseReminder.blocking).toBe(true)
-        expect(pauseReminder.priority).toBe(80)
+        // Verify infrastructure handles large transcripts correctly
+        expect(metrics.toolCount).toBeGreaterThan(50)
+        expect(metrics.turnCount).toBeGreaterThan(10)
       }
-
-      // Test passes if either: threshold was hit and reminder staged, or
-      // threshold wasn't hit in any single turn (realistic for multi-turn transcripts)
-      expect(metrics.lastProcessedLine).toBeGreaterThan(0)
-    })
-
-    it('processes long transcript with many tools spread across turns', async () => {
-      registerPauseAndReflectHandler(ctx.handlerRegistry, ctx.stagingService, () => ctx.transcriptService.getMetrics())
-
-      // Use long-001 which has many tools spread across turns
-      const sourceFile = join(TEST_DATA_DIR, 'long-001.jsonl')
-      if (!existsSync(sourceFile)) {
-        console.warn('Skipping integration test - test data not available')
-        return
-      }
-
-      copyFileSync(sourceFile, ctx.transcriptPath)
-      await ctx.transcriptService.initialize('test-session', ctx.transcriptPath)
-      await new Promise((resolve) => setTimeout(resolve, 300))
-
-      const metrics = ctx.transcriptService.getMetrics()
-
-      // Real transcripts have many turns - toolsThisTurn resets each turn
-      // so thresholds may not be reached within single turns
-      // This test validates the infrastructure processes events correctly
-      expect(metrics.toolCount).toBeGreaterThan(50)
-      expect(metrics.turnCount).toBeGreaterThan(10)
-    })
+    )
   })
 
   // --------------------------------------------------------------------------
@@ -343,50 +325,38 @@ describe('Feature E2E: Staging and Consumption Flow', () => {
     cleanupTestDir(ctx.testDir)
   })
 
-  it('reminder staged by transcript event can be consumed by hook invocation', async () => {
+  it('stages reminder when threshold is exceeded and allows consumption', async () => {
+    // Use synthetic data to guarantee threshold is hit (deterministic test)
     registerPauseAndReflectHandler(ctx.handlerRegistry, ctx.stagingService, () => ctx.transcriptService.getMetrics())
 
-    const sourceFile = join(TEST_DATA_DIR, 'medium-003.jsonl')
-    if (!existsSync(sourceFile)) {
-      console.warn('Skipping integration test - test data not available')
-      return
+    const numTools = REMINDER_THRESHOLDS.pause_and_reflect_threshold + 5
+    const toolUses = []
+    for (let i = 0; i < numTools; i++) {
+      toolUses.push({ type: 'tool_use', id: `tool-${i}`, name: 'Bash', input: { command: `echo ${i}` } })
     }
 
-    copyFileSync(sourceFile, ctx.transcriptPath)
+    const entries = [
+      JSON.stringify({
+        type: 'assistant',
+        message: { role: 'assistant', content: toolUses },
+      }),
+    ]
+
+    const { writeFileSync } = await import('node:fs')
+    writeFileSync(ctx.transcriptPath, entries.join('\n'))
     await ctx.transcriptService.initialize('test-session', ctx.transcriptPath)
     await new Promise((resolve) => setTimeout(resolve, 300))
 
-    const metrics = ctx.transcriptService.getMetrics()
-
-    // Staging depends on toolsThisTurn hitting threshold within a single turn
-    // Real transcripts may have frequent turn resets preventing threshold hits
-    // Verify infrastructure is working regardless of whether threshold was hit
-    expect(metrics.toolCount).toBeGreaterThan(0)
-
-    // If a reminder was staged, verify consumption works
+    // Verify reminder was staged (unconditional assertion)
     const stagedReminders = await ctx.stagingService.listReminders('PreToolUse')
-    if (stagedReminders.length > 0) {
-      const reminder = await ctx.stagingService.readReminder('PreToolUse', stagedReminders[0].name)
-      expect(reminder).toBeDefined()
-    }
-  })
+    expect(stagedReminders.length).toBeGreaterThan(0)
 
-  it('suppression marker prevents Stop hook from firing after pause-and-reflect reminder', async () => {
-    registerPauseAndReflectHandler(ctx.handlerRegistry, ctx.stagingService, () => ctx.transcriptService.getMetrics())
-
-    const sourceFile = join(TEST_DATA_DIR, 'medium-003.jsonl')
-    if (!existsSync(sourceFile)) {
-      console.warn('Skipping integration test - test data not available')
-      return
-    }
-
-    copyFileSync(sourceFile, ctx.transcriptPath)
-    await ctx.transcriptService.initialize('test-session', ctx.transcriptPath)
-    await new Promise((resolve) => setTimeout(resolve, 300))
-
-    // PauseAndReflect handler should stage a reminder
-    const pauseReminder = await ctx.stagingService.readReminder('PreToolUse', REMINDER_IDS.PAUSE_AND_REFLECT)
-    expect(pauseReminder).not.toBeNull()
+    // Verify consumption works
+    const reminder = await ctx.stagingService.readReminder('PreToolUse', REMINDER_IDS.PAUSE_AND_REFLECT)
+    expect(reminder).not.toBeNull()
+    expect(reminder?.name).toBe(REMINDER_IDS.PAUSE_AND_REFLECT)
+    expect(reminder?.blocking).toBe(true)
+    expect(reminder?.priority).toBe(80)
   })
 })
 
@@ -402,25 +372,20 @@ describe('Feature E2E: Multi-Turn Processing', () => {
     cleanupTestDir(ctx.testDir)
   })
 
-  it('resets toolsThisTurn on new user message', async () => {
-    const sourceFile = join(TEST_DATA_DIR, 'long-001.jsonl')
-    if (!existsSync(sourceFile)) {
-      console.warn('Skipping integration test - test data not available')
-      return
+  it.skipIf(!existsSync(join(TEST_DATA_DIR, 'long-001.jsonl')))(
+    'resets toolsThisTurn on new user message with real transcript',
+    async () => {
+      const sourceFile = join(TEST_DATA_DIR, 'long-001.jsonl')
+      copyFileSync(sourceFile, ctx.transcriptPath)
+      await ctx.transcriptService.initialize('test-session', ctx.transcriptPath)
+
+      const metrics = ctx.transcriptService.getMetrics()
+
+      // Multi-turn transcript should have toolsThisTurn representing only the last turn
+      expect(metrics.toolsThisTurn).toBeLessThanOrEqual(metrics.toolCount)
+      expect(metrics.turnCount).toBeGreaterThan(10)
     }
-
-    copyFileSync(sourceFile, ctx.transcriptPath)
-    await ctx.transcriptService.initialize('test-session', ctx.transcriptPath)
-
-    const metrics = ctx.transcriptService.getMetrics()
-
-    // Multi-turn transcript should have toolsThisTurn representing only the last turn
-    // not the cumulative count (which is toolCount)
-    expect(metrics.toolsThisTurn).toBeLessThanOrEqual(metrics.toolCount)
-
-    // With many user messages, we expect multiple turns
-    expect(metrics.turnCount).toBeGreaterThan(10)
-  })
+  )
 })
 
 describe('Feature E2E: Threshold Logic with Synthetic Data', () => {
