@@ -12,6 +12,7 @@ This repository serves as a development and testing environment for [Claude Code
 
 ### Sidekick
 
+- xml prompt structuring - see https://x.com/ChrisLaubAI/status/2008479874881872383
 - stop prompt enhancement: can we assess whether the agent is claiming completion or stopping to give an update or user instructions?
 ```
 Now hit enter - you should see a debug line in stderr showing whether projectStateDir is set or null.
@@ -33,6 +34,7 @@ Now hit enter - you should see a debug line in stderr showing whether projectSta
 
 ### Nice to Haves
 
+- add automatic ralph wigguming?
 - add support for task id extraction?
 - add stakes and psychology to the user prompt reminder?  https://medium.com/@ichigoSan/i-accidentally-made-claude-45-smarter-heres-how-23ad0bf91ccf
 - should this be a claude code plugin? There are plugin hooks referenced here: https://code.claude.com/docs/en/hooks
