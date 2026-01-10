@@ -24,7 +24,7 @@ For the following steps, wherever you see CLAUDE.md, substitute AGENTS.md if the
 - General statements about universal best practices (DRY, SOLID, clean code) without project-specific constraints
 - Vague directives like "write good code" or "be helpful"
 - Instructions that duplicate parent CLAUDE.md content
-- Content that child CLAUDE.md files should handle more specifically
+- Content that child CLAUDE.md or AGENTS.md files should handle more specifically
 - Self-evident information from project structure (languages used, framework choice when obvious from files)
 
 **Flag but preserve:**
@@ -34,7 +34,7 @@ For the following steps, wherever you see CLAUDE.md, substitute AGENTS.md if the
 - Domain-specific terminology or acronyms
 - Required tool usage patterns specific to this project
 - Statements/sections that aren't covered by your training data (e.g. explicitly reference information that may post-date your training cutoff)
-- Statements/sections explicitly tagged with `[PRESERVE]`
+- Statements/sections explicitly tagged with `[PRESERVE]` (you can optimize the content so long as nothing is lost from the original)
 
 ### 3. Directive Enhancement
 
@@ -91,25 +91,58 @@ Target: <100 lines total per CLAUDE.md
 - Eliminate filler words ("please", "try to", "should consider")
 - Emphasis words ("ALWAYS", "NEVER", "CRITICAL", etc.) are allowed but should be used sparingly
 
-**Structural requirements:**
+**Structural template:**
 ```markdown
-# Role
 Single sentence: what Claude is in this context
 
-# Constraints
+<constraints>
 - Quantified limits only
 - Format: <metric>: <value> <consequence>
+</constraints>
 
-# Standards
+<standards>
 - Project-specific deviations from defaults
 - Reference files/tools by exact path
+</standards>
 
-# Context
+<context>
 - Non-obvious architectural decisions
 - Domain terms not in general knowledge
+</context>
 ```
 
-### 7. Validation Check
+### 7. Structural Formatting
+
+Apply layered structure: XML tags for boundaries, markdown headers for navigation, plain text for simple content.
+
+**Use XML tags for:**
+- Major functional sections (`<constraints>`, `<standards>`, `<context>`)
+- Content needing clear boundaries (rules, examples, user-provided data)
+- Nested hierarchies where parent-child relationships matter
+- Separating content types (`<examples>`, `<anti_patterns>`)
+
+**Use markdown headers for:**
+- Internal navigation within lengthy XML sections
+- Reference content meant to be scanned for subtopics
+- Subsections where rigid boundary separation isn't critical
+
+**Use plain text for:**
+- Single-sentence facts or role descriptions
+- Brief transitions
+- Simple declarative statements
+
+**Tag naming:**
+- Semantic names reflecting purpose (`<tone_guidelines>` not `<section1>`)
+- Consistent casing (snake_case or kebab-case)
+- Max 2-3 nesting levels
+
+**Avoid:**
+- Wrapping every sentence in XML (clutter, diminishing returns)
+- Generic tag names (`<info>`, `<stuff>`)
+- Using both XML and markdown for the same boundary
+- Deep nesting without clear purpose
+
+### 8. Validation Check
 
 Before finalizing, confirm:
 - [ ] No generic AI advice (assumes Claude baseline competence)
@@ -118,6 +151,7 @@ Before finalizing, confirm:
 - [ ] No overlap with child scopes (concerns delegated)
 - [ ] Every directive includes concrete action or threshold
 - [ ] File paths and versions are exact, not illustrative
+- [ ] Structural formatting applied (XML for boundaries, markdown for navigation)
 - [ ] Target result: <100 lines
 
 ## Output
@@ -155,24 +189,26 @@ Be thoughtful about performance.
 
 ### Optimized CLAUDE.md (23 lines, high efficacy)
 ```markdown
-# Role
 React component architect for /dashboard feature
 
-# Constraints
+<constraints>
 - Components: max 200 lines excl. types
 - Props: max 8 per component
 - Hooks: use `/hooks/useDashboard.ts` for state
 - Tests: required for components >50 lines
+</constraints>
 
-# Standards
+<standards>
 - API calls: only via `/lib/api/client.ts` wrapper
 - Errors: log to `/lib/logger` + show toast
 - Forms: Zod schemas in `/schemas/<feature>.ts`
+</standards>
 
-# Context
+<context>
 - Dashboard widgets lazy-load via React.lazy()
 - Chart library: Recharts (already imported)
 - Date handling: date-fns (no moment.js)
+</context>
 ```
 
 Token savings: 75% reduction, 3x specificity increase
