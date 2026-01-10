@@ -9,7 +9,7 @@ settings:
   # Format string for statusline output
   # Separators: | or \n (empty tokens between separators are automatically cleaned up)
   # Available placeholders: {model}, {contextBar}, {tokens}, {logs}, {cost}, {duration}, {cwd}, {branch}, {summary}, {title}
-  format: "[{model}] | {contextBar} {tokens} | {logs} | {cwd}{branch} | {title} | {summary}"
+  format: "[{model}] | {contextBar} {tokens} | {logs} | {cwd}{branch}\n{title} | {summary}"
 
   # Threshold configuration for visual warnings
   thresholds:
