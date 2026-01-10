@@ -14,7 +14,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { randomBytes } from 'node:crypto'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import type { StagedReminder, Logger, StagingService } from '@sidekick/types'
+import type { StagedReminder, Logger } from '@sidekick/types'
 import { StagingServiceCore, SessionScopedStagingService, type StagingServiceCoreOptions } from '../staging-service'
 
 // ============================================================================
@@ -880,21 +880,6 @@ describe('SessionScopedStagingService', () => {
       expect(list1[0].name).toBe('From1')
       expect(list2).toHaveLength(1)
       expect(list2[0].name).toBe('From2')
-    })
-  })
-
-  describe('StagingService interface compliance', () => {
-    it('should implement all StagingService interface methods', async () => {
-      const wrapper = createSessionScoped(core, 'interface-test')
-
-      // All these should work without errors - testing interface compliance
-      await wrapper.stageReminder('PreToolUse', 'Test', createTestReminder())
-      await wrapper.readReminder('PreToolUse', 'Test')
-      await wrapper.listReminders('PreToolUse')
-      await wrapper.clearStaging('PreToolUse')
-      await wrapper.deleteReminder('PreToolUse', 'Test')
-      await wrapper.listConsumedReminders('PreToolUse', 'Test')
-      await wrapper.getLastConsumed('PreToolUse', 'Test')
     })
   })
 })

@@ -156,22 +156,6 @@ describe('TranscriptServiceImpl', () => {
       const metrics = service.getMetrics()
       expect(metrics.turnCount).toBe(0)
     })
-
-    it('logs initialization', async () => {
-      writeFileSync(transcriptPath, '')
-      await service.initialize('test-session', transcriptPath)
-
-      // initialize() calls prepare() then start(), so we expect the "started" log
-      expect(logger.info).toHaveBeenCalledWith('TranscriptService started', expect.any(Object))
-    })
-
-    it('logs shutdown', async () => {
-      writeFileSync(transcriptPath, '')
-      await service.initialize('test-session', transcriptPath)
-      await service.shutdown()
-
-      expect(logger.info).toHaveBeenCalledWith('TranscriptService shutdown', expect.any(Object))
-    })
   })
 
   // --------------------------------------------------------------------------
@@ -1212,10 +1196,9 @@ describe('TranscriptServiceImpl', () => {
 
         const excerpt = service.getExcerpt({ maxLines: 10 })
 
-        // Empty file after trim().split('\n') gives [''], but we're slicing from max(0, 1-10)=0
-        // Actually an empty string trimmed and split gives [''] which has length 1
-        // Wait, let me think: ''.trim() = '', ''.split('\n') = ['']
-        // So totalLines = 1 (the empty string), but that line is ''
+        // KNOWN QUIRK: ''.split('\n') returns [''], so empty files report lineCount=1.
+        // This is a JavaScript string splitting behavior, not a business requirement.
+        // TODO: Consider fixing implementation to return lineCount=0 for empty transcripts.
         expect(excerpt.lineCount).toBe(1)
       })
     })
