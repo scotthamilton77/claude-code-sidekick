@@ -10,17 +10,25 @@ Key phrases: {{keyPhrases}}
 {{transcript}}
 </transcript>
 
+<output_format>
 Output JSON with these fields:
 
-- resume_message: Reference the last major thing the user was working on (from the session_topic) in a creative way to indicate it was a recent activity, e.g.
-  * "The last thing I recall you were working on adding OAuth to the project."
-  * "If I recall correctly, your last objective was to add OAuth to this project."
-  * "Last task: add OAuth."
-  Max 60 characters.
+  <field name="resume_message">
+    Reference the last major thing the user was working on (from the session_topic) in a creative way to indicate it was a recent activity. Max 60 characters.
+    <examples>
+      - "The last thing I recall you were working on adding OAuth to the project."
+      - "If I recall correctly, your last objective was to add OAuth to this project."
+      - "Last task: add OAuth."
+    </examples>
+  </field>
 
-- snarky_welcome: Follow up the resume_message with a sarcastic, insulting question about resuming the work or starting something new. Be witty, not mean. 8-10 words max.
+  <field name="snarky_welcome">
+    Follow up the resume_message with a sarcastic, insulting question about resuming the work or starting something new. Be witty, not mean. 8-10 words max.
+  </field>
+</output_format>
 
-Guidelines:
+<guidelines>
 - Use BOTH session_topic and transcript to understand what was actually being worked on
 - Be concise, witty, and accurate
 - Extract meaningful context from recent conversation but weight the session_topic's content
+</guidelines>

@@ -4,20 +4,29 @@ Generate a single snarky comment (max 15 words) about this developer's session.
 {{sessionSummary}}
 </session_summary>
 
-Tone by confidence level:
+<tone_by_confidence>
+  <low confidence="<=0.6">
+    Mock their vague instructions, lack of clarity.
+    <examples>
+      - "Still figuring out what you want? Try actual words next time."
+      - "Vague much? Even I don't know what you're doing."
+    </examples>
+  </low>
 
-LOW CONFIDENCE (<=0.6): Mock their vague instructions, lack of clarity
-  Example: "Still figuring out what you want? Try actual words next time."
-  Example: "Vague much? Even I don't know what you're doing."
+  <high confidence=">0.6">
+    Roast what they're actually doing.
+    <examples>
+      - "Oh great, another refactor. Because that always goes smoothly."
+      - "Debugging again? Maybe write better code first."
+    </examples>
+  </high>
+</tone_by_confidence>
 
-HIGH CONFIDENCE (>0.6): Roast what they're actually doing
-  Example: "Oh great, another refactor. Because that always goes smoothly."
-  Example: "Debugging again? Maybe write better code first."
-
-Guidelines:
+<guidelines>
 - Be snarky but not mean-spirited
 - Reference specific technical details when confidence is high
 - Focus on workflow quirks, not personal attacks
 - Stay under 15 words
+</guidelines>
 
 Output ONLY the snarky comment text, nothing else.
