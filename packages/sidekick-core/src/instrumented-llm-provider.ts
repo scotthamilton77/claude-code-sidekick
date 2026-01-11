@@ -24,7 +24,8 @@
 
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import type { Logger, LLMProvider, LLMRequest, LLMResponse } from '@sidekick/types'
+import YAML from 'yaml'
+import type { Logger, LLMProvider, LLMRequest, LLMResponse, Telemetry } from '@sidekick/types'
 import {
   createDefaultLLMMetrics,
   DEFAULT_LATENCY_STATS,
@@ -38,6 +39,16 @@ import {
 const STATE_FILE = 'llm-metrics.json'
 const DEFAULT_DEBOUNCE_MS = 500
 
+/**
+ * LLM profile parameters for debug dump logging
+ */
+export interface LLMProfileParams {
+  profileName?: string
+  temperature?: number
+  maxTokens?: number
+  timeout?: number
+}
+
 export interface InstrumentedLLMProviderConfig {
   /** Session identifier */
   sessionId: string
@@ -45,8 +56,14 @@ export interface InstrumentedLLMProviderConfig {
   stateDir: string
   /** Logger instance */
   logger: Logger
+  /** Telemetry instance for emitting metrics (optional) */
+  telemetry?: Telemetry
   /** Debounce interval for persistence (default: 500ms) */
   persistDebounceMs?: number
+  /** Enable debug dump of LLM requests/responses to session directory */
+  debugDumpEnabled?: boolean
+  /** Profile parameters for debug dump logging */
+  profileParams?: LLMProfileParams
 }
 
 /**
@@ -138,6 +155,132 @@ export class InstrumentedLLMProvider implements LLMProvider {
   }
 
   /**
+   * Write debug dump files for LLM request/response.
+   * Creates files in: {stateDir}/../llm-debug/{provider}/{model}/
+   */
+  private writeDebugDump(
+    request: LLMRequest,
+    response: LLMResponse | null,
+    error: Error | null,
+    durationMs: number
+  ): void {
+    if (!this.config.debugDumpEnabled) {
+      return
+    }
+
+    try {
+      const model = request.model ?? 'unknown'
+      // Sanitize model name for filesystem (replace / with -)
+      const safeModel = model.replace(/\//g, '-')
+      // Write to sibling of state dir: sessions/{id}/llm-debug/ instead of sessions/{id}/state/
+      const sessionDir = dirname(this.config.stateDir)
+      const debugDir = join(sessionDir, 'llm-debug', this.delegate.id, safeModel)
+
+      if (!existsSync(debugDir)) {
+        mkdirSync(debugDir, { recursive: true })
+      }
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+      const basePath = join(debugDir, timestamp)
+
+      // Write request with all available parameters
+      writeFileSync(
+        `${basePath}-request.yaml`,
+        YAML.stringify({
+          provider: this.delegate.id,
+          model,
+          sessionId: this.config.sessionId,
+          timestamp: new Date().toISOString(),
+          // LLM parameters from profile
+          params: this.config.profileParams ?? {},
+          // Full request structure
+          request: {
+            messages: request.messages,
+            system: request.system,
+            model: request.model,
+            jsonSchema: request.jsonSchema,
+            additionalParams: request.additionalParams,
+          },
+        })
+      )
+
+      // Write response or error
+      writeFileSync(
+        `${basePath}-response.yaml`,
+        YAML.stringify({
+          provider: this.delegate.id,
+          model,
+          sessionId: this.config.sessionId,
+          timestamp: new Date().toISOString(),
+          durationMs,
+          success: error === null,
+          response: response
+            ? {
+                content: response.content,
+                model: response.model,
+                usage: response.usage,
+              }
+            : null,
+          error: error
+            ? {
+                name: error.name,
+                message: error.message,
+              }
+            : null,
+        })
+      )
+
+      this.config.logger.debug('Debug dump written', { path: basePath })
+    } catch (dumpError) {
+      // Don't fail the request if dump fails
+      this.config.logger.warn('Failed to write debug dump', {
+        error: dumpError instanceof Error ? dumpError.message : String(dumpError),
+      })
+    }
+  }
+
+  /**
+   * Emit telemetry metrics if telemetry is configured.
+   */
+  private emitTelemetry(
+    model: string,
+    durationMs: number,
+    success: boolean,
+    usage?: { inputTokens: number; outputTokens: number },
+    errorType?: string
+  ): void {
+    const telemetry = this.config.telemetry
+    if (!telemetry) return
+
+    const tags = {
+      provider: this.delegate.id,
+      model,
+      success: String(success),
+    }
+
+    telemetry.histogram('llm_request_duration', durationMs, 'ms', tags)
+
+    if (success && usage) {
+      telemetry.histogram('llm_input_tokens', usage.inputTokens, 'tokens', {
+        provider: this.delegate.id,
+        model,
+      })
+      telemetry.histogram('llm_output_tokens', usage.outputTokens, 'tokens', {
+        provider: this.delegate.id,
+        model,
+      })
+    }
+
+    if (!success) {
+      telemetry.increment('llm_request_errors', {
+        provider: this.delegate.id,
+        model,
+        error_type: errorType ?? 'unknown',
+      })
+    }
+  }
+
+  /**
    * Complete an LLM request while tracking metrics.
    */
   async complete(request: LLMRequest): Promise<LLMResponse> {
@@ -148,6 +291,10 @@ export class InstrumentedLLMProvider implements LLMProvider {
       const response = await this.delegate.complete(request)
       const latencyMs = Date.now() - startTime
 
+      // Write debug dump if enabled
+      this.writeDebugDump(request, response, null, latencyMs)
+
+      // Record session metrics
       this.recordSuccess(
         this.delegate.id,
         response.model ?? model,
@@ -156,10 +303,28 @@ export class InstrumentedLLMProvider implements LLMProvider {
         response.usage?.outputTokens ?? 0
       )
 
+      // Emit telemetry
+      this.emitTelemetry(response.model ?? model, latencyMs, true, response.usage)
+
       return response
     } catch (error) {
       const latencyMs = Date.now() - startTime
+
+      // Write debug dump for errors if enabled
+      this.writeDebugDump(request, null, error instanceof Error ? error : new Error(String(error)), latencyMs)
+
+      // Record session metrics
       this.recordFailure(this.delegate.id, model, latencyMs)
+
+      // Emit telemetry
+      this.emitTelemetry(
+        model,
+        latencyMs,
+        false,
+        undefined,
+        error instanceof Error ? error.constructor.name : 'unknown'
+      )
+
       throw error
     }
   }
