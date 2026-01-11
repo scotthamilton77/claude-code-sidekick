@@ -46,6 +46,22 @@ INTEGRATION_TESTS=1 pnpm test
 **Dev-mode**: `scripts/dev-mode.sh enable` (requires `pnpm build`, restart Claude Code)
 </sandbox_testing>
 
+<git_commits>
+<!-- Sandbox blocks heredoc temp files. Use simple -m or disable sandbox for commits. -->
+
+When committing in sandbox mode, heredocs fail with "can't create temp file for here document".
+
+**Solutions** (in order of preference):
+1. Use simple `-m` for single-line messages: `git commit -m "fix(scope): message"`
+2. Use multiple `-m` flags for multi-line:
+   ```bash
+   git commit -m "fix(scope): summary" -m "Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
+   ```
+3. For complex messages, use `dangerouslyDisableSandbox: true` since git is safe
+
+**Never use heredoc syntax** (`<<EOF`, `<<'EOF'`) for commit messages in this project.
+</git_commits>
+
 <typescript_tooling>
 <!-- [PRESERVE] Post-training-cutoff—use context7 for current docs -->
 
