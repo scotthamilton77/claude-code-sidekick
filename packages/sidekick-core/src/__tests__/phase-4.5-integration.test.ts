@@ -78,6 +78,22 @@ interface TestHandlerContext extends HandlerContext {
 /**
  * Test handler registry that actually executes handlers.
  * Used for integration testing the full TranscriptService → Handler flow.
+ *
+ * DESIGN NOTE: This is a simplified test implementation, NOT the production
+ * HandlerRegistryImpl. It differs in the following ways:
+ *
+ * 1. Handlers execute fire-and-forget (no stop flag propagation)
+ * 2. No response aggregation for hook events
+ * 3. No error isolation between handlers
+ *
+ * These tests verify the INTEGRATION between TranscriptService and handlers
+ * (event emission, context passing, staging access). They do NOT verify:
+ * - Handler execution ordering (tested in handler-registry.test.ts)
+ * - Stop flag propagation (tested in handler-registry.test.ts)
+ * - Error handling in handler chains (tested in handler-registry.test.ts)
+ *
+ * If you need to test those behaviors, use HandlerRegistryImpl directly
+ * or check the dedicated handler-registry.test.ts file.
  */
 class TestHandlerRegistry implements HandlerRegistry {
   private handlers: Map<string, HandlerRegistration<TestHandlerContext>> = new Map()
@@ -105,7 +121,10 @@ class TestHandlerRegistry implements HandlerRegistry {
 
   /**
    * Emit transcript event and execute matching handlers.
-   * Handlers are executed concurrently (fire-and-forget).
+   *
+   * NOTE: Handlers execute concurrently in priority order, but this test
+   * implementation doesn't wait for handlers to complete before returning.
+   * Tests should add appropriate delays after transcript operations.
    */
   emitTranscriptEvent(eventType: TranscriptEventType, entry: TranscriptEntry, lineNumber: number): void {
     const event: TranscriptEvent = {

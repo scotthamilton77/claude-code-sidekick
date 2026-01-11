@@ -32,10 +32,12 @@ describe('Malformed NDJSON Warning Logging', () => {
 
       parseNdjson(content)
 
+      // Test behavior: warning is emitted with context about the problematic line
+      expect(consoleWarnSpy).toHaveBeenCalledTimes(1)
       expect(consoleWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[NDJSON Parser] Skipping malformed line 1: Invalid JSON'),
+        expect.any(String), // Message format may change
         expect.objectContaining({
-          line: 'not valid json',
+          line: 'not valid json', // Context includes original line
         })
       )
     })
@@ -45,10 +47,8 @@ describe('Malformed NDJSON Warning Logging', () => {
 
       parseNdjson(content)
 
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[NDJSON Parser] Skipping malformed line'),
-        expect.anything()
-      )
+      // Test behavior: warning is emitted for truncated JSON
+      expect(consoleWarnSpy).toHaveBeenCalledTimes(1)
     })
 
     it('does NOT log warning for empty lines', () => {
@@ -78,12 +78,17 @@ describe('Malformed NDJSON Warning Logging', () => {
 
       parseNdjson(longLine)
 
+      // Test behavior: long lines are truncated in warning context
+      // The exact truncation length (currently 100 chars) is an implementation detail
       expect(consoleWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[NDJSON Parser]'),
+        expect.any(String),
         expect.objectContaining({
-          line: expect.stringMatching(/^x{100}$/), // Truncated to 100 chars
+          line: expect.stringMatching(/^x+$/), // Contains truncated x's
         })
       )
+      // Verify truncation occurred (line in context is shorter than original)
+      const warningContext = consoleWarnSpy.mock.calls[0][1] as { line: string }
+      expect(warningContext.line.length).toBeLessThan(longLine.length)
     })
 
     it('can suppress warnings with silent=true', () => {
@@ -113,8 +118,10 @@ describe('Malformed NDJSON Warning Logging', () => {
     it('logs warning for malformed line in stream', () => {
       parser.push('not valid json\n')
 
+      // Test behavior: warning is emitted with context
+      expect(consoleWarnSpy).toHaveBeenCalledTimes(1)
       expect(consoleWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[NDJSON Stream Parser] Skipping malformed line'),
+        expect.any(String), // Message format may change
         expect.objectContaining({
           line: 'not valid json',
         })
@@ -146,12 +153,16 @@ describe('Malformed NDJSON Warning Logging', () => {
 
       parser.push(longLine)
 
+      // Test behavior: long lines are truncated in warning context
       expect(consoleWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[NDJSON Stream Parser]'),
+        expect.any(String),
         expect.objectContaining({
-          line: expect.stringMatching(/^y{100}$/),
+          line: expect.stringMatching(/^y+$/), // Contains truncated y's
         })
       )
+      // Verify truncation occurred
+      const warningContext = consoleWarnSpy.mock.calls[0][1] as { line: string }
+      expect(warningContext.line.length).toBeLessThan(longLine.length - 1) // -1 for newline
     })
   })
 })

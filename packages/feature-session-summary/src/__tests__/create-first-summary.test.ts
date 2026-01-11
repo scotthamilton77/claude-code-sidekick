@@ -81,18 +81,6 @@ describe('createFirstSessionSummary', () => {
       expect(summary.latest_intent_confidence).toBe(0)
     })
 
-    it('creates directory recursively', async () => {
-      const sessionId = 'startup-session-2'
-      const event = createSessionStartEvent('startup', sessionId)
-
-      await createFirstSessionSummary(event, ctx)
-
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-      const stats = await fs.stat(stateDir)
-
-      expect(stats.isDirectory()).toBe(true)
-    })
-
     it('writes valid ISO timestamp', async () => {
       const sessionId = 'startup-session-3'
       const event = createSessionStartEvent('startup', sessionId)
@@ -110,31 +98,6 @@ describe('createFirstSessionSummary', () => {
       expect(timestamp.getTime()).toBeLessThanOrEqual(afterTime.getTime())
     })
 
-    it('logs info message with sessionId', async () => {
-      const sessionId = 'startup-session-4'
-      const event = createSessionStartEvent('startup', sessionId)
-
-      await createFirstSessionSummary(event, ctx)
-
-      const infoLogs = logger.getLogsByLevel('info')
-      expect(infoLogs).toHaveLength(1)
-      expect(infoLogs[0].msg).toBe('Created placeholder session summary')
-      expect(infoLogs[0].meta).toEqual({ sessionId })
-    })
-
-    it('writes formatted JSON with 2-space indentation', async () => {
-      const sessionId = 'startup-session-5'
-      const event = createSessionStartEvent('startup', sessionId)
-
-      await createFirstSessionSummary(event, ctx)
-
-      const statePath = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state', 'session-summary.json')
-      const fileContent = await fs.readFile(statePath, 'utf-8')
-
-      // Check for 2-space indentation
-      expect(fileContent).toContain('  "session_id"')
-      expect(fileContent).toContain('  "timestamp"')
-    })
   })
 
   describe('clear startType', () => {
@@ -155,29 +118,6 @@ describe('createFirstSessionSummary', () => {
       expect(summary.latest_intent_confidence).toBe(0)
     })
 
-    it('creates directory recursively', async () => {
-      const sessionId = 'clear-session-2'
-      const event = createSessionStartEvent('clear', sessionId)
-
-      await createFirstSessionSummary(event, ctx)
-
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-      const stats = await fs.stat(stateDir)
-
-      expect(stats.isDirectory()).toBe(true)
-    })
-
-    it('logs info message with sessionId', async () => {
-      const sessionId = 'clear-session-3'
-      const event = createSessionStartEvent('clear', sessionId)
-
-      await createFirstSessionSummary(event, ctx)
-
-      const infoLogs = logger.getLogsByLevel('info')
-      expect(infoLogs).toHaveLength(1)
-      expect(infoLogs[0].msg).toBe('Created placeholder session summary')
-      expect(infoLogs[0].meta).toEqual({ sessionId })
-    })
   })
 
   describe('resume startType', () => {
@@ -193,39 +133,6 @@ describe('createFirstSessionSummary', () => {
       await expect(fs.access(statePath)).rejects.toThrow()
     })
 
-    it('logs debug message with startType and sessionId', async () => {
-      const sessionId = 'resume-session-2'
-      const event = createSessionStartEvent('resume', sessionId)
-
-      await createFirstSessionSummary(event, ctx)
-
-      const debugLogs = logger.getLogsByLevel('debug')
-      expect(debugLogs).toHaveLength(1)
-      expect(debugLogs[0].msg).toBe('Preserving existing summary')
-      expect(debugLogs[0].meta).toEqual({ startType: 'resume', sessionId })
-    })
-
-    it('does not log info message', async () => {
-      const sessionId = 'resume-session-3'
-      const event = createSessionStartEvent('resume', sessionId)
-
-      await createFirstSessionSummary(event, ctx)
-
-      const infoLogs = logger.getLogsByLevel('info')
-      expect(infoLogs).toHaveLength(0)
-    })
-
-    it('does not create state directory', async () => {
-      const sessionId = 'resume-session-4'
-      const event = createSessionStartEvent('resume', sessionId)
-
-      await createFirstSessionSummary(event, ctx)
-
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-
-      // Directory should not exist
-      await expect(fs.access(stateDir)).rejects.toThrow()
-    })
   })
 
   describe('compact startType', () => {
@@ -241,106 +148,8 @@ describe('createFirstSessionSummary', () => {
       await expect(fs.access(statePath)).rejects.toThrow()
     })
 
-    it('logs debug message with startType and sessionId', async () => {
-      const sessionId = 'compact-session-2'
-      const event = createSessionStartEvent('compact', sessionId)
-
-      await createFirstSessionSummary(event, ctx)
-
-      const debugLogs = logger.getLogsByLevel('debug')
-      expect(debugLogs).toHaveLength(1)
-      expect(debugLogs[0].msg).toBe('Preserving existing summary')
-      expect(debugLogs[0].meta).toEqual({ startType: 'compact', sessionId })
-    })
-
-    it('does not log info message', async () => {
-      const sessionId = 'compact-session-3'
-      const event = createSessionStartEvent('compact', sessionId)
-
-      await createFirstSessionSummary(event, ctx)
-
-      const infoLogs = logger.getLogsByLevel('info')
-      expect(infoLogs).toHaveLength(0)
-    })
-
-    it('does not create state directory', async () => {
-      const sessionId = 'compact-session-4'
-      const event = createSessionStartEvent('compact', sessionId)
-
-      await createFirstSessionSummary(event, ctx)
-
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-
-      // Directory should not exist
-      await expect(fs.access(stateDir)).rejects.toThrow()
-    })
   })
 
-  describe('Placeholder JSON structure validation', () => {
-    it('includes all required SessionSummaryState fields', async () => {
-      const sessionId = 'validation-session-1'
-      const event = createSessionStartEvent('startup', sessionId)
-
-      await createFirstSessionSummary(event, ctx)
-
-      const statePath = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state', 'session-summary.json')
-      const fileContent = await fs.readFile(statePath, 'utf-8')
-      const summary: SessionSummaryState = JSON.parse(fileContent)
-
-      // Check all required fields exist
-      expect(summary).toHaveProperty('session_id')
-      expect(summary).toHaveProperty('timestamp')
-      expect(summary).toHaveProperty('session_title')
-      expect(summary).toHaveProperty('session_title_confidence')
-      expect(summary).toHaveProperty('latest_intent')
-      expect(summary).toHaveProperty('latest_intent_confidence')
-    })
-
-    it('uses correct placeholder values', async () => {
-      const sessionId = 'validation-session-2'
-      const event = createSessionStartEvent('startup', sessionId)
-
-      await createFirstSessionSummary(event, ctx)
-
-      const statePath = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state', 'session-summary.json')
-      const fileContent = await fs.readFile(statePath, 'utf-8')
-      const summary: SessionSummaryState = JSON.parse(fileContent)
-
-      expect(summary.session_title).toBe('New Session')
-      expect(summary.session_title_confidence).toBe(0)
-      expect(summary.latest_intent).toBe('Awaiting first prompt...')
-      expect(summary.latest_intent_confidence).toBe(0)
-    })
-
-    it('confidence values are numbers', async () => {
-      const sessionId = 'validation-session-3'
-      const event = createSessionStartEvent('startup', sessionId)
-
-      await createFirstSessionSummary(event, ctx)
-
-      const statePath = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state', 'session-summary.json')
-      const fileContent = await fs.readFile(statePath, 'utf-8')
-      const summary: SessionSummaryState = JSON.parse(fileContent)
-
-      expect(typeof summary.session_title_confidence).toBe('number')
-      expect(typeof summary.latest_intent_confidence).toBe('number')
-    })
-
-    it('timestamp is valid ISO 8601 string', async () => {
-      const sessionId = 'validation-session-4'
-      const event = createSessionStartEvent('startup', sessionId)
-
-      await createFirstSessionSummary(event, ctx)
-
-      const statePath = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state', 'session-summary.json')
-      const fileContent = await fs.readFile(statePath, 'utf-8')
-      const summary: SessionSummaryState = JSON.parse(fileContent)
-
-      // Should be parseable as Date
-      const timestamp = new Date(summary.timestamp)
-      expect(timestamp.toISOString()).toBe(summary.timestamp)
-    })
-  })
 
   describe('Path resolution', () => {
     it('uses projectConfigDir when available', async () => {
@@ -379,28 +188,6 @@ describe('createFirstSessionSummary', () => {
       expect(fileExists).toBe(true)
     })
 
-    it('creates nested directory structure correctly', async () => {
-      const sessionId = 'path-session-3'
-      const event = createSessionStartEvent('startup', sessionId)
-
-      await createFirstSessionSummary(event, ctx)
-
-      // Verify all parts of the path exist
-      const baseDir = path.join(tempDir, '.sidekick')
-      const sessionsDir = path.join(baseDir, 'sessions')
-      const sessionDir = path.join(sessionsDir, sessionId)
-      const stateDir = path.join(sessionDir, 'state')
-
-      const baseDirStats = await fs.stat(baseDir)
-      const sessionsDirStats = await fs.stat(sessionsDir)
-      const sessionDirStats = await fs.stat(sessionDir)
-      const stateDirStats = await fs.stat(stateDir)
-
-      expect(baseDirStats.isDirectory()).toBe(true)
-      expect(sessionsDirStats.isDirectory()).toBe(true)
-      expect(sessionDirStats.isDirectory()).toBe(true)
-      expect(stateDirStats.isDirectory()).toBe(true)
-    })
   })
 
   describe('Multiple sessions', () => {

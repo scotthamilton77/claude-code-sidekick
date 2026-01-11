@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createLogManager } from '@sidekick/core'
-import { OpenAINativeProvider, AuthError, RateLimitError, TimeoutError } from '../../index'
+import { OpenAINativeProvider, AuthError, RateLimitError, TimeoutError, ProviderError } from '../../index'
 import OpenAI from 'openai'
 
 // Create a mock for the chat completions create method
@@ -148,7 +148,7 @@ describe('OpenAINativeProvider', () => {
     ).rejects.toThrow(AuthError)
   })
 
-  it('maps 429 error to RateLimitError', async () => {
+  it('maps 429 error to RateLimitError with retryAfter', async () => {
     const apiError = new (OpenAI as any).APIError('Rate limit', 429, { 'retry-after': '60' })
     mockCreate.mockRejectedValue(apiError)
 
@@ -160,14 +160,18 @@ describe('OpenAINativeProvider', () => {
       logger
     )
 
-    try {
-      await provider.complete({
+    await expect(
+      provider.complete({
         messages: [{ role: 'user', content: 'Hello' }],
       })
-    } catch (err) {
-      expect(err).toBeInstanceOf(RateLimitError)
-      expect((err as RateLimitError).retryAfter).toBe(60)
-    }
+    ).rejects.toBeInstanceOf(RateLimitError)
+
+    // Verify retryAfter is correctly parsed
+    const error = await provider
+      .complete({ messages: [{ role: 'user', content: 'Hello' }] })
+      .catch((e) => e)
+    expect(error).toBeInstanceOf(RateLimitError)
+    expect(error.retryAfter).toBe(60)
   })
 
   it('maps timeout error to TimeoutError', async () => {
@@ -188,5 +192,139 @@ describe('OpenAINativeProvider', () => {
         messages: [{ role: 'user', content: 'Hello' }],
       })
     ).rejects.toThrow(TimeoutError)
+  })
+
+  it('maps 403 error to AuthError', async () => {
+    const apiError = new (OpenAI as any).APIError('Forbidden', 403)
+    mockCreate.mockRejectedValue(apiError)
+
+    const provider = new OpenAINativeProvider(
+      {
+        apiKey: 'sk-test-key',
+        model: 'gpt-4',
+      },
+      logger
+    )
+
+    await expect(
+      provider.complete({
+        messages: [{ role: 'user', content: 'Hello' }],
+      })
+    ).rejects.toThrow(AuthError)
+  })
+
+  it('maps 5xx errors to retryable ProviderError', async () => {
+    const apiError = new (OpenAI as any).APIError('Internal Server Error', 500)
+    mockCreate.mockRejectedValue(apiError)
+
+    const provider = new OpenAINativeProvider(
+      {
+        apiKey: 'sk-test-key',
+        model: 'gpt-4',
+      },
+      logger
+    )
+
+    const error = await provider
+      .complete({ messages: [{ role: 'user', content: 'Hello' }] })
+      .catch((e) => e)
+
+    expect(error).toBeInstanceOf(ProviderError)
+    expect(error.retryable).toBe(true)
+    expect(error.message).toContain('Server error')
+  })
+
+  it('maps non-APIError to ProviderError', async () => {
+    const genericError = new Error('Network failure')
+    mockCreate.mockRejectedValue(genericError)
+
+    const provider = new OpenAINativeProvider(
+      {
+        apiKey: 'sk-test-key',
+        model: 'gpt-4',
+      },
+      logger
+    )
+
+    const error = await provider
+      .complete({ messages: [{ role: 'user', content: 'Hello' }] })
+      .catch((e) => e)
+
+    expect(error).toBeInstanceOf(ProviderError)
+    expect(error.message).toBe('Network failure')
+    expect(error.retryable).toBe(false)
+  })
+
+  it('forwards jsonSchema to request with response_format', async () => {
+    const mockResponse = {
+      choices: [{ message: { content: '{"name": "Test"}' } }],
+      model: 'gpt-4',
+      usage: { prompt_tokens: 10, completion_tokens: 5 },
+    }
+
+    mockCreate.mockResolvedValue(mockResponse)
+
+    const provider = new OpenAINativeProvider(
+      {
+        apiKey: 'sk-test-key',
+        model: 'gpt-4',
+      },
+      logger
+    )
+
+    await provider.complete({
+      messages: [{ role: 'user', content: 'Generate JSON' }],
+      jsonSchema: {
+        name: 'test_schema',
+        schema: { type: 'object', properties: { name: { type: 'string' } } },
+        strict: true,
+      },
+    })
+
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        response_format: {
+          type: 'json_schema',
+          json_schema: {
+            name: 'test_schema',
+            schema: { type: 'object', properties: { name: { type: 'string' } } },
+            strict: true,
+          },
+        },
+      })
+    )
+  })
+
+  it('forwards additionalParams to request', async () => {
+    const mockResponse = {
+      choices: [{ message: { content: 'Response' } }],
+      model: 'gpt-4',
+      usage: { prompt_tokens: 10, completion_tokens: 5 },
+    }
+
+    mockCreate.mockResolvedValue(mockResponse)
+
+    const provider = new OpenAINativeProvider(
+      {
+        apiKey: 'sk-test-key',
+        model: 'gpt-4',
+      },
+      logger
+    )
+
+    await provider.complete({
+      messages: [{ role: 'user', content: 'Hello' }],
+      additionalParams: {
+        stream: true,
+        presence_penalty: 0.5,
+      },
+    })
+
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stream: true,
+        presence_penalty: 0.5,
+      })
+    )
   })
 })

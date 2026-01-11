@@ -108,8 +108,9 @@ export function extractConversationContext(ctx: SupervisorContext): Conversation
 
 /**
  * Interpolate the prompt template with conversation context.
+ * @internal Exported for testing
  */
-function interpolatePrompt(template: string, context: ConversationContext): string {
+export function interpolatePrompt(template: string, context: ConversationContext): string {
   return template
     .replace(/\{\{lastUserPrompt\}\}/g, context.lastUserPrompt ?? '(no user prompt found)')
     .replace(/\{\{lastAssistantMessage\}\}/g, context.lastAssistantMessage ?? '(no assistant message found)')
@@ -117,8 +118,9 @@ function interpolatePrompt(template: string, context: ConversationContext): stri
 
 /**
  * Parse and validate LLM response as JSON.
+ * @internal Exported for testing
  */
-function parseResponse(content: string): CompletionClassifierResponse | null {
+export function parseResponse(content: string): CompletionClassifierResponse | null {
   try {
     // Extract JSON from response (handle markdown code blocks)
     let jsonStr = content

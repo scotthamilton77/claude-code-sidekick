@@ -352,42 +352,21 @@ reason: "Verify completion before stopping"
       expect(registrations[0].id).toBe('reminders:stage-stop-reminders')
     })
 
-    it('stages verify-completion reminder on Write tool', async () => {
-      registerStageStopReminders(ctx)
+    it.each(['Write', 'Edit', 'MultiEdit'] as const)(
+      'stages verify-completion reminder on %s tool',
+      async (toolName) => {
+        registerStageStopReminders(ctx)
 
-      const handler = handlers.getHandler('reminders:stage-stop-reminders')
-      const event = createTestTranscriptEvent({ toolsThisTurn: 1 }, 'Write', '/src/app.ts')
+        const handler = handlers.getHandler('reminders:stage-stop-reminders')
+        const event = createTestTranscriptEvent({ toolsThisTurn: 1 }, toolName, '/src/app.ts')
 
-      await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+        await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
 
-      const reminders = staging.getRemindersForHook('Stop')
-      expect(reminders).toHaveLength(1)
-      expect(reminders[0].name).toBe('verify-completion')
-    })
-
-    it('stages verify-completion reminder on Edit tool', async () => {
-      registerStageStopReminders(ctx)
-
-      const handler = handlers.getHandler('reminders:stage-stop-reminders')
-      const event = createTestTranscriptEvent({ toolsThisTurn: 1 }, 'Edit', '/src/utils.js')
-
-      await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
-
-      const reminders = staging.getRemindersForHook('Stop')
-      expect(reminders).toHaveLength(1)
-    })
-
-    it('stages verify-completion reminder on MultiEdit tool', async () => {
-      registerStageStopReminders(ctx)
-
-      const handler = handlers.getHandler('reminders:stage-stop-reminders')
-      const event = createTestTranscriptEvent({ toolsThisTurn: 1 }, 'MultiEdit', '/src/index.py')
-
-      await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
-
-      const reminders = staging.getRemindersForHook('Stop')
-      expect(reminders).toHaveLength(1)
-    })
+        const reminders = staging.getRemindersForHook('Stop')
+        expect(reminders).toHaveLength(1)
+        expect(reminders[0].name).toBe('verify-completion')
+      }
+    )
 
     it('does not stage on non-edit tools', async () => {
       registerStageStopReminders(ctx)

@@ -20,6 +20,33 @@ import {
 import type { HandlerRegistry, Logger, TranscriptEventType, TranscriptEntry } from '@sidekick/types'
 
 // ============================================================================
+// Test Helpers for Internal API Access
+// ============================================================================
+
+/**
+ * Type for accessing TranscriptServiceImpl's internal methods for testing.
+ *
+ * DESIGN NOTE: The `processTranscriptFile` method is private because it's
+ * triggered by the file watcher in production. However, tests need to
+ * trigger it directly to verify behavior without waiting for debounced
+ * file events or creating race conditions.
+ *
+ * This type makes the testing intent explicit and allows type-safe access
+ * to internal methods without scattered `as unknown as { ... }` casts.
+ */
+interface TranscriptServiceTestInternals {
+  processTranscriptFile: () => Promise<void>
+  persistMetrics: (immediate: boolean) => void
+}
+
+/**
+ * Cast service to access internal methods for testing.
+ */
+function getTestHelpers(service: TranscriptServiceImpl): TranscriptServiceTestInternals {
+  return service as unknown as TranscriptServiceTestInternals
+}
+
+// ============================================================================
 // Test Utilities
 // ============================================================================
 
@@ -775,7 +802,7 @@ describe('TranscriptServiceImpl', () => {
       ].join('\n')
       writeFileSync(transcriptPath, withCompact)
 
-      await (service as unknown as { processTranscriptFile: () => Promise<void> }).processTranscriptFile()
+      await getTestHelpers(service).processTranscriptFile()
 
       metrics = service.getMetrics()
       // After compact_boundary: indeterminate state
@@ -796,7 +823,7 @@ describe('TranscriptServiceImpl', () => {
       const withCompact = [initial, JSON.stringify({ type: 'system', subtype: 'compact_boundary' })].join('\n')
       writeFileSync(transcriptPath, withCompact)
 
-      await (service as unknown as { processTranscriptFile: () => Promise<void> }).processTranscriptFile()
+      await getTestHelpers(service).processTranscriptFile()
 
       expect(handlers.emittedEvents).toContainEqual(
         expect.objectContaining({
@@ -838,7 +865,7 @@ describe('TranscriptServiceImpl', () => {
       ].join('\n')
       writeFileSync(transcriptPath, withResponse)
 
-      await (service as unknown as { processTranscriptFile: () => Promise<void> }).processTranscriptFile()
+      await getTestHelpers(service).processTranscriptFile()
 
       metrics = service.getMetrics()
       // Indeterminate cleared, context tokens set from usage
@@ -861,7 +888,7 @@ describe('TranscriptServiceImpl', () => {
 
       // Add content and process
       writeFileSync(transcriptPath, JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } }))
-      await (service as unknown as { processTranscriptFile: () => Promise<void> }).processTranscriptFile()
+      await getTestHelpers(service).processTranscriptFile()
 
       expect(callback).toHaveBeenCalled()
       expect(callback).toHaveBeenCalledWith(expect.objectContaining({ turnCount: 1 }))
@@ -876,7 +903,7 @@ describe('TranscriptServiceImpl', () => {
       unsubscribe()
 
       writeFileSync(transcriptPath, JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } }))
-      await (service as unknown as { processTranscriptFile: () => Promise<void> }).processTranscriptFile()
+      await getTestHelpers(service).processTranscriptFile()
 
       expect(callback).not.toHaveBeenCalled()
     })
@@ -896,7 +923,7 @@ describe('TranscriptServiceImpl', () => {
           JSON.stringify({ type: 'user', message: { role: 'user', content: 'Two' } }),
         ].join('\n')
       )
-      await (service as unknown as { processTranscriptFile: () => Promise<void> }).processTranscriptFile()
+      await getTestHelpers(service).processTranscriptFile()
 
       expect(callback).toHaveBeenCalledTimes(1)
     })
@@ -909,7 +936,7 @@ describe('TranscriptServiceImpl', () => {
       service.onThreshold('turnCount', 1, callback)
 
       writeFileSync(transcriptPath, JSON.stringify({ type: 'user', message: { role: 'user', content: 'One' } }))
-      await (service as unknown as { processTranscriptFile: () => Promise<void> }).processTranscriptFile()
+      await getTestHelpers(service).processTranscriptFile()
 
       writeFileSync(
         transcriptPath,
@@ -918,7 +945,7 @@ describe('TranscriptServiceImpl', () => {
           JSON.stringify({ type: 'user', message: { role: 'user', content: 'Two' } }),
         ].join('\n')
       )
-      await (service as unknown as { processTranscriptFile: () => Promise<void> }).processTranscriptFile()
+      await getTestHelpers(service).processTranscriptFile()
 
       expect(callback).toHaveBeenCalledTimes(1) // Only once, not twice
     })
@@ -936,7 +963,7 @@ describe('TranscriptServiceImpl', () => {
       await service.initialize('test-session', transcriptPath)
 
       // Force immediate persistence
-      ;(service as unknown as { persistMetrics: (immediate: boolean) => void }).persistMetrics(true)
+      getTestHelpers(service).persistMetrics(true)
 
       const statePath = join(stateDir, 'sessions', 'test-session', 'state', 'transcript-metrics.json')
       expect(existsSync(statePath)).toBe(true)
@@ -1196,10 +1223,8 @@ describe('TranscriptServiceImpl', () => {
 
         const excerpt = service.getExcerpt({ maxLines: 10 })
 
-        // KNOWN QUIRK: ''.split('\n') returns [''], so empty files report lineCount=1.
-        // This is a JavaScript string splitting behavior, not a business requirement.
-        // TODO: Consider fixing implementation to return lineCount=0 for empty transcripts.
-        expect(excerpt.lineCount).toBe(1)
+        // Empty files correctly report lineCount=0
+        expect(excerpt.lineCount).toBe(0)
       })
     })
 

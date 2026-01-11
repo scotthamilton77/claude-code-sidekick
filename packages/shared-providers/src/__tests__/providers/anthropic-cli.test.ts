@@ -39,15 +39,61 @@ describe('AnthropicCliProvider', () => {
     return proc
   }
 
-  it('creates provider with default CLI path', () => {
+  it('creates provider with default CLI path', async () => {
+    const mockProc = createMockProcess()
+    mockSpawn.mockReturnValue(mockProc)
+
     const provider = new AnthropicCliProvider(
       {
         model: 'claude-3-5-sonnet-20241022',
+        // No cliPath specified - should default to 'claude'
       },
       logger
     )
 
     expect(provider.id).toBe('claude-cli')
+
+    // Start a request to verify spawn is called with default 'claude' path
+    const responsePromise = provider.complete({
+      messages: [{ role: 'user', content: 'Hello' }],
+    })
+
+    setTimeout(() => {
+      mockProc.stdout.emit('data', JSON.stringify({ content: 'Response' }))
+      mockProc.emit('close', 0)
+    }, 10)
+
+    await responsePromise
+
+    // Verify the default CLI path 'claude' was used
+    expect(mockSpawn).toHaveBeenCalledWith('claude', expect.any(Array), expect.any(Object))
+  })
+
+  it('uses custom CLI path when provided', async () => {
+    const mockProc = createMockProcess()
+    mockSpawn.mockReturnValue(mockProc)
+
+    const provider = new AnthropicCliProvider(
+      {
+        model: 'claude-3-5-sonnet-20241022',
+        cliPath: '/usr/local/bin/claude-custom',
+      },
+      logger
+    )
+
+    const responsePromise = provider.complete({
+      messages: [{ role: 'user', content: 'Hello' }],
+    })
+
+    setTimeout(() => {
+      mockProc.stdout.emit('data', JSON.stringify({ content: 'Response' }))
+      mockProc.emit('close', 0)
+    }, 10)
+
+    await responsePromise
+
+    // Verify the custom CLI path was used
+    expect(mockSpawn).toHaveBeenCalledWith('/usr/local/bin/claude-custom', expect.any(Array), expect.any(Object))
   })
 
   it('completes request successfully with JSON response', async () => {
@@ -113,6 +159,96 @@ describe('AnthropicCliProvider', () => {
     const response = await responsePromise
 
     expect(response.content).toBe('Plain text response')
+  })
+
+  it('parses result field from JSON response (primary field)', async () => {
+    const mockProc = createMockProcess()
+    mockSpawn.mockReturnValue(mockProc)
+
+    const provider = new AnthropicCliProvider(
+      {
+        model: 'claude-3-5-sonnet-20241022',
+      },
+      logger
+    )
+
+    const responsePromise = provider.complete({
+      messages: [{ role: 'user', content: 'Hello' }],
+    })
+
+    setTimeout(() => {
+      mockProc.stdout.emit(
+        'data',
+        JSON.stringify({
+          result: 'Result field response',
+          content: 'Content field response', // Should be ignored when result is present
+          usage: { input_tokens: 5, output_tokens: 10 },
+        })
+      )
+      mockProc.emit('close', 0)
+    }, 10)
+
+    const response = await responsePromise
+
+    expect(response.content).toBe('Result field response')
+  })
+
+  it('parses message field as fallback from JSON response', async () => {
+    const mockProc = createMockProcess()
+    mockSpawn.mockReturnValue(mockProc)
+
+    const provider = new AnthropicCliProvider(
+      {
+        model: 'claude-3-5-sonnet-20241022',
+      },
+      logger
+    )
+
+    const responsePromise = provider.complete({
+      messages: [{ role: 'user', content: 'Hello' }],
+    })
+
+    setTimeout(() => {
+      mockProc.stdout.emit(
+        'data',
+        JSON.stringify({
+          message: 'Message field response',
+          usage: { input_tokens: 5, output_tokens: 10 },
+        })
+      )
+      mockProc.emit('close', 0)
+    }, 10)
+
+    const response = await responsePromise
+
+    expect(response.content).toBe('Message field response')
+  })
+
+  it('falls back to raw stdout when no recognized fields in JSON', async () => {
+    const mockProc = createMockProcess()
+    mockSpawn.mockReturnValue(mockProc)
+
+    const provider = new AnthropicCliProvider(
+      {
+        model: 'claude-3-5-sonnet-20241022',
+      },
+      logger
+    )
+
+    const responsePromise = provider.complete({
+      messages: [{ role: 'user', content: 'Hello' }],
+    })
+
+    const rawJson = JSON.stringify({ unrecognized_field: 'some value' })
+    setTimeout(() => {
+      mockProc.stdout.emit('data', rawJson)
+      mockProc.emit('close', 0)
+    }, 10)
+
+    const response = await responsePromise
+
+    // Falls back to stdout when no result/content/message
+    expect(response.content).toBe(rawJson)
   })
 
   it('includes system prompt in request', async () => {

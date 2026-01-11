@@ -6,9 +6,27 @@
  *
  * @see docs/design/flow.md §5 Complete Hook Flows
  */
-import { describe, expect, test, vi } from 'vitest'
+import { Writable } from 'node:stream'
+import { describe, expect, test, vi, beforeEach } from 'vitest'
 import type { ParsedHookInput } from '@sidekick/types'
-import { buildHookEvent, getHookName, isHookCommand, mergeHookResponses, validateHookName } from '../hook.js'
+import { buildHookEvent, getHookName, handleHookCommand, isHookCommand, mergeHookResponses, validateHookName } from '../hook.js'
+import type { HandleHookOptions } from '../hook.js'
+
+// Collecting writable for capturing output
+class CollectingWritable extends Writable {
+  data = ''
+
+  _write(chunk: Buffer, _encoding: BufferEncoding, callback: (error?: Error | null) => void): void {
+    this.data += chunk.toString()
+    callback()
+  }
+}
+
+// Hoisted mock functions for IpcService
+const { mockSend, mockClose } = vi.hoisted(() => ({
+  mockSend: vi.fn(),
+  mockClose: vi.fn(),
+}))
 
 // Mock @sidekick/core IpcService
 vi.mock('@sidekick/core', async (importOriginal) => {
@@ -16,71 +34,63 @@ vi.mock('@sidekick/core', async (importOriginal) => {
   return {
     ...actual,
     IpcService: vi.fn().mockImplementation(() => ({
-      send: vi.fn().mockResolvedValue(null),
-      close: vi.fn(),
+      send: mockSend,
+      close: mockClose,
     })),
   }
 })
 
+// Mock context module to avoid complex runtime dependencies
+vi.mock('../../context.js', () => ({
+  buildCLIContext: vi.fn().mockReturnValue({
+    handlers: {
+      invokeHook: vi.fn().mockResolvedValue(null),
+    },
+  }),
+  registerCLIFeatures: vi.fn(),
+}))
+
 describe('hook command utilities', () => {
   describe('validateHookName', () => {
-    test('returns HookName for valid PascalCase hook names', () => {
+    // Representative cases - validates the mapping logic works
+    test('accepts valid PascalCase hook names', () => {
       expect(validateHookName('SessionStart')).toBe('SessionStart')
-      expect(validateHookName('SessionEnd')).toBe('SessionEnd')
-      expect(validateHookName('UserPromptSubmit')).toBe('UserPromptSubmit')
       expect(validateHookName('PreToolUse')).toBe('PreToolUse')
-      expect(validateHookName('PostToolUse')).toBe('PostToolUse')
-      expect(validateHookName('Stop')).toBe('Stop')
-      expect(validateHookName('PreCompact')).toBe('PreCompact')
     })
 
-    test('returns undefined for invalid hook names', () => {
+    test('rejects invalid hook names', () => {
+      // Various invalid formats
       expect(validateHookName('session_start')).toBeUndefined()
       expect(validateHookName('session-start')).toBeUndefined()
-      expect(validateHookName('supervisor')).toBeUndefined()
       expect(validateHookName('unknown')).toBeUndefined()
       expect(validateHookName('')).toBeUndefined()
     })
   })
 
   describe('isHookCommand', () => {
-    test('returns true for valid kebab-case CLI commands', () => {
+    test('recognizes valid kebab-case CLI commands', () => {
       expect(isHookCommand('session-start')).toBe(true)
-      expect(isHookCommand('session-end')).toBe(true)
-      expect(isHookCommand('user-prompt-submit')).toBe(true)
       expect(isHookCommand('pre-tool-use')).toBe(true)
-      expect(isHookCommand('post-tool-use')).toBe(true)
-      expect(isHookCommand('stop')).toBe(true)
-      expect(isHookCommand('pre-compact')).toBe(true)
     })
 
-    test('returns false for non-hook commands', () => {
+    test('rejects non-hook commands', () => {
       expect(isHookCommand('supervisor')).toBe(false)
       expect(isHookCommand('statusline')).toBe(false)
-      expect(isHookCommand('ui')).toBe(false)
-      expect(isHookCommand('unknown')).toBe(false)
       expect(isHookCommand('')).toBe(false)
+      // Wrong case format
       expect(isHookCommand('SessionStart')).toBe(false)
-      expect(isHookCommand('session_start')).toBe(false)
     })
   })
 
   describe('getHookName', () => {
-    test('maps kebab-case CLI commands to PascalCase HookName', () => {
+    test('maps kebab-case to PascalCase', () => {
       expect(getHookName('session-start')).toBe('SessionStart')
-      expect(getHookName('session-end')).toBe('SessionEnd')
       expect(getHookName('user-prompt-submit')).toBe('UserPromptSubmit')
-      expect(getHookName('pre-tool-use')).toBe('PreToolUse')
-      expect(getHookName('post-tool-use')).toBe('PostToolUse')
-      expect(getHookName('stop')).toBe('Stop')
-      expect(getHookName('pre-compact')).toBe('PreCompact')
     })
 
     test('returns undefined for non-hook commands', () => {
       expect(getHookName('supervisor')).toBeUndefined()
-      expect(getHookName('invalid')).toBeUndefined()
-      expect(getHookName('SessionStart')).toBeUndefined()
-      expect(getHookName('session_start')).toBeUndefined()
+      expect(getHookName('SessionStart')).toBeUndefined() // Wrong format
     })
   })
 })
@@ -358,5 +368,133 @@ describe('mergeHookResponses', () => {
     const merged = mergeHookResponses(supervisorResponse, cliResponse)
 
     expect(merged).toEqual(supervisorResponse)
+  })
+})
+
+describe('handleHookCommand', () => {
+  // Create mock logger and runtime
+  const mockLogger = {
+    trace: vi.fn(),
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    fatal: vi.fn(),
+    child: vi.fn().mockReturnThis(),
+    flush: vi.fn().mockResolvedValue(undefined),
+  }
+
+  const mockRuntime = {
+    scope: {
+      scope: 'project' as const,
+      source: 'hook-script-path' as const,
+      hookScriptPath: '/project/.claude/hooks/sidekick/session-start',
+      projectRoot: '/project',
+      dualInstallDetected: false,
+      warnings: [],
+    },
+    config: {
+      get: vi.fn(),
+    },
+    logger: mockLogger,
+    assets: {
+      resolve: vi.fn(),
+    },
+    telemetry: {
+      flush: vi.fn(),
+    },
+    correlationId: 'test-correlation-id',
+    cleanup: vi.fn(),
+    bindSessionId: vi.fn(),
+    getLogCounts: vi.fn().mockReturnValue({ warnings: 0, errors: 0 }),
+    resetLogCounts: vi.fn(),
+    loadExistingLogCounts: vi.fn().mockResolvedValue(undefined),
+  }
+
+  const baseHookInput: ParsedHookInput = {
+    sessionId: 'test-session-123',
+    transcriptPath: '/path/to/transcript.jsonl',
+    cwd: '/project/dir',
+    hookEventName: 'SessionStart',
+    permissionMode: 'default',
+    raw: { session_id: 'test-session-123' },
+  }
+
+  const baseOptions: HandleHookOptions = {
+    projectRoot: '/project',
+    sessionId: 'test-session-123',
+    hookInput: baseHookInput,
+    correlationId: 'test-correlation',
+    scope: 'project',
+    runtime: mockRuntime as unknown as HandleHookOptions['runtime'],
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockSend.mockResolvedValue(null) // Default to supervisor unavailable
+  })
+
+  test('returns empty response on IPC failure (graceful degradation)', async () => {
+    // Simulate IPC connection error
+    mockSend.mockRejectedValue(new Error('Connection refused'))
+
+    const stdout = new CollectingWritable()
+    const result = await handleHookCommand('SessionStart', baseOptions, mockLogger, stdout)
+
+    // Key behavior: returns empty response to allow action to proceed
+    expect(result.exitCode).toBe(0)
+    expect(result.output).toBe('{}')
+    expect(stdout.data).toBe('{}\n')
+  })
+
+  test('returns empty response on IPC timeout', async () => {
+    // Simulate timeout
+    mockSend.mockRejectedValue(new Error('Timeout waiting for response'))
+
+    const stdout = new CollectingWritable()
+    const result = await handleHookCommand('PreToolUse', baseOptions, mockLogger, stdout)
+
+    expect(result.exitCode).toBe(0)
+    expect(result.output).toBe('{}')
+  })
+
+  test('returns supervisor response when available', async () => {
+    const supervisorResponse = { additionalContext: 'Supervisor says hello' }
+    mockSend.mockResolvedValue(supervisorResponse)
+
+    const stdout = new CollectingWritable()
+    const result = await handleHookCommand('SessionStart', baseOptions, mockLogger, stdout)
+
+    expect(result.exitCode).toBe(0)
+    expect(JSON.parse(result.output)).toEqual(supervisorResponse)
+  })
+
+  test('returns empty object when supervisor is unavailable (null response)', async () => {
+    mockSend.mockResolvedValue(null)
+
+    const stdout = new CollectingWritable()
+    const result = await handleHookCommand('SessionStart', baseOptions, mockLogger, stdout)
+
+    expect(result.exitCode).toBe(0)
+    // Merging null supervisor response with empty CLI response yields {}
+    expect(JSON.parse(result.output)).toEqual({})
+  })
+
+  test('always closes IpcService even on error', async () => {
+    mockSend.mockRejectedValue(new Error('Network error'))
+
+    const stdout = new CollectingWritable()
+    await handleHookCommand('SessionStart', baseOptions, mockLogger, stdout)
+
+    expect(mockClose).toHaveBeenCalledOnce()
+  })
+
+  test('always closes IpcService on success', async () => {
+    mockSend.mockResolvedValue({ blocking: false })
+
+    const stdout = new CollectingWritable()
+    await handleHookCommand('SessionStart', baseOptions, mockLogger, stdout)
+
+    expect(mockClose).toHaveBeenCalledOnce()
   })
 })

@@ -25,7 +25,7 @@ describe('Session Summary Handlers', () => {
   })
 
   describe('Handler Registration - Session Summary Feature', () => {
-    it('registers three handlers total', () => {
+    it('registers four handlers total', () => {
       registerHandlers(ctx)
 
       const registrations = handlers.getRegistrations()

@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs'
+import { mkdirSync, writeFileSync, rmSync, existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   createMockCLIContext,
@@ -15,8 +15,8 @@ import {
 import type { CLIContext, PreToolUseHookEvent, StopHookEvent } from '@sidekick/types'
 import { createConsumptionHandler } from '../handlers/consumption/consumption-handler-factory'
 
-// Test staging directory
-const testStateDir = '/tmp/test-consumption-factory'
+// Test staging directory - using /tmp/claude/ for sandbox compatibility
+const testStateDir = '/tmp/claude/test-consumption-factory'
 const sessionId = 'test-session-factory'
 
 function createPreToolUseEvent(): PreToolUseHookEvent {
@@ -140,6 +140,66 @@ describe('createConsumptionHandler', () => {
       expect(result).toEqual({ response: {} })
     })
 
+    it('consumes highest-priority reminder when multiple are staged', async () => {
+      const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'PreToolUse')
+
+      // Stage three reminders with different priorities
+      writeFileSync(
+        join(stagingDir, 'low-priority.json'),
+        JSON.stringify({
+          name: 'low-priority',
+          priority: 10,
+          persistent: false,
+          additionalContext: 'Low priority context',
+        })
+      )
+      writeFileSync(
+        join(stagingDir, 'high-priority.json'),
+        JSON.stringify({
+          name: 'high-priority',
+          priority: 90,
+          persistent: false,
+          additionalContext: 'High priority context',
+        })
+      )
+      writeFileSync(
+        join(stagingDir, 'medium-priority.json'),
+        JSON.stringify({
+          name: 'medium-priority',
+          priority: 50,
+          persistent: false,
+          additionalContext: 'Medium priority context',
+        })
+      )
+
+      createConsumptionHandler(ctx, {
+        id: 'test:consume',
+        hook: 'PreToolUse',
+      })
+
+      const handler = handlers.getHandler('test:consume')
+      const result = await handler?.handler(
+        createPreToolUseEvent(),
+        ctx as unknown as import('@sidekick/types').HandlerContext
+      )
+
+      // Should return the highest priority reminder (90)
+      expect(result).toEqual({
+        response: { additionalContext: 'High priority context' },
+      })
+
+      // High priority reminder should be consumed (renamed)
+      expect(existsSync(join(stagingDir, 'high-priority.json'))).toBe(false)
+      const highFiles = readdirSync(stagingDir).filter(
+        (f: string) => f.startsWith('high-priority.') && f.endsWith('.json')
+      )
+      expect(highFiles.length).toBe(1)
+
+      // Other reminders should still exist
+      expect(existsSync(join(stagingDir, 'low-priority.json'))).toBe(true)
+      expect(existsSync(join(stagingDir, 'medium-priority.json'))).toBe(true)
+    })
+
     it('returns reminder content from staged file', async () => {
       const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'PreToolUse')
       writeFileSync(
@@ -200,7 +260,7 @@ describe('createConsumptionHandler', () => {
       })
     })
 
-    it('deletes non-persistent reminder after consumption', async () => {
+    it('renames non-persistent reminder with timestamp suffix after consumption', async () => {
       const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'PreToolUse')
       const reminderPath = join(stagingDir, 'one-shot.json')
       writeFileSync(
@@ -220,7 +280,13 @@ describe('createConsumptionHandler', () => {
       const handler = handlers.getHandler('test:consume')
       await handler?.handler(createPreToolUseEvent(), ctx as unknown as import('@sidekick/types').HandlerContext)
 
+      // Original file should be gone
       expect(existsSync(reminderPath)).toBe(false)
+
+      // Should have a timestamped file instead (one-shot.{timestamp}.json)
+      const files = readdirSync(stagingDir).filter((f: string) => f.startsWith('one-shot.') && f.endsWith('.json'))
+      expect(files.length).toBe(1)
+      expect(files[0]).toMatch(/^one-shot\.\d+\.json$/)
     })
 
     it('preserves persistent reminder after consumption', async () => {
@@ -339,7 +405,7 @@ describe('createConsumptionHandler', () => {
   })
 
   describe('logging', () => {
-    it('logs when reminder is injected', async () => {
+    it('logs ReminderConsumed event when reminder is consumed', async () => {
       const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'PreToolUse')
       writeFileSync(join(stagingDir, 'test.json'), JSON.stringify({ name: 'test', priority: 50 }))
 
@@ -351,7 +417,16 @@ describe('createConsumptionHandler', () => {
       const handler = handlers.getHandler('test:consume')
       await handler?.handler(createPreToolUseEvent(), ctx as unknown as import('@sidekick/types').HandlerContext)
 
-      expect(logger.wasLoggedAtLevel('Injected reminder', 'info')).toBe(true)
+      // Verify structured log event was recorded (logEvent logs with message = event.type)
+      expect(logger.wasLoggedAtLevel('ReminderConsumed', 'info')).toBe(true)
+
+      // Verify the log contains expected metadata
+      const logRecord = logger.recordedLogs.find((log) => log.msg === 'ReminderConsumed')
+      expect(logRecord).toBeDefined()
+      expect(logRecord?.meta?.type).toBe('ReminderConsumed')
+      // The state is nested in meta
+      const state = logRecord?.meta?.state as { reminderName?: string } | undefined
+      expect(state?.reminderName).toBe('test')
     })
   })
 })

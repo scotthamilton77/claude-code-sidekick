@@ -4,7 +4,12 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest'
-import { isRealUserPromptContent, extractConversationContext } from '../completion-classifier'
+import {
+  isRealUserPromptContent,
+  extractConversationContext,
+  interpolatePrompt,
+  parseResponse,
+} from '../completion-classifier'
 import { createMockSupervisorContext, MockTranscriptService, MockLogger } from '@sidekick/testing-fixtures'
 import type { SupervisorContext, CanonicalTranscriptEntry } from '@sidekick/types'
 
@@ -223,5 +228,155 @@ describe('completion-classifier', () => {
       expect(result.lastUserPrompt).toBe('Hello there')
       expect(result.lastAssistantMessage).toBeNull()
     })
+  })
+
+  describe('interpolatePrompt', () => {
+    it('replaces lastUserPrompt placeholder', () => {
+      const template = 'User said: {{lastUserPrompt}}'
+      const context = { lastUserPrompt: 'Hello world', lastAssistantMessage: null }
+
+      expect(interpolatePrompt(template, context)).toBe('User said: Hello world')
+    })
+
+    it('replaces lastAssistantMessage placeholder', () => {
+      const template = 'Assistant said: {{lastAssistantMessage}}'
+      const context = { lastUserPrompt: null, lastAssistantMessage: 'I can help' }
+
+      expect(interpolatePrompt(template, context)).toBe('Assistant said: I can help')
+    })
+
+    it('replaces both placeholders', () => {
+      const template = 'User: {{lastUserPrompt}}\nAssistant: {{lastAssistantMessage}}'
+      const context = { lastUserPrompt: 'What is 2+2?', lastAssistantMessage: 'The answer is 4.' }
+
+      expect(interpolatePrompt(template, context)).toBe('User: What is 2+2?\nAssistant: The answer is 4.')
+    })
+
+    it('replaces multiple occurrences of same placeholder', () => {
+      const template = '{{lastUserPrompt}} - {{lastUserPrompt}}'
+      const context = { lastUserPrompt: 'repeat', lastAssistantMessage: null }
+
+      expect(interpolatePrompt(template, context)).toBe('repeat - repeat')
+    })
+
+    it('uses fallback for null lastUserPrompt', () => {
+      const template = 'User: {{lastUserPrompt}}'
+      const context = { lastUserPrompt: null, lastAssistantMessage: null }
+
+      expect(interpolatePrompt(template, context)).toBe('User: (no user prompt found)')
+    })
+
+    it('uses fallback for null lastAssistantMessage', () => {
+      const template = 'Assistant: {{lastAssistantMessage}}'
+      const context = { lastUserPrompt: null, lastAssistantMessage: null }
+
+      expect(interpolatePrompt(template, context)).toBe('Assistant: (no assistant message found)')
+    })
+  })
+
+  describe('parseResponse', () => {
+    it('parses valid JSON response', () => {
+      const content = JSON.stringify({
+        category: 'CLAIMING_COMPLETION',
+        confidence: 0.9,
+        reasoning: 'The assistant says it is done',
+      })
+
+      const result = parseResponse(content)
+
+      expect(result).toEqual({
+        category: 'CLAIMING_COMPLETION',
+        confidence: 0.9,
+        reasoning: 'The assistant says it is done',
+      })
+    })
+
+    it('parses JSON wrapped in markdown code block', () => {
+      const content = `Here is the classification:
+\`\`\`json
+{
+  "category": "ASKING_QUESTION",
+  "confidence": 0.85,
+  "reasoning": "The assistant is asking for clarification"
+}
+\`\`\`
+`
+
+      const result = parseResponse(content)
+
+      expect(result).toEqual({
+        category: 'ASKING_QUESTION',
+        confidence: 0.85,
+        reasoning: 'The assistant is asking for clarification',
+      })
+    })
+
+    it('parses JSON wrapped in plain markdown code block (no json specifier)', () => {
+      const content = `\`\`\`
+{"category": "OTHER", "confidence": 0.5, "reasoning": "Unclear intent"}
+\`\`\``
+
+      const result = parseResponse(content)
+
+      expect(result).toEqual({
+        category: 'OTHER',
+        confidence: 0.5,
+        reasoning: 'Unclear intent',
+      })
+    })
+
+    it('returns null for invalid JSON', () => {
+      const content = 'not valid json {'
+
+      expect(parseResponse(content)).toBeNull()
+    })
+
+    it('returns null for empty content', () => {
+      expect(parseResponse('')).toBeNull()
+    })
+
+    it('returns null for missing required fields', () => {
+      const content = JSON.stringify({
+        category: 'CLAIMING_COMPLETION',
+        // missing confidence and reasoning
+      })
+
+      expect(parseResponse(content)).toBeNull()
+    })
+
+    it('returns null for invalid category', () => {
+      const content = JSON.stringify({
+        category: 'INVALID_CATEGORY',
+        confidence: 0.9,
+        reasoning: 'test',
+      })
+
+      expect(parseResponse(content)).toBeNull()
+    })
+
+    it('returns null for confidence out of range', () => {
+      const content = JSON.stringify({
+        category: 'CLAIMING_COMPLETION',
+        confidence: 1.5, // > 1
+        reasoning: 'test',
+      })
+
+      expect(parseResponse(content)).toBeNull()
+    })
+
+    it.each(['CLAIMING_COMPLETION', 'ASKING_QUESTION', 'ANSWERING_QUESTION', 'OTHER'] as const)(
+      'accepts valid category: %s',
+      (category) => {
+        const content = JSON.stringify({
+          category,
+          confidence: 0.7,
+          reasoning: 'Test reasoning',
+        })
+
+        const result = parseResponse(content)
+
+        expect(result?.category).toBe(category)
+      }
+    )
   })
 })

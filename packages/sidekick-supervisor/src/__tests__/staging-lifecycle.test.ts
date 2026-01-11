@@ -6,6 +6,11 @@
  * - Clean staging directories on SessionStart (startup|clear)
  * - Preserve staging on resume
  *
+ * NOTE: These tests use @sidekick/core StagingService classes directly.
+ * They exist here to verify staging lifecycle behaviors as they relate to
+ * Supervisor session management (startup, resume, clear). Pure unit tests
+ * for StagingServiceCore APIs belong in @sidekick/core.
+ *
  * @see docs/design/flow.md §2.2 Staging Pattern
  * @see docs/design/flow.md §5.1 SessionStart hook flow
  */

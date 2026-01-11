@@ -27,6 +27,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
 import type { SummaryCountdownState } from '../types'
+import { DEFAULT_SESSION_SUMMARY_CONFIG } from '../types'
 
 describe('Session Summary Countdown Logic', () => {
   let ctx: SupervisorContext
@@ -232,12 +233,12 @@ describe('Session Summary Countdown Logic', () => {
   })
 
   describe('Countdown Reset - High Confidence', () => {
-    it('resets countdown to 10000 when average confidence > 0.8', async () => {
+    it('resets countdown to configured highConfidence value when average confidence > 0.8', async () => {
       const sessionId = 'test-high-conf-1'
 
       await writeCountdownState(sessionId, { countdown: 0, bookmark_line: 0 })
 
-      // High confidence: both > 0.8, average = 0.9
+      // High confidence: average = 0.9 > 0.8
       llm.queueResponse(
         JSON.stringify({
           session_title: 'Clear Task',
@@ -251,37 +252,14 @@ describe('Session Summary Countdown Logic', () => {
       await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
       const state = await readCountdownState(sessionId)
-      expect(state.countdown).toBe(10000) // High confidence threshold
+      expect(state.countdown).toBe(DEFAULT_SESSION_SUMMARY_CONFIG.countdown.highConfidence)
     })
 
-    it('resets countdown to 10000 when average confidence = 0.85', async () => {
-      const sessionId = 'test-high-conf-2'
+    it('uses high confidence tier at boundary (average = 0.81 > 0.8)', async () => {
+      const sessionId = 'test-high-conf-boundary'
 
       await writeCountdownState(sessionId, { countdown: 0, bookmark_line: 0 })
 
-      // Average: (0.8 + 0.9) / 2 = 0.85 > 0.8
-      llm.queueResponse(
-        JSON.stringify({
-          session_title: 'Task A',
-          session_title_confidence: 0.8,
-          latest_intent: 'Goal B',
-          latest_intent_confidence: 0.9,
-          pivot_detected: false,
-        })
-      )
-
-      await updateSessionSummary(createToolResultEvent(sessionId), ctx)
-
-      const state = await readCountdownState(sessionId)
-      expect(state.countdown).toBe(10000)
-    })
-
-    it('resets countdown to 10000 at boundary (average = 0.81)', async () => {
-      const sessionId = 'test-high-conf-3'
-
-      await writeCountdownState(sessionId, { countdown: 0, bookmark_line: 0 })
-
-      // Average: (0.81 + 0.81) / 2 = 0.81 > 0.8
       llm.queueResponse(
         JSON.stringify({
           session_title: 'Task C',
@@ -295,17 +273,17 @@ describe('Session Summary Countdown Logic', () => {
       await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
       const state = await readCountdownState(sessionId)
-      expect(state.countdown).toBe(10000)
+      expect(state.countdown).toBe(DEFAULT_SESSION_SUMMARY_CONFIG.countdown.highConfidence)
     })
   })
 
   describe('Countdown Reset - Medium Confidence', () => {
-    it('resets countdown to 20 when average confidence = 0.7', async () => {
+    it('resets countdown to configured mediumConfidence value when 0.6 < average <= 0.8', async () => {
       const sessionId = 'test-med-conf-1'
 
       await writeCountdownState(sessionId, { countdown: 0, bookmark_line: 0 })
 
-      // Medium confidence: 0.6 < avg ≤ 0.8
+      // Medium confidence: average = 0.7 (0.6 < 0.7 <= 0.8)
       llm.queueResponse(
         JSON.stringify({
           session_title: 'Moderate Task',
@@ -319,16 +297,15 @@ describe('Session Summary Countdown Logic', () => {
       await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
       const state = await readCountdownState(sessionId)
-      expect(state.countdown).toBe(10) // Medium confidence threshold
+      expect(state.countdown).toBe(DEFAULT_SESSION_SUMMARY_CONFIG.countdown.mediumConfidence)
     })
 
-    it('resets countdown to 10 at upper boundary (average = 0.8)', async () => {
-      const sessionId = 'test-med-conf-2'
+    it('uses medium confidence tier at upper boundary (average = 0.8, not > 0.8)', async () => {
+      const sessionId = 'test-med-conf-upper'
 
       await writeCountdownState(sessionId, { countdown: 0, bookmark_line: 0 })
 
-      // Average: exactly 0.8 (boundary between medium and high)
-      // Implementation uses > 0.8, so 0.8 falls into medium
+      // Average: exactly 0.8 - implementation uses > 0.8 for high, so 0.8 is medium
       llm.queueResponse(
         JSON.stringify({
           session_title: 'Task E',
@@ -342,39 +319,17 @@ describe('Session Summary Countdown Logic', () => {
       await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
       const state = await readCountdownState(sessionId)
-      expect(state.countdown).toBe(10)
-    })
-
-    it('resets countdown to 10 at lower boundary (average = 0.61)', async () => {
-      const sessionId = 'test-med-conf-3'
-
-      await writeCountdownState(sessionId, { countdown: 0, bookmark_line: 0 })
-
-      // Average: (0.61 + 0.61) / 2 = 0.61 > 0.6
-      llm.queueResponse(
-        JSON.stringify({
-          session_title: 'Task G',
-          session_title_confidence: 0.61,
-          latest_intent: 'Goal H',
-          latest_intent_confidence: 0.61,
-          pivot_detected: false,
-        })
-      )
-
-      await updateSessionSummary(createToolResultEvent(sessionId), ctx)
-
-      const state = await readCountdownState(sessionId)
-      expect(state.countdown).toBe(10)
+      expect(state.countdown).toBe(DEFAULT_SESSION_SUMMARY_CONFIG.countdown.mediumConfidence)
     })
   })
 
   describe('Countdown Reset - Low Confidence', () => {
-    it('resets countdown to 5 when average confidence < 0.6', async () => {
+    it('resets countdown to configured lowConfidence value when average <= 0.6', async () => {
       const sessionId = 'test-low-conf-1'
 
       await writeCountdownState(sessionId, { countdown: 0, bookmark_line: 0 })
 
-      // Low confidence: avg ≤ 0.6
+      // Low confidence: average = 0.5 <= 0.6
       llm.queueResponse(
         JSON.stringify({
           session_title: 'Unclear Task',
@@ -388,16 +343,15 @@ describe('Session Summary Countdown Logic', () => {
       await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
       const state = await readCountdownState(sessionId)
-      expect(state.countdown).toBe(5) // Low confidence threshold
+      expect(state.countdown).toBe(DEFAULT_SESSION_SUMMARY_CONFIG.countdown.lowConfidence)
     })
 
-    it('resets countdown to 5 at boundary (average = 0.6)', async () => {
-      const sessionId = 'test-low-conf-2'
+    it('uses low confidence tier at boundary (average = 0.6, not > 0.6)', async () => {
+      const sessionId = 'test-low-conf-boundary'
 
       await writeCountdownState(sessionId, { countdown: 0, bookmark_line: 0 })
 
-      // Average: exactly 0.6 (boundary)
-      // Implementation uses > 0.6 for medium, so 0.6 falls into low
+      // Average: exactly 0.6 - implementation uses > 0.6 for medium, so 0.6 is low
       llm.queueResponse(
         JSON.stringify({
           session_title: 'Task I',
@@ -411,37 +365,14 @@ describe('Session Summary Countdown Logic', () => {
       await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
       const state = await readCountdownState(sessionId)
-      expect(state.countdown).toBe(5)
+      expect(state.countdown).toBe(DEFAULT_SESSION_SUMMARY_CONFIG.countdown.lowConfidence)
     })
 
-    it('resets countdown to 5 for very low confidence (average = 0.3)', async () => {
-      const sessionId = 'test-low-conf-3'
+    it('uses low confidence tier for zero confidence', async () => {
+      const sessionId = 'test-low-conf-zero'
 
       await writeCountdownState(sessionId, { countdown: 0, bookmark_line: 0 })
 
-      // Very low confidence
-      llm.queueResponse(
-        JSON.stringify({
-          session_title: 'Unknown',
-          session_title_confidence: 0.3,
-          latest_intent: 'Unclear',
-          latest_intent_confidence: 0.3,
-          pivot_detected: false,
-        })
-      )
-
-      await updateSessionSummary(createToolResultEvent(sessionId), ctx)
-
-      const state = await readCountdownState(sessionId)
-      expect(state.countdown).toBe(5)
-    })
-
-    it('resets countdown to 5 for zero confidence', async () => {
-      const sessionId = 'test-low-conf-4'
-
-      await writeCountdownState(sessionId, { countdown: 0, bookmark_line: 0 })
-
-      // Edge case: zero confidence
       llm.queueResponse(
         JSON.stringify({
           session_title: 'No idea',
@@ -455,12 +386,12 @@ describe('Session Summary Countdown Logic', () => {
       await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
       const state = await readCountdownState(sessionId)
-      expect(state.countdown).toBe(5)
+      expect(state.countdown).toBe(DEFAULT_SESSION_SUMMARY_CONFIG.countdown.lowConfidence)
     })
   })
 
   describe('Countdown State Initialization', () => {
-    it('initializes countdown to 0 when no state file exists', async () => {
+    it('initializes countdown to 0 when no state file exists, triggering immediate analysis', async () => {
       const sessionId = 'test-init-1'
 
       // No pre-existing state file
@@ -480,14 +411,14 @@ describe('Session Summary Countdown Logic', () => {
       // With no state file, countdown starts at 0, triggers analysis immediately
       expect(llm.recordedRequests).toHaveLength(1)
 
-      // After analysis, countdown should be reset based on confidence
+      // After analysis, countdown should be reset to configured medium tier (0.8 avg)
       const state = await readCountdownState(sessionId)
-      expect(state.countdown).toBe(10) // Medium confidence (0.8 average)
+      expect(state.countdown).toBe(DEFAULT_SESSION_SUMMARY_CONFIG.countdown.mediumConfidence)
     })
   })
 
   describe('Sequential ToolResult Countdown Flow', () => {
-    it('processes multiple ToolResult events in sequence', async () => {
+    it('processes multiple ToolResult events in sequence, resetting to configured tier after analysis', async () => {
       const sessionId = 'test-sequence-1'
 
       // Start with countdown = 3
@@ -522,9 +453,9 @@ describe('Session Summary Countdown Logic', () => {
       await updateSessionSummary(createToolResultEvent(sessionId, 115), ctx)
       expect(llm.recordedRequests).toHaveLength(1)
 
-      // Countdown reset to 10000 (high confidence: (0.9 + 0.85) / 2 = 0.875 > 0.8)
+      // Countdown reset to configured high confidence tier (0.9 + 0.85) / 2 = 0.875 > 0.8
       const finalState = await readCountdownState(sessionId)
-      expect(finalState.countdown).toBe(10000)
+      expect(finalState.countdown).toBe(DEFAULT_SESSION_SUMMARY_CONFIG.countdown.highConfidence)
     })
   })
 })

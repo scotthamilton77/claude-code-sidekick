@@ -13,6 +13,51 @@ import {
   MockAssetResolver,
   MockTranscriptService,
 } from '@sidekick/testing-fixtures'
+import type { LLMRequest, LLMResponse } from '@sidekick/types'
+
+/**
+ * Extended MockLLMService with error simulation support.
+ * Uses a combined queue where each item can be either a response string or an Error.
+ */
+class MockLLMServiceWithErrors extends MockLLMService {
+  private combinedQueue: Array<string | Error> = []
+
+  queueResponse(content: string): void {
+    this.combinedQueue.push(content)
+  }
+
+  queueError(error: Error): void {
+    this.combinedQueue.push(error)
+  }
+
+  queueResponses(contents: string[]): void {
+    this.combinedQueue.push(...contents)
+  }
+
+  override async complete(request: LLMRequest): Promise<LLMResponse> {
+    this.recordedRequests.push(request)
+
+    const next = this.combinedQueue.shift()
+
+    if (next instanceof Error) {
+      throw next
+    }
+
+    if (typeof next === 'string') {
+      const inputTokens = Math.ceil(request.messages.reduce((sum, msg) => sum + msg.content.length, 0) / 4)
+      const outputTokens = Math.ceil(next.length / 4)
+
+      return {
+        content: next,
+        model: request.model ?? 'mock-model',
+        usage: { inputTokens, outputTokens },
+        rawResponse: { status: 200, body: JSON.stringify({ content: next }) },
+      }
+    }
+
+    return super.complete(request)
+  }
+}
 import type { SupervisorContext } from '@sidekick/types'
 import { updateSessionSummary } from '../handlers/update-summary'
 import type { TranscriptEvent } from '@sidekick/core'
@@ -87,6 +132,89 @@ describe('Session Summary Side-Effects', () => {
       },
     } as TranscriptEvent
   }
+
+  function createBulkProcessingEvent(sessionId: string): TranscriptEvent {
+    return {
+      kind: 'transcript',
+      eventType: 'UserPrompt',
+      context: {
+        sessionId,
+        scope: 'project',
+      },
+      payload: {
+        lineNumber: 50,
+        content: 'Help me debug',
+      },
+      metadata: {
+        isBulkProcessing: true,
+      },
+    } as TranscriptEvent
+  }
+
+  function createBulkProcessingCompleteEvent(sessionId: string): TranscriptEvent {
+    return {
+      kind: 'transcript',
+      eventType: 'BulkProcessingComplete',
+      context: {
+        sessionId,
+        scope: 'project',
+      },
+      payload: {
+        lineNumber: 100,
+      },
+    } as TranscriptEvent
+  }
+
+  describe('Bulk Processing Behavior', () => {
+    it('skips LLM analysis during bulk processing (isBulkProcessing: true)', async () => {
+      const sessionId = 'test-bulk-skip'
+
+      // No need to queue LLM response since it should be skipped
+      await updateSessionSummary(createBulkProcessingEvent(sessionId), ctx)
+
+      // LLM should NOT be called during bulk processing
+      expect(llm.recordedRequests).toHaveLength(0)
+
+      // No summary file should be created
+      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
+      const summaryPath = path.join(stateDir, 'session-summary.json')
+      await expect(fs.access(summaryPath)).rejects.toThrow()
+    })
+
+    it('triggers analysis on BulkProcessingComplete event', async () => {
+      const sessionId = 'test-bulk-complete'
+
+      // Queue LLM responses:
+      // 1) summary analysis
+      // 2) snarky message (initial analysis triggers snarky)
+      // 3) resume message (no resume exists, so it generates one)
+      llm.queueResponses([
+        JSON.stringify({
+          session_title: 'Full Session Analysis',
+          session_title_confidence: 0.9,
+          latest_intent: 'Debugging complete',
+          latest_intent_confidence: 0.85,
+          pivot_detected: false,
+        }),
+        'Snarky message here',
+        JSON.stringify({
+          resume_message: 'Ready to continue',
+          snarky_welcome: 'Welcome back',
+        }),
+      ])
+
+      await updateSessionSummary(createBulkProcessingCompleteEvent(sessionId), ctx)
+
+      // LLM should be called (summary + side effects)
+      expect(llm.recordedRequests.length).toBeGreaterThanOrEqual(1)
+
+      // Summary should be created
+      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
+      const summaryPath = path.join(stateDir, 'session-summary.json')
+      const summary = JSON.parse(await fs.readFile(summaryPath, 'utf-8'))
+      expect(summary.session_title).toBe('Full Session Analysis')
+    })
+  })
 
   describe('Snarky Message Generation', () => {
     it('generates snarky message when title changes', async () => {
@@ -488,12 +616,12 @@ describe('Session Summary Side-Effects', () => {
   })
 
   describe('Side-Effect Error Handling', () => {
-    it('continues main flow when snarky message fails', async () => {
+    it('continues main flow when snarky message LLM call fails', async () => {
       const sessionId = 'test-session-7'
       const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
       await fs.mkdir(stateDir, { recursive: true })
 
-      // Write existing summary
+      // Write existing summary to trigger title change -> snarky message
       await fs.writeFile(
         path.join(stateDir, 'session-summary.json'),
         JSON.stringify({
@@ -505,25 +633,44 @@ describe('Session Summary Side-Effects', () => {
         })
       )
 
-      // First response succeeds, second (snarky) fails by returning invalid content
-      llm.queueResponses([
+      // Use MockLLMServiceWithErrors to inject actual error for snarky LLM call
+      const llmWithErrors = new MockLLMServiceWithErrors()
+      const ctxWithErrors = createMockSupervisorContext({
+        logger,
+        handlers,
+        llm: llmWithErrors,
+        assets,
+        transcript,
+        paths: {
+          projectDir: tempDir,
+          userConfigDir: path.join(tempDir, '.sidekick'),
+          projectConfigDir: path.join(tempDir, '.sidekick'),
+        },
+      })
+
+      // First response succeeds (summary), second fails with actual error (snarky)
+      llmWithErrors.queueResponse(
         JSON.stringify({
           session_title: 'New Title',
           session_title_confidence: 0.9,
           latest_intent: 'New intent',
           latest_intent_confidence: 0.9,
           pivot_detected: false,
-        }),
-        '', // Empty response - will still be written but that's ok
-      ])
+        })
+      )
+      llmWithErrors.queueError(new Error('LLM API timeout'))
 
-      // Should not throw
-      await expect(updateSessionSummary(createUserPromptEvent(sessionId), ctx)).resolves.not.toThrow()
+      // Should not throw - main flow continues despite snarky failure
+      await expect(updateSessionSummary(createUserPromptEvent(sessionId), ctxWithErrors)).resolves.not.toThrow()
 
       // Summary should still be updated
       const summaryPath = path.join(stateDir, 'session-summary.json')
       const summary = JSON.parse(await fs.readFile(summaryPath, 'utf-8'))
       expect(summary.session_title).toBe('New Title')
+
+      // Snarky file should NOT exist since LLM call failed
+      const snarkyPath = path.join(stateDir, 'snarky-message.txt')
+      await expect(fs.access(snarkyPath)).rejects.toThrow()
     })
   })
 })

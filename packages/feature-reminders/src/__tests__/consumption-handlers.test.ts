@@ -33,6 +33,23 @@ describe('consumption-handlers', () => {
       rmSync(testStateDir, { recursive: true, force: true })
     })
 
+    describe('constructor', () => {
+      it('throws when projectConfigDir is undefined', () => {
+        const pathsWithoutProjectConfig: RuntimePaths = {
+          projectDir: '/mock/project',
+          userConfigDir: '/mock/user',
+          projectConfigDir: undefined,
+        }
+
+        expect(() => {
+          new CLIStagingReader({
+            paths: pathsWithoutProjectConfig,
+            sessionId,
+          })
+        }).toThrow('CLIStagingReader requires project scope (projectConfigDir must be defined)')
+      })
+    })
+
     it('returns empty array when no reminders staged', () => {
       const reader = new CLIStagingReader({
         paths: mockPaths,
@@ -272,6 +289,74 @@ describe('consumption-handlers', () => {
         )
         expect(files.length).toBe(1)
         expect(files[0]).toMatch(/^verify-completion\.\d+\.json$/)
+      })
+    })
+
+    describe('path traversal protection (isValidPathSegment)', () => {
+      /**
+       * Security tests: isValidPathSegment rejects malicious path segments
+       * to prevent directory traversal attacks.
+       */
+      it('rejects path traversal with double-dots in hookName', () => {
+        const reader = new CLIStagingReader({ paths: mockPaths, sessionId })
+        expect(reader.listReminders('..')).toEqual([])
+        expect(reader.listReminders('../etc')).toEqual([])
+        expect(reader.listReminders('hook/../etc')).toEqual([])
+        expect(reader.listReminders('..%2f..%2fetc')).toEqual([]) // URL-encoded
+      })
+
+      it('rejects absolute paths in hookName', () => {
+        const reader = new CLIStagingReader({ paths: mockPaths, sessionId })
+        expect(reader.listReminders('/etc/passwd')).toEqual([])
+        expect(reader.listReminders('/tmp/evil')).toEqual([])
+      })
+
+      it('rejects special characters in hookName', () => {
+        const reader = new CLIStagingReader({ paths: mockPaths, sessionId })
+        expect(reader.listReminders('hook/subdir')).toEqual([])
+        expect(reader.listReminders('hook:name')).toEqual([])
+        expect(reader.listReminders('hook name')).toEqual([])
+        expect(reader.listReminders('hook\x00name')).toEqual([])
+      })
+
+      it('rejects empty hookName', () => {
+        const reader = new CLIStagingReader({ paths: mockPaths, sessionId })
+        expect(reader.listReminders('')).toEqual([])
+      })
+
+      it('allows valid hookNames (alphanumeric, hyphens, underscores)', () => {
+        const reader = new CLIStagingReader({ paths: mockPaths, sessionId })
+        // PreToolUse exists in beforeEach setup
+        expect(reader.listReminders('PreToolUse')).toEqual([])
+        expect(reader.listReminders('Stop')).toEqual([])
+        expect(reader.listReminders('my-hook')).toEqual([]) // Doesn't exist but valid format
+        expect(reader.listReminders('my_hook_123')).toEqual([])
+      })
+
+      it('deleteReminder silently ignores invalid hookName', () => {
+        const reader = new CLIStagingReader({ paths: mockPaths, sessionId })
+        // Should not throw, just silently return
+        expect(() => reader.deleteReminder('..', 'test')).not.toThrow()
+        expect(() => reader.deleteReminder('/etc', 'passwd')).not.toThrow()
+      })
+
+      it('deleteReminder silently ignores invalid reminderName', () => {
+        const reader = new CLIStagingReader({ paths: mockPaths, sessionId })
+        expect(() => reader.deleteReminder('PreToolUse', '..')).not.toThrow()
+        expect(() => reader.deleteReminder('PreToolUse', '../../../etc/passwd')).not.toThrow()
+        expect(() => reader.deleteReminder('PreToolUse', 'name/with/slash')).not.toThrow()
+      })
+
+      it('renameReminder silently ignores invalid hookName', () => {
+        const reader = new CLIStagingReader({ paths: mockPaths, sessionId })
+        expect(() => reader.renameReminder('..', 'test')).not.toThrow()
+        expect(() => reader.renameReminder('/etc', 'passwd')).not.toThrow()
+      })
+
+      it('renameReminder silently ignores invalid reminderName', () => {
+        const reader = new CLIStagingReader({ paths: mockPaths, sessionId })
+        expect(() => reader.renameReminder('Stop', '..')).not.toThrow()
+        expect(() => reader.renameReminder('Stop', '../../../etc/passwd')).not.toThrow()
       })
     })
 

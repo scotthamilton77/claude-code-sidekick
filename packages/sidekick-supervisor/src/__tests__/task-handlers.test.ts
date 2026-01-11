@@ -336,13 +336,20 @@ describe('Standard Task Handlers', () => {
 
   describe('cleanup handler', () => {
     it('should skip cleanup when sessions directory does not exist', async () => {
-      // No sessions directory - cleanup should succeed without error
+      // Create a spy on the debug logger since the handler logs at debug level
+      const debugSpy = vi.spyOn(logger, 'debug')
+
+      // No sessions directory exists - cleanup should handle gracefully
       taskEngine.enqueue(TaskTypes.CLEANUP, {})
 
-      // Give time for task to complete
-      await new Promise((r) => setTimeout(r, 100))
-
-      // Task should complete without error (verified by no exception thrown)
+      // Wait for task to complete
+      await vi.waitFor(
+        () => {
+          // Verify the debug log indicating sessions directory doesn't exist
+          expect(debugSpy).toHaveBeenCalledWith('Sessions directory does not exist, nothing to clean')
+        },
+        { timeout: 1000 }
+      )
     })
 
     it('should clean old session directories', async () => {

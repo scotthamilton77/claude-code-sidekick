@@ -76,6 +76,30 @@ const FIXTURES = {
   LONG_001: join(TEST_DATA_DIR, 'long-001.jsonl'),
 } as const
 
+/**
+ * Check and log fixture availability on test suite initialization.
+ * CI systems should see this warning prominently if fixtures are missing.
+ */
+function checkFixtureAvailability(): void {
+  const missing: string[] = []
+  for (const [name, path] of Object.entries(FIXTURES)) {
+    if (!existsSync(path)) {
+      missing.push(name)
+    }
+  }
+  if (missing.length > 0) {
+    // Use console.warn instead of logger to ensure visibility in CI output
+    console.warn(
+      `\n[TEST FIXTURES MISSING] The following transcript fixtures are missing: ${missing.join(', ')}\n` +
+        `Some integration tests will be skipped.\n` +
+        `Expected location: ${TEST_DATA_DIR}\n`
+    )
+  }
+}
+
+// Check fixtures once on module load
+checkFixtureAvailability()
+
 // ============================================================================
 // Integration Tests with Real Transcripts
 // ============================================================================

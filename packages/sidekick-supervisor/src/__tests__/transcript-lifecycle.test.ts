@@ -6,6 +6,10 @@
  * - Stop TranscriptService on SessionEnd handler
  * - Ensure shutdown() is called before process exit
  *
+ * NOTE: These tests use @sidekick/core HandlerRegistryImpl to verify
+ * event dispatching patterns used by Supervisor lifecycle management.
+ * Pure unit tests for HandlerRegistryImpl belong in @sidekick/core.
+ *
  * @see docs/design/SUPERVISOR.md §4.7 TranscriptService Integration
  * @see docs/design/TRANSCRIPT-PROCESSING.md §6 Implementation Details
  */
@@ -229,31 +233,40 @@ describe('TranscriptService Lifecycle', () => {
   })
 
   describe('TranscriptService initialization pattern', () => {
-    it('should update session info on SessionStart', () => {
+    it('should use updated session info when dispatching events after updateSession', async () => {
       const registry = new HandlerRegistryImpl({
         logger,
-        sessionId: '',
+        sessionId: 'initial-session',
         scope: 'project',
       })
 
-      // Simulate what Supervisor does on SessionStart
-      const event: SessionStartHookEvent = {
-        kind: 'hook',
-        hook: 'SessionStart',
-        context: createEventContext('new-session-456'),
-        payload: {
-          startType: 'startup',
-          transcriptPath: '/project/.claude/transcript.jsonl',
+      // Register a handler that captures the context to verify sessionId
+      let capturedSessionId: string | undefined
+      registry.register({
+        id: 'test-session-capture',
+        priority: 100,
+        filter: { kind: 'hook', hooks: ['SessionEnd'] },
+        handler: (event) => {
+          capturedSessionId = (event as SessionEndHookEvent).context.sessionId
+          return Promise.resolve()
         },
-      }
-
-      registry.updateSession({
-        sessionId: event.context.sessionId,
-        transcriptPath: event.payload.transcriptPath,
       })
 
-      // Verify registry was updated (no error means success)
-      expect(registry.getHandlerCount()).toBe(0)
+      // Simulate what Supervisor does on SessionStart - update session info
+      registry.updateSession({
+        sessionId: 'new-session-456',
+        transcriptPath: '/project/.claude/transcript.jsonl',
+      })
+
+      // Dispatch an event and verify the updated session ID is used
+      await registry.invokeHook('SessionEnd', {
+        kind: 'hook',
+        hook: 'SessionEnd',
+        context: createEventContext('new-session-456'),
+        payload: { endReason: 'clear' },
+      })
+
+      expect(capturedSessionId).toBe('new-session-456')
     })
   })
 })

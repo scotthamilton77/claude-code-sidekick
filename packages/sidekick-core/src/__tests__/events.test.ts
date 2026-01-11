@@ -219,4 +219,55 @@ describe('Event Type Guards', () => {
       }
     })
   })
+
+  describe('Edge cases and defensive behavior', () => {
+    // NOTE: The type guards are designed for typed input (SidekickEvent).
+    // They don't perform null/undefined checks since TypeScript enforces this.
+    // These tests verify behavior with malformed but non-null objects.
+
+    it('isHookEvent returns false for objects missing kind property', () => {
+      const malformed = { hook: 'SessionStart', context: baseContext, payload: {} }
+      expect(isHookEvent(malformed as unknown as SidekickEvent)).toBe(false)
+    })
+
+    it('isTranscriptEvent returns false for objects missing kind property', () => {
+      const malformed = { eventType: 'UserPrompt', context: baseContext, payload: {} }
+      expect(isTranscriptEvent(malformed as unknown as SidekickEvent)).toBe(false)
+    })
+
+    it('hook-specific guards return false for transcript events', () => {
+      expect(isSessionStartEvent(transcriptEvent as unknown as HookEvent)).toBe(false)
+      expect(isSessionEndEvent(transcriptEvent as unknown as HookEvent)).toBe(false)
+      expect(isPreToolUseEvent(transcriptEvent as unknown as HookEvent)).toBe(false)
+      expect(isPostToolUseEvent(transcriptEvent as unknown as HookEvent)).toBe(false)
+      expect(isStopEvent(transcriptEvent as unknown as HookEvent)).toBe(false)
+      expect(isPreCompactEvent(transcriptEvent as unknown as HookEvent)).toBe(false)
+    })
+
+    it('guards handle empty objects gracefully', () => {
+      const empty = {} as unknown as SidekickEvent
+      expect(isHookEvent(empty)).toBe(false)
+      expect(isTranscriptEvent(empty)).toBe(false)
+    })
+
+    it('guards correctly identify hook events with unknown hook names', () => {
+      const unknownHook = {
+        kind: 'hook',
+        hook: 'UnknownHook',
+        context: baseContext,
+        payload: {},
+      } as unknown as HookEvent
+
+      // Should be identified as a hook event
+      expect(isHookEvent(unknownHook as unknown as SidekickEvent)).toBe(true)
+      // But should NOT match any specific hook guard
+      expect(isSessionStartEvent(unknownHook)).toBe(false)
+      expect(isSessionEndEvent(unknownHook)).toBe(false)
+      expect(isUserPromptSubmitEvent(unknownHook)).toBe(false)
+      expect(isPreToolUseEvent(unknownHook)).toBe(false)
+      expect(isPostToolUseEvent(unknownHook)).toBe(false)
+      expect(isStopEvent(unknownHook)).toBe(false)
+      expect(isPreCompactEvent(unknownHook)).toBe(false)
+    })
+  })
 })

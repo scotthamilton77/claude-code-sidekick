@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, test, vi } from 'vitest'
-import { buildCLIContext, registerCLIFeatures } from '../context'
+import { buildCLIContext } from '../context'
 import type { RuntimeShell } from '../runtime'
 
 // Mock the external dependencies
@@ -22,9 +22,7 @@ vi.mock('@sidekick/core', () => ({
   })),
 }))
 
-vi.mock('@sidekick/feature-reminders', () => ({
-  registerConsumptionHandlers: vi.fn(),
-}))
+// Note: @sidekick/feature-reminders mock removed - no longer testing registerCLIFeatures
 
 function createMockRuntime(overrides: Partial<RuntimeShell> = {}): RuntimeShell {
   return {
@@ -116,17 +114,7 @@ describe('buildCLIContext', () => {
   })
 })
 
-describe('registerCLIFeatures', () => {
-  test('registers consumption handlers from feature-reminders', async () => {
-    const { registerConsumptionHandlers } = await import('@sidekick/feature-reminders')
-    const runtime = createMockRuntime()
-    const context = buildCLIContext({
-      runtime,
-      sessionId: 'test-session-123',
-    })
-
-    registerCLIFeatures(context)
-
-    expect(registerConsumptionHandlers).toHaveBeenCalledWith(context)
-  })
-})
+// Note: registerCLIFeatures test removed - it was a one-line wrapper verification
+// that tested implementation (mock.toHaveBeenCalledWith), not behavior.
+// TypeScript provides compile-time checking that the function is called correctly.
+// The actual behavior of reminder registration is tested in feature-reminders tests.

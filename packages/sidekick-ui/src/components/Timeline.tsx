@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react'
 import type { UIEvent } from '../types'
 import { CompactionDot, type CompactionEntry } from './CompactionMarker'
+import { findEventIndexAtTimestamp, calculateTimelinePercentage, calculateSliderMax } from '../lib/metrics-utils'
 
 interface TimelineProps {
   events: UIEvent[]
@@ -14,30 +15,6 @@ interface TimelineProps {
   selectedCompaction?: CompactionEntry | null
   /** Handler for compaction marker click */
   onCompactionSelect?: (entry: CompactionEntry) => void
-}
-
-/**
- * Find the event index closest to a given timestamp.
- */
-function findEventIndexAtTimestamp(events: UIEvent[], timestamp: number): number {
-  if (events.length === 0) return 0
-
-  // Binary search for closest event
-  let low = 0
-  let high = events.length - 1
-
-  while (low < high) {
-    const mid = Math.floor((low + high) / 2)
-    const eventTime = new Date(events[mid].time).getTime()
-
-    if (eventTime < timestamp) {
-      low = mid + 1
-    } else {
-      high = mid
-    }
-  }
-
-  return low
 }
 
 const Timeline: React.FC<TimelineProps> = ({
@@ -70,7 +47,7 @@ const Timeline: React.FC<TimelineProps> = ({
         {/* Slider Progress Fill */}
         <div
           className="absolute left-4 top-4 w-1 bg-indigo-400 rounded-full transition-all"
-          style={{ height: events.length > 1 ? `${(currentEventId / (events.length - 1)) * (100 - 8)}%` : '0%' }}
+          style={{ height: `${calculateTimelinePercentage(currentEventId, events.length) * 0.92}%` }}
         />
 
         {/* Event Markers on Rail */}
@@ -113,7 +90,7 @@ const Timeline: React.FC<TimelineProps> = ({
 
         {/* Compaction Markers - positioned absolutely based on percentage */}
         {compactionPositions.map(({ entry, eventIndex }) => {
-          const percentage = events.length > 1 ? (eventIndex / (events.length - 1)) * 100 : 0
+          const percentage = calculateTimelinePercentage(eventIndex, events.length)
           const isSelected = selectedCompaction?.compactedAt === entry.compactedAt
           const isFuture = entry.compactedAt > currentEventTime
 
@@ -137,7 +114,7 @@ const Timeline: React.FC<TimelineProps> = ({
         <input
           type="range"
           min="0"
-          max={Math.max(0, events.length - 1)}
+          max={calculateSliderMax(events.length)}
           value={currentEventId}
           onChange={(e) => onEventSelect(Number(e.target.value))}
           className="timeline-slider absolute left-2 top-4 bottom-4 z-10 opacity-0 cursor-pointer"

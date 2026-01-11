@@ -299,10 +299,23 @@ describe('IPC', () => {
   })
 
   describe('Handler-Level Token Validation Pattern', () => {
-    // NOTE: Token validation is NOT built into IpcClient/IpcServer.
-    // This suite tests that handlers CAN implement token validation and
-    // that the IPC layer correctly propagates handler errors to clients.
-    // Production token enforcement lives in the supervisor handler, not the transport.
+    /**
+     * ARCHITECTURE DECISION: Token validation is NOT built into IpcClient/IpcServer.
+     *
+     * The IPC transport layer is intentionally auth-agnostic. This design choice:
+     * 1. Keeps IpcClient/IpcServer simple and focused on message passing
+     * 2. Allows different handlers to implement different auth strategies
+     * 3. Makes testing easier - handlers can be unit tested without transport mocks
+     *
+     * IMPORTANT: These tests verify that the transport correctly propagates
+     * handler errors to clients. They do NOT test production authentication.
+     * Production token enforcement is the responsibility of the Supervisor handler.
+     *
+     * If you need to verify production token security, test the actual
+     * supervisor handler implementation directly, not through this test suite.
+     *
+     * @see docs/ARCHITECTURE.md for full rationale
+     */
 
     const VALID_TOKEN = 'valid-test-token-abc123'
 

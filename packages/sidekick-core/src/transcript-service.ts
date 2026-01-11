@@ -494,8 +494,9 @@ export class TranscriptServiceImpl implements TranscriptService {
     }
 
     try {
-      const content = readFileSync(this.transcriptPath, 'utf-8')
-      const lines = content.trim().split('\n')
+      const content = readFileSync(this.transcriptPath, 'utf-8').trim()
+      // Handle empty files: ''.split('\n') returns [''] with length 1
+      const lines = content === '' ? [] : content.split('\n')
       const totalLines = lines.length
 
       // Determine extraction window

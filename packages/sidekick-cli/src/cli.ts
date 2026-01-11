@@ -98,7 +98,7 @@ function parseArgs(argv: string[]): ParsedArgs {
  * @param stdinData - Raw JSON string from stdin (or undefined if not in hook mode)
  * @returns Parsed hook input with session_id, or undefined if parsing fails
  */
-function parseHookInput(stdinData: string | undefined): ParsedHookInput | undefined {
+export function parseHookInput(stdinData: string | undefined): ParsedHookInput | undefined {
   if (!stdinData?.trim()) {
     return undefined
   }
