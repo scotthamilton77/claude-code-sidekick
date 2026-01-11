@@ -26,6 +26,27 @@ export interface PRBaselineState {
 }
 
 /**
+ * Verify-completion unverified state.
+ * Tracks when source code changes haven't been verified due to non-blocking classification.
+ * Used to re-stage verify-completion on next UserPromptSubmit.
+ *
+ * @see docs/design/FEATURE-REMINDERS.md
+ */
+export interface VCUnverifiedState {
+  /** Whether there are unverified source code changes */
+  hasUnverifiedChanges: boolean
+  /** Number of non-blocking classification cycles */
+  cycleCount: number
+  /** Metrics snapshot when state was set */
+  setAt: StagingMetrics
+  /** Last classification result */
+  lastClassification: {
+    category: string
+    confidence: number
+  }
+}
+
+/**
  * Metrics snapshot captured when a reminder is staged.
  * Used by Supervisor to determine reactivation after consumption.
  *
