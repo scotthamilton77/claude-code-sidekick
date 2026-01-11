@@ -1,17 +1,17 @@
 /**
- * Supervisor Status Types
+ * Daemon Status Types
  *
- * Types for the supervisor heartbeat status written to `.sidekick/state/supervisor-status.json`.
+ * Types for the daemon heartbeat status written to `.sidekick/state/daemon-status.json`.
  * Used by the monitoring UI to display system health and detect offline state.
  *
- * @see docs/design/SUPERVISOR.md §4.6 Heartbeat Mechanism
+ * @see docs/design/DAEMON.md §4.6 Heartbeat Mechanism
  * @see packages/sidekick-ui/docs/MONITORING-UI.md §3.2.E System Health
  */
 
 /**
  * Memory usage metrics from Node.js process.memoryUsage().
  */
-export interface SupervisorMemoryMetrics {
+export interface DaemonMemoryMetrics {
   /** V8 heap used in bytes */
   heapUsed: number
   /** V8 heap total in bytes */
@@ -23,7 +23,7 @@ export interface SupervisorMemoryMetrics {
 /**
  * Task queue status for pending and active tasks.
  */
-export interface SupervisorQueueMetrics {
+export interface DaemonQueueMetrics {
   /** Number of tasks waiting in queue */
   pending: number
   /** Number of tasks currently executing */
@@ -43,34 +43,34 @@ export interface ActiveTaskInfo {
 }
 
 /**
- * Supervisor status written to state/supervisor-status.json.
+ * Daemon status written to state/daemon-status.json.
  * Updated every 5 seconds by the heartbeat mechanism.
  *
- * @see docs/design/SUPERVISOR.md §4.6 Heartbeat Mechanism
+ * @see docs/design/DAEMON.md §4.6 Heartbeat Mechanism
  */
-export interface SupervisorStatus {
+export interface DaemonStatus {
   /** Unix timestamp (ms) of last heartbeat write */
   timestamp: number
-  /** Supervisor process ID */
+  /** Daemon process ID */
   pid: number
   /** Sidekick version string */
   version: string
-  /** Seconds since supervisor started */
+  /** Seconds since daemon started */
   uptimeSeconds: number
   /** Memory usage metrics */
-  memory: SupervisorMemoryMetrics
+  memory: DaemonMemoryMetrics
   /** Task queue status */
-  queue: SupervisorQueueMetrics
+  queue: DaemonQueueMetrics
   /** Currently executing tasks */
   activeTasks: ActiveTaskInfo[]
 }
 
 /**
- * Extended supervisor status with UI-computed fields.
+ * Extended daemon status with UI-computed fields.
  * Includes offline detection based on timestamp staleness.
  */
-export interface SupervisorStatusWithHealth extends SupervisorStatus {
-  /** Whether the supervisor is online (timestamp within threshold) */
+export interface DaemonStatusWithHealth extends DaemonStatus {
+  /** Whether the daemon is online (timestamp within threshold) */
   isOnline: boolean
   /** File mtime from the filesystem */
   fileMtime?: number

@@ -8,7 +8,7 @@ import { mkdirSync, writeFileSync, rmSync, existsSync, readdirSync } from 'node:
 import { join } from 'node:path'
 import {
   createMockCLIContext,
-  createMockSupervisorContext,
+  createMockDaemonContext,
   MockLogger,
   MockHandlerRegistry,
 } from '@sidekick/testing-fixtures'
@@ -73,7 +73,7 @@ describe('createConsumptionHandler', () => {
 
   describe('registration', () => {
     it('only registers handler in CLI context', () => {
-      const supervisorCtx = createMockSupervisorContext()
+      const supervisorCtx = createMockDaemonContext()
 
       createConsumptionHandler(supervisorCtx as unknown as CLIContext, {
         id: 'test:consume',

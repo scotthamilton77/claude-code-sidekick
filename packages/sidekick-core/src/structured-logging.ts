@@ -301,7 +301,7 @@ export function createLogManager(options: LogManagerOptions): LogManager {
 export interface ContextLoggerOptions {
   name?: string
   level?: LogLevel
-  /** Component source - determines log file (cli.log or supervisor.log) */
+  /** Component source - determines log file (cli.log or sidekickd.log) */
   source: LogSource
   /** Initial context bindings */
   context?: Record<string, unknown>
@@ -381,7 +381,7 @@ export function createContextLogger(options: ContextLoggerOptions): ContextLogge
   } else if (logsDir) {
     // File output based on source
     // FIXME this is an inappropriate mixing of concerns - the logic of which file each event goes to should be handled elsewhere
-    const logFile = source === 'cli' ? 'cli.log' : source === 'transcript' ? 'transcript-events.log' : 'supervisor.log'
+    const logFile = source === 'cli' ? 'cli.log' : source === 'transcript' ? 'transcript-events.log' : 'sidekickd.log'
     const logPath = join(logsDir, logFile)
     const logDir = dirname(logPath)
 
@@ -744,7 +744,7 @@ export const LogEvents = {
     return {
       type: 'EventReceived',
       time: Date.now(),
-      source: 'supervisor',
+      source: 'daemon',
       context: {
         sessionId: context.sessionId,
         scope: context.scope,
@@ -771,7 +771,7 @@ export const LogEvents = {
     return {
       type: 'EventProcessed',
       time: Date.now(),
-      source: 'supervisor',
+      source: 'daemon',
       context: {
         sessionId: context.sessionId,
         scope: context.scope,
@@ -796,7 +796,7 @@ export const LogEvents = {
     return {
       type: 'SupervisorStarting',
       time: Date.now(),
-      source: 'supervisor',
+      source: 'daemon',
       context: {
         sessionId: '',
         scope: 'project',
@@ -814,7 +814,7 @@ export const LogEvents = {
     return {
       type: 'SupervisorStarted',
       time: Date.now(),
-      source: 'supervisor',
+      source: 'daemon',
       context: {
         sessionId: '',
         scope: 'project',
@@ -832,7 +832,7 @@ export const LogEvents = {
     return {
       type: 'IpcServerStarted',
       time: Date.now(),
-      source: 'supervisor',
+      source: 'daemon',
       context: {
         sessionId: '',
         scope: 'project',
@@ -850,7 +850,7 @@ export const LogEvents = {
     return {
       type: 'ConfigWatcherStarted',
       time: Date.now(),
-      source: 'supervisor',
+      source: 'daemon',
       context: {
         sessionId: '',
         scope: 'project',
@@ -868,7 +868,7 @@ export const LogEvents = {
     return {
       type: 'SessionEvictionStarted',
       time: Date.now(),
-      source: 'supervisor',
+      source: 'daemon',
       context: {
         sessionId: '',
         scope: 'project',
@@ -897,7 +897,7 @@ export const LogEvents = {
     return {
       type: 'ReminderStaged',
       time: Date.now(),
-      source: 'supervisor',
+      source: 'daemon',
       context: {
         sessionId: context.sessionId,
         scope: context.scope,
@@ -939,7 +939,7 @@ export const LogEvents = {
     return {
       type: 'SummaryUpdated',
       time: Date.now(),
-      source: 'supervisor',
+      source: 'daemon',
       context: {
         sessionId: context.sessionId,
         scope: context.scope,
@@ -971,7 +971,7 @@ export const LogEvents = {
     return {
       type: 'SummarySkipped',
       time: Date.now(),
-      source: 'supervisor',
+      source: 'daemon',
       context: {
         sessionId: context.sessionId,
         scope: context.scope,
@@ -999,7 +999,7 @@ export const LogEvents = {
     return {
       type: 'RemindersCleared',
       time: Date.now(),
-      source: 'supervisor',
+      source: 'daemon',
       context: {
         sessionId: context.sessionId,
         scope: context.scope,
@@ -1100,7 +1100,7 @@ export const LogEvents = {
     return {
       type: 'ResumeGenerating',
       time: Date.now(),
-      source: 'supervisor',
+      source: 'daemon',
       context: {
         sessionId: context.sessionId,
         scope: context.scope,
@@ -1131,7 +1131,7 @@ export const LogEvents = {
     return {
       type: 'ResumeUpdated',
       time: Date.now(),
-      source: 'supervisor',
+      source: 'daemon',
       context: {
         sessionId: context.sessionId,
         scope: context.scope,
@@ -1163,7 +1163,7 @@ export const LogEvents = {
     return {
       type: 'ResumeSkipped',
       time: Date.now(),
-      source: 'supervisor',
+      source: 'daemon',
       context: {
         sessionId: context.sessionId,
         scope: context.scope,

@@ -1,25 +1,25 @@
 /**
  * SystemHealth Component
  *
- * Displays Sidekick Supervisor health metrics in a dashboard panel.
+ * Displays Sidekick Daemon health metrics in a dashboard panel.
  * Shows uptime, memory usage, queue depth, active tasks, and trend sparklines.
  *
  * @see packages/sidekick-ui/docs/MONITORING-UI.md §3.2.E System Health
- * @see docs/design/SUPERVISOR.md §3 Status Endpoint
+ * @see docs/design/DAEMON.md §3 Status Endpoint
  */
 
 import React from 'react'
-import type { SupervisorStatusWithHealth } from '@sidekick/types'
+import type { DaemonStatusWithHealth } from '@sidekick/types'
 import Icon from './Icon'
 import Sparkline from './Sparkline'
 
 interface SystemHealthProps {
-  /** Current supervisor status */
-  status: SupervisorStatusWithHealth | null
-  /** Whether supervisor is online */
+  /** Current daemon status */
+  status: DaemonStatusWithHealth | null
+  /** Whether daemon is online */
   isOnline: boolean
   /** Historical status for sparklines */
-  statusHistory?: SupervisorStatusWithHealth[]
+  statusHistory?: DaemonStatusWithHealth[]
   /** Loading state */
   isLoading?: boolean
 }
@@ -129,7 +129,7 @@ const SystemHealth: React.FC<SystemHealthProps> = ({ status, isOnline, statusHis
         {/* Offline message */}
         <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-center">
           <Icon name="power-off" className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-          <div className="text-sm text-slate-600">Supervisor Offline</div>
+          <div className="text-sm text-slate-600">Daemon Offline</div>
           {lastKnownTime > 0 && (
             <div className="text-xs text-slate-400 mt-1">Last seen: {new Date(lastKnownTime).toLocaleString()}</div>
           )}

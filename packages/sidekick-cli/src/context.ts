@@ -9,7 +9,7 @@
 
 import { join } from 'node:path'
 import { homedir } from 'node:os'
-import { HandlerRegistryImpl, SupervisorClient } from '@sidekick/core'
+import { HandlerRegistryImpl, DaemonClient } from '@sidekick/core'
 import type { CLIContext, HandlerContext, RuntimePaths } from '@sidekick/types'
 import type { RuntimeShell } from './runtime.js'
 import { registerConsumptionHandlers } from '@sidekick/feature-reminders'
@@ -53,7 +53,7 @@ export function buildCLIContext(options: BuildCLIContextOptions): CLIContext {
     scope: runtime.scope.scope,
   })
 
-  const supervisor = new SupervisorClient(projectRoot, runtime.logger)
+  const daemon = new DaemonClient(projectRoot, runtime.logger)
 
   const context: CLIContext = {
     role: 'cli',
@@ -62,7 +62,7 @@ export function buildCLIContext(options: BuildCLIContextOptions): CLIContext {
     assets: runtime.assets,
     paths,
     handlers,
-    supervisor,
+    daemon,
   }
 
   // Wire context into handlers for invocation

@@ -1,10 +1,10 @@
 /**
- * Supervisor Client Facade
+ * Daemon Client Facade
  *
- * High-level client for managing the Supervisor lifecycle (start/stop/status)
+ * High-level client for managing the Daemon lifecycle (start/stop/status)
  * and communicating via IPC.
  *
- * @see docs/design/CLI.md §7 Supervisor Lifecycle Management
+ * @see docs/design/CLI.md §7 Daemon Lifecycle Management
  */
 import { spawn } from 'child_process'
 import fs from 'fs/promises'
@@ -17,12 +17,12 @@ import {
   getSocketPath,
   getTokenPath,
   getUserPidPath,
-  getUserSupervisorsDir,
+  getUserDaemonsDir,
 } from './ipc/transport.js'
 import { Logger } from './logger.js'
 
 /**
- * Lockfile timeout and retry settings for supervisor startup serialization.
+ * Lockfile timeout and retry settings for daemon startup serialization.
  */
 const LOCK_TIMEOUT_MS = 10000 // Max time to wait for lock
 const LOCK_RETRY_INTERVAL_MS = 100 // Polling interval when waiting for lock
@@ -52,7 +52,7 @@ interface HandshakeResponse {
 // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
 const CLIENT_VERSION: string = require('../../../package.json').version
 
-export class SupervisorClient {
+export class DaemonClient {
   private projectDir: string
   private logger: Logger
   private ipcClient: IpcClient
@@ -74,34 +74,34 @@ export class SupervisorClient {
         // Check version compatibility
         const versionMatch = await this.checkVersion()
         if (versionMatch) {
-          this.logger.debug('Supervisor already running with matching version')
+          this.logger.debug('Daemon already running with matching version')
           return
         }
 
-        // Version mismatch - stop old supervisor before spawning new
-        this.logger.info('Version mismatch, restarting supervisor', {
+        // Version mismatch - stop old daemon before spawning new
+        this.logger.info('Version mismatch, restarting daemon', {
           clientVersion: CLIENT_VERSION,
         })
         await this.stop()
         await this.waitForShutdown()
       }
 
-      this.logger.info('Starting supervisor...')
+      this.logger.info('Starting daemon...')
 
-      // Resolve supervisor entry point
-      let supervisorPath: string
+      // Resolve daemon entry point
+      let daemonPath: string
       try {
-        const pkgPath = require.resolve('@sidekick/supervisor/package.json')
+        const pkgPath = require.resolve('@sidekick/daemon/package.json')
         // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
         const pkg: PackageJson = require(pkgPath)
-        const binPath = pkg.bin ? (typeof pkg.bin === 'string' ? pkg.bin : pkg.bin['sidekick-supervisor']) : pkg.main
-        supervisorPath = path.resolve(path.dirname(pkgPath), binPath ?? 'dist/index.js')
+        const binPath = pkg.bin ? (typeof pkg.bin === 'string' ? pkg.bin : pkg.bin['sidekickd']) : pkg.main
+        daemonPath = path.resolve(path.dirname(pkgPath), binPath ?? 'dist/index.js')
       } catch {
-        // Fallback for dev environment: from dist/ → packages/sidekick-supervisor/dist/
-        supervisorPath = path.resolve(__dirname, '../../sidekick-supervisor/dist/index.js')
+        // Fallback for dev environment: from dist/ → packages/sidekick-daemon/dist/
+        daemonPath = path.resolve(__dirname, '../../sidekick-daemon/dist/index.js')
       }
 
-      const child = spawn('node', [supervisorPath, this.projectDir], {
+      const child = spawn('node', [daemonPath, this.projectDir], {
         detached: true,
         stdio: 'ignore',
         cwd: this.projectDir,
@@ -116,7 +116,7 @@ export class SupervisorClient {
 
   /**
    * Execute a function while holding the startup lock.
-   * Prevents race conditions when multiple hooks try to start the supervisor.
+   * Prevents race conditions when multiple hooks try to start the daemon.
    */
   private async withStartupLock<T>(fn: () => Promise<T>): Promise<T> {
     const lockPath = getLockPath(this.projectDir)
@@ -206,9 +206,9 @@ export class SupervisorClient {
   }
 
   /**
-   * Request supervisor shutdown (fire-and-forget).
+   * Request daemon shutdown (fire-and-forget).
    * Sends shutdown request, receives ack, closes connection immediately.
-   * Supervisor self-terminates asynchronously after ack.
+   * Daemon self-terminates asynchronously after ack.
    */
   async stop(): Promise<void> {
     if (!(await this.isRunning())) {
@@ -222,23 +222,23 @@ export class SupervisorClient {
       // Handshake
       await this.ipcClient.call('handshake', { token: this.token })
 
-      // Shutdown - supervisor returns ack immediately, then self-terminates
+      // Shutdown - daemon returns ack immediately, then self-terminates
       await this.ipcClient.call('shutdown', { token: this.token })
 
-      // Close connection immediately after ack (don't wait for supervisor to terminate)
+      // Close connection immediately after ack (don't wait for daemon to terminate)
       this.ipcClient.close()
     } catch (err) {
-      this.logger.warn('Failed to stop supervisor gracefully, killing...', { error: err })
+      this.logger.warn('Failed to stop daemon gracefully, killing...', { error: err })
       await this.killForcefully()
     }
   }
 
   /**
-   * Request supervisor shutdown and wait for it to stop.
-   * Polls isRunning() every 1 second until supervisor stops or timeout.
+   * Request daemon shutdown and wait for it to stop.
+   * Polls isRunning() every 1 second until daemon stops or timeout.
    *
    * @param timeoutMs - Maximum time to wait (default: 30000ms)
-   * @returns true if supervisor stopped, false if timeout reached
+   * @returns true if daemon stopped, false if timeout reached
    */
   async stopAndWait(timeoutMs = 30000): Promise<boolean> {
     await this.stop()
@@ -275,11 +275,11 @@ export class SupervisorClient {
   }
 
   /**
-   * Forcefully kill the project-local supervisor (--kill switch).
+   * Forcefully kill the project-local daemon (--kill switch).
    * Does not attempt graceful shutdown via IPC - just sends SIGKILL.
    * Cleans up all associated files after kill.
    *
-   * @see docs/design/CLI.md §7 Supervisor Lifecycle Management
+   * @see docs/design/CLI.md §7 Daemon Lifecycle Management
    */
   async kill(): Promise<{ killed: boolean; pid?: number }> {
     if (!(await this.isRunning())) {
@@ -292,13 +292,13 @@ export class SupervisorClient {
       const pidPath = getPidPath(this.projectDir)
       const pid = parseInt(await fs.readFile(pidPath, 'utf-8'), 10)
       process.kill(pid, 'SIGKILL')
-      this.logger.info('Forcefully killed supervisor', { pid, projectDir: this.projectDir })
+      this.logger.info('Forcefully killed daemon', { pid, projectDir: this.projectDir })
 
       // Clean up files after kill
       await this.cleanupStaleFiles()
       return { killed: true, pid }
     } catch (err) {
-      this.logger.warn('Failed to kill supervisor', { error: err })
+      this.logger.warn('Failed to kill daemon', { error: err })
       // Still try to clean up any stale files
       await this.cleanupStaleFiles()
       return { killed: false }
@@ -317,8 +317,8 @@ export class SupervisorClient {
   }
 
   /**
-   * Check if running supervisor version matches client version.
-   * Per design/SUPERVISOR.md §2.2: Version mismatch triggers restart.
+   * Check if running daemon version matches client version.
+   * Per design/DAEMON.md §2.2: Version mismatch triggers restart.
    */
   private async checkVersion(): Promise<boolean> {
     try {
@@ -331,21 +331,21 @@ export class SupervisorClient {
 
       const match = response.version === CLIENT_VERSION
       if (!match) {
-        this.logger.debug('Supervisor version mismatch', {
-          supervisorVersion: response.version,
+        this.logger.debug('Daemon version mismatch', {
+          daemonVersion: response.version,
           clientVersion: CLIENT_VERSION,
         })
       }
       return match
     } catch (err) {
-      this.logger.warn('Failed to check supervisor version', { error: err })
+      this.logger.warn('Failed to check daemon version', { error: err })
       // On error, assume mismatch to trigger restart
       return false
     }
   }
 
   /**
-   * Wait for supervisor to fully shut down (files removed).
+   * Wait for daemon to fully shut down (files removed).
    */
   private async waitForShutdown(timeoutMs = 5000): Promise<void> {
     const start = Date.now()
@@ -355,14 +355,14 @@ export class SupervisorClient {
       }
       await new Promise((resolve) => setTimeout(resolve, 100))
     }
-    this.logger.warn('Supervisor did not shut down within timeout, forcing kill')
+    this.logger.warn('Daemon did not shut down within timeout, forcing kill')
     await this.killForcefully()
     await this.cleanupStaleFiles()
   }
 
   /**
-   * Remove stale supervisor files when process is dead but files remain.
-   * Per design/SUPERVISOR.md §2.2: "If process dead: Remove stale .pid, .sock, .token files"
+   * Remove stale daemon files when process is dead but files remain.
+   * Per design/DAEMON.md §2.2: "If process dead: Remove stale .pid, .sock, .token files"
    */
   private async cleanupStaleFiles(): Promise<void> {
     const pidPath = getPidPath(this.projectDir)
@@ -377,7 +377,7 @@ export class SupervisorClient {
         return
       } catch {
         // Process is dead, cleanup stale files
-        this.logger.info('Cleaning up stale supervisor files', { pid })
+        this.logger.info('Cleaning up stale daemon files', { pid })
       }
     } catch {
       // No PID file, nothing to cleanup
@@ -427,7 +427,7 @@ export class SupervisorClient {
       }
       await new Promise((resolve) => setTimeout(resolve, 100))
     }
-    throw new Error('Supervisor failed to start within timeout')
+    throw new Error('Daemon failed to start within timeout')
   }
 
   private async readToken(): Promise<string> {
@@ -436,7 +436,7 @@ export class SupervisorClient {
 }
 
 /**
- * Result of killing a single supervisor during --kill-all.
+ * Result of killing a single daemon during --kill-all.
  */
 export interface KillResult {
   projectDir: string
@@ -446,33 +446,33 @@ export interface KillResult {
 }
 
 /**
- * Kill all supervisors by scanning ~/.sidekick/supervisors/*.pid files.
+ * Kill all daemons by scanning ~/.sidekick/daemons/*.pid files.
  *
  * Used for the --kill-all CLI switch. Iterates through all user-level PID files,
  * verifies each process is alive, sends SIGKILL, and cleans up associated files.
  *
  * @param logger - Logger instance for reporting
- * @returns Array of results for each supervisor found
+ * @returns Array of results for each daemon found
  *
- * @see docs/design/CLI.md §7 Supervisor Lifecycle Management
+ * @see docs/design/CLI.md §7 Daemon Lifecycle Management
  */
-export async function killAllSupervisors(logger: Logger): Promise<KillResult[]> {
+export async function killAllDaemons(logger: Logger): Promise<KillResult[]> {
   const results: KillResult[] = []
-  const supervisorsDir = getUserSupervisorsDir()
+  const daemonsDir = getUserDaemonsDir()
 
   let files: string[]
   try {
-    files = await fs.readdir(supervisorsDir)
+    files = await fs.readdir(daemonsDir)
   } catch {
-    // Directory doesn't exist - no supervisors running
-    logger.debug('No supervisors directory found', { path: supervisorsDir })
+    // Directory doesn't exist - no daemons running
+    logger.debug('No daemons directory found', { path: daemonsDir })
     return results
   }
 
   const pidFiles = files.filter((f) => f.endsWith('.pid'))
 
   for (const pidFile of pidFiles) {
-    const pidPath = path.join(supervisorsDir, pidFile)
+    const pidPath = path.join(daemonsDir, pidFile)
 
     try {
       const content = await fs.readFile(pidPath, 'utf-8')
@@ -491,11 +491,11 @@ export async function killAllSupervisors(logger: Logger): Promise<KillResult[]> 
       // Process is alive, kill it
       try {
         process.kill(info.pid, 'SIGKILL')
-        logger.info('Killed supervisor', { pid: info.pid, projectDir: info.projectDir })
+        logger.info('Killed daemon', { pid: info.pid, projectDir: info.projectDir })
         results.push({ projectDir: info.projectDir, pid: info.pid, killed: true })
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err)
-        logger.warn('Failed to kill supervisor', { pid: info.pid, error: errorMsg })
+        logger.warn('Failed to kill daemon', { pid: info.pid, error: errorMsg })
         results.push({ projectDir: info.projectDir, pid: info.pid, killed: false, error: errorMsg })
       }
 

@@ -11,7 +11,7 @@
 
 import type { RuntimeContext } from '@sidekick/core'
 import type {
-  SupervisorContext,
+  DaemonContext,
   HookName,
   EventHandler,
   SidekickEvent,
@@ -19,7 +19,7 @@ import type {
   HandlerFilter,
   StagingMetrics,
 } from '@sidekick/types'
-import { isSupervisorContext, isTranscriptEvent } from '@sidekick/types'
+import { isDaemonContext, isTranscriptEvent } from '@sidekick/types'
 import { resolveReminder, stageReminder } from '../../reminder-utils.js'
 import type { TemplateContext } from '../../types.js'
 
@@ -41,10 +41,10 @@ export interface StagingHandlerConfig {
   priority: number
   /** Event filter - use proper HandlerFilter type */
   filter: HandlerFilter
-  /** Handler logic - receives narrowed SupervisorContext */
+  /** Handler logic - receives narrowed DaemonContext */
   execute: (
     event: SidekickEvent,
-    ctx: SupervisorContext
+    ctx: DaemonContext
   ) => Promise<StagingAction | undefined> | StagingAction | undefined
 }
 
@@ -52,36 +52,36 @@ export interface StagingHandlerConfig {
  * Creates and registers a staging handler with automatic context guards
  */
 export function createStagingHandler(context: RuntimeContext, config: StagingHandlerConfig): void {
-  if (!isSupervisorContext(context)) return
+  if (!isDaemonContext(context)) return
 
   const { id, priority, filter, execute } = config
 
   const handler: EventHandler = async (event: SidekickEvent, ctx: HandlerContext) => {
-    if (!isSupervisorContext(ctx as unknown as RuntimeContext)) return
+    if (!isDaemonContext(ctx as unknown as RuntimeContext)) return
 
     // Skip staging during bulk transcript reconstruction - staging is a live operation
     // that shouldn't be triggered by historical event replay. Handlers for
     // BulkProcessingComplete can stage reminders needed after reconstruction.
     if (isTranscriptEvent(event) && event.metadata.isBulkProcessing) return
 
-    const supervisorCtx = ctx as unknown as SupervisorContext
-    const action = await execute(event, supervisorCtx)
+    const daemonCtx = ctx as unknown as DaemonContext
+    const action = await execute(event, daemonCtx)
 
     if (!action) return
 
     // Idempotency check (default: skip if exists)
     if (action.skipIfExists !== false) {
-      const existing = await supervisorCtx.staging.listReminders(action.targetHook)
+      const existing = await daemonCtx.staging.listReminders(action.targetHook)
       if (existing.some((r) => r.name === action.reminderId)) return
     }
 
     // Resolve reminder using context's asset resolver
     const reminder = resolveReminder(action.reminderId, {
       context: action.templateContext ?? {},
-      assets: supervisorCtx.assets,
+      assets: daemonCtx.assets,
     })
     if (!reminder) {
-      supervisorCtx.logger.warn('Failed to resolve reminder', { reminderId: action.reminderId })
+      daemonCtx.logger.warn('Failed to resolve reminder', { reminderId: action.reminderId })
       return
     }
 
@@ -98,7 +98,7 @@ export function createStagingHandler(context: RuntimeContext, config: StagingHan
     }
 
     // Stage reminder with stagedAt metrics
-    await stageReminder(supervisorCtx, action.targetHook, { ...reminder, stagedAt })
+    await stageReminder(daemonCtx, action.targetHook, { ...reminder, stagedAt })
   }
 
   context.handlers.register({ id, priority, filter, handler })

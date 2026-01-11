@@ -33,17 +33,17 @@ export { MockTranscriptService, createDefaultMetrics, createDefaultTokenUsage } 
 
 // Factories
 export {
-  createMockSupervisorContext,
+  createMockDaemonContext,
   createMockCLIContext,
-  MockSupervisorClient,
+  MockDaemonClient,
   MockProfileProviderFactory,
 } from './factories/context.factory'
 export type {
   RuntimeContext,
   CLIContext,
-  SupervisorContext,
+  DaemonContext,
   RuntimePaths,
-  MockSupervisorContextOptions,
+  MockDaemonContextOptions,
   MockCLIContextOptions,
 } from './factories/context.factory'
 

@@ -15,7 +15,7 @@ vi.mock('@sidekick/core', () => ({
     invokeHook: vi.fn(),
     setContext: vi.fn(),
   })),
-  SupervisorClient: vi.fn().mockImplementation(() => ({
+  DaemonClient: vi.fn().mockImplementation(() => ({
     start: vi.fn(),
     stop: vi.fn(),
     status: vi.fn(),
@@ -78,7 +78,7 @@ describe('buildCLIContext', () => {
     expect(context.logger).toBe(runtime.logger)
     expect(context.assets).toBe(runtime.assets)
     expect(context.handlers).toBeDefined()
-    expect(context.supervisor).toBeDefined()
+    expect(context.daemon).toBeDefined()
   })
 
   test('throws when projectRoot is undefined', () => {

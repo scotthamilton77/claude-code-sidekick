@@ -1,5 +1,5 @@
 # Core Configuration Defaults
-# This file defines default values for logging, paths, supervisor, and IPC settings.
+# This file defines default values for logging, paths, daemon, and IPC settings.
 # Override in ~/.sidekick/config.yaml or .sidekick/config.yaml
 
 # Logging configuration
@@ -18,9 +18,9 @@ paths:
   # Optional: Custom assets directory path (omit to use defaults)
   # assets: /path/to/custom/assets
 
-# Supervisor process configuration
-supervisor:
-  # Time in ms before idle supervisor shuts down (5 minutes)
+# Daemon process configuration
+daemon:
+  # Time in ms before idle daemon shuts down (5 minutes)
   idleTimeoutMs: 300000
   # Graceful shutdown timeout in ms (30 seconds)
   shutdownTimeoutMs: 30000

@@ -708,3 +708,103 @@ This document preserves the full implementation details of completed phases from
     - [x] **7.E.3 Dual-scope verification** (parallel)
       - [x] Verify path resolution in both `.sidekick/` and `~/.sidekick/` contexts.
     - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
+
+---
+
+- [x] **Phase 8: CLI→Supervisor Event Dispatch** - COMPLETE 2025-12-20
+  - [x] Objectives
+    - [x] Wire CLI hook commands to dispatch events to Supervisor via IPC
+    - [x] Enable handler execution for hook events (SessionStart, UserPromptSubmit, etc.)
+    - [x] Complete the event flow: CLI → IpcService → Supervisor → HandlerRegistry → Handlers
+  - [x] Relevant documents/sections
+    - [x] `{project_root_dir}/docs/design/flow.md` (§5 Complete Hook Flows) — **CLI/Supervisor event dispatch patterns**
+    - [x] `{project_root_dir}/docs/design/CLI.md` (§4 Supervisor Interaction)
+    - [x] `{project_root_dir}/docs/design/SUPERVISOR.md` (§3 Communication Layer, §4.3 IPC Protocol)
+  - [x] Background
+    - Phase 5 implemented supervisor lifecycle (start/stop/status) and IPC infrastructure
+    - Phase 6 implemented feature handlers that register with HandlerRegistry
+    - **Gap identified**: CLI starts supervisor but never sends hook events via IPC
+    - Result: Handlers are registered but never invoked; session data is never written
+  - [x] **8.1 CLI Event Dispatch Integration** - COMPLETE 2025-12-14
+    - [x] Import `IpcService` in CLI hook command path
+    - [x] Build `HookEvent` from parsed CLI arguments and stdin JSON
+    - [x] Call `ipc.send('hook.invoke', { hook, event })` for each hook command
+    - [x] Handle supervisor response (reminders, blocking status, errors)
+    - [x] Remove "Node runtime skeleton ready" placeholder message
+  - [x] **8.2 Hook-Specific Event Construction** - COMPLETE 2025-12-14
+    - [x] `SessionStart`: Extract `sessionId`, `transcriptPath`, `startupType` from stdin
+    - [x] `UserPromptSubmit`: Extract `prompt`, `sessionId` from stdin
+    - [x] `PreToolUse` / `PostToolUse`: Extract `toolName`, `toolInput`, `toolResult` from stdin
+    - [x] `Stop`: Extract `stopReason`, `sessionId` from stdin
+    - [x] `SessionEnd`: Extract `sessionId`, `endReason` from stdin
+  - [x] **8.3 Response Handling & Output** - COMPLETE 2025-12-14
+    - [x] Parse `HookResponse` from supervisor (reminders, blocking status, errors)
+    - [x] Format CLI output per Claude Code hook contract (JSON to stdout)
+    - [x] Handle `blocking: true` responses appropriately
+    - [x] Log handler execution results via structured logging
+  - [x] **8.4 Graceful Degradation** - COMPLETE 2025-12-14
+    - [x] When supervisor unavailable: proceed with sync-only path (existing behavior)
+    - [x] Log warning when falling back to sync path
+    - [x] Ensure CLI never blocks indefinitely on supervisor communication
+  - [x] Testing
+    - [x] Unit tests for event construction from stdin JSON (17 tests in hook.test.ts)
+    - [x] Integration tests for CLI → Supervisor → Handler flow
+    - [x] Graceful degradation tests (supervisor unavailable scenarios)
+    - [x] End-to-end tests with recorded transcript data
+  - [x] Acceptance criteria
+    - [x] Hook commands dispatch events to supervisor via `hook.invoke` IPC
+    - [x] Registered handlers execute and write session state files
+    - [x] `.sidekick/sessions/{sessionId}/state/` contains handler output
+    - [x] Graceful degradation when supervisor unavailable (warns, doesn't crash)
+    - [x] All existing tests pass; no regressions (45 CLI tests, 218+ total)
+    - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
+    - [x] Live testing in dev-mode shows session state files being written
+    - [x] No errors/warnings in the logs
+  - [x] **8.5 Refactoring** - Code review follow-up tasks - COMPLETE 2025-12-20
+    - [x] **8.5.1 Fix or Remove normalizeHookName()** - COMPLETE 2025-12-20
+      - [x] Removed `normalizeHookName()`, split into `validateHookName()` + `getHookName()`
+      - [x] `validateHookName()`: validates PascalCase from stdin's `hookEventName`
+      - [x] `getHookName()`: maps kebab-case CLI commands → PascalCase HookName
+      - [x] Removed all snake_case mappings
+      - [x] Files: `packages/sidekick-cli/src/commands/hook.ts`
+    - [x] **8.5.2 Refactor buildHookEvent() into Smaller Methods** - COMPLETE 2025-12-20
+      - [x] Extract `buildSessionStartEvent()`
+      - [x] Extract `buildSessionEndEvent()`
+      - [x] Extract `buildUserPromptSubmitEvent()`
+      - [x] Extract `buildPreToolUseEvent()`
+      - [x] Extract `buildPostToolUseEvent()`
+      - [x] Extract `buildStopEvent()`
+      - [x] Extract `buildPreCompactEvent()`
+      - [x] Files: `packages/sidekick-cli/src/commands/hook.ts`
+    - [x] **8.5.3 Refactor cli.ts runCli() into Smaller Methods** - COMPLETE 2025-12-20
+      - [x] Extract `initializeRuntime()` - bootstrap, dual-install check
+      - [x] Extract `initializeSession()` - session directory creation
+      - [x] Extract `ensureSupervisor()` - auto-start logic
+      - [x] Extract `routeCommand()` - command routing switch
+      - [x] Files: `packages/sidekick-cli/src/cli.ts`
+    - [x] **8.5.4 Wire Reminder Consumption Handlers in CLI** - COMPLETE 2025-12-20
+      - [x] Created `context.ts` with `buildCLIContext()` factory and `registerCLIFeatures()`
+      - [x] CLI invokes handlers via HandlerRegistry after IPC response
+      - [x] `mergeHookResponses()` merges CLI and Supervisor responses (CLI takes precedence)
+      - [x] Context wiring internalized in factory (fixes leaky abstraction)
+      - [x] Added `@sidekick/feature-reminders` dependency to CLI
+      - [x] Files: `packages/sidekick-cli/src/context.ts`, `packages/sidekick-cli/src/commands/hook.ts`
+    - [x] **8.5.5 Simplify Hook Response Format** - COMPLETE 2025-12-20
+      - [x] Removed `ClaudeCodeHookOutput` interface from hook.ts
+      - [x] Removed `formatClaudeCodeOutput()` function from hook.ts
+      - [x] CLI outputs internal `HookResponse`: `{ blocking?, reason?, additionalContext?, userMessage? }`
+      - [x] Shell scripts translate to hook-specific Claude Code format using jq:
+        - `userMessage` → `systemMessage` (common field, shown to user)
+        - `additionalContext` → `hookSpecificOutput.additionalContext` (most hooks)
+        - `additionalContext` → `hookSpecificOutput.permissionDecisionReason` (PreToolUse)
+        - `additionalContext` → appended to `reason` (Stop, no hookSpecificOutput)
+        - `blocking`/`reason` → hook-specific blocking mechanism
+      - [x] Hook-specific blocking formats:
+        - PreToolUse: `hookSpecificOutput.permissionDecision: "deny"`, `permissionDecisionReason`
+        - PostToolUse: `decision: "block"`, `reason`
+        - Stop: `decision: "block"`, `reason`
+        - UserPromptSubmit: `decision: "block"`, `reason`
+        - SessionStart/PreCompact: `continue: false`, `stopReason`
+        - SessionEnd: passthrough (cannot block)
+      - [x] Graceful fallback when jq unavailable (passthrough)
+      - [x] Files: `packages/sidekick-cli/src/commands/hook.ts`, `scripts/dev-hooks/*`

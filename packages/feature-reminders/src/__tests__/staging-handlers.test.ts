@@ -7,7 +7,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import {
-  createMockSupervisorContext,
+  createMockDaemonContext,
   createMockCLIContext,
   MockStagingService,
   MockLogger,
@@ -15,7 +15,7 @@ import {
   MockAssetResolver,
   createDefaultMetrics,
 } from '@sidekick/testing-fixtures'
-import type { SupervisorContext, TranscriptEvent, TranscriptMetrics, PRBaselineState } from '@sidekick/types'
+import type { DaemonContext, TranscriptEvent, TranscriptMetrics, PRBaselineState } from '@sidekick/types'
 import { registerStagePauseAndReflect } from '../handlers/staging/stage-pause-and-reflect'
 import { registerStageDefaultUserPrompt } from '../handlers/staging/stage-default-user-prompt'
 import { registerStageStopReminders } from '../handlers/staging/stage-stop-reminders'
@@ -45,7 +45,7 @@ function createTestTranscriptEvent(
 }
 
 describe('staging handlers', () => {
-  let ctx: SupervisorContext
+  let ctx: DaemonContext
   let staging: MockStagingService
   let logger: MockLogger
   let handlers: MockHandlerRegistry
@@ -80,20 +80,20 @@ reason: "Verify completion before stopping"
 `,
     })
 
-    ctx = createMockSupervisorContext({ staging, logger, handlers, assets })
+    ctx = createMockDaemonContext({ staging, logger, handlers, assets })
   })
 
   describe('createStagingHandler factory', () => {
-    it('only registers handler in supervisor context', () => {
+    it('only registers handler in daemon context', () => {
       const cliCtx = createMockCLIContext()
 
       // Try to register in CLI context - should not register
-      registerStagePauseAndReflect(cliCtx as unknown as SupervisorContext)
+      registerStagePauseAndReflect(cliCtx as unknown as DaemonContext)
 
       expect((cliCtx.handlers as MockHandlerRegistry).getRegistrations()).toHaveLength(0)
     })
 
-    it('registers handler in supervisor context', () => {
+    it('registers handler in daemon context', () => {
       registerStagePauseAndReflect(ctx)
 
       const registrations = handlers.getRegistrations()
@@ -219,7 +219,7 @@ reason: "Verify completion before stopping"
 
       it('uses default threshold when no baseline file exists', async () => {
         // Create context with test project dir
-        const ctxWithPath = createMockSupervisorContext({
+        const ctxWithPath = createMockDaemonContext({
           staging,
           logger,
           handlers,
@@ -252,7 +252,7 @@ reason: "Verify completion before stopping"
         }
         writeFileSync(join(stateDir, 'pr-baseline.json'), JSON.stringify(baseline))
 
-        const ctxWithPath = createMockSupervisorContext({
+        const ctxWithPath = createMockDaemonContext({
           staging,
           logger,
           handlers,
@@ -289,7 +289,7 @@ reason: "Verify completion before stopping"
         }
         writeFileSync(join(stateDir, 'pr-baseline.json'), JSON.stringify(baseline))
 
-        const ctxWithPath = createMockSupervisorContext({
+        const ctxWithPath = createMockDaemonContext({
           staging,
           logger,
           handlers,
@@ -318,7 +318,7 @@ reason: "Verify completion before stopping"
         const stateDir = join(testProjectDir, '.sidekick', 'sessions', sessionId, 'state')
         writeFileSync(join(stateDir, 'pr-baseline.json'), 'not valid json {')
 
-        const ctxWithPath = createMockSupervisorContext({
+        const ctxWithPath = createMockDaemonContext({
           staging,
           logger,
           handlers,

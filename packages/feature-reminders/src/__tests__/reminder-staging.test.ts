@@ -5,18 +5,18 @@
 
 import { describe, it, expect, beforeEach } from 'vitest'
 import { stageReminder, consumeReminder } from '../reminder-utils'
-import { createMockSupervisorContext, MockStagingService, MockLogger } from '@sidekick/testing-fixtures'
-import type { StagedReminder, SupervisorContext } from '@sidekick/types'
+import { createMockDaemonContext, MockStagingService, MockLogger } from '@sidekick/testing-fixtures'
+import type { StagedReminder, DaemonContext } from '@sidekick/types'
 
 describe('reminder staging/consumption', () => {
-  let ctx: SupervisorContext
+  let ctx: DaemonContext
   let staging: MockStagingService
   let logger: MockLogger
 
   beforeEach(() => {
     staging = new MockStagingService()
     logger = new MockLogger()
-    ctx = createMockSupervisorContext({ staging, logger })
+    ctx = createMockDaemonContext({ staging, logger })
   })
 
   describe('stageReminder', () => {

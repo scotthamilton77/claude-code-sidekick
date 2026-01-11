@@ -727,7 +727,7 @@ describe('Structured Logging', () => {
       const rootLogger = createContextLogger({
         name: 'sidekick:test',
         level: 'info',
-        source: 'supervisor',
+        source: 'daemon',
         context: { sessionId: 'sess-root' },
         testStream: stream,
       })
@@ -745,7 +745,7 @@ describe('Structured Logging', () => {
       expect(context.traceId).toBe('trace-1')
       expect(context.taskId).toBe('task-2')
       expect(context.hook).toBe('PostToolUse')
-      expect(log.source).toBe('supervisor')
+      expect(log.source).toBe('daemon')
     })
 
     it('should not mutate parent logger context when creating children', async () => {
@@ -814,29 +814,29 @@ describe('Structured Logging', () => {
       expect(log.msg).toBe('CLI log entry')
     })
 
-    it('should write Supervisor logs to supervisor.log file', async () => {
+    it('should write Daemon logs to sidekickd.log file', async () => {
       const { createContextLogger } = await import('../structured-logging')
       const logsDir = path.join(tempDir, 'logs')
 
       const logger = createContextLogger({
         name: 'sidekick:supervisor',
         level: 'info',
-        source: 'supervisor',
+        source: 'daemon',
         logsDir,
       })
 
-      logger.info('Supervisor log entry')
+      logger.info('Daemon log entry')
       await logger.flush()
 
       await new Promise((r) => setTimeout(r, 100))
 
-      const supervisorLogPath = path.join(logsDir, 'supervisor.log')
+      const supervisorLogPath = path.join(logsDir, 'sidekickd.log')
       expect(fs.existsSync(supervisorLogPath)).toBe(true)
 
       const content = fs.readFileSync(supervisorLogPath, 'utf8')
       const log = JSON.parse(content.trim())
-      expect(log.source).toBe('supervisor')
-      expect(log.msg).toBe('Supervisor log entry')
+      expect(log.source).toBe('daemon')
+      expect(log.msg).toBe('Daemon log entry')
     })
   })
 
@@ -919,7 +919,7 @@ describe('Structured Logging', () => {
       )
 
       expect(event.type).toBe('EventReceived')
-      expect(event.source).toBe('supervisor')
+      expect(event.source).toBe('daemon')
       expect(event.context.taskId).toBe('task-789')
       expect(event.payload.metadata.eventKind).toBe('hook')
       expect(event.payload.metadata.hook).toBe('PostToolUse')
@@ -935,7 +935,7 @@ describe('Structured Logging', () => {
       )
 
       expect(event.type).toBe('EventProcessed')
-      expect(event.source).toBe('supervisor')
+      expect(event.source).toBe('daemon')
       expect(event.payload.state.handlerId).toBe('reminders:stage-stuck')
       expect(event.payload.state.success).toBe(true)
       expect(event.payload.metadata.durationMs).toBe(12)
@@ -956,7 +956,7 @@ describe('Structured Logging', () => {
       )
 
       expect(event.type).toBe('ReminderStaged')
-      expect(event.source).toBe('supervisor')
+      expect(event.source).toBe('daemon')
       expect(event.payload.state.reminderName).toBe('AreYouStuckReminder')
       expect(event.payload.state.hookName).toBe('PreToolUse')
     })
@@ -984,7 +984,7 @@ describe('Structured Logging', () => {
       )
 
       expect(event.type).toBe('SummaryUpdated')
-      expect(event.source).toBe('supervisor')
+      expect(event.source).toBe('daemon')
       expect(event.payload.reason).toBe('user_prompt_forced')
       expect(event.payload.state.session_title).toBe('Working on OAuth')
       expect(event.payload.metadata.pivot_detected).toBe(false)
@@ -996,7 +996,7 @@ describe('Structured Logging', () => {
       const event = LogEvents.summarySkipped({ sessionId: 'sess-123' }, { countdown: 5, countdown_threshold: 0 })
 
       expect(event.type).toBe('SummarySkipped')
-      expect(event.source).toBe('supervisor')
+      expect(event.source).toBe('daemon')
       expect(event.payload.metadata.countdown).toBe(5)
       expect(event.payload.reason).toBe('countdown_active')
     })
@@ -1011,7 +1011,7 @@ describe('Structured Logging', () => {
       )
 
       expect(event.type).toBe('RemindersCleared')
-      expect(event.source).toBe('supervisor')
+      expect(event.source).toBe('daemon')
       expect(event.payload.state.clearedCount).toBe(3)
       expect(event.payload.reason).toBe('session_start')
     })

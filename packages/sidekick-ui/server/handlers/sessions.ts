@@ -19,7 +19,7 @@ export async function handleSessions(request: ApiRequest): Promise<Response> {
   const sessions = new Set<string>()
 
   // Extract from both log files
-  for (const file of ['cli.log', 'supervisor.log']) {
+  for (const file of ['cli.log', 'sidekickd.log']) {
     const filePath = join(logsPath, file)
     if (existsSync(filePath)) {
       try {

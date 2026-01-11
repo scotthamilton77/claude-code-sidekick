@@ -10,8 +10,8 @@ import {
   interpolatePrompt,
   parseResponse,
 } from '../completion-classifier'
-import { createMockSupervisorContext, MockTranscriptService, MockLogger } from '@sidekick/testing-fixtures'
-import type { SupervisorContext, CanonicalTranscriptEntry } from '@sidekick/types'
+import { createMockDaemonContext, MockTranscriptService, MockLogger } from '@sidekick/testing-fixtures'
+import type { DaemonContext, CanonicalTranscriptEntry } from '@sidekick/types'
 
 describe('completion-classifier', () => {
   describe('isRealUserPromptContent', () => {
@@ -81,14 +81,14 @@ describe('completion-classifier', () => {
   })
 
   describe('extractConversationContext', () => {
-    let ctx: SupervisorContext
+    let ctx: DaemonContext
     let transcript: MockTranscriptService
     let logger: MockLogger
 
     beforeEach(() => {
       transcript = new MockTranscriptService()
       logger = new MockLogger()
-      ctx = createMockSupervisorContext({ transcript, logger })
+      ctx = createMockDaemonContext({ transcript, logger })
     })
 
     function createEntry(

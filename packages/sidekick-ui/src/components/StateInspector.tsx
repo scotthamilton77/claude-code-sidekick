@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react'
 import type { UIEvent, DecisionLogFilter } from '../types'
-import type { TranscriptMetrics, SupervisorStatusWithHealth } from '@sidekick/types'
+import type { TranscriptMetrics, DaemonStatusWithHealth } from '@sidekick/types'
 import Icon from './Icon'
 import MetricsPanel from './MetricsPanel'
 import SystemHealth from './SystemHealth'
@@ -19,12 +19,12 @@ interface StateInspectorProps {
   metricsHistory?: TranscriptMetrics[]
   /** Show metrics tab */
   showMetrics?: boolean
-  /** Supervisor status for health tab */
-  supervisorStatus?: SupervisorStatusWithHealth | null
-  /** Supervisor status history for sparklines */
-  supervisorStatusHistory?: SupervisorStatusWithHealth[]
-  /** Whether supervisor is online */
-  supervisorIsOnline?: boolean
+  /** Daemon status for health tab */
+  daemonStatus?: DaemonStatusWithHealth | null
+  /** Daemon status history for sparklines */
+  daemonStatusHistory?: DaemonStatusWithHealth[]
+  /** Whether daemon is online */
+  daemonIsOnline?: boolean
   /** Events for decision log */
   events?: UIEvent[]
   /** Decision log filter state */
@@ -49,9 +49,9 @@ const StateInspector: React.FC<StateInspectorProps> = ({
   metrics,
   metricsHistory = [],
   showMetrics = true,
-  supervisorStatus,
-  supervisorStatusHistory = [],
-  supervisorIsOnline = false,
+  daemonStatus,
+  daemonStatusHistory = [],
+  daemonIsOnline = false,
   events = [],
   decisionFilter,
   onDecisionFilterChange,
@@ -213,9 +213,9 @@ const StateInspector: React.FC<StateInspectorProps> = ({
       {activeTab === 'health' && (
         <div className="flex-1 overflow-y-auto p-4">
           <SystemHealth
-            status={supervisorStatus ?? null}
-            isOnline={supervisorIsOnline}
-            statusHistory={supervisorStatusHistory}
+            status={daemonStatus ?? null}
+            isOnline={daemonIsOnline}
+            statusHistory={daemonStatusHistory}
           />
         </div>
       )}

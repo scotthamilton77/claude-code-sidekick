@@ -10,8 +10,8 @@
 import { readFileSync, unlinkSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import type { RuntimeContext } from '@sidekick/core'
-import type { SupervisorContext, VCUnverifiedState } from '@sidekick/types'
-import { isSupervisorContext, isHookEvent } from '@sidekick/types'
+import type { DaemonContext, VCUnverifiedState } from '@sidekick/types'
+import { isDaemonContext, isHookEvent } from '@sidekick/types'
 import { ReminderIds, DEFAULT_REMINDERS_SETTINGS, type RemindersSettings } from '../../types.js'
 import { resolveReminder, stageReminder } from '../../reminder-utils.js'
 
@@ -44,7 +44,7 @@ function clearVCUnverifiedState(projectDir: string, sessionId: string): void {
 }
 
 export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
-  if (!isSupervisorContext(context)) return
+  if (!isDaemonContext(context)) return
 
   context.handlers.register({
     id: 'reminders:unstage-verify-completion',
@@ -52,22 +52,22 @@ export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
     filter: { kind: 'hook', hooks: ['UserPromptSubmit'] },
     handler: async (event, ctx) => {
       if (!isHookEvent(event)) return
-      if (!isSupervisorContext(ctx as unknown as RuntimeContext)) return
+      if (!isDaemonContext(ctx as unknown as RuntimeContext)) return
 
-      const supervisorCtx = ctx as unknown as SupervisorContext
+      const daemonCtx = ctx as unknown as DaemonContext
       const sessionId = event.context?.sessionId
 
       if (!sessionId) {
-        supervisorCtx.logger.warn('No sessionId in UserPromptSubmit event')
-        await supervisorCtx.staging.deleteReminder('Stop', ReminderIds.VERIFY_COMPLETION)
+        daemonCtx.logger.warn('No sessionId in UserPromptSubmit event')
+        await daemonCtx.staging.deleteReminder('Stop', ReminderIds.VERIFY_COMPLETION)
         return
       }
 
       // Check for unverified changes state
       const projectDir = context.paths.projectDir
       if (!projectDir) {
-        supervisorCtx.logger.warn('Cannot check vc-unverified state: projectDir not available')
-        await supervisorCtx.staging.deleteReminder('Stop', ReminderIds.VERIFY_COMPLETION)
+        daemonCtx.logger.warn('Cannot check vc-unverified state: projectDir not available')
+        await daemonCtx.staging.deleteReminder('Stop', ReminderIds.VERIFY_COMPLETION)
         return
       }
 
@@ -83,12 +83,12 @@ export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
           // Re-stage verify-completion for next Stop
           const reminder = resolveReminder(ReminderIds.VERIFY_COMPLETION, {
             context: {},
-            assets: supervisorCtx.assets,
+            assets: daemonCtx.assets,
           })
 
           if (reminder) {
             // Stage with fresh metrics from current state
-            await stageReminder(supervisorCtx, 'Stop', {
+            await stageReminder(daemonCtx, 'Stop', {
               ...reminder,
               stagedAt: {
                 timestamp: Date.now(),
@@ -97,18 +97,18 @@ export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
                 toolCount: unverifiedState.setAt.toolCount,
               },
             })
-            supervisorCtx.logger.info('Re-staged verify-completion due to unverified changes', {
+            daemonCtx.logger.info('Re-staged verify-completion due to unverified changes', {
               cycleCount: unverifiedState.cycleCount,
               lastCategory: unverifiedState.lastClassification.category,
             })
             // Don't delete - we just re-staged it
             return
           } else {
-            supervisorCtx.logger.warn('Failed to resolve verify-completion reminder for re-staging')
+            daemonCtx.logger.warn('Failed to resolve verify-completion reminder for re-staging')
           }
         } else {
           // Cycle limit reached
-          supervisorCtx.logger.info('Verification cycle limit reached, not re-staging', {
+          daemonCtx.logger.info('Verification cycle limit reached, not re-staging', {
             cycleCount: unverifiedState.cycleCount,
             maxCycles,
           })
@@ -117,8 +117,8 @@ export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
       }
 
       // Delete the existing staged reminder (no unverified state or limit reached)
-      await supervisorCtx.staging.deleteReminder('Stop', ReminderIds.VERIFY_COMPLETION)
-      supervisorCtx.logger.debug('Unstaged verify-completion reminder on UserPromptSubmit')
+      await daemonCtx.staging.deleteReminder('Stop', ReminderIds.VERIFY_COMPLETION)
+      daemonCtx.logger.debug('Unstaged verify-completion reminder on UserPromptSubmit')
     },
   })
 }

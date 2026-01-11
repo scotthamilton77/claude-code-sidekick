@@ -9,7 +9,7 @@ import type { Session, DecisionLogFilter } from './types'
 import type { TranscriptMetrics } from '@sidekick/types'
 import { useLogService } from './hooks/useLogService'
 import { useCompactionHistory } from './hooks/useCompactionHistory'
-import { useSupervisorStatus } from './hooks/useSupervisorStatus'
+import { useDaemonStatus } from './hooks/useDaemonStatus'
 import { filterEvents } from './lib/filter-parser'
 import type { ReplayState } from './lib/replay-engine'
 import {
@@ -29,8 +29,8 @@ function App() {
   // Compaction history for the current session
   const compactionHistory = useCompactionHistory(logService.selectedSession)
 
-  // Supervisor status for health monitoring
-  const supervisorStatus = useSupervisorStatus()
+  // Daemon status for health monitoring
+  const daemonStatus = useDaemonStatus()
 
   // Metrics state - fetched from API
   const [metrics, setMetrics] = useState<TranscriptMetrics | null>(null)
@@ -248,9 +248,9 @@ function App() {
             metrics={metrics}
             metricsHistory={metricsHistory}
             showMetrics={useRealData}
-            supervisorStatus={supervisorStatus.status}
-            supervisorStatusHistory={supervisorStatus.statusHistory}
-            supervisorIsOnline={supervisorStatus.isOnline}
+            daemonStatus={daemonStatus.status}
+            daemonStatusHistory={daemonStatus.statusHistory}
+            daemonIsOnline={daemonStatus.isOnline}
             events={events}
             decisionFilter={decisionFilter}
             onDecisionFilterChange={setDecisionFilter}

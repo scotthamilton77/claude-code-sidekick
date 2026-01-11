@@ -1,5 +1,5 @@
 /**
- * Supervisor Heartbeat Tests
+ * Daemon Heartbeat Tests
  *
  * Tests the heartbeat mechanism that writes supervisor status to
  * `.sidekick/state/supervisor-status.json` for monitoring UI.
@@ -10,9 +10,9 @@ import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { SupervisorContext } from '@sidekick/types'
+import type { DaemonContext } from '@sidekick/types'
 import type { ContextGetter } from '../task-engine.js'
-import type { SupervisorStatus } from '../supervisor.js'
+import type { DaemonStatus } from '../daemon.js'
 
 let tmpDir: string
 
@@ -89,7 +89,7 @@ const createMockContextGetter =
         capturePreCompactState: async () => {},
         getCompactionHistory: () => [],
       },
-    }) as unknown as SupervisorContext
+    }) as unknown as DaemonContext
 
 describe('TaskEngine.getStatus()', () => {
   beforeEach(async () => {
@@ -150,7 +150,7 @@ describe('TaskEngine.getStatus()', () => {
   })
 })
 
-describe('Supervisor heartbeat integration', () => {
+describe('Daemon heartbeat integration', () => {
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sidekick-heartbeat-test-'))
     await fs.mkdir(path.join(tmpDir, '.sidekick'), { recursive: true })
@@ -166,12 +166,12 @@ describe('Supervisor heartbeat integration', () => {
   })
 
   it('should write heartbeat status file with expected schema', async () => {
-    const { Supervisor } = await import('../supervisor.js')
-    const supervisor = new Supervisor(tmpDir)
+    const { Daemon } = await import('../daemon.js')
+    const daemon = new Daemon(tmpDir)
 
     // Access private members to test heartbeat in isolation without full supervisor startup.
     // Alternative would be integration test that starts full supervisor (socket, signal handlers, etc).
-    const sup = supervisor as unknown as {
+    const sup = daemon as unknown as {
       stateManager: { initialize(): Promise<void> }
       writeHeartbeat(): Promise<void>
     }
@@ -180,7 +180,7 @@ describe('Supervisor heartbeat integration', () => {
 
     const statusPath = path.join(tmpDir, '.sidekick', 'state', 'supervisor-status.json')
     const content = await fs.readFile(statusPath, 'utf-8')
-    const status = JSON.parse(content) as SupervisorStatus
+    const status = JSON.parse(content) as DaemonStatus
 
     expect(status).toMatchObject({
       timestamp: expect.any(Number),
@@ -201,11 +201,11 @@ describe('Supervisor heartbeat integration', () => {
   })
 
   it('should calculate uptime from start time', async () => {
-    const { Supervisor } = await import('../supervisor.js')
-    const supervisor = new Supervisor(tmpDir)
+    const { Daemon } = await import('../daemon.js')
+    const daemon = new Daemon(tmpDir)
 
     // Access private members to manipulate startTime for uptime calculation testing.
-    const sup = supervisor as unknown as {
+    const sup = daemon as unknown as {
       startTime: number
       stateManager: { initialize(): Promise<void> }
       writeHeartbeat(): Promise<void>
@@ -217,19 +217,19 @@ describe('Supervisor heartbeat integration', () => {
 
     const statusPath = path.join(tmpDir, '.sidekick', 'state', 'supervisor-status.json')
     const content = await fs.readFile(statusPath, 'utf-8')
-    const status = JSON.parse(content) as SupervisorStatus
+    const status = JSON.parse(content) as DaemonStatus
 
     expect(status.uptimeSeconds).toBeGreaterThanOrEqual(9)
     expect(status.uptimeSeconds).toBeLessThanOrEqual(12)
   })
 
   it('should handle write errors gracefully', async () => {
-    const { Supervisor } = await import('../supervisor.js')
-    const supervisor = new Supervisor(tmpDir)
+    const { Daemon } = await import('../daemon.js')
+    const daemon = new Daemon(tmpDir)
 
     // Access private writeHeartbeat to verify error handling without full startup.
     // Don't initialize stateManager - writeHeartbeat should catch the error and not throw.
-    const sup = supervisor as unknown as { writeHeartbeat(): Promise<void> }
+    const sup = daemon as unknown as { writeHeartbeat(): Promise<void> }
     await expect(sup.writeHeartbeat()).resolves.not.toThrow()
   })
 })

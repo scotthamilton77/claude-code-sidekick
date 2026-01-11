@@ -16,12 +16,12 @@ import { describe, expect, test, afterEach, vi } from 'vitest'
 
 import { runCli } from '../cli'
 
-// Mock @sidekick/core to prevent actual supervisor operations
+// Mock @sidekick/core to prevent actual daemon operations
 vi.mock('@sidekick/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@sidekick/core')>()
   return {
     ...actual,
-    SupervisorClient: vi.fn(() => ({
+    DaemonClient: vi.fn(() => ({
       start: vi.fn().mockResolvedValue(undefined),
     })),
   }

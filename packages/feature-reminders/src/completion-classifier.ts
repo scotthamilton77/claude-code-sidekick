@@ -8,7 +8,7 @@
  */
 
 import { z } from 'zod'
-import type { SupervisorContext } from '@sidekick/types'
+import type { DaemonContext } from '@sidekick/types'
 import type { CompletionCategory, CompletionClassification, CompletionDetectionSettings } from './types.js'
 import { DEFAULT_COMPLETION_DETECTION_SETTINGS } from './types.js'
 
@@ -67,7 +67,7 @@ export function isRealUserPromptContent(content: string): boolean {
  * - isCompactSummary messages (via metadata flag)
  * - System-generated content patterns (via isRealUserPromptContent)
  */
-export function extractConversationContext(ctx: SupervisorContext): ConversationContext {
+export function extractConversationContext(ctx: DaemonContext): ConversationContext {
   const transcript = ctx.transcript.getTranscript()
   const entries = transcript.entries
 
@@ -140,7 +140,7 @@ export function parseResponse(content: string): CompletionClassifierResponse | n
  * Options for classification
  */
 export interface ClassifyCompletionOptions {
-  ctx: SupervisorContext
+  ctx: DaemonContext
   settings?: CompletionDetectionSettings
 }
 

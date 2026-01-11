@@ -2,7 +2,7 @@
  * CLI-Side Staging Reader
  *
  * Lightweight filesystem reader for consuming staged reminders in the CLI process.
- * The CLI cannot access SupervisorContext.staging, so it reads files directly.
+ * The CLI cannot access DaemonContext.staging, so it reads files directly.
  *
  * @see docs/design/FEATURE-REMINDERS.md §3.1 Consumption Handlers
  */

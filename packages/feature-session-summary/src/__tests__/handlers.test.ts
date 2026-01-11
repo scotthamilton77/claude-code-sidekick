@@ -5,23 +5,23 @@
 
 import { describe, it, expect, beforeEach } from 'vitest'
 import {
-  createMockSupervisorContext,
+  createMockDaemonContext,
   createMockCLIContext,
   MockLogger,
   MockHandlerRegistry,
 } from '@sidekick/testing-fixtures'
-import type { SupervisorContext } from '@sidekick/types'
+import type { DaemonContext } from '@sidekick/types'
 import { registerHandlers } from '../handlers/index'
 
 describe('Session Summary Handlers', () => {
-  let ctx: SupervisorContext
+  let ctx: DaemonContext
   let logger: MockLogger
   let handlers: MockHandlerRegistry
 
   beforeEach(() => {
     logger = new MockLogger()
     handlers = new MockHandlerRegistry()
-    ctx = createMockSupervisorContext({ logger, handlers })
+    ctx = createMockDaemonContext({ logger, handlers })
   })
 
   describe('Handler Registration - Session Summary Feature', () => {
@@ -123,7 +123,7 @@ describe('Session Summary Handlers', () => {
   })
 
   describe('Handler Registration - Role-Based Filtering', () => {
-    it('only registers handlers in supervisor context', () => {
+    it('only registers handlers in daemon context', () => {
       registerHandlers(ctx)
 
       const supervisorRegistrations = handlers.getRegistrations()
@@ -132,7 +132,7 @@ describe('Session Summary Handlers', () => {
 
     it('does not register handlers in CLI context', () => {
       const cliCtx = createMockCLIContext()
-      registerHandlers(cliCtx as unknown as SupervisorContext)
+      registerHandlers(cliCtx as unknown as DaemonContext)
 
       const cliRegistrations = (cliCtx.handlers as MockHandlerRegistry).getRegistrations()
       expect(cliRegistrations).toHaveLength(0)
