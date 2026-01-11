@@ -9,14 +9,14 @@
 
 import type { SessionStartHookEvent } from '@sidekick/core'
 import { backupIfDevMode } from '@sidekick/core'
-import type { SupervisorContext, SessionSummaryState } from '@sidekick/types'
+import type { DaemonContext, SessionSummaryState } from '@sidekick/types'
 import { SESSION_SUMMARY_PLACEHOLDERS } from '@sidekick/types'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
 const STATE_FILE = 'session-summary.json'
 
-export async function createFirstSessionSummary(event: SessionStartHookEvent, ctx: SupervisorContext): Promise<void> {
+export async function createFirstSessionSummary(event: SessionStartHookEvent, ctx: DaemonContext): Promise<void> {
   const { sessionId } = event.context
   const { startType } = event.payload
 

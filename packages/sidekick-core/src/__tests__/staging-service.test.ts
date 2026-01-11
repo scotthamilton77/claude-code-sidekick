@@ -184,7 +184,7 @@ describe('SessionScopedStagingService (via createService)', () => {
         expect.any(String),
         expect.objectContaining({
           type: 'ReminderStaged',
-          source: 'supervisor',
+          source: 'daemon',
           state: expect.objectContaining({
             reminderName: 'TestReminder',
             hookName: 'UserPromptSubmit',

@@ -12,9 +12,6 @@ This repository serves as a development and testing environment for [Claude Code
 
 ### Sidekick
 
-- bug: reconstructing the context (e.g. after a clean-all) sometimes leaves tool counters set such that the first prompt triggers a pause-and-reflect, as well as the vc-unverified file dropped
-- need to improve overall session title/purpose - llm has a tendency to drift; maybe a history of the titles and intents?
-- let's set up domain-specific agents to own packages or significant portions of packages where all changes to those packages require the domain agents to "sign off"
 - naming inconsistency: sidekick vs. supervisor; and sidekick vs. CLI - need consistency across docs, source, state files, folders, etc.
 - finish ROADMAP.md
 - finish PLAN.MD (executing ARCH.md)
@@ -44,6 +41,7 @@ This repository serves as a development and testing environment for [Claude Code
 - feedback loops
   - Add a "confession" at the end of a task where the agent confesses what they did wrong, use for a learnings log?
   - learning mode? investigate https://medium.com/coding-nexus/rip-fine-tuning-how-stanfords-ace-framework-teaches-ai-to-learn-without-retraining-510f412d8579
+- let's set up domain-specific agents to own packages or significant portions of packages where all changes to those packages require the domain agents to "sign off"
 
 ## Agents and Skills and Hooks
 

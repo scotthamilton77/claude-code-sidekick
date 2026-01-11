@@ -13,14 +13,14 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import {
-  createMockSupervisorContext,
+  createMockDaemonContext,
   MockLogger,
   MockHandlerRegistry,
   MockLLMService,
   MockAssetResolver,
   MockTranscriptService,
 } from '@sidekick/testing-fixtures'
-import type { SupervisorContext } from '@sidekick/types'
+import type { DaemonContext } from '@sidekick/types'
 import { updateSessionSummary } from '../handlers/update-summary'
 import type { TranscriptEvent } from '@sidekick/core'
 import fs from 'node:fs/promises'
@@ -30,7 +30,7 @@ import type { SummaryCountdownState } from '../types'
 import { DEFAULT_SESSION_SUMMARY_CONFIG } from '../types'
 
 describe('Session Summary Countdown Logic', () => {
-  let ctx: SupervisorContext
+  let ctx: DaemonContext
   let logger: MockLogger
   let handlers: MockHandlerRegistry
   let llm: MockLLMService
@@ -48,7 +48,7 @@ describe('Session Summary Countdown Logic', () => {
     // Create temp directory for state files
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sidekick-countdown-test-'))
 
-    ctx = createMockSupervisorContext({
+    ctx = createMockDaemonContext({
       logger,
       handlers,
       llm,

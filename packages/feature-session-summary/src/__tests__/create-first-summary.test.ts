@@ -4,8 +4,8 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { createMockSupervisorContext, MockLogger, MockHandlerRegistry } from '@sidekick/testing-fixtures'
-import type { SupervisorContext } from '@sidekick/types'
+import { createMockDaemonContext, MockLogger, MockHandlerRegistry } from '@sidekick/testing-fixtures'
+import type { DaemonContext } from '@sidekick/types'
 import type { SessionStartHookEvent } from '@sidekick/core'
 import { createFirstSessionSummary } from '../handlers/create-first-summary'
 import type { SessionSummaryState } from '../types'
@@ -14,7 +14,7 @@ import path from 'node:path'
 import os from 'node:os'
 
 describe('createFirstSessionSummary', () => {
-  let ctx: SupervisorContext
+  let ctx: DaemonContext
   let logger: MockLogger
   let handlers: MockHandlerRegistry
   let tempDir: string
@@ -26,7 +26,7 @@ describe('createFirstSessionSummary', () => {
     // Create temp directory for state files
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sidekick-test-'))
 
-    ctx = createMockSupervisorContext({
+    ctx = createMockDaemonContext({
       logger,
       handlers,
       paths: {

@@ -4,7 +4,7 @@
  * Tests the eviction timer mechanism that periodically calls
  * ServiceFactory.evictStaleSessions() to clean up orphaned sessions.
  *
- * NOTE: These tests access private Supervisor methods via type casting.
+ * NOTE: These tests access private Daemon methods via type casting.
  * This is necessary because the eviction timer is an internal detail that
  * only manifests externally after 5+ minutes. The alternative (full integration
  * test with real timers) would be impractical.
@@ -27,7 +27,7 @@ const EVICTION_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
 
 let tmpDir: string
 
-describe('Supervisor eviction timer', () => {
+describe('Daemon eviction timer', () => {
   beforeEach(async () => {
     vi.useFakeTimers()
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sidekick-eviction-test-'))
@@ -45,11 +45,11 @@ describe('Supervisor eviction timer', () => {
   })
 
   it('should start eviction timer on start()', async () => {
-    const { Supervisor } = await import('../supervisor.js')
-    const supervisor = new Supervisor(tmpDir)
+    const { Daemon } = await import('../daemon.js')
+    const daemon = new Daemon(tmpDir)
 
     // Access private members to verify timer is set
-    const sup = supervisor as unknown as {
+    const sup = daemon as unknown as {
       evictionTimer: ReturnType<typeof setInterval> | null
       serviceFactory: ServiceFactory
       startEvictionTimer(): void
@@ -70,11 +70,11 @@ describe('Supervisor eviction timer', () => {
   })
 
   it('should call evictStaleSessions periodically every 5 minutes', async () => {
-    const { Supervisor } = await import('../supervisor.js')
-    const supervisor = new Supervisor(tmpDir)
+    const { Daemon } = await import('../daemon.js')
+    const daemon = new Daemon(tmpDir)
 
     // Access private members
-    const sup = supervisor as unknown as {
+    const sup = daemon as unknown as {
       evictionTimer: ReturnType<typeof setInterval> | null
       serviceFactory: ServiceFactory
       startEvictionTimer(): void
@@ -111,11 +111,11 @@ describe('Supervisor eviction timer', () => {
   })
 
   it('should clear eviction timer on stop()', async () => {
-    const { Supervisor } = await import('../supervisor.js')
-    const supervisor = new Supervisor(tmpDir)
+    const { Daemon } = await import('../daemon.js')
+    const daemon = new Daemon(tmpDir)
 
     // Access private members
-    const sup = supervisor as unknown as {
+    const sup = daemon as unknown as {
       evictionTimer: ReturnType<typeof setInterval> | null
       serviceFactory: ServiceFactory
       startEvictionTimer(): void
@@ -139,11 +139,11 @@ describe('Supervisor eviction timer', () => {
   })
 
   it('should handle errors from evictStaleSessions gracefully', async () => {
-    const { Supervisor } = await import('../supervisor.js')
-    const supervisor = new Supervisor(tmpDir)
+    const { Daemon } = await import('../daemon.js')
+    const daemon = new Daemon(tmpDir)
 
     // Access private members
-    const sup = supervisor as unknown as {
+    const sup = daemon as unknown as {
       evictionTimer: ReturnType<typeof setInterval> | null
       serviceFactory: ServiceFactory
       startEvictionTimer(): void

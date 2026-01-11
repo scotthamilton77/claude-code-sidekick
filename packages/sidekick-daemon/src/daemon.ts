@@ -8,7 +8,7 @@ import {
   getSocketPath,
   getTokenPath,
   getUserPidPath,
-  getUserSupervisorsDir,
+  getUserDaemonsDir,
   HandlerRegistryImpl,
   IpcServer,
   Logger,
@@ -31,8 +31,8 @@ import type {
   ServiceFactory,
   HookName,
   HookEvent,
-  SupervisorStatus,
-  SupervisorContext,
+  DaemonStatus,
+  DaemonContext,
   RuntimePaths,
   ProfileProviderFactory as ProfileProviderFactoryInterface,
 } from '@sidekick/types'
@@ -70,7 +70,7 @@ const HEARTBEAT_INTERVAL_MS = 5 * 1000
  * @see docs/design/SUPERVISOR.md
  */
 
-export class Supervisor {
+export class Daemon {
   private projectDir: string
   private configService: ConfigService
   private logger: Logger
@@ -116,11 +116,11 @@ export class Supervisor {
     // Initialize Logger with counting wrapper for statusline {logs} indicator
     const logDir = path.join(projectDir, '.sidekick', 'logs')
     this.logManager = createLogManager({
-      name: 'supervisor',
+      name: 'sidekickd',
       level: this.configService.core.logging.level,
       context: { scope: 'project' },
       destinations: {
-        file: { path: path.join(logDir, 'supervisor.log') },
+        file: { path: path.join(logDir, 'sidekickd.log') },
         console: { enabled: this.configService.core.logging.consoleEnabled },
       },
     })
@@ -185,7 +185,7 @@ export class Supervisor {
 
     // Register staging handlers (Phase 8.5 - Reminders feature)
     // These handlers listen for SessionStart/transcript events and stage reminders
-    // for CLI consumption. They need SupervisorContext at invocation time.
+    // for CLI consumption. They need DaemonContext at invocation time.
     this.registerStagingHandlers()
 
     // Initialize IPC
@@ -297,7 +297,7 @@ export class Supervisor {
 
     try {
       // Shutdown Task Engine - wait for running tasks to complete
-      await this.taskEngine.shutdown(this.configService.core.supervisor.shutdownTimeoutMs)
+      await this.taskEngine.shutdown(this.configService.core.daemon.shutdownTimeoutMs)
     } catch (err) {
       this.logger.error('Failed to shutdown task engine', { error: err })
     }
@@ -750,8 +750,8 @@ export class Supervisor {
       | import('@sidekick/feature-reminders').CompletionDetectionSettings
       | undefined
 
-    const ctx: SupervisorContext = {
-      role: 'supervisor',
+    const ctx: DaemonContext = {
+      role: 'daemon',
       config: {
         core: {
           logging: { level: this.configService.core.logging.level },
@@ -835,7 +835,7 @@ export class Supervisor {
   }
 
   /**
-   * Get SupervisorContext for task execution.
+   * Get DaemonContext for task execution.
    *
    * Used by TaskEngine to provide context to task handlers.
    * If sessionId is provided, uses session-specific instrumented provider.
@@ -843,7 +843,7 @@ export class Supervisor {
    *
    * @param sessionId - Optional session ID for session-specific context
    */
-  private getContextForTask(sessionId?: string): SupervisorContext {
+  private getContextForTask(sessionId?: string): DaemonContext {
     // Build runtime paths
     const paths: RuntimePaths = {
       projectDir: this.projectDir,
@@ -952,7 +952,7 @@ export class Supervisor {
     }
 
     return {
-      role: 'supervisor',
+      role: 'daemon',
       config: {
         core: {
           logging: { level: this.configService.core.logging.level },
@@ -980,7 +980,7 @@ export class Supervisor {
   }
 
   /**
-   * Build and set SupervisorContext for the current hook invocation.
+   * Build and set DaemonContext for the current hook invocation.
    * Called per-request to ensure handlers receive correct session-scoped services.
    *
    * Uses the prepare/start pattern to avoid race condition:
@@ -1053,8 +1053,8 @@ export class Supervisor {
     // STEP 2: Wire up full context with all services
     // Handlers will receive this context when events fire
     // Note: We pass the request-scoped logger so handlers can log with correlationId
-    const supervisorContext: SupervisorContext = {
-      role: 'supervisor',
+    const supervisorContext: DaemonContext = {
+      role: 'daemon',
       config: {
         core: {
           logging: { level: this.configService.core.logging.level },
@@ -1089,7 +1089,7 @@ export class Supervisor {
     // STEP 3: Start transcript service - NOW events can fire with full context
     await transcriptService.start()
 
-    log.debug('SupervisorContext set for handler invocation')
+    log.debug('DaemonContext set for handler invocation')
   }
 
   /**
@@ -1145,7 +1145,7 @@ export class Supervisor {
 
     // User-level PID file for --kill-all discovery
     const userPidPath = getUserPidPath(this.projectDir)
-    await fs.mkdir(getUserSupervisorsDir(), { recursive: true })
+    await fs.mkdir(getUserDaemonsDir(), { recursive: true })
     const userPidData = JSON.stringify({
       pid: process.pid,
       projectDir: this.projectDir,
@@ -1190,7 +1190,7 @@ export class Supervisor {
    * Set supervisor.idleTimeoutMs to 0 to disable idle timeout.
    */
   private startIdleCheck(): void {
-    const idleTimeoutMs = this.configService.core.supervisor.idleTimeoutMs
+    const idleTimeoutMs = this.configService.core.daemon.idleTimeoutMs
 
     // 0 = disabled
     if (idleTimeoutMs === 0) {
@@ -1279,7 +1279,7 @@ export class Supervisor {
     const memUsage = process.memoryUsage()
     const taskStatus = this.taskEngine.getStatus()
 
-    const status: SupervisorStatus = {
+    const status: DaemonStatus = {
       timestamp: Date.now(),
       pid: process.pid,
       version: VERSION,
@@ -1387,7 +1387,7 @@ export class Supervisor {
    * Register staging handlers for the Reminders feature.
    *
    * Staging handlers listen for SessionStart and transcript events,
-   * then stage reminders for CLI consumption. They require SupervisorContext
+   * then stage reminders for CLI consumption. They require DaemonContext
    * at invocation time (not registration time), which is set in handleSessionStart.
    *
    * @see docs/design/FEATURE-REMINDERS.md §3.1 Staging Handlers
@@ -1401,12 +1401,12 @@ export class Supervisor {
       hookScriptPath: undefined, // Not applicable for supervisor
     }
 
-    // Create a registration context with role='supervisor' for type guards.
+    // Create a registration context with role='daemon' for type guards.
     // Services (staging, transcript, llm) aren't available yet - they're created
     // per-session in handleSessionStart. The handlers access them via the
     // HandlerContext passed at invocation time.
-    const registrationContext: SupervisorContext = {
-      role: 'supervisor',
+    const registrationContext: DaemonContext = {
+      role: 'daemon',
       config: {
         core: {
           logging: { level: this.configService.core.logging.level },
@@ -1490,5 +1490,5 @@ export class Supervisor {
   }
 }
 
-// Re-export SupervisorStatus from @sidekick/types for backward compatibility with tests
-export type { SupervisorStatus } from '@sidekick/types'
+// Re-export DaemonStatus from @sidekick/types for backward compatibility with tests
+export type { DaemonStatus } from '@sidekick/types'

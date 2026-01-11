@@ -1,7 +1,7 @@
 /**
  * Runtime Context Type Definitions
  *
- * Discriminated union types for CLI and Supervisor contexts.
+ * Discriminated union types for CLI and Daemon contexts.
  * Enables type-safe role detection and role-specific service access.
  *
  * @see docs/design/CORE-RUNTIME.md §4.1 Runtime Context
@@ -13,7 +13,7 @@ import type { Logger } from './logger.js'
 import type { RuntimePaths } from './paths.js'
 import type { MinimalConfigService, MinimalAssetResolver } from './services/config.js'
 import type { StagingService } from './services/staging.js'
-import type { SupervisorClient } from './services/supervisor-client.js'
+import type { DaemonClient } from './services/daemon-client.js'
 import type { TranscriptService } from './services/transcript.js'
 
 // ============================================================================
@@ -48,17 +48,17 @@ export interface BaseContext {
 export interface CLIContext extends BaseContext {
   /** Role discriminant for type narrowing */
   role: 'cli'
-  /** Supervisor IPC client */
-  supervisor: SupervisorClient
+  /** Daemon IPC client */
+  daemon: DaemonClient
 }
 
 /**
- * Supervisor context with role discriminant and async services.
- * Supervisor handles background work, LLM calls, and file staging.
+ * Daemon context with role discriminant and async services.
+ * Daemon handles background work, LLM calls, and file staging.
  */
-export interface SupervisorContext extends BaseContext {
+export interface DaemonContext extends BaseContext {
   /** Role discriminant for type narrowing */
-  role: 'supervisor'
+  role: 'daemon'
   /** LLM provider for completions (default profile) */
   llm: LLMProvider
   /** Profile-based provider factory for creating per-feature providers */
@@ -70,12 +70,12 @@ export interface SupervisorContext extends BaseContext {
 }
 
 /**
- * Task context extends SupervisorContext with task-specific fields.
+ * Task context extends DaemonContext with task-specific fields.
  * Used by TaskEngine handlers for background task execution.
  *
- * @see docs/design/SUPERVISOR.md §4.2 Task Execution Engine
+ * @see docs/design/DAEMON.md §4.2 Task Execution Engine
  */
-export interface TaskContext extends SupervisorContext {
+export interface TaskContext extends DaemonContext {
   /** Unique task identifier for tracking */
   taskId: string
   /** AbortSignal for task cancellation */
@@ -89,14 +89,14 @@ export interface TaskContext extends SupervisorContext {
  * @example
  * ```typescript
  * function handleEvent(ctx: RuntimeContext) {
- *   if (ctx.role === 'supervisor') {
- *     // TypeScript knows ctx is SupervisorContext
+ *   if (ctx.role === 'daemon') {
+ *     // TypeScript knows ctx is DaemonContext
  *     await ctx.llm.complete({ ... });
  *   }
  * }
  * ```
  */
-export type RuntimeContext = CLIContext | SupervisorContext
+export type RuntimeContext = CLIContext | DaemonContext
 
 // ============================================================================
 // Type Guards
@@ -110,8 +110,8 @@ export function isCLIContext(ctx: RuntimeContext): ctx is CLIContext {
 }
 
 /**
- * Type guard for Supervisor context.
+ * Type guard for Daemon context.
  */
-export function isSupervisorContext(ctx: RuntimeContext): ctx is SupervisorContext {
-  return ctx.role === 'supervisor'
+export function isDaemonContext(ctx: RuntimeContext): ctx is DaemonContext {
+  return ctx.role === 'daemon'
 }

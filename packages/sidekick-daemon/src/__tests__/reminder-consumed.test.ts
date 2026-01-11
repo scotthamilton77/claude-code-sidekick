@@ -35,18 +35,18 @@ describe('reminder.consumed IPC handler', () => {
   })
 
   /**
-   * Helper to create a Supervisor and call handleIpcRequest directly.
+   * Helper to create a Daemon and call handleIpcRequest directly.
    * This tests the PRODUCTION code path.
    */
   async function callReminderConsumed(
     projectDir: string,
     params: { sessionId: string; reminderName: string; metrics: { turnCount: number; toolsThisTurn: number } }
   ): Promise<void> {
-    const { Supervisor } = await import('../supervisor.js')
-    const supervisor = new Supervisor(projectDir)
+    const { Daemon } = await import('../daemon.js')
+    const daemon = new Daemon(projectDir)
 
     // Access private handleIpcRequest to test production code path
-    const sup = supervisor as unknown as {
+    const sup = daemon as unknown as {
       token: string
       handleIpcRequest(method: string, params: unknown): Promise<unknown>
     }
@@ -163,10 +163,10 @@ describe('reminder.consumed IPC handler', () => {
     })
 
     it('throws when required parameters are missing', async () => {
-      const { Supervisor } = await import('../supervisor.js')
-      const supervisor = new Supervisor(tmpDir)
+      const { Daemon } = await import('../daemon.js')
+      const daemon = new Daemon(tmpDir)
 
-      const sup = supervisor as unknown as {
+      const sup = daemon as unknown as {
         token: string
         handleIpcRequest(method: string, params: unknown): Promise<unknown>
       }

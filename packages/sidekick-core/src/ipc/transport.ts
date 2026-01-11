@@ -1,10 +1,10 @@
 /**
  * IPC Transport Utilities
  *
- * Provides platform-aware path resolution for supervisor IPC resources.
+ * Provides platform-aware path resolution for daemon IPC resources.
  *
- * @see docs/design/SUPERVISOR.md §2 Process Architecture
- * @see docs/design/CLI.md §7 Supervisor Lifecycle Management
+ * @see docs/design/DAEMON.md §2 Process Architecture
+ * @see docs/design/CLI.md §7 Daemon Lifecycle Management
  */
 import crypto from 'crypto'
 import os from 'os'
@@ -63,36 +63,36 @@ export function validateSocketPath(socketPath: string): void {
 }
 
 export function getTokenPath(projectDir: string): string {
-  return path.join(projectDir, '.sidekick', 'supervisor.token')
+  return path.join(projectDir, '.sidekick', 'sidekickd.token')
 }
 
 export function getPidPath(projectDir: string): string {
-  return path.join(projectDir, '.sidekick', 'supervisor.pid')
+  return path.join(projectDir, '.sidekick', 'sidekickd.pid')
 }
 
 /**
- * Get the lockfile path for supervisor startup serialization.
- * Used to prevent race conditions when multiple hooks try to start the supervisor.
+ * Get the lockfile path for daemon startup serialization.
+ * Used to prevent race conditions when multiple hooks try to start the daemon.
  */
 export function getLockPath(projectDir: string): string {
-  return path.join(projectDir, '.sidekick', 'supervisor.lock')
+  return path.join(projectDir, '.sidekick', 'sidekickd.lock')
 }
 
 /**
- * Get the user-level supervisors directory.
- * Per design/CLI.md §7: Store PID files at ~/.sidekick/supervisors/ for --kill-all.
+ * Get the user-level daemons directory.
+ * Per design/CLI.md §7: Store PID files at ~/.sidekick/daemons/ for --kill-all.
  */
-export function getUserSupervisorsDir(): string {
-  return path.join(os.homedir(), '.sidekick', 'supervisors')
+export function getUserDaemonsDir(): string {
+  return path.join(os.homedir(), '.sidekick', 'daemons')
 }
 
 /**
  * Get the user-level PID file path for a project.
- * Format: ~/.sidekick/supervisors/{project-hash}.pid
+ * Format: ~/.sidekick/daemons/{project-hash}.pid
  *
  * Contains JSON with project path and PID for discovery during --kill-all.
  */
 export function getUserPidPath(projectDir: string): string {
   const hash = getProjectHash(projectDir)
-  return path.join(getUserSupervisorsDir(), `${hash}.pid`)
+  return path.join(getUserDaemonsDir(), `${hash}.pid`)
 }

@@ -6,7 +6,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import {
-  createMockSupervisorContext,
+  createMockDaemonContext,
   MockLogger,
   MockHandlerRegistry,
   MockLLMService,
@@ -58,7 +58,7 @@ class MockLLMServiceWithErrors extends MockLLMService {
     return super.complete(request)
   }
 }
-import type { SupervisorContext } from '@sidekick/types'
+import type { DaemonContext } from '@sidekick/types'
 import { updateSessionSummary } from '../handlers/update-summary'
 import type { TranscriptEvent } from '@sidekick/core'
 import fs from 'node:fs/promises'
@@ -66,7 +66,7 @@ import path from 'node:path'
 import os from 'node:os'
 
 describe('Session Summary Side-Effects', () => {
-  let ctx: SupervisorContext
+  let ctx: DaemonContext
   let logger: MockLogger
   let handlers: MockHandlerRegistry
   let llm: MockLLMService
@@ -84,7 +84,7 @@ describe('Session Summary Side-Effects', () => {
     // Create temp directory for state files
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sidekick-test-'))
 
-    ctx = createMockSupervisorContext({
+    ctx = createMockDaemonContext({
       logger,
       handlers,
       llm,
@@ -635,7 +635,7 @@ describe('Session Summary Side-Effects', () => {
 
       // Use MockLLMServiceWithErrors to inject actual error for snarky LLM call
       const llmWithErrors = new MockLLMServiceWithErrors()
-      const ctxWithErrors = createMockSupervisorContext({
+      const ctxWithErrors = createMockDaemonContext({
         logger,
         handlers,
         llm: llmWithErrors,

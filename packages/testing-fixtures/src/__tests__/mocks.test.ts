@@ -12,11 +12,11 @@ import {
   MockTranscriptService,
   MockStagingService,
   MockTelemetry,
-  MockSupervisorClient,
+  MockDaemonClient,
   MockProfileProviderFactory,
   createDefaultMetrics,
   createDefaultTokenUsage,
-  createMockSupervisorContext,
+  createMockDaemonContext,
   createMockCLIContext,
   createTestConfig,
   createTestFeature,
@@ -819,11 +819,11 @@ describe('MockTelemetry', () => {
   })
 })
 
-describe('MockSupervisorClient', () => {
-  let client: MockSupervisorClient
+describe('MockDaemonClient', () => {
+  let client: MockDaemonClient
 
   beforeEach(() => {
-    client = new MockSupervisorClient()
+    client = new MockDaemonClient()
   })
 
   describe('lifecycle', () => {
@@ -906,10 +906,10 @@ describe('createMockCLIContext', () => {
     expect(ctx.role).toBe('cli')
   })
 
-  it('includes supervisor client', () => {
+  it('includes daemon client', () => {
     const ctx = createMockCLIContext()
 
-    expect(ctx.supervisor).toBeInstanceOf(MockSupervisorClient)
+    expect(ctx.daemon).toBeInstanceOf(MockDaemonClient)
   })
 
   it('includes all standard services', () => {
@@ -922,13 +922,13 @@ describe('createMockCLIContext', () => {
     expect(ctx.paths).toBeDefined()
   })
 
-  it('allows overriding supervisor client', () => {
-    const customSupervisor = new MockSupervisorClient()
-    customSupervisor.setStatus({ status: 'custom' })
+  it('allows overriding daemon client', () => {
+    const customDaemon = new MockDaemonClient()
+    customDaemon.setStatus({ status: 'custom' })
 
-    const ctx = createMockCLIContext({ supervisor: customSupervisor })
+    const ctx = createMockCLIContext({ daemon: customDaemon })
 
-    expect(ctx.supervisor).toBe(customSupervisor)
+    expect(ctx.daemon).toBe(customDaemon)
   })
 })
 
@@ -971,11 +971,11 @@ describe('createDefaultTokenUsage', () => {
   })
 })
 
-describe('createMockSupervisorContext', () => {
-  it('creates supervisor context with all required services', () => {
-    const ctx = createMockSupervisorContext()
+describe('createMockDaemonContext', () => {
+  it('creates daemon context with all required services', () => {
+    const ctx = createMockDaemonContext()
 
-    expect(ctx.role).toBe('supervisor')
+    expect(ctx.role).toBe('daemon')
     expect(ctx.config).toBeInstanceOf(MockConfigService)
     expect(ctx.logger).toBeInstanceOf(MockLogger)
     expect(ctx.llm).toBeInstanceOf(MockLLMService)
@@ -985,7 +985,7 @@ describe('createMockSupervisorContext', () => {
 
   it('allows overriding individual services', () => {
     const customLogger = new MockLogger()
-    const ctx = createMockSupervisorContext({ logger: customLogger })
+    const ctx = createMockDaemonContext({ logger: customLogger })
 
     expect(ctx.logger).toBe(customLogger)
   })
@@ -996,7 +996,7 @@ describe('createMockSupervisorContext', () => {
       userConfigDir: '/custom/home/.sidekick',
       projectConfigDir: '/custom/project/.sidekick',
     }
-    const ctx = createMockSupervisorContext({ paths: customPaths })
+    const ctx = createMockDaemonContext({ paths: customPaths })
 
     expect(ctx.paths.projectDir).toBe('/custom/project')
   })
@@ -1009,7 +1009,7 @@ describe('createTestConfig', () => {
     expect(config.llm.defaultProfile).toBe('fast-lite')
     expect(config.llm.profiles['fast-lite'].provider).toBe('openrouter')
     expect(config.core.logging.level).toBe('info')
-    expect(config.core.supervisor.idleTimeoutMs).toBe(300000)
+    expect(config.core.daemon.idleTimeoutMs).toBe(300000)
     expect(config.transcript.watchDebounceMs).toBe(100)
   })
 
@@ -1334,9 +1334,9 @@ describe('MockHandlerRegistry', () => {
   })
 })
 
-describe('createMockSupervisorContext with handlers', () => {
+describe('createMockDaemonContext with handlers', () => {
   it('includes handlers in context', () => {
-    const ctx = createMockSupervisorContext()
+    const ctx = createMockDaemonContext()
 
     expect(ctx.handlers).toBeInstanceOf(MockHandlerRegistry)
   })
@@ -1345,7 +1345,7 @@ describe('createMockSupervisorContext with handlers', () => {
     const customHandlers = new MockHandlerRegistry()
     customHandlers.defaultHookResponse = { blocking: true }
 
-    const ctx = createMockSupervisorContext({ handlers: customHandlers })
+    const ctx = createMockDaemonContext({ handlers: customHandlers })
 
     expect(ctx.handlers).toBe(customHandlers)
     // Access mock-specific property through the typed reference

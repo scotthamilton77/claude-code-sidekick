@@ -351,10 +351,10 @@ export function isPreCompactEvent(event: HookEvent): event is PreCompactHookEven
  * Each component writes to its own log file.
  *
  * - 'cli' → cli.log
- * - 'supervisor' → supervisor.log
+ * - 'daemon' → sidekickd.log
  * - 'transcript' → transcript-events.log
  */
-export type LogSource = 'cli' | 'supervisor' | 'transcript'
+export type LogSource = 'cli' | 'daemon' | 'transcript'
 
 /**
  * Base interface for all logging events.
@@ -441,7 +441,7 @@ export interface HookCompletedEvent extends LoggingEventBase {
 
 export interface EventReceivedEvent extends LoggingEventBase {
   type: 'EventReceived'
-  source: 'supervisor'
+  source: 'daemon'
   payload: {
     metadata: {
       eventKind: 'hook' | 'transcript'
@@ -458,7 +458,7 @@ export interface EventReceivedEvent extends LoggingEventBase {
  */
 export interface EventProcessedEvent extends LoggingEventBase {
   type: 'EventProcessed'
-  source: 'supervisor'
+  source: 'daemon'
   payload: {
     state: {
       handlerId: string
@@ -474,7 +474,7 @@ export interface EventProcessedEvent extends LoggingEventBase {
 
 export interface ReminderStagedEvent extends LoggingEventBase {
   type: 'ReminderStaged'
-  source: 'supervisor'
+  source: 'daemon'
   payload: {
     state: {
       reminderName: string
@@ -497,7 +497,7 @@ export interface ReminderStagedEvent extends LoggingEventBase {
  */
 export interface SupervisorStartingEvent extends LoggingEventBase {
   type: 'SupervisorStarting'
-  source: 'supervisor'
+  source: 'daemon'
   payload: {
     metadata: {
       projectDir: string
@@ -512,7 +512,7 @@ export interface SupervisorStartingEvent extends LoggingEventBase {
  */
 export interface SupervisorStartedEvent extends LoggingEventBase {
   type: 'SupervisorStarted'
-  source: 'supervisor'
+  source: 'daemon'
   payload: {
     metadata: {
       startupDurationMs: number
@@ -526,7 +526,7 @@ export interface SupervisorStartedEvent extends LoggingEventBase {
  */
 export interface IpcServerStartedEvent extends LoggingEventBase {
   type: 'IpcServerStarted'
-  source: 'supervisor'
+  source: 'daemon'
   payload: {
     metadata: {
       socketPath: string
@@ -540,7 +540,7 @@ export interface IpcServerStartedEvent extends LoggingEventBase {
  */
 export interface ConfigWatcherStartedEvent extends LoggingEventBase {
   type: 'ConfigWatcherStarted'
-  source: 'supervisor'
+  source: 'daemon'
   payload: {
     metadata: {
       projectDir: string
@@ -555,7 +555,7 @@ export interface ConfigWatcherStartedEvent extends LoggingEventBase {
  */
 export interface SessionEvictionStartedEvent extends LoggingEventBase {
   type: 'SessionEvictionStarted'
-  source: 'supervisor'
+  source: 'daemon'
   payload: {
     metadata: {
       intervalMs: number
@@ -571,7 +571,7 @@ export interface SessionEvictionStartedEvent extends LoggingEventBase {
  */
 export interface SummaryUpdatedEvent extends LoggingEventBase {
   type: 'SummaryUpdated'
-  source: 'supervisor'
+  source: 'daemon'
   payload: {
     state: {
       session_title: string
@@ -599,7 +599,7 @@ export interface SummaryUpdatedEvent extends LoggingEventBase {
  */
 export interface SummarySkippedEvent extends LoggingEventBase {
   type: 'SummarySkipped'
-  source: 'supervisor'
+  source: 'daemon'
   payload: {
     metadata: {
       countdown: number
@@ -619,7 +619,7 @@ export interface SummarySkippedEvent extends LoggingEventBase {
  */
 export interface ResumeGeneratingEvent extends LoggingEventBase {
   type: 'ResumeGenerating'
-  source: 'supervisor'
+  source: 'daemon'
   payload: {
     metadata: {
       title_confidence: number
@@ -637,7 +637,7 @@ export interface ResumeGeneratingEvent extends LoggingEventBase {
  */
 export interface ResumeUpdatedEvent extends LoggingEventBase {
   type: 'ResumeUpdated'
-  source: 'supervisor'
+  source: 'daemon'
   payload: {
     state: {
       resume_last_goal_message: string
@@ -656,7 +656,7 @@ export interface ResumeUpdatedEvent extends LoggingEventBase {
  */
 export interface ResumeSkippedEvent extends LoggingEventBase {
   type: 'ResumeSkipped'
-  source: 'supervisor'
+  source: 'daemon'
   payload: {
     metadata: {
       title_confidence: number
@@ -669,7 +669,7 @@ export interface ResumeSkippedEvent extends LoggingEventBase {
 
 export interface RemindersClearedEvent extends LoggingEventBase {
   type: 'RemindersCleared'
-  source: 'supervisor'
+  source: 'daemon'
   payload: {
     state: {
       clearedCount: number
@@ -784,7 +784,7 @@ export type CLILoggingEvent =
 /**
  * Union of all Supervisor logging events.
  */
-export type SupervisorLoggingEvent =
+export type DaemonLoggingEvent =
   | EventReceivedEvent
   | EventProcessedEvent
   | ReminderStagedEvent
@@ -809,7 +809,7 @@ export type TranscriptLoggingEvent = TranscriptEventEmittedEvent | PreCompactCap
 /**
  * Union of all logging events (internal, non-triggering).
  */
-export type LoggingEvent = CLILoggingEvent | SupervisorLoggingEvent | TranscriptLoggingEvent
+export type LoggingEvent = CLILoggingEvent | DaemonLoggingEvent | TranscriptLoggingEvent
 
 // Type guards for logging events
 
@@ -829,8 +829,8 @@ export function isCLILoggingEvent(event: LoggingEvent): event is CLILoggingEvent
   return event.source === 'cli'
 }
 
-export function isSupervisorLoggingEvent(event: LoggingEvent): event is SupervisorLoggingEvent {
-  return event.source === 'supervisor'
+export function isDaemonLoggingEvent(event: LoggingEvent): event is DaemonLoggingEvent {
+  return event.source === 'daemon'
 }
 
 export function isTranscriptLoggingEvent(event: LoggingEvent): event is TranscriptLoggingEvent {

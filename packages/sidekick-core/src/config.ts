@@ -101,20 +101,20 @@ const PathsSchema = z
   })
   .strict()
 
-const SUPERVISOR_DEFAULTS = {
+const DAEMON_DEFAULTS = {
   idleTimeoutMs: 300000, // 5 minutes
   shutdownTimeoutMs: 30000, // 30 seconds
 }
 
-const SupervisorSchema = z
+const DaemonSchema = z
   .object({
     idleTimeoutMs: z.number().min(0).optional(),
     shutdownTimeoutMs: z.number().min(0).optional(),
   })
   .strict()
   .transform((val) => ({
-    idleTimeoutMs: val.idleTimeoutMs ?? SUPERVISOR_DEFAULTS.idleTimeoutMs,
-    shutdownTimeoutMs: val.shutdownTimeoutMs ?? SUPERVISOR_DEFAULTS.shutdownTimeoutMs,
+    idleTimeoutMs: val.idleTimeoutMs ?? DAEMON_DEFAULTS.idleTimeoutMs,
+    shutdownTimeoutMs: val.shutdownTimeoutMs ?? DAEMON_DEFAULTS.shutdownTimeoutMs,
   }))
 
 const IPC_DEFAULTS = {
@@ -153,7 +153,7 @@ export const CoreConfigSchema = z
   .object({
     logging: LoggingSchema.optional(),
     paths: PathsSchema.optional(),
-    supervisor: SupervisorSchema.optional(),
+    daemon: DaemonSchema.optional(),
     ipc: IpcSchema.optional(),
     development: DevelopmentSchema.optional(),
   })
@@ -161,7 +161,7 @@ export const CoreConfigSchema = z
   .transform((val) => ({
     logging: val.logging ?? { level: 'info' as const, format: 'pretty' as const, consoleEnabled: false },
     paths: val.paths ?? { state: '.sidekick' },
-    supervisor: val.supervisor ?? SUPERVISOR_DEFAULTS,
+    daemon: val.daemon ?? DAEMON_DEFAULTS,
     ipc: val.ipc ?? IPC_DEFAULTS,
     development: val.development ?? DEVELOPMENT_DEFAULTS,
   }))
@@ -300,7 +300,7 @@ export const SidekickConfigSchema = z.object({
       val ?? {
         logging: { level: 'info' as const, format: 'pretty' as const, consoleEnabled: false },
         paths: { state: '.sidekick' },
-        supervisor: SUPERVISOR_DEFAULTS,
+        daemon: DAEMON_DEFAULTS,
         ipc: IPC_DEFAULTS,
         development: DEVELOPMENT_DEFAULTS,
       }

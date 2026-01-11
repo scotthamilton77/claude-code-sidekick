@@ -5,13 +5,13 @@
 
 import type { RuntimeContext } from '@sidekick/core'
 import { isHookEvent, isSessionStartEvent, isTranscriptEvent } from '@sidekick/core'
-import type { SupervisorContext } from '@sidekick/types'
+import type { DaemonContext } from '@sidekick/types'
 import { createFirstSessionSummary } from './create-first-summary.js'
 import { updateSessionSummary } from './update-summary.js'
 
 export function registerHandlers(context: RuntimeContext): void {
-  // Only register in Supervisor
-  if (context.role !== 'supervisor') return
+  // Only register in Daemon
+  if (context.role !== 'daemon') return
 
   const ctx = context
 
@@ -33,7 +33,7 @@ export function registerHandlers(context: RuntimeContext): void {
     filter: { kind: 'transcript', eventTypes: ['UserPrompt'] },
     handler: async (event, context) => {
       if (!isTranscriptEvent(event)) return
-      await updateSessionSummary(event, context as unknown as SupervisorContext)
+      await updateSessionSummary(event, context as unknown as DaemonContext)
     },
   })
 
@@ -44,7 +44,7 @@ export function registerHandlers(context: RuntimeContext): void {
     filter: { kind: 'transcript', eventTypes: ['ToolResult'] },
     handler: async (event, context) => {
       if (!isTranscriptEvent(event)) return
-      await updateSessionSummary(event, context as unknown as SupervisorContext)
+      await updateSessionSummary(event, context as unknown as DaemonContext)
     },
   })
 
@@ -55,7 +55,7 @@ export function registerHandlers(context: RuntimeContext): void {
     filter: { kind: 'transcript', eventTypes: ['BulkProcessingComplete'] },
     handler: async (event, context) => {
       if (!isTranscriptEvent(event)) return
-      await updateSessionSummary(event, context as unknown as SupervisorContext)
+      await updateSessionSummary(event, context as unknown as DaemonContext)
     },
   })
 }

@@ -235,14 +235,14 @@ export async function ensureSupervisor(options: {
   }
 
   try {
-    const { SupervisorClient } = await import('@sidekick/core')
-    const supervisorClient = new SupervisorClient(projectRoot, logger)
-    await supervisorClient.start()
-    logger.debug('Supervisor auto-started for hook execution')
+    const { DaemonClient } = await import('@sidekick/core')
+    const daemonClient = new DaemonClient(projectRoot, logger)
+    await daemonClient.start()
+    logger.debug('Daemon auto-started for hook execution')
     return { started: true }
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err))
-    logger.warn('Failed to auto-start supervisor, proceeding with sync paths', {
+    logger.warn('Failed to auto-start daemon, proceeding with sync paths', {
       error: error.message,
     })
     return { started: false }
@@ -261,14 +261,14 @@ export async function routeCommand(context: {
   runtime: RuntimeShell
   hookInput: ParsedHookInput | undefined
   stdout: Writable
-  supervisorStarted: boolean
+  daemonStarted: boolean
 }): Promise<{ exitCode: number; stdout: string; stderr: string }> {
-  const { parsed, runtime, hookInput, stdout, supervisorStarted } = context
+  const { parsed, runtime, hookInput, stdout, daemonStarted } = context
 
   runtime.logger.debug('Raw hook input', { hookInput })
 
-  // Handle hook commands by dispatching to supervisor (Phase 8)
-  // Per docs/design/flow.md §5: CLI sends event to Supervisor via IPC
+  // Handle hook commands by dispatching to daemon (Phase 8)
+  // Per docs/design/flow.md §5: CLI sends event to Daemon via IPC
   if (parsed.hookMode && hookInput && runtime.scope.projectRoot) {
     // Prefer hookInput.hookEventName (PascalCase from stdin), fall back to parsed.command (kebab-case from argv)
     const hookName = validateHookName(hookInput.hookEventName) ?? getHookName(parsed.command)
@@ -295,16 +295,16 @@ export async function routeCommand(context: {
   if (parsed.hookMode && !hookInput) {
     runtime.logger.warn('Hook mode invoked without valid hook input, returning empty response', {
       command: parsed.command,
-      supervisorStarted,
+      daemonStarted,
     })
     stdout.write('{}\n')
     return { exitCode: 0, stdout: '{}', stderr: '' }
   }
 
-  if (parsed.command === 'supervisor') {
+  if (parsed.command === 'daemon') {
     const subcommand = (parsed._ && (parsed._[1] as string)) || 'status'
-    const { handleSupervisorCommand } = await import('./commands/supervisor.js')
-    const result = await handleSupervisorCommand(
+    const { handleDaemonCommand } = await import('./commands/daemon.js')
+    const result = await handleDaemonCommand(
       subcommand,
       runtime.scope.projectRoot || process.cwd(),
       runtime.logger,
@@ -430,7 +430,7 @@ export async function runCli(options: RunCliOptions): Promise<{ exitCode: number
   })
 
   // 3. Ensure supervisor is running (async, no-throw)
-  const { started: supervisorStarted } = await ensureSupervisor({
+  const { started: daemonStarted } = await ensureSupervisor({
     hookMode: parsed.hookMode,
     projectRoot: runtime.scope.projectRoot,
     logger: runtime.logger,
@@ -442,7 +442,7 @@ export async function runCli(options: RunCliOptions): Promise<{ exitCode: number
     runtime,
     hookInput,
     stdout,
-    supervisorStarted,
+    daemonStarted,
   })
 
   // 5. Persist CLI log metrics (async, no-throw)

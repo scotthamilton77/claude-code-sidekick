@@ -13,7 +13,7 @@ import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import * as yaml from 'js-yaml'
 import { z } from 'zod'
-import type { StagedReminder, SupervisorContext } from '@sidekick/types'
+import type { StagedReminder, DaemonContext } from '@sidekick/types'
 import type { AssetResolver } from '@sidekick/core'
 import type { TemplateContext } from './types'
 
@@ -132,7 +132,7 @@ export function resolveReminder(
  * Stage a reminder for a specific hook.
  * Delegates to StagingService for atomic file operations.
  */
-export async function stageReminder(ctx: SupervisorContext, hookName: string, reminder: StagedReminder): Promise<void> {
+export async function stageReminder(ctx: DaemonContext, hookName: string, reminder: StagedReminder): Promise<void> {
   await ctx.staging.stageReminder(hookName, reminder.name, reminder)
   ctx.logger.debug('Staged reminder', { hookName, reminderName: reminder.name, priority: reminder.priority })
 }
@@ -141,7 +141,7 @@ export async function stageReminder(ctx: SupervisorContext, hookName: string, re
  * Consume the highest-priority staged reminder for a hook.
  * Returns and optionally deletes the reminder.
  */
-export async function consumeReminder(ctx: SupervisorContext, hookName: string): Promise<StagedReminder | null> {
+export async function consumeReminder(ctx: DaemonContext, hookName: string): Promise<StagedReminder | null> {
   // Get all reminders for this hook
   const reminders = await ctx.staging.listReminders(hookName)
   if (reminders.length === 0) {

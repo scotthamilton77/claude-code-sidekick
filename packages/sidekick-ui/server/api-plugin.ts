@@ -7,13 +7,13 @@
  * API Endpoints:
  * - GET /api/config - Returns paths configuration
  * - GET /api/logs/sessions - Returns list of unique session IDs
- * - GET /api/logs/:type - Returns cli.log or supervisor.log content (supports incremental fetching)
+ * - GET /api/logs/:type - Returns cli.log or sidekickd.log content (supports incremental fetching)
  * - GET /api/sessions/:sessionId/compaction-history - Returns compaction history
  * - GET /api/sessions/:sessionId/metrics - Returns current transcript metrics
  * - GET /api/sessions/:sessionId/pre-compact/:timestamp - Returns pre-compact snapshot
  * - GET /api/sessions/:sessionId/state/session-summary - Returns session summary state
  * - GET /api/sessions/:sessionId/stage/:hookName - Returns staged reminders for hook
- * - GET /api/supervisor/status - Returns supervisor status with offline detection
+ * - GET /api/daemon/status - Returns daemon status with offline detection
  *
  * Query params (for /api/logs/:type):
  * - ?offset=<bytes> - Start reading from byte offset (incremental fetching, recommended)
@@ -42,7 +42,7 @@ import {
   handleSessions,
   handleSessionSummary,
   handleStagedReminders,
-  handleSupervisorStatus,
+  handleDaemonStatus,
 } from './handlers'
 import type { ApiContext, ApiRequest } from './types'
 import { errorResponse, findLogsPath, findSessionsPath, findStatePath } from './utils'
@@ -75,8 +75,8 @@ export function createRouter(): RouterType<ApiRequest> {
   router.get('/sessions/:sessionId/state/session-summary', handleSessionSummary)
   router.get('/sessions/:sessionId/stage/:hookName', handleStagedReminders)
 
-  // Supervisor endpoints
-  router.get('/supervisor/status', handleSupervisorStatus)
+  // Daemon endpoints
+  router.get('/daemon/status', handleDaemonStatus)
 
   // 404 fallback
   router.all('*', () => errorResponse('Not found', 404))

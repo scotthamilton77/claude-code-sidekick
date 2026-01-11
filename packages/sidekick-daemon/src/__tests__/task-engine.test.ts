@@ -1,5 +1,5 @@
 import { createConsoleLogger } from '@sidekick/core'
-import type { SupervisorContext } from '@sidekick/types'
+import type { DaemonContext } from '@sidekick/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ContextGetter, TaskContext, TaskEngine, TaskTimeoutError } from '../task-engine.js'
 
@@ -76,7 +76,7 @@ const mockContextGetter: ContextGetter = () =>
       capturePreCompactState: async () => {},
       getCompactionHistory: () => [],
     },
-  }) as unknown as SupervisorContext
+  }) as unknown as DaemonContext
 
 // Helper to create a deferred promise for controlled task completion
 function createDeferred(): { promise: Promise<void>; resolve: () => void } {

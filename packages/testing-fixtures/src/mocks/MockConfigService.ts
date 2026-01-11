@@ -39,7 +39,7 @@ type DeepPartial<T> = {
 const DEFAULT_CORE: CoreConfig = {
   logging: { level: 'info', format: 'pretty', consoleEnabled: false },
   paths: { state: '.sidekick' },
-  supervisor: { idleTimeoutMs: 300000, shutdownTimeoutMs: 30000 },
+  daemon: { idleTimeoutMs: 300000, shutdownTimeoutMs: 30000 },
   ipc: { connectTimeoutMs: 5000, requestTimeoutMs: 30000, maxRetries: 3, retryDelayMs: 100 },
   development: { enabled: false },
 }

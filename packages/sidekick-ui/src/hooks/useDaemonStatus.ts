@@ -1,41 +1,41 @@
 /**
- * Supervisor Status Hook
+ * Daemon Status Hook
  *
- * React hook for fetching and polling Sidekick Supervisor status.
- * Provides real-time supervisor health, memory usage, queue depth, and active tasks.
+ * React hook for fetching and polling Sidekick Daemon status.
+ * Provides real-time daemon health, memory usage, queue depth, and active tasks.
  *
  * @see packages/sidekick-ui/docs/MONITORING-UI.md §3.2.E System Health
- * @see docs/design/SUPERVISOR.md §3 Status Endpoint
+ * @see docs/design/DAEMON.md §3 Status Endpoint
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import type { SupervisorStatusWithHealth } from '@sidekick/types'
+import type { DaemonStatusWithHealth } from '@sidekick/types'
 
 // ============================================================================
 // Types
 // ============================================================================
 
-export interface SupervisorStatusState {
-  /** Current supervisor status (null if never loaded) */
-  status: SupervisorStatusWithHealth | null
-  /** Whether supervisor is online */
+export interface DaemonStatusState {
+  /** Current daemon status (null if never loaded) */
+  status: DaemonStatusWithHealth | null
+  /** Whether daemon is online */
   isOnline: boolean
   /** Whether initial load is in progress */
   isLoading: boolean
   /** Error message if fetch failed (distinct from offline) */
   error: string | null
   /** Status history for sparklines (last 20 entries) */
-  statusHistory: SupervisorStatusWithHealth[]
+  statusHistory: DaemonStatusWithHealth[]
   /** Last successful fetch timestamp */
   lastFetch: number | null
 }
 
-export interface SupervisorStatusActions {
+export interface DaemonStatusActions {
   /** Manually refresh status from API */
   refresh: () => Promise<void>
 }
 
-export interface SupervisorStatusConfig {
+export interface DaemonStatusConfig {
   /** Polling interval in ms (default: 5000) */
   pollInterval?: number
   /** History size for sparklines (default: 20) */
@@ -46,12 +46,12 @@ export interface SupervisorStatusConfig {
 // API Functions
 // ============================================================================
 
-async function fetchSupervisorStatus(): Promise<SupervisorStatusWithHealth> {
-  const res = await fetch('/api/supervisor/status')
+async function fetchDaemonStatus(): Promise<DaemonStatusWithHealth> {
+  const res = await fetch('/api/daemon/status')
   if (!res.ok) {
-    throw new Error(`Supervisor status fetch failed: ${res.status}`)
+    throw new Error(`Daemon status fetch failed: ${res.status}`)
   }
-  return res.json() as Promise<SupervisorStatusWithHealth>
+  return res.json() as Promise<DaemonStatusWithHealth>
 }
 
 // ============================================================================
@@ -61,16 +61,16 @@ async function fetchSupervisorStatus(): Promise<SupervisorStatusWithHealth> {
 const DEFAULT_POLL_INTERVAL = 5000
 const DEFAULT_HISTORY_SIZE = 20
 
-export function useSupervisorStatus(
-  config: SupervisorStatusConfig = {}
-): SupervisorStatusState & SupervisorStatusActions {
+export function useDaemonStatus(
+  config: DaemonStatusConfig = {}
+): DaemonStatusState & DaemonStatusActions {
   const { pollInterval = DEFAULT_POLL_INTERVAL, historySize = DEFAULT_HISTORY_SIZE } = config
 
   // State
-  const [status, setStatus] = useState<SupervisorStatusWithHealth | null>(null)
+  const [status, setStatus] = useState<DaemonStatusWithHealth | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [statusHistory, setStatusHistory] = useState<SupervisorStatusWithHealth[]>([])
+  const [statusHistory, setStatusHistory] = useState<DaemonStatusWithHealth[]>([])
   const [lastFetch, setLastFetch] = useState<number | null>(null)
 
   // Refs for polling
@@ -79,7 +79,7 @@ export function useSupervisorStatus(
   // Fetch status from API
   const fetchStatus = useCallback(async () => {
     try {
-      const newStatus = await fetchSupervisorStatus()
+      const newStatus = await fetchDaemonStatus()
 
       // Update current status
       setStatus(newStatus)
@@ -93,7 +93,7 @@ export function useSupervisorStatus(
       })
     } catch (err) {
       // API fetch error is distinct from offline status
-      setError(err instanceof Error ? err.message : 'Failed to fetch supervisor status')
+      setError(err instanceof Error ? err.message : 'Failed to fetch daemon status')
       setStatus(null)
     } finally {
       setIsLoading(false)
@@ -142,4 +142,4 @@ export function useSupervisorStatus(
   }
 }
 
-export default useSupervisorStatus
+export default useDaemonStatus

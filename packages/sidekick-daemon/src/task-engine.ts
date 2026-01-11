@@ -1,5 +1,5 @@
 import { Logger } from '@sidekick/core'
-import type { SupervisorContext, TaskContext } from '@sidekick/types'
+import type { DaemonContext, TaskContext } from '@sidekick/types'
 import crypto from 'crypto'
 
 /**
@@ -18,15 +18,15 @@ export interface Task {
 }
 
 /**
- * Function to get SupervisorContext for a session.
+ * Function to get DaemonContext for a session.
  * If sessionId is provided, returns session-specific context (instrumented provider).
  * If sessionId is undefined, returns base context (shared provider).
  */
-export type ContextGetter = (sessionId?: string) => SupervisorContext
+export type ContextGetter = (sessionId?: string) => DaemonContext
 
 /**
  * Task handler function signature.
- * Receives payload and full TaskContext (extends SupervisorContext with task fields).
+ * Receives payload and full TaskContext (extends DaemonContext with task fields).
  */
 export type TaskHandler = (payload: Record<string, unknown>, context: TaskContext) => Promise<void>
 
@@ -167,10 +167,10 @@ export class TaskEngine {
     // Extract sessionId from payload if present (most tasks have it)
     const sessionId = typeof task.payload.sessionId === 'string' ? task.payload.sessionId : undefined
 
-    // Get SupervisorContext for this session (or base context if no sessionId)
+    // Get DaemonContext for this session (or base context if no sessionId)
     const supervisorContext = this.contextGetter(sessionId)
 
-    // Build full TaskContext by extending SupervisorContext with task-specific fields
+    // Build full TaskContext by extending DaemonContext with task-specific fields
     const context: TaskContext = {
       ...supervisorContext,
       taskId: task.id,

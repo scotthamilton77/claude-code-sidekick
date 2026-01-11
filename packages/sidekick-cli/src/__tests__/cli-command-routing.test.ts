@@ -28,14 +28,14 @@ class CollectingWritable extends Writable {
 }
 
 // Mock handlers - return observable exit codes
-const { mockHandleSupervisorCommand, mockHandleStatuslineCommand } = vi.hoisted(() => ({
-  mockHandleSupervisorCommand: vi.fn(),
+const { mockHandleDaemonCommand, mockHandleStatuslineCommand } = vi.hoisted(() => ({
+  mockHandleDaemonCommand: vi.fn(),
   mockHandleStatuslineCommand: vi.fn(),
 }))
 
 // Mock the command handler modules
-vi.mock('../commands/supervisor.js', () => ({
-  handleSupervisorCommand: mockHandleSupervisorCommand,
+vi.mock('../commands/daemon.js', () => ({
+  handleDaemonCommand: mockHandleDaemonCommand,
 }))
 
 vi.mock('../commands/statusline.js', () => ({
@@ -43,12 +43,12 @@ vi.mock('../commands/statusline.js', () => ({
   parseStatuslineInput: vi.fn(() => undefined),
 }))
 
-// Mock @sidekick/core to prevent actual supervisor operations
+// Mock @sidekick/core to prevent actual daemon operations
 vi.mock('@sidekick/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@sidekick/core')>()
   return {
     ...actual,
-    SupervisorClient: vi.fn(() => ({
+    DaemonClient: vi.fn(() => ({
       start: vi.fn().mockResolvedValue(undefined),
     })),
   }
@@ -74,12 +74,12 @@ describe('CLI command routing', () => {
     vi.clearAllMocks()
   })
 
-  describe('supervisor command', () => {
+  describe('daemon command', () => {
     test('returns success exit code on successful command', async () => {
-      mockHandleSupervisorCommand.mockResolvedValue({ exitCode: 0 })
+      mockHandleDaemonCommand.mockResolvedValue({ exitCode: 0 })
 
       const result = await runCli({
-        argv: ['supervisor'],
+        argv: ['daemon'],
         stdout,
         stderr,
         cwd: projectDir,
@@ -90,10 +90,10 @@ describe('CLI command routing', () => {
     })
 
     test('returns error exit code on failed command', async () => {
-      mockHandleSupervisorCommand.mockResolvedValue({ exitCode: 1 })
+      mockHandleDaemonCommand.mockResolvedValue({ exitCode: 1 })
 
       const result = await runCli({
-        argv: ['supervisor', 'invalid'],
+        argv: ['daemon', 'invalid'],
         stdout,
         stderr,
         cwd: projectDir,
@@ -104,10 +104,10 @@ describe('CLI command routing', () => {
     })
 
     test('propagates handler exit code for stop command', async () => {
-      mockHandleSupervisorCommand.mockResolvedValue({ exitCode: 1 })
+      mockHandleDaemonCommand.mockResolvedValue({ exitCode: 1 })
 
       const result = await runCli({
-        argv: ['supervisor', 'stop', '--wait'],
+        argv: ['daemon', 'stop', '--wait'],
         stdout,
         stderr,
         cwd: projectDir,

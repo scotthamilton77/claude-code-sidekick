@@ -6,7 +6,7 @@
  */
 
 import { createConsoleLogger, SidekickConfig, TaskTypes, TrackedTask } from '@sidekick/core'
-import type { MinimalAssetResolver, SupervisorContext } from '@sidekick/types'
+import type { MinimalAssetResolver, DaemonContext } from '@sidekick/types'
 import { readFileSync } from 'fs'
 import fs from 'fs/promises'
 import os from 'os'
@@ -39,7 +39,7 @@ const mockProfileFactory = {
 // Mock context getter for tests
 const mockContextGetter: ContextGetter = () =>
   ({
-    role: 'supervisor',
+    role: 'daemon',
     config: {
       core: { logging: { level: 'error' }, development: { enabled: false } },
       llm: {
@@ -108,7 +108,7 @@ const mockContextGetter: ContextGetter = () =>
       capturePreCompactState: async () => {},
       getCompactionHistory: () => [],
     },
-  }) as unknown as SupervisorContext
+  }) as unknown as DaemonContext
 
 // Path to assets directory for loading real prompt/schema files
 const ASSETS_DIR = path.join(__dirname, '../../../../assets/sidekick')
@@ -131,7 +131,7 @@ const mockConfig: SidekickConfig = {
   core: {
     logging: { level: 'error', format: 'json', consoleEnabled: false },
     paths: { state: '.sidekick' },
-    supervisor: { idleTimeoutMs: 300000, shutdownTimeoutMs: 30000 },
+    daemon: { idleTimeoutMs: 300000, shutdownTimeoutMs: 30000 },
     ipc: { connectTimeoutMs: 5000, requestTimeoutMs: 30000, maxRetries: 3, retryDelayMs: 100 },
     development: { enabled: false },
   },
@@ -249,7 +249,7 @@ describe('TaskRegistry (Orphan Prevention)', () => {
 
   describe('orphan cleanup', () => {
     it('should clean up orphaned tasks on restart', async () => {
-      // Simulate orphaned tasks from a crashed supervisor
+      // Simulate orphaned tasks from a crashed daemon
       const orphanedTasks: TrackedTask[] = [
         { id: 'orphan-1', type: TaskTypes.CLEANUP, enqueuedAt: Date.now() - 10000 },
         { id: 'orphan-2', type: TaskTypes.CLEANUP, enqueuedAt: Date.now() - 5000 },
@@ -263,7 +263,7 @@ describe('TaskRegistry (Orphan Prevention)', () => {
       let state = taskRegistry.getState()
       expect(state.activeTasks).toHaveLength(2)
 
-      // Clean up orphans (simulates supervisor restart)
+      // Clean up orphans (simulates daemon restart)
       const cleanedCount = await taskRegistry.cleanupOrphans()
 
       expect(cleanedCount).toBe(2)

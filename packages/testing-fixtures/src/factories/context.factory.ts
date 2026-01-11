@@ -1,15 +1,15 @@
 /**
  * Context Factory for Testing
  *
- * Creates mock RuntimeContext objects (CLIContext or SupervisorContext)
+ * Creates mock RuntimeContext objects (CLIContext or DaemonContext)
  * with sensible defaults. Uses canonical types from @sidekick/types.
  *
  * Updated for Phase 4.1 discriminated union context types.
  *
  * @example
  * ```typescript
- * // Create a SupervisorContext for LLM testing
- * const ctx = createMockSupervisorContext({
+ * // Create a DaemonContext for LLM testing
+ * const ctx = createMockDaemonContext({
  *   llm: customLLMService
  * });
  *
@@ -21,9 +21,9 @@
 import type {
   RuntimeContext,
   CLIContext,
-  SupervisorContext,
+  DaemonContext,
   RuntimePaths,
-  SupervisorClient,
+  DaemonClient,
   ProfileProviderFactory,
   LLMProvider,
 } from '@sidekick/types'
@@ -36,7 +36,7 @@ import { MockStagingService } from '../mocks/MockStagingService'
 import { MockTranscriptService } from '../mocks/MockTranscriptService'
 
 // Re-export canonical types for convenience
-export type { RuntimeContext, CLIContext, SupervisorContext, RuntimePaths }
+export type { RuntimeContext, CLIContext, DaemonContext, RuntimePaths }
 
 const DEFAULT_PATHS: RuntimePaths = {
   projectDir: '/mock/project',
@@ -61,9 +61,9 @@ export class MockProfileProviderFactory implements ProfileProviderFactory {
 }
 
 /**
- * Mock SupervisorClient for CLIContext testing.
+ * Mock DaemonClient for CLIContext testing.
  */
-export class MockSupervisorClient implements SupervisorClient {
+export class MockDaemonClient implements DaemonClient {
   private _isRunning = false
   private _status: { status: string; ping?: unknown; error?: unknown } = { status: 'stopped' }
 
@@ -101,9 +101,9 @@ export class MockSupervisorClient implements SupervisorClient {
 }
 
 /**
- * Options for creating a mock SupervisorContext.
+ * Options for creating a mock DaemonContext.
  */
-export interface MockSupervisorContextOptions {
+export interface MockDaemonContextOptions {
   config?: MockConfigService
   logger?: MockLogger
   assets?: MockAssetResolver
@@ -124,17 +124,17 @@ export interface MockCLIContextOptions {
   assets?: MockAssetResolver
   handlers?: MockHandlerRegistry
   paths?: RuntimePaths
-  supervisor?: MockSupervisorClient
+  daemon?: MockDaemonClient
 }
 
 /**
- * Create a mock SupervisorContext with all services initialized.
+ * Create a mock DaemonContext with all services initialized.
  * Use this when testing code that requires LLM, staging, or transcript services.
  */
-export function createMockSupervisorContext(overrides?: MockSupervisorContextOptions): SupervisorContext {
+export function createMockDaemonContext(overrides?: MockDaemonContextOptions): DaemonContext {
   const llm = overrides?.llm ?? new MockLLMService()
   return {
-    role: 'supervisor',
+    role: 'daemon',
     config: overrides?.config ?? new MockConfigService(),
     logger: overrides?.logger ?? new MockLogger(),
     assets: overrides?.assets ?? new MockAssetResolver(),
@@ -149,7 +149,7 @@ export function createMockSupervisorContext(overrides?: MockSupervisorContextOpt
 
 /**
  * Create a mock CLIContext with all services initialized.
- * Use this when testing code that requires supervisor client communication.
+ * Use this when testing code that requires daemon client communication.
  */
 export function createMockCLIContext(overrides?: MockCLIContextOptions): CLIContext {
   return {
@@ -159,6 +159,6 @@ export function createMockCLIContext(overrides?: MockCLIContextOptions): CLICont
     assets: overrides?.assets ?? new MockAssetResolver(),
     handlers: overrides?.handlers ?? new MockHandlerRegistry(),
     paths: overrides?.paths ?? DEFAULT_PATHS,
-    supervisor: overrides?.supervisor ?? new MockSupervisorClient(),
+    daemon: overrides?.daemon ?? new MockDaemonClient(),
   }
 }

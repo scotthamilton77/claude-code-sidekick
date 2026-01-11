@@ -612,13 +612,13 @@ profiles:
 // =============================================================================
 
 describe('createDerivedPaths', () => {
-  const DEFAULT_SUPERVISOR = { idleTimeoutMs: 300000, shutdownTimeoutMs: 30000 }
+  const DEFAULT_DAEMON = { idleTimeoutMs: 300000, shutdownTimeoutMs: 30000 }
 
   test('generates correct session root path', () => {
     const coreConfig: CoreConfig = {
       logging: { level: 'info', format: 'pretty', consoleEnabled: false },
       paths: { state: '.sidekick' },
-      supervisor: DEFAULT_SUPERVISOR,
+      daemon: DEFAULT_DAEMON,
       ipc: { connectTimeoutMs: 5000, requestTimeoutMs: 30000, maxRetries: 3, retryDelayMs: 100 },
       development: { enabled: false },
     }
@@ -632,7 +632,7 @@ describe('createDerivedPaths', () => {
     const coreConfig: CoreConfig = {
       logging: { level: 'info', format: 'pretty', consoleEnabled: false },
       paths: { state: '.sidekick' },
-      supervisor: DEFAULT_SUPERVISOR,
+      daemon: DEFAULT_DAEMON,
       ipc: { connectTimeoutMs: 5000, requestTimeoutMs: 30000, maxRetries: 3, retryDelayMs: 100 },
       development: { enabled: false },
     }
@@ -646,7 +646,7 @@ describe('createDerivedPaths', () => {
     const coreConfig: CoreConfig = {
       logging: { level: 'info', format: 'pretty', consoleEnabled: false },
       paths: { state: '.sidekick' },
-      supervisor: DEFAULT_SUPERVISOR,
+      daemon: DEFAULT_DAEMON,
       ipc: { connectTimeoutMs: 5000, requestTimeoutMs: 30000, maxRetries: 3, retryDelayMs: 100 },
       development: { enabled: false },
     }
@@ -662,7 +662,7 @@ describe('createDerivedPaths', () => {
     const coreConfig: CoreConfig = {
       logging: { level: 'info', format: 'pretty', consoleEnabled: false },
       paths: { state: '.sidekick' },
-      supervisor: DEFAULT_SUPERVISOR,
+      daemon: DEFAULT_DAEMON,
       ipc: { connectTimeoutMs: 5000, requestTimeoutMs: 30000, maxRetries: 3, retryDelayMs: 100 },
       development: { enabled: false },
     }
@@ -678,7 +678,7 @@ describe('createDerivedPaths', () => {
     const coreConfig: CoreConfig = {
       logging: { level: 'info', format: 'pretty', consoleEnabled: false },
       paths: { state: '.sidekick' },
-      supervisor: DEFAULT_SUPERVISOR,
+      daemon: DEFAULT_DAEMON,
       ipc: { connectTimeoutMs: 5000, requestTimeoutMs: 30000, maxRetries: 3, retryDelayMs: 100 },
       development: { enabled: false },
     }
@@ -692,7 +692,7 @@ describe('createDerivedPaths', () => {
     const coreConfig: CoreConfig = {
       logging: { level: 'info', format: 'pretty', consoleEnabled: false },
       paths: { state: 'custom/state' },
-      supervisor: DEFAULT_SUPERVISOR,
+      daemon: DEFAULT_DAEMON,
       ipc: { connectTimeoutMs: 5000, requestTimeoutMs: 30000, maxRetries: 3, retryDelayMs: 100 },
       development: { enabled: false },
     }
@@ -707,7 +707,7 @@ describe('createDerivedPaths', () => {
     const coreConfig: CoreConfig = {
       logging: { level: 'info', format: 'pretty', consoleEnabled: false },
       paths: { state: '.sidekick' },
-      supervisor: DEFAULT_SUPERVISOR,
+      daemon: DEFAULT_DAEMON,
       ipc: { connectTimeoutMs: 5000, requestTimeoutMs: 30000, maxRetries: 3, retryDelayMs: 100 },
       development: { enabled: false },
     }

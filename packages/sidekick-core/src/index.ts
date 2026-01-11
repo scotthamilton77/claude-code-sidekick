@@ -84,7 +84,7 @@ export {
   getSocketPath,
   getTokenPath,
   getUserPidPath,
-  getUserSupervisorsDir,
+  getUserDaemonsDir,
 } from './ipc/transport'
 
 export { createConsoleLogger, type Logger as ConsoleLogger, type LoggerOptions as ConsoleLoggerOptions } from './logger'
@@ -105,7 +105,7 @@ export {
   type UpgradeOptions,
 } from './structured-logging'
 
-export { killAllSupervisors, SupervisorClient, type KillResult, type UserPidInfo } from './supervisor-client'
+export { killAllDaemons, DaemonClient, type KillResult, type UserPidInfo } from './daemon-client'
 export { StagingServiceCore, SessionScopedStagingService, type StagingServiceCoreOptions } from './staging-service'
 export { HandlerRegistryImpl, type HandlerRegistryOptions } from './handler-registry'
 export {

@@ -5,7 +5,7 @@
   "main": "dist/cli.js",
   "types": "dist/cli.d.ts",
   "bin": {
-    "sidekick-node": "dist/bin.js"
+    "sidekick": "dist/bin.js"
   },
   "files": [
     "dist"

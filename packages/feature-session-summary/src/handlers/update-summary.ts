@@ -10,7 +10,7 @@
 
 import type { TranscriptEvent } from '@sidekick/core'
 import { backupIfDevMode, logEvent, LogEvents } from '@sidekick/core'
-import type { SupervisorContext, EventContext } from '@sidekick/types'
+import type { DaemonContext, EventContext } from '@sidekick/types'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { z } from 'zod'
@@ -59,7 +59,7 @@ type ResumeMessageResponse = z.infer<typeof ResumeMessageResponseSchema>
 /**
  * Update session summary based on transcript events
  */
-export async function updateSessionSummary(event: TranscriptEvent, ctx: SupervisorContext): Promise<void> {
+export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonContext): Promise<void> {
   const { sessionId } = event.context
   const isUserPrompt = event.eventType === 'UserPrompt'
 
@@ -121,7 +121,7 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: Supervis
   await performAnalysis(event, ctx, countdown, 'countdown_reached')
 }
 
-async function loadCountdownState(ctx: SupervisorContext, sessionId: string): Promise<SummaryCountdownState> {
+async function loadCountdownState(ctx: DaemonContext, sessionId: string): Promise<SummaryCountdownState> {
   try {
     const stateDir = ctx.paths.projectConfigDir ?? ctx.paths.userConfigDir
     const statePath = path.join(stateDir, 'sessions', sessionId, 'state', COUNTDOWN_FILE)
@@ -137,7 +137,7 @@ async function loadCountdownState(ctx: SupervisorContext, sessionId: string): Pr
  * Used to trigger initial resume generation even without pivot detection.
  * @see docs/design/FEATURE-RESUME.md §3.2
  */
-async function resumeMessageExists(ctx: SupervisorContext, sessionId: string): Promise<boolean> {
+async function resumeMessageExists(ctx: DaemonContext, sessionId: string): Promise<boolean> {
   try {
     const stateDir = ctx.paths.projectConfigDir ?? ctx.paths.userConfigDir
     const resumePath = path.join(stateDir, 'sessions', sessionId, 'state', RESUME_FILE)
@@ -149,7 +149,7 @@ async function resumeMessageExists(ctx: SupervisorContext, sessionId: string): P
 }
 
 async function saveCountdownState(
-  ctx: SupervisorContext,
+  ctx: DaemonContext,
   sessionId: string,
   state: SummaryCountdownState
 ): Promise<void> {
@@ -198,7 +198,7 @@ function parseResponse(content: string): SessionSummaryResponse | null {
 
 async function performAnalysis(
   event: TranscriptEvent,
-  ctx: SupervisorContext,
+  ctx: DaemonContext,
   countdown: SummaryCountdownState,
   // Note: compaction_reset reserved for future compaction-triggered re-analysis
   reason: 'user_prompt_forced' | 'countdown_reached' | 'compaction_reset'
@@ -390,7 +390,7 @@ async function performAnalysis(
   })
 }
 
-async function loadCurrentSummary(ctx: SupervisorContext, sessionId: string): Promise<SessionSummaryState | null> {
+async function loadCurrentSummary(ctx: DaemonContext, sessionId: string): Promise<SessionSummaryState | null> {
   try {
     const stateDir = ctx.paths.projectConfigDir ?? ctx.paths.userConfigDir
     const statePath = path.join(stateDir, 'sessions', sessionId, 'state', STATE_FILE)
@@ -401,7 +401,7 @@ async function loadCurrentSummary(ctx: SupervisorContext, sessionId: string): Pr
   }
 }
 
-async function saveSummary(ctx: SupervisorContext, sessionId: string, summary: SessionSummaryState): Promise<void> {
+async function saveSummary(ctx: DaemonContext, sessionId: string, summary: SessionSummaryState): Promise<void> {
   const stateDir = ctx.paths.projectConfigDir ?? ctx.paths.userConfigDir
   const statePath = path.join(stateDir, 'sessions', sessionId, 'state', STATE_FILE)
   await fs.mkdir(path.dirname(statePath), { recursive: true })
@@ -453,7 +453,7 @@ function stripSurroundingQuotes(text: string): string {
  * @see docs/design/FEATURE-SESSION-SUMMARY.md §3.2.4
  */
 async function generateSnarkyMessage(
-  ctx: SupervisorContext,
+  ctx: DaemonContext,
   sessionId: string,
   summary: SessionSummaryState,
   config: SessionSummaryConfig
@@ -521,7 +521,7 @@ function parseResumeResponse(content: string): ResumeMessageResponse | null {
  * @see docs/design/FEATURE-RESUME.md §3.2
  */
 async function generateResumeMessage(
-  ctx: SupervisorContext,
+  ctx: DaemonContext,
   eventContext: EventContext,
   summary: SessionSummaryState,
   transcriptExcerpt: string,
