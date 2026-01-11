@@ -34,6 +34,8 @@ additionalContext: |
   - The verification evidence is done just before this reminder was triggered.
   - You're not claiming "done" but stopping to give an update or ask for more info.
 
+  Otherwise, this step is mandatory to ensure quality and completeness.  Make sure you're really complete, then provide a revised report to the user.
+
 userMessage: "Asking the agent to verify completion before stopping..."
 
 reason: "Verify completion before stopping - did you run tests and checks?"

@@ -9,6 +9,7 @@
 export interface RemindersSettings {
   pause_and_reflect_threshold: number
   source_code_patterns: string[]
+  completion_detection?: CompletionDetectionSettings
 }
 
 /**
@@ -79,6 +80,46 @@ export const DEFAULT_SOURCE_CODE_PATTERNS = [
   '**/Dockerfile',
   '**/Makefile',
 ]
+
+/**
+ * Completion classification categories for smart verify-completion detection
+ */
+export type CompletionCategory = 'CLAIMING_COMPLETION' | 'ASKING_QUESTION' | 'ANSWERING_QUESTION' | 'OTHER'
+
+/**
+ * Result of LLM classification for completion intent
+ */
+export interface CompletionClassification {
+  category: CompletionCategory
+  confidence: number
+  reasoning?: string
+}
+
+/**
+ * LLM sub-feature configuration (profile + optional fallback)
+ */
+export interface LlmSubFeatureConfig {
+  profile: string
+  fallbackProfile?: string
+}
+
+/**
+ * Settings for smart completion detection
+ */
+export interface CompletionDetectionSettings {
+  enabled: boolean
+  confidenceThreshold: number
+  llm?: LlmSubFeatureConfig
+}
+
+/**
+ * Default completion detection settings
+ */
+export const DEFAULT_COMPLETION_DETECTION_SETTINGS: CompletionDetectionSettings = {
+  enabled: true,
+  confidenceThreshold: 0.7,
+  llm: { profile: 'fast-lite', fallbackProfile: 'cheap-fallback' },
+}
 
 /**
  * Default reminder settings values

@@ -6,14 +6,16 @@
  * 2. Create staging reader
  * 3. Get highest priority reminder
  * 4. Rename if not persistent (preserves consumption history)
- * 5. Build HookResponse
+ * 5. Build HookResponse (via strategy or default)
+ *
+ * Supports optional response building strategy for custom logic (e.g., smart completion detection).
  *
  * @see docs/design/FEATURE-REMINDERS.md §3.1 Consumption Handlers
  */
 
 import type { RuntimeContext, HookResponse } from '@sidekick/core'
 import { LogEvents, logEvent } from '@sidekick/core'
-import type { CLIContext, HookName, StagedReminder } from '@sidekick/types'
+import type { CLIContext, HookName, StagedReminder, HookEvent } from '@sidekick/types'
 import { isCLIContext, isHookEvent } from '@sidekick/types'
 import { CLIStagingReader } from '../../cli-staging-reader.js'
 
@@ -29,6 +31,38 @@ export interface OnConsumeParams {
   sessionId: string
 }
 
+/** Parameters passed to the buildResponse callback */
+export interface ResponseBuilderParams extends OnConsumeParams {
+  /** The hook event being processed */
+  event: HookEvent
+  /** Whether this hook supports blocking */
+  supportsBlocking: boolean
+}
+
+/** Response builder strategy function */
+export type ResponseBuilder = (params: ResponseBuilderParams) => Promise<HookResponse>
+
+/**
+ * Build the default response from a reminder's properties.
+ * Exported for use by custom response builders that want to delegate to default behavior.
+ */
+export function buildDefaultResponse(reminder: StagedReminder, supportsBlocking: boolean): HookResponse {
+  const response: HookResponse = {}
+
+  if (supportsBlocking && reminder.blocking) {
+    response.blocking = true
+    response.reason = reminder.reason
+  }
+  if (reminder.additionalContext) {
+    response.additionalContext = reminder.additionalContext
+  }
+  if (reminder.userMessage) {
+    response.userMessage = reminder.userMessage
+  }
+
+  return response
+}
+
 export interface ConsumptionHandlerConfig {
   /** Handler ID (e.g., 'reminders:inject-user-prompt-submit') */
   id: string
@@ -38,7 +72,13 @@ export interface ConsumptionHandlerConfig {
   priority?: number
   /** Whether this hook can block (PreToolUse, Stop) */
   supportsBlocking?: boolean
-  /** Optional callback invoked after consumption, before building response */
+  /**
+   * Optional custom response builder strategy.
+   * When provided, this function builds the response instead of the default logic.
+   * Use buildDefaultResponse() to delegate to default behavior when needed.
+   */
+  buildResponse?: ResponseBuilder
+  /** Optional callback invoked after response is built, for side effects */
   onConsume?: (params: OnConsumeParams) => Promise<void>
 }
 
@@ -48,7 +88,7 @@ export interface ConsumptionHandlerConfig {
 export function createConsumptionHandler(context: RuntimeContext, config: ConsumptionHandlerConfig): void {
   if (!isCLIContext(context)) return
 
-  const { id, hook, priority = 50, supportsBlocking = false, onConsume } = config
+  const { id, hook, priority = 50, supportsBlocking = false, buildResponse, onConsume } = config
 
   context.handlers.register({
     id,
@@ -79,23 +119,14 @@ export function createConsumptionHandler(context: RuntimeContext, config: Consum
         reader.renameReminder(hook, reminder.name)
       }
 
-      // Call optional onConsume callback for hook-specific logic
+      // Build response using strategy or default
+      const response = buildResponse
+        ? await buildResponse({ reminder, reader, cliCtx, sessionId, event, supportsBlocking })
+        : buildDefaultResponse(reminder, supportsBlocking)
+
+      // Call optional onConsume callback for side effects
       if (onConsume) {
         await onConsume({ reminder, reader, cliCtx, sessionId })
-      }
-
-      // Build response
-      const response: HookResponse = {}
-
-      if (supportsBlocking && reminder.blocking) {
-        response.blocking = true
-        response.reason = reminder.reason
-      }
-      if (reminder.additionalContext) {
-        response.additionalContext = reminder.additionalContext
-      }
-      if (reminder.userMessage) {
-        response.userMessage = reminder.userMessage
       }
 
       // Log ReminderConsumed event
@@ -110,7 +141,7 @@ export function createConsumptionHandler(context: RuntimeContext, config: Consum
           {
             reminderName: reminder.name,
             reminderReturned: true,
-            blocking: reminder.blocking,
+            blocking: response.blocking ?? false,
             priority: reminder.priority,
             persistent: reminder.persistent,
           }

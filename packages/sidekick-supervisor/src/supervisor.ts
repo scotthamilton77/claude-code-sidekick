@@ -21,7 +21,7 @@ import {
   type ConfigService,
   type SidekickConfig,
 } from '@sidekick/core'
-import { registerStagingHandlers } from '@sidekick/feature-reminders'
+import { registerStagingHandlers, classifyCompletion } from '@sidekick/feature-reminders'
 import { registerHandlers as registerSessionSummaryHandlers } from '@sidekick/feature-session-summary'
 import type {
   HandlerRegistry,
@@ -441,6 +441,8 @@ export class Supervisor {
         return this.handleHookInvoke(p)
       case 'reminder.consumed':
         return this.handleReminderConsumed(p)
+      case 'completion.classify':
+        return this.handleCompletionClassify(p)
       default:
         throw new Error(`Method not found: ${method}`)
     }
@@ -628,6 +630,91 @@ export class Supervisor {
       await fs.writeFile(path.join(stateDir, 'pr-baseline.json'), JSON.stringify(baseline, null, 2))
 
       this.logger.debug('Updated P&R baseline after VC consumption', { sessionId, baseline })
+    }
+  }
+
+  /**
+   * Handle completion.classify IPC from CLI.
+   * Classifies the assistant's stopping intent using LLM.
+   */
+  private async handleCompletionClassify(
+    params: Record<string, unknown> | undefined
+  ): Promise<{ category: string; confidence: number; shouldBlock: boolean; userMessage?: string; reasoning?: string }> {
+    const sessionId = params?.sessionId as string | undefined
+    const transcriptPath = params?.transcriptPath as string | undefined
+
+    if (!sessionId) {
+      throw new Error('completion.classify requires sessionId')
+    }
+
+    this.logger.info('Completion classification requested', { sessionId })
+
+    const resolvedTranscriptPath = transcriptPath ?? reconstructTranscriptPath(this.projectDir, sessionId)
+    this.logger.debug('Resolved transcript path for classification', { transcriptPath: resolvedTranscriptPath })
+    const paths: RuntimePaths = {
+      projectDir: this.projectDir,
+      userConfigDir: path.join(homedir(), '.sidekick'),
+      projectConfigDir: path.join(this.projectDir, '.sidekick'),
+      hookScriptPath: undefined,
+    }
+
+    if (!this.llmProvider) {
+      this.llmProvider = this.profileProviderFactory.createDefault()
+    }
+
+    const stagingService = this.serviceFactory.getStagingService(sessionId)
+    const transcriptService = await this.serviceFactory.prepareTranscriptService(sessionId, resolvedTranscriptPath)
+    await transcriptService.start()
+
+    const featureConfig = this.configService.getFeature<{ settings?: { completion_detection?: unknown } }>('reminders')
+    const settings = featureConfig.settings?.completion_detection as
+      | import('@sidekick/feature-reminders').CompletionDetectionSettings
+      | undefined
+
+    const ctx: SupervisorContext = {
+      role: 'supervisor',
+      config: {
+        core: {
+          logging: { level: this.configService.core.logging.level },
+          development: { enabled: this.configService.core.development.enabled },
+        },
+        llm: {
+          defaultProfile: this.configService.llm.defaultProfile,
+          profiles: this.configService.llm.profiles,
+          fallbacks: this.configService.llm.fallbacks,
+        },
+        getAll: () => this.configService.getAll(),
+        getFeature: <T = Record<string, unknown>>(name: string) => this.configService.getFeature<T>(name),
+      },
+      logger: this.logger,
+      assets: this.assetResolver,
+      paths,
+      handlers: this.handlerRegistry,
+      llm: this.llmProvider,
+      profileFactory: this.profileProviderFactory,
+      staging: stagingService,
+      transcript: transcriptService,
+    }
+
+    const result = await classifyCompletion({ ctx, settings })
+
+    this.logger.info('Completion classification complete', {
+      sessionId,
+      category: result.classification.category,
+      shouldBlock: result.shouldBlock,
+    })
+    this.logger.debug('Completion classification details', {
+      confidence: result.classification.confidence,
+      reasoning: result.classification.reasoning?.slice(0, 1000),
+      userMessage: result.userMessage,
+    })
+
+    return {
+      category: result.classification.category,
+      confidence: result.classification.confidence,
+      shouldBlock: result.shouldBlock,
+      userMessage: result.userMessage,
+      reasoning: result.classification.reasoning,
     }
   }
 

@@ -40,3 +40,10 @@ export { registerConsumptionHandlers } from './handlers/consumption'
 
 // Re-export staging handlers for Supervisor use (Phase 8.5)
 export { registerStagingHandlers } from './handlers/staging'
+
+// Re-export completion classifier for IPC use
+export {
+  classifyCompletion,
+  type ClassifyCompletionOptions,
+  type ClassifyCompletionResult,
+} from './completion-classifier'

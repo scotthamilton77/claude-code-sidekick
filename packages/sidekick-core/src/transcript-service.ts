@@ -367,6 +367,10 @@ export class TranscriptServiceImpl implements TranscriptService {
     const timestamp = new Date((rawEntry.timestamp as string) ?? Date.now())
     const uuid = (rawEntry.uuid as string) ?? `line-${lineNumber}`
 
+    // Extract flags for filtering system-generated messages
+    const isMeta = (rawEntry as { isMeta?: boolean }).isMeta === true
+    const isCompactSummary = (rawEntry as { isCompactSummary?: boolean }).isCompactSummary === true
+
     // Handle message content
     const content = message.content
 
@@ -382,6 +386,8 @@ export class TranscriptServiceImpl implements TranscriptService {
           provider: 'claude',
           originalId: message.id,
           lineNumber,
+          isMeta,
+          isCompactSummary,
         },
       })
     } else if (Array.isArray(content)) {
@@ -401,6 +407,8 @@ export class TranscriptServiceImpl implements TranscriptService {
               provider: 'claude',
               originalId: message.id,
               lineNumber,
+              isMeta,
+              isCompactSummary,
             },
           })
         } else if (blockType === 'tool_use') {
