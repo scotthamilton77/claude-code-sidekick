@@ -65,17 +65,43 @@ export function registerInjectStop(context: RuntimeContext): void {
         // Determine response based on classification
         if (classification.shouldBlock) {
           // Claiming completion with high confidence - block with verification
-          return buildDefaultResponse(reminder, supportsBlocking)
-        } else if (classification.category === 'ASKING_QUESTION' || classification.category === 'ANSWERING_QUESTION') {
-          // Silent - no interruption
-          return {}
-        } else {
-          // OTHER - notify user but don't block
-          const response: HookResponse = {}
-          if (classification.userMessage) {
-            response.userMessage = classification.userMessage
+          // Clear unverified state since verification is now happening
+          try {
+            await ipc.send('vc-unverified.clear', { sessionId })
+          } catch (clearErr) {
+            cliCtx.logger.warn('Failed to clear vc-unverified state', { error: String(clearErr) })
           }
-          return response
+          return buildDefaultResponse(reminder, supportsBlocking)
+        } else {
+          // Non-blocking: set unverified state so we re-stage on next UserPromptSubmit
+          const metrics = reminder.stagedAt ?? { turnCount: 0, toolsThisTurn: 0 }
+          try {
+            await ipc.send('vc-unverified.set', {
+              sessionId,
+              classification: {
+                category: classification.category,
+                confidence: classification.confidence,
+              },
+              metrics: {
+                turnCount: metrics.turnCount,
+                toolsThisTurn: metrics.toolsThisTurn,
+              },
+            })
+          } catch (setErr) {
+            cliCtx.logger.warn('Failed to set vc-unverified state', { error: String(setErr) })
+          }
+
+          if (classification.category === 'ASKING_QUESTION' || classification.category === 'ANSWERING_QUESTION') {
+            // Silent - no interruption
+            return {}
+          } else {
+            // OTHER - notify user but don't block
+            const response: HookResponse = {}
+            if (classification.userMessage) {
+              response.userMessage = classification.userMessage
+            }
+            return response
+          }
         }
       } catch (err) {
         // On IPC failure, default to blocking (safe fallback)

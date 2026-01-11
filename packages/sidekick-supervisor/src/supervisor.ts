@@ -443,6 +443,10 @@ export class Supervisor {
         return this.handleReminderConsumed(p)
       case 'completion.classify':
         return this.handleCompletionClassify(p)
+      case 'vc-unverified.set':
+        return this.handleVCUnverifiedSet(p)
+      case 'vc-unverified.clear':
+        return this.handleVCUnverifiedClear(p)
       default:
         throw new Error(`Method not found: ${method}`)
     }
@@ -634,6 +638,77 @@ export class Supervisor {
   }
 
   /**
+   * Handle vc-unverified.set IPC from CLI.
+   * Stores unverified state when verify-completion returns non-blocking.
+   * Increments cycleCount from existing state if present.
+   */
+  private async handleVCUnverifiedSet(params: Record<string, unknown> | undefined): Promise<void> {
+    const sessionId = params?.sessionId as string | undefined
+    const classification = params?.classification as { category: string; confidence: number } | undefined
+    const metrics = params?.metrics as { turnCount: number; toolsThisTurn: number } | undefined
+
+    if (!sessionId || !classification || !metrics) {
+      throw new Error('vc-unverified.set requires sessionId, classification, and metrics')
+    }
+
+    const stateDir = path.join(this.projectDir, '.sidekick', 'sessions', sessionId, 'state')
+    await fs.mkdir(stateDir, { recursive: true })
+
+    const statePath = path.join(stateDir, 'vc-unverified.json')
+
+    // Read existing state to increment cycleCount
+    let existingCycleCount = 0
+    try {
+      const existing = await fs.readFile(statePath, 'utf-8')
+      const existingState = JSON.parse(existing) as { cycleCount?: number }
+      existingCycleCount = existingState.cycleCount ?? 0
+    } catch {
+      // File doesn't exist or parse failed - start at 0
+    }
+
+    const newCycleCount = existingCycleCount + 1
+    const state = {
+      hasUnverifiedChanges: true,
+      cycleCount: newCycleCount,
+      setAt: {
+        timestamp: Date.now(),
+        turnCount: metrics.turnCount,
+        toolsThisTurn: metrics.toolsThisTurn,
+        toolCount: 0, // Not tracked in this context
+      },
+      lastClassification: classification,
+    }
+
+    await fs.writeFile(statePath, JSON.stringify(state, null, 2))
+
+    this.logger.debug('Set VC unverified state', { sessionId, classification, cycleCount: newCycleCount })
+  }
+
+  /**
+   * Handle vc-unverified.clear IPC from CLI.
+   * Removes unverified state when verification actually occurs.
+   */
+  private async handleVCUnverifiedClear(params: Record<string, unknown> | undefined): Promise<void> {
+    const sessionId = params?.sessionId as string | undefined
+
+    if (!sessionId) {
+      throw new Error('vc-unverified.clear requires sessionId')
+    }
+
+    const statePath = path.join(this.projectDir, '.sidekick', 'sessions', sessionId, 'state', 'vc-unverified.json')
+
+    try {
+      await fs.unlink(statePath)
+      this.logger.debug('Cleared VC unverified state', { sessionId })
+    } catch (err) {
+      // Ignore ENOENT - file may not exist
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw err
+      }
+    }
+  }
+
+  /**
    * Handle completion.classify IPC from CLI.
    * Classifies the assistant's stopping intent using LLM.
    */
@@ -772,10 +847,20 @@ export class Supervisor {
       } else {
         // Create instrumented provider on-demand
         const stateDir = path.join(paths.projectConfigDir ?? paths.userConfigDir, 'sessions', sessionId, 'state')
+        const defaultProfile = this.configService.llm.profiles[this.configService.llm.defaultProfile]
         const newInstrumented = new InstrumentedLLMProvider(this.llmProvider, {
           sessionId,
           stateDir,
           logger: this.logger,
+          debugDumpEnabled: this.configService.llm.global.debugDumpEnabled,
+          profileParams: defaultProfile
+            ? {
+                profileName: this.configService.llm.defaultProfile,
+                temperature: defaultProfile.temperature,
+                maxTokens: defaultProfile.maxTokens,
+                timeout: defaultProfile.timeout,
+              }
+            : undefined,
         })
         newInstrumented.initialize()
         this.instrumentedProviders.set(sessionId, newInstrumented)
@@ -909,10 +994,20 @@ export class Supervisor {
     let instrumentedProvider = this.instrumentedProviders.get(sessionId)
     if (!instrumentedProvider) {
       const stateDir = path.join(paths.projectConfigDir ?? paths.userConfigDir, 'sessions', sessionId, 'state')
+      const defaultProfile = this.configService.llm.profiles[this.configService.llm.defaultProfile]
       instrumentedProvider = new InstrumentedLLMProvider(this.llmProvider, {
         sessionId,
         stateDir,
         logger: log,
+        debugDumpEnabled: this.configService.llm.global.debugDumpEnabled,
+        profileParams: defaultProfile
+          ? {
+              profileName: this.configService.llm.defaultProfile,
+              temperature: defaultProfile.temperature,
+              maxTokens: defaultProfile.maxTokens,
+              timeout: defaultProfile.timeout,
+            }
+          : undefined,
       })
       instrumentedProvider.initialize()
       this.instrumentedProviders.set(sessionId, instrumentedProvider)
