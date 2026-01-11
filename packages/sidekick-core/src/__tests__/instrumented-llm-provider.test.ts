@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { LLMProvider, LLMRequest, LLMResponse, Logger } from '@sidekick/types'
+import type { LLMProvider, LLMRequest, LLMResponse, Logger, Telemetry } from '@sidekick/types'
 import { InstrumentedLLMProvider } from '../instrumented-llm-provider.js'
 
 // Mock logger
@@ -377,6 +377,155 @@ describe('InstrumentedLLMProvider', () => {
       })
 
       expect(instrumented.id).toBe('my-custom-provider')
+    })
+  })
+
+  describe('telemetry emission', () => {
+    let mockTelemetry: Telemetry
+    let histogramSpy: ReturnType<typeof vi.fn>
+    let incrementSpy: ReturnType<typeof vi.fn>
+
+    beforeEach(() => {
+      histogramSpy = vi.fn()
+      incrementSpy = vi.fn()
+      mockTelemetry = {
+        increment: incrementSpy,
+        gauge: vi.fn(),
+        histogram: histogramSpy,
+      }
+    })
+
+    it('should emit telemetry on successful completion', async () => {
+      const provider = createMockProvider({
+        complete: () =>
+          Promise.resolve({
+            content: 'response',
+            model: 'gpt-4',
+            usage: { inputTokens: 100, outputTokens: 50 },
+            rawResponse: { status: 200, body: '{}' },
+          }),
+      })
+
+      const instrumented = new InstrumentedLLMProvider(provider, {
+        sessionId: 'test-session',
+        stateDir: tempDir,
+        logger,
+        telemetry: mockTelemetry,
+      })
+
+      await instrumented.complete({ messages: [{ role: 'user', content: 'test' }] })
+
+      // Verify duration histogram
+      expect(histogramSpy).toHaveBeenCalledWith(
+        'llm_request_duration',
+        expect.any(Number),
+        'ms',
+        expect.objectContaining({
+          provider: 'test-provider',
+          model: 'gpt-4',
+          success: 'true',
+        })
+      )
+
+      // Verify token histograms
+      expect(histogramSpy).toHaveBeenCalledWith('llm_input_tokens', 100, 'tokens', {
+        provider: 'test-provider',
+        model: 'gpt-4',
+      })
+      expect(histogramSpy).toHaveBeenCalledWith('llm_output_tokens', 50, 'tokens', {
+        provider: 'test-provider',
+        model: 'gpt-4',
+      })
+
+      // No error counter
+      expect(incrementSpy).not.toHaveBeenCalled()
+    })
+
+    it('should emit telemetry on failure', async () => {
+      const provider = createMockProvider({
+        complete: () => Promise.reject(new Error('API error')),
+      })
+
+      const instrumented = new InstrumentedLLMProvider(provider, {
+        sessionId: 'test-session',
+        stateDir: tempDir,
+        logger,
+        telemetry: mockTelemetry,
+      })
+
+      await expect(instrumented.complete({ messages: [{ role: 'user', content: 'test' }] })).rejects.toThrow(
+        'API error'
+      )
+
+      // Verify failure duration histogram
+      expect(histogramSpy).toHaveBeenCalledWith(
+        'llm_request_duration',
+        expect.any(Number),
+        'ms',
+        expect.objectContaining({
+          provider: 'test-provider',
+          success: 'false',
+        })
+      )
+
+      // Verify error counter
+      expect(incrementSpy).toHaveBeenCalledWith('llm_request_errors', {
+        provider: 'test-provider',
+        model: 'unknown',
+        error_type: 'Error',
+      })
+    })
+
+    it('should not emit token metrics when usage is missing', async () => {
+      const provider = createMockProvider({
+        complete: () =>
+          Promise.resolve({
+            content: 'response',
+            model: 'gpt-4',
+            // No usage field
+            rawResponse: { status: 200, body: '{}' },
+          }),
+      })
+
+      const instrumented = new InstrumentedLLMProvider(provider, {
+        sessionId: 'test-session',
+        stateDir: tempDir,
+        logger,
+        telemetry: mockTelemetry,
+      })
+
+      await instrumented.complete({ messages: [{ role: 'user', content: 'test' }] })
+
+      // Duration should be emitted
+      expect(histogramSpy).toHaveBeenCalledWith('llm_request_duration', expect.any(Number), 'ms', expect.any(Object))
+
+      // Token metrics should NOT be emitted
+      expect(histogramSpy).not.toHaveBeenCalledWith(
+        'llm_input_tokens',
+        expect.any(Number),
+        'tokens',
+        expect.any(Object)
+      )
+      expect(histogramSpy).not.toHaveBeenCalledWith(
+        'llm_output_tokens',
+        expect.any(Number),
+        'tokens',
+        expect.any(Object)
+      )
+    })
+
+    it('should work without telemetry configured', async () => {
+      const provider = createMockProvider()
+      const instrumented = new InstrumentedLLMProvider(provider, {
+        sessionId: 'test-session',
+        stateDir: tempDir,
+        logger,
+        // No telemetry
+      })
+
+      // Should not throw
+      const response = await instrumented.complete({ messages: [{ role: 'user', content: 'test' }] })
+      expect(response.content).toBe('test response')
     })
   })
 })

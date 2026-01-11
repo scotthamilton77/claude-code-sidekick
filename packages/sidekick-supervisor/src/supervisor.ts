@@ -34,9 +34,10 @@ import type {
   SupervisorStatus,
   SupervisorContext,
   RuntimePaths,
+  ProfileProviderFactory as ProfileProviderFactoryInterface,
 } from '@sidekick/types'
 import { ProfileProviderFactory, type LLMProvider } from '@sidekick/shared-providers'
-import { InstrumentedLLMProvider } from '@sidekick/core'
+import { InstrumentedLLMProvider, InstrumentedProfileProviderFactory } from '@sidekick/core'
 import { randomBytes } from 'crypto'
 import { homedir } from 'os'
 import fs from 'fs/promises'
@@ -737,6 +738,9 @@ export class Supervisor {
       this.llmProvider = this.profileProviderFactory.createDefault()
     }
 
+    const stateDir = path.join(paths.projectConfigDir ?? paths.userConfigDir, 'sessions', sessionId, 'state')
+    const instrumentedProfileFactory = this.createInstrumentedProfileFactory(sessionId, stateDir)
+
     const stagingService = this.serviceFactory.getStagingService(sessionId)
     const transcriptService = await this.serviceFactory.prepareTranscriptService(sessionId, resolvedTranscriptPath)
     await transcriptService.start()
@@ -766,7 +770,7 @@ export class Supervisor {
       paths,
       handlers: this.handlerRegistry,
       llm: this.llmProvider,
-      profileFactory: this.profileProviderFactory,
+      profileFactory: instrumentedProfileFactory,
       staging: stagingService,
       transcript: transcriptService,
     }
@@ -815,6 +819,22 @@ export class Supervisor {
   }
 
   /**
+   * Create an instrumented profile factory for a session.
+   * All providers created through this factory will be wrapped with instrumentation.
+   *
+   * @param sessionId - Session ID for metrics tracking
+   * @param stateDir - Path to session state directory
+   */
+  private createInstrumentedProfileFactory(sessionId: string, stateDir: string): InstrumentedProfileProviderFactory {
+    return new InstrumentedProfileProviderFactory(this.profileProviderFactory, this.configService, {
+      sessionId,
+      stateDir,
+      logger: this.logger,
+      debugDumpEnabled: this.configService.llm.global.debugDumpEnabled,
+    })
+  }
+
+  /**
    * Get SupervisorContext for task execution.
    *
    * Used by TaskEngine to provide context to task handlers.
@@ -837,16 +857,18 @@ export class Supervisor {
       this.llmProvider = this.profileProviderFactory.createDefault()
     }
 
-    // Get the appropriate LLM provider
+    // Get the appropriate LLM provider and profile factory
     let llmProvider: LLMProvider = this.llmProvider
+    let profileFactory: ProfileProviderFactoryInterface = this.profileProviderFactory
     if (sessionId) {
+      const stateDir = path.join(paths.projectConfigDir ?? paths.userConfigDir, 'sessions', sessionId, 'state')
+
       // Try to get existing instrumented provider for this session
       const instrumented = this.instrumentedProviders.get(sessionId)
       if (instrumented) {
         llmProvider = instrumented
       } else {
         // Create instrumented provider on-demand
-        const stateDir = path.join(paths.projectConfigDir ?? paths.userConfigDir, 'sessions', sessionId, 'state')
         const defaultProfile = this.configService.llm.profiles[this.configService.llm.defaultProfile]
         const newInstrumented = new InstrumentedLLMProvider(this.llmProvider, {
           sessionId,
@@ -867,6 +889,9 @@ export class Supervisor {
         this.logger.debug('Created instrumented LLM provider for task', { sessionId })
         llmProvider = newInstrumented
       }
+
+      // Create instrumented profile factory for this session
+      profileFactory = this.createInstrumentedProfileFactory(sessionId, stateDir)
     }
 
     // Get staging service if sessionId provided, otherwise use a no-op stub
@@ -948,7 +973,7 @@ export class Supervisor {
       paths,
       handlers: this.handlerRegistry,
       llm: llmProvider,
-      profileFactory: this.profileProviderFactory,
+      profileFactory,
       staging: stagingService,
       transcript: transcriptService,
     }
@@ -990,10 +1015,12 @@ export class Supervisor {
       this.llmProvider = this.profileProviderFactory.createDefault()
     }
 
+    // Compute state directory for this session (used by instrumented providers)
+    const stateDir = path.join(paths.projectConfigDir ?? paths.userConfigDir, 'sessions', sessionId, 'state')
+
     // Get or create instrumented provider for this session (tracks metrics per-session)
     let instrumentedProvider = this.instrumentedProviders.get(sessionId)
     if (!instrumentedProvider) {
-      const stateDir = path.join(paths.projectConfigDir ?? paths.userConfigDir, 'sessions', sessionId, 'state')
       const defaultProfile = this.configService.llm.profiles[this.configService.llm.defaultProfile]
       instrumentedProvider = new InstrumentedLLMProvider(this.llmProvider, {
         sessionId,
@@ -1013,6 +1040,9 @@ export class Supervisor {
       this.instrumentedProviders.set(sessionId, instrumentedProvider)
       log.debug('Created instrumented LLM provider for session')
     }
+
+    // Create instrumented profile factory for this session
+    const instrumentedProfileFactory = this.createInstrumentedProfileFactory(sessionId, stateDir)
 
     // Get staging service (doesn't trigger transcript events)
     const stagingService = this.serviceFactory.getStagingService(sessionId)
@@ -1043,7 +1073,7 @@ export class Supervisor {
       paths,
       handlers: this.handlerRegistry,
       llm: instrumentedProvider,
-      profileFactory: this.profileProviderFactory,
+      profileFactory: instrumentedProfileFactory,
       staging: stagingService,
       transcript: transcriptService,
     }

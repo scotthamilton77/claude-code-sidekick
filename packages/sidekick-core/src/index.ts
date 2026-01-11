@@ -131,6 +131,7 @@ export {
 } from './transcript-service'
 export { ServiceFactoryImpl, type ServiceFactoryOptions } from './service-factory'
 export { InstrumentedLLMProvider, type InstrumentedLLMProviderConfig } from './instrumented-llm-provider'
+export { InstrumentedProfileProviderFactory, type InstrumentationConfig } from './instrumented-profile-factory'
 export { createHookableLogger, type LogHook, type HookableLoggerOptions } from './hookable-logger'
 
 // Note: LLMService should be imported directly from '@sidekick/shared-providers'
