@@ -100,7 +100,7 @@ export interface CompletionClassification {
  */
 export interface LlmSubFeatureConfig {
   profile: string
-  fallbackProfile?: string
+  fallback_profile?: string
 }
 
 /**
@@ -108,7 +108,7 @@ export interface LlmSubFeatureConfig {
  */
 export interface CompletionDetectionSettings {
   enabled: boolean
-  confidenceThreshold: number
+  confidence_threshold: number
   llm?: LlmSubFeatureConfig
 }
 
@@ -117,8 +117,8 @@ export interface CompletionDetectionSettings {
  */
 export const DEFAULT_COMPLETION_DETECTION_SETTINGS: CompletionDetectionSettings = {
   enabled: true,
-  confidenceThreshold: 0.7,
-  llm: { profile: 'fast-lite', fallbackProfile: 'cheap-fallback' },
+  confidence_threshold: 0.7,
+  llm: { profile: 'fast-lite', fallback_profile: 'cheap-fallback' },
 }
 
 /**

@@ -327,7 +327,7 @@ Stop hook fires with verify-completion staged
 
 #### 5.6.3 Confidence Threshold
 
-The classifier returns a confidence score (0.0-1.0). Only `CLAIMING_COMPLETION` classifications with confidence ≥ `confidenceThreshold` (default: 0.7) trigger blocking behavior.
+The classifier returns a confidence score (0.0-1.0). Only `CLAIMING_COMPLETION` classifications with confidence ≥ `confidence_threshold` (default: 0.7) trigger blocking behavior.
 
 | Confidence | Interpretation |
 |------------|----------------|
