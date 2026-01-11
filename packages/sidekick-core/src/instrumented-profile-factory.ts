@@ -84,6 +84,8 @@ export class InstrumentedProfileProviderFactory implements ProfileProviderFactor
     const profileParams: LLMProfileParams | undefined = profile
       ? {
           profileName: profileId,
+          provider: profile.provider,
+          model: profile.model,
           temperature: profile.temperature,
           maxTokens: profile.maxTokens,
           timeout: profile.timeout,

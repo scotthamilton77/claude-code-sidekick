@@ -40,10 +40,30 @@ const STATE_FILE = 'llm-metrics.json'
 const DEFAULT_DEBOUNCE_MS = 500
 
 /**
+ * Duck-typed interface matching FallbackProvider's tracking properties.
+ * Used to detect fallback usage without creating a dependency on shared-providers.
+ */
+interface FallbackTrackingProvider {
+  fallbackWasUsed: boolean
+  lastUsedProviderId: string | null
+}
+
+function hasFallbackTracking(provider: unknown): provider is FallbackTrackingProvider {
+  return (
+    typeof provider === 'object' &&
+    provider !== null &&
+    'fallbackWasUsed' in provider &&
+    'lastUsedProviderId' in provider
+  )
+}
+
+/**
  * LLM profile parameters for debug dump logging
  */
 export interface LLMProfileParams {
   profileName?: string
+  provider?: string
+  model?: string
   temperature?: number
   maxTokens?: number
   timeout?: number
@@ -156,7 +176,7 @@ export class InstrumentedLLMProvider implements LLMProvider {
 
   /**
    * Write debug dump files for LLM request/response.
-   * Creates files in: {stateDir}/../llm-debug/{provider}/{model}/
+   * Creates files in: {stateDir}/../llm-debug/
    */
   private writeDebugDump(
     request: LLMRequest,
@@ -169,12 +189,20 @@ export class InstrumentedLLMProvider implements LLMProvider {
     }
 
     try {
-      const model = request.model ?? 'unknown'
-      // Sanitize model name for filesystem (replace / with -)
-      const safeModel = model.replace(/\//g, '-')
-      // Write to sibling of state dir: sessions/{id}/llm-debug/ instead of sessions/{id}/state/
+      // Determine actual provider display
+      // Use profile params provider, with fallback detection
+      let providerDisplay = this.config.profileParams?.provider ?? this.delegate.id
+      if (hasFallbackTracking(this.delegate) && this.delegate.fallbackWasUsed) {
+        providerDisplay = `${this.delegate.lastUsedProviderId} (fallback used)`
+      }
+
+      // Use model from profile config, then response, then request, then 'unknown'
+      const model =
+        this.config.profileParams?.model ?? response?.model ?? request.model ?? 'unknown'
+
+      // Write to sibling of state dir: sessions/{id}/llm-debug/ (flattened, no subdirs)
       const sessionDir = dirname(this.config.stateDir)
-      const debugDir = join(sessionDir, 'llm-debug', this.delegate.id, safeModel)
+      const debugDir = join(sessionDir, 'llm-debug')
 
       if (!existsSync(debugDir)) {
         mkdirSync(debugDir, { recursive: true })
@@ -187,7 +215,7 @@ export class InstrumentedLLMProvider implements LLMProvider {
       writeFileSync(
         `${basePath}-request.yaml`,
         YAML.stringify({
-          provider: this.delegate.id,
+          provider: providerDisplay,
           model,
           sessionId: this.config.sessionId,
           timestamp: new Date().toISOString(),
@@ -208,7 +236,7 @@ export class InstrumentedLLMProvider implements LLMProvider {
       writeFileSync(
         `${basePath}-response.yaml`,
         YAML.stringify({
-          provider: this.delegate.id,
+          provider: providerDisplay,
           model,
           sessionId: this.config.sessionId,
           timestamp: new Date().toISOString(),
