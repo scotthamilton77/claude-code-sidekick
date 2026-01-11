@@ -210,7 +210,7 @@ export async function classifyCompletion(options: ClassifyCompletionOptions): Pr
 
   // Get LLM provider from settings
   const llmConfig = settings.llm ?? DEFAULT_COMPLETION_DETECTION_SETTINGS.llm!
-  const provider = ctx.profileFactory.createForProfile(llmConfig.profile, llmConfig.fallbackProfile)
+  const provider = ctx.profileFactory.createForProfile(llmConfig.profile, llmConfig.fallback_profile)
 
   try {
     const response = await provider.complete({
@@ -236,7 +236,7 @@ export async function classifyCompletion(options: ClassifyCompletionOptions): Pr
 
     // Determine action based on classification
     const shouldBlock =
-      classification.category === 'CLAIMING_COMPLETION' && classification.confidence >= settings.confidenceThreshold
+      classification.category === 'CLAIMING_COMPLETION' && classification.confidence >= settings.confidence_threshold
 
     // Determine user message for non-blocking cases
     let userMessage: string | undefined

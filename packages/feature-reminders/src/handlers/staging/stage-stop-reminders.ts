@@ -20,7 +20,6 @@ export function registerStageStopReminders(context: RuntimeContext): void {
 
       // Check if this is a file edit tool
       const toolName = event.payload.toolName
-      ctx.logger.debug('stage-stop-reminders: checking tool', { toolName, isEditTool: toolName ? FILE_EDIT_TOOLS.includes(toolName) : false })
       if (!toolName || !FILE_EDIT_TOOLS.includes(toolName)) return undefined
 
       // Get config for source code pattern filtering
@@ -30,12 +29,10 @@ export function registerStageStopReminders(context: RuntimeContext): void {
       // Extract file path from tool input
       const entry = event.payload.entry as { input?: { file_path?: string } }
       const filePath = entry?.input?.file_path
-      ctx.logger.debug('stage-stop-reminders: checking file path', { filePath, hasEntry: !!entry, hasInput: !!entry?.input })
       if (!filePath) return undefined
 
       // Check if file path matches any configured source code patterns
       const isMatch = picomatch.isMatch(filePath, config.source_code_patterns)
-      ctx.logger.debug('stage-stop-reminders: pattern match', { filePath, isMatch, patternCount: config.source_code_patterns.length })
       if (!isMatch) return undefined
 
       const metrics = event.metadata.metrics
