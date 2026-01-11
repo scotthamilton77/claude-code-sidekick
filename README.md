@@ -12,7 +12,6 @@ This repository serves as a development and testing environment for [Claude Code
 
 ### Sidekick
 
-- xml prompt structuring - see https://x.com/ChrisLaubAI/status/2008479874881872383
 - stop prompt enhancement: can we assess whether the agent is claiming completion or stopping to give an update or user instructions?
 ```
 Now hit enter - you should see a debug line in stderr showing whether projectStateDir is set or null.
@@ -21,6 +20,7 @@ Now hit enter - you should see a debug line in stderr showing whether projectSta
 - naming inconsistency: sidekick vs. supervisor; and sidekick vs. CLI - need consistency across docs, source, state files, folders, etc.
 - finish ROADMAP.md
 - finish PLAN.MD (executing ARCH.md)
+- need to improve overall session title/purpose - llm has a tendency to drift; maybe a history of the titles and intents?
 - can we be resilient to json file errors?  I just ran into a case of the session-summary.json being generated with trash after the last } which made it unreadable
 - allow for different personalities - either explicit at install time or random per project or random per session or just random
   - moods: cynical, sarcastic, snarky, nerdy, arrogant, moody
