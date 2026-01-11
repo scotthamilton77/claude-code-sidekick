@@ -11,6 +11,20 @@ import type { Logger, LLMProvider, LLMRequest, LLMResponse } from '@sidekick/typ
 export class FallbackProvider implements LLMProvider {
   readonly id = 'fallback-wrapper'
 
+  // Track last request results for instrumentation
+  private _lastUsedProviderId: string | null = null
+  private _fallbackWasUsed: boolean = false
+
+  /** The provider ID that handled the last request (primary or fallback) */
+  get lastUsedProviderId(): string | null {
+    return this._lastUsedProviderId
+  }
+
+  /** Whether a fallback provider was used for the last request */
+  get fallbackWasUsed(): boolean {
+    return this._fallbackWasUsed
+  }
+
   constructor(
     private readonly primary: LLMProvider,
     private readonly fallbacks: LLMProvider[],
@@ -23,10 +37,16 @@ export class FallbackProvider implements LLMProvider {
   }
 
   async complete(request: LLMRequest): Promise<LLMResponse> {
+    // Reset tracking state for new request
+    this._fallbackWasUsed = false
+    this._lastUsedProviderId = null
+
     let primaryError: Error | undefined
 
     try {
-      return await this.primary.complete(request)
+      const response = await this.primary.complete(request)
+      this._lastUsedProviderId = this.primary.id
+      return response
     } catch (err) {
       primaryError = err as Error
       this.logger.warn('Primary provider failed, attempting fallback', {
@@ -38,7 +58,10 @@ export class FallbackProvider implements LLMProvider {
     for (const fallback of this.fallbacks) {
       try {
         this.logger.info('Trying fallback provider', { provider: fallback.id })
-        return await fallback.complete(request)
+        const response = await fallback.complete(request)
+        this._lastUsedProviderId = fallback.id
+        this._fallbackWasUsed = true
+        return response
       } catch (err) {
         this.logger.warn('Fallback provider failed', {
           provider: fallback.id,
