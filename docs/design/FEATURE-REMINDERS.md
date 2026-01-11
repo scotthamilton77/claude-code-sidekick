@@ -247,9 +247,10 @@ The verify-completion reminder is unstaged in two scenarios:
 **Consumption** (CLI, HookEvent: Stop):
 
 1. `InjectStopReminders` finds pending reminder
-2. Returns `{ blocking: true, reason: reminder.reason }`
-3. Renames file with timestamp suffix (preserves consumption history)
-4. If consuming `verify-completion`:
+2. **Smart Completion Detection** (see §5.6): Classifies the assistant's stopping intent
+3. Based on classification, either blocks with verification checklist or allows with softer message
+4. Renames file with timestamp suffix (preserves consumption history)
+5. If consuming `verify-completion`:
    - Deletes any staged `pause-and-reflect` (prevents cascade)
    - Sends `reminder.consumed` IPC to Supervisor (resets P&R baseline)
 
@@ -294,6 +295,58 @@ interface PRBaselineState {
 ```
 
 The P&R staging handler reads this file and adjusts its threshold calculation accordingly. The baseline is cleared on `UserPromptSubmit` (new turn).
+
+### 5.6 Smart Completion Detection
+
+When the `verify-completion` reminder is consumed, the system uses an LLM to classify the assistant's stopping intent. This prevents unnecessary blocking when the assistant is asking a question or providing an informational answer rather than claiming task completion.
+
+#### 5.6.1 Classification Categories
+
+| Category | Behavior | Example Signals |
+|----------|----------|-----------------|
+| `CLAIMING_COMPLETION` | **Block** with verification checklist | "I've completed...", "All done!", "The fix is in place" |
+| `ASKING_QUESTION` | **Silent** (no interruption) | "What would you prefer?", "Should I...", "Which approach?" |
+| `ANSWERING_QUESTION` | **Silent** (no interruption) | Explaining code, describing architecture, providing analysis |
+| `OTHER` | **Soft message**: "Agent's work may be incomplete" | Progress updates, presenting proposals, reporting blockers |
+
+#### 5.6.2 Classification Flow
+
+```
+Stop hook fires with verify-completion staged
+  → Extract last user prompt and assistant message from transcript
+  → Filter out system-generated content (warmup, slash commands, meta entries)
+  → Send to LLM with completion-classifier prompt
+  → Parse JSON response { category, confidence, reasoning }
+  → If category=CLAIMING_COMPLETION AND confidence >= threshold:
+      → Block with verification checklist (existing behavior)
+  → Else if category=OTHER:
+      → Allow stop, show user message "Agent's work may be incomplete"
+  → Else (ASKING_QUESTION, ANSWERING_QUESTION):
+      → Allow stop silently (no interruption)
+```
+
+#### 5.6.3 Confidence Threshold
+
+The classifier returns a confidence score (0.0-1.0). Only `CLAIMING_COMPLETION` classifications with confidence ≥ `confidenceThreshold` (default: 0.7) trigger blocking behavior.
+
+| Confidence | Interpretation |
+|------------|----------------|
+| > 0.8 | High confidence—clear, unambiguous signals |
+| 0.5-0.8 | Medium confidence—some ambiguity but leans toward category |
+| < 0.5 | Low confidence—highly ambiguous, could fit multiple categories |
+
+**Conservative Default**: The classifier prompt instructs the LLM to be conservative—when ambiguous between `CLAIMING_COMPLETION` and another category, it should choose the other. This minimizes false-positive blocks.
+
+#### 5.6.4 Fallback Behavior
+
+If classification fails (LLM error, parse failure, disabled), the system defaults to **blocking**. This ensures safety—it's better to ask for verification when uncertain than to let incomplete work pass.
+
+#### 5.6.5 Implementation
+
+- **Classifier Module**: `packages/feature-reminders/src/completion-classifier.ts`
+- **Prompt Template**: `assets/sidekick/prompts/completion-classifier.prompt.txt`
+- **JSON Schema**: `assets/sidekick/schemas/completion-classifier.schema.json`
+- **LLM Profile**: Uses `fast-lite` profile by default (cheap, fast models like `haiku`)
 
 ## 6. CLI Consumption Handler Factory
 
@@ -404,7 +457,12 @@ Configuration cascades from defaults to user overrides:
 | Key                          | Default | Description                                       |
 | :--------------------------- | :------ | :------------------------------------------------ |
 | `reminders.enabled`          | `true`  | Master switch for the feature                     |
-| `reminders.pause_and_reflect_threshold`  | `15`    | Tools per turn before "pause and reflect" reminder |
+| `reminders.pause_and_reflect_threshold`  | `40`    | Tools per turn before "pause and reflect" reminder |
+| `reminders.source_code_patterns` | See §8.2 | Glob patterns for files that trigger verify-completion |
+| `reminders.completion_detection.enabled` | `true` | Enable smart completion detection (LLM classification) |
+| `reminders.completion_detection.confidence_threshold` | `0.7` | Minimum confidence to treat as claiming completion |
+| `reminders.completion_detection.llm.profile` | `fast-lite` | LLM profile for classification |
+| `reminders.completion_detection.llm.fallback_profile` | `cheap-fallback` | Fallback profile if primary fails |
 
 ### 8.1 Reminder Definitions (YAML)
 
@@ -460,6 +518,59 @@ reason: Checkpoint - {{toolsThisTurn}} tools used this turn
 | `user-prompt-submit` | 10               | UserPromptSubmit |
 | `pause-and-reflect`  | 80               | PreToolUse       |
 | `verify-completion`  | 50               | Stop             |
+
+### 8.2 Source Code Patterns
+
+The `source_code_patterns` configuration determines which file edits trigger the `verify-completion` reminder. Uses [picomatch](https://github.com/micromatch/picomatch) glob syntax.
+
+**Default patterns** (defined in `assets/sidekick/defaults/features/reminders.defaults.yaml`):
+
+```yaml
+source_code_patterns:
+  # TypeScript/JavaScript
+  - "**/*.ts"
+  - "**/*.tsx"
+  - "**/*.js"
+  - "**/*.jsx"
+  # Python, Go, Rust, etc.
+  - "**/*.py"
+  - "**/*.go"
+  - "**/*.rs"
+  # Config files
+  - "**/*.yaml"
+  - "**/*.yml"
+  - "**/package.json"
+  - "**/Dockerfile"
+  # ... and more (see defaults file for full list)
+```
+
+**Note**: Documentation files (`*.md`) are intentionally excluded to reduce noise when the assistant is only updating docs.
+
+### 8.3 Smart Completion Detection Configuration
+
+The `completion_detection` settings control the LLM-based classification of stopping intent (see §5.6):
+
+```yaml
+reminders:
+  settings:
+    completion_detection:
+      # Disable to always block on verify-completion (pre-5.6 behavior)
+      enabled: true
+
+      # Higher = more conservative (blocks less often)
+      # 0.7 means: only block if LLM is >70% confident it's CLAIMING_COMPLETION
+      confidence_threshold: 0.7
+
+      # LLM profile selection (fast, cheap models recommended)
+      llm:
+        profile: fast-lite          # Primary profile
+        fallback_profile: cheap-fallback  # Used if primary fails
+```
+
+**When to adjust**:
+- **Lower threshold** (0.5): Block more often—use if agents frequently skip verification
+- **Higher threshold** (0.9): Block rarely—use if blocking feels intrusive
+- **Disable**: Set `enabled: false` to always block on verify-completion (original behavior)
 
 ## 9. Integration Points
 
