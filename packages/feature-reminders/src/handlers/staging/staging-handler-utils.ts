@@ -59,6 +59,11 @@ export function createStagingHandler(context: RuntimeContext, config: StagingHan
   const handler: EventHandler = async (event: SidekickEvent, ctx: HandlerContext) => {
     if (!isSupervisorContext(ctx as unknown as RuntimeContext)) return
 
+    // Skip staging during bulk transcript reconstruction - staging is a live operation
+    // that shouldn't be triggered by historical event replay. Handlers for
+    // BulkProcessingComplete can stage reminders needed after reconstruction.
+    if (isTranscriptEvent(event) && event.metadata.isBulkProcessing) return
+
     const supervisorCtx = ctx as unknown as SupervisorContext
     const action = await execute(event, supervisorCtx)
 
