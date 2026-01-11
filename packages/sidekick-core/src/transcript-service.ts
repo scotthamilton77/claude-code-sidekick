@@ -513,44 +513,23 @@ export class TranscriptServiceImpl implements TranscriptService {
         startLine = Math.max(0, totalLines - maxLines)
       }
 
-      // Extract and format lines
+      // Extract lines for formatting
       const excerpt = lines.slice(startLine, endLine)
+
+      // Collect UUIDs from excerpt to identify internal summary references
+      const knownUuids = new Set<string>()
+      for (const line of excerpt) {
+        const uuid = this.parseUuid(line)
+        if (uuid) knownUuids.add(uuid)
+      }
+
+      // Format each line based on entry type
       const formatted = excerpt
-        .map((line) => {
-          try {
-            const entry = JSON.parse(line) as {
-              type?: string
-              name?: string
-              content?: string
-              thinking?: string
-              message?: { content?: string }
-            }
-            const entryType = entry.type ?? 'unknown'
-            if (entryType === 'user') {
-              return `[USER]: ${entry.message?.content ?? entry.content ?? JSON.stringify(entry)}`
-            } else if (entryType === 'assistant') {
-              return `[ASSISTANT]: ${entry.message?.content ?? entry.content ?? '(tool use)'}`
-            } else if (entryType === 'thinking') {
-              // Skip thinking unless explicitly included
-              if (!includeAssistantThinking) return null
-              const thinkingContent = entry.thinking ?? entry.content ?? ''
-              return `[THINKING]: ${String(thinkingContent)}`
-            } else if (entryType === 'tool_use') {
-              // Skip tool messages if not included
-              if (!includeToolMessages) return null
-              return `[TOOL]: ${entry.name ?? 'unknown'}`
-            } else if (entryType === 'tool_result') {
-              // Skip tool messages if not included
-              if (!includeToolMessages) return null
-              return includeToolOutputs
-                ? `[RESULT]: ${JSON.stringify(entry).slice(0, 500)}`
-                : '[RESULT]: (output omitted)'
-            }
-            return `[${entryType.toUpperCase()}]: ${JSON.stringify(entry).slice(0, 100)}`
-          } catch {
-            return line.slice(0, 200)
-          }
-        })
+        .map((line) => this.formatExcerptLine(line, knownUuids, {
+          includeToolMessages,
+          includeToolOutputs,
+          includeAssistantThinking,
+        }))
         .filter((line): line is string => line !== null)
         .join('\n')
 
@@ -572,6 +551,83 @@ export class TranscriptServiceImpl implements TranscriptService {
         endLine: 0,
         bookmarkApplied: false,
       }
+    }
+  }
+
+  /**
+   * Safely parse UUID from a JSON line, returning null on failure.
+   */
+  private parseUuid(line: string): string | null {
+    try {
+      const entry = JSON.parse(line) as { uuid?: string }
+      return entry.uuid ?? null
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Format a single excerpt line based on entry type.
+   * Returns null for lines that should be filtered out.
+   */
+  private formatExcerptLine(
+    line: string,
+    knownUuids: Set<string>,
+    options: {
+      includeToolMessages: boolean
+      includeToolOutputs: boolean
+      includeAssistantThinking: boolean
+    }
+  ): string | null {
+    try {
+      const entry = JSON.parse(line) as {
+        type?: string
+        name?: string
+        content?: string
+        thinking?: string
+        summary?: string
+        leafUuid?: string
+        message?: { content?: string }
+      }
+
+      const entryType = entry.type ?? 'unknown'
+      const messageContent = entry.message?.content ?? entry.content
+
+      switch (entryType) {
+        case 'user':
+          return `[USER]: ${messageContent ?? JSON.stringify(entry)}`
+
+        case 'assistant':
+          return `[ASSISTANT]: ${messageContent ?? '(tool use)'}`
+
+        case 'thinking':
+          if (!options.includeAssistantThinking) return null
+          return `[THINKING]: ${String(entry.thinking ?? entry.content ?? '')}`
+
+        case 'tool_use':
+          if (!options.includeToolMessages) return null
+          return `[TOOL]: ${entry.name ?? 'unknown'}`
+
+        case 'tool_result':
+          if (!options.includeToolMessages) return null
+          if (options.includeToolOutputs) {
+            return `[RESULT]: ${JSON.stringify(entry).slice(0, 500)}`
+          }
+          return '[RESULT]: (output omitted)'
+
+        case 'summary':
+          // Include only summaries that reference entries within this excerpt
+          // Skip if: no leafUuid (unverifiable) or leafUuid not in excerpt (external)
+          if (!entry.leafUuid || !knownUuids.has(entry.leafUuid)) {
+            return null
+          }
+          return `[SESSION_HINT]: ${entry.summary ?? ''}`
+
+        default:
+          return `[${entryType.toUpperCase()}]: ${JSON.stringify(entry).slice(0, 100)}`
+      }
+    } catch {
+      return line.slice(0, 200)
     }
   }
 

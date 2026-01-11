@@ -1264,13 +1264,14 @@ describe('TranscriptServiceImpl', () => {
       })
 
       it('handles unknown entry types', async () => {
-        const transcript = [JSON.stringify({ type: 'summary', data: { foo: 'bar' } })].join('\n')
+        // Use a truly unknown type (not summary, which is handled specially)
+        const transcript = [JSON.stringify({ type: 'custom_unknown_type', data: { foo: 'bar' } })].join('\n')
         writeFileSync(transcriptPath, transcript)
         await service.initialize('test-session', transcriptPath)
 
         const excerpt = service.getExcerpt({})
 
-        expect(excerpt.content).toContain('[SUMMARY]:')
+        expect(excerpt.content).toContain('[CUSTOM_UNKNOWN_TYPE]:')
       })
 
       it('handles malformed JSON lines gracefully', async () => {
@@ -1332,6 +1333,139 @@ describe('TranscriptServiceImpl', () => {
         expect(excerpt.lineCount).toBe(0)
         expect(excerpt.bookmarkApplied).toBe(false)
         expect(logger.error).toHaveBeenCalledWith('Failed to extract transcript excerpt', expect.any(Object))
+      })
+    })
+
+    describe('summary entry filtering', () => {
+      it('skips external summary entries (leafUuid not in file)', async () => {
+        // External summary references a UUID not in this file
+        const transcript = [
+          JSON.stringify({
+            type: 'summary',
+            summary: 'Context from another session',
+            leafUuid: 'external-uuid-not-in-file',
+          }),
+          JSON.stringify({
+            type: 'user',
+            uuid: 'user-uuid-1',
+            message: { role: 'user', content: 'Hello' },
+          }),
+        ].join('\n')
+        writeFileSync(transcriptPath, transcript)
+        await service.initialize('test-session', transcriptPath)
+
+        const excerpt = service.getExcerpt({})
+
+        // External summary should be skipped entirely
+        expect(excerpt.content).not.toContain('Context from another session')
+        expect(excerpt.content).not.toContain('[SUMMARY]')
+        // User message should still be present
+        expect(excerpt.content).toContain('[USER]:')
+        expect(excerpt.content).toContain('Hello')
+      })
+
+      it('includes internal summary entries as session hints (leafUuid in file)', async () => {
+        // Internal summary references a UUID that exists in this file
+        const transcript = [
+          JSON.stringify({
+            type: 'user',
+            uuid: 'user-uuid-1',
+            message: { role: 'user', content: 'First message' },
+          }),
+          JSON.stringify({
+            type: 'assistant',
+            uuid: 'assistant-uuid-1',
+            message: { role: 'assistant', content: 'Response' },
+          }),
+          JSON.stringify({
+            type: 'summary',
+            summary: 'Discussion about first topic',
+            leafUuid: 'user-uuid-1', // References UUID in this file
+          }),
+          JSON.stringify({
+            type: 'user',
+            uuid: 'user-uuid-2',
+            message: { role: 'user', content: 'Second message' },
+          }),
+        ].join('\n')
+        writeFileSync(transcriptPath, transcript)
+        await service.initialize('test-session', transcriptPath)
+
+        const excerpt = service.getExcerpt({})
+
+        // Internal summary should be included as a session hint
+        expect(excerpt.content).toContain('[SESSION_HINT]:')
+        expect(excerpt.content).toContain('Discussion about first topic')
+        // Other messages should still be present
+        expect(excerpt.content).toContain('First message')
+        expect(excerpt.content).toContain('Second message')
+      })
+
+      it('handles multiple summaries with mixed internal/external references', async () => {
+        const transcript = [
+          JSON.stringify({
+            type: 'summary',
+            summary: 'External context 1',
+            leafUuid: 'external-1',
+          }),
+          JSON.stringify({
+            type: 'summary',
+            summary: 'External context 2',
+            leafUuid: 'external-2',
+          }),
+          JSON.stringify({
+            type: 'user',
+            uuid: 'user-1',
+            message: { role: 'user', content: 'User message' },
+          }),
+          JSON.stringify({
+            type: 'summary',
+            summary: 'Internal hint about user message',
+            leafUuid: 'user-1', // References user-1 which is in file
+          }),
+          JSON.stringify({
+            type: 'assistant',
+            uuid: 'assistant-1',
+            message: { role: 'assistant', content: 'Assistant response' },
+          }),
+        ].join('\n')
+        writeFileSync(transcriptPath, transcript)
+        await service.initialize('test-session', transcriptPath)
+
+        const excerpt = service.getExcerpt({})
+
+        // External summaries should be skipped
+        expect(excerpt.content).not.toContain('External context 1')
+        expect(excerpt.content).not.toContain('External context 2')
+        // Internal summary should be included
+        expect(excerpt.content).toContain('[SESSION_HINT]:')
+        expect(excerpt.content).toContain('Internal hint about user message')
+        // Regular messages present
+        expect(excerpt.content).toContain('[USER]:')
+        expect(excerpt.content).toContain('[ASSISTANT]:')
+      })
+
+      it('skips summary entries without leafUuid', async () => {
+        const transcript = [
+          JSON.stringify({
+            type: 'summary',
+            summary: 'Summary without leafUuid',
+            // No leafUuid field
+          }),
+          JSON.stringify({
+            type: 'user',
+            uuid: 'user-1',
+            message: { role: 'user', content: 'Hello' },
+          }),
+        ].join('\n')
+        writeFileSync(transcriptPath, transcript)
+        await service.initialize('test-session', transcriptPath)
+
+        const excerpt = service.getExcerpt({})
+
+        // Summary without leafUuid should be skipped (can't verify it's internal)
+        expect(excerpt.content).not.toContain('Summary without leafUuid')
+        expect(excerpt.content).toContain('[USER]:')
       })
     })
   })
