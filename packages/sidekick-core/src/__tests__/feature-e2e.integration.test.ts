@@ -55,6 +55,31 @@ function cleanupTestDir(dir: string): void {
 // Test data path - relative to monorepo root when running from package dir
 const TEST_DATA_DIR = join(process.cwd(), '../../test-data/transcripts')
 
+// Required fixture files for this test suite
+const REQUIRED_FIXTURES = ['medium-003.jsonl', 'long-001.jsonl', 'short-003.jsonl', 'short-002.jsonl']
+
+/**
+ * Check and log fixture availability on test suite initialization.
+ * CI systems should see this warning prominently if fixtures are missing.
+ */
+function checkFixtureAvailability(): void {
+  const missing: string[] = []
+  for (const fixture of REQUIRED_FIXTURES) {
+    if (!existsSync(join(TEST_DATA_DIR, fixture))) {
+      missing.push(fixture)
+    }
+  }
+  if (missing.length > 0) {
+    console.warn(
+      `\n[E2E TEST FIXTURES MISSING] The following transcript fixtures are missing: ${missing.join(', ')}\n` +
+        `Some E2E integration tests will be skipped.\n` +
+        `Expected location: ${TEST_DATA_DIR}\n`
+    )
+  }
+}
+
+checkFixtureAvailability()
+
 // ============================================================================
 // Reminder Configuration Constants (mirrors feature-reminders/types.ts)
 // ============================================================================
@@ -210,8 +235,15 @@ describe('Feature E2E: Reminders with Real Transcripts', () => {
         expect(metrics.toolCount).toBeGreaterThan(0)
         expect(metrics.lastProcessedLine).toBeGreaterThan(0)
 
-        // Note: Threshold-based staging is tested deterministically in
-        // "Feature E2E: Threshold Logic with Synthetic Data" suite
+        // Verify reminder staging behavior when threshold is met
+        // medium-003.jsonl typically has enough tools to trigger pause-and-reflect
+        // If threshold was met, verify staging occurred; otherwise verify it didn't
+        const stagedReminders = await ctx.stagingService.listReminders('PreToolUse')
+        if (metrics.toolsThisTurn >= REMINDER_THRESHOLDS.pause_and_reflect_threshold) {
+          expect(stagedReminders.length).toBeGreaterThan(0)
+          expect(stagedReminders.some((r) => r.name === REMINDER_IDS.PAUSE_AND_REFLECT)).toBe(true)
+        }
+        // Note: If threshold not met, no reminder should be staged - that's valid behavior
       }
     )
 

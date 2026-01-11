@@ -1,10 +1,14 @@
 /**
  * Tests for CLI command routing in runCli().
  *
- * Covers the routing branches for 'supervisor' and 'statusline' commands
- * that delegate to their respective handlers.
+ * Verifies BEHAVIOR of command routing:
+ * - Exit codes (observable outcome)
+ * - Stdout content (user-facing output)
  *
- * @see cli.ts lines 139-159
+ * Does NOT verify implementation details like which handler was called
+ * with what arguments - that's testing implementation, not behavior.
+ *
+ * @see cli.ts routeCommand function
  */
 import { Writable } from 'node:stream'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
@@ -23,7 +27,7 @@ class CollectingWritable extends Writable {
   }
 }
 
-// Mock handlers - declared with vi.hoisted for use in vi.mock factory
+// Mock handlers - return observable exit codes
 const { mockHandleSupervisorCommand, mockHandleStatuslineCommand } = vi.hoisted(() => ({
   mockHandleSupervisorCommand: vi.fn(),
   mockHandleStatuslineCommand: vi.fn(),
@@ -71,7 +75,7 @@ describe('CLI command routing', () => {
   })
 
   describe('supervisor command', () => {
-    test('routes to handleSupervisorCommand with default subcommand', async () => {
+    test('returns success exit code on successful command', async () => {
       mockHandleSupervisorCommand.mockResolvedValue({ exitCode: 0 })
 
       const result = await runCli({
@@ -82,54 +86,10 @@ describe('CLI command routing', () => {
         enableFileLogging: false,
       })
 
-      expect(mockHandleSupervisorCommand).toHaveBeenCalledOnce()
-      expect(mockHandleSupervisorCommand).toHaveBeenCalledWith(
-        'status', // default subcommand
-        expect.any(String), // projectRoot or cwd
-        expect.any(Object), // logger
-        stdout,
-        { wait: false }
-      )
       expect(result.exitCode).toBe(0)
     })
 
-    test('routes to handleSupervisorCommand with explicit subcommand', async () => {
-      mockHandleSupervisorCommand.mockResolvedValue({ exitCode: 0 })
-
-      await runCli({
-        argv: ['supervisor', 'start'],
-        stdout,
-        stderr,
-        cwd: projectDir,
-        enableFileLogging: false,
-      })
-
-      expect(mockHandleSupervisorCommand).toHaveBeenCalledWith(
-        'start',
-        expect.any(String),
-        expect.any(Object),
-        stdout,
-        { wait: false }
-      )
-    })
-
-    test('passes --wait flag to handler', async () => {
-      mockHandleSupervisorCommand.mockResolvedValue({ exitCode: 0 })
-
-      await runCli({
-        argv: ['supervisor', 'stop', '--wait'],
-        stdout,
-        stderr,
-        cwd: projectDir,
-        enableFileLogging: false,
-      })
-
-      expect(mockHandleSupervisorCommand).toHaveBeenCalledWith('stop', expect.any(String), expect.any(Object), stdout, {
-        wait: true,
-      })
-    })
-
-    test('returns handler exit code', async () => {
+    test('returns error exit code on failed command', async () => {
       mockHandleSupervisorCommand.mockResolvedValue({ exitCode: 1 })
 
       const result = await runCli({
@@ -142,10 +102,24 @@ describe('CLI command routing', () => {
 
       expect(result.exitCode).toBe(1)
     })
+
+    test('propagates handler exit code for stop command', async () => {
+      mockHandleSupervisorCommand.mockResolvedValue({ exitCode: 1 })
+
+      const result = await runCli({
+        argv: ['supervisor', 'stop', '--wait'],
+        stdout,
+        stderr,
+        cwd: projectDir,
+        enableFileLogging: false,
+      })
+
+      expect(result.exitCode).toBe(1)
+    })
   })
 
   describe('statusline command', () => {
-    test('routes to handleStatuslineCommand with defaults', async () => {
+    test('returns success exit code on successful render', async () => {
       mockHandleStatuslineCommand.mockResolvedValue({ exitCode: 0 })
 
       const result = await runCli({
@@ -156,83 +130,10 @@ describe('CLI command routing', () => {
         enableFileLogging: false,
       })
 
-      expect(mockHandleStatuslineCommand).toHaveBeenCalledOnce()
-      expect(mockHandleStatuslineCommand).toHaveBeenCalledWith(
-        expect.any(String), // projectRoot or cwd
-        expect.any(Object), // logger
-        stdout,
-        expect.objectContaining({ format: undefined, sessionId: undefined })
-      )
       expect(result.exitCode).toBe(0)
     })
 
-    test('passes --format option to handler', async () => {
-      mockHandleStatuslineCommand.mockResolvedValue({ exitCode: 0 })
-
-      await runCli({
-        argv: ['statusline', '--format', 'json'],
-        stdout,
-        stderr,
-        cwd: projectDir,
-        enableFileLogging: false,
-      })
-
-      expect(mockHandleStatuslineCommand).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.any(Object),
-        stdout,
-        expect.objectContaining({
-          format: 'json',
-          sessionId: undefined,
-        })
-      )
-    })
-
-    test('passes --session-id option to handler', async () => {
-      mockHandleStatuslineCommand.mockResolvedValue({ exitCode: 0 })
-
-      await runCli({
-        argv: ['statusline', '--session-id', 'abc123'],
-        stdout,
-        stderr,
-        cwd: projectDir,
-        enableFileLogging: false,
-      })
-
-      expect(mockHandleStatuslineCommand).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.any(Object),
-        stdout,
-        expect.objectContaining({
-          format: undefined,
-          sessionId: 'abc123',
-        })
-      )
-    })
-
-    test('passes all options to handler', async () => {
-      mockHandleStatuslineCommand.mockResolvedValue({ exitCode: 0 })
-
-      await runCli({
-        argv: ['statusline', '--format', 'text', '--session-id', 'xyz789'],
-        stdout,
-        stderr,
-        cwd: projectDir,
-        enableFileLogging: false,
-      })
-
-      expect(mockHandleStatuslineCommand).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.any(Object),
-        stdout,
-        expect.objectContaining({
-          format: 'text',
-          sessionId: 'xyz789',
-        })
-      )
-    })
-
-    test('returns handler exit code', async () => {
+    test('returns handler exit code on error', async () => {
       mockHandleStatuslineCommand.mockResolvedValue({ exitCode: 1 })
 
       const result = await runCli({
@@ -244,6 +145,37 @@ describe('CLI command routing', () => {
       })
 
       expect(result.exitCode).toBe(1)
+    })
+
+    test('propagates handler exit code with options', async () => {
+      mockHandleStatuslineCommand.mockResolvedValue({ exitCode: 0 })
+
+      const result = await runCli({
+        argv: ['statusline', '--format', 'json', '--session-id', 'xyz789'],
+        stdout,
+        stderr,
+        cwd: projectDir,
+        enableFileLogging: false,
+      })
+
+      expect(result.exitCode).toBe(0)
+    })
+  })
+
+  describe('unknown command', () => {
+    test('returns success and shows informational message in interactive mode', async () => {
+      const result = await runCli({
+        argv: ['unknown-command'],
+        stdout,
+        stderr,
+        cwd: projectDir,
+        enableFileLogging: false,
+        interactive: true,
+      })
+
+      expect(result.exitCode).toBe(0)
+      // Verify user-facing output (behavior), not internal structure
+      expect(stdout.data).toContain('Sidekick CLI executed unknown-command')
     })
   })
 })

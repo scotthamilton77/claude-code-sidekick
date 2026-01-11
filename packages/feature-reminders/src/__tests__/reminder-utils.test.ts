@@ -57,7 +57,8 @@ describe('reminder-utils', () => {
   })
 
   describe('resolveReminder', () => {
-    const testAssetsDir = '/tmp/test-assets-reminders'
+    // Using /tmp/claude/ for sandbox compatibility
+    const testAssetsDir = '/tmp/claude/test-assets-reminders'
 
     beforeEach(() => {
       mkdirSync(join(testAssetsDir, 'reminders'), { recursive: true })

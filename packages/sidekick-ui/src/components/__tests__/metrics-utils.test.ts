@@ -1,37 +1,27 @@
 /**
  * Metrics Utilities Tests
  *
- * Tests for helper functions used in MetricsPanel, Sparkline, and CompactionMarker.
+ * Tests for shared utility functions used in MetricsPanel, Sparkline, Timeline,
+ * and CompactionMarker components.
  *
  * @see packages/sidekick-ui/docs/MONITORING-UI.md §4.2 TranscriptMetrics
  */
 
 import { describe, it, expect } from 'vitest'
+import {
+  formatNumber,
+  formatRatio,
+  formatTime,
+  calculateSparklinePoints,
+  findEventIndexAtTimestamp,
+  calculateTimelinePercentage,
+  calculateSliderMax,
+  formatProgressText,
+} from '../../lib/metrics-utils'
 
 // ============================================================================
-// formatNumber Tests (from MetricsPanel)
+// formatNumber Tests
 // ============================================================================
-
-/**
- * Format large numbers with K/M suffix for display.
- * Extracted for testing.
- */
-function formatNumber(n: number): string {
-  if (n >= 1_000_000) {
-    return `${(n / 1_000_000).toFixed(1)}M`
-  }
-  if (n >= 1_000) {
-    return `${(n / 1_000).toFixed(1)}K`
-  }
-  return n.toString()
-}
-
-/**
- * Format ratio to one decimal place.
- */
-function formatRatio(n: number): string {
-  return n.toFixed(1)
-}
 
 describe('formatNumber', () => {
   it('formats numbers under 1000 as-is', () => {
@@ -55,6 +45,10 @@ describe('formatNumber', () => {
   })
 })
 
+// ============================================================================
+// formatRatio Tests
+// ============================================================================
+
 describe('formatRatio', () => {
   it('formats integers with one decimal', () => {
     expect(formatRatio(0)).toBe('0.0')
@@ -70,32 +64,20 @@ describe('formatRatio', () => {
 })
 
 // ============================================================================
-// Sparkline Point Calculation Tests
+// formatTime Tests
 // ============================================================================
 
-interface Point {
-  x: number
-  y: number
-}
+describe('formatTime', () => {
+  it('formats timestamp to HH:MM:SS format', () => {
+    const time = formatTime(0)
+    // Should match pattern HH:MM:SS
+    expect(time).toMatch(/^\d{2}:\d{2}:\d{2}$/)
+  })
+})
 
-/**
- * Calculate sparkline points from data.
- * Extracted from Sparkline component for testing.
- */
-function calculateSparklinePoints(data: number[], width: number, height: number, padding: number): Point[] {
-  if (data.length === 0) return []
-
-  const min = Math.min(...data)
-  const max = Math.max(...data)
-  const range = max - min || 1 // Avoid division by zero
-
-  const xStep = data.length > 1 ? (width - 2 * padding) / (data.length - 1) : 0
-
-  return data.map((value, index) => ({
-    x: padding + index * xStep,
-    y: height - padding - ((value - min) / range) * (height - 2 * padding),
-  }))
-}
+// ============================================================================
+// calculateSparklinePoints Tests
+// ============================================================================
 
 describe('calculateSparklinePoints', () => {
   const width = 100
@@ -109,7 +91,7 @@ describe('calculateSparklinePoints', () => {
   it('handles single data point', () => {
     const points = calculateSparklinePoints([5], width, height, padding)
     expect(points).toHaveLength(1)
-    // Single point should be at padding x and middle y
+    // Single point should be at padding x
     expect(points[0].x).toBe(padding)
   })
 
@@ -143,62 +125,8 @@ describe('calculateSparklinePoints', () => {
 })
 
 // ============================================================================
-// Time Formatting Tests (from CompactionMarker)
+// findEventIndexAtTimestamp Tests
 // ============================================================================
-
-/**
- * Format timestamp for display.
- * Extracted from CompactionMarker for testing.
- */
-function formatTime(timestamp: number): string {
-  return new Date(timestamp).toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  })
-}
-
-describe('formatTime', () => {
-  it('formats timestamp to HH:MM:SS format', () => {
-    // Use a fixed timezone-independent test
-    const time = formatTime(0)
-    // Should match pattern HH:MM:SS
-    expect(time).toMatch(/^\d{2}:\d{2}:\d{2}$/)
-  })
-})
-
-// ============================================================================
-// Event Index Search Tests (from Timeline)
-// ============================================================================
-
-interface MockEvent {
-  time: string
-}
-
-/**
- * Find the event index closest to a given timestamp.
- * Extracted from Timeline for testing.
- */
-function findEventIndexAtTimestamp(events: MockEvent[], timestamp: number): number {
-  if (events.length === 0) return 0
-
-  let low = 0
-  let high = events.length - 1
-
-  while (low < high) {
-    const mid = Math.floor((low + high) / 2)
-    const eventTime = new Date(events[mid].time).getTime()
-
-    if (eventTime < timestamp) {
-      low = mid + 1
-    } else {
-      high = mid
-    }
-  }
-
-  return low
-}
 
 describe('findEventIndexAtTimestamp', () => {
   it('returns 0 for empty events array', () => {
@@ -246,5 +174,76 @@ describe('findEventIndexAtTimestamp', () => {
     const events = [{ time: '2024-01-01T10:00:00Z' }, { time: '2024-01-01T11:00:00Z' }]
     const afterTimestamp = new Date('2024-01-01T15:00:00Z').getTime()
     expect(findEventIndexAtTimestamp(events, afterTimestamp)).toBe(1)
+  })
+})
+
+// ============================================================================
+// calculateTimelinePercentage Tests (Division by Zero Guards)
+// ============================================================================
+
+describe('calculateTimelinePercentage', () => {
+  it('returns 0 for 0 events', () => {
+    expect(calculateTimelinePercentage(0, 0)).toBe(0)
+  })
+
+  it('returns 0 for 1 event (avoids division by zero)', () => {
+    expect(calculateTimelinePercentage(0, 1)).toBe(0)
+  })
+
+  it('calculates correctly for 2+ events', () => {
+    expect(calculateTimelinePercentage(0, 5)).toBe(0)
+    expect(calculateTimelinePercentage(2, 5)).toBe(50)
+    expect(calculateTimelinePercentage(4, 5)).toBe(100)
+  })
+
+  it('result never contains NaN or Infinity', () => {
+    const edgeCases = [
+      { index: 0, total: 0 },
+      { index: 0, total: 1 },
+      { index: 1, total: 1 },
+    ]
+
+    edgeCases.forEach(({ index, total }) => {
+      const result = calculateTimelinePercentage(index, total)
+      expect(Number.isNaN(result)).toBe(false)
+      expect(Number.isFinite(result)).toBe(true)
+    })
+  })
+})
+
+// ============================================================================
+// calculateSliderMax Tests
+// ============================================================================
+
+describe('calculateSliderMax', () => {
+  it('returns 0 for 0 events', () => {
+    expect(calculateSliderMax(0)).toBe(0)
+  })
+
+  it('returns 0 for 1 event', () => {
+    expect(calculateSliderMax(1)).toBe(0)
+  })
+
+  it('returns eventsLength - 1 for multiple events', () => {
+    expect(calculateSliderMax(5)).toBe(4)
+    expect(calculateSliderMax(10)).toBe(9)
+  })
+})
+
+// ============================================================================
+// formatProgressText Tests
+// ============================================================================
+
+describe('formatProgressText', () => {
+  it('shows 1/0 for empty timeline', () => {
+    expect(formatProgressText(0, 0)).toBe('1 / 0')
+  })
+
+  it('shows 1/1 for single event', () => {
+    expect(formatProgressText(0, 1)).toBe('1 / 1')
+  })
+
+  it('shows correct count for multiple events', () => {
+    expect(formatProgressText(4, 10)).toBe('5 / 10')
   })
 })

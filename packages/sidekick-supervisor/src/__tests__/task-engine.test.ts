@@ -303,15 +303,27 @@ describe('TaskEngine', () => {
 
   describe('error handling', () => {
     it('should log error when no handler registered for task type', async () => {
+      // Spy on logger.error to verify the error is logged
+      const errorSpy = vi.spyOn(logger, 'error')
+
       // Enqueue task with no registered handler
-      engine.enqueue('unregistered-type', { data: 'test' })
+      const taskId = engine.enqueue('unregistered-type', { data: 'test' })
 
       // Give time for task to be processed
       await new Promise((r) => setTimeout(r, 50))
 
-      // Task should have been dequeued and logged error (no crash)
-      // We can't easily verify the log, but we verify no exception thrown
-      expect(true).toBe(true)
+      // Verify error was logged with correct message
+      expect(errorSpy).toHaveBeenCalledWith('No handler for task type', {
+        type: 'unregistered-type',
+        id: taskId,
+      })
+
+      // Engine should continue to work (not crashed)
+      const handler = vi.fn().mockResolvedValue(undefined)
+      engine.registerHandler('after-error', handler)
+      engine.enqueue('after-error', { foo: 'bar' })
+
+      await vi.waitFor(() => expect(handler).toHaveBeenCalled())
     })
 
     it('should log cancellation differently from timeout', async () => {

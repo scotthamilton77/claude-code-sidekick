@@ -12,6 +12,7 @@ import React from 'react'
 import type { TranscriptMetrics } from '@sidekick/types'
 import Icon from './Icon'
 import Sparkline from './Sparkline'
+import { formatNumber, formatRatio } from '../lib/metrics-utils'
 
 interface MetricsPanelProps {
   /** Current transcript metrics */
@@ -20,26 +21,6 @@ interface MetricsPanelProps {
   metricsHistory?: TranscriptMetrics[]
   /** Whether to show sparklines (requires history) */
   showSparklines?: boolean
-}
-
-/**
- * Format large numbers with K/M suffix for display.
- */
-function formatNumber(n: number): string {
-  if (n >= 1_000_000) {
-    return `${(n / 1_000_000).toFixed(1)}M`
-  }
-  if (n >= 1_000) {
-    return `${(n / 1_000).toFixed(1)}K`
-  }
-  return n.toString()
-}
-
-/**
- * Format ratio to one decimal place.
- */
-function formatRatio(n: number): string {
-  return n.toFixed(1)
 }
 
 /**

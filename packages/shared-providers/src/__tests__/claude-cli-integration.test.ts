@@ -148,28 +148,8 @@ describeIntegration('claude-cli /context integration', () => {
   })
 })
 
-/**
- * Unit tests for transcript path encoding
- */
-describe('transcript path encoding', () => {
-  it('encodes simple path', () => {
-    const cwd = '/tmp/sidekick/test'
-    const encoded = cwd.replace(/\//g, '-').replace(/^-/, '-')
-
-    expect(encoded).toBe('-tmp-sidekick-test')
-  })
-
-  it('handles private directory prefix (macOS)', () => {
-    const cwd = '/private/tmp/sidekick/test'
-    const encoded = cwd.replace(/\//g, '-').replace(/^-/, '-')
-
-    expect(encoded).toBe('-private-tmp-sidekick-test')
-  })
-
-  it('handles home directory path', () => {
-    const cwd = '/Users/scott/projects/myapp'
-    const encoded = cwd.replace(/\//g, '-').replace(/^-/, '-')
-
-    expect(encoded).toBe('-Users-scott-projects-myapp')
-  })
-})
+// NOTE: Previous "transcript path encoding" tests were removed as they
+// only tested inline regex replacement logic in the test file itself,
+// not any production code. These were false-positive tests that could
+// never catch regressions. If path encoding becomes production code,
+// it should be extracted to a utility function with proper tests.

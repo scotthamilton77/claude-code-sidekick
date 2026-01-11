@@ -13,10 +13,12 @@ import {
   calculateContextUsage,
   createFormatter,
   formatBranch,
+  formatContextBar,
   formatCost,
   formatDuration,
   formatTokens,
   getBranchColor,
+  getContextBarStatus,
   getThresholdStatus,
   shortenPath,
 } from '../formatter.js'
@@ -252,23 +254,149 @@ describe('Formatter utilities', () => {
       expect(result!.usageFraction).toBe(1) // Fallback to 1 when effectiveLimit is 0
     })
   })
+
+  describe('getContextBarStatus', () => {
+    it('returns low for under 50% usage', () => {
+      expect(getContextBarStatus(0)).toBe('low')
+      expect(getContextBarStatus(0.25)).toBe('low')
+      expect(getContextBarStatus(0.49)).toBe('low')
+    })
+
+    it('returns medium for 50-80% usage', () => {
+      expect(getContextBarStatus(0.5)).toBe('medium')
+      expect(getContextBarStatus(0.65)).toBe('medium')
+      expect(getContextBarStatus(0.79)).toBe('medium')
+    })
+
+    it('returns high for 80%+ usage', () => {
+      expect(getContextBarStatus(0.8)).toBe('high')
+      expect(getContextBarStatus(0.9)).toBe('high')
+      expect(getContextBarStatus(1.0)).toBe('high')
+    })
+
+    it('handles values above 100%', () => {
+      // Over-budget scenarios (context exceeds effective limit)
+      expect(getContextBarStatus(1.5)).toBe('high')
+      expect(getContextBarStatus(2.0)).toBe('high')
+    })
+  })
+
+  describe('formatContextBar', () => {
+    it('returns empty string when no usage data', () => {
+      expect(formatContextBar(undefined, false)).toBe('')
+      expect(formatContextBar(undefined, true)).toBe('')
+    })
+
+    it('includes coin icon prefix', () => {
+      const usage = calculateContextUsage(10000, 45000, 200000)
+      const bar = formatContextBar(usage, false)
+      expect(bar).toMatch(/^🪙 /)
+    })
+
+    it('contains bar characters for usage visualization', () => {
+      const usage = calculateContextUsage(80000, 45000, 200000)
+      const bar = formatContextBar(usage, false)
+      // Should contain some filled, buffer, and empty characters
+      expect(bar).toContain('▓') // filled (context)
+      expect(bar).toContain('▒') // buffer
+      expect(bar).toContain('░') // empty
+    })
+
+    it('shows more filled characters as usage increases', () => {
+      const lowUsage = calculateContextUsage(10000, 45000, 200000)
+      const highUsage = calculateContextUsage(130000, 45000, 200000)
+
+      const lowBar = formatContextBar(lowUsage, false)
+      const highBar = formatContextBar(highUsage, false)
+
+      // Count filled characters (▓)
+      const countFilled = (s: string) => (s.match(/▓/g) || []).length
+      expect(countFilled(highBar)).toBeGreaterThan(countFilled(lowBar))
+    })
+
+    it('applies ANSI colors when enabled', () => {
+      const usage = calculateContextUsage(50000, 45000, 200000)
+      const coloredBar = formatContextBar(usage, true)
+      const plainBar = formatContextBar(usage, false)
+
+      // Colored bar should contain ANSI escape sequences
+      expect(coloredBar).toContain('\x1b[')
+      // Plain bar should not
+      expect(plainBar).not.toContain('\x1b[')
+    })
+
+    it('handles low usage (green color when colored)', () => {
+      // Use enough context tokens to have at least one filled character (▓)
+      // With 200k window and 8-char bar, each position = 25k tokens
+      const usage = calculateContextUsage(30000, 45000, 200000) // ~19% usage, 1+ filled char
+      expect(usage!.status).toBe('low')
+      const bar = formatContextBar(usage, true)
+      // Should contain green ANSI code for low status applied to context portion
+      expect(bar).toContain('\x1b[32m') // green
+    })
+
+    it('handles medium usage (yellow color when colored)', () => {
+      const usage = calculateContextUsage(85000, 45000, 200000) // ~55% usage
+      expect(usage!.status).toBe('medium')
+      const bar = formatContextBar(usage, true)
+      // Should contain yellow ANSI code for medium status
+      expect(bar).toContain('\x1b[33m') // yellow
+    })
+
+    it('handles high usage (red color when colored)', () => {
+      const usage = calculateContextUsage(130000, 45000, 200000) // ~84% usage
+      expect(usage!.status).toBe('high')
+      const bar = formatContextBar(usage, true)
+      // Should contain red ANSI code for high status
+      expect(bar).toContain('\x1b[31m') // red
+    })
+
+    it('applies dim style to buffer portion', () => {
+      const usage = calculateContextUsage(50000, 45000, 200000)
+      const bar = formatContextBar(usage, true)
+      // Should contain dim ANSI code for buffer characters
+      expect(bar).toContain('\x1b[2m') // dim
+    })
+  })
 })
 
 describe('getDefaultOverhead', () => {
-  it('returns expected default values', () => {
+  // Note: We don't assert specific numeric values here because they're defined
+  // in @sidekick/types and may change. Testing exact values would just mirror
+  // those constants without providing regression protection.
+
+  it('returns complete overhead structure', () => {
     const overhead = getDefaultOverhead()
-    expect(overhead.systemPromptTokens).toBe(3200)
-    expect(overhead.systemToolsTokens).toBe(17900)
-    expect(overhead.autocompactBufferTokens).toBe(45000)
-    expect(overhead.mcpToolsTokens).toBe(0)
-    expect(overhead.customAgentsTokens).toBe(0)
-    expect(overhead.memoryFilesTokens).toBe(0)
+
+    // Verify required properties exist
+    expect(overhead).toHaveProperty('systemPromptTokens')
+    expect(overhead).toHaveProperty('systemToolsTokens')
+    expect(overhead).toHaveProperty('autocompactBufferTokens')
+    expect(overhead).toHaveProperty('mcpToolsTokens')
+    expect(overhead).toHaveProperty('customAgentsTokens')
+    expect(overhead).toHaveProperty('memoryFilesTokens')
+    expect(overhead).toHaveProperty('usingDefaults')
+    expect(overhead).toHaveProperty('totalOverhead')
+  })
+
+  it('marks overhead as using defaults', () => {
+    const overhead = getDefaultOverhead()
     expect(overhead.usingDefaults).toBe(true)
   })
 
-  it('calculates total overhead correctly', () => {
+  it('calculates totalOverhead as sum of component values', () => {
     const overhead = getDefaultOverhead()
-    expect(overhead.totalOverhead).toBe(3200 + 17900 + 45000) // 66100
+    const expectedTotal =
+      overhead.systemPromptTokens + overhead.systemToolsTokens + overhead.autocompactBufferTokens
+    expect(overhead.totalOverhead).toBe(expectedTotal)
+  })
+
+  it('returns positive values for system components', () => {
+    const overhead = getDefaultOverhead()
+    expect(overhead.systemPromptTokens).toBeGreaterThan(0)
+    expect(overhead.systemToolsTokens).toBeGreaterThan(0)
+    expect(overhead.autocompactBufferTokens).toBeGreaterThan(0)
+    expect(overhead.totalOverhead).toBeGreaterThan(0)
   })
 })
 
@@ -856,7 +984,10 @@ describe('discoverPreviousResumeMessage', () => {
         timestamp: '2024-01-10T10:00:00Z',
       })
     )
-    // Set mtime to past
+    // Implementation note: discoverPreviousResumeMessage uses file mtime for ordering.
+    // This is an implementation detail (could change to use JSON timestamp field).
+    // This test verifies the current behavior but may need updating if the ordering
+    // mechanism changes. Platform-specific mtime behavior is generally reliable.
     const oldTime = new Date(Date.now() - 3600_000)
     await fs.utimes(olderFile, oldTime, oldTime)
 
@@ -976,18 +1107,10 @@ describe('GitProvider', () => {
     expect(result.branch).toBe('')
   })
 
-  it('returns timeout source when command exceeds timeout', async () => {
-    // Use an extremely short timeout to trigger timeout path
-    // We need a directory where git might be slow or hang
-    const { createGitProvider } = await import('../git-provider.js')
-    const provider = createGitProvider(testDir, { timeoutMs: 0 })
-    const result = await provider.getCurrentBranch()
-
-    // With 0ms timeout, it should almost always timeout before git responds
-    // However, this is inherently racy. Accept either timeout or error.
-    expect(['timeout', 'error']).toContain(result.source)
-    expect(result.branch).toBe('')
-  })
+  // Note: Timeout behavior is not tested here because it requires external control
+  // over git command timing. The timeout functionality is an implementation detail
+  // that guards against hung processes. Testing it reliably would require a fake
+  // git provider that never resolves, which would test the wrapper, not git-provider.
 })
 
 // ============================================================================
@@ -1075,7 +1198,11 @@ describe('StatuslineService', () => {
 
     expect(result.displayMode).toBe('session_summary')
     expect(result.viewModel.model).toBe('3-5-sonnet')
-    // Token count shows context|total format: 30k context + 45k buffer = 75k total
+    // Token display format: "{context}|{total}" where:
+    // - context = 30k (from totalInputTokens in hookInput)
+    // - total = context + autocompact buffer (defaults ~45k from @sidekick/types)
+    // This test implicitly depends on the default autocompact buffer value.
+    // If defaults change in @sidekick/types, update expected total accordingly.
     expect(result.viewModel.tokens).toBe('30k|75k')
     expect(result.viewModel.title).toBe('Auth bug fix')
   })
@@ -1423,6 +1550,9 @@ describe('StatuslineService', () => {
     })
 
     it('uses same message for entire service instance', async () => {
+      // Contract test: Random message is chosen at service construction, not per-render.
+      // This prevents UI flickering when the statusline refreshes multiple times.
+      // Users see the same "New Session" message until they actually start working.
       const messages = ['A', 'B', 'C', 'D', 'E']
       const assets = createMockAssets(messages.join('\n'))
 

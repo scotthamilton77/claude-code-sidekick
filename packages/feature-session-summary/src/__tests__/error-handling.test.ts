@@ -227,6 +227,71 @@ describe('Session Summary Error Handling', () => {
     })
   })
 
+  describe('Prompt Interpolation', () => {
+    it('interpolates transcript, previousAnalysis, and previousConfidence into prompt', async () => {
+      const sessionId = 'test-prompt-interpolation'
+      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
+      await fs.mkdir(stateDir, { recursive: true })
+
+      // Write existing summary to provide previousAnalysis
+      await fs.writeFile(
+        path.join(stateDir, 'session-summary.json'),
+        JSON.stringify({
+          session_id: sessionId,
+          session_title: 'Previous Task',
+          session_title_confidence: 0.75,
+          latest_intent: 'Previous goal',
+          latest_intent_confidence: 0.8,
+        })
+      )
+
+      // Pre-create resume file so resume generation doesn't trigger
+      await fs.writeFile(
+        path.join(stateDir, 'resume-message.json'),
+        JSON.stringify({
+          resume_last_goal_message: 'Resume',
+          snarky_comment: 'Snarky',
+          timestamp: new Date().toISOString(),
+        })
+      )
+
+      // Use a prompt template with all three variables
+      assets.register(
+        'prompts/session-summary.prompt.txt',
+        'Transcript: {{transcript}}\nConfidence: {{previousConfidence}}\nPrevious: {{previousAnalysis}}'
+      )
+
+      // Set specific transcript content
+      transcript.setMockExcerptContent('User: Test message\nAssistant: Test response')
+
+      // Queue response (same values, no side effects)
+      llm.queueResponse(
+        JSON.stringify({
+          session_title: 'Previous Task',
+          session_title_confidence: 0.75,
+          latest_intent: 'Previous goal',
+          latest_intent_confidence: 0.8,
+          pivot_detected: false,
+        })
+      )
+
+      await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+
+      // Verify the prompt was interpolated correctly
+      expect(llm.recordedRequests).toHaveLength(1)
+      const promptContent = llm.recordedRequests[0].messages[0].content
+
+      // Check transcript interpolation
+      expect(promptContent).toContain('Transcript: User: Test message')
+
+      // Check previousConfidence interpolation
+      expect(promptContent).toContain('Confidence: 0.75')
+
+      // Check previousAnalysis interpolation (contains the JSON object)
+      expect(promptContent).toContain('"session_title": "Previous Task"')
+    })
+  })
+
   describe('JSON Extraction from Markdown Code Blocks', () => {
     it('extracts and parses JSON from ```json code block', async () => {
       const sessionId = 'test-session-markdown-json'

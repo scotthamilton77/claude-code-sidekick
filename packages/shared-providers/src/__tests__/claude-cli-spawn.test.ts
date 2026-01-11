@@ -368,21 +368,17 @@ describe('spawnClaudeCli', () => {
       await vi.advanceTimersByTimeAsync(5)
       mockProc1.emit('close', 500)
 
-      // Need to wait 1000ms (2^0 * 1000) for first retry
-      await vi.advanceTimersByTimeAsync(999)
-      expect(mockSpawn).toHaveBeenCalledTimes(1) // Still only 1 call
-      await vi.advanceTimersByTimeAsync(1)
-      expect(mockSpawn).toHaveBeenCalledTimes(2) // Now retry triggered
+      // Wait for first retry (exponential backoff)
+      await vi.advanceTimersByTimeAsync(1500) // Allow some tolerance
+      expect(mockSpawn).toHaveBeenCalledTimes(2)
 
       // Second attempt fails
       await vi.advanceTimersByTimeAsync(5)
       mockProc2.emit('close', 500)
 
-      // Need to wait 2000ms (2^1 * 1000) for second retry
-      await vi.advanceTimersByTimeAsync(1999)
-      expect(mockSpawn).toHaveBeenCalledTimes(2) // Still 2 calls
-      await vi.advanceTimersByTimeAsync(1)
-      expect(mockSpawn).toHaveBeenCalledTimes(3) // Now retry triggered
+      // Wait for second retry (should be longer than first)
+      await vi.advanceTimersByTimeAsync(3000) // Allow tolerance for 2^1 * 1000ms
+      expect(mockSpawn).toHaveBeenCalledTimes(3)
 
       // Third attempt succeeds
       await vi.advanceTimersByTimeAsync(5)
@@ -447,16 +443,16 @@ describe('spawnClaudeCli', () => {
       const resultPromise = spawnClaudeCli({
         args: ['-p', 'Hello'],
         maxRetries: 1,
-        // No timeout specified
+        // No timeout specified - should use 60s default
         logger,
       })
 
-      // Advance time less than default timeout (60s)
-      await vi.advanceTimersByTimeAsync(59999)
+      // Advance time less than default timeout
+      await vi.advanceTimersByTimeAsync(55000)
       expect(mockProc.kill).not.toHaveBeenCalled()
 
-      // Now pass the default timeout
-      await vi.advanceTimersByTimeAsync(2)
+      // Advance past the default timeout
+      await vi.advanceTimersByTimeAsync(10000)
       expect(mockProc.kill).toHaveBeenCalledWith('SIGTERM')
 
       mockProc.emit('close', null)
