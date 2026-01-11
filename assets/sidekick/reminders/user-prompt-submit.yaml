@@ -19,3 +19,9 @@ additionalContext: |
   - Verify your work before claiming completion (run tests, lint, type-check)
   - Update the user with progress summaries for long-running tasks
   - Use appropriate AGENTS/SKILLS: consider whether there are agents and/or skills that should be leveraged; ask the user if unsure
+
+  # Completion Clarity
+  When stopping after modifying project files, be explicit about your status:
+  - If DONE with the task: Say so clearly ("I've completed...", "That's all done")
+  - If PAUSING for input/feedback: Say so ("Let me know if...", "What would you like...")
+  This helps distinguish completion claims from progress updates.

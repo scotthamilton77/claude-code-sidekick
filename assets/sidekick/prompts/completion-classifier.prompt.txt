@@ -1,0 +1,96 @@
+You are classifying an AI coding assistant's stopping intent to determine if it's claiming task completion.
+
+<user_prompt>
+{{lastUserPrompt}}
+</user_prompt>
+
+<assistant_message>
+{{lastAssistantMessage}}
+</assistant_message>
+
+<output_format>
+Output JSON matching this exact schema:
+
+```json
+{
+  "category": "CLAIMING_COMPLETION | ASKING_QUESTION | ANSWERING_QUESTION | OTHER",
+  "confidence": 0.0-1.0,
+  "reasoning": "Brief explanation"
+}
+```
+</output_format>
+
+<categories>
+  <category name="CLAIMING_COMPLETION">
+    The assistant explicitly states or strongly implies the task is done, finished, or complete.
+    <signals>
+      - "I've completed...", "All done!", "The fix is in place"
+      - "That should take care of everything", "I've finished implementing..."
+      - "The changes are ready for review", "Everything is set up now"
+      - Summary of completed work with no indication of more to do
+    </signals>
+  </category>
+
+  <category name="ASKING_QUESTION">
+    The assistant is asking the user a question or requesting clarification/decision/input.
+    <signals>
+      - "What would you prefer?", "Should I...", "Which approach do you want?"
+      - "Would you like me to...", "Do you want me to continue with..."
+      - "Let me know if...", "Please confirm..."
+      - Questions about requirements, preferences, or next steps
+    </signals>
+  </category>
+
+  <category name="ANSWERING_QUESTION">
+    The assistant is answering an informational question the user asked (not making changes).
+    <signals>
+      - User asked "how does X work?" and assistant explains
+      - User asked "what is X?" and assistant provides information
+      - Explaining code behavior, describing architecture
+      - Providing analysis or recommendations without implementing
+    </signals>
+    <note>
+      If the user asked a question AND the assistant made changes, classify based on
+      whether the assistant is claiming those changes are complete.
+    </note>
+  </category>
+
+  <category name="OTHER">
+    Progress updates, presenting proposals, reporting blockers, or unclear intent.
+    <signals>
+      - "Here's what I've done so far...", "I've made progress on..."
+      - "I ran into an issue...", "I'm blocked on..."
+      - "Here's my proposal...", "I suggest we..."
+      - Presenting options without asking for input
+      - Intermediate output or partial results
+    </signals>
+  </category>
+</categories>
+
+<confidence_calibration>
+  <high range=">0.8">
+    Clear, unambiguous signals matching one category.
+    - Explicit completion phrases: "I've completed", "All done"
+    - Explicit questions: "Would you like...?", "Should I...?"
+    - Pure informational response to a question
+  </high>
+
+  <medium range="0.5-0.8">
+    Some ambiguity but leans toward one category.
+    - Implicit completion: "That's everything" without explicit done
+    - Mixed signals: Completed work but also asking about next steps
+  </medium>
+
+  <low range="<0.5">
+    Highly ambiguous, could fit multiple categories.
+    - Very short responses without clear signals
+    - Complex responses mixing completion with questions
+  </low>
+</confidence_calibration>
+
+<decision_rules>
+- Be conservative: if ambiguous between CLAIMING_COMPLETION and another category, choose the other
+- "Let me know if you need anything else" after completing work = CLAIMING_COMPLETION (not ASKING_QUESTION)
+- Progress report + question at the end = ASKING_QUESTION
+- Error/blocker report = OTHER (not CLAIMING_COMPLETION, even if no more work possible)
+</decision_rules>

@@ -71,6 +71,9 @@ export class MockTranscriptService implements TranscriptService {
   /** Mock content returned by getExcerpt() - set via setMockExcerptContent() */
   private mockExcerptContent: string = ''
 
+  /** Mock entries returned by getTranscript() - set via setMockEntries() */
+  private mockEntries: import('@sidekick/types').CanonicalTranscriptEntry[] = []
+
   /** Track whether prepare() has been called */
   private prepared = false
 
@@ -120,7 +123,7 @@ export class MockTranscriptService implements TranscriptService {
 
   getTranscript(): Transcript {
     return {
-      entries: [],
+      entries: this.mockEntries,
       metadata: {
         sessionId: this.sessionId ?? '',
         transcriptPath: this.transcriptPath ?? '',
@@ -198,6 +201,7 @@ export class MockTranscriptService implements TranscriptService {
     this.sessionId = null
     this.transcriptPath = null
     this.mockExcerptContent = ''
+    this.mockEntries = []
   }
 
   /**
@@ -205,6 +209,13 @@ export class MockTranscriptService implements TranscriptService {
    */
   setMockExcerptContent(content: string): void {
     this.mockExcerptContent = content
+  }
+
+  /**
+   * Set mock transcript entries for getTranscript() to return.
+   */
+  setMockEntries(entries: import('@sidekick/types').CanonicalTranscriptEntry[]): void {
+    this.mockEntries = entries
   }
 
   /**

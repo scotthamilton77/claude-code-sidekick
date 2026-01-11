@@ -55,3 +55,16 @@ settings:
     - "**/tsconfig.json"
     - "**/Dockerfile"
     - "**/Makefile"
+
+  # Smart completion detection settings
+  # Classifies assistant's stopping intent to avoid blocking when not claiming completion
+  completion_detection:
+    # Enable/disable smart completion detection (if disabled, always blocks on verify-completion)
+    enabled: true
+    # Minimum confidence threshold to treat as claiming completion (0.0-1.0)
+    # Higher = more conservative (blocks less often)
+    confidence_threshold: 0.7
+    # LLM profile for classification (uses fast, cheap models)
+    llm:
+      profile: fast-lite
+      fallback_profile: cheap-fallback
