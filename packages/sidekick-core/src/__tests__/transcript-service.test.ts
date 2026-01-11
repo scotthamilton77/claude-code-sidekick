@@ -1264,15 +1264,17 @@ describe('TranscriptServiceImpl', () => {
         expect(excerpt.content).toContain('Read')
       })
 
-      it('omits tool_result output when includeToolOutputs is false', async () => {
+      it('excludes tool_result entirely when includeToolOutputs is false (no placeholder)', async () => {
+        // New behavior: excluded content returns null, not a placeholder line
         const transcript = [JSON.stringify({ type: 'tool_result', content: 'sensitive file contents here' })].join('\n')
         writeFileSync(transcriptPath, transcript)
         await service.initialize('test-session', transcriptPath)
 
         const excerpt = service.getExcerpt({ includeToolOutputs: false })
 
-        expect(excerpt.content).toContain('[RESULT]:')
-        expect(excerpt.content).toContain('(output omitted)')
+        // Entire entry is excluded - no [RESULT]: line at all
+        expect(excerpt.content).toBe('')
+        expect(excerpt.lineCount).toBe(0)
         expect(excerpt.content).not.toContain('sensitive file contents')
       })
 
@@ -1288,18 +1290,20 @@ describe('TranscriptServiceImpl', () => {
         expect(excerpt.content).not.toContain('(output omitted)')
       })
 
-      it('handles unknown entry types', async () => {
-        // Use a truly unknown type (not summary, which is handled specially)
+      it('excludes unknown entry types to reduce noise', async () => {
+        // Unknown types are excluded to keep excerpts focused on user/assistant conversation
         const transcript = [JSON.stringify({ type: 'custom_unknown_type', data: { foo: 'bar' } })].join('\n')
         writeFileSync(transcriptPath, transcript)
         await service.initialize('test-session', transcriptPath)
 
         const excerpt = service.getExcerpt({})
 
-        expect(excerpt.content).toContain('[CUSTOM_UNKNOWN_TYPE]:')
+        // Unknown types are filtered out entirely
+        expect(excerpt.content).toBe('')
+        expect(excerpt.lineCount).toBe(0)
       })
 
-      it('handles malformed JSON lines gracefully', async () => {
+      it('excludes malformed JSON lines to reduce noise', async () => {
         const transcript = [
           'not valid json at all',
           JSON.stringify({ type: 'user', message: { content: 'Valid message' } }),
@@ -1309,25 +1313,28 @@ describe('TranscriptServiceImpl', () => {
 
         const excerpt = service.getExcerpt({})
 
-        expect(excerpt.lineCount).toBe(2)
-        // Malformed line should be truncated to 200 chars
-        expect(excerpt.content).toContain('not valid json')
+        // Malformed JSON is filtered out, only valid user message remains
+        expect(excerpt.lineCount).toBe(1)
+        expect(excerpt.content).not.toContain('not valid json')
         expect(excerpt.content).toContain('[USER]:')
+        expect(excerpt.content).toContain('Valid message')
       })
 
-      it('truncates very long malformed lines', async () => {
-        const longLine = 'x'.repeat(500) // 500 char line
+      it('excludes malformed lines entirely', async () => {
+        const longLine = 'x'.repeat(500) // 500 char line, not valid JSON
         const transcript = [longLine].join('\n')
         writeFileSync(transcriptPath, transcript)
         await service.initialize('test-session', transcriptPath)
 
         const excerpt = service.getExcerpt({})
 
-        // Should be truncated to 200 chars
-        expect(excerpt.content.length).toBeLessThanOrEqual(200)
+        // Malformed lines are excluded entirely
+        expect(excerpt.content).toBe('')
+        expect(excerpt.lineCount).toBe(0)
       })
 
-      it('handles assistant with tool_use marker correctly', async () => {
+      it('excludes assistant messages with only tool_use blocks (no text)', async () => {
+        // Assistant messages with only tool blocks have no human-readable text
         const transcript = [
           JSON.stringify({
             type: 'assistant',
@@ -1339,8 +1346,33 @@ describe('TranscriptServiceImpl', () => {
 
         const excerpt = service.getExcerpt({})
 
-        // When content is an array (not a string), falls through to JSON stringify
+        // Assistant with only tool_use has no text content, so it's excluded
+        expect(excerpt.content).toBe('')
+        expect(excerpt.lineCount).toBe(0)
+      })
+
+      it('includes assistant messages with text alongside tool_use blocks', async () => {
+        // Assistant messages with text content should be included
+        const transcript = [
+          JSON.stringify({
+            type: 'assistant',
+            message: {
+              content: [
+                { type: 'text', text: 'Let me edit that file.' },
+                { type: 'tool_use', name: 'Edit' },
+              ],
+            },
+          }),
+        ].join('\n')
+        writeFileSync(transcriptPath, transcript)
+        await service.initialize('test-session', transcriptPath)
+
+        const excerpt = service.getExcerpt({})
+
+        // Text content is extracted, tool_use is stripped
         expect(excerpt.content).toContain('[ASSISTANT]:')
+        expect(excerpt.content).toContain('Let me edit that file.')
+        expect(excerpt.content).not.toContain('Edit') // tool name stripped
       })
     })
 

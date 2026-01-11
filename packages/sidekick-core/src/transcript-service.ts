@@ -476,6 +476,30 @@ export class TranscriptServiceImpl implements TranscriptService {
       .join('\n')
   }
 
+  /**
+   * Extract a filtered transcript excerpt for LLM analysis.
+   *
+   * FILTERING RULES (see packages/sidekick-core/AGENTS.md for full documentation):
+   *
+   * ALWAYS INCLUDED:
+   * - User prompts (human text only, system injections stripped)
+   * - Assistant responses (model text only)
+   * - Summary entries (only if leafUuid references entry in excerpt)
+   *
+   * CONDITIONALLY INCLUDED (via options):
+   * - Tool use/result: includeToolMessages (default: true for messages, false for outputs)
+   * - Thinking blocks: includeAssistantThinking (default: false)
+   *
+   * ALWAYS EXCLUDED (no config override):
+   * - File history snapshots (type: 'file-history-snapshot')
+   * - System reminders (<system-reminder> in content)
+   * - Hook feedback ('hook feedback:' in content)
+   * - Meta messages (isMeta: true)
+   * - Local command stdout (<local-command-stdout> in content)
+   *
+   * KEY BEHAVIOR: maxLines counts POST-FILTER lines, ensuring caller gets
+   * N useful conversation lines, not N raw transcript entries.
+   */
   getExcerpt(options: ExcerptOptions = {}): TranscriptExcerpt {
     const maxLines = options.maxLines ?? 80
     const bookmarkLine = options.bookmarkLine ?? 0
@@ -499,46 +523,39 @@ export class TranscriptServiceImpl implements TranscriptService {
       const lines = content === '' ? [] : content.split('\n')
       const totalLines = lines.length
 
-      // Determine extraction window
-      let startLine: number
-      const endLine = totalLines
-      let bookmarkApplied = false
-
-      if (bookmarkLine > 0 && bookmarkLine < totalLines) {
-        // Bookmark strategy: prioritize recent context
-        const recentLines = Math.min(maxLines, totalLines - bookmarkLine)
-        startLine = Math.max(0, totalLines - recentLines)
-        bookmarkApplied = true
-      } else {
-        // Fallback: simple tail
-        startLine = Math.max(0, totalLines - maxLines)
-      }
-
-      // Extract lines for formatting
-      const excerpt = lines.slice(startLine, endLine)
-
-      // Collect UUIDs from excerpt to identify internal summary references
+      // Collect UUIDs from ALL lines to validate summary leafUuid references
       const knownUuids = new Set<string>()
-      for (const line of excerpt) {
+      for (const line of lines) {
         const uuid = this.parseUuid(line)
         if (uuid) knownUuids.add(uuid)
       }
 
-      // Format each line based on entry type
-      const formatted = excerpt
-        .map((line) => this.formatExcerptLine(line, knownUuids, {
-          includeToolMessages,
-          includeToolOutputs,
-          includeAssistantThinking,
-        }))
-        .filter((line): line is string => line !== null)
-        .join('\n')
+      const filterOptions = { includeToolMessages, includeToolOutputs, includeAssistantThinking }
+
+      // POST-FILTER maxLines: Filter all lines first, then take the tail.
+      // This ensures caller gets N useful lines, not N raw entries.
+      // Process from bookmark (or start) to end, filter, then take last N.
+      const startFromLine = bookmarkLine > 0 && bookmarkLine < totalLines ? bookmarkLine : 0
+      const bookmarkApplied = bookmarkLine > 0 && bookmarkLine < totalLines
+
+      // Filter lines from startFromLine to end
+      const filteredLines: { lineNumber: number; formatted: string }[] = []
+      for (let i = startFromLine; i < totalLines; i++) {
+        const formatted = this.formatExcerptLine(lines[i], knownUuids, filterOptions)
+        if (formatted !== null) {
+          filteredLines.push({ lineNumber: i + 1, formatted }) // 1-indexed
+        }
+      }
+
+      // Take the last maxLines from filtered results
+      const tailFiltered = filteredLines.slice(-maxLines)
+      const formattedContent = tailFiltered.map((l) => l.formatted).join('\n')
 
       return {
-        content: formatted,
-        lineCount: excerpt.length,
-        startLine: startLine + 1, // 1-indexed
-        endLine,
+        content: formattedContent,
+        lineCount: tailFiltered.length,
+        startLine: tailFiltered.length > 0 ? tailFiltered[0].lineNumber : 0,
+        endLine: tailFiltered.length > 0 ? tailFiltered[tailFiltered.length - 1].lineNumber : 0,
         bookmarkApplied,
       }
     } catch (err) {
@@ -570,6 +587,23 @@ export class TranscriptServiceImpl implements TranscriptService {
   /**
    * Format a single excerpt line based on entry type.
    * Returns null for lines that should be filtered out.
+   *
+   * FILTERING RULES (see packages/sidekick-core/AGENTS.md):
+   *
+   * ALWAYS EXCLUDED (return null, no placeholders):
+   * - type: 'file-history-snapshot'
+   * - isMeta: true
+   * - Content containing <system-reminder>
+   * - Content containing 'hook feedback:' (case-insensitive)
+   * - Content containing <local-command-stdout>
+   *
+   * CONDITIONALLY EXCLUDED:
+   * - type: 'tool_use' / 'tool_result' → unless includeToolMessages
+   * - type: 'thinking' → unless includeAssistantThinking
+   * - Nested tool_use/tool_result blocks → stripped from user/assistant messages
+   *
+   * For user/assistant messages, nested tool blocks are stripped and only
+   * actual text content is extracted via extractTextContent().
    */
   private formatExcerptLine(
     line: string,
@@ -588,48 +622,142 @@ export class TranscriptServiceImpl implements TranscriptService {
         thinking?: string
         summary?: string
         leafUuid?: string
-        message?: { content?: string }
+        isMeta?: boolean
+        message?: { content?: unknown }
       }
 
       const entryType = entry.type ?? 'unknown'
+
+      // ========================================================================
+      // ALWAYS EXCLUDED: No config override for these
+      // ========================================================================
+
+      // File history snapshots - internal Claude Code bookkeeping
+      if (entryType === 'file-history-snapshot') return null
+
+      // Meta messages - system-injected disclaimers/caveats
+      if (entry.isMeta === true) return null
+
+      // Get raw content for system injection checks
+      const rawContent = this.getRawContentString(entry)
+
+      // System reminders - injected context, not user/assistant content
+      if (rawContent && rawContent.includes('<system-reminder>')) return null
+
+      // Hook feedback - sidekick system messages
+      if (rawContent && /hook feedback:/i.test(rawContent)) return null
+
+      // Local command stdout - slash command output, not conversation
+      if (rawContent && rawContent.includes('<local-command-stdout>')) return null
+
+      // ========================================================================
+      // ENTRY TYPE HANDLING
+      // ========================================================================
+
       const messageContent = entry.message?.content ?? entry.content
 
       switch (entryType) {
-        case 'user':
-          return `[USER]: ${messageContent ?? JSON.stringify(entry)}`
+        case 'user': {
+          const text = this.extractTextContent(messageContent, options)
+          if (!text || text.trim() === '') return null
+          return `[USER]: ${text}`
+        }
 
-        case 'assistant':
-          return `[ASSISTANT]: ${messageContent ?? '(tool use)'}`
+        case 'assistant': {
+          const text = this.extractTextContent(messageContent, options)
+          if (!text || text.trim() === '') return null
+          return `[ASSISTANT]: ${text}`
+        }
 
         case 'thinking':
           if (!options.includeAssistantThinking) return null
-          return `[THINKING]: ${String(entry.thinking ?? entry.content ?? '')}`
+          return `[THINKING]: ${String(entry.thinking ?? entry.content ?? '').slice(0, 200)}`
 
         case 'tool_use':
           if (!options.includeToolMessages) return null
           return `[TOOL]: ${entry.name ?? 'unknown'}`
 
         case 'tool_result':
+          // Return null (not placeholder) when excluded - no line at all
           if (!options.includeToolMessages) return null
-          if (options.includeToolOutputs) {
-            return `[RESULT]: ${JSON.stringify(entry).slice(0, 500)}`
-          }
-          return '[RESULT]: (output omitted)'
+          if (!options.includeToolOutputs) return null
+          return `[RESULT]: ${JSON.stringify(entry).slice(0, 500)}`
 
         case 'summary':
-          // Include only summaries that reference entries within this excerpt
-          // Skip if: no leafUuid (unverifiable) or leafUuid not in excerpt (external)
+          // Include only summaries that reference entries within this transcript
           if (!entry.leafUuid || !knownUuids.has(entry.leafUuid)) {
             return null
           }
           return `[SESSION_HINT]: ${entry.summary ?? ''}`
 
         default:
-          return `[${entryType.toUpperCase()}]: ${JSON.stringify(entry).slice(0, 100)}`
+          // Unknown types are excluded to avoid noise
+          return null
       }
     } catch {
-      return line.slice(0, 200)
+      // Malformed JSON - exclude
+      return null
     }
+  }
+
+  /**
+   * Get raw content string from entry for system injection detection.
+   */
+  private getRawContentString(entry: { message?: { content?: unknown }; content?: unknown }): string | null {
+    const content = entry.message?.content ?? entry.content
+    if (typeof content === 'string') return content
+    if (Array.isArray(content)) {
+      // Check all text blocks for system content
+      const textParts: string[] = []
+      for (const block of content) {
+        if (
+          typeof block === 'object' &&
+          block !== null &&
+          'type' in block &&
+          (block as { type: unknown }).type === 'text' &&
+          'text' in block &&
+          typeof (block as { text: unknown }).text === 'string'
+        ) {
+          textParts.push((block as { text: string }).text)
+        }
+      }
+      return textParts.join(' ')
+    }
+    return null
+  }
+
+  /**
+   * Extract text content from message, filtering out tool/thinking blocks.
+   *
+   * For user/assistant messages with nested content blocks:
+   * - text blocks: Always included
+   * - tool_use blocks: Excluded (stripped entirely, no placeholder)
+   * - tool_result blocks: Excluded (stripped entirely, no placeholder)
+   * - thinking blocks: Excluded unless includeAssistantThinking
+   *
+   * Returns null if no text content remains after filtering.
+   */
+  private extractTextContent(
+    content: unknown,
+    options: { includeToolMessages: boolean; includeToolOutputs: boolean; includeAssistantThinking: boolean }
+  ): string | null {
+    if (typeof content === 'string') return content
+    if (!Array.isArray(content)) return null
+
+    // Claude API content blocks: [{type: 'text', text: '...'}, {type: 'tool_use', ...}, etc.]
+    const textParts: string[] = []
+
+    for (const block of content as Array<{ type?: string; text?: string; thinking?: string; name?: string }>) {
+      if (block.type === 'text' && block.text) {
+        textParts.push(block.text)
+      } else if (block.type === 'thinking' && options.includeAssistantThinking && block.thinking) {
+        textParts.push(`(thinking: ${block.thinking.slice(0, 100)}...)`)
+      }
+      // tool_use and tool_result blocks are stripped entirely - no placeholders
+    }
+
+    const result = textParts.join(' ').trim()
+    return result || null
   }
 
   // ============================================================================

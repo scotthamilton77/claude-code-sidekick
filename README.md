@@ -12,15 +12,12 @@ This repository serves as a development and testing environment for [Claude Code
 
 ### Sidekick
 
-- stop prompt enhancement: can we assess whether the agent is claiming completion or stopping to give an update or user instructions?
-```
-Now hit enter - you should see a debug line in stderr showing whether projectStateDir is set or null.
-  ⎿  Stop says: Asking the agent to verify completion before stopping...
-```
+- bug: reconstructing the context (e.g. after a clean-all) sometimes leaves tool counters set such that the first prompt triggers a pause-and-reflect, as well as the vc-unverified file dropped
+- need to improve overall session title/purpose - llm has a tendency to drift; maybe a history of the titles and intents?
+- let's set up domain-specific agents to own packages or significant portions of packages where all changes to those packages require the domain agents to "sign off"
 - naming inconsistency: sidekick vs. supervisor; and sidekick vs. CLI - need consistency across docs, source, state files, folders, etc.
 - finish ROADMAP.md
 - finish PLAN.MD (executing ARCH.md)
-- need to improve overall session title/purpose - llm has a tendency to drift; maybe a history of the titles and intents?
 - can we be resilient to json file errors?  I just ran into a case of the session-summary.json being generated with trash after the last } which made it unreadable
 - allow for different personalities - either explicit at install time or random per project or random per session or just random
   - moods: cynical, sarcastic, snarky, nerdy, arrogant, moody

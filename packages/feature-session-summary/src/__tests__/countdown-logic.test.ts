@@ -458,4 +458,177 @@ describe('Session Summary Countdown Logic', () => {
       expect(finalState.countdown).toBe(DEFAULT_SESSION_SUMMARY_CONFIG.countdown.highConfidence)
     })
   })
+
+  describe('Bookmark Line Management', () => {
+    /**
+     * Bookmark behavior (see docs/design/FEATURE-SESSION-SUMMARY.md §3.2.2):
+     * - High confidence (avg > 0.8): set bookmark to current lineNumber
+     * - Low confidence (avg < 0.7): reset bookmark to 0 (possible topic pivot)
+     * - Medium confidence (0.7-0.8): preserve existing bookmark
+     */
+
+    it('sets bookmark to event lineNumber when confidence > 0.8 (high confidence)', async () => {
+      const sessionId = 'test-bookmark-high'
+      const eventLineNumber = 250
+
+      // Start with existing bookmark at line 100
+      await writeCountdownState(sessionId, { countdown: 0, bookmark_line: 100 })
+
+      // Queue high confidence response (avg = 0.9)
+      llm.queueResponse(
+        JSON.stringify({
+          session_title: 'Clear Task',
+          session_title_confidence: 0.92,
+          latest_intent: 'Building feature',
+          latest_intent_confidence: 0.88,
+          pivot_detected: false,
+        })
+      )
+
+      await updateSessionSummary(createToolResultEvent(sessionId, eventLineNumber), ctx)
+
+      const state = await readCountdownState(sessionId)
+      // High confidence: bookmark should be updated to event's lineNumber
+      expect(state.bookmark_line).toBe(eventLineNumber)
+    })
+
+    it('resets bookmark to 0 when confidence < 0.7 (low confidence / pivot)', async () => {
+      const sessionId = 'test-bookmark-low'
+
+      // Start with existing bookmark at line 200
+      await writeCountdownState(sessionId, { countdown: 0, bookmark_line: 200 })
+
+      // Queue low confidence response (avg = 0.5 < 0.7)
+      llm.queueResponse(
+        JSON.stringify({
+          session_title: 'Unclear Direction',
+          session_title_confidence: 0.4,
+          latest_intent: 'Maybe debugging?',
+          latest_intent_confidence: 0.6,
+          pivot_detected: true,
+        })
+      )
+
+      await updateSessionSummary(createToolResultEvent(sessionId, 300), ctx)
+
+      const state = await readCountdownState(sessionId)
+      // Low confidence: bookmark should be reset to 0
+      expect(state.bookmark_line).toBe(0)
+    })
+
+    it('preserves existing bookmark when confidence is between 0.7 and 0.8 (medium confidence)', async () => {
+      const sessionId = 'test-bookmark-medium'
+      const existingBookmark = 150
+
+      // Start with existing bookmark
+      await writeCountdownState(sessionId, { countdown: 0, bookmark_line: existingBookmark })
+
+      // Queue medium confidence response (avg = 0.75, between 0.7 and 0.8)
+      llm.queueResponse(
+        JSON.stringify({
+          session_title: 'Working on Feature',
+          session_title_confidence: 0.78,
+          latest_intent: 'Adding tests',
+          latest_intent_confidence: 0.72,
+          pivot_detected: false,
+        })
+      )
+
+      await updateSessionSummary(createToolResultEvent(sessionId, 400), ctx)
+
+      const state = await readCountdownState(sessionId)
+      // Medium confidence: bookmark should be preserved
+      expect(state.bookmark_line).toBe(existingBookmark)
+    })
+
+    it('preserves bookmark at exactly 0.7 confidence (boundary - medium tier)', async () => {
+      const sessionId = 'test-bookmark-boundary-low'
+      const existingBookmark = 175
+
+      await writeCountdownState(sessionId, { countdown: 0, bookmark_line: existingBookmark })
+
+      // Queue response at exactly 0.7 average (boundary between low and medium)
+      // 0.7 is NOT < 0.7, so it falls into "preserve" territory
+      llm.queueResponse(
+        JSON.stringify({
+          session_title: 'Boundary Test',
+          session_title_confidence: 0.7,
+          latest_intent: 'Testing boundaries',
+          latest_intent_confidence: 0.7,
+          pivot_detected: false,
+        })
+      )
+
+      await updateSessionSummary(createToolResultEvent(sessionId, 500), ctx)
+
+      const state = await readCountdownState(sessionId)
+      // At exactly 0.7: not < 0.7, not > 0.8, so preserve
+      expect(state.bookmark_line).toBe(existingBookmark)
+    })
+
+    it('sets bookmark at exactly 0.81 confidence (boundary - high tier)', async () => {
+      const sessionId = 'test-bookmark-boundary-high'
+      const eventLineNumber = 600
+
+      await writeCountdownState(sessionId, { countdown: 0, bookmark_line: 100 })
+
+      // Queue response at just above 0.8 (0.81 average)
+      llm.queueResponse(
+        JSON.stringify({
+          session_title: 'Clear Direction',
+          session_title_confidence: 0.82,
+          latest_intent: 'Implementing feature',
+          latest_intent_confidence: 0.8,
+          pivot_detected: false,
+        })
+      )
+
+      await updateSessionSummary(createToolResultEvent(sessionId, eventLineNumber), ctx)
+
+      const state = await readCountdownState(sessionId)
+      // At 0.81 (> 0.8): set bookmark to lineNumber
+      expect(state.bookmark_line).toBe(eventLineNumber)
+    })
+
+    it('bookmark persists across multiple analyses when confidence stays medium', async () => {
+      const sessionId = 'test-bookmark-persist'
+      const initialBookmark = 50
+
+      // Set initial high-confidence bookmark
+      await writeCountdownState(sessionId, { countdown: 0, bookmark_line: initialBookmark })
+
+      // First analysis: medium confidence (0.75) - should preserve bookmark
+      llm.queueResponse(
+        JSON.stringify({
+          session_title: 'Feature Work',
+          session_title_confidence: 0.75,
+          latest_intent: 'Adding code',
+          latest_intent_confidence: 0.75,
+          pivot_detected: false,
+        })
+      )
+      await updateSessionSummary(createToolResultEvent(sessionId, 200), ctx)
+
+      let state = await readCountdownState(sessionId)
+      expect(state.bookmark_line).toBe(initialBookmark)
+
+      // Reset countdown for next analysis
+      await writeCountdownState(sessionId, { countdown: 0, bookmark_line: state.bookmark_line })
+
+      // Second analysis: still medium confidence - should still preserve
+      llm.queueResponse(
+        JSON.stringify({
+          session_title: 'Feature Work Continued',
+          session_title_confidence: 0.72,
+          latest_intent: 'More code',
+          latest_intent_confidence: 0.78,
+          pivot_detected: false,
+        })
+      )
+      await updateSessionSummary(createToolResultEvent(sessionId, 300), ctx)
+
+      state = await readCountdownState(sessionId)
+      expect(state.bookmark_line).toBe(initialBookmark)
+    })
+  })
 })
