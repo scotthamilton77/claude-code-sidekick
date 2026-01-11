@@ -315,9 +315,18 @@ async function performAnalysis(
     newCountdown = config.countdown.lowConfidence
   }
 
-  // Update bookmark line if high confidence
-  const bookmarkLine =
-    avgConfidence > config.bookmark.confidenceThreshold ? event.payload.lineNumber : currentSummary?.stats ? 0 : 0
+  // Update bookmark line based on confidence thresholds
+  // - High confidence (> confidenceThreshold): set bookmark to current line
+  // - Low confidence (< resetThreshold): reset bookmark (possible topic pivot)
+  // - Medium confidence: preserve existing bookmark
+  let bookmarkLine: number
+  if (avgConfidence > config.bookmark.confidenceThreshold) {
+    bookmarkLine = event.payload.lineNumber
+  } else if (avgConfidence < config.bookmark.resetThreshold) {
+    bookmarkLine = 0
+  } else {
+    bookmarkLine = countdown.bookmark_line
+  }
 
   await saveCountdownState(ctx, sessionId, {
     countdown: newCountdown,
