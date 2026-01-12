@@ -148,11 +148,7 @@ async function resumeMessageExists(ctx: DaemonContext, sessionId: string): Promi
   }
 }
 
-async function saveCountdownState(
-  ctx: DaemonContext,
-  sessionId: string,
-  state: SummaryCountdownState
-): Promise<void> {
+async function saveCountdownState(ctx: DaemonContext, sessionId: string, state: SummaryCountdownState): Promise<void> {
   const stateDir = ctx.paths.projectConfigDir ?? ctx.paths.userConfigDir
   const statePath = path.join(stateDir, 'sessions', sessionId, 'state', COUNTDOWN_FILE)
   await fs.mkdir(path.dirname(statePath), { recursive: true })

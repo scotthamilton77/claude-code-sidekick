@@ -7,7 +7,7 @@ The Sidekick Monitoring UI is a developer tool designed to provide visibility in
 **Related Documents**:
 - `docs/design/flow.md`: Event model, PreCompact flow with transcript snapshot
 - `docs/design/TRANSCRIPT-PROCESSING.md`: TranscriptService, compaction history management
-- `docs/design/SUPERVISOR.md`: Event emission, TranscriptService integration
+- `docs/design/DAEMON.md`: Event emission, TranscriptService integration
 - `docs/design/STRUCTURED-LOGGING.md`: Entity-lifecycle event schema
 
 ## 2. Architecture
@@ -24,7 +24,7 @@ The UI runs locally and reads files from global logs, session-specific state dir
 
 ```mermaid
 graph TD
-    UI[Monitoring UI (React)] -->|Reads| SupervisorLog[.sidekick/logs/supervisor.log]
+    UI[Monitoring UI (React)] -->|Reads| DaemonLog[.sidekick/logs/sidekickd.log]
     UI -->|Reads| CliLog[.sidekick/logs/cli.log]
     UI -->|Reads| Transcript[$transcript_path - Claude Code transcript]
     UI -->|Reads| SessionState[.sidekick/sessions/{sessionId}/state/*.json]
@@ -39,7 +39,7 @@ graph TD
 ```
 
 **Notes**:
-- **Transcript Path**: The `$transcript_path` is provided by Claude Code at session start and propagated through: Claude Code → hook script → sidekick CLI → sidekick Supervisor. The UI reads this file to reconstruct the conversation timeline.
+- **Transcript Path**: The `$transcript_path` is provided by Claude Code at session start and propagated through: Claude Code → hook script → sidekick CLI → sidekick Daemon. The UI reads this file to reconstruct the conversation timeline.
 - **Log Files**: Global (not session-specific). The UI filters events by `context.sessionId` to isolate a single session's timeline. See **docs/design/STRUCTURED-LOGGING.md §2.2** for log file strategy.
 
 ## 3. Core Features
@@ -80,7 +80,7 @@ The Monitoring UI supports **compaction-aware time travel** to handle transcript
 Since Sidekick overwrites its state files (`state/session-summary.json`, etc.), we cannot rely on the file system for history. Instead, we use **Log-Based Reconstruction**.
 
 - **Mechanism**:
-    1.  The UI ingests `.sidekick/logs/supervisor.log` and `.sidekick/logs/cli.log` (NDJSON).
+    1.  The UI ingests `.sidekick/logs/sidekickd.log` and `.sidekick/logs/cli.log` (NDJSON).
     2.  It filters events by `context.sessionId` to isolate the target session.
     3.  It merges the streams based on timestamp.
     4.  It filters for `SidekickEvent` types (Hook events, Transcript events, Internal events).
@@ -185,7 +185,7 @@ interface TranscriptEvent {
 | `ReminderConsumed` | CLI returns a staged reminder |
 | `HookCompleted`    | Hook invocation ends          |
 
-#### Supervisor-Logged Events
+#### Daemon-Logged Events
 
 | Event                      | When                                        |
 |----------------------------|---------------------------------------------|
@@ -207,20 +207,20 @@ interface TranscriptEvent {
   "context": { "sessionId": "sess-001", "traceId": "req-abc", "hook": "UserPromptSubmit" },
   "payload": { "prompt": "Fix the auth bug" } }
 
-// 2. Supervisor receives event via IPC (supervisor.log)
-{ "level": 30, "time": 1678888888100, "source": "supervisor", "pid": 12346,
+// 2. Daemon receives event via IPC (sidekickd.log)
+{ "level": 30, "time": 1678888888100, "source": "daemon", "pid": 12346,
   "type": "EventReceived",
   "context": { "sessionId": "sess-001", "traceId": "req-abc", "hook": "UserPromptSubmit" },
   "payload": {} }
 
-// 3. Supervisor handler executes (supervisor.log)
-{ "level": 30, "time": 1678888888150, "source": "supervisor", "pid": 12346,
+// 3. Daemon handler executes (sidekickd.log)
+{ "level": 30, "time": 1678888888150, "source": "daemon", "pid": 12346,
   "type": "HandlerExecuted",
   "context": { "sessionId": "sess-001", "traceId": "req-abc", "hook": "UserPromptSubmit" },
   "payload": { "handlerId": "session-summary:update", "durationMs": 45 } }
 
-// 4. Summary updated (supervisor.log)
-{ "level": 30, "time": 1678888889400, "source": "supervisor", "pid": 12346,
+// 4. Summary updated (sidekickd.log)
+{ "level": 30, "time": 1678888889400, "source": "daemon", "pid": 12346,
   "type": "SummaryUpdated",
   "context": { "sessionId": "sess-001", "traceId": "req-abc" },
   "payload": { "state": { "title": "Auth Bug Fix", "turnCount": 5 }, "reason": "cadence_met" } }
@@ -243,8 +243,8 @@ interface TranscriptEvent {
 The TranscriptService watches the transcript file and emits events as new entries appear. These events include embedded metrics.
 
 ```json
-// TranscriptService detects new UserPrompt entry (supervisor.log)
-{ "level": 30, "time": 1678888890000, "source": "supervisor", "pid": 12346,
+// TranscriptService detects new UserPrompt entry (sidekickd.log)
+{ "level": 30, "time": 1678888890000, "source": "daemon", "pid": 12346,
   "type": "TranscriptEventEmitted",
   "context": { "sessionId": "sess-001" },
   "payload": {
@@ -260,8 +260,8 @@ The TranscriptService watches the transcript file and emits events as new entrie
   }
 }
 
-// TranscriptService detects ToolResult entry (supervisor.log)
-{ "level": 30, "time": 1678888891000, "source": "supervisor", "pid": 12346,
+// TranscriptService detects ToolResult entry (sidekickd.log)
+{ "level": 30, "time": 1678888891000, "source": "daemon", "pid": 12346,
   "type": "TranscriptEventEmitted",
   "context": { "sessionId": "sess-001" },
   "payload": {
@@ -333,11 +333,11 @@ A "Unified Cockpit" design that merges the transcript and event log into a singl
 - **Live Mode**: A "Live" button snaps the slider to the bottom and follows new events in real-time.
 
 ## 6. Implementation Strategy
-1.  **Instrumentation**: Update `sidekick-core` and `sidekick-supervisor` to emit `SidekickEvent` types (see `docs/design/flow.md §3` and `docs/design/STRUCTURED-LOGGING.md`).
-2.  **UI Scaffold**: Create React app with a log parser that reads both `cli.log` and `supervisor.log`.
+1.  **Instrumentation**: Update `sidekick-core` and `sidekick-daemon` to emit `SidekickEvent` types (see `docs/design/flow.md §3` and `docs/design/STRUCTURED-LOGGING.md`).
+2.  **UI Scaffold**: Create React app with a log parser that reads both `cli.log` and `sidekickd.log`.
 3.  **Replay Logic**: Implement a reducer that:
     - Filters events by `context.sessionId` to isolate a session
-    - Merges CLI and Supervisor log streams by timestamp
+    - Merges CLI and Daemon log streams by timestamp
     - Builds state timeline from event payloads
     - Correlates causally-related events via `context.traceId`
 4.  **Visualization**: Build Timeline, Inspector, and event-filter components.

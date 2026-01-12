@@ -6,7 +6,7 @@ Core runtime library—config, logging, IPC, scope resolution, asset loading.
 
 ## Architecture Notes
 
-- **Single-writer pattern**: Only `Supervisor` writes shared state; CLI reads
+- **Single-writer pattern**: Only `Daemon` writes shared state; CLI reads
 - **IPC**: Unix domain sockets with NDJSON protocol (see `src/ipc/`)
 - **Scope resolution**: User (`~/.claude`) vs Project (`.claude`)—must behave identically
 

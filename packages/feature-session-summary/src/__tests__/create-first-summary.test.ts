@@ -97,7 +97,6 @@ describe('createFirstSessionSummary', () => {
       expect(timestamp.getTime()).toBeGreaterThanOrEqual(beforeTime.getTime())
       expect(timestamp.getTime()).toBeLessThanOrEqual(afterTime.getTime())
     })
-
   })
 
   describe('clear startType', () => {
@@ -117,7 +116,6 @@ describe('createFirstSessionSummary', () => {
       expect(summary.latest_intent).toBe('Awaiting first prompt...')
       expect(summary.latest_intent_confidence).toBe(0)
     })
-
   })
 
   describe('resume startType', () => {
@@ -132,7 +130,6 @@ describe('createFirstSessionSummary', () => {
       // File should not exist
       await expect(fs.access(statePath)).rejects.toThrow()
     })
-
   })
 
   describe('compact startType', () => {
@@ -147,9 +144,7 @@ describe('createFirstSessionSummary', () => {
       // File should not exist
       await expect(fs.access(statePath)).rejects.toThrow()
     })
-
   })
-
 
   describe('Path resolution', () => {
     it('uses projectConfigDir when available', async () => {
@@ -187,7 +182,6 @@ describe('createFirstSessionSummary', () => {
 
       expect(fileExists).toBe(true)
     })
-
   })
 
   describe('Multiple sessions', () => {

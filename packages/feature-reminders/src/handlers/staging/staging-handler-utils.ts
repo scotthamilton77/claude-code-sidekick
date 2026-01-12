@@ -42,10 +42,7 @@ export interface StagingHandlerConfig {
   /** Event filter - use proper HandlerFilter type */
   filter: HandlerFilter
   /** Handler logic - receives narrowed DaemonContext */
-  execute: (
-    event: SidekickEvent,
-    ctx: DaemonContext
-  ) => Promise<StagingAction | undefined> | StagingAction | undefined
+  execute: (event: SidekickEvent, ctx: DaemonContext) => Promise<StagingAction | undefined> | StagingAction | undefined
 }
 
 /**

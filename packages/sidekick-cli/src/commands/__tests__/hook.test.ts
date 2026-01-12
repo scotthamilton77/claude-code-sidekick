@@ -9,7 +9,14 @@
 import { Writable } from 'node:stream'
 import { describe, expect, test, vi, beforeEach } from 'vitest'
 import type { ParsedHookInput } from '@sidekick/types'
-import { buildHookEvent, getHookName, handleHookCommand, isHookCommand, mergeHookResponses, validateHookName } from '../hook.js'
+import {
+  buildHookEvent,
+  getHookName,
+  handleHookCommand,
+  isHookCommand,
+  mergeHookResponses,
+  validateHookName,
+} from '../hook.js'
 import type { HandleHookOptions } from '../hook.js'
 
 // Collecting writable for capturing output

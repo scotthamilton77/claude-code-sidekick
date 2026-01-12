@@ -197,8 +197,7 @@ export class InstrumentedLLMProvider implements LLMProvider {
       }
 
       // Use model from profile config, then response, then request, then 'unknown'
-      const model =
-        this.config.profileParams?.model ?? response?.model ?? request.model ?? 'unknown'
+      const model = this.config.profileParams?.model ?? response?.model ?? request.model ?? 'unknown'
 
       // Write to sibling of state dir: sessions/{id}/llm-debug/ (flattened, no subdirs)
       const sessionDir = dirname(this.config.stateDir)
