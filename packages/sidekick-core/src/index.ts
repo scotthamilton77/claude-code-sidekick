@@ -133,6 +133,13 @@ export { ServiceFactoryImpl, type ServiceFactoryOptions } from './service-factor
 export { InstrumentedLLMProvider, type InstrumentedLLMProviderConfig } from './instrumented-llm-provider'
 export { InstrumentedProfileProviderFactory, type InstrumentationConfig } from './instrumented-profile-factory'
 export { createHookableLogger, type LogHook, type HookableLoggerOptions } from './hookable-logger'
+export {
+  StateService,
+  StateNotFoundError,
+  StateCorruptError,
+  type StateReadResult,
+  type StateServiceOptions,
+} from './state/index.js'
 
 // Note: LLMService should be imported directly from '@sidekick/shared-providers'
 // to avoid circular dependencies between packages
