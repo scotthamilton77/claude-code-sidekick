@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { Logger } from '@sidekick/types'
-import type { ConfigService, LlmProfile, FallbackProfile } from '@sidekick/core'
+import type { ConfigService, LlmProfile } from '@sidekick/core'
 import { ProfileProviderFactory } from '../profile-factory'
 import { FallbackProvider } from '../fallback'
 
@@ -27,7 +27,7 @@ function createFakeLogger(): Logger {
 // Helper to create a minimal ConfigService fake
 function createFakeConfigService(
   profiles: Record<string, LlmProfile> = {},
-  fallbacks: Record<string, FallbackProfile> = {},
+  fallbacks: Record<string, LlmProfile> = {},
   defaultProfile = 'default'
 ): ConfigService {
   return {
@@ -67,7 +67,7 @@ const sampleProfiles: Record<string, LlmProfile> = {
   } as LlmProfile,
 }
 
-const sampleFallbacks: Record<string, FallbackProfile> = {
+const sampleFallbacks: Record<string, LlmProfile> = {
   backup: {
     provider: 'openai',
     model: 'gpt-3.5-turbo',
@@ -75,7 +75,7 @@ const sampleFallbacks: Record<string, FallbackProfile> = {
     timeoutMaxRetries: 1,
     temperature: 0.5,
     maxTokens: 1024,
-  } as FallbackProfile,
+  } as LlmProfile,
 }
 
 describe('ProfileProviderFactory', () => {

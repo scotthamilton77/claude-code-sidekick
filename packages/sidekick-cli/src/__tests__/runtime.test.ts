@@ -19,7 +19,7 @@ vi.mock('@sidekick/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@sidekick/core')>()
 
   // Create a fake logger that tracks calls
-  const createFakeLogger = () => ({
+  const createFakeLogger = (): Record<string, ReturnType<typeof vi.fn>> => ({
     debug: vi.fn(),
     info: vi.fn(),
     warn: vi.fn(),

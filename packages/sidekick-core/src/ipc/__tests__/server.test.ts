@@ -306,7 +306,8 @@ describe('IpcServer', () => {
     })
 
     it('handles multiple requests on same connection', async () => {
-      const handler = vi.fn()
+      const handler = vi
+        .fn()
         .mockResolvedValueOnce('result1')
         .mockResolvedValueOnce('result2')
         .mockResolvedValueOnce('result3')
@@ -377,9 +378,12 @@ describe('IpcServer', () => {
       })
 
       // Verify error was logged with correct message
-      expect(logSpy).toHaveBeenCalledWith('IPC socket error', expect.objectContaining({
-        error: expect.any(Error),
-      }))
+      expect(logSpy).toHaveBeenCalledWith(
+        'IPC socket error',
+        expect.objectContaining({
+          error: expect.any(Error),
+        })
+      )
     })
   })
 
@@ -409,9 +413,7 @@ describe('IpcServer', () => {
     })
 
     it('handles multiple messages in single chunk', async () => {
-      const handler = vi.fn()
-        .mockResolvedValueOnce('r1')
-        .mockResolvedValueOnce('r2')
+      const handler = vi.fn().mockResolvedValueOnce('r1').mockResolvedValueOnce('r2')
 
       const { triggerConnection } = createTestableServer(logger, handler)
 
@@ -480,7 +482,7 @@ describe('IpcServer', () => {
   describe('validateSocketPath', () => {
     // Socket path validation is covered by transport.test.ts
     // This just verifies it's called on start()
-    it('is called when starting server', async () => {
+    it('is called when starting server', () => {
       // We can't test start() directly without real socket, but the integration
       // tests verify this. This test documents the expected behavior.
       const server = new IpcServer('/path/to/socket.sock', logger, vi.fn())

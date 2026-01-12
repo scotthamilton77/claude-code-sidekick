@@ -12,7 +12,16 @@ import { randomUUID } from 'node:crypto'
 import { EmulatorStateManager } from '../../../providers/emulators/emulator-state'
 
 // Fake logger that captures calls
-function createFakeLogger() {
+function createFakeLogger(): {
+  trace: ReturnType<typeof vi.fn>
+  debug: ReturnType<typeof vi.fn>
+  info: ReturnType<typeof vi.fn>
+  warn: ReturnType<typeof vi.fn>
+  error: ReturnType<typeof vi.fn>
+  fatal: ReturnType<typeof vi.fn>
+  child: ReturnType<typeof vi.fn>
+  flush: ReturnType<typeof vi.fn>
+} {
   return {
     trace: vi.fn(),
     debug: vi.fn(),
@@ -26,7 +35,13 @@ function createFakeLogger() {
 }
 
 // Helper to create isolated test context - each test gets its own directory
-async function createTestContext() {
+async function createTestContext(): Promise<{
+  testSubDir: string
+  statePath: string
+  logger: ReturnType<typeof createFakeLogger>
+  manager: EmulatorStateManager
+  cleanup: () => Promise<void>
+}> {
   const testSubDir = join('/tmp/claude/emulator-state-test', randomUUID())
   await mkdir(testSubDir, { recursive: true })
   const statePath = join(testSubDir, 'state.json')
@@ -100,7 +115,7 @@ describe('EmulatorStateManager', () => {
 
         expect(state1).toBe(state2) // Same object reference
         // Debug for "not found" should only be called once
-        expect(ctx.logger.debug.mock.calls.filter((c: [string]) => c[0].includes('not found')).length).toBe(1)
+        expect(ctx.logger.debug.mock.calls.filter((c) => (c[0] as string).includes('not found')).length).toBe(1)
       } finally {
         await ctx.cleanup()
       }
