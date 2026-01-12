@@ -127,6 +127,48 @@ See [PACKAGING.md](PACKAGING.md) for tsconfig, build optimization, and publishin
 
 ---
 
+## Error Suppression
+
+**See [typescript-developer](../typescript-developer/SKILL.md#error-suppression-last-resort-only) for complete suppression guidelines.**
+
+**CLI-specific considerations:**
+
+```typescript
+// ❌ BAD: Suppressing to avoid proper error handling
+// @ts-expect-error - process.exit might not exist
+process.exit(1);
+
+// ✅ GOOD: Proper type guard
+if (typeof process.exit === 'function') {
+  process.exit(1);
+}
+
+// ❌ BAD: Suppressing yargs type complexity
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const argv = yargs(args).parse() as any;
+
+// ✅ GOOD: Proper yargs typing
+interface CliArgs {
+  verbose: boolean;
+  output: string;
+}
+const argv = yargs(args)
+  .options({ verbose: { type: 'boolean' }, output: { type: 'string', demandOption: true } })
+  .parseSync() as CliArgs;
+```
+
+**Common CLI suppressions to avoid:**
+- `any` for parsed arguments (define interfaces)
+- `any` for process/environment (use proper Node types)
+- Suppressing async errors (use proper try/catch with typed errors)
+
+**When suppression IS justified in CLI code:**
+- Third-party CLI library type bugs (with upstream issue link)
+- Node.js version compatibility shims (with version check)
+- Platform-specific code paths (with platform detection)
+
+---
+
 ## Quick Start
 
 **Dependencies:** `yargs` + `chalk` + `ora` + `typescript` + `tsx` + types
