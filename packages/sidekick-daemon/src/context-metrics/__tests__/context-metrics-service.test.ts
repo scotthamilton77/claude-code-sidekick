@@ -12,6 +12,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
+import type { SidekickEvent } from '@sidekick/types'
 import { MockLogger, MockHandlerRegistry } from '@sidekick/testing-fixtures'
 import { ContextMetricsService, createContextMetricsService } from '../context-metrics-service.js'
 import { DEFAULT_BASE_METRICS, DEFAULT_PROJECT_METRICS } from '../types.js'
@@ -668,9 +669,9 @@ System prompt and System tools are here but the table is malformed
           sessionId,
           projectDir,
         },
-      }
+      } as unknown as SidekickEvent
 
-      await handler(event)
+      await handler(event, {})
 
       // Verify session metrics were written
       const sessionMetrics = await service.readSessionMetrics(sessionId)
@@ -699,9 +700,9 @@ System prompt and System tools are here but the table is malformed
         type: 'SessionStart',
         payload: {},
         context: {},
-      }
+      } as unknown as SidekickEvent
 
-      await handler(event)
+      await handler(event, {})
 
       // Should not log context metrics updated
       expect(logger.wasLogged('Context metrics updated from /context output')).toBe(false)
@@ -734,9 +735,9 @@ System prompt and System tools are here but the table is malformed
           sessionId: 'test',
           projectDir,
         },
-      }
+      } as unknown as SidekickEvent
 
-      await handler(event)
+      await handler(event, {})
 
       expect(logger.wasLogged('Context metrics updated from /context output')).toBe(false)
     })
@@ -779,9 +780,9 @@ System prompt and System tools are here but the table is malformed
           projectDir,
           // no sessionId
         },
-      }
+      } as unknown as SidekickEvent
 
-      await handler(event)
+      await handler(event, {})
 
       expect(logger.wasLogged('Context metrics updated from /context output')).toBe(false)
     })
