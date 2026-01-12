@@ -183,6 +183,53 @@ describe('TranscriptServiceImpl', () => {
       const metrics = service.getMetrics()
       expect(metrics.turnCount).toBe(0)
     })
+
+    it('throws error when prepare() called twice without shutdown', async () => {
+      writeFileSync(transcriptPath, '')
+      await service.prepare('test-session', transcriptPath)
+
+      await expect(async () => {
+        await service.prepare('another-session', transcriptPath)
+      }).rejects.toThrow('TranscriptService already prepared - call shutdown() first')
+    })
+
+    it('throws error when start() called before prepare()', async () => {
+      await expect(async () => {
+        await service.start()
+      }).rejects.toThrow('TranscriptService.start() called before prepare()')
+    })
+
+    it('allows re-initialization after shutdown', async () => {
+      writeFileSync(transcriptPath, '')
+      await service.initialize('test-session', transcriptPath)
+      await service.shutdown()
+
+      // Should not throw - can prepare again after shutdown
+      await service.prepare('another-session', transcriptPath)
+      await service.start()
+
+      const metrics = service.getMetrics()
+      expect(metrics.turnCount).toBe(0)
+    })
+
+    it('handles duplicate start() calls idempotently', async () => {
+      writeFileSync(transcriptPath, JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } }))
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
+
+      // Call start() again - should return early without error
+      await service.start()
+
+      // Verify logging indicates it was skipped
+      expect(logger.debug).toHaveBeenCalledWith(
+        'TranscriptService.start() called but already running, skipping',
+        expect.objectContaining({ sessionId: 'test-session' })
+      )
+
+      // Metrics should still be correct (not processed twice)
+      const metrics = service.getMetrics()
+      expect(metrics.turnCount).toBe(1)
+    })
   })
 
   // --------------------------------------------------------------------------
@@ -949,6 +996,79 @@ describe('TranscriptServiceImpl', () => {
 
       expect(callback).toHaveBeenCalledTimes(1) // Only once, not twice
     })
+
+    it('catches and logs error in metrics change callback', async () => {
+      writeFileSync(transcriptPath, '')
+      await service.initialize('test-session', transcriptPath)
+
+      const errorCallback = vi.fn(() => {
+        throw new Error('Callback exploded')
+      })
+      const normalCallback = vi.fn()
+
+      service.onMetricsChange(errorCallback)
+      service.onMetricsChange(normalCallback)
+
+      writeFileSync(transcriptPath, JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } }))
+      await getTestHelpers(service).processTranscriptFile()
+
+      // Error should be logged
+      expect(logger.error).toHaveBeenCalledWith('Error in metrics change callback', expect.any(Object))
+
+      // Other callbacks should still be called
+      expect(normalCallback).toHaveBeenCalled()
+    })
+
+    it('catches and logs error in threshold callback', async () => {
+      writeFileSync(transcriptPath, '')
+      await service.initialize('test-session', transcriptPath)
+
+      const errorCallback = vi.fn(() => {
+        throw new Error('Threshold callback exploded')
+      })
+
+      service.onThreshold('turnCount', 1, errorCallback)
+
+      writeFileSync(transcriptPath, JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } }))
+      await getTestHelpers(service).processTranscriptFile()
+
+      // Error should be logged with threshold context
+      expect(logger.error).toHaveBeenCalledWith(
+        'Error in threshold callback',
+        expect.objectContaining({
+          metric: 'turnCount',
+          threshold: 1,
+        })
+      )
+    })
+
+    it('unsubscribes threshold callback correctly', async () => {
+      writeFileSync(transcriptPath, '')
+      await service.initialize('test-session', transcriptPath)
+
+      const callback = vi.fn()
+      const unsubscribe = service.onThreshold('turnCount', 1, callback)
+      unsubscribe()
+
+      writeFileSync(transcriptPath, JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } }))
+      await getTestHelpers(service).processTranscriptFile()
+
+      expect(callback).not.toHaveBeenCalled()
+    })
+
+    it('does not fire threshold for non-numeric metrics', async () => {
+      writeFileSync(transcriptPath, '')
+      await service.initialize('test-session', transcriptPath)
+
+      const callback = vi.fn()
+      // tokenUsage is an object, not a number - threshold check should skip it
+      service.onThreshold('tokenUsage' as keyof import('@sidekick/types').TranscriptMetrics, 1, callback)
+
+      writeFileSync(transcriptPath, JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } }))
+      await getTestHelpers(service).processTranscriptFile()
+
+      expect(callback).not.toHaveBeenCalled()
+    })
   })
 
   // --------------------------------------------------------------------------
@@ -998,6 +1118,125 @@ describe('TranscriptServiceImpl', () => {
       expect(metrics.toolCount).toBe(10)
       expect(logger.info).toHaveBeenCalledWith('Recovered transcript state', expect.any(Object))
     })
+
+    it('warns and returns fresh metrics on session ID mismatch', async () => {
+      // Set up state with wrong session ID
+      const statePath = join(stateDir, 'sessions', 'test-session', 'state', 'transcript-metrics.json')
+      mkdirSync(join(stateDir, 'sessions', 'test-session', 'state'), { recursive: true })
+
+      const savedState = {
+        sessionId: 'wrong-session-id',
+        metrics: {
+          ...createDefaultMetrics(),
+          turnCount: 100,
+        },
+        persistedAt: Date.now(),
+      }
+      writeFileSync(statePath, JSON.stringify(savedState))
+
+      writeFileSync(transcriptPath, '')
+      await service.initialize('test-session', transcriptPath)
+
+      // Should warn about mismatch and use fresh metrics
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Session ID mismatch in persisted state',
+        expect.objectContaining({
+          expectedSessionId: 'test-session',
+          foundSessionId: 'wrong-session-id',
+        })
+      )
+
+      const metrics = service.getMetrics()
+      expect(metrics.turnCount).toBe(0) // Fresh metrics, not 100
+    })
+
+    it('handles corrupted JSON in persisted state', async () => {
+      const statePath = join(stateDir, 'sessions', 'test-session', 'state', 'transcript-metrics.json')
+      mkdirSync(join(stateDir, 'sessions', 'test-session', 'state'), { recursive: true })
+
+      // Write invalid JSON
+      writeFileSync(statePath, '{ invalid json }')
+
+      writeFileSync(transcriptPath, '')
+      await service.initialize('test-session', transcriptPath)
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Failed to load persisted transcript state',
+        expect.objectContaining({ statePath })
+      )
+
+      // Should use fresh metrics
+      const metrics = service.getMetrics()
+      expect(metrics.turnCount).toBe(0)
+    })
+
+    it('handles old object format for currentContextTokens (backward compat)', async () => {
+      const statePath = join(stateDir, 'sessions', 'test-session', 'state', 'transcript-metrics.json')
+      mkdirSync(join(stateDir, 'sessions', 'test-session', 'state'), { recursive: true })
+
+      // Old format had currentContextTokens as an object
+      const savedState = {
+        sessionId: 'test-session',
+        metrics: {
+          ...createDefaultMetrics(),
+          turnCount: 3,
+          currentContextTokens: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+        },
+        persistedAt: Date.now(),
+      }
+      writeFileSync(statePath, JSON.stringify(savedState))
+
+      writeFileSync(transcriptPath, '')
+      await service.initialize('test-session', transcriptPath)
+
+      const metrics = service.getMetrics()
+      expect(metrics.turnCount).toBe(3)
+      // Should extract totalTokens from old object format
+      expect(metrics.currentContextTokens).toBe(150)
+    })
+
+    it('handles new numeric format for currentContextTokens', async () => {
+      const statePath = join(stateDir, 'sessions', 'test-session', 'state', 'transcript-metrics.json')
+      mkdirSync(join(stateDir, 'sessions', 'test-session', 'state'), { recursive: true })
+
+      // New format has currentContextTokens as a number
+      const savedState = {
+        sessionId: 'test-session',
+        metrics: {
+          ...createDefaultMetrics(),
+          turnCount: 7,
+          currentContextTokens: 50000,
+        },
+        persistedAt: Date.now(),
+      }
+      writeFileSync(statePath, JSON.stringify(savedState))
+
+      writeFileSync(transcriptPath, '')
+      await service.initialize('test-session', transcriptPath)
+
+      const metrics = service.getMetrics()
+      expect(metrics.turnCount).toBe(7)
+      expect(metrics.currentContextTokens).toBe(50000)
+    })
+
+    it('skips non-immediate persistence when recently persisted', async () => {
+      writeFileSync(transcriptPath, JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } }))
+      await service.initialize('test-session', transcriptPath)
+
+      // Force immediate persistence to set lastPersistedAt
+      getTestHelpers(service).persistMetrics(true)
+
+      // Clear debug logs
+      ;(logger.debug as ReturnType<typeof vi.fn>).mockClear()
+
+      // Try non-immediate persistence immediately after (should skip)
+      getTestHelpers(service).persistMetrics(false)
+
+      expect(logger.debug).toHaveBeenCalledWith(
+        'persistMetrics skipped (too recent)',
+        expect.objectContaining({ sessionId: 'test-session' })
+      )
+    })
   })
 
   // --------------------------------------------------------------------------
@@ -1036,6 +1275,361 @@ describe('TranscriptServiceImpl', () => {
 
       const saved = JSON.parse(readFileSync(historyPath, 'utf-8'))
       expect(saved.length).toBe(1)
+    })
+
+    it('handles corrupted compaction history JSON', async () => {
+      // Pre-create corrupted compaction history
+      const historyPath = join(stateDir, 'sessions', 'test-session', 'state', 'compaction-history.json')
+      mkdirSync(join(stateDir, 'sessions', 'test-session', 'state'), { recursive: true })
+      writeFileSync(historyPath, '{ corrupted json }')
+
+      writeFileSync(transcriptPath, JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } }))
+      await service.initialize('test-session', transcriptPath)
+
+      // Should warn and start with empty history
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Failed to load compaction history',
+        expect.objectContaining({ historyPath })
+      )
+
+      const history = service.getCompactionHistory()
+      expect(history).toEqual([])
+    })
+
+    it('throws error when capturePreCompactState called before initialization', async () => {
+      // Service not initialized
+      const snapshotPath = join(testDir, 'snapshots', 'pre-compact.jsonl')
+
+      await expect(async () => {
+        await service.capturePreCompactState(snapshotPath)
+      }).rejects.toThrow('TranscriptService not initialized')
+    })
+
+    it('loads existing compaction history on restart', async () => {
+      // Pre-create valid compaction history
+      const historyPath = join(stateDir, 'sessions', 'test-session', 'state', 'compaction-history.json')
+      mkdirSync(join(stateDir, 'sessions', 'test-session', 'state'), { recursive: true })
+
+      const existingHistory = [
+        {
+          compactedAt: Date.now() - 60000,
+          transcriptSnapshotPath: '/old/snapshot.jsonl',
+          metricsAtCompaction: createDefaultMetrics(),
+          postCompactLineCount: 5,
+        },
+      ]
+      writeFileSync(historyPath, JSON.stringify(existingHistory))
+
+      writeFileSync(transcriptPath, '')
+      await service.initialize('test-session', transcriptPath)
+
+      const history = service.getCompactionHistory()
+      expect(history.length).toBe(1)
+      expect(history[0].transcriptSnapshotPath).toBe('/old/snapshot.jsonl')
+    })
+  })
+
+  // --------------------------------------------------------------------------
+  // getTranscript Tests
+  // --------------------------------------------------------------------------
+
+  describe('getTranscript', () => {
+    it('returns empty transcript when not initialized', () => {
+      // Service not initialized - transcriptPath is null
+      const transcript = service.getTranscript()
+
+      expect(transcript.entries).toEqual([])
+      expect(transcript.metadata.sessionId).toBe('')
+      expect(transcript.metadata.transcriptPath).toBe('')
+      expect(transcript.metadata.lineCount).toBe(0)
+      expect(transcript.metadata.lastModified).toBe(0)
+      expect(transcript.toString()).toBe('')
+    })
+
+    it('returns empty transcript when file does not exist', async () => {
+      // Initialize with path but delete file
+      writeFileSync(transcriptPath, '')
+      await service.initialize('test-session', transcriptPath)
+      rmSync(transcriptPath)
+
+      const transcript = service.getTranscript()
+
+      expect(transcript.entries).toEqual([])
+      expect(transcript.metadata.sessionId).toBe('test-session')
+      expect(transcript.metadata.lineCount).toBe(0)
+    })
+
+    it('parses user and assistant messages into canonical entries', async () => {
+      const content = [
+        JSON.stringify({
+          type: 'user',
+          uuid: 'user-1',
+          timestamp: '2024-01-15T10:00:00Z',
+          message: { role: 'user', content: 'Hello there' },
+        }),
+        JSON.stringify({
+          type: 'assistant',
+          uuid: 'asst-1',
+          timestamp: '2024-01-15T10:00:01Z',
+          message: { role: 'assistant', content: 'Hi, how can I help?' },
+        }),
+      ].join('\n')
+      writeFileSync(transcriptPath, content)
+      await service.initialize('test-session', transcriptPath)
+
+      const transcript = service.getTranscript()
+
+      expect(transcript.entries.length).toBe(2)
+      expect(transcript.entries[0].role).toBe('user')
+      expect(transcript.entries[0].type).toBe('text')
+      expect(transcript.entries[0].content).toBe('Hello there')
+      expect(transcript.entries[1].role).toBe('assistant')
+      expect(transcript.entries[1].type).toBe('text')
+      expect(transcript.entries[1].content).toBe('Hi, how can I help?')
+      expect(transcript.metadata.lineCount).toBe(2)
+    })
+
+    it('parses nested tool_use blocks in assistant message', async () => {
+      const content = [
+        JSON.stringify({
+          type: 'assistant',
+          uuid: 'asst-1',
+          timestamp: '2024-01-15T10:00:00Z',
+          message: {
+            role: 'assistant',
+            id: 'msg-123',
+            content: [
+              { type: 'text', text: 'Let me read that file.' },
+              { type: 'tool_use', id: 'tool-1', name: 'Read', input: { file_path: '/test.ts' } },
+            ],
+          },
+        }),
+      ].join('\n')
+      writeFileSync(transcriptPath, content)
+      await service.initialize('test-session', transcriptPath)
+
+      const transcript = service.getTranscript()
+
+      expect(transcript.entries.length).toBe(2)
+      expect(transcript.entries[0].type).toBe('text')
+      expect(transcript.entries[0].content).toBe('Let me read that file.')
+      expect(transcript.entries[1].type).toBe('tool_use')
+      expect((transcript.entries[1].content as { name: string }).name).toBe('Read')
+    })
+
+    it('parses nested tool_result blocks in user message', async () => {
+      const content = [
+        JSON.stringify({
+          type: 'user',
+          uuid: 'user-1',
+          timestamp: '2024-01-15T10:00:00Z',
+          message: {
+            role: 'user',
+            content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: 'file contents here', is_error: false }],
+          },
+        }),
+      ].join('\n')
+      writeFileSync(transcriptPath, content)
+      await service.initialize('test-session', transcriptPath)
+
+      const transcript = service.getTranscript()
+
+      expect(transcript.entries.length).toBe(1)
+      expect(transcript.entries[0].type).toBe('tool_result')
+      expect(transcript.entries[0].metadata?.isError).toBe(false)
+      expect(transcript.entries[0].metadata?.toolUseId).toBe('tool-1')
+    })
+
+    it('skips non-message entry types like file-history-snapshot', async () => {
+      const content = [
+        JSON.stringify({
+          type: 'file-history-snapshot',
+          data: { files: [] },
+        }),
+        JSON.stringify({
+          type: 'user',
+          uuid: 'user-1',
+          message: { role: 'user', content: 'Hello' },
+        }),
+        JSON.stringify({
+          type: 'summary',
+          summary: 'Session summary',
+        }),
+      ].join('\n')
+      writeFileSync(transcriptPath, content)
+      await service.initialize('test-session', transcriptPath)
+
+      const transcript = service.getTranscript()
+
+      // Only the user message is parsed
+      expect(transcript.entries.length).toBe(1)
+      expect(transcript.entries[0].role).toBe('user')
+    })
+
+    it('logs warning and skips malformed JSON lines', async () => {
+      const content = [
+        'not valid json',
+        JSON.stringify({
+          type: 'user',
+          uuid: 'user-1',
+          message: { role: 'user', content: 'Valid message' },
+        }),
+        '{ broken: json',
+      ].join('\n')
+      writeFileSync(transcriptPath, content)
+      await service.initialize('test-session', transcriptPath)
+
+      const transcript = service.getTranscript()
+
+      // Only valid line is parsed
+      expect(transcript.entries.length).toBe(1)
+      expect(transcript.entries[0].content).toBe('Valid message')
+
+      // getTranscript also warns about malformed lines (different from processTranscriptFile)
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Skipping malformed transcript line',
+        expect.objectContaining({ line: 1 })
+      )
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Skipping malformed transcript line',
+        expect.objectContaining({ line: 3 })
+      )
+    })
+
+    it('generates human-readable string via toString()', async () => {
+      const content = [
+        JSON.stringify({
+          type: 'user',
+          uuid: 'user-1',
+          timestamp: '2024-01-15T10:00:00Z',
+          message: { role: 'user', content: 'What time is it?' },
+        }),
+        JSON.stringify({
+          type: 'assistant',
+          uuid: 'asst-1',
+          timestamp: '2024-01-15T10:00:01Z',
+          message: { role: 'assistant', content: "It's 10 AM" },
+        }),
+      ].join('\n')
+      writeFileSync(transcriptPath, content)
+      await service.initialize('test-session', transcriptPath)
+
+      const transcript = service.getTranscript()
+      const str = transcript.toString()
+
+      expect(str).toContain('USER:')
+      expect(str).toContain('What time is it?')
+      expect(str).toContain('ASSISTANT:')
+      expect(str).toContain("It's 10 AM")
+    })
+
+    it('renders tool_use entries in toString()', async () => {
+      const content = [
+        JSON.stringify({
+          type: 'assistant',
+          uuid: 'asst-1',
+          timestamp: '2024-01-15T10:00:00Z',
+          message: {
+            role: 'assistant',
+            content: [{ type: 'tool_use', id: 'tool-1', name: 'Edit', input: {} }],
+          },
+        }),
+      ].join('\n')
+      writeFileSync(transcriptPath, content)
+      await service.initialize('test-session', transcriptPath)
+
+      const transcript = service.getTranscript()
+      const str = transcript.toString()
+
+      expect(str).toContain('ASSISTANT TOOL_USE:')
+      expect(str).toContain('Edit')
+    })
+
+    it('renders tool_result entries in toString()', async () => {
+      const content = [
+        JSON.stringify({
+          type: 'user',
+          uuid: 'user-1',
+          timestamp: '2024-01-15T10:00:00Z',
+          message: {
+            role: 'user',
+            content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: 'result' }],
+          },
+        }),
+      ].join('\n')
+      writeFileSync(transcriptPath, content)
+      await service.initialize('test-session', transcriptPath)
+
+      const transcript = service.getTranscript()
+      const str = transcript.toString()
+
+      expect(str).toContain('USER TOOL_RESULT')
+    })
+
+    it('includes isMeta and isCompactSummary in metadata', async () => {
+      const content = [
+        JSON.stringify({
+          type: 'user',
+          uuid: 'user-1',
+          isMeta: true,
+          isCompactSummary: false,
+          message: { role: 'user', content: 'Disclaimer message' },
+        }),
+        JSON.stringify({
+          type: 'assistant',
+          uuid: 'asst-1',
+          isCompactSummary: true,
+          message: { role: 'assistant', content: 'Summary after compaction' },
+        }),
+      ].join('\n')
+      writeFileSync(transcriptPath, content)
+      await service.initialize('test-session', transcriptPath)
+
+      const transcript = service.getTranscript()
+
+      expect(transcript.entries[0].metadata?.isMeta).toBe(true)
+      expect(transcript.entries[0].metadata?.isCompactSummary).toBe(false)
+      expect(transcript.entries[1].metadata?.isCompactSummary).toBe(true)
+    })
+
+    it('handles entry with missing message gracefully', async () => {
+      const content = [
+        JSON.stringify({
+          type: 'user',
+          uuid: 'user-1',
+          // No message field
+        }),
+        JSON.stringify({
+          type: 'assistant',
+          uuid: 'asst-1',
+          message: { role: 'assistant', content: 'Valid response' },
+        }),
+      ].join('\n')
+      writeFileSync(transcriptPath, content)
+      await service.initialize('test-session', transcriptPath)
+
+      const transcript = service.getTranscript()
+
+      // Entry without message is skipped
+      expect(transcript.entries.length).toBe(1)
+      expect(transcript.entries[0].role).toBe('assistant')
+    })
+
+    it('uses line number as fallback ID when uuid missing', async () => {
+      const content = [
+        JSON.stringify({
+          type: 'user',
+          // No uuid
+          timestamp: '2024-01-15T10:00:00Z',
+          message: { role: 'user', content: 'No UUID message' },
+        }),
+      ].join('\n')
+      writeFileSync(transcriptPath, content)
+      await service.initialize('test-session', transcriptPath)
+
+      const transcript = service.getTranscript()
+
+      expect(transcript.entries[0].id).toBe('line-1')
     })
   })
 
