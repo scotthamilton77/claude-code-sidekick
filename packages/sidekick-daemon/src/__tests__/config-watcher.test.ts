@@ -1,21 +1,23 @@
-import { createConsoleLogger } from '@sidekick/core'
 import fs from 'fs/promises'
+import syncFs from 'fs'
 import os from 'os'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { MockLogger } from '@sidekick/testing-fixtures'
 import { ConfigChangeEvent, ConfigWatcher } from '../config-watcher.js'
-
-const logger = createConsoleLogger({ minimumLevel: 'error' })
 let tmpDir: string
+let logger: MockLogger
 
 describe('ConfigWatcher', () => {
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sidekick-watcher-test-'))
+    logger = new MockLogger()
     // Create .sidekick directory
     await fs.mkdir(path.join(tmpDir, '.sidekick'), { recursive: true })
   })
 
   afterEach(async () => {
+    vi.restoreAllMocks()
     try {
       await fs.rm(tmpDir, { recursive: true, force: true })
     } catch {
@@ -104,5 +106,110 @@ describe('ConfigWatcher', () => {
 
     // Should not have been called after stop
     expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('should log error when onChange handler throws', async () => {
+    // Create config file
+    const configPath = path.join(tmpDir, '.sidekick', 'features.yaml')
+    await fs.writeFile(configPath, 'feature1: enabled\n', 'utf-8')
+
+    const onChangeError = new Error('Handler failed')
+    const onChange = vi.fn().mockImplementation(() => {
+      throw onChangeError
+    })
+    const watcher = new ConfigWatcher(tmpDir, logger, onChange)
+
+    watcher.start()
+
+    // Modify the config file to trigger handler
+    await fs.writeFile(configPath, 'feature1: disabled\n', 'utf-8')
+
+    // Wait for debounce + fs.watch latency
+    await vi.waitFor(
+      () => {
+        expect(onChange).toHaveBeenCalled()
+      },
+      { timeout: 500 }
+    )
+
+    // Error should have been logged
+    expect(logger.wasLogged('Error in config change handler', 'error')).toBe(true)
+
+    watcher.stop()
+  })
+
+  it('should log error when fs.watch fails', async () => {
+    // Mock existsSync to return true but fs.watch to throw
+    const mockExistsSync = vi.spyOn(syncFs, 'existsSync').mockReturnValue(true)
+    const watchError = new Error('Permission denied')
+    const mockWatch = vi.spyOn(syncFs, 'watch').mockImplementation(() => {
+      throw watchError
+    })
+
+    const onChange = vi.fn()
+    const watcher = new ConfigWatcher(tmpDir, logger, onChange)
+
+    // Should not throw, but log error
+    expect(() => watcher.start()).not.toThrow()
+
+    // Error should have been logged for the file that failed
+    expect(logger.wasLogged('Could not watch config file')).toBe(true)
+
+    watcher.stop()
+
+    mockExistsSync.mockRestore()
+    mockWatch.mockRestore()
+  })
+
+  it('should clear pending debounce timers on stop', async () => {
+    // Create config file
+    const configPath = path.join(tmpDir, '.sidekick', '.env')
+    await fs.writeFile(configPath, 'API_KEY=test\n', 'utf-8')
+
+    const onChange = vi.fn()
+    const watcher = new ConfigWatcher(tmpDir, logger, onChange)
+
+    watcher.start()
+
+    // Trigger a change but stop before debounce completes
+    await fs.writeFile(configPath, 'API_KEY=changed\n', 'utf-8')
+
+    // Stop immediately (before debounce timeout of 100ms)
+    watcher.stop()
+
+    // Wait for what would have been the debounce period
+    await new Promise((r) => setTimeout(r, 200))
+
+    // onChange should NOT have been called because we stopped before debounce completed
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('should log watcher error events', async () => {
+    // Create config file
+    const configPath = path.join(tmpDir, '.sidekick', 'sidekick.config')
+    await fs.writeFile(configPath, 'test: value\n', 'utf-8')
+
+    const onChange = vi.fn()
+    const watcher = new ConfigWatcher(tmpDir, logger, onChange)
+
+    // Capture the FSWatcher instances created
+    const originalWatch = syncFs.watch
+    let createdWatcher: syncFs.FSWatcher | null = null
+    vi.spyOn(syncFs, 'watch').mockImplementation((filename, listener) => {
+      createdWatcher = originalWatch(filename, listener as Parameters<typeof syncFs.watch>[1])
+      return createdWatcher
+    })
+
+    watcher.start()
+
+    // Emit an error on the watcher
+    if (createdWatcher) {
+      ;(createdWatcher as syncFs.FSWatcher).emit('error', new Error('Watch error'))
+    }
+
+    // Error should have been logged
+    expect(logger.wasLogged('Watcher error', 'error')).toBe(true)
+
+    watcher.stop()
   })
 })

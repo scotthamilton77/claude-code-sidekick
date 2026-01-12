@@ -3,6 +3,10 @@
  *
  * Tests initialization, metrics read/write, event handling, and computed values.
  * CLI capture is skipped via skipCliCapture flag.
+ *
+ * NOTE: CLI capture methods (captureBaseMetrics, readContextOutputFromTranscript)
+ * are integration-test territory - they spawn external CLI and read from ~/.claude/.
+ * Run with INTEGRATION_TESTS=1 outside sandbox for full coverage.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
@@ -412,14 +416,22 @@ describe('ContextMetricsService', () => {
         skipCliCapture: true,
       })
 
-      // Has the markers but no valid table
+      // Has the markers to pass isContextCommandOutput but no valid parseable table
+      // Must include: <local-command-stdout>, "System prompt", "System tools", "Context"
       const badOutput = `<local-command-stdout>## Context Usage
-Some text without a valid table
+
+System prompt and System tools are here but the table is malformed
+
+| Category | Tokens |
+| System prompt | not-a-number |
+| System tools | also-not-valid |
 </local-command-stdout>`
 
       const result = await service.handleTranscriptContent('session-1', badOutput)
 
       expect(result).toBe(false)
+      // Verify the debug log was called for parse failure
+      expect(logger.wasLogged('Failed to parse /context output')).toBe(true)
     })
 
     it('should keep minimum memory files across updates', async () => {
@@ -609,6 +621,373 @@ Some text without a valid table
       expect(handlers[0].id).toBe('context-metrics:detect-context-output')
       expect(handlers[0].filter.kind).toBe('transcript')
       expect((handlers[0].filter as { eventTypes: string[] }).eventTypes).toContain('UserPrompt')
+    })
+
+    it('should process /context output when handler is triggered', async () => {
+      const service = new ContextMetricsService({
+        projectDir,
+        logger,
+        userConfigDir,
+        skipCliCapture: true,
+      })
+
+      const registry = new MockHandlerRegistry()
+      service.registerHandlers(registry)
+
+      const handlerReg = registry.getHandler('context-metrics:detect-context-output')
+      const handler = handlerReg!.handler
+
+      const sessionId = 'handler-test-session'
+      const contextOutput = `<local-command-stdout>## Context Usage
+
+**Model:** claude-opus-4-5-20251101
+**Tokens:** 63.0k / 200.0k (32%)
+
+### Categories
+
+| Category | Tokens | Percentage |
+|----------|--------|------------|
+| System prompt | 2.9k | 1.4% |
+| System tools | 15.1k | 7.6% |
+| MCP tools | 1.2k | 0.6% |
+| Custom agents | 300 | 0.2% |
+| Memory files | 1.5k | 0.8% |
+| Autocompact buffer | 45.0k | 22.5% |
+</local-command-stdout>`
+
+      // Create a transcript event
+      const event = {
+        kind: 'transcript',
+        type: 'UserPrompt',
+        payload: {
+          entry: {
+            message: { content: contextOutput },
+          },
+        },
+        context: {
+          sessionId,
+          projectDir,
+        },
+      }
+
+      await handler(event)
+
+      // Verify session metrics were written
+      const sessionMetrics = await service.readSessionMetrics(sessionId)
+      expect(sessionMetrics).not.toBeNull()
+      expect(sessionMetrics!.systemPromptTokens).toBe(2900)
+      expect(logger.wasLogged('Context metrics updated from /context output')).toBe(true)
+    })
+
+    it('should skip non-transcript events', async () => {
+      const service = new ContextMetricsService({
+        projectDir,
+        logger,
+        userConfigDir,
+        skipCliCapture: true,
+      })
+
+      const registry = new MockHandlerRegistry()
+      service.registerHandlers(registry)
+
+      const handlerReg = registry.getHandler('context-metrics:detect-context-output')
+      const handler = handlerReg!.handler
+
+      // Non-transcript event
+      const event = {
+        kind: 'lifecycle',
+        type: 'SessionStart',
+        payload: {},
+        context: {},
+      }
+
+      await handler(event)
+
+      // Should not log context metrics updated
+      expect(logger.wasLogged('Context metrics updated from /context output')).toBe(false)
+    })
+
+    it('should skip events without message content', async () => {
+      const service = new ContextMetricsService({
+        projectDir,
+        logger,
+        userConfigDir,
+        skipCliCapture: true,
+      })
+
+      const registry = new MockHandlerRegistry()
+      service.registerHandlers(registry)
+
+      const handlerReg = registry.getHandler('context-metrics:detect-context-output')
+      const handler = handlerReg!.handler
+
+      // Event with no content
+      const event = {
+        kind: 'transcript',
+        type: 'UserPrompt',
+        payload: {
+          entry: {
+            message: {},
+          },
+        },
+        context: {
+          sessionId: 'test',
+          projectDir,
+        },
+      }
+
+      await handler(event)
+
+      expect(logger.wasLogged('Context metrics updated from /context output')).toBe(false)
+    })
+
+    it('should skip events without sessionId', async () => {
+      const service = new ContextMetricsService({
+        projectDir,
+        logger,
+        userConfigDir,
+        skipCliCapture: true,
+      })
+
+      const registry = new MockHandlerRegistry()
+      service.registerHandlers(registry)
+
+      const handlerReg = registry.getHandler('context-metrics:detect-context-output')
+      const handler = handlerReg!.handler
+
+      // Event with no sessionId
+      const contextOutput = `<local-command-stdout>## Context Usage
+| Category | Tokens | Percentage |
+|----------|--------|------------|
+| System prompt | 3k | 1.5% |
+| System tools | 15k | 7.5% |
+| MCP tools | 1k | 0.5% |
+| Custom agents | 300 | 0.2% |
+| Memory files | 5k | 2.5% |
+| Autocompact buffer | 45k | 22.5% |
+</local-command-stdout>`
+
+      const event = {
+        kind: 'transcript',
+        type: 'UserPrompt',
+        payload: {
+          entry: {
+            message: { content: contextOutput },
+          },
+        },
+        context: {
+          projectDir,
+          // no sessionId
+        },
+      }
+
+      await handler(event)
+
+      expect(logger.wasLogged('Context metrics updated from /context output')).toBe(false)
+    })
+  })
+
+  describe('updateProjectMetrics()', () => {
+    it('should not update if values are the same', async () => {
+      const service = new ContextMetricsService({
+        projectDir,
+        logger,
+        userConfigDir,
+        skipCliCapture: true,
+      })
+
+      // First context output to initialize
+      const firstOutput = `<local-command-stdout>## Context Usage
+| Category | Tokens | Percentage |
+|----------|--------|------------|
+| System prompt | 3k | 1.5% |
+| System tools | 15k | 7.5% |
+| MCP tools | 1k | 0.5% |
+| Custom agents | 300 | 0.2% |
+| Memory files | 2k | 1.0% |
+| Autocompact buffer | 45k | 22.5% |
+</local-command-stdout>`
+
+      await service.handleTranscriptContent('session-1', firstOutput)
+      const firstMetrics = await service.readProjectMetrics()
+
+      // Second identical output
+      await service.handleTranscriptContent('session-2', firstOutput)
+      const secondMetrics = await service.readProjectMetrics()
+
+      // lastUpdatedAt should be the same (no update)
+      expect(secondMetrics.lastUpdatedAt).toBe(firstMetrics.lastUpdatedAt)
+    })
+
+    it('should update when MCP tools change', async () => {
+      const service = new ContextMetricsService({
+        projectDir,
+        logger,
+        userConfigDir,
+        skipCliCapture: true,
+      })
+
+      // First context output
+      const firstOutput = `<local-command-stdout>## Context Usage
+| Category | Tokens | Percentage |
+|----------|--------|------------|
+| System prompt | 3k | 1.5% |
+| System tools | 15k | 7.5% |
+| MCP tools | 1k | 0.5% |
+| Custom agents | 300 | 0.2% |
+| Memory files | 2k | 1.0% |
+| Autocompact buffer | 45k | 22.5% |
+</local-command-stdout>`
+
+      await service.handleTranscriptContent('session-1', firstOutput)
+      const firstMetrics = await service.readProjectMetrics()
+      expect(firstMetrics.mcpToolsTokens).toBe(1000)
+
+      // Wait a bit to ensure timestamp changes
+      await new Promise((r) => setTimeout(r, 10))
+
+      // Second output with different MCP tools
+      const secondOutput = `<local-command-stdout>## Context Usage
+| Category | Tokens | Percentage |
+|----------|--------|------------|
+| System prompt | 3k | 1.5% |
+| System tools | 15k | 7.5% |
+| MCP tools | 2k | 1.0% |
+| Custom agents | 300 | 0.2% |
+| Memory files | 2k | 1.0% |
+| Autocompact buffer | 45k | 22.5% |
+</local-command-stdout>`
+
+      await service.handleTranscriptContent('session-2', secondOutput)
+      const secondMetrics = await service.readProjectMetrics()
+
+      expect(secondMetrics.mcpToolsTokens).toBe(2000)
+      expect(secondMetrics.lastUpdatedAt).toBeGreaterThan(firstMetrics.lastUpdatedAt)
+    })
+
+    it('should update when custom agents change', async () => {
+      const service = new ContextMetricsService({
+        projectDir,
+        logger,
+        userConfigDir,
+        skipCliCapture: true,
+      })
+
+      // First context output
+      const firstOutput = `<local-command-stdout>## Context Usage
+| Category | Tokens | Percentage |
+|----------|--------|------------|
+| System prompt | 3k | 1.5% |
+| System tools | 15k | 7.5% |
+| MCP tools | 1k | 0.5% |
+| Custom agents | 300 | 0.2% |
+| Memory files | 2k | 1.0% |
+| Autocompact buffer | 45k | 22.5% |
+</local-command-stdout>`
+
+      await service.handleTranscriptContent('session-1', firstOutput)
+      const firstMetrics = await service.readProjectMetrics()
+      expect(firstMetrics.customAgentsTokens).toBe(300)
+
+      // Wait a bit
+      await new Promise((r) => setTimeout(r, 10))
+
+      // Second output with different custom agents
+      const secondOutput = `<local-command-stdout>## Context Usage
+| Category | Tokens | Percentage |
+|----------|--------|------------|
+| System prompt | 3k | 1.5% |
+| System tools | 15k | 7.5% |
+| MCP tools | 1k | 0.5% |
+| Custom agents | 500 | 0.3% |
+| Memory files | 2k | 1.0% |
+| Autocompact buffer | 45k | 22.5% |
+</local-command-stdout>`
+
+      await service.handleTranscriptContent('session-2', secondOutput)
+      const secondMetrics = await service.readProjectMetrics()
+
+      expect(secondMetrics.customAgentsTokens).toBe(500)
+      expect(secondMetrics.lastUpdatedAt).toBeGreaterThan(firstMetrics.lastUpdatedAt)
+    })
+  })
+
+  describe('readSessionMetrics() edge cases', () => {
+    it('should return null for invalid JSON', async () => {
+      const service = new ContextMetricsService({
+        projectDir,
+        logger,
+        userConfigDir,
+        skipCliCapture: true,
+      })
+
+      const sessionId = 'invalid-json-session'
+      const sessionStateDir = path.join(projectDir, '.sidekick', 'sessions', sessionId, 'state')
+      await fs.mkdir(sessionStateDir, { recursive: true })
+      await fs.writeFile(path.join(sessionStateDir, 'context-metrics.json'), 'not valid json')
+
+      const metrics = await service.readSessionMetrics(sessionId)
+
+      expect(metrics).toBeNull()
+    })
+
+    it('should return null for invalid schema', async () => {
+      const service = new ContextMetricsService({
+        projectDir,
+        logger,
+        userConfigDir,
+        skipCliCapture: true,
+      })
+
+      const sessionId = 'invalid-schema-session'
+      const sessionStateDir = path.join(projectDir, '.sidekick', 'sessions', sessionId, 'state')
+      await fs.mkdir(sessionStateDir, { recursive: true })
+      await fs.writeFile(path.join(sessionStateDir, 'context-metrics.json'), JSON.stringify({ foo: 'bar' }))
+
+      const metrics = await service.readSessionMetrics(sessionId)
+
+      expect(metrics).toBeNull()
+    })
+  })
+
+  describe('readProjectMetrics() edge cases', () => {
+    it('should return defaults for invalid JSON', async () => {
+      const service = new ContextMetricsService({
+        projectDir,
+        logger,
+        userConfigDir,
+        skipCliCapture: true,
+      })
+
+      // Write invalid JSON
+      const stateDir = path.join(projectDir, '.sidekick', 'state')
+      await fs.mkdir(stateDir, { recursive: true })
+      await fs.writeFile(path.join(stateDir, 'baseline-project-context-token-metrics.json'), 'not valid json')
+
+      const metrics = await service.readProjectMetrics()
+
+      expect(metrics).toEqual(DEFAULT_PROJECT_METRICS)
+    })
+
+    it('should return defaults for invalid schema', async () => {
+      const service = new ContextMetricsService({
+        projectDir,
+        logger,
+        userConfigDir,
+        skipCliCapture: true,
+      })
+
+      // Write JSON that doesn't match schema
+      const stateDir = path.join(projectDir, '.sidekick', 'state')
+      await fs.mkdir(stateDir, { recursive: true })
+      await fs.writeFile(
+        path.join(stateDir, 'baseline-project-context-token-metrics.json'),
+        JSON.stringify({ foo: 'bar' })
+      )
+
+      const metrics = await service.readProjectMetrics()
+
+      expect(metrics).toEqual(DEFAULT_PROJECT_METRICS)
     })
   })
 })
