@@ -8,8 +8,16 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { logRecordToUIEvent, logRecordsToUIEvents, formatTime, getEventKind } from '../event-adapter'
+import {
+  logRecordToUIEvent,
+  logRecordsToUIEvents,
+  formatTime,
+  getEventKind,
+  sidekickEventToUIEvent,
+  sidekickEventsToUIEvents,
+} from '../event-adapter'
 import type { ParsedLogRecord } from '../log-parser'
+import type { HookEvent, TranscriptEvent } from '@sidekick/types'
 
 // ============================================================================
 // Test Fixtures
@@ -437,5 +445,563 @@ describe('logRecordsToUIEvents', () => {
 
     expect(uiEvents[0].type).toBe('reminder')
     expect(uiEvents[1].type).toBe('state')
+  })
+})
+
+// ============================================================================
+// sidekickEventsToUIEvents Tests
+// ============================================================================
+
+describe('sidekickEventsToUIEvents', () => {
+  it('converts array of SidekickEvents to UIEvents with sequential IDs', () => {
+    const events: HookEvent[] = [
+      {
+        kind: 'hook',
+        hook: 'SessionStart',
+        context: { sessionId: 'sess-1', timestamp: 1678888888000 },
+        payload: { startType: 'startup', transcriptPath: '/path' },
+      },
+      {
+        kind: 'hook',
+        hook: 'UserPromptSubmit',
+        context: { sessionId: 'sess-1', timestamp: 1678888889000 },
+        payload: { prompt: 'test prompt', transcriptPath: '/path', cwd: '/cwd', permissionMode: 'default' },
+      },
+    ]
+
+    const uiEvents = sidekickEventsToUIEvents(events)
+
+    expect(uiEvents).toHaveLength(2)
+    expect(uiEvents[0].id).toBe(0)
+    expect(uiEvents[1].id).toBe(1)
+    expect(uiEvents[0].label).toBe('Session Start')
+    expect(uiEvents[1].label).toBe('User message')
+  })
+
+  it('handles empty array', () => {
+    const uiEvents = sidekickEventsToUIEvents([])
+
+    expect(uiEvents).toHaveLength(0)
+  })
+
+  it('applies source override to all events', () => {
+    const events: HookEvent[] = [
+      {
+        kind: 'hook',
+        hook: 'SessionStart',
+        context: { sessionId: 'sess-1', timestamp: 1678888888000 },
+        payload: { startType: 'startup', transcriptPath: '/path' },
+      },
+    ]
+
+    const uiEvents = sidekickEventsToUIEvents(events, 'daemon')
+
+    expect(uiEvents[0].source).toBe('daemon')
+  })
+
+  it('converts transcript events', () => {
+    const events: TranscriptEvent[] = [
+      {
+        kind: 'transcript',
+        eventType: 'UserPrompt',
+        context: { sessionId: 'sess-1', timestamp: 1678888888000 },
+        payload: { lineNumber: 1, entry: {}, content: 'test' },
+        metadata: { transcriptPath: '/path', metrics: {} } as TranscriptEvent['metadata'],
+      },
+    ]
+
+    const uiEvents = sidekickEventsToUIEvents(events)
+
+    expect(uiEvents).toHaveLength(1)
+    expect(uiEvents[0].type).toBe('user')
+    expect(uiEvents[0].label).toBe('User message')
+  })
+})
+
+// ============================================================================
+// sidekickEventToUIEvent Tests
+// ============================================================================
+
+describe('sidekickEventToUIEvent', () => {
+  it('converts hook event with source override', () => {
+    const event: HookEvent = {
+      kind: 'hook',
+      hook: 'SessionStart',
+      context: { sessionId: 'sess-1', timestamp: 1678888888000 },
+      payload: { startType: 'startup', transcriptPath: '/path' },
+    }
+
+    const uiEvent = sidekickEventToUIEvent(event, 5, 'daemon')
+
+    expect(uiEvent.id).toBe(5)
+    expect(uiEvent.source).toBe('daemon')
+    expect(uiEvent.rawEvent).toBe(event)
+  })
+
+  it('uses cli as default source for hook events', () => {
+    const event: HookEvent = {
+      kind: 'hook',
+      hook: 'SessionStart',
+      context: { sessionId: 'sess-1', timestamp: 1678888888000 },
+      payload: { startType: 'startup', transcriptPath: '/path' },
+    }
+
+    const uiEvent = sidekickEventToUIEvent(event, 0)
+
+    expect(uiEvent.source).toBe('cli')
+  })
+
+  it('uses daemon as default source for transcript events', () => {
+    const event: TranscriptEvent = {
+      kind: 'transcript',
+      eventType: 'UserPrompt',
+      context: { sessionId: 'sess-1', timestamp: 1678888888000 },
+      payload: { lineNumber: 1, entry: {}, content: 'test' },
+      metadata: { transcriptPath: '/path', metrics: {} } as TranscriptEvent['metadata'],
+    }
+
+    const uiEvent = sidekickEventToUIEvent(event, 0)
+
+    expect(uiEvent.source).toBe('daemon')
+  })
+
+  it('extracts content from UserPromptSubmit payload', () => {
+    const event: HookEvent = {
+      kind: 'hook',
+      hook: 'UserPromptSubmit',
+      context: { sessionId: 'sess-1', timestamp: 1678888888000 },
+      payload: { prompt: 'Hello world', transcriptPath: '/path', cwd: '/cwd', permissionMode: 'default' },
+    }
+
+    const uiEvent = sidekickEventToUIEvent(event, 0)
+
+    expect(uiEvent.content).toBe('Hello world')
+  })
+
+  it('extracts content from transcript event', () => {
+    const event: TranscriptEvent = {
+      kind: 'transcript',
+      eventType: 'AssistantMessage',
+      context: { sessionId: 'sess-1', timestamp: 1678888888000 },
+      payload: { lineNumber: 1, entry: {}, content: 'Response content' },
+      metadata: { transcriptPath: '/path', metrics: {} } as TranscriptEvent['metadata'],
+    }
+
+    const uiEvent = sidekickEventToUIEvent(event, 0)
+
+    expect(uiEvent.content).toBe('Response content')
+    expect(uiEvent.type).toBe('assistant')
+  })
+
+  it('handles SessionEnd hook', () => {
+    const event: HookEvent = {
+      kind: 'hook',
+      hook: 'SessionEnd',
+      context: { sessionId: 'sess-1', timestamp: 1678888888000 },
+      payload: { endReason: 'logout' },
+    }
+
+    const uiEvent = sidekickEventToUIEvent(event, 0)
+
+    expect(uiEvent.type).toBe('session')
+    expect(uiEvent.label).toBe('Session End')
+    expect(uiEvent.content).toBe('Session ended (logout)')
+  })
+
+  it('handles PreToolUse hook with toolInput', () => {
+    const event: HookEvent = {
+      kind: 'hook',
+      hook: 'PreToolUse',
+      context: { sessionId: 'sess-1', timestamp: 1678888888000 },
+      payload: { toolName: 'Read', toolInput: { file_path: '/test.ts', limit: 100 } },
+    }
+
+    const uiEvent = sidekickEventToUIEvent(event, 0)
+
+    expect(uiEvent.type).toBe('tool')
+    expect(uiEvent.label).toBe('Tool: Read')
+    expect(uiEvent.content).toBe('Input: file_path, limit')
+  })
+
+  it('handles PreToolUse hook with empty toolInput', () => {
+    const event: HookEvent = {
+      kind: 'hook',
+      hook: 'PreToolUse',
+      context: { sessionId: 'sess-1', timestamp: 1678888888000 },
+      payload: { toolName: 'Read', toolInput: {} },
+    }
+
+    const uiEvent = sidekickEventToUIEvent(event, 0)
+
+    expect(uiEvent.content).toBeUndefined()
+  })
+
+  it('handles PreToolUse hook without toolInput keys', () => {
+    // Test when toolInput exists but is empty - simulates runtime data with no input params
+    const event = {
+      kind: 'hook',
+      hook: 'PreToolUse',
+      context: { sessionId: 'sess-1', timestamp: 1678888888000 },
+      payload: { toolName: 'Read', toolInput: {} },
+    } as HookEvent
+
+    const uiEvent = sidekickEventToUIEvent(event, 0)
+
+    // Empty toolInput produces no content
+    expect(uiEvent.content).toBeUndefined()
+  })
+
+  it('handles PostToolUse hook', () => {
+    const event: HookEvent = {
+      kind: 'hook',
+      hook: 'PostToolUse',
+      context: { sessionId: 'sess-1', timestamp: 1678888888000 },
+      payload: { toolName: 'Write', toolInput: { file_path: '/out.ts' }, toolResult: { success: true } },
+    }
+
+    const uiEvent = sidekickEventToUIEvent(event, 0)
+
+    expect(uiEvent.type).toBe('tool')
+    expect(uiEvent.label).toBe('Tool completed: Write')
+    expect(uiEvent.content).toBe('Input: file_path')
+  })
+
+  it('handles Stop hook', () => {
+    const event: HookEvent = {
+      kind: 'hook',
+      hook: 'Stop',
+      context: { sessionId: 'sess-1', timestamp: 1678888888000 },
+      payload: { transcriptPath: '/path', permissionMode: 'default', stopHookActive: true },
+    }
+
+    const uiEvent = sidekickEventToUIEvent(event, 0)
+
+    expect(uiEvent.type).toBe('reminder')
+    expect(uiEvent.label).toBe('Stop hook')
+  })
+
+  it('handles PreCompact hook', () => {
+    const event: HookEvent = {
+      kind: 'hook',
+      hook: 'PreCompact',
+      context: { sessionId: 'sess-1', timestamp: 1678888888000 },
+      payload: { transcriptPath: '/path', transcriptSnapshotPath: '/snapshot' },
+    }
+
+    const uiEvent = sidekickEventToUIEvent(event, 0)
+
+    expect(uiEvent.type).toBe('decision')
+    expect(uiEvent.label).toBe('Pre-compact')
+  })
+
+  it('handles ToolCall transcript event with toolName', () => {
+    const event: TranscriptEvent = {
+      kind: 'transcript',
+      eventType: 'ToolCall',
+      context: { sessionId: 'sess-1', timestamp: 1678888888000 },
+      payload: { lineNumber: 1, entry: {}, toolName: 'Bash' },
+      metadata: { transcriptPath: '/path', metrics: {} } as TranscriptEvent['metadata'],
+    }
+
+    const uiEvent = sidekickEventToUIEvent(event, 0)
+
+    expect(uiEvent.type).toBe('tool')
+    expect(uiEvent.label).toBe('Tool: Bash')
+  })
+
+  it('handles ToolCall transcript event without toolName', () => {
+    const event: TranscriptEvent = {
+      kind: 'transcript',
+      eventType: 'ToolCall',
+      context: { sessionId: 'sess-1', timestamp: 1678888888000 },
+      payload: { lineNumber: 1, entry: {} },
+      metadata: { transcriptPath: '/path', metrics: {} } as TranscriptEvent['metadata'],
+    }
+
+    const uiEvent = sidekickEventToUIEvent(event, 0)
+
+    expect(uiEvent.label).toBe('Tool call')
+  })
+
+  it('handles ToolResult transcript event with toolName', () => {
+    const event: TranscriptEvent = {
+      kind: 'transcript',
+      eventType: 'ToolResult',
+      context: { sessionId: 'sess-1', timestamp: 1678888888000 },
+      payload: { lineNumber: 1, entry: {}, toolName: 'Read' },
+      metadata: { transcriptPath: '/path', metrics: {} } as TranscriptEvent['metadata'],
+    }
+
+    const uiEvent = sidekickEventToUIEvent(event, 0)
+
+    expect(uiEvent.type).toBe('tool')
+    expect(uiEvent.label).toBe('Result: Read')
+  })
+
+  it('handles ToolResult transcript event without toolName', () => {
+    const event: TranscriptEvent = {
+      kind: 'transcript',
+      eventType: 'ToolResult',
+      context: { sessionId: 'sess-1', timestamp: 1678888888000 },
+      payload: { lineNumber: 1, entry: {} },
+      metadata: { transcriptPath: '/path', metrics: {} } as TranscriptEvent['metadata'],
+    }
+
+    const uiEvent = sidekickEventToUIEvent(event, 0)
+
+    expect(uiEvent.label).toBe('Tool result')
+  })
+
+  it('handles Compact transcript event', () => {
+    const event: TranscriptEvent = {
+      kind: 'transcript',
+      eventType: 'Compact',
+      context: { sessionId: 'sess-1', timestamp: 1678888888000 },
+      payload: { lineNumber: 1, entry: {} },
+      metadata: { transcriptPath: '/path', metrics: {} } as TranscriptEvent['metadata'],
+    }
+
+    const uiEvent = sidekickEventToUIEvent(event, 0)
+
+    expect(uiEvent.type).toBe('decision')
+    expect(uiEvent.label).toBe('Compact')
+  })
+
+  it('handles unknown transcript eventType', () => {
+    const event = {
+      kind: 'transcript',
+      eventType: 'UnknownType',
+      context: { sessionId: 'sess-1', timestamp: 1678888888000 },
+      payload: { lineNumber: 1, entry: {} },
+      metadata: { transcriptPath: '/path', metrics: {} },
+    } as unknown as TranscriptEvent
+
+    const uiEvent = sidekickEventToUIEvent(event, 0)
+
+    expect(uiEvent.type).toBe('state')
+    expect(uiEvent.label).toBe('UnknownType')
+  })
+})
+
+// ============================================================================
+// logRecordToUIEvent - Content Extraction Tests
+// ============================================================================
+
+describe('logRecordToUIEvent - Content Extraction', () => {
+  it('extracts content from pino.msg', () => {
+    const record = createLogRecord({
+      type: undefined,
+      pino: {
+        level: 30,
+        time: 1678888888000,
+        pid: 12345,
+        hostname: 'test',
+        msg: 'Log message content',
+        name: 'sidekick:test',
+      },
+    })
+
+    const uiEvent = logRecordToUIEvent(record, 0)
+
+    expect(uiEvent.content).toBe('Log message content')
+  })
+
+  it('summarizes payload keys when no msg', () => {
+    const record: ParsedLogRecord = {
+      pino: {
+        level: 30,
+        time: 1678888888000,
+        pid: 12345,
+        hostname: 'test',
+      },
+      source: 'daemon',
+      type: undefined,
+      payload: {
+        foo: 'bar',
+        baz: 123,
+        qux: true,
+      },
+      raw: {},
+    }
+
+    const uiEvent = logRecordToUIEvent(record, 0)
+
+    expect(uiEvent.content).toBe('foo, baz, qux')
+  })
+
+  it('truncates payload keys with ellipsis when more than 3', () => {
+    const record: ParsedLogRecord = {
+      pino: {
+        level: 30,
+        time: 1678888888000,
+        pid: 12345,
+        hostname: 'test',
+      },
+      source: 'daemon',
+      type: undefined,
+      payload: {
+        key1: 'a',
+        key2: 'b',
+        key3: 'c',
+        key4: 'd',
+        key5: 'e',
+      },
+      raw: {},
+    }
+
+    const uiEvent = logRecordToUIEvent(record, 0)
+
+    expect(uiEvent.content).toBe('key1, key2, key3...')
+  })
+
+  it('returns undefined content for empty payload', () => {
+    const record: ParsedLogRecord = {
+      pino: {
+        level: 30,
+        time: 1678888888000,
+        pid: 12345,
+        hostname: 'test',
+      },
+      source: 'daemon',
+      type: undefined,
+      payload: {},
+      raw: {},
+    }
+
+    const uiEvent = logRecordToUIEvent(record, 0)
+
+    expect(uiEvent.content).toBeUndefined()
+  })
+
+  it('returns undefined content when no msg and no payload', () => {
+    const record: ParsedLogRecord = {
+      pino: {
+        level: 30,
+        time: 1678888888000,
+        pid: 12345,
+        hostname: 'test',
+      },
+      source: 'daemon',
+      type: undefined,
+      raw: {},
+    }
+
+    const uiEvent = logRecordToUIEvent(record, 0)
+
+    expect(uiEvent.content).toBeUndefined()
+  })
+})
+
+// ============================================================================
+// logRecordToUIEvent - Label Generation Tests
+// ============================================================================
+
+describe('logRecordToUIEvent - Label Generation', () => {
+  it('generates label for HookCompleted', () => {
+    const record = createLogRecord({ type: 'HookCompleted' })
+
+    const uiEvent = logRecordToUIEvent(record, 0)
+
+    expect(uiEvent.label).toBe('Hook Completed')
+    expect(uiEvent.type).toBe('session')
+  })
+
+  it('generates label for HookReceived with hook name in context', () => {
+    const record = createLogRecord({
+      type: 'HookReceived',
+      context: { hook: 'PreToolUse' },
+    })
+
+    const uiEvent = logRecordToUIEvent(record, 0)
+
+    expect(uiEvent.label).toBe('Hook: PreToolUse')
+  })
+
+  it('generates label for HookReceived without hook name', () => {
+    const record = createLogRecord({
+      type: 'HookReceived',
+      context: {},
+    })
+
+    const uiEvent = logRecordToUIEvent(record, 0)
+
+    expect(uiEvent.label).toBe('Hook: unknown')
+  })
+
+  it('falls back to pino.msg for unknown type', () => {
+    const record = createLogRecord({
+      type: 'UnknownInternalType',
+      pino: {
+        level: 30,
+        time: 1678888888000,
+        pid: 12345,
+        hostname: 'test',
+        msg: 'Custom log message',
+        name: 'sidekick:test',
+      },
+    })
+
+    const uiEvent = logRecordToUIEvent(record, 0)
+
+    expect(uiEvent.label).toBe('Custom log message')
+  })
+
+  it('falls back to type for unknown type without msg', () => {
+    const record: ParsedLogRecord = {
+      pino: {
+        level: 30,
+        time: 1678888888000,
+        pid: 12345,
+        hostname: 'test',
+      },
+      source: 'daemon',
+      type: 'CustomEventType',
+      raw: {},
+    }
+
+    const uiEvent = logRecordToUIEvent(record, 0)
+
+    expect(uiEvent.label).toBe('CustomEventType')
+  })
+
+  it('falls back to Event for no type and no msg', () => {
+    const record: ParsedLogRecord = {
+      pino: {
+        level: 30,
+        time: 1678888888000,
+        pid: 12345,
+        hostname: 'test',
+      },
+      source: 'daemon',
+      raw: {},
+    }
+
+    const uiEvent = logRecordToUIEvent(record, 0)
+
+    expect(uiEvent.label).toBe('Event')
+  })
+})
+
+// ============================================================================
+// getEventKind - Additional Tests
+// ============================================================================
+
+describe('getEventKind - Additional Cases', () => {
+  it('returns internal for ReminderConsumed type', () => {
+    const record = createLogRecord({ type: 'ReminderConsumed' })
+
+    expect(getEventKind(record)).toBe('internal')
+  })
+
+  it('returns internal for RemindersCleared type', () => {
+    const record = createLogRecord({ type: 'RemindersCleared' })
+
+    expect(getEventKind(record)).toBe('internal')
+  })
+
+  it('returns internal for ContextPruned type', () => {
+    const record = createLogRecord({ type: 'ContextPruned' })
+
+    expect(getEventKind(record)).toBe('internal')
   })
 })
