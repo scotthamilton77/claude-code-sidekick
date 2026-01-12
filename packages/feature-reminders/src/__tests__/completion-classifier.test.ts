@@ -295,23 +295,26 @@ describe('completion-classifier', () => {
       assets = new MockAssetResolver()
 
       // Register required assets
-      assets.register('prompts/completion-classifier.prompt.txt', 'User: {{lastUserPrompt}}\nAssistant: {{lastAssistantMessage}}')
-      assets.register('schemas/completion-classifier.schema.json', JSON.stringify({
-        type: 'object',
-        properties: {
-          category: { type: 'string' },
-          confidence: { type: 'number' },
-          reasoning: { type: 'string' }
-        }
-      }))
+      assets.register(
+        'prompts/completion-classifier.prompt.txt',
+        'User: {{lastUserPrompt}}\nAssistant: {{lastAssistantMessage}}'
+      )
+      assets.register(
+        'schemas/completion-classifier.schema.json',
+        JSON.stringify({
+          type: 'object',
+          properties: {
+            category: { type: 'string' },
+            confidence: { type: 'number' },
+            reasoning: { type: 'string' },
+          },
+        })
+      )
 
       ctx = createMockDaemonContext({ transcript, logger, llm, assets })
     })
 
-    function createEntry(
-      role: 'user' | 'assistant',
-      content: string
-    ): CanonicalTranscriptEntry {
+    function createEntry(role: 'user' | 'assistant', content: string): CanonicalTranscriptEntry {
       return {
         id: `entry-${Date.now()}-${Math.random()}`,
         timestamp: new Date(),
@@ -344,9 +347,7 @@ describe('completion-classifier', () => {
     })
 
     it('returns default result when no assistant message found', async () => {
-      transcript.setMockEntries([
-        createEntry('user', 'Hello'),
-      ])
+      transcript.setMockEntries([createEntry('user', 'Hello')])
 
       const result = await classifyCompletion({
         ctx,
@@ -359,10 +360,7 @@ describe('completion-classifier', () => {
 
     it('returns default result when prompt template not found', async () => {
       assets.reset() // Remove all assets
-      transcript.setMockEntries([
-        createEntry('user', 'Do something'),
-        createEntry('assistant', 'Done!'),
-      ])
+      transcript.setMockEntries([createEntry('user', 'Do something'), createEntry('assistant', 'Done!')])
 
       const result = await classifyCompletion({
         ctx,
@@ -379,11 +377,13 @@ describe('completion-classifier', () => {
         createEntry('assistant', 'I have fixed the bug. The task is complete.'),
       ])
 
-      llm.queueResponse(JSON.stringify({
-        category: 'CLAIMING_COMPLETION',
-        confidence: 0.95,
-        reasoning: 'The assistant explicitly states the task is complete',
-      }))
+      llm.queueResponse(
+        JSON.stringify({
+          category: 'CLAIMING_COMPLETION',
+          confidence: 0.95,
+          reasoning: 'The assistant explicitly states the task is complete',
+        })
+      )
 
       const result = await classifyCompletion({
         ctx,
@@ -401,11 +401,13 @@ describe('completion-classifier', () => {
         createEntry('assistant', 'I think that should work.'),
       ])
 
-      llm.queueResponse(JSON.stringify({
-        category: 'CLAIMING_COMPLETION',
-        confidence: 0.5,
-        reasoning: 'Weak claim of completion',
-      }))
+      llm.queueResponse(
+        JSON.stringify({
+          category: 'CLAIMING_COMPLETION',
+          confidence: 0.5,
+          reasoning: 'Weak claim of completion',
+        })
+      )
 
       const result = await classifyCompletion({
         ctx,
@@ -421,11 +423,13 @@ describe('completion-classifier', () => {
         createEntry('assistant', 'Which bug would you like me to fix?'),
       ])
 
-      llm.queueResponse(JSON.stringify({
-        category: 'ASKING_QUESTION',
-        confidence: 0.9,
-        reasoning: 'The assistant is asking for clarification',
-      }))
+      llm.queueResponse(
+        JSON.stringify({
+          category: 'ASKING_QUESTION',
+          confidence: 0.9,
+          reasoning: 'The assistant is asking for clarification',
+        })
+      )
 
       const result = await classifyCompletion({
         ctx,
@@ -443,11 +447,13 @@ describe('completion-classifier', () => {
         createEntry('assistant', 'TypeScript is a typed superset of JavaScript.'),
       ])
 
-      llm.queueResponse(JSON.stringify({
-        category: 'ANSWERING_QUESTION',
-        confidence: 0.85,
-        reasoning: 'The assistant is answering an informational question',
-      }))
+      llm.queueResponse(
+        JSON.stringify({
+          category: 'ANSWERING_QUESTION',
+          confidence: 0.85,
+          reasoning: 'The assistant is answering an informational question',
+        })
+      )
 
       const result = await classifyCompletion({
         ctx,
@@ -465,11 +471,13 @@ describe('completion-classifier', () => {
         createEntry('assistant', 'Here is some output...'),
       ])
 
-      llm.queueResponse(JSON.stringify({
-        category: 'OTHER',
-        confidence: 0.6,
-        reasoning: 'Unclear stopping intent',
-      }))
+      llm.queueResponse(
+        JSON.stringify({
+          category: 'OTHER',
+          confidence: 0.6,
+          reasoning: 'Unclear stopping intent',
+        })
+      )
 
       const result = await classifyCompletion({
         ctx,
@@ -482,10 +490,7 @@ describe('completion-classifier', () => {
     })
 
     it('returns default result when LLM response cannot be parsed', async () => {
-      transcript.setMockEntries([
-        createEntry('user', 'Do something'),
-        createEntry('assistant', 'Done'),
-      ])
+      transcript.setMockEntries([createEntry('user', 'Do something'), createEntry('assistant', 'Done')])
 
       llm.queueResponse('This is not valid JSON')
 
@@ -499,10 +504,7 @@ describe('completion-classifier', () => {
     })
 
     it('returns default result when LLM call fails', async () => {
-      transcript.setMockEntries([
-        createEntry('user', 'Do something'),
-        createEntry('assistant', 'Done'),
-      ])
+      transcript.setMockEntries([createEntry('user', 'Do something'), createEntry('assistant', 'Done')])
 
       // Create a mock that throws
       const throwingLlm = {
@@ -531,11 +533,13 @@ describe('completion-classifier', () => {
         createEntry('assistant', 'Task completed successfully.'),
       ])
 
-      llm.queueResponse(JSON.stringify({
-        category: 'CLAIMING_COMPLETION',
-        confidence: 0.9,
-        reasoning: 'Clear completion claim',
-      }))
+      llm.queueResponse(
+        JSON.stringify({
+          category: 'CLAIMING_COMPLETION',
+          confidence: 0.9,
+          reasoning: 'Clear completion claim',
+        })
+      )
 
       // No settings provided - should use defaults
       const result = await classifyCompletion({ ctx })
