@@ -27,6 +27,20 @@ vi.mock('@sidekick/core', async (importOriginal) => {
   }
 })
 
+// Mock hook handler with hoisting
+const { mockHandleHookCommand } = vi.hoisted(() => ({
+  mockHandleHookCommand: vi.fn(),
+}))
+
+vi.mock('../commands/hook.js', () => ({
+  handleHookCommand: mockHandleHookCommand,
+  getHookName: vi.fn((cmd: string) => (cmd === 'session-start' ? 'SessionStart' : undefined)),
+  validateHookName: vi.fn((name: string) => {
+    if (['SessionStart', 'UserPromptSubmit', 'Stop'].includes(name)) return name
+    return undefined
+  }),
+}))
+
 class CollectingWritable extends Writable {
   data = ''
 
@@ -44,6 +58,7 @@ describe('runCli session handling', () => {
       rmSync(sandbox, { recursive: true, force: true })
       sandbox = undefined
     }
+    vi.clearAllMocks()
   })
 
   test('returns empty JSON response when hook input is missing (graceful degradation)', async () => {
@@ -148,5 +163,76 @@ describe('runCli session handling', () => {
     // (even if empty JSON due to missing stdin input)
     expect(result.exitCode).toBe(0)
     expect(stdout.data.trim()).toBe('{}')
+  })
+
+  test('dispatches to hook handler when valid hook input is provided', async () => {
+    sandbox = mkdtempSync(join(tmpdir(), 'sidekick-cli-hook-'))
+    const projectDir = sandbox
+    const hookScriptPath = join(projectDir, '.claude', 'hooks', 'sidekick', 'session-start')
+    mkdirSync(join(projectDir, '.claude', 'hooks', 'sidekick'), { recursive: true })
+    writeFileSync(hookScriptPath, '#!/usr/bin/env bash')
+
+    const stdout = new CollectingWritable()
+    const stderr = new CollectingWritable()
+
+    // Mock the hook handler to return a result
+    mockHandleHookCommand.mockResolvedValue({
+      exitCode: 0,
+      output: '{"result": "success"}',
+    })
+
+    // Provide valid hook input JSON via stdin
+    const hookInput = JSON.stringify({
+      session_id: 'test-session-abc123',
+      hook_event_name: 'SessionStart',
+      cwd: projectDir,
+    })
+
+    const result = await runCli({
+      argv: ['session-start', '--hook', '--hook-script-path', hookScriptPath],
+      stdinData: hookInput,
+      stdout,
+      stderr,
+      cwd: projectDir,
+      enableFileLogging: false,
+    })
+
+    // Hook handler should have been called
+    expect(mockHandleHookCommand).toHaveBeenCalled()
+    expect(result.exitCode).toBe(0)
+  })
+
+  test('returns hook handler exit code', async () => {
+    sandbox = mkdtempSync(join(tmpdir(), 'sidekick-cli-hook-error-'))
+    const projectDir = sandbox
+    const hookScriptPath = join(projectDir, '.claude', 'hooks', 'sidekick', 'session-start')
+    mkdirSync(join(projectDir, '.claude', 'hooks', 'sidekick'), { recursive: true })
+    writeFileSync(hookScriptPath, '#!/usr/bin/env bash')
+
+    const stdout = new CollectingWritable()
+    const stderr = new CollectingWritable()
+
+    // Mock the hook handler to return an error
+    mockHandleHookCommand.mockResolvedValue({
+      exitCode: 1,
+      output: '{"error": "handler failed"}',
+    })
+
+    const hookInput = JSON.stringify({
+      session_id: 'error-session',
+      hook_event_name: 'SessionStart',
+      cwd: projectDir,
+    })
+
+    const result = await runCli({
+      argv: ['session-start', '--hook', '--hook-script-path', hookScriptPath],
+      stdinData: hookInput,
+      stdout,
+      stderr,
+      cwd: projectDir,
+      enableFileLogging: false,
+    })
+
+    expect(result.exitCode).toBe(1)
   })
 })

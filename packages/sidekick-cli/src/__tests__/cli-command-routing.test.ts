@@ -28,9 +28,10 @@ class CollectingWritable extends Writable {
 }
 
 // Mock handlers - return observable exit codes
-const { mockHandleDaemonCommand, mockHandleStatuslineCommand } = vi.hoisted(() => ({
+const { mockHandleDaemonCommand, mockHandleStatuslineCommand, mockHandleUiCommand } = vi.hoisted(() => ({
   mockHandleDaemonCommand: vi.fn(),
   mockHandleStatuslineCommand: vi.fn(),
+  mockHandleUiCommand: vi.fn(),
 }))
 
 // Mock the command handler modules
@@ -41,6 +42,10 @@ vi.mock('../commands/daemon.js', () => ({
 vi.mock('../commands/statusline.js', () => ({
   handleStatuslineCommand: mockHandleStatuslineCommand,
   parseStatuslineInput: vi.fn(() => undefined),
+}))
+
+vi.mock('../commands/ui.js', () => ({
+  handleUiCommand: mockHandleUiCommand,
 }))
 
 // Mock @sidekick/core to prevent actual daemon operations
@@ -152,6 +157,50 @@ describe('CLI command routing', () => {
 
       const result = await runCli({
         argv: ['statusline', '--format', 'json', '--session-id', 'xyz789'],
+        stdout,
+        stderr,
+        cwd: projectDir,
+        enableFileLogging: false,
+      })
+
+      expect(result.exitCode).toBe(0)
+    })
+  })
+
+  describe('ui command', () => {
+    test('returns success exit code on successful command', async () => {
+      mockHandleUiCommand.mockResolvedValue({ exitCode: 0 })
+
+      const result = await runCli({
+        argv: ['ui'],
+        stdout,
+        stderr,
+        cwd: projectDir,
+        enableFileLogging: false,
+      })
+
+      expect(result.exitCode).toBe(0)
+    })
+
+    test('returns error exit code on failed command', async () => {
+      mockHandleUiCommand.mockResolvedValue({ exitCode: 1 })
+
+      const result = await runCli({
+        argv: ['ui'],
+        stdout,
+        stderr,
+        cwd: projectDir,
+        enableFileLogging: false,
+      })
+
+      expect(result.exitCode).toBe(1)
+    })
+
+    test('propagates handler exit code with options', async () => {
+      mockHandleUiCommand.mockResolvedValue({ exitCode: 0 })
+
+      const result = await runCli({
+        argv: ['ui', '--port', '8080', '--host', '0.0.0.0', '--no-open'],
         stdout,
         stderr,
         cwd: projectDir,
