@@ -161,6 +161,21 @@ describe('file-utils', () => {
       const result = renameWithTimestampSync(path.join(tempDir, 'nope.json'))
       expect(result).toBeNull()
     })
+
+    it('returns null when rename fails due to target being a directory', async () => {
+      const srcPath = path.join(tempDir, 'src-file.json')
+      await fs.writeFile(srcPath, '{}')
+
+      // Create a directory at the target path, which will cause rename to fail
+      const targetPath = path.join(tempDir, 'src-file.123.json')
+      await fs.mkdir(targetPath, { recursive: true })
+
+      const result = renameWithTimestampSync(srcPath, 123)
+
+      expect(result).toBeNull()
+      // Source file should still exist since rename failed
+      expect(existsSync(srcPath)).toBe(true)
+    })
   })
 
   describe('copyWithTimestampSync', () => {
@@ -179,6 +194,21 @@ describe('file-utils', () => {
     it('returns null when source does not exist', () => {
       const result = copyWithTimestampSync(path.join(tempDir, 'nope.txt'))
       expect(result).toBeNull()
+    })
+
+    it('returns null when copy fails due to target being a directory', async () => {
+      const srcPath = path.join(tempDir, 'copy-src.txt')
+      await fs.writeFile(srcPath, 'content')
+
+      // Create a directory at the target path, which will cause copy to fail
+      const targetPath = path.join(tempDir, 'copy-src.456.txt')
+      await fs.mkdir(targetPath, { recursive: true })
+
+      const result = copyWithTimestampSync(srcPath, 456)
+
+      expect(result).toBeNull()
+      // Source file should still exist
+      expect(existsSync(srcPath)).toBe(true)
     })
   })
 })
