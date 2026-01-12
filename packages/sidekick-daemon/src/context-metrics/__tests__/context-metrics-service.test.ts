@@ -128,10 +128,7 @@ describe('ContextMetricsService', () => {
         lastErrorAt: null,
         lastErrorMessage: null,
       }
-      await fs.writeFile(
-        path.join(stateDir, 'baseline-user-context-token-metrics.json'),
-        JSON.stringify(realMetrics)
-      )
+      await fs.writeFile(path.join(stateDir, 'baseline-user-context-token-metrics.json'), JSON.stringify(realMetrics))
 
       await service.initialize()
 
@@ -206,10 +203,7 @@ describe('ContextMetricsService', () => {
         lastErrorAt: null,
         lastErrorMessage: null,
       }
-      await fs.writeFile(
-        path.join(stateDir, 'baseline-user-context-token-metrics.json'),
-        JSON.stringify(testMetrics)
-      )
+      await fs.writeFile(path.join(stateDir, 'baseline-user-context-token-metrics.json'), JSON.stringify(testMetrics))
 
       const metrics = await service.readBaseMetrics()
 
@@ -229,10 +223,7 @@ describe('ContextMetricsService', () => {
       // Write invalid JSON
       const stateDir = path.join(userConfigDir, 'state')
       await fs.mkdir(stateDir, { recursive: true })
-      await fs.writeFile(
-        path.join(stateDir, 'baseline-user-context-token-metrics.json'),
-        'not valid json'
-      )
+      await fs.writeFile(path.join(stateDir, 'baseline-user-context-token-metrics.json'), 'not valid json')
 
       const metrics = await service.readBaseMetrics()
 
