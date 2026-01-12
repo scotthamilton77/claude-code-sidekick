@@ -13,12 +13,14 @@ import {
   MockLogger,
   MockHandlerRegistry,
   MockAssetResolver,
+  MockConfigService,
   createDefaultMetrics,
 } from '@sidekick/testing-fixtures'
 import type { DaemonContext, TranscriptEvent, TranscriptMetrics, PRBaselineState } from '@sidekick/types'
 import { registerStagePauseAndReflect } from '../handlers/staging/stage-pause-and-reflect'
 import { registerStageDefaultUserPrompt } from '../handlers/staging/stage-default-user-prompt'
 import { registerStageStopReminders } from '../handlers/staging/stage-stop-reminders'
+import { registerUnstageVerifyCompletion } from '../handlers/staging/unstage-verify-completion'
 
 function createTestTranscriptEvent(
   metrics: Partial<TranscriptMetrics>,
@@ -582,6 +584,186 @@ reason: "Verify completion before stopping"
 
       const hookHandlers = handlers.getHandlersByKind('hook')
       expect(hookHandlers).toHaveLength(1)
+    })
+  })
+
+  describe('registerUnstageVerifyCompletion', () => {
+    const sessionId = 'test-session-vc'
+    let testProjectDir: string
+
+    beforeEach(() => {
+      testProjectDir = join('/tmp/claude', `test-vc-${Date.now()}`)
+      const stateDir = join(testProjectDir, '.sidekick', 'sessions', sessionId, 'state')
+      mkdirSync(stateDir, { recursive: true })
+    })
+
+    afterEach(() => {
+      try {
+        rmSync(testProjectDir, { recursive: true, force: true })
+      } catch {
+        // Ignore cleanup errors
+      }
+    })
+
+    function createHookEvent() {
+      return {
+        kind: 'hook' as const,
+        hook: 'UserPromptSubmit' as const,
+        context: { sessionId, timestamp: Date.now() },
+        payload: {
+          prompt: 'Continue please',
+          transcriptPath: '/mock/transcript.jsonl',
+          cwd: testProjectDir,
+          permissionMode: 'default',
+        },
+      }
+    }
+
+    it('registers for UserPromptSubmit hook', () => {
+      registerUnstageVerifyCompletion(ctx)
+
+      const hookHandlers = handlers.getHandlersForHook('UserPromptSubmit')
+      expect(hookHandlers).toHaveLength(1)
+      expect(hookHandlers[0].id).toBe('reminders:unstage-verify-completion')
+    })
+
+    it('deletes verify-completion reminder when no unverified state', async () => {
+      const ctxWithPath = createMockDaemonContext({
+        staging,
+        logger,
+        handlers,
+        assets,
+        paths: {
+          projectDir: testProjectDir,
+          userConfigDir: '/mock/user',
+          projectConfigDir: '/mock/project-config',
+        },
+      })
+
+      // Pre-stage a verify-completion reminder
+      await staging.stageReminder('Stop', 'verify-completion', {
+        name: 'verify-completion',
+        blocking: true,
+        priority: 50,
+        persistent: false,
+        stagedAt: { timestamp: Date.now(), turnCount: 1, toolsThisTurn: 1, toolCount: 1 },
+      })
+      expect(staging.getRemindersForHook('Stop')).toHaveLength(1)
+
+      registerUnstageVerifyCompletion(ctxWithPath)
+
+      const handler = handlers.getHandler('reminders:unstage-verify-completion')
+      await handler?.handler(createHookEvent(), ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
+
+      // Reminder should be deleted
+      expect(staging.getRemindersForHook('Stop')).toHaveLength(0)
+    })
+
+    it('re-stages verify-completion when unverified changes exist', async () => {
+      const ctxWithPath = createMockDaemonContext({
+        staging,
+        logger,
+        handlers,
+        assets,
+        paths: {
+          projectDir: testProjectDir,
+          userConfigDir: '/mock/user',
+          projectConfigDir: '/mock/project-config',
+        },
+      })
+
+      // Write unverified state file
+      const stateDir = join(testProjectDir, '.sidekick', 'sessions', sessionId, 'state')
+      const unverifiedState = {
+        hasUnverifiedChanges: true,
+        cycleCount: 1,
+        setAt: { timestamp: Date.now(), turnCount: 1, toolsThisTurn: 5, toolCount: 5 },
+        lastClassification: { category: 'OTHER', confidence: 0.5 },
+      }
+      writeFileSync(join(stateDir, 'vc-unverified.json'), JSON.stringify(unverifiedState))
+
+      registerUnstageVerifyCompletion(ctxWithPath)
+
+      const handler = handlers.getHandler('reminders:unstage-verify-completion')
+      await handler?.handler(createHookEvent(), ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
+
+      // Reminder should be re-staged
+      const reminders = staging.getRemindersForHook('Stop')
+      expect(reminders).toHaveLength(1)
+      expect(reminders[0].name).toBe('verify-completion')
+      expect(logger.wasLogged('Re-staged verify-completion due to unverified changes')).toBe(true)
+    })
+
+    it('does not re-stage when cycle limit reached', async () => {
+      const configWithCycleLimit = new MockConfigService()
+      configWithCycleLimit.set({
+        features: {
+          reminders: { enabled: true, settings: { max_verification_cycles: 2 } },
+        },
+      })
+      const ctxWithPath = createMockDaemonContext({
+        staging,
+        logger,
+        handlers,
+        assets,
+        paths: {
+          projectDir: testProjectDir,
+          userConfigDir: '/mock/user',
+          projectConfigDir: '/mock/project-config',
+        },
+        config: configWithCycleLimit,
+      })
+
+      // Write unverified state with cycle count at limit
+      const stateDir = join(testProjectDir, '.sidekick', 'sessions', sessionId, 'state')
+      const unverifiedState = {
+        hasUnverifiedChanges: true,
+        cycleCount: 2, // At limit
+        setAt: { timestamp: Date.now(), turnCount: 1, toolsThisTurn: 5, toolCount: 5 },
+        lastClassification: { category: 'OTHER', confidence: 0.5 },
+      }
+      writeFileSync(join(stateDir, 'vc-unverified.json'), JSON.stringify(unverifiedState))
+
+      registerUnstageVerifyCompletion(ctxWithPath)
+
+      const handler = handlers.getHandler('reminders:unstage-verify-completion')
+      await handler?.handler(createHookEvent(), ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
+
+      // Reminder should be deleted, not re-staged
+      expect(staging.getRemindersForHook('Stop')).toHaveLength(0)
+      expect(logger.wasLogged('Verification cycle limit reached, not re-staging')).toBe(true)
+    })
+
+    it('handles missing sessionId gracefully', async () => {
+      registerUnstageVerifyCompletion(ctx)
+
+      const handler = handlers.getHandler('reminders:unstage-verify-completion')
+      // Intentionally omit sessionId to test error handling
+      const eventWithoutSession = {
+        kind: 'hook' as const,
+        hook: 'UserPromptSubmit' as const,
+        context: { timestamp: Date.now() }, // No sessionId
+        payload: {
+          prompt: 'test',
+          transcriptPath: '/mock/transcript.jsonl',
+          cwd: testProjectDir,
+          permissionMode: 'default',
+        },
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await handler?.handler(eventWithoutSession as any, ctx as unknown as import('@sidekick/types').HandlerContext)
+
+      expect(logger.wasLogged('No sessionId in UserPromptSubmit event')).toBe(true)
+    })
+
+    it('does not register when context is not DaemonContext', () => {
+      const cliCtx = createMockCLIContext({ logger, handlers })
+
+      registerUnstageVerifyCompletion(cliCtx)
+
+      // Should not register any handlers
+      expect(handlers.getHandlersForHook('UserPromptSubmit')).toHaveLength(0)
     })
   })
 })
