@@ -178,10 +178,7 @@ describe('ContextMetricsService CLI Capture', () => {
         lastErrorAt: null,
         lastErrorMessage: null,
       }
-      await fs.writeFile(
-        path.join(stateDir, 'baseline-user-context-token-metrics.json'),
-        JSON.stringify(realMetrics)
-      )
+      await fs.writeFile(path.join(stateDir, 'baseline-user-context-token-metrics.json'), JSON.stringify(realMetrics))
 
       const service = new ContextMetricsService({
         projectDir,
@@ -311,8 +308,8 @@ describe('ContextMetricsService CLI Capture', () => {
 
       // Should have logged error about missing transcript
       expect(
-        logger.wasLogged('Transcript file not found', 'warn') ||
-          logger.wasLogged('Failed to extract /context output from transcript', 'warn')
+        logger.wasLoggedAtLevel('Transcript file not found', 'warn') ||
+          logger.wasLoggedAtLevel('Failed to extract /context output from transcript', 'warn')
       ).toBe(true)
     })
 
@@ -347,7 +344,7 @@ describe('ContextMetricsService CLI Capture', () => {
       await service.initialize()
       await new Promise((r) => setTimeout(r, 1000))
 
-      expect(logger.wasLogged('No /context output found in transcript', 'warn')).toBe(true)
+      expect(logger.wasLoggedAtLevel('No /context output found in transcript', 'warn')).toBe(true)
 
       try {
         await fs.rm(transcriptDir, { recursive: true, force: true })
@@ -391,8 +388,8 @@ Not a valid table format - missing required rows
       await new Promise((r) => setTimeout(r, 1000))
 
       expect(
-        logger.wasLogged('Transcript content does not appear to be /context output', 'warn') ||
-          logger.wasLogged('Failed to parse /context table output', 'warn')
+        logger.wasLoggedAtLevel('Transcript content does not appear to be /context output', 'warn') ||
+          logger.wasLoggedAtLevel('Failed to parse /context table output', 'warn')
       ).toBe(true)
 
       try {
@@ -417,7 +414,7 @@ Not a valid table format - missing required rows
       await service.initialize()
       await new Promise((r) => setTimeout(r, 500))
 
-      expect(logger.wasLogged('CLI capture failed', 'warn')).toBe(true)
+      expect(logger.wasLoggedAtLevel('CLI capture failed', 'warn')).toBe(true)
     })
 
     it('should handle unparseable JSON lines in transcript', async () => {
@@ -449,7 +446,7 @@ Not a valid table format - missing required rows
       await new Promise((r) => setTimeout(r, 1000))
 
       // Should gracefully handle and log no context found
-      expect(logger.wasLogged('No /context output found in transcript', 'warn')).toBe(true)
+      expect(logger.wasLoggedAtLevel('No /context output found in transcript', 'warn')).toBe(true)
 
       try {
         await fs.rm(transcriptDir, { recursive: true, force: true })
