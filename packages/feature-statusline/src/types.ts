@@ -93,6 +93,16 @@ export const StatuslineConfigSchema = z.object({
   theme: z
     .object({
       useNerdFonts: z.boolean().default(true),
+      supportedMarkdown: z
+        .object({
+          /** Convert **text** to ANSI bold */
+          bold: z.boolean().default(true),
+          /** Convert *text* or _text_ to ANSI italic */
+          italic: z.boolean().default(true),
+          /** Convert `text` to ANSI dim */
+          code: z.boolean().default(true),
+        })
+        .default({ bold: true, italic: true, code: true }),
       colors: z
         .object({
           model: z.string().default('blue'),
@@ -114,6 +124,7 @@ export const StatuslineConfigSchema = z.object({
     })
     .default({
       useNerdFonts: true,
+      supportedMarkdown: { bold: true, italic: true, code: true },
       colors: {
         model: 'blue',
         tokens: 'green',
