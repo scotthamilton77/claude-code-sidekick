@@ -2,9 +2,9 @@
 
 ## Problem
 
-`sidekick.log` (CLI) and `supervisor.log` have inconsistent formatting:
+`sidekick.log` (CLI) and `sidekickd.log` have inconsistent formatting:
 
-| Aspect | CLI | Supervisor |
+| Aspect | CLI | Daemon |
 |--------|-----|------------|
 | Context nesting | Nested in `context: {}` | Flat at root level |
 | Session ID | `context.sessionId` | Top-level `sessionId` |
@@ -15,7 +15,7 @@ This requires cognitive shift when scanning between logs.
 
 ## Solution
 
-Standardize both logs on the CLI's structured pattern and propagate `correlationId` from CLI to supervisor for full request tracing.
+Standardize both logs on the CLI's structured pattern and propagate `correlationId` from CLI to daemon for full request tracing.
 
 ## Unified Log Context Schema
 
@@ -35,12 +35,12 @@ interface LogContext {
 
 **Example unified output:**
 ```json
-{"level":30,"time":1767542853331,"name":"supervisor","context":{"scope":"project","sessionId":"c8c46dc5-...","correlationId":"3c422c06-..."},"type":"EventReceived","source":"supervisor","metadata":{"hook":"UserPromptSubmit"},"msg":"EventReceived"}
+{"level":30,"time":1767542853331,"name":"daemon","context":{"scope":"project","sessionId":"c8c46dc5-...","correlationId":"3c422c06-..."},"type":"EventReceived","source":"daemon","metadata":{"hook":"UserPromptSubmit"},"msg":"EventReceived"}
 ```
 
 ## Correlation ID Propagation
 
-The CLI already sends `correlationId` in `event.context`. The supervisor will:
+The CLI already sends `correlationId` in `event.context`. The daemon will:
 
 1. Extract `correlationId` from incoming hook events
 2. Create request-scoped child logger with bound context
@@ -50,20 +50,20 @@ The CLI already sends `correlationId` in `event.context`. The supervisor will:
 
 ## Implementation Changes
 
-### 1. Supervisor Initialization (`supervisor.ts:117-124`)
+### 1. Daemon Initialization (`daemon.ts:117-124`)
 
 Add base context to `createLogManager()`:
 
 ```typescript
 this.logManager = createLogManager({
-  name: 'supervisor',
+  name: 'daemon',
   context: { scope: 'project' },  // Add base context
   level: this.configService.core.logging.level,
   destinations: { /* ... */ },
 })
 ```
 
-### 2. Request-Scoped Logger (`supervisor.ts:handleHookInvoke`)
+### 2. Request-Scoped Logger (`daemon.ts:handleHookInvoke`)
 
 Extract correlationId and create child logger:
 
@@ -108,8 +108,8 @@ await stagingService.clearStaging({ logger: requestLogger })
 Convert plain log messages to structured events:
 
 **Add to `LogEvents` in `structured-logging.ts`:**
-- `SupervisorStarting` - startup initiated
-- `SupervisorStarted` - startup complete
+- `DaemonStarting` - startup initiated
+- `DaemonStarted` - startup complete
 - `IpcServerStarted` - socket listening
 - `ConfigWatcherStarted` - file watcher active
 - `SessionEvictionStarted` - cleanup timer running
@@ -117,12 +117,12 @@ Convert plain log messages to structured events:
 ## Files to Modify
 
 1. `packages/sidekick-core/src/structured-logging.ts` - Add new LogEvents
-2. `packages/sidekick-supervisor/src/supervisor.ts` - Context propagation
-3. `packages/sidekick-supervisor/src/services/*.ts` - Per-method logger pattern
-4. `packages/sidekick-supervisor/src/handlers/*.ts` - Accept logger parameter
+2. `packages/sidekickd/src/daemon.ts` - Context propagation
+3. `packages/sidekickd/src/services/*.ts` - Per-method logger pattern
+4. `packages/sidekickd/src/handlers/*.ts` - Accept logger parameter
 
 ## Testing
 
-- Verify correlationId appears in supervisor logs for hook invocations
+- Verify correlationId appears in daemon logs for hook invocations
 - Verify concurrent requests have distinct correlationIds
 - Verify background operations (timers, watchers) use base logger without correlationId

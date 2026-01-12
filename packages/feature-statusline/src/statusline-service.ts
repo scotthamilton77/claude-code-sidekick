@@ -376,9 +376,9 @@ export class StatuslineService {
     // Format output
     let text = this.formatter.format(this.config.format, viewModel)
 
-    // Stale indicator: only transcript metrics can be stale (Supervisor heartbeat).
+    // Stale indicator: only transcript metrics can be stale (Daemon heartbeat).
     // Content artifacts (summary, snarky, resume) are point-in-time
-    // and remain valid until regenerated - they don't indicate Supervisor health.
+    // and remain valid until regenerated - they don't indicate Daemon health.
     // See docs/design/FEATURE-STATUSLINE.md §8.2
     const staleData = !hasHookInput && stateResult.source === 'stale'
 

@@ -606,8 +606,8 @@ import type {
   EventReceivedEvent,
   EventProcessedEvent,
   ReminderStagedEvent,
-  SupervisorStartingEvent,
-  SupervisorStartedEvent,
+  DaemonStartingEvent,
+  DaemonStartedEvent,
   IpcServerStartedEvent,
   ConfigWatcherStartedEvent,
   SessionEvictionStartedEvent,
@@ -732,10 +732,10 @@ export const LogEvents = {
     }
   },
 
-  // --- Supervisor Events ---
+  // --- Daemon Events ---
 
   /**
-   * Create an EventReceived event (logged when Supervisor receives IPC event from CLI).
+   * Create an EventReceived event (logged when Daemon receives IPC event from CLI).
    */
   eventReceived(
     context: EventLogContext,
@@ -787,14 +787,14 @@ export const LogEvents = {
     }
   },
 
-  // --- Supervisor Lifecycle Events ---
+  // --- Daemon Lifecycle Events ---
 
   /**
-   * Create a SupervisorStarting event (logged at beginning of supervisor initialization).
+   * Create a DaemonStarting event (logged at beginning of daemon initialization).
    */
-  supervisorStarting(metadata: { projectDir: string; pid: number }): SupervisorStartingEvent {
+  daemonStarting(metadata: { projectDir: string; pid: number }): DaemonStartingEvent {
     return {
-      type: 'SupervisorStarting',
+      type: 'DaemonStarting',
       time: Date.now(),
       source: 'daemon',
       context: {
@@ -808,11 +808,11 @@ export const LogEvents = {
   },
 
   /**
-   * Create a SupervisorStarted event (logged when supervisor initialization completes).
+   * Create a DaemonStarted event (logged when daemon initialization completes).
    */
-  supervisorStarted(metadata: { startupDurationMs: number }): SupervisorStartedEvent {
+  daemonStarted(metadata: { startupDurationMs: number }): DaemonStartedEvent {
     return {
-      type: 'SupervisorStarted',
+      type: 'DaemonStarted',
       time: Date.now(),
       source: 'daemon',
       context: {
@@ -880,7 +880,7 @@ export const LogEvents = {
   },
 
   /**
-   * Create a ReminderStaged event (logged when Supervisor stages a reminder file).
+   * Create a ReminderStaged event (logged when Daemon stages a reminder file).
    * FIXME these events should be feature-specific and live in their respective packages
    */
   reminderStaged(

@@ -16,7 +16,7 @@ This subsystem resides within `sidekick-core` and exposes a high-level API for i
 ### 1.1 Related Documents
 
 - **docs/design/flow.md**: Defines `TranscriptEvent` schema and event dispatch model
-- **docs/design/SUPERVISOR.md**: TranscriptService integration with Supervisor
+- **docs/design/DAEMON.md**: TranscriptService integration with Daemon
 - **packages/sidekick-ui/docs/MONITORING-UI.md**: Compaction timeline visualization
 
 ## 2. Architecture
@@ -145,7 +145,7 @@ The main entry point in `sidekick-core`. TranscriptService is the **single sourc
 
 **Shutdown Requirements**:
 
-- The file watcher must NOT prevent Supervisor process shutdown (chokidar doesn't expose `unref()`, so we rely on `watcher.close()` in `shutdown()` — Supervisor must call `shutdown()` before exit)
+- The file watcher must NOT prevent Daemon process shutdown (chokidar doesn't expose `unref()`, so we rely on `watcher.close()` in `shutdown()` — Daemon must call `shutdown()` before exit)
 - TranscriptService stops watching automatically on `SessionEnd` event (reason: `clear` | `logout` | `prompt_input_exit` | `other`)
 
 **Transcript Access**:
@@ -335,7 +335,7 @@ TranscriptService manages compaction history for the Monitoring UI's time-travel
 
 ### 4.1 Pre-Compact Capture
 
-When `capturePreCompactState(snapshotPath)` is called (by the Supervisor's PreCompact handler):
+When `capturePreCompactState(snapshotPath)` is called (by the Daemon's PreCompact handler):
 
 1. Snapshot current metrics
 2. Record compaction point metadata
@@ -368,7 +368,7 @@ interface CompactionEntry {
 
 ## 5. Event Emission
 
-TranscriptService emits transcript events into the Supervisor's unified event queue (per **docs/design/flow.md §3.2**).
+TranscriptService emits transcript events into the Daemon's unified event queue (per **docs/design/flow.md §3.2**).
 
 ### 5.1 Event Types Emitted
 
@@ -467,7 +467,7 @@ The `TranscriptScrubber` emits **Entity-Lifecycle events** (see `docs/design/STR
 ```json
 // Initial normalization complete
 {
-  "source": "sidekick-supervisor",
+  "source": "sidekickd",
   "pid": 12345,
   "context": {
     "session_id": "sess-001",
@@ -481,7 +481,7 @@ The `TranscriptScrubber` emits **Entity-Lifecycle events** (see `docs/design/STR
 
 // Context pruned (token limit reached)
 {
-  "source": "sidekick-supervisor",
+  "source": "sidekickd",
   "pid": 12345,
   "context": {
     "session_id": "sess-001",
@@ -496,7 +496,7 @@ The `TranscriptScrubber` emits **Entity-Lifecycle events** (see `docs/design/STR
 
 // Tool output truncated
 {
-  "source": "sidekick-supervisor",
+  "source": "sidekickd",
   "pid": 12345,
   "context": {
     "session_id": "sess-001",

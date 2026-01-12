@@ -12,16 +12,13 @@ This repository serves as a development and testing environment for [Claude Code
 
 ### Sidekick
 
-- naming inconsistency: sidekick vs. supervisor; and sidekick vs. CLI - need consistency across docs, source, state files, folders, etc.
 - finish ROADMAP.md
 - finish PLAN.MD (executing ARCH.md)
 - can we be resilient to json file errors?  I just ran into a case of the session-summary.json being generated with trash after the last } which made it unreadable
 - allow for different personalities - either explicit at install time or random per project or random per session or just random
   - moods: cynical, sarcastic, snarky, nerdy, arrogant, moody
-  - persona: angry klingon, skeptical vulcan, Scotty, Bones, Dilbert
+  - persona: skippy, angry klingon, skeptical vulcan, Scotty, Bones, Dilbert
   - themes: scifi, crime drama, daytime television, soap opera, classic 80s tv sitcom, seinfeld & friends
-- allow a "concise" topic mode during setup that chooses concise template files
-  - allow the line length hints to be configurable
 - log rotation and log level to info by default
 - BUG: uninstall from project leaves empty hooks folder
 - how do subagents work - can we detect their connection to the parent agent, and do we care? (for statusline, maybe not, but for analytics?)
@@ -453,7 +450,7 @@ The Sidekick system is being migrated from Bash to Node/TypeScript for improved 
 | Phase 2 | Configuration & Asset Resolution | Complete    |
 | Phase 3 | Structured Logging & Telemetry   | Complete    |
 | Phase 4 | Core Services & Providers        | Complete    |
-| Phase 5 | Supervisor & Background Tasks    | Complete    |
+| Phase 5 | Daemon & Background Tasks        | Complete    |
 | Phase 6 | Feature Enablement & Integration | In Progress |
 | Phase 7 | Installation & Distribution      | Pending     |
 
@@ -467,7 +464,7 @@ packages/
 ├── feature-reminders/       # Reminder staging (pause-and-reflect, verify-completion)
 ├── feature-session-summary/ # LLM-based conversation analysis
 ├── feature-statusline/      # Token tracking, context bar, git branch, log metrics
-├── sidekick-supervisor/     # Orchestration, context metrics, session management
+├── sidekickd/               # Orchestration, context metrics, session management
 ├── sidekick-cli/            # CLI entrypoint and hook dispatcher
 └── sidekick-ui/             # Monitoring UI (React SPA mockup)
 

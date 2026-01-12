@@ -55,7 +55,7 @@ function generateLargeNdjson(lineCount: number): string {
       name: 'sidekick:cli',
       msg: `Event ${i}`,
       type: eventTypes[i % eventTypes.length],
-      source: i % 2 === 0 ? 'cli' : 'supervisor',
+      source: i % 2 === 0 ? 'cli' : 'daemon',
       context: {
         session_id: `sess-${Math.floor(i / 100)}`,
         scope: 'project',
@@ -88,7 +88,7 @@ function generateLogRecords(count: number): ParsedLogRecord[] {
         hostname: 'test-host',
         name: 'sidekick:cli',
       },
-      source: i % 2 === 0 ? 'cli' : 'supervisor',
+      source: i % 2 === 0 ? 'cli' : 'daemon',
       type: eventTypes[i % eventTypes.length],
       context: {
         session_id: `sess-${Math.floor(i / 100)}`,
@@ -221,10 +221,10 @@ describe('Log Parser Performance', () => {
 
   it('merges large log streams efficiently', () => {
     const cliRecords = generateLogRecords(1000)
-    const supervisorRecords = generateLogRecords(1000)
+    const daemonRecords = generateLogRecords(1000)
 
     const duration = measureTime(() => {
-      const merged = mergeLogStreams(cliRecords, supervisorRecords)
+      const merged = mergeLogStreams(cliRecords, daemonRecords)
       expect(merged.length).toBe(2000)
     })
 
@@ -342,13 +342,13 @@ describe('Memory Efficiency', () => {
 describe('Real-World Performance Scenarios', () => {
   it('handles realistic session log volume efficiently', () => {
     // Realistic scenario: 30-minute session with events every 2 seconds
-    // = ~900 events, split between CLI and Supervisor
+    // = ~900 events, split between CLI and daemon
     const cliRecords = generateLogRecords(450)
-    const supervisorRecords = generateLogRecords(450)
+    const daemonRecords = generateLogRecords(450)
 
     const duration = measureTime(() => {
       // Step 1: Parse logs
-      const merged = mergeLogStreams(cliRecords, supervisorRecords)
+      const merged = mergeLogStreams(cliRecords, daemonRecords)
 
       // Step 2: Build timeline
       const store = new TimeTravelStore()

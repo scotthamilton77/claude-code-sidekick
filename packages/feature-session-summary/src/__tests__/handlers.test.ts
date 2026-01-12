@@ -126,8 +126,8 @@ describe('Session Summary Handlers', () => {
     it('only registers handlers in daemon context', () => {
       registerHandlers(ctx)
 
-      const supervisorRegistrations = handlers.getRegistrations()
-      expect(supervisorRegistrations).toHaveLength(4)
+      const daemonRegistrations = handlers.getRegistrations()
+      expect(daemonRegistrations).toHaveLength(4)
     })
 
     it('does not register handlers in CLI context', () => {

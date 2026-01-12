@@ -47,7 +47,7 @@ export function getEventKind(record: ParsedLogRecord): EventKind {
   }
 
   // Default based on source
-  return record.source === 'supervisor' ? 'internal' : 'hook'
+  return record.source === 'daemon' ? 'internal' : 'hook'
 }
 
 // ============================================================================
@@ -496,7 +496,7 @@ export function sidekickEventToUIEvent(event: SidekickEvent, id: number, source?
     type: isHook ? hookEventToUIType(event) : transcriptEventToUIType(event),
     label: isHook ? hookEventToLabel(event) : transcriptEventToLabel(event),
     content: isHook ? hookEventToContent(event) : transcriptEventToContent(event),
-    source: source ?? (isHook ? 'cli' : 'supervisor'),
+    source: source ?? (isHook ? 'cli' : 'daemon'),
     rawEvent: event,
   }
 

@@ -3,7 +3,7 @@ import type { DaemonContext, TaskContext } from '@sidekick/types'
 import crypto from 'crypto'
 
 /**
- * Default task timeout: 5 minutes per design/SUPERVISOR.md §5.
+ * Default task timeout: 5 minutes per design/DAEMON.md §5.
  * Tasks can override this via their timeoutMs property.
  */
 const DEFAULT_TASK_TIMEOUT_MS = 5 * 60 * 1000
@@ -63,7 +63,7 @@ export interface EnqueueOptions {
  * code blocks. Async task handlers schedule microtasks that execute sequentially,
  * never concurrently. This class is NOT safe for Worker Threads with shared memory.
  *
- * @see docs/design/SUPERVISOR.md §4.2, §5
+ * @see docs/design/DAEMON.md §4.2, §5
  */
 export class TaskEngine {
   private queue: Task[] = []
@@ -168,11 +168,11 @@ export class TaskEngine {
     const sessionId = typeof task.payload.sessionId === 'string' ? task.payload.sessionId : undefined
 
     // Get DaemonContext for this session (or base context if no sessionId)
-    const supervisorContext = this.contextGetter(sessionId)
+    const daemonContext = this.contextGetter(sessionId)
 
     // Build full TaskContext by extending DaemonContext with task-specific fields
     const context: TaskContext = {
-      ...supervisorContext,
+      ...daemonContext,
       taskId: task.id,
       signal: abortController.signal,
     }
@@ -216,7 +216,7 @@ export class TaskEngine {
 
   /**
    * Run task handler with timeout enforcement.
-   * Per design/SUPERVISOR.md §5: Tasks have a strict timeout, defaulting to 5 minutes.
+   * Per design/DAEMON.md §5: Tasks have a strict timeout, defaulting to 5 minutes.
    */
   private async runWithTimeout(
     handler: TaskHandler,
@@ -263,7 +263,7 @@ export class TaskEngine {
   /**
    * Gracefully shutdown the task engine.
    * Prevents new enqueues, clears pending queue, waits for running tasks to complete.
-   * Per design/SUPERVISOR.md §2.2: max 30s timeout for running tasks.
+   * Per design/DAEMON.md §2.2: max 30s timeout for running tasks.
    */
   async shutdown(timeoutMs = 30000): Promise<void> {
     if (this.isShuttingDown) {
@@ -312,7 +312,7 @@ export class TaskEngine {
 
   /**
    * Get current task engine status for heartbeat/monitoring.
-   * Per design/SUPERVISOR.md §4.6: Expose queue depth and active task info.
+   * Per design/DAEMON.md §4.6: Expose queue depth and active task info.
    */
   getStatus(): TaskEngineStatus {
     const activeTasks: TaskEngineStatus['activeTasks'] = []

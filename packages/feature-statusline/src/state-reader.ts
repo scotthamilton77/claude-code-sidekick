@@ -44,7 +44,7 @@ const STALE_THRESHOLD_MS = 60_000 // 60 seconds
 export interface StateReaderConfig {
   /** Session state directory (e.g., .sidekick/sessions/{id}/state/) */
   stateDir: string
-  /** Project state directory (e.g., .sidekick/state/) for global supervisor metrics */
+  /** Project state directory (e.g., .sidekick/state/) for global daemon metrics */
   projectStateDir?: string
   /** Threshold in ms for staleness detection */
   staleThresholdMs?: number
@@ -70,7 +70,7 @@ export class StateReader {
    * Returns only fields that are persisted by TranscriptService.
    *
    * Staleness is determined by the `persistedAt` timestamp in the file,
-   * not the file mtime. This detects if the Supervisor stopped updating.
+   * not the file mtime. This detects if the Daemon stopped updating.
    */
   async getTranscriptMetrics(): Promise<StateReadResult<TranscriptMetricsState>> {
     const filePath = path.join(this.stateDir, 'transcript-metrics.json')
@@ -87,7 +87,7 @@ export class StateReader {
       const metrics = persistedState.metrics
 
       // Use persistedAt timestamp for staleness, not file mtime
-      // This detects if Supervisor stopped updating (default interval: 5s)
+      // This detects if Daemon stopped updating (default interval: 5s)
       const isStale = Date.now() - persistedState.persistedAt > this.staleThresholdMs
 
       const state: TranscriptMetricsState = {
@@ -180,41 +180,41 @@ export class StateReader {
   }
 
   /**
-   * Read and parse log metrics from supervisor, CLI, and global metric files.
-   * Returns combined warning/error counts for the current session plus global supervisor errors.
+   * Read and parse log metrics from daemon, CLI, and global metric files.
+   * Returns combined warning/error counts for the current session plus global daemon errors.
    *
-   * Supervisor writes supervisor-log-metrics.json (per-session),
-   * CLI writes cli-log-metrics.json (per-session), and supervisor writes
-   * supervisor-global-log-metrics.json (project-level, for logs without session context).
+   * Daemon writes daemon-log-metrics.json (per-session),
+   * CLI writes cli-log-metrics.json (per-session), and daemon writes
+   * daemon-global-log-metrics.json (project-level, for logs without session context).
    * StatuslineService reads and sums all three.
    *
    * Staleness is determined by the `lastUpdatedAt` timestamp in the files.
-   * This detects if the Supervisor or CLI stopped updating.
+   * This detects if the Daemon or CLI stopped updating.
    *
    * @see docs/design/FEATURE-STATUSLINE.md §6.2
    */
   async getLogMetrics(): Promise<StateReadResult<LogMetricsState>> {
-    const supervisorPath = path.join(this.stateDir, 'supervisor-log-metrics.json')
+    const daemonPath = path.join(this.stateDir, 'daemon-log-metrics.json')
     const cliPath = path.join(this.stateDir, 'cli-log-metrics.json')
 
     const readPromises: Promise<StateReadResult<LogMetricsState>>[] = [
-      this.readLogMetricsFile(supervisorPath),
+      this.readLogMetricsFile(daemonPath),
       this.readLogMetricsFile(cliPath),
     ]
 
-    // Also read global supervisor metrics if project state dir is configured
+    // Also read global daemon metrics if project state dir is configured
     if (this.projectStateDir) {
-      const globalPath = path.join(this.projectStateDir, 'supervisor-global-log-metrics.json')
+      const globalPath = path.join(this.projectStateDir, 'daemon-global-log-metrics.json')
       readPromises.push(this.readLogMetricsFile(globalPath))
     }
 
     const results = await Promise.all(readPromises)
-    const [supervisorResult, cliResult, globalResult] = results
+    const [daemonResult, cliResult, globalResult] = results
 
     // Sum counts from all sources
-    let warningCount = supervisorResult.data.warningCount + cliResult.data.warningCount
-    let errorCount = supervisorResult.data.errorCount + cliResult.data.errorCount
-    let lastUpdatedAt = Math.max(supervisorResult.data.lastUpdatedAt, cliResult.data.lastUpdatedAt)
+    let warningCount = daemonResult.data.warningCount + cliResult.data.warningCount
+    let errorCount = daemonResult.data.errorCount + cliResult.data.errorCount
+    let lastUpdatedAt = Math.max(daemonResult.data.lastUpdatedAt, cliResult.data.lastUpdatedAt)
 
     if (globalResult) {
       warningCount += globalResult.data.warningCount
@@ -223,7 +223,7 @@ export class StateReader {
     }
 
     const combined: LogMetricsState = {
-      sessionId: supervisorResult.data.sessionId || cliResult.data.sessionId || '',
+      sessionId: daemonResult.data.sessionId || cliResult.data.sessionId || '',
       warningCount,
       errorCount,
       lastUpdatedAt,
@@ -231,11 +231,11 @@ export class StateReader {
 
     // Determine combined source status
     const isStale =
-      supervisorResult.source === 'stale' ||
+      daemonResult.source === 'stale' ||
       cliResult.source === 'stale' ||
       (globalResult !== undefined && globalResult.source === 'stale')
     const isAllDefault =
-      supervisorResult.source === 'default' &&
+      daemonResult.source === 'default' &&
       cliResult.source === 'default' &&
       (!globalResult || globalResult.source === 'default')
 

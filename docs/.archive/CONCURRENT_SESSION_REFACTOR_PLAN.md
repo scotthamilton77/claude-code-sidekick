@@ -4,7 +4,7 @@
 
 ## Problem Statement
 
-When `/clear` is executed, the supervisor receives a `SessionStart` event with a NEW session ID, but:
+When `/clear` is executed, the daemon receives a `SessionStart` event with a NEW session ID, but:
 1. `StagingService` continues using the OLD session's staging path
 2. `TranscriptService` continues watching the OLD session's transcript
 3. Reminders get staged to the wrong session directory
@@ -60,7 +60,7 @@ Requirements:
 
 | Component | Pattern | Lifecycle |
 |-----------|---------|-----------|
-| **ServiceFactory** | Singleton per supervisor | Long-lived |
+| **ServiceFactory** | Singleton per daemon | Long-lived |
 | **StagingServiceCore** | Stateless singleton | Long-lived |
 | **SessionScopedStaging** | Lightweight wrapper | Per-request or cached |
 | **TranscriptService** | Session-keyed instances | Created on demand, evicted on TTL/SessionEnd |
@@ -168,20 +168,20 @@ class ServiceFactoryImpl implements ServiceFactory {
 }
 ```
 
-### Phase 4: Integrate Factory into Supervisor
+### Phase 4: Integrate Factory into Daemon
 
 **Files:**
-- `packages/sidekick-supervisor/src/supervisor.ts`
+- `packages/sidekickd/src/daemon.ts`
 
 **Changes:**
 ```typescript
-class Supervisor {
+class Daemon {
   private serviceFactory: ServiceFactory
 
   // Build context per-request using factory
-  private async buildHandlerContext(sessionId: string, transcriptPath: string): Promise<SupervisorContext> {
+  private async buildHandlerContext(sessionId: string, transcriptPath: string): Promise<DaemonContext> {
     return {
-      role: 'supervisor',
+      role: 'daemon',
       sessionId,
       staging: this.serviceFactory.getStagingService(sessionId),
       transcript: await this.serviceFactory.getTranscriptService(sessionId, transcriptPath),
@@ -201,13 +201,13 @@ class Supervisor {
 ### Phase 5: Update Handler Context Flow
 
 **Files:**
-- `packages/sidekick-supervisor/src/supervisor.ts`
+- `packages/sidekickd/src/daemon.ts`
 - `packages/sidekick-core/src/handler-registry.ts`
 
 **Key Change:**
 ```typescript
 // Before: Singleton context set once
-this.handlerRegistry.setContext(supervisorContext)
+this.handlerRegistry.setContext(daemonContext)
 
 // After: Context built per-request with session-scoped services
 async handleHookInvoke(request: HookInvokeRequest): Promise<HookResponse> {
@@ -221,10 +221,10 @@ async handleHookInvoke(request: HookInvokeRequest): Promise<HookResponse> {
 ### Phase 6: Add Eviction Timer
 
 **Files:**
-- `packages/sidekick-supervisor/src/supervisor.ts`
+- `packages/sidekickd/src/daemon.ts`
 
 ```typescript
-class Supervisor {
+class Daemon {
   private evictionTimer: ReturnType<typeof setInterval> | null = null
 
   async start(): Promise<void> {
@@ -249,7 +249,7 @@ class Supervisor {
 
 ### Must Modify
 1. `packages/sidekick-core/src/staging-service.ts` - Split into Core + SessionScoped wrapper
-2. `packages/sidekick-supervisor/src/supervisor.ts` - Use factory, per-request context
+2. `packages/sidekickd/src/daemon.ts` - Use factory, per-request context
 3. `packages/sidekick-core/src/handler-registry.ts` - Accept context per invocation
 4. `packages/testing-fixtures/src/mocks/MockStagingService.ts` - Add mock factory
 
@@ -259,7 +259,7 @@ class Supervisor {
 
 ### Must Update Tests
 - `packages/sidekick-core/src/__tests__/staging-service.test.ts` - Test Core + wrapper
-- `packages/sidekick-supervisor/src/__tests__/staging-lifecycle.test.ts` - Test factory
+- `packages/sidekickd/src/__tests__/staging-lifecycle.test.ts` - Test factory
 - Add new: `packages/sidekick-core/src/__tests__/service-factory.test.ts`
 
 ---
@@ -269,7 +269,7 @@ class Supervisor {
 1. **Phase 1** - Create ServiceFactory interface and types
 2. **Phase 2** - Refactor StagingService to Core + wrapper (internal change, interface preserved)
 3. **Phase 3** - Implement ServiceFactoryImpl with transcript map
-4. **Phase 4** - Integrate factory into Supervisor
+4. **Phase 4** - Integrate factory into Daemon
 5. **Phase 5** - Update handler invocation to pass context per-request
 6. **Phase 6** - Add eviction timer
 

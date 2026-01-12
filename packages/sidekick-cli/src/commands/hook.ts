@@ -1,14 +1,14 @@
 /**
  * Hook Command Handler
  *
- * Handles hook event dispatch to the Supervisor via IPC.
- * Implements Phase 8 of the roadmap: CLI→Supervisor Event Dispatch.
+ * Handles hook event dispatch to the Daemon via IPC.
+ * Implements Phase 8 of the roadmap: CLI→Daemon Event Dispatch.
  *
  * Per docs/design/flow.md §5 Complete Hook Flows:
  * 1. CLI receives hook input from Claude Code
  * 2. CLI builds HookEvent from parsed input
- * 3. CLI sends event to Supervisor via IPC (hook.invoke)
- * 4. Supervisor dispatches to registered handlers
+ * 3. CLI sends event to Daemon via IPC (hook.invoke)
+ * 4. Daemon dispatches to registered handlers
  * 5. CLI formats response for Claude Code
  *
  * @see docs/design/CLI.md §9 Process Model for Hooks
@@ -34,7 +34,7 @@ import { buildCLIContext, registerCLIFeatures } from '../context.js'
 import type { RuntimeShell } from '../runtime.js'
 
 /**
- * Hook response from Supervisor.
+ * Hook response from Daemon.
  * Contains optional fields that map to Claude Code hook response contract.
  */
 export interface HookResponse {
@@ -270,14 +270,14 @@ export function buildHookEvent(
 }
 
 /**
- * Merge CLI and Supervisor hook responses.
+ * Merge CLI and Daemon hook responses.
  * CLI response takes precedence for reminder fields (blocking, reason, userMessage).
- * additionalContext is concatenated (CLI first, then Supervisor).
+ * additionalContext is concatenated (CLI first, then Daemon).
  *
- * Phase 8.5.4: Used to merge reminder consumption responses with supervisor responses.
+ * Phase 8.5.4: Used to merge reminder consumption responses with daemon responses.
  */
-export function mergeHookResponses(supervisorResponse: HookResponse | null, cliResponse: HookResponse): HookResponse {
-  const merged: HookResponse = { ...supervisorResponse }
+export function mergeHookResponses(daemonResponse: HookResponse | null, cliResponse: HookResponse): HookResponse {
+  const merged: HookResponse = { ...daemonResponse }
 
   // CLI response takes precedence for these fields
   if (cliResponse.blocking !== undefined) {
@@ -290,10 +290,10 @@ export function mergeHookResponses(supervisorResponse: HookResponse | null, cliR
     merged.userMessage = cliResponse.userMessage
   }
 
-  // Concatenate additionalContext (CLI first, then Supervisor)
+  // Concatenate additionalContext (CLI first, then Daemon)
   if (cliResponse.additionalContext !== undefined) {
-    merged.additionalContext = supervisorResponse?.additionalContext
-      ? `${cliResponse.additionalContext}\n\n${supervisorResponse.additionalContext}`
+    merged.additionalContext = daemonResponse?.additionalContext
+      ? `${cliResponse.additionalContext}\n\n${daemonResponse.additionalContext}`
       : cliResponse.additionalContext
   }
 
@@ -315,11 +315,11 @@ export interface HandleHookResult {
 }
 
 /**
- * Handle a hook command by dispatching to Supervisor.
+ * Handle a hook command by dispatching to Daemon.
  *
  * Process flow:
  * 1. Build typed HookEvent from parsed input
- * 2. Dispatch to Supervisor via IPC (hook.invoke)
+ * 2. Dispatch to Daemon via IPC (hook.invoke)
  * 3. Format response for Claude Code
  *
  * @param hookName - The hook being invoked
@@ -349,7 +349,7 @@ export async function handleHookCommand(
   // Build typed HookEvent from parsed input
   const event = buildHookEvent(hookName, hookInput, correlationId, scope)
 
-  logger.debug('Dispatching hook event to supervisor', {
+  logger.debug('Dispatching hook event to daemon', {
     hook: hookName,
     sessionId: hookInput.sessionId,
   })
@@ -362,24 +362,24 @@ export async function handleHookCommand(
   })
   registerCLIFeatures(cliContext)
 
-  // Create IpcService for supervisor communication
+  // Create IpcService for daemon communication
   const ipcService = new IpcService(projectRoot, logger)
 
   try {
-    // Send hook event to supervisor via IPC
-    // Graceful degradation: returns null if supervisor unavailable
-    const supervisorResponse = await ipcService.send<HookResponse>('hook.invoke', {
+    // Send hook event to daemon via IPC
+    // Graceful degradation: returns null if daemon unavailable
+    const daemonResponse = await ipcService.send<HookResponse>('hook.invoke', {
       hook: hookName,
       event,
     })
 
-    if (supervisorResponse === null) {
-      logger.warn('Supervisor unavailable for hook', { hook: hookName })
+    if (daemonResponse === null) {
+      logger.warn('Daemon unavailable for hook', { hook: hookName })
     } else {
-      logger.debug('Received hook response from supervisor', {
+      logger.debug('Received hook response from daemon', {
         hook: hookName,
-        hasBlocking: supervisorResponse?.blocking,
-        hasContext: !!supervisorResponse?.additionalContext,
+        hasBlocking: daemonResponse?.blocking,
+        hasContext: !!daemonResponse?.additionalContext,
       })
     }
 
@@ -393,7 +393,7 @@ export async function handleHookCommand(
     })
 
     // Merge responses (CLI takes precedence)
-    const mergedResponse = mergeHookResponses(supervisorResponse, cliResponse ?? {})
+    const mergedResponse = mergeHookResponses(daemonResponse, cliResponse ?? {})
 
     // Output internal HookResponse format (shell scripts will translate to Claude Code format)
     const outputStr = JSON.stringify(mergedResponse)

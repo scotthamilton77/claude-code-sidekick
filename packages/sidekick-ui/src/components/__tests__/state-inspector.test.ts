@@ -44,7 +44,7 @@ function createRecord(
 ): ParsedLogRecord {
   return {
     pino: createPinoFields(time),
-    source: 'supervisor',
+    source: 'daemon',
     type,
     context: { session_id: 'test-session' },
     payload,
@@ -603,7 +603,7 @@ describe('State Inspector - Diff Calculation', () => {
         summary: { title: 'Old' },
         metrics: createTestMetrics({ turnCount: 1 }),
         stagedReminders: new Map(),
-        supervisorHealth: undefined,
+        daemonHealth: undefined,
       }
       const newState: ReplayState = {
         summary: { title: 'New', intent: 'debug' },
@@ -611,7 +611,7 @@ describe('State Inspector - Diff Calculation', () => {
         stagedReminders: new Map([
           ['hook1', [{ name: 'r1', blocking: false, priority: 10, persistent: false, stagedAt: 1000 }]],
         ]),
-        supervisorHealth: { online: true, lastSeen: 5000 },
+        daemonHealth: { online: true, lastSeen: 5000 },
       }
 
       const diff = computeDiff(oldState, newState)
@@ -622,7 +622,7 @@ describe('State Inspector - Diff Calculation', () => {
       expect(diff.changes.some((c) => c.path === 'metrics.turnCount')).toBe(true)
       expect(diff.changes.some((c) => c.path === 'metrics.toolCount')).toBe(true)
       expect(diff.changes.some((c) => c.path.startsWith('stagedReminders'))).toBe(true)
-      expect(diff.changes.some((c) => c.path.startsWith('supervisorHealth'))).toBe(true)
+      expect(diff.changes.some((c) => c.path.startsWith('daemonHealth'))).toBe(true)
     })
 
     it('handles no changes correctly', () => {
@@ -705,7 +705,7 @@ describe('State Inspector - Diff Calculation', () => {
         stagedReminders: new Map([
           ['hook1', [{ name: 'r1', blocking: false, priority: 10, persistent: false, stagedAt: 1000 }]],
         ]),
-        supervisorHealth: { online: true, lastSeen: 1000 },
+        daemonHealth: { online: true, lastSeen: 1000 },
       }
 
       const diff = computeDiff(oldState, newState)
@@ -721,7 +721,7 @@ describe('State Inspector - Diff Calculation', () => {
         stagedReminders: new Map([
           ['hook1', [{ name: 'r1', blocking: false, priority: 10, persistent: false, stagedAt: 1000 }]],
         ]),
-        supervisorHealth: { online: true, lastSeen: 1000 },
+        daemonHealth: { online: true, lastSeen: 1000 },
       }
       const newState = createInitialState()
 
@@ -736,7 +736,7 @@ describe('State Inspector - Diff Calculation', () => {
         summary: { title: 'Same', titleConfidence: 0.9 },
         metrics: createTestMetrics({ turnCount: 5 }),
         stagedReminders: new Map(),
-        supervisorHealth: undefined,
+        daemonHealth: undefined,
       }
 
       const diff = computeDiff(state, state)

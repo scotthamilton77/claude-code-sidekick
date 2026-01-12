@@ -18,7 +18,7 @@ const createMockEvent = (overrides: Partial<UIEvent>): UIEvent => ({
   type: 'state',
   label: 'Test Event',
   content: 'Test content',
-  source: 'supervisor',
+  source: 'daemon',
   ...overrides,
 })
 
@@ -46,10 +46,10 @@ describe('parseFilterQuery', () => {
   })
 
   it('should parse source filters', () => {
-    const tokens = parseFilterQuery('source:cli source:supervisor')
+    const tokens = parseFilterQuery('source:cli source:daemon')
     expect(tokens).toEqual([
       { type: 'source', value: 'cli' },
-      { type: 'source', value: 'supervisor' },
+      { type: 'source', value: 'daemon' },
     ])
   })
 
@@ -335,7 +335,7 @@ describe('compileFilter - combined filters', () => {
 
     const event1 = createMockEvent({
       type: 'state',
-      source: 'supervisor',
+      source: 'daemon',
       label: 'Summary Updated',
     })
 

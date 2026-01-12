@@ -2,7 +2,7 @@
  * File Utilities
  *
  * Shared utilities for timestamped file operations:
- * - Dev mode backups (copy with timestamp) - supervisor-side, async
+ * - Dev mode backups (copy with timestamp) - daemon-side, async
  * - Reminder consumption (rename with timestamp) - CLI-side, sync
  *
  * @see docs/design/FEATURE-SESSION-SUMMARY.md
@@ -30,7 +30,7 @@ export function getTimestampedPath(filePath: string, timestamp: number = Date.no
 }
 
 // ============================================================================
-// Async Operations (Supervisor-side)
+// Async Operations (Daemon-side)
 // ============================================================================
 
 export interface TimestampedFileOptions {

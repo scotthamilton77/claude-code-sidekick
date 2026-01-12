@@ -819,7 +819,7 @@ describe('Structured Logging', () => {
       const logsDir = path.join(tempDir, 'logs')
 
       const logger = createContextLogger({
-        name: 'sidekick:supervisor',
+        name: 'sidekick:daemon',
         level: 'info',
         source: 'daemon',
         logsDir,
@@ -830,10 +830,10 @@ describe('Structured Logging', () => {
 
       await new Promise((r) => setTimeout(r, 100))
 
-      const supervisorLogPath = path.join(logsDir, 'sidekickd.log')
-      expect(fs.existsSync(supervisorLogPath)).toBe(true)
+      const daemonLogPath = path.join(logsDir, 'sidekickd.log')
+      expect(fs.existsSync(daemonLogPath)).toBe(true)
 
-      const content = fs.readFileSync(supervisorLogPath, 'utf8')
+      const content = fs.readFileSync(daemonLogPath, 'utf8')
       const log = JSON.parse(content.trim())
       expect(log.source).toBe('daemon')
       expect(log.msg).toBe('Daemon log entry')
@@ -910,7 +910,7 @@ describe('Structured Logging', () => {
       expect(event.payload.state.blocking).toBe(true)
     })
 
-    it('should create EventReceived events for supervisor', async () => {
+    it('should create EventReceived events for daemon', async () => {
       const { LogEvents } = await import('../structured-logging')
 
       const event = LogEvents.eventReceived(

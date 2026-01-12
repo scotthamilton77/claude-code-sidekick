@@ -15,7 +15,7 @@ Replace hardcoded LLM values throughout the codebase with a named profile system
 
 ### Current Problems
 
-1. **Supervisor ignores config**: `supervisor.ts` hardcodes `google/gemini-2.0-flash-lite-001`, ignoring `llm.yaml`
+1. **Daemon ignores config**: `daemon.ts` hardcodes `google/gemini-2.0-flash-lite-001`, ignoring `llm.yaml`
 2. **Features hardcode LLM params**: temperature/maxTokens embedded in handler code, not configurable
 3. **FallbackProvider unused**: Exists in `shared-providers/src/fallback.ts` but never wired up
 4. **Design docs specify models we don't use**: `FEATURE-SESSION-SUMMARY.md` specifies `qwen/qwen3-235b-a22b-2507` for creative tasks, but code uses different models
@@ -293,9 +293,9 @@ export class ProfileProviderFactory {
 - `assets/sidekick/defaults/llm.defaults.yaml` - new profile structure (see YAML Structure section above)
 - `assets/sidekick/defaults/features/session-summary.defaults.yaml` - add `settings.llm` section
 
-### Step 5: Update Supervisor
+### Step 5: Update Daemon
 
-**File**: `packages/sidekick-supervisor/src/supervisor.ts`
+**File**: `packages/sidekickd/src/daemon.ts`
 
 Replace hardcoded provider creation at lines ~610 and ~751:
 
@@ -371,7 +371,7 @@ export interface SessionSummarySettings {
 | `packages/sidekick-core/src/config.ts` | New profile schemas, `validateProfileReferences()` |
 | `packages/shared-providers/src/profile-factory.ts` | **NEW** - ProfileProviderFactory |
 | `packages/shared-providers/src/index.ts` | Export ProfileProviderFactory |
-| `packages/sidekick-supervisor/src/supervisor.ts` | Use ProfileProviderFactory, wire `ctx.llm` and `ctx.profileFactory` |
+| `packages/sidekickd/src/daemon.ts` | Use ProfileProviderFactory, wire `ctx.llm` and `ctx.profileFactory` |
 | `packages/feature-session-summary/src/handlers/update-summary.ts` | Use profiles via `ctx.profileFactory` |
 | `packages/types/src/features/session-summary.ts` | Add LlmSubFeatureConfig types |
 | `assets/sidekick/defaults/llm.defaults.yaml` | New profile structure |
@@ -385,8 +385,8 @@ Make sure to capture these in the actual profiles configuration.
 
 | Location | Current Value | Target Profile |
 |----------|---------------|----------------|
-| `supervisor.ts:610` | `google/gemini-2.0-flash-lite-001` | `fast-lite` (default) |
-| `supervisor.ts:751` | `google/gemini-2.0-flash-lite-001` | `fast-lite` (default) |
+| `daemon.ts:610` | `google/gemini-2.0-flash-lite-001` | `fast-lite` (default) |
+| `daemon.ts:751` | `google/gemini-2.0-flash-lite-001` | `fast-lite` (default) |
 | `update-summary.ts:240` | `temperature: 0, maxTokens: 1000` | `fast-lite` |
 | `update-summary.ts:421` | `temperature: 1.2, maxTokens: 100` | `creative` |
 | `update-summary.ts:531` | `temperature: 1.2, maxTokens: 500` | `creative-long` |

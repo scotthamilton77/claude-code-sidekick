@@ -3,8 +3,8 @@
  *
  * Two entry points ensure the reminder is staged:
  * 1. SessionStart: Normal session initialization (startup, resume, clear)
- * 2. BulkProcessingComplete: Mid-session supervisor restart after state cleanup
- *    (e.g., dev-mode.sh clean-all removes staging directory, then supervisor
+ * 2. BulkProcessingComplete: Mid-session daemon restart after state cleanup
+ *    (e.g., dev-mode.sh clean-all removes staging directory, then daemon
  *    restarts and reconstructs transcript - SessionStart doesn't fire mid-session)
  *
  * @see docs/design/FEATURE-REMINDERS.md §5.1
@@ -33,7 +33,7 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
   })
 
   // Handler 2: Stage after bulk transcript reconstruction (mid-session restart)
-  // This handles the case where supervisor restarts without a SessionStart event
+  // This handles the case where daemon restarts without a SessionStart event
   // (e.g., after dev-mode.sh clean-all removes the staging directory)
   createStagingHandler(context, {
     id: 'reminders:stage-default-user-prompt-after-bulk',

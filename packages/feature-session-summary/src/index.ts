@@ -2,7 +2,7 @@
  * Session Summary Feature
  *
  * Maintains session title and latest intent via LLM analysis.
- * Uses staging pattern where Supervisor generates summaries
+ * Uses staging pattern where Daemon generates summaries
  * and writes state files for CLI/Statusline consumption.
  *
  * @see docs/design/FEATURE-SESSION-SUMMARY.md

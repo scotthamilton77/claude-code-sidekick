@@ -57,16 +57,16 @@ Rename "supervisor" to "daemon" throughout the codebase for consistency with Uni
 **Verification:** `grep -r "'supervisor'" packages/types/` returns nothing (except comments)
 
 ### Phase 5: Event Types
-- [ ] `SupervisorStartingEvent` → `DaemonStartingEvent` (types/events.ts:498)
-- [ ] `SupervisorStartedEvent` → `DaemonStartedEvent` (types/events.ts:513)
-- [ ] `type: 'SupervisorStarting'` → `type: 'DaemonStarting'` (types/events.ts:499)
-- [ ] `type: 'SupervisorStarted'` → `type: 'DaemonStarted'` (types/events.ts:514)
+- [x] `SupervisorStartingEvent` → `DaemonStartingEvent` (types/events.ts:498)
+- [x] `SupervisorStartedEvent` → `DaemonStartedEvent` (types/events.ts:513)
+- [x] `type: 'SupervisorStarting'` → `type: 'DaemonStarting'` (types/events.ts:499)
+- [x] `type: 'SupervisorStarted'` → `type: 'DaemonStarted'` (types/events.ts:514)
 - [x] `SupervisorLoggingEvent` → `DaemonLoggingEvent` (done)
 - [x] `isSupervisorLoggingEvent()` → `isDaemonLoggingEvent()` (done)
-- [ ] `supervisorStarting()` factory → `daemonStarting()` (core/structured-logging.ts:795)
-- [ ] `supervisorStarted()` factory → `daemonStarted()` (core/structured-logging.ts:813)
-- [ ] Event union type still references `SupervisorStartingEvent | SupervisorStartedEvent` (types/events.ts:791-792)
-- [ ] Comment "Supervisor Lifecycle Events" → "Daemon Lifecycle Events" (types/events.ts:492)
+- [x] `supervisorStarting()` factory → `daemonStarting()` (core/structured-logging.ts:795)
+- [x] `supervisorStarted()` factory → `daemonStarted()` (core/structured-logging.ts:813)
+- [x] Event union type still references `SupervisorStartingEvent | SupervisorStartedEvent` (types/events.ts:791-792)
+- [x] Comment "Supervisor Lifecycle Events" → "Daemon Lifecycle Events" (types/events.ts:492)
 
 **Verification:** `grep -r "Supervisor.*Event" packages/types/` returns nothing
 
@@ -78,7 +78,7 @@ Rename "supervisor" to "daemon" throughout the codebase for consistency with Uni
 - [x] `supervisor-status.json` → `daemon-status.json`
 - [x] `supervisor.log` → `sidekickd.log`
 - [x] `~/.sidekick/supervisors/` → `~/.sidekick/daemons/` (function renamed, path updated)
-- [ ] Stale comment in `daemon.ts:1136` still says `supervisors/` - needs fix
+- [x] Stale comment in `daemon.ts:1136` still says `supervisors/` - needs fix
 
 **Verification:** `grep -r "supervisor\.\(pid\|sock\|token\|lock\|log\)" packages/` returns nothing
 
@@ -105,38 +105,44 @@ Rename "supervisor" to "daemon" throughout the codebase for consistency with Uni
 **Verification:** `grep -r "Supervisor\(" packages/` returns nothing (function calls)
 
 ### Phase 10: UI Package
-- [ ] `src/lib/event-adapter.ts:50` - `source === 'supervisor'` → `source === 'daemon'`
-- [ ] `src/lib/event-adapter.ts:499` - default source `'supervisor'` → `'daemon'`
-- [ ] `src/data/mockData.ts` - all `source: 'supervisor'` → `source: 'daemon'`
-- [ ] `src/lib/__tests__/filter-parser.test.ts` - test data and assertions
-- [ ] `src/lib/__tests__/log-parser.test.ts` - test data, variable names, assertions
-- [ ] `src/lib/__tests__/performance.test.ts` - test data
-- [ ] `src/lib/__tests__/event-adapter.test.ts` - test data and descriptions
-- [ ] `src/lib/__tests__/event-adapter-edge-cases.test.ts` - test data
-- [ ] `src/lib/__tests__/replay-engine.test.ts` - test data, `supervisorHealth` property
-- [ ] `src/types/index.ts` - check for supervisor references
-- [ ] `src/hooks/useLogService.ts` - check for supervisor references
-- [ ] `src/components/StateInspector.tsx` - check for supervisor references
-- [ ] `src/components/Transcript.tsx` - check for supervisor references
-- [ ] `server/handlers/logs.ts` - check for supervisor.log references
+- [x] `src/lib/event-adapter.ts:50` - `source === 'supervisor'` → `source === 'daemon'`
+- [x] `src/lib/event-adapter.ts:499` - default source `'supervisor'` → `'daemon'`
+- [x] `src/lib/log-parser.ts` - LogSource type, source parsing, variable names
+- [x] `src/lib/filter-parser.ts` - FilterToken type, VALID_SOURCES
+- [x] `src/lib/replay-engine.ts` - `supervisorHealth` → `daemonHealth`
+- [x] `src/data/mockData.ts` - all `source: 'supervisor'` → `source: 'daemon'`
+- [x] `src/types/index.ts` - UIEvent.source type updated
+- [x] `src/hooks/useLogService.ts` - variable names and types updated
+- [x] `src/components/StateInspector.tsx` - `supervisorHealth` → `daemonHealth`
+- [x] `src/components/Transcript.tsx` - SourceBadge type and display label
+- [x] `server/handlers/logs.ts` - VALID_TYPES updated to 'sidekickd'
+- [x] `src/lib/__tests__/filter-parser.test.ts` - test data and assertions
+- [x] `src/lib/__tests__/log-parser.test.ts` - test data, variable names, assertions
+- [x] `src/lib/__tests__/performance.test.ts` - test data
+- [x] `src/lib/__tests__/event-adapter.test.ts` - test data and descriptions
+- [x] `src/lib/__tests__/event-adapter-edge-cases.test.ts` - test data
+- [x] `src/lib/__tests__/replay-engine.test.ts` - test data, `daemonHealth` property
+- [x] `src/components/__tests__/state-inspector.test.ts` - test data updated
+- [x] `server/__tests__/scope-resolution.test.ts` - file references updated
 
 **Verification:** `grep -ri "supervisor" packages/sidekick-ui/src/` returns nothing
 
 ### Phase 11: Scripts
-- [ ] `scripts/dev-mode.sh` - update supervisor references
-- [ ] `scripts/copy-config.sh` - update supervisor references
+- [x] `scripts/dev-mode.sh` - update supervisor references
+- [x] `scripts/copy-config.sh` - update supervisor references
 
 **Verification:** `grep -r "supervisor" scripts/` returns nothing
 
 ### Phase 12: Test Files
-- [ ] `daemon-heartbeat.test.ts:24` - `role: 'supervisor'` → `role: 'daemon'`
-- [ ] `daemon-heartbeat.test.ts:181,218` - `supervisor-status.json` path reference
-- [ ] `task-engine.test.ts:11` - `role: 'supervisor'` → `role: 'daemon'`
-- [ ] `phase-4.5-integration.test.ts:587,623` - `role: 'supervisor'` assertions
-- [ ] `daemon-client.test.ts:301,303,618,631` - error message "Supervisor failed" → "Daemon failed"
-- [ ] `structured-logging.test.ts:822` - `name: 'sidekick:supervisor'` → `name: 'sidekick:daemon'`
-- [ ] `ipc-service.test.ts` - test descriptions/comments mentioning supervisor
-- [ ] `asset-resolver.test.ts:204,220` - config with `supervisor:` key
+- [x] `daemon-heartbeat.test.ts:24` - `role: 'supervisor'` → `role: 'daemon'`
+- [x] `daemon-heartbeat.test.ts:181,218` - `supervisor-status.json` path reference
+- [x] `task-engine.test.ts:11` - `role: 'supervisor'` → `role: 'daemon'`
+- [x] `phase-4.5-integration.test.ts:587,623` - `role: 'supervisor'` assertions (not found - may have been done earlier)
+- [x] `daemon-client.test.ts:301,303,618,631` - error message (not found - may have been done earlier)
+- [x] `structured-logging.test.ts:822` - `name: 'sidekick:supervisor'` → `name: 'sidekick:daemon'`
+- [x] `ipc-service.test.ts` - test descriptions/comments mentioning supervisor
+- [x] `asset-resolver.test.ts:204,220` - config with `supervisor:` key
+- [x] `eviction-timer.test.ts` - comments and descriptions (bonus)
 - [x] CLI tests pass
 - [x] Core tests pass (excluding IPC sandbox issues)
 - [x] Daemon tests pass
@@ -144,80 +150,85 @@ Rename "supervisor" to "daemon" throughout the codebase for consistency with Uni
 **Verification:** All tests pass, `grep -ri "supervisor" packages/**/*.test.ts` returns nothing (except comments about architecture)
 
 ### Phase 13: Documentation
-- [ ] `docs/ARCHITECTURE.md` - full update
-- [ ] `docs/design/SUPERVISOR.md` - rename to `DAEMON.md` and update content
-- [ ] `docs/design/CLI.md` - update references
-- [ ] `docs/design/STRUCTURED-LOGGING.md` - update source field docs
-- [ ] `docs/design/CORE-RUNTIME.md` - update context type docs
-- [ ] `docs/design/FEATURE-STATUSLINE.md` - update references
-- [ ] `docs/design/FEATURE-SESSION-SUMMARY.md` - update references
-- [ ] `docs/design/FEATURE-RESUME.md` - update references
-- [ ] `docs/design/TRANSCRIPT-PROCESSING.md` - update references
-- [ ] `docs/design/TRANSCRIPT_METRICS.md` - update references
-- [ ] `docs/design/LLM-PROVIDERS.md` - update references
-- [ ] `docs/design/LLM_PROFILES.md` - update references
-- [ ] `docs/design/CONFIG-SYSTEM.md` - update references
-- [ ] `docs/design/SCHEMA-CONTRACTS.md` - update references
-- [ ] `docs/design/TEST-FIXTURES.md` - update references
-- [ ] `docs/design/flow.md` - update references
-- [ ] `docs/testing/TEST-REMINDERS.md` - update references
-- [ ] `packages/AGENTS.md` - update references
-- [ ] `packages/sidekick-ui/docs/MONITORING-UI.md` - update references
-- [ ] `assets/sidekick/defaults/README.md` - update references
-- [ ] `README.md` - update references
-- [ ] `AGENTS.md` (root) - update references
-- [ ] `docs/ROADMAP.md` - update references
-- [ ] `docs/ROADMAP-COMPLETED.md` - **LEAVE AS-IS** (preserve accurate history)
+- [x] `docs/ARCHITECTURE.md` - full update
+- [x] `docs/design/SUPERVISOR.md` - renamed to `DAEMON.md` and updated
+- [x] `docs/design/CLI.md` - updated
+- [x] `docs/design/STRUCTURED-LOGGING.md` - updated
+- [x] `docs/design/CORE-RUNTIME.md` - updated
+- [x] `docs/design/FEATURE-STATUSLINE.md` - updated
+- [x] `docs/design/FEATURE-SESSION-SUMMARY.md` - updated
+- [x] `docs/design/FEATURE-RESUME.md` - updated
+- [x] `docs/design/TRANSCRIPT-PROCESSING.md` - updated
+- [x] `docs/design/TRANSCRIPT_METRICS.md` - updated
+- [x] `docs/design/LLM-PROVIDERS.md` - updated
+- [x] `docs/design/LLM_PROFILES.md` - updated
+- [x] `docs/design/CONFIG-SYSTEM.md` - updated
+- [x] `docs/design/SCHEMA-CONTRACTS.md` - updated
+- [x] `docs/design/TEST-FIXTURES.md` - updated
+- [x] `docs/design/flow.md` - updated
+- [x] `docs/testing/TEST-REMINDERS.md` - updated
+- [x] `packages/AGENTS.md` - updated
+- [x] `packages/sidekick-ui/docs/MONITORING-UI.md` - updated (Phase 14)
+- [x] `assets/sidekick/defaults/README.md` - updated
+- [x] `README.md` - updated
+- [x] `AGENTS.md` (root) - updated
+- [x] `docs/ROADMAP.md` - updated
+- [x] `docs/ROADMAP-COMPLETED.md` - **LEFT AS-IS** (preserved history)
+- [x] `docs/.archive/*.md` - updated (bonus)
 
 **Verification:** `grep -ri "supervisor" docs/ README.md AGENTS.md` only matches ROADMAP-COMPLETED.md
 
 ### Phase 14: State File Names in Code
-- [ ] `daemon.ts:1300` - `'supervisor-status'` → `'daemon-status'`
-- [ ] `daemon.ts:1318` - `supervisor-log-metrics.json` → `daemon-log-metrics.json`
-- [ ] `daemon.ts:1346` - `supervisor-log-metrics.json` → `daemon-log-metrics.json`
-- [ ] `daemon.ts:1375` - `'supervisor-global-log-metrics'` → `'daemon-global-log-metrics'`
-- [ ] `types/state.ts:176-177` - doc comments reference old file names
+- [x] `daemon.ts:1300` - `'supervisor-status'` → `'daemon-status'` (done in Phase 12)
+- [x] `daemon.ts:1318` - `supervisor-log-metrics.json` → `daemon-log-metrics.json`
+- [x] `daemon.ts:1346` - `supervisor-log-metrics.json` → `daemon-log-metrics.json`
+- [x] `daemon.ts:1375` - `'supervisor-global-log-metrics'` → `'daemon-global-log-metrics'`
+- [x] `types/state.ts:176-177` - doc comments reference old file names
+- [x] `feature-statusline/src/state-reader.ts` - variable names (bonus find)
 
 **Verification:** `grep -r "supervisor-.*\.json\|supervisor-log\|supervisor-global" packages/` returns nothing
 
 ### Phase 15: Source Code Comments
 Many source files still have "supervisor" in comments. These should be updated:
-- [ ] `daemon.ts` - ~40 comment references to "Supervisor"
-- [ ] `task-engine.ts` - references to `design/SUPERVISOR.md`
-- [ ] `task-registry.ts` - references to supervisor
-- [ ] `task-handlers.ts` - references to supervisor
-- [ ] `state-manager.ts` - references to `design/SUPERVISOR.md`
-- [ ] `config-watcher.ts` - references to `design/SUPERVISOR.md`
-- [ ] `ipc-service.ts` - references to supervisor
-- [ ] `ipc/client.ts` - references to supervisor
-- [ ] `ipc/server.ts` - reference to Supervisor
-- [ ] `staging-service.ts` - reference to Supervisor
-- [ ] `file-utils.ts` - reference to Supervisor-side
-- [ ] `hookable-logger.ts` - reference to Supervisor
-- [ ] `service-factory.ts` - reference to supervisor
-- [ ] `transcript-service.ts` - reference to Supervisor
-- [ ] `types/tasks.ts` - references to SUPERVISOR.md and supervisor
-- [ ] `types/services/*.ts` - references to Supervisor
+- [x] `daemon.ts` - 27 comment updates
+- [x] `task-engine.ts` - 6 updates, `design/SUPERVISOR.md` → `design/DAEMON.md`
+- [x] `task-registry.ts` - 5 updates
+- [x] `task-handlers.ts` - 3 updates
+- [x] `state-manager.ts` - 2 updates
+- [x] `config-watcher.ts` - 1 update
+- [x] `ipc-service.ts` - 7 updates
+- [x] `ipc/client.ts` - 2 updates
+- [x] `ipc/server.ts` - 1 update
+- [x] `staging-service.ts` - 1 update
+- [x] `file-utils.ts` - 1 update
+- [x] `hookable-logger.ts` - 1 update
+- [x] `service-factory.ts` - 1 update
+- [x] `transcript-service.ts` - 1 update
+- [x] `types/tasks.ts` - 4 updates
+- [x] `types/context.ts`, `types/events.ts` - 4 updates
+- [x] `feature-*/src/*.ts` - 9 updates across 5 files
+- [x] `cli.ts` - 4 updates + `ensureSupervisor` → `ensureDaemon`
 
 **Verification:** `grep -ri "supervisor" packages/*/src/*.ts packages/types/src/*.ts` returns nothing (source files)
 
 ### Phase 16: Variable Names in Source
-- [ ] `daemon.ts:1056` - variable `supervisorContext` → `daemonContext`
-- [ ] `daemon.ts:1087` - `supervisorContext as unknown` reference
-- [ ] `task-engine.ts:171,175` - variable `supervisorContext` → `daemonContext`
-- [ ] `structured-logging.ts` - variable `supervisorLogPath` in tests
+- [x] `daemon.ts:1056` - variable `supervisorContext` → `daemonContext` (done in Phase 15)
+- [x] `daemon.ts:1087` - `supervisorContext as unknown` reference (done in Phase 15)
+- [x] `task-engine.ts:171,175` - variable `supervisorContext` → `daemonContext` (done in Phase 15)
+- [x] `structured-logging.ts` - variable `daemonLogPath` (done in Phase 12)
+- [x] `hook.ts` - `supervisorResponse` → `daemonResponse` + comments
 
 **Verification:** `grep -r "supervisorContext\|supervisorLog" packages/` returns nothing
 
 ### Phase 17: Vitest Config
-- [ ] `vitest.config.ts` - update any supervisor references
-- [ ] `vitest.workspace.ts` - update any supervisor references
-- [ ] `packages/sidekick-daemon/vitest.config.ts` - update references
+- [x] `vitest.config.ts` - updated paths to `sidekick-daemon`
+- [x] `vitest.workspace.ts` - updated workspace entry
+- [x] `packages/sidekick-daemon/vitest.config.ts` - updated exclusion path
 
 **Verification:** `grep -r "supervisor" vitest*.ts packages/*/vitest*.ts` returns nothing
 
 ### Phase 18: Logger Names
-- [ ] `name: 'sidekick:supervisor'` → `name: 'sidekick:daemon'` throughout codebase
+- [x] `name: 'sidekick:supervisor'` → `name: 'sidekick:daemon'` (already done in earlier phases)
 
 **Verification:** `grep -r "sidekick:supervisor" packages/` returns nothing
 

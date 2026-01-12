@@ -1,19 +1,19 @@
-# Supervisor Low-Level Design
+# Daemon Low-Level Design
 
 ## 1. Overview
 
-The Supervisor is a long-running, detached Node.js background process responsible for:
+The Daemon is a long-running, detached Node.js background process responsible for:
 
 1.  **State Management**: Acting as the _single writer_ to shared state and staging files to prevent race conditions.
 2.  **Handler Execution**: Running registered handlers in response to hook events from the CLI.
 3.  **Async Task Execution**: Handling heavy compute tasks (e.g., session summarization, resume generation) off the critical path of the CLI.
 4.  **Resource Management**: Managing concurrency and ensuring system stability.
 
-It is **always project-scoped**. Even if the user invokes Sidekick from a global install, the supervisor runs within the context of the specific project (`$CLAUDE_PROJECT_DIR`).
+It is **always project-scoped**. Even if the user invokes Sidekick from a global install, the daemon runs within the context of the specific project (`$CLAUDE_PROJECT_DIR`).
 
 **Related Documentation:**
 
-- `docs/design/flow.md`: Authoritative source for event model, hook flows, and CLI/Supervisor interaction patterns.
+- `docs/design/flow.md`: Authoritative source for event model, hook flows, and CLI/Daemon interaction patterns.
 - `docs/design/TRANSCRIPT-PROCESSING.md`: TranscriptService as metrics owner, event emission, compaction history.
 - `docs/design/CORE-RUNTIME.md`: RuntimeContext, HandlerRegistry API, service interfaces.
 - `docs/design/STRUCTURED-LOGGING.md`: Logging infrastructure and conventions.
@@ -22,15 +22,15 @@ It is **always project-scoped**. Even if the user invokes Sidekick from a global
 
 ### 2.1 Filesystem Layout
 
-All supervisor-related files live in `<project-root>/.sidekick/`:
+All daemon-related files live in `<project-root>/.sidekick/`:
 
 | File                                                        | Purpose                                                                 |
 | ----------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `supervisor.pid`                                            | Contains the Process ID of the running supervisor. Acts as a lock file. |
-| `supervisor.sock`                                           | Unix Domain Socket (or Named Pipe on Windows) for IPC.                  |
-| `supervisor.token`                                          | Randomly generated auth token for IPC connection verification.          |
-| `logs/supervisor.log`                                       | Structured JSON log file for supervisor events.                         |
-| `state/supervisor-status.json`                              | Global supervisor status (not session-specific).                        |
+| `sidekickd.pid`                                             | Contains the Process ID of the running daemon. Acts as a lock file.     |
+| `sidekickd.sock`                                            | Unix Domain Socket (or Named Pipe on Windows) for IPC.                  |
+| `sidekickd.token`                                           | Randomly generated auth token for IPC connection verification.          |
+| `logs/sidekickd.log`                                        | Structured JSON log file for daemon events.                             |
+| `state/daemon-status.json`                                  | Global daemon status (not session-specific).                            |
 | `sessions/{session_id}/*.json`                              | Session-specific persistent state (e.g., `summary.json`).               |
 | `sessions/{session_id}/stage/{hook_name}/*.json`            | Staged reminders for CLI consumption (see §4.1).                        |
 | `sessions/{session_id}/transcripts/pre-compact-{ts}.jsonl`  | Transcript snapshots captured by CLI before compaction (see §4.7).      |
@@ -40,25 +40,25 @@ All supervisor-related files live in `<project-root>/.sidekick/`:
 
 #### Startup Sequence (Initiated by CLI)
 
-1.  **Check Liveness**: CLI reads `supervisor.pid`.
+1.  **Check Liveness**: CLI reads `sidekickd.pid`.
     - If file exists: Check if process is running (`kill -0 <pid>`).
     - If process dead: Remove stale `.pid`, `.sock`, `.token` files.
-2.  **Connect**: Attempt to connect to `supervisor.sock`.
+2.  **Connect**: Attempt to connect to `sidekickd.sock`.
     - **Handshake**: Send `{ jsonrpc: "2.0", method: "handshake", params: { version: "<cli-version>", token: "<read-from-file>" } }`.
-    - **Version Mismatch**: If supervisor version differs from CLI, send `shutdown` command, wait, then proceed to spawn.
+    - **Version Mismatch**: If daemon version differs from CLI, send `shutdown` command, wait, then proceed to spawn.
 3.  **Spawn (if needed)**:
-    - Launch new Node.js process: `node dist/supervisor.js`.
+    - Launch new Node.js process: `node dist/sidekickd.js`.
     - **Detached**: `spawn(..., { detached: true, stdio: 'ignore' }).unref()`.
-    - **Wait**: Poll for `supervisor.sock` and `supervisor.token` creation (timeout: 5s).
+    - **Wait**: Poll for `sidekickd.sock` and `sidekickd.token` creation (timeout: 5s).
 
 #### Shutdown Sequence
 
 1.  **Graceful**: CLI sends `shutdown` method via IPC.
-2.  **Signal**: Supervisor catches `SIGTERM`/`SIGINT`.
+2.  **Signal**: Daemon catches `SIGTERM`/`SIGINT`.
 3.  **Cleanup**:
     - Stop accepting new tasks.
     - Stop TranscriptService file watchers (flush pending state).
-    - Wait for in-flight tasks to complete (configurable via `supervisor.shutdownTimeoutMs`, default 30s).
+    - Wait for in-flight tasks to complete (configurable via `daemon.shutdownTimeoutMs`, default 30s).
     - Remove `.pid`, `.sock`, `.token`.
     - Exit.
 
@@ -68,7 +68,7 @@ All supervisor-related files live in `<project-root>/.sidekick/`:
 
 ### 3.1 Transport
 
-- **Linux/macOS**: Unix Domain Sockets (`net.createServer`). Path: `<project>/.sidekick/supervisor.sock`.
+- **Linux/macOS**: Unix Domain Sockets (`net.createServer`). Path: `<project>/.sidekick/sidekickd.sock`.
 - **Windows**: Named Pipes (`\\.\pipe\sidekick-<project-hash>-sock`).
 - **Abstraction**: `IPCServer` and `IPCClient` classes in `sidekick-core` hide these differences.
 
@@ -99,14 +99,14 @@ All messages follow the JSON-RPC 2.0 specification.
 
 ### 3.3 Security
 
-- **Token Auth**: On startup, supervisor generates a crypto-random token and writes it to `supervisor.token` (0600 permissions).
+- **Token Auth**: On startup, daemon generates a crypto-random token and writes it to `sidekickd.token` (0600 permissions).
 - **Handshake**: The first message on any new connection _must_ be `handshake` with the correct token. Connection dropped otherwise.
 
 ## 4. Subsystems
 
 ### 4.1 State Manager (Single Writer)
 
-The Supervisor is the **only** entity allowed to write to `.sidekick/` state and staging files. The State Manager provides two distinct APIs:
+The Daemon is the **only** entity allowed to write to `.sidekick/` state and staging files. The State Manager provides two distinct APIs:
 
 #### Persistent State
 
@@ -121,7 +121,7 @@ For long-lived session data (summaries, transcript metadata):
 
 #### Staging (Reminder Files)
 
-For files prepared by the Supervisor and consumed by the CLI on subsequent hook invocations:
+For files prepared by the Daemon and consumed by the CLI on subsequent hook invocations:
 
 - **API**: `stage.write(session_id: string, hook_name: string, reminder: StagedReminder)`
 - **API**: `stage.suppress(session_id: string, hook_name: string)` — creates `.suppressed` marker
@@ -136,7 +136,7 @@ See **docs/design/flow.md §4** for reminder file schema and **docs/design/FEATU
 
 ### 4.2 Handler System (Unified Event Model)
 
-The Supervisor registers **handlers** that execute in response to events from two sources:
+The Daemon registers **handlers** that execute in response to events from two sources:
 1. **Hook Events**: Received via IPC from CLI (processed sequentially for synchronous response).
 2. **Transcript Events**: Emitted by TranscriptService on file changes (processed concurrently, fire-and-forget).
 
@@ -159,7 +159,7 @@ context.handlers.register({
   - Hook events: Sequential execution (must produce single response to CLI).
   - Transcript events: Concurrent execution (handlers manage their own concurrency via StateManager's atomic operations).
 
-**Example Supervisor Handlers:**
+**Example Daemon Handlers:**
 
 | Filter Type   | Event(s)        | Handler                          | Priority | Behavior                                   |
 | ------------- | --------------- | -------------------------------- | -------- | ------------------------------------------ |
@@ -205,17 +205,17 @@ Watches files to trigger reactive behaviors.
 
 ### 4.5 Monitoring UI Integration
 
-The Supervisor emits **SidekickEvents** (see `docs/design/flow.md` §3.2 for schema) that the Monitoring UI aggregates for time-travel debugging.
+The Daemon emits **SidekickEvents** (see `docs/design/flow.md` §3.2 for schema) that the Monitoring UI aggregates for time-travel debugging.
 
 #### 4.5.1 Event Schema
 
-All Supervisor events follow the unified `SidekickEvent` schema:
+All Daemon events follow the unified `SidekickEvent` schema:
 
 ```typescript
 interface SidekickEvent {
   type: string
   time: number                    // Unix timestamp (ms)
-  source: 'cli' | 'supervisor'
+  source: 'cli' | 'daemon'
   context: {
     session_id: string            // Required: correlates all events
     scope?: 'project' | 'user'
@@ -232,7 +232,7 @@ interface SidekickEvent {
 }
 ```
 
-#### 4.5.2 Supervisor-Emitted Events
+#### 4.5.2 Daemon-Emitted Events
 
 | Event Type         | When                                   | Payload                                    |
 | ------------------ | -------------------------------------- | ------------------------------------------ |
@@ -253,7 +253,7 @@ interface SidekickEvent {
 {
   "type": "HandlerExecuted",
   "time": 1678888888888,
-  "source": "supervisor",
+  "source": "daemon",
   "context": {
     "session_id": "sess-001",
     "trace_id": "req-abc",
@@ -268,7 +268,7 @@ interface SidekickEvent {
 {
   "type": "ReminderStaged",
   "time": 1678888888900,
-  "source": "supervisor",
+  "source": "daemon",
   "context": {
     "session_id": "sess-001",
     "trace_id": "req-abc",
@@ -283,7 +283,7 @@ interface SidekickEvent {
 {
   "type": "TaskFailed",
   "time": 1678888920000,
-  "source": "supervisor",
+  "source": "daemon",
   "context": {
     "session_id": "sess-001",
     "task_id": "task-001"
@@ -297,7 +297,7 @@ interface SidekickEvent {
 
 ### 4.6 Internal State Visibility
 
-To allow the Monitoring UI to display system health, the Supervisor must periodically (e.g., every 5s or on change) write its internal status to `state/supervisor-status.json`.
+To allow the Monitoring UI to display system health, the Daemon must periodically (e.g., every 5s or on change) write its internal status to `state/daemon-status.json`.
 
 **Schema:**
 
@@ -327,11 +327,11 @@ To allow the Monitoring UI to display system health, the Supervisor must periodi
 
 ### 4.7 TranscriptService Integration
 
-The Supervisor owns the `TranscriptService` instance, which serves as the canonical source of transcript-derived metrics. See **docs/design/TRANSCRIPT-PROCESSING.md** for complete specification.
+The Daemon owns the `TranscriptService` instance, which serves as the canonical source of transcript-derived metrics. See **docs/design/TRANSCRIPT-PROCESSING.md** for complete specification.
 
 #### Initialization
 
-On `SessionStart`, the Supervisor initializes TranscriptService:
+On `SessionStart`, the Daemon initializes TranscriptService:
 
 ```typescript
 // In SessionStart handler (priority 100)
@@ -383,13 +383,13 @@ Per **docs/design/flow.md §5.6** (PreCompact flow):
 
 1. CLI copies full transcript to `.sidekick/sessions/{session_id}/transcripts/pre-compact-{timestamp}.jsonl`.
 2. CLI sends `PreCompact` event with `transcriptSnapshotPath` reference.
-3. Supervisor's PreCompact handler invokes `ctx.transcript.capturePreCompactState(snapshotPath)`.
+3. Daemon's PreCompact handler invokes `ctx.transcript.capturePreCompactState(snapshotPath)`.
 4. TranscriptService snapshots current metrics and records compaction metadata.
 5. On next file change, TranscriptService detects shortened file → triggers full recompute.
 
 ### 4.8 ContextMetricsService Integration
 
-The Supervisor owns the `ContextMetricsService` instance, which captures Claude Code's actual context window overhead. See **docs/design/TRANSCRIPT_METRICS.md** for complete specification.
+The Daemon owns the `ContextMetricsService` instance, which captures Claude Code's actual context window overhead. See **docs/design/TRANSCRIPT_METRICS.md** for complete specification.
 
 #### Purpose
 
@@ -403,10 +403,10 @@ The Statusline displays context window utilization, but requires visibility into
 
 #### Initialization
 
-On `SessionStart`, the Supervisor initializes ContextMetricsService:
+On `SessionStart`, the Daemon initializes ContextMetricsService:
 
 ```typescript
-// In supervisor constructor
+// In daemon constructor
 this.contextMetricsService = createContextMetricsService({
   stateManager: this.stateManager,
   sessionId: this.sessionId,
@@ -441,7 +441,7 @@ if (content.includes('<local-command-stdout>') &&
 
 | File | Location | Contents | Updated When |
 |------|----------|----------|--------------|
-| `baseline-user-context-token-metrics.json` | `~/.sidekick/state/` | System prompt, system tools, autocompact buffer | Supervisor startup |
+| `baseline-user-context-token-metrics.json` | `~/.sidekick/state/` | System prompt, system tools, autocompact buffer | Daemon startup |
 | `baseline-project-context-token-metrics.json` | `.sidekick/state/` | MCP tools, custom agents, memory files | /context observed |
 | `context-metrics.json` | `.sidekick/sessions/{id}/state/` | Full context metrics for this session | /context observed |
 
@@ -456,7 +456,7 @@ const effectiveLimit = contextWindowSize - getTotalOverhead();
 
 ## 5. Error Handling & Resilience
 
-- **Uncaught Exceptions**: Log fatal error to `logs/supervisor.log`, attempt graceful cleanup, then exit. CLI will restart it on next run.
+- **Uncaught Exceptions**: Log fatal error to `logs/sidekickd.log`, attempt graceful cleanup, then exit. CLI will restart it on next run.
 - **Stuck Tasks**: Tasks have a strict timeout (default 5m, but task metadata can override this). If timed out, the worker is terminated/promise rejected, and error logged.
 - **Corrupt State**: On startup, if state files are malformed JSON, they are moved to `.bak` and reset to empty.
 
@@ -464,7 +464,7 @@ const effectiveLimit = contextWindowSize - getTotalOverhead();
 
 ### 6.1 Task Persistence
 
-_Current Design_: In-memory queue. If supervisor crashes, pending tasks are lost.
+_Current Design_: In-memory queue. If daemon crashes, pending tasks are lost.
 _Recommendation_: Accept this for V1. Most tasks (summary, status update) are transient or can be re-triggered.
 
 ### 6.2 Windows Named Pipe Security
@@ -474,5 +474,5 @@ _Recommendation_: Rely on the auth token mechanism. The token file is protected 
 
 ### 6.3 Log Rotation
 
-_Question_: `supervisor.log` will grow indefinitely.
-_Recommendation_: The Supervisor should use the shared `LogManager` from `sidekick-core`, which implements log rotation via `pino-roll` (10MB limit, 5 files). This ensures consistent behavior with the CLI logs (`logs/cli.log`).
+_Question_: `sidekickd.log` will grow indefinitely.
+_Recommendation_: The Daemon should use the shared `LogManager` from `sidekick-core`, which implements log rotation via `pino-roll` (10MB limit, 5 files). This ensures consistent behavior with the CLI logs (`logs/cli.log`).

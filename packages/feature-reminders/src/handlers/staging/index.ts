@@ -1,7 +1,7 @@
 /**
- * Staging handlers for Reminders feature (Supervisor-side)
+ * Staging handlers for Reminders feature (Daemon-side)
  *
- * These handlers run in the Supervisor process in response to transcript events.
+ * These handlers run in the Daemon process in response to transcript events.
  * They decide when to stage reminders for CLI consumption.
  *
  * @see docs/design/FEATURE-REMINDERS.md

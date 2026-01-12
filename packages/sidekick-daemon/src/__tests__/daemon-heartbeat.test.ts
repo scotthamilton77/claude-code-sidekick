@@ -1,10 +1,10 @@
 /**
  * Daemon Heartbeat Tests
  *
- * Tests the heartbeat mechanism that writes supervisor status to
- * `.sidekick/state/supervisor-status.json` for monitoring UI.
+ * Tests the heartbeat mechanism that writes daemon status to
+ * `.sidekick/state/daemon-status.json` for monitoring UI.
  *
- * @see docs/design/SUPERVISOR.md §4.6
+ * @see docs/design/DAEMON.md §4.6
  */
 import fs from 'fs/promises'
 import os from 'os'
@@ -21,7 +21,7 @@ const createMockContextGetter =
   (logger: { info: unknown; error: unknown; warn: unknown; debug: unknown }): ContextGetter =>
   () =>
     ({
-      role: 'supervisor',
+      role: 'daemon',
       config: {
         core: { logging: { level: 'error' }, development: { enabled: false } },
         llm: {},
@@ -169,8 +169,8 @@ describe('Daemon heartbeat integration', () => {
     const { Daemon } = await import('../daemon.js')
     const daemon = new Daemon(tmpDir)
 
-    // Access private members to test heartbeat in isolation without full supervisor startup.
-    // Alternative would be integration test that starts full supervisor (socket, signal handlers, etc).
+    // Access private members to test heartbeat in isolation without full daemon startup.
+    // Alternative would be integration test that starts full daemon (socket, signal handlers, etc).
     const sup = daemon as unknown as {
       stateManager: { initialize(): Promise<void> }
       writeHeartbeat(): Promise<void>
@@ -178,7 +178,7 @@ describe('Daemon heartbeat integration', () => {
     await sup.stateManager.initialize()
     await sup.writeHeartbeat()
 
-    const statusPath = path.join(tmpDir, '.sidekick', 'state', 'supervisor-status.json')
+    const statusPath = path.join(tmpDir, '.sidekick', 'state', 'daemon-status.json')
     const content = await fs.readFile(statusPath, 'utf-8')
     const status = JSON.parse(content) as DaemonStatus
 
@@ -215,7 +215,7 @@ describe('Daemon heartbeat integration', () => {
     await sup.stateManager.initialize()
     await sup.writeHeartbeat()
 
-    const statusPath = path.join(tmpDir, '.sidekick', 'state', 'supervisor-status.json')
+    const statusPath = path.join(tmpDir, '.sidekick', 'state', 'daemon-status.json')
     const content = await fs.readFile(statusPath, 'utf-8')
     const status = JSON.parse(content) as DaemonStatus
 

@@ -253,22 +253,22 @@ interface SessionState {
 
 ### 3.4 IPC Protocol (`src/ipc/`)
 
-Defines the contract between the CLI (client) and the Background Supervisor (server).
+Defines the contract between the CLI (client) and the Background Daemon (server).
 
 - **Transport**: Unix Domain Socket (Linux/macOS) or Named Pipe (Windows).
 - **Format**: Newline-Delimited JSON (NDJSON).
-- **Semantics**: Fire-and-forget events (CLI → Supervisor). No request/response for hook events.
+- **Semantics**: Fire-and-forget events (CLI → Daemon). No request/response for hook events.
 
-Per **docs/design/flow.md §2.1**, the CLI and Supervisor communicate asynchronously:
+Per **docs/design/flow.md §2.1**, the CLI and Daemon communicate asynchronously:
 
-- CLI sends `SidekickEvent` to Supervisor via IPC
-- Supervisor "responds" by staging files that CLI reads on subsequent hook invocations
+- CLI sends `SidekickEvent` to Daemon via IPC
+- Daemon "responds" by staging files that CLI reads on subsequent hook invocations
 - No synchronous IPC response is expected for hook events
 
 **IPC Message Schema**:
 
 ```typescript
-// CLI → Supervisor: events flow one-way
+// CLI → Daemon: events flow one-way
 type IpcMessage = SidekickEvent
 
 // Wire format: NDJSON (one JSON object per line)
@@ -280,7 +280,7 @@ type IpcMessage = SidekickEvent
 1. CLI connects to socket (path derived from project root hash)
 2. CLI writes NDJSON event
 3. CLI disconnects (or keeps connection for subsequent events)
-4. Supervisor processes event asynchronously
+4. Daemon processes event asynchronously
 
 ### 3.5 Feature Contracts (`src/features/`)
 
@@ -404,21 +404,21 @@ To ensure `assets/sidekick` remains the canonical source for non-TypeScript tool
    - _Cons_: Requires implementing simple framing (splitting by `\n`) and manual reconnection logic.
 2. **`node-ipc`**:
    - _Pros_: Handles reconnection, broadcasting, and complex eventing out of the box.
-   - _Cons_: External dependency (violates "No Unnecessary Code"), history of supply chain security issues, overkill for a simple 1:1 Supervisor-CLI relationship.
+   - _Cons_: External dependency (violates "No Unnecessary Code"), history of supply chain security issues, overkill for a simple 1:1 Daemon-CLI relationship.
 3. **HTTP over UDS**:
    - _Pros_: Familiar request/response model, easy to debug with `curl --unix-socket`.
    - _Cons_: HTTP header overhead is unnecessary for high-frequency internal ops, stateless nature doesn't map as well to event-based model.
 
 **Rationale**:
-The "Sidekick" philosophy prioritizes **Simplicity** and **No Unnecessary Code**. A raw socket server in the supervisor that listens for `\n`-terminated JSON objects is <50 lines of code. It avoids the bloat of HTTP and the risk of external IPC libraries. Since we control both client (`sidekick-core`) and server (Supervisor), we can enforce a strict schema without needing protocol negotiation.
+The "Sidekick" philosophy prioritizes **Simplicity** and **No Unnecessary Code**. A raw socket server in the daemon that listens for `\n`-terminated JSON objects is <50 lines of code. It avoids the bloat of HTTP and the risk of external IPC libraries. Since we control both client (`sidekick-core`) and server (Daemon), we can enforce a strict schema without needing protocol negotiation.
 
 ### 7.3 Concurrency & Scope (Multiple Sessions)
 
-To satisfy the **Single Writer** principle (Target Arch §3.3), the Supervisor must be a **Singleton per Project**. Multiple terminal windows (sessions) within the same project connect to the _same_ Supervisor instance.
+To satisfy the **Single Writer** principle (Target Arch §3.3), the Daemon must be a **Singleton per Project**. Multiple terminal windows (sessions) within the same project connect to the _same_ Daemon instance.
 
-- **Socket Resolution**: The socket path is derived from a stable hash of the project root path (e.g., `~/.sidekick/ipc/proj-<hash>.sock`). This ensures all sessions in the project discover the same supervisor.
+- **Socket Resolution**: The socket path is derived from a stable hash of the project root path (e.g., `~/.sidekick/ipc/proj-<hash>.sock`). This ensures all sessions in the project discover the same daemon.
 - **Multiplexing**: The `net.Server` handles concurrent connections from multiple CLI processes.
-- **Session Context**: Every `SidekickEvent` includes `context.sessionId` so the Supervisor knows which session the event originates from.
+- **Session Context**: Every `SidekickEvent` includes `context.sessionId` so the Daemon knows which session the event originates from.
 
 ### 7.4 Strictness
 

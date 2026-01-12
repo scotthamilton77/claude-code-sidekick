@@ -74,7 +74,6 @@ describe('hook command utilities', () => {
     })
 
     test('rejects non-hook commands', () => {
-      expect(isHookCommand('supervisor')).toBe(false)
       expect(isHookCommand('statusline')).toBe(false)
       expect(isHookCommand('')).toBe(false)
       // Wrong case format
@@ -89,7 +88,6 @@ describe('hook command utilities', () => {
     })
 
     test('returns undefined for non-hook commands', () => {
-      expect(getHookName('supervisor')).toBeUndefined()
       expect(getHookName('SessionStart')).toBeUndefined() // Wrong format
     })
   })
@@ -309,35 +307,35 @@ describe('buildHookEvent', () => {
 })
 
 describe('mergeHookResponses', () => {
-  test('CLI blocking takes precedence over supervisor', () => {
-    const supervisorResponse = { blocking: false, reason: 'supervisor reason' }
+  test('CLI blocking takes precedence over daemon', () => {
+    const daemonResponse = { blocking: false, reason: 'daemon reason' }
     const cliResponse = { blocking: true, reason: 'cli reason' }
 
-    const merged = mergeHookResponses(supervisorResponse, cliResponse)
+    const merged = mergeHookResponses(daemonResponse, cliResponse)
 
     expect(merged.blocking).toBe(true)
     expect(merged.reason).toBe('cli reason')
   })
 
   test('additionalContext concatenates with CLI first', () => {
-    const supervisorResponse = { additionalContext: 'supervisor context' }
+    const daemonResponse = { additionalContext: 'daemon context' }
     const cliResponse = { additionalContext: 'cli context' }
 
-    const merged = mergeHookResponses(supervisorResponse, cliResponse)
+    const merged = mergeHookResponses(daemonResponse, cliResponse)
 
-    expect(merged.additionalContext).toBe('cli context\n\nsupervisor context')
+    expect(merged.additionalContext).toBe('cli context\n\ndaemon context')
   })
 
-  test('userMessage from CLI overrides supervisor', () => {
-    const supervisorResponse = { userMessage: 'supervisor message' }
+  test('userMessage from CLI overrides daemon', () => {
+    const daemonResponse = { userMessage: 'daemon message' }
     const cliResponse = { userMessage: 'cli message' }
 
-    const merged = mergeHookResponses(supervisorResponse, cliResponse)
+    const merged = mergeHookResponses(daemonResponse, cliResponse)
 
     expect(merged.userMessage).toBe('cli message')
   })
 
-  test('handles null supervisor response', () => {
+  test('handles null daemon response', () => {
     const cliResponse = { blocking: true, reason: 'cli only' }
 
     const merged = mergeHookResponses(null, cliResponse)
@@ -347,27 +345,27 @@ describe('mergeHookResponses', () => {
   })
 
   test('handles empty CLI response', () => {
-    const supervisorResponse = { blocking: true, reason: 'supervisor only' }
+    const daemonResponse = { blocking: true, reason: 'daemon only' }
     const cliResponse = {}
 
-    const merged = mergeHookResponses(supervisorResponse, cliResponse)
+    const merged = mergeHookResponses(daemonResponse, cliResponse)
 
     expect(merged.blocking).toBe(true)
-    expect(merged.reason).toBe('supervisor only')
+    expect(merged.reason).toBe('daemon only')
   })
 
-  test('preserves supervisor fields when CLI response is empty', () => {
-    const supervisorResponse = {
+  test('preserves daemon fields when CLI response is empty', () => {
+    const daemonResponse = {
       blocking: true,
-      reason: 'supervisor reason',
-      additionalContext: 'supervisor context',
-      userMessage: 'supervisor message',
+      reason: 'daemon reason',
+      additionalContext: 'daemon context',
+      userMessage: 'daemon message',
     }
     const cliResponse = {}
 
-    const merged = mergeHookResponses(supervisorResponse, cliResponse)
+    const merged = mergeHookResponses(daemonResponse, cliResponse)
 
-    expect(merged).toEqual(supervisorResponse)
+    expect(merged).toEqual(daemonResponse)
   })
 })
 
@@ -431,7 +429,7 @@ describe('handleHookCommand', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    mockSend.mockResolvedValue(null) // Default to supervisor unavailable
+    mockSend.mockResolvedValue(null) // Default to daemon unavailable
   })
 
   test('returns empty response on IPC failure (graceful degradation)', async () => {
@@ -458,25 +456,25 @@ describe('handleHookCommand', () => {
     expect(result.output).toBe('{}')
   })
 
-  test('returns supervisor response when available', async () => {
-    const supervisorResponse = { additionalContext: 'Supervisor says hello' }
-    mockSend.mockResolvedValue(supervisorResponse)
+  test('returns daemon response when available', async () => {
+    const daemonResponse = { additionalContext: 'Daemon says hello' }
+    mockSend.mockResolvedValue(daemonResponse)
 
     const stdout = new CollectingWritable()
     const result = await handleHookCommand('SessionStart', baseOptions, mockLogger, stdout)
 
     expect(result.exitCode).toBe(0)
-    expect(JSON.parse(result.output)).toEqual(supervisorResponse)
+    expect(JSON.parse(result.output)).toEqual(daemonResponse)
   })
 
-  test('returns empty object when supervisor is unavailable (null response)', async () => {
+  test('returns empty object when daemon is unavailable (null response)', async () => {
     mockSend.mockResolvedValue(null)
 
     const stdout = new CollectingWritable()
     const result = await handleHookCommand('SessionStart', baseOptions, mockLogger, stdout)
 
     expect(result.exitCode).toBe(0)
-    // Merging null supervisor response with empty CLI response yields {}
+    // Merging null daemon response with empty CLI response yields {}
     expect(JSON.parse(result.output)).toEqual({})
   })
 

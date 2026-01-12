@@ -2,7 +2,7 @@
  * Transcript Service Types
  *
  * Interfaces for transcript processing and metrics.
- * Used by Supervisor for background transcript analysis.
+ * Used by Daemon for background transcript analysis.
  *
  * @see docs/design/TRANSCRIPT-PROCESSING.md
  */

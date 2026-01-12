@@ -117,11 +117,11 @@ A filtered view of "Decision" events to see the system's reasoning chain.
 - Example: `[Decision] Session Title Change: Updated session title to "My Session"`
 
 #### E. System Health
-A real-time dashboard showing the health of the Supervisor process.
+A real-time dashboard showing the health of the Daemon process.
 - **Metrics**: Uptime, Memory Usage (Heap/RSS), Queue Depth, Active Tasks.
-- **Source**: Reads `.sidekick/state/supervisor-status.json` (global, not session-specific).
+- **Source**: Reads `.sidekick/state/daemon-status.json` (global, not session-specific).
 - **Visuals**: Sparklines for memory/queue, status indicators for liveness.
-- **Offline Detection**: Poll file mtime; if > 30s old, show "Supervisor Offline" state with red/grey badge and last-known timestamp. This handles cases where the Supervisor crashes or is manually stopped.
+- **Offline Detection**: Poll file mtime; if > 30s old, show "Daemon Offline" state with red/grey badge and last-known timestamp. This handles cases where the Daemon crashes or is manually stopped.
 
 ## 4. Data Sources & Schema
 

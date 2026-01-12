@@ -4,13 +4,13 @@
 
 Refactor the log counting implementation to use a reusable hookable logger pattern. This fixes two issues:
 1. **Concurrent sessions**: `currentActiveSessionId` doesn't work with multiple concurrent Claude sessions
-2. **Reusability**: Both Supervisor and CLI need to count logs; statusline should combine both
+2. **Reusability**: Both Daemon and CLI need to count logs; statusline should combine both
 
 ## Requirements
 
 - **Hookable Logger**: Create a logger wrapper with level-filtered callbacks
 - **Session-aware**: Extract sessionId from log metadata (not global state)
-- **Dual-source metrics**: Supervisor → `supervisor-log-metrics.json`, CLI → `cli-log-metrics.json`
+- **Dual-source metrics**: Daemon → `daemon-log-metrics.json`, CLI → `cli-log-metrics.json`
 - **Combined display**: StatuslineService reads and sums both files
 
 ## Architecture
@@ -27,13 +27,13 @@ Refactor the log counting implementation to use a reusable hookable logger patte
 └─────────────────────────────────────────────────────────────────┘
                     │                           │
          ┌──────────┴──────────┐     ┌──────────┴──────────┐
-         │     Supervisor      │     │        CLI          │
+         │       Daemon        │     │        CLI          │
          │                     │     │                     │
          │ Hook: count per     │     │ Hook: count per     │
          │ sessionId from meta │     │ sessionId from ctx  │
          │                     │     │                     │
          │ Persists to:        │     │ Persists to:        │
-         │ supervisor-log-     │     │ cli-log-            │
+         │ daemon-log-         │     │ cli-log-            │
          │ metrics.json        │     │ metrics.json        │
          └──────────┬──────────┘     └──────────┬──────────┘
                     │                           │
@@ -101,9 +101,9 @@ export function createHookableLogger(
 
 Export from `packages/sidekick-core/src/index.ts`.
 
-### Phase 2: Update Supervisor to Use Hookable Logger
+### Phase 2: Update Daemon to Use Hookable Logger
 
-**File**: `packages/sidekick-supervisor/src/supervisor.ts`
+**File**: `packages/sidekickd/src/daemon.ts`
 
 Remove:
 - `private currentActiveSessionId: string | null = null`
@@ -133,7 +133,7 @@ this.logger = createHookableLogger(baseLogger, {
 })
 ```
 
-Update `persistLogMetrics()` to write to `supervisor-log-metrics.json` (rename from `log-metrics.json`).
+Update `persistLogMetrics()` to write to `daemon-log-metrics.json` (rename from `log-metrics.json`).
 
 ### Phase 3: Add Log Counting to CLI
 
@@ -190,25 +190,25 @@ Update `getLogMetrics()` to read and sum both files:
 
 ```typescript
 async getLogMetrics(): Promise<StateReadResult<LogMetricsState>> {
-  const supervisorPath = path.join(this.stateDir, 'supervisor-log-metrics.json')
+  const daemonPath = path.join(this.stateDir, 'daemon-log-metrics.json')
   const cliPath = path.join(this.stateDir, 'cli-log-metrics.json')
 
-  const [supervisorResult, cliResult] = await Promise.all([
-    this.readLogMetricsFile(supervisorPath),
+  const [daemonResult, cliResult] = await Promise.all([
+    this.readLogMetricsFile(daemonPath),
     this.readLogMetricsFile(cliPath),
   ])
 
   // Sum counts from both sources
   const combined: LogMetricsState = {
-    sessionId: supervisorResult.data.sessionId || cliResult.data.sessionId || '',
-    warningCount: supervisorResult.data.warningCount + cliResult.data.warningCount,
-    errorCount: supervisorResult.data.errorCount + cliResult.data.errorCount,
-    lastUpdatedAt: Math.max(supervisorResult.data.lastUpdatedAt, cliResult.data.lastUpdatedAt),
+    sessionId: daemonResult.data.sessionId || cliResult.data.sessionId || '',
+    warningCount: daemonResult.data.warningCount + cliResult.data.warningCount,
+    errorCount: daemonResult.data.errorCount + cliResult.data.errorCount,
+    lastUpdatedAt: Math.max(daemonResult.data.lastUpdatedAt, cliResult.data.lastUpdatedAt),
   }
 
-  const isStale = supervisorResult.source === 'stale' || cliResult.source === 'stale'
+  const isStale = daemonResult.source === 'stale' || cliResult.source === 'stale'
   return {
-    source: isStale ? 'stale' : (supervisorResult.source === 'default' && cliResult.source === 'default' ? 'default' : 'fresh'),
+    source: isStale ? 'stale' : (daemonResult.source === 'default' && cliResult.source === 'default' ? 'default' : 'fresh'),
     data: combined,
     mtime: combined.lastUpdatedAt,
   }
@@ -219,14 +219,14 @@ private async readLogMetricsFile(filePath: string): Promise<StateReadResult<LogM
 }
 ```
 
-### Phase 5: Update Supervisor Persistence Path
+### Phase 5: Update Daemon Persistence Path
 
-**File**: `packages/sidekick-supervisor/src/supervisor.ts`
+**File**: `packages/sidekickd/src/daemon.ts`
 
 In `persistLogMetrics()`:
 ```diff
 - const logMetricsPath = path.join(stateDir, 'log-metrics.json')
-+ const logMetricsPath = path.join(stateDir, 'supervisor-log-metrics.json')
++ const logMetricsPath = path.join(stateDir, 'daemon-log-metrics.json')
 ```
 
 ## Files to Modify
@@ -235,7 +235,7 @@ In `persistLogMetrics()`:
 |------|---------|
 | `packages/sidekick-core/src/hookable-logger.ts` | **NEW** - Hookable logger wrapper |
 | `packages/sidekick-core/src/index.ts` | Export `createHookableLogger` |
-| `packages/sidekick-supervisor/src/supervisor.ts` | Use hookable logger, remove old wrapper, update file path |
+| `packages/sidekickd/src/daemon.ts` | Use hookable logger, remove old wrapper, update file path |
 | `packages/sidekick-cli/src/runtime.ts` | Add log counting via hookable logger |
 | `packages/sidekick-cli/src/cli.ts` | Persist CLI log metrics on exit |
 | `packages/feature-statusline/src/state-reader.ts` | Read and sum both metric files |
@@ -243,11 +243,11 @@ In `persistLogMetrics()`:
 ## Testing
 
 1. **Unit test hookable-logger.ts**: Verify hooks fire at correct levels
-2. **Update supervisor tests**: Ensure log counting still works
+2. **Update daemon tests**: Ensure log counting still works
 3. **Add CLI runtime tests**: Verify log counting and persistence
 4. **StateReader tests**: Verify summing from multiple files
 
 ## Migration Notes
 
-- Rename existing `log-metrics.json` → `supervisor-log-metrics.json` (or let it be recreated)
+- Rename existing `log-metrics.json` → `daemon-log-metrics.json` (or let it be recreated)
 - No schema changes needed - same `LogMetricsState` structure

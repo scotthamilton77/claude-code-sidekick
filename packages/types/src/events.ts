@@ -437,7 +437,7 @@ export interface HookCompletedEvent extends LoggingEventBase {
   }
 }
 
-// --- Supervisor-Logged Events (per docs/design/flow.md §7.2) ---
+// --- Daemon-Logged Events (per docs/design/flow.md §7.2) ---
 
 export interface EventReceivedEvent extends LoggingEventBase {
   type: 'EventReceived'
@@ -489,14 +489,14 @@ export interface ReminderStagedEvent extends LoggingEventBase {
   }
 }
 
-// --- Supervisor Lifecycle Events ---
+// --- Daemon Lifecycle Events ---
 
 /**
- * Supervisor process starting.
- * Emitted at the beginning of supervisor initialization.
+ * Daemon process starting.
+ * Emitted at the beginning of daemon initialization.
  */
-export interface SupervisorStartingEvent extends LoggingEventBase {
-  type: 'SupervisorStarting'
+export interface DaemonStartingEvent extends LoggingEventBase {
+  type: 'DaemonStarting'
   source: 'daemon'
   payload: {
     metadata: {
@@ -507,11 +507,11 @@ export interface SupervisorStartingEvent extends LoggingEventBase {
 }
 
 /**
- * Supervisor process started successfully.
- * Emitted when all supervisor components are initialized.
+ * Daemon process started successfully.
+ * Emitted when all daemon components are initialized.
  */
-export interface SupervisorStartedEvent extends LoggingEventBase {
-  type: 'SupervisorStarted'
+export interface DaemonStartedEvent extends LoggingEventBase {
+  type: 'DaemonStarted'
   source: 'daemon'
   payload: {
     metadata: {
@@ -782,14 +782,14 @@ export type CLILoggingEvent =
   | StatuslineErrorEvent
 
 /**
- * Union of all Supervisor logging events.
+ * Union of all Daemon logging events.
  */
 export type DaemonLoggingEvent =
   | EventReceivedEvent
   | EventProcessedEvent
   | ReminderStagedEvent
-  | SupervisorStartingEvent
-  | SupervisorStartedEvent
+  | DaemonStartingEvent
+  | DaemonStartedEvent
   | IpcServerStartedEvent
   | ConfigWatcherStartedEvent
   | SessionEvictionStartedEvent

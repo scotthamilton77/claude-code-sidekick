@@ -11,7 +11,7 @@ This document defines the target state for the Sidekick Node.js rewrite. It esta
   - **No Unnecessary Code**: Do not wrap open-source implementations unless strictly necessary.
   - **SOLID/DRY**: Enforce file size limits (500 lines) and method size limits (20 lines) to prevent complexity creep.
 - **Node-First Runtime**: The primary runtime for CLI, orchestration, and hooks is TypeScript/Node.js. Python is reserved strictly for developer tooling (one-off analyzers, data prep) and never as a deployed dependency.
-- **Observability-First**: Use `pino` + telemetry wrapper from day one. Separate log files for CLI and Supervisor enable unified debugging via the Monitoring UI.
+- **Observability-First**: Use `pino` + telemetry wrapper from day one. Separate log files for CLI and Daemon enable unified debugging via the Monitoring UI.
 - **Dual-Scope Parity**: Behavior must be identical in User (`~/.claude`) and Project (`.claude`) scopes. Preserve the existing cascade (user/project installed vs. persistent) through the asset resolver.
 - **Feature Modularity**: Preserve plugin-style independence. Features must explicitly register dependencies and config-driven toggles.
 - **Shared Assets Policy**: Defaults (prompts, schemas, templates) live in `assets/sidekick/` so both Node runtime and Python tools share canonical sources.
@@ -26,7 +26,7 @@ The system is organized as a monorepo with a clear distinction between runtime p
 packages/
 ├── sidekick-core/          # Shared runtime library (see docs/design/CORE-RUNTIME.md)
 ├── sidekick-cli/           # CLI entry + hook commands (see docs/design/CLI.md)
-├── sidekick-supervisor/    # Background process for async work (see docs/design/SUPERVISOR.md)
+├── sidekickd/    # Background process for async work (see docs/design/DAEMON.md)
 ├── sidekick-ui/            # Monitoring UI for debugging (see packages/sidekick-ui/docs/MONITORING-UI.md)
 ├── feature-session-summary/# Session summary feature (see docs/design/FEATURE-SESSION-SUMMARY.md)
 ├── feature-reminders/      # Reminder system (see docs/design/FEATURE-REMINDERS.md)
@@ -61,16 +61,16 @@ Hooks configured in Claude Code's `settings.json` are **bash scripts** installed
 
 This decouples Claude Code's hook registration from the Node.js runtime. See **docs/design/CLI.md §3.1** for details.
 
-### 3.2 CLI/Supervisor Relationship
+### 3.2 CLI/Daemon Relationship
 
-The CLI and Supervisor operate as **separate processes** with distinct responsibilities:
+The CLI and Daemon operate as **separate processes** with distinct responsibilities:
 
 | Component      | Responsibilities                                                     | Log File                        |
 | -------------- | -------------------------------------------------------------------- | ------------------------------- |
 | **CLI**        | Synchronous hook responses, reads staged files, logs events          | `.sidekick/logs/cli.log`        |
-| **Supervisor** | Async background work (LLM calls, transcript analysis), stages files | `.sidekick/logs/supervisor.log` |
+| **Daemon** | Async background work (LLM calls, transcript analysis), stages files | `.sidekick/logs/sidekickd.log` |
 
-**Communication**: CLI sends events to Supervisor via IPC (fire-and-forget). Supervisor "responds" by staging files that CLI reads on subsequent hook invocations.
+**Communication**: CLI sends events to Daemon via IPC (fire-and-forget). Daemon "responds" by staging files that CLI reads on subsequent hook invocations.
 
 See **docs/design/flow.md §2.1** for the complete interaction model.
 
@@ -100,7 +100,7 @@ See **docs/design/TRANSCRIPT-PROCESSING.md** for complete specification.
 
 ### 3.5 Staging Pattern
 
-The Supervisor prepares future CLI actions by staging files. This decouples async Supervisor work from sync CLI responses.
+The Daemon prepares future CLI actions by staging files. This decouples async Daemon work from sync CLI responses.
 
 **Staging Directory**: `.sidekick/sessions/{session_id}/stage/{hook_name}/`
 
@@ -136,14 +136,14 @@ Configuration uses **YAML** for domain-specific files with a bash-style `sidekic
 
 See **docs/design/CONFIG-SYSTEM.md** for complete schema and merge semantics.
 
-### 3.7 Background Supervisor
+### 3.7 Background Daemon
 
-- **Architecture**: A detached Node.js process acts as the background supervisor.
-- **Scope**: Supervisor is **always project-scoped** (`.sidekick/supervisor.pid`).
-- **IPC**: Unix domain sockets (`.sidekick/supervisor.sock`) with **Newline-Delimited JSON (NDJSON)** protocol. Auth via shared token (`.sidekick/supervisor.token`).
+- **Architecture**: A detached Node.js process acts as the background daemon.
+- **Scope**: Daemon is **always project-scoped** (`.sidekick/sidekickd.pid`).
+- **IPC**: Unix domain sockets (`.sidekick/sidekickd.sock`) with **Newline-Delimited JSON (NDJSON)** protocol. Auth via shared token (`.sidekick/sidekickd.token`).
 - **Single Writer**: Acts as the single writer for shared state files using atomic writes (temp file + `mv`).
 
-See **docs/design/SUPERVISOR.md** for lifecycle management, handler execution, and task queue.
+See **docs/design/DAEMON.md** for lifecycle management, handler execution, and task queue.
 
 ### 3.8 LLM Providers & Telemetry
 
@@ -164,7 +164,7 @@ See **docs/design/LLM-PROVIDERS.md** for provider architecture and **docs/design
 
 - **Unit Tests**: Each package includes Vitest suites. `sidekick-core` covers config, cascade, and providers.
 - **Integration Tests**: Run the Node CLI against recorded transcripts from `test-data/` and diff outputs with expected results.
-- **Test Fixtures**: Shared mocks (`MockLLMService`, `MockHandlerRegistry`, `MockTranscriptService`, `MockStagingService`), factories for events/reminders/metrics, and harnesses for CLI and Supervisor testing.
+- **Test Fixtures**: Shared mocks (`MockLLMService`, `MockHandlerRegistry`, `MockTranscriptService`, `MockStagingService`), factories for events/reminders/metrics, and harnesses for CLI and Daemon testing.
 
 See **docs/design/TEST-FIXTURES.md** for complete testing infrastructure.
 
@@ -174,8 +174,8 @@ See **docs/design/TEST-FIXTURES.md** for complete testing infrastructure.
 | ---------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | **docs/design/flow.md**                        | Event model, hook flows, handler registration, staging pattern (architectural source of truth) |
 | **docs/design/CORE-RUNTIME.md**                | RuntimeContext, services, feature registration, bootstrap sequence                             |
-| **docs/design/CLI.md**                         | CLI framework, hook dispatcher, scope resolution, supervisor lifecycle                         |
-| **docs/design/SUPERVISOR.md**                  | Background process, IPC, state management, task execution                                      |
+| **docs/design/CLI.md**                         | CLI framework, hook dispatcher, scope resolution, daemon lifecycle                         |
+| **docs/design/DAEMON.md**                  | Background process, IPC, state management, task execution                                      |
 | **docs/design/CONFIG-SYSTEM.md**               | Configuration cascade, YAML schemas, domain separation                                         |
 | **docs/design/TRANSCRIPT-PROCESSING.md**       | TranscriptService, metrics ownership, compaction handling                                      |
 | **docs/design/STRUCTURED-LOGGING.md**          | Pino logging, event schema, redaction, log rotation                                            |

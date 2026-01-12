@@ -75,7 +75,7 @@ export const SESSION_SUMMARY_PLACEHOLDERS = {
 
 /**
  * Internal countdown state for throttling session summary updates.
- * Stored alongside session summary for persistence across Supervisor restarts.
+ * Stored alongside session summary for persistence across Daemon restarts.
  *
  * Location: Part of `.sidekick/sessions/{sessionId}/state/session-summary.json`
  *
@@ -169,12 +169,12 @@ export type SessionMetricsState = TranscriptMetricsState
 
 /**
  * Log metrics state for tracking warnings and errors.
- * Supervisor maintains in-memory counters and persists during heartbeat.
+ * Daemon maintains in-memory counters and persists during heartbeat.
  * Statusline reads this for the {logs} template placeholder.
  *
  * Used for both per-session metrics (with sessionId) and global metrics (without sessionId).
- * - Per-session: `.sidekick/sessions/{sessionId}/state/supervisor-log-metrics.json`
- * - Global: `.sidekick/state/supervisor-global-log-metrics.json`
+ * - Per-session: `.sidekick/sessions/{sessionId}/state/daemon-log-metrics.json`
+ * - Global: `.sidekick/state/daemon-global-log-metrics.json`
  *
  * @see docs/design/FEATURE-STATUSLINE.md
  */

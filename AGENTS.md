@@ -37,7 +37,7 @@ IPC tests fail in Claude Code sandbox (Unix socket `EPERM`).
 
 ```bash
 # Run @sidekick/core excluding IPC tests:
-pnpm --filter @sidekick/core test -- --exclude '**/{ipc,ipc-service,supervisor-client}.test.ts'
+pnpm --filter @sidekick/core test -- --exclude '**/{ipc,ipc-service,daemon-client}.test.ts'
 
 # Full tests (user must run outside sandbox):
 INTEGRATION_TESTS=1 pnpm test

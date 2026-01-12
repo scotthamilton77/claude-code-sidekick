@@ -580,11 +580,11 @@ describe('Phase 4.5: TranscriptService → Handler Integration', () => {
 })
 
 describe('Phase 4.5: RuntimeContext Wiring Verification', () => {
-  it('SupervisorContext provides all required services', () => {
-    // This test verifies the type contract - that SupervisorContext
+  it('DaemonContext provides all required services', () => {
+    // This test verifies the type contract - that DaemonContext
     // has all the services needed for feature execution
     const mockContext = {
-      role: 'supervisor' as const,
+      role: 'daemon' as const,
       config: {},
       logger: createMockLogger(),
       assets: {},
@@ -620,7 +620,7 @@ describe('Phase 4.5: RuntimeContext Wiring Verification', () => {
     }
 
     // Verify all required services are present
-    expect(mockContext.role).toBe('supervisor')
+    expect(mockContext.role).toBe('daemon')
     expect(mockContext.llm).toBeDefined()
     expect(mockContext.staging).toBeDefined()
     expect(mockContext.transcript).toBeDefined()

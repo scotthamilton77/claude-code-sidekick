@@ -1,18 +1,18 @@
 /**
  * Task Type Definitions for Background Task Engine
  *
- * Defines the standard task types supported by the Supervisor's TaskEngine.
- * Task handlers are registered at supervisor startup and triggered by
+ * Defines the standard task types supported by the Daemon's TaskEngine.
+ * Task handlers are registered at daemon startup and triggered by
  * handlers or periodic timers.
  *
- * @see docs/design/SUPERVISOR.md §4.3 Task Execution Engine
+ * @see docs/design/DAEMON.md §4.3 Task Execution Engine
  */
 
 import { z } from 'zod'
 
 /**
  * Standard task type identifiers.
- * Per SUPERVISOR.md §4.3: session_summary, resume_generation, cleanup
+ * Per DAEMON.md §4.3: session_summary, resume_generation, cleanup
  */
 export const TaskTypes = {
   /** Generate or update session summary. Writes to sessions/{id}/summary.json */
@@ -106,7 +106,7 @@ export const MetricsPersistPayloadSchema = z.object({
 /**
  * Tracked task state for orphan prevention.
  * Written to .sidekick/state/task-registry.json when tasks are enqueued.
- * Cleaned on supervisor restart to detect orphaned tasks from crashed runs.
+ * Cleaned on daemon restart to detect orphaned tasks from crashed runs.
  *
  * @see ROADMAP.md Phase 5.2: Orphan prevention
  */
@@ -122,7 +122,7 @@ export interface TrackedTask {
  * Task registry state file schema.
  */
 export interface TaskRegistryState {
-  /** Tasks that were active when supervisor last ran */
+  /** Tasks that were active when daemon last ran */
   activeTasks: TrackedTask[]
   /** Timestamp of last cleanup check */
   lastCleanupAt?: number

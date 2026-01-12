@@ -8,7 +8,7 @@ const logger = createConsoleLogger({ minimumLevel: 'error' })
 // Mock context getter for tests
 const mockContextGetter: ContextGetter = () =>
   ({
-    role: 'supervisor',
+    role: 'daemon',
     config: {
       core: { logging: { level: 'error' }, development: { enabled: false } },
       llm: {},

@@ -201,7 +201,7 @@ describe('AssetResolver', () => {
 logging:
   level: info
   format: json
-supervisor:
+daemon:
   enabled: true
   heartbeatMs: 5000
 `
@@ -217,7 +217,7 @@ supervisor:
 
       expect(data).toEqual({
         logging: { level: 'info', format: 'json' },
-        supervisor: { enabled: true, heartbeatMs: 5000 },
+        daemon: { enabled: true, heartbeatMs: 5000 },
       })
     })
 

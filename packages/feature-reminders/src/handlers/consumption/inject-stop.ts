@@ -2,7 +2,7 @@
  * Inject reminders into Stop hook (CLI-side)
  *
  * Uses factory with buildResponse strategy for smart completion detection:
- * 1. For verify-completion: Run LLM classification via Supervisor IPC
+ * 1. For verify-completion: Run LLM classification via Daemon IPC
  * 2. Based on classification, return blocking or non-blocking response
  * 3. Side effects in onConsume: Delete staged P&R, update P&R baseline
  *
@@ -16,7 +16,7 @@ import { createConsumptionHandler, buildDefaultResponse } from './consumption-ha
 import { ReminderIds } from '../../types.js'
 import type { CompletionCategory } from '../../types.js'
 
-/** Classification result from Supervisor IPC */
+/** Classification result from Daemon IPC */
 interface ClassificationResult {
   category: CompletionCategory
   confidence: number
@@ -48,7 +48,7 @@ export function registerInjectStop(context: RuntimeContext): void {
       const stopEvent = event as StopHookEvent
       const transcriptPath = stopEvent.payload?.transcriptPath
 
-      // Call Supervisor for classification
+      // Call Daemon for classification
       const ipc = new IpcService(projectDir, cliCtx.logger)
       try {
         const classification = (await ipc.send('completion.classify', {
@@ -118,7 +118,7 @@ export function registerInjectStop(context: RuntimeContext): void {
         // 1. Delete any staged P&R to prevent cascade
         reader.deleteReminder('PreToolUse', ReminderIds.PAUSE_AND_REFLECT)
 
-        // 2. Send IPC to Supervisor to update P&R baseline
+        // 2. Send IPC to Daemon to update P&R baseline
         const projectDir = cliCtx.paths.projectDir
         if (projectDir) {
           const ipc = new IpcService(projectDir, cliCtx.logger)

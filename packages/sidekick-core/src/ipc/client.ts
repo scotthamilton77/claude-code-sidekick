@@ -28,7 +28,7 @@ const DEFAULT_OPTIONS: Required<IpcClientOptions> = {
  *
  * Provides JSON-RPC 2.0 communication over Unix Domain Sockets (or Named Pipes on Windows).
  *
- * @see docs/design/SUPERVISOR.md §3 Communication Layer
+ * @see docs/design/DAEMON.md §3 Communication Layer
  */
 export class IpcClient {
   private socketPath: string
@@ -228,8 +228,8 @@ export class IpcClient {
     // - Connection closed: connection dropped mid-request
     // - Connection timeout: couldn't connect in time
     // - ECONNRESET: connection reset by peer
-    // - ECONNREFUSED: socket exists but not accepting (supervisor may be restarting)
-    // - ENOENT: socket file doesn't exist (supervisor may be starting up)
+    // - ECONNREFUSED: socket exists but not accepting (daemon may be restarting)
+    // - ENOENT: socket file doesn't exist (daemon may be starting up)
     // - EPIPE: broken pipe
     const transientPatterns = [
       'Connection closed',

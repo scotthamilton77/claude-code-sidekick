@@ -14,7 +14,7 @@ packages/testing/fixtures/
 │   │   ├── MockLLMService.ts
 │   │   ├── MockLogger.ts
 │   │   ├── MockAssetResolver.ts
-│   │   ├── MockSupervisorClient.ts
+│   │   ├── MockDaemonClient.ts
 │   │   ├── MockHandlerRegistry.ts   # Handler registration and dispatch
 │   │   ├── MockTranscriptService.ts # Transcript watching and metrics
 │   │   └── MockStagingService.ts    # Reminder file staging
@@ -27,7 +27,7 @@ packages/testing/fixtures/
 │   │   └── metrics.factory.ts       # TranscriptMetrics snapshots
 │   ├── harness/            # Integration test runners
 │   │   ├── CLITestHarness.ts
-│   │   ├── SupervisorTestHarness.ts # Supervisor process testing
+│   │   ├── DaemonTestHarness.ts # Daemon process testing
 │   │   ├── StagingHelper.ts         # Stage directory utilities
 │   │   └── TestEnvironment.ts
 │   └── loaders/            # Helpers to load data from root test-data/
@@ -44,7 +44,7 @@ We provide a set of "Smart Mocks" that implement the core interfaces but allow f
 
 A factory to create a fully mocked `RuntimeContext` for unit testing features.
 
-**Note**: Unlike production `RuntimeContext` which uses a discriminated union (`CLIContext` vs `SupervisorContext` per **docs/design/CORE-RUNTIME.md §4.1**), the mock context intentionally combines all properties from both roles. This allows test code to verify feature behavior without caring which runtime context the feature would run in. Tests requiring role-specific behavior should use explicit overrides.
+**Note**: Unlike production `RuntimeContext` which uses a discriminated union (`CLIContext` vs `DaemonContext` per **docs/design/CORE-RUNTIME.md §4.1**), the mock context intentionally combines all properties from both roles. This allows test code to verify feature behavior without caring which runtime context the feature would run in. Tests requiring role-specific behavior should use explicit overrides.
 
 ```typescript
 import { RuntimeContext } from '@sidekick/core';
@@ -60,7 +60,7 @@ export function createMockContext(overrides: Partial<RuntimeContext> = {}): Runt
     logger: new MockLogger(),
     llm: new MockLLMService(),
     assets: new MockAssetResolver(),
-    supervisor: new MockSupervisorClient(),
+    daemon: new MockDaemonClient(),
     handlers: new MockHandlerRegistry(),
     transcript: new MockTranscriptService(),
     staging: new MockStagingService(),
@@ -459,32 +459,32 @@ export class CLITestHarness {
 }
 ```
 
-### 5.2 SupervisorTestHarness
+### 5.2 DaemonTestHarness
 
-Runs the Supervisor for testing async handler execution and IPC communication.
+Runs the Daemon for testing async handler execution and IPC communication.
 
 ```typescript
-export class SupervisorTestHarness {
-  private supervisor: ChildProcess | null = null;
+export class DaemonTestHarness {
+  private daemon: ChildProcess | null = null;
   public receivedEvents: SidekickEvent[] = [];
   public stagedReminders: Map<HookName, StagedReminder[]> = new Map();
 
   constructor(
     private readonly sessionDir: string,
-    private readonly options: SupervisorTestOptions = {}
+    private readonly options: DaemonTestOptions = {}
   ) {}
 
   async start(): Promise<void> {
-    // Starts supervisor process with test configuration
+    // Starts daemon process with test configuration
     // Sets up IPC channel for event capture
   }
 
   async stop(): Promise<void> {
-    // Gracefully stops supervisor
+    // Gracefully stops daemon
     // Waits for pending handlers to complete
   }
 
-  // Send event to supervisor (simulates CLI → Supervisor IPC)
+  // Send event to daemon (simulates CLI → Daemon IPC)
   async sendEvent(event: SidekickEvent): Promise<void> {
     this.receivedEvents.push(event);
     // Sends via IPC channel
@@ -492,7 +492,7 @@ export class SupervisorTestHarness {
 
   // Wait for specific condition (useful for async handler completion)
   async waitFor(
-    predicate: (harness: SupervisorTestHarness) => boolean,
+    predicate: (harness: DaemonTestHarness) => boolean,
     timeoutMs: number = 5000
   ): Promise<void> {
     const start = Date.now();
@@ -513,7 +513,7 @@ export class SupervisorTestHarness {
   }
 }
 
-interface SupervisorTestOptions {
+interface DaemonTestOptions {
   mockLLM?: MockLLMService;
   mockTranscript?: MockTranscriptService;
   config?: Partial<SidekickConfig>;
@@ -605,7 +605,7 @@ Unified setup for integration tests combining all harnesses.
 export class TestEnvironment {
   public readonly sessionDir: string;
   public readonly cli: CLITestHarness;
-  public readonly supervisor: SupervisorTestHarness;
+  public readonly daemon: DaemonTestHarness;
   public readonly staging: StagingHelper;
   public readonly mockLLM: MockLLMService;
   public readonly mockTranscript: MockTranscriptService;
@@ -621,7 +621,7 @@ export class TestEnvironment {
     this.mockTranscript = options.mockTranscript ?? new MockTranscriptService();
     this.staging = new StagingHelper(sessionDir);
     this.cli = new CLITestHarness(sessionDir);
-    this.supervisor = new SupervisorTestHarness(sessionDir, {
+    this.daemon = new DaemonTestHarness(sessionDir, {
       mockLLM: this.mockLLM,
       mockTranscript: this.mockTranscript,
     });
@@ -629,14 +629,14 @@ export class TestEnvironment {
 
   async setup(): Promise<void> {
     await fs.mkdir(this.sessionDir, { recursive: true });
-    await this.supervisor.start();
+    await this.daemon.start();
     // Freeze time for deterministic tests
     vi.useFakeTimers();
   }
 
   async teardown(): Promise<void> {
     vi.useRealTimers();
-    await this.supervisor.stop();
+    await this.daemon.stop();
     await fs.rm(this.sessionDir, { recursive: true, force: true });
   }
 }
@@ -658,7 +658,7 @@ export class TestEnvironment {
 
 ### 6.4 Handler Testing Strategy
 **Proposal**: Test handlers in isolation vs full dispatch chain?
-**Decision**: **Both**. Unit tests use `MockHandlerRegistry` to verify handler registration and filter matching. Integration tests use `SupervisorTestHarness` to verify end-to-end event flow (hook → handler → staged reminder → CLI consumption).
+**Decision**: **Both**. Unit tests use `MockHandlerRegistry` to verify handler registration and filter matching. Integration tests use `DaemonTestHarness` to verify end-to-end event flow (hook → handler → staged reminder → CLI consumption).
 
 ### 6.5 Staging Service Abstraction
 **Proposal**: Should `MockStagingService` use filesystem or pure in-memory?

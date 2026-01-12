@@ -56,7 +56,7 @@ export interface ServiceFactory {
   evictStaleSessions(): Promise<number>
 
   /**
-   * Shutdown all sessions (called on supervisor stop).
+   * Shutdown all sessions (called on daemon stop).
    * Returns count of sessions shutdown.
    */
   shutdownAllSessions(): Promise<number>

@@ -263,7 +263,7 @@ export const rawSidekickEvents: SidekickEvent[] = [
 
 /**
  * Mock ParsedLogRecords including internal events.
- * These simulate what would come from parsing cli.log and supervisor.log.
+ * These simulate what would come from parsing cli.log and sidekickd.log.
  */
 export const mockLogRecords: ParsedLogRecord[] = [
   // SessionStart hook event
@@ -286,10 +286,10 @@ export const mockLogRecords: ParsedLogRecord[] = [
     raw: {},
   },
 
-  // Internal: Context pruning decision (from supervisor)
+  // Internal: Context pruning decision (from daemon)
   {
     pino: { level: 30, time: baseTime + 18_000, pid: 5678, hostname: 'dev', msg: 'Token limit approaching' },
-    source: 'supervisor',
+    source: 'daemon',
     type: 'ContextPruned',
     context: { sessionId, scope: 'project' },
     payload: {
@@ -304,7 +304,7 @@ export const mockLogRecords: ParsedLogRecord[] = [
   // Assistant transcript event
   {
     pino: { level: 30, time: baseTime + 45_000, pid: 5678, hostname: 'dev' },
-    source: 'supervisor',
+    source: 'daemon',
     type: 'TranscriptEventEmitted',
     context: { sessionId, scope: 'project' },
     event: rawSidekickEvents[2],
@@ -321,10 +321,10 @@ export const mockLogRecords: ParsedLogRecord[] = [
     raw: {},
   },
 
-  // Internal: Summary updated (from supervisor)
+  // Internal: Summary updated (from daemon)
   {
     pino: { level: 30, time: baseTime + 65_000, pid: 5678, hostname: 'dev', msg: 'Session summary updated' },
-    source: 'supervisor',
+    source: 'daemon',
     type: 'SummaryUpdated',
     context: { sessionId, scope: 'project' },
     payload: {
@@ -342,7 +342,7 @@ export const mockLogRecords: ParsedLogRecord[] = [
   // Assistant analysis
   {
     pino: { level: 30, time: baseTime + 90_000, pid: 5678, hostname: 'dev' },
-    source: 'supervisor',
+    source: 'daemon',
     type: 'TranscriptEventEmitted',
     context: { sessionId, scope: 'project' },
     event: rawSidekickEvents[5],
@@ -359,10 +359,10 @@ export const mockLogRecords: ParsedLogRecord[] = [
     raw: {},
   },
 
-  // Internal: Reminder staged (from supervisor)
+  // Internal: Reminder staged (from daemon)
   {
     pino: { level: 30, time: baseTime + 108_000, pid: 5678, hostname: 'dev', msg: 'Reminder staged for Stop hook' },
-    source: 'supervisor',
+    source: 'daemon',
     type: 'ReminderStaged',
     context: { sessionId, scope: 'project' },
     payload: {
@@ -381,7 +381,7 @@ export const mockLogRecords: ParsedLogRecord[] = [
   // Final assistant message
   {
     pino: { level: 30, time: baseTime + 120_000, pid: 5678, hostname: 'dev' },
-    source: 'supervisor',
+    source: 'daemon',
     type: 'TranscriptEventEmitted',
     context: { sessionId, scope: 'project' },
     event: rawSidekickEvents[8],
@@ -401,7 +401,7 @@ export const sidekickUIEvents: UIEvent[] = sidekickEventsToUIEvents(rawSidekickE
 
 /**
  * UIEvents converted from ParsedLogRecords including internal events.
- * This is the full timeline including supervisor internal events.
+ * This is the full timeline including daemon internal events.
  */
 export const events: UIEvent[] = logRecordsToUIEvents(mockLogRecords)
 
