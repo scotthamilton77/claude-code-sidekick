@@ -16,7 +16,13 @@ import {
   MockConfigService,
   createDefaultMetrics,
 } from '@sidekick/testing-fixtures'
-import type { DaemonContext, TranscriptEvent, TranscriptMetrics, PRBaselineState } from '@sidekick/types'
+import type {
+  DaemonContext,
+  TranscriptEvent,
+  TranscriptMetrics,
+  PRBaselineState,
+  UserPromptSubmitHookEvent,
+} from '@sidekick/types'
 import { registerStagePauseAndReflect } from '../handlers/staging/stage-pause-and-reflect'
 import { registerStageDefaultUserPrompt } from '../handlers/staging/stage-default-user-prompt'
 import { registerStageStopReminders } from '../handlers/staging/stage-stop-reminders'
@@ -823,10 +829,10 @@ reason: "Verify completion before stopping"
       }
     })
 
-    function createHookEvent() {
+    function createHookEvent(): UserPromptSubmitHookEvent {
       return {
-        kind: 'hook' as const,
-        hook: 'UserPromptSubmit' as const,
+        kind: 'hook',
+        hook: 'UserPromptSubmit',
         context: { sessionId, timestamp: Date.now() },
         payload: {
           prompt: 'Continue please',
