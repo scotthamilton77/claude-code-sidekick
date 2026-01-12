@@ -217,12 +217,46 @@ Apply these patterns rigorously:
 
 ## Error Suppression: Last Resort Only
 
+**Philosophy:** Suppression is the last resort of the incompetent—but remains a viable approach when truly justified. Every suppression is an admission that you couldn't solve the problem properly. Sometimes that's the right call. Usually it's not.
+
 **CRITICAL: Suppressing TypeScript/ESLint errors is LAST RESORT. Try in order:**
 
-1. **Fix the root cause** - Refactor to satisfy checker
-2. **Improve types** - Add proper type definitions
-3. **Refactor architecture** - Follow SOLID principles
-4. **Only then suppress** - With mandatory documentation
+1. **Fix the root cause** - Refactor to satisfy the checker
+2. **Improve types** - Add proper type definitions, type guards, or generics
+3. **Refactor architecture** - Follow SOLID principles to make code type-safe
+4. **Question the rule** - Is the lint rule appropriate for this codebase?
+5. **Only then suppress** - With mandatory documentation
+
+### When Suppression IS Justified
+
+| Scenario | Example | Required Documentation |
+|----------|---------|------------------------|
+| **Third-party type bugs** | `@types/lib` has incorrect definitions | Link to upstream issue, workaround attempts |
+| **Framework limitations** | React refs during render initialization | Explain framework constraint, link to docs |
+| **Gradual migration** | Converting JS codebase to TS | Migration tracking issue, timeline |
+| **Generated code** | Protocol buffers, GraphQL codegen | Note which tool generates it |
+| **Intentional escape hatch** | Performance-critical serialization | Benchmarks proving necessity |
+
+### When Suppression is HIDING INCOMPETENCE
+
+**Never suppress to:**
+- Avoid learning how to fix a type error
+- Meet a deadline faster
+- "Fix later" without a concrete plan
+- Work around code you don't understand
+- Silence warnings you haven't investigated
+
+```typescript
+// DANGEROUS: Hiding incompetence
+// @ts-expect-error - doesn't work without this
+const result = complexFunction(data);
+
+// DANGEROUS: Cargo-culted suppression
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function process(input: any) { /* copied from StackOverflow */ }
+```
+
+These aren't solutions—they're technical debt with compound interest.
 
 ### Suppression Format (MANDATORY)
 
@@ -231,25 +265,99 @@ Apply these patterns rigorously:
 // @ts-ignore
 const data = api.getData();
 
-// ✅ REQUIRED format
-// @ts-expect-error - Third-party @types/legacy-lib incorrect definition
-// Issue: https://github.com/legacy-lib/issues/123
-// TODO: Remove when @types/legacy-lib@2.0.0 released (Q2 2025)
-// Attempted fix: Forking types failed due to complex generics
+// ❌ REJECTED - comment restates the obvious
+// @ts-expect-error - TypeScript error
+const data = api.getData();
+
+// ✅ REQUIRED format - explains WHY
+// @ts-expect-error - @types/legacy-lib@1.x incorrectly types getData() as void
+// Issue: https://github.com/DefinitelyTyped/DefinitelyTyped/issues/12345
+// Attempted: Forking types failed due to complex internal generics
+// Remove when: @types/legacy-lib@2.0.0 released (tracks upstream fix)
 const data = legacyLib.getData();
 ```
 
 **Every suppression MUST include:**
-- **WHY** (not just what is being suppressed)
-- **Context** (link to issue/PR/docs)
-- **Timeline** (when can this be removed)
-- **Why fix isn't possible now**
+- **WHY** the suppression is necessary (not just what is being suppressed)
+- **Context** link to issue/PR/docs proving the problem
+- **What you tried** before resorting to suppression
+- **When to remove** or revisit this suppression
 
-**Code review: Automatically reject PRs with:**
+### Suppression Syntax Reference
+
+```typescript
+// TypeScript - prefer @ts-expect-error (fails if error disappears)
+// @ts-expect-error - reason here
+// @ts-ignore - reason here (avoid: doesn't fail when fixed)
+
+// ESLint - single line
+// eslint-disable-next-line rule-name -- reason here
+
+// ESLint - block (use sparingly)
+/* eslint-disable rule-name -- reason here */
+// ... code ...
+/* eslint-enable rule-name */
+
+// ESLint - file-level (very rare, needs strong justification)
+/* eslint-disable rule-name -- reason: this entire file is generated */
+```
+
+### Decision Tree: Should You Suppress?
+
+```
+Error appears
+    ↓
+Do you understand it? ──NO──→ INVESTIGATE FIRST (read docs, search issues)
+    ↓ YES
+Can you fix the code? ──YES──→ FIX IT
+    ↓ NO
+Is it a third-party bug? ──YES──→ File upstream issue, THEN suppress with link
+    ↓ NO
+Is the rule wrong for this codebase? ──YES──→ Disable rule globally with team discussion
+    ↓ NO
+Is this a known framework limitation? ──YES──→ Document limitation, suppress with docs link
+    ↓ NO
+Are you sure you can't fix it? ──NO──→ Try harder. Ask for help.
+    ↓ YES (genuinely)
+Suppress with FULL documentation
+```
+
+### Red Flags in Code Review
+
+**Automatically reject PRs with:**
 - `@ts-ignore` / `@ts-expect-error` without detailed comments
-- `eslint-disable` without justification
-- `any` without proof `unknown` won't work
+- `eslint-disable` without justification after `--`
+- `any` without proof that `unknown` won't work
 - `!` (non-null assertion) without safety proof
+- Suppression comments that restate the error instead of explaining why
+- Multiple suppressions in the same file (pattern suggests deeper problem)
+- Suppressions added in same PR as the code (should fix, not suppress)
+
+### Common Rationalizations
+
+| Excuse | Reality |
+|--------|---------|
+| "The type system is wrong" | Usually you're wrong. Prove it with an upstream issue. |
+| "It works at runtime" | TypeScript exists to catch runtime errors. Suppressing defeats the purpose. |
+| "I'll fix it later" | No you won't. Fix it now or document why you can't. |
+| "It's just one line" | One line becomes twenty. Standards exist for a reason. |
+| "The deadline is tomorrow" | Tech debt interest rate is 100% APR. Pay now or pay more later. |
+| "Everyone else does it" | Everyone else has bugs too. |
+| "I don't understand the error" | That's a reason to learn, not suppress. |
+
+### Tracking Suppressions
+
+For codebases with existing suppressions:
+
+```bash
+# Count suppressions (monitor for growth)
+grep -r "@ts-expect-error\|@ts-ignore\|eslint-disable" src/ | wc -l
+
+# Find undocumented suppressions
+grep -rn "@ts-expect-error\|@ts-ignore" src/ | grep -v "http\|Issue:\|TODO:\|Remove when"
+```
+
+Add suppression count to CI metrics. If it's growing, you have a discipline problem.
 
 ---
 
