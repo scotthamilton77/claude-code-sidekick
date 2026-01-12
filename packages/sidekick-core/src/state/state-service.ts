@@ -278,7 +278,7 @@ export class StateService {
       try {
         const content = readFileSync(filePath, 'utf-8')
         const stat = await fs.stat(filePath)
-        const data = JSON.parse(content)
+        const data: unknown = JSON.parse(content)
         this.cache.set(filePath, { data, mtime: stat.mtimeMs })
         this.logger?.debug('Preloaded state file', { file })
       } catch (err) {

@@ -186,18 +186,18 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
     - [ ] Eliminate 90+ duplicated path constructions
     - [ ] Consistent atomic writes and Zod validation
     - [ ] Clean code: no @deprecation, no need to preserve backward compatibility
-  - [ ] **9.3.1 StateService Core** (unified service - merges StateManager)
-    - [ ] Create `StateService` class in `@sidekick/core/src/state/`
-    - [ ] `PathResolver` as package-private internal (not exported)
-    - [ ] Generic `read<T>()` with optional default (throws if missing and no default)
-    - [ ] Generic `write<T>()` with atomic writes (tmp + rename) and Zod validation
-    - [ ] `delete()` and `rename()` for StagingService support
-    - [ ] Optional caching (daemon enables, CLI doesn't)
-    - [ ] `StateNotFoundError` and `StateCorruptError` for error handling
-    - [ ] Corrupt file recovery (move to `.bak`, return default or throw)
-  - [ ] **9.3.2 Add Missing Schemas** (owned by writer packages)
-    - [ ] `SummaryCountdownSchema` in feature-session-summary
-    - [ ] `CompactionHistorySchema` in sidekick-core (+ pruning to last N entries)
+  - [x] **9.3.1 StateService Core** (unified service - merges StateManager) - COMPLETE 2026-01-12
+    - [x] Create `StateService` class in `@sidekick/core/src/state/`
+    - [x] `PathResolver` as package-private internal (not exported)
+    - [x] Generic `read<T>()` with optional default (throws if missing and no default)
+    - [x] Generic `write<T>()` with atomic writes (tmp + rename) and Zod validation
+    - [x] `delete()` and `rename()` for StagingService support
+    - [x] Optional caching (daemon enables, CLI doesn't)
+    - [x] `StateNotFoundError` and `StateCorruptError` for error handling
+    - [x] Corrupt file recovery (move to `.bak`, return default or throw)
+  - [x] **9.3.2 Add Missing Schemas** (owned by writer packages) - COMPLETE 2026-01-12
+    - [x] `SummaryCountdownStateSchema` - already exists in @sidekick/types
+    - [x] `CompactionHistorySchema` in sidekick-core (+ pruning to last N entries)
   - [ ] **9.3.3 Migrate Writers** (priority order - writers define contracts)
     - [ ] TranscriptService - transcript-metrics.json, compaction-history.json
     - [ ] Session summary handlers - session-summary.json, summary-countdown.json

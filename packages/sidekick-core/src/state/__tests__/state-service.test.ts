@@ -518,11 +518,7 @@ describe('StateService', () => {
       writeFileSync(join(stateDir, 'file1.json'), JSON.stringify({ value: 999 }), 'utf-8')
 
       // Reads should return cached values
-      const result1 = await cachedState.read(
-        cachedState.globalStatePath('file1.json'),
-        TestSchema,
-        { value: 0 }
-      )
+      const result1 = await cachedState.read(cachedState.globalStatePath('file1.json'), TestSchema, { value: 0 })
       expect(result1.data.value).toBe(1) // Cached
     })
   })
