@@ -167,9 +167,7 @@ describe('OpenAINativeProvider', () => {
     ).rejects.toBeInstanceOf(RateLimitError)
 
     // Verify retryAfter is correctly parsed
-    const error = await provider
-      .complete({ messages: [{ role: 'user', content: 'Hello' }] })
-      .catch((e) => e)
+    const error = await provider.complete({ messages: [{ role: 'user', content: 'Hello' }] }).catch((e) => e)
     expect(error).toBeInstanceOf(RateLimitError)
     expect(error.retryAfter).toBe(60)
   })
@@ -225,9 +223,7 @@ describe('OpenAINativeProvider', () => {
       logger
     )
 
-    const error = await provider
-      .complete({ messages: [{ role: 'user', content: 'Hello' }] })
-      .catch((e) => e)
+    const error = await provider.complete({ messages: [{ role: 'user', content: 'Hello' }] }).catch((e) => e)
 
     expect(error).toBeInstanceOf(ProviderError)
     expect(error.retryable).toBe(true)
@@ -246,9 +242,7 @@ describe('OpenAINativeProvider', () => {
       logger
     )
 
-    const error = await provider
-      .complete({ messages: [{ role: 'user', content: 'Hello' }] })
-      .catch((e) => e)
+    const error = await provider.complete({ messages: [{ role: 'user', content: 'Hello' }] }).catch((e) => e)
 
     expect(error).toBeInstanceOf(ProviderError)
     expect(error.message).toBe('Network failure')

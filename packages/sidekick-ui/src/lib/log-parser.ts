@@ -366,10 +366,7 @@ export function filterBySessionId(records: ParsedLogRecord[], sessionId: string)
  * @param daemonRecords - Records from sidekickd.log
  * @returns Merged array sorted by timestamp (ascending)
  */
-export function mergeLogStreams(
-  cliRecords: ParsedLogRecord[],
-  daemonRecords: ParsedLogRecord[]
-): ParsedLogRecord[] {
+export function mergeLogStreams(cliRecords: ParsedLogRecord[], daemonRecords: ParsedLogRecord[]): ParsedLogRecord[] {
   const all = [...cliRecords, ...daemonRecords]
 
   // Sort by timestamp (ascending - oldest first)

@@ -212,11 +212,7 @@ const StateInspector: React.FC<StateInspectorProps> = ({
       {/* Health Tab */}
       {activeTab === 'health' && (
         <div className="flex-1 overflow-y-auto p-4">
-          <SystemHealth
-            status={daemonStatus ?? null}
-            isOnline={daemonIsOnline}
-            statusHistory={daemonStatusHistory}
-          />
+          <SystemHealth status={daemonStatus ?? null} isOnline={daemonIsOnline} statusHistory={daemonStatusHistory} />
         </div>
       )}
 

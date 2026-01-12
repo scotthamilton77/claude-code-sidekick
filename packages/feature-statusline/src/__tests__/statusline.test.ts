@@ -310,7 +310,7 @@ describe('Formatter utilities', () => {
       const highBar = formatContextBar(highUsage, false)
 
       // Count filled characters (▓)
-      const countFilled = (s: string) => (s.match(/▓/g) || []).length
+      const countFilled = (s: string): number => (s.match(/▓/g) || []).length
       expect(countFilled(highBar)).toBeGreaterThan(countFilled(lowBar))
     })
 
@@ -386,8 +386,7 @@ describe('getDefaultOverhead', () => {
 
   it('calculates totalOverhead as sum of component values', () => {
     const overhead = getDefaultOverhead()
-    const expectedTotal =
-      overhead.systemPromptTokens + overhead.systemToolsTokens + overhead.autocompactBufferTokens
+    const expectedTotal = overhead.systemPromptTokens + overhead.systemToolsTokens + overhead.autocompactBufferTokens
     expect(overhead.totalOverhead).toBe(expectedTotal)
   })
 

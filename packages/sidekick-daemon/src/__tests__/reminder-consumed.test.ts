@@ -26,7 +26,7 @@ describe('reminder.consumed IPC handler', () => {
     await fs.mkdir(join(tmpDir, '.sidekick'), { recursive: true })
   })
 
-  afterEach(async () => {
+  afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
     if (existsSync(tmpDir)) {

@@ -61,9 +61,7 @@ async function fetchDaemonStatus(): Promise<DaemonStatusWithHealth> {
 const DEFAULT_POLL_INTERVAL = 5000
 const DEFAULT_HISTORY_SIZE = 20
 
-export function useDaemonStatus(
-  config: DaemonStatusConfig = {}
-): DaemonStatusState & DaemonStatusActions {
+export function useDaemonStatus(config: DaemonStatusConfig = {}): DaemonStatusState & DaemonStatusActions {
   const { pollInterval = DEFAULT_POLL_INTERVAL, historySize = DEFAULT_HISTORY_SIZE } = config
 
   // State
