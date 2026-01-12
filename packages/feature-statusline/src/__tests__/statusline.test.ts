@@ -22,7 +22,7 @@ import {
   getThresholdStatus,
   shortenPath,
 } from '../formatter.js'
-import { getDefaultOverhead } from '../context-overhead-reader.js'
+import { getDefaultOverhead, readContextOverhead } from '../context-overhead-reader.js'
 import { createStateReader, discoverPreviousResumeMessage } from '../state-reader.js'
 import { createStatuslineService, type ClaudeCodeStatusInput } from '../statusline-service.js'
 import { DEFAULT_STATUSLINE_CONFIG } from '../types.js'
@@ -151,6 +151,25 @@ describe('Formatter utilities', () => {
 
     it('returns paths under 20 chars as-is even with many segments', () => {
       expect(shortenPath('/a/b/c/d/e')).toBe('/a/b/c/d/e')
+    })
+
+    it('handles single segment path that is too long', () => {
+      // A path like "/verylongsinglesegment" (single slash) that exceeds 20 chars
+      const longSegment = '/this-is-a-super-long-single-segment-path'
+      const result = shortenPath(longSegment)
+      // Should use ellipsis + truncated content
+      expect(result.startsWith('…')).toBe(true)
+      expect(result.length).toBeLessThanOrEqual(20)
+    })
+
+    it('handles single segment without slashes that is too long', () => {
+      // A path without any slashes (just a very long segment name)
+      // This is an edge case for paths like relative names
+      const longSegmentNoSlash = 'this-is-a-very-long-segment-without-any-slashes'
+      const result = shortenPath(longSegmentNoSlash)
+      // Should hard truncate with leading ellipsis
+      expect(result.startsWith('…')).toBe(true)
+      expect(result.length).toBeLessThanOrEqual(20)
     })
   })
 
@@ -396,6 +415,187 @@ describe('getDefaultOverhead', () => {
     expect(overhead.systemToolsTokens).toBeGreaterThan(0)
     expect(overhead.autocompactBufferTokens).toBeGreaterThan(0)
     expect(overhead.totalOverhead).toBeGreaterThan(0)
+  })
+})
+
+describe('readContextOverhead', () => {
+  let userConfigDir: string
+  let projectDir: string
+
+  beforeEach(async () => {
+    userConfigDir = path.join(tmpdir(), `context-overhead-user-${Date.now()}`)
+    projectDir = path.join(tmpdir(), `context-overhead-project-${Date.now()}`)
+    await fs.mkdir(path.join(userConfigDir, 'state'), { recursive: true })
+    await fs.mkdir(path.join(projectDir, '.sidekick', 'state'), { recursive: true })
+  })
+
+  it('returns defaults when no files exist', async () => {
+    const overhead = await readContextOverhead({
+      userConfigDir,
+      projectDir,
+    })
+
+    // Should use defaults when files don't exist
+    expect(overhead.usingDefaults).toBe(true)
+    expect(overhead.systemPromptTokens).toBeGreaterThan(0)
+    expect(overhead.systemToolsTokens).toBeGreaterThan(0)
+    expect(overhead.autocompactBufferTokens).toBeGreaterThan(0)
+  })
+
+  it('reads base metrics from valid file', async () => {
+    // Write valid base metrics file
+    const baseMetrics = {
+      systemPromptTokens: 4000,
+      systemToolsTokens: 20000,
+      autocompactBufferTokens: 50000,
+      capturedAt: Date.now(),
+      capturedFrom: 'context_command',
+      sessionId: 'test-session',
+    }
+    await fs.writeFile(
+      path.join(userConfigDir, 'state', 'baseline-user-context-token-metrics.json'),
+      JSON.stringify(baseMetrics)
+    )
+
+    const overhead = await readContextOverhead({
+      userConfigDir,
+      projectDir,
+    })
+
+    expect(overhead.usingDefaults).toBe(false)
+    expect(overhead.systemPromptTokens).toBe(4000)
+    expect(overhead.systemToolsTokens).toBe(20000)
+    expect(overhead.autocompactBufferTokens).toBe(50000)
+  })
+
+  it('reads project metrics from valid file', async () => {
+    // Write valid project metrics file
+    const projectMetrics = {
+      mcpToolsTokens: 1500,
+      customAgentsTokens: 2000,
+      memoryFilesTokens: 500,
+      lastUpdatedAt: Date.now(),
+    }
+    await fs.writeFile(
+      path.join(projectDir, '.sidekick', 'state', 'baseline-project-context-token-metrics.json'),
+      JSON.stringify(projectMetrics)
+    )
+
+    const overhead = await readContextOverhead({
+      userConfigDir,
+      projectDir,
+    })
+
+    expect(overhead.mcpToolsTokens).toBe(1500)
+    expect(overhead.customAgentsTokens).toBe(2000)
+    expect(overhead.memoryFilesTokens).toBe(500)
+  })
+
+  it('combines base and project metrics into total overhead', async () => {
+    // Write both files
+    const baseMetrics = {
+      systemPromptTokens: 3000,
+      systemToolsTokens: 18000,
+      autocompactBufferTokens: 45000,
+      capturedAt: Date.now(),
+      capturedFrom: 'context_command',
+    }
+    await fs.writeFile(
+      path.join(userConfigDir, 'state', 'baseline-user-context-token-metrics.json'),
+      JSON.stringify(baseMetrics)
+    )
+
+    const projectMetrics = {
+      mcpToolsTokens: 1000,
+      customAgentsTokens: 500,
+      memoryFilesTokens: 200,
+      lastUpdatedAt: Date.now(),
+    }
+    await fs.writeFile(
+      path.join(projectDir, '.sidekick', 'state', 'baseline-project-context-token-metrics.json'),
+      JSON.stringify(projectMetrics)
+    )
+
+    const overhead = await readContextOverhead({
+      userConfigDir,
+      projectDir,
+    })
+
+    // Total = base (3000 + 18000 + 45000) + project (1000 + 500 + 200)
+    const expectedTotal = 3000 + 18000 + 1000 + 500 + 200 + 45000
+    expect(overhead.totalOverhead).toBe(expectedTotal)
+  })
+
+  it('falls back to defaults for invalid base metrics JSON', async () => {
+    await fs.writeFile(path.join(userConfigDir, 'state', 'baseline-user-context-token-metrics.json'), 'not valid json')
+
+    const overhead = await readContextOverhead({
+      userConfigDir,
+      projectDir,
+    })
+
+    expect(overhead.usingDefaults).toBe(true)
+  })
+
+  it('falls back to defaults for schema-invalid base metrics', async () => {
+    // Valid JSON but missing required fields
+    await fs.writeFile(
+      path.join(userConfigDir, 'state', 'baseline-user-context-token-metrics.json'),
+      JSON.stringify({ wrongField: 123 })
+    )
+
+    const overhead = await readContextOverhead({
+      userConfigDir,
+      projectDir,
+    })
+
+    expect(overhead.usingDefaults).toBe(true)
+  })
+
+  it('falls back to defaults for invalid project metrics JSON', async () => {
+    // Write valid base but invalid project
+    const baseMetrics = {
+      systemPromptTokens: 3000,
+      systemToolsTokens: 18000,
+      autocompactBufferTokens: 45000,
+      capturedAt: Date.now(),
+      capturedFrom: 'context_command',
+    }
+    await fs.writeFile(
+      path.join(userConfigDir, 'state', 'baseline-user-context-token-metrics.json'),
+      JSON.stringify(baseMetrics)
+    )
+    await fs.writeFile(
+      path.join(projectDir, '.sidekick', 'state', 'baseline-project-context-token-metrics.json'),
+      'invalid json'
+    )
+
+    const overhead = await readContextOverhead({
+      userConfigDir,
+      projectDir,
+    })
+
+    // Base metrics should be used, project should fall back to defaults
+    expect(overhead.systemPromptTokens).toBe(3000)
+    expect(overhead.mcpToolsTokens).toBe(0) // default project value
+    expect(overhead.customAgentsTokens).toBe(0) // default project value
+  })
+
+  it('falls back to defaults for schema-invalid project metrics', async () => {
+    await fs.writeFile(
+      path.join(projectDir, '.sidekick', 'state', 'baseline-project-context-token-metrics.json'),
+      JSON.stringify({ invalidField: 'test' })
+    )
+
+    const overhead = await readContextOverhead({
+      userConfigDir,
+      projectDir,
+    })
+
+    // Should use default project metrics (0 for all project-specific values)
+    expect(overhead.mcpToolsTokens).toBe(0)
+    expect(overhead.customAgentsTokens).toBe(0)
+    expect(overhead.memoryFilesTokens).toBe(0)
   })
 })
 
@@ -893,6 +1093,17 @@ describe('StateReader', () => {
     expect(result.source).toBe('default')
   })
 
+  it('returns default for schema-invalid transcript metrics', async () => {
+    // Valid JSON but doesn't match PersistedTranscriptStateSchema
+    await fs.writeFile(path.join(testDir, 'transcript-metrics.json'), JSON.stringify({ invalidField: 'value' }))
+
+    const reader = createStateReader(testDir)
+    const result = await reader.getSessionState()
+
+    expect(result.source).toBe('default')
+    expect(result.data.tokens.total).toBe(0)
+  })
+
   it('reads snarky message', async () => {
     await fs.writeFile(path.join(testDir, 'snarky-message.txt'), 'Time to debug!')
 
@@ -901,6 +1112,205 @@ describe('StateReader', () => {
 
     expect(result.source).toBe('fresh')
     expect(result.data).toBe('Time to debug!')
+  })
+
+  it('reads session summary with valid data', async () => {
+    await fs.writeFile(
+      path.join(testDir, 'session-summary.json'),
+      JSON.stringify({
+        session_id: 'test-123',
+        timestamp: new Date().toISOString(),
+        session_title: 'Working on tests',
+        session_title_confidence: 0.85,
+        latest_intent: 'Adding more coverage',
+        latest_intent_confidence: 0.9,
+      })
+    )
+
+    const reader = createStateReader(testDir)
+    const result = await reader.getSessionSummary()
+
+    expect(result.source).toBe('fresh')
+    expect(result.data.session_title).toBe('Working on tests')
+    expect(result.data.latest_intent).toBe('Adding more coverage')
+  })
+
+  it('returns default for schema-invalid session summary', async () => {
+    // Valid JSON but missing required fields
+    await fs.writeFile(path.join(testDir, 'session-summary.json'), JSON.stringify({ wrong_field: 'value' }))
+
+    const reader = createStateReader(testDir)
+    const result = await reader.getSessionSummary()
+
+    expect(result.source).toBe('default')
+  })
+
+  it('reads resume message with valid data', async () => {
+    await fs.writeFile(
+      path.join(testDir, 'resume-message.json'),
+      JSON.stringify({
+        last_task_id: 'task-1',
+        session_title: 'Previous Work',
+        resume_last_goal_message: 'Working on feature',
+        snarky_comment: 'Back for more?',
+        timestamp: new Date().toISOString(),
+      })
+    )
+
+    const reader = createStateReader(testDir)
+    const result = await reader.getResumeMessage()
+
+    expect(result.source).toBe('fresh')
+    expect(result.data?.session_title).toBe('Previous Work')
+    expect(result.data?.snarky_comment).toBe('Back for more?')
+  })
+
+  it('returns default for schema-invalid resume message', async () => {
+    // Valid JSON but missing required fields
+    await fs.writeFile(path.join(testDir, 'resume-message.json'), JSON.stringify({ invalid: true }))
+
+    const reader = createStateReader(testDir)
+    const result = await reader.getResumeMessage()
+
+    expect(result.source).toBe('default')
+    expect(result.data).toBeNull()
+  })
+
+  describe('getLogMetrics', () => {
+    it('returns default when no log files exist', async () => {
+      const reader = createStateReader(testDir)
+      const result = await reader.getLogMetrics()
+
+      expect(result.source).toBe('default')
+      expect(result.data.warningCount).toBe(0)
+      expect(result.data.errorCount).toBe(0)
+    })
+
+    it('reads daemon log metrics from valid file', async () => {
+      await fs.writeFile(
+        path.join(testDir, 'daemon-log-metrics.json'),
+        JSON.stringify({
+          sessionId: 'test-123',
+          warningCount: 5,
+          errorCount: 2,
+          lastUpdatedAt: Date.now(),
+        })
+      )
+
+      const reader = createStateReader(testDir)
+      const result = await reader.getLogMetrics()
+
+      expect(result.source).toBe('fresh')
+      expect(result.data.warningCount).toBe(5)
+      expect(result.data.errorCount).toBe(2)
+    })
+
+    it('reads CLI log metrics and sums with daemon metrics', async () => {
+      await fs.writeFile(
+        path.join(testDir, 'daemon-log-metrics.json'),
+        JSON.stringify({
+          sessionId: 'test-123',
+          warningCount: 3,
+          errorCount: 1,
+          lastUpdatedAt: Date.now(),
+        })
+      )
+      await fs.writeFile(
+        path.join(testDir, 'cli-log-metrics.json'),
+        JSON.stringify({
+          sessionId: 'test-123',
+          warningCount: 2,
+          errorCount: 1,
+          lastUpdatedAt: Date.now(),
+        })
+      )
+
+      const reader = createStateReader(testDir)
+      const result = await reader.getLogMetrics()
+
+      expect(result.source).toBe('fresh')
+      expect(result.data.warningCount).toBe(5) // 3 + 2
+      expect(result.data.errorCount).toBe(2) // 1 + 1
+    })
+
+    it('reads global daemon metrics when projectStateDir is configured', async () => {
+      const projectStateDir = path.join(tmpdir(), `project-state-${Date.now()}-${Math.random().toString(36)}`)
+      await fs.mkdir(projectStateDir, { recursive: true })
+
+      // Write all three files explicitly with distinct values
+      await fs.writeFile(
+        path.join(testDir, 'daemon-log-metrics.json'),
+        JSON.stringify({
+          sessionId: 'test-123',
+          warningCount: 1,
+          errorCount: 1,
+          lastUpdatedAt: Date.now(),
+        })
+      )
+      await fs.writeFile(
+        path.join(testDir, 'cli-log-metrics.json'),
+        JSON.stringify({
+          sessionId: 'test-123',
+          warningCount: 2,
+          errorCount: 0,
+          lastUpdatedAt: Date.now(),
+        })
+      )
+      await fs.writeFile(
+        path.join(projectStateDir, 'daemon-global-log-metrics.json'),
+        JSON.stringify({
+          sessionId: '',
+          warningCount: 3,
+          errorCount: 2,
+          lastUpdatedAt: Date.now(),
+        })
+      )
+
+      const reader = createStateReader(testDir, { projectStateDir })
+      const result = await reader.getLogMetrics()
+
+      expect(result.source).toBe('fresh')
+      expect(result.data.warningCount).toBe(6) // 1 (daemon) + 2 (cli) + 3 (global)
+      expect(result.data.errorCount).toBe(3) // 1 (daemon) + 0 (cli) + 2 (global)
+    })
+
+    it('returns stale when log metrics are old', async () => {
+      const twoMinutesAgo = Date.now() - 120_000
+      await fs.writeFile(
+        path.join(testDir, 'daemon-log-metrics.json'),
+        JSON.stringify({
+          sessionId: 'test-123',
+          warningCount: 1,
+          errorCount: 1,
+          lastUpdatedAt: twoMinutesAgo,
+        })
+      )
+
+      const reader = createStateReader(testDir)
+      const result = await reader.getLogMetrics()
+
+      expect(result.source).toBe('stale')
+    })
+
+    it('returns default for invalid log metrics JSON', async () => {
+      await fs.writeFile(path.join(testDir, 'daemon-log-metrics.json'), 'not valid json')
+
+      const reader = createStateReader(testDir)
+      const result = await reader.getLogMetrics()
+
+      expect(result.source).toBe('default')
+      expect(result.data.warningCount).toBe(0)
+      expect(result.data.errorCount).toBe(0)
+    })
+
+    it('returns default for schema-invalid log metrics', async () => {
+      await fs.writeFile(path.join(testDir, 'daemon-log-metrics.json'), JSON.stringify({ wrongField: 'value' }))
+
+      const reader = createStateReader(testDir)
+      const result = await reader.getLogMetrics()
+
+      expect(result.source).toBe('default')
+    })
   })
 })
 
@@ -912,7 +1322,7 @@ describe('discoverPreviousResumeMessage', () => {
   let sessionsDir: string
 
   beforeEach(async () => {
-    sessionsDir = path.join(tmpdir(), `sessions-test-${Date.now()}`)
+    sessionsDir = path.join(tmpdir(), `sessions-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
     await fs.mkdir(sessionsDir, { recursive: true })
   })
 
@@ -1063,6 +1473,29 @@ describe('discoverPreviousResumeMessage', () => {
     expect(result.sessionId).toBe('with-resume-session')
   })
 
+  it('returns not_found when all sessions have invalid resume messages', async () => {
+    // Create sessions with invalid (schema-mismatch) resume messages
+    const invalidDir1 = path.join(sessionsDir, 'invalid-session-1', 'state')
+    await fs.mkdir(invalidDir1, { recursive: true })
+    await fs.writeFile(
+      path.join(invalidDir1, 'resume-message.json'),
+      JSON.stringify({ wrongField: 'value' }) // Invalid schema
+    )
+
+    const invalidDir2 = path.join(sessionsDir, 'invalid-session-2', 'state')
+    await fs.mkdir(invalidDir2, { recursive: true })
+    await fs.writeFile(
+      path.join(invalidDir2, 'resume-message.json'),
+      JSON.stringify({ anotherWrongField: 123 }) // Invalid schema
+    )
+
+    const result = await discoverPreviousResumeMessage(sessionsDir, 'current-session')
+
+    expect(result.source).toBe('not_found')
+    expect(result.data).toBeNull()
+    expect(result.sessionId).toBeNull()
+  })
+
   it('returns not_found when sessions directory does not exist', async () => {
     const result = await discoverPreviousResumeMessage('/nonexistent/path', 'current')
 
@@ -1120,7 +1553,7 @@ describe('StatuslineService', () => {
   let testDir: string
 
   beforeEach(async () => {
-    testDir = path.join(tmpdir(), `statusline-test-${Date.now()}`)
+    testDir = path.join(tmpdir(), `statusline-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
     await fs.mkdir(testDir, { recursive: true })
   })
 
@@ -1452,6 +1885,595 @@ describe('StatuslineService', () => {
 
       // Should work normally without discovery
       expect(result.displayMode).toBe('empty_summary')
+    })
+  })
+
+  describe('hook input edge cases', () => {
+    it('uses transcript metrics when hook current_usage is null', async () => {
+      // Write transcript metrics with currentContextTokens
+      await fs.writeFile(
+        path.join(testDir, 'transcript-metrics.json'),
+        JSON.stringify({
+          sessionId: 'test-123',
+          metrics: {
+            turnCount: 5,
+            toolsThisTurn: 0,
+            toolCount: 10,
+            messageCount: 10,
+            tokenUsage: {
+              inputTokens: 50000,
+              outputTokens: 20000,
+              totalTokens: 70000,
+              cacheCreationInputTokens: 0,
+              cacheReadInputTokens: 0,
+            },
+            currentContextTokens: 55000,
+            isPostCompactIndeterminate: false,
+            toolsPerTurn: 2,
+            lastProcessedLine: 10,
+            lastUpdatedAt: Date.now(),
+          },
+          persistedAt: Date.now(),
+        })
+      )
+
+      // Create hook input with null current_usage
+      const hookInput: ClaudeCodeStatusInput = {
+        hook_event_name: 'Status',
+        session_id: 'test-session',
+        transcript_path: '/path/to/transcript.json',
+        cwd: '/test',
+        version: '1.0.0',
+        model: { id: 'claude-opus-4-1', display_name: 'Opus' },
+        workspace: { current_dir: '/test', project_dir: '/test' },
+        output_style: { name: 'default' },
+        cost: {
+          total_cost_usd: 0.5,
+          total_duration_ms: 60000,
+          total_api_duration_ms: 30000,
+          total_lines_added: 100,
+          total_lines_removed: 20,
+        },
+        context_window: {
+          total_input_tokens: 50000,
+          total_output_tokens: 20000,
+          context_window_size: 200000,
+          current_usage: null, // null current_usage
+        },
+      }
+
+      const service = createStatuslineService({
+        sessionStateDir: testDir,
+        cwd: '/test',
+        useColors: false,
+        hookInput,
+      })
+
+      const result = await service.render()
+
+      // Should fall back to transcript metrics currentContextTokens
+      expect(result.viewModel.tokens).toContain('55k')
+    })
+
+    it('uses baseline when hook current_usage is zero and no transcript data', async () => {
+      // No transcript metrics file - will return empty state
+      const hookInput: ClaudeCodeStatusInput = {
+        hook_event_name: 'Status',
+        session_id: 'test-session',
+        transcript_path: '/path/to/transcript.json',
+        cwd: '/test',
+        version: '1.0.0',
+        model: { id: 'claude-opus-4-1', display_name: 'Opus' },
+        workspace: { current_dir: '/test', project_dir: '/test' },
+        output_style: { name: 'default' },
+        cost: {
+          total_cost_usd: 0,
+          total_duration_ms: 0,
+          total_api_duration_ms: 0,
+          total_lines_added: 0,
+          total_lines_removed: 0,
+        },
+        context_window: {
+          total_input_tokens: 0,
+          total_output_tokens: 0,
+          context_window_size: 200000,
+          current_usage: {
+            input_tokens: 0,
+            output_tokens: 0,
+            cache_creation_input_tokens: 0,
+            cache_read_input_tokens: 0,
+          },
+        },
+      }
+
+      const service = createStatuslineService({
+        sessionStateDir: testDir,
+        cwd: '/test',
+        useColors: false,
+        hookInput,
+      })
+
+      const result = await service.render()
+
+      // Should use baseline metrics (non-zero tokens from system defaults)
+      expect(result.viewModel.tokens).not.toBe('0|0')
+    })
+
+    it('falls back to baseline when null current_usage and transcript has zero tokens', async () => {
+      // Transcript with zero currentContextTokens
+      await fs.writeFile(
+        path.join(testDir, 'transcript-metrics.json'),
+        JSON.stringify({
+          sessionId: 'test-123',
+          metrics: {
+            turnCount: 0,
+            toolsThisTurn: 0,
+            toolCount: 0,
+            messageCount: 0,
+            tokenUsage: {
+              inputTokens: 0,
+              outputTokens: 0,
+              totalTokens: 0,
+              cacheCreationInputTokens: 0,
+              cacheReadInputTokens: 0,
+            },
+            currentContextTokens: 0,
+            isPostCompactIndeterminate: false,
+            toolsPerTurn: 0,
+            lastProcessedLine: 0,
+            lastUpdatedAt: Date.now(),
+          },
+          persistedAt: Date.now(),
+        })
+      )
+
+      const hookInput: ClaudeCodeStatusInput = {
+        hook_event_name: 'Status',
+        session_id: 'test-session',
+        transcript_path: '/path/to/transcript.json',
+        cwd: '/test',
+        version: '1.0.0',
+        model: { id: 'claude-opus-4-1', display_name: 'Opus' },
+        workspace: { current_dir: '/test', project_dir: '/test' },
+        output_style: { name: 'default' },
+        cost: {
+          total_cost_usd: 0,
+          total_duration_ms: 0,
+          total_api_duration_ms: 0,
+          total_lines_added: 0,
+          total_lines_removed: 0,
+        },
+        context_window: {
+          total_input_tokens: 0,
+          total_output_tokens: 0,
+          context_window_size: 200000,
+          current_usage: null,
+        },
+      }
+
+      const service = createStatuslineService({
+        sessionStateDir: testDir,
+        cwd: '/test',
+        useColors: false,
+        hookInput,
+      })
+
+      const result = await service.render()
+      // Should use baseline (not show 0|0)
+      expect(result.viewModel.tokens).not.toBe('0|0')
+    })
+
+    it('shows post-compact indeterminate status', async () => {
+      // Write transcript with isPostCompactIndeterminate: true
+      // Note: This tests the no-hookInput path since isPostCompactIndeterminate
+      // only comes from transcript metrics state, not from Claude Code hook input
+      await fs.writeFile(
+        path.join(testDir, 'transcript-metrics.json'),
+        JSON.stringify({
+          sessionId: 'test-123',
+          metrics: {
+            turnCount: 1,
+            toolsThisTurn: 0,
+            toolCount: 0,
+            messageCount: 1,
+            tokenUsage: {
+              inputTokens: 1000,
+              outputTokens: 0,
+              totalTokens: 1000,
+              cacheCreationInputTokens: 0,
+              cacheReadInputTokens: 0,
+            },
+            currentContextTokens: 1000,
+            isPostCompactIndeterminate: true,
+            toolsPerTurn: 0,
+            lastProcessedLine: 1,
+            lastUpdatedAt: Date.now(),
+          },
+          persistedAt: Date.now(),
+        })
+      )
+
+      // No hookInput - uses transcript state directly which includes isPostCompactIndeterminate
+      const service = createStatuslineService({
+        sessionStateDir: testDir,
+        cwd: '/test',
+        useColors: false,
+        // No hookInput
+      })
+
+      const result = await service.render()
+
+      expect(result.viewModel.tokens).toBe('⟳ compacted')
+      expect(result.viewModel.tokensStatus).toBe('normal')
+    })
+  })
+
+  describe('stale indicator with colors', () => {
+    it('applies dim ANSI formatting to stale indicator when colors enabled', async () => {
+      const twoMinutesAgo = Date.now() - 120_000
+      await fs.writeFile(
+        path.join(testDir, 'transcript-metrics.json'),
+        JSON.stringify({
+          sessionId: 'test-123',
+          metrics: {
+            turnCount: 1,
+            toolsThisTurn: 0,
+            toolCount: 0,
+            messageCount: 1,
+            tokenUsage: {
+              inputTokens: 1000,
+              outputTokens: 0,
+              totalTokens: 1000,
+              cacheCreationInputTokens: 0,
+              cacheReadInputTokens: 0,
+            },
+            currentContextTokens: 1000,
+            isPostCompactIndeterminate: false,
+            toolsPerTurn: 0,
+            lastProcessedLine: 1,
+            lastUpdatedAt: twoMinutesAgo,
+          },
+          persistedAt: twoMinutesAgo,
+        })
+      )
+
+      const service = createStatuslineService({
+        sessionStateDir: testDir,
+        cwd: '/test',
+        useColors: true, // Enable colors
+      })
+
+      const result = await service.render()
+
+      expect(result.staleData).toBe(true)
+      // Should have dim ANSI code for stale indicator
+      expect(result.text).toContain('\x1b[2m(stale)\x1b[0m')
+    })
+  })
+
+  describe('configService usage', () => {
+    it('uses configService settings when provided', async () => {
+      const mockConfigService = {
+        getFeature: <T>(name: string): { settings: T } => {
+          if (name === 'statusline') {
+            return {
+              settings: {
+                theme: {
+                  ...DEFAULT_STATUSLINE_CONFIG.theme,
+                  useNerdFonts: true,
+                },
+              } as T,
+            }
+          }
+          return { settings: {} as T }
+        },
+      }
+
+      const service = createStatuslineService({
+        sessionStateDir: testDir,
+        cwd: '/test',
+        useColors: false,
+        configService: mockConfigService,
+      })
+
+      const result = await service.render()
+      expect(result.displayMode).toBe('empty_summary')
+    })
+  })
+
+  describe('log status in viewModel', () => {
+    it('shows critical log status when errors exceed threshold', async () => {
+      await fs.writeFile(
+        path.join(testDir, 'daemon-log-metrics.json'),
+        JSON.stringify({
+          sessionId: 'test-123',
+          warningCount: 0,
+          errorCount: 5, // Above default critical threshold of 1
+          lastUpdatedAt: Date.now(),
+        })
+      )
+
+      const service = createStatuslineService({
+        sessionStateDir: testDir,
+        cwd: '/test',
+        useColors: false,
+        hookInput: createTestHookInput({}),
+      })
+
+      const result = await service.render()
+
+      expect(result.viewModel.logStatus).toBe('critical')
+      expect(result.viewModel.errorCount).toBe(5)
+    })
+
+    it('shows warning log status when warnings exceed threshold', async () => {
+      await fs.writeFile(
+        path.join(testDir, 'daemon-log-metrics.json'),
+        JSON.stringify({
+          sessionId: 'test-123',
+          warningCount: 10, // Above default warning threshold
+          errorCount: 0,
+          lastUpdatedAt: Date.now(),
+        })
+      )
+
+      const service = createStatuslineService({
+        sessionStateDir: testDir,
+        cwd: '/test',
+        useColors: false,
+        hookInput: createTestHookInput({}),
+      })
+
+      const result = await service.render()
+
+      expect(result.viewModel.logStatus).toBe('warning')
+      expect(result.viewModel.warningCount).toBe(10)
+    })
+  })
+
+  describe('logger debug output', () => {
+    /** Create a mock logger that captures debug messages */
+    // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
+    function createMockLogger() {
+      const logMessages: string[] = []
+
+      const mockLogger: any = {
+        debug: (msg: string) => {
+          logMessages.push(msg)
+        },
+        info: () => {},
+        warn: () => {},
+        error: () => {},
+        trace: () => {},
+        fatal: () => {},
+        child: () => mockLogger,
+        flush: async () => {},
+      }
+      return { logger: mockLogger, messages: logMessages }
+    }
+
+    it('logs baseline metrics when using baseline fallback', async () => {
+      const { logger: mockLogger, messages: logMessages } = createMockLogger()
+
+      // Hook input with zero tokens - will trigger baseline fallback
+      const service = createStatuslineService({
+        sessionStateDir: testDir,
+        cwd: '/test',
+        useColors: false,
+        logger: mockLogger,
+        hookInput: createTestHookInput({
+          totalInputTokens: 0,
+          totalOutputTokens: 0,
+        }),
+      })
+
+      await service.render()
+
+      // Should have logged about token calculation
+      expect(logMessages.some((m) => m.includes('token calculation'))).toBe(true)
+    })
+
+    it('logs transcript metrics when falling back to transcript data', async () => {
+      const { logger: mockLogger, messages: logMessages } = createMockLogger()
+
+      // Write transcript with currentContextTokens
+      await fs.writeFile(
+        path.join(testDir, 'transcript-metrics.json'),
+        JSON.stringify({
+          sessionId: 'test-123',
+          metrics: {
+            turnCount: 1,
+            toolsThisTurn: 0,
+            toolCount: 0,
+            messageCount: 1,
+            tokenUsage: {
+              inputTokens: 30000,
+              outputTokens: 10000,
+              totalTokens: 40000,
+              cacheCreationInputTokens: 0,
+              cacheReadInputTokens: 0,
+            },
+            currentContextTokens: 35000,
+            isPostCompactIndeterminate: false,
+            toolsPerTurn: 0,
+            lastProcessedLine: 1,
+            lastUpdatedAt: Date.now(),
+          },
+          persistedAt: Date.now(),
+        })
+      )
+
+      // Hook input with null current_usage - will fall back to transcript
+      const hookInput: ClaudeCodeStatusInput = {
+        hook_event_name: 'Status',
+        session_id: 'test-session',
+        transcript_path: '/path/to/transcript.json',
+        cwd: '/test',
+        version: '1.0.0',
+        model: { id: 'claude-opus-4-1', display_name: 'Opus' },
+        workspace: { current_dir: '/test', project_dir: '/test' },
+        output_style: { name: 'default' },
+        cost: {
+          total_cost_usd: 0,
+          total_duration_ms: 0,
+          total_api_duration_ms: 0,
+          total_lines_added: 0,
+          total_lines_removed: 0,
+        },
+        context_window: {
+          total_input_tokens: 0,
+          total_output_tokens: 0,
+          context_window_size: 200000,
+          current_usage: null,
+        },
+      }
+
+      const service = createStatuslineService({
+        sessionStateDir: testDir,
+        cwd: '/test',
+        useColors: false,
+        logger: mockLogger,
+        hookInput,
+      })
+
+      await service.render()
+
+      // Should have logged about token calculation
+      expect(logMessages.some((m) => m.includes('token calculation'))).toBe(true)
+    })
+  })
+
+  describe('resume message edge cases', () => {
+    it('uses default title when resume message has no session_title', async () => {
+      await fs.writeFile(
+        path.join(testDir, 'resume-message.json'),
+        JSON.stringify({
+          last_task_id: 'task-1',
+          session_title: '', // Empty session title
+          resume_last_goal_message: 'Working on feature',
+          snarky_comment: 'Welcome back!',
+          timestamp: new Date().toISOString(),
+        })
+      )
+
+      const service = createStatuslineService({
+        sessionStateDir: testDir,
+        cwd: '/test',
+        useColors: false,
+        isResumedSession: true,
+      })
+
+      const result = await service.render()
+
+      expect(result.displayMode).toBe('resume_message')
+      expect(result.viewModel.title).toBe('New Session') // Falls back to default
+      expect(result.viewModel.summary).toBe('Welcome back!')
+    })
+
+    it('uses emptySessionMessage when resume has no snarky_comment', async () => {
+      await fs.writeFile(
+        path.join(testDir, 'resume-message.json'),
+        JSON.stringify({
+          last_task_id: 'task-1',
+          session_title: 'Previous Work',
+          resume_last_goal_message: 'Working on feature',
+          snarky_comment: '', // Empty snarky comment
+          timestamp: new Date().toISOString(),
+        })
+      )
+
+      const service = createStatuslineService({
+        sessionStateDir: testDir,
+        cwd: '/test',
+        useColors: false,
+        isResumedSession: true,
+      })
+
+      const result = await service.render()
+
+      expect(result.displayMode).toBe('resume_message')
+      // Summary should fall back to emptySessionMessage (default: "New Session")
+      expect(result.viewModel.summary).toBe('New Session')
+    })
+  })
+
+  describe('display mode determination', () => {
+    it('returns session_summary when title matches DEFAULT_PLACEHOLDERS.newSession', async () => {
+      // Session summary with "New Session" title should still be treated as empty
+      await fs.writeFile(
+        path.join(testDir, 'session-summary.json'),
+        JSON.stringify({
+          session_id: 'test-123',
+          timestamp: new Date().toISOString(),
+          session_title: 'New Session',
+          session_title_confidence: 0,
+          latest_intent: 'Awaiting first turn...',
+          latest_intent_confidence: 0,
+        })
+      )
+
+      const service = createStatuslineService({
+        sessionStateDir: testDir,
+        cwd: '/test',
+        useColors: false,
+      })
+
+      const result = await service.render()
+
+      // Should be empty_summary because title is placeholder
+      expect(result.displayMode).toBe('empty_summary')
+    })
+
+    it('returns resume_message when resumed session has resume message', async () => {
+      await fs.writeFile(
+        path.join(testDir, 'resume-message.json'),
+        JSON.stringify({
+          last_task_id: 'task-1',
+          session_title: 'Previous Work',
+          resume_last_goal_message: 'Working on feature',
+          snarky_comment: 'Welcome back!',
+          timestamp: new Date().toISOString(),
+        })
+      )
+
+      const service = createStatuslineService({
+        sessionStateDir: testDir,
+        cwd: '/test',
+        useColors: false,
+        isResumedSession: true, // Mark as resumed
+      })
+
+      const result = await service.render()
+
+      expect(result.displayMode).toBe('resume_message')
+      expect(result.viewModel.title).toBe('Last Session: Previous Work')
+      expect(result.viewModel.summary).toBe('Welcome back!')
+    })
+
+    it('shows latest_intent when no snarky message available', async () => {
+      await fs.writeFile(
+        path.join(testDir, 'session-summary.json'),
+        JSON.stringify({
+          session_id: 'test-123',
+          timestamp: new Date().toISOString(),
+          session_title: 'Auth Bug Fix',
+          session_title_confidence: 0.9,
+          latest_intent: 'Debugging authentication flow',
+          latest_intent_confidence: 0.85,
+        })
+      )
+      // No snarky-message.txt file
+
+      const service = createStatuslineService({
+        sessionStateDir: testDir,
+        cwd: '/test',
+        useColors: false,
+      })
+
+      const result = await service.render()
+
+      expect(result.displayMode).toBe('session_summary')
+      expect(result.viewModel.summary).toBe('Debugging authentication flow')
     })
   })
 
