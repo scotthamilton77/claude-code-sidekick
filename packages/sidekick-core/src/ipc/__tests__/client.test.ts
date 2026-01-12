@@ -60,9 +60,7 @@ class FakeSocket extends Duplex {
 /**
  * Creates a connected IpcClient with a fake socket for testing
  */
-function createConnectedClient(
-  logger: Logger
-): { client: IpcClient; socket: FakeSocket } {
+function createConnectedClient(logger: Logger): { client: IpcClient; socket: FakeSocket } {
   const socket = new FakeSocket()
   const client = new IpcClient('/fake/socket.sock', logger)
 
@@ -71,7 +69,10 @@ function createConnectedClient(
     socket: FakeSocket | null
     setupListeners: () => void
     handleResponse: (message: string) => void
-    pendingRequests: Map<string | number, { resolve: (val: unknown) => void; reject: (err: Error) => void; timer: NodeJS.Timeout }>
+    pendingRequests: Map<
+      string | number,
+      { resolve: (val: unknown) => void; reject: (err: Error) => void; timer: NodeJS.Timeout }
+    >
     nextId: number
   }
 
@@ -420,7 +421,7 @@ describe('IpcClient', () => {
       expect(clearTimeoutSpy).toHaveBeenCalled()
     })
 
-    it('sets socket to null on close', async () => {
+    it('sets socket to null on close', () => {
       const { client, socket } = createConnectedClient(logger)
 
       expect(client.isConnected()).toBe(true)
@@ -627,7 +628,7 @@ describe('IpcClient', () => {
 
       const sleepPromise = sleep(100)
       let resolved = false
-      sleepPromise.then(() => {
+      void sleepPromise.then(() => {
         resolved = true
       })
 

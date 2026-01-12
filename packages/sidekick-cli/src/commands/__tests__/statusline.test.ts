@@ -33,7 +33,16 @@ vi.mock('@sidekick/feature-statusline', () => ({
 }))
 
 // Create fake logger - record calls but don't verify them (behavior testing)
-function createFakeLogger() {
+function createFakeLogger(): {
+  trace: ReturnType<typeof vi.fn>
+  debug: ReturnType<typeof vi.fn>
+  info: ReturnType<typeof vi.fn>
+  warn: ReturnType<typeof vi.fn>
+  error: ReturnType<typeof vi.fn>
+  fatal: ReturnType<typeof vi.fn>
+  child: ReturnType<typeof vi.fn>
+  flush: ReturnType<typeof vi.fn>
+} {
   return {
     trace: vi.fn(),
     debug: vi.fn(),

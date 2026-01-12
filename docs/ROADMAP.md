@@ -180,35 +180,49 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
     - [x] Prioritized backlog for 9.3-9.6 phases
 
 - [ ] **9.3 State Management Infrastructure** (foundational - informed by 9.2.4 findings)
+  - Design: [docs/plans/2026-01-12-state-service-design.md](./plans/2026-01-12-state-service-design.md)
   - [ ] Objectives
     - [ ] Centralize state access behind clean abstractions
     - [ ] Eliminate 90+ duplicated path constructions
     - [ ] Consistent atomic writes and Zod validation
-  - [ ] **9.3.1 PathResolver Service** (highest priority - 90+ duplications)
-    - [ ] Create `PathResolver` in `@sidekick/core` with named accessors for all state files
-    - [ ] Single source of truth for: `.sidekick/state/*`, `.sidekick/sessions/*/state/*`, `.sidekick/sessions/*/stage/*`
-    - [ ] Type-safe session ID handling
-  - [ ] **9.3.2 StateWriter Interface**
-    - [ ] Atomic write guarantee (tmp + rename pattern)
-    - [ ] Zod validation on read
-    - [ ] Corrupt file recovery
-    - [ ] Clear "missing = default" vs "missing = error" contract
-  - [ ] **9.3.3 Add Missing Schemas**
-    - [ ] `summary-countdown.json` schema
-    - [ ] `compaction-history.json` schema (+ pruning to last N entries)
-  - [ ] **9.3.4 Migrate Existing Access**
-    - [ ] Replace direct file access with StateWriter
-    - [ ] Migrate session-summary.json (currently accessed from 5+ locations)
-    - [ ] Migrate TranscriptService writes to use atomic pattern
+    - [ ] Clean code: no @deprecation, no need to preserve backward compatibility
+  - [ ] **9.3.1 StateService Core** (unified service - merges StateManager)
+    - [ ] Create `StateService` class in `@sidekick/core/src/state/`
+    - [ ] `PathResolver` as package-private internal (not exported)
+    - [ ] Generic `read<T>()` with optional default (throws if missing and no default)
+    - [ ] Generic `write<T>()` with atomic writes (tmp + rename) and Zod validation
+    - [ ] `delete()` and `rename()` for StagingService support
+    - [ ] Optional caching (daemon enables, CLI doesn't)
+    - [ ] `StateNotFoundError` and `StateCorruptError` for error handling
+    - [ ] Corrupt file recovery (move to `.bak`, return default or throw)
+  - [ ] **9.3.2 Add Missing Schemas** (owned by writer packages)
+    - [ ] `SummaryCountdownSchema` in feature-session-summary
+    - [ ] `CompactionHistorySchema` in sidekick-core (+ pruning to last N entries)
+  - [ ] **9.3.3 Migrate Writers** (priority order - writers define contracts)
+    - [ ] TranscriptService - transcript-metrics.json, compaction-history.json
+    - [ ] Session summary handlers - session-summary.json, summary-countdown.json
+    - [ ] Daemon IPC handlers - pr-baseline.json, vc-unverified.json, log metrics
+    - [ ] StagingService - delegate to StateService
+  - [ ] **9.3.4 Migrate Readers**
+    - [ ] StateReader (feature-statusline) - becomes thin session-scoped wrapper
+    - [ ] UI handlers - use StateService for API endpoints
+    - [ ] Resume feature - discoverPreviousResumeMessage()
+  - [ ] **9.3.5 Cleanup**
+    - [ ] Delete `StateManager` from sidekick-daemon (merged into StateService)
+    - [ ] Remove `DerivedPaths` from config.ts (replaced by StateService path accessors)
+    - [ ] Simplify `StateReader` to thin wrapper using composition pattern
   - [ ] Acceptance criteria
-    - [ ] No direct path construction outside PathResolver
+    - [ ] Single `StateService` instance per process (DI pattern)
     - [ ] All state writes use atomic pattern
     - [ ] Schema validation on all state reads
+    - [ ] Domain packages own their schemas and filenames
+    - [ ] No direct path construction outside StateService
 
 - [ ] **9.4 Config Source-of-Truth** (lower priority - no issues found in 9.2)
   - [ ] Objectives
     - [ ] YAML files are single source of truth for defaults
     - [ ] Prevent configuration drift
+    - [ ] Clean code: no @deprecation, no need to preserve backward compatibility
   - [ ] **9.4.1 Audit & Establish Source of Truth**
     - [ ] Find all Zod schemas with `.default()` calls
     - [ ] Ensure all defaults exist in YAML files in `assets/sidekick/defaults/`
@@ -223,6 +237,7 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
   - [ ] Objectives
     - [ ] Move remaining feature code from daemon.ts to feature packages
     - [ ] Note: 9.2.1 audit found handler architecture is already Grade A - no structural refactoring needed
+    - [ ] Clean code: no @deprecation, no need to preserve backward compatibility
   - [ ] **9.5.1 Move Reminder State Logic from Daemon** (from 9.2.2 findings)
     - [ ] Move P&R baseline management (`pr-baseline.json` writes) from daemon.ts:624 to feature-reminders handler
     - [ ] Move VC state management (`vc-unverified.json`, IPC handlers) from daemon.ts:642-705 to feature-reminders
@@ -242,6 +257,7 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
   - [ ] Objectives
     - [ ] Centralize 4 cross-reminder rules currently scattered across handlers
     - [ ] Replace scattered `deleteReminder()` calls with declarative rule engine
+    - [ ] Clean code: no @deprecation, no need to preserve backward compatibility
   - [ ] **9.6.1 Design Rule Engine**
     - [ ] `ReminderOrchestrator` in `feature-reminders` with declarative rules:
       - Rule 1: P&R staged → unstage VC (cascade prevention)
@@ -263,6 +279,7 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
   - [ ] Objectives
     - [ ] Remove deprecated APIs and resolve remaining FIXMEs
     - [ ] Documentation matches implementation
+    - [ ] Clean code: no @deprecation, no need to preserve backward compatibility
   - [ ] **9.7.1 Remove Deprecated APIs** (from 9.2.5 scan - 7 items)
     - [ ] Remove `initialize()` → use `prepare()` + `start()` pattern (3 locations)
     - [ ] Remove `getTranscriptService()` → use `prepareTranscriptService()` (2 locations)

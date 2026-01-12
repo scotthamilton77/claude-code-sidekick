@@ -26,7 +26,14 @@ class CollectingWritable extends Writable {
 }
 
 // Create a fake child process that emits events
-function createFakeChildProcess() {
+function createFakeChildProcess(): EventEmitter & {
+  pid: number
+  exitCode: number | null
+  stdout: EventEmitter | null
+  stderr: EventEmitter | null
+  kill: ReturnType<typeof vi.fn>
+  unref: ReturnType<typeof vi.fn>
+} {
   const proc = new EventEmitter() as EventEmitter & {
     pid: number
     exitCode: number | null
@@ -78,7 +85,16 @@ vi.mock('node:child_process', () => ({
 }))
 
 // Create fake logger
-function createFakeLogger() {
+function createFakeLogger(): {
+  trace: ReturnType<typeof vi.fn>
+  debug: ReturnType<typeof vi.fn>
+  info: ReturnType<typeof vi.fn>
+  warn: ReturnType<typeof vi.fn>
+  error: ReturnType<typeof vi.fn>
+  fatal: ReturnType<typeof vi.fn>
+  child: ReturnType<typeof vi.fn>
+  flush: ReturnType<typeof vi.fn>
+} {
   return {
     trace: vi.fn(),
     debug: vi.fn(),
@@ -99,7 +115,7 @@ describe('handleUiCommand', () => {
   const signalHandlers: Map<string, () => void> = new Map()
 
   // Helper to get the server process (first spawned)
-  const getServerProcess = () => getSpawnedProcesses()[0]
+  const getServerProcess = (): ReturnType<typeof createFakeChildProcess> => getSpawnedProcesses()[0]
 
   beforeEach(() => {
     stdout = new CollectingWritable()

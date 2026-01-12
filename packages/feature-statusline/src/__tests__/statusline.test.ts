@@ -1536,7 +1536,9 @@ describe('StateReader', () => {
     })
 
     it('returns default for invalid log metrics JSON', async () => {
+      // Write invalid JSON to both log metrics files to ensure combined result is 'default'
       await fs.writeFile(path.join(testDir, 'daemon-log-metrics.json'), 'not valid json')
+      await fs.writeFile(path.join(testDir, 'cli-log-metrics.json'), 'not valid json')
 
       const reader = createStateReader(testDir)
       const result = await reader.getLogMetrics()
