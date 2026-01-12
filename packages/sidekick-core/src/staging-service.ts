@@ -2,7 +2,7 @@
  * Staging Service Implementation
  *
  * Implements the StagingService interface for atomic file staging of reminders.
- * This service is used by the Supervisor to stage reminders that will be
+ * This service is used by the Daemon to stage reminders that will be
  * consumed by the CLI on subsequent hook invocations.
  *
  * Architecture:

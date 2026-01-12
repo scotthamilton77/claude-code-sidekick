@@ -6,7 +6,7 @@ External YAML defaults loaded as the base layer of the configuration cascade.
 
 ```
 defaults/
-├── core.defaults.yaml                 # Logging, paths, supervisor, IPC
+├── core.defaults.yaml                 # Logging, paths, daemon, IPC
 ├── llm.defaults.yaml                  # LLM provider settings
 ├── transcript.defaults.yaml           # Transcript processing
 └── features/

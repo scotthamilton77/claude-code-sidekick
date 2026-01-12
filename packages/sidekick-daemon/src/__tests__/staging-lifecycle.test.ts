@@ -1,14 +1,14 @@
 /**
  * Staging Lifecycle Tests
  *
- * Tests for Phase 5.4 StagingService integration with Supervisor:
+ * Tests for Phase 5.4 StagingService integration with Daemon:
  * - Initialize StagingService on SessionStart
  * - Clean staging directories on SessionStart (startup|clear)
  * - Preserve staging on resume
  *
  * NOTE: These tests use @sidekick/core StagingService classes directly.
  * They exist here to verify staging lifecycle behaviors as they relate to
- * Supervisor session management (startup, resume, clear). Pure unit tests
+ * Daemon session management (startup, resume, clear). Pure unit tests
  * for StagingServiceCore APIs belong in @sidekick/core.
  *
  * @see docs/design/flow.md §2.2 Staging Pattern
@@ -183,7 +183,7 @@ describe('Staging Lifecycle', () => {
       const core = new StagingServiceCore({ stateDir: testDir, logger, scope: 'project' })
       const service = new SessionScopedStagingService(core, sessionId, 'project')
 
-      // Simulate the pattern used in Supervisor
+      // Simulate the pattern used in Daemon
       const getStagingService = (): SessionScopedStagingService => service
 
       // Handler can access staging

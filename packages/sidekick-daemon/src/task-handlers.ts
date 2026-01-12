@@ -4,7 +4,7 @@
  * Registers handlers for the standard task types:
  * - cleanup: Prune old session data
  *
- * @see docs/design/SUPERVISOR.md §4.3 Task Execution Engine
+ * @see docs/design/DAEMON.md §4.3 Task Execution Engine
  */
 
 import { Logger, SidekickConfig, TaskTypes } from '@sidekick/core'
@@ -16,7 +16,7 @@ import { createTaskRegistry } from './task-registry.js'
 
 /**
  * Register standard task handlers with the TaskEngine.
- * Call this during supervisor initialization.
+ * Call this during daemon initialization.
  */
 export function registerStandardTaskHandlers(
   taskEngine: TaskEngine,
@@ -44,5 +44,5 @@ export function registerStandardTaskHandlers(
   })
 }
 
-// Re-export TaskRegistry and factory for use by supervisor
+// Re-export TaskRegistry and factory for use by daemon
 export { createTaskRegistry, TaskRegistry } from './task-registry.js'

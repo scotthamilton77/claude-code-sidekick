@@ -91,7 +91,7 @@ export const CoreConfigSchema = z.object({
     state: z.string().default(".sidekick"),  // Base path for session state
     assets: z.string().optional(),            // Custom assets path override
   }),
-  supervisor: z.object({
+  daemon: z.object({
     idleTimeoutMs: z.number().default(300000),      // Auto-shutdown after 5 min idle
     shutdownTimeoutMs: z.number().default(30000),   // Grace period for in-flight tasks
   }).optional(),
@@ -100,7 +100,7 @@ export const CoreConfigSchema = z.object({
 export type CoreConfig = z.infer<typeof CoreConfigSchema>;
 ```
 
-**Note**: Supervisor settings are optional; defaults apply when supervisor is spawned. See `docs/design/CLI.md §7` and `docs/design/SUPERVISOR.md §2` for lifecycle details.
+**Note**: Daemon settings are optional; defaults apply when daemon is spawned. See `docs/design/CLI.md §7` and `docs/design/DAEMON.md §2` for lifecycle details.
 
 ### 5.2 LLM Config Schema
 
@@ -306,8 +306,8 @@ logging:
 paths:
   state: .sidekick
 
-# Supervisor settings (optional - defaults shown)
-supervisor:
+# Daemon settings (optional - defaults shown)
+daemon:
   idleTimeoutMs: 300000     # 5 minutes
   shutdownTimeoutMs: 30000  # 30 seconds
 ```
@@ -366,7 +366,7 @@ info: Project config overrides loaded { source: ".sidekick/sidekick.config", ove
 
 ### 10.2 Hot-Reload Logging
 
-When configuration files change and the supervisor reloads config, the following is logged:
+When configuration files change and the daemon reloads config, the following is logged:
 
 | Level | Condition | Message |
 |-------|-----------|---------|
@@ -393,7 +393,7 @@ const configService = createConfigService({
 });
 ```
 
-Hot-reload logging uses the supervisor's logger automatically.
+Hot-reload logging uses the daemon's logger automatically.
 
 ## 11. Internal Implementation Details
 
@@ -409,5 +409,5 @@ The following are internal implementation concerns, not exposed via configuratio
 - **Unified config convenience**: `sidekick.config` provides quick bash-style overrides without editing multiple files.
 - **Feature-specific schemas in feature LLDs**: Feature settings schemas live in their respective feature docs, not here.
 - **Derived vs. configurable paths**: Session/staging paths derived from `paths.state`; internal structure is not configurable.
-- **Supervisor in core domain**: Supervisor settings (`idleTimeoutMs`, `shutdownTimeoutMs`) live in CoreConfig as they are operational/runtime concerns alongside logging and paths.
+- **Daemon in core domain**: Daemon settings (`idleTimeoutMs`, `shutdownTimeoutMs`) live in CoreConfig as they are operational/runtime concerns alongside logging and paths.
 - **Hot reloading**: ConfigService watches domain files and `sidekick.config` for changes. On file change, the entire config is reloaded and atomically replaced. Consumers must not cache config values or references—always access via `configService.{domain}` accessors. File watching uses chokidar with debouncing to avoid thrashing on rapid edits.

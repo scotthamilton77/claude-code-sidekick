@@ -326,40 +326,40 @@ do_status() {
   done
 }
 
-# Clean up logs, kill supervisor, check for zombies
+# Clean up logs, kill daemon, check for zombies
 do_clean() {
   log_step "Cleaning up sidekick state..."
 
   local sidekick_dir="${PROJECT_ROOT}/.sidekick"
   local logs_dir="${sidekick_dir}/logs"
-  local pid_file="${sidekick_dir}/supervisor.pid"
-  local socket_file="${sidekick_dir}/supervisor.sock"
-  local token_file="${sidekick_dir}/supervisor.token"
-  local user_supervisors_dir="${HOME}/.sidekick/supervisors"
+  local pid_file="${sidekick_dir}/daemon.pid"
+  local socket_file="${sidekick_dir}/daemon.sock"
+  local token_file="${sidekick_dir}/daemon.token"
+  local user_daemons_dir="${HOME}/.sidekick/daemons"
 
-  # 1. Kill project-local supervisor if running
+  # 1. Kill project-local daemon if running
   if [[ -f "${pid_file}" ]]; then
     local pid
     pid=$(cat "${pid_file}" 2>/dev/null || echo "")
     if [[ -n "${pid}" ]] && kill -0 "${pid}" 2>/dev/null; then
-      log_info "Killing project supervisor (PID ${pid})..."
+      log_info "Killing project daemon (PID ${pid})..."
       kill "${pid}" 2>/dev/null || true
       sleep 0.5
       # Force kill if still alive
       if kill -0 "${pid}" 2>/dev/null; then
-        log_warn "Supervisor didn't stop gracefully, sending SIGKILL..."
+        log_warn "Daemon didn't stop gracefully, sending SIGKILL..."
         kill -9 "${pid}" 2>/dev/null || true
       fi
-      log_info "Supervisor killed"
+      log_info "Daemon killed"
     else
-      log_info "No running supervisor found for this project"
+      log_info "No running daemon found for this project"
     fi
     rm -f "${pid_file}"
   else
-    log_info "No supervisor PID file found"
+    log_info "No daemon PID file found"
   fi
 
-  # Clean up supervisor files
+  # Clean up daemon files
   rm -f "${socket_file}" "${token_file}" 2>/dev/null || true
 
   # 2. Truncate or delete log files
@@ -377,16 +377,16 @@ do_clean() {
     log_info "No logs directory found"
   fi
 
-  # 3. Check for zombie supervisor processes
+  # 3. Check for zombie daemon processes
   echo ""
-  log_step "Checking for zombie supervisor processes..."
+  log_step "Checking for zombie daemon processes..."
 
   local zombies=()
   local zombie_info=()
 
   # Method 1: Check user-level PID files
-  if [[ -d "${user_supervisors_dir}" ]]; then
-    for pid_file in "${user_supervisors_dir}"/*.pid; do
+  if [[ -d "${user_daemons_dir}" ]]; then
+    for pid_file in "${user_daemons_dir}"/*.pid; do
       [[ -f "${pid_file}" ]] || continue
 
       # Parse JSON pid file
@@ -406,9 +406,9 @@ do_clean() {
     done
   fi
 
-  # Method 2: Find any sidekick-supervisor processes via pgrep
+  # Method 2: Find any sidekickd processes via pgrep
   local pgrep_pids
-  pgrep_pids=$(pgrep -f "sidekick-supervisor" 2>/dev/null || true)
+  pgrep_pids=$(pgrep -f "sidekickd" 2>/dev/null || true)
   if [[ -n "${pgrep_pids}" ]]; then
     while IFS= read -r pid; do
       # Skip if already in our list
@@ -431,10 +431,10 @@ do_clean() {
   fi
 
   if [[ ${#zombies[@]} -eq 0 ]]; then
-    log_info "No zombie supervisor processes found"
+    log_info "No zombie daemon processes found"
   else
     echo ""
-    echo -e "${YELLOW}Found ${#zombies[@]} potential zombie supervisor process(es):${NC}"
+    echo -e "${YELLOW}Found ${#zombies[@]} potential zombie daemon process(es):${NC}"
     for info in "${zombie_info[@]}"; do
       echo "  - ${info}"
     done
@@ -454,8 +454,8 @@ do_clean() {
         log_info "Zombie processes killed"
 
         # Clean up user-level PID files
-        if [[ -d "${user_supervisors_dir}" ]]; then
-          rm -f "${user_supervisors_dir}"/*.pid 2>/dev/null || true
+        if [[ -d "${user_daemons_dir}" ]]; then
+          rm -f "${user_daemons_dir}"/*.pid 2>/dev/null || true
         fi
         ;;
       *)
@@ -507,15 +507,15 @@ do_clean_all() {
     log_info "No sessions directory found"
   fi
 
-  # Clean state directory (except supervisor-status.json which is just status info)
+  # Clean state directory (except daemon-status.json which is just status info)
   if [[ -d "${state_dir}" ]]; then
     local state_files
-    state_files=$(find "${state_dir}" -type f -name "*.json" ! -name "supervisor-status.json" 2>/dev/null | wc -l | tr -d ' ')
+    state_files=$(find "${state_dir}" -type f -name "*.json" ! -name "daemon-status.json" 2>/dev/null | wc -l | tr -d ' ')
 
     if [[ "${state_files}" -gt 0 ]]; then
       log_info "Found ${state_files} state files"
-      find "${state_dir}" -type f -name "*.json" ! -name "supervisor-status.json" -delete 2>/dev/null || true
-      log_info "State files cleaned (kept supervisor-status.json)"
+      find "${state_dir}" -type f -name "*.json" ! -name "daemon-status.json" -delete 2>/dev/null || true
+      log_info "State files cleaned (kept daemon-status.json)"
     else
       log_info "No extra state files to clean"
     fi
@@ -548,7 +548,7 @@ Commands:
   enable     Add dev-hooks to .claude/settings.local.json
   disable    Remove dev-hooks from .claude/settings.local.json
   status     Show current dev-mode state
-  clean      Truncate logs, kill supervisor, check for zombies
+  clean      Truncate logs, kill daemon, check for zombies
   clean-all  Full cleanup: clean + session dirs + stale sockets
 
 The dev-mode hooks use \$CLAUDE_PROJECT_DIR paths for Docker compatibility.

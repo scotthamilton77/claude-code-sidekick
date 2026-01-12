@@ -2,7 +2,7 @@
  * Hookable Logger - Logger wrapper with level-filtered callbacks
  *
  * Enables log counting/monitoring by injecting hooks that fire for specific log levels.
- * Used by Supervisor and CLI to track warnings/errors per session.
+ * Used by Daemon and CLI to track warnings/errors per session.
  *
  * @see docs/design/FEATURE-STATUSLINE.md §6.2 for usage context
  */

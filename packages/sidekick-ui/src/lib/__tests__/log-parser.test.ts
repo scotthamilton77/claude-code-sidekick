@@ -72,16 +72,16 @@ const cliHookCompleted = JSON.stringify({
   },
 })
 
-/** Sample Supervisor log entry - SummaryUpdated */
-const supervisorSummaryUpdated = JSON.stringify({
+/** Sample daemon log entry - SummaryUpdated */
+const daemonSummaryUpdated = JSON.stringify({
   level: 30,
   time: 1678888889400,
   pid: 12346,
   hostname: 'dev-machine',
-  name: 'sidekick:supervisor',
+  name: 'sidekick:daemon',
   msg: 'Summary updated',
   type: 'SummaryUpdated',
-  source: 'supervisor',
+  source: 'daemon',
   context: {
     session_id: 'sess-001',
     trace_id: 'req-789',
@@ -174,14 +174,14 @@ describe('parseLine', () => {
     const entry = JSON.stringify({
       level: 30,
       time: 1678888888000,
-      name: 'sidekick:supervisor',
+      name: 'sidekick:daemon',
     })
 
     const result = parseLine(entry)
     expect(result.ok).toBe(true)
     if (!result.ok) return
 
-    expect(result.record.source).toBe('supervisor')
+    expect(result.record.source).toBe('daemon')
   })
 
   it('extracts event type', () => {
@@ -285,7 +285,7 @@ describe('parseLine', () => {
 
 describe('parseNdjson', () => {
   it('parses multiple valid lines', () => {
-    const content = [cliHookReceived, supervisorSummaryUpdated, cliHookCompleted].join('\n')
+    const content = [cliHookReceived, daemonSummaryUpdated, cliHookCompleted].join('\n')
 
     const records = parseNdjson(content)
 
@@ -507,12 +507,12 @@ describe('filterBySessionId', () => {
 describe('mergeLogStreams', () => {
   it('merges and sorts by timestamp', () => {
     // CLI: 1678888888000, 1678888889550
-    // Supervisor: 1678888889400
-    // Expected order: CLI(888000), Sup(889400), CLI(889550)
+    // Daemon: 1678888889400
+    // Expected order: CLI(888000), Daemon(889400), CLI(889550)
     const cliRecords = parseNdjson([cliHookReceived, cliHookCompleted].join('\n'))
-    const supervisorRecords = parseNdjson(supervisorSummaryUpdated)
+    const daemonRecords = parseNdjson(daemonSummaryUpdated)
 
-    const merged = mergeLogStreams(cliRecords, supervisorRecords)
+    const merged = mergeLogStreams(cliRecords, daemonRecords)
 
     expect(merged).toHaveLength(3)
     expect(merged[0].pino.time).toBe(1678888888000)
@@ -522,23 +522,23 @@ describe('mergeLogStreams', () => {
 
   it('preserves source information', () => {
     const cliRecords = parseNdjson(cliHookReceived)
-    const supervisorRecords = parseNdjson(supervisorSummaryUpdated)
+    const daemonRecords = parseNdjson(daemonSummaryUpdated)
 
-    const merged = mergeLogStreams(cliRecords, supervisorRecords)
+    const merged = mergeLogStreams(cliRecords, daemonRecords)
 
     expect(merged[0].source).toBe('cli')
-    expect(merged[1].source).toBe('supervisor')
+    expect(merged[1].source).toBe('daemon')
   })
 
   it('handles empty CLI log', () => {
-    const supervisorRecords = parseNdjson(supervisorSummaryUpdated)
+    const daemonRecords = parseNdjson(daemonSummaryUpdated)
 
-    const merged = mergeLogStreams([], supervisorRecords)
+    const merged = mergeLogStreams([], daemonRecords)
 
     expect(merged).toHaveLength(1)
   })
 
-  it('handles empty supervisor log', () => {
+  it('handles empty daemon log', () => {
     const cliRecords = parseNdjson(cliHookReceived)
 
     const merged = mergeLogStreams(cliRecords, [])
@@ -560,9 +560,9 @@ describe('mergeLogStreams', () => {
 describe('mergeAndFilterBySession', () => {
   it('merges, filters, and sorts', () => {
     const cliRecords = parseNdjson([cliHookReceived, differentSessionEntry].join('\n'))
-    const supervisorRecords = parseNdjson(supervisorSummaryUpdated)
+    const daemonRecords = parseNdjson(daemonSummaryUpdated)
 
-    const result = mergeAndFilterBySession(cliRecords, supervisorRecords, 'sess-001')
+    const result = mergeAndFilterBySession(cliRecords, daemonRecords, 'sess-001')
 
     expect(result).toHaveLength(2)
     expect(result[0].type).toBe('HookReceived')

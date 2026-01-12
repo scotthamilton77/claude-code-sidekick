@@ -11,10 +11,10 @@
  *
  * The tests verify:
  * 1. Timer starts and calls evictStaleSessions at the correct interval
- * 2. Timer stops when supervisor stops
+ * 2. Timer stops when daemon stops
  * 3. Errors don't break the timer loop
  *
- * @see docs/design/SUPERVISOR.md §4.7 (Phase 6)
+ * @see docs/design/DAEMON.md §4.7 (Phase 6)
  */
 import fs from 'fs/promises'
 import os from 'os'
@@ -22,7 +22,7 @@ import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ServiceFactory } from '@sidekick/types'
 
-// Eviction interval constant matching supervisor.ts
+// Eviction interval constant matching daemon.ts
 const EVICTION_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
 
 let tmpDir: string
@@ -59,7 +59,7 @@ describe('Daemon eviction timer', () => {
     // Timer should be null before start
     expect(sup.evictionTimer).toBeNull()
 
-    // Start the eviction timer directly (without full supervisor startup)
+    // Start the eviction timer directly (without full daemon startup)
     sup.startEvictionTimer()
 
     // Timer should now be set

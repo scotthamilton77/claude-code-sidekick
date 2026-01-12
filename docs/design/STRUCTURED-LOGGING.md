@@ -30,27 +30,27 @@ The logging system is built on **Pino**, chosen for its low overhead and rich ec
 
 ### 2.2 Log File Strategy
 
-CLI and Supervisor each maintain **separate log files**. The Monitoring UI aggregates both for unified time-travel debugging.
+CLI and Daemon each maintain **separate log files**. The Monitoring UI aggregates both for unified time-travel debugging.
 
 - **CLI Log**: `.sidekick/logs/cli.log`
-- **Supervisor Log**: `.sidekick/logs/supervisor.log`
+- **Daemon Log**: `.sidekick/logs/sidekickd.log`
 
-This separation avoids concurrency issues from multiple processes writing to a single file and simplifies debugging when isolating CLI vs Supervisor behavior.
+This separation avoids concurrency issues from multiple processes writing to a single file and simplifies debugging when isolating CLI vs Daemon behavior.
 
 ### 2.3 Data Flow
 
 ```mermaid
 graph TD
     CLI[Sidekick CLI] -->|Log/Metric| CLILogger
-    Supervisor[Sidekick Supervisor] -->|Log/Metric| SupervisorLogger
+    Daemon[Sidekick Daemon] -->|Log/Metric| DaemonLogger
     Feature[Feature Module] -->|Log/Metric| ScopedLogger
     ScopedLogger -->|Inherits| CLILogger
-    ScopedLogger -->|Inherits| SupervisorLogger
+    ScopedLogger -->|Inherits| DaemonLogger
     CLILogger -->|JSON Stream| Redactor
-    SupervisorLogger -->|JSON Stream| Redactor
+    DaemonLogger -->|JSON Stream| Redactor
     Redactor -->|Sanitized JSON| FileTransport
     FileTransport -->|cli.log| CLIFile[.sidekick/logs/cli.log]
-    FileTransport -->|supervisor.log| SupervisorFile[.sidekick/logs/supervisor.log]
+    FileTransport -->|sidekickd.log| DaemonFile[.sidekick/logs/sidekickd.log]
     CLILogger -->|Interactive| PrettyTransport[Console stderr]
 ```
 
@@ -64,7 +64,7 @@ All Sidekick events conform to the `SidekickEvent` schema defined in `docs/desig
 interface SidekickEvent {
   type: string
   time: number // Unix timestamp (ms)
-  source: 'cli' | 'supervisor'
+  source: 'cli' | 'daemon'
   context: {
     session_id: string // Required: correlates all events in a session
     scope?: 'project' | 'user' // Which scope this event occurred in
@@ -127,7 +127,7 @@ When a `SidekickEvent` is logged, Pino adds standard fields:
 | `ReminderConsumed` | CLI returns a staged reminder |
 | `HookCompleted`    | Hook invocation ends          |
 
-### 3.5 Supervisor-Logged Events
+### 3.5 Daemon-Logged Events
 
 | Event              | When                                   |
 | ------------------ | -------------------------------------- |
@@ -146,7 +146,7 @@ Telemetry events use a specialized format for metrics collection. They are writt
   "level": 30,
   "time": 1678888888888,
   "event_type": "telemetry",
-  "source": "supervisor",
+  "source": "daemon",
   "context": {
     "session_id": "sess-abc123",
     "scope": "project"
@@ -254,10 +254,10 @@ hookLogger.info({ type: "ReminderConsumed" }, "Reminder returned to Claude");
     - **Paths**:
       - Project Scope:
         - CLI: `<project_root>/.sidekick/logs/cli.log`
-        - Supervisor: `<project_root>/.sidekick/logs/supervisor.log`
+        - Daemon: `<project_root>/.sidekick/logs/sidekickd.log`
       - User Scope:
         - CLI: `~/.sidekick/logs/cli.log`
-        - Supervisor: `~/.sidekick/logs/supervisor.log`
+        - Daemon: `~/.sidekick/logs/sidekickd.log`
     - **Format**: JSON Lines (NDJSON).
     - **Rotation**:
       - **Mechanism**: Use `pino-roll` as the file transport. This handles rotation within the Node.js process, ensuring cross-platform compatibility (Windows/Linux) without external dependencies like `logrotate`.
@@ -291,7 +291,7 @@ Privacy is critical. We must not log PII or sensitive user content by default.
 
 - Install `pino`, `pino-roll`, `pino-pretty` (dev dependency or bundled for CLI).
 - Implement `src/logger/index.ts`:
-  - `createLogger(config)` factory accepting `source: 'cli' | 'supervisor'`.
+  - `createLogger(config)` factory accepting `source: 'cli' | 'daemon'`.
   - `ContextLogger` wrapper for deep-merging context.
   - `Telemetry` class wrapper.
 - Implement `src/logger/redaction.ts`:
@@ -304,9 +304,9 @@ Privacy is critical. We must not log PII or sensitive user content by default.
 - Set `scope` based on execution context (project vs user).
 - Ensure `uncaughtException` and `unhandledRejection` are caught and logged.
 
-### 6.3 `sidekick-supervisor`
+### 6.3 `sidekickd`
 
-- Initialize logger at startup with `source: 'supervisor'`, writing to `supervisor.log`.
+- Initialize logger at startup with `source: 'daemon'`, writing to `sidekickd.log`.
 - Inherit `session_id` from CLI events.
 - Generate `task_id` for background tasks.
 

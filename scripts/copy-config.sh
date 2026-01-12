@@ -31,7 +31,7 @@ Generate a .sidekick/sidekick.config file with verbose comments.
 
 OPTIONS:
     --all                       Include all sections
-    --core                      Include core settings (logging, paths, supervisor, ipc)
+    --core                      Include core settings (logging, paths, daemon, ipc)
     --llm                       Include LLM provider settings
     --transcript                Include transcript processing settings
     --features.reminders        Include reminders feature settings
@@ -98,7 +98,7 @@ emit_core_section() {
     cat <<'EOF'
 # ------------------------------------------------------------------------------
 # Core Settings
-# Logging, paths, supervisor process, and IPC configuration
+# Logging, paths, daemon process, and IPC configuration
 # ------------------------------------------------------------------------------
 
 # Log level: debug, info, warn, error
@@ -135,10 +135,10 @@ EOF
 # Omit or leave empty to use default bundled assets
 # core.paths.assets=/path/to/custom/assets
 
-# Time in milliseconds before idle supervisor shuts down
+# Time in milliseconds before idle daemon shuts down
 # Default: 300000 (5 minutes)
 EOF
-    echo "core.supervisor.idleTimeoutMs=$(yaml_get "$file" '.supervisor.idleTimeoutMs')"
+    echo "core.daemon.idleTimeoutMs=$(yaml_get "$file" '.daemon.idleTimeoutMs')"
     echo ""
 
     cat <<'EOF'
@@ -146,19 +146,19 @@ EOF
 # Time allowed for in-flight tasks to complete during shutdown
 # Default: 30000 (30 seconds)
 EOF
-    echo "core.supervisor.shutdownTimeoutMs=$(yaml_get "$file" '.supervisor.shutdownTimeoutMs')"
+    echo "core.daemon.shutdownTimeoutMs=$(yaml_get "$file" '.daemon.shutdownTimeoutMs')"
     echo ""
 
     cat <<'EOF'
 # IPC connection timeout in milliseconds
-# How long to wait when connecting to supervisor
+# How long to wait when connecting to daemon
 EOF
     echo "core.ipc.connectTimeoutMs=$(yaml_get "$file" '.ipc.connectTimeoutMs')"
     echo ""
 
     cat <<'EOF'
 # IPC request timeout in milliseconds
-# How long to wait for supervisor responses
+# How long to wait for daemon responses
 EOF
     echo "core.ipc.requestTimeoutMs=$(yaml_get "$file" '.ipc.requestTimeoutMs')"
     echo ""

@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-The `sidekick-core` package is the foundation of the Sidekick Node.js runtime. It provides the essential infrastructure for the CLI, Supervisor, and Feature plugins. It enforces architectural principles like configuration cascading, structured logging, and strict type safety while maintaining a minimal footprint.
+The `sidekick-core` package is the foundation of the Sidekick Node.js runtime. It provides the essential infrastructure for the CLI, Daemon, and Feature plugins. It enforces architectural principles like configuration cascading, structured logging, and strict type safety while maintaining a minimal footprint.
 
 ### 1.1 Related Documents
 
@@ -19,24 +19,24 @@ The runtime follows a **Layered Architecture**:
 1.  **Infrastructure Layer**: Low-level utilities (FileSystem, Process, Env).
 2.  **Service Layer**: Core capabilities (Config, Logging, Assets, LLM).
 3.  **Feature Layer**: Pluggable modules that register handlers for hooks.
-4.  **Application Layer**: The entry points (CLI, Supervisor) that orchestrate the runtime.
+4.  **Application Layer**: The entry points (CLI, Daemon) that orchestrate the runtime.
 
 ### 2.1 Dependency Injection Strategy
 
 To maintain simplicity and testability without the overhead of a complex DI container (like Inversify), we use a **Typed Context Pattern**.
 
 - **`RuntimeContext`**: A base object containing shared service instances.
-- **Role-Specific Extensions**: CLI and Supervisor extend the base context with role-specific services.
+- **Role-Specific Extensions**: CLI and Daemon extend the base context with role-specific services.
 - **Propagation**: Context is passed to Features during registration and to handler callbacks.
 - **Testing**: Easy to mock the entire context or individual services for unit tests.
 
-### 2.2 CLI/Supervisor Relationship
+### 2.2 CLI/Daemon Relationship
 
-Per **docs/design/flow.md §2.1**, CLI and Supervisor operate as separate processes with distinct responsibilities:
+Per **docs/design/flow.md §2.1**, CLI and Daemon operate as separate processes with distinct responsibilities:
 
 - **CLI**: Handles synchronous hook responses to Claude Code. Reads staged files, logs events locally.
-- **Supervisor**: Performs async background work (LLM calls, transcript analysis). Stages files for CLI consumption.
-- **Communication**: CLI sends events to Supervisor via IPC. Supervisor "responds" by staging files that CLI reads on subsequent hook invocations.
+- **Daemon**: Performs async background work (LLM calls, transcript analysis). Stages files for CLI consumption.
+- **Communication**: CLI sends events to Daemon via IPC. Daemon "responds" by staging files that CLI reads on subsequent hook invocations.
 - **Log Separation**: Each maintains its own log file; Monitoring UI aggregates both.
 
 ## 3. Core Components
@@ -59,8 +59,8 @@ The `Runtime` class orchestrates the startup sequence.
     - Set up global error handlers (uncaughtException, unhandledRejection).
 4.  **Service Instantiation**:
     - Create `AssetResolver`, `HandlerRegistry`.
-    - Role-specific: CLI creates `SupervisorClient`; Supervisor creates `LLMService`, `StagingService`.
-    - Construct the role-specific context (`CLIContext` or `SupervisorContext`).
+    - Role-specific: CLI creates `DaemonClient`; Daemon creates `LLMService`, `StagingService`.
+    - Construct the role-specific context (`CLIContext` or `DaemonContext`).
 5.  **Feature Loading**:
     - Load feature modules.
     - Validate Dependency Graph (DAG).
@@ -111,7 +111,7 @@ Per **docs/design/flow.md §2.3**, the unified HandlerRegistry processes both CL
 - **Execution Priority**: Determines handler invocation order (higher priority runs first).
 - **Error Isolation**: Handlers implement internal try/catch. Unhandled exceptions are logged; execution continues to next handler.
 - **Concurrency Model**: Hook events processed sequentially (synchronous response required); transcript events processed concurrently (fire-and-forget).
-- **Role Separation**: CLI handles hook dispatch; Supervisor handles transcript events and async work.
+- **Role Separation**: CLI handles hook dispatch; Daemon handles transcript events and async work.
 
 **Handler Signature**:
 
@@ -195,7 +195,7 @@ interface TranscriptService {
 The runtime context is a **discriminated union** enabling type-safe role detection:
 
 ```typescript
-// Base context shared by CLI and Supervisor
+// Base context shared by CLI and Daemon
 interface BaseContext {
   config: ConfigService
   logger: Logger
@@ -204,30 +204,30 @@ interface BaseContext {
   handlers: HandlerRegistry
 }
 
-// CLI extends base with role discriminant and Supervisor communication
+// CLI extends base with role discriminant and Daemon communication
 export interface CLIContext extends BaseContext {
   role: 'cli' // Discriminant for type narrowing
-  supervisor: SupervisorClient // IPC client to Supervisor
+  daemon: DaemonClient // IPC client to Daemon
 }
 
-// Supervisor extends base with role discriminant, LLM, staging, and transcript capabilities
-export interface SupervisorContext extends BaseContext {
-  role: 'supervisor' // Discriminant for type narrowing
+// Daemon extends base with role discriminant, LLM, staging, and transcript capabilities
+export interface DaemonContext extends BaseContext {
+  role: 'daemon' // Discriminant for type narrowing
   llm: LLMService
   staging: StagingService // Writes reminder files for CLI consumption
   transcript: TranscriptService // Metrics owner, file watcher, event emitter
 }
 
 // Discriminated union - TypeScript narrows on context.role
-export type RuntimeContext = CLIContext | SupervisorContext
+export type RuntimeContext = CLIContext | DaemonContext
 
 // Type guards for explicit checks
 export function isCLIContext(ctx: RuntimeContext): ctx is CLIContext {
   return ctx.role === 'cli'
 }
 
-export function isSupervisorContext(ctx: RuntimeContext): ctx is SupervisorContext {
-  return ctx.role === 'supervisor'
+export function isDaemonContext(ctx: RuntimeContext): ctx is DaemonContext {
+  return ctx.role === 'daemon'
 }
 ```
 
@@ -235,10 +235,10 @@ export function isSupervisorContext(ctx: RuntimeContext): ctx is SupervisorConte
 
 ```typescript
 export function register(context: RuntimeContext): void {
-  if (context.role === 'supervisor') {
-    // TypeScript narrows to SupervisorContext - ctx.llm, ctx.staging available
+  if (context.role === 'daemon') {
+    // TypeScript narrows to DaemonContext - ctx.llm, ctx.staging available
     context.handlers.register({
-      /* Supervisor-specific handlers */
+      /* Daemon-specific handlers */
     })
   }
   // Common or CLI-specific handlers
@@ -260,9 +260,9 @@ export interface Feature {
   register: (context: RuntimeContext) => void | Promise<void>
 }
 
-// Supervisor features may need lifecycle hooks for long-running services
-export interface SupervisorFeature extends Feature {
-  start?: (context: SupervisorContext) => Promise<void>
+// Daemon features may need lifecycle hooks for long-running services
+export interface DaemonFeature extends Feature {
+  start?: (context: DaemonContext) => Promise<void>
   stop?: () => Promise<void>
 }
 ```
@@ -346,7 +346,7 @@ import type { SidekickConfig, CoreConfig, LlmConfig, RemindersConfig } from '@si
 
 ### 6.3 Lifecycle Hooks ✓
 
-**Decision**: Per §4.2, Supervisor features extend the base interface with `start(ctx)` and `stop()`. CLI features only need `register(ctx)`.
+**Decision**: Per §4.2, Daemon features extend the base interface with `start(ctx)` and `stop()`. CLI features only need `register(ctx)`.
 
 ### 6.4 Feature/Handler Relationship ✓
 
@@ -358,10 +358,10 @@ import type { SidekickConfig, CoreConfig, LlmConfig, RemindersConfig } from '@si
 
 ### 6.5 RuntimeContext Architecture ✓
 
-**Decision**: Shared base context (`RuntimeContext`) with role-specific extensions (`CLIContext`, `SupervisorContext`).
+**Decision**: Shared base context (`RuntimeContext`) with role-specific extensions (`CLIContext`, `DaemonContext`).
 
-- CLI adds `SupervisorClient` for IPC communication.
-- Supervisor adds `LLMService` and `StagingService` for async work.
+- CLI adds `DaemonClient` for IPC communication.
+- Daemon adds `LLMService` and `StagingService` for async work.
 
 ### 6.6 Event Schema Location ✓
 
@@ -402,12 +402,12 @@ import type { SidekickConfig, CoreConfig, LlmConfig, RemindersConfig } from '@si
 
 **Pattern 1: Role Discriminant** (same event type, different role logic)
 
-Use when a feature needs different behavior for CLI vs Supervisor when processing the _same_ event type (e.g., both receive `SessionStart`, but only Supervisor should do LLM analysis).
+Use when a feature needs different behavior for CLI vs Daemon when processing the _same_ event type (e.g., both receive `SessionStart`, but only Daemon should do LLM analysis).
 
 ```typescript
 export function register(context: RuntimeContext): void {
-  if (context.role === 'supervisor') {
-    // TypeScript narrows to SupervisorContext
+  if (context.role === 'daemon') {
+    // TypeScript narrows to DaemonContext
     context.handlers.register({
       id: 'session-summary:init',
       filter: { kind: 'hook', hooks: ['SessionStart'] },
@@ -419,19 +419,19 @@ export function register(context: RuntimeContext): void {
 ```
 
 - `CLIContext.role = 'cli'`
-- `SupervisorContext.role = 'supervisor'`
-- `RuntimeContext = CLIContext | SupervisorContext`
+- `DaemonContext.role = 'daemon'`
+- `RuntimeContext = CLIContext | DaemonContext`
 
 **Pattern 2: Event Routing** (different event types naturally separate roles)
 
 Use when feature concerns naturally align with event types. No explicit role check needed; the handler registry routes events to the appropriate process:
 
-- `{ kind: 'transcript', ... }` → Supervisor (TranscriptService owner)
+- `{ kind: 'transcript', ... }` → Daemon (TranscriptService owner)
 - `{ kind: 'hook', ... }` → CLI (synchronous hook responder)
 
 ```typescript
 export function register(context: RuntimeContext): void {
-  // Staging: transcript events → Supervisor
+  // Staging: transcript events → Daemon
   context.handlers.register({
     id: 'reminders:stage-stuck',
     filter: { kind: 'transcript', eventTypes: ['ToolCall'] },
@@ -454,6 +454,6 @@ export function register(context: RuntimeContext): void {
 | Same event, different role logic  | Role Discriminant                     |
 | Different events, different roles | Event Routing                         |
 | CLI-only feature                  | Neither (just register hook handlers) |
-| Supervisor-only feature           | Role Discriminant (guard at top)      |
+| Daemon-only feature           | Role Discriminant (guard at top)      |
 
 **Rationale**: Type-safe discrimination via `context.role` avoids fragile duck-typing (`'llm' in context`) while maintaining a single `register()` export. Event routing leverages the existing handler filter system for natural role separation.

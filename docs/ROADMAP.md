@@ -40,8 +40,8 @@ Implemented configuration cascade with YAML domain files. Key outcomes:
 
 Added two-phase logging pipeline. Key outcomes:
 
-- Split log files: `cli.log` / `supervisor.log`
-- `source` field distinguishing CLI vs Supervisor
+- Split log files: `cli.log` / `sidekickd.log`
+- `source` field distinguishing CLI vs Daemon
 - `ContextLogger` with deep-merge context
 - 8 logging event types (HookReceived, HookCompleted, ReminderStaged, etc.)
 - UI wired to read real logs with filter/search capabilities
@@ -50,7 +50,7 @@ Added two-phase logging pipeline. Key outcomes:
 
 Built LLM providers, TranscriptService, and StagingService. Key outcomes:
 
-**4.1 RuntimeContext Discriminated Union**: `CLIContext | SupervisorContext` with type guards, service interfaces in `@sidekick/types`
+**4.1 RuntimeContext Discriminated Union**: `CLIContext | DaemonContext` with type guards, service interfaces in `@sidekick/types`
 
 **4.2 TranscriptService Foundation**: Expanded `TranscriptMetrics` schema with token usage, cache tiers, per-model breakdown
 
@@ -62,11 +62,11 @@ Built LLM providers, TranscriptService, and StagingService. Key outcomes:
 
 **4.6 UI Integration**: MetricsPanel with sparklines, Compaction Timeline markers, StateInspector tabs, API endpoints for session data
 
-### Phase 5: Supervisor & Background Tasks - COMPLETE 2025-12-04
+### Phase 5: Daemon & Background Tasks - COMPLETE 2025-12-04
 
-Built supervisor process with IPC socket, task engine, and CLI integration. Key outcomes:
+Built daemon process with IPC socket, task engine, and CLI integration. Key outcomes:
 
-**5.1 Core Supervisor Process**: Entry point, signal handlers, IPC socket (Unix domain), version handshake, token auth, heartbeat mechanism
+**5.1 Core Daemon Process**: Entry point, signal handlers, IPC socket (Unix domain), version handshake, token auth, heartbeat mechanism
 
 **5.2 Task Engine & State Manager**: Single-writer atomic JSON updates, task queue with priority ordering, worker pool, orphan prevention via TaskRegistry
 
@@ -74,7 +74,7 @@ Built supervisor process with IPC socket, task engine, and CLI integration. Key 
 
 **5.4 Handler Event Dispatch & Staging**: Sequential hook handler execution, concurrent transcript handlers, staging directory management
 
-**5.5 CLI Integration & Graceful Fallback**: `sidekick supervisor start/stop/status` commands, auto-start on first hook, connection pooling, graceful degradation
+**5.5 CLI Integration & Graceful Fallback**: `sidekick daemon start/stop/status` commands, auto-start on first hook, connection pooling, graceful degradation
 
 **5.6 UI Integration**: System Health dashboard (uptime, memory, queue depth), offline detection, session state file reading
 
@@ -82,7 +82,7 @@ Built supervisor process with IPC socket, task engine, and CLI integration. Key 
 
 Implemented feature packages using unified handler model. Key outcomes:
 
-**6.1 Reminders Feature**: ReminderUtils module, staging handlers (Supervisor), consumption handlers (CLI), suppression pattern
+**6.1 Reminders Feature**: ReminderUtils module, staging handlers (Daemon), consumption handlers (CLI), suppression pattern
 
 **6.2 Session Summary Feature**: SessionSummaryState types, countdown throttling, LLM integration, transcript extraction via getExcerpt()
 
@@ -108,11 +108,11 @@ Closed gaps for production-ready monitoring UI. Key outcomes:
 
 **7.E Production-Local Runtime**: Node server for SPA + API, `sidekick ui` CLI command, dual-scope verification
 
-### Phase 8: CLI→Supervisor Event Dispatch - COMPLETE 2025-12-20
+### Phase 8: CLI→Daemon Event Dispatch - COMPLETE 2025-12-20
 
-Wired CLI hook commands to dispatch events to Supervisor via IPC. Key outcomes:
+Wired CLI hook commands to dispatch events to Daemon via IPC. Key outcomes:
 
-**8.1-8.4 Event Dispatch**: Full CLI → IpcService → Supervisor → HandlerRegistry → Handlers flow with graceful degradation
+**8.1-8.4 Event Dispatch**: Full CLI → IpcService → Daemon → HandlerRegistry → Handlers flow with graceful degradation
 
 **8.5 Refactoring**: Cleaned up normalizeHookName(), extracted buildHookEvent() methods, refactored cli.ts runCli(), wired reminder consumption handlers, simplified hook response format
 
@@ -154,8 +154,8 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
     - [ ] Find: hook-specific logic outside handler files
     - [ ] Assess: is handler registration consistent across features?
   - [ ] **9.2.2 Daemon/CLI Coupling Audit**
-    - [ ] Find: implementation details in daemon/CLI core that belong in feature packages
-    - [ ] Find: duplicated data structures across daemon and CLI
+    - [ ] Find: implementation details in Daemon/CLI core that belong in feature packages
+    - [ ] Find: duplicated data structures across Daemon and CLI
     - [ ] Find: hardcoded paths, magic strings, format assumptions
   - [ ] **9.2.3 Reminder Relationship Mapping**
     - [ ] Document: current cross-reminder rules (UserPromptSubmit unstages others, etc.)
@@ -223,19 +223,19 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
 
 - [ ] **9.5 Feature Domain Consolidation** (depends on 9.2 findings, 9.3 infrastructure)
   - [ ] Objectives
-    - [ ] Features own both daemon-side (staging) AND CLI-side (consumption) logic
+    - [ ] Features own both Daemon-side (staging) AND CLI-side (consumption) logic
     - [ ] Features own their state file schemas and access patterns
     - [ ] Daemon/CLI core contain no feature-specific implementation details
   - [ ] **9.5.1 Refactor Feature Packages**
-    - [ ] Move feature logic from daemon/CLI core into feature packages
+    - [ ] Move feature logic from Daemon/CLI core into feature packages
     - [ ] Each feature exports: staging handlers, consumption handlers, state manager extension
     - [ ] Features register with core services, not embedded in them
   - [ ] **9.5.2 Clean Core Packages**
-    - [ ] `sidekick-daemon`: only lifecycle, IPC, task engine, handler dispatch
+    - [ ] `sidekickd`: only lifecycle, IPC, task engine, handler dispatch
     - [ ] `sidekick-cli`: only argument parsing, command routing, IPC client
     - [ ] Remove any feature-specific conditionals or knowledge
   - [ ] Acceptance criteria
-    - [ ] Adding a new feature requires no changes to daemon/CLI core
+    - [ ] Adding a new feature requires no changes to Daemon/CLI core
     - [ ] Feature packages are self-contained
     - [ ] Core packages have no imports from feature packages (dependency inversion)
 

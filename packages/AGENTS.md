@@ -40,7 +40,7 @@ shared-providers
   ↑
 feature-reminders, feature-session-summary, feature-statusline
   ↑
-supervisor (orchestration, context metrics)
+daemon (orchestration, context metrics)
   ↑
 cli (hook dispatcher)
 ```

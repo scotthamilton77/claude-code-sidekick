@@ -7,7 +7,7 @@ Move configuration defaults from embedded Zod schemas to external YAML files for
 ```
 assets/sidekick/defaults/
 ├── README.md                # User documentation
-├── core.defaults.yaml       # logging, paths, supervisor, ipc
+├── core.defaults.yaml       # logging, paths, daemon, ipc
 ├── llm.defaults.yaml        # provider, model, temperature, timeout
 ├── transcript.defaults.yaml # watchDebounceMs, metricsPersistIntervalMs
 └── features/
@@ -66,7 +66,7 @@ Note: At each scope (user/project), `sidekick.config` overrides the domain-speci
 
 ### Tasks
 - [x] **2.1** Extract current defaults from `packages/sidekick-core/src/config.ts`:
-  - `SUPERVISOR_DEFAULTS`, `IPC_DEFAULTS`, `LLM_DEFAULTS`, `TRANSCRIPT_DEFAULTS`
+  - `DAEMON_DEFAULTS`, `IPC_DEFAULTS`, `LLM_DEFAULTS`, `TRANSCRIPT_DEFAULTS`
   - Zod `.default()` values in schemas
 - [x] **2.2** Create `assets/sidekick/defaults/core.defaults.yaml`
 - [x] **2.3** Create `assets/sidekick/defaults/llm.defaults.yaml`

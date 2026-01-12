@@ -3,7 +3,7 @@
  *
  * Tests the high-level IPC abstraction including:
  * - Connection pooling (reuse across calls)
- * - Graceful degradation when supervisor unavailable
+ * - Graceful degradation when daemon unavailable
  * - Authentication flow
  */
 import fs from 'fs/promises'
@@ -93,7 +93,7 @@ describe('IpcService', () => {
   })
 
   describe('graceful degradation', () => {
-    it('should return null when supervisor unavailable (default behavior)', async () => {
+    it('should return null when daemon unavailable (default behavior)', async () => {
       // No server running, no token file
       const service = new IpcService(tmpDir, logger)
       const result = await service.send('some.method')
@@ -105,7 +105,7 @@ describe('IpcService', () => {
     it('should throw when gracefulDegradation is false', async () => {
       const service = new IpcService(tmpDir, logger, { gracefulDegradation: false })
 
-      await expect(service.send('some.method')).rejects.toThrow('Supervisor token not found')
+      await expect(service.send('some.method')).rejects.toThrow('Daemon token not found')
       service.close()
     })
 
@@ -120,7 +120,7 @@ describe('IpcService', () => {
   })
 
   describe('isAvailable()', () => {
-    it('should return false when supervisor not running', async () => {
+    it('should return false when daemon not running', async () => {
       const service = new IpcService(tmpDir, logger)
       const available = await service.isAvailable()
 
@@ -128,7 +128,7 @@ describe('IpcService', () => {
       service.close()
     })
 
-    it('should return true when supervisor is running and responsive', async () => {
+    it('should return true when daemon is running and responsive', async () => {
       const token = 'test-token-12345'
       await fs.writeFile(getTokenPath(tmpDir), token)
 

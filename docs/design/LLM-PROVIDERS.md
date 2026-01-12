@@ -6,7 +6,7 @@ The `shared-providers` package provides a unified, type-safe interface for inter
 
 ### 1.1 System Context
 
-LLM providers operate exclusively within the **Supervisor** (async side) of the CLI/Supervisor architecture defined in **docs/design/flow.md §2.1**:
+LLM providers operate exclusively within the **Daemon** (async side) of the CLI/Daemon architecture defined in **docs/design/flow.md §2.1**:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -23,7 +23,7 @@ LLM providers operate exclusively within the **Supervisor** (async side) of the 
                       │ IPC event
                       ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ Supervisor (asynchronous)                                   │
+│ Daemon (asynchronous)                                   │
 │  ┌────────────────────────────────────────────────────────┐ │
 │  │ Handler Registry                                       │ │
 │  │  ├─ UpdateSessionSummary ──► LLMProvider.complete()    │ │
@@ -32,7 +32,7 @@ LLM providers operate exclusively within the **Supervisor** (async side) of the 
 │  └────────────────────────────────────────────────────────┘ │
 │  ┌────────────────────────────────────────────────────────┐ │
 │  │ ProviderFactory                                        │ │
-│  │  └─ Instantiated at Supervisor startup                 │ │
+│  │  └─ Instantiated at Daemon startup                 │ │
 │  │  └─ Provider instance shared via HandlerContext        │ │
 │  └────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
@@ -40,7 +40,7 @@ LLM providers operate exclusively within the **Supervisor** (async side) of the 
 
 **Key Points**:
 
-- Providers are instantiated once at Supervisor startup
+- Providers are instantiated once at Daemon startup
 - Handlers access the provider via `HandlerContext.llm`
 - LLM calls inherit session context for log correlation
 - Provider operations are internal events (logged, don't trigger handlers)
@@ -129,7 +129,7 @@ export interface LLMProvider {
 
   /**
    * Send a completion request to the LLM.
-   * Context is required for log correlation across CLI/Supervisor boundary.
+   * Context is required for log correlation across CLI/Daemon boundary.
    */
   complete(request: LLMRequest): Promise<LLMResponse>;
 }
@@ -161,7 +161,7 @@ This enables the Monitoring UI to trace an LLM call back to its originating hook
 
 ### 4.1 `ProviderFactory`
 
-The factory is responsible for instantiating the correct provider based on configuration. It is invoked once during Supervisor startup; the resulting provider instance is shared across all handlers via `HandlerContext`.
+The factory is responsible for instantiating the correct provider based on configuration. It is invoked once during Daemon startup; the resulting provider instance is shared across all handlers via `HandlerContext`.
 
 ```typescript
 import type { Logger } from 'pino'; // See docs/design/STRUCTURED-LOGGING.md
@@ -189,10 +189,10 @@ export class ProviderFactory {
 }
 ```
 
-**Supervisor Integration** (see **docs/design/SUPERVISOR.md**):
+**Daemon Integration** (see **docs/design/DAEMON.md**):
 
 ```typescript
-// During Supervisor startup
+// During Daemon startup
 const factory = new ProviderFactory(config, logger);
 const llmProvider = factory.create();
 
@@ -304,7 +304,7 @@ All events include correlation context from `LLMCallContext` and follow **docs/d
   "level": 30,
   "time": 1699999999999,
   "pid": 12345,
-  "name": "sidekick-supervisor",
+  "name": "sidekickd",
   "msg": "LLM call completed",
   "event": "LLMCallCompleted",
   "sessionId": "abc123",
@@ -324,7 +324,7 @@ When `LLM_DEBUG_DUMP_ENABLED=true`, providers write full request/response payloa
 
 ### 8.1 Current Consumers
 
-The following Supervisor handlers use LLM providers:
+The following Daemon handlers use LLM providers:
 
 | Handler                 | Transcript Event Trigger  | LLM Purpose                          |
 | ----------------------- | ------------------------- | ------------------------------------ |

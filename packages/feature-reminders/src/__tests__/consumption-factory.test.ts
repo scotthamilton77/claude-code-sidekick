@@ -73,14 +73,14 @@ describe('createConsumptionHandler', () => {
 
   describe('registration', () => {
     it('only registers handler in CLI context', () => {
-      const supervisorCtx = createMockDaemonContext()
+      const daemonCtx = createMockDaemonContext()
 
-      createConsumptionHandler(supervisorCtx as unknown as CLIContext, {
+      createConsumptionHandler(daemonCtx as unknown as CLIContext, {
         id: 'test:consume',
         hook: 'PreToolUse',
       })
 
-      expect((supervisorCtx.handlers as MockHandlerRegistry).getRegistrations()).toHaveLength(0)
+      expect((daemonCtx.handlers as MockHandlerRegistry).getRegistrations()).toHaveLength(0)
     })
 
     it('registers handler in CLI context', () => {

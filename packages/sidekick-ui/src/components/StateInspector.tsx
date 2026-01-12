@@ -97,7 +97,7 @@ const StateInspector: React.FC<StateInspectorProps> = ({
         },
       },
       stagedReminders: Object.fromEntries(replayState.stagedReminders) as Record<string, unknown>,
-      supervisorHealth: replayState.supervisorHealth as Record<string, unknown> | undefined,
+      daemonHealth: replayState.daemonHealth as Record<string, unknown> | undefined,
     } as Record<string, unknown>
   }, [replayState])
 
@@ -118,7 +118,7 @@ const StateInspector: React.FC<StateInspectorProps> = ({
         },
       },
       stagedReminders: Object.fromEntries(previousState.stagedReminders) as Record<string, unknown>,
-      supervisorHealth: previousState.supervisorHealth as Record<string, unknown> | undefined,
+      daemonHealth: previousState.daemonHealth as Record<string, unknown> | undefined,
     } as Record<string, unknown>
   }, [previousState])
 

@@ -2,7 +2,7 @@
  * Staging Service Types
  *
  * Interfaces for reminder file staging.
- * Used by Supervisor for atomic file operations.
+ * Used by Daemon for atomic file operations.
  *
  * @see docs/design/flow.md §2.2 Staging Pattern
  * @see docs/design/FEATURE-REMINDERS.md
@@ -48,7 +48,7 @@ export interface VCUnverifiedState {
 
 /**
  * Metrics snapshot captured when a reminder is staged.
- * Used by Supervisor to determine reactivation after consumption.
+ * Used by Daemon to determine reactivation after consumption.
  *
  * @see docs/design/FEATURE-REMINDERS.md §3.3
  */

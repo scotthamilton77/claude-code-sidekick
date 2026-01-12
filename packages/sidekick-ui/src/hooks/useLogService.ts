@@ -20,7 +20,7 @@ import { TimeTravelStore, type ReplayState } from '../lib/replay-engine'
 // ============================================================================
 
 export interface LogServiceState {
-  /** All parsed log records (merged from CLI and Supervisor) */
+  /** All parsed log records (merged from CLI and daemon) */
   records: ParsedLogRecord[]
   /** Converted UIEvents for display */
   events: UIEvent[]
@@ -92,7 +92,7 @@ async function fetchSessions(): Promise<string[]> {
 }
 
 async function fetchLogFile(
-  source: 'cli' | 'supervisor',
+  source: 'cli' | 'sidekickd',
   options?: { since?: number; sessionId?: string; offset?: number }
 ): Promise<{ content: string; mtime: number; fileSize: number; rotated: boolean }> {
   const params = new URLSearchParams()
@@ -136,11 +136,11 @@ export function useLogService(config: LogServiceConfig = {}): LogServiceState & 
 
   // Refs for polling and incremental fetching
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const lastMtimeRef = useRef<{ cli: number; supervisor: number }>({ cli: 0, supervisor: 0 })
-  const lastOffsetRef = useRef<{ cli: number; supervisor: number }>({ cli: 0, supervisor: 0 })
-  const streamParserRef = useRef<{ cli: NdjsonStreamParser; supervisor: NdjsonStreamParser }>({
+  const lastMtimeRef = useRef<{ cli: number; sidekickd: number }>({ cli: 0, sidekickd: 0 })
+  const lastOffsetRef = useRef<{ cli: number; sidekickd: number }>({ cli: 0, sidekickd: 0 })
+  const streamParserRef = useRef<{ cli: NdjsonStreamParser; sidekickd: NdjsonStreamParser }>({
     cli: new NdjsonStreamParser(),
-    supervisor: new NdjsonStreamParser(),
+    sidekickd: new NdjsonStreamParser(),
   })
 
   // TimeTravelStore instance (stable across renders)
@@ -184,28 +184,28 @@ export function useLogService(config: LogServiceConfig = {}): LogServiceState & 
       }
 
       // Fetch sessions and logs in parallel
-      const [sessionsResult, cliResult, supervisorResult] = await Promise.all([
+      const [sessionsResult, cliResult, daemonResult] = await Promise.all([
         fetchSessions(),
         fetchLogFile('cli'),
-        fetchLogFile('supervisor'),
+        fetchLogFile('sidekickd'),
       ])
 
       // Reset streaming parsers on full refresh
       streamParserRef.current.cli.reset()
-      streamParserRef.current.supervisor.reset()
+      streamParserRef.current.sidekickd.reset()
 
       // Parse and merge
       const cliRecords = parseNdjson(cliResult.content)
-      const supervisorRecords = parseNdjson(supervisorResult.content)
-      const merged = mergeLogStreams(cliRecords, supervisorRecords)
+      const daemonRecords = parseNdjson(daemonResult.content)
+      const merged = mergeLogStreams(cliRecords, daemonRecords)
 
       // Update state and tracking
       setSessions(sessionsResult)
       setRecords(merged)
       setError(null)
       setLastFetch(Date.now())
-      lastMtimeRef.current = { cli: cliResult.mtime, supervisor: supervisorResult.mtime }
-      lastOffsetRef.current = { cli: cliResult.fileSize, supervisor: supervisorResult.fileSize }
+      lastMtimeRef.current = { cli: cliResult.mtime, sidekickd: daemonResult.mtime }
+      lastOffsetRef.current = { cli: cliResult.fileSize, sidekickd: daemonResult.fileSize }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch logs')
     } finally {
@@ -219,36 +219,36 @@ export function useLogService(config: LogServiceConfig = {}): LogServiceState & 
 
     try {
       // Fetch only new content from last offset
-      const [cliResult, supervisorResult] = await Promise.all([
+      const [cliResult, daemonResult] = await Promise.all([
         fetchLogFile('cli', { offset: lastOffsetRef.current.cli }),
-        fetchLogFile('supervisor', { offset: lastOffsetRef.current.supervisor }),
+        fetchLogFile('sidekickd', { offset: lastOffsetRef.current.sidekickd }),
       ])
 
       // Check if anything changed (cheap mtime check)
       if (
         cliResult.mtime === lastMtimeRef.current.cli &&
-        supervisorResult.mtime === lastMtimeRef.current.supervisor &&
+        daemonResult.mtime === lastMtimeRef.current.sidekickd &&
         cliResult.fileSize === lastOffsetRef.current.cli &&
-        supervisorResult.fileSize === lastOffsetRef.current.supervisor
+        daemonResult.fileSize === lastOffsetRef.current.sidekickd
       ) {
         return // No changes
       }
 
       // Handle log rotation - reset and reload full
-      if (cliResult.rotated || supervisorResult.rotated) {
+      if (cliResult.rotated || daemonResult.rotated) {
         await fetchAll()
         return
       }
 
       // Parse only new content using streaming parser
       const newCliRecords = streamParserRef.current.cli.push(cliResult.content)
-      const newSupervisorRecords = streamParserRef.current.supervisor.push(supervisorResult.content)
+      const newDaemonRecords = streamParserRef.current.sidekickd.push(daemonResult.content)
 
       // Only update if we got new records
-      if (newCliRecords.length > 0 || newSupervisorRecords.length > 0) {
+      if (newCliRecords.length > 0 || newDaemonRecords.length > 0) {
         // Append new records to existing (maintain sorted order)
         setRecords((prev) => {
-          const allRecords = [...prev, ...newCliRecords, ...newSupervisorRecords]
+          const allRecords = [...prev, ...newCliRecords, ...newDaemonRecords]
           allRecords.sort((a, b) => a.pino.time - b.pino.time)
           return allRecords
         })
@@ -257,11 +257,11 @@ export function useLogService(config: LogServiceConfig = {}): LogServiceState & 
       }
 
       // Update tracking
-      lastMtimeRef.current = { cli: cliResult.mtime, supervisor: supervisorResult.mtime }
-      lastOffsetRef.current = { cli: cliResult.fileSize, supervisor: supervisorResult.fileSize }
+      lastMtimeRef.current = { cli: cliResult.mtime, sidekickd: daemonResult.mtime }
+      lastOffsetRef.current = { cli: cliResult.fileSize, sidekickd: daemonResult.fileSize }
 
       // Update sessions if new ones appeared (cheap check)
-      if (newCliRecords.length > 0 || newSupervisorRecords.length > 0) {
+      if (newCliRecords.length > 0 || newDaemonRecords.length > 0) {
         const newSessions = await fetchSessions()
         setSessions(newSessions)
       }

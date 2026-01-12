@@ -109,8 +109,8 @@ export interface ReplayState {
   metrics: TranscriptMetrics
   /** Currently staged reminders by hook name */
   stagedReminders: Map<string, StagedReminder[]>
-  /** Supervisor health status */
-  supervisorHealth?: {
+  /** Daemon health status */
+  daemonHealth?: {
     online: boolean
     lastSeen: number
     queueDepth?: number
@@ -146,7 +146,7 @@ export function createInitialState(): ReplayState {
     summary: {},
     metrics: createDefaultMetrics(),
     stagedReminders: new Map(),
-    supervisorHealth: undefined,
+    daemonHealth: undefined,
   }
 }
 
@@ -168,7 +168,7 @@ export function cloneState(state: ReplayState): ReplayState {
     stagedReminders: new Map(
       Array.from(state.stagedReminders.entries()).map(([k, v]) => [k, v.map((r) => ({ ...r }))])
     ),
-    supervisorHealth: state.supervisorHealth ? { ...state.supervisorHealth } : undefined,
+    daemonHealth: state.daemonHealth ? { ...state.daemonHealth } : undefined,
   }
 }
 
@@ -339,11 +339,11 @@ export function applyDelta(currentState: ReplayState, delta: Partial<ReplayState
     summary: delta.summary !== undefined ? { ...currentState.summary, ...delta.summary } : currentState.summary,
     metrics: delta.metrics !== undefined ? { ...delta.metrics } : currentState.metrics,
     stagedReminders: delta.stagedReminders !== undefined ? delta.stagedReminders : currentState.stagedReminders,
-    supervisorHealth:
-      delta.supervisorHealth !== undefined
-        ? delta.supervisorHealth
-        : currentState.supervisorHealth
-          ? { ...currentState.supervisorHealth }
+    daemonHealth:
+      delta.daemonHealth !== undefined
+        ? delta.daemonHealth
+        : currentState.daemonHealth
+          ? { ...currentState.daemonHealth }
           : undefined,
   }
 }
@@ -634,7 +634,7 @@ function stateToPlainObject(state: ReplayState): Record<string, unknown> {
     summary: state.summary,
     metrics: state.metrics,
     stagedReminders: Object.fromEntries(state.stagedReminders),
-    supervisorHealth: state.supervisorHealth,
+    daemonHealth: state.daemonHealth,
   }
 }
 

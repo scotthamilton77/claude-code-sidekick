@@ -7,13 +7,13 @@
  * - kind:hook, kind:transcript, kind:internal - Filter by event kind
  * - type:ReminderStaged, type:SummaryUpdated - Filter by event type
  * - hook:UserPromptSubmit, hook:PreToolUse - Filter by hook name
- * - source:cli, source:supervisor - Filter by log source
+ * - source:cli, source:daemon - Filter by log source
  * - Free text - Matches against content, label, type
  *
  * Examples:
  * - "kind:hook hook:Stop" - Only Stop hook events
  * - "kind:transcript tool" - Transcript events containing "tool"
- * - "source:supervisor Summary" - Supervisor events with "Summary"
+ * - "source:daemon Summary" - Daemon events with "Summary"
  *
  * @see packages/sidekick-ui/docs/MONITORING-UI.md §5.2 Search Bar
  */
@@ -33,7 +33,7 @@ export type FilterToken =
   | { type: 'kind'; value: EventKind }
   | { type: 'eventType'; value: string }
   | { type: 'hook'; value: string }
-  | { type: 'source'; value: 'cli' | 'supervisor' }
+  | { type: 'source'; value: 'cli' | 'daemon' }
   | { type: 'text'; value: string }
 
 /**
@@ -62,7 +62,7 @@ const VALID_KINDS = new Set<EventKind>(['hook', 'transcript', 'internal'])
 /**
  * Valid sources for filtering.
  */
-const VALID_SOURCES = new Set(['cli', 'supervisor'])
+const VALID_SOURCES = new Set(['cli', 'daemon'])
 
 /**
  * Parse a single filter token from a query term.
@@ -91,7 +91,7 @@ function parseToken(term: string): FilterToken {
         return { type: 'hook', value }
       case 'source':
         if (VALID_SOURCES.has(value)) {
-          return { type: 'source', value: value as 'cli' | 'supervisor' }
+          return { type: 'source', value: value as 'cli' | 'daemon' }
         }
         break
     }
@@ -162,11 +162,11 @@ function matchEventToken(event: UIEvent, token: FilterToken): boolean {
         const kind = event.rawEvent.kind === 'hook' ? 'hook' : 'transcript'
         return kind === token.value
       }
-      // For events without rawEvent, internal events typically come from supervisor
+      // For events without rawEvent, internal events typically come from daemon
       if (token.value === 'internal') {
-        return event.source === 'supervisor' && !event.rawEvent
+        return event.source === 'daemon' && !event.rawEvent
       }
-      return token.value === 'hook' ? event.source === 'cli' : event.source === 'supervisor'
+      return token.value === 'hook' ? event.source === 'cli' : event.source === 'daemon'
     }
 
     case 'eventType': {
@@ -339,7 +339,7 @@ export function buildFilterQuery(options: {
   kind?: EventKind
   type?: string
   hook?: string
-  source?: 'cli' | 'supervisor'
+  source?: 'cli' | 'daemon'
   text?: string
 }): string {
   const parts: string[] = []
@@ -360,7 +360,7 @@ export function parseQueryToOptions(query: string): {
   kind?: EventKind
   type?: string
   hook?: string
-  source?: 'cli' | 'supervisor'
+  source?: 'cli' | 'daemon'
   text?: string
 } {
   const tokens = parseFilterQuery(query)

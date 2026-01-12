@@ -209,7 +209,7 @@ describe('logRecordToUIEvent Edge Cases', () => {
         pid: 12345,
         hostname: 'test',
       },
-      source: 'supervisor',
+      source: 'daemon',
       type: 'SummaryUpdated',
       raw: {},
     }

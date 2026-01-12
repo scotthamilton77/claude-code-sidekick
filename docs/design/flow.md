@@ -2,22 +2,22 @@
 
 ## 1. Overview
 
-This document defines the event model, CLI/Supervisor interaction patterns, and complete hook flows for the Sidekick system. It establishes how the CLI and Supervisor communicate asynchronously while supporting synchronous hook responses required by Claude Code.
+This document defines the event model, CLI/Daemon interaction patterns, and complete hook flows for the Sidekick system. It establishes how the CLI and Daemon communicate asynchronously while supporting synchronous hook responses required by Claude Code.
 
 ## 2. Core Architecture
 
-### 2.1 CLI/Supervisor Relationship
+### 2.1 CLI/Daemon Relationship
 
-The CLI and Supervisor operate asynchronously:
+The CLI and Daemon operate asynchronously:
 
 - **CLI**: Handles synchronous hook responses to Claude Code. Reads staged files, logs events locally.
-- **Supervisor**: Performs async background work (LLM calls, transcript analysis). Stages files for CLI consumption. Logs events locally.
-- **Communication**: CLI sends events to Supervisor via IPC. Supervisor "responds" by staging files that CLI reads on subsequent hook invocations.
-- **Log Aggregation**: CLI and Supervisor each maintain their own log files. The Monitoring UI aggregates both for unified time-travel debugging.
+- **Daemon**: Performs async background work (LLM calls, transcript analysis). Stages files for CLI consumption. Logs events locally.
+- **Communication**: CLI sends events to Daemon via IPC. Daemon "responds" by staging files that CLI reads on subsequent hook invocations.
+- **Log Aggregation**: CLI and Daemon each maintain their own log files. The Monitoring UI aggregates both for unified time-travel debugging.
 
 ### 2.2 Staging Pattern
 
-The Supervisor prepares future CLI actions by staging files. This decouples async Supervisor work from sync CLI responses.
+The Daemon prepares future CLI actions by staging files. This decouples async Daemon work from sync CLI responses.
 
 **Staging Directory**: `.sidekick/sessions/{session_id}/stage/{hook_name}/`
 
@@ -36,7 +36,7 @@ The Supervisor prepares future CLI actions by staging files. This decouples asyn
 
 ### 2.3 Handler Registration
 
-Both CLI and Supervisor register handlers via a unified `HandlerRegistry`:
+Both CLI and Daemon register handlers via a unified `HandlerRegistry`:
 
 - **Default handler**: No-op (debug log only)
 - **Feature handlers**: Register with explicit priority for execution ordering
@@ -338,19 +338,19 @@ When a hook fires, the CLI:
 6. Log `ReminderConsumed` event to CLI log
 7. Return reminder fields in hook response (`blocking`, `reason`, `additionalContext`, etc.)
 
-### 4.4 Supervisor Staging Logic
+### 4.4 Daemon Staging Logic
 
 When conditions are met to stage a reminder:
 
 1. Create/overwrite `.sidekick/sessions/{session_id}/stage/{hook_name}/{reminder_name}.json`
-2. Log `ReminderStaged` event to Supervisor log
+2. Log `ReminderStaged` event to Daemon log
 
-### 4.5 Supervisor Unstaging Logic
+### 4.5 Daemon Unstaging Logic
 
 When context changes require removing a staged reminder:
 
 1. Delete `.sidekick/sessions/{session_id}/stage/{hook_name}/{reminder_name}.json` if exists
-2. Log `ReminderUnstaged` event to Supervisor log
+2. Log `ReminderUnstaged` event to Daemon log
 
 **Example**: `UnstageVerifyCompletion` handler deletes `VerifyCompletionReminder` on `UserPromptSubmit` event, since a new prompt includes its own reminders to compensate for Claude Code's forgetfulness.
 
@@ -371,10 +371,10 @@ When context changes require removing a staged reminder:
 ```
 [Claude Code] Call sidekick-hook.sh
   ├─[sidekick-hook.sh] Call sidekick.cli --hook SessionStart $type $transcript_path
-  │   ├─[CLI] Start supervisor (if not running)
-  │   ├─[CLI] Send SessionStart event to supervisor (with type, transcript_path)
-  │   │   └─[Supervisor] Invoke SessionStart handlers
-  │   │       ├─[InitSessionState] Init supervisor session state
+  │   ├─[CLI] Start daemon (if not running)
+  │   ├─[CLI] Send SessionStart event to daemon (with type, transcript_path)
+  │   │   └─[Daemon] Invoke SessionStart handlers
+  │   │       ├─[InitSessionState] Init daemon session state
   │   │       │   ├─ startup|clear: clean slate
   │   │       │   └─ startup|clear: delete all files in `.sidekick/sessions/{session_id}/` recursively
   │   │       ├─[InitTranscriptService] Register transcript with TranscriptService
@@ -391,7 +391,7 @@ When context changes require removing a staged reminder:
 
 [TranscriptService] Now watching transcript file for changes
   ├─ Emits TranscriptEvents as new entries appear
-  └─ Note: File watcher must NOT prevent Supervisor shutdown (use unref() or equivalent)
+  └─ Note: File watcher must NOT prevent Daemon shutdown (use unref() or equivalent)
 
 [statusline.sh] Show resume message if found, else empty-summary default
 ```
@@ -411,8 +411,8 @@ When context changes require removing a staged reminder:
 [Claude Code] Call sidekick-hook.sh
   ├─[sidekick-hook.sh] Call sidekick.cli --hook UserPromptSubmit
   │   ├─[CLI] If command (clear|compact): return {}
-  │   ├─[CLI] Send UserPromptSubmit event to supervisor
-  │   │   └─[Supervisor] Invoke UserPromptSubmit handlers
+  │   ├─[CLI] Send UserPromptSubmit event to daemon
+  │   │   └─[Daemon] Invoke UserPromptSubmit handlers
   │   │       ├─[UpdateSessionSummary] Initiate async summary calculation
   │   │       │   └─ Initiates snarky message generation
   │   │       └─[UnstageVerifyCompletion] Delete Stop/VerifyCompletionReminder if exists
@@ -447,9 +447,9 @@ When context changes require removing a staged reminder:
 ```
 [Claude Code] Call sidekick-hook.sh
   ├─[sidekick-hook.sh] Call sidekick.cli --hook PreToolUse
-  │   ├─[CLI] Send PreToolUse event to supervisor
-  │   │   └─[Supervisor] Invoke PreToolUse handlers
-  │   │       └─[Supervisor] No-op (no handlers registered)
+  │   ├─[CLI] Send PreToolUse event to daemon
+  │   │   └─[Daemon] Invoke PreToolUse handlers
+  │   │       └─[Daemon] No-op (no handlers registered)
   │   ├─[CLI] Invoke PreToolUse handlers
   │   │   └─[InjectPreToolUseReminders] Check staged reminders, select highest-priority
   │   │       ├─[CLI] Pick highest-priority pending reminder
@@ -473,8 +473,8 @@ When context changes require removing a staged reminder:
 ```
 [Claude Code] Call sidekick-hook.sh
   ├─[sidekick-hook.sh] Call sidekick.cli --hook PostToolUse
-  │   ├─[CLI] Send PostToolUse event to supervisor
-  │   │   └─[Supervisor] Invoke PostToolUse handlers
+  │   ├─[CLI] Send PostToolUse event to daemon
+  │   │   └─[Daemon] Invoke PostToolUse handlers
   │   │       ├─[UpdateSessionSummary] Re-evaluate summary if cadence met
   │   │       │   ├─ Reads metrics from TranscriptService.getMetrics()
   │   │       │   ├─ Initiates snarky message generation
@@ -512,9 +512,9 @@ When context changes require removing a staged reminder:
 ```
 [Claude Code] Call sidekick-hook.sh
   ├─[sidekick-hook.sh] Call sidekick.cli --hook Stop
-  │   ├─[CLI] Send Stop event to supervisor
-  │   │   └─[Supervisor] Invoke Stop handlers
-  │   │       └─[Supervisor] No-op (no handlers registered)
+  │   ├─[CLI] Send Stop event to daemon
+  │   │   └─[Daemon] Invoke Stop handlers
+  │   │       └─[Daemon] No-op (no handlers registered)
   │   ├─[CLI] Invoke Stop handlers
   │   │   └─[InjectStopReminders] Check staged reminders, select highest-priority
   │   │       ├─[CLI] Pick highest-priority pending reminder
@@ -542,8 +542,8 @@ When context changes require removing a staged reminder:
   ├─[sidekick-hook.sh] Call sidekick.cli --hook PreCompact $transcript_path
   │   ├─[CLI] SYNCHRONOUS: Copy transcript file
   │   │   └─ Copy to `.sidekick/sessions/{session_id}/transcripts/pre-compact-{timestamp}.jsonl`
-  │   ├─[CLI] Send PreCompact event to supervisor (with transcriptSnapshotPath)
-  │   │   └─[Supervisor] Invoke PreCompact handlers
+  │   ├─[CLI] Send PreCompact event to daemon (with transcriptSnapshotPath)
+  │   │   └─[Daemon] Invoke PreCompact handlers
   │   │       └─[CapturePreCompactState] Call TranscriptService.capturePreCompactState(path)
   │   │           ├─ Snapshot current metrics (turn count, tool count, tokens, watermarks)
   │   │           ├─ Record compaction point metadata
@@ -563,9 +563,9 @@ When context changes require removing a staged reminder:
 [statusline.sh] Show session summary if found
 ```
 
-**Why CLI copies the transcript (not Supervisor)**:
+**Why CLI copies the transcript (not Daemon)**:
 
-- **Timing**: Claude Code compacts immediately after hook returns; Supervisor is async
+- **Timing**: Claude Code compacts immediately after hook returns; Daemon is async
 - **Completeness**: Monitoring UI needs full transcript content for time-travel debugging
 - **UI Requirements**: Show pre-compaction events, compaction points, post-compaction continuation
 
@@ -593,8 +593,8 @@ When context changes require removing a staged reminder:
 ```
 [Claude Code] Call sidekick-hook.sh
   ├─[sidekick-hook.sh] Call sidekick.cli --hook SessionEnd $reason
-  │   ├─[CLI] Send SessionEnd event to supervisor (with reason)
-  │   │   └─[Supervisor] Invoke SessionEnd handlers
+  │   ├─[CLI] Send SessionEnd event to daemon (with reason)
+  │   │   └─[Daemon] Invoke SessionEnd handlers
   │   │       └─[StopTranscriptService] Stop file watcher for this session
   │   │           └─ Release file watcher resources
   │   ├─[CLI] Invoke SessionEnd handlers
@@ -607,11 +607,11 @@ When context changes require removing a staged reminder:
 
 ## 6. Error Handling
 
-### 6.1 Supervisor Down
+### 6.1 Daemon Down
 
-When CLI detects supervisor is not running:
+When CLI detects daemon is not running:
 
-1. Attempt to restart supervisor
+1. Attempt to restart daemon
 2. If restart fails: log error, return empty/default hook response
 3. No side effects—CLI degrades gracefully
 
@@ -641,7 +641,7 @@ If file write fails during staging:
 | `ReminderConsumed` | CLI returns a staged reminder |
 | `HookCompleted`    | Hook invocation ends          |
 
-### 7.2 Supervisor-Logged Events
+### 7.2 Daemon-Logged Events
 
 | Event                      | When                                        |
 | -------------------------- | ------------------------------------------- |

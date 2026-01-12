@@ -2,9 +2,9 @@
  * Task Registry for Orphan Prevention
  *
  * Tracks active tasks in state file so orphaned tasks from crashed
- * supervisor runs can be detected and cleaned on restart.
+ * daemon runs can be detected and cleaned on restart.
  *
- * @see docs/design/SUPERVISOR.md §4.3 Task Execution Engine
+ * @see docs/design/DAEMON.md §4.3 Task Execution Engine
  * @see docs/ROADMAP.md Phase 5.2
  */
 
@@ -35,7 +35,7 @@ export function validateSessionId(sessionId: string): void {
  * Task Registry for orphan prevention.
  *
  * Tracks active tasks in state file so orphaned tasks from crashed
- * supervisor runs can be detected and cleaned on restart.
+ * daemon runs can be detected and cleaned on restart.
  */
 export class TaskRegistry {
   private stateManager: StateManager
@@ -57,7 +57,7 @@ export class TaskRegistry {
 
   /**
    * Load raw state reference for internal read-modify-write operations.
-   * Single-writer assumption guaranteed by Supervisor architecture.
+   * Single-writer assumption guaranteed by Daemon architecture.
    */
   private getRawState(): TaskRegistryState {
     const state = this.stateManager.get(TASK_REGISTRY_FILE) as TaskRegistryState | undefined
@@ -106,10 +106,10 @@ export class TaskRegistry {
   }
 
   /**
-   * Clean up orphaned tasks from previous supervisor runs.
-   * Called on supervisor startup to reset task registry.
+   * Clean up orphaned tasks from previous daemon runs.
+   * Called on daemon startup to reset task registry.
    *
-   * Per ROADMAP Phase 5.2: Tasks tracked in state, cleaned on supervisor restart.
+   * Per ROADMAP Phase 5.2: Tasks tracked in state, cleaned on daemon restart.
    */
   async cleanupOrphans(): Promise<number> {
     const state = this.getState()
@@ -133,7 +133,7 @@ export class TaskRegistry {
 }
 
 /**
- * Create a TaskRegistry instance for use with the supervisor.
+ * Create a TaskRegistry instance for use with the daemon.
  */
 export function createTaskRegistry(stateManager: StateManager, logger: Logger): TaskRegistry {
   return new TaskRegistry(stateManager, logger)

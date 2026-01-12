@@ -1,9 +1,9 @@
 # Context Metrics Low-Level Design
 
-This document describes the context-metrics module in `packages/sidekick-supervisor/src/context-metrics/`, which captures Claude Code's actual context window overhead for accurate statusline rendering.
+This document describes the context-metrics module in `packages/sidekickd/src/context-metrics/`, which captures Claude Code's actual context window overhead for accurate statusline rendering.
 
 **Related Documentation:**
-- `docs/design/SUPERVISOR.md` §4.8: ContextMetricsService integration
+- `docs/design/DAEMON.md` §4.8: ContextMetricsService integration
 - `docs/design/FEATURE-STATUSLINE.md` §6.4: Context bar calculation
 
 ## 1. Problem Statement
@@ -31,7 +31,7 @@ Through investigation of Claude Code's transcript files, we found:
 
 ## 3. Solution Overview
 
-Add a `context-metrics` module to supervisor that:
+Add a `context-metrics` module to daemon that:
 
 1. **On startup**: Write default metrics immediately, then async-capture real values via CLI
 2. **Ongoing**: Monitor transcripts for `/context` command output to capture project-specific values
@@ -42,12 +42,12 @@ Add a `context-metrics` module to supervisor that:
 1. **Statusline accuracy**: Context utilization reflects actual overhead (system prompt + tools + memory files)
 2. **No blocking**: Default values available immediately; real capture happens async
 3. **Project-specific**: MCP tools, custom agents, and memory files captured per-project
-4. **Graceful degradation**: Failures use defaults; never crash supervisor
+4. **Graceful degradation**: Failures use defaults; never crash daemon
 
 ## 5. Module Structure
 
 ```
-packages/sidekick-supervisor/src/context-metrics/
+packages/sidekickd/src/context-metrics/
 ├── index.ts                    # Public exports
 ├── types.ts                    # Schemas and interfaces
 ├── context-metrics-service.ts  # Main service class
@@ -145,9 +145,9 @@ class ContextMetricsService {
 }
 ```
 
-### Step 4: Supervisor Integration
+### Step 4: Daemon Integration
 
-**Modify `supervisor.ts`:**
+**Modify `daemon.ts`:**
 - Add `contextMetricsService` field
 - Initialize in `start()` after StateManager
 - Use existing `reconstructTranscriptPath` from `@sidekick/core`
@@ -230,7 +230,7 @@ By tracking both:
 
 | File | Location | Contents | Updated When |
 |------|----------|----------|--------------|
-| `baseline-user-context-token-metrics.json` | `~/.sidekick/state/` | System prompt, system tools, autocompact buffer | Supervisor startup (async CLI capture) |
+| `baseline-user-context-token-metrics.json` | `~/.sidekick/state/` | System prompt, system tools, autocompact buffer | Daemon startup (async CLI capture) |
 | `baseline-project-context-token-metrics.json` | `.sidekick/state/` | MCP tools, custom agents, memory files (minimum seen) | /context observed in any session |
 | `context-metrics.json` | `.sidekick/sessions/{id}/state/` | Full context metrics for this session | /context observed in this session |
 
@@ -264,7 +264,7 @@ When statusline needs context metrics:
 
 ## 8. Critical Files
 
-1. `packages/sidekick-supervisor/src/supervisor.ts` - Integration point
+1. `packages/sidekickd/src/daemon.ts` - Integration point
 2. `packages/types/src/services/state.ts` - Schema extensions
 3. `packages/feature-statusline/src/state-reader.ts` - Read context metrics
 4. `packages/feature-statusline/src/statusline-service.ts` - Use metrics in calculations
@@ -280,5 +280,5 @@ When statusline needs context metrics:
 
 1. **Unit tests** for transcript parser (markdown table parsing, various number formats)
 2. **Unit tests** for service (initialization, state transitions, file operations)
-3. **Integration test** for full flow (supervisor startup → metrics available to statusline)
+3. **Integration test** for full flow (daemon startup → metrics available to statusline)
 4. **Fixtures** in `packages/testing-fixtures/transcripts/` with sample /context outputs

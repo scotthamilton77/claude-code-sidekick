@@ -1,16 +1,16 @@
 /**
  * TranscriptService Lifecycle Tests
  *
- * Tests for Phase 5.3 TranscriptService integration with Supervisor:
+ * Tests for Phase 5.3 TranscriptService integration with Daemon:
  * - Initialize TranscriptService on SessionStart handler
  * - Stop TranscriptService on SessionEnd handler
  * - Ensure shutdown() is called before process exit
  *
  * NOTE: These tests use @sidekick/core HandlerRegistryImpl to verify
- * event dispatching patterns used by Supervisor lifecycle management.
+ * event dispatching patterns used by Daemon lifecycle management.
  * Pure unit tests for HandlerRegistryImpl belong in @sidekick/core.
  *
- * @see docs/design/SUPERVISOR.md §4.7 TranscriptService Integration
+ * @see docs/design/DAEMON.md §4.7 TranscriptService Integration
  * @see docs/design/TRANSCRIPT-PROCESSING.md §6 Implementation Details
  */
 
@@ -252,7 +252,7 @@ describe('TranscriptService Lifecycle', () => {
         },
       })
 
-      // Simulate what Supervisor does on SessionStart - update session info
+      // Simulate what Daemon does on SessionStart - update session info
       registry.updateSession({
         sessionId: 'new-session-456',
         transcriptPath: '/project/.claude/transcript.jsonl',

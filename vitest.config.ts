@@ -31,10 +31,10 @@ export default defineConfig({
         // === shared-providers ===
         'packages/shared-providers/src/index.ts', // Barrel file
 
-        // === sidekick-supervisor ===
-        'packages/sidekick-supervisor/src/index.ts', // Process entrypoint
-        'packages/sidekick-supervisor/src/supervisor.ts', // Orchestration, tested via E2E
-        'packages/sidekick-supervisor/src/handlers/index.ts', // Barrel file
+        // === sidekick-daemon ===
+        'packages/sidekick-daemon/src/index.ts', // Process entrypoint
+        'packages/sidekick-daemon/src/daemon.ts', // Orchestration, tested via E2E
+        'packages/sidekick-daemon/src/handlers/index.ts', // Barrel file
 
         // === feature-reminders ===
         'packages/feature-reminders/src/index.ts', // Barrel file

@@ -1,7 +1,7 @@
 /**
  * ConfigWatcher - Watches configuration files for hot-reload.
  *
- * Per design/SUPERVISOR.md §4.3: Watches config files for changes.
+ * Per design/DAEMON.md §4.3: Watches config files for changes.
  * On change, triggers a callback for config reload.
  *
  * Watches all config files used by the config system:
@@ -13,7 +13,7 @@
  * Uses Node's built-in fs.watch for simplicity. For production use with many files
  * or cross-platform reliability, consider chokidar.
  *
- * @see docs/design/SUPERVISOR.md §4.3
+ * @see docs/design/DAEMON.md §4.3
  * @see docs/design/CONFIG-SYSTEM.md
  */
 

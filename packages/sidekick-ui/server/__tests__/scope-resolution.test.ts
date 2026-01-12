@@ -342,15 +342,15 @@ describe('Dual-scope resolution', () => {
       mkdirSync(projectState, { recursive: true })
       mkdirSync(userState, { recursive: true })
 
-      writeFileSync(join(projectState, 'supervisor-status.json'), '{"scope": "project"}')
-      writeFileSync(join(userState, 'supervisor-status.json'), '{"scope": "user"}')
+      writeFileSync(join(projectState, 'daemon-status.json'), '{"scope": "project"}')
+      writeFileSync(join(userState, 'daemon-status.json'), '{"scope": "user"}')
 
       // Should resolve to project scope
       const statePath = findStatePath(true, projectDir, join(testRoot, 'home'))
       expect(statePath).toBe(projectState)
 
       // Verify we read from project scope
-      const content = JSON.parse(readFileSync(join(statePath!, 'supervisor-status.json'), 'utf-8'))
+      const content = JSON.parse(readFileSync(join(statePath!, 'daemon-status.json'), 'utf-8'))
       expect(content).toEqual({ scope: 'project' })
     })
   })

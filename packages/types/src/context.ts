@@ -21,7 +21,7 @@ import type { TranscriptService } from './services/transcript.js'
 // ============================================================================
 
 /**
- * Base context shared by CLI and Supervisor.
+ * Base context shared by CLI and Daemon.
  * Contains services available in both roles.
  *
  * NOTE: Uses minimal service constraints to avoid circular dependencies.
@@ -42,7 +42,7 @@ export interface BaseContext {
 }
 
 /**
- * CLI context with role discriminant and Supervisor client.
+ * CLI context with role discriminant and Daemon client.
  * CLI handles synchronous hook responses.
  */
 export interface CLIContext extends BaseContext {

@@ -2,7 +2,7 @@
  * IPC Server Implementation
  *
  * Provides a JSON-RPC 2.0 compatible server over Unix Domain Sockets (or Named Pipes on Windows).
- * Used by the Supervisor to accept commands from the CLI.
+ * Used by the Daemon to accept commands from the CLI.
  */
 import fs from 'fs/promises'
 import net from 'net'

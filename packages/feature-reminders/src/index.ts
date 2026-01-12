@@ -2,7 +2,7 @@
  * Reminders Feature
  *
  * Context-aware prompts injected at specific intervals or events.
- * Uses staging/consumption pattern where Supervisor stages reminders
+ * Uses staging/consumption pattern where Daemon stages reminders
  * and CLI consumes them.
  *
  * @see docs/design/FEATURE-REMINDERS.md
@@ -20,7 +20,7 @@ export const manifest: FeatureManifest = {
 }
 
 export function register(context: RuntimeContext): void {
-  // Register staging handlers (runs in Supervisor, transcript events)
+  // Register staging handlers (runs in Daemon, transcript events)
   registerStagingHandlers(context)
 
   // Register consumption handlers (runs in CLI, hook events)
@@ -38,7 +38,7 @@ export * from './reminder-utils'
 // Re-export consumption handlers for CLI use (Phase 8.5.4)
 export { registerConsumptionHandlers } from './handlers/consumption'
 
-// Re-export staging handlers for Supervisor use (Phase 8.5)
+// Re-export staging handlers for Daemon use (Phase 8.5)
 export { registerStagingHandlers } from './handlers/staging'
 
 // Re-export completion classifier for IPC use

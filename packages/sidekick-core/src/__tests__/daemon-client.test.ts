@@ -298,9 +298,9 @@ describe('DaemonClient', () => {
       vi.spyOn(
         client as unknown as { waitForStartup: (t: number) => Promise<void> },
         'waitForStartup'
-      ).mockRejectedValue(new Error('Supervisor failed to start within timeout'))
+      ).mockRejectedValue(new Error('Daemon failed to start within timeout'))
 
-      await expect(client.start()).rejects.toThrow('Supervisor failed to start within timeout')
+      await expect(client.start()).rejects.toThrow('Daemon failed to start within timeout')
     })
   })
 
@@ -615,7 +615,7 @@ describe('DaemonClient', () => {
         client as unknown as { waitForStartup: (t?: number) => Promise<void> }
       ).waitForStartup.bind(client)
 
-      await expect(waitForStartup(200)).rejects.toThrow('Supervisor failed to start within timeout')
+      await expect(waitForStartup(200)).rejects.toThrow('Daemon failed to start within timeout')
     })
 
     it('should wait for socket even if PID file exists', async () => {
@@ -628,7 +628,7 @@ describe('DaemonClient', () => {
         client as unknown as { waitForStartup: (t?: number) => Promise<void> }
       ).waitForStartup.bind(client)
 
-      await expect(waitForStartup(200)).rejects.toThrow('Supervisor failed to start within timeout')
+      await expect(waitForStartup(200)).rejects.toThrow('Daemon failed to start within timeout')
     })
   })
 

@@ -56,18 +56,18 @@ const VERSION: string = require('../../../package.json').version
 // Idle check interval (how often to check for idle timeout)
 const IDLE_CHECK_INTERVAL_MS = 30 * 1000 // Check every 30 seconds
 
-// Heartbeat interval: write supervisor status every 5 seconds per design/SUPERVISOR.md §4.6
+// Heartbeat interval: write daemon status every 5 seconds per design/DAEMON.md §4.6
 const HEARTBEAT_INTERVAL_MS = 5 * 1000
 
 /**
- * Supervisor Process Entrypoint
+ * Daemon Process Entrypoint
  *
- * The Supervisor is a long-running background process responsible for:
+ * The Daemon is a long-running background process responsible for:
  * 1. Single-writer state management (preventing race conditions)
  * 2. Background task execution (heavy compute offloading)
  * 3. IPC communication with the CLI
  *
- * @see docs/design/SUPERVISOR.md
+ * @see docs/design/DAEMON.md
  */
 
 export class Daemon {
@@ -89,7 +89,7 @@ export class Daemon {
   private contextMetricsService: ContextMetricsService
   /** Per-session log counters for statusline {logs} indicator */
   private logCounters = new Map<string, { warnings: number; errors: number }>()
-  /** Global log counters for supervisor-level errors (not tied to any session) */
+  /** Global log counters for daemon-level errors (not tied to any session) */
   private globalLogCounters = { warnings: 0, errors: 0 }
   private token: string = ''
   private lastActivityTime: number = Date.now()
@@ -140,7 +140,7 @@ export class Daemon {
             else counters.errors++ // error and fatal
           }
         } else {
-          // Global counter for supervisor-level logs without session context
+          // Global counter for daemon-level logs without session context
           if (level === 'warn') this.globalLogCounters.warnings++
           else this.globalLogCounters.errors++ // error and fatal
         }
@@ -152,7 +152,7 @@ export class Daemon {
     this.taskEngine = new TaskEngine(this.logger, this.getContextForTask.bind(this))
     this.taskRegistry = createTaskRegistry(this.stateManager, this.logger)
 
-    // Initialize Config Watcher for hot-reload (design/SUPERVISOR.md §4.3)
+    // Initialize Config Watcher for hot-reload (design/DAEMON.md §4.3)
     this.configWatcher = new ConfigWatcher(projectDir, this.logger, this.handleConfigChange.bind(this))
 
     // Initialize Handler Registry (Phase 5.3)
@@ -195,9 +195,9 @@ export class Daemon {
 
   async start(): Promise<void> {
     try {
-      this.logger.info('Supervisor starting', { projectDir: this.projectDir, pid: process.pid })
+      this.logger.info('Daemon starting', { projectDir: this.projectDir, pid: process.pid })
 
-      // 0. Set up process-level error handlers (per design/SUPERVISOR.md §5)
+      // 0. Set up process-level error handlers (per design/DAEMON.md §5)
       this.setupErrorHandlers()
 
       // 1. Write PID file
@@ -243,16 +243,16 @@ export class Daemon {
       // 11. Start periodic session eviction (Phase 6)
       this.startEvictionTimer()
 
-      this.logger.info('Supervisor started successfully')
+      this.logger.info('Daemon started successfully')
     } catch (err) {
-      this.logger.fatal('Failed to start supervisor', { error: err })
+      this.logger.fatal('Failed to start daemon', { error: err })
       await this.cleanup()
       process.exit(1)
     }
   }
 
   async stop(): Promise<void> {
-    this.logger.info('Supervisor stopping')
+    this.logger.info('Daemon stopping')
 
     // Stop idle checker
     this.stopIdleCheck()
@@ -278,7 +278,7 @@ export class Daemon {
     }
 
     // Shutdown all session services via factory
-    // Per docs/design/SUPERVISOR.md §2.2: Shutdown sequence must stop TranscriptService
+    // Per docs/design/DAEMON.md §2.2: Shutdown sequence must stop TranscriptService
     try {
       const count = await this.serviceFactory.shutdownAllSessions()
       if (count > 0) {
@@ -305,13 +305,13 @@ export class Daemon {
     // Cleanup files
     await this.cleanup()
 
-    this.logger.info('Supervisor stopped')
+    this.logger.info('Daemon stopped')
     process.exit(0)
   }
 
   /**
    * Handle configuration file changes for hot-reload.
-   * Per design/SUPERVISOR.md §4.3: Reload config in-memory on change.
+   * Per design/DAEMON.md §4.3: Reload config in-memory on change.
    */
   private handleConfigChange(event: ConfigChangeEvent): void {
     this.logger.info('Configuration change detected', { file: event.file, eventType: event.eventType })
@@ -331,7 +331,7 @@ export class Daemon {
         this.logger.info('Configuration values changed', { changes })
       }
 
-      // Apply critical config changes immediately (per SUPERVISOR.md §4.4)
+      // Apply critical config changes immediately (per DAEMON.md §4.4)
       if (newConfig.core.logging.level !== oldConfig.core.logging.level) {
         this.logManager.setLevel(newConfig.core.logging.level)
         this.logger.info('Log level updated', {
@@ -464,7 +464,7 @@ export class Daemon {
    * Handle hook event invocation from CLI.
    * Dispatches the event to registered handlers and returns aggregated response.
    *
-   * @see docs/design/SUPERVISOR.md §4.2 Handler System
+   * @see docs/design/DAEMON.md §4.2 Handler System
    */
   private async handleHookInvoke(params: Record<string, unknown> | undefined): Promise<unknown> {
     const hook = params?.hook as HookName | undefined
@@ -516,7 +516,7 @@ export class Daemon {
       await this.handleUserPromptSubmitCleanup(event, { logger: requestLogger })
     }
 
-    // Ensure log counters exist for this session (supervisor may have restarted)
+    // Ensure log counters exist for this session (daemon may have restarted)
     if (sessionId && !this.logCounters.has(sessionId)) {
       const existing = await this.loadExistingLogCounts(sessionId)
       this.logCounters.set(sessionId, existing)
@@ -560,7 +560,7 @@ export class Daemon {
       logEvent(log, clearEvent)
 
       // Initialize log counters for new/cleared session
-      // For startup: load existing counts (supervisor might have restarted mid-session)
+      // For startup: load existing counts (daemon might have restarted mid-session)
       // For clear: reset to 0 (user wants a fresh start)
       if (startType === 'clear') {
         this.logCounters.set(sessionId, { warnings: 0, errors: 0 })
@@ -585,7 +585,7 @@ export class Daemon {
   /**
    * Shutdown session services on SessionEnd.
    * Uses ServiceFactory for proper cleanup.
-   * Per docs/design/SUPERVISOR.md §4.7.
+   * Per docs/design/DAEMON.md §4.7.
    */
   private async handleSessionEnd(event: HookEvent, options?: { logger?: Logger }): Promise<void> {
     const log = options?.logger ?? this.logger
@@ -621,7 +621,7 @@ export class Daemon {
     }
 
     // Only update P&R baseline for verify-completion consumption
-    // FIXME this should go into a feature controller handler instead of supervisor directly.
+    // FIXME this should go into a feature controller handler instead of daemon directly.
     if (reminderName === 'verify-completion') {
       const stateDir = path.join(this.projectDir, '.sidekick', 'sessions', sessionId, 'state')
       await fs.mkdir(stateDir, { recursive: true })
@@ -1053,7 +1053,7 @@ export class Daemon {
     // STEP 2: Wire up full context with all services
     // Handlers will receive this context when events fire
     // Note: We pass the request-scoped logger so handlers can log with correlationId
-    const supervisorContext: DaemonContext = {
+    const daemonContext: DaemonContext = {
       role: 'daemon',
       config: {
         core: {
@@ -1084,7 +1084,7 @@ export class Daemon {
     this.handlerRegistry.setMetricsProvider(() => transcriptService.getMetrics())
 
     // Set context BEFORE starting transcript service
-    this.handlerRegistry.setContext(supervisorContext as unknown as Record<string, unknown>)
+    this.handlerRegistry.setContext(daemonContext as unknown as Record<string, unknown>)
 
     // STEP 3: Start transcript service - NOW events can fire with full context
     await transcriptService.start()
@@ -1132,10 +1132,10 @@ export class Daemon {
   /**
    * Write PID files to both project-level and user-level locations.
    *
-   * Project-level: .sidekick/supervisor.pid (simple PID number)
-   * User-level: ~/.sidekick/supervisors/{hash}.pid (JSON with project path and PID)
+   * Project-level: .sidekick/daemon.pid (simple PID number)
+   * User-level: ~/.sidekick/daemons/{hash}.pid (JSON with project path and PID)
    *
-   * @see docs/design/CLI.md §7 Supervisor Lifecycle Management
+   * @see docs/design/CLI.md §7 Daemon Lifecycle Management
    */
   private async writePid(): Promise<void> {
     // Project-level PID file (simple PID for backward compatibility)
@@ -1162,10 +1162,10 @@ export class Daemon {
   }
 
   /**
-   * Clean up all supervisor files on shutdown.
+   * Clean up all daemon files on shutdown.
    * Removes project-level PID, token, and user-level PID files.
    *
-   * @see docs/design/CLI.md §7 Supervisor Lifecycle Management
+   * @see docs/design/CLI.md §7 Daemon Lifecycle Management
    */
   private async cleanup(): Promise<void> {
     const filesToRemove = [
@@ -1187,7 +1187,7 @@ export class Daemon {
   /**
    * Start the idle timeout checker.
    * Per design/CLI.md §7: Self-terminate after configured idle timeout (default 5 minutes).
-   * Set supervisor.idleTimeoutMs to 0 to disable idle timeout.
+   * Set daemon.idleTimeoutMs to 0 to disable idle timeout.
    */
   private startIdleCheck(): void {
     const idleTimeoutMs = this.configService.core.daemon.idleTimeoutMs
@@ -1223,7 +1223,7 @@ export class Daemon {
 
   /**
    * Start the heartbeat mechanism.
-   * Per design/SUPERVISOR.md §4.6: Write supervisor status every 5 seconds for Monitoring UI.
+   * Per design/DAEMON.md §4.6: Write daemon status every 5 seconds for Monitoring UI.
    */
   private startHeartbeat(): void {
     // Write initial heartbeat immediately
@@ -1272,8 +1272,8 @@ export class Daemon {
   }
 
   /**
-   * Write current supervisor status to state file.
-   * Per design/SUPERVISOR.md §4.6: Includes timestamp, pid, uptime, memory, queue stats.
+   * Write current daemon status to state file.
+   * Per design/DAEMON.md §4.6: Includes timestamp, pid, uptime, memory, queue stats.
    */
   private async writeHeartbeat(): Promise<void> {
     const memUsage = process.memoryUsage()
@@ -1297,7 +1297,7 @@ export class Daemon {
     }
 
     try {
-      await this.stateManager.update('supervisor-status', status as unknown as Record<string, unknown>)
+      await this.stateManager.update('daemon-status', status as unknown as Record<string, unknown>)
     } catch (err) {
       // Log but don't crash - heartbeat is non-critical
       this.logger.warn('Failed to write heartbeat status', {
@@ -1310,12 +1310,12 @@ export class Daemon {
   }
 
   /**
-   * Load existing log counts from supervisor-log-metrics.json.
-   * Used to restore counts after supervisor restart mid-session.
+   * Load existing log counts from daemon-log-metrics.json.
+   * Used to restore counts after daemon restart mid-session.
    */
   private async loadExistingLogCounts(sessionId: string): Promise<{ warnings: number; errors: number }> {
     const stateDir = path.join(this.projectDir, '.sidekick', 'sessions', sessionId, 'state')
-    const logMetricsPath = path.join(stateDir, 'supervisor-log-metrics.json')
+    const logMetricsPath = path.join(stateDir, 'daemon-log-metrics.json')
 
     try {
       const content = await fs.readFile(logMetricsPath, 'utf-8')
@@ -1324,7 +1324,7 @@ export class Daemon {
         warnings: typeof parsed.warningCount === 'number' ? parsed.warningCount : 0,
         errors: typeof parsed.errorCount === 'number' ? parsed.errorCount : 0,
       }
-      this.logger.debug('Loaded existing supervisor log counts', { sessionId, existing })
+      this.logger.debug('Loaded existing daemon log counts', { sessionId, existing })
       return existing
     } catch {
       // File doesn't exist or is invalid - start fresh (normal for new sessions)
@@ -1333,9 +1333,9 @@ export class Daemon {
   }
 
   /**
-   * Persist log metrics for all active sessions and global supervisor metrics.
-   * Writes supervisor-log-metrics.json to each session's state directory,
-   * and supervisor-global-log-metrics.json to the supervisor state directory.
+   * Persist log metrics for all active sessions and global daemon metrics.
+   * Writes daemon-log-metrics.json to each session's state directory,
+   * and daemon-global-log-metrics.json to the daemon state directory.
    */
   private async persistLogMetrics(): Promise<void> {
     const now = Date.now()
@@ -1343,7 +1343,7 @@ export class Daemon {
     // Persist per-session log metrics
     for (const [sessionId, counts] of this.logCounters) {
       const stateDir = path.join(this.projectDir, '.sidekick', 'sessions', sessionId, 'state')
-      const logMetricsPath = path.join(stateDir, 'supervisor-log-metrics.json')
+      const logMetricsPath = path.join(stateDir, 'daemon-log-metrics.json')
 
       const logMetrics = {
         sessionId,
@@ -1364,7 +1364,7 @@ export class Daemon {
       }
     }
 
-    // Persist global supervisor log metrics (for logs without session context)
+    // Persist global daemon log metrics (for logs without session context)
     const globalMetrics = {
       warningCount: this.globalLogCounters.warnings,
       errorCount: this.globalLogCounters.errors,
@@ -1372,7 +1372,7 @@ export class Daemon {
     }
 
     try {
-      await this.stateManager.update('supervisor-global-log-metrics', globalMetrics)
+      await this.stateManager.update('daemon-global-log-metrics', globalMetrics)
     } catch (err) {
       // Log but don't crash - log metrics are non-critical
       // Note: This log itself won't cause infinite recursion since the hook
@@ -1398,7 +1398,7 @@ export class Daemon {
       projectDir: this.projectDir,
       userConfigDir: path.join(homedir(), '.sidekick'),
       projectConfigDir: path.join(this.projectDir, '.sidekick'),
-      hookScriptPath: undefined, // Not applicable for supervisor
+      hookScriptPath: undefined, // Not applicable for daemon
     }
 
     // Create a registration context with role='daemon' for type guards.
@@ -1441,8 +1441,8 @@ export class Daemon {
 
   /**
    * Set up process-level error handlers for uncaught exceptions and unhandled rejections.
-   * Per design/SUPERVISOR.md §5: Log fatal error to supervisor.log, attempt graceful cleanup, exit.
-   * CLI will restart the supervisor on next run.
+   * Per design/DAEMON.md §5: Log fatal error to sidekickd.log, attempt graceful cleanup, exit.
+   * CLI will restart the daemon on next run.
    */
   private setupErrorHandlers(): void {
     // Track if we're already handling a fatal error to prevent recursion
@@ -1461,7 +1461,7 @@ export class Daemon {
       }
       isHandlingFatalError = true
 
-      // Log the fatal error to supervisor.log
+      // Log the fatal error to sidekickd.log
       this.logger.fatal(`Fatal ${type}`, {
         error: error instanceof Error ? { message: error.message, stack: error.stack } : String(error),
         pid: process.pid,

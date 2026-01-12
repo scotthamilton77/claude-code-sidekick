@@ -7,7 +7,7 @@ This document describes manual integration tests for the **pause-and-reflect (P&
 ## Configuration
 
 Before testing, ensure:
-- **Supervisor is running** (watches transcript, stages reminders)
+- **Daemon is running** (watches transcript, stages reminders)
 - **CLI hooks are installed** (consume staged reminders)
 - **`pause_and_reflect_threshold: 5`** in the reminders config
 
@@ -136,8 +136,8 @@ ls -la .sidekick/sessions/*/stage/Stop/
 # Check P&R baseline state
 cat .sidekick/sessions/*/state/pr-baseline.json
 
-# Watch supervisor logs
-tail -f .sidekick/sessions/*/sidekick.log
+# Watch daemon logs
+tail -f .sidekick/sessions/*/sidekickd.log
 ```
 
 ## Cleanup
@@ -150,6 +150,6 @@ rm -f /tmp/claude/test-vc-*.ts
 
 | Issue | Check |
 |-------|-------|
-| No reminders | Is supervisor running? Check `.sidekick/sessions/` exists |
+| No reminders | Is daemon running? Check `.sidekick/sessions/` exists |
 | P&R wrong timing | Verify threshold=5, check if VC reset baseline |
 | VC not staging | Only triggers for source files (.ts, .js, .py, etc.) |

@@ -64,9 +64,9 @@ const EventKindBadge: React.FC<{ event: UIEvent; isFuture: boolean }> = ({ event
 }
 
 /**
- * Badge showing event source (cli/supervisor).
+ * Badge showing event source (cli/daemon).
  */
-const SourceBadge: React.FC<{ source?: 'cli' | 'supervisor'; isFuture: boolean }> = ({ source, isFuture }) => {
+const SourceBadge: React.FC<{ source?: 'cli' | 'daemon'; isFuture: boolean }> = ({ source, isFuture }) => {
   if (!source) return null
 
   const styles = {
@@ -76,7 +76,7 @@ const SourceBadge: React.FC<{ source?: 'cli' | 'supervisor'; isFuture: boolean }
       border: isFuture ? 'border-slate-200' : 'border-orange-200',
       icon: 'terminal' as const,
     },
-    supervisor: {
+    daemon: {
       bg: isFuture ? 'bg-slate-100' : 'bg-indigo-50',
       text: isFuture ? 'text-slate-400' : 'text-indigo-600',
       border: isFuture ? 'border-slate-200' : 'border-indigo-200',
@@ -85,7 +85,7 @@ const SourceBadge: React.FC<{ source?: 'cli' | 'supervisor'; isFuture: boolean }
   }
 
   const style = styles[source]
-  const label = source === 'cli' ? 'CLI' : 'Supervisor'
+  const label = source === 'cli' ? 'CLI' : 'Daemon'
 
   return (
     <span

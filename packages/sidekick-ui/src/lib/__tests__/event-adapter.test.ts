@@ -104,8 +104,8 @@ describe('getEventKind', () => {
     expect(getEventKind(record)).toBe('internal')
   })
 
-  it('returns internal for supervisor source without event', () => {
-    const record = createLogRecord({ source: 'supervisor' as const })
+  it('returns internal for daemon source without event', () => {
+    const record = createLogRecord({ source: 'daemon' as const })
 
     expect(getEventKind(record)).toBe('internal')
   })
@@ -136,11 +136,11 @@ describe('logRecordToUIEvent - Basic Conversion', () => {
   })
 
   it('preserves source from log record', () => {
-    const record = createLogRecord({ source: 'supervisor' as const })
+    const record = createLogRecord({ source: 'daemon' as const })
 
     const uiEvent = logRecordToUIEvent(record, 1)
 
-    expect(uiEvent.source).toBe('supervisor')
+    expect(uiEvent.source).toBe('daemon')
   })
 
   it('extracts traceId from context', () => {

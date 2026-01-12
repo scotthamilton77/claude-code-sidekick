@@ -6,7 +6,7 @@
  *
  * Log files:
  * - CLI: .sidekick/logs/cli.log
- * - Supervisor: .sidekick/logs/supervisor.log
+ * - Daemon: .sidekick/logs/sidekickd.log
  *
  * @see docs/design/STRUCTURED-LOGGING.md §2.2 Log File Strategy
  * @see packages/sidekick-ui/docs/MONITORING-UI.md §3.2 Time Travel
@@ -46,7 +46,7 @@ export interface PinoFields {
  * Source component that produced the log entry.
  * Used for filtering and display badges.
  */
-export type LogSource = 'cli' | 'supervisor'
+export type LogSource = 'cli' | 'daemon'
 
 /**
  * Parsed log record combining Pino metadata with Sidekick event data.
@@ -127,12 +127,12 @@ export function parseLine(line: string): ParseResult {
 
   // Extract source
   const source: LogSource =
-    typeof parsed.source === 'string' && (parsed.source === 'cli' || parsed.source === 'supervisor')
+    typeof parsed.source === 'string' && (parsed.source === 'cli' || parsed.source === 'daemon')
       ? parsed.source
       : pino.name?.includes('cli')
         ? 'cli'
-        : pino.name?.includes('supervisor')
-          ? 'supervisor'
+        : pino.name?.includes('daemon')
+          ? 'daemon'
           : 'cli'
 
   // Extract event fields
@@ -360,17 +360,17 @@ export function filterBySessionId(records: ParsedLogRecord[], sessionId: string)
 
 /**
  * Merge two log streams by timestamp.
- * Used to combine CLI and Supervisor logs for unified timeline.
+ * Used to combine CLI and daemon logs for unified timeline.
  *
  * @param cliRecords - Records from cli.log
- * @param supervisorRecords - Records from supervisor.log
+ * @param daemonRecords - Records from sidekickd.log
  * @returns Merged array sorted by timestamp (ascending)
  */
 export function mergeLogStreams(
   cliRecords: ParsedLogRecord[],
-  supervisorRecords: ParsedLogRecord[]
+  daemonRecords: ParsedLogRecord[]
 ): ParsedLogRecord[] {
-  const all = [...cliRecords, ...supervisorRecords]
+  const all = [...cliRecords, ...daemonRecords]
 
   // Sort by timestamp (ascending - oldest first)
   all.sort((a, b) => a.pino.time - b.pino.time)
@@ -383,16 +383,16 @@ export function mergeLogStreams(
  * Convenience function combining merge and filter.
  *
  * @param cliRecords - Records from cli.log
- * @param supervisorRecords - Records from supervisor.log
+ * @param daemonRecords - Records from sidekickd.log
  * @param sessionId - Session ID to filter by
  * @returns Merged, filtered, and sorted records
  */
 export function mergeAndFilterBySession(
   cliRecords: ParsedLogRecord[],
-  supervisorRecords: ParsedLogRecord[],
+  daemonRecords: ParsedLogRecord[],
   sessionId: string
 ): ParsedLogRecord[] {
-  const merged = mergeLogStreams(cliRecords, supervisorRecords)
+  const merged = mergeLogStreams(cliRecords, daemonRecords)
   return filterBySessionId(merged, sessionId)
 }
 

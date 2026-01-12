@@ -11,7 +11,7 @@ This document captures the greenfield Node.js rewrite plan for Sidekick. It pull
   - Honor SOLID principles: Files > 500 lines and methods > 20 lines are smells that we're letting complexity creep in
   - Honor DRY principles: If we're unnecessarily doing the same thing in two places, we should refactor
 - **Node-first runtime**: CLI, feature orchestration, and hook integration live in TypeScript/Node. Python is reserved for developer tooling only (one-off analyzers, data prep), never as a deployed dependency.
-- **Observability-first**: Use pino + telemetry wrapper from day one, with the supervisor as single writer for state to eliminate file locking/race issues seen in Bash.
+- **Observability-first**: Use pino + telemetry wrapper from day one, with the daemon as single writer for state to eliminate file locking/race issues seen in Bash.
 - **Dual-scope parity**: Behavior must remain identical in project (`.claude/`) and user (`~/.claude/`) scopes, mirroring today’s Sidekick guarantees in `CLAUDE.md`.  Preserve the existing cascade (user/project installed vs. persistent) through the asset resolver so users keep current workflows while gaining the Node runtime benefits.
 - **Greenfield repo layout**: Rather than carry forward organic structures, introduce a deliberate workspace rooted at `packages/` with explicit package boundaries and shared tooling.
 - **Reuse benchmark-next core**: The `src/lib/` directory in `benchmark-next` becomes the shared core (`sidekick-core`), providing production-ready implementations for LLM providers, configuration, logging, and transcript processing.
@@ -76,13 +76,13 @@ Key characteristics:
    - `shared-providers` (reusing `benchmark-next/src/lib/providers`) offers typed adapters for Claude CLI (via child_process), OpenAI, OpenRouter, and custom commands. It mirrors the provider matrix described in `ARCH.md` but leverages async/await, AbortController, and circuit-breaker primitives for resilience.
 6. **Logging & Telemetry**
    - Use `pino` (as in `benchmark-next`) for structured logs. File output continues to `.sidekick/sessions/<id>/sidekick.log`. **Telemetry is implemented as a lightweight wrapper around logging, emitting metric events (counters, timers) into the same stream.** Console logging remains opt-in via config/env/CLI flag, matching current semantics.
-7. **Background Work (Event Loop Supervisor)**
-   - **Architecture**: A detached Node process acts as a background supervisor/event loop.
-   - **Lifecycle**: The CLI checks for the supervisor's existence (via PID file/socket). If missing, the CLI starts it.
-   - **Communication**: The CLI queues events (e.g., "session updated") to the supervisor.
+7. **Background Work (Event Loop Daemon)**
+   - **Architecture**: A detached Node process acts as a background daemon/event loop.
+   - **Lifecycle**: The CLI checks for the daemon's existence (via PID file/socket). If missing, the CLI starts it.
+   - **Communication**: The CLI queues events (e.g., "session updated") to the daemon.
    - **Responsibility**: Handles compute-heavy tasks (resume generation, session summary updates) asynchronously to avoid blocking the CLI.
-   - **State Management**: Acts as the **single writer** for shared state files (using atomic writes). The CLI reads these files for synchronous hooks (like `statusline`) but delegates all mutations to the supervisor via IPC.
-   - **Sync vs Async**: Decided on a per-hook basis. Lightweight hooks remain synchronous; heavy hooks delegate to the supervisor.
+   - **State Management**: Acts as the **single writer** for shared state files (using atomic writes). The CLI reads these files for synchronous hooks (like `statusline`) but delegates all mutations to the daemon via IPC.
+   - **Sync vs Async**: Decided on a per-hook basis. Lightweight hooks remain synchronous; heavy hooks delegate to the daemon.
 
 ## 5. Installation & Distribution
 
@@ -118,10 +118,10 @@ Key characteristics:
 ## 9. Open Questions
 
 1. **Config Format Evolution**: **Decision: Adopt JSONC.** The runtime will strictly use JSONC (JSON with comments) validated by Zod. A standalone migration tool will be provided to convert legacy `.conf` files.
-2. **Background Task Implementation**: **Decision: Async Event Loop.** A detached background process (supervisor) will handle heavy compute tasks. The CLI queues events to this process, which updates state files for synchronous hooks to consume.
+2. **Background Task Implementation**: **Decision: Async Event Loop.** A detached background process (daemon) will handle heavy compute tasks. The CLI queues events to this process, which updates state files for synchronous hooks to consume.
 3. **Shared Tooling Governance**: **Decision: Monorepo Lockstep.** We will rely on the monorepo structure where `assets/sidekick` represents the current development state. Compatibility is enforced by `packages/schema-contracts` (Zod/TS types). If an asset change breaks the contract, the build fails. For benchmarking reproducibility, `benchmark-next` will record the git SHA of the `assets/` folder in its run metadata.
 4. **Telemetry/Observability Enhancements**: **Decision: Logging-First with Structured Metrics.** We will defer full OpenTelemetry integration to avoid scope creep. Instead, `sidekick-core` will include a lightweight telemetry helper that emits metrics (counters, timers) as structured log entries (e.g., `{ "level": "info", "kind": "metric", ... }`). This provides sufficient visibility for the migration phase while keeping the runtime dependency-free.
-5. **State Management**: **Decision: Supervisor-Owned JSON State.** We will move away from scattered counter files. The Background Supervisor will act as the **single writer** for state, persisting it to `state/*.json` files using atomic writes. The CLI will read these files directly for low-latency access (e.g., statusline) but must send IPC messages to the Supervisor to request updates. This eliminates file locking complexity and race conditions while preserving human-readable debuggability.
+5. **State Management**: **Decision: Daemon-Owned JSON State.** We will move away from scattered counter files. The Background Daemon will act as the **single writer** for state, persisting it to `state/*.json` files using atomic writes. The CLI will read these files directly for low-latency access (e.g., statusline) but must send IPC messages to the Daemon to request updates. This eliminates file locking complexity and race conditions while preserving human-readable debuggability.
 6. **Separation of Concerns**: **Decision: Hexagonal Architecture (Ports & Adapters).** We will strictly decouple the "Core Domain" from the "Claude Interface".
    - **`sidekick-core`**: Contains pure business logic (summarization, reminders, state) and operates on generic domain objects. It has zero knowledge of Claude-specific JSON formats or environment variables.
    - **`sidekick-cli`**: Acts as the **Claude Hook Adapter**. It is responsible for parsing the specific stdin payloads defined by Anthropic, converting them to domain objects, invoking the core, and formatting the response.

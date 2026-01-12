@@ -5,10 +5,10 @@
  * - Simple `send(method, payload)` API
  * - Connection pooling (connection reused within CLI session)
  * - Automatic reconnection on transient failures
- * - Graceful degradation when supervisor unavailable
+ * - Graceful degradation when daemon unavailable
  * - Configurable timeout/retry settings from config.yaml
  *
- * @see docs/design/CLI.md §4 Supervisor Interaction
+ * @see docs/design/CLI.md §4 Daemon Interaction
  * @see docs/design/CONFIG-SYSTEM.md (ipc config settings)
  */
 import fs from 'fs/promises'
@@ -18,7 +18,7 @@ import { getSocketPath, getTokenPath } from './ipc/transport.js'
 import { Logger } from './logger.js'
 
 export interface IpcServiceOptions extends IpcClientOptions {
-  /** Return null instead of throwing when supervisor is unavailable (default: true) */
+  /** Return null instead of throwing when daemon is unavailable (default: true) */
   gracefulDegradation?: boolean
 }
 
@@ -27,9 +27,9 @@ const DEFAULT_OPTIONS: IpcServiceOptions = {
 }
 
 /**
- * High-level IPC service for communicating with the supervisor.
+ * High-level IPC service for communicating with the daemon.
  *
- * Designed for feature code to easily send commands to the supervisor
+ * Designed for feature code to easily send commands to the daemon
  * without managing connection lifecycle.
  *
  * @example
@@ -78,14 +78,14 @@ export class IpcService {
   }
 
   /**
-   * Send an IPC request to the supervisor.
+   * Send an IPC request to the daemon.
    *
    * Handles authentication, connection pooling, and optionally graceful degradation.
    *
    * @param method - RPC method name
    * @param params - Method parameters (will have token added automatically)
    * @param options - Override options for this call
-   * @returns Result from supervisor, or null if graceful degradation is enabled and supervisor unavailable
+   * @returns Result from daemon, or null if graceful degradation is enabled and daemon unavailable
    */
   async send<T = unknown>(
     method: string,
@@ -110,7 +110,7 @@ export class IpcService {
       const error = err instanceof Error ? err : new Error(String(err))
 
       if (graceful) {
-        this.logger.warn('IPC call failed, supervisor unavailable', {
+        this.logger.warn('IPC call failed, daemon unavailable', {
           method,
           error: error.message,
         })
@@ -122,7 +122,7 @@ export class IpcService {
   }
 
   /**
-   * Check if supervisor is available and responding.
+   * Check if daemon is available and responding.
    *
    * Useful for features to check before attempting expensive operations.
    */
@@ -160,7 +160,7 @@ export class IpcService {
     try {
       this.token = await fs.readFile(getTokenPath(this.projectDir), 'utf-8')
     } catch {
-      throw new Error('Supervisor token not found - supervisor may not be running')
+      throw new Error('Daemon token not found - daemon may not be running')
     }
 
     // Connect if needed

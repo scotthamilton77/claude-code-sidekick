@@ -39,7 +39,7 @@ Per **docs/design/flow.md §2.3**, handlers register with filters to specify whi
 
 **Dual-Registration via Event Routing**: This feature demonstrates **Pattern 2** from **docs/design/CORE-RUNTIME.md §6.10**. Role separation is achieved through event filter types rather than explicit context discrimination:
 
-- **Staging handlers**: `{ kind: 'transcript', ... }` → Supervisor (TranscriptService owner)
+- **Staging handlers**: `{ kind: 'transcript', ... }` → Daemon (TranscriptService owner)
 - **Consumption handlers**: `{ kind: 'hook', ... }` → CLI (synchronous hook responder)
 
 This pattern is ideal when feature concerns naturally align with event types. For features requiring role-specific logic within the _same_ event type, use the **role discriminant pattern** instead.
@@ -182,7 +182,7 @@ This is more efficient than checking thresholds on every ToolCall event.
 
 ### 5.1 Turn-Based Reminder (UserPromptSubmit)
 
-**Staging** (Supervisor, SessionStart):
+**Staging** (Daemon, SessionStart):
 
 1. `StageDefaultUserPromptReminder` resolves `user-prompt-submit` template
 2. Creates `.sidekick/sessions/{id}/stage/UserPromptSubmit/UserPromptSubmitReminder.json`
@@ -195,13 +195,13 @@ This is more efficient than checking thresholds on every ToolCall event.
 3. Returns content in `hookSpecificOutput.additionalContext`
 4. Does NOT delete (persistent reminder)
 
-**Re-staging** (Supervisor, PostToolUse):
+**Re-staging** (Daemon, PostToolUse):
 
 1. If turn cadence met, re-stage with fresh content (summary update, etc.)
 
 ### 5.2 Tool-Based "Pause and Reflect" (Transcript → PreToolUse)
 
-**Staging** (Supervisor, TranscriptEvent: ToolCall):
+**Staging** (Daemon, TranscriptEvent: ToolCall):
 
 1. `StagePauseAndReflect` receives ToolCall transcript event
 2. Queries `ctx.transcript.getMetrics().toolsThisTurn`
@@ -224,7 +224,7 @@ This is more efficient than checking thresholds on every ToolCall event.
 
 ### 5.3 Pre-Completion Verification (Stop)
 
-**Staging** (Supervisor, TranscriptEvent: ToolCall):
+**Staging** (Daemon, TranscriptEvent: ToolCall):
 
 1. `StageStopReminders` receives ToolCall event with tool name
 2. Detects source file edit (Write, Edit, Multiedit on `.ts`, `.js`, `.py`, etc.) from `event.payload` (**note to claude**: we can also look at documentation-only updates, and stage a different reminder - when it's time to implement, let's discuss)
@@ -233,7 +233,7 @@ This is more efficient than checking thresholds on every ToolCall event.
    - Stages `.sidekick/sessions/{id}/stage/Stop/VerifyCompletionReminder.json`
    - Sets `blocking: true`, `persistent: false`, `priority: 50`
 
-**Unstaging** (Supervisor):
+**Unstaging** (Daemon):
 
 The verify-completion reminder is unstaged in two scenarios:
 
@@ -252,7 +252,7 @@ The verify-completion reminder is unstaged in two scenarios:
 4. Renames file with timestamp suffix (preserves consumption history)
 5. If consuming `verify-completion`:
    - Deletes any staged `pause-and-reflect` (prevents cascade)
-   - Sends `reminder.consumed` IPC to Supervisor (resets P&R baseline)
+   - Sends `reminder.consumed` IPC to Daemon (resets P&R baseline)
 
 ### 5.4 Reactivation Logic
 
@@ -274,7 +274,7 @@ Reminders track consumption history via timestamped files (e.g., `verify-complet
 
 ### 5.5 P&R Baseline Reset (IPC)
 
-When VC is consumed, the CLI sends `reminder.consumed` IPC to the Supervisor:
+When VC is consumed, the CLI sends `reminder.consumed` IPC to the Daemon:
 
 ```typescript
 await ipc.send('reminder.consumed', {
@@ -284,7 +284,7 @@ await ipc.send('reminder.consumed', {
 })
 ```
 
-The Supervisor stores the baseline in `.sidekick/sessions/{id}/state/pr-baseline.json`:
+The Daemon stores the baseline in `.sidekick/sessions/{id}/state/pr-baseline.json`:
 
 ```typescript
 interface PRBaselineState {
@@ -444,8 +444,8 @@ Aligned with `docs/design/flow.md` event taxonomy:
 
 | Event              | Source     | When                              |
 | ------------------ | ---------- | --------------------------------- |
-| `ReminderStaged`   | Supervisor | Reminder file created             |
-| `ReminderUnstaged` | Supervisor | Reminder file deleted (unstaging) |
+| `ReminderStaged`   | Daemon | Reminder file created             |
+| `ReminderUnstaged` | Daemon | Reminder file deleted (unstaging) |
 | `ReminderConsumed` | CLI        | Reminder returned in hook         |
 
 Event payloads include the reminder `name`, `hook`, and relevant context.

@@ -309,17 +309,17 @@ describe('IPC', () => {
      *
      * IMPORTANT: These tests verify that the transport correctly propagates
      * handler errors to clients. They do NOT test production authentication.
-     * Production token enforcement is the responsibility of the Supervisor handler.
+     * Production token enforcement is the responsibility of the Daemon handler.
      *
      * If you need to verify production token security, test the actual
-     * supervisor handler implementation directly, not through this test suite.
+     * daemon handler implementation directly, not through this test suite.
      *
      * @see docs/ARCHITECTURE.md for full rationale
      */
 
     const VALID_TOKEN = 'valid-test-token-abc123'
 
-    // Creates a handler that implements token validation (like supervisor does)
+    // Creates a handler that implements token validation (like daemon does)
     const createTokenValidatingHandler = (expectedToken: string): ReturnType<typeof vi.fn> => {
       return vi.fn().mockImplementation((method: string, params: unknown) => {
         const p = params as Record<string, unknown> | undefined

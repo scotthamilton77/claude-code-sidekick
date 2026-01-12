@@ -147,7 +147,7 @@ export interface UIEvent {
   /** Git branch (if relevant) */
   branch?: string
   /** Source component (for 1.5.4 badge display) */
-  source?: 'cli' | 'supervisor'
+  source?: 'cli' | 'daemon'
   /** Original SidekickEvent (for drill-down in 1.5.4) */
   rawEvent?: import('@sidekick/types').SidekickEvent
   /** Trace ID for correlating related events */

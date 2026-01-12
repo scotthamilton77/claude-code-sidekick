@@ -2,7 +2,7 @@
  * Statusline Feature
  *
  * Real-time statusline rendering for shell prompt integration.
- * Reads state files prepared by Supervisor to display session info,
+ * Reads state files prepared by Daemon to display session info,
  * token counts, costs, and contextual summaries.
  *
  * This is a CLI-only feature - it does not register handlers.

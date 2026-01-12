@@ -33,7 +33,7 @@ export class CLIStagingReader {
   private readonly stagingRoot: string
 
   constructor(options: StagingReaderOptions) {
-    // State dir is under projectConfigDir (matches Supervisor's StagingService)
+    // State dir is under projectConfigDir (matches Daemon's StagingService)
     // Consumption handlers only run in project scope, so this is always defined
     if (!options.paths.projectConfigDir) {
       throw new Error('CLIStagingReader requires project scope (projectConfigDir must be defined)')
@@ -81,7 +81,7 @@ export class CLIStagingReader {
   /**
    * Rename a consumed reminder file to preserve consumption history.
    * Renames {reminderName}.json to {reminderName}.{timestamp}.json
-   * This allows Supervisor to determine reactivation timing.
+   * This allows Daemon to determine reactivation timing.
    */
   renameReminder(hookName: string, reminderName: string): void {
     if (!isValidPathSegment(hookName) || !isValidPathSegment(reminderName)) return

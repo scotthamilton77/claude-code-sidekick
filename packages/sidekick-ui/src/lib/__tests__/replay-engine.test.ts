@@ -46,7 +46,7 @@ function createRecord(
 ): ParsedLogRecord {
   return {
     pino: createPinoFields(time),
-    source: 'supervisor',
+    source: 'daemon',
     type,
     context: { session_id: 'test-session' },
     payload,
@@ -135,7 +135,7 @@ describe('createInitialState', () => {
     expect(state.metrics.messageCount).toBe(0)
     expect(state.metrics.tokenUsage.totalTokens).toBe(0)
     expect(state.stagedReminders.size).toBe(0)
-    expect(state.supervisorHealth).toBeUndefined()
+    expect(state.daemonHealth).toBeUndefined()
   })
 
   it('creates independent state objects', () => {
@@ -167,7 +167,7 @@ describe('cloneState', () => {
       stagedReminders: new Map([
         ['hook1', [{ name: 'r1', blocking: false, priority: 10, persistent: true, stagedAt: 1000 }]],
       ]),
-      supervisorHealth: { online: true, lastSeen: 1000 },
+      daemonHealth: { online: true, lastSeen: 1000 },
     }
 
     const cloned = cloneState(original)
@@ -176,7 +176,7 @@ describe('cloneState', () => {
     expect(cloned.summary.title).toBe('Original')
     expect(cloned.metrics.turnCount).toBe(5)
     expect(cloned.stagedReminders.get('hook1')).toHaveLength(1)
-    expect(cloned.supervisorHealth?.online).toBe(true)
+    expect(cloned.daemonHealth?.online).toBe(true)
 
     // Verify independence
     cloned.summary.title = 'Modified'
@@ -188,11 +188,11 @@ describe('cloneState', () => {
     expect(original.stagedReminders.get('hook1')![0].name).toBe('r1')
   })
 
-  it('handles undefined supervisorHealth', () => {
+  it('handles undefined daemonHealth', () => {
     const original = createInitialState()
     const cloned = cloneState(original)
 
-    expect(cloned.supervisorHealth).toBeUndefined()
+    expect(cloned.daemonHealth).toBeUndefined()
   })
 })
 
@@ -232,7 +232,7 @@ describe('isStateChangingEvent', () => {
   it('identifies embedded transcript events as state-changing', () => {
     const record: ParsedLogRecord = {
       pino: createPinoFields(1000),
-      source: 'supervisor',
+      source: 'daemon',
       raw: {},
       event: {
         kind: 'transcript',
@@ -351,7 +351,7 @@ describe('extractStateDelta', () => {
         tokenUsage: { ...createDefaultMetrics().tokenUsage, totalTokens: 10000 },
       }),
       stagedReminders: new Map([['hook1', []]]),
-      supervisorHealth: undefined,
+      daemonHealth: undefined,
     }
 
     const delta = extractStateDelta(sessionStartRecord, currentState)
@@ -373,7 +373,7 @@ describe('extractStateDelta', () => {
     })
     const record: ParsedLogRecord = {
       pino: createPinoFields(1000),
-      source: 'supervisor',
+      source: 'daemon',
       raw: {},
       event: {
         kind: 'transcript',
@@ -525,7 +525,7 @@ describe('buildTimeline', () => {
         tokenUsage: { ...createDefaultMetrics().tokenUsage, totalTokens: 5000 },
       }),
       stagedReminders: new Map(),
-      supervisorHealth: undefined,
+      daemonHealth: undefined,
     }
 
     const timeline = buildTimeline([metricsUpdatedRecord], initialState)

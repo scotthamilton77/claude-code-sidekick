@@ -11,7 +11,7 @@
  * - Interactive mode: Human-readable output for debugging
  * - Scope detection with dual-install awareness
  * - Hook input JSON parsing from stdin (per CLI.md §3.1)
- * - Hook event dispatch to Supervisor via IPC (Phase 8)
+ * - Hook event dispatch to Daemon via IPC (Phase 8)
  *
  * @see docs/design/CLI.md §3 Hook Wrapper Layer
  * @see docs/design/CLI.md §3.1.1 Hook Input Structure
@@ -217,13 +217,13 @@ export async function initializeSession(options: {
 }
 
 /**
- * Auto-start supervisor if in hook mode with a project root.
+ * Auto-start daemon if in hook mode with a project root.
  * Non-throwing: logs warnings on failure and gracefully degrades.
  *
  * @param options - Hook mode flag, project root, and logger
- * @returns Whether supervisor was successfully started
+ * @returns Whether daemon was successfully started
  */
-export async function ensureSupervisor(options: {
+export async function ensureDaemon(options: {
   hookMode: boolean
   projectRoot: string | undefined
   logger: Logger
@@ -251,9 +251,9 @@ export async function ensureSupervisor(options: {
 
 /**
  * Route command to appropriate handler based on command type.
- * Handles hook commands, supervisor, statusline, ui, and fallback cases.
+ * Handles hook commands, daemon, statusline, ui, and fallback cases.
  *
- * @param context - Parsed args, runtime, hook input, output stream, supervisor state
+ * @param context - Parsed args, runtime, hook input, output stream, daemon state
  * @returns Exit code and output strings
  */
 export async function routeCommand(context: {
@@ -429,8 +429,8 @@ export async function runCli(options: RunCliOptions): Promise<{ exitCode: number
     logger: runtime.logger,
   })
 
-  // 3. Ensure supervisor is running (async, no-throw)
-  const { started: daemonStarted } = await ensureSupervisor({
+  // 3. Ensure daemon is running (async, no-throw)
+  const { started: daemonStarted } = await ensureDaemon({
     hookMode: parsed.hookMode,
     projectRoot: runtime.scope.projectRoot,
     logger: runtime.logger,

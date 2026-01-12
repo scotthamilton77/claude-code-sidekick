@@ -4,7 +4,7 @@ export default defineWorkspace([
   'packages/sidekick-core',
   'packages/sidekick-cli',
   'packages/shared-providers',
-  'packages/sidekick-supervisor',
+  'packages/sidekick-daemon',
   'packages/testing-fixtures',
   'packages/feature-reminders',
   'packages/feature-session-summary',

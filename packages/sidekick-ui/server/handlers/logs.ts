@@ -1,5 +1,5 @@
 /**
- * GET /api/logs/:type - Returns cli.log or supervisor.log content.
+ * GET /api/logs/:type - Returns cli.log or sidekickd.log content.
  *
  * Query params:
  * - ?since=<timestamp> - Return only lines after timestamp (deprecated, use offset instead)
@@ -19,7 +19,7 @@ import { join } from 'path'
 import type { ApiRequest } from '../types'
 import { errorResponse, ndjsonResponse, filterLogContent, parseFilterOptions } from '../utils'
 
-const VALID_TYPES = new Set(['cli', 'supervisor'])
+const VALID_TYPES = new Set(['cli', 'sidekickd'])
 
 export async function handleLogs(request: ApiRequest): Promise<Response> {
   const { logsPath } = request.ctx
@@ -27,7 +27,7 @@ export async function handleLogs(request: ApiRequest): Promise<Response> {
 
   // Validate log type
   if (!VALID_TYPES.has(type)) {
-    return errorResponse(`Invalid log type: ${type}. Must be 'cli' or 'supervisor'`, 400)
+    return errorResponse(`Invalid log type: ${type}. Must be 'cli' or 'sidekickd'`, 400)
   }
 
   if (!logsPath) {

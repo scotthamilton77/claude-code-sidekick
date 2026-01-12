@@ -3,13 +3,13 @@ import fs from 'fs/promises'
 import path from 'path'
 
 /**
- * StateManager - Single-writer state persistence for the Supervisor.
+ * StateManager - Single-writer state persistence for the Daemon.
  *
  * Manages `.sidekick/state/*.json` files with atomic writes (tmp + rename)
  * and in-memory caching. Handles corrupt state files on startup by moving
  * them to `.bak` and resetting to empty.
  *
- * @see docs/design/SUPERVISOR.md §4.1
+ * @see docs/design/DAEMON.md §4.1
  */
 export class StateManager {
   private stateDir: string
@@ -35,7 +35,7 @@ export class StateManager {
 
   /**
    * Load all existing `.json` state files into cache.
-   * Per design/SUPERVISOR.md §5: malformed JSON files are moved to `.bak` and reset to empty.
+   * Per design/DAEMON.md §5: malformed JSON files are moved to `.bak` and reset to empty.
    */
   private async loadExistingState(): Promise<void> {
     let entries: string[]

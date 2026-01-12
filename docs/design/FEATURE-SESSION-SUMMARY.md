@@ -19,7 +19,7 @@ This context is critical for:
 
 ## 2. Architecture
 
-This feature registers handlers on both CLI and Supervisor per **docs/design/CORE-RUNTIME.md §3.5**. The Supervisor performs async LLM analysis; the CLI reads staged state files.
+This feature registers handlers on both CLI and Daemon per **docs/design/CORE-RUNTIME.md §3.5**. The Daemon performs async LLM analysis; the CLI reads staged state files.
 
 ### 2.1 Feature Manifest
 
@@ -50,17 +50,17 @@ Per **docs/design/flow.md §2.3**, handlers register with filters to specify whi
 
 | File                                                         | Owner      | Description                           |
 | ------------------------------------------------------------ | ---------- | ------------------------------------- |
-| `.sidekick/sessions/{session_id}/state/session-summary.json` | Supervisor | Current summary (title, intent, etc.) |
+| `.sidekick/sessions/{session_id}/state/session-summary.json` | Daemon | Current summary (title, intent, etc.) |
 
 ### 2.4 Data Flow
 
 ```
 SessionStart (HookEvent)
-  └─[Supervisor] CreateFirstSessionSummary
+  └─[Daemon] CreateFirstSessionSummary
       └─ Write placeholder to state/session-summary.json
 
 UserPrompt (TranscriptEvent)
-  └─[Supervisor] UpdateSessionSummary (force=true)
+  └─[Daemon] UpdateSessionSummary (force=true)
       ├─ Query ctx.transcript.getMetrics() for turn count
       ├─ Extract transcript excerpt (bookmark strategy)
       ├─ Call LLM for analysis
@@ -69,7 +69,7 @@ UserPrompt (TranscriptEvent)
       └─ Generate resume message if title changed significantly (side-effect)
 
 ToolCall (TranscriptEvent)
-  └─[Supervisor] UpdateSessionSummary (force=false)
+  └─[Daemon] UpdateSessionSummary (force=false)
       ├─ Query ctx.transcript.getMetrics() for tool count
       ├─ Check countdown; skip if not zero
       ├─ (If countdown reached) Same flow as UserPrompt
@@ -83,12 +83,12 @@ Statusline (external)
 
 ### 2.5 Dual-Registration Pattern
 
-Per **docs/design/CORE-RUNTIME.md §6.10**, this feature uses **Pattern 1: Role Discriminant** to register Supervisor-only handlers:
+Per **docs/design/CORE-RUNTIME.md §6.10**, this feature uses **Pattern 1: Role Discriminant** to register Daemon-only handlers:
 
 ```typescript
 export function register(context: RuntimeContext): void {
-  if (context.role === 'supervisor') {
-    // TypeScript narrows to SupervisorContext - ctx.llm, ctx.staging available
+  if (context.role === 'daemon') {
+    // TypeScript narrows to DaemonContext - ctx.llm, ctx.staging available
     context.handlers.register({
       id: 'session-summary:init',
       filter: { kind: 'hook', hooks: ['SessionStart'] },
@@ -106,7 +106,7 @@ export function register(context: RuntimeContext): void {
 }
 ```
 
-This feature registers handlers on **Supervisor only**. The CLI consumes the session summary state file directly via the Statusline integration, without needing dedicated handlers.
+This feature registers handlers on **Daemon only**. The CLI consumes the session summary state file directly via the Statusline integration, without needing dedicated handlers.
 
 ## 3. Detailed Design
 
@@ -117,7 +117,7 @@ This feature registers handlers on **Supervisor only**. The CLI consumes the ses
 Creates a placeholder summary when a session begins, ensuring the Statusline always has content to display.
 
 ```typescript
-async function createFirstSessionSummary(event: SessionStartHookEvent, ctx: SupervisorContext): Promise<void> {
+async function createFirstSessionSummary(event: SessionStartHookEvent, ctx: DaemonContext): Promise<void> {
   const { sessionId } = event.context
   const { startType } = event.payload
 
@@ -249,14 +249,14 @@ Defined in `packages/types/src/services/state.ts` via `SessionSummaryStateSchema
 
 ### 3.4 Monitoring UI Integration
 
-The Session Summary feature emits `SidekickEvent` events (per **docs/design/flow.md §3.2**) to the Supervisor log. The Monitoring UI aggregates these for time-travel debugging.
+The Session Summary feature emits `SidekickEvent` events (per **docs/design/flow.md §3.2**) to the Daemon log. The Monitoring UI aggregates these for time-travel debugging.
 
 **Event Types**:
 
 | Event Type       | When                                | Logged By  |
 | ---------------- | ----------------------------------- | ---------- |
-| `SummaryUpdated` | Summary recalculated successfully   | Supervisor |
-| `SummarySkipped` | Countdown active, analysis deferred | Supervisor |
+| `SummaryUpdated` | Summary recalculated successfully   | Daemon |
+| `SummarySkipped` | Countdown active, analysis deferred | Daemon |
 
 **Example Events** (conforming to `SidekickEvent` schema):
 
@@ -265,7 +265,7 @@ The Session Summary feature emits `SidekickEvent` events (per **docs/design/flow
 {
   "type": "SummaryUpdated",
   "time": 1732819200000,
-  "source": "supervisor",
+  "source": "daemon",
   "context": {
     "session_id": "sess-001",
     "scope": "project",
@@ -297,7 +297,7 @@ The Session Summary feature emits `SidekickEvent` events (per **docs/design/flow
 {
   "type": "SummarySkipped",
   "time": 1732819250000,
-  "source": "supervisor",
+  "source": "daemon",
   "context": {
     "session_id": "sess-001",
     "scope": "project",
@@ -409,7 +409,7 @@ llm:
 ### 5.4 Phase 4: Testing & Integration
 
 - [ ] Unit tests for extraction logic (mocked LLM)
-- [ ] Integration tests with supervisor harness
+- [ ] Integration tests with daemon harness
 - [ ] Verify Statusline reads state file correctly
 
 ## 6. Resolved Questions
@@ -417,7 +417,7 @@ llm:
 | Question                                     | Resolution                                                                                                                                         |
 | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Snarky commentary: separate feature?         | **No**. Side-effect of `UpdateSessionSummary`. Config toggle: `snarkyMessages`.                                                                    |
-| Sleeper process?                             | **Removed**. Supervisor handles scheduled/delayed tasks if needed.                                                                                 |
-| Dual-Registration Pattern                    | Per **docs/design/CORE-RUNTIME.md §6.10**: Use role discriminant (`context.role === 'supervisor'`). See §2.5.                                      |
+| Sleeper process?                             | **Removed**. Daemon handles scheduled/delayed tasks if needed.                                                                                 |
+| Dual-Registration Pattern                    | Per **docs/design/CORE-RUNTIME.md §6.10**: Use role discriminant (`context.role === 'daemon'`). See §2.5.                                      |
 | Resume message trigger                       | **LLM-based pivot detection**. Summary LLM returns `pivot_detected: boolean`. Replaces heuristic distance calculations. See §3.2.4.                |
 | Snarky message: single or separate LLM call? | **Separate LLM call** with its own provider/model/temperature config. Allows creative model for snark, fast model for summary. See §3.2.3, §3.2.4. |

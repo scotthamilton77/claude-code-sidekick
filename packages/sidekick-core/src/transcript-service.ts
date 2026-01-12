@@ -871,7 +871,7 @@ export class TranscriptServiceImpl implements TranscriptService {
     })
 
     // Note: chokidar doesn't expose unref() - we rely on watcher.close() in shutdown()
-    // to release the handle. Supervisor must call shutdown() before process exit.
+    // to release the handle. Daemon must call shutdown() before process exit.
 
     this.watcher.on('change', () => {
       this.options.logger.debug('File watcher detected change', { sessionId: this.sessionId })
