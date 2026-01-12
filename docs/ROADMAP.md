@@ -124,54 +124,27 @@ Wired CLI hook commands to dispatch events to Daemon via IPC. Key outcomes:
 
 Comprehensive refactoring to improve code quality, test coverage, and architectural consistency. Sub-phases can run in parallel where noted.
 
-- [ ] **9.1 Test Coverage Foundation** (prerequisite for safe refactoring)
-  - [ ] Objectives
-    - [ ] Establish safety net before major refactoring
-    - [ ] Target 90%+ coverage for code that should be tested
+- [x] **9.1 Test Coverage Foundation** - COMPLETE 2025-01-12
+  - [x] Objectives
+    - [x] Establish safety net before major refactoring
+    - [x] Target 90%+ coverage for code that should be tested
   - [x] **9.1.1 Coverage Analysis** - COMPLETE 2025-01-11
     - [x] Comprehensive audit of current coverage across all packages
     - [x] Identify gaps in critical paths (handlers, services, IPC)
     - [x] Evaluate existing exclusions - are we missing something important?
-    - **Baseline**: 83.02% (8,149/9,815 statements) — Gap to 90%: ~685 statements
-    - **Low coverage files identified**:
-      | File | Coverage | Uncovered | Priority |
-      |------|----------|-----------|----------|
-      | `context-metrics-service.ts` | 12% | 321 stmts | HIGH |
-      | `completion-classifier.ts` | 52% | 62 stmts | HIGH |
-      | `staging handlers` | 55% | 101 stmts | HIGH |
-      | `context-overhead-reader.ts` | 32% | ~47 stmts | MEDIUM |
-      | `instrumented-profile-factory.ts` | 18% | ~62 stmts | MEDIUM |
-  - [ ] **9.1.2 Configure Exclusions**
-    - [ ] Add emulators to exclusion list (test infrastructure, not production code)
-      ```typescript
-      // vitest.config.ts - add to exclude array:
-      'packages/shared-providers/src/providers/emulators/**',  // LLM test emulators
-      ```
-    - [ ] Document exclusion rationale in vitest.config.ts comments
-  - [ ] **9.1.3 Increase Coverage** (prioritized by impact)
-    - [ ] **context-metrics-service.ts** (321 uncovered statements)
-      - Service orchestrates transcript parsing and metric aggregation
-      - Needs: mock TranscriptService, test metric calculation flows
-      - Tests: initialization, metric updates, error handling
-    - [ ] **completion-classifier.ts** (62 uncovered statements)
-      - Main `classifyCompletion()` function untested
-      - Needs: mock LLM provider responses
-      - Tests: CLAIMING_COMPLETION classification, error fallbacks, disabled state
-    - [ ] **staging handlers** (101 uncovered statements)
-      - `stage-default-user-prompt.ts` (76%) - minor gaps
-      - `task-completion.ts` handler if exists
-      - Tests: threshold logic, suppression patterns
-    - [ ] **context-overhead-reader.ts** (47 uncovered statements)
-      - No test file exists
-      - Needs: mock file system reads
-      - Tests: file missing, corrupt JSON, Zod validation errors
-    - [ ] **instrumented-profile-factory.ts** (62 uncovered statements)
-      - Factory for creating instrumented LLM profiles
-      - Tests: profile creation, fallback behavior
-  - [ ] Acceptance criteria
-    - [ ] 90%+ line coverage for non-excluded code
-    - [ ] Coverage config documents all exclusions with rationale
-    - [ ] CI enforces coverage thresholds
+    - **Baseline**: 83.02% (8,149/9,815 statements)
+  - [x] **9.1.2 Configure Exclusions** - COMPLETE 2025-01-11
+    - [x] Add emulators to exclusion list (test infrastructure, not production code)
+    - [x] Document exclusion rationale in vitest.config.ts comments
+  - [x] **9.1.3 Increase Coverage** - COMPLETE 2025-01-12
+    - [x] **context-metrics-service.ts**: 23 tests added (12% → 55%)
+    - [x] **completion-classifier.ts**: 11 tests added (52% → 99%)
+    - [x] **staging handlers**: 6 tests added (55% → 88%)
+    - Remaining files (context-overhead-reader, instrumented-profile-factory) deferred as 90% target met
+  - [x] Acceptance criteria
+    - [x] **90.08%** line coverage achieved (exceeds 90% target)
+    - [x] Coverage config documents all exclusions with rationale
+    - [ ] CI enforces coverage thresholds (deferred to Phase 12)
 
 - [ ] **9.2 Architecture Review & Findings** (research phase - produces actionable findings)
   - [ ] Objectives
@@ -380,6 +353,7 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
   - [ ] Remove or archive stale files (benchmark-next/, legacy scripts)
   - [ ] Verify all `// TODO` and `// FIXME` comments addressed
   - [ ] Final lint/typecheck/test pass
+  - [ ] CI enforces coverage thresholds (deferred from 9.1)
 - [ ] **12.3 Release Preparation**
   - [ ] Version bump and changelog
   - [ ] npm publish dry-run
