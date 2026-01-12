@@ -1525,5 +1525,199 @@ describe('TranscriptServiceImpl', () => {
         expect(excerpt.content).toContain('[USER]:')
       })
     })
+
+    describe('slash command filtering', () => {
+      it('excludes built-in slash commands like /clear from excerpt', async () => {
+        const transcript = [
+          JSON.stringify({
+            type: 'user',
+            message: {
+              role: 'user',
+              content: '<command-name>/clear</command-name>\n<command-message>clear</command-message>',
+            },
+          }),
+          JSON.stringify({
+            type: 'user',
+            message: { role: 'user', content: 'What is the status of the build?' },
+          }),
+        ].join('\n')
+        writeFileSync(transcriptPath, transcript)
+        await service.initialize('test-session', transcriptPath)
+
+        const excerpt = service.getExcerpt({})
+
+        // /clear command should be filtered out
+        expect(excerpt.content).not.toContain('/clear')
+        expect(excerpt.content).not.toContain('command-name')
+        // Regular user message should remain
+        expect(excerpt.content).toContain('[USER]:')
+        expect(excerpt.content).toContain('What is the status of the build?')
+        expect(excerpt.lineCount).toBe(1)
+      })
+
+      it('excludes multiple built-in commands (/context, /compact, /status)', async () => {
+        const transcript = [
+          JSON.stringify({
+            type: 'user',
+            message: { role: 'user', content: '<command-name>/context</command-name>' },
+          }),
+          JSON.stringify({
+            type: 'user',
+            message: {
+              role: 'user',
+              content: '<command-name>/compact</command-name>\n<command-args>focus on tests</command-args>',
+            },
+          }),
+          JSON.stringify({
+            type: 'user',
+            message: { role: 'user', content: '<command-name>/status</command-name>' },
+          }),
+          JSON.stringify({
+            type: 'user',
+            message: { role: 'user', content: 'Run the tests' },
+          }),
+        ].join('\n')
+        writeFileSync(transcriptPath, transcript)
+        await service.initialize('test-session', transcriptPath)
+
+        const excerpt = service.getExcerpt({})
+
+        // All built-in commands should be filtered
+        expect(excerpt.content).not.toContain('/context')
+        expect(excerpt.content).not.toContain('/compact')
+        expect(excerpt.content).not.toContain('/status')
+        // Real user message remains
+        expect(excerpt.content).toContain('Run the tests')
+        expect(excerpt.lineCount).toBe(1)
+      })
+
+      it('preserves /rename command (helps infer session title)', async () => {
+        const transcript = [
+          JSON.stringify({
+            type: 'user',
+            message: {
+              role: 'user',
+              content: '<command-name>/rename</command-name>\n<command-args>Auth Feature Development</command-args>',
+            },
+          }),
+        ].join('\n')
+        writeFileSync(transcriptPath, transcript)
+        await service.initialize('test-session', transcriptPath)
+
+        const excerpt = service.getExcerpt({})
+
+        // /rename is NOT filtered - the name can hint at session purpose
+        expect(excerpt.content).toContain('/rename')
+        expect(excerpt.content).toContain('Auth Feature Development')
+        expect(excerpt.lineCount).toBe(1)
+      })
+
+      it('preserves custom commands (may have task-relevant parameters)', async () => {
+        const transcript = [
+          JSON.stringify({
+            type: 'user',
+            message: {
+              role: 'user',
+              content:
+                '<command-name>/my-custom-command</command-name>\n<command-args>important task info</command-args>',
+            },
+          }),
+          JSON.stringify({
+            type: 'user',
+            message: { role: 'user', content: '<command-name>/deploy-staging</command-name>' },
+          }),
+        ].join('\n')
+        writeFileSync(transcriptPath, transcript)
+        await service.initialize('test-session', transcriptPath)
+
+        const excerpt = service.getExcerpt({})
+
+        // Custom commands are preserved (not in built-in exclude list)
+        expect(excerpt.content).toContain('/my-custom-command')
+        expect(excerpt.content).toContain('important task info')
+        expect(excerpt.content).toContain('/deploy-staging')
+        expect(excerpt.lineCount).toBe(2)
+      })
+
+      it('filters commands case-insensitively', async () => {
+        const transcript = [
+          JSON.stringify({
+            type: 'user',
+            message: { role: 'user', content: '<command-name>/CLEAR</command-name>' },
+          }),
+          JSON.stringify({
+            type: 'user',
+            message: { role: 'user', content: '<command-name>/Context</command-name>' },
+          }),
+        ].join('\n')
+        writeFileSync(transcriptPath, transcript)
+        await service.initialize('test-session', transcriptPath)
+
+        const excerpt = service.getExcerpt({})
+
+        // Case variations of built-in commands should still be filtered
+        expect(excerpt.content).not.toContain('/CLEAR')
+        expect(excerpt.content).not.toContain('/Context')
+        expect(excerpt.lineCount).toBe(0)
+      })
+
+      it('excludes all documented built-in commands', async () => {
+        // Test a representative sample of built-in commands from the exclude list
+        const builtinCommands = [
+          '/add-dir',
+          '/agents',
+          '/bashes',
+          '/bug',
+          '/clear',
+          '/compact',
+          '/config',
+          '/context',
+          '/cost',
+          '/doctor',
+          '/exit',
+          '/export',
+          '/help',
+          '/hooks',
+          '/ide',
+          '/init',
+          '/login',
+          '/logout',
+          '/mcp',
+          '/memory',
+          '/model',
+          '/permissions',
+          '/plan',
+          '/plugin',
+          '/resume',
+          '/review',
+          '/rewind',
+          '/sandbox',
+          '/stats',
+          '/status',
+          '/statusline',
+          '/theme',
+          '/todos',
+          '/usage',
+          '/vim',
+        ]
+
+        const transcript = builtinCommands
+          .map((cmd) =>
+            JSON.stringify({
+              type: 'user',
+              message: { role: 'user', content: `<command-name>${cmd}</command-name>` },
+            })
+          )
+          .join('\n')
+        writeFileSync(transcriptPath, transcript)
+        await service.initialize('test-session', transcriptPath)
+
+        const excerpt = service.getExcerpt({})
+
+        // All built-in commands should be filtered
+        expect(excerpt.lineCount).toBe(0)
+        expect(excerpt.content).toBe('')
+      })
+    })
   })
 })

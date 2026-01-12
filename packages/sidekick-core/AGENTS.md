@@ -60,6 +60,7 @@ User-role messages may contain system content that isn't from the human:
 - `<system-reminder>...</system-reminder>` — Sidekick/Claude Code injections
 - `hook feedback:` — Hook response messages
 - `<local-command-stdout>...</local-command-stdout>` — Slash command output
+- `<command-name>/cmd</command-name>` — Slash command invocation
 
 ### Special Flags
 

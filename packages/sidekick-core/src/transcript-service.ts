@@ -36,6 +36,67 @@ import type {
 } from '@sidekick/types'
 
 // ============================================================================
+// Constants
+// ============================================================================
+
+/**
+ * Built-in Claude Code slash commands to exclude from transcript excerpts.
+ *
+ * These are filtered because they're session management, settings, or status queries
+ * that don't provide meaningful context for session summary analysis. Custom commands
+ * (not in this list) are preserved since their parameters may be task-relevant.
+ *
+ * Note: /rename is intentionally NOT excluded - the rename parameter can hint at
+ * the session's purpose and help the summary analyzer infer a title.
+ */
+const EXCLUDED_BUILTIN_COMMANDS = new Set([
+  '/add-dir',
+  '/agents',
+  '/bashes',
+  '/bug',
+  '/clear',
+  '/compact',
+  '/config',
+  '/context',
+  '/cost',
+  '/doctor',
+  '/exit',
+  '/export',
+  '/help',
+  '/hooks',
+  '/ide',
+  '/init',
+  '/install-github-app',
+  '/login',
+  '/logout',
+  '/mcp',
+  '/memory',
+  '/model',
+  '/output-style',
+  '/permissions',
+  '/plan',
+  '/plugin',
+  '/pr-comments',
+  '/privacy-settings',
+  '/release-notes',
+  '/remote-env',
+  '/resume',
+  '/review',
+  '/rewind',
+  '/sandbox',
+  '/security-review',
+  '/stats',
+  '/status',
+  '/statusline',
+  '/teleport',
+  '/terminal-setup',
+  '/theme',
+  '/todos',
+  '/usage',
+  '/vim',
+])
+
+// ============================================================================
 // Types
 // ============================================================================
 
@@ -596,6 +657,9 @@ export class TranscriptServiceImpl implements TranscriptService {
    * - Content containing <system-reminder>
    * - Content containing 'hook feedback:' (case-insensitive)
    * - Content containing <local-command-stdout>
+   * - Built-in slash commands (see EXCLUDED_BUILTIN_COMMANDS)
+   *   - Note: /rename is NOT excluded (helps infer session title)
+   *   - Custom commands are preserved (may have task-relevant parameters)
    *
    * CONDITIONALLY EXCLUDED:
    * - type: 'tool_use' / 'tool_result' → unless includeToolMessages
@@ -649,6 +713,11 @@ export class TranscriptServiceImpl implements TranscriptService {
 
       // Local command stdout - slash command output, not conversation
       if (rawContent && rawContent.includes('<local-command-stdout>')) return null
+
+      // Built-in slash commands - session management, settings, status queries
+      // Custom commands are preserved since their parameters may be task-relevant
+      // Note: /rename is intentionally NOT excluded (helps infer session title)
+      if (this.isExcludedBuiltinCommand(rawContent)) return null
 
       // ========================================================================
       // ENTRY TYPE HANDLING
@@ -724,6 +793,26 @@ export class TranscriptServiceImpl implements TranscriptService {
       return textParts.join(' ')
     }
     return null
+  }
+
+  /**
+   * Check if content is a built-in slash command that should be excluded.
+   *
+   * Built-in commands are wrapped in <command-name>/cmd</command-name> tags.
+   * Custom commands are preserved since their parameters may be task-relevant.
+   *
+   * @param content - Raw content string to check
+   * @returns true if this is an excluded built-in command
+   */
+  private isExcludedBuiltinCommand(content: string | null): boolean {
+    if (!content) return false
+
+    // Match <command-name>/something</command-name> pattern
+    const match = content.match(/<command-name>(\/[a-z-]+)<\/command-name>/i)
+    if (!match) return false
+
+    const command = match[1].toLowerCase()
+    return EXCLUDED_BUILTIN_COMMANDS.has(command)
   }
 
   /**
