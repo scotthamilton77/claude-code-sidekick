@@ -24,6 +24,12 @@ import type {
 const ANSI = {
   reset: '\x1b[0m',
   dim: '\x1b[2m',
+  bold: '\x1b[1m',
+  italic: '\x1b[3m',
+  // Turn-off codes (don't reset color, only the specific attribute)
+  noBold: '\x1b[22m', // normal intensity (turns off bold AND dim)
+  noItalic: '\x1b[23m', // not italic
+  noDim: '\x1b[22m', // normal intensity
   // Foreground colors
   black: '\x1b[30m',
   red: '\x1b[31m',
@@ -102,6 +108,11 @@ export class Formatter {
     // Branch uses theme.colors.branch if set, otherwise pattern-based coloring from viewModel.branchColor
     const branchColor = this.theme.colors.branch ?? viewModel.branchColor
     const logsText = formatLogs(viewModel.warningCount, viewModel.errorCount)
+
+    // Convert markdown for title/summary before colorizing
+    const convertedSummary = this.convertMarkdown(viewModel.summary)
+    const convertedTitle = this.convertMarkdown(viewModel.title)
+
     const tokens: Record<string, string> = {
       model: this.colorize(viewModel.model, this.theme.colors.model),
       tokens: this.colorizeByStatus(viewModel.tokens, viewModel.tokensStatus),
@@ -109,8 +120,8 @@ export class Formatter {
       duration: this.colorize(viewModel.duration, this.theme.colors.duration),
       cwd: this.colorize(viewModel.cwd, this.theme.colors.cwd),
       branch: viewModel.branch ? ` ${this.colorize(viewModel.branch, branchColor)}` : '',
-      summary: this.colorize(viewModel.summary, this.theme.colors.summary),
-      title: this.colorize(viewModel.title, this.theme.colors.title),
+      summary: this.colorize(convertedSummary, this.theme.colors.summary),
+      title: this.colorize(convertedTitle, this.theme.colors.title),
       contextBar: formatContextBar(viewModel.contextUsage, this.useColors),
       logs: this.colorizeByStatus(logsText, viewModel.logStatus),
     }
@@ -158,6 +169,41 @@ export class Formatter {
     if (!this.useColors || !text) return text
     const color = getColor(colorName)
     return color ? `${color}${text}${ANSI.reset}` : text
+  }
+
+  /**
+   * Convert markdown formatting to ANSI escape sequences.
+   * Handles bold (**text**), italic (*text* or _text_), and code (`text`).
+   * Respects supportedMarkdown config flags.
+   */
+  convertMarkdown(text: string): string {
+    if (!text) return text
+
+    let result = text
+    // Default to all enabled if supportedMarkdown not configured (backwards compat)
+    const md = this.theme.supportedMarkdown ?? { bold: true, italic: true, code: true }
+
+    // Bold: **text** → ANSI bold (process first to avoid conflict with italic)
+    // Use noBold instead of reset to preserve surrounding color
+    if (md.bold) {
+      result = result.replace(/\*\*(.+?)\*\*/g, `${ANSI.bold}$1${ANSI.noBold}`)
+    }
+
+    // Italic: *text* or _text_ → ANSI italic
+    // Use negative lookahead/behind to avoid matching ** patterns
+    // Use noItalic instead of reset to preserve surrounding color
+    if (md.italic) {
+      result = result.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, `${ANSI.italic}$1${ANSI.noItalic}`)
+      result = result.replace(/(?<!_)_([^_]+)_(?!_)/g, `${ANSI.italic}$1${ANSI.noItalic}`)
+    }
+
+    // Code: `text` → ANSI dim
+    // Use noDim instead of reset to preserve surrounding color
+    if (md.code) {
+      result = result.replace(/`([^`]+)`/g, `${ANSI.dim}$1${ANSI.noDim}`)
+    }
+
+    return result
   }
 }
 

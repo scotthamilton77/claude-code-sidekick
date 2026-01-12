@@ -1031,6 +1031,249 @@ describe('Formatter with colors enabled', () => {
 })
 
 // ============================================================================
+// Markdown to ANSI Conversion Tests
+// ============================================================================
+
+describe('Formatter.convertMarkdown', () => {
+  const ANSI = {
+    reset: '\x1b[0m',
+    bold: '\x1b[1m',
+    italic: '\x1b[3m',
+    dim: '\x1b[2m',
+    // Turn-off codes (preserve surrounding color)
+    noBold: '\x1b[22m',
+    noItalic: '\x1b[23m',
+    noDim: '\x1b[22m',
+  }
+
+  it('converts **bold** to ANSI bold', () => {
+    const formatter = createFormatter({
+      theme: DEFAULT_STATUSLINE_CONFIG.theme,
+      useColors: false,
+    })
+
+    const result = formatter.convertMarkdown('This is **bold** text')
+    expect(result).toBe(`This is ${ANSI.bold}bold${ANSI.noBold} text`)
+  })
+
+  it('converts *italic* to ANSI italic', () => {
+    const formatter = createFormatter({
+      theme: DEFAULT_STATUSLINE_CONFIG.theme,
+      useColors: false,
+    })
+
+    const result = formatter.convertMarkdown('This is *italic* text')
+    expect(result).toBe(`This is ${ANSI.italic}italic${ANSI.noItalic} text`)
+  })
+
+  it('converts _italic_ to ANSI italic', () => {
+    const formatter = createFormatter({
+      theme: DEFAULT_STATUSLINE_CONFIG.theme,
+      useColors: false,
+    })
+
+    const result = formatter.convertMarkdown('This is _italic_ text')
+    expect(result).toBe(`This is ${ANSI.italic}italic${ANSI.noItalic} text`)
+  })
+
+  it('converts `code` to ANSI dim', () => {
+    const formatter = createFormatter({
+      theme: DEFAULT_STATUSLINE_CONFIG.theme,
+      useColors: false,
+    })
+
+    const result = formatter.convertMarkdown('Run `npm install` command')
+    expect(result).toBe(`Run ${ANSI.dim}npm install${ANSI.noDim} command`)
+  })
+
+  it('handles mixed markdown: **bold** and *italic*', () => {
+    const formatter = createFormatter({
+      theme: DEFAULT_STATUSLINE_CONFIG.theme,
+      useColors: false,
+    })
+
+    const result = formatter.convertMarkdown('This is **bold** and *italic* text')
+    expect(result).toBe(`This is ${ANSI.bold}bold${ANSI.noBold} and ${ANSI.italic}italic${ANSI.noItalic} text`)
+  })
+
+  it('handles multiple of same type: **a** **b**', () => {
+    const formatter = createFormatter({
+      theme: DEFAULT_STATUSLINE_CONFIG.theme,
+      useColors: false,
+    })
+
+    const result = formatter.convertMarkdown('**first** and **second**')
+    expect(result).toBe(`${ANSI.bold}first${ANSI.noBold} and ${ANSI.bold}second${ANSI.noBold}`)
+  })
+
+  it('leaves text unchanged when bold flag disabled', () => {
+    const formatter = createFormatter({
+      theme: {
+        ...DEFAULT_STATUSLINE_CONFIG.theme,
+        supportedMarkdown: { bold: false, italic: true, code: true },
+      },
+      useColors: false,
+    })
+
+    const result = formatter.convertMarkdown('This is **bold** text')
+    expect(result).toBe('This is **bold** text')
+  })
+
+  it('leaves text unchanged when italic flag disabled', () => {
+    const formatter = createFormatter({
+      theme: {
+        ...DEFAULT_STATUSLINE_CONFIG.theme,
+        supportedMarkdown: { bold: true, italic: false, code: true },
+      },
+      useColors: false,
+    })
+
+    const result = formatter.convertMarkdown('This is *italic* text')
+    expect(result).toBe('This is *italic* text')
+  })
+
+  it('leaves text unchanged when code flag disabled', () => {
+    const formatter = createFormatter({
+      theme: {
+        ...DEFAULT_STATUSLINE_CONFIG.theme,
+        supportedMarkdown: { bold: true, italic: true, code: false },
+      },
+      useColors: false,
+    })
+
+    const result = formatter.convertMarkdown('Run `npm install` command')
+    expect(result).toBe('Run `npm install` command')
+  })
+
+  it('leaves text unchanged when all flags disabled', () => {
+    const formatter = createFormatter({
+      theme: {
+        ...DEFAULT_STATUSLINE_CONFIG.theme,
+        supportedMarkdown: { bold: false, italic: false, code: false },
+      },
+      useColors: false,
+    })
+
+    const result = formatter.convertMarkdown('**bold** *italic* `code`')
+    expect(result).toBe('**bold** *italic* `code`')
+  })
+
+  it('handles empty string', () => {
+    const formatter = createFormatter({
+      theme: DEFAULT_STATUSLINE_CONFIG.theme,
+      useColors: false,
+    })
+
+    const result = formatter.convertMarkdown('')
+    expect(result).toBe('')
+  })
+
+  it('handles text without markdown', () => {
+    const formatter = createFormatter({
+      theme: DEFAULT_STATUSLINE_CONFIG.theme,
+      useColors: false,
+    })
+
+    const result = formatter.convertMarkdown('Plain text without formatting')
+    expect(result).toBe('Plain text without formatting')
+  })
+
+  it('does not convert single asterisk mid-word', () => {
+    const formatter = createFormatter({
+      theme: DEFAULT_STATUSLINE_CONFIG.theme,
+      useColors: false,
+    })
+
+    // asterisk not at word boundary shouldn't be converted
+    const result = formatter.convertMarkdown('file*name')
+    expect(result).toBe('file*name')
+  })
+
+  it('converts markdown in summary field via format()', () => {
+    const formatter = createFormatter({
+      theme: DEFAULT_STATUSLINE_CONFIG.theme,
+      useColors: false,
+    })
+
+    const viewModel = {
+      model: 'claude',
+      tokens: '45k',
+      tokensStatus: 'normal' as const,
+      cost: '$0.15',
+      costStatus: 'normal' as const,
+      duration: '12m',
+      cwd: '~/project',
+      branch: '',
+      branchColor: '',
+      displayMode: 'session_summary' as const,
+      summary: 'Working on **important** stuff',
+      title: 'Test',
+      warningCount: 0,
+      errorCount: 0,
+      logStatus: 'normal' as const,
+    }
+
+    const result = formatter.format('{summary}', viewModel)
+    expect(result).toContain(ANSI.bold)
+    expect(result).toContain('important')
+  })
+
+  it('converts markdown in title field via format()', () => {
+    const formatter = createFormatter({
+      theme: DEFAULT_STATUSLINE_CONFIG.theme,
+      useColors: false,
+    })
+
+    const viewModel = {
+      model: 'claude',
+      tokens: '45k',
+      tokensStatus: 'normal' as const,
+      cost: '$0.15',
+      costStatus: 'normal' as const,
+      duration: '12m',
+      cwd: '~/project',
+      branch: '',
+      branchColor: '',
+      displayMode: 'session_summary' as const,
+      summary: 'Test summary',
+      title: 'Fix *critical* bug',
+      warningCount: 0,
+      errorCount: 0,
+      logStatus: 'normal' as const,
+    }
+
+    const result = formatter.format('{title}', viewModel)
+    expect(result).toContain(ANSI.italic)
+    expect(result).toContain('critical')
+  })
+
+  it('handles missing supportedMarkdown config (backwards compat)', () => {
+    // Simulate old config without supportedMarkdown field
+    const themeWithoutMarkdown = {
+      useNerdFonts: true,
+      colors: {
+        model: 'blue',
+        tokens: 'green',
+        title: 'cyan',
+        summary: 'magenta',
+        cwd: 'white',
+        duration: 'white',
+      },
+    } as typeof DEFAULT_STATUSLINE_CONFIG.theme
+
+    const formatter = createFormatter({
+      theme: themeWithoutMarkdown,
+      useColors: false,
+    })
+
+    // Should not throw, should convert markdown with defaults (all enabled)
+    const result = formatter.convertMarkdown('**bold** and *italic*')
+    expect(result).toContain(ANSI.bold)
+    expect(result).toContain(ANSI.italic)
+  })
+})
+
+// ============================================================================
 // StateReader Tests
 // ============================================================================
 
