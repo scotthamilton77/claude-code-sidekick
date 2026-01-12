@@ -144,138 +144,141 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
   - [x] Acceptance criteria
     - [x] **90.08%** line coverage achieved (exceeds 90% target)
     - [x] Coverage config documents all exclusions with rationale
-    - [ ] CI enforces coverage thresholds (deferred to Phase 12)
+    - [o] CI enforces coverage thresholds (deferred to Phase 12)
 
-- [ ] **9.2 Architecture Review & Findings** (research phase - produces actionable findings)
-  - [ ] Objectives
-    - [ ] Systematic audit of codebase architecture
-    - [ ] Produce prioritized findings document for subsequent phases
-  - [ ] **9.2.1 Feature/Hook Modularization Audit**
-    - [ ] Inventory: where does handler code live?
-    - [ ] Find: feature logic leaking into wrong domains
-    - [ ] Find: hook-specific logic outside handler files
-    - [ ] Assess: is handler registration consistent across features?
-  - [ ] **9.2.2 Daemon/CLI Coupling Audit**
-    - [ ] Find: implementation details in Daemon/CLI core that belong in feature packages
-    - [ ] Find: duplicated data structures across Daemon and CLI
-    - [ ] Find: hardcoded paths, magic strings, format assumptions
-  - [ ] **9.2.3 Reminder Relationship Mapping**
-    - [ ] Document: current cross-reminder rules (UserPromptSubmit unstages others, etc.)
-    - [ ] Document: counter resets, suppression logic, priority interactions
-    - [ ] Identify: where these rules are implemented (scattered vs centralized)
-  - [ ] **9.2.4 State Access Pattern Inventory**
-    - [ ] Catalog: all state file access points across packages
-    - [ ] Catalog: path construction patterns, file formats, validation
-    - [ ] Identify: duplication, inconsistencies, missing abstractions
-  - [ ] **9.2.5 TODO/FIXME/@deprecated Scan**
-    - [ ] Find and categorize all TODO/FIXME comments
-    - [ ] Find @deprecated usage and assess removal
-    - [ ] Prioritize: which are blockers, which are nice-to-have
-  - [ ] Acceptance criteria
-    - [ ] Findings document with categorized issues
-    - [ ] Each finding has severity and scope estimate
-    - [ ] Prioritized backlog for 9.3-9.6 phases
+- [x] **9.2 Architecture Review & Findings** - COMPLETE 2026-01-12
+  - [x] Objectives
+    - [x] Systematic audit of codebase architecture
+    - [x] Produce prioritized findings document for subsequent phases
+  - [x] **9.2.1 Feature/Hook Modularization Audit** - **Grade: A (no violations)**
+    - Handler architecture is clean and well-modularized
+    - All 13 handlers in correct locations with proper separation of concerns
+    - Registration patterns consistent across all features
+  - [x] **9.2.2 Daemon/CLI Coupling Audit** - **4 high-severity issues found**
+    - P&R baseline management in daemon.ts (should be in feature-reminders)
+    - VC state management in daemon.ts (should be in feature-reminders)
+    - 90+ path constructions need PathResolver abstraction
+    - Reminder names hardcoded in daemon core
+  - [x] **9.2.3 Reminder Relationship Mapping** - **4 cross-reminder rules documented**
+    - P&R unstages VC (cascade prevention)
+    - UserPromptSubmit unstages VC (task complete)
+    - VC consumption resets P&R baseline
+    - VC consumption unstages P&R (prevent double block)
+    - Rules scattered across handlers, candidates for orchestrator
+  - [x] **9.2.4 State Access Pattern Inventory** - **40+ access points cataloged**
+    - No centralized StateWriter abstraction
+    - Path construction duplicated across 7+ files
+    - Inconsistent Zod validation (state-reader uses it, others don't)
+    - Non-atomic writes in some handlers
+  - [x] **9.2.5 TODO/FIXME/@deprecated Scan** - **9 FIXMEs, 7 deprecated items**
+    - 5 FIXMEs in structured-logging.ts: event definitions should move to feature packages
+    - 1 FIXME in daemon.ts:624: P&R baseline should move to feature handler
+    - 7 deprecated APIs with clear migration paths (initialize→prepare+start pattern)
+  - [x] Acceptance criteria
+    - [x] Findings in `docs/architecture-review/9.2.*.md`
+    - [x] Each finding has severity and scope estimate
+    - [x] Prioritized backlog for 9.3-9.6 phases
 
-- [ ] **9.3 State Management Infrastructure** (foundational - parallel with 9.4)
+- [ ] **9.3 State Management Infrastructure** (foundational - informed by 9.2.4 findings)
   - [ ] Objectives
     - [ ] Centralize state access behind clean abstractions
-    - [ ] No consumer should know file paths, formats, or storage details
-    - [ ] Extensible design: domain-specific subclasses handle domain nuances
-  - [ ] **9.3.1 Design**
-    - [ ] Base `StateManager` in `@sidekick/core`: generic registration, get/put interface
-    - [ ] Consumers register: state key, schema validator, serialization hints
-    - [ ] Domain subclasses (e.g., `ReminderStateManager` in `feature-reminders`) add domain logic
-    - [ ] Scope: `.sidekick/state/*`, `.sidekick/sessions/*/state/*`, `.sidekick/sessions/*/stage/*`
-  - [ ] **9.3.2 Implement Base StateManager**
-    - [ ] Generic state manager in `@sidekick/core`
-    - [ ] Path resolution based on scope (global vs session)
-    - [ ] Atomic writes, schema validation on read
-  - [ ] **9.3.3 Implement Domain Extensions**
-    - [ ] `SessionSummaryState` manager in `feature-session-summary`
-    - [ ] `ReminderState` manager in `feature-reminders`
-    - [ ] `TranscriptMetrics` manager (location TBD based on 9.2 findings)
+    - [ ] Eliminate 90+ duplicated path constructions
+    - [ ] Consistent atomic writes and Zod validation
+  - [ ] **9.3.1 PathResolver Service** (highest priority - 90+ duplications)
+    - [ ] Create `PathResolver` in `@sidekick/core` with named accessors for all state files
+    - [ ] Single source of truth for: `.sidekick/state/*`, `.sidekick/sessions/*/state/*`, `.sidekick/sessions/*/stage/*`
+    - [ ] Type-safe session ID handling
+  - [ ] **9.3.2 StateWriter Interface**
+    - [ ] Atomic write guarantee (tmp + rename pattern)
+    - [ ] Zod validation on read
+    - [ ] Corrupt file recovery
+    - [ ] Clear "missing = default" vs "missing = error" contract
+  - [ ] **9.3.3 Add Missing Schemas**
+    - [ ] `summary-countdown.json` schema
+    - [ ] `compaction-history.json` schema (+ pruning to last N entries)
   - [ ] **9.3.4 Migrate Existing Access**
-    - [ ] Replace direct file access with state manager calls
-    - [ ] Remove hardcoded path construction
+    - [ ] Replace direct file access with StateWriter
+    - [ ] Migrate session-summary.json (currently accessed from 5+ locations)
+    - [ ] Migrate TranscriptService writes to use atomic pattern
   - [ ] Acceptance criteria
-    - [ ] No direct `fs.readFile`/`writeFile` for state files outside state managers
-    - [ ] All path construction centralized
+    - [ ] No direct path construction outside PathResolver
+    - [ ] All state writes use atomic pattern
     - [ ] Schema validation on all state reads
 
-- [ ] **9.4 Config Source-of-Truth** (parallel with 9.3)
+- [ ] **9.4 Config Source-of-Truth** (lower priority - no issues found in 9.2)
   - [ ] Objectives
     - [ ] YAML files are single source of truth for defaults
-    - [ ] Zod schemas validate but fail hard on parse errors (no silent defaults)
     - [ ] Prevent configuration drift
-  - [ ] **9.4.1 Audit**
+  - [ ] **9.4.1 Audit & Establish Source of Truth**
     - [ ] Find all Zod schemas with `.default()` calls
-    - [ ] Cross-reference with YAML config files in `assets/sidekick/defaults/`
-    - [ ] Identify: defaults in Zod without corresponding YAML setting
-  - [ ] **9.4.2 Establish Source of Truth**
-    - [ ] Remove `.default()` from Zod schemas (or make them throw-on-missing)
-    - [ ] Ensure all defaults exist in YAML files
+    - [ ] Ensure all defaults exist in YAML files in `assets/sidekick/defaults/`
     - [ ] Config loading fails hard if required values missing
-  - [ ] **9.4.3 Enforcement**
-    - [ ] Add test or lint rule: Zod schemas cannot use `.default()` for config values
+  - [ ] **9.4.2 Enforcement**
     - [ ] Add test: all config keys have YAML defaults
   - [ ] Acceptance criteria
     - [ ] No Zod `.default()` for configuration values
     - [ ] Config parse failures are hard errors
-    - [ ] CI prevents drift
 
-- [ ] **9.5 Feature Domain Consolidation** (depends on 9.2 findings, 9.3 infrastructure)
+- [ ] **9.5 Feature Domain Consolidation** (minimal - 9.2.1 found architecture already clean)
   - [ ] Objectives
-    - [ ] Features own both Daemon-side (staging) AND CLI-side (consumption) logic
-    - [ ] Features own their state file schemas and access patterns
-    - [ ] Daemon/CLI core contain no feature-specific implementation details
-  - [ ] **9.5.1 Refactor Feature Packages**
-    - [ ] Move feature logic from Daemon/CLI core into feature packages
-    - [ ] Each feature exports: staging handlers, consumption handlers, state manager extension
-    - [ ] Features register with core services, not embedded in them
-  - [ ] **9.5.2 Clean Core Packages**
-    - [ ] `sidekickd`: only lifecycle, IPC, task engine, handler dispatch
-    - [ ] `sidekick-cli`: only argument parsing, command routing, IPC client
-    - [ ] Remove any feature-specific conditionals or knowledge
+    - [ ] Move remaining feature code from daemon.ts to feature packages
+    - [ ] Note: 9.2.1 audit found handler architecture is already Grade A - no structural refactoring needed
+  - [ ] **9.5.1 Move Reminder State Logic from Daemon** (from 9.2.2 findings)
+    - [ ] Move P&R baseline management (`pr-baseline.json` writes) from daemon.ts:624 to feature-reminders handler
+    - [ ] Move VC state management (`vc-unverified.json`, IPC handlers) from daemon.ts:642-705 to feature-reminders
+    - [ ] Remove reminder name hardcoding (`'verify-completion'`) from daemon core
+  - [ ] **9.5.2 Move Event Definitions to Feature Packages** (from 9.2.5 FIXMEs)
+    - [ ] Move `ReminderConsumed` event from structured-logging.ts to feature-reminders
+    - [ ] Move `ReminderStaged` event from structured-logging.ts to feature-reminders
+    - [ ] Move `RemindersCleared` event from structured-logging.ts to feature-reminders
+    - [ ] Move `SummaryUpdated` event from structured-logging.ts to feature-session-summary
+    - [ ] Move `SummarySkipped` event from structured-logging.ts to feature-session-summary
   - [ ] Acceptance criteria
-    - [ ] Adding a new feature requires no changes to Daemon/CLI core
-    - [ ] Feature packages are self-contained
-    - [ ] Core packages have no imports from feature packages (dependency inversion)
+    - [ ] daemon.ts has no reminder-specific logic or hardcoded reminder names
+    - [ ] Feature packages own their event definitions
+    - [ ] All 5 FIXME comments in structured-logging.ts resolved
 
-- [ ] **9.6 Reminder Orchestration** (depends on 9.2.3 findings)
+- [ ] **9.6 Reminder Orchestration** (informed by 9.2.3 findings - 4 cross-reminder rules)
   - [ ] Objectives
-    - [ ] Encapsulate cross-reminder coordination rules
-    - [ ] Keep individual handler code simple and single-responsibility
-  - [ ] **9.6.1 Design Orchestrator**
-    - [ ] `ReminderOrchestrator` in `feature-reminders`
-    - [ ] Rules engine: "when X happens, do Y to reminders Z"
-    - [ ] Examples: UserPromptSubmit unstages pending reminders, VerifyCompletion resets counters
-  - [ ] **9.6.2 Implement Orchestrator**
-    - [ ] Central place for cross-reminder business logic
-    - [ ] Handlers delegate coordination decisions to orchestrator
+    - [ ] Centralize 4 cross-reminder rules currently scattered across handlers
+    - [ ] Replace scattered `deleteReminder()` calls with declarative rule engine
+  - [ ] **9.6.1 Design Rule Engine**
+    - [ ] `ReminderOrchestrator` in `feature-reminders` with declarative rules:
+      - Rule 1: P&R staged → unstage VC (cascade prevention)
+      - Rule 2: UserPromptSubmit → unstage VC or re-stage if unverified
+      - Rule 3: VC consumed → reset P&R baseline
+      - Rule 4: VC consumed → unstage P&R (prevent double block)
+  - [ ] **9.6.2 Centralize Baseline State**
+    - [ ] Move `pr-baseline.json` management from IPC to orchestrator service
+    - [ ] Clear read/write semantics for baseline state
   - [ ] **9.6.3 Simplify Handlers**
-    - [ ] Handlers focus on single concern: stage/consume one reminder type
-    - [ ] Orchestrator handles interactions between reminder types
+    - [ ] Remove scattered `deleteReminder()` calls from: stage-pause-and-reflect.ts, unstage-verify-completion.ts, inject-stop.ts
+    - [ ] Handlers call orchestrator instead of direct coordination
   - [ ] Acceptance criteria
-    - [ ] Cross-reminder rules documented in one place
-    - [ ] Handlers have single responsibility
+    - [ ] 4 cross-reminder rules in single declarative location
+    - [ ] Handlers have single responsibility (no cross-reminder logic)
     - [ ] Adding new reminder type doesn't require modifying existing handlers
 
-- [ ] **9.7 Code Documentation Polish** (after refactoring stabilizes)
+- [ ] **9.7 Code Cleanup & Documentation Polish** (after refactoring stabilizes)
   - [ ] Objectives
+    - [ ] Remove deprecated APIs and resolve remaining FIXMEs
     - [ ] Documentation matches implementation
-    - [ ] No stale references to implementation phases
-  - [ ] **9.7.1 Code Documentation**
-    - [ ] File headers describe purpose
-    - [ ] Key data structures documented
-    - [ ] Complex methods have explanatory comments
-  - [ ] **9.7.2 Cleanup**
+  - [ ] **9.7.1 Remove Deprecated APIs** (from 9.2.5 scan - 7 items)
+    - [ ] Remove `initialize()` → use `prepare()` + `start()` pattern (3 locations)
+    - [ ] Remove `getTranscriptService()` → use `prepareTranscriptService()` (2 locations)
+    - [ ] Remove `getSessionState()` → use `getTranscriptMetrics()` (1 location)
+    - [ ] Remove `SessionMetricsState` type alias → use `TranscriptMetricsState` (2 locations)
+  - [ ] **9.7.2 Address Remaining FIXMEs** (from 9.2.5 scan)
+    - [ ] structured-logging.ts:383 - Extract event routing logic from logging setup
+    - [ ] transcript-service.ts:1439 - Remove old `currentContextTokens` backward compat
+    - [ ] types/config.ts:15 - Review minimal interface pattern
+  - [ ] **9.7.3 Documentation Cleanup**
     - [ ] Remove phase references from code comments
-    - [ ] Address or remove resolved TODOs
     - [ ] Update design docs if implementation diverged
   - [ ] Acceptance criteria
-    - [ ] No "Phase N" references in code
+    - [ ] No @deprecated APIs remain
+    - [ ] All FIXMEs addressed or converted to tracked issues
     - [ ] Design docs current with implementation
-    - [ ] New contributor can understand code from docs + comments
 
 
 ### Phase 10: Feature Parity and Legacy Cleanup
