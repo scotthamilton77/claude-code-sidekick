@@ -19,11 +19,6 @@ export interface EmulatorState {
   providers: Record<string, ProviderCallState>
 }
 
-const DEFAULT_STATE: EmulatorState = {
-  version: 1,
-  providers: {},
-}
-
 export class EmulatorStateManager {
   private state: EmulatorState | null = null
 
@@ -52,14 +47,16 @@ export class EmulatorStateManager {
         this.logger.debug('Emulator state file not found, creating new state', {
           path: this.statePath,
         })
-        this.state = { ...DEFAULT_STATE }
+        // Deep copy to avoid sharing providers object between instances
+        this.state = { version: 1, providers: {} }
         await this.save()
       } else {
         this.logger.warn('Failed to load emulator state, using defaults', {
           path: this.statePath,
           error: (error as Error).message,
         })
-        this.state = { ...DEFAULT_STATE }
+        // Deep copy to avoid sharing providers object between instances
+        this.state = { version: 1, providers: {} }
       }
     }
 
