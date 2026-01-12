@@ -519,6 +519,137 @@ describe('Structured Logging', () => {
   })
 
   // ===========================================================================
+  // Tests - Child Logger and Upgrade State
+  // ===========================================================================
+
+  describe('Child Logger and Upgrade State', () => {
+    it('should return isUpgraded false before upgrade', async () => {
+      const { createLoggerFacade } = await import('../structured-logging')
+
+      const facade = createLoggerFacade({})
+
+      expect(facade.isUpgraded()).toBe(false)
+    })
+
+    it('should return isUpgraded true after upgrade', async () => {
+      const { createLoggerFacade } = await import('../structured-logging')
+      const { stream } = createTestStream()
+
+      const facade = createLoggerFacade({})
+
+      facade.upgrade({
+        name: 'sidekick:test',
+        level: 'info',
+        testStream: stream,
+      })
+
+      expect(facade.isUpgraded()).toBe(true)
+    })
+
+    it('should create child logger before upgrade', async () => {
+      const { createLoggerFacade } = await import('../structured-logging')
+      const { stream, lines } = createTestStream()
+
+      const facade = createLoggerFacade({
+        bootstrapSink: stream,
+      })
+
+      // Create child before upgrade
+      const child = facade.child({ component: 'test-component' })
+
+      // Child should be functional
+      child.info('Child message before upgrade')
+
+      expect(lines.length).toBe(1)
+      expect(lines[0]).toContain('Child message before upgrade')
+    })
+
+    it('should create child logger after upgrade using Pino', async () => {
+      const { createLoggerFacade } = await import('../structured-logging')
+      const { stream, lines } = createTestStream()
+
+      const facade = createLoggerFacade({})
+
+      // Upgrade first
+      facade.upgrade({
+        name: 'sidekick:test',
+        level: 'info',
+        testStream: stream,
+      })
+
+      // Create child after upgrade
+      const child = facade.child({ component: 'test-component' })
+
+      // Child should use Pino logger
+      child.info('Child message after upgrade')
+      await facade.flush()
+
+      expect(lines.length).toBe(1)
+      const logEntry = parseLogLine(lines[0])
+      expect(logEntry.msg).toBe('Child message after upgrade')
+      expect(logEntry.component).toBe('test-component')
+    })
+
+    it('should log error without buffering to bootstrap logger', async () => {
+      const { createLoggerFacade } = await import('../structured-logging')
+      const { stream, lines } = createTestStream()
+
+      // No bufferPreUpgrade, so logs go directly to bootstrap
+      const facade = createLoggerFacade({
+        bootstrapSink: stream,
+        bufferPreUpgrade: false,
+      })
+
+      facade.error('Direct error message')
+
+      expect(lines.length).toBe(1)
+      expect(lines[0]).toContain('Direct error message')
+    })
+
+    it('should log fatal without buffering to bootstrap logger', async () => {
+      const { createLoggerFacade } = await import('../structured-logging')
+      const { stream, lines } = createTestStream()
+
+      // No bufferPreUpgrade, so logs go directly to bootstrap
+      const facade = createLoggerFacade({
+        bootstrapSink: stream,
+        bufferPreUpgrade: false,
+      })
+
+      facade.fatal('Direct fatal message')
+
+      expect(lines.length).toBe(1)
+      expect(lines[0]).toContain('Direct fatal message')
+    })
+
+    it('should buffer fatal messages when bufferPreUpgrade is true', async () => {
+      const { createLoggerFacade } = await import('../structured-logging')
+      const { stream, lines } = createTestStream()
+
+      const facade = createLoggerFacade({
+        bufferPreUpgrade: true,
+      })
+
+      // Log fatal before upgrade (should be buffered)
+      facade.fatal('Buffered fatal message')
+
+      // Upgrade to Pino
+      facade.upgrade({
+        name: 'sidekick:test',
+        level: 'fatal',
+        testStream: stream,
+      })
+
+      // Flush should emit buffered logs
+      await facade.flush()
+
+      expect(lines.length).toBe(1)
+      const logEntry = parseLogLine(lines[0])
+      expect(logEntry.msg).toBe('Buffered fatal message')
+    })
+  })
+
+  // ===========================================================================
   // Tests - Fallback Behavior
   // ===========================================================================
 
@@ -1157,6 +1288,117 @@ describe('Structured Logging', () => {
       for (const listener of originalListeners) {
         process.on('uncaughtException', listener)
       }
+    })
+
+    it('should log uncaught exceptions through the handler', async () => {
+      const { createLogManager, setupGlobalErrorHandlers } = await import('../structured-logging')
+      const { stream, lines } = createTestStream()
+
+      const logManager = createLogManager({
+        name: 'sidekick:test',
+        level: 'fatal',
+        testStream: stream,
+      })
+
+      // Save and remove existing listeners
+      const originalUncaughtListeners = process.listeners('uncaughtException')
+      process.removeAllListeners('uncaughtException')
+
+      const cleanup = setupGlobalErrorHandlers(logManager.getLogger())
+
+      // Add a listener to prevent the test from crashing
+      const preventCrash = (): void => {}
+      process.on('uncaughtException', preventCrash)
+
+      // Emit an uncaught exception event
+      const testError = new Error('Test uncaught exception')
+      process.emit('uncaughtException', testError)
+
+      // Wait for async operations
+      await new Promise((resolve) => setTimeout(resolve, 50))
+
+      // Cleanup and restore
+      cleanup()
+      process.removeListener('uncaughtException', preventCrash)
+      for (const listener of originalUncaughtListeners) {
+        process.on('uncaughtException', listener)
+      }
+
+      // Verify the error was logged
+      expect(lines.length).toBeGreaterThan(0)
+      const logEntry = parseLogLine(lines[0])
+      expect(logEntry.msg).toBe('Uncaught exception')
+    })
+
+    it('should log unhandled promise rejections through the handler', async () => {
+      const { createLogManager, setupGlobalErrorHandlers } = await import('../structured-logging')
+      const { stream, lines } = createTestStream()
+
+      const logManager = createLogManager({
+        name: 'sidekick:test',
+        level: 'fatal',
+        testStream: stream,
+      })
+
+      // Save and remove existing listeners
+      const originalRejectionListeners = process.listeners('unhandledRejection')
+      process.removeAllListeners('unhandledRejection')
+
+      const cleanup = setupGlobalErrorHandlers(logManager.getLogger())
+
+      // Emit an unhandled rejection event with an Error
+      const testError = new Error('Test unhandled rejection')
+      process.emit('unhandledRejection', testError, Promise.resolve())
+
+      // Wait for async operations
+      await new Promise((resolve) => setTimeout(resolve, 50))
+
+      // Cleanup and restore
+      cleanup()
+      for (const listener of originalRejectionListeners) {
+        process.on('unhandledRejection', listener)
+      }
+
+      // Verify the rejection was logged
+      expect(lines.length).toBeGreaterThan(0)
+      const logEntry = parseLogLine(lines[0])
+      expect(logEntry.msg).toBe('Unhandled promise rejection')
+      expect(logEntry.reason).toBe('Test unhandled rejection')
+    })
+
+    it('should handle non-Error rejection reasons', async () => {
+      const { createLogManager, setupGlobalErrorHandlers } = await import('../structured-logging')
+      const { stream, lines } = createTestStream()
+
+      const logManager = createLogManager({
+        name: 'sidekick:test',
+        level: 'fatal',
+        testStream: stream,
+      })
+
+      // Save and remove existing listeners
+      const originalRejectionListeners = process.listeners('unhandledRejection')
+      process.removeAllListeners('unhandledRejection')
+
+      const cleanup = setupGlobalErrorHandlers(logManager.getLogger())
+
+      // Emit an unhandled rejection event with a string (non-Error)
+      process.emit('unhandledRejection', 'string rejection reason', Promise.resolve())
+
+      // Wait for async operations
+      await new Promise((resolve) => setTimeout(resolve, 50))
+
+      // Cleanup and restore
+      cleanup()
+      for (const listener of originalRejectionListeners) {
+        process.on('unhandledRejection', listener)
+      }
+
+      // Verify the rejection was logged with string reason
+      expect(lines.length).toBeGreaterThan(0)
+      const logEntry = parseLogLine(lines[0])
+      expect(logEntry.msg).toBe('Unhandled promise rejection')
+      expect(logEntry.reason).toBe('string rejection reason')
     })
   })
 })
