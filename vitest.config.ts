@@ -30,6 +30,7 @@ export default defineConfig({
 
         // === shared-providers ===
         'packages/shared-providers/src/index.ts', // Barrel file
+        'packages/shared-providers/src/providers/emulators/**', // LLM test emulators (test infrastructure)
 
         // === sidekick-daemon ===
         'packages/sidekick-daemon/src/index.ts', // Process entrypoint

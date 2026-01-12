@@ -128,17 +128,46 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
   - [ ] Objectives
     - [ ] Establish safety net before major refactoring
     - [ ] Target 90%+ coverage for code that should be tested
-  - [ ] **9.1.1 Coverage Analysis**
-    - [ ] Comprehensive audit of current coverage across all packages
-    - [ ] Identify gaps in critical paths (handlers, services, IPC)
-    - [ ] Evaluate existing exclusions - are we missing something important?
+  - [x] **9.1.1 Coverage Analysis** - COMPLETE 2025-01-11
+    - [x] Comprehensive audit of current coverage across all packages
+    - [x] Identify gaps in critical paths (handlers, services, IPC)
+    - [x] Evaluate existing exclusions - are we missing something important?
+    - **Baseline**: 83.02% (8,149/9,815 statements) — Gap to 90%: ~685 statements
+    - **Low coverage files identified**:
+      | File | Coverage | Uncovered | Priority |
+      |------|----------|-----------|----------|
+      | `context-metrics-service.ts` | 12% | 321 stmts | HIGH |
+      | `completion-classifier.ts` | 52% | 62 stmts | HIGH |
+      | `staging handlers` | 55% | 101 stmts | HIGH |
+      | `context-overhead-reader.ts` | 32% | ~47 stmts | MEDIUM |
+      | `instrumented-profile-factory.ts` | 18% | ~62 stmts | MEDIUM |
   - [ ] **9.1.2 Configure Exclusions**
-    - [ ] Intentionally exclude: generated code, type-only files, test utilities
-    - [ ] Document exclusion rationale
-  - [ ] **9.1.3 Increase Coverage**
-    - [ ] Prioritize: handlers, state management, IPC paths
-    - [ ] Add missing unit tests
-    - [ ] Add integration tests for critical flows
+    - [ ] Add emulators to exclusion list (test infrastructure, not production code)
+      ```typescript
+      // vitest.config.ts - add to exclude array:
+      'packages/shared-providers/src/providers/emulators/**',  // LLM test emulators
+      ```
+    - [ ] Document exclusion rationale in vitest.config.ts comments
+  - [ ] **9.1.3 Increase Coverage** (prioritized by impact)
+    - [ ] **context-metrics-service.ts** (321 uncovered statements)
+      - Service orchestrates transcript parsing and metric aggregation
+      - Needs: mock TranscriptService, test metric calculation flows
+      - Tests: initialization, metric updates, error handling
+    - [ ] **completion-classifier.ts** (62 uncovered statements)
+      - Main `classifyCompletion()` function untested
+      - Needs: mock LLM provider responses
+      - Tests: CLAIMING_COMPLETION classification, error fallbacks, disabled state
+    - [ ] **staging handlers** (101 uncovered statements)
+      - `stage-default-user-prompt.ts` (76%) - minor gaps
+      - `task-completion.ts` handler if exists
+      - Tests: threshold logic, suppression patterns
+    - [ ] **context-overhead-reader.ts** (47 uncovered statements)
+      - No test file exists
+      - Needs: mock file system reads
+      - Tests: file missing, corrupt JSON, Zod validation errors
+    - [ ] **instrumented-profile-factory.ts** (62 uncovered statements)
+      - Factory for creating instrumented LLM profiles
+      - Tests: profile creation, fallback behavior
   - [ ] Acceptance criteria
     - [ ] 90%+ line coverage for non-excluded code
     - [ ] Coverage config documents all exclusions with rationale
