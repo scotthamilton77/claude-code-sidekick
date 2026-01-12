@@ -133,12 +133,12 @@ describe('ConfigWatcher', () => {
     )
 
     // Error should have been logged
-    expect(logger.wasLogged('Error in config change handler', 'error')).toBe(true)
+    expect(logger.wasLoggedAtLevel('Error in config change handler', 'error')).toBe(true)
 
     watcher.stop()
   })
 
-  it('should log error when fs.watch fails', async () => {
+  it('should log error when fs.watch fails', () => {
     // Mock existsSync to return true but fs.watch to throw
     const mockExistsSync = vi.spyOn(syncFs, 'existsSync').mockReturnValue(true)
     const watchError = new Error('Permission denied')
@@ -196,7 +196,7 @@ describe('ConfigWatcher', () => {
     const originalWatch = syncFs.watch
     let createdWatcher: syncFs.FSWatcher | null = null
     vi.spyOn(syncFs, 'watch').mockImplementation((filename, listener) => {
-      createdWatcher = originalWatch(filename, listener as Parameters<typeof syncFs.watch>[1])
+      createdWatcher = originalWatch(filename, listener)
       return createdWatcher
     })
 
@@ -208,7 +208,7 @@ describe('ConfigWatcher', () => {
     }
 
     // Error should have been logged
-    expect(logger.wasLogged('Watcher error', 'error')).toBe(true)
+    expect(logger.wasLoggedAtLevel('Watcher error', 'error')).toBe(true)
 
     watcher.stop()
   })
