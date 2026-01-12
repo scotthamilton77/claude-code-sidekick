@@ -13,6 +13,7 @@ This repository serves as a development and testing environment for [Claude Code
 ### Sidekick
 
 - finish ROADMAP.md
+- convert markdown formatting in snarky comments to ANSI formatting (configurable)
 - consider revising the summary "title" (and "intent"?) into a "if you were to describe this in a jira ticket..." where the jira ticket title/summary is needs enough specificity to inform "do what to which thing"
 - finish PLAN.MD (executing ARCH.md)
 - can we be resilient to json file errors?  I just ran into a case of the session-summary.json being generated with trash after the last } which made it unreadable
