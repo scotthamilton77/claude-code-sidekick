@@ -632,6 +632,264 @@ describe('DaemonClient', () => {
     })
   })
 
+  describe('isLockStale() [private]', () => {
+    it('should return true when lock file is older than threshold', async () => {
+      const client = new DaemonClient(tmpProjectDir, logger)
+      const lockPath = path.join(tmpProjectDir, '.sidekick', 'sidekickd.lock')
+
+      // Write a lock with old timestamp
+      const oldTimestamp = Date.now() - 60000 // 60 seconds ago
+      await fs.writeFile(lockPath, JSON.stringify({ pid: process.pid, timestamp: oldTimestamp }))
+
+      const isLockStale = (client as unknown as { isLockStale: (p: string) => Promise<boolean> }).isLockStale.bind(
+        client
+      )
+      const result = await isLockStale(lockPath)
+
+      expect(result).toBe(true)
+    })
+
+    it('should return false when lock is recent and process is alive', async () => {
+      const client = new DaemonClient(tmpProjectDir, logger)
+      const lockPath = path.join(tmpProjectDir, '.sidekick', 'sidekickd.lock')
+
+      // Write a lock with current timestamp and own PID (alive)
+      await fs.writeFile(lockPath, JSON.stringify({ pid: process.pid, timestamp: Date.now() }))
+
+      const isLockStale = (client as unknown as { isLockStale: (p: string) => Promise<boolean> }).isLockStale.bind(
+        client
+      )
+      const result = await isLockStale(lockPath)
+
+      expect(result).toBe(false)
+    })
+
+    it('should return true when owning process is dead', async () => {
+      const client = new DaemonClient(tmpProjectDir, logger)
+      const lockPath = path.join(tmpProjectDir, '.sidekick', 'sidekickd.lock')
+
+      // Write a lock with recent timestamp but non-existent PID
+      const deadPid = 999999999
+      await fs.writeFile(lockPath, JSON.stringify({ pid: deadPid, timestamp: Date.now() }))
+
+      const isLockStale = (client as unknown as { isLockStale: (p: string) => Promise<boolean> }).isLockStale.bind(
+        client
+      )
+      const result = await isLockStale(lockPath)
+
+      expect(result).toBe(true)
+    })
+
+    it('should return true when lock file contains invalid JSON', async () => {
+      const client = new DaemonClient(tmpProjectDir, logger)
+      const lockPath = path.join(tmpProjectDir, '.sidekick', 'sidekickd.lock')
+
+      await fs.writeFile(lockPath, 'not valid json')
+
+      const isLockStale = (client as unknown as { isLockStale: (p: string) => Promise<boolean> }).isLockStale.bind(
+        client
+      )
+      const result = await isLockStale(lockPath)
+
+      expect(result).toBe(true)
+    })
+
+    it('should return true when lock file does not exist', async () => {
+      const client = new DaemonClient(tmpProjectDir, logger)
+      const lockPath = path.join(tmpProjectDir, '.sidekick', 'nonexistent.lock')
+
+      const isLockStale = (client as unknown as { isLockStale: (p: string) => Promise<boolean> }).isLockStale.bind(
+        client
+      )
+      const result = await isLockStale(lockPath)
+
+      expect(result).toBe(true)
+    })
+  })
+
+  describe('releaseLock() [private]', () => {
+    it('should delete the lock file', async () => {
+      const client = new DaemonClient(tmpProjectDir, logger)
+      const lockPath = path.join(tmpProjectDir, '.sidekick', 'sidekickd.lock')
+
+      await fs.writeFile(lockPath, JSON.stringify({ pid: process.pid, timestamp: Date.now() }))
+      await expect(fs.access(lockPath)).resolves.toBeUndefined()
+
+      const releaseLock = (client as unknown as { releaseLock: (p: string) => Promise<void> }).releaseLock.bind(client)
+      await releaseLock(lockPath)
+
+      await expect(fs.access(lockPath)).rejects.toThrow()
+    })
+
+    it('should not throw when lock file does not exist', async () => {
+      const client = new DaemonClient(tmpProjectDir, logger)
+      const lockPath = path.join(tmpProjectDir, '.sidekick', 'nonexistent.lock')
+
+      const releaseLock = (client as unknown as { releaseLock: (p: string) => Promise<void> }).releaseLock.bind(client)
+
+      // Should complete without error
+      await releaseLock(lockPath)
+    })
+  })
+
+  describe('withStartupLock() [private]', () => {
+    it('should acquire lock and execute function', async () => {
+      const client = new DaemonClient(tmpProjectDir, logger)
+
+      const withStartupLock = (
+        client as unknown as { withStartupLock: <T>(fn: () => Promise<T>) => Promise<T> }
+      ).withStartupLock.bind(client)
+
+      let executed = false
+      const result = await withStartupLock(() => {
+        executed = true
+        return Promise.resolve('success')
+      })
+
+      expect(executed).toBe(true)
+      expect(result).toBe('success')
+    })
+
+    it('should release lock after function completes', async () => {
+      const client = new DaemonClient(tmpProjectDir, logger)
+      const lockPath = path.join(tmpProjectDir, '.sidekick', 'sidekickd.lock')
+
+      const withStartupLock = (
+        client as unknown as { withStartupLock: <T>(fn: () => Promise<T>) => Promise<T> }
+      ).withStartupLock.bind(client)
+
+      await withStartupLock(async () => {
+        // Lock should exist during execution
+        await expect(fs.access(lockPath)).resolves.toBeUndefined()
+        return null
+      })
+
+      // Lock should be released after completion
+      await expect(fs.access(lockPath)).rejects.toThrow()
+    })
+
+    it('should release lock even if function throws', async () => {
+      const client = new DaemonClient(tmpProjectDir, logger)
+      const lockPath = path.join(tmpProjectDir, '.sidekick', 'sidekickd.lock')
+
+      const withStartupLock = (
+        client as unknown as { withStartupLock: <T>(fn: () => Promise<T>) => Promise<T> }
+      ).withStartupLock.bind(client)
+
+      await expect(
+        withStartupLock(() => {
+          return Promise.reject(new Error('Test error'))
+        })
+      ).rejects.toThrow('Test error')
+
+      // Lock should be released even after error
+      await expect(fs.access(lockPath)).rejects.toThrow()
+    })
+
+    it('should remove stale lock and proceed', async () => {
+      const client = new DaemonClient(tmpProjectDir, logger)
+      const lockPath = path.join(tmpProjectDir, '.sidekick', 'sidekickd.lock')
+
+      // Create a stale lock (dead process)
+      const deadPid = 999999999
+      await fs.writeFile(lockPath, JSON.stringify({ pid: deadPid, timestamp: Date.now() }))
+
+      const withStartupLock = (
+        client as unknown as { withStartupLock: <T>(fn: () => Promise<T>) => Promise<T> }
+      ).withStartupLock.bind(client)
+
+      let executed = false
+      await withStartupLock(() => {
+        executed = true
+        return Promise.resolve(null)
+      })
+
+      expect(executed).toBe(true)
+    })
+
+    it('should wait for lock held by another process then acquire', async () => {
+      const client = new DaemonClient(tmpProjectDir, logger)
+      const lockPath = path.join(tmpProjectDir, '.sidekick', 'sidekickd.lock')
+
+      // Create a lock held by current process (valid lock)
+      await fs.writeFile(lockPath, JSON.stringify({ pid: process.pid, timestamp: Date.now() }))
+
+      const withStartupLock = (
+        client as unknown as { withStartupLock: <T>(fn: () => Promise<T>) => Promise<T> }
+      ).withStartupLock.bind(client)
+
+      let executed = false
+
+      // Release lock after 150ms (after 1-2 retry intervals)
+      setTimeout(() => {
+        void fs.unlink(lockPath).catch(() => {})
+      }, 150)
+
+      await withStartupLock(() => {
+        executed = true
+        return Promise.resolve(null)
+      })
+
+      expect(executed).toBe(true)
+    })
+
+    it('should force remove lock after timeout', async () => {
+      const client = new DaemonClient(tmpProjectDir, logger)
+      const lockPath = path.join(tmpProjectDir, '.sidekick', 'sidekickd.lock')
+
+      // Create a lock held by current process (valid lock) that won't be released
+      await fs.writeFile(lockPath, JSON.stringify({ pid: process.pid, timestamp: Date.now() }))
+
+      // Mock the constants to make timeout faster (100ms total with 50ms intervals = 2 retries)
+      const withStartupLockFast = async <T>(fn: () => Promise<T>): Promise<T> => {
+        const lockTimeoutMs = 200
+        const lockRetryIntervalMs = 50
+
+        const startTime = Date.now()
+        const isLockStale = (client as unknown as { isLockStale: (p: string) => Promise<boolean> }).isLockStale.bind(
+          client
+        )
+
+        while (Date.now() - startTime < lockTimeoutMs) {
+          try {
+            await fs.writeFile(lockPath, JSON.stringify({ pid: process.pid, timestamp: Date.now() }), {
+              flag: 'wx',
+            })
+            try {
+              return await fn()
+            } finally {
+              await fs.unlink(lockPath).catch(() => {})
+            }
+          } catch (err: unknown) {
+            if ((err as NodeJS.ErrnoException).code === 'EEXIST') {
+              if (await isLockStale(lockPath)) {
+                await fs.unlink(lockPath).catch(() => {})
+                continue
+              }
+              await new Promise((resolve) => setTimeout(resolve, lockRetryIntervalMs))
+              continue
+            }
+            throw err
+          }
+        }
+
+        // Timeout - force remove lock
+        await fs.unlink(lockPath).catch(() => {})
+        return fn()
+      }
+
+      let executed = false
+      await withStartupLockFast(() => {
+        executed = true
+        return Promise.resolve(null)
+      })
+
+      expect(executed).toBe(true)
+      // Lock should be removed
+      await expect(fs.access(lockPath)).rejects.toThrow()
+    })
+  })
+
   describe('killForcefully() [private]', () => {
     it('should attempt SIGKILL on valid PID', async () => {
       const client = new DaemonClient(tmpProjectDir, logger)

@@ -47,11 +47,10 @@ describe('CleanupHandler', () => {
     const abortController = new AbortController()
     return {
       taskId: 'test-task-123',
-      sessionId: 'test-session',
       logger,
       signal: abortController.signal,
       ...overrides,
-    }
+    } as TaskContext
   }
 
   describe('payload validation', () => {
@@ -66,7 +65,7 @@ describe('CleanupHandler', () => {
 
       // maxAgeMs must be a number, not a string
       await expect(handler({ maxAgeMs: 'not-a-number' }, ctx)).rejects.toThrow('Invalid task payload')
-      expect(logger.wasLogged('Invalid payload', 'error')).toBe(true)
+      expect(logger.wasLoggedAtLevel('Invalid payload', 'error')).toBe(true)
     })
 
     it('should accept valid empty payload', async () => {
@@ -131,14 +130,14 @@ describe('CleanupHandler', () => {
       // Mock fs.stat to abort the signal after the first call
       const originalStat = fs.stat
       let callCount = 0
-      vi.spyOn(fs, 'stat').mockImplementation(async (...args) => {
+      vi.spyOn(fs, 'stat').mockImplementation(async (path) => {
         callCount++
         if (callCount === 2) {
           // Abort after processing first session
           abortController.abort()
         }
 
-        return originalStat(...(args as [any]))
+        return originalStat(path)
       })
 
       const ctx = createContext({ signal: abortController.signal })
@@ -176,8 +175,8 @@ describe('CleanupHandler', () => {
 
       // Delete problematic session after readdir
       const originalReaddir = fs.readdir
-      vi.spyOn(fs, 'readdir').mockImplementationOnce(async (...args) => {
-        const result = await originalReaddir(...(args as [any]))
+      vi.spyOn(fs, 'readdir').mockImplementationOnce(async (path, options) => {
+        const result = await originalReaddir(path, options)
         // Delete the problematic session before returning
         await fs.rm(problematicSessionPath, { recursive: true, force: true })
         return result
@@ -187,7 +186,7 @@ describe('CleanupHandler', () => {
 
       await handler({ maxAgeMs: 1 }, ctx)
 
-      expect(logger.wasLogged('Failed to stat session directory', 'warn')).toBe(true)
+      expect(logger.wasLoggedAtLevel('Failed to stat session directory', 'warn')).toBe(true)
       expect(logger.wasLogged('Cleanup task completed')).toBe(true)
     })
   })
@@ -342,7 +341,7 @@ describe('CleanupHandler', () => {
 
       await expect(handler({}, ctx)).rejects.toThrow('Disk read error')
 
-      expect(logger.wasLogged('Cleanup task failed', 'error')).toBe(true)
+      expect(logger.wasLoggedAtLevel('Cleanup task failed', 'error')).toBe(true)
     })
   })
 
