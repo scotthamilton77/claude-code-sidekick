@@ -245,6 +245,138 @@ If you're about to:
 
 **STOP. Propose refactoring instead.**
 
+## Test Suppression and Exclusion
+
+Skipping tests is sometimes necessary, but often hides bugs—both current and future. Treat every skip as technical debt that accrues interest.
+
+### When Skipping IS Appropriate
+
+| Scenario | Example | Required Action |
+|----------|---------|-----------------|
+| **Environment limitation** | IPC tests fail in sandbox | Document in AGENTS.md, exclude via pattern |
+| **Flaky external dependency** | Third-party API rate limits | Fix the flakiness, skip temporarily with issue link |
+| **WIP during development** | TDD red phase | Remove skip before PR merge |
+| **Known platform bug** | OS-specific failure with upstream fix pending | Link to upstream issue, set reminder |
+
+### When Skipping is HIDING BUGS
+
+**Never skip tests to:**
+- Make CI green for a deadline
+- Avoid investigating a failure you don't understand
+- "Fix later" without a concrete plan
+- Work around code that "shouldn't fail but does"
+- Ignore failures that only happen "sometimes"
+
+```typescript
+// DANGEROUS: Hiding a real bug
+it.skip('processes payment correctly', () => {
+  // Started failing last week, skip for now
+});
+
+// DANGEROUS: Flaky test ignored instead of fixed
+it.skip('handles concurrent requests', () => {
+  // Works locally, fails in CI sometimes
+});
+```
+
+Both of these are time bombs. The "flaky" test might be catching a real race condition.
+
+### Skip Hygiene
+
+**Every skipped test MUST have:**
+
+1. **A reason in the test name or comment**
+2. **A tracking issue or TODO with owner**
+3. **A condition for re-enabling**
+
+```typescript
+// GOOD: Documented skip with actionable context
+it.skip('connects via Unix socket (sandbox blocks EPERM)', () => {
+  // See AGENTS.md §sandbox_testing
+  // Re-enable: run with INTEGRATION_TESTS=1 outside sandbox
+});
+
+// GOOD: Skip with issue link
+describe.skip('Stripe webhook handling', () => {
+  // Skip: Stripe test mode rate-limited, see #1234
+  // Re-enable: when we set up dedicated test account
+});
+
+// BAD: Mystery skip
+it.skip('validates user input', () => {
+  // No explanation—is this broken? obsolete? platform-specific?
+});
+```
+
+### Skip Patterns by Test Runner
+
+```typescript
+// Vitest/Jest - conditional skip
+it.skipIf(!process.env.INTEGRATION_TESTS)('requires real database', ...)
+it.runIf(process.platform === 'linux')('Linux-specific behavior', ...)
+
+// Vitest/Jest - unconditional (use sparingly)
+it.skip('reason in name: broken upstream #123', ...)
+describe.skip('Feature X: blocked by #456', ...)
+
+// Jest only - todo marker (clearer intent than skip)
+it.todo('should handle edge case Y')
+```
+
+### Exclusion via Test Configuration
+
+For systematic exclusions (not one-off skips):
+
+```typescript
+// vitest.config.ts - exclude patterns
+export default defineConfig({
+  test: {
+    exclude: [
+      '**/node_modules/**',
+      '**/{ipc,daemon-client}.test.ts', // Sandbox limitation, see AGENTS.md
+    ],
+  },
+});
+```
+
+Document exclusion patterns in AGENTS.md or a test README—don't hide them in config.
+
+### Red Flags for Test Suppression
+
+| Red Flag | What It Usually Means |
+|----------|----------------------|
+| Skip count increasing over time | Tests are being abandoned, not fixed |
+| Skips without explanations | No one knows if they're still relevant |
+| Skips older than 3 months | Either fix or delete—stale skips rot |
+| `skip` added in same PR as code change | Possibly hiding a regression |
+| Skipping "flaky" tests | Often real bugs with non-deterministic triggers |
+| Bulk skips before deadline | Tech debt explosion incoming |
+
+### Before You Skip: Decision Tree
+
+```dot
+digraph skip_decision {
+    "Test is failing" [shape=box];
+    "Do you understand why?" [shape=diamond];
+    "Can you fix it now?" [shape=diamond];
+    "Is it environment-specific?" [shape=diamond];
+    "Fix the test or code" [shape=box, style=filled, fillcolor="#ccffcc"];
+    "Skip with issue link + deadline" [shape=box, style=filled, fillcolor="#ffffcc"];
+    "Exclude via config, document in AGENTS.md" [shape=box, style=filled, fillcolor="#ffffcc"];
+    "INVESTIGATE FIRST" [shape=box, style=filled, fillcolor="#ffcccc"];
+
+    "Test is failing" -> "Do you understand why?";
+    "Do you understand why?" -> "INVESTIGATE FIRST" [label="no"];
+    "Do you understand why?" -> "Can you fix it now?" [label="yes"];
+    "Can you fix it now?" -> "Fix the test or code" [label="yes"];
+    "Can you fix it now?" -> "Is it environment-specific?" [label="no"];
+    "Is it environment-specific?" -> "Exclude via config, document in AGENTS.md" [label="yes"];
+    "Is it environment-specific?" -> "Skip with issue link + deadline" [label="no"];
+}
+```
+
+**Never skip a test you don't understand.** That's not fixing—it's hiding.
+
 ## Verification Checklist
 
 Before submitting tests:
@@ -255,5 +387,6 @@ Before submitting tests:
 - [ ] No test depends on another test's execution
 - [ ] Setup is under 10 lines per test
 - [ ] Would these tests survive an internal refactor?
+- [ ] Any skipped tests have documented reasons and tracking issues
 
 Can't check all boxes? Refactor the code or the tests.
