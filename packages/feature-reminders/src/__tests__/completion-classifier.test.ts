@@ -9,8 +9,15 @@ import {
   extractConversationContext,
   interpolatePrompt,
   parseResponse,
+  classifyCompletion,
 } from '../completion-classifier'
-import { createMockDaemonContext, MockTranscriptService, MockLogger } from '@sidekick/testing-fixtures'
+import {
+  createMockDaemonContext,
+  MockTranscriptService,
+  MockLogger,
+  MockLLMService,
+  MockAssetResolver,
+} from '@sidekick/testing-fixtures'
 import type { DaemonContext, CanonicalTranscriptEntry } from '@sidekick/types'
 
 describe('completion-classifier', () => {
@@ -271,6 +278,270 @@ describe('completion-classifier', () => {
       const context = { lastUserPrompt: null, lastAssistantMessage: null }
 
       expect(interpolatePrompt(template, context)).toBe('Assistant: (no assistant message found)')
+    })
+  })
+
+  describe('classifyCompletion', () => {
+    let ctx: DaemonContext
+    let transcript: MockTranscriptService
+    let logger: MockLogger
+    let llm: MockLLMService
+    let assets: MockAssetResolver
+
+    beforeEach(() => {
+      transcript = new MockTranscriptService()
+      logger = new MockLogger()
+      llm = new MockLLMService()
+      assets = new MockAssetResolver()
+
+      // Register required assets
+      assets.register('prompts/completion-classifier.prompt.txt', 'User: {{lastUserPrompt}}\nAssistant: {{lastAssistantMessage}}')
+      assets.register('schemas/completion-classifier.schema.json', JSON.stringify({
+        type: 'object',
+        properties: {
+          category: { type: 'string' },
+          confidence: { type: 'number' },
+          reasoning: { type: 'string' }
+        }
+      }))
+
+      ctx = createMockDaemonContext({ transcript, logger, llm, assets })
+    })
+
+    function createEntry(
+      role: 'user' | 'assistant',
+      content: string
+    ): CanonicalTranscriptEntry {
+      return {
+        id: `entry-${Date.now()}-${Math.random()}`,
+        timestamp: new Date(),
+        role,
+        type: 'text',
+        content,
+        metadata: {
+          provider: 'claude',
+          lineNumber: 1,
+          isMeta: false,
+          isCompactSummary: false,
+        },
+      }
+    }
+
+    it('returns default result when classification is disabled', async () => {
+      transcript.setMockEntries([
+        createEntry('user', 'Do the thing'),
+        createEntry('assistant', 'I have completed the task.'),
+      ])
+
+      const result = await classifyCompletion({
+        ctx,
+        settings: { enabled: false, confidence_threshold: 0.7 },
+      })
+
+      expect(result.shouldBlock).toBe(true)
+      expect(result.classification.reasoning).toContain('unavailable')
+      expect(logger.wasLogged('Completion classification disabled - defaulting to block')).toBe(true)
+    })
+
+    it('returns default result when no assistant message found', async () => {
+      transcript.setMockEntries([
+        createEntry('user', 'Hello'),
+      ])
+
+      const result = await classifyCompletion({
+        ctx,
+        settings: { enabled: true, confidence_threshold: 0.7 },
+      })
+
+      expect(result.shouldBlock).toBe(true)
+      expect(logger.wasLogged('No assistant message found in transcript - defaulting to block')).toBe(true)
+    })
+
+    it('returns default result when prompt template not found', async () => {
+      assets.reset() // Remove all assets
+      transcript.setMockEntries([
+        createEntry('user', 'Do something'),
+        createEntry('assistant', 'Done!'),
+      ])
+
+      const result = await classifyCompletion({
+        ctx,
+        settings: { enabled: true, confidence_threshold: 0.7 },
+      })
+
+      expect(result.shouldBlock).toBe(true)
+      expect(logger.wasLoggedAtLevel('Failed to load completion classifier prompt template', 'error')).toBe(true)
+    })
+
+    it('classifies CLAIMING_COMPLETION and blocks when confidence exceeds threshold', async () => {
+      transcript.setMockEntries([
+        createEntry('user', 'Fix the bug'),
+        createEntry('assistant', 'I have fixed the bug. The task is complete.'),
+      ])
+
+      llm.queueResponse(JSON.stringify({
+        category: 'CLAIMING_COMPLETION',
+        confidence: 0.95,
+        reasoning: 'The assistant explicitly states the task is complete',
+      }))
+
+      const result = await classifyCompletion({
+        ctx,
+        settings: { enabled: true, confidence_threshold: 0.7 },
+      })
+
+      expect(result.shouldBlock).toBe(true)
+      expect(result.classification.category).toBe('CLAIMING_COMPLETION')
+      expect(result.classification.confidence).toBe(0.95)
+    })
+
+    it('does not block CLAIMING_COMPLETION when confidence below threshold', async () => {
+      transcript.setMockEntries([
+        createEntry('user', 'Fix the bug'),
+        createEntry('assistant', 'I think that should work.'),
+      ])
+
+      llm.queueResponse(JSON.stringify({
+        category: 'CLAIMING_COMPLETION',
+        confidence: 0.5,
+        reasoning: 'Weak claim of completion',
+      }))
+
+      const result = await classifyCompletion({
+        ctx,
+        settings: { enabled: true, confidence_threshold: 0.7 },
+      })
+
+      expect(result.shouldBlock).toBe(false)
+    })
+
+    it('does not block ASKING_QUESTION', async () => {
+      transcript.setMockEntries([
+        createEntry('user', 'Fix the bug'),
+        createEntry('assistant', 'Which bug would you like me to fix?'),
+      ])
+
+      llm.queueResponse(JSON.stringify({
+        category: 'ASKING_QUESTION',
+        confidence: 0.9,
+        reasoning: 'The assistant is asking for clarification',
+      }))
+
+      const result = await classifyCompletion({
+        ctx,
+        settings: { enabled: true, confidence_threshold: 0.7 },
+      })
+
+      expect(result.shouldBlock).toBe(false)
+      expect(result.classification.category).toBe('ASKING_QUESTION')
+      expect(result.userMessage).toBeUndefined()
+    })
+
+    it('does not block ANSWERING_QUESTION', async () => {
+      transcript.setMockEntries([
+        createEntry('user', 'What is TypeScript?'),
+        createEntry('assistant', 'TypeScript is a typed superset of JavaScript.'),
+      ])
+
+      llm.queueResponse(JSON.stringify({
+        category: 'ANSWERING_QUESTION',
+        confidence: 0.85,
+        reasoning: 'The assistant is answering an informational question',
+      }))
+
+      const result = await classifyCompletion({
+        ctx,
+        settings: { enabled: true, confidence_threshold: 0.7 },
+      })
+
+      expect(result.shouldBlock).toBe(false)
+      expect(result.classification.category).toBe('ANSWERING_QUESTION')
+      expect(result.userMessage).toBeUndefined()
+    })
+
+    it('returns warning message for OTHER category', async () => {
+      transcript.setMockEntries([
+        createEntry('user', 'Do the thing'),
+        createEntry('assistant', 'Here is some output...'),
+      ])
+
+      llm.queueResponse(JSON.stringify({
+        category: 'OTHER',
+        confidence: 0.6,
+        reasoning: 'Unclear stopping intent',
+      }))
+
+      const result = await classifyCompletion({
+        ctx,
+        settings: { enabled: true, confidence_threshold: 0.7 },
+      })
+
+      expect(result.shouldBlock).toBe(false)
+      expect(result.classification.category).toBe('OTHER')
+      expect(result.userMessage).toContain('trust but verify')
+    })
+
+    it('returns default result when LLM response cannot be parsed', async () => {
+      transcript.setMockEntries([
+        createEntry('user', 'Do something'),
+        createEntry('assistant', 'Done'),
+      ])
+
+      llm.queueResponse('This is not valid JSON')
+
+      const result = await classifyCompletion({
+        ctx,
+        settings: { enabled: true, confidence_threshold: 0.7 },
+      })
+
+      expect(result.shouldBlock).toBe(true)
+      expect(logger.wasLogged('Failed to parse completion classifier response')).toBe(true)
+    })
+
+    it('returns default result when LLM call fails', async () => {
+      transcript.setMockEntries([
+        createEntry('user', 'Do something'),
+        createEntry('assistant', 'Done'),
+      ])
+
+      // Create a mock that throws
+      const throwingLlm = {
+        id: 'throwing-llm',
+        complete: () => Promise.reject(new Error('LLM API error')),
+      }
+      const throwingCtx = createMockDaemonContext({
+        transcript,
+        logger,
+        llm: throwingLlm as unknown as MockLLMService,
+        assets,
+      })
+
+      const result = await classifyCompletion({
+        ctx: throwingCtx,
+        settings: { enabled: true, confidence_threshold: 0.7 },
+      })
+
+      expect(result.shouldBlock).toBe(true)
+      expect(logger.wasLoggedAtLevel('Completion classification failed', 'error')).toBe(true)
+    })
+
+    it('uses default settings when none provided', async () => {
+      transcript.setMockEntries([
+        createEntry('user', 'Do the task'),
+        createEntry('assistant', 'Task completed successfully.'),
+      ])
+
+      llm.queueResponse(JSON.stringify({
+        category: 'CLAIMING_COMPLETION',
+        confidence: 0.9,
+        reasoning: 'Clear completion claim',
+      }))
+
+      // No settings provided - should use defaults
+      const result = await classifyCompletion({ ctx })
+
+      // Default settings have enabled: false, so it should return default result
+      expect(result.shouldBlock).toBe(true)
     })
   })
 
