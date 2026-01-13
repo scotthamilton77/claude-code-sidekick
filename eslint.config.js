@@ -19,7 +19,6 @@ export default tseslint.config(
       '**/*.mjs',
       'development-tools/**',
       'scripts/**',
-      'devcontainer-templates/**',
       'assets/**',
       '**/*.config.ts',
       '**/*.config.js',

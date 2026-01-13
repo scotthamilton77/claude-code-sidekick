@@ -33,20 +33,14 @@ This is a **maximalist template** designed for developers building AI-assisted a
 
 ## Quick Start
 
-1. **Copy template to your project:**
-
-   ```bash
-   cp -r devcontainer-templates/node-ai-stack/.devcontainer .
-   ```
-
-2. **Create configuration:**
+1. **Create configuration:**
 
    ```bash
    cd .devcontainer
    cp .env.template .env
    ```
 
-3. **Edit `.env` with your settings:**
+2. **Edit `.env` with your settings:**
 
    ```bash
    # Optional - enable what you need
@@ -55,13 +49,13 @@ This is a **maximalist template** designed for developers building AI-assisted a
    MOUNT_CLAUDE_CONFIG=true
    ```
 
-4. **Customize mounts in `devcontainer.json`:**
+3. **Customize mounts in `devcontainer.json`:**
    - Uncomment the mount configurations you need
    - Docker socket for Docker-in-Docker
    - Claude config for AI assistant integration
    - OSS projects for cross-project development
 
-5. **Open in VS Code:**
+4. **Open in VS Code:**
    - Command Palette → "Dev Containers: Reopen in Container"
    - Wait for build and post-create setup
 
