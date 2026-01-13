@@ -83,7 +83,7 @@ describe('Session Summary Side-Effects', () => {
     assets = new MockAssetResolver()
     transcript = new MockTranscriptService()
 
-    // Create temp directory for plain text files (snarky-message.txt)
+    // Create temp directory for test isolation
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sidekick-test-'))
 
     // Use tempDir as projectRoot so sessionStatePath returns paths in tempDir
@@ -189,10 +189,6 @@ describe('Session Summary Side-Effects', () => {
     it('triggers analysis on BulkProcessingComplete event', async () => {
       const sessionId = 'test-bulk-complete'
 
-      // Create directory for snarky-message.txt (plain text file)
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-      await fs.mkdir(stateDir, { recursive: true })
-
       // Queue LLM responses:
       // 1) summary analysis
       // 2) snarky message (initial analysis triggers snarky)
@@ -227,8 +223,6 @@ describe('Session Summary Side-Effects', () => {
   describe('Snarky Message Generation', () => {
     it('generates snarky message when title changes', async () => {
       const sessionId = 'test-session-1'
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-      await fs.mkdir(stateDir, { recursive: true })
 
       // Write existing summary with different title using stateService
       const summaryPath = stateService.sessionStatePath(sessionId, 'session-summary.json')
@@ -255,16 +249,14 @@ describe('Session Summary Side-Effects', () => {
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
 
-      // Check snarky message was generated (plain text file, use fs.readFile)
-      const snarkyPath = path.join(stateDir, 'snarky-message.txt')
-      const snarkyContent = await fs.readFile(snarkyPath, 'utf-8')
-      expect(snarkyContent).toBe('Still wrestling with bugs, I see.')
+      // Check snarky message was generated (JSON via stateService)
+      const snarkyPath = stateService.sessionStatePath(sessionId, 'snarky-message.json')
+      const snarkyContent = stateService.getStored(snarkyPath) as { message: string; timestamp: string }
+      expect(snarkyContent.message).toBe('Still wrestling with bugs, I see.')
     })
 
     it('strips surrounding double quotes from snarky message', async () => {
       const sessionId = 'test-session-quotes-double'
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-      await fs.mkdir(stateDir, { recursive: true })
 
       // Write existing summary to trigger title change
       stateService.setStored(stateService.sessionStatePath(sessionId, 'session-summary.json'), {
@@ -290,15 +282,13 @@ describe('Session Summary Side-Effects', () => {
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
 
-      const snarkyPath = path.join(stateDir, 'snarky-message.txt')
-      const snarkyContent = await fs.readFile(snarkyPath, 'utf-8')
-      expect(snarkyContent).toBe('Bugs beware, the fixer is here!')
+      const snarkyPath = stateService.sessionStatePath(sessionId, 'snarky-message.json')
+      const snarkyContent = stateService.getStored(snarkyPath) as { message: string; timestamp: string }
+      expect(snarkyContent.message).toBe('Bugs beware, the fixer is here!')
     })
 
     it('strips surrounding single quotes from snarky message', async () => {
       const sessionId = 'test-session-quotes-single'
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-      await fs.mkdir(stateDir, { recursive: true })
 
       // Write existing summary to trigger title change
       stateService.setStored(stateService.sessionStatePath(sessionId, 'session-summary.json'), {
@@ -324,15 +314,13 @@ describe('Session Summary Side-Effects', () => {
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
 
-      const snarkyPath = path.join(stateDir, 'snarky-message.txt')
-      const snarkyContent = await fs.readFile(snarkyPath, 'utf-8')
-      expect(snarkyContent).toBe('Another day, another bug.')
+      const snarkyPath = stateService.sessionStatePath(sessionId, 'snarky-message.json')
+      const snarkyContent = stateService.getStored(snarkyPath) as { message: string; timestamp: string }
+      expect(snarkyContent.message).toBe('Another day, another bug.')
     })
 
     it('preserves internal quotes in snarky message', async () => {
       const sessionId = 'test-session-quotes-internal'
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-      await fs.mkdir(stateDir, { recursive: true })
 
       // Write existing summary to trigger title change
       stateService.setStored(stateService.sessionStatePath(sessionId, 'session-summary.json'), {
@@ -358,15 +346,13 @@ describe('Session Summary Side-Effects', () => {
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
 
-      const snarkyPath = path.join(stateDir, 'snarky-message.txt')
-      const snarkyContent = await fs.readFile(snarkyPath, 'utf-8')
-      expect(snarkyContent).toBe('Bugs say "hello" to you.')
+      const snarkyPath = stateService.sessionStatePath(sessionId, 'snarky-message.json')
+      const snarkyContent = stateService.getStored(snarkyPath) as { message: string; timestamp: string }
+      expect(snarkyContent.message).toBe('Bugs say "hello" to you.')
     })
 
     it('generates snarky message when intent changes', async () => {
       const sessionId = 'test-session-2'
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-      await fs.mkdir(stateDir, { recursive: true })
 
       // Write existing summary with same title but different intent
       stateService.setStored(stateService.sessionStatePath(sessionId, 'session-summary.json'), {
@@ -391,9 +377,9 @@ describe('Session Summary Side-Effects', () => {
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
 
-      const snarkyPath = path.join(stateDir, 'snarky-message.txt')
-      const snarkyContent = await fs.readFile(snarkyPath, 'utf-8')
-      expect(snarkyContent).toBe('Testing now? Ambitious.')
+      const snarkyPath = stateService.sessionStatePath(sessionId, 'snarky-message.json')
+      const snarkyContent = stateService.getStored(snarkyPath) as { message: string; timestamp: string }
+      expect(snarkyContent.message).toBe('Testing now? Ambitious.')
     })
 
     it('does not generate snarky message when nothing changes', async () => {
@@ -439,8 +425,6 @@ describe('Session Summary Side-Effects', () => {
   describe('Resume Message Generation', () => {
     it('generates resume message when pivot is detected', async () => {
       const sessionId = 'test-session-4'
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-      await fs.mkdir(stateDir, { recursive: true })
 
       // Pre-create existing summary (so this isn't initial analysis - avoids snarky side-effect)
       stateService.setStored(stateService.sessionStatePath(sessionId, 'session-summary.json'), {
@@ -483,8 +467,6 @@ describe('Session Summary Side-Effects', () => {
 
     it('generates resume message when no resume exists (even without pivot)', async () => {
       const sessionId = 'test-session-5'
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-      await fs.mkdir(stateDir, { recursive: true })
 
       // Pre-create existing summary with SAME values (so no snarky message triggered)
       stateService.setStored(stateService.sessionStatePath(sessionId, 'session-summary.json'), {
@@ -599,8 +581,6 @@ describe('Session Summary Side-Effects', () => {
   describe('Side-Effect Error Handling', () => {
     it('continues main flow when snarky message LLM call fails', async () => {
       const sessionId = 'test-session-7'
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-      await fs.mkdir(stateDir, { recursive: true })
 
       // Write existing summary to trigger title change -> snarky message
       stateService.setStored(stateService.sessionStatePath(sessionId, 'session-summary.json'), {
@@ -649,8 +629,8 @@ describe('Session Summary Side-Effects', () => {
       expect(summary.session_title).toBe('New Title')
 
       // Snarky file should NOT exist since LLM call failed
-      const snarkyPath = path.join(stateDir, 'snarky-message.txt')
-      await expect(fs.access(snarkyPath)).rejects.toThrow()
+      const snarkyPath = stateService.sessionStatePath(sessionId, 'snarky-message.json')
+      expect(stateService.has(snarkyPath)).toBe(false)
     })
   })
 })

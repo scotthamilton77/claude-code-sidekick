@@ -12,12 +12,14 @@ import {
   TranscriptMetricsStateSchema,
   SessionSummaryStateSchema,
   LogMetricsStateSchema,
+  SnarkyMessageStateSchema,
   EMPTY_LOG_METRICS,
   SESSION_SUMMARY_PLACEHOLDERS,
   type ResumeMessageState,
   type TranscriptMetricsState,
   type SessionSummaryState,
   type LogMetricsState,
+  type SnarkyMessageState,
 } from '@sidekick/types'
 import { z } from 'zod'
 
@@ -26,11 +28,13 @@ export {
   TranscriptMetricsStateSchema,
   SessionSummaryStateSchema,
   LogMetricsStateSchema,
+  SnarkyMessageStateSchema,
   EMPTY_LOG_METRICS,
   type ResumeMessageState,
   type TranscriptMetricsState,
   type SessionSummaryState,
   type LogMetricsState,
+  type SnarkyMessageState,
 }
 
 // ============================================================================

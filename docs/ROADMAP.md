@@ -198,25 +198,41 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
   - [x] **9.3.2 Add Missing Schemas** (owned by writer packages) - COMPLETE 2026-01-12
     - [x] `SummaryCountdownStateSchema` - already exists in @sidekick/types
     - [x] `CompactionHistorySchema` in sidekick-core (+ pruning to last N entries)
-  - [x] **9.3.3 Migrate Writers** (priority order - writers define contracts) - COMPLETE 2026-01-13
+  - [ ] **9.3.3 Migrate Writers** (priority order - writers define contracts)
     - [x] TranscriptService - transcript-metrics.json, compaction-history.json - COMPLETE 2026-01-12
     - [x] Session summary handlers - session-summary.json, summary-countdown.json, resume-message.json
     - [x] Daemon IPC handlers - pr-baseline.json, vc-unverified.json, daemon-log-metrics.json
     - [x] StagingService - stateService now required, removed sync methods (dead code)
+    - [x] Session summary handlers - snarky-message.json (converted from .txt) - COMPLETE 2026-01-13
+    - [ ] CLI log metrics - cli.ts writes cli-log-metrics.json (found in audit)
+    - [ ] Instrumented LLM provider - llm-metrics.json reads/writes (found in audit)
   - [ ] **9.3.4 Migrate Readers**
     - [ ] StateReader (feature-statusline) - becomes thin session-scoped wrapper
     - [ ] UI handlers - use StateService for API endpoints
     - [ ] Resume feature - discoverPreviousResumeMessage()
+    - [ ] stage-pause-and-reflect.ts - reads pr-baseline.json (found in audit)
+    - [ ] unstage-verify-completion.ts - reads/deletes vc-unverified.json (found in audit)
+    - [ ] context-overhead-reader.ts - reads baseline context metrics (found in audit)
+    - [ ] runtime.ts - reads cli-log-metrics.json (found in audit)
   - [ ] **9.3.5 Cleanup**
     - [ ] Delete `StateManager` from sidekick-daemon (merged into StateService)
     - [ ] Remove `DerivedPaths` from config.ts (replaced by StateService path accessors)
     - [ ] Simplify `StateReader` to thin wrapper using composition pattern
+    - [ ] Deprecate `backupIfDevMode()` from file-utils.ts (moved to StateService)
+  - [ ] **9.3.6 StateService DevMode Backup** (consolidate backup logic)
+    - [ ] Add `config?: MinimalConfigService` option to StateServiceOptions
+    - [ ] Move `copyWithTimestamp()` logic into StateService as private method
+    - [ ] In `write()`: if `config?.core.development.enabled`, backup before overwrite
+    - [ ] Remove `backupIfDevMode()` calls from handlers (update-summary.ts, etc.)
+    - [ ] Update tests to verify backup behavior with mock config
   - [ ] Acceptance criteria
     - [ ] Single `StateService` instance per process (DI pattern)
     - [ ] All state writes use atomic pattern
     - [ ] Schema validation on all state reads
     - [ ] Domain packages own their schemas and filenames
     - [ ] No direct path construction outside StateService
+    - [ ] No direct fs read/write for state files outside StateService
+    - [ ] Dev mode backups automatic via StateService (no manual `backupIfDevMode` calls)
 
 - [ ] **9.4 Config Source-of-Truth** (lower priority - no issues found in 9.2)
   - [ ] Objectives

@@ -10,9 +10,13 @@
 
 import type { TranscriptEvent } from '@sidekick/core'
 import { backupIfDevMode, logEvent, LogEvents } from '@sidekick/core'
-import type { DaemonContext, EventContext, SummaryCountdownState } from '@sidekick/types'
-import { SessionSummaryStateSchema, SummaryCountdownStateSchema, ResumeMessageStateSchema } from '@sidekick/types'
-import fs from 'node:fs/promises'
+import type { DaemonContext, EventContext, SummaryCountdownState, SnarkyMessageState } from '@sidekick/types'
+import {
+  SessionSummaryStateSchema,
+  SummaryCountdownStateSchema,
+  ResumeMessageStateSchema,
+  SnarkyMessageStateSchema,
+} from '@sidekick/types'
 import { z } from 'zod'
 import type { ResumeMessageState, SessionSummaryConfig, SessionSummaryState } from '../types.js'
 import { DEFAULT_SESSION_SUMMARY_CONFIG, RESUME_MIN_CONFIDENCE } from '../types.js'
@@ -20,7 +24,7 @@ import { DEFAULT_SESSION_SUMMARY_CONFIG, RESUME_MIN_CONFIDENCE } from '../types.
 const STATE_FILE = 'session-summary.json'
 const COUNTDOWN_FILE = 'summary-countdown.json'
 const RESUME_FILE = 'resume-message.json'
-const SNARKY_FILE = 'snarky-message.txt'
+const SNARKY_FILE = 'snarky-message.json'
 const PROMPT_FILE = 'prompts/session-summary.prompt.txt'
 const SNARKY_PROMPT_FILE = 'prompts/snarky-message.prompt.txt'
 const RESUME_PROMPT_FILE = 'prompts/resume-message.prompt.txt'
@@ -468,14 +472,19 @@ async function generateSnarkyMessage(
       messages: [{ role: 'user', content: prompt }],
     })
 
-    // Snarky message is plain text, no JSON parsing needed
     // Strip surrounding quotes if they enclose the entire response
     const snarkyMessage = stripSurroundingQuotes(response.content.trim())
 
-    // Save to state file (plain text, not JSON - use direct file write)
+    // Build state object
+    const snarkyState: SnarkyMessageState = {
+      message: snarkyMessage,
+      timestamp: new Date().toISOString(),
+    }
+
+    // Save via StateService (atomic write with schema validation)
     const snarkyPath = ctx.stateService.sessionStatePath(sessionId, SNARKY_FILE)
     await backupIfDevMode(ctx.config.core.development.enabled, snarkyPath, { logger: ctx.logger })
-    await fs.writeFile(snarkyPath, snarkyMessage, 'utf-8')
+    await ctx.stateService.write(snarkyPath, snarkyState, SnarkyMessageStateSchema)
 
     ctx.logger.debug('Generated snarky message', { sessionId, message: snarkyMessage.slice(0, 50) })
   } catch (err) {

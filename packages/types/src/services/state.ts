@@ -91,6 +91,28 @@ export const SummaryCountdownStateSchema = z.object({
 export type SummaryCountdownState = z.infer<typeof SummaryCountdownStateSchema>
 
 // ============================================================================
+// Snarky Message State
+// ============================================================================
+
+/**
+ * Snarky message state persisted to disk.
+ * Generated as a side-effect of session summary updates when title/intent changes.
+ * Used by statusline to show a witty welcome message.
+ *
+ * Location: `.sidekick/sessions/{sessionId}/state/snarky-message.json`
+ *
+ * @see docs/design/FEATURE-SESSION-SUMMARY.md §3.2.4
+ */
+export const SnarkyMessageStateSchema = z.object({
+  /** The snarky message text */
+  message: z.string(),
+  /** ISO8601 timestamp when generated */
+  timestamp: z.string(),
+})
+
+export type SnarkyMessageState = z.infer<typeof SnarkyMessageStateSchema>
+
+// ============================================================================
 // Resume Message State
 // ============================================================================
 
