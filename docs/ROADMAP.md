@@ -199,7 +199,7 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
     - [x] `SummaryCountdownStateSchema` - already exists in @sidekick/types
     - [x] `CompactionHistorySchema` in sidekick-core (+ pruning to last N entries)
   - [ ] **9.3.3 Migrate Writers** (priority order - writers define contracts)
-    - [ ] TranscriptService - transcript-metrics.json, compaction-history.json
+    - [x] TranscriptService - transcript-metrics.json, compaction-history.json - COMPLETE 2026-01-12
     - [ ] Session summary handlers - session-summary.json, summary-countdown.json
     - [ ] Daemon IPC handlers - pr-baseline.json, vc-unverified.json, log metrics
     - [ ] StagingService - delegate to StateService
@@ -306,14 +306,46 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
 - [ ] Relevant documents/sections
   - [ ] `{project_root_dir}/docs/ARCHITECTURE.md` (§1 Guiding Principles)
   - [ ] `{project_root_dir}/docs/design/flow.md` (complete hook flows as feature reference)
-- [ ] **10.1 Legacy Audit**
-  - [ ] Audit `benchmark-next/` for unported features (early TypeScript exploration, largely stale)
-  - [ ] Audit `src/sidekick/` (bash runtime) for behaviors not yet in TypeScript packages
-  - [ ] Audit `scripts/` for analysis tools that should migrate (e.g., `analyze-session-at-line.sh`, `simulate-session.py`)
-  - [ ] Audit transcript processing logic
-  - [ ] Document feature gaps and create tasks for each
-- [ ] **10.2 Migration Tasks** (populated by audit)
-  - [ ] Placeholder: Tasks added based on audit findings
+- [x] **10.1 Legacy Audit** - COMPLETE 2026-01-12
+  - [x] Audit `src/sidekick/` (bash runtime) for behaviors not yet in TypeScript packages
+  - **Findings Summary:**
+    - **Core Infrastructure (~95%)**: All 5 hooks, 8-layer config cascade (exceeds bash), session storage, plugin system with Kahn's toposort
+    - **LLM Integration (~75%)**: Providers work (Claude CLI, OpenAI, OpenRouter), FallbackProvider for HA, debug dumps
+    - **Features (100%)**: All 9 features implemented (Statusline, Session Summary, Resume, Sleeper→event-driven, Snarky Comment, Tracking, Reminders, Pre-Completion, Cleanup)
+  - **Gaps identified:**
+    - OpenRouter provider routing (allowlist/blocklist) - **queued for 10.2**
+    - Custom provider (schema accepts but factory doesn't implement) - deferred, implement when needed
+  - **Intentional simplifications (not porting):**
+    - Per-model OpenRouter overrides and model name normalization - internal detail
+    - Per-task PID/log files - daemon architecture handles differently
+    - Sleeper polling daemon - replaced with event-driven (better design)
+    - Stateful circuit breaker - FallbackProvider is simpler and sufficient
+  - [x] Audit `benchmark-next/` for unported features (early TypeScript exploration, largely stale)
+  - **benchmark-next/ Findings:**
+    - **Reusable**: `CircuitBreakerProvider.ts` (Cockatiel-based, exponential backoff) - consider porting if resilience needed
+    - **Reusable**: `json-extraction.ts` - clean utility, currently scattered in packages
+    - **Not needed**: Config system (packages/ 8-layer cascade is more mature), consensus/scoring algorithms (LLM eval specific)
+    - **Disposition**: Archive after extracting CircuitBreakerProvider pattern if needed
+  - [x] Audit `scripts/` for analysis tools that should migrate
+  - **scripts/ Findings:**
+    - **Keep as-is**: `install.sh`, `uninstall.sh` (shell is natural for file ops and user prompts)
+    - **Port HIGH**: `dev-mode.sh` (CLI command), `analyze-session-at-line.sh` (keep bash as fallback)
+    - **Port MEDIUM**: `bulk-session-summary.sh`, `collect-test-data.sh`, `copy-config.sh`, `generate-reminder-template.sh`
+    - **Port LOW**: `kill-sidekick-processes.sh`, `find-orphaned-processes.sh`, `generate-model-report.py`
+    - **Archive**: `simulate-session.py` (refactor to TypeScript integration tests), legacy shell tests
+- [ ] **10.2 Migration Tasks**
+  - [ ] **OpenRouter Provider Routing**: Add allowlist/blocklist support to filter unreliable providers
+    - Config: `llm.openrouter.providerAllowlist`, `llm.openrouter.providerBlocklist`
+    - Implementation: Add `provider` field to OpenRouter request body (see OpenRouter API docs)
+    - Location: `@sidekick/shared-providers` factory or dedicated OpenRouter provider class
+  - [ ] **Script Ports (HIGH priority)**:
+    - [ ] `dev-mode.sh` → `packages/sidekick-cli/src/commands/dev-mode.ts`
+    - [ ] `analyze-session-at-line.sh` → `packages/sidekick-cli/src/commands/analyze-session.ts` (keep bash as fallback)
+  - [ ] **Script Ports (MEDIUM priority)**:
+    - [ ] `bulk-session-summary.sh` → `packages/sidekick-cli/src/commands/bulk-analyze.ts`
+    - [ ] `collect-test-data.sh` → `packages/testing-fixtures/` or CLI command
+    - [ ] `copy-config.sh` → `packages/sidekick-cli/src/commands/generate-config.ts`
+    - [ ] `generate-reminder-template.sh` → `packages/sidekick-cli/src/commands/generate-reminders.ts`
 - [ ] **10.3 Legacy Cleanup**
   - [ ] Archive `benchmark-next/` (mark as superseded in README)
   - [ ] Decide: retain bash runtime as fallback or deprecate entirely
