@@ -8,8 +8,31 @@ enabled: true
 settings:
   # Format string for statusline output
   # Separators: | or \n (empty tokens between separators are automatically cleaned up)
-  # Available placeholders: {model}, {contextBar}, {tokens}, {logs}, {cost}, {duration}, {cwd}, {branch}, {summary}, {title}
-  format: "[{model}] | {contextBar} {tokens} | {logs} | {cwd}{branch}\n{title} | {summary}"
+  #
+  # Available placeholders:
+  #   {model}                   - Current model name (e.g., "Opus")
+  #   {contextBar}              - Visual context usage graph (e.g., "🪙 ▓▓▒|░░░")
+  #   {contextWindow}           - Total context window size (e.g., "200k")
+  #   {tokenUsageActual}        - Current tokens without compaction buffer (e.g., "45k")
+  #   {tokenUsageEffective}     - Current tokens + compaction buffer (e.g., "90k")
+  #   {tokenPercentageActual}   - Actual usage as % of context window (e.g., "22%")
+  #   {tokenPercentageEffective}- Effective usage as % of context window (e.g., "45%")
+  #   {logs}                    - Warning/error counts (e.g., "⚠0 ✗0")
+  #   {cost}                    - Session cost (e.g., "$0.15")
+  #   {duration}                - Session duration (e.g., "12m")
+  #   {cwd}                     - Current working directory
+  #   {branch}                  - Git branch with icon (e.g., "⎇ main")
+  #   {title}                   - Session title
+  #   {summary}                 - Session summary/intent
+  #
+  # Example configurations:
+  #   Simple ratio:     "{tokenUsageActual}/{contextWindow}"          → "45k/200k"
+  #   Percentage only:  "{tokenPercentageActual}"                     → "22%"
+  #   Bar + percent:    "{contextBar} {tokenPercentageActual}"        → "🪙 ▓▓▒|░░░ 22%"
+  #   With buffer:      "{tokenUsageActual}|{tokenUsageEffective}"    → "45k|90k"
+  #   Verbose:          "{contextBar} {tokenUsageActual}/{contextWindow} ({tokenPercentageEffective})"
+  #
+  format: "[{model}] | {contextBar} {tokenPercentageActual} | {logs} | {cwd}{branch}\n{title} | {summary}"
 
   # Threshold configuration for visual warnings
   thresholds:

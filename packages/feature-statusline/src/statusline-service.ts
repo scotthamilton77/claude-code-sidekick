@@ -565,12 +565,12 @@ export class StatuslineService {
     const durationMs = this.hookInput?.cost.total_duration_ms ?? 0
     const modelName = this.hookInput?.model.display_name ?? 'unknown'
 
-    // Format tokens - show compound format context|total (matches /context report)
+    // Format tokens - compute atomic placeholders for flexible template composition
     // Total includes autocompact buffer for accurate comparison with /context output
     const totalWithBuffer = effectiveTokens + baseline.autocompactBufferTokens
-    const tokensDisplay = isIndeterminate
-      ? '⟳ compacted'
-      : `${formatTokens(effectiveTokens)}|${formatTokens(totalWithBuffer)}`
+    const contextWindowSize = this.hookInput?.context_window.context_window_size ?? 200000
+    const actualPercentage = Math.round((effectiveTokens / contextWindowSize) * 100)
+    const effectivePercentage = Math.round((totalWithBuffer / contextWindowSize) * 100)
 
     // Calculate log status: critical if any errors, warning if many warnings, else normal
     const logStatus =
@@ -582,7 +582,11 @@ export class StatuslineService {
 
     return {
       model: this.formatModelName(modelName),
-      tokens: tokensDisplay,
+      contextWindow: formatTokens(contextWindowSize),
+      tokenUsageActual: isIndeterminate ? '⟳ compacted' : formatTokens(effectiveTokens),
+      tokenUsageEffective: isIndeterminate ? '⟳ compacted' : formatTokens(totalWithBuffer),
+      tokenPercentageActual: isIndeterminate ? '⟳' : `${actualPercentage}%`,
+      tokenPercentageEffective: isIndeterminate ? '⟳' : `${effectivePercentage}%`,
       tokensStatus: isIndeterminate ? 'normal' : getThresholdStatus(effectiveTokens, this.config.thresholds.tokens),
       cost: formatCost(costUsd),
       costStatus: getThresholdStatus(costUsd, this.config.thresholds.cost),
