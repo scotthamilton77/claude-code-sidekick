@@ -9,12 +9,14 @@
  * @see docs/design/FEATURE-STATUSLINE.md §5.3 Formatter, §8.1 Template Engine
  */
 
-import type {
-  ContextBarStatus,
-  ContextUsageData,
-  StatuslineConfig,
-  StatuslineViewModel,
-  ThresholdStatus,
+import {
+  normalizeSymbolMode,
+  type ContextBarStatus,
+  type ContextUsageData,
+  type StatuslineConfig,
+  type StatuslineViewModel,
+  type SymbolMode,
+  type ThresholdStatus,
 } from './types.js'
 
 // ============================================================================
@@ -107,7 +109,8 @@ export class Formatter {
     // Note: tokens/cost/logs use threshold-based coloring (normal/warning/critical)
     // Branch uses theme.colors.branch if set, otherwise pattern-based coloring from viewModel.branchColor
     const branchColor = this.theme.colors.branch ?? viewModel.branchColor
-    const logsText = formatLogs(viewModel.warningCount, viewModel.errorCount)
+    const symbolMode = normalizeSymbolMode(this.theme.useNerdFonts)
+    const logsText = formatLogs(viewModel.warningCount, viewModel.errorCount, symbolMode)
 
     // Convert markdown for title/summary before colorizing
     const convertedSummary = this.convertMarkdown(viewModel.summary)
@@ -127,7 +130,7 @@ export class Formatter {
       branch: viewModel.branch ? ` ${this.colorize(viewModel.branch, branchColor)}` : '',
       summary: this.colorize(convertedSummary, this.theme.colors.summary),
       title: this.colorize(convertedTitle, this.theme.colors.title),
-      contextBar: formatContextBar(viewModel.contextUsage, this.useColors),
+      contextBar: formatContextBar(viewModel.contextUsage, this.useColors, symbolMode),
       logs: this.colorizeByStatus(logsText, viewModel.logStatus),
     }
 
@@ -300,26 +303,47 @@ export function shortenPath(fullPath: string, homeDir?: string): string {
 }
 
 /**
- * Format cwd for display with folder icon (e.g., "📁 ~/project").
+ * Format cwd for display with folder icon.
+ * - "full": Uses 📁 emoji
+ * - "safe": No icon (emoji causes VS Code terminal width issues)
+ * - "ascii": No icon
  */
-export function formatCwd(fullPath: string, homeDir?: string): string {
-  return `📁 ${shortenPath(fullPath, homeDir)}`
+export function formatCwd(fullPath: string, homeDir?: string, symbolMode: SymbolMode = 'full'): string {
+  // Only "full" mode uses the folder emoji - it causes width issues in VS Code terminal
+  const icon = symbolMode === 'full' ? '📁 ' : ''
+  return `${icon}${shortenPath(fullPath, homeDir)}`
 }
 
 /**
- * Format git branch with ⎇ icon.
+ * Format git branch with icon.
+ * - "full": Uses ⎇ (helm symbol, U+2387)
+ * - "safe": Uses ∗ (asterisk operator, U+2217) - safe BMP character
+ * - "ascii": Uses * (ASCII asterisk)
  */
-export function formatBranch(branch: string, _useNerdFonts: boolean): string {
+export function formatBranch(branch: string, symbolMode: SymbolMode): string {
   if (!branch) return ''
-  return `⎇ ${branch}`
+  const icons: Record<SymbolMode, string> = {
+    full: '⎇',
+    safe: '∗',
+    ascii: '*',
+  }
+  return `${icons[symbolMode]} ${branch}`
 }
 
 /**
- * Format log metrics for display (e.g., "⚠0 ✗0" or "⚠3 ✗1").
- * Uses Unicode warning triangle (U+26A0) and X mark (U+2717).
+ * Format log metrics for display.
+ * - "full": Uses ⚠ (warning sign, U+26A0) and ✗ (ballot x, U+2717)
+ * - "safe": Uses △ (white triangle, U+25B3) and × (multiplication sign, U+00D7)
+ * - "ascii": Uses W: and E: prefixes
  */
-export function formatLogs(warningCount: number, errorCount: number): string {
-  return `⚠${warningCount} ✗${errorCount}`
+export function formatLogs(warningCount: number, errorCount: number, symbolMode: SymbolMode = 'full'): string {
+  const symbols: Record<SymbolMode, { warn: string; error: string }> = {
+    full: { warn: '⚠', error: '✗' },
+    safe: { warn: '△', error: '×' },
+    ascii: { warn: 'W:', error: 'E:' },
+  }
+  const { warn, error } = symbols[symbolMode]
+  return `${warn}${warningCount} ${error}${errorCount}`
 }
 
 /**
@@ -397,18 +421,28 @@ function getContextBarColor(status: ContextBarStatus): string {
  * - Threshold marker: | (compaction point)
  * - Right portion: Remaining available context (░ empty)
  *
- * Example outputs:
+ * Example outputs (symbolMode="full"):
  * - Low usage:    🪙 ▓▒|░░░░░
  * - Medium usage: 🪙 ▓▓▒|░░░░
  * - High usage:   🪙 ▓▓▓▓▒|░░
  *
- * Token counts are displayed separately via the {tokens} template placeholder.
+ * Example outputs (symbolMode="safe"):
+ * - Low usage:    ▓▒|░░░░░
+ * - (same bar chars, no emoji prefix)
+ *
+ * Example outputs (symbolMode="ascii"):
+ * - Low usage:    [#.|.....]
  *
  * @param contextUsage - Context usage data from hook metrics
  * @param useColors - Whether to apply ANSI colors
- * @returns Formatted bar string with icon prefix
+ * @param symbolMode - Symbol mode: "full" (emojis), "safe" (BMP only), "ascii"
+ * @returns Formatted bar string with optional icon prefix
  */
-export function formatContextBar(contextUsage: ContextUsageData | undefined, useColors: boolean): string {
+export function formatContextBar(
+  contextUsage: ContextUsageData | undefined,
+  useColors: boolean,
+  symbolMode: SymbolMode = 'full'
+): string {
   if (!contextUsage) {
     return ''
   }
@@ -428,25 +462,43 @@ export function formatContextBar(contextUsage: ContextUsageData | undefined, use
   )
   const thresholdPosition = contextPositions + bufferPositions
 
+  // Select characters based on symbol mode
+  // - "full" and "safe" use Unicode bar chars (they're in BMP and work well)
+  // - "ascii" uses simple ASCII characters
+  const chars =
+    symbolMode === 'ascii'
+      ? { filled: '#', buffer: '.', empty: '.', threshold: '|' }
+      : BAR_CHARS // Unicode bar chars work for both "full" and "safe"
+
   // Build the bar
   const barParts: string[] = []
 
   for (let i = 0; i < BAR_WIDTH; i++) {
     if (i < contextPositions) {
-      barParts.push(BAR_CHARS.filled)
+      barParts.push(chars.filled)
     } else if (i < thresholdPosition) {
-      barParts.push(BAR_CHARS.buffer)
+      barParts.push(chars.buffer)
     } else if (i === thresholdPosition && thresholdPosition < BAR_WIDTH) {
-      barParts.push(BAR_CHARS.threshold)
+      barParts.push(chars.threshold)
     } else {
-      barParts.push(BAR_CHARS.empty)
+      barParts.push(chars.empty)
     }
   }
 
   const bar = barParts.join('')
 
+  // Format with prefix based on symbol mode
+  // - "full": coin emoji prefix
+  // - "safe": no prefix (emoji causes VS Code width issues)
+  // - "ascii": wrapped in brackets
+  const formatWithPrefix = (content: string) => {
+    if (symbolMode === 'full') return `🪙 ${content}`
+    if (symbolMode === 'ascii') return `[${content}]`
+    return content // "safe" - no prefix
+  }
+
   if (!useColors) {
-    return `🪙 ${bar}`
+    return formatWithPrefix(bar)
   }
 
   // Apply colors: context portion gets status color, buffer gets dim
@@ -463,7 +515,7 @@ export function formatContextBar(contextUsage: ContextUsageData | undefined, use
     }
   }
 
-  return `🪙 ${coloredBar}`
+  return formatWithPrefix(coloredBar)
 }
 
 /**

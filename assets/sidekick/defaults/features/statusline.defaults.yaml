@@ -57,8 +57,12 @@ settings:
 
   # Theme configuration
   theme:
-    # Use Nerd Font icons for enhanced display
-    useNerdFonts: true
+    # Symbol mode for statusline display:
+    #   true or "full"  - All Unicode symbols including emojis (🪙, 📁, ⚠, ✗, ⎇)
+    #   "safe"          - BMP-only symbols that avoid VS Code terminal width issues (△, ×, ∗)
+    #                     Use this if you see rendering artifacts in VS Code's integrated terminal
+    #   false or "ascii"- ASCII-only characters for maximum compatibility ([#.|...], W:, E:, *)
+    useNerdFonts: safe
     # Color assignments for statusline elements
     # Available colors: black, red, green, yellow, blue, magenta, cyan, white
     # Also: brightRed, brightGreen, brightYellow (for emphasis)

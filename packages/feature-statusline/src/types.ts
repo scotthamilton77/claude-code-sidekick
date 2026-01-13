@@ -34,6 +34,28 @@ export {
 }
 
 // ============================================================================
+// Symbol Mode Types
+// ============================================================================
+
+/**
+ * Normalized symbol mode for statusline display.
+ * - "full": All Unicode symbols including emojis (🪙, 📁, ⚠, ✗, ⎇)
+ * - "safe": BMP-only symbols that avoid VS Code terminal width issues (△, ×, ∗)
+ * - "ascii": ASCII-only characters for maximum compatibility
+ */
+export type SymbolMode = 'full' | 'safe' | 'ascii'
+
+/**
+ * Normalize useNerdFonts config value to a SymbolMode.
+ * Handles backward compatibility with boolean values.
+ */
+export function normalizeSymbolMode(value: boolean | 'full' | 'safe' | 'ascii'): SymbolMode {
+  if (value === true || value === 'full') return 'full'
+  if (value === false || value === 'ascii') return 'ascii'
+  return value // 'safe'
+}
+
+// ============================================================================
 // Configuration Schema
 // ============================================================================
 
@@ -94,7 +116,13 @@ export const StatuslineConfigSchema = z.object({
     }),
   theme: z
     .object({
-      useNerdFonts: z.boolean().default(true),
+      /**
+       * Icon/symbol mode for statusline display:
+       * - true or "full": All Unicode symbols including emojis (🪙, 📁, ⚠, ✗, ⎇)
+       * - "safe": BMP-only symbols that avoid VS Code terminal width issues (△, ×, ∗)
+       * - false or "ascii": ASCII-only characters for maximum compatibility
+       */
+      useNerdFonts: z.union([z.boolean(), z.enum(['full', 'safe', 'ascii'])]).default(true),
       supportedMarkdown: z
         .object({
           /** Convert **text** to ANSI bold */
