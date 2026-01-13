@@ -34,9 +34,10 @@ import {
 import { GitProvider, createGitProvider } from './git-provider.js'
 import { StateReader, createStateReader, discoverPreviousResumeMessage } from './state-reader.js'
 import { readContextOverhead, getDefaultOverhead, type ContextOverhead } from './context-overhead-reader.js'
-import type {
-  DisplayMode,
-  ResumeMessageState,
+import {
+  normalizeSymbolMode,
+  type DisplayMode,
+  type ResumeMessageState,
   TranscriptMetricsState,
   SessionSummaryState,
   StateReadResult,
@@ -591,8 +592,8 @@ export class StatuslineService {
       cost: formatCost(costUsd),
       costStatus: getThresholdStatus(costUsd, this.config.thresholds.cost),
       duration: formatDuration(durationMs),
-      cwd: formatCwd(this.cwd, this.homeDir),
-      branch: formatBranch(branch, this.config.theme.useNerdFonts),
+      cwd: formatCwd(this.cwd, this.homeDir, normalizeSymbolMode(this.config.theme.useNerdFonts)),
+      branch: formatBranch(branch, normalizeSymbolMode(this.config.theme.useNerdFonts)),
       branchColor: getBranchColor(branch),
       displayMode,
       summary: summaryText,

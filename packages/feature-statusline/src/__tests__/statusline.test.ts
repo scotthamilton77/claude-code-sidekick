@@ -15,7 +15,9 @@ import {
   formatBranch,
   formatContextBar,
   formatCost,
+  formatCwd,
   formatDuration,
+  formatLogs,
   formatTokens,
   getBranchColor,
   getContextBarStatus,
@@ -175,12 +177,13 @@ describe('Formatter utilities', () => {
 
   describe('formatBranch', () => {
     it('returns empty string for empty branch', () => {
-      expect(formatBranch('', true)).toBe('')
+      expect(formatBranch('', 'full')).toBe('')
     })
 
-    it('formats branch with ⎇ icon', () => {
-      expect(formatBranch('main', true)).toBe('⎇ main')
-      expect(formatBranch('main', false)).toBe('⎇ main')
+    it('formats branch based on symbol mode', () => {
+      expect(formatBranch('main', 'full')).toBe('⎇ main')
+      expect(formatBranch('main', 'safe')).toBe('∗ main')
+      expect(formatBranch('main', 'ascii')).toBe('* main')
     })
   })
 
@@ -375,6 +378,65 @@ describe('Formatter utilities', () => {
       const bar = formatContextBar(usage, true)
       // Should contain dim ANSI code for buffer characters
       expect(bar).toContain('\x1b[2m') // dim
+    })
+
+    describe('symbol mode support', () => {
+      it('uses coin emoji in full mode (default)', () => {
+        const usage = calculateContextUsage(80000, 45000, 200000)
+        const bar = formatContextBar(usage, false, 'full')
+        expect(bar).toMatch(/^🪙 /)
+        expect(bar).toContain('▓') // Unicode bar chars
+      })
+
+      it('omits emoji in safe mode but keeps Unicode bar chars', () => {
+        const usage = calculateContextUsage(80000, 45000, 200000)
+        const bar = formatContextBar(usage, false, 'safe')
+        expect(bar).not.toContain('🪙')
+        expect(bar).toContain('▓') // Unicode bar chars still used
+        expect(bar).not.toMatch(/^\[/) // No brackets
+      })
+
+      it('uses ASCII characters in ascii mode', () => {
+        const usage = calculateContextUsage(80000, 45000, 200000)
+        const bar = formatContextBar(usage, false, 'ascii')
+        expect(bar).toMatch(/^\[.*\]$/) // Wrapped in brackets
+        expect(bar).toContain('#') // ASCII filled
+        expect(bar).not.toContain('🪙') // No emoji
+        expect(bar).not.toContain('▓') // No Unicode bar chars
+      })
+    })
+  })
+
+  describe('formatLogs symbol mode', () => {
+    it('uses Unicode symbols in full mode', () => {
+      expect(formatLogs(3, 1, 'full')).toBe('⚠3 ✗1')
+    })
+
+    it('uses safe BMP symbols in safe mode', () => {
+      expect(formatLogs(3, 1, 'safe')).toBe('△3 ×1')
+    })
+
+    it('uses ASCII in ascii mode', () => {
+      expect(formatLogs(3, 1, 'ascii')).toBe('W:3 E:1')
+    })
+  })
+
+  describe('formatCwd symbol mode', () => {
+    it('includes folder emoji in full mode', () => {
+      const cwd = formatCwd('/home/user/project', '/home/user', 'full')
+      expect(cwd).toMatch(/^📁 /)
+    })
+
+    it('omits icon in safe mode', () => {
+      const cwd = formatCwd('/home/user/project', '/home/user', 'safe')
+      expect(cwd).not.toContain('📁')
+      expect(cwd).toBe('~/project')
+    })
+
+    it('omits icon in ascii mode', () => {
+      const cwd = formatCwd('/home/user/project', '/home/user', 'ascii')
+      expect(cwd).not.toContain('📁')
+      expect(cwd).toBe('~/project')
     })
   })
 })
