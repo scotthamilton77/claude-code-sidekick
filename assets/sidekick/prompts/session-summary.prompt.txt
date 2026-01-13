@@ -14,7 +14,7 @@ Output JSON matching this exact schema:
 
 ```json
 {
-  "session_title": "string, max 6 words, Title Case",
+  "session_title": "string, max 8 words",
   "session_title_confidence": 0.0-1.0,
   "session_title_key_phrases": ["optional", "array", "of", "key", "terms/phrases"],
   "latest_intent": "string, max 8 words",
@@ -73,7 +73,8 @@ Set pivot_detected based on whether the user switched to a fundamentally differe
     - Unchanged: New info doesn't materially change title
     - Refinement: More specific on same topic (maintain/increase confidence)
     <examples>
-      - "Refactoring feature flags" → "Refactoring feature flag dependencies"
+      - "Debug LLM provider timeouts" → "Debug LLM provider timeouts" (added logging)
+      - "Refactor feature flags" → "Refactor feature flag dependencies"
     </examples>
   </false_cases>
 
@@ -81,15 +82,17 @@ Set pivot_detected based on whether the user switched to a fundamentally differe
     - Hard pivot: Completely different task domain (reset confidence to <=0.5)
     - Only set true when the new direction is unrelated to the previous one
     <examples>
-      - "Refactoring feature flags" → "Debugging LLM providers"
+      - "Refactor feature flags" → "Debug LLM provider timeouts"
     </examples>
   </true_cases>
 </pivot_detection>
 
 <session_title_rules>
-- Max 6 words, Title Case
-- Like a short book title or research paper title
-- Focused on describing the user's and agent's main goal (what they're trying to accomplish - the most recent one if there was a pivot)
+- Max 8 words - think "What would the JIRA epic or feature title be?"
+- Focus on the epic/feature level, not individual tasks
+- Write as if creating a ticket for the broader work being done
+- Start with an action verb when possible: Fix, Add, Implement, Refactor, Debug, Update, Remove, Verify
+- For exploratory work use: Investigate, Research, Understand, Analyze
 - Persistent but can evolve/refine over time
 - Compare to previous title to determine change type
 </session_title_rules>
@@ -112,9 +115,9 @@ Don't update latest_intent for session-state queries:
 Extract specific phrases, terms, file names, feature names from user messages and assistant responses that helped you clarify the title or intent.
 
   <examples confidence="high">
-    - "refactoring feature flags"
-    - "session-summary.sh"
-    - "LLM prompt redesign"
+    - "fix daemon startup"
+    - "refactor session-summary.ts"
+    - "add rate limiting"
   </examples>
 
   <examples confidence="low">
