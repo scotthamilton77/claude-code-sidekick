@@ -16,9 +16,16 @@
  */
 
 import chokidar, { FSWatcher } from 'chokidar'
-import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, copyFileSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { LogEvents, logEvent } from './structured-logging.js'
+import {
+  PersistedTranscriptStateSchema,
+  CompactionHistorySchema,
+  pruneCompactionHistory,
+  StateNotFoundError,
+  type PersistedTranscriptState,
+} from './state/index.js'
 import type {
   TranscriptService,
   TranscriptMetrics,
@@ -33,6 +40,7 @@ import type {
   CanonicalTranscriptEntry,
   ExcerptOptions,
   TranscriptExcerpt,
+  MinimalStateService,
 } from '@sidekick/types'
 
 // ============================================================================
@@ -112,8 +120,10 @@ export interface TranscriptServiceOptions {
   handlers: HandlerRegistry
   /** Logger for observability */
   logger: Logger
-  /** Base state directory (e.g., .sidekick) */
+  /** Base state directory (e.g., .sidekick) - used for path construction */
   stateDir: string
+  /** StateService for atomic writes and schema validation */
+  stateService: MinimalStateService
 }
 
 /**
@@ -132,14 +142,7 @@ interface RawUsageMetadata {
   service_tier?: string
 }
 
-/**
- * Persisted transcript state for recovery.
- */
-interface PersistedTranscriptState {
-  sessionId: string
-  metrics: TranscriptMetrics
-  persistedAt: number
-}
+// PersistedTranscriptState is imported from ./state/index.js
 
 // ============================================================================
 // Default Metrics Creators
@@ -242,7 +245,7 @@ export class TranscriptServiceImpl implements TranscriptService {
    * Sets up paths, loads persisted state, but does NOT start file watching
    * or process the transcript file.
    */
-  prepare(sessionId: string, transcriptPath: string): Promise<void> {
+  async prepare(sessionId: string, transcriptPath: string): Promise<void> {
     if (this.sessionId !== null) {
       throw new Error('TranscriptService already prepared - call shutdown() first')
     }
@@ -250,7 +253,7 @@ export class TranscriptServiceImpl implements TranscriptService {
     this.transcriptPath = transcriptPath
 
     // Try to recover from persisted state
-    const recovered = this.loadPersistedState()
+    const recovered = await this.loadPersistedState()
     if (recovered) {
       this.metrics = recovered
       this.options.logger.info('Recovered transcript state', {
@@ -262,11 +265,10 @@ export class TranscriptServiceImpl implements TranscriptService {
     }
 
     // Load compaction history
-    this.loadCompactionHistory()
+    await this.loadCompactionHistory()
 
     this.prepared = true
     this.options.logger.debug('TranscriptService prepared', { sessionId, transcriptPath })
-    return Promise.resolve()
   }
 
   /**
@@ -297,7 +299,7 @@ export class TranscriptServiceImpl implements TranscriptService {
         sessionId: this.sessionId,
         intervalMs: this.options.metricsPersistIntervalMs,
       })
-      this.persistMetrics()
+      void this.persistMetrics()
     }, this.options.metricsPersistIntervalMs)
     // Unref so it doesn't block shutdown
     if (this.persistIntervalTimer.unref) {
@@ -332,7 +334,7 @@ export class TranscriptServiceImpl implements TranscriptService {
     }
 
     // Persist final state immediately
-    this.persistMetrics(true)
+    await this.persistMetrics(true)
 
     // Clear callbacks
     this.metricsCallbacks = []
@@ -890,7 +892,7 @@ export class TranscriptServiceImpl implements TranscriptService {
   // Compaction Management
   // ============================================================================
 
-  capturePreCompactState(snapshotPath: string): Promise<void> {
+  async capturePreCompactState(snapshotPath: string): Promise<void> {
     if (!this.transcriptPath) {
       throw new Error('TranscriptService not initialized')
     }
@@ -912,7 +914,7 @@ export class TranscriptServiceImpl implements TranscriptService {
     this.compactionHistory.push(entry)
 
     // Persist compaction history
-    this.persistCompactionHistory()
+    await this.persistCompactionHistory()
 
     // Log PreCompactCaptured event for timeline visibility
     if (this.sessionId) {
@@ -928,7 +930,6 @@ export class TranscriptServiceImpl implements TranscriptService {
     }
 
     this.options.logger.info('Captured pre-compact state', { sessionId: this.sessionId, snapshotPath })
-    return Promise.resolve()
   }
 
   getCompactionHistory(): CompactionEntry[] {
@@ -1368,11 +1369,11 @@ export class TranscriptServiceImpl implements TranscriptService {
       clearTimeout(this.persistDebounceTimer)
     }
     this.persistDebounceTimer = setTimeout(() => {
-      this.persistMetrics()
+      void this.persistMetrics()
     }, this.options.watchDebounceMs) // Use same debounce as file watching
   }
 
-  private persistMetrics(immediate = false): void {
+  private async persistMetrics(immediate = false): Promise<void> {
     if (!this.sessionId) return
 
     const now = Date.now()
@@ -1397,11 +1398,6 @@ export class TranscriptServiceImpl implements TranscriptService {
     const statePath = this.getMetricsStatePath()
     if (!statePath) return
 
-    const stateDir = dirname(statePath)
-    if (!existsSync(stateDir)) {
-      mkdirSync(stateDir, { recursive: true })
-    }
-
     const state: PersistedTranscriptState = {
       sessionId: this.sessionId,
       metrics: this.deepCloneMetrics(),
@@ -1409,58 +1405,40 @@ export class TranscriptServiceImpl implements TranscriptService {
     }
 
     try {
-      writeFileSync(statePath, JSON.stringify(state, null, 2))
+      await this.options.stateService.write(statePath, state, PersistedTranscriptStateSchema)
       this.lastPersistedAt = now
     } catch (err) {
       this.options.logger.error('Failed to persist transcript metrics', { err, statePath })
     }
   }
 
-  private loadPersistedState(): TranscriptMetrics | null {
+  private async loadPersistedState(): Promise<TranscriptMetrics | null> {
     const statePath = this.getMetricsStatePath()
-    if (!statePath || !existsSync(statePath)) return null
+    if (!statePath) return null
 
     try {
-      const content = readFileSync(statePath, 'utf-8')
-      const state = JSON.parse(content) as PersistedTranscriptState
+      const result = await this.options.stateService.read(
+        statePath,
+        PersistedTranscriptStateSchema,
+        undefined // No default - return null if missing
+      )
 
       // Verify session ID matches
-      if (state.sessionId !== this.sessionId) {
+      if (result.data.sessionId !== this.sessionId) {
         this.options.logger.warn('Session ID mismatch in persisted state', {
           expectedSessionId: this.sessionId,
-          foundSessionId: state.sessionId,
+          foundSessionId: result.data.sessionId,
         })
         return null
       }
 
-      // Merge with defaults to ensure backward compatibility
-      const defaults = createDefaultMetrics()
-
-      // FIXME this complexity can go away
-      // Handle old object format for backward compat migration
-      // Old format: { inputTokens, outputTokens, totalTokens }
-      // New format: number | null
-      const rawContextTokens = state.metrics.currentContextTokens as unknown
-      let currentContextTokens: number | null = null
-      if (typeof rawContextTokens === 'number') {
-        currentContextTokens = rawContextTokens
-      } else if (rawContextTokens && typeof rawContextTokens === 'object') {
-        currentContextTokens = (rawContextTokens as { totalTokens?: number }).totalTokens ?? null
-      }
-
-      const metrics = state.metrics
-
-      return {
-        ...defaults,
-        ...metrics,
-        tokenUsage: {
-          ...defaults.tokenUsage,
-          ...metrics.tokenUsage,
-        },
-        currentContextTokens,
-        isPostCompactIndeterminate: metrics.isPostCompactIndeterminate ?? false,
-      }
+      // Schema-validated data is already in correct format
+      return result.data.metrics
     } catch (err) {
+      // StateNotFoundError is expected for new sessions - don't log warning
+      if (err instanceof StateNotFoundError) {
+        return null
+      }
       this.options.logger.warn('Failed to load persisted transcript state', { err, statePath })
       return null
     }
@@ -1475,32 +1453,36 @@ export class TranscriptServiceImpl implements TranscriptService {
   // Compaction History Persistence
   // ============================================================================
 
-  private persistCompactionHistory(): void {
+  private async persistCompactionHistory(): Promise<void> {
     const historyPath = this.getCompactionHistoryPath()
     if (!historyPath) return
 
-    const historyDir = dirname(historyPath)
-    if (!existsSync(historyDir)) {
-      mkdirSync(historyDir, { recursive: true })
-    }
+    // Prune history to keep bounded
+    const prunedHistory = pruneCompactionHistory(this.compactionHistory)
 
     try {
-      writeFileSync(historyPath, JSON.stringify(this.compactionHistory, null, 2))
+      await this.options.stateService.write(historyPath, prunedHistory, CompactionHistorySchema)
+      // Update in-memory state if pruning occurred
+      this.compactionHistory = prunedHistory
     } catch (err) {
       this.options.logger.error('Failed to persist compaction history', { err, historyPath })
     }
   }
 
-  private loadCompactionHistory(): void {
+  private async loadCompactionHistory(): Promise<void> {
     const historyPath = this.getCompactionHistoryPath()
-    if (!historyPath || !existsSync(historyPath)) {
+    if (!historyPath) {
       this.compactionHistory = []
       return
     }
 
     try {
-      const content = readFileSync(historyPath, 'utf-8')
-      this.compactionHistory = JSON.parse(content) as CompactionEntry[]
+      const result = await this.options.stateService.read(
+        historyPath,
+        CompactionHistorySchema,
+        [] // Default to empty array for new sessions
+      )
+      this.compactionHistory = result.data as CompactionEntry[]
     } catch (err) {
       this.options.logger.warn('Failed to load compaction history', { err, historyPath })
       this.compactionHistory = []

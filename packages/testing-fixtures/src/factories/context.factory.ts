@@ -34,6 +34,7 @@ import { MockAssetResolver } from '../mocks/MockAssetResolver'
 import { MockHandlerRegistry } from '../mocks/MockHandlerRegistry'
 import { MockStagingService } from '../mocks/MockStagingService'
 import { MockTranscriptService } from '../mocks/MockTranscriptService'
+import { MockStateService } from '../mocks/MockStateService'
 
 // Re-export canonical types for convenience
 export type { RuntimeContext, CLIContext, DaemonContext, RuntimePaths }
@@ -113,6 +114,7 @@ export interface MockDaemonContextOptions {
   profileFactory?: MockProfileProviderFactory
   staging?: MockStagingService
   transcript?: MockTranscriptService
+  stateService?: MockStateService
 }
 
 /**
@@ -144,6 +146,7 @@ export function createMockDaemonContext(overrides?: MockDaemonContextOptions): D
     profileFactory: overrides?.profileFactory ?? new MockProfileProviderFactory(llm),
     staging: overrides?.staging ?? new MockStagingService(),
     transcript: overrides?.transcript ?? new MockTranscriptService(),
+    stateService: overrides?.stateService ?? new MockStateService(),
   }
 }
 

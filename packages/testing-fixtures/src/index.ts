@@ -31,6 +31,8 @@ export { MockStagingService } from './mocks/MockStagingService'
 
 export { MockTranscriptService, createDefaultMetrics, createDefaultTokenUsage } from './mocks/MockTranscriptService'
 
+export { MockStateService } from './mocks/MockStateService'
+
 // Factories
 export {
   createMockDaemonContext,

@@ -16,7 +16,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { randomBytes } from 'node:crypto'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { MockHandlerRegistry, MockLogger } from '@sidekick/testing-fixtures'
+import { MockHandlerRegistry, MockLogger, MockStateService } from '@sidekick/testing-fixtures'
 import { ServiceFactoryImpl, type ServiceFactoryOptions } from '../service-factory'
 import { SessionScopedStagingService } from '../staging-service'
 
@@ -35,6 +35,7 @@ function createFactory(testDir: string, overrides: Partial<ServiceFactoryOptions
     stateDir: testDir,
     logger: new MockLogger(),
     handlers: new MockHandlerRegistry(),
+    stateService: new MockStateService(testDir),
     ...overrides,
   })
 }

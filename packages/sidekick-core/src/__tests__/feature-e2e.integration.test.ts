@@ -22,6 +22,7 @@ import { StagingServiceCore, SessionScopedStagingService, type StagingServiceCor
 import { HandlerRegistryImpl, type HandlerRegistryOptions } from '../handler-registry'
 import { isTranscriptEvent } from '@sidekick/types'
 import type { Logger, TranscriptEvent, StagedReminder } from '@sidekick/types'
+import { MockStateService } from '@sidekick/testing-fixtures'
 
 // ============================================================================
 // Test Utilities
@@ -53,7 +54,7 @@ function cleanupTestDir(dir: string): void {
 }
 
 // Test data path - relative to monorepo root when running from package dir
-const TEST_DATA_DIR = join(process.cwd(), '../../test-data/transcripts')
+const TEST_DATA_DIR = join(process.cwd(), '../../development-tools/test-data/transcripts')
 
 // Required fixture files for this test suite
 const REQUIRED_FIXTURES = ['medium-003.jsonl', 'long-001.jsonl', 'short-003.jsonl', 'short-002.jsonl']
@@ -138,6 +139,7 @@ function createTestContext(): TestContext {
     handlers: handlerRegistry,
     logger,
     stateDir,
+    stateService: new MockStateService(testDir),
   }
   const transcriptService = new TranscriptServiceImpl(transcriptOptions)
 

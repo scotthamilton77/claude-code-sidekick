@@ -19,6 +19,7 @@ import { tmpdir } from 'node:os'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { TranscriptServiceImpl, type TranscriptServiceOptions } from '../transcript-service'
 import type { HandlerRegistry, Logger, TranscriptEventType, TranscriptEntry } from '@sidekick/types'
+import { MockStateService } from '@sidekick/testing-fixtures'
 
 // ============================================================================
 // Test Utilities
@@ -65,7 +66,7 @@ function cleanupTestDir(dir: string): void {
 
 // Path to test transcript data (relative to workspace root via process.cwd())
 // When running tests, cwd is the workspace root
-const TEST_DATA_DIR = join(process.cwd(), '../../test-data/transcripts')
+const TEST_DATA_DIR = join(process.cwd(), '../../development-tools/test-data/transcripts')
 
 // Test fixture paths - defined once to avoid repetition in skipIf conditions
 const FIXTURES = {
@@ -125,6 +126,7 @@ describe('TranscriptService Integration Tests', () => {
       handlers,
       logger,
       stateDir,
+      stateService: new MockStateService(testDir),
     }
 
     service = new TranscriptServiceImpl(options)

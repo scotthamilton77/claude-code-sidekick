@@ -18,6 +18,7 @@ import {
   type TranscriptServiceOptions,
 } from '../transcript-service'
 import type { HandlerRegistry, Logger, TranscriptEventType, TranscriptEntry } from '@sidekick/types'
+import { MockStateService } from '@sidekick/testing-fixtures'
 
 // ============================================================================
 // Test Helpers for Internal API Access
@@ -36,7 +37,7 @@ import type { HandlerRegistry, Logger, TranscriptEventType, TranscriptEntry } fr
  */
 interface TranscriptServiceTestInternals {
   processTranscriptFile: () => Promise<void>
-  persistMetrics: (immediate: boolean) => void
+  persistMetrics: (immediate: boolean) => Promise<void>
 }
 
 /**
@@ -138,6 +139,7 @@ describe('TranscriptServiceImpl', () => {
   let transcriptPath: string
   let logger: Logger
   let handlers: ReturnType<typeof createMockHandlerRegistry>
+  let mockStateService: MockStateService
   let service: TranscriptServiceImpl
 
   beforeEach(() => {
@@ -146,6 +148,7 @@ describe('TranscriptServiceImpl', () => {
     transcriptPath = join(testDir, 'transcript.jsonl')
     logger = createMockLogger()
     handlers = createMockHandlerRegistry()
+    mockStateService = new MockStateService(testDir)
 
     const options: TranscriptServiceOptions = {
       watchDebounceMs: 50,
@@ -153,6 +156,7 @@ describe('TranscriptServiceImpl', () => {
       handlers,
       logger,
       stateDir,
+      stateService: mockStateService,
     }
 
     service = new TranscriptServiceImpl(options)
@@ -1083,20 +1087,20 @@ describe('TranscriptServiceImpl', () => {
       await service.initialize('test-session', transcriptPath)
 
       // Force immediate persistence
-      getTestHelpers(service).persistMetrics(true)
+      await getTestHelpers(service).persistMetrics(true)
 
+      // Verify via MockStateService instead of filesystem
       const statePath = join(stateDir, 'sessions', 'test-session', 'state', 'transcript-metrics.json')
-      expect(existsSync(statePath)).toBe(true)
+      expect(mockStateService.has(statePath)).toBe(true)
 
-      const saved = JSON.parse(readFileSync(statePath, 'utf-8'))
+      const saved = mockStateService.getStored(statePath) as { sessionId: string; metrics: { turnCount: number } }
       expect(saved.sessionId).toBe('test-session')
       expect(saved.metrics.turnCount).toBe(1)
     })
 
     it('recovers metrics on restart', async () => {
-      // Set up initial state
+      // Set up initial state via MockStateService
       const statePath = join(stateDir, 'sessions', 'test-session', 'state', 'transcript-metrics.json')
-      mkdirSync(join(stateDir, 'sessions', 'test-session', 'state'), { recursive: true })
 
       const savedState = {
         sessionId: 'test-session',
@@ -1108,7 +1112,7 @@ describe('TranscriptServiceImpl', () => {
         },
         persistedAt: Date.now(),
       }
-      writeFileSync(statePath, JSON.stringify(savedState))
+      mockStateService.setStored(statePath, savedState)
 
       writeFileSync(transcriptPath, '')
       await service.initialize('test-session', transcriptPath)
@@ -1120,9 +1124,8 @@ describe('TranscriptServiceImpl', () => {
     })
 
     it('warns and returns fresh metrics on session ID mismatch', async () => {
-      // Set up state with wrong session ID
+      // Set up state with wrong session ID via MockStateService
       const statePath = join(stateDir, 'sessions', 'test-session', 'state', 'transcript-metrics.json')
-      mkdirSync(join(stateDir, 'sessions', 'test-session', 'state'), { recursive: true })
 
       const savedState = {
         sessionId: 'wrong-session-id',
@@ -1132,7 +1135,7 @@ describe('TranscriptServiceImpl', () => {
         },
         persistedAt: Date.now(),
       }
-      writeFileSync(statePath, JSON.stringify(savedState))
+      mockStateService.setStored(statePath, savedState)
 
       writeFileSync(transcriptPath, '')
       await service.initialize('test-session', transcriptPath)
@@ -1150,12 +1153,10 @@ describe('TranscriptServiceImpl', () => {
       expect(metrics.turnCount).toBe(0) // Fresh metrics, not 100
     })
 
-    it('handles corrupted JSON in persisted state', async () => {
+    it('handles corrupted data in persisted state', async () => {
+      // Set up invalid data that won't pass schema validation via MockStateService
       const statePath = join(stateDir, 'sessions', 'test-session', 'state', 'transcript-metrics.json')
-      mkdirSync(join(stateDir, 'sessions', 'test-session', 'state'), { recursive: true })
-
-      // Write invalid JSON
-      writeFileSync(statePath, '{ invalid json }')
+      mockStateService.setStored(statePath, { invalid: 'not valid transcript state' })
 
       writeFileSync(transcriptPath, '')
       await service.initialize('test-session', transcriptPath)
@@ -1170,36 +1171,10 @@ describe('TranscriptServiceImpl', () => {
       expect(metrics.turnCount).toBe(0)
     })
 
-    it('handles old object format for currentContextTokens (backward compat)', async () => {
+    it('handles numeric format for currentContextTokens', async () => {
+      // Set up state via MockStateService with current numeric format
       const statePath = join(stateDir, 'sessions', 'test-session', 'state', 'transcript-metrics.json')
-      mkdirSync(join(stateDir, 'sessions', 'test-session', 'state'), { recursive: true })
 
-      // Old format had currentContextTokens as an object
-      const savedState = {
-        sessionId: 'test-session',
-        metrics: {
-          ...createDefaultMetrics(),
-          turnCount: 3,
-          currentContextTokens: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
-        },
-        persistedAt: Date.now(),
-      }
-      writeFileSync(statePath, JSON.stringify(savedState))
-
-      writeFileSync(transcriptPath, '')
-      await service.initialize('test-session', transcriptPath)
-
-      const metrics = service.getMetrics()
-      expect(metrics.turnCount).toBe(3)
-      // Should extract totalTokens from old object format
-      expect(metrics.currentContextTokens).toBe(150)
-    })
-
-    it('handles new numeric format for currentContextTokens', async () => {
-      const statePath = join(stateDir, 'sessions', 'test-session', 'state', 'transcript-metrics.json')
-      mkdirSync(join(stateDir, 'sessions', 'test-session', 'state'), { recursive: true })
-
-      // New format has currentContextTokens as a number
       const savedState = {
         sessionId: 'test-session',
         metrics: {
@@ -1209,7 +1184,7 @@ describe('TranscriptServiceImpl', () => {
         },
         persistedAt: Date.now(),
       }
-      writeFileSync(statePath, JSON.stringify(savedState))
+      mockStateService.setStored(statePath, savedState)
 
       writeFileSync(transcriptPath, '')
       await service.initialize('test-session', transcriptPath)
@@ -1224,13 +1199,13 @@ describe('TranscriptServiceImpl', () => {
       await service.initialize('test-session', transcriptPath)
 
       // Force immediate persistence to set lastPersistedAt
-      getTestHelpers(service).persistMetrics(true)
+      await getTestHelpers(service).persistMetrics(true)
 
       // Clear debug logs
       ;(logger.debug as ReturnType<typeof vi.fn>).mockClear()
 
       // Try non-immediate persistence immediately after (should skip)
-      getTestHelpers(service).persistMetrics(false)
+      await getTestHelpers(service).persistMetrics(false)
 
       expect(logger.debug).toHaveBeenCalledWith(
         'persistMetrics skipped (too recent)',
@@ -1270,28 +1245,24 @@ describe('TranscriptServiceImpl', () => {
       const snapshotPath = join(testDir, 'snapshots', 'pre-compact-123.jsonl')
       await service.capturePreCompactState(snapshotPath)
 
+      // Verify via MockStateService instead of filesystem
       const historyPath = join(stateDir, 'sessions', 'test-session', 'state', 'compaction-history.json')
-      expect(existsSync(historyPath)).toBe(true)
+      expect(mockStateService.has(historyPath)).toBe(true)
 
-      const saved = JSON.parse(readFileSync(historyPath, 'utf-8'))
+      const saved = mockStateService.getStored(historyPath) as unknown[]
       expect(saved.length).toBe(1)
     })
 
-    it('handles corrupted compaction history JSON', async () => {
-      // Pre-create corrupted compaction history
+    it('handles corrupted compaction history data', async () => {
+      // Pre-create corrupted (non-array) compaction history via MockStateService
       const historyPath = join(stateDir, 'sessions', 'test-session', 'state', 'compaction-history.json')
-      mkdirSync(join(stateDir, 'sessions', 'test-session', 'state'), { recursive: true })
-      writeFileSync(historyPath, '{ corrupted json }')
+      mockStateService.setStored(historyPath, { corrupted: 'not an array' })
 
       writeFileSync(transcriptPath, JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } }))
       await service.initialize('test-session', transcriptPath)
 
-      // Should warn and start with empty history
-      expect(logger.warn).toHaveBeenCalledWith(
-        'Failed to load compaction history',
-        expect.objectContaining({ historyPath })
-      )
-
+      // With MockStateService, corrupted data + defaultValue returns the default (source: 'recovered')
+      // No warning is logged - graceful fallback to empty array
       const history = service.getCompactionHistory()
       expect(history).toEqual([])
     })
@@ -1306,9 +1277,8 @@ describe('TranscriptServiceImpl', () => {
     })
 
     it('loads existing compaction history on restart', async () => {
-      // Pre-create valid compaction history
+      // Pre-populate MockStateService with valid compaction history
       const historyPath = join(stateDir, 'sessions', 'test-session', 'state', 'compaction-history.json')
-      mkdirSync(join(stateDir, 'sessions', 'test-session', 'state'), { recursive: true })
 
       const existingHistory = [
         {
@@ -1318,7 +1288,7 @@ describe('TranscriptServiceImpl', () => {
           postCompactLineCount: 5,
         },
       ]
-      writeFileSync(historyPath, JSON.stringify(existingHistory))
+      mockStateService.setStored(historyPath, existingHistory)
 
       writeFileSync(transcriptPath, '')
       await service.initialize('test-session', transcriptPath)
