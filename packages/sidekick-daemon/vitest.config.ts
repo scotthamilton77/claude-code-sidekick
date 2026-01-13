@@ -3,8 +3,15 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
 
 const rootDir = dirname(fileURLToPath(import.meta.url))
+const packagesDir = resolve(rootDir, '..')
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      // Ensure workspace packages resolve to their dist directories for runtime values
+      '@sidekick/types': resolve(packagesDir, 'types/dist/index.js'),
+    },
+  },
   test: {
     environment: 'node',
     coverage: {

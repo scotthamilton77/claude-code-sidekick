@@ -8,6 +8,7 @@
  * @see docs/design/FEATURE-REMINDERS.md
  */
 
+import { z } from 'zod'
 import type { Logger } from '../logger.js'
 
 /**
@@ -86,6 +87,35 @@ export interface StagedReminder {
   /** Metrics snapshot at staging time (for reactivation decisions) */
   stagedAt?: StagingMetrics
 }
+
+// ============================================================================
+// Zod Schemas
+// ============================================================================
+
+/**
+ * Zod schema for StagingMetrics.
+ */
+export const StagingMetricsSchema = z.object({
+  timestamp: z.number(),
+  turnCount: z.number(),
+  toolsThisTurn: z.number(),
+  toolCount: z.number(),
+})
+
+/**
+ * Zod schema for StagedReminder.
+ * Used by StateService for validation on read/write.
+ */
+export const StagedReminderSchema = z.object({
+  name: z.string(),
+  blocking: z.boolean(),
+  priority: z.number(),
+  persistent: z.boolean(),
+  userMessage: z.string().optional(),
+  additionalContext: z.string().optional(),
+  reason: z.string().optional(),
+  stagedAt: StagingMetricsSchema.optional(),
+})
 
 /**
  * Staging service interface.

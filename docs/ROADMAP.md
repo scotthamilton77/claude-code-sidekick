@@ -198,11 +198,11 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
   - [x] **9.3.2 Add Missing Schemas** (owned by writer packages) - COMPLETE 2026-01-12
     - [x] `SummaryCountdownStateSchema` - already exists in @sidekick/types
     - [x] `CompactionHistorySchema` in sidekick-core (+ pruning to last N entries)
-  - [ ] **9.3.3 Migrate Writers** (priority order - writers define contracts)
+  - [x] **9.3.3 Migrate Writers** (priority order - writers define contracts) - COMPLETE 2026-01-13
     - [x] TranscriptService - transcript-metrics.json, compaction-history.json - COMPLETE 2026-01-12
-    - [ ] Session summary handlers - session-summary.json, summary-countdown.json
-    - [ ] Daemon IPC handlers - pr-baseline.json, vc-unverified.json, log metrics
-    - [ ] StagingService - delegate to StateService
+    - [x] Session summary handlers - session-summary.json, summary-countdown.json, resume-message.json
+    - [x] Daemon IPC handlers - pr-baseline.json, vc-unverified.json, daemon-log-metrics.json
+    - [x] StagingService - stateService now required, removed sync methods (dead code)
   - [ ] **9.3.4 Migrate Readers**
     - [ ] StateReader (feature-statusline) - becomes thin session-scoped wrapper
     - [ ] UI handlers - use StateService for API endpoints
