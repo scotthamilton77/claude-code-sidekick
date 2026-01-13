@@ -1474,7 +1474,10 @@ describe('StateReader', () => {
   })
 
   it('reads snarky message', async () => {
-    await fs.writeFile(path.join(testDir, 'snarky-message.txt'), 'Time to debug!')
+    await fs.writeFile(
+      path.join(testDir, 'snarky-message.json'),
+      JSON.stringify({ message: 'Time to debug!', timestamp: new Date().toISOString() })
+    )
 
     const reader = createStateReader(testDir)
     const result = await reader.getSnarkyMessage()
@@ -2023,7 +2026,10 @@ describe('StatuslineService', () => {
         latest_intent_confidence: 0.85,
       })
     )
-    await fs.writeFile(path.join(testDir, 'snarky-message.txt'), 'Battling the auth gremlins!')
+    await fs.writeFile(
+      path.join(testDir, 'snarky-message.json'),
+      JSON.stringify({ message: 'Battling the auth gremlins!', timestamp: new Date().toISOString() })
+    )
 
     const service = createStatuslineService({
       sessionStateDir: testDir,
@@ -2834,7 +2840,7 @@ describe('StatuslineService', () => {
           latest_intent_confidence: 0.85,
         })
       )
-      // No snarky-message.txt file
+      // No snarky-message.json file
 
       const service = createStatuslineService({
         sessionStateDir: testDir,

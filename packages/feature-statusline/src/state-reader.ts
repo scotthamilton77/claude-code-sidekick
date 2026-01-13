@@ -24,6 +24,7 @@ import type {
   SessionSummaryState,
   StateReadResult,
   LogMetricsState,
+  SnarkyMessageState,
 } from './types.js'
 import {
   EMPTY_TRANSCRIPT_STATE,
@@ -33,6 +34,7 @@ import {
   ResumeMessageStateSchema,
   SessionSummaryStateSchema,
   LogMetricsStateSchema,
+  SnarkyMessageStateSchema,
 } from './types.js'
 
 /** Maximum age (ms) before data is considered stale */
@@ -157,20 +159,25 @@ export class StateReader {
   }
 
   /**
-   * Read snarky message from snarky-message.txt.
+   * Read snarky message from snarky-message.json.
    * Returns empty string if file doesn't exist.
    *
    * Content artifacts don't have staleness - they're valid until regenerated.
    */
   async getSnarkyMessage(): Promise<StateReadResult<string>> {
-    const filePath = path.join(this.stateDir, 'snarky-message.txt')
+    const filePath = path.join(this.stateDir, 'snarky-message.json')
 
     try {
       const stat = await fs.stat(filePath)
       const content = await fs.readFile(filePath, 'utf-8')
+      const parsed = SnarkyMessageStateSchema.safeParse(JSON.parse(content))
+
+      if (!parsed.success) {
+        return { data: '', source: 'default' }
+      }
 
       return {
-        data: content.trim(),
+        data: parsed.data.message,
         source: 'fresh',
         mtime: stat.mtimeMs,
       }
