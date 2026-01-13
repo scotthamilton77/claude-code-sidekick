@@ -77,8 +77,16 @@ interface StatuslineConfig {
   enabled: boolean
 
   // The visual template string
-  // Supported tokens: {model}, {contextBar}, {tokens}, {logs}, {cost}, {duration}, {branch}, {cwd}, {summary}, {title}
-  format: string // Default: "[{model}] | {contextBar} {tokens} | {logs} | {cwd}{branch} | {title} | {summary}"
+  // Supported placeholders:
+  //   {model}                    - Current model name (e.g., "Opus")
+  //   {contextBar}               - Visual context usage graph (e.g., "🪙 ▓▓▒|░░░")
+  //   {contextWindow}            - Total context window size (e.g., "200k")
+  //   {tokenUsageActual}         - Current tokens without compaction buffer (e.g., "45k")
+  //   {tokenUsageEffective}      - Current tokens + compaction buffer (e.g., "90k")
+  //   {tokenPercentageActual}    - Actual usage as % of context window (e.g., "22%")
+  //   {tokenPercentageEffective} - Effective usage as % of context window (e.g., "45%")
+  //   {logs}, {cost}, {duration}, {branch}, {cwd}, {summary}, {title}
+  format: string // Default: "[{model}] | {contextBar} {tokenUsageActual}|{tokenUsageEffective} | {logs} | {cwd}{branch} | {title} | {summary}"
 
   // Color thresholds
   thresholds: {
@@ -330,11 +338,12 @@ The Statusline feature emits events conforming to the `SidekickEvent` schema (se
   "payload": {
     "state": {
       "display_mode": "session_summary",
-      "text": "[claude-3-5-sonnet] | 45k tokens | ~/project (main) | Fixing auth bug"
+      "text": "[claude-3-5-sonnet] | 🪙 ▓▓▒|░░░ 45k|90k | ~/project (main) | Fixing auth bug"
     },
     "metadata": {
       "model": "claude-3-5-sonnet",
-      "tokens": 45000
+      "tokenUsageActual": 45000,
+      "tokenUsageEffective": 90000
     }
   }
 }

@@ -43,7 +43,9 @@ export {
  */
 export const StatuslineConfigSchema = z.object({
   enabled: z.boolean().default(true),
-  format: z.string().default('[{model}] | {contextBar} {tokens} | {cwd}{branch} | {title} | {summary}'),
+  format: z
+    .string()
+    .default('[{model}] | {contextBar} {tokenUsageActual}|{tokenUsageEffective} | {cwd}{branch} | {title} | {summary}'),
   thresholds: z
     .object({
       tokens: z
@@ -197,8 +199,16 @@ export interface ContextUsageData {
 export interface StatuslineViewModel {
   /** Current model name (e.g., "claude-3-5-sonnet") */
   model: string
-  /** Formatted token count (e.g., "45k") */
-  tokens: string
+  /** Context window size formatted (e.g., "200k") */
+  contextWindow: string
+  /** Actual token usage without compaction buffer (e.g., "45k") */
+  tokenUsageActual: string
+  /** Effective token usage with compaction buffer (e.g., "90k") */
+  tokenUsageEffective: string
+  /** Actual usage as percentage of context window (e.g., "22%") */
+  tokenPercentageActual: string
+  /** Effective usage as percentage of context window (e.g., "45%") */
+  tokenPercentageEffective: string
   /** Token threshold status for color coding */
   tokensStatus: ThresholdStatus
   /** Formatted cost (e.g., "$0.15") */

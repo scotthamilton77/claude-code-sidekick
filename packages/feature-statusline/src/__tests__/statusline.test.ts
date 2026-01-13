@@ -608,7 +608,11 @@ describe('Formatter class', () => {
 
     const viewModel = {
       model: 'claude-3-5-sonnet',
-      tokens: '45k',
+      contextWindow: '200k',
+      tokenUsageActual: '45k',
+      tokenUsageEffective: '90k',
+      tokenPercentageActual: '22%',
+      tokenPercentageEffective: '45%',
       tokensStatus: 'normal' as const,
       cost: '$0.15',
       costStatus: 'normal' as const,
@@ -624,7 +628,7 @@ describe('Formatter class', () => {
       logStatus: 'normal' as const,
     }
 
-    const result = formatter.format('[{model}] | {tokens} | {summary}', viewModel)
+    const result = formatter.format('[{model}] | {tokenUsageActual} | {summary}', viewModel)
     expect(result).toBe('[claude-3-5-sonnet] | 45k | Fixing auth bug')
   })
 
@@ -636,7 +640,11 @@ describe('Formatter class', () => {
 
     const viewModel = {
       model: 'claude-3-5-sonnet',
-      tokens: '45k',
+      contextWindow: '200k',
+      tokenUsageActual: '45k',
+      tokenUsageEffective: '90k',
+      tokenPercentageActual: '22%',
+      tokenPercentageEffective: '45%',
       tokensStatus: 'normal' as const,
       cost: '$0.15',
       costStatus: 'normal' as const,
@@ -665,7 +673,11 @@ describe('Formatter class', () => {
 
     const viewModel = {
       model: 'claude-3-5-sonnet',
-      tokens: '45k',
+      contextWindow: '200k',
+      tokenUsageActual: '45k',
+      tokenUsageEffective: '90k',
+      tokenPercentageActual: '22%',
+      tokenPercentageEffective: '45%',
       tokensStatus: 'normal' as const,
       cost: '$0.15',
       costStatus: 'normal' as const,
@@ -694,7 +706,11 @@ describe('Formatter class', () => {
 
     const viewModel = {
       model: 'claude-3-5-sonnet',
-      tokens: '45k',
+      contextWindow: '200k',
+      tokenUsageActual: '45k',
+      tokenUsageEffective: '90k',
+      tokenPercentageActual: '22%',
+      tokenPercentageEffective: '45%',
       tokensStatus: 'normal' as const,
       cost: '$0.15',
       costStatus: 'normal' as const,
@@ -722,7 +738,11 @@ describe('Formatter class', () => {
 
     const viewModel = {
       model: 'claude-3-5-sonnet',
-      tokens: '45k',
+      contextWindow: '200k',
+      tokenUsageActual: '45k',
+      tokenUsageEffective: '90k',
+      tokenPercentageActual: '22%',
+      tokenPercentageEffective: '45%',
       tokensStatus: 'normal' as const,
       cost: '$0.15',
       costStatus: 'normal' as const,
@@ -751,7 +771,11 @@ describe('Formatter class', () => {
 
     const viewModel = {
       model: 'claude-3-5-sonnet',
-      tokens: '45k',
+      contextWindow: '200k',
+      tokenUsageActual: '45k',
+      tokenUsageEffective: '90k',
+      tokenPercentageActual: '22%',
+      tokenPercentageEffective: '45%',
       tokensStatus: 'normal' as const,
       cost: '$0.15',
       costStatus: 'normal' as const,
@@ -792,7 +816,11 @@ describe('Formatter with colors enabled', () => {
 
     const viewModel = {
       model: 'claude-3-5-sonnet',
-      tokens: '45k',
+      contextWindow: '200k',
+      tokenUsageActual: '45k',
+      tokenUsageEffective: '90k',
+      tokenPercentageActual: '22%',
+      tokenPercentageEffective: '45%',
       tokensStatus: 'normal' as const,
       cost: '$0.15',
       costStatus: 'normal' as const,
@@ -808,7 +836,7 @@ describe('Formatter with colors enabled', () => {
       logStatus: 'normal' as const,
     }
 
-    const result = formatter.format('{tokens}', viewModel)
+    const result = formatter.format('{tokenUsageActual}', viewModel)
     expect(result).toContain(ANSI.green)
     expect(result).toContain(ANSI.reset)
   })
@@ -821,7 +849,11 @@ describe('Formatter with colors enabled', () => {
 
     const viewModel = {
       model: 'claude-3-5-sonnet',
-      tokens: '120k',
+      contextWindow: '200k',
+      tokenUsageActual: '120k',
+      tokenUsageEffective: '165k',
+      tokenPercentageActual: '60%',
+      tokenPercentageEffective: '82%',
       tokensStatus: 'warning' as const,
       cost: '$0.15',
       costStatus: 'normal' as const,
@@ -837,7 +869,7 @@ describe('Formatter with colors enabled', () => {
       logStatus: 'normal' as const,
     }
 
-    const result = formatter.format('{tokens}', viewModel)
+    const result = formatter.format('{tokenUsageActual}', viewModel)
     expect(result).toContain(ANSI.yellow)
   })
 
@@ -849,7 +881,11 @@ describe('Formatter with colors enabled', () => {
 
     const viewModel = {
       model: 'claude-3-5-sonnet',
-      tokens: '180k',
+      contextWindow: '200k',
+      tokenUsageActual: '180k',
+      tokenUsageEffective: '225k',
+      tokenPercentageActual: '90%',
+      tokenPercentageEffective: '112%',
       tokensStatus: 'critical' as const,
       cost: '$0.15',
       costStatus: 'normal' as const,
@@ -865,7 +901,7 @@ describe('Formatter with colors enabled', () => {
       logStatus: 'normal' as const,
     }
 
-    const result = formatter.format('{tokens}', viewModel)
+    const result = formatter.format('{tokenUsageActual}', viewModel)
     expect(result).toContain(ANSI.red)
   })
 
@@ -880,7 +916,11 @@ describe('Formatter with colors enabled', () => {
 
     const viewModel = {
       model: 'claude-3-5-sonnet',
-      tokens: '45k',
+      contextWindow: '200k',
+      tokenUsageActual: '45k',
+      tokenUsageEffective: '90k',
+      tokenPercentageActual: '22%',
+      tokenPercentageEffective: '45%',
       tokensStatus: 'normal' as const,
       cost: '$0.15',
       costStatus: 'normal' as const,
@@ -911,7 +951,11 @@ describe('Formatter with colors enabled', () => {
 
     const viewModel = {
       model: 'claude-3-5-sonnet',
-      tokens: '45k',
+      contextWindow: '200k',
+      tokenUsageActual: '45k',
+      tokenUsageEffective: '90k',
+      tokenPercentageActual: '22%',
+      tokenPercentageEffective: '45%',
       tokensStatus: 'normal' as const,
       cost: '$0.15',
       costStatus: 'normal' as const,
@@ -949,7 +993,11 @@ describe('Formatter with colors enabled', () => {
 
     const viewModel = {
       model: 'claude-3-5-sonnet',
-      tokens: '45k',
+      contextWindow: '200k',
+      tokenUsageActual: '45k',
+      tokenUsageEffective: '90k',
+      tokenPercentageActual: '22%',
+      tokenPercentageEffective: '45%',
       tokensStatus: 'normal' as const,
       cost: '$0.15',
       costStatus: 'normal' as const,
@@ -979,7 +1027,11 @@ describe('Formatter with colors enabled', () => {
 
     const viewModel = {
       model: 'claude-3-5-sonnet',
-      tokens: '45k',
+      contextWindow: '200k',
+      tokenUsageActual: '45k',
+      tokenUsageEffective: '90k',
+      tokenPercentageActual: '22%',
+      tokenPercentageEffective: '45%',
       tokensStatus: 'normal' as const,
       cost: '$0.15',
       costStatus: 'normal' as const,
@@ -1008,7 +1060,11 @@ describe('Formatter with colors enabled', () => {
 
     const viewModel = {
       model: 'claude-3-5-sonnet',
-      tokens: '45k',
+      contextWindow: '200k',
+      tokenUsageActual: '45k',
+      tokenUsageEffective: '90k',
+      tokenPercentageActual: '22%',
+      tokenPercentageEffective: '45%',
       tokensStatus: 'normal' as const,
       cost: '$0.15',
       costStatus: 'normal' as const,
@@ -1197,7 +1253,11 @@ describe('Formatter.convertMarkdown', () => {
 
     const viewModel = {
       model: 'claude',
-      tokens: '45k',
+      contextWindow: '200k',
+      tokenUsageActual: '45k',
+      tokenUsageEffective: '90k',
+      tokenPercentageActual: '22%',
+      tokenPercentageEffective: '45%',
       tokensStatus: 'normal' as const,
       cost: '$0.15',
       costStatus: 'normal' as const,
@@ -1226,7 +1286,11 @@ describe('Formatter.convertMarkdown', () => {
 
     const viewModel = {
       model: 'claude',
-      tokens: '45k',
+      contextWindow: '200k',
+      tokenUsageActual: '45k',
+      tokenUsageEffective: '90k',
+      tokenPercentageActual: '22%',
+      tokenPercentageEffective: '45%',
       tokensStatus: 'normal' as const,
       cost: '$0.15',
       costStatus: 'normal' as const,
@@ -1875,12 +1939,13 @@ describe('StatuslineService', () => {
 
     expect(result.displayMode).toBe('session_summary')
     expect(result.viewModel.model).toBe('3-5-sonnet')
-    // Token display format: "{context}|{total}" where:
-    // - context = 30k (from totalInputTokens in hookInput)
-    // - total = context + autocompact buffer (defaults ~45k from @sidekick/types)
+    // Token display format: tokenUsageActual = context, tokenUsageEffective = context + buffer
+    // - tokenUsageActual = 30k (from totalInputTokens in hookInput)
+    // - tokenUsageEffective = 30k + ~45k buffer = 75k
     // This test implicitly depends on the default autocompact buffer value.
     // If defaults change in @sidekick/types, update expected total accordingly.
-    expect(result.viewModel.tokens).toBe('30k|75k')
+    expect(result.viewModel.tokenUsageActual).toBe('30k')
+    expect(result.viewModel.tokenUsageEffective).toBe('75k')
     expect(result.viewModel.title).toBe('Auth bug fix')
   })
 
@@ -2197,7 +2262,7 @@ describe('StatuslineService', () => {
       const result = await service.render()
 
       // Should fall back to transcript metrics currentContextTokens
-      expect(result.viewModel.tokens).toContain('55k')
+      expect(result.viewModel.tokenUsageActual).toContain('55k')
     })
 
     it('uses baseline when hook current_usage is zero and no transcript data', async () => {
@@ -2241,7 +2306,7 @@ describe('StatuslineService', () => {
       const result = await service.render()
 
       // Should use baseline metrics (non-zero tokens from system defaults)
-      expect(result.viewModel.tokens).not.toBe('0|0')
+      expect(result.viewModel.tokenUsageActual).not.toBe('0')
     })
 
     it('falls back to baseline when null current_usage and transcript has zero tokens', async () => {
@@ -2304,8 +2369,8 @@ describe('StatuslineService', () => {
       })
 
       const result = await service.render()
-      // Should use baseline (not show 0|0)
-      expect(result.viewModel.tokens).not.toBe('0|0')
+      // Should use baseline (not show 0)
+      expect(result.viewModel.tokenUsageActual).not.toBe('0')
     })
 
     it('shows post-compact indeterminate status', async () => {
@@ -2348,7 +2413,7 @@ describe('StatuslineService', () => {
 
       const result = await service.render()
 
-      expect(result.viewModel.tokens).toBe('⟳ compacted')
+      expect(result.viewModel.tokenUsageActual).toBe('⟳ compacted')
       expect(result.viewModel.tokensStatus).toBe('normal')
     })
   })

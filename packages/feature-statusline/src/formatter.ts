@@ -115,7 +115,12 @@ export class Formatter {
 
     const tokens: Record<string, string> = {
       model: this.colorize(viewModel.model, this.theme.colors.model),
-      tokens: this.colorizeByStatus(viewModel.tokens, viewModel.tokensStatus),
+      // Atomic token placeholders - each can be used independently in templates
+      contextWindow: this.colorize(viewModel.contextWindow, this.theme.colors.tokens),
+      tokenUsageActual: this.colorizeByStatus(viewModel.tokenUsageActual, viewModel.tokensStatus),
+      tokenUsageEffective: this.colorizeByStatus(viewModel.tokenUsageEffective, viewModel.tokensStatus),
+      tokenPercentageActual: this.colorizeByStatus(viewModel.tokenPercentageActual, viewModel.tokensStatus),
+      tokenPercentageEffective: this.colorizeByStatus(viewModel.tokenPercentageEffective, viewModel.tokensStatus),
       cost: this.colorizeByStatus(viewModel.cost, viewModel.costStatus),
       duration: this.colorize(viewModel.duration, this.theme.colors.duration),
       cwd: this.colorize(viewModel.cwd, this.theme.colors.cwd),

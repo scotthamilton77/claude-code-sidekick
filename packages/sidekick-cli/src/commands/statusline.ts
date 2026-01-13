@@ -210,7 +210,7 @@ export async function handleStatuslineCommand(
       },
       {
         model: result.viewModel.model,
-        tokens: parseInt(result.viewModel.tokens.replace(/[^0-9]/g, ''), 10) || undefined,
+        tokens: parseInt(result.viewModel.tokenUsageActual.replace(/[^0-9]/g, ''), 10) || undefined,
         durationMs,
       }
     )
