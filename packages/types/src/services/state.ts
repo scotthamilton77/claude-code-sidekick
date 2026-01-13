@@ -523,6 +523,69 @@ export function createDefaultLLMMetrics(sessionId: string): LLMMetricsState {
 // Unified Session State Response
 // ============================================================================
 
+// ============================================================================
+// StateService Interface
+// ============================================================================
+
+/**
+ * Result of a state read operation.
+ * Source indicates how the data was obtained.
+ */
+export interface StateReadResult<T> {
+  /** The validated data */
+  data: T
+  /** How the data was obtained: fresh, stale (older than threshold), default (file missing), recovered (from .bak) */
+  source: 'fresh' | 'stale' | 'default' | 'recovered'
+  /** File modification time (ms) if file exists */
+  mtime?: number
+}
+
+/**
+ * Minimal StateService interface for DaemonContext.
+ * Provides atomic writes with schema validation and corrupt file recovery.
+ *
+ * The actual implementation lives in @sidekick/core and is injected via DaemonContext.
+ *
+ * @see docs/plans/2026-01-12-state-service-design.md
+ */
+export interface MinimalStateService {
+  /**
+   * Read state file with Zod validation.
+   * @param path - Absolute path to state file
+   * @param schema - Zod schema for validation
+   * @param defaultValue - Optional default if file missing/corrupt
+   * @throws StateNotFoundError if file missing and no default
+   * @throws StateCorruptError if validation fails and no default
+   */
+  read<T>(path: string, schema: z.ZodType<T>, defaultValue?: T | (() => T)): Promise<StateReadResult<T>>
+
+  /**
+   * Atomic write with Zod validation.
+   * Uses tmp + rename pattern to prevent corruption.
+   * @param path - Absolute path to state file
+   * @param data - Data to write
+   * @param schema - Zod schema for validation
+   */
+  write<T>(path: string, data: T, schema: z.ZodType<T>): Promise<void>
+
+  /**
+   * Delete state file if it exists.
+   * @param path - Absolute path to state file
+   */
+  delete(path: string): Promise<void>
+
+  /**
+   * Get absolute path for a session state file.
+   * @param sessionId - Session identifier
+   * @param filename - State file name (e.g., 'session-summary.json')
+   */
+  sessionStatePath(sessionId: string, filename: string): string
+}
+
+// ============================================================================
+// Unified Session State Response
+// ============================================================================
+
 /**
  * Complete session state snapshot for UI State Inspector.
  * Aggregates all state domains into a single response.

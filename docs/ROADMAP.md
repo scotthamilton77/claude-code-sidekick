@@ -321,7 +321,8 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
     - Sleeper polling daemon - replaced with event-driven (better design)
     - Stateful circuit breaker - FallbackProvider is simpler and sufficient
   - [x] Audit `benchmark-next/` for unported features (early TypeScript exploration, largely stale)
-  - **benchmark-next/ Findings:**
+  - **Note**: benchmark-next/ relocated to `development-tools/llm-eval/` with related scripts and test-data
+  - **development-tools/llm-eval/ Findings:**
     - **Reusable**: `CircuitBreakerProvider.ts` (Cockatiel-based, exponential backoff) - consider porting if resilience needed
     - **Reusable**: `json-extraction.ts` - clean utility, currently scattered in packages
     - **Not needed**: Config system (packages/ 8-layer cascade is more mature), consensus/scoring algorithms (LLM eval specific)
@@ -347,7 +348,7 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
     - [ ] `copy-config.sh` → `packages/sidekick-cli/src/commands/generate-config.ts`
     - [ ] `generate-reminder-template.sh` → `packages/sidekick-cli/src/commands/generate-reminders.ts`
 - [ ] **10.3 Legacy Cleanup**
-  - [ ] Archive `benchmark-next/` (mark as superseded in README)
+  - [ ] Update `development-tools/llm-eval/` README and AGENTS.md to reflect new location
   - [ ] Decide: retain bash runtime as fallback or deprecate entirely
   - [ ] Update `AGENTS.md` to reflect final state
 - [ ] Acceptance criteria
@@ -402,7 +403,7 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
   - [ ] Ensure all LLDs are current with implementation
   - [ ] Ensure all source code documentation is up-to-date (not in conflict with requirements or implementation), clean and lean (not over-documenting), and remove all references to implementation phases (how we planned the work should be irrelevant to code documentation).
 - [ ] **12.2 Cleanup**
-  - [ ] Remove or archive stale files (benchmark-next/, legacy scripts)
+  - [ ] Remove or archive stale files (legacy scripts not in development-tools/)
   - [ ] Verify all `// TODO` and `// FIXME` comments addressed
   - [ ] Final lint/typecheck/test pass
   - [ ] CI enforces coverage thresholds (deferred from 9.1)

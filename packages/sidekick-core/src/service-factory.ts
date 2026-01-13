@@ -13,7 +13,14 @@
  * @see docs/design/CORE-RUNTIME.md
  */
 
-import type { ServiceFactory, StagingService, TranscriptService, Logger, HandlerRegistry } from '@sidekick/types'
+import type {
+  ServiceFactory,
+  StagingService,
+  TranscriptService,
+  Logger,
+  HandlerRegistry,
+  MinimalStateService,
+} from '@sidekick/types'
 import { StagingServiceCore, SessionScopedStagingService } from './staging-service.js'
 import { TranscriptServiceImpl } from './transcript-service.js'
 
@@ -33,6 +40,8 @@ export interface ServiceFactoryOptions {
   scope?: 'project' | 'user'
   /** Handler registry for TranscriptService event emission */
   handlers: HandlerRegistry
+  /** StateService for atomic writes and schema validation */
+  stateService: MinimalStateService
   /** Debounce interval for file watching (ms) - defaults to 100 */
   watchDebounceMs?: number
   /** Interval for periodic metrics persistence (ms) - defaults to 30000 */
@@ -96,6 +105,7 @@ export class ServiceFactoryImpl implements ServiceFactory {
         stateDir: this.options.stateDir,
         logger: this.options.logger,
         handlers: this.options.handlers,
+        stateService: this.options.stateService,
         watchDebounceMs: this.options.watchDebounceMs ?? 100,
         metricsPersistIntervalMs: this.options.metricsPersistIntervalMs ?? 30000,
       })
@@ -121,6 +131,7 @@ export class ServiceFactoryImpl implements ServiceFactory {
         stateDir: this.options.stateDir,
         logger: this.options.logger,
         handlers: this.options.handlers,
+        stateService: this.options.stateService,
         watchDebounceMs: this.options.watchDebounceMs ?? 100,
         metricsPersistIntervalMs: this.options.metricsPersistIntervalMs ?? 30000,
       })

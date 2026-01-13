@@ -7,18 +7,25 @@
 export { StateService, type StateReadResult, type StateServiceOptions } from './state-service.js'
 export { StateNotFoundError, StateCorruptError } from './errors.js'
 
-// Compaction history schema and utilities
+// Transcript state schemas and utilities
 export {
-  CompactionEntrySchema,
-  CompactionHistorySchema,
+  // Schemas
+  CacheTiersSchema,
+  ModelTokenStatsSchema,
   TokenUsageMetricsSchema,
   TranscriptMetricsSchema,
+  PersistedTranscriptStateSchema,
+  CompactionEntrySchema,
+  CompactionHistorySchema,
+  // Utilities
   pruneCompactionHistory,
   MAX_COMPACTION_ENTRIES,
-  type CompactionEntryState,
-  type CompactionHistoryState,
+  // Types
   type TokenUsageMetricsState,
   type TranscriptMetricsState,
-} from './compaction-history-schema.js'
+  type PersistedTranscriptState,
+  type CompactionEntryState,
+  type CompactionHistoryState,
+} from './transcript-schemas.js'
 
 // PathResolver is intentionally NOT exported - it's internal to StateService

@@ -15,6 +15,7 @@ import type { MinimalConfigService, MinimalAssetResolver } from './services/conf
 import type { StagingService } from './services/staging.js'
 import type { DaemonClient } from './services/daemon-client.js'
 import type { TranscriptService } from './services/transcript.js'
+import type { MinimalStateService } from './services/state.js'
 
 // ============================================================================
 // Runtime Context (Discriminated Union)
@@ -67,6 +68,8 @@ export interface DaemonContext extends BaseContext {
   staging: StagingService
   /** Transcript service for metrics */
   transcript: TranscriptService
+  /** State service for atomic file operations with schema validation */
+  stateService: MinimalStateService
 }
 
 /**

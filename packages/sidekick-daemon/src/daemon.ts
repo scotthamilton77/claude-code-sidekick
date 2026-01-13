@@ -15,6 +15,7 @@ import {
   LogManager,
   reconstructTranscriptPath,
   ServiceFactoryImpl,
+  StateService,
   LogEvents,
   logEvent,
   type AssetResolver,
@@ -76,6 +77,7 @@ export class Daemon {
   private logger: Logger
   private logManager: LogManager
   private stateManager: StateManager
+  private stateService: StateService
   private taskEngine: TaskEngine
   private taskRegistry: TaskRegistry
   private ipcServer: IpcServer
@@ -149,6 +151,7 @@ export class Daemon {
 
     // Initialize Components
     this.stateManager = new StateManager(path.join(projectDir, '.sidekick', 'state'), this.logger)
+    this.stateService = new StateService(projectDir, { cache: true })
     this.taskEngine = new TaskEngine(this.logger, this.getContextForTask.bind(this))
     this.taskRegistry = createTaskRegistry(this.stateManager, this.logger)
 
@@ -169,6 +172,7 @@ export class Daemon {
       logger: this.logger,
       scope: 'project',
       handlers: this.handlerRegistry,
+      stateService: this.stateService,
       watchDebounceMs: this.configService.transcript.watchDebounceMs,
       metricsPersistIntervalMs: this.configService.transcript.metricsPersistIntervalMs,
     })
@@ -773,6 +777,7 @@ export class Daemon {
       profileFactory: instrumentedProfileFactory,
       staging: stagingService,
       transcript: transcriptService,
+      stateService: this.stateService,
     }
 
     const result = await classifyCompletion({ ctx, settings })
@@ -976,6 +981,7 @@ export class Daemon {
       profileFactory,
       staging: stagingService,
       transcript: transcriptService,
+      stateService: this.stateService,
     }
   }
 
@@ -1076,6 +1082,7 @@ export class Daemon {
       profileFactory: instrumentedProfileFactory,
       staging: stagingService,
       transcript: transcriptService,
+      stateService: this.stateService,
     }
 
     // Update handler registry with session info and providers
@@ -1429,6 +1436,7 @@ export class Daemon {
       profileFactory: this.profileProviderFactory,
       staging: null as unknown as StagingService,
       transcript: null as unknown as TranscriptService,
+      stateService: this.stateService,
     }
 
     // Register handlers - they'll receive full context at invocation time

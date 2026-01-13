@@ -66,7 +66,8 @@ REFERENCE_VERSION="${REFERENCE_VERSION:-v1.0}"
 RESULTS_DIR="${PROJECT_ROOT}/test-data/results"
 
 # Sidekick source directory (for prompts and schema)
-SIDEKICK_SRC="${PROJECT_ROOT}/src/sidekick"
+# Note: This is in the repo root, not in development-tools/
+SIDEKICK_SRC="${PROJECT_ROOT}/../src/sidekick"
 
 # ==============================================================================
 # BENCHMARK MODES

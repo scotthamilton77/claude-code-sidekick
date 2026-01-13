@@ -1,8 +1,11 @@
 /**
- * Zod schemas for compaction history state files.
+ * Zod schemas for transcript state files.
  *
- * These schemas validate the compaction-history.json files written by TranscriptService.
- * Includes pruning utility to keep history bounded.
+ * These schemas validate state files written by TranscriptService:
+ * - transcript-metrics.json (via PersistedTranscriptStateSchema)
+ * - compaction-history.json (via CompactionHistorySchema)
+ *
+ * Includes pruning utility to keep compaction history bounded.
  *
  * @see docs/plans/2026-01-12-state-service-design.md
  * @see docs/design/TRANSCRIPT-PROCESSING.md §4.2
@@ -23,11 +26,22 @@ export const MAX_COMPACTION_ENTRIES = 50
 
 /**
  * Schema for cache tier breakdown.
+ * Matches TokenUsageMetrics.cacheTiers from @sidekick/types.
  */
 export const CacheTiersSchema = z.object({
-  ephemeral: z.number(),
-  shortTerm: z.number(),
-  longTerm: z.number(),
+  /** cache_creation.ephemeral_5m_input_tokens */
+  ephemeral5mInputTokens: z.number(),
+  /** cache_creation.ephemeral_1h_input_tokens */
+  ephemeral1hInputTokens: z.number(),
+})
+
+/**
+ * Schema for per-model token breakdown.
+ */
+export const ModelTokenStatsSchema = z.object({
+  inputTokens: z.number(),
+  outputTokens: z.number(),
+  requestCount: z.number(),
 })
 
 /**
@@ -47,6 +61,10 @@ export const TokenUsageMetricsSchema = z.object({
   cacheReadInputTokens: z.number(),
   /** Cache tier breakdown */
   cacheTiers: CacheTiersSchema,
+  /** Service tier tracking (for cost/performance analysis) */
+  serviceTierCounts: z.record(z.string(), z.number()),
+  /** Per-model breakdown (sessions may span model switches) */
+  byModel: z.record(z.string(), ModelTokenStatsSchema),
 })
 
 export type TokenUsageMetricsState = z.infer<typeof TokenUsageMetricsSchema>
@@ -74,11 +92,35 @@ export const TranscriptMetricsSchema = z.object({
   currentContextTokens: z.number().nullable(),
   /** True after compact_boundary detected until first usage block */
   isPostCompactIndeterminate: z.boolean(),
+  /** Derived ratio: toolCount / turnCount */
+  toolsPerTurn: z.number(),
+  /** Watermark: last processed line number */
+  lastProcessedLine: z.number(),
   /** Unix timestamp of last metrics update */
   lastUpdatedAt: z.number(),
 })
 
 export type TranscriptMetricsState = z.infer<typeof TranscriptMetricsSchema>
+
+// ============================================================================
+// Persisted Transcript State Schema
+// ============================================================================
+
+/**
+ * Schema for persisted transcript state.
+ * Wraps TranscriptMetrics with session tracking metadata.
+ * Stored in .sidekick/sessions/{sessionId}/state/transcript-metrics.json
+ */
+export const PersistedTranscriptStateSchema = z.object({
+  /** Session ID for verification */
+  sessionId: z.string(),
+  /** The transcript metrics */
+  metrics: TranscriptMetricsSchema,
+  /** When this state was persisted (Unix ms) */
+  persistedAt: z.number(),
+})
+
+export type PersistedTranscriptState = z.infer<typeof PersistedTranscriptStateSchema>
 
 // ============================================================================
 // Compaction Entry Schema
