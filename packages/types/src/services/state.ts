@@ -202,6 +202,64 @@ export const EMPTY_LOG_METRICS: LogMetricsState = {
 }
 
 // ============================================================================
+// PR Baseline State Schema
+// ============================================================================
+
+/**
+ * Zod schema for PR baseline state.
+ * Type definition: see PRBaselineState in ./staging.ts
+ *
+ * Location: `.sidekick/sessions/{sessionId}/state/pr-baseline.json`
+ *
+ * @see docs/design/FEATURE-REMINDERS.md
+ */
+export const PRBaselineStateSchema = z.object({
+  /** Turn count when VC was consumed */
+  turnCount: z.number(),
+  /** Tool uses in that turn */
+  toolsThisTurn: z.number(),
+  /** Unix timestamp (ms) when baseline was set */
+  timestamp: z.number(),
+})
+
+// ============================================================================
+// VC Unverified State Schema
+// ============================================================================
+
+/**
+ * Zod schema for VC unverified state.
+ * Type definition: see VCUnverifiedState in ./staging.ts
+ *
+ * Location: `.sidekick/sessions/{sessionId}/state/vc-unverified.json`
+ *
+ * @see docs/design/FEATURE-REMINDERS.md
+ */
+export const VCUnverifiedStateSchema = z.object({
+  /** Whether there are unverified changes */
+  hasUnverifiedChanges: z.boolean(),
+  /** Number of VC skips in this session */
+  cycleCount: z.number(),
+  /** Metrics when state was set */
+  setAt: z.object({
+    /** Unix timestamp (ms) */
+    timestamp: z.number(),
+    /** Turn count when set */
+    turnCount: z.number(),
+    /** Tool uses in that turn */
+    toolsThisTurn: z.number(),
+    /** Total tool count at that point */
+    toolCount: z.number(),
+  }),
+  /** Last classification result */
+  lastClassification: z.object({
+    /** Classification category */
+    category: z.string(),
+    /** Classification confidence */
+    confidence: z.number(),
+  }),
+})
+
+// ============================================================================
 // Staged Reminders State
 // ============================================================================
 

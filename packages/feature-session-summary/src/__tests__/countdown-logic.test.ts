@@ -11,7 +11,7 @@
  *   - Low confidence (avg ≤ 0.6): countdown = 5
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import {
   createMockDaemonContext,
   MockLogger,
@@ -19,13 +19,11 @@ import {
   MockLLMService,
   MockAssetResolver,
   MockTranscriptService,
+  MockStateService,
 } from '@sidekick/testing-fixtures'
 import type { DaemonContext } from '@sidekick/types'
 import { updateSessionSummary } from '../handlers/update-summary'
 import type { TranscriptEvent } from '@sidekick/core'
-import fs from 'node:fs/promises'
-import path from 'node:path'
-import os from 'node:os'
 import type { SummaryCountdownState } from '../types'
 import { DEFAULT_SESSION_SUMMARY_CONFIG } from '../types'
 
@@ -36,17 +34,16 @@ describe('Session Summary Countdown Logic', () => {
   let llm: MockLLMService
   let assets: MockAssetResolver
   let transcript: MockTranscriptService
-  let tempDir: string
+  let stateService: MockStateService
+  const projectRoot = '/mock/project'
 
-  beforeEach(async () => {
+  beforeEach(() => {
     logger = new MockLogger()
     handlers = new MockHandlerRegistry()
     llm = new MockLLMService()
     assets = new MockAssetResolver()
     transcript = new MockTranscriptService()
-
-    // Create temp directory for state files
-    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sidekick-countdown-test-'))
+    stateService = new MockStateService(projectRoot)
 
     ctx = createMockDaemonContext({
       logger,
@@ -54,10 +51,11 @@ describe('Session Summary Countdown Logic', () => {
       llm,
       assets,
       transcript,
+      stateService,
       paths: {
-        projectDir: tempDir,
-        userConfigDir: path.join(tempDir, '.sidekick'),
-        projectConfigDir: path.join(tempDir, '.sidekick'),
+        projectDir: projectRoot,
+        userConfigDir: `${projectRoot}/.sidekick`,
+        projectConfigDir: `${projectRoot}/.sidekick`,
       },
     })
 
@@ -70,11 +68,6 @@ describe('Session Summary Countdown Logic', () => {
     // Set mock transcript content
     transcript.setMockExcerptContent('User: Help me analyze data\nAssistant: Let me assist.')
     transcript.setMetrics({ turnCount: 8, toolCount: 15, lastProcessedLine: 150 })
-  })
-
-  afterEach(async () => {
-    // Cleanup temp directory
-    await fs.rm(tempDir, { recursive: true, force: true })
   })
 
   /**
@@ -111,23 +104,19 @@ describe('Session Summary Countdown Logic', () => {
   }
 
   /**
-   * Helper to read countdown state file
+   * Helper to read countdown state from MockStateService
    */
-  async function readCountdownState(sessionId: string): Promise<SummaryCountdownState> {
-    const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-    const countdownPath = path.join(stateDir, 'summary-countdown.json')
-    const content = await fs.readFile(countdownPath, 'utf-8')
-    return JSON.parse(content) as SummaryCountdownState
+  function readCountdownState(sessionId: string): SummaryCountdownState {
+    const countdownPath = stateService.sessionStatePath(sessionId, 'summary-countdown.json')
+    return stateService.getStored(countdownPath) as SummaryCountdownState
   }
 
   /**
-   * Helper to write countdown state file
+   * Helper to write countdown state to MockStateService
    */
-  async function writeCountdownState(sessionId: string, state: SummaryCountdownState): Promise<void> {
-    const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-    await fs.mkdir(stateDir, { recursive: true })
-    const countdownPath = path.join(stateDir, 'summary-countdown.json')
-    await fs.writeFile(countdownPath, JSON.stringify(state, null, 2), 'utf-8')
+  function writeCountdownState(sessionId: string, state: SummaryCountdownState): void {
+    const countdownPath = stateService.sessionStatePath(sessionId, 'summary-countdown.json')
+    stateService.setStored(countdownPath, state)
   }
 
   describe('ToolResult Countdown Decrement', () => {
@@ -135,12 +124,12 @@ describe('Session Summary Countdown Logic', () => {
       const sessionId = 'test-countdown-1'
 
       // Pre-seed countdown state with countdown = 5
-      await writeCountdownState(sessionId, { countdown: 5, bookmark_line: 0 })
+      writeCountdownState(sessionId, { countdown: 5, bookmark_line: 0 })
 
       await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
       // Countdown should be decremented to 4
-      const state = await readCountdownState(sessionId)
+      const state = readCountdownState(sessionId)
       expect(state.countdown).toBe(4)
 
       // LLM should NOT be called (countdown > 0)
@@ -150,11 +139,11 @@ describe('Session Summary Countdown Logic', () => {
     it('decrements countdown from 3 to 2', async () => {
       const sessionId = 'test-countdown-2'
 
-      await writeCountdownState(sessionId, { countdown: 3, bookmark_line: 50 })
+      writeCountdownState(sessionId, { countdown: 3, bookmark_line: 50 })
 
       await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
-      const state = await readCountdownState(sessionId)
+      const state = readCountdownState(sessionId)
       expect(state.countdown).toBe(2)
       expect(llm.recordedRequests).toHaveLength(0)
     })
@@ -162,11 +151,11 @@ describe('Session Summary Countdown Logic', () => {
     it('decrements countdown from 1 to 0', async () => {
       const sessionId = 'test-countdown-3'
 
-      await writeCountdownState(sessionId, { countdown: 1, bookmark_line: 100 })
+      writeCountdownState(sessionId, { countdown: 1, bookmark_line: 100 })
 
       await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
-      const state = await readCountdownState(sessionId)
+      const state = readCountdownState(sessionId)
       expect(state.countdown).toBe(0)
 
       // Countdown is now 0 but LLM not called yet (will trigger on next ToolCall)
@@ -179,7 +168,7 @@ describe('Session Summary Countdown Logic', () => {
       const sessionId = 'test-zero-1'
 
       // Pre-seed countdown state with countdown = 0
-      await writeCountdownState(sessionId, { countdown: 0, bookmark_line: 0 })
+      writeCountdownState(sessionId, { countdown: 0, bookmark_line: 0 })
 
       // Queue LLM response (high confidence)
       llm.queueResponse(
@@ -198,9 +187,8 @@ describe('Session Summary Countdown Logic', () => {
       expect(llm.recordedRequests).toHaveLength(1)
 
       // Summary file should be created
-      const summaryPath = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state', 'session-summary.json')
-      const summaryContent = await fs.readFile(summaryPath, 'utf-8')
-      const summary = JSON.parse(summaryContent)
+      const summaryPath = stateService.sessionStatePath(sessionId, 'session-summary.json')
+      const summary = stateService.getStored(summaryPath) as Record<string, unknown>
       expect(summary.session_title).toBe('Data Analysis Session')
       expect(summary.latest_intent).toBe('Analyzing dataset')
     })
@@ -208,7 +196,7 @@ describe('Session Summary Countdown Logic', () => {
     it('triggers analysis and resets countdown based on confidence', async () => {
       const sessionId = 'test-zero-2'
 
-      await writeCountdownState(sessionId, { countdown: 0, bookmark_line: 50 })
+      writeCountdownState(sessionId, { countdown: 0, bookmark_line: 50 })
 
       // Queue high confidence response
       llm.queueResponse(
@@ -227,7 +215,7 @@ describe('Session Summary Countdown Logic', () => {
       expect(llm.recordedRequests).toHaveLength(1)
 
       // Countdown should be reset (verified in confidence tier tests below)
-      const state = await readCountdownState(sessionId)
+      const state = readCountdownState(sessionId)
       expect(state.countdown).toBeGreaterThan(0)
     })
   })
@@ -236,7 +224,7 @@ describe('Session Summary Countdown Logic', () => {
     it('resets countdown to configured highConfidence value when average confidence > 0.8', async () => {
       const sessionId = 'test-high-conf-1'
 
-      await writeCountdownState(sessionId, { countdown: 0, bookmark_line: 0 })
+      writeCountdownState(sessionId, { countdown: 0, bookmark_line: 0 })
 
       // High confidence: average = 0.9 > 0.8
       llm.queueResponse(
@@ -251,14 +239,14 @@ describe('Session Summary Countdown Logic', () => {
 
       await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
-      const state = await readCountdownState(sessionId)
+      const state = readCountdownState(sessionId)
       expect(state.countdown).toBe(DEFAULT_SESSION_SUMMARY_CONFIG.countdown.highConfidence)
     })
 
     it('uses high confidence tier at boundary (average = 0.81 > 0.8)', async () => {
       const sessionId = 'test-high-conf-boundary'
 
-      await writeCountdownState(sessionId, { countdown: 0, bookmark_line: 0 })
+      writeCountdownState(sessionId, { countdown: 0, bookmark_line: 0 })
 
       llm.queueResponse(
         JSON.stringify({
@@ -272,7 +260,7 @@ describe('Session Summary Countdown Logic', () => {
 
       await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
-      const state = await readCountdownState(sessionId)
+      const state = readCountdownState(sessionId)
       expect(state.countdown).toBe(DEFAULT_SESSION_SUMMARY_CONFIG.countdown.highConfidence)
     })
   })
@@ -281,7 +269,7 @@ describe('Session Summary Countdown Logic', () => {
     it('resets countdown to configured mediumConfidence value when 0.6 < average <= 0.8', async () => {
       const sessionId = 'test-med-conf-1'
 
-      await writeCountdownState(sessionId, { countdown: 0, bookmark_line: 0 })
+      writeCountdownState(sessionId, { countdown: 0, bookmark_line: 0 })
 
       // Medium confidence: average = 0.7 (0.6 < 0.7 <= 0.8)
       llm.queueResponse(
@@ -296,14 +284,14 @@ describe('Session Summary Countdown Logic', () => {
 
       await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
-      const state = await readCountdownState(sessionId)
+      const state = readCountdownState(sessionId)
       expect(state.countdown).toBe(DEFAULT_SESSION_SUMMARY_CONFIG.countdown.mediumConfidence)
     })
 
     it('uses medium confidence tier at upper boundary (average = 0.8, not > 0.8)', async () => {
       const sessionId = 'test-med-conf-upper'
 
-      await writeCountdownState(sessionId, { countdown: 0, bookmark_line: 0 })
+      writeCountdownState(sessionId, { countdown: 0, bookmark_line: 0 })
 
       // Average: exactly 0.8 - implementation uses > 0.8 for high, so 0.8 is medium
       llm.queueResponse(
@@ -318,7 +306,7 @@ describe('Session Summary Countdown Logic', () => {
 
       await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
-      const state = await readCountdownState(sessionId)
+      const state = readCountdownState(sessionId)
       expect(state.countdown).toBe(DEFAULT_SESSION_SUMMARY_CONFIG.countdown.mediumConfidence)
     })
   })
@@ -327,7 +315,7 @@ describe('Session Summary Countdown Logic', () => {
     it('resets countdown to configured lowConfidence value when average <= 0.6', async () => {
       const sessionId = 'test-low-conf-1'
 
-      await writeCountdownState(sessionId, { countdown: 0, bookmark_line: 0 })
+      writeCountdownState(sessionId, { countdown: 0, bookmark_line: 0 })
 
       // Low confidence: average = 0.5 <= 0.6
       llm.queueResponse(
@@ -342,14 +330,14 @@ describe('Session Summary Countdown Logic', () => {
 
       await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
-      const state = await readCountdownState(sessionId)
+      const state = readCountdownState(sessionId)
       expect(state.countdown).toBe(DEFAULT_SESSION_SUMMARY_CONFIG.countdown.lowConfidence)
     })
 
     it('uses low confidence tier at boundary (average = 0.6, not > 0.6)', async () => {
       const sessionId = 'test-low-conf-boundary'
 
-      await writeCountdownState(sessionId, { countdown: 0, bookmark_line: 0 })
+      writeCountdownState(sessionId, { countdown: 0, bookmark_line: 0 })
 
       // Average: exactly 0.6 - implementation uses > 0.6 for medium, so 0.6 is low
       llm.queueResponse(
@@ -364,14 +352,14 @@ describe('Session Summary Countdown Logic', () => {
 
       await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
-      const state = await readCountdownState(sessionId)
+      const state = readCountdownState(sessionId)
       expect(state.countdown).toBe(DEFAULT_SESSION_SUMMARY_CONFIG.countdown.lowConfidence)
     })
 
     it('uses low confidence tier for zero confidence', async () => {
       const sessionId = 'test-low-conf-zero'
 
-      await writeCountdownState(sessionId, { countdown: 0, bookmark_line: 0 })
+      writeCountdownState(sessionId, { countdown: 0, bookmark_line: 0 })
 
       llm.queueResponse(
         JSON.stringify({
@@ -385,7 +373,7 @@ describe('Session Summary Countdown Logic', () => {
 
       await updateSessionSummary(createToolResultEvent(sessionId), ctx)
 
-      const state = await readCountdownState(sessionId)
+      const state = readCountdownState(sessionId)
       expect(state.countdown).toBe(DEFAULT_SESSION_SUMMARY_CONFIG.countdown.lowConfidence)
     })
   })
@@ -412,7 +400,7 @@ describe('Session Summary Countdown Logic', () => {
       expect(llm.recordedRequests).toHaveLength(1)
 
       // After analysis, countdown should be reset to configured medium tier (0.8 avg)
-      const state = await readCountdownState(sessionId)
+      const state = readCountdownState(sessionId)
       expect(state.countdown).toBe(DEFAULT_SESSION_SUMMARY_CONFIG.countdown.mediumConfidence)
     })
   })
@@ -422,21 +410,21 @@ describe('Session Summary Countdown Logic', () => {
       const sessionId = 'test-sequence-1'
 
       // Start with countdown = 3
-      await writeCountdownState(sessionId, { countdown: 3, bookmark_line: 0 })
+      writeCountdownState(sessionId, { countdown: 3, bookmark_line: 0 })
 
       // Event 1: countdown 3 → 2
       await updateSessionSummary(createToolResultEvent(sessionId, 100), ctx)
-      expect((await readCountdownState(sessionId)).countdown).toBe(2)
+      expect((readCountdownState(sessionId)).countdown).toBe(2)
       expect(llm.recordedRequests).toHaveLength(0)
 
       // Event 2: countdown 2 → 1
       await updateSessionSummary(createToolResultEvent(sessionId, 105), ctx)
-      expect((await readCountdownState(sessionId)).countdown).toBe(1)
+      expect((readCountdownState(sessionId)).countdown).toBe(1)
       expect(llm.recordedRequests).toHaveLength(0)
 
       // Event 3: countdown 1 → 0
       await updateSessionSummary(createToolResultEvent(sessionId, 110), ctx)
-      expect((await readCountdownState(sessionId)).countdown).toBe(0)
+      expect((readCountdownState(sessionId)).countdown).toBe(0)
       expect(llm.recordedRequests).toHaveLength(0)
 
       // Event 4: countdown = 0 → triggers analysis, resets based on confidence
@@ -454,7 +442,7 @@ describe('Session Summary Countdown Logic', () => {
       expect(llm.recordedRequests).toHaveLength(1)
 
       // Countdown reset to configured high confidence tier (0.9 + 0.85) / 2 = 0.875 > 0.8
-      const finalState = await readCountdownState(sessionId)
+      const finalState = readCountdownState(sessionId)
       expect(finalState.countdown).toBe(DEFAULT_SESSION_SUMMARY_CONFIG.countdown.highConfidence)
     })
   })
@@ -472,7 +460,7 @@ describe('Session Summary Countdown Logic', () => {
       const eventLineNumber = 250
 
       // Start with existing bookmark at line 100
-      await writeCountdownState(sessionId, { countdown: 0, bookmark_line: 100 })
+      writeCountdownState(sessionId, { countdown: 0, bookmark_line: 100 })
 
       // Queue high confidence response (avg = 0.9)
       llm.queueResponse(
@@ -487,7 +475,7 @@ describe('Session Summary Countdown Logic', () => {
 
       await updateSessionSummary(createToolResultEvent(sessionId, eventLineNumber), ctx)
 
-      const state = await readCountdownState(sessionId)
+      const state = readCountdownState(sessionId)
       // High confidence: bookmark should be updated to event's lineNumber
       expect(state.bookmark_line).toBe(eventLineNumber)
     })
@@ -496,7 +484,7 @@ describe('Session Summary Countdown Logic', () => {
       const sessionId = 'test-bookmark-low'
 
       // Start with existing bookmark at line 200
-      await writeCountdownState(sessionId, { countdown: 0, bookmark_line: 200 })
+      writeCountdownState(sessionId, { countdown: 0, bookmark_line: 200 })
 
       // Queue low confidence response (avg = 0.5 < 0.7)
       llm.queueResponse(
@@ -511,7 +499,7 @@ describe('Session Summary Countdown Logic', () => {
 
       await updateSessionSummary(createToolResultEvent(sessionId, 300), ctx)
 
-      const state = await readCountdownState(sessionId)
+      const state = readCountdownState(sessionId)
       // Low confidence: bookmark should be reset to 0
       expect(state.bookmark_line).toBe(0)
     })
@@ -521,7 +509,7 @@ describe('Session Summary Countdown Logic', () => {
       const existingBookmark = 150
 
       // Start with existing bookmark
-      await writeCountdownState(sessionId, { countdown: 0, bookmark_line: existingBookmark })
+      writeCountdownState(sessionId, { countdown: 0, bookmark_line: existingBookmark })
 
       // Queue medium confidence response (avg = 0.75, between 0.7 and 0.8)
       llm.queueResponse(
@@ -536,7 +524,7 @@ describe('Session Summary Countdown Logic', () => {
 
       await updateSessionSummary(createToolResultEvent(sessionId, 400), ctx)
 
-      const state = await readCountdownState(sessionId)
+      const state = readCountdownState(sessionId)
       // Medium confidence: bookmark should be preserved
       expect(state.bookmark_line).toBe(existingBookmark)
     })
@@ -545,7 +533,7 @@ describe('Session Summary Countdown Logic', () => {
       const sessionId = 'test-bookmark-boundary-low'
       const existingBookmark = 175
 
-      await writeCountdownState(sessionId, { countdown: 0, bookmark_line: existingBookmark })
+      writeCountdownState(sessionId, { countdown: 0, bookmark_line: existingBookmark })
 
       // Queue response at exactly 0.7 average (boundary between low and medium)
       // 0.7 is NOT < 0.7, so it falls into "preserve" territory
@@ -561,7 +549,7 @@ describe('Session Summary Countdown Logic', () => {
 
       await updateSessionSummary(createToolResultEvent(sessionId, 500), ctx)
 
-      const state = await readCountdownState(sessionId)
+      const state = readCountdownState(sessionId)
       // At exactly 0.7: not < 0.7, not > 0.8, so preserve
       expect(state.bookmark_line).toBe(existingBookmark)
     })
@@ -570,7 +558,7 @@ describe('Session Summary Countdown Logic', () => {
       const sessionId = 'test-bookmark-boundary-high'
       const eventLineNumber = 600
 
-      await writeCountdownState(sessionId, { countdown: 0, bookmark_line: 100 })
+      writeCountdownState(sessionId, { countdown: 0, bookmark_line: 100 })
 
       // Queue response at just above 0.8 (0.81 average)
       llm.queueResponse(
@@ -585,7 +573,7 @@ describe('Session Summary Countdown Logic', () => {
 
       await updateSessionSummary(createToolResultEvent(sessionId, eventLineNumber), ctx)
 
-      const state = await readCountdownState(sessionId)
+      const state = readCountdownState(sessionId)
       // At 0.81 (> 0.8): set bookmark to lineNumber
       expect(state.bookmark_line).toBe(eventLineNumber)
     })
@@ -595,7 +583,7 @@ describe('Session Summary Countdown Logic', () => {
       const initialBookmark = 50
 
       // Set initial high-confidence bookmark
-      await writeCountdownState(sessionId, { countdown: 0, bookmark_line: initialBookmark })
+      writeCountdownState(sessionId, { countdown: 0, bookmark_line: initialBookmark })
 
       // First analysis: medium confidence (0.75) - should preserve bookmark
       llm.queueResponse(
@@ -609,11 +597,11 @@ describe('Session Summary Countdown Logic', () => {
       )
       await updateSessionSummary(createToolResultEvent(sessionId, 200), ctx)
 
-      let state = await readCountdownState(sessionId)
+      let state = readCountdownState(sessionId)
       expect(state.bookmark_line).toBe(initialBookmark)
 
       // Reset countdown for next analysis
-      await writeCountdownState(sessionId, { countdown: 0, bookmark_line: state.bookmark_line })
+      writeCountdownState(sessionId, { countdown: 0, bookmark_line: state.bookmark_line })
 
       // Second analysis: still medium confidence - should still preserve
       llm.queueResponse(
@@ -627,7 +615,7 @@ describe('Session Summary Countdown Logic', () => {
       )
       await updateSessionSummary(createToolResultEvent(sessionId, 300), ctx)
 
-      state = await readCountdownState(sessionId)
+      state = readCountdownState(sessionId)
       expect(state.bookmark_line).toBe(initialBookmark)
     })
   })

@@ -78,6 +78,7 @@ export class ServiceFactoryImpl implements ServiceFactory {
       stateDir: options.stateDir,
       logger: options.logger,
       scope: options.scope,
+      stateService: options.stateService,
     })
   }
 

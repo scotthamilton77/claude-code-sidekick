@@ -15,6 +15,7 @@ import { tmpdir } from 'node:os'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { TranscriptServiceImpl, type TranscriptServiceOptions } from '../transcript-service'
 import { StagingServiceCore, SessionScopedStagingService, type StagingServiceCoreOptions } from '../staging-service'
+import { StateService } from '../state/state-service'
 import { MockStateService } from '@sidekick/testing-fixtures'
 import type {
   HandlerRegistry,
@@ -196,11 +197,13 @@ describe('Phase 4.5: TranscriptService → Handler Integration', () => {
     transcriptPath = join(testDir, 'transcript.jsonl')
     logger = createMockLogger()
 
-    // Create staging service
+    // Create staging service with StateService
+    const stateService = new StateService(stateDir, { logger, cache: false })
     const stagingOptions: StagingServiceCoreOptions = {
       stateDir,
       logger,
       scope: 'project',
+      stateService,
     }
     const core = new StagingServiceCore(stagingOptions)
     stagingService = new SessionScopedStagingService(core, 'test-session', 'project')

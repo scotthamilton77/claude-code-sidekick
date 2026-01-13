@@ -12,6 +12,7 @@ import {
   MockLLMService,
   MockAssetResolver,
   MockTranscriptService,
+  MockStateService,
 } from '@sidekick/testing-fixtures'
 import type { LLMRequest, LLMResponse } from '@sidekick/types'
 
@@ -72,6 +73,7 @@ describe('Session Summary Side-Effects', () => {
   let llm: MockLLMService
   let assets: MockAssetResolver
   let transcript: MockTranscriptService
+  let stateService: MockStateService
   let tempDir: string
 
   beforeEach(async () => {
@@ -81,8 +83,11 @@ describe('Session Summary Side-Effects', () => {
     assets = new MockAssetResolver()
     transcript = new MockTranscriptService()
 
-    // Create temp directory for state files
+    // Create temp directory for plain text files (snarky-message.txt)
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sidekick-test-'))
+
+    // Use tempDir as projectRoot so sessionStatePath returns paths in tempDir
+    stateService = new MockStateService(tempDir)
 
     ctx = createMockDaemonContext({
       logger,
@@ -90,6 +95,7 @@ describe('Session Summary Side-Effects', () => {
       llm,
       assets,
       transcript,
+      stateService,
       paths: {
         projectDir: tempDir,
         userConfigDir: path.join(tempDir, '.sidekick'),
@@ -176,13 +182,16 @@ describe('Session Summary Side-Effects', () => {
       expect(llm.recordedRequests).toHaveLength(0)
 
       // No summary file should be created
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-      const summaryPath = path.join(stateDir, 'session-summary.json')
-      await expect(fs.access(summaryPath)).rejects.toThrow()
+      const summaryPath = stateService.sessionStatePath(sessionId, 'session-summary.json')
+      expect(stateService.has(summaryPath)).toBe(false)
     })
 
     it('triggers analysis on BulkProcessingComplete event', async () => {
       const sessionId = 'test-bulk-complete'
+
+      // Create directory for snarky-message.txt (plain text file)
+      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
+      await fs.mkdir(stateDir, { recursive: true })
 
       // Queue LLM responses:
       // 1) summary analysis
@@ -209,9 +218,8 @@ describe('Session Summary Side-Effects', () => {
       expect(llm.recordedRequests.length).toBeGreaterThanOrEqual(1)
 
       // Summary should be created
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-      const summaryPath = path.join(stateDir, 'session-summary.json')
-      const summary = JSON.parse(await fs.readFile(summaryPath, 'utf-8'))
+      const summaryPath = stateService.sessionStatePath(sessionId, 'session-summary.json')
+      const summary = stateService.getStored(summaryPath) as Record<string, unknown>
       expect(summary.session_title).toBe('Full Session Analysis')
     })
   })
@@ -222,17 +230,16 @@ describe('Session Summary Side-Effects', () => {
       const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
       await fs.mkdir(stateDir, { recursive: true })
 
-      // Write existing summary with different title
-      await fs.writeFile(
-        path.join(stateDir, 'session-summary.json'),
-        JSON.stringify({
-          session_id: sessionId,
-          session_title: 'Old Title',
-          session_title_confidence: 0.8,
-          latest_intent: 'Old intent',
-          latest_intent_confidence: 0.8,
-        })
-      )
+      // Write existing summary with different title using stateService
+      const summaryPath = stateService.sessionStatePath(sessionId, 'session-summary.json')
+      stateService.setStored(summaryPath, {
+        session_id: sessionId,
+        session_title: 'Old Title',
+        session_title_confidence: 0.8,
+        latest_intent: 'Old intent',
+        latest_intent_confidence: 0.8,
+        timestamp: new Date().toISOString(),
+      })
 
       // Queue LLM responses: 1) summary, 2) snarky message
       llm.queueResponses([
@@ -248,7 +255,7 @@ describe('Session Summary Side-Effects', () => {
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
 
-      // Check snarky message was generated
+      // Check snarky message was generated (plain text file, use fs.readFile)
       const snarkyPath = path.join(stateDir, 'snarky-message.txt')
       const snarkyContent = await fs.readFile(snarkyPath, 'utf-8')
       expect(snarkyContent).toBe('Still wrestling with bugs, I see.')
@@ -260,16 +267,14 @@ describe('Session Summary Side-Effects', () => {
       await fs.mkdir(stateDir, { recursive: true })
 
       // Write existing summary to trigger title change
-      await fs.writeFile(
-        path.join(stateDir, 'session-summary.json'),
-        JSON.stringify({
-          session_id: sessionId,
-          session_title: 'Old Title',
-          session_title_confidence: 0.8,
-          latest_intent: 'Old intent',
-          latest_intent_confidence: 0.8,
-        })
-      )
+      stateService.setStored(stateService.sessionStatePath(sessionId, 'session-summary.json'), {
+        session_id: sessionId,
+        session_title: 'Old Title',
+        session_title_confidence: 0.8,
+        latest_intent: 'Old intent',
+        latest_intent_confidence: 0.8,
+        timestamp: new Date().toISOString(),
+      })
 
       // LLM returns response with surrounding double quotes
       llm.queueResponses([
@@ -296,16 +301,14 @@ describe('Session Summary Side-Effects', () => {
       await fs.mkdir(stateDir, { recursive: true })
 
       // Write existing summary to trigger title change
-      await fs.writeFile(
-        path.join(stateDir, 'session-summary.json'),
-        JSON.stringify({
-          session_id: sessionId,
-          session_title: 'Old Title',
-          session_title_confidence: 0.8,
-          latest_intent: 'Old intent',
-          latest_intent_confidence: 0.8,
-        })
-      )
+      stateService.setStored(stateService.sessionStatePath(sessionId, 'session-summary.json'), {
+        session_id: sessionId,
+        session_title: 'Old Title',
+        session_title_confidence: 0.8,
+        latest_intent: 'Old intent',
+        latest_intent_confidence: 0.8,
+        timestamp: new Date().toISOString(),
+      })
 
       // LLM returns response with surrounding single quotes
       llm.queueResponses([
@@ -332,16 +335,14 @@ describe('Session Summary Side-Effects', () => {
       await fs.mkdir(stateDir, { recursive: true })
 
       // Write existing summary to trigger title change
-      await fs.writeFile(
-        path.join(stateDir, 'session-summary.json'),
-        JSON.stringify({
-          session_id: sessionId,
-          session_title: 'Old Title',
-          session_title_confidence: 0.8,
-          latest_intent: 'Old intent',
-          latest_intent_confidence: 0.8,
-        })
-      )
+      stateService.setStored(stateService.sessionStatePath(sessionId, 'session-summary.json'), {
+        session_id: sessionId,
+        session_title: 'Old Title',
+        session_title_confidence: 0.8,
+        latest_intent: 'Old intent',
+        latest_intent_confidence: 0.8,
+        timestamp: new Date().toISOString(),
+      })
 
       // LLM returns response with quotes inside but not wrapping
       llm.queueResponses([
@@ -368,16 +369,14 @@ describe('Session Summary Side-Effects', () => {
       await fs.mkdir(stateDir, { recursive: true })
 
       // Write existing summary with same title but different intent
-      await fs.writeFile(
-        path.join(stateDir, 'session-summary.json'),
-        JSON.stringify({
-          session_id: sessionId,
-          session_title: 'Bug Fixing',
-          session_title_confidence: 0.8,
-          latest_intent: 'Investigating error',
-          latest_intent_confidence: 0.8,
-        })
-      )
+      stateService.setStored(stateService.sessionStatePath(sessionId, 'session-summary.json'), {
+        session_id: sessionId,
+        session_title: 'Bug Fixing',
+        session_title_confidence: 0.8,
+        latest_intent: 'Investigating error',
+        latest_intent_confidence: 0.8,
+        timestamp: new Date().toISOString(),
+      })
 
       llm.queueResponses([
         JSON.stringify({
@@ -399,30 +398,25 @@ describe('Session Summary Side-Effects', () => {
 
     it('does not generate snarky message when nothing changes', async () => {
       const sessionId = 'test-session-3'
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-      await fs.mkdir(stateDir, { recursive: true })
 
       // Write existing summary
-      await fs.writeFile(
-        path.join(stateDir, 'session-summary.json'),
-        JSON.stringify({
-          session_id: sessionId,
-          session_title: 'Same Title',
-          session_title_confidence: 0.8,
-          latest_intent: 'Same intent',
-          latest_intent_confidence: 0.8,
-        })
-      )
+      stateService.setStored(stateService.sessionStatePath(sessionId, 'session-summary.json'), {
+        session_id: sessionId,
+        session_title: 'Same Title',
+        session_title_confidence: 0.8,
+        latest_intent: 'Same intent',
+        latest_intent_confidence: 0.8,
+        timestamp: new Date().toISOString(),
+      })
 
       // Pre-create resume file so resume generation doesn't trigger
-      await fs.writeFile(
-        path.join(stateDir, 'resume-message.json'),
-        JSON.stringify({
-          resume_last_goal_message: 'Existing resume',
-          snarky_comment: 'Existing snarky',
-          timestamp: new Date().toISOString(),
-        })
-      )
+      stateService.setStored(stateService.sessionStatePath(sessionId, 'resume-message.json'), {
+        last_task_id: null,
+        session_title: 'Same Title',
+        resume_last_goal_message: 'Existing resume',
+        snarky_comment: 'Existing snarky',
+        timestamp: new Date().toISOString(),
+      })
 
       // LLM returns same title/intent
       llm.queueResponse(
@@ -449,16 +443,14 @@ describe('Session Summary Side-Effects', () => {
       await fs.mkdir(stateDir, { recursive: true })
 
       // Pre-create existing summary (so this isn't initial analysis - avoids snarky side-effect)
-      await fs.writeFile(
-        path.join(stateDir, 'session-summary.json'),
-        JSON.stringify({
-          session_id: sessionId,
-          session_title: 'Old Project',
-          session_title_confidence: 0.8,
-          latest_intent: 'Old intent',
-          latest_intent_confidence: 0.8,
-        })
-      )
+      stateService.setStored(stateService.sessionStatePath(sessionId, 'session-summary.json'), {
+        session_id: sessionId,
+        session_title: 'Old Project',
+        session_title_confidence: 0.8,
+        latest_intent: 'Old intent',
+        latest_intent_confidence: 0.8,
+        timestamp: new Date().toISOString(),
+      })
 
       // Queue LLM responses: 1) summary with pivot, 2) snarky (title changed), 3) resume message
       llm.queueResponses([
@@ -483,8 +475,8 @@ describe('Session Summary Side-Effects', () => {
       expect(llm.recordedRequests).toHaveLength(3)
 
       // Check resume message was generated
-      const resumePath = path.join(stateDir, 'resume-message.json')
-      const resumeContent = JSON.parse(await fs.readFile(resumePath, 'utf-8'))
+      const resumePath = stateService.sessionStatePath(sessionId, 'resume-message.json')
+      const resumeContent = stateService.getStored(resumePath) as Record<string, unknown>
       expect(resumeContent.resume_last_goal_message).toBe('Shall we resume refactoring?')
       expect(resumeContent.snarky_comment).toBe('Back from the void, ready to refactor?')
     })
@@ -495,16 +487,14 @@ describe('Session Summary Side-Effects', () => {
       await fs.mkdir(stateDir, { recursive: true })
 
       // Pre-create existing summary with SAME values (so no snarky message triggered)
-      await fs.writeFile(
-        path.join(stateDir, 'session-summary.json'),
-        JSON.stringify({
-          session_id: sessionId,
-          session_title: 'Continuing work',
-          session_title_confidence: 0.8,
-          latest_intent: 'Same task',
-          latest_intent_confidence: 0.8,
-        })
-      )
+      stateService.setStored(stateService.sessionStatePath(sessionId, 'session-summary.json'), {
+        session_id: sessionId,
+        session_title: 'Continuing work',
+        session_title_confidence: 0.8,
+        latest_intent: 'Same task',
+        latest_intent_confidence: 0.8,
+        timestamp: new Date().toISOString(),
+      })
 
       // Queue LLM responses: 1) summary without pivot (same values), 2) resume message
       llm.queueResponses([
@@ -527,37 +517,32 @@ describe('Session Summary Side-Effects', () => {
       expect(llm.recordedRequests).toHaveLength(2)
 
       // Resume file should exist
-      const resumePath = path.join(stateDir, 'resume-message.json')
-      const resumeContent = JSON.parse(await fs.readFile(resumePath, 'utf-8'))
+      const resumePath = stateService.sessionStatePath(sessionId, 'resume-message.json')
+      const resumeContent = stateService.getStored(resumePath) as Record<string, unknown>
       expect(resumeContent.resume_last_goal_message).toBe('Ready to continue?')
     })
 
     it('does not regenerate resume message when resume exists and no pivot', async () => {
       const sessionId = 'test-session-5b'
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-      await fs.mkdir(stateDir, { recursive: true })
 
       // Pre-create existing summary with SAME values (so no snarky message triggered)
-      await fs.writeFile(
-        path.join(stateDir, 'session-summary.json'),
-        JSON.stringify({
-          session_id: sessionId,
-          session_title: 'Continuing work',
-          session_title_confidence: 0.8,
-          latest_intent: 'Same task',
-          latest_intent_confidence: 0.8,
-        })
-      )
+      stateService.setStored(stateService.sessionStatePath(sessionId, 'session-summary.json'), {
+        session_id: sessionId,
+        session_title: 'Continuing work',
+        session_title_confidence: 0.8,
+        latest_intent: 'Same task',
+        latest_intent_confidence: 0.8,
+        timestamp: new Date().toISOString(),
+      })
 
-      // Pre-create resume file
-      await fs.writeFile(
-        path.join(stateDir, 'resume-message.json'),
-        JSON.stringify({
-          resume_last_goal_message: 'Original resume',
-          snarky_comment: 'Original snarky',
-          timestamp: new Date().toISOString(),
-        })
-      )
+      // Pre-create resume file (include all required schema fields)
+      stateService.setStored(stateService.sessionStatePath(sessionId, 'resume-message.json'), {
+        last_task_id: null,
+        session_title: 'Continuing work',
+        resume_last_goal_message: 'Original resume',
+        snarky_comment: 'Original snarky',
+        timestamp: new Date().toISOString(),
+      })
 
       llm.queueResponse(
         JSON.stringify({
@@ -575,27 +560,23 @@ describe('Session Summary Side-Effects', () => {
       expect(llm.recordedRequests).toHaveLength(1)
 
       // Resume file should still have original content
-      const resumePath = path.join(stateDir, 'resume-message.json')
-      const resumeContent = JSON.parse(await fs.readFile(resumePath, 'utf-8'))
+      const resumePath = stateService.sessionStatePath(sessionId, 'resume-message.json')
+      const resumeContent = stateService.getStored(resumePath) as Record<string, unknown>
       expect(resumeContent.resume_last_goal_message).toBe('Original resume')
     })
 
     it('does not generate resume message when confidence is below threshold', async () => {
       const sessionId = 'test-session-6'
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-      await fs.mkdir(stateDir, { recursive: true })
 
       // Pre-create existing summary with SAME values (so no snarky message triggered)
-      await fs.writeFile(
-        path.join(stateDir, 'session-summary.json'),
-        JSON.stringify({
-          session_id: sessionId,
-          session_title: 'New Direction',
-          session_title_confidence: 0.5,
-          latest_intent: 'Exploring options',
-          latest_intent_confidence: 0.5,
-        })
-      )
+      stateService.setStored(stateService.sessionStatePath(sessionId, 'session-summary.json'), {
+        session_id: sessionId,
+        session_title: 'New Direction',
+        session_title_confidence: 0.5,
+        latest_intent: 'Exploring options',
+        latest_intent_confidence: 0.5,
+        timestamp: new Date().toISOString(),
+      })
 
       // Pivot detected but low confidence
       llm.queueResponse(
@@ -622,16 +603,14 @@ describe('Session Summary Side-Effects', () => {
       await fs.mkdir(stateDir, { recursive: true })
 
       // Write existing summary to trigger title change -> snarky message
-      await fs.writeFile(
-        path.join(stateDir, 'session-summary.json'),
-        JSON.stringify({
-          session_id: sessionId,
-          session_title: 'Old Title',
-          session_title_confidence: 0.8,
-          latest_intent: 'Old intent',
-          latest_intent_confidence: 0.8,
-        })
-      )
+      stateService.setStored(stateService.sessionStatePath(sessionId, 'session-summary.json'), {
+        session_id: sessionId,
+        session_title: 'Old Title',
+        session_title_confidence: 0.8,
+        latest_intent: 'Old intent',
+        latest_intent_confidence: 0.8,
+        timestamp: new Date().toISOString(),
+      })
 
       // Use MockLLMServiceWithErrors to inject actual error for snarky LLM call
       const llmWithErrors = new MockLLMServiceWithErrors()
@@ -641,6 +620,7 @@ describe('Session Summary Side-Effects', () => {
         llm: llmWithErrors,
         assets,
         transcript,
+        stateService,
         paths: {
           projectDir: tempDir,
           userConfigDir: path.join(tempDir, '.sidekick'),
@@ -664,8 +644,8 @@ describe('Session Summary Side-Effects', () => {
       await expect(updateSessionSummary(createUserPromptEvent(sessionId), ctxWithErrors)).resolves.not.toThrow()
 
       // Summary should still be updated
-      const summaryPath = path.join(stateDir, 'session-summary.json')
-      const summary = JSON.parse(await fs.readFile(summaryPath, 'utf-8'))
+      const summaryPath = stateService.sessionStatePath(sessionId, 'session-summary.json')
+      const summary = stateService.getStored(summaryPath) as Record<string, unknown>
       expect(summary.session_title).toBe('New Title')
 
       // Snarky file should NOT exist since LLM call failed

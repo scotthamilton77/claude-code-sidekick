@@ -10,11 +10,11 @@
 
 import type { TranscriptEvent } from '@sidekick/core'
 import { backupIfDevMode, logEvent, LogEvents } from '@sidekick/core'
-import type { DaemonContext, EventContext } from '@sidekick/types'
+import type { DaemonContext, EventContext, SummaryCountdownState } from '@sidekick/types'
+import { SessionSummaryStateSchema, SummaryCountdownStateSchema, ResumeMessageStateSchema } from '@sidekick/types'
 import fs from 'node:fs/promises'
-import path from 'node:path'
 import { z } from 'zod'
-import type { ResumeMessageState, SessionSummaryConfig, SessionSummaryState, SummaryCountdownState } from '../types.js'
+import type { ResumeMessageState, SessionSummaryConfig, SessionSummaryState } from '../types.js'
 import { DEFAULT_SESSION_SUMMARY_CONFIG, RESUME_MIN_CONFIDENCE } from '../types.js'
 
 const STATE_FILE = 'session-summary.json'
@@ -122,14 +122,10 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
 }
 
 async function loadCountdownState(ctx: DaemonContext, sessionId: string): Promise<SummaryCountdownState> {
-  try {
-    const stateDir = ctx.paths.projectConfigDir ?? ctx.paths.userConfigDir
-    const statePath = path.join(stateDir, 'sessions', sessionId, 'state', COUNTDOWN_FILE)
-    const content = await fs.readFile(statePath, 'utf-8')
-    return JSON.parse(content) as SummaryCountdownState
-  } catch {
-    return { countdown: 0, bookmark_line: 0 }
-  }
+  const statePath = ctx.stateService.sessionStatePath(sessionId, COUNTDOWN_FILE)
+  const defaultValue: SummaryCountdownState = { countdown: 0, bookmark_line: 0 }
+  const result = await ctx.stateService.read(statePath, SummaryCountdownStateSchema, defaultValue)
+  return result.data
 }
 
 /**
@@ -138,10 +134,10 @@ async function loadCountdownState(ctx: DaemonContext, sessionId: string): Promis
  * @see docs/design/FEATURE-RESUME.md §3.2
  */
 async function resumeMessageExists(ctx: DaemonContext, sessionId: string): Promise<boolean> {
+  const resumePath = ctx.stateService.sessionStatePath(sessionId, RESUME_FILE)
   try {
-    const stateDir = ctx.paths.projectConfigDir ?? ctx.paths.userConfigDir
-    const resumePath = path.join(stateDir, 'sessions', sessionId, 'state', RESUME_FILE)
-    await fs.access(resumePath)
+    // read() without default throws StateNotFoundError if missing
+    await ctx.stateService.read(resumePath, ResumeMessageStateSchema)
     return true
   } catch {
     return false
@@ -149,10 +145,8 @@ async function resumeMessageExists(ctx: DaemonContext, sessionId: string): Promi
 }
 
 async function saveCountdownState(ctx: DaemonContext, sessionId: string, state: SummaryCountdownState): Promise<void> {
-  const stateDir = ctx.paths.projectConfigDir ?? ctx.paths.userConfigDir
-  const statePath = path.join(stateDir, 'sessions', sessionId, 'state', COUNTDOWN_FILE)
-  await fs.mkdir(path.dirname(statePath), { recursive: true })
-  await fs.writeFile(statePath, JSON.stringify(state, null, 2), 'utf-8')
+  const statePath = ctx.stateService.sessionStatePath(sessionId, COUNTDOWN_FILE)
+  await ctx.stateService.write(statePath, state, SummaryCountdownStateSchema)
 }
 
 /**
@@ -387,22 +381,19 @@ async function performAnalysis(
 }
 
 async function loadCurrentSummary(ctx: DaemonContext, sessionId: string): Promise<SessionSummaryState | null> {
+  const statePath = ctx.stateService.sessionStatePath(sessionId, STATE_FILE)
   try {
-    const stateDir = ctx.paths.projectConfigDir ?? ctx.paths.userConfigDir
-    const statePath = path.join(stateDir, 'sessions', sessionId, 'state', STATE_FILE)
-    const content = await fs.readFile(statePath, 'utf-8')
-    return JSON.parse(content) as SessionSummaryState
+    // read() without default throws StateNotFoundError if missing
+    const result = await ctx.stateService.read(statePath, SessionSummaryStateSchema)
+    return result.data
   } catch {
     return null
   }
 }
 
 async function saveSummary(ctx: DaemonContext, sessionId: string, summary: SessionSummaryState): Promise<void> {
-  const stateDir = ctx.paths.projectConfigDir ?? ctx.paths.userConfigDir
-  const statePath = path.join(stateDir, 'sessions', sessionId, 'state', STATE_FILE)
-  await fs.mkdir(path.dirname(statePath), { recursive: true })
-  await backupIfDevMode(ctx.config.core.development.enabled, statePath, { logger: ctx.logger })
-  await fs.writeFile(statePath, JSON.stringify(summary, null, 2), 'utf-8')
+  const statePath = ctx.stateService.sessionStatePath(sessionId, STATE_FILE)
+  await ctx.stateService.write(statePath, summary, SessionSummaryStateSchema)
 }
 
 /**
@@ -481,9 +472,8 @@ async function generateSnarkyMessage(
     // Strip surrounding quotes if they enclose the entire response
     const snarkyMessage = stripSurroundingQuotes(response.content.trim())
 
-    // Save to state file
-    const stateDir = ctx.paths.projectConfigDir ?? ctx.paths.userConfigDir
-    const snarkyPath = path.join(stateDir, 'sessions', sessionId, 'state', SNARKY_FILE)
+    // Save to state file (plain text, not JSON - use direct file write)
+    const snarkyPath = ctx.stateService.sessionStatePath(sessionId, SNARKY_FILE)
     await backupIfDevMode(ctx.config.core.development.enabled, snarkyPath, { logger: ctx.logger })
     await fs.writeFile(snarkyPath, snarkyMessage, 'utf-8')
 
@@ -611,11 +601,8 @@ async function generateResumeMessage(
     }
 
     // Save to state file
-    const stateDir = ctx.paths.projectConfigDir ?? ctx.paths.userConfigDir
-    const resumePath = path.join(stateDir, 'sessions', sessionId, 'state', RESUME_FILE)
-    await fs.mkdir(path.dirname(resumePath), { recursive: true })
-    await backupIfDevMode(ctx.config.core.development.enabled, resumePath, { logger: ctx.logger })
-    await fs.writeFile(resumePath, JSON.stringify(resumeState, null, 2), 'utf-8')
+    const resumePath = ctx.stateService.sessionStatePath(sessionId, RESUME_FILE)
+    await ctx.stateService.write(resumePath, resumeState, ResumeMessageStateSchema)
 
     // Log resume updated event
     logEvent(

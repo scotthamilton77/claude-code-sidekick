@@ -19,6 +19,7 @@ import {
   MockLLMService,
   MockAssetResolver,
   MockTranscriptService,
+  MockStateService,
 } from '@sidekick/testing-fixtures'
 import type { DaemonContext, LLMRequest, LLMResponse } from '@sidekick/types'
 import { updateSessionSummary } from '../handlers/update-summary'
@@ -91,6 +92,7 @@ describe('Session Summary Error Handling', () => {
   let llm: MockLLMServiceWithErrors
   let assets: MockAssetResolver
   let transcript: MockTranscriptService
+  let stateService: MockStateService
   let tempDir: string
 
   beforeEach(async () => {
@@ -100,8 +102,11 @@ describe('Session Summary Error Handling', () => {
     assets = new MockAssetResolver()
     transcript = new MockTranscriptService()
 
-    // Create temp directory for state files
+    // Create temp directory for plain text files (snarky-message.txt)
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sidekick-test-'))
+
+    // Use tempDir as projectRoot so sessionStatePath returns paths in tempDir
+    stateService = new MockStateService(tempDir)
 
     ctx = createMockDaemonContext({
       logger,
@@ -109,6 +114,7 @@ describe('Session Summary Error Handling', () => {
       llm,
       assets,
       transcript,
+      stateService,
       paths: {
         projectDir: tempDir,
         userConfigDir: path.join(tempDir, '.sidekick'),
@@ -160,9 +166,8 @@ describe('Session Summary Error Handling', () => {
       expect(llm.recordedRequests).toHaveLength(0)
 
       // Verify no state file was written
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-      const statePath = path.join(stateDir, 'session-summary.json')
-      await expect(fs.access(statePath)).rejects.toThrow()
+      const statePath = stateService.sessionStatePath(sessionId, 'session-summary.json')
+      expect(stateService.has(statePath)).toBe(false)
     })
   })
 
@@ -186,9 +191,8 @@ describe('Session Summary Error Handling', () => {
       expect(warnLogs.some((log) => log.msg === 'Failed to parse LLM response')).toBe(true)
 
       // Verify fallback values were used in state file
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-      const statePath = path.join(stateDir, 'session-summary.json')
-      const stateContent = JSON.parse(await fs.readFile(statePath, 'utf-8'))
+      const statePath = stateService.sessionStatePath(sessionId, 'session-summary.json')
+      const stateContent = stateService.getStored(statePath) as Record<string, unknown>
 
       expect(stateContent.session_title).toBe('Analysis pending...')
       expect(stateContent.session_title_confidence).toBe(0)
@@ -219,9 +223,8 @@ describe('Session Summary Error Handling', () => {
       expect(warnLogs.some((log) => log.msg === 'Failed to parse LLM response')).toBe(true)
 
       // Verify fallback values were used
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-      const statePath = path.join(stateDir, 'session-summary.json')
-      const stateContent = JSON.parse(await fs.readFile(statePath, 'utf-8'))
+      const statePath = stateService.sessionStatePath(sessionId, 'session-summary.json')
+      const stateContent = stateService.getStored(statePath) as Record<string, unknown>
 
       expect(stateContent.session_title).toBe('Analysis pending...')
     })
@@ -230,30 +233,27 @@ describe('Session Summary Error Handling', () => {
   describe('Prompt Interpolation', () => {
     it('interpolates transcript, previousAnalysis, and previousConfidence into prompt', async () => {
       const sessionId = 'test-prompt-interpolation'
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-      await fs.mkdir(stateDir, { recursive: true })
 
       // Write existing summary to provide previousAnalysis
-      await fs.writeFile(
-        path.join(stateDir, 'session-summary.json'),
-        JSON.stringify({
-          session_id: sessionId,
-          session_title: 'Previous Task',
-          session_title_confidence: 0.75,
-          latest_intent: 'Previous goal',
-          latest_intent_confidence: 0.8,
-        })
-      )
+      const summaryPath = stateService.sessionStatePath(sessionId, 'session-summary.json')
+      stateService.setStored(summaryPath, {
+        session_id: sessionId,
+        session_title: 'Previous Task',
+        session_title_confidence: 0.75,
+        latest_intent: 'Previous goal',
+        latest_intent_confidence: 0.8,
+        timestamp: new Date().toISOString(),
+      })
 
       // Pre-create resume file so resume generation doesn't trigger
-      await fs.writeFile(
-        path.join(stateDir, 'resume-message.json'),
-        JSON.stringify({
-          resume_last_goal_message: 'Resume',
-          snarky_comment: 'Snarky',
-          timestamp: new Date().toISOString(),
-        })
-      )
+      const resumePath = stateService.sessionStatePath(sessionId, 'resume-message.json')
+      stateService.setStored(resumePath, {
+        last_task_id: null,
+        session_title: 'Previous Task',
+        resume_last_goal_message: 'Resume',
+        snarky_comment: 'Snarky',
+        timestamp: new Date().toISOString(),
+      })
 
       // Use a prompt template with all three variables
       assets.register(
@@ -295,30 +295,27 @@ describe('Session Summary Error Handling', () => {
   describe('JSON Extraction from Markdown Code Blocks', () => {
     it('extracts and parses JSON from ```json code block', async () => {
       const sessionId = 'test-session-markdown-json'
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-      await fs.mkdir(stateDir, { recursive: true })
 
       // Pre-create existing summary with SAME values (so no snarky message triggered)
-      await fs.writeFile(
-        path.join(stateDir, 'session-summary.json'),
-        JSON.stringify({
-          session_id: sessionId,
-          session_title: 'Bug Fixing Session',
-          session_title_confidence: 0.85,
-          latest_intent: 'Debugging authentication',
-          latest_intent_confidence: 0.8,
-        })
-      )
+      const summaryPath = stateService.sessionStatePath(sessionId, 'session-summary.json')
+      stateService.setStored(summaryPath, {
+        session_id: sessionId,
+        session_title: 'Bug Fixing Session',
+        session_title_confidence: 0.85,
+        latest_intent: 'Debugging authentication',
+        latest_intent_confidence: 0.8,
+        timestamp: new Date().toISOString(),
+      })
 
       // Pre-create resume file so resume generation doesn't trigger
-      await fs.writeFile(
-        path.join(stateDir, 'resume-message.json'),
-        JSON.stringify({
-          resume_last_goal_message: 'Existing resume',
-          snarky_comment: 'Existing snarky',
-          timestamp: new Date().toISOString(),
-        })
-      )
+      const resumePath = stateService.sessionStatePath(sessionId, 'resume-message.json')
+      stateService.setStored(resumePath, {
+        last_task_id: null,
+        session_title: 'Bug Fixing Session',
+        resume_last_goal_message: 'Existing resume',
+        snarky_comment: 'Existing snarky',
+        timestamp: new Date().toISOString(),
+      })
 
       assets.register(
         'prompts/session-summary.prompt.txt',
@@ -343,8 +340,7 @@ describe('Session Summary Error Handling', () => {
       expect(warnLogs).toHaveLength(0)
 
       // Verify correct values were extracted and saved
-      const statePath = path.join(stateDir, 'session-summary.json')
-      const stateContent = JSON.parse(await fs.readFile(statePath, 'utf-8'))
+      const stateContent = stateService.getStored(summaryPath) as Record<string, unknown>
 
       expect(stateContent.session_title).toBe('Bug Fixing Session')
       expect(stateContent.session_title_confidence).toBe(0.85)
@@ -373,9 +369,8 @@ describe('Session Summary Error Handling', () => {
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
 
       // Verify correct parsing
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-      const statePath = path.join(stateDir, 'session-summary.json')
-      const stateContent = JSON.parse(await fs.readFile(statePath, 'utf-8'))
+      const statePath = stateService.sessionStatePath(sessionId, 'session-summary.json')
+      const stateContent = stateService.getStored(statePath) as Record<string, unknown>
 
       expect(stateContent.session_title).toBe('Code Review')
       expect(stateContent.session_title_confidence).toBe(0.9)
@@ -402,9 +397,8 @@ describe('Session Summary Error Handling', () => {
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
 
       // Verify correct parsing despite extra whitespace
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-      const statePath = path.join(stateDir, 'session-summary.json')
-      const stateContent = JSON.parse(await fs.readFile(statePath, 'utf-8'))
+      const statePath = stateService.sessionStatePath(sessionId, 'session-summary.json')
+      const stateContent = stateService.getStored(statePath) as Record<string, unknown>
 
       expect(stateContent.session_title).toBe('Refactoring')
     })
@@ -413,20 +407,17 @@ describe('Session Summary Error Handling', () => {
   describe('Snarky Message Error Handling', () => {
     it('logs warning and continues when snarky prompt template is missing', async () => {
       const sessionId = 'test-session-no-snarky-prompt'
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-      await fs.mkdir(stateDir, { recursive: true })
 
       // Write existing summary to trigger title change
-      await fs.writeFile(
-        path.join(stateDir, 'session-summary.json'),
-        JSON.stringify({
-          session_id: sessionId,
-          session_title: 'Old Title',
-          session_title_confidence: 0.8,
-          latest_intent: 'Old intent',
-          latest_intent_confidence: 0.8,
-        })
-      )
+      const summaryPath = stateService.sessionStatePath(sessionId, 'session-summary.json')
+      stateService.setStored(summaryPath, {
+        session_id: sessionId,
+        session_title: 'Old Title',
+        session_title_confidence: 0.8,
+        latest_intent: 'Old intent',
+        latest_intent_confidence: 0.8,
+        timestamp: new Date().toISOString(),
+      })
 
       // Register main prompt but NOT snarky prompt
       assets.register(
@@ -452,31 +443,27 @@ describe('Session Summary Error Handling', () => {
       expect(warnLogs.some((log) => log.msg === 'Snarky message prompt not found')).toBe(true)
 
       // Verify main summary was still updated (flow continued)
-      const summaryPath = path.join(stateDir, 'session-summary.json')
-      const summaryContent = JSON.parse(await fs.readFile(summaryPath, 'utf-8'))
+      const summaryContent = stateService.getStored(summaryPath) as Record<string, unknown>
       expect(summaryContent.session_title).toBe('New Title')
 
-      // Verify snarky message file was not created
-      const snarkyPath = path.join(stateDir, 'snarky-message.txt')
+      // Verify snarky message file was not created (plain text, uses fs)
+      const snarkyPath = stateService.sessionStatePath(sessionId, 'snarky-message.txt')
       await expect(fs.access(snarkyPath)).rejects.toThrow()
     })
 
     it('logs warning and continues when snarky LLM call fails', async () => {
       const sessionId = 'test-session-snarky-llm-error'
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-      await fs.mkdir(stateDir, { recursive: true })
 
       // Write existing summary to trigger title change
-      await fs.writeFile(
-        path.join(stateDir, 'session-summary.json'),
-        JSON.stringify({
-          session_id: sessionId,
-          session_title: 'Old Title',
-          session_title_confidence: 0.8,
-          latest_intent: 'Old intent',
-          latest_intent_confidence: 0.8,
-        })
-      )
+      const summaryPath = stateService.sessionStatePath(sessionId, 'session-summary.json')
+      stateService.setStored(summaryPath, {
+        session_id: sessionId,
+        session_title: 'Old Title',
+        session_title_confidence: 0.8,
+        latest_intent: 'Old intent',
+        latest_intent_confidence: 0.8,
+        timestamp: new Date().toISOString(),
+      })
 
       // Register all prompts
       assets.register(
@@ -506,8 +493,7 @@ describe('Session Summary Error Handling', () => {
       expect(warnLogs.some((log) => log.msg === 'Failed to generate snarky message')).toBe(true)
 
       // Verify main summary was still updated
-      const summaryPath = path.join(stateDir, 'session-summary.json')
-      const summaryContent = JSON.parse(await fs.readFile(summaryPath, 'utf-8'))
+      const summaryContent = stateService.getStored(summaryPath) as Record<string, unknown>
       expect(summaryContent.session_title).toBe('New Title')
     })
   })
@@ -540,15 +526,14 @@ describe('Session Summary Error Handling', () => {
       expect(warnLogs.some((log) => log.msg === 'Resume message prompt not found')).toBe(true)
 
       // Verify main summary was still updated
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-      const summaryPath = path.join(stateDir, 'session-summary.json')
-      const summaryContent = JSON.parse(await fs.readFile(summaryPath, 'utf-8'))
+      const summaryPath = stateService.sessionStatePath(sessionId, 'session-summary.json')
+      const summaryContent = stateService.getStored(summaryPath) as Record<string, unknown>
       expect(summaryContent.session_title).toBe('New Direction')
       expect(summaryContent.pivot_detected).toBe(true)
 
       // Verify resume file was not created
-      const resumePath = path.join(stateDir, 'resume-message.json')
-      await expect(fs.access(resumePath)).rejects.toThrow()
+      const resumePath = stateService.sessionStatePath(sessionId, 'resume-message.json')
+      expect(stateService.has(resumePath)).toBe(false)
     })
 
     it('logs warning when resume message response is unparseable', async () => {
@@ -583,14 +568,13 @@ describe('Session Summary Error Handling', () => {
       expect(warnLogs.some((log) => log.msg === 'Failed to parse resume message response')).toBe(true)
 
       // Verify main summary was still updated
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-      const summaryPath = path.join(stateDir, 'session-summary.json')
-      const summaryContent = JSON.parse(await fs.readFile(summaryPath, 'utf-8'))
+      const summaryPath = stateService.sessionStatePath(sessionId, 'session-summary.json')
+      const summaryContent = stateService.getStored(summaryPath) as Record<string, unknown>
       expect(summaryContent.session_title).toBe('New Project')
 
       // Verify resume file was not created due to parse failure
-      const resumePath = path.join(stateDir, 'resume-message.json')
-      await expect(fs.access(resumePath)).rejects.toThrow()
+      const resumePath = stateService.sessionStatePath(sessionId, 'resume-message.json')
+      expect(stateService.has(resumePath)).toBe(false)
     })
 
     it('extracts resume message JSON from markdown code block', async () => {
@@ -626,9 +610,8 @@ describe('Session Summary Error Handling', () => {
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
 
       // Verify resume message was extracted and saved
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-      const resumePath = path.join(stateDir, 'resume-message.json')
-      const resumeContent = JSON.parse(await fs.readFile(resumePath, 'utf-8'))
+      const resumePath = stateService.sessionStatePath(sessionId, 'resume-message.json')
+      const resumeContent = stateService.getStored(resumePath) as Record<string, unknown>
 
       expect(resumeContent.resume_last_goal_message).toBe('Ready to continue the refactoring?')
       expect(resumeContent.snarky_comment).toBe('Back from lunch break?')
@@ -667,14 +650,13 @@ describe('Session Summary Error Handling', () => {
       expect(warnLogs.some((log) => log.msg === 'Failed to generate resume message')).toBe(true)
 
       // Verify main summary was still updated
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-      const summaryPath = path.join(stateDir, 'session-summary.json')
-      const summaryContent = JSON.parse(await fs.readFile(summaryPath, 'utf-8'))
+      const summaryPath = stateService.sessionStatePath(sessionId, 'session-summary.json')
+      const summaryContent = stateService.getStored(summaryPath) as Record<string, unknown>
       expect(summaryContent.session_title).toBe('New Feature')
 
       // Verify resume file was not created
-      const resumePath = path.join(stateDir, 'resume-message.json')
-      await expect(fs.access(resumePath)).rejects.toThrow()
+      const resumePath = stateService.sessionStatePath(sessionId, 'resume-message.json')
+      expect(stateService.has(resumePath)).toBe(false)
     })
   })
 
@@ -698,9 +680,8 @@ describe('Session Summary Error Handling', () => {
       expect(errorLogs.some((log) => log.msg === 'LLM call failed')).toBe(true)
 
       // Verify fallback values were used and state was still written
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-      const statePath = path.join(stateDir, 'session-summary.json')
-      const stateContent = JSON.parse(await fs.readFile(statePath, 'utf-8'))
+      const statePath = stateService.sessionStatePath(sessionId, 'session-summary.json')
+      const stateContent = stateService.getStored(statePath) as Record<string, unknown>
 
       expect(stateContent.session_title).toBe('Analysis pending...')
       expect(stateContent.session_title_confidence).toBe(0)
@@ -710,20 +691,17 @@ describe('Session Summary Error Handling', () => {
 
     it('preserves previous values when main LLM call fails with existing state', async () => {
       const sessionId = 'test-session-preserve-on-error'
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-      await fs.mkdir(stateDir, { recursive: true })
 
       // Write existing summary
-      await fs.writeFile(
-        path.join(stateDir, 'session-summary.json'),
-        JSON.stringify({
-          session_id: sessionId,
-          session_title: 'Previous Title',
-          session_title_confidence: 0.8,
-          latest_intent: 'Previous Intent',
-          latest_intent_confidence: 0.75,
-        })
-      )
+      const summaryPath = stateService.sessionStatePath(sessionId, 'session-summary.json')
+      stateService.setStored(summaryPath, {
+        session_id: sessionId,
+        session_title: 'Previous Title',
+        session_title_confidence: 0.8,
+        latest_intent: 'Previous Intent',
+        latest_intent_confidence: 0.75,
+        timestamp: new Date().toISOString(),
+      })
 
       // Register prompt template
       assets.register(
@@ -737,8 +715,7 @@ describe('Session Summary Error Handling', () => {
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
 
       // Verify previous values were preserved as fallback
-      const statePath = path.join(stateDir, 'session-summary.json')
-      const stateContent = JSON.parse(await fs.readFile(statePath, 'utf-8'))
+      const stateContent = stateService.getStored(summaryPath) as Record<string, unknown>
 
       expect(stateContent.session_title).toBe('Previous Title')
       expect(stateContent.session_title_confidence).toBe(0.8)
@@ -750,20 +727,17 @@ describe('Session Summary Error Handling', () => {
   describe('Multiple Side-Effect Failures', () => {
     it('handles both snarky and resume failures gracefully', async () => {
       const sessionId = 'test-session-multiple-side-effects'
-      const stateDir = path.join(tempDir, '.sidekick', 'sessions', sessionId, 'state')
-      await fs.mkdir(stateDir, { recursive: true })
 
       // Write existing summary to trigger title change
-      await fs.writeFile(
-        path.join(stateDir, 'session-summary.json'),
-        JSON.stringify({
-          session_id: sessionId,
-          session_title: 'Old Title',
-          session_title_confidence: 0.8,
-          latest_intent: 'Old intent',
-          latest_intent_confidence: 0.8,
-        })
-      )
+      const summaryPath = stateService.sessionStatePath(sessionId, 'session-summary.json')
+      stateService.setStored(summaryPath, {
+        session_id: sessionId,
+        session_title: 'Old Title',
+        session_title_confidence: 0.8,
+        latest_intent: 'Old intent',
+        latest_intent_confidence: 0.8,
+        timestamp: new Date().toISOString(),
+      })
 
       // Register all prompts
       assets.register(
@@ -796,16 +770,15 @@ describe('Session Summary Error Handling', () => {
       expect(warnLogs.some((log) => log.msg === 'Failed to generate resume message')).toBe(true)
 
       // Verify main summary was still updated correctly
-      const summaryPath = path.join(stateDir, 'session-summary.json')
-      const summaryContent = JSON.parse(await fs.readFile(summaryPath, 'utf-8'))
+      const summaryContent = stateService.getStored(summaryPath) as Record<string, unknown>
       expect(summaryContent.session_title).toBe('New Title')
       expect(summaryContent.pivot_detected).toBe(true)
 
       // Verify no side-effect files were created
-      const snarkyPath = path.join(stateDir, 'snarky-message.txt')
-      const resumePath = path.join(stateDir, 'resume-message.json')
+      const snarkyPath = stateService.sessionStatePath(sessionId, 'snarky-message.txt')
+      const resumePath = stateService.sessionStatePath(sessionId, 'resume-message.json')
       await expect(fs.access(snarkyPath)).rejects.toThrow()
-      await expect(fs.access(resumePath)).rejects.toThrow()
+      expect(stateService.has(resumePath)).toBe(false)
     })
   })
 })

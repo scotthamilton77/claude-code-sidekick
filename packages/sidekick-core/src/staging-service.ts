@@ -19,12 +19,13 @@
  * @see docs/design/FEATURE-REMINDERS.md §3.3 Data Models
  */
 
-import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
-import { readFile, writeFile, rename, rm, unlink, mkdir } from 'node:fs/promises'
+import { existsSync, readdirSync } from 'node:fs'
+import { readFile, rm, mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { randomBytes } from 'node:crypto'
-import type { StagingService, StagedReminder, Logger } from '@sidekick/types'
+import type { StagingService, StagedReminder, Logger, MinimalStateService } from '@sidekick/types'
+import { StagedReminderSchema } from '@sidekick/types'
 import { LogEvents, logEvent } from './structured-logging'
+import { StateNotFoundError } from './state/errors.js'
 
 // ============================================================================
 // Types
@@ -40,6 +41,8 @@ export interface StagingServiceCoreOptions {
   logger: Logger
   /** Optional scope for logging context */
   scope?: 'project' | 'user'
+  /** StateService for atomic writes with schema validation */
+  stateService: MinimalStateService
 }
 
 /**
@@ -59,13 +62,6 @@ function validatePathSegment(segment: string, name: string): void {
   if (segment.startsWith('.')) {
     throw new Error(`Invalid ${name}: cannot start with '.'`)
   }
-}
-
-/**
- * Generate a random suffix for temp files.
- */
-function generateTempSuffix(): string {
-  return randomBytes(8).toString('hex')
 }
 
 // ============================================================================
@@ -102,20 +98,11 @@ export class StagingServiceCore {
   }
 
   /**
-   * Ensure a directory exists (async).
+   * Ensure a directory exists.
    */
   private async ensureDir(dir: string): Promise<void> {
     if (!existsSync(dir)) {
       await mkdir(dir, { recursive: true })
-    }
-  }
-
-  /**
-   * Ensure a directory exists (sync).
-   */
-  private ensureDirSync(dir: string): void {
-    if (!existsSync(dir)) {
-      mkdirSync(dir, { recursive: true })
     }
   }
 
@@ -139,22 +126,8 @@ export class StagingServiceCore {
     // Ensure directory exists
     await this.ensureDir(hookDir)
 
-    // Write atomically: temp file + rename with cleanup on failure
-    const tempPath = `${reminderPath}.${generateTempSuffix()}.tmp`
-    const content = JSON.stringify(data, null, 2)
-
-    await writeFile(tempPath, content, 'utf-8')
-    try {
-      await rename(tempPath, reminderPath)
-    } catch (err) {
-      // Clean up orphaned temp file
-      try {
-        await unlink(tempPath)
-      } catch {
-        // Ignore cleanup failure
-      }
-      throw err
-    }
+    // Atomic write with schema validation
+    await this.options.stateService.write(reminderPath, data, StagedReminderSchema)
 
     // Log ReminderStaged event
     const event = LogEvents.reminderStaged(
@@ -187,14 +160,13 @@ export class StagingServiceCore {
 
     const reminderPath = join(this.getHookDir(sessionId, hookName), `${reminderName}.json`)
 
-    if (!existsSync(reminderPath)) {
-      return null
-    }
-
     try {
-      const content = await readFile(reminderPath, 'utf-8')
-      return JSON.parse(content) as StagedReminder
+      const result = await this.options.stateService.read(reminderPath, StagedReminderSchema)
+      return result.data
     } catch (err) {
+      if (err instanceof StateNotFoundError) {
+        return null
+      }
       this.options.logger.warn('Failed to read staged reminder', {
         hookName,
         reminderName,
@@ -275,9 +247,7 @@ export class StagingServiceCore {
     validatePathSegment(reminderName, 'reminderName')
 
     const reminderPath = join(this.getHookDir(sessionId, hookName), `${reminderName}.json`)
-    if (existsSync(reminderPath)) {
-      await unlink(reminderPath)
-    }
+    await this.options.stateService.delete(reminderPath)
   }
 
   /**
@@ -331,97 +301,6 @@ export class StagingServiceCore {
     const consumed = await this.listConsumedReminders(sessionId, hookName, reminderName)
     return consumed.length > 0 ? consumed[0] : null
   }
-
-  // ============================================================================
-  // Synchronous API (for CLI usage where async is inconvenient)
-  // ============================================================================
-
-  /**
-   * Stage a reminder synchronously.
-   * Prefer the async version when possible.
-   *
-   * @throws Error if hookName or reminderName contain path traversal characters
-   */
-  stageReminderSync(sessionId: string, hookName: string, reminderName: string, data: StagedReminder): void {
-    validatePathSegment(hookName, 'hookName')
-    validatePathSegment(reminderName, 'reminderName')
-
-    const hookDir = this.getHookDir(sessionId, hookName)
-    const reminderPath = join(hookDir, `${reminderName}.json`)
-
-    // Ensure directory exists
-    this.ensureDirSync(hookDir)
-
-    // Write atomically with cleanup on failure
-    const tempPath = `${reminderPath}.${generateTempSuffix()}.tmp`
-    const content = JSON.stringify(data, null, 2)
-
-    writeFileSync(tempPath, content, 'utf-8')
-    try {
-      renameSync(tempPath, reminderPath)
-    } catch (err) {
-      // Clean up orphaned temp file
-      try {
-        unlinkSync(tempPath)
-      } catch {
-        // Ignore cleanup failure
-      }
-      throw err
-    }
-
-    // Log ReminderStaged event
-    const event = LogEvents.reminderStaged(
-      {
-        sessionId,
-        scope: this.options.scope,
-        hook: hookName,
-      },
-      {
-        reminderName: data.name,
-        hookName,
-        blocking: data.blocking,
-        priority: data.priority,
-        persistent: data.persistent,
-      },
-      { stagingPath: reminderPath }
-    )
-    logEvent(this.options.logger, event)
-  }
-
-  /**
-   * Clear staging synchronously.
-   *
-   * @throws Error if hookName contains path traversal characters
-   */
-  clearStagingSync(sessionId: string, hookName?: string): void {
-    if (hookName) {
-      validatePathSegment(hookName, 'hookName')
-      const hookDir = this.getHookDir(sessionId, hookName)
-      if (existsSync(hookDir)) {
-        rmSync(hookDir, { recursive: true })
-      }
-    } else {
-      const stagingRoot = this.getStagingRoot(sessionId)
-      if (existsSync(stagingRoot)) {
-        rmSync(stagingRoot, { recursive: true })
-      }
-    }
-  }
-
-  /**
-   * Delete a reminder synchronously.
-   *
-   * @throws Error if hookName or reminderName contain path traversal characters
-   */
-  deleteReminderSync(sessionId: string, hookName: string, reminderName: string): void {
-    validatePathSegment(hookName, 'hookName')
-    validatePathSegment(reminderName, 'reminderName')
-
-    const reminderPath = join(this.getHookDir(sessionId, hookName), `${reminderName}.json`)
-    if (existsSync(reminderPath)) {
-      unlinkSync(reminderPath)
-    }
-  }
 }
 
 // ============================================================================
@@ -473,22 +352,6 @@ export class SessionScopedStagingService implements StagingService {
 
   async getLastConsumed(hookName: string, reminderName: string): Promise<StagedReminder | null> {
     return this.core.getLastConsumed(this.sessionId, hookName, reminderName)
-  }
-
-  // ============================================================================
-  // Synchronous API (extends StagingService for convenience)
-  // ============================================================================
-
-  stageReminderSync(hookName: string, reminderName: string, data: StagedReminder): void {
-    return this.core.stageReminderSync(this.sessionId, hookName, reminderName, data)
-  }
-
-  clearStagingSync(hookName?: string): void {
-    return this.core.clearStagingSync(this.sessionId, hookName)
-  }
-
-  deleteReminderSync(hookName: string, reminderName: string): void {
-    return this.core.deleteReminderSync(this.sessionId, hookName, reminderName)
   }
 
   // ============================================================================

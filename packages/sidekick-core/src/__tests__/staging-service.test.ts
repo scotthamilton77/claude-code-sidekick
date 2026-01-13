@@ -16,6 +16,7 @@ import { randomBytes } from 'node:crypto'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import type { StagedReminder, Logger } from '@sidekick/types'
 import { StagingServiceCore, SessionScopedStagingService, type StagingServiceCoreOptions } from '../staging-service'
+import { StateService } from '../state/state-service'
 
 // ============================================================================
 // Test Utilities
@@ -52,22 +53,35 @@ function createTestReminder(overrides: Partial<StagedReminder> = {}): StagedRemi
   }
 }
 
+function createStateService(testDir: string, logger: Logger): StateService {
+  return new StateService(testDir, {
+    logger,
+    cache: false, // Tests don't need caching
+  })
+}
+
 function createService(
   testDir: string,
   overrides: Partial<StagingServiceCoreOptions> = {}
 ): SessionScopedStagingService {
+  const logger = overrides.logger ?? createMockLogger()
+  const stateService = overrides.stateService ?? createStateService(testDir, logger)
   const core = new StagingServiceCore({
     stateDir: testDir,
-    logger: overrides.logger ?? createMockLogger(),
+    logger,
     scope: overrides.scope ?? 'project',
+    stateService,
   })
   return new SessionScopedStagingService(core, 'test-session-123', overrides.scope ?? 'project')
 }
 
 function createCore(testDir: string, overrides: Partial<StagingServiceCoreOptions> = {}): StagingServiceCore {
+  const logger = overrides.logger ?? createMockLogger()
+  const stateService = overrides.stateService ?? createStateService(testDir, logger)
   return new StagingServiceCore({
     stateDir: testDir,
-    logger: createMockLogger(),
+    logger,
+    stateService,
     ...overrides,
   })
 }
@@ -358,50 +372,6 @@ describe('SessionScopedStagingService (via createService)', () => {
   })
 
   // ==========================================================================
-  // Synchronous API tests
-  // ==========================================================================
-
-  describe('synchronous API', () => {
-    it('stageReminderSync should work correctly', () => {
-      const service = createService(testDir)
-      const reminder = createTestReminder({ name: 'SyncReminder' })
-
-      service.stageReminderSync('PreToolUse', 'SyncReminder', reminder)
-
-      const reminderPath = join(testDir, 'sessions', 'test-session-123', 'stage', 'PreToolUse', 'SyncReminder.json')
-      expect(existsSync(reminderPath)).toBe(true)
-    })
-
-    it('clearStagingSync should clear specific hook', () => {
-      const service = createService(testDir)
-
-      service.stageReminderSync('PreToolUse', 'Reminder1', createTestReminder())
-      service.stageReminderSync('Stop', 'Reminder2', createTestReminder())
-
-      service.clearStagingSync('PreToolUse')
-
-      const preToolDir = join(testDir, 'sessions', 'test-session-123', 'stage', 'PreToolUse')
-      const stopDir = join(testDir, 'sessions', 'test-session-123', 'stage', 'Stop')
-      expect(existsSync(preToolDir)).toBe(false)
-      expect(existsSync(stopDir)).toBe(true)
-    })
-
-    it('deleteReminderSync should delete reminder', () => {
-      const service = createService(testDir)
-
-      service.stageReminderSync('PreToolUse', 'ToDelete', createTestReminder())
-      service.deleteReminderSync('PreToolUse', 'ToDelete')
-
-      const reminderPath = join(testDir, 'sessions', 'test-session-123', 'stage', 'PreToolUse', 'ToDelete.json')
-      expect(existsSync(reminderPath)).toBe(false)
-    })
-  })
-
-  // ==========================================================================
-  // Edge cases
-  // ==========================================================================
-
-  // ==========================================================================
   // Security tests - path traversal prevention
   // ==========================================================================
 
@@ -454,15 +424,6 @@ describe('SessionScopedStagingService (via createService)', () => {
       const reminder = createTestReminder()
 
       await expect(service.stageReminder('Hook\\Nested', 'Reminder', reminder)).rejects.toThrow(
-        'Invalid hookName: path traversal characters not allowed'
-      )
-    })
-
-    it('should reject path traversal in sync methods', () => {
-      const service = createService(testDir)
-      const reminder = createTestReminder()
-
-      expect(() => service.stageReminderSync('../escape', 'Reminder', reminder)).toThrow(
         'Invalid hookName: path traversal characters not allowed'
       )
     })
@@ -592,38 +553,6 @@ describe('StagingServiceCore', () => {
 
       const result = await core.readReminder('session-1', 'PreToolUse', 'ToDelete')
       expect(result).toBeNull()
-    })
-  })
-
-  describe('sync API', () => {
-    it('should stage and read reminders synchronously', () => {
-      const core = createCore(testDir)
-      const reminder = createTestReminder({ name: 'SyncCoreTest' })
-
-      core.stageReminderSync('session-1', 'PreToolUse', 'SyncCoreTest', reminder)
-
-      const reminderPath = join(testDir, 'sessions', 'session-1', 'stage', 'PreToolUse', 'SyncCoreTest.json')
-      expect(existsSync(reminderPath)).toBe(true)
-    })
-
-    it('should clear staging synchronously', () => {
-      const core = createCore(testDir)
-
-      core.stageReminderSync('session-1', 'PreToolUse', 'Reminder', createTestReminder())
-      core.clearStagingSync('session-1', 'PreToolUse')
-
-      const hookDir = join(testDir, 'sessions', 'session-1', 'stage', 'PreToolUse')
-      expect(existsSync(hookDir)).toBe(false)
-    })
-
-    it('should delete reminders synchronously', () => {
-      const core = createCore(testDir)
-
-      core.stageReminderSync('session-1', 'PreToolUse', 'ToDelete', createTestReminder())
-      core.deleteReminderSync('session-1', 'PreToolUse', 'ToDelete')
-
-      const reminderPath = join(testDir, 'sessions', 'session-1', 'stage', 'PreToolUse', 'ToDelete.json')
-      expect(existsSync(reminderPath)).toBe(false)
     })
   })
 
@@ -808,37 +737,6 @@ describe('SessionScopedStagingService', () => {
       const last = await wrapper.getLastConsumed('PreToolUse', 'Test')
 
       expect(last?.priority).toBe(99)
-    })
-  })
-
-  describe('sync API delegation', () => {
-    it('should delegate stageReminderSync to core', () => {
-      const wrapper = createSessionScoped(core, 'wrapped-session')
-
-      wrapper.stageReminderSync('PreToolUse', 'SyncTest', createTestReminder({ name: 'SyncTest' }))
-
-      const reminderPath = join(testDir, 'sessions', 'wrapped-session', 'stage', 'PreToolUse', 'SyncTest.json')
-      expect(existsSync(reminderPath)).toBe(true)
-    })
-
-    it('should delegate clearStagingSync to core', () => {
-      const wrapper = createSessionScoped(core, 'wrapped-session')
-
-      core.stageReminderSync('wrapped-session', 'PreToolUse', 'Reminder', createTestReminder())
-      wrapper.clearStagingSync('PreToolUse')
-
-      const hookDir = join(testDir, 'sessions', 'wrapped-session', 'stage', 'PreToolUse')
-      expect(existsSync(hookDir)).toBe(false)
-    })
-
-    it('should delegate deleteReminderSync to core', () => {
-      const wrapper = createSessionScoped(core, 'wrapped-session')
-
-      core.stageReminderSync('wrapped-session', 'PreToolUse', 'ToDelete', createTestReminder())
-      wrapper.deleteReminderSync('PreToolUse', 'ToDelete')
-
-      const reminderPath = join(testDir, 'sessions', 'wrapped-session', 'stage', 'PreToolUse', 'ToDelete.json')
-      expect(existsSync(reminderPath)).toBe(false)
     })
   })
 

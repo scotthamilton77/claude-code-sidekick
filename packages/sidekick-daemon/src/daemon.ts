@@ -36,7 +36,11 @@ import type {
   DaemonContext,
   RuntimePaths,
   ProfileProviderFactory as ProfileProviderFactoryInterface,
+  PRBaselineState,
+  VCUnverifiedState,
+  LogMetricsState,
 } from '@sidekick/types'
+import { PRBaselineStateSchema, VCUnverifiedStateSchema, LogMetricsStateSchema } from '@sidekick/types'
 import { ProfileProviderFactory, type LLMProvider } from '@sidekick/shared-providers'
 import { InstrumentedLLMProvider, InstrumentedProfileProviderFactory } from '@sidekick/core'
 import { randomBytes } from 'crypto'
@@ -627,16 +631,14 @@ export class Daemon {
     // Only update P&R baseline for verify-completion consumption
     // FIXME this should go into a feature controller handler instead of daemon directly.
     if (reminderName === 'verify-completion') {
-      const stateDir = path.join(this.projectDir, '.sidekick', 'sessions', sessionId, 'state')
-      await fs.mkdir(stateDir, { recursive: true })
-
-      const baseline = {
+      const baseline: PRBaselineState = {
         turnCount: metrics.turnCount,
         toolsThisTurn: metrics.toolsThisTurn,
         timestamp: Date.now(),
       }
 
-      await fs.writeFile(path.join(stateDir, 'pr-baseline.json'), JSON.stringify(baseline, null, 2))
+      const statePath = this.stateService.sessionStatePath(sessionId, 'pr-baseline.json')
+      await this.stateService.write(statePath, baseline, PRBaselineStateSchema)
 
       this.logger.debug('Updated P&R baseline after VC consumption', { sessionId, baseline })
     }
@@ -656,23 +658,20 @@ export class Daemon {
       throw new Error('vc-unverified.set requires sessionId, classification, and metrics')
     }
 
-    const stateDir = path.join(this.projectDir, '.sidekick', 'sessions', sessionId, 'state')
-    await fs.mkdir(stateDir, { recursive: true })
-
-    const statePath = path.join(stateDir, 'vc-unverified.json')
+    const statePath = this.stateService.sessionStatePath(sessionId, 'vc-unverified.json')
 
     // Read existing state to increment cycleCount
-    let existingCycleCount = 0
-    try {
-      const existing = await fs.readFile(statePath, 'utf-8')
-      const existingState = JSON.parse(existing) as { cycleCount?: number }
-      existingCycleCount = existingState.cycleCount ?? 0
-    } catch {
-      // File doesn't exist or parse failed - start at 0
+    const defaultState: VCUnverifiedState = {
+      hasUnverifiedChanges: false,
+      cycleCount: 0,
+      setAt: { timestamp: 0, turnCount: 0, toolsThisTurn: 0, toolCount: 0 },
+      lastClassification: { category: '', confidence: 0 },
     }
+    const existing = await this.stateService.read(statePath, VCUnverifiedStateSchema, defaultState)
+    const existingCycleCount = existing.data.cycleCount
 
     const newCycleCount = existingCycleCount + 1
-    const state = {
+    const state: VCUnverifiedState = {
       hasUnverifiedChanges: true,
       cycleCount: newCycleCount,
       setAt: {
@@ -684,7 +683,7 @@ export class Daemon {
       lastClassification: classification,
     }
 
-    await fs.writeFile(statePath, JSON.stringify(state, null, 2))
+    await this.stateService.write(statePath, state, VCUnverifiedStateSchema)
 
     this.logger.debug('Set VC unverified state', { sessionId, classification, cycleCount: newCycleCount })
   }
@@ -700,17 +699,9 @@ export class Daemon {
       throw new Error('vc-unverified.clear requires sessionId')
     }
 
-    const statePath = path.join(this.projectDir, '.sidekick', 'sessions', sessionId, 'state', 'vc-unverified.json')
-
-    try {
-      await fs.unlink(statePath)
-      this.logger.debug('Cleared VC unverified state', { sessionId })
-    } catch (err) {
-      // Ignore ENOENT - file may not exist
-      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-        throw err
-      }
-    }
+    const statePath = this.stateService.sessionStatePath(sessionId, 'vc-unverified.json')
+    await this.stateService.delete(statePath)
+    this.logger.debug('Cleared VC unverified state', { sessionId })
   }
 
   /**
@@ -1124,16 +1115,10 @@ export class Daemon {
     }
     log.debug('Cleared staged reminders on UserPromptSubmit', { hooks: hooksToClear })
 
-    // Build state directory path
-    const stateDir = path.join(this.projectDir, '.sidekick', 'sessions', sessionId, 'state')
-
     // Clear P&R baseline on new user prompt (new turn resets threshold)
-    try {
-      await fs.unlink(path.join(stateDir, 'pr-baseline.json'))
-      log.debug('Cleared P&R baseline on UserPromptSubmit')
-    } catch {
-      // File may not exist - ignore
-    }
+    const baselinePath = this.stateService.sessionStatePath(sessionId, 'pr-baseline.json')
+    await this.stateService.delete(baselinePath)
+    log.debug('Cleared P&R baseline on UserPromptSubmit')
   }
 
   /**
@@ -1321,22 +1306,26 @@ export class Daemon {
    * Used to restore counts after daemon restart mid-session.
    */
   private async loadExistingLogCounts(sessionId: string): Promise<{ warnings: number; errors: number }> {
-    const stateDir = path.join(this.projectDir, '.sidekick', 'sessions', sessionId, 'state')
-    const logMetricsPath = path.join(stateDir, 'daemon-log-metrics.json')
+    const logMetricsPath = this.stateService.sessionStatePath(sessionId, 'daemon-log-metrics.json')
 
-    try {
-      const content = await fs.readFile(logMetricsPath, 'utf-8')
-      const parsed = JSON.parse(content) as { warningCount?: number; errorCount?: number }
-      const existing = {
-        warnings: typeof parsed.warningCount === 'number' ? parsed.warningCount : 0,
-        errors: typeof parsed.errorCount === 'number' ? parsed.errorCount : 0,
-      }
-      this.logger.debug('Loaded existing daemon log counts', { sessionId, existing })
-      return existing
-    } catch {
-      // File doesn't exist or is invalid - start fresh (normal for new sessions)
-      return { warnings: 0, errors: 0 }
+    const defaultMetrics: LogMetricsState = {
+      sessionId,
+      warningCount: 0,
+      errorCount: 0,
+      lastUpdatedAt: 0,
     }
+
+    const result = await this.stateService.read(logMetricsPath, LogMetricsStateSchema, defaultMetrics)
+    const existing = {
+      warnings: result.data.warningCount,
+      errors: result.data.errorCount,
+    }
+
+    if (result.source !== 'default') {
+      this.logger.debug('Loaded existing daemon log counts', { sessionId, existing })
+    }
+
+    return existing
   }
 
   /**
@@ -1349,10 +1338,9 @@ export class Daemon {
 
     // Persist per-session log metrics
     for (const [sessionId, counts] of this.logCounters) {
-      const stateDir = path.join(this.projectDir, '.sidekick', 'sessions', sessionId, 'state')
-      const logMetricsPath = path.join(stateDir, 'daemon-log-metrics.json')
+      const logMetricsPath = this.stateService.sessionStatePath(sessionId, 'daemon-log-metrics.json')
 
-      const logMetrics = {
+      const logMetrics: LogMetricsState = {
         sessionId,
         warningCount: counts.warnings,
         errorCount: counts.errors,
@@ -1360,8 +1348,7 @@ export class Daemon {
       }
 
       try {
-        await fs.mkdir(stateDir, { recursive: true })
-        await fs.writeFile(logMetricsPath, JSON.stringify(logMetrics, null, 2))
+        await this.stateService.write(logMetricsPath, logMetrics, LogMetricsStateSchema)
       } catch (err) {
         // Log but don't crash - log metrics are non-critical
         this.logger.warn('Failed to persist log metrics', {
