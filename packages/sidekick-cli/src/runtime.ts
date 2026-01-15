@@ -33,12 +33,13 @@ import {
   getDefaultAssetsDir,
   resolveScope,
   setupGlobalErrorHandlers,
+  StateService,
   type LogLevel,
   type ScopeResolution,
   type ScopeResolutionInput,
 } from '@sidekick/core'
+import { LogMetricsStateSchema, type MinimalStateService } from '@sidekick/types'
 import { randomUUID } from 'node:crypto'
-import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { Writable } from 'node:stream'
@@ -59,6 +60,7 @@ export interface RuntimeShell {
   scope: ScopeResolution
   config: ConfigService
   assets: AssetResolver
+  stateService: MinimalStateService
   correlationId: string
   cleanup: () => void
   /**
@@ -82,7 +84,7 @@ export interface RuntimeShell {
    * Adds existing counts to the current counters for cross-invocation accumulation.
    * Called after bindSessionId when project root is available.
    */
-  loadExistingLogCounts: (sessionId: string, projectRoot: string) => Promise<void>
+  loadExistingLogCounts: (sessionId: string) => Promise<void>
 }
 
 function getLogFilePath(scope: ScopeResolution): string {
@@ -215,6 +217,11 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
     telemetry.increment('dual_install_detected', { scope: scope.scope })
   }
 
+  // Create StateService for CLI state operations
+  // Use projectRoot if available, otherwise fall back to user home
+  const stateRoot = scope.projectRoot ?? join(homedir(), '.claude')
+  const stateService = new StateService(stateRoot, { logger })
+
   // Return the runtime shell
   // Use getter for logger so bindSessionId updates are reflected
   return {
@@ -225,6 +232,7 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
     scope,
     config,
     assets,
+    stateService,
     correlationId,
     cleanup: () => {
       cleanupErrorHandlers()
@@ -259,22 +267,24 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
     resetLogCounts: () => {
       logCounters = { warnings: 0, errors: 0 }
     },
-    loadExistingLogCounts: async (sessionId: string, projectRoot: string) => {
-      const logMetricsPath = join(projectRoot, '.sidekick', 'sessions', sessionId, 'state', 'cli-log-metrics.json')
+    loadExistingLogCounts: async (sessionId: string) => {
+      const logMetricsPath = stateService.sessionStatePath(sessionId, 'cli-log-metrics.json')
       try {
-        const content = await readFile(logMetricsPath, 'utf-8')
-        const parsed = JSON.parse(content) as { warningCount?: number; errorCount?: number }
-        if (typeof parsed.warningCount === 'number') {
-          logCounters.warnings += parsed.warningCount
-        }
-        if (typeof parsed.errorCount === 'number') {
-          logCounters.errors += parsed.errorCount
-        }
-        logger.debug('Loaded existing CLI log counts', {
+        const result = await stateService.read(logMetricsPath, LogMetricsStateSchema, {
           sessionId,
-          existing: { warnings: parsed.warningCount ?? 0, errors: parsed.errorCount ?? 0 },
-          total: logCounters,
+          warningCount: 0,
+          errorCount: 0,
+          lastUpdatedAt: 0,
         })
+        if (result.source !== 'default') {
+          logCounters.warnings += result.data.warningCount
+          logCounters.errors += result.data.errorCount
+          logger.debug('Loaded existing CLI log counts', {
+            sessionId,
+            existing: { warnings: result.data.warningCount, errors: result.data.errorCount },
+            total: logCounters,
+          })
+        }
       } catch {
         // File doesn't exist or is invalid - start fresh (normal for new sessions)
       }

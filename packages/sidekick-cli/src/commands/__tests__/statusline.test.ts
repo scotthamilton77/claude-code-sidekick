@@ -77,6 +77,9 @@ describe('handleStatuslineCommand', () => {
         tokens: '50k',
         cost: '$0.42',
         duration: '5m',
+        // Required fields for statusline.ts event logging
+        tokenUsageActual: '50k',
+        tokenUsageEffective: '100k',
       },
     }
 

@@ -277,7 +277,7 @@ export class Daemon {
     // Shutdown all instrumented LLM providers (persists final metrics)
     try {
       for (const [sessionId, provider] of this.instrumentedProviders) {
-        provider.shutdown()
+        await provider.shutdown()
         this.logger.debug('Shutdown instrumented LLM provider', { sessionId })
       }
       this.instrumentedProviders.clear()
@@ -602,7 +602,7 @@ export class Daemon {
       // Shutdown instrumented LLM provider (persists final metrics)
       const instrumentedProvider = this.instrumentedProviders.get(sessionId)
       if (instrumentedProvider) {
-        instrumentedProvider.shutdown()
+        await instrumentedProvider.shutdown()
         this.instrumentedProviders.delete(sessionId)
         log.debug('Shutdown instrumented LLM provider')
       }
@@ -733,8 +733,8 @@ export class Daemon {
       this.llmProvider = this.profileProviderFactory.createDefault()
     }
 
-    const stateDir = path.join(paths.projectConfigDir ?? paths.userConfigDir, 'sessions', sessionId, 'state')
-    const instrumentedProfileFactory = this.createInstrumentedProfileFactory(sessionId, stateDir)
+    const sessionDir = path.join(paths.projectConfigDir ?? paths.userConfigDir, 'sessions', sessionId)
+    const instrumentedProfileFactory = this.createInstrumentedProfileFactory(sessionId, sessionDir)
 
     const stagingService = this.serviceFactory.getStagingService(sessionId)
     const transcriptService = await this.serviceFactory.prepareTranscriptService(sessionId, resolvedTranscriptPath)
@@ -819,12 +819,13 @@ export class Daemon {
    * All providers created through this factory will be wrapped with instrumentation.
    *
    * @param sessionId - Session ID for metrics tracking
-   * @param stateDir - Path to session state directory
+   * @param sessionDir - Path to session directory (parent of state dir)
    */
-  private createInstrumentedProfileFactory(sessionId: string, stateDir: string): InstrumentedProfileProviderFactory {
+  private createInstrumentedProfileFactory(sessionId: string, sessionDir: string): InstrumentedProfileProviderFactory {
     return new InstrumentedProfileProviderFactory(this.profileProviderFactory, this.configService, {
       sessionId,
-      stateDir,
+      stateService: this.stateService,
+      sessionDir,
       logger: this.logger,
       debugDumpEnabled: this.configService.llm.global.debugDumpEnabled,
     })
@@ -839,7 +840,7 @@ export class Daemon {
    *
    * @param sessionId - Optional session ID for session-specific context
    */
-  private getContextForTask(sessionId?: string): DaemonContext {
+  private async getContextForTask(sessionId?: string): Promise<DaemonContext> {
     // Build runtime paths
     const paths: RuntimePaths = {
       projectDir: this.projectDir,
@@ -857,7 +858,7 @@ export class Daemon {
     let llmProvider: LLMProvider = this.llmProvider
     let profileFactory: ProfileProviderFactoryInterface = this.profileProviderFactory
     if (sessionId) {
-      const stateDir = path.join(paths.projectConfigDir ?? paths.userConfigDir, 'sessions', sessionId, 'state')
+      const sessionDir = path.join(paths.projectConfigDir ?? paths.userConfigDir, 'sessions', sessionId)
 
       // Try to get existing instrumented provider for this session
       const instrumented = this.instrumentedProviders.get(sessionId)
@@ -868,7 +869,8 @@ export class Daemon {
         const defaultProfile = this.configService.llm.profiles[this.configService.llm.defaultProfile]
         const newInstrumented = new InstrumentedLLMProvider(this.llmProvider, {
           sessionId,
-          stateDir,
+          stateService: this.stateService,
+          sessionDir,
           logger: this.logger,
           debugDumpEnabled: this.configService.llm.global.debugDumpEnabled,
           profileParams: defaultProfile
@@ -880,14 +882,14 @@ export class Daemon {
               }
             : undefined,
         })
-        newInstrumented.initialize()
+        await newInstrumented.initialize()
         this.instrumentedProviders.set(sessionId, newInstrumented)
         this.logger.debug('Created instrumented LLM provider for task', { sessionId })
         llmProvider = newInstrumented
       }
 
       // Create instrumented profile factory for this session
-      profileFactory = this.createInstrumentedProfileFactory(sessionId, stateDir)
+      profileFactory = this.createInstrumentedProfileFactory(sessionId, sessionDir)
     }
 
     // Get staging service if sessionId provided, otherwise use a no-op stub
@@ -1012,8 +1014,8 @@ export class Daemon {
       this.llmProvider = this.profileProviderFactory.createDefault()
     }
 
-    // Compute state directory for this session (used by instrumented providers)
-    const stateDir = path.join(paths.projectConfigDir ?? paths.userConfigDir, 'sessions', sessionId, 'state')
+    // Compute session directory for this session (used by instrumented providers)
+    const sessionDir = path.join(paths.projectConfigDir ?? paths.userConfigDir, 'sessions', sessionId)
 
     // Get or create instrumented provider for this session (tracks metrics per-session)
     let instrumentedProvider = this.instrumentedProviders.get(sessionId)
@@ -1021,7 +1023,8 @@ export class Daemon {
       const defaultProfile = this.configService.llm.profiles[this.configService.llm.defaultProfile]
       instrumentedProvider = new InstrumentedLLMProvider(this.llmProvider, {
         sessionId,
-        stateDir,
+        stateService: this.stateService,
+        sessionDir,
         logger: log,
         debugDumpEnabled: this.configService.llm.global.debugDumpEnabled,
         profileParams: defaultProfile
@@ -1033,13 +1036,13 @@ export class Daemon {
             }
           : undefined,
       })
-      instrumentedProvider.initialize()
+      await instrumentedProvider.initialize()
       this.instrumentedProviders.set(sessionId, instrumentedProvider)
       log.debug('Created instrumented LLM provider for session')
     }
 
     // Create instrumented profile factory for this session
-    const instrumentedProfileFactory = this.createInstrumentedProfileFactory(sessionId, stateDir)
+    const instrumentedProfileFactory = this.createInstrumentedProfileFactory(sessionId, sessionDir)
 
     // Get staging service (doesn't trigger transcript events)
     const stagingService = this.serviceFactory.getStagingService(sessionId)

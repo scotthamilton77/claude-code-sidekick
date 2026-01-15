@@ -13,7 +13,15 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { randomBytes } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { LLMProvider, LLMRequest, ProfileProviderFactory, Logger, Telemetry } from '@sidekick/types'
+import type {
+  LLMProvider,
+  LLMRequest,
+  ProfileProviderFactory,
+  Logger,
+  MinimalStateService,
+  StateReadResult,
+  Telemetry,
+} from '@sidekick/types'
 import { InstrumentedProfileProviderFactory, type InstrumentationConfig } from '../instrumented-profile-factory.js'
 import { InstrumentedLLMProvider } from '../instrumented-llm-provider.js'
 import type { ConfigService } from '../config.js'
@@ -38,6 +46,33 @@ function createMockLogger(): Logger {
     fatal: vi.fn(),
     child: vi.fn(() => createMockLogger()),
     flush: vi.fn(),
+  }
+}
+
+function createMockStateService(): MinimalStateService {
+  const store = new Map<string, unknown>()
+  return {
+    read: vi.fn(<T>(path: string, _schema: unknown, defaultValue?: T | (() => T)): Promise<StateReadResult<T>> => {
+      if (store.has(path)) {
+        return Promise.resolve({ data: store.get(path) as T, source: 'fresh' })
+      }
+      if (defaultValue !== undefined) {
+        const value = typeof defaultValue === 'function' ? (defaultValue as () => T)() : defaultValue
+        return Promise.resolve({ data: value, source: 'default' })
+      }
+      return Promise.reject(new Error(`File not found: ${path}`))
+    }),
+    write: vi.fn((path: string, data: unknown, _schema: unknown): Promise<void> => {
+      store.set(path, data)
+      return Promise.resolve()
+    }),
+    delete: vi.fn((path: string): Promise<void> => {
+      store.delete(path)
+      return Promise.resolve()
+    }),
+    sessionStatePath: vi.fn((sessionId: string, filename: string): string => {
+      return `/mock/sessions/${sessionId}/state/${filename}`
+    }),
   }
 }
 
@@ -103,10 +138,12 @@ function createMockConfigService(overrides: Partial<ConfigService['llm']> = {}):
 describe('InstrumentedProfileProviderFactory', () => {
   let testDir: string
   let logger: Logger
+  let stateService: MinimalStateService
 
   beforeEach(() => {
     testDir = createTestDir()
     logger = createMockLogger()
+    stateService = createMockStateService()
   })
 
   afterEach(() => {
@@ -125,7 +162,8 @@ describe('InstrumentedProfileProviderFactory', () => {
       const configService = createMockConfigService()
       const instrumentationConfig: InstrumentationConfig = {
         sessionId: 'test-session',
-        stateDir: testDir,
+        stateService,
+        sessionDir: testDir,
         logger,
       }
 
@@ -140,7 +178,8 @@ describe('InstrumentedProfileProviderFactory', () => {
       const configService = createMockConfigService()
       const instrumentationConfig: InstrumentationConfig = {
         sessionId: 'test-session',
-        stateDir: testDir,
+        stateService,
+        sessionDir: testDir,
         logger,
       }
 
@@ -155,7 +194,8 @@ describe('InstrumentedProfileProviderFactory', () => {
       const configService = createMockConfigService()
       const instrumentationConfig: InstrumentationConfig = {
         sessionId: 'test-session',
-        stateDir: testDir,
+        stateService,
+        sessionDir: testDir,
         logger,
       }
 
@@ -172,7 +212,8 @@ describe('InstrumentedProfileProviderFactory', () => {
       const configService = createMockConfigService()
       const instrumentationConfig: InstrumentationConfig = {
         sessionId: 'test-session',
-        stateDir: testDir,
+        stateService,
+        sessionDir: testDir,
         logger,
       }
 
@@ -194,7 +235,8 @@ describe('InstrumentedProfileProviderFactory', () => {
       const configService = createMockConfigService()
       const instrumentationConfig: InstrumentationConfig = {
         sessionId: 'my-session-123',
-        stateDir: testDir,
+        stateService,
+        sessionDir: testDir,
         logger,
         telemetry: mockTelemetry,
         debugDumpEnabled: true,
@@ -218,7 +260,8 @@ describe('InstrumentedProfileProviderFactory', () => {
       const configService = createMockConfigService()
       const instrumentationConfig: InstrumentationConfig = {
         sessionId: 'test-session',
-        stateDir: testDir,
+        stateService,
+        sessionDir: testDir,
         logger,
       }
 
@@ -233,7 +276,8 @@ describe('InstrumentedProfileProviderFactory', () => {
       const configService = createMockConfigService()
       const instrumentationConfig: InstrumentationConfig = {
         sessionId: 'test-session',
-        stateDir: testDir,
+        stateService,
+        sessionDir: testDir,
         logger,
       }
 
@@ -248,7 +292,8 @@ describe('InstrumentedProfileProviderFactory', () => {
       const configService = createMockConfigService({ defaultProfile: 'powerful' })
       const instrumentationConfig: InstrumentationConfig = {
         sessionId: 'test-session',
-        stateDir: testDir,
+        stateService,
+        sessionDir: testDir,
         logger,
       }
 
@@ -288,7 +333,8 @@ describe('InstrumentedProfileProviderFactory', () => {
 
       const instrumentationConfig: InstrumentationConfig = {
         sessionId: 'test-session',
-        stateDir: testDir,
+        stateService,
+        sessionDir: testDir,
         logger,
         debugDumpEnabled: true,
       }
@@ -321,7 +367,8 @@ describe('InstrumentedProfileProviderFactory', () => {
 
       const instrumentationConfig: InstrumentationConfig = {
         sessionId: 'test-session',
-        stateDir: testDir,
+        stateService,
+        sessionDir: testDir,
         logger,
       }
 
@@ -343,7 +390,8 @@ describe('InstrumentedProfileProviderFactory', () => {
       const configService = createMockConfigService()
       const instrumentationConfig: InstrumentationConfig = {
         sessionId: 'test-session',
-        stateDir: testDir,
+        stateService,
+        sessionDir: testDir,
         logger,
         // No telemetry
       }
@@ -361,7 +409,8 @@ describe('InstrumentedProfileProviderFactory', () => {
       const configService = createMockConfigService()
       const instrumentationConfig: InstrumentationConfig = {
         sessionId: 'test-session',
-        stateDir: testDir,
+        stateService,
+        sessionDir: testDir,
         logger,
         // debugDumpEnabled not set
       }
@@ -384,7 +433,8 @@ describe('InstrumentedProfileProviderFactory', () => {
       const configService = createMockConfigService()
       const instrumentationConfig: InstrumentationConfig = {
         sessionId: 'test-session',
-        stateDir: testDir,
+        stateService,
+        sessionDir: testDir,
         logger,
         telemetry: mockTelemetry,
       }
