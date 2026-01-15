@@ -414,17 +414,17 @@ describe('Session Summary Countdown Logic', () => {
 
       // Event 1: countdown 3 → 2
       await updateSessionSummary(createToolResultEvent(sessionId, 100), ctx)
-      expect((readCountdownState(sessionId)).countdown).toBe(2)
+      expect(readCountdownState(sessionId).countdown).toBe(2)
       expect(llm.recordedRequests).toHaveLength(0)
 
       // Event 2: countdown 2 → 1
       await updateSessionSummary(createToolResultEvent(sessionId, 105), ctx)
-      expect((readCountdownState(sessionId)).countdown).toBe(1)
+      expect(readCountdownState(sessionId).countdown).toBe(1)
       expect(llm.recordedRequests).toHaveLength(0)
 
       // Event 3: countdown 1 → 0
       await updateSessionSummary(createToolResultEvent(sessionId, 110), ctx)
-      expect((readCountdownState(sessionId)).countdown).toBe(0)
+      expect(readCountdownState(sessionId).countdown).toBe(0)
       expect(llm.recordedRequests).toHaveLength(0)
 
       // Event 4: countdown = 0 → triggers analysis, resets based on confidence

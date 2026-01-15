@@ -175,6 +175,8 @@ describe('TaskRegistry (Orphan Prevention)', () => {
   })
 
   afterEach(async () => {
+    // Wait for any pending async operations before cleanup
+    await new Promise((r) => setImmediate(r))
     try {
       await fs.rm(tmpDir, { recursive: true, force: true })
     } catch {
@@ -327,6 +329,8 @@ describe('Standard Task Handlers', () => {
 
   afterEach(async () => {
     await taskEngine.shutdown()
+    // Wait for any pending async operations before cleanup
+    await new Promise((r) => setImmediate(r))
     try {
       await fs.rm(tmpDir, { recursive: true, force: true })
     } catch {

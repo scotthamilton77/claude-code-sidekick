@@ -5,7 +5,7 @@
  * with session-specific metrics tracking and debug dump capabilities.
  */
 
-import type { Logger, LLMProvider, ProfileProviderFactory, Telemetry } from '@sidekick/types'
+import type { Logger, LLMProvider, MinimalStateService, ProfileProviderFactory, Telemetry } from '@sidekick/types'
 import type { ConfigService } from './config'
 import { InstrumentedLLMProvider, type LLMProfileParams } from './instrumented-llm-provider'
 
@@ -15,8 +15,10 @@ import { InstrumentedLLMProvider, type LLMProfileParams } from './instrumented-l
 export interface InstrumentationConfig {
   /** Session identifier */
   sessionId: string
-  /** Path to session state directory */
-  stateDir: string
+  /** StateService for atomic state file operations */
+  stateService: MinimalStateService
+  /** Path to session directory (for debug dumps) */
+  sessionDir: string
   /** Logger instance */
   logger: Logger
   /** Telemetry instance for emitting metrics (optional) */
@@ -42,7 +44,8 @@ export interface InstrumentationConfig {
  *   configService,
  *   {
  *     sessionId: 'abc-123',
- *     stateDir: '.sidekick/sessions/abc-123/state',
+ *     stateService,
+ *     sessionDir: '.sidekick/sessions/abc-123',
  *     logger,
  *     debugDumpEnabled: true,
  *   }
@@ -94,7 +97,8 @@ export class InstrumentedProfileProviderFactory implements ProfileProviderFactor
 
     return new InstrumentedLLMProvider(provider, {
       sessionId: this.config.sessionId,
-      stateDir: this.config.stateDir,
+      stateService: this.config.stateService,
+      sessionDir: this.config.sessionDir,
       logger: this.config.logger,
       telemetry: this.config.telemetry,
       debugDumpEnabled: this.config.debugDumpEnabled,

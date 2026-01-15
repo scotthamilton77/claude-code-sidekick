@@ -97,6 +97,8 @@ describe('TaskEngine.getStatus()', () => {
   })
 
   afterEach(async () => {
+    // Wait for any pending async operations before cleanup
+    await new Promise((r) => setImmediate(r))
     try {
       await fs.rm(tmpDir, { recursive: true, force: true })
     } catch {
@@ -158,6 +160,8 @@ describe('Daemon heartbeat integration', () => {
 
   afterEach(async () => {
     vi.restoreAllMocks()
+    // Wait for any pending async operations before cleanup
+    await new Promise((r) => setImmediate(r))
     try {
       await fs.rm(tmpDir, { recursive: true, force: true })
     } catch {
@@ -231,5 +235,195 @@ describe('Daemon heartbeat integration', () => {
     // Don't initialize stateManager - writeHeartbeat should catch the error and not throw.
     const sup = daemon as unknown as { writeHeartbeat(): Promise<void> }
     await expect(sup.writeHeartbeat()).resolves.not.toThrow()
+  })
+})
+
+describe('Daemon log metrics persistence', () => {
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sidekick-log-metrics-test-'))
+    await fs.mkdir(path.join(tmpDir, '.sidekick'), { recursive: true })
+  })
+
+  afterEach(async () => {
+    vi.restoreAllMocks()
+    // Wait for any pending async operations before cleanup
+    await new Promise((r) => setImmediate(r))
+    try {
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    } catch {
+      // Cleanup may fail
+    }
+  })
+
+  it('should persist per-session log metrics during heartbeat', async () => {
+    const { Daemon } = await import('../daemon.js')
+    const daemon = new Daemon(tmpDir)
+
+    // Access private members for isolated testing
+    const sup = daemon as unknown as {
+      stateManager: { initialize(): Promise<void> }
+      stateService: { sessionStatePath(sessionId: string, filename: string): string }
+      logCounters: Map<string, { warnings: number; errors: number }>
+      writeHeartbeat(): Promise<void>
+    }
+
+    await sup.stateManager.initialize()
+
+    // Set up session log counters with some counts
+    const sessionId = 'test-session-123'
+    sup.logCounters.set(sessionId, { warnings: 5, errors: 2 })
+
+    // Create session state directory
+    const sessionStateDir = path.join(tmpDir, '.sidekick', 'sessions', sessionId, 'state')
+    await fs.mkdir(sessionStateDir, { recursive: true })
+
+    // Trigger heartbeat which persists log metrics
+    await sup.writeHeartbeat()
+
+    // Verify per-session log metrics were persisted
+    const logMetricsPath = path.join(sessionStateDir, 'daemon-log-metrics.json')
+    const content = await fs.readFile(logMetricsPath, 'utf-8')
+    const logMetrics = JSON.parse(content)
+
+    expect(logMetrics).toMatchObject({
+      sessionId: 'test-session-123',
+      warningCount: 5,
+      errorCount: 2,
+      lastUpdatedAt: expect.any(Number),
+    })
+  })
+
+  it('should persist global daemon log metrics during heartbeat', async () => {
+    const { Daemon } = await import('../daemon.js')
+    const daemon = new Daemon(tmpDir)
+
+    // Access private members for isolated testing
+    const sup = daemon as unknown as {
+      stateManager: { initialize(): Promise<void> }
+      globalLogCounters: { warnings: number; errors: number }
+      writeHeartbeat(): Promise<void>
+    }
+
+    await sup.stateManager.initialize()
+
+    // Set up global log counters with some counts
+    sup.globalLogCounters.warnings = 3
+    sup.globalLogCounters.errors = 1
+
+    // Trigger heartbeat which persists log metrics
+    await sup.writeHeartbeat()
+
+    // Verify global log metrics were persisted
+    const globalMetricsPath = path.join(tmpDir, '.sidekick', 'state', 'daemon-global-log-metrics.json')
+    const content = await fs.readFile(globalMetricsPath, 'utf-8')
+    const globalMetrics = JSON.parse(content)
+
+    expect(globalMetrics).toMatchObject({
+      warningCount: 3,
+      errorCount: 1,
+      lastUpdatedAt: expect.any(Number),
+    })
+  })
+
+  it('should load existing log counts on session start', async () => {
+    const { Daemon } = await import('../daemon.js')
+    const daemon = new Daemon(tmpDir)
+
+    // Access private members for isolated testing
+    const sup = daemon as unknown as {
+      stateManager: { initialize(): Promise<void> }
+      loadExistingLogCounts(sessionId: string): Promise<{ warnings: number; errors: number }>
+    }
+
+    await sup.stateManager.initialize()
+
+    // Create session state directory with existing log metrics
+    const sessionId = 'existing-session-456'
+    const sessionStateDir = path.join(tmpDir, '.sidekick', 'sessions', sessionId, 'state')
+    await fs.mkdir(sessionStateDir, { recursive: true })
+
+    const existingMetrics = {
+      sessionId,
+      warningCount: 10,
+      errorCount: 4,
+      lastUpdatedAt: Date.now() - 60000, // 1 minute ago
+    }
+    await fs.writeFile(path.join(sessionStateDir, 'daemon-log-metrics.json'), JSON.stringify(existingMetrics))
+
+    // Load existing counts
+    const loaded = await sup.loadExistingLogCounts(sessionId)
+
+    expect(loaded).toEqual({
+      warnings: 10,
+      errors: 4,
+    })
+  })
+
+  it('should return zero counts when no existing log metrics file', async () => {
+    const { Daemon } = await import('../daemon.js')
+    const daemon = new Daemon(tmpDir)
+
+    // Access private members for isolated testing
+    const sup = daemon as unknown as {
+      stateManager: { initialize(): Promise<void> }
+      loadExistingLogCounts(sessionId: string): Promise<{ warnings: number; errors: number }>
+    }
+
+    await sup.stateManager.initialize()
+
+    // Don't create any metrics file - should return defaults
+    const loaded = await sup.loadExistingLogCounts('nonexistent-session')
+
+    expect(loaded).toEqual({
+      warnings: 0,
+      errors: 0,
+    })
+  })
+
+  it('should persist metrics for multiple sessions independently', async () => {
+    const { Daemon } = await import('../daemon.js')
+    const daemon = new Daemon(tmpDir)
+
+    // Access private members for isolated testing
+    const sup = daemon as unknown as {
+      stateManager: { initialize(): Promise<void> }
+      logCounters: Map<string, { warnings: number; errors: number }>
+      writeHeartbeat(): Promise<void>
+    }
+
+    await sup.stateManager.initialize()
+
+    // Set up multiple sessions with different counts
+    const session1 = 'session-one'
+    const session2 = 'session-two'
+    sup.logCounters.set(session1, { warnings: 2, errors: 1 })
+    sup.logCounters.set(session2, { warnings: 8, errors: 3 })
+
+    // Create session state directories
+    for (const sessionId of [session1, session2]) {
+      await fs.mkdir(path.join(tmpDir, '.sidekick', 'sessions', sessionId, 'state'), { recursive: true })
+    }
+
+    // Trigger heartbeat
+    await sup.writeHeartbeat()
+
+    // Verify each session has its own metrics
+    const metrics1 = JSON.parse(
+      await fs.readFile(
+        path.join(tmpDir, '.sidekick', 'sessions', session1, 'state', 'daemon-log-metrics.json'),
+        'utf-8'
+      )
+    )
+    const metrics2 = JSON.parse(
+      await fs.readFile(
+        path.join(tmpDir, '.sidekick', 'sessions', session2, 'state', 'daemon-log-metrics.json'),
+        'utf-8'
+      )
+    )
+
+    expect(metrics1.warningCount).toBe(2)
+    expect(metrics1.errorCount).toBe(1)
+    expect(metrics2.warningCount).toBe(8)
+    expect(metrics2.errorCount).toBe(3)
   })
 })

@@ -22,7 +22,7 @@ export interface Task {
  * If sessionId is provided, returns session-specific context (instrumented provider).
  * If sessionId is undefined, returns base context (shared provider).
  */
-export type ContextGetter = (sessionId?: string) => DaemonContext
+export type ContextGetter = (sessionId?: string) => DaemonContext | Promise<DaemonContext>
 
 /**
  * Task handler function signature.
@@ -168,7 +168,7 @@ export class TaskEngine {
     const sessionId = typeof task.payload.sessionId === 'string' ? task.payload.sessionId : undefined
 
     // Get DaemonContext for this session (or base context if no sessionId)
-    const daemonContext = this.contextGetter(sessionId)
+    const daemonContext = await this.contextGetter(sessionId)
 
     // Build full TaskContext by extending DaemonContext with task-specific fields
     const context: TaskContext = {
@@ -204,7 +204,8 @@ export class TaskEngine {
         this.logger.error('Task failed', {
           type: task.type,
           id: task.id,
-          error: err,
+          error: err instanceof Error ? err.message : String(err),
+          stack: err instanceof Error ? err.stack : undefined,
           durationMs,
         })
       }
@@ -225,23 +226,21 @@ export class TaskEngine {
     timeoutMs: number,
     abortController: AbortController
   ): Promise<void> {
+    // Store timer reference outside the Promise for cleanup
+    let timer: ReturnType<typeof setTimeout> | undefined
+
     // Create timeout promise that rejects and aborts the task
     const timeoutPromise = new Promise<never>((_, reject) => {
-      const timer = setTimeout(() => {
+      timer = setTimeout(() => {
         abortController.abort()
         reject(new TaskTimeoutError(task.id, task.type, timeoutMs))
       }, timeoutMs)
-
-      // Clean up timer if handler completes first
-      // Store reference for cleanup
-      ;(timeoutPromise as { timer?: ReturnType<typeof setTimeout> }).timer = timer
     })
 
     try {
       await Promise.race([handler(task.payload, context), timeoutPromise])
     } finally {
       // Clear the timeout to prevent memory leaks
-      const timer = (timeoutPromise as { timer?: ReturnType<typeof setTimeout> }).timer
       if (timer) clearTimeout(timer)
     }
   }

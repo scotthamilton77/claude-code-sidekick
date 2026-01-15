@@ -1,8 +1,9 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { LLMProvider, LLMRequest, LLMResponse, Logger, Telemetry } from '@sidekick/types'
+import type { LLMProvider, LLMRequest, LLMResponse, Logger, MinimalStateService, Telemetry } from '@sidekick/types'
+import { LLMMetricsStateSchema, type LLMMetricsState, type StateReadResult } from '@sidekick/types'
 import { InstrumentedLLMProvider } from '../instrumented-llm-provider.js'
 
 // Mock logger
@@ -16,6 +17,35 @@ const createMockLogger = (): Logger => ({
   child: vi.fn(() => createMockLogger()),
   flush: vi.fn(),
 })
+
+// Mock StateService that stores state in memory
+const createMockStateService = (): MinimalStateService & { store: Map<string, unknown> } => {
+  const store = new Map<string, unknown>()
+  return {
+    store,
+    read: vi.fn(<T>(path: string, _schema: unknown, defaultValue?: T | (() => T)): Promise<StateReadResult<T>> => {
+      if (store.has(path)) {
+        return Promise.resolve({ data: store.get(path) as T, source: 'fresh' })
+      }
+      if (defaultValue !== undefined) {
+        const value = typeof defaultValue === 'function' ? (defaultValue as () => T)() : defaultValue
+        return Promise.resolve({ data: value, source: 'default' })
+      }
+      return Promise.reject(new Error(`File not found: ${path}`))
+    }),
+    write: vi.fn((path: string, data: unknown, _schema: unknown): Promise<void> => {
+      store.set(path, data)
+      return Promise.resolve()
+    }),
+    delete: vi.fn((path: string): Promise<void> => {
+      store.delete(path)
+      return Promise.resolve()
+    }),
+    sessionStatePath: vi.fn((sessionId: string, filename: string): string => {
+      return `/mock/sessions/${sessionId}/state/${filename}`
+    }),
+  }
+}
 
 // Mock LLM Provider
 const createMockProvider = (
@@ -39,11 +69,13 @@ const createMockProvider = (
 describe('InstrumentedLLMProvider', () => {
   let tempDir: string
   let logger: Logger
+  let stateService: ReturnType<typeof createMockStateService>
 
   beforeEach(() => {
     tempDir = join(tmpdir(), `llm-metrics-test-${Date.now()}`)
     mkdirSync(tempDir, { recursive: true })
     logger = createMockLogger()
+    stateService = createMockStateService()
   })
 
   afterEach(() => {
@@ -59,7 +91,8 @@ describe('InstrumentedLLMProvider', () => {
       const provider = createMockProvider()
       const instrumented = new InstrumentedLLMProvider(provider, {
         sessionId: 'test-session',
-        stateDir: tempDir,
+        stateService,
+        sessionDir: tempDir,
         logger,
       })
 
@@ -69,8 +102,8 @@ describe('InstrumentedLLMProvider', () => {
       expect(metrics.byProvider).toEqual({})
     })
 
-    it('should load existing metrics on initialize', () => {
-      const existingMetrics = {
+    it('should load existing metrics on initialize', async () => {
+      const existingMetrics: LLMMetricsState = {
         sessionId: 'test-session',
         lastUpdatedAt: Date.now(),
         byProvider: {
@@ -95,37 +128,39 @@ describe('InstrumentedLLMProvider', () => {
         },
       }
 
-      writeFileSync(join(tempDir, 'llm-metrics.json'), JSON.stringify(existingMetrics))
+      // Store in mock StateService
+      const statePath = stateService.sessionStatePath('test-session', 'llm-metrics.json')
+      stateService.store.set(statePath, existingMetrics)
 
       const provider = createMockProvider()
       const instrumented = new InstrumentedLLMProvider(provider, {
         sessionId: 'test-session',
-        stateDir: tempDir,
+        stateService,
+        sessionDir: tempDir,
         logger,
       })
 
-      instrumented.initialize()
+      await instrumented.initialize()
 
       const metrics = instrumented.getMetrics()
       expect(metrics.totals.callCount).toBe(5)
       expect(metrics.totals.successCount).toBe(4)
     })
 
-    it('should handle invalid metrics file gracefully', () => {
-      writeFileSync(join(tempDir, 'llm-metrics.json'), 'invalid json')
-
+    it('should handle missing metrics file gracefully', async () => {
       const provider = createMockProvider()
       const instrumented = new InstrumentedLLMProvider(provider, {
         sessionId: 'test-session',
-        stateDir: tempDir,
+        stateService,
+        sessionDir: tempDir,
         logger,
       })
 
-      instrumented.initialize()
+      // No data stored - should use default
+      await instrumented.initialize()
 
       const metrics = instrumented.getMetrics()
       expect(metrics.totals.callCount).toBe(0)
-      expect(logger.warn).toHaveBeenCalled()
     })
   })
 
@@ -143,7 +178,8 @@ describe('InstrumentedLLMProvider', () => {
 
       const instrumented = new InstrumentedLLMProvider(provider, {
         sessionId: 'test-session',
-        stateDir: tempDir,
+        stateService,
+        sessionDir: tempDir,
         logger,
         persistDebounceMs: 10, // Fast for testing
       })
@@ -167,7 +203,8 @@ describe('InstrumentedLLMProvider', () => {
 
       const instrumented = new InstrumentedLLMProvider(provider, {
         sessionId: 'test-session',
-        stateDir: tempDir,
+        stateService,
+        sessionDir: tempDir,
         logger,
         persistDebounceMs: 10,
       })
@@ -196,7 +233,8 @@ describe('InstrumentedLLMProvider', () => {
 
       const instrumented = new InstrumentedLLMProvider(provider, {
         sessionId: 'test-session',
-        stateDir: tempDir,
+        stateService,
+        sessionDir: tempDir,
         logger,
         persistDebounceMs: 10,
       })
@@ -229,7 +267,8 @@ describe('InstrumentedLLMProvider', () => {
 
       const instrumented = new InstrumentedLLMProvider(provider, {
         sessionId: 'test-session',
-        stateDir: tempDir,
+        stateService,
+        sessionDir: tempDir,
         logger,
         persistDebounceMs: 10,
       })
@@ -249,11 +288,12 @@ describe('InstrumentedLLMProvider', () => {
   })
 
   describe('persistence', () => {
-    it('should persist metrics to disk after debounce', async () => {
+    it('should persist metrics after debounce', async () => {
       const provider = createMockProvider()
       const instrumented = new InstrumentedLLMProvider(provider, {
         sessionId: 'test-session',
-        stateDir: tempDir,
+        stateService,
+        sessionDir: tempDir,
         logger,
         persistDebounceMs: 50,
       })
@@ -263,10 +303,10 @@ describe('InstrumentedLLMProvider', () => {
       // Wait for debounce
       await new Promise((resolve) => setTimeout(resolve, 100))
 
-      const filePath = join(tempDir, 'llm-metrics.json')
-      expect(existsSync(filePath)).toBe(true)
-
-      const saved = JSON.parse(readFileSync(filePath, 'utf-8'))
+      // Check that StateService.write was called
+      expect(stateService.write).toHaveBeenCalled()
+      const statePath = stateService.sessionStatePath('test-session', 'llm-metrics.json')
+      const saved = stateService.store.get(statePath) as LLMMetricsState
       expect(saved.totals.callCount).toBe(1)
     })
 
@@ -274,16 +314,19 @@ describe('InstrumentedLLMProvider', () => {
       const provider = createMockProvider()
       const instrumented = new InstrumentedLLMProvider(provider, {
         sessionId: 'test-session',
-        stateDir: tempDir,
+        stateService,
+        sessionDir: tempDir,
         logger,
         persistDebounceMs: 10000, // Long debounce
       })
 
       await instrumented.complete({ messages: [{ role: 'user', content: 'test' }] })
-      instrumented.shutdown()
+      await instrumented.shutdown()
 
-      const filePath = join(tempDir, 'llm-metrics.json')
-      expect(existsSync(filePath)).toBe(true)
+      // Check that StateService.write was called
+      expect(stateService.write).toHaveBeenCalled()
+      const statePath = stateService.sessionStatePath('test-session', 'llm-metrics.json')
+      expect(stateService.store.has(statePath)).toBe(true)
     })
 
     it('should compute percentiles on persist', async () => {
@@ -302,7 +345,8 @@ describe('InstrumentedLLMProvider', () => {
 
       const instrumented = new InstrumentedLLMProvider(provider, {
         sessionId: 'test-session',
-        stateDir: tempDir,
+        stateService,
+        sessionDir: tempDir,
         logger,
         persistDebounceMs: 10,
       })
@@ -312,10 +356,10 @@ describe('InstrumentedLLMProvider', () => {
         await instrumented.complete({ messages: [{ role: 'user', content: `test${i}` }] })
       }
 
-      instrumented.shutdown()
+      await instrumented.shutdown()
 
-      const filePath = join(tempDir, 'llm-metrics.json')
-      const saved = JSON.parse(readFileSync(filePath, 'utf-8'))
+      const statePath = stateService.sessionStatePath('test-session', 'llm-metrics.json')
+      const saved = stateService.store.get(statePath) as LLMMetricsState
 
       const latency = saved.byProvider['test-provider'].latency
       expect(latency.p50).toBeGreaterThan(0)
@@ -346,7 +390,8 @@ describe('InstrumentedLLMProvider', () => {
 
       const instrumented = new InstrumentedLLMProvider(provider, {
         sessionId: 'test-session',
-        stateDir: tempDir,
+        stateService,
+        sessionDir: tempDir,
         logger,
         persistDebounceMs: 10,
       })
@@ -372,7 +417,8 @@ describe('InstrumentedLLMProvider', () => {
       const provider = createMockProvider({ id: 'my-custom-provider' })
       const instrumented = new InstrumentedLLMProvider(provider, {
         sessionId: 'test-session',
-        stateDir: tempDir,
+        stateService,
+        sessionDir: tempDir,
         logger,
       })
 
@@ -408,7 +454,8 @@ describe('InstrumentedLLMProvider', () => {
 
       const instrumented = new InstrumentedLLMProvider(provider, {
         sessionId: 'test-session',
-        stateDir: tempDir,
+        stateService,
+        sessionDir: tempDir,
         logger,
         telemetry: mockTelemetry,
       })
@@ -448,7 +495,8 @@ describe('InstrumentedLLMProvider', () => {
 
       const instrumented = new InstrumentedLLMProvider(provider, {
         sessionId: 'test-session',
-        stateDir: tempDir,
+        stateService,
+        sessionDir: tempDir,
         logger,
         telemetry: mockTelemetry,
       })
@@ -489,7 +537,8 @@ describe('InstrumentedLLMProvider', () => {
 
       const instrumented = new InstrumentedLLMProvider(provider, {
         sessionId: 'test-session',
-        stateDir: tempDir,
+        stateService,
+        sessionDir: tempDir,
         logger,
         telemetry: mockTelemetry,
       })
@@ -518,7 +567,8 @@ describe('InstrumentedLLMProvider', () => {
       const provider = createMockProvider()
       const instrumented = new InstrumentedLLMProvider(provider, {
         sessionId: 'test-session',
-        stateDir: tempDir,
+        stateService,
+        sessionDir: tempDir,
         logger,
         // No telemetry
       })

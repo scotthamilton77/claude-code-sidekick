@@ -18,6 +18,8 @@ describe('ConfigWatcher', () => {
 
   afterEach(async () => {
     vi.restoreAllMocks()
+    // Wait for any pending async operations before cleanup
+    await new Promise((r) => setImmediate(r))
     try {
       await fs.rm(tmpDir, { recursive: true, force: true })
     } catch {

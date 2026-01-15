@@ -13,7 +13,8 @@
  * ```typescript
  * const instrumented = new InstrumentedLLMProvider(baseProvider, {
  *   sessionId: 'abc-123',
- *   stateDir: '.sidekick/sessions/abc-123/state',
+ *   stateService,
+ *   sessionDir: '.sidekick/sessions/abc-123',
  *   logger,
  * })
  * await instrumented.initialize()
@@ -22,10 +23,10 @@
  * ```
  */
 
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import YAML from 'yaml'
-import type { Logger, LLMProvider, LLMRequest, LLMResponse, Telemetry } from '@sidekick/types'
+import type { Logger, LLMProvider, LLMRequest, LLMResponse, MinimalStateService, Telemetry } from '@sidekick/types'
 import {
   createDefaultLLMMetrics,
   DEFAULT_LATENCY_STATS,
@@ -72,8 +73,10 @@ export interface LLMProfileParams {
 export interface InstrumentedLLMProviderConfig {
   /** Session identifier */
   sessionId: string
-  /** Path to session state directory */
-  stateDir: string
+  /** StateService for atomic state file operations */
+  stateService: MinimalStateService
+  /** Path to session directory (for debug dumps, sibling to state dir) */
+  sessionDir: string
   /** Logger instance */
   logger: Logger
   /** Telemetry instance for emitting metrics (optional) */
@@ -93,9 +96,9 @@ export class InstrumentedLLMProvider implements LLMProvider {
   readonly id: string
 
   private metrics: LLMMetricsState
-  private readonly statePath: string
   private readonly debounceMs: number
   private debounceTimer: ReturnType<typeof setTimeout> | null = null
+  private persistPromise: Promise<void> | null = null
 
   // Store individual latencies for percentile calculation
   // Map key is `${provider}:${model}`
@@ -106,39 +109,39 @@ export class InstrumentedLLMProvider implements LLMProvider {
     private readonly config: InstrumentedLLMProviderConfig
   ) {
     this.id = delegate.id
-    this.statePath = join(config.stateDir, STATE_FILE)
     this.debounceMs = config.persistDebounceMs ?? DEFAULT_DEBOUNCE_MS
     this.metrics = createDefaultLLMMetrics(config.sessionId)
 
     config.logger.debug('InstrumentedLLMProvider created', {
       sessionId: config.sessionId,
-      statePath: this.statePath,
       delegateId: delegate.id,
     })
+  }
+
+  /**
+   * Get state file path using StateService path helper.
+   */
+  private get statePath(): string {
+    return this.config.stateService.sessionStatePath(this.config.sessionId, STATE_FILE)
   }
 
   /**
    * Load existing metrics from disk if available.
    * Call this before using the provider to support session resume.
    */
-  initialize(): void {
+  async initialize(): Promise<void> {
     try {
-      if (existsSync(this.statePath)) {
-        const content = readFileSync(this.statePath, 'utf-8')
-        const parsed: unknown = JSON.parse(content)
-        const validated = LLMMetricsStateSchema.safeParse(parsed)
+      const result = await this.config.stateService.read(this.statePath, LLMMetricsStateSchema, () =>
+        createDefaultLLMMetrics(this.config.sessionId)
+      )
 
-        if (validated.success) {
-          this.metrics = validated.data
-          this.config.logger.debug('Loaded existing LLM metrics', {
-            sessionId: this.config.sessionId,
-            callCount: this.metrics.totals.callCount,
-          })
-        } else {
-          this.config.logger.warn('Invalid LLM metrics file, starting fresh', {
-            error: validated.error.message,
-          })
-        }
+      if (result.source !== 'default') {
+        this.metrics = result.data
+        this.config.logger.debug('Loaded existing LLM metrics', {
+          sessionId: this.config.sessionId,
+          callCount: this.metrics.totals.callCount,
+          source: result.source,
+        })
       }
     } catch (err) {
       this.config.logger.warn('Failed to load LLM metrics, starting fresh', {
@@ -151,15 +154,20 @@ export class InstrumentedLLMProvider implements LLMProvider {
    * Flush pending metrics to disk and cleanup timers.
    * Call this when the session ends.
    */
-  shutdown(): void {
+  async shutdown(): Promise<void> {
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer)
       this.debounceTimer = null
     }
 
+    // Wait for any in-flight persist to complete
+    if (this.persistPromise) {
+      await this.persistPromise
+    }
+
     // Final persist with computed percentiles
     this.computePercentiles()
-    this.persistSync()
+    await this.persist()
 
     this.config.logger.debug('InstrumentedLLMProvider shutdown', {
       sessionId: this.config.sessionId,
@@ -199,9 +207,8 @@ export class InstrumentedLLMProvider implements LLMProvider {
       // Use model from profile config, then response, then request, then 'unknown'
       const model = this.config.profileParams?.model ?? response?.model ?? request.model ?? 'unknown'
 
-      // Write to sibling of state dir: sessions/{id}/llm-debug/ (flattened, no subdirs)
-      const sessionDir = dirname(this.config.stateDir)
-      const debugDir = join(sessionDir, 'llm-debug')
+      // Write to session dir: sessions/{id}/llm-debug/ (flattened, no subdirs)
+      const debugDir = join(this.config.sessionDir, 'llm-debug')
 
       if (!existsSync(debugDir)) {
         mkdirSync(debugDir, { recursive: true })
@@ -494,7 +501,10 @@ export class InstrumentedLLMProvider implements LLMProvider {
     this.debounceTimer = setTimeout(() => {
       this.debounceTimer = null
       this.computePercentiles()
-      this.persistSync()
+      // Track the persist promise so shutdown can wait for it
+      this.persistPromise = this.persist().finally(() => {
+        this.persistPromise = null
+      })
     }, this.debounceMs)
   }
 
@@ -551,21 +561,11 @@ export class InstrumentedLLMProvider implements LLMProvider {
   }
 
   /**
-   * Persist metrics to disk synchronously with atomic write.
+   * Persist metrics to disk using StateService atomic write.
    */
-  private persistSync(): void {
+  private async persist(): Promise<void> {
     try {
-      // Ensure directory exists
-      const dir = dirname(this.statePath)
-      if (!existsSync(dir)) {
-        mkdirSync(dir, { recursive: true })
-      }
-
-      // Atomic write: write to temp file then rename
-      const tmpPath = `${this.statePath}.tmp`
-      const json = JSON.stringify(this.metrics, null, 2)
-      writeFileSync(tmpPath, json, 'utf-8')
-      renameSync(tmpPath, this.statePath)
+      await this.config.stateService.write(this.statePath, this.metrics, LLMMetricsStateSchema)
 
       this.config.logger.debug('Persisted LLM metrics', {
         sessionId: this.config.sessionId,

@@ -5,78 +5,80 @@ import { ContextGetter, TaskContext, TaskEngine, TaskTimeoutError } from '../tas
 
 const logger = createConsoleLogger({ minimumLevel: 'error' })
 
-// Mock context getter for tests
-const mockContextGetter: ContextGetter = () =>
-  ({
-    role: 'daemon',
-    config: {
-      core: { logging: { level: 'error' }, development: { enabled: false } },
-      llm: {},
-      getAll: () => ({}),
-      getFeature: () => undefined,
-    },
-    logger,
-    assets: { resolve: () => undefined },
-    paths: { userConfigDir: '/tmp', projectConfigDir: '/tmp' },
-    handlers: { register: () => {}, dispatch: async () => {} },
-    llm: {
-      id: 'mock',
-      complete: () =>
-        Promise.resolve({
-          content: '',
-          model: 'mock',
-          usage: { inputTokens: 0, outputTokens: 0 },
-          rawResponse: { status: 200, body: '' },
-        }),
-    },
-    staging: {
-      stageReminder: () => Promise.resolve(),
-      readReminder: () => Promise.resolve(null),
-      clearStaging: () => Promise.resolve(),
-      listReminders: () => Promise.resolve([]),
-      deleteReminder: () => Promise.resolve(),
-      listConsumedReminders: () => Promise.resolve([]),
-      getLastConsumed: () => Promise.resolve(null),
-    },
-    transcript: {
-      initialize: async () => {},
-      prepare: async () => {},
-      start: async () => {},
-      shutdown: async () => {},
-      getTranscript: () => ({
-        entries: [],
-        metadata: { sessionId: '', transcriptPath: '', lineCount: 0, lastModified: 0 },
-        toString: () => '',
+// Mock DaemonContext for tests
+const mockDaemonContext: DaemonContext = {
+  role: 'daemon',
+  config: {
+    core: { logging: { level: 'error' }, development: { enabled: false } },
+    llm: {},
+    getAll: () => ({}),
+    getFeature: () => undefined,
+  },
+  logger,
+  assets: { resolve: () => undefined },
+  paths: { userConfigDir: '/tmp', projectConfigDir: '/tmp' },
+  handlers: { register: () => {}, dispatch: async () => {} },
+  llm: {
+    id: 'mock',
+    complete: () =>
+      Promise.resolve({
+        content: '',
+        model: 'mock',
+        usage: { inputTokens: 0, outputTokens: 0 },
+        rawResponse: { status: 200, body: '' },
       }),
-      getExcerpt: () => ({ content: '', lineCount: 0, startLine: 0, endLine: 0, bookmarkApplied: false }),
-      getMetrics: () => ({
-        turnCount: 0,
-        toolCount: 0,
-        toolsThisTurn: 0,
-        messageCount: 0,
-        tokenUsage: {
-          inputTokens: 0,
-          outputTokens: 0,
-          totalTokens: 0,
-          cacheCreationInputTokens: 0,
-          cacheReadInputTokens: 0,
-          cacheTiers: { ephemeral5mInputTokens: 0, ephemeral1hInputTokens: 0 },
-          serviceTierCounts: {},
-          byModel: {},
-        },
-        currentContextTokens: 0,
-        isPostCompactIndeterminate: false,
-        toolsPerTurn: 0,
-        lastProcessedLine: 0,
-        lastUpdatedAt: 0,
-      }),
-      getMetric: () => 0 as never,
-      onMetricsChange: () => () => {},
-      onThreshold: () => () => {},
-      capturePreCompactState: async () => {},
-      getCompactionHistory: () => [],
-    },
-  }) as unknown as DaemonContext
+  },
+  staging: {
+    stageReminder: () => Promise.resolve(),
+    readReminder: () => Promise.resolve(null),
+    clearStaging: () => Promise.resolve(),
+    listReminders: () => Promise.resolve([]),
+    deleteReminder: () => Promise.resolve(),
+    listConsumedReminders: () => Promise.resolve([]),
+    getLastConsumed: () => Promise.resolve(null),
+  },
+  transcript: {
+    initialize: async () => {},
+    prepare: async () => {},
+    start: async () => {},
+    shutdown: async () => {},
+    getTranscript: () => ({
+      entries: [],
+      metadata: { sessionId: '', transcriptPath: '', lineCount: 0, lastModified: 0 },
+      toString: () => '',
+    }),
+    getExcerpt: () => ({ content: '', lineCount: 0, startLine: 0, endLine: 0, bookmarkApplied: false }),
+    getMetrics: () => ({
+      turnCount: 0,
+      toolCount: 0,
+      toolsThisTurn: 0,
+      messageCount: 0,
+      tokenUsage: {
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        cacheCreationInputTokens: 0,
+        cacheReadInputTokens: 0,
+        cacheTiers: { ephemeral5mInputTokens: 0, ephemeral1hInputTokens: 0 },
+        serviceTierCounts: {},
+        byModel: {},
+      },
+      currentContextTokens: 0,
+      isPostCompactIndeterminate: false,
+      toolsPerTurn: 0,
+      lastProcessedLine: 0,
+      lastUpdatedAt: 0,
+    }),
+    getMetric: () => 0 as never,
+    onMetricsChange: () => () => {},
+    onThreshold: () => () => {},
+    capturePreCompactState: async () => {},
+    getCompactionHistory: () => [],
+  },
+} as unknown as DaemonContext
+
+// Mock context getter for tests - returns Promise to match async ContextGetter type
+const mockContextGetter: ContextGetter = () => Promise.resolve(mockDaemonContext)
 
 // Helper to create a deferred promise for controlled task completion
 function createDeferred(): { promise: Promise<void>; resolve: () => void } {

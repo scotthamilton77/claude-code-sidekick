@@ -19,12 +19,13 @@
  * @see docs/design/flow.md §5 Complete Hook Flows
  */
 
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { PassThrough, Writable } from 'node:stream'
 import yargsParser from 'yargs-parser'
 
-import type { ParsedHookInput } from '@sidekick/types'
+import type { ParsedHookInput, MinimalStateService } from '@sidekick/types'
+import { LogMetricsStateSchema } from '@sidekick/types'
 import type { Logger } from '@sidekick/core'
 import { bootstrapRuntime, type RuntimeShell } from './runtime'
 import { getHookName, handleHookCommand, validateHookName } from './commands/hook.js'
@@ -358,19 +359,18 @@ export async function routeCommand(context: {
  * Persist CLI log metrics to state directory.
  * Writes cli-log-metrics.json with warning/error counts for statusline {logs} indicator.
  *
- * @param projectRoot - Project root directory
+ * @param stateService - State service for atomic writes
  * @param sessionId - Session ID
  * @param counts - Log counts to persist
  * @param logger - Logger for debug/error messages
  */
 async function persistCliLogMetrics(
-  projectRoot: string,
+  stateService: MinimalStateService,
   sessionId: string,
   counts: { warnings: number; errors: number },
   logger: Logger
 ): Promise<void> {
-  const stateDir = join(projectRoot, '.sidekick', 'sessions', sessionId, 'state')
-  const logMetricsPath = join(stateDir, 'cli-log-metrics.json')
+  const logMetricsPath = stateService.sessionStatePath(sessionId, 'cli-log-metrics.json')
 
   const logMetrics = {
     sessionId,
@@ -380,8 +380,7 @@ async function persistCliLogMetrics(
   }
 
   try {
-    await mkdir(stateDir, { recursive: true })
-    await writeFile(logMetricsPath, JSON.stringify(logMetrics, null, 2))
+    await stateService.write(logMetricsPath, logMetrics, LogMetricsStateSchema)
     logger.debug('CLI log metrics persisted', { sessionId, counts })
   } catch (err) {
     // Non-critical - log and continue
@@ -418,9 +417,7 @@ export async function runCli(options: RunCliOptions): Promise<{ exitCode: number
   // Also load existing log counts for cross-invocation accumulation
   if (sessionId) {
     runtime.bindSessionId(sessionId)
-    if (runtime.scope.projectRoot) {
-      await runtime.loadExistingLogCounts(sessionId, runtime.scope.projectRoot)
-    }
+    await runtime.loadExistingLogCounts(sessionId)
   }
 
   await initializeSession({
@@ -446,8 +443,8 @@ export async function runCli(options: RunCliOptions): Promise<{ exitCode: number
   })
 
   // 5. Persist CLI log metrics (async, no-throw)
-  if (sessionId && runtime.scope.projectRoot) {
-    await persistCliLogMetrics(runtime.scope.projectRoot, sessionId, runtime.getLogCounts(), runtime.logger)
+  if (sessionId) {
+    await persistCliLogMetrics(runtime.stateService, sessionId, runtime.getLogCounts(), runtime.logger)
   }
 
   return result

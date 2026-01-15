@@ -24,7 +24,6 @@ import type {
   SessionSummaryState,
   StateReadResult,
   LogMetricsState,
-  SnarkyMessageState,
 } from './types.js'
 import {
   EMPTY_TRANSCRIPT_STATE,

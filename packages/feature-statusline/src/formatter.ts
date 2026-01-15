@@ -465,10 +465,7 @@ export function formatContextBar(
   // Select characters based on symbol mode
   // - "full" and "safe" use Unicode bar chars (they're in BMP and work well)
   // - "ascii" uses simple ASCII characters
-  const chars =
-    symbolMode === 'ascii'
-      ? { filled: '#', buffer: '.', empty: '.', threshold: '|' }
-      : BAR_CHARS // Unicode bar chars work for both "full" and "safe"
+  const chars = symbolMode === 'ascii' ? { filled: '#', buffer: '.', empty: '.', threshold: '|' } : BAR_CHARS // Unicode bar chars work for both "full" and "safe"
 
   // Build the bar
   const barParts: string[] = []

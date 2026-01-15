@@ -50,6 +50,12 @@ function createMockRuntime(overrides: Partial<RuntimeShell> = {}): RuntimeShell 
     telemetry: {
       flush: vi.fn(),
     } as unknown as RuntimeShell['telemetry'],
+    stateService: {
+      read: vi.fn(),
+      write: vi.fn(),
+      delete: vi.fn(),
+      sessionStatePath: vi.fn(),
+    } as unknown as RuntimeShell['stateService'],
     correlationId: 'test-correlation-id',
     cleanup: vi.fn(),
     bindSessionId: vi.fn(),
