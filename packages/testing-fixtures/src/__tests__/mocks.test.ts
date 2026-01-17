@@ -278,12 +278,6 @@ describe('MockConfigService', () => {
     expect(feature.enabled).toBe(true)
     expect(feature.settings).toEqual({})
   })
-
-  it('provides derived paths', () => {
-    expect(config.paths.sessionRoot('abc123')).toBe('.sidekick/sessions/abc123')
-    expect(config.paths.stagingRoot('abc123')).toBe('.sidekick/sessions/abc123/stage')
-    expect(config.paths.logsDir()).toBe('.sidekick/logs')
-  })
 })
 
 describe('MockAssetResolver', () => {

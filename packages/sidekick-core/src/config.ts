@@ -831,52 +831,6 @@ export function loadConfig(options: ConfigServiceOptions): SidekickConfig {
 }
 
 // =============================================================================
-// Derived Paths
-// =============================================================================
-
-/**
- * Derived path helpers per docs/design/CONFIG-SYSTEM.md §6.
- * These paths are computed from configuration, not directly configurable.
- */
-export interface DerivedPaths {
-  /** Session state root: {paths.state}/sessions/{session_id}/ */
-  sessionRoot(sessionId: string): string
-  /** Staging root: {paths.state}/sessions/{session_id}/stage/ */
-  stagingRoot(sessionId: string): string
-  /** Hook-specific staging: {paths.state}/sessions/{session_id}/stage/{hook_name}/ */
-  hookStaging(sessionId: string, hookName: string): string
-  /** Session state file: {paths.state}/sessions/{session_id}/state/{filename} */
-  sessionState(sessionId: string, filename: string): string
-  /** Logs directory: {paths.state}/logs/ */
-  logsDir(): string
-}
-
-/**
- * Create derived path helpers from core config.
- */
-export function createDerivedPaths(coreConfig: CoreConfig, projectRoot?: string): DerivedPaths {
-  const stateBase = projectRoot ? join(projectRoot, coreConfig.paths.state) : coreConfig.paths.state
-
-  return {
-    sessionRoot(sessionId: string): string {
-      return join(stateBase, 'sessions', sessionId)
-    },
-    stagingRoot(sessionId: string): string {
-      return join(stateBase, 'sessions', sessionId, 'stage')
-    },
-    hookStaging(sessionId: string, hookName: string): string {
-      return join(stateBase, 'sessions', sessionId, 'stage', hookName)
-    },
-    sessionState(sessionId: string, filename: string): string {
-      return join(stateBase, 'sessions', sessionId, 'state', filename)
-    },
-    logsDir(): string {
-      return join(stateBase, 'logs')
-    },
-  }
-}
-
-// =============================================================================
 // ConfigService
 // =============================================================================
 
@@ -892,9 +846,6 @@ export interface ConfigService {
 
   /** Get a specific feature's config */
   getFeature<T = Record<string, unknown>>(name: string): FeatureConfig & { settings: T }
-
-  /** Derived path helpers */
-  paths: DerivedPaths
 
   /** Sources loaded for debugging */
   sources: string[]
@@ -1019,7 +970,6 @@ export function createConfigService(options: ConfigServiceOptions): ConfigServic
   }
 
   const config = loadConfig(options)
-  const derivedPaths = createDerivedPaths(config.core, projectRoot)
 
   return {
     get core(): CoreConfig {
@@ -1087,7 +1037,6 @@ export function createConfigService(options: ConfigServiceOptions): ConfigServic
         settings: mergedSettings,
       } as FeatureConfig & { settings: T }
     },
-    paths: derivedPaths,
     sources,
   }
 }

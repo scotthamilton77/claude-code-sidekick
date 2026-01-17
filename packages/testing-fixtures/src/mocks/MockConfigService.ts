@@ -22,7 +22,6 @@
 import type {
   ConfigService,
   CoreConfig,
-  DerivedPaths,
   FeatureConfig,
   FeaturesConfig,
   LlmConfig,
@@ -103,15 +102,6 @@ export class MockConfigService implements ConfigService {
 
   /** Config sources (empty for mock) */
   readonly sources: string[] = []
-
-  /** Derived paths (mock implementation) */
-  readonly paths: DerivedPaths = {
-    sessionRoot: (sessionId: string) => `.sidekick/sessions/${sessionId}`,
-    stagingRoot: (sessionId: string) => `.sidekick/sessions/${sessionId}/stage`,
-    hookStaging: (sessionId: string, hookName: string) => `.sidekick/sessions/${sessionId}/stage/${hookName}`,
-    sessionState: (sessionId: string, filename: string) => `.sidekick/sessions/${sessionId}/state/${filename}`,
-    logsDir: () => `.sidekick/logs`,
-  }
 
   get core(): CoreConfig {
     return this._core
