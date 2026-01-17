@@ -234,14 +234,15 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
     - [x] Added `stateDir` option to StateServiceOptions for user-level state (stateDir: '' means no .sidekick prefix)
     - [x] Added `lastErrorAt` and `lastErrorMessage` fields to BaseTokenMetricsStateSchema
     - Note: Remaining fs/path usage is for reading Claude's transcript files (~/.claude/projects/), not sidekick state
-  - [ ] **9.3.9 Path Construction Cleanup** (7 files remaining with direct path construction)
-    - [ ] daemon.ts - 6 locations (lines 129, 187, 736, 856, 1016, 1405)
-    - [ ] config-watcher.ts - line 71
-    - [ ] cleanup.handler.ts - line 49
-    - [ ] ipc/transport.ts - 5 locations (lines 66, 70, 78, 86, 97) - Note: IPC paths may need special handling
-    - [ ] statusline.ts - line 145
-    - [ ] cli.ts - line 210
+  - [x] **9.3.9 Path Construction Cleanup** - COMPLETE 2026-01-17
+    - [x] daemon.ts - RuntimePaths use stateService.rootDir(), userStateService.rootDir(); sessionDir uses sessionRootDir()
+    - [x] config-watcher.ts - constructor takes sidekickDir from stateService.rootDir()
+    - [x] cleanup.handler.ts - uses stateService.sessionsDir()
+    - [x] ipc/transport.ts - **Intentional exception**: Infrastructure paths for IPC (socket, token, PID, lock) not state management
+    - [x] statusline.ts - uses stateService.sessionsDir()
+    - [x] cli.ts - initializeSession uses stateService.sessionRootDir()
     - [x] context-overhead-reader.ts - COMPLETE (uses StateService path accessors, done in 9.3.8)
+    - Note: Some bootstrap paths remain (logDir before stateService init, userConfigDir to create userStateService)
   - [ ] **9.3.10 Schema Validation on All Reads**
     - [ ] staging-service.ts - add Zod validation (lines 204-205, 283-284)
     - [ ] cli-staging-reader.ts - add Zod validation (line 60-61)

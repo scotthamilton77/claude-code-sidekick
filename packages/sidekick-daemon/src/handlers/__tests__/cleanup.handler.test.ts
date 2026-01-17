@@ -54,6 +54,7 @@ describe('CleanupHandler', () => {
     it('should throw on invalid payload type', async () => {
       const handler = createCleanupHandler({
         taskRegistry,
+        stateService,
         projectDir,
         logger,
       })
@@ -70,6 +71,7 @@ describe('CleanupHandler', () => {
 
       const handler = createCleanupHandler({
         taskRegistry,
+        stateService,
         projectDir,
         logger,
       })
@@ -87,6 +89,7 @@ describe('CleanupHandler', () => {
     it('should exit immediately when signal is already aborted', async () => {
       const handler = createCleanupHandler({
         taskRegistry,
+        stateService,
         projectDir,
         logger,
       })
@@ -118,6 +121,7 @@ describe('CleanupHandler', () => {
 
       const handler = createCleanupHandler({
         taskRegistry,
+        stateService,
         projectDir,
         logger,
       })
@@ -166,6 +170,7 @@ describe('CleanupHandler', () => {
 
       const handler = createCleanupHandler({
         taskRegistry,
+        stateService,
         projectDir,
         logger,
       })
@@ -200,6 +205,7 @@ describe('CleanupHandler', () => {
 
       const handler = createCleanupHandler({
         taskRegistry,
+        stateService,
         projectDir,
         logger,
       })
@@ -230,6 +236,7 @@ describe('CleanupHandler', () => {
 
       const handler = createCleanupHandler({
         taskRegistry,
+        stateService,
         projectDir,
         logger,
       })
@@ -256,6 +263,7 @@ describe('CleanupHandler', () => {
 
       const handler = createCleanupHandler({
         taskRegistry,
+        stateService,
         projectDir,
         logger,
       })
@@ -285,6 +293,7 @@ describe('CleanupHandler', () => {
 
       const handler = createCleanupHandler({
         taskRegistry,
+        stateService,
         projectDir,
         logger,
       })
@@ -308,6 +317,7 @@ describe('CleanupHandler', () => {
     it('should handle gracefully when sessions directory does not exist', async () => {
       const handler = createCleanupHandler({
         taskRegistry,
+        stateService,
         projectDir,
         logger,
       })
@@ -330,6 +340,7 @@ describe('CleanupHandler', () => {
 
       const handler = createCleanupHandler({
         taskRegistry,
+        stateService,
         projectDir,
         logger,
       })
@@ -348,6 +359,7 @@ describe('CleanupHandler', () => {
 
       const handler = createCleanupHandler({
         taskRegistry,
+        stateService,
         projectDir,
         logger,
       })
@@ -378,6 +390,7 @@ describe('CleanupHandler', () => {
 
       const handler = createCleanupHandler({
         taskRegistry,
+        stateService,
         projectDir,
         logger,
       })

@@ -183,7 +183,7 @@ export class Daemon {
     this.globalLogMetricsAccessor = new GlobalStateAccessor(this.stateService, DaemonGlobalLogMetricsDescriptor)
 
     // Initialize Config Watcher for hot-reload (design/DAEMON.md §4.3)
-    this.configWatcher = new ConfigWatcher(projectDir, this.logger, this.handleConfigChange.bind(this))
+    this.configWatcher = new ConfigWatcher(this.stateService.rootDir(), this.logger, this.handleConfigChange.bind(this))
 
     // Initialize Handler Registry (Phase 5.3)
     this.handlerRegistry = new HandlerRegistryImpl({
@@ -193,9 +193,8 @@ export class Daemon {
     })
 
     // Initialize Service Factory for session-scoped services (Phase 4)
-    const stateDir = path.join(projectDir, '.sidekick')
     this.serviceFactory = new ServiceFactoryImpl({
-      stateDir,
+      stateDir: this.stateService.rootDir(),
       logger: this.logger,
       scope: 'project',
       handlers: this.handlerRegistry,
@@ -743,8 +742,8 @@ export class Daemon {
     this.logger.debug('Resolved transcript path for classification', { transcriptPath: resolvedTranscriptPath })
     const paths: RuntimePaths = {
       projectDir: this.projectDir,
-      userConfigDir: path.join(homedir(), '.sidekick'),
-      projectConfigDir: path.join(this.projectDir, '.sidekick'),
+      userConfigDir: this.userStateService.rootDir(),
+      projectConfigDir: this.stateService.rootDir(),
       hookScriptPath: undefined,
     }
 
@@ -752,7 +751,7 @@ export class Daemon {
       this.llmProvider = this.profileProviderFactory.createDefault()
     }
 
-    const sessionDir = path.join(paths.projectConfigDir ?? paths.userConfigDir, 'sessions', sessionId)
+    const sessionDir = this.stateService.sessionRootDir(sessionId)
     const instrumentedProfileFactory = this.createInstrumentedProfileFactory(sessionId, sessionDir)
 
     const stagingService = this.serviceFactory.getStagingService(sessionId)
@@ -863,8 +862,8 @@ export class Daemon {
     // Build runtime paths
     const paths: RuntimePaths = {
       projectDir: this.projectDir,
-      userConfigDir: path.join(homedir(), '.sidekick'),
-      projectConfigDir: path.join(this.projectDir, '.sidekick'),
+      userConfigDir: this.userStateService.rootDir(),
+      projectConfigDir: this.stateService.rootDir(),
       hookScriptPath: undefined,
     }
 
@@ -877,7 +876,7 @@ export class Daemon {
     let llmProvider: LLMProvider = this.llmProvider
     let profileFactory: ProfileProviderFactoryInterface = this.profileProviderFactory
     if (sessionId) {
-      const sessionDir = path.join(paths.projectConfigDir ?? paths.userConfigDir, 'sessions', sessionId)
+      const sessionDir = this.stateService.sessionRootDir(sessionId)
 
       // Try to get existing instrumented provider for this session
       const instrumented = this.instrumentedProviders.get(sessionId)
@@ -1023,8 +1022,8 @@ export class Daemon {
     // Build runtime paths
     const paths: RuntimePaths = {
       projectDir: this.projectDir,
-      userConfigDir: path.join(homedir(), '.sidekick'),
-      projectConfigDir: path.join(this.projectDir, '.sidekick'),
+      userConfigDir: this.userStateService.rootDir(),
+      projectConfigDir: this.stateService.rootDir(),
       hookScriptPath: undefined,
     }
 
@@ -1034,7 +1033,7 @@ export class Daemon {
     }
 
     // Compute session directory for this session (used by instrumented providers)
-    const sessionDir = path.join(paths.projectConfigDir ?? paths.userConfigDir, 'sessions', sessionId)
+    const sessionDir = this.stateService.sessionRootDir(sessionId)
 
     // Get or create instrumented provider for this session (tracks metrics per-session)
     let instrumentedProvider = this.instrumentedProviders.get(sessionId)
@@ -1412,8 +1411,8 @@ export class Daemon {
     // Build RuntimePaths for the context
     const paths: RuntimePaths = {
       projectDir: this.projectDir,
-      userConfigDir: path.join(homedir(), '.sidekick'),
-      projectConfigDir: path.join(this.projectDir, '.sidekick'),
+      userConfigDir: this.userStateService.rootDir(),
+      projectConfigDir: this.stateService.rootDir(),
       hookScriptPath: undefined, // Not applicable for daemon
     }
 

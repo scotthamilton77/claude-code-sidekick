@@ -40,7 +40,7 @@ export type ConfigChangeHandler = (event: ConfigChangeEvent) => void
  * Watches configuration files for changes and triggers hot-reload.
  */
 export class ConfigWatcher {
-  private projectDir: string
+  private sidekickDir: string
   private logger: Logger
   private watchers: fs.FSWatcher[] = []
   private onChange: ConfigChangeHandler
@@ -49,8 +49,14 @@ export class ConfigWatcher {
   /** Debounce interval to coalesce rapid file changes (e.g., editor save) */
   private readonly debounceMs = 100
 
-  constructor(projectDir: string, logger: Logger, onChange: ConfigChangeHandler) {
-    this.projectDir = projectDir
+  /**
+   * Create a ConfigWatcher.
+   * @param sidekickDir - The .sidekick directory path (from StateService.rootDir())
+   * @param logger - Logger instance
+   * @param onChange - Callback for config changes
+   */
+  constructor(sidekickDir: string, logger: Logger, onChange: ConfigChangeHandler) {
+    this.sidekickDir = sidekickDir
     this.logger = logger
     this.onChange = onChange
   }
@@ -68,7 +74,6 @@ export class ConfigWatcher {
    * - .sidekick/.env.local (local environment overrides)
    */
   start(): void {
-    const sidekickDir = path.join(this.projectDir, '.sidekick')
     const filesToWatch = [
       'sidekick.config',
       'config.yaml',
@@ -84,12 +89,12 @@ export class ConfigWatcher {
     ]
 
     for (const filename of filesToWatch) {
-      const filePath = path.join(sidekickDir, filename)
+      const filePath = path.join(this.sidekickDir, filename)
       this.watchFile(filePath, filename)
     }
 
     this.logger.info('ConfigWatcher started', {
-      projectDir: this.projectDir,
+      sidekickDir: this.sidekickDir,
       watching: filesToWatch,
     })
   }

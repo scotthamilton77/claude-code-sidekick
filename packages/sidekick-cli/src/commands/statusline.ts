@@ -142,7 +142,6 @@ export async function handleStatuslineCommand(
 
   // Session ID extracted from hook input JSON by CLI (per CLI.md §3.1.1)
   // Falls back to 'current' for interactive mode
-  const sidekickDir = path.join(projectDir, '.sidekick')
   const sessionId = options.sessionId ?? 'current'
 
   // Create StateService for state file access
@@ -167,7 +166,7 @@ export async function handleStatuslineCommand(
   const userConfigDir = process.env.HOME ? path.join(process.env.HOME, '.sidekick') : undefined
 
   // Sessions directory for artifact discovery (finding previous session's resume message)
-  const sessionsDir = path.join(sidekickDir, 'sessions')
+  const sessionsDir = stateService.sessionsDir()
 
   const service = createStatuslineService({
     stateService,

@@ -76,6 +76,10 @@ function createMockStateService(): MinimalStateService {
     globalStatePath: vi.fn((filename: string): string => {
       return `/mock/state/${filename}`
     }),
+    rootDir: vi.fn((): string => '/mock'),
+    sessionsDir: vi.fn((): string => '/mock/sessions'),
+    sessionRootDir: vi.fn((sessionId: string): string => `/mock/sessions/${sessionId}`),
+    logsDir: vi.fn((): string => '/mock/logs'),
   }
 }
 
