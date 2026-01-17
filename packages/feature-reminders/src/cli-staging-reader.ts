@@ -4,21 +4,31 @@
  * Lightweight filesystem reader for consuming staged reminders in the CLI process.
  * The CLI cannot access DaemonContext.staging, so it reads files directly.
  *
+ * ## Architectural Note
+ *
+ * This class duplicates some logic from StagingServiceCore because:
+ * 1. CLI hooks run in a separate process without DaemonContext
+ * 2. StateService is async-only; CLI uses sync I/O for simplicity
+ * 3. No logger is available in CLI hook context
+ *
+ * Path construction and validation are shared via staging-paths module.
+ * See staging-paths.ts for the full architectural discussion and future direction.
+ *
  * @see docs/design/FEATURE-REMINDERS.md §3.1 Consumption Handlers
+ * @see packages/sidekick-core/src/staging-paths.ts
  */
 
 import { existsSync, readdirSync, readFileSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
-import { renameWithTimestampSync } from '@sidekick/core'
+import {
+  renameWithTimestampSync,
+  getHookDir,
+  getReminderPath,
+  isValidPathSegment,
+  filterActiveReminderFiles,
+} from '@sidekick/core'
 import type { StagedReminder, RuntimePaths } from '@sidekick/types'
-
-/**
- * Validate a path segment to prevent path traversal attacks.
- * Only allows alphanumeric, hyphens, and underscores.
- */
-function isValidPathSegment(segment: string): boolean {
-  return /^[\w-]+$/.test(segment) && !segment.includes('..')
-}
+import { StagedReminderSchema } from '@sidekick/types'
 
 export interface StagingReaderOptions {
   paths: RuntimePaths
@@ -28,9 +38,13 @@ export interface StagingReaderOptions {
 /**
  * Read staged reminders from filesystem (CLI-side).
  * This is a read-only interface for CLI consumption.
+ *
+ * Uses shared path helpers from staging-paths module for consistency
+ * with StagingServiceCore, but performs sync I/O directly (no StateService).
  */
 export class CLIStagingReader {
-  private readonly stagingRoot: string
+  private readonly stateDir: string
+  private readonly sessionId: string
 
   constructor(options: StagingReaderOptions) {
     // State dir is under projectConfigDir (matches Daemon's StagingService)
@@ -38,7 +52,8 @@ export class CLIStagingReader {
     if (!options.paths.projectConfigDir) {
       throw new Error('CLIStagingReader requires project scope (projectConfigDir must be defined)')
     }
-    this.stagingRoot = join(options.paths.projectConfigDir, 'sessions', options.sessionId, 'stage')
+    this.stateDir = options.paths.projectConfigDir
+    this.sessionId = options.sessionId
   }
 
   /**
@@ -47,20 +62,23 @@ export class CLIStagingReader {
    */
   listReminders(hookName: string): StagedReminder[] {
     if (!isValidPathSegment(hookName)) return []
-    const hookDir = join(this.stagingRoot, hookName)
+    const hookDir = getHookDir(this.stateDir, this.sessionId, hookName)
     if (!existsSync(hookDir)) return []
 
-    // Filter to .json files, excluding consumed files (name.{timestamp}.json)
-    // Consumed files have a numeric timestamp suffix before .json
-    const files = readdirSync(hookDir).filter((f) => f.endsWith('.json') && !/\.\d+\.json$/.test(f))
+    // Filter to active reminder files (excludes consumed files with timestamp suffix)
+    const files = filterActiveReminderFiles(readdirSync(hookDir))
     const reminders: StagedReminder[] = []
 
     for (const file of files) {
       try {
         const content = readFileSync(join(hookDir, file), 'utf-8')
-        reminders.push(JSON.parse(content) as StagedReminder)
+        const parsed = StagedReminderSchema.safeParse(JSON.parse(content))
+        if (parsed.success) {
+          reminders.push(parsed.data)
+        }
+        // Skip invalid files silently (CLI context, no logger available)
       } catch {
-        // Skip malformed files
+        // Skip malformed files silently (CLI context, no logger available)
       }
     }
 
@@ -72,7 +90,7 @@ export class CLIStagingReader {
    */
   deleteReminder(hookName: string, reminderName: string): void {
     if (!isValidPathSegment(hookName) || !isValidPathSegment(reminderName)) return
-    const path = join(this.stagingRoot, hookName, `${reminderName}.json`)
+    const path = getReminderPath(this.stateDir, this.sessionId, hookName, reminderName)
     if (existsSync(path)) {
       unlinkSync(path)
     }
@@ -85,7 +103,7 @@ export class CLIStagingReader {
    */
   renameReminder(hookName: string, reminderName: string): void {
     if (!isValidPathSegment(hookName) || !isValidPathSegment(reminderName)) return
-    const src = join(this.stagingRoot, hookName, `${reminderName}.json`)
+    const src = getReminderPath(this.stateDir, this.sessionId, hookName, reminderName)
     renameWithTimestampSync(src)
   }
 }

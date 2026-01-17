@@ -12,8 +12,17 @@ import {
   MockLogger,
   MockHandlerRegistry,
 } from '@sidekick/testing-fixtures'
-import type { CLIContext, PreToolUseHookEvent, StopHookEvent } from '@sidekick/types'
+import type { CLIContext, PreToolUseHookEvent, StopHookEvent, StagedReminder } from '@sidekick/types'
 import { createConsumptionHandler } from '../handlers/consumption/consumption-handler-factory'
+
+/** Create a valid StagedReminder with required fields */
+function createReminder(overrides: Partial<StagedReminder> & { name: string; priority: number }): StagedReminder {
+  return {
+    blocking: false,
+    persistent: false,
+    ...overrides,
+  }
+}
 
 // Test staging directory - using /tmp/claude/ for sandbox compatibility
 const testStateDir = '/tmp/claude/test-consumption-factory'
@@ -146,30 +155,27 @@ describe('createConsumptionHandler', () => {
       // Stage three reminders with different priorities
       writeFileSync(
         join(stagingDir, 'low-priority.json'),
-        JSON.stringify({
+        JSON.stringify(createReminder({
           name: 'low-priority',
           priority: 10,
-          persistent: false,
           additionalContext: 'Low priority context',
-        })
+        }))
       )
       writeFileSync(
         join(stagingDir, 'high-priority.json'),
-        JSON.stringify({
+        JSON.stringify(createReminder({
           name: 'high-priority',
           priority: 90,
-          persistent: false,
           additionalContext: 'High priority context',
-        })
+        }))
       )
       writeFileSync(
         join(stagingDir, 'medium-priority.json'),
-        JSON.stringify({
+        JSON.stringify(createReminder({
           name: 'medium-priority',
           priority: 50,
-          persistent: false,
           additionalContext: 'Medium priority context',
-        })
+        }))
       )
 
       createConsumptionHandler(ctx, {
@@ -233,12 +239,12 @@ describe('createConsumptionHandler', () => {
       const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'PreToolUse')
       writeFileSync(
         join(stagingDir, 'test.json'),
-        JSON.stringify({
+        JSON.stringify(createReminder({
           name: 'test',
           priority: 50,
           userMessage: 'Hello user',
           additionalContext: 'Context here',
-        })
+        }))
       )
 
       createConsumptionHandler(ctx, {
@@ -265,11 +271,10 @@ describe('createConsumptionHandler', () => {
       const reminderPath = join(stagingDir, 'one-shot.json')
       writeFileSync(
         reminderPath,
-        JSON.stringify({
+        JSON.stringify(createReminder({
           name: 'one-shot',
           priority: 50,
-          persistent: false,
-        })
+        }))
       )
 
       createConsumptionHandler(ctx, {
@@ -346,12 +351,12 @@ describe('createConsumptionHandler', () => {
       const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'Stop')
       writeFileSync(
         join(stagingDir, 'blocking.json'),
-        JSON.stringify({
+        JSON.stringify(createReminder({
           name: 'blocking',
           blocking: true,
           priority: 80,
           reason: 'Verify completion',
-        })
+        }))
       )
 
       createConsumptionHandler(ctx, {
@@ -378,12 +383,11 @@ describe('createConsumptionHandler', () => {
       const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'Stop')
       writeFileSync(
         join(stagingDir, 'non-blocking.json'),
-        JSON.stringify({
+        JSON.stringify(createReminder({
           name: 'non-blocking',
-          blocking: false,
           priority: 50,
           additionalContext: 'Just info',
-        })
+        }))
       )
 
       createConsumptionHandler(ctx, {
@@ -407,7 +411,7 @@ describe('createConsumptionHandler', () => {
   describe('logging', () => {
     it('logs ReminderConsumed event when reminder is consumed', async () => {
       const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'PreToolUse')
-      writeFileSync(join(stagingDir, 'test.json'), JSON.stringify({ name: 'test', priority: 50 }))
+      writeFileSync(join(stagingDir, 'test.json'), JSON.stringify(createReminder({ name: 'test', priority: 50 })))
 
       createConsumptionHandler(ctx, {
         id: 'test:consume',

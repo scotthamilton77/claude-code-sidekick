@@ -22,6 +22,8 @@ import { LogEvents, logEvent } from './structured-logging.js'
 import {
   PersistedTranscriptStateSchema,
   CompactionHistorySchema,
+  TranscriptEntrySchema,
+  TranscriptUuidSchema,
   pruneCompactionHistory,
   StateNotFoundError,
   type PersistedTranscriptState,
@@ -373,7 +375,16 @@ export class TranscriptServiceImpl implements TranscriptService {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i]
       try {
-        const rawEntry = JSON.parse(line) as TranscriptEntry
+        const parsed = TranscriptEntrySchema.safeParse(JSON.parse(line))
+        if (!parsed.success) {
+          this.options.logger.warn('Skipping invalid transcript line', {
+            sessionId: this.sessionId,
+            line: i + 1,
+            error: parsed.error.message,
+          })
+          continue
+        }
+        const rawEntry = parsed.data as TranscriptEntry
         const normalized = this.normalizeEntry(rawEntry, i + 1)
         if (normalized) {
           entries.push(...normalized)
@@ -640,8 +651,11 @@ export class TranscriptServiceImpl implements TranscriptService {
    */
   private parseUuid(line: string): string | null {
     try {
-      const entry = JSON.parse(line) as { uuid?: string }
-      return entry.uuid ?? null
+      const parsed = TranscriptUuidSchema.safeParse(JSON.parse(line))
+      if (!parsed.success) {
+        return null
+      }
+      return parsed.data.uuid ?? null
     } catch {
       return null
     }
@@ -1020,7 +1034,16 @@ export class TranscriptServiceImpl implements TranscriptService {
     for (let i = startLine; i < lines.length; i++) {
       const line = lines[i]
       try {
-        const entry = JSON.parse(line) as TranscriptEntry
+        const parsed = TranscriptEntrySchema.safeParse(JSON.parse(line))
+        if (!parsed.success) {
+          this.options.logger.warn('Skipping invalid transcript line', {
+            sessionId: this.sessionId,
+            line: i + 1,
+            error: parsed.error.message,
+          })
+          continue
+        }
+        const entry = parsed.data as TranscriptEntry
         this.processEntry(entry, i + 1) // Line numbers are 1-indexed
       } catch {
         // Skip malformed lines

@@ -20,12 +20,20 @@
  */
 
 import { existsSync, readdirSync } from 'node:fs'
-import { readFile, rm, mkdir } from 'node:fs/promises'
+import { rm, mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { StagingService, StagedReminder, Logger, MinimalStateService } from '@sidekick/types'
 import { StagedReminderSchema } from '@sidekick/types'
 import { LogEvents, logEvent } from './structured-logging'
 import { StateNotFoundError } from './state/errors.js'
+import {
+  getStagingRoot as buildStagingRoot,
+  getHookDir as buildHookDir,
+  getReminderPath as buildReminderPath,
+  validatePathSegment,
+  filterActiveReminderFiles,
+  extractConsumedTimestamp,
+} from './staging-paths.js'
 
 // ============================================================================
 // Types
@@ -45,25 +53,6 @@ export interface StagingServiceCoreOptions {
   stateService: MinimalStateService
 }
 
-/**
- * Validate a path segment to prevent path traversal attacks.
- * Rejects segments containing path separators or parent directory references.
- *
- * @throws Error if segment contains path traversal characters
- */
-function validatePathSegment(segment: string, name: string): void {
-  if (!segment) {
-    throw new Error(`${name} cannot be empty`)
-  }
-  if (segment.includes('..') || segment.includes('/') || segment.includes('\\')) {
-    throw new Error(`Invalid ${name}: path traversal characters not allowed`)
-  }
-  // Reject hidden files/directories (starting with .)
-  if (segment.startsWith('.')) {
-    throw new Error(`Invalid ${name}: cannot start with '.'`)
-  }
-}
-
 // ============================================================================
 // StagingServiceCore - Stateless singleton, takes sessionId on each call
 // ============================================================================
@@ -80,21 +69,28 @@ export class StagingServiceCore {
   constructor(private readonly options: StagingServiceCoreOptions) {}
 
   // ============================================================================
-  // Path Helpers
+  // Path Helpers (delegate to shared staging-paths module)
   // ============================================================================
 
   /**
    * Get the staging root for a session.
    */
   getStagingRoot(sessionId: string): string {
-    return join(this.options.stateDir, 'sessions', sessionId, 'stage')
+    return buildStagingRoot(this.options.stateDir, sessionId)
   }
 
   /**
    * Get the staging directory for a hook within a session.
    */
-  private getHookDir(sessionId: string, hookName: string): string {
-    return join(this.getStagingRoot(sessionId), hookName)
+  private getHookDirPath(sessionId: string, hookName: string): string {
+    return buildHookDir(this.options.stateDir, sessionId, hookName)
+  }
+
+  /**
+   * Get the path to a specific reminder file.
+   */
+  private getReminderFilePath(sessionId: string, hookName: string, reminderName: string): string {
+    return buildReminderPath(this.options.stateDir, sessionId, hookName, reminderName)
   }
 
   /**
@@ -120,8 +116,8 @@ export class StagingServiceCore {
     validatePathSegment(hookName, 'hookName')
     validatePathSegment(reminderName, 'reminderName')
 
-    const hookDir = this.getHookDir(sessionId, hookName)
-    const reminderPath = join(hookDir, `${reminderName}.json`)
+    const hookDir = this.getHookDirPath(sessionId, hookName)
+    const reminderPath = this.getReminderFilePath(sessionId, hookName, reminderName)
 
     // Ensure directory exists
     await this.ensureDir(hookDir)
@@ -158,7 +154,7 @@ export class StagingServiceCore {
     validatePathSegment(hookName, 'hookName')
     validatePathSegment(reminderName, 'reminderName')
 
-    const reminderPath = join(this.getHookDir(sessionId, hookName), `${reminderName}.json`)
+    const reminderPath = this.getReminderFilePath(sessionId, hookName, reminderName)
 
     try {
       const result = await this.options.stateService.read(reminderPath, StagedReminderSchema)
@@ -187,25 +183,31 @@ export class StagingServiceCore {
   async listReminders(sessionId: string, hookName: string): Promise<StagedReminder[]> {
     validatePathSegment(hookName, 'hookName')
 
-    const hookDir = this.getHookDir(sessionId, hookName)
+    const hookDir = this.getHookDirPath(sessionId, hookName)
 
     if (!existsSync(hookDir)) {
       return []
     }
 
-    // Filter to .json files, excluding consumed files (name.{timestamp}.json)
-    // Consumed files have a numeric timestamp suffix before .json
-    const files = readdirSync(hookDir).filter((f) => f.endsWith('.json') && !/\.\d+\.json$/.test(f))
+    // Filter to active reminder files (excludes consumed files with timestamp suffix)
+    const files = filterActiveReminderFiles(readdirSync(hookDir))
     const reminders: StagedReminder[] = []
 
     for (const file of files) {
       const reminderPath = join(hookDir, file)
       try {
-        const content = await readFile(reminderPath, 'utf-8')
-        reminders.push(JSON.parse(content) as StagedReminder)
-      } catch {
-        // Skip malformed files
-        this.options.logger.warn('Skipping malformed reminder file', { path: reminderPath })
+        const result = await this.options.stateService.read(reminderPath, StagedReminderSchema)
+        reminders.push(result.data)
+      } catch (err) {
+        if (err instanceof StateNotFoundError) {
+          // File was deleted between listing and reading, skip
+          continue
+        }
+        // StateCorruptError or other validation/parse errors
+        this.options.logger.warn('Skipping invalid reminder file', {
+          path: reminderPath,
+          error: err instanceof Error ? err.message : String(err),
+        })
       }
     }
 
@@ -223,7 +225,7 @@ export class StagingServiceCore {
     if (hookName) {
       validatePathSegment(hookName, 'hookName')
       // Clear specific hook directory
-      const hookDir = this.getHookDir(sessionId, hookName)
+      const hookDir = this.getHookDirPath(sessionId, hookName)
       if (existsSync(hookDir)) {
         await rm(hookDir, { recursive: true })
       }
@@ -246,7 +248,7 @@ export class StagingServiceCore {
     validatePathSegment(hookName, 'hookName')
     validatePathSegment(reminderName, 'reminderName')
 
-    const reminderPath = join(this.getHookDir(sessionId, hookName), `${reminderName}.json`)
+    const reminderPath = this.getReminderFilePath(sessionId, hookName, reminderName)
     await this.options.stateService.delete(reminderPath)
   }
 
@@ -261,30 +263,33 @@ export class StagingServiceCore {
     validatePathSegment(hookName, 'hookName')
     validatePathSegment(reminderName, 'reminderName')
 
-    const hookDir = this.getHookDir(sessionId, hookName)
+    const hookDir = this.getHookDirPath(sessionId, hookName)
     if (!existsSync(hookDir)) {
       return []
     }
 
-    // Pattern: {reminderName}.{timestamp}.json where timestamp is unix ms
-    const pattern = new RegExp(`^${reminderName}\\.(\\d+)\\.json$`)
+    // Find consumed files matching {reminderName}.{timestamp}.json pattern
     const files = readdirSync(hookDir)
-      .filter((f) => pattern.test(f))
-      .map((f) => ({
-        file: f,
-        timestamp: parseInt(pattern.exec(f)![1], 10),
-      }))
+      .map((f) => ({ file: f, timestamp: extractConsumedTimestamp(f, reminderName) }))
+      .filter((entry): entry is { file: string; timestamp: number } => entry.timestamp !== null)
       .sort((a, b) => b.timestamp - a.timestamp) // newest first
 
     const reminders: StagedReminder[] = []
     for (const { file } of files) {
       const reminderPath = join(hookDir, file)
       try {
-        const content = await readFile(reminderPath, 'utf-8')
-        reminders.push(JSON.parse(content) as StagedReminder)
-      } catch {
-        // Skip malformed files
-        this.options.logger.warn('Skipping malformed consumed reminder file', { path: reminderPath })
+        const result = await this.options.stateService.read(reminderPath, StagedReminderSchema)
+        reminders.push(result.data)
+      } catch (err) {
+        if (err instanceof StateNotFoundError) {
+          // File was deleted between listing and reading, skip
+          continue
+        }
+        // StateCorruptError or other validation/parse errors
+        this.options.logger.warn('Skipping invalid consumed reminder file', {
+          path: reminderPath,
+          error: err instanceof Error ? err.message : String(err),
+        })
       }
     }
 
