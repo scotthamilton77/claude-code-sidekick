@@ -24,10 +24,35 @@ import {
   getThresholdStatus,
   shortenPath,
 } from '../formatter.js'
+import { StateService } from '@sidekick/core'
 import { getDefaultOverhead, readContextOverhead } from '../context-overhead-reader.js'
 import { createStateReader, discoverPreviousResumeMessage } from '../state-reader.js'
 import { createStatuslineService, type ClaudeCodeStatusInput } from '../statusline-service.js'
 import { DEFAULT_STATUSLINE_CONFIG } from '../types.js'
+
+/**
+ * Helper to set up a test directory structure for StateReader tests.
+ * Creates project root with .sidekick/sessions/{sessionId}/state/ structure.
+ */
+async function setupStateReaderTestDir(): Promise<{
+  projectRoot: string
+  sessionId: string
+  stateDir: string
+  globalStateDir: string
+  stateService: StateService
+}> {
+  const projectRoot = path.join(tmpdir(), `statusline-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+  const sessionId = 'test-session-123'
+  const stateDir = path.join(projectRoot, '.sidekick', 'sessions', sessionId, 'state')
+  const globalStateDir = path.join(projectRoot, '.sidekick', 'state')
+
+  await fs.mkdir(stateDir, { recursive: true })
+  await fs.mkdir(globalStateDir, { recursive: true })
+
+  const stateService = new StateService(projectRoot)
+
+  return { projectRoot, sessionId, stateDir, globalStateDir, stateService }
+}
 
 /**
  * Create a test ClaudeCodeStatusInput with sensible defaults.
@@ -78,6 +103,70 @@ function createTestHookInput(overrides: {
         cache_read_input_tokens: 0,
       },
     },
+  }
+}
+
+/**
+ * Create valid persisted transcript metrics test data.
+ * Matches PersistedTranscriptStateSchema with all required fields.
+ */
+function createTestPersistedMetrics(overrides?: {
+  sessionId?: string
+  inputTokens?: number
+  outputTokens?: number
+  totalTokens?: number
+  currentContextTokens?: number | null
+  isPostCompactIndeterminate?: boolean
+  persistedAt?: number
+}): {
+  sessionId: string
+  metrics: {
+    turnCount: number
+    toolsThisTurn: number
+    toolCount: number
+    messageCount: number
+    tokenUsage: {
+      inputTokens: number
+      outputTokens: number
+      totalTokens: number
+      cacheCreationInputTokens: number
+      cacheReadInputTokens: number
+      cacheTiers: { ephemeral5mInputTokens: number; ephemeral1hInputTokens: number }
+      serviceTierCounts: Record<string, number>
+      byModel: Record<string, { inputTokens: number; outputTokens: number; requestCount: number }>
+    }
+    currentContextTokens: number | null
+    isPostCompactIndeterminate: boolean
+    toolsPerTurn: number
+    lastProcessedLine: number
+    lastUpdatedAt: number
+  }
+  persistedAt: number
+} {
+  return {
+    sessionId: overrides?.sessionId ?? 'test-123',
+    metrics: {
+      turnCount: 1,
+      toolsThisTurn: 0,
+      toolCount: 0,
+      messageCount: 2,
+      tokenUsage: {
+        inputTokens: overrides?.inputTokens ?? 30000,
+        outputTokens: overrides?.outputTokens ?? 15000,
+        totalTokens: overrides?.totalTokens ?? 45000,
+        cacheCreationInputTokens: 0,
+        cacheReadInputTokens: 0,
+        cacheTiers: { ephemeral5mInputTokens: 0, ephemeral1hInputTokens: 0 },
+        serviceTierCounts: {},
+        byModel: {},
+      },
+      currentContextTokens: overrides?.currentContextTokens ?? 30000,
+      isPostCompactIndeterminate: overrides?.isPostCompactIndeterminate ?? false,
+      toolsPerTurn: 0,
+      lastProcessedLine: 2,
+      lastUpdatedAt: Date.now(),
+    },
+    persistedAt: overrides?.persistedAt ?? Date.now(),
   }
 }
 
@@ -1404,48 +1493,33 @@ describe('Formatter.convertMarkdown', () => {
 // ============================================================================
 
 describe('StateReader', () => {
-  let testDir: string
+  let stateDir: string
+  let globalStateDir: string
+  let sessionId: string
+  let stateService: StateService
 
   beforeEach(async () => {
-    testDir = path.join(tmpdir(), `statusline-test-${Date.now()}`)
-    await fs.mkdir(testDir, { recursive: true })
+    const setup = await setupStateReaderTestDir()
+    stateDir = setup.stateDir
+    globalStateDir = setup.globalStateDir
+    sessionId = setup.sessionId
+    stateService = setup.stateService
   })
 
   it('returns default when file missing', async () => {
-    const reader = createStateReader(testDir)
-    const result = await reader.getSessionState()
+    const reader = createStateReader(stateService, sessionId)
+    const result = await reader.getTranscriptMetrics()
 
     expect(result.source).toBe('default')
     expect(result.data.tokens.total).toBe(0)
   })
 
   it('reads valid session state', async () => {
-    const state = {
-      sessionId: 'test-123',
-      metrics: {
-        turnCount: 1,
-        toolsThisTurn: 0,
-        toolCount: 0,
-        messageCount: 2,
-        tokenUsage: {
-          inputTokens: 30000,
-          outputTokens: 15000,
-          totalTokens: 45000,
-          cacheCreationInputTokens: 0,
-          cacheReadInputTokens: 0,
-        },
-        currentContextTokens: 30000,
-        isPostCompactIndeterminate: false,
-        toolsPerTurn: 0,
-        lastProcessedLine: 2,
-        lastUpdatedAt: Date.now(),
-      },
-      persistedAt: Date.now(),
-    }
-    await fs.writeFile(path.join(testDir, 'transcript-metrics.json'), JSON.stringify(state))
+    const state = createTestPersistedMetrics({ totalTokens: 45000 })
+    await fs.writeFile(path.join(stateDir, 'transcript-metrics.json'), JSON.stringify(state))
 
-    const reader = createStateReader(testDir)
-    const result = await reader.getSessionState()
+    const reader = createStateReader(stateService, sessionId)
+    const result = await reader.getTranscriptMetrics()
 
     expect(result.source).toBe('fresh')
     expect(result.data.tokens.total).toBe(45000)
@@ -1454,20 +1528,20 @@ describe('StateReader', () => {
   })
 
   it('returns default for invalid JSON', async () => {
-    await fs.writeFile(path.join(testDir, 'transcript-metrics.json'), 'not json')
+    await fs.writeFile(path.join(stateDir, 'transcript-metrics.json'), 'not json')
 
-    const reader = createStateReader(testDir)
-    const result = await reader.getSessionState()
+    const reader = createStateReader(stateService, sessionId)
+    const result = await reader.getTranscriptMetrics()
 
     expect(result.source).toBe('default')
   })
 
   it('returns default for schema-invalid transcript metrics', async () => {
     // Valid JSON but doesn't match PersistedTranscriptStateSchema
-    await fs.writeFile(path.join(testDir, 'transcript-metrics.json'), JSON.stringify({ invalidField: 'value' }))
+    await fs.writeFile(path.join(stateDir, 'transcript-metrics.json'), JSON.stringify({ invalidField: 'value' }))
 
-    const reader = createStateReader(testDir)
-    const result = await reader.getSessionState()
+    const reader = createStateReader(stateService, sessionId)
+    const result = await reader.getTranscriptMetrics()
 
     expect(result.source).toBe('default')
     expect(result.data.tokens.total).toBe(0)
@@ -1475,11 +1549,11 @@ describe('StateReader', () => {
 
   it('reads snarky message', async () => {
     await fs.writeFile(
-      path.join(testDir, 'snarky-message.json'),
+      path.join(stateDir, 'snarky-message.json'),
       JSON.stringify({ message: 'Time to debug!', timestamp: new Date().toISOString() })
     )
 
-    const reader = createStateReader(testDir)
+    const reader = createStateReader(stateService, sessionId)
     const result = await reader.getSnarkyMessage()
 
     expect(result.source).toBe('fresh')
@@ -1488,7 +1562,7 @@ describe('StateReader', () => {
 
   it('reads session summary with valid data', async () => {
     await fs.writeFile(
-      path.join(testDir, 'session-summary.json'),
+      path.join(stateDir, 'session-summary.json'),
       JSON.stringify({
         session_id: 'test-123',
         timestamp: new Date().toISOString(),
@@ -1499,7 +1573,7 @@ describe('StateReader', () => {
       })
     )
 
-    const reader = createStateReader(testDir)
+    const reader = createStateReader(stateService, sessionId)
     const result = await reader.getSessionSummary()
 
     expect(result.source).toBe('fresh')
@@ -1509,9 +1583,9 @@ describe('StateReader', () => {
 
   it('returns default for schema-invalid session summary', async () => {
     // Valid JSON but missing required fields
-    await fs.writeFile(path.join(testDir, 'session-summary.json'), JSON.stringify({ wrong_field: 'value' }))
+    await fs.writeFile(path.join(stateDir, 'session-summary.json'), JSON.stringify({ wrong_field: 'value' }))
 
-    const reader = createStateReader(testDir)
+    const reader = createStateReader(stateService, sessionId)
     const result = await reader.getSessionSummary()
 
     expect(result.source).toBe('default')
@@ -1519,7 +1593,7 @@ describe('StateReader', () => {
 
   it('reads resume message with valid data', async () => {
     await fs.writeFile(
-      path.join(testDir, 'resume-message.json'),
+      path.join(stateDir, 'resume-message.json'),
       JSON.stringify({
         last_task_id: 'task-1',
         session_title: 'Previous Work',
@@ -1529,7 +1603,7 @@ describe('StateReader', () => {
       })
     )
 
-    const reader = createStateReader(testDir)
+    const reader = createStateReader(stateService, sessionId)
     const result = await reader.getResumeMessage()
 
     expect(result.source).toBe('fresh')
@@ -1539,9 +1613,9 @@ describe('StateReader', () => {
 
   it('returns default for schema-invalid resume message', async () => {
     // Valid JSON but missing required fields
-    await fs.writeFile(path.join(testDir, 'resume-message.json'), JSON.stringify({ invalid: true }))
+    await fs.writeFile(path.join(stateDir, 'resume-message.json'), JSON.stringify({ invalid: true }))
 
-    const reader = createStateReader(testDir)
+    const reader = createStateReader(stateService, sessionId)
     const result = await reader.getResumeMessage()
 
     expect(result.source).toBe('default')
@@ -1550,7 +1624,7 @@ describe('StateReader', () => {
 
   describe('getLogMetrics', () => {
     it('returns default when no log files exist', async () => {
-      const reader = createStateReader(testDir)
+      const reader = createStateReader(stateService, sessionId)
       const result = await reader.getLogMetrics()
 
       expect(result.source).toBe('default')
@@ -1560,7 +1634,7 @@ describe('StateReader', () => {
 
     it('reads daemon log metrics from valid file', async () => {
       await fs.writeFile(
-        path.join(testDir, 'daemon-log-metrics.json'),
+        path.join(stateDir, 'daemon-log-metrics.json'),
         JSON.stringify({
           sessionId: 'test-123',
           warningCount: 5,
@@ -1569,7 +1643,7 @@ describe('StateReader', () => {
         })
       )
 
-      const reader = createStateReader(testDir)
+      const reader = createStateReader(stateService, sessionId)
       const result = await reader.getLogMetrics()
 
       expect(result.source).toBe('fresh')
@@ -1579,7 +1653,7 @@ describe('StateReader', () => {
 
     it('reads CLI log metrics and sums with daemon metrics', async () => {
       await fs.writeFile(
-        path.join(testDir, 'daemon-log-metrics.json'),
+        path.join(stateDir, 'daemon-log-metrics.json'),
         JSON.stringify({
           sessionId: 'test-123',
           warningCount: 3,
@@ -1588,7 +1662,7 @@ describe('StateReader', () => {
         })
       )
       await fs.writeFile(
-        path.join(testDir, 'cli-log-metrics.json'),
+        path.join(stateDir, 'cli-log-metrics.json'),
         JSON.stringify({
           sessionId: 'test-123',
           warningCount: 2,
@@ -1597,7 +1671,7 @@ describe('StateReader', () => {
         })
       )
 
-      const reader = createStateReader(testDir)
+      const reader = createStateReader(stateService, sessionId)
       const result = await reader.getLogMetrics()
 
       expect(result.source).toBe('fresh')
@@ -1605,13 +1679,10 @@ describe('StateReader', () => {
       expect(result.data.errorCount).toBe(2) // 1 + 1
     })
 
-    it('reads global daemon metrics when projectStateDir is configured', async () => {
-      const projectStateDir = path.join(tmpdir(), `project-state-${Date.now()}-${Math.random().toString(36)}`)
-      await fs.mkdir(projectStateDir, { recursive: true })
-
+    it('reads global daemon metrics from project state dir', async () => {
       // Write all three files explicitly with distinct values
       await fs.writeFile(
-        path.join(testDir, 'daemon-log-metrics.json'),
+        path.join(stateDir, 'daemon-log-metrics.json'),
         JSON.stringify({
           sessionId: 'test-123',
           warningCount: 1,
@@ -1620,7 +1691,7 @@ describe('StateReader', () => {
         })
       )
       await fs.writeFile(
-        path.join(testDir, 'cli-log-metrics.json'),
+        path.join(stateDir, 'cli-log-metrics.json'),
         JSON.stringify({
           sessionId: 'test-123',
           warningCount: 2,
@@ -1629,7 +1700,7 @@ describe('StateReader', () => {
         })
       )
       await fs.writeFile(
-        path.join(projectStateDir, 'daemon-global-log-metrics.json'),
+        path.join(globalStateDir, 'daemon-global-log-metrics.json'),
         JSON.stringify({
           sessionId: '',
           warningCount: 3,
@@ -1638,7 +1709,7 @@ describe('StateReader', () => {
         })
       )
 
-      const reader = createStateReader(testDir, { projectStateDir })
+      const reader = createStateReader(stateService, sessionId)
       const result = await reader.getLogMetrics()
 
       expect(result.source).toBe('fresh')
@@ -1649,7 +1720,7 @@ describe('StateReader', () => {
     it('returns stale when log metrics are old', async () => {
       const twoMinutesAgo = Date.now() - 120_000
       await fs.writeFile(
-        path.join(testDir, 'daemon-log-metrics.json'),
+        path.join(stateDir, 'daemon-log-metrics.json'),
         JSON.stringify({
           sessionId: 'test-123',
           warningCount: 1,
@@ -1658,7 +1729,7 @@ describe('StateReader', () => {
         })
       )
 
-      const reader = createStateReader(testDir)
+      const reader = createStateReader(stateService, sessionId)
       const result = await reader.getLogMetrics()
 
       expect(result.source).toBe('stale')
@@ -1666,10 +1737,10 @@ describe('StateReader', () => {
 
     it('returns default for invalid log metrics JSON', async () => {
       // Write invalid JSON to both log metrics files to ensure combined result is 'default'
-      await fs.writeFile(path.join(testDir, 'daemon-log-metrics.json'), 'not valid json')
-      await fs.writeFile(path.join(testDir, 'cli-log-metrics.json'), 'not valid json')
+      await fs.writeFile(path.join(stateDir, 'daemon-log-metrics.json'), 'not valid json')
+      await fs.writeFile(path.join(stateDir, 'cli-log-metrics.json'), 'not valid json')
 
-      const reader = createStateReader(testDir)
+      const reader = createStateReader(stateService, sessionId)
       const result = await reader.getLogMetrics()
 
       expect(result.source).toBe('default')
@@ -1678,9 +1749,9 @@ describe('StateReader', () => {
     })
 
     it('returns default for schema-invalid log metrics', async () => {
-      await fs.writeFile(path.join(testDir, 'daemon-log-metrics.json'), JSON.stringify({ wrongField: 'value' }))
+      await fs.writeFile(path.join(stateDir, 'daemon-log-metrics.json'), JSON.stringify({ wrongField: 'value' }))
 
-      const reader = createStateReader(testDir)
+      const reader = createStateReader(stateService, sessionId)
       const result = await reader.getLogMetrics()
 
       expect(result.source).toBe('default')
@@ -1693,10 +1764,15 @@ describe('StateReader', () => {
 // ============================================================================
 
 describe('discoverPreviousResumeMessage', () => {
+  let projectRoot: string
   let sessionsDir: string
 
   beforeEach(async () => {
-    sessionsDir = path.join(tmpdir(), `sessions-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+    // Create proper project structure: <projectRoot>/.sidekick/sessions/
+    // discoverPreviousResumeMessage expects sessionsDir to be at this location
+    // so it can compute projectRoot as path.dirname(path.dirname(sessionsDir))
+    projectRoot = path.join(tmpdir(), `discover-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+    sessionsDir = path.join(projectRoot, '.sidekick', 'sessions')
     await fs.mkdir(sessionsDir, { recursive: true })
   })
 
@@ -1924,16 +2000,23 @@ describe('GitProvider', () => {
 // ============================================================================
 
 describe('StatuslineService', () => {
-  let testDir: string
+  let projectRoot: string
+  let stateDir: string
+  let sessionId: string
+  let stateService: StateService
 
   beforeEach(async () => {
-    testDir = path.join(tmpdir(), `statusline-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
-    await fs.mkdir(testDir, { recursive: true })
+    const setup = await setupStateReaderTestDir()
+    projectRoot = setup.projectRoot
+    stateDir = setup.stateDir
+    sessionId = setup.sessionId
+    stateService = setup.stateService
   })
 
   it('renders with default values when no state files', async () => {
     const service = createStatuslineService({
-      sessionStateDir: testDir,
+      stateService,
+      sessionId,
       cwd: '/home/user/project',
       homeDir: '/home/user',
       useColors: false,
@@ -1948,7 +2031,7 @@ describe('StatuslineService', () => {
   it('renders session summary when available', async () => {
     // Write session state
     await fs.writeFile(
-      path.join(testDir, 'transcript-metrics.json'),
+      path.join(stateDir, 'transcript-metrics.json'),
       JSON.stringify({
         sessionId: 'test-123',
         metrics: {
@@ -1975,7 +2058,7 @@ describe('StatuslineService', () => {
 
     // Write session summary
     await fs.writeFile(
-      path.join(testDir, 'session-summary.json'),
+      path.join(stateDir, 'session-summary.json'),
       JSON.stringify({
         session_id: 'test-123',
         timestamp: new Date().toISOString(),
@@ -1987,7 +2070,8 @@ describe('StatuslineService', () => {
     )
 
     const service = createStatuslineService({
-      sessionStateDir: testDir,
+      stateService,
+      sessionId,
       cwd: '/home/user/project',
       homeDir: '/home/user',
       useColors: false,
@@ -2016,7 +2100,7 @@ describe('StatuslineService', () => {
 
   it('prefers snarky message over intent', async () => {
     await fs.writeFile(
-      path.join(testDir, 'session-summary.json'),
+      path.join(stateDir, 'session-summary.json'),
       JSON.stringify({
         session_id: 'test-123',
         timestamp: new Date().toISOString(),
@@ -2027,12 +2111,13 @@ describe('StatuslineService', () => {
       })
     )
     await fs.writeFile(
-      path.join(testDir, 'snarky-message.json'),
+      path.join(stateDir, 'snarky-message.json'),
       JSON.stringify({ message: 'Battling the auth gremlins!', timestamp: new Date().toISOString() })
     )
 
     const service = createStatuslineService({
-      sessionStateDir: testDir,
+      stateService,
+      sessionId,
       cwd: '/test',
       useColors: false,
     })
@@ -2046,35 +2131,13 @@ describe('StatuslineService', () => {
     // Write state file with old persistedAt timestamp (simulate stale data)
     // Staleness is now based on persistedAt in the content, not file mtime
     const twoMinutesAgo = Date.now() - 120_000
-    const stateFile = path.join(testDir, 'transcript-metrics.json')
-    await fs.writeFile(
-      stateFile,
-      JSON.stringify({
-        sessionId: 'test-123',
-        metrics: {
-          turnCount: 1,
-          toolsThisTurn: 0,
-          toolCount: 0,
-          messageCount: 1,
-          tokenUsage: {
-            inputTokens: 1000,
-            outputTokens: 0,
-            totalTokens: 1000,
-            cacheCreationInputTokens: 0,
-            cacheReadInputTokens: 0,
-          },
-          currentContextTokens: 1000,
-          isPostCompactIndeterminate: false,
-          toolsPerTurn: 0,
-          lastProcessedLine: 1,
-          lastUpdatedAt: twoMinutesAgo,
-        },
-        persistedAt: twoMinutesAgo, // Old persistedAt triggers staleness
-      })
-    )
+    const stateFile = path.join(stateDir, 'transcript-metrics.json')
+    const state = createTestPersistedMetrics({ totalTokens: 1000, persistedAt: twoMinutesAgo })
+    await fs.writeFile(stateFile, JSON.stringify(state))
 
     const service = createStatuslineService({
-      sessionStateDir: testDir,
+      stateService,
+      sessionId,
       cwd: '/test',
       useColors: false,
     })
@@ -2086,34 +2149,12 @@ describe('StatuslineService', () => {
   })
 
   it('does not append (stale) when data is fresh', async () => {
-    await fs.writeFile(
-      path.join(testDir, 'transcript-metrics.json'),
-      JSON.stringify({
-        sessionId: 'test-123',
-        metrics: {
-          turnCount: 1,
-          toolsThisTurn: 0,
-          toolCount: 0,
-          messageCount: 1,
-          tokenUsage: {
-            inputTokens: 1000,
-            outputTokens: 0,
-            totalTokens: 1000,
-            cacheCreationInputTokens: 0,
-            cacheReadInputTokens: 0,
-          },
-          currentContextTokens: 1000,
-          isPostCompactIndeterminate: false,
-          toolsPerTurn: 0,
-          lastProcessedLine: 1,
-          lastUpdatedAt: Date.now(),
-        },
-        persistedAt: Date.now(),
-      })
-    )
+    const state = createTestPersistedMetrics({ totalTokens: 1000 })
+    await fs.writeFile(path.join(stateDir, 'transcript-metrics.json'), JSON.stringify(state))
 
     const service = createStatuslineService({
-      sessionStateDir: testDir,
+      stateService,
+      sessionId,
       cwd: '/test',
       useColors: false,
     })
@@ -2128,7 +2169,8 @@ describe('StatuslineService', () => {
     it('returns non-claude model names unchanged', async () => {
       // Model name comes from hook input, not transcript-metrics.json
       const service = createStatuslineService({
-        sessionStateDir: testDir,
+        stateService,
+      sessionId,
         cwd: '/test',
         useColors: false,
         hookInput: createTestHookInput({
@@ -2145,7 +2187,8 @@ describe('StatuslineService', () => {
     it('strips claude- prefix from claude model names', async () => {
       // Model name comes from hook input, not transcript-metrics.json
       const service = createStatuslineService({
-        sessionStateDir: testDir,
+        stateService,
+      sessionId,
         cwd: '/test',
         useColors: false,
         hookInput: createTestHookInput({
@@ -2161,11 +2204,16 @@ describe('StatuslineService', () => {
   })
 
   describe('artifact discovery for new sessions', () => {
+    let discoveryProjectRoot: string
     let sessionsDir: string
+    let discoveryStateService: StateService
 
     beforeEach(async () => {
-      sessionsDir = path.join(tmpdir(), `sessions-discovery-${Date.now()}`)
+      // Set up project structure for discovery tests
+      discoveryProjectRoot = path.join(tmpdir(), `discovery-project-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+      sessionsDir = path.join(discoveryProjectRoot, '.sidekick', 'sessions')
       await fs.mkdir(sessionsDir, { recursive: true })
+      discoveryStateService = new StateService(discoveryProjectRoot)
     })
 
     it('discovers resume message from previous session when current has no summary', async () => {
@@ -2188,11 +2236,11 @@ describe('StatuslineService', () => {
       )
 
       const service = createStatuslineService({
-        sessionStateDir: currentStateDir,
+        stateService: discoveryStateService,
+        sessionId: currentSessionId,
         cwd: '/test',
         useColors: false,
         sessionsDir,
-        currentSessionId,
       })
 
       const result = await service.render()
@@ -2237,11 +2285,11 @@ describe('StatuslineService', () => {
       )
 
       const service = createStatuslineService({
-        sessionStateDir: currentStateDir,
+        stateService: discoveryStateService,
+        sessionId: currentSessionId,
         cwd: '/test',
         useColors: false,
         sessionsDir,
-        currentSessionId,
       })
 
       const result = await service.render()
@@ -2254,7 +2302,8 @@ describe('StatuslineService', () => {
     it('falls back gracefully when discovery config not provided', async () => {
       // No sessionsDir or currentSessionId provided
       const service = createStatuslineService({
-        sessionStateDir: testDir,
+        stateService,
+      sessionId,
         cwd: '/test',
         useColors: false,
       })
@@ -2269,31 +2318,8 @@ describe('StatuslineService', () => {
   describe('hook input edge cases', () => {
     it('uses transcript metrics when hook current_usage is null', async () => {
       // Write transcript metrics with currentContextTokens
-      await fs.writeFile(
-        path.join(testDir, 'transcript-metrics.json'),
-        JSON.stringify({
-          sessionId: 'test-123',
-          metrics: {
-            turnCount: 5,
-            toolsThisTurn: 0,
-            toolCount: 10,
-            messageCount: 10,
-            tokenUsage: {
-              inputTokens: 50000,
-              outputTokens: 20000,
-              totalTokens: 70000,
-              cacheCreationInputTokens: 0,
-              cacheReadInputTokens: 0,
-            },
-            currentContextTokens: 55000,
-            isPostCompactIndeterminate: false,
-            toolsPerTurn: 2,
-            lastProcessedLine: 10,
-            lastUpdatedAt: Date.now(),
-          },
-          persistedAt: Date.now(),
-        })
-      )
+      const state = createTestPersistedMetrics({ totalTokens: 70000, currentContextTokens: 55000 })
+      await fs.writeFile(path.join(stateDir, 'transcript-metrics.json'), JSON.stringify(state))
 
       // Create hook input with null current_usage
       const hookInput: ClaudeCodeStatusInput = {
@@ -2321,7 +2347,8 @@ describe('StatuslineService', () => {
       }
 
       const service = createStatuslineService({
-        sessionStateDir: testDir,
+        stateService,
+      sessionId,
         cwd: '/test',
         useColors: false,
         hookInput,
@@ -2365,7 +2392,8 @@ describe('StatuslineService', () => {
       }
 
       const service = createStatuslineService({
-        sessionStateDir: testDir,
+        stateService,
+      sessionId,
         cwd: '/test',
         useColors: false,
         hookInput,
@@ -2380,7 +2408,7 @@ describe('StatuslineService', () => {
     it('falls back to baseline when null current_usage and transcript has zero tokens', async () => {
       // Transcript with zero currentContextTokens
       await fs.writeFile(
-        path.join(testDir, 'transcript-metrics.json'),
+        path.join(stateDir, 'transcript-metrics.json'),
         JSON.stringify({
           sessionId: 'test-123',
           metrics: {
@@ -2430,7 +2458,8 @@ describe('StatuslineService', () => {
       }
 
       const service = createStatuslineService({
-        sessionStateDir: testDir,
+        stateService,
+      sessionId,
         cwd: '/test',
         useColors: false,
         hookInput,
@@ -2445,35 +2474,13 @@ describe('StatuslineService', () => {
       // Write transcript with isPostCompactIndeterminate: true
       // Note: This tests the no-hookInput path since isPostCompactIndeterminate
       // only comes from transcript metrics state, not from Claude Code hook input
-      await fs.writeFile(
-        path.join(testDir, 'transcript-metrics.json'),
-        JSON.stringify({
-          sessionId: 'test-123',
-          metrics: {
-            turnCount: 1,
-            toolsThisTurn: 0,
-            toolCount: 0,
-            messageCount: 1,
-            tokenUsage: {
-              inputTokens: 1000,
-              outputTokens: 0,
-              totalTokens: 1000,
-              cacheCreationInputTokens: 0,
-              cacheReadInputTokens: 0,
-            },
-            currentContextTokens: 1000,
-            isPostCompactIndeterminate: true,
-            toolsPerTurn: 0,
-            lastProcessedLine: 1,
-            lastUpdatedAt: Date.now(),
-          },
-          persistedAt: Date.now(),
-        })
-      )
+      const state = createTestPersistedMetrics({ totalTokens: 1000, isPostCompactIndeterminate: true })
+      await fs.writeFile(path.join(stateDir, 'transcript-metrics.json'), JSON.stringify(state))
 
       // No hookInput - uses transcript state directly which includes isPostCompactIndeterminate
       const service = createStatuslineService({
-        sessionStateDir: testDir,
+        stateService,
+      sessionId,
         cwd: '/test',
         useColors: false,
         // No hookInput
@@ -2489,34 +2496,12 @@ describe('StatuslineService', () => {
   describe('stale indicator with colors', () => {
     it('applies dim ANSI formatting to stale indicator when colors enabled', async () => {
       const twoMinutesAgo = Date.now() - 120_000
-      await fs.writeFile(
-        path.join(testDir, 'transcript-metrics.json'),
-        JSON.stringify({
-          sessionId: 'test-123',
-          metrics: {
-            turnCount: 1,
-            toolsThisTurn: 0,
-            toolCount: 0,
-            messageCount: 1,
-            tokenUsage: {
-              inputTokens: 1000,
-              outputTokens: 0,
-              totalTokens: 1000,
-              cacheCreationInputTokens: 0,
-              cacheReadInputTokens: 0,
-            },
-            currentContextTokens: 1000,
-            isPostCompactIndeterminate: false,
-            toolsPerTurn: 0,
-            lastProcessedLine: 1,
-            lastUpdatedAt: twoMinutesAgo,
-          },
-          persistedAt: twoMinutesAgo,
-        })
-      )
+      const state = createTestPersistedMetrics({ totalTokens: 1000, persistedAt: twoMinutesAgo })
+      await fs.writeFile(path.join(stateDir, 'transcript-metrics.json'), JSON.stringify(state))
 
       const service = createStatuslineService({
-        sessionStateDir: testDir,
+        stateService,
+      sessionId,
         cwd: '/test',
         useColors: true, // Enable colors
       })
@@ -2548,7 +2533,8 @@ describe('StatuslineService', () => {
       }
 
       const service = createStatuslineService({
-        sessionStateDir: testDir,
+        stateService,
+      sessionId,
         cwd: '/test',
         useColors: false,
         configService: mockConfigService,
@@ -2562,7 +2548,7 @@ describe('StatuslineService', () => {
   describe('log status in viewModel', () => {
     it('shows critical log status when errors exceed threshold', async () => {
       await fs.writeFile(
-        path.join(testDir, 'daemon-log-metrics.json'),
+        path.join(stateDir, 'daemon-log-metrics.json'),
         JSON.stringify({
           sessionId: 'test-123',
           warningCount: 0,
@@ -2572,7 +2558,8 @@ describe('StatuslineService', () => {
       )
 
       const service = createStatuslineService({
-        sessionStateDir: testDir,
+        stateService,
+      sessionId,
         cwd: '/test',
         useColors: false,
         hookInput: createTestHookInput({}),
@@ -2586,7 +2573,7 @@ describe('StatuslineService', () => {
 
     it('shows warning log status when warnings exceed threshold', async () => {
       await fs.writeFile(
-        path.join(testDir, 'daemon-log-metrics.json'),
+        path.join(stateDir, 'daemon-log-metrics.json'),
         JSON.stringify({
           sessionId: 'test-123',
           warningCount: 10, // Above default warning threshold
@@ -2596,7 +2583,8 @@ describe('StatuslineService', () => {
       )
 
       const service = createStatuslineService({
-        sessionStateDir: testDir,
+        stateService,
+      sessionId,
         cwd: '/test',
         useColors: false,
         hookInput: createTestHookInput({}),
@@ -2635,7 +2623,8 @@ describe('StatuslineService', () => {
 
       // Hook input with zero tokens - will trigger baseline fallback
       const service = createStatuslineService({
-        sessionStateDir: testDir,
+        stateService,
+      sessionId,
         cwd: '/test',
         useColors: false,
         logger: mockLogger,
@@ -2656,7 +2645,7 @@ describe('StatuslineService', () => {
 
       // Write transcript with currentContextTokens
       await fs.writeFile(
-        path.join(testDir, 'transcript-metrics.json'),
+        path.join(stateDir, 'transcript-metrics.json'),
         JSON.stringify({
           sessionId: 'test-123',
           metrics: {
@@ -2707,7 +2696,8 @@ describe('StatuslineService', () => {
       }
 
       const service = createStatuslineService({
-        sessionStateDir: testDir,
+        stateService,
+      sessionId,
         cwd: '/test',
         useColors: false,
         logger: mockLogger,
@@ -2724,7 +2714,7 @@ describe('StatuslineService', () => {
   describe('resume message edge cases', () => {
     it('uses default title when resume message has no session_title', async () => {
       await fs.writeFile(
-        path.join(testDir, 'resume-message.json'),
+        path.join(stateDir, 'resume-message.json'),
         JSON.stringify({
           last_task_id: 'task-1',
           session_title: '', // Empty session title
@@ -2735,7 +2725,8 @@ describe('StatuslineService', () => {
       )
 
       const service = createStatuslineService({
-        sessionStateDir: testDir,
+        stateService,
+      sessionId,
         cwd: '/test',
         useColors: false,
         isResumedSession: true,
@@ -2750,7 +2741,7 @@ describe('StatuslineService', () => {
 
     it('uses emptySessionMessage when resume has no snarky_comment', async () => {
       await fs.writeFile(
-        path.join(testDir, 'resume-message.json'),
+        path.join(stateDir, 'resume-message.json'),
         JSON.stringify({
           last_task_id: 'task-1',
           session_title: 'Previous Work',
@@ -2761,7 +2752,8 @@ describe('StatuslineService', () => {
       )
 
       const service = createStatuslineService({
-        sessionStateDir: testDir,
+        stateService,
+      sessionId,
         cwd: '/test',
         useColors: false,
         isResumedSession: true,
@@ -2779,7 +2771,7 @@ describe('StatuslineService', () => {
     it('returns session_summary when title matches DEFAULT_PLACEHOLDERS.newSession', async () => {
       // Session summary with "New Session" title should still be treated as empty
       await fs.writeFile(
-        path.join(testDir, 'session-summary.json'),
+        path.join(stateDir, 'session-summary.json'),
         JSON.stringify({
           session_id: 'test-123',
           timestamp: new Date().toISOString(),
@@ -2791,7 +2783,8 @@ describe('StatuslineService', () => {
       )
 
       const service = createStatuslineService({
-        sessionStateDir: testDir,
+        stateService,
+      sessionId,
         cwd: '/test',
         useColors: false,
       })
@@ -2804,7 +2797,7 @@ describe('StatuslineService', () => {
 
     it('returns resume_message when resumed session has resume message', async () => {
       await fs.writeFile(
-        path.join(testDir, 'resume-message.json'),
+        path.join(stateDir, 'resume-message.json'),
         JSON.stringify({
           last_task_id: 'task-1',
           session_title: 'Previous Work',
@@ -2815,7 +2808,8 @@ describe('StatuslineService', () => {
       )
 
       const service = createStatuslineService({
-        sessionStateDir: testDir,
+        stateService,
+      sessionId,
         cwd: '/test',
         useColors: false,
         isResumedSession: true, // Mark as resumed
@@ -2830,7 +2824,7 @@ describe('StatuslineService', () => {
 
     it('shows latest_intent when no snarky message available', async () => {
       await fs.writeFile(
-        path.join(testDir, 'session-summary.json'),
+        path.join(stateDir, 'session-summary.json'),
         JSON.stringify({
           session_id: 'test-123',
           timestamp: new Date().toISOString(),
@@ -2843,7 +2837,8 @@ describe('StatuslineService', () => {
       // No snarky-message.json file
 
       const service = createStatuslineService({
-        sessionStateDir: testDir,
+        stateService,
+      sessionId,
         cwd: '/test',
         useColors: false,
       })
@@ -2873,7 +2868,8 @@ describe('StatuslineService', () => {
       const assets = createMockAssets(messages.join('\n'))
 
       const service = createStatuslineService({
-        sessionStateDir: testDir,
+        stateService,
+      sessionId,
         cwd: '/test',
         useColors: false,
         assets,
@@ -2887,7 +2883,8 @@ describe('StatuslineService', () => {
 
     it('falls back to default when assets not provided', async () => {
       const service = createStatuslineService({
-        sessionStateDir: testDir,
+        stateService,
+      sessionId,
         cwd: '/test',
         useColors: false,
         // no assets
@@ -2903,7 +2900,8 @@ describe('StatuslineService', () => {
       const assets = createMockAssets(null) // file not found
 
       const service = createStatuslineService({
-        sessionStateDir: testDir,
+        stateService,
+      sessionId,
         cwd: '/test',
         useColors: false,
         assets,
@@ -2919,7 +2917,8 @@ describe('StatuslineService', () => {
       const assets = createMockAssets('')
 
       const service = createStatuslineService({
-        sessionStateDir: testDir,
+        stateService,
+      sessionId,
         cwd: '/test',
         useColors: false,
         assets,
@@ -2936,7 +2935,8 @@ describe('StatuslineService', () => {
       const assets = createMockAssets(messages.join('\n'))
 
       const service = createStatuslineService({
-        sessionStateDir: testDir,
+        stateService,
+      sessionId,
         cwd: '/test',
         useColors: false,
         assets,
@@ -2956,7 +2956,8 @@ describe('StatuslineService', () => {
       const assets = createMockAssets(messages.join('\n'))
 
       const service = createStatuslineService({
-        sessionStateDir: testDir,
+        stateService,
+      sessionId,
         cwd: '/test',
         useColors: false,
         assets,

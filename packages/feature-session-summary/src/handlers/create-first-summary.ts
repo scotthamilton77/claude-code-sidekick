@@ -9,9 +9,8 @@
 
 import type { SessionStartHookEvent } from '@sidekick/core'
 import type { DaemonContext, SessionSummaryState } from '@sidekick/types'
-import { SESSION_SUMMARY_PLACEHOLDERS, SessionSummaryStateSchema } from '@sidekick/types'
-
-const STATE_FILE = 'session-summary.json'
+import { SESSION_SUMMARY_PLACEHOLDERS } from '@sidekick/types'
+import { createSessionSummaryState } from '../state.js'
 
 export async function createFirstSessionSummary(event: SessionStartHookEvent, ctx: DaemonContext): Promise<void> {
   const { sessionId } = event.context
@@ -33,8 +32,8 @@ export async function createFirstSessionSummary(event: SessionStartHookEvent, ct
   }
 
   // Write to .sidekick/sessions/{sessionId}/state/session-summary.json
-  const statePath = ctx.stateService.sessionStatePath(sessionId, STATE_FILE)
-  await ctx.stateService.write(statePath, placeholder, SessionSummaryStateSchema)
+  const summaryState = createSessionSummaryState(ctx.stateService)
+  await summaryState.sessionSummary.write(sessionId, placeholder)
 
   ctx.logger.info('Created placeholder session summary', { sessionId })
 }

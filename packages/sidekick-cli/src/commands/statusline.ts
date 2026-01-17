@@ -13,7 +13,7 @@
 
 import * as path from 'node:path'
 import type { Logger, ConfigService, AssetResolver } from '@sidekick/core'
-import { LogEvents, logEvent, type EventLogContext } from '@sidekick/core'
+import { LogEvents, logEvent, StateService, type EventLogContext } from '@sidekick/core'
 // Re-export for use by CLI
 export type { ClaudeCodeStatusInput } from '@sidekick/feature-statusline'
 import type { ClaudeCodeStatusInput } from '@sidekick/feature-statusline'
@@ -140,12 +140,13 @@ export async function handleStatuslineCommand(
   // Dynamically import to avoid loading feature package until needed
   const { createStatuslineService } = await import('@sidekick/feature-statusline')
 
-  // Determine session state directory
   // Session ID extracted from hook input JSON by CLI (per CLI.md §3.1.1)
   // Falls back to 'current' for interactive mode
   const sidekickDir = path.join(projectDir, '.sidekick')
   const sessionId = options.sessionId ?? 'current'
-  const sessionStateDir = path.join(sidekickDir, 'sessions', sessionId, 'state')
+
+  // Create StateService for state file access
+  const stateService = new StateService(projectDir)
 
   // Build event context for structured logging
   const eventContext: EventLogContext = {
@@ -169,7 +170,8 @@ export async function handleStatuslineCommand(
   const sessionsDir = path.join(sidekickDir, 'sessions')
 
   const service = createStatuslineService({
-    sessionStateDir,
+    stateService,
+    sessionId,
     cwd,
     homeDir: process.env.HOME,
     isResumedSession: options.isResumed ?? false,
@@ -183,10 +185,9 @@ export async function handleStatuslineCommand(
     // Pass directories for baseline metrics reading (new session display)
     userConfigDir,
     projectDir,
-    // Pass sessions directory and current session ID for resume message discovery
+    // Pass sessions directory for resume message discovery
     // Per docs/design/FEATURE-RESUME.md §3.1: discover previous session's resume message
     sessionsDir,
-    currentSessionId: sessionId,
     // Pass asset resolver for loading empty session messages
     assets: options.assets,
   })

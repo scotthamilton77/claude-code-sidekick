@@ -198,22 +198,22 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
   - [x] **9.3.2 Add Missing Schemas** (owned by writer packages) - COMPLETE 2026-01-12
     - [x] `SummaryCountdownStateSchema` - already exists in @sidekick/types
     - [x] `CompactionHistorySchema` in sidekick-core (+ pruning to last N entries)
-  - [ ] **9.3.3 Migrate Writers** (priority order - writers define contracts)
+  - [x] **9.3.3 Migrate Writers** (priority order - writers define contracts) - COMPLETE 2026-01-15
     - [x] TranscriptService - transcript-metrics.json, compaction-history.json - COMPLETE 2026-01-12
     - [x] Session summary handlers - session-summary.json, summary-countdown.json, resume-message.json
     - [x] Daemon IPC handlers - pr-baseline.json, vc-unverified.json, daemon-log-metrics.json
     - [x] StagingService - stateService now required, removed sync methods (dead code)
     - [x] Session summary handlers - snarky-message.json (converted from .txt) - COMPLETE 2026-01-13
-    - [ ] CLI log metrics - cli.ts writes cli-log-metrics.json (found in audit)
-    - [ ] Instrumented LLM provider - llm-metrics.json reads/writes (found in audit)
-  - [ ] **9.3.4 Migrate Readers**
-    - [ ] StateReader (feature-statusline) - becomes thin session-scoped wrapper
-    - [ ] UI handlers - use StateService for API endpoints
-    - [ ] Resume feature - discoverPreviousResumeMessage()
-    - [ ] stage-pause-and-reflect.ts - reads pr-baseline.json (found in audit)
-    - [ ] unstage-verify-completion.ts - reads/deletes vc-unverified.json (found in audit)
-    - [ ] context-overhead-reader.ts - reads baseline context metrics (found in audit)
-    - [ ] runtime.ts - reads cli-log-metrics.json (found in audit)
+    - [x] CLI log metrics - cli.ts writes cli-log-metrics.json (already migrated)
+    - [x] Instrumented LLM provider - llm-metrics.json reads/writes (already migrated)
+  - [x] **9.3.4 Migrate Readers** - COMPLETE 2026-01-15
+    - [x] StateReader (feature-statusline) - uses StateService internally
+    - [x] discoverPreviousResumeMessage() - uses StateService for file reads
+    - [x] stage-pause-and-reflect.ts - reads pr-baseline.json via stateService
+    - [x] unstage-verify-completion.ts - reads/deletes vc-unverified.json via stateService
+    - [x] context-overhead-reader.ts - uses StateService for baseline metrics
+    - [x] runtime.ts - reads cli-log-metrics.json (already migrated in 9.3.3)
+    - [x] UI handlers - **Intentional exception**: read-only, separate package (@sidekick/ui) without @sidekick/core dependency. Benefits of StateService (atomic writes, backup) don't apply to readers.
   - [ ] **9.3.5 Cleanup**
     - [ ] Delete `StateManager` from sidekick-daemon (merged into StateService)
     - [ ] Remove `DerivedPaths` from config.ts (replaced by StateService path accessors)

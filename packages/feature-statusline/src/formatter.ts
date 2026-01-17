@@ -488,7 +488,7 @@ export function formatContextBar(
   // - "full": coin emoji prefix
   // - "safe": no prefix (emoji causes VS Code width issues)
   // - "ascii": wrapped in brackets
-  const formatWithPrefix = (content: string) => {
+  const formatWithPrefix = (content: string): string => {
     if (symbolMode === 'full') return `🪙 ${content}`
     if (symbolMode === 'ascii') return `[${content}]`
     return content // "safe" - no prefix

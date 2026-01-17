@@ -12,6 +12,7 @@
  */
 
 import { z } from 'zod'
+import { sessionState } from './state-descriptor.js'
 
 // ============================================================================
 // Constants
@@ -177,3 +178,21 @@ export function pruneCompactionHistory(
   // Keep the most recent entries (assume history is in chronological order)
   return history.slice(history.length - maxEntries)
 }
+
+// ============================================================================
+// State Descriptors
+// ============================================================================
+
+/**
+ * Transcript metrics state descriptor.
+ * Written by TranscriptService, read by feature-statusline.
+ * Default: null (file may not exist until first metrics are persisted)
+ */
+export const TranscriptMetricsDescriptor = sessionState('transcript-metrics.json', PersistedTranscriptStateSchema, null)
+
+/**
+ * Compaction history state descriptor.
+ * Written by TranscriptService during compaction events.
+ * Default: empty array (no compactions yet)
+ */
+export const CompactionHistoryDescriptor = sessionState('compaction-history.json', CompactionHistorySchema, [])

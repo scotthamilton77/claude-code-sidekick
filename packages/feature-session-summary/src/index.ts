@@ -27,3 +27,4 @@ export default feature
 
 export * from './types'
 export * from './handlers/index.js'
+export * from './state.js'
