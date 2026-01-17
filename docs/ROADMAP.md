@@ -179,13 +179,13 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
     - [x] Each finding has severity and scope estimate
     - [x] Prioritized backlog for 9.3-9.6 phases
 
-- [ ] **9.3 State Management Infrastructure** (foundational - informed by 9.2.4 findings)
+- [x] **9.3 State Management Infrastructure** (foundational - informed by 9.2.4 findings) - COMPLETE 2026-01-17
   - Design: [docs/plans/2026-01-12-state-service-design.md](./plans/2026-01-12-state-service-design.md)
-  - [ ] Objectives
-    - [ ] Centralize state access behind clean abstractions
-    - [ ] Eliminate 90+ duplicated path constructions
-    - [ ] Consistent atomic writes and Zod validation
-    - [ ] Clean code: no @deprecation, no need to preserve backward compatibility
+  - [x] Objectives
+    - [x] Centralize state access behind clean abstractions
+    - [x] Eliminate 90+ duplicated path constructions
+    - [x] Consistent atomic writes and Zod validation
+    - [x] Clean code: no @deprecation, no need to preserve backward compatibility
   - [x] **9.3.1 StateService Core** (unified service - merges StateManager) - COMPLETE 2026-01-12
     - [x] Create `StateService` class in `@sidekick/core/src/state/`
     - [x] `PathResolver` as package-private internal (not exported)
@@ -243,17 +243,17 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
     - [x] cli.ts - initializeSession uses stateService.sessionRootDir()
     - [x] context-overhead-reader.ts - COMPLETE (uses StateService path accessors, done in 9.3.8)
     - Note: Some bootstrap paths remain (logDir before stateService init, userConfigDir to create userStateService)
-  - [ ] **9.3.10 Schema Validation on All Reads**
-    - [ ] staging-service.ts - add Zod validation (lines 204-205, 283-284)
-    - [ ] cli-staging-reader.ts - add Zod validation (line 60-61)
-    - [ ] transcript-service.ts - add Zod validation for TranscriptEntry (lines 376, 643, 1023)
-  - [ ] Acceptance criteria
+  - [x] **9.3.10 Schema Validation on All Reads** - COMPLETE 2026-01-17
+    - [x] staging-service.ts - add Zod validation (lines 204-205, 283-284)
+    - [x] cli-staging-reader.ts - add Zod validation (line 60-61)
+    - [x] transcript-service.ts - add Zod validation for TranscriptEntry (lines 376, 643, 1023)
+  - [x] Acceptance criteria
     - [x] Single `StateService` instance per process (DI pattern)
-    - [ ] All state writes use atomic pattern
-    - [ ] Schema validation on all state reads
+    - [x] All state writes use atomic pattern
+    - [x] Schema validation on all state reads
     - [x] Schemas centralized in `@sidekick/types` (no duplicates) - replaces "domain packages own schemas"
-    - [ ] No direct path construction outside StateService
-    - [ ] No direct fs read/write for state files outside StateService (UI package exempted - read-only)
+    - [x] No direct path construction outside StateService
+    - [x] No direct fs read/write for state files outside StateService (UI package exempted - read-only)
     - [x] Dev mode backups automatic via StateService (no manual `backupIfDevMode` calls)
 
 - [ ] **9.4 Config Source-of-Truth** (lower priority - no issues found in 9.2)
