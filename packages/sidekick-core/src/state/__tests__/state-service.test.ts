@@ -599,7 +599,9 @@ describe('StateService', () => {
       // Check for backup file
       const dir = dirname(path)
       const files = readdirSync(dir)
-      const backupFiles = files.filter((f) => f.startsWith('backup-test.') && f.endsWith('.json') && f !== 'backup-test.json')
+      const backupFiles = files.filter(
+        (f) => f.startsWith('backup-test.') && f.endsWith('.json') && f !== 'backup-test.json'
+      )
 
       expect(backupFiles.length).toBe(1)
 
@@ -627,7 +629,9 @@ describe('StateService', () => {
       // No backup files should exist
       const dir = dirname(path)
       const files = readdirSync(dir)
-      const backupFiles = files.filter((f) => f.startsWith('no-backup.') && f.endsWith('.json') && f !== 'no-backup.json')
+      const backupFiles = files.filter(
+        (f) => f.startsWith('no-backup.') && f.endsWith('.json') && f !== 'no-backup.json'
+      )
 
       expect(backupFiles.length).toBe(0)
     })

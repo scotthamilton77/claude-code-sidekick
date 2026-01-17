@@ -39,9 +39,11 @@ export const TranscriptEntrySchema = z.object({}).passthrough()
  * Schema for extracting UUID from transcript entries.
  * Used by parseUuid() for minimal validation.
  */
-export const TranscriptUuidSchema = z.object({
-  uuid: z.string().optional(),
-}).passthrough()
+export const TranscriptUuidSchema = z
+  .object({
+    uuid: z.string().optional(),
+  })
+  .passthrough()
 
 // ============================================================================
 // Token Usage Schema
