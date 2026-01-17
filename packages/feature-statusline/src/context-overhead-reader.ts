@@ -7,7 +7,6 @@
  * @see METRICS_PLAN.md
  */
 
-import * as path from 'node:path'
 import { StateService } from '@sidekick/core'
 import {
   BaseTokenMetricsStateSchema,
@@ -17,6 +16,12 @@ import {
   type BaseTokenMetricsState,
   type ProjectContextMetrics,
 } from '@sidekick/types'
+
+/** Base metrics file name (user-level state) */
+const BASE_METRICS_FILE = 'baseline-user-context-token-metrics.json'
+
+/** Project metrics file name (project-level state) */
+const PROJECT_METRICS_FILE = 'baseline-project-context-token-metrics.json'
 
 /**
  * Combined overhead metrics from base and project state.
@@ -53,14 +58,12 @@ export interface ContextOverheadReaderConfig {
 /**
  * Read base token metrics from global state file.
  * Uses StateService for consistent validation and error handling.
- *
- * Note: User config dir is already ~/.sidekick/, so paths are constructed directly
- * rather than using StateService path helpers (which assume .sidekick/ prefix).
  */
 async function readBaseMetrics(userConfigDir: string): Promise<BaseTokenMetricsState> {
-  // User config dir paths: {userConfigDir}/state/filename.json
-  const stateService = new StateService(userConfigDir)
-  const filePath = path.join(userConfigDir, 'state', 'baseline-user-context-token-metrics.json')
+  // User-level StateService: stateDir='' means no .sidekick prefix
+  // So globalStatePath('file.json') -> userConfigDir/state/file.json
+  const stateService = new StateService(userConfigDir, { stateDir: '' })
+  const filePath = stateService.globalStatePath(BASE_METRICS_FILE)
   const result = await stateService.read(filePath, BaseTokenMetricsStateSchema, DEFAULT_BASE_METRICS)
   return result.data
 }
@@ -70,9 +73,10 @@ async function readBaseMetrics(userConfigDir: string): Promise<BaseTokenMetricsS
  * Uses StateService for consistent validation and error handling.
  */
 async function readProjectMetrics(projectDir: string): Promise<ProjectContextMetrics> {
-  // Project dir paths: {projectDir}/.sidekick/state/filename.json
+  // Project-level StateService: default stateDir='.sidekick'
+  // So globalStatePath('file.json') -> projectDir/.sidekick/state/file.json
   const stateService = new StateService(projectDir)
-  const filePath = path.join(projectDir, '.sidekick', 'state', 'baseline-project-context-token-metrics.json')
+  const filePath = stateService.globalStatePath(PROJECT_METRICS_FILE)
   const result = await stateService.read(filePath, ProjectContextMetricsSchema, DEFAULT_PROJECT_METRICS)
   return result.data
 }

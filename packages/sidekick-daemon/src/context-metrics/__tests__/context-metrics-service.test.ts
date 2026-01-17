@@ -14,6 +14,7 @@ import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import type { SidekickEvent } from '@sidekick/types'
 import { MockLogger, MockHandlerRegistry } from '@sidekick/testing-fixtures'
+import { StateService } from '@sidekick/core'
 import { ContextMetricsService, createContextMetricsService } from '../context-metrics-service.js'
 import { DEFAULT_BASE_METRICS, DEFAULT_PROJECT_METRICS } from '../types.js'
 
@@ -44,12 +45,17 @@ describe('ContextMetricsService', () => {
   let projectDir: string
   let userConfigDir: string
   let logger: MockLogger
+  let projectStateService: StateService
+  let userStateService: StateService
 
   beforeEach(async () => {
     const dirs = await createTestDirs()
     projectDir = dirs.projectDir
     userConfigDir = dirs.userConfigDir
     logger = new MockLogger()
+    // Create StateService instances for testing
+    projectStateService = new StateService(projectDir)
+    userStateService = new StateService(userConfigDir, { stateDir: '' })
   })
 
   afterEach(async () => {
@@ -61,6 +67,8 @@ describe('ContextMetricsService', () => {
       const service = new ContextMetricsService({
         projectDir,
         logger,
+        projectStateService,
+        userStateService,
         skipCliCapture: true,
       })
 
@@ -71,7 +79,8 @@ describe('ContextMetricsService', () => {
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: true,
       })
 
@@ -84,6 +93,8 @@ describe('ContextMetricsService', () => {
       const service = createContextMetricsService({
         projectDir,
         logger,
+        projectStateService,
+        userStateService,
         skipCliCapture: true,
       })
 
@@ -96,7 +107,8 @@ describe('ContextMetricsService', () => {
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: true,
       })
 
@@ -116,7 +128,8 @@ describe('ContextMetricsService', () => {
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: true,
       })
 
@@ -150,16 +163,18 @@ describe('ContextMetricsService', () => {
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: true,
       })
 
-      // Write defaults with recent error
+      // Write defaults with recent error (capturedAt > 0 indicates file was previously written)
       const stateDir = path.join(userConfigDir, 'state')
       await fs.mkdir(stateDir, { recursive: true })
       const metricsWithError = {
         ...DEFAULT_BASE_METRICS,
-        lastErrorAt: Date.now() - 1000, // 1 second ago
+        capturedAt: Date.now() - 60000, // Written 1 minute ago
+        lastErrorAt: Date.now() - 1000, // Error 1 second ago (within retry interval)
         lastErrorMessage: 'Test error',
       }
       await fs.writeFile(
@@ -178,7 +193,8 @@ describe('ContextMetricsService', () => {
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: true,
       })
 
@@ -191,7 +207,8 @@ describe('ContextMetricsService', () => {
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: true,
       })
 
@@ -221,7 +238,8 @@ describe('ContextMetricsService', () => {
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: true,
       })
 
@@ -239,7 +257,8 @@ describe('ContextMetricsService', () => {
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: true,
       })
 
@@ -262,7 +281,8 @@ describe('ContextMetricsService', () => {
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: true,
       })
 
@@ -275,7 +295,8 @@ describe('ContextMetricsService', () => {
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: true,
       })
 
@@ -306,7 +327,8 @@ describe('ContextMetricsService', () => {
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: true,
       })
 
@@ -319,7 +341,8 @@ describe('ContextMetricsService', () => {
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: true,
       })
 
@@ -354,7 +377,8 @@ describe('ContextMetricsService', () => {
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: true,
       })
 
@@ -367,7 +391,8 @@ describe('ContextMetricsService', () => {
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: true,
       })
 
@@ -413,7 +438,8 @@ describe('ContextMetricsService', () => {
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: true,
       })
 
@@ -439,7 +465,8 @@ System prompt and System tools are here but the table is malformed
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: true,
       })
 
@@ -482,7 +509,8 @@ System prompt and System tools are here but the table is malformed
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: true,
       })
 
@@ -526,7 +554,8 @@ System prompt and System tools are here but the table is malformed
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: true,
       })
 
@@ -550,7 +579,8 @@ System prompt and System tools are here but the table is malformed
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: true,
       })
 
@@ -593,7 +623,8 @@ System prompt and System tools are here but the table is malformed
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: true,
       })
 
@@ -609,7 +640,8 @@ System prompt and System tools are here but the table is malformed
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: true,
       })
 
@@ -628,7 +660,8 @@ System prompt and System tools are here but the table is malformed
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: true,
       })
 
@@ -684,7 +717,8 @@ System prompt and System tools are here but the table is malformed
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: true,
       })
 
@@ -712,7 +746,8 @@ System prompt and System tools are here but the table is malformed
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: true,
       })
 
@@ -746,7 +781,8 @@ System prompt and System tools are here but the table is malformed
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: true,
       })
 
@@ -793,7 +829,8 @@ System prompt and System tools are here but the table is malformed
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: true,
       })
 
@@ -824,7 +861,8 @@ System prompt and System tools are here but the table is malformed
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: true,
       })
 
@@ -870,7 +908,8 @@ System prompt and System tools are here but the table is malformed
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: true,
       })
 
@@ -918,7 +957,8 @@ System prompt and System tools are here but the table is malformed
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: true,
       })
 
@@ -936,7 +976,8 @@ System prompt and System tools are here but the table is malformed
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: true,
       })
 
@@ -956,7 +997,8 @@ System prompt and System tools are here but the table is malformed
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: true,
       })
 
@@ -974,7 +1016,8 @@ System prompt and System tools are here but the table is malformed
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: true,
       })
 

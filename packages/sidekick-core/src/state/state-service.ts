@@ -56,6 +56,12 @@ export interface StateServiceOptions {
    * When using a getter, dev mode changes are picked up without daemon restart.
    */
   config?: StateServiceConfig | (() => StateServiceConfig)
+  /**
+   * State directory name relative to projectRoot.
+   * Default: '.sidekick' (standard project-level state)
+   * Set to '' for user-level state where projectRoot is already ~/.sidekick/
+   */
+  stateDir?: string
 }
 
 /** Default can be a value, null, or a factory function */
@@ -85,7 +91,7 @@ export class StateService {
   private readonly configGetter?: () => StateServiceConfig
 
   constructor(projectRoot: string, options?: StateServiceOptions) {
-    this.paths = new PathResolver(projectRoot)
+    this.paths = new PathResolver(projectRoot, options?.stateDir)
     this.staleThresholdMs = options?.staleThresholdMs ?? 60_000
     this.logger = options?.logger
     this.cache = options?.cache ? new Map() : null

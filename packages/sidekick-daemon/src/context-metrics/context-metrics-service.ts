@@ -13,6 +13,7 @@ import { randomUUID } from 'node:crypto'
 import { homedir } from 'node:os'
 import type { Logger, HandlerRegistry, TranscriptEvent } from '@sidekick/core'
 import { isTranscriptEvent } from '@sidekick/core'
+import type { MinimalStateService } from '@sidekick/types'
 import { spawnClaudeCli } from '@sidekick/shared-providers'
 import {
   type BaseTokenMetricsState,
@@ -51,12 +52,20 @@ const SESSION_METRICS_FILE = 'context-metrics.json'
 // ============================================================================
 
 export interface ContextMetricsServiceConfig {
-  /** Path to project directory */
+  /** Path to project directory (used for CLI capture working directory) */
   projectDir: string
   /** Logger instance */
   logger: Logger
-  /** Path to user config directory (defaults to ~/.sidekick) */
-  userConfigDir?: string
+  /**
+   * StateService for project-level state (.sidekick/).
+   * Used for project metrics and session metrics.
+   */
+  projectStateService: MinimalStateService
+  /**
+   * StateService for user-level state (~/.sidekick/).
+   * Used for base metrics. Should be created with stateDir: '' option.
+   */
+  userStateService: MinimalStateService
   /** Whether to skip CLI capture (for testing) */
   skipCliCapture?: boolean
 }
@@ -72,15 +81,15 @@ export interface ContextMetricsServiceConfig {
 export class ContextMetricsService {
   private readonly projectDir: string
   private readonly logger: Logger
-  private readonly userConfigDir: string
-  private readonly projectStateDir: string
+  private readonly projectStateService: MinimalStateService
+  private readonly userStateService: MinimalStateService
   private readonly skipCliCapture: boolean
 
   constructor(config: ContextMetricsServiceConfig) {
     this.projectDir = config.projectDir
     this.logger = config.logger
-    this.userConfigDir = config.userConfigDir ?? path.join(homedir(), '.sidekick')
-    this.projectStateDir = path.join(config.projectDir, '.sidekick', 'state')
+    this.projectStateService = config.projectStateService
+    this.userStateService = config.userStateService
     this.skipCliCapture = config.skipCliCapture ?? false
   }
 
@@ -95,47 +104,45 @@ export class ContextMetricsService {
    */
   async initialize(): Promise<void> {
     this.logger.info('ContextMetricsService initializing', {
-      userConfigDir: this.userConfigDir,
-      projectStateDir: this.projectStateDir,
       skipCliCapture: this.skipCliCapture,
     })
 
-    const exists = await this.baseMetricsFileExists()
+    // Try to read existing metrics (returns default if not found)
+    const currentMetrics = await this.readBaseMetrics()
     let shouldCapture = false
 
-    if (!exists) {
-      // 1. Write defaults immediately (statusline can use these right away)
-      this.logger.info('Writing default base token metrics (file does not exist)')
-      await this.writeBaseMetrics(DEFAULT_BASE_METRICS)
-      shouldCapture = true
-    } else {
-      // Check if we have real metrics or just defaults
-      const currentMetrics = await this.readBaseMetrics()
-      if (currentMetrics.capturedFrom === 'defaults') {
-        // Check if we recently had an error - wait for retry interval
-        const now = Date.now()
-        const errorAge = currentMetrics.lastErrorAt ? now - currentMetrics.lastErrorAt : Infinity
-        if (errorAge < CAPTURE_RETRY_INTERVAL_MS) {
-          this.logger.info('Skipping capture - recent error, will retry later', {
-            lastErrorAt: new Date(currentMetrics.lastErrorAt!).toISOString(),
-            lastErrorMessage: currentMetrics.lastErrorMessage,
-            retryInMs: CAPTURE_RETRY_INTERVAL_MS - errorAge,
-          })
-        } else {
-          this.logger.info('Base metrics file exists but contains defaults, will retry capture', {
-            capturedAt: currentMetrics.capturedAt,
-            lastErrorAt: currentMetrics.lastErrorAt ? new Date(currentMetrics.lastErrorAt).toISOString() : null,
-          })
-          shouldCapture = true
-        }
-      } else {
-        this.logger.info('Base token metrics already captured', {
-          capturedFrom: currentMetrics.capturedFrom,
-          capturedAt: new Date(currentMetrics.capturedAt).toISOString(),
-          systemPromptTokens: currentMetrics.systemPromptTokens,
-          systemToolsTokens: currentMetrics.systemToolsTokens,
+    if (currentMetrics.capturedFrom === 'defaults') {
+      // Check if we recently had an error - wait for retry interval
+      const now = Date.now()
+      const errorAge = currentMetrics.lastErrorAt ? now - currentMetrics.lastErrorAt : Infinity
+      if (currentMetrics.capturedAt === 0) {
+        // Never written - write defaults immediately (with timestamp so we know file exists on retry)
+        this.logger.info('Writing default base token metrics (file does not exist)')
+        await this.writeBaseMetrics({
+          ...DEFAULT_BASE_METRICS,
+          capturedAt: Date.now(),
         })
+        shouldCapture = true
+      } else if (errorAge < CAPTURE_RETRY_INTERVAL_MS) {
+        this.logger.info('Skipping capture - recent error, will retry later', {
+          lastErrorAt: new Date(currentMetrics.lastErrorAt!).toISOString(),
+          lastErrorMessage: currentMetrics.lastErrorMessage,
+          retryInMs: CAPTURE_RETRY_INTERVAL_MS - errorAge,
+        })
+      } else {
+        this.logger.info('Base metrics file exists but contains defaults, will retry capture', {
+          capturedAt: currentMetrics.capturedAt,
+          lastErrorAt: currentMetrics.lastErrorAt ? new Date(currentMetrics.lastErrorAt).toISOString() : null,
+        })
+        shouldCapture = true
       }
+    } else {
+      this.logger.info('Base token metrics already captured', {
+        capturedFrom: currentMetrics.capturedFrom,
+        capturedAt: new Date(currentMetrics.capturedAt).toISOString(),
+        systemPromptTokens: currentMetrics.systemPromptTokens,
+        systemToolsTokens: currentMetrics.systemToolsTokens,
+      })
     }
 
     // Trigger async capture if needed
@@ -151,36 +158,22 @@ export class ContextMetricsService {
   }
 
   // ==========================================================================
-  // Base Metrics (Global)
+  // Base Metrics (Global) - User-level state via userStateService
   // ==========================================================================
 
   /**
-   * Check if base metrics file exists.
-   */
-  private async baseMetricsFileExists(): Promise<boolean> {
-    const filePath = this.getBaseMetricsPath()
-    try {
-      await fs.access(filePath)
-      return true
-    } catch {
-      return false
-    }
-  }
-
-  /**
-   * Get path to base metrics file.
+   * Get path to base metrics file (user-level).
    */
   private getBaseMetricsPath(): string {
-    return path.join(this.userConfigDir, 'state', BASE_METRICS_FILE)
+    return this.userStateService.globalStatePath(BASE_METRICS_FILE)
   }
 
   /**
-   * Write base metrics to file.
+   * Write base metrics to file (atomic via StateService).
    */
   private async writeBaseMetrics(metrics: BaseTokenMetricsState): Promise<void> {
     const filePath = this.getBaseMetricsPath()
-    await fs.mkdir(path.dirname(filePath), { recursive: true })
-    await fs.writeFile(filePath, JSON.stringify(metrics, null, 2), 'utf-8')
+    await this.userStateService.write(filePath, metrics, BaseTokenMetricsStateSchema)
   }
 
   /**
@@ -202,20 +195,12 @@ export class ContextMetricsService {
   }
 
   /**
-   * Read base metrics from file.
+   * Read base metrics from file (validated via StateService).
    */
   async readBaseMetrics(): Promise<BaseTokenMetricsState> {
     const filePath = this.getBaseMetricsPath()
-    try {
-      const content = await fs.readFile(filePath, 'utf-8')
-      const parsed = BaseTokenMetricsStateSchema.safeParse(JSON.parse(content))
-      if (parsed.success) {
-        return parsed.data
-      }
-    } catch {
-      // File doesn't exist or is invalid
-    }
-    return DEFAULT_BASE_METRICS
+    const result = await this.userStateService.read(filePath, BaseTokenMetricsStateSchema, DEFAULT_BASE_METRICS)
+    return result.data
   }
 
   /**
@@ -393,77 +378,59 @@ export class ContextMetricsService {
   }
 
   // ==========================================================================
-  // Project Metrics
+  // Project Metrics - Project-level state via projectStateService
   // ==========================================================================
 
   /**
-   * Get path to project metrics file.
+   * Get path to project metrics file (project-level).
    */
   private getProjectMetricsPath(): string {
-    return path.join(this.projectStateDir, PROJECT_METRICS_FILE)
+    return this.projectStateService.globalStatePath(PROJECT_METRICS_FILE)
   }
 
   /**
-   * Read project metrics from file.
+   * Read project metrics from file (validated via StateService).
    */
   async readProjectMetrics(): Promise<ProjectContextMetrics> {
     const filePath = this.getProjectMetricsPath()
-    try {
-      const content = await fs.readFile(filePath, 'utf-8')
-      const parsed = ProjectContextMetricsSchema.safeParse(JSON.parse(content))
-      if (parsed.success) {
-        return parsed.data
-      }
-    } catch {
-      // File doesn't exist or is invalid
-    }
-    return DEFAULT_PROJECT_METRICS
+    const result = await this.projectStateService.read(filePath, ProjectContextMetricsSchema, DEFAULT_PROJECT_METRICS)
+    return result.data
   }
 
   /**
-   * Write project metrics to file.
+   * Write project metrics to file (atomic via StateService).
    */
   private async writeProjectMetrics(metrics: ProjectContextMetrics): Promise<void> {
     const filePath = this.getProjectMetricsPath()
-    await fs.mkdir(path.dirname(filePath), { recursive: true })
-    await fs.writeFile(filePath, JSON.stringify(metrics, null, 2), 'utf-8')
+    await this.projectStateService.write(filePath, metrics, ProjectContextMetricsSchema)
   }
 
   // ==========================================================================
-  // Session Metrics
+  // Session Metrics - Session-level state via projectStateService
   // ==========================================================================
 
   /**
    * Get path to session metrics file.
    */
   private getSessionMetricsPath(sessionId: string): string {
-    return path.join(this.projectDir, '.sidekick', 'sessions', sessionId, 'state', SESSION_METRICS_FILE)
+    return this.projectStateService.sessionStatePath(sessionId, SESSION_METRICS_FILE)
   }
 
   /**
-   * Read session metrics from file.
+   * Read session metrics from file (validated via StateService).
    */
   async readSessionMetrics(sessionId: string): Promise<SessionContextMetrics | null> {
     const filePath = this.getSessionMetricsPath(sessionId)
-    try {
-      const content = await fs.readFile(filePath, 'utf-8')
-      const parsed = SessionContextMetricsSchema.safeParse(JSON.parse(content))
-      if (parsed.success) {
-        return parsed.data
-      }
-    } catch {
-      // File doesn't exist or is invalid
-    }
-    return null
+    const result = await this.projectStateService.read(filePath, SessionContextMetricsSchema, null)
+    return result.data
   }
 
   /**
-   * Write session metrics to file.
+   * Write session metrics to file (atomic via StateService).
    */
   private async writeSessionMetrics(sessionId: string, metrics: SessionContextMetrics): Promise<void> {
     const filePath = this.getSessionMetricsPath(sessionId)
-    await fs.mkdir(path.dirname(filePath), { recursive: true })
-    await fs.writeFile(filePath, JSON.stringify(metrics, null, 2), 'utf-8')
+    await this.projectStateService.write(filePath, metrics, SessionContextMetricsSchema)
   }
 
   // ==========================================================================
