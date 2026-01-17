@@ -99,74 +99,21 @@ When committing in sandbox mode, heredocs fail with "can't create temp file for 
 
 <task-tracking>
 <!-- [PRESERVE] -->
-<!-- BEGIN BEADS INTEGRATION -->
 ## Issue Tracking with bd (beads)
 
-**IMPORTANT**: This project uses **bd (beads)** for ALL issue tracking. Do NOT use markdown TODOs, task lists, or other tracking methods.
-
-### Why bd?
-
-- Dependency-aware: Track blockers and relationships between issues
-- Git-friendly: Auto-syncs to JSONL for version control
-- Agent-optimized: JSON output, ready work detection, discovered-from links
-- Prevents duplicate tracking systems and confusion
-
-### Quick Start
-
-**Check for ready work:**
-
-```bash
-bd ready --json
-```
-
-**Create new issues:**
-
-```bash
-bd create "Issue title" --description="Detailed context" -t bug|feature|task -p 0-4 --json
-bd create "Issue title" --description="What this issue is about" -p 1 --deps discovered-from:bd-123 --json
-```
-
-**Claim and update:**
-
-```bash
-bd update bd-42 --status in_progress --json
-bd update bd-42 --priority 1 --json
-```
-
-**Complete work:**
-
-```bash
-bd close bd-42 --reason "Completed" --json
-```
-
-**View and search:**
-
-```bash
-bd show bd-42 --json          # View issue details
-bd blocked --json             # Show blocked issues
-bd status                     # Database overview
-bd search "query" --json      # Find issues by text
-```
+Use **bd** for ALL issue tracking. Command reference is injected via session hook—this section covers semantics and workflow.
 
 ### Issue Types
 
 - `bug` - Something broken
 - `feature` - New functionality
 - `task` - Work item (tests, docs, refactoring)
-- `epic` - Large feature with subtasks (use for phases, milestones)
+- `epic` - Large feature with subtasks (phases, milestones)
 - `chore` - Maintenance (dependencies, tooling)
 
 ### Epics and Dependencies
 
-**Use epics** for multi-task work (roadmap phases, features). Children are **parallel by default**—only explicit deps create sequence.
-
-```bash
-bd create "Phase 9" -t epic -p 1
-bd create "Task A" -t task --parent <epic>    # parallel
-bd create "Task B" -t task --parent <epic>    # parallel
-bd create "Task C" -t task --parent <epic>    # parallel
-bd dep add <taskC> <taskB>                    # C needs B (now sequential)
-```
+**Use epics** for multi-task work. Children are **parallel by default**—only explicit deps create sequence.
 
 **Dependency semantics**: `bd dep add B A` means "B needs A" (B is blocked until A closes).
 
@@ -184,40 +131,19 @@ bd dep add <epic-9.6> <task-9.5.1>   # All of 9.6 waits for 9.5.1
 | `--labels` | Tags (comma-sep) | `--labels refactoring,phase-9` |
 | `--defer` | Hide until date | `--defer "next monday"` |
 
-### Priorities
-
-- `0` - Critical (security, data loss, broken builds)
-- `1` - High (major features, important bugs)
-- `2` - Medium (default, nice-to-have)
-- `3` - Low (polish, optimization)
-- `4` - Backlog (future ideas)
-
 ### Workflow for AI Agents
 
 1. **Check ready work**: `bd ready` shows unblocked issues
 2. **Claim your task**: `bd update <id> --status in_progress`
-3. **Work on it**: Implement, test, document
-4. **Discover new work?** Create linked issue:
-   - `bd create "Found bug" --description="Details about what was found" -p 1 --deps discovered-from:<parent-id>`
-5. **Complete**: `bd close <id> --reason "Done"`
+3. **Check parent context**: If task has a parent, run `bd show <parent-id>` recursively to see parent's acceptance criteria, description, and sibling tasks
+4. **Work on it**: Implement, test, document
+5. **Discover new work?** Create linked issue with `--deps discovered-from:<parent-id>`
+6. **Complete**: `bd close <id>`
 
-### Auto-Sync
-
-bd automatically syncs with git:
-
-- Exports to `.beads/issues.jsonl` after changes (5s debounce)
-- Imports from JSONL when newer (e.g., after `git pull`)
-- No manual export/import needed!
-
-### Important Rules
+### Rules
 
 - ✅ Use bd for ALL task tracking
-- ✅ Always use `--json` flag for programmatic use
+- ✅ Use `--json` flag for programmatic use
 - ✅ Link discovered work with `discovered-from` dependencies
-- ✅ Check `bd ready` before asking "what should I work on?"
-- ❌ Do NOT create markdown TODO lists
-- ❌ Do NOT use external issue trackers
-- ❌ Do NOT duplicate tracking systems
-
-<!-- END BEADS INTEGRATION -->
+- ❌ Do NOT create markdown TODO lists or use external trackers unless explicitly asked to by the user
 </task-tracking>
