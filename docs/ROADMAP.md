@@ -223,9 +223,9 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
     - [x] In `write()`: if `config?.core.development.enabled`, backup before overwrite
     - [x] Remove `backupIfDevMode()` calls from handlers (update-summary.ts)
     - [x] Update tests to verify backup behavior with mock config (5 test cases)
-  - [ ] **9.3.7 Cleanup (Phase B)** (after 9.3.6 - requires StateService backup)
-    - [ ] Delete `StateManager` from sidekick-daemon (merged into StateService)
-    - [ ] Deprecate `backupIfDevMode()` from file-utils.ts (moved to StateService)
+  - [x] **9.3.7 Cleanup (Phase B)** - COMPLETE 2026-01-17
+    - [x] Delete `StateManager` from sidekick-daemon (merged into StateService)
+    - [x] Delete `backupIfDevMode()` from file-utils.ts (moved to StateService)
   - [ ] Acceptance criteria
     - [ ] Single `StateService` instance per process (DI pattern)
     - [ ] All state writes use atomic pattern

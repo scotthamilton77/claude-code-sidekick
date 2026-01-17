@@ -50,8 +50,12 @@ export interface StateServiceOptions {
   staleThresholdMs?: number
   /** Logger instance */
   logger?: Logger
-  /** Config for dev mode backup behavior */
-  config?: StateServiceConfig
+  /**
+   * Config for dev mode backup behavior.
+   * Can be a static config object or a getter function for hot-reload support.
+   * When using a getter, dev mode changes are picked up without daemon restart.
+   */
+  config?: StateServiceConfig | (() => StateServiceConfig)
 }
 
 /** Default can be a value, null, or a factory function */
@@ -78,14 +82,22 @@ export class StateService {
   private readonly staleThresholdMs: number
   private readonly logger?: Logger
   private readonly cache: Map<string, { data: unknown; mtime: number }> | null
-  private readonly devModeEnabled: boolean
+  private readonly configGetter?: () => StateServiceConfig
 
   constructor(projectRoot: string, options?: StateServiceOptions) {
     this.paths = new PathResolver(projectRoot)
     this.staleThresholdMs = options?.staleThresholdMs ?? 60_000
     this.logger = options?.logger
     this.cache = options?.cache ? new Map() : null
-    this.devModeEnabled = options?.config?.core.development.enabled ?? false
+    // Support both static config and getter function for hot-reload
+    if (options?.config) {
+      this.configGetter = typeof options.config === 'function' ? options.config : () => options.config as StateServiceConfig
+    }
+  }
+
+  /** Check if dev mode is currently enabled (supports hot-reload) */
+  private isDevModeEnabled(): boolean {
+    return this.configGetter?.().core.development.enabled ?? false
   }
 
   // ==========================================================================
@@ -157,8 +169,8 @@ export class StateService {
     const dir = dirname(path)
     await fs.mkdir(dir, { recursive: true })
 
-    // Dev mode: backup existing file before overwrite
-    if (this.devModeEnabled) {
+    // Dev mode: backup existing file before overwrite (checked dynamically for hot-reload)
+    if (this.isDevModeEnabled()) {
       await this.backupBeforeWrite(path)
     }
 

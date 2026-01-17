@@ -7,12 +7,11 @@
  * @see docs/design/DAEMON.md §4.3 Task Execution Engine
  */
 
-import { Logger, SidekickConfig, TaskTypes } from '@sidekick/core'
+import { Logger, SidekickConfig, StateService, TaskTypes } from '@sidekick/core'
 import type { MinimalAssetResolver } from '@sidekick/types'
 import { createCleanupHandler } from './handlers/index.js'
-import { StateManager } from './state-manager.js'
 import { TaskEngine } from './task-engine.js'
-import { createTaskRegistry } from './task-registry.js'
+import { TaskRegistry } from './task-registry.js'
 
 /**
  * Register standard task handlers with the TaskEngine.
@@ -20,13 +19,13 @@ import { createTaskRegistry } from './task-registry.js'
  */
 export function registerStandardTaskHandlers(
   taskEngine: TaskEngine,
-  stateManager: StateManager,
+  stateService: StateService,
   projectDir: string,
   logger: Logger,
   _config: SidekickConfig,
   assetResolver: MinimalAssetResolver
 ): void {
-  const taskRegistry = createTaskRegistry(stateManager, logger)
+  const taskRegistry = new TaskRegistry(stateService, logger)
 
   // Create shared dependencies for all handlers
   const deps = {
@@ -44,5 +43,5 @@ export function registerStandardTaskHandlers(
   })
 }
 
-// Re-export TaskRegistry and factory for use by daemon
-export { createTaskRegistry, TaskRegistry } from './task-registry.js'
+// Re-export TaskRegistry for use by daemon
+export { TaskRegistry } from './task-registry.js'

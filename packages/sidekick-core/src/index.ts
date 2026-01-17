@@ -118,7 +118,6 @@ export {
   getTimestampedPath,
   copyWithTimestamp,
   renameWithTimestamp,
-  backupIfDevMode,
   renameWithTimestampSync,
   copyWithTimestampSync,
   type TimestampedFileOptions,

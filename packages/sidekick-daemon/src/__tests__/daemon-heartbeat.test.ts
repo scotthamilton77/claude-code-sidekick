@@ -173,13 +173,11 @@ describe('Daemon heartbeat integration', () => {
     const { Daemon } = await import('../daemon.js')
     const daemon = new Daemon(tmpDir)
 
-    // Access private members to test heartbeat in isolation without full daemon startup.
-    // Alternative would be integration test that starts full daemon (socket, signal handlers, etc).
+    // Access private writeHeartbeat method to test heartbeat in isolation
+    // StateService doesn't require initialization - it creates directories on first write
     const sup = daemon as unknown as {
-      stateManager: { initialize(): Promise<void> }
       writeHeartbeat(): Promise<void>
     }
-    await sup.stateManager.initialize()
     await sup.writeHeartbeat()
 
     const statusPath = path.join(tmpDir, '.sidekick', 'state', 'daemon-status.json')
@@ -208,15 +206,13 @@ describe('Daemon heartbeat integration', () => {
     const { Daemon } = await import('../daemon.js')
     const daemon = new Daemon(tmpDir)
 
-    // Access private members to manipulate startTime for uptime calculation testing.
+    // Access private members to manipulate startTime for uptime calculation testing
     const sup = daemon as unknown as {
       startTime: number
-      stateManager: { initialize(): Promise<void> }
       writeHeartbeat(): Promise<void>
     }
     sup.startTime = Date.now() - 10000
 
-    await sup.stateManager.initialize()
     await sup.writeHeartbeat()
 
     const statusPath = path.join(tmpDir, '.sidekick', 'state', 'daemon-status.json')
@@ -232,7 +228,7 @@ describe('Daemon heartbeat integration', () => {
     const daemon = new Daemon(tmpDir)
 
     // Access private writeHeartbeat to verify error handling without full startup.
-    // Don't initialize stateManager - writeHeartbeat should catch the error and not throw.
+    // StateService handles errors gracefully, writeHeartbeat catches exceptions.
     const sup = daemon as unknown as { writeHeartbeat(): Promise<void> }
     await expect(sup.writeHeartbeat()).resolves.not.toThrow()
   })
@@ -261,13 +257,10 @@ describe('Daemon log metrics persistence', () => {
 
     // Access private members for isolated testing
     const sup = daemon as unknown as {
-      stateManager: { initialize(): Promise<void> }
       stateService: { sessionStatePath(sessionId: string, filename: string): string }
       logCounters: Map<string, { warnings: number; errors: number }>
       writeHeartbeat(): Promise<void>
     }
-
-    await sup.stateManager.initialize()
 
     // Set up session log counters with some counts
     const sessionId = 'test-session-123'
@@ -299,12 +292,9 @@ describe('Daemon log metrics persistence', () => {
 
     // Access private members for isolated testing
     const sup = daemon as unknown as {
-      stateManager: { initialize(): Promise<void> }
       globalLogCounters: { warnings: number; errors: number }
       writeHeartbeat(): Promise<void>
     }
-
-    await sup.stateManager.initialize()
 
     // Set up global log counters with some counts
     sup.globalLogCounters.warnings = 3
@@ -331,11 +321,8 @@ describe('Daemon log metrics persistence', () => {
 
     // Access private members for isolated testing
     const sup = daemon as unknown as {
-      stateManager: { initialize(): Promise<void> }
       loadExistingLogCounts(sessionId: string): Promise<{ warnings: number; errors: number }>
     }
-
-    await sup.stateManager.initialize()
 
     // Create session state directory with existing log metrics
     const sessionId = 'existing-session-456'
@@ -365,11 +352,8 @@ describe('Daemon log metrics persistence', () => {
 
     // Access private members for isolated testing
     const sup = daemon as unknown as {
-      stateManager: { initialize(): Promise<void> }
       loadExistingLogCounts(sessionId: string): Promise<{ warnings: number; errors: number }>
     }
-
-    await sup.stateManager.initialize()
 
     // Don't create any metrics file - should return defaults
     const loaded = await sup.loadExistingLogCounts('nonexistent-session')
@@ -386,12 +370,9 @@ describe('Daemon log metrics persistence', () => {
 
     // Access private members for isolated testing
     const sup = daemon as unknown as {
-      stateManager: { initialize(): Promise<void> }
       logCounters: Map<string, { warnings: number; errors: number }>
       writeHeartbeat(): Promise<void>
     }
-
-    await sup.stateManager.initialize()
 
     // Set up multiple sessions with different counts
     const session1 = 'session-one'

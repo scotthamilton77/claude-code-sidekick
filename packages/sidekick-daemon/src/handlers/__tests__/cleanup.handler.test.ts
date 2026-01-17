@@ -10,29 +10,26 @@ import os from 'os'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MockLogger } from '@sidekick/testing-fixtures'
+import { StateService } from '@sidekick/core'
 import { createCleanupHandler } from '../cleanup.handler.js'
 import { TaskRegistry } from '../../task-registry.js'
-import { StateManager } from '../../state-manager.js'
 import type { TaskContext } from '@sidekick/types'
 
 describe('CleanupHandler', () => {
   let tmpDir: string
   let projectDir: string
-  let stateDir: string
   let sessionsDir: string
-  let stateManager: StateManager
+  let stateService: StateService
   let taskRegistry: TaskRegistry
   let logger: MockLogger
 
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cleanup-handler-test-'))
     projectDir = tmpDir
-    stateDir = path.join(tmpDir, '.sidekick', 'state')
     sessionsDir = path.join(projectDir, '.sidekick', 'sessions')
     logger = new MockLogger()
-    stateManager = new StateManager(stateDir, logger)
-    await stateManager.initialize()
-    taskRegistry = new TaskRegistry(stateManager, logger)
+    stateService = new StateService(projectDir, { cache: true, logger })
+    taskRegistry = new TaskRegistry(stateService, logger)
   })
 
   afterEach(async () => {
@@ -357,12 +354,12 @@ describe('CleanupHandler', () => {
 
       const ctx = createContext()
 
-      const stateBefore = taskRegistry.getState()
+      const stateBefore = await taskRegistry.getState()
       const lastCleanupBefore = stateBefore.lastCleanupAt ?? 0
 
       await handler({}, ctx)
 
-      const stateAfter = taskRegistry.getState()
+      const stateAfter = await taskRegistry.getState()
       expect(stateAfter.lastCleanupAt).toBeDefined()
       expect(stateAfter.lastCleanupAt!).toBeGreaterThan(lastCleanupBefore)
     })
@@ -390,7 +387,7 @@ describe('CleanupHandler', () => {
       await handler({}, ctx)
 
       // Verify task was marked as started
-      const state = taskRegistry.getState()
+      const state = await taskRegistry.getState()
       const task = state.activeTasks.find((t) => t.id === 'test-task-123')
       expect(task?.startedAt).toBeDefined()
     })

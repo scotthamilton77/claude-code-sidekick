@@ -8,6 +8,8 @@
  * @see packages/sidekick-ui/docs/MONITORING-UI.md §3.2.E System Health
  */
 
+import { z } from 'zod'
+
 /**
  * Memory usage metrics from Node.js process.memoryUsage().
  */
@@ -75,3 +77,51 @@ export interface DaemonStatusWithHealth extends DaemonStatus {
   /** File mtime from the filesystem */
   fileMtime?: number
 }
+
+// ============================================================================
+// Zod Schemas for StateService
+// ============================================================================
+
+/**
+ * Zod schema for daemon memory metrics.
+ */
+export const DaemonMemoryMetricsSchema = z.object({
+  heapUsed: z.number(),
+  heapTotal: z.number(),
+  rss: z.number(),
+})
+
+/**
+ * Zod schema for daemon queue metrics.
+ */
+export const DaemonQueueMetricsSchema = z.object({
+  pending: z.number(),
+  active: z.number(),
+})
+
+/**
+ * Zod schema for active task info.
+ */
+export const ActiveTaskInfoSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  startTime: z.number(),
+})
+
+/**
+ * Zod schema for daemon status.
+ * Used by StateService for validation when reading/writing daemon-status.json.
+ *
+ * Location: `.sidekick/state/daemon-status.json`
+ *
+ * @see docs/design/DAEMON.md §4.6 Heartbeat Mechanism
+ */
+export const DaemonStatusSchema = z.object({
+  timestamp: z.number(),
+  pid: z.number(),
+  version: z.string(),
+  uptimeSeconds: z.number(),
+  memory: DaemonMemoryMetricsSchema,
+  queue: DaemonQueueMetricsSchema,
+  activeTasks: z.array(ActiveTaskInfoSchema),
+})

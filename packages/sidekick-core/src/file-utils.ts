@@ -92,18 +92,6 @@ export async function renameWithTimestamp(
   }
 }
 
-/**
- * Copy file to timestamped backup only if devMode is enabled.
- */
-export async function backupIfDevMode(
-  devModeEnabled: boolean,
-  filePath: string,
-  options: TimestampedFileOptions = {}
-): Promise<string | null> {
-  if (!devModeEnabled) return null
-  return copyWithTimestamp(filePath, options)
-}
-
 // ============================================================================
 // Sync Operations (CLI-side)
 // ============================================================================

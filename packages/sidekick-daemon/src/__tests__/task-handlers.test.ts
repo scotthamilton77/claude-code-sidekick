@@ -5,15 +5,14 @@
  * and the TaskRegistry for orphan prevention.
  */
 
-import { createConsoleLogger, SidekickConfig, TaskTypes, TrackedTask } from '@sidekick/core'
+import { createConsoleLogger, SidekickConfig, StateService, TaskTypes, TrackedTask } from '@sidekick/core'
 import type { MinimalAssetResolver, DaemonContext } from '@sidekick/types'
 import { readFileSync } from 'fs'
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { StateManager } from '../state-manager.js'
-import { createTaskRegistry, registerStandardTaskHandlers, TaskRegistry } from '../task-handlers.js'
+import { registerStandardTaskHandlers, TaskRegistry } from '../task-handlers.js'
 import { ContextGetter, TaskEngine } from '../task-engine.js'
 
 const logger = createConsoleLogger({ minimumLevel: 'error' })
@@ -162,16 +161,13 @@ const mockConfig: SidekickConfig = {
 
 describe('TaskRegistry (Orphan Prevention)', () => {
   let tmpDir: string
-  let stateDir: string
-  let stateManager: StateManager
+  let stateService: StateService
   let taskRegistry: TaskRegistry
 
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sidekick-task-registry-test-'))
-    stateDir = path.join(tmpDir, '.sidekick', 'state')
-    stateManager = new StateManager(stateDir, logger)
-    await stateManager.initialize()
-    taskRegistry = createTaskRegistry(stateManager, logger)
+    stateService = new StateService(tmpDir, { cache: true, logger })
+    taskRegistry = new TaskRegistry(stateService, logger)
   })
 
   afterEach(async () => {
@@ -194,7 +190,7 @@ describe('TaskRegistry (Orphan Prevention)', () => {
       }
 
       await taskRegistry.trackTask(task)
-      const state = taskRegistry.getState()
+      const state = await taskRegistry.getState()
 
       expect(state.activeTasks).toHaveLength(1)
       expect(state.activeTasks[0]).toEqual(task)
@@ -214,7 +210,7 @@ describe('TaskRegistry (Orphan Prevention)', () => {
 
       await taskRegistry.trackTask(task1)
       await taskRegistry.trackTask(task2)
-      const state = taskRegistry.getState()
+      const state = await taskRegistry.getState()
 
       expect(state.activeTasks).toHaveLength(2)
     })
@@ -228,7 +224,7 @@ describe('TaskRegistry (Orphan Prevention)', () => {
 
       await taskRegistry.trackTask(task)
       await taskRegistry.markTaskStarted('task-123')
-      const state = taskRegistry.getState()
+      const state = await taskRegistry.getState()
 
       expect(state.activeTasks[0].startedAt).toBeDefined()
       expect(state.activeTasks[0].startedAt).toBeGreaterThan(0)
@@ -243,7 +239,7 @@ describe('TaskRegistry (Orphan Prevention)', () => {
 
       await taskRegistry.trackTask(task)
       await taskRegistry.untrackTask('task-123')
-      const state = taskRegistry.getState()
+      const state = await taskRegistry.getState()
 
       expect(state.activeTasks).toHaveLength(0)
     })
@@ -262,14 +258,14 @@ describe('TaskRegistry (Orphan Prevention)', () => {
       }
 
       // Verify tasks are tracked
-      let state = taskRegistry.getState()
+      let state = await taskRegistry.getState()
       expect(state.activeTasks).toHaveLength(2)
 
       // Clean up orphans (simulates daemon restart)
       const cleanedCount = await taskRegistry.cleanupOrphans()
 
       expect(cleanedCount).toBe(2)
-      state = taskRegistry.getState()
+      state = await taskRegistry.getState()
       expect(state.activeTasks).toHaveLength(0)
     })
 
@@ -280,7 +276,7 @@ describe('TaskRegistry (Orphan Prevention)', () => {
 
     it('should preserve lastCleanupAt when cleaning orphans', async () => {
       await taskRegistry.updateLastCleanup()
-      const stateBefore = taskRegistry.getState()
+      const stateBefore = await taskRegistry.getState()
       const lastCleanup = stateBefore.lastCleanupAt
 
       // Add and clean orphan
@@ -291,7 +287,7 @@ describe('TaskRegistry (Orphan Prevention)', () => {
       })
       await taskRegistry.cleanupOrphans()
 
-      const stateAfter = taskRegistry.getState()
+      const stateAfter = await taskRegistry.getState()
       expect(stateAfter.lastCleanupAt).toBe(lastCleanup)
     })
   })
@@ -299,7 +295,7 @@ describe('TaskRegistry (Orphan Prevention)', () => {
   describe('lastCleanupAt tracking', () => {
     it('should update lastCleanupAt', async () => {
       await taskRegistry.updateLastCleanup()
-      const state = taskRegistry.getState()
+      const state = await taskRegistry.getState()
 
       expect(state.lastCleanupAt).toBeDefined()
       expect(state.lastCleanupAt).toBeGreaterThan(0)
@@ -310,21 +306,18 @@ describe('TaskRegistry (Orphan Prevention)', () => {
 describe('Standard Task Handlers', () => {
   let tmpDir: string
   let projectDir: string
-  let stateDir: string
-  let stateManager: StateManager
+  let stateService: StateService
   let taskEngine: TaskEngine
 
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sidekick-task-handlers-test-'))
     projectDir = tmpDir
-    stateDir = path.join(tmpDir, '.sidekick', 'state')
-    stateManager = new StateManager(stateDir, logger)
-    await stateManager.initialize()
+    stateService = new StateService(projectDir, { cache: true, logger })
     // Use longer timeout for tests (10s instead of 5min)
     taskEngine = new TaskEngine(logger, mockContextGetter, 2, 10000)
 
     // Register handlers
-    registerStandardTaskHandlers(taskEngine, stateManager, projectDir, logger, mockConfig, mockAssetResolver)
+    registerStandardTaskHandlers(taskEngine, stateService, projectDir, logger, mockConfig, mockAssetResolver)
   })
 
   afterEach(async () => {
