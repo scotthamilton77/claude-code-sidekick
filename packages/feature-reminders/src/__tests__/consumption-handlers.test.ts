@@ -7,7 +7,16 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdirSync, writeFileSync, rmSync, existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { CLIStagingReader } from '../cli-staging-reader'
-import type { RuntimePaths } from '@sidekick/types'
+import type { RuntimePaths, StagedReminder } from '@sidekick/types'
+
+/** Create a valid StagedReminder with required fields */
+function createReminder(overrides: Partial<StagedReminder> & { name: string; priority: number }): StagedReminder {
+  return {
+    blocking: false,
+    persistent: false,
+    ...overrides,
+  }
+}
 
 describe('consumption-handlers', () => {
   describe('CLIStagingReader', () => {
@@ -153,7 +162,7 @@ describe('consumption-handlers', () => {
     it('skips malformed JSON files', () => {
       const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'PreToolUse')
 
-      writeFileSync(join(stagingDir, 'valid.json'), JSON.stringify({ name: 'valid', priority: 50 }))
+      writeFileSync(join(stagingDir, 'valid.json'), JSON.stringify(createReminder({ name: 'valid', priority: 50 })))
       writeFileSync(join(stagingDir, 'malformed.json'), 'not valid json {')
 
       const reader = new CLIStagingReader({
@@ -169,7 +178,7 @@ describe('consumption-handlers', () => {
     it('only reads JSON files', () => {
       const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'PreToolUse')
 
-      writeFileSync(join(stagingDir, 'reminder.json'), JSON.stringify({ name: 'json-file', priority: 50 }))
+      writeFileSync(join(stagingDir, 'reminder.json'), JSON.stringify(createReminder({ name: 'json-file', priority: 50 })))
       writeFileSync(join(stagingDir, 'readme.txt'), 'This is a text file')
       writeFileSync(join(stagingDir, '.suppressed'), '')
 
@@ -187,14 +196,14 @@ describe('consumption-handlers', () => {
       const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'PreToolUse')
 
       // Active reminder (should be included)
-      writeFileSync(join(stagingDir, 'active-reminder.json'), JSON.stringify({ name: 'active-reminder', priority: 50 }))
+      writeFileSync(join(stagingDir, 'active-reminder.json'), JSON.stringify(createReminder({ name: 'active-reminder', priority: 50 })))
 
       // Consumed reminders with timestamp suffixes (should be excluded)
       writeFileSync(
         join(stagingDir, 'consumed-reminder.1766841830298.json'),
-        JSON.stringify({ name: 'consumed-reminder', priority: 60 })
+        JSON.stringify(createReminder({ name: 'consumed-reminder', priority: 60 }))
       )
-      writeFileSync(join(stagingDir, 'another.999.json'), JSON.stringify({ name: 'another', priority: 70 }))
+      writeFileSync(join(stagingDir, 'another.999.json'), JSON.stringify(createReminder({ name: 'another', priority: 70 })))
 
       const reader = new CLIStagingReader({
         paths: mockPaths,
@@ -212,9 +221,9 @@ describe('consumption-handlers', () => {
 
       writeFileSync(
         join(preToolUseDir, 'pretool-reminder.json'),
-        JSON.stringify({ name: 'pretool-reminder', priority: 80 })
+        JSON.stringify(createReminder({ name: 'pretool-reminder', priority: 80 }))
       )
-      writeFileSync(join(stopDir, 'stop-reminder.json'), JSON.stringify({ name: 'stop-reminder', priority: 60 }))
+      writeFileSync(join(stopDir, 'stop-reminder.json'), JSON.stringify(createReminder({ name: 'stop-reminder', priority: 60 })))
 
       const reader = new CLIStagingReader({
         paths: mockPaths,
@@ -243,7 +252,7 @@ describe('consumption-handlers', () => {
       const expectedPath = join(customStateDir, 'sessions', sessionId, 'stage', 'PreToolUse')
       mkdirSync(expectedPath, { recursive: true })
 
-      writeFileSync(join(expectedPath, 'test.json'), JSON.stringify({ name: 'test', priority: 50 }))
+      writeFileSync(join(expectedPath, 'test.json'), JSON.stringify(createReminder({ name: 'test', priority: 50 })))
 
       const reader = new CLIStagingReader({
         paths: customPaths,

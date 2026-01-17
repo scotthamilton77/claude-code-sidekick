@@ -19,6 +19,8 @@ export { SessionStateAccessor, GlobalStateAccessor } from './typed-accessor.js'
 // Transcript state schemas and utilities
 export {
   // Schemas
+  TranscriptEntrySchema,
+  TranscriptUuidSchema,
   CacheTiersSchema,
   ModelTokenStatsSchema,
   TokenUsageMetricsSchema,

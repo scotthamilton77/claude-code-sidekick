@@ -22,6 +22,28 @@ import { sessionState } from './state-descriptor.js'
 export const MAX_COMPACTION_ENTRIES = 50
 
 // ============================================================================
+// Transcript Entry Schemas (minimal validation)
+// ============================================================================
+
+/**
+ * Minimal schema for raw transcript JSONL entries.
+ * Uses passthrough to allow any fields - Claude Code's format may vary.
+ * Only validates that the entry is an object with optional common fields.
+ *
+ * Note: This is intentionally loose. TranscriptEntry is Record<string, unknown>
+ * and we only validate enough to ensure safe parsing, not full structure.
+ */
+export const TranscriptEntrySchema = z.object({}).passthrough()
+
+/**
+ * Schema for extracting UUID from transcript entries.
+ * Used by parseUuid() for minimal validation.
+ */
+export const TranscriptUuidSchema = z.object({
+  uuid: z.string().optional(),
+}).passthrough()
+
+// ============================================================================
 // Token Usage Schema
 // ============================================================================
 

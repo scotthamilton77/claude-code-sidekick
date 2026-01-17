@@ -107,6 +107,17 @@ export {
 
 export { killAllDaemons, DaemonClient, type KillResult, type UserPidInfo } from './daemon-client'
 export { StagingServiceCore, SessionScopedStagingService, type StagingServiceCoreOptions } from './staging-service'
+export {
+  getStagingRoot,
+  getHookDir,
+  getReminderPath,
+  isValidPathSegment,
+  validatePathSegment,
+  filterActiveReminderFiles,
+  CONSUMED_FILE_PATTERN,
+  createConsumedFilePattern,
+  extractConsumedTimestamp,
+} from './staging-paths'
 export { HandlerRegistryImpl, type HandlerRegistryOptions } from './handler-registry'
 export {
   extractContentPreview,
