@@ -428,6 +428,7 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
   - [ ] Bundled assets match `assets/sidekick/` HEAD
   - [ ] Migration tool converts legacy configs with clear reporting
   - [ ] All new and modified files documented
+  - [ ] All applicable ROADMAP.md tasks are marked complete
 
 ### Phase 12: Documentation & Polish
 - [ ] Objectives
@@ -454,3 +455,4 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
   - [ ] No stale/orphaned files in repository
   - [ ] All tests passing, zero lint warnings
   - [ ] Package ready for npm publish
+  - [ ] All applicable ROADMAP.md tasks are marked complete
