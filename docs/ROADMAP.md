@@ -256,20 +256,23 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
     - [x] No direct fs read/write for state files outside StateService (UI package exempted - read-only)
     - [x] Dev mode backups automatic via StateService (no manual `backupIfDevMode` calls)
 
-- [ ] **9.4 Config Source-of-Truth** (lower priority - no issues found in 9.2)
-  - [ ] Objectives
-    - [ ] YAML files are single source of truth for defaults
-    - [ ] Prevent configuration drift
-    - [ ] Clean code: no @deprecation, no need to preserve backward compatibility
-  - [ ] **9.4.1 Audit & Establish Source of Truth**
-    - [ ] Find all Zod schemas with `.default()` calls
-    - [ ] Ensure all defaults exist in YAML files in `assets/sidekick/defaults/`
-    - [ ] Config loading fails hard if required values missing
-  - [ ] **9.4.2 Enforcement**
-    - [ ] Add test: all config keys have YAML defaults
-  - [ ] Acceptance criteria
-    - [ ] No Zod `.default()` for configuration values
-    - [ ] Config parse failures are hard errors
+- [x] **9.4 Config Source-of-Truth** (lower priority - no issues found in 9.2) - COMPLETE 2026-01-17
+  - [x] Objectives
+    - [x] YAML files are single source of truth for defaults
+    - [x] Prevent configuration drift
+    - [x] Clean code: no @deprecation, no need to preserve backward compatibility
+  - [x] **9.4.1 Audit & Establish Source of Truth** - COMPLETE 2026-01-17
+    - [x] Find all Zod schemas with `.default()` calls
+    - [x] Ensure all defaults exist in YAML files in `assets/sidekick/defaults/`
+    - [x] Config loading fails hard if required values missing
+    - Removed `.default()` from: LoggingSchema, PathsSchema, DaemonSchema, IpcSchema, DevelopmentSchema, LlmProfileSchema, LlmConfigSchema, TranscriptConfigSchema
+    - Added missing YAML: `features.defaults.yaml`, `statusline.defaults.yaml` supportedMarkdown section
+  - [x] **9.4.2 Enforcement** - COMPLETE 2026-01-17
+    - [x] Add test: all config keys have YAML defaults
+    - Created `config-yaml-alignment.test.ts` - verifies all required schema paths have YAML defaults
+  - [x] Acceptance criteria
+    - [x] No Zod `.default()` for configuration values
+    - [x] Config parse failures are hard errors
 
 - [ ] **9.5 Feature Domain Consolidation** (minimal - 9.2.1 found architecture already clean)
   - [ ] Objectives
