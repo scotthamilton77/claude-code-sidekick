@@ -103,6 +103,8 @@ When committing in sandbox mode, heredocs fail with "can't create temp file for 
 
 Use **bd** for ALL issue tracking. Command reference is injected via session hook—this section covers semantics and workflow.
 
+**Sandbox note**: Run bd with `dangerouslyDisableSandbox: true` to avoid 5-second timeout. The sandbox blocks Unix socket connections to the bd daemon, causing fallback to slower direct mode.
+
 ### Issue Types
 
 - `bug` - Something broken
