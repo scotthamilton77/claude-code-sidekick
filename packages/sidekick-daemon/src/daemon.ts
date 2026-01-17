@@ -3,12 +3,14 @@ import {
   createConfigService,
   createHookableLogger,
   createLogManager,
+  DaemonGlobalLogMetricsDescriptor,
   getDefaultAssetsDir,
   getPidPath,
   getSocketPath,
   getTokenPath,
   getUserPidPath,
   getUserDaemonsDir,
+  GlobalStateAccessor,
   HandlerRegistryImpl,
   IpcServer,
   Logger,
@@ -49,9 +51,10 @@ import fs from 'fs/promises'
 import path from 'path'
 import { ConfigChangeEvent, ConfigWatcher } from './config-watcher.js'
 import { ContextMetricsService, createContextMetricsService } from './context-metrics/index.js'
-import { StateManager } from './state-manager.js'
-import { createTaskRegistry, registerStandardTaskHandlers, TaskRegistry } from './task-handlers.js'
+import { registerStandardTaskHandlers } from './task-handlers.js'
+import { TaskRegistry } from './task-registry.js'
 import { TaskEngine } from './task-engine.js'
+import { DaemonStatusDescriptor } from './state-descriptors.js'
 
 // Read version from root package.json (single source of truth for monorepo)
 // Path is relative to dist/ output location: dist/ → packages/pkg/ → packages/ → root/
@@ -80,7 +83,6 @@ export class Daemon {
   private configService: ConfigService
   private logger: Logger
   private logManager: LogManager
-  private stateManager: StateManager
   private stateService: StateService
   private taskEngine: TaskEngine
   private taskRegistry: TaskRegistry
@@ -97,6 +99,10 @@ export class Daemon {
   private logCounters = new Map<string, { warnings: number; errors: number }>()
   /** Global log counters for daemon-level errors (not tied to any session) */
   private globalLogCounters = { warnings: 0, errors: 0 }
+  /** Typed accessor for daemon status state */
+  private daemonStatusAccessor!: GlobalStateAccessor<DaemonStatus, DaemonStatus>
+  /** Typed accessor for global log metrics state */
+  private globalLogMetricsAccessor!: GlobalStateAccessor<LogMetricsState, LogMetricsState>
   private token: string = ''
   private lastActivityTime: number = Date.now()
   private idleCheckInterval: ReturnType<typeof setInterval> | null = null
@@ -154,10 +160,18 @@ export class Daemon {
     })
 
     // Initialize Components
-    this.stateManager = new StateManager(path.join(projectDir, '.sidekick', 'state'), this.logger)
-    this.stateService = new StateService(projectDir, { cache: true })
+    // Pass config getter for hot-reload support - dev mode changes picked up dynamically
+    this.stateService = new StateService(projectDir, {
+      cache: true,
+      logger: this.logger,
+      config: () => this.configService.getAll(),
+    })
     this.taskEngine = new TaskEngine(this.logger, this.getContextForTask.bind(this))
-    this.taskRegistry = createTaskRegistry(this.stateManager, this.logger)
+    this.taskRegistry = new TaskRegistry(this.stateService, this.logger)
+
+    // Initialize typed state accessors for daemon-specific state files
+    this.daemonStatusAccessor = new GlobalStateAccessor(this.stateService, DaemonStatusDescriptor)
+    this.globalLogMetricsAccessor = new GlobalStateAccessor(this.stateService, DaemonGlobalLogMetricsDescriptor)
 
     // Initialize Config Watcher for hot-reload (design/DAEMON.md §4.3)
     this.configWatcher = new ConfigWatcher(projectDir, this.logger, this.handleConfigChange.bind(this))
@@ -214,8 +228,8 @@ export class Daemon {
       // 2. Generate and write Token
       await this.writeToken()
 
-      // 3. Initialize State Manager
-      await this.stateManager.initialize()
+      // 3. Preload StateService cache with existing global state files
+      await this.stateService.preloadDirectory(this.stateService.globalStateDir())
 
       // 4. Initialize Context Metrics (writes defaults, triggers async CLI capture)
       await this.contextMetricsService.initialize()
@@ -229,7 +243,7 @@ export class Daemon {
       // 6. Register standard task handlers (Phase 5.2 task types)
       registerStandardTaskHandlers(
         this.taskEngine,
-        this.stateManager,
+        this.stateService,
         this.projectDir,
         this.logger,
         this.configService.getAll(),
@@ -432,12 +446,6 @@ export class Daemon {
         // This prevents deadlock where client waits for response while server.close() waits for client
         setImmediate(() => void this.stop())
         return { status: 'stopping' }
-      case 'state.update':
-        return this.stateManager.update(
-          p?.file as string,
-          p?.data as Record<string, unknown>,
-          p?.merge as boolean | undefined
-        )
       case 'task.enqueue':
         return this.taskEngine.enqueue(
           p?.type as string,
@@ -1292,7 +1300,7 @@ export class Daemon {
     }
 
     try {
-      await this.stateManager.update('daemon-status', status as unknown as Record<string, unknown>)
+      await this.daemonStatusAccessor.write(status)
     } catch (err) {
       // Log but don't crash - heartbeat is non-critical
       this.logger.warn('Failed to write heartbeat status', {
@@ -1362,14 +1370,14 @@ export class Daemon {
     }
 
     // Persist global daemon log metrics (for logs without session context)
-    const globalMetrics = {
+    const globalMetrics: LogMetricsState = {
       warningCount: this.globalLogCounters.warnings,
       errorCount: this.globalLogCounters.errors,
       lastUpdatedAt: now,
     }
 
     try {
-      await this.stateManager.update('daemon-global-log-metrics', globalMetrics)
+      await this.globalLogMetricsAccessor.write(globalMetrics)
     } catch (err) {
       // Log but don't crash - log metrics are non-critical
       // Note: This log itself won't cause infinite recursion since the hook

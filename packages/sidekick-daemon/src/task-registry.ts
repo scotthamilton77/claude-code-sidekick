@@ -5,14 +5,11 @@
  * daemon runs can be detected and cleaned on restart.
  *
  * @see docs/design/DAEMON.md §4.3 Task Execution Engine
- * @see docs/ROADMAP.md Phase 5.2
  */
 
-import { Logger, TaskRegistryState, TrackedTask } from '@sidekick/core'
-import { StateManager } from './state-manager.js'
-
-/** Task registry state file name */
-const TASK_REGISTRY_FILE = 'task-registry'
+import { GlobalStateAccessor, Logger, StateService } from '@sidekick/core'
+import type { TaskRegistryState, TrackedTask } from '@sidekick/types'
+import { TaskRegistryDescriptor } from './state-descriptors.js'
 
 /** Session ID validation pattern: alphanumeric, hyphens, underscores */
 const SESSION_ID_PATTERN = /^[a-zA-Z0-9_-]+$/
@@ -38,11 +35,11 @@ export function validateSessionId(sessionId: string): void {
  * daemon runs can be detected and cleaned on restart.
  */
 export class TaskRegistry {
-  private stateManager: StateManager
-  private logger: Logger
+  private readonly accessor: GlobalStateAccessor<TaskRegistryState, TaskRegistryState>
+  private readonly logger: Logger
 
-  constructor(stateManager: StateManager, logger: Logger) {
-    this.stateManager = stateManager
+  constructor(stateService: StateService, logger: Logger) {
+    this.accessor = new GlobalStateAccessor(stateService, TaskRegistryDescriptor)
     this.logger = logger
   }
 
@@ -51,26 +48,18 @@ export class TaskRegistry {
    *
    * Returns a deep copy - safe to read without affecting internal state.
    */
-  getState(): TaskRegistryState {
-    return structuredClone(this.getRawState())
-  }
-
-  /**
-   * Load raw state reference for internal read-modify-write operations.
-   * Single-writer assumption guaranteed by Daemon architecture.
-   */
-  private getRawState(): TaskRegistryState {
-    const state = this.stateManager.get(TASK_REGISTRY_FILE) as TaskRegistryState | undefined
-    return state ?? { activeTasks: [] }
+  async getState(): Promise<TaskRegistryState> {
+    const result = await this.accessor.read()
+    return structuredClone(result.data)
   }
 
   /**
    * Track a new task as active.
    */
   async trackTask(task: TrackedTask): Promise<void> {
-    const state = this.getRawState()
+    const state = await this.getState()
     state.activeTasks.push(task)
-    await this.stateManager.update(TASK_REGISTRY_FILE, state as unknown as Record<string, unknown>)
+    await this.accessor.write(state)
     this.logger.debug('Task tracked', { taskId: task.id, type: task.type })
   }
 
@@ -78,11 +67,11 @@ export class TaskRegistry {
    * Mark a task as started (update startedAt timestamp).
    */
   async markTaskStarted(taskId: string): Promise<void> {
-    const state = this.getState()
+    const state = await this.getState()
     const task = state.activeTasks.find((t) => t.id === taskId)
     if (task) {
       task.startedAt = Date.now()
-      await this.stateManager.update(TASK_REGISTRY_FILE, state as unknown as Record<string, unknown>)
+      await this.accessor.write(state)
     }
   }
 
@@ -90,9 +79,9 @@ export class TaskRegistry {
    * Remove a task from tracking (completed or failed).
    */
   async untrackTask(taskId: string): Promise<void> {
-    const state = this.getState()
+    const state = await this.getState()
     state.activeTasks = state.activeTasks.filter((t) => t.id !== taskId)
-    await this.stateManager.update(TASK_REGISTRY_FILE, state as unknown as Record<string, unknown>)
+    await this.accessor.write(state)
     this.logger.debug('Task untracked', { taskId })
   }
 
@@ -100,9 +89,9 @@ export class TaskRegistry {
    * Update last cleanup timestamp.
    */
   async updateLastCleanup(): Promise<void> {
-    const state = this.getState()
+    const state = await this.getState()
     state.lastCleanupAt = Date.now()
-    await this.stateManager.update(TASK_REGISTRY_FILE, state as unknown as Record<string, unknown>)
+    await this.accessor.write(state)
   }
 
   /**
@@ -112,7 +101,7 @@ export class TaskRegistry {
    * Per ROADMAP Phase 5.2: Tasks tracked in state, cleaned on daemon restart.
    */
   async cleanupOrphans(): Promise<number> {
-    const state = this.getState()
+    const state = await this.getState()
     const orphanCount = state.activeTasks.length
 
     if (orphanCount > 0) {
@@ -122,19 +111,9 @@ export class TaskRegistry {
       })
 
       // Reset task registry
-      await this.stateManager.update(TASK_REGISTRY_FILE, {
-        activeTasks: [],
-        lastCleanupAt: state.lastCleanupAt,
-      })
+      await this.accessor.write({ activeTasks: [], lastCleanupAt: state.lastCleanupAt })
     }
 
     return orphanCount
   }
-}
-
-/**
- * Create a TaskRegistry instance for use with the daemon.
- */
-export function createTaskRegistry(stateManager: StateManager, logger: Logger): TaskRegistry {
-  return new TaskRegistry(stateManager, logger)
 }

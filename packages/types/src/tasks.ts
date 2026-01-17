@@ -119,6 +119,17 @@ export interface TrackedTask {
 }
 
 /**
+ * Zod schema for tracked task.
+ */
+export const TrackedTaskSchema = z.object({
+  id: z.string(),
+  type: z.enum(['session_summary', 'resume_generation', 'cleanup', 'metrics_persist']),
+  sessionId: z.string().optional(),
+  enqueuedAt: z.number(),
+  startedAt: z.number().optional(),
+})
+
+/**
  * Task registry state file schema.
  */
 export interface TaskRegistryState {
@@ -127,3 +138,16 @@ export interface TaskRegistryState {
   /** Timestamp of last cleanup check */
   lastCleanupAt?: number
 }
+
+/**
+ * Zod schema for task registry state.
+ * Used by StateService for validation when reading/writing task-registry.json.
+ *
+ * Location: `.sidekick/state/task-registry.json`
+ *
+ * @see docs/design/DAEMON.md §4.3 Task Execution Engine
+ */
+export const TaskRegistryStateSchema = z.object({
+  activeTasks: z.array(TrackedTaskSchema),
+  lastCleanupAt: z.number().optional(),
+})

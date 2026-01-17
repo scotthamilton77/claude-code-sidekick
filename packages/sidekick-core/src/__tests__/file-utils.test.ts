@@ -15,7 +15,6 @@ import {
   getTimestampedPath,
   copyWithTimestamp,
   renameWithTimestamp,
-  backupIfDevMode,
   renameWithTimestampSync,
   copyWithTimestampSync,
 } from '../file-utils.js'
@@ -118,30 +117,6 @@ describe('file-utils', () => {
     it('returns null when source does not exist', async () => {
       const result = await renameWithTimestamp(path.join(tempDir, 'nonexistent.json'))
       expect(result).toBeNull()
-    })
-  })
-
-  describe('backupIfDevMode', () => {
-    it('creates backup when devMode is true', async () => {
-      const srcPath = path.join(tempDir, 'summary.json')
-      await fs.writeFile(srcPath, '{}')
-
-      const result = await backupIfDevMode(true, srcPath, { timestamp: 111 })
-
-      expect(result).toBe(path.join(tempDir, 'summary.111.json'))
-      expect(existsSync(result!)).toBe(true)
-    })
-
-    it('returns null when devMode is false', async () => {
-      const srcPath = path.join(tempDir, 'summary.json')
-      await fs.writeFile(srcPath, '{}')
-
-      const result = await backupIfDevMode(false, srcPath, { timestamp: 111 })
-
-      expect(result).toBeNull()
-      // No backup created
-      const files = await fs.readdir(tempDir)
-      expect(files).toEqual(['summary.json'])
     })
   })
 
