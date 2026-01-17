@@ -14,6 +14,7 @@ import {
   MockHandlerRegistry,
   MockAssetResolver,
   MockConfigService,
+  MockStateService,
   createDefaultMetrics,
 } from '@sidekick/testing-fixtures'
 import type {
@@ -251,20 +252,22 @@ reason: "Verify completion before stopping"
       })
 
       it('adjusts threshold based on baseline when VC was consumed same turn', async () => {
-        // Write baseline file indicating VC was consumed at tool 8 on turn 1
-        const stateDir = join(testProjectDir, '.sidekick', 'sessions', sessionId, 'state')
+        // Set up baseline indicating VC was consumed at tool 8 on turn 1
+        const stateService = new MockStateService(testProjectDir)
         const baseline: PRBaselineState = {
           turnCount: 1,
           toolsThisTurn: 8,
           timestamp: Date.now(),
         }
-        writeFileSync(join(stateDir, 'pr-baseline.json'), JSON.stringify(baseline))
+        const baselinePath = stateService.sessionStatePath(sessionId, 'pr-baseline.json')
+        stateService.setStored(baselinePath, baseline)
 
         const ctxWithPath = createMockDaemonContext({
           staging,
           logger,
           handlers,
           assets,
+          stateService,
           paths: {
             projectDir: testProjectDir,
             userConfigDir: '/mock/user',
@@ -288,20 +291,22 @@ reason: "Verify completion before stopping"
       })
 
       it('ignores baseline from different turn', async () => {
-        // Write baseline file from turn 1
-        const stateDir = join(testProjectDir, '.sidekick', 'sessions', sessionId, 'state')
+        // Set up baseline from turn 1
+        const stateService = new MockStateService(testProjectDir)
         const baseline: PRBaselineState = {
           turnCount: 1,
           toolsThisTurn: 8,
           timestamp: Date.now(),
         }
-        writeFileSync(join(stateDir, 'pr-baseline.json'), JSON.stringify(baseline))
+        const baselinePath = stateService.sessionStatePath(sessionId, 'pr-baseline.json')
+        stateService.setStored(baselinePath, baseline)
 
         const ctxWithPath = createMockDaemonContext({
           staging,
           logger,
           handlers,
           assets,
+          stateService,
           paths: {
             projectDir: testProjectDir,
             userConfigDir: '/mock/user',
@@ -322,15 +327,17 @@ reason: "Verify completion before stopping"
       })
 
       it('handles malformed baseline file gracefully', async () => {
-        // Write invalid JSON
-        const stateDir = join(testProjectDir, '.sidekick', 'sessions', sessionId, 'state')
-        writeFileSync(join(stateDir, 'pr-baseline.json'), 'not valid json {')
+        // Set up invalid data that won't pass schema validation
+        const stateService = new MockStateService(testProjectDir)
+        const baselinePath = stateService.sessionStatePath(sessionId, 'pr-baseline.json')
+        stateService.setStored(baselinePath, { invalid: 'data' }) // Missing required fields
 
         const ctxWithPath = createMockDaemonContext({
           staging,
           logger,
           handlers,
           assets,
+          stateService,
           paths: {
             projectDir: testProjectDir,
             userConfigDir: '/mock/user',
@@ -437,75 +444,70 @@ reason: "Verify completion before stopping"
         const testProjectDir = '/tmp/claude/test-pr-max-baseline'
         const sessionId = 'test-session'
 
-        // Create state directory structure
-        const stateDir = join(testProjectDir, '.sidekick', 'sessions', sessionId, 'state')
-        mkdirSync(stateDir, { recursive: true })
-
-        try {
-          // Write baseline file indicating VC was consumed at tool 10 on turn 1
-          const baseline: PRBaselineState = {
-            turnCount: 1,
-            toolsThisTurn: 10,
-            timestamp: Date.now(),
-          }
-          writeFileSync(join(stateDir, 'pr-baseline.json'), JSON.stringify(baseline))
-
-          const ctxWithPath = createMockDaemonContext({
-            staging,
-            logger,
-            handlers,
-            assets,
-            paths: {
-              projectDir: testProjectDir,
-              userConfigDir: '/mock/user',
-              projectConfigDir: '/mock/project-config',
-            },
-          })
-
-          registerStagePauseAndReflect(ctxWithPath)
-
-          const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
-
-          function createEventWithSession(metrics: Partial<TranscriptMetrics>): TranscriptEvent {
-            return {
-              kind: 'transcript',
-              eventType: 'ToolCall',
-              context: { sessionId, timestamp: Date.now() },
-              payload: { lineNumber: 1, entry: {} },
-              metadata: {
-                transcriptPath: '/test/transcript.jsonl',
-                metrics: { ...createDefaultMetrics(), ...metrics },
-              },
-            }
-          }
-
-          // First P&R triggered at tool 25 (10 + 15 threshold)
-          const event25 = createEventWithSession({ turnCount: 1, toolsThisTurn: 25, toolCount: 25 })
-          await handler?.handler(event25, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
-          expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
-
-          // Simulate P&R consumption at tool 25
-          staging.addConsumedReminder('PreToolUse', 'pause-and-reflect', {
-            name: 'pause-and-reflect',
-            blocking: true,
-            priority: 80,
-            persistent: false,
-            stagedAt: { timestamp: Date.now(), turnCount: 1, toolsThisTurn: 25, toolCount: 25 },
-          })
-          await staging.deleteReminder('PreToolUse', 'pause-and-reflect')
-
-          // At tool 35: max(10, 25) = 25 baseline, 35 - 25 = 10 < 15 threshold, should NOT fire
-          const event35 = createEventWithSession({ turnCount: 1, toolsThisTurn: 35, toolCount: 35 })
-          await handler?.handler(event35, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
-          expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(0)
-
-          // At tool 40: 40 >= 25 + 15 threshold, SHOULD fire
-          const event40 = createEventWithSession({ turnCount: 1, toolsThisTurn: 40, toolCount: 40 })
-          await handler?.handler(event40, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
-          expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
-        } finally {
-          rmSync(testProjectDir, { recursive: true, force: true })
+        // Set up baseline indicating VC was consumed at tool 10 on turn 1
+        const stateService = new MockStateService(testProjectDir)
+        const baseline: PRBaselineState = {
+          turnCount: 1,
+          toolsThisTurn: 10,
+          timestamp: Date.now(),
         }
+        const baselinePath = stateService.sessionStatePath(sessionId, 'pr-baseline.json')
+        stateService.setStored(baselinePath, baseline)
+
+        const ctxWithPath = createMockDaemonContext({
+          staging,
+          logger,
+          handlers,
+          assets,
+          stateService,
+          paths: {
+            projectDir: testProjectDir,
+            userConfigDir: '/mock/user',
+            projectConfigDir: '/mock/project-config',
+          },
+        })
+
+        registerStagePauseAndReflect(ctxWithPath)
+
+        const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
+
+        function createEventWithSession(metrics: Partial<TranscriptMetrics>): TranscriptEvent {
+          return {
+            kind: 'transcript',
+            eventType: 'ToolCall',
+            context: { sessionId, timestamp: Date.now() },
+            payload: { lineNumber: 1, entry: {} },
+            metadata: {
+              transcriptPath: '/test/transcript.jsonl',
+              metrics: { ...createDefaultMetrics(), ...metrics },
+            },
+          }
+        }
+
+        // First P&R triggered at tool 25 (10 + 15 threshold)
+        const event25 = createEventWithSession({ turnCount: 1, toolsThisTurn: 25, toolCount: 25 })
+        await handler?.handler(event25, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
+        expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
+
+        // Simulate P&R consumption at tool 25
+        staging.addConsumedReminder('PreToolUse', 'pause-and-reflect', {
+          name: 'pause-and-reflect',
+          blocking: true,
+          priority: 80,
+          persistent: false,
+          stagedAt: { timestamp: Date.now(), turnCount: 1, toolsThisTurn: 25, toolCount: 25 },
+        })
+        await staging.deleteReminder('PreToolUse', 'pause-and-reflect')
+
+        // At tool 35: max(10, 25) = 25 baseline, 35 - 25 = 10 < 15 threshold, should NOT fire
+        const event35 = createEventWithSession({ turnCount: 1, toolsThisTurn: 35, toolCount: 35 })
+        await handler?.handler(event35, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
+        expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(0)
+
+        // At tool 40: 40 >= 25 + 15 threshold, SHOULD fire
+        const event40 = createEventWithSession({ turnCount: 1, toolsThisTurn: 40, toolCount: 40 })
+        await handler?.handler(event40, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
+        expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
       })
     })
   })
@@ -884,27 +886,29 @@ reason: "Verify completion before stopping"
     })
 
     it('re-stages verify-completion when unverified changes exist', async () => {
-      const ctxWithPath = createMockDaemonContext({
-        staging,
-        logger,
-        handlers,
-        assets,
-        paths: {
-          projectDir: testProjectDir,
-          userConfigDir: '/mock/user',
-          projectConfigDir: '/mock/project-config',
-        },
-      })
-
-      // Write unverified state file
-      const stateDir = join(testProjectDir, '.sidekick', 'sessions', sessionId, 'state')
+      // Set up unverified state using MockStateService
+      const stateService = new MockStateService(testProjectDir)
       const unverifiedState = {
         hasUnverifiedChanges: true,
         cycleCount: 1,
         setAt: { timestamp: Date.now(), turnCount: 1, toolsThisTurn: 5, toolCount: 5 },
         lastClassification: { category: 'OTHER', confidence: 0.5 },
       }
-      writeFileSync(join(stateDir, 'vc-unverified.json'), JSON.stringify(unverifiedState))
+      const vcUnverifiedPath = stateService.sessionStatePath(sessionId, 'vc-unverified.json')
+      stateService.setStored(vcUnverifiedPath, unverifiedState)
+
+      const ctxWithPath = createMockDaemonContext({
+        staging,
+        logger,
+        handlers,
+        assets,
+        stateService,
+        paths: {
+          projectDir: testProjectDir,
+          userConfigDir: '/mock/user',
+          projectConfigDir: '/mock/project-config',
+        },
+      })
 
       registerUnstageVerifyCompletion(ctxWithPath)
 
@@ -925,11 +929,24 @@ reason: "Verify completion before stopping"
           reminders: { enabled: true, settings: { max_verification_cycles: 2 } },
         },
       })
+
+      // Set up unverified state with cycle count at limit
+      const stateService = new MockStateService(testProjectDir)
+      const unverifiedState = {
+        hasUnverifiedChanges: true,
+        cycleCount: 2, // At limit
+        setAt: { timestamp: Date.now(), turnCount: 1, toolsThisTurn: 5, toolCount: 5 },
+        lastClassification: { category: 'OTHER', confidence: 0.5 },
+      }
+      const vcUnverifiedPath = stateService.sessionStatePath(sessionId, 'vc-unverified.json')
+      stateService.setStored(vcUnverifiedPath, unverifiedState)
+
       const ctxWithPath = createMockDaemonContext({
         staging,
         logger,
         handlers,
         assets,
+        stateService,
         paths: {
           projectDir: testProjectDir,
           userConfigDir: '/mock/user',
@@ -937,16 +954,6 @@ reason: "Verify completion before stopping"
         },
         config: configWithCycleLimit,
       })
-
-      // Write unverified state with cycle count at limit
-      const stateDir = join(testProjectDir, '.sidekick', 'sessions', sessionId, 'state')
-      const unverifiedState = {
-        hasUnverifiedChanges: true,
-        cycleCount: 2, // At limit
-        setAt: { timestamp: Date.now(), turnCount: 1, toolsThisTurn: 5, toolCount: 5 },
-        lastClassification: { category: 'OTHER', confidence: 0.5 },
-      }
-      writeFileSync(join(stateDir, 'vc-unverified.json'), JSON.stringify(unverifiedState))
 
       registerUnstageVerifyCompletion(ctxWithPath)
 

@@ -8,6 +8,7 @@
   "include": ["src/**/*"],
   "references": [
     { "path": "../types" },
-    { "path": "../sidekick-core" }
+    { "path": "../sidekick-core" },
+    { "path": "../feature-session-summary" }
   ]
 }

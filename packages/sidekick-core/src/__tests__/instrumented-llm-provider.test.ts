@@ -44,6 +44,9 @@ const createMockStateService = (): MinimalStateService & { store: Map<string, un
     sessionStatePath: vi.fn((sessionId: string, filename: string): string => {
       return `/mock/sessions/${sessionId}/state/${filename}`
     }),
+    globalStatePath: vi.fn((filename: string): string => {
+      return `/mock/state/${filename}`
+    }),
   }
 }
 

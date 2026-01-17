@@ -7,8 +7,7 @@
  * @see docs/design/FEATURE-STATUSLINE.md §5.1 StatuslineService
  */
 
-import * as path from 'node:path'
-import type { Logger } from '@sidekick/types'
+import type { Logger, MinimalStateService } from '@sidekick/types'
 
 /** Minimal config service interface for feature packages */
 interface MinimalConfigService {
@@ -161,8 +160,10 @@ export interface ClaudeCodeStatusInput {
  * Configuration for StatuslineService.
  */
 export interface StatuslineServiceConfig {
-  /** Path to session state directory */
-  sessionStateDir: string
+  /** StateService for state file operations */
+  stateService: MinimalStateService
+  /** Current session ID for state file resolution */
+  sessionId: string
   /** Current working directory */
   cwd: string
   /** User's home directory (for path shortening) */
@@ -177,8 +178,6 @@ export interface StatuslineServiceConfig {
   useColors?: boolean
   /** Path to sessions directory for artifact discovery (e.g., .sidekick/sessions/) */
   sessionsDir?: string
-  /** Current session ID for excluding from discovery */
-  currentSessionId?: string
   /**
    * Complete status input from Claude Code hook.
    * When provided, uses these directly instead of reading state files.
@@ -227,7 +226,7 @@ export class StatuslineService {
   private readonly isResumedSession: boolean
   private readonly useColors: boolean
   private readonly sessionsDir?: string
-  private readonly currentSessionId?: string
+  private readonly sessionId: string
   private readonly hookInput?: ClaudeCodeStatusInput
   private readonly logger?: Logger
   private readonly userConfigDir?: string
@@ -243,15 +242,13 @@ export class StatuslineService {
     this.isResumedSession = serviceConfig.isResumedSession ?? false
     this.useColors = serviceConfig.useColors ?? true
     this.sessionsDir = serviceConfig.sessionsDir
-    this.currentSessionId = serviceConfig.currentSessionId
+    this.sessionId = serviceConfig.sessionId
     this.hookInput = serviceConfig.hookInput
     this.logger = serviceConfig.logger
     this.userConfigDir = serviceConfig.userConfigDir
     this.projectDir = serviceConfig.projectDir
 
-    this.stateReader = createStateReader(serviceConfig.sessionStateDir, {
-      projectStateDir: serviceConfig.projectDir ? path.join(serviceConfig.projectDir, '.sidekick', 'state') : undefined,
-    })
+    this.stateReader = createStateReader(serviceConfig.stateService, serviceConfig.sessionId)
     this.gitProvider = createGitProvider(serviceConfig.cwd)
     this.formatter = createFormatter({
       theme: this.config.theme,
@@ -326,7 +323,7 @@ export class StatuslineService {
     // Also fetch baseline metrics for new session display (when current_usage is 0)
     const [transcriptResult, summaryResult, resumeResult, snarkyResult, branchResult, baseline, logMetricsResult] =
       await Promise.all([
-        this.stateReader.getSessionState(),
+        this.stateReader.getTranscriptMetrics(),
         this.stateReader.getSessionSummary(),
         this.stateReader.getResumeMessage(),
         this.stateReader.getSnarkyMessage(),
@@ -356,8 +353,8 @@ export class StatuslineService {
       summaryResult.data.session_title === '' ||
       (summaryResult.data.session_title_confidence ?? 0) === 0
 
-    if (hasNoMeaningfulSummary && !effectiveResumeData && this.sessionsDir && this.currentSessionId) {
-      const discovery = await discoverPreviousResumeMessage(this.sessionsDir, this.currentSessionId)
+    if (hasNoMeaningfulSummary && !effectiveResumeData && this.sessionsDir && this.sessionId) {
+      const discovery = await discoverPreviousResumeMessage(this.sessionsDir, this.sessionId)
       if (discovery.source === 'discovered' && discovery.data) {
         effectiveResumeData = discovery.data
       }

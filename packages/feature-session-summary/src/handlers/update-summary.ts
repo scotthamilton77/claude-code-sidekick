@@ -11,20 +11,11 @@
 import type { TranscriptEvent } from '@sidekick/core'
 import { backupIfDevMode, logEvent, LogEvents } from '@sidekick/core'
 import type { DaemonContext, EventContext, SummaryCountdownState, SnarkyMessageState } from '@sidekick/types'
-import {
-  SessionSummaryStateSchema,
-  SummaryCountdownStateSchema,
-  ResumeMessageStateSchema,
-  SnarkyMessageStateSchema,
-} from '@sidekick/types'
 import { z } from 'zod'
 import type { ResumeMessageState, SessionSummaryConfig, SessionSummaryState } from '../types.js'
 import { DEFAULT_SESSION_SUMMARY_CONFIG, RESUME_MIN_CONFIDENCE } from '../types.js'
+import { createSessionSummaryState, type SessionSummaryStateAccessors } from '../state.js'
 
-const STATE_FILE = 'session-summary.json'
-const COUNTDOWN_FILE = 'summary-countdown.json'
-const RESUME_FILE = 'resume-message.json'
-const SNARKY_FILE = 'snarky-message.json'
 const PROMPT_FILE = 'prompts/session-summary.prompt.txt'
 const SNARKY_PROMPT_FILE = 'prompts/snarky-message.prompt.txt'
 const RESUME_PROMPT_FILE = 'prompts/resume-message.prompt.txt'
@@ -67,6 +58,9 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
   const { sessionId } = event.context
   const isUserPrompt = event.eventType === 'UserPrompt'
 
+  // Create typed state accessors for this request
+  const summaryState = createSessionSummaryState(ctx.stateService)
+
   // Skip LLM calls during bulk processing (first-time transcript replay)
   // Handlers will be triggered again with BulkProcessingComplete for single analysis
   if (event.metadata?.isBulkProcessing) {
@@ -85,13 +79,13 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
       decision: 'calling',
       reason: 'BulkProcessingComplete - analyzing full transcript',
     })
-    const countdown = await loadCountdownState(ctx, sessionId)
-    await performAnalysis(event, ctx, countdown, 'user_prompt_forced')
+    const countdown = await loadCountdownState(summaryState, sessionId)
+    await performAnalysis(event, ctx, summaryState, countdown, 'user_prompt_forced')
     return
   }
 
   // Load current countdown state
-  const countdown = await loadCountdownState(ctx, sessionId)
+  const countdown = await loadCountdownState(summaryState, sessionId)
 
   // UserPrompt forces immediate analysis
   if (isUserPrompt) {
@@ -100,7 +94,7 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
       decision: 'calling',
       reason: 'UserPrompt event forces immediate analysis',
     })
-    await performAnalysis(event, ctx, countdown, 'user_prompt_forced')
+    await performAnalysis(event, ctx, summaryState, countdown, 'user_prompt_forced')
     return
   }
 
@@ -112,7 +106,7 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
       reason: `countdown not reached (${countdown.countdown} tool results remaining)`,
     })
     countdown.countdown--
-    await saveCountdownState(ctx, sessionId, countdown)
+    await saveCountdownState(summaryState, sessionId, countdown)
     return
   }
 
@@ -122,13 +116,14 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
     decision: 'calling',
     reason: 'countdown reached zero after ToolResult',
   })
-  await performAnalysis(event, ctx, countdown, 'countdown_reached')
+  await performAnalysis(event, ctx, summaryState, countdown, 'countdown_reached')
 }
 
-async function loadCountdownState(ctx: DaemonContext, sessionId: string): Promise<SummaryCountdownState> {
-  const statePath = ctx.stateService.sessionStatePath(sessionId, COUNTDOWN_FILE)
-  const defaultValue: SummaryCountdownState = { countdown: 0, bookmark_line: 0 }
-  const result = await ctx.stateService.read(statePath, SummaryCountdownStateSchema, defaultValue)
+async function loadCountdownState(
+  summaryState: SessionSummaryStateAccessors,
+  sessionId: string
+): Promise<SummaryCountdownState> {
+  const result = await summaryState.summaryCountdown.read(sessionId)
   return result.data
 }
 
@@ -137,20 +132,18 @@ async function loadCountdownState(ctx: DaemonContext, sessionId: string): Promis
  * Used to trigger initial resume generation even without pivot detection.
  * @see docs/design/FEATURE-RESUME.md §3.2
  */
-async function resumeMessageExists(ctx: DaemonContext, sessionId: string): Promise<boolean> {
-  const resumePath = ctx.stateService.sessionStatePath(sessionId, RESUME_FILE)
-  try {
-    // read() without default throws StateNotFoundError if missing
-    await ctx.stateService.read(resumePath, ResumeMessageStateSchema)
-    return true
-  } catch {
-    return false
-  }
+async function resumeMessageExists(summaryState: SessionSummaryStateAccessors, sessionId: string): Promise<boolean> {
+  // read() returns null when file is missing (default value)
+  const result = await summaryState.resumeMessage.read(sessionId)
+  return result.data !== null
 }
 
-async function saveCountdownState(ctx: DaemonContext, sessionId: string, state: SummaryCountdownState): Promise<void> {
-  const statePath = ctx.stateService.sessionStatePath(sessionId, COUNTDOWN_FILE)
-  await ctx.stateService.write(statePath, state, SummaryCountdownStateSchema)
+async function saveCountdownState(
+  summaryState: SessionSummaryStateAccessors,
+  sessionId: string,
+  state: SummaryCountdownState
+): Promise<void> {
+  await summaryState.summaryCountdown.write(sessionId, state)
 }
 
 /**
@@ -193,6 +186,7 @@ function parseResponse(content: string): SessionSummaryResponse | null {
 async function performAnalysis(
   event: TranscriptEvent,
   ctx: DaemonContext,
+  summaryState: SessionSummaryStateAccessors,
   countdown: SummaryCountdownState,
   // Note: compaction_reset reserved for future compaction-triggered re-analysis
   reason: 'user_prompt_forced' | 'countdown_reached' | 'compaction_reset'
@@ -204,7 +198,7 @@ async function performAnalysis(
   const config = { ...DEFAULT_SESSION_SUMMARY_CONFIG, ...featureConfig.settings }
 
   // Load current summary
-  const currentSummary = await loadCurrentSummary(ctx, sessionId)
+  const currentSummary = await loadCurrentSummary(summaryState, sessionId)
 
   // Extract transcript excerpt via TranscriptService
   const excerpt = ctx.transcript.getExcerpt({
@@ -296,7 +290,7 @@ async function performAnalysis(
     },
   }
 
-  await saveSummary(ctx, sessionId, updatedSummary)
+  await saveSummary(summaryState, sessionId, updatedSummary)
 
   // Reset countdown based on confidence
   const avgConfidence = (updatedSummary.session_title_confidence + updatedSummary.latest_intent_confidence) / 2
@@ -322,7 +316,7 @@ async function performAnalysis(
     bookmarkLine = countdown.bookmark_line
   }
 
-  await saveCountdownState(ctx, sessionId, {
+  await saveCountdownState(summaryState, sessionId, {
     countdown: newCountdown,
     bookmark_line: bookmarkLine,
   })
@@ -337,14 +331,14 @@ async function performAnalysis(
   const isInitialAnalysis = !currentSummary
   if (config.snarkyMessages && (isInitialAnalysis || changes.titleChanged || changes.intentChanged)) {
     // Note: We don't delete the old file first. If LLM fails, we keep stale over nothing.
-    sideEffects.push(generateSnarkyMessage(ctx, sessionId, updatedSummary, config))
+    sideEffects.push(generateSnarkyMessage(ctx, summaryState, sessionId, updatedSummary, config))
   }
 
   // Resume message: generate when pivot detected OR when no resume exists yet
   // @see docs/design/FEATURE-RESUME.md §3.2: "a pivot was detected OR there is no resume-message.json already generated"
-  const hasResume = await resumeMessageExists(ctx, sessionId)
+  const hasResume = await resumeMessageExists(summaryState, sessionId)
   if (updatedSummary.pivot_detected || !hasResume) {
-    sideEffects.push(generateResumeMessage(ctx, event.context, updatedSummary, transcript, config))
+    sideEffects.push(generateResumeMessage(ctx, summaryState, event.context, updatedSummary, transcript, config))
   }
 
   // Await all side-effects (errors are logged internally, won't fail main flow)
@@ -384,20 +378,21 @@ async function performAnalysis(
   })
 }
 
-async function loadCurrentSummary(ctx: DaemonContext, sessionId: string): Promise<SessionSummaryState | null> {
-  const statePath = ctx.stateService.sessionStatePath(sessionId, STATE_FILE)
-  try {
-    // read() without default throws StateNotFoundError if missing
-    const result = await ctx.stateService.read(statePath, SessionSummaryStateSchema)
-    return result.data
-  } catch {
-    return null
-  }
+async function loadCurrentSummary(
+  summaryState: SessionSummaryStateAccessors,
+  sessionId: string
+): Promise<SessionSummaryState | null> {
+  // read() returns null when file is missing (default value)
+  const result = await summaryState.sessionSummary.read(sessionId)
+  return result.data
 }
 
-async function saveSummary(ctx: DaemonContext, sessionId: string, summary: SessionSummaryState): Promise<void> {
-  const statePath = ctx.stateService.sessionStatePath(sessionId, STATE_FILE)
-  await ctx.stateService.write(statePath, summary, SessionSummaryStateSchema)
+async function saveSummary(
+  summaryState: SessionSummaryStateAccessors,
+  sessionId: string,
+  summary: SessionSummaryState
+): Promise<void> {
+  await summaryState.sessionSummary.write(sessionId, summary)
 }
 
 /**
@@ -445,6 +440,7 @@ function stripSurroundingQuotes(text: string): string {
  */
 async function generateSnarkyMessage(
   ctx: DaemonContext,
+  summaryState: SessionSummaryStateAccessors,
   sessionId: string,
   summary: SessionSummaryState,
   config: SessionSummaryConfig
@@ -481,10 +477,10 @@ async function generateSnarkyMessage(
       timestamp: new Date().toISOString(),
     }
 
-    // Save via StateService (atomic write with schema validation)
-    const snarkyPath = ctx.stateService.sessionStatePath(sessionId, SNARKY_FILE)
+    // Save via typed accessor (atomic write with schema validation)
+    const snarkyPath = summaryState.snarkyMessage.getPath(sessionId)
     await backupIfDevMode(ctx.config.core.development.enabled, snarkyPath, { logger: ctx.logger })
-    await ctx.stateService.write(snarkyPath, snarkyState, SnarkyMessageStateSchema)
+    await summaryState.snarkyMessage.write(sessionId, snarkyState)
 
     ctx.logger.debug('Generated snarky message', { sessionId, message: snarkyMessage.slice(0, 50) })
   } catch (err) {
@@ -517,6 +513,7 @@ function parseResumeResponse(content: string): ResumeMessageResponse | null {
  */
 async function generateResumeMessage(
   ctx: DaemonContext,
+  summaryState: SessionSummaryStateAccessors,
   eventContext: EventContext,
   summary: SessionSummaryState,
   transcriptExcerpt: string,
@@ -609,9 +606,8 @@ async function generateResumeMessage(
       timestamp: new Date().toISOString(),
     }
 
-    // Save to state file
-    const resumePath = ctx.stateService.sessionStatePath(sessionId, RESUME_FILE)
-    await ctx.stateService.write(resumePath, resumeState, ResumeMessageStateSchema)
+    // Save via typed accessor
+    await summaryState.resumeMessage.write(sessionId, resumeState)
 
     // Log resume updated event
     logEvent(

@@ -7,8 +7,8 @@
  * @see METRICS_PLAN.md
  */
 
-import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
+import { StateService } from '@sidekick/core'
 import {
   BaseTokenMetricsStateSchema,
   ProjectContextMetricsSchema,
@@ -52,36 +52,29 @@ export interface ContextOverheadReaderConfig {
 
 /**
  * Read base token metrics from global state file.
+ * Uses StateService for consistent validation and error handling.
+ *
+ * Note: User config dir is already ~/.sidekick/, so paths are constructed directly
+ * rather than using StateService path helpers (which assume .sidekick/ prefix).
  */
 async function readBaseMetrics(userConfigDir: string): Promise<BaseTokenMetricsState> {
+  // User config dir paths: {userConfigDir}/state/filename.json
+  const stateService = new StateService(userConfigDir)
   const filePath = path.join(userConfigDir, 'state', 'baseline-user-context-token-metrics.json')
-  try {
-    const content = await fs.readFile(filePath, 'utf-8')
-    const parsed = BaseTokenMetricsStateSchema.safeParse(JSON.parse(content))
-    if (parsed.success) {
-      return parsed.data
-    }
-  } catch {
-    // File doesn't exist or is invalid
-  }
-  return DEFAULT_BASE_METRICS
+  const result = await stateService.read(filePath, BaseTokenMetricsStateSchema, DEFAULT_BASE_METRICS)
+  return result.data
 }
 
 /**
  * Read project context metrics from project state file.
+ * Uses StateService for consistent validation and error handling.
  */
 async function readProjectMetrics(projectDir: string): Promise<ProjectContextMetrics> {
+  // Project dir paths: {projectDir}/.sidekick/state/filename.json
+  const stateService = new StateService(projectDir)
   const filePath = path.join(projectDir, '.sidekick', 'state', 'baseline-project-context-token-metrics.json')
-  try {
-    const content = await fs.readFile(filePath, 'utf-8')
-    const parsed = ProjectContextMetricsSchema.safeParse(JSON.parse(content))
-    if (parsed.success) {
-      return parsed.data
-    }
-  } catch {
-    // File doesn't exist or is invalid
-  }
-  return DEFAULT_PROJECT_METRICS
+  const result = await stateService.read(filePath, ProjectContextMetricsSchema, DEFAULT_PROJECT_METRICS)
+  return result.data
 }
 
 /**

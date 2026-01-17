@@ -633,11 +633,13 @@ export interface MinimalStateService {
    * Read state file with Zod validation.
    * @param path - Absolute path to state file
    * @param schema - Zod schema for validation
-   * @param defaultValue - Optional default if file missing/corrupt
+   * @param defaultValue - Optional default if file missing/corrupt.
+   *                       Pass null to get null back when file is missing (source: 'default').
+   *                       Omit to throw StateNotFoundError when file is missing.
    * @throws StateNotFoundError if file missing and no default
    * @throws StateCorruptError if validation fails and no default
    */
-  read<T>(path: string, schema: z.ZodType<T>, defaultValue?: T | (() => T)): Promise<StateReadResult<T>>
+  read<T>(path: string, schema: z.ZodType<T>, defaultValue?: T | null | (() => T | null)): Promise<StateReadResult<T>>
 
   /**
    * Atomic write with Zod validation.
@@ -660,6 +662,12 @@ export interface MinimalStateService {
    * @param filename - State file name (e.g., 'session-summary.json')
    */
   sessionStatePath(sessionId: string, filename: string): string
+
+  /**
+   * Get absolute path for a global state file.
+   * @param filename - State file name (e.g., 'global-metrics.json')
+   */
+  globalStatePath(filename: string): string
 }
 
 // ============================================================================

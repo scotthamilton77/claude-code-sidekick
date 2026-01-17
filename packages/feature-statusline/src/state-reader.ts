@@ -3,12 +3,15 @@
  *
  * Handles reading state files from .sidekick/sessions/{id}/state/ with:
  * - Graceful fallback on missing/corrupt files
- * - Staleness detection based on file mtime
- * - Zod validation with safe parsing
+ * - Staleness detection based on content timestamps
+ * - Zod validation via typed accessors
  *
  * Also provides `discoverPreviousResumeMessage()` for artifact discovery:
  * - Scans sessions directory for resume messages from previous sessions
  * - Used by statusline to show context when starting a new session
+ *
+ * Uses typed state accessors to encapsulate path construction and schema validation.
+ * Storage implementation details are hidden from this module.
  *
  * @see docs/design/FEATURE-STATUSLINE.md §5.2 StateReader
  * @see docs/design/FEATURE-RESUME.md §3.1 Artifact Discovery
@@ -16,25 +19,32 @@
 
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
-import type { ZodType } from 'zod'
+import {
+  StateService,
+  SessionStateAccessor,
+  GlobalStateAccessor,
+  TranscriptMetricsDescriptor,
+  DaemonLogMetricsDescriptor,
+  CliLogMetricsDescriptor,
+  DaemonGlobalLogMetricsDescriptor,
+  type PersistedTranscriptState,
+} from '@sidekick/core'
+import type { MinimalStateService, LogMetricsState } from '@sidekick/types'
+import {
+  SessionSummaryDescriptor,
+  ResumeMessageDescriptor,
+  SnarkyMessageDescriptor,
+} from '@sidekick/feature-session-summary'
+import type { SessionSummaryState as FeatureSessionSummaryState, SnarkyMessageState } from '@sidekick/types'
 
 import type {
   ResumeMessageState,
   TranscriptMetricsState,
   SessionSummaryState,
   StateReadResult,
-  LogMetricsState,
+  LogMetricsState as LocalLogMetricsState,
 } from './types.js'
-import {
-  EMPTY_TRANSCRIPT_STATE,
-  EMPTY_SESSION_SUMMARY,
-  EMPTY_LOG_METRICS,
-  PersistedTranscriptStateSchema,
-  ResumeMessageStateSchema,
-  SessionSummaryStateSchema,
-  LogMetricsStateSchema,
-  SnarkyMessageStateSchema,
-} from './types.js'
+import { EMPTY_TRANSCRIPT_STATE, EMPTY_SESSION_SUMMARY, EMPTY_LOG_METRICS } from './types.js'
 
 /** Maximum age (ms) before data is considered stale */
 const STALE_THRESHOLD_MS = 60_000 // 60 seconds
@@ -43,10 +53,10 @@ const STALE_THRESHOLD_MS = 60_000 // 60 seconds
  * Configuration for StateReader.
  */
 export interface StateReaderConfig {
-  /** Session state directory (e.g., .sidekick/sessions/{id}/state/) */
-  stateDir: string
-  /** Project state directory (e.g., .sidekick/state/) for global daemon metrics */
-  projectStateDir?: string
+  /** StateService for state file operations */
+  stateService: MinimalStateService
+  /** Session ID for state file resolution */
+  sessionId: string
   /** Threshold in ms for staleness detection */
   staleThresholdMs?: number
 }
@@ -54,16 +64,37 @@ export interface StateReaderConfig {
 /**
  * Reads state files for statusline rendering.
  * Returns fallback defaults if files are missing or corrupt.
+ * Uses typed state accessors for encapsulated state access.
  */
 export class StateReader {
-  private readonly stateDir: string
-  private readonly projectStateDir: string | null
+  private readonly sessionId: string
   private readonly staleThresholdMs: number
 
+  // Session-scoped accessors
+  private readonly transcriptMetricsAccessor: SessionStateAccessor<PersistedTranscriptState, null>
+  private readonly sessionSummaryAccessor: SessionStateAccessor<FeatureSessionSummaryState, null>
+  private readonly resumeMessageAccessor: SessionStateAccessor<ResumeMessageState, null>
+  private readonly snarkyMessageAccessor: SessionStateAccessor<SnarkyMessageState, SnarkyMessageState>
+  private readonly daemonLogMetricsAccessor: SessionStateAccessor<LogMetricsState, LogMetricsState>
+  private readonly cliLogMetricsAccessor: SessionStateAccessor<LogMetricsState, LogMetricsState>
+
+  // Global-scoped accessor (optional, only used when global metrics needed)
+  private readonly daemonGlobalLogMetricsAccessor: GlobalStateAccessor<LogMetricsState, LogMetricsState>
+
   constructor(config: StateReaderConfig) {
-    this.stateDir = config.stateDir
-    this.projectStateDir = config.projectStateDir ?? null
+    this.sessionId = config.sessionId
     this.staleThresholdMs = config.staleThresholdMs ?? STALE_THRESHOLD_MS
+
+    // Create session-scoped accessors
+    this.transcriptMetricsAccessor = new SessionStateAccessor(config.stateService, TranscriptMetricsDescriptor)
+    this.sessionSummaryAccessor = new SessionStateAccessor(config.stateService, SessionSummaryDescriptor)
+    this.resumeMessageAccessor = new SessionStateAccessor(config.stateService, ResumeMessageDescriptor)
+    this.snarkyMessageAccessor = new SessionStateAccessor(config.stateService, SnarkyMessageDescriptor)
+    this.daemonLogMetricsAccessor = new SessionStateAccessor(config.stateService, DaemonLogMetricsDescriptor)
+    this.cliLogMetricsAccessor = new SessionStateAccessor(config.stateService, CliLogMetricsDescriptor)
+
+    // Create global-scoped accessor
+    this.daemonGlobalLogMetricsAccessor = new GlobalStateAccessor(config.stateService, DaemonGlobalLogMetricsDescriptor)
   }
 
   /**
@@ -74,120 +105,108 @@ export class StateReader {
    * not the file mtime. This detects if the Daemon stopped updating.
    */
   async getTranscriptMetrics(): Promise<StateReadResult<TranscriptMetricsState>> {
-    const filePath = path.join(this.stateDir, 'transcript-metrics.json')
+    const result = await this.transcriptMetricsAccessor.read(this.sessionId)
 
-    try {
-      const content = await fs.readFile(filePath, 'utf-8')
-      const parsed = PersistedTranscriptStateSchema.safeParse(JSON.parse(content))
-
-      if (!parsed.success) {
-        return { source: 'default', data: EMPTY_TRANSCRIPT_STATE }
-      }
-
-      const persistedState = parsed.data
-      const metrics = persistedState.metrics
-
-      // Use persistedAt timestamp for staleness, not file mtime
-      // This detects if Daemon stopped updating (default interval: 5s)
-      const isStale = Date.now() - persistedState.persistedAt > this.staleThresholdMs
-
-      const state: TranscriptMetricsState = {
-        sessionId: persistedState.sessionId,
-        lastUpdatedAt: metrics.lastUpdatedAt,
-        tokens: {
-          input: metrics.tokenUsage.inputTokens,
-          output: metrics.tokenUsage.outputTokens,
-          total: metrics.tokenUsage.totalTokens,
-          cacheCreation: metrics.tokenUsage.cacheCreationInputTokens,
-          cacheRead: metrics.tokenUsage.cacheReadInputTokens,
-        },
-        currentContextTokens: metrics.currentContextTokens,
-        isPostCompactIndeterminate: metrics.isPostCompactIndeterminate,
-      }
-
-      return {
-        source: isStale ? 'stale' : 'fresh',
-        data: state,
-        mtime: persistedState.persistedAt,
-      }
-    } catch {
+    // 'default' = file missing, 'recovered' = file corrupt (default used after backup)
+    if (result.source === 'default' || result.source === 'recovered' || result.data === null) {
       return { source: 'default', data: EMPTY_TRANSCRIPT_STATE }
+    }
+
+    const persistedState = result.data
+    const metrics = persistedState.metrics
+
+    // Use persistedAt timestamp for staleness, not file mtime
+    // This detects if Daemon stopped updating (default interval: 5s)
+    const isStale = Date.now() - persistedState.persistedAt > this.staleThresholdMs
+
+    const state: TranscriptMetricsState = {
+      sessionId: persistedState.sessionId,
+      lastUpdatedAt: metrics.lastUpdatedAt,
+      tokens: {
+        input: metrics.tokenUsage.inputTokens,
+        output: metrics.tokenUsage.outputTokens,
+        total: metrics.tokenUsage.totalTokens,
+        cacheCreation: metrics.tokenUsage.cacheCreationInputTokens,
+        cacheRead: metrics.tokenUsage.cacheReadInputTokens,
+      },
+      currentContextTokens: metrics.currentContextTokens,
+      isPostCompactIndeterminate: metrics.isPostCompactIndeterminate,
+    }
+
+    return {
+      source: isStale ? 'stale' : 'fresh',
+      data: state,
+      mtime: persistedState.persistedAt,
     }
   }
 
   /**
-   * @deprecated Use getTranscriptMetrics() instead
-   */
-  async getSessionState(): Promise<StateReadResult<TranscriptMetricsState>> {
-    return this.getTranscriptMetrics()
-  }
-
-  /**
    * Read and parse session summary from session-summary.json.
+   * Uses SessionSummaryDescriptor from feature-session-summary.
    */
   async getSessionSummary(): Promise<StateReadResult<SessionSummaryState>> {
-    return this.readAndParse('session-summary.json', SessionSummaryStateSchema, EMPTY_SESSION_SUMMARY)
+    const result = await this.sessionSummaryAccessor.read(this.sessionId)
+
+    // 'default' = file missing, 'recovered' = file corrupt (default used after backup)
+    if (result.source === 'default' || result.source === 'recovered' || result.data === null) {
+      return { source: 'default', data: EMPTY_SESSION_SUMMARY }
+    }
+
+    return {
+      source: 'fresh',
+      data: result.data,
+      mtime: result.mtime,
+    }
   }
 
   /**
    * Read and parse resume message from resume-message.json.
    * Returns null data if file doesn't exist (not an error case).
+   * Uses ResumeMessageDescriptor from feature-session-summary.
    *
    * Content artifacts don't have staleness - they're valid until regenerated.
    */
   async getResumeMessage(): Promise<StateReadResult<ResumeMessageState | null>> {
-    const filePath = path.join(this.stateDir, 'resume-message.json')
+    const result = await this.resumeMessageAccessor.read(this.sessionId)
 
-    try {
-      const stat = await fs.stat(filePath)
-      const content = await fs.readFile(filePath, 'utf-8')
-      const parsed = ResumeMessageStateSchema.safeParse(JSON.parse(content))
-
-      if (!parsed.success) {
-        return { data: null, source: 'default' }
-      }
-
-      return {
-        data: parsed.data,
-        source: 'fresh',
-        mtime: stat.mtimeMs,
-      }
-    } catch {
+    // 'default' = file missing, 'recovered' = file corrupt (default used after backup)
+    if (result.source === 'default' || result.source === 'recovered' || result.data === null) {
       return { data: null, source: 'default' }
+    }
+
+    return {
+      data: result.data,
+      source: 'fresh',
+      mtime: result.mtime,
     }
   }
 
   /**
    * Read snarky message from snarky-message.json.
    * Returns empty string if file doesn't exist.
+   * Uses SnarkyMessageDescriptor from feature-session-summary.
    *
    * Content artifacts don't have staleness - they're valid until regenerated.
    */
   async getSnarkyMessage(): Promise<StateReadResult<string>> {
-    const filePath = path.join(this.stateDir, 'snarky-message.json')
+    const result = await this.snarkyMessageAccessor.read(this.sessionId)
 
-    try {
-      const stat = await fs.stat(filePath)
-      const content = await fs.readFile(filePath, 'utf-8')
-      const parsed = SnarkyMessageStateSchema.safeParse(JSON.parse(content))
-
-      if (!parsed.success) {
-        return { data: '', source: 'default' }
-      }
-
-      return {
-        data: parsed.data.message,
-        source: 'fresh',
-        mtime: stat.mtimeMs,
-      }
-    } catch {
+    // 'default' = file missing, 'recovered' = file corrupt (default used after backup)
+    if (result.source === 'default' || result.source === 'recovered') {
       return { data: '', source: 'default' }
+    }
+
+    return {
+      data: result.data.message,
+      source: 'fresh',
+      mtime: result.mtime,
     }
   }
 
   /**
    * Read and parse log metrics from daemon, CLI, and global metric files.
    * Returns combined warning/error counts for the current session plus global daemon errors.
+   * Uses log metrics accessors from typed state accessors.
    *
    * Daemon writes daemon-log-metrics.json (per-session),
    * CLI writes cli-log-metrics.json (per-session), and daemon writes
@@ -199,23 +218,13 @@ export class StateReader {
    *
    * @see docs/design/FEATURE-STATUSLINE.md §6.2
    */
-  async getLogMetrics(): Promise<StateReadResult<LogMetricsState>> {
-    const daemonPath = path.join(this.stateDir, 'daemon-log-metrics.json')
-    const cliPath = path.join(this.stateDir, 'cli-log-metrics.json')
-
-    const readPromises: Promise<StateReadResult<LogMetricsState>>[] = [
-      this.readLogMetricsFile(daemonPath),
-      this.readLogMetricsFile(cliPath),
-    ]
-
-    // Also read global daemon metrics if project state dir is configured
-    if (this.projectStateDir) {
-      const globalPath = path.join(this.projectStateDir, 'daemon-global-log-metrics.json')
-      readPromises.push(this.readLogMetricsFile(globalPath))
-    }
-
-    const results = await Promise.all(readPromises)
-    const [daemonResult, cliResult, globalResult] = results
+  async getLogMetrics(): Promise<StateReadResult<LocalLogMetricsState>> {
+    // Read session-scoped metrics via accessors
+    const [daemonResult, cliResult, globalResult] = await Promise.all([
+      this.readSessionLogMetrics(this.daemonLogMetricsAccessor),
+      this.readSessionLogMetrics(this.cliLogMetricsAccessor),
+      this.readGlobalLogMetrics(),
+    ])
 
     // Sum counts from all sources
     let warningCount = daemonResult.data.warningCount + cliResult.data.warningCount
@@ -228,7 +237,7 @@ export class StateReader {
       lastUpdatedAt = Math.max(lastUpdatedAt, globalResult.data.lastUpdatedAt)
     }
 
-    const combined: LogMetricsState = {
+    const combined: LocalLogMetricsState = {
       sessionId: daemonResult.data.sessionId || cliResult.data.sessionId || '',
       warningCount,
       errorCount,
@@ -253,57 +262,52 @@ export class StateReader {
   }
 
   /**
-   * Read and parse a single log metrics file.
+   * Read session-scoped log metrics via accessor.
    * Internal helper for getLogMetrics().
    */
-  private async readLogMetricsFile(filePath: string): Promise<StateReadResult<LogMetricsState>> {
-    try {
-      const content = await fs.readFile(filePath, 'utf-8')
-      const parsed = LogMetricsStateSchema.safeParse(JSON.parse(content))
+  private async readSessionLogMetrics(
+    accessor: SessionStateAccessor<LogMetricsState, LogMetricsState>
+  ): Promise<StateReadResult<LocalLogMetricsState>> {
+    const result = await accessor.read(this.sessionId)
 
-      if (!parsed.success) {
-        return { source: 'default', data: EMPTY_LOG_METRICS }
-      }
-
-      const logMetrics = parsed.data
-
-      // Use lastUpdatedAt timestamp for staleness detection
-      const isStale = Date.now() - logMetrics.lastUpdatedAt > this.staleThresholdMs
-
-      return {
-        source: isStale ? 'stale' : 'fresh',
-        data: logMetrics,
-        mtime: logMetrics.lastUpdatedAt,
-      }
-    } catch {
+    // 'default' = file missing, 'recovered' = file corrupt (default used after backup)
+    if (result.source === 'default' || result.source === 'recovered') {
       return { source: 'default', data: EMPTY_LOG_METRICS }
+    }
+
+    const logMetrics = result.data
+
+    // Use lastUpdatedAt timestamp for staleness detection
+    const isStale = Date.now() - logMetrics.lastUpdatedAt > this.staleThresholdMs
+
+    return {
+      source: isStale ? 'stale' : 'fresh',
+      data: logMetrics,
+      mtime: logMetrics.lastUpdatedAt,
     }
   }
 
   /**
-   * Generic read-and-parse helper with Zod validation.
-   *
-   * Used for content artifacts which don't have staleness - they're valid until regenerated.
+   * Read global log metrics via accessor.
+   * Internal helper for getLogMetrics().
    */
-  private async readAndParse<T>(filename: string, schema: ZodType<T>, defaultValue: T): Promise<StateReadResult<T>> {
-    const filePath = path.join(this.stateDir, filename)
+  private async readGlobalLogMetrics(): Promise<StateReadResult<LocalLogMetricsState> | undefined> {
+    const result = await this.daemonGlobalLogMetricsAccessor.read()
 
-    try {
-      const stat = await fs.stat(filePath)
-      const content = await fs.readFile(filePath, 'utf-8')
-      const parsed = schema.safeParse(JSON.parse(content))
+    // 'default' = file missing, 'recovered' = file corrupt (default used after backup)
+    if (result.source === 'default' || result.source === 'recovered') {
+      return { source: 'default', data: EMPTY_LOG_METRICS }
+    }
 
-      if (!parsed.success) {
-        return { data: defaultValue, source: 'default' }
-      }
+    const logMetrics = result.data
 
-      return {
-        data: parsed.data,
-        source: 'fresh',
-        mtime: stat.mtimeMs,
-      }
-    } catch {
-      return { data: defaultValue, source: 'default' }
+    // Use lastUpdatedAt timestamp for staleness detection
+    const isStale = Date.now() - logMetrics.lastUpdatedAt > this.staleThresholdMs
+
+    return {
+      source: isStale ? 'stale' : 'fresh',
+      data: logMetrics,
+      mtime: logMetrics.lastUpdatedAt,
     }
   }
 }
@@ -312,12 +316,13 @@ export class StateReader {
  * Factory function to create StateReader for a session.
  */
 export function createStateReader(
-  sessionStateDir: string,
-  options?: { staleThresholdMs?: number; projectStateDir?: string }
+  stateService: MinimalStateService,
+  sessionId: string,
+  options?: { staleThresholdMs?: number }
 ): StateReader {
   return new StateReader({
-    stateDir: sessionStateDir,
-    projectStateDir: options?.projectStateDir,
+    stateService,
+    sessionId,
     staleThresholdMs: options?.staleThresholdMs,
   })
 }
@@ -342,6 +347,10 @@ export interface DiscoveryResult {
  * - Used when current session is new (no session-summary.json yet)
  * - Returns the most recent OTHER session's resume-message.json
  *
+ * Note: This function uses direct StateService calls because it needs to
+ * iterate across multiple sessions, which is different from single-session
+ * state access where accessors are appropriate.
+ *
  * @param sessionsDir - Path to .sidekick/sessions/ directory
  * @param currentSessionId - Current session ID to exclude from results
  * @returns Discovery result with most recent previous session's resume message
@@ -359,26 +368,26 @@ export async function discoverPreviousResumeMessage(
       return { data: null, sessionId: null, source: 'not_found' }
     }
 
+    // Create StateService rooted at the project (parent of sessions dir's parent)
+    // sessionsDir is .sidekick/sessions/, parent is .sidekick/, parent of that is project root
+    const projectRoot = path.dirname(path.dirname(sessionsDir))
+    const stateService = new StateService(projectRoot)
+
+    // Create accessor for reading resume messages
+    const resumeAccessor = new SessionStateAccessor(stateService, ResumeMessageDescriptor)
+
     // Collect resume messages with their modification times
     const resumeCandidates: { sessionId: string; data: ResumeMessageState; mtime: number }[] = []
 
     for (const dir of sessionDirs) {
-      const resumePath = path.join(sessionsDir, dir.name, 'state', 'resume-message.json')
-      try {
-        const stat = await fs.stat(resumePath)
-        const content = await fs.readFile(resumePath, 'utf-8')
-        const parsed = ResumeMessageStateSchema.safeParse(JSON.parse(content))
+      const result = await resumeAccessor.read(dir.name)
 
-        if (parsed.success) {
-          resumeCandidates.push({
-            sessionId: dir.name,
-            data: parsed.data,
-            mtime: stat.mtimeMs,
-          })
-        }
-      } catch {
-        // File doesn't exist or is invalid - skip this session
-        continue
+      if (result.source !== 'default' && result.data !== null && result.mtime) {
+        resumeCandidates.push({
+          sessionId: dir.name,
+          data: result.data,
+          mtime: result.mtime,
+        })
       }
     }
 

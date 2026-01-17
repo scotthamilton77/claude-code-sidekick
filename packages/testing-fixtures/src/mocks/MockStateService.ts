@@ -23,13 +23,17 @@ export class MockStateService implements MinimalStateService {
     this.projectRoot = projectRoot
   }
 
-  read<T>(path: string, schema: SchemaLike<T>, defaultValue?: T | (() => T)): Promise<StateReadResult<T>> {
+  read<T>(
+    path: string,
+    schema: SchemaLike<T>,
+    defaultValue?: T | null | (() => T | null)
+  ): Promise<StateReadResult<T>> {
     const stored = this.storage.get(path)
 
     if (stored === undefined) {
       if (defaultValue !== undefined) {
-        const value = typeof defaultValue === 'function' ? (defaultValue as () => T)() : defaultValue
-        return Promise.resolve({ data: value, source: 'default' })
+        const value = typeof defaultValue === 'function' ? (defaultValue as () => T | null)() : defaultValue
+        return Promise.resolve({ data: value as T, source: 'default' })
       }
       return Promise.reject(new Error(`StateNotFoundError: ${path}`))
     }
@@ -38,8 +42,8 @@ export class MockStateService implements MinimalStateService {
     const parsed = schema.safeParse(stored)
     if (!parsed.success) {
       if (defaultValue !== undefined) {
-        const value = typeof defaultValue === 'function' ? (defaultValue as () => T)() : defaultValue
-        return Promise.resolve({ data: value, source: 'recovered' })
+        const value = typeof defaultValue === 'function' ? (defaultValue as () => T | null)() : defaultValue
+        return Promise.resolve({ data: value as T, source: 'recovered' })
       }
       return Promise.reject(new Error(`StateCorruptError: ${path}`))
     }
@@ -61,6 +65,10 @@ export class MockStateService implements MinimalStateService {
 
   sessionStatePath(sessionId: string, filename: string): string {
     return `${this.projectRoot}/.sidekick/sessions/${sessionId}/state/${filename}`
+  }
+
+  globalStatePath(filename: string): string {
+    return `${this.projectRoot}/.sidekick/state/${filename}`
   }
 
   // Test utilities

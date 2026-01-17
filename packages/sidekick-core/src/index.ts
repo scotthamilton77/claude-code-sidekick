@@ -139,6 +139,20 @@ export {
   StateCorruptError,
   type StateReadResult,
   type StateServiceOptions,
+  // Typed state accessors (Phase 9.3.7)
+  sessionState,
+  globalState,
+  SessionStateAccessor,
+  GlobalStateAccessor,
+  type StateDescriptor,
+  // Descriptors for state files owned by @sidekick/core
+  TranscriptMetricsDescriptor,
+  CompactionHistoryDescriptor,
+  DaemonLogMetricsDescriptor,
+  CliLogMetricsDescriptor,
+  DaemonGlobalLogMetricsDescriptor,
+  // Types for state schemas
+  type PersistedTranscriptState,
 } from './state/index.js'
 
 // Note: LLMService should be imported directly from '@sidekick/shared-providers'

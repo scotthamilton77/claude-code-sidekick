@@ -41,15 +41,15 @@ export interface StateServiceOptions {
   logger?: Logger
 }
 
-/** Default can be a value or a factory function */
-type DefaultValue<T> = T | (() => T)
+/** Default can be a value, null, or a factory function */
+type DefaultValue<T> = T | null | (() => T | null)
 
 // ============================================================================
 // Helpers
 // ============================================================================
 
-function resolveDefault<T>(defaultValue: DefaultValue<T>): T {
-  return typeof defaultValue === 'function' ? (defaultValue as () => T)() : defaultValue
+function resolveDefault<T>(defaultValue: DefaultValue<T>): T | null {
+  return typeof defaultValue === 'function' ? (defaultValue as () => T | null)() : defaultValue
 }
 
 function isEnoent(err: unknown): boolean {
@@ -298,7 +298,8 @@ export class StateService {
     if (defaultValue === undefined) {
       throw new StateNotFoundError(path)
     }
-    return { data: resolveDefault(defaultValue), source: 'default' }
+    // Type assertion: callers who pass null as default have T = ActualType | null
+    return { data: resolveDefault(defaultValue) as T, source: 'default' }
   }
 
   private async handleInvalid<T>(
@@ -312,7 +313,8 @@ export class StateService {
     if (defaultValue === undefined) {
       throw new StateCorruptError(path, reason, error)
     }
-    return { data: resolveDefault(defaultValue), source: 'recovered' }
+    // Type assertion: callers who pass null as default have T = ActualType | null
+    return { data: resolveDefault(defaultValue) as T, source: 'recovered' }
   }
 
   private async moveToBackup(path: string, reason: string, error: unknown): Promise<void> {

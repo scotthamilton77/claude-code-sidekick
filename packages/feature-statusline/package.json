@@ -13,6 +13,7 @@
   "dependencies": {
     "@sidekick/types": "workspace:*",
     "@sidekick/core": "workspace:*",
+    "@sidekick/feature-session-summary": "workspace:*",
     "zod": "^4.1.13"
   },
   "devDependencies": {

@@ -7,41 +7,12 @@
  *
  * @see docs/design/FEATURE-REMINDERS.md §5.3
  */
-import { readFileSync, unlinkSync, existsSync } from 'node:fs'
-import { join } from 'node:path'
 import type { RuntimeContext } from '@sidekick/core'
 import type { DaemonContext, VCUnverifiedState } from '@sidekick/types'
 import { isDaemonContext, isHookEvent } from '@sidekick/types'
 import { ReminderIds, DEFAULT_REMINDERS_SETTINGS, type RemindersSettings } from '../../types.js'
 import { resolveReminder, stageReminder } from '../../reminder-utils.js'
-
-/**
- * Read vc-unverified.json state file if it exists
- */
-function readVCUnverifiedState(projectDir: string, sessionId: string): VCUnverifiedState | null {
-  const statePath = join(projectDir, '.sidekick', 'sessions', sessionId, 'state', 'vc-unverified.json')
-  try {
-    if (!existsSync(statePath)) return null
-    const content = readFileSync(statePath, 'utf-8')
-    return JSON.parse(content) as VCUnverifiedState
-  } catch {
-    return null
-  }
-}
-
-/**
- * Clear vc-unverified.json state file
- */
-function clearVCUnverifiedState(projectDir: string, sessionId: string): void {
-  const statePath = join(projectDir, '.sidekick', 'sessions', sessionId, 'state', 'vc-unverified.json')
-  try {
-    if (existsSync(statePath)) {
-      unlinkSync(statePath)
-    }
-  } catch {
-    // Ignore errors
-  }
-}
+import { createRemindersState } from '../../state.js'
 
 export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
   if (!isDaemonContext(context)) return
@@ -63,15 +34,10 @@ export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
         return
       }
 
-      // Check for unverified changes state
-      const projectDir = context.paths.projectDir
-      if (!projectDir) {
-        daemonCtx.logger.warn('Cannot check vc-unverified state: projectDir not available')
-        await daemonCtx.staging.deleteReminder('Stop', ReminderIds.VERIFY_COMPLETION)
-        return
-      }
-
-      const unverifiedState = readVCUnverifiedState(projectDir, sessionId)
+      // Read vc-unverified state using typed accessor
+      const remindersState = createRemindersState(daemonCtx.stateService)
+      const vcResult = await remindersState.vcUnverified.read(sessionId)
+      const unverifiedState: VCUnverifiedState | null = vcResult.source !== 'default' ? vcResult.data : null
 
       if (unverifiedState?.hasUnverifiedChanges) {
         // Check cycle limit
@@ -107,12 +73,12 @@ export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
             daemonCtx.logger.warn('Failed to resolve verify-completion reminder for re-staging')
           }
         } else {
-          // Cycle limit reached
+          // Cycle limit reached - delete vc-unverified state
           daemonCtx.logger.info('Verification cycle limit reached, not re-staging', {
             cycleCount: unverifiedState.cycleCount,
             maxCycles,
           })
-          clearVCUnverifiedState(projectDir, sessionId)
+          await remindersState.vcUnverified.delete(sessionId)
         }
       }
 

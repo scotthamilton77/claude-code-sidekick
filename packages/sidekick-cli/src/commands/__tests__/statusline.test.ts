@@ -139,10 +139,10 @@ describe('handleStatuslineCommand', () => {
         sessionId: 'test-session-123',
       })
 
-      // Service was created with session-aware state directory
+      // Service was created with correct sessionId
       expect(mockCreateStatuslineService).toHaveBeenCalledWith(
         expect.objectContaining({
-          sessionStateDir: expect.stringContaining('test-session-123'),
+          sessionId: 'test-session-123',
         })
       )
     })
@@ -219,9 +219,10 @@ describe('handleStatuslineCommand', () => {
 
       await handleStatuslineCommand('/project', logger, stdout, {})
 
+      // Defaults to 'current' sessionId when not specified
       expect(mockCreateStatuslineService).toHaveBeenCalledWith(
         expect.objectContaining({
-          sessionStateDir: expect.stringContaining('current'),
+          sessionId: 'current',
         })
       )
     })

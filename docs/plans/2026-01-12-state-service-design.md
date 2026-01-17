@@ -199,6 +199,170 @@ export class SessionSummaryState {
 - StateService cache is shared across all wrappers
 - No sessionId repetition in handler code
 
+## Typed State Accessors (Phase 9.3.7)
+
+The accessor pattern provides a higher-level abstraction that fully decouples consumer code from storage implementation details.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     Consumer Code (e.g., StateReader)           │
+│                                                                 │
+│   // No path construction, no direct stateService.read() calls  │
+│   const result = await accessor.read(sessionId)                 │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│              Accessor (SessionStateAccessor / GlobalStateAccessor)
+│                                                                 │
+│   - Encapsulates path construction                              │
+│   - Delegates to StateService with correct schema/defaults      │
+│   - Type-safe read/write/delete operations                      │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│              Descriptor (StateDescriptor<T, D>)                 │
+│                                                                 │
+│   - filename: string        (e.g., 'session-summary.json')      │
+│   - schema: ZodType<T>      (validation)                        │
+│   - defaultValue?: D        (fallback if missing)               │
+│   - scope: 'session' | 'global'                                 │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                         StateService                            │
+│                                                                 │
+│   - Actual storage I/O (filesystem today, could be Redis later) │
+│   - Atomic writes, caching, error recovery                      │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Descriptor Definition
+
+Descriptors bundle all metadata about a state file:
+
+```typescript
+// @sidekick/core/src/state/state-descriptor.ts
+
+export interface StateDescriptor<T, D = T | null | undefined> {
+  readonly filename: string
+  readonly schema: ZodType<T>
+  readonly defaultValue?: D | (() => D)
+  readonly scope: 'session' | 'global'
+}
+
+// Helper functions for creating descriptors
+export function sessionState<T, D>(filename: string, schema: ZodType<T>, defaultValue?: D): StateDescriptor<T, D>
+export function globalState<T, D>(filename: string, schema: ZodType<T>, defaultValue?: D): StateDescriptor<T, D>
+```
+
+### Accessor Classes
+
+```typescript
+// @sidekick/core/src/state/typed-accessor.ts
+
+export class SessionStateAccessor<T, D = undefined> {
+  constructor(stateService: MinimalStateService, descriptor: StateDescriptor<T, D>)
+
+  async read(sessionId: string): Promise<StateReadResult<T | D>>
+  async write(sessionId: string, data: T): Promise<void>
+  async delete(sessionId: string): Promise<void>
+  getPath(sessionId: string): string
+}
+
+export class GlobalStateAccessor<T, D = undefined> {
+  constructor(stateService: MinimalStateService, descriptor: StateDescriptor<T, D>)
+
+  async read(): Promise<StateReadResult<T | D>>
+  async write(data: T): Promise<void>
+  async delete(): Promise<void>
+  getPath(): string
+}
+```
+
+### Usage Example
+
+Feature packages define descriptors and export them:
+
+```typescript
+// @sidekick/feature-session-summary/src/state.ts
+
+export const SessionSummaryDescriptor = sessionState(
+  'session-summary.json',
+  SessionSummarySchema,
+  null  // Returns null when file missing
+)
+
+export const ResumeMessageDescriptor = sessionState(
+  'resume-message.json',
+  ResumeMessageSchema,
+  null
+)
+```
+
+Consumers create accessors and use them without knowing storage details:
+
+```typescript
+// @sidekick/feature-statusline/src/state-reader.ts
+
+export class StateReader {
+  private readonly summaryAccessor: SessionStateAccessor<SessionSummary, null>
+
+  constructor(config: StateReaderConfig) {
+    this.summaryAccessor = new SessionStateAccessor(
+      config.stateService,
+      SessionSummaryDescriptor
+    )
+  }
+
+  async getSessionSummary(): Promise<StateReadResult<SessionSummary>> {
+    // No path.join(), no filename knowledge, no direct stateService.read()
+    const result = await this.summaryAccessor.read(this.sessionId)
+
+    if (result.source === 'default' || result.data === null) {
+      return { source: 'default', data: EMPTY_SUMMARY }
+    }
+    return result
+  }
+}
+```
+
+### Benefits
+
+| Without Accessors | With Accessors |
+|-------------------|----------------|
+| `const path = path.join(stateDir, 'session-summary.json')` | Encapsulated in accessor |
+| `await stateService.read(path, schema, default)` | `await accessor.read(sessionId)` |
+| Consumer knows filename | Consumer only knows descriptor |
+| Consumer constructs paths | Accessor constructs paths |
+| Storage change requires consumer updates | Storage change only requires StateService update |
+
+### Default Value Handling
+
+The type parameter `D` controls default behavior:
+
+| Declaration | File Missing Behavior |
+|-------------|----------------------|
+| `sessionState('f.json', Schema)` | Throws `StateNotFoundError` |
+| `sessionState('f.json', Schema, DEFAULT_VALUE)` | Returns `DEFAULT_VALUE` |
+| `sessionState('f.json', Schema, null)` | Returns `null` |
+
+### Scope Enforcement
+
+Accessors validate that descriptors match their scope at construction time:
+
+```typescript
+// Throws: "SessionStateAccessor requires a session-scoped descriptor"
+new SessionStateAccessor(stateService, GlobalDescriptor)
+
+// Throws: "GlobalStateAccessor requires a global-scoped descriptor"
+new GlobalStateAccessor(stateService, SessionDescriptor)
+```
+
 ## Missing Schemas to Add
 
 ### SummaryCountdownSchema (feature-session-summary)

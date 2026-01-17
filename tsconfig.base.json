@@ -13,7 +13,10 @@
       "@sidekick/types": ["packages/types/dist"],
       "@sidekick/core": ["packages/sidekick-core/dist"],
       "@sidekick/shared-providers": ["packages/shared-providers/dist"],
-      "@sidekick/testing-fixtures": ["packages/testing-fixtures/dist"]
+      "@sidekick/testing-fixtures": ["packages/testing-fixtures/dist"],
+      "@sidekick/feature-session-summary": ["packages/feature-session-summary/dist"],
+      "@sidekick/feature-reminders": ["packages/feature-reminders/dist"],
+      "@sidekick/feature-statusline": ["packages/feature-statusline/dist"]
     }
   }
 }
