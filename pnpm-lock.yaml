@@ -115,6 +115,9 @@ importers:
       '@sidekick/core':
         specifier: workspace:*
         version: link:../sidekick-core
+      '@sidekick/feature-session-summary':
+        specifier: workspace:*
+        version: link:../feature-session-summary
       '@sidekick/types':
         specifier: workspace:*
         version: link:../types
@@ -254,6 +257,9 @@ importers:
       '@sidekick/shared-providers':
         specifier: workspace:*
         version: link:../shared-providers
+      '@sidekick/types':
+        specifier: workspace:*
+        version: link:../types
       pino:
         specifier: ^9.0.0
         version: 9.14.0
