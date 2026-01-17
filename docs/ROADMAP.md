@@ -217,12 +217,12 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
   - [x] **9.3.5 Cleanup (Phase A)** - COMPLETE 2026-01-17
     - [x] Remove `DerivedPaths` from config.ts (replaced by StateService path accessors)
     - [x] Mark `StateReader` complete - already uses composition pattern with typed accessors
-  - [ ] **9.3.6 StateService DevMode Backup** (consolidate backup logic)
-    - [ ] Add `config?: MinimalConfigService` option to StateServiceOptions
-    - [ ] Move `copyWithTimestamp()` logic into StateService as private method
-    - [ ] In `write()`: if `config?.core.development.enabled`, backup before overwrite
-    - [ ] Remove `backupIfDevMode()` calls from handlers (update-summary.ts, etc.)
-    - [ ] Update tests to verify backup behavior with mock config
+  - [x] **9.3.6 StateService DevMode Backup** (consolidate backup logic) - COMPLETE 2026-01-17
+    - [x] Add `config?: StateServiceConfig` option to StateServiceOptions (minimal interface with just `core.development.enabled`)
+    - [x] Add private `backupBeforeWrite()` method to StateService (timestamped copy)
+    - [x] In `write()`: if `config?.core.development.enabled`, backup before overwrite
+    - [x] Remove `backupIfDevMode()` calls from handlers (update-summary.ts)
+    - [x] Update tests to verify backup behavior with mock config (5 test cases)
   - [ ] **9.3.7 Cleanup (Phase B)** (after 9.3.6 - requires StateService backup)
     - [ ] Delete `StateManager` from sidekick-daemon (merged into StateService)
     - [ ] Deprecate `backupIfDevMode()` from file-utils.ts (moved to StateService)

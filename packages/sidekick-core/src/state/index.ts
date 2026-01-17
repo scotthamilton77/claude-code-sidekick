@@ -4,7 +4,12 @@
  * @see docs/plans/2026-01-12-state-service-design.md
  */
 
-export { StateService, type StateReadResult, type StateServiceOptions } from './state-service.js'
+export {
+  StateService,
+  type StateReadResult,
+  type StateServiceConfig,
+  type StateServiceOptions,
+} from './state-service.js'
 export { StateNotFoundError, StateCorruptError } from './errors.js'
 
 // Typed state accessors (Phase 9.3.7)

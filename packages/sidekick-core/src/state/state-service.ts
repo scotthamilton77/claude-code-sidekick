@@ -13,11 +13,22 @@
 
 import * as fs from 'node:fs/promises'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { basename, dirname, extname, join } from 'node:path'
 import type { ZodType } from 'zod'
 import type { Logger } from '@sidekick/types'
 import { PathResolver } from './path-resolver.js'
 import { StateNotFoundError, StateCorruptError } from './errors.js'
+
+/**
+ * Minimal config interface for StateService.
+ * Only requires the development.enabled flag for backup behavior.
+ * Structurally compatible with MinimalConfigService and ConfigService.
+ */
+export interface StateServiceConfig {
+  readonly core: {
+    readonly development: { readonly enabled: boolean }
+  }
+}
 
 // Re-export errors for convenience
 export { StateNotFoundError, StateCorruptError } from './errors.js'
@@ -39,6 +50,8 @@ export interface StateServiceOptions {
   staleThresholdMs?: number
   /** Logger instance */
   logger?: Logger
+  /** Config for dev mode backup behavior */
+  config?: StateServiceConfig
 }
 
 /** Default can be a value, null, or a factory function */
@@ -65,12 +78,14 @@ export class StateService {
   private readonly staleThresholdMs: number
   private readonly logger?: Logger
   private readonly cache: Map<string, { data: unknown; mtime: number }> | null
+  private readonly devModeEnabled: boolean
 
   constructor(projectRoot: string, options?: StateServiceOptions) {
     this.paths = new PathResolver(projectRoot)
     this.staleThresholdMs = options?.staleThresholdMs ?? 60_000
     this.logger = options?.logger
     this.cache = options?.cache ? new Map() : null
+    this.devModeEnabled = options?.config?.core.development.enabled ?? false
   }
 
   // ==========================================================================
@@ -133,6 +148,7 @@ export class StateService {
    * Atomic write with Zod validation.
    * Uses tmp + rename pattern to prevent corruption.
    * Validates data against schema before writing.
+   * In dev mode, creates timestamped backup before overwriting.
    */
   async write<T>(path: string, data: T, schema: ZodType<T>): Promise<void> {
     // Validate before writing (fail fast)
@@ -140,6 +156,11 @@ export class StateService {
 
     const dir = dirname(path)
     await fs.mkdir(dir, { recursive: true })
+
+    // Dev mode: backup existing file before overwrite
+    if (this.devModeEnabled) {
+      await this.backupBeforeWrite(path)
+    }
 
     const tmpPath = `${path}.${Date.now()}.tmp`
     const json = JSON.stringify(parsed, null, 2)
@@ -332,6 +353,36 @@ export class StateService {
     } catch {
       // Best effort - if we can't move it, just log and continue
       this.logger?.debug('Could not move corrupt file to backup', { path })
+    }
+  }
+
+  /**
+   * Create timestamped backup of existing file before overwrite.
+   * Only called when dev mode is enabled.
+   * Silent no-op if file doesn't exist.
+   */
+  private async backupBeforeWrite(path: string): Promise<void> {
+    try {
+      await fs.access(path)
+    } catch {
+      // File doesn't exist, nothing to backup
+      return
+    }
+
+    const dir = dirname(path)
+    const ext = extname(path)
+    const base = basename(path, ext)
+    const backupPath = join(dir, `${base}.${Date.now()}${ext}`)
+
+    try {
+      await fs.copyFile(path, backupPath)
+      this.logger?.debug('Dev mode backup created', { original: path, backup: backupPath })
+    } catch (err) {
+      // Best effort - don't fail the write if backup fails
+      this.logger?.warn('Failed to create dev mode backup', {
+        path,
+        error: err instanceof Error ? err.message : String(err),
+      })
     }
   }
 }

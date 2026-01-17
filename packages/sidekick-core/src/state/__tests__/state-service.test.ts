@@ -559,4 +559,133 @@ describe('StateService', () => {
       expect(existsSync(path)).toBe(true)
     })
   })
+
+  // ============================================================================
+  // Dev Mode Backup Tests
+  // ============================================================================
+
+  describe('dev mode backup', () => {
+    it('creates timestamped backup when dev mode enabled and file exists', async () => {
+      const devState = new StateService(testDir, {
+        logger: createMockLogger(),
+        config: { core: { development: { enabled: true } } },
+      })
+
+      const path = devState.globalStatePath('backup-test.json')
+      mkdirSync(dirname(path), { recursive: true })
+      writeFileSync(path, JSON.stringify({ value: 1 }), 'utf-8')
+
+      // Write new value - should create backup first
+      await devState.write(path, { value: 2 }, TestSchema)
+
+      // Check for backup file
+      const dir = dirname(path)
+      const files = readdirSync(dir)
+      const backupFiles = files.filter((f) => f.startsWith('backup-test.') && f.endsWith('.json') && f !== 'backup-test.json')
+
+      expect(backupFiles.length).toBe(1)
+
+      // Backup should contain original value
+      const backupContent = JSON.parse(readFileSync(join(dir, backupFiles[0]), 'utf-8'))
+      expect(backupContent.value).toBe(1)
+
+      // Original should have new value
+      const newContent = JSON.parse(readFileSync(path, 'utf-8'))
+      expect(newContent.value).toBe(2)
+    })
+
+    it('does not create backup when dev mode disabled', async () => {
+      const prodState = new StateService(testDir, {
+        logger: createMockLogger(),
+        config: { core: { development: { enabled: false } } },
+      })
+
+      const path = prodState.globalStatePath('no-backup.json')
+      mkdirSync(dirname(path), { recursive: true })
+      writeFileSync(path, JSON.stringify({ value: 1 }), 'utf-8')
+
+      await prodState.write(path, { value: 2 }, TestSchema)
+
+      // No backup files should exist
+      const dir = dirname(path)
+      const files = readdirSync(dir)
+      const backupFiles = files.filter((f) => f.startsWith('no-backup.') && f.endsWith('.json') && f !== 'no-backup.json')
+
+      expect(backupFiles.length).toBe(0)
+    })
+
+    it('does not create backup when config not provided', async () => {
+      // Default behavior (no config) should not create backups
+      const defaultState = new StateService(testDir, {
+        logger: createMockLogger(),
+      })
+
+      const path = defaultState.globalStatePath('default-no-backup.json')
+      mkdirSync(dirname(path), { recursive: true })
+      writeFileSync(path, JSON.stringify({ value: 1 }), 'utf-8')
+
+      await defaultState.write(path, { value: 2 }, TestSchema)
+
+      const dir = dirname(path)
+      const files = readdirSync(dir)
+      const backupFiles = files.filter(
+        (f) => f.startsWith('default-no-backup.') && f.endsWith('.json') && f !== 'default-no-backup.json'
+      )
+
+      expect(backupFiles.length).toBe(0)
+    })
+
+    it('does not fail when file does not exist (first write)', async () => {
+      const devState = new StateService(testDir, {
+        logger: createMockLogger(),
+        config: { core: { development: { enabled: true } } },
+      })
+
+      const path = devState.globalStatePath('new-file.json')
+
+      // Should not throw - just creates file without backup
+      await devState.write(path, { value: 1 }, TestSchema)
+
+      expect(existsSync(path)).toBe(true)
+
+      // No backup files since there was nothing to backup
+      const dir = dirname(path)
+      const files = readdirSync(dir)
+      const backupFiles = files.filter((f) => f.startsWith('new-file.') && f.endsWith('.json') && f !== 'new-file.json')
+
+      expect(backupFiles.length).toBe(0)
+    })
+
+    it('creates multiple backups on successive writes', async () => {
+      const devState = new StateService(testDir, {
+        logger: createMockLogger(),
+        config: { core: { development: { enabled: true } } },
+      })
+
+      const path = devState.globalStatePath('multi-backup.json')
+
+      // First write (no backup)
+      await devState.write(path, { value: 1 }, TestSchema)
+
+      // Small delay to ensure different timestamps
+      await sleep(5)
+
+      // Second write (backup of v1)
+      await devState.write(path, { value: 2 }, TestSchema)
+
+      await sleep(5)
+
+      // Third write (backup of v2)
+      await devState.write(path, { value: 3 }, TestSchema)
+
+      const dir = dirname(path)
+      const files = readdirSync(dir)
+      const backupFiles = files.filter(
+        (f) => f.startsWith('multi-backup.') && f.endsWith('.json') && f !== 'multi-backup.json'
+      )
+
+      // Should have 2 backups (from 2nd and 3rd writes)
+      expect(backupFiles.length).toBe(2)
+    })
+  })
 })

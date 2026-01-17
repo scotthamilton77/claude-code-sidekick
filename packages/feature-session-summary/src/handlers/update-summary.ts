@@ -9,7 +9,7 @@
  */
 
 import type { TranscriptEvent } from '@sidekick/core'
-import { backupIfDevMode, logEvent, LogEvents } from '@sidekick/core'
+import { logEvent, LogEvents } from '@sidekick/core'
 import type { DaemonContext, EventContext, SummaryCountdownState, SnarkyMessageState } from '@sidekick/types'
 import { z } from 'zod'
 import type { ResumeMessageState, SessionSummaryConfig, SessionSummaryState } from '../types.js'
@@ -478,8 +478,6 @@ async function generateSnarkyMessage(
     }
 
     // Save via typed accessor (atomic write with schema validation)
-    const snarkyPath = summaryState.snarkyMessage.getPath(sessionId)
-    await backupIfDevMode(ctx.config.core.development.enabled, snarkyPath, { logger: ctx.logger })
     await summaryState.snarkyMessage.write(sessionId, snarkyState)
 
     ctx.logger.debug('Generated snarky message', { sessionId, message: snarkyMessage.slice(0, 50) })
