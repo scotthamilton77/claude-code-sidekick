@@ -30,6 +30,7 @@ Introduce configurable persona profiles that shape the "snarky" session summary 
 - Provide a built-in `disabled` persona that bypasses snarky generation and forces session summary and resume messaging to be (leveraging the non-snarky session summary analysis).
 - Statusline empty-message selection uses the session's persona message set when available; otherwise, fall back to the `sidekick` persona list.
 - When personas are disabled or no persona is selected, statusline uses `SESSION_SUMMARY_PLACEHOLDERS` instead of persona empty-message pools.
+- Resume messages are only used when the previous session ended within a configurable time window (default: 4 hours). If the session is older, statusline falls back to persona empty-message selection instead of displaying a stale resume message.
 
 ### Non-Functional
 
@@ -95,11 +96,15 @@ settings:
   personas:
     # Comma-separated allow-list (empty means all available personas)
     allowList: ""
+    # Maximum age (in hours) for resume messages to be considered fresh
+    # Sessions older than this will use persona empty-messages instead
+    resumeFreshnessHours: 4
 ```
 
-**Parsing rule**:
+**Parsing rules**:
 - `allowList` is split on commas, trimmed, and filtered for non-empty tokens.
 - If the resulting list is empty, consider it "unset" and allow all discovered personas.
+- `resumeFreshnessHours` must be a positive number; defaults to 4 if missing or invalid.
 
 ### Session Persona State
 
@@ -187,6 +192,23 @@ On statusline service construction:
 
 This keeps the statusline output logic unchanged while swapping the empty-message pool.
 
+### Resume Message Freshness
+
+Resume messages should only be displayed when the previous session is recent enough to be contextually relevant. Stale resume messages (e.g., "Yesterday you were debugging the auth flow...") feel disconnected when the user returns after a long break.
+
+**Behavior** (in statusline message selection):
+
+1. When selecting a message for display, check the timestamp of the most recent session summary.
+2. If the session summary is older than `resumeFreshnessHours`, skip the resume message in the selection priority.
+3. Instead, select a random message from the persona's `statusline_empty_messages` pool (or fallback to `sidekick` persona messages).
+4. This treats the session as effectively "new" from a messaging perspective, even though session state and resume data may still exist.
+
+**Rationale**:
+- A 4-hour default aligns with typical work sessions; returning after lunch still feels continuous, but returning the next day feels like a fresh start.
+- Users can increase this value if they prefer resume context over longer periods, or decrease it for more frequent "fresh start" messaging.
+
+**Note**: This does not affect session state, summary persistence, or resume message generation—only the statusline's message selection logic. The resume message data remains available for other features or future sessions within the freshness window.
+
 ## Data Model Updates
 
 Add schema/type for session persona state:
@@ -209,11 +231,11 @@ Add persona definitions:
 
 ## Files to Touch (Implementation Guidance)
 
-- `assets/sidekick/defaults/features/session-summary.defaults.yaml` (add persona allow-list setting).
+- `assets/sidekick/defaults/features/session-summary.defaults.yaml` (add persona allow-list and resume freshness settings).
 - `assets/sidekick/personas/*.yaml` (add default personas).
 - `packages/feature-session-summary/src/handlers/create-first-summary.ts` (select and persist persona).
 - `packages/feature-session-summary/src/handlers/update-summary.ts` (inject persona into snarky/resume prompts).
-- `packages/feature-statusline/src/statusline-service.ts` + `packages/feature-statusline/src/state-reader.ts` (load persona state and persona messages).
+- `packages/feature-statusline/src/statusline-service.ts` + `packages/feature-statusline/src/state-reader.ts` (load persona state, persona messages, and resume freshness check).
 - `packages/types/src/services/state.ts` (new session persona state).
 - `packages/types/src/services/persona.ts` (persona definition schema).
 - `packages/sidekick-core/src/assets.ts` or new resolver module (persona-specific cascade).
@@ -250,5 +272,11 @@ Add persona definitions:
 10. **Dual-scope parity**  
     Persona overrides in `~/.sidekick/personas/` affect user-scope sessions and `.sidekick/personas/` affect project-scope sessions consistently (`docs/ARCHITECTURE.md §3.6`).
 
-11. **Disabled persona behavior**  
+11. **Disabled persona behavior**
     With `persona_id: "disabled"`, snarky message is not generated, resume message is derived deterministically from the most recent session summary, and statusline uses `SESSION_SUMMARY_PLACEHOLDERS` instead of persona empty messages.
+
+12. **Resume message freshness**
+    Given `resumeFreshnessHours: 4` and a session summary timestamped 5 hours ago, resume message usage is skipped and a persona empty-message is selected instead.
+
+13. **Resume message within freshness window**
+    Given `resumeFreshnessHours: 4` and a session summary timestamped 2 hours ago, resume message usage proceeds normally with persona injection.
