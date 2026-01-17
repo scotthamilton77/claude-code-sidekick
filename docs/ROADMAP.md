@@ -214,17 +214,18 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
     - [x] context-overhead-reader.ts - uses StateService for baseline metrics
     - [x] runtime.ts - reads cli-log-metrics.json (already migrated in 9.3.3)
     - [x] UI handlers - **Intentional exception**: read-only, separate package (@sidekick/ui) without @sidekick/core dependency. Benefits of StateService (atomic writes, backup) don't apply to readers.
-  - [ ] **9.3.5 Cleanup**
-    - [ ] Delete `StateManager` from sidekick-daemon (merged into StateService)
-    - [ ] Remove `DerivedPaths` from config.ts (replaced by StateService path accessors)
-    - [ ] Simplify `StateReader` to thin wrapper using composition pattern
-    - [ ] Deprecate `backupIfDevMode()` from file-utils.ts (moved to StateService)
+  - [x] **9.3.5 Cleanup (Phase A)** - COMPLETE 2026-01-17
+    - [x] Remove `DerivedPaths` from config.ts (replaced by StateService path accessors)
+    - [x] Mark `StateReader` complete - already uses composition pattern with typed accessors
   - [ ] **9.3.6 StateService DevMode Backup** (consolidate backup logic)
     - [ ] Add `config?: MinimalConfigService` option to StateServiceOptions
     - [ ] Move `copyWithTimestamp()` logic into StateService as private method
     - [ ] In `write()`: if `config?.core.development.enabled`, backup before overwrite
     - [ ] Remove `backupIfDevMode()` calls from handlers (update-summary.ts, etc.)
     - [ ] Update tests to verify backup behavior with mock config
+  - [ ] **9.3.7 Cleanup (Phase B)** (after 9.3.6 - requires StateService backup)
+    - [ ] Delete `StateManager` from sidekick-daemon (merged into StateService)
+    - [ ] Deprecate `backupIfDevMode()` from file-utils.ts (moved to StateService)
   - [ ] Acceptance criteria
     - [ ] Single `StateService` instance per process (DI pattern)
     - [ ] All state writes use atomic pattern

@@ -6,7 +6,6 @@
  * - YAML parsing (valid/invalid domain files)
  * - Domain file cascade precedence
  * - sidekick.config dot-notation parsing
- * - Derived path helpers
  * - ConfigService interface
  * - Immutability requirements
  */
@@ -16,14 +15,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
-import {
-  createConfigService,
-  createDerivedPaths,
-  loadConfig,
-  parseUnifiedConfig,
-  type CoreConfig,
-  type SidekickConfig,
-} from '../config'
+import { createConfigService, loadConfig, parseUnifiedConfig, type SidekickConfig } from '../config'
 import type { AssetResolver } from '../assets'
 
 // =============================================================================
@@ -608,117 +600,6 @@ profiles:
 })
 
 // =============================================================================
-// Derived Paths Tests
-// =============================================================================
-
-describe('createDerivedPaths', () => {
-  const DEFAULT_DAEMON = { idleTimeoutMs: 300000, shutdownTimeoutMs: 30000 }
-
-  test('generates correct session root path', () => {
-    const coreConfig: CoreConfig = {
-      logging: { level: 'info', format: 'pretty', consoleEnabled: false },
-      paths: { state: '.sidekick' },
-      daemon: DEFAULT_DAEMON,
-      ipc: { connectTimeoutMs: 5000, requestTimeoutMs: 30000, maxRetries: 3, retryDelayMs: 100 },
-      development: { enabled: false },
-    }
-
-    const paths = createDerivedPaths(coreConfig, '/project')
-
-    expect(paths.sessionRoot('abc123')).toBe('/project/.sidekick/sessions/abc123')
-  })
-
-  test('generates correct staging root path', () => {
-    const coreConfig: CoreConfig = {
-      logging: { level: 'info', format: 'pretty', consoleEnabled: false },
-      paths: { state: '.sidekick' },
-      daemon: DEFAULT_DAEMON,
-      ipc: { connectTimeoutMs: 5000, requestTimeoutMs: 30000, maxRetries: 3, retryDelayMs: 100 },
-      development: { enabled: false },
-    }
-
-    const paths = createDerivedPaths(coreConfig, '/project')
-
-    expect(paths.stagingRoot('abc123')).toBe('/project/.sidekick/sessions/abc123/stage')
-  })
-
-  test('generates correct hook staging path', () => {
-    const coreConfig: CoreConfig = {
-      logging: { level: 'info', format: 'pretty', consoleEnabled: false },
-      paths: { state: '.sidekick' },
-      daemon: DEFAULT_DAEMON,
-      ipc: { connectTimeoutMs: 5000, requestTimeoutMs: 30000, maxRetries: 3, retryDelayMs: 100 },
-      development: { enabled: false },
-    }
-
-    const paths = createDerivedPaths(coreConfig, '/project')
-
-    expect(paths.hookStaging('abc123', 'UserPromptSubmit')).toBe(
-      '/project/.sidekick/sessions/abc123/stage/UserPromptSubmit'
-    )
-  })
-
-  test('generates correct session state path', () => {
-    const coreConfig: CoreConfig = {
-      logging: { level: 'info', format: 'pretty', consoleEnabled: false },
-      paths: { state: '.sidekick' },
-      daemon: DEFAULT_DAEMON,
-      ipc: { connectTimeoutMs: 5000, requestTimeoutMs: 30000, maxRetries: 3, retryDelayMs: 100 },
-      development: { enabled: false },
-    }
-
-    const paths = createDerivedPaths(coreConfig, '/project')
-
-    expect(paths.sessionState('abc123', 'session-summary.json')).toBe(
-      '/project/.sidekick/sessions/abc123/state/session-summary.json'
-    )
-  })
-
-  test('generates correct logs directory path', () => {
-    const coreConfig: CoreConfig = {
-      logging: { level: 'info', format: 'pretty', consoleEnabled: false },
-      paths: { state: '.sidekick' },
-      daemon: DEFAULT_DAEMON,
-      ipc: { connectTimeoutMs: 5000, requestTimeoutMs: 30000, maxRetries: 3, retryDelayMs: 100 },
-      development: { enabled: false },
-    }
-
-    const paths = createDerivedPaths(coreConfig, '/project')
-
-    expect(paths.logsDir()).toBe('/project/.sidekick/logs')
-  })
-
-  test('respects custom state path', () => {
-    const coreConfig: CoreConfig = {
-      logging: { level: 'info', format: 'pretty', consoleEnabled: false },
-      paths: { state: 'custom/state' },
-      daemon: DEFAULT_DAEMON,
-      ipc: { connectTimeoutMs: 5000, requestTimeoutMs: 30000, maxRetries: 3, retryDelayMs: 100 },
-      development: { enabled: false },
-    }
-
-    const paths = createDerivedPaths(coreConfig, '/project')
-
-    expect(paths.sessionRoot('abc123')).toBe('/project/custom/state/sessions/abc123')
-    expect(paths.logsDir()).toBe('/project/custom/state/logs')
-  })
-
-  test('works without project root', () => {
-    const coreConfig: CoreConfig = {
-      logging: { level: 'info', format: 'pretty', consoleEnabled: false },
-      paths: { state: '.sidekick' },
-      daemon: DEFAULT_DAEMON,
-      ipc: { connectTimeoutMs: 5000, requestTimeoutMs: 30000, maxRetries: 3, retryDelayMs: 100 },
-      development: { enabled: false },
-    }
-
-    const paths = createDerivedPaths(coreConfig)
-
-    expect(paths.sessionRoot('abc123')).toBe('.sidekick/sessions/abc123')
-  })
-})
-
-// =============================================================================
 // ConfigService Tests
 // =============================================================================
 
@@ -802,16 +683,6 @@ reminders:
 
     expect(feature.enabled).toBe(false)
     expect(feature.settings.stuckThreshold).toBe(25)
-  })
-
-  test('provides derived paths', () => {
-    const service = createConfigService({
-      projectRoot: join(tempRoot, 'project'),
-      homeDir: join(tempRoot, 'home'),
-    })
-
-    expect(service.paths.sessionRoot('test')).toContain('sessions/test')
-    expect(service.paths.hookStaging('test', 'PreToolUse')).toContain('stage/PreToolUse')
   })
 
   test('exposes loaded sources for debugging', () => {
