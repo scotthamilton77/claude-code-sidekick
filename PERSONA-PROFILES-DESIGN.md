@@ -43,7 +43,7 @@ Introduce configurable persona profiles that shape the "snarky" session summary 
 - Resume message generation: `packages/feature-session-summary/src/handlers/update-summary.ts`.
 - Session start handler: `packages/feature-session-summary/src/handlers/create-first-summary.ts`.
 - Statusline empty-message selection: `packages/feature-statusline/src/statusline-service.ts`.
-- Defaults: `assets/sidekick/defaults/features/session-summary.defaults.yaml` and `assets/sidekick/personas/sidekick/statusline-empty-messages.txt` (migrated from `assets/sidekick/defaults/features/statusline-empty-messages.txt`).
+- Defaults: `assets/sidekick/defaults/features/session-summary.defaults.yaml` and `assets/sidekick/personas/*.yaml`.
 
 ## Proposed Design
 
@@ -64,14 +64,15 @@ tone_traits:
   - playful
   - concise
 
-# Optional: persona-specific empty-session messages
-statusline_empty_messages_file: "personas/skippy/statusline-empty-messages.txt"
+# Optional: persona-specific empty-session messages (inline)
+statusline_empty_messages:
+  - "Let's get this over with."
 ```
 
 **Notes**
 - `id` must match the filename stem and is used for selection.
-- `statusline_empty_messages_file` is optional; if missing or empty, fall back to the hard-coded defaults.
-- Messages live in a separate file to keep long lists maintainable.
+- `statusline_empty_messages` is optional; when present and non-empty, it is used directly.
+- If missing or empty, fall back to the hard-coded defaults.
 - The `sidekick` persona captures the current snarky/resume behavior and owns the existing empty-message list.
 - The `disabled` persona is a special-case profile defined in defaults (see below).
 
@@ -180,10 +181,9 @@ Tone: {{persona_tone}}
 On statusline service construction:
 
 1. Read `session-persona.json` from the current session state.
-2. If the persona defines `statusline_empty_messages_file`, resolve it using the persona cascade.
-3. Load and pick a random message from that file.
-4. If missing or empty, fall back to the `sidekick` persona message list.
-5. If personas are disabled or no persona is selected, use `SESSION_SUMMARY_PLACEHOLDERS` values instead of any empty-message pool.
+2. Prefer `statusline_empty_messages` when present and non-empty.
+3. If missing or empty, fall back to the `sidekick` persona message list.
+4. If personas are disabled or no persona is selected, use `SESSION_SUMMARY_PLACEHOLDERS` values instead of any empty-message pool.
 
 This keeps the statusline output logic unchanged while swapping the empty-message pool.
 
@@ -211,8 +211,6 @@ Add persona definitions:
 
 - `assets/sidekick/defaults/features/session-summary.defaults.yaml` (add persona allow-list setting).
 - `assets/sidekick/personas/*.yaml` (add default personas).
-- `assets/sidekick/personas/<name>/statusline-empty-messages.txt` (optional per persona).
-- `assets/sidekick/personas/sidekick/statusline-empty-messages.txt` (move existing default list here).
 - `packages/feature-session-summary/src/handlers/create-first-summary.ts` (select and persist persona).
 - `packages/feature-session-summary/src/handlers/update-summary.ts` (inject persona into snarky/resume prompts).
 - `packages/feature-statusline/src/statusline-service.ts` + `packages/feature-statusline/src/state-reader.ts` (load persona state and persona messages).
@@ -241,10 +239,10 @@ Add persona definitions:
    Persona block appears in snarky/resume prompts and does not appear in session-summary prompt.
 
 7. **Statusline empty-message override**  
-   When persona defines `statusline_empty_messages_file`, the statusline selects from that list; otherwise it uses the global default list.
+   When persona defines `statusline_empty_messages`, the statusline selects from that list; otherwise it uses the global default list.
 
 8. **Missing persona assets**  
-   When a selected persona has no message file or parse fails, statusline falls back to default messages and does not error.
+   When a selected persona has no statusline empty-message list, statusline falls back to default messages and does not error.
 
 9. **No personas available**  
    With zero persona definitions, selection is skipped; snarky/resume prompts run without persona block; statusline uses `SESSION_SUMMARY_PLACEHOLDERS`.
@@ -253,4 +251,4 @@ Add persona definitions:
     Persona overrides in `~/.sidekick/personas/` affect user-scope sessions and `.sidekick/personas/` affect project-scope sessions consistently (`docs/ARCHITECTURE.md §3.6`).
 
 11. **Disabled persona behavior**  
-    With `persona_id: "disabled"`, snarky message is not generated, resume message is derived deterministically from the most recent session summary, and statusline uses `SESSION_SUMMARY_PLACEHOLDERS` instead of statusline_empty_messages.txt.
+    With `persona_id: "disabled"`, snarky message is not generated, resume message is derived deterministically from the most recent session summary, and statusline uses `SESSION_SUMMARY_PLACEHOLDERS` instead of persona empty messages.

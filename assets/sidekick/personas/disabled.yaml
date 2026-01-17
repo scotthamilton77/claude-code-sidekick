@@ -1,7 +1,5 @@
 id: disabled
 display_name: Disabled
 theme: "No creative text generation."
-personality_traits:
-  - none
-tone_traits:
-  - none
+personality_traits: []
+tone_traits: []
