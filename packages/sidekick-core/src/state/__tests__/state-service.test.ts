@@ -583,13 +583,14 @@ describe('StateService', () => {
   // ============================================================================
 
   describe('dev mode backup', () => {
-    it('creates timestamped backup when dev mode enabled and file exists', async () => {
+    it('creates timestamped backup for session state when dev mode enabled', async () => {
       const devState = new StateService(testDir, {
         logger: createMockLogger(),
         config: { core: { development: { enabled: true } } },
       })
 
-      const path = devState.globalStatePath('backup-test.json')
+      // Use session state path (backups are enabled for session state)
+      const path = devState.sessionStatePath('sess-1', 'backup-test.json')
       mkdirSync(dirname(path), { recursive: true })
       writeFileSync(path, JSON.stringify({ value: 1 }), 'utf-8')
 
@@ -614,13 +615,71 @@ describe('StateService', () => {
       expect(newContent.value).toBe(2)
     })
 
+    it('does NOT create backup for global state even in dev mode', async () => {
+      const devState = new StateService(testDir, {
+        logger: createMockLogger(),
+        config: { core: { development: { enabled: true } } },
+      })
+
+      // Global state paths are excluded from backup
+      const path = devState.globalStatePath('global-no-backup.json')
+      mkdirSync(dirname(path), { recursive: true })
+      writeFileSync(path, JSON.stringify({ value: 1 }), 'utf-8')
+
+      await devState.write(path, { value: 2 }, TestSchema)
+
+      // No backup files should exist for global state
+      const dir = dirname(path)
+      const files = readdirSync(dir)
+      const backupFiles = files.filter(
+        (f) => f.startsWith('global-no-backup.') && f.endsWith('.json') && f !== 'global-no-backup.json'
+      )
+
+      expect(backupFiles.length).toBe(0)
+
+      // But the value should still be updated
+      const content = JSON.parse(readFileSync(path, 'utf-8'))
+      expect(content.value).toBe(2)
+    })
+
+    it('does NOT create backup for metrics files in session state even in dev mode', async () => {
+      const devState = new StateService(testDir, {
+        logger: createMockLogger(),
+        config: { core: { development: { enabled: true } } },
+      })
+
+      // Metrics files are excluded from backup (high-frequency updates)
+      const metricsFiles = [
+        'daemon-log-metrics.json',
+        'llm-metrics.json',
+        'transcript-metrics.json',
+        'cli-log-metrics.json',
+      ]
+
+      for (const filename of metricsFiles) {
+        const path = devState.sessionStatePath('sess-1', filename)
+        mkdirSync(dirname(path), { recursive: true })
+        writeFileSync(path, JSON.stringify({ value: 1 }), 'utf-8')
+
+        await devState.write(path, { value: 2 }, TestSchema)
+
+        // No backup files should exist for metrics files
+        const dir = dirname(path)
+        const files = readdirSync(dir)
+        const baseName = filename.replace('.json', '')
+        const backupFiles = files.filter((f) => f.startsWith(`${baseName}.`) && f.endsWith('.json') && f !== filename)
+
+        expect(backupFiles.length).toBe(0)
+      }
+    })
+
     it('does not create backup when dev mode disabled', async () => {
       const prodState = new StateService(testDir, {
         logger: createMockLogger(),
         config: { core: { development: { enabled: false } } },
       })
 
-      const path = prodState.globalStatePath('no-backup.json')
+      const path = prodState.sessionStatePath('sess-1', 'no-backup.json')
       mkdirSync(dirname(path), { recursive: true })
       writeFileSync(path, JSON.stringify({ value: 1 }), 'utf-8')
 
@@ -642,7 +701,7 @@ describe('StateService', () => {
         logger: createMockLogger(),
       })
 
-      const path = defaultState.globalStatePath('default-no-backup.json')
+      const path = defaultState.sessionStatePath('sess-1', 'default-no-backup.json')
       mkdirSync(dirname(path), { recursive: true })
       writeFileSync(path, JSON.stringify({ value: 1 }), 'utf-8')
 
@@ -663,7 +722,7 @@ describe('StateService', () => {
         config: { core: { development: { enabled: true } } },
       })
 
-      const path = devState.globalStatePath('new-file.json')
+      const path = devState.sessionStatePath('sess-1', 'new-file.json')
 
       // Should not throw - just creates file without backup
       await devState.write(path, { value: 1 }, TestSchema)
@@ -678,13 +737,13 @@ describe('StateService', () => {
       expect(backupFiles.length).toBe(0)
     })
 
-    it('creates multiple backups on successive writes', async () => {
+    it('creates multiple backups on successive writes to session state', async () => {
       const devState = new StateService(testDir, {
         logger: createMockLogger(),
         config: { core: { development: { enabled: true } } },
       })
 
-      const path = devState.globalStatePath('multi-backup.json')
+      const path = devState.sessionStatePath('sess-1', 'multi-backup.json')
 
       // First write (no backup)
       await devState.write(path, { value: 1 }, TestSchema)
