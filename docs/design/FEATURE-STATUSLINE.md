@@ -50,7 +50,7 @@ State files live in `.sidekick/sessions/{session_id}/state/`, parallel to the `s
 | :--------------------------------------------------- | :-------------------------------------- | :-------------------------- |
 | `.sidekick/sessions/{id}/state/session-state.json`   | Token count, Cost, Duration, Model Name | Read File (JSON)            |
 | `.sidekick/sessions/{id}/state/session-summary.json` | Session Title, Latest Intent            | Read File (JSON)            |
-| `.sidekick/sessions/{id}/state/snarky-message.txt`   | Snarky Comment                          | Read File (Text)            |
+| `.sidekick/sessions/{id}/state/snarky-message.json`  | Snarky Comment                          | Read File (JSON)            |
 | `.sidekick/sessions/{id}/state/resume-message.json`  | Resume message (for session resumption) | Read File (JSON)            |
 | `.sidekick/sessions/{id}/state/cli-log-metrics.json` | CLI warning/error counts                | Read File (JSON)            |
 | `.sidekick/sessions/{id}/state/daemon-log-metrics.json` | Daemon warning/error counts   | Read File (JSON)            |
