@@ -84,6 +84,7 @@ export class Daemon {
   private logger: Logger
   private logManager: LogManager
   private stateService: StateService
+  private userStateService: StateService
   private taskEngine: TaskEngine
   private taskRegistry: TaskRegistry
   private ipcServer: IpcServer
@@ -166,6 +167,14 @@ export class Daemon {
       logger: this.logger,
       config: () => this.configService.getAll(),
     })
+    // User-level state service for ~/.sidekick/ (stateDir: '' means no .sidekick prefix)
+    const userConfigDir = path.join(homedir(), '.sidekick')
+    this.userStateService = new StateService(userConfigDir, {
+      stateDir: '',
+      cache: true,
+      logger: this.logger,
+      config: () => this.configService.getAll(),
+    })
     this.taskEngine = new TaskEngine(this.logger, this.getContextForTask.bind(this))
     this.taskRegistry = new TaskRegistry(this.stateService, this.logger)
 
@@ -199,6 +208,8 @@ export class Daemon {
     this.contextMetricsService = createContextMetricsService({
       projectDir,
       logger: this.logger,
+      projectStateService: this.stateService,
+      userStateService: this.userStateService,
       skipCliCapture: false,
     })
 

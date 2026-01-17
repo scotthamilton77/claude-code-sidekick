@@ -16,7 +16,6 @@ export {
   type ProjectContextMetrics,
   type SessionContextMetrics,
   type ParsedContextTable,
-  type MetricsSource,
   BaseTokenMetricsStateSchema,
   ProjectContextMetricsSchema,
   SessionContextMetricsSchema,

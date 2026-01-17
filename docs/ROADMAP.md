@@ -226,14 +226,34 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
   - [x] **9.3.7 Cleanup (Phase B)** - COMPLETE 2026-01-17
     - [x] Delete `StateManager` from sidekick-daemon (merged into StateService)
     - [x] Delete `backupIfDevMode()` from file-utils.ts (moved to StateService)
+  - [x] **9.3.8 ContextMetricsService Migration** - COMPLETE 2026-01-17
+    - [x] Refactor `context-metrics-service.ts` to use StateService for all state operations
+    - [x] Remove 3 non-atomic writes (now uses StateService.write() with atomic tmp+rename)
+    - [x] Remove 4 direct path constructions (now uses globalStatePath/sessionStatePath)
+    - [x] Delete duplicate schemas from `context-metrics/types.ts` - re-exports from `@sidekick/types`
+    - [x] Added `stateDir` option to StateServiceOptions for user-level state (stateDir: '' means no .sidekick prefix)
+    - [x] Added `lastErrorAt` and `lastErrorMessage` fields to BaseTokenMetricsStateSchema
+    - Note: Remaining fs/path usage is for reading Claude's transcript files (~/.claude/projects/), not sidekick state
+  - [ ] **9.3.9 Path Construction Cleanup** (7 files remaining with direct path construction)
+    - [ ] daemon.ts - 6 locations (lines 129, 187, 736, 856, 1016, 1405)
+    - [ ] config-watcher.ts - line 71
+    - [ ] cleanup.handler.ts - line 49
+    - [ ] ipc/transport.ts - 5 locations (lines 66, 70, 78, 86, 97) - Note: IPC paths may need special handling
+    - [ ] statusline.ts - line 145
+    - [ ] cli.ts - line 210
+    - [x] context-overhead-reader.ts - COMPLETE (uses StateService path accessors, done in 9.3.8)
+  - [ ] **9.3.10 Schema Validation on All Reads**
+    - [ ] staging-service.ts - add Zod validation (lines 204-205, 283-284)
+    - [ ] cli-staging-reader.ts - add Zod validation (line 60-61)
+    - [ ] transcript-service.ts - add Zod validation for TranscriptEntry (lines 376, 643, 1023)
   - [ ] Acceptance criteria
-    - [ ] Single `StateService` instance per process (DI pattern)
+    - [x] Single `StateService` instance per process (DI pattern)
     - [ ] All state writes use atomic pattern
     - [ ] Schema validation on all state reads
-    - [ ] Domain packages own their schemas and filenames
+    - [x] Schemas centralized in `@sidekick/types` (no duplicates) - replaces "domain packages own schemas"
     - [ ] No direct path construction outside StateService
-    - [ ] No direct fs read/write for state files outside StateService
-    - [ ] Dev mode backups automatic via StateService (no manual `backupIfDevMode` calls)
+    - [ ] No direct fs read/write for state files outside StateService (UI package exempted - read-only)
+    - [x] Dev mode backups automatic via StateService (no manual `backupIfDevMode` calls)
 
 - [ ] **9.4 Config Source-of-Truth** (lower priority - no issues found in 9.2)
   - [ ] Objectives

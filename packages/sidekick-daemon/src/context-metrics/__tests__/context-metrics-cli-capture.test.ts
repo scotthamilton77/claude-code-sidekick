@@ -10,6 +10,7 @@ import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import { homedir } from 'node:os'
 import { MockLogger } from '@sidekick/testing-fixtures'
+import { StateService } from '@sidekick/core'
 import { ContextMetricsService } from '../context-metrics-service.js'
 import { DEFAULT_BASE_METRICS } from '../types.js'
 
@@ -53,12 +54,17 @@ describe('ContextMetricsService CLI Capture', () => {
   let projectDir: string
   let userConfigDir: string
   let logger: MockLogger
+  let projectStateService: StateService
+  let userStateService: StateService
 
   beforeEach(async () => {
     const dirs = await createTestDirs()
     projectDir = dirs.projectDir
     userConfigDir = dirs.userConfigDir
     logger = new MockLogger()
+    // Create StateService instances for testing
+    projectStateService = new StateService(projectDir)
+    userStateService = new StateService(userConfigDir, { stateDir: '' })
     vi.clearAllMocks()
   })
 
@@ -77,7 +83,8 @@ describe('ContextMetricsService CLI Capture', () => {
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: false, // Enable CLI capture
       })
 
@@ -91,7 +98,8 @@ describe('ContextMetricsService CLI Capture', () => {
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: true, // Skip CLI capture
       })
 
@@ -103,11 +111,12 @@ describe('ContextMetricsService CLI Capture', () => {
     })
 
     it('should skip capture when recent error exists', async () => {
-      // Write defaults with recent error
+      // Write defaults with recent error (capturedAt > 0 indicates file was previously written)
       const stateDir = path.join(userConfigDir, 'state')
       await fs.mkdir(stateDir, { recursive: true })
       const metricsWithError = {
         ...DEFAULT_BASE_METRICS,
+        capturedAt: Date.now() - 60000, // Written 1 minute ago
         lastErrorAt: Date.now() - 1000, // 1 second ago (within retry interval)
         lastErrorMessage: 'Previous capture failed',
       }
@@ -119,7 +128,8 @@ describe('ContextMetricsService CLI Capture', () => {
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: false,
       })
 
@@ -137,12 +147,13 @@ describe('ContextMetricsService CLI Capture', () => {
         stderr: '',
       })
 
-      // Write defaults with old error (> 1 hour ago)
+      // Write defaults with old error (> 1 hour ago, capturedAt > 0 indicates file was previously written)
       const stateDir = path.join(userConfigDir, 'state')
       await fs.mkdir(stateDir, { recursive: true })
       const metricsWithOldError = {
         ...DEFAULT_BASE_METRICS,
-        lastErrorAt: Date.now() - 2 * 60 * 60 * 1000, // 2 hours ago
+        capturedAt: Date.now() - 3 * 60 * 60 * 1000, // Written 3 hours ago
+        lastErrorAt: Date.now() - 2 * 60 * 60 * 1000, // Error 2 hours ago (past retry interval)
         lastErrorMessage: 'Old capture failed',
       }
       await fs.writeFile(
@@ -153,7 +164,8 @@ describe('ContextMetricsService CLI Capture', () => {
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: false,
       })
 
@@ -183,7 +195,8 @@ describe('ContextMetricsService CLI Capture', () => {
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: false,
       })
 
@@ -261,7 +274,8 @@ describe('ContextMetricsService CLI Capture', () => {
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: false,
       })
 
@@ -299,7 +313,8 @@ describe('ContextMetricsService CLI Capture', () => {
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: false,
       })
 
@@ -337,7 +352,8 @@ describe('ContextMetricsService CLI Capture', () => {
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: false,
       })
 
@@ -380,7 +396,8 @@ Not a valid table format - missing required rows
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: false,
       })
 
@@ -407,7 +424,8 @@ Not a valid table format - missing required rows
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: false,
       })
 
@@ -438,7 +456,8 @@ Not a valid table format - missing required rows
       const service = new ContextMetricsService({
         projectDir,
         logger,
-        userConfigDir,
+        projectStateService,
+        userStateService,
         skipCliCapture: false,
       })
 

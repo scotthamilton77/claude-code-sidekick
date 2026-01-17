@@ -378,6 +378,10 @@ export const BaseTokenMetricsStateSchema = z.object({
   capturedFrom: z.enum(['defaults', 'context_command']),
   /** Session ID used for capture (if from context_command) */
   sessionId: z.string().optional(),
+  /** Unix timestamp (ms) of last capture error (null = no recent error) */
+  lastErrorAt: z.number().nullable().optional(),
+  /** Last capture error message (for diagnostics) */
+  lastErrorMessage: z.string().nullable().optional(),
 })
 
 export type BaseTokenMetricsState = z.infer<typeof BaseTokenMetricsStateSchema>
@@ -444,6 +448,8 @@ export const DEFAULT_BASE_METRICS: BaseTokenMetricsState = {
   autocompactBufferTokens: 45000,
   capturedAt: 0,
   capturedFrom: 'defaults',
+  lastErrorAt: null,
+  lastErrorMessage: null,
 }
 
 /**
