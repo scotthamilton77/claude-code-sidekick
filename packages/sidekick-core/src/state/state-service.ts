@@ -107,6 +107,25 @@ export class StateService {
     return this.configGetter?.().core.development.enabled ?? false
   }
 
+  /**
+   * Check if path should be excluded from dev mode backups.
+   * Excluded paths:
+   * - Global state directory (aggregate state, not session-specific)
+   * - Metrics files (*-metrics.json) in session state (high-frequency updates, no history needed)
+   */
+  private isExcludedFromBackup(filePath: string): boolean {
+    // Global state directory - aggregate state that doesn't need history
+    if (filePath.startsWith(this.paths.globalStateDir())) {
+      return true
+    }
+    // Metrics files - high-frequency updates, history not useful
+    const filename = basename(filePath)
+    if (filename.endsWith('-metrics.json')) {
+      return true
+    }
+    return false
+  }
+
   // ==========================================================================
   // Read/Write Primitives
   // ==========================================================================
@@ -177,7 +196,8 @@ export class StateService {
     await fs.mkdir(dir, { recursive: true })
 
     // Dev mode: backup existing file before overwrite (checked dynamically for hot-reload)
-    if (this.isDevModeEnabled()) {
+    // Some files are excluded from backup (global state, metrics files)
+    if (this.isDevModeEnabled() && !this.isExcludedFromBackup(path)) {
       await this.backupBeforeWrite(path)
     }
 
