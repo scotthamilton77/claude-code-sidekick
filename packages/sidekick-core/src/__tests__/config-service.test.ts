@@ -19,6 +19,81 @@ import { createConfigService, loadConfig, parseUnifiedConfig, type SidekickConfi
 import type { AssetResolver } from '../assets'
 
 // =============================================================================
+// Test Helpers: Standard Defaults
+// =============================================================================
+
+/**
+ * Standard test defaults matching assets/sidekick/defaults/ YAML files.
+ * Used by tests that need valid config without setting up full YAML files.
+ */
+const TEST_DEFAULTS = {
+  core: {
+    logging: { level: 'info', format: 'pretty', consoleEnabled: false },
+    paths: { state: '.sidekick' },
+    daemon: { idleTimeoutMs: 300000, shutdownTimeoutMs: 30000 },
+    ipc: { connectTimeoutMs: 5000, requestTimeoutMs: 30000, maxRetries: 3, retryDelayMs: 100 },
+    development: { enabled: false },
+  },
+  llm: {
+    defaultProfile: 'fast-lite',
+    profiles: {
+      'fast-lite': {
+        provider: 'openrouter',
+        model: 'google/gemini-2.0-flash-lite-001',
+        temperature: 0,
+        maxTokens: 1000,
+        timeout: 15,
+        timeoutMaxRetries: 2,
+      },
+    },
+    global: { debugDumpEnabled: false },
+  },
+  transcript: {
+    watchDebounceMs: 100,
+    metricsPersistIntervalMs: 5000,
+  },
+}
+
+/**
+ * Creates a mock AssetResolver that returns standard test defaults.
+ * Override specific domains by passing partial defaults.
+ * Feature defaults can be specified per-feature in the features map.
+ */
+function createMockAssets(overrides?: {
+  core?: Record<string, unknown>
+  llm?: Record<string, unknown>
+  transcript?: Record<string, unknown>
+  features?: Record<string, Record<string, unknown>>
+}): AssetResolver {
+  return {
+    resolve: () => null,
+    resolveOrThrow: () => {
+      throw new Error('not found')
+    },
+    resolvePath: () => null,
+    resolveJson: () => null,
+    resolveYaml: <T>(path: string): T | null => {
+      if (path === 'defaults/core.defaults.yaml') {
+        return (overrides?.core ?? TEST_DEFAULTS.core) as T
+      }
+      if (path === 'defaults/llm.defaults.yaml') {
+        return (overrides?.llm ?? TEST_DEFAULTS.llm) as T
+      }
+      if (path === 'defaults/transcript.defaults.yaml') {
+        return (overrides?.transcript ?? TEST_DEFAULTS.transcript) as T
+      }
+      // Handle feature defaults: defaults/features/{name}.defaults.yaml
+      const featureMatch = path.match(/^defaults\/features\/(.+)\.defaults\.yaml$/)
+      if (featureMatch && overrides?.features?.[featureMatch[1]]) {
+        return overrides.features[featureMatch[1]] as T
+      }
+      return null
+    },
+    cascadeLayers: ['/mock/assets'],
+  }
+}
+
+// =============================================================================
 // Test Setup: Environment Isolation
 // =============================================================================
 
@@ -234,13 +309,15 @@ describe('loadConfig - YAML parsing', () => {
     }
   })
 
-  test('returns defaults when no config files exist', () => {
+  test('returns defaults when no config files exist (with assets)', () => {
+    // With YAML assets providing defaults, returns those defaults
     const config = loadConfig({
       projectRoot: join(tempRoot, 'empty-project'),
       homeDir: join(tempRoot, 'empty-home'),
+      assets: createMockAssets(),
     })
 
-    // Core defaults
+    // Core defaults from mock assets
     expect(config.core.logging.level).toBe('info')
     expect(config.core.logging.format).toBe('pretty')
     expect(config.core.paths.state).toBe('.sidekick')
@@ -278,6 +355,7 @@ paths:
     const config = loadConfig({
       projectRoot: projectDir,
       homeDir: join(tempRoot, 'home'),
+      assets: createMockAssets(),
     })
 
     expect(config.core.logging.level).toBe('debug')
@@ -304,6 +382,7 @@ logging:
       loadConfig({
         projectRoot: projectDir,
         homeDir: join(tempRoot, 'home'),
+        assets: createMockAssets(),
       })
     ).toThrow(/parse|yaml/i)
   })
@@ -318,9 +397,10 @@ logging:
     const config = loadConfig({
       projectRoot: projectDir,
       homeDir: join(tempRoot, 'home'),
+      assets: createMockAssets(),
     })
 
-    // Should fall back to defaults
+    // Should fall back to defaults from assets
     expect(config.core.logging.level).toBe('info')
   })
 
@@ -392,6 +472,7 @@ describe('loadConfig - cascade precedence', () => {
     const config = loadConfig({
       projectRoot: join(tempRoot, 'project'),
       homeDir: join(tempRoot, 'home'),
+      assets: createMockAssets(),
     })
 
     expect(config.core.logging.level).toBe('debug')
@@ -409,6 +490,7 @@ describe('loadConfig - cascade precedence', () => {
     const config = loadConfig({
       projectRoot: join(tempRoot, 'project'),
       homeDir,
+      assets: createMockAssets(),
     })
 
     expect(config.core.logging.level).toBe('warn')
@@ -425,6 +507,7 @@ describe('loadConfig - cascade precedence', () => {
     const config = loadConfig({
       projectRoot: join(tempRoot, 'project'),
       homeDir,
+      assets: createMockAssets(),
     })
 
     // sidekick.config overrides domain YAML
@@ -445,6 +528,7 @@ describe('loadConfig - cascade precedence', () => {
     const config = loadConfig({
       projectRoot: projectDir,
       homeDir,
+      assets: createMockAssets(),
     })
 
     expect(config.core.logging.level).toBe('error')
@@ -462,6 +546,7 @@ describe('loadConfig - cascade precedence', () => {
     const config = loadConfig({
       projectRoot: projectDir,
       homeDir,
+      assets: createMockAssets(),
     })
 
     // sidekick.config overrides domain YAML
@@ -480,6 +565,7 @@ describe('loadConfig - cascade precedence', () => {
     const config = loadConfig({
       projectRoot: projectDir,
       homeDir,
+      assets: createMockAssets(),
     })
 
     expect(config.core.logging.level).toBe('debug')
@@ -515,6 +601,7 @@ logging:
     const config = loadConfig({
       projectRoot: projectDir,
       homeDir,
+      assets: createMockAssets(),
     })
 
     expect(config.core.logging.level).toBe('error')
@@ -550,6 +637,7 @@ test:
     const config = loadConfig({
       projectRoot: projectDir,
       homeDir,
+      assets: createMockAssets(),
     })
 
     // Array should be replaced, not concatenated
@@ -564,7 +652,7 @@ test:
     mkdirSync(userSidekick, { recursive: true })
     mkdirSync(projectSidekick, { recursive: true })
 
-    // User sets LLM profile config
+    // User sets LLM profile config (partial - will be merged with defaults)
     writeFileSync(
       join(userSidekick, 'llm.yaml'),
       `
@@ -589,6 +677,7 @@ profiles:
     const config = loadConfig({
       projectRoot: projectDir,
       homeDir,
+      assets: createMockAssets(),
     })
 
     // Core from project
@@ -620,6 +709,7 @@ describe('ConfigService', () => {
     const service = createConfigService({
       projectRoot: join(tempRoot, 'project'),
       homeDir: join(tempRoot, 'home'),
+      assets: createMockAssets(),
     })
 
     expect(service.core.logging.level).toBe('info')
@@ -633,6 +723,7 @@ describe('ConfigService', () => {
     const service = createConfigService({
       projectRoot: join(tempRoot, 'project'),
       homeDir: join(tempRoot, 'home'),
+      assets: createMockAssets(),
     })
 
     const config = service.getAll()
@@ -647,6 +738,7 @@ describe('ConfigService', () => {
     const service = createConfigService({
       projectRoot: join(tempRoot, 'project'),
       homeDir: join(tempRoot, 'home'),
+      assets: createMockAssets(),
     })
 
     const feature = service.getFeature('nonexistent')
@@ -673,6 +765,7 @@ reminders:
     const service = createConfigService({
       projectRoot: projectDir,
       homeDir: join(tempRoot, 'home'),
+      assets: createMockAssets(),
     })
 
     interface RemindersSettings {
@@ -694,6 +787,7 @@ reminders:
     const service = createConfigService({
       projectRoot: projectDir,
       homeDir: join(tempRoot, 'home'),
+      assets: createMockAssets(),
     })
 
     expect(service.sources).toContainEqual(expect.stringContaining('config.yaml'))
@@ -721,6 +815,7 @@ describe('loadConfig - immutability', () => {
     const config = loadConfig({
       projectRoot: join(tempRoot, 'project'),
       homeDir: join(tempRoot, 'home'),
+      assets: createMockAssets(),
     })
 
     // Top-level object should be frozen
@@ -741,6 +836,7 @@ describe('loadConfig - immutability', () => {
     const config = loadConfig({
       projectRoot: join(tempRoot, 'project'),
       homeDir: join(tempRoot, 'home'),
+      assets: createMockAssets(),
     })
 
     const originalLevel = config.core.logging.level
@@ -780,7 +876,7 @@ describe('loadConfig - environment variables', () => {
 
     writeFileSync(join(sidekickDir, '.env'), 'SIDEKICK_LOG_LEVEL=debug\n')
 
-    const config = loadConfig({ projectRoot: undefined, homeDir })
+    const config = loadConfig({ projectRoot: undefined, homeDir, assets: createMockAssets() })
 
     expect(config.core.logging.level).toBe('debug')
   })
@@ -796,7 +892,7 @@ describe('loadConfig - environment variables', () => {
     writeFileSync(join(userSidekick, '.env'), 'SIDEKICK_LOG_LEVEL=debug\n')
     writeFileSync(join(projectSidekick, '.env'), 'SIDEKICK_LOG_LEVEL=warn\n')
 
-    const config = loadConfig({ projectRoot: projectDir, homeDir })
+    const config = loadConfig({ projectRoot: projectDir, homeDir, assets: createMockAssets() })
 
     expect(config.core.logging.level).toBe('warn')
   })
@@ -810,7 +906,7 @@ describe('loadConfig - environment variables', () => {
     writeFileSync(join(projectSidekick, '.env'), 'SIDEKICK_LOG_LEVEL=warn\n')
     writeFileSync(join(projectSidekick, '.env.local'), 'SIDEKICK_LOG_LEVEL=debug\n')
 
-    const config = loadConfig({ projectRoot: projectDir, homeDir })
+    const config = loadConfig({ projectRoot: projectDir, homeDir, assets: createMockAssets() })
 
     expect(config.core.logging.level).toBe('debug')
   })
@@ -822,6 +918,7 @@ describe('loadConfig - environment variables', () => {
     const config = loadConfig({
       projectRoot: join(tempRoot, 'project'),
       homeDir: join(tempRoot, 'home'),
+      assets: createMockAssets(),
     })
 
     expect(config.llm.global?.debugDumpEnabled).toBe(true)
@@ -834,6 +931,7 @@ describe('loadConfig - environment variables', () => {
     const config = loadConfig({
       projectRoot: join(tempRoot, 'project'),
       homeDir: join(tempRoot, 'home'),
+      assets: createMockAssets(),
     })
 
     expect(config.transcript.watchDebounceMs).toBe(200)
@@ -863,39 +961,31 @@ describe('loadConfig - external defaults', () => {
   })
 
   test('uses external YAML defaults as base layer when assets provided', () => {
-    const mockAssets: AssetResolver = {
-      resolve: () => null,
-      resolveOrThrow: () => {
-        throw new Error('not found')
+    // Create custom defaults with some overridden values
+    const mockAssets = createMockAssets({
+      core: {
+        logging: { level: 'debug', format: 'json', consoleEnabled: false },
+        paths: { state: '.custom-state' },
+        daemon: TEST_DEFAULTS.core.daemon,
+        ipc: TEST_DEFAULTS.core.ipc,
+        development: TEST_DEFAULTS.core.development,
       },
-      resolvePath: () => null,
-      resolveJson: () => null,
-      resolveYaml: <T>(path: string): T | null => {
-        if (path === 'defaults/core.defaults.yaml') {
-          return { logging: { level: 'debug', format: 'json' }, paths: { state: '.custom-state' } } as T
-        }
-        if (path === 'defaults/llm.defaults.yaml') {
-          return {
-            defaultProfile: 'fast-lite',
-            profiles: {
-              'fast-lite': {
-                provider: 'openai',
-                model: 'gpt-4',
-                temperature: 0.5,
-                maxTokens: 4096,
-                timeout: 60,
-                timeoutMaxRetries: 3,
-              },
-            },
-          } as T
-        }
-        if (path === 'defaults/transcript.defaults.yaml') {
-          return { watchDebounceMs: 250, metricsPersistIntervalMs: 10000 } as T
-        }
-        return null
+      llm: {
+        defaultProfile: 'fast-lite',
+        profiles: {
+          'fast-lite': {
+            provider: 'openai',
+            model: 'gpt-4',
+            temperature: 0.5,
+            maxTokens: 4096,
+            timeout: 60,
+            timeoutMaxRetries: 3,
+          },
+        },
+        global: { debugDumpEnabled: false },
       },
-      cascadeLayers: ['/mock/assets'],
-    }
+      transcript: { watchDebounceMs: 250, metricsPersistIntervalMs: 10000 },
+    })
 
     const config = loadConfig({
       projectRoot: join(tempRoot, 'project'),
@@ -919,21 +1009,13 @@ describe('loadConfig - external defaults', () => {
     mkdirSync(projectSidekick, { recursive: true })
     writeFileSync(join(projectSidekick, 'config.yaml'), `logging:\n  level: error`)
 
-    const mockAssets: AssetResolver = {
-      resolve: () => null,
-      resolveOrThrow: () => {
-        throw new Error('not found')
+    // Use createMockAssets with custom core defaults
+    const mockAssets = createMockAssets({
+      core: {
+        ...TEST_DEFAULTS.core,
+        logging: { ...TEST_DEFAULTS.core.logging, level: 'debug', format: 'json' },
       },
-      resolvePath: () => null,
-      resolveJson: () => null,
-      resolveYaml: <T>(path: string): T | null => {
-        if (path === 'defaults/core.defaults.yaml') {
-          return { logging: { level: 'debug', format: 'json' } } as T
-        }
-        return null
-      },
-      cascadeLayers: ['/mock/assets'],
-    }
+    })
 
     const config = loadConfig({
       projectRoot: projectDir,
@@ -945,18 +1027,17 @@ describe('loadConfig - external defaults', () => {
     expect(config.core.logging.format).toBe('json')
   })
 
-  test('falls back to Zod defaults when assets not provided', () => {
-    const config = loadConfig({
-      projectRoot: join(tempRoot, 'project'),
-      homeDir: join(tempRoot, 'home'),
-    })
-
-    expect(config.core.logging.level).toBe('info')
-    expect(config.core.logging.format).toBe('pretty')
-    expect(config.llm.defaultProfile).toBe('fast-lite')
+  test('throws validation error when assets not provided (no YAML defaults)', () => {
+    // Without assets or YAML files, required config values are missing
+    expect(() =>
+      loadConfig({
+        projectRoot: join(tempRoot, 'project'),
+        homeDir: join(tempRoot, 'home'),
+      })
+    ).toThrow(/Configuration validation failed/)
   })
 
-  test('falls back to Zod defaults when YAML file missing', () => {
+  test('throws validation error when YAML defaults missing', () => {
     const mockAssets: AssetResolver = {
       resolve: () => null,
       resolveOrThrow: () => {
@@ -968,34 +1049,26 @@ describe('loadConfig - external defaults', () => {
       cascadeLayers: ['/mock/assets'],
     }
 
-    const config = loadConfig({
-      projectRoot: join(tempRoot, 'project'),
-      homeDir: join(tempRoot, 'home'),
-      assets: mockAssets,
-    })
-
-    expect(config.core.logging.level).toBe('info')
-    expect(config.llm.defaultProfile).toBe('fast-lite')
+    // Without YAML defaults, required config values are missing
+    expect(() =>
+      loadConfig({
+        projectRoot: join(tempRoot, 'project'),
+        homeDir: join(tempRoot, 'home'),
+        assets: mockAssets,
+      })
+    ).toThrow(/Configuration validation failed/)
   })
 
   test('env variables override external defaults', () => {
     process.env.SIDEKICK_LOG_LEVEL = 'warn'
 
-    const mockAssets: AssetResolver = {
-      resolve: () => null,
-      resolveOrThrow: () => {
-        throw new Error('not found')
+    // Use createMockAssets helper with custom core override
+    const mockAssets = createMockAssets({
+      core: {
+        ...TEST_DEFAULTS.core,
+        logging: { ...TEST_DEFAULTS.core.logging, level: 'debug' },
       },
-      resolvePath: () => null,
-      resolveJson: () => null,
-      resolveYaml: <T>(path: string): T | null => {
-        if (path === 'defaults/core.defaults.yaml') {
-          return { logging: { level: 'debug' } } as T
-        }
-        return null
-      },
-      cascadeLayers: ['/mock/assets'],
-    }
+    })
 
     const config = loadConfig({
       projectRoot: join(tempRoot, 'project'),
@@ -1040,32 +1113,18 @@ describe('ConfigService - getFeature with external defaults', () => {
   })
 
   test('getFeature returns YAML defaults when no user config', () => {
-    const mockAssets: AssetResolver = {
-      resolve: () => null,
-      resolveOrThrow: () => {
-        throw new Error('not found')
+    const mockAssets = createMockAssets({
+      features: {
+        statusline: {
+          enabled: true,
+          settings: {
+            format: '[{model}] | {tokens}',
+            confidenceThreshold: 0.6,
+            thresholds: { tokens: { warning: 100000 } },
+          },
+        },
       },
-      resolvePath: () => null,
-      resolveJson: () => null,
-      resolveYaml: <T>(path: string): T | null => {
-        if (path === 'defaults/llm.defaults.yaml') {
-          return mockLlmDefaults as T
-        }
-        if (path === 'defaults/features/statusline.defaults.yaml') {
-          // New nested structure: { enabled, settings: { ...settings } }
-          return {
-            enabled: true,
-            settings: {
-              format: '[{model}] | {tokens}',
-              confidenceThreshold: 0.6,
-              thresholds: { tokens: { warning: 100000 } },
-            },
-          } as T
-        }
-        return null
-      },
-      cascadeLayers: ['/mock/assets'],
-    }
+    })
 
     const service = createConfigService({
       projectRoot: join(tempRoot, 'project'),
@@ -1103,31 +1162,17 @@ statusline:
 `
     )
 
-    const mockAssets: AssetResolver = {
-      resolve: () => null,
-      resolveOrThrow: () => {
-        throw new Error('not found')
+    const mockAssets = createMockAssets({
+      features: {
+        statusline: {
+          enabled: true,
+          settings: {
+            format: '[{model}] | {tokens}',
+            confidenceThreshold: 0.6,
+          },
+        },
       },
-      resolvePath: () => null,
-      resolveJson: () => null,
-      resolveYaml: <T>(path: string): T | null => {
-        if (path === 'defaults/llm.defaults.yaml') {
-          return mockLlmDefaults as T
-        }
-        if (path === 'defaults/features/statusline.defaults.yaml') {
-          // New nested structure: { enabled, settings: { ...settings } }
-          return {
-            enabled: true,
-            settings: {
-              format: '[{model}] | {tokens}',
-              confidenceThreshold: 0.6,
-            },
-          } as T
-        }
-        return null
-      },
-      cascadeLayers: ['/mock/assets'],
-    }
+    })
 
     const service = createConfigService({
       projectRoot: projectDir,
@@ -1150,21 +1195,8 @@ statusline:
   })
 
   test('getFeature falls back gracefully when feature YAML missing', () => {
-    const mockAssets: AssetResolver = {
-      resolve: () => null,
-      resolveOrThrow: () => {
-        throw new Error('not found')
-      },
-      resolvePath: () => null,
-      resolveJson: () => null,
-      resolveYaml: <T>(path: string): T | null => {
-        if (path === 'defaults/llm.defaults.yaml') {
-          return mockLlmDefaults as T
-        }
-        return null // No feature defaults available
-      },
-      cascadeLayers: ['/mock/assets'],
-    }
+    // No feature defaults provided - tests fallback behavior
+    const mockAssets = createMockAssets()
 
     const service = createConfigService({
       projectRoot: join(tempRoot, 'project'),
@@ -1196,34 +1228,20 @@ statusline:
 `
     )
 
-    const mockAssets: AssetResolver = {
-      resolve: () => null,
-      resolveOrThrow: () => {
-        throw new Error('not found')
-      },
-      resolvePath: () => null,
-      resolveJson: () => null,
-      resolveYaml: <T>(path: string): T | null => {
-        if (path === 'defaults/llm.defaults.yaml') {
-          return mockLlmDefaults as T
-        }
-        if (path === 'defaults/features/statusline.defaults.yaml') {
-          // New nested structure: { enabled, settings: { ...settings } }
-          return {
-            enabled: true,
-            settings: {
-              format: '[{model}]',
-              thresholds: {
-                tokens: { warning: 100000, critical: 160000 },
-                cost: { warning: 0.5, critical: 1.0 },
-              },
+    const mockAssets = createMockAssets({
+      features: {
+        statusline: {
+          enabled: true,
+          settings: {
+            format: '[{model}]',
+            thresholds: {
+              tokens: { warning: 100000, critical: 160000 },
+              cost: { warning: 0.5, critical: 1.0 },
             },
-          } as T
-        }
-        return null
+          },
+        },
       },
-      cascadeLayers: ['/mock/assets'],
-    }
+    })
 
     const service = createConfigService({
       projectRoot: projectDir,
@@ -1275,6 +1293,7 @@ describe('loadConfig - validation', () => {
       loadConfig({
         projectRoot: projectDir,
         homeDir: join(tempRoot, 'home'),
+        assets: createMockAssets(),
       })
     ).toThrow(/level/)
   })
@@ -1284,12 +1303,26 @@ describe('loadConfig - validation', () => {
     const projectSidekick = join(projectDir, '.sidekick')
     mkdirSync(projectSidekick, { recursive: true })
 
-    writeFileSync(join(projectSidekick, 'llm.yaml'), `provider: invalid-provider`)
+    // Override the default profile's provider with an invalid value
+    writeFileSync(
+      join(projectSidekick, 'llm.yaml'),
+      `
+profiles:
+  fast-lite:
+    provider: invalid-provider
+    model: test
+    temperature: 0
+    maxTokens: 1000
+    timeout: 30
+    timeoutMaxRetries: 2
+`
+    )
 
     expect(() =>
       loadConfig({
         projectRoot: projectDir,
         homeDir: join(tempRoot, 'home'),
+        assets: createMockAssets(),
       })
     ).toThrow(/provider/)
   })
@@ -1299,12 +1332,26 @@ describe('loadConfig - validation', () => {
     const projectSidekick = join(projectDir, '.sidekick')
     mkdirSync(projectSidekick, { recursive: true })
 
-    writeFileSync(join(projectSidekick, 'llm.yaml'), `temperature: 2.0`)
+    // Override the default profile's temperature with out-of-range value
+    writeFileSync(
+      join(projectSidekick, 'llm.yaml'),
+      `
+profiles:
+  fast-lite:
+    provider: openrouter
+    model: test
+    temperature: 5.0
+    maxTokens: 1000
+    timeout: 30
+    timeoutMaxRetries: 2
+`
+    )
 
     expect(() =>
       loadConfig({
         projectRoot: projectDir,
         homeDir: join(tempRoot, 'home'),
+        assets: createMockAssets(),
       })
     ).toThrow(/temperature/)
   })
@@ -1314,12 +1361,26 @@ describe('loadConfig - validation', () => {
     const projectSidekick = join(projectDir, '.sidekick')
     mkdirSync(projectSidekick, { recursive: true })
 
-    writeFileSync(join(projectSidekick, 'llm.yaml'), `timeout: 500`)
+    // Override the default profile's timeout with out-of-range value
+    writeFileSync(
+      join(projectSidekick, 'llm.yaml'),
+      `
+profiles:
+  fast-lite:
+    provider: openrouter
+    model: test
+    temperature: 0
+    maxTokens: 1000
+    timeout: 500
+    timeoutMaxRetries: 2
+`
+    )
 
     expect(() =>
       loadConfig({
         projectRoot: projectDir,
         homeDir: join(tempRoot, 'home'),
+        assets: createMockAssets(),
       })
     ).toThrow(/timeout/)
   })
@@ -1346,6 +1407,7 @@ session-summary:
       loadConfig({
         projectRoot: projectDir,
         homeDir: join(tempRoot, 'home'),
+        assets: createMockAssets(),
       })
     ).toThrow(/Unknown profile "nonexistent-profile"/)
   })
@@ -1387,6 +1449,7 @@ session-summary:
       loadConfig({
         projectRoot: projectDir,
         homeDir: join(tempRoot, 'home'),
+        assets: createMockAssets(),
       })
     ).toThrow(/is a fallback profile, not a primary profile/)
   })
@@ -1414,6 +1477,7 @@ session-summary:
       loadConfig({
         projectRoot: projectDir,
         homeDir: join(tempRoot, 'home'),
+        assets: createMockAssets(),
       })
     ).toThrow(/Unknown fallback "nonexistent-fallback"/)
   })
@@ -1465,6 +1529,7 @@ session-summary:
     const config = loadConfig({
       projectRoot: projectDir,
       homeDir: join(tempRoot, 'home'),
+      assets: createMockAssets(),
     })
 
     expect(config.llm.profiles['custom-profile']).toBeDefined()

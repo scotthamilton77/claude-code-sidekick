@@ -63,6 +63,15 @@ settings:
     #                     Use this if you see rendering artifacts in VS Code's integrated terminal
     #   false or "ascii"- ASCII-only characters for maximum compatibility ([#.|...], W:, E:, *)
     useNerdFonts: safe
+    # Markdown styling support for summary/title text
+    # When enabled, converts markdown syntax to ANSI escape sequences
+    supportedMarkdown:
+      # Convert **text** to ANSI bold
+      bold: true
+      # Convert *text* or _text_ to ANSI italic
+      italic: true
+      # Convert `text` to ANSI dim
+      code: true
     # Color assignments for statusline elements
     # Available colors: black, red, green, yellow, blue, magenta, cyan, white
     # Also: brightRed, brightGreen, brightYellow (for emphasis)

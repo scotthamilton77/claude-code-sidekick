@@ -88,83 +88,52 @@ const DOMAIN_FILES: Record<ConfigDomain, string> = {
 
 const LoggingSchema = z
   .object({
-    level: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
-    format: z.enum(['pretty', 'json']).default('pretty'),
-    consoleEnabled: z.boolean().default(false), // Enable console output (in addition to file)
+    level: z.enum(['debug', 'info', 'warn', 'error']),
+    format: z.enum(['pretty', 'json']),
+    consoleEnabled: z.boolean(),
   })
   .strict()
 
 const PathsSchema = z
   .object({
-    state: z.string().default('.sidekick'),
+    state: z.string(),
     assets: z.string().optional(),
   })
   .strict()
 
-const DAEMON_DEFAULTS = {
-  idleTimeoutMs: 300000, // 5 minutes
-  shutdownTimeoutMs: 30000, // 30 seconds
-}
+// Daemon and IPC defaults now come from assets/sidekick/defaults/core.defaults.yaml
 
 const DaemonSchema = z
   .object({
-    idleTimeoutMs: z.number().min(0).optional(),
-    shutdownTimeoutMs: z.number().min(0).optional(),
+    idleTimeoutMs: z.number().min(0),
+    shutdownTimeoutMs: z.number().min(0),
   })
   .strict()
-  .transform((val) => ({
-    idleTimeoutMs: val.idleTimeoutMs ?? DAEMON_DEFAULTS.idleTimeoutMs,
-    shutdownTimeoutMs: val.shutdownTimeoutMs ?? DAEMON_DEFAULTS.shutdownTimeoutMs,
-  }))
-
-const IPC_DEFAULTS = {
-  connectTimeoutMs: 5000,
-  requestTimeoutMs: 30000,
-  maxRetries: 3,
-  retryDelayMs: 100,
-}
-
-const DEVELOPMENT_DEFAULTS = {
-  enabled: false,
-}
 
 const IpcSchema = z
   .object({
-    connectTimeoutMs: z.number().min(0).optional(),
-    requestTimeoutMs: z.number().min(0).optional(),
-    maxRetries: z.number().min(0).optional(),
-    retryDelayMs: z.number().min(0).optional(),
+    connectTimeoutMs: z.number().min(0),
+    requestTimeoutMs: z.number().min(0),
+    maxRetries: z.number().min(0),
+    retryDelayMs: z.number().min(0),
   })
   .strict()
-  .transform((val) => ({
-    connectTimeoutMs: val.connectTimeoutMs ?? IPC_DEFAULTS.connectTimeoutMs,
-    requestTimeoutMs: val.requestTimeoutMs ?? IPC_DEFAULTS.requestTimeoutMs,
-    maxRetries: val.maxRetries ?? IPC_DEFAULTS.maxRetries,
-    retryDelayMs: val.retryDelayMs ?? IPC_DEFAULTS.retryDelayMs,
-  }))
 
 const DevelopmentSchema = z
   .object({
-    enabled: z.boolean().default(false),
+    enabled: z.boolean(),
   })
   .strict()
 
 export const CoreConfigSchema = z
   .object({
-    logging: LoggingSchema.optional(),
-    paths: PathsSchema.optional(),
-    daemon: DaemonSchema.optional(),
-    ipc: IpcSchema.optional(),
-    development: DevelopmentSchema.optional(),
+    logging: LoggingSchema,
+    paths: PathsSchema,
+    daemon: DaemonSchema,
+    ipc: IpcSchema,
+    development: DevelopmentSchema,
   })
   .strict()
-  .transform((val) => ({
-    logging: val.logging ?? { level: 'info' as const, format: 'pretty' as const, consoleEnabled: false },
-    paths: val.paths ?? { state: '.sidekick' },
-    daemon: val.daemon ?? DAEMON_DEFAULTS,
-    ipc: val.ipc ?? IPC_DEFAULTS,
-    development: val.development ?? DEVELOPMENT_DEFAULTS,
-  }))
 
 export type CoreConfig = z.infer<typeof CoreConfigSchema>
 
@@ -177,42 +146,29 @@ const EmulatedProviderSchema = z.enum(['claude-cli', 'openai', 'openrouter'])
 /**
  * LLM Profile Schema - complete standalone configuration for an LLM.
  * Profiles are referenced by ID from features.
+ * All fields are required - defaults come from YAML in assets/sidekick/defaults/llm.defaults.yaml
  */
 const LlmProfileSchema = z.object({
-  provider: LlmProviderSchema.default('openrouter'),
-  model: z.string().default('x-ai/grok-4-fast'),
-  temperature: z.number().min(0).max(2).default(0),
-  maxTokens: z.number().positive().default(4096),
-  timeout: z.number().min(1).max(300).default(30),
-  timeoutMaxRetries: z.number().min(0).max(10).default(3),
+  provider: LlmProviderSchema,
+  model: z.string(),
+  temperature: z.number().min(0).max(2),
+  maxTokens: z.number().positive(),
+  timeout: z.number().min(1).max(300),
+  timeoutMaxRetries: z.number().min(0).max(10),
 })
 
 export type LlmProfile = z.infer<typeof LlmProfileSchema>
 
-const LLM_PROFILE_DEFAULTS = {
-  'fast-lite': {
-    provider: 'openrouter' as const,
-    model: 'google/gemini-2.0-flash-lite-001',
-    temperature: 0,
-    maxTokens: 1000,
-    timeout: 15,
-    timeoutMaxRetries: 2,
-  },
-}
-
-const LLM_DEFAULTS = {
-  defaultProfile: 'fast-lite',
-  debugDumpEnabled: false,
-}
+// LLM defaults now come from assets/sidekick/defaults/llm.defaults.yaml
 
 export const LlmConfigSchema = z
   .object({
-    defaultProfile: z.string().default(LLM_DEFAULTS.defaultProfile),
-    profiles: z.record(z.string(), LlmProfileSchema).default(LLM_PROFILE_DEFAULTS),
+    defaultProfile: z.string(),
+    profiles: z.record(z.string(), LlmProfileSchema),
     fallbacks: z.record(z.string(), LlmProfileSchema).optional(),
     global: z
       .object({
-        debugDumpEnabled: z.boolean().optional(),
+        debugDumpEnabled: z.boolean(),
         emulatedProvider: EmulatedProviderSchema.optional(),
       })
       .strict()
@@ -233,31 +189,21 @@ export const LlmConfigSchema = z
     defaultProfile: val.defaultProfile,
     profiles: val.profiles,
     fallbacks: val.fallbacks ?? {},
-    global: {
-      debugDumpEnabled: val.global?.debugDumpEnabled ?? LLM_DEFAULTS.debugDumpEnabled,
-      emulatedProvider: val.global?.emulatedProvider,
-    },
+    global: val.global ?? { debugDumpEnabled: false, emulatedProvider: undefined },
   }))
 
 export type LlmConfig = z.infer<typeof LlmConfigSchema>
 
 // --- Transcript Config Schema (§5.3) ---
 
-const TRANSCRIPT_DEFAULTS = {
-  watchDebounceMs: 100,
-  metricsPersistIntervalMs: 5000,
-}
+// Transcript defaults now come from assets/sidekick/defaults/transcript.defaults.yaml
 
 export const TranscriptConfigSchema = z
   .object({
-    watchDebounceMs: z.number().min(0).optional(),
-    metricsPersistIntervalMs: z.number().optional(),
+    watchDebounceMs: z.number().min(0),
+    metricsPersistIntervalMs: z.number(),
   })
   .strict()
-  .transform((val) => ({
-    watchDebounceMs: val.watchDebounceMs ?? TRANSCRIPT_DEFAULTS.watchDebounceMs,
-    metricsPersistIntervalMs: val.metricsPersistIntervalMs ?? TRANSCRIPT_DEFAULTS.metricsPersistIntervalMs,
-  }))
 
 export type TranscriptConfig = z.infer<typeof TranscriptConfigSchema>
 
@@ -294,30 +240,11 @@ export interface SidekickConfig {
 }
 
 // Combined schema for full validation
+// All domains are required - defaults come from YAML in assets/sidekick/defaults/
 export const SidekickConfigSchema = z.object({
-  core: CoreConfigSchema.optional().transform(
-    (val) =>
-      val ?? {
-        logging: { level: 'info' as const, format: 'pretty' as const, consoleEnabled: false },
-        paths: { state: '.sidekick' },
-        daemon: DAEMON_DEFAULTS,
-        ipc: IPC_DEFAULTS,
-        development: DEVELOPMENT_DEFAULTS,
-      }
-  ),
-  llm: LlmConfigSchema.optional().transform(
-    (val) =>
-      val ?? {
-        defaultProfile: LLM_DEFAULTS.defaultProfile,
-        profiles: LLM_PROFILE_DEFAULTS,
-        fallbacks: {},
-        global: {
-          debugDumpEnabled: LLM_DEFAULTS.debugDumpEnabled,
-          emulatedProvider: undefined,
-        },
-      }
-  ),
-  transcript: TranscriptConfigSchema.optional().transform((val) => val ?? TRANSCRIPT_DEFAULTS),
+  core: CoreConfigSchema,
+  llm: LlmConfigSchema,
+  transcript: TranscriptConfigSchema,
   features: FeaturesConfigSchema,
 })
 
