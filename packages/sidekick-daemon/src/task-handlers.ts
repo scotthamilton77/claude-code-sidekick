@@ -30,6 +30,7 @@ export function registerStandardTaskHandlers(
   // Create shared dependencies for all handlers
   const deps = {
     taskRegistry,
+    stateService,
     projectDir,
     logger,
     assetResolver,

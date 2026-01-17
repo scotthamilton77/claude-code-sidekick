@@ -71,6 +71,22 @@ export class MockStateService implements MinimalStateService {
     return `${this.projectRoot}/.sidekick/state/${filename}`
   }
 
+  rootDir(): string {
+    return `${this.projectRoot}/.sidekick`
+  }
+
+  sessionsDir(): string {
+    return `${this.projectRoot}/.sidekick/sessions`
+  }
+
+  sessionRootDir(sessionId: string): string {
+    return `${this.projectRoot}/.sidekick/sessions/${sessionId}`
+  }
+
+  logsDir(): string {
+    return `${this.projectRoot}/.sidekick/logs`
+  }
+
   // Test utilities
 
   /**

@@ -21,20 +21,30 @@ export class PathResolver {
 
   // === Directories ===
 
+  /** Root state directory (.sidekick or user equivalent) */
+  rootDir(): string {
+    return this.stateBase
+  }
+
+  /** Sessions directory (.sidekick/sessions) */
+  sessionsDir(): string {
+    return join(this.stateBase, 'sessions')
+  }
+
   globalStateDir(): string {
     return join(this.stateBase, 'state')
   }
 
-  sessionRoot(sessionId: string): string {
+  sessionRootDir(sessionId: string): string {
     return join(this.stateBase, 'sessions', sessionId)
   }
 
   sessionStateDir(sessionId: string): string {
-    return join(this.sessionRoot(sessionId), 'state')
+    return join(this.sessionRootDir(sessionId), 'state')
   }
 
   sessionStagingDir(sessionId: string): string {
-    return join(this.sessionRoot(sessionId), 'stage')
+    return join(this.sessionRootDir(sessionId), 'stage')
   }
 
   hookStagingDir(sessionId: string, hookName: string): string {

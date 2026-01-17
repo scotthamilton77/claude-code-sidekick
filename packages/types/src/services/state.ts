@@ -674,6 +674,27 @@ export interface MinimalStateService {
    * @param filename - State file name (e.g., 'global-metrics.json')
    */
   globalStatePath(filename: string): string
+
+  /**
+   * Get root state directory (.sidekick or user config root).
+   */
+  rootDir(): string
+
+  /**
+   * Get sessions directory (.sidekick/sessions).
+   */
+  sessionsDir(): string
+
+  /**
+   * Get session root directory (.sidekick/sessions/{sessionId}).
+   * @param sessionId - Session identifier
+   */
+  sessionRootDir(sessionId: string): string
+
+  /**
+   * Get logs directory (.sidekick/logs).
+   */
+  logsDir(): string
 }
 
 // ============================================================================

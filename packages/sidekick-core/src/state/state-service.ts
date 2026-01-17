@@ -252,6 +252,21 @@ export class StateService {
   // Path Accessors
   // ==========================================================================
 
+  /** Root state directory (.sidekick or user config root) */
+  rootDir(): string {
+    return this.paths.rootDir()
+  }
+
+  /** Sessions directory (.sidekick/sessions) */
+  sessionsDir(): string {
+    return this.paths.sessionsDir()
+  }
+
+  /** Session root directory (.sidekick/sessions/{sessionId}) */
+  sessionRootDir(sessionId: string): string {
+    return this.paths.sessionRootDir(sessionId)
+  }
+
   sessionStateDir(sessionId: string): string {
     return this.paths.sessionStateDir(sessionId)
   }

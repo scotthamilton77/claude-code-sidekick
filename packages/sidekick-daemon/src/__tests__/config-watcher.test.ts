@@ -33,7 +33,7 @@ describe('ConfigWatcher', () => {
     await fs.writeFile(configPath, 'logging:\n  level: info\n', 'utf-8')
 
     const onChange = vi.fn()
-    const watcher = new ConfigWatcher(tmpDir, logger, onChange)
+    const watcher = new ConfigWatcher(path.join(tmpDir, '.sidekick'), logger, onChange)
 
     watcher.start()
 
@@ -56,7 +56,7 @@ describe('ConfigWatcher', () => {
 
   it('should not crash when watched files do not exist', () => {
     const onChange = vi.fn()
-    const watcher = new ConfigWatcher(tmpDir, logger, onChange)
+    const watcher = new ConfigWatcher(path.join(tmpDir, '.sidekick'), logger, onChange)
 
     // Should not throw even though config files don't exist
     expect(() => watcher.start()).not.toThrow()
@@ -70,7 +70,7 @@ describe('ConfigWatcher', () => {
     await fs.writeFile(configPath, 'provider: openrouter\n', 'utf-8')
 
     const onChange = vi.fn()
-    const watcher = new ConfigWatcher(tmpDir, logger, onChange)
+    const watcher = new ConfigWatcher(path.join(tmpDir, '.sidekick'), logger, onChange)
 
     watcher.start()
 
@@ -95,7 +95,7 @@ describe('ConfigWatcher', () => {
     await fs.writeFile(configPath, 'watchDebounceMs: 100\n', 'utf-8')
 
     const onChange = vi.fn()
-    const watcher = new ConfigWatcher(tmpDir, logger, onChange)
+    const watcher = new ConfigWatcher(path.join(tmpDir, '.sidekick'), logger, onChange)
 
     watcher.start()
     watcher.stop()
@@ -119,7 +119,7 @@ describe('ConfigWatcher', () => {
     const onChange = vi.fn().mockImplementation(() => {
       throw onChangeError
     })
-    const watcher = new ConfigWatcher(tmpDir, logger, onChange)
+    const watcher = new ConfigWatcher(path.join(tmpDir, '.sidekick'), logger, onChange)
 
     watcher.start()
 
@@ -149,7 +149,7 @@ describe('ConfigWatcher', () => {
     })
 
     const onChange = vi.fn()
-    const watcher = new ConfigWatcher(tmpDir, logger, onChange)
+    const watcher = new ConfigWatcher(path.join(tmpDir, '.sidekick'), logger, onChange)
 
     // Should not throw, but log error
     expect(() => watcher.start()).not.toThrow()
@@ -169,7 +169,7 @@ describe('ConfigWatcher', () => {
     await fs.writeFile(configPath, 'API_KEY=test\n', 'utf-8')
 
     const onChange = vi.fn()
-    const watcher = new ConfigWatcher(tmpDir, logger, onChange)
+    const watcher = new ConfigWatcher(path.join(tmpDir, '.sidekick'), logger, onChange)
 
     watcher.start()
 
@@ -192,7 +192,7 @@ describe('ConfigWatcher', () => {
     await fs.writeFile(configPath, 'test: value\n', 'utf-8')
 
     const onChange = vi.fn()
-    const watcher = new ConfigWatcher(tmpDir, logger, onChange)
+    const watcher = new ConfigWatcher(path.join(tmpDir, '.sidekick'), logger, onChange)
 
     // Capture the FSWatcher instances created
     const originalWatch = syncFs.watch

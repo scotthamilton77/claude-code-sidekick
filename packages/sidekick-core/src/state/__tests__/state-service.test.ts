@@ -367,6 +367,24 @@ describe('StateService', () => {
       expect(path).toBe(join(testDir, '.sidekick', 'sessions', 'test-session-123', 'stage'))
     })
 
+    it('rootDir returns correct path', () => {
+      const path = state.rootDir()
+
+      expect(path).toBe(join(testDir, '.sidekick'))
+    })
+
+    it('sessionsDir returns correct path', () => {
+      const path = state.sessionsDir()
+
+      expect(path).toBe(join(testDir, '.sidekick', 'sessions'))
+    })
+
+    it('sessionRootDir returns correct path', () => {
+      const path = state.sessionRootDir('test-session-456')
+
+      expect(path).toBe(join(testDir, '.sidekick', 'sessions', 'test-session-456'))
+    })
+
     it('globalStateDir returns correct path', () => {
       const path = state.globalStateDir()
 

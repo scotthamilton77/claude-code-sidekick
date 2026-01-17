@@ -8,7 +8,7 @@
  */
 
 import { CleanupPayloadSchema, Logger } from '@sidekick/core'
-import type { TaskContext } from '@sidekick/types'
+import type { MinimalStateService, TaskContext } from '@sidekick/types'
 import fs from 'fs/promises'
 import path from 'path'
 import type { TaskHandler } from '../task-engine.js'
@@ -19,6 +19,7 @@ const DEFAULT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
 
 export interface CleanupHandlerDeps {
   taskRegistry: TaskRegistry
+  stateService: MinimalStateService
   projectDir: string
   logger: Logger
 }
@@ -46,7 +47,7 @@ export function createCleanupHandler(deps: CleanupHandlerDeps): TaskHandler {
       return
     }
 
-    const sessionsDir = path.join(deps.projectDir, '.sidekick', 'sessions')
+    const sessionsDir = deps.stateService.sessionsDir()
     const now = Date.now()
     let cleaned = 0
     let skipped = 0

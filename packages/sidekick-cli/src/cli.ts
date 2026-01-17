@@ -20,7 +20,6 @@
  */
 
 import { mkdir } from 'node:fs/promises'
-import { join } from 'node:path'
 import { PassThrough, Writable } from 'node:stream'
 import yargsParser from 'yargs-parser'
 
@@ -191,23 +190,23 @@ export function initializeRuntime(options: RunCliOptions): InitializeRuntimeResu
 }
 
 /**
- * Create session directory if session ID and project root are available.
+ * Create session directory if session ID and state service are available.
  * Non-throwing: logs errors but continues execution.
  *
- * @param options - Session ID, project root, and logger
+ * @param options - Session ID, state service, and logger
  */
 export async function initializeSession(options: {
   sessionId: string | undefined
-  projectRoot: string | undefined
+  stateService: MinimalStateService | undefined
   logger: Logger
 }): Promise<void> {
-  const { sessionId, projectRoot, logger } = options
+  const { sessionId, stateService, logger } = options
 
-  if (!sessionId || !projectRoot) {
+  if (!sessionId || !stateService) {
     return
   }
 
-  const sessionDir = join(projectRoot, '.sidekick', 'sessions', sessionId)
+  const sessionDir = stateService.sessionRootDir(sessionId)
   try {
     await mkdir(sessionDir, { recursive: true })
     logger.debug('Session directory created', { sessionId, sessionDir })
@@ -422,7 +421,7 @@ export async function runCli(options: RunCliOptions): Promise<{ exitCode: number
 
   await initializeSession({
     sessionId,
-    projectRoot: runtime.scope.projectRoot,
+    stateService: runtime.stateService,
     logger: runtime.logger,
   })
 
