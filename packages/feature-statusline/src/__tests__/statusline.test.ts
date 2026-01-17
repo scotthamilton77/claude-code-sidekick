@@ -2170,7 +2170,7 @@ describe('StatuslineService', () => {
       // Model name comes from hook input, not transcript-metrics.json
       const service = createStatuslineService({
         stateService,
-      sessionId,
+        sessionId,
         cwd: '/test',
         useColors: false,
         hookInput: createTestHookInput({
@@ -2188,7 +2188,7 @@ describe('StatuslineService', () => {
       // Model name comes from hook input, not transcript-metrics.json
       const service = createStatuslineService({
         stateService,
-      sessionId,
+        sessionId,
         cwd: '/test',
         useColors: false,
         hookInput: createTestHookInput({
@@ -2210,7 +2210,10 @@ describe('StatuslineService', () => {
 
     beforeEach(async () => {
       // Set up project structure for discovery tests
-      discoveryProjectRoot = path.join(tmpdir(), `discovery-project-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+      discoveryProjectRoot = path.join(
+        tmpdir(),
+        `discovery-project-${Date.now()}-${Math.random().toString(36).slice(2)}`
+      )
       sessionsDir = path.join(discoveryProjectRoot, '.sidekick', 'sessions')
       await fs.mkdir(sessionsDir, { recursive: true })
       discoveryStateService = new StateService(discoveryProjectRoot)
@@ -2303,7 +2306,7 @@ describe('StatuslineService', () => {
       // No sessionsDir or currentSessionId provided
       const service = createStatuslineService({
         stateService,
-      sessionId,
+        sessionId,
         cwd: '/test',
         useColors: false,
       })
@@ -2348,7 +2351,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
-      sessionId,
+        sessionId,
         cwd: '/test',
         useColors: false,
         hookInput,
@@ -2393,7 +2396,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
-      sessionId,
+        sessionId,
         cwd: '/test',
         useColors: false,
         hookInput,
@@ -2459,7 +2462,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
-      sessionId,
+        sessionId,
         cwd: '/test',
         useColors: false,
         hookInput,
@@ -2480,7 +2483,7 @@ describe('StatuslineService', () => {
       // No hookInput - uses transcript state directly which includes isPostCompactIndeterminate
       const service = createStatuslineService({
         stateService,
-      sessionId,
+        sessionId,
         cwd: '/test',
         useColors: false,
         // No hookInput
@@ -2501,7 +2504,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
-      sessionId,
+        sessionId,
         cwd: '/test',
         useColors: true, // Enable colors
       })
@@ -2534,7 +2537,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
-      sessionId,
+        sessionId,
         cwd: '/test',
         useColors: false,
         configService: mockConfigService,
@@ -2559,7 +2562,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
-      sessionId,
+        sessionId,
         cwd: '/test',
         useColors: false,
         hookInput: createTestHookInput({}),
@@ -2584,7 +2587,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
-      sessionId,
+        sessionId,
         cwd: '/test',
         useColors: false,
         hookInput: createTestHookInput({}),
@@ -2624,7 +2627,7 @@ describe('StatuslineService', () => {
       // Hook input with zero tokens - will trigger baseline fallback
       const service = createStatuslineService({
         stateService,
-      sessionId,
+        sessionId,
         cwd: '/test',
         useColors: false,
         logger: mockLogger,
@@ -2697,7 +2700,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
-      sessionId,
+        sessionId,
         cwd: '/test',
         useColors: false,
         logger: mockLogger,
@@ -2726,7 +2729,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
-      sessionId,
+        sessionId,
         cwd: '/test',
         useColors: false,
         isResumedSession: true,
@@ -2753,7 +2756,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
-      sessionId,
+        sessionId,
         cwd: '/test',
         useColors: false,
         isResumedSession: true,
@@ -2784,7 +2787,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
-      sessionId,
+        sessionId,
         cwd: '/test',
         useColors: false,
       })
@@ -2809,7 +2812,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
-      sessionId,
+        sessionId,
         cwd: '/test',
         useColors: false,
         isResumedSession: true, // Mark as resumed
@@ -2838,7 +2841,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
-      sessionId,
+        sessionId,
         cwd: '/test',
         useColors: false,
       })
@@ -2869,7 +2872,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
-      sessionId,
+        sessionId,
         cwd: '/test',
         useColors: false,
         assets,
@@ -2884,7 +2887,7 @@ describe('StatuslineService', () => {
     it('falls back to default when assets not provided', async () => {
       const service = createStatuslineService({
         stateService,
-      sessionId,
+        sessionId,
         cwd: '/test',
         useColors: false,
         // no assets
@@ -2901,7 +2904,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
-      sessionId,
+        sessionId,
         cwd: '/test',
         useColors: false,
         assets,
@@ -2918,7 +2921,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
-      sessionId,
+        sessionId,
         cwd: '/test',
         useColors: false,
         assets,
@@ -2936,7 +2939,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
-      sessionId,
+        sessionId,
         cwd: '/test',
         useColors: false,
         assets,
@@ -2957,7 +2960,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
-      sessionId,
+        sessionId,
         cwd: '/test',
         useColors: false,
         assets,

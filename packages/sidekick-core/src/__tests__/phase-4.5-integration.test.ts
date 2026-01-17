@@ -106,6 +106,7 @@ class TestHandlerRegistry implements HandlerRegistry {
     lineNumber: number
     handlerResults: Array<{ handlerId: string; result: HandlerResult | void }>
   }> = []
+  private pendingHandlers: Promise<void>[] = []
 
   constructor(context: TestHandlerContext) {
     this.context = context
@@ -153,14 +154,24 @@ class TestHandlerRegistry implements HandlerRegistry {
       })
       .sort((a, b) => b.priority - a.priority)
 
-    // Execute handlers (fire-and-forget, but track for test assertions)
+    // Execute handlers and track promises for cleanup
     for (const handler of matchingHandlers) {
-      void handler.handler(event, this.context).then((result) => {
+      const promise = handler.handler(event, this.context).then((result) => {
         handlerResults.push({ handlerId: handler.id, result })
       })
+      this.pendingHandlers.push(promise)
     }
 
     this.emittedEvents.push({ eventType, entry, lineNumber, handlerResults })
+  }
+
+  /**
+   * Wait for all pending handler executions to complete.
+   * Call this before test cleanup to avoid race conditions.
+   */
+  async waitForPendingHandlers(): Promise<void> {
+    await Promise.all(this.pendingHandlers)
+    this.pendingHandlers = []
   }
 
   // Test helpers
@@ -175,6 +186,7 @@ class TestHandlerRegistry implements HandlerRegistry {
   reset(): void {
     this.handlers.clear()
     this.emittedEvents = []
+    this.pendingHandlers = []
   }
 }
 
@@ -231,6 +243,8 @@ describe('Phase 4.5: TranscriptService → Handler Integration', () => {
   })
 
   afterEach(async () => {
+    // Wait for any pending handlers to complete before cleanup
+    await handlerRegistry.waitForPendingHandlers()
     await transcriptService.shutdown()
     cleanupTestDir(testDir)
   })

@@ -97,7 +97,8 @@ export class StateService {
     this.cache = options?.cache ? new Map() : null
     // Support both static config and getter function for hot-reload
     if (options?.config) {
-      this.configGetter = typeof options.config === 'function' ? options.config : () => options.config as StateServiceConfig
+      this.configGetter =
+        typeof options.config === 'function' ? options.config : () => options.config as StateServiceConfig
     }
   }
 
@@ -180,7 +181,8 @@ export class StateService {
       await this.backupBeforeWrite(path)
     }
 
-    const tmpPath = `${path}.${Date.now()}.tmp`
+    // Include random suffix to prevent collisions when Date.now() returns same value
+    const tmpPath = `${path}.${Date.now()}.${Math.random().toString(36).slice(2, 8)}.tmp`
     const json = JSON.stringify(parsed, null, 2)
 
     try {
