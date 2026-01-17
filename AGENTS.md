@@ -153,8 +153,36 @@ bd search "query" --json      # Find issues by text
 - `bug` - Something broken
 - `feature` - New functionality
 - `task` - Work item (tests, docs, refactoring)
-- `epic` - Large feature with subtasks
+- `epic` - Large feature with subtasks (use for phases, milestones)
 - `chore` - Maintenance (dependencies, tooling)
+
+### Epics and Dependencies
+
+**Use epics** for multi-task work (roadmap phases, features). Children are **parallel by default**—only explicit deps create sequence.
+
+```bash
+bd create "Phase 9" -t epic -p 1
+bd create "Task A" -t task --parent <epic>    # parallel
+bd create "Task B" -t task --parent <epic>    # parallel
+bd create "Task C" -t task --parent <epic>    # parallel
+bd dep add <taskC> <taskB>                    # C needs B (now sequential)
+```
+
+**Dependency semantics**: `bd dep add B A` means "B needs A" (B is blocked until A closes).
+
+**Epic-level deps**: Block all children until satisfied.
+```bash
+bd dep add <epic-9.6> <task-9.5.1>   # All of 9.6 waits for 9.5.1
+```
+
+### Important Fields
+
+| Flag | Purpose | Example |
+|------|---------|---------|
+| `--acceptance` | Done-when criteria | `--acceptance="Tests pass, no lint errors"` |
+| `--design` | Design notes/approach | `--design="Use adapter pattern"` |
+| `--labels` | Tags (comma-sep) | `--labels refactoring,phase-9` |
+| `--defer` | Hide until date | `--defer "next monday"` |
 
 ### Priorities
 
