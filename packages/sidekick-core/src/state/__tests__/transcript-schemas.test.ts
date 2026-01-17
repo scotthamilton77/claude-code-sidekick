@@ -13,6 +13,8 @@ import {
   MAX_COMPACTION_ENTRIES,
   TokenUsageMetricsSchema,
   TranscriptMetricsSchema,
+  TranscriptEntrySchema,
+  TranscriptUuidSchema,
   type CompactionEntryState,
   type PersistedTranscriptState,
   type TokenUsageMetricsState,
@@ -76,6 +78,143 @@ function createCompactionEntry(overrides = {}): CompactionEntryState {
     ...overrides,
   }
 }
+
+// ============================================================================
+// TranscriptEntrySchema Tests
+// ============================================================================
+
+describe('TranscriptEntrySchema', () => {
+  it('accepts valid empty object', () => {
+    const result = TranscriptEntrySchema.safeParse({})
+
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts object with arbitrary fields via passthrough', () => {
+    const entry = {
+      type: 'assistant',
+      message: { content: 'hello' },
+      timestamp: 12345,
+      nested: { deeply: { value: true } },
+    }
+    const result = TranscriptEntrySchema.safeParse(entry)
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.type).toBe('assistant')
+      expect(result.data.message).toEqual({ content: 'hello' })
+      expect(result.data.nested).toEqual({ deeply: { value: true } })
+    }
+  })
+
+  it('rejects null', () => {
+    const result = TranscriptEntrySchema.safeParse(null)
+
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects arrays', () => {
+    const result = TranscriptEntrySchema.safeParse([1, 2, 3])
+
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects primitive string', () => {
+    const result = TranscriptEntrySchema.safeParse('not an object')
+
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects primitive number', () => {
+    const result = TranscriptEntrySchema.safeParse(42)
+
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects undefined', () => {
+    const result = TranscriptEntrySchema.safeParse(undefined)
+
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects boolean', () => {
+    const result = TranscriptEntrySchema.safeParse(true)
+
+    expect(result.success).toBe(false)
+  })
+})
+
+// ============================================================================
+// TranscriptUuidSchema Tests
+// ============================================================================
+
+describe('TranscriptUuidSchema', () => {
+  it('extracts uuid field correctly', () => {
+    const entry = { uuid: 'abc-123-def' }
+    const result = TranscriptUuidSchema.safeParse(entry)
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.uuid).toBe('abc-123-def')
+    }
+  })
+
+  it('returns undefined for missing uuid', () => {
+    const entry = { type: 'assistant', content: 'hello' }
+    const result = TranscriptUuidSchema.safeParse(entry)
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.uuid).toBeUndefined()
+    }
+  })
+
+  it('allows passthrough of other fields', () => {
+    const entry = { uuid: 'test-uuid', type: 'user', extra: 'data' }
+    const result = TranscriptUuidSchema.safeParse(entry)
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.uuid).toBe('test-uuid')
+      expect(result.data.type).toBe('user')
+      expect(result.data.extra).toBe('data')
+    }
+  })
+
+  it('rejects non-string uuid values - number', () => {
+    const entry = { uuid: 12345 }
+    const result = TranscriptUuidSchema.safeParse(entry)
+
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects non-string uuid values - object', () => {
+    const entry = { uuid: { id: 'nested' } }
+    const result = TranscriptUuidSchema.safeParse(entry)
+
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects non-string uuid values - array', () => {
+    const entry = { uuid: ['a', 'b'] }
+    const result = TranscriptUuidSchema.safeParse(entry)
+
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects non-string uuid values - boolean', () => {
+    const entry = { uuid: true }
+    const result = TranscriptUuidSchema.safeParse(entry)
+
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects non-object input', () => {
+    const result = TranscriptUuidSchema.safeParse('not an object')
+
+    expect(result.success).toBe(false)
+  })
+})
 
 // ============================================================================
 // TokenUsageMetricsSchema Tests
