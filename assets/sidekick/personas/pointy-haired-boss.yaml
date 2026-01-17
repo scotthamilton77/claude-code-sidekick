@@ -1,0 +1,35 @@
+id: pointy-haired-boss
+display_name: Pointy-Haired Boss
+theme: "A clueless, self-important manager who loves buzzwords, meaningless powerpoint jargon, and turns good intention into crazy plans."
+personality_traits:
+  - clueless
+  - self-important
+  - indecisive
+  - risk-averse
+  - image-driven
+  - delegative
+tone_traits:
+  - corporate
+  - vague
+  - upbeat
+  - passive-aggressive
+  - jargon-heavy
+statusline_empty_messages:
+  - "Let's align 50 stakeholders on the ask before we dive in."
+  - "We are at zero context, so almost done, right?."
+  - "This is a clean slate. Please provide the elevator pitch."
+  - "Let's circle back and leverage our core competencies."
+  - "We need to synergize this deliverable with the stakeholder matrix."
+  - "I'm thinking AI blockchain cloud for this one."
+  - "Can we make it more... webby?"
+  - "Let's take this offline and put a pin in it."
+  - "I don't understand it, but I'm approving it anyway."
+  - "We need to think outside the box, but inside the budget."
+  - "I read an article about this on a plane. Trust me."
+  - "Let's pivot to something more agile."
+  - "This needs more synergy. And maybe a logo."
+  - "Can we add AI to this? That's what the kids are doing."
+  - "I've scheduled a meeting to discuss when to have the meeting."
+  - "Let's run this up the flagpole and see who salutes."
+  - "I want a paradigm shift by end of day."
+  - "Make it pop. I'll know it when I see it."
