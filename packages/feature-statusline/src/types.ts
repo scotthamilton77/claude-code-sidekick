@@ -66,113 +66,83 @@ export function normalizeSymbolMode(value: boolean | 'full' | 'safe' | 'ascii'):
 /**
  * Zod schema for statusline configuration.
  * Matches docs/design/FEATURE-STATUSLINE.md §4 Configuration Schema.
+ * All defaults come from assets/sidekick/defaults/features/statusline.defaults.yaml
  */
 export const StatuslineConfigSchema = z.object({
-  enabled: z.boolean().default(true),
-  format: z
-    .string()
-    .default('[{model}] | {contextBar} {tokenUsageActual}|{tokenUsageEffective} | {cwd}{branch} | {title} | {summary}'),
-  thresholds: z
-    .object({
-      tokens: z
-        .object({
-          warning: z.number().default(100000),
-          critical: z.number().default(160000),
-        })
-        .default({
-          warning: 100000,
-          critical: 160000,
-        }),
-      cost: z
-        .object({
-          warning: z.number().default(0.5),
-          critical: z.number().default(1.0),
-        })
-        .default({
-          warning: 0.5,
-          critical: 1.0,
-        }),
-      logs: z
-        .object({
-          /** Warning count threshold for yellow indicator */
-          warning: z.number().default(5),
-          /** Error count threshold for red indicator (any error = critical) */
-          critical: z.number().default(1),
-        })
-        .default({
-          warning: 5,
-          critical: 1,
-        }),
-    })
-    .default({
-      tokens: {
-        warning: 100000,
-        critical: 160000,
-      },
-      cost: {
-        warning: 0.5,
-        critical: 1.0,
-      },
-      logs: {
-        warning: 5,
-        critical: 1,
-      },
+  enabled: z.boolean(),
+  format: z.string(),
+  thresholds: z.object({
+    tokens: z.object({
+      warning: z.number(),
+      critical: z.number(),
     }),
-  theme: z
-    .object({
-      /**
-       * Icon/symbol mode for statusline display:
-       * - true or "full": All Unicode symbols including emojis (🪙, 📁, ⚠, ✗, ⎇)
-       * - "safe": BMP-only symbols that avoid VS Code terminal width issues (△, ×, ∗)
-       * - false or "ascii": ASCII-only characters for maximum compatibility
-       */
-      useNerdFonts: z.union([z.boolean(), z.enum(['full', 'safe', 'ascii'])]).default(true),
-      supportedMarkdown: z
-        .object({
-          /** Convert **text** to ANSI bold */
-          bold: z.boolean().default(true),
-          /** Convert *text* or _text_ to ANSI italic */
-          italic: z.boolean().default(true),
-          /** Convert `text` to ANSI dim */
-          code: z.boolean().default(true),
-        })
-        .default({ bold: true, italic: true, code: true }),
-      colors: z
-        .object({
-          model: z.string().default('blue'),
-          tokens: z.string().default('green'),
-          title: z.string().default('cyan'),
-          summary: z.string().default('magenta'),
-          cwd: z.string().default('white'),
-          duration: z.string().default('white'),
-          branch: z.string().optional(), // Optional: if set, overrides pattern-based coloring
-        })
-        .default({
-          model: 'blue',
-          tokens: 'green',
-          title: 'cyan',
-          summary: 'magenta',
-          cwd: 'white',
-          duration: 'white',
-        }),
-    })
-    .default({
-      useNerdFonts: true,
-      supportedMarkdown: { bold: true, italic: true, code: true },
-      colors: {
-        model: 'blue',
-        tokens: 'green',
-        title: 'cyan',
-        summary: 'magenta',
-        cwd: 'white',
-        duration: 'white',
-      },
+    cost: z.object({
+      warning: z.number(),
+      critical: z.number(),
     }),
+    logs: z.object({
+      /** Warning count threshold for yellow indicator */
+      warning: z.number(),
+      /** Error count threshold for red indicator (any error = critical) */
+      critical: z.number(),
+    }),
+  }),
+  theme: z.object({
+    /**
+     * Icon/symbol mode for statusline display:
+     * - true or "full": All Unicode symbols including emojis (🪙, 📁, ⚠, ✗, ⎇)
+     * - "safe": BMP-only symbols that avoid VS Code terminal width issues (△, ×, ∗)
+     * - false or "ascii": ASCII-only characters for maximum compatibility
+     */
+    useNerdFonts: z.union([z.boolean(), z.enum(['full', 'safe', 'ascii'])]),
+    supportedMarkdown: z.object({
+      /** Convert **text** to ANSI bold */
+      bold: z.boolean(),
+      /** Convert *text* or _text_ to ANSI italic */
+      italic: z.boolean(),
+      /** Convert `text` to ANSI dim */
+      code: z.boolean(),
+    }),
+    colors: z.object({
+      model: z.string(),
+      tokens: z.string(),
+      title: z.string(),
+      summary: z.string(),
+      cwd: z.string(),
+      duration: z.string(),
+      branch: z.string().optional(), // Optional: if set, overrides pattern-based coloring
+    }),
+  }),
 })
 
 export type StatuslineConfig = z.infer<typeof StatuslineConfigSchema>
 
-export const DEFAULT_STATUSLINE_CONFIG: StatuslineConfig = StatuslineConfigSchema.parse({})
+/**
+ * Default statusline config for test fixtures.
+ * Production code loads from assets/sidekick/defaults/features/statusline.defaults.yaml
+ * Values here must match the YAML file.
+ */
+export const DEFAULT_STATUSLINE_CONFIG: StatuslineConfig = {
+  enabled: true,
+  format: '[{model}] | {contextBar} {tokenPercentageActual} | {logs} | {cwd}{branch}\n{title} | {summary}',
+  thresholds: {
+    tokens: { warning: 100000, critical: 160000 },
+    cost: { warning: 0.5, critical: 1.0 },
+    logs: { warning: 5, critical: 1 },
+  },
+  theme: {
+    useNerdFonts: 'safe',
+    supportedMarkdown: { bold: true, italic: true, code: true },
+    colors: {
+      model: 'blue',
+      tokens: 'green',
+      title: 'blue',
+      summary: 'magenta',
+      cwd: 'white',
+      duration: 'white',
+    },
+  },
+}
 
 // ============================================================================
 // State File Schemas (Read-Only)
