@@ -139,6 +139,15 @@ bd update bd-42 --priority 1 --json
 bd close bd-42 --reason "Completed" --json
 ```
 
+**View and search:**
+
+```bash
+bd show bd-42 --json          # View issue details
+bd blocked --json             # Show blocked issues
+bd status                     # Database overview
+bd search "query" --json      # Find issues by text
+```
+
 ### Issue Types
 
 - `bug` - Something broken
@@ -181,8 +190,6 @@ bd automatically syncs with git:
 - ❌ Do NOT create markdown TODO lists
 - ❌ Do NOT use external issue trackers
 - ❌ Do NOT duplicate tracking systems
-
-For more details, see README.md and docs/QUICKSTART.md.
 
 <!-- END BEADS INTEGRATION -->
 </task-tracking>
