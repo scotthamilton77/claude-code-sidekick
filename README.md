@@ -25,7 +25,7 @@ This repository serves as a development and testing environment for [Claude Code
 
 ### Nice to Haves
 
-- add automatic ralph wigguming?
+- add automatic ralph wigguming? - particularly the feedback cycles built in - see https://x.com/ryancarson/status/2008548371712135632
 - add support for task id extraction?
 - add stakes and psychology to the user prompt reminder?  https://medium.com/@ichigoSan/i-accidentally-made-claude-45-smarter-heres-how-23ad0bf91ccf
 - should this be a claude code plugin? There are plugin hooks referenced here: https://code.claude.com/docs/en/hooks
