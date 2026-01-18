@@ -573,7 +573,13 @@ export class StatuslineService {
     const displayMode = this.determineDisplayMode(summary, resume)
 
     // Determine summary text based on display mode
-    const { summaryText, title } = this.getSummaryContent(displayMode, summary, resume, snarkyMessage, emptySessionMessage)
+    const { summaryText, title } = this.getSummaryContent(
+      displayMode,
+      summary,
+      resume,
+      snarkyMessage,
+      emptySessionMessage
+    )
 
     // Calculate effective tokens for display
     // Use current_usage from hook input: sum of input + cache tokens represents actual context window usage
