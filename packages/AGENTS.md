@@ -49,9 +49,9 @@ cli (hook dispatcher)
 
 | Package | Purpose |
 |---------|---------|
-| `feature-reminders` | Reminder staging/consumption: pause-and-reflect, verify-completion |
-| `feature-session-summary` | LLM-based conversation analysis with adaptive polling |
-| `feature-statusline` | Token tracking, context bar, git branch, session title |
+| `feature-reminders` | Reminder staging/consumption, ReminderOrchestrator for cross-reminder coordination |
+| `feature-session-summary` | LLM-based analysis, persona selection, snarky/resume message generation |
+| `feature-statusline` | Token tracking, context bar, git branch, persona display |
 
 ## Commands
 

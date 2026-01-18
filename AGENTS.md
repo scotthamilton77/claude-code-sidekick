@@ -23,11 +23,13 @@ TypeScript/Bash developer for Claude Code hooks system (Sidekick).
 <structure>
 
 ```
-src/sidekick/           # LEGACY—will be deleted
-scripts/                # install.sh, dev-mode.sh, analyze-session-at-line.sh, simulate-session.py
-packages/               # See packages/AGENTS.md for monorepo details
+src/sidekick/              # LEGACY—will be deleted
+scripts/                   # install.sh, dev-mode.sh, analyze-session-at-line.sh
+packages/                  # See packages/AGENTS.md for monorepo details
 assets/sidekick/defaults/  # YAML config defaults
-benchmark-next/         # STALE—see benchmark-next/AGENTS.md
+assets/sidekick/personas/  # Character personality profiles (17 personas)
+assets/sidekick/prompts/   # LLM prompt templates with persona interpolation
+development-tools/llm-eval/ # LLM evaluation tools (relocated from benchmark-next/)
 ```
 </structure>
 
