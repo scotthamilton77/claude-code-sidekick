@@ -122,14 +122,7 @@ describe('Config-YAML Alignment', () => {
       expect(profiles).toHaveProperty(defaultProfile)
 
       // Each profile must have all required LlmProfile fields
-      const requiredProfileFields = [
-        'provider',
-        'model',
-        'temperature',
-        'maxTokens',
-        'timeout',
-        'timeoutMaxRetries',
-      ]
+      const requiredProfileFields = ['provider', 'model', 'temperature', 'maxTokens', 'timeout', 'timeoutMaxRetries']
 
       for (const [profileName, profile] of Object.entries(profiles)) {
         for (const field of requiredProfileFields) {
@@ -158,14 +151,7 @@ describe('Config-YAML Alignment', () => {
       const fallbacks = yamlDefaults.fallbacks as Record<string, unknown> | undefined
 
       if (fallbacks) {
-        const requiredProfileFields = [
-          'provider',
-          'model',
-          'temperature',
-          'maxTokens',
-          'timeout',
-          'timeoutMaxRetries',
-        ]
+        const requiredProfileFields = ['provider', 'model', 'temperature', 'maxTokens', 'timeout', 'timeoutMaxRetries']
 
         for (const [profileName, profile] of Object.entries(fallbacks)) {
           for (const field of requiredProfileFields) {
@@ -186,10 +172,7 @@ describe('Config-YAML Alignment', () => {
       const requiredPaths = ['watchDebounceMs', 'metricsPersistIntervalMs']
 
       for (const path of requiredPaths) {
-        expect(
-          pathExists(yamlDefaults, path),
-          `Missing required YAML default: ${path}`
-        ).toBe(true)
+        expect(pathExists(yamlDefaults, path), `Missing required YAML default: ${path}`).toBe(true)
       }
     })
 
