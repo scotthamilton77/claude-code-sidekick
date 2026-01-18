@@ -88,6 +88,8 @@ export interface PersonaTemplateContext {
   persona_theme: string
   persona_personality: string
   persona_tone: string
+  persona_snarky_examples: string
+  persona_resume_examples: string
 }
 
 /**
@@ -103,7 +105,15 @@ export function buildPersonaContext(persona: PersonaDefinition | null): PersonaT
       persona_theme: '',
       persona_personality: '',
       persona_tone: '',
+      persona_snarky_examples: '',
+      persona_resume_examples: '',
     }
+  }
+
+  // Format examples as bulleted list for prompt injection
+  const formatExamples = (examples: string[] | undefined): string => {
+    if (!examples || examples.length === 0) return ''
+    return examples.map((ex) => `- "${ex}"`).join('\n')
   }
 
   return {
@@ -112,6 +122,8 @@ export function buildPersonaContext(persona: PersonaDefinition | null): PersonaT
     persona_theme: persona.theme,
     persona_personality: persona.personality_traits.join(', '),
     persona_tone: persona.tone_traits.join(', '),
+    persona_snarky_examples: formatExamples(persona.snarky_examples),
+    persona_resume_examples: formatExamples(persona.resume_examples),
   }
 }
 
