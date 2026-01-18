@@ -133,10 +133,36 @@ bd dep add <epic-9.6> <task-9.5.1>   # All of 9.6 waits for 9.5.1
 | `--labels` | Tags (comma-sep) | `--labels refactoring,phase-9` |
 | `--defer` | Hide until date | `--defer "next monday"` |
 
+### Default Acceptance Criteria
+
+When creating implementation tasks (type: task, bug, feature), **always include standard quality gates** in acceptance criteria unless explicitly inappropriate for the task type.
+
+**Standard criteria for code changes:**
+```
+Build passes. Typecheck passes. Tests pass.
+```
+
+Append these after task-specific criteria:
+```bash
+bd create "Implement persona selection" --type task \
+  --acceptance "Selection persisted to session-persona.json. Build passes. Typecheck passes. Tests pass."
+```
+
+**Discovered work protocol:**
+- Out-of-scope issues found during implementation → create new bead with `discovered-from:<parent-id>` dependency
+- Don't fix unrelated problems inline; track them for separate work
+
+**Skip standard criteria for:**
+- Documentation-only tasks
+- Design/research/investigation tasks
+- Epic planning tasks
+- Chores that don't touch code (e.g., dependency updates with no code changes)
+
 ### Workflow for AI Agents
 
 1. **Check ready work**: `bd ready` shows unblocked issues
 2. **Claim your task**: `bd update <id> --status in_progress`
+   - Also mark parent chain as in_progress (if parent is still `open`, update it too, recursively up)
 3. **Check parent context**: If task has a parent, run `bd show <parent-id>` recursively to see parent's acceptance criteria, description, and sibling tasks
 4. **Work on it**: Implement, test, document
 5. **Discover new work?** Create linked issue with `--deps discovered-from:<parent-id>`
@@ -144,6 +170,7 @@ bd dep add <epic-9.6> <task-9.5.1>   # All of 9.6 waits for 9.5.1
 7. **Initiate agent reviews**: Use the code review and code simplifier skills and/or agents
 8. **Pause and let the user review**
 9. **Complete**: Only once the user agrees the work is done and explicitly asks for a commit: `bd close <id>`
+   - **Cascade parent closure**: After closing, check if task has a parent. If all sibling tasks are now closed, close the parent too. Repeat recursively up the tree.
 
 ### Rules
 
