@@ -376,7 +376,11 @@ export class Daemon {
    * Per design/DAEMON.md §4.3: Reload config in-memory on change.
    */
   private handleConfigChange(event: ConfigChangeEvent): void {
-    this.logger.info('Configuration change detected', { file: event.file, eventType: event.eventType })
+    this.logger.info('Configuration change detected', {
+      file: event.file,
+      eventType: event.eventType,
+      scope: event.scope,
+    })
 
     // Reload configuration
     try {

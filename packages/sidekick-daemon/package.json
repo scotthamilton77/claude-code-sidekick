@@ -18,6 +18,7 @@
     "@sidekick/feature-session-summary": "workspace:*",
     "@sidekick/shared-providers": "workspace:*",
     "@sidekick/types": "workspace:*",
+    "chokidar": "^4.0.0",
     "pino": "^9.0.0",
     "zod": "^3.22.4"
   },
