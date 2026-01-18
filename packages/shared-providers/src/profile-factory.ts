@@ -57,6 +57,9 @@ export class ProfileProviderFactory {
         maxRetries: profile.timeoutMaxRetries,
         temperature: profile.temperature,
         maxTokens: profile.maxTokens,
+        // OpenRouter-specific provider routing
+        providerAllowlist: profile.providerAllowlist,
+        providerBlocklist: profile.providerBlocklist,
       },
       this.logger
     )

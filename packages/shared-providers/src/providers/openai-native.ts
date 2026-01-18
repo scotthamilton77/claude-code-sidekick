@@ -20,6 +20,9 @@ export interface OpenAINativeConfig {
   timeout?: number
   temperature?: number
   maxTokens?: number
+  // OpenRouter-specific provider routing
+  providerAllowlist?: string[]
+  providerBlocklist?: string[]
 }
 
 export class OpenAINativeProvider extends AbstractProvider {
@@ -28,6 +31,8 @@ export class OpenAINativeProvider extends AbstractProvider {
   private readonly defaultModel: string
   private readonly temperature?: number
   private readonly maxTokens?: number
+  private readonly providerAllowlist?: string[]
+  private readonly providerBlocklist?: string[]
 
   constructor(config: OpenAINativeConfig, logger: Logger) {
     super(logger)
@@ -35,6 +40,8 @@ export class OpenAINativeProvider extends AbstractProvider {
     this.defaultModel = config.model
     this.temperature = config.temperature
     this.maxTokens = config.maxTokens
+    this.providerAllowlist = config.providerAllowlist
+    this.providerBlocklist = config.providerBlocklist
 
     this.client = new OpenAI({
       apiKey: config.apiKey,
@@ -50,6 +57,8 @@ export class OpenAINativeProvider extends AbstractProvider {
       baseURL: config.baseURL,
       temperature: this.temperature,
       maxTokens: this.maxTokens,
+      providerAllowlist: this.providerAllowlist,
+      providerBlocklist: this.providerBlocklist,
       apiKey: this.redactApiKey(config.apiKey),
     })
   }
@@ -75,12 +84,16 @@ export class OpenAINativeProvider extends AbstractProvider {
           }
         : undefined
 
+      // Build OpenRouter provider routing if configured (only applies to OpenRouter)
+      const providerRouting = this.buildProviderRouting()
+
       const completion = await this.client.chat.completions.create({
         model: request.model ?? this.defaultModel,
         messages,
         temperature: this.temperature,
         max_tokens: this.maxTokens,
         response_format: responseFormat,
+        ...providerRouting,
         ...request.additionalParams,
       })
 
@@ -105,6 +118,35 @@ export class OpenAINativeProvider extends AbstractProvider {
       this.logError(error as Error)
       throw this.mapError(error)
     }
+  }
+
+  /**
+   * Build OpenRouter provider routing object.
+   * Returns empty object if no routing configured or not using OpenRouter.
+   * @see https://openrouter.ai/docs/guides/routing/provider-selection
+   */
+  private buildProviderRouting(): Record<string, unknown> {
+    // Only apply to OpenRouter
+    if (this.id !== 'openrouter') {
+      return {}
+    }
+
+    const hasAllowlist = this.providerAllowlist && this.providerAllowlist.length > 0
+    const hasBlocklist = this.providerBlocklist && this.providerBlocklist.length > 0
+
+    if (!hasAllowlist && !hasBlocklist) {
+      return {}
+    }
+
+    const providerObj: Record<string, string[]> = {}
+    if (hasAllowlist) {
+      providerObj.only = this.providerAllowlist!
+    }
+    if (hasBlocklist) {
+      providerObj.ignore = this.providerBlocklist!
+    }
+
+    return { provider: providerObj }
   }
 
   private mapError(error: unknown): ProviderError {

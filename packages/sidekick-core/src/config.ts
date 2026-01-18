@@ -155,6 +155,9 @@ const LlmProfileSchema = z.object({
   maxTokens: z.number().positive(),
   timeout: z.number().min(1).max(300),
   timeoutMaxRetries: z.number().min(0).max(10),
+  // OpenRouter-specific provider routing (ignored for other providers)
+  providerAllowlist: z.array(z.string()).optional(),
+  providerBlocklist: z.array(z.string()).optional(),
 })
 
 export type LlmProfile = z.infer<typeof LlmProfileSchema>

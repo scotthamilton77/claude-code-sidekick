@@ -31,6 +31,31 @@
 # Default profile used when no specific profile is requested
 defaultProfile: fast-lite
 
+# OpenRouter Provider Routing
+# Control which backend providers OpenRouter uses via allowlist/blocklist.
+# Maps to OpenRouter's provider.only (allowlist) and provider.ignore (blocklist).
+# See: https://openrouter.ai/docs/guides/routing/provider-selection
+#
+# Example profile with provider routing:
+#   example-with-routing:
+#     provider: openrouter
+#     model: openai/gpt-oss-20b
+#     temperature: 0.7
+#     maxTokens: 1000
+#     timeout: 15
+#     timeoutMaxRetries: 2
+#     providerAllowlist:        # Only use these providers (provider.only)
+#       - deepinfra/fp4
+#       - groq
+#     providerBlocklist:        # Never use these providers (provider.ignore)
+#       - azure
+#
+# Legacy model-specific allowlists (for reference):
+#   google/gemma-3-12b-it:                    providerAllowlist: ["deepinfra/bf16"]
+#   google/gemma-3-27b-it:                    providerAllowlist: ["nebius/fp8", "deepinfra/fp8"]
+#   openai/gpt-oss-20b:                       providerAllowlist: ["deepinfra/fp4", "groq"]
+#   deepseek/deepseek-r1-distill-qwen-14b:    providerAllowlist: ["novita/bf16"]
+
 # Primary profiles - referenced by features
 profiles:
   # Fast, cheap profile for simple tasks

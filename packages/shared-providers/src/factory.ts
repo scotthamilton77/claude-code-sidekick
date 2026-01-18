@@ -32,6 +32,9 @@ export interface ProviderConfig {
   temperature?: number
   maxTokens?: number
   cliPath?: string
+  // OpenRouter-specific provider routing
+  providerAllowlist?: string[]
+  providerBlocklist?: string[]
 }
 
 /**
@@ -126,6 +129,8 @@ export class ProviderFactory {
       timeout: this.config.timeout,
       temperature: this.config.temperature,
       maxTokens: this.config.maxTokens,
+      providerAllowlist: this.config.providerAllowlist,
+      providerBlocklist: this.config.providerBlocklist,
     }
 
     return new OpenAINativeProvider(openrouterConfig, this.logger)
