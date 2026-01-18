@@ -620,19 +620,11 @@ import type {
   LoggingEventBase,
   TranscriptEventType,
   TranscriptMetrics,
+  EventLogContext,
 } from '@sidekick/types'
 
-/**
- * Context for logging events.
- */
-export interface EventLogContext {
-  sessionId: string
-  scope?: 'project' | 'user'
-  correlationId?: string
-  traceId?: string
-  hook?: string
-  taskId?: string
-}
+// Re-export for backward compatibility
+export type { EventLogContext } from '@sidekick/types'
 
 /**
  * Factory functions for creating properly-typed logging events.

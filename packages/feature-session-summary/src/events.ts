@@ -8,19 +8,10 @@
  * @see docs/design/FEATURE-SESSION-SUMMARY.md §3.4
  */
 
-import type { SummaryUpdatedEvent, SummarySkippedEvent } from '@sidekick/types'
+import type { SummaryUpdatedEvent, SummarySkippedEvent, EventLogContext } from '@sidekick/types'
 
-/**
- * Context for logging events.
- */
-export interface EventLogContext {
-  sessionId: string
-  scope?: 'project' | 'user'
-  correlationId?: string
-  traceId?: string
-  hook?: string
-  taskId?: string
-}
+// Re-export for consumers
+export type { EventLogContext } from '@sidekick/types'
 
 /**
  * Factory functions for creating session-summary-related logging events.

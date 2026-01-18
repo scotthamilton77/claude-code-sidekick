@@ -8,19 +8,10 @@
  * @see docs/design/FEATURE-REMINDERS.md
  */
 
-import type { ReminderConsumedEvent, RemindersClearedEvent } from '@sidekick/types'
+import type { ReminderConsumedEvent, RemindersClearedEvent, EventLogContext } from '@sidekick/types'
 
-/**
- * Context for logging events.
- */
-export interface EventLogContext {
-  sessionId: string
-  scope?: 'project' | 'user'
-  correlationId?: string
-  traceId?: string
-  hook?: string
-  taskId?: string
-}
+// Re-export for consumers
+export type { EventLogContext } from '@sidekick/types'
 
 /**
  * Factory functions for creating reminder-related logging events.
@@ -51,6 +42,7 @@ export const ReminderEvents = {
         correlationId: context.correlationId,
         traceId: context.traceId,
         hook: context.hook,
+        taskId: context.taskId,
       },
       payload: {
         state,
