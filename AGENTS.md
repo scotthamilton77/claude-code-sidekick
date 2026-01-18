@@ -35,16 +35,18 @@ development-tools/llm-eval/ # LLM evaluation tools (relocated from benchmark-nex
 
 <cli_commands>
 
+**CLI invocation**: `node packages/sidekick-cli/dist/bin.js <command> [args]`
+
 **Persona commands** (require daemon running):
 ```bash
 # Set/change session persona
-sidekick persona <persona-id> --session-id=<id>
+node packages/sidekick-cli/dist/bin.js persona <persona-id> --session-id=<id>
 
 # Clear session persona
-sidekick persona --session-id=<id>
+node packages/sidekick-cli/dist/bin.js persona --session-id=<id>
 
 # Test persona voice generation
-sidekick persona-test <persona-id> --session-id=<id> [--type=snarky|resume]
+node packages/sidekick-cli/dist/bin.js persona-test <persona-id> --session-id=<id> [--type=snarky|resume]
 ```
 
 Find your session ID in `.sidekick/sessions/` or grep for your session title.
