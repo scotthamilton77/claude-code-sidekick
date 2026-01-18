@@ -332,6 +332,7 @@ do_clean() {
 
   local sidekick_dir="${PROJECT_ROOT}/.sidekick"
   local logs_dir="${sidekick_dir}/logs"
+  local state_dir="${sidekick_dir}/state"
   local pid_file="${sidekick_dir}/daemon.pid"
   local socket_file="${sidekick_dir}/daemon.sock"
   local token_file="${sidekick_dir}/daemon.token"
@@ -377,7 +378,38 @@ do_clean() {
     log_info "No logs directory found"
   fi
 
-  # 3. Check for zombie daemon processes
+  # 3. Clean project state folder
+  if [[ -d "${state_dir}" ]]; then
+    local project_state_files
+    project_state_files=$(find "${state_dir}" -type f 2>/dev/null | wc -l | tr -d ' ')
+    if [[ "${project_state_files}" -gt 0 ]]; then
+      log_info "Cleaning project state folder (${project_state_files} files)..."
+      rm -rf "${state_dir:?}"/*
+      log_info "Project state cleaned"
+    else
+      log_info "Project state folder is empty"
+    fi
+  else
+    log_info "No project state folder found"
+  fi
+
+  # 4. Clean global state folder
+  local global_state_dir="${HOME}/.sidekick/state"
+  if [[ -d "${global_state_dir}" ]]; then
+    local global_state_files
+    global_state_files=$(find "${global_state_dir}" -type f 2>/dev/null | wc -l | tr -d ' ')
+    if [[ "${global_state_files}" -gt 0 ]]; then
+      log_info "Cleaning global state folder (${global_state_files} files)..."
+      rm -rf "${global_state_dir:?}"/*
+      log_info "Global state cleaned"
+    else
+      log_info "Global state folder is empty"
+    fi
+  else
+    log_info "No global state folder found"
+  fi
+
+  # 5. Check for zombie daemon processes
   echo ""
   log_step "Checking for zombie daemon processes..."
 
@@ -474,51 +506,35 @@ do_clean_all() {
   do_clean
 
   local sidekick_dir="${PROJECT_ROOT}/.sidekick"
+  local logs_dir="${sidekick_dir}/logs"
   local sessions_dir="${sidekick_dir}/sessions"
   local state_dir="${sidekick_dir}/state"
 
   echo ""
-  log_step "Cleaning session and state directories..."
+  log_step "Removing logs, sessions, and state directories..."
 
-  # Clean session directories
+  # Delete logs directory
+  if [[ -d "${logs_dir}" ]]; then
+    rm -rf "${logs_dir:?}"
+    log_info "Removed ${logs_dir}"
+  else
+    log_info "No logs directory found"
+  fi
+
+  # Delete sessions directory
   if [[ -d "${sessions_dir}" ]]; then
-    local session_count
-    session_count=$(find "${sessions_dir}" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
-
-    if [[ "${session_count}" -gt 0 ]]; then
-      local sessions_size
-      sessions_size=$(du -sh "${sessions_dir}" 2>/dev/null | cut -f1)
-      log_info "Found ${session_count} session directories (${sessions_size})"
-
-      read -r -p "Remove all session directories? [y/N] " response
-      case "${response}" in
-        [yY][eE][sS]|[yY])
-          rm -rf "${sessions_dir:?}"/*
-          log_info "Session directories removed"
-          ;;
-        *)
-          log_info "Skipping session cleanup"
-          ;;
-      esac
-    else
-      log_info "No session directories found"
-    fi
+    rm -rf "${sessions_dir:?}"
+    log_info "Removed ${sessions_dir}"
   else
     log_info "No sessions directory found"
   fi
 
-  # Clean state directory (except daemon-status.json which is just status info)
+  # Delete state directory
   if [[ -d "${state_dir}" ]]; then
-    local state_files
-    state_files=$(find "${state_dir}" -type f -name "*.json" ! -name "daemon-status.json" 2>/dev/null | wc -l | tr -d ' ')
-
-    if [[ "${state_files}" -gt 0 ]]; then
-      log_info "Found ${state_files} state files"
-      find "${state_dir}" -type f -name "*.json" ! -name "daemon-status.json" -delete 2>/dev/null || true
-      log_info "State files cleaned (kept daemon-status.json)"
-    else
-      log_info "No extra state files to clean"
-    fi
+    rm -rf "${state_dir:?}"
+    log_info "Removed ${state_dir}"
+  else
+    log_info "No state directory found"
   fi
 
   # Clean /tmp sidekick sockets (stale sockets from crashed sessions)
@@ -548,8 +564,8 @@ Commands:
   enable     Add dev-hooks to .claude/settings.local.json
   disable    Remove dev-hooks from .claude/settings.local.json
   status     Show current dev-mode state
-  clean      Truncate logs, kill daemon, check for zombies
-  clean-all  Full cleanup: clean + session dirs + stale sockets
+  clean      Truncate logs, kill daemon, clean state folders, check for zombies
+  clean-all  Full cleanup: clean + remove logs/sessions/state dirs + stale sockets
 
 The dev-mode hooks use \$CLAUDE_PROJECT_DIR paths for Docker compatibility.
 They point to scripts/dev-hooks/ which call the workspace CLI at:
