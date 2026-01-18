@@ -502,6 +502,32 @@ pnpm tsc --noEmit
 node packages/sidekick-cli/dist/bin.js session-start --hook
 ```
 
+### Persona Commands
+
+Change or test personas for a session:
+
+```bash
+# Set session persona
+sidekick persona <persona-id> --session-id=<session-id>
+
+# Clear session persona (use default)
+sidekick persona --session-id=<session-id>
+
+# Test persona voice with snarky or resume message generation
+sidekick persona-test <persona-id> --session-id=<session-id> [--type=snarky|resume]
+```
+
+**Output format (JSON)**:
+```json
+{
+  "success": true,
+  "personaId": "hal",
+  "previousPersonaId": "skippy"
+}
+```
+
+Available personas are defined in `assets/sidekick/personas/`.
+
 ## Development Patterns
 
 ### Dual-Scope Compatibility
