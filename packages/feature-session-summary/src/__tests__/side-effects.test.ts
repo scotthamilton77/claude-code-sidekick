@@ -186,8 +186,11 @@ describe('Session Summary Side-Effects', () => {
       expect(stateService.has(summaryPath)).toBe(false)
     })
 
-    it('triggers analysis on BulkProcessingComplete event', async () => {
+    it('triggers analysis on BulkProcessingComplete event when turnCount > 0', async () => {
       const sessionId = 'test-bulk-complete'
+
+      // Must have at least one user turn to trigger analysis
+      transcript.setMetrics({ turnCount: 1 })
 
       // Queue LLM responses:
       // 1) summary analysis
@@ -217,6 +220,22 @@ describe('Session Summary Side-Effects', () => {
       const summaryPath = stateService.sessionStatePath(sessionId, 'session-summary.json')
       const summary = stateService.getStored(summaryPath) as Record<string, unknown>
       expect(summary.session_title).toBe('Full Session Analysis')
+    })
+
+    it('skips LLM analysis on BulkProcessingComplete when turnCount is 0', async () => {
+      const sessionId = 'test-bulk-no-turns'
+
+      // No user turns yet (only system entries like summary/file-history-snapshot)
+      transcript.setMetrics({ turnCount: 0 })
+
+      await updateSessionSummary(createBulkProcessingCompleteEvent(sessionId), ctx)
+
+      // LLM should NOT be called
+      expect(llm.recordedRequests).toHaveLength(0)
+
+      // No summary file should be created
+      const summaryPath = stateService.sessionStatePath(sessionId, 'session-summary.json')
+      expect(stateService.has(summaryPath)).toBe(false)
     })
   })
 
