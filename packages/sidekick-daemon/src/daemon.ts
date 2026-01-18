@@ -90,6 +90,8 @@ export class Daemon {
   private logManager: LogManager
   private stateService: StateService
   private userStateService: StateService
+  /** Non-caching state service for staging files (cross-process access) */
+  private stagingStateService: StateService
   private taskEngine: TaskEngine
   private taskRegistry: TaskRegistry
   private ipcServer: IpcServer
@@ -180,6 +182,13 @@ export class Daemon {
       logger: this.logger,
       config: () => this.configService.getAll(),
     })
+    // Non-caching state service for staging files (cross-process access)
+    // CLI writes/deletes staging files, daemon reads them - caching would cause staleness
+    this.stagingStateService = new StateService(projectDir, {
+      cache: false,
+      logger: this.logger,
+      config: () => this.configService.getAll(),
+    })
     this.taskEngine = new TaskEngine(this.logger, this.getContextForTask.bind(this))
     this.taskRegistry = new TaskRegistry(this.stateService, this.logger)
 
@@ -204,6 +213,7 @@ export class Daemon {
       scope: 'project',
       handlers: this.handlerRegistry,
       stateService: this.stateService,
+      stagingStateService: this.stagingStateService,
       watchDebounceMs: this.configService.transcript.watchDebounceMs,
       metricsPersistIntervalMs: this.configService.transcript.metricsPersistIntervalMs,
     })

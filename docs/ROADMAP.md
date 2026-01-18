@@ -307,9 +307,10 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
       - Rule 3: VC consumed → reset P&R baseline
       - Rule 4: VC consumed → unstage P&R (prevent double block)
     - [x] Separate non-caching StateService for staging files (cross-process safety)
-  - [ ] **9.6.2 Centralize Baseline State**
-    - [ ] Move `pr-baseline.json` management from IPC to orchestrator service
-    - [ ] Clear read/write semantics for baseline state
+  - [x] **9.6.2 Centralize Baseline State** - COMPLETE 2026-01-18
+    - [x] `ReminderOrchestrator` class with `onReminderStaged`, `onReminderConsumed`, `onUserPromptSubmit`, `readPRBaseline`
+    - [x] Baseline writes/clears via orchestrator methods, reads via `readPRBaseline()`
+    - [x] Non-caching `stagingStateService` in daemon for cross-process staging operations
   - [ ] **9.6.3 Simplify Handlers**
     - [ ] Remove scattered `deleteReminder()` calls from: stage-pause-and-reflect.ts, unstage-verify-completion.ts, inject-stop.ts
     - [ ] Handlers call orchestrator instead of direct coordination
