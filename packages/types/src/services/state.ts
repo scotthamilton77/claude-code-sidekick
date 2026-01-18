@@ -73,6 +73,29 @@ export const SESSION_SUMMARY_PLACEHOLDERS = {
   awaitingFirstPrompt: 'Awaiting first prompt...',
 } as const
 
+// ============================================================================
+// Session Persona State
+// ============================================================================
+
+/**
+ * Session persona state persisted to disk.
+ * Selected on SessionStart and used to shape creative outputs (snarky, resume).
+ *
+ * Location: `.sidekick/sessions/{sessionId}/state/session-persona.json`
+ *
+ * @see docs/design/PERSONA-PROFILES-DESIGN.md - Session Persona State
+ */
+export const SessionPersonaStateSchema = z.object({
+  /** Selected persona identifier */
+  persona_id: z.string(),
+  /** List of persona IDs that were available for selection */
+  selected_from: z.array(z.string()),
+  /** ISO8601 timestamp of selection */
+  timestamp: z.string(),
+})
+
+export type SessionPersonaState = z.infer<typeof SessionPersonaStateSchema>
+
 /**
  * Internal countdown state for throttling session summary updates.
  * Stored alongside session summary for persistence across Daemon restarts.
