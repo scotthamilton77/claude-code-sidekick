@@ -392,7 +392,7 @@ This document preserves the full implementation details of completed phases from
         - [x] Telemetry events emitted for LLM request (duration, success)
         - [x] Test runs without real API calls (fully mocked)
         - [x] Test demonstrates RuntimeContext wiring (config → provider → service → feature)
-      - [x] Integration test: TranscriptService → Handler flow (see `packages/sidekick-core/src/__tests__/phase-4.5-integration.test.ts`)
+      - [x] Integration test: TranscriptService → Handler flow (see `packages/sidekick-core/src/__tests__/transcript-handler-integration.test.ts`)
         - [x] TranscriptService emits events on file change
         - [x] Registered handlers receive events with correct metrics
         - [x] Handler can access `ctx.staging` to stage reminders
@@ -401,7 +401,7 @@ This document preserves the full implementation details of completed phases from
         - [x] Tests in `packages/shared-providers/src/__tests__/factory.test.ts`
       - [x] Verify structured errors on provider exhaustion (see `packages/shared-providers/src/__tests__/fallback.test.ts`)
     - [x] Testing
-      - [x] Full integration test suite (10 tests in phase-4.5-integration.test.ts)
+      - [x] Full integration test suite (10 tests in transcript-handler-integration.test.ts)
       - [x] Error scenario tests (provider failures, fallback behavior)
     - [x] **Final verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test` - PASSED 2025-12-01
 

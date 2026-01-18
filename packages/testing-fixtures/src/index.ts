@@ -2,12 +2,9 @@
  * Testing Fixtures Package
  *
  * Provides shared mocks, factories, and test utilities for the Sidekick
- * Node runtime packages. Implements Phase 4 Track C per docs/design/TEST-FIXTURES.md.
- *
- * Updated for Phase 4.1 discriminated union context types.
+ * Node runtime packages.
  *
  * @see docs/design/TEST-FIXTURES.md
- * @see docs/ROADMAP.md Phase 4 Track C
  */
 
 // Mocks

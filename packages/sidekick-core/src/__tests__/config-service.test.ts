@@ -15,7 +15,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
-import { createConfigService, loadConfig, parseUnifiedConfig, type SidekickConfig } from '../config'
+import { createConfigService, loadConfig, parseUnifiedConfig } from '../config'
 import type { AssetResolver } from '../assets'
 
 // =============================================================================
@@ -944,7 +944,7 @@ describe('loadConfig - environment variables', () => {
 // =============================================================================
 
 // =============================================================================
-// External Defaults Tests (Phase 3)
+// External Defaults Tests
 // =============================================================================
 
 describe('loadConfig - external defaults', () => {
@@ -1081,26 +1081,11 @@ describe('loadConfig - external defaults', () => {
 })
 
 // =============================================================================
-// Feature Defaults Tests (Phase 4)
+// Feature Defaults Tests
 // =============================================================================
 
 describe('ConfigService - getFeature with external defaults', () => {
   const tempRoot = join(tmpdir(), 'sidekick-feature-defaults-tests')
-
-  // LLM defaults needed for config validation
-  const mockLlmDefaults = {
-    defaultProfile: 'fast-lite',
-    profiles: {
-      'fast-lite': {
-        provider: 'openrouter',
-        model: 'test-model',
-        temperature: 0,
-        maxTokens: 4096,
-        timeout: 30,
-        timeoutMaxRetries: 3,
-      },
-    },
-  }
 
   beforeEach(() => {
     mkdirSync(tempRoot, { recursive: true })

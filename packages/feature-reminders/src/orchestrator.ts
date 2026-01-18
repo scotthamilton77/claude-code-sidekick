@@ -11,7 +11,6 @@
  * 4. VC consumed → unstage P&R (prevent double block)
  *
  * @see docs/plans/2026-01-18-reminder-orchestrator-design.md
- * @see docs/ROADMAP.md Phase 9.6
  */
 
 import type {

@@ -201,14 +201,14 @@ export class Daemon {
     // Initialize Config Watcher for hot-reload (design/DAEMON.md §4.3)
     this.configWatcher = new ConfigWatcher(this.stateService.rootDir(), this.logger, this.handleConfigChange.bind(this))
 
-    // Initialize Handler Registry (Phase 5.3)
+    // Initialize Handler Registry
     this.handlerRegistry = new HandlerRegistryImpl({
       logger: this.logger,
       sessionId: '', // Updated on SessionStart
       scope: 'project',
     })
 
-    // Initialize Service Factory for session-scoped services (Phase 4)
+    // Initialize Service Factory for session-scoped services
     this.serviceFactory = new ServiceFactoryImpl({
       stateDir: this.stateService.rootDir(),
       logger: this.logger,
@@ -232,7 +232,7 @@ export class Daemon {
     // Initialize Profile Provider Factory for profile-based LLM provider creation
     this.profileProviderFactory = new ProfileProviderFactory(this.configService, this.logger)
 
-    // Initialize Reminder Orchestrator for cross-reminder coordination (Phase 9.6)
+    // Initialize Reminder Orchestrator for cross-reminder coordination
     // Uses serviceFactory.getStagingService for session-scoped staging access
     this.orchestrator = new ReminderOrchestrator({
       getStagingService: (sessionId) => this.serviceFactory.getStagingService(sessionId),
@@ -240,7 +240,7 @@ export class Daemon {
       logger: this.logger,
     })
 
-    // Register staging handlers (Phase 8.5 - Reminders feature)
+    // Register staging handlers (Reminders feature)
     // These handlers listen for SessionStart/transcript events and stage reminders
     // for CLI consumption. They need DaemonContext at invocation time.
     this.registerStagingHandlers()
@@ -269,13 +269,13 @@ export class Daemon {
       // 4. Initialize Context Metrics (writes defaults, triggers async CLI capture)
       await this.contextMetricsService.initialize()
 
-      // 5. Clean up orphaned tasks from previous runs (Phase 5.2 orphan prevention)
+      // 5. Clean up orphaned tasks from previous runs (orphan prevention)
       const orphanCount = await this.taskRegistry.cleanupOrphans()
       if (orphanCount > 0) {
         this.logger.info('Cleaned up orphaned tasks', { orphanCount })
       }
 
-      // 6. Register standard task handlers (Phase 5.2 task types)
+      // 6. Register standard task handlers
       registerStandardTaskHandlers(
         this.taskEngine,
         this.stateService,
@@ -297,7 +297,7 @@ export class Daemon {
       // 10. Start heartbeat for monitoring UI
       this.startHeartbeat()
 
-      // 11. Start periodic session eviction (Phase 6)
+      // 11. Start periodic session eviction
       this.startEvictionTimer()
 
       this.logger.info('Daemon started successfully')
@@ -595,7 +595,7 @@ export class Daemon {
       return
     }
 
-    // Clean staging on startup or clear (Phase 5.4)
+    // Clean staging on startup or clear
     const startType = payload.startType
     if (startType === 'startup' || startType === 'clear') {
       const stagingService = this.serviceFactory.getStagingService(sessionId)
@@ -671,7 +671,7 @@ export class Daemon {
       throw new Error('reminder.consumed requires sessionId, reminderName, and metrics')
     }
 
-    // Delegate to orchestrator for cross-reminder coordination (Phase 9.6.3)
+    // Delegate to orchestrator for cross-reminder coordination
     await this.orchestrator.onReminderConsumed({ name: reminderName, hook: 'Stop' }, sessionId, {
       turnCount: metrics.turnCount,
       toolsThisTurn: metrics.toolsThisTurn,
@@ -1251,7 +1251,7 @@ export class Daemon {
 
   /**
    * Start periodic session eviction timer.
-   * Per Phase 6: Evicts orphaned sessions (e.g., from crashed Claude Code instances)
+   * Evicts orphaned sessions (e.g., from crashed Claude Code instances)
    * to prevent memory leaks. Runs every 5 minutes.
    */
   private startEvictionTimer(): void {

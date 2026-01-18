@@ -12,7 +12,7 @@ export {
 } from './state-service.js'
 export { StateNotFoundError, StateCorruptError } from './errors.js'
 
-// Typed state accessors (Phase 9.3.7)
+// Typed state accessors
 export { type StateDescriptor, sessionState, globalState } from './state-descriptor.js'
 export { SessionStateAccessor, GlobalStateAccessor } from './typed-accessor.js'
 

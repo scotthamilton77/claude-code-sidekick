@@ -1,6 +1,5 @@
 /**
  * @fileoverview Feature system type definitions
- * Phase 4 Track B: Feature Registry type definitions
  *
  * Defines the contract for pluggable features in the Sidekick runtime.
  * Features can declare dependencies via the manifest and register hooks/commands

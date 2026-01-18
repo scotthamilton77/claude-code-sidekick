@@ -36,7 +36,7 @@ export type {
   EventHandler,
   HandlerRegistration,
   HandlerRegistry,
-  // Task types (Phase 5.2)
+  // Task types
   TaskType,
   TaskPayload,
   SessionSummaryPayload,
@@ -149,7 +149,7 @@ export {
   StateCorruptError,
   type StateReadResult,
   type StateServiceOptions,
-  // Typed state accessors (Phase 9.3.7)
+  // Typed state accessors
   sessionState,
   globalState,
   SessionStateAccessor,

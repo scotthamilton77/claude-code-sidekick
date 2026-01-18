@@ -1,7 +1,7 @@
 /**
  * Staging Lifecycle Tests
  *
- * Tests for Phase 5.4 StagingService integration with Daemon:
+ * Tests for StagingService integration with Daemon:
  * - Initialize StagingService on SessionStart
  * - Clean staging directories on SessionStart (startup|clear)
  * - Preserve staging on resume

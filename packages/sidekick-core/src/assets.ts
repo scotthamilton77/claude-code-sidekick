@@ -1,7 +1,7 @@
 /**
  * Asset Resolver Module
  *
- * Implements Phase 2 of the Sidekick Node runtime per docs/design/CORE-RUNTIME.md §3.3.
+ * Implements the asset resolver per docs/design/CORE-RUNTIME.md §3.3.
  *
  * Provides a cascading asset resolver that searches for prompts, schemas, and
  * templates across multiple locations in priority order (highest wins):

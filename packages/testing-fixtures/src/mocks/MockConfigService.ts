@@ -5,7 +5,7 @@
  * Allows setting arbitrary config values without file I/O.
  * Implements ConfigService interface for type compatibility.
  *
- * Updated for Phase 2 YAML domain-based config structure:
+ * Uses YAML domain-based config structure:
  * - core: logging, paths
  * - llm: provider settings
  * - transcript: file watching settings

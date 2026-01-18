@@ -2,7 +2,7 @@
  * JSON diff computation using microdiff for generic snapshot comparison.
  *
  * This module computes structural differences between any two JSON objects,
- * supporting the generic Snapshot Diff View requirement (Phase 7.B.3).
+ * supporting the generic Snapshot Diff View requirement.
  *
  * It wraps microdiff to provide:
  * - Type-safe diff operations

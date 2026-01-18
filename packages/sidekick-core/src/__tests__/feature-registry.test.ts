@@ -1,15 +1,10 @@
 /**
  * @fileoverview Tests for FeatureRegistry - manages feature lifecycle and dependency resolution
- * Phase 4 Track B: Feature Registry implementation
  */
 
 import { describe, expect, test, beforeEach } from 'vitest'
 import type { Feature, FeatureManifest } from '../feature-types'
 import { FeatureRegistry } from '../feature-registry'
-import type { RuntimeContext } from '../runtime-context'
-
-// Mock RuntimeContext for testing
-const mockContext = {} as RuntimeContext
 
 // Helper to create test features
 function createFeature(id: string, needs?: string[]): Feature {

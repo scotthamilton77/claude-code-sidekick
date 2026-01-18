@@ -239,7 +239,7 @@ const StateInspector: React.FC<StateInspectorProps> = ({
           {/* State Content */}
           <div className="flex-1 overflow-y-auto">
             {showDiff ? (
-              // Diff View - Generic computed diff (Phase 7.B.3)
+              // Diff View - Generic computed diff
               <SnapshotDiffView previous={previousStateJson} current={stateJson} />
             ) : (
               // Raw View - Generic JSON tree viewer

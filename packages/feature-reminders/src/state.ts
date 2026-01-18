@@ -5,7 +5,6 @@
  * Encapsulates filenames, schemas, and defaults for reminder-related state.
  *
  * @see docs/design/FEATURE-REMINDERS.md
- * @see docs/ROADMAP.md Phase 9.3.7
  */
 
 import { sessionState, SessionStateAccessor } from '@sidekick/core'

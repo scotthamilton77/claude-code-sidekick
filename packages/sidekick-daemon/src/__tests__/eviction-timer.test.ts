@@ -14,7 +14,7 @@
  * 2. Timer stops when daemon stops
  * 3. Errors don't break the timer loop
  *
- * @see docs/design/DAEMON.md §4.7 (Phase 6)
+ * @see docs/design/DAEMON.md §4.7
  */
 import fs from 'fs/promises'
 import os from 'os'

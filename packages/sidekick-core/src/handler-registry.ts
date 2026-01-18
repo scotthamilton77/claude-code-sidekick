@@ -49,7 +49,7 @@ export interface HandlerRegistryOptions {
   scope?: 'project' | 'user'
   /** Function to get current metrics (for transcript events) */
   getMetrics?: () => TranscriptMetrics
-  /** Function to get current staging service (Phase 5.4) */
+  /** Function to get current staging service */
   getStaging?: () => StagingService
 }
 
@@ -116,7 +116,7 @@ export class HandlerRegistryImpl implements HandlerRegistry {
 
   /**
    * Set the staging service provider function for reminder handlers.
-   * Called after StagingService is initialized (Phase 5.4).
+   * Called after StagingService is initialized.
    *
    * @see docs/design/FEATURE-REMINDERS.md §4.1
    */

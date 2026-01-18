@@ -1,12 +1,12 @@
 /**
- * Phase 4.5 Integration Tests
+ * TranscriptService and Handler Integration Tests
  *
  * End-to-end tests demonstrating:
- * 1. TranscriptService → Handler flow: Events emitted on file change
+ * 1. TranscriptService to Handler flow: Events emitted on file change
  *    reach handlers with correct metrics, handlers can stage reminders
  * 2. Full RuntimeContext wiring verification
  *
- * @see docs/ROADMAP.md Phase 4.5 Integration & Verification
+ * @see docs/design/flow.md
  */
 
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
@@ -28,7 +28,6 @@ import type {
   HookName,
   HookEvent,
   HookResponse,
-  SidekickEvent,
   TranscriptMetrics,
   StagingService,
   TranscriptEvent,
@@ -53,7 +52,7 @@ function createMockLogger(): Logger {
 }
 
 function createTestDir(): string {
-  const testDir = join(tmpdir(), `phase-4.5-integration-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+  const testDir = join(tmpdir(), `transcript-handler-integration-${Date.now()}-${Math.random().toString(36).slice(2)}`)
   mkdirSync(testDir, { recursive: true })
   return testDir
 }
@@ -194,7 +193,7 @@ class TestHandlerRegistry implements HandlerRegistry {
 // Integration Tests
 // ============================================================================
 
-describe('Phase 4.5: TranscriptService → Handler Integration', () => {
+describe('TranscriptService to Handler Integration', () => {
   let testDir: string
   let stateDir: string
   let transcriptPath: string
@@ -606,7 +605,7 @@ describe('Phase 4.5: TranscriptService → Handler Integration', () => {
   })
 })
 
-describe('Phase 4.5: RuntimeContext Wiring Verification', () => {
+describe('RuntimeContext Wiring Verification', () => {
   it('DaemonContext provides all required services', () => {
     // This test verifies the type contract - that DaemonContext
     // has all the services needed for feature execution

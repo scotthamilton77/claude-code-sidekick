@@ -1,7 +1,7 @@
 /**
  * Configuration Service Module
  *
- * Implements Phase 2 of the Sidekick Node runtime per docs/design/CONFIG-SYSTEM.md.
+ * Implements the configuration service per docs/design/CONFIG-SYSTEM.md.
  *
  * Provides a multi-layer configuration cascade with YAML domain files:
  * - config.yaml (core: paths, logging)
@@ -179,7 +179,7 @@ export const LlmConfigSchema = z
     // Validate defaultProfile references an existing profile
     if (!data.profiles[data.defaultProfile]) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         message: `defaultProfile "${data.defaultProfile}" not found in profiles`,
         path: ['defaultProfile'],
       })

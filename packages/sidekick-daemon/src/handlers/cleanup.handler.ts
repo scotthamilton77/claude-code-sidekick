@@ -4,7 +4,6 @@
  * Prunes old session data based on configured max age.
  *
  * @see docs/design/DAEMON.md §4.3
- * @see docs/ROADMAP.md Phase 5.2
  */
 
 import { CleanupPayloadSchema, Logger } from '@sidekick/core'

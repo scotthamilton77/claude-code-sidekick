@@ -4,8 +4,6 @@
  * Creates mock RuntimeContext objects (CLIContext or DaemonContext)
  * with sensible defaults. Uses canonical types from @sidekick/types.
  *
- * Updated for Phase 4.1 discriminated union context types.
- *
  * @example
  * ```typescript
  * // Create a DaemonContext for LLM testing

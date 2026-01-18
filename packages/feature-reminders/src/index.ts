@@ -35,10 +35,10 @@ export default feature
 export * from './types'
 export * from './reminder-utils'
 
-// Re-export consumption handlers for CLI use (Phase 8.5.4)
+// Re-export consumption handlers for CLI use
 export { registerConsumptionHandlers } from './handlers/consumption'
 
-// Re-export staging handlers for Daemon use (Phase 8.5)
+// Re-export staging handlers for Daemon use
 export { registerStagingHandlers } from './handlers/staging'
 
 // Re-export completion classifier for IPC use
@@ -48,7 +48,7 @@ export {
   type ClassifyCompletionResult,
 } from './completion-classifier'
 
-// Re-export IPC handlers for Daemon use (Phase 9.5.1)
+// Re-export IPC handlers for Daemon use
 export {
   handleReminderConsumed,
   handleVCUnverifiedSet,
@@ -60,10 +60,10 @@ export {
   type VCUnverifiedClearParams,
 } from './handlers/ipc'
 
-// Re-export event factories for logging (Phase 9.5.2)
+// Re-export event factories for logging
 export { ReminderEvents, type EventLogContext as ReminderEventLogContext } from './events.js'
 
-// Re-export orchestrator for cross-reminder coordination (Phase 9.6)
+// Re-export orchestrator for cross-reminder coordination
 // Types ReminderRef and CoordinationMetrics are available from @sidekick/types
 export { ReminderOrchestrator, type ReminderOrchestratorDeps } from './orchestrator.js'
 

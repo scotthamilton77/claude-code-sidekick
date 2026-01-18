@@ -5,7 +5,6 @@
  * Encapsulates filenames, schemas, and defaults for summary-related state.
  *
  * @see docs/design/FEATURE-SESSION-SUMMARY.md
- * @see docs/ROADMAP.md Phase 9.3.7
  */
 
 import { sessionState, SessionStateAccessor } from '@sidekick/core'

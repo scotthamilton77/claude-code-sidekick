@@ -108,7 +108,7 @@ export const MetricsPersistPayloadSchema = z.object({
  * Written to .sidekick/state/task-registry.json when tasks are enqueued.
  * Cleaned on daemon restart to detect orphaned tasks from crashed runs.
  *
- * @see ROADMAP.md Phase 5.2: Orphan prevention
+ * Orphan prevention: written when tasks are enqueued, cleaned on daemon restart.
  */
 export interface TrackedTask {
   id: string
