@@ -1,34 +1,42 @@
 /**
- * ConfigWatcher - Watches configuration files for hot-reload.
+ * ConfigWatcher - Watches configuration directories for hot-reload.
  *
- * Per design/DAEMON.md §4.3: Watches config files for changes.
- * On change, triggers a callback for config reload.
+ * Per design/DAEMON.md §4.3: Watches config directories for changes.
+ * On any file change, triggers a callback for config reload.
  *
- * Watches all config files used by the config system:
- * - sidekick.config (unified config)
- * - config.yaml, llm.yaml, transcript.yaml, features.yaml (domain configs)
- * - *.yaml.local (local overrides)
- * - .env, .env.local (environment files)
+ * Watches both levels:
+ * - Project-level: .sidekick/ (higher priority in cascade)
+ * - User-level: ~/.sidekick/ (lower priority in cascade)
  *
- * Uses Node's built-in fs.watch for simplicity. For production use with many files
- * or cross-platform reliability, consider chokidar.
+ * Does NOT filter by filename - any change in these directories triggers
+ * a reload. This keeps the watcher decoupled from config file knowledge.
+ *
+ * Uses chokidar for reliable cross-platform file watching, handling:
+ * - Atomic writes (editor save patterns)
+ * - File creation/deletion
+ * - Platform-specific quirks (macOS FSEvents, Linux inotify)
  *
  * @see docs/design/DAEMON.md §4.3
  * @see docs/design/CONFIG-SYSTEM.md
  */
 
 import { Logger } from '@sidekick/core'
-import fs from 'fs'
+import { watch, type FSWatcher } from 'chokidar'
+import { homedir } from 'os'
 import path from 'path'
 
 /**
  * Configuration change event.
  */
 export interface ConfigChangeEvent {
-  /** The file that changed */
+  /** The file that changed (basename) */
   file: string
-  /** Type of change: 'rename' or 'change' */
-  eventType: 'rename' | 'change'
+  /** Type of change */
+  eventType: 'add' | 'change' | 'unlink'
+  /** Full path to the file */
+  fullPath: string
+  /** Whether this is a user-level or project-level config */
+  scope: 'user' | 'project'
 }
 
 /**
@@ -40,73 +48,93 @@ export type ConfigChangeHandler = (event: ConfigChangeEvent) => void
  * Watches configuration files for changes and triggers hot-reload.
  */
 export class ConfigWatcher {
-  private sidekickDir: string
+  private projectDir: string
+  private userDir: string
   private logger: Logger
-  private watchers: fs.FSWatcher[] = []
+  private watcher: FSWatcher | null = null
   private onChange: ConfigChangeHandler
   private debounceTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  private readyPromise: Promise<void> | null = null
+  private readyResolve: (() => void) | null = null
 
   /** Debounce interval to coalesce rapid file changes (e.g., editor save) */
   private readonly debounceMs = 100
 
   /**
    * Create a ConfigWatcher.
-   * @param sidekickDir - The .sidekick directory path (from StateService.rootDir())
+   * @param projectSidekickDir - The project's .sidekick directory path
    * @param logger - Logger instance
    * @param onChange - Callback for config changes
    */
-  constructor(sidekickDir: string, logger: Logger, onChange: ConfigChangeHandler) {
-    this.sidekickDir = sidekickDir
+  constructor(projectSidekickDir: string, logger: Logger, onChange: ConfigChangeHandler) {
+    this.projectDir = projectSidekickDir
+    this.userDir = path.join(homedir(), '.sidekick')
     this.logger = logger
     this.onChange = onChange
   }
 
   /**
    * Start watching configuration files.
-   * Watches:
-   * - .sidekick/sidekick.config (unified config)
-   * - .sidekick/config.yaml (core domain config)
-   * - .sidekick/llm.yaml (llm domain config)
-   * - .sidekick/transcript.yaml (transcript domain config)
-   * - .sidekick/features.yaml (features domain config)
-   * - .sidekick/*.yaml.local (local overrides)
-   * - .sidekick/.env (environment variables)
-   * - .sidekick/.env.local (local environment overrides)
+   *
+   * Watches both project-level (.sidekick/) and user-level (~/.sidekick/)
+   * config directories for changes to recognized config files.
    */
   start(): void {
-    const filesToWatch = [
-      'sidekick.config',
-      'config.yaml',
-      'llm.yaml',
-      'transcript.yaml',
-      'features.yaml',
-      'config.yaml.local',
-      'llm.yaml.local',
-      'transcript.yaml.local',
-      'features.yaml.local',
-      '.env',
-      '.env.local',
-    ]
+    // Create ready promise for async initialization
+    this.readyPromise = new Promise((resolve) => {
+      this.readyResolve = resolve
+    })
 
-    for (const filename of filesToWatch) {
-      const filePath = path.join(this.sidekickDir, filename)
-      this.watchFile(filePath, filename)
-    }
+    // Watch both directories
+    const dirsToWatch = [this.projectDir, this.userDir]
+
+    this.watcher = watch(dirsToWatch, {
+      // Only watch the directories themselves, not subdirectories
+      depth: 0,
+      // Ignore initial scan - we only care about changes
+      ignoreInitial: true,
+      // Use polling as fallback for network filesystems
+      usePolling: false,
+      // Don't use awaitWriteFinish - we have our own debouncing,
+      // and awaitWriteFinish can delay/skip 'add' events
+    })
+
+    this.watcher
+      .on('add', (filePath) => this.handleEvent('add', filePath))
+      .on('change', (filePath) => this.handleEvent('change', filePath))
+      .on('unlink', (filePath) => this.handleEvent('unlink', filePath))
+      .on('error', (err) => {
+        this.logger.error('ConfigWatcher error', { error: err })
+      })
+      .on('ready', () => {
+        this.logger.debug('ConfigWatcher ready')
+        this.readyResolve?.()
+      })
 
     this.logger.info('ConfigWatcher started', {
-      sidekickDir: this.sidekickDir,
-      watching: filesToWatch,
+      projectDir: this.projectDir,
+      userDir: this.userDir,
     })
+  }
+
+  /**
+   * Wait for the watcher to be ready.
+   * Resolves when chokidar has finished its initial scan.
+   */
+  async ready(): Promise<void> {
+    if (this.readyPromise) {
+      await this.readyPromise
+    }
   }
 
   /**
    * Stop watching all configuration files.
    */
   stop(): void {
-    for (const watcher of this.watchers) {
-      watcher.close()
+    if (this.watcher) {
+      void this.watcher.close()
+      this.watcher = null
     }
-    this.watchers = []
 
     // Clear any pending debounce timers
     for (const timer of this.debounceTimers.values()) {
@@ -117,52 +145,34 @@ export class ConfigWatcher {
     this.logger.info('ConfigWatcher stopped')
   }
 
-  private watchFile(filePath: string, filename: string): void {
-    try {
-      // Check if file exists first
-      if (!fs.existsSync(filePath)) {
-        this.logger.debug('Config file does not exist, skipping watch', { file: filename })
-        return
-      }
-
-      const watcher = fs.watch(filePath, (eventType) => {
-        this.handleChange(filename, eventType as 'rename' | 'change')
-      })
-
-      watcher.on('error', (err) => {
-        this.logger.error('Watcher error', { file: filename, error: err })
-      })
-
-      this.watchers.push(watcher)
-      this.logger.debug('Watching config file', { file: filename })
-    } catch (err) {
-      // File may not exist yet, that's OK
-      this.logger.debug('Could not watch config file', {
-        file: filename,
-        error: err instanceof Error ? err.message : String(err),
-      })
-    }
-  }
-
   /**
-   * Handle file change event with debouncing.
-   * Editors often trigger multiple events for a single save.
+   * Handle file system event with debouncing.
+   * No filtering - any file change in the watched directories triggers the callback.
    */
-  private handleChange(filename: string, eventType: 'rename' | 'change'): void {
-    // Clear existing debounce timer for this file
-    const existingTimer = this.debounceTimers.get(filename)
+  private handleEvent(eventType: 'add' | 'change' | 'unlink', filePath: string): void {
+    const filename = path.basename(filePath)
+
+    // Determine scope
+    const scope = filePath.startsWith(this.userDir) ? 'user' : 'project'
+
+    // Debounce by full path (not just filename, since same name in different dirs)
+    const existingTimer = this.debounceTimers.get(filePath)
     if (existingTimer) {
       clearTimeout(existingTimer)
     }
 
-    // Set new debounce timer
     const timer = setTimeout(() => {
-      this.debounceTimers.delete(filename)
+      this.debounceTimers.delete(filePath)
 
-      this.logger.info('Config file changed', { file: filename, eventType })
+      this.logger.info('Config file changed', { file: filename, eventType, scope })
 
       try {
-        this.onChange({ file: filename, eventType })
+        this.onChange({
+          file: filename,
+          eventType,
+          fullPath: filePath,
+          scope,
+        })
       } catch (err) {
         this.logger.error('Error in config change handler', {
           file: filename,
@@ -171,6 +181,6 @@ export class ConfigWatcher {
       }
     }, this.debounceMs)
 
-    this.debounceTimers.set(filename, timer)
+    this.debounceTimers.set(filePath, timer)
   }
 }
