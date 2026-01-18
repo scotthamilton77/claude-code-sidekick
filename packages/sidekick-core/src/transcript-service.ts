@@ -234,15 +234,6 @@ export class TranscriptServiceImpl implements TranscriptService {
   // ============================================================================
 
   /**
-   * Initialize the service (legacy API).
-   * @deprecated Use prepare() + start() for explicit lifecycle control.
-   */
-  async initialize(sessionId: string, transcriptPath: string): Promise<void> {
-    await this.prepare(sessionId, transcriptPath)
-    await this.start()
-  }
-
-  /**
    * Prepare the service without starting event emission.
    * Sets up paths, loads persisted state, but does NOT start file watching
    * or process the transcript file.

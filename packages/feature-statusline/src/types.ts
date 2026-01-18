@@ -290,9 +290,6 @@ export const EMPTY_TRANSCRIPT_STATE: TranscriptMetricsState = {
   isPostCompactIndeterminate: false,
 }
 
-/** @deprecated Use EMPTY_TRANSCRIPT_STATE instead */
-export const EMPTY_SESSION_STATE = EMPTY_TRANSCRIPT_STATE
-
 export const EMPTY_SESSION_SUMMARY: SessionSummaryState = {
   session_id: '',
   timestamp: new Date().toISOString(),

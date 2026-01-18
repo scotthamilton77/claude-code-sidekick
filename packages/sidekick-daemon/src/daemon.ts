@@ -940,7 +940,6 @@ export class Daemon {
       lastUpdatedAt: 0,
     }
     const transcriptService: TranscriptService = {
-      initialize: async () => {},
       prepare: async () => {},
       start: async () => {},
       shutdown: async () => {},

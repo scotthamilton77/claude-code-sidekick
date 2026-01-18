@@ -277,7 +277,8 @@ describe('Phase 4.5: TranscriptService → Handler Integration', () => {
       const transcript = [JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } })].join('\n')
       writeFileSync(transcriptPath, transcript)
 
-      await transcriptService.initialize('test-session', transcriptPath)
+      await transcriptService.prepare('test-session', transcriptPath)
+      await transcriptService.start()
 
       // Wait for async handler execution
       await new Promise((resolve) => setTimeout(resolve, 100))
@@ -323,7 +324,8 @@ describe('Phase 4.5: TranscriptService → Handler Integration', () => {
       ].join('\n')
       writeFileSync(transcriptPath, transcript)
 
-      await transcriptService.initialize('test-session', transcriptPath)
+      await transcriptService.prepare('test-session', transcriptPath)
+      await transcriptService.start()
       await new Promise((resolve) => setTimeout(resolve, 100))
 
       expect(handlerCalled).toHaveBeenCalled()
@@ -360,7 +362,8 @@ describe('Phase 4.5: TranscriptService → Handler Integration', () => {
       const transcript = [JSON.stringify({ type: 'user', message: { role: 'user', content: 'Test' } })].join('\n')
       writeFileSync(transcriptPath, transcript)
 
-      await transcriptService.initialize('test-session', transcriptPath)
+      await transcriptService.prepare('test-session', transcriptPath)
+      await transcriptService.start()
       await new Promise((resolve) => setTimeout(resolve, 100))
 
       expect(executionOrder).toEqual(['high-priority', 'low-priority'])
@@ -412,7 +415,8 @@ describe('Phase 4.5: TranscriptService → Handler Integration', () => {
       ].join('\n')
       writeFileSync(transcriptPath, transcript)
 
-      await transcriptService.initialize('test-session', transcriptPath)
+      await transcriptService.prepare('test-session', transcriptPath)
+      await transcriptService.start()
       await new Promise((resolve) => setTimeout(resolve, 150))
 
       // Verify reminder was staged
@@ -445,7 +449,8 @@ describe('Phase 4.5: TranscriptService → Handler Integration', () => {
       ].join('\n')
       writeFileSync(transcriptPath, transcript)
 
-      await transcriptService.initialize('test-session', transcriptPath)
+      await transcriptService.prepare('test-session', transcriptPath)
+      await transcriptService.start()
       await new Promise((resolve) => setTimeout(resolve, 100))
 
       // Verify metrics progressed
@@ -468,7 +473,8 @@ describe('Phase 4.5: TranscriptService → Handler Integration', () => {
 
       // Subscribe to threshold before initialization
       writeFileSync(transcriptPath, '')
-      await transcriptService.initialize('test-session', transcriptPath)
+      await transcriptService.prepare('test-session', transcriptPath)
+      await transcriptService.start()
 
       // Set up threshold callback
       transcriptService.onThreshold('turnCount', 3, () => {
@@ -515,7 +521,8 @@ describe('Phase 4.5: TranscriptService → Handler Integration', () => {
       ].join('\n')
       writeFileSync(transcriptPath, initial)
 
-      await transcriptService.initialize('test-session', transcriptPath)
+      await transcriptService.prepare('test-session', transcriptPath)
+      await transcriptService.start()
 
       // Append compact_boundary entry (Claude Code's transcript is append-only)
       const withCompact = [initial, JSON.stringify({ type: 'system', subtype: 'compact_boundary' })].join('\n')
@@ -581,7 +588,8 @@ describe('Phase 4.5: TranscriptService → Handler Integration', () => {
       ].join('\n')
       writeFileSync(transcriptPath, transcript)
 
-      await transcriptService.initialize('test-session', transcriptPath)
+      await transcriptService.prepare('test-session', transcriptPath)
+      await transcriptService.start()
       await new Promise((resolve) => setTimeout(resolve, 150))
 
       // Verify the full flow

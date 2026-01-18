@@ -137,15 +137,6 @@ export interface CompactionEntry {
  */
 export interface TranscriptService {
   /**
-   * Initialize the service for a session.
-   * Starts file watching and metrics computation.
-   *
-   * @deprecated Use prepare() + start() for explicit lifecycle control.
-   * This method exists for backward compatibility and calls prepare() then start().
-   */
-  initialize(sessionId: string, transcriptPath: string): Promise<void>
-
-  /**
    * Prepare the service for a session without starting event emission.
    * Sets up paths, loads persisted state, but does NOT start file watching
    * or process the transcript file. This allows the caller to wire up

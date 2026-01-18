@@ -174,7 +174,8 @@ describe('TranscriptServiceImpl', () => {
   describe('lifecycle', () => {
     it('initializes with empty transcript', async () => {
       writeFileSync(transcriptPath, '')
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const metrics = service.getMetrics()
       expect(metrics.turnCount).toBe(0)
@@ -182,7 +183,8 @@ describe('TranscriptServiceImpl', () => {
     })
 
     it('initializes with non-existent transcript', async () => {
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const metrics = service.getMetrics()
       expect(metrics.turnCount).toBe(0)
@@ -205,7 +207,8 @@ describe('TranscriptServiceImpl', () => {
 
     it('allows re-initialization after shutdown', async () => {
       writeFileSync(transcriptPath, '')
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
       await service.shutdown()
 
       // Should not throw - can prepare again after shutdown
@@ -245,7 +248,8 @@ describe('TranscriptServiceImpl', () => {
       const transcript = [JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } })].join('\n')
       writeFileSync(transcriptPath, transcript)
 
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const metrics = service.getMetrics()
       expect(metrics.turnCount).toBe(1)
@@ -259,7 +263,8 @@ describe('TranscriptServiceImpl', () => {
       ].join('\n')
       writeFileSync(transcriptPath, transcript)
 
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const metrics = service.getMetrics()
       expect(metrics.turnCount).toBe(1)
@@ -291,7 +296,8 @@ describe('TranscriptServiceImpl', () => {
       ].join('\n')
       writeFileSync(transcriptPath, transcript)
 
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const metrics = service.getMetrics()
       expect(metrics.toolCount).toBe(2)
@@ -329,7 +335,8 @@ describe('TranscriptServiceImpl', () => {
       ].join('\n')
       writeFileSync(transcriptPath, transcript)
 
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const metrics = service.getMetrics()
       expect(metrics.turnCount).toBe(2) // Only real user prompts count as turns
@@ -387,7 +394,8 @@ describe('TranscriptServiceImpl', () => {
       ].join('\n')
       writeFileSync(transcriptPath, transcript)
 
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const metrics = service.getMetrics()
       expect(metrics.turnCount).toBe(1) // Only the real user prompt counts as a turn
@@ -444,7 +452,8 @@ describe('TranscriptServiceImpl', () => {
       ].join('\n')
       writeFileSync(transcriptPath, transcript)
 
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const metrics = service.getMetrics()
       expect(metrics.toolCount).toBe(4)
@@ -480,7 +489,8 @@ describe('TranscriptServiceImpl', () => {
       ].join('\n')
       writeFileSync(transcriptPath, transcript)
 
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const metrics = service.getMetrics()
       expect(metrics.turnCount).toBe(2) // Only real user prompts count
@@ -518,7 +528,8 @@ describe('TranscriptServiceImpl', () => {
       ].join('\n')
       writeFileSync(transcriptPath, transcript)
 
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const metrics = service.getMetrics()
       expect(metrics.turnCount).toBe(2) // Command message + real prompt
@@ -564,7 +575,8 @@ describe('TranscriptServiceImpl', () => {
       ].join('\n')
       writeFileSync(transcriptPath, transcript)
 
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const metrics = service.getMetrics()
       // Turns: /clear command + /context command + real prompt = 3
@@ -594,7 +606,8 @@ describe('TranscriptServiceImpl', () => {
       ].join('\n')
       writeFileSync(transcriptPath, transcript)
 
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const metrics = service.getMetrics()
       expect(metrics.tokenUsage.inputTokens).toBe(100)
@@ -615,7 +628,8 @@ describe('TranscriptServiceImpl', () => {
       ].join('\n')
       writeFileSync(transcriptPath, transcript)
 
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const metrics = service.getMetrics()
       expect(metrics.tokenUsage.inputTokens).toBe(300)
@@ -644,7 +658,8 @@ describe('TranscriptServiceImpl', () => {
       ].join('\n')
       writeFileSync(transcriptPath, transcript)
 
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const metrics = service.getMetrics()
       expect(metrics.tokenUsage.cacheCreationInputTokens).toBe(500)
@@ -672,7 +687,8 @@ describe('TranscriptServiceImpl', () => {
       ].join('\n')
       writeFileSync(transcriptPath, transcript)
 
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const metrics = service.getMetrics()
       expect(metrics.tokenUsage.serviceTierCounts).toEqual({ standard: 2 })
@@ -691,7 +707,8 @@ describe('TranscriptServiceImpl', () => {
       ].join('\n')
       writeFileSync(transcriptPath, transcript)
 
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const metrics = service.getMetrics()
       expect(metrics.tokenUsage.byModel['claude-sonnet-4-20250514']).toEqual({
@@ -716,7 +733,8 @@ describe('TranscriptServiceImpl', () => {
       const transcript = [JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } })].join('\n')
       writeFileSync(transcriptPath, transcript)
 
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       expect(handlers.emittedEvents).toContainEqual(
         expect.objectContaining({
@@ -732,7 +750,8 @@ describe('TranscriptServiceImpl', () => {
       ].join('\n')
       writeFileSync(transcriptPath, transcript)
 
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       expect(handlers.emittedEvents).toContainEqual(
         expect.objectContaining({
@@ -756,7 +775,8 @@ describe('TranscriptServiceImpl', () => {
       ].join('\n')
       writeFileSync(transcriptPath, transcript)
 
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       expect(handlers.emittedEvents).toContainEqual(
         expect.objectContaining({
@@ -778,7 +798,8 @@ describe('TranscriptServiceImpl', () => {
       ].join('\n')
       writeFileSync(transcriptPath, transcript)
 
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       expect(handlers.emittedEvents).toContainEqual(
         expect.objectContaining({
@@ -802,7 +823,8 @@ describe('TranscriptServiceImpl', () => {
       ].join('\n')
       writeFileSync(transcriptPath, transcript)
 
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const metrics = service.getMetrics()
       expect(metrics.lastProcessedLine).toBe(3)
@@ -815,7 +837,8 @@ describe('TranscriptServiceImpl', () => {
       ].join('\n')
       writeFileSync(transcriptPath, transcript)
 
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const metrics = service.getMetrics()
       expect(metrics.turnCount).toBe(1) // Only counted valid line
@@ -839,7 +862,8 @@ describe('TranscriptServiceImpl', () => {
       ].join('\n')
       writeFileSync(transcriptPath, initial)
 
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       let metrics = service.getMetrics()
       expect(metrics.turnCount).toBe(1)
@@ -867,7 +891,8 @@ describe('TranscriptServiceImpl', () => {
       const initial = [JSON.stringify({ type: 'user', message: { role: 'user', content: 'Test' } })].join('\n')
       writeFileSync(transcriptPath, initial)
 
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
       handlers.emittedEvents.length = 0 // Clear events
 
       // Append compact_boundary
@@ -891,7 +916,8 @@ describe('TranscriptServiceImpl', () => {
       ].join('\n')
       writeFileSync(transcriptPath, initial)
 
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       let metrics = service.getMetrics()
       expect(metrics.isPostCompactIndeterminate).toBe(true)
@@ -932,7 +958,8 @@ describe('TranscriptServiceImpl', () => {
   describe('observable API', () => {
     it('notifies subscribers on metrics change', async () => {
       writeFileSync(transcriptPath, '')
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const callback = vi.fn()
       service.onMetricsChange(callback)
@@ -947,7 +974,8 @@ describe('TranscriptServiceImpl', () => {
 
     it('unsubscribes correctly', async () => {
       writeFileSync(transcriptPath, '')
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const callback = vi.fn()
       const unsubscribe = service.onMetricsChange(callback)
@@ -961,7 +989,8 @@ describe('TranscriptServiceImpl', () => {
 
     it('fires threshold callback when crossed', async () => {
       writeFileSync(transcriptPath, '')
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const callback = vi.fn()
       service.onThreshold('turnCount', 2, callback)
@@ -981,7 +1010,8 @@ describe('TranscriptServiceImpl', () => {
 
     it('only fires threshold callback once', async () => {
       writeFileSync(transcriptPath, '')
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const callback = vi.fn()
       service.onThreshold('turnCount', 1, callback)
@@ -1003,7 +1033,8 @@ describe('TranscriptServiceImpl', () => {
 
     it('catches and logs error in metrics change callback', async () => {
       writeFileSync(transcriptPath, '')
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const errorCallback = vi.fn(() => {
         throw new Error('Callback exploded')
@@ -1025,7 +1056,8 @@ describe('TranscriptServiceImpl', () => {
 
     it('catches and logs error in threshold callback', async () => {
       writeFileSync(transcriptPath, '')
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const errorCallback = vi.fn(() => {
         throw new Error('Threshold callback exploded')
@@ -1048,7 +1080,8 @@ describe('TranscriptServiceImpl', () => {
 
     it('unsubscribes threshold callback correctly', async () => {
       writeFileSync(transcriptPath, '')
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const callback = vi.fn()
       const unsubscribe = service.onThreshold('turnCount', 1, callback)
@@ -1062,7 +1095,8 @@ describe('TranscriptServiceImpl', () => {
 
     it('does not fire threshold for non-numeric metrics', async () => {
       writeFileSync(transcriptPath, '')
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const callback = vi.fn()
       // tokenUsage is an object, not a number - threshold check should skip it
@@ -1084,7 +1118,8 @@ describe('TranscriptServiceImpl', () => {
       const transcript = [JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } })].join('\n')
       writeFileSync(transcriptPath, transcript)
 
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       // Force immediate persistence
       await getTestHelpers(service).persistMetrics(true)
@@ -1115,7 +1150,8 @@ describe('TranscriptServiceImpl', () => {
       mockStateService.setStored(statePath, savedState)
 
       writeFileSync(transcriptPath, '')
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const metrics = service.getMetrics()
       expect(metrics.turnCount).toBe(5)
@@ -1138,7 +1174,8 @@ describe('TranscriptServiceImpl', () => {
       mockStateService.setStored(statePath, savedState)
 
       writeFileSync(transcriptPath, '')
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       // Should warn about mismatch and use fresh metrics
       expect(logger.warn).toHaveBeenCalledWith(
@@ -1159,7 +1196,8 @@ describe('TranscriptServiceImpl', () => {
       mockStateService.setStored(statePath, { invalid: 'not valid transcript state' })
 
       writeFileSync(transcriptPath, '')
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       expect(logger.warn).toHaveBeenCalledWith(
         'Failed to load persisted transcript state',
@@ -1187,7 +1225,8 @@ describe('TranscriptServiceImpl', () => {
       mockStateService.setStored(statePath, savedState)
 
       writeFileSync(transcriptPath, '')
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const metrics = service.getMetrics()
       expect(metrics.turnCount).toBe(7)
@@ -1196,7 +1235,8 @@ describe('TranscriptServiceImpl', () => {
 
     it('skips non-immediate persistence when recently persisted', async () => {
       writeFileSync(transcriptPath, JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } }))
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       // Force immediate persistence to set lastPersistedAt
       await getTestHelpers(service).persistMetrics(true)
@@ -1223,7 +1263,8 @@ describe('TranscriptServiceImpl', () => {
       const transcript = [JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } })].join('\n')
       writeFileSync(transcriptPath, transcript)
 
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const snapshotPath = join(testDir, 'snapshots', 'pre-compact-123.jsonl')
       await service.capturePreCompactState(snapshotPath)
@@ -1240,7 +1281,8 @@ describe('TranscriptServiceImpl', () => {
       const transcript = [JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } })].join('\n')
       writeFileSync(transcriptPath, transcript)
 
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const snapshotPath = join(testDir, 'snapshots', 'pre-compact-123.jsonl')
       await service.capturePreCompactState(snapshotPath)
@@ -1259,7 +1301,8 @@ describe('TranscriptServiceImpl', () => {
       mockStateService.setStored(historyPath, { corrupted: 'not an array' })
 
       writeFileSync(transcriptPath, JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } }))
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       // With MockStateService, corrupted data + defaultValue returns the default (source: 'recovered')
       // No warning is logged - graceful fallback to empty array
@@ -1291,7 +1334,8 @@ describe('TranscriptServiceImpl', () => {
       mockStateService.setStored(historyPath, existingHistory)
 
       writeFileSync(transcriptPath, '')
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const history = service.getCompactionHistory()
       expect(history.length).toBe(1)
@@ -1319,7 +1363,8 @@ describe('TranscriptServiceImpl', () => {
     it('returns empty transcript when file does not exist', async () => {
       // Initialize with path but delete file
       writeFileSync(transcriptPath, '')
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
       rmSync(transcriptPath)
 
       const transcript = service.getTranscript()
@@ -1345,7 +1390,8 @@ describe('TranscriptServiceImpl', () => {
         }),
       ].join('\n')
       writeFileSync(transcriptPath, content)
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const transcript = service.getTranscript()
 
@@ -1376,7 +1422,8 @@ describe('TranscriptServiceImpl', () => {
         }),
       ].join('\n')
       writeFileSync(transcriptPath, content)
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const transcript = service.getTranscript()
 
@@ -1400,7 +1447,8 @@ describe('TranscriptServiceImpl', () => {
         }),
       ].join('\n')
       writeFileSync(transcriptPath, content)
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const transcript = service.getTranscript()
 
@@ -1427,7 +1475,8 @@ describe('TranscriptServiceImpl', () => {
         }),
       ].join('\n')
       writeFileSync(transcriptPath, content)
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const transcript = service.getTranscript()
 
@@ -1447,7 +1496,8 @@ describe('TranscriptServiceImpl', () => {
         '{ broken: json',
       ].join('\n')
       writeFileSync(transcriptPath, content)
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const transcript = service.getTranscript()
 
@@ -1482,7 +1532,8 @@ describe('TranscriptServiceImpl', () => {
         }),
       ].join('\n')
       writeFileSync(transcriptPath, content)
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const transcript = service.getTranscript()
       const str = transcript.toString()
@@ -1506,7 +1557,8 @@ describe('TranscriptServiceImpl', () => {
         }),
       ].join('\n')
       writeFileSync(transcriptPath, content)
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const transcript = service.getTranscript()
       const str = transcript.toString()
@@ -1528,7 +1580,8 @@ describe('TranscriptServiceImpl', () => {
         }),
       ].join('\n')
       writeFileSync(transcriptPath, content)
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const transcript = service.getTranscript()
       const str = transcript.toString()
@@ -1553,7 +1606,8 @@ describe('TranscriptServiceImpl', () => {
         }),
       ].join('\n')
       writeFileSync(transcriptPath, content)
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const transcript = service.getTranscript()
 
@@ -1576,7 +1630,8 @@ describe('TranscriptServiceImpl', () => {
         }),
       ].join('\n')
       writeFileSync(transcriptPath, content)
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const transcript = service.getTranscript()
 
@@ -1595,7 +1650,8 @@ describe('TranscriptServiceImpl', () => {
         }),
       ].join('\n')
       writeFileSync(transcriptPath, content)
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const transcript = service.getTranscript()
 
@@ -1631,7 +1687,8 @@ describe('TranscriptServiceImpl', () => {
       ].join('\n')
       writeFileSync(transcriptPath, transcript)
 
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       expect(service.getMetric('turnCount')).toBe(1) // Only real user prompt counts
       expect(service.getMetric('toolCount')).toBe(1)
@@ -1666,7 +1723,8 @@ describe('TranscriptServiceImpl', () => {
       it('ignores bookmark when bookmarkLine > file length', async () => {
         const lines = createTranscriptLines(5) // 5 lines
         writeFileSync(transcriptPath, lines.join('\n'))
-        await service.initialize('test-session', transcriptPath)
+        await service.prepare('test-session', transcriptPath)
+        await service.start()
 
         // Bookmark at line 10, but file only has 5 lines
         const excerpt = service.getExcerpt({ bookmarkLine: 10, maxLines: 3 })
@@ -1681,7 +1739,8 @@ describe('TranscriptServiceImpl', () => {
       it('ignores bookmark when bookmarkLine equals file length', async () => {
         const lines = createTranscriptLines(5)
         writeFileSync(transcriptPath, lines.join('\n'))
-        await service.initialize('test-session', transcriptPath)
+        await service.prepare('test-session', transcriptPath)
+        await service.start()
 
         // bookmarkLine === totalLines, condition is bookmarkLine < totalLines
         const excerpt = service.getExcerpt({ bookmarkLine: 5, maxLines: 3 })
@@ -1693,7 +1752,8 @@ describe('TranscriptServiceImpl', () => {
       it('ignores bookmark when bookmarkLine is 0', async () => {
         const lines = createTranscriptLines(5)
         writeFileSync(transcriptPath, lines.join('\n'))
-        await service.initialize('test-session', transcriptPath)
+        await service.prepare('test-session', transcriptPath)
+        await service.start()
 
         const excerpt = service.getExcerpt({ bookmarkLine: 0, maxLines: 3 })
 
@@ -1704,7 +1764,8 @@ describe('TranscriptServiceImpl', () => {
       it('applies bookmark correctly for valid bookmarkLine', async () => {
         const lines = createTranscriptLines(10)
         writeFileSync(transcriptPath, lines.join('\n'))
-        await service.initialize('test-session', transcriptPath)
+        await service.prepare('test-session', transcriptPath)
+        await service.start()
 
         // Bookmark at line 5, maxLines 20 - should get lines 5-10 (6 lines)
         const excerpt = service.getExcerpt({ bookmarkLine: 5, maxLines: 20 })
@@ -1720,7 +1781,8 @@ describe('TranscriptServiceImpl', () => {
       it('handles bookmark at line 1', async () => {
         const lines = createTranscriptLines(5)
         writeFileSync(transcriptPath, lines.join('\n'))
-        await service.initialize('test-session', transcriptPath)
+        await service.prepare('test-session', transcriptPath)
+        await service.start()
 
         // Bookmark at line 1, should get remaining 4 lines
         const excerpt = service.getExcerpt({ bookmarkLine: 1, maxLines: 20 })
@@ -1736,7 +1798,8 @@ describe('TranscriptServiceImpl', () => {
       it('returns all lines when maxLines > totalLines', async () => {
         const lines = createTranscriptLines(5)
         writeFileSync(transcriptPath, lines.join('\n'))
-        await service.initialize('test-session', transcriptPath)
+        await service.prepare('test-session', transcriptPath)
+        await service.start()
 
         const excerpt = service.getExcerpt({ maxLines: 100 })
 
@@ -1748,7 +1811,8 @@ describe('TranscriptServiceImpl', () => {
       it('returns exactly maxLines when maxLines < totalLines', async () => {
         const lines = createTranscriptLines(10)
         writeFileSync(transcriptPath, lines.join('\n'))
-        await service.initialize('test-session', transcriptPath)
+        await service.prepare('test-session', transcriptPath)
+        await service.start()
 
         const excerpt = service.getExcerpt({ maxLines: 3 })
 
@@ -1760,7 +1824,8 @@ describe('TranscriptServiceImpl', () => {
       it('returns all lines when maxLines equals totalLines', async () => {
         const lines = createTranscriptLines(5)
         writeFileSync(transcriptPath, lines.join('\n'))
-        await service.initialize('test-session', transcriptPath)
+        await service.prepare('test-session', transcriptPath)
+        await service.start()
 
         const excerpt = service.getExcerpt({ maxLines: 5 })
 
@@ -1772,7 +1837,8 @@ describe('TranscriptServiceImpl', () => {
       it('defaults to 80 maxLines when not specified', async () => {
         const lines = createTranscriptLines(100)
         writeFileSync(transcriptPath, lines.join('\n'))
-        await service.initialize('test-session', transcriptPath)
+        await service.prepare('test-session', transcriptPath)
+        await service.start()
 
         const excerpt = service.getExcerpt({})
 
@@ -1783,7 +1849,8 @@ describe('TranscriptServiceImpl', () => {
 
       it('handles empty transcript', async () => {
         writeFileSync(transcriptPath, '')
-        await service.initialize('test-session', transcriptPath)
+        await service.prepare('test-session', transcriptPath)
+        await service.start()
 
         const excerpt = service.getExcerpt({ maxLines: 10 })
 
@@ -1798,7 +1865,8 @@ describe('TranscriptServiceImpl', () => {
           '\n'
         )
         writeFileSync(transcriptPath, transcript)
-        await service.initialize('test-session', transcriptPath)
+        await service.prepare('test-session', transcriptPath)
+        await service.start()
 
         const excerpt = service.getExcerpt({})
 
@@ -1809,7 +1877,8 @@ describe('TranscriptServiceImpl', () => {
       it('formats assistant messages correctly', async () => {
         const transcript = [JSON.stringify({ type: 'assistant', message: { content: 'I can help' } })].join('\n')
         writeFileSync(transcriptPath, transcript)
-        await service.initialize('test-session', transcriptPath)
+        await service.prepare('test-session', transcriptPath)
+        await service.start()
 
         const excerpt = service.getExcerpt({})
 
@@ -1820,7 +1889,8 @@ describe('TranscriptServiceImpl', () => {
       it('formats tool_use entries correctly', async () => {
         const transcript = [JSON.stringify({ type: 'tool_use', name: 'Read' })].join('\n')
         writeFileSync(transcriptPath, transcript)
-        await service.initialize('test-session', transcriptPath)
+        await service.prepare('test-session', transcriptPath)
+        await service.start()
 
         const excerpt = service.getExcerpt({})
 
@@ -1832,7 +1902,8 @@ describe('TranscriptServiceImpl', () => {
         // New behavior: excluded content returns null, not a placeholder line
         const transcript = [JSON.stringify({ type: 'tool_result', content: 'sensitive file contents here' })].join('\n')
         writeFileSync(transcriptPath, transcript)
-        await service.initialize('test-session', transcriptPath)
+        await service.prepare('test-session', transcriptPath)
+        await service.start()
 
         const excerpt = service.getExcerpt({ includeToolOutputs: false })
 
@@ -1845,7 +1916,8 @@ describe('TranscriptServiceImpl', () => {
       it('includes tool_result output when includeToolOutputs is true', async () => {
         const transcript = [JSON.stringify({ type: 'tool_result', content: 'file contents here' })].join('\n')
         writeFileSync(transcriptPath, transcript)
-        await service.initialize('test-session', transcriptPath)
+        await service.prepare('test-session', transcriptPath)
+        await service.start()
 
         const excerpt = service.getExcerpt({ includeToolOutputs: true })
 
@@ -1858,7 +1930,8 @@ describe('TranscriptServiceImpl', () => {
         // Unknown types are excluded to keep excerpts focused on user/assistant conversation
         const transcript = [JSON.stringify({ type: 'custom_unknown_type', data: { foo: 'bar' } })].join('\n')
         writeFileSync(transcriptPath, transcript)
-        await service.initialize('test-session', transcriptPath)
+        await service.prepare('test-session', transcriptPath)
+        await service.start()
 
         const excerpt = service.getExcerpt({})
 
@@ -1873,7 +1946,8 @@ describe('TranscriptServiceImpl', () => {
           JSON.stringify({ type: 'user', message: { content: 'Valid message' } }),
         ].join('\n')
         writeFileSync(transcriptPath, transcript)
-        await service.initialize('test-session', transcriptPath)
+        await service.prepare('test-session', transcriptPath)
+        await service.start()
 
         const excerpt = service.getExcerpt({})
 
@@ -1888,7 +1962,8 @@ describe('TranscriptServiceImpl', () => {
         const longLine = 'x'.repeat(500) // 500 char line, not valid JSON
         const transcript = [longLine].join('\n')
         writeFileSync(transcriptPath, transcript)
-        await service.initialize('test-session', transcriptPath)
+        await service.prepare('test-session', transcriptPath)
+        await service.start()
 
         const excerpt = service.getExcerpt({})
 
@@ -1906,7 +1981,8 @@ describe('TranscriptServiceImpl', () => {
           }),
         ].join('\n')
         writeFileSync(transcriptPath, transcript)
-        await service.initialize('test-session', transcriptPath)
+        await service.prepare('test-session', transcriptPath)
+        await service.start()
 
         const excerpt = service.getExcerpt({})
 
@@ -1929,7 +2005,8 @@ describe('TranscriptServiceImpl', () => {
           }),
         ].join('\n')
         writeFileSync(transcriptPath, transcript)
-        await service.initialize('test-session', transcriptPath)
+        await service.prepare('test-session', transcriptPath)
+        await service.start()
 
         const excerpt = service.getExcerpt({})
 
@@ -1943,7 +2020,8 @@ describe('TranscriptServiceImpl', () => {
     describe('error handling', () => {
       it('returns empty excerpt when file read fails', async () => {
         writeFileSync(transcriptPath, 'test')
-        await service.initialize('test-session', transcriptPath)
+        await service.prepare('test-session', transcriptPath)
+        await service.start()
 
         // Delete the file after initialization
         rmSync(transcriptPath)
@@ -1973,7 +2051,8 @@ describe('TranscriptServiceImpl', () => {
           }),
         ].join('\n')
         writeFileSync(transcriptPath, transcript)
-        await service.initialize('test-session', transcriptPath)
+        await service.prepare('test-session', transcriptPath)
+        await service.start()
 
         const excerpt = service.getExcerpt({})
 
@@ -2010,7 +2089,8 @@ describe('TranscriptServiceImpl', () => {
           }),
         ].join('\n')
         writeFileSync(transcriptPath, transcript)
-        await service.initialize('test-session', transcriptPath)
+        await service.prepare('test-session', transcriptPath)
+        await service.start()
 
         const excerpt = service.getExcerpt({})
 
@@ -2051,7 +2131,8 @@ describe('TranscriptServiceImpl', () => {
           }),
         ].join('\n')
         writeFileSync(transcriptPath, transcript)
-        await service.initialize('test-session', transcriptPath)
+        await service.prepare('test-session', transcriptPath)
+        await service.start()
 
         const excerpt = service.getExcerpt({})
 
@@ -2080,7 +2161,8 @@ describe('TranscriptServiceImpl', () => {
           }),
         ].join('\n')
         writeFileSync(transcriptPath, transcript)
-        await service.initialize('test-session', transcriptPath)
+        await service.prepare('test-session', transcriptPath)
+        await service.start()
 
         const excerpt = service.getExcerpt({})
 
@@ -2106,7 +2188,8 @@ describe('TranscriptServiceImpl', () => {
           }),
         ].join('\n')
         writeFileSync(transcriptPath, transcript)
-        await service.initialize('test-session', transcriptPath)
+        await service.prepare('test-session', transcriptPath)
+        await service.start()
 
         const excerpt = service.getExcerpt({})
 
@@ -2142,7 +2225,8 @@ describe('TranscriptServiceImpl', () => {
           }),
         ].join('\n')
         writeFileSync(transcriptPath, transcript)
-        await service.initialize('test-session', transcriptPath)
+        await service.prepare('test-session', transcriptPath)
+        await service.start()
 
         const excerpt = service.getExcerpt({})
 
@@ -2166,7 +2250,8 @@ describe('TranscriptServiceImpl', () => {
           }),
         ].join('\n')
         writeFileSync(transcriptPath, transcript)
-        await service.initialize('test-session', transcriptPath)
+        await service.prepare('test-session', transcriptPath)
+        await service.start()
 
         const excerpt = service.getExcerpt({})
 
@@ -2192,7 +2277,8 @@ describe('TranscriptServiceImpl', () => {
           }),
         ].join('\n')
         writeFileSync(transcriptPath, transcript)
-        await service.initialize('test-session', transcriptPath)
+        await service.prepare('test-session', transcriptPath)
+        await service.start()
 
         const excerpt = service.getExcerpt({})
 
@@ -2215,7 +2301,8 @@ describe('TranscriptServiceImpl', () => {
           }),
         ].join('\n')
         writeFileSync(transcriptPath, transcript)
-        await service.initialize('test-session', transcriptPath)
+        await service.prepare('test-session', transcriptPath)
+        await service.start()
 
         const excerpt = service.getExcerpt({})
 
@@ -2274,7 +2361,8 @@ describe('TranscriptServiceImpl', () => {
           )
           .join('\n')
         writeFileSync(transcriptPath, transcript)
-        await service.initialize('test-session', transcriptPath)
+        await service.prepare('test-session', transcriptPath)
+        await service.start()
 
         const excerpt = service.getExcerpt({})
 

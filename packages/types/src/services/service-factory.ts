@@ -27,15 +27,6 @@ export interface ServiceFactory {
   getStagingService(sessionId: string): StagingService
 
   /**
-   * Get a session-scoped TranscriptService.
-   * Returns actual instance (created on demand, cached by sessionId).
-   *
-   * @deprecated Use prepareTranscriptService() + transcriptService.start() for explicit lifecycle control.
-   * This method initializes and starts the service, which may emit events before context is ready.
-   */
-  getTranscriptService(sessionId: string, transcriptPath: string): Promise<TranscriptService>
-
-  /**
    * Prepare a session-scoped TranscriptService without starting event emission.
    * Returns actual instance (created on demand, cached by sessionId).
    *
