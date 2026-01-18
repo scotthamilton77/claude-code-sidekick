@@ -329,11 +329,11 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
     - [ ] Remove deprecated APIs and resolve remaining FIXMEs
     - [ ] Documentation matches implementation
     - [ ] Clean code: no @deprecation, no need to preserve backward compatibility
-  - [ ] **9.7.1 Remove Deprecated APIs** (from 9.2.5 scan - 7 items)
-    - [ ] Remove `initialize()` → use `prepare()` + `start()` pattern (3 locations)
-    - [ ] Remove `getTranscriptService()` → use `prepareTranscriptService()` (2 locations)
-    - [ ] Remove `getSessionState()` → use `getTranscriptMetrics()` (1 location)
-    - [ ] Remove `SessionMetricsState` type alias → use `TranscriptMetricsState` (2 locations)
+  - [x] **9.7.1 Remove Deprecated APIs** (from 9.2.5 scan - 7 items) - COMPLETE 2026-01-18
+    - [x] Remove `initialize()` → use `prepare()` + `start()` pattern (3 locations)
+    - [x] Remove `getTranscriptService()` → use `prepareTranscriptService()` (2 locations)
+    - [x] Remove `getSessionState()` → use `getTranscriptMetrics()` (already removed)
+    - [x] Remove `SessionMetricsState` type alias → use `TranscriptMetricsState` (2 locations)
   - [ ] **9.7.2 Address Remaining FIXMEs** (from 9.2.5 scan)
     - [ ] structured-logging.ts:383 - Extract event routing logic from logging setup
     - [ ] transcript-service.ts:1439 - Remove old `currentContextTokens` backward compat
