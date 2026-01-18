@@ -95,23 +95,29 @@ resume_examples:
 
 ## Using Personas
 
+**Note:** The assistant has access to the current session ID via `<session-info>` tags in the context. It can change the persona directly without asking the user for the session ID.
+
 ### Set Session Persona
 
 ```bash
+# Full path (use in this project)
+node packages/sidekick-cli/dist/bin.js persona <persona-id> --session-id=<id>
+
+# Or if sidekick CLI is in PATH
 sidekick persona <persona-id> --session-id=<id>
 ```
 
 ### Clear Session Persona
 
 ```bash
-sidekick persona --session-id=<id>
+node packages/sidekick-cli/dist/bin.js persona --session-id=<id>
 ```
 
 ### Test Persona Voice
 
 ```bash
-sidekick persona-test <persona-id> --session-id=<id> --type=snarky
-sidekick persona-test <persona-id> --session-id=<id> --type=resume
+node packages/sidekick-cli/dist/bin.js persona-test <persona-id> --session-id=<id> --type=snarky
+node packages/sidekick-cli/dist/bin.js persona-test <persona-id> --session-id=<id> --type=resume
 ```
 
 ### Restrict Available Personas
