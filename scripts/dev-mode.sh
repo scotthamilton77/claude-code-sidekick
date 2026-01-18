@@ -333,9 +333,13 @@ do_clean() {
   local sidekick_dir="${PROJECT_ROOT}/.sidekick"
   local logs_dir="${sidekick_dir}/logs"
   local state_dir="${sidekick_dir}/state"
-  local pid_file="${sidekick_dir}/daemon.pid"
-  local socket_file="${sidekick_dir}/daemon.sock"
-  local token_file="${sidekick_dir}/daemon.token"
+  local pid_file="${sidekick_dir}/sidekickd.pid"
+  local token_file="${sidekick_dir}/sidekickd.token"
+  local lock_file="${sidekick_dir}/sidekickd.lock"
+  # Socket is in /tmp (or XDG_RUNTIME_DIR on Linux) with project hash
+  local project_hash
+  project_hash=$(echo -n "${PROJECT_ROOT}" | shasum -a 256 | cut -c1-16)
+  local socket_file="${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/sidekick-${project_hash}.sock"
   local user_daemons_dir="${HOME}/.sidekick/daemons"
 
   # 1. Kill project-local daemon if running
@@ -360,8 +364,8 @@ do_clean() {
     log_info "No daemon PID file found"
   fi
 
-  # Clean up daemon files
-  rm -f "${socket_file}" "${token_file}" 2>/dev/null || true
+  # Clean up daemon files (socket, token, lock)
+  rm -f "${socket_file}" "${token_file}" "${lock_file}" 2>/dev/null || true
 
   # 2. Truncate or delete log files
   if [[ -d "${logs_dir}" ]]; then
@@ -521,10 +525,30 @@ do_clean_all() {
     log_info "No logs directory found"
   fi
 
-  # Delete sessions directory
+  # Delete sessions directory (with confirmation)
   if [[ -d "${sessions_dir}" ]]; then
-    rm -rf "${sessions_dir:?}"
-    log_info "Removed ${sessions_dir}"
+    local session_count
+    session_count=$(find "${sessions_dir}" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
+
+    if [[ "${session_count}" -gt 0 ]]; then
+      local sessions_size
+      sessions_size=$(du -sh "${sessions_dir}" 2>/dev/null | cut -f1)
+      log_info "Found ${session_count} session directories (${sessions_size})"
+
+      read -r -p "Remove all session directories? [y/N] " response
+      case "${response}" in
+        [yY][eE][sS]|[yY])
+          rm -rf "${sessions_dir:?}"
+          log_info "Removed ${sessions_dir}"
+          ;;
+        *)
+          log_info "Skipping session cleanup"
+          ;;
+      esac
+    else
+      rm -rf "${sessions_dir:?}"
+      log_info "Removed empty ${sessions_dir}"
+    fi
   else
     log_info "No sessions directory found"
   fi
