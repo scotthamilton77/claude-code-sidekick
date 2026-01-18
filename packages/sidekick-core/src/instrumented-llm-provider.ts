@@ -255,6 +255,8 @@ export class InstrumentedLLMProvider implements LLMProvider {
                 usage: response.usage,
               }
             : null,
+          // Include raw response when available (for debugging)
+          rawResponse: response?.rawResponse ?? null,
           error: error
             ? {
                 name: error.name,
