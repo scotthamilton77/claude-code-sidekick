@@ -442,9 +442,9 @@ do_clean() {
     done
   fi
 
-  # Method 2: Find any sidekickd processes via pgrep
+  # Method 2: Find any sidekick-daemon processes via pgrep
   local pgrep_pids
-  pgrep_pids=$(pgrep -f "sidekickd" 2>/dev/null || true)
+  pgrep_pids=$(pgrep -f "sidekick-daemon" 2>/dev/null || true)
   if [[ -n "${pgrep_pids}" ]]; then
     while IFS= read -r pid; do
       # Skip if already in our list
