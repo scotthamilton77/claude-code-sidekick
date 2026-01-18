@@ -182,6 +182,7 @@ export const LlmConfigSchema = z
         code: 'custom',
         message: `defaultProfile "${data.defaultProfile}" not found in profiles`,
         path: ['defaultProfile'],
+        input: data.defaultProfile,
       })
     }
   })

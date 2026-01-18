@@ -808,3 +808,235 @@ This document preserves the full implementation details of completed phases from
         - SessionEnd: passthrough (cannot block)
       - [x] Graceful fallback when jq unavailable (passthrough)
       - [x] Files: `packages/sidekick-cli/src/commands/hook.ts`, `scripts/dev-hooks/*`
+
+---
+
+- [x] **Phase 9: Refactoring & Architecture Improvements** - COMPLETE 2026-01-18
+
+  Comprehensive refactoring to improve code quality, test coverage, and architectural consistency. Sub-phases can run in parallel where noted.
+
+  - [x] **9.1 Test Coverage Foundation** - COMPLETE 2025-01-12
+    - [x] Objectives
+      - [x] Establish safety net before major refactoring
+      - [x] Target 90%+ coverage for code that should be tested
+    - [x] **9.1.1 Coverage Analysis** - COMPLETE 2025-01-11
+      - [x] Comprehensive audit of current coverage across all packages
+      - [x] Identify gaps in critical paths (handlers, services, IPC)
+      - [x] Evaluate existing exclusions - are we missing something important?
+      - **Baseline**: 83.02% (8,149/9,815 statements)
+    - [x] **9.1.2 Configure Exclusions** - COMPLETE 2025-01-11
+      - [x] Add emulators to exclusion list (test infrastructure, not production code)
+      - [x] Document exclusion rationale in vitest.config.ts comments
+    - [x] **9.1.3 Increase Coverage** - COMPLETE 2025-01-12
+      - [x] **context-metrics-service.ts**: 23 tests added (12% → 55%)
+      - [x] **completion-classifier.ts**: 11 tests added (52% → 99%)
+      - [x] **staging handlers**: 6 tests added (55% → 88%)
+      - Remaining files (context-overhead-reader, instrumented-profile-factory) deferred as 90% target met
+    - [x] Acceptance criteria
+      - [x] **90.08%** line coverage achieved (exceeds 90% target)
+      - [x] Coverage config documents all exclusions with rationale
+      - [o] CI enforces coverage thresholds (deferred to Phase 12)
+
+  - [x] **9.2 Architecture Review & Findings** - COMPLETE 2026-01-12
+    - [x] Objectives
+      - [x] Systematic audit of codebase architecture
+      - [x] Produce prioritized findings document for subsequent phases
+    - [x] **9.2.1 Feature/Hook Modularization Audit** - **Grade: A (no violations)**
+      - Handler architecture is clean and well-modularized
+      - All 13 handlers in correct locations with proper separation of concerns
+      - Registration patterns consistent across all features
+    - [x] **9.2.2 Daemon/CLI Coupling Audit** - **4 high-severity issues found**
+      - P&R baseline management in daemon.ts (should be in feature-reminders)
+      - VC state management in daemon.ts (should be in feature-reminders)
+      - 90+ path constructions need PathResolver abstraction
+      - Reminder names hardcoded in daemon core
+    - [x] **9.2.3 Reminder Relationship Mapping** - **4 cross-reminder rules documented**
+      - P&R unstages VC (cascade prevention)
+      - UserPromptSubmit unstages VC (task complete)
+      - VC consumption resets P&R baseline
+      - VC consumption unstages P&R (prevent double block)
+      - Rules scattered across handlers, candidates for orchestrator
+    - [x] **9.2.4 State Access Pattern Inventory** - **40+ access points cataloged**
+      - No centralized StateWriter abstraction
+      - Path construction duplicated across 7+ files
+      - Inconsistent Zod validation (state-reader uses it, others don't)
+      - Non-atomic writes in some handlers
+    - [x] **9.2.5 TODO/FIXME/@deprecated Scan** - **9 FIXMEs, 7 deprecated items**
+      - 5 FIXMEs in structured-logging.ts: event definitions should move to feature packages
+      - 1 FIXME in daemon.ts:624: P&R baseline should move to feature handler
+      - 7 deprecated APIs with clear migration paths (initialize→prepare+start pattern)
+    - [x] Acceptance criteria
+      - [x] Findings in `docs/architecture-review/9.2.*.md`
+      - [x] Each finding has severity and scope estimate
+      - [x] Prioritized backlog for 9.3-9.6 phases
+
+  - [x] **9.3 State Management Infrastructure** (foundational - informed by 9.2.4 findings) - COMPLETE 2026-01-17
+    - Design: [docs/plans/2026-01-12-state-service-design.md](./plans/2026-01-12-state-service-design.md)
+    - [x] Objectives
+      - [x] Centralize state access behind clean abstractions
+      - [x] Eliminate 90+ duplicated path constructions
+      - [x] Consistent atomic writes and Zod validation
+      - [x] Clean code: no @deprecation, no need to preserve backward compatibility
+    - [x] **9.3.1 StateService Core** (unified service - merges StateManager) - COMPLETE 2026-01-12
+      - [x] Create `StateService` class in `@sidekick/core/src/state/`
+      - [x] `PathResolver` as package-private internal (not exported)
+      - [x] Generic `read<T>()` with optional default (throws if missing and no default)
+      - [x] Generic `write<T>()` with atomic writes (tmp + rename) and Zod validation
+      - [x] `delete()` and `rename()` for StagingService support
+      - [x] Optional caching (daemon enables, CLI doesn't)
+      - [x] `StateNotFoundError` and `StateCorruptError` for error handling
+      - [x] Corrupt file recovery (move to `.bak`, return default or throw)
+    - [x] **9.3.2 Add Missing Schemas** (owned by writer packages) - COMPLETE 2026-01-12
+      - [x] `SummaryCountdownStateSchema` - already exists in @sidekick/types
+      - [x] `CompactionHistorySchema` in sidekick-core (+ pruning to last N entries)
+    - [x] **9.3.3 Migrate Writers** (priority order - writers define contracts) - COMPLETE 2026-01-15
+      - [x] TranscriptService - transcript-metrics.json, compaction-history.json - COMPLETE 2026-01-12
+      - [x] Session summary handlers - session-summary.json, summary-countdown.json, resume-message.json
+      - [x] Daemon IPC handlers - pr-baseline.json, vc-unverified.json, daemon-log-metrics.json
+      - [x] StagingService - stateService now required, removed sync methods (dead code)
+      - [x] Session summary handlers - snarky-message.json (converted from .txt) - COMPLETE 2026-01-13
+      - [x] CLI log metrics - cli.ts writes cli-log-metrics.json (already migrated)
+      - [x] Instrumented LLM provider - llm-metrics.json reads/writes (already migrated)
+    - [x] **9.3.4 Migrate Readers** - COMPLETE 2026-01-15
+      - [x] StateReader (feature-statusline) - uses StateService internally
+      - [x] discoverPreviousResumeMessage() - uses StateService for file reads
+      - [x] stage-pause-and-reflect.ts - reads pr-baseline.json via stateService
+      - [x] unstage-verify-completion.ts - reads/deletes vc-unverified.json via stateService
+      - [x] context-overhead-reader.ts - uses StateService for baseline metrics
+      - [x] runtime.ts - reads cli-log-metrics.json (already migrated in 9.3.3)
+      - [x] UI handlers - **Intentional exception**: read-only, separate package (@sidekick/ui) without @sidekick/core dependency. Benefits of StateService (atomic writes, backup) don't apply to readers.
+    - [x] **9.3.5 Cleanup (Phase A)** - COMPLETE 2026-01-17
+      - [x] Remove `DerivedPaths` from config.ts (replaced by StateService path accessors)
+      - [x] Mark `StateReader` complete - already uses composition pattern with typed accessors
+    - [x] **9.3.6 StateService DevMode Backup** (consolidate backup logic) - COMPLETE 2026-01-17
+      - [x] Add `config?: StateServiceConfig` option to StateServiceOptions (minimal interface with just `core.development.enabled`)
+      - [x] Add private `backupBeforeWrite()` method to StateService (timestamped copy)
+      - [x] In `write()`: if `config?.core.development.enabled`, backup before overwrite
+      - [x] Remove `backupIfDevMode()` calls from handlers (update-summary.ts)
+      - [x] Update tests to verify backup behavior with mock config (5 test cases)
+    - [x] **9.3.7 Cleanup (Phase B)** - COMPLETE 2026-01-17
+      - [x] Delete `StateManager` from sidekick-daemon (merged into StateService)
+      - [x] Delete `backupIfDevMode()` from file-utils.ts (moved to StateService)
+    - [x] **9.3.8 ContextMetricsService Migration** - COMPLETE 2026-01-17
+      - [x] Refactor `context-metrics-service.ts` to use StateService for all state operations
+      - [x] Remove 3 non-atomic writes (now uses StateService.write() with atomic tmp+rename)
+      - [x] Remove 4 direct path constructions (now uses globalStatePath/sessionStatePath)
+      - [x] Delete duplicate schemas from `context-metrics/types.ts` - re-exports from `@sidekick/types`
+      - [x] Added `stateDir` option to StateServiceOptions for user-level state (stateDir: '' means no .sidekick prefix)
+      - [x] Added `lastErrorAt` and `lastErrorMessage` fields to BaseTokenMetricsStateSchema
+      - Note: Remaining fs/path usage is for reading Claude's transcript files (~/.claude/projects/), not sidekick state
+    - [x] **9.3.9 Path Construction Cleanup** - COMPLETE 2026-01-17
+      - [x] daemon.ts - RuntimePaths use stateService.rootDir(), userStateService.rootDir(); sessionDir uses sessionRootDir()
+      - [x] config-watcher.ts - constructor takes sidekickDir from stateService.rootDir()
+      - [x] cleanup.handler.ts - uses stateService.sessionsDir()
+      - [x] ipc/transport.ts - **Intentional exception**: Infrastructure paths for IPC (socket, token, PID, lock) not state management
+      - [x] statusline.ts - uses stateService.sessionsDir()
+      - [x] cli.ts - initializeSession uses stateService.sessionRootDir()
+      - [x] context-overhead-reader.ts - COMPLETE (uses StateService path accessors, done in 9.3.8)
+      - Note: Some bootstrap paths remain (logDir before stateService init, userConfigDir to create userStateService)
+    - [x] **9.3.10 Schema Validation on All Reads** - COMPLETE 2026-01-17
+      - [x] staging-service.ts - add Zod validation (lines 204-205, 283-284)
+      - [x] cli-staging-reader.ts - add Zod validation (line 60-61)
+      - [x] transcript-service.ts - add Zod validation for TranscriptEntry (lines 376, 643, 1023)
+    - [x] Acceptance criteria
+      - [x] Single `StateService` instance per process (DI pattern)
+      - [x] All state writes use atomic pattern
+      - [x] Schema validation on all state reads
+      - [x] Schemas centralized in `@sidekick/types` (no duplicates) - replaces "domain packages own schemas"
+      - [x] No direct path construction outside StateService
+      - [x] No direct fs read/write for state files outside StateService (UI package exempted - read-only)
+      - [x] Dev mode backups automatic via StateService (no manual `backupIfDevMode` calls)
+
+  - [x] **9.4 Config Source-of-Truth** (lower priority - no issues found in 9.2) - COMPLETE 2026-01-17
+    - [x] Objectives
+      - [x] YAML files are single source of truth for defaults
+      - [x] Prevent configuration drift
+      - [x] Clean code: no @deprecation, no need to preserve backward compatibility
+    - [x] **9.4.1 Audit & Establish Source of Truth** - COMPLETE 2026-01-17
+      - [x] Find all Zod schemas with `.default()` calls
+      - [x] Ensure all defaults exist in YAML files in `assets/sidekick/defaults/`
+      - [x] Config loading fails hard if required values missing
+      - Removed `.default()` from: LoggingSchema, PathsSchema, DaemonSchema, IpcSchema, DevelopmentSchema, LlmProfileSchema, LlmConfigSchema, TranscriptConfigSchema
+      - Added missing YAML: `features.defaults.yaml`, `statusline.defaults.yaml` supportedMarkdown section
+    - [x] **9.4.2 Enforcement** - COMPLETE 2026-01-17
+      - [x] Add test: all config keys have YAML defaults
+      - Created `config-yaml-alignment.test.ts` - verifies all required schema paths have YAML defaults
+    - [x] Acceptance criteria
+      - [x] No Zod `.default()` for configuration values
+      - [x] Config parse failures are hard errors
+
+  - [x] **9.5 Feature Domain Consolidation** (minimal - 9.2.1 found architecture already clean) - COMPLETE 2026-01-18
+    - [x] Objectives
+      - [x] Move remaining feature code from daemon.ts to feature packages
+      - [x] Note: 9.2.1 audit found handler architecture is already Grade A - no structural refactoring needed
+      - [x] Clean code: no @deprecation, no need to preserve backward compatibility
+    - [x] **9.5.1 Move Reminder State Logic from Daemon** (from 9.2.2 findings)
+      - [x] Move P&R baseline management (`pr-baseline.json` writes) from daemon.ts:624 to feature-reminders handler
+      - [x] Move VC state management (`vc-unverified.json`, IPC handlers) from daemon.ts:642-705 to feature-reminders
+      - [x] Remove reminder name hardcoding (`'verify-completion'`) from daemon core
+    - [x] **9.5.2 Move Event Definitions to Feature Packages** (from 9.2.5 FIXMEs)
+      - [x] Move `ReminderConsumed` event from structured-logging.ts to feature-reminders
+      - [N] `ReminderStaged` stays in core (used by staging-service.ts, would create circular dep)
+      - [x] Move `RemindersCleared` event from structured-logging.ts to feature-reminders
+      - [x] Move `SummaryUpdated` event from structured-logging.ts to feature-session-summary
+      - [x] Move `SummarySkipped` event from structured-logging.ts to feature-session-summary
+    - [x] Acceptance criteria
+      - [x] daemon.ts has no reminder-specific logic or hardcoded reminder names
+      - [x] Feature packages own their event definitions (4 of 5 moved, 1 remains in core due to circular dep)
+      - [x] 4 FIXME comments in structured-logging.ts resolved (ReminderStaged comment removed, stays in core)
+
+  - [x] **9.6 Reminder Orchestration** (informed by 9.2.3 findings - 4 cross-reminder rules) - COMPLETE 2026-01-18
+    - [x] Objectives
+      - [x] Centralize 4 cross-reminder rules currently scattered across handlers
+      - [x] Replace scattered `deleteReminder()` calls with declarative rule engine
+      - [x] Clean code: no @deprecation, no need to preserve backward compatibility
+    - [x] **9.6.1 Design Rule Engine** - COMPLETE 2026-01-18
+      - Design: [docs/plans/2026-01-18-reminder-orchestrator-design.md](./plans/2026-01-18-reminder-orchestrator-design.md)
+      - [x] `ReminderOrchestrator` in `feature-reminders` with declarative rules:
+        - Rule 1: P&R staged → unstage VC (cascade prevention)
+        - Rule 2: UserPromptSubmit → unstage VC or re-stage if unverified
+        - Rule 3: VC consumed → reset P&R baseline
+        - Rule 4: VC consumed → unstage P&R (prevent double block)
+      - [x] Separate non-caching StateService for staging files (cross-process safety)
+    - [x] **9.6.2 Centralize Baseline State** - COMPLETE 2026-01-18
+      - [x] `ReminderOrchestrator` class with `onReminderStaged`, `onReminderConsumed`, `onUserPromptSubmit`, `readPRBaseline`
+      - [x] Baseline writes/clears via orchestrator methods, reads via `readPRBaseline()`
+      - [x] Non-caching `stagingStateService` in daemon for cross-process staging operations
+    - [x] **9.6.3 Simplify Handlers** - COMPLETE 2026-01-18
+      - [x] Add `ReminderCoordinator` interface to @sidekick/types for DaemonContext
+      - [x] Wire orchestrator into daemon and all DaemonContext creations
+      - [x] Update staging-handler-utils to call `orchestrator.onReminderStaged()` after staging
+      - [x] Delegate `handleReminderConsumedIPC` to `orchestrator.onReminderConsumed()`
+      - [x] Delegate baseline clear in `handleUserPromptSubmitCleanup` to orchestrator
+      - [x] Remove `deleteReminder()` from stage-pause-and-reflect.ts and inject-stop.ts
+      - [x] `ReminderOrchestrator` implements `ReminderCoordinator`, uses types from @sidekick/types
+    - [x] Acceptance criteria - COMPLETE 2026-01-18
+      - [x] 4 cross-reminder rules in single declarative location (orchestrator.ts)
+      - [x] Handlers have single responsibility (no cross-reminder logic)
+      - [x] Adding new reminder type doesn't require modifying existing handlers (new rules go in orchestrator)
+
+  - [x] **9.7 Code Cleanup & Documentation Polish** (after refactoring stabilizes) - COMPLETE 2026-01-18
+    - [x] Objectives
+      - [x] Remove deprecated APIs and resolve remaining FIXMEs
+      - [x] Documentation matches implementation
+      - [x] Clean code: no @deprecation, no need to preserve backward compatibility
+    - [x] **9.7.1 Remove Deprecated APIs** (from 9.2.5 scan - 7 items) - COMPLETE 2026-01-18
+      - [x] Remove `initialize()` → use `prepare()` + `start()` pattern (3 locations)
+      - [x] Remove `getTranscriptService()` → use `prepareTranscriptService()` (2 locations)
+      - [x] Remove `getSessionState()` → use `getTranscriptMetrics()` (already removed)
+      - [x] Remove `SessionMetricsState` type alias → use `TranscriptMetricsState` (2 locations)
+    - [x] **9.7.2 Address Remaining FIXMEs** (from 9.2.5 scan) - COMPLETE 2026-01-18
+      - [x] structured-logging.ts:383 - Added required `logFile` param, removed source-based filename inference
+      - [N] transcript-service.ts:1439 - N/A, FIXME never existed (phantom entry from stale scan)
+      - [x] types/config.ts:15 - Documented as intentional pattern for breaking circular deps
+      - [x] statusline-service.ts:637 - Clarified Priority 3 differs from Priority 1 (not redundant)
+      - [x] stage-pause-and-reflect.ts:31 - Noted ReminderOrchestrator (9.6) addresses the concern
+    - [x] **9.7.3 Documentation Cleanup** - COMPLETE 2026-01-18
+      - [x] Remove phase references from code comments (~60 source files across all packages)
+      - [x] Update design docs if implementation diverged (removed stale phase references)
+      - [x] Rename phase-4.5-integration.test.ts to transcript-handler-integration.test.ts
+      - [x] Fix Zod v4 deprecation: use string literal 'custom' instead of z.ZodIssueCode.custom
+    - [x] Acceptance criteria
+      - [x] No @deprecated APIs remain
+      - [x] All FIXMEs addressed or converted to tracked issues
+      - [x] Design docs current with implementation
