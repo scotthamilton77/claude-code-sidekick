@@ -311,13 +311,18 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
     - [x] `ReminderOrchestrator` class with `onReminderStaged`, `onReminderConsumed`, `onUserPromptSubmit`, `readPRBaseline`
     - [x] Baseline writes/clears via orchestrator methods, reads via `readPRBaseline()`
     - [x] Non-caching `stagingStateService` in daemon for cross-process staging operations
-  - [ ] **9.6.3 Simplify Handlers**
-    - [ ] Remove scattered `deleteReminder()` calls from: stage-pause-and-reflect.ts, unstage-verify-completion.ts, inject-stop.ts
-    - [ ] Handlers call orchestrator instead of direct coordination
-  - [ ] Acceptance criteria
-    - [ ] 4 cross-reminder rules in single declarative location
-    - [ ] Handlers have single responsibility (no cross-reminder logic)
-    - [ ] Adding new reminder type doesn't require modifying existing handlers
+  - [x] **9.6.3 Simplify Handlers** - COMPLETE 2026-01-18
+    - [x] Add `ReminderCoordinator` interface to @sidekick/types for DaemonContext
+    - [x] Wire orchestrator into daemon and all DaemonContext creations
+    - [x] Update staging-handler-utils to call `orchestrator.onReminderStaged()` after staging
+    - [x] Delegate `handleReminderConsumedIPC` to `orchestrator.onReminderConsumed()`
+    - [x] Delegate baseline clear in `handleUserPromptSubmitCleanup` to orchestrator
+    - [x] Remove `deleteReminder()` from stage-pause-and-reflect.ts and inject-stop.ts
+    - [x] `ReminderOrchestrator` implements `ReminderCoordinator`, uses types from @sidekick/types
+  - [x] Acceptance criteria - COMPLETE 2026-01-18
+    - [x] 4 cross-reminder rules in single declarative location (orchestrator.ts)
+    - [x] Handlers have single responsibility (no cross-reminder logic)
+    - [x] Adding new reminder type doesn't require modifying existing handlers (new rules go in orchestrator)
 
 - [ ] **9.7 Code Cleanup & Documentation Polish** (after refactoring stabilizes)
   - [ ] Objectives
