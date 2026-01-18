@@ -1,7 +1,7 @@
 /**
  * Structured Logging & Telemetry Module
  *
- * Implements Phase 3 of the Sidekick Node runtime per docs/design/STRUCTURED-LOGGING.md.
+ * Implements structured logging per docs/design/STRUCTURED-LOGGING.md.
  * Provides a Pino-based logging system with:
  *
  * - Two-phase initialization (bootstrap console → full Pino logger)

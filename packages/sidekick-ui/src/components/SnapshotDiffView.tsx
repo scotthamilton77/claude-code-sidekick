@@ -1,7 +1,7 @@
 /**
  * SnapshotDiffView - Generic computed diff visualization between consecutive snapshots.
  *
- * Phase 7.B.3: Implements Git-style diff rendering for ANY JSON structure, not hard-coded fields.
+ * Implements Git-style diff rendering for ANY JSON structure, not hard-coded fields.
  * Displays additions (green), deletions (red), and modifications (yellow) with nested path support.
  *
  * Design: packages/sidekick-ui/docs/MONITORING-UI.md §3.2.C State Inspector

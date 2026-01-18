@@ -54,7 +54,7 @@ export default defineConfig({
         'server/api-plugin.ts',
 
         // Type guards in types/index.ts have runtime code but minimal ROI
-        // (simple discriminated union checks - defer until Phase 2 if needed)
+        // (simple discriminated union checks)
         'src/types/index.ts',
 
         // Filter parser - untested utility (defer until needed)

@@ -100,7 +100,7 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
   // Log counters for statusline {logs} indicator
   let logCounters = { warnings: 0, errors: 0 }
 
-  // Phase 1: Create logger facade with bootstrap logger for early errors
+  // Create logger facade with bootstrap logger for early errors
   const loggerFacade = createLoggerFacade({
     bootstrapSink: options.stderrSink ?? process.stderr,
     bufferPreUpgrade: true,
@@ -143,7 +143,7 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
     command: options.command,
   }
 
-  // Phase 2: Upgrade to full Pino logger with config-driven settings
+  // Upgrade to full Pino logger with config-driven settings
   const logFilePath = getLogFilePath(scope)
   const isInteractive = options.interactive ?? process.env.SIDEKICK_INTERACTIVE === '1'
   const enableFileLogging = options.enableFileLogging ?? true

@@ -98,7 +98,7 @@ export class TaskRegistry {
    * Clean up orphaned tasks from previous daemon runs.
    * Called on daemon startup to reset task registry.
    *
-   * Per ROADMAP Phase 5.2: Tasks tracked in state, cleaned on daemon restart.
+   * Tasks tracked in state, cleaned on daemon restart.
    */
   async cleanupOrphans(): Promise<number> {
     const state = await this.getState()

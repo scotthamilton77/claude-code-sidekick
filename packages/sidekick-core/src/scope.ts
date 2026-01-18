@@ -1,8 +1,7 @@
 /**
  * Scope Resolution Module
  *
- * Implements Phase 1 of the Sidekick Node runtime per docs/design/CLI.md §6 and
- * docs/ARCHITECTURE.md §3.2.
+ * Implements scope resolution per docs/design/CLI.md §6 and docs/ARCHITECTURE.md §3.2.
  *
  * Determines whether the CLI is running in 'project' or 'user' scope based on:
  * - Explicit override via --scope flag

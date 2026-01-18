@@ -1,6 +1,5 @@
 /**
  * @fileoverview Feature Registry - manages feature lifecycle and dependency resolution
- * Phase 4 Track B: Feature Registry implementation
  *
  * Responsibilities:
  * - Register features and track dependencies

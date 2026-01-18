@@ -131,7 +131,7 @@ export const LlmConfigSchema = z.object({
 export type LlmConfig = z.infer<typeof LlmConfigSchema>;
 ```
 
-**Note**: Fallback and resilience settings support Phase 4 LLM provider implementation. See `docs/design/LLM-PROVIDERS.md §5` for retry/fallback policy details.
+**Note**: Fallback and resilience settings support the LLM provider implementation. See `docs/design/LLM-PROVIDERS.md §5` for retry/fallback policy details.
 
 ### 5.3 Transcript Config Schema
 

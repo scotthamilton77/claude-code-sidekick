@@ -2,7 +2,6 @@
  * CLI Context Builder
  *
  * Converts RuntimeShell to CLIContext for consumption handler registration.
- * Implements Phase 8.5.4: CLI-side reminder consumption.
  *
  * @see docs/design/FEATURE-REMINDERS.md §4.2 Consumption Handlers
  */

@@ -11,7 +11,7 @@
  * - Optionally opens browser (default: yes, disable with --no-open)
  * - Handles graceful shutdown on SIGINT/SIGTERM
  *
- * @see docs/ROADMAP.md Phase 7.E.2
+ * @see docs/ROADMAP.md
  */
 
 import { spawn, type ChildProcess } from 'node:child_process'

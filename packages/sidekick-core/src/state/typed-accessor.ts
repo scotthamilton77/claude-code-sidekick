@@ -6,7 +6,7 @@
  *
  * Features create accessors from their descriptors and use them in handlers.
  *
- * @see docs/ROADMAP.md Phase 9.3.7
+ * @see docs/design/STATE-SERVICE.md
  */
 
 import type { MinimalStateService, StateReadResult } from '@sidekick/types'

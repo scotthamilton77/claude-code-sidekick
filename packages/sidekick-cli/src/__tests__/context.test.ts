@@ -1,7 +1,7 @@
 /**
  * Tests for CLI Context Builder
  *
- * Phase 8.5.4: Verifies CLIContext creation for consumption handler registration.
+ * Verifies CLIContext creation for consumption handler registration.
  */
 
 import { describe, expect, test, vi } from 'vitest'

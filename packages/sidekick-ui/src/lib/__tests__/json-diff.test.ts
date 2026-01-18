@@ -1,5 +1,5 @@
 /**
- * Tests for json-diff utility (Phase 7.B.3)
+ * Tests for json-diff utility.
  *
  * Verifies generic diff computation for any JSON structure using microdiff.
  */

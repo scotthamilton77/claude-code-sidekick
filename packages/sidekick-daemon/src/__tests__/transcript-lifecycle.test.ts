@@ -1,7 +1,7 @@
 /**
  * TranscriptService Lifecycle Tests
  *
- * Tests for Phase 5.3 TranscriptService integration with Daemon:
+ * Tests for TranscriptService integration with Daemon:
  * - Initialize TranscriptService on SessionStart handler
  * - Stop TranscriptService on SessionEnd handler
  * - Ensure shutdown() is called before process exit

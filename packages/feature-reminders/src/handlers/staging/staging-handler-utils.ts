@@ -97,7 +97,7 @@ export function createStagingHandler(context: RuntimeContext, config: StagingHan
     // Stage reminder with stagedAt metrics
     await stageReminder(daemonCtx, action.targetHook, { ...reminder, stagedAt })
 
-    // Call orchestrator for cross-reminder coordination (Phase 9.6.3)
+    // Call orchestrator for cross-reminder coordination
     const sessionId = isTranscriptEvent(event) ? event.context?.sessionId : undefined
     if (sessionId && daemonCtx.orchestrator) {
       await daemonCtx.orchestrator.onReminderStaged({ name: action.reminderId, hook: action.targetHook }, sessionId)

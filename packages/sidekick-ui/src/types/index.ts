@@ -129,7 +129,6 @@ export type UIEventType =
  * Simplified event for timeline/transcript UI rendering.
  *
  * This is a UI presentation type that flattens SidekickEvent data for display.
- * Phase 1.5.4 will add adapters to convert SidekickEvent → UIEvent.
  *
  * @see SidekickEvent for the canonical event schema
  */
@@ -161,7 +160,7 @@ export interface UIEvent {
 }
 
 // ============================================================================
-// Phase 6.5: Enhanced Event Data Types
+// Enhanced Event Data Types
 // ============================================================================
 
 /**

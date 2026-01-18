@@ -4,7 +4,7 @@
  * Creates test configuration objects with sensible defaults.
  * Useful for testing config-dependent behavior.
  *
- * Updated for Phase 2 YAML domain-based config structure:
+ * Uses YAML domain-based config structure:
  * - core: logging, paths
  * - llm: provider settings
  * - transcript: file watching settings

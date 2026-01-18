@@ -11,7 +11,7 @@
  * - Interactive mode: Human-readable output for debugging
  * - Scope detection with dual-install awareness
  * - Hook input JSON parsing from stdin (per CLI.md §3.1)
- * - Hook event dispatch to Daemon via IPC (Phase 8)
+ * - Hook event dispatch to Daemon via IPC
  *
  * @see docs/design/CLI.md §3 Hook Wrapper Layer
  * @see docs/design/CLI.md §3.1.1 Hook Input Structure
@@ -267,7 +267,7 @@ export async function routeCommand(context: {
 
   runtime.logger.debug('Raw hook input', { hookInput })
 
-  // Handle hook commands by dispatching to daemon (Phase 8)
+  // Handle hook commands by dispatching to daemon
   // Per docs/design/flow.md §5: CLI sends event to Daemon via IPC
   if (parsed.hookMode && hookInput && runtime.scope.projectRoot) {
     // Prefer hookInput.hookEventName (PascalCase from stdin), fall back to parsed.command (kebab-case from argv)

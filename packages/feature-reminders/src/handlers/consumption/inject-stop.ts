@@ -115,7 +115,7 @@ export function registerInjectStop(context: RuntimeContext): void {
     onConsume: async ({ reminder, cliCtx, sessionId }) => {
       // Side effects for verify-completion consumption
       if (reminder.name === ReminderIds.VERIFY_COMPLETION) {
-        // Send IPC to Daemon for cross-reminder coordination (Phase 9.6.3)
+        // Send IPC to Daemon for cross-reminder coordination
         // Daemon's orchestrator.onReminderConsumed() handles:
         // - Resetting P&R baseline
         // - Unstaging any staged P&R

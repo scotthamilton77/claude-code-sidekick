@@ -9,7 +9,6 @@
  * - Real HandlerRegistryImpl for event dispatch
  * - Golden set transcripts with known characteristics
  *
- * @see docs/ROADMAP.md Phase 6 Testing: "End-to-end flows against recorded transcripts"
  * @see docs/design/flow.md §5 Complete Hook Flows
  */
 

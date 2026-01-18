@@ -7,7 +7,6 @@
  * - Interactive mode doesn't auto-start daemon
  *
  * @see docs/design/CLI.md §7 Daemon Lifecycle Management
- * @see docs/ROADMAP.md Phase 5.5 CLI Integration & Graceful Fallback
  */
 import { Writable } from 'node:stream'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'

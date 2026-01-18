@@ -137,7 +137,7 @@ Rename "supervisor" to "daemon" throughout the codebase for consistency with Uni
 - [x] `daemon-heartbeat.test.ts:24` - `role: 'supervisor'` → `role: 'daemon'`
 - [x] `daemon-heartbeat.test.ts:181,218` - `supervisor-status.json` path reference
 - [x] `task-engine.test.ts:11` - `role: 'supervisor'` → `role: 'daemon'`
-- [x] `phase-4.5-integration.test.ts:587,623` - `role: 'supervisor'` assertions (not found - may have been done earlier)
+- [x] `transcript-handler-integration.test.ts:587,623` - `role: 'supervisor'` assertions (not found - may have been done earlier)
 - [x] `daemon-client.test.ts:301,303,618,631` - error message (not found - may have been done earlier)
 - [x] `structured-logging.test.ts:822` - `name: 'sidekick:supervisor'` → `name: 'sidekick:daemon'`
 - [x] `ipc-service.test.ts` - test descriptions/comments mentioning supervisor

@@ -2,7 +2,6 @@
  * Hook Command Handler
  *
  * Handles hook event dispatch to the Daemon via IPC.
- * Implements Phase 8 of the roadmap: CLI→Daemon Event Dispatch.
  *
  * Per docs/design/flow.md §5 Complete Hook Flows:
  * 1. CLI receives hook input from Claude Code
@@ -273,8 +272,6 @@ export function buildHookEvent(
  * Merge CLI and Daemon hook responses.
  * CLI response takes precedence for reminder fields (blocking, reason, userMessage).
  * additionalContext is concatenated (CLI first, then Daemon).
- *
- * Phase 8.5.4: Used to merge reminder consumption responses with daemon responses.
  */
 export function mergeHookResponses(daemonResponse: HookResponse | null, cliResponse: HookResponse): HookResponse {
   const merged: HookResponse = { ...daemonResponse }
@@ -354,7 +351,7 @@ export async function handleHookCommand(
     sessionId: hookInput.sessionId,
   })
 
-  // Build CLIContext and register consumption handlers (Phase 8.5.4)
+  // Build CLIContext and register consumption handlers
   const cliContext = buildCLIContext({
     runtime,
     sessionId: hookInput.sessionId,
@@ -383,7 +380,7 @@ export async function handleHookCommand(
       })
     }
 
-    // Invoke CLI-side consumption handlers (Phase 8.5.4)
+    // Invoke CLI-side consumption handlers
     const cliResponse = await cliContext.handlers.invokeHook(hookName, event)
 
     logger.debug('CLI handlers invoked', {
