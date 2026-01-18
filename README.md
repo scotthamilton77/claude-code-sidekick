@@ -22,6 +22,7 @@ This repository serves as a development and testing environment for [Claude Code
 - log rotation and log level to info by default
 - BUG: uninstall from project leaves empty hooks folder
 - how do subagents work - can we detect their connection to the parent agent, and do we care? (for statusline, maybe not, but for analytics?)
+- clean up projects, e.g. claude-config != sidekick (I think we already pulled the devcontainer project out)
 
 ### Nice to Haves
 
