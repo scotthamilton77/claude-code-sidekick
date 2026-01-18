@@ -140,7 +140,10 @@ bd dep add <epic-9.6> <task-9.5.1>   # All of 9.6 waits for 9.5.1
 3. **Check parent context**: If task has a parent, run `bd show <parent-id>` recursively to see parent's acceptance criteria, description, and sibling tasks
 4. **Work on it**: Implement, test, document
 5. **Discover new work?** Create linked issue with `--deps discovered-from:<parent-id>`
-6. **Complete**: `bd close <id>`
+6. **Clean up**: Make sure there are no typescript or lint issues or test failures
+7. **Initiate agent reviews**: Use the code review and code simplifier skills and/or agents
+8. **Pause and let the user review**
+9. **Complete**: Only once the user agrees the work is done and explicitly asks for a commit: `bd close <id>`
 
 ### Rules
 
