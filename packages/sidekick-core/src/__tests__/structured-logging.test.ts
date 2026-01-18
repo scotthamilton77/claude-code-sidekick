@@ -929,6 +929,7 @@ describe('Structured Logging', () => {
         level: 'info',
         source: 'cli',
         logsDir,
+        logFile: 'cli.log',
       })
 
       logger.info('CLI log entry')
@@ -954,6 +955,7 @@ describe('Structured Logging', () => {
         level: 'info',
         source: 'daemon',
         logsDir,
+        logFile: 'sidekickd.log',
       })
 
       logger.info('Daemon log entry')
@@ -968,6 +970,21 @@ describe('Structured Logging', () => {
       const log = JSON.parse(content.trim())
       expect(log.source).toBe('daemon')
       expect(log.msg).toBe('Daemon log entry')
+    })
+
+    it('should throw when logsDir is provided without logFile', async () => {
+      const { createContextLogger } = await import('../structured-logging')
+      const logsDir = path.join(tempDir, 'logs')
+
+      expect(() =>
+        createContextLogger({
+          name: 'sidekick:cli',
+          level: 'info',
+          source: 'cli',
+          logsDir,
+          // logFile intentionally omitted
+        })
+      ).toThrow('logFile is required when logsDir is set')
     })
   })
 

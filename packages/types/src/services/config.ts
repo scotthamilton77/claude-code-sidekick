@@ -11,8 +11,14 @@
 /**
  * Minimal config service constraint for context typing.
  * The actual ConfigService interface is defined in @sidekick/core.
+ *
+ * Note: "Minimal" interfaces are a deliberate pattern to break circular dependencies.
+ * @sidekick/types is the foundation with no deps on other sidekick packages.
+ * @sidekick/core implements full ConfigService/AssetResolver with Zod schemas.
+ * BaseContext uses these minimal constraints; structural typing ensures the full
+ * implementations satisfy them automatically.
  */
-// FIXME these "minimal" interfaces are a smell; should we have full types here in types/?
+
 /**
  * LLM profile configuration used in MinimalConfigService.
  * Contains the essential fields needed for provider creation.

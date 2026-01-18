@@ -25,6 +25,7 @@ import {
   shortenPath,
 } from '../formatter.js'
 import { StateService } from '@sidekick/core'
+import type { MinimalAssetResolver } from '@sidekick/types'
 import { getDefaultOverhead, readContextOverhead } from '../context-overhead-reader.js'
 import { createStateReader, discoverPreviousResumeMessage } from '../state-reader.js'
 import { createStatuslineService, type ClaudeCodeStatusInput } from '../statusline-service.js'
@@ -2520,9 +2521,13 @@ describe('StatuslineService', () => {
   describe('configService usage', () => {
     it('uses configService settings when provided', async () => {
       const mockConfigService = {
-        getFeature: <T>(name: string): { settings: T } => {
+        core: { logging: { level: 'info' }, development: { enabled: false } },
+        llm: { defaultProfile: 'default', profiles: {}, fallbacks: {} },
+        getAll: () => ({}),
+        getFeature: <T>(name: string): { enabled: boolean; settings: T } => {
           if (name === 'statusline') {
             return {
+              enabled: true,
               settings: {
                 theme: {
                   ...DEFAULT_STATUSLINE_CONFIG.theme,
@@ -2531,7 +2536,7 @@ describe('StatuslineService', () => {
               } as T,
             }
           }
-          return { settings: {} as T }
+          return { enabled: true, settings: {} as T }
         },
       }
 
@@ -2855,8 +2860,9 @@ describe('StatuslineService', () => {
 
   describe('random empty session messages', () => {
     /** Create a mock asset resolver that returns content for a specific path */
-    function createMockAssets(content: string | null): { resolve: (relativePath: string) => string | null } {
+    function createMockAssets(content: string | null): MinimalAssetResolver {
       return {
+        cascadeLayers: ['mock'],
         resolve: (relativePath: string): string | null => {
           if (relativePath === 'defaults/features/statusline-empty-messages.txt') {
             return content
