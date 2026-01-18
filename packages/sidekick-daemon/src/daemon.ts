@@ -27,10 +27,10 @@ import {
 import {
   registerStagingHandlers,
   classifyCompletion,
-  handleReminderConsumed,
   handleVCUnverifiedSet,
   handleVCUnverifiedClear,
   ReminderEvents,
+  ReminderOrchestrator,
 } from '@sidekick/feature-reminders'
 import { registerHandlers as registerSessionSummaryHandlers } from '@sidekick/feature-session-summary'
 import type {
@@ -103,6 +103,8 @@ export class Daemon {
   private profileProviderFactory: ProfileProviderFactory
   private instrumentedProviders = new Map<string, InstrumentedLLMProvider>()
   private contextMetricsService: ContextMetricsService
+  /** Reminder orchestrator for cross-reminder coordination rules */
+  private orchestrator: ReminderOrchestrator
   /** Per-session log counters for statusline {logs} indicator */
   private logCounters = new Map<string, { warnings: number; errors: number }>()
   /** Global log counters for daemon-level errors (not tied to any session) */
@@ -229,6 +231,14 @@ export class Daemon {
 
     // Initialize Profile Provider Factory for profile-based LLM provider creation
     this.profileProviderFactory = new ProfileProviderFactory(this.configService, this.logger)
+
+    // Initialize Reminder Orchestrator for cross-reminder coordination (Phase 9.6)
+    // Uses serviceFactory.getStagingService for session-scoped staging access
+    this.orchestrator = new ReminderOrchestrator({
+      getStagingService: (sessionId) => this.serviceFactory.getStagingService(sessionId),
+      stateService: this.stateService,
+      logger: this.logger,
+    })
 
     // Register staging handlers (Phase 8.5 - Reminders feature)
     // These handlers listen for SessionStart/transcript events and stage reminders
@@ -655,16 +665,18 @@ export class Daemon {
   private async handleReminderConsumedIPC(params: Record<string, unknown> | undefined): Promise<void> {
     const sessionId = params?.sessionId as string | undefined
     const reminderName = params?.reminderName as string | undefined
-    const metrics = params?.metrics as { turnCount: number; toolsThisTurn: number } | undefined
+    const metrics = params?.metrics as { turnCount: number; toolsThisTurn: number; toolCount?: number } | undefined
 
     if (!sessionId || !reminderName || !metrics) {
       throw new Error('reminder.consumed requires sessionId, reminderName, and metrics')
     }
 
-    await handleReminderConsumed(
-      { sessionId, reminderName, metrics },
-      { stateService: this.stateService, logger: this.logger }
-    )
+    // Delegate to orchestrator for cross-reminder coordination (Phase 9.6.3)
+    await this.orchestrator.onReminderConsumed({ name: reminderName, hook: 'Stop' }, sessionId, {
+      turnCount: metrics.turnCount,
+      toolsThisTurn: metrics.toolsThisTurn,
+      toolCount: metrics.toolCount ?? 0,
+    })
   }
 
   /**
@@ -765,6 +777,7 @@ export class Daemon {
       staging: stagingService,
       transcript: transcriptService,
       stateService: this.stateService,
+      orchestrator: this.orchestrator,
     }
 
     const result = await classifyCompletion({ ctx, settings })
@@ -971,6 +984,7 @@ export class Daemon {
       staging: stagingService,
       transcript: transcriptService,
       stateService: this.stateService,
+      orchestrator: this.orchestrator,
     }
   }
 
@@ -1073,6 +1087,7 @@ export class Daemon {
       staging: stagingService,
       transcript: transcriptService,
       stateService: this.stateService,
+      orchestrator: this.orchestrator,
     }
 
     // Update handler registry with session info and providers
@@ -1114,10 +1129,8 @@ export class Daemon {
     }
     log.debug('Cleared staged reminders on UserPromptSubmit', { hooks: hooksToClear })
 
-    // Clear P&R baseline on new user prompt (new turn resets threshold)
-    const baselinePath = this.stateService.sessionStatePath(sessionId, 'pr-baseline.json')
-    await this.stateService.delete(baselinePath)
-    log.debug('Cleared P&R baseline on UserPromptSubmit')
+    // Delegate P&R baseline cleanup to orchestrator (centralizes coordination logic)
+    await this.orchestrator.onUserPromptSubmit(sessionId)
   }
 
   /**
@@ -1423,6 +1436,7 @@ export class Daemon {
       staging: null as unknown as StagingService,
       transcript: null as unknown as TranscriptService,
       stateService: this.stateService,
+      orchestrator: this.orchestrator,
     }
 
     // Register handlers - they'll receive full context at invocation time
