@@ -7,7 +7,14 @@
  * @see docs/design/FEATURE-STATUSLINE.md §5.1 StatuslineService
  */
 
-import type { Logger, MinimalStateService, MinimalConfigService, MinimalAssetResolver, SessionPersonaState, PersonaDefinition } from '@sidekick/types'
+import type {
+  Logger,
+  MinimalStateService,
+  MinimalConfigService,
+  MinimalAssetResolver,
+  SessionPersonaState,
+  PersonaDefinition,
+} from '@sidekick/types'
 import { createPersonaLoader, getDefaultPersonasDir } from '@sidekick/core'
 import {
   Formatter,
