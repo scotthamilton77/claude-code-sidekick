@@ -31,6 +31,7 @@ Introduce configurable persona profiles that shape the "snarky" session summary 
 - Statusline empty-message selection uses the session's persona message set when available; otherwise, fall back to the `sidekick` persona list.
 - When personas are disabled or no persona is selected, statusline uses `SESSION_SUMMARY_PLACEHOLDERS` instead of persona empty-message pools.
 - Resume messages are only used when the previous session ended within a configurable time window (default: 4 hours). If the session is older, statusline falls back to persona empty-message selection instead of displaying a stale resume message.
+- Need to add to the statusline template the persona name as a token variable (which gets replaced by the actual persona name unless personas are disabled).
 
 ### Non-Functional
 
