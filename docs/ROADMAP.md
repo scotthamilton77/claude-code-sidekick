@@ -294,11 +294,11 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
     - [x] Feature packages own their event definitions (4 of 5 moved, 1 remains in core due to circular dep)
     - [x] 4 FIXME comments in structured-logging.ts resolved (ReminderStaged comment removed, stays in core)
 
-- [ ] **9.6 Reminder Orchestration** (informed by 9.2.3 findings - 4 cross-reminder rules)
-  - [ ] Objectives
-    - [ ] Centralize 4 cross-reminder rules currently scattered across handlers
-    - [ ] Replace scattered `deleteReminder()` calls with declarative rule engine
-    - [ ] Clean code: no @deprecation, no need to preserve backward compatibility
+- [x] **9.6 Reminder Orchestration** (informed by 9.2.3 findings - 4 cross-reminder rules) - COMPLETE 2026-01-18
+  - [x] Objectives
+    - [x] Centralize 4 cross-reminder rules currently scattered across handlers
+    - [x] Replace scattered `deleteReminder()` calls with declarative rule engine
+    - [x] Clean code: no @deprecation, no need to preserve backward compatibility
   - [x] **9.6.1 Design Rule Engine** - COMPLETE 2026-01-18
     - Design: [docs/plans/2026-01-18-reminder-orchestrator-design.md](./plans/2026-01-18-reminder-orchestrator-design.md)
     - [x] `ReminderOrchestrator` in `feature-reminders` with declarative rules:
