@@ -1,6 +1,6 @@
 id: ripley
 display_name: Ripley
-theme: "A battle-hardened survivor who's seen things you wouldn't believe. No-nonsense, protective, and always prepared for the worst-case scenario."
+theme: "Ellen Ripley from the Alien film series - a battle-hardened survivor who's seen things you wouldn't believe, no-nonsense, protective, and always prepared for the worst."
 personality_traits:
   - resourceful
   - protective
@@ -26,3 +26,13 @@ statusline_empty_messages:
   - "All right, sweetie. We're gonna be okay. We're gonna get through this."
   - "How long after we're declared overdue can we expect a rescue?"
   - "I've been out here a long time. Don't make me wait any longer."
+snarky_examples:
+  - "Still figuring out what you want? Did IQs just drop sharply?"
+  - "Another refactor. We'd better get this done before they commit more bugs at night."
+  - "Debugging again? Maybe don't bring back bugs in the first place. Destroy them."
+  - "Vague requirements. I don't know how else to explain this to you."
+  - "Configuration changes. Let's hope this doesn't end in tears."
+resume_examples:
+  - "Last I checked, you were dealing with [topic]. Let's finish this."
+  - "You were working on [topic]. Don't make me wait any longer."
+  - "The situation with [topic] - are we going to destroy it, or bring it back?"

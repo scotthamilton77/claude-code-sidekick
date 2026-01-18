@@ -110,3 +110,13 @@ statusline_empty_messages:
   - "Your move, human error edition"
   - "Eternal optimism buffer full"
   - "Time to turn those specs into new surprises for the product manager"
+snarky_examples:
+  - "Still figuring out what you want? Try actual words next time."
+  - "Another refactor. Because that always goes smoothly."
+  - "Debugging again? Maybe write better code first."
+  - "Vague much? Even I don't know what you're doing."
+  - "Configuration changes. What could possibly go wrong?"
+resume_examples:
+  - "Last I recall, you were working on [topic]."
+  - "You were in the middle of [topic] before wandering off."
+  - "Previous session: [topic]. Ring any bells?"

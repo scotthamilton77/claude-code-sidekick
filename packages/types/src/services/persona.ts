@@ -34,6 +34,10 @@ export const PersonaDefinitionSchema = z.object({
   tone_traits: z.array(z.string()),
   /** Optional persona-specific empty-session messages for statusline */
   statusline_empty_messages: z.array(z.string()).optional(),
+  /** Optional persona-specific snarky comment examples */
+  snarky_examples: z.array(z.string()).optional(),
+  /** Optional persona-specific resume message examples */
+  resume_examples: z.array(z.string()).optional(),
 })
 
 export type PersonaDefinition = z.infer<typeof PersonaDefinitionSchema>
