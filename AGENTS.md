@@ -34,8 +34,9 @@ development-tools/llm-eval/ # LLM evaluation tools (relocated from benchmark-nex
 </structure>
 
 <cli_commands>
+<!-- This section is ONLY for sidekick CLI commands. Do NOT use this for bd (beads) commands. -->
 
-**CLI invocation**: `node packages/sidekick-cli/dist/bin.js <command> [args]`
+**Sidekick CLI invocation**: `node packages/sidekick-cli/dist/bin.js <command> [args]`
 
 **Persona commands** (require daemon running):
 ```bash
@@ -49,7 +50,16 @@ node packages/sidekick-cli/dist/bin.js persona --session-id=<id>
 node packages/sidekick-cli/dist/bin.js persona-test <persona-id> --session-id=<id> [--type=snarky|resume]
 ```
 
-Find your session ID in `.sidekick/sessions/` or grep for your session title.
+**Sessions command**:
+```bash
+# List all tracked sessions (JSON output)
+node packages/sidekick-cli/dist/bin.js sessions
+
+# List sessions in human-readable table format
+node packages/sidekick-cli/dist/bin.js sessions --format=table
+```
+
+Find your session ID in `.sidekick/sessions/` or use `sidekick sessions` to list all sessions.
 </cli_commands>
 
 <sandbox_testing>
