@@ -301,12 +301,14 @@ export function createLogManager(options: LogManagerOptions): LogManager {
 export interface ContextLoggerOptions {
   name?: string
   level?: LogLevel
-  /** Component source - determines log file (cli.log or sidekickd.log) */
+  /** Component source - included in log context */
   source: LogSource
   /** Initial context bindings */
   context?: Record<string, unknown>
-  /** Directory for log files (defaults to .sidekick/logs) */
+  /** Directory for log files */
   logsDir?: string
+  /** Log filename (required when logsDir is set) */
+  logFile?: string
   /** Custom redaction paths */
   redactPaths?: string[]
   /** Test stream (bypasses file output) */
@@ -330,7 +332,7 @@ export interface ContextLogger extends Logger {
  *
  * @see docs/design/STRUCTURED-LOGGING.md §3.7
  *
- * @example
+ * @example Console output (default):
  * ```typescript
  * const logger = createContextLogger({
  *   source: 'cli',
@@ -343,6 +345,15 @@ export interface ContextLogger extends Logger {
  *
  * // hookLogger has: { sessionId: 'abc-123', hook: 'UserPromptSubmit' }
  * ```
+ *
+ * @example File output (requires logFile):
+ * ```typescript
+ * const logger = createContextLogger({
+ *   source: 'daemon',
+ *   logsDir: '/path/to/.sidekick/logs',
+ *   logFile: 'sidekickd.log',
+ * })
+ * ```
  */
 export function createContextLogger(options: ContextLoggerOptions): ContextLogger {
   const {
@@ -351,6 +362,7 @@ export function createContextLogger(options: ContextLoggerOptions): ContextLogge
     source,
     context = {},
     logsDir,
+    logFile,
     redactPaths,
     testStream,
   } = options
@@ -379,9 +391,10 @@ export function createContextLogger(options: ContextLoggerOptions): ContextLogge
     // Testing mode: write directly to provided stream
     pinoInstance = pino(pinoOptions, testStream)
   } else if (logsDir) {
-    // File output based on source
-    // FIXME this is an inappropriate mixing of concerns - the logic of which file each event goes to should be handled elsewhere
-    const logFile = source === 'cli' ? 'cli.log' : source === 'transcript' ? 'transcript-events.log' : 'sidekickd.log'
+    // File output - caller specifies log filename
+    if (!logFile) {
+      throw new Error('logFile is required when logsDir is set')
+    }
     const logPath = join(logsDir, logFile)
     const logDir = dirname(logPath)
 

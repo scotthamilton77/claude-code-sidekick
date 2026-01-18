@@ -28,7 +28,8 @@ export function registerStagePauseAndReflect(context: RuntimeContext): void {
       const config = { ...DEFAULT_REMINDERS_SETTINGS, ...featureConfig.settings }
 
       // Read P&R baseline set by VC consumption (if any)
-      // FIXME wouldn't a countdown be simpler, and putting countdown resets into an event handler, and/or a feature controller class?
+      // Note: Baseline tracking vs countdown has similar complexity. Cross-reminder coordination
+      // (baseline resets, turn resets) is now handled by ReminderOrchestrator per 9.6 refactoring.
       let prBaseline: PRBaselineState | null = null
       if (sessionId) {
         const remindersState = createRemindersState(ctx.stateService)

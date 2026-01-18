@@ -7,17 +7,7 @@
  * @see docs/design/FEATURE-STATUSLINE.md §5.1 StatuslineService
  */
 
-import type { Logger, MinimalStateService } from '@sidekick/types'
-
-/** Minimal config service interface for feature packages */
-interface MinimalConfigService {
-  getFeature<T>(name: string): { settings: T }
-}
-
-/** Minimal asset resolver interface for feature packages */
-interface MinimalAssetResolver {
-  resolve(relativePath: string): string | null
-}
+import type { Logger, MinimalStateService, MinimalConfigService, MinimalAssetResolver } from '@sidekick/types'
 import {
   Formatter,
   calculateContextUsage,
@@ -631,10 +621,9 @@ export class StatuslineService {
       return 'session_summary'
     }
 
-    // Priority 3: Discovered resume message from previous session
-    // Show this when we have no summary (new session with placeholder)
-    // This provides context about what the user was working on before
-    // FIXME is this necessary since it's covered in priority 1?
+    // Priority 3: Discovered resume message from previous session (new session, not explicit --continue)
+    // This differs from Priority 1: here isResumedSession is false but we found a resume message from a prior session.
+    // Provides context about what the user was working on before, even when not using --continue.
     if (resume) {
       this.logger?.debug('Display mode selected: resume_message (discovered resume message from previous session)')
       return 'resume_message'

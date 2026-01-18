@@ -334,10 +334,12 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
     - [x] Remove `getTranscriptService()` → use `prepareTranscriptService()` (2 locations)
     - [x] Remove `getSessionState()` → use `getTranscriptMetrics()` (already removed)
     - [x] Remove `SessionMetricsState` type alias → use `TranscriptMetricsState` (2 locations)
-  - [ ] **9.7.2 Address Remaining FIXMEs** (from 9.2.5 scan)
-    - [ ] structured-logging.ts:383 - Extract event routing logic from logging setup
-    - [ ] transcript-service.ts:1439 - Remove old `currentContextTokens` backward compat
-    - [ ] types/config.ts:15 - Review minimal interface pattern
+  - [x] **9.7.2 Address Remaining FIXMEs** (from 9.2.5 scan) - COMPLETE 2026-01-18
+    - [x] structured-logging.ts:383 - Added required `logFile` param, removed source-based filename inference
+    - [N] transcript-service.ts:1439 - N/A, FIXME never existed (phantom entry from stale scan)
+    - [x] types/config.ts:15 - Documented as intentional pattern for breaking circular deps
+    - [x] statusline-service.ts:637 - Clarified Priority 3 differs from Priority 1 (not redundant)
+    - [x] stage-pause-and-reflect.ts:31 - Noted ReminderOrchestrator (9.6) addresses the concern
   - [ ] **9.7.3 Documentation Cleanup**
     - [ ] Remove phase references from code comments
     - [ ] Update design docs if implementation diverged
