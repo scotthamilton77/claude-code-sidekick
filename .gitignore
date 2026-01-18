@@ -38,8 +38,7 @@ settings.local.json
 # DevContainer environment variables (contains secrets)
 .devcontainer/.env
 
-# Sidekick development env exclusions (otherwise we get random files thrown in there that don't need to be versioned)
-.sidekick
+# Sidekick development env exclusions
 .claude/hooks/sidekick/
 
 # Sidekick backup files
@@ -54,18 +53,12 @@ test-data/session-analysis/
 test-data/simulation-test/
 
 # Sidekick Hook System (managed by scripts/install.sh)
-# Runtime data - ignored
-.sidekick/*.log
+# Transient runtime data - ignored
+.sidekick/logs/
+.sidekick/state/
 .sidekick/sessions/
-
-# Templates, config, backups - tracked by default, uncomment to ignore
-# .sidekick/README.md
-# .sidekick/sidekick.conf
-# .sidekick/sidekick.conf.template
-# .sidekick/reminders/*.template
-# .sidekick/reminders/*-reminder.txt
-# *.backup.*
-# *.uninstall-backup.*
+.sidekick/sidekick*.pid
+.sidekick/sidekick*.token
 # End Sidekick Hook System
 
 # TypeScript build cache (needs to be part of install)
