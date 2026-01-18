@@ -40,4 +40,4 @@ Voice examples (match this style):
 {{/if}}
 </guidelines>
 
-Output ONLY the snarky comment text, nothing else - no json, no xml, no markdown, and do not wrap the output in quotes.
+Output ONLY the snarky comment text of 10-15 words, nothing else - no json, no xml, no markdown, and do not wrap the output in quotes.

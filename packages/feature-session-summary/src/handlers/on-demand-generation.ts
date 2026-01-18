@@ -12,6 +12,7 @@ import type { ResumeMessageState, SessionSummaryConfig } from '../types.js'
 import { DEFAULT_SESSION_SUMMARY_CONFIG, RESUME_MIN_CONFIDENCE } from '../types.js'
 import { createSessionSummaryState } from '../state.js'
 import { createPersonaLoader, getDefaultPersonasDir } from '@sidekick/core'
+import { interpolateTemplate } from './update-summary.js'
 
 const SNARKY_PROMPT_FILE = 'prompts/snarky-message.prompt.txt'
 const RESUME_PROMPT_FILE = 'prompts/resume-message.prompt.txt'
@@ -64,23 +65,6 @@ function buildPersonaContext(persona: PersonaDefinition | null): Record<string, 
     persona_snarky_examples: formatExamples(persona.snarky_examples),
     persona_resume_examples: formatExamples(persona.resume_examples),
   }
-}
-
-/**
- * Simple template processor with Handlebars-like {{#if}}...{{/if}} support.
- */
-function interpolateTemplate(template: string, context: Record<string, string | boolean | number>): string {
-  let result = template.replace(/\{\{#if\s+(\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g, (_, varName: string, content: string) => {
-    const value = context[varName]
-    return value ? content : ''
-  })
-
-  result = result.replace(/\{\{(\w+)\}\}/g, (_, varName: string) => {
-    const value = context[varName]
-    return value !== undefined ? String(value) : ''
-  })
-
-  return result
 }
 
 /**
