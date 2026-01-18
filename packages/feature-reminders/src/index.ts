@@ -62,3 +62,14 @@ export {
 
 // Re-export event factories for logging (Phase 9.5.2)
 export { ReminderEvents, type EventLogContext as ReminderEventLogContext } from './events.js'
+
+// Re-export orchestrator for cross-reminder coordination (Phase 9.6)
+export {
+  ReminderOrchestrator,
+  type ReminderOrchestratorDeps,
+  type ReminderRef,
+  type MetricsSnapshot,
+} from './orchestrator.js'
+
+// Re-export state accessors for orchestrator dependencies
+export { createRemindersState, type RemindersStateAccessors } from './state.js'

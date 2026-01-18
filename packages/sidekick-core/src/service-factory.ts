@@ -42,6 +42,12 @@ export interface ServiceFactoryOptions {
   handlers: HandlerRegistry
   /** StateService for atomic writes and schema validation */
   stateService: MinimalStateService
+  /**
+   * Separate StateService for staging operations (cross-process access).
+   * Should use cache: false to avoid cross-process staleness.
+   * Falls back to stateService if not provided.
+   */
+  stagingStateService?: MinimalStateService
   /** Debounce interval for file watching (ms) - defaults to 100 */
   watchDebounceMs?: number
   /** Interval for periodic metrics persistence (ms) - defaults to 30000 */
@@ -74,11 +80,13 @@ export class ServiceFactoryImpl implements ServiceFactory {
   private readonly SESSION_TTL_MS = 30 * 60 * 1000
 
   constructor(private readonly options: ServiceFactoryOptions) {
+    // Use separate stagingStateService if provided (for non-caching cross-process access)
+    const stagingStateService = options.stagingStateService ?? options.stateService
     this.stagingCore = new StagingServiceCore({
       stateDir: options.stateDir,
       logger: options.logger,
       scope: options.scope,
-      stateService: options.stateService,
+      stateService: stagingStateService,
     })
   }
 
