@@ -33,7 +33,7 @@ settings:
   #   With buffer:      "{tokenUsageActual}|{tokenUsageEffective}"    → "45k|90k"
   #   Verbose:          "{contextBar} {tokenUsageActual}/{contextWindow} ({tokenPercentageEffective})"
   #
-  format: "[{model}] | {contextBar} {tokenPercentageActual} | {logs} | {personaName}: {cwd}{branch}\n{title} | {summary}"
+  format: "[{model}] | {contextBar} {tokenPercentageActual} | {logs} | {cwd}{branch}\n[{personaName}] | {title} | {summary}"
 
   # Threshold configuration for visual warnings
   thresholds:
@@ -85,4 +85,4 @@ settings:
       duration: white
       persona: cyan
       # branch: magenta  # Optional: if set, overrides pattern-based coloring
-                         # Pattern-based defaults: main/master=green, feature/*=blue, hotfix/*=red, other=magenta
+      # Pattern-based defaults: main/master=green, feature/*=blue, hotfix/*=red, other=magenta
