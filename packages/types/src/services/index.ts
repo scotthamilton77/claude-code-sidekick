@@ -5,6 +5,7 @@
  */
 
 export * from './config.js'
+export * from './persona.js'
 export * from './service-factory.js'
 export * from './staging.js'
 export * from './state.js'
