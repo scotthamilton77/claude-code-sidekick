@@ -29,7 +29,7 @@ function createMockStateService(): MinimalStateService {
   const files = new Map<string, unknown>()
 
   return {
-    read: vi.fn().mockImplementation(async (path: string) => {
+    read: vi.fn().mockImplementation((path: string) => {
       const data = files.get(path)
       return {
         data: data ?? null,
@@ -37,10 +37,10 @@ function createMockStateService(): MinimalStateService {
         mtime: Date.now(),
       }
     }),
-    write: vi.fn().mockImplementation(async (path: string, data: unknown) => {
+    write: vi.fn().mockImplementation((path: string, data: unknown) => {
       files.set(path, data)
     }),
-    delete: vi.fn().mockImplementation(async (path: string) => {
+    delete: vi.fn().mockImplementation((path: string) => {
       files.delete(path)
     }),
     sessionStatePath: vi.fn().mockImplementation((sessionId: string, filename: string) => {
@@ -88,10 +88,7 @@ describe('ReminderOrchestrator', () => {
 
   describe('onReminderStaged', () => {
     it('Rule 1: unstages VC when P&R staged', async () => {
-      await orchestrator.onReminderStaged(
-        { name: ReminderIds.PAUSE_AND_REFLECT, hook: 'PreToolUse' },
-        'session-123'
-      )
+      await orchestrator.onReminderStaged({ name: ReminderIds.PAUSE_AND_REFLECT, hook: 'PreToolUse' }, 'session-123')
 
       expect(getStagingService).toHaveBeenCalledWith('session-123')
       expect(staging.deleteReminder).toHaveBeenCalledWith('Stop', ReminderIds.VERIFY_COMPLETION)
@@ -102,10 +99,7 @@ describe('ReminderOrchestrator', () => {
     })
 
     it('does not unstage VC for other reminders', async () => {
-      await orchestrator.onReminderStaged(
-        { name: 'some-other-reminder', hook: 'PreToolUse' },
-        'session-123'
-      )
+      await orchestrator.onReminderStaged({ name: 'some-other-reminder', hook: 'PreToolUse' }, 'session-123')
 
       expect(staging.deleteReminder).not.toHaveBeenCalled()
     })
@@ -115,10 +109,7 @@ describe('ReminderOrchestrator', () => {
       vi.mocked(staging.deleteReminder).mockRejectedValueOnce(error)
 
       // Should not throw
-      await orchestrator.onReminderStaged(
-        { name: ReminderIds.PAUSE_AND_REFLECT, hook: 'PreToolUse' },
-        'session-123'
-      )
+      await orchestrator.onReminderStaged({ name: ReminderIds.PAUSE_AND_REFLECT, hook: 'PreToolUse' }, 'session-123')
 
       expect(logger.warn).toHaveBeenCalledWith(
         'Failed to unstage VC after P&R staged',
@@ -171,11 +162,7 @@ describe('ReminderOrchestrator', () => {
     it('does not trigger rules for other reminders', async () => {
       const metrics = { turnCount: 5, toolsThisTurn: 10, toolCount: 25 }
 
-      await orchestrator.onReminderConsumed(
-        { name: 'some-other-reminder', hook: 'PreToolUse' },
-        'session-123',
-        metrics
-      )
+      await orchestrator.onReminderConsumed({ name: 'some-other-reminder', hook: 'PreToolUse' }, 'session-123', metrics)
 
       expect(stateService.write).not.toHaveBeenCalled()
       expect(staging.deleteReminder).not.toHaveBeenCalled()
@@ -225,9 +212,7 @@ describe('ReminderOrchestrator', () => {
     it('clears P&R baseline', async () => {
       await orchestrator.onUserPromptSubmit('session-123')
 
-      expect(stateService.delete).toHaveBeenCalledWith(
-        '/state/sessions/session-123/state/pr-baseline.json'
-      )
+      expect(stateService.delete).toHaveBeenCalledWith('/state/sessions/session-123/state/pr-baseline.json')
       expect(logger.debug).toHaveBeenCalledWith(
         'Cleared P&R baseline on UserPromptSubmit',
         expect.objectContaining({ sessionId: 'session-123' })
