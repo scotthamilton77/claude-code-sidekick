@@ -135,11 +135,19 @@ export function buildPersonaContext(persona: PersonaDefinition | null): PersonaT
  * @internal Exported for testing
  */
 export function interpolateTemplate(template: string, context: Record<string, string | boolean | number>): string {
-  // Process {{#if var}}...{{/if}} blocks
-  let result = template.replace(/\{\{#if\s+(\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g, (_, varName: string, content: string) => {
-    const value = context[varName]
-    return value ? content : ''
-  })
+  let result = template
+
+  // Process {{#if var}}...{{/if}} blocks iteratively until no more matches
+  // This handles nested conditionals by processing innermost first
+  const conditionalRegex = /\{\{#if\s+(\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g
+  let previous = ''
+  while (result !== previous) {
+    previous = result
+    result = result.replace(conditionalRegex, (_, varName: string, content: string) => {
+      const value = context[varName]
+      return value ? content : ''
+    })
+  }
 
   // Process {{variable}} replacements
   result = result.replace(/\{\{(\w+)\}\}/g, (_, varName: string) => {
