@@ -51,41 +51,48 @@ const DEFAULT_SNARKY_MESSAGE: SnarkyMessageState = {
  * Session summary state descriptor.
  * Stores LLM-generated session title and intent.
  * Default: null (file may not exist until first summary is generated)
+ * trackHistory: true - tracks how title and intent evolve throughout session
  *
  * Exported for read-only consumers (e.g., feature-statusline).
  */
-export const SessionSummaryDescriptor = sessionState('session-summary.json', SessionSummaryStateSchema, null)
+export const SessionSummaryDescriptor = sessionState('session-summary.json', SessionSummaryStateSchema, {
+  defaultValue: null,
+  trackHistory: true,
+})
 
 /**
  * Summary countdown state descriptor.
  * Tracks tool uses until next summary update.
+ * (No history tracking - operational state, not LLM content)
  */
-const SummaryCountdownDescriptor = sessionState(
-  'summary-countdown.json',
-  SummaryCountdownStateSchema,
-  DEFAULT_COUNTDOWN
-)
+const SummaryCountdownDescriptor = sessionState('summary-countdown.json', SummaryCountdownStateSchema, {
+  defaultValue: DEFAULT_COUNTDOWN,
+})
 
 /**
  * Resume message state descriptor.
  * Stores resume prompts for returning users.
  * Default: null (file may not exist until user resumes a session)
+ * trackHistory: true - tracks how resumption prompts evolve across pivots
  *
  * Exported for read-only consumers (e.g., feature-statusline).
  */
-export const ResumeMessageDescriptor = sessionState('resume-message.json', ResumeMessageStateSchema, null)
+export const ResumeMessageDescriptor = sessionState('resume-message.json', ResumeMessageStateSchema, {
+  defaultValue: null,
+  trackHistory: true,
+})
 
 /**
  * Snarky message state descriptor.
  * Stores witty welcome messages.
+ * trackHistory: true - tracks personality/commentary evolution
  *
  * Exported for read-only consumers (e.g., feature-statusline).
  */
-export const SnarkyMessageDescriptor = sessionState(
-  'snarky-message.json',
-  SnarkyMessageStateSchema,
-  DEFAULT_SNARKY_MESSAGE
-)
+export const SnarkyMessageDescriptor = sessionState('snarky-message.json', SnarkyMessageStateSchema, {
+  defaultValue: DEFAULT_SNARKY_MESSAGE,
+  trackHistory: true,
+})
 
 // ============================================================================
 // State Accessor Types

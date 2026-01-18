@@ -579,30 +579,27 @@ describe('StateService', () => {
   })
 
   // ============================================================================
-  // Dev Mode Backup Tests
+  // Dev Mode Backup Tests (Allow-list approach)
   // ============================================================================
 
   describe('dev mode backup', () => {
-    it('creates timestamped backup for session state when dev mode enabled', async () => {
+    it('creates timestamped backup when trackHistory: true and dev mode enabled', async () => {
       const devState = new StateService(testDir, {
         logger: createMockLogger(),
         config: { core: { development: { enabled: true } } },
       })
 
-      // Use session state path (backups are enabled for session state)
-      const path = devState.sessionStatePath('sess-1', 'backup-test.json')
+      const path = devState.sessionStatePath('sess-1', 'tracked.json')
       mkdirSync(dirname(path), { recursive: true })
       writeFileSync(path, JSON.stringify({ value: 1 }), 'utf-8')
 
-      // Write new value - should create backup first
-      await devState.write(path, { value: 2 }, TestSchema)
+      // Write with trackHistory: true - should create backup
+      await devState.write(path, { value: 2 }, TestSchema, { trackHistory: true })
 
       // Check for backup file
       const dir = dirname(path)
       const files = readdirSync(dir)
-      const backupFiles = files.filter(
-        (f) => f.startsWith('backup-test.') && f.endsWith('.json') && f !== 'backup-test.json'
-      )
+      const backupFiles = files.filter((f) => f.startsWith('tracked.') && f.endsWith('.json') && f !== 'tracked.json')
 
       expect(backupFiles.length).toBe(1)
 
@@ -615,24 +612,23 @@ describe('StateService', () => {
       expect(newContent.value).toBe(2)
     })
 
-    it('does NOT create backup for global state even in dev mode', async () => {
+    it('does NOT create backup when trackHistory is not specified (default)', async () => {
       const devState = new StateService(testDir, {
         logger: createMockLogger(),
         config: { core: { development: { enabled: true } } },
       })
 
-      // Global state paths are excluded from backup
-      const path = devState.globalStatePath('global-no-backup.json')
+      const path = devState.sessionStatePath('sess-1', 'untracked.json')
       mkdirSync(dirname(path), { recursive: true })
       writeFileSync(path, JSON.stringify({ value: 1 }), 'utf-8')
 
+      // Write without trackHistory option - no backup
       await devState.write(path, { value: 2 }, TestSchema)
 
-      // No backup files should exist for global state
       const dir = dirname(path)
       const files = readdirSync(dir)
       const backupFiles = files.filter(
-        (f) => f.startsWith('global-no-backup.') && f.endsWith('.json') && f !== 'global-no-backup.json'
+        (f) => f.startsWith('untracked.') && f.endsWith('.json') && f !== 'untracked.json'
       )
 
       expect(backupFiles.length).toBe(0)
@@ -642,38 +638,29 @@ describe('StateService', () => {
       expect(content.value).toBe(2)
     })
 
-    it('does NOT create backup for metrics files in session state even in dev mode', async () => {
+    it('does NOT create backup when trackHistory: false', async () => {
       const devState = new StateService(testDir, {
         logger: createMockLogger(),
         config: { core: { development: { enabled: true } } },
       })
 
-      // Metrics files are excluded from backup (high-frequency updates)
-      const metricsFiles = [
-        'daemon-log-metrics.json',
-        'llm-metrics.json',
-        'transcript-metrics.json',
-        'cli-log-metrics.json',
-      ]
+      const path = devState.sessionStatePath('sess-1', 'explicit-no-track.json')
+      mkdirSync(dirname(path), { recursive: true })
+      writeFileSync(path, JSON.stringify({ value: 1 }), 'utf-8')
 
-      for (const filename of metricsFiles) {
-        const path = devState.sessionStatePath('sess-1', filename)
-        mkdirSync(dirname(path), { recursive: true })
-        writeFileSync(path, JSON.stringify({ value: 1 }), 'utf-8')
+      // Write with trackHistory: false - no backup
+      await devState.write(path, { value: 2 }, TestSchema, { trackHistory: false })
 
-        await devState.write(path, { value: 2 }, TestSchema)
+      const dir = dirname(path)
+      const files = readdirSync(dir)
+      const backupFiles = files.filter(
+        (f) => f.startsWith('explicit-no-track.') && f.endsWith('.json') && f !== 'explicit-no-track.json'
+      )
 
-        // No backup files should exist for metrics files
-        const dir = dirname(path)
-        const files = readdirSync(dir)
-        const baseName = filename.replace('.json', '')
-        const backupFiles = files.filter((f) => f.startsWith(`${baseName}.`) && f.endsWith('.json') && f !== filename)
-
-        expect(backupFiles.length).toBe(0)
-      }
+      expect(backupFiles.length).toBe(0)
     })
 
-    it('does not create backup when dev mode disabled', async () => {
+    it('does NOT create backup when dev mode disabled even with trackHistory: true', async () => {
       const prodState = new StateService(testDir, {
         logger: createMockLogger(),
         config: { core: { development: { enabled: false } } },
@@ -683,9 +670,9 @@ describe('StateService', () => {
       mkdirSync(dirname(path), { recursive: true })
       writeFileSync(path, JSON.stringify({ value: 1 }), 'utf-8')
 
-      await prodState.write(path, { value: 2 }, TestSchema)
+      // trackHistory: true but dev mode disabled - no backup
+      await prodState.write(path, { value: 2 }, TestSchema, { trackHistory: true })
 
-      // No backup files should exist
       const dir = dirname(path)
       const files = readdirSync(dir)
       const backupFiles = files.filter(
@@ -705,7 +692,8 @@ describe('StateService', () => {
       mkdirSync(dirname(path), { recursive: true })
       writeFileSync(path, JSON.stringify({ value: 1 }), 'utf-8')
 
-      await defaultState.write(path, { value: 2 }, TestSchema)
+      // Even with trackHistory: true, no config means no dev mode
+      await defaultState.write(path, { value: 2 }, TestSchema, { trackHistory: true })
 
       const dir = dirname(path)
       const files = readdirSync(dir)
@@ -716,7 +704,7 @@ describe('StateService', () => {
       expect(backupFiles.length).toBe(0)
     })
 
-    it('does not fail when file does not exist (first write)', async () => {
+    it('does not fail when file does not exist (first write with trackHistory)', async () => {
       const devState = new StateService(testDir, {
         logger: createMockLogger(),
         config: { core: { development: { enabled: true } } },
@@ -725,7 +713,7 @@ describe('StateService', () => {
       const path = devState.sessionStatePath('sess-1', 'new-file.json')
 
       // Should not throw - just creates file without backup
-      await devState.write(path, { value: 1 }, TestSchema)
+      await devState.write(path, { value: 1 }, TestSchema, { trackHistory: true })
 
       expect(existsSync(path)).toBe(true)
 
@@ -737,7 +725,7 @@ describe('StateService', () => {
       expect(backupFiles.length).toBe(0)
     })
 
-    it('creates multiple backups on successive writes to session state', async () => {
+    it('creates multiple backups on successive writes with trackHistory: true', async () => {
       const devState = new StateService(testDir, {
         logger: createMockLogger(),
         config: { core: { development: { enabled: true } } },
@@ -745,19 +733,19 @@ describe('StateService', () => {
 
       const path = devState.sessionStatePath('sess-1', 'multi-backup.json')
 
-      // First write (no backup)
-      await devState.write(path, { value: 1 }, TestSchema)
+      // First write (no backup since file doesn't exist yet)
+      await devState.write(path, { value: 1 }, TestSchema, { trackHistory: true })
 
       // Small delay to ensure different timestamps
       await sleep(5)
 
       // Second write (backup of v1)
-      await devState.write(path, { value: 2 }, TestSchema)
+      await devState.write(path, { value: 2 }, TestSchema, { trackHistory: true })
 
       await sleep(5)
 
       // Third write (backup of v2)
-      await devState.write(path, { value: 3 }, TestSchema)
+      await devState.write(path, { value: 3 }, TestSchema, { trackHistory: true })
 
       const dir = dirname(path)
       const files = readdirSync(dir)

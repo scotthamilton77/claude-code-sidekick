@@ -67,6 +67,16 @@ export interface StateServiceOptions {
 /** Default can be a value, null, or a factory function */
 type DefaultValue<T> = T | null | (() => T | null)
 
+/** Options for write operations */
+export interface WriteOptions {
+  /**
+   * Track history of changes in dev mode.
+   * When true and dev mode is enabled, creates timestamped backup before write.
+   * Use for LLM-generated content and reminder consumption state.
+   */
+  trackHistory?: boolean
+}
+
 // ============================================================================
 // Helpers
 // ============================================================================
@@ -105,25 +115,6 @@ export class StateService {
   /** Check if dev mode is currently enabled (supports hot-reload) */
   private isDevModeEnabled(): boolean {
     return this.configGetter?.().core.development.enabled ?? false
-  }
-
-  /**
-   * Check if path should be excluded from dev mode backups.
-   * Excluded paths:
-   * - Global state directory (aggregate state, not session-specific)
-   * - Metrics files (*-metrics.json) in session state (high-frequency updates, no history needed)
-   */
-  private isExcludedFromBackup(filePath: string): boolean {
-    // Global state directory - aggregate state that doesn't need history
-    if (filePath.startsWith(this.paths.globalStateDir())) {
-      return true
-    }
-    // Metrics files - high-frequency updates, history not useful
-    const filename = basename(filePath)
-    if (filename.endsWith('-metrics.json')) {
-      return true
-    }
-    return false
   }
 
   // ==========================================================================
@@ -186,18 +177,22 @@ export class StateService {
    * Atomic write with Zod validation.
    * Uses tmp + rename pattern to prevent corruption.
    * Validates data against schema before writing.
-   * In dev mode, creates timestamped backup before overwriting.
+   * In dev mode with trackHistory, creates timestamped backup before overwriting.
+   *
+   * @param path - Absolute path to state file
+   * @param data - Data to write
+   * @param schema - Zod schema for validation
+   * @param options - Optional write options (trackHistory for dev mode backups)
    */
-  async write<T>(path: string, data: T, schema: ZodType<T>): Promise<void> {
+  async write<T>(path: string, data: T, schema: ZodType<T>, options?: WriteOptions): Promise<void> {
     // Validate before writing (fail fast)
     const parsed = schema.parse(data) // throws on invalid
 
     const dir = dirname(path)
     await fs.mkdir(dir, { recursive: true })
 
-    // Dev mode: backup existing file before overwrite (checked dynamically for hot-reload)
-    // Some files are excluded from backup (global state, metrics files)
-    if (this.isDevModeEnabled() && !this.isExcludedFromBackup(path)) {
+    // Dev mode: backup existing file before overwrite when trackHistory is enabled
+    if (options?.trackHistory && this.isDevModeEnabled()) {
       await this.backupBeforeWrite(path)
     }
 
