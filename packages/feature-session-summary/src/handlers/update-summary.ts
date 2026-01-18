@@ -74,6 +74,17 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
 
   // Handle BulkProcessingComplete - run one-time analysis after bulk replay
   if (event.eventType === 'BulkProcessingComplete') {
+    // Skip if no user interaction in transcript (e.g., only summary/system entries)
+    const metrics = ctx.transcript.getMetrics()
+    if (metrics.turnCount === 0) {
+      ctx.logger.info('LLM call: session-summary analysis', {
+        sessionId,
+        decision: 'skipped',
+        reason: 'BulkProcessingComplete with no user turns (turnCount=0)',
+      })
+      return
+    }
+
     ctx.logger.info('LLM call: session-summary analysis', {
       sessionId,
       decision: 'calling',
