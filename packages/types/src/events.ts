@@ -357,6 +357,21 @@ export function isPreCompactEvent(event: HookEvent): event is PreCompactHookEven
 export type LogSource = 'cli' | 'daemon' | 'transcript'
 
 /**
+ * Context for logging events.
+ * Provides correlation and tracing capabilities for observability.
+ *
+ * @see docs/design/STRUCTURED-LOGGING.md §3.3 Log Record Format
+ */
+export interface EventLogContext {
+  sessionId: string
+  scope?: 'project' | 'user'
+  correlationId?: string
+  traceId?: string
+  hook?: string
+  taskId?: string
+}
+
+/**
  * Base interface for all logging events.
  * These events are logged for observability but don't trigger handlers.
  *
@@ -371,14 +386,7 @@ export interface LoggingEventBase {
   /** Which component emitted this event */
   source: LogSource
   /** Correlation context */
-  context: {
-    sessionId: string
-    scope?: 'project' | 'user'
-    correlationId?: string
-    traceId?: string
-    hook?: string
-    taskId?: string
-  }
+  context: EventLogContext
   /** Event-specific payload */
   payload: {
     state?: Record<string, unknown>

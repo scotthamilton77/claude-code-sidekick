@@ -55,11 +55,7 @@ describe('ReminderEvents', () => {
     })
 
     it('should support manual clear reason', () => {
-      const event = ReminderEvents.remindersCleared(
-        { sessionId: 'sess-123' },
-        { clearedCount: 0 },
-        'manual'
-      )
+      const event = ReminderEvents.remindersCleared({ sessionId: 'sess-123' }, { clearedCount: 0 }, 'manual')
 
       expect(event.payload.reason).toBe('manual')
     })
