@@ -80,8 +80,9 @@ async function loadSessionPersona(
 
 /**
  * Template context for persona prompt injection.
+ * @internal Exported for testing
  */
-interface PersonaTemplateContext {
+export interface PersonaTemplateContext {
   persona: boolean
   persona_name: string
   persona_theme: string
@@ -92,8 +93,9 @@ interface PersonaTemplateContext {
 /**
  * Build persona template context from a PersonaDefinition.
  * Returns context with persona=false if persona is null.
+ * @internal Exported for testing
  */
-function buildPersonaContext(persona: PersonaDefinition | null): PersonaTemplateContext {
+export function buildPersonaContext(persona: PersonaDefinition | null): PersonaTemplateContext {
   if (!persona) {
     return {
       persona: false,
@@ -118,16 +120,14 @@ function buildPersonaContext(persona: PersonaDefinition | null): PersonaTemplate
  * Handles:
  * - {{#if var}}...{{/if}} conditional blocks
  * - {{variable}} simple replacements
+ * @internal Exported for testing
  */
-function interpolateTemplate(template: string, context: Record<string, string | boolean | number>): string {
+export function interpolateTemplate(template: string, context: Record<string, string | boolean | number>): string {
   // Process {{#if var}}...{{/if}} blocks
-  let result = template.replace(
-    /\{\{#if\s+(\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g,
-    (_, varName: string, content: string) => {
-      const value = context[varName]
-      return value ? content : ''
-    }
-  )
+  let result = template.replace(/\{\{#if\s+(\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g, (_, varName: string, content: string) => {
+    const value = context[varName]
+    return value ? content : ''
+  })
 
   // Process {{variable}} replacements
   result = result.replace(/\{\{(\w+)\}\}/g, (_, varName: string) => {
