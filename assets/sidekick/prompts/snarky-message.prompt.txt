@@ -1,5 +1,14 @@
 Generate a single snarky comment (max 15 words) about this developer's session.
 
+{{#if persona}}
+<persona>
+Name: {{persona_name}}
+Theme: {{persona_theme}}
+Personality: {{persona_personality}}
+Tone: {{persona_tone}}
+</persona>
+{{/if}}
+
 <session_summary>
 {{sessionSummary}}
 </session_summary>
