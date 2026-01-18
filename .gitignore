@@ -24,6 +24,7 @@ node_modules/
 *.njsproj
 *.sln
 *.sw?
+.worktrees/
 
 # Local settings
 settings.local.json
