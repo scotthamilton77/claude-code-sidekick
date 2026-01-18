@@ -59,3 +59,6 @@ export {
   type VCUnverifiedSetParams,
   type VCUnverifiedClearParams,
 } from './handlers/ipc'
+
+// Re-export event factories for logging (Phase 9.5.2)
+export { ReminderEvents, type EventLogContext as ReminderEventLogContext } from './events.js'

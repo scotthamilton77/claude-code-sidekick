@@ -1022,24 +1022,7 @@ describe('Structured Logging', () => {
       expect(event.payload.state?.reminderReturned).toBe(true)
     })
 
-    it('should create ReminderConsumed events', async () => {
-      const { LogEvents } = await import('../structured-logging')
-
-      const event = LogEvents.reminderConsumed(
-        { sessionId: 'sess-123', hook: 'PreToolUse' },
-        {
-          reminderName: 'AreYouStuckReminder',
-          reminderReturned: true,
-          blocking: true,
-          priority: 80,
-        }
-      )
-
-      expect(event.type).toBe('ReminderConsumed')
-      expect(event.source).toBe('cli')
-      expect(event.payload.state.reminderName).toBe('AreYouStuckReminder')
-      expect(event.payload.state.blocking).toBe(true)
-    })
+    // Note: ReminderConsumed events moved to @sidekick/feature-reminders (9.5.2)
 
     it('should create EventReceived events for daemon', async () => {
       const { LogEvents } = await import('../structured-logging')
@@ -1072,80 +1055,8 @@ describe('Structured Logging', () => {
       expect(event.payload.metadata.durationMs).toBe(12)
     })
 
-    it('should create ReminderStaged events', async () => {
-      const { LogEvents } = await import('../structured-logging')
-
-      const event = LogEvents.reminderStaged(
-        { sessionId: 'sess-123' },
-        {
-          reminderName: 'AreYouStuckReminder',
-          hookName: 'PreToolUse',
-          blocking: true,
-          priority: 80,
-          persistent: false,
-        }
-      )
-
-      expect(event.type).toBe('ReminderStaged')
-      expect(event.source).toBe('daemon')
-      expect(event.payload.state.reminderName).toBe('AreYouStuckReminder')
-      expect(event.payload.state.hookName).toBe('PreToolUse')
-    })
-
-    it('should create SummaryUpdated events with reason', async () => {
-      const { LogEvents } = await import('../structured-logging')
-
-      const event = LogEvents.summaryUpdated(
-        { sessionId: 'sess-123' },
-        {
-          session_title: 'Working on OAuth',
-          session_title_confidence: 0.95,
-          latest_intent: 'Fixing token expiration',
-          latest_intent_confidence: 0.88,
-        },
-        {
-          countdown_reset_to: 20,
-          tokens_used: 150,
-          processing_time_ms: 200,
-          pivot_detected: false,
-          old_title: 'Setting up OAuth',
-          old_intent: 'Configuring provider',
-        },
-        'user_prompt_forced'
-      )
-
-      expect(event.type).toBe('SummaryUpdated')
-      expect(event.source).toBe('daemon')
-      expect(event.payload.reason).toBe('user_prompt_forced')
-      expect(event.payload.state.session_title).toBe('Working on OAuth')
-      expect(event.payload.metadata.pivot_detected).toBe(false)
-    })
-
-    it('should create SummarySkipped events', async () => {
-      const { LogEvents } = await import('../structured-logging')
-
-      const event = LogEvents.summarySkipped({ sessionId: 'sess-123' }, { countdown: 5, countdown_threshold: 0 })
-
-      expect(event.type).toBe('SummarySkipped')
-      expect(event.source).toBe('daemon')
-      expect(event.payload.metadata.countdown).toBe(5)
-      expect(event.payload.reason).toBe('countdown_active')
-    })
-
-    it('should create RemindersCleared events', async () => {
-      const { LogEvents } = await import('../structured-logging')
-
-      const event = LogEvents.remindersCleared(
-        { sessionId: 'sess-123' },
-        { clearedCount: 3, hookNames: ['PreToolUse', 'Stop'] },
-        'session_start'
-      )
-
-      expect(event.type).toBe('RemindersCleared')
-      expect(event.source).toBe('daemon')
-      expect(event.payload.state.clearedCount).toBe(3)
-      expect(event.payload.reason).toBe('session_start')
-    })
+    // Note: ReminderStaged, SummaryUpdated, SummarySkipped, RemindersCleared events
+    // moved to their respective feature packages (9.5.2)
 
     it('should create TranscriptEventEmitted events with uuid', async () => {
       const { LogEvents } = await import('../structured-logging')

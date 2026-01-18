@@ -602,7 +602,6 @@ export function createLoggerFacade(options: LoggerFacadeOptions = {}): LoggerFac
 import type {
   HookReceivedEvent,
   HookCompletedEvent,
-  ReminderConsumedEvent,
   EventReceivedEvent,
   EventProcessedEvent,
   ReminderStagedEvent,
@@ -611,12 +610,9 @@ import type {
   IpcServerStartedEvent,
   ConfigWatcherStartedEvent,
   SessionEvictionStartedEvent,
-  SummaryUpdatedEvent,
-  SummarySkippedEvent,
   ResumeGeneratingEvent,
   ResumeUpdatedEvent,
   ResumeSkippedEvent,
-  RemindersClearedEvent,
   StatuslineRenderedEvent,
   StatuslineErrorEvent,
   TranscriptEventEmittedEvent,
@@ -699,39 +695,6 @@ export const LogEvents = {
     }
   },
 
-  /**
-   * Create a ReminderConsumed event (logged when CLI returns a staged reminder).
-   * FIXME these events should be feature-specific and live in their respective packages
-   */
-  reminderConsumed(
-    context: EventLogContext,
-    state: {
-      reminderName: string
-      reminderReturned: boolean
-      blocking?: boolean
-      priority?: number
-      persistent?: boolean
-    },
-    metadata?: { stagingPath?: string }
-  ): ReminderConsumedEvent {
-    return {
-      type: 'ReminderConsumed',
-      time: Date.now(),
-      source: 'cli',
-      context: {
-        sessionId: context.sessionId,
-        scope: context.scope,
-        correlationId: context.correlationId,
-        traceId: context.traceId,
-        hook: context.hook,
-      },
-      payload: {
-        state,
-        metadata,
-      },
-    }
-  },
-
   // --- Daemon Events ---
 
   /**
@@ -770,6 +733,39 @@ export const LogEvents = {
   ): EventProcessedEvent {
     return {
       type: 'EventProcessed',
+      time: Date.now(),
+      source: 'daemon',
+      context: {
+        sessionId: context.sessionId,
+        scope: context.scope,
+        correlationId: context.correlationId,
+        traceId: context.traceId,
+        hook: context.hook,
+        taskId: context.taskId,
+      },
+      payload: {
+        state,
+        metadata,
+      },
+    }
+  },
+
+  /**
+   * Create a ReminderStaged event (logged when Daemon stages a reminder file).
+   */
+  reminderStaged(
+    context: EventLogContext,
+    state: {
+      reminderName: string
+      hookName: string
+      blocking: boolean
+      priority: number
+      persistent: boolean
+    },
+    metadata?: { stagingPath?: string }
+  ): ReminderStagedEvent {
+    return {
+      type: 'ReminderStaged',
       time: Date.now(),
       source: 'daemon',
       context: {
@@ -875,142 +871,6 @@ export const LogEvents = {
       },
       payload: {
         metadata,
-      },
-    }
-  },
-
-  /**
-   * Create a ReminderStaged event (logged when Daemon stages a reminder file).
-   * FIXME these events should be feature-specific and live in their respective packages
-   */
-  reminderStaged(
-    context: EventLogContext,
-    state: {
-      reminderName: string
-      hookName: string
-      blocking: boolean
-      priority: number
-      persistent: boolean
-    },
-    metadata?: { stagingPath?: string }
-  ): ReminderStagedEvent {
-    return {
-      type: 'ReminderStaged',
-      time: Date.now(),
-      source: 'daemon',
-      context: {
-        sessionId: context.sessionId,
-        scope: context.scope,
-        correlationId: context.correlationId,
-        traceId: context.traceId,
-        hook: context.hook,
-        taskId: context.taskId,
-      },
-      payload: {
-        state,
-        metadata,
-      },
-    }
-  },
-
-  /**
-   * Create a SummaryUpdated event (logged when session summary is recalculated).
-   * @see docs/design/FEATURE-SESSION-SUMMARY.md §3.4
-   * FIXME these events should be feature-specific and live in their respective packages
-   */
-  summaryUpdated(
-    context: EventLogContext,
-    state: {
-      session_title: string
-      session_title_confidence: number
-      latest_intent: string
-      latest_intent_confidence: number
-    },
-    metadata: {
-      countdown_reset_to: number
-      tokens_used?: number
-      processing_time_ms?: number
-      pivot_detected: boolean
-      old_title?: string
-      old_intent?: string
-    },
-    reason: 'user_prompt_forced' | 'countdown_reached' | 'compaction_reset'
-  ): SummaryUpdatedEvent {
-    return {
-      type: 'SummaryUpdated',
-      time: Date.now(),
-      source: 'daemon',
-      context: {
-        sessionId: context.sessionId,
-        scope: context.scope,
-        correlationId: context.correlationId,
-        traceId: context.traceId,
-        hook: context.hook,
-        taskId: context.taskId,
-      },
-      payload: {
-        state,
-        metadata,
-        reason,
-      },
-    }
-  },
-
-  /**
-   * Create a SummarySkipped event (logged when summary update is deferred).
-   * @see docs/design/FEATURE-SESSION-SUMMARY.md §3.4
-   * FIXME these events should be feature-specific and live in their respective packages
-   */
-  summarySkipped(
-    context: EventLogContext,
-    metadata: {
-      countdown: number
-      countdown_threshold: number
-    }
-  ): SummarySkippedEvent {
-    return {
-      type: 'SummarySkipped',
-      time: Date.now(),
-      source: 'daemon',
-      context: {
-        sessionId: context.sessionId,
-        scope: context.scope,
-        correlationId: context.correlationId,
-        traceId: context.traceId,
-        hook: context.hook,
-        taskId: context.taskId,
-      },
-      payload: {
-        metadata,
-        reason: 'countdown_active',
-      },
-    }
-  },
-
-  /**
-   * Create a RemindersCleared event (logged when staging directory is cleaned).
-   * FIXME these events should be feature-specific and live in their respective packages
-   */
-  remindersCleared(
-    context: EventLogContext,
-    state: { clearedCount: number; hookNames?: string[] },
-    reason: 'session_start' | 'manual'
-  ): RemindersClearedEvent {
-    return {
-      type: 'RemindersCleared',
-      time: Date.now(),
-      source: 'daemon',
-      context: {
-        sessionId: context.sessionId,
-        scope: context.scope,
-        correlationId: context.correlationId,
-        traceId: context.traceId,
-        hook: context.hook,
-        taskId: context.taskId,
-      },
-      payload: {
-        state,
-        reason,
       },
     }
   },

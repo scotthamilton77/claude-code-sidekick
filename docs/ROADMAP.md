@@ -283,16 +283,16 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
     - [x] Move P&R baseline management (`pr-baseline.json` writes) from daemon.ts:624 to feature-reminders handler
     - [x] Move VC state management (`vc-unverified.json`, IPC handlers) from daemon.ts:642-705 to feature-reminders
     - [x] Remove reminder name hardcoding (`'verify-completion'`) from daemon core
-  - [ ] **9.5.2 Move Event Definitions to Feature Packages** (from 9.2.5 FIXMEs)
-    - [ ] Move `ReminderConsumed` event from structured-logging.ts to feature-reminders
-    - [ ] Move `ReminderStaged` event from structured-logging.ts to feature-reminders
-    - [ ] Move `RemindersCleared` event from structured-logging.ts to feature-reminders
-    - [ ] Move `SummaryUpdated` event from structured-logging.ts to feature-session-summary
-    - [ ] Move `SummarySkipped` event from structured-logging.ts to feature-session-summary
+  - [x] **9.5.2 Move Event Definitions to Feature Packages** (from 9.2.5 FIXMEs)
+    - [x] Move `ReminderConsumed` event from structured-logging.ts to feature-reminders
+    - [N] `ReminderStaged` stays in core (used by staging-service.ts, would create circular dep)
+    - [x] Move `RemindersCleared` event from structured-logging.ts to feature-reminders
+    - [x] Move `SummaryUpdated` event from structured-logging.ts to feature-session-summary
+    - [x] Move `SummarySkipped` event from structured-logging.ts to feature-session-summary
   - [ ] Acceptance criteria
-    - [ ] daemon.ts has no reminder-specific logic or hardcoded reminder names
-    - [ ] Feature packages own their event definitions
-    - [ ] All 5 FIXME comments in structured-logging.ts resolved
+    - [x] daemon.ts has no reminder-specific logic or hardcoded reminder names
+    - [x] Feature packages own their event definitions (4 of 5 moved, 1 remains in core due to circular dep)
+    - [x] 4 FIXME comments in structured-logging.ts resolved (ReminderStaged comment removed, stays in core)
 
 - [ ] **9.6 Reminder Orchestration** (informed by 9.2.3 findings - 4 cross-reminder rules)
   - [ ] Objectives

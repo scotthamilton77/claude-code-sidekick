@@ -14,7 +14,8 @@
  */
 
 import type { RuntimeContext, HookResponse } from '@sidekick/core'
-import { LogEvents, logEvent } from '@sidekick/core'
+import { logEvent } from '@sidekick/core'
+import { ReminderEvents } from '../../events.js'
 import type { CLIContext, HookName, StagedReminder, HookEvent } from '@sidekick/types'
 import { isCLIContext, isHookEvent } from '@sidekick/types'
 import { CLIStagingReader } from '../../cli-staging-reader.js'
@@ -132,7 +133,7 @@ export function createConsumptionHandler(context: RuntimeContext, config: Consum
       // Log ReminderConsumed event
       logEvent(
         cliCtx.logger,
-        LogEvents.reminderConsumed(
+        ReminderEvents.reminderConsumed(
           {
             sessionId,
             scope: cliCtx.paths.projectDir ? 'project' : 'user',
