@@ -1,6 +1,6 @@
 ---
 name: sidekick-config
-description: Use when user asks to configure, customize, or set up sidekick. Use when user wants to change LLM models, personas, statusline, reminders, or override any sidekick settings.
+description: Use when user asks to configure, customize, or set up sidekick. Use when user wants to change LLM models, personas, statusline, reminders, or override any sidekick settings. Also use when user wants to change/set/switch the session persona.
 ---
 
 # Sidekick Configuration
@@ -17,6 +17,7 @@ Guide users through configuring sidekick interactively. Ask what they want to co
 - User wants to change LLM models/profiles
 - User wants to customize the statusline format
 - User wants to add or change personas
+- User wants to change/set/switch the session persona (e.g., "change persona to marvin", "set persona", "switch to GLaDOS")
 - User wants to adjust reminders or other features
 - User wants to modify prompt templates
 - User asks about sidekick configuration options
@@ -145,6 +146,21 @@ statusline:
     theme:
       useNerdFonts: ascii
 ```
+
+### Change Session Persona
+
+The assistant has access to the current session ID via `<session-info>` in the context. To change the persona for the current session:
+
+```bash
+node packages/sidekick-cli/dist/bin.js persona <persona-id> --session-id=<session-id>
+```
+
+**Example:** If session ID is `abc-123` and user wants GLaDOS:
+```bash
+node packages/sidekick-cli/dist/bin.js persona glados --session-id=abc-123
+```
+
+See [resources/PERSONAS.md](resources/PERSONAS.md) for available personas and creating custom ones.
 
 ### Add Custom Persona
 
