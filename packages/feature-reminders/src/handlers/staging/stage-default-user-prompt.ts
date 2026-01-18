@@ -28,6 +28,7 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
         reminderId: ReminderIds.USER_PROMPT_SUBMIT,
         targetHook: 'UserPromptSubmit',
         skipIfExists: false, // Always stage on session start
+        templateContext: { sessionId: event.context.sessionId },
       }
     },
   })
@@ -47,6 +48,7 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
         reminderId: ReminderIds.USER_PROMPT_SUBMIT,
         targetHook: 'UserPromptSubmit',
         skipIfExists: true, // Don't duplicate if SessionStart already staged
+        templateContext: { sessionId: event.context?.sessionId ?? 'unknown' },
       }
     },
   })
