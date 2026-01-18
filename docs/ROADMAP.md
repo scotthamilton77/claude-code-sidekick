@@ -299,12 +299,14 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
     - [ ] Centralize 4 cross-reminder rules currently scattered across handlers
     - [ ] Replace scattered `deleteReminder()` calls with declarative rule engine
     - [ ] Clean code: no @deprecation, no need to preserve backward compatibility
-  - [ ] **9.6.1 Design Rule Engine**
-    - [ ] `ReminderOrchestrator` in `feature-reminders` with declarative rules:
+  - [x] **9.6.1 Design Rule Engine** - COMPLETE 2026-01-18
+    - Design: [docs/plans/2026-01-18-reminder-orchestrator-design.md](./plans/2026-01-18-reminder-orchestrator-design.md)
+    - [x] `ReminderOrchestrator` in `feature-reminders` with declarative rules:
       - Rule 1: P&R staged → unstage VC (cascade prevention)
       - Rule 2: UserPromptSubmit → unstage VC or re-stage if unverified
       - Rule 3: VC consumed → reset P&R baseline
       - Rule 4: VC consumed → unstage P&R (prevent double block)
+    - [x] Separate non-caching StateService for staging files (cross-process safety)
   - [ ] **9.6.2 Centralize Baseline State**
     - [ ] Move `pr-baseline.json` management from IPC to orchestrator service
     - [ ] Clear read/write semantics for baseline state
