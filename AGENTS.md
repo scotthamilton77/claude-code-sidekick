@@ -33,6 +33,23 @@ development-tools/llm-eval/ # LLM evaluation tools (relocated from benchmark-nex
 ```
 </structure>
 
+<cli_commands>
+
+**Persona commands** (require daemon running):
+```bash
+# Set/change session persona
+sidekick persona <persona-id> --session-id=<id>
+
+# Clear session persona
+sidekick persona --session-id=<id>
+
+# Test persona voice generation
+sidekick persona-test <persona-id> --session-id=<id> [--type=snarky|resume]
+```
+
+Find your session ID in `.sidekick/sessions/` or grep for your session title.
+</cli_commands>
+
 <sandbox_testing>
 
 IPC tests fail in Claude Code sandbox (Unix socket `EPERM`).

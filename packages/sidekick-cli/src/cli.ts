@@ -347,6 +347,30 @@ export async function routeCommand(context: {
     return { exitCode: result.exitCode, stdout: '', stderr: '' }
   }
 
+  if (parsed.command === 'persona') {
+    const { handlePersonaCommand } = await import('./commands/persona.js')
+    // persona <persona-id> --session-id=<id>
+    // persona --session-id=<id>  (clears persona)
+    const personaId = parsed._?.[1] as string | undefined
+    const sessionId = parsed.sessionIdArg
+
+    if (!sessionId) {
+      stdout.write('Error: persona command requires --session-id\n')
+      stdout.write('Usage: sidekick persona <persona-id> --session-id=<id>\n')
+      stdout.write('       sidekick persona --session-id=<id>  (clear persona)\n')
+      return { exitCode: 1, stdout: '', stderr: '' }
+    }
+
+    const result = await handlePersonaCommand(
+      personaId,
+      runtime.scope.projectRoot || process.cwd(),
+      runtime.logger,
+      stdout,
+      { sessionId }
+    )
+    return { exitCode: result.exitCode, stdout: result.output, stderr: '' }
+  }
+
   if (parsed.command === 'persona-test') {
     const { handlePersonaTestCommand } = await import('./commands/persona-test.js')
     // persona-test <persona-id> --session-id=<id> [--type=snarky|resume]
