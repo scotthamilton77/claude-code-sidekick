@@ -71,6 +71,15 @@ export {
 
 export * from './assets'
 export { encodeProjectPath, reconstructTranscriptPath } from './claude-paths'
+export {
+  createPersonaLoader,
+  discoverPersonas,
+  getDefaultPersonasDir,
+  loadPersonaFile,
+  type PersonaLoader,
+  type PersonaLoaderOptions,
+  type PersonaLoadResult,
+} from './persona-loader'
 export * from './config'
 export * from './feature-registry'
 export * from './feature-types'

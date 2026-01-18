@@ -3,3 +3,13 @@ display_name: Disabled
 theme: "No creative text generation."
 personality_traits: []
 tone_traits: []
+snarky_examples:
+  - "Still figuring out what you want? Maybe try actual requirements."
+  - "Another refactor. Bold move."
+  - "Debugging again? Testing first might help."
+  - "Vague instructions lead to vague results."
+  - "Configuration changes. What could go wrong?"
+resume_examples:
+  - "Last session: working on [topic]."
+  - "You were in the middle of [topic]."
+  - "Previous work: [topic]."

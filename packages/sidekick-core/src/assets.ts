@@ -26,42 +26,48 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 // =============================================================================
-// Asset Resolver
+// Cascading Resolver (Generic)
 // =============================================================================
 
-export interface AssetResolverOptions {
-  defaultAssetsDir: string
-  projectRoot?: string
-  homeDir?: string
+/**
+ * Options for creating a cascading resolver with explicit layers.
+ */
+export interface CascadingResolverOptions {
+  /** Cascade layers in order of precedence (lowest to highest priority) */
+  cascadeLayers: string[]
 }
 
-export interface AssetResolver {
+/**
+ * Generic cascading resolver interface.
+ * Searches for files across cascade layers with highest priority winning.
+ */
+export interface CascadingResolver {
   /**
-   * Resolve an asset by relative path, returning its content.
-   * Returns null if the asset is not found in any cascade layer.
+   * Resolve a file by relative path, returning its content.
+   * Returns null if the file is not found in any cascade layer.
    */
   resolve(relativePath: string): string | null
 
   /**
-   * Resolve an asset, throwing if not found.
+   * Resolve a file, throwing if not found.
    */
   resolveOrThrow(relativePath: string): string
 
   /**
-   * Resolve the absolute path to an asset without reading it.
-   * Returns null if the asset is not found.
+   * Resolve the absolute path to a file without reading it.
+   * Returns null if the file is not found.
    */
   resolvePath(relativePath: string): string | null
 
   /**
-   * Resolve and parse a JSON/JSONC asset.
-   * Returns null if the asset is not found.
+   * Resolve and parse a JSON/JSONC file.
+   * Returns null if the file is not found.
    */
   resolveJson<T = unknown>(relativePath: string): T | null
 
   /**
-   * Resolve and parse a YAML asset.
-   * Returns null if the asset is not found.
+   * Resolve and parse a YAML file.
+   * Returns null if the file is not found.
    */
   resolveYaml<T = unknown>(relativePath: string): T | null
 
@@ -71,6 +77,99 @@ export interface AssetResolver {
    */
   cascadeLayers: string[]
 }
+
+/**
+ * Create a generic cascading resolver with explicit layers.
+ * Files are resolved from highest priority layer first (last in array).
+ *
+ * @param options - Configuration with explicit cascade layers
+ * @returns A resolver that searches layers in priority order
+ */
+export function createCascadingResolver(options: CascadingResolverOptions): CascadingResolver {
+  const { cascadeLayers } = options
+
+  // Search layers in reverse order (highest priority first)
+  const findFile = (relativePath: string): string | null => {
+    for (let i = cascadeLayers.length - 1; i >= 0; i--) {
+      const fullPath = join(cascadeLayers[i], relativePath)
+      if (existsSync(fullPath)) {
+        return fullPath
+      }
+    }
+    return null
+  }
+
+  return {
+    resolve(relativePath: string): string | null {
+      const fullPath = findFile(relativePath)
+      if (!fullPath) {
+        return null
+      }
+      return readFileSync(fullPath, 'utf8')
+    },
+
+    resolveOrThrow(relativePath: string): string {
+      const content = this.resolve(relativePath)
+      if (content === null) {
+        throw new Error(`File not found: ${relativePath}. Searched cascade layers: ${cascadeLayers.join(', ')}`)
+      }
+      return content
+    },
+
+    resolvePath(relativePath: string): string | null {
+      return findFile(relativePath)
+    },
+
+    resolveJson<T = unknown>(relativePath: string): T | null {
+      const content = this.resolve(relativePath)
+      if (content === null) {
+        return null
+      }
+
+      const errors: { error: number; offset: number; length: number }[] = []
+      const parsed = parseJsonc(content, errors) as T
+
+      if (errors.length > 0) {
+        throw new Error(`Failed to parse JSON file ${relativePath}: syntax error at offset ${errors[0].offset}`)
+      }
+
+      return parsed
+    },
+
+    resolveYaml<T = unknown>(relativePath: string): T | null {
+      const content = this.resolve(relativePath)
+      if (content === null) {
+        return null
+      }
+
+      try {
+        return parseYaml(content) as T
+      } catch (error) {
+        throw new Error(
+          `Failed to parse YAML file ${relativePath}: ${error instanceof Error ? error.message : String(error)}`
+        )
+      }
+    },
+
+    cascadeLayers,
+  }
+}
+
+// =============================================================================
+// Asset Resolver (Sidekick-specific cascade)
+// =============================================================================
+
+export interface AssetResolverOptions {
+  defaultAssetsDir: string
+  projectRoot?: string
+  homeDir?: string
+}
+
+/**
+ * Asset resolver with Sidekick-specific cascade layers.
+ * Same interface as CascadingResolver, specific cascade configuration.
+ */
+export type AssetResolver = CascadingResolver
 
 /**
  * Build the cascade layers for asset resolution.
@@ -114,75 +213,17 @@ function buildCascadeLayers(defaultAssetsDir: string, homeDir: string, projectRo
   return layers
 }
 
+/**
+ * Create an asset resolver with Sidekick-specific cascade layers.
+ * Uses createCascadingResolver with the standard 6-layer asset cascade.
+ *
+ * @param options - Configuration with default assets dir and optional project/home paths
+ * @returns An asset resolver for the Sidekick cascade
+ */
 export function createAssetResolver(options: AssetResolverOptions): AssetResolver {
-  const homeDir = options.homeDir ?? homedir()
-  const cascadeLayers = buildCascadeLayers(options.defaultAssetsDir, homeDir, options.projectRoot)
-
-  // Search layers in reverse order (highest priority first)
-  const findAsset = (relativePath: string): string | null => {
-    for (let i = cascadeLayers.length - 1; i >= 0; i--) {
-      const fullPath = join(cascadeLayers[i], relativePath)
-      if (existsSync(fullPath)) {
-        return fullPath
-      }
-    }
-    return null
-  }
-
-  return {
-    resolve(relativePath: string): string | null {
-      const fullPath = findAsset(relativePath)
-      if (!fullPath) {
-        return null
-      }
-      return readFileSync(fullPath, 'utf8')
-    },
-
-    resolveOrThrow(relativePath: string): string {
-      const content = this.resolve(relativePath)
-      if (content === null) {
-        throw new Error(`Asset not found: ${relativePath}. Searched cascade layers: ${cascadeLayers.join(', ')}`)
-      }
-      return content
-    },
-
-    resolvePath(relativePath: string): string | null {
-      return findAsset(relativePath)
-    },
-
-    resolveJson<T = unknown>(relativePath: string): T | null {
-      const content = this.resolve(relativePath)
-      if (content === null) {
-        return null
-      }
-
-      const errors: { error: number; offset: number; length: number }[] = []
-      const parsed = parseJsonc(content, errors) as T
-
-      if (errors.length > 0) {
-        throw new Error(`Failed to parse JSON asset ${relativePath}: syntax error at offset ${errors[0].offset}`)
-      }
-
-      return parsed
-    },
-
-    resolveYaml<T = unknown>(relativePath: string): T | null {
-      const content = this.resolve(relativePath)
-      if (content === null) {
-        return null
-      }
-
-      try {
-        return parseYaml(content) as T
-      } catch (error) {
-        throw new Error(
-          `Failed to parse YAML asset ${relativePath}: ${error instanceof Error ? error.message : String(error)}`
-        )
-      }
-    },
-
-    cascadeLayers,
-  }
+  const home = options.homeDir ?? homedir()
+  const cascadeLayers = buildCascadeLayers(options.defaultAssetsDir, home, options.projectRoot)
+  return createCascadingResolver({ cascadeLayers })
 }
 
 /**

@@ -193,6 +193,14 @@ export interface StatuslineServiceConfig {
    * Used to load empty session messages with cascade override support.
    */
   assets?: MinimalAssetResolver
+  /**
+   * Persona configuration for statusline.
+   * Controls resume message freshness and persona-specific behavior.
+   */
+  personaConfig?: {
+    /** Maximum age (hours) for resume messages to be considered fresh */
+    resumeFreshnessHours: number
+  }
 }
 
 // ============================================================================
@@ -221,8 +229,9 @@ export class StatuslineService {
   private readonly logger?: Logger
   private readonly userConfigDir?: string
   private readonly projectDir?: string
-  /** Random empty session message, picked once at construction */
-  private readonly emptySessionMessage: string
+  private readonly assets?: MinimalAssetResolver
+  /** Resume freshness in hours (default: 4) */
+  private readonly resumeFreshnessHours: number
 
   constructor(serviceConfig: StatuslineServiceConfig) {
     // Build config from cascade: configService takes precedence, then direct config, then defaults
@@ -237,6 +246,8 @@ export class StatuslineService {
     this.logger = serviceConfig.logger
     this.userConfigDir = serviceConfig.userConfigDir
     this.projectDir = serviceConfig.projectDir
+    this.assets = serviceConfig.assets
+    this.resumeFreshnessHours = serviceConfig.personaConfig?.resumeFreshnessHours ?? 4
 
     this.stateReader = createStateReader(serviceConfig.stateService, serviceConfig.sessionId)
     this.gitProvider = createGitProvider(serviceConfig.cwd)
@@ -244,9 +255,53 @@ export class StatuslineService {
       theme: this.config.theme,
       useColors: this.useColors,
     })
+  }
 
-    // Load and pick random empty session message
-    this.emptySessionMessage = this.loadRandomEmptyMessage(serviceConfig.assets)
+  /**
+   * Load persona definition for the session.
+   * Returns null if no persona is selected or persona not found.
+   */
+  private loadPersonaDefinition(personaState: SessionPersonaState | null): PersonaDefinition | null {
+    if (!personaState || !this.projectDir) {
+      return null
+    }
+
+    const loader = createPersonaLoader({
+      defaultPersonasDir: getDefaultPersonasDir(),
+      projectRoot: this.projectDir,
+      logger: this.logger,
+    })
+
+    const personas = loader.discover()
+    return personas.get(personaState.persona_id) ?? null
+  }
+
+  /**
+   * Get empty session message based on persona.
+   * Priority:
+   * 1. Persona-specific statusline_empty_messages (if persona exists and has messages)
+   * 2. Sidekick persona's statusline_empty_messages
+   * 3. Default asset file (statusline-empty-messages.txt)
+   * 4. SESSION_SUMMARY_PLACEHOLDERS.newSession
+   *
+   * For "disabled" persona or no persona selected, uses SESSION_SUMMARY_PLACEHOLDERS.
+   *
+   * @see docs/design/PERSONA-PROFILES-DESIGN.md - Statusline Empty Messages
+   */
+  private getEmptySessionMessage(persona: PersonaDefinition | null): string {
+    // Disabled persona or no persona: use placeholders
+    if (!persona || persona.id === 'disabled') {
+      return DEFAULT_PLACEHOLDERS.newSession
+    }
+
+    // Try persona-specific empty messages first
+    if (persona.statusline_empty_messages && persona.statusline_empty_messages.length > 0) {
+      const randomIndex = Math.floor(Math.random() * persona.statusline_empty_messages.length)
+      return persona.statusline_empty_messages[randomIndex]
+    }
+
+    // Fallback to default asset file (for sidekick persona or personas without messages)
+    return this.loadRandomEmptyMessageFromAssets()
   }
 
   /**
@@ -254,12 +309,12 @@ export class StatuslineService {
    * Uses the asset resolver cascade to support user/project overrides.
    * Falls back to DEFAULT_PLACEHOLDERS.newSession if not found/empty.
    */
-  private loadRandomEmptyMessage(assets?: MinimalAssetResolver): string {
-    if (!assets) {
+  private loadRandomEmptyMessageFromAssets(): string {
+    if (!this.assets) {
       return DEFAULT_PLACEHOLDERS.newSession
     }
 
-    const content = assets.resolve('defaults/features/statusline-empty-messages.txt')
+    const content = this.assets.resolve('defaults/features/statusline-empty-messages.txt')
     if (!content) {
       return DEFAULT_PLACEHOLDERS.newSession
     }
@@ -275,6 +330,23 @@ export class StatuslineService {
 
     const randomIndex = Math.floor(Math.random() * messages.length)
     return messages[randomIndex]
+  }
+
+  /**
+   * Check if resume message is still fresh based on timestamp.
+   * Returns false if resume is older than resumeFreshnessHours.
+   *
+   * @see docs/design/PERSONA-PROFILES-DESIGN.md - Resume Message Freshness
+   */
+  private isResumeFresh(resumeTimestamp: string | undefined): boolean {
+    if (!resumeTimestamp) {
+      return false
+    }
+
+    const resumeTime = new Date(resumeTimestamp).getTime()
+    const ageMs = Date.now() - resumeTime
+    const freshnessMs = this.resumeFreshnessHours * 60 * 60 * 1000
+    return ageMs < freshnessMs
   }
 
   /**
@@ -311,16 +383,28 @@ export class StatuslineService {
     // Always fetch transcript metrics for currentContextTokens (needed for accurate post-compaction display)
     // When hookInput provided, we merge currentContextTokens from transcript into hook-based state
     // Also fetch baseline metrics for new session display (when current_usage is 0)
-    const [transcriptResult, summaryResult, resumeResult, snarkyResult, branchResult, baseline, logMetricsResult] =
-      await Promise.all([
-        this.stateReader.getTranscriptMetrics(),
-        this.stateReader.getSessionSummary(),
-        this.stateReader.getResumeMessage(),
-        this.stateReader.getSnarkyMessage(),
-        this.gitProvider.getCurrentBranch(),
-        this.readBaselineMetrics(),
-        this.stateReader.getLogMetrics(),
-      ])
+    const [
+      transcriptResult,
+      summaryResult,
+      resumeResult,
+      snarkyResult,
+      branchResult,
+      baseline,
+      logMetricsResult,
+      personaResult,
+    ] = await Promise.all([
+      this.stateReader.getTranscriptMetrics(),
+      this.stateReader.getSessionSummary(),
+      this.stateReader.getResumeMessage(),
+      this.stateReader.getSnarkyMessage(),
+      this.gitProvider.getCurrentBranch(),
+      this.readBaselineMetrics(),
+      this.stateReader.getLogMetrics(),
+      this.stateReader.getSessionPersona(),
+    ])
+
+    // Load persona definition if persona is selected
+    const persona = this.loadPersonaDefinition(personaResult.data)
 
     // Build state: use hook input if available, but always include currentContextTokens from transcript
     const stateResult = hasHookInput
@@ -350,6 +434,19 @@ export class StatuslineService {
       }
     }
 
+    // Check resume freshness - skip stale resume messages
+    // @see docs/design/PERSONA-PROFILES-DESIGN.md - Resume Message Freshness
+    if (effectiveResumeData && !this.isResumeFresh(effectiveResumeData.timestamp)) {
+      this.logger?.debug('Resume message is stale, skipping', {
+        timestamp: effectiveResumeData.timestamp,
+        freshnessHours: this.resumeFreshnessHours,
+      })
+      effectiveResumeData = null
+    }
+
+    // Get empty session message based on persona
+    const emptySessionMessage = this.getEmptySessionMessage(persona)
+
     // Build view model
     const viewModel = this.buildViewModel(
       stateResult.data,
@@ -358,7 +455,9 @@ export class StatuslineService {
       snarkyResult.data,
       branchResult.branch,
       baseline,
-      logMetricsResult.data
+      logMetricsResult.data,
+      emptySessionMessage,
+      persona
     )
 
     // Format output
@@ -445,6 +544,8 @@ export class StatuslineService {
    * Token data comes from hookInput's current_usage (Claude Code's statusline input).
    * When current_usage is 0 (new session or /clear), uses baseline metrics.
    * Cost, duration, and model also come from hookInput.
+   *
+   * @see docs/design/PERSONA-PROFILES-DESIGN.md - Statusline integration
    */
   private buildViewModel(
     state: TranscriptMetricsState,
@@ -453,13 +554,21 @@ export class StatuslineService {
     snarkyMessage: string,
     branch: string,
     baseline: ContextOverhead,
-    logMetrics: LogMetricsState
+    logMetrics: LogMetricsState,
+    emptySessionMessage: string,
+    persona: PersonaDefinition | null
   ): StatuslineViewModel {
     // Determine display mode
     const displayMode = this.determineDisplayMode(summary, resume)
 
     // Determine summary text based on display mode
-    const { summaryText, title } = this.getSummaryContent(displayMode, summary, resume, snarkyMessage)
+    const { summaryText, title } = this.getSummaryContent(
+      displayMode,
+      summary,
+      resume,
+      snarkyMessage,
+      emptySessionMessage
+    )
 
     // Calculate effective tokens for display
     // Use current_usage from hook input: sum of input + cache tokens represents actual context window usage
@@ -568,6 +677,9 @@ export class StatuslineService {
           ? 'warning'
           : 'normal'
 
+    // Get persona name (empty if no persona or disabled)
+    const personaName = persona && persona.id !== 'disabled' ? persona.display_name : ''
+
     return {
       model: this.formatModelName(modelName),
       contextWindow: formatTokens(contextWindowSize),
@@ -590,6 +702,7 @@ export class StatuslineService {
       warningCount: logMetrics.warningCount,
       errorCount: logMetrics.errorCount,
       logStatus,
+      personaName,
     }
   }
 
@@ -640,14 +753,15 @@ export class StatuslineService {
     displayMode: DisplayMode,
     summary: SessionSummaryState,
     resume: ResumeMessageState | null,
-    snarkyMessage: string
+    snarkyMessage: string,
+    emptySessionMessage: string
   ): { summaryText: string; title: string } {
     switch (displayMode) {
       case 'resume_message': {
         const resumeTitle = resume?.session_title
           ? `Last Session: ${resume.session_title}`
           : DEFAULT_PLACEHOLDERS.newSession
-        const resumeSummary = resume?.snarky_comment || this.emptySessionMessage
+        const resumeSummary = resume?.snarky_comment || emptySessionMessage
         return {
           summaryText: resumeSummary,
           title: resumeTitle,
@@ -656,7 +770,7 @@ export class StatuslineService {
 
       case 'empty_summary':
         return {
-          summaryText: this.emptySessionMessage,
+          summaryText: emptySessionMessage,
           title: DEFAULT_PLACEHOLDERS.newSession,
         }
 

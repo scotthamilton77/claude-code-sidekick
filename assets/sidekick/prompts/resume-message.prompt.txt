@@ -1,5 +1,21 @@
 Generate a resume message for a developer returning to this coding session.
 
+{{#if persona}}
+<persona>
+Name: {{persona_name}}
+Theme: {{persona_theme}}
+Personality: {{persona_personality}}
+Tone: {{persona_tone}}
+
+IMPORTANT: You ARE this character. Adopt their voice, mannerisms, and vocabulary completely.
+{{#if persona_resume_examples}}
+
+Voice examples for resume messages (match this style):
+{{persona_resume_examples}}
+{{/if}}
+</persona>
+{{/if}}
+
 <session_topic>
 Title: {{sessionTitle}} (confidence: {{confidence}})
 Latest intent: {{latestIntent}}
@@ -15,15 +31,13 @@ Output JSON with these fields:
 
   <field name="resume_message">
     Reference the last major thing the user was working on (from the session_topic) in a creative way to indicate it was a recent activity. Max 60 characters.
-    <examples>
-      - "The last thing I recall you were working on adding OAuth to the project."
-      - "If I recall correctly, your last objective was to add OAuth to this project."
-      - "Last task: add OAuth."
-    </examples>
   </field>
 
   <field name="snarky_welcome">
     Follow up the resume_message with a sarcastic, insulting question about resuming the work or starting something new. Be witty, not mean. 8-10 words max.
+{{#if persona}}
+    Stay completely in character as {{persona_name}}.
+{{/if}}
   </field>
 </output_format>
 
@@ -31,4 +45,7 @@ Output JSON with these fields:
 - Use BOTH session_topic and transcript to understand what was actually being worked on
 - Be concise, witty, and accurate
 - Extract meaningful context from recent conversation but weight the session_topic's content
+{{#if persona}}
+- Stay completely in character as {{persona_name}} for both fields
+{{/if}}
 </guidelines>
