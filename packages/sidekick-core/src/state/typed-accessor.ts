@@ -52,10 +52,13 @@ export class SessionStateAccessor<T, D = undefined> {
 
   /**
    * Write session state file atomically.
+   * If descriptor has trackHistory: true and dev mode is enabled, creates backup.
    */
   async write(sessionId: string, data: T): Promise<void> {
     const path = this.stateService.sessionStatePath(sessionId, this.descriptor.filename)
-    return this.stateService.write(path, data, this.descriptor.schema)
+    return this.stateService.write(path, data, this.descriptor.schema, {
+      trackHistory: this.descriptor.trackHistory,
+    })
   }
 
   /**
@@ -112,10 +115,13 @@ export class GlobalStateAccessor<T, D = undefined> {
 
   /**
    * Write global state file atomically.
+   * If descriptor has trackHistory: true and dev mode is enabled, creates backup.
    */
   async write(data: T): Promise<void> {
     const path = this.stateService.globalStatePath(this.descriptor.filename)
-    return this.stateService.write(path, data, this.descriptor.schema)
+    return this.stateService.write(path, data, this.descriptor.schema, {
+      trackHistory: this.descriptor.trackHistory,
+    })
   }
 
   /**

@@ -653,8 +653,9 @@ export interface MinimalStateService {
    * @param path - Absolute path to state file
    * @param data - Data to write
    * @param schema - Zod schema for validation
+   * @param options - Optional write options (trackHistory for dev mode backups)
    */
-  write<T>(path: string, data: T, schema: z.ZodType<T>): Promise<void>
+  write<T>(path: string, data: T, schema: z.ZodType<T>, options?: { trackHistory?: boolean }): Promise<void>
 
   /**
    * Delete state file if it exists.
