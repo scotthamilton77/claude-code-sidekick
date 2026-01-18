@@ -62,3 +62,10 @@ export function registerHandlers(context: RuntimeContext): void {
 
 export { createFirstSessionSummary } from './create-first-summary.js'
 export { updateSessionSummary } from './update-summary.js'
+export {
+  setSessionPersona,
+  generateSnarkyMessageOnDemand,
+  generateResumeMessageOnDemand,
+  type GenerationResult,
+  type SetPersonaResult,
+} from './on-demand-generation.js'

@@ -5,11 +5,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { PersonaDefinition } from '@sidekick/types'
-import {
-  parseAllowList,
-  filterPersonasByAllowList,
-  selectRandomPersona,
-} from '../handlers/persona-selection'
+import { parseAllowList, filterPersonasByAllowList, selectRandomPersona } from '../handlers/persona-selection'
 
 // ============================================================================
 // Test Data

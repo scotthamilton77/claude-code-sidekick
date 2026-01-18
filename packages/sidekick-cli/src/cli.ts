@@ -43,6 +43,7 @@ interface ParsedArgs {
   open?: boolean
   preferProject?: boolean
   sessionIdArg?: string
+  messageType?: 'snarky' | 'resume'
   _?: (string | number)[]
 }
 
@@ -64,7 +65,7 @@ interface RunCliOptions {
 function parseArgs(argv: string[]): ParsedArgs {
   const parsed = yargsParser(argv, {
     boolean: ['hook', 'wait', 'open', 'prefer-project'],
-    string: ['hook-script-path', 'project-dir', 'scope', 'log-level', 'format', 'host', 'session-id'],
+    string: ['hook-script-path', 'project-dir', 'scope', 'log-level', 'format', 'host', 'session-id', 'type'],
     number: ['port'],
     configuration: {
       'camel-case-expansion': false,
@@ -87,6 +88,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     open: parsed.open as boolean | undefined,
     preferProject: parsed['prefer-project'] as boolean | undefined,
     sessionIdArg: parsed['session-id'] as string | undefined,
+    messageType: parsed.type as 'snarky' | 'resume' | undefined,
     _: parsed._,
   }
 }
@@ -343,6 +345,37 @@ export async function routeCommand(context: {
       preferProject: parsed.preferProject,
     })
     return { exitCode: result.exitCode, stdout: '', stderr: '' }
+  }
+
+  if (parsed.command === 'persona-test') {
+    const { handlePersonaTestCommand } = await import('./commands/persona-test.js')
+    // persona-test <persona-id> --session-id=<id> [--type=snarky|resume]
+    const personaId = parsed._?.[1] as string | undefined
+    const sessionId = parsed.sessionIdArg
+
+    if (!personaId) {
+      stdout.write('Error: persona-test requires a persona ID as first argument\n')
+      stdout.write('Usage: sidekick persona-test <persona-id> --session-id=<id> [--type=snarky|resume]\n')
+      return { exitCode: 1, stdout: '', stderr: '' }
+    }
+
+    if (!sessionId) {
+      stdout.write('Error: persona-test requires --session-id\n')
+      stdout.write('Usage: sidekick persona-test <persona-id> --session-id=<id> [--type=snarky|resume]\n')
+      return { exitCode: 1, stdout: '', stderr: '' }
+    }
+
+    const result = await handlePersonaTestCommand(
+      personaId,
+      runtime.scope.projectRoot || process.cwd(),
+      runtime.logger,
+      stdout,
+      {
+        sessionId,
+        type: parsed.messageType ?? 'snarky',
+      }
+    )
+    return { exitCode: result.exitCode, stdout: result.output, stderr: '' }
   }
 
   // Interactive mode: show informational message
