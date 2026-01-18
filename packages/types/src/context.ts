@@ -16,6 +16,7 @@ import type { StagingService } from './services/staging.js'
 import type { DaemonClient } from './services/daemon-client.js'
 import type { TranscriptService } from './services/transcript.js'
 import type { MinimalStateService } from './services/state.js'
+import type { ReminderCoordinator } from './services/reminder-coordinator.js'
 
 // ============================================================================
 // Runtime Context (Discriminated Union)
@@ -70,6 +71,8 @@ export interface DaemonContext extends BaseContext {
   transcript: TranscriptService
   /** State service for atomic file operations with schema validation */
   stateService: MinimalStateService
+  /** Optional reminder coordinator for cross-reminder rules */
+  orchestrator?: ReminderCoordinator
 }
 
 /**

@@ -65,10 +65,8 @@ export function registerStagePauseAndReflect(context: RuntimeContext): void {
       const toolsSinceBaseline = metrics.toolsThisTurn - effectiveBaseline
       if (toolsSinceBaseline < config.pause_and_reflect_threshold) return undefined
 
-      // Unstage verify-completion to prevent cascade: pause-and-reflect blocks the model,
-      // which triggers Stop hook, which would consume verify-completion - defeating the
-      // purpose of pause-and-reflect (to reflect mid-turn, not verify completion)
-      await ctx.staging.deleteReminder('Stop', ReminderIds.VERIFY_COMPLETION)
+      // Note: Unstaging verify-completion is now handled by orchestrator.onReminderStaged()
+      // in staging-handler-utils.ts after this handler returns the staging action.
 
       return {
         reminderId: ReminderIds.PAUSE_AND_REFLECT,

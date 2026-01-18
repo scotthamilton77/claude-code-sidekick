@@ -112,13 +112,13 @@ export function registerInjectStop(context: RuntimeContext): void {
       }
     },
 
-    onConsume: async ({ reminder, reader, cliCtx, sessionId }) => {
+    onConsume: async ({ reminder, cliCtx, sessionId }) => {
       // Side effects for verify-completion consumption
       if (reminder.name === ReminderIds.VERIFY_COMPLETION) {
-        // 1. Delete any staged P&R to prevent cascade
-        reader.deleteReminder('PreToolUse', ReminderIds.PAUSE_AND_REFLECT)
-
-        // 2. Send IPC to Daemon to update P&R baseline
+        // Send IPC to Daemon for cross-reminder coordination (Phase 9.6.3)
+        // Daemon's orchestrator.onReminderConsumed() handles:
+        // - Resetting P&R baseline
+        // - Unstaging any staged P&R
         const projectDir = cliCtx.paths.projectDir
         if (projectDir) {
           const ipc = new IpcService(projectDir, cliCtx.logger)

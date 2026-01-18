@@ -73,15 +73,17 @@ function createMockLogger(): Logger {
 
 describe('ReminderOrchestrator', () => {
   let staging: StagingService
+  let getStagingService: (sessionId: string) => StagingService
   let stateService: MinimalStateService
   let logger: Logger
   let orchestrator: ReminderOrchestrator
 
   beforeEach(() => {
     staging = createMockStagingService()
+    getStagingService = vi.fn().mockReturnValue(staging)
     stateService = createMockStateService()
     logger = createMockLogger()
-    orchestrator = new ReminderOrchestrator({ staging, stateService, logger })
+    orchestrator = new ReminderOrchestrator({ getStagingService, stateService, logger })
   })
 
   describe('onReminderStaged', () => {
@@ -91,6 +93,7 @@ describe('ReminderOrchestrator', () => {
         'session-123'
       )
 
+      expect(getStagingService).toHaveBeenCalledWith('session-123')
       expect(staging.deleteReminder).toHaveBeenCalledWith('Stop', ReminderIds.VERIFY_COMPLETION)
       expect(logger.debug).toHaveBeenCalledWith(
         'Unstaged VC after P&R staged',
@@ -157,6 +160,7 @@ describe('ReminderOrchestrator', () => {
         metrics
       )
 
+      expect(getStagingService).toHaveBeenCalledWith('session-123')
       expect(staging.deleteReminder).toHaveBeenCalledWith('PreToolUse', ReminderIds.PAUSE_AND_REFLECT)
       expect(logger.debug).toHaveBeenCalledWith(
         'Unstaged P&R after VC consumed',

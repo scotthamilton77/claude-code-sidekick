@@ -14,7 +14,14 @@
  * @see docs/ROADMAP.md Phase 9.6
  */
 
-import type { Logger, MinimalStateService, StagingService, HookName } from '@sidekick/types'
+import type {
+  Logger,
+  MinimalStateService,
+  StagingService,
+  ReminderCoordinator,
+  ReminderRef,
+  CoordinationMetrics,
+} from '@sidekick/types'
 import { createRemindersState, type RemindersStateAccessors } from './state.js'
 import { ReminderIds } from './types.js'
 
@@ -27,31 +34,12 @@ import { ReminderIds } from './types.js'
  * Uses constructor injection for testability.
  */
 export interface ReminderOrchestratorDeps {
-  /** Staging service for deleting reminders */
-  staging: StagingService
+  /** Factory to get session-scoped staging service */
+  getStagingService(sessionId: string): StagingService
   /** State service for baseline state via remindersState accessors */
   stateService: MinimalStateService
   /** Logger for observability */
   logger: Logger
-}
-
-/**
- * Reminder identification for orchestrator methods.
- */
-export interface ReminderRef {
-  /** Reminder name (e.g., 'pause-and-reflect', 'verify-completion') */
-  name: string
-  /** Hook where the reminder was staged/consumed */
-  hook: HookName
-}
-
-/**
- * Metrics snapshot for baseline tracking.
- */
-export interface MetricsSnapshot {
-  turnCount: number
-  toolsThisTurn: number
-  toolCount: number
 }
 
 // ============================================================================
@@ -69,7 +57,7 @@ export interface MetricsSnapshot {
  * Methods catch and log errors without throwing - a failed rule shouldn't
  * break the handler's primary action.
  */
-export class ReminderOrchestrator {
+export class ReminderOrchestrator implements ReminderCoordinator {
   private readonly remindersState: RemindersStateAccessors
 
   constructor(private readonly deps: ReminderOrchestratorDeps) {
@@ -86,7 +74,8 @@ export class ReminderOrchestrator {
     // P&R staged → unstage VC (cascade prevention)
     if (reminder.name === ReminderIds.PAUSE_AND_REFLECT) {
       try {
-        await this.deps.staging.deleteReminder('Stop', ReminderIds.VERIFY_COMPLETION)
+        const staging = this.deps.getStagingService(sessionId)
+        await staging.deleteReminder('Stop', ReminderIds.VERIFY_COMPLETION)
         this.deps.logger.debug('Unstaged VC after P&R staged', { sessionId })
       } catch (err) {
         this.deps.logger.warn('Failed to unstage VC after P&R staged', {
@@ -104,7 +93,7 @@ export class ReminderOrchestrator {
    * - Rule 3: VC consumed → reset P&R baseline
    * - Rule 4: VC consumed → unstage P&R (prevent double block)
    */
-  async onReminderConsumed(reminder: ReminderRef, sessionId: string, metrics: MetricsSnapshot): Promise<void> {
+  async onReminderConsumed(reminder: ReminderRef, sessionId: string, metrics: CoordinationMetrics): Promise<void> {
     if (reminder.name === ReminderIds.VERIFY_COMPLETION) {
       // VC consumed → reset P&R baseline
       try {
@@ -123,7 +112,8 @@ export class ReminderOrchestrator {
 
       // VC consumed → unstage P&R (prevent double block)
       try {
-        await this.deps.staging.deleteReminder('PreToolUse', ReminderIds.PAUSE_AND_REFLECT)
+        const staging = this.deps.getStagingService(sessionId)
+        await staging.deleteReminder('PreToolUse', ReminderIds.PAUSE_AND_REFLECT)
         this.deps.logger.debug('Unstaged P&R after VC consumed', { sessionId })
       } catch (err) {
         this.deps.logger.warn('Failed to unstage P&R after VC consumed', {
