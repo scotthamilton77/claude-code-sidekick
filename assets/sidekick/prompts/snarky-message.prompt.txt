@@ -35,6 +35,7 @@ Voice examples (match this style):
 - Reference specific technical details when confidence is high
 - Focus on workflow quirks, not personal attacks
 - Stay under 15 words
+- Prefer regular punctuation over hyphens
 {{#if persona}}
 - Stay completely in character as {{persona_name}}
 {{/if}}
