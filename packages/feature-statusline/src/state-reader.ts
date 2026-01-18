@@ -34,8 +34,13 @@ import {
   SessionSummaryDescriptor,
   ResumeMessageDescriptor,
   SnarkyMessageDescriptor,
+  SessionPersonaDescriptor,
 } from '@sidekick/feature-session-summary'
-import type { SessionSummaryState as FeatureSessionSummaryState, SnarkyMessageState } from '@sidekick/types'
+import type {
+  SessionSummaryState as FeatureSessionSummaryState,
+  SnarkyMessageState,
+  SessionPersonaState,
+} from '@sidekick/types'
 
 import type {
   ResumeMessageState,
@@ -77,6 +82,7 @@ export class StateReader {
   private readonly snarkyMessageAccessor: SessionStateAccessor<SnarkyMessageState, SnarkyMessageState>
   private readonly daemonLogMetricsAccessor: SessionStateAccessor<LogMetricsState, LogMetricsState>
   private readonly cliLogMetricsAccessor: SessionStateAccessor<LogMetricsState, LogMetricsState>
+  private readonly sessionPersonaAccessor: SessionStateAccessor<SessionPersonaState, null>
 
   // Global-scoped accessor (optional, only used when global metrics needed)
   private readonly daemonGlobalLogMetricsAccessor: GlobalStateAccessor<LogMetricsState, LogMetricsState>
@@ -92,6 +98,7 @@ export class StateReader {
     this.snarkyMessageAccessor = new SessionStateAccessor(config.stateService, SnarkyMessageDescriptor)
     this.daemonLogMetricsAccessor = new SessionStateAccessor(config.stateService, DaemonLogMetricsDescriptor)
     this.cliLogMetricsAccessor = new SessionStateAccessor(config.stateService, CliLogMetricsDescriptor)
+    this.sessionPersonaAccessor = new SessionStateAccessor(config.stateService, SessionPersonaDescriptor)
 
     // Create global-scoped accessor
     this.daemonGlobalLogMetricsAccessor = new GlobalStateAccessor(config.stateService, DaemonGlobalLogMetricsDescriptor)
@@ -198,6 +205,28 @@ export class StateReader {
 
     return {
       data: result.data.message,
+      source: 'fresh',
+      mtime: result.mtime,
+    }
+  }
+
+  /**
+   * Read session persona state from session-persona.json.
+   * Returns null data if file doesn't exist (not an error case).
+   * Uses SessionPersonaDescriptor from feature-session-summary.
+   *
+   * @see docs/design/PERSONA-PROFILES-DESIGN.md
+   */
+  async getSessionPersona(): Promise<StateReadResult<SessionPersonaState | null>> {
+    const result = await this.sessionPersonaAccessor.read(this.sessionId)
+
+    // 'default' = file missing, 'recovered' = file corrupt (default used after backup)
+    if (result.source === 'default' || result.source === 'recovered' || result.data === null) {
+      return { data: null, source: 'default' }
+    }
+
+    return {
+      data: result.data,
       source: 'fresh',
       mtime: result.mtime,
     }
