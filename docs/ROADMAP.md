@@ -274,11 +274,11 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
     - [x] No Zod `.default()` for configuration values
     - [x] Config parse failures are hard errors
 
-- [ ] **9.5 Feature Domain Consolidation** (minimal - 9.2.1 found architecture already clean)
-  - [ ] Objectives
-    - [ ] Move remaining feature code from daemon.ts to feature packages
-    - [ ] Note: 9.2.1 audit found handler architecture is already Grade A - no structural refactoring needed
-    - [ ] Clean code: no @deprecation, no need to preserve backward compatibility
+- [x] **9.5 Feature Domain Consolidation** (minimal - 9.2.1 found architecture already clean) - COMPLETE 2026-01-18
+  - [x] Objectives
+    - [x] Move remaining feature code from daemon.ts to feature packages
+    - [x] Note: 9.2.1 audit found handler architecture is already Grade A - no structural refactoring needed
+    - [x] Clean code: no @deprecation, no need to preserve backward compatibility
   - [x] **9.5.1 Move Reminder State Logic from Daemon** (from 9.2.2 findings)
     - [x] Move P&R baseline management (`pr-baseline.json` writes) from daemon.ts:624 to feature-reminders handler
     - [x] Move VC state management (`vc-unverified.json`, IPC handlers) from daemon.ts:642-705 to feature-reminders
@@ -289,7 +289,7 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
     - [x] Move `RemindersCleared` event from structured-logging.ts to feature-reminders
     - [x] Move `SummaryUpdated` event from structured-logging.ts to feature-session-summary
     - [x] Move `SummarySkipped` event from structured-logging.ts to feature-session-summary
-  - [ ] Acceptance criteria
+  - [x] Acceptance criteria
     - [x] daemon.ts has no reminder-specific logic or hardcoded reminder names
     - [x] Feature packages own their event definitions (4 of 5 moved, 1 remains in core due to circular dep)
     - [x] 4 FIXME comments in structured-logging.ts resolved (ReminderStaged comment removed, stays in core)
