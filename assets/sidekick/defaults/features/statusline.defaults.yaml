@@ -24,6 +24,7 @@ settings:
   #   {branch}                  - Git branch with icon (e.g., "⎇ main")
   #   {title}                   - Session title
   #   {summary}                 - Session summary/intent
+  #   {personaName}             - Current persona name (empty if disabled or no persona)
   #
   # Example configurations:
   #   Simple ratio:     "{tokenUsageActual}/{contextWindow}"          → "45k/200k"
@@ -32,7 +33,7 @@ settings:
   #   With buffer:      "{tokenUsageActual}|{tokenUsageEffective}"    → "45k|90k"
   #   Verbose:          "{contextBar} {tokenUsageActual}/{contextWindow} ({tokenPercentageEffective})"
   #
-  format: "[{model}] | {contextBar} {tokenPercentageActual} | {logs} | {cwd}{branch}\n{title} | {summary}"
+  format: "[{model}] | {contextBar} {tokenPercentageActual} | {logs} | {personaName}: {cwd}{branch}\n{title} | {summary}"
 
   # Threshold configuration for visual warnings
   thresholds:
@@ -82,5 +83,6 @@ settings:
       summary: magenta
       cwd: white
       duration: white
+      persona: cyan
       # branch: magenta  # Optional: if set, overrides pattern-based coloring
                          # Pattern-based defaults: main/master=green, feature/*=blue, hotfix/*=red, other=magenta
