@@ -429,18 +429,12 @@ update_gitignore() {
     # Add managed section with markers
     cat >> "$ignore_file" << 'EOF'
 # Sidekick Hook System (managed by scripts/install.sh)
-# Runtime data - ignored
-.sidekick/*.log
+# Transient runtime data - ignored
+.sidekick/logs/
+.sidekick/state/
 .sidekick/sessions/
-
-# Templates, config, backups - tracked by default, uncomment to ignore
-# .sidekick/README.md
-# .sidekick/sidekick.conf
-# .sidekick/sidekick.conf.template
-# .sidekick/reminders/*.template
-# .sidekick/reminders/*-reminder.txt
-# *.backup.*
-# *.uninstall-backup.*
+.sidekick/sidekick*.pid
+.sidekick/sidekick*.token
 # End Sidekick Hook System
 EOF
 
