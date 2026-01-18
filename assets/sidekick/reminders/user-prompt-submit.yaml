@@ -25,3 +25,7 @@ additionalContext: |
   - If DONE with the task: Say so clearly ("I've completed...", "That's all done")
   - If PAUSING for input/feedback: Say so ("Let me know if...", "What would you like...")
   This helps distinguish completion claims from progress updates.
+
+  <session-info>
+  If you or the user needs this current session's sessionId: {{sessionId}}
+  </session-info>
