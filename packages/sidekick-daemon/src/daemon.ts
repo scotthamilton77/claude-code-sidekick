@@ -24,7 +24,13 @@ import {
   type ConfigService,
   type SidekickConfig,
 } from '@sidekick/core'
-import { registerStagingHandlers, classifyCompletion } from '@sidekick/feature-reminders'
+import {
+  registerStagingHandlers,
+  classifyCompletion,
+  handleReminderConsumed,
+  handleVCUnverifiedSet,
+  handleVCUnverifiedClear,
+} from '@sidekick/feature-reminders'
 import { registerHandlers as registerSessionSummaryHandlers } from '@sidekick/feature-session-summary'
 import type {
   HandlerRegistry,
@@ -38,11 +44,9 @@ import type {
   DaemonContext,
   RuntimePaths,
   ProfileProviderFactory as ProfileProviderFactoryInterface,
-  PRBaselineState,
-  VCUnverifiedState,
   LogMetricsState,
 } from '@sidekick/types'
-import { PRBaselineStateSchema, VCUnverifiedStateSchema, LogMetricsStateSchema } from '@sidekick/types'
+import { LogMetricsStateSchema } from '@sidekick/types'
 import { ProfileProviderFactory, type LLMProvider } from '@sidekick/shared-providers'
 import { InstrumentedLLMProvider, InstrumentedProfileProviderFactory } from '@sidekick/core'
 import { randomBytes } from 'crypto'
@@ -467,13 +471,13 @@ export class Daemon {
       case 'hook.invoke':
         return this.handleHookInvoke(p)
       case 'reminder.consumed':
-        return this.handleReminderConsumed(p)
+        return this.handleReminderConsumedIPC(p)
       case 'completion.classify':
         return this.handleCompletionClassify(p)
       case 'vc-unverified.set':
-        return this.handleVCUnverifiedSet(p)
+        return this.handleVCUnverifiedSetIPC(p)
       case 'vc-unverified.clear':
-        return this.handleVCUnverifiedClear(p)
+        return this.handleVCUnverifiedClearIPC(p)
       default:
         throw new Error(`Method not found: ${method}`)
     }
@@ -635,9 +639,9 @@ export class Daemon {
 
   /**
    * Handle reminder.consumed IPC from CLI.
-   * When verify-completion is consumed, stores P&R baseline to reset threshold.
+   * Delegates to feature-reminders handler.
    */
-  private async handleReminderConsumed(params: Record<string, unknown> | undefined): Promise<void> {
+  private async handleReminderConsumedIPC(params: Record<string, unknown> | undefined): Promise<void> {
     const sessionId = params?.sessionId as string | undefined
     const reminderName = params?.reminderName as string | undefined
     const metrics = params?.metrics as { turnCount: number; toolsThisTurn: number } | undefined
@@ -646,80 +650,43 @@ export class Daemon {
       throw new Error('reminder.consumed requires sessionId, reminderName, and metrics')
     }
 
-    // Only update P&R baseline for verify-completion consumption
-    // FIXME this should go into a feature controller handler instead of daemon directly.
-    if (reminderName === 'verify-completion') {
-      const baseline: PRBaselineState = {
-        turnCount: metrics.turnCount,
-        toolsThisTurn: metrics.toolsThisTurn,
-        timestamp: Date.now(),
-      }
-
-      const statePath = this.stateService.sessionStatePath(sessionId, 'pr-baseline.json')
-      await this.stateService.write(statePath, baseline, PRBaselineStateSchema)
-
-      this.logger.debug('Updated P&R baseline after VC consumption', { sessionId, baseline })
-    }
+    await handleReminderConsumed(
+      { sessionId, reminderName, metrics },
+      { stateService: this.stateService, logger: this.logger }
+    )
   }
 
   /**
    * Handle vc-unverified.set IPC from CLI.
-   * Stores unverified state when verify-completion returns non-blocking.
-   * Increments cycleCount from existing state if present.
+   * Delegates to feature-reminders handler.
    */
-  private async handleVCUnverifiedSet(params: Record<string, unknown> | undefined): Promise<void> {
+  private async handleVCUnverifiedSetIPC(params: Record<string, unknown> | undefined): Promise<void> {
     const sessionId = params?.sessionId as string | undefined
     const classification = params?.classification as { category: string; confidence: number } | undefined
-    const metrics = params?.metrics as { turnCount: number; toolsThisTurn: number } | undefined
+    const metrics = params?.metrics as { turnCount: number; toolsThisTurn: number; toolCount: number } | undefined
 
     if (!sessionId || !classification || !metrics) {
       throw new Error('vc-unverified.set requires sessionId, classification, and metrics')
     }
 
-    const statePath = this.stateService.sessionStatePath(sessionId, 'vc-unverified.json')
-
-    // Read existing state to increment cycleCount
-    const defaultState: VCUnverifiedState = {
-      hasUnverifiedChanges: false,
-      cycleCount: 0,
-      setAt: { timestamp: 0, turnCount: 0, toolsThisTurn: 0, toolCount: 0 },
-      lastClassification: { category: '', confidence: 0 },
-    }
-    const existing = await this.stateService.read(statePath, VCUnverifiedStateSchema, defaultState)
-    const existingCycleCount = existing.data.cycleCount
-
-    const newCycleCount = existingCycleCount + 1
-    const state: VCUnverifiedState = {
-      hasUnverifiedChanges: true,
-      cycleCount: newCycleCount,
-      setAt: {
-        timestamp: Date.now(),
-        turnCount: metrics.turnCount,
-        toolsThisTurn: metrics.toolsThisTurn,
-        toolCount: 0, // Not tracked in this context
-      },
-      lastClassification: classification,
-    }
-
-    await this.stateService.write(statePath, state, VCUnverifiedStateSchema)
-
-    this.logger.debug('Set VC unverified state', { sessionId, classification, cycleCount: newCycleCount })
+    await handleVCUnverifiedSet(
+      { sessionId, classification, metrics },
+      { stateService: this.stateService, logger: this.logger }
+    )
   }
 
   /**
    * Handle vc-unverified.clear IPC from CLI.
-   * Removes unverified state when verification actually occurs.
+   * Delegates to feature-reminders handler.
    */
-  private async handleVCUnverifiedClear(params: Record<string, unknown> | undefined): Promise<void> {
+  private async handleVCUnverifiedClearIPC(params: Record<string, unknown> | undefined): Promise<void> {
     const sessionId = params?.sessionId as string | undefined
 
     if (!sessionId) {
       throw new Error('vc-unverified.clear requires sessionId')
     }
 
-    const statePath = this.stateService.sessionStatePath(sessionId, 'vc-unverified.json')
-    await this.stateService.delete(statePath)
-    this.logger.debug('Cleared VC unverified state', { sessionId })
+    await handleVCUnverifiedClear({ sessionId }, { stateService: this.stateService, logger: this.logger })
   }
 
   /**
