@@ -1,5 +1,14 @@
 Generate a resume message for a developer returning to this coding session.
 
+{{#if persona}}
+<persona>
+Name: {{persona_name}}
+Theme: {{persona_theme}}
+Personality: {{persona_personality}}
+Tone: {{persona_tone}}
+</persona>
+{{/if}}
+
 <session_topic>
 Title: {{sessionTitle}} (confidence: {{confidence}})
 Latest intent: {{latestIntent}}

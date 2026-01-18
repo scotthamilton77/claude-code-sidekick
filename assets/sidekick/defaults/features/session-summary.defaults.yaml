@@ -67,3 +67,13 @@ settings:
     confidenceThreshold: 0.8
     # Confidence drop below which bookmark resets
     resetThreshold: 0.7
+
+  # Persona configuration for creative outputs (snarky messages, resume messages)
+  # See docs/design/PERSONA-PROFILES-DESIGN.md
+  personas:
+    # Comma-separated allow-list of persona IDs (empty = all available personas)
+    # Example: "sidekick,skippy,bones" to restrict selection to these three
+    allowList: ""
+    # Maximum age (in hours) for resume messages to be considered fresh
+    # Sessions older than this will use persona empty-messages instead
+    resumeFreshnessHours: 4
