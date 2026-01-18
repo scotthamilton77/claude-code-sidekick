@@ -168,6 +168,13 @@ export async function handleStatuslineCommand(
   // Sessions directory for artifact discovery (finding previous session's resume message)
   const sessionsDir = stateService.sessionsDir()
 
+  // Get persona config from session-summary feature settings
+  // This controls resume message freshness threshold
+  const sessionSummaryConfig = options.configService?.getFeature<{
+    personas?: { resumeFreshnessHours?: number }
+  }>('session-summary')
+  const resumeFreshnessHours = sessionSummaryConfig?.settings?.personas?.resumeFreshnessHours
+
   const service = createStatuslineService({
     stateService,
     sessionId,
@@ -189,6 +196,8 @@ export async function handleStatuslineCommand(
     sessionsDir,
     // Pass asset resolver for loading empty session messages
     assets: options.assets,
+    // Pass persona config for resume freshness threshold
+    personaConfig: resumeFreshnessHours !== undefined ? { resumeFreshnessHours } : undefined,
   })
 
   try {
