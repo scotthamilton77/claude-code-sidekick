@@ -204,7 +204,17 @@ export class Daemon {
     this.globalLogMetricsAccessor = new GlobalStateAccessor(this.stateService, DaemonGlobalLogMetricsDescriptor)
 
     // Initialize Config Watcher for hot-reload (design/DAEMON.md §4.3)
-    this.configWatcher = new ConfigWatcher(this.stateService.rootDir(), this.logger, this.handleConfigChange.bind(this))
+    // In dev mode, also watch source assets directory for immediate feedback
+    this.configWatcher = new ConfigWatcher(
+      {
+        projectDir: this.stateService.rootDir(),
+        devAssetsDir: this.configService.core.development.enabled ? getDefaultAssetsDir() : undefined,
+        // Optionally ignore schemas/templates if they cause noise:
+        // ignored: ['**/schemas/**', '**/templates/**'],
+      },
+      this.logger,
+      this.handleConfigChange.bind(this)
+    )
 
     // Initialize Handler Registry
     this.handlerRegistry = new HandlerRegistryImpl({
@@ -408,6 +418,19 @@ export class Daemon {
 
       // Update stored config service
       this.configService = newConfigService
+
+      // Recreate ProfileProviderFactory with new config (fixes hot-reload for LLM profiles)
+      // The old factory held a reference to the old configService, so profile changes
+      // (providerAllowlist, temperature, etc.) wouldn't be picked up
+      this.profileProviderFactory = new ProfileProviderFactory(this.configService, this.logger)
+
+      // Clear cached LLM provider so it gets recreated from the updated factory
+      // on next use (lazy initialization pattern)
+      this.llmProvider = null
+
+      // Clear instrumented providers cache - they wrap the old base provider
+      // and need to be recreated with the new config on next use
+      this.instrumentedProviders.clear()
 
       this.logger.info('Configuration reloaded successfully')
     } catch (err) {

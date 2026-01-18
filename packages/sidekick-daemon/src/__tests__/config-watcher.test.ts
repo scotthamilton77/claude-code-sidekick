@@ -35,7 +35,7 @@ describe('ConfigWatcher', () => {
     await fs.writeFile(configPath, 'logging:\n  level: info\n', 'utf-8')
 
     const onChange = vi.fn()
-    const watcher = new ConfigWatcher(sidekickDir, logger, onChange)
+    const watcher = new ConfigWatcher({ projectDir: sidekickDir }, logger, onChange)
 
     watcher.start()
     await watcher.ready()
@@ -64,7 +64,7 @@ describe('ConfigWatcher', () => {
   // the core functionality, and 'add' works in real .sidekick directories.
   it.skip('should call onChange when new config file is added', async () => {
     const onChange = vi.fn()
-    const watcher = new ConfigWatcher(sidekickDir, logger, onChange)
+    const watcher = new ConfigWatcher({ projectDir: sidekickDir }, logger, onChange)
 
     watcher.start()
     await watcher.ready()
@@ -92,7 +92,7 @@ describe('ConfigWatcher', () => {
   // Skip - same issue as above
   it.skip('should call onChange for any file in watched directory', async () => {
     const onChange = vi.fn()
-    const watcher = new ConfigWatcher(sidekickDir, logger, onChange)
+    const watcher = new ConfigWatcher({ projectDir: sidekickDir }, logger, onChange)
 
     watcher.start()
     await watcher.ready()
@@ -117,7 +117,7 @@ describe('ConfigWatcher', () => {
 
   it('should not crash when watched directories do not exist', () => {
     const onChange = vi.fn()
-    const watcher = new ConfigWatcher('/nonexistent/path/.sidekick', logger, onChange)
+    const watcher = new ConfigWatcher({ projectDir: '/nonexistent/path/.sidekick' }, logger, onChange)
 
     // Should not throw even though directory doesn't exist
     expect(() => watcher.start()).not.toThrow()
@@ -131,7 +131,7 @@ describe('ConfigWatcher', () => {
     await fs.writeFile(configPath, 'provider: openrouter\n', 'utf-8')
 
     const onChange = vi.fn()
-    const watcher = new ConfigWatcher(sidekickDir, logger, onChange)
+    const watcher = new ConfigWatcher({ projectDir: sidekickDir }, logger, onChange)
 
     watcher.start()
     await watcher.ready()
@@ -157,7 +157,7 @@ describe('ConfigWatcher', () => {
     await fs.writeFile(configPath, 'watchDebounceMs: 100\n', 'utf-8')
 
     const onChange = vi.fn()
-    const watcher = new ConfigWatcher(sidekickDir, logger, onChange)
+    const watcher = new ConfigWatcher({ projectDir: sidekickDir }, logger, onChange)
 
     watcher.start()
     await watcher.ready()
@@ -186,7 +186,7 @@ describe('ConfigWatcher', () => {
     const onChange = vi.fn().mockImplementation(() => {
       throw onChangeError
     })
-    const watcher = new ConfigWatcher(sidekickDir, logger, onChange)
+    const watcher = new ConfigWatcher({ projectDir: sidekickDir }, logger, onChange)
 
     watcher.start()
     await watcher.ready()
@@ -214,7 +214,7 @@ describe('ConfigWatcher', () => {
     await fs.writeFile(configPath, 'API_KEY=test\n', 'utf-8')
 
     const onChange = vi.fn()
-    const watcher = new ConfigWatcher(sidekickDir, logger, onChange)
+    const watcher = new ConfigWatcher({ projectDir: sidekickDir }, logger, onChange)
 
     watcher.start()
     await watcher.ready()
@@ -234,7 +234,7 @@ describe('ConfigWatcher', () => {
 
   it('should log start message with watched directories', () => {
     const onChange = vi.fn()
-    const watcher = new ConfigWatcher(sidekickDir, logger, onChange)
+    const watcher = new ConfigWatcher({ projectDir: sidekickDir }, logger, onChange)
 
     watcher.start()
 
@@ -245,7 +245,7 @@ describe('ConfigWatcher', () => {
 
   it('should log stop message', () => {
     const onChange = vi.fn()
-    const watcher = new ConfigWatcher(sidekickDir, logger, onChange)
+    const watcher = new ConfigWatcher({ projectDir: sidekickDir }, logger, onChange)
 
     watcher.start()
     watcher.stop()
