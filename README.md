@@ -14,6 +14,12 @@ This repository serves as a development and testing environment for [Claude Code
 
 - finish ROADMAP.md
 - finish PLAN.MD (executing ARCH.md)
+- should we think of tool-specific modifications (extensions) where we can tack on specific reminder segments, e.g. for bd, or superpowers, etc.?
+  - example for bd user submit prompt:
+    - if the user asked to start on a bd task, make sure you look up the dependency tree to get full context on what is described in parent items, and what's been completed so far
+    - if starting on a bd item, announce clearly the titles of the parent hierarchy and target task that this is what you're working on
+  - example for bd session summary analysis: if there was a bd item started, this is a strong indicator for the session's title and intent
+  - example for superpowers, i might want to add to the vc a "request a code review" and "use the code simplifier agent", etc.
 - can we be resilient to json file errors?  I just ran into a case of the session-summary.json being generated with trash after the last } which made it unreadable
 - allow for different personalities - either explicit at install time or random per project or random per session or just random
   - moods: cynical, sarcastic, snarky, nerdy, arrogant, moody
@@ -27,8 +33,11 @@ This repository serves as a development and testing environment for [Claude Code
 ### Nice to Haves
 
 - add automatic ralph wigguming?
+  - Add a "confession" at the end of a task where the agent confesses what they did wrong, use for a learnings log?
+  - learning mode? investigate https://medium.com/coding-nexus/rip-fine-tuning-how-stanfords-ace-framework-teaches-ai-to-learn-without-retraining-510f412d8579
   - particularly the feedback cycles built in - see https://x.com/ryancarson/status/2008548371712135632
   - for instance, could/should we at the vc reminder also capture lessons learned local to the task, and then on session-stop (and session-start?) look for these files and in the background LLM-digest them into useful bits that could go into scoped AGENT.md and our other reminders?  This would need to be configurable to either do automatically (allowing human review pre-commit) or asking claude to ask the user if they want it added
+  - we should also ask "if troubleshooting or debugging an issue, you should determine whether there is a unit or integration test that should be added as a regression test"
 - add support for task id extraction?
 - add stakes and psychology to the user prompt reminder?  https://medium.com/@ichigoSan/i-accidentally-made-claude-45-smarter-heres-how-23ad0bf91ccf
 - should this be a claude code plugin? There are plugin hooks referenced here: https://code.claude.com/docs/en/hooks
@@ -38,9 +47,7 @@ This repository serves as a development and testing environment for [Claude Code
 - would it make sense to scan the ToDos and suggest to Claude to add to its todos any specific items relevant to the reminders? (Would this be more context-efficient?)
 - make stop hook smarter?
   - Break it up into subsections that are conditional based on observed patterns of behavior, e.g. modification of files through bash commands, docs vs. source code mods, etc. if we just did a build or lint or ran tests, we can exclude that part
-- feedback loops
-  - Add a "confession" at the end of a task where the agent confesses what they did wrong, use for a learnings log?
-  - learning mode? investigate https://medium.com/coding-nexus/rip-fine-tuning-how-stanfords-ace-framework-teaches-ai-to-learn-without-retraining-510f412d8579
+  - if we allow tool-specific extensions, these should also come with some conditional checks (so we don't ask for what was already done)
 - let's set up domain-specific agents to own packages or significant portions of packages where all changes to those packages require the domain agents to "sign off"
 
 ## Agents and Skills and Hooks
