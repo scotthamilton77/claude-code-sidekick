@@ -180,11 +180,6 @@ export const TranscriptMetricsStateSchema = z.object({
 
 export type TranscriptMetricsState = z.infer<typeof TranscriptMetricsStateSchema>
 
-/** @deprecated Use TranscriptMetricsState instead */
-export const SessionMetricsStateSchema = TranscriptMetricsStateSchema
-/** @deprecated Use TranscriptMetricsState instead */
-export type SessionMetricsState = TranscriptMetricsState
-
 // ============================================================================
 // Log Metrics State
 // ============================================================================

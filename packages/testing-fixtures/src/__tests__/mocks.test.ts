@@ -391,13 +391,6 @@ describe('MockTranscriptService', () => {
       expect(service.getSessionInfo().transcriptPath).toBe('/path/to/transcript.jsonl')
     })
 
-    it('supports legacy initialize API', async () => {
-      await service.initialize('session-456', '/legacy/path.jsonl')
-      const info = service.getSessionInfo()
-      expect(info.sessionId).toBe('session-456')
-      expect(info.transcriptPath).toBe('/legacy/path.jsonl')
-    })
-
     it('shutdown clears session state', async () => {
       await service.prepare('session-123', '/path/to/transcript.jsonl')
       await service.shutdown()

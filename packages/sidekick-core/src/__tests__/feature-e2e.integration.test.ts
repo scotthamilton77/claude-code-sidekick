@@ -231,7 +231,8 @@ describe('Feature E2E: Reminders with Real Transcripts', () => {
 
         const sourceFile = join(TEST_DATA_DIR, 'medium-003.jsonl')
         copyFileSync(sourceFile, ctx.transcriptPath)
-        await ctx.transcriptService.initialize('test-session', ctx.transcriptPath)
+        await ctx.transcriptService.prepare('test-session', ctx.transcriptPath)
+        await ctx.transcriptService.start()
 
         // Wait for async handlers to execute
         await new Promise((resolve) => setTimeout(resolve, 300))
@@ -263,7 +264,8 @@ describe('Feature E2E: Reminders with Real Transcripts', () => {
 
         const sourceFile = join(TEST_DATA_DIR, 'long-001.jsonl')
         copyFileSync(sourceFile, ctx.transcriptPath)
-        await ctx.transcriptService.initialize('test-session', ctx.transcriptPath)
+        await ctx.transcriptService.prepare('test-session', ctx.transcriptPath)
+        await ctx.transcriptService.start()
         await new Promise((resolve) => setTimeout(resolve, 300))
 
         const metrics = ctx.transcriptService.getMetrics()
@@ -289,7 +291,8 @@ describe('Feature E2E: Reminders with Real Transcripts', () => {
       }
 
       copyFileSync(sourceFile, ctx.transcriptPath)
-      await ctx.transcriptService.initialize('test-session', ctx.transcriptPath)
+      await ctx.transcriptService.prepare('test-session', ctx.transcriptPath)
+      await ctx.transcriptService.start()
 
       const metrics = ctx.transcriptService.getMetrics()
 
@@ -308,7 +311,8 @@ describe('Feature E2E: Reminders with Real Transcripts', () => {
       }
 
       copyFileSync(sourceFile, ctx.transcriptPath)
-      await ctx.transcriptService.initialize('test-session', ctx.transcriptPath)
+      await ctx.transcriptService.prepare('test-session', ctx.transcriptPath)
+      await ctx.transcriptService.start()
 
       const metrics = ctx.transcriptService.getMetrics()
 
@@ -325,7 +329,8 @@ describe('Feature E2E: Reminders with Real Transcripts', () => {
       }
 
       copyFileSync(sourceFile, ctx.transcriptPath)
-      await ctx.transcriptService.initialize('test-session', ctx.transcriptPath)
+      await ctx.transcriptService.prepare('test-session', ctx.transcriptPath)
+      await ctx.transcriptService.start()
 
       const metrics = ctx.transcriptService.getMetrics()
 
@@ -383,7 +388,8 @@ describe('Feature E2E: Staging and Consumption Flow', () => {
 
     const { writeFileSync } = await import('node:fs')
     writeFileSync(ctx.transcriptPath, entries.join('\n'))
-    await ctx.transcriptService.initialize('test-session', ctx.transcriptPath)
+    await ctx.transcriptService.prepare('test-session', ctx.transcriptPath)
+    await ctx.transcriptService.start()
     await new Promise((resolve) => setTimeout(resolve, 300))
 
     // Verify reminder was staged (unconditional assertion)
@@ -416,7 +422,8 @@ describe('Feature E2E: Multi-Turn Processing', () => {
     async () => {
       const sourceFile = join(TEST_DATA_DIR, 'long-001.jsonl')
       copyFileSync(sourceFile, ctx.transcriptPath)
-      await ctx.transcriptService.initialize('test-session', ctx.transcriptPath)
+      await ctx.transcriptService.prepare('test-session', ctx.transcriptPath)
+      await ctx.transcriptService.start()
 
       const metrics = ctx.transcriptService.getMetrics()
 
@@ -479,7 +486,8 @@ describe('Feature E2E: Threshold Logic with Synthetic Data', () => {
 
     const { writeFileSync } = await import('node:fs')
     writeFileSync(ctx.transcriptPath, entries.join('\n'))
-    await ctx.transcriptService.initialize('test-session', ctx.transcriptPath)
+    await ctx.transcriptService.prepare('test-session', ctx.transcriptPath)
+    await ctx.transcriptService.start()
 
     const metrics = ctx.transcriptService.getMetrics()
 
@@ -523,7 +531,8 @@ describe('Feature E2E: Threshold Logic with Synthetic Data', () => {
 
     const { writeFileSync } = await import('node:fs')
     writeFileSync(ctx.transcriptPath, entries.join('\n'))
-    await ctx.transcriptService.initialize('test-session', ctx.transcriptPath)
+    await ctx.transcriptService.prepare('test-session', ctx.transcriptPath)
+    await ctx.transcriptService.start()
 
     const metrics = ctx.transcriptService.getMetrics()
     expect(metrics.toolsThisTurn).toBeGreaterThanOrEqual(REMINDER_THRESHOLDS.pause_and_reflect_threshold)
@@ -590,7 +599,8 @@ describe('Feature E2E: Threshold Logic with Synthetic Data', () => {
 
     const { writeFileSync } = await import('node:fs')
     writeFileSync(ctx.transcriptPath, entries.join('\n'))
-    await ctx.transcriptService.initialize('test-session', ctx.transcriptPath)
+    await ctx.transcriptService.prepare('test-session', ctx.transcriptPath)
+    await ctx.transcriptService.start()
 
     const metrics = ctx.transcriptService.getMetrics()
 
@@ -628,7 +638,8 @@ describe('Feature E2E: Edge Cases', () => {
       copyFileSync(sourceFile, ctx.transcriptPath)
 
       // Should not throw
-      await expect(ctx.transcriptService.initialize('test-session', ctx.transcriptPath)).resolves.not.toThrow()
+      await ctx.transcriptService.prepare('test-session', ctx.transcriptPath)
+      await ctx.transcriptService.start()
 
       // Should not log errors
       expect(ctx.logger.error).not.toHaveBeenCalled()
@@ -644,7 +655,8 @@ describe('Feature E2E: Edge Cases', () => {
       }
 
       copyFileSync(sourceFile, ctx.transcriptPath)
-      await ctx.transcriptService.initialize('test-session', ctx.transcriptPath)
+      await ctx.transcriptService.prepare('test-session', ctx.transcriptPath)
+      await ctx.transcriptService.start()
 
       // Should process without errors
       expect(ctx.logger.error).not.toHaveBeenCalled()

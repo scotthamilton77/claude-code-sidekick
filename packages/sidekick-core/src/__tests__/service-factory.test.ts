@@ -3,7 +3,7 @@
  *
  * Tests cover:
  * - getStagingService returns SessionScopedStagingService wrappers
- * - getTranscriptService creates and caches instances
+ * - prepareTranscriptService creates/caches instances (caller must call start())
  * - shutdownSession removes cached services
  * - evictStaleSessions removes old sessions
  * - touchSession updates access time
@@ -167,15 +167,15 @@ describe('ServiceFactoryImpl', () => {
   })
 
   // ==========================================================================
-  // getTranscriptService tests
+  // prepareTranscriptService tests
   // ==========================================================================
 
-  describe('getTranscriptService', () => {
+  describe('prepareTranscriptService', () => {
     it('should create a new TranscriptService instance', async () => {
       const factory = createFactory(testDir)
       const transcriptPath = createTranscriptFile(testDir, 'session-1')
 
-      const service = await factory.getTranscriptService('session-1', transcriptPath)
+      const service = await factory.prepareTranscriptService('session-1', transcriptPath)
 
       expect(service).toBeDefined()
       expect(service.getMetrics).toBeDefined()
@@ -185,8 +185,8 @@ describe('ServiceFactoryImpl', () => {
       const factory = createFactory(testDir)
       const transcriptPath = createTranscriptFile(testDir, 'session-1')
 
-      const service1 = await factory.getTranscriptService('session-1', transcriptPath)
-      const service2 = await factory.getTranscriptService('session-1', transcriptPath)
+      const service1 = await factory.prepareTranscriptService('session-1', transcriptPath)
+      const service2 = await factory.prepareTranscriptService('session-1', transcriptPath)
 
       expect(service1).toBe(service2)
     })
@@ -196,8 +196,8 @@ describe('ServiceFactoryImpl', () => {
       const transcriptPath1 = createTranscriptFile(testDir, 'session-1')
       const transcriptPath2 = createTranscriptFile(testDir, 'session-2')
 
-      const service1 = await factory.getTranscriptService('session-1', transcriptPath1)
-      const service2 = await factory.getTranscriptService('session-2', transcriptPath2)
+      const service1 = await factory.prepareTranscriptService('session-1', transcriptPath1)
+      const service2 = await factory.prepareTranscriptService('session-2', transcriptPath2)
 
       expect(service1).not.toBe(service2)
     })
@@ -207,7 +207,7 @@ describe('ServiceFactoryImpl', () => {
       const transcriptPath = createTranscriptFile(testDir, 'session-1')
       const before = Date.now()
 
-      await factory.getTranscriptService('session-1', transcriptPath)
+      await factory.prepareTranscriptService('session-1', transcriptPath)
 
       const lastAccess = factory.getSessionLastAccess().get('session-1')
       expect(lastAccess).toBeDefined()
@@ -218,7 +218,7 @@ describe('ServiceFactoryImpl', () => {
       const factory = createFactory(testDir)
       const transcriptPath = createTranscriptFile(testDir, 'session-1')
 
-      await factory.getTranscriptService('session-1', transcriptPath)
+      await factory.prepareTranscriptService('session-1', transcriptPath)
 
       expect(factory.getTranscriptServices().has('session-1')).toBe(true)
     })
@@ -233,7 +233,7 @@ describe('ServiceFactoryImpl', () => {
       const factory = createFactory(testDir)
       const transcriptPath = createTranscriptFile(testDir, 'session-1')
 
-      await factory.getTranscriptService('session-1', transcriptPath)
+      await factory.prepareTranscriptService('session-1', transcriptPath)
       expect(factory.getTranscriptServices().has('session-1')).toBe(true)
 
       await factory.shutdownSession('session-1')
@@ -245,7 +245,7 @@ describe('ServiceFactoryImpl', () => {
       const factory = createFactory(testDir)
       const transcriptPath = createTranscriptFile(testDir, 'session-1')
 
-      await factory.getTranscriptService('session-1', transcriptPath)
+      await factory.prepareTranscriptService('session-1', transcriptPath)
       expect(factory.getSessionLastAccess().has('session-1')).toBe(true)
 
       await factory.shutdownSession('session-1')
@@ -258,7 +258,7 @@ describe('ServiceFactoryImpl', () => {
       const factory = createFactory(testDir, { logger })
       const transcriptPath = createTranscriptFile(testDir, 'session-1')
 
-      await factory.getTranscriptService('session-1', transcriptPath)
+      await factory.prepareTranscriptService('session-1', transcriptPath)
       await factory.shutdownSession('session-1')
 
       const debugLogs = logger.getLogsByLevel('debug')
@@ -276,7 +276,7 @@ describe('ServiceFactoryImpl', () => {
       const factory = createFactory(testDir)
       const transcriptPath = createTranscriptFile(testDir, 'session-1')
 
-      const service = await factory.getTranscriptService('session-1', transcriptPath)
+      const service = await factory.prepareTranscriptService('session-1', transcriptPath)
       const shutdownSpy = vi.spyOn(service, 'shutdown')
 
       await factory.shutdownSession('session-1')
@@ -302,7 +302,7 @@ describe('ServiceFactoryImpl', () => {
       const factory = createFactory(testDir)
       const transcriptPath = createTranscriptFile(testDir, 'session-1')
 
-      await factory.getTranscriptService('session-1', transcriptPath)
+      await factory.prepareTranscriptService('session-1', transcriptPath)
 
       const evicted = await factory.evictStaleSessions()
 
@@ -314,7 +314,7 @@ describe('ServiceFactoryImpl', () => {
       const factory = createFactory(testDir)
       const transcriptPath = createTranscriptFile(testDir, 'session-1')
 
-      await factory.getTranscriptService('session-1', transcriptPath)
+      await factory.prepareTranscriptService('session-1', transcriptPath)
 
       // Manipulate the last access time to be older than TTL
       const staleTime = Date.now() - factory.getSessionTtlMs() - 1000
@@ -332,9 +332,9 @@ describe('ServiceFactoryImpl', () => {
       const transcriptPath2 = createTranscriptFile(testDir, 'session-2')
       const transcriptPath3 = createTranscriptFile(testDir, 'session-3')
 
-      await factory.getTranscriptService('session-1', transcriptPath1)
-      await factory.getTranscriptService('session-2', transcriptPath2)
-      await factory.getTranscriptService('session-3', transcriptPath3)
+      await factory.prepareTranscriptService('session-1', transcriptPath1)
+      await factory.prepareTranscriptService('session-2', transcriptPath2)
+      await factory.prepareTranscriptService('session-3', transcriptPath3)
 
       // Make sessions 1 and 2 stale
       const staleTime = Date.now() - factory.getSessionTtlMs() - 1000
@@ -355,7 +355,7 @@ describe('ServiceFactoryImpl', () => {
       const factory = createFactory(testDir, { logger })
       const transcriptPath = createTranscriptFile(testDir, 'session-1')
 
-      await factory.getTranscriptService('session-1', transcriptPath)
+      await factory.prepareTranscriptService('session-1', transcriptPath)
 
       const staleTime = Date.now() - factory.getSessionTtlMs() - 1000
       factory.getSessionLastAccess().set('session-1', staleTime)
@@ -371,7 +371,7 @@ describe('ServiceFactoryImpl', () => {
       const factory = createFactory(testDir, { logger })
       const transcriptPath = createTranscriptFile(testDir, 'session-1')
 
-      await factory.getTranscriptService('session-1', transcriptPath)
+      await factory.prepareTranscriptService('session-1', transcriptPath)
 
       logger.reset() // Clear any logs from setup
       await factory.evictStaleSessions()
@@ -401,17 +401,17 @@ describe('ServiceFactoryImpl', () => {
       expect(secondAccess).toBeGreaterThan(firstAccess!)
     })
 
-    it('should update access time on getTranscriptService', async () => {
+    it('should update access time on prepareTranscriptService', async () => {
       const factory = createFactory(testDir)
       const transcriptPath = createTranscriptFile(testDir, 'session-1')
 
-      await factory.getTranscriptService('session-1', transcriptPath)
+      await factory.prepareTranscriptService('session-1', transcriptPath)
       const firstAccess = factory.getSessionLastAccess().get('session-1')
 
       // Wait a small amount of time
       await new Promise((resolve) => setTimeout(resolve, 10))
 
-      await factory.getTranscriptService('session-1', transcriptPath)
+      await factory.prepareTranscriptService('session-1', transcriptPath)
       const secondAccess = factory.getSessionLastAccess().get('session-1')
 
       expect(secondAccess).toBeGreaterThan(firstAccess!)
@@ -440,7 +440,7 @@ describe('ServiceFactoryImpl', () => {
       const transcriptPath = createTranscriptFile(testDir, 'session-1')
 
       // This primarily tests that the option is passed through without error
-      const service = await factory.getTranscriptService('session-1', transcriptPath)
+      const service = await factory.prepareTranscriptService('session-1', transcriptPath)
       expect(service).toBeDefined()
     })
 
@@ -449,7 +449,7 @@ describe('ServiceFactoryImpl', () => {
       const transcriptPath = createTranscriptFile(testDir, 'session-1')
 
       // This primarily tests that the option is passed through without error
-      const service = await factory.getTranscriptService('session-1', transcriptPath)
+      const service = await factory.prepareTranscriptService('session-1', transcriptPath)
       expect(service).toBeDefined()
     })
   })
@@ -540,7 +540,7 @@ describe('ServiceFactoryImpl', () => {
       const factory = createFactory(testDir)
       const transcriptPath = createTranscriptFile(testDir, 'session-1')
 
-      await factory.getTranscriptService('session-1', transcriptPath)
+      await factory.prepareTranscriptService('session-1', transcriptPath)
       expect(factory.getTranscriptServices().size).toBe(1)
 
       const count = await factory.shutdownAllSessions()
@@ -555,9 +555,9 @@ describe('ServiceFactoryImpl', () => {
       const transcriptPath2 = createTranscriptFile(testDir, 'session-2')
       const transcriptPath3 = createTranscriptFile(testDir, 'session-3')
 
-      await factory.getTranscriptService('session-1', transcriptPath1)
-      await factory.getTranscriptService('session-2', transcriptPath2)
-      await factory.getTranscriptService('session-3', transcriptPath3)
+      await factory.prepareTranscriptService('session-1', transcriptPath1)
+      await factory.prepareTranscriptService('session-2', transcriptPath2)
+      await factory.prepareTranscriptService('session-3', transcriptPath3)
       expect(factory.getTranscriptServices().size).toBe(3)
 
       const count = await factory.shutdownAllSessions()
@@ -571,7 +571,7 @@ describe('ServiceFactoryImpl', () => {
       const factory = createFactory(testDir, { logger })
       const transcriptPath = createTranscriptFile(testDir, 'session-1')
 
-      await factory.getTranscriptService('session-1', transcriptPath)
+      await factory.prepareTranscriptService('session-1', transcriptPath)
       await factory.shutdownAllSessions()
 
       const infoLogs = logger.getLogsByLevel('info')
@@ -593,7 +593,7 @@ describe('ServiceFactoryImpl', () => {
       const factory = createFactory(testDir)
       const transcriptPath = createTranscriptFile(testDir, 'session-1')
 
-      await factory.getTranscriptService('session-1', transcriptPath)
+      await factory.prepareTranscriptService('session-1', transcriptPath)
       expect(factory.getSessionLastAccess().size).toBe(1)
 
       await factory.shutdownAllSessions()

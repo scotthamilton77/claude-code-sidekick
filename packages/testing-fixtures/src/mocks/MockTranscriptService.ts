@@ -78,19 +78,6 @@ export class MockTranscriptService implements TranscriptService {
   private prepared = false
 
   /**
-   * Initialize the service (legacy API).
-   * @deprecated Use prepare() + start() for explicit lifecycle control.
-   */
-  initialize(sessionId: string, transcriptPath: string): Promise<void> {
-    this.sessionId = sessionId
-    this.transcriptPath = transcriptPath
-    this.metrics = createDefaultMetrics()
-    this.compactionHistory = []
-    this.prepared = true
-    return Promise.resolve()
-  }
-
-  /**
    * Prepare the service without starting event emission.
    */
   prepare(sessionId: string, transcriptPath: string): Promise<void> {

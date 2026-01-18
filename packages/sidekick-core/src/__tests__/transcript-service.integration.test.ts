@@ -145,7 +145,8 @@ describe('TranscriptService Integration Tests', () => {
     it.skipIf(!existsSync(FIXTURES.SHORT_003))('processes basic user/assistant transcript correctly', async () => {
       // short-003.jsonl has: 1 user, 1 assistant (simple conversation)
       copyFileSync(FIXTURES.SHORT_003, transcriptPath)
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const metrics = service.getMetrics()
 
@@ -159,7 +160,8 @@ describe('TranscriptService Integration Tests', () => {
 
     it.skipIf(!existsSync(FIXTURES.SHORT_003))('extracts token usage from real assistant message', async () => {
       copyFileSync(FIXTURES.SHORT_003, transcriptPath)
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const metrics = service.getMetrics()
 
@@ -171,7 +173,8 @@ describe('TranscriptService Integration Tests', () => {
 
     it.skipIf(!existsSync(FIXTURES.SHORT_003))('tracks model usage from real transcript', async () => {
       copyFileSync(FIXTURES.SHORT_003, transcriptPath)
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const metrics = service.getMetrics()
 
@@ -190,7 +193,8 @@ describe('TranscriptService Integration Tests', () => {
     it.skipIf(!existsSync(FIXTURES.SHORT_175))('counts tool_use blocks nested in assistant messages', async () => {
       // short-175.jsonl has tool_use blocks inside assistant message content
       copyFileSync(FIXTURES.SHORT_175, transcriptPath)
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const metrics = service.getMetrics()
 
@@ -201,7 +205,8 @@ describe('TranscriptService Integration Tests', () => {
 
     it.skipIf(!existsSync(FIXTURES.SHORT_175))('emits ToolCall events for nested tool_use blocks', async () => {
       copyFileSync(FIXTURES.SHORT_175, transcriptPath)
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       // Should have emitted ToolCall events
       const toolCallEvents = handlers.emittedEvents.filter((e) => e.eventType === 'ToolCall')
@@ -210,7 +215,8 @@ describe('TranscriptService Integration Tests', () => {
 
     it.skipIf(!existsSync(FIXTURES.SHORT_175))('counts tool_result blocks nested in user messages', async () => {
       copyFileSync(FIXTURES.SHORT_175, transcriptPath)
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       // Should have emitted ToolResult events
       const toolResultEvents = handlers.emittedEvents.filter((e) => e.eventType === 'ToolResult')
@@ -224,7 +230,8 @@ describe('TranscriptService Integration Tests', () => {
     it.skipIf(!existsSync(FIXTURES.LONG_001))('skips summary entries without error', async () => {
       // long-001 has summary entries
       copyFileSync(FIXTURES.LONG_001, transcriptPath)
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       // Should not have any errors for unknown types
       expect(logger.error).not.toHaveBeenCalled()
@@ -238,7 +245,8 @@ describe('TranscriptService Integration Tests', () => {
     it.skipIf(!existsSync(FIXTURES.SHORT_002))('skips file-history-snapshot entries without error', async () => {
       // short-002 is just file-history-snapshot entries
       copyFileSync(FIXTURES.SHORT_002, transcriptPath)
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       // Should not emit any standard events for non-message entries
       const messageEvents = handlers.emittedEvents.filter(
@@ -258,7 +266,8 @@ describe('TranscriptService Integration Tests', () => {
   describe('edge cases', () => {
     it.skipIf(!existsSync(FIXTURES.SHORT_003))('handles real transcript with cache metrics', async () => {
       copyFileSync(FIXTURES.SHORT_003, transcriptPath)
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const metrics = service.getMetrics()
 
@@ -271,7 +280,8 @@ describe('TranscriptService Integration Tests', () => {
 
     it.skipIf(!existsSync(FIXTURES.SHORT_003))('tracks service tier from real transcript', async () => {
       copyFileSync(FIXTURES.SHORT_003, transcriptPath)
-      await service.initialize('test-session', transcriptPath)
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
 
       const metrics = service.getMetrics()
 
