@@ -450,15 +450,20 @@ The Sidekick system is being migrated from Bash to Node/TypeScript for improved 
 
 ### Current Status
 
-| Phase   | Description                      | Status      |
-| ------- | -------------------------------- | ----------- |
-| Phase 1 | Bootstrap CLI & Runtime Skeleton | Complete    |
-| Phase 2 | Configuration & Asset Resolution | Complete    |
-| Phase 3 | Structured Logging & Telemetry   | Complete    |
-| Phase 4 | Core Services & Providers        | Complete    |
-| Phase 5 | Daemon & Background Tasks        | Complete    |
-| Phase 6 | Feature Enablement & Integration | In Progress |
-| Phase 7 | Installation & Distribution      | Pending     |
+| Phase    | Description                          | Status      |
+| -------- | ------------------------------------ | ----------- |
+| Phase 1  | Bootstrap CLI & Runtime Skeleton     | Complete    |
+| Phase 2  | Configuration & Asset Resolution     | Complete    |
+| Phase 3  | Structured Logging & Telemetry       | Complete    |
+| Phase 4  | Core Services & Providers            | Complete    |
+| Phase 5  | Daemon & Background Tasks            | Complete    |
+| Phase 6  | Feature Enablement & Integration     | Complete    |
+| Phase 7  | Monitoring UI Completion & Hardening | Complete    |
+| Phase 8  | CLI→Daemon Event Dispatch            | Complete    |
+| Phase 9  | Refactoring & Architecture           | Complete    |
+| Phase 10 | Feature Parity and Legacy Cleanup    | In Progress |
+| Phase 11 | Installation & Distribution          | Pending     |
+| Phase 12 | Documentation & Polish               | Pending     |
 
 ### Package Structure
 
@@ -467,16 +472,17 @@ packages/
 ├── types/                   # Shared TypeScript types
 ├── sidekick-core/           # Core services (config, transcript, logging, scope)
 ├── shared-providers/        # LLM provider abstractions (OpenRouter default)
-├── feature-reminders/       # Reminder staging (pause-and-reflect, verify-completion)
-├── feature-session-summary/ # LLM-based conversation analysis
-├── feature-statusline/      # Token tracking, context bar, git branch, log metrics
-├── sidekickd/               # Orchestration, context metrics, session management
+├── feature-reminders/       # Reminder staging, orchestration, IPC handlers
+├── feature-session-summary/ # LLM-based analysis, persona selection, snarky messages
+├── feature-statusline/      # Token tracking, context bar, git branch, persona display
+├── sidekick-daemon/         # Orchestration, context metrics, session management
 ├── sidekick-cli/            # CLI entrypoint and hook dispatcher
 └── sidekick-ui/             # Monitoring UI (React SPA mockup)
 
 assets/sidekick/             # Shared prompts, schemas, defaults
 ├── defaults/                # External YAML defaults (config cascade layer 0)
-├── prompts/
+├── personas/                # Character personality profiles (17 personas)
+├── prompts/                 # LLM prompt templates with persona interpolation
 └── reminders/
 ```
 
