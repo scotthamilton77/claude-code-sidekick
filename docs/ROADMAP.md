@@ -279,10 +279,10 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
     - [ ] Move remaining feature code from daemon.ts to feature packages
     - [ ] Note: 9.2.1 audit found handler architecture is already Grade A - no structural refactoring needed
     - [ ] Clean code: no @deprecation, no need to preserve backward compatibility
-  - [ ] **9.5.1 Move Reminder State Logic from Daemon** (from 9.2.2 findings)
-    - [ ] Move P&R baseline management (`pr-baseline.json` writes) from daemon.ts:624 to feature-reminders handler
-    - [ ] Move VC state management (`vc-unverified.json`, IPC handlers) from daemon.ts:642-705 to feature-reminders
-    - [ ] Remove reminder name hardcoding (`'verify-completion'`) from daemon core
+  - [x] **9.5.1 Move Reminder State Logic from Daemon** (from 9.2.2 findings)
+    - [x] Move P&R baseline management (`pr-baseline.json` writes) from daemon.ts:624 to feature-reminders handler
+    - [x] Move VC state management (`vc-unverified.json`, IPC handlers) from daemon.ts:642-705 to feature-reminders
+    - [x] Remove reminder name hardcoding (`'verify-completion'`) from daemon core
   - [ ] **9.5.2 Move Event Definitions to Feature Packages** (from 9.2.5 FIXMEs)
     - [ ] Move `ReminderConsumed` event from structured-logging.ts to feature-reminders
     - [ ] Move `ReminderStaged` event from structured-logging.ts to feature-reminders

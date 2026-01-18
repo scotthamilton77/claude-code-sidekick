@@ -47,3 +47,15 @@ export {
   type ClassifyCompletionOptions,
   type ClassifyCompletionResult,
 } from './completion-classifier'
+
+// Re-export IPC handlers for Daemon use (Phase 9.5.1)
+export {
+  handleReminderConsumed,
+  handleVCUnverifiedSet,
+  handleVCUnverifiedClear,
+  type IPCHandlerContext,
+  type IPCLogger,
+  type ReminderConsumedParams,
+  type VCUnverifiedSetParams,
+  type VCUnverifiedClearParams,
+} from './handlers/ipc'
