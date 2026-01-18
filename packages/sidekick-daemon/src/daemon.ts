@@ -32,7 +32,12 @@ import {
   ReminderEvents,
   ReminderOrchestrator,
 } from '@sidekick/feature-reminders'
-import { registerHandlers as registerSessionSummaryHandlers } from '@sidekick/feature-session-summary'
+import {
+  registerHandlers as registerSessionSummaryHandlers,
+  setSessionPersona,
+  generateSnarkyMessageOnDemand,
+  generateResumeMessageOnDemand,
+} from '@sidekick/feature-session-summary'
 import type {
   HandlerRegistry,
   TranscriptService,
@@ -499,6 +504,12 @@ export class Daemon {
         return this.handleVCUnverifiedSetIPC(p)
       case 'vc-unverified.clear':
         return this.handleVCUnverifiedClearIPC(p)
+      case 'persona.set':
+        return this.handlePersonaSetIPC(p)
+      case 'snarky.generate':
+        return this.handleSnarkyGenerateIPC(p)
+      case 'resume.generate':
+        return this.handleResumeGenerateIPC(p)
       default:
         throw new Error(`Method not found: ${method}`)
     }
@@ -710,6 +721,82 @@ export class Daemon {
     }
 
     await handleVCUnverifiedClear({ sessionId }, { stateService: this.stateService, logger: this.logger })
+  }
+
+  /**
+   * Handle persona.set IPC from CLI.
+   * Sets/overrides the persona for a session.
+   */
+  private async handlePersonaSetIPC(
+    params: Record<string, unknown> | undefined
+  ): Promise<{ success: boolean; previousPersonaId?: string; error?: string }> {
+    const sessionId = params?.sessionId as string | undefined
+    const personaId = params?.personaId as string | undefined
+
+    if (!sessionId || !personaId) {
+      throw new Error('persona.set requires sessionId and personaId')
+    }
+
+    this.logger.info('Setting session persona', { sessionId, personaId })
+
+    const ctx = await this.getContextForTask(sessionId)
+    return setSessionPersona(ctx, sessionId, personaId)
+  }
+
+  /**
+   * Handle snarky.generate IPC from CLI.
+   * Generates a snarky message on-demand for testing.
+   */
+  private async handleSnarkyGenerateIPC(
+    params: Record<string, unknown> | undefined
+  ): Promise<{ success: boolean; error?: string }> {
+    const sessionId = params?.sessionId as string | undefined
+    const transcriptPath = params?.transcriptPath as string | undefined
+
+    if (!sessionId) {
+      throw new Error('snarky.generate requires sessionId')
+    }
+
+    this.logger.info('On-demand snarky message generation requested', { sessionId })
+
+    // Ensure transcript service is available
+    const resolvedTranscriptPath = transcriptPath ?? reconstructTranscriptPath(this.projectDir, sessionId)
+    const transcriptService = await this.serviceFactory.prepareTranscriptService(sessionId, resolvedTranscriptPath)
+    await transcriptService.start()
+
+    const ctx = await this.getContextForTask(sessionId)
+    // Replace stub transcript with actual service
+    const ctxWithTranscript = { ...ctx, transcript: transcriptService }
+
+    return generateSnarkyMessageOnDemand(ctxWithTranscript, sessionId)
+  }
+
+  /**
+   * Handle resume.generate IPC from CLI.
+   * Generates a resume message on-demand for testing.
+   */
+  private async handleResumeGenerateIPC(
+    params: Record<string, unknown> | undefined
+  ): Promise<{ success: boolean; error?: string }> {
+    const sessionId = params?.sessionId as string | undefined
+    const transcriptPath = params?.transcriptPath as string | undefined
+
+    if (!sessionId) {
+      throw new Error('resume.generate requires sessionId')
+    }
+
+    this.logger.info('On-demand resume message generation requested', { sessionId })
+
+    // Ensure transcript service is available
+    const resolvedTranscriptPath = transcriptPath ?? reconstructTranscriptPath(this.projectDir, sessionId)
+    const transcriptService = await this.serviceFactory.prepareTranscriptService(sessionId, resolvedTranscriptPath)
+    await transcriptService.start()
+
+    const ctx = await this.getContextForTask(sessionId)
+    // Replace stub transcript with actual service
+    const ctxWithTranscript = { ...ctx, transcript: transcriptService }
+
+    return generateResumeMessageOnDemand(ctxWithTranscript, sessionId)
   }
 
   /**

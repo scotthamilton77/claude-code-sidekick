@@ -6,10 +6,12 @@
  * - ToolResult events (conditional, based on countdown)
  *
  * @see docs/design/FEATURE-SESSION-SUMMARY.md §3.2
+ * @see docs/design/PERSONA-PROFILES-DESIGN.md - Prompt Injection
  */
 
 import type { TranscriptEvent } from '@sidekick/core'
-import { logEvent, LogEvents } from '@sidekick/core'
+import { createPersonaLoader, getDefaultPersonasDir, logEvent, LogEvents } from '@sidekick/core'
+import type { PersonaDefinition } from '@sidekick/types'
 import { SessionSummaryEvents } from '../events.js'
 import type { DaemonContext, EventContext, SummaryCountdownState, SnarkyMessageState } from '@sidekick/types'
 import { z } from 'zod'
@@ -51,6 +53,110 @@ const ResumeMessageResponseSchema = z.object({
 })
 
 type ResumeMessageResponse = z.infer<typeof ResumeMessageResponseSchema>
+
+/**
+ * Load the persona selected for this session.
+ * Returns null if no persona is selected.
+ */
+async function loadSessionPersona(
+  summaryState: SessionSummaryStateAccessors,
+  sessionId: string,
+  ctx: DaemonContext
+): Promise<PersonaDefinition | null> {
+  const result = await summaryState.sessionPersona.read(sessionId)
+  if (!result.data) {
+    return null
+  }
+
+  const loader = createPersonaLoader({
+    defaultPersonasDir: getDefaultPersonasDir(),
+    projectRoot: ctx.paths.projectDir,
+    logger: ctx.logger,
+  })
+
+  const personas = loader.discover()
+  return personas.get(result.data.persona_id) ?? null
+}
+
+/**
+ * Template context for persona prompt injection.
+ * @internal Exported for testing
+ */
+export interface PersonaTemplateContext {
+  persona: boolean
+  persona_name: string
+  persona_theme: string
+  persona_personality: string
+  persona_tone: string
+  persona_snarky_examples: string
+  persona_resume_examples: string
+}
+
+/**
+ * Build persona template context from a PersonaDefinition.
+ * Returns context with persona=false if persona is null.
+ * @internal Exported for testing
+ */
+export function buildPersonaContext(persona: PersonaDefinition | null): PersonaTemplateContext {
+  if (!persona) {
+    return {
+      persona: false,
+      persona_name: '',
+      persona_theme: '',
+      persona_personality: '',
+      persona_tone: '',
+      persona_snarky_examples: '',
+      persona_resume_examples: '',
+    }
+  }
+
+  // Format examples as bulleted list for prompt injection
+  const formatExamples = (examples: string[] | undefined): string => {
+    if (!examples || examples.length === 0) return ''
+    return examples.map((ex) => `- "${ex}"`).join('\n')
+  }
+
+  return {
+    persona: true,
+    persona_name: persona.display_name,
+    persona_theme: persona.theme,
+    persona_personality: persona.personality_traits.join(', '),
+    persona_tone: persona.tone_traits.join(', '),
+    persona_snarky_examples: formatExamples(persona.snarky_examples),
+    persona_resume_examples: formatExamples(persona.resume_examples),
+  }
+}
+
+/**
+ * Simple template processor with Handlebars-like {{#if}}...{{/if}} support.
+ * Handles:
+ * - {{#if var}}...{{/if}} conditional blocks
+ * - {{variable}} simple replacements
+ * @internal Exported for testing
+ */
+export function interpolateTemplate(template: string, context: Record<string, string | boolean | number>): string {
+  let result = template
+
+  // Process {{#if var}}...{{/if}} blocks iteratively until no more matches
+  // This handles nested conditionals by processing innermost first
+  const conditionalRegex = /\{\{#if\s+(\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g
+  let previous = ''
+  while (result !== previous) {
+    previous = result
+    result = result.replace(conditionalRegex, (_, varName: string, content: string) => {
+      const value = context[varName]
+      return value ? content : ''
+    })
+  }
+
+  // Process {{variable}} replacements
+  result = result.replace(/\{\{(\w+)\}\}/g, (_, varName: string) => {
+    const value = context[varName]
+    return value !== undefined ? String(value) : ''
+  })
+
+  return result
+}
 
 /**
  * Update session summary based on transcript events
@@ -448,7 +554,14 @@ function stripSurroundingQuotes(text: string): string {
  * Generate snarky message as a side-effect.
  * Called when title or intent changed significantly.
  * Uses separate LLM call with higher temperature for creativity.
+ *
+ * Persona injection:
+ * - If persona is "disabled", skip LLM call entirely
+ * - If persona is selected, inject persona context into prompt
+ * - If no persona, omit persona block from prompt
+ *
  * @see docs/design/FEATURE-SESSION-SUMMARY.md §3.2.4
+ * @see docs/design/PERSONA-PROFILES-DESIGN.md - Disabled Persona Behavior
  */
 async function generateSnarkyMessage(
   ctx: DaemonContext,
@@ -457,19 +570,33 @@ async function generateSnarkyMessage(
   summary: SessionSummaryState,
   config: SessionSummaryConfig
 ): Promise<void> {
+  // Load session persona
+  const persona = await loadSessionPersona(summaryState, sessionId, ctx)
+
+  // Disabled persona: skip snarky generation entirely
+  if (persona?.id === 'disabled') {
+    ctx.logger.debug('Skipping snarky message generation (disabled persona)', { sessionId })
+    return
+  }
+
   const promptTemplate = ctx.assets.resolve(SNARKY_PROMPT_FILE)
   if (!promptTemplate) {
     ctx.logger.warn('Snarky message prompt not found', { path: SNARKY_PROMPT_FILE })
     return
   }
 
-  // Interpolate prompt with session summary data
-  const prompt = promptTemplate
-    .replace(/\{\{session_title\}\}/g, summary.session_title)
-    .replace(/\{\{latest_intent\}\}/g, summary.latest_intent)
-    .replace(/\{\{turn_count\}\}/g, String(ctx.transcript.getMetrics().turnCount))
-    .replace(/\{\{tool_count\}\}/g, String(ctx.transcript.getMetrics().toolCount))
-    .replace(/\{\{sessionSummary\}\}/g, JSON.stringify(summary, null, 2))
+  // Build persona context for template interpolation
+  const personaContext = buildPersonaContext(persona)
+
+  // Interpolate prompt with session summary data and persona
+  const prompt = interpolateTemplate(promptTemplate, {
+    ...personaContext,
+    session_title: summary.session_title,
+    latest_intent: summary.latest_intent,
+    turn_count: ctx.transcript.getMetrics().turnCount,
+    tool_count: ctx.transcript.getMetrics().toolCount,
+    sessionSummary: JSON.stringify(summary, null, 2),
+  })
 
   // Get profile configuration for snarky comment (creative profile)
   const llmConfig = config.llm?.snarkyComment ?? DEFAULT_SESSION_SUMMARY_CONFIG.llm!.snarkyComment!
@@ -492,7 +619,11 @@ async function generateSnarkyMessage(
     // Save via typed accessor (atomic write with schema validation)
     await summaryState.snarkyMessage.write(sessionId, snarkyState)
 
-    ctx.logger.debug('Generated snarky message', { sessionId, message: snarkyMessage.slice(0, 50) })
+    ctx.logger.debug('Generated snarky message', {
+      sessionId,
+      personaId: persona?.id ?? 'none',
+      message: snarkyMessage.slice(0, 50),
+    })
   } catch (err) {
     ctx.logger.warn('Failed to generate snarky message', { sessionId, error: String(err) })
   }
@@ -519,7 +650,14 @@ function parseResumeResponse(content: string): ResumeMessageResponse | null {
  * Generate resume message as a side-effect.
  * Called when pivot is detected in summary analysis.
  * Uses separate LLM call with higher temperature for creativity.
+ *
+ * Persona injection:
+ * - If persona is "disabled", use deterministic output (session_title and latest_intent)
+ * - If persona is selected, inject persona context into prompt
+ * - If no persona, omit persona block from prompt
+ *
  * @see docs/design/FEATURE-RESUME.md §3.2
+ * @see docs/design/PERSONA-PROFILES-DESIGN.md - Disabled Persona Behavior
  */
 async function generateResumeMessage(
   ctx: DaemonContext,
@@ -552,6 +690,38 @@ async function generateResumeMessage(
     return
   }
 
+  // Load session persona
+  const persona = await loadSessionPersona(summaryState, sessionId, ctx)
+
+  // Disabled persona: use deterministic output without LLM call
+  // @see docs/design/PERSONA-PROFILES-DESIGN.md - Disabled Persona Behavior
+  if (persona?.id === 'disabled') {
+    ctx.logger.debug('Using deterministic resume message (disabled persona)', { sessionId })
+
+    const resumeState: ResumeMessageState = {
+      last_task_id: null,
+      session_title: summary.session_title,
+      resume_last_goal_message: summary.session_title,
+      snarky_comment: summary.latest_intent,
+      timestamp: new Date().toISOString(),
+    }
+
+    await summaryState.resumeMessage.write(sessionId, resumeState)
+
+    logEvent(
+      ctx.logger,
+      LogEvents.resumeUpdated(
+        { sessionId, scope: eventContext.scope },
+        {
+          resume_last_goal_message: resumeState.resume_last_goal_message,
+          snarky_comment: resumeState.snarky_comment,
+          timestamp: resumeState.timestamp,
+        }
+      )
+    )
+    return
+  }
+
   const promptTemplate = ctx.assets.resolve(RESUME_PROMPT_FILE)
   if (!promptTemplate) {
     ctx.logger.warn('Resume message prompt not found', { path: RESUME_PROMPT_FILE })
@@ -579,14 +749,19 @@ async function generateResumeMessage(
       }
     : undefined
 
-  // Interpolate prompt with session data
+  // Build persona context for template interpolation
+  const personaContext = buildPersonaContext(persona)
+
+  // Interpolate prompt with session data and persona
   const keyPhrases = summary.session_title_key_phrases?.join(', ') ?? ''
-  const prompt = promptTemplate
-    .replace(/\{\{sessionTitle\}\}/g, summary.session_title)
-    .replace(/\{\{confidence\}\}/g, String(summary.session_title_confidence))
-    .replace(/\{\{latestIntent\}\}/g, summary.latest_intent)
-    .replace(/\{\{keyPhrases\}\}/g, keyPhrases)
-    .replace(/\{\{transcript\}\}/g, transcriptExcerpt)
+  const prompt = interpolateTemplate(promptTemplate, {
+    ...personaContext,
+    sessionTitle: summary.session_title,
+    confidence: summary.session_title_confidence,
+    latestIntent: summary.latest_intent,
+    keyPhrases,
+    transcript: transcriptExcerpt,
+  })
 
   // Get profile configuration for resume message (creative-long profile)
   const llmConfig = config.llm?.resumeMessage ?? DEFAULT_SESSION_SUMMARY_CONFIG.llm!.resumeMessage!
@@ -631,6 +806,11 @@ async function generateResumeMessage(
         }
       )
     )
+
+    ctx.logger.debug('Generated resume message', {
+      sessionId,
+      personaId: persona?.id ?? 'none',
+    })
   } catch (err) {
     ctx.logger.warn('Failed to generate resume message', { sessionId, error: String(err) })
   }

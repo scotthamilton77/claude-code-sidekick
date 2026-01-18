@@ -14,12 +14,14 @@ import type {
   SummaryCountdownState,
   ResumeMessageState,
   SnarkyMessageState,
+  SessionPersonaState,
 } from '@sidekick/types'
 import {
   SessionSummaryStateSchema,
   SummaryCountdownStateSchema,
   ResumeMessageStateSchema,
   SnarkyMessageStateSchema,
+  SessionPersonaStateSchema,
 } from '@sidekick/types'
 
 // ============================================================================
@@ -93,6 +95,19 @@ export const SnarkyMessageDescriptor = sessionState('snarky-message.json', Snark
   trackHistory: true,
 })
 
+/**
+ * Session persona state descriptor.
+ * Stores selected persona for creative outputs.
+ * Default: null (file may not exist until persona is selected)
+ *
+ * Exported for read-only consumers (e.g., feature-statusline).
+ *
+ * @see docs/design/PERSONA-PROFILES-DESIGN.md
+ */
+export const SessionPersonaDescriptor = sessionState('session-persona.json', SessionPersonaStateSchema, {
+  defaultValue: null,
+})
+
 // ============================================================================
 // State Accessor Types
 // ============================================================================
@@ -109,6 +124,8 @@ export interface SessionSummaryStateAccessors {
   resumeMessage: SessionStateAccessor<ResumeMessageState, null>
   /** Snarky message (witty welcome) */
   snarkyMessage: SessionStateAccessor<SnarkyMessageState, SnarkyMessageState>
+  /** Session persona (selected for creative outputs) */
+  sessionPersona: SessionStateAccessor<SessionPersonaState, null>
 }
 
 // ============================================================================
@@ -128,5 +145,6 @@ export function createSessionSummaryState(stateService: MinimalStateService): Se
     summaryCountdown: new SessionStateAccessor(stateService, SummaryCountdownDescriptor),
     resumeMessage: new SessionStateAccessor(stateService, ResumeMessageDescriptor),
     snarkyMessage: new SessionStateAccessor(stateService, SnarkyMessageDescriptor),
+    sessionPersona: new SessionStateAccessor(stateService, SessionPersonaDescriptor),
   }
 }

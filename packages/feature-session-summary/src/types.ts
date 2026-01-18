@@ -60,6 +60,13 @@ export interface SessionSummaryConfig {
     confidenceThreshold: number
     resetThreshold: number
   }
+  /** Persona configuration for creative outputs */
+  personas?: {
+    /** Comma-separated allow-list of persona IDs (empty = all available) */
+    allowList: string
+    /** Maximum age (hours) for resume messages to be considered fresh */
+    resumeFreshnessHours: number
+  }
 }
 
 /**
@@ -88,6 +95,10 @@ export const DEFAULT_SESSION_SUMMARY_CONFIG: SessionSummaryConfig = {
   bookmark: {
     confidenceThreshold: 0.8,
     resetThreshold: 0.7,
+  },
+  personas: {
+    allowList: '',
+    resumeFreshnessHours: 4,
   },
 }
 

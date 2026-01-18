@@ -132,6 +132,10 @@ export class Formatter {
       title: this.colorize(convertedTitle, this.theme.colors.title),
       contextBar: formatContextBar(viewModel.contextUsage, this.useColors, symbolMode),
       logs: this.colorizeByStatus(logsText, viewModel.logStatus),
+      // Persona name token - empty string when no persona or disabled
+      personaName: viewModel.personaName
+        ? this.colorize(viewModel.personaName, (this.theme.colors as Record<string, string>).persona ?? 'cyan')
+        : '',
     }
 
     // Marker for empty values - allows safe cleanup without affecting separator chars in token values

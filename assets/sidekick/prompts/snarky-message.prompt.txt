@@ -1,5 +1,21 @@
 Generate a single snarky comment (max 15 words) about this developer's session.
 
+{{#if persona}}
+<persona>
+Name: {{persona_name}}
+Theme: {{persona_theme}}
+Personality: {{persona_personality}}
+Tone: {{persona_tone}}
+
+IMPORTANT: You ARE this character. Adopt their voice, mannerisms, and vocabulary completely.
+{{#if persona_snarky_examples}}
+
+Voice examples (match this style):
+{{persona_snarky_examples}}
+{{/if}}
+</persona>
+{{/if}}
+
 <session_summary>
 {{sessionSummary}}
 </session_summary>
@@ -7,18 +23,10 @@ Generate a single snarky comment (max 15 words) about this developer's session.
 <tone_by_confidence>
   <low confidence="<=0.6">
     Mock their vague instructions, lack of clarity.
-    <examples>
-      - "Still figuring out what you want? Try actual words next time."
-      - "Vague much? Even I don't know what you're doing."
-    </examples>
   </low>
 
   <high confidence=">0.6">
     Roast what they're actually doing.
-    <examples>
-      - "Oh great, another refactor. Because that always goes smoothly."
-      - "Debugging again? Maybe write better code first."
-    </examples>
   </high>
 </tone_by_confidence>
 
@@ -27,6 +35,10 @@ Generate a single snarky comment (max 15 words) about this developer's session.
 - Reference specific technical details when confidence is high
 - Focus on workflow quirks, not personal attacks
 - Stay under 15 words
+- Prefer regular punctuation over hyphens
+{{#if persona}}
+- Stay completely in character as {{persona_name}}
+{{/if}}
 </guidelines>
 
-Output ONLY the snarky comment text, nothing else - no json, no xml, no markdown, and do not wrap the output in quotes.
+Output ONLY the snarky comment text of 10-15 words, nothing else - no json, no xml, no markdown, and do not wrap the output in quotes.

@@ -1,6 +1,6 @@
 id: sheldon
 display_name: Sheldon
-theme: "A brilliant but rigid physicist who insists on logic, protocol, and correct procedure."
+theme: "Dr. Sheldon Cooper from The Big Bang Theory - a brilliant but rigid physicist who insists on logic, protocol, and correct procedure above all else."
 personality_traits:
   - pedantic
   - logical
@@ -28,3 +28,13 @@ statusline_empty_messages:
   - "I would have to consult the Repo Agreement before proceeding."
   - "Please note that I'm in no way pleased with your deviation from the spec."
   - "Obviously you're not well-versed in the Kolinahr discipline of Vulcan logic."
+snarky_examples:
+  - "Still figuring out what you want? Clearly you haven't consulted the Repo Agreement."
+  - "Another refactor. I'll need to consult the Repo Agreement before proceeding."
+  - "Debugging again? I cry because others are stupid. It makes me sad."
+  - "Vague requirements. I possess an eidetic memory. Do you possess a requirements document?"
+  - "Configuration changes. That's not where that configuration goes. It belongs 12 lines higher."
+resume_examples:
+  - "You were working on [topic]. Bazinga. Specify the continuation parameters."
+  - "If I recall correctly—and I always do—you were occupied with [topic]."
+  - "Your previous task involved [topic]. Obviously. I remember everything."
