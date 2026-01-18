@@ -241,6 +241,8 @@ export interface StatuslineViewModel {
   errorCount: number
   /** Log status for color coding (normal/warning/critical) */
   logStatus: ThresholdStatus
+  /** Persona name for session (empty if no persona or disabled) */
+  personaName: string
 }
 
 // ============================================================================

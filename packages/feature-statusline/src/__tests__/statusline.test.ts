@@ -777,6 +777,7 @@ describe('Formatter class', () => {
       warningCount: 0,
       errorCount: 0,
       logStatus: 'normal' as const,
+      personaName: '',
     }
 
     const result = formatter.format('[{model}] | {tokenUsageActual} | {summary}', viewModel)
@@ -809,6 +810,7 @@ describe('Formatter class', () => {
       warningCount: 0,
       errorCount: 0,
       logStatus: 'normal' as const,
+      personaName: '',
     }
 
     // Empty {title} between two separators should be cleaned up
@@ -842,6 +844,7 @@ describe('Formatter class', () => {
       warningCount: 0,
       errorCount: 0,
       logStatus: 'normal' as const,
+      personaName: '',
     }
 
     // Empty {title} between newline separators should be cleaned up
@@ -875,6 +878,7 @@ describe('Formatter class', () => {
       warningCount: 0,
       errorCount: 0,
       logStatus: 'normal' as const,
+      personaName: '',
     }
 
     const result = formatter.format('{title} | {summary}', viewModel)
@@ -907,6 +911,7 @@ describe('Formatter class', () => {
       warningCount: 0,
       errorCount: 0,
       logStatus: 'normal' as const,
+      personaName: '',
     }
 
     // Multiple empty tokens should all be cleaned up
@@ -940,6 +945,7 @@ describe('Formatter class', () => {
       warningCount: 0,
       errorCount: 0,
       logStatus: 'normal' as const,
+      personaName: '',
     }
 
     // Template: {cwd}{branch} | {title} - branch is empty but separator should be preserved
@@ -985,6 +991,7 @@ describe('Formatter with colors enabled', () => {
       warningCount: 0,
       errorCount: 0,
       logStatus: 'normal' as const,
+      personaName: '',
     }
 
     const result = formatter.format('{tokenUsageActual}', viewModel)
@@ -1018,6 +1025,7 @@ describe('Formatter with colors enabled', () => {
       warningCount: 0,
       errorCount: 0,
       logStatus: 'normal' as const,
+      personaName: '',
     }
 
     const result = formatter.format('{tokenUsageActual}', viewModel)
@@ -1050,6 +1058,7 @@ describe('Formatter with colors enabled', () => {
       warningCount: 0,
       errorCount: 0,
       logStatus: 'normal' as const,
+      personaName: '',
     }
 
     const result = formatter.format('{tokenUsageActual}', viewModel)
@@ -1085,6 +1094,7 @@ describe('Formatter with colors enabled', () => {
       warningCount: 0,
       errorCount: 0,
       logStatus: 'normal' as const,
+      personaName: '',
     }
 
     const result = formatter.format('{model}', viewModel)
@@ -1120,6 +1130,7 @@ describe('Formatter with colors enabled', () => {
       warningCount: 0,
       errorCount: 0,
       logStatus: 'normal' as const,
+      personaName: '',
     }
 
     const result = formatter.format('{summary}', viewModel)
@@ -1162,6 +1173,7 @@ describe('Formatter with colors enabled', () => {
       warningCount: 0,
       errorCount: 0,
       logStatus: 'normal' as const,
+      personaName: '',
     }
 
     // Should not throw, should return text without color codes for model
@@ -1196,6 +1208,7 @@ describe('Formatter with colors enabled', () => {
       warningCount: 0,
       errorCount: 0,
       logStatus: 'normal' as const,
+      personaName: '',
     }
 
     const result = formatter.format('{summary}', viewModel)
@@ -1229,6 +1242,7 @@ describe('Formatter with colors enabled', () => {
       warningCount: 0,
       errorCount: 0,
       logStatus: 'normal' as const,
+      personaName: '',
     }
 
     const result = formatter.format('{branch}', viewModel)
@@ -1422,6 +1436,7 @@ describe('Formatter.convertMarkdown', () => {
       warningCount: 0,
       errorCount: 0,
       logStatus: 'normal' as const,
+      personaName: '',
     }
 
     const result = formatter.format('{summary}', viewModel)
@@ -1455,6 +1470,7 @@ describe('Formatter.convertMarkdown', () => {
       warningCount: 0,
       errorCount: 0,
       logStatus: 'normal' as const,
+      personaName: '',
     }
 
     const result = formatter.format('{title}', viewModel)
@@ -2866,7 +2882,10 @@ describe('StatuslineService', () => {
       }
     }
 
-    it('picks a random message from the assets file', async () => {
+    it('uses placeholder when no persona is selected (persona system behavior)', async () => {
+      // When no persona is selected, empty session messages come from SESSION_SUMMARY_PLACEHOLDERS
+      // rather than random messages from assets. This is per docs/design/PERSONA-PROFILES-DESIGN.md §4.
+      // Assets are only used as fallback when a persona IS selected but has no statusline_empty_messages.
       const messages = ['Message one', 'Message two', 'Message three']
       const assets = createMockAssets(messages.join('\n'))
 
@@ -2881,7 +2900,8 @@ describe('StatuslineService', () => {
       const result = await service.render()
 
       expect(result.displayMode).toBe('empty_summary')
-      expect(messages).toContain(result.viewModel.summary)
+      // No persona state = placeholder, not random asset message
+      expect(result.viewModel.summary).toBe('New Session')
     })
 
     it('falls back to default when assets not provided', async () => {
@@ -2933,7 +2953,10 @@ describe('StatuslineService', () => {
       expect(result.viewModel.summary).toBe('New Session')
     })
 
-    it('handles blank lines in messages file', async () => {
+    it('uses placeholder when no persona - blank lines in asset file are irrelevant', async () => {
+      // Per persona system, when no persona is selected, we use placeholders not assets.
+      // The blank line handling is still in place but only applies when a persona exists
+      // without its own statusline_empty_messages.
       const messages = ['Message one', '', '  ', 'Message two']
       const assets = createMockAssets(messages.join('\n'))
 
@@ -2947,8 +2970,8 @@ describe('StatuslineService', () => {
 
       const result = await service.render()
 
-      // Should only pick from non-empty messages
-      expect(['Message one', 'Message two']).toContain(result.viewModel.summary)
+      // No persona state = placeholder, not random asset message
+      expect(result.viewModel.summary).toBe('New Session')
     })
 
     it('uses same message for entire service instance', async () => {
