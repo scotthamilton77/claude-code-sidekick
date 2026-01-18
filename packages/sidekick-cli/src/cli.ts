@@ -37,7 +37,7 @@ interface ParsedArgs {
   scopeOverride?: 'user' | 'project'
   logLevel?: 'debug' | 'info' | 'warn' | 'error'
   wait?: boolean
-  format?: 'text' | 'json'
+  format?: 'text' | 'json' | 'table'
   port?: number
   host?: string
   open?: boolean
@@ -82,7 +82,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     scopeOverride: parsed.scope as 'user' | 'project' | undefined,
     logLevel: parsed['log-level'] as ParsedArgs['logLevel'],
     wait: Boolean(parsed.wait),
-    format: parsed.format as 'text' | 'json' | undefined,
+    format: parsed.format as 'text' | 'json' | 'table' | undefined,
     port: parsed.port as number | undefined,
     host: parsed.host as string | undefined,
     open: parsed.open as boolean | undefined,
@@ -326,8 +326,10 @@ export async function routeCommand(context: {
     // Claude Code provides model, tokens, cost directly - no need to read state files
     const parsedHookInput = hookInput?.raw ? parseStatuslineInput(hookInput.raw) : undefined
 
+    // statusline only supports 'text' | 'json', not 'table'
+    const statuslineFormat = parsed.format === 'text' || parsed.format === 'json' ? parsed.format : undefined
     const result = await handleStatuslineCommand(runtime.scope.projectRoot || process.cwd(), runtime.logger, stdout, {
-      format: parsed.format,
+      format: statuslineFormat,
       sessionId,
       hookInput: parsedHookInput,
       configService: runtime.config,
@@ -399,6 +401,14 @@ export async function routeCommand(context: {
         type: parsed.messageType ?? 'snarky',
       }
     )
+    return { exitCode: result.exitCode, stdout: result.output, stderr: '' }
+  }
+
+  if (parsed.command === 'sessions') {
+    const { handleSessionsCommand } = await import('./commands/sessions.js')
+    const result = await handleSessionsCommand(runtime.scope.projectRoot || process.cwd(), runtime.logger, stdout, {
+      format: parsed.format === 'json' || parsed.format === 'table' ? parsed.format : undefined,
+    })
     return { exitCode: result.exitCode, stdout: result.output, stderr: '' }
   }
 
