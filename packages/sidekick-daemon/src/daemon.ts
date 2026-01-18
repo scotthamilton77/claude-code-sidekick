@@ -30,6 +30,7 @@ import {
   handleReminderConsumed,
   handleVCUnverifiedSet,
   handleVCUnverifiedClear,
+  ReminderEvents,
 } from '@sidekick/feature-reminders'
 import { registerHandlers as registerSessionSummaryHandlers } from '@sidekick/feature-session-summary'
 import type {
@@ -582,7 +583,7 @@ export class Daemon {
 
       // Log RemindersCleared event
       const correlationId = event.context?.correlationId
-      const clearEvent = LogEvents.remindersCleared(
+      const clearEvent = ReminderEvents.remindersCleared(
         { sessionId, scope: 'project', correlationId },
         { clearedCount: 0 }, // Count not tracked - acceptable for startup cleanup
         'session_start'

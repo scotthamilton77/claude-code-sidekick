@@ -28,3 +28,6 @@ export default feature
 export * from './types'
 export * from './handlers/index.js'
 export * from './state.js'
+
+// Re-export event factories for logging (Phase 9.5.2)
+export { SessionSummaryEvents, type EventLogContext as SummaryEventLogContext } from './events.js'

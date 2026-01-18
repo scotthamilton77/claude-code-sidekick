@@ -10,6 +10,7 @@
 
 import type { TranscriptEvent } from '@sidekick/core'
 import { logEvent, LogEvents } from '@sidekick/core'
+import { SessionSummaryEvents } from '../events.js'
 import type { DaemonContext, EventContext, SummaryCountdownState, SnarkyMessageState } from '@sidekick/types'
 import { z } from 'zod'
 import type { ResumeMessageState, SessionSummaryConfig, SessionSummaryState } from '../types.js'
@@ -360,7 +361,7 @@ async function performAnalysis(
   // Log update event
   logEvent(
     ctx.logger,
-    LogEvents.summaryUpdated(
+    SessionSummaryEvents.summaryUpdated(
       event.context,
       {
         session_title: updatedSummary.session_title,
