@@ -334,9 +334,6 @@ importers:
 
   packages/testing-fixtures:
     dependencies:
-      '@sidekick/core':
-        specifier: workspace:*
-        version: link:../sidekick-core
       '@sidekick/types':
         specifier: workspace:*
         version: link:../types
@@ -344,6 +341,9 @@ importers:
         specifier: ^2.8.2
         version: 2.8.2
     devDependencies:
+      '@sidekick/core':
+        specifier: workspace:*
+        version: link:../sidekick-core
       '@types/node':
         specifier: ^22.7.4
         version: 22.19.1
