@@ -17,7 +17,17 @@ import { readFile, writeFile, mkdir, readdir, stat, unlink, rm, access, truncate
 import { constants } from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
-import { Logger, DaemonClient, killAllDaemons, getSocketPath, getTokenPath, getLockPath } from '@sidekick/core'
+import * as readline from 'node:readline'
+import {
+  Logger,
+  DaemonClient,
+  killAllDaemons,
+  getSocketPath,
+  getTokenPath,
+  getLockPath,
+  getUserDaemonsDir,
+  type UserPidInfo,
+} from '@sidekick/core'
 
 // ANSI colors for terminal output
 const colors = {
@@ -57,6 +67,13 @@ export interface DevModeCommandResult {
   output?: string
 }
 
+export interface DevModeOptions {
+  /** Skip confirmation prompts for destructive operations */
+  force?: boolean
+  /** Input stream for prompts (defaults to process.stdin) */
+  stdin?: NodeJS.ReadableStream
+}
+
 interface ClaudeSettings {
   hooks?: Partial<Record<HookType, HookEntry[]>>
   statusLine?: {
@@ -94,6 +111,80 @@ function log(stdout: NodeJS.WritableStream, level: 'info' | 'step' | 'warn' | 'e
     error: `${colors.red}[ERROR]${colors.reset}`,
   }
   stdout.write(`${prefixes[level]} ${message}\n`)
+}
+
+/**
+ * Prompt user for yes/no confirmation.
+ * Returns true if user confirms (y/Y/yes/YES), false otherwise.
+ */
+async function promptConfirm(
+  question: string,
+  stdout: NodeJS.WritableStream,
+  stdin: NodeJS.ReadableStream
+): Promise<boolean> {
+  const rl = readline.createInterface({
+    input: stdin,
+    output: stdout,
+    terminal: false,
+  })
+
+  return new Promise((resolve) => {
+    stdout.write(`${question} [y/N] `)
+    rl.once('line', (answer) => {
+      rl.close()
+      const normalized = answer.trim().toLowerCase()
+      resolve(normalized === 'y' || normalized === 'yes')
+    })
+    // Handle closed stdin (non-interactive)
+    rl.once('close', () => {
+      resolve(false)
+    })
+  })
+}
+
+interface ZombieDaemon {
+  pid: number
+  projectDir: string
+}
+
+/**
+ * List zombie daemon processes without killing them.
+ * Returns array of live daemon processes found in user-level PID files.
+ */
+async function listZombieDaemons(): Promise<ZombieDaemon[]> {
+  const zombies: ZombieDaemon[] = []
+  const daemonsDir = getUserDaemonsDir()
+
+  let files: string[]
+  try {
+    files = await readdir(daemonsDir)
+  } catch {
+    // Directory doesn't exist - no daemons
+    return zombies
+  }
+
+  const pidFiles = files.filter((f) => f.endsWith('.pid'))
+
+  for (const pidFile of pidFiles) {
+    const pidPath = path.join(daemonsDir, pidFile)
+    try {
+      const content = await readFile(pidPath, 'utf-8')
+      const info = JSON.parse(content) as UserPidInfo
+
+      // Check if process is alive
+      try {
+        process.kill(info.pid, 0)
+        // Process is alive - it's a potential zombie
+        zombies.push({ pid: info.pid, projectDir: info.projectDir })
+      } catch {
+        // Process is dead, will be cleaned up during actual kill
+      }
+    } catch {
+      // Invalid file, skip
+    }
+  }
+
+  return zombies
 }
 
 /** Check if a command string references dev-hooks. */
@@ -400,8 +491,10 @@ async function doStatus(projectDir: string, stdout: NodeJS.WritableStream): Prom
 async function doClean(
   projectDir: string,
   logger: Logger,
-  stdout: NodeJS.WritableStream
+  stdout: NodeJS.WritableStream,
+  options: DevModeOptions = {}
 ): Promise<DevModeCommandResult> {
+  const { force = false, stdin = process.stdin } = options
   log(stdout, 'step', 'Cleaning up sidekick state...')
 
   const sidekickDir = path.join(projectDir, '.sidekick')
@@ -446,16 +539,26 @@ async function doClean(
   stdout.write('\n')
   log(stdout, 'step', 'Checking for zombie daemon processes...')
 
-  const results = await killAllDaemons(logger)
-  if (results.length === 0) {
+  const zombies = await listZombieDaemons()
+  if (zombies.length === 0) {
     log(stdout, 'info', 'No zombie daemon processes found')
   } else {
-    const killedCount = results.filter((r) => r.killed).length
-    log(stdout, 'info', `Killed ${killedCount} zombie daemon(s)`)
-    for (const result of results) {
-      if (result.killed) {
-        log(stdout, 'info', `  - PID ${result.pid}: ${result.projectDir}`)
-      }
+    stdout.write('\n')
+    stdout.write(`${colors.yellow}Found ${zombies.length} potential zombie daemon process(es):${colors.reset}\n`)
+    for (const zombie of zombies) {
+      stdout.write(`  - PID ${zombie.pid}: ${zombie.projectDir}\n`)
+    }
+    stdout.write('\n')
+
+    // Prompt for confirmation unless --force
+    const shouldKill = force || (await promptConfirm('Kill these processes?', stdout, stdin))
+
+    if (shouldKill) {
+      const results = await killAllDaemons(logger)
+      const killedCount = results.filter((r) => r.killed).length
+      log(stdout, 'info', `Killed ${killedCount} zombie daemon(s)`)
+    } else {
+      log(stdout, 'info', 'Skipping zombie cleanup')
     }
   }
 
@@ -471,29 +574,46 @@ async function doClean(
 async function doCleanAll(
   projectDir: string,
   logger: Logger,
-  stdout: NodeJS.WritableStream
+  stdout: NodeJS.WritableStream,
+  options: DevModeOptions = {}
 ): Promise<DevModeCommandResult> {
-  // First run standard clean
-  await doClean(projectDir, logger, stdout)
+  const { force = false, stdin = process.stdin } = options
+
+  // First run standard clean (pass options for zombie prompt)
+  await doClean(projectDir, logger, stdout, options)
 
   const sidekickDir = path.join(projectDir, '.sidekick')
 
   stdout.write('\n')
   log(stdout, 'step', 'Removing logs, sessions, and state directories...')
 
-  // Delete logs, sessions, and state directories
+  // Delete logs directory (no prompt needed - logs are transient)
   await removeDirectory(path.join(sidekickDir, 'logs'), 'logs', stdout)
 
-  // Sessions directory needs special handling to report count
+  // Sessions directory needs special handling - prompt for confirmation
   const sessionsDir = path.join(sidekickDir, 'sessions')
   if (await fileExists(sessionsDir)) {
     try {
       const sessions = await readdir(sessionsDir)
-      if (sessions.length > 0) {
-        log(stdout, 'info', `Found ${sessions.length} session directories`)
+      const sessionCount = sessions.filter((s) => !s.startsWith('.')).length
+
+      if (sessionCount > 0) {
+        log(stdout, 'info', `Found ${sessionCount} session directories`)
+
+        // Prompt for confirmation unless --force
+        const shouldRemove = force || (await promptConfirm('Remove all session directories?', stdout, stdin))
+
+        if (shouldRemove) {
+          await rm(sessionsDir, { recursive: true, force: true })
+          log(stdout, 'info', `Removed ${sessionsDir}`)
+        } else {
+          log(stdout, 'info', 'Skipping session cleanup')
+        }
+      } else {
+        // Empty directory, just remove it
+        await rm(sessionsDir, { recursive: true, force: true })
+        log(stdout, 'info', `Removed empty ${sessionsDir}`)
       }
-      await rm(sessionsDir, { recursive: true, force: true })
-      log(stdout, 'info', `Removed ${sessionsDir}`)
     } catch {
       log(stdout, 'info', 'No sessions directory found')
     }
@@ -523,7 +643,7 @@ async function doCleanAll(
   return { exitCode: 0 }
 }
 
-const USAGE_TEXT = `Usage: sidekick dev-mode <command>
+const USAGE_TEXT = `Usage: sidekick dev-mode <command> [options]
 
 Commands:
   enable     Add dev-hooks to .claude/settings.local.json
@@ -531,6 +651,9 @@ Commands:
   status     Show current dev-mode state
   clean      Truncate logs, kill daemon, clean state folders
   clean-all  Full cleanup: clean + remove logs/sessions/state dirs
+
+Options:
+  --force    Skip confirmation prompts for destructive operations
 `
 
 /**
@@ -540,7 +663,8 @@ export async function handleDevModeCommand(
   subcommand: string,
   projectDir: string,
   logger: Logger,
-  stdout: NodeJS.WritableStream
+  stdout: NodeJS.WritableStream,
+  options: DevModeOptions = {}
 ): Promise<DevModeCommandResult> {
   switch (subcommand) {
     case 'enable':
@@ -550,9 +674,9 @@ export async function handleDevModeCommand(
     case 'status':
       return doStatus(projectDir, stdout)
     case 'clean':
-      return doClean(projectDir, logger, stdout)
+      return doClean(projectDir, logger, stdout, options)
     case 'clean-all':
-      return doCleanAll(projectDir, logger, stdout)
+      return doCleanAll(projectDir, logger, stdout, options)
     case 'help':
     case '--help':
     case '-h':

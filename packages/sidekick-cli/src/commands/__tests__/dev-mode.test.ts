@@ -60,6 +60,7 @@ vi.mock('@sidekick/core', () => ({
   getSocketPath: vi.fn((dir: string) => path.join(dir, '.sidekick', 'sidekickd.sock')),
   getTokenPath: vi.fn((dir: string) => path.join(dir, '.sidekick', 'sidekickd.token')),
   getLockPath: vi.fn((dir: string) => path.join(dir, '.sidekick', 'sidekickd.lock')),
+  getUserDaemonsDir: vi.fn(() => '/tmp/claude/nonexistent-daemons-dir'),
 }))
 
 describe('handleDevModeCommand', () => {
@@ -279,7 +280,7 @@ describe('handleDevModeCommand', () => {
       const logPath = path.join(tempDir, '.sidekick', 'logs', 'cli.log')
       await writeFile(logPath, 'some log content\n')
 
-      const result = await handleDevModeCommand('clean', tempDir, logger, stdout)
+      const result = await handleDevModeCommand('clean', tempDir, logger, stdout, { force: true })
 
       expect(result.exitCode).toBe(0)
       expect(stdout.data).toContain('Truncated')
@@ -292,31 +293,57 @@ describe('handleDevModeCommand', () => {
       const statePath = path.join(tempDir, '.sidekick', 'state', 'test.json')
       await writeFile(statePath, '{}')
 
-      const result = await handleDevModeCommand('clean', tempDir, logger, stdout)
+      const result = await handleDevModeCommand('clean', tempDir, logger, stdout, { force: true })
 
       expect(result.exitCode).toBe(0)
       expect(stdout.data).toContain('state')
     })
+
+    test('shows --force in help', async () => {
+      const result = await handleDevModeCommand('help', tempDir, logger, stdout)
+
+      expect(result.exitCode).toBe(0)
+      expect(stdout.data).toContain('--force')
+      expect(stdout.data).toContain('Skip confirmation prompts')
+    })
   })
 
   describe('clean-all subcommand', () => {
-    test('removes logs directory', async () => {
-      const result = await handleDevModeCommand('clean-all', tempDir, logger, stdout)
+    test('removes logs directory with --force', async () => {
+      const result = await handleDevModeCommand('clean-all', tempDir, logger, stdout, { force: true })
 
       expect(result.exitCode).toBe(0)
       expect(stdout.data).toContain('Removed')
     })
 
-    test('removes sessions directory', async () => {
+    test('removes sessions directory with --force', async () => {
       // Create sessions dir
       const sessionsDir = path.join(tempDir, '.sidekick', 'sessions')
       await mkdir(sessionsDir, { recursive: true })
       await mkdir(path.join(sessionsDir, 'session-123'), { recursive: true })
 
-      const result = await handleDevModeCommand('clean-all', tempDir, logger, stdout)
+      const result = await handleDevModeCommand('clean-all', tempDir, logger, stdout, { force: true })
 
       expect(result.exitCode).toBe(0)
       expect(stdout.data).toContain('session')
+      expect(stdout.data).toContain('Removed')
+    })
+
+    test('skips session cleanup without confirmation', async () => {
+      // Create sessions dir
+      const sessionsDir = path.join(tempDir, '.sidekick', 'sessions')
+      await mkdir(sessionsDir, { recursive: true })
+      await mkdir(path.join(sessionsDir, 'session-123'), { recursive: true })
+
+      // Create a mock stdin that immediately closes (simulates non-interactive)
+      const { Readable } = await import('node:stream')
+      const mockStdin = new Readable({ read() {} })
+      mockStdin.push(null) // EOF immediately
+
+      const result = await handleDevModeCommand('clean-all', tempDir, logger, stdout, { stdin: mockStdin })
+
+      expect(result.exitCode).toBe(0)
+      expect(stdout.data).toContain('Skipping session cleanup')
     })
   })
 })
