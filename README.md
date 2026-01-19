@@ -8,52 +8,6 @@
 
 This repository serves as a development and testing environment for [Claude Code](https://claude.com/claude-code) configurations before deploying them to your global `~/.claude` directory. It implements a dual-scope architecture where all capabilities work identically in both project-local and user-global contexts.
 
-## TODOs
-
-### Sidekick
-
-- validate implementation against ARCHITECTURE.md - any gaps (in either direction) we should address?
-- implement tool-specific modifications (extensions) where we can tack on specific reminder segments, e.g. for bd, or superpowers, etc.?
-  - example for bd user submit prompt:
-    - if the user asked to start on a bd task, make sure you look up the dependency tree to get full context on what is described in parent items, and what's been completed so far
-    - if starting on a bd item, announce clearly the titles of the parent hierarchy and target task that this is what you're working on
-  - example for bd session summary analysis: if there was a bd item started, this is a strong indicator for the session's title and intent
-  - example for superpowers, i might want to add to the vc a "request a code review" and "use the code simplifier agent", etc.
-- can we be resilient to bad json responses from the LLMs?
-- log rotation and log level to info by default
-- Subagent support: how do subagents work - can we detect their connection to the parent agent, and do we care? (for statusline, maybe not, but for analytics?)
-  - SubagentStart: When a subagent is started
-  - SubagentStop: When a subagent attempts to stop
-- clean up github repos, e.g. claude-config != sidekick (I think we already pulled the devcontainer project out)
-
-### Nice to Haves
-
-- add automatic ralph wigguming?
-  - Add a "confession" at the end of a task where the agent confesses what they did wrong, use for a learnings log?
-  - learning mode? investigate https://medium.com/coding-nexus/rip-fine-tuning-how-stanfords-ace-framework-teaches-ai-to-learn-without-retraining-510f412d8579
-  - particularly the feedback cycles built in - see https://x.com/ryancarson/status/2008548371712135632
-  - for instance, could/should we at the vc reminder also capture lessons learned local to the task, and then on session-stop (and session-start?) look for these files and in the background LLM-digest them into useful bits that could go into scoped AGENT.md and our other reminders?  This would need to be configurable to either do automatically (allowing human review pre-commit) or asking claude to ask the user if they want it added
-  - we should also ask "if troubleshooting or debugging an issue, you should determine whether there is a unit or integration test that should be added as a regression test"
-- add support for task id extraction (detect actual task IDs and capture them in session_title - this could be generic but enhanced via extension)
-- Reminder smartification: when about to stage P&R or VC, take the reminder and the transcript (up to the last compaction point?) to ask AI to evaluate which parts of the reminder may be most relevant for the situation and context
-  - OR, after a session summary, also do an eval to detect hints to help in reminder segment rules (e.g. running tests means we don't need to remind AI to run tests, unless we then later see file updates that would invalidate that)
-  - would it make sense to scan the ToDos and suggest to Claude to add to its todos any specific items relevant to the reminders? (Would this be more context-efficient?)
-  - make stop hook smarter?
-    - Break it up into subsections that are conditional based on observed patterns of behavior, e.g. modification of files through bash commands, docs vs. source code mods, etc. if we just did a build or lint or ran tests, we can exclude that part
-    - if we allow tool-specific extensions, these should also come with some conditional checks (so we don't ask for what was already done)
-- Feedback Loops
-  - add to the UserPromptSubmit a trigger to evaluate the user's prompt to see if the user is asking claude to do something that it should have already done, and record that as a possible RL item to factor into the reminder
-- let's set up domain-specific agents to own packages or significant portions of packages where all changes to those packages require the domain agents to "sign off"
-
-## Agents and Skills and Hooks
-
-- testing https://github.com/diet103/claude-code-infrastructure-showcase - specifically the hooks integrated with skill intent and build purity
-  - read through https://www.reddit.com/r/ClaudeAI/comments/1oivjvm/claude_code_is_a_beast_tips_from_6_months_of/ (same repo reference)
-  - I might have lost prettier? (see settings copy.json)
-- agents, skills, CLAUDE.md, settings.json - I've moved these into src/.claude/ for now - we'll need to make these installable/uninstallable as components too
-- Can we have a skill and/or agent that intersects the task list and plan for when claude starts to execute a plan and (a) checks it against the user request and requirements to catch scope creep and (b) checks against unnecessary complexity keeping YAGNI and DRY and KISS principles in play?
-- sync, push - these should not clobber settings and mcp, but rather merge; for claude.md, ask to replace
-
 ### Key Features
 
 - **Hook System**: Conversation tracking, topic classification, and response monitoring
