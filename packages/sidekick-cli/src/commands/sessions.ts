@@ -76,7 +76,7 @@ export async function handleSessionsCommand(
   stdout: Writable,
   options: SessionsCommandOptions = {}
 ): Promise<SessionsCommandResult> {
-  const format = options.format ?? 'json'
+  const format = options.format ?? 'table'
   const stateService = new StateService(projectRoot)
   const sessionsDir = stateService.sessionsDir()
 
@@ -150,7 +150,7 @@ export async function handleSessionsCommand(
         }
       }
     } else {
-      // JSON format (default)
+      // JSON format
       const result = { sessions, count: sessions.length }
       stdout.write(JSON.stringify(result, null, 2) + '\n')
     }

@@ -88,6 +88,7 @@ export * from './ipc/protocol'
 export { IpcServer } from './ipc/server'
 export { IpcService, type IpcServiceOptions } from './ipc-service'
 export {
+  getLockPath,
   getPidPath,
   getProjectHash,
   getSocketPath,
