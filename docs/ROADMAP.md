@@ -168,7 +168,7 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
   - [x] Audit `scripts/` for analysis tools that should migrate
   - **scripts/ Findings:**
     - **Keep as-is**: `install.sh`, `uninstall.sh` (shell is natural for file ops and user prompts)
-    - **Port HIGH**: `dev-mode.sh` (CLI command), `analyze-session-at-line.sh` (keep bash as fallback)
+    - **Port HIGH**: `dev-mode.sh` (CLI command) - DONE, `analyze-session-at-line.sh` - RETIRED (dev-mode covers use case)
     - **Port MEDIUM**: `bulk-session-summary.sh`, `collect-test-data.sh`, `copy-config.sh`, `generate-reminder-template.sh`
     - **Port LOW**: `kill-sidekick-processes.sh`, `find-orphaned-processes.sh`, `generate-model-report.py`
     - **Archive**: `simulate-session.py` (refactor to TypeScript integration tests), legacy shell tests
@@ -182,7 +182,7 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
       - Subcommands: enable, disable, status, clean, clean-all
       - Tests: 16 tests with 88% line coverage
       - Non-interactive (no prompts) unlike bash version - suitable for scripted use
-    - [ ] `analyze-session-at-line.sh` → `packages/sidekick-cli/src/commands/analyze-session.ts` (keep bash as fallback)
+    - [x] `analyze-session-at-line.sh` - RETIRED 2026-01-19: Deleted script, dev-mode history tracking now covers this use case
   - [ ] **Script Ports (MEDIUM priority)**:
     - [ ] `bulk-session-summary.sh` → `packages/sidekick-cli/src/commands/bulk-analyze.ts`
     - [ ] `collect-test-data.sh` → `packages/testing-fixtures/` or CLI command
