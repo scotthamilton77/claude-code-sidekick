@@ -141,12 +141,36 @@ export class Formatter {
     // Marker for empty values - allows safe cleanup without affecting separator chars in token values
     const EMPTY_MARKER = '\x00EMPTY\x00'
 
-    // Replace {token} patterns, marking empty values
-    let result = template
-    for (const [key, value] of Object.entries(tokens)) {
-      const replacement = value || EMPTY_MARKER
-      result = result.replace(new RegExp(`\\{${key}\\}`, 'g'), replacement)
-    }
+    // Replace {token} and {token,prefix='...',suffix='...'} patterns
+    // Regex captures: {tokenName} or {tokenName,options...}
+    // Options are parsed separately to handle prefix='...' and suffix='...'
+    let result = template.replace(/\{(\w+)(?:,([^}]*))?\}/g, (_match, tokenName: string, optionsStr?: string) => {
+      const value = tokens[tokenName] ?? ''
+
+      // Parse prefix/suffix options if present
+      let prefix = ''
+      let suffix = ''
+      if (optionsStr) {
+        // Match prefix='...' with support for escaped quotes
+        const prefixMatch = optionsStr.match(/prefix='((?:[^'\\]|\\.)*)'/)
+        if (prefixMatch) {
+          prefix = prefixMatch[1].replace(/\\'/g, "'").replace(/\\\\/g, '\\')
+        }
+        // Match suffix='...' with support for escaped quotes
+        const suffixMatch = optionsStr.match(/suffix='((?:[^'\\]|\\.)*)'/)
+        if (suffixMatch) {
+          suffix = suffixMatch[1].replace(/\\'/g, "'").replace(/\\\\/g, '\\')
+        }
+      }
+
+      // If value is empty, return marker (prefix/suffix are NOT rendered)
+      if (!value) {
+        return EMPTY_MARKER
+      }
+
+      // Value is non-empty: render with prefix and suffix
+      return prefix + value + suffix
+    })
 
     // Clean up separators around empty markers (handles both | and \n)
     // Pattern: separator + optional whitespace + EMPTY + optional whitespace + separator → single separator

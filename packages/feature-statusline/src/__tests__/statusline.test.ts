@@ -29,7 +29,7 @@ import type { MinimalAssetResolver } from '@sidekick/types'
 import { getDefaultOverhead, readContextOverhead } from '../context-overhead-reader.js'
 import { createStateReader, discoverPreviousResumeMessage } from '../state-reader.js'
 import { createStatuslineService, type ClaudeCodeStatusInput } from '../statusline-service.js'
-import { DEFAULT_STATUSLINE_CONFIG } from '../types.js'
+import { DEFAULT_STATUSLINE_CONFIG, type StatuslineViewModel } from '../types.js'
 
 /**
  * Helper to set up a test directory structure for StateReader tests.
@@ -953,6 +953,116 @@ describe('Formatter class', () => {
     // Bug: Previously, EMPTY_MARKER | was removed entirely, causing cwd to run into title
     const result = formatter.format('{cwd}{branch} | {title}', viewModel)
     expect(result).toBe('~/project | Test title')
+  })
+})
+
+describe('Formatter prefix/suffix syntax', () => {
+  const makeViewModel = (overrides: Record<string, unknown> = {}): StatuslineViewModel => ({
+    model: 'claude-3-5-sonnet',
+    contextWindow: '200k',
+    tokenUsageActual: '45k',
+    tokenUsageEffective: '90k',
+    tokenPercentageActual: '22%',
+    tokenPercentageEffective: '45%',
+    tokensStatus: 'normal' as const,
+    cost: '$0.15',
+    costStatus: 'normal' as const,
+    duration: '12m',
+    cwd: '~/project',
+    branch: '⎇ main',
+    branchColor: 'green',
+    displayMode: 'session_summary' as const,
+    summary: 'Test summary',
+    title: 'Test title',
+    warningCount: 0,
+    errorCount: 0,
+    logStatus: 'normal' as const,
+    personaName: '',
+    ...overrides,
+  })
+
+  const formatter = createFormatter({
+    theme: DEFAULT_STATUSLINE_CONFIG.theme,
+    useColors: false,
+  })
+
+  it('renders prefix and suffix when value is non-empty', () => {
+    const viewModel = makeViewModel({ personaName: 'jarvis' })
+    const result = formatter.format("{personaName,prefix='[',suffix=']'}", viewModel)
+    expect(result).toBe('[jarvis]')
+  })
+
+  it('omits prefix and suffix when value is empty', () => {
+    const viewModel = makeViewModel({ personaName: '' })
+    const result = formatter.format("{personaName,prefix='[',suffix=']'} | {model}", viewModel)
+    expect(result).toBe('claude-3-5-sonnet')
+  })
+
+  it('renders prefix only when specified', () => {
+    const viewModel = makeViewModel({ personaName: 'jarvis' })
+    const result = formatter.format("{personaName,prefix='→ '}", viewModel)
+    expect(result).toBe('→ jarvis')
+  })
+
+  it('renders suffix only when specified', () => {
+    const viewModel = makeViewModel({ personaName: 'jarvis' })
+    const result = formatter.format("{personaName,suffix=' ←'}", viewModel)
+    expect(result).toBe('jarvis ←')
+  })
+
+  it('handles suffix with pipe separator', () => {
+    const viewModel = makeViewModel({ personaName: 'jarvis' })
+    const result = formatter.format("{personaName,prefix='[',suffix='] | '}{model}", viewModel)
+    expect(result).toBe('[jarvis] | claude-3-5-sonnet')
+  })
+
+  it('cleans up when value with suffix is empty', () => {
+    const viewModel = makeViewModel({ personaName: '' })
+    // Empty personaName should result in just the model, no orphan separators
+    const result = formatter.format("{personaName,prefix='[',suffix='] | '}{model,prefix='[',suffix=']'}", viewModel)
+    expect(result).toBe('[claude-3-5-sonnet]')
+  })
+
+  it('handles escaped quotes in prefix', () => {
+    const viewModel = makeViewModel({ personaName: 'test' })
+    const result = formatter.format("{personaName,prefix='it\\'s '}", viewModel)
+    expect(result).toBe("it's test")
+  })
+
+  it('handles escaped backslash in suffix', () => {
+    const viewModel = makeViewModel({ personaName: 'test' })
+    const result = formatter.format("{personaName,suffix=' \\\\'}", viewModel)
+    expect(result).toBe('test \\')
+  })
+
+  it('allows suffix before prefix in options', () => {
+    const viewModel = makeViewModel({ personaName: 'jarvis' })
+    const result = formatter.format("{personaName,suffix=']',prefix='['}", viewModel)
+    expect(result).toBe('[jarvis]')
+  })
+
+  it('backward compatible with simple {token} syntax', () => {
+    const viewModel = makeViewModel({ personaName: 'jarvis' })
+    const result = formatter.format('{personaName} | {model}', viewModel)
+    expect(result).toBe('jarvis | claude-3-5-sonnet')
+  })
+
+  it('handles multiple tokens with prefix/suffix', () => {
+    const viewModel = makeViewModel({ personaName: 'jarvis', title: 'Auth fix' })
+    const result = formatter.format(
+      "{personaName,prefix='[',suffix='] | '}{model,prefix='[',suffix='] | '}{title}",
+      viewModel
+    )
+    expect(result).toBe('[jarvis] | [claude-3-5-sonnet] | Auth fix')
+  })
+
+  it('handles all empty tokens with prefix/suffix gracefully', () => {
+    const viewModel = makeViewModel({ personaName: '', title: '' })
+    const result = formatter.format(
+      "{personaName,prefix='[',suffix='] | '}{title,prefix='(',suffix=')'} | {model}",
+      viewModel
+    )
+    expect(result).toBe('claude-3-5-sonnet')
   })
 })
 

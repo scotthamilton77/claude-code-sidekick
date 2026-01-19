@@ -26,6 +26,13 @@ settings:
   #   {summary}                 - Session summary/intent
   #   {personaName}             - Current persona name (empty if disabled or no persona)
   #
+  # Conditional prefix/suffix syntax:
+  #   {token,prefix='...',suffix='...'}
+  #   - prefix and suffix only render when the token value is non-empty
+  #   - Either or both can be specified
+  #   - Use backslash to escape quotes: \'
+  #   - Example: {personaName,prefix='[',suffix='] | '} → "[jarvis] | " or "" (if empty)
+  #
   # Example configurations:
   #   Simple ratio:     "{tokenUsageActual}/{contextWindow}"          → "45k/200k"
   #   Percentage only:  "{tokenPercentageActual}"                     → "22%"
@@ -33,7 +40,7 @@ settings:
   #   With buffer:      "{tokenUsageActual}|{tokenUsageEffective}"    → "45k|90k"
   #   Verbose:          "{contextBar} {tokenUsageActual}/{contextWindow} ({tokenPercentageEffective})"
   #
-  format: "[{personaName}] | [{model}] | {contextBar} {tokenPercentageActual} | {logs} | {cwd}{branch}\n{title} | {summary}"
+  format: "{personaName,prefix='[',suffix='] | '}{model,prefix='[',suffix='] | '}{contextBar} {tokenPercentageActual} | {logs} | {cwd}{branch}\n{title} | {summary}"
 
   # Threshold configuration for visual warnings
   thresholds:
