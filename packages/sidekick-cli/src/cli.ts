@@ -284,6 +284,7 @@ export async function ensureDaemon(options: {
 const GLOBAL_HELP_TEXT = `Usage: sidekick <command> [options]
 
 Commands:
+  hook <hook-name>         Execute Claude Code hook (session-start, user-prompt-submit, etc.)
   persona <subcommand>     Manage session personas (list, set, clear, test)
   sessions                 List all daemon-tracked sessions
   daemon <subcommand>      Manage the background daemon (start, stop, status, kill)
@@ -373,6 +374,69 @@ export async function routeCommand(context: {
     })
     stdout.write('{}\n')
     return { exitCode: 0, stdout: '{}', stderr: '' }
+  }
+
+  // Handle unified hook command: sidekick hook <hook-name>
+  // Outputs Claude Code format directly (no bash+jq translation needed)
+  if (parsed.command === 'hook') {
+    const { parseHookArg, handleUnifiedHookCommand } = await import('./commands/hook-command.js')
+    const hookArg = parsed._?.[1] as string | undefined
+    const hookName = parseHookArg(hookArg)
+
+    // Show help for 'sidekick hook --help' or 'sidekick hook' without subcommand
+    if (parsed.help || !hookArg) {
+      const helpText = `Usage: sidekick hook <hook-name>
+
+Execute a Claude Code hook and output the response in Claude Code format.
+
+Hook Names (kebab-case or PascalCase):
+  session-start       Session started (startup, resume, clear, compact)
+  session-end         Session ended (notification only)
+  user-prompt-submit  User submitted a prompt
+  pre-tool-use        Before a tool is executed
+  post-tool-use       After a tool is executed
+  stop                Claude is about to stop
+  pre-compact         Before transcript compaction
+
+Examples:
+  echo '{"session_id":"abc"}' | sidekick hook session-start
+  npx @sidekick/cli hook user-prompt-submit
+`
+      stdout.write(helpText)
+      return { exitCode: 0, stdout: helpText, stderr: '' }
+    }
+
+    if (!hookName) {
+      const errorMsg = `Error: Unknown hook name '${hookArg}'\nRun 'sidekick hook --help' for available hooks.\n`
+      stdout.write(errorMsg)
+      return { exitCode: 1, stdout: errorMsg, stderr: '' }
+    }
+
+    if (!hookInput) {
+      runtime.logger.warn('Hook command invoked without valid hook input', { hookName })
+      stdout.write('{}\n')
+      return { exitCode: 0, stdout: '{}', stderr: '' }
+    }
+
+    if (!runtime.scope.projectRoot) {
+      runtime.logger.warn('Hook command invoked without project root', { hookName })
+      stdout.write('{}\n')
+      return { exitCode: 0, stdout: '{}', stderr: '' }
+    }
+
+    const result = await handleUnifiedHookCommand(
+      hookName,
+      {
+        projectRoot: runtime.scope.projectRoot,
+        hookInput,
+        correlationId: runtime.correlationId,
+        scope: runtime.scope.scope,
+        runtime,
+      },
+      runtime.logger,
+      stdout
+    )
+    return { exitCode: result.exitCode, stdout: result.output, stderr: '' }
   }
 
   if (parsed.command === 'daemon') {
