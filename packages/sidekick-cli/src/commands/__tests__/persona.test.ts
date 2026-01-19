@@ -7,8 +7,6 @@
  * - Outputs correct formats (JSON, table)
  * - Handles errors gracefully
  *
- * Uses mocks for IPC-dependent operations (DaemonClient, IpcService).
- *
  * @see persona.ts handlePersonaCommand
  */
 import { Writable } from 'node:stream'
@@ -16,15 +14,25 @@ import { describe, expect, test, vi, beforeEach } from 'vitest'
 
 // Mock @sidekick/core before importing the module under test
 // Note: vi.mock is hoisted, so we use vi.hoisted to define mock functions
-const { mockDaemonStart, mockIpcSend, mockIpcClose, mockDiscoverPersonas, mockGetDefaultPersonasDir } = vi.hoisted(
-  () => ({
-    mockDaemonStart: vi.fn(),
-    mockIpcSend: vi.fn(),
-    mockIpcClose: vi.fn(),
-    mockDiscoverPersonas: vi.fn(),
-    mockGetDefaultPersonasDir: vi.fn(),
-  })
-)
+const {
+  mockDaemonStart,
+  mockIpcSend,
+  mockIpcClose,
+  mockDiscoverPersonas,
+  mockGetDefaultPersonasDir,
+  mockStateServiceDelete,
+  mockPersonaAccessorRead,
+  mockPersonaAccessorWrite,
+} = vi.hoisted(() => ({
+  mockDaemonStart: vi.fn(),
+  mockIpcSend: vi.fn(),
+  mockIpcClose: vi.fn(),
+  mockDiscoverPersonas: vi.fn(),
+  mockGetDefaultPersonasDir: vi.fn(),
+  mockStateServiceDelete: vi.fn(),
+  mockPersonaAccessorRead: vi.fn(),
+  mockPersonaAccessorWrite: vi.fn(),
+}))
 
 vi.mock('@sidekick/core', () => {
   return {
@@ -37,13 +45,23 @@ vi.mock('@sidekick/core', () => {
     })),
     StateService: vi.fn().mockImplementation(() => ({
       sessionStatePath: vi.fn().mockReturnValue('/mock/path/to/state.json'),
+      delete: mockStateServiceDelete,
     })),
+    SessionStateAccessor: vi.fn().mockImplementation(() => ({
+      read: mockPersonaAccessorRead,
+      write: mockPersonaAccessorWrite,
+    })),
+    sessionState: vi.fn().mockReturnValue({
+      filename: 'session-persona.json',
+      schema: {},
+      defaultValue: null,
+    }),
     discoverPersonas: mockDiscoverPersonas,
     getDefaultPersonasDir: mockGetDefaultPersonasDir,
   }
 })
 
-// CollectingWritable to capture stdout output
+/** Writable that collects output for assertions. */
 class CollectingWritable extends Writable {
   data = ''
 
@@ -53,8 +71,7 @@ class CollectingWritable extends Writable {
   }
 }
 
-// Create fake logger
-function createFakeLogger(): {
+type FakeLogger = {
   trace: ReturnType<typeof vi.fn>
   debug: ReturnType<typeof vi.fn>
   info: ReturnType<typeof vi.fn>
@@ -63,7 +80,9 @@ function createFakeLogger(): {
   fatal: ReturnType<typeof vi.fn>
   child: ReturnType<typeof vi.fn>
   flush: ReturnType<typeof vi.fn>
-} {
+}
+
+function createFakeLogger(): FakeLogger {
   return {
     trace: vi.fn(),
     debug: vi.fn(),
@@ -80,7 +99,7 @@ import { handlePersonaCommand } from '../persona'
 
 describe('handlePersonaCommand', () => {
   let stdout: CollectingWritable
-  let logger: ReturnType<typeof createFakeLogger>
+  let logger: FakeLogger
   const projectRoot = '/mock/project'
 
   beforeEach(() => {
@@ -98,6 +117,10 @@ describe('handlePersonaCommand', () => {
         ['skippy', { id: 'skippy', display_name: 'Skippy', theme: 'Snarky AI' }],
       ])
     )
+    // Reset state accessor mocks
+    mockPersonaAccessorRead.mockResolvedValue({ data: null, source: 'default' })
+    mockPersonaAccessorWrite.mockResolvedValue(undefined)
+    mockStateServiceDelete.mockResolvedValue(undefined)
   })
 
   describe('subcommand routing', () => {
@@ -208,15 +231,25 @@ describe('handlePersonaCommand', () => {
       expect(stdout.data).toContain('Error: persona set requires --session-id')
     })
 
-    test('sets persona successfully', async () => {
-      mockIpcSend.mockResolvedValueOnce({ success: true, previousPersonaId: 'skippy' })
+    test('sets persona successfully via direct file write', async () => {
+      mockPersonaAccessorRead.mockResolvedValueOnce({ data: { persona_id: 'skippy' }, source: 'fresh' })
 
       const result = await handlePersonaCommand('set', ['marvin'], projectRoot, logger, stdout, {
         sessionId: 'test-session',
       })
 
       expect(result.exitCode).toBe(0)
-      expect(mockIpcSend).toHaveBeenCalledWith('persona.set', { sessionId: 'test-session', personaId: 'marvin' })
+      // Verify direct file write instead of IPC
+      expect(mockPersonaAccessorWrite).toHaveBeenCalledWith(
+        'test-session',
+        expect.objectContaining({
+          persona_id: 'marvin',
+          selected_from: expect.arrayContaining(['marvin', 'skippy']),
+          timestamp: expect.any(String),
+        })
+      )
+      // Verify no IPC call was made for persona set
+      expect(mockIpcSend).not.toHaveBeenCalledWith('persona.set', expect.anything())
 
       const output = JSON.parse(stdout.data)
       expect(output.success).toBe(true)
@@ -224,35 +257,23 @@ describe('handlePersonaCommand', () => {
       expect(output.previousPersonaId).toBe('skippy')
     })
 
-    test('handles IPC null response', async () => {
-      mockIpcSend.mockResolvedValueOnce(null)
+    test('sets persona with no previous persona', async () => {
+      mockPersonaAccessorRead.mockResolvedValueOnce({ data: null, source: 'default' })
 
       const result = await handlePersonaCommand('set', ['marvin'], projectRoot, logger, stdout, {
         sessionId: 'test-session',
       })
 
-      expect(result.exitCode).toBe(1)
+      expect(result.exitCode).toBe(0)
+      expect(mockPersonaAccessorWrite).toHaveBeenCalled()
+
       const output = JSON.parse(stdout.data)
-      expect(output.success).toBe(false)
-      expect(output.error).toContain('No response from daemon')
+      expect(output.success).toBe(true)
+      expect(output.personaId).toBe('marvin')
+      expect(output.previousPersonaId).toBeNull()
     })
 
-    test('handles daemon start failure', async () => {
-      mockDaemonStart.mockRejectedValueOnce(new Error('Connection refused'))
-
-      const result = await handlePersonaCommand('set', ['marvin'], projectRoot, logger, stdout, {
-        sessionId: 'test-session',
-      })
-
-      expect(result.exitCode).toBe(1)
-      const output = JSON.parse(stdout.data)
-      expect(output.success).toBe(false)
-      expect(output.error).toContain('Connection refused')
-    })
-
-    test('handles IPC failure response', async () => {
-      mockIpcSend.mockResolvedValueOnce({ success: false, error: 'Persona not found' })
-
+    test('rejects unknown persona', async () => {
       const result = await handlePersonaCommand('set', ['nonexistent'], projectRoot, logger, stdout, {
         sessionId: 'test-session',
       })
@@ -260,7 +281,22 @@ describe('handlePersonaCommand', () => {
       expect(result.exitCode).toBe(1)
       const output = JSON.parse(stdout.data)
       expect(output.success).toBe(false)
-      expect(output.error).toBe('Persona not found')
+      expect(output.error).toContain('Persona "nonexistent" not found')
+      expect(output.error).toContain('marvin')
+      expect(output.error).toContain('skippy')
+    })
+
+    test('handles write failure', async () => {
+      mockPersonaAccessorWrite.mockRejectedValueOnce(new Error('Disk full'))
+
+      const result = await handlePersonaCommand('set', ['marvin'], projectRoot, logger, stdout, {
+        sessionId: 'test-session',
+      })
+
+      expect(result.exitCode).toBe(1)
+      const output = JSON.parse(stdout.data)
+      expect(output.success).toBe(false)
+      expect(output.error).toContain('Disk full')
     })
   })
 
@@ -272,15 +308,18 @@ describe('handlePersonaCommand', () => {
       expect(stdout.data).toContain('Error: persona clear requires --session-id')
     })
 
-    test('clears persona successfully', async () => {
-      mockIpcSend.mockResolvedValueOnce({ success: true, previousPersonaId: 'marvin' })
+    test('clears persona successfully via direct file deletion', async () => {
+      mockPersonaAccessorRead.mockResolvedValueOnce({ data: { persona_id: 'marvin' }, source: 'fresh' })
 
       const result = await handlePersonaCommand('clear', [], projectRoot, logger, stdout, {
         sessionId: 'test-session',
       })
 
       expect(result.exitCode).toBe(0)
-      expect(mockIpcSend).toHaveBeenCalledWith('persona.set', { sessionId: 'test-session', personaId: null })
+      // Verify direct file deletion instead of IPC
+      expect(mockStateServiceDelete).toHaveBeenCalledWith('/mock/path/to/state.json')
+      // Verify no IPC call was made
+      expect(mockIpcSend).not.toHaveBeenCalledWith('persona.set', expect.anything())
 
       const output = JSON.parse(stdout.data)
       expect(output.success).toBe(true)
@@ -288,16 +327,33 @@ describe('handlePersonaCommand', () => {
       expect(output.previousPersonaId).toBe('marvin')
     })
 
-    test('handles clear failure', async () => {
-      mockIpcSend.mockResolvedValueOnce({ success: false, error: 'Session not found' })
+    test('clears persona with no previous persona', async () => {
+      mockPersonaAccessorRead.mockResolvedValueOnce({ data: null, source: 'default' })
 
       const result = await handlePersonaCommand('clear', [], projectRoot, logger, stdout, {
-        sessionId: 'unknown-session',
+        sessionId: 'test-session',
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(mockStateServiceDelete).toHaveBeenCalled()
+
+      const output = JSON.parse(stdout.data)
+      expect(output.success).toBe(true)
+      expect(output.personaId).toBeNull()
+      expect(output.previousPersonaId).toBeNull()
+    })
+
+    test('handles delete failure', async () => {
+      mockStateServiceDelete.mockRejectedValueOnce(new Error('Permission denied'))
+
+      const result = await handlePersonaCommand('clear', [], projectRoot, logger, stdout, {
+        sessionId: 'test-session',
       })
 
       expect(result.exitCode).toBe(1)
       const output = JSON.parse(stdout.data)
       expect(output.success).toBe(false)
+      expect(output.error).toContain('Permission denied')
     })
   })
 

@@ -13,43 +13,26 @@
 import { readFile } from 'node:fs/promises'
 import type { Writable } from 'node:stream'
 import type { Logger } from '@sidekick/core'
-import { DaemonClient, IpcService, StateService, discoverPersonas, getDefaultPersonasDir } from '@sidekick/core'
+import {
+  DaemonClient,
+  IpcService,
+  StateService,
+  SessionStateAccessor,
+  sessionState,
+  discoverPersonas,
+  getDefaultPersonasDir,
+} from '@sidekick/core'
+import type { SessionPersonaState } from '@sidekick/types'
+import { SessionPersonaStateSchema } from '@sidekick/types'
 import { renderTable, renderEmptyTable } from './table.js'
 
 /**
- * Execute an IPC command with automatic daemon start and cleanup.
- *
- * Handles the common pattern of:
- * 1. Creating DaemonClient and IpcService
- * 2. Starting the daemon
- * 3. Sending the IPC message
- * 4. Closing the IPC service
+ * Session persona state descriptor.
+ * Matches the descriptor in feature-session-summary/src/state.ts.
  */
-async function withDaemonIpc<T>(
-  projectRoot: string,
-  logger: Logger,
-  method: string,
-  payload: Record<string, unknown>
-): Promise<{ success: true; result: T } | { success: false; error: string }> {
-  const daemonClient = new DaemonClient(projectRoot, logger)
-  const ipcService = new IpcService(projectRoot, logger)
-
-  try {
-    await daemonClient.start()
-    const result = await ipcService.send<T>(method, payload)
-
-    if (!result) {
-      return { success: false, error: 'No response from daemon' }
-    }
-
-    return { success: true, result }
-  } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : String(err)
-    return { success: false, error: errorMsg }
-  } finally {
-    ipcService.close()
-  }
-}
+const SessionPersonaDescriptor = sessionState('session-persona.json', SessionPersonaStateSchema, {
+  defaultValue: null,
+})
 
 export interface PersonaCommandOptions {
   /** Session ID (required for set/clear/test) */
@@ -65,6 +48,17 @@ export interface PersonaCommandOptions {
 export interface PersonaCommandResult {
   exitCode: number
   output: string
+}
+
+/** Write JSON response to stdout and return command result. */
+function writeJsonResponse(
+  stdout: Writable,
+  response: Record<string, unknown>,
+  exitCode: number
+): PersonaCommandResult {
+  const output = JSON.stringify(response, null, 2)
+  stdout.write(output + '\n')
+  return { exitCode, output }
 }
 
 /**
@@ -130,16 +124,11 @@ function handlePersonaList(
   return { exitCode: 0, output: JSON.stringify({ count: personaIds.length }) }
 }
 
-interface PersonaSetResult {
-  success: boolean
-  previousPersonaId?: string
-  error?: string
-}
-
 /**
  * Handle the persona set subcommand.
  *
- * Sets the session persona via daemon IPC.
+ * Writes directly to session-persona.json, bypassing daemon IPC.
+ * This allows persona switching to work in sandbox mode.
  */
 async function handlePersonaSet(
   personaId: string,
@@ -159,42 +148,57 @@ async function handlePersonaSet(
 
   logger.info('Setting persona', { personaId, sessionId })
 
-  const ipcResult = await withDaemonIpc<PersonaSetResult>(projectRoot, logger, 'persona.set', { sessionId, personaId })
+  // Validate persona exists
+  const personas = discoverPersonas({
+    defaultPersonasDir: getDefaultPersonasDir(),
+    projectRoot,
+    logger,
+  })
 
-  if (!ipcResult.success) {
-    logger.error('Failed to set persona', { error: ipcResult.error })
-    stdout.write(JSON.stringify({ success: false, error: ipcResult.error }, null, 2) + '\n')
-    return { exitCode: 1, output: ipcResult.error }
+  if (!personas.has(personaId)) {
+    const availableIds = Array.from(personas.keys()).join(', ')
+    const errorMsg = `Persona "${personaId}" not found. Available: ${availableIds}`
+    logger.error('Persona not found', { personaId, available: availableIds })
+    return writeJsonResponse(stdout, { success: false, error: errorMsg }, 1)
   }
 
-  const result = ipcResult.result
-  if (!result.success) {
-    const errorMsg = result.error ?? 'Unknown error'
-    stdout.write(JSON.stringify({ success: false, error: errorMsg }, null, 2) + '\n')
-    return { exitCode: 1, output: errorMsg }
+  // Create state service and accessor for direct file write
+  const stateService = new StateService(projectRoot, { cache: false, logger })
+  const personaAccessor = new SessionStateAccessor(stateService, SessionPersonaDescriptor)
+
+  try {
+    // Read existing persona (if any) for response
+    const existingResult = await personaAccessor.read(sessionId)
+    const previousPersonaId = existingResult.data?.persona_id ?? null
+
+    // Write new persona selection
+    const newState: SessionPersonaState = {
+      persona_id: personaId,
+      selected_from: Array.from(personas.keys()),
+      timestamp: new Date().toISOString(),
+    }
+
+    await personaAccessor.write(sessionId, newState)
+
+    if (previousPersonaId) {
+      logger.info('Persona changed', { from: previousPersonaId, to: personaId })
+    } else {
+      logger.info('Persona set', { personaId })
+    }
+
+    return writeJsonResponse(stdout, { success: true, personaId, previousPersonaId }, 0)
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err)
+    logger.error('Failed to set persona', { error: errorMsg })
+    return writeJsonResponse(stdout, { success: false, error: errorMsg }, 1)
   }
-
-  const response = {
-    success: true,
-    personaId,
-    previousPersonaId: result.previousPersonaId ?? null,
-  }
-
-  stdout.write(JSON.stringify(response, null, 2) + '\n')
-
-  if (result.previousPersonaId) {
-    logger.info('Persona changed', { from: result.previousPersonaId, to: personaId })
-  } else {
-    logger.info('Persona set', { personaId })
-  }
-
-  return { exitCode: 0, output: JSON.stringify(response) }
 }
 
 /**
  * Handle the persona clear subcommand.
  *
- * Clears the session persona via daemon IPC.
+ * Deletes session-persona.json directly, bypassing daemon IPC.
+ * This allows persona clearing to work in sandbox mode.
  */
 async function handlePersonaClear(
   projectRoot: string,
@@ -213,40 +217,34 @@ async function handlePersonaClear(
 
   logger.info('Clearing persona', { sessionId })
 
-  const ipcResult = await withDaemonIpc<PersonaSetResult>(projectRoot, logger, 'persona.set', {
-    sessionId,
-    personaId: null,
-  })
+  // Create state service and accessor for direct file operations
+  const stateService = new StateService(projectRoot, { cache: false, logger })
+  const personaAccessor = new SessionStateAccessor(stateService, SessionPersonaDescriptor)
 
-  if (!ipcResult.success) {
-    logger.error('Failed to clear persona', { error: ipcResult.error })
-    stdout.write(JSON.stringify({ success: false, error: ipcResult.error }, null, 2) + '\n')
-    return { exitCode: 1, output: ipcResult.error }
+  try {
+    // Read existing persona (if any) for response
+    const existingResult = await personaAccessor.read(sessionId)
+    const previousPersonaId = existingResult.data?.persona_id ?? null
+
+    // Delete the persona file
+    const personaPath = stateService.sessionStatePath(sessionId, 'session-persona.json')
+    await stateService.delete(personaPath)
+
+    logger.info('Persona cleared', { previousPersonaId: previousPersonaId ?? '(none)' })
+
+    return writeJsonResponse(stdout, { success: true, personaId: null, previousPersonaId }, 0)
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err)
+    logger.error('Failed to clear persona', { error: errorMsg })
+    return writeJsonResponse(stdout, { success: false, error: errorMsg }, 1)
   }
-
-  const result = ipcResult.result
-  if (!result.success) {
-    const errorMsg = result.error ?? 'Unknown error'
-    stdout.write(JSON.stringify({ success: false, error: errorMsg }, null, 2) + '\n')
-    return { exitCode: 1, output: errorMsg }
-  }
-
-  const response = {
-    success: true,
-    personaId: null,
-    previousPersonaId: result.previousPersonaId ?? null,
-  }
-
-  stdout.write(JSON.stringify(response, null, 2) + '\n')
-  logger.info('Persona cleared', { previousPersonaId: result.previousPersonaId ?? '(none)' })
-
-  return { exitCode: 0, output: JSON.stringify(response) }
 }
 
 /**
  * Handle the persona test subcommand.
  *
  * Tests persona voice differentiation by generating snarky or resume messages.
+ * This command still uses IPC because it requires the daemon for LLM generation.
  */
 async function handlePersonaTest(
   personaId: string,
@@ -282,8 +280,7 @@ async function handlePersonaTest(
 
     if (!setResult || !setResult.success) {
       const errorMsg = `Failed to set persona: ${setResult?.error ?? 'No response from daemon'}`
-      stdout.write(JSON.stringify({ error: errorMsg }, null, 2) + '\n')
-      return { exitCode: 1, output: errorMsg }
+      return writeJsonResponse(stdout, { error: errorMsg }, 1)
     }
 
     if (setResult.previousPersonaId) {
@@ -301,8 +298,7 @@ async function handlePersonaTest(
 
     if (!genResult || !genResult.success) {
       const errorMsg = `Generation failed: ${genResult?.error ?? 'No response from daemon'}`
-      stdout.write(JSON.stringify({ error: errorMsg }, null, 2) + '\n')
-      return { exitCode: 1, output: errorMsg }
+      return writeJsonResponse(stdout, { error: errorMsg }, 1)
     }
 
     // Step 3: Read and output the state file
@@ -315,15 +311,12 @@ async function handlePersonaTest(
       stdout.write(content + '\n')
       return { exitCode: 0, output: content }
     } catch {
-      const errorMsg = `Failed to read generated file: ${statePath}`
-      stdout.write(JSON.stringify({ error: errorMsg }, null, 2) + '\n')
-      return { exitCode: 1, output: errorMsg }
+      return writeJsonResponse(stdout, { error: `Failed to read generated file: ${statePath}` }, 1)
     }
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err)
     logger.error('Persona test failed', { error: errorMsg })
-    stdout.write(JSON.stringify({ error: errorMsg }, null, 2) + '\n')
-    return { exitCode: 1, output: errorMsg }
+    return writeJsonResponse(stdout, { error: errorMsg }, 1)
   } finally {
     ipcService.close()
   }

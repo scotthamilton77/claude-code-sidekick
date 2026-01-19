@@ -60,6 +60,7 @@ import { homedir } from 'os'
 import fs from 'fs/promises'
 import path from 'path'
 import { ConfigChangeEvent, ConfigWatcher } from './config-watcher.js'
+import { PersonaChangeEvent, SessionPersonaWatcher } from './session-persona-watcher.js'
 import { ContextMetricsService, createContextMetricsService } from './context-metrics/index.js'
 import { registerStandardTaskHandlers } from './task-handlers.js'
 import { TaskRegistry } from './task-registry.js'
@@ -101,6 +102,7 @@ export class Daemon {
   private taskRegistry: TaskRegistry
   private ipcServer: IpcServer
   private configWatcher: ConfigWatcher
+  private personaWatcher: SessionPersonaWatcher
   private handlerRegistry: HandlerRegistry
   private serviceFactory: ServiceFactory
   private assetResolver: AssetResolver
@@ -209,11 +211,22 @@ export class Daemon {
       {
         projectDir: this.stateService.rootDir(),
         devAssetsDir: this.configService.core.development.enabled ? getDefaultAssetsDir() : undefined,
-        // Optionally ignore schemas/templates if they cause noise:
-        // ignored: ['**/schemas/**', '**/templates/**'],
+        // Ignore non-config directories to prevent unnecessary reloads
+        // Uses function matcher since glob patterns don't match dotfiles (.sidekick)
+        // - logs: prevents feedback loop (log writes triggering config reload)
+        // - sessions: session state files, watched separately by SessionPersonaWatcher
+        // - state: daemon runtime state, not configuration
+        ignored: (filePath: string) => /\/(logs|sessions|state)\//.test(filePath),
       },
       this.logger,
       this.handleConfigChange.bind(this)
+    )
+
+    // Watch for session-persona.json changes (CLI writes directly for sandbox compatibility)
+    this.personaWatcher = new SessionPersonaWatcher(
+      { sidekickDir: this.stateService.rootDir() },
+      this.logger,
+      this.handlePersonaChange.bind(this)
     )
 
     // Initialize Handler Registry
@@ -306,6 +319,9 @@ export class Daemon {
       // 8. Start config watcher for hot-reload
       this.configWatcher.start()
 
+      // 8b. Start persona watcher for CLI-written persona changes
+      this.personaWatcher.start()
+
       // 9. Start idle timeout checker
       this.startIdleCheck()
 
@@ -337,6 +353,9 @@ export class Daemon {
 
     // Stop config watcher
     this.configWatcher.stop()
+
+    // Stop persona watcher
+    this.personaWatcher.stop()
 
     // Shutdown all instrumented LLM providers (persists final metrics)
     try {
@@ -435,6 +454,70 @@ export class Daemon {
       this.logger.info('Configuration reloaded successfully')
     } catch (err) {
       this.logger.error('Failed to reload configuration', {
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+  }
+
+  /**
+   * Handle session persona file changes.
+   *
+   * When CLI writes directly to session-persona.json (for sandbox compatibility),
+   * this handler regenerates snarky and resume messages for the session.
+   *
+   * On 'unlink' (persona cleared), skips regeneration since there's no persona to voice.
+   */
+  private handlePersonaChange(event: PersonaChangeEvent): void {
+    this.logger.info('Session persona changed via file', {
+      sessionId: event.sessionId,
+      eventType: event.eventType,
+    })
+
+    // Skip regeneration if persona was cleared (unlink)
+    if (event.eventType === 'unlink') {
+      this.logger.debug('Persona cleared, skipping message regeneration', {
+        sessionId: event.sessionId,
+      })
+      return
+    }
+
+    // Fire-and-forget regeneration (don't block the watcher callback)
+    void this.regenerateMessagesForSession(event.sessionId)
+  }
+
+  /**
+   * Regenerate snarky and resume messages for a session after persona change.
+   *
+   * This is called asynchronously after the persona file changes.
+   * Uses the same infrastructure as the IPC handlers for message generation.
+   */
+  private async regenerateMessagesForSession(sessionId: string): Promise<void> {
+    this.logger.info('Regenerating messages after persona change', { sessionId })
+
+    try {
+      // Prepare transcript service for the session
+      const transcriptPath = reconstructTranscriptPath(this.projectDir, sessionId)
+      const transcriptService = await this.serviceFactory.prepareTranscriptService(sessionId, transcriptPath)
+      await transcriptService.start()
+
+      // Get context for task execution
+      const ctx = await this.getContextForTask(sessionId)
+      const ctxWithTranscript = { ...ctx, transcript: transcriptService }
+
+      // Regenerate both message types in parallel
+      const [snarkyResult, resumeResult] = await Promise.all([
+        generateSnarkyMessageOnDemand(ctxWithTranscript, sessionId),
+        generateResumeMessageOnDemand(ctxWithTranscript, sessionId),
+      ])
+
+      this.logger.info('Messages regenerated after persona change', {
+        sessionId,
+        snarky: snarkyResult.success ? 'success' : snarkyResult.error,
+        resume: resumeResult.success ? 'success' : resumeResult.error,
+      })
+    } catch (err) {
+      this.logger.error('Failed to regenerate messages after persona change', {
+        sessionId,
         error: err instanceof Error ? err.message : String(err),
       })
     }

@@ -152,12 +152,17 @@ statusline:
 The assistant has access to the current session ID via `<session-info>` in the context. To change the persona for the current session:
 
 ```bash
-node packages/sidekick-cli/dist/bin.js persona <persona-id> --session-id=<session-id>
+pnpm sidekick persona set <persona-id> --session-id=<session-id>
 ```
 
-**Example:** If session ID is `abc-123` and user wants GLaDOS:
+**Example:** If session ID is `abc-123` and user wants Hal:
 ```bash
-node packages/sidekick-cli/dist/bin.js persona glados --session-id=abc-123
+pnpm sidekick persona set hal --session-id=abc-123
+```
+
+To clear the persona and revert to default:
+```bash
+pnpm sidekick persona clear --session-id=<session-id>
 ```
 
 See [resources/PERSONAS.md](resources/PERSONAS.md) for available personas and creating custom ones.
