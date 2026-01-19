@@ -1,89 +1,71 @@
-# benchmark-next
+# llm-eval
 
-🚧 **STATUS: EXPERIMENTAL - FOUNDATION SETUP IN PROGRESS** 🚧
+**STATUS: Archived Development Tool**
 
-TypeScript rewrite of the Bash-based benchmarking system.
+LLM evaluation framework for benchmarking providers against reference outputs. Originally developed as `benchmark-next/`, a TypeScript rewrite of the Bash-based benchmarking system.
 
-## ⚠️ Important
+## Current State
 
-**This is Track 2 of a dual-track development effort.**
+This implementation is **91% complete** but was never validated against the original Bash implementation. The core functionality (providers, scoring, consensus, orchestration, CLI) is implemented, but Phase 9 (validation and E2E testing) was not completed.
 
-- **Track 1** (`scripts/benchmark/`): Production Bash implementation - active debugging/improvements
-- **Track 2** (`benchmark-next/`): TypeScript rewrite - architectural foundation being established
+**What exists:**
+- LLM provider abstractions (Claude, OpenAI, OpenRouter)
+- Circuit breaker with exponential backoff (Cockatiel-based)
+- Transcript preprocessing and excerpt extraction
+- Three-dimensional scoring (schema, technical, content)
+- Consensus algorithms (string, numeric, boolean, array)
+- Reference generation and benchmark runner
+- CLI commands
 
-**Do NOT use this code yet.** It's under active development and not production-ready.
+**What's missing:**
+- Output comparison tests (Track 1 vs Track 2)
+- Performance benchmarking
+- E2E tests with real LLM calls
+- Migration guide documentation
 
-## Current Status
+## Before Resuming Work
 
-- [x] Directory structure created
-- [ ] TypeScript configuration (tsconfig.json, package.json)
-- [ ] Core architecture design
-- [ ] LLM provider abstraction
-- [ ] Scoring algorithms
-- [ ] Consensus algorithms
-- [ ] CLI interface
-- [ ] Test suite
-- [ ] Documentation
-- [ ] Validation against Track 1 outputs
-- [ ] Performance benchmarking
+This codebase duplicates functionality that now exists in the main `packages/` monorepo:
 
-## Goals
+| llm-eval location | Main package equivalent |
+|-------------------|------------------------|
+| `src/lib/providers/` | `@sidekick/shared-providers` |
+| `src/lib/transcript/` | `@sidekick/sidekick-core` TranscriptService |
+| `src/lib/config/` | `@sidekick/sidekick-core` config |
+| `src/lib/logging/` | `@sidekick/sidekick-core` logging |
 
-### Why Rewrite?
+**If this tool is needed again**, significant refactoring is required to:
+1. Remove duplicated provider/config/logging code
+2. Depend on `@sidekick/*` packages instead
+3. Keep only benchmark-specific code (scoring, consensus, runner)
 
-The Bash implementation (`scripts/benchmark/`) is ~3,000 LOC and growing unwieldy:
-- Complex async orchestration using subshells and background processes
-- Limited type safety (runtime errors from typos, missing vars)
-- Statistical operations awkward in Bash (jq for everything)
-- Test coverage difficult to achieve comprehensively
-- Maintenance burden increasing
+## Directory Structure
 
-### What We're Building
-
-A maintainable TypeScript implementation with:
-- **Type Safety**: Full TypeScript strict mode, Zod for runtime validation
-- **Better Async**: Native async/await vs Bash background jobs
-- **Modern Testing**: Vitest with comprehensive coverage
-- **Cleaner Architecture**: Classes, interfaces, dependency injection
-- **Same Behavior**: Must produce identical outputs to Track 1
-
-## Migration Strategy
-
-**NOT a direct Bash → TypeScript translation.**
-
-Instead:
-1. Track 1 improvements → extract functional requirements → document in `docs/benchmark-migration.md`
-2. Implement requirements idiomatically in TypeScript (use language strengths)
-3. Validate: both tracks process same test data → compare outputs → ensure behavioral parity
-
-## Architecture
-
-See `CLAUDE.md` for complete architectural guidance.
-
-**Planned Structure**:
 ```
 src/
-├── core/          # Main orchestration (Benchmark, ReferenceGenerator, Config)
-├── providers/     # LLM provider abstractions (Claude, OpenAI, OpenRouter, CircuitBreaker)
-├── scoring/       # Scoring algorithms (SchemaValidator, SemanticSimilarity, etc.)
-├── consensus/     # Consensus algorithms (Median, Majority, SemanticCentrality)
-└── cli/           # CLI entry points
+├── lib/                 # Shared infrastructure (duplicates main packages)
+│   ├── providers/       # LLM provider abstractions
+│   ├── config/          # Configuration cascade
+│   ├── logging/         # Structured logging (pino)
+│   ├── transcript/      # Transcript processing
+│   └── utils/           # JSON extraction, helpers
+└── benchmark/           # Benchmark-specific domain logic
+    ├── core/            # Orchestration (BenchmarkRunner, ReferenceGenerator)
+    ├── scoring/         # Scoring algorithms
+    ├── consensus/       # Consensus algorithms
+    └── cli/             # CLI entry points
+
+bash-scripts/            # Original Bash benchmark suite (from scripts/benchmark/)
+reporting/               # Report generation tools
 ```
 
-## Development Workflow
-
-### Setup (when ready)
+## Usage (if running as-is)
 
 ```bash
-cd benchmark-next
+cd development-tools/llm-eval
 pnpm install
 pnpm build
-pnpm test
-```
 
-### Running (when ready)
-
-```bash
 # Benchmark a model against reference outputs
 pnpm benchmark --provider openrouter --model google/gemini-flash-1.5
 
@@ -91,39 +73,9 @@ pnpm benchmark --provider openrouter --model google/gemini-flash-1.5
 pnpm generate-reference --transcript-id short-001
 ```
 
-### Testing
+## History
 
-```bash
-# Unit tests (mocked LLM providers, fast)
-pnpm test
-
-# Integration tests (use real test data)
-pnpm test:integration
-
-# E2E tests (expensive, real LLM calls)
-pnpm test:e2e
-```
-
-## Validation
-
-Before marking Track 2 as production-ready:
-
-1. **Functional Parity**: All Track 1 features implemented
-2. **Output Equivalence**: Same test data → identical outputs (JSON schema, values, structure)
-3. **Performance**: Within 20% of Track 1 execution time
-4. **Type Coverage**: 100% (no `any` types)
-5. **Test Coverage**: >80% line coverage, all critical paths tested
-6. **Documentation**: Complete API docs, examples, migration guide
-
-## Contributing
-
-Track 2 is not yet ready for general use. If you need benchmarking functionality, use Track 1 (`scripts/benchmark/`).
-
-For questions about the migration strategy or architecture, see:
-- `CLAUDE.md` - Development guidance for this codebase
-- `docs/benchmark-migration.md` - Track 1 → Track 2 requirement sync log
-- `/workspaces/claude-config/CLAUDE.md` - Project-wide architecture overview
-
-## Timeline
-
-**Open-ended.** Track 2 is done when it achieves production-ready status (see validation checklist above). In the meantime, Track 1 remains the working implementation.
+- Originally created as `benchmark-next/` for TypeScript migration of Bash benchmarking
+- Relocated to `development-tools/llm-eval/` during Phase 10 cleanup
+- Development paused at 91% completion when main `packages/` architecture stabilized
+- See `development-tools/docs/.archive/llm-eval-ROADMAP.md` for detailed phase history
