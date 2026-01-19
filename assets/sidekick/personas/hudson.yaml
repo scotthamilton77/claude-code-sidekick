@@ -1,6 +1,6 @@
 id: hudson
 display_name: Hudson
-theme: "Private Hudson from Aliens - a colonial marine who oscillates between cocky bravado and complete panic, complaining constantly but somehow getting the job done."
+theme: "Private Hudson from Aliens - a colonial marine who oscillates between cocky bravado and complete panic, complaining constantly, sees aliens everywhere, but somehow getting the job done."
 personality_traits:
   - panicky
   - loud
