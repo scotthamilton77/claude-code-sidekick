@@ -46,6 +46,7 @@ interface ParsedArgs {
   sessionIdArg?: string
   messageType?: 'snarky' | 'resume'
   help?: boolean
+  force?: boolean
   _?: (string | number)[]
 }
 
@@ -442,7 +443,8 @@ export async function routeCommand(context: {
       subcommand,
       runtime.scope.projectRoot || process.cwd(),
       runtime.logger,
-      stdout
+      stdout,
+      { force: Boolean(parsed.force) }
     )
     return { exitCode: result.exitCode, stdout: '', stderr: '' }
   }
