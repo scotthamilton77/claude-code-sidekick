@@ -44,6 +44,7 @@ interface ParsedArgs {
   preferProject?: boolean
   sessionIdArg?: string
   messageType?: 'snarky' | 'resume'
+  help?: boolean
   _?: (string | number)[]
 }
 
@@ -64,7 +65,7 @@ interface RunCliOptions {
  */
 function parseArgs(argv: string[]): ParsedArgs {
   const parsed = yargsParser(argv, {
-    boolean: ['hook', 'wait', 'open', 'prefer-project'],
+    boolean: ['hook', 'wait', 'open', 'prefer-project', 'help'],
     string: ['hook-script-path', 'project-dir', 'scope', 'log-level', 'format', 'host', 'session-id', 'type'],
     number: ['port'],
     configuration: {
@@ -89,6 +90,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     preferProject: parsed['prefer-project'] as boolean | undefined,
     sessionIdArg: parsed['session-id'] as string | undefined,
     messageType: parsed.type as 'snarky' | 'resume' | undefined,
+    help: Boolean(parsed.help),
     _: parsed._,
   }
 }
@@ -351,54 +353,21 @@ export async function routeCommand(context: {
 
   if (parsed.command === 'persona') {
     const { handlePersonaCommand } = await import('./commands/persona.js')
-    // persona <persona-id> --session-id=<id>
-    // persona --session-id=<id>  (clears persona)
-    const personaId = parsed._?.[1] as string | undefined
-    const sessionId = parsed.sessionIdArg
-
-    if (!sessionId) {
-      stdout.write('Error: persona command requires --session-id\n')
-      stdout.write('Usage: sidekick persona <persona-id> --session-id=<id>\n')
-      stdout.write('       sidekick persona --session-id=<id>  (clear persona)\n')
-      return { exitCode: 1, stdout: '', stderr: '' }
-    }
+    // persona <subcommand> [args] --session-id=<id>
+    // Subcommands: list, set, clear, test
+    const subcommand = parsed._?.[1] as string | undefined
+    const args = parsed._?.slice(2) ?? []
 
     const result = await handlePersonaCommand(
-      personaId,
-      runtime.scope.projectRoot || process.cwd(),
-      runtime.logger,
-      stdout,
-      { sessionId }
-    )
-    return { exitCode: result.exitCode, stdout: result.output, stderr: '' }
-  }
-
-  if (parsed.command === 'persona-test') {
-    const { handlePersonaTestCommand } = await import('./commands/persona-test.js')
-    // persona-test <persona-id> --session-id=<id> [--type=snarky|resume]
-    const personaId = parsed._?.[1] as string | undefined
-    const sessionId = parsed.sessionIdArg
-
-    if (!personaId) {
-      stdout.write('Error: persona-test requires a persona ID as first argument\n')
-      stdout.write('Usage: sidekick persona-test <persona-id> --session-id=<id> [--type=snarky|resume]\n')
-      return { exitCode: 1, stdout: '', stderr: '' }
-    }
-
-    if (!sessionId) {
-      stdout.write('Error: persona-test requires --session-id\n')
-      stdout.write('Usage: sidekick persona-test <persona-id> --session-id=<id> [--type=snarky|resume]\n')
-      return { exitCode: 1, stdout: '', stderr: '' }
-    }
-
-    const result = await handlePersonaTestCommand(
-      personaId,
+      subcommand,
+      args,
       runtime.scope.projectRoot || process.cwd(),
       runtime.logger,
       stdout,
       {
-        sessionId,
-        type: parsed.messageType ?? 'snarky',
+        sessionId: parsed.sessionIdArg,
+        format: parsed.format === 'json' || parsed.format === 'table' ? parsed.format : undefined,
+        testType: parsed.messageType,
       }
     )
     return { exitCode: result.exitCode, stdout: result.output, stderr: '' }
@@ -410,6 +379,19 @@ export async function routeCommand(context: {
       format: parsed.format === 'json' || parsed.format === 'table' ? parsed.format : undefined,
     })
     return { exitCode: result.exitCode, stdout: result.output, stderr: '' }
+  }
+
+  if (parsed.command === 'dev-mode') {
+    // Check for --help/-h flags which yargs-parser consumes
+    const subcommand = parsed.help ? '--help' : (parsed._ && (parsed._[1] as string)) || 'status'
+    const { handleDevModeCommand } = await import('./commands/dev-mode.js')
+    const result = await handleDevModeCommand(
+      subcommand,
+      runtime.scope.projectRoot || process.cwd(),
+      runtime.logger,
+      stdout
+    )
+    return { exitCode: result.exitCode, stdout: '', stderr: '' }
   }
 
   // Interactive mode: show informational message

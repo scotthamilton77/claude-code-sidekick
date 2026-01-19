@@ -173,12 +173,15 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
     - **Port LOW**: `kill-sidekick-processes.sh`, `find-orphaned-processes.sh`, `generate-model-report.py`
     - **Archive**: `simulate-session.py` (refactor to TypeScript integration tests), legacy shell tests
 - [ ] **10.2 Migration Tasks**
-  - [ ] **OpenRouter Provider Routing**: Add allowlist/blocklist support to filter unreliable providers
+  - [x] **OpenRouter Provider Routing** - COMPLETE 2026-01-18: Added allowlist/blocklist support to filter unreliable providers
     - Config: `llm.openrouter.providerAllowlist`, `llm.openrouter.providerBlocklist`
-    - Implementation: Add `provider` field to OpenRouter request body (see OpenRouter API docs)
-    - Location: `@sidekick/shared-providers` factory or dedicated OpenRouter provider class
+    - Implementation: Added `provider` field to OpenRouter request body
+    - Location: `@sidekick/shared-providers` OpenRouterProfileProvider class with `buildProviderField()` method
   - [ ] **Script Ports (HIGH priority)**:
-    - [ ] `dev-mode.sh` → `packages/sidekick-cli/src/commands/dev-mode.ts`
+    - [x] `dev-mode.sh` → `packages/sidekick-cli/src/commands/dev-mode.ts` - COMPLETE 2026-01-19
+      - Subcommands: enable, disable, status, clean, clean-all
+      - Tests: 16 tests with 88% line coverage
+      - Non-interactive (no prompts) unlike bash version - suitable for scripted use
     - [ ] `analyze-session-at-line.sh` → `packages/sidekick-cli/src/commands/analyze-session.ts` (keep bash as fallback)
   - [ ] **Script Ports (MEDIUM priority)**:
     - [ ] `bulk-session-summary.sh` → `packages/sidekick-cli/src/commands/bulk-analyze.ts`

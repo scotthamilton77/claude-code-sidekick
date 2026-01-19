@@ -58,8 +58,10 @@ describe('handleSessionsCommand', () => {
   let logger: ReturnType<typeof createFakeLogger>
 
   beforeEach(async () => {
-    // Create temp directory for each test
-    tempDir = await fs.mkdtemp(path.join('/tmp', 'sessions-test-'))
+    // Create temp directory for each test (use /tmp/claude/ for sandbox compatibility)
+    const tmpBase = process.env.TMPDIR ?? '/tmp/claude'
+    await fs.mkdir(tmpBase, { recursive: true })
+    tempDir = await fs.mkdtemp(path.join(tmpBase, 'sessions-test-'))
     stdout = new CollectingWritable()
     logger = createFakeLogger()
   })
@@ -107,7 +109,7 @@ describe('handleSessionsCommand', () => {
 
   describe('empty state', () => {
     test('returns empty list when sessions directory does not exist', async () => {
-      const result = await handleSessionsCommand(tempDir, logger, stdout)
+      const result = await handleSessionsCommand(tempDir, logger, stdout, { format: 'json' })
 
       expect(result.exitCode).toBe(0)
       const output = JSON.parse(stdout.data)
@@ -118,7 +120,7 @@ describe('handleSessionsCommand', () => {
     test('returns empty list when sessions directory is empty', async () => {
       await fs.mkdir(path.join(tempDir, '.sidekick', 'sessions'), { recursive: true })
 
-      const result = await handleSessionsCommand(tempDir, logger, stdout)
+      const result = await handleSessionsCommand(tempDir, logger, stdout, { format: 'json' })
 
       expect(result.exitCode).toBe(0)
       const output = JSON.parse(stdout.data)
@@ -136,7 +138,7 @@ describe('handleSessionsCommand', () => {
         timestamp: '2026-01-18T12:00:00.000Z',
       })
 
-      const result = await handleSessionsCommand(tempDir, logger, stdout)
+      const result = await handleSessionsCommand(tempDir, logger, stdout, { format: 'json' })
 
       expect(result.exitCode).toBe(0)
       const output = JSON.parse(stdout.data)
@@ -155,7 +157,7 @@ describe('handleSessionsCommand', () => {
       const sessionDir = path.join(tempDir, '.sidekick', 'sessions', 'session-no-summary', 'state')
       await fs.mkdir(sessionDir, { recursive: true })
 
-      const result = await handleSessionsCommand(tempDir, logger, stdout)
+      const result = await handleSessionsCommand(tempDir, logger, stdout, { format: 'json' })
 
       expect(result.exitCode).toBe(0)
       const output = JSON.parse(stdout.data)
@@ -175,7 +177,7 @@ describe('handleSessionsCommand', () => {
         // No personaId
       })
 
-      const result = await handleSessionsCommand(tempDir, logger, stdout)
+      const result = await handleSessionsCommand(tempDir, logger, stdout, { format: 'json' })
 
       expect(result.exitCode).toBe(0)
       const output = JSON.parse(stdout.data)
@@ -189,7 +191,7 @@ describe('handleSessionsCommand', () => {
       await createSession('session-2', { title: 'Second Session' })
       await createSession('session-3', { title: 'Third Session' })
 
-      const result = await handleSessionsCommand(tempDir, logger, stdout)
+      const result = await handleSessionsCommand(tempDir, logger, stdout, { format: 'json' })
 
       expect(result.exitCode).toBe(0)
       const output = JSON.parse(stdout.data)
@@ -214,7 +216,7 @@ describe('handleSessionsCommand', () => {
       await fs.utimes(oldPath, oldTime, oldTime)
       await fs.utimes(newPath, newTime, newTime)
 
-      const result = await handleSessionsCommand(tempDir, logger, stdout)
+      const result = await handleSessionsCommand(tempDir, logger, stdout, { format: 'json' })
 
       expect(result.exitCode).toBe(0)
       const output = JSON.parse(stdout.data)
@@ -224,16 +226,16 @@ describe('handleSessionsCommand', () => {
   })
 
   describe('output formats', () => {
-    test('outputs JSON by default', async () => {
+    test('outputs table by default', async () => {
       await createSession('test-session', { title: 'Test' })
 
       await handleSessionsCommand(tempDir, logger, stdout)
 
-      // Should be valid JSON
-      expect(() => JSON.parse(stdout.data)).not.toThrow()
-      const output = JSON.parse(stdout.data)
-      expect(output).toHaveProperty('sessions')
-      expect(output).toHaveProperty('count')
+      // Table format should NOT be valid JSON
+      expect(() => JSON.parse(stdout.data)).toThrow()
+      // Should contain human-readable content
+      expect(stdout.data).toContain('Sessions (1)')
+      expect(stdout.data).toContain('test-session')
     })
 
     test('outputs JSON when format is json', async () => {
@@ -292,7 +294,7 @@ describe('handleSessionsCommand', () => {
       await fs.mkdir(sessionsDir, { recursive: true })
       await fs.chmod(sessionsDir, 0o000)
 
-      const result = await handleSessionsCommand(tempDir, logger, stdout)
+      const result = await handleSessionsCommand(tempDir, logger, stdout, { format: 'json' })
 
       // Restore permissions for cleanup
       await fs.chmod(sessionsDir, 0o755)
