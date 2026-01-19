@@ -7,13 +7,14 @@
  *   - persona clear             Clear session persona (requires --session-id)
  *   - persona test <id>         Test persona voice (requires --session-id)
  *
- * All commands support --json for structured output.
+ * All commands support --format=json or --format=table for output.
  */
 
 import { readFile } from 'node:fs/promises'
 import type { Writable } from 'node:stream'
 import type { Logger } from '@sidekick/core'
 import { DaemonClient, IpcService, StateService, discoverPersonas, getDefaultPersonasDir } from '@sidekick/core'
+import { renderTable, renderEmptyTable } from './table.js'
 
 /**
  * Execute an IPC command with automatic daemon start and cleanup.
@@ -57,6 +58,8 @@ export interface PersonaCommandOptions {
   format?: 'json' | 'table'
   /** Test message type: snarky or resume */
   testType?: 'snarky' | 'resume'
+  /** Table width in characters (default: 100) */
+  width?: number
 }
 
 export interface PersonaCommandResult {
@@ -76,6 +79,7 @@ function handlePersonaList(
   options: PersonaCommandOptions
 ): PersonaCommandResult {
   const format = options.format ?? 'json'
+  const tableWidth = options.width ?? 100
 
   logger.debug('Listing personas', { projectRoot })
 
@@ -89,15 +93,24 @@ function handlePersonaList(
 
   if (format === 'table') {
     if (personaIds.length === 0) {
-      stdout.write('No personas found.\n')
+      stdout.write(renderEmptyTable('No personas found', tableWidth) + '\n')
     } else {
       stdout.write(`Available Personas (${personaIds.length}):\n\n`)
-      for (const id of personaIds) {
+
+      const data = personaIds.map((id) => {
         const persona = personas.get(id)!
-        const displayName = persona.display_name ?? id
-        stdout.write(`  ${id.padEnd(20)} ${displayName}\n`)
-      }
-      stdout.write('\n')
+        return [id, persona.display_name ?? id, persona.theme ?? '']
+      })
+
+      const table = renderTable(data, {
+        totalWidth: tableWidth,
+        columns: [
+          { header: 'ID', width: 20 },
+          { header: 'Display Name', width: 20 },
+          { header: 'Theme', width: 'flex', minWidth: 20 },
+        ],
+      })
+      stdout.write(table + '\n')
     }
   } else {
     const result = {
@@ -331,12 +344,13 @@ Subcommands:
 Options:
   --session-id=<id>             Session ID for set/clear/test commands
   --type=snarky|resume          Message type for test command (default: snarky)
-  --json                        Output as JSON (default)
-  --format=table                Output as human-readable table
+  --format=<format>             Output format: json (default) or table
+  --width=<n>                   Table width in characters (default: 100)
 
 Examples:
   sidekick persona list
   sidekick persona list --format=table
+  sidekick persona list --format=table --width=120
   sidekick persona set marvin --session-id=abc123
   sidekick persona clear --session-id=abc123
   sidekick persona test skippy --session-id=abc123 --type=snarky

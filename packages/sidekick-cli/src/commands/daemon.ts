@@ -18,11 +18,32 @@ import type { KillResult } from '@sidekick/core'
 
 export interface DaemonCommandOptions {
   wait?: boolean
+  help?: boolean
 }
 
 export interface DaemonCommandResult {
   exitCode: number
 }
+
+const USAGE_TEXT = `Usage: sidekick daemon <command> [options]
+
+Commands:
+  start      Start the project-local daemon
+  stop       Gracefully stop the daemon via IPC
+  status     Check daemon status and ping
+  kill       Forcefully terminate the daemon (SIGKILL)
+  kill-all   Kill all daemons across all projects
+
+Options:
+  --wait     Wait for daemon to fully stop (with 'stop' command)
+  --help     Show this help message
+
+Examples:
+  sidekick daemon start
+  sidekick daemon stop --wait
+  sidekick daemon status
+  sidekick daemon kill-all
+`
 
 export async function handleDaemonCommand(
   subcommand: string,
@@ -89,9 +110,15 @@ export async function handleDaemonCommand(
       break
     }
 
+    case 'help':
+    case '--help':
+    case '-h':
+      stdout.write(USAGE_TEXT)
+      return { exitCode: 0 }
+
     default:
-      stdout.write(`Unknown daemon subcommand: ${subcommand}\n`)
-      stdout.write('Available commands: start, stop [--wait], status, kill, kill-all\n')
+      stdout.write(`Unknown daemon subcommand: ${subcommand}\n\n`)
+      stdout.write(USAGE_TEXT)
       return { exitCode: 1 }
   }
 

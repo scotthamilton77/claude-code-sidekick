@@ -4,7 +4,7 @@
  * Lists all daemon-tracked sessions with metadata.
  *
  * Usage:
- *   sidekick sessions [--format=json|table]
+ *   sidekick sessions [--format=json|table] [--width=N]
  */
 
 import * as fs from 'node:fs/promises'
@@ -13,11 +13,38 @@ import type { Writable } from 'node:stream'
 import type { Logger } from '@sidekick/core'
 import { StateService } from '@sidekick/core'
 import type { SessionSummaryState, SessionPersonaState } from '@sidekick/types'
+import { renderTable, renderEmptyTable } from './table.js'
 
 export interface SessionsCommandOptions {
   /** Output format: 'json' (default) or 'table' */
   format?: 'json' | 'table'
+  /** Show help */
+  help?: boolean
+  /** Table width in characters (default: 100) */
+  width?: number
 }
+
+const USAGE_TEXT = `Usage: sidekick sessions [options]
+
+List all daemon-tracked sessions with metadata.
+
+Options:
+  --format=<format>   Output format: table (default) or json
+  --width=<n>         Table width in characters (default: 100)
+  --help, -h          Show this help message
+
+Output includes:
+  - Session ID
+  - Title (from session summary)
+  - Current intent
+  - Active persona (if any)
+  - Last modified time
+
+Examples:
+  sidekick sessions
+  sidekick sessions --format=json
+  sidekick sessions --format=table --width=120
+`
 
 export interface SessionInfo {
   /** Session ID (UUID) */
@@ -76,6 +103,12 @@ export async function handleSessionsCommand(
   stdout: Writable,
   options: SessionsCommandOptions = {}
 ): Promise<SessionsCommandResult> {
+  // Handle help request
+  if (options.help) {
+    stdout.write(USAGE_TEXT)
+    return { exitCode: 0, output: '' }
+  }
+
   const format = options.format ?? 'table'
   const stateService = new StateService(projectRoot)
   const sessionsDir = stateService.sessionsDir()
@@ -131,23 +164,32 @@ export async function handleSessionsCommand(
     // Sort by modification time (most recent first)
     sessions.sort((a, b) => new Date(b.modifiedAt).getTime() - new Date(a.modifiedAt).getTime())
 
+    const tableWidth = options.width ?? 100
+
     if (format === 'table') {
       // Human-readable table format
       if (sessions.length === 0) {
-        stdout.write('No sessions found.\n')
+        stdout.write(renderEmptyTable('No sessions found', tableWidth) + '\n')
       } else {
         stdout.write(`Sessions (${sessions.length}):\n\n`)
-        for (const session of sessions) {
+
+        const data = sessions.map((session) => {
           const title = session.title ?? '(no title)'
-          const persona = session.personaId ? `[${session.personaId}]` : ''
+          const persona = session.personaId ?? ''
           const modified = new Date(session.modifiedAt).toLocaleString()
-          stdout.write(`  ${session.sessionId}\n`)
-          stdout.write(`    Title: ${title} ${persona}\n`)
-          if (session.intent) {
-            stdout.write(`    Intent: ${session.intent}\n`)
-          }
-          stdout.write(`    Modified: ${modified}\n\n`)
-        }
+          return [session.sessionId.slice(0, 8), title, persona, modified]
+        })
+
+        const table = renderTable(data, {
+          totalWidth: tableWidth,
+          columns: [
+            { header: 'Session', width: 10 },
+            { header: 'Title', width: 'flex', minWidth: 20 },
+            { header: 'Persona', width: 20 },
+            { header: 'Modified', width: 22 },
+          ],
+        })
+        stdout.write(table + '\n')
       }
     } else {
       // JSON format
