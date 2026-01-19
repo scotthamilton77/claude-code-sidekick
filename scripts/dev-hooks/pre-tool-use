@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 # Dev-mode hook wrapper for PreToolUse
-# Uses $CLAUDE_PROJECT_DIR for Docker volume mount compatibility
-#
-# Hook input JSON is piped via stdin to the CLI, which extracts session_id
-# per CLI.md §3.1.1 Hook Input Structure.
+# Uses unified 'sidekick hook' command which handles Claude Code format translation
 #
 # Environment variables:
 #   SIDEKICK_LOG_LEVEL - Override log level (debug|info|warn|error)
@@ -13,57 +10,14 @@ CLI_BIN="${CLAUDE_PROJECT_DIR}/packages/sidekick-cli/dist/bin.js"
 
 if [[ ! -f "${CLI_BIN}" ]]; then
   echo "ERROR: CLI not built. Run 'pnpm build' first." >&2
-  echo '{"error": "dev-hooks: CLI not built"}' >&2
   exit 1
 fi
 
-# Build CLI args
-CLI_ARGS=(pre-tool-use --hook --scope=project)
-CLI_ARGS+=(--hook-script-path="${CLAUDE_PROJECT_DIR}/scripts/dev-hooks/pre-tool-use")
-CLI_ARGS+=(--project-dir="${CLAUDE_PROJECT_DIR}")
+# Build CLI args for unified hook command
+CLI_ARGS=(hook pre-tool-use --scope=project --project-dir="${CLAUDE_PROJECT_DIR}")
 if [[ -n "${SIDEKICK_LOG_LEVEL:-}" ]]; then
   CLI_ARGS+=(--log-level "${SIDEKICK_LOG_LEVEL}")
 fi
 
-# Capture stdin first (Claude Code hook input JSON)
-STDIN_DATA=$(cat)
-
-# Pass stdin to CLI, then translate internal format to Claude Code format
-INTERNAL_RESPONSE=$(echo "$STDIN_DATA" | node "${CLI_BIN}" "${CLI_ARGS[@]}")
-
-# Translate internal HookResponse to Claude Code PreToolUse format
-# - blocking/reason → hookSpecificOutput.permissionDecision: "deny", message
-# - userMessage → systemMessage (shown to user)
-# - additionalContext → hookSpecificOutput.permissionDecisionReason
-# See: https://code.claude.com/docs/en/hooks
-if command -v jq &> /dev/null; then
-  echo "$INTERNAL_RESPONSE" | jq -c '
-    {}
-    + (if .blocking == true then
-        { hookSpecificOutput: {
-            hookEventName: "PreToolUse",
-            permissionDecision: "deny",
-            permissionDecisionReason: (
-              if .reason and .additionalContext then "\(.reason)\n\n\(.additionalContext)"
-              elif .reason then .reason
-              elif .additionalContext then .additionalContext
-              else "Blocked by Sidekick"
-              end
-            )
-          }
-        }
-      elif .additionalContext then
-        # Non-blocking but with context - use permissionDecisionReason
-        { hookSpecificOutput: {
-            hookEventName: "PreToolUse",
-            permissionDecision: "allow",
-            permissionDecisionReason: .additionalContext
-          }
-        }
-      else {} end)
-    + (if .userMessage then { systemMessage: .userMessage } else {} end)
-  '
-else
-  # Fallback: passthrough if jq not available
-  echo "$INTERNAL_RESPONSE"
-fi
+# exec inherits stdin - unified hook command reads input and outputs Claude Code format
+exec node "${CLI_BIN}" "${CLI_ARGS[@]}"
