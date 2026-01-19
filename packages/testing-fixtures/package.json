@@ -15,10 +15,10 @@
   },
   "dependencies": {
     "@sidekick/types": "workspace:*",
-    "@sidekick/core": "workspace:*",
     "yaml": "^2.8.2"
   },
   "devDependencies": {
+    "@sidekick/core": "workspace:*",
     "@types/node": "^22.7.4",
     "typescript": "^5.6.3",
     "vitest": "^2.1.1"
