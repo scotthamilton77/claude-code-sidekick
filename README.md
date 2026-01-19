@@ -502,29 +502,49 @@ pnpm tsc --noEmit
 node packages/sidekick-cli/dist/bin.js session-start --hook
 ```
 
+### CLI Commands
+
+The `pnpm sidekick` CLI provides commands for managing sessions, personas, and development:
+
+```bash
+# List all tracked sessions
+pnpm sidekick sessions --format=table
+
+# Manage background daemon
+pnpm sidekick daemon status
+pnpm sidekick daemon start
+pnpm sidekick daemon stop
+
+# Manage development hooks
+pnpm sidekick dev-mode status
+pnpm sidekick dev-mode enable
+pnpm sidekick dev-mode disable
+pnpm sidekick dev-mode clean      # Truncate logs, kill daemon
+pnpm sidekick dev-mode clean-all  # Full cleanup including sessions
+
+# Launch web monitoring UI
+pnpm sidekick ui
+```
+
 ### Persona Commands
 
 Change or test personas for a session:
 
 ```bash
+# List available personas
+pnpm sidekick persona list --format=table
+
 # Set session persona
-sidekick persona <persona-id> --session-id=<session-id>
+pnpm sidekick persona set <persona-id> --session-id=<session-id>
 
 # Clear session persona (use default)
-sidekick persona --session-id=<session-id>
+pnpm sidekick persona clear --session-id=<session-id>
 
 # Test persona voice with snarky or resume message generation
-sidekick persona-test <persona-id> --session-id=<session-id> [--type=snarky|resume]
+pnpm sidekick persona test <persona-id> --session-id=<session-id> [--type=snarky|resume]
 ```
 
-**Output format (JSON)**:
-```json
-{
-  "success": true,
-  "personaId": "hal",
-  "previousPersonaId": "skippy"
-}
-```
+**Output format**: Use `--format=json` for structured output or `--format=table` for ASCII tables.
 
 Available personas are defined in `assets/sidekick/personas/`.
 
