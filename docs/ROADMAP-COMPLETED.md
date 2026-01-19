@@ -1040,3 +1040,74 @@ This document preserves the full implementation details of completed phases from
       - [x] No @deprecated APIs remain
       - [x] All FIXMEs addressed or converted to tracked issues
       - [x] Design docs current with implementation
+
+---
+
+- [x] **Phase 10: Feature Parity and Legacy Cleanup** - COMPLETE 2026-01-19
+  - [x] Objectives
+    - [x] Audit legacy implementations against TypeScript rewrite for feature parity
+    - [x] Port remaining functionality not obsolete or in conflict with new designs; document intentional omissions
+    - [x] Clean up or archive legacy code
+  - [x] Relevant documents/sections
+    - [x] `{project_root_dir}/docs/ARCHITECTURE.md` (§1 Guiding Principles)
+    - [x] `{project_root_dir}/docs/design/flow.md` (complete hook flows as feature reference)
+  - [x] **10.1 Legacy Audit** - COMPLETE 2026-01-12
+    - [x] Audit `src/sidekick/` (bash runtime) for behaviors not yet in TypeScript packages
+    - **Findings Summary:**
+      - **Core Infrastructure (~95%)**: All 5 hooks, 8-layer config cascade (exceeds bash), session storage, plugin system with Kahn's toposort
+      - **LLM Integration (~75%)**: Providers work (Claude CLI, OpenAI, OpenRouter), FallbackProvider for HA, debug dumps
+      - **Features (100%)**: All 9 features implemented (Statusline, Session Summary, Resume, Sleeper→event-driven, Snarky Comment, Tracking, Reminders, Pre-Completion, Cleanup)
+    - **Gaps identified:**
+      - OpenRouter provider routing (allowlist/blocklist) - **completed in 10.2**
+      - Custom provider (schema accepts but factory doesn't implement) - deferred, implement when needed
+    - **Intentional simplifications (not porting):**
+      - Per-model OpenRouter overrides and model name normalization - internal detail
+      - Per-task PID/log files - daemon architecture handles differently
+      - Sleeper polling daemon - replaced with event-driven (better design)
+      - Stateful circuit breaker - FallbackProvider is simpler and sufficient
+    - [x] Audit `benchmark-next/` for unported features (early TypeScript exploration, largely stale)
+    - **Note**: benchmark-next/ relocated to `development-tools/llm-eval/` with related scripts and test-data
+    - **development-tools/llm-eval/ Findings:**
+      - **Reusable**: `CircuitBreakerProvider.ts` (Cockatiel-based, exponential backoff) - consider porting if resilience needed
+      - **Reusable**: `json-extraction.ts` - clean utility, currently scattered in packages
+      - **Not needed**: Config system (packages/ 8-layer cascade is more mature), consensus/scoring algorithms (LLM eval specific)
+      - **Disposition**: Archived as development tool (91% complete, unvalidated)
+    - [x] Audit `scripts/` for analysis tools that should migrate
+    - **scripts/ Findings:**
+      - **Keep as-is**: `install.sh`, `uninstall.sh` (shell is natural for file ops and user prompts)
+      - **Port HIGH**: `dev-mode.sh` (CLI command) - DONE, `analyze-session-at-line.sh` - RETIRED (dev-mode covers use case)
+      - **Reimagined**: `generate-reminder-template.sh` → sidekick-config skill (Claude generates reminders interactively from CLAUDE.md)
+      - **Retired**: `bulk-session-summary.sh`, `collect-test-data.sh`, `copy-config.sh` (low-usage dev tools, not worth porting)
+      - **Port LOW**: `kill-sidekick-processes.sh`, `find-orphaned-processes.sh`, `generate-model-report.py`
+      - **Archive**: `simulate-session.py` (refactor to TypeScript integration tests), legacy shell tests
+  - [x] **10.2 Migration Tasks** - COMPLETE 2026-01-19
+    - [x] **OpenRouter Provider Routing** - COMPLETE 2026-01-18: Added allowlist/blocklist support to filter unreliable providers
+      - Config: `llm.openrouter.providerAllowlist`, `llm.openrouter.providerBlocklist`
+      - Implementation: Added `provider` field to OpenRouter request body
+      - Location: `@sidekick/shared-providers` OpenRouterProfileProvider class with `buildProviderField()` method
+    - [x] **Script Ports (HIGH priority)**:
+      - [x] `dev-mode.sh` → `packages/sidekick-cli/src/commands/dev-mode.ts` - COMPLETE 2026-01-19
+        - Subcommands: enable, disable, status, clean, clean-all
+        - Tests: 16 tests with 88% line coverage
+        - Non-interactive (no prompts) unlike bash version - suitable for scripted use
+      - [x] `analyze-session-at-line.sh` - RETIRED 2026-01-19: Deleted script, dev-mode history tracking now covers this use case
+    - [x] **Script Ports (MEDIUM priority)**:
+      - [x] `bulk-session-summary.sh` - RETIRED 2026-01-19: Low-usage dev tool for test data curation, not worth porting
+      - [x] `collect-test-data.sh` - RETIRED 2026-01-19: Low-usage LLM eval tool for test data curation, not worth porting
+      - [x] `copy-config.sh` - RETIRED 2026-01-19: Low-usage dev tool, not worth porting
+      - [x] `generate-reminder-template.sh` - REIMAGINED 2026-01-19: Replaced by sidekick-config skill; Claude generates reminders interactively from CLAUDE.md
+  - [x] **10.3 Legacy Cleanup** - COMPLETE 2026-01-19
+    - [x] Update `development-tools/llm-eval/` README and AGENTS.md to reflect new location and archived status
+      - README updated to reflect "Archived Development Tool" status (91% complete, unvalidated)
+      - Documents refactoring needed before resuming work (depends on @sidekick/* packages)
+      - AGENTS.md was already updated in prior work
+    - [x] Archive outdated migration docs
+      - Archived `llm-eval/ROADMAP.md` to `development-tools/docs/.archive/llm-eval-ROADMAP.md`
+      - Deleted obsolete `docs/benchmark-migration.md`
+    - [x] Decide: retain bash runtime as fallback or deprecate entirely - DEFERRED to Phase 11
+    - [x] Update `AGENTS.md` to reflect final state - DEFERRED to Phase 12 (documentation polish)
+  - [x] Acceptance criteria
+    - [x] TypeScript rewrite has feature parity with legacy (documented exceptions allowed)
+    - [x] Legacy code is archived/deprecated with clear migration notes
+    - [x] Code complexity is kept low using stated architecture principles and guidelines
+    - [x] All new and modified files are documented
