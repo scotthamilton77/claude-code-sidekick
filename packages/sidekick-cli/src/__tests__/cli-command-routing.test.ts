@@ -121,6 +121,92 @@ describe('CLI command routing', () => {
 
       expect(result.exitCode).toBe(1)
     })
+
+    test('routes --kill flag to kill subcommand', async () => {
+      mockHandleDaemonCommand.mockResolvedValue({ exitCode: 0 })
+
+      const result = await runCli({
+        argv: ['daemon', '--kill'],
+        stdout,
+        stderr,
+        cwd: projectDir,
+        enableFileLogging: false,
+      })
+
+      expect(result.exitCode).toBe(0)
+      // Verify the handler was called with 'kill' subcommand
+      expect(mockHandleDaemonCommand).toHaveBeenCalledWith(
+        'kill',
+        expect.any(String),
+        expect.any(Object),
+        expect.any(Object),
+        expect.any(Object)
+      )
+    })
+
+    test('fails fast with error in sandbox mode', async () => {
+      // Simulate sandbox mode
+      const originalEnv = process.env.SANDBOX_RUNTIME
+      process.env.SANDBOX_RUNTIME = '1'
+
+      try {
+        const result = await runCli({
+          argv: ['daemon', 'status'],
+          stdout,
+          stderr,
+          cwd: projectDir,
+          enableFileLogging: false,
+        })
+
+        expect(result.exitCode).toBe(1)
+        expect(stdout.data).toContain('Daemon commands cannot run in sandbox mode')
+        expect(stdout.data).toContain('dangerouslyDisableSandbox')
+        // Handler should NOT be called
+        expect(mockHandleDaemonCommand).not.toHaveBeenCalled()
+      } finally {
+        // Restore environment
+        if (originalEnv === undefined) {
+          delete process.env.SANDBOX_RUNTIME
+        } else {
+          process.env.SANDBOX_RUNTIME = originalEnv
+        }
+      }
+    })
+
+    test('allows --help in sandbox mode', async () => {
+      // Simulate sandbox mode
+      const originalEnv = process.env.SANDBOX_RUNTIME
+      process.env.SANDBOX_RUNTIME = '1'
+
+      try {
+        mockHandleDaemonCommand.mockResolvedValue({ exitCode: 0 })
+
+        const result = await runCli({
+          argv: ['daemon', '--help'],
+          stdout,
+          stderr,
+          cwd: projectDir,
+          enableFileLogging: false,
+        })
+
+        expect(result.exitCode).toBe(0)
+        // Handler should be called with --help
+        expect(mockHandleDaemonCommand).toHaveBeenCalledWith(
+          '--help',
+          expect.any(String),
+          expect.any(Object),
+          expect.any(Object),
+          expect.any(Object)
+        )
+      } finally {
+        // Restore environment
+        if (originalEnv === undefined) {
+          delete process.env.SANDBOX_RUNTIME
+        } else {
+          process.env.SANDBOX_RUNTIME = originalEnv
+        }
+      }
+    })
   })
 
   describe('statusline command', () => {

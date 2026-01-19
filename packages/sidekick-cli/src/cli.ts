@@ -24,6 +24,26 @@ import { PassThrough, Writable } from 'node:stream'
 import yargsParser from 'yargs-parser'
 
 import type { ParsedHookInput, MinimalStateService } from '@sidekick/types'
+
+/**
+ * Detect if running in Claude Code sandbox mode.
+ * Sandbox mode sets SANDBOX_RUNTIME=1 and blocks Unix socket operations.
+ */
+function isInSandbox(): boolean {
+  return process.env.SANDBOX_RUNTIME === '1'
+}
+
+/**
+ * Error message for sandbox mode.
+ * Provides actionable guidance for users running in Claude Code.
+ */
+const SANDBOX_ERROR_MESSAGE = `Error: Daemon commands cannot run in sandbox mode.
+
+Claude Code's sandbox blocks Unix socket operations required for daemon IPC.
+To run this command, use dangerouslyDisableSandbox: true in the Bash tool call.
+
+Example: { "command": "pnpm sidekick daemon status", "dangerouslyDisableSandbox": true }
+`
 import { LogMetricsStateSchema } from '@sidekick/types'
 import type { Logger } from '@sidekick/core'
 import { bootstrapRuntime, type RuntimeShell } from './runtime'
@@ -46,6 +66,7 @@ interface ParsedArgs {
   sessionIdArg?: string
   messageType?: 'snarky' | 'resume'
   help?: boolean
+  kill?: boolean
   force?: boolean
   _?: (string | number)[]
 }
@@ -67,7 +88,7 @@ interface RunCliOptions {
  */
 function parseArgs(argv: string[]): ParsedArgs {
   const parsed = yargsParser(argv, {
-    boolean: ['hook', 'wait', 'open', 'prefer-project', 'help'],
+    boolean: ['hook', 'wait', 'open', 'prefer-project', 'help', 'kill'],
     string: ['hook-script-path', 'project-dir', 'scope', 'log-level', 'format', 'host', 'session-id', 'type'],
     number: ['port', 'width'],
     alias: {
@@ -97,6 +118,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     sessionIdArg: parsed['session-id'] as string | undefined,
     messageType: parsed.type as 'snarky' | 'resume' | undefined,
     help: Boolean(parsed.help),
+    kill: Boolean(parsed.kill),
     _: parsed._,
   }
 }
@@ -354,8 +376,15 @@ export async function routeCommand(context: {
   }
 
   if (parsed.command === 'daemon') {
-    // Check for --help/-h flags which yargs-parser consumes
-    const subcommand = parsed.help ? '--help' : (parsed._ && (parsed._[1] as string)) || 'status'
+    // Check for --help/-h and --kill flags which yargs-parser consumes
+    const subcommand = parsed.help ? '--help' : parsed.kill ? 'kill' : (parsed._ && (parsed._[1] as string)) || 'status'
+
+    // Fail fast in sandbox mode - Unix sockets are blocked
+    if (isInSandbox() && subcommand !== '--help') {
+      stdout.write(SANDBOX_ERROR_MESSAGE)
+      return { exitCode: 1, stdout: SANDBOX_ERROR_MESSAGE, stderr: '' }
+    }
+
     const { handleDaemonCommand } = await import('./commands/daemon.js')
     const result = await handleDaemonCommand(
       subcommand,
