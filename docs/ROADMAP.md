@@ -169,8 +169,8 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
   - **scripts/ Findings:**
     - **Keep as-is**: `install.sh`, `uninstall.sh` (shell is natural for file ops and user prompts)
     - **Port HIGH**: `dev-mode.sh` (CLI command) - DONE, `analyze-session-at-line.sh` - RETIRED (dev-mode covers use case)
-    - **Port MEDIUM**: `copy-config.sh`, `generate-reminder-template.sh`
-    - **Retired**: `bulk-session-summary.sh`, `collect-test-data.sh` (low-usage LLM eval tools, not worth porting)
+    - **Port MEDIUM**: `generate-reminder-template.sh`
+    - **Retired**: `bulk-session-summary.sh`, `collect-test-data.sh`, `copy-config.sh` (low-usage dev tools, not worth porting)
     - **Port LOW**: `kill-sidekick-processes.sh`, `find-orphaned-processes.sh`, `generate-model-report.py`
     - **Archive**: `simulate-session.py` (refactor to TypeScript integration tests), legacy shell tests
 - [ ] **10.2 Migration Tasks**
@@ -187,7 +187,7 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
   - [ ] **Script Ports (MEDIUM priority)**:
     - [x] `bulk-session-summary.sh` - RETIRED 2026-01-19: Low-usage dev tool for test data curation, not worth porting
     - [x] `collect-test-data.sh` - RETIRED 2026-01-19: Low-usage LLM eval tool for test data curation, not worth porting
-    - [ ] `copy-config.sh` → `packages/sidekick-cli/src/commands/generate-config.ts`
+    - [x] `copy-config.sh` - RETIRED 2026-01-19: Low-usage dev tool, not worth porting
     - [ ] `generate-reminder-template.sh` → `packages/sidekick-cli/src/commands/generate-reminders.ts`
 - [ ] **10.3 Legacy Cleanup**
   - [ ] Update `development-tools/llm-eval/` README and AGENTS.md to reflect new location
