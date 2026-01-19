@@ -157,39 +157,7 @@ Audited and cleaned up legacy implementations. Key outcomes:
 ---
 
 ### Phase 11: Installation & Distribution Hardening
-- [ ] Objectives
-  - [ ] Evaluate Claude Code Plugins as potential distribution mechanism
-  - [ ] Finalize installer scripts for bash wrappers, assets, and dual-scope support
-  - [ ] Implement migration utilities (legacy bash `.conf` → YAML domain files)
-  - [ ] Ensure dev-hooks scripts and production scripts are either the same or do the same
-- [ ] Relevant documents/sections
-  - [ ] `{project_root_dir}/docs/ARCHITECTURE.md` (§4 Installation & Distribution)
-  - [ ] `{project_root_dir}/docs/design/CLI.md` (§3 Hook Wrapper Layer, §6 Scope Resolution)
-  - [ ] `{project_root_dir}/docs/design/CONFIG-SYSTEM.md` (§3 Configuration Domains, §4 Configuration Cascade) — **YAML format spec**
-- [ ] **11.1 Installer Implementation**
-  - [ ] Hook wrapper generation: bash scripts that invoke `npx @sidekick/cli` or global install
-  - [ ] Asset bundling: copy `assets/sidekick/` to installed location
-  - [ ] Dual-scope detection: warn when both user and project hooks are installed
-  - [ ] CLI commands: `sidekick install --project`, `sidekick install --user`, `sidekick uninstall`
-- [ ] **11.2 Config Migration**
-  - [ ] Legacy `.conf` → YAML converter: parse bash-style key=value, emit domain YAML files
-  - [ ] `sidekick.config` support: unified override file with dot-notation (per docs/design/CONFIG-SYSTEM.md §4.2)
-  - [ ] Migration reporting: show what was converted, warn on unrecognized keys
-- [ ] **11.3 Distribution Options**
-  - [ ] npm package: `@sidekick/cli` with `npx` support
-  - [ ] Global install: `npm i -g @sidekick/cli`
-  - [ ] Claude Code Plugins: evaluate if/how to integrate
-- [ ] Testing
-  - [ ] Installer integration tests in isolated temp directories
-  - [ ] Migration tests: legacy config → YAML round-trip verification
-  - [ ] Dual-scope tests: verify precedence when both scopes installed
-- [ ] Acceptance criteria
-  - [ ] Installer produces working hook wrappers in both scopes
-  - [ ] Project hooks take precedence when dual installs detected
-  - [ ] Bundled assets match `assets/sidekick/` HEAD
-  - [ ] Migration tool converts legacy configs with clear reporting
-  - [ ] All new and modified files documented
-  - [ ] All applicable ROADMAP.md tasks are marked complete
+All items redesigned and being implemented per docs/plans/2026-01-19-installation-distribution-design.md
 
 ### Phase 12: Documentation & Polish
 - [ ] Objectives

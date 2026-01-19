@@ -307,22 +307,16 @@ npm i -g @sidekick/cli
 }
 ```
 
-## Migration from Legacy
+## Legacy Cleanup
 
-The legacy bash installation (`scripts/install.sh`, `src/sidekick/`) will be deprecated.
+The legacy bash implementation is deleted as part of this work. No backward compatibility or migration tooling required.
 
-### Migration Path
+### Files to Delete
 
-1. Users with legacy install run `scripts/uninstall.sh`
-2. Install via plugin: `/plugin install sidekick`
-3. Config files in `~/.sidekick/` and `.sidekick/` are preserved (cascade still works)
-
-### 11.2 Config Migration (separate epic)
-
-For users with legacy `.conf` files:
-- `sidekick migrate` command converts `.conf` → YAML
-- Reports what was converted
-- Warns on unrecognized keys
+- `scripts/install.sh` — Legacy installer
+- `scripts/uninstall.sh` — Legacy uninstaller
+- `src/sidekick/` — Legacy bash implementation
+- Any `.conf` file support — Only YAML config cascade is supported
 
 ## Future Work
 
