@@ -134,70 +134,27 @@ Comprehensive refactoring to improve code quality, test coverage, and architectu
 
 **9.7 Code Cleanup**: Removed deprecated APIs, addressed FIXMEs, cleaned phase references from ~60 source files
 
----
+### Phase 10: Feature Parity and Legacy Cleanup - COMPLETE 2026-01-19
 
-### Phase 10: Feature Parity and Legacy Cleanup
-- [ ] Objectives
-  - [ ] Audit legacy implementations against TypeScript rewrite for feature parity
-  - [ ] Port remaining functionality not obsolete or in conflict with new designs; document intentional omissions
-  - [ ] Clean up or archive legacy code
-- [ ] Relevant documents/sections
-  - [ ] `{project_root_dir}/docs/ARCHITECTURE.md` (§1 Guiding Principles)
-  - [ ] `{project_root_dir}/docs/design/flow.md` (complete hook flows as feature reference)
-- [x] **10.1 Legacy Audit** - COMPLETE 2026-01-12
-  - [x] Audit `src/sidekick/` (bash runtime) for behaviors not yet in TypeScript packages
-  - **Findings Summary:**
-    - **Core Infrastructure (~95%)**: All 5 hooks, 8-layer config cascade (exceeds bash), session storage, plugin system with Kahn's toposort
-    - **LLM Integration (~75%)**: Providers work (Claude CLI, OpenAI, OpenRouter), FallbackProvider for HA, debug dumps
-    - **Features (100%)**: All 9 features implemented (Statusline, Session Summary, Resume, Sleeper→event-driven, Snarky Comment, Tracking, Reminders, Pre-Completion, Cleanup)
-  - **Gaps identified:**
-    - OpenRouter provider routing (allowlist/blocklist) - **queued for 10.2**
-    - Custom provider (schema accepts but factory doesn't implement) - deferred, implement when needed
-  - **Intentional simplifications (not porting):**
-    - Per-model OpenRouter overrides and model name normalization - internal detail
-    - Per-task PID/log files - daemon architecture handles differently
-    - Sleeper polling daemon - replaced with event-driven (better design)
-    - Stateful circuit breaker - FallbackProvider is simpler and sufficient
-  - [x] Audit `benchmark-next/` for unported features (early TypeScript exploration, largely stale)
-  - **Note**: benchmark-next/ relocated to `development-tools/llm-eval/` with related scripts and test-data
-  - **development-tools/llm-eval/ Findings:**
-    - **Reusable**: `CircuitBreakerProvider.ts` (Cockatiel-based, exponential backoff) - consider porting if resilience needed
-    - **Reusable**: `json-extraction.ts` - clean utility, currently scattered in packages
-    - **Not needed**: Config system (packages/ 8-layer cascade is more mature), consensus/scoring algorithms (LLM eval specific)
-    - **Disposition**: Archive after extracting CircuitBreakerProvider pattern if needed
-  - [x] Audit `scripts/` for analysis tools that should migrate
-  - **scripts/ Findings:**
-    - **Keep as-is**: `install.sh`, `uninstall.sh` (shell is natural for file ops and user prompts)
-    - **Port HIGH**: `dev-mode.sh` (CLI command) - DONE, `analyze-session-at-line.sh` - RETIRED (dev-mode covers use case)
-    - **Reimagined**: `generate-reminder-template.sh` → sidekick-config skill (Claude generates reminders interactively from CLAUDE.md)
-    - **Retired**: `bulk-session-summary.sh`, `collect-test-data.sh`, `copy-config.sh` (low-usage dev tools, not worth porting)
-    - **Port LOW**: `kill-sidekick-processes.sh`, `find-orphaned-processes.sh`, `generate-model-report.py`
-    - **Archive**: `simulate-session.py` (refactor to TypeScript integration tests), legacy shell tests
-- [ ] **10.2 Migration Tasks**
-  - [x] **OpenRouter Provider Routing** - COMPLETE 2026-01-18: Added allowlist/blocklist support to filter unreliable providers
-    - Config: `llm.openrouter.providerAllowlist`, `llm.openrouter.providerBlocklist`
-    - Implementation: Added `provider` field to OpenRouter request body
-    - Location: `@sidekick/shared-providers` OpenRouterProfileProvider class with `buildProviderField()` method
-  - [x] **Script Ports (HIGH priority)**:
-    - [x] `dev-mode.sh` → `packages/sidekick-cli/src/commands/dev-mode.ts` - COMPLETE 2026-01-19
-      - Subcommands: enable, disable, status, clean, clean-all
-      - Tests: 16 tests with 88% line coverage
-      - Non-interactive (no prompts) unlike bash version - suitable for scripted use
-    - [x] `analyze-session-at-line.sh` - RETIRED 2026-01-19: Deleted script, dev-mode history tracking now covers this use case
-  - [x] **Script Ports (MEDIUM priority)**:
-    - [x] `bulk-session-summary.sh` - RETIRED 2026-01-19: Low-usage dev tool for test data curation, not worth porting
-    - [x] `collect-test-data.sh` - RETIRED 2026-01-19: Low-usage LLM eval tool for test data curation, not worth porting
-    - [x] `copy-config.sh` - RETIRED 2026-01-19: Low-usage dev tool, not worth porting
-    - [x] `generate-reminder-template.sh` - REIMAGINED 2026-01-19: Replaced by sidekick-config skill; Claude generates reminders interactively from CLAUDE.md
-- [ ] **10.3 Legacy Cleanup**
-  - [ ] Update `development-tools/llm-eval/` README and AGENTS.md to reflect new location
-  - [ ] Decide: retain bash runtime as fallback or deprecate entirely
-  - [ ] Update `AGENTS.md` to reflect final state
-- [ ] Acceptance criteria
-  - [ ] TypeScript rewrite has feature parity with legacy (documented exceptions allowed)
-  - [ ] Legacy code is archived/deprecated with clear migration notes
-  - [ ] Code complexity is kept low using stated architecture principles and guidelines
-  - [ ] All new and modified files are documented
+Audited and cleaned up legacy implementations. Key outcomes:
+
+**10.1 Legacy Audit**: Comprehensive audit of bash runtime, benchmark-next, and scripts
+- Core infrastructure ~95% parity, LLM integration ~75%, Features 100%
+- benchmark-next relocated to `development-tools/llm-eval/` and archived (91% complete, unvalidated)
+- Intentional simplifications documented (sleeper→event-driven, circuit breaker→FallbackProvider)
+
+**10.2 Migration Tasks**: Ported and retired legacy scripts
+- OpenRouter provider routing (allowlist/blocklist) implemented
+- `dev-mode.sh` → TypeScript CLI command (16 tests, 88% coverage)
+- Retired: `analyze-session-at-line.sh`, `bulk-session-summary.sh`, `collect-test-data.sh`, `copy-config.sh`
+- Reimagined: `generate-reminder-template.sh` → sidekick-config skill
+
+**10.3 Legacy Cleanup**: Documentation and archival
+- Updated `development-tools/llm-eval/` README to reflect archived status
+- Archived `llm-eval/ROADMAP.md`, deleted obsolete `docs/benchmark-migration.md`
+- Bash runtime disposition and AGENTS.md update deferred to Phase 11/12
+
+---
 
 ### Phase 11: Installation & Distribution Hardening
 - [ ] Objectives
