@@ -40,13 +40,15 @@ Run bd directly as a bash command: `bd <command> [args]`
 <sidekick_invocation>
 To invoke sidekick's CLI: `pnpm sidekick <command> [args]`
 
-**Commands:** (add --json to return a structured response)
+**Commands:** (add --json or --format=json for structured output, --format=table for ASCII tables)
 - `persona list` - list the available persona ids
 - `persona set {persona-id} --session-id={session-id}` - change that session's selected persona
 - `persona clear --session-id={session-id}` - clear that session's selected persona
 - `persona test {persona-id} --session-id={session-id} [--type=snarky|resume]` - test the "voice" of that session's selected persona
-- `sessions` - list all tracked sessions (table format unless --json specified)
+- `sessions` - list all tracked sessions (table format unless --format=json specified)
+- `daemon start|stop|status|kill` - manage the background daemon
 - `dev-mode enable|disable|status|clean|clean-all` - manage development hooks
+- `ui` - launch the web monitoring UI
 </sidekick_invocation>
 
 <sandbox_testing>
