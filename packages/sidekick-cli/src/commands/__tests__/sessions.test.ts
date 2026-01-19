@@ -235,7 +235,8 @@ describe('handleSessionsCommand', () => {
       expect(() => JSON.parse(stdout.data)).toThrow()
       // Should contain human-readable content
       expect(stdout.data).toContain('Sessions (1)')
-      expect(stdout.data).toContain('test-session')
+      // Session ID is truncated to 8 chars in table
+      expect(stdout.data).toContain('test-ses')
     })
 
     test('outputs JSON when format is json', async () => {
@@ -258,12 +259,11 @@ describe('handleSessionsCommand', () => {
       // Table format should NOT be valid JSON
       expect(() => JSON.parse(stdout.data)).toThrow()
 
-      // Should contain human-readable content
+      // Should contain human-readable content (ASCII table format)
       expect(stdout.data).toContain('Sessions (1)')
-      expect(stdout.data).toContain('test-session')
+      expect(stdout.data).toContain('test-ses') // Session ID truncated to 8 chars
       expect(stdout.data).toContain('Test Session Title')
-      expect(stdout.data).toContain('[skippy]')
-      expect(stdout.data).toContain('Test intent')
+      expect(stdout.data).toContain('skippy') // Persona shown without brackets
     })
 
     test('table format shows no sessions message when empty', async () => {

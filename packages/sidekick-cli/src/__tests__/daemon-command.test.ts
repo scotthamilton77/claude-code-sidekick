@@ -189,14 +189,41 @@ describe('handleDaemonCommand', () => {
     })
   })
 
+  describe('help subcommand', () => {
+    test('shows usage for --help', async () => {
+      const result = await handleDaemonCommand('--help', '/tmp/project', mockLogger, stdout)
+
+      expect(result.exitCode).toBe(0)
+      expect(stdout.data).toContain('Usage: sidekick daemon')
+      expect(stdout.data).toContain('start')
+      expect(stdout.data).toContain('stop')
+      expect(stdout.data).toContain('status')
+      expect(stdout.data).toContain('kill')
+    })
+
+    test('shows usage for -h', async () => {
+      const result = await handleDaemonCommand('-h', '/tmp/project', mockLogger, stdout)
+
+      expect(result.exitCode).toBe(0)
+      expect(stdout.data).toContain('Usage: sidekick daemon')
+    })
+
+    test('shows usage for help', async () => {
+      const result = await handleDaemonCommand('help', '/tmp/project', mockLogger, stdout)
+
+      expect(result.exitCode).toBe(0)
+      expect(stdout.data).toContain('Usage: sidekick daemon')
+    })
+  })
+
   describe('unknown subcommand', () => {
-    test('returns error and shows available commands', async () => {
+    test('returns error and shows usage', async () => {
       const result = await handleDaemonCommand('invalid', '/tmp/project', mockLogger, stdout)
 
       expect(result.exitCode).toBe(1)
       expect(stdout.data).toContain('Unknown daemon subcommand')
       expect(stdout.data).toContain('invalid')
-      expect(stdout.data).toContain('Available commands')
+      expect(stdout.data).toContain('Usage: sidekick daemon')
     })
   })
 })

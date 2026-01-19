@@ -31,7 +31,30 @@ export interface StatuslineCommandOptions {
   configService?: ConfigService
   /** Asset resolver for loading configurable assets (e.g., empty session messages) */
   assets?: AssetResolver
+  /** Show help */
+  help?: boolean
 }
+
+const USAGE_TEXT = `Usage: sidekick statusline [options]
+
+Render the status line for Claude Code integration.
+
+Options:
+  --format=<format>       Output format: text (default, ANSI) or json
+  --session-id=<id>       Session ID (extracted from hook input if not provided)
+  --help, -h              Show this help message
+
+This command is typically invoked by Claude Code hooks, not directly.
+The statusline displays session context including:
+  - Model and token usage
+  - Session title and intent
+  - Active persona
+  - Cost metrics
+
+Examples:
+  sidekick statusline
+  sidekick statusline --format=json
+`
 
 /**
  * Parse ClaudeCodeStatusInput from raw hook input JSON.
@@ -133,6 +156,12 @@ export async function handleStatuslineCommand(
   stdout: NodeJS.WritableStream,
   options: StatuslineCommandOptions = {}
 ): Promise<StatuslineCommandResult> {
+  // Handle help request
+  if (options.help) {
+    stdout.write(USAGE_TEXT)
+    return { exitCode: 0 }
+  }
+
   const format = options.format ?? 'text'
   const useColors = format === 'text'
   const startTime = performance.now()

@@ -38,6 +38,7 @@ interface ParsedArgs {
   logLevel?: 'debug' | 'info' | 'warn' | 'error'
   wait?: boolean
   format?: 'text' | 'json' | 'table'
+  width?: number
   port?: number
   host?: string
   open?: boolean
@@ -67,7 +68,10 @@ function parseArgs(argv: string[]): ParsedArgs {
   const parsed = yargsParser(argv, {
     boolean: ['hook', 'wait', 'open', 'prefer-project', 'help'],
     string: ['hook-script-path', 'project-dir', 'scope', 'log-level', 'format', 'host', 'session-id', 'type'],
-    number: ['port'],
+    number: ['port', 'width'],
+    alias: {
+      h: 'help',
+    },
     configuration: {
       'camel-case-expansion': false,
     },
@@ -84,6 +88,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     logLevel: parsed['log-level'] as ParsedArgs['logLevel'],
     wait: Boolean(parsed.wait),
     format: parsed.format as 'text' | 'json' | 'table' | undefined,
+    width: parsed.width as number | undefined,
     port: parsed.port as number | undefined,
     host: parsed.host as string | undefined,
     open: parsed.open as boolean | undefined,
@@ -253,6 +258,38 @@ export async function ensureDaemon(options: {
   }
 }
 
+const GLOBAL_HELP_TEXT = `Usage: sidekick <command> [options]
+
+Commands:
+  persona <subcommand>     Manage session personas (list, set, clear, test)
+  sessions                 List all daemon-tracked sessions
+  daemon <subcommand>      Manage the background daemon (start, stop, status, kill)
+  statusline               Render the status line (used by hooks)
+  dev-mode <subcommand>    Manage development hooks (enable, disable, status, clean)
+  ui                       Launch the web UI
+
+Global Options:
+  --help, -h               Show this help message
+  --format=<format>        Output format: json or table (command-specific)
+  --width=<n>              Table width in characters (default: 100)
+  --project-dir=<path>     Override project directory
+  --log-level=<level>      Set log level (debug, info, warn, error)
+
+Examples:
+  sidekick persona list --format=table
+  sidekick sessions --format=table --width=120
+  sidekick daemon status
+  sidekick dev-mode enable
+`
+
+/**
+ * Show global help text.
+ */
+function showGlobalHelp(stdout: Writable): { exitCode: number; stdout: string; stderr: string } {
+  stdout.write(GLOBAL_HELP_TEXT)
+  return { exitCode: 0, stdout: GLOBAL_HELP_TEXT, stderr: '' }
+}
+
 /**
  * Route command to appropriate handler based on command type.
  * Handles hook commands, daemon, statusline, ui, and fallback cases.
@@ -294,6 +331,16 @@ export async function routeCommand(context: {
     }
   }
 
+  // Handle global help request (not in hook mode)
+  // Show help when: --help flag with default command, or explicit 'help' command
+  if (!parsed.hookMode) {
+    const isDefaultCommand = parsed.command === 'session-start'
+    const isHelpCommand = parsed.command === 'help' || parsed.command === '--help' || parsed.command === '-h'
+    if ((parsed.help && isDefaultCommand) || isHelpCommand) {
+      return showGlobalHelp(stdout)
+    }
+  }
+
   // Fallback: If hook input is missing or not recognized, return empty response
   // This handles edge cases like malformed stdin or unknown hook types
   if (parsed.hookMode && !hookInput) {
@@ -306,7 +353,8 @@ export async function routeCommand(context: {
   }
 
   if (parsed.command === 'daemon') {
-    const subcommand = (parsed._ && (parsed._[1] as string)) || 'status'
+    // Check for --help/-h flags which yargs-parser consumes
+    const subcommand = parsed.help ? '--help' : (parsed._ && (parsed._[1] as string)) || 'status'
     const { handleDaemonCommand } = await import('./commands/daemon.js')
     const result = await handleDaemonCommand(
       subcommand,
@@ -336,6 +384,7 @@ export async function routeCommand(context: {
       hookInput: parsedHookInput,
       configService: runtime.config,
       assets: runtime.assets,
+      help: parsed.help,
     })
     return { exitCode: result.exitCode, stdout: '', stderr: '' }
   }
@@ -355,7 +404,8 @@ export async function routeCommand(context: {
     const { handlePersonaCommand } = await import('./commands/persona.js')
     // persona <subcommand> [args] --session-id=<id>
     // Subcommands: list, set, clear, test
-    const subcommand = parsed._?.[1] as string | undefined
+    // Check for --help/-h flags which yargs-parser consumes
+    const subcommand = parsed.help ? '--help' : (parsed._?.[1] as string | undefined)
     const args = parsed._?.slice(2) ?? []
 
     const result = await handlePersonaCommand(
@@ -368,6 +418,7 @@ export async function routeCommand(context: {
         sessionId: parsed.sessionIdArg,
         format: parsed.format === 'json' || parsed.format === 'table' ? parsed.format : undefined,
         testType: parsed.messageType,
+        width: parsed.width,
       }
     )
     return { exitCode: result.exitCode, stdout: result.output, stderr: '' }
@@ -377,6 +428,8 @@ export async function routeCommand(context: {
     const { handleSessionsCommand } = await import('./commands/sessions.js')
     const result = await handleSessionsCommand(runtime.scope.projectRoot || process.cwd(), runtime.logger, stdout, {
       format: parsed.format === 'json' || parsed.format === 'table' ? parsed.format : undefined,
+      help: parsed.help,
+      width: parsed.width,
     })
     return { exitCode: result.exitCode, stdout: result.output, stderr: '' }
   }
