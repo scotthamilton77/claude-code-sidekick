@@ -33,34 +33,20 @@ development-tools/llm-eval/ # LLM evaluation tools (relocated from benchmark-nex
 ```
 </structure>
 
-<cli_commands>
-<!-- This section is ONLY for sidekick CLI commands. Do NOT use this for bd (beads) commands. -->
+<bd_invocation>                                                                                                                                                                   
+Run bd directly as a bash command: `bd <command> [args]`                                                                                                                          
+</bd_invocation>
 
-**Sidekick CLI invocation**: `node packages/sidekick-cli/dist/bin.js <command> [args]`
+<sidekick_invocation>
+To test sidekick's CLI while in development mode: `node packages/sidekick-cli/dist/bin.js <command> [args]`
 
-**Persona commands** (require daemon running):
-```bash
-# Set/change session persona
-node packages/sidekick-cli/dist/bin.js persona <persona-id> --session-id=<id>
-
-# Clear session persona
-node packages/sidekick-cli/dist/bin.js persona --session-id=<id>
-
-# Test persona voice generation
-node packages/sidekick-cli/dist/bin.js persona-test <persona-id> --session-id=<id> [--type=snarky|resume]
-```
-
-**Sessions command**:
-```bash
-# List all tracked sessions (JSON output)
-node packages/sidekick-cli/dist/bin.js sessions
-
-# List sessions in human-readable table format
-node packages/sidekick-cli/dist/bin.js sessions --format=table
-```
-
-Find your session ID in `.sidekick/sessions/` or use `sidekick sessions` to list all sessions.
-</cli_commands>
+**Commands:** (add --json to return a structured response)
+- `persona list` - list the available persona ids
+- `persona set {persona-id} --session-id={session-id}` - change that session's selected persona
+- `persona clear --session-id={session-id}` - clear that session's selected persona
+- `persona test {persona-id} --session-id={session-id} [--type=snarky|resume]` - test the "voice" of that session's selected persona
+- `sessions` - list all tracked sessions (table format unless --json specified)
+</sidekick_invocation>
 
 <sandbox_testing>
 
