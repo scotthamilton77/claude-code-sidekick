@@ -189,6 +189,88 @@ cp assets/sidekick/prompts/snarky-message.prompt.txt .sidekick/assets/prompts/
 # Then edit .sidekick/assets/prompts/snarky-message.prompt.txt
 ```
 
+### Generate Reminders from CLAUDE.md
+
+When user asks to "generate reminders", "customize reminders from my rules", or "infuse my CLAUDE.md (or AGENTS.md) into reminders":
+
+**Interactive Flow:**
+1. Ask: Which reminder types? (user-prompt-submit, verify-completion, or both)
+2. Ask: User-scope (~/.sidekick/) or project-scope (.sidekick/)?
+3. Read the user's CLAUDE.md and AGENTS.md files
+4. Show current defaults alongside suggested customizations
+5. Let user review and refine before writing
+
+**Reminder Type Purposes:**
+
+| Type | When It Fires | Purpose |
+|------|---------------|---------|
+| `user-prompt-submit` | Every user message | Input processing discipline: verify assumptions, ask clarifications, plan approach |
+| `verify-completion` | Before claiming "done" | Output verification: run tests, check requirements, evidence before assertions |
+
+**What Each Reminder Should Capture:**
+
+**user-prompt-submit** - Extract from CLAUDE.md:
+- Critical behavioral rules ("verify before agreeing", "challenge confident users")
+- When to ask clarifying questions vs. proceed
+- Workflow discipline (TodoWrite usage, skill invocation)
+- Project-specific constraints that affect how to interpret requests
+
+**verify-completion** - Extract from CLAUDE.md:
+- Definition of done / acceptance criteria
+- Required verification commands (build, test, lint, typecheck)
+- Documentation requirements
+- Commit/PR policies
+- Quality gates
+
+**Presenting to User:**
+
+Show side-by-side:
+```
+CURRENT DEFAULT:
+[show additionalContext from default YAML]
+
+SUGGESTED CUSTOMIZATION (based on your CLAUDE.md):
+[generated reminder incorporating their rules]
+
+CHANGES MADE:
+- Added: [specific rule from their CLAUDE.md]
+- Emphasized: [rule they mention frequently]
+- Removed: [default that conflicts with their workflow]
+```
+
+**Writing the Reminder:**
+
+**CRITICAL:** Only customize `additionalContext`. Copy all other fields exactly from the source.
+
+| Field | Customize? | Notes |
+|-------|------------|-------|
+| `id` | NO | Must match source exactly |
+| `blocking` | NO | Must match source exactly |
+| `priority` | NO | Must match source exactly |
+| `persistent` | NO | Must match source exactly |
+| `additionalContext` | **YES** | This is what you generate |
+| `userMessage` | Only if user requests | Optional - ask user first |
+| `reason` | Only if user requests | Optional - ask user first |
+
+```yaml
+# .sidekick/assets/reminders/user-prompt-submit.yaml
+# Copy these fields EXACTLY from assets/sidekick/reminders/user-prompt-submit.yaml
+id: user-prompt-submit
+blocking: false
+priority: 10
+persistent: true
+
+# THIS is what you customize:
+additionalContext: |
+  [Generated content based on CLAUDE.md analysis]
+
+# Only include if user explicitly requests customization:
+# userMessage: "..."
+# reason: "..."
+```
+
+**Location:** `.sidekick/assets/reminders/` or `~/.sidekick/assets/reminders/`
+
 ## Asset Override Cascade
 
 For prompts, reminders, and other assets:

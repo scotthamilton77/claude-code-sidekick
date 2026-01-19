@@ -180,3 +180,29 @@ features.reminders.settings.pause_and_reflect_threshold=999999
 | Variable | Available In | Description |
 |----------|--------------|-------------|
 | `{{toolsThisTurn}}` | pause-and-reflect | Tool count since last user prompt |
+| `{{sessionId}}` | user-prompt-submit | Current session ID |
+
+---
+
+## Generating Reminders from CLAUDE.md
+
+Instead of manually writing reminders, ask Claude to generate them from your existing rules:
+
+> "Generate reminders from my CLAUDE.md"
+
+Claude will:
+1. Read your CLAUDE.md and AGENTS.md files
+2. Extract the most important rules relevant to each reminder type
+3. Show defaults alongside suggested customizations
+4. Let you review and refine before writing
+
+**What gets customized:**
+- `additionalContext` - **Always** (this is the reminder text)
+- `userMessage`, `reason` - **Only if you explicitly request**
+- `id`, `blocking`, `priority`, `persistent` - **Never** (copied exactly from source)
+
+**Best for:**
+- `user-prompt-submit` - Capture input processing discipline from your rules
+- `verify-completion` - Capture definition of done and verification requirements
+
+See the main skill documentation for the interactive workflow.
