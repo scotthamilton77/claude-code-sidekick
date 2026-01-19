@@ -55,8 +55,8 @@ export interface ConfigWatcherOptions {
   userDir?: string
   /** Source assets directory to watch in dev mode (e.g., assets/sidekick/) */
   devAssetsDir?: string
-  /** Glob patterns to ignore within watched directories */
-  ignored?: string[]
+  /** Patterns or function to ignore within watched directories */
+  ignored?: string[] | ((path: string) => boolean)
 }
 
 /**
@@ -66,7 +66,7 @@ export class ConfigWatcher {
   private projectDir: string
   private userDir: string
   private devAssetsDir: string | undefined
-  private ignored: string[]
+  private ignored: string[] | ((path: string) => boolean)
   private logger: Logger
   private watcher: FSWatcher | null = null
   private onChange: ConfigChangeHandler
@@ -110,9 +110,6 @@ export class ConfigWatcher {
       dirsToWatch.push(this.devAssetsDir)
     }
 
-    // Build ignore patterns
-    const ignored = [...this.ignored]
-
     this.watcher = watch(dirsToWatch, {
       // Watch subdirectories for assets (defaults/, prompts/, personas/)
       // but not too deep to avoid watching node_modules etc.
@@ -123,7 +120,7 @@ export class ConfigWatcher {
       usePolling: false,
       // Don't use awaitWriteFinish - we have our own debouncing,
       // and awaitWriteFinish can delay/skip 'add' events
-      ignored,
+      ignored: this.ignored,
     })
 
     this.watcher
