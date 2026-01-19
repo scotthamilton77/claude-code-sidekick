@@ -38,7 +38,7 @@ Run bd directly as a bash command: `bd <command> [args]`
 </bd_invocation>
 
 <sidekick_invocation>
-To test sidekick's CLI while in development mode: `node packages/sidekick-cli/dist/bin.js <command> [args]`
+To invoke sidekick's CLI: `pnpm sidekick <command> [args]`
 
 **Commands:** (add --json to return a structured response)
 - `persona list` - list the available persona ids
@@ -46,6 +46,7 @@ To test sidekick's CLI while in development mode: `node packages/sidekick-cli/di
 - `persona clear --session-id={session-id}` - clear that session's selected persona
 - `persona test {persona-id} --session-id={session-id} [--type=snarky|resume]` - test the "voice" of that session's selected persona
 - `sessions` - list all tracked sessions (table format unless --json specified)
+- `dev-mode enable|disable|status|clean|clean-all` - manage development hooks
 </sidekick_invocation>
 
 <sandbox_testing>
@@ -60,7 +61,7 @@ pnpm --filter @sidekick/core test -- --exclude '**/{ipc,ipc-service,daemon-clien
 INTEGRATION_TESTS=1 pnpm test
 ```
 
-**Dev-mode**: `scripts/dev-mode.sh enable` (requires `pnpm build`, restart Claude Code)
+**Dev-mode**: `pnpm sidekick dev-mode enable` or `scripts/dev-mode.sh enable` (requires `pnpm build`, restart Claude Code)
 </sandbox_testing>
 
 <git_commits>
