@@ -40,6 +40,7 @@ settings.local.json
 
 # Sidekick development env exclusions
 .claude/hooks/sidekick/
+.claude/skills/sidekick-config/
 
 # Sidekick backup files
 *.backup.*
