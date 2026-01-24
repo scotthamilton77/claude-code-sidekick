@@ -104,6 +104,7 @@ export {
   createLogManager,
   createLoggerFacade,
   setupGlobalErrorHandlers,
+  getComponentLogLevel,
   LogEvents,
   logEvent,
   type EventLogContext,

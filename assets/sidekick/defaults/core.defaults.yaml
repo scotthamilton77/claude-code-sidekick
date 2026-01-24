@@ -4,12 +4,16 @@
 
 # Logging configuration
 logging:
-  # Log level: debug, info, warn, error
+  # Log level: trace, debug, info, warn, error, fatal
   level: info
   # Output format: pretty (human-readable) or json (structured)
   format: pretty
   # Enable console output in addition to file logging
   consoleEnabled: false
+  # Per-component log level overrides (uncomment to enable)
+  # components:
+  #   reminders: debug
+  #   statusline: trace
 
 # Path configuration
 paths:

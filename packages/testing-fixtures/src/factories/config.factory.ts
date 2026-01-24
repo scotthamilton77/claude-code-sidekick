@@ -31,6 +31,7 @@ const DEFAULT_CONFIG: SidekickConfig = {
       level: 'info',
       format: 'pretty',
       consoleEnabled: false,
+      components: {},
     },
     paths: {
       state: '.sidekick',

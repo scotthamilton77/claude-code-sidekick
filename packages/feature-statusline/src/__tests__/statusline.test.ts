@@ -2636,7 +2636,7 @@ describe('StatuslineService', () => {
   describe('configService usage', () => {
     it('uses configService settings when provided', async () => {
       const mockConfigService = {
-        core: { logging: { level: 'info' }, development: { enabled: false } },
+        core: { logging: { level: 'info', components: {} }, development: { enabled: false } },
         llm: { defaultProfile: 'default', profiles: {}, fallbacks: {} },
         getAll: () => ({}),
         getFeature: <T>(name: string): { enabled: boolean; settings: T } => {

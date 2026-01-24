@@ -1329,4 +1329,53 @@ describe('Structured Logging', () => {
       expect(logEntry.reason).toBe('string rejection reason')
     })
   })
+
+  describe('getComponentLogLevel', () => {
+    it('should return override level when component has an override', async () => {
+      const { getComponentLogLevel } = await import('../structured-logging')
+
+      const componentLevels = {
+        reminders: 'debug',
+        statusline: 'trace',
+      }
+
+      expect(getComponentLogLevel(componentLevels, 'reminders', 'info')).toBe('debug')
+      expect(getComponentLogLevel(componentLevels, 'statusline', 'info')).toBe('trace')
+    })
+
+    it('should return default level when component has no override', async () => {
+      const { getComponentLogLevel } = await import('../structured-logging')
+
+      const componentLevels = {
+        reminders: 'debug',
+      }
+
+      expect(getComponentLogLevel(componentLevels, 'unknown-component', 'info')).toBe('info')
+      expect(getComponentLogLevel(componentLevels, 'statusline', 'warn')).toBe('warn')
+    })
+
+    it('should return default level when componentLevels is undefined', async () => {
+      const { getComponentLogLevel } = await import('../structured-logging')
+
+      expect(getComponentLogLevel(undefined, 'reminders', 'info')).toBe('info')
+      expect(getComponentLogLevel(undefined, 'anything', 'error')).toBe('error')
+    })
+
+    it('should return default level when componentLevels is empty', async () => {
+      const { getComponentLogLevel } = await import('../structured-logging')
+
+      expect(getComponentLogLevel({}, 'reminders', 'info')).toBe('info')
+    })
+
+    it('should ignore invalid log levels in overrides', async () => {
+      const { getComponentLogLevel } = await import('../structured-logging')
+
+      const componentLevels = {
+        reminders: 'invalid-level', // Not a valid LogLevel
+      }
+
+      // Should fall back to default since 'invalid-level' is not in LOG_LEVELS
+      expect(getComponentLogLevel(componentLevels, 'reminders', 'info')).toBe('info')
+    })
+  })
 })

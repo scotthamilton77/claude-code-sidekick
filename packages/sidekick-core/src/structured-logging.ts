@@ -54,6 +54,37 @@ export const LOG_LEVELS = {
   fatal: 60,
 } as const
 
+/**
+ * Get the effective log level for a component.
+ * Checks component-specific overrides first, then falls back to the default level.
+ *
+ * @param componentLevels - Map of component names to log levels (from config.core.logging.components)
+ * @param componentName - The component to get the level for
+ * @param defaultLevel - The default log level (from config.core.logging.level)
+ * @returns The effective log level for this component
+ *
+ * @example
+ * ```typescript
+ * const level = getComponentLogLevel(
+ *   config.core.logging.components,
+ *   'reminders',
+ *   config.core.logging.level
+ * )
+ * const componentLogger = logger.child({ level, context: { component: 'reminders' } })
+ * ```
+ */
+export function getComponentLogLevel(
+  componentLevels: Record<string, string> | undefined,
+  componentName: string,
+  defaultLevel: LogLevel
+): LogLevel {
+  const override = componentLevels?.[componentName]
+  if (override && override in LOG_LEVELS) {
+    return override as LogLevel
+  }
+  return defaultLevel
+}
+
 export interface LogContext {
   scope?: 'user' | 'project'
   correlationId?: string

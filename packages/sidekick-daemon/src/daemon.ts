@@ -954,7 +954,10 @@ export class Daemon {
       role: 'daemon',
       config: {
         core: {
-          logging: { level: this.configService.core.logging.level },
+          logging: {
+            level: this.configService.core.logging.level,
+            components: this.configService.core.logging.components,
+          },
           development: { enabled: this.configService.core.development.enabled },
         },
         llm: {
@@ -1159,7 +1162,10 @@ export class Daemon {
       role: 'daemon',
       config: {
         core: {
-          logging: { level: this.configService.core.logging.level },
+          logging: {
+            level: this.configService.core.logging.level,
+            components: this.configService.core.logging.components,
+          },
           development: { enabled: this.configService.core.development.enabled },
         },
         llm: {
@@ -1264,7 +1270,10 @@ export class Daemon {
       role: 'daemon',
       config: {
         core: {
-          logging: { level: this.configService.core.logging.level },
+          logging: {
+            level: this.configService.core.logging.level,
+            components: this.configService.core.logging.components,
+          },
           development: { enabled: this.configService.core.development.enabled },
         },
         llm: {
@@ -1612,7 +1621,10 @@ export class Daemon {
       role: 'daemon',
       config: {
         core: {
-          logging: { level: this.configService.core.logging.level },
+          logging: {
+            level: this.configService.core.logging.level,
+            components: this.configService.core.logging.components,
+          },
           development: { enabled: this.configService.core.development.enabled },
         },
         llm: {
