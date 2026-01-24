@@ -47,6 +47,7 @@ export class IpcServer {
 
   private async handleMessage(socket: net.Socket, message: string): Promise<void> {
     let id: string | number | null = null
+    let method: string | undefined
     try {
       const json: unknown = JSON.parse(message)
       const parseResult = JsonRpcRequestSchema.safeParse(json)
@@ -58,11 +59,13 @@ export class IpcServer {
 
       const request = parseResult.data
       id = request.id ?? null
+      method = request.method
+      this.logger.info('IPC request received', { method, requestSize: message.length })
 
       try {
         const result: unknown = await this.handler(request.method, request.params)
         if (id !== null) {
-          this.sendResponse(socket, id, result)
+          this.sendResponse(socket, id, result, method)
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Internal Error'
@@ -76,13 +79,15 @@ export class IpcServer {
     }
   }
 
-  private sendResponse(socket: net.Socket, id: string | number, result: unknown): void {
+  private sendResponse(socket: net.Socket, id: string | number, result: unknown, method?: string): void {
     const response: JsonRpcResponse = {
       jsonrpc: JSONRPC_VERSION,
       result,
       id,
     }
-    socket.write(JSON.stringify(response) + '\n')
+    const serialized = JSON.stringify(response)
+    this.logger.info('IPC response sent', { method, responseSize: serialized.length })
+    socket.write(serialized + '\n')
   }
 
   private sendError(socket: net.Socket, id: string | number | null, code: number, message: string): void {

@@ -105,6 +105,7 @@ export class IpcClient {
 
   private handleResponse(message: string): void {
     try {
+      this.logger.info('IPC response received', { responseSize: message.length })
       const json: unknown = JSON.parse(message)
       const parseResult = JsonRpcResponseSchema.safeParse(json)
 
@@ -155,7 +156,9 @@ export class IpcClient {
       }, this.options.requestTimeoutMs)
 
       this.pendingRequests.set(id, { resolve, reject, timer })
-      this.socket!.write(JSON.stringify(request) + '\n')
+      const serialized = JSON.stringify(request)
+      this.logger.info('IPC request sent', { method, requestSize: serialized.length })
+      this.socket!.write(serialized + '\n')
     })
   }
 
