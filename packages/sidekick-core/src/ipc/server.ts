@@ -60,7 +60,7 @@ export class IpcServer {
       const request = parseResult.data
       id = request.id ?? null
       method = request.method
-      this.logger.info('IPC request received', { method, requestSize: message.length })
+      this.logger.debug('IPC request received', { method, requestSize: message.length })
 
       try {
         const result: unknown = await this.handler(request.method, request.params)
@@ -86,7 +86,7 @@ export class IpcServer {
       id,
     }
     const serialized = JSON.stringify(response)
-    this.logger.info('IPC response sent', { method, responseSize: serialized.length })
+    this.logger.debug('IPC response sent', { method, responseSize: serialized.length })
     socket.write(serialized + '\n')
   }
 
