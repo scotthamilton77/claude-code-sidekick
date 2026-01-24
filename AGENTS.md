@@ -118,84 +118,37 @@ When committing in sandbox mode, heredocs fail with "can't create temp file for 
 </typescript_tooling>
 
 <task-tracking>
-<!-- [PRESERVE] -->
-## Issue Tracking with bd (beads)
+<!-- [PRESERVE] Command syntax injected via session hook—this covers project-specific semantics only -->
 
-Use **bd** for ALL issue tracking. Command reference is injected via session hook—this section covers semantics and workflow.
-
-**Sandbox note**: Run bd with `dangerouslyDisableSandbox: true` to avoid 5-second timeout. The sandbox blocks Unix socket connections to the bd daemon, causing fallback to slower direct mode.
+**Sandbox note**: Run bd with `dangerouslyDisableSandbox: true` (Unix socket EPERM in sandbox).
 
 ### Issue Types
 
-- `bug` - Something broken
-- `feature` - New functionality
-- `task` - Work item (tests, docs, refactoring)
-- `epic` - Large feature with subtasks (phases, milestones)
-- `chore` - Maintenance (dependencies, tooling)
+`bug` | `feature` | `task` | `epic` | `chore`
 
-### Epics and Dependencies
+### Epics
 
-**Use epics** for multi-task work. Children are **parallel by default**—only explicit deps create sequence.
-
-**Dependency semantics**: `bd dep add B A` means "B needs A" (B is blocked until A closes).
-
-**Epic-level deps**: Block all children until satisfied.
-```bash
-bd dep add <epic-9.6> <task-9.5.1>   # All of 9.6 waits for 9.5.1
-```
-
-### Important Fields
-
-| Flag | Purpose | Example |
-|------|---------|---------|
-| `--acceptance` | Done-when criteria | `--acceptance="Tests pass, no lint errors"` |
-| `--design` | Design notes/approach | `--design="Use adapter pattern"` |
-| `--labels` | Tags (comma-sep) | `--labels refactoring,phase-9` |
-| `--defer` | Hide until date | `--defer "next monday"` |
+Children are **parallel by default**—only explicit deps create sequence. Epic-level deps block all children.
 
 ### Default Acceptance Criteria
 
-When creating implementation tasks (type: task, bug, feature), **always include standard quality gates** in acceptance criteria unless explicitly inappropriate for the task type.
+For code tasks, always append: `Build passes. Typecheck passes. Tests pass.`
 
-**Standard criteria for code changes:**
-```
-Build passes. Typecheck passes. Tests pass.
-```
+Skip for: docs-only, design/research, epic planning, no-code chores.
 
-Append these after task-specific criteria:
-```bash
-bd create "Implement persona selection" --type task \
-  --acceptance "Selection persisted to session-persona.json. Build passes. Typecheck passes. Tests pass."
-```
+### Discovered Work
 
-**Discovered work protocol:**
-- Out-of-scope issues found during implementation → create new bead with `discovered-from:<parent-id>` dependency
-- Don't fix unrelated problems inline; track them for separate work
+Out-of-scope issues → new bead with `discovered-from:<parent-id>` dep. Don't fix inline.
 
-**Skip standard criteria for:**
-- Documentation-only tasks
-- Design/research/investigation tasks
-- Epic planning tasks
-- Chores that don't touch code (e.g., dependency updates with no code changes)
+### Workflow Extensions
 
-### Workflow for AI Agents
-
-1. **Check ready work**: `bd ready` shows unblocked issues
-2. **Claim your task**: `bd update <id> --status in_progress`
-   - Also mark parent chain as in_progress (if parent is still `open`, update it too, recursively up)
-3. **Check parent context**: If task has a parent, run `bd show <parent-id>` recursively to see parent's acceptance criteria, description, and sibling tasks
-4. **Work on it**: Implement, test, document
-5. **Discover new work?** Create linked issue with `--deps discovered-from:<parent-id>`
-6. **Clean up**: Make sure there are no typescript or lint issues or test failures
-7. **Initiate agent reviews**: Use the code review and code simplifier skills and/or agents
-8. **Pause and let the user review**
-9. **Complete**: Only once the user agrees the work is done and explicitly asks for a commit: `bd close <id>`
-   - **Cascade parent closure**: After closing, check if task has a parent. If all sibling tasks are now closed, close the parent too. Repeat recursively up the tree.
+- **Parent chain**: Mark parent as `in_progress` when claiming child
+- **Parent context**: Check `bd show <parent-id>` for acceptance criteria and sibling tasks
+- **Agent reviews**: Use code-review and code-simplifier skills before user review
+- **Cascade closure**: After closing, if all siblings closed → close parent recursively
 
 ### Rules
 
-- ✅ Use bd for ALL task tracking
-- ✅ Use `--json` flag for programmatic use
-- ✅ Link discovered work with `discovered-from` dependencies
-- ❌ Do NOT create markdown TODO lists or use external trackers unless explicitly asked to by the user
+- ✅ Use bd for ALL tracking, `--json` for programmatic use
+- ❌ No markdown TODO lists unless user explicitly requests
 </task-tracking>
