@@ -623,8 +623,10 @@ export async function runCli(options: RunCliOptions): Promise<{ exitCode: number
   })
 
   // 3. Ensure daemon is running (async, no-throw)
+  // Trigger for both --hook flag mode and unified 'sidekick hook <name>' command
+  const isHookExecution = parsed.hookMode || parsed.command === 'hook'
   const { started: daemonStarted } = await ensureDaemon({
-    hookMode: parsed.hookMode,
+    hookMode: isHookExecution,
     projectRoot: runtime.scope.projectRoot,
     logger: runtime.logger,
   })
