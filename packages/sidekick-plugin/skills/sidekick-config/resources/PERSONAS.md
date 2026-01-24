@@ -48,7 +48,7 @@ statusline_empty_messages:         # Array of messages for fresh sessions
   - "Another random empty-state message"
 snarky_examples:                   # Array (max 15 words each)
   - "Example to guide LLM voice"
-resume_examples:                   # Array (8-10 words each)
+snarky_welcome_examples:                   # Array (8-10 words each)
   - "Back for more? Your mess awaits."
 ```
 
@@ -63,14 +63,14 @@ resume_examples:                   # Array (8-10 words each)
 | `tone_traits` | Yes | Array of tone/style descriptors |
 | `statusline_empty_messages` | Yes | Messages for fresh sessions |
 | `snarky_examples` | No | Example snarky comments (**max 15 words each**) |
-| `resume_examples` | No | Example snarky welcomes (**8-10 words each**) |
+| `snarky_welcome_examples` | No | Example snarky welcomes (**8-10 words each**) |
 
 ### Length Restrictions
 
 Examples are fed to the LLM to guide voice generation. Keep them within limits:
 
 - **snarky_examples**: Max 15 words per example
-- **resume_examples**: 8-10 words per example (used for `snarky_welcome` generation)
+- **snarky_welcome_examples**: 8-10 words per example (used for `snarky_welcome` generation)
 
 ## Creating Custom Personas
 
@@ -100,7 +100,7 @@ statusline_empty_messages:
 snarky_examples:                   # Max 15 words each
   - "Arr, that code be messier than Davy Jones' locker!"
   - "Avast! Another refactor? Walk the plank!"
-resume_examples:                   # 8-10 words each
+snarky_welcome_examples:                   # 8-10 words each
   - "Ye were sailin' these seas. Continue the voyage?"
 ```
 

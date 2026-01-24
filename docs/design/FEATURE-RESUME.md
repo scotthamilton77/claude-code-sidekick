@@ -52,9 +52,9 @@ The Daemon generates resume artifacts via the `UpdateSessionSummary` handler.
 **Action:**
 
 1. **Extract Context**: Reads the current `session-summary.json` and a transcript excerpt (recent messages).
-2. **LLM Call**: Invokes the configured model (default: `qwen/qwen3-235b-a22b-2507`) with `resume.prompt.txt`.
+2. **LLM Call**: Invokes the configured model (default: `qwen/qwen3-235b-a22b-2507`) with `resume-message.prompt.txt`.
    - **Temperature**: High (1.2) for creativity.
-   - **Schema**: `resume.schema.json`.
+   - **Output**: Plain text snarky welcome message (8-10 words).
 3. **Persist**: Writes the result to `state/resume-message.json` in the current session directory.
 
 ## 4. Data Models
@@ -70,19 +70,17 @@ Defined in `packages/types/src/services/state.ts` via `ResumeMessageStateSchema`
 {
   "last_task_id": "string | null",
   "session_title": "string | null",
-  "resume_last_goal_message": "string",
   "snarky_comment": "string",
   "timestamp": "ISO-8601 string"
 }
 ```
 
-| Field                      | Description                                                    |
-| :------------------------- | :------------------------------------------------------------- |
-| `last_task_id`             | Most recent task ID from the summary, if available.            |
-| `session_title`            | Source session's title (used as statusline title).             |
-| `resume_last_goal_message` | Full question format (e.g., "Shall we resume...").             |
-| `snarky_comment`           | Witty welcome message (used as statusline summary text).       |
-| `timestamp`                | ISO-8601 timestamp when this was generated.                    |
+| Field           | Description                                                    |
+| :-------------- | :------------------------------------------------------------- |
+| `last_task_id`  | Most recent task ID from the summary, if available.            |
+| `session_title` | Source session's title (used as statusline title).             |
+| `snarky_comment`| Witty welcome message (8-10 words, used as statusline summary).|
+| `timestamp`     | ISO-8601 timestamp when this was generated.                    |
 
 ### 4.2 Configuration
 
@@ -100,8 +98,7 @@ Managed via `sidekick-core` config system.
 ### 5.1 Legacy Parity
 
 - **Logic**: The logic mirrors `src/sidekick/features/resume.sh` (init) and `generate-resume.sh` (generation).
-- **Prompts**: Reuses `assets/sidekick/prompts/resume.prompt.txt`.
-- **Schemas**: Reuses `assets/sidekick/schemas/resume.schema.json`.
+- **Prompts**: Uses `assets/sidekick/prompts/resume-message.prompt.txt` (outputs plain text, not JSON).
 
 ### 5.2 Improvements over Legacy
 
@@ -142,7 +139,6 @@ The Resume feature emits `SidekickEvent` records (see `docs/design/flow.md` §3.
   },
   "payload": {
     "state": {
-      "resume_last_goal_message": "Shall we resume refactoring the API?",
       "snarky_comment": "Back from the void, I see...",
       "timestamp": "2024-01-15T10:30:00Z"
     },

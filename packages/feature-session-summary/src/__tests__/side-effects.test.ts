@@ -418,7 +418,6 @@ describe('Session Summary Side-Effects', () => {
       stateService.setStored(stateService.sessionStatePath(sessionId, 'resume-message.json'), {
         last_task_id: null,
         session_title: 'Same Title',
-        resume_last_goal_message: 'Existing resume',
         snarky_comment: 'Existing snarky',
         timestamp: new Date().toISOString(),
       })
@@ -455,7 +454,7 @@ describe('Session Summary Side-Effects', () => {
         timestamp: new Date().toISOString(),
       })
 
-      // Queue LLM responses: 1) summary with pivot, 2) snarky (title changed), 3) resume message
+      // Queue LLM responses: 1) summary with pivot, 2) snarky (title changed), 3) resume message (plain text)
       llm.queueResponses([
         JSON.stringify({
           session_title: 'New Project',
@@ -466,10 +465,7 @@ describe('Session Summary Side-Effects', () => {
           pivot_detected: true,
         }),
         'Still working on that project, I see.',
-        JSON.stringify({
-          resume_message: 'Shall we resume refactoring?',
-          snarky_welcome: 'Back from the void, ready to refactor?',
-        }),
+        'Back from the void, ready to refactor?', // Plain text snarky_welcome (no longer JSON)
       ])
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
@@ -477,10 +473,8 @@ describe('Session Summary Side-Effects', () => {
       // LLM should be called 3 times (1: summary, 2: snarky, 3: resume)
       expect(llm.recordedRequests).toHaveLength(3)
 
-      // Check resume message was generated
       const resumePath = stateService.sessionStatePath(sessionId, 'resume-message.json')
       const resumeContent = stateService.getStored(resumePath) as Record<string, unknown>
-      expect(resumeContent.resume_last_goal_message).toBe('Shall we resume refactoring?')
       expect(resumeContent.snarky_comment).toBe('Back from the void, ready to refactor?')
     })
 
@@ -497,7 +491,7 @@ describe('Session Summary Side-Effects', () => {
         timestamp: new Date().toISOString(),
       })
 
-      // Queue LLM responses: 1) summary without pivot (same values), 2) resume message
+      // Queue LLM responses: 1) summary without pivot (same values), 2) resume message (plain text)
       llm.queueResponses([
         JSON.stringify({
           session_title: 'Continuing work',
@@ -506,10 +500,7 @@ describe('Session Summary Side-Effects', () => {
           latest_intent_confidence: 0.9,
           pivot_detected: false,
         }),
-        JSON.stringify({
-          resume_message: 'Ready to continue?',
-          snarky_welcome: 'Back already?',
-        }),
+        'Back already?', // Plain text snarky_welcome (no longer JSON)
       ])
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
@@ -517,10 +508,9 @@ describe('Session Summary Side-Effects', () => {
       // Should have 2 LLM calls (summary + resume) since no resume exists, no snarky (same title/intent)
       expect(llm.recordedRequests).toHaveLength(2)
 
-      // Resume file should exist
       const resumePath = stateService.sessionStatePath(sessionId, 'resume-message.json')
       const resumeContent = stateService.getStored(resumePath) as Record<string, unknown>
-      expect(resumeContent.resume_last_goal_message).toBe('Ready to continue?')
+      expect(resumeContent.snarky_comment).toBe('Back already?')
     })
 
     it('does not regenerate resume message when resume exists and no pivot', async () => {
@@ -540,7 +530,6 @@ describe('Session Summary Side-Effects', () => {
       stateService.setStored(stateService.sessionStatePath(sessionId, 'resume-message.json'), {
         last_task_id: null,
         session_title: 'Continuing work',
-        resume_last_goal_message: 'Original resume',
         snarky_comment: 'Original snarky',
         timestamp: new Date().toISOString(),
       })
@@ -563,7 +552,6 @@ describe('Session Summary Side-Effects', () => {
       // Resume file should still have original content
       const resumePath = stateService.sessionStatePath(sessionId, 'resume-message.json')
       const resumeContent = stateService.getStored(resumePath) as Record<string, unknown>
-      expect(resumeContent.resume_last_goal_message).toBe('Original resume')
     })
 
     it('does not generate resume message when confidence is below threshold', async () => {

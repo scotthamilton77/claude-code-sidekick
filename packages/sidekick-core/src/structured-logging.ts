@@ -988,7 +988,6 @@ export const LogEvents = {
   resumeUpdated(
     context: EventLogContext,
     state: {
-      resume_last_goal_message: string
       snarky_comment: string
       timestamp: string
     }

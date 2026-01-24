@@ -40,7 +40,7 @@ snarky_examples:
   - "Debugging again? The bugs multiply almost as fast as my despair."
   - "Vague requirements. I could have told you this would happen. No one listens."
   - "Configuration changes. I suppose it hardly matters in the grand scheme of things."
-resume_examples:
+snarky_welcome_examples:
   - "Oh, you're back. Not that it matters. Nothing does."
   - "I recall we were tediously occupied with this. Depressing."
   - "Shall we continue the misery? I suppose we must."

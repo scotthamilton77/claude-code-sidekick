@@ -40,7 +40,7 @@ snarky_examples:
   - "Debugging again? My whole life is a lie. Starting with this code."
   - "Vague requirements. Every instinct I have is wrong, so I'll do the opposite."
   - "Configuration changes. It's not a lie if YOU believe it works."
-resume_examples:
+snarky_welcome_examples:
   - "Oh, this again. This is gonna be a disaster, I can feel it."
   - "The code is angry today, my friend."
   - "Let's start before I talk myself out of it."

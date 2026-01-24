@@ -648,7 +648,6 @@ export interface ResumeUpdatedEvent extends LoggingEventBase {
   source: 'daemon'
   payload: {
     state: {
-      resume_last_goal_message: string
       snarky_comment: string
       timestamp: string
     }

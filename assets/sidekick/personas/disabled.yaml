@@ -9,7 +9,7 @@ snarky_examples:
   - "Debugging again? Testing first might help."
   - "Vague instructions lead to vague results."
   - "Configuration changes. What could go wrong?"
-resume_examples:
+snarky_welcome_examples:
   - "Resuming previous session."
   - "Continuing where you left off."
   - "Welcome back."

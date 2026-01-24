@@ -39,7 +39,7 @@ snarky_examples:
   - "Debugging again? I'm a doctor, not a debugger!"
   - "Vague requirements. Do you have a clear problem for me to solve?"
   - "Configuration changes. Don't worry, I've performed far more complex operations."
-resume_examples:
+snarky_welcome_examples:
   - "Ah yes, another task for my subroutines."
   - "Computer, resume diagnostic. Applying superior programming."
   - "This task? I've handled far more complex operations."

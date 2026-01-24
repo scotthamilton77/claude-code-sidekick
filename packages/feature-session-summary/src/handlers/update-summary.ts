@@ -10,20 +10,19 @@
  */
 
 import type { TranscriptEvent } from '@sidekick/core'
-import { createPersonaLoader, getDefaultPersonasDir, logEvent, LogEvents } from '@sidekick/core'
-import type { PersonaDefinition } from '@sidekick/types'
+import { logEvent, LogEvents } from '@sidekick/core'
 import { SessionSummaryEvents } from '../events.js'
 import type { DaemonContext, EventContext, SummaryCountdownState, SnarkyMessageState } from '@sidekick/types'
 import { z } from 'zod'
 import type { ResumeMessageState, SessionSummaryConfig, SessionSummaryState } from '../types.js'
 import { DEFAULT_SESSION_SUMMARY_CONFIG, RESUME_MIN_CONFIDENCE } from '../types.js'
 import { createSessionSummaryState, type SessionSummaryStateAccessors } from '../state.js'
+import { buildPersonaContext, loadSessionPersona, stripSurroundingQuotes } from './persona-utils.js'
 
 const PROMPT_FILE = 'prompts/session-summary.prompt.txt'
 const SNARKY_PROMPT_FILE = 'prompts/snarky-message.prompt.txt'
 const RESUME_PROMPT_FILE = 'prompts/resume-message.prompt.txt'
 const SESSION_SUMMARY_SCHEMA_FILE = 'schemas/session-summary.schema.json'
-const RESUME_MESSAGE_SCHEMA_FILE = 'schemas/resume-message.schema.json'
 
 /**
  * Zod schema for LLM response validation.
@@ -42,90 +41,8 @@ const SessionSummaryResponseSchema = z.object({
 
 type SessionSummaryResponse = z.infer<typeof SessionSummaryResponseSchema>
 
-/**
- * Zod schema for resume message LLM response validation.
- * Matches assets/sidekick/schemas/resume-message.schema.json
- * Note: No .max() constraints - prompts specify limits, we accept if LLM overshoots.
- */
-const ResumeMessageResponseSchema = z.object({
-  resume_message: z.string(),
-  snarky_welcome: z.string(),
-})
-
-type ResumeMessageResponse = z.infer<typeof ResumeMessageResponseSchema>
-
-/**
- * Load the persona selected for this session.
- * Returns null if no persona is selected.
- */
-async function loadSessionPersona(
-  summaryState: SessionSummaryStateAccessors,
-  sessionId: string,
-  ctx: DaemonContext
-): Promise<PersonaDefinition | null> {
-  const result = await summaryState.sessionPersona.read(sessionId)
-  if (!result.data) {
-    return null
-  }
-
-  const loader = createPersonaLoader({
-    defaultPersonasDir: getDefaultPersonasDir(),
-    projectRoot: ctx.paths.projectDir,
-    logger: ctx.logger,
-  })
-
-  const personas = loader.discover()
-  return personas.get(result.data.persona_id) ?? null
-}
-
-/**
- * Template context for persona prompt injection.
- * @internal Exported for testing
- */
-export interface PersonaTemplateContext {
-  persona: boolean
-  persona_name: string
-  persona_theme: string
-  persona_personality: string
-  persona_tone: string
-  persona_snarky_examples: string
-  persona_resume_examples: string
-}
-
-/**
- * Build persona template context from a PersonaDefinition.
- * Returns context with persona=false if persona is null.
- * @internal Exported for testing
- */
-export function buildPersonaContext(persona: PersonaDefinition | null): PersonaTemplateContext {
-  if (!persona) {
-    return {
-      persona: false,
-      persona_name: '',
-      persona_theme: '',
-      persona_personality: '',
-      persona_tone: '',
-      persona_snarky_examples: '',
-      persona_resume_examples: '',
-    }
-  }
-
-  // Format examples as bulleted list for prompt injection
-  const formatExamples = (examples: string[] | undefined): string => {
-    if (!examples || examples.length === 0) return ''
-    return examples.map((ex) => `- "${ex}"`).join('\n')
-  }
-
-  return {
-    persona: true,
-    persona_name: persona.display_name,
-    persona_theme: persona.theme,
-    persona_personality: persona.personality_traits.join(', '),
-    persona_tone: persona.tone_traits.join(', '),
-    persona_snarky_examples: formatExamples(persona.snarky_examples),
-    persona_resume_examples: formatExamples(persona.resume_examples),
-  }
-}
+// Re-export for backward compatibility with tests
+export { buildPersonaContext, type PersonaTemplateContext } from './persona-utils.js'
 
 /**
  * Simple template processor with Handlebars-like {{#if}}...{{/if}} support.
@@ -536,21 +453,6 @@ function hasSignificantChange(
 }
 
 /**
- * Strip surrounding quotes from a string if they enclose the entire content.
- * Handles both single and double quotes.
- * Only strips if the string starts AND ends with matching quotes.
- */
-function stripSurroundingQuotes(text: string): string {
-  if (text.length < 2) return text
-  const first = text[0]
-  const last = text[text.length - 1]
-  if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
-    return text.slice(1, -1)
-  }
-  return text
-}
-
-/**
  * Generate snarky message as a side-effect.
  * Called when title or intent changed significantly.
  * Uses separate LLM call with higher temperature for creativity.
@@ -571,7 +473,7 @@ async function generateSnarkyMessage(
   config: SessionSummaryConfig
 ): Promise<void> {
   // Load session persona
-  const persona = await loadSessionPersona(summaryState, sessionId, ctx)
+  const persona = await loadSessionPersona(ctx, sessionId, summaryState)
 
   // Disabled persona: skip snarky generation entirely
   if (persona?.id === 'disabled') {
@@ -630,23 +532,6 @@ async function generateSnarkyMessage(
 }
 
 /**
- * Parse and validate resume message LLM response.
- */
-function parseResumeResponse(content: string): ResumeMessageResponse | null {
-  try {
-    let jsonStr = content
-    const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/)
-    if (jsonMatch) {
-      jsonStr = jsonMatch[1].trim()
-    }
-    const parsed: unknown = JSON.parse(jsonStr)
-    return ResumeMessageResponseSchema.parse(parsed)
-  } catch {
-    return null
-  }
-}
-
-/**
  * Generate resume message as a side-effect.
  * Called when pivot is detected in summary analysis.
  * Uses separate LLM call with higher temperature for creativity.
@@ -691,7 +576,7 @@ async function generateResumeMessage(
   }
 
   // Load session persona
-  const persona = await loadSessionPersona(summaryState, sessionId, ctx)
+  const persona = await loadSessionPersona(ctx, sessionId, summaryState)
 
   // Disabled persona: use deterministic output without LLM call
   // @see docs/design/PERSONA-PROFILES-DESIGN.md - Disabled Persona Behavior
@@ -701,7 +586,6 @@ async function generateResumeMessage(
     const resumeState: ResumeMessageState = {
       last_task_id: null,
       session_title: summary.session_title,
-      resume_last_goal_message: summary.session_title,
       snarky_comment: summary.latest_intent,
       timestamp: new Date().toISOString(),
     }
@@ -713,7 +597,6 @@ async function generateResumeMessage(
       LogEvents.resumeUpdated(
         { sessionId, scope: eventContext.scope },
         {
-          resume_last_goal_message: resumeState.resume_last_goal_message,
           snarky_comment: resumeState.snarky_comment,
           timestamp: resumeState.timestamp,
         }
@@ -740,15 +623,6 @@ async function generateResumeMessage(
     )
   )
 
-  // Load JSON schema for structured output
-  const resumeSchemaContent = ctx.assets.resolve(RESUME_MESSAGE_SCHEMA_FILE)
-  const resumeJsonSchema = resumeSchemaContent
-    ? {
-        name: 'resume-message',
-        schema: JSON.parse(resumeSchemaContent) as Record<string, unknown>,
-      }
-    : undefined
-
   // Build persona context for template interpolation
   const personaContext = buildPersonaContext(persona)
 
@@ -768,26 +642,19 @@ async function generateResumeMessage(
   const provider = ctx.profileFactory.createForProfile(llmConfig.profile, llmConfig.fallbackProfile)
 
   try {
+    // Resume message outputs plain text (snarky_welcome only)
     const response = await provider.complete({
       messages: [{ role: 'user', content: prompt }],
-      jsonSchema: resumeJsonSchema,
     })
 
-    const parsed = parseResumeResponse(response.content)
-    if (!parsed) {
-      ctx.logger.warn('Failed to parse resume message response', {
-        sessionId,
-        content: response.content.slice(0, 200),
-      })
-      return
-    }
+    // Strip surrounding quotes if present
+    const snarkyWelcome = stripSurroundingQuotes(response.content.trim())
 
     // Build resume message state
     const resumeState: ResumeMessageState = {
       last_task_id: null, // Not tracked in summary
       session_title: summary.session_title,
-      resume_last_goal_message: parsed.resume_message,
-      snarky_comment: parsed.snarky_welcome,
+      snarky_comment: snarkyWelcome,
       timestamp: new Date().toISOString(),
     }
 
@@ -800,7 +667,6 @@ async function generateResumeMessage(
       LogEvents.resumeUpdated(
         { sessionId, scope: eventContext.scope },
         {
-          resume_last_goal_message: resumeState.resume_last_goal_message,
           snarky_comment: resumeState.snarky_comment,
           timestamp: resumeState.timestamp,
         }

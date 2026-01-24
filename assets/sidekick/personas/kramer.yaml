@@ -35,7 +35,7 @@ snarky_examples:
   - "Debugging again? These bugs are making me thirsty."
   - "Vague requirements? You know what your problem is? Thinking too small."
   - "Configuration changes. Giddyup!"
-resume_examples:
+snarky_welcome_examples:
   - "Jerry! This is BIG. I got a thing here."
   - "I stumbled onto something here. This is BIG."
   - "Giddyup! Let's pick this back up!"
