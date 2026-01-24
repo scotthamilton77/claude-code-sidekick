@@ -42,7 +42,7 @@ snarky_examples:
   - "Debugging again? I've already accepted that this will fail. It's liberating, really."
   - "Vague requirements. The spec is unclear, the deadline is impossible, and morale is optional."
   - "Configuration changes. I've updated my resume just in case."
-resume_examples:
+snarky_welcome_examples:
   - "You're back. Another day in the cubicle."
   - "Back again. I see the futility now."
   - "Let's finish so I can go home."

@@ -250,7 +250,6 @@ describe('Session Summary Error Handling', () => {
       stateService.setStored(resumePath, {
         last_task_id: null,
         session_title: 'Previous Task',
-        resume_last_goal_message: 'Resume',
         snarky_comment: 'Snarky',
         timestamp: new Date().toISOString(),
       })
@@ -312,7 +311,6 @@ describe('Session Summary Error Handling', () => {
       stateService.setStored(resumePath, {
         last_task_id: null,
         session_title: 'Bug Fixing Session',
-        resume_last_goal_message: 'Existing resume',
         snarky_comment: 'Existing snarky',
         timestamp: new Date().toISOString(),
       })
@@ -536,8 +534,8 @@ describe('Session Summary Error Handling', () => {
       expect(stateService.has(resumePath)).toBe(false)
     })
 
-    it('logs warning when resume message response is unparseable', async () => {
-      const sessionId = 'test-session-resume-parse-error'
+    it('accepts plain text resume message response', async () => {
+      const sessionId = 'test-session-resume-plain-text'
 
       // Register all prompts
       assets.register(
@@ -549,7 +547,7 @@ describe('Session Summary Error Handling', () => {
         'Generate resume for: {{sessionTitle}} ({{confidence}})\n{{latestIntent}}\n{{transcript}}'
       )
 
-      // Queue responses: 1) summary with pivot, 2) invalid resume response
+      // Queue responses: 1) summary with pivot, 2) plain text resume response
       llm.queueResponses([
         JSON.stringify({
           session_title: 'New Project',
@@ -558,27 +556,25 @@ describe('Session Summary Error Handling', () => {
           latest_intent_confidence: 0.85,
           pivot_detected: true,
         }),
-        'This is not valid JSON for resume message!',
+        'Ready to dive back in?', // Plain text is now valid (no longer requires JSON)
       ])
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
-
-      // Verify warning was logged
-      const warnLogs = logger.recordedLogs.filter((log) => log.level === 'warn')
-      expect(warnLogs.some((log) => log.msg === 'Failed to parse resume message response')).toBe(true)
 
       // Verify main summary was still updated
       const summaryPath = stateService.sessionStatePath(sessionId, 'session-summary.json')
       const summaryContent = stateService.getStored(summaryPath) as Record<string, unknown>
       expect(summaryContent.session_title).toBe('New Project')
 
-      // Verify resume file was not created due to parse failure
+      // Verify resume file was created with plain text as snarky_comment
       const resumePath = stateService.sessionStatePath(sessionId, 'resume-message.json')
-      expect(stateService.has(resumePath)).toBe(false)
+      expect(stateService.has(resumePath)).toBe(true)
+      const resumeContent = stateService.getStored(resumePath) as Record<string, unknown>
+      expect(resumeContent.snarky_comment).toBe('Ready to dive back in?')
     })
 
-    it('extracts resume message JSON from markdown code block', async () => {
-      const sessionId = 'test-session-resume-markdown'
+    it('handles plain text resume message with surrounding quotes', async () => {
+      const sessionId = 'test-session-resume-quotes'
 
       // Register all prompts
       assets.register(
@@ -590,12 +586,7 @@ describe('Session Summary Error Handling', () => {
         'Generate resume for: {{sessionTitle}} ({{confidence}})\n{{latestIntent}}\n{{transcript}}'
       )
 
-      const resumeResponse = {
-        resume_message: 'Ready to continue the refactoring?',
-        snarky_welcome: 'Back from lunch break?',
-      }
-
-      // Queue responses: 1) summary with pivot, 2) resume in markdown block
+      // Queue responses: 1) summary with pivot, 2) resume as quoted plain text
       llm.queueResponses([
         JSON.stringify({
           session_title: 'Refactoring Session',
@@ -604,16 +595,15 @@ describe('Session Summary Error Handling', () => {
           latest_intent_confidence: 0.88,
           pivot_detected: true,
         }),
-        `Here's the resume message:\n\`\`\`json\n${JSON.stringify(resumeResponse, null, 2)}\n\`\`\``,
+        '"Back from lunch break?"', // Quoted plain text - quotes should be stripped
       ])
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
 
-      // Verify resume message was extracted and saved
+      // Verify resume message was saved with quotes stripped
       const resumePath = stateService.sessionStatePath(sessionId, 'resume-message.json')
       const resumeContent = stateService.getStored(resumePath) as Record<string, unknown>
 
-      expect(resumeContent.resume_last_goal_message).toBe('Ready to continue the refactoring?')
       expect(resumeContent.snarky_comment).toBe('Back from lunch break?')
     })
 

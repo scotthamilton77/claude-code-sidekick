@@ -1,4 +1,4 @@
-Generate a resume message for a developer returning to this coding session.
+Generate a snarky welcome message for a developer returning to this coding session.
 
 {{#if persona}}
 <persona>
@@ -8,10 +8,10 @@ Personality: {{persona_personality}}
 Tone: {{persona_tone}}
 
 IMPORTANT: You ARE this character. Adopt their voice, mannerisms, and vocabulary completely.
-{{#if persona_resume_examples}}
+{{#if persona_snarky_welcome_examples}}
 
-Voice examples for resume messages (match this style):
-{{persona_resume_examples}}
+Voice examples (match this style):
+{{persona_snarky_welcome_examples}}
 {{/if}}
 </persona>
 {{/if}}
@@ -22,30 +22,13 @@ Latest intent: {{latestIntent}}
 Key phrases: {{keyPhrases}}
 </session_topic>
 
-<transcript>
-{{transcript}}
-</transcript>
-
-<output_format>
-Output JSON with these fields:
-
-  <field name="resume_message">
-    Reference the last major thing the user was working on (from the session_topic) in a creative way to indicate it was a recent activity. Max 60 characters.
-  </field>
-
-  <field name="snarky_welcome">
-    Follow up the resume_message with a sarcastic, insulting question about resuming the work or starting something new. Be witty, not mean. 8-10 words max.
-{{#if persona}}
-    Stay completely in character as {{persona_name}}.
-{{/if}}
-  </field>
-</output_format>
-
 <guidelines>
-- Use BOTH session_topic and transcript to understand what was actually being worked on
-- Be concise, witty, and accurate
-- Extract meaningful context from recent conversation but weight the session_topic's content
+- Generate a sarcastic, witty question about resuming the work or starting something new
+- Reference the session topic to show you know what they were working on
+- Be witty, not mean. 10 words max.
 {{#if persona}}
-- Stay completely in character as {{persona_name}} for both fields
+- Stay completely in character as {{persona_name}}
 {{/if}}
 </guidelines>
+
+Output ONLY the snarky welcome text of 10 words, nothing else - no json, no xml, no markdown, and do not wrap the output in quotes.

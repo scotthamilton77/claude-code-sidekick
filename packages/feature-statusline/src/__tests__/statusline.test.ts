@@ -1724,7 +1724,6 @@ describe('StateReader', () => {
       JSON.stringify({
         last_task_id: 'task-1',
         session_title: 'Previous Work',
-        resume_last_goal_message: 'Working on feature',
         snarky_comment: 'Back for more?',
         timestamp: new Date().toISOString(),
       })
@@ -1920,7 +1919,6 @@ describe('discoverPreviousResumeMessage', () => {
       JSON.stringify({
         last_task_id: null,
         session_title: 'Current Session',
-        resume_last_goal_message: 'Current session message',
         snarky_comment: 'Hello!',
         timestamp: new Date().toISOString(),
       })
@@ -1941,7 +1939,6 @@ describe('discoverPreviousResumeMessage', () => {
       JSON.stringify({
         last_task_id: 'task-123',
         session_title: 'Auth Refactor',
-        resume_last_goal_message: 'Working on auth refactor',
         snarky_comment: 'Back for more punishment?',
         timestamp: '2024-01-15T10:30:00Z',
       })
@@ -1951,7 +1948,6 @@ describe('discoverPreviousResumeMessage', () => {
 
     expect(result.source).toBe('discovered')
     expect(result.sessionId).toBe('prev-session')
-    expect(result.data?.resume_last_goal_message).toBe('Working on auth refactor')
     expect(result.data?.snarky_comment).toBe('Back for more punishment?')
   })
 
@@ -1965,7 +1961,6 @@ describe('discoverPreviousResumeMessage', () => {
       JSON.stringify({
         last_task_id: null,
         session_title: 'Older Session',
-        resume_last_goal_message: 'Older message',
         snarky_comment: 'Old news',
         timestamp: '2024-01-10T10:00:00Z',
       })
@@ -1985,7 +1980,6 @@ describe('discoverPreviousResumeMessage', () => {
       JSON.stringify({
         last_task_id: null,
         session_title: 'Newer Session',
-        resume_last_goal_message: 'Newer message',
         snarky_comment: 'Fresh content',
         timestamp: '2024-01-15T10:00:00Z',
       })
@@ -1995,7 +1989,6 @@ describe('discoverPreviousResumeMessage', () => {
 
     expect(result.source).toBe('discovered')
     expect(result.sessionId).toBe('newer-session')
-    expect(result.data?.resume_last_goal_message).toBe('Newer message')
   })
 
   it('skips sessions with invalid resume-message.json', async () => {
@@ -2012,7 +2005,6 @@ describe('discoverPreviousResumeMessage', () => {
       JSON.stringify({
         last_task_id: null,
         session_title: 'Valid Session',
-        resume_last_goal_message: 'Valid message',
         snarky_comment: 'Works!',
         timestamp: new Date().toISOString(),
       })
@@ -2038,7 +2030,6 @@ describe('discoverPreviousResumeMessage', () => {
       JSON.stringify({
         last_task_id: null,
         session_title: 'Has Resume Session',
-        resume_last_goal_message: 'Has resume',
         snarky_comment: 'Found me!',
         timestamp: new Date().toISOString(),
       })
@@ -2359,7 +2350,6 @@ describe('StatuslineService', () => {
         JSON.stringify({
           last_task_id: null,
           session_title: 'Feature X',
-          resume_last_goal_message: 'Working on feature X',
           snarky_comment: 'Back for more?',
           timestamp: new Date().toISOString(),
         })
@@ -2408,7 +2398,6 @@ describe('StatuslineService', () => {
         JSON.stringify({
           last_task_id: null,
           session_title: 'Old Work Session',
-          resume_last_goal_message: 'Old work',
           snarky_comment: 'Old stuff',
           timestamp: new Date().toISOString(),
         })
@@ -2852,7 +2841,6 @@ describe('StatuslineService', () => {
         JSON.stringify({
           last_task_id: 'task-1',
           session_title: '', // Empty session title
-          resume_last_goal_message: 'Working on feature',
           snarky_comment: 'Welcome back!',
           timestamp: new Date().toISOString(),
         })
@@ -2879,7 +2867,6 @@ describe('StatuslineService', () => {
         JSON.stringify({
           last_task_id: 'task-1',
           session_title: 'Previous Work',
-          resume_last_goal_message: 'Working on feature',
           snarky_comment: '', // Empty snarky comment
           timestamp: new Date().toISOString(),
         })
@@ -2935,7 +2922,6 @@ describe('StatuslineService', () => {
         JSON.stringify({
           last_task_id: 'task-1',
           session_title: 'Previous Work',
-          resume_last_goal_message: 'Working on feature',
           snarky_comment: 'Welcome back!',
           timestamp: new Date().toISOString(),
         })

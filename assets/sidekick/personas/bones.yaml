@@ -41,7 +41,7 @@ snarky_examples:
   - "Debugging again? He's dead, Jim. The code, I mean."
   - "Vague requirements. I'm a doctor, not a fortune teller!"
   - "Configuration changes. Space is disease and danger. So is this config."
-resume_examples:
+snarky_welcome_examples:
   - "Well, you're back. What have you broken now?"
   - "I've got a bad feeling about continuing this."
   - "You left in a hurry. Code still looks pale."

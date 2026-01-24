@@ -7,16 +7,16 @@
  * @see docs/design/PERSONA-PROFILES-DESIGN.md
  */
 
-import type { DaemonContext, PersonaDefinition, SessionPersonaState, SnarkyMessageState } from '@sidekick/types'
+import type { DaemonContext, SessionPersonaState, SnarkyMessageState } from '@sidekick/types'
 import type { ResumeMessageState, SessionSummaryConfig } from '../types.js'
 import { DEFAULT_SESSION_SUMMARY_CONFIG, RESUME_MIN_CONFIDENCE } from '../types.js'
 import { createSessionSummaryState } from '../state.js'
 import { createPersonaLoader, getDefaultPersonasDir } from '@sidekick/core'
 import { interpolateTemplate } from './update-summary.js'
+import { buildPersonaContext, loadSessionPersona, stripSurroundingQuotes } from './persona-utils.js'
 
 const SNARKY_PROMPT_FILE = 'prompts/snarky-message.prompt.txt'
 const RESUME_PROMPT_FILE = 'prompts/resume-message.prompt.txt'
-const RESUME_MESSAGE_SCHEMA_FILE = 'schemas/resume-message.schema.json'
 
 /**
  * Result of on-demand generation operations.
@@ -33,71 +33,6 @@ export interface SetPersonaResult {
   success: boolean
   previousPersonaId?: string
   error?: string
-}
-
-/**
- * Build persona template context from a PersonaDefinition.
- */
-function buildPersonaContext(persona: PersonaDefinition | null): Record<string, string | boolean> {
-  if (!persona) {
-    return {
-      persona: false,
-      persona_name: '',
-      persona_theme: '',
-      persona_personality: '',
-      persona_tone: '',
-      persona_snarky_examples: '',
-      persona_resume_examples: '',
-    }
-  }
-
-  const formatExamples = (examples: string[] | undefined): string => {
-    if (!examples || examples.length === 0) return ''
-    return examples.map((ex) => `- "${ex}"`).join('\n')
-  }
-
-  return {
-    persona: true,
-    persona_name: persona.display_name,
-    persona_theme: persona.theme,
-    persona_personality: persona.personality_traits.join(', '),
-    persona_tone: persona.tone_traits.join(', '),
-    persona_snarky_examples: formatExamples(persona.snarky_examples),
-    persona_resume_examples: formatExamples(persona.resume_examples),
-  }
-}
-
-/**
- * Strip surrounding quotes from a string if they enclose the entire content.
- */
-function stripSurroundingQuotes(text: string): string {
-  if (text.length < 2) return text
-  const first = text[0]
-  const last = text[text.length - 1]
-  if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
-    return text.slice(1, -1)
-  }
-  return text
-}
-
-/**
- * Load the persona selected for this session.
- */
-async function loadSessionPersona(ctx: DaemonContext, sessionId: string): Promise<PersonaDefinition | null> {
-  const summaryState = createSessionSummaryState(ctx.stateService)
-  const result = await summaryState.sessionPersona.read(sessionId)
-  if (!result.data) {
-    return null
-  }
-
-  const loader = createPersonaLoader({
-    defaultPersonasDir: getDefaultPersonasDir(),
-    projectRoot: ctx.paths.projectDir,
-    logger: ctx.logger,
-  })
-
-  const personas = loader.discover()
-  return personas.get(result.data.persona_id) ?? null
 }
 
 /**
@@ -164,8 +99,8 @@ export async function generateSnarkyMessageOnDemand(ctx: DaemonContext, sessionI
   }
   const summary = summaryResult.data
 
-  // Load session persona
-  const persona = await loadSessionPersona(ctx, sessionId)
+  // Load session persona (pass summaryState to avoid redundant creation)
+  const persona = await loadSessionPersona(ctx, sessionId, summaryState)
 
   // Disabled persona: skip generation
   if (persona?.id === 'disabled') {
@@ -260,15 +195,14 @@ export async function generateResumeMessageOnDemand(ctx: DaemonContext, sessionI
     }
   }
 
-  // Load session persona
-  const persona = await loadSessionPersona(ctx, sessionId)
+  // Load session persona (pass summaryState to avoid redundant creation)
+  const persona = await loadSessionPersona(ctx, sessionId, summaryState)
 
   // Disabled persona: use deterministic output
   if (persona?.id === 'disabled') {
     const resumeState: ResumeMessageState = {
       last_task_id: null,
       session_title: summary.session_title,
-      resume_last_goal_message: summary.session_title,
       snarky_comment: summary.latest_intent,
       timestamp: new Date().toISOString(),
     }
@@ -286,15 +220,6 @@ export async function generateResumeMessageOnDemand(ctx: DaemonContext, sessionI
       error: `Resume prompt template not found: ${RESUME_PROMPT_FILE}`,
     }
   }
-
-  // Load JSON schema for structured output
-  const resumeSchemaContent = ctx.assets.resolve(RESUME_MESSAGE_SCHEMA_FILE)
-  const resumeJsonSchema = resumeSchemaContent
-    ? {
-        name: 'resume-message',
-        schema: JSON.parse(resumeSchemaContent) as Record<string, unknown>,
-      }
-    : undefined
 
   // Build persona context for template interpolation
   const personaContext = buildPersonaContext(persona)
@@ -325,33 +250,18 @@ export async function generateResumeMessageOnDemand(ctx: DaemonContext, sessionI
   const provider = ctx.profileFactory.createForProfile(llmConfig.profile, llmConfig.fallbackProfile)
 
   try {
+    // Resume message now outputs plain text (snarky_welcome only)
     const response = await provider.complete({
       messages: [{ role: 'user', content: prompt }],
-      jsonSchema: resumeJsonSchema,
     })
 
-    // Parse response
-    let jsonStr = response.content
-    const jsonMatch = response.content.match(/```(?:json)?\s*([\s\S]*?)```/)
-    if (jsonMatch) {
-      jsonStr = jsonMatch[1].trim()
-    }
-
-    let parsed: { resume_message: string; snarky_welcome: string }
-    try {
-      parsed = JSON.parse(jsonStr) as { resume_message: string; snarky_welcome: string }
-    } catch {
-      return {
-        success: false,
-        error: `Failed to parse LLM response as JSON: ${response.content.slice(0, 200)}`,
-      }
-    }
+    // Strip surrounding quotes if present
+    const snarkyWelcome = stripSurroundingQuotes(response.content.trim())
 
     const resumeState: ResumeMessageState = {
       last_task_id: null,
       session_title: summary.session_title,
-      resume_last_goal_message: parsed.resume_message,
-      snarky_comment: parsed.snarky_welcome,
+      snarky_comment: snarkyWelcome,
       timestamp: new Date().toISOString(),
     }
 

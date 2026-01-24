@@ -110,23 +110,16 @@ Generates "welcome back" messages for returning sessions.
 | `{{persona_theme}}` | Persona character description |
 | `{{persona_personality}}` | Comma-separated traits |
 | `{{persona_tone}}` | Comma-separated tone traits |
-| `{{persona_resume_examples}}` | Example resume messages |
+| `{{persona_snarky_welcome_examples}}` | Example snarky welcome messages for returning users |
 | `{{sessionTitle}}` | Session title |
 | `{{confidence}}` | Title confidence |
 | `{{latestIntent}}` | Latest user intent |
 | `{{keyPhrases}}` | Key phrases from session |
 | `{{transcript}}` | Recent transcript excerpt |
 
-### Output Schema
+### Output
 
-See `assets/sidekick/schemas/resume-message.schema.json`
-
-```json
-{
-  "resume_message": "string, max 60 chars (references session topic)",
-  "snarky_welcome": "string, 8-10 words (guided by persona resume_examples)"
-}
-```
+Plain text snarky welcome message (8-10 words max). No JSON wrapper.
 
 ---
 

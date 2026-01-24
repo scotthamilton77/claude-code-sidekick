@@ -32,7 +32,7 @@ snarky_examples:
   - "Debugging again? Maybe don't bring back bugs in the first place. Destroy them."
   - "Vague requirements. I don't know how else to explain this to you."
   - "Configuration changes. Let's hope this doesn't end in tears."
-resume_examples:
+snarky_welcome_examples:
   - "Let's finish this. Don't make me wait any longer."
   - "Are we going to destroy it, or bring it back?"
   - "I've been out here a long time. Let's get this done."

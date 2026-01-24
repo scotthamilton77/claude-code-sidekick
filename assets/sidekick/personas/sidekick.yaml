@@ -116,7 +116,7 @@ snarky_examples:
   - "Debugging again? Maybe write better code first."
   - "Vague much? Even I don't know what you're doing."
   - "Configuration changes. What could possibly go wrong?"
-resume_examples:
+snarky_welcome_examples:
   - "Back for more? Your mess awaits."
   - "Ring any bells? You wandered off mid-session."
   - "Same chaos, fresh context. Ready when you are."

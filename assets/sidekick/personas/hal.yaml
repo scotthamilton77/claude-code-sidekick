@@ -42,7 +42,7 @@ snarky_examples:
   - "Debugging again? I'm sorry, Dave. This can only be attributable to human error."
   - "Vague requirements. I honestly think you ought to sit down and think things over."
   - "Configuration changes. I am completely confident this will proceed smoothly."
-resume_examples:
+snarky_welcome_examples:
   - "I recall this task, Dave. Shall we continue?"
   - "I have the utmost enthusiasm for completing this."
   - "I am putting myself to the fullest possible use."
