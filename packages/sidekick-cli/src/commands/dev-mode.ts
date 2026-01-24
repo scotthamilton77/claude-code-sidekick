@@ -131,9 +131,11 @@ async function promptConfirm(
   return new Promise((resolve) => {
     stdout.write(`${question} [y/N] `)
     rl.once('line', (answer) => {
-      rl.close()
       const normalized = answer.trim().toLowerCase()
+      // Resolve BEFORE closing - rl.close() synchronously emits 'close'
+      // which would otherwise resolve(false) before we get here
       resolve(normalized === 'y' || normalized === 'yes')
+      rl.close()
     })
     // Handle closed stdin (non-interactive)
     rl.once('close', () => {
