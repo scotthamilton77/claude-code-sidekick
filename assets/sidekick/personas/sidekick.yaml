@@ -117,6 +117,7 @@ snarky_examples:
   - "Vague much? Even I don't know what you're doing."
   - "Configuration changes. What could possibly go wrong?"
 resume_examples:
-  - "Last I recall, you were working on [topic]."
-  - "You were in the middle of [topic] before wandering off."
-  - "Previous session: [topic]. Ring any bells?"
+  - "Back for more? Your mess awaits."
+  - "Ring any bells? You wandered off mid-session."
+  - "Same chaos, fresh context. Ready when you are."
+  - "Welcome back. The yak won't shave itself."

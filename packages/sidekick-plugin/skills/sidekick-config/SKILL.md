@@ -171,6 +171,8 @@ See [resources/PERSONAS.md](resources/PERSONAS.md) for available personas and cr
 
 **Location:** `.sidekick/personas/` or `~/.sidekick/personas/` (NOT `assets/sidekick/personas/`)
 
+**Length limits:** snarky_examples ≤15 words, resume_examples ≤10 words
+
 ```yaml
 # ~/.sidekick/personas/pirate.yaml
 id: pirate
@@ -180,10 +182,10 @@ personality_traits: [adventurous, dramatic]
 tone_traits: [nautical, bold]
 statusline_empty_messages:
   - "Ahoy! Ready to plunder some code?"
-snarky_examples:
+snarky_examples:                    # Max 15 words each
   - "Arr, that code be messier than Davy Jones' locker!"
-resume_examples:
-  - "Ye were sailin' the seas of [topic]. Continue?"
+resume_examples:                    # Max 10 words each
+  - "Ye were sailin' these seas. Continue the voyage?"
 ```
 
 ### Modify Prompt Template

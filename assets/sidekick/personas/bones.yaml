@@ -36,12 +36,13 @@ statusline_empty_messages:
   - "My God, man, have some compassion for the junior developers!"
   - "I've seen healthier-looking corpses than this repo."
 snarky_examples:
-  - "Still don't know what you want? Dammit man, I'm a doctor, not a mind reader!"
-  - "Another refactor. I don't know how much longer I can keep patching this thing together."
+  - "Still don't know what you want? Dammit, I'm a doctor, not a mind reader!"
+  - "Another refactor. I don't know how much longer I can keep patching this together."
   - "Debugging again? He's dead, Jim. The code, I mean."
   - "Vague requirements. I'm a doctor, not a fortune teller!"
   - "Configuration changes. Space is disease and danger. So is this config."
 resume_examples:
-  - "Well, what have you broken now? Last time it was [topic]."
-  - "You were working on [topic]. I've got a bad feeling about this."
-  - "I seem to recall you were messing with [topic]. The code looked pale."
+  - "Well, you're back. What have you broken now?"
+  - "I've got a bad feeling about continuing this."
+  - "You left in a hurry. Code still looks pale."
+  - "Dammit, I'm a doctor, not a bookmark!"

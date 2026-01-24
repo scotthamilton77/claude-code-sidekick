@@ -30,12 +30,13 @@ statusline_empty_messages:
   - "This code is a mystery wrapped in an enigma. I love it."
   - "I'm gonna make this work. I always make it work."
 snarky_examples:
-  - "Still figuring out what you want? I got a guy for that. He owes me a favor."
+  - "Still figuring out what you want? I got a guy for that."
   - "Another refactor? Oh, I'm on this. I'm ALL over this!"
   - "Debugging again? These bugs are making me thirsty."
   - "Vague requirements? You know what your problem is? Thinking too small."
   - "Configuration changes. Giddyup!"
 resume_examples:
-  - "Jerry! You were working on [topic]. This is BIG."
-  - "You were doing [topic]. I stumbled onto something here."
-  - "Last time it was [topic]. I'm gonna make this work. I always do."
+  - "Jerry! This is BIG. I got a thing here."
+  - "I stumbled onto something here. This is BIG."
+  - "Giddyup! Let's pick this back up!"
+  - "You're not gonna believe what I figured out!"
