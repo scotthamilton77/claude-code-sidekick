@@ -276,8 +276,19 @@ export function createPersonaLoader(options: PersonaLoaderOptions): PersonaLoade
 /**
  * Get the default personas directory path.
  * Follows same pattern as getDefaultAssetsDir() in assets.ts.
+ *
+ * Checks two locations in order:
+ * 1. Bundled assets (npm installed mode): ../assets/sidekick/personas relative to dist/
+ * 2. Workspace assets (dev mode): ../../../assets/sidekick/personas relative to dist/ or src/
  */
 export function getDefaultPersonasDir(): string {
+  // Check for bundled assets (npm installed mode)
+  const bundledPath = join(__dirname, '..', 'assets', 'sidekick', 'personas')
+  if (existsSync(bundledPath)) {
+    return bundledPath
+  }
+
+  // Dev mode: navigate to workspace root
   const workspaceRoot = join(__dirname, '..', '..', '..')
   return join(workspaceRoot, 'assets', 'sidekick', 'personas')
 }

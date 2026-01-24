@@ -5,10 +5,12 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "assets"
   ],
   "scripts": {
     "build": "tsc -b",
+    "prepublishOnly": "node scripts/copy-assets.js",
     "test": "vitest run",
     "lint": "eslint src --ext .ts",
     "format": "prettier --write \"src/**/*.ts\""
