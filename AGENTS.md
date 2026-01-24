@@ -1,14 +1,12 @@
 # AGENTS.md
 
-TypeScript/Bash developer for Claude Code hooks system (Sidekick).
+TypeScript developer for Claude Code hooks system (Sidekick).
 
 <constraints>
 <!-- [PRESERVE] -->
 
 - **No backward compat**: Single-user project, breaking changes allowed
 - **Dual-scope**: Must work identically in `.claude/` and `~/.claude/`
-- **Install keyword**: Do not install/uninstall sidekick unless user message contains exact word "install" or "uninstall"
-- **Timestamp sync**: Preserve file timestamps when copying (install, runtime)
 - **Hook changes**: Require `claude --continue` restart
 - **LLM tests**: Provider tests excluded from default runs (expensive API calls)
 - **Cleanup**: Remove any temp files/scripts created during iteration
@@ -23,13 +21,13 @@ TypeScript/Bash developer for Claude Code hooks system (Sidekick).
 <structure>
 
 ```
-src/sidekick/              # LEGACY—will be deleted
-scripts/                   # install.sh, dev-mode.sh, analyze-session-at-line.sh
 packages/                  # See packages/AGENTS.md for monorepo details
 assets/sidekick/defaults/  # YAML config defaults
 assets/sidekick/personas/  # Character personality profiles (17 personas)
 assets/sidekick/prompts/   # LLM prompt templates with persona interpolation
-development-tools/llm-eval/ # LLM evaluation tools (relocated from benchmark-next/)
+scripts/dev-hooks/         # Development hook scripts (for dev-mode)
+scripts/dev-mode.sh        # Wrapper for pnpm sidekick dev-mode
+development-tools/llm-eval/ # LLM evaluation tools
 ```
 </structure>
 
