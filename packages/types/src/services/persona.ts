@@ -38,6 +38,8 @@ export const PersonaDefinitionSchema = z.object({
   snarky_examples: z.array(z.string()).optional(),
   /** Optional persona-specific snarky welcome examples for returning users (8-10 words max) */
   snarky_welcome_examples: z.array(z.string()).optional(),
+  /** Optional situational context override (default: "You are watching over the shoulder of a software developer as they work.") */
+  situation: z.string().optional(),
 })
 
 export type PersonaDefinition = z.infer<typeof PersonaDefinitionSchema>

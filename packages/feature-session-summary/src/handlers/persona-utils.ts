@@ -9,6 +9,9 @@ import type { DaemonContext, PersonaDefinition } from '@sidekick/types'
 import { createPersonaLoader, getDefaultPersonasDir } from '@sidekick/core'
 import { createSessionSummaryState, type SessionSummaryStateAccessors } from '../state.js'
 
+/** Default situational context for persona prompts */
+const DEFAULT_PERSONA_SITUATION = 'You are watching over the shoulder of a software developer as they work.'
+
 /**
  * Template context for persona prompt injection.
  */
@@ -20,6 +23,7 @@ export interface PersonaTemplateContext {
   persona_tone: string
   persona_snarky_examples: string
   persona_snarky_welcome_examples: string
+  persona_situation: string
 }
 
 /**
@@ -44,6 +48,7 @@ export function buildPersonaContext(persona: PersonaDefinition | null): PersonaT
       persona_tone: '',
       persona_snarky_examples: '',
       persona_snarky_welcome_examples: '',
+      persona_situation: DEFAULT_PERSONA_SITUATION,
     }
   }
 
@@ -55,6 +60,7 @@ export function buildPersonaContext(persona: PersonaDefinition | null): PersonaT
     persona_tone: persona.tone_traits.join(', '),
     persona_snarky_examples: formatExamples(persona.snarky_examples),
     persona_snarky_welcome_examples: formatExamples(persona.snarky_welcome_examples),
+    persona_situation: persona.situation ?? DEFAULT_PERSONA_SITUATION,
   }
 }
 
