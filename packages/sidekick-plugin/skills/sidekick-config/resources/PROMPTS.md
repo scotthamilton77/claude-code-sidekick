@@ -123,8 +123,8 @@ See `assets/sidekick/schemas/resume-message.schema.json`
 
 ```json
 {
-  "resume_message": "string, max 60 chars",
-  "snarky_welcome": "string, 8-10 words"
+  "resume_message": "string, max 60 chars (references session topic)",
+  "snarky_welcome": "string, 8-10 words (guided by persona resume_examples)"
 }
 ```
 

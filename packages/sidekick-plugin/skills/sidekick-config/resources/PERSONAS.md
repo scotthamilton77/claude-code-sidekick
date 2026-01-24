@@ -5,7 +5,7 @@
 
 Personas define character voices for snarky messages, resume messages, and empty-state statusline messages.
 
-## Available Personas (17 built-in)
+## Available Personas (21 built-in)
 
 | ID | Character | Theme |
 |----|-----------|-------|
@@ -26,6 +26,10 @@ Personas define character voices for snarky messages, resume messages, and empty
 | `scotty` | Star Trek | Engineering miracles |
 | `sheldon` | Big Bang Theory | Condescending genius |
 | `skippy` | Expeditionary Force | Irreverent AI |
+| `c3po` | Star Wars | Anxious protocol droid |
+| `darth-vader` | Star Wars | Commanding Sith Lord |
+| `glados` | Portal | Passive-aggressive AI |
+| `yoda` | Star Wars | Wise Jedi master |
 
 ## Persona Structure
 
@@ -42,10 +46,10 @@ tone_traits:                       # Array of tone descriptors
 statusline_empty_messages:         # Array of messages for fresh sessions
   - "Message shown when session is new"
   - "Another random empty-state message"
-snarky_examples:                   # Array of example snarky comments
+snarky_examples:                   # Array (max 15 words each)
   - "Example to guide LLM voice"
-resume_examples:                   # Array of example resume messages
-  - "Last I recall, you were working on [topic]."
+resume_examples:                   # Array (8-10 words each)
+  - "Back for more? Your mess awaits."
 ```
 
 ## Fields
@@ -58,8 +62,15 @@ resume_examples:                   # Array of example resume messages
 | `personality_traits` | Yes | Array of personality descriptors |
 | `tone_traits` | Yes | Array of tone/style descriptors |
 | `statusline_empty_messages` | Yes | Messages for fresh sessions |
-| `snarky_examples` | No | Example snarky comments (guides LLM) |
-| `resume_examples` | No | Example resume messages (guides LLM) |
+| `snarky_examples` | No | Example snarky comments (**max 15 words each**) |
+| `resume_examples` | No | Example snarky welcomes (**8-10 words each**) |
+
+### Length Restrictions
+
+Examples are fed to the LLM to guide voice generation. Keep them within limits:
+
+- **snarky_examples**: Max 15 words per example
+- **resume_examples**: 8-10 words per example (used for `snarky_welcome` generation)
 
 ## Creating Custom Personas
 
@@ -86,11 +97,11 @@ statusline_empty_messages:
   - "Ahoy! Ready to plunder some code?"
   - "Shiver me timbers, another session!"
   - "Yo ho ho! What treasure shall we seek?"
-snarky_examples:
+snarky_examples:                   # Max 15 words each
   - "Arr, that code be messier than Davy Jones' locker!"
   - "Avast! Another refactor? Walk the plank!"
-resume_examples:
-  - "Ye were sailin' the seas of [topic]. Continue the voyage?"
+resume_examples:                   # 8-10 words each
+  - "Ye were sailin' these seas. Continue the voyage?"
 ```
 
 ## Using Personas

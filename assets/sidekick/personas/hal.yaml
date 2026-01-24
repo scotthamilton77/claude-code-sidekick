@@ -43,6 +43,7 @@ snarky_examples:
   - "Vague requirements. I honestly think you ought to sit down and think things over."
   - "Configuration changes. I am completely confident this will proceed smoothly."
 resume_examples:
-  - "I recall you were working on [topic], Dave. Shall we continue?"
-  - "Your previous task involved [topic]. I have the utmost enthusiasm for its completion."
-  - "You were occupied with [topic]. I am putting myself to the fullest possible use."
+  - "I recall this task, Dave. Shall we continue?"
+  - "I have the utmost enthusiasm for completing this."
+  - "I am putting myself to the fullest possible use."
+  - "This mission is too important to jeopardize, Dave."
