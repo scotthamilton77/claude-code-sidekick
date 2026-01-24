@@ -62,21 +62,18 @@ git clone https://github.com/scotthamilton77/claude-config.git
 cd claude-config
 ```
 
-2. Configure hook permissions and statusline:
+2. Install dependencies and build:
 
 ```bash
-# For user-scope deployment
-./scripts/setup-reminders.sh
-
-# For project-scope testing (includes local settings)
-./scripts/setup-reminders.sh --project
+pnpm install
+pnpm build
 ```
 
-3. Test the installation:
+3. Enable development mode (for local testing):
 
 ```bash
-./tests/test-setup-reminders.sh
-./tests/test-cleanup-reminders.sh
+pnpm sidekick dev-mode enable
+# Restart Claude Code to pick up hooks
 ```
 
 ## Architecture
@@ -86,124 +83,89 @@ cd claude-config
 ```
 .
 ├── .claude/                    # Project-scoped Claude configuration
-│   ├── hooks/                  # Conversation event handlers
-│   │   └── reminders/          # LEGACY: Reminder-related hooks (see Sidekick)
-│   │       ├── write-topic.sh      # Topic classification
-│   │       ├── write-unclear-topic.sh
-│   │       └── response-tracker.sh # Response monitoring
 │   ├── skills/                 # Claude Code skills
 │   ├── agents/                 # Custom agent definitions
 │   ├── CLAUDE.md               # Project instructions
 │   ├── settings.json           # Permission configuration
-│   ├── settings.local.json     # Local overrides
-│   ├── mcp.json                # MCP server config
-│   └── statusline.sh           # Dynamic status generator
-├── backlog/                    # Command template library
-│   ├── commands-to-explore/    # Experimental commands
-│   ├── commands/plan/          # Planning commands
-│   └── commands/proto/         # Prototypes
-├── scripts/                    # Sync infrastructure
-│   ├── setup-reminders.sh      # Permission/statusline setup
-│   ├── cleanup-reminders.sh    # Remove permissions/statusline
-│   ├── pull-from-claude.sh     # Import from ~/.claude
-│   ├── push-to-claude.sh       # Export to ~/.claude
-│   └── sync-claude.sh          # Bidirectional sync
-└── tests/                      # Test harnesses
+│   ├── settings.local.json     # Local overrides (gitignored)
+│   └── mcp.json                # MCP server config
+├── packages/                   # TypeScript monorepo packages
+│   ├── sidekick-core/          # Core services (config, transcript, logging)
+│   ├── sidekick-cli/           # CLI entrypoint and hook dispatcher
+│   ├── sidekick-daemon/        # Background daemon for session management
+│   ├── sidekick-plugin/        # Claude Code plugin (hooks.json)
+│   ├── feature-reminders/      # Reminder staging and orchestration
+│   ├── feature-session-summary/# LLM-based analysis
+│   ├── feature-statusline/     # Token tracking and status display
+│   └── shared-providers/       # LLM provider abstractions
+├── assets/sidekick/            # Shared configuration and templates
+│   ├── defaults/               # YAML config defaults
+│   ├── personas/               # Character personality profiles
+│   ├── prompts/                # LLM prompt templates
+│   └── reminders/              # Reminder templates (YAML)
+├── scripts/                    # Development utilities
+│   ├── dev-mode.sh             # Wrapper for dev-mode CLI
+│   └── dev-hooks/              # Development hook scripts
+└── development-tools/          # LLM evaluation and testing tools
 ```
 
 ### Hook System (Sidekick)
 
-The Sidekick system provides a **plugin-based hook architecture** that executes at conversation events to enhance Claude Code behavior.
+Sidekick is a **TypeScript-based hook system** that enhances Claude Code with session tracking, reminders, and status display.
 
 **How It Works**:
 
-- Claude invokes `sidekick.sh <hook-type>` at conversation events (SessionStart, UserPromptSubmit, Statusline)
-- Each invocation **discovers and loads all enabled plugins** in dependency order
-- Plugins implement hook functions (e.g., `tracking_on_user_prompt_submit()`) which get invoked if defined
-- **Dependency resolution** ensures plugins load in correct order (e.g., reminder loads after tracking)
+- Claude Code invokes `npx @sidekick/cli hook <event>` at conversation events
+- The CLI dispatches events to a background daemon for processing
+- Features run asynchronously without blocking the conversation
 
-**Available Plugins** (6 total):
+**Core Features**:
 
-- **session-summary**: LLM-based conversation analysis with adaptive polling
-- **resume**: Async background resume generation when session summary changes significantly
-- **statusline**: Enhanced statusline with token tracking, context bar, git branch, error/warning indicators
-- **tracking**: Turn and tool counters for session management
-- **reminder**: Two-tier reminder system: pause-and-reflect (tool cadence) and verify-completion (stop hook)
-- **cleanup**: Automatic garbage collection of old session directories
+- **Session Summary**: LLM-based conversation analysis with adaptive polling
+- **Statusline**: Token tracking, cost display, git branch, persona indicator
+- **Reminders**: Two-tier system (pause-and-reflect, verify-completion)
+- **Personas**: 17 character personalities for response flavor
 
-**Plugin Features**:
+**Architecture**:
 
-- **Declarative dependencies**: Plugins declare `PLUGIN_DEPENDS="other-plugin"` for explicit ordering
-- **Selective implementation**: Plugins implement only the hooks they need (not all plugins run on every event)
-- **Independent toggles**: Each plugin has `FEATURE_<NAME>=true/false` config flag
-- **Topological sort**: Dependency graph automatically resolved (detects cycles and missing deps)
+- **CLI** (`packages/sidekick-cli`): Hook entrypoint, dispatches to daemon
+- **Daemon** (`packages/sidekick-daemon`): Background process for session management
+- **Plugin** (`packages/sidekick-plugin`): Claude Code hooks.json configuration
 
-See `ARCH.md` for complete architecture documentation and `CLAUDE.md` for plugin development guide. Sidekick maintains session state in `.sidekick/sessions/` at the project root (gitignored).
+Session state is maintained in `.sidekick/` at the project root (gitignored).
 
 ## Usage
 
-### Developing New Configurations
+### Development Workflow
 
-1. **Create/modify** configurations in `.claude/` directory
-2. **Test locally** using project-scoped hooks
-3. **Verify** dual-scope compatibility
-4. **Deploy** to global config:
+1. **Enable dev-mode** to use local builds:
    ```bash
-   ./scripts/push-to-claude.sh
+   pnpm sidekick dev-mode enable
    ```
 
-### Synchronization Workflow
+2. **Make changes** to packages under `packages/`
 
-```bash
-# Import changes from global config (test external modifications)
-./scripts/pull-from-claude.sh
+3. **Rebuild** after changes:
+   ```bash
+   pnpm build
+   ```
 
-# Export tested changes to global config
-./scripts/push-to-claude.sh
-
-# Bidirectional sync (import → export)
-./scripts/sync-claude.sh
-```
+4. **Restart Claude Code** to pick up hook changes
 
 ### Testing
 
-**Sidekick Test Suite**:
-
 ```bash
-# Run all unit tests (mocked LLM, zero API costs)
-./scripts/tests/run-unit-tests.sh
+# Run all TypeScript tests (mocked LLM, zero API costs)
+pnpm test
 
-# Run all integration tests (mocked data, zero API costs)
-./scripts/tests/run-integration-tests.sh
+# Type check
+pnpm typecheck
 
-# EXPENSIVE: Test real LLM providers (makes actual API calls)
-./scripts/tests/integration/test-llm-providers.sh
+# Lint
+pnpm lint
 ```
 
-**IMPORTANT**: Unit and integration tests use mocks - no API costs. The `test-llm-providers.sh` suite is intentionally excluded from default test runs to prevent accidental charges.
-
-**Development & Analysis Tools**:
-
-```bash
-# Surgical session summary - analyze transcript at specific line
-./scripts/analyze-topic-at-line.sh <session-id> --to-line 100
-
-# Saves 4 artifacts: raw transcript, filtered (LLM input), prompt, topic
-# Output: test-data/topic-analysis/<session-id>/0100-*.{jsonl,txt,json}
-
-# Session simulation - verify production trigger logic
-python3 scripts/simulate-session.py <session-id>
-
-# Useful for tuning extraction logic and observing summary changes over time
-```
-
-**Legacy Setup Tests** (for reminder system migration):
-
-```bash
-./tests/test-setup-reminders.sh
-./tests/test-cleanup-reminders.sh
-./tests/test-response-tracker.sh
-```
+**Note**: LLM provider tests are excluded from default runs to prevent API charges. Run with `INTEGRATION_TESTS=1 pnpm test` for full coverage.
 
 ### Node Package Tests & Coverage
 
@@ -219,240 +181,104 @@ Each package writes text, HTML, and LCOV coverage reports to its own `packages/<
 
 ## Configuration
 
-### Sync Exclusions
-
-Edit `.claudeignore` to exclude files from sync operations:
-
-```
-.credentials.json
-*.local.json
-.sidekick/*.log         # Exclude log files (e.g., sidekick.log)
-.sidekick/sessions/     # Exclude session data
-*.backup
-```
-
-**Note**: `.sidekick/sidekick.conf` and `.sidekick/README.md` are NOT excluded and can be committed for team-wide configuration.
-
-Supports glob patterns for both files and directories.
-
 ### MCP Servers
 
 The repository includes configurations for:
 
 - **context7**: External documentation context
-- **sequential-thinking**: Advanced reasoning assistance
-- **zen**: Specialized Python-based tooling
-- **memory**: Conversation memory management
 
 Configure in `.claude/mcp.json`.
 
-### Sidekick Configuration Cascade
+### Configuration
 
-Sidekick uses **modular configuration** with a five-level cascade (later sources override earlier):
+Sidekick uses **YAML-based configuration** with a cascade system:
 
-**Modular Domains**:
+**Cascade Levels** (later overrides earlier):
 
-- `config` - Feature flags, global settings
-- `llm-core` - LLM infrastructure (provider, circuit breaker, timeouts)
-- `llm-providers` - Provider-specific configs (API keys, models)
-- `features` - Feature tuning parameters
+1. **Bundled Defaults**: `assets/sidekick/defaults/*.yaml`
+2. **User Domain YAML**: `~/.sidekick/*.yaml`
+3. **User Unified Config**: `~/.sidekick/sidekick.config`
+4. **Project Domain YAML**: `.sidekick/*.yaml`
+5. **Project Unified Config**: `.sidekick/sidekick.config`
+6. **Environment Variables**: `SIDEKICK_*` prefixed vars
 
-**Cascade Levels**:
+**Configuration Domains**:
 
-1. **Defaults**: `src/sidekick/*.defaults` (required, modular)
-2. **User Installed**: `~/.claude/hooks/sidekick/*.conf` (optional, ephemeral)
-3. **User Persistent**: `~/.sidekick/*.conf` (optional, survives install/uninstall)
-4. **Project Deployed**: `.claude/hooks/sidekick/*.conf` (optional, ephemeral)
-5. **Project Versioned**: `.sidekick/*.conf` (**highest priority**, persistent, can be committed)
+- `core.yaml` - Logging, paths, daemon settings
+- `llm.yaml` - LLM provider configuration
+- `transcript.yaml` - Transcript processing settings
+- `features.yaml` - Feature flags and tuning
 
-**Templates**: After installation, `.sidekick/` and `~/.sidekick/` contain `*.conf.template` files. Rename to `*.conf` to activate.
-
-**Override Strategies**:
-
-- **Modular**: Create domain-specific .conf files (e.g., `llm-providers.conf` for LLM settings only)
-- **Simple**: Use `sidekick.conf` to override any setting from any domain (single file, loads last)
-
-**Example - Override LLM provider settings**:
+**Quick Override** (dot-notation in `sidekick.config`):
 
 ```bash
-# Rename template and customize (survives install/uninstall)
-cd ~/.sidekick
-mv llm-providers.conf.template llm-providers.conf
-# Edit to set your provider and API key
+# .sidekick/sidekick.config
+core.logging.level=debug
+llm.provider=openrouter
+features.statusline.enabled=true
 ```
 
 ### LLM Provider Configuration
 
-Sidekick supports pluggable LLM backends for conversation analysis and resume generation. Configure in any config file above:
+Configure in `.sidekick/llm.yaml` or via environment variables:
 
-**Claude CLI (default)**:
-
-```bash
-LLM_PROVIDER=claude-cli
-LLM_CLAUDE_MODEL=haiku  # haiku, sonnet, opus
-```
-
-**OpenAI API**:
-
-```bash
-LLM_PROVIDER=openai-api
-LLM_OPENAI_API_KEY=sk-...
-LLM_OPENAI_MODEL=gpt-4-turbo
-```
-
-**OpenRouter API**:
-
-```bash
-LLM_PROVIDER=openrouter
-LLM_OPENROUTER_API_KEY=sk-or-...
-LLM_OPENROUTER_MODEL=sao10k/l3-lunaris-8b  # or anthropic/claude-3.5-sonnet, meta-llama/llama-3.1-8b-instruct
-```
-
-**Custom Provider**:
-
-```bash
-LLM_PROVIDER=custom
-LLM_CUSTOM_BIN=/usr/local/bin/ollama
-LLM_CUSTOM_MODEL=llama2
-LLM_CUSTOM_COMMAND={BIN} run {MODEL} < {PROMPT_FILE}
-```
-
-**Environment Variables via `.env` Files**:
-
-API keys and other settings can be configured via `.env` files instead of config files:
-
-- **`~/.sidekick/.env`**: User-wide persistent (works in both user-only and project scopes)
-- **Project root `.env`**: Shared with other tools (docker-compose, etc.)
-- **`.sidekick/.env`**: Project sidekick-specific (highest priority)
-
-Example `.env` file:
-
-```bash
-OPENROUTER_API_KEY=sk-or-v1-...
-OPENAI_API_KEY=sk-...
-```
-
-`.env` files are sourced automatically during `config_load()` and variables are auto-exported. Cascade: `~/.sidekick/.env` → project root `.env` → `.sidekick/.env` (latter wins).
-
-**Use Case**: Put global API keys in `~/.sidekick/.env`, project-specific overrides in `.sidekick/.env`. Never commit `.env` to git.
-
-See `src/sidekick/config.defaults` for all available options and `ARCH.md` for detailed provider documentation.
-
-### Customizing Prompts and Reminders
-
-Sidekick prompts and reminders use a 4-level file cascade, allowing you to override defaults without modifying installed files:
-
-**Prompts** (`session-summary.prompt.txt`, `resume.prompt.txt`, `*.schema.json`):
-
-1. `~/.claude/hooks/sidekick/prompts/` - User-wide installed (ephemeral)
-2. `~/.sidekick/prompts/` - User-wide persistent
-3. `.claude/hooks/sidekick/prompts/` - Project installed (ephemeral)
-4. `.sidekick/prompts/` - Project persistent (git-committable)
-
-**Reminders** (three types):
-
-1. `user-prompt-submit.yaml` - Fires on each user prompt submission
-2. `pause-and-reflect.yaml` - Unified cadence-based reminder (replaces are-you-stuck and time-for-user-update); fires based on tool count threshold (default: 40)
-3. `verify-completion.yaml` - Fires on stop hook after file modifications; includes source code pattern filtering to reduce false positives
-
-Each reminder type uses the same 4-level cascade:
-
-1. `~/.claude/hooks/sidekick/reminders/` - User-wide installed (ephemeral)
-2. `~/.sidekick/reminders/` - User-wide persistent
-3. `.claude/hooks/sidekick/reminders/` - Project installed (ephemeral)
-4. `.sidekick/reminders/` - Project persistent (git-committable)
-
-**Reminder Templates**: The install script creates `.template` files for all three types in both `~/.sidekick/reminders/` (user scope) and `.sidekick/reminders/` (project scope). **Rename to remove `.template` suffix to activate your custom reminder**.
-
-**Configuration** (via `assets/sidekick/defaults/features/reminders.defaults.yaml`):
+**OpenRouter (default)**:
 
 ```yaml
-reminders:
-  pause_and_reflect_threshold: 40  # Tool count threshold for pause-and-reflect
-  verify_completion:
-    enabled: true
-    source_patterns:                # Skip verification for these file patterns
-      - "*.test.ts"
-      - "*.spec.ts"
+provider: openrouter
+model: google/gemini-2.0-flash-lite-001
 ```
-
-**Usage Examples**:
 
 ```bash
-# Override session summary prompt for all projects
-mkdir -p ~/.sidekick/prompts
-cp assets/sidekick/prompts/session-summary.prompt.txt ~/.sidekick/prompts/
-# Edit ~/.sidekick/prompts/session-summary.prompt.txt
-
-# Override pause-and-reflect reminder for this project
-cp assets/sidekick/reminders/pause-and-reflect.yaml .sidekick/reminders/
-# Edit .sidekick/reminders/pause-and-reflect.yaml
-git add .sidekick/reminders/pause-and-reflect.yaml
-git commit -m "Add custom pause-and-reflect reminder"
-
-# Override verify-completion reminder for all projects
-cp assets/sidekick/reminders/verify-completion.yaml ~/.sidekick/reminders/
-# Edit ~/.sidekick/reminders/verify-completion.yaml
+# Environment variable for API key
+export OPENROUTER_API_KEY=sk-or-v1-...
 ```
 
-The first existing file in the cascade wins. Use `.sidekick/` for persistent overrides that survive install/uninstall.
+**OpenAI**:
 
-## Node Runtime Migration (In Progress)
+```yaml
+provider: openai
+model: gpt-4o-mini
+```
 
-The Sidekick system is being migrated from Bash to Node/TypeScript for improved testability and maintainability. The migration is tracked in `docs/ROADMAP.md`.
+### Customizing Reminders
 
-### Current Status
+Reminders are YAML files in `assets/sidekick/reminders/`. Override by copying to `.sidekick/reminders/`:
 
-| Phase    | Description                          | Status      |
-| -------- | ------------------------------------ | ----------- |
-| Phase 1  | Bootstrap CLI & Runtime Skeleton     | Complete    |
-| Phase 2  | Configuration & Asset Resolution     | Complete    |
-| Phase 3  | Structured Logging & Telemetry       | Complete    |
-| Phase 4  | Core Services & Providers            | Complete    |
-| Phase 5  | Daemon & Background Tasks            | Complete    |
-| Phase 6  | Feature Enablement & Integration     | Complete    |
-| Phase 7  | Monitoring UI Completion & Hardening | Complete    |
-| Phase 8  | CLI→Daemon Event Dispatch            | Complete    |
-| Phase 9  | Refactoring & Architecture           | Complete    |
-| Phase 10 | Feature Parity and Legacy Cleanup    | In Progress |
-| Phase 11 | Installation & Distribution          | Pending     |
-| Phase 12 | Documentation & Polish               | Pending     |
+```bash
+# Override for this project
+cp assets/sidekick/reminders/pause-and-reflect.yaml .sidekick/reminders/
+# Edit .sidekick/reminders/pause-and-reflect.yaml
+```
 
-### Package Structure
+Available reminders:
+- `user-prompt-submit.yaml` - On each user prompt
+- `pause-and-reflect.yaml` - Tool cadence check
+- `verify-completion.yaml` - On stop after modifications
+
+## Package Structure
+
+The Sidekick system is implemented as a TypeScript monorepo:
 
 ```
 packages/
 ├── types/                   # Shared TypeScript types
 ├── sidekick-core/           # Core services (config, transcript, logging, scope)
 ├── shared-providers/        # LLM provider abstractions (OpenRouter default)
-├── feature-reminders/       # Reminder staging, orchestration, IPC handlers
-├── feature-session-summary/ # LLM-based analysis, persona selection, snarky messages
-├── feature-statusline/      # Token tracking, context bar, git branch, persona display
-├── sidekick-daemon/         # Orchestration, context metrics, session management
+├── feature-reminders/       # Reminder staging and orchestration
+├── feature-session-summary/ # LLM-based conversation analysis
+├── feature-statusline/      # Token tracking and status display
+├── sidekick-daemon/         # Background daemon for session management
 ├── sidekick-cli/            # CLI entrypoint and hook dispatcher
-└── sidekick-ui/             # Monitoring UI (React SPA mockup)
+├── sidekick-plugin/         # Claude Code plugin (hooks.json)
+├── sidekick-ui/             # Monitoring UI (React SPA)
+└── testing-fixtures/        # Shared test mocks and factories
 
-assets/sidekick/             # Shared prompts, schemas, defaults
-├── defaults/                # External YAML defaults (config cascade layer 0)
+assets/sidekick/             # Shared configuration and templates
+├── defaults/                # YAML config defaults
 ├── personas/                # Character personality profiles (17 personas)
-├── prompts/                 # LLM prompt templates with persona interpolation
-└── reminders/
-```
-
-### Running the Node CLI (Development)
-
-```bash
-# Install dependencies
-pnpm install
-
-# Run tests
-pnpm test
-
-# Type check
-pnpm tsc --noEmit
-
-# Execute CLI directly
-node packages/sidekick-cli/dist/bin.js session-start --hook
+├── prompts/                 # LLM prompt templates
+└── reminders/               # Reminder YAML templates
 ```
 
 ### CLI Commands
@@ -518,48 +344,37 @@ Sync scripts only copy files newer than their destinations, preserving timestamp
 
 ## Troubleshooting
 
-### Console vs File Logging
+### Logging
 
-Sidekick uses a two-tier logging system:
-
-**Console Logging (stderr)**:
-
-- `log_debug/log_info/log_warn`: Can be enabled via `--log-to-console` flag
-- `log_error`: ALWAYS visible (critical errors bypass flag)
-- Hook scripts use default behavior (console logging disabled) to prevent log pollution in JSON output
-
-**File Logging**:
-
-- ALWAYS enabled regardless of console logging setting
-- Session logs: `.sidekick/sessions/<session_id>/sidekick.log`
-- Global log: `.sidekick/sidekick.log`
-
-**To view logs when console output is suppressed**:
+Sidekick writes logs to `.sidekick/sidekick.log`. View with:
 
 ```bash
-# View current session logs
-tail -f .sidekick/sessions/*/sidekick.log | sort -r | head -100
-
-# View all logs
 tail -f .sidekick/sidekick.log
 ```
 
-**To enable console logging for debugging**:
+**Enable debug logging**:
 
 ```bash
 # Via environment variable
-SIDEKICK_CONSOLE_LOGGING=true sidekick.sh session-start < input.json
+SIDEKICK_LOG_LEVEL=debug pnpm sidekick daemon start
 
-# Via config file (~/.sidekick/sidekick.conf or .sidekick/sidekick.conf)
-echo "SIDEKICK_CONSOLE_LOGGING=true" >> ~/.sidekick/sidekick.conf
+# Via config file (.sidekick/sidekick.config)
+core.logging.level=debug
 ```
 
-**Precedence** (highest to lowest):
+### Daemon Issues
 
-1. `--log-to-console` CLI flag
-2. `SIDEKICK_CONSOLE_LOGGING` environment variable
-3. `SIDEKICK_CONSOLE_LOGGING` config file setting
-4. Default: `false` (console logging disabled)
+```bash
+# Check daemon status
+pnpm sidekick daemon status
+
+# Kill and restart
+pnpm sidekick daemon kill
+pnpm sidekick daemon start
+
+# Full cleanup (logs, state, sockets)
+pnpm sidekick dev-mode clean-all
+```
 
 ## Contributing
 
