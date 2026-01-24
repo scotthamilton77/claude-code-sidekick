@@ -53,8 +53,7 @@ test-data/topic-analysis/
 test-data/session-analysis/
 test-data/simulation-test/
 
-# Sidekick Hook System (managed by scripts/install.sh)
-# Transient runtime data - ignored
+# Sidekick runtime data (transient, gitignored)
 .sidekick/logs/
 .sidekick/state/
 .sidekick/sessions/
