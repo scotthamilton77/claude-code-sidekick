@@ -66,10 +66,14 @@ export function isRealUserPromptContent(content: string): boolean {
  * - isMeta messages (via metadata flag)
  * - isCompactSummary messages (via metadata flag)
  * - System-generated content patterns (via isRealUserPromptContent)
+ *
+ * Uses getRecentEntries() instead of getTranscript() to avoid reading
+ * the full transcript file (which can be >500MB and exceed V8 string limits).
  */
 export function extractConversationContext(ctx: DaemonContext): ConversationContext {
-  const transcript = ctx.transcript.getTranscript()
-  const entries = transcript.entries
+  // Get recent entries from buffer - we only need last few user/assistant messages
+  // 100 entries should be more than enough to find the last prompt/response pair
+  const entries = ctx.transcript.getRecentEntries(100)
 
   let lastUserPrompt: string | null = null
   let lastAssistantMessage: string | null = null

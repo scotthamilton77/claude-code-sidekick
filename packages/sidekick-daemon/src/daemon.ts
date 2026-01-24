@@ -1146,6 +1146,7 @@ export class Daemon {
         toString: () => '',
       }),
       getExcerpt: () => ({ content: '', lineCount: 0, startLine: 0, endLine: 0, bookmarkApplied: false }),
+      getRecentEntries: () => [],
       getMetrics: () => defaultMetrics,
       getMetric: <K extends keyof TranscriptMetrics>(key: K) => defaultMetrics[key],
       onMetricsChange: () => () => {},

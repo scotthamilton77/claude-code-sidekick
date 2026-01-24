@@ -176,6 +176,17 @@ export interface TranscriptService {
    */
   getExcerpt(options?: ExcerptOptions): TranscriptExcerpt
 
+  /**
+   * Get recent transcript entries from the in-memory buffer.
+   * Returns normalized entries in chronological order (oldest first).
+   * Use this instead of getTranscript() when you only need recent entries,
+   * as it avoids reading the full transcript file.
+   *
+   * @param count Maximum number of entries to return (default: 100)
+   * @returns Array of canonical transcript entries
+   */
+  getRecentEntries(count?: number): CanonicalTranscriptEntry[]
+
   // ---- Metrics Access ----
 
   /**

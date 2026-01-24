@@ -16,7 +16,8 @@
  */
 
 import chokidar, { FSWatcher } from 'chokidar'
-import { existsSync, mkdirSync, readFileSync, copyFileSync, statSync } from 'node:fs'
+import { createReadStream, existsSync, mkdirSync, readFileSync, copyFileSync, statSync } from 'node:fs'
+import { createInterface } from 'node:readline'
 import { dirname, join } from 'node:path'
 import { LogEvents, logEvent } from './structured-logging.js'
 import {
@@ -144,6 +145,26 @@ interface RawUsageMetadata {
   service_tier?: string
 }
 
+/**
+ * Buffered entry for excerpt generation.
+ * Stores raw line content to support flexible filtering at query time.
+ */
+interface BufferedEntry {
+  /** 1-indexed line number in transcript file */
+  lineNumber: number
+  /** Raw JSON line content */
+  rawLine: string
+  /** Pre-parsed UUID for summary validation (null if not present) */
+  uuid: string | null
+}
+
+/**
+ * Default size for excerpt circular buffer.
+ * Must be larger than typical maxLines to account for filtering.
+ * 500 entries @ ~50KB avg = ~25MB max memory (acceptable).
+ */
+const EXCERPT_BUFFER_SIZE = 500
+
 // PersistedTranscriptState is imported from ./state/index.js
 
 // ============================================================================
@@ -226,6 +247,20 @@ export class TranscriptServiceImpl implements TranscriptService {
 
   /** Track whether we're in bulk processing mode (first-time transcript replay) */
   private isBulkProcessing = false
+
+  // Streaming state for incremental file processing
+  /** Byte offset of last processed position in transcript file */
+  private lastProcessedByteOffset = 0
+
+  // Circular buffer for excerpt generation (avoids re-reading large files)
+  /** Ring buffer of recent transcript entries for excerpt queries */
+  private excerptBuffer: BufferedEntry[] = []
+  /** Write position in circular buffer */
+  private excerptBufferHead = 0
+  /** Number of entries currently in buffer (up to EXCERPT_BUFFER_SIZE) */
+  private excerptBufferCount = 0
+  /** Set of all known UUIDs for summary validation */
+  private knownUuids = new Set<string>()
 
   constructor(private readonly options: TranscriptServiceOptions) {}
 
@@ -544,6 +579,9 @@ export class TranscriptServiceImpl implements TranscriptService {
   /**
    * Extract a filtered transcript excerpt for LLM analysis.
    *
+   * Uses in-memory circular buffer instead of reading the file.
+   * Buffer is populated during processTranscriptFile() streaming.
+   *
    * FILTERING RULES (see packages/sidekick-core/AGENTS.md for full documentation):
    *
    * ALWAYS INCLUDED:
@@ -572,7 +610,8 @@ export class TranscriptServiceImpl implements TranscriptService {
     const includeToolOutputs = options.includeToolOutputs ?? false
     const includeAssistantThinking = options.includeAssistantThinking ?? false
 
-    if (!this.transcriptPath) {
+    // Empty result for uninitialized service
+    if (!this.transcriptPath || this.excerptBufferCount === 0) {
       return {
         content: '',
         lineCount: 0,
@@ -583,32 +622,41 @@ export class TranscriptServiceImpl implements TranscriptService {
     }
 
     try {
-      const content = readFileSync(this.transcriptPath, 'utf-8').trim()
-      // Handle empty files: ''.split('\n') returns [''] with length 1
-      const lines = content === '' ? [] : content.split('\n')
-      const totalLines = lines.length
-
-      // Collect UUIDs from ALL lines to validate summary leafUuid references
-      const knownUuids = new Set<string>()
-      for (const line of lines) {
-        const uuid = this.parseUuid(line)
-        if (uuid) knownUuids.add(uuid)
-      }
-
+      // Get buffered entries in chronological order
+      const bufferedEntries = this.getBufferedEntries()
       const filterOptions = { includeToolMessages, includeToolOutputs, includeAssistantThinking }
 
-      // POST-FILTER maxLines: Filter all lines first, then take the tail.
-      // This ensures caller gets N useful lines, not N raw entries.
-      // Process from bookmark (or start) to end, filter, then take last N.
-      const startFromLine = bookmarkLine > 0 && bookmarkLine < totalLines ? bookmarkLine : 0
-      const bookmarkApplied = bookmarkLine > 0 && bookmarkLine < totalLines
+      // Apply bookmark filter (find entries AFTER bookmark line)
+      // Bookmark semantics: bookmarkLine is the last line already processed
+      // We want lines where lineNumber > bookmarkLine (strictly greater)
+      // bookmarkApplied is only true if bookmark is valid AND there are lines after it
+      let startIdx = 0
+      let bookmarkApplied = false
 
-      // Filter lines from startFromLine to end
+      if (bookmarkLine > 0 && bufferedEntries.length > 0) {
+        // Get the max line number in buffer to check if bookmark is valid
+        const maxLineNumber = bufferedEntries[bufferedEntries.length - 1].lineNumber
+
+        // Bookmark is only valid if it's less than the max line number
+        if (bookmarkLine < maxLineNumber) {
+          // Find first entry with lineNumber > bookmarkLine
+          for (let i = 0; i < bufferedEntries.length; i++) {
+            if (bufferedEntries[i].lineNumber > bookmarkLine) {
+              startIdx = i
+              bookmarkApplied = true
+              break
+            }
+          }
+        }
+      }
+
+      // Filter entries from startIdx to end
       const filteredLines: { lineNumber: number; formatted: string }[] = []
-      for (let i = startFromLine; i < totalLines; i++) {
-        const formatted = this.formatExcerptLine(lines[i], knownUuids, filterOptions)
+      for (let i = startIdx; i < bufferedEntries.length; i++) {
+        const entry = bufferedEntries[i]
+        const formatted = this.formatExcerptLine(entry.rawLine, this.knownUuids, filterOptions)
         if (formatted !== null) {
-          filteredLines.push({ lineNumber: i + 1, formatted }) // 1-indexed
+          filteredLines.push({ lineNumber: entry.lineNumber, formatted })
         }
       }
 
@@ -624,7 +672,7 @@ export class TranscriptServiceImpl implements TranscriptService {
         bookmarkApplied,
       }
     } catch (err) {
-      this.options.logger.error('Failed to extract transcript excerpt', {
+      this.options.logger.error('Failed to extract transcript excerpt from buffer', {
         error: err instanceof Error ? err.message : String(err),
       })
       return {
@@ -635,6 +683,56 @@ export class TranscriptServiceImpl implements TranscriptService {
         bookmarkApplied: false,
       }
     }
+  }
+
+  /**
+   * Get recent transcript entries from the in-memory buffer.
+   * Returns normalized entries in chronological order (oldest first).
+   * Use this instead of getTranscript() when you only need recent entries,
+   * as it avoids reading the full transcript file.
+   *
+   * @param count Maximum number of entries to return (default: 100)
+   * @returns Array of canonical transcript entries
+   */
+  getRecentEntries(count = 100): CanonicalTranscriptEntry[] {
+    if (this.excerptBufferCount === 0) {
+      return []
+    }
+
+    // Get buffered entries in chronological order
+    const bufferedEntries = this.getBufferedEntries()
+
+    // Take the last `count` entries
+    const recentRaw = bufferedEntries.slice(-count)
+
+    // Parse and normalize each entry
+    const results: CanonicalTranscriptEntry[] = []
+    for (const entry of recentRaw) {
+      try {
+        const parsed = TranscriptEntrySchema.safeParse(JSON.parse(entry.rawLine))
+        if (!parsed.success) {
+          this.options.logger.warn('Failed to parse transcript entry', {
+            lineNumber: entry.lineNumber,
+            rawLine: entry.rawLine,
+            error: parsed.error.message,
+          })
+          continue
+        }
+        const rawEntry = parsed.data as TranscriptEntry
+        const normalized = this.normalizeEntry(rawEntry, entry.lineNumber)
+        if (normalized) {
+          results.push(...normalized)
+        }
+      } catch {
+        // Skip malformed entries
+        this.options.logger.warn('Skipping malformed transcript entry', {
+          lineNumber: entry.lineNumber,
+          rawLine: entry.rawLine,
+        })
+      }
+    }
+
+    return results
   }
 
   /**
@@ -990,69 +1088,127 @@ export class TranscriptServiceImpl implements TranscriptService {
   // Transcript Processing
   // ============================================================================
 
-  private processTranscriptFile(): Promise<void> {
+  /**
+   * Process transcript file incrementally using streaming.
+   * Only reads from lastProcessedByteOffset to avoid loading entire file.
+   * Populates excerpt buffer for memory-based excerpt generation.
+   */
+  private async processTranscriptFile(): Promise<void> {
     if (!this.transcriptPath || !existsSync(this.transcriptPath)) {
-      return Promise.resolve()
+      return
     }
 
-    const content = readFileSync(this.transcriptPath, 'utf-8')
-    const lines = content.split('\n').filter((line) => line.trim())
+    // Get current file size to detect if we need to read anything
+    const fileStats = statSync(this.transcriptPath)
+    const currentFileSize = fileStats.size
 
-    // Note: Compaction detection is now done via compact_boundary entries in processEntry().
-    // The transcript is append-only, so file-size-based detection doesn't work.
+    // If file size is smaller than our offset, file was truncated/replaced
+    // This shouldn't happen with append-only transcripts, but handle gracefully
+    if (currentFileSize < this.lastProcessedByteOffset) {
+      this.options.logger.warn('Transcript file appears truncated, resetting state', {
+        sessionId: this.sessionId,
+        expectedOffset: this.lastProcessedByteOffset,
+        actualSize: currentFileSize,
+      })
+      this.resetStreamingState()
+    }
 
-    // Process only new lines (incremental)
+    // Nothing new to read
+    if (currentFileSize === this.lastProcessedByteOffset) {
+      return
+    }
+
     const startLine = this.metrics.lastProcessedLine
-    const newLineCount = lines.length - startLine
+    const isBulkStart = startLine === 0 && this.lastProcessedByteOffset === 0
 
-    // Detect bulk mode: first-time processing with historical data
-    const isBulkStart = startLine === 0 && newLineCount > 0
     if (isBulkStart) {
       this.isBulkProcessing = true
-      this.options.logger.info('Bulk processing started', {
+      this.options.logger.info('Bulk processing started (streaming)', {
         sessionId: this.sessionId,
-        linesToProcess: newLineCount,
+        fileSize: currentFileSize,
       })
     }
 
-    this.options.logger.debug('processTranscriptFile called', {
-      sessionId: this.sessionId,
-      totalLines: lines.length,
-      lastProcessedLine: startLine,
-      newLinesToProcess: newLineCount,
-      isBulkProcessing: this.isBulkProcessing,
+    // Stream from last processed position
+    const stream = createReadStream(this.transcriptPath, {
+      encoding: 'utf-8',
+      start: this.lastProcessedByteOffset,
     })
-    for (let i = startLine; i < lines.length; i++) {
-      const line = lines[i]
-      try {
-        const parsed = TranscriptEntrySchema.safeParse(JSON.parse(line))
-        if (!parsed.success) {
-          this.options.logger.warn('Skipping invalid transcript line', {
+
+    const rl = createInterface({
+      input: stream,
+      crlfDelay: Infinity,
+    })
+
+    let lineNumber = this.metrics.lastProcessedLine
+    let bytesRead = this.lastProcessedByteOffset
+    let linesProcessed = 0
+
+    this.options.logger.debug('processTranscriptFile streaming started', {
+      sessionId: this.sessionId,
+      startByteOffset: this.lastProcessedByteOffset,
+      startLineNumber: lineNumber,
+    })
+
+    try {
+      for await (const line of rl) {
+        // Track bytes (line + newline character)
+        bytesRead += Buffer.byteLength(line, 'utf-8') + 1
+
+        // Skip empty lines
+        if (!line.trim()) continue
+
+        lineNumber++
+        linesProcessed++
+
+        // Add to excerpt buffer
+        this.addToExcerptBuffer(lineNumber, line)
+
+        // Process the entry for metrics
+        try {
+          const parsed = TranscriptEntrySchema.safeParse(JSON.parse(line))
+          if (!parsed.success) {
+            this.options.logger.warn('Skipping invalid transcript line', {
+              sessionId: this.sessionId,
+              line: lineNumber,
+              error: parsed.error.message,
+            })
+            continue
+          }
+          const entry = parsed.data as TranscriptEntry
+          this.processEntry(entry, lineNumber)
+        } catch {
+          this.options.logger.warn('Skipping malformed transcript line', {
             sessionId: this.sessionId,
-            line: i + 1,
-            error: parsed.error.message,
+            line: lineNumber,
+            rawLine: line,
           })
-          continue
         }
-        const entry = parsed.data as TranscriptEntry
-        this.processEntry(entry, i + 1) // Line numbers are 1-indexed
-      } catch {
-        // Skip malformed lines
-        this.options.logger.warn('Skipping malformed transcript line', { sessionId: this.sessionId, line: i + 1 })
       }
+    } finally {
+      // Ensure stream is closed
+      stream.destroy()
     }
 
-    // Update watermark
-    this.metrics.lastProcessedLine = lines.length
+    // Update watermarks
+    this.lastProcessedByteOffset = bytesRead
+    this.metrics.lastProcessedLine = lineNumber
     this.metrics.lastUpdatedAt = Date.now()
+
+    this.options.logger.debug('processTranscriptFile streaming complete', {
+      sessionId: this.sessionId,
+      linesProcessed,
+      totalLines: lineNumber,
+      newByteOffset: bytesRead,
+    })
 
     // Emit BulkProcessingComplete if we were in bulk mode
     if (isBulkStart && this.isBulkProcessing) {
       this.isBulkProcessing = false
-      this.emitEvent('BulkProcessingComplete', {} as TranscriptEntry, lines.length)
+      this.emitEvent('BulkProcessingComplete', {} as TranscriptEntry, lineNumber)
       this.options.logger.info('Bulk processing complete', {
         sessionId: this.sessionId,
-        totalLinesProcessed: lines.length,
+        totalLinesProcessed: lineNumber,
       })
     }
 
@@ -1061,7 +1217,64 @@ export class TranscriptServiceImpl implements TranscriptService {
 
     // Schedule debounced persistence
     this.schedulePersistence()
-    return Promise.resolve()
+  }
+
+  /**
+   * Reset streaming state when file is detected as truncated/replaced.
+   */
+  private resetStreamingState(): void {
+    this.lastProcessedByteOffset = 0
+    this.metrics.lastProcessedLine = 0
+    this.excerptBuffer = []
+    this.excerptBufferHead = 0
+    this.excerptBufferCount = 0
+    this.knownUuids.clear()
+  }
+
+  /**
+   * Add an entry to the circular excerpt buffer.
+   * Maintains EXCERPT_BUFFER_SIZE most recent entries.
+   */
+  private addToExcerptBuffer(lineNumber: number, rawLine: string): void {
+    const uuid = this.parseUuid(rawLine)
+    if (uuid) {
+      this.knownUuids.add(uuid)
+    }
+
+    const entry: BufferedEntry = { lineNumber, rawLine, uuid }
+
+    if (this.excerptBuffer.length < EXCERPT_BUFFER_SIZE) {
+      // Buffer not yet full - append
+      this.excerptBuffer.push(entry)
+      this.excerptBufferCount = this.excerptBuffer.length
+    } else {
+      // Buffer full - overwrite oldest
+      this.excerptBuffer[this.excerptBufferHead] = entry
+      this.excerptBufferHead = (this.excerptBufferHead + 1) % EXCERPT_BUFFER_SIZE
+      // excerptBufferCount stays at EXCERPT_BUFFER_SIZE
+    }
+  }
+
+  /**
+   * Get entries from circular buffer in chronological order.
+   * Returns entries from oldest to newest.
+   */
+  private getBufferedEntries(): BufferedEntry[] {
+    if (this.excerptBufferCount === 0) return []
+
+    if (this.excerptBufferCount < EXCERPT_BUFFER_SIZE) {
+      // Buffer not full - entries are in order from 0 to count-1
+      return this.excerptBuffer.slice(0, this.excerptBufferCount)
+    }
+
+    // Buffer is full - head points to oldest entry
+    // Order: [head, head+1, ..., SIZE-1, 0, 1, ..., head-1]
+    const result: BufferedEntry[] = []
+    for (let i = 0; i < EXCERPT_BUFFER_SIZE; i++) {
+      const idx = (this.excerptBufferHead + i) % EXCERPT_BUFFER_SIZE
+      result.push(this.excerptBuffer[idx])
+    }
+    return result
   }
 
   /**
