@@ -36,7 +36,7 @@ type DeepPartial<T> = {
 
 /** Default config values matching Zod schema defaults */
 const DEFAULT_CORE: CoreConfig = {
-  logging: { level: 'info', format: 'pretty', consoleEnabled: false },
+  logging: { level: 'info', format: 'pretty', consoleEnabled: false, components: {} },
   paths: { state: '.sidekick' },
   daemon: { idleTimeoutMs: 300000, shutdownTimeoutMs: 30000 },
   ipc: { connectTimeoutMs: 5000, requestTimeoutMs: 30000, maxRetries: 3, retryDelayMs: 100 },

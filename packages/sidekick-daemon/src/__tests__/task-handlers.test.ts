@@ -128,7 +128,7 @@ const mockAssetResolver: MinimalAssetResolver = {
 // Mock config for testing - uses profile-based LLM structure
 const mockConfig: SidekickConfig = {
   core: {
-    logging: { level: 'error', format: 'json', consoleEnabled: false },
+    logging: { level: 'error', format: 'json', consoleEnabled: false, components: {} },
     paths: { state: '.sidekick' },
     daemon: { idleTimeoutMs: 300000, shutdownTimeoutMs: 30000 },
     ipc: { connectTimeoutMs: 5000, requestTimeoutMs: 30000, maxRetries: 3, retryDelayMs: 100 },

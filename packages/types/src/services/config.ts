@@ -34,7 +34,11 @@ export interface MinimalLlmProfile {
 
 export interface MinimalConfigService {
   readonly core: {
-    readonly logging: { readonly level: string }
+    readonly logging: {
+      readonly level: string
+      /** Per-component log level overrides */
+      readonly components: Record<string, string>
+    }
     readonly development: { readonly enabled: boolean }
   }
   readonly llm: {

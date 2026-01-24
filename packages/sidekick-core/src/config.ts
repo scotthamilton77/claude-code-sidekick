@@ -86,13 +86,21 @@ const DOMAIN_FILES: Record<ConfigDomain, string> = {
 
 // --- Core Config Schema (§5.1) ---
 
+const LogLevelSchema = z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal'])
+
 const LoggingSchema = z
   .object({
     level: z.enum(['debug', 'info', 'warn', 'error']),
     format: z.enum(['pretty', 'json']),
     consoleEnabled: z.boolean(),
+    /** Per-component log level overrides. Keys are component names (e.g., 'reminders', 'statusline'). */
+    components: z.record(z.string(), LogLevelSchema).optional(),
   })
   .strict()
+  .transform((val) => ({
+    ...val,
+    components: val.components ?? {},
+  }))
 
 const PathsSchema = z
   .object({
