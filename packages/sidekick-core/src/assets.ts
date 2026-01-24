@@ -228,15 +228,24 @@ export function createAssetResolver(options: AssetResolverOptions): AssetResolve
 
 /**
  * Get the default assets directory path.
- * In development (vitest), this is relative to src/.
- * When compiled, this is relative to dist/.
- * Both require navigating 3 levels up to workspace root.
+ *
+ * Checks two locations in order:
+ * 1. Bundled assets (npm installed mode): ../assets/sidekick relative to dist/
+ * 2. Workspace assets (dev mode): ../../../assets/sidekick relative to dist/ or src/
  *
  * Structure:
- * - Compiled: packages/sidekick-core/dist/assets.js -> ../../../assets/sidekick
- * - Dev/Test: packages/sidekick-core/src/assets.ts -> ../../../assets/sidekick
+ * - npm installed: node_modules/@sidekick/core/dist/assets.js -> ../assets/sidekick
+ * - Dev/Test: packages/sidekick-core/dist/assets.js -> ../../../assets/sidekick
  */
 export function getDefaultAssetsDir(): string {
+  // Check for bundled assets (npm installed mode)
+  // From dist/assets.js -> ../assets/sidekick
+  const bundledPath = join(__dirname, '..', 'assets', 'sidekick')
+  if (existsSync(bundledPath)) {
+    return bundledPath
+  }
+
+  // Dev mode: navigate to workspace root
   const workspaceRoot = join(__dirname, '..', '..', '..')
   return join(workspaceRoot, 'assets', 'sidekick')
 }
