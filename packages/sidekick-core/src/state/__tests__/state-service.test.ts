@@ -214,6 +214,34 @@ describe('StateService', () => {
 
       expect(result.source).toBe('fresh')
     })
+
+    it('treats non-ENOENT errors (like permission denied) as corrupt', async () => {
+      const logger = createMockLogger()
+      const stateWithLogger = new StateService(testDir, { logger })
+
+      // Create a directory where a file should be - reading it will cause EISDIR
+      const path = stateWithLogger.globalStatePath('is-a-directory')
+      mkdirSync(path, { recursive: true })
+
+      // Reading a directory with readFile causes EISDIR error
+      const result = await stateWithLogger.read(path, TestSchema, { value: 0 })
+
+      // Should be treated as recovered (corrupt file)
+      expect(result.source).toBe('recovered')
+      expect(result.data).toEqual({ value: 0 })
+      // Should have logged the corruption warning
+      expect(logger.warn).toHaveBeenCalledWith('Corrupt state file detected', expect.anything())
+    })
+
+    it('throws StateCorruptError on non-ENOENT errors without default', async () => {
+      const stateService = new StateService(testDir, { logger: createMockLogger() })
+
+      // Create a directory where a file should be
+      const path = stateService.globalStatePath('is-also-a-directory')
+      mkdirSync(path, { recursive: true })
+
+      await expect(stateService.read(path, TestSchema)).rejects.toThrow(StateCorruptError)
+    })
   })
 
   // ============================================================================
@@ -309,6 +337,14 @@ describe('StateService', () => {
       const path = state.globalStatePath('nonexistent.json')
 
       await expect(state.delete(path)).resolves.not.toThrow()
+    })
+
+    it('throws non-ENOENT errors', async () => {
+      // Try to delete a directory (not a file) - this causes EISDIR error
+      const dirPath = join(testDir, 'a-directory')
+      mkdirSync(dirPath, { recursive: true })
+
+      await expect(state.delete(dirPath)).rejects.toThrow()
     })
   })
 
@@ -539,6 +575,152 @@ describe('StateService', () => {
       const result1 = await cachedState.read(cachedState.globalStatePath('file1.json'), TestSchema, { value: 0 })
       expect(result1.data.value).toBe(1) // Cached
     })
+
+    it('preloadDirectory warns when cache is disabled', async () => {
+      const logger = createMockLogger()
+      const uncachedState = new StateService(testDir, {
+        logger,
+        cache: false,
+      })
+
+      const stateDir = uncachedState.globalStateDir()
+      mkdirSync(stateDir, { recursive: true })
+
+      await uncachedState.preloadDirectory(stateDir)
+
+      expect(logger.warn).toHaveBeenCalledWith('preloadDirectory called but caching is disabled')
+    })
+
+    it('preloadDirectory returns early when directory does not exist', async () => {
+      const logger = createMockLogger()
+      const cachedState = new StateService(testDir, {
+        logger,
+        cache: true,
+      })
+
+      const nonExistentDir = join(testDir, 'does-not-exist')
+
+      // Should not throw, just return early
+      await expect(cachedState.preloadDirectory(nonExistentDir)).resolves.not.toThrow()
+
+      // Should not have logged any preload messages
+      expect(logger.debug).not.toHaveBeenCalledWith('Preloaded state file', expect.anything())
+    })
+
+    it('preloadDirectory warns on invalid JSON files and continues', async () => {
+      const logger = createMockLogger()
+      const cachedState = new StateService(testDir, {
+        logger,
+        cache: true,
+      })
+
+      // Create directory with a corrupt JSON file
+      const stateDir = cachedState.globalStateDir()
+      mkdirSync(stateDir, { recursive: true })
+      writeFileSync(join(stateDir, 'valid.json'), JSON.stringify({ value: 1 }), 'utf-8')
+      writeFileSync(join(stateDir, 'corrupt.json'), 'not valid json!!!', 'utf-8')
+
+      await cachedState.preloadDirectory(stateDir)
+
+      // Should warn about the corrupt file
+      expect(logger.warn).toHaveBeenCalledWith('Failed to preload state file', expect.objectContaining({ file: 'corrupt.json' }))
+
+      // Valid file should still be cached
+      const result = await cachedState.read(cachedState.globalStatePath('valid.json'), TestSchema, { value: 0 })
+      expect(result.data.value).toBe(1)
+    })
+
+    it('rename updates cache when source file was cached', async () => {
+      const cachedState = new StateService(testDir, {
+        logger: createMockLogger(),
+        cache: true,
+      })
+
+      const oldPath = cachedState.globalStatePath('old-cached.json')
+      const newPath = cachedState.globalStatePath('new-cached.json')
+
+      // Write and read to populate cache
+      await cachedState.write(oldPath, { value: 42 }, TestSchema)
+      await cachedState.read(oldPath, TestSchema, { value: 0 })
+
+      // Rename the file
+      await cachedState.rename(oldPath, newPath)
+
+      // Modify the new file on disk directly
+      writeFileSync(newPath, JSON.stringify({ value: 999 }), 'utf-8')
+
+      // Read from new path should return cached value (42), not disk value (999)
+      const result = await cachedState.read(newPath, TestSchema, { value: 0 })
+      expect(result.data.value).toBe(42)
+
+      // Reading from old path should return default (not in cache anymore)
+      const oldResult = await cachedState.read(oldPath, TestSchema, { value: 0 })
+      expect(oldResult.source).toBe('default')
+    })
+  })
+
+  // ============================================================================
+  // Error Handling Tests
+  // ============================================================================
+
+  describe('error handling', () => {
+    it('moveToBackup handles rename failure gracefully', async () => {
+      const logger = createMockLogger()
+      const stateWithLogger = new StateService(testDir, { logger })
+
+      const path = stateWithLogger.globalStatePath('corrupt-readonly.json')
+      mkdirSync(dirname(path), { recursive: true })
+      writeFileSync(path, 'not valid json', 'utf-8')
+
+      // Create .bak file to cause rename conflict by making .bak a directory
+      const bakPath = `${path}.bak`
+      mkdirSync(bakPath, { recursive: true })
+
+      // Read corrupt file with default - should recover and log the backup failure
+      const result = await stateWithLogger.read(path, TestSchema, { value: 0 })
+
+      expect(result.source).toBe('recovered')
+      // Should have warned about corruption
+      expect(logger.warn).toHaveBeenCalledWith('Corrupt state file detected', expect.anything())
+      // Should have logged debug about backup failure
+      expect(logger.debug).toHaveBeenCalledWith('Could not move corrupt file to backup', { path })
+    })
+
+    // SKIPPED: backupBeforeWrite copyFile failure (lines 432-436)
+    // This error path requires causing fs.copyFile to fail, which needs either:
+    // 1. Mocking fs.copyFile (violates "fakes over mocks" principle)
+    // 2. Making directory read-only (chmod doesn't reliably prevent copyFile on macOS)
+    // 3. Filling disk space (impractical for unit tests)
+    // The behavior is best-effort and doesn't affect the main write path.
+    // Recommended refactor: Extract backup logic to a separate class with injectable filesystem.
+
+    it('write throws original error when tmp file write fails', async () => {
+      // Create a path where the directory is actually a file (causes mkdir to fail)
+      const blockingFilePath = join(testDir, 'blocking-file')
+      writeFileSync(blockingFilePath, 'I am a file, not a directory', 'utf-8')
+
+      // Try to write to a path nested under the blocking file
+      const path = join(blockingFilePath, 'nested', 'file.json')
+
+      await expect(state.write(path, { value: 1 }, TestSchema)).rejects.toThrow()
+    })
+
+    it('write cleans up tmp file on rename failure and rethrows', async () => {
+      // This test verifies the error handling path when the atomic rename fails
+      // We create a scenario where writeFile succeeds but rename fails
+      // by making the destination a directory
+      const path = state.globalStatePath('dest-is-dir')
+      mkdirSync(path, { recursive: true }) // Create directory where file should go
+
+      // The write should fail because we can't rename a file over a directory
+      await expect(state.write(path, { value: 1 }, TestSchema)).rejects.toThrow()
+
+      // The tmp file should have been cleaned up (no .tmp files remaining)
+      const dir = dirname(path)
+      const files = readdirSync(dir)
+      const tmpFiles = files.filter((f) => f.endsWith('.tmp'))
+      expect(tmpFiles).toHaveLength(0)
+    })
   })
 
   // ============================================================================
@@ -723,6 +905,37 @@ describe('StateService', () => {
       const backupFiles = files.filter((f) => f.startsWith('new-file.') && f.endsWith('.json') && f !== 'new-file.json')
 
       expect(backupFiles.length).toBe(0)
+    })
+
+    it('supports config getter function for hot-reload', async () => {
+      let devModeEnabled = false
+      const configGetter = () => ({ core: { development: { enabled: devModeEnabled } } })
+
+      const hotReloadState = new StateService(testDir, {
+        logger: createMockLogger(),
+        config: configGetter,
+      })
+
+      const path = hotReloadState.sessionStatePath('sess-1', 'hot-reload.json')
+
+      // First write with dev mode disabled
+      await hotReloadState.write(path, { value: 1 }, TestSchema, { trackHistory: true })
+
+      // No backup since dev mode was disabled
+      const dir = dirname(path)
+      let files = readdirSync(dir)
+      let backupFiles = files.filter((f) => f.startsWith('hot-reload.') && f.endsWith('.json') && f !== 'hot-reload.json')
+      expect(backupFiles.length).toBe(0)
+
+      // Enable dev mode via the getter
+      devModeEnabled = true
+
+      // Second write - now should create backup
+      await hotReloadState.write(path, { value: 2 }, TestSchema, { trackHistory: true })
+
+      files = readdirSync(dir)
+      backupFiles = files.filter((f) => f.startsWith('hot-reload.') && f.endsWith('.json') && f !== 'hot-reload.json')
+      expect(backupFiles.length).toBe(1)
     })
 
     it('creates multiple backups on successive writes with trackHistory: true', async () => {

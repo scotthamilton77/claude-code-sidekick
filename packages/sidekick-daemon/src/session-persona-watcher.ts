@@ -40,6 +40,27 @@ export interface SessionPersonaWatcherOptions {
 }
 
 /**
+ * Extract session ID from a session-persona.json file path.
+ *
+ * Parses paths like `.sidekick/sessions/abc123/state/session-persona.json`
+ * and extracts `abc123`.
+ *
+ * @param filePath - Full path to the session-persona.json file
+ * @returns Session ID or null if path doesn't match expected format
+ */
+export function extractSessionIdFromPath(filePath: string): string | null {
+  const normalizedPath = filePath.replace(/\\/g, '/')
+  const sessionsIndex = normalizedPath.lastIndexOf('/sessions/')
+  if (sessionsIndex === -1) return null
+
+  const afterSessions = normalizedPath.substring(sessionsIndex + '/sessions/'.length)
+  const slashIndex = afterSessions.indexOf('/')
+  if (slashIndex === -1) return null
+
+  return afterSessions.substring(0, slashIndex)
+}
+
+/**
  * Watches session-persona.json files for changes.
  *
  * When the CLI writes directly to session-persona.json (bypassing IPC),
@@ -134,7 +155,7 @@ export class SessionPersonaWatcher {
    * Handle file system event with debouncing.
    */
   private handleEvent(eventType: 'add' | 'change' | 'unlink', filePath: string): void {
-    const sessionId = this.extractSessionId(filePath)
+    const sessionId = extractSessionIdFromPath(filePath)
     if (!sessionId) {
       this.logger.warn('Could not extract session ID from persona file path', { filePath })
       return
@@ -164,20 +185,5 @@ export class SessionPersonaWatcher {
     }, this.debounceMs)
 
     this.debounceTimers.set(filePath, timer)
-  }
-
-  /**
-   * Extract session ID from persona file path.
-   */
-  private extractSessionId(filePath: string): string | null {
-    const normalizedPath = filePath.replace(/\\/g, '/')
-    const sessionsIndex = normalizedPath.lastIndexOf('/sessions/')
-    if (sessionsIndex === -1) return null
-
-    const afterSessions = normalizedPath.substring(sessionsIndex + '/sessions/'.length)
-    const slashIndex = afterSessions.indexOf('/')
-    if (slashIndex === -1) return null
-
-    return afterSessions.substring(0, slashIndex)
   }
 }

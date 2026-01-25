@@ -63,6 +63,7 @@ describe('CLI command routing', () => {
   let projectDir: string
   let stdout: CollectingWritable
   let stderr: CollectingWritable
+  let originalSandboxEnv: string | undefined
 
   beforeEach(() => {
     projectDir = mkdtempSync(join(tmpdir(), 'sidekick-cli-routing-'))
@@ -71,11 +72,22 @@ describe('CLI command routing', () => {
 
     stdout = new CollectingWritable()
     stderr = new CollectingWritable()
+
+    // Save and clear sandbox mode for tests that need real daemon routing
+    originalSandboxEnv = process.env.SANDBOX_RUNTIME
+    delete process.env.SANDBOX_RUNTIME
+
     vi.clearAllMocks()
   })
 
   afterEach(() => {
     rmSync(projectDir, { recursive: true, force: true })
+    // Restore sandbox env
+    if (originalSandboxEnv === undefined) {
+      delete process.env.SANDBOX_RUNTIME
+    } else {
+      process.env.SANDBOX_RUNTIME = originalSandboxEnv
+    }
     vi.clearAllMocks()
   })
 

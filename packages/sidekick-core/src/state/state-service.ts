@@ -215,8 +215,12 @@ export class StateService {
       // Clean up tmp file on failure
       try {
         await fs.unlink(tmpPath)
-      } catch {
-        // Ignore cleanup errors
+      } catch (cleanupErr) {
+        // Log cleanup errors for observability
+        this.logger?.trace('Failed to cleanup temp file', {
+          tmpPath,
+          error: cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr),
+        })
       }
       throw err
     }
@@ -428,6 +432,12 @@ export class StateService {
       await fs.copyFile(path, backupPath)
       this.logger?.debug('Dev mode backup created', { original: path, backup: backupPath })
     } catch (err) {
+      // TODO: The copyFile failure path is difficult to test because fs.copyFile
+      // is not easily mockable (imported directly from node:fs/promises). Consider
+      // injecting a filesystem abstraction interface to improve testability.
+      // This would allow test code to simulate disk errors without monkey-patching
+      // or modifying the actual filesystem.
+
       // Best effort - don't fail the write if backup fails
       this.logger?.warn('Failed to create dev mode backup', {
         path,

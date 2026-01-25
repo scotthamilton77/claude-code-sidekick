@@ -3,9 +3,31 @@
  * @see docs/design/PERSONA-PROFILES-DESIGN.md - Selection Algorithm
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { PersonaDefinition } from '@sidekick/types'
-import { parseAllowList, filterPersonasByAllowList, selectRandomPersona } from '../handlers/persona-selection'
+import {
+  parseAllowList,
+  filterPersonasByAllowList,
+  selectRandomPersona,
+  selectPersonaForSession,
+} from '../handlers/persona-selection'
+import { createMockDaemonContext, MockLogger, MockStateService } from '@sidekick/testing-fixtures'
+import { DEFAULT_SESSION_SUMMARY_CONFIG } from '../types'
+
+// Mock the @sidekick/core module for persona loader
+vi.mock('@sidekick/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@sidekick/core')>()
+  return {
+    ...actual,
+    getDefaultPersonasDir: vi.fn(() => '/mock/personas'),
+    createPersonaLoader: vi.fn(),
+  }
+})
+
+// Restore all mocks after each test to prevent state pollution
+afterEach(() => {
+  vi.restoreAllMocks()
+})
 
 // ============================================================================
 // Test Data
@@ -63,10 +85,10 @@ describe('parseAllowList', () => {
 // ============================================================================
 
 describe('filterPersonasByAllowList', () => {
-  let mockLogger: { warn: ReturnType<typeof vi.fn> }
+  let mockLogger: MockLogger
 
   beforeEach(() => {
-    mockLogger = { warn: vi.fn() }
+    mockLogger = new MockLogger()
   })
 
   function createPersonasMap(ids: string[]): Map<string, PersonaDefinition> {
@@ -85,7 +107,7 @@ describe('filterPersonasByAllowList', () => {
     expect(result.map((p) => p.id)).toContain('skippy')
     expect(result.map((p) => p.id)).toContain('bones')
     expect(result.map((p) => p.id)).toContain('scotty')
-    expect(mockLogger.warn).not.toHaveBeenCalled()
+    expect(mockLogger.getLogsByLevel('warn')).toHaveLength(0)
   })
 
   it('filters to only allowed personas', () => {
@@ -95,7 +117,7 @@ describe('filterPersonasByAllowList', () => {
     expect(result).toHaveLength(2)
     expect(result.map((p) => p.id)).toContain('skippy')
     expect(result.map((p) => p.id)).toContain('bones')
-    expect(mockLogger.warn).not.toHaveBeenCalled()
+    expect(mockLogger.getLogsByLevel('warn')).toHaveLength(0)
   })
 
   it('logs warning for unknown persona IDs in allowList', () => {
@@ -103,8 +125,10 @@ describe('filterPersonasByAllowList', () => {
     const result = filterPersonasByAllowList(personas, ['skippy', 'unknown', 'bones'], mockLogger)
 
     expect(result).toHaveLength(2)
-    expect(mockLogger.warn).toHaveBeenCalledTimes(1)
-    expect(mockLogger.warn).toHaveBeenCalledWith('Unknown persona in allowList, ignoring', { personaId: 'unknown' })
+    const warnLogs = mockLogger.getLogsByLevel('warn')
+    expect(warnLogs).toHaveLength(1)
+    expect(warnLogs[0].msg).toBe('Unknown persona in allowList, ignoring')
+    expect(warnLogs[0].meta).toEqual({ personaId: 'unknown' })
   })
 
   it('returns empty array when all allowList entries are unknown', () => {
@@ -112,7 +136,7 @@ describe('filterPersonasByAllowList', () => {
     const result = filterPersonasByAllowList(personas, ['unknown1', 'unknown2'], mockLogger)
 
     expect(result).toHaveLength(0)
-    expect(mockLogger.warn).toHaveBeenCalledTimes(2)
+    expect(mockLogger.getLogsByLevel('warn')).toHaveLength(2)
   })
 
   it('preserves order from allowList', () => {
@@ -166,5 +190,139 @@ describe('selectRandomPersona', () => {
     expect(selectedIds.has('skippy')).toBe(true)
     expect(selectedIds.has('bones')).toBe(true)
     expect(selectedIds.has('scotty')).toBe(true)
+  })
+})
+
+// ============================================================================
+// selectPersonaForSession Tests (Integration)
+// ============================================================================
+
+describe('selectPersonaForSession', () => {
+  let mockLogger: MockLogger
+  let mockStateService: MockStateService
+  let mockCreatePersonaLoader: ReturnType<typeof vi.fn>
+
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    mockLogger = new MockLogger()
+    mockStateService = new MockStateService()
+
+    // Get the mocked function
+    const coreMod = await import('@sidekick/core')
+    mockCreatePersonaLoader = coreMod.createPersonaLoader as ReturnType<typeof vi.fn>
+  })
+
+  function setupMockLoader(personas: Map<string, PersonaDefinition>): void {
+    mockCreatePersonaLoader.mockReturnValue({
+      discover: () => personas,
+      load: vi.fn(),
+      loadFile: vi.fn(),
+      resolver: {},
+      cascadeLayers: [],
+    })
+  }
+
+  it('returns null and logs warning when no personas are discovered', async () => {
+    setupMockLoader(new Map())
+    const ctx = createMockDaemonContext({ logger: mockLogger, stateService: mockStateService })
+
+    const result = await selectPersonaForSession('test-session', DEFAULT_SESSION_SUMMARY_CONFIG, ctx)
+
+    expect(result).toBeNull()
+    expect(mockLogger.wasLoggedAtLevel('No personas found, skipping persona selection', 'warn')).toBe(true)
+  })
+
+  it('returns null when allowList filters out all personas', async () => {
+    const personas = new Map<string, PersonaDefinition>()
+    personas.set('skippy', createMockPersona('skippy'))
+    setupMockLoader(personas)
+
+    const ctx = createMockDaemonContext({ logger: mockLogger, stateService: mockStateService })
+    const config = { ...DEFAULT_SESSION_SUMMARY_CONFIG, personas: { allowList: 'unknown', resumeFreshnessHours: 4 } }
+
+    const result = await selectPersonaForSession('test-session', config, ctx)
+
+    expect(result).toBeNull()
+    expect(mockLogger.wasLoggedAtLevel('No eligible personas after allowList filtering', 'warn')).toBe(true)
+  })
+
+  it('selects and persists a persona when available', async () => {
+    const personas = new Map<string, PersonaDefinition>()
+    personas.set('skippy', createMockPersona('skippy', 'Skippy'))
+    setupMockLoader(personas)
+
+    const ctx = createMockDaemonContext({ logger: mockLogger, stateService: mockStateService })
+
+    const result = await selectPersonaForSession('test-session', DEFAULT_SESSION_SUMMARY_CONFIG, ctx)
+
+    expect(result).toBe('skippy')
+    expect(mockLogger.wasLoggedAtLevel('Selected persona for session', 'info')).toBe(true)
+    const infoLogs = mockLogger.getLogsByLevel('info')
+    const selectionLog = infoLogs.find((log) => log.msg === 'Selected persona for session')
+    expect(selectionLog?.meta).toMatchObject({ sessionId: 'test-session', personaId: 'skippy' })
+  })
+
+  it('persists persona state with correct structure', async () => {
+    const personas = new Map<string, PersonaDefinition>()
+    personas.set('bones', createMockPersona('bones', 'Bones'))
+    setupMockLoader(personas)
+
+    const ctx = createMockDaemonContext({ logger: mockLogger, stateService: mockStateService })
+
+    await selectPersonaForSession('test-session', DEFAULT_SESSION_SUMMARY_CONFIG, ctx)
+
+    // Check state was written
+    const paths = mockStateService.getPaths()
+    expect(paths.length).toBe(1)
+    expect(paths[0]).toContain('session-persona.json')
+
+    const stored = mockStateService.getStored(paths[0]) as { persona_id: string; selected_from: string[] }
+    expect(stored.persona_id).toBe('bones')
+    expect(stored.selected_from).toContain('bones')
+  })
+
+  it('filters personas by allowList config', async () => {
+    const personas = new Map<string, PersonaDefinition>()
+    personas.set('skippy', createMockPersona('skippy'))
+    personas.set('bones', createMockPersona('bones'))
+    personas.set('scotty', createMockPersona('scotty'))
+    setupMockLoader(personas)
+
+    const ctx = createMockDaemonContext({ logger: mockLogger, stateService: mockStateService })
+    const config = { ...DEFAULT_SESSION_SUMMARY_CONFIG, personas: { allowList: 'bones', resumeFreshnessHours: 4 } }
+
+    const result = await selectPersonaForSession('test-session', config, ctx)
+
+    // Only bones should be selected since it's the only one in allowList
+    expect(result).toBe('bones')
+  })
+
+  it('merges persona config with defaults', async () => {
+    const personas = new Map<string, PersonaDefinition>()
+    personas.set('skippy', createMockPersona('skippy'))
+    setupMockLoader(personas)
+
+    const ctx = createMockDaemonContext({ logger: mockLogger, stateService: mockStateService })
+    // Config with partial personas config - should merge with defaults
+    const config = { ...DEFAULT_SESSION_SUMMARY_CONFIG, personas: { allowList: '' } }
+
+    const result = await selectPersonaForSession('test-session', config as typeof DEFAULT_SESSION_SUMMARY_CONFIG, ctx)
+
+    expect(result).toBe('skippy')
+  })
+
+  it('uses projectDir from context paths', async () => {
+    const personas = new Map<string, PersonaDefinition>()
+    personas.set('skippy', createMockPersona('skippy'))
+    setupMockLoader(personas)
+
+    const customPaths = { projectDir: '/custom/project', userConfigDir: '/home/.sidekick', projectConfigDir: '/custom/project/.sidekick' }
+    const ctx = createMockDaemonContext({ logger: mockLogger, stateService: mockStateService, paths: customPaths })
+
+    await selectPersonaForSession('test-session', DEFAULT_SESSION_SUMMARY_CONFIG, ctx)
+
+    expect(mockCreatePersonaLoader).toHaveBeenCalledWith(
+      expect.objectContaining({ projectRoot: '/custom/project' })
+    )
   })
 })

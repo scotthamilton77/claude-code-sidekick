@@ -124,11 +124,8 @@ export async function selectPersonaForSession(
   }
 
   // Select random persona
-  const selected = selectRandomPersona(eligiblePersonas)
-  if (!selected) {
-    ctx.logger.warn('Failed to select persona', { sessionId })
-    return null
-  }
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const selected = selectRandomPersona(eligiblePersonas)!
 
   // Persist selection
   const personaState: SessionPersonaState = {
