@@ -88,18 +88,8 @@ export class DaemonClient {
 
       this.logger.info('Starting daemon...')
 
-      // Resolve daemon entry point
-      let daemonPath: string
-      try {
-        const pkgPath = require.resolve('@sidekick/daemon/package.json')
-        // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
-        const pkg: PackageJson = require(pkgPath)
-        const binPath = pkg.bin ? (typeof pkg.bin === 'string' ? pkg.bin : pkg.bin['sidekickd']) : pkg.main
-        daemonPath = path.resolve(path.dirname(pkgPath), binPath ?? 'dist/index.js')
-      } catch {
-        // Fallback for dev environment: from dist/ → packages/sidekick-daemon/dist/
-        daemonPath = path.resolve(__dirname, '../../sidekick-daemon/dist/index.js')
-      }
+      // Resolve daemon entry point - check bundled context first, then dev mode
+      const daemonPath = await this.resolveDaemonPath()
 
       const child = spawn('node', [daemonPath, this.projectDir], {
         detached: true,
@@ -202,6 +192,40 @@ export class DaemonClient {
       this.logger.debug('Released startup lock', { lockPath })
     } catch {
       // Lock may have been forcefully removed - that's ok
+    }
+  }
+
+  /**
+   * Resolve the daemon entry point path.
+   * Checks in order:
+   * 1. Bundled context: daemon.js as sibling file (npm distribution)
+   * 2. Dev mode: workspace package resolution
+   */
+  private async resolveDaemonPath(): Promise<string> {
+    // 1. Check for bundled daemon.js (npm distribution via sidekick-dist)
+    const bundledPath = path.resolve(__dirname, 'daemon.js')
+    try {
+      await fs.access(bundledPath)
+      this.logger.debug('Using bundled daemon', { path: bundledPath })
+      return bundledPath
+    } catch {
+      // Not bundled context, try dev mode
+    }
+
+    // 2. Dev mode: try workspace package resolution
+    try {
+      const pkgPath = require.resolve('@sidekick/daemon/package.json')
+      // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
+      const pkg: PackageJson = require(pkgPath)
+      const binPath = pkg.bin ? (typeof pkg.bin === 'string' ? pkg.bin : pkg.bin['sidekickd']) : pkg.main
+      const daemonPath = path.resolve(path.dirname(pkgPath), binPath ?? 'dist/index.js')
+      this.logger.debug('Using workspace daemon', { path: daemonPath })
+      return daemonPath
+    } catch {
+      // Fallback for dev environment: from dist/ → packages/sidekick-daemon/dist/
+      const fallbackPath = path.resolve(__dirname, '../../sidekick-daemon/dist/index.js')
+      this.logger.debug('Using fallback daemon path', { path: fallbackPath })
+      return fallbackPath
     }
   }
 
