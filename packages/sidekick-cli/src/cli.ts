@@ -189,8 +189,7 @@ export function initializeRuntime(options: RunCliOptions): InitializeRuntimeResu
   // The unified 'hook' command handles missing project root gracefully
   if (parsed.hookMode && !parsed.projectDir) {
     throw new Error(
-      'Hook mode requires --project-dir parameter. ' +
-        'Ensure $CLAUDE_PROJECT_DIR is set in your hook configuration.'
+      'Hook mode requires --project-dir parameter. ' + 'Ensure $CLAUDE_PROJECT_DIR is set in your hook configuration.'
     )
   }
 
