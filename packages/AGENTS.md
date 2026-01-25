@@ -43,6 +43,8 @@ feature-reminders, feature-session-summary, feature-statusline
 daemon (orchestration, context metrics)
   ↑
 cli (hook dispatcher)
+  ↑
+sidekick-dist (esbuild bundle → @scotthamilton77/sidekick on npm)
 ```
 
 ## Feature Packages

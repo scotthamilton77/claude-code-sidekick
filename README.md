@@ -115,7 +115,7 @@ Sidekick is a **TypeScript-based hook system** that enhances Claude Code with se
 
 **How It Works**:
 
-- Claude Code invokes `npx @sidekick/cli hook <event>` at conversation events
+- Claude Code invokes `npx @scotthamilton77/sidekick hook <event>` at conversation events
 - The CLI dispatches events to a background daemon for processing
 - Features run asynchronously without blocking the conversation
 
@@ -270,6 +270,7 @@ packages/
 ├── feature-statusline/      # Token tracking and status display
 ├── sidekick-daemon/         # Background daemon for session management
 ├── sidekick-cli/            # CLI entrypoint and hook dispatcher
+├── sidekick-dist/           # Distribution bundle for npm (@scotthamilton77/sidekick)
 ├── sidekick-plugin/         # Claude Code plugin (hooks.json)
 ├── sidekick-ui/             # Monitoring UI (React SPA)
 └── testing-fixtures/        # Shared test mocks and factories
