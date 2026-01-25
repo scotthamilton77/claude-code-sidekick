@@ -94,4 +94,3 @@ INTEGRATION_TESTS=1 pnpm test
 
 **Behavior Changes**: `prefer-nullish-coalescing` ignores conditional tests; dot-directories matched by default in `parserOptions.project` globs
 </typescript_tooling>
-
