@@ -14,7 +14,7 @@ if [[ ! -f "${CLI_BIN}" ]]; then
 fi
 
 # Build CLI args for unified hook command
-CLI_ARGS=(hook stop --scope=project --project-dir="${CLAUDE_PROJECT_DIR}")
+CLI_ARGS=(hook stop --project-dir="${CLAUDE_PROJECT_DIR}")
 if [[ -n "${SIDEKICK_LOG_LEVEL:-}" ]]; then
   CLI_ARGS+=(--log-level "${SIDEKICK_LOG_LEVEL}")
 fi

@@ -110,20 +110,22 @@ describe('CLI daemon auto-start', () => {
     expect(result.exitCode).toBe(0)
   })
 
-  test('does not auto-start when no project root', async () => {
+  test('fails fast when no project-dir provided in hook mode', async () => {
     mockStart.mockResolvedValue(undefined)
 
-    // Use user scope (no project root)
-    await runCli({
-      argv: ['session-start', '--hook'],
-      stdout,
-      stderr,
-      cwd: '/tmp',
-      interactive: false,
-      enableFileLogging: false,
-    })
+    // Hook mode without --project-dir should fail fast
+    await expect(
+      runCli({
+        argv: ['session-start', '--hook'],
+        stdout,
+        stderr,
+        cwd: '/tmp',
+        interactive: false,
+        enableFileLogging: false,
+      })
+    ).rejects.toThrow('Hook mode requires --project-dir parameter')
 
-    // Daemon should NOT be started (no project root)
+    // Daemon should NOT be started (error thrown before reaching that point)
     expect(mockStart).not.toHaveBeenCalled()
   })
 })

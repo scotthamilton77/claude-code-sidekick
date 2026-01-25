@@ -18,53 +18,6 @@ describe('resolveScope', () => {
   })
 
   // ==========================================================================
-  // Scope override tests
-  // ==========================================================================
-
-  test('uses scope override when provided as project', () => {
-    const projectDir = join(tempRoot, 'my-project')
-    mkdirSync(projectDir, { recursive: true })
-
-    const result = resolveScope({
-      scopeOverride: 'project',
-      projectDir,
-    })
-
-    expect(result.scope).toBe('project')
-    expect(result.source).toBe('override')
-    expect(result.projectRoot).toBe(projectDir)
-    expect(result.dualInstallDetected).toBe(false)
-    expect(result.warnings).toHaveLength(0)
-  })
-
-  test('uses scope override when provided as user', () => {
-    const result = resolveScope({
-      scopeOverride: 'user',
-      projectDir: join(tempRoot, 'some-project'),
-    })
-
-    expect(result.scope).toBe('user')
-    expect(result.source).toBe('override')
-    expect(result.projectRoot).toBeUndefined()
-    expect(result.dualInstallDetected).toBe(false)
-  })
-
-  test('scope override ignores hook script path', () => {
-    const projectDir = join(tempRoot, 'project')
-    const hookPath = join(projectDir, '.claude', 'hooks', 'sidekick', 'session-start')
-    mkdirSync(join(projectDir, '.claude', 'hooks', 'sidekick'), { recursive: true })
-
-    const result = resolveScope({
-      scopeOverride: 'user',
-      hookScriptPath: hookPath,
-    })
-
-    expect(result.scope).toBe('user')
-    expect(result.source).toBe('override')
-    expect(result.hookScriptPath).toBe(hookPath)
-  })
-
-  // ==========================================================================
   // normalizeDir fallback tests (non-existent paths)
   // ==========================================================================
 
