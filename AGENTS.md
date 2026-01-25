@@ -3,7 +3,7 @@
 TypeScript developer for Claude Code hooks system (Sidekick).
 
 <constraints>
-<!-- [PRESERVE] -->
+<!-- PRESERVE: project-specific constraints -->
 
 - **No backward compat**: Single-user project, breaking changes allowed
 - **Dual-scope**: Must work identically in `.claude/` and `~/.claude/`
@@ -30,10 +30,6 @@ scripts/dev-mode.sh        # Wrapper for pnpm sidekick dev-mode
 development-tools/llm-eval/ # LLM evaluation tools
 ```
 </structure>
-
-<bd_invocation>                                                                                                                                                                   
-Run bd directly as a bash command: `bd <command> [args]`                                                                                                                          
-</bd_invocation>
 
 <sidekick_invocation>
 To invoke sidekick's CLI: `pnpm sidekick <command> [args]`
@@ -64,24 +60,8 @@ INTEGRATION_TESTS=1 pnpm test
 **Dev-mode**: `pnpm sidekick dev-mode enable` or `scripts/dev-mode.sh enable` (requires `pnpm build`, restart Claude Code)
 </sandbox_testing>
 
-<git_commits>
-<!-- Sandbox blocks heredoc temp files. Use simple -m or disable sandbox for commits. -->
-
-When committing in sandbox mode, heredocs fail with "can't create temp file for here document".
-
-**Solutions** (in order of preference):
-1. Use simple `-m` for single-line messages: `git commit -m "fix(scope): message"`
-2. Use multiple `-m` flags for multi-line:
-   ```bash
-   git commit -m "fix(scope): summary" -m "Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
-   ```
-3. For complex messages, use `dangerouslyDisableSandbox: true` since git is safe
-
-**Never use heredoc syntax** (`<<EOF`, `<<'EOF'`) for commit messages in this project.
-</git_commits>
-
 <typescript_tooling>
-<!-- [PRESERVE] Post-training-cutoff—use context7 for current docs -->
+<!-- PRESERVE: post-training-cutoff knowledge -->
 
 **Versions**: eslint 9.39.1, typescript-eslint 8.48.0, typescript 5.9.3
 
@@ -115,38 +95,3 @@ When committing in sandbox mode, heredocs fail with "can't create temp file for 
 **Behavior Changes**: `prefer-nullish-coalescing` ignores conditional tests; dot-directories matched by default in `parserOptions.project` globs
 </typescript_tooling>
 
-<task-tracking>
-<!-- [PRESERVE] Command syntax injected via session hook—this covers project-specific semantics only -->
-
-**Sandbox note**: Run bd with `dangerouslyDisableSandbox: true` (Unix socket EPERM in sandbox).
-
-### Issue Types
-
-`bug` | `feature` | `task` | `epic` | `chore`
-
-### Epics
-
-Children are **parallel by default**—only explicit deps create sequence. Epic-level deps block all children.
-
-### Default Acceptance Criteria
-
-For code tasks, always append: `Build passes. Typecheck passes. Tests pass.`
-
-Skip for: docs-only, design/research, epic planning, no-code chores.
-
-### Discovered Work
-
-Out-of-scope issues → new bead with `discovered-from:<parent-id>` dep. Don't fix inline.
-
-### Workflow Extensions
-
-- **Parent chain**: Mark parent as `in_progress` when claiming child
-- **Parent context**: Check `bd show <parent-id>` for acceptance criteria and sibling tasks
-- **Agent reviews**: Use code-review and code-simplifier skills before user review
-- **Cascade closure**: After closing, if all siblings closed → close parent recursively
-
-### Rules
-
-- ✅ Use bd for ALL tracking, `--json` for programmatic use
-- ❌ No markdown TODO lists unless user explicitly requests
-</task-tracking>
