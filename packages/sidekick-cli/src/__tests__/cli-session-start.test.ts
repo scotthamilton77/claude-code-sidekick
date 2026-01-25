@@ -72,7 +72,7 @@ describe('runCli session handling', () => {
 
     // Without valid stdin hook input, CLI returns empty response
     const result = await runCli({
-      argv: ['session-start', '--hook', '--hook-script-path', hookScriptPath],
+      argv: ['session-start', '--hook', '--hook-script-path', hookScriptPath, '--project-dir', sandbox],
       stdout,
       stderr,
       cwd: sandbox,
@@ -94,7 +94,7 @@ describe('runCli session handling', () => {
     const stderr = new CollectingWritable()
 
     const result = await runCli({
-      argv: ['session-start', '--hook', '--hook-script-path', hookScriptPath],
+      argv: ['session-start', '--hook', '--hook-script-path', hookScriptPath, '--project-dir', sandbox],
       stdout,
       stderr,
       cwd: sandbox,
@@ -138,7 +138,7 @@ describe('runCli session handling', () => {
     expect(stdout.data).toBe('') // No output since deferred
   })
 
-  test('produces output in project scope when dual install detected', async () => {
+  test('produces output in project scope when hook path is in project', async () => {
     sandbox = mkdtempSync(join(tmpdir(), 'sidekick-cli-project-scope-'))
     const projectDir = sandbox
     const hookScriptPath = join(projectDir, '.claude', 'hooks', 'sidekick', 'session-start')
@@ -149,9 +149,9 @@ describe('runCli session handling', () => {
     const stdout = new CollectingWritable()
     const stderr = new CollectingWritable()
 
-    // Explicitly set scope to project to test the project-scope execution path
+    // Hook path in project .claude/ directory triggers project-scope detection
     const result = await runCli({
-      argv: ['session-start', '--hook', '--hook-script-path', hookScriptPath, '--scope', 'project'],
+      argv: ['session-start', '--hook', '--hook-script-path', hookScriptPath, '--project-dir', projectDir],
       stdout,
       stderr,
       cwd: projectDir,
@@ -189,7 +189,7 @@ describe('runCli session handling', () => {
     })
 
     const result = await runCli({
-      argv: ['session-start', '--hook', '--hook-script-path', hookScriptPath],
+      argv: ['session-start', '--hook', '--hook-script-path', hookScriptPath, '--project-dir', projectDir],
       stdinData: hookInput,
       stdout,
       stderr,
@@ -225,7 +225,7 @@ describe('runCli session handling', () => {
     })
 
     const result = await runCli({
-      argv: ['session-start', '--hook', '--hook-script-path', hookScriptPath],
+      argv: ['session-start', '--hook', '--hook-script-path', hookScriptPath, '--project-dir', projectDir],
       stdinData: hookInput,
       stdout,
       stderr,

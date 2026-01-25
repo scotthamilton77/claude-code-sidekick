@@ -4,7 +4,6 @@
  * Implements scope resolution per docs/design/CLI.md §6 and docs/ARCHITECTURE.md §3.2.
  *
  * Determines whether the CLI is running in 'project' or 'user' scope based on:
- * - Explicit override via --scope flag
  * - Hook script path location (user vs project .claude/hooks/sidekick/)
  * - Working directory traversal to find nearest sidekick install
  *
@@ -24,14 +23,13 @@ export type Scope = 'project' | 'user'
 export interface ScopeResolutionInput {
   hookScriptPath?: string
   projectDir?: string
-  scopeOverride?: Scope
   cwd?: string
   homeDir?: string
 }
 
 export interface ScopeResolution {
   scope: Scope
-  source: 'override' | 'hook-script-path' | 'cwd-fallback' | 'default'
+  source: 'hook-script-path' | 'cwd-fallback' | 'default'
   hookScriptPath?: string
   projectRoot?: string
   warnings: string[]
@@ -106,17 +104,6 @@ export function resolveScope(input: ScopeResolutionInput): ScopeResolution {
   const hookScriptPath = input.hookScriptPath ? normalizeHookPath(input.hookScriptPath) : undefined
   const providedProjectDir = input.projectDir ? path.resolve(input.projectDir) : undefined
   const resolvedHomeDir = input.homeDir ? normalizeDir(input.homeDir) : normalizeDir(homedir())
-
-  if (input.scopeOverride) {
-    return {
-      scope: input.scopeOverride,
-      source: 'override',
-      hookScriptPath,
-      projectRoot: input.scopeOverride === 'project' ? providedProjectDir : undefined,
-      warnings,
-      dualInstallDetected: false,
-    }
-  }
 
   if (hookScriptPath) {
     if (hookScriptPath.startsWith(path.join(resolvedHomeDir, '.claude', 'hooks', 'sidekick'))) {

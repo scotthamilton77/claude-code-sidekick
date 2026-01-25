@@ -54,7 +54,6 @@ interface ParsedArgs {
   hookMode: boolean
   hookScriptPath?: string
   projectDir?: string
-  scopeOverride?: 'user' | 'project'
   logLevel?: 'debug' | 'info' | 'warn' | 'error'
   wait?: boolean
   format?: 'text' | 'json' | 'table'
@@ -89,7 +88,7 @@ interface RunCliOptions {
 function parseArgs(argv: string[]): ParsedArgs {
   const parsed = yargsParser(argv, {
     boolean: ['hook', 'wait', 'open', 'prefer-project', 'help', 'kill', 'force'],
-    string: ['hook-script-path', 'project-dir', 'scope', 'log-level', 'format', 'host', 'session-id', 'type'],
+    string: ['hook-script-path', 'project-dir', 'log-level', 'format', 'host', 'session-id', 'type'],
     number: ['port', 'width'],
     alias: {
       h: 'help',
@@ -106,7 +105,6 @@ function parseArgs(argv: string[]): ParsedArgs {
     hookMode: Boolean(parsed.hook),
     hookScriptPath: parsed['hook-script-path'] as string | undefined,
     projectDir: parsed['project-dir'] as string | undefined,
-    scopeOverride: parsed.scope as 'user' | 'project' | undefined,
     logLevel: parsed['log-level'] as ParsedArgs['logLevel'],
     wait: Boolean(parsed.wait),
     format: parsed.format as 'text' | 'json' | 'table' | undefined,
@@ -187,13 +185,21 @@ export function initializeRuntime(options: RunCliOptions): InitializeRuntimeResu
   const parsed = parseArgs(options.argv)
   const homeDir = options.homeDir ?? options.env?.HOME
 
+  // Fail-fast: hook mode (--hook flag) requires --project-dir for state management
+  // The unified 'hook' command handles missing project root gracefully
+  if (parsed.hookMode && !parsed.projectDir) {
+    throw new Error(
+      'Hook mode requires --project-dir parameter. ' +
+        'Ensure $CLAUDE_PROJECT_DIR is set in your hook configuration.'
+    )
+  }
+
   // Parse hook input from stdin (per CLI.md §3.1.1)
   const hookInput = parseHookInput(options.stdinData)
 
   const runtime = bootstrapRuntime({
     hookScriptPath: parsed.hookScriptPath,
     projectDir: parsed.projectDir,
-    scopeOverride: parsed.scopeOverride,
     logLevel: parsed.logLevel,
     stderrSink: stderr,
     cwd: options.cwd,
@@ -208,8 +214,8 @@ export function initializeRuntime(options: RunCliOptions): InitializeRuntimeResu
     runtime.logger.debug('Hook input received', { hookInput: hookInput.raw })
   }
 
-  // Check for dual-install scenario
-  const shouldExit = runtime.scope.dualInstallDetected && parsed.scopeOverride !== 'project'
+  // Check for dual-install scenario (user-scope defers to project-scope)
+  const shouldExit = runtime.scope.dualInstallDetected
   if (shouldExit) {
     runtime.logger.warn('User-scope hook detected project installation. Exiting to prevent duplicate execution.')
   }
