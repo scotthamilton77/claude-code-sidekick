@@ -21,10 +21,11 @@ import * as readline from 'node:readline'
 import {
   Logger,
   DaemonClient,
-  killAllDaemons,
   getSocketPath,
   getTokenPath,
   getLockPath,
+  getPidPath,
+  getUserPidPath,
   getUserDaemonsDir,
   type UserPidInfo,
 } from '@sidekick/core'
@@ -219,7 +220,7 @@ async function listZombieDaemons(): Promise<ZombieDaemon[]> {
         // Process is alive - it's a potential zombie
         zombies.push({ pid: info.pid, projectDir: info.projectDir })
       } catch {
-        // Process is dead, will be cleaned up during actual kill
+        // Process is dead - tracked for cleanup by cleanupStalePidFiles()
       }
     } catch {
       // Invalid file, skip
@@ -227,6 +228,50 @@ async function listZombieDaemons(): Promise<ZombieDaemon[]> {
   }
 
   return zombies
+}
+
+/**
+ * Clean up stale PID files in ~/.sidekick/daemons/ that reference dead processes.
+ * Returns number of stale files removed.
+ */
+async function cleanupStalePidFiles(logger: Logger): Promise<number> {
+  const daemonsDir = getUserDaemonsDir()
+  let cleanedCount = 0
+
+  let files: string[]
+  try {
+    files = await readdir(daemonsDir)
+  } catch {
+    return 0
+  }
+
+  const pidFiles = files.filter((f) => f.endsWith('.pid'))
+
+  for (const pidFile of pidFiles) {
+    const pidPath = path.join(daemonsDir, pidFile)
+    try {
+      const content = await readFile(pidPath, 'utf-8')
+      const info = JSON.parse(content) as UserPidInfo
+
+      // Check if process is alive
+      try {
+        process.kill(info.pid, 0)
+        // Process is alive - leave file alone
+      } catch {
+        // Process is dead - remove stale file
+        await unlink(pidPath).catch(() => {})
+        logger.debug('Removed stale PID file', { pidFile, pid: info.pid })
+        cleanedCount++
+      }
+    } catch {
+      // Invalid JSON - remove corrupt file
+      await unlink(pidPath).catch(() => {})
+      logger.debug('Removed corrupt PID file', { pidFile })
+      cleanedCount++
+    }
+  }
+
+  return cleanedCount
 }
 
 /** Check if a command string references dev-hooks. */
@@ -602,12 +647,47 @@ async function doClean(
     const shouldKill = force || (await promptConfirm('Kill these processes?', stdout, stdin))
 
     if (shouldKill) {
-      const results = await killAllDaemons(logger)
-      const killedCount = results.filter((r) => r.killed).length
+      // Kill the zombies we already found (avoid TOCTOU race by not re-scanning)
+      let killedCount = 0
+      for (const zombie of zombies) {
+        // Clean up associated files regardless of kill outcome
+        const filesToRemove = [
+          getUserPidPath(zombie.projectDir),
+          getPidPath(zombie.projectDir),
+          getSocketPath(zombie.projectDir),
+          getTokenPath(zombie.projectDir),
+        ]
+
+        try {
+          process.kill(zombie.pid, 'SIGKILL')
+          logger.info('Killed zombie daemon', { pid: zombie.pid, projectDir: zombie.projectDir })
+          killedCount++
+        } catch (err) {
+          const code = (err as NodeJS.ErrnoException).code
+          if (code === 'ESRCH') {
+            // ESRCH = no such process - it died between detection and kill (still success)
+            logger.info('Zombie daemon already exited', { pid: zombie.pid, projectDir: zombie.projectDir })
+            killedCount++
+          } else {
+            logger.warn('Failed to kill zombie daemon', {
+              pid: zombie.pid,
+              error: err instanceof Error ? err.message : String(err),
+            })
+          }
+        }
+
+        await Promise.all(filesToRemove.map((f) => unlink(f).catch(() => {})))
+      }
       log(stdout, 'info', `Killed ${killedCount} zombie daemon(s)`)
     } else {
       log(stdout, 'info', 'Skipping zombie cleanup')
     }
+  }
+
+  // Final sweep: clean up any stale PID files referencing dead processes
+  const staleCount = await cleanupStalePidFiles(logger)
+  if (staleCount > 0) {
+    log(stdout, 'info', `Cleaned up ${staleCount} stale PID file(s)`)
   }
 
   stdout.write('\n')
