@@ -38,6 +38,8 @@ global:
 | `custom` | Custom endpoint | Varies |
 | `emulator` | Testing/mocking | None |
 
+**Setting up API keys:** See [CREDENTIALS.md](CREDENTIALS.md) for where to put keys and security best practices.
+
 ## Available Models (OpenRouter)
 
 | Model | Input $/M | Output $/M | Context | Notes |

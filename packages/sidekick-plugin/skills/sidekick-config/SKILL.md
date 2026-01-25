@@ -1,6 +1,6 @@
 ---
 name: sidekick-config
-description: Use when user asks to configure, customize, or set up sidekick. Use when user wants to change LLM models, personas, statusline, reminders, or override any sidekick settings. Also use when user wants to change/set/switch the session persona.
+description: Use when user asks to configure, customize, or set up sidekick. Use when user wants to set up API keys, troubleshoot credential errors, change LLM models, personas, statusline, reminders, or override any sidekick settings. Also use when user wants to change/set/switch the session persona.
 ---
 
 # Sidekick Configuration
@@ -14,6 +14,8 @@ Guide users through configuring sidekick interactively. Ask what they want to co
 ## When to Use
 
 - User mentions "configure sidekick", "customize sidekick", "set up sidekick"
+- User wants to set up or troubleshoot API keys (OpenRouter, OpenAI)
+- User gets "requires apiKey" or credential errors
 - User wants to change LLM models/profiles
 - User wants to customize the statusline format
 - User wants to add or change personas
@@ -99,6 +101,7 @@ Best for complex objects or multiple related settings. Copy the default file and
 
 | Topic | Reference File | Default Location |
 |-------|----------------|------------------|
+| **API keys & credentials** | [resources/CREDENTIALS.md](resources/CREDENTIALS.md) | `~/.sidekick/.env` |
 | LLM models & profiles | [resources/LLM.md](resources/LLM.md) | `assets/sidekick/defaults/llm.defaults.yaml` |
 | Features (statusline, reminders, session-summary) | [resources/FEATURES.md](resources/FEATURES.md) | `assets/sidekick/defaults/features/*.defaults.yaml` |
 | Core (logging, paths, daemon) | [resources/CORE.md](resources/CORE.md) | `assets/sidekick/defaults/core.defaults.yaml` |
@@ -107,6 +110,18 @@ Best for complex objects or multiple related settings. Copy the default file and
 | Reminders | [resources/REMINDERS.md](resources/REMINDERS.md) | `assets/sidekick/reminders/` |
 
 ## Quick Examples
+
+### Set Up API Key (Required First Step)
+
+Sidekick needs an API key for LLM features. See [resources/CREDENTIALS.md](resources/CREDENTIALS.md) for full details.
+
+**Quick setup (user-wide):**
+```bash
+mkdir -p ~/.sidekick
+echo 'OPENROUTER_API_KEY=sk-or-v1-your-key-here' >> ~/.sidekick/.env
+```
+
+Get a key at [openrouter.ai](https://openrouter.ai) → Keys → Create Key.
 
 ### Change Default LLM Model
 
