@@ -3,14 +3,13 @@
  *
  * Verifies BEHAVIOR of hook handling:
  * - Exit codes and output (observable outcomes)
- * - Early exit on dual-install detection
  * - Graceful degradation with missing hook input
  *
  * Does NOT verify log message content - that's implementation detail.
  */
 import { Writable } from 'node:stream'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
-import { join, sep } from 'node:path'
+import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { describe, expect, test, afterEach, vi } from 'vitest'
 

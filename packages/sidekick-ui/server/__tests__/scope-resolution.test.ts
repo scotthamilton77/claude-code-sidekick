@@ -1,10 +1,8 @@
 /**
- * Dual-scope resolution tests for API path resolution.
+ * Path resolution tests for API utilities.
  *
  * Tests that the API correctly resolves paths in both project (.sidekick/)
- * and user (~/.sidekick/) scopes, with proper precedence.
- *
- * @see docs/design/CLI.md §6 Scope Resolution
+ * and user (~/.sidekick/) locations, with proper precedence.
  */
 
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs'

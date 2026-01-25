@@ -388,14 +388,7 @@ describe('handleHookCommand', () => {
   }
 
   const mockRuntime = {
-    scope: {
-      scope: 'project' as const,
-      source: 'hook-script-path' as const,
-      hookScriptPath: '/project/.claude/hooks/sidekick/session-start',
-      projectRoot: '/project',
-      dualInstallDetected: false,
-      warnings: [],
-    },
+    projectRoot: '/project',
     config: {
       get: vi.fn(),
     },
