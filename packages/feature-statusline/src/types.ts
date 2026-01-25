@@ -157,8 +157,13 @@ export const DEFAULT_STATUSLINE_CONFIG: StatuslineConfig = {
 /**
  * Statusline display modes per docs/design/FEATURE-STATUSLINE.md §6.2.
  * Determines what content to show based on session state.
+ *
+ * - `resume_message` - Show resume message from previous session
+ * - `empty_summary` - New session with no activity yet
+ * - `session_summary` - Active session with summary content
+ * - `setup_warning` - Setup issue detected, show only warning message
  */
-export type DisplayMode = 'resume_message' | 'empty_summary' | 'session_summary'
+export type DisplayMode = 'resume_message' | 'empty_summary' | 'session_summary' | 'setup_warning'
 
 // ============================================================================
 // View Model

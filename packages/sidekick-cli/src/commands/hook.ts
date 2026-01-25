@@ -236,11 +236,7 @@ function buildPreCompactEvent(context: EventContext, input: ParsedHookInput): Pr
  *
  * @see docs/design/flow.md §3.2 Event Schema
  */
-export function buildHookEvent(
-  hookName: HookName,
-  input: ParsedHookInput,
-  correlationId: string
-): HookEvent {
+export function buildHookEvent(hookName: HookName, input: ParsedHookInput, correlationId: string): HookEvent {
   const context: EventContext = {
     sessionId: input.sessionId,
     timestamp: Date.now(),

@@ -372,5 +372,4 @@ export class SessionScopedStagingService implements StagingService {
   getSessionId(): string {
     return this.sessionId
   }
-
 }

@@ -41,6 +41,7 @@ async function setupStateReaderTestDir(): Promise<{
   stateDir: string
   globalStateDir: string
   stateService: StateService
+  setupService: MockSetupStatusService
 }> {
   const projectRoot = path.join(tmpdir(), `statusline-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
   const sessionId = 'test-session-123'
@@ -51,8 +52,9 @@ async function setupStateReaderTestDir(): Promise<{
   await fs.mkdir(globalStateDir, { recursive: true })
 
   const stateService = new StateService(projectRoot)
+  const setupService = createMockSetupService()
 
-  return { projectRoot, sessionId, stateDir, globalStateDir, stateService }
+  return { projectRoot, sessionId, stateDir, globalStateDir, stateService, setupService }
 }
 
 /**
@@ -169,6 +171,43 @@ function createTestPersistedMetrics(overrides?: {
     },
     persistedAt: overrides?.persistedAt ?? Date.now(),
   }
+}
+
+/**
+ * Mock SetupStatusService that always returns healthy status.
+ * Used in tests to bypass real file system checks.
+ */
+class MockSetupStatusService {
+  getSetupState(): Promise<'healthy'> {
+    return Promise.resolve('healthy')
+  }
+
+  getEffectiveApiKeyHealth(): Promise<'healthy'> {
+    return Promise.resolve('healthy')
+  }
+
+  getApiKeyHealth(): Promise<'healthy'> {
+    return Promise.resolve('healthy')
+  }
+
+  isHealthy(): Promise<boolean> {
+    return Promise.resolve(true)
+  }
+
+  getUserStatus(): Promise<null> {
+    return Promise.resolve(null)
+  }
+
+  getProjectStatus(): Promise<null> {
+    return Promise.resolve(null)
+  }
+}
+
+/**
+ * Create a mock SetupStatusService for tests.
+ */
+function createMockSetupService(): MockSetupStatusService {
+  return new MockSetupStatusService()
 }
 
 // ============================================================================
@@ -2122,6 +2161,7 @@ describe('StatuslineService', () => {
   let stateDir: string
   let sessionId: string
   let stateService: StateService
+  let setupService: MockSetupStatusService
 
   beforeEach(async () => {
     const setup = await setupStateReaderTestDir()
@@ -2129,11 +2169,13 @@ describe('StatuslineService', () => {
     stateDir = setup.stateDir
     sessionId = setup.sessionId
     stateService = setup.stateService
+    setupService = setup.setupService
   })
 
   it('renders with default values when no state files', async () => {
     const service = createStatuslineService({
       stateService,
+      setupService,
       sessionId,
       cwd: '/home/user/project',
       homeDir: '/home/user',
@@ -2189,6 +2231,7 @@ describe('StatuslineService', () => {
 
     const service = createStatuslineService({
       stateService,
+      setupService,
       sessionId,
       cwd: '/home/user/project',
       homeDir: '/home/user',
@@ -2235,6 +2278,7 @@ describe('StatuslineService', () => {
 
     const service = createStatuslineService({
       stateService,
+      setupService,
       sessionId,
       cwd: '/test',
       useColors: false,
@@ -2255,6 +2299,7 @@ describe('StatuslineService', () => {
 
     const service = createStatuslineService({
       stateService,
+      setupService,
       sessionId,
       cwd: '/test',
       useColors: false,
@@ -2272,6 +2317,7 @@ describe('StatuslineService', () => {
 
     const service = createStatuslineService({
       stateService,
+      setupService,
       sessionId,
       cwd: '/test',
       useColors: false,
@@ -2288,6 +2334,7 @@ describe('StatuslineService', () => {
       // Model name comes from hook input, not transcript-metrics.json
       const service = createStatuslineService({
         stateService,
+        setupService,
         sessionId,
         cwd: '/test',
         useColors: false,
@@ -2306,6 +2353,7 @@ describe('StatuslineService', () => {
       // Model name comes from hook input, not transcript-metrics.json
       const service = createStatuslineService({
         stateService,
+        setupService,
         sessionId,
         cwd: '/test',
         useColors: false,
@@ -2357,6 +2405,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService: discoveryStateService,
+        setupService: createMockSetupService(),
         sessionId: currentSessionId,
         cwd: '/test',
         useColors: false,
@@ -2405,6 +2454,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService: discoveryStateService,
+        setupService: createMockSetupService(),
         sessionId: currentSessionId,
         cwd: '/test',
         useColors: false,
@@ -2422,6 +2472,7 @@ describe('StatuslineService', () => {
       // No sessionsDir or currentSessionId provided
       const service = createStatuslineService({
         stateService,
+        setupService,
         sessionId,
         cwd: '/test',
         useColors: false,
@@ -2467,6 +2518,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
+        setupService,
         sessionId,
         cwd: '/test',
         useColors: false,
@@ -2512,6 +2564,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
+        setupService,
         sessionId,
         cwd: '/test',
         useColors: false,
@@ -2578,6 +2631,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
+        setupService,
         sessionId,
         cwd: '/test',
         useColors: false,
@@ -2599,6 +2653,7 @@ describe('StatuslineService', () => {
       // No hookInput - uses transcript state directly which includes isPostCompactIndeterminate
       const service = createStatuslineService({
         stateService,
+        setupService,
         sessionId,
         cwd: '/test',
         useColors: false,
@@ -2620,6 +2675,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
+        setupService,
         sessionId,
         cwd: '/test',
         useColors: true, // Enable colors
@@ -2657,6 +2713,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
+        setupService,
         sessionId,
         cwd: '/test',
         useColors: false,
@@ -2682,6 +2739,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
+        setupService,
         sessionId,
         cwd: '/test',
         useColors: false,
@@ -2707,6 +2765,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
+        setupService,
         sessionId,
         cwd: '/test',
         useColors: false,
@@ -2747,6 +2806,7 @@ describe('StatuslineService', () => {
       // Hook input with zero tokens - will trigger baseline fallback
       const service = createStatuslineService({
         stateService,
+        setupService,
         sessionId,
         cwd: '/test',
         useColors: false,
@@ -2820,6 +2880,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
+        setupService,
         sessionId,
         cwd: '/test',
         useColors: false,
@@ -2848,6 +2909,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
+        setupService,
         sessionId,
         cwd: '/test',
         useColors: false,
@@ -2874,6 +2936,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
+        setupService,
         sessionId,
         cwd: '/test',
         useColors: false,
@@ -2905,6 +2968,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
+        setupService,
         sessionId,
         cwd: '/test',
         useColors: false,
@@ -2929,6 +2993,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
+        setupService,
         sessionId,
         cwd: '/test',
         useColors: false,
@@ -2958,6 +3023,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
+        setupService,
         sessionId,
         cwd: '/test',
         useColors: false,
@@ -2993,6 +3059,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
+        setupService,
         sessionId,
         cwd: '/test',
         useColors: false,
@@ -3009,6 +3076,7 @@ describe('StatuslineService', () => {
     it('falls back to default when assets not provided', async () => {
       const service = createStatuslineService({
         stateService,
+        setupService,
         sessionId,
         cwd: '/test',
         useColors: false,
@@ -3026,6 +3094,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
+        setupService,
         sessionId,
         cwd: '/test',
         useColors: false,
@@ -3043,6 +3112,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
+        setupService,
         sessionId,
         cwd: '/test',
         useColors: false,
@@ -3064,6 +3134,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
+        setupService,
         sessionId,
         cwd: '/test',
         useColors: false,
@@ -3085,6 +3156,7 @@ describe('StatuslineService', () => {
 
       const service = createStatuslineService({
         stateService,
+        setupService,
         sessionId,
         cwd: '/test',
         useColors: false,

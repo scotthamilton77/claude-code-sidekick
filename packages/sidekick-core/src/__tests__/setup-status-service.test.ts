@@ -54,13 +54,13 @@ describe('SetupStatusService', () => {
   })
 
   // Helper to write status files
-  const writeUserStatus = async (status: UserSetupStatus) => {
+  const writeUserStatus = async (status: UserSetupStatus): Promise<void> => {
     const userStatusPath = path.join(homeDir, '.sidekick', 'setup-status.json')
     await fs.mkdir(path.dirname(userStatusPath), { recursive: true })
     await fs.writeFile(userStatusPath, JSON.stringify(status, null, 2))
   }
 
-  const writeProjectStatus = async (status: ProjectSetupStatus) => {
+  const writeProjectStatus = async (status: ProjectSetupStatus): Promise<void> => {
     const projectStatusPath = path.join(projectDir, '.sidekick', 'setup-status.json')
     await fs.mkdir(path.dirname(projectStatusPath), { recursive: true })
     await fs.writeFile(projectStatusPath, JSON.stringify(status, null, 2))

@@ -623,7 +623,10 @@ describe('StateService', () => {
       await cachedState.preloadDirectory(stateDir)
 
       // Should warn about the corrupt file
-      expect(logger.warn).toHaveBeenCalledWith('Failed to preload state file', expect.objectContaining({ file: 'corrupt.json' }))
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Failed to preload state file',
+        expect.objectContaining({ file: 'corrupt.json' })
+      )
 
       // Valid file should still be cached
       const result = await cachedState.read(cachedState.globalStatePath('valid.json'), TestSchema, { value: 0 })
@@ -924,7 +927,9 @@ describe('StateService', () => {
       // No backup since dev mode was disabled
       const dir = dirname(path)
       let files = readdirSync(dir)
-      let backupFiles = files.filter((f) => f.startsWith('hot-reload.') && f.endsWith('.json') && f !== 'hot-reload.json')
+      let backupFiles = files.filter(
+        (f) => f.startsWith('hot-reload.') && f.endsWith('.json') && f !== 'hot-reload.json'
+      )
       expect(backupFiles.length).toBe(0)
 
       // Enable dev mode via the getter

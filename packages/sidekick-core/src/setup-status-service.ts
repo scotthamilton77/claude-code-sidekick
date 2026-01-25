@@ -184,11 +184,7 @@ export class SetupStatusService {
     return !(await this.isProjectConfigured())
   }
 
-  async setApiKeyHealth(
-    key: ApiKeyName,
-    health: ApiKeyHealth | ProjectApiKeyHealth,
-    scope: 'user' | 'project'
-  ): Promise<void> {
+  async setApiKeyHealth(key: ApiKeyName, health: ProjectApiKeyHealth, scope: 'user' | 'project'): Promise<void> {
     if (scope === 'user') {
       const current = await this.getUserStatus()
       if (!current) {

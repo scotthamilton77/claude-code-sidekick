@@ -118,9 +118,7 @@ describe('buildPersonaContext', () => {
 
       const context = buildPersonaContext(persona)
 
-      expect(context.persona_situation).toBe(
-        'You are watching over the shoulder of a software developer as they work.'
-      )
+      expect(context.persona_situation).toBe('You are watching over the shoulder of a software developer as they work.')
     })
   })
 })

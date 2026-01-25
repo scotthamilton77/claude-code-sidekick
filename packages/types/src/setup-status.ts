@@ -4,11 +4,11 @@ import { z } from 'zod'
  * API key health states for setup status tracking.
  */
 export const ApiKeyHealthSchema = z.enum([
-  'missing',           // Key needed but not found
-  'not-required',      // No LLM profiles configured for provider
+  'missing', // Key needed but not found
+  'not-required', // No LLM profiles configured for provider
   'pending-validation', // Key exists but not validated
-  'invalid',           // Validation failed
-  'healthy',           // Validation succeeded
+  'invalid', // Validation failed
+  'healthy', // Validation succeeded
 ])
 export type ApiKeyHealth = z.infer<typeof ApiKeyHealthSchema>
 

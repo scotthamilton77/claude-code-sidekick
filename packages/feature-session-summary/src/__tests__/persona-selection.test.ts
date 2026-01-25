@@ -316,13 +316,15 @@ describe('selectPersonaForSession', () => {
     personas.set('skippy', createMockPersona('skippy'))
     setupMockLoader(personas)
 
-    const customPaths = { projectDir: '/custom/project', userConfigDir: '/home/.sidekick', projectConfigDir: '/custom/project/.sidekick' }
+    const customPaths = {
+      projectDir: '/custom/project',
+      userConfigDir: '/home/.sidekick',
+      projectConfigDir: '/custom/project/.sidekick',
+    }
     const ctx = createMockDaemonContext({ logger: mockLogger, stateService: mockStateService, paths: customPaths })
 
     await selectPersonaForSession('test-session', DEFAULT_SESSION_SUMMARY_CONFIG, ctx)
 
-    expect(mockCreatePersonaLoader).toHaveBeenCalledWith(
-      expect.objectContaining({ projectRoot: '/custom/project' })
-    )
+    expect(mockCreatePersonaLoader).toHaveBeenCalledWith(expect.objectContaining({ projectRoot: '/custom/project' }))
   })
 })

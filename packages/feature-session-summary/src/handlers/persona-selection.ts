@@ -124,7 +124,7 @@ export async function selectPersonaForSession(
   }
 
   // Select random persona
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+
   const selected = selectRandomPersona(eligiblePersonas)!
 
   // Persist selection
