@@ -7,7 +7,7 @@
  * hook commands. Designed for testability with injectable I/O streams.
  *
  * Supports:
- * - Hook mode (--hook): Outputs structured JSON for Claude Code integration
+ * - Unified hook command: `sidekick hook <name>` for Claude Code integration
  * - Interactive mode: Human-readable output for debugging
  * - Scope detection with dual-install awareness
  * - Hook input JSON parsing from stdin (per CLI.md §3.1)
@@ -47,11 +47,9 @@ Example: { "command": "pnpm sidekick daemon status", "dangerouslyDisableSandbox"
 import { LogMetricsStateSchema } from '@sidekick/types'
 import type { Logger } from '@sidekick/core'
 import { bootstrapRuntime, type RuntimeShell } from './runtime'
-import { getHookName, handleHookCommand, validateHookName } from './commands/hook.js'
 
 interface ParsedArgs {
-  command: string
-  hookMode: boolean
+  command: string | undefined
   hookScriptPath?: string
   projectDir?: string
   logLevel?: 'debug' | 'info' | 'warn' | 'error'
@@ -87,7 +85,7 @@ interface RunCliOptions {
  */
 function parseArgs(argv: string[]): ParsedArgs {
   const parsed = yargsParser(argv, {
-    boolean: ['hook', 'wait', 'open', 'prefer-project', 'help', 'kill', 'force'],
+    boolean: ['wait', 'open', 'prefer-project', 'help', 'kill', 'force'],
     string: ['hook-script-path', 'project-dir', 'log-level', 'format', 'host', 'session-id', 'type'],
     number: ['port', 'width'],
     alias: {
@@ -98,11 +96,10 @@ function parseArgs(argv: string[]): ParsedArgs {
     },
   })
 
-  const command = (parsed._[0] as string | undefined) ?? 'session-start'
+  const command = parsed._[0] as string | undefined
 
   return {
     command,
-    hookMode: Boolean(parsed.hook),
     hookScriptPath: parsed['hook-script-path'] as string | undefined,
     projectDir: parsed['project-dir'] as string | undefined,
     logLevel: parsed['log-level'] as ParsedArgs['logLevel'],
@@ -184,14 +181,6 @@ export function initializeRuntime(options: RunCliOptions): InitializeRuntimeResu
   const stderr = options.stderr ?? new PassThrough()
   const parsed = parseArgs(options.argv)
   const homeDir = options.homeDir ?? options.env?.HOME
-
-  // Fail-fast: hook mode (--hook flag) requires --project-dir for state management
-  // The unified 'hook' command handles missing project root gracefully
-  if (parsed.hookMode && !parsed.projectDir) {
-    throw new Error(
-      'Hook mode requires --project-dir parameter. ' + 'Ensure $CLAUDE_PROJECT_DIR is set in your hook configuration.'
-    )
-  }
 
   // Parse hook input from stdin (per CLI.md §3.1.1)
   const hookInput = parseHookInput(options.stdinData)
@@ -332,54 +321,14 @@ export async function routeCommand(context: {
   runtime: RuntimeShell
   hookInput: ParsedHookInput | undefined
   stdout: Writable
-  daemonStarted: boolean
 }): Promise<{ exitCode: number; stdout: string; stderr: string }> {
-  const { parsed, runtime, hookInput, stdout, daemonStarted } = context
+  const { parsed, runtime, hookInput, stdout } = context
 
   runtime.logger.debug('Raw hook input', { hookInput })
 
-  // Handle hook commands by dispatching to daemon
-  // Per docs/design/flow.md §5: CLI sends event to Daemon via IPC
-  if (parsed.hookMode && hookInput && runtime.scope.projectRoot) {
-    // Prefer hookInput.hookEventName (PascalCase from stdin), fall back to parsed.command (kebab-case from argv)
-    const hookName = validateHookName(hookInput.hookEventName) ?? getHookName(parsed.command)
-    if (hookName) {
-      const result = await handleHookCommand(
-        hookName,
-        {
-          projectRoot: runtime.scope.projectRoot,
-          sessionId: hookInput.sessionId,
-          hookInput,
-          correlationId: runtime.correlationId,
-          scope: runtime.scope.scope,
-          runtime,
-        },
-        runtime.logger,
-        stdout
-      )
-      return { exitCode: result.exitCode, stdout: result.output, stderr: '' }
-    }
-  }
-
-  // Handle global help request (not in hook mode)
-  // Show help when: --help flag with default command, or explicit 'help' command
-  if (!parsed.hookMode) {
-    const isDefaultCommand = parsed.command === 'session-start'
-    const isHelpCommand = parsed.command === 'help' || parsed.command === '--help' || parsed.command === '-h'
-    if ((parsed.help && isDefaultCommand) || isHelpCommand) {
-      return showGlobalHelp(stdout)
-    }
-  }
-
-  // Fallback: If hook input is missing or not recognized, return empty response
-  // This handles edge cases like malformed stdin or unknown hook types
-  if (parsed.hookMode && !hookInput) {
-    runtime.logger.warn('Hook mode invoked without valid hook input, returning empty response', {
-      command: parsed.command,
-      daemonStarted,
-    })
-    stdout.write('{}\n')
-    return { exitCode: 0, stdout: '{}', stderr: '' }
+  // Handle global help: no command or explicit 'help' command
+  if (!parsed.command || parsed.command === 'help') {
+    return showGlobalHelp(stdout)
   }
 
   // Handle unified hook command: sidekick hook <hook-name>
@@ -414,6 +363,14 @@ Examples:
 
     if (!hookName) {
       const errorMsg = `Error: Unknown hook name '${hookArg}'\nRun 'sidekick hook --help' for available hooks.\n`
+      stdout.write(errorMsg)
+      return { exitCode: 1, stdout: errorMsg, stderr: '' }
+    }
+
+    // Fail fast: hook execution requires explicit --project-dir
+    // (Claude Code always provides this via $CLAUDE_PROJECT_DIR expansion)
+    if (!parsed.projectDir) {
+      const errorMsg = 'Hook command requires --project-dir to be specified\n'
       stdout.write(errorMsg)
       return { exitCode: 1, stdout: errorMsg, stderr: '' }
     }
@@ -548,13 +505,10 @@ Examples:
     return { exitCode: result.exitCode, stdout: '', stderr: '' }
   }
 
-  // Interactive mode: show informational message
-  // Hook mode falls through here only if command isn't recognized as a hook
-  if (!parsed.hookMode) {
-    stdout.write(`Sidekick CLI executed ${parsed.command} in ${runtime.scope.scope} scope\n`)
-  }
-
-  return Promise.resolve({ exitCode: 0, stdout: '', stderr: '' })
+  // Unknown command - show error and hint
+  const errorMsg = `Unknown command: ${parsed.command}\nRun 'sidekick help' for available commands.\n`
+  stdout.write(errorMsg)
+  return { exitCode: 1, stdout: errorMsg, stderr: '' }
 }
 
 /**
@@ -629,9 +583,9 @@ export async function runCli(options: RunCliOptions): Promise<{ exitCode: number
   })
 
   // 3. Ensure daemon is running (async, no-throw)
-  // Trigger for both --hook flag mode and unified 'sidekick hook <name>' command
-  const isHookExecution = parsed.hookMode || parsed.command === 'hook'
-  const { started: daemonStarted } = await ensureDaemon({
+  // Trigger for unified 'sidekick hook <name>' command with explicit --project-dir
+  const isHookExecution = parsed.command === 'hook' && Boolean(parsed.projectDir)
+  await ensureDaemon({
     hookMode: isHookExecution,
     projectRoot: runtime.scope.projectRoot,
     logger: runtime.logger,
@@ -643,7 +597,6 @@ export async function runCli(options: RunCliOptions): Promise<{ exitCode: number
     runtime,
     hookInput,
     stdout,
-    daemonStarted,
   })
 
   // 5. Persist CLI log metrics (async, no-throw)

@@ -194,7 +194,7 @@ describe('CLI additional coverage', () => {
       mockParseHookArg.mockReturnValue('SessionStart')
 
       const result = await runCli({
-        argv: ['hook', 'session-start'],
+        argv: ['hook', 'session-start', '--project-dir', projectDir],
         stdout,
         stderr,
         cwd: projectDir,
@@ -205,21 +205,19 @@ describe('CLI additional coverage', () => {
       expect(stdout.data.trim()).toBe('{}')
     })
 
-    test('returns empty JSON when no project root', async () => {
+    test('fails fast when hook command missing --project-dir', async () => {
       mockParseHookArg.mockReturnValue('SessionStart')
 
-      // Use a non-project directory
       const result = await runCli({
         argv: ['hook', 'session-start'],
-        stdinData: JSON.stringify({ session_id: 'test' }),
         stdout,
         stderr,
-        cwd: '/tmp', // No project root here
+        cwd: projectDir,
         enableFileLogging: false,
       })
 
-      expect(result.exitCode).toBe(0)
-      expect(stdout.data.trim()).toBe('{}')
+      expect(result.exitCode).toBe(1)
+      expect(stdout.data).toContain('--project-dir')
     })
 
     test('dispatches to unified hook handler with valid input', async () => {
@@ -230,7 +228,7 @@ describe('CLI additional coverage', () => {
       })
 
       const result = await runCli({
-        argv: ['hook', 'session-start'],
+        argv: ['hook', 'session-start', '--project-dir', projectDir],
         stdinData: JSON.stringify({ session_id: 'test-session', cwd: projectDir }),
         stdout,
         stderr,
