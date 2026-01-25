@@ -1,0 +1,39 @@
+{
+  "name": "@scotthamilton77/sidekick",
+  "version": "0.0.1-alpha",
+  "description": "AI pair programming assistant with personas, session tracking, and contextual nudges",
+  "bin": {
+    "sidekick": "dist/bin.js"
+  },
+  "files": [
+    "dist",
+    "assets"
+  ],
+  "scripts": {
+    "clean": "rm -rf dist assets",
+    "bundle:js": "esbuild ../sidekick-cli/dist/bin.js --bundle --platform=node --format=cjs --main-fields=module,main --outfile=dist/bin.js --external:fsevents",
+    "bundle:assets": "mkdir -p assets && cp -r ../sidekick-core/assets/sidekick assets/",
+    "bundle": "pnpm run clean && pnpm run bundle:js && pnpm run bundle:assets",
+    "prepublishOnly": "pnpm run bundle"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "ai",
+    "assistant",
+    "hooks",
+    "personas"
+  ],
+  "author": "Scott Hamilton",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/scotthamilton77/claude-code-sidekick"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "esbuild": "^0.21.5"
+  }
+}

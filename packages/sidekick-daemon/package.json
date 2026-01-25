@@ -1,6 +1,6 @@
 {
   "name": "@sidekick/daemon",
-  "version": "0.0.1",
+  "version": "0.0.1-alpha",
   "description": "Background daemon process for Sidekick",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
