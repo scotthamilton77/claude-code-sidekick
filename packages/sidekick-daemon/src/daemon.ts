@@ -656,10 +656,7 @@ export class Daemon {
 
     // Log EventReceived event
     if (sessionId) {
-      logEvent(
-        requestLogger,
-        LogEvents.eventReceived({ sessionId, correlationId, hook }, { eventKind: 'hook', hook })
-      )
+      logEvent(requestLogger, LogEvents.eventReceived({ sessionId, correlationId, hook }, { eventKind: 'hook', hook }))
     }
 
     // Build context and start transcript service for non-SessionEnd hooks

@@ -75,10 +75,7 @@ function createContextWithFailingLLM(
   })
 }
 
-function createValidSummary(
-  sessionId: string,
-  overrides?: Partial<SessionSummaryState>
-): SessionSummaryState {
+function createValidSummary(sessionId: string, overrides?: Partial<SessionSummaryState>): SessionSummaryState {
   return {
     session_id: sessionId,
     timestamp: new Date().toISOString(),
@@ -504,9 +501,7 @@ describe('generateResumeMessageOnDemand', () => {
 
       await generateResumeMessageOnDemand(ctx, sessionId)
 
-      expect(llm.recordedRequests[0].messages[0].content).toContain(
-        'User was refactoring the authentication module'
-      )
+      expect(llm.recordedRequests[0].messages[0].content).toContain('User was refactoring the authentication module')
     })
 
     it('handles missing key phrases gracefully', async () => {

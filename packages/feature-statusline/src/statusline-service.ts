@@ -14,8 +14,19 @@ import type {
   MinimalAssetResolver,
   SessionPersonaState,
   PersonaDefinition,
+  ApiKeyHealth,
 } from '@sidekick/types'
-import { createPersonaLoader, getDefaultPersonasDir } from '@sidekick/core'
+import { createPersonaLoader, getDefaultPersonasDir, SetupStatusService, type SetupState } from '@sidekick/core'
+
+/**
+ * Minimal interface for setup status checking.
+ * StatuslineService only needs these two methods from SetupStatusService.
+ * This allows tests to provide a simple mock without implementing the full class.
+ */
+export interface MinimalSetupStatusService {
+  getSetupState(): Promise<SetupState>
+  getEffectiveApiKeyHealth(key: 'OPENROUTER_API_KEY' | 'OPENAI_API_KEY'): Promise<ApiKeyHealth>
+}
 import {
   Formatter,
   calculateContextUsage,
@@ -209,6 +220,12 @@ export interface StatuslineServiceConfig {
     /** Maximum age (hours) for resume messages to be considered fresh */
     resumeFreshnessHours: number
   }
+  /**
+   * Optional setup status service for health checking.
+   * If not provided, creates a default SetupStatusService.
+   * Accepts MinimalSetupStatusService for easy test mocking.
+   */
+  setupService?: MinimalSetupStatusService
 }
 
 // ============================================================================
@@ -240,6 +257,8 @@ export class StatuslineService {
   private readonly assets?: MinimalAssetResolver
   /** Resume freshness in hours (default: 4) */
   private readonly resumeFreshnessHours: number
+  /** Setup status service for health checking */
+  private readonly setupService: MinimalSetupStatusService
 
   constructor(serviceConfig: StatuslineServiceConfig) {
     // Build config from cascade: configService takes precedence, then direct config, then defaults
@@ -263,6 +282,12 @@ export class StatuslineService {
       theme: this.config.theme,
       useColors: this.useColors,
     })
+    this.setupService =
+      serviceConfig.setupService ??
+      new SetupStatusService(serviceConfig.projectDir ?? serviceConfig.cwd, {
+        homeDir: serviceConfig.homeDir,
+        logger: serviceConfig.logger,
+      })
   }
 
   /**
@@ -374,6 +399,78 @@ export class StatuslineService {
   }
 
   /**
+   * Check setup status and return warning message if unhealthy.
+   * Returns empty warning for healthy state.
+   */
+  private async checkSetupStatus(): Promise<{ warning: string; state: SetupState }> {
+    const state = await this.setupService.getSetupState()
+
+    switch (state) {
+      case 'not-run':
+        return {
+          warning: "Sidekick not configured. Run 'sidekick setup' to get started.",
+          state,
+        }
+      case 'partial':
+        return {
+          warning: "Project not configured. Run 'sidekick setup' for this project.",
+          state,
+        }
+      case 'unhealthy': {
+        // Check which key is the problem
+        const keyHealth = await this.setupService.getEffectiveApiKeyHealth('OPENROUTER_API_KEY')
+        if (keyHealth === 'missing') {
+          return {
+            warning: "OPENROUTER_API_KEY not found. Run 'sidekick doctor' or /sidekick-config",
+            state,
+          }
+        }
+        if (keyHealth === 'invalid') {
+          return {
+            warning: "API key invalid. Run 'sidekick doctor' to fix.",
+            state,
+          }
+        }
+        return {
+          warning: "Setup issue detected. Run 'sidekick doctor'.",
+          state,
+        }
+      }
+      default:
+        return { warning: '', state: 'healthy' }
+    }
+  }
+
+  /**
+   * Build minimal view model for setup_warning display mode.
+   * Only includes fields needed for warning display.
+   */
+  private buildMinimalViewModel(setupCheck: { warning: string; state: SetupState }): StatuslineViewModel {
+    return {
+      model: '',
+      contextWindow: '',
+      tokenUsageActual: '',
+      tokenUsageEffective: '',
+      tokenPercentageActual: '',
+      tokenPercentageEffective: '',
+      tokensStatus: 'normal',
+      cost: '',
+      costStatus: 'normal',
+      duration: '',
+      cwd: '',
+      branch: '',
+      branchColor: '',
+      displayMode: 'setup_warning',
+      summary: setupCheck.warning,
+      title: '',
+      warningCount: 0,
+      errorCount: 0,
+      logStatus: 'normal',
+      personaName: '',
+    }
+  }
+
+  /**
    * Render the statusline by fetching all data in parallel and formatting.
    *
    * Performance target: <50ms total execution time.
@@ -382,6 +479,22 @@ export class StatuslineService {
    * for model/tokens/cost/duration instead of reading from state files.
    */
   async render(): Promise<StatuslineRenderResult> {
+    // Check setup status FIRST - if unhealthy, return only the warning
+    const setupCheck = await this.checkSetupStatus()
+    if (setupCheck.state !== 'healthy') {
+      const viewModel = this.buildMinimalViewModel(setupCheck)
+      // Apply yellow color directly (ANSI code)
+      const ANSI_YELLOW = '\x1b[33m'
+      const ANSI_RESET = '\x1b[0m'
+      const text = this.useColors ? `${ANSI_YELLOW}${setupCheck.warning}${ANSI_RESET}` : setupCheck.warning
+      return {
+        text,
+        displayMode: 'setup_warning',
+        staleData: false,
+        viewModel,
+      }
+    }
+
     // Determine what data to fetch based on whether hookInput is available
     // When hookInput is provided, we skip session state (Claude Code gives us metrics)
     // but still need summary/resume/snarky (Sidekick-specific content)

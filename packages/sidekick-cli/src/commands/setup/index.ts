@@ -20,6 +20,10 @@ export interface SetupCommandResult {
 
 const STATUSLINE_COMMAND = 'npx @scotthamilton77/sidekick statusline --project-dir=$CLAUDE_PROJECT_DIR'
 
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
 /**
  * Map API key health to status type for display.
  */
@@ -123,36 +127,87 @@ async function findExistingApiKey(keyName: string, homeDir: string, projectDir: 
 }
 
 /**
- * Run the interactive setup wizard
+ * Write persona enabled/disabled setting to sidekick config.
  */
-async function runWizard(
-  projectDir: string,
-  logger: Logger,
-  stdout: NodeJS.WritableStream,
-  options: SetupCommandOptions
-): Promise<SetupCommandResult> {
-  const ctx: PromptContext = {
-    stdin: options.stdin ?? process.stdin,
-    stdout,
-  }
-  const homeDir = os.homedir()
-  const setupService = new SetupStatusService(projectDir, { homeDir, logger })
+async function writePersonaConfig(_projectDir: string, homeDir: string, enabled: boolean): Promise<void> {
+  // Write to user-level config (~/.sidekick/config.yaml)
+  const configDir = path.join(homeDir, '.sidekick')
+  const configPath = path.join(configDir, 'config.yaml')
 
-  // Header
+  await fs.mkdir(configDir, { recursive: true })
+
+  let content = ''
+  try {
+    content = await fs.readFile(configPath, 'utf-8')
+  } catch {
+    // File doesn't exist
+  }
+
+  // Check if personas config exists
+  const personasRegex = /^features:\s*\n\s*personas:\s*\n\s*enabled:\s*(true|false)/m
+  const newPersonasBlock = `features:\n  personas:\n    enabled: ${enabled}`
+
+  if (personasRegex.test(content)) {
+    // Replace existing
+    content = content.replace(personasRegex, newPersonasBlock)
+  } else {
+    // Append
+    if (content && !content.endsWith('\n')) {
+      content += '\n'
+    }
+    content += newPersonasBlock + '\n'
+  }
+
+  await fs.writeFile(configPath, content)
+}
+
+// ============================================================================
+// Wizard Context (shared state between steps)
+// ============================================================================
+
+interface WizardContext {
+  ctx: PromptContext
+  homeDir: string
+  projectDir: string
+  logger: Logger
+  setupService: SetupStatusService
+}
+
+interface WizardState {
+  statuslineScope: 'user' | 'project'
+  wantPersonas: boolean
+  apiKeyHealth: ApiKeyHealth
+  autoConfig: 'auto' | 'ask' | 'manual'
+}
+
+// ============================================================================
+// Wizard Steps
+// ============================================================================
+
+/**
+ * Print the wizard welcome header.
+ */
+function printWizardHeader(stdout: NodeJS.WritableStream): void {
   stdout.write('\n┌─────────────────────────────────────────────────────────┐\n')
   stdout.write('│  Sidekick Setup Wizard                                  │\n')
   stdout.write('│                                                         │\n')
   stdout.write('│  This wizard configures sidekick for Claude Code.       │\n')
   stdout.write("│  Run 'sidekick setup' again anytime to reconfigure.     │\n")
   stdout.write('└─────────────────────────────────────────────────────────┘\n')
+}
 
-  // === Step 1: Statusline ===
+/**
+ * Step 1: Configure statusline location.
+ */
+async function runStep1Statusline(wctx: WizardContext): Promise<'user' | 'project'> {
+  const { ctx, homeDir, projectDir, logger } = wctx
+
   printHeader(ctx, 'Step 1: Statusline Configuration', 'Claude Code plugins cannot provide statusline config directly.')
 
-  const statuslineScope = await promptSelect(ctx, 'Where should sidekick configure your statusline?', [
+  const statuslineScope = (await promptSelect(ctx, 'Where should sidekick configure your statusline?', [
     { value: 'user', label: 'User-level (~/.claude/settings.json)', description: 'Works in all projects' },
     { value: 'project', label: 'Project-level (.claude/settings.local.json)', description: 'This project only' },
-  ])
+  ])) as 'user' | 'project'
 
   // Configure statusline
   const statuslinePath =
@@ -163,7 +218,16 @@ async function runWizard(
   await configureStatusline(statuslinePath, logger)
   printStatus(ctx, 'success', `Statusline configured in ${statuslinePath}`)
 
-  // === Step 2: Personas ===
+  return statuslineScope
+}
+
+/**
+ * Step 2: Configure persona features and API key.
+ */
+async function runStep2Personas(wctx: WizardContext): Promise<{ wantPersonas: boolean; apiKeyHealth: ApiKeyHealth }> {
+  const { ctx, homeDir, projectDir } = wctx
+  const stdout = ctx.stdout
+
   printHeader(
     ctx,
     'Step 2: Persona Features',
@@ -173,85 +237,109 @@ async function runWizard(
   stdout.write('These require an OpenRouter API key (small cost per message).\n\n')
 
   const wantPersonas = await promptConfirm(ctx, 'Enable persona features?', true)
-
   let apiKeyHealth: ApiKeyHealth = 'not-required'
 
   if (!wantPersonas) {
-    // TODO: Write config to disable personas
+    await writePersonaConfig(projectDir, homeDir, false)
     printStatus(ctx, 'info', 'Personas disabled')
   } else {
-    // Check for existing key
-    const existingKey = await findExistingApiKey('OPENROUTER_API_KEY', homeDir, projectDir)
+    await writePersonaConfig(projectDir, homeDir, true)
+    apiKeyHealth = await configureApiKey(wctx)
+  }
 
-    if (existingKey) {
-      printStatus(ctx, 'success', 'OPENROUTER_API_KEY found')
-      stdout.write('Validating... ')
-      const result = await validateOpenRouterKey(existingKey, logger)
-      if (result.valid) {
-        stdout.write('valid!\n')
-        apiKeyHealth = 'healthy'
-      } else {
-        stdout.write(`invalid (${result.error})\n`)
-        apiKeyHealth = 'invalid'
-      }
+  return { wantPersonas, apiKeyHealth }
+}
+
+/**
+ * Configure API key (sub-step of Step 2).
+ */
+async function configureApiKey(wctx: WizardContext): Promise<ApiKeyHealth> {
+  const { ctx, homeDir, projectDir, logger } = wctx
+  const stdout = ctx.stdout
+
+  // Check for existing key
+  const existingKey = await findExistingApiKey('OPENROUTER_API_KEY', homeDir, projectDir)
+
+  if (existingKey) {
+    printStatus(ctx, 'success', 'OPENROUTER_API_KEY found')
+    stdout.write('Validating... ')
+    const result = await validateOpenRouterKey(existingKey, logger)
+    if (result.valid) {
+      stdout.write('valid!\n')
+      return 'healthy'
     } else {
-      printStatus(ctx, 'warning', 'OPENROUTER_API_KEY not found')
-
-      const configureNow = await promptConfirm(ctx, 'Configure API key now?', true)
-
-      if (configureNow) {
-        const keyScope = await promptSelect(ctx, 'Where should the API key be stored?', [
-          { value: 'user', label: 'User-level (~/.sidekick/.env)', description: 'Works in all projects' },
-          { value: 'project', label: 'Project-level (.sidekick/.env)', description: 'This project only' },
-        ])
-
-        const apiKey = await promptInput(ctx, 'Paste your OpenRouter API key')
-
-        stdout.write('Validating... ')
-        const result = await validateOpenRouterKey(apiKey, logger)
-        const envPath =
-          keyScope === 'user' ? path.join(homeDir, '.sidekick', '.env') : path.join(projectDir, '.sidekick', '.env')
-
-        if (result.valid) {
-          stdout.write('valid!\n')
-          await writeApiKeyToEnv(envPath, 'OPENROUTER_API_KEY', apiKey)
-          printStatus(ctx, 'success', `API key saved to ${envPath}`)
-          apiKeyHealth = 'healthy'
-        } else {
-          stdout.write(`invalid (${result.error})\n`)
-          printStatus(ctx, 'warning', 'API key validation failed, saving anyway')
-          await writeApiKeyToEnv(envPath, 'OPENROUTER_API_KEY', apiKey)
-          apiKeyHealth = 'invalid'
-        }
-      } else {
-        stdout.write('\n')
-        printStatus(
-          ctx,
-          'warning',
-          'Persona features will show warnings in the statusline until an API key is configured.'
-        )
-        stdout.write("Run 'sidekick setup' again or ask Claude to help configure API keys using /sidekick-config.\n")
-        apiKeyHealth = 'missing'
-      }
+      stdout.write(`invalid (${result.error})\n`)
+      return 'invalid'
     }
   }
 
-  // === Step 3: Auto-configure ===
+  // No existing key - prompt to configure
+  printStatus(ctx, 'warning', 'OPENROUTER_API_KEY not found')
+  const configureNow = await promptConfirm(ctx, 'Configure API key now?', true)
+
+  if (!configureNow) {
+    stdout.write('\n')
+    printStatus(ctx, 'warning', 'Persona features will show warnings in the statusline until an API key is configured.')
+    stdout.write("Run 'sidekick setup' again or ask Claude to help configure API keys using /sidekick-config.\n")
+    return 'missing'
+  }
+
+  // User wants to configure key now
+  const keyScope = (await promptSelect(ctx, 'Where should the API key be stored?', [
+    { value: 'user', label: 'User-level (~/.sidekick/.env)', description: 'Works in all projects' },
+    { value: 'project', label: 'Project-level (.sidekick/.env)', description: 'This project only' },
+  ])) as 'user' | 'project'
+
+  const apiKey = await promptInput(ctx, 'Paste your OpenRouter API key')
+
+  stdout.write('Validating... ')
+  const result = await validateOpenRouterKey(apiKey, logger)
+  const envPath =
+    keyScope === 'user' ? path.join(homeDir, '.sidekick', '.env') : path.join(projectDir, '.sidekick', '.env')
+
+  if (result.valid) {
+    stdout.write('valid!\n')
+    await writeApiKeyToEnv(envPath, 'OPENROUTER_API_KEY', apiKey)
+    printStatus(ctx, 'success', `API key saved to ${envPath}`)
+    return 'healthy'
+  } else {
+    stdout.write(`invalid (${result.error})\n`)
+    printStatus(ctx, 'warning', 'API key validation failed, saving anyway')
+    await writeApiKeyToEnv(envPath, 'OPENROUTER_API_KEY', apiKey)
+    return 'invalid'
+  }
+}
+
+/**
+ * Step 3: Configure auto-configuration preference.
+ */
+async function runStep3AutoConfig(wctx: WizardContext): Promise<'auto' | 'ask' | 'manual'> {
+  const { ctx } = wctx
+
   printHeader(ctx, 'Step 3: Project Auto-Configuration')
 
-  const autoConfig = await promptSelect(ctx, 'When sidekick runs in a new project for the first time:', [
+  const autoConfig = (await promptSelect(ctx, 'When sidekick runs in a new project for the first time:', [
     { value: 'auto', label: 'Auto-configure using my defaults', description: 'Recommended' },
     { value: 'ask', label: 'Ask me each time' },
     { value: 'manual', label: 'Do nothing', description: 'Manual setup only' },
-  ])
+  ])) as 'auto' | 'ask' | 'manual'
 
-  // === Write status files ===
+  return autoConfig
+}
+
+/**
+ * Write the status files based on wizard results.
+ */
+async function writeStatusFiles(wctx: WizardContext, state: WizardState): Promise<void> {
+  const { setupService } = wctx
+  const { statuslineScope, wantPersonas, apiKeyHealth, autoConfig } = state
+
   const userStatus: UserSetupStatus = {
     version: 1,
     lastUpdatedAt: new Date().toISOString(),
     preferences: {
       autoConfigureProjects: autoConfig === 'auto',
-      defaultStatuslineScope: statuslineScope as 'user' | 'project',
+      defaultStatuslineScope: statuslineScope,
       defaultApiKeyScope: wantPersonas ? 'user' : 'skip',
     },
     statusline: 'configured',
@@ -277,8 +365,16 @@ async function runWizard(
     }
     await setupService.writeProjectStatus(projectStatus)
   }
+}
 
-  // === Summary ===
+/**
+ * Print the summary of wizard choices.
+ */
+function printSummary(wctx: WizardContext, state: WizardState): void {
+  const { ctx } = wctx
+  const { statuslineScope, wantPersonas, apiKeyHealth, autoConfig } = state
+  const stdout = ctx.stdout
+
   printHeader(ctx, 'Step 4: Summary')
   printStatus(ctx, 'success', `Statusline: ${statuslineScope === 'user' ? 'User-level' : 'Project-level'}`)
   printStatus(ctx, wantPersonas ? 'success' : 'info', `Personas: ${wantPersonas ? 'Enabled' : 'Disabled'}`)
@@ -289,12 +385,50 @@ async function runWizard(
 
   stdout.write('\n')
   stdout.write('Restart Claude Code to see your statusline: claude --continue\n')
+}
+
+// ============================================================================
+// Main Entry Points
+// ============================================================================
+
+/**
+ * Run the interactive setup wizard.
+ */
+async function runWizard(
+  projectDir: string,
+  logger: Logger,
+  stdout: NodeJS.WritableStream,
+  options: SetupCommandOptions
+): Promise<SetupCommandResult> {
+  const homeDir = os.homedir()
+  const wctx: WizardContext = {
+    ctx: {
+      stdin: options.stdin ?? process.stdin,
+      stdout,
+    },
+    homeDir,
+    projectDir,
+    logger,
+    setupService: new SetupStatusService(projectDir, { homeDir, logger }),
+  }
+
+  // Run wizard steps
+  printWizardHeader(stdout)
+
+  const statuslineScope = await runStep1Statusline(wctx)
+  const { wantPersonas, apiKeyHealth } = await runStep2Personas(wctx)
+  const autoConfig = await runStep3AutoConfig(wctx)
+
+  // Collect state and finalize
+  const state: WizardState = { statuslineScope, wantPersonas, apiKeyHealth, autoConfig }
+  await writeStatusFiles(wctx, state)
+  printSummary(wctx, state)
 
   return { exitCode: 0 }
 }
 
 /**
- * Run the doctor/check mode
+ * Run the doctor/check mode.
  */
 async function runDoctor(
   projectDir: string,
@@ -323,7 +457,7 @@ async function runDoctor(
 }
 
 /**
- * Main setup command handler
+ * Main setup command handler.
  */
 export async function handleSetupCommand(
   projectDir: string,

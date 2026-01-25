@@ -693,7 +693,7 @@ export const LogEvents = {
       source: 'cli',
       context: {
         sessionId: context.sessionId,
-                correlationId: context.correlationId,
+        correlationId: context.correlationId,
         traceId: context.traceId,
         hook: context.hook,
       },
@@ -717,7 +717,7 @@ export const LogEvents = {
       source: 'cli',
       context: {
         sessionId: context.sessionId,
-                correlationId: context.correlationId,
+        correlationId: context.correlationId,
         traceId: context.traceId,
         hook: context.hook,
       },
@@ -743,7 +743,7 @@ export const LogEvents = {
       source: 'daemon',
       context: {
         sessionId: context.sessionId,
-                correlationId: context.correlationId,
+        correlationId: context.correlationId,
         traceId: context.traceId,
         hook: context.hook,
         taskId: context.taskId,
@@ -769,7 +769,7 @@ export const LogEvents = {
       source: 'daemon',
       context: {
         sessionId: context.sessionId,
-                correlationId: context.correlationId,
+        correlationId: context.correlationId,
         traceId: context.traceId,
         hook: context.hook,
         taskId: context.taskId,
@@ -801,7 +801,7 @@ export const LogEvents = {
       source: 'daemon',
       context: {
         sessionId: context.sessionId,
-                correlationId: context.correlationId,
+        correlationId: context.correlationId,
         traceId: context.traceId,
         hook: context.hook,
         taskId: context.taskId,
@@ -924,7 +924,7 @@ export const LogEvents = {
       source: 'cli',
       context: {
         sessionId: context.sessionId,
-                correlationId: context.correlationId,
+        correlationId: context.correlationId,
         traceId: context.traceId,
         hook: context.hook,
         taskId: context.taskId,
@@ -955,7 +955,7 @@ export const LogEvents = {
       source: 'cli',
       context: {
         sessionId: context.sessionId,
-                correlationId: context.correlationId,
+        correlationId: context.correlationId,
         traceId: context.traceId,
         hook: context.hook,
         taskId: context.taskId,
@@ -986,7 +986,7 @@ export const LogEvents = {
       source: 'daemon',
       context: {
         sessionId: context.sessionId,
-                correlationId: context.correlationId,
+        correlationId: context.correlationId,
         traceId: context.traceId,
         hook: context.hook,
         taskId: context.taskId,
@@ -1015,7 +1015,7 @@ export const LogEvents = {
       source: 'daemon',
       context: {
         sessionId: context.sessionId,
-                correlationId: context.correlationId,
+        correlationId: context.correlationId,
         traceId: context.traceId,
         hook: context.hook,
         taskId: context.taskId,
@@ -1046,7 +1046,7 @@ export const LogEvents = {
       source: 'daemon',
       context: {
         sessionId: context.sessionId,
-                correlationId: context.correlationId,
+        correlationId: context.correlationId,
         traceId: context.traceId,
         hook: context.hook,
         taskId: context.taskId,
@@ -1084,7 +1084,7 @@ export const LogEvents = {
       source: 'transcript',
       context: {
         sessionId: context.sessionId,
-                correlationId: context.correlationId,
+        correlationId: context.correlationId,
         traceId: context.traceId,
         hook: context.hook,
         taskId: context.taskId,
@@ -1117,7 +1117,7 @@ export const LogEvents = {
       source: 'transcript',
       context: {
         sessionId: context.sessionId,
-                correlationId: context.correlationId,
+        correlationId: context.correlationId,
         traceId: context.traceId,
         hook: context.hook,
         taskId: context.taskId,
