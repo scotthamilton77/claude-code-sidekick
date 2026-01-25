@@ -6,7 +6,7 @@
  *
  * Orchestrates the multi-phase startup:
  * 1. Create bootstrap logger facade for early error capture
- * 2. Resolve execution scope (project vs user)
+ * 2. Resolve project root from --project-dir
  * 3. Initialize asset resolver (needed for config feature defaults)
  * 4. Load cascaded configuration with validation
  * 5. Upgrade to structured Pino logger with file transport
@@ -31,12 +31,11 @@ import {
   createLoggerFacade,
   createLogManager,
   getDefaultAssetsDir,
-  resolveScope,
+  resolveProjectRoot,
   setupGlobalErrorHandlers,
   StateService,
   type LogLevel,
-  type ScopeResolution,
-  type ScopeResolutionInput,
+  type ProjectRootInput,
 } from '@sidekick/core'
 import { LogMetricsStateSchema, type MinimalStateService } from '@sidekick/types'
 import { randomUUID } from 'node:crypto'
@@ -44,7 +43,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { Writable } from 'node:stream'
 
-export interface BootstrapOptions extends ScopeResolutionInput {
+export interface BootstrapOptions extends ProjectRootInput {
   logLevel?: LogLevel
   stderrSink?: Writable
   defaultAssetsDir?: string
@@ -52,12 +51,13 @@ export interface BootstrapOptions extends ScopeResolutionInput {
   correlationId?: string
   interactive?: boolean
   enableFileLogging?: boolean
+  homeDir?: string
 }
 
 export interface RuntimeShell {
   logger: Logger
   telemetry: Telemetry
-  scope: ScopeResolution
+  projectRoot?: string
   config: ConfigService
   assets: AssetResolver
   stateService: MinimalStateService
@@ -87,9 +87,9 @@ export interface RuntimeShell {
   loadExistingLogCounts: (sessionId: string) => Promise<void>
 }
 
-function getLogFilePath(scope: ScopeResolution): string {
-  if (scope.scope === 'project' && scope.projectRoot) {
-    return join(scope.projectRoot, '.sidekick', 'logs', 'sidekick.log')
+function getLogFilePath(projectRoot: string | undefined): string {
+  if (projectRoot) {
+    return join(projectRoot, '.sidekick', 'logs', 'sidekick.log')
   }
   return join(homedir(), '.sidekick', 'logs', 'sidekick.log')
 }
@@ -106,14 +106,14 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
     bufferPreUpgrade: true,
   })
 
-  // Resolve scope first
-  const scope = resolveScope(options)
+  // Resolve project root from --project-dir
+  const { projectRoot } = resolveProjectRoot(options)
 
   // Initialize asset resolver early (needed for config feature defaults from YAML)
   const defaultAssetsDir = options.defaultAssetsDir ?? getDefaultAssetsDir()
   const assets = createAssetResolver({
     defaultAssetsDir,
-    projectRoot: scope.projectRoot,
+    projectRoot,
     homeDir: options.homeDir,
   })
 
@@ -121,7 +121,7 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
   let config: ConfigService
   try {
     config = createConfigService({
-      projectRoot: scope.projectRoot,
+      projectRoot,
       homeDir: options.homeDir,
       assets,
     })
@@ -138,19 +138,18 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
   // Build context for structured logs
   // Use let so we can update with sessionId later
   let logContext: LogContext = {
-    scope: scope.scope,
     correlationId,
     command: options.command,
   }
 
   // Upgrade to full Pino logger with config-driven settings
-  const logFilePath = getLogFilePath(scope)
+  const logFilePath = getLogFilePath(projectRoot)
   const isInteractive = options.interactive ?? process.env.SIDEKICK_INTERACTIVE === '1'
   const enableFileLogging = options.enableFileLogging ?? true
 
   // Create the full log manager for structured logging
   const logManager = createLogManager({
-    name: scope.scope === 'project' ? 'sidekick:cli' : 'sidekick:cli:user',
+    name: 'sidekick:cli',
     level: effectiveLogLevel,
     context: logContext,
     destinations: {
@@ -165,7 +164,7 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
 
   // Upgrade the facade to use Pino
   loggerFacade.upgrade({
-    name: scope.scope === 'project' ? 'sidekick:cli' : 'sidekick:cli:user',
+    name: 'sidekick:cli',
     level: effectiveLogLevel,
     context: logContext,
     destinations: {
@@ -198,10 +197,7 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
   const cleanupErrorHandlers = setupGlobalErrorHandlers(logger)
 
   logger.debug('Runtime bootstrap complete', {
-    scope: scope.scope,
-    projectRoot: scope.projectRoot ?? null,
-    source: scope.source,
-    warnings: scope.warnings,
+    projectRoot: projectRoot ?? null,
     logFile: enableFileLogging ? logFilePath : null,
   })
 
@@ -211,15 +207,9 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
 
   logger.debug('Asset resolver initialized', { cascadeLayers: assets.cascadeLayers })
 
-  if (scope.dualInstallDetected) {
-    logger.warn('Detected project-scope installation while running from user hooks. Deferring to project scope.')
-    // Emit telemetry for dual-install detection
-    telemetry.increment('dual_install_detected', { scope: scope.scope })
-  }
-
   // Create StateService for CLI state operations
   // Use projectRoot if available, otherwise fall back to user home
-  const stateRoot = scope.projectRoot ?? join(homedir(), '.claude')
+  const stateRoot = projectRoot ?? join(homedir(), '.claude')
   const stateService = new StateService(stateRoot, { logger })
 
   // Return the runtime shell
@@ -229,7 +219,7 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
       return logger
     },
     telemetry,
-    scope,
+    projectRoot,
     config,
     assets,
     stateService,
@@ -242,7 +232,7 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
       // This avoids duplicate context keys that would result from using child()
       logContext = { ...logContext, sessionId }
       const newLogManager = createLogManager({
-        name: scope.scope === 'project' ? 'sidekick:cli' : 'sidekick:cli:user',
+        name: 'sidekick:cli',
         level: effectiveLogLevel,
         context: logContext,
         destinations: {

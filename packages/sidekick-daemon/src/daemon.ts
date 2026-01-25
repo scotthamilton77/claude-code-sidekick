@@ -147,7 +147,7 @@ export class Daemon {
     this.logManager = createLogManager({
       name: 'sidekickd',
       level: this.configService.core.logging.level,
-      context: { scope: 'project' },
+      context: {},
       destinations: {
         file: { path: path.join(logDir, 'sidekickd.log') },
         console: { enabled: this.configService.core.logging.consoleEnabled },
@@ -233,14 +233,12 @@ export class Daemon {
     this.handlerRegistry = new HandlerRegistryImpl({
       logger: this.logger,
       sessionId: '', // Updated on SessionStart
-      scope: 'project',
     })
 
     // Initialize Service Factory for session-scoped services
     this.serviceFactory = new ServiceFactoryImpl({
       stateDir: this.stateService.rootDir(),
       logger: this.logger,
-      scope: 'project',
       handlers: this.handlerRegistry,
       stateService: this.stateService,
       stagingStateService: this.stagingStateService,
@@ -660,7 +658,7 @@ export class Daemon {
     if (sessionId) {
       logEvent(
         requestLogger,
-        LogEvents.eventReceived({ sessionId, scope: 'project', correlationId, hook }, { eventKind: 'hook', hook })
+        LogEvents.eventReceived({ sessionId, correlationId, hook }, { eventKind: 'hook', hook })
       )
     }
 
@@ -725,7 +723,7 @@ export class Daemon {
       // Log RemindersCleared event
       const correlationId = event.context?.correlationId
       const clearEvent = ReminderEvents.remindersCleared(
-        { sessionId, scope: 'project', correlationId },
+        { sessionId, correlationId },
         { clearedCount: 0 }, // Count not tracked - acceptable for startup cleanup
         'session_start'
       )
@@ -931,7 +929,6 @@ export class Daemon {
       projectDir: this.projectDir,
       userConfigDir: this.userStateService.rootDir(),
       projectConfigDir: this.stateService.rootDir(),
-      hookScriptPath: undefined,
     }
 
     if (!this.llmProvider) {
@@ -1055,7 +1052,6 @@ export class Daemon {
       projectDir: this.projectDir,
       userConfigDir: this.userStateService.rootDir(),
       projectConfigDir: this.stateService.rootDir(),
-      hookScriptPath: undefined,
     }
 
     // Create base LLM provider if needed (lazy init, uses default profile)
@@ -1219,7 +1215,6 @@ export class Daemon {
       projectDir: this.projectDir,
       userConfigDir: this.userStateService.rootDir(),
       projectConfigDir: this.stateService.rootDir(),
-      hookScriptPath: undefined,
     }
 
     // Create LLM provider if needed (lazy init, uses default profile)
@@ -1610,7 +1605,6 @@ export class Daemon {
       projectDir: this.projectDir,
       userConfigDir: this.userStateService.rootDir(),
       projectConfigDir: this.stateService.rootDir(),
-      hookScriptPath: undefined, // Not applicable for daemon
     }
 
     // Create a registration context with role='daemon' for type guards.

@@ -179,7 +179,6 @@ export async function handleStatuslineCommand(
   // Build event context for structured logging
   const eventContext: EventLogContext = {
     sessionId,
-    scope: 'project',
   }
 
   // Use cwd from hook input if available, otherwise fall back to process.cwd()

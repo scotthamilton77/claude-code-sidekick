@@ -24,7 +24,6 @@ describe('TranscriptService Lifecycle', () => {
   const createEventContext = (sessionId = 'test-session-123'): EventContext => ({
     sessionId,
     timestamp: Date.now(),
-    scope: 'project',
   })
 
   describe('HandlerRegistry for lifecycle events', () => {
@@ -34,7 +33,6 @@ describe('TranscriptService Lifecycle', () => {
       registry = new HandlerRegistryImpl({
         logger,
         sessionId: '',
-        scope: 'project',
       })
     })
 
@@ -237,7 +235,6 @@ describe('TranscriptService Lifecycle', () => {
       const registry = new HandlerRegistryImpl({
         logger,
         sessionId: 'initial-session',
-        scope: 'project',
       })
 
       // Register a handler that captures the context to verify sessionId

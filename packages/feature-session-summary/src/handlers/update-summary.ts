@@ -563,7 +563,7 @@ async function generateResumeMessage(
     logEvent(
       ctx.logger,
       LogEvents.resumeSkipped(
-        { sessionId, scope: eventContext.scope },
+        { sessionId },
         {
           title_confidence: summary.session_title_confidence,
           intent_confidence: summary.latest_intent_confidence,
@@ -595,7 +595,7 @@ async function generateResumeMessage(
     logEvent(
       ctx.logger,
       LogEvents.resumeUpdated(
-        { sessionId, scope: eventContext.scope },
+        { sessionId },
         {
           snarky_comment: resumeState.snarky_comment,
           timestamp: resumeState.timestamp,
@@ -615,7 +615,7 @@ async function generateResumeMessage(
   logEvent(
     ctx.logger,
     LogEvents.resumeGenerating(
-      { sessionId, scope: eventContext.scope },
+      { sessionId },
       {
         title_confidence: summary.session_title_confidence,
         intent_confidence: summary.latest_intent_confidence,
@@ -665,7 +665,7 @@ async function generateResumeMessage(
     logEvent(
       ctx.logger,
       LogEvents.resumeUpdated(
-        { sessionId, scope: eventContext.scope },
+        { sessionId },
         {
           snarky_comment: resumeState.snarky_comment,
           timestamp: resumeState.timestamp,

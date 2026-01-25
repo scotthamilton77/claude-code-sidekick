@@ -44,7 +44,6 @@ describe('createFirstSessionSummary', () => {
       context: {
         sessionId,
         timestamp: Date.now(),
-        scope: 'project',
       },
       payload: {
         startType,

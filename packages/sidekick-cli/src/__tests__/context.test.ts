@@ -26,14 +26,7 @@ vi.mock('@sidekick/core', () => ({
 
 function createMockRuntime(overrides: Partial<RuntimeShell> = {}): RuntimeShell {
   return {
-    scope: {
-      scope: 'project',
-      source: 'hook-script-path',
-      hookScriptPath: '/project/.claude/hooks/sidekick/session-start',
-      projectRoot: '/project',
-      dualInstallDetected: false,
-      warnings: [],
-    },
+    projectRoot: '/project',
     config: {
       get: vi.fn(),
     } as unknown as RuntimeShell['config'],
@@ -79,7 +72,6 @@ describe('buildCLIContext', () => {
     expect(context.role).toBe('cli')
     expect(context.paths.projectDir).toBe('/project')
     expect(context.paths.projectConfigDir).toBe('/project/.sidekick')
-    expect(context.paths.hookScriptPath).toBe('/project/.claude/hooks/sidekick/session-start')
     expect(context.config).toBe(runtime.config)
     expect(context.logger).toBe(runtime.logger)
     expect(context.assets).toBe(runtime.assets)
@@ -89,14 +81,7 @@ describe('buildCLIContext', () => {
 
   test('throws when projectRoot is undefined', () => {
     const runtime = createMockRuntime({
-      scope: {
-        scope: 'user',
-        source: 'hook-script-path',
-        hookScriptPath: '/home/user/.claude/hooks/sidekick/session-start',
-        projectRoot: undefined,
-        dualInstallDetected: false,
-        warnings: [],
-      },
+      projectRoot: undefined,
     })
 
     expect(() =>

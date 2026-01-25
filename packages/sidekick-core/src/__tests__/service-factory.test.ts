@@ -114,14 +114,6 @@ describe('ServiceFactoryImpl', () => {
       expect(staging.getSessionId()).toBe('my-session-id')
     })
 
-    it('should pass scope to wrapper', () => {
-      const factory = createFactory(testDir, { scope: 'project' })
-
-      const staging = factory.getStagingService('session-1') as SessionScopedStagingService
-
-      expect(staging.getScope()).toBe('project')
-    })
-
     it('should return independent wrappers for same sessionId', () => {
       const factory = createFactory(testDir)
 

@@ -213,11 +213,10 @@ describe('TranscriptService to Handler Integration', () => {
     const stagingOptions: StagingServiceCoreOptions = {
       stateDir,
       logger,
-      scope: 'project',
       stateService,
     }
     const core = new StagingServiceCore(stagingOptions)
-    stagingService = new SessionScopedStagingService(core, 'test-session', 'project')
+    stagingService = new SessionScopedStagingService(core, 'test-session')
 
     // Create test handler context with staging access
     const getMetrics = (): TranscriptMetrics => transcriptService.getMetrics()

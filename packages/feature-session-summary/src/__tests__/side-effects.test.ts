@@ -130,12 +130,13 @@ describe('Session Summary Side-Effects', () => {
       eventType: 'UserPrompt',
       context: {
         sessionId,
-        scope: 'project',
+        timestamp: Date.now(),
       },
       payload: {
         lineNumber: 100,
         content: 'Help me fix a bug',
       },
+      metadata: {},
     } as TranscriptEvent
   }
 
@@ -145,7 +146,7 @@ describe('Session Summary Side-Effects', () => {
       eventType: 'UserPrompt',
       context: {
         sessionId,
-        scope: 'project',
+        timestamp: Date.now(),
       },
       payload: {
         lineNumber: 50,
@@ -163,11 +164,12 @@ describe('Session Summary Side-Effects', () => {
       eventType: 'BulkProcessingComplete',
       context: {
         sessionId,
-        scope: 'project',
+        timestamp: Date.now(),
       },
       payload: {
         lineNumber: 100,
       },
+      metadata: {},
     } as TranscriptEvent
   }
 

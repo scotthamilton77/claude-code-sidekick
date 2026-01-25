@@ -1025,7 +1025,7 @@ export class TranscriptServiceImpl implements TranscriptService {
       logEvent(
         this.options.logger,
         LogEvents.preCompactCaptured(
-          { sessionId: this.sessionId, scope: 'project' },
+          { sessionId: this.sessionId },
           { snapshotPath, lineCount },
           { transcriptPath: this.transcriptPath ?? '', metrics: this.deepCloneMetrics() }
         )

@@ -21,8 +21,6 @@ export interface EventContext {
   sessionId: string
   /** Unix timestamp (ms) */
   timestamp: number
-  /** Which scope this event occurred in */
-  scope?: 'project' | 'user'
   /** Unique ID for the CLI command execution */
   correlationId?: string
   /** Links causally-related events (e.g., hook → handler → staged reminder) */
@@ -364,7 +362,6 @@ export type LogSource = 'cli' | 'daemon' | 'transcript'
  */
 export interface EventLogContext {
   sessionId: string
-  scope?: 'project' | 'user'
   correlationId?: string
   traceId?: string
   hook?: string

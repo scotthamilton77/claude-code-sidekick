@@ -372,14 +372,7 @@ describe('handleUnifiedHookCommand', () => {
   }
 
   const mockRuntime = {
-    scope: {
-      scope: 'project' as const,
-      source: 'hook-script-path' as const,
-      hookScriptPath: '/project/.claude/hooks/sidekick/session-start',
-      projectRoot: '/project',
-      dualInstallDetected: false,
-      warnings: [],
-    },
+    projectRoot: '/project',
     config: { get: vi.fn() },
     logger: mockLogger,
     assets: { resolve: vi.fn() },
@@ -406,7 +399,6 @@ describe('handleUnifiedHookCommand', () => {
     projectRoot: '/project',
     hookInput: baseHookInput,
     correlationId: 'test-correlation',
-    scope: 'project' as const,
     runtime: mockRuntime as unknown as Parameters<typeof handleUnifiedHookCommand>[1]['runtime'],
   }
 
@@ -541,7 +533,6 @@ describe('handleUnifiedHookCommand', () => {
         sessionId: 'test-session-123',
         hookInput: baseHookInput,
         correlationId: 'test-correlation',
-        scope: 'project',
       }),
       mockLogger,
       expect.any(Object) // capture stream

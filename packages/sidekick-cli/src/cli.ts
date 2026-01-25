@@ -9,7 +9,6 @@
  * Supports:
  * - Unified hook command: `sidekick hook <name>` for Claude Code integration
  * - Interactive mode: Human-readable output for debugging
- * - Scope detection with dual-install awareness
  * - Hook input JSON parsing from stdin (per CLI.md §3.1)
  * - Hook event dispatch to Daemon via IPC
  *
@@ -50,7 +49,6 @@ import { bootstrapRuntime, type RuntimeShell } from './runtime'
 
 interface ParsedArgs {
   command: string | undefined
-  hookScriptPath?: string
   projectDir?: string
   logLevel?: 'debug' | 'info' | 'warn' | 'error'
   wait?: boolean
@@ -86,7 +84,7 @@ interface RunCliOptions {
 function parseArgs(argv: string[]): ParsedArgs {
   const parsed = yargsParser(argv, {
     boolean: ['wait', 'open', 'prefer-project', 'help', 'kill', 'force'],
-    string: ['hook-script-path', 'project-dir', 'log-level', 'format', 'host', 'session-id', 'type'],
+    string: ['project-dir', 'log-level', 'format', 'host', 'session-id', 'type'],
     number: ['port', 'width'],
     alias: {
       h: 'help',
@@ -100,7 +98,6 @@ function parseArgs(argv: string[]): ParsedArgs {
 
   return {
     command,
-    hookScriptPath: parsed['hook-script-path'] as string | undefined,
     projectDir: parsed['project-dir'] as string | undefined,
     logLevel: parsed['log-level'] as ParsedArgs['logLevel'],
     wait: Boolean(parsed.wait),
@@ -172,10 +169,9 @@ interface InitializeRuntimeResult {
 
 /**
  * Initialize runtime shell, parse arguments and hook input.
- * Returns early-exit flag if dual-install is detected.
  *
  * @param options - CLI options including argv, stdin, streams, environment
- * @returns Runtime, parsed args, hook input, and early-exit flag
+ * @returns Runtime, parsed args, and hook input
  */
 export function initializeRuntime(options: RunCliOptions): InitializeRuntimeResult {
   const stderr = options.stderr ?? new PassThrough()
@@ -186,11 +182,9 @@ export function initializeRuntime(options: RunCliOptions): InitializeRuntimeResu
   const hookInput = parseHookInput(options.stdinData)
 
   const runtime = bootstrapRuntime({
-    hookScriptPath: parsed.hookScriptPath,
     projectDir: parsed.projectDir,
     logLevel: parsed.logLevel,
     stderrSink: stderr,
-    cwd: options.cwd,
     homeDir,
     command: parsed.command,
     interactive: options.interactive ?? false,
@@ -202,17 +196,11 @@ export function initializeRuntime(options: RunCliOptions): InitializeRuntimeResu
     runtime.logger.debug('Hook input received', { hookInput: hookInput.raw })
   }
 
-  // Check for dual-install scenario (user-scope defers to project-scope)
-  const shouldExit = runtime.scope.dualInstallDetected
-  if (shouldExit) {
-    runtime.logger.warn('User-scope hook detected project installation. Exiting to prevent duplicate execution.')
-  }
-
   return {
     runtime,
     hookInput,
     parsed,
-    shouldExit,
+    shouldExit: false, // No longer needed - Claude Code handles deduplication
   }
 }
 
@@ -381,7 +369,7 @@ Examples:
       return { exitCode: 0, stdout: '{}', stderr: '' }
     }
 
-    if (!runtime.scope.projectRoot) {
+    if (!runtime.projectRoot) {
       runtime.logger.warn('Hook command invoked without project root', { hookName })
       stdout.write('{}\n')
       return { exitCode: 0, stdout: '{}', stderr: '' }
@@ -390,10 +378,9 @@ Examples:
     const result = await handleUnifiedHookCommand(
       hookName,
       {
-        projectRoot: runtime.scope.projectRoot,
+        projectRoot: runtime.projectRoot,
         hookInput,
         correlationId: runtime.correlationId,
-        scope: runtime.scope.scope,
         runtime,
       },
       runtime.logger,
@@ -415,7 +402,7 @@ Examples:
     const { handleDaemonCommand } = await import('./commands/daemon.js')
     const result = await handleDaemonCommand(
       subcommand,
-      runtime.scope.projectRoot || process.cwd(),
+      runtime.projectRoot || process.cwd(),
       runtime.logger,
       stdout,
       { wait: parsed.wait }
@@ -435,7 +422,7 @@ Examples:
 
     // statusline only supports 'text' | 'json', not 'table'
     const statuslineFormat = parsed.format === 'text' || parsed.format === 'json' ? parsed.format : undefined
-    const result = await handleStatuslineCommand(runtime.scope.projectRoot || process.cwd(), runtime.logger, stdout, {
+    const result = await handleStatuslineCommand(runtime.projectRoot || process.cwd(), runtime.logger, stdout, {
       format: statuslineFormat,
       sessionId,
       hookInput: parsedHookInput,
@@ -448,7 +435,7 @@ Examples:
 
   if (parsed.command === 'ui') {
     const { handleUiCommand } = await import('./commands/ui.js')
-    const result = await handleUiCommand(runtime.scope.projectRoot || process.cwd(), runtime.logger, stdout, {
+    const result = await handleUiCommand(runtime.projectRoot || process.cwd(), runtime.logger, stdout, {
       port: parsed.port,
       host: parsed.host,
       open: parsed.open,
@@ -468,7 +455,7 @@ Examples:
     const result = await handlePersonaCommand(
       subcommand,
       args,
-      runtime.scope.projectRoot || process.cwd(),
+      runtime.projectRoot || process.cwd(),
       runtime.logger,
       stdout,
       {
@@ -483,7 +470,7 @@ Examples:
 
   if (parsed.command === 'sessions') {
     const { handleSessionsCommand } = await import('./commands/sessions.js')
-    const result = await handleSessionsCommand(runtime.scope.projectRoot || process.cwd(), runtime.logger, stdout, {
+    const result = await handleSessionsCommand(runtime.projectRoot || process.cwd(), runtime.logger, stdout, {
       format: parsed.format === 'json' || parsed.format === 'table' ? parsed.format : undefined,
       help: parsed.help,
       width: parsed.width,
@@ -497,7 +484,7 @@ Examples:
     const { handleDevModeCommand } = await import('./commands/dev-mode.js')
     const result = await handleDevModeCommand(
       subcommand,
-      runtime.scope.projectRoot || process.cwd(),
+      runtime.projectRoot || process.cwd(),
       runtime.logger,
       stdout,
       { force: Boolean(parsed.force) }
@@ -587,7 +574,7 @@ export async function runCli(options: RunCliOptions): Promise<{ exitCode: number
   const isHookExecution = parsed.command === 'hook' && Boolean(parsed.projectDir)
   await ensureDaemon({
     hookMode: isHookExecution,
-    projectRoot: runtime.scope.projectRoot,
+    projectRoot: runtime.projectRoot,
     logger: runtime.logger,
   })
 

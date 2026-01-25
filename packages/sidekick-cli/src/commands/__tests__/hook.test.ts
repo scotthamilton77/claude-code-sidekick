@@ -110,7 +110,6 @@ describe('buildHookEvent', () => {
     raw: {},
   }
   const correlationId = 'correlation-123'
-  const scope = 'project' as const
 
   describe('SessionStart event', () => {
     test('builds event with default startType', () => {
@@ -119,13 +118,12 @@ describe('buildHookEvent', () => {
         raw: { session_id: 'test-session-123' },
       }
 
-      const event = buildHookEvent('SessionStart', input, correlationId, scope)
+      const event = buildHookEvent('SessionStart', input, correlationId)
 
       expect(event.kind).toBe('hook')
       expect(event.hook).toBe('SessionStart')
       expect(event.context.sessionId).toBe('test-session-123')
       expect(event.context.correlationId).toBe(correlationId)
-      expect(event.context.scope).toBe('project')
       expect(event.payload).toEqual({
         startType: 'startup',
         transcriptPath: input.transcriptPath,
@@ -138,7 +136,7 @@ describe('buildHookEvent', () => {
         raw: { session_id: 'test-session-123', source: 'resume' },
       }
 
-      const event = buildHookEvent('SessionStart', input, correlationId, scope)
+      const event = buildHookEvent('SessionStart', input, correlationId)
       expect(event.payload).toEqual({
         startType: 'resume',
         transcriptPath: input.transcriptPath,
@@ -153,7 +151,7 @@ describe('buildHookEvent', () => {
         raw: { session_id: 'test-session-123' },
       }
 
-      const event = buildHookEvent('SessionEnd', input, correlationId, scope)
+      const event = buildHookEvent('SessionEnd', input, correlationId)
 
       expect(event.hook).toBe('SessionEnd')
       expect(event.payload).toEqual({
@@ -167,7 +165,7 @@ describe('buildHookEvent', () => {
         raw: { session_id: 'test-session-123', reason: 'clear' },
       }
 
-      const event = buildHookEvent('SessionEnd', input, correlationId, scope)
+      const event = buildHookEvent('SessionEnd', input, correlationId)
       expect(event.payload).toEqual({
         endReason: 'clear',
       })
@@ -181,7 +179,7 @@ describe('buildHookEvent', () => {
         raw: { session_id: 'test-session-123', prompt: 'Hello, Claude!' },
       }
 
-      const event = buildHookEvent('UserPromptSubmit', input, correlationId, scope)
+      const event = buildHookEvent('UserPromptSubmit', input, correlationId)
 
       expect(event.hook).toBe('UserPromptSubmit')
       expect(event.payload).toEqual({
@@ -199,7 +197,7 @@ describe('buildHookEvent', () => {
         raw: { session_id: 'test-session-123', prompt: 'test' },
       }
 
-      const event = buildHookEvent('UserPromptSubmit', input, correlationId, scope)
+      const event = buildHookEvent('UserPromptSubmit', input, correlationId)
       expect(event.hook).toBe('UserPromptSubmit')
       // Type narrowing via assertion since we know the hook type
       const payload = event.payload as { cwd: string }
@@ -218,7 +216,7 @@ describe('buildHookEvent', () => {
         },
       }
 
-      const event = buildHookEvent('PreToolUse', input, correlationId, scope)
+      const event = buildHookEvent('PreToolUse', input, correlationId)
 
       expect(event.hook).toBe('PreToolUse')
       expect(event.payload).toEqual({
@@ -233,7 +231,7 @@ describe('buildHookEvent', () => {
         raw: { session_id: 'test-session-123', tool_name: 'Bash' },
       }
 
-      const event = buildHookEvent('PreToolUse', input, correlationId, scope)
+      const event = buildHookEvent('PreToolUse', input, correlationId)
       expect(event.hook).toBe('PreToolUse')
       // Type narrowing via assertion since we know the hook type
       const payload = event.payload as { toolInput: Record<string, unknown> }
@@ -253,7 +251,7 @@ describe('buildHookEvent', () => {
         },
       }
 
-      const event = buildHookEvent('PostToolUse', input, correlationId, scope)
+      const event = buildHookEvent('PostToolUse', input, correlationId)
 
       expect(event.hook).toBe('PostToolUse')
       expect(event.payload).toEqual({
@@ -271,7 +269,7 @@ describe('buildHookEvent', () => {
         raw: { session_id: 'test-session-123', stop_hook_active: true },
       }
 
-      const event = buildHookEvent('Stop', input, correlationId, scope)
+      const event = buildHookEvent('Stop', input, correlationId)
 
       expect(event.hook).toBe('Stop')
       expect(event.payload).toEqual({
@@ -287,7 +285,7 @@ describe('buildHookEvent', () => {
         raw: { session_id: 'test-session-123' },
       }
 
-      const event = buildHookEvent('Stop', input, correlationId, scope)
+      const event = buildHookEvent('Stop', input, correlationId)
       expect(event.hook).toBe('Stop')
       // Type narrowing via assertion since we know the hook type
       const payload = event.payload as { stopHookActive: boolean }
@@ -302,7 +300,7 @@ describe('buildHookEvent', () => {
         raw: { session_id: 'test-session-123' },
       }
 
-      const event = buildHookEvent('PreCompact', input, correlationId, scope)
+      const event = buildHookEvent('PreCompact', input, correlationId)
 
       expect(event.hook).toBe('PreCompact')
       expect(event.payload).toEqual({
@@ -430,7 +428,6 @@ describe('handleHookCommand', () => {
     sessionId: 'test-session-123',
     hookInput: baseHookInput,
     correlationId: 'test-correlation',
-    scope: 'project',
     runtime: mockRuntime as unknown as HandleHookOptions['runtime'],
   }
 

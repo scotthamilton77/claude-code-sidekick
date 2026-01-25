@@ -31,25 +31,23 @@ export interface BuildCLIContextOptions {
 export function buildCLIContext(options: BuildCLIContextOptions): CLIContext {
   const { runtime, sessionId, transcriptPath } = options
 
-  // Validate projectRoot - consumption handlers require project scope for staging directories
-  if (!runtime.scope.projectRoot) {
-    throw new Error('Cannot build CLIContext without project root - reminder consumption requires project scope')
+  // Validate projectRoot - consumption handlers require project root for staging directories
+  if (!runtime.projectRoot) {
+    throw new Error('Cannot build CLIContext without project root - reminder consumption requires project root')
   }
 
-  const projectRoot = runtime.scope.projectRoot
+  const projectRoot = runtime.projectRoot
 
   const paths: RuntimePaths = {
     projectDir: projectRoot,
     userConfigDir: join(homedir(), '.sidekick'),
     projectConfigDir: join(projectRoot, '.sidekick'),
-    hookScriptPath: runtime.scope.hookScriptPath,
   }
 
   const handlers = new HandlerRegistryImpl({
     logger: runtime.logger,
     sessionId,
     transcriptPath,
-    scope: runtime.scope.scope,
   })
 
   const daemon = new DaemonClient(projectRoot, runtime.logger)

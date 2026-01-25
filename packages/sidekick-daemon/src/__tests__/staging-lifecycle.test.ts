@@ -70,10 +70,9 @@ describe('Staging Lifecycle', () => {
       const core = new StagingServiceCore({
         stateDir: testDir,
         logger,
-        scope: 'project',
         stateService: createStateService(testDir, logger),
       })
-      const service = new SessionScopedStagingService(core, sessionId, 'project')
+      const service = new SessionScopedStagingService(core, sessionId)
 
       await service.stageReminder('PreToolUse', 'TestReminder', createTestReminder('TestReminder'))
 
@@ -90,10 +89,9 @@ describe('Staging Lifecycle', () => {
       const core = new StagingServiceCore({
         stateDir: testDir,
         logger,
-        scope: 'project',
         stateService: createStateService(testDir, logger),
       })
-      const service = new SessionScopedStagingService(core, sessionId, 'project')
+      const service = new SessionScopedStagingService(core, sessionId)
 
       await service.stageReminder('PreToolUse', 'OldReminder1', createTestReminder('OldReminder1'))
       await service.stageReminder('Stop', 'OldReminder2', createTestReminder('OldReminder2'))
@@ -116,10 +114,9 @@ describe('Staging Lifecycle', () => {
       const core = new StagingServiceCore({
         stateDir: testDir,
         logger,
-        scope: 'project',
         stateService: createStateService(testDir, logger),
       })
-      const service = new SessionScopedStagingService(core, sessionId, 'project')
+      const service = new SessionScopedStagingService(core, sessionId)
 
       await service.stageReminder('UserPromptSubmit', 'Reminder1', createTestReminder('Reminder1'))
 
@@ -139,10 +136,9 @@ describe('Staging Lifecycle', () => {
       const core = new StagingServiceCore({
         stateDir: testDir,
         logger,
-        scope: 'project',
         stateService: createStateService(testDir, logger),
       })
-      const service = new SessionScopedStagingService(core, sessionId, 'project')
+      const service = new SessionScopedStagingService(core, sessionId)
 
       await service.stageReminder('PreToolUse', 'PersistentReminder', createTestReminder('PersistentReminder'))
 
@@ -157,10 +153,9 @@ describe('Staging Lifecycle', () => {
       const core = new StagingServiceCore({
         stateDir: testDir,
         logger,
-        scope: 'project',
         stateService: createStateService(testDir, logger),
       })
-      const service = new SessionScopedStagingService(core, sessionId, 'project')
+      const service = new SessionScopedStagingService(core, sessionId)
 
       await service.stageReminder('Stop', 'CompactReminder', createTestReminder('CompactReminder'))
 
@@ -174,11 +169,10 @@ describe('Staging Lifecycle', () => {
       const core = new StagingServiceCore({
         stateDir: testDir,
         logger,
-        scope: 'project',
         stateService: createStateService(testDir, logger),
       })
-      const session1 = new SessionScopedStagingService(core, 'session-aaa', 'project')
-      const session2 = new SessionScopedStagingService(core, 'session-bbb', 'project')
+      const session1 = new SessionScopedStagingService(core, 'session-aaa')
+      const session2 = new SessionScopedStagingService(core, 'session-bbb')
 
       await session1.stageReminder('PreToolUse', 'Session1Reminder', createTestReminder('Session1Reminder'))
       await session2.stageReminder('PreToolUse', 'Session2Reminder', createTestReminder('Session2Reminder'))
@@ -198,11 +192,10 @@ describe('Staging Lifecycle', () => {
       const core = new StagingServiceCore({
         stateDir: testDir,
         logger,
-        scope: 'project',
         stateService: createStateService(testDir, logger),
       })
-      const session1 = new SessionScopedStagingService(core, 'session-xxx', 'project')
-      const session2 = new SessionScopedStagingService(core, 'session-yyy', 'project')
+      const session1 = new SessionScopedStagingService(core, 'session-xxx')
+      const session2 = new SessionScopedStagingService(core, 'session-yyy')
 
       await session1.stageReminder('PreToolUse', 'Reminder1', createTestReminder('Reminder1'))
       await session2.stageReminder('PreToolUse', 'Reminder2', createTestReminder('Reminder2'))
@@ -222,10 +215,9 @@ describe('Staging Lifecycle', () => {
       const core = new StagingServiceCore({
         stateDir: testDir,
         logger,
-        scope: 'project',
         stateService: createStateService(testDir, logger),
       })
-      const service = new SessionScopedStagingService(core, sessionId, 'project')
+      const service = new SessionScopedStagingService(core, sessionId)
 
       // Simulate the pattern used in Daemon
       const getStagingService = (): SessionScopedStagingService => service

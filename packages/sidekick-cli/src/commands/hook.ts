@@ -88,7 +88,6 @@ const CLI_COMMAND_TO_HOOK: Record<string, HookName> = {
 interface EventContext {
   sessionId: string
   timestamp: number
-  scope: 'project' | 'user'
   correlationId: string
 }
 
@@ -240,13 +239,11 @@ function buildPreCompactEvent(context: EventContext, input: ParsedHookInput): Pr
 export function buildHookEvent(
   hookName: HookName,
   input: ParsedHookInput,
-  correlationId: string,
-  scope: 'project' | 'user'
+  correlationId: string
 ): HookEvent {
   const context: EventContext = {
     sessionId: input.sessionId,
     timestamp: Date.now(),
-    scope,
     correlationId,
   }
 
@@ -302,7 +299,6 @@ export interface HandleHookOptions {
   sessionId: string
   hookInput: ParsedHookInput
   correlationId: string
-  scope: 'project' | 'user'
   runtime: RuntimeShell
 }
 
@@ -331,20 +327,19 @@ export async function handleHookCommand(
   logger: Logger,
   stdout: Writable
 ): Promise<HandleHookResult> {
-  const { projectRoot, hookInput, correlationId, scope, runtime } = options
+  const { projectRoot, hookInput, correlationId, runtime } = options
   const startTime = Date.now()
 
   // Log HookReceived event
   const logContext = {
     sessionId: hookInput.sessionId,
-    scope,
     correlationId,
     hook: hookName,
   }
   logEvent(logger, LogEvents.hookReceived(logContext, { cwd: hookInput.cwd, mode: 'hook' }))
 
   // Build typed HookEvent from parsed input
-  const event = buildHookEvent(hookName, hookInput, correlationId, scope)
+  const event = buildHookEvent(hookName, hookInput, correlationId)
 
   logger.debug('Dispatching hook event to daemon', {
     hook: hookName,

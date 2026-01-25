@@ -280,7 +280,6 @@ export interface HookCommandOptions {
   projectRoot: string
   hookInput: ParsedHookInput
   correlationId: string
-  scope: 'project' | 'user'
   runtime: RuntimeShell
 }
 
@@ -328,7 +327,7 @@ export async function handleUnifiedHookCommand(
   logger: Logger,
   stdout: Writable
 ): Promise<HookCommandResult> {
-  const { projectRoot, hookInput, correlationId, scope, runtime } = options
+  const { projectRoot, hookInput, correlationId, runtime } = options
 
   logger.debug('Unified hook command invoked', { hookName, sessionId: hookInput.sessionId })
 
@@ -349,7 +348,6 @@ export async function handleUnifiedHookCommand(
       sessionId: hookInput.sessionId,
       hookInput,
       correlationId,
-      scope,
       runtime,
     },
     logger,

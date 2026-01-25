@@ -47,8 +47,6 @@ export interface StagingServiceCoreOptions {
   stateDir: string
   /** Logger for observability */
   logger: Logger
-  /** Optional scope for logging context */
-  scope?: 'project' | 'user'
   /** StateService for atomic writes with schema validation */
   stateService: MinimalStateService
 }
@@ -129,7 +127,6 @@ export class StagingServiceCore {
     const event = LogEvents.reminderStaged(
       {
         sessionId,
-        scope: this.options.scope,
         hook: hookName,
       },
       {
@@ -323,8 +320,7 @@ export class StagingServiceCore {
 export class SessionScopedStagingService implements StagingService {
   constructor(
     private readonly core: StagingServiceCore,
-    private readonly sessionId: string,
-    private readonly scope?: 'project' | 'user'
+    private readonly sessionId: string
   ) {}
 
   // ============================================================================
@@ -377,10 +373,4 @@ export class SessionScopedStagingService implements StagingService {
     return this.sessionId
   }
 
-  /**
-   * Get the scope (for testing/debugging).
-   */
-  getScope(): 'project' | 'user' | undefined {
-    return this.scope
-  }
 }
