@@ -696,7 +696,7 @@ export interface StatuslineRenderedEvent extends LoggingEventBase {
   source: 'cli'
   payload: {
     state: {
-      displayMode: 'session_summary' | 'resume_message' | 'empty_summary'
+      displayMode: 'session_summary' | 'resume_message' | 'empty_summary' | 'setup_warning'
       staleData: boolean
     }
     metadata: {
