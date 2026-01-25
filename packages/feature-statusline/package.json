@@ -1,6 +1,6 @@
 {
   "name": "@sidekick/feature-statusline",
-  "version": "0.0.0",
+  "version": "0.0.1-alpha",
   "description": "Real-time statusline rendering for shell prompt integration",
   "type": "commonjs",
   "main": "dist/index.js",
