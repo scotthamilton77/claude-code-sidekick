@@ -23,6 +23,7 @@ bd.db
 # Worktree redirect file (contains relative path to main repo's .beads/)
 # Must not be committed as paths would be wrong in other clones
 redirect
+export-state/
 
 # Merge artifacts (temporary files from 3-way merge)
 beads.base.jsonl
