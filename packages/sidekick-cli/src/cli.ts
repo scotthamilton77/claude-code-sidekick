@@ -88,7 +88,7 @@ interface RunCliOptions {
  */
 function parseArgs(argv: string[]): ParsedArgs {
   const parsed = yargsParser(argv, {
-    boolean: ['hook', 'wait', 'open', 'prefer-project', 'help', 'kill'],
+    boolean: ['hook', 'wait', 'open', 'prefer-project', 'help', 'kill', 'force'],
     string: ['hook-script-path', 'project-dir', 'scope', 'log-level', 'format', 'host', 'session-id', 'type'],
     number: ['port', 'width'],
     alias: {
@@ -119,6 +119,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     messageType: parsed.type as 'snarky' | 'resume' | undefined,
     help: Boolean(parsed.help),
     kill: Boolean(parsed.kill),
+    force: Boolean(parsed.force),
     _: parsed._,
   }
 }

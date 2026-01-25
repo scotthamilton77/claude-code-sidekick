@@ -51,7 +51,12 @@ export class MockStateService implements MinimalStateService {
     return Promise.resolve({ data: parsed.data, source: 'fresh', mtime: Date.now() })
   }
 
-  write<T>(path: string, data: T, schema: SchemaLike<T>): Promise<void> {
+  write<T>(
+    path: string,
+    data: T,
+    schema: SchemaLike<T>,
+    _options?: { trackHistory?: boolean }
+  ): Promise<void> {
     // Validate with schema
     const parsed = schema.parse(data) // throws on invalid
     this.storage.set(path, parsed)
