@@ -74,7 +74,7 @@ export function registerInjectStop(context: RuntimeContext): void {
           return buildDefaultResponse(reminder, supportsBlocking)
         } else {
           // Non-blocking: set unverified state so we re-stage on next UserPromptSubmit
-          const metrics = reminder.stagedAt ?? { turnCount: 0, toolsThisTurn: 0 }
+          const metrics = reminder.stagedAt ?? { turnCount: 0, toolsThisTurn: 0, toolCount: 0 }
           try {
             await ipc.send('vc-unverified.set', {
               sessionId,
@@ -85,6 +85,7 @@ export function registerInjectStop(context: RuntimeContext): void {
               metrics: {
                 turnCount: metrics.turnCount,
                 toolsThisTurn: metrics.toolsThisTurn,
+                toolCount: metrics.toolCount,
               },
             })
           } catch (setErr) {
@@ -123,13 +124,14 @@ export function registerInjectStop(context: RuntimeContext): void {
         if (projectDir) {
           const ipc = new IpcService(projectDir, cliCtx.logger)
           try {
-            const metrics = reminder.stagedAt ?? { turnCount: 0, toolsThisTurn: 0 }
+            const metrics = reminder.stagedAt ?? { turnCount: 0, toolsThisTurn: 0, toolCount: 0 }
             await ipc.send('reminder.consumed', {
               sessionId,
               reminderName: reminder.name,
               metrics: {
                 turnCount: metrics.turnCount,
                 toolsThisTurn: metrics.toolsThisTurn,
+                toolCount: metrics.toolCount,
               },
             })
           } finally {
