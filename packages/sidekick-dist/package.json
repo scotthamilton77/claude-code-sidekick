@@ -11,9 +11,10 @@
   ],
   "scripts": {
     "clean": "rm -rf dist assets",
-    "bundle:js": "esbuild ../sidekick-cli/dist/bin.js --bundle --platform=node --format=cjs --main-fields=module,main --outfile=dist/bin.js --external:fsevents",
+    "bundle:cli": "esbuild ../sidekick-cli/dist/bin.js --bundle --platform=node --format=cjs --main-fields=module,main --outfile=dist/bin.js --external:fsevents",
+    "bundle:daemon": "esbuild ../sidekick-daemon/dist/index.js --bundle --platform=node --format=cjs --main-fields=module,main --outfile=dist/daemon.js --external:fsevents",
     "bundle:assets": "mkdir -p assets && cp -r ../sidekick-core/assets/sidekick assets/",
-    "bundle": "pnpm run clean && pnpm run bundle:js && pnpm run bundle:assets",
+    "bundle": "pnpm run clean && pnpm run bundle:cli && pnpm run bundle:daemon && pnpm run bundle:assets",
     "prepublishOnly": "pnpm run bundle"
   },
   "keywords": [
