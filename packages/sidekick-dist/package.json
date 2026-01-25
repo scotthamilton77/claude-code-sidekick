@@ -28,7 +28,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/scotthamilton77/claude-code-sidekick"
+    "url": "git+https://github.com/scotthamilton77/claude-code-sidekick.git"
   },
   "engines": {
     "node": ">=18"
