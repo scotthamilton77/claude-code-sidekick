@@ -2,7 +2,7 @@
  * Tests for daemon auto-start behavior in CLI.
  *
  * Tests that:
- * - Daemon auto-starts in hook mode
+ * - Daemon auto-starts for hook command
  * - Auto-start failure doesn't crash CLI (graceful degradation)
  * - Interactive mode doesn't auto-start daemon
  *
@@ -58,11 +58,11 @@ describe('CLI daemon auto-start', () => {
     vi.clearAllMocks()
   })
 
-  test('auto-starts daemon in hook mode', async () => {
+  test('auto-starts daemon for hook command', async () => {
     mockStart.mockResolvedValue(undefined)
 
     await runCli({
-      argv: ['session-start', '--hook', '--project-dir', projectDir],
+      argv: ['hook', 'session-start', '--project-dir', projectDir],
       stdout,
       stderr,
       cwd: projectDir,
@@ -86,7 +86,7 @@ describe('CLI daemon auto-start', () => {
       enableFileLogging: false,
     })
 
-    // Daemon should NOT be started (no --hook flag)
+    // Daemon should NOT be started (not a hook command)
     expect(mockStart).not.toHaveBeenCalled()
   })
 
@@ -95,7 +95,7 @@ describe('CLI daemon auto-start', () => {
     mockStart.mockRejectedValue(new Error('Daemon failed to start within timeout'))
 
     const result = await runCli({
-      argv: ['session-start', '--hook', '--project-dir', projectDir],
+      argv: ['hook', 'session-start', '--project-dir', projectDir],
       stdout,
       stderr,
       cwd: projectDir,
@@ -110,22 +110,39 @@ describe('CLI daemon auto-start', () => {
     expect(result.exitCode).toBe(0)
   })
 
-  test('fails fast when no project-dir provided in hook mode', async () => {
+  test('does not auto-start daemon for non-hook commands', async () => {
     mockStart.mockResolvedValue(undefined)
 
-    // Hook mode without --project-dir should fail fast
-    await expect(
-      runCli({
-        argv: ['session-start', '--hook'],
-        stdout,
-        stderr,
-        cwd: '/tmp',
-        interactive: false,
-        enableFileLogging: false,
-      })
-    ).rejects.toThrow('Hook mode requires --project-dir parameter')
+    await runCli({
+      argv: ['statusline', '--project-dir', projectDir],
+      stdout,
+      stderr,
+      cwd: projectDir,
+      interactive: false,
+      enableFileLogging: false,
+    })
 
-    // Daemon should NOT be started (error thrown before reaching that point)
+    // Daemon should NOT be started (statusline is not a hook command)
+    expect(mockStart).not.toHaveBeenCalled()
+  })
+
+  test('fails fast when hook command used without --project-dir', async () => {
+    mockStart.mockResolvedValue(undefined)
+
+    const result = await runCli({
+      argv: ['hook', 'session-start'],
+      stdout,
+      stderr,
+      cwd: projectDir,
+      interactive: false,
+      enableFileLogging: false,
+    })
+
+    // Should fail with exit code 1
+    expect(result.exitCode).toBe(1)
+    expect(stdout.data).toContain('--project-dir')
+
+    // Daemon should NOT be started (failed fast before daemon init)
     expect(mockStart).not.toHaveBeenCalled()
   })
 })

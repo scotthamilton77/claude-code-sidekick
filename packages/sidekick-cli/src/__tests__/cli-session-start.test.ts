@@ -1,7 +1,7 @@
 /**
- * Tests for CLI session start behavior.
+ * Tests for CLI hook command behavior.
  *
- * Verifies BEHAVIOR of session handling:
+ * Verifies BEHAVIOR of hook handling:
  * - Exit codes and output (observable outcomes)
  * - Early exit on dual-install detection
  * - Graceful degradation with missing hook input
@@ -27,18 +27,15 @@ vi.mock('@sidekick/core', async (importOriginal) => {
   }
 })
 
-// Mock hook handler with hoisting
-const { mockHandleHookCommand } = vi.hoisted(() => ({
-  mockHandleHookCommand: vi.fn(),
+// Mock unified hook handler with hoisting
+const { mockHandleUnifiedHookCommand, mockParseHookArg } = vi.hoisted(() => ({
+  mockHandleUnifiedHookCommand: vi.fn(),
+  mockParseHookArg: vi.fn(),
 }))
 
-vi.mock('../commands/hook.js', () => ({
-  handleHookCommand: mockHandleHookCommand,
-  getHookName: vi.fn((cmd: string) => (cmd === 'session-start' ? 'SessionStart' : undefined)),
-  validateHookName: vi.fn((name: string) => {
-    if (['SessionStart', 'UserPromptSubmit', 'Stop'].includes(name)) return name
-    return undefined
-  }),
+vi.mock('../commands/hook-command.js', () => ({
+  handleUnifiedHookCommand: mockHandleUnifiedHookCommand,
+  parseHookArg: mockParseHookArg,
 }))
 
 class CollectingWritable extends Writable {
@@ -50,7 +47,7 @@ class CollectingWritable extends Writable {
   }
 }
 
-describe('runCli session handling', () => {
+describe('runCli hook command handling', () => {
   let sandbox: string | undefined
 
   afterEach(() => {
@@ -63,16 +60,16 @@ describe('runCli session handling', () => {
 
   test('returns empty JSON response when hook input is missing (graceful degradation)', async () => {
     sandbox = mkdtempSync(join(tmpdir(), 'sidekick-cli-graceful-'))
-    const hookScriptPath = join(sandbox, '.claude', 'hooks', 'sidekick', 'session-start')
     mkdirSync(join(sandbox, '.claude', 'hooks', 'sidekick'), { recursive: true })
-    writeFileSync(hookScriptPath, '#!/usr/bin/env bash')
+
+    mockParseHookArg.mockReturnValue('SessionStart')
 
     const stdout = new CollectingWritable()
     const stderr = new CollectingWritable()
 
     // Without valid stdin hook input, CLI returns empty response
     const result = await runCli({
-      argv: ['session-start', '--hook', '--hook-script-path', hookScriptPath, '--project-dir', sandbox],
+      argv: ['hook', 'session-start', '--project-dir', sandbox],
       stdout,
       stderr,
       cwd: sandbox,
@@ -84,17 +81,17 @@ describe('runCli session handling', () => {
     expect(result.exitCode).toBe(0)
   })
 
-  test('detects project scope from hook wrapper path', async () => {
+  test('detects project scope from project-dir', async () => {
     sandbox = mkdtempSync(join(tmpdir(), 'sidekick-cli-project-'))
-    const hookScriptPath = join(sandbox, '.claude', 'hooks', 'sidekick', 'session-start')
     mkdirSync(join(sandbox, '.claude', 'hooks', 'sidekick'), { recursive: true })
-    writeFileSync(hookScriptPath, '#!/usr/bin/env bash')
+
+    mockParseHookArg.mockReturnValue('SessionStart')
 
     const stdout = new CollectingWritable()
     const stderr = new CollectingWritable()
 
     const result = await runCli({
-      argv: ['session-start', '--hook', '--hook-script-path', hookScriptPath, '--project-dir', sandbox],
+      argv: ['hook', 'session-start', '--project-dir', sandbox],
       stdout,
       stderr,
       cwd: sandbox,
@@ -103,8 +100,6 @@ describe('runCli session handling', () => {
     })
 
     // Behavioral assertion: CLI completes successfully with project scope detected
-    // We verify the CLI doesn't fail - scope detection is internal behavior
-    // that affects subsequent hook handling, not a directly observable output
     expect(result.exitCode).toBe(0)
   })
 
@@ -118,11 +113,13 @@ describe('runCli session handling', () => {
     writeFileSync(hookScriptPath, '#!/usr/bin/env bash')
     writeFileSync(join(projectDir, '.claude', 'settings.json'), '{"hooks": ["sidekick"]}')
 
+    mockParseHookArg.mockReturnValue('SessionStart')
+
     const stdout = new CollectingWritable()
     const stderr = new CollectingWritable()
 
     const result = await runCli({
-      argv: ['session-start', '--hook', '--hook-script-path', hookScriptPath, '--project-dir', projectDir],
+      argv: ['hook', 'session-start', '--hook-script-path', hookScriptPath, '--project-dir', projectDir],
       stdout,
       stderr,
       cwd: sandbox,
@@ -138,20 +135,19 @@ describe('runCli session handling', () => {
     expect(stdout.data).toBe('') // No output since deferred
   })
 
-  test('produces output in project scope when hook path is in project', async () => {
+  test('produces output in project scope', async () => {
     sandbox = mkdtempSync(join(tmpdir(), 'sidekick-cli-project-scope-'))
     const projectDir = sandbox
-    const hookScriptPath = join(projectDir, '.claude', 'hooks', 'sidekick', 'session-start')
     mkdirSync(join(projectDir, '.claude', 'hooks', 'sidekick'), { recursive: true })
-    writeFileSync(hookScriptPath, '#!/usr/bin/env bash')
     writeFileSync(join(projectDir, '.claude', 'settings.json'), '{"hooks": ["sidekick"]}')
+
+    mockParseHookArg.mockReturnValue('SessionStart')
 
     const stdout = new CollectingWritable()
     const stderr = new CollectingWritable()
 
-    // Hook path in project .claude/ directory triggers project-scope detection
     const result = await runCli({
-      argv: ['session-start', '--hook', '--hook-script-path', hookScriptPath, '--project-dir', projectDir],
+      argv: ['hook', 'session-start', '--project-dir', projectDir],
       stdout,
       stderr,
       cwd: projectDir,
@@ -168,15 +164,13 @@ describe('runCli session handling', () => {
   test('dispatches to hook handler when valid hook input is provided', async () => {
     sandbox = mkdtempSync(join(tmpdir(), 'sidekick-cli-hook-'))
     const projectDir = sandbox
-    const hookScriptPath = join(projectDir, '.claude', 'hooks', 'sidekick', 'session-start')
     mkdirSync(join(projectDir, '.claude', 'hooks', 'sidekick'), { recursive: true })
-    writeFileSync(hookScriptPath, '#!/usr/bin/env bash')
 
     const stdout = new CollectingWritable()
     const stderr = new CollectingWritable()
 
-    // Mock the hook handler to return a result
-    mockHandleHookCommand.mockResolvedValue({
+    mockParseHookArg.mockReturnValue('SessionStart')
+    mockHandleUnifiedHookCommand.mockResolvedValue({
       exitCode: 0,
       output: '{"result": "success"}',
     })
@@ -189,7 +183,7 @@ describe('runCli session handling', () => {
     })
 
     const result = await runCli({
-      argv: ['session-start', '--hook', '--hook-script-path', hookScriptPath, '--project-dir', projectDir],
+      argv: ['hook', 'session-start', '--project-dir', projectDir],
       stdinData: hookInput,
       stdout,
       stderr,
@@ -198,22 +192,20 @@ describe('runCli session handling', () => {
     })
 
     // Hook handler should have been called
-    expect(mockHandleHookCommand).toHaveBeenCalled()
+    expect(mockHandleUnifiedHookCommand).toHaveBeenCalled()
     expect(result.exitCode).toBe(0)
   })
 
   test('returns hook handler exit code', async () => {
     sandbox = mkdtempSync(join(tmpdir(), 'sidekick-cli-hook-error-'))
     const projectDir = sandbox
-    const hookScriptPath = join(projectDir, '.claude', 'hooks', 'sidekick', 'session-start')
     mkdirSync(join(projectDir, '.claude', 'hooks', 'sidekick'), { recursive: true })
-    writeFileSync(hookScriptPath, '#!/usr/bin/env bash')
 
     const stdout = new CollectingWritable()
     const stderr = new CollectingWritable()
 
-    // Mock the hook handler to return an error
-    mockHandleHookCommand.mockResolvedValue({
+    mockParseHookArg.mockReturnValue('SessionStart')
+    mockHandleUnifiedHookCommand.mockResolvedValue({
       exitCode: 1,
       output: '{"error": "handler failed"}',
     })
@@ -225,7 +217,7 @@ describe('runCli session handling', () => {
     })
 
     const result = await runCli({
-      argv: ['session-start', '--hook', '--hook-script-path', hookScriptPath, '--project-dir', projectDir],
+      argv: ['hook', 'session-start', '--project-dir', projectDir],
       stdinData: hookInput,
       stdout,
       stderr,

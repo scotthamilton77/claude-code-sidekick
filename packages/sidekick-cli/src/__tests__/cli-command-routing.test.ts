@@ -310,7 +310,7 @@ describe('CLI command routing', () => {
   })
 
   describe('unknown command', () => {
-    test('returns success and shows informational message in interactive mode', async () => {
+    test('returns error for unknown command', async () => {
       const result = await runCli({
         argv: ['unknown-command'],
         stdout,
@@ -320,9 +320,9 @@ describe('CLI command routing', () => {
         interactive: true,
       })
 
-      expect(result.exitCode).toBe(0)
-      // Verify user-facing output (behavior), not internal structure
-      expect(stdout.data).toContain('Sidekick CLI executed unknown-command')
+      expect(result.exitCode).toBe(1)
+      expect(stdout.data).toContain('Unknown command: unknown-command')
+      expect(stdout.data).toContain("Run 'sidekick help'")
     })
   })
 })
