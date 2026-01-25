@@ -32,11 +32,7 @@ export function printHeader(ctx: PromptContext, title: string, description?: str
 /**
  * Display a status message with icon.
  */
-export function printStatus(
-  ctx: PromptContext,
-  type: 'success' | 'warning' | 'info' | 'error',
-  message: string
-): void {
+export function printStatus(ctx: PromptContext, type: 'success' | 'warning' | 'info' | 'error', message: string): void {
   const icons = { success: '✓', warning: '⚠', info: '•', error: '✗' }
   const colorMap = { success: colors.green, warning: colors.yellow, info: colors.blue, error: '\x1b[31m' }
   ctx.stdout.write(`${colorMap[type]}${icons[type]}${colors.reset} ${message}\n`)
@@ -85,11 +81,7 @@ export async function promptSelect(
 /**
  * Prompt for yes/no confirmation.
  */
-export async function promptConfirm(
-  ctx: PromptContext,
-  question: string,
-  defaultYes = true
-): Promise<boolean> {
+export async function promptConfirm(ctx: PromptContext, question: string, defaultYes = true): Promise<boolean> {
   const hint = defaultYes ? '[Y/n]' : '[y/N]'
 
   const rl = readline.createInterface({
@@ -115,11 +107,7 @@ export async function promptConfirm(
 /**
  * Prompt for text input (e.g., API key).
  */
-export async function promptInput(
-  ctx: PromptContext,
-  question: string,
-  options?: { mask?: boolean }
-): Promise<string> {
+export async function promptInput(ctx: PromptContext, question: string): Promise<string> {
   const rl = readline.createInterface({
     input: ctx.stdin,
     output: ctx.stdout,

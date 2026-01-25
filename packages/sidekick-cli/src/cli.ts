@@ -284,6 +284,8 @@ Commands:
   statusline               Render the status line (used by hooks)
   dev-mode <subcommand>    Manage development hooks (enable, disable, status, clean)
   ui                       Launch the web UI
+  setup                    Run the setup wizard (configure statusline, API keys)
+  doctor                   Check sidekick health (alias: setup --check)
 
 Global Options:
   --help, -h               Show this help message
@@ -496,6 +498,23 @@ Examples:
       stdout,
       { force: Boolean(parsed.force) }
     )
+    return { exitCode: result.exitCode, stdout: '', stderr: '' }
+  }
+
+  if (parsed.command === 'setup') {
+    const { handleSetupCommand } = await import('./commands/setup.js')
+    const result = await handleSetupCommand(runtime.projectRoot || process.cwd(), runtime.logger, stdout, {
+      checkOnly: parsed.help ? false : parsed._?.[1] === '--check',
+      stdin: process.stdin,
+    })
+    return { exitCode: result.exitCode, stdout: '', stderr: '' }
+  }
+
+  if (parsed.command === 'doctor') {
+    const { handleSetupCommand } = await import('./commands/setup.js')
+    const result = await handleSetupCommand(runtime.projectRoot || process.cwd(), runtime.logger, stdout, {
+      checkOnly: true,
+    })
     return { exitCode: result.exitCode, stdout: '', stderr: '' }
   }
 

@@ -117,6 +117,13 @@ export {
 } from './structured-logging'
 
 export { killAllDaemons, DaemonClient, type KillResult, type UserPidInfo } from './daemon-client'
+export {
+  SetupStatusService,
+  createSetupStatusService,
+  type SetupStatusServiceOptions,
+  type ApiKeyName,
+  type SetupState,
+} from './setup-status-service'
 export { StagingServiceCore, SessionScopedStagingService, type StagingServiceCoreOptions } from './staging-service'
 export {
   getStagingRoot,
