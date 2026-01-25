@@ -25,6 +25,13 @@ import yargsParser from 'yargs-parser'
 import type { ParsedHookInput, MinimalStateService } from '@sidekick/types'
 
 /**
+ * Version string injected at build time by esbuild.
+ * Falls back to 'dev' when running unbundled (e.g., during development/testing).
+ */
+declare const __SIDEKICK_VERSION__: string | undefined
+const VERSION = typeof __SIDEKICK_VERSION__ !== 'undefined' ? __SIDEKICK_VERSION__ : 'dev'
+
+/**
  * Detect if running in Claude Code sandbox mode.
  * Sandbox mode sets SANDBOX_RUNTIME=1 and blocks Unix socket operations.
  */
@@ -61,6 +68,7 @@ interface ParsedArgs {
   sessionIdArg?: string
   messageType?: 'snarky' | 'resume'
   help?: boolean
+  version?: boolean
   kill?: boolean
   force?: boolean
   _?: (string | number)[]
@@ -83,11 +91,12 @@ interface RunCliOptions {
  */
 function parseArgs(argv: string[]): ParsedArgs {
   const parsed = yargsParser(argv, {
-    boolean: ['wait', 'open', 'prefer-project', 'help', 'kill', 'force'],
+    boolean: ['wait', 'open', 'prefer-project', 'help', 'version', 'kill', 'force'],
     string: ['project-dir', 'log-level', 'format', 'host', 'session-id', 'type'],
     number: ['port', 'width'],
     alias: {
       h: 'help',
+      v: 'version',
     },
     configuration: {
       'camel-case-expansion': false,
@@ -110,6 +119,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     sessionIdArg: parsed['session-id'] as string | undefined,
     messageType: parsed.type as 'snarky' | 'resume' | undefined,
     help: Boolean(parsed.help),
+    version: Boolean(parsed.version),
     kill: Boolean(parsed.kill),
     force: Boolean(parsed.force),
     _: parsed._,
@@ -277,6 +287,7 @@ Commands:
 
 Global Options:
   --help, -h               Show this help message
+  --version, -v            Show version number
   --format=<format>        Output format: json or table (command-specific)
   --width=<n>              Table width in characters (default: 100)
   --project-dir=<path>     Override project directory
@@ -400,13 +411,9 @@ Examples:
     }
 
     const { handleDaemonCommand } = await import('./commands/daemon.js')
-    const result = await handleDaemonCommand(
-      subcommand,
-      runtime.projectRoot || process.cwd(),
-      runtime.logger,
-      stdout,
-      { wait: parsed.wait }
-    )
+    const result = await handleDaemonCommand(subcommand, runtime.projectRoot || process.cwd(), runtime.logger, stdout, {
+      wait: parsed.wait,
+    })
     return { exitCode: result.exitCode, stdout: '', stderr: '' }
   }
 
@@ -544,6 +551,17 @@ async function persistCliLogMetrics(
  */
 export async function runCli(options: RunCliOptions): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   const stdout = options.stdout ?? new PassThrough()
+
+  // Handle --version early, before any runtime initialization
+  const quickParsed = yargsParser(options.argv, {
+    boolean: ['version'],
+    alias: { v: 'version' },
+  })
+  if (quickParsed.version) {
+    const versionOutput = `${VERSION}\n`
+    stdout.write(versionOutput)
+    return { exitCode: 0, stdout: versionOutput, stderr: '' }
+  }
 
   // 1. Initialize runtime (synchronous)
   const initResult = initializeRuntime(options)
