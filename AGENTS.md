@@ -32,6 +32,8 @@ development-tools/llm-eval/ # LLM evaluation tools
 </structure>
 
 <sidekick_invocation>
+Sidekick's CLI *must* be invoked unsandoxed.
+
 To invoke sidekick's CLI: `pnpm sidekick <command> [args]`
 
 **Commands:** (add --json or --format=json for structured output, --format=table for ASCII tables)
