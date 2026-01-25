@@ -76,3 +76,6 @@ packages/sidekick-ui/vite.config.js
 packages/sidekick-ui/vite.config.d.ts
 packages/sidekick-ui/vitest.config.js
 packages/sidekick-ui/vitest.config.d.ts
+
+# Dist testing backup (never commit)
+packages/sidekick-dist/*.tgz
