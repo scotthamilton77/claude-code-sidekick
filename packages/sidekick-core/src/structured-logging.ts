@@ -6,7 +6,7 @@
  *
  * - Two-phase initialization (bootstrap console → full Pino logger)
  * - Automatic redaction of sensitive fields (apiKey, token, secret, etc.)
- * - Context binding (scope, correlationId, command, component)
+ * - Context binding (correlationId, sessionId, command, component)
  * - Telemetry emission (counters, gauges, histograms) to the same log stream
  * - File transport with auto-directory creation
  * - Configurable console output for interactive/hook modes
@@ -17,7 +17,7 @@
  * const logManager = createLogManager({
  *   name: 'sidekick:cli',
  *   level: 'info',
- *   context: { scope: 'project', correlationId: 'abc-123' },
+ *   context: { correlationId: 'abc-123' },
  *   destinations: { file: { path: '.sidekick/logs/sidekick.log' } },
  * })
  *
@@ -86,7 +86,6 @@ export function getComponentLogLevel(
 }
 
 export interface LogContext {
-  scope?: 'user' | 'project'
   correlationId?: string
   sessionId?: string
   component?: string
@@ -694,8 +693,7 @@ export const LogEvents = {
       source: 'cli',
       context: {
         sessionId: context.sessionId,
-        scope: context.scope,
-        correlationId: context.correlationId,
+                correlationId: context.correlationId,
         traceId: context.traceId,
         hook: context.hook,
       },
@@ -719,8 +717,7 @@ export const LogEvents = {
       source: 'cli',
       context: {
         sessionId: context.sessionId,
-        scope: context.scope,
-        correlationId: context.correlationId,
+                correlationId: context.correlationId,
         traceId: context.traceId,
         hook: context.hook,
       },
@@ -746,8 +743,7 @@ export const LogEvents = {
       source: 'daemon',
       context: {
         sessionId: context.sessionId,
-        scope: context.scope,
-        correlationId: context.correlationId,
+                correlationId: context.correlationId,
         traceId: context.traceId,
         hook: context.hook,
         taskId: context.taskId,
@@ -773,8 +769,7 @@ export const LogEvents = {
       source: 'daemon',
       context: {
         sessionId: context.sessionId,
-        scope: context.scope,
-        correlationId: context.correlationId,
+                correlationId: context.correlationId,
         traceId: context.traceId,
         hook: context.hook,
         taskId: context.taskId,
@@ -806,8 +801,7 @@ export const LogEvents = {
       source: 'daemon',
       context: {
         sessionId: context.sessionId,
-        scope: context.scope,
-        correlationId: context.correlationId,
+                correlationId: context.correlationId,
         traceId: context.traceId,
         hook: context.hook,
         taskId: context.taskId,
@@ -831,7 +825,6 @@ export const LogEvents = {
       source: 'daemon',
       context: {
         sessionId: '',
-        scope: 'project',
       },
       payload: {
         metadata,
@@ -849,7 +842,6 @@ export const LogEvents = {
       source: 'daemon',
       context: {
         sessionId: '',
-        scope: 'project',
       },
       payload: {
         metadata,
@@ -867,7 +859,6 @@ export const LogEvents = {
       source: 'daemon',
       context: {
         sessionId: '',
-        scope: 'project',
       },
       payload: {
         metadata,
@@ -885,7 +876,6 @@ export const LogEvents = {
       source: 'daemon',
       context: {
         sessionId: '',
-        scope: 'project',
       },
       payload: {
         metadata,
@@ -903,7 +893,6 @@ export const LogEvents = {
       source: 'daemon',
       context: {
         sessionId: '',
-        scope: 'project',
       },
       payload: {
         metadata,
@@ -935,8 +924,7 @@ export const LogEvents = {
       source: 'cli',
       context: {
         sessionId: context.sessionId,
-        scope: context.scope,
-        correlationId: context.correlationId,
+                correlationId: context.correlationId,
         traceId: context.traceId,
         hook: context.hook,
         taskId: context.taskId,
@@ -967,8 +955,7 @@ export const LogEvents = {
       source: 'cli',
       context: {
         sessionId: context.sessionId,
-        scope: context.scope,
-        correlationId: context.correlationId,
+                correlationId: context.correlationId,
         traceId: context.traceId,
         hook: context.hook,
         taskId: context.taskId,
@@ -999,8 +986,7 @@ export const LogEvents = {
       source: 'daemon',
       context: {
         sessionId: context.sessionId,
-        scope: context.scope,
-        correlationId: context.correlationId,
+                correlationId: context.correlationId,
         traceId: context.traceId,
         hook: context.hook,
         taskId: context.taskId,
@@ -1029,8 +1015,7 @@ export const LogEvents = {
       source: 'daemon',
       context: {
         sessionId: context.sessionId,
-        scope: context.scope,
-        correlationId: context.correlationId,
+                correlationId: context.correlationId,
         traceId: context.traceId,
         hook: context.hook,
         taskId: context.taskId,
@@ -1061,8 +1046,7 @@ export const LogEvents = {
       source: 'daemon',
       context: {
         sessionId: context.sessionId,
-        scope: context.scope,
-        correlationId: context.correlationId,
+                correlationId: context.correlationId,
         traceId: context.traceId,
         hook: context.hook,
         taskId: context.taskId,
@@ -1100,8 +1084,7 @@ export const LogEvents = {
       source: 'transcript',
       context: {
         sessionId: context.sessionId,
-        scope: context.scope,
-        correlationId: context.correlationId,
+                correlationId: context.correlationId,
         traceId: context.traceId,
         hook: context.hook,
         taskId: context.taskId,
@@ -1134,8 +1117,7 @@ export const LogEvents = {
       source: 'transcript',
       context: {
         sessionId: context.sessionId,
-        scope: context.scope,
-        correlationId: context.correlationId,
+                correlationId: context.correlationId,
         traceId: context.traceId,
         hook: context.hook,
         taskId: context.taskId,

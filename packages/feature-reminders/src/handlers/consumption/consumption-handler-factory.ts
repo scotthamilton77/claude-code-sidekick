@@ -136,7 +136,6 @@ export function createConsumptionHandler(context: RuntimeContext, config: Consum
         ReminderEvents.reminderConsumed(
           {
             sessionId,
-            scope: cliCtx.paths.projectDir ? 'project' : 'user',
             hook,
           },
           {

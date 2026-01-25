@@ -103,7 +103,7 @@ describe('bootstrapRuntime', () => {
   describe('log counts', () => {
     test('initializes with zero counts', () => {
       const runtime = bootstrapRuntime({
-        cwd: projectDir,
+        projectDir: projectDir,
         stderrSink: stderr,
         enableFileLogging: false,
       })
@@ -115,7 +115,7 @@ describe('bootstrapRuntime', () => {
 
     test('increments warning count when logger.warn is called', () => {
       const runtime = bootstrapRuntime({
-        cwd: projectDir,
+        projectDir: projectDir,
         stderrSink: stderr,
         enableFileLogging: false,
       })
@@ -130,7 +130,7 @@ describe('bootstrapRuntime', () => {
 
     test('increments error count when logger.error is called', () => {
       const runtime = bootstrapRuntime({
-        cwd: projectDir,
+        projectDir: projectDir,
         stderrSink: stderr,
         enableFileLogging: false,
       })
@@ -144,7 +144,7 @@ describe('bootstrapRuntime', () => {
 
     test('increments error count when logger.fatal is called', () => {
       const runtime = bootstrapRuntime({
-        cwd: projectDir,
+        projectDir: projectDir,
         stderrSink: stderr,
         enableFileLogging: false,
       })
@@ -157,7 +157,7 @@ describe('bootstrapRuntime', () => {
 
     test('resetLogCounts resets all counts to zero', () => {
       const runtime = bootstrapRuntime({
-        cwd: projectDir,
+        projectDir: projectDir,
         stderrSink: stderr,
         enableFileLogging: false,
       })
@@ -176,7 +176,7 @@ describe('bootstrapRuntime', () => {
 
     test('getLogCounts returns a copy (not reference)', () => {
       const runtime = bootstrapRuntime({
-        cwd: projectDir,
+        projectDir: projectDir,
         stderrSink: stderr,
         enableFileLogging: false,
       })
@@ -194,7 +194,7 @@ describe('bootstrapRuntime', () => {
   describe('loadExistingLogCounts', () => {
     test('loads counts from existing metrics file', async () => {
       const runtime = bootstrapRuntime({
-        cwd: projectDir,
+        projectDir: projectDir,
         stderrSink: stderr,
         enableFileLogging: false,
       })
@@ -222,7 +222,7 @@ describe('bootstrapRuntime', () => {
 
     test('adds to existing counts (accumulates)', async () => {
       const runtime = bootstrapRuntime({
-        cwd: projectDir,
+        projectDir: projectDir,
         stderrSink: stderr,
         enableFileLogging: false,
       })
@@ -254,7 +254,7 @@ describe('bootstrapRuntime', () => {
 
     test('handles missing file gracefully', async () => {
       const runtime = bootstrapRuntime({
-        cwd: projectDir,
+        projectDir: projectDir,
         stderrSink: stderr,
         enableFileLogging: false,
       })
@@ -269,7 +269,7 @@ describe('bootstrapRuntime', () => {
 
     test('handles invalid JSON gracefully', async () => {
       const runtime = bootstrapRuntime({
-        cwd: projectDir,
+        projectDir: projectDir,
         stderrSink: stderr,
         enableFileLogging: false,
       })
@@ -294,7 +294,7 @@ describe('bootstrapRuntime', () => {
 
     test('loads data with only warningCount and default errorCount', async () => {
       const runtime = bootstrapRuntime({
-        cwd: projectDir,
+        projectDir: projectDir,
         stderrSink: stderr,
         enableFileLogging: false,
       })
@@ -321,7 +321,7 @@ describe('bootstrapRuntime', () => {
 
     test('loads data with only errorCount and default warningCount', async () => {
       const runtime = bootstrapRuntime({
-        cwd: projectDir,
+        projectDir: projectDir,
         stderrSink: stderr,
         enableFileLogging: false,
       })
@@ -350,7 +350,7 @@ describe('bootstrapRuntime', () => {
   describe('bindSessionId', () => {
     test('bindSessionId updates logger context', () => {
       const runtime = bootstrapRuntime({
-        cwd: projectDir,
+        projectDir: projectDir,
         stderrSink: stderr,
         enableFileLogging: false,
       })
@@ -369,7 +369,7 @@ describe('bootstrapRuntime', () => {
   describe('cleanup', () => {
     test('cleanup function can be called without error', () => {
       const runtime = bootstrapRuntime({
-        cwd: projectDir,
+        projectDir: projectDir,
         stderrSink: stderr,
         enableFileLogging: false,
       })
@@ -382,7 +382,7 @@ describe('bootstrapRuntime', () => {
   describe('correlation ID', () => {
     test('generates correlation ID if not provided', () => {
       const runtime = bootstrapRuntime({
-        cwd: projectDir,
+        projectDir: projectDir,
         stderrSink: stderr,
         enableFileLogging: false,
       })
@@ -393,7 +393,7 @@ describe('bootstrapRuntime', () => {
 
     test('uses provided correlation ID', () => {
       const runtime = bootstrapRuntime({
-        cwd: projectDir,
+        projectDir: projectDir,
         stderrSink: stderr,
         enableFileLogging: false,
         correlationId: 'custom-correlation-id',

@@ -1087,7 +1087,6 @@ describe('createRecordingFeature', () => {
 const baseContext: EventContext = {
   sessionId: 'test-session-123',
   timestamp: Date.now(),
-  scope: 'project',
 }
 
 const sessionStartEvent: SessionStartHookEvent = {

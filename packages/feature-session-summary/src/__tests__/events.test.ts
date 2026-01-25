@@ -60,7 +60,6 @@ describe('SessionSummaryEvents', () => {
       const event = SessionSummaryEvents.summaryUpdated(
         {
           sessionId: 'sess-123',
-          scope: 'project',
           correlationId: 'corr-456',
           taskId: 'task-789',
         },
@@ -75,7 +74,6 @@ describe('SessionSummaryEvents', () => {
       )
 
       expect(event.context.sessionId).toBe('sess-123')
-      expect(event.context.scope).toBe('project')
       expect(event.context.correlationId).toBe('corr-456')
       expect(event.context.taskId).toBe('task-789')
     })
@@ -97,12 +95,11 @@ describe('SessionSummaryEvents', () => {
 
     it('should include session context', () => {
       const event = SessionSummaryEvents.summarySkipped(
-        { sessionId: 'sess-456', scope: 'user' },
+        { sessionId: 'sess-456' },
         { countdown: 3, countdown_threshold: 0 }
       )
 
       expect(event.context.sessionId).toBe('sess-456')
-      expect(event.context.scope).toBe('user')
     })
   })
 })

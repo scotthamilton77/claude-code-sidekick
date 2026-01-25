@@ -121,18 +121,16 @@ function createTestContext(): TestContext {
   const stagingOptions: StagingServiceCoreOptions = {
     stateDir,
     logger,
-    scope: 'project',
     stateService,
   }
   const core = new StagingServiceCore(stagingOptions)
-  const stagingService = new SessionScopedStagingService(core, 'test-session', 'project')
+  const stagingService = new SessionScopedStagingService(core, 'test-session')
 
   // Create handler registry
   const handlerOptions: HandlerRegistryOptions = {
     logger,
     sessionId: 'test-session',
     transcriptPath,
-    scope: 'project',
   }
   const handlerRegistry = new HandlerRegistryImpl(handlerOptions)
 

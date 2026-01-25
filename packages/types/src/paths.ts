@@ -16,6 +16,4 @@ export interface RuntimePaths {
   userConfigDir: string
   /** Project config directory (.sidekick) */
   projectConfigDir?: string
-  /** Hook script installation path */
-  hookScriptPath?: string
 }

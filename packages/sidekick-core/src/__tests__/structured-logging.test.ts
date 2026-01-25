@@ -131,7 +131,6 @@ describe('Structured Logging', () => {
         name: 'sidekick:test',
         level: 'info',
         context: {
-          scope: 'project',
           correlationId: 'test-corr-123',
           command: 'session-start',
         },
@@ -145,7 +144,6 @@ describe('Structured Logging', () => {
       const log = parseLogLine(lines[0])
       expect(log).toHaveProperty('context')
       const context = log.context as LogContext
-      expect(context.scope).toBe('project')
       expect(context.correlationId).toBe('test-corr-123')
       expect(context.command).toBe('session-start')
     })
@@ -177,7 +175,6 @@ describe('Structured Logging', () => {
         name: 'sidekick:test',
         level: 'info',
         context: {
-          scope: 'project',
           correlationId: 'parent-123',
         },
         testStream: stream,
@@ -776,7 +773,6 @@ describe('Structured Logging', () => {
         source: 'cli',
         context: {
           sessionId: 'sess-123',
-          scope: 'project',
         },
         testStream: stream,
       })
@@ -799,7 +795,6 @@ describe('Structured Logging', () => {
       expect(log).toHaveProperty('context')
       const context = log.context as Record<string, unknown>
       expect(context.sessionId).toBe('sess-123') // From parent
-      expect(context.scope).toBe('project') // From parent
       expect(context.correlationId).toBe('corr-456') // From child
       expect(context.hook).toBe('UserPromptSubmit') // From child
     })
@@ -1003,7 +998,6 @@ describe('Structured Logging', () => {
       const event = LogEvents.hookReceived(
         {
           sessionId: 'sess-123',
-          scope: 'project',
           correlationId: 'corr-456',
           hook: 'UserPromptSubmit',
         },
@@ -1014,7 +1008,6 @@ describe('Structured Logging', () => {
       expect(event.source).toBe('cli')
       expect(event.time).toBeGreaterThan(0)
       expect(event.context.sessionId).toBe('sess-123')
-      expect(event.context.scope).toBe('project')
       expect(event.context.correlationId).toBe('corr-456')
       expect(event.context.hook).toBe('UserPromptSubmit')
       expect(event.payload.metadata.cwd).toBe('/workspaces/project')
@@ -1089,7 +1082,7 @@ describe('Structured Logging', () => {
       }
 
       const event = LogEvents.transcriptEventEmitted(
-        { sessionId: 'sess-123', scope: 'project' },
+        { sessionId: 'sess-123' },
         {
           eventType: 'ToolCall',
           lineNumber: 42,
@@ -1126,7 +1119,7 @@ describe('Structured Logging', () => {
       }
 
       const event = LogEvents.preCompactCaptured(
-        { sessionId: 'sess-123', scope: 'project' },
+        { sessionId: 'sess-123' },
         { snapshotPath: '/tmp/snapshot.jsonl', lineCount: 100 },
         { transcriptPath: '/tmp/transcript.jsonl', metrics }
       )

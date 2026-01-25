@@ -69,10 +69,9 @@ function createService(
   const core = new StagingServiceCore({
     stateDir: testDir,
     logger,
-    scope: overrides.scope ?? 'project',
     stateService,
   })
-  return new SessionScopedStagingService(core, 'test-session-123', overrides.scope ?? 'project')
+  return new SessionScopedStagingService(core, 'test-session-123')
 }
 
 function createCore(testDir: string, overrides: Partial<StagingServiceCoreOptions> = {}): StagingServiceCore {
@@ -86,12 +85,8 @@ function createCore(testDir: string, overrides: Partial<StagingServiceCoreOption
   })
 }
 
-function createSessionScoped(
-  core: StagingServiceCore,
-  sessionId: string,
-  scope?: 'project' | 'user'
-): SessionScopedStagingService {
-  return new SessionScopedStagingService(core, sessionId, scope)
+function createSessionScoped(core: StagingServiceCore, sessionId: string): SessionScopedStagingService {
+  return new SessionScopedStagingService(core, sessionId)
 }
 
 // ============================================================================
@@ -751,14 +746,6 @@ describe('SessionScopedStagingService', () => {
       const wrapper = createSessionScoped(core, 'my-session-id')
 
       expect(wrapper.getSessionId()).toBe('my-session-id')
-    })
-
-    it('getScope should return the scope', () => {
-      const wrapperWithScope = createSessionScoped(core, 'session-1', 'project')
-      const wrapperWithoutScope = createSessionScoped(core, 'session-2')
-
-      expect(wrapperWithScope.getScope()).toBe('project')
-      expect(wrapperWithoutScope.getScope()).toBeUndefined()
     })
   })
 

@@ -38,8 +38,7 @@ export const ReminderEvents = {
       source: 'cli',
       context: {
         sessionId: context.sessionId,
-        scope: context.scope,
-        correlationId: context.correlationId,
+                correlationId: context.correlationId,
         traceId: context.traceId,
         hook: context.hook,
         taskId: context.taskId,
@@ -67,8 +66,7 @@ export const ReminderEvents = {
       source: 'daemon',
       context: {
         sessionId: context.sessionId,
-        scope: context.scope,
-        correlationId: context.correlationId,
+                correlationId: context.correlationId,
         traceId: context.traceId,
         hook: context.hook,
         taskId: context.taskId,

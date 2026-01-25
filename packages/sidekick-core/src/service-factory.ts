@@ -36,8 +36,6 @@ export interface ServiceFactoryOptions {
   stateDir: string
   /** Logger for observability */
   logger: Logger
-  /** Optional scope for logging context */
-  scope?: 'project' | 'user'
   /** Handler registry for TranscriptService event emission */
   handlers: HandlerRegistry
   /** StateService for atomic writes and schema validation */
@@ -85,7 +83,6 @@ export class ServiceFactoryImpl implements ServiceFactory {
     this.stagingCore = new StagingServiceCore({
       stateDir: options.stateDir,
       logger: options.logger,
-      scope: options.scope,
       stateService: stagingStateService,
     })
   }
@@ -96,7 +93,7 @@ export class ServiceFactoryImpl implements ServiceFactory {
    */
   getStagingService(sessionId: string): StagingService {
     this.touchSession(sessionId)
-    return new SessionScopedStagingService(this.stagingCore, sessionId, this.options.scope)
+    return new SessionScopedStagingService(this.stagingCore, sessionId)
   }
 
   /**

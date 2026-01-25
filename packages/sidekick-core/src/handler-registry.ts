@@ -45,8 +45,6 @@ export interface HandlerRegistryOptions {
   sessionId: string
   /** Transcript path for event metadata */
   transcriptPath?: string
-  /** Scope (project or user) */
-  scope?: 'project' | 'user'
   /** Function to get current metrics (for transcript events) */
   getMetrics?: () => TranscriptMetrics
   /** Function to get current staging service */
@@ -82,7 +80,6 @@ export class HandlerRegistryImpl implements HandlerRegistry {
     this.context = {
       sessionId: options.sessionId,
       transcriptPath: options.transcriptPath,
-      scope: options.scope,
     }
   }
 
@@ -233,7 +230,7 @@ export class HandlerRegistryImpl implements HandlerRegistry {
       logEvent(
         this.options.logger,
         LogEvents.transcriptEventEmitted(
-          { sessionId: this.options.sessionId, scope: this.options.scope },
+          { sessionId: this.options.sessionId },
           {
             eventType,
             lineNumber,
@@ -270,7 +267,6 @@ export class HandlerRegistryImpl implements HandlerRegistry {
     const startTime = Date.now()
     const logContext = {
       sessionId: this.options.sessionId,
-      scope: this.options.scope,
     }
 
     try {
@@ -337,7 +333,6 @@ export class HandlerRegistryImpl implements HandlerRegistry {
     const context: EventContext = {
       sessionId: this.options.sessionId,
       timestamp: Date.now(),
-      scope: this.options.scope,
     }
 
     // Get metrics snapshot if available

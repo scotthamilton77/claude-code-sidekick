@@ -23,14 +23,12 @@ describe('HandlerRegistryImpl', () => {
   const createEventContext = (sessionId = 'test-session'): EventContext => ({
     sessionId,
     timestamp: Date.now(),
-    scope: 'project',
   })
 
   beforeEach(() => {
     registry = new HandlerRegistryImpl({
       logger,
       sessionId: 'test-session',
-      scope: 'project',
     })
   })
 

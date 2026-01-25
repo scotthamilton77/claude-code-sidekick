@@ -138,12 +138,13 @@ describe('Session Summary Error Handling', () => {
       eventType: 'UserPrompt',
       context: {
         sessionId,
-        scope: 'project',
+        timestamp: Date.now(),
       },
       payload: {
         lineNumber: 100,
         content: 'Help me fix a bug',
       },
+      metadata: {},
     } as TranscriptEvent
   }
 

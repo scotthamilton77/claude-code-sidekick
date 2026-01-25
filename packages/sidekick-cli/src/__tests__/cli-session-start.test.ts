@@ -103,37 +103,8 @@ describe('runCli hook command handling', () => {
     expect(result.exitCode).toBe(0)
   })
 
-  test('exits early when dual install is detected in user scope', async () => {
-    sandbox = mkdtempSync(join(tmpdir(), 'sidekick-cli-dual-'))
-    const homeDir = join(sandbox, 'home')
-    const projectDir = join(sandbox, 'project')
-    const hookScriptPath = [homeDir, '.claude', 'hooks', 'sidekick', 'session-start'].join(sep)
-    mkdirSync(join(homeDir, '.claude', 'hooks', 'sidekick'), { recursive: true })
-    mkdirSync(join(projectDir, '.claude'), { recursive: true })
-    writeFileSync(hookScriptPath, '#!/usr/bin/env bash')
-    writeFileSync(join(projectDir, '.claude', 'settings.json'), '{"hooks": ["sidekick"]}')
-
-    mockParseHookArg.mockReturnValue('SessionStart')
-
-    const stdout = new CollectingWritable()
-    const stderr = new CollectingWritable()
-
-    const result = await runCli({
-      argv: ['hook', 'session-start', '--hook-script-path', hookScriptPath, '--project-dir', projectDir],
-      stdout,
-      stderr,
-      cwd: sandbox,
-      env: { HOME: homeDir },
-      homeDir,
-      interactive: true,
-      enableFileLogging: false,
-    })
-
-    // Behavioral assertion: CLI exits early (doesn't produce output)
-    // This is the key behavior - user scope defers to project scope to avoid duplicates
-    expect(result.exitCode).toBe(0)
-    expect(stdout.data).toBe('') // No output since deferred
-  })
+  // Note: Dual install detection test removed - Claude Code now handles hook deduplication
+  // via the $CLAUDE_PROJECT_DIR environment variable.
 
   test('produces output in project scope', async () => {
     sandbox = mkdtempSync(join(tmpdir(), 'sidekick-cli-project-scope-'))
