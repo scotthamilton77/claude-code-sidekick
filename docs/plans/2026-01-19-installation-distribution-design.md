@@ -25,7 +25,8 @@ This document describes the installation and distribution architecture for Sidek
 
 | Component | Location | Purpose |
 |-----------|----------|---------|
-| npm package | `@sidekick/cli` on npm | CLI binary, hook execution, daemon, config |
+| npm package | `@scotthamilton77/sidekick` on npm | Bundled CLI binary, hook execution, daemon, config |
+| Distribution bundle | `packages/sidekick-dist/` | esbuild bundle of all packages for npm publishing |
 | Claude Code plugin | `packages/sidekick-plugin/` | hooks.json, skills, invokes CLI via npx |
 | Dev hooks | `scripts/dev-hooks/` | Development-only hook wrappers |
 
@@ -42,12 +43,12 @@ This document describes the installation and distribution architecture for Sidek
 │  │       ↓                                                   │   │
 │  │  Plugin enabled at user or project scope                  │   │
 │  │       ↓                                                   │   │
-│  │  Hooks invoke: npx @sidekick/cli hook <name>             │   │
+│  │  Hooks invoke: npx @scotthamilton77/sidekick hook <name> │   │
 │  └──────────────────────────────────────────────────────────┘   │
 │                                                                  │
 │  Option B: Direct npm (advanced users)                           │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │  npm i -g @sidekick/cli                                   │   │
+│  │  npm i -g @scotthamilton77/sidekick                       │   │
 │  │       ↓                                                   │
 │  │  CLI available globally                                   │   │
 │  │       ↓                                                   │
@@ -93,31 +94,31 @@ packages/sidekick-plugin/
 {
   "hooks": {
     "SessionStart": [{
-      "hooks": [{ "type": "command", "command": "npx @sidekick/cli hook session-start" }]
+      "hooks": [{ "type": "command", "command": "npx @scotthamilton77/sidekick hook session-start --project-dir=$CLAUDE_PROJECT_DIR" }]
     }],
     "SessionEnd": [{
-      "hooks": [{ "type": "command", "command": "npx @sidekick/cli hook session-end" }]
+      "hooks": [{ "type": "command", "command": "npx @scotthamilton77/sidekick hook session-end --project-dir=$CLAUDE_PROJECT_DIR" }]
     }],
     "UserPromptSubmit": [{
-      "hooks": [{ "type": "command", "command": "npx @sidekick/cli hook user-prompt-submit" }]
+      "hooks": [{ "type": "command", "command": "npx @scotthamilton77/sidekick hook user-prompt-submit --project-dir=$CLAUDE_PROJECT_DIR" }]
     }],
     "PreToolUse": [{
-      "hooks": [{ "type": "command", "command": "npx @sidekick/cli hook pre-tool-use" }]
+      "hooks": [{ "type": "command", "command": "npx @scotthamilton77/sidekick hook pre-tool-use --project-dir=$CLAUDE_PROJECT_DIR" }]
     }],
     "PostToolUse": [{
       "matcher": "*",
-      "hooks": [{ "type": "command", "command": "npx @sidekick/cli hook post-tool-use" }]
+      "hooks": [{ "type": "command", "command": "npx @scotthamilton77/sidekick hook post-tool-use --project-dir=$CLAUDE_PROJECT_DIR" }]
     }],
     "Stop": [{
-      "hooks": [{ "type": "command", "command": "npx @sidekick/cli hook stop" }]
+      "hooks": [{ "type": "command", "command": "npx @scotthamilton77/sidekick hook stop --project-dir=$CLAUDE_PROJECT_DIR" }]
     }],
     "PreCompact": [{
-      "hooks": [{ "type": "command", "command": "npx @sidekick/cli hook pre-compact" }]
+      "hooks": [{ "type": "command", "command": "npx @scotthamilton77/sidekick hook pre-compact --project-dir=$CLAUDE_PROJECT_DIR" }]
     }]
   },
   "statusLine": {
     "type": "command",
-    "command": "npx @sidekick/cli hook statusline"
+    "command": "npx @scotthamilton77/sidekick statusline --project-dir=$CLAUDE_PROJECT_DIR"
   }
 }
 ```
@@ -294,7 +295,7 @@ claude --continue
 
 ```bash
 # Install CLI globally
-npm i -g @sidekick/cli
+npm i -g @scotthamilton77/sidekick
 
 # Manually add to ~/.claude/settings.json:
 {
@@ -345,7 +346,7 @@ Deterministic CLI commands to complement sidekick-config skill:
 
 ### Phase 11.3: Distribution
 
-- [ ] Configure npm package publishing for `@sidekick/cli`
+- [ ] Configure npm package publishing for `@scotthamilton77/sidekick`
 - [ ] Submit plugin to Claude Code marketplace (or document manual install)
 - [ ] Update README with installation instructions
 
