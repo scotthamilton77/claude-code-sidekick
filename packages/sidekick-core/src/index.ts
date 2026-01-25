@@ -99,7 +99,7 @@ export {
 
 export { createConsoleLogger, type Logger as ConsoleLogger, type LoggerOptions as ConsoleLoggerOptions } from './logger'
 export * from './runtime-context'
-export * from './scope'
+export * from './project-root'
 export {
   createLogManager,
   createLoggerFacade,

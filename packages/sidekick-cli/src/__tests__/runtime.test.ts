@@ -72,13 +72,6 @@ vi.mock('@sidekick/core', async (importOriginal) => {
       resolve: vi.fn(),
       cascadeLayers: [],
     })),
-    resolveScope: vi.fn((options) => ({
-      scope: 'project',
-      projectRoot: options.cwd || '/test',
-      source: 'hook-script',
-      warnings: [],
-      dualInstallDetected: false,
-    })),
     setupGlobalErrorHandlers: vi.fn(() => vi.fn()),
     getDefaultAssetsDir: vi.fn(() => '/assets'),
   }

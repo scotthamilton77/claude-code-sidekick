@@ -4,8 +4,6 @@
  * Resolves the project root directory from CLI input.
  * The --project-dir flag (provided by Claude Code via $CLAUDE_PROJECT_DIR)
  * is the authoritative source for project root.
- *
- * @see docs/design/CLI.md §6 Scope Resolution
  */
 
 import path from 'node:path'

@@ -173,61 +173,19 @@ The CLI framework provides a shared **IPC Client** helper that commands can use.
 - **Interactive**: Print friendly error message to `stderr`.
 - **Hook**: Log full error to file, exit with code 1 (or 0 if failure should be silent), print minimal/no output to `stderr` to avoid breaking the calling process.
 
-## 6. Scope Resolution & Dual-Installation Handling
+## 6. Project Root Resolution
 
-### 6.1 Scope Detection Algorithm
+The CLI determines the project root from the `--project-dir` parameter, which is forwarded from Claude Code's `$CLAUDE_PROJECT_DIR` environment variable by the bash hook wrapper.
 
-When the CLI is invoked, it determines scope using **explicit hints** provided by the bash hook wrapper (see §3.1):
+**Resolution**:
+- If `--project-dir` is provided: Resolve to absolute path and use as project root.
+- If not provided: Project root is undefined (graceful degradation).
 
-**Primary Detection (Explicit Hints)**:
-1. **`--hook-script-path` parameter**: The bash wrapper passes its own absolute path.
-   - If path contains `/.claude/hooks/sidekick/`: **project scope** (extract project root from path).
-   - If path contains `~/.claude/hooks/sidekick/` or `$HOME/.claude/hooks/sidekick/`: **user scope**.
-2. **`--project-dir` parameter**: The bash wrapper forwards `$CLAUDE_PROJECT_DIR` from Claude Code's environment.
-   - Provides explicit project context for validation and logging.
-   - Used to verify consistency with scope derived from `--hook-script-path`.
+**Usage**:
+- All project-local data is stored under `<project-root>/.sidekick/`.
+- Daemon is always project-scoped with PID file at `<project-root>/.sidekick/sidekickd.pid`.
 
-**Fallback Detection (No Explicit Hints)**:
-- If `--hook-script-path` is not provided (e.g., manual CLI invocation):
-  1. Walk up directory tree from `cwd` to find nearest `.claude/hooks/sidekick/` directory.
-  2. If found and is **NOT** `~/.claude/hooks/sidekick/`: Use **project scope**.
-  3. If not found: Use **user scope** (`~/.claude/hooks/sidekick/`).
-
-**Manual Override**:
-- `--scope=user|project` flag can override all auto-detection logic.
-
-**Validation**:
-- If both `--hook-script-path` and `--project-dir` are provided, verify they are consistent:
-  - Extract project root from hook script path.
-  - Compare with `--project-dir`.
-  - Log warning if mismatch detected (but proceed with `--hook-script-path` as source of truth).
-
-### 6.2 Dual-Installation Detection
-
-When **both** user-scope and project-scope installations exist, hooks could fire twice. To prevent this:
-
-**User-Scope Hook Execution Path**:
-1. CLI receives explicit project directory via `--project-dir` parameter (forwarded from `$CLAUDE_PROJECT_DIR` by bash wrapper).
-2. Check if project has Sidekick registered in `<project-dir>/.claude/settings.json` OR `<project-dir>/.claude/settings.json.local`.
-3. Perform simple string search for `sidekick` (no JSON parsing required—just verify the string exists).
-4. **If project-scope detected**:
-   - Log warning to session-specific log (or fallback to project root if session context unavailable):
-     ```
-     [WARN] Sidekick hook executed from user-scope (~/.claude/hooks/sidekick/) 
-            but project-scope installation detected at <project-dir>. 
-            Project-scope takes precedence. User-scope hook exiting. 
-            Consider uninstalling user-scope if not needed globally.
-     ```
-   - Exit silently (exit code 0).
-5. **If no project-scope**: Proceed with normal execution.
-
-**Project-Scope Hook Execution Path**:
-- Always executes normally (project-scope takes precedence).
-
-**Daemon Ownership**:
-- Daemon process is **always project-scoped** regardless of installation scope.
-- PID file location: `<project>/.sidekick/sidekickd.pid`.
-- User-scope hooks delegate to project-scope daemon when dual-install detected.
+**Note**: Claude Code handles hook deduplication via the `$CLAUDE_PROJECT_DIR` environment variable, so Sidekick does not need to implement dual-install detection.
 
 ## 7. Daemon Lifecycle Management
 
