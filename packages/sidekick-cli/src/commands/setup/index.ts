@@ -3,13 +3,14 @@ import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import * as os from 'node:os'
 import type { Logger } from '@sidekick/types'
-import type { UserSetupStatus, ProjectSetupStatus, ApiKeyHealth } from '@sidekick/types'
-import { SetupStatusService } from '@sidekick/core'
+import type { UserSetupStatus, ProjectSetupStatus, ApiKeyHealth, GitignoreStatus } from '@sidekick/types'
+import { SetupStatusService, installGitignoreSection, detectGitignoreStatus } from '@sidekick/core'
 import { printHeader, printStatus, promptSelect, promptConfirm, promptInput, type PromptContext } from './prompts.js'
 import { validateOpenRouterKey } from './validate-api-key.js'
 
 export interface SetupCommandOptions {
   checkOnly?: boolean
+  force?: boolean
   stdin?: NodeJS.ReadableStream
 }
 
@@ -175,6 +176,7 @@ interface WizardContext {
 
 interface WizardState {
   statuslineScope: 'user' | 'project'
+  gitignoreStatus: GitignoreStatus
   wantPersonas: boolean
   apiKeyHealth: ApiKeyHealth
   autoConfig: 'auto' | 'ask' | 'manual'
@@ -222,15 +224,63 @@ async function runStep1Statusline(wctx: WizardContext): Promise<'user' | 'projec
 }
 
 /**
- * Step 2: Configure persona features and API key.
+ * Step 2: Configure .gitignore for sidekick files.
  */
-async function runStep2Personas(wctx: WizardContext): Promise<{ wantPersonas: boolean; apiKeyHealth: ApiKeyHealth }> {
+async function runStep2Gitignore(wctx: WizardContext, force: boolean): Promise<GitignoreStatus> {
+  const { ctx, projectDir } = wctx
+
+  // Check current status
+  const currentStatus = await detectGitignoreStatus(projectDir)
+
+  if (currentStatus === 'installed') {
+    if (!force) {
+      printStatus(ctx, 'success', 'Sidekick entries already present in .gitignore')
+    }
+    return 'installed'
+  }
+
+  // Force mode: just install without prompting
+  if (force) {
+    const result = await installGitignoreSection(projectDir)
+    return result.status === 'error' ? 'missing' : 'installed'
+  }
+
+  // Interactive mode: ask user
+  printHeader(ctx, 'Step 2: Git Configuration', 'Sidekick creates logs and session data that should not be committed.')
+
+  const shouldInstall = await promptConfirm(ctx, 'Update .gitignore to exclude sidekick transient files?', true)
+
+  if (!shouldInstall) {
+    printStatus(ctx, 'info', 'Skipping .gitignore configuration (you can manage it manually)')
+    return 'missing'
+  }
+
+  const result = await installGitignoreSection(projectDir)
+
+  if (result.status === 'error') {
+    printStatus(ctx, 'warning', `Failed to update .gitignore: ${result.error}`)
+    return 'missing'
+  }
+
+  // Both 'installed' and 'already-installed' are success states
+  const message =
+    result.status === 'already-installed'
+      ? 'Sidekick entries already present in .gitignore'
+      : 'Added sidekick section to .gitignore'
+  printStatus(ctx, 'success', message)
+  return 'installed'
+}
+
+/**
+ * Step 3: Configure persona features and API key.
+ */
+async function runStep3Personas(wctx: WizardContext): Promise<{ wantPersonas: boolean; apiKeyHealth: ApiKeyHealth }> {
   const { ctx, homeDir, projectDir } = wctx
   const stdout = ctx.stdout
 
   printHeader(
     ctx,
-    'Step 2: Persona Features',
+    'Step 3: Persona Features',
     'Sidekick includes AI personas (Marvin, GLaDOS, Skippy, etc.) that add\npersonality to your coding sessions with snarky messages and contextual nudges.'
   )
 
@@ -251,7 +301,7 @@ async function runStep2Personas(wctx: WizardContext): Promise<{ wantPersonas: bo
 }
 
 /**
- * Configure API key (sub-step of Step 2).
+ * Configure API key (sub-step of Step 3).
  */
 async function configureApiKey(wctx: WizardContext): Promise<ApiKeyHealth> {
   const { ctx, homeDir, projectDir, logger } = wctx
@@ -311,12 +361,12 @@ async function configureApiKey(wctx: WizardContext): Promise<ApiKeyHealth> {
 }
 
 /**
- * Step 3: Configure auto-configuration preference.
+ * Step 4: Configure auto-configuration preference.
  */
-async function runStep3AutoConfig(wctx: WizardContext): Promise<'auto' | 'ask' | 'manual'> {
+async function runStep4AutoConfig(wctx: WizardContext): Promise<'auto' | 'ask' | 'manual'> {
   const { ctx } = wctx
 
-  printHeader(ctx, 'Step 3: Project Auto-Configuration')
+  printHeader(ctx, 'Step 4: Project Auto-Configuration')
 
   const autoConfig = (await promptSelect(ctx, 'When sidekick runs in a new project for the first time:', [
     { value: 'auto', label: 'Auto-configure using my defaults', description: 'Recommended' },
@@ -332,7 +382,7 @@ async function runStep3AutoConfig(wctx: WizardContext): Promise<'auto' | 'ask' |
  */
 async function writeStatusFiles(wctx: WizardContext, state: WizardState): Promise<void> {
   const { setupService } = wctx
-  const { statuslineScope, wantPersonas, apiKeyHealth, autoConfig } = state
+  const { statuslineScope, gitignoreStatus, wantPersonas, apiKeyHealth, autoConfig } = state
 
   const userStatus: UserSetupStatus = {
     version: 1,
@@ -351,20 +401,19 @@ async function writeStatusFiles(wctx: WizardContext, state: WizardState): Promis
 
   await setupService.writeUserStatus(userStatus)
 
-  // Write project status if using project scope
-  if (statuslineScope === 'project') {
-    const projectStatus: ProjectSetupStatus = {
-      version: 1,
-      lastUpdatedAt: new Date().toISOString(),
-      autoConfigured: false,
-      statusline: 'configured',
-      apiKeys: {
-        OPENROUTER_API_KEY: apiKeyHealth === 'healthy' ? 'user' : apiKeyHealth,
-        OPENAI_API_KEY: 'not-required',
-      },
-    }
-    await setupService.writeProjectStatus(projectStatus)
+  // Always write project status now (we track gitignore at project level)
+  const projectStatus: ProjectSetupStatus = {
+    version: 1,
+    lastUpdatedAt: new Date().toISOString(),
+    autoConfigured: false,
+    statusline: statuslineScope === 'project' ? 'configured' : 'user',
+    apiKeys: {
+      OPENROUTER_API_KEY: apiKeyHealth === 'healthy' ? 'user' : apiKeyHealth,
+      OPENAI_API_KEY: 'not-required',
+    },
+    gitignore: gitignoreStatus,
   }
+  await setupService.writeProjectStatus(projectStatus)
 }
 
 /**
@@ -372,11 +421,16 @@ async function writeStatusFiles(wctx: WizardContext, state: WizardState): Promis
  */
 function printSummary(wctx: WizardContext, state: WizardState): void {
   const { ctx } = wctx
-  const { statuslineScope, wantPersonas, apiKeyHealth, autoConfig } = state
+  const { statuslineScope, gitignoreStatus, wantPersonas, apiKeyHealth, autoConfig } = state
   const stdout = ctx.stdout
 
-  printHeader(ctx, 'Step 4: Summary')
+  printHeader(ctx, 'Summary')
   printStatus(ctx, 'success', `Statusline: ${statuslineScope === 'user' ? 'User-level' : 'Project-level'}`)
+  printStatus(
+    ctx,
+    gitignoreStatus === 'installed' ? 'success' : 'info',
+    `Gitignore: ${gitignoreStatus === 'installed' ? 'Configured' : 'Skipped'}`
+  )
   printStatus(ctx, wantPersonas ? 'success' : 'info', `Personas: ${wantPersonas ? 'Enabled' : 'Disabled'}`)
 
   const apiKeyStatusType = getApiKeyStatusType(apiKeyHealth)
@@ -412,17 +466,40 @@ async function runWizard(
     setupService: new SetupStatusService(projectDir, { homeDir, logger }),
   }
 
-  // Run wizard steps
-  printWizardHeader(stdout)
+  const force = options.force ?? false
 
-  const statuslineScope = await runStep1Statusline(wctx)
-  const { wantPersonas, apiKeyHealth } = await runStep2Personas(wctx)
-  const autoConfig = await runStep3AutoConfig(wctx)
+  // Run wizard steps
+  if (!force) {
+    printWizardHeader(stdout)
+  }
+
+  const statuslineScope = force ? 'user' : await runStep1Statusline(wctx)
+  const gitignoreStatus = await runStep2Gitignore(wctx, force)
+  const { wantPersonas, apiKeyHealth } = force
+    ? { wantPersonas: true, apiKeyHealth: 'not-required' as const }
+    : await runStep3Personas(wctx)
+  const autoConfig = force ? 'auto' : await runStep4AutoConfig(wctx)
+
+  // In force mode, configure statusline with defaults
+  if (force) {
+    const statuslinePath = path.join(homeDir, '.claude', 'settings.json')
+    await configureStatusline(statuslinePath, logger)
+  }
 
   // Collect state and finalize
-  const state: WizardState = { statuslineScope, wantPersonas, apiKeyHealth, autoConfig }
+  const state: WizardState = { statuslineScope, gitignoreStatus, wantPersonas, apiKeyHealth, autoConfig }
   await writeStatusFiles(wctx, state)
-  printSummary(wctx, state)
+
+  if (!force) {
+    printSummary(wctx, state)
+  } else {
+    // Force mode: show brief summary of what was configured
+    stdout.write('Setup complete (force mode):\n')
+    stdout.write(`  Statusline: user-level (~/.claude/settings.json)\n`)
+    stdout.write(`  Gitignore: ${gitignoreStatus === 'installed' ? 'configured' : 'skipped'}\n`)
+    stdout.write(`  Personas: enabled (API key not configured)\n`)
+    stdout.write(`  Auto-configure: enabled\n`)
+  }
 
   return { exitCode: 0 }
 }
@@ -442,18 +519,25 @@ async function runDoctor(
   stdout.write('===============\n\n')
 
   const statusline = await setupService.getStatuslineHealth()
+  const gitignore = await detectGitignoreStatus(projectDir)
   const apiKey = await setupService.getEffectiveApiKeyHealth('OPENROUTER_API_KEY')
   const isHealthy = await setupService.isHealthy()
 
-  stdout.write(`Statusline: ${statusline}\n`)
-  stdout.write(`OpenRouter API Key: ${apiKey}\n`)
-  stdout.write(`Overall: ${isHealthy ? 'healthy' : 'needs attention'}\n`)
+  const statuslineIcon = statusline === 'configured' ? '✓' : '⚠'
+  const gitignoreIcon = gitignore === 'installed' ? '✓' : '⚠'
+  const apiKeyIcon = apiKey === 'healthy' || apiKey === 'not-required' ? '✓' : '⚠'
+  const overallIcon = isHealthy && gitignore === 'installed' ? '✓' : '⚠'
 
-  if (!isHealthy) {
+  stdout.write(`${statuslineIcon} Statusline: ${statusline}\n`)
+  stdout.write(`${gitignoreIcon} Gitignore: ${gitignore}\n`)
+  stdout.write(`${apiKeyIcon} OpenRouter API Key: ${apiKey}\n`)
+  stdout.write(`${overallIcon} Overall: ${isHealthy && gitignore === 'installed' ? 'healthy' : 'needs attention'}\n`)
+
+  if (!isHealthy || gitignore !== 'installed') {
     stdout.write("\nRun 'sidekick setup' to configure.\n")
   }
 
-  return { exitCode: isHealthy ? 0 : 1 }
+  return { exitCode: isHealthy && gitignore === 'installed' ? 0 : 1 }
 }
 
 /**

@@ -124,6 +124,15 @@ export {
   type ApiKeyName,
   type SetupState,
 } from './setup-status-service'
+export {
+  installGitignoreSection,
+  removeGitignoreSection,
+  detectGitignoreStatus,
+  SIDEKICK_SECTION_START,
+  SIDEKICK_SECTION_END,
+  GITIGNORE_ENTRIES,
+  type GitignoreResult,
+} from './gitignore'
 export { StagingServiceCore, SessionScopedStagingService, type StagingServiceCoreOptions } from './staging-service'
 export {
   getStagingRoot,

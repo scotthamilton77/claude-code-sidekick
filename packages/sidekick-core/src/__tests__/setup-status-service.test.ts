@@ -50,6 +50,7 @@ describe('SetupStatusService', () => {
       OPENROUTER_API_KEY: 'user',
       OPENAI_API_KEY: 'user',
     },
+    gitignore: 'unknown',
     ...overrides,
   })
 
