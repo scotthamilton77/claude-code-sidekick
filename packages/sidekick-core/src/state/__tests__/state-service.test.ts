@@ -912,7 +912,9 @@ describe('StateService', () => {
 
     it('supports config getter function for hot-reload', async () => {
       let devModeEnabled = false
-      const configGetter = () => ({ core: { development: { enabled: devModeEnabled } } })
+      const configGetter = (): { core: { development: { enabled: boolean } } } => ({
+        core: { development: { enabled: devModeEnabled } },
+      })
 
       const hotReloadState = new StateService(testDir, {
         logger: createMockLogger(),

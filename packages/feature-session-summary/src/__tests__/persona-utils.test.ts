@@ -172,7 +172,7 @@ describe('loadSessionPersona', () => {
     // Fake state accessors that return no data
     const fakeState: SessionSummaryStateAccessors = {
       sessionPersona: {
-        read: async () => ({ data: null }),
+        read: () => Promise.resolve({ data: null }),
       },
     } as unknown as SessionSummaryStateAccessors
 
@@ -199,7 +199,7 @@ describe('loadSessionPersona', () => {
 
     const fakeState: SessionSummaryStateAccessors = {
       sessionPersona: {
-        read: async () => ({ data: personaState }),
+        read: () => Promise.resolve({ data: personaState }),
       },
     } as unknown as SessionSummaryStateAccessors
 
@@ -231,7 +231,7 @@ describe('loadSessionPersona', () => {
 
     const fakeState: SessionSummaryStateAccessors = {
       sessionPersona: {
-        read: async () => ({ data: personaState }),
+        read: () => Promise.resolve({ data: personaState }),
       },
     } as unknown as SessionSummaryStateAccessors
 
@@ -253,9 +253,9 @@ describe('loadSessionPersona', () => {
     // Create a fake state service that implements MinimalStateService
     const fakeStateService = {
       sessionStatePath: (sessionId: string, filename: string) => join(sessionDir, sessionId, filename),
-      read: async () => ({ data: null, source: 'default' as const }),
-      write: async () => {},
-      delete: async () => {},
+      read: () => Promise.resolve({ data: null, source: 'default' as const }),
+      write: () => Promise.resolve(),
+      delete: () => Promise.resolve(),
     }
 
     const ctx = {
