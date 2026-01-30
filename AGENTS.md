@@ -62,6 +62,33 @@ INTEGRATION_TESTS=1 pnpm test
 **Dev-mode**: `pnpm sidekick dev-mode enable` or `scripts/dev-mode.sh enable` (requires `pnpm build`, restart Claude Code)
 </sandbox_testing>
 
+<plugin_testing>
+<!-- PRESERVE: plugin testing workflow (outside dev-mode) -->
+
+**Dev-mode vs Plugin Testing**:
+- **Dev-mode** (`pnpm sidekick dev-mode enable`): Tests local builds in THIS project only
+- **Plugin testing**: Tests the published npm package in OTHER projects
+
+**To test in another project**, you MUST:
+1. **Publish to npm first**: `cd packages/sidekick-dist && npm publish --access public --tag latest`
+2. **Start Claude Code with plugin-dir**: `claude --plugin-dir=/path/to/claude-code-sidekick/packages/sidekick-plugin`
+
+The plugin's `hooks.json` uses `npx @scotthamilton77/sidekick` which fetches from npm, NOT the local build.
+
+**Version bump before publish**:
+```bash
+# Check current npm versions
+npm view @scotthamilton77/sidekick versions
+
+# Edit packages/sidekick-dist/package.json to increment version
+# Then publish
+cd packages/sidekick-dist
+npm publish --access public --tag latest
+```
+
+See README.md "Testing Outside Dev-Mode" section for full instructions.
+</plugin_testing>
+
 <typescript_tooling>
 <!-- PRESERVE: post-training-cutoff knowledge -->
 

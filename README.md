@@ -167,6 +167,61 @@ pnpm lint
 
 **Note**: LLM provider tests are excluded from default runs to prevent API charges. Run with `INTEGRATION_TESTS=1 pnpm test` for full coverage.
 
+### Testing Outside Dev-Mode (Plugin Testing)
+
+Dev-mode (`pnpm sidekick dev-mode enable`) only works **within this project**. To test Sidekick as a plugin in **another project**, you must publish to npm first.
+
+#### Step 1: Publish to npm
+
+```bash
+# 1. Build the monorepo
+pnpm build
+
+# 2. Verify you're logged in
+npm whoami
+
+# 3. Publish the dist package (prepublishOnly runs bundle automatically)
+cd packages/sidekick-dist
+npm publish --access public --tag latest
+
+# 4. Verify
+npm view @scotthamilton77/sidekick dist-tags
+```
+
+#### Step 2: Test in Another Project
+
+Start Claude Code in your target project with the plugin directory:
+
+```bash
+cd /path/to/other/project
+claude --plugin-dir=/path/to/claude-code-sidekick/packages/sidekick-plugin
+```
+
+This installs the hooks from the plugin, which will call `npx @scotthamilton77/sidekick` (the published package).
+
+#### Step 3: Run Setup (if testing setup wizard)
+
+```bash
+npx @scotthamilton77/sidekick setup
+```
+
+#### Version Bumping
+
+Before publishing a new version:
+
+1. Edit `packages/sidekick-dist/package.json` and increment the version
+2. Check current published versions: `npm view @scotthamilton77/sidekick versions`
+
+#### Key Differences: Dev-Mode vs Plugin Testing
+
+| Aspect | Dev-Mode | Plugin Testing |
+|--------|----------|----------------|
+| **Where** | This project only | Any project |
+| **CLI source** | Local build (`packages/sidekick-cli/dist/`) | npm (`npx @scotthamilton77/sidekick`) |
+| **Setup** | `pnpm sidekick dev-mode enable` | `npm publish` + `--plugin-dir` |
+| **Hook scripts** | `scripts/dev-hooks/*` | `packages/sidekick-plugin/hooks/hooks.json` |
+| **Use case** | Rapid iteration | E2E/integration testing |
+
 ### Node Package Tests & Coverage
 
 All TypeScript packages under `packages/` use Vitest with coverage enabled by default. Run the workspace tests after `pnpm install`:
