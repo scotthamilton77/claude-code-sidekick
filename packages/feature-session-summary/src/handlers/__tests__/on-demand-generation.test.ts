@@ -88,12 +88,16 @@ function createValidSummary(sessionId: string, overrides?: Partial<SessionSummar
   }
 }
 
-function setupSessionSummaryState(stateService: MockStateService, sessionId: string, summary: SessionSummaryState) {
+function setupSessionSummaryState(
+  stateService: MockStateService,
+  sessionId: string,
+  summary: SessionSummaryState
+): void {
   const path = stateService.sessionStatePath(sessionId, 'session-summary.json')
   stateService.setStored(path, summary)
 }
 
-function setupSessionPersonaState(stateService: MockStateService, sessionId: string, personaId: string) {
+function setupSessionPersonaState(stateService: MockStateService, sessionId: string, personaId: string): void {
   const path = stateService.sessionStatePath(sessionId, 'session-persona.json')
   const state: SessionPersonaState = {
     persona_id: personaId,
@@ -308,7 +312,7 @@ describe('generateSnarkyMessageOnDemand', () => {
     it('handles non-Error thrown values', async () => {
       const stringThrowingLlm: LLMProvider = {
         id: 'string-throwing-llm',
-        complete: () => Promise.reject('string error value'),
+        complete: () => Promise.reject(new Error('string error value')),
       }
 
       ctx = createMockDaemonContext({
@@ -538,7 +542,7 @@ describe('generateResumeMessageOnDemand', () => {
     it('handles non-Error thrown values', async () => {
       const stringThrowingLlm: LLMProvider = {
         id: 'string-throwing-llm',
-        complete: () => Promise.reject('resume string error'),
+        complete: () => Promise.reject(new Error('resume string error')),
       }
 
       ctx = createMockDaemonContext({
