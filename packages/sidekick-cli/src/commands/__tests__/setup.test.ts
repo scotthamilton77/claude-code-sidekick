@@ -150,6 +150,10 @@ describe('handleSetupCommand', () => {
       }
       await writeFile(statusPath, JSON.stringify(userStatus, null, 2))
 
+      // Create gitignore with sidekick section (required for healthy status)
+      const gitignorePath = path.join(projectDir, '.gitignore')
+      await writeFile(gitignorePath, '# >>> sidekick\n.sidekick/logs/\n# <<< sidekick\n')
+
       const result = await handleSetupCommand(projectDir, logger, output, { checkOnly: true })
 
       expect(result.exitCode).toBe(0)
@@ -177,6 +181,10 @@ describe('handleSetupCommand', () => {
       }
       await writeFile(statusPath, JSON.stringify(userStatus, null, 2))
 
+      // Create gitignore with sidekick section (required for healthy status)
+      const gitignorePath = path.join(projectDir, '.gitignore')
+      await writeFile(gitignorePath, '# >>> sidekick\n.sidekick/logs/\n# <<< sidekick\n')
+
       const result = await handleSetupCommand(projectDir, logger, output, { checkOnly: true })
 
       expect(result.exitCode).toBe(0)
@@ -202,6 +210,13 @@ describe('handleSetupCommand', () => {
 
       expect(result.exitCode).toBe(1)
       expect(output.data).toContain('Overall:')
+    })
+
+    test('displays gitignore health status', async () => {
+      const result = await handleSetupCommand(projectDir, logger, output, { checkOnly: true })
+
+      expect(result.exitCode).toBe(1)
+      expect(output.data).toContain('Gitignore:')
     })
 
     test('suggests running setup when not healthy', async () => {

@@ -45,6 +45,16 @@ export const UserSetupStatusSchema = z.object({
 export type UserSetupStatus = z.infer<typeof UserSetupStatusSchema>
 
 /**
+ * Gitignore setup status for project.
+ */
+export const GitignoreStatusSchema = z.enum([
+  'unknown', // Setup hasn't checked yet (legacy projects)
+  'missing', // User declined or entries not present
+  'installed', // Sidekick section present in .gitignore
+])
+export type GitignoreStatus = z.infer<typeof GitignoreStatusSchema>
+
+/**
  * Project-level setup status stored in .sidekick/setup-status.json
  */
 export const ProjectSetupStatusSchema = z.object({
@@ -56,5 +66,6 @@ export const ProjectSetupStatusSchema = z.object({
     OPENROUTER_API_KEY: ProjectApiKeyHealthSchema,
     OPENAI_API_KEY: ProjectApiKeyHealthSchema,
   }),
+  gitignore: GitignoreStatusSchema.optional().default('unknown'),
 })
 export type ProjectSetupStatus = z.infer<typeof ProjectSetupStatusSchema>
