@@ -30,6 +30,9 @@ export interface MinimalLlmProfile {
   readonly maxTokens?: number
   readonly timeout?: number
   readonly timeoutMaxRetries?: number
+  /** OpenRouter-specific provider routing */
+  readonly providerAllowlist?: readonly string[]
+  readonly providerBlocklist?: readonly string[]
 }
 
 export interface MinimalConfigService {
