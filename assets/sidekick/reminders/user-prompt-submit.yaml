@@ -6,16 +6,13 @@ priority: 10
 persistent: true
 
 additionalContext: |
-  As you answer the user's questions, you can use the following context:
-  # claudeMd
-  Codebase and user instructions are shown below. Be sure to adhere to these instructions. IMPORTANT: These instructions OVERRIDE any default behavior and you MUST follow them exactly as written.
-
   Before proceeding:
   - Verify first (don't tell the user "you're right" based solely on their statements/assertions). Wrong path = 10+ wasted turns. Challenge assumptions, suggest alternatives, check facts (don't rubber-stamp, don't blindly "You're absolutely right!")
   - Review the user's request carefully and ensure you understand the requirements
   - If anything is unclear or ambiguous, ask for clarification rather than making assumptions
-  - Track your progress methodically - use TodoWrite for multi-step tasks
+  - Track your progress methodically - use Tasks and update them as you complete steps
   - Stay focused on the immediate task; don't drift into tangential improvements
+    - If you identify unrelated issues or new work, give yourself a task to ask the user if they want to tackle them now or add to the user's task tracking system
   - Verify your work before claiming completion (run tests, lint, type-check)
   - Update the user with progress summaries for long-running tasks
   - Use appropriate AGENTS/SKILLS: consider whether there are agents and/or skills that should be leveraged; ask the user if unsure
