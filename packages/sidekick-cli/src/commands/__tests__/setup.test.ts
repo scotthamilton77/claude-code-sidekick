@@ -57,9 +57,6 @@ describe('handleSetupCommand', () => {
 
     output = new CollectingWritable()
     logger = createTestLogger()
-
-    // Set test home directory
-    process.env.HOME = homeDir
   })
 
   afterEach(async () => {
@@ -68,7 +65,7 @@ describe('handleSetupCommand', () => {
 
   describe('doctor mode', () => {
     test('reports not-setup when no status files exist', async () => {
-      const result = await handleSetupCommand(projectDir, logger, output, { checkOnly: true })
+      const result = await handleSetupCommand(projectDir, logger, output, { checkOnly: true, homeDir })
 
       expect(result.exitCode).toBe(1)
       expect(output.data).toContain('not-setup')
@@ -96,7 +93,7 @@ describe('handleSetupCommand', () => {
       }
       await writeFile(statusPath, JSON.stringify(userStatus, null, 2))
 
-      const result = await handleSetupCommand(projectDir, logger, output, { checkOnly: true })
+      const result = await handleSetupCommand(projectDir, logger, output, { checkOnly: true, homeDir })
 
       expect(result.exitCode).toBe(1)
       expect(output.data).toContain('needs attention')
@@ -123,16 +120,35 @@ describe('handleSetupCommand', () => {
       }
       await writeFile(statusPath, JSON.stringify(userStatus, null, 2))
 
-      const result = await handleSetupCommand(projectDir, logger, output, { checkOnly: true })
+      const result = await handleSetupCommand(projectDir, logger, output, { checkOnly: true, homeDir })
 
       expect(result.exitCode).toBe(1)
       expect(output.data).toContain('needs attention')
     })
 
     test('returns exit code 0 when healthy with healthy API key', async () => {
-      // Create a healthy user status
+      // Create actual Claude settings with sidekick statusline (doctor checks this file)
+      const claudeDir = path.join(homeDir, '.claude')
+      await mkdir(claudeDir, { recursive: true })
+      const settingsPath = path.join(claudeDir, 'settings.json')
+      await writeFile(
+        settingsPath,
+        JSON.stringify(
+          {
+            statusLine: { command: 'pnpm sidekick hook status' },
+          },
+          null,
+          2
+        )
+      )
+
+      // Create .env file with API key (doctor checks for actual key)
       const sidekickDir = path.join(homeDir, '.sidekick')
       await mkdir(sidekickDir, { recursive: true })
+      const envPath = path.join(sidekickDir, '.env')
+      await writeFile(envPath, 'OPENROUTER_API_KEY=sk-or-test-key\n')
+
+      // Create user status cache
       const statusPath = path.join(sidekickDir, 'setup-status.json')
       const userStatus = {
         version: 1,
@@ -150,18 +166,45 @@ describe('handleSetupCommand', () => {
       }
       await writeFile(statusPath, JSON.stringify(userStatus, null, 2))
 
-      // Create gitignore with sidekick section (required for healthy status)
+      // Create gitignore with complete sidekick section (required for healthy status)
       const gitignorePath = path.join(projectDir, '.gitignore')
-      await writeFile(gitignorePath, '# >>> sidekick\n.sidekick/logs/\n# <<< sidekick\n')
+      const completeGitignore = [
+        '# >>> sidekick',
+        '.sidekick/logs/',
+        '.sidekick/sessions/',
+        '.sidekick/state/',
+        '.sidekick/setup-status.json',
+        '.sidekick/.env',
+        '.sidekick/.env.local',
+        '.sidekick/sidekick*.pid',
+        '.sidekick/sidekick*.token',
+        '# <<< sidekick',
+      ].join('\n')
+      await writeFile(gitignorePath, completeGitignore + '\n')
 
-      const result = await handleSetupCommand(projectDir, logger, output, { checkOnly: true })
+      const result = await handleSetupCommand(projectDir, logger, output, { checkOnly: true, homeDir })
 
       expect(result.exitCode).toBe(0)
       expect(output.data).toContain('healthy')
     })
 
     test('returns exit code 0 when healthy with not-required API key', async () => {
-      // Create a healthy user status with API key not required
+      // Create actual Claude settings with sidekick statusline (doctor checks this file)
+      const claudeDir = path.join(homeDir, '.claude')
+      await mkdir(claudeDir, { recursive: true })
+      const settingsPath = path.join(claudeDir, 'settings.json')
+      await writeFile(
+        settingsPath,
+        JSON.stringify(
+          {
+            statusLine: { command: 'pnpm sidekick hook status' },
+          },
+          null,
+          2
+        )
+      )
+
+      // Create user status cache with not-required API key
       const sidekickDir = path.join(homeDir, '.sidekick')
       await mkdir(sidekickDir, { recursive: true })
       const statusPath = path.join(sidekickDir, 'setup-status.json')
@@ -181,46 +224,58 @@ describe('handleSetupCommand', () => {
       }
       await writeFile(statusPath, JSON.stringify(userStatus, null, 2))
 
-      // Create gitignore with sidekick section (required for healthy status)
+      // Create gitignore with complete sidekick section (required for healthy status)
       const gitignorePath = path.join(projectDir, '.gitignore')
-      await writeFile(gitignorePath, '# >>> sidekick\n.sidekick/logs/\n# <<< sidekick\n')
+      const completeGitignore = [
+        '# >>> sidekick',
+        '.sidekick/logs/',
+        '.sidekick/sessions/',
+        '.sidekick/state/',
+        '.sidekick/setup-status.json',
+        '.sidekick/.env',
+        '.sidekick/.env.local',
+        '.sidekick/sidekick*.pid',
+        '.sidekick/sidekick*.token',
+        '# <<< sidekick',
+      ].join('\n')
+      await writeFile(gitignorePath, completeGitignore + '\n')
 
-      const result = await handleSetupCommand(projectDir, logger, output, { checkOnly: true })
+      const result = await handleSetupCommand(projectDir, logger, output, { checkOnly: true, homeDir })
 
       expect(result.exitCode).toBe(0)
       expect(output.data).toContain('healthy')
     })
 
     test('displays statusline health status', async () => {
-      const result = await handleSetupCommand(projectDir, logger, output, { checkOnly: true })
+      const result = await handleSetupCommand(projectDir, logger, output, { checkOnly: true, homeDir })
 
       expect(result.exitCode).toBe(1)
       expect(output.data).toContain('Statusline:')
     })
 
     test('displays API key health status', async () => {
-      const result = await handleSetupCommand(projectDir, logger, output, { checkOnly: true })
+      const result = await handleSetupCommand(projectDir, logger, output, { checkOnly: true, homeDir })
 
       expect(result.exitCode).toBe(1)
       expect(output.data).toContain('OpenRouter API Key:')
     })
 
     test('displays overall health status', async () => {
-      const result = await handleSetupCommand(projectDir, logger, output, { checkOnly: true })
+      const result = await handleSetupCommand(projectDir, logger, output, { checkOnly: true, homeDir })
 
       expect(result.exitCode).toBe(1)
       expect(output.data).toContain('Overall:')
     })
 
     test('displays gitignore health status', async () => {
-      const result = await handleSetupCommand(projectDir, logger, output, { checkOnly: true })
+      const result = await handleSetupCommand(projectDir, logger, output, { checkOnly: true, homeDir })
 
       expect(result.exitCode).toBe(1)
       expect(output.data).toContain('Gitignore:')
     })
 
     test('suggests running setup when not healthy', async () => {
-      const result = await handleSetupCommand(projectDir, logger, output, { checkOnly: true })
+      const result = await handleSetupCommand(projectDir, logger, output, { checkOnly: true, homeDir })
 
       expect(result.exitCode).toBe(1)
       expect(output.data).toContain('sidekick setup')
@@ -263,7 +318,7 @@ describe('handleSetupCommand', () => {
       }
       await writeFile(projectStatusPath, JSON.stringify(projectStatus, null, 2))
 
-      const result = await handleSetupCommand(projectDir, logger, output, { checkOnly: true })
+      const result = await handleSetupCommand(projectDir, logger, output, { checkOnly: true, homeDir })
 
       // Project says statusline is configured, but API key is 'user' (referencing user-level),
       // which is 'missing' - so overall should be unhealthy

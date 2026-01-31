@@ -19,6 +19,7 @@ export const GITIGNORE_ENTRIES = [
   '.sidekick/logs/',
   '.sidekick/sessions/',
   '.sidekick/state/',
+  '.sidekick/setup-status.json',
   '.sidekick/.env',
   '.sidekick/.env.local',
   '.sidekick/sidekick*.pid',
@@ -35,7 +36,7 @@ export interface GitignoreResult {
  * Install the sidekick section to .gitignore.
  *
  * Creates the file if it doesn't exist. Idempotent - returns 'already-installed'
- * if section already exists.
+ * if section is complete. Repairs incomplete sections automatically.
  */
 export async function installGitignoreSection(projectDir: string): Promise<GitignoreResult> {
   const gitignorePath = path.join(projectDir, '.gitignore')
@@ -50,9 +51,22 @@ export async function installGitignoreSection(projectDir: string): Promise<Gitig
     // File doesn't exist, will create
   }
 
-  // Check if section already exists
-  if (content.includes(SIDEKICK_SECTION_START)) {
+  // Check current status using full validation
+  const status = await detectGitignoreStatus(projectDir)
+
+  if (status === 'installed') {
     return { status: 'already-installed' }
+  }
+
+  // If incomplete, remove the old section first before reinstalling
+  if (status === 'incomplete') {
+    await removeGitignoreSection(projectDir)
+    // Re-read content after removal
+    try {
+      content = await fs.readFile(gitignorePath, 'utf-8')
+    } catch {
+      content = ''
+    }
   }
 
   // Build section
@@ -108,13 +122,48 @@ export async function removeGitignoreSection(projectDir: string): Promise<boolea
 
 /**
  * Detect the current gitignore status for sidekick.
+ *
+ * Returns:
+ * - 'installed': Section exists with both markers and all required entries
+ * - 'incomplete': Section partially exists (missing end marker or entries)
+ * - 'missing': No sidekick section found
  */
 export async function detectGitignoreStatus(projectDir: string): Promise<GitignoreStatus> {
   const gitignorePath = path.join(projectDir, '.gitignore')
 
   try {
     const content = await fs.readFile(gitignorePath, 'utf-8')
-    return content.includes(SIDEKICK_SECTION_START) ? 'installed' : 'missing'
+
+    const hasStart = content.includes(SIDEKICK_SECTION_START)
+    const hasEnd = content.includes(SIDEKICK_SECTION_END)
+
+    // No section at all
+    if (!hasStart && !hasEnd) {
+      return 'missing'
+    }
+
+    // Partial section - missing one marker
+    if (!hasStart || !hasEnd) {
+      return 'incomplete'
+    }
+
+    // Check marker order
+    const startIdx = content.indexOf(SIDEKICK_SECTION_START)
+    const endIdx = content.indexOf(SIDEKICK_SECTION_END)
+    if (endIdx <= startIdx) {
+      return 'incomplete'
+    }
+
+    // Extract section content between markers
+    const sectionContent = content.slice(startIdx, endIdx + SIDEKICK_SECTION_END.length)
+
+    // Check all required entries are present
+    const missingEntries = GITIGNORE_ENTRIES.filter((entry) => !sectionContent.includes(entry))
+    if (missingEntries.length > 0) {
+      return 'incomplete'
+    }
+
+    return 'installed'
   } catch {
     return 'missing'
   }
