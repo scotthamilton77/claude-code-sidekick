@@ -28,12 +28,17 @@ class CollectingWritable extends Writable {
 const mockStart = vi.fn()
 const mockDaemonClient = { start: mockStart }
 
+// Mock SetupStatusService to return healthy state
+const mockGetSetupState = vi.fn().mockResolvedValue('healthy')
+const mockSetupStatusService = { getSetupState: mockGetSetupState }
+
 // Mock @sidekick/core module
 vi.mock('@sidekick/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@sidekick/core')>()
   return {
     ...actual,
     DaemonClient: vi.fn(() => mockDaemonClient),
+    SetupStatusService: vi.fn(() => mockSetupStatusService),
   }
 })
 

@@ -15,7 +15,8 @@
  */
 
 import type { Writable } from 'node:stream'
-import type { Logger } from '@sidekick/core'
+import type { Logger, SetupState } from '@sidekick/core'
+import { SetupStatusService } from '@sidekick/core'
 import type { HookName, ParsedHookInput } from '@sidekick/types'
 import type { RuntimeShell } from '../runtime.js'
 import { handleHookCommand, type HookResponse } from './hook.js'
@@ -82,7 +83,7 @@ function translateSessionStart(internal: HookResponse): ClaudeCodeHookResponse {
   }
 
   if (internal.additionalContext) {
-    response.hookSpecificOutput = { additionalContext: internal.additionalContext }
+    response.hookSpecificOutput = { hookEventName: 'SessionStart', additionalContext: internal.additionalContext }
   }
 
   return response
@@ -283,6 +284,82 @@ export interface HookCommandOptions {
   runtime: RuntimeShell
 }
 
+/**
+ * Messages for degraded mode (setup not complete).
+ */
+const DEGRADED_MODE_MESSAGES: Record<
+  Exclude<SetupState, 'healthy'>,
+  { additionalContext: string; userMessage: string }
+> = {
+  'not-run': {
+    additionalContext: `Sidekick plugin detected but not configured. Features like reminders, personas, and statusline are unavailable until setup is complete. If you haven't already, ask the user if you should execute the sidekick-config skill.`,
+    userMessage: `Sidekick is installed but not configured. Run 'sidekick setup' to configure.`,
+  },
+  partial: {
+    additionalContext: `Sidekick user setup is complete but this project is not configured. Features like reminders, personas, and statusline are unavailable until project setup is complete. If you haven't already, ask the user if you should execute the sidekick-config skill.`,
+    userMessage: `Sidekick project setup incomplete. Run 'sidekick setup' in this project to configure.`,
+  },
+  unhealthy: {
+    additionalContext: `Sidekick is configured but unhealthy (possibly invalid API keys or missing configuration). Features are unavailable until issues are resolved. If you haven't already, ask the user if you should execute sidekick doctor.`,
+    userMessage: `Sidekick configuration is unhealthy. Run 'sidekick doctor' to diagnose issues.`,
+  },
+}
+
+/**
+ * Hooks that should show informative degraded mode messages.
+ * Other hooks return {} silently in degraded mode.
+ */
+const VERBOSE_DEGRADED_HOOKS: ReadonlySet<HookName> = new Set(['SessionStart', 'UserPromptSubmit'])
+
+/**
+ * Check setup state and return degraded mode response if not healthy.
+ * Returns null if setup is healthy and normal hook execution should proceed.
+ *
+ * @param projectRoot - Project directory for setup status lookup
+ * @param hookName - The hook being invoked (determines verbosity)
+ * @param logger - Logger for diagnostic output
+ * @returns HookResponse for degraded mode, or null for normal execution
+ */
+async function checkSetupState(projectRoot: string, hookName: HookName, logger: Logger): Promise<HookResponse | null> {
+  let state: SetupState
+  try {
+    const setupService = new SetupStatusService(projectRoot)
+    state = await setupService.getSetupState()
+  } catch (err) {
+    // If we can't check setup state, assume healthy and proceed
+    logger.warn('Failed to check setup state, assuming healthy', {
+      error: err instanceof Error ? err.message : String(err),
+      hookName,
+      projectRoot,
+    })
+    return null
+  }
+
+  if (state === 'healthy') {
+    return null // Normal execution
+  }
+
+  // Log at appropriate level based on state
+  const logData = { setupState: state, hookName, projectRoot }
+  if (state === 'not-run') {
+    logger.info('Hook operating in degraded mode - setup not run', logData)
+  } else {
+    logger.warn('Hook operating in degraded mode', logData)
+  }
+
+  // Only SessionStart and UserPromptSubmit return informative messages
+  // Other hooks return empty response silently
+  if (!VERBOSE_DEGRADED_HOOKS.has(hookName)) {
+    return {}
+  }
+
+  const messages = DEGRADED_MODE_MESSAGES[state]
+  return {
+    additionalContext: messages.additionalContext,
+    userMessage: messages.userMessage,
+  }
+}
+
 export interface HookCommandResult {
   exitCode: number
   output: string
@@ -330,6 +407,20 @@ export async function handleUnifiedHookCommand(
   const { projectRoot, hookInput, correlationId, runtime } = options
 
   logger.debug('Unified hook command invoked', { hookName, sessionId: hookInput.sessionId })
+
+  // Check setup state before attempting daemon/IPC operations
+  // Skip daemon entirely if setup is not healthy to avoid ProviderErrors
+  const degradedResponse = await checkSetupState(projectRoot, hookName, logger)
+  if (degradedResponse !== null) {
+    // Return degraded mode response - no daemon interaction
+    // Only SessionStart and UserPromptSubmit return informative messages;
+    // other hooks return {} silently in degraded mode
+    const claudeResponse = translateToClaudeCodeFormat(hookName, degradedResponse)
+    const outputStr = JSON.stringify(claudeResponse)
+    stdout.write(`${outputStr}\n`)
+    logger.debug('Hook completed in degraded mode', { hookName })
+    return { exitCode: 0, output: outputStr }
+  }
 
   // Create a capture stream to intercept internal response
   let internalOutput = ''
