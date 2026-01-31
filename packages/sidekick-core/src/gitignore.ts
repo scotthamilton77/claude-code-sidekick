@@ -21,6 +21,8 @@ export const GITIGNORE_ENTRIES = [
   '.sidekick/state/',
   '.sidekick/.env',
   '.sidekick/.env.local',
+  '.sidekick/sidekick*.pid',
+  '.sidekick/sidekick*.token',
 ]
 
 export interface GitignoreResult {
