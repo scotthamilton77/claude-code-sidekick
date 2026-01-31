@@ -4,9 +4,13 @@ import * as path from 'node:path'
 import * as os from 'node:os'
 import type { Logger } from '@sidekick/types'
 import type { UserSetupStatus, ProjectSetupStatus, ApiKeyHealth, GitignoreStatus } from '@sidekick/types'
-import { SetupStatusService, installGitignoreSection, detectGitignoreStatus } from '@sidekick/core'
+import {
+  SetupStatusService,
+  installGitignoreSection,
+  detectGitignoreStatus,
+  validateOpenRouterKey,
+} from '@sidekick/core'
 import { printHeader, printStatus, promptSelect, promptConfirm, promptInput, type PromptContext } from './prompts.js'
-import { validateOpenRouterKey } from './validate-api-key.js'
 
 export interface SetupCommandOptions {
   checkOnly?: boolean
@@ -663,6 +667,7 @@ async function runScripted(
 
 /**
  * Run the doctor/check mode.
+ * Now checks actual config state against cache and updates cache if mismatched.
  */
 async function runDoctor(
   projectDir: string,
@@ -675,26 +680,42 @@ async function runDoctor(
   stdout.write('\nSidekick Doctor\n')
   stdout.write('===============\n\n')
 
-  const statusline = await setupService.getStatuslineHealth()
+  stdout.write('Checking configuration...\n\n')
+
+  // Run the doctor check which compares actual state vs cache
+  const doctorResult = await setupService.runDoctorCheck()
+
+  // Also check gitignore (not part of the cache system)
   const gitignore = await detectGitignoreStatus(projectDir)
-  const apiKey = await setupService.getEffectiveApiKeyHealth('OPENROUTER_API_KEY')
-  const isHealthy = await setupService.isHealthy()
 
-  const statuslineIcon = statusline === 'configured' ? '✓' : '⚠'
+  // Report any fixes made
+  if (doctorResult.fixes.length > 0) {
+    stdout.write('Cache corrections:\n')
+    for (const fix of doctorResult.fixes) {
+      stdout.write(`  ✓ ${fix}\n`)
+    }
+    stdout.write('\n')
+  }
+
+  // Display current state
+  const statuslineIcon = doctorResult.statusline.actual === 'configured' ? '✓' : '⚠'
   const gitignoreIcon = gitignore === 'installed' ? '✓' : '⚠'
-  const apiKeyIcon = apiKey === 'healthy' || apiKey === 'not-required' ? '✓' : '⚠'
-  const overallIcon = isHealthy && gitignore === 'installed' ? '✓' : '⚠'
+  const openRouterHealth = doctorResult.apiKeys.OPENROUTER_API_KEY.actual
+  const apiKeyIcon = openRouterHealth === 'healthy' || openRouterHealth === 'not-required' ? '✓' : '⚠'
 
-  stdout.write(`${statuslineIcon} Statusline: ${statusline}\n`)
+  stdout.write(`${statuslineIcon} Statusline: ${doctorResult.statusline.actual}\n`)
   stdout.write(`${gitignoreIcon} Gitignore: ${gitignore}\n`)
-  stdout.write(`${apiKeyIcon} OpenRouter API Key: ${apiKey}\n`)
-  stdout.write(`${overallIcon} Overall: ${isHealthy && gitignore === 'installed' ? 'healthy' : 'needs attention'}\n`)
+  stdout.write(`${apiKeyIcon} OpenRouter API Key: ${openRouterHealth}\n`)
 
-  if (!isHealthy || gitignore !== 'installed') {
+  const isHealthy = doctorResult.overallHealth === 'healthy' && gitignore === 'installed'
+  const overallIcon = isHealthy ? '✓' : '⚠'
+  stdout.write(`${overallIcon} Overall: ${isHealthy ? 'healthy' : 'needs attention'}\n`)
+
+  if (!isHealthy) {
     stdout.write("\nRun 'sidekick setup' to configure.\n")
   }
 
-  return { exitCode: isHealthy && gitignore === 'installed' ? 0 : 1 }
+  return { exitCode: isHealthy ? 0 : 1 }
 }
 
 /**

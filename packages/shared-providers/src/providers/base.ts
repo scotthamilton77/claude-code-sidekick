@@ -8,6 +8,22 @@
 
 import type { Logger, LLMProvider, LLMRequest, LLMResponse } from '@sidekick/types'
 
+/**
+ * Result of API key validation.
+ */
+export type ValidationResult = { valid: true } | { valid: false; error: string }
+
+/**
+ * Interface for providers that support API key validation.
+ */
+export interface ValidatableProvider {
+  /**
+   * Validate an API key by calling a free endpoint (e.g., /models).
+   * This does not consume credits.
+   */
+  validateApiKey(apiKey: string, logger?: Logger): Promise<ValidationResult>
+}
+
 export abstract class AbstractProvider implements LLMProvider {
   abstract readonly id: string
 

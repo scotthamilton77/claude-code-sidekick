@@ -25,6 +25,7 @@
     "vitest": "^2.1.1"
   },
   "dependencies": {
+    "@sidekick/shared-providers": "workspace:*",
     "@sidekick/types": "workspace:*",
     "chokidar": "^5.0.0",
     "dotenv": "^17.2.3",
