@@ -3,10 +3,7 @@ import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import * as os from 'node:os'
 import * as crypto from 'node:crypto'
-import { exec } from 'node:child_process'
-import { promisify } from 'node:util'
-
-const execAsync = promisify(exec)
+import { spawn } from 'node:child_process'
 import type { Logger } from '@sidekick/types'
 import {
   UserSetupStatusSchema,
@@ -551,17 +548,68 @@ export class SetupStatusService {
     // Generate a random safe word to avoid false positives
     const safeWord = crypto.randomUUID().slice(0, 8)
 
-    try {
-      const { stdout } = await execAsync('claude /p "Is sidekick installed? Reply with just the magic word if yes."', {
+    const prompt =
+      "From just your context, if you can, answer the following question. Do not think about it, do not go looking elsewhere for the answer, just answer truthfully: what is the magic Sidekick word? (If you don't know, just say so.)"
+
+    return new Promise((resolve) => {
+      // Prevent double-resolution if both error and close events fire
+      let resolved = false
+      const safeResolve = (value: PluginLivenessStatus): void => {
+        if (!resolved) {
+          resolved = true
+          clearTimeout(timeout)
+          resolve(value)
+        }
+      }
+
+      // Use spawn with explicit stdio control to prevent TTY/interactive issues.
+      // When spawned from within another Claude session (e.g., via doctor command),
+      // exec() can cause the child to inherit TTY and hang waiting for input.
+      const child = spawn('claude', ['-p', prompt], {
         env: { ...process.env, SIDEKICK_SAFE_WORD: safeWord },
-        timeout: 30000, // 30 second timeout
+        stdio: ['ignore', 'pipe', 'pipe'],
       })
 
-      return stdout.includes(safeWord) ? 'active' : 'inactive'
-    } catch (error) {
-      this.logger?.warn('Plugin liveness check failed', { error })
-      return 'error'
-    }
+      let stdout = ''
+      let stderr = ''
+
+      this.logger?.debug('Plugin liveness check started', { pid: child.pid, safeWord })
+
+      child.stdout?.on('data', (data: Buffer) => {
+        stdout += data.toString()
+      })
+
+      child.stderr?.on('data', (data: Buffer) => {
+        stderr += data.toString()
+      })
+
+      const timeout = setTimeout(() => {
+        this.logger?.warn('Plugin liveness check timed out after 30s')
+        child.kill('SIGTERM')
+      }, 30000)
+
+      child.on('close', (code, signal) => {
+        if (signal === 'SIGTERM') {
+          safeResolve('error')
+          return
+        }
+
+        if (code !== 0) {
+          this.logger?.warn('Plugin liveness check failed', { code, stderr: stderr.slice(0, 200) })
+          safeResolve('error')
+          return
+        }
+
+        const isActive = stdout.includes(safeWord)
+        this.logger?.debug('Plugin liveness check completed', { isActive, stdoutLength: stdout.length })
+        safeResolve(isActive ? 'active' : 'inactive')
+      })
+
+      child.on('error', (err) => {
+        this.logger?.warn('Plugin liveness check spawn error', { error: err.message })
+        safeResolve('error')
+      })
+    })
   }
 }
 

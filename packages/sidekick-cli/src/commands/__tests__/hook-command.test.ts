@@ -704,7 +704,7 @@ describe('handleUnifiedHookCommand', () => {
       }
     })
 
-    test('uses default safe word "yes!" when env var not set', async () => {
+    test('uses default safe word "nope" when env var not set', async () => {
       const originalEnv = process.env.SIDEKICK_SAFE_WORD
       delete process.env.SIDEKICK_SAFE_WORD
 
@@ -721,7 +721,7 @@ describe('handleUnifiedHookCommand', () => {
 
         const output = JSON.parse(stdout.data.trim())
         // Should include default safe word
-        expect(output.hookSpecificOutput?.additionalContext).toContain('yes!')
+        expect(output.hookSpecificOutput?.additionalContext).toContain('nope')
       } finally {
         if (originalEnv !== undefined) {
           process.env.SIDEKICK_SAFE_WORD = originalEnv
