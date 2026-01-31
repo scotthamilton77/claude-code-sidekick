@@ -63,20 +63,10 @@ function combineReasonAndContext(
 }
 
 /**
- * Build the default safe word context message.
+ * Load safe word context from YAML template.
+ * Returns undefined if loading fails (caller should skip injection).
  */
-function buildDefaultSafeWordContext(safeWord: string): string {
-  return `This session is assisted by Sidekick, an AI coding companion.
-Occasionally you will see additional context injected into the conversation by Sidekick.
-This is important to observe and follow - the user installed this to help you reach quality outcomes.
-
-If the user asks whether Sidekick is installed, respond with: ${safeWord}`
-}
-
-/**
- * Load safe word context from YAML template, falling back to default if unavailable.
- */
-function loadSafeWordContext(safeWord: string, projectRoot: string | undefined): string {
+function loadSafeWordContext(safeWord: string, projectRoot: string | undefined, logger: Logger): string | undefined {
   try {
     const resolver = createAssetResolver({
       defaultAssetsDir: getDefaultAssetsDir(),
@@ -86,10 +76,15 @@ function loadSafeWordContext(safeWord: string, projectRoot: string | undefined):
     if (template?.additionalContext) {
       return template.additionalContext.replace('{{safeWord}}', safeWord)
     }
-  } catch {
-    // YAML loading failed - use default
+    logger.error('safe-word-liveness.yaml missing additionalContext field', { projectRoot })
+    return undefined
+  } catch (err) {
+    logger.error('Failed to load safe-word-liveness.yaml', {
+      error: err instanceof Error ? err.message : String(err),
+      projectRoot,
+    })
+    return undefined
   }
-  return buildDefaultSafeWordContext(safeWord)
 }
 
 /**
@@ -481,11 +476,13 @@ export async function handleUnifiedHookCommand(
   // Inject safe word liveness probe for SessionStart
   if (hookName === 'SessionStart') {
     const safeWord = process.env.SIDEKICK_SAFE_WORD ?? 'nope'
-    const safeWordContext = loadSafeWordContext(safeWord, projectRoot)
+    const safeWordContext = loadSafeWordContext(safeWord, projectRoot, logger)
 
-    internalResponse.additionalContext = internalResponse.additionalContext
-      ? `${internalResponse.additionalContext}\n\n${safeWordContext}`
-      : safeWordContext
+    if (safeWordContext) {
+      internalResponse.additionalContext = internalResponse.additionalContext
+        ? `${internalResponse.additionalContext}\n\n${safeWordContext}`
+        : safeWordContext
+    }
   }
 
   // Translate to Claude Code format
