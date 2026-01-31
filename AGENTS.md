@@ -25,7 +25,7 @@ packages/                  # See packages/AGENTS.md for monorepo details
 assets/sidekick/defaults/  # YAML config defaults
 assets/sidekick/personas/  # Character personality profiles (17 personas)
 assets/sidekick/prompts/   # LLM prompt templates with persona interpolation
-scripts/dev-hooks/         # Development hook scripts (for dev-mode)
+scripts/dev-sidekick/         # Development hook scripts (for dev-mode)
 scripts/dev-mode.sh        # Wrapper for pnpm sidekick dev-mode
 development-tools/llm-eval/ # LLM evaluation tools
 ```

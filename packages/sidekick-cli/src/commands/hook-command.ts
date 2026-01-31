@@ -7,7 +7,7 @@
  * 3. Translates internal HookResponse to Claude Code format
  * 4. Outputs Claude Code-compatible JSON to stdout
  *
- * This replaces the bash+jq translation layer in dev-hooks scripts,
+ * This replaces the bash+jq translation layer in dev-sidekick scripts,
  * enabling the plugin to invoke hooks directly via:
  *   npx @sidekick/cli hook session-start
  *

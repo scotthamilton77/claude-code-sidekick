@@ -34,7 +34,7 @@ function isPluginCommand(command: string): boolean {
  * Check if a command is from dev-mode hooks.
  */
 function isDevModeCommand(command: string): boolean {
-  return command.includes('dev-hooks')
+  return command.includes('dev-sidekick')
 }
 
 /**
@@ -264,7 +264,7 @@ export class SetupStatusService {
    *
    * @returns Installation status:
    *   - 'plugin': Plugin hooks installed (npx @scotthamilton77/sidekick)
-   *   - 'dev-mode': Dev-mode hooks installed (dev-hooks path)
+   *   - 'dev-mode': Dev-mode hooks installed (dev-sidekick path)
    *   - 'both': Both plugin and dev-mode hooks (conflict state)
    *   - 'none': No sidekick hooks detected
    */
