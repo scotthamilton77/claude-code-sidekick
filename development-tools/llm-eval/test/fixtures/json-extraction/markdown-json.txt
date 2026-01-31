@@ -1,3 +1,0 @@
-```json
-{"name": "test", "value": 42, "nested": {"key": "value"}}
-```

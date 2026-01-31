@@ -46,12 +46,6 @@ settings.local.json
 *.backup.*
 *.uninstall-backup.*
 
-# Test data and results
-test-data/results/
-test-data/replay-results/
-test-data/topic-analysis/
-test-data/session-analysis/
-test-data/simulation-test/
 
 # TypeScript build cache (needs to be part of install)
 .claude/tsc-cache/

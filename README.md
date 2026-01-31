@@ -103,10 +103,9 @@ pnpm sidekick dev-mode enable
 │   ├── personas/               # Character personality profiles
 │   ├── prompts/                # LLM prompt templates
 │   └── reminders/              # Reminder templates (YAML)
-├── scripts/                    # Development utilities
-│   ├── dev-mode.sh             # Wrapper for dev-mode CLI
-│   └── dev-sidekick/              # Development hook scripts
-└── development-tools/          # LLM evaluation and testing tools
+└── scripts/                    # Development utilities
+    ├── dev-mode.sh             # Wrapper for dev-mode CLI
+    └── dev-sidekick/           # Development hook scripts
 ```
 
 ### Hook System (Sidekick)
