@@ -53,14 +53,6 @@ test-data/topic-analysis/
 test-data/session-analysis/
 test-data/simulation-test/
 
-# Sidekick runtime data (transient, gitignored)
-.sidekick/logs/
-.sidekick/state/
-.sidekick/sessions/
-.sidekick/sidekick*.pid
-.sidekick/sidekick*.token
-# End Sidekick Hook System
-
 # TypeScript build cache (needs to be part of install)
 .claude/tsc-cache/
 
@@ -79,3 +71,10 @@ packages/sidekick-ui/vitest.config.d.ts
 
 # Dist testing backup (never commit)
 packages/sidekick-dist/*.tgz
+# >>> sidekick
+.sidekick/logs/
+.sidekick/sessions/
+.sidekick/state/
+.sidekick/.env
+.sidekick/.env.local
+# <<< sidekick
