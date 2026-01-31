@@ -64,9 +64,8 @@ function cleanupTestDir(dir: string): void {
   }
 }
 
-// Path to test transcript data (relative to workspace root via process.cwd())
-// When running tests, cwd is the workspace root
-const TEST_DATA_DIR = join(process.cwd(), '../../development-tools/test-data/transcripts')
+// Test data path - relative to this test file
+const TEST_DATA_DIR = join(__dirname, 'fixtures/transcripts')
 
 // Test fixture paths - defined once to avoid repetition in skipIf conditions
 const FIXTURES = {

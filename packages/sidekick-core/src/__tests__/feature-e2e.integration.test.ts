@@ -53,8 +53,8 @@ function cleanupTestDir(dir: string): void {
   }
 }
 
-// Test data path - relative to monorepo root when running from package dir
-const TEST_DATA_DIR = join(process.cwd(), '../../development-tools/test-data/transcripts')
+// Test data path - relative to this test file
+const TEST_DATA_DIR = join(__dirname, 'fixtures/transcripts')
 
 // Required fixture files for this test suite
 const REQUIRED_FIXTURES = ['medium-003.jsonl', 'long-001.jsonl', 'short-003.jsonl', 'short-002.jsonl']
