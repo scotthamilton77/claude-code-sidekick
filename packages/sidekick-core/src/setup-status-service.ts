@@ -370,7 +370,9 @@ export class SetupStatusService {
     // Determine overall health
     const isStatuslineHealthy = actualStatusline === 'configured'
     const openRouterActual = apiKeyResults.OPENROUTER_API_KEY.actual
-    const isApiKeyHealthy = openRouterActual !== 'missing'
+    const openRouterCached = apiKeyResults.OPENROUTER_API_KEY.cached
+    // API key is healthy if: actual key is present OR user opted out (not-required)
+    const isApiKeyHealthy = openRouterActual !== 'missing' || openRouterCached === 'not-required'
     const overallHealth: 'healthy' | 'unhealthy' = isStatuslineHealthy && isApiKeyHealthy ? 'healthy' : 'unhealthy'
 
     return {

@@ -50,8 +50,36 @@ describe('gitignore utilities', () => {
       expect(content).toContain('.sidekick/logs/')
     })
 
-    it('returns already-installed if section exists', async () => {
+    it('returns already-installed if section is complete', async () => {
       const gitignorePath = path.join(testDir, '.gitignore')
+      // Build complete section
+      const fullSection = [SIDEKICK_SECTION_START, ...GITIGNORE_ENTRIES, SIDEKICK_SECTION_END].join('\n')
+      writeFileSync(gitignorePath, `node_modules/\n${fullSection}\n`)
+
+      const result = await installGitignoreSection(testDir)
+
+      expect(result.status).toBe('already-installed')
+    })
+
+    it('repairs incomplete section missing end marker', async () => {
+      const gitignorePath = path.join(testDir, '.gitignore')
+      writeFileSync(gitignorePath, `node_modules/\n${SIDEKICK_SECTION_START}\n.sidekick/logs/\n`)
+
+      const result = await installGitignoreSection(testDir)
+
+      expect(result.status).toBe('installed')
+      const content = readFileSync(gitignorePath, 'utf-8')
+      expect(content).toContain(SIDEKICK_SECTION_START)
+      expect(content).toContain(SIDEKICK_SECTION_END)
+      // All entries should be present
+      for (const entry of GITIGNORE_ENTRIES) {
+        expect(content).toContain(entry)
+      }
+    })
+
+    it('repairs incomplete section missing entries', async () => {
+      const gitignorePath = path.join(testDir, '.gitignore')
+      // Section with markers but only partial entries
       writeFileSync(
         gitignorePath,
         `node_modules/\n${SIDEKICK_SECTION_START}\n.sidekick/logs/\n${SIDEKICK_SECTION_END}\n`
@@ -59,7 +87,12 @@ describe('gitignore utilities', () => {
 
       const result = await installGitignoreSection(testDir)
 
-      expect(result.status).toBe('already-installed')
+      expect(result.status).toBe('installed')
+      const content = readFileSync(gitignorePath, 'utf-8')
+      // All entries should now be present
+      for (const entry of GITIGNORE_ENTRIES) {
+        expect(content).toContain(entry)
+      }
     })
 
     it('is idempotent - multiple calls do not duplicate section', async () => {
@@ -124,9 +157,11 @@ describe('gitignore utilities', () => {
   })
 
   describe('detectGitignoreStatus', () => {
-    it('returns installed when section is present', async () => {
+    it('returns installed when section has all required entries', async () => {
       const gitignorePath = path.join(testDir, '.gitignore')
-      writeFileSync(gitignorePath, `${SIDEKICK_SECTION_START}\n.sidekick/logs/\n${SIDEKICK_SECTION_END}\n`)
+      // Build a complete section with all entries
+      const fullSection = [SIDEKICK_SECTION_START, ...GITIGNORE_ENTRIES, SIDEKICK_SECTION_END].join('\n')
+      writeFileSync(gitignorePath, fullSection + '\n')
 
       const status = await detectGitignoreStatus(testDir)
       expect(status).toBe('installed')
@@ -144,6 +179,39 @@ describe('gitignore utilities', () => {
       const status = await detectGitignoreStatus(testDir)
       expect(status).toBe('missing')
     })
+
+    it('returns incomplete when only start marker exists', async () => {
+      const gitignorePath = path.join(testDir, '.gitignore')
+      writeFileSync(gitignorePath, `${SIDEKICK_SECTION_START}\n.sidekick/logs/\n`)
+
+      const status = await detectGitignoreStatus(testDir)
+      expect(status).toBe('incomplete')
+    })
+
+    it('returns incomplete when end marker is missing', async () => {
+      const gitignorePath = path.join(testDir, '.gitignore')
+      writeFileSync(gitignorePath, `${SIDEKICK_SECTION_START}\n.sidekick/logs/\n.sidekick/sessions/\n`)
+
+      const status = await detectGitignoreStatus(testDir)
+      expect(status).toBe('incomplete')
+    })
+
+    it('returns incomplete when required entries are missing', async () => {
+      const gitignorePath = path.join(testDir, '.gitignore')
+      // Section with markers but only partial entries
+      writeFileSync(gitignorePath, `${SIDEKICK_SECTION_START}\n.sidekick/logs/\n${SIDEKICK_SECTION_END}\n`)
+
+      const status = await detectGitignoreStatus(testDir)
+      expect(status).toBe('incomplete')
+    })
+
+    it('returns incomplete when markers are in wrong order', async () => {
+      const gitignorePath = path.join(testDir, '.gitignore')
+      writeFileSync(gitignorePath, `${SIDEKICK_SECTION_END}\n.sidekick/logs/\n${SIDEKICK_SECTION_START}\n`)
+
+      const status = await detectGitignoreStatus(testDir)
+      expect(status).toBe('incomplete')
+    })
   })
 
   describe('section format', () => {
@@ -156,6 +224,7 @@ describe('gitignore utilities', () => {
       expect(GITIGNORE_ENTRIES).toContain('.sidekick/logs/')
       expect(GITIGNORE_ENTRIES).toContain('.sidekick/sessions/')
       expect(GITIGNORE_ENTRIES).toContain('.sidekick/state/')
+      expect(GITIGNORE_ENTRIES).toContain('.sidekick/setup-status.json')
       expect(GITIGNORE_ENTRIES).toContain('.sidekick/.env')
       expect(GITIGNORE_ENTRIES).toContain('.sidekick/.env.local')
       expect(GITIGNORE_ENTRIES).toContain('.sidekick/sidekick*.pid')

@@ -23,6 +23,8 @@ export interface SetupCommandOptions {
   personas?: boolean // true = enable, false = disable, undefined = not specified
   apiKeyScope?: 'user' | 'project' // where to save API key (reads from OPENROUTER_API_KEY env)
   autoConfig?: 'auto' | 'ask' | 'manual'
+  // Testing override - allows tests to specify home directory
+  homeDir?: string
 }
 
 export interface SetupCommandResult {
@@ -278,7 +280,9 @@ async function runStep2Gitignore(wctx: WizardContext, force: boolean): Promise<G
     return 'installed'
   }
 
-  // Force mode: just install without prompting
+  const needsRepair = currentStatus === 'incomplete'
+
+  // Force mode: just install/repair without prompting
   if (force) {
     const result = await installGitignoreSection(projectDir)
     return result.status === 'error' ? 'missing' : 'installed'
@@ -287,23 +291,32 @@ async function runStep2Gitignore(wctx: WizardContext, force: boolean): Promise<G
   // Interactive mode: ask user
   printHeader(ctx, 'Step 2: Git Configuration', 'Sidekick creates logs and session data that should not be committed.')
 
-  const shouldInstall = await promptConfirm(ctx, 'Update .gitignore to exclude sidekick transient files?', true)
+  if (needsRepair) {
+    printStatus(ctx, 'warning', 'Existing .gitignore section is incomplete and needs repair')
+  }
+
+  const promptMessage = needsRepair
+    ? 'Repair .gitignore section with missing entries?'
+    : 'Update .gitignore to exclude sidekick transient files?'
+
+  const shouldInstall = await promptConfirm(ctx, promptMessage, true)
 
   if (!shouldInstall) {
     printStatus(ctx, 'info', 'Skipping .gitignore configuration (you can manage it manually)')
-    return 'missing'
+    return needsRepair ? 'incomplete' : 'missing'
   }
 
   const result = await installGitignoreSection(projectDir)
 
   if (result.status === 'error') {
     printStatus(ctx, 'warning', `Failed to update .gitignore: ${result.error}`)
-    return 'missing'
+    return needsRepair ? 'incomplete' : 'missing'
   }
 
   // Both 'installed' and 'already-installed' are success states
-  const message =
-    result.status === 'already-installed'
+  const message = needsRepair
+    ? 'Repaired sidekick section in .gitignore'
+    : result.status === 'already-installed'
       ? 'Sidekick entries already present in .gitignore'
       : 'Added sidekick section to .gitignore'
   printStatus(ctx, 'success', message)
@@ -465,11 +478,11 @@ function printSummary(wctx: WizardContext, state: WizardState): void {
 
   printHeader(ctx, 'Summary')
   printStatus(ctx, 'success', `Statusline: ${statuslineScope === 'user' ? 'User-level' : 'Project-level'}`)
-  printStatus(
-    ctx,
-    gitignoreStatus === 'installed' ? 'success' : 'info',
-    `Gitignore: ${gitignoreStatus === 'installed' ? 'Configured' : 'Skipped'}`
-  )
+  const gitignoreStatusType =
+    gitignoreStatus === 'installed' ? 'success' : gitignoreStatus === 'incomplete' ? 'warning' : 'info'
+  const gitignoreLabel =
+    gitignoreStatus === 'installed' ? 'Configured' : gitignoreStatus === 'incomplete' ? 'Incomplete' : 'Skipped'
+  printStatus(ctx, gitignoreStatusType, `Gitignore: ${gitignoreLabel}`)
   printStatus(ctx, wantPersonas ? 'success' : 'info', `Personas: ${wantPersonas ? 'Enabled' : 'Disabled'}`)
 
   const apiKeyStatusType = getApiKeyStatusType(apiKeyHealth)
@@ -493,7 +506,7 @@ async function runWizard(
   stdout: NodeJS.WritableStream,
   options: SetupCommandOptions
 ): Promise<SetupCommandResult> {
-  const homeDir = os.homedir()
+  const homeDir = options.homeDir ?? os.homedir()
   const wctx: WizardContext = {
     ctx: {
       stdin: options.stdin ?? process.stdin,
@@ -565,7 +578,7 @@ async function runScripted(
   stdout: NodeJS.WritableStream,
   options: SetupCommandOptions
 ): Promise<SetupCommandResult> {
-  const homeDir = os.homedir()
+  const homeDir = options.homeDir ?? os.homedir()
   const setupService = new SetupStatusService(projectDir, { homeDir, logger })
   let configuredCount = 0
 
@@ -672,9 +685,10 @@ async function runScripted(
 async function runDoctor(
   projectDir: string,
   logger: Logger,
-  stdout: NodeJS.WritableStream
+  stdout: NodeJS.WritableStream,
+  overrideHomeDir?: string
 ): Promise<SetupCommandResult> {
-  const homeDir = os.homedir()
+  const homeDir = overrideHomeDir ?? os.homedir()
   const setupService = new SetupStatusService(projectDir, { homeDir, logger })
 
   stdout.write('\nSidekick Doctor\n')
@@ -732,7 +746,7 @@ export async function handleSetupCommand(
     return { exitCode: 0 }
   }
   if (options.checkOnly) {
-    return runDoctor(projectDir, logger, stdout)
+    return runDoctor(projectDir, logger, stdout, options.homeDir)
   }
   if (hasScriptingFlags(options)) {
     return runScripted(projectDir, logger, stdout, options)

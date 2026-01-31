@@ -50,7 +50,8 @@ export type UserSetupStatus = z.infer<typeof UserSetupStatusSchema>
 export const GitignoreStatusSchema = z.enum([
   'unknown', // Setup hasn't checked yet (legacy projects)
   'missing', // User declined or entries not present
-  'installed', // Sidekick section present in .gitignore
+  'incomplete', // Section exists but missing end marker or required entries
+  'installed', // Sidekick section present with all required entries
 ])
 export type GitignoreStatus = z.infer<typeof GitignoreStatusSchema>
 
