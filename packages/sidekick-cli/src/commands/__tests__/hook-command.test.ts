@@ -694,7 +694,7 @@ describe('handleUnifiedHookCommand', () => {
         const output = JSON.parse(stdout.data.trim())
         // Should include the safe word in additionalContext
         expect(output.hookSpecificOutput?.additionalContext).toContain('test-safe-word-xyz')
-        expect(output.hookSpecificOutput?.additionalContext).toContain('Sidekick is installed')
+        expect(output.hookSpecificOutput?.additionalContext).toContain('magic Sidekick word')
       } finally {
         if (originalEnv === undefined) {
           delete process.env.SIDEKICK_SAFE_WORD
