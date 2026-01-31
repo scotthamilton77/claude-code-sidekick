@@ -2,6 +2,11 @@
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import * as os from 'node:os'
+import * as crypto from 'node:crypto'
+import { exec } from 'node:child_process'
+import { promisify } from 'node:util'
+
+const execAsync = promisify(exec)
 import type { Logger } from '@sidekick/types'
 import {
   UserSetupStatusSchema,
@@ -21,7 +26,53 @@ function isSidekickStatuslineCommand(command: string | undefined): boolean {
   return command.toLowerCase().includes('sidekick')
 }
 
+/**
+ * Check if a command is from the published plugin (npx @scotthamilton77/sidekick).
+ */
+function isPluginCommand(command: string): boolean {
+  return command.includes('npx @scotthamilton77/sidekick')
+}
+
+/**
+ * Check if a command is from dev-mode hooks.
+ */
+function isDevModeCommand(command: string): boolean {
+  return command.includes('dev-hooks')
+}
+
+/**
+ * Plugin installation status for doctor display.
+ */
+export type PluginInstallationStatus = 'plugin' | 'dev-mode' | 'both' | 'none'
+
+/**
+ * Claude Code settings.json structure (partial, for hook detection).
+ */
+interface ClaudeSettings {
+  statusLine?: {
+    type?: string
+    command?: string
+  }
+  hooks?: Record<string, HookEntry[]>
+}
+
+interface HookEntry {
+  matcher?: string
+  hooks: Array<{
+    type: string
+    command: string
+  }>
+}
+
 export type ApiKeyName = 'OPENROUTER_API_KEY' | 'OPENAI_API_KEY'
+
+/**
+ * Plugin liveness check result.
+ * - 'active': Hooks responded with the safe word
+ * - 'inactive': Hooks did not respond with safe word
+ * - 'error': Claude command failed or timed out
+ */
+export type PluginLivenessStatus = 'active' | 'inactive' | 'error'
 
 export interface DoctorCheckOptions {
   /** Skip API key validation (for faster checks or when offline) */
@@ -208,6 +259,77 @@ export class SetupStatusService {
     }
 
     return 'not-setup'
+  }
+
+  /**
+   * Detect plugin installation status by reading Claude settings files.
+   * Checks both user (~/.claude/settings.json) and project (.claude/settings.local.json).
+   *
+   * @returns Installation status:
+   *   - 'plugin': Plugin hooks installed (npx @scotthamilton77/sidekick)
+   *   - 'dev-mode': Dev-mode hooks installed (dev-hooks path)
+   *   - 'both': Both plugin and dev-mode hooks (conflict state)
+   *   - 'none': No sidekick hooks detected
+   */
+  async detectPluginInstallation(): Promise<PluginInstallationStatus> {
+    const settingsPaths = [
+      path.join(this.homeDir, '.claude', 'settings.json'),
+      path.join(this.projectDir, '.claude', 'settings.local.json'),
+    ]
+
+    let hasPlugin = false
+    let hasDevMode = false
+
+    for (const settingsPath of settingsPaths) {
+      try {
+        const content = await fs.readFile(settingsPath, 'utf-8')
+        const settings = JSON.parse(content) as ClaudeSettings
+        const { plugin, devMode } = this.checkSettingsForSidekick(settings)
+        if (plugin) hasPlugin = true
+        if (devMode) hasDevMode = true
+      } catch {
+        // File doesn't exist or is invalid - continue checking
+      }
+    }
+
+    if (hasPlugin && hasDevMode) return 'both'
+    if (hasPlugin) return 'plugin'
+    if (hasDevMode) return 'dev-mode'
+    return 'none'
+  }
+
+  /**
+   * Check a Claude settings object for sidekick hooks.
+   */
+  private checkSettingsForSidekick(settings: ClaudeSettings): { plugin: boolean; devMode: boolean } {
+    let plugin = false
+    let devMode = false
+
+    // Check statusLine
+    const statusLineCommand = settings.statusLine?.command
+    if (statusLineCommand) {
+      if (isPluginCommand(statusLineCommand)) plugin = true
+      if (isDevModeCommand(statusLineCommand)) devMode = true
+    }
+
+    // Check all hooks
+    if (settings.hooks) {
+      for (const hookEntries of Object.values(settings.hooks)) {
+        if (!Array.isArray(hookEntries)) continue
+        for (const entry of hookEntries) {
+          if (!entry?.hooks) continue
+          for (const hook of entry.hooks) {
+            const command = hook?.command
+            if (command) {
+              if (isPluginCommand(command)) plugin = true
+              if (isDevModeCommand(command)) devMode = true
+            }
+          }
+        }
+      }
+    }
+
+    return { plugin, devMode }
   }
 
   // === Merged getters ===
@@ -411,6 +533,35 @@ export class SetupStatusService {
 
     const isHealthy = await this.isHealthy()
     return isHealthy ? 'healthy' : 'unhealthy'
+  }
+
+  // === Plugin Liveness Detection ===
+
+  /**
+   * Detect if sidekick hooks are actually responding by spawning Claude
+   * with a safe word and checking if it appears in the response.
+   *
+   * This tests actual hook execution, not just config file presence.
+   * Useful for detecting plugins loaded via --plugin-dir that don't
+   * appear in settings.json.
+   *
+   * @returns 'active' if hooks respond, 'inactive' if not, 'error' on failure
+   */
+  async detectPluginLiveness(): Promise<PluginLivenessStatus> {
+    // Generate a random safe word to avoid false positives
+    const safeWord = crypto.randomUUID().slice(0, 8)
+
+    try {
+      const { stdout } = await execAsync('claude /p "Is sidekick installed? Reply with just the magic word if yes."', {
+        env: { ...process.env, SIDEKICK_SAFE_WORD: safeWord },
+        timeout: 30000, // 30 second timeout
+      })
+
+      return stdout.includes(safeWord) ? 'active' : 'inactive'
+    } catch (error) {
+      this.logger?.warn('Plugin liveness check failed', { error })
+      return 'error'
+    }
   }
 }
 

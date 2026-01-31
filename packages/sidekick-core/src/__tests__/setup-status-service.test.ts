@@ -1,4 +1,14 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import * as childProcess from 'node:child_process'
+
+// Mock child_process exec for detectPluginLiveness tests
+vi.mock('node:child_process', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:child_process')>()
+  return {
+    ...actual,
+    exec: vi.fn(),
+  }
+})
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import * as os from 'node:os'
@@ -809,6 +819,237 @@ describe('SetupStatusService', () => {
       const result = await service.runDoctorCheck({ skipValidation: true })
 
       expect(result.fixes).toHaveLength(0)
+    })
+  })
+
+  describe('detectPluginInstallation', () => {
+    // Helper to write Claude settings files with hooks
+    const writeClaudeSettings = async (scope: 'user' | 'project', settings: Record<string, unknown>): Promise<void> => {
+      const settingsPath =
+        scope === 'user'
+          ? path.join(homeDir, '.claude', 'settings.json')
+          : path.join(projectDir, '.claude', 'settings.local.json')
+      await fs.mkdir(path.dirname(settingsPath), { recursive: true })
+      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2))
+    }
+
+    it('returns "none" when no settings files exist', async () => {
+      const result = await service.detectPluginInstallation()
+      expect(result).toBe('none')
+    })
+
+    it('returns "none" when settings files exist but no hooks configured', async () => {
+      await writeClaudeSettings('user', { someOtherKey: 'value' })
+      const result = await service.detectPluginInstallation()
+      expect(result).toBe('none')
+    })
+
+    it('returns "plugin" when user settings has plugin hooks', async () => {
+      await writeClaudeSettings('user', {
+        hooks: {
+          SessionStart: [
+            {
+              hooks: [
+                {
+                  type: 'command',
+                  command: 'npx @scotthamilton77/sidekick hook session-start --project-dir=$CLAUDE_PROJECT_DIR',
+                },
+              ],
+            },
+          ],
+        },
+      })
+
+      const result = await service.detectPluginInstallation()
+      expect(result).toBe('plugin')
+    })
+
+    it('returns "plugin" when project settings has plugin hooks', async () => {
+      await writeClaudeSettings('project', {
+        hooks: {
+          SessionStart: [
+            {
+              hooks: [
+                {
+                  type: 'command',
+                  command: 'npx @scotthamilton77/sidekick hook session-start --project-dir=$CLAUDE_PROJECT_DIR',
+                },
+              ],
+            },
+          ],
+        },
+      })
+
+      const result = await service.detectPluginInstallation()
+      expect(result).toBe('plugin')
+    })
+
+    it('returns "dev-mode" when hooks contain dev-hooks path', async () => {
+      await writeClaudeSettings('project', {
+        hooks: {
+          SessionStart: [
+            { hooks: [{ type: 'command', command: '$CLAUDE_PROJECT_DIR/scripts/dev-hooks/session-start' }] },
+          ],
+        },
+      })
+
+      const result = await service.detectPluginInstallation()
+      expect(result).toBe('dev-mode')
+    })
+
+    it('returns "both" when both plugin and dev-mode hooks are present', async () => {
+      await writeClaudeSettings('user', {
+        hooks: {
+          SessionStart: [
+            {
+              hooks: [
+                {
+                  type: 'command',
+                  command: 'npx @scotthamilton77/sidekick hook session-start --project-dir=$CLAUDE_PROJECT_DIR',
+                },
+              ],
+            },
+          ],
+        },
+      })
+      await writeClaudeSettings('project', {
+        hooks: {
+          SessionStart: [
+            { hooks: [{ type: 'command', command: '$CLAUDE_PROJECT_DIR/scripts/dev-hooks/session-start' }] },
+          ],
+        },
+      })
+
+      const result = await service.detectPluginInstallation()
+      expect(result).toBe('both')
+    })
+
+    it('detects plugin from statusLine command', async () => {
+      await writeClaudeSettings('user', {
+        statusLine: {
+          type: 'command',
+          command: 'npx @scotthamilton77/sidekick statusline --project-dir=$CLAUDE_PROJECT_DIR',
+        },
+      })
+
+      const result = await service.detectPluginInstallation()
+      expect(result).toBe('plugin')
+    })
+
+    it('detects dev-mode from statusLine command', async () => {
+      await writeClaudeSettings('project', {
+        statusLine: {
+          type: 'command',
+          command: '$CLAUDE_PROJECT_DIR/scripts/dev-hooks/statusline',
+        },
+      })
+
+      const result = await service.detectPluginInstallation()
+      expect(result).toBe('dev-mode')
+    })
+
+    it('returns "none" when hooks exist but are not sidekick-related', async () => {
+      await writeClaudeSettings('user', {
+        hooks: {
+          SessionStart: [{ hooks: [{ type: 'command', command: 'some-other-tool hook start' }] }],
+        },
+      })
+
+      const result = await service.detectPluginInstallation()
+      expect(result).toBe('none')
+    })
+
+    it('handles multiple hook types', async () => {
+      await writeClaudeSettings('user', {
+        hooks: {
+          SessionStart: [{ hooks: [{ type: 'command', command: 'npx @scotthamilton77/sidekick hook session-start' }] }],
+          PreToolUse: [{ hooks: [{ type: 'command', command: 'npx @scotthamilton77/sidekick hook pre-tool-use' }] }],
+        },
+      })
+
+      const result = await service.detectPluginInstallation()
+      expect(result).toBe('plugin')
+    })
+
+    it('handles malformed settings gracefully', async () => {
+      const settingsPath = path.join(homeDir, '.claude', 'settings.json')
+      await fs.mkdir(path.dirname(settingsPath), { recursive: true })
+      await fs.writeFile(settingsPath, '{invalid json}')
+
+      // Should not throw, just return 'none'
+      const result = await service.detectPluginInstallation()
+      expect(result).toBe('none')
+    })
+  })
+
+  describe('detectPluginLiveness', () => {
+    const mockExec = vi.mocked(childProcess.exec)
+
+    beforeEach(() => {
+      vi.resetAllMocks()
+    })
+
+    it('returns "active" when Claude responds with the safe word', async () => {
+      // Mock exec to return the safe word in stdout
+
+      mockExec.mockImplementation(((_cmd: string, options: any, callback: any) => {
+        const safeWord = options?.env?.SIDEKICK_SAFE_WORD ?? 'yes!'
+        // Call callback if provided (node-style callback)
+        if (callback) {
+          callback(null, { stdout: `The magic word is: ${safeWord}`, stderr: '' })
+        }
+        // Return a mock ChildProcess
+        return { pid: 123 }
+      }) as typeof childProcess.exec)
+
+      const result = await service.detectPluginLiveness()
+      expect(result).toBe('active')
+    })
+
+    it('returns "inactive" when Claude does not respond with safe word', async () => {
+      mockExec.mockImplementation(((_cmd: string, _options: any, callback: any) => {
+        if (callback) {
+          callback(null, { stdout: 'I do not understand the question.', stderr: '' })
+        }
+        return { pid: 123 }
+      }) as typeof childProcess.exec)
+
+      const result = await service.detectPluginLiveness()
+      expect(result).toBe('inactive')
+    })
+
+    it('returns "error" when Claude command fails', async () => {
+      mockExec.mockImplementation(((_cmd: string, _options: any, callback: any) => {
+        if (callback) {
+          callback(new Error('Command not found: claude'), { stdout: '', stderr: '' })
+        }
+        return { pid: 123 }
+      }) as typeof childProcess.exec)
+
+      const result = await service.detectPluginLiveness()
+      expect(result).toBe('error')
+    })
+
+    it('uses a random safe word for each check', async () => {
+      const capturedSafeWords: string[] = []
+
+      mockExec.mockImplementation(((_cmd: string, options: any, callback: any) => {
+        const safeWord = options?.env?.SIDEKICK_SAFE_WORD
+        if (safeWord) {
+          capturedSafeWords.push(safeWord)
+        }
+        if (callback) {
+          callback(null, { stdout: `Response: ${safeWord}`, stderr: '' })
+        }
+        return { pid: 123 }
+      }) as typeof childProcess.exec)
+
+      await service.detectPluginLiveness()
+      await service.detectPluginLiveness()
+
+      // Each call should have a different safe word
+      expect(capturedSafeWords).toHaveLength(2)
+      expect(capturedSafeWords[0]).not.toBe(capturedSafeWords[1])
     })
   })
 
