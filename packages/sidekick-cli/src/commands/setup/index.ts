@@ -12,12 +12,46 @@ export interface SetupCommandOptions {
   checkOnly?: boolean
   force?: boolean
   stdin?: NodeJS.ReadableStream
+  help?: boolean
+  // Scripting flags for non-interactive setup
+  statuslineScope?: 'user' | 'project'
+  gitignore?: boolean // true = install, false = skip, undefined = not specified
+  personas?: boolean // true = enable, false = disable, undefined = not specified
+  apiKeyScope?: 'user' | 'project' // where to save API key (reads from OPENROUTER_API_KEY env)
+  autoConfig?: 'auto' | 'ask' | 'manual'
 }
 
 export interface SetupCommandResult {
   exitCode: number
   output?: string
 }
+
+const USAGE_TEXT = `Usage: sidekick setup [options]
+
+Run the interactive setup wizard to configure sidekick for Claude Code.
+When scripting flags are provided, runs non-interactively for those settings only.
+
+Options:
+  --check                       Check configuration status (alias: sidekick doctor)
+  --force                       Apply all defaults non-interactively
+  --help                        Show this help message
+
+Scripting Flags (for non-interactive/partial setup):
+  --statusline-scope=<scope>    Configure statusline: user | project
+  --gitignore                   Update .gitignore to exclude sidekick files
+  --no-gitignore                Skip .gitignore configuration
+  --personas                    Enable persona features
+  --no-personas                 Disable persona features
+  --api-key-scope=<scope>       Save API key from OPENROUTER_API_KEY env: user | project
+  --auto-config=<mode>          Auto-configure preference: auto | ask | manual
+
+Examples:
+  sidekick setup                              Interactive wizard
+  sidekick setup --check                      Check current status
+  sidekick setup --statusline-scope=user      Configure statusline only
+  sidekick setup --gitignore --personas       Configure gitignore and enable personas
+  OPENROUTER_API_KEY=sk-xxx sidekick setup --personas --api-key-scope=user
+`
 
 const STATUSLINE_COMMAND = 'npx @scotthamilton77/sidekick statusline --project-dir=$CLAUDE_PROJECT_DIR'
 
@@ -128,25 +162,26 @@ async function findExistingApiKey(keyName: string, homeDir: string, projectDir: 
 }
 
 /**
- * Write persona enabled/disabled setting to sidekick config.
+ * Write persona enabled/disabled setting to sidekick features config.
+ * Per CONFIG-SYSTEM.md, feature flags go in features.yaml (not config.yaml).
  */
 async function writePersonaConfig(_projectDir: string, homeDir: string, enabled: boolean): Promise<void> {
-  // Write to user-level config (~/.sidekick/config.yaml)
+  // Write to user-level features config (~/.sidekick/features.yaml)
   const configDir = path.join(homeDir, '.sidekick')
-  const configPath = path.join(configDir, 'config.yaml')
+  const featuresPath = path.join(configDir, 'features.yaml')
 
   await fs.mkdir(configDir, { recursive: true })
 
   let content = ''
   try {
-    content = await fs.readFile(configPath, 'utf-8')
+    content = await fs.readFile(featuresPath, 'utf-8')
   } catch {
     // File doesn't exist
   }
 
-  // Check if personas config exists
-  const personasRegex = /^features:\s*\n\s*personas:\s*\n\s*enabled:\s*(true|false)/m
-  const newPersonasBlock = `features:\n  personas:\n    enabled: ${enabled}`
+  // Check if personas config exists (structure: personas:\n  enabled: true|false)
+  const personasRegex = /^personas:\s*\n\s*enabled:\s*(true|false)/m
+  const newPersonasBlock = `personas:\n  enabled: ${enabled}`
 
   if (personasRegex.test(content)) {
     // Replace existing
@@ -159,7 +194,7 @@ async function writePersonaConfig(_projectDir: string, homeDir: string, enabled:
     content += newPersonasBlock + '\n'
   }
 
-  await fs.writeFile(configPath, content)
+  await fs.writeFile(featuresPath, content)
 }
 
 // ============================================================================
@@ -505,6 +540,128 @@ async function runWizard(
 }
 
 /**
+ * Check if any scripting flags are provided.
+ */
+function hasScriptingFlags(options: SetupCommandOptions): boolean {
+  return (
+    options.statuslineScope !== undefined ||
+    options.gitignore !== undefined ||
+    options.personas !== undefined ||
+    options.apiKeyScope !== undefined ||
+    options.autoConfig !== undefined
+  )
+}
+
+/**
+ * Run scripted (non-interactive) setup for specified options only.
+ */
+async function runScripted(
+  projectDir: string,
+  logger: Logger,
+  stdout: NodeJS.WritableStream,
+  options: SetupCommandOptions
+): Promise<SetupCommandResult> {
+  const homeDir = os.homedir()
+  const setupService = new SetupStatusService(projectDir, { homeDir, logger })
+  let configuredCount = 0
+
+  // 1. Configure statusline if specified
+  if (options.statuslineScope) {
+    const statuslinePath =
+      options.statuslineScope === 'user'
+        ? path.join(homeDir, '.claude', 'settings.json')
+        : path.join(projectDir, '.claude', 'settings.local.json')
+
+    await configureStatusline(statuslinePath, logger)
+    stdout.write(`✓ Statusline configured (${options.statuslineScope}-level)\n`)
+    configuredCount++
+  }
+
+  // 2. Configure gitignore if specified
+  if (options.gitignore === true) {
+    const result = await installGitignoreSection(projectDir)
+    if (result.status === 'error') {
+      stdout.write(`⚠ Failed to update .gitignore: ${result.error}\n`)
+    } else if (result.status === 'already-installed') {
+      stdout.write('✓ Gitignore already configured\n')
+    } else {
+      stdout.write('✓ Gitignore configured\n')
+    }
+    configuredCount++
+  } else if (options.gitignore === false) {
+    stdout.write('- Gitignore skipped\n')
+  }
+
+  // 3. Configure personas if specified
+  if (options.personas !== undefined) {
+    await writePersonaConfig(projectDir, homeDir, options.personas)
+    stdout.write(`✓ Personas ${options.personas ? 'enabled' : 'disabled'}\n`)
+    configuredCount++
+  }
+
+  // 4. Configure API key if scope specified and env var present
+  if (options.apiKeyScope) {
+    const apiKey = process.env.OPENROUTER_API_KEY
+    if (apiKey) {
+      const envPath =
+        options.apiKeyScope === 'user'
+          ? path.join(homeDir, '.sidekick', '.env')
+          : path.join(projectDir, '.sidekick', '.env')
+
+      // Validate the key first
+      stdout.write('Validating API key... ')
+      const result = await validateOpenRouterKey(apiKey, logger)
+      if (result.valid) {
+        stdout.write('valid\n')
+        await writeApiKeyToEnv(envPath, 'OPENROUTER_API_KEY', apiKey)
+        stdout.write(`✓ API key saved (${options.apiKeyScope}-level)\n`)
+      } else {
+        stdout.write(`invalid (${result.error})\n`)
+        stdout.write(`⚠ API key saved anyway (${options.apiKeyScope}-level)\n`)
+        await writeApiKeyToEnv(envPath, 'OPENROUTER_API_KEY', apiKey)
+      }
+      configuredCount++
+    } else {
+      stdout.write('⚠ --api-key-scope specified but OPENROUTER_API_KEY not set in environment\n')
+    }
+  }
+
+  // 5. Configure auto-config preference if specified
+  if (options.autoConfig) {
+    // Read existing user status or create new
+    const existingUserStatus = await setupService.getUserStatus()
+    const userStatus: UserSetupStatus = existingUserStatus ?? {
+      version: 1,
+      lastUpdatedAt: new Date().toISOString(),
+      preferences: {
+        autoConfigureProjects: options.autoConfig === 'auto',
+        defaultStatuslineScope: 'user',
+        defaultApiKeyScope: 'user',
+      },
+      statusline: 'skipped', // Default to skipped if no prior setup
+      apiKeys: {
+        OPENROUTER_API_KEY: 'not-required',
+        OPENAI_API_KEY: 'not-required',
+      },
+    }
+
+    userStatus.preferences.autoConfigureProjects = options.autoConfig === 'auto'
+    userStatus.lastUpdatedAt = new Date().toISOString()
+    await setupService.writeUserStatus(userStatus)
+    stdout.write(`✓ Auto-config set to '${options.autoConfig}'\n`)
+    configuredCount++
+  }
+
+  if (configuredCount === 0) {
+    stdout.write('No configuration changes made. Use --help to see available options.\n')
+  } else {
+    stdout.write(`\nConfigured ${configuredCount} setting${configuredCount === 1 ? '' : 's'}.\n`)
+  }
+
+  return { exitCode: 0 }
+}
+
+/**
  * Run the doctor/check mode.
  */
 async function runDoctor(
@@ -549,8 +706,15 @@ export async function handleSetupCommand(
   stdout: NodeJS.WritableStream,
   options: SetupCommandOptions = {}
 ): Promise<SetupCommandResult> {
+  if (options.help) {
+    stdout.write(USAGE_TEXT)
+    return { exitCode: 0 }
+  }
   if (options.checkOnly) {
     return runDoctor(projectDir, logger, stdout)
+  }
+  if (hasScriptingFlags(options)) {
+    return runScripted(projectDir, logger, stdout, options)
   }
   return runWizard(projectDir, logger, stdout, options)
 }

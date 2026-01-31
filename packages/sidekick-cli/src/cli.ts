@@ -72,6 +72,12 @@ interface ParsedArgs {
   kill?: boolean
   force?: boolean
   _?: (string | number)[]
+  // Setup command scripting flags (undefined = not specified, true/false = explicitly set)
+  statuslineScope?: 'user' | 'project'
+  gitignore?: boolean
+  personas?: boolean
+  apiKeyScope?: 'user' | 'project'
+  autoConfig?: 'auto' | 'ask' | 'manual'
 }
 
 interface RunCliOptions {
@@ -91,8 +97,18 @@ interface RunCliOptions {
  */
 function parseArgs(argv: string[]): ParsedArgs {
   const parsed = yargsParser(argv, {
-    boolean: ['wait', 'open', 'prefer-project', 'help', 'version', 'kill', 'force'],
-    string: ['project-dir', 'log-level', 'format', 'host', 'session-id', 'type'],
+    boolean: ['wait', 'open', 'prefer-project', 'help', 'version', 'kill', 'force', 'gitignore', 'personas'],
+    string: [
+      'project-dir',
+      'log-level',
+      'format',
+      'host',
+      'session-id',
+      'type',
+      'statusline-scope',
+      'api-key-scope',
+      'auto-config',
+    ],
     number: ['port', 'width'],
     alias: {
       h: 'help',
@@ -104,6 +120,14 @@ function parseArgs(argv: string[]): ParsedArgs {
   })
 
   const command = parsed._[0] as string | undefined
+
+  // For --gitignore/--no-gitignore and --personas/--no-personas, we need to distinguish between:
+  // - Flag explicitly set to true (--flag)
+  // - Flag explicitly set to false (--no-flag)
+  // - Flag not specified at all
+  // yargs-parser treats --no-flag as setting flag=false, so we check argv directly
+  const hasGitignoreFlag = argv.some((arg) => arg === '--gitignore' || arg === '--no-gitignore')
+  const hasPersonasFlag = argv.some((arg) => arg === '--personas' || arg === '--no-personas')
 
   return {
     command,
@@ -123,6 +147,12 @@ function parseArgs(argv: string[]): ParsedArgs {
     kill: Boolean(parsed.kill),
     force: Boolean(parsed.force),
     _: parsed._,
+    // Setup command scripting flags - only set if explicitly provided
+    statuslineScope: parsed['statusline-scope'] as 'user' | 'project' | undefined,
+    gitignore: hasGitignoreFlag ? Boolean(parsed.gitignore) : undefined,
+    personas: hasPersonasFlag ? Boolean(parsed.personas) : undefined,
+    apiKeyScope: parsed['api-key-scope'] as 'user' | 'project' | undefined,
+    autoConfig: parsed['auto-config'] as 'auto' | 'ask' | 'manual' | undefined,
   }
 }
 
@@ -523,8 +553,15 @@ Examples:
   if (parsed.command === 'setup') {
     const { handleSetupCommand } = await import('./commands/setup.js')
     const result = await handleSetupCommand(runtime.projectRoot || process.cwd(), runtime.logger, stdout, {
-      checkOnly: parsed.help ? false : parsed._?.[1] === '--check',
+      help: parsed.help,
+      checkOnly: parsed._?.[1] === '--check',
       stdin: process.stdin,
+      // Scripting flags for non-interactive setup
+      statuslineScope: parsed.statuslineScope,
+      gitignore: parsed.gitignore,
+      personas: parsed.personas,
+      apiKeyScope: parsed.apiKeyScope,
+      autoConfig: parsed.autoConfig,
     })
     return { exitCode: result.exitCode, stdout: '', stderr: '' }
   }
