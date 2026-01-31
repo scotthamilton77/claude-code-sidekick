@@ -7,9 +7,9 @@ description: Use when user asks to configure, customize, or set up sidekick. Use
 
 ## Overview
 
-Guide users through configuring sidekick interactively. Ask what they want to configure, help them choose the right scope and method, and create files in the correct locations.
+Configure sidekick by first running diagnostics, then executing setup with appropriate parameters.
 
-**Key principle:** Always ask before assuming. Configuration choices depend on user intent.
+**Key principle:** Always run `doctor` first to understand current state before making changes.
 
 ## When to Use
 
@@ -24,35 +24,110 @@ Guide users through configuring sidekick interactively. Ask what they want to co
 - User wants to modify prompt templates
 - User asks about sidekick configuration options
 
-## Interactive Flow
+## Setup Workflow (Initial Configuration)
 
 ```dot
-digraph config_flow {
+digraph setup_flow {
     rankdir=TB;
     node [shape=box];
 
     start [label="User wants to configure sidekick" shape=ellipse];
-    ask_what [label="Ask: What do you want to configure?\n(LLM, statusline, persona, prompts, reminders)" shape=diamond];
-    ask_scope [label="Ask: User-level or project-level?\n(~/.sidekick/ vs .sidekick/)" shape=diamond];
-    ask_method [label="Single setting or broader changes?" shape=diamond];
-    sidekick_config [label="Use sidekick.config\n(surgical, one line)"];
-    yaml_file [label="Copy default, modify YAML\n(full control)"];
-    explain_reload [label="Explain: Changes apply immediately\n(most settings hot-reload)"];
+    run_doctor [label="Run: npx @scotthamilton77/sidekick doctor"];
+    parse_output [label="Parse doctor output:\n- Statusline status\n- Gitignore status\n- API Key status\n- Overall status"];
+    check_apikey [label="API Key missing?" shape=diamond];
+    ask_apikey [label="Ask user to add API key manually\nto ~/.sidekick/.env or .sidekick/.env"];
+    gather_params [label="Based on doctor output,\nask user about missing items:\n- Statusline scope (user/project)\n- Gitignore (yes/no)\n- Personas (yes/no)"];
+    run_setup [label="Run: npx @scotthamilton77/sidekick setup\nwith appropriate flags"];
+    done [label="Configuration complete" shape=ellipse];
 
-    start -> ask_what;
-    ask_what -> ask_scope;
-    ask_scope -> ask_method;
-    ask_method -> sidekick_config [label="single setting"];
-    ask_method -> yaml_file [label="multiple/complex"];
-    sidekick_config -> explain_reload;
-    yaml_file -> explain_reload;
+    start -> run_doctor;
+    run_doctor -> parse_output;
+    parse_output -> check_apikey;
+    check_apikey -> ask_apikey [label="yes"];
+    check_apikey -> gather_params [label="no"];
+    ask_apikey -> gather_params;
+    gather_params -> run_setup;
+    run_setup -> done;
 }
 ```
 
-**CRITICAL: Always ask these questions before creating files:**
-1. What do you want to configure?
-2. Should this be user-level (~/.sidekick/) or project-level (.sidekick/)?
-3. Single setting change or broader modifications?
+### Step 1: Run Doctor
+
+**Always start with diagnostics:**
+```bash
+npx @scotthamilton77/sidekick doctor
+```
+
+**Doctor output format:**
+```
+Sidekick Doctor
+===============
+
+⚠ Statusline: skipped         # or "installed (user)" / "installed (project)"
+✓ Gitignore: installed        # or "⚠ Gitignore: not configured"
+✓ OpenRouter API Key: configured  # or "⚠ OpenRouter API Key: missing"
+⚠ Overall: needs attention    # or "✓ Overall: ready"
+```
+
+### Step 2: Handle API Key (If Missing)
+
+**CRITICAL:** The setup CLI cannot accept API keys directly. If the API key is missing, instruct the user:
+
+```
+Your OpenRouter API key is not configured. Please add it manually:
+
+1. Get a key at https://openrouter.ai → Keys → Create Key
+2. Add to your config (choose one):
+
+   User-wide (all projects):
+   mkdir -p ~/.sidekick && echo 'OPENROUTER_API_KEY=sk-or-v1-your-key' >> ~/.sidekick/.env
+
+   Project-only:
+   mkdir -p .sidekick && echo 'OPENROUTER_API_KEY=sk-or-v1-your-key' >> .sidekick/.env
+
+Then re-run this configuration.
+```
+
+### Step 3: Gather Setup Parameters
+
+Based on doctor output, ask about unconfigured items:
+
+| Doctor Shows | Ask User |
+|--------------|----------|
+| Statusline: skipped | "Configure statusline? (user-level or project-level?)" |
+| Gitignore: not configured | "Update .gitignore to exclude sidekick files?" |
+| (always ask if not using --force) | "Enable persona features?" |
+
+### Step 4: Run Setup with Flags
+
+**Setup command flags:**
+```bash
+npx @scotthamilton77/sidekick setup [options]
+
+Options:
+  --statusline-scope=<user|project>  Configure statusline scope
+  --gitignore                        Update .gitignore
+  --no-gitignore                     Skip .gitignore
+  --personas                         Enable personas
+  --no-personas                      Disable personas
+  --force                            Apply all defaults non-interactively
+```
+
+**Examples based on user responses:**
+```bash
+# User wants statusline at user level, gitignore, and personas
+npx @scotthamilton77/sidekick setup --statusline-scope=user --gitignore --personas
+
+# User wants project-level statusline, no gitignore changes
+npx @scotthamilton77/sidekick setup --statusline-scope=project --no-gitignore --personas
+
+# Apply all defaults without prompting
+npx @scotthamilton77/sidekick setup --force
+```
+
+## Advanced Configuration (Post-Setup)
+
+For changes beyond initial setup, use the interactive flow below.
 
 ## Choosing Configuration Method
 
@@ -111,18 +186,6 @@ Best for complex objects or multiple related settings. Copy the default file and
 
 ## Quick Examples
 
-### Set Up API Key (Required First Step)
-
-Sidekick needs an API key for LLM features. See [resources/CREDENTIALS.md](resources/CREDENTIALS.md) for full details.
-
-**Quick setup (user-wide):**
-```bash
-mkdir -p ~/.sidekick
-echo 'OPENROUTER_API_KEY=sk-or-v1-your-key-here' >> ~/.sidekick/.env
-```
-
-Get a key at [openrouter.ai](https://openrouter.ai) → Keys → Create Key.
-
 ### Change Default LLM Model
 
 **Surgical (sidekick.config):**
@@ -167,17 +230,17 @@ statusline:
 The assistant has access to the current session ID via `<session-info>` in the context. To change the persona for the current session:
 
 ```bash
-npx @sidekick/cli persona set <persona-id> --session-id=<session-id>
+npx @scotthamilton77/sidekick persona set <persona-id> --session-id=<session-id>
 ```
 
 **Example:** If session ID is `abc-123` and user wants GLaDOS:
 ```bash
-npx @sidekick/cli persona set glados --session-id=abc-123
+npx @scotthamilton77/sidekick persona set glados --session-id=abc-123
 ```
 
 **List available personas:**
 ```bash
-npx @sidekick/cli persona list
+npx @scotthamilton77/sidekick persona list
 ```
 
 See [resources/PERSONAS.md](resources/PERSONAS.md) for available personas and creating custom ones.
