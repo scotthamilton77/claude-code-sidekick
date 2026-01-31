@@ -126,6 +126,8 @@ export {
   type DoctorCheckOptions,
   type DoctorCheckResult,
   type DoctorItemResult,
+  type PluginInstallationStatus,
+  type PluginLivenessStatus,
 } from './setup-status-service'
 // Re-export validation utilities from shared-providers
 export { validateOpenRouterKey, validateOpenAIKey, type ValidationResult } from '@sidekick/shared-providers'

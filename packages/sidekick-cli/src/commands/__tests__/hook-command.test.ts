@@ -433,11 +433,11 @@ describe('handleUnifiedHookCommand', () => {
     const result = await handleUnifiedHookCommand('SessionStart', baseOptions, mockLogger, stdout)
 
     expect(result.exitCode).toBe(0)
-    // Should be translated to Claude Code format
+    // Should be translated to Claude Code format, with safe word appended for SessionStart
     const output = JSON.parse(stdout.data.trim())
-    expect(output).toEqual({
-      hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: 'Test context' },
-    })
+    expect(output.hookSpecificOutput?.hookEventName).toBe('SessionStart')
+    expect(output.hookSpecificOutput?.additionalContext).toContain('Test context')
+    expect(output.hookSpecificOutput?.additionalContext).toContain('Sidekick')
   })
 
   test('translates blocking response correctly for SessionStart', async () => {
@@ -452,10 +452,10 @@ describe('handleUnifiedHookCommand', () => {
     await handleUnifiedHookCommand('SessionStart', baseOptions, mockLogger, stdout)
 
     const output = JSON.parse(stdout.data.trim())
-    expect(output).toEqual({
-      continue: false,
-      stopReason: 'Blocked by test',
-    })
+    // SessionStart now always includes safe word in additionalContext
+    expect(output.continue).toBe(false)
+    expect(output.stopReason).toBe('Blocked by test')
+    expect(output.hookSpecificOutput?.additionalContext).toContain('Sidekick')
   })
 
   test('translates blocking response correctly for UserPromptSubmit', async () => {
@@ -485,7 +485,8 @@ describe('handleUnifiedHookCommand', () => {
     )
 
     const stdout = new CollectingWritable()
-    const result = await handleUnifiedHookCommand('SessionStart', baseOptions, mockLogger, stdout)
+    // Use PostToolUse since SessionStart now always gets safe word injection
+    const result = await handleUnifiedHookCommand('PostToolUse', baseOptions, mockLogger, stdout)
 
     expect(result.exitCode).toBe(0)
     const output = JSON.parse(stdout.data.trim())
@@ -501,7 +502,8 @@ describe('handleUnifiedHookCommand', () => {
     )
 
     const stdout = new CollectingWritable()
-    const result = await handleUnifiedHookCommand('SessionStart', baseOptions, mockLogger, stdout)
+    // Use PostToolUse since SessionStart now always gets safe word injection
+    const result = await handleUnifiedHookCommand('PostToolUse', baseOptions, mockLogger, stdout)
 
     // Should not throw, should return empty translated response
     expect(result.exitCode).toBe(0)
@@ -510,7 +512,7 @@ describe('handleUnifiedHookCommand', () => {
     // Should log warning
     expect(mockLogger.warn).toHaveBeenCalledWith(
       'Failed to parse internal hook response',
-      expect.objectContaining({ hookName: 'SessionStart' })
+      expect.objectContaining({ hookName: 'PostToolUse' })
     )
   })
 
@@ -637,7 +639,9 @@ describe('handleUnifiedHookCommand', () => {
       // Should call internal handler when healthy
       expect(mockHandleHookCommand).toHaveBeenCalled()
       const output = JSON.parse(stdout.data.trim())
-      expect(output.hookSpecificOutput?.additionalContext).toBe('Normal response')
+      // Now includes both normal response and safe word (safe word is always appended)
+      expect(output.hookSpecificOutput?.additionalContext).toContain('Normal response')
+      expect(output.hookSpecificOutput?.additionalContext).toContain('Sidekick')
     })
 
     test('proceeds normally when setup check throws (assumes healthy)', async () => {
@@ -660,7 +664,124 @@ describe('handleUnifiedHookCommand', () => {
       // Should proceed with internal handler
       expect(mockHandleHookCommand).toHaveBeenCalled()
       const output = JSON.parse(stdout.data.trim())
-      expect(output.hookSpecificOutput?.additionalContext).toBe('Normal response')
+      // Now includes both normal response and safe word (safe word is always appended)
+      expect(output.hookSpecificOutput?.additionalContext).toContain('Normal response')
+      expect(output.hookSpecificOutput?.additionalContext).toContain('Sidekick')
+    })
+  })
+
+  describe('safe word liveness injection', () => {
+    beforeEach(() => {
+      // Default to healthy setup
+      mockGetSetupState.mockResolvedValue('healthy')
+    })
+
+    test('injects safe word context when SIDEKICK_SAFE_WORD env var is set', async () => {
+      const originalEnv = process.env.SIDEKICK_SAFE_WORD
+      process.env.SIDEKICK_SAFE_WORD = 'test-safe-word-xyz'
+
+      try {
+        mockHandleHookCommand.mockImplementation(
+          (_hookName: unknown, _options: unknown, _logger: unknown, stdout: Writable) => {
+            stdout.write('{}\n')
+            return Promise.resolve({ exitCode: 0, output: '{}' })
+          }
+        )
+
+        const stdout = new CollectingWritable()
+        await handleUnifiedHookCommand('SessionStart', baseOptions, mockLogger, stdout)
+
+        const output = JSON.parse(stdout.data.trim())
+        // Should include the safe word in additionalContext
+        expect(output.hookSpecificOutput?.additionalContext).toContain('test-safe-word-xyz')
+        expect(output.hookSpecificOutput?.additionalContext).toContain('Sidekick is installed')
+      } finally {
+        if (originalEnv === undefined) {
+          delete process.env.SIDEKICK_SAFE_WORD
+        } else {
+          process.env.SIDEKICK_SAFE_WORD = originalEnv
+        }
+      }
+    })
+
+    test('uses default safe word "yes!" when env var not set', async () => {
+      const originalEnv = process.env.SIDEKICK_SAFE_WORD
+      delete process.env.SIDEKICK_SAFE_WORD
+
+      try {
+        mockHandleHookCommand.mockImplementation(
+          (_hookName: unknown, _options: unknown, _logger: unknown, stdout: Writable) => {
+            stdout.write('{}\n')
+            return Promise.resolve({ exitCode: 0, output: '{}' })
+          }
+        )
+
+        const stdout = new CollectingWritable()
+        await handleUnifiedHookCommand('SessionStart', baseOptions, mockLogger, stdout)
+
+        const output = JSON.parse(stdout.data.trim())
+        // Should include default safe word
+        expect(output.hookSpecificOutput?.additionalContext).toContain('yes!')
+      } finally {
+        if (originalEnv !== undefined) {
+          process.env.SIDEKICK_SAFE_WORD = originalEnv
+        }
+      }
+    })
+
+    test('appends safe word context to existing additionalContext', async () => {
+      const originalEnv = process.env.SIDEKICK_SAFE_WORD
+      process.env.SIDEKICK_SAFE_WORD = 'custom-safe-word'
+
+      try {
+        mockHandleHookCommand.mockImplementation(
+          (_hookName: unknown, _options: unknown, _logger: unknown, stdout: Writable) => {
+            stdout.write('{"additionalContext":"Existing context from hook"}\n')
+            return Promise.resolve({ exitCode: 0, output: '{}' })
+          }
+        )
+
+        const stdout = new CollectingWritable()
+        await handleUnifiedHookCommand('SessionStart', baseOptions, mockLogger, stdout)
+
+        const output = JSON.parse(stdout.data.trim())
+        // Should contain both existing context and safe word
+        expect(output.hookSpecificOutput?.additionalContext).toContain('Existing context from hook')
+        expect(output.hookSpecificOutput?.additionalContext).toContain('custom-safe-word')
+      } finally {
+        if (originalEnv === undefined) {
+          delete process.env.SIDEKICK_SAFE_WORD
+        } else {
+          process.env.SIDEKICK_SAFE_WORD = originalEnv
+        }
+      }
+    })
+
+    test('does not inject safe word for non-SessionStart hooks', async () => {
+      const originalEnv = process.env.SIDEKICK_SAFE_WORD
+      process.env.SIDEKICK_SAFE_WORD = 'should-not-appear'
+
+      try {
+        mockHandleHookCommand.mockImplementation(
+          (_hookName: unknown, _options: unknown, _logger: unknown, stdout: Writable) => {
+            stdout.write('{}\n')
+            return Promise.resolve({ exitCode: 0, output: '{}' })
+          }
+        )
+
+        const stdout = new CollectingWritable()
+        await handleUnifiedHookCommand('UserPromptSubmit', baseOptions, mockLogger, stdout)
+
+        const output = JSON.parse(stdout.data.trim())
+        // Should NOT have safe word content for non-SessionStart hooks
+        expect(output.hookSpecificOutput?.additionalContext).toBeUndefined()
+      } finally {
+        if (originalEnv === undefined) {
+          delete process.env.SIDEKICK_SAFE_WORD
+        } else {
+          process.env.SIDEKICK_SAFE_WORD = originalEnv
+        }
+      }
     })
   })
 })

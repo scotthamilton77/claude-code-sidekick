@@ -9,6 +9,8 @@ import {
   installGitignoreSection,
   detectGitignoreStatus,
   validateOpenRouterKey,
+  type PluginInstallationStatus,
+  type PluginLivenessStatus,
 } from '@sidekick/core'
 import { printHeader, printStatus, promptSelect, promptConfirm, promptInput, type PromptContext } from './prompts.js'
 
@@ -66,6 +68,22 @@ const STATUSLINE_COMMAND = 'npx @scotthamilton77/sidekick statusline --project-d
 // ============================================================================
 
 /**
+ * Map plugin installation status to human-readable label.
+ */
+function getPluginStatusLabel(status: 'plugin' | 'dev-mode' | 'both' | 'none'): string {
+  switch (status) {
+    case 'plugin':
+      return 'installed'
+    case 'dev-mode':
+      return 'dev-mode (local)'
+    case 'both':
+      return 'conflict (both plugin and dev-mode detected!)'
+    case 'none':
+      return 'not installed'
+  }
+}
+
+/**
  * Map API key health to status type for display.
  */
 function getApiKeyStatusType(health: ApiKeyHealth): 'success' | 'warning' | 'info' {
@@ -76,6 +94,49 @@ function getApiKeyStatusType(health: ApiKeyHealth): 'success' | 'warning' | 'inf
       return 'info'
     default:
       return 'warning'
+  }
+}
+
+/**
+ * Map plugin status to display icon.
+ */
+function getPluginStatusIcon(status: PluginInstallationStatus): string {
+  switch (status) {
+    case 'plugin':
+    case 'dev-mode':
+      return '✓'
+    case 'both':
+      return '⚠'
+    case 'none':
+      return '✗'
+  }
+}
+
+/**
+ * Map plugin liveness status to display icon.
+ */
+function getLivenessIcon(status: PluginLivenessStatus): string {
+  switch (status) {
+    case 'active':
+      return '✓'
+    case 'inactive':
+      return '✗'
+    case 'error':
+      return '⚠'
+  }
+}
+
+/**
+ * Map plugin liveness status to human-readable label.
+ */
+function getLivenessLabel(status: PluginLivenessStatus): string {
+  switch (status) {
+    case 'active':
+      return 'hooks responding'
+    case 'inactive':
+      return 'hooks not detected'
+    case 'error':
+      return 'check failed'
   }
 }
 
@@ -702,6 +763,9 @@ async function runDoctor(
   // Also check gitignore (not part of the cache system)
   const gitignore = await detectGitignoreStatus(projectDir)
 
+  // Check plugin installation status
+  const pluginStatus = await setupService.detectPluginInstallation()
+
   // Report any fixes made
   if (doctorResult.fixes.length > 0) {
     stdout.write('Cache corrections:\n')
@@ -711,17 +775,30 @@ async function runDoctor(
     stdout.write('\n')
   }
 
+  // Test plugin liveness (spawns Claude session)
+  stdout.write('Checking live status of Sidekick... this may take a few moments.\n')
+  const liveness = await setupService.detectPluginLiveness()
+
   // Display current state
+  const pluginIcon = getPluginStatusIcon(pluginStatus)
+  const pluginLabel = getPluginStatusLabel(pluginStatus)
+  const livenessIcon = getLivenessIcon(liveness)
+  const livenessLabel = getLivenessLabel(liveness)
   const statuslineIcon = doctorResult.statusline.actual === 'configured' ? '✓' : '⚠'
   const gitignoreIcon = gitignore === 'installed' ? '✓' : '⚠'
   const openRouterHealth = doctorResult.apiKeys.OPENROUTER_API_KEY.actual
   const apiKeyIcon = openRouterHealth === 'healthy' || openRouterHealth === 'not-required' ? '✓' : '⚠'
 
+  stdout.write('\n')
+  stdout.write(`${pluginIcon} Plugin: ${pluginLabel}\n`)
+  stdout.write(`${livenessIcon} Plugin Liveness: ${livenessLabel}\n`)
   stdout.write(`${statuslineIcon} Statusline: ${doctorResult.statusline.actual}\n`)
   stdout.write(`${gitignoreIcon} Gitignore: ${gitignore}\n`)
   stdout.write(`${apiKeyIcon} OpenRouter API Key: ${openRouterHealth}\n`)
 
-  const isHealthy = doctorResult.overallHealth === 'healthy' && gitignore === 'installed'
+  const isPluginOk = pluginStatus === 'plugin' || pluginStatus === 'dev-mode'
+  const isPluginLive = liveness === 'active'
+  const isHealthy = doctorResult.overallHealth === 'healthy' && gitignore === 'installed' && isPluginOk && isPluginLive
   const overallIcon = isHealthy ? '✓' : '⚠'
   stdout.write(`${overallIcon} Overall: ${isHealthy ? 'healthy' : 'needs attention'}\n`)
 

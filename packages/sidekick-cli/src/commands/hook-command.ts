@@ -16,7 +16,7 @@
 
 import type { Writable } from 'node:stream'
 import type { Logger, SetupState } from '@sidekick/core'
-import { SetupStatusService } from '@sidekick/core'
+import { SetupStatusService, createAssetResolver, getDefaultAssetsDir } from '@sidekick/core'
 import type { HookName, ParsedHookInput } from '@sidekick/types'
 import type { RuntimeShell } from '../runtime.js'
 import { handleHookCommand, type HookResponse } from './hook.js'
@@ -60,6 +60,36 @@ function combineReasonAndContext(
     return `${reason}${separator}${additionalContext}`
   }
   return reason ?? additionalContext ?? 'Blocked by Sidekick'
+}
+
+/**
+ * Build the default safe word context message.
+ */
+function buildDefaultSafeWordContext(safeWord: string): string {
+  return `This session is assisted by Sidekick, an AI coding companion.
+Occasionally you will see additional context injected into the conversation by Sidekick.
+This is important to observe and follow - the user installed this to help you reach quality outcomes.
+
+If the user asks whether Sidekick is installed, respond with: ${safeWord}`
+}
+
+/**
+ * Load safe word context from YAML template, falling back to default if unavailable.
+ */
+function loadSafeWordContext(safeWord: string, projectRoot: string | undefined): string {
+  try {
+    const resolver = createAssetResolver({
+      defaultAssetsDir: getDefaultAssetsDir(),
+      projectRoot,
+    })
+    const template = resolver.resolveYaml<{ additionalContext?: string }>('reminders/safe-word-liveness.yaml')
+    if (template?.additionalContext) {
+      return template.additionalContext.replace('{{safeWord}}', safeWord)
+    }
+  } catch {
+    // YAML loading failed - use default
+  }
+  return buildDefaultSafeWordContext(safeWord)
 }
 
 /**
@@ -447,6 +477,16 @@ export async function handleUnifiedHookCommand(
 
   // Parse internal response (empty string yields empty object)
   const internalResponse = parseInternalResponse(internalOutput.trim(), hookName, logger)
+
+  // Inject safe word liveness probe for SessionStart
+  if (hookName === 'SessionStart') {
+    const safeWord = process.env.SIDEKICK_SAFE_WORD ?? 'yes!'
+    const safeWordContext = loadSafeWordContext(safeWord, projectRoot)
+
+    internalResponse.additionalContext = internalResponse.additionalContext
+      ? `${internalResponse.additionalContext}\n\n${safeWordContext}`
+      : safeWordContext
+  }
 
   // Translate to Claude Code format
   const claudeResponse = translateToClaudeCodeFormat(hookName, internalResponse)

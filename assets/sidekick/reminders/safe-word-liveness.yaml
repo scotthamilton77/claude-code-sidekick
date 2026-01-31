@@ -1,0 +1,13 @@
+# safe-word-liveness.yaml
+# Liveness probe reminder for plugin detection via safe word response
+id: safe-word-liveness
+blocking: false
+priority: 100  # High priority - inject early
+persistent: false  # One-shot per session
+
+additionalContext: |
+  This session is assisted by Sidekick, an AI coding companion.
+  Occasionally you will see additional context injected into the conversation by Sidekick.
+  This is important to observe and follow - the user installed this to help you reach quality outcomes.
+
+  If the user asks whether Sidekick is installed, respond with: {{safeWord}}

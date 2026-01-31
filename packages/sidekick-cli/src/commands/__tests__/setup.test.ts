@@ -14,9 +14,29 @@
 import { Writable } from 'node:stream'
 import { mkdir, writeFile, rm } from 'node:fs/promises'
 import path from 'node:path'
-import { describe, expect, test, beforeEach, afterEach } from 'vitest'
+import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest'
 import { handleSetupCommand } from '../setup'
 import type { Logger } from '@sidekick/types'
+
+// Mock SetupStatusService.detectPluginLiveness to avoid spawning Claude
+vi.mock('@sidekick/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@sidekick/core')>()
+  const OriginalSetupStatusService = actual.SetupStatusService
+
+  // Create a subclass that overrides detectPluginLiveness
+  class MockedSetupStatusService extends OriginalSetupStatusService {
+    // eslint-disable-next-line @typescript-eslint/require-await
+    async detectPluginLiveness(): Promise<'active' | 'inactive' | 'error'> {
+      // Return 'active' so tests pass when plugin checks are made
+      return 'active'
+    }
+  }
+
+  return {
+    ...actual,
+    SetupStatusService: MockedSetupStatusService,
+  }
+})
 
 // CollectingWritable to capture stdout output
 class CollectingWritable extends Writable {
@@ -127,7 +147,7 @@ describe('handleSetupCommand', () => {
     })
 
     test('returns exit code 0 when healthy with healthy API key', async () => {
-      // Create actual Claude settings with sidekick statusline (doctor checks this file)
+      // Create actual Claude settings with sidekick statusline AND hooks (doctor checks both)
       const claudeDir = path.join(homeDir, '.claude')
       await mkdir(claudeDir, { recursive: true })
       const settingsPath = path.join(claudeDir, 'settings.json')
@@ -135,7 +155,12 @@ describe('handleSetupCommand', () => {
         settingsPath,
         JSON.stringify(
           {
-            statusLine: { command: 'pnpm sidekick hook status' },
+            statusLine: { command: 'npx @scotthamilton77/sidekick statusline' },
+            hooks: {
+              SessionStart: [
+                { hooks: [{ type: 'command', command: 'npx @scotthamilton77/sidekick hook session-start' }] },
+              ],
+            },
           },
           null,
           2
@@ -189,7 +214,7 @@ describe('handleSetupCommand', () => {
     })
 
     test('returns exit code 0 when healthy with not-required API key', async () => {
-      // Create actual Claude settings with sidekick statusline (doctor checks this file)
+      // Create actual Claude settings with sidekick statusline AND hooks (doctor checks both)
       const claudeDir = path.join(homeDir, '.claude')
       await mkdir(claudeDir, { recursive: true })
       const settingsPath = path.join(claudeDir, 'settings.json')
@@ -197,7 +222,12 @@ describe('handleSetupCommand', () => {
         settingsPath,
         JSON.stringify(
           {
-            statusLine: { command: 'pnpm sidekick hook status' },
+            statusLine: { command: 'npx @scotthamilton77/sidekick statusline' },
+            hooks: {
+              SessionStart: [
+                { hooks: [{ type: 'command', command: 'npx @scotthamilton77/sidekick hook session-start' }] },
+              ],
+            },
           },
           null,
           2
