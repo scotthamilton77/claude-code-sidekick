@@ -40,7 +40,10 @@ export { FallbackProvider } from './fallback'
 // Provider implementations (exported for advanced use cases)
 export { OpenAINativeProvider, type OpenAINativeConfig } from './providers/openai-native'
 export { AnthropicCliProvider, type AnthropicCliConfig } from './providers/anthropic-cli'
-export { AbstractProvider } from './providers/base'
+export { AbstractProvider, type ValidationResult, type ValidatableProvider } from './providers/base'
+
+// API key validation utilities
+export { validateOpenRouterKey, validateOpenAIKey, type ValidatableProviderType } from './validation'
 
 // Emulator implementations (for cost-effective testing)
 export {

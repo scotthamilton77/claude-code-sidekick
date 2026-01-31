@@ -11,8 +11,35 @@ import {
   type ApiKeyHealth,
   type ProjectApiKeyHealth,
 } from '@sidekick/types'
+import { validateOpenRouterKey, validateOpenAIKey } from '@sidekick/shared-providers'
+
+/**
+ * Check if a statusLine command is a sidekick command.
+ */
+function isSidekickStatuslineCommand(command: string | undefined): boolean {
+  if (!command) return false
+  return command.toLowerCase().includes('sidekick')
+}
 
 export type ApiKeyName = 'OPENROUTER_API_KEY' | 'OPENAI_API_KEY'
+
+export interface DoctorCheckOptions {
+  /** Skip API key validation (for faster checks or when offline) */
+  skipValidation?: boolean
+}
+
+export interface DoctorItemResult {
+  actual: string
+  cached: string
+  fixed: boolean
+}
+
+export interface DoctorCheckResult {
+  statusline: DoctorItemResult
+  apiKeys: Record<ApiKeyName, DoctorItemResult>
+  overallHealth: 'healthy' | 'unhealthy'
+  fixes: string[]
+}
 
 export interface SetupStatusServiceOptions {
   homeDir?: string
@@ -126,6 +153,63 @@ export class SetupStatusService {
     await this.writeProjectStatus(updated)
   }
 
+  // === Actual config detection ===
+
+  /**
+   * Detect actual API key by reading .env files.
+   * Checks environment variable first, then project .env, then user .env.
+   * Returns the key value if found, null otherwise.
+   */
+  async detectActualApiKey(keyName: ApiKeyName): Promise<string | null> {
+    // Check environment variable first
+    if (process.env[keyName]) {
+      return process.env[keyName]
+    }
+
+    // Check .env files (project first, then user)
+    const envPaths = [path.join(this.projectDir, '.sidekick', '.env'), path.join(this.homeDir, '.sidekick', '.env')]
+
+    for (const envPath of envPaths) {
+      try {
+        const content = await fs.readFile(envPath, 'utf-8')
+        const match = content.match(new RegExp(`^${keyName}=(.+)$`, 'm'))
+        if (match) {
+          return match[1]
+        }
+      } catch {
+        // File doesn't exist - continue checking
+      }
+    }
+
+    return null
+  }
+
+  /**
+   * Detect actual statusline configuration by reading Claude settings files.
+   * Checks both user (~/.claude/settings.json) and project (.claude/settings.local.json).
+   */
+  async detectActualStatusline(): Promise<'configured' | 'not-setup'> {
+    const settingsPaths = [
+      path.join(this.homeDir, '.claude', 'settings.json'),
+      path.join(this.projectDir, '.claude', 'settings.local.json'),
+    ]
+
+    for (const settingsPath of settingsPaths) {
+      try {
+        const content = await fs.readFile(settingsPath, 'utf-8')
+        const settings = JSON.parse(content) as Record<string, unknown>
+        const statusLine = settings.statusLine as { command?: string } | undefined
+        if (isSidekickStatuslineCommand(statusLine?.command)) {
+          return 'configured'
+        }
+      } catch {
+        // File doesn't exist or is invalid - continue checking
+      }
+    }
+
+    return 'not-setup'
+  }
+
   // === Merged getters ===
 
   async getStatuslineHealth(): Promise<'configured' | 'skipped' | 'not-setup'> {
@@ -201,6 +285,103 @@ export class SetupStatusService {
       await this.updateProjectStatus({
         apiKeys: { ...current.apiKeys, [key]: health },
       })
+    }
+  }
+
+  // === Doctor check (reality vs cache reconciliation) ===
+
+  /**
+   * Run a doctor check that compares actual config state with cache,
+   * updates cache if mismatched, and reports what was fixed.
+   */
+  async runDoctorCheck(options: DoctorCheckOptions = {}): Promise<DoctorCheckResult> {
+    const fixes: string[] = []
+
+    // Check statusline
+    const actualStatusline = await this.detectActualStatusline()
+    const cachedStatusline = await this.getStatuslineHealth()
+    const statuslineFixed = actualStatusline !== cachedStatusline && actualStatusline === 'configured'
+
+    if (statuslineFixed) {
+      fixes.push('Statusline was actually configured (updated cache)')
+      // Update the cache
+      const userStatus = await this.getUserStatus()
+      if (userStatus) {
+        await this.updateUserStatus({ statusline: 'configured' })
+      } else {
+        // Create new user status
+        await this.writeUserStatus({
+          version: 1,
+          lastUpdatedAt: new Date().toISOString(),
+          preferences: {
+            autoConfigureProjects: false,
+            defaultStatuslineScope: 'user',
+            defaultApiKeyScope: 'user',
+          },
+          statusline: 'configured',
+          apiKeys: {
+            OPENROUTER_API_KEY: 'missing',
+            OPENAI_API_KEY: 'not-required',
+          },
+        })
+      }
+    }
+
+    // Check API keys
+    const apiKeyResults: Record<ApiKeyName, DoctorItemResult> = {} as Record<ApiKeyName, DoctorItemResult>
+    const keysToCheck: ApiKeyName[] = ['OPENROUTER_API_KEY', 'OPENAI_API_KEY']
+
+    for (const keyName of keysToCheck) {
+      const actualKey = await this.detectActualApiKey(keyName)
+      const cachedHealth = await this.getEffectiveApiKeyHealth(keyName)
+
+      let actualHealth: ApiKeyHealth
+      if (!actualKey) {
+        actualHealth = 'missing'
+      } else if (options.skipValidation) {
+        actualHealth = 'pending-validation'
+      } else {
+        // Validate the key using the provider API
+        const validateFn = keyName === 'OPENROUTER_API_KEY' ? validateOpenRouterKey : validateOpenAIKey
+        const validationResult = await validateFn(actualKey, this.logger)
+        actualHealth = validationResult.valid ? 'healthy' : 'invalid'
+      }
+
+      const keyFixed = actualKey !== null && cachedHealth === 'missing'
+
+      if (keyFixed) {
+        fixes.push(`${keyName} was actually present (updated cache)`)
+        // Update cache
+        const userStatus = await this.getUserStatus()
+        if (userStatus) {
+          await this.updateUserStatus({
+            apiKeys: { ...userStatus.apiKeys, [keyName]: actualHealth },
+          })
+        }
+      }
+
+      apiKeyResults[keyName] = {
+        actual: actualHealth,
+        cached: cachedHealth,
+        fixed: keyFixed,
+      }
+    }
+
+    // Determine overall health
+    const isStatuslineHealthy = actualStatusline === 'configured'
+    const openRouterActual = apiKeyResults.OPENROUTER_API_KEY.actual
+    const isApiKeyHealthy = openRouterActual !== 'missing'
+    const overallHealth: 'healthy' | 'unhealthy' = isStatuslineHealthy && isApiKeyHealthy ? 'healthy' : 'unhealthy'
+
+    return {
+      statusline: {
+        actual: actualStatusline,
+        cached: cachedStatusline,
+        fixed: statuslineFixed,
+      },
+      apiKeys: apiKeyResults,
+      overallHealth,
+      fixes,
     }
   }
 

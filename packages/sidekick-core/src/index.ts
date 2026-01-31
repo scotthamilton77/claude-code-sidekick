@@ -123,7 +123,12 @@ export {
   type SetupStatusServiceOptions,
   type ApiKeyName,
   type SetupState,
+  type DoctorCheckOptions,
+  type DoctorCheckResult,
+  type DoctorItemResult,
 } from './setup-status-service'
+// Re-export validation utilities from shared-providers
+export { validateOpenRouterKey, validateOpenAIKey, type ValidationResult } from '@sidekick/shared-providers'
 export {
   installGitignoreSection,
   removeGitignoreSection,
