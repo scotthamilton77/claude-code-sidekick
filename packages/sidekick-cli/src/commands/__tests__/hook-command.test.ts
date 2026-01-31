@@ -72,7 +72,7 @@ describe('translateToClaudeCodeFormat', () => {
       const internal: HookResponse = { additionalContext: 'Extra context' }
       const result = translateToClaudeCodeFormat('SessionStart', internal)
       expect(result).toEqual({
-        hookSpecificOutput: { additionalContext: 'Extra context' },
+        hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: 'Extra context' },
       })
     })
 
@@ -84,7 +84,7 @@ describe('translateToClaudeCodeFormat', () => {
       const result = translateToClaudeCodeFormat('SessionStart', internal)
       expect(result).toEqual({
         systemMessage: 'Message',
-        hookSpecificOutput: { additionalContext: 'Context' },
+        hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: 'Context' },
       })
     })
   })
@@ -335,9 +335,10 @@ import { vi, beforeEach } from 'vitest'
 import type { ParsedHookInput } from '@sidekick/types'
 import { handleUnifiedHookCommand } from '../hook-command.js'
 
-// Hoisted mock for handleHookCommand
-const { mockHandleHookCommand } = vi.hoisted(() => ({
+// Hoisted mocks
+const { mockHandleHookCommand, mockGetSetupState } = vi.hoisted(() => ({
   mockHandleHookCommand: vi.fn(),
+  mockGetSetupState: vi.fn(),
 }))
 
 // Mock the hook.js module to control internal responses
@@ -346,6 +347,17 @@ vi.mock('../hook.js', async (importOriginal) => {
   return {
     ...actual,
     handleHookCommand: mockHandleHookCommand,
+  }
+})
+
+// Mock SetupStatusService to control setup state
+vi.mock('@sidekick/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@sidekick/core')>()
+  return {
+    ...actual,
+    SetupStatusService: vi.fn().mockImplementation(() => ({
+      getSetupState: mockGetSetupState,
+    })),
   }
 })
 
@@ -404,6 +416,8 @@ describe('handleUnifiedHookCommand', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    // Default to healthy setup state so tests exercise normal flow
+    mockGetSetupState.mockResolvedValue('healthy')
   })
 
   test('translates internal response to Claude Code format and outputs JSON', async () => {
@@ -422,7 +436,7 @@ describe('handleUnifiedHookCommand', () => {
     // Should be translated to Claude Code format
     const output = JSON.parse(stdout.data.trim())
     expect(output).toEqual({
-      hookSpecificOutput: { additionalContext: 'Test context' },
+      hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: 'Test context' },
     })
   })
 
@@ -537,5 +551,116 @@ describe('handleUnifiedHookCommand', () => {
       mockLogger,
       expect.any(Object) // capture stream
     )
+  })
+
+  describe('degraded mode (setup not healthy)', () => {
+    test('returns degraded response when setup not run', async () => {
+      mockGetSetupState.mockResolvedValue('not-run')
+
+      const stdout = new CollectingWritable()
+      const result = await handleUnifiedHookCommand('SessionStart', baseOptions, mockLogger, stdout)
+
+      expect(result.exitCode).toBe(0)
+      const output = JSON.parse(stdout.data.trim())
+      expect(output.hookSpecificOutput?.additionalContext).toContain('Sidekick plugin detected but not configured')
+      expect(output.systemMessage).toContain("Run 'sidekick setup'")
+      // Should NOT call internal hook handler
+      expect(mockHandleHookCommand).not.toHaveBeenCalled()
+      // Should log at INFO level for not-run
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        'Hook operating in degraded mode - setup not run',
+        expect.any(Object)
+      )
+    })
+
+    test('returns degraded response when setup partial', async () => {
+      mockGetSetupState.mockResolvedValue('partial')
+
+      const stdout = new CollectingWritable()
+      const result = await handleUnifiedHookCommand('UserPromptSubmit', baseOptions, mockLogger, stdout)
+
+      expect(result.exitCode).toBe(0)
+      const output = JSON.parse(stdout.data.trim())
+      expect(output.hookSpecificOutput?.additionalContext).toContain('project is not configured')
+      expect(output.systemMessage).toContain('project setup incomplete')
+      expect(mockHandleHookCommand).not.toHaveBeenCalled()
+      // Should log at WARN level for partial
+      expect(mockLogger.warn).toHaveBeenCalledWith('Hook operating in degraded mode', expect.any(Object))
+    })
+
+    test('returns degraded response when setup unhealthy', async () => {
+      mockGetSetupState.mockResolvedValue('unhealthy')
+
+      const stdout = new CollectingWritable()
+      // Use SessionStart since it's a verbose degraded hook
+      const result = await handleUnifiedHookCommand('SessionStart', baseOptions, mockLogger, stdout)
+
+      expect(result.exitCode).toBe(0)
+      const output = JSON.parse(stdout.data.trim())
+      expect(output.hookSpecificOutput?.additionalContext).toContain('unhealthy')
+      expect(output.systemMessage).toContain('sidekick doctor')
+      expect(mockHandleHookCommand).not.toHaveBeenCalled()
+      // Should log at WARN level for unhealthy
+      expect(mockLogger.warn).toHaveBeenCalledWith('Hook operating in degraded mode', expect.any(Object))
+    })
+
+    test('non-verbose hooks return empty object in degraded mode', async () => {
+      mockGetSetupState.mockResolvedValue('not-run')
+
+      // Test PostToolUse - should return {} silently
+      const stdout = new CollectingWritable()
+      await handleUnifiedHookCommand('PostToolUse', baseOptions, mockLogger, stdout)
+
+      const output = JSON.parse(stdout.data.trim())
+      // Non-verbose hooks return empty object, no messages
+      expect(output).toEqual({})
+      expect(mockHandleHookCommand).not.toHaveBeenCalled()
+      // Should still log
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        'Hook operating in degraded mode - setup not run',
+        expect.any(Object)
+      )
+    })
+
+    test('proceeds normally when setup is healthy', async () => {
+      mockGetSetupState.mockResolvedValue('healthy')
+      mockHandleHookCommand.mockImplementation(
+        (_hookName: unknown, _options: unknown, _logger: unknown, stdout: Writable) => {
+          stdout.write('{"additionalContext":"Normal response"}\n')
+          return Promise.resolve({ exitCode: 0, output: '{}' })
+        }
+      )
+
+      const stdout = new CollectingWritable()
+      await handleUnifiedHookCommand('SessionStart', baseOptions, mockLogger, stdout)
+
+      // Should call internal handler when healthy
+      expect(mockHandleHookCommand).toHaveBeenCalled()
+      const output = JSON.parse(stdout.data.trim())
+      expect(output.hookSpecificOutput?.additionalContext).toBe('Normal response')
+    })
+
+    test('proceeds normally when setup check throws (assumes healthy)', async () => {
+      mockGetSetupState.mockRejectedValue(new Error('Config file corrupted'))
+      mockHandleHookCommand.mockImplementation(
+        (_hookName: unknown, _options: unknown, _logger: unknown, stdout: Writable) => {
+          stdout.write('{"additionalContext":"Normal response"}\n')
+          return Promise.resolve({ exitCode: 0, output: '{}' })
+        }
+      )
+
+      const stdout = new CollectingWritable()
+      await handleUnifiedHookCommand('SessionStart', baseOptions, mockLogger, stdout)
+
+      // Should log warning about failed check
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'Failed to check setup state, assuming healthy',
+        expect.objectContaining({ error: 'Config file corrupted' })
+      )
+      // Should proceed with internal handler
+      expect(mockHandleHookCommand).toHaveBeenCalled()
+      const output = JSON.parse(stdout.data.trim())
+      expect(output.hookSpecificOutput?.additionalContext).toBe('Normal response')
+    })
   })
 })

@@ -244,6 +244,7 @@ export async function initializeSession(options: {
 /**
  * Auto-start daemon if in hook mode with a project root.
  * Non-throwing: logs warnings on failure and gracefully degrades.
+ * Skips daemon start if setup is not healthy to avoid ProviderErrors.
  *
  * @param options - Hook mode flag, project root, and logger
  * @returns Whether daemon was successfully started
@@ -257,6 +258,24 @@ export async function ensureDaemon(options: {
 
   if (!hookMode || !projectRoot) {
     return { started: false }
+  }
+
+  // Check setup state before starting daemon to avoid ProviderErrors
+  // when API keys are not configured
+  try {
+    const { SetupStatusService } = await import('@sidekick/core')
+    const setupService = new SetupStatusService(projectRoot)
+    const setupState = await setupService.getSetupState()
+
+    if (setupState !== 'healthy') {
+      logger.debug('Skipping daemon start - setup not healthy', { setupState })
+      return { started: false }
+    }
+  } catch (err) {
+    // If we can't check setup status, proceed with daemon start attempt
+    logger.warn('Failed to check setup status, proceeding with daemon start', {
+      error: err instanceof Error ? err.message : String(err),
+    })
   }
 
   try {
