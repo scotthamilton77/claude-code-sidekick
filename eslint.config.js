@@ -17,7 +17,6 @@ export default tseslint.config(
       '**/coverage/**',
       '**/*.cjs',
       '**/*.mjs',
-      'development-tools/**',
       'scripts/**',
       '**/scripts/**',
       'assets/**',
