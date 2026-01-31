@@ -49,11 +49,11 @@ execSync(
   { cwd: packageRoot, stdio: 'inherit' }
 )
 
-// Copy assets
+// Copy assets directly from workspace root (source of truth)
 console.log('  Copying assets...')
 mkdirSync(join(packageRoot, 'assets'), { recursive: true })
 cpSync(
-  join(packageRoot, '../sidekick-core/assets/sidekick'),
+  join(packageRoot, '../../assets/sidekick'),
   join(packageRoot, 'assets/sidekick'),
   { recursive: true }
 )
