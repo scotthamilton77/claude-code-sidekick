@@ -2,8 +2,8 @@
 # dev-mode.sh - Wrapper for TypeScript dev-mode CLI command
 #
 # Usage:
-#   dev-mode.sh enable     # Add dev-hooks to settings.local.json
-#   dev-mode.sh disable    # Remove dev-hooks from settings.local.json
+#   dev-mode.sh enable     # Add dev-sidekick to settings.local.json
+#   dev-mode.sh disable    # Remove dev-sidekick from settings.local.json
 #   dev-mode.sh status     # Show current state
 #   dev-mode.sh clean      # Truncate logs, kill daemon, clean state
 #   dev-mode.sh clean-all  # Full cleanup including sessions

@@ -908,11 +908,11 @@ describe('SetupStatusService', () => {
       expect(result).toBe('plugin')
     })
 
-    it('returns "dev-mode" when hooks contain dev-hooks path', async () => {
+    it('returns "dev-mode" when hooks contain dev-sidekick path', async () => {
       await writeClaudeSettings('project', {
         hooks: {
           SessionStart: [
-            { hooks: [{ type: 'command', command: '$CLAUDE_PROJECT_DIR/scripts/dev-hooks/session-start' }] },
+            { hooks: [{ type: 'command', command: '$CLAUDE_PROJECT_DIR/scripts/dev-sidekick/session-start' }] },
           ],
         },
       })
@@ -939,7 +939,7 @@ describe('SetupStatusService', () => {
       await writeClaudeSettings('project', {
         hooks: {
           SessionStart: [
-            { hooks: [{ type: 'command', command: '$CLAUDE_PROJECT_DIR/scripts/dev-hooks/session-start' }] },
+            { hooks: [{ type: 'command', command: '$CLAUDE_PROJECT_DIR/scripts/dev-sidekick/session-start' }] },
           ],
         },
       })
@@ -964,7 +964,7 @@ describe('SetupStatusService', () => {
       await writeClaudeSettings('project', {
         statusLine: {
           type: 'command',
-          command: '$CLAUDE_PROJECT_DIR/scripts/dev-hooks/statusline',
+          command: '$CLAUDE_PROJECT_DIR/scripts/dev-sidekick/statusline',
         },
       })
 

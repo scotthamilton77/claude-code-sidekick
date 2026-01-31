@@ -28,7 +28,7 @@ This document describes the installation and distribution architecture for Sidek
 | npm package | `@scotthamilton77/sidekick` on npm | Bundled CLI binary, hook execution, daemon, config |
 | Distribution bundle | `packages/sidekick-dist/` | esbuild bundle of all packages for npm publishing |
 | Claude Code plugin | `packages/sidekick-plugin/` | hooks.json, skills, invokes CLI via npx |
-| Dev hooks | `scripts/dev-hooks/` | Development-only hook wrappers |
+| Dev hooks | `scripts/dev-sidekick/` | Development-only hook wrappers |
 
 ### Distribution Flow
 
@@ -136,7 +136,7 @@ New command: `sidekick hook <hook-name>`
 
 ### Implementation
 
-Replaces the bash+jq translation layer in current dev-hooks:
+Replaces the bash+jq translation layer in current dev-sidekick:
 
 ```typescript
 // packages/sidekick-cli/src/commands/hook.ts
@@ -204,7 +204,7 @@ Dev-mode is **separate from the plugin system**. It's used only for local develo
 ### Current Behavior (preserved)
 
 - Registers hooks in `.claude/settings.local.json`
-- Hooks point to `$CLAUDE_PROJECT_DIR/scripts/dev-hooks/*`
+- Hooks point to `$CLAUDE_PROJECT_DIR/scripts/dev-sidekick/*`
 - Dev-hooks invoke locally-built CLI: `node packages/sidekick-cli/dist/bin.js`
 
 ### Enhanced: User Plugin Conflict Resolution

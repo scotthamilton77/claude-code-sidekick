@@ -807,7 +807,7 @@ This document preserves the full implementation details of completed phases from
         - SessionStart/PreCompact: `continue: false`, `stopReason`
         - SessionEnd: passthrough (cannot block)
       - [x] Graceful fallback when jq unavailable (passthrough)
-      - [x] Files: `packages/sidekick-cli/src/commands/hook.ts`, `scripts/dev-hooks/*`
+      - [x] Files: `packages/sidekick-cli/src/commands/hook.ts`, `scripts/dev-sidekick/*`
 
 ---
 

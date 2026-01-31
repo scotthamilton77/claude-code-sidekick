@@ -5,8 +5,8 @@
  * Port of scripts/dev-mode.sh to TypeScript CLI.
  *
  * Commands:
- * - enable: Add dev-hooks to .claude/settings.local.json
- * - disable: Remove dev-hooks from settings.local.json
+ * - enable: Add dev-sidekick to .claude/settings.local.json
+ * - disable: Remove dev-sidekick from settings.local.json
  * - status: Show current dev-mode state
  * - clean: Truncate logs, kill daemon, clean state folders
  * - clean-all: Full cleanup including sessions and stale sockets
@@ -274,9 +274,9 @@ async function cleanupStalePidFiles(logger: Logger): Promise<number> {
   return cleanedCount
 }
 
-/** Check if a command string references dev-hooks. */
+/** Check if a command string references dev-sidekick. */
 function isDevHookCommand(command: string | undefined): boolean {
-  return command?.includes('dev-hooks') ?? false
+  return command?.includes('dev-sidekick') ?? false
 }
 
 /** Clean all files in a state directory. Returns number of files cleaned. */
@@ -326,7 +326,7 @@ async function readSettings(settingsPath: string): Promise<ClaudeSettings> {
 }
 
 /**
- * Check if any hook command contains "dev-hooks".
+ * Check if any hook command contains "dev-sidekick".
  */
 function isDevModeEnabled(settings: ClaudeSettings): boolean {
   // Check statusLine
@@ -358,7 +358,7 @@ async function backupSettings(settingsPath: string, stdout: NodeJS.WritableStrea
 async function doEnable(projectDir: string, stdout: NodeJS.WritableStream): Promise<DevModeCommandResult> {
   log(stdout, 'step', 'Enabling dev-mode hooks...')
 
-  const devHooksDir = path.join(projectDir, 'scripts', 'dev-hooks')
+  const devHooksDir = path.join(projectDir, 'scripts', 'dev-sidekick')
   const settingsPath = path.join(projectDir, '.claude', 'settings.local.json')
   const cliBin = path.join(projectDir, 'packages', 'sidekick-cli', 'dist', 'bin.js')
 
@@ -395,7 +395,7 @@ async function doEnable(projectDir: string, stdout: NodeJS.WritableStream): Prom
   }
 
   // Use $CLAUDE_PROJECT_DIR for Docker compatibility
-  const devHooksPath = '$CLAUDE_PROJECT_DIR/scripts/dev-hooks'
+  const devHooksPath = '$CLAUDE_PROJECT_DIR/scripts/dev-sidekick'
 
   // Initialize hooks object if missing
   settings.hooks ??= {}
@@ -465,7 +465,7 @@ async function doDisable(projectDir: string, stdout: NodeJS.WritableStream): Pro
 
   await backupSettings(settingsPath, stdout)
 
-  // Remove hooks containing "dev-hooks" in command path
+  // Remove hooks containing "dev-sidekick" in command path
   if (settings.hooks) {
     for (const hookType of HOOK_TYPES) {
       const entries = settings.hooks[hookType]
@@ -485,7 +485,7 @@ async function doDisable(projectDir: string, stdout: NodeJS.WritableStream): Pro
     }
   }
 
-  // Remove statusLine if it points to dev-hooks
+  // Remove statusLine if it points to dev-sidekick
   if (isDevHookCommand(settings.statusLine?.command)) {
     delete settings.statusLine
   }
@@ -512,7 +512,7 @@ async function doDisable(projectDir: string, stdout: NodeJS.WritableStream): Pro
  * Show current dev-mode status.
  */
 async function doStatus(projectDir: string, stdout: NodeJS.WritableStream): Promise<DevModeCommandResult> {
-  const devHooksDir = path.join(projectDir, 'scripts', 'dev-hooks')
+  const devHooksDir = path.join(projectDir, 'scripts', 'dev-sidekick')
   const settingsPath = path.join(projectDir, '.claude', 'settings.local.json')
   const cliBin = path.join(projectDir, 'packages', 'sidekick-cli', 'dist', 'bin.js')
 
@@ -528,7 +528,7 @@ async function doStatus(projectDir: string, stdout: NodeJS.WritableStream): Prom
 
     if (isDevModeEnabled(settings)) {
       stdout.write(`Dev-mode: ${colors.green}ENABLED${colors.reset}\n\n`)
-      stdout.write('Registered dev-hooks:\n')
+      stdout.write('Registered dev-sidekick:\n')
 
       // List registered hooks
       if (settings.hooks) {
@@ -774,8 +774,8 @@ async function doCleanAll(
 const USAGE_TEXT = `Usage: sidekick dev-mode <command> [options]
 
 Commands:
-  enable     Add dev-hooks to .claude/settings.local.json
-  disable    Remove dev-hooks from settings.local.json
+  enable     Add dev-sidekick to .claude/settings.local.json
+  disable    Remove dev-sidekick from settings.local.json
   status     Show current dev-mode state
   clean      Truncate logs, kill daemon, clean state folders
   clean-all  Full cleanup: clean + remove logs/sessions/state dirs

@@ -105,7 +105,7 @@ pnpm sidekick dev-mode enable
 │   └── reminders/              # Reminder templates (YAML)
 ├── scripts/                    # Development utilities
 │   ├── dev-mode.sh             # Wrapper for dev-mode CLI
-│   └── dev-hooks/              # Development hook scripts
+│   └── dev-sidekick/              # Development hook scripts
 └── development-tools/          # LLM evaluation and testing tools
 ```
 
@@ -219,7 +219,7 @@ Before publishing a new version:
 | **Where** | This project only | Any project |
 | **CLI source** | Local build (`packages/sidekick-cli/dist/`) | npm (`npx @scotthamilton77/sidekick`) |
 | **Setup** | `pnpm sidekick dev-mode enable` | `npm publish` + `--plugin-dir` |
-| **Hook scripts** | `scripts/dev-hooks/*` | `packages/sidekick-plugin/hooks/hooks.json` |
+| **Hook scripts** | `scripts/dev-sidekick/*` | `packages/sidekick-plugin/hooks/hooks.json` |
 | **Use case** | Rapid iteration | E2E/integration testing |
 
 ### Node Package Tests & Coverage

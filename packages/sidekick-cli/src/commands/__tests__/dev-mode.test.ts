@@ -78,7 +78,7 @@ describe('handleDevModeCommand', () => {
     await mkdir(path.join(tempDir, '.claude'), { recursive: true })
     await mkdir(path.join(tempDir, '.sidekick', 'logs'), { recursive: true })
     await mkdir(path.join(tempDir, '.sidekick', 'state'), { recursive: true })
-    await mkdir(path.join(tempDir, 'scripts', 'dev-hooks'), { recursive: true })
+    await mkdir(path.join(tempDir, 'scripts', 'dev-sidekick'), { recursive: true })
     await mkdir(path.join(tempDir, 'packages', 'sidekick-cli', 'dist'), { recursive: true })
     // Create mock hook scripts
     const hooks = [
@@ -92,7 +92,7 @@ describe('handleDevModeCommand', () => {
       'statusline',
     ]
     for (const hook of hooks) {
-      const hookPath = path.join(tempDir, 'scripts', 'dev-hooks', hook)
+      const hookPath = path.join(tempDir, 'scripts', 'dev-sidekick', hook)
       await writeFile(hookPath, '#!/bin/bash\nexit 0')
     }
     // Create mock CLI binary
@@ -130,9 +130,9 @@ describe('handleDevModeCommand', () => {
 
       expect(settings.hooks).toBeDefined()
       expect(settings.hooks.SessionStart).toHaveLength(1)
-      expect(settings.hooks.SessionStart[0].hooks[0].command).toContain('dev-hooks/session-start')
+      expect(settings.hooks.SessionStart[0].hooks[0].command).toContain('dev-sidekick/session-start')
       expect(settings.statusLine).toBeDefined()
-      expect(settings.statusLine.command).toContain('dev-hooks/statusline')
+      expect(settings.statusLine.command).toContain('dev-sidekick/statusline')
     })
 
     test('reports already enabled if hooks exist', async () => {
@@ -168,7 +168,7 @@ describe('handleDevModeCommand', () => {
 
     test('returns error if hook scripts missing', async () => {
       // Remove a hook script
-      await rm(path.join(tempDir, 'scripts', 'dev-hooks', 'session-start'))
+      await rm(path.join(tempDir, 'scripts', 'dev-sidekick', 'session-start'))
 
       const result = await handleDevModeCommand('enable', tempDir, logger, stdout)
 
@@ -178,7 +178,7 @@ describe('handleDevModeCommand', () => {
   })
 
   describe('disable subcommand', () => {
-    test('removes dev-hooks from settings', async () => {
+    test('removes dev-sidekick from settings', async () => {
       // First enable
       await handleDevModeCommand('enable', tempDir, logger, stdout)
       stdout.data = ''
@@ -212,10 +212,10 @@ describe('handleDevModeCommand', () => {
           permissions: { allow: ['Bash(git:*)'] },
           hooks: {
             SessionStart: [
-              { hooks: [{ type: 'command', command: '$CLAUDE_PROJECT_DIR/scripts/dev-hooks/session-start' }] },
+              { hooks: [{ type: 'command', command: '$CLAUDE_PROJECT_DIR/scripts/dev-sidekick/session-start' }] },
             ],
           },
-          statusLine: { type: 'command', command: '$CLAUDE_PROJECT_DIR/scripts/dev-hooks/statusline' },
+          statusLine: { type: 'command', command: '$CLAUDE_PROJECT_DIR/scripts/dev-sidekick/statusline' },
         })
       )
 
