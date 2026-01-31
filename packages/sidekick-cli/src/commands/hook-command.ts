@@ -480,7 +480,7 @@ export async function handleUnifiedHookCommand(
 
   // Inject safe word liveness probe for SessionStart
   if (hookName === 'SessionStart') {
-    const safeWord = process.env.SIDEKICK_SAFE_WORD ?? 'yes!'
+    const safeWord = process.env.SIDEKICK_SAFE_WORD ?? 'nope'
     const safeWordContext = loadSafeWordContext(safeWord, projectRoot)
 
     internalResponse.additionalContext = internalResponse.additionalContext

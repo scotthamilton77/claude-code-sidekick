@@ -1,14 +1,38 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import * as childProcess from 'node:child_process'
+import { EventEmitter } from 'node:events'
 
-// Mock child_process exec for detectPluginLiveness tests
+// Mock child_process spawn for detectPluginLiveness tests
 vi.mock('node:child_process', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:child_process')>()
   return {
     ...actual,
-    exec: vi.fn(),
+    spawn: vi.fn(),
   }
 })
+
+/**
+ * Create a mock ChildProcess for spawn tests.
+ * Returns an EventEmitter with stdout/stderr streams that can emit data.
+ */
+function createMockChildProcess(): EventEmitter & {
+  stdout: EventEmitter
+  stderr: EventEmitter
+  pid: number
+  kill: ReturnType<typeof vi.fn>
+} {
+  const proc = new EventEmitter() as EventEmitter & {
+    stdout: EventEmitter
+    stderr: EventEmitter
+    pid: number
+    kill: ReturnType<typeof vi.fn>
+  }
+  proc.stdout = new EventEmitter()
+  proc.stderr = new EventEmitter()
+  proc.pid = 12345
+  proc.kill = vi.fn()
+  return proc
+}
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import * as os from 'node:os'
@@ -983,48 +1007,72 @@ describe('SetupStatusService', () => {
   })
 
   describe('detectPluginLiveness', () => {
-    const mockExec = vi.mocked(childProcess.exec)
+    const mockSpawn = vi.mocked(childProcess.spawn)
 
     beforeEach(() => {
       vi.resetAllMocks()
     })
 
     it('returns "active" when Claude responds with the safe word', async () => {
-      // Mock exec to return the safe word in stdout
+      mockSpawn.mockImplementation((_cmd, _args, options) => {
+        const proc = createMockChildProcess()
+        const safeWord = (options?.env as Record<string, string>)?.SIDEKICK_SAFE_WORD ?? 'nope'
 
-      mockExec.mockImplementation(((_cmd: string, options: any, callback: any) => {
-        const safeWord = options?.env?.SIDEKICK_SAFE_WORD ?? 'yes!'
-        // Call callback if provided (node-style callback)
-        if (callback) {
-          callback(null, { stdout: `The magic word is: ${safeWord}`, stderr: '' })
-        }
-        // Return a mock ChildProcess
-        return { pid: 123 }
-      }) as typeof childProcess.exec)
+        // Simulate async response
+        setImmediate(() => {
+          proc.stdout.emit('data', Buffer.from(`The magic word is: ${safeWord}`))
+          proc.emit('close', 0, null)
+        })
+
+        return proc as unknown as childProcess.ChildProcess
+      })
 
       const result = await service.detectPluginLiveness()
       expect(result).toBe('active')
     })
 
     it('returns "inactive" when Claude does not respond with safe word', async () => {
-      mockExec.mockImplementation(((_cmd: string, _options: any, callback: any) => {
-        if (callback) {
-          callback(null, { stdout: 'I do not understand the question.', stderr: '' })
-        }
-        return { pid: 123 }
-      }) as typeof childProcess.exec)
+      mockSpawn.mockImplementation(() => {
+        const proc = createMockChildProcess()
+
+        setImmediate(() => {
+          proc.stdout.emit('data', Buffer.from('I do not understand the question.'))
+          proc.emit('close', 0, null)
+        })
+
+        return proc as unknown as childProcess.ChildProcess
+      })
 
       const result = await service.detectPluginLiveness()
       expect(result).toBe('inactive')
     })
 
-    it('returns "error" when Claude command fails', async () => {
-      mockExec.mockImplementation(((_cmd: string, _options: any, callback: any) => {
-        if (callback) {
-          callback(new Error('Command not found: claude'), { stdout: '', stderr: '' })
-        }
-        return { pid: 123 }
-      }) as typeof childProcess.exec)
+    it('returns "error" when Claude command fails with non-zero exit', async () => {
+      mockSpawn.mockImplementation(() => {
+        const proc = createMockChildProcess()
+
+        setImmediate(() => {
+          proc.stderr.emit('data', Buffer.from('Command failed'))
+          proc.emit('close', 1, null)
+        })
+
+        return proc as unknown as childProcess.ChildProcess
+      })
+
+      const result = await service.detectPluginLiveness()
+      expect(result).toBe('error')
+    })
+
+    it('returns "error" when spawn fails', async () => {
+      mockSpawn.mockImplementation(() => {
+        const proc = createMockChildProcess()
+
+        setImmediate(() => {
+          proc.emit('error', new Error('Command not found: claude'))
+        })
+
+        return proc as unknown as childProcess.ChildProcess
+      })
 
       const result = await service.detectPluginLiveness()
       expect(result).toBe('error')
@@ -1033,23 +1081,76 @@ describe('SetupStatusService', () => {
     it('uses a random safe word for each check', async () => {
       const capturedSafeWords: string[] = []
 
-      mockExec.mockImplementation(((_cmd: string, options: any, callback: any) => {
-        const safeWord = options?.env?.SIDEKICK_SAFE_WORD
+      mockSpawn.mockImplementation((_cmd, _args, options) => {
+        const proc = createMockChildProcess()
+        const safeWord = (options?.env as Record<string, string>)?.SIDEKICK_SAFE_WORD
+
         if (safeWord) {
           capturedSafeWords.push(safeWord)
         }
-        if (callback) {
-          callback(null, { stdout: `Response: ${safeWord}`, stderr: '' })
-        }
-        return { pid: 123 }
-      }) as typeof childProcess.exec)
+
+        setImmediate(() => {
+          proc.stdout.emit('data', Buffer.from(`Response: ${safeWord}`))
+          proc.emit('close', 0, null)
+        })
+
+        return proc as unknown as childProcess.ChildProcess
+      })
 
       await service.detectPluginLiveness()
       await service.detectPluginLiveness()
 
-      // Each call should have a different safe word
       expect(capturedSafeWords).toHaveLength(2)
       expect(capturedSafeWords[0]).not.toBe(capturedSafeWords[1])
+    })
+
+    it('returns "error" and kills process on timeout', async () => {
+      vi.useFakeTimers()
+
+      mockSpawn.mockImplementation(() => {
+        const proc = createMockChildProcess()
+        // When kill is called, emit close with SIGTERM signal
+        proc.kill.mockImplementation((signal: string) => {
+          setImmediate(() => proc.emit('close', null, signal))
+          return true
+        })
+        return proc as unknown as childProcess.ChildProcess
+      })
+
+      const resultPromise = service.detectPluginLiveness()
+
+      // Fast-forward past 30s timeout
+      await vi.advanceTimersByTimeAsync(31000)
+
+      const result = await resultPromise
+      expect(result).toBe('error')
+
+      vi.useRealTimers()
+    })
+
+    it('calls kill with SIGTERM on timeout', async () => {
+      vi.useFakeTimers()
+
+      let capturedProc: ReturnType<typeof createMockChildProcess> | null = null
+
+      mockSpawn.mockImplementation(() => {
+        capturedProc = createMockChildProcess()
+        capturedProc.kill.mockImplementation((signal: string) => {
+          setImmediate(() => capturedProc!.emit('close', null, signal))
+          return true
+        })
+        return capturedProc as unknown as childProcess.ChildProcess
+      })
+
+      const resultPromise = service.detectPluginLiveness()
+
+      // Fast-forward past timeout
+      await vi.advanceTimersByTimeAsync(31000)
+
+      await resultPromise
+      expect(capturedProc!.kill).toHaveBeenCalledWith('SIGTERM')
+
+      vi.useRealTimers()
     })
   })
 
