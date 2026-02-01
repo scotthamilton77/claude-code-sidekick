@@ -27,6 +27,7 @@ import {
   getPidPath,
   getUserPidPath,
   getUserDaemonsDir,
+  SetupStatusService,
   type UserPidInfo,
 } from '@sidekick/core'
 
@@ -429,6 +430,10 @@ async function doEnable(projectDir: string, stdout: NodeJS.WritableStream): Prom
   // Write updated settings
   await writeFile(settingsPath, JSON.stringify(settings, null, 2) + '\n')
 
+  // Update devMode flag in project setup-status.json
+  const setupService = new SetupStatusService(projectDir)
+  await setupService.setDevMode(true)
+
   log(stdout, 'info', `Dev-mode hooks enabled in ${settingsPath}`)
   log(stdout, 'info', '')
   log(stdout, 'info', 'Registered hooks:')
@@ -489,6 +494,10 @@ async function doDisable(projectDir: string, stdout: NodeJS.WritableStream): Pro
   if (isDevHookCommand(settings.statusLine?.command)) {
     delete settings.statusLine
   }
+
+  // Update devMode flag in project setup-status.json
+  const setupService = new SetupStatusService(projectDir)
+  await setupService.setDevMode(false)
 
   // Write or remove settings file based on remaining content
   if (Object.keys(settings).length === 0) {

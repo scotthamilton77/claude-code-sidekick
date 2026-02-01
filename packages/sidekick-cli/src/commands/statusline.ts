@@ -164,22 +164,25 @@ export async function handleStatuslineCommand(
     return { exitCode: 0 }
   }
 
-  // Check for plugin conflict (both dev-mode and official plugin active)
-  // If in conflict state and --force not passed, return empty to let dev-mode win
+  // Check for dev-mode conflict: if devMode flag is true in project status,
+  // dev-mode hooks are active. Since dev-mode passes --force, we can
+  // distinguish plugin (no --force) from dev-mode (--force).
+  // If devMode is true and --force not passed, we're the plugin and
+  // should bail early to let dev-mode win.
   if (!options.force) {
     try {
       const setupService = new SetupStatusService(projectDir)
-      const pluginStatus = await setupService.getPluginStatus()
-      if (pluginStatus === 'conflict') {
-        logger.debug('Plugin conflict detected in statusline, bailing early (let dev-mode win)', {
-          pluginStatus,
+      const devMode = await setupService.getDevMode()
+      if (devMode) {
+        logger.debug('Dev-mode active in statusline, bailing early (let dev-mode win)', {
+          devMode,
         })
         stdout.write('\n') // Return empty statusline
         return { exitCode: 0 }
       }
     } catch (err) {
-      // If we can't check plugin status, proceed normally (fail open)
-      logger.warn('Failed to check plugin status for statusline, proceeding normally', {
+      // If we can't check status, proceed normally (fail open)
+      logger.warn('Failed to check plugin/dev-mode status for statusline, proceeding normally', {
         error: err instanceof Error ? err.message : String(err),
       })
     }

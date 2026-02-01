@@ -37,7 +37,7 @@ import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import * as os from 'node:os'
 import { SetupStatusService } from '../setup-status-service.js'
-import type { UserSetupStatus, ProjectSetupStatus, PluginStatus } from '@sidekick/types'
+import type { UserSetupStatus, ProjectSetupStatus } from '@sidekick/types'
 
 describe('SetupStatusService', () => {
   let tempDir: string
@@ -1208,147 +1208,140 @@ describe('SetupStatusService', () => {
     })
   })
 
-  describe('getPluginStatus', () => {
-    const mockSpawn = vi.mocked(childProcess.spawn)
-
-    // Helper to write Claude settings files with hooks (only for dev-mode detection)
-    const writeClaudeSettings = async (scope: 'user' | 'project', settings: Record<string, unknown>): Promise<void> => {
-      const settingsPath =
-        scope === 'user'
-          ? path.join(homeDir, '.claude', 'settings.json')
-          : path.join(projectDir, '.claude', 'settings.local.json')
-      await fs.mkdir(path.dirname(settingsPath), { recursive: true })
-      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2))
-    }
-
-    // Helper to mock claude plugin list --json output
-    const mockPluginList = (plugins: Array<{ id: string; scope: string; enabled: boolean }>): void => {
-      mockSpawn.mockImplementation((cmd, args) => {
-        // Only mock 'claude plugin list --json' calls
-        if (cmd === 'claude' && args?.includes('plugin') && args?.includes('list') && args?.includes('--json')) {
-          const proc = createMockChildProcess()
-          setImmediate(() => {
-            proc.stdout.emit('data', Buffer.from(JSON.stringify(plugins)))
-            proc.emit('close', 0, null)
-          })
-          return proc as unknown as childProcess.ChildProcess
-        }
-        // For other spawn calls, return a process that closes immediately
-        const proc = createMockChildProcess()
-        setImmediate(() => proc.emit('close', 0, null))
-        return proc as unknown as childProcess.ChildProcess
-      })
-    }
-
-    beforeEach(() => {
-      vi.resetAllMocks()
-    })
-
-    it('returns "not-installed" when no plugins and no dev-mode hooks detected', async () => {
-      mockPluginList([])
-
-      const result = await service.getPluginStatus()
-      expect(result).toBe('not-installed')
-    })
-
-    it('returns "dev-mode" when only dev-mode hooks detected', async () => {
-      mockPluginList([]) // No sidekick plugin
-
-      await writeClaudeSettings('project', {
-        hooks: {
-          SessionStart: [
-            { hooks: [{ type: 'command', command: '$CLAUDE_PROJECT_DIR/scripts/dev-sidekick/session-start' }] },
-          ],
-        },
-      })
-
-      const result = await service.getPluginStatus()
-      expect(result).toBe('dev-mode')
-    })
-
-    it('returns "installed-user" when sidekick plugin installed at user scope', async () => {
-      mockPluginList([{ id: 'sidekick@some-marketplace', scope: 'user', enabled: true }])
-
-      const result = await service.getPluginStatus()
-      expect(result).toBe('installed-user')
-    })
-
-    it('returns "installed-project" when sidekick plugin installed at project scope', async () => {
-      mockPluginList([{ id: 'sidekick@local', scope: 'project', enabled: true }])
-
-      const result = await service.getPluginStatus()
-      expect(result).toBe('installed-project')
-    })
-
-    it('returns "installed-both" when sidekick plugin installed at both scopes', async () => {
-      mockPluginList([
-        { id: 'sidekick@user-marketplace', scope: 'user', enabled: true },
-        { id: 'sidekick@local', scope: 'project', enabled: true },
-      ])
-
-      const result = await service.getPluginStatus()
-      expect(result).toBe('installed-both')
-    })
-
-    it('returns "conflict" when both dev-mode hooks and sidekick plugin detected', async () => {
-      mockPluginList([{ id: 'sidekick@some-marketplace', scope: 'user', enabled: true }])
-
-      await writeClaudeSettings('project', {
-        hooks: {
-          SessionStart: [
-            { hooks: [{ type: 'command', command: '$CLAUDE_PROJECT_DIR/scripts/dev-sidekick/session-start' }] },
-          ],
-        },
-      })
-
-      const result = await service.getPluginStatus()
-      expect(result).toBe('conflict')
-    })
-
-    it('reads pluginStatus from cached user status when available', async () => {
-      mockPluginList([]) // No need to check CLI when cached
-
-      await service.writeUserStatus(createUserStatus({ pluginStatus: 'dev-mode' } as Partial<UserSetupStatus>))
-
-      const result = await service.getPluginStatus()
-      expect(result).toBe('dev-mode')
-    })
-  })
-
-  describe('PluginStatus type', () => {
-    it('accepts all valid plugin status values', () => {
-      const validStatuses: PluginStatus[] = [
-        'dev-mode',
-        'installed-user',
-        'installed-project',
-        'installed-both',
-        'plugin-dir',
-        'conflict',
-        'not-installed',
-      ]
-
-      // If the type is correct, this array assignment will compile
-      expect(validStatuses).toHaveLength(7)
-    })
-  })
-
-  describe('pluginStatus in UserSetupStatus', () => {
-    it('reads pluginStatus field from user status file', async () => {
+  describe('pluginDetected field', () => {
+    it('reads pluginDetected from user status file', async () => {
       const status = createUserStatus()
-      ;(status as any).pluginStatus = 'dev-mode'
+      ;(status as any).pluginDetected = true
       await writeUserStatus(status)
 
       const result = await service.getUserStatus()
-      expect(result?.pluginStatus).toBe('dev-mode')
+      expect(result?.pluginDetected).toBe(true)
     })
 
-    it('writes pluginStatus field to user status file', async () => {
+    it('reads pluginDetected from project status file', async () => {
+      const status = createProjectStatus()
+      ;(status as any).pluginDetected = true
+      await writeProjectStatus(status)
+
+      const result = await service.getProjectStatus()
+      expect(result?.pluginDetected).toBe(true)
+    })
+
+    it('defaults pluginDetected to undefined when not set', async () => {
       const status = createUserStatus()
-      ;(status as any).pluginStatus = 'installed-user'
-      await service.writeUserStatus(status)
+      await writeUserStatus(status)
 
       const result = await service.getUserStatus()
-      expect(result?.pluginStatus).toBe('installed-user')
+      expect(result?.pluginDetected).toBeUndefined()
+    })
+  })
+
+  describe('devMode field', () => {
+    it('reads devMode from project status file', async () => {
+      const status = createProjectStatus()
+      ;(status as any).devMode = true
+      await writeProjectStatus(status)
+
+      const result = await service.getProjectStatus()
+      expect(result?.devMode).toBe(true)
+    })
+
+    it('defaults devMode to undefined when not set', async () => {
+      const status = createProjectStatus()
+      await writeProjectStatus(status)
+
+      const result = await service.getProjectStatus()
+      expect(result?.devMode).toBeUndefined()
+    })
+
+    it('getDevMode returns false when no project status exists', async () => {
+      const result = await service.getDevMode()
+      expect(result).toBe(false)
+    })
+
+    it('getDevMode returns false when devMode not set', async () => {
+      await writeProjectStatus(createProjectStatus())
+
+      const result = await service.getDevMode()
+      expect(result).toBe(false)
+    })
+
+    it('getDevMode returns true when devMode is true', async () => {
+      const status = createProjectStatus()
+      ;(status as any).devMode = true
+      await writeProjectStatus(status)
+
+      const result = await service.getDevMode()
+      expect(result).toBe(true)
+    })
+
+    it('setDevMode updates devMode in project status', async () => {
+      await writeProjectStatus(createProjectStatus())
+
+      await service.setDevMode(true)
+
+      const result = await service.getProjectStatus()
+      expect(result?.devMode).toBe(true)
+    })
+
+    it('setDevMode creates project status if missing', async () => {
+      // No project status exists initially
+
+      await service.setDevMode(true)
+
+      const result = await service.getProjectStatus()
+      expect(result?.devMode).toBe(true)
+    })
+  })
+
+  describe('isPluginInstalled helper', () => {
+    it('returns false when no status files exist', async () => {
+      const result = await service.isPluginInstalled()
+      expect(result).toBe(false)
+    })
+
+    it('returns true when userPluginDetected is true', async () => {
+      const status = createUserStatus()
+      ;(status as any).pluginDetected = true
+      await writeUserStatus(status)
+
+      const result = await service.isPluginInstalled()
+      expect(result).toBe(true)
+    })
+
+    it('returns true when projectPluginDetected is true', async () => {
+      const status = createProjectStatus()
+      ;(status as any).pluginDetected = true
+      await writeProjectStatus(status)
+
+      const result = await service.isPluginInstalled()
+      expect(result).toBe(true)
+    })
+
+    it('returns true when both are true', async () => {
+      const userStatus = createUserStatus()
+      ;(userStatus as any).pluginDetected = true
+      await writeUserStatus(userStatus)
+
+      const projectStatus = createProjectStatus()
+      ;(projectStatus as any).pluginDetected = true
+      await writeProjectStatus(projectStatus)
+
+      const result = await service.isPluginInstalled()
+      expect(result).toBe(true)
+    })
+
+    it('returns false when both are false', async () => {
+      const userStatus = createUserStatus()
+      ;(userStatus as any).pluginDetected = false
+      await writeUserStatus(userStatus)
+
+      const projectStatus = createProjectStatus()
+      ;(projectStatus as any).pluginDetected = false
+      await writeProjectStatus(projectStatus)
+
+      const result = await service.isPluginInstalled()
+      expect(result).toBe(false)
     })
   })
 })

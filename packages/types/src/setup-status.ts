@@ -1,22 +1,6 @@
 import { z } from 'zod'
 
 /**
- * Plugin installation status for conflict detection.
- *
- * @see sidekick-72f - Plugin status detection and conflict resolution
- */
-export const PluginStatusSchema = z.enum([
-  'dev-mode', // Dev-mode hooks detected, no official plugin
-  'installed-user', // Official plugin hooks in user settings only
-  'installed-project', // Official plugin hooks in project settings only
-  'installed-both', // Official plugin hooks in both user and project settings
-  'plugin-dir', // Detected via --plugin-dir (liveness check passed but no config)
-  'conflict', // Both dev-mode AND official plugin detected (hooks fire twice)
-  'not-installed', // No sidekick hooks detected, liveness check failed
-])
-export type PluginStatus = z.infer<typeof PluginStatusSchema>
-
-/**
  * API key health states for setup status tracking.
  */
 export const ApiKeyHealthSchema = z.enum([
@@ -57,7 +41,8 @@ export const UserSetupStatusSchema = z.object({
     OPENROUTER_API_KEY: ApiKeyHealthSchema,
     OPENAI_API_KEY: ApiKeyHealthSchema,
   }),
-  pluginStatus: PluginStatusSchema.optional(), // Added by doctor check
+  /** True if sidekick plugin detected at user scope via `claude plugin list` */
+  pluginDetected: z.boolean().optional(),
 })
 export type UserSetupStatus = z.infer<typeof UserSetupStatusSchema>
 
@@ -85,5 +70,9 @@ export const ProjectSetupStatusSchema = z.object({
     OPENAI_API_KEY: ProjectApiKeyHealthSchema,
   }),
   gitignore: GitignoreStatusSchema.optional().default('unknown'),
+  /** True if sidekick plugin detected at project scope via `claude plugin list` */
+  pluginDetected: z.boolean().optional(),
+  /** True if dev-mode hooks are enabled for this project. Set by `dev-mode enable/disable`. */
+  devMode: z.boolean().optional(),
 })
 export type ProjectSetupStatus = z.infer<typeof ProjectSetupStatusSchema>
