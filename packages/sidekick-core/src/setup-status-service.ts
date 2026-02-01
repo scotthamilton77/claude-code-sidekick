@@ -12,6 +12,7 @@ import {
   type ProjectSetupStatus,
   type ApiKeyHealth,
   type ProjectApiKeyHealth,
+  type PluginStatus,
 } from '@sidekick/types'
 import { validateOpenRouterKey, validateOpenAIKey } from '@sidekick/shared-providers'
 
@@ -21,13 +22,6 @@ import { validateOpenRouterKey, validateOpenAIKey } from '@sidekick/shared-provi
 function isSidekickStatuslineCommand(command: string | undefined): boolean {
   if (!command) return false
   return command.toLowerCase().includes('sidekick')
-}
-
-/**
- * Check if a command is from the published plugin (npx @scotthamilton77/sidekick).
- */
-function isPluginCommand(command: string): boolean {
-  return command.includes('npx @scotthamilton77/sidekick')
 }
 
 /**
@@ -259,35 +253,23 @@ export class SetupStatusService {
   }
 
   /**
-   * Detect plugin installation status by reading Claude settings files.
-   * Checks both user (~/.claude/settings.json) and project (.claude/settings.local.json).
+   * Detect plugin installation status.
+   *
+   * Uses `claude plugin list --json` to detect installed plugins,
+   * and checks settings files for dev-mode hooks.
    *
    * @returns Installation status:
-   *   - 'plugin': Plugin hooks installed (npx @scotthamilton77/sidekick)
+   *   - 'plugin': Sidekick plugin installed via Claude marketplace
    *   - 'dev-mode': Dev-mode hooks installed (dev-sidekick path)
    *   - 'both': Both plugin and dev-mode hooks (conflict state)
    *   - 'none': No sidekick hooks detected
    */
   async detectPluginInstallation(): Promise<PluginInstallationStatus> {
-    const settingsPaths = [
-      path.join(this.homeDir, '.claude', 'settings.json'),
-      path.join(this.projectDir, '.claude', 'settings.local.json'),
-    ]
+    // Check for installed plugin via claude CLI
+    const hasPlugin = await this.detectPluginFromCLI()
 
-    let hasPlugin = false
-    let hasDevMode = false
-
-    for (const settingsPath of settingsPaths) {
-      try {
-        const content = await fs.readFile(settingsPath, 'utf-8')
-        const settings = JSON.parse(content) as ClaudeSettings
-        const { plugin, devMode } = this.checkSettingsForSidekick(settings)
-        if (plugin) hasPlugin = true
-        if (devMode) hasDevMode = true
-      } catch {
-        // File doesn't exist or is invalid - continue checking
-      }
-    }
+    // Check for dev-mode hooks in settings files
+    const hasDevMode = await this.detectDevModeFromSettings()
 
     if (hasPlugin && hasDevMode) return 'both'
     if (hasPlugin) return 'plugin'
@@ -296,17 +278,95 @@ export class SetupStatusService {
   }
 
   /**
-   * Check a Claude settings object for sidekick hooks.
+   * Detect if sidekick plugin is installed via `claude plugin list --json`.
    */
-  private checkSettingsForSidekick(settings: ClaudeSettings): { plugin: boolean; devMode: boolean } {
-    let plugin = false
-    let devMode = false
+  private async detectPluginFromCLI(): Promise<boolean> {
+    return new Promise((resolve) => {
+      let resolved = false
+      const safeResolve = (value: boolean): void => {
+        if (!resolved) {
+          resolved = true
+          clearTimeout(timeout)
+          resolve(value)
+        }
+      }
 
+      const child = spawn('claude', ['plugin', 'list', '--json'], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+      })
+
+      let stdout = ''
+
+      child.stdout?.on('data', (data: Buffer) => {
+        stdout += data.toString()
+      })
+
+      const timeout = setTimeout(() => {
+        this.logger?.warn('Plugin detection timed out after 10s')
+        child.kill('SIGTERM')
+        safeResolve(false)
+      }, 10000)
+
+      child.on('close', (code) => {
+        if (code !== 0) {
+          this.logger?.debug('claude plugin list failed', { code })
+          safeResolve(false)
+          return
+        }
+
+        try {
+          const plugins = JSON.parse(stdout) as Array<{ id: string; scope?: string; enabled?: boolean }>
+          // Look for any plugin with "sidekick" in the id
+          const hasSidekick = plugins.some((p) => p.id.toLowerCase().includes('sidekick'))
+          this.logger?.debug('Plugin detection completed', { pluginCount: plugins.length, hasSidekick })
+          safeResolve(hasSidekick)
+        } catch (err) {
+          this.logger?.debug('Failed to parse plugin list JSON', {
+            error: err instanceof Error ? err.message : String(err),
+          })
+          safeResolve(false)
+        }
+      })
+
+      child.on('error', (err) => {
+        this.logger?.debug('claude plugin list spawn error', { error: err.message })
+        safeResolve(false)
+      })
+    })
+  }
+
+  /**
+   * Detect if dev-mode hooks are installed by checking settings files.
+   */
+  private async detectDevModeFromSettings(): Promise<boolean> {
+    const settingsPaths = [
+      path.join(this.homeDir, '.claude', 'settings.json'),
+      path.join(this.projectDir, '.claude', 'settings.local.json'),
+    ]
+
+    for (const settingsPath of settingsPaths) {
+      try {
+        const content = await fs.readFile(settingsPath, 'utf-8')
+        const settings = JSON.parse(content) as ClaudeSettings
+        if (this.hasDevModeHooks(settings)) {
+          return true
+        }
+      } catch {
+        // File doesn't exist or is invalid - continue checking
+      }
+    }
+
+    return false
+  }
+
+  /**
+   * Check a Claude settings object for dev-mode hooks.
+   */
+  private hasDevModeHooks(settings: ClaudeSettings): boolean {
     // Check statusLine
     const statusLineCommand = settings.statusLine?.command
-    if (statusLineCommand) {
-      if (isPluginCommand(statusLineCommand)) plugin = true
-      if (isDevModeCommand(statusLineCommand)) devMode = true
+    if (statusLineCommand && isDevModeCommand(statusLineCommand)) {
+      return true
     }
 
     // Check all hooks
@@ -316,17 +376,15 @@ export class SetupStatusService {
         for (const entry of hookEntries) {
           if (!entry?.hooks) continue
           for (const hook of entry.hooks) {
-            const command = hook?.command
-            if (command) {
-              if (isPluginCommand(command)) plugin = true
-              if (isDevModeCommand(command)) devMode = true
+            if (hook?.command && isDevModeCommand(hook.command)) {
+              return true
             }
           }
         }
       }
     }
 
-    return { plugin, devMode }
+    return false
   }
 
   // === Merged getters ===
@@ -365,6 +423,103 @@ export class SetupStatusService {
     const statusline = await this.getStatuslineHealth()
     const openrouterKey = await this.getEffectiveApiKeyHealth('OPENROUTER_API_KEY')
     return statusline === 'configured' && (openrouterKey === 'healthy' || openrouterKey === 'not-required')
+  }
+
+  /**
+   * Get the plugin installation status.
+   *
+   * First checks cached pluginStatus from user setup status file.
+   * If not cached, detects status by examining Claude settings files.
+   *
+   * @returns PluginStatus indicating installation state
+   */
+  async getPluginStatus(): Promise<PluginStatus> {
+    // Check cached status first
+    const userStatus = await this.getUserStatus()
+    if (userStatus?.pluginStatus) {
+      return userStatus.pluginStatus
+    }
+
+    // Detect from settings files
+    const installation = await this.detectPluginInstallation()
+
+    // Map PluginInstallationStatus to PluginStatus
+    switch (installation) {
+      case 'both':
+        return 'conflict'
+      case 'dev-mode':
+        return 'dev-mode'
+      case 'plugin':
+        // Need to determine if it's user, project, or both
+        return await this.detectPluginScope()
+      case 'none':
+      default:
+        return 'not-installed'
+    }
+  }
+
+  /**
+   * Detect whether plugin is installed at user level, project level, or both.
+   * Uses `claude plugin list --json` to get scope information.
+   */
+  private async detectPluginScope(): Promise<PluginStatus> {
+    return new Promise((resolve) => {
+      let resolved = false
+      const safeResolve = (value: PluginStatus): void => {
+        if (!resolved) {
+          resolved = true
+          clearTimeout(timeout)
+          resolve(value)
+        }
+      }
+
+      const child = spawn('claude', ['plugin', 'list', '--json'], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+      })
+
+      let stdout = ''
+
+      child.stdout?.on('data', (data: Buffer) => {
+        stdout += data.toString()
+      })
+
+      const timeout = setTimeout(() => {
+        child.kill('SIGTERM')
+        safeResolve('not-installed')
+      }, 10000)
+
+      child.on('close', (code) => {
+        if (code !== 0) {
+          safeResolve('not-installed')
+          return
+        }
+
+        try {
+          const plugins = JSON.parse(stdout) as Array<{ id: string; scope?: string }>
+          // Find sidekick plugins and their scopes
+          const sidekickPlugins = plugins.filter((p) => p.id.toLowerCase().includes('sidekick'))
+
+          const hasUser = sidekickPlugins.some((p) => p.scope === 'user')
+          const hasProject = sidekickPlugins.some((p) => p.scope === 'project')
+
+          if (hasUser && hasProject) {
+            safeResolve('installed-both')
+          } else if (hasUser) {
+            safeResolve('installed-user')
+          } else if (hasProject) {
+            safeResolve('installed-project')
+          } else {
+            safeResolve('not-installed')
+          }
+        } catch {
+          safeResolve('not-installed')
+        }
+      })
+
+      child.on('error', () => {
+        safeResolve('not-installed')
+      })
+    })
   }
 
   // === Auto-config helpers ===

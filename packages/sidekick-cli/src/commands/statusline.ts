@@ -13,7 +13,7 @@
 
 import * as path from 'node:path'
 import type { Logger, ConfigService, AssetResolver } from '@sidekick/core'
-import { LogEvents, logEvent, StateService, type EventLogContext } from '@sidekick/core'
+import { LogEvents, logEvent, StateService, SetupStatusService, type EventLogContext } from '@sidekick/core'
 // Re-export for use by CLI
 export type { ClaudeCodeStatusInput } from '@sidekick/feature-statusline'
 import type { ClaudeCodeStatusInput } from '@sidekick/feature-statusline'
@@ -33,6 +33,8 @@ export interface StatuslineCommandOptions {
   assets?: AssetResolver
   /** Show help */
   help?: boolean
+  /** Force execution even in conflict state (dev-mode passes this) */
+  force?: boolean
 }
 
 const USAGE_TEXT = `Usage: sidekick statusline [options]
@@ -160,6 +162,27 @@ export async function handleStatuslineCommand(
   if (options.help) {
     stdout.write(USAGE_TEXT)
     return { exitCode: 0 }
+  }
+
+  // Check for plugin conflict (both dev-mode and official plugin active)
+  // If in conflict state and --force not passed, return empty to let dev-mode win
+  if (!options.force) {
+    try {
+      const setupService = new SetupStatusService(projectDir)
+      const pluginStatus = await setupService.getPluginStatus()
+      if (pluginStatus === 'conflict') {
+        logger.debug('Plugin conflict detected in statusline, bailing early (let dev-mode win)', {
+          pluginStatus,
+        })
+        stdout.write('\n') // Return empty statusline
+        return { exitCode: 0 }
+      }
+    } catch (err) {
+      // If we can't check plugin status, proceed normally (fail open)
+      logger.warn('Failed to check plugin status for statusline, proceeding normally', {
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
   }
 
   const format = options.format ?? 'text'
