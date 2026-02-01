@@ -307,6 +307,8 @@ export interface HookCommandOptions {
   hookInput: ParsedHookInput
   correlationId: string
   runtime: RuntimeShell
+  /** Force execution even in conflict state (dev-mode passes this) */
+  force?: boolean
 }
 
 /**
@@ -429,9 +431,32 @@ export async function handleUnifiedHookCommand(
   logger: Logger,
   stdout: Writable
 ): Promise<HookCommandResult> {
-  const { projectRoot, hookInput, correlationId, runtime } = options
+  const { projectRoot, hookInput, correlationId, runtime, force } = options
 
   logger.debug('Unified hook command invoked', { hookName, sessionId: hookInput.sessionId })
+
+  // Check for plugin conflict (both dev-mode and official plugin active)
+  // If in conflict state and --force not passed, bail early to let dev-mode win
+  if (!force) {
+    try {
+      const setupService = new SetupStatusService(projectRoot)
+      const pluginStatus = await setupService.getPluginStatus()
+      if (pluginStatus === 'conflict') {
+        logger.debug('Plugin conflict detected, bailing early (let dev-mode win)', {
+          hookName,
+          pluginStatus,
+        })
+        stdout.write('{}\n')
+        return { exitCode: 0, output: '{}' }
+      }
+    } catch (err) {
+      // If we can't check plugin status, proceed normally (fail open)
+      logger.warn('Failed to check plugin status, proceeding normally', {
+        error: err instanceof Error ? err.message : String(err),
+        hookName,
+      })
+    }
+  }
 
   // Check setup state before attempting daemon/IPC operations
   // Skip daemon entirely if setup is not healthy to avoid ProviderErrors

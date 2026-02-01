@@ -14,27 +14,56 @@
 import { Writable } from 'node:stream'
 import { mkdir, writeFile, rm } from 'node:fs/promises'
 import path from 'node:path'
+import { EventEmitter } from 'node:events'
 import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest'
 import { handleSetupCommand } from '../setup'
 import type { Logger } from '@sidekick/types'
 
-// Mock SetupStatusService.detectPluginLiveness to avoid spawning Claude
-vi.mock('@sidekick/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@sidekick/core')>()
-  const OriginalSetupStatusService = actual.SetupStatusService
-
-  // Create a subclass that overrides detectPluginLiveness
-  class MockedSetupStatusService extends OriginalSetupStatusService {
-    // eslint-disable-next-line @typescript-eslint/require-await
-    async detectPluginLiveness(): Promise<'active' | 'inactive' | 'error'> {
-      // Return 'active' so tests pass when plugin checks are made
-      return 'active'
-    }
-  }
-
+// Mock child_process.spawn to intercept claude CLI calls
+vi.mock('node:child_process', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:child_process')>()
   return {
     ...actual,
-    SetupStatusService: MockedSetupStatusService,
+    spawn: vi.fn((cmd: string, args?: string[], options?: { env?: Record<string, string> }) => {
+      const proc = new EventEmitter() as EventEmitter & {
+        stdout: EventEmitter
+        stderr: EventEmitter
+        pid: number
+        kill: () => void
+      }
+      proc.stdout = new EventEmitter()
+      proc.stderr = new EventEmitter()
+      proc.pid = 12345
+      proc.kill = () => {}
+
+      // Mock claude plugin list --json
+      if (cmd === 'claude' && args?.includes('plugin') && args?.includes('list')) {
+        setImmediate(() => {
+          // Return sidekick as installed at user scope
+          proc.stdout.emit(
+            'data',
+            Buffer.from(JSON.stringify([{ id: 'sidekick@marketplace', scope: 'user', enabled: true }]))
+          )
+          proc.emit('close', 0, null)
+        })
+        return proc
+      }
+
+      // Mock claude -p (plugin liveness check)
+      if (cmd === 'claude' && args?.includes('-p')) {
+        setImmediate(() => {
+          // Echo back the safe word from env
+          const safeWord = options?.env?.SIDEKICK_SAFE_WORD ?? 'unknown'
+          proc.stdout.emit('data', Buffer.from(`The magic word is: ${safeWord}`))
+          proc.emit('close', 0, null)
+        })
+        return proc
+      }
+
+      // Default: close immediately
+      setImmediate(() => proc.emit('close', 0, null))
+      return proc
+    }),
   }
 })
 

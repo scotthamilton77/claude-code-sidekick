@@ -336,9 +336,10 @@ import type { ParsedHookInput } from '@sidekick/types'
 import { handleUnifiedHookCommand } from '../hook-command.js'
 
 // Hoisted mocks
-const { mockHandleHookCommand, mockGetSetupState } = vi.hoisted(() => ({
+const { mockHandleHookCommand, mockGetSetupState, mockGetPluginStatus } = vi.hoisted(() => ({
   mockHandleHookCommand: vi.fn(),
   mockGetSetupState: vi.fn(),
+  mockGetPluginStatus: vi.fn(),
 }))
 
 // Mock the hook.js module to control internal responses
@@ -357,6 +358,7 @@ vi.mock('@sidekick/core', async (importOriginal) => {
     ...actual,
     SetupStatusService: vi.fn().mockImplementation(() => ({
       getSetupState: mockGetSetupState,
+      getPluginStatus: mockGetPluginStatus,
     })),
   }
 })
@@ -418,6 +420,8 @@ describe('handleUnifiedHookCommand', () => {
     vi.clearAllMocks()
     // Default to healthy setup state so tests exercise normal flow
     mockGetSetupState.mockResolvedValue('healthy')
+    // Default to no conflict
+    mockGetPluginStatus.mockResolvedValue('dev-mode')
   })
 
   test('translates internal response to Claude Code format and outputs JSON', async () => {
@@ -782,6 +786,82 @@ describe('handleUnifiedHookCommand', () => {
           process.env.SIDEKICK_SAFE_WORD = originalEnv
         }
       }
+    })
+  })
+
+  describe('plugin conflict detection', () => {
+    beforeEach(() => {
+      mockGetSetupState.mockResolvedValue('healthy')
+    })
+
+    test('returns empty response when conflict detected and force not passed', async () => {
+      mockGetPluginStatus.mockResolvedValue('conflict')
+
+      const stdout = new CollectingWritable()
+      const result = await handleUnifiedHookCommand('SessionStart', baseOptions, mockLogger, stdout)
+
+      expect(result.exitCode).toBe(0)
+      const output = JSON.parse(stdout.data.trim())
+      // Should return empty object, letting dev-mode hooks win
+      expect(output).toEqual({})
+      // Should NOT call internal hook handler
+      expect(mockHandleHookCommand).not.toHaveBeenCalled()
+      // Should log about conflict
+      expect(mockLogger.debug).toHaveBeenCalledWith(
+        'Plugin conflict detected, bailing early (let dev-mode win)',
+        expect.objectContaining({ hookName: 'SessionStart' })
+      )
+    })
+
+    test('proceeds normally when conflict detected but force flag is true', async () => {
+      mockGetPluginStatus.mockResolvedValue('conflict')
+      mockHandleHookCommand.mockImplementation(
+        (_hookName: unknown, _options: unknown, _logger: unknown, stdout: Writable) => {
+          stdout.write('{"additionalContext":"Force mode response"}\n')
+          return Promise.resolve({ exitCode: 0, output: '{}' })
+        }
+      )
+
+      const optionsWithForce = { ...baseOptions, force: true }
+      const stdout = new CollectingWritable()
+      await handleUnifiedHookCommand('SessionStart', optionsWithForce, mockLogger, stdout)
+
+      // Should call internal handler when force is passed
+      expect(mockHandleHookCommand).toHaveBeenCalled()
+      const output = JSON.parse(stdout.data.trim())
+      expect(output.hookSpecificOutput?.additionalContext).toContain('Force mode response')
+    })
+
+    test('proceeds normally when no conflict exists', async () => {
+      mockGetPluginStatus.mockResolvedValue('dev-mode')
+      mockHandleHookCommand.mockImplementation(
+        (_hookName: unknown, _options: unknown, _logger: unknown, stdout: Writable) => {
+          stdout.write('{"additionalContext":"Normal response"}\n')
+          return Promise.resolve({ exitCode: 0, output: '{}' })
+        }
+      )
+
+      const stdout = new CollectingWritable()
+      await handleUnifiedHookCommand('SessionStart', baseOptions, mockLogger, stdout)
+
+      // Should call internal handler when no conflict
+      expect(mockHandleHookCommand).toHaveBeenCalled()
+    })
+
+    test('proceeds normally when plugin status check fails', async () => {
+      mockGetPluginStatus.mockRejectedValue(new Error('Failed to check status'))
+      mockHandleHookCommand.mockImplementation(
+        (_hookName: unknown, _options: unknown, _logger: unknown, stdout: Writable) => {
+          stdout.write('{}\n')
+          return Promise.resolve({ exitCode: 0, output: '{}' })
+        }
+      )
+
+      const stdout = new CollectingWritable()
+      await handleUnifiedHookCommand('SessionStart', baseOptions, mockLogger, stdout)
+
+      // Should proceed with internal handler on error (fail open)
+      expect(mockHandleHookCommand).toHaveBeenCalled()
     })
   })
 })

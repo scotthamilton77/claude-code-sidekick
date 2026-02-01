@@ -17,7 +17,8 @@ if [[ ! -f "${CLI_BIN}" ]]; then
 fi
 
 # Build CLI args
-CLI_ARGS=(statusline --project-dir="${CLAUDE_PROJECT_DIR}")
+# --force bypasses conflict detection (dev-mode always wins over plugin)
+CLI_ARGS=(statusline --project-dir="${CLAUDE_PROJECT_DIR}" --force)
 if [[ -n "${SIDEKICK_LOG_LEVEL:-}" ]]; then
   CLI_ARGS+=(--log-level "${SIDEKICK_LOG_LEVEL}")
 fi

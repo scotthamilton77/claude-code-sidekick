@@ -37,7 +37,7 @@ import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import * as os from 'node:os'
 import { SetupStatusService } from '../setup-status-service.js'
-import type { UserSetupStatus, ProjectSetupStatus } from '@sidekick/types'
+import type { UserSetupStatus, ProjectSetupStatus, PluginStatus } from '@sidekick/types'
 
 describe('SetupStatusService', () => {
   let tempDir: string
@@ -847,7 +847,9 @@ describe('SetupStatusService', () => {
   })
 
   describe('detectPluginInstallation', () => {
-    // Helper to write Claude settings files with hooks
+    const mockSpawn = vi.mocked(childProcess.spawn)
+
+    // Helper to write Claude settings files with hooks (only for dev-mode detection)
     const writeClaudeSettings = async (scope: 'user' | 'project', settings: Record<string, unknown>): Promise<void> => {
       const settingsPath =
         scope === 'user'
@@ -857,58 +859,59 @@ describe('SetupStatusService', () => {
       await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2))
     }
 
-    it('returns "none" when no settings files exist', async () => {
-      const result = await service.detectPluginInstallation()
-      expect(result).toBe('none')
-    })
-
-    it('returns "none" when settings files exist but no hooks configured', async () => {
-      await writeClaudeSettings('user', { someOtherKey: 'value' })
-      const result = await service.detectPluginInstallation()
-      expect(result).toBe('none')
-    })
-
-    it('returns "plugin" when user settings has plugin hooks', async () => {
-      await writeClaudeSettings('user', {
-        hooks: {
-          SessionStart: [
-            {
-              hooks: [
-                {
-                  type: 'command',
-                  command: 'npx @scotthamilton77/sidekick hook session-start --project-dir=$CLAUDE_PROJECT_DIR',
-                },
-              ],
-            },
-          ],
-        },
+    // Helper to mock claude plugin list --json output
+    const mockPluginList = (plugins: Array<{ id: string; scope: string; enabled: boolean }>): void => {
+      mockSpawn.mockImplementation((cmd, args) => {
+        // Only mock 'claude plugin list --json' calls
+        if (cmd === 'claude' && args?.includes('plugin') && args?.includes('list') && args?.includes('--json')) {
+          const proc = createMockChildProcess()
+          setImmediate(() => {
+            proc.stdout.emit('data', Buffer.from(JSON.stringify(plugins)))
+            proc.emit('close', 0, null)
+          })
+          return proc as unknown as childProcess.ChildProcess
+        }
+        // For other spawn calls, return a process that closes immediately
+        const proc = createMockChildProcess()
+        setImmediate(() => proc.emit('close', 0, null))
+        return proc as unknown as childProcess.ChildProcess
       })
+    }
+
+    beforeEach(() => {
+      vi.resetAllMocks()
+    })
+
+    it('returns "none" when no sidekick plugin and no dev-mode hooks', async () => {
+      mockPluginList([
+        { id: 'beads@beads-marketplace', scope: 'user', enabled: true },
+        { id: 'superpowers@claude-plugins-official', scope: 'user', enabled: true },
+      ])
+
+      const result = await service.detectPluginInstallation()
+      expect(result).toBe('none')
+    })
+
+    it('returns "plugin" when sidekick plugin is in claude plugin list', async () => {
+      mockPluginList([
+        { id: 'sidekick@some-marketplace', scope: 'user', enabled: true },
+        { id: 'beads@beads-marketplace', scope: 'user', enabled: true },
+      ])
 
       const result = await service.detectPluginInstallation()
       expect(result).toBe('plugin')
     })
 
-    it('returns "plugin" when project settings has plugin hooks', async () => {
-      await writeClaudeSettings('project', {
-        hooks: {
-          SessionStart: [
-            {
-              hooks: [
-                {
-                  type: 'command',
-                  command: 'npx @scotthamilton77/sidekick hook session-start --project-dir=$CLAUDE_PROJECT_DIR',
-                },
-              ],
-            },
-          ],
-        },
-      })
+    it('returns "plugin" when sidekick plugin is at project scope', async () => {
+      mockPluginList([{ id: 'sidekick@local', scope: 'project', enabled: true }])
 
       const result = await service.detectPluginInstallation()
       expect(result).toBe('plugin')
     })
 
     it('returns "dev-mode" when hooks contain dev-sidekick path', async () => {
+      mockPluginList([]) // No plugins installed
+
       await writeClaudeSettings('project', {
         hooks: {
           SessionStart: [
@@ -921,21 +924,9 @@ describe('SetupStatusService', () => {
       expect(result).toBe('dev-mode')
     })
 
-    it('returns "both" when both plugin and dev-mode hooks are present', async () => {
-      await writeClaudeSettings('user', {
-        hooks: {
-          SessionStart: [
-            {
-              hooks: [
-                {
-                  type: 'command',
-                  command: 'npx @scotthamilton77/sidekick hook session-start --project-dir=$CLAUDE_PROJECT_DIR',
-                },
-              ],
-            },
-          ],
-        },
-      })
+    it('returns "both" when sidekick plugin AND dev-mode hooks are present', async () => {
+      mockPluginList([{ id: 'sidekick@some-marketplace', scope: 'user', enabled: true }])
+
       await writeClaudeSettings('project', {
         hooks: {
           SessionStart: [
@@ -948,19 +939,9 @@ describe('SetupStatusService', () => {
       expect(result).toBe('both')
     })
 
-    it('detects plugin from statusLine command', async () => {
-      await writeClaudeSettings('user', {
-        statusLine: {
-          type: 'command',
-          command: 'npx @scotthamilton77/sidekick statusline --project-dir=$CLAUDE_PROJECT_DIR',
-        },
-      })
-
-      const result = await service.detectPluginInstallation()
-      expect(result).toBe('plugin')
-    })
-
     it('detects dev-mode from statusLine command', async () => {
+      mockPluginList([])
+
       await writeClaudeSettings('project', {
         statusLine: {
           type: 'command',
@@ -973,6 +954,8 @@ describe('SetupStatusService', () => {
     })
 
     it('returns "none" when hooks exist but are not sidekick-related', async () => {
+      mockPluginList([])
+
       await writeClaudeSettings('user', {
         hooks: {
           SessionStart: [{ hooks: [{ type: 'command', command: 'some-other-tool hook start' }] }],
@@ -983,22 +966,52 @@ describe('SetupStatusService', () => {
       expect(result).toBe('none')
     })
 
-    it('handles multiple hook types', async () => {
-      await writeClaudeSettings('user', {
-        hooks: {
-          SessionStart: [{ hooks: [{ type: 'command', command: 'npx @scotthamilton77/sidekick hook session-start' }] }],
-          PreToolUse: [{ hooks: [{ type: 'command', command: 'npx @scotthamilton77/sidekick hook pre-tool-use' }] }],
-        },
-      })
-
-      const result = await service.detectPluginInstallation()
-      expect(result).toBe('plugin')
-    })
-
     it('handles malformed settings gracefully', async () => {
+      mockPluginList([])
+
       const settingsPath = path.join(homeDir, '.claude', 'settings.json')
       await fs.mkdir(path.dirname(settingsPath), { recursive: true })
       await fs.writeFile(settingsPath, '{invalid json}')
+
+      // Should not throw, just return 'none'
+      const result = await service.detectPluginInstallation()
+      expect(result).toBe('none')
+    })
+
+    it('handles claude CLI error gracefully', async () => {
+      mockSpawn.mockImplementation((cmd, args) => {
+        if (cmd === 'claude' && args?.includes('plugin')) {
+          const proc = createMockChildProcess()
+          setImmediate(() => {
+            proc.stderr.emit('data', Buffer.from('claude: command not found'))
+            proc.emit('close', 1, null)
+          })
+          return proc as unknown as childProcess.ChildProcess
+        }
+        const proc = createMockChildProcess()
+        setImmediate(() => proc.emit('close', 0, null))
+        return proc as unknown as childProcess.ChildProcess
+      })
+
+      // Should not throw, just return 'none' (fail open)
+      const result = await service.detectPluginInstallation()
+      expect(result).toBe('none')
+    })
+
+    it('handles invalid JSON from claude CLI gracefully', async () => {
+      mockSpawn.mockImplementation((cmd, args) => {
+        if (cmd === 'claude' && args?.includes('plugin')) {
+          const proc = createMockChildProcess()
+          setImmediate(() => {
+            proc.stdout.emit('data', Buffer.from('not valid json'))
+            proc.emit('close', 0, null)
+          })
+          return proc as unknown as childProcess.ChildProcess
+        }
+        const proc = createMockChildProcess()
+        setImmediate(() => proc.emit('close', 0, null))
+        return proc as unknown as childProcess.ChildProcess
+      })
 
       // Should not throw, just return 'none'
       const result = await service.detectPluginInstallation()
@@ -1192,6 +1205,150 @@ describe('SetupStatusService', () => {
       expect(statuslineHealth).toBe('configured')
       expect(apiKeyHealth).toBe('missing')
       expect(isHealthy).toBe(false)
+    })
+  })
+
+  describe('getPluginStatus', () => {
+    const mockSpawn = vi.mocked(childProcess.spawn)
+
+    // Helper to write Claude settings files with hooks (only for dev-mode detection)
+    const writeClaudeSettings = async (scope: 'user' | 'project', settings: Record<string, unknown>): Promise<void> => {
+      const settingsPath =
+        scope === 'user'
+          ? path.join(homeDir, '.claude', 'settings.json')
+          : path.join(projectDir, '.claude', 'settings.local.json')
+      await fs.mkdir(path.dirname(settingsPath), { recursive: true })
+      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2))
+    }
+
+    // Helper to mock claude plugin list --json output
+    const mockPluginList = (plugins: Array<{ id: string; scope: string; enabled: boolean }>): void => {
+      mockSpawn.mockImplementation((cmd, args) => {
+        // Only mock 'claude plugin list --json' calls
+        if (cmd === 'claude' && args?.includes('plugin') && args?.includes('list') && args?.includes('--json')) {
+          const proc = createMockChildProcess()
+          setImmediate(() => {
+            proc.stdout.emit('data', Buffer.from(JSON.stringify(plugins)))
+            proc.emit('close', 0, null)
+          })
+          return proc as unknown as childProcess.ChildProcess
+        }
+        // For other spawn calls, return a process that closes immediately
+        const proc = createMockChildProcess()
+        setImmediate(() => proc.emit('close', 0, null))
+        return proc as unknown as childProcess.ChildProcess
+      })
+    }
+
+    beforeEach(() => {
+      vi.resetAllMocks()
+    })
+
+    it('returns "not-installed" when no plugins and no dev-mode hooks detected', async () => {
+      mockPluginList([])
+
+      const result = await service.getPluginStatus()
+      expect(result).toBe('not-installed')
+    })
+
+    it('returns "dev-mode" when only dev-mode hooks detected', async () => {
+      mockPluginList([]) // No sidekick plugin
+
+      await writeClaudeSettings('project', {
+        hooks: {
+          SessionStart: [
+            { hooks: [{ type: 'command', command: '$CLAUDE_PROJECT_DIR/scripts/dev-sidekick/session-start' }] },
+          ],
+        },
+      })
+
+      const result = await service.getPluginStatus()
+      expect(result).toBe('dev-mode')
+    })
+
+    it('returns "installed-user" when sidekick plugin installed at user scope', async () => {
+      mockPluginList([{ id: 'sidekick@some-marketplace', scope: 'user', enabled: true }])
+
+      const result = await service.getPluginStatus()
+      expect(result).toBe('installed-user')
+    })
+
+    it('returns "installed-project" when sidekick plugin installed at project scope', async () => {
+      mockPluginList([{ id: 'sidekick@local', scope: 'project', enabled: true }])
+
+      const result = await service.getPluginStatus()
+      expect(result).toBe('installed-project')
+    })
+
+    it('returns "installed-both" when sidekick plugin installed at both scopes', async () => {
+      mockPluginList([
+        { id: 'sidekick@user-marketplace', scope: 'user', enabled: true },
+        { id: 'sidekick@local', scope: 'project', enabled: true },
+      ])
+
+      const result = await service.getPluginStatus()
+      expect(result).toBe('installed-both')
+    })
+
+    it('returns "conflict" when both dev-mode hooks and sidekick plugin detected', async () => {
+      mockPluginList([{ id: 'sidekick@some-marketplace', scope: 'user', enabled: true }])
+
+      await writeClaudeSettings('project', {
+        hooks: {
+          SessionStart: [
+            { hooks: [{ type: 'command', command: '$CLAUDE_PROJECT_DIR/scripts/dev-sidekick/session-start' }] },
+          ],
+        },
+      })
+
+      const result = await service.getPluginStatus()
+      expect(result).toBe('conflict')
+    })
+
+    it('reads pluginStatus from cached user status when available', async () => {
+      mockPluginList([]) // No need to check CLI when cached
+
+      await service.writeUserStatus(createUserStatus({ pluginStatus: 'dev-mode' } as Partial<UserSetupStatus>))
+
+      const result = await service.getPluginStatus()
+      expect(result).toBe('dev-mode')
+    })
+  })
+
+  describe('PluginStatus type', () => {
+    it('accepts all valid plugin status values', () => {
+      const validStatuses: PluginStatus[] = [
+        'dev-mode',
+        'installed-user',
+        'installed-project',
+        'installed-both',
+        'plugin-dir',
+        'conflict',
+        'not-installed',
+      ]
+
+      // If the type is correct, this array assignment will compile
+      expect(validStatuses).toHaveLength(7)
+    })
+  })
+
+  describe('pluginStatus in UserSetupStatus', () => {
+    it('reads pluginStatus field from user status file', async () => {
+      const status = createUserStatus()
+      ;(status as any).pluginStatus = 'dev-mode'
+      await writeUserStatus(status)
+
+      const result = await service.getUserStatus()
+      expect(result?.pluginStatus).toBe('dev-mode')
+    })
+
+    it('writes pluginStatus field to user status file', async () => {
+      const status = createUserStatus()
+      ;(status as any).pluginStatus = 'installed-user'
+      await service.writeUserStatus(status)
+
+      const result = await service.getUserStatus()
+      expect(result?.pluginStatus).toBe('installed-user')
     })
   })
 })

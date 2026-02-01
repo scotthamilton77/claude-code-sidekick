@@ -1,6 +1,22 @@
 import { z } from 'zod'
 
 /**
+ * Plugin installation status for conflict detection.
+ *
+ * @see sidekick-72f - Plugin status detection and conflict resolution
+ */
+export const PluginStatusSchema = z.enum([
+  'dev-mode', // Dev-mode hooks detected, no official plugin
+  'installed-user', // Official plugin hooks in user settings only
+  'installed-project', // Official plugin hooks in project settings only
+  'installed-both', // Official plugin hooks in both user and project settings
+  'plugin-dir', // Detected via --plugin-dir (liveness check passed but no config)
+  'conflict', // Both dev-mode AND official plugin detected (hooks fire twice)
+  'not-installed', // No sidekick hooks detected, liveness check failed
+])
+export type PluginStatus = z.infer<typeof PluginStatusSchema>
+
+/**
  * API key health states for setup status tracking.
  */
 export const ApiKeyHealthSchema = z.enum([
@@ -41,6 +57,7 @@ export const UserSetupStatusSchema = z.object({
     OPENROUTER_API_KEY: ApiKeyHealthSchema,
     OPENAI_API_KEY: ApiKeyHealthSchema,
   }),
+  pluginStatus: PluginStatusSchema.optional(), // Added by doctor check
 })
 export type UserSetupStatus = z.infer<typeof UserSetupStatusSchema>
 

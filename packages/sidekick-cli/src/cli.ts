@@ -444,6 +444,7 @@ Examples:
         hookInput,
         correlationId: runtime.correlationId,
         runtime,
+        force: parsed.force,
       },
       runtime.logger,
       stdout
@@ -487,6 +488,7 @@ Examples:
       configService: runtime.config,
       assets: runtime.assets,
       help: parsed.help,
+      force: parsed.force,
     })
     return { exitCode: result.exitCode, stdout: '', stderr: '' }
   }
