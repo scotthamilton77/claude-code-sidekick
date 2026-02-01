@@ -87,14 +87,12 @@ function loadSafeWordContext(safeWord: string, projectRoot: string | undefined, 
   }
 }
 
-/**
- * Translate internal HookResponse to Claude Code SessionStart format.
- *
- * Claude Code expects:
- * - blocking → { continue: false, stopReason }
- * - userMessage → { systemMessage }
- * - additionalContext → { hookSpecificOutput: { additionalContext } }
- */
+function addUserMessage(response: ClaudeCodeHookResponse, userMessage: string | undefined): void {
+  if (userMessage) {
+    response.systemMessage = userMessage
+  }
+}
+
 function translateSessionStart(internal: HookResponse): ClaudeCodeHookResponse {
   const response: ClaudeCodeHookResponse = {}
 
@@ -103,35 +101,20 @@ function translateSessionStart(internal: HookResponse): ClaudeCodeHookResponse {
     response.stopReason = internal.reason ?? 'Blocked by Sidekick'
   }
 
-  if (internal.userMessage) {
-    response.systemMessage = internal.userMessage
-  }
-
   if (internal.additionalContext) {
     response.hookSpecificOutput = { hookEventName: 'SessionStart', additionalContext: internal.additionalContext }
   }
 
+  addUserMessage(response, internal.userMessage)
   return response
 }
 
-/**
- * Translate internal HookResponse to Claude Code UserPromptSubmit format.
- *
- * Claude Code expects:
- * - blocking → { decision: "block", reason }
- * - userMessage → { systemMessage }
- * - additionalContext → { hookSpecificOutput: { hookEventName, additionalContext } }
- */
 function translateUserPromptSubmit(internal: HookResponse): ClaudeCodeHookResponse {
   const response: ClaudeCodeHookResponse = {}
 
   if (internal.blocking === true) {
     response.decision = 'block'
     response.reason = internal.reason ?? 'Blocked by Sidekick'
-  }
-
-  if (internal.userMessage) {
-    response.systemMessage = internal.userMessage
   }
 
   if (internal.additionalContext) {
@@ -141,17 +124,10 @@ function translateUserPromptSubmit(internal: HookResponse): ClaudeCodeHookRespon
     }
   }
 
+  addUserMessage(response, internal.userMessage)
   return response
 }
 
-/**
- * Translate internal HookResponse to Claude Code PreToolUse format.
- *
- * Claude Code expects:
- * - blocking → { hookSpecificOutput: { permissionDecision: "deny", permissionDecisionReason } }
- * - non-blocking with context → { hookSpecificOutput: { permissionDecision: "allow", permissionDecisionReason } }
- * - userMessage → { systemMessage }
- */
 function translatePreToolUse(internal: HookResponse): ClaudeCodeHookResponse {
   const response: ClaudeCodeHookResponse = {}
 
@@ -162,7 +138,6 @@ function translatePreToolUse(internal: HookResponse): ClaudeCodeHookResponse {
       permissionDecisionReason: combineReasonAndContext(internal.reason, internal.additionalContext),
     }
   } else if (internal.additionalContext) {
-    // Non-blocking but with context - use permissionDecisionReason
     response.hookSpecificOutput = {
       hookEventName: 'PreToolUse',
       permissionDecision: 'allow',
@@ -170,21 +145,10 @@ function translatePreToolUse(internal: HookResponse): ClaudeCodeHookResponse {
     }
   }
 
-  if (internal.userMessage) {
-    response.systemMessage = internal.userMessage
-  }
-
+  addUserMessage(response, internal.userMessage)
   return response
 }
 
-/**
- * Translate internal HookResponse to Claude Code PostToolUse format.
- *
- * Claude Code expects:
- * - blocking → { decision: "block", reason } (combined reason+context)
- * - non-blocking with context → { hookSpecificOutput: { hookEventName, additionalContext } }
- * - userMessage → { systemMessage }
- */
 function translatePostToolUse(internal: HookResponse): ClaudeCodeHookResponse {
   const response: ClaudeCodeHookResponse = {}
 
@@ -198,80 +162,41 @@ function translatePostToolUse(internal: HookResponse): ClaudeCodeHookResponse {
     }
   }
 
-  if (internal.userMessage) {
-    response.systemMessage = internal.userMessage
-  }
-
+  addUserMessage(response, internal.userMessage)
   return response
 }
 
-/**
- * Translate internal HookResponse to Claude Code Stop format.
- *
- * Claude Code expects:
- * - blocking → { decision: "block", reason } (combined reason+context)
- * - userMessage → { systemMessage }
- *
- * Note: Stop has no hookSpecificOutput.additionalContext - context goes into reason.
- */
 function translateStop(internal: HookResponse): ClaudeCodeHookResponse {
   const response: ClaudeCodeHookResponse = {}
 
   if (internal.blocking === true) {
     response.decision = 'block'
-    // Stop uses \n separator instead of \n\n
-    response.reason = combineReasonAndContext(internal.reason, internal.additionalContext, '\n')
-    // Override default if neither reason nor context
     if (!internal.reason && !internal.additionalContext) {
       response.reason = 'Task not complete - please continue'
+    } else {
+      response.reason = combineReasonAndContext(internal.reason, internal.additionalContext, '\n')
     }
   }
 
-  if (internal.userMessage) {
-    response.systemMessage = internal.userMessage
-  }
-
+  addUserMessage(response, internal.userMessage)
   return response
 }
 
-/**
- * Translator for notification-only hooks (SessionEnd, PreCompact).
- * These hooks cannot block or return meaningful responses.
- */
-function translateNotificationOnly(_internal: HookResponse): ClaudeCodeHookResponse {
-  return {}
-}
-
-/**
- * Map of hook names to their translation functions.
- */
 const TRANSLATORS: Record<HookName, (internal: HookResponse) => ClaudeCodeHookResponse> = {
   SessionStart: translateSessionStart,
-  SessionEnd: translateNotificationOnly,
+  SessionEnd: () => ({}),
   UserPromptSubmit: translateUserPromptSubmit,
   PreToolUse: translatePreToolUse,
   PostToolUse: translatePostToolUse,
   Stop: translateStop,
-  PreCompact: translateNotificationOnly,
+  PreCompact: () => ({}),
 }
 
-/**
- * Translate internal HookResponse to Claude Code format.
- *
- * @param hookName - The hook being processed
- * @param internal - Internal HookResponse from daemon/CLI handlers
- * @returns Claude Code-compatible response object
- */
 export function translateToClaudeCodeFormat(hookName: HookName, internal: HookResponse): ClaudeCodeHookResponse {
-  const translator = TRANSLATORS[hookName]
-  return translator(internal)
+  return TRANSLATORS[hookName](internal)
 }
 
-/**
- * Kebab-case CLI arguments to HookName mapping.
- * PascalCase names are derived from keys in TRANSLATORS.
- */
-const KEBAB_TO_HOOK: Record<string, HookName> = {
+const HOOK_ARG_TO_NAME: Record<string, HookName> = {
   'session-start': 'SessionStart',
   'session-end': 'SessionEnd',
   'user-prompt-submit': 'UserPromptSubmit',
@@ -279,27 +204,17 @@ const KEBAB_TO_HOOK: Record<string, HookName> = {
   'post-tool-use': 'PostToolUse',
   stop: 'Stop',
   'pre-compact': 'PreCompact',
+  SessionStart: 'SessionStart',
+  SessionEnd: 'SessionEnd',
+  UserPromptSubmit: 'UserPromptSubmit',
+  PreToolUse: 'PreToolUse',
+  PostToolUse: 'PostToolUse',
+  Stop: 'Stop',
+  PreCompact: 'PreCompact',
 }
 
-/**
- * Combined map accepting both kebab-case and PascalCase arguments.
- * PascalCase entries are generated from TRANSLATORS keys (canonical list).
- */
-const HOOK_ARG_TO_NAME: Record<string, HookName> = {
-  ...KEBAB_TO_HOOK,
-  ...Object.fromEntries(Object.keys(TRANSLATORS).map((name) => [name, name as HookName])),
-}
-
-/**
- * Parse hook name from CLI argument.
- * Accepts both kebab-case and PascalCase.
- *
- * @param arg - Hook name argument from CLI
- * @returns Normalized HookName or undefined if invalid
- */
 export function parseHookArg(arg: string | undefined): HookName | undefined {
-  if (!arg) return undefined
-  return HOOK_ARG_TO_NAME[arg]
+  return arg ? HOOK_ARG_TO_NAME[arg] : undefined
 }
 
 export interface HookCommandOptions {
@@ -435,23 +350,26 @@ export async function handleUnifiedHookCommand(
 
   logger.debug('Unified hook command invoked', { hookName, sessionId: hookInput.sessionId })
 
-  // Check for plugin conflict (both dev-mode and official plugin active)
-  // If in conflict state and --force not passed, bail early to let dev-mode win
+  // Check for dev-mode conflict: if devMode flag is true in project status,
+  // dev-mode hooks are active. Since dev-mode hooks pass --force, we can
+  // distinguish plugin hooks (no --force) from dev-mode hooks (--force).
+  // If devMode is true and --force not passed, we're the plugin hooks and
+  // should bail early to let dev-mode hooks win.
   if (!force) {
     try {
       const setupService = new SetupStatusService(projectRoot)
-      const pluginStatus = await setupService.getPluginStatus()
-      if (pluginStatus === 'conflict') {
-        logger.debug('Plugin conflict detected, bailing early (let dev-mode win)', {
+      const devMode = await setupService.getDevMode()
+      if (devMode) {
+        logger.debug('Dev-mode active, bailing early (let dev-mode hooks win)', {
           hookName,
-          pluginStatus,
+          devMode,
         })
         stdout.write('{}\n')
         return { exitCode: 0, output: '{}' }
       }
     } catch (err) {
-      // If we can't check plugin status, proceed normally (fail open)
-      logger.warn('Failed to check plugin status, proceeding normally', {
+      // If we can't check status, proceed normally (fail open)
+      logger.warn('Failed to check plugin/dev-mode status, proceeding normally', {
         error: err instanceof Error ? err.message : String(err),
         hookName,
       })

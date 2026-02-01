@@ -51,17 +51,21 @@ function createFakeLogger(): {
 }
 
 // Mock @sidekick/core to avoid actual daemon operations
-vi.mock('@sidekick/core', () => ({
-  Logger: vi.fn(),
-  DaemonClient: vi.fn().mockImplementation(() => ({
-    kill: vi.fn().mockResolvedValue({ killed: false }),
-  })),
-  killAllDaemons: vi.fn().mockResolvedValue([]),
-  getSocketPath: vi.fn((dir: string) => path.join(dir, '.sidekick', 'sidekickd.sock')),
-  getTokenPath: vi.fn((dir: string) => path.join(dir, '.sidekick', 'sidekickd.token')),
-  getLockPath: vi.fn((dir: string) => path.join(dir, '.sidekick', 'sidekickd.lock')),
-  getUserDaemonsDir: vi.fn(() => '/tmp/claude/nonexistent-daemons-dir'),
-}))
+vi.mock('@sidekick/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@sidekick/core')>()
+  return {
+    ...actual,
+    Logger: vi.fn(),
+    DaemonClient: vi.fn().mockImplementation(() => ({
+      kill: vi.fn().mockResolvedValue({ killed: false }),
+    })),
+    killAllDaemons: vi.fn().mockResolvedValue([]),
+    getSocketPath: vi.fn((dir: string) => path.join(dir, '.sidekick', 'sidekickd.sock')),
+    getTokenPath: vi.fn((dir: string) => path.join(dir, '.sidekick', 'sidekickd.token')),
+    getLockPath: vi.fn((dir: string) => path.join(dir, '.sidekick', 'sidekickd.lock')),
+    getUserDaemonsDir: vi.fn(() => '/tmp/claude/nonexistent-daemons-dir'),
+  }
+})
 
 describe('handleDevModeCommand', () => {
   let stdout: CollectingWritable
@@ -175,6 +179,18 @@ describe('handleDevModeCommand', () => {
       expect(result.exitCode).toBe(1)
       expect(stdout.data).toContain('missing')
     })
+
+    test('sets devMode flag to true in project setup-status.json', async () => {
+      const result = await handleDevModeCommand('enable', tempDir, logger, stdout)
+
+      expect(result.exitCode).toBe(0)
+
+      // Check that devMode was set in .sidekick/setup-status.json
+      const setupStatusPath = path.join(tempDir, '.sidekick', 'setup-status.json')
+      const content = await readFile(setupStatusPath, 'utf-8')
+      const status = JSON.parse(content)
+      expect(status.devMode).toBe(true)
+    })
   })
 
   describe('disable subcommand', () => {
@@ -234,6 +250,23 @@ describe('handleDevModeCommand', () => {
       expect(result.exitCode).toBe(0)
       // When no settings file exists, says "nothing to disable"
       expect(stdout.data).toMatch(/nothing to disable|not currently enabled/i)
+    })
+
+    test('sets devMode flag to false in project setup-status.json', async () => {
+      // First enable
+      await handleDevModeCommand('enable', tempDir, logger, stdout)
+      stdout.data = ''
+
+      // Then disable
+      const result = await handleDevModeCommand('disable', tempDir, logger, stdout)
+
+      expect(result.exitCode).toBe(0)
+
+      // Check that devMode was set to false in .sidekick/setup-status.json
+      const setupStatusPath = path.join(tempDir, '.sidekick', 'setup-status.json')
+      const content = await readFile(setupStatusPath, 'utf-8')
+      const status = JSON.parse(content)
+      expect(status.devMode).toBe(false)
     })
   })
 

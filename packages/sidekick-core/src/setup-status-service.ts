@@ -12,21 +12,13 @@ import {
   type ProjectSetupStatus,
   type ApiKeyHealth,
   type ProjectApiKeyHealth,
-  type PluginStatus,
 } from '@sidekick/types'
 import { validateOpenRouterKey, validateOpenAIKey } from '@sidekick/shared-providers'
 
-/**
- * Check if a statusLine command is a sidekick command.
- */
 function isSidekickStatuslineCommand(command: string | undefined): boolean {
-  if (!command) return false
-  return command.toLowerCase().includes('sidekick')
+  return command?.toLowerCase().includes('sidekick') ?? false
 }
 
-/**
- * Check if a command is from dev-mode hooks.
- */
 function isDevModeCommand(command: string): boolean {
   return command.includes('dev-sidekick')
 }
@@ -425,101 +417,50 @@ export class SetupStatusService {
     return statusline === 'configured' && (openrouterKey === 'healthy' || openrouterKey === 'not-required')
   }
 
+  // === Dev-mode and plugin detection helpers ===
+
   /**
-   * Get the plugin installation status.
-   *
-   * First checks cached pluginStatus from user setup status file.
-   * If not cached, detects status by examining Claude settings files.
-   *
-   * @returns PluginStatus indicating installation state
+   * Get the devMode flag from project status.
+   * Returns false if project status doesn't exist or devMode is not set.
    */
-  async getPluginStatus(): Promise<PluginStatus> {
-    // Check cached status first
-    const userStatus = await this.getUserStatus()
-    if (userStatus?.pluginStatus) {
-      return userStatus.pluginStatus
-    }
+  async getDevMode(): Promise<boolean> {
+    const project = await this.getProjectStatus()
+    return project?.devMode ?? false
+  }
 
-    // Detect from settings files
-    const installation = await this.detectPluginInstallation()
-
-    // Map PluginInstallationStatus to PluginStatus
-    switch (installation) {
-      case 'both':
-        return 'conflict'
-      case 'dev-mode':
-        return 'dev-mode'
-      case 'plugin':
-        // Need to determine if it's user, project, or both
-        return await this.detectPluginScope()
-      case 'none':
-      default:
-        return 'not-installed'
+  /**
+   * Set the devMode flag in project status.
+   * Creates project status if it doesn't exist.
+   */
+  async setDevMode(enabled: boolean): Promise<void> {
+    const current = await this.getProjectStatus()
+    if (current) {
+      await this.updateProjectStatus({ devMode: enabled })
+    } else {
+      // Create minimal project status with devMode
+      await this.writeProjectStatus({
+        version: 1,
+        lastUpdatedAt: new Date().toISOString(),
+        autoConfigured: false,
+        statusline: 'user',
+        apiKeys: {
+          OPENROUTER_API_KEY: 'user',
+          OPENAI_API_KEY: 'user',
+        },
+        gitignore: 'unknown',
+        devMode: enabled,
+      })
     }
   }
 
   /**
-   * Detect whether plugin is installed at user level, project level, or both.
-   * Uses `claude plugin list --json` to get scope information.
+   * Check if the sidekick plugin is installed at any scope.
+   * Reads pluginDetected flags from both user and project status.
    */
-  private async detectPluginScope(): Promise<PluginStatus> {
-    return new Promise((resolve) => {
-      let resolved = false
-      const safeResolve = (value: PluginStatus): void => {
-        if (!resolved) {
-          resolved = true
-          clearTimeout(timeout)
-          resolve(value)
-        }
-      }
-
-      const child = spawn('claude', ['plugin', 'list', '--json'], {
-        stdio: ['ignore', 'pipe', 'pipe'],
-      })
-
-      let stdout = ''
-
-      child.stdout?.on('data', (data: Buffer) => {
-        stdout += data.toString()
-      })
-
-      const timeout = setTimeout(() => {
-        child.kill('SIGTERM')
-        safeResolve('not-installed')
-      }, 10000)
-
-      child.on('close', (code) => {
-        if (code !== 0) {
-          safeResolve('not-installed')
-          return
-        }
-
-        try {
-          const plugins = JSON.parse(stdout) as Array<{ id: string; scope?: string }>
-          // Find sidekick plugins and their scopes
-          const sidekickPlugins = plugins.filter((p) => p.id.toLowerCase().includes('sidekick'))
-
-          const hasUser = sidekickPlugins.some((p) => p.scope === 'user')
-          const hasProject = sidekickPlugins.some((p) => p.scope === 'project')
-
-          if (hasUser && hasProject) {
-            safeResolve('installed-both')
-          } else if (hasUser) {
-            safeResolve('installed-user')
-          } else if (hasProject) {
-            safeResolve('installed-project')
-          } else {
-            safeResolve('not-installed')
-          }
-        } catch {
-          safeResolve('not-installed')
-        }
-      })
-
-      child.on('error', () => {
-        safeResolve('not-installed')
-      })
-    })
+  async isPluginInstalled(): Promise<boolean> {
+    const user = await this.getUserStatus()
+    const project = await this.getProjectStatus()
+    return (user?.pluginDetected ?? false) || (project?.pluginDetected ?? false)
   }
 
   // === Auto-config helpers ===

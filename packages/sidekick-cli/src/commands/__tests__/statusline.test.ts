@@ -32,6 +32,17 @@ vi.mock('@sidekick/feature-statusline', () => ({
   createStatuslineService: mockCreateStatuslineService,
 }))
 
+// Mock @sidekick/core to avoid SetupStatusService spawning subprocesses
+vi.mock('@sidekick/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@sidekick/core')>()
+  return {
+    ...actual,
+    SetupStatusService: vi.fn().mockImplementation(() => ({
+      getDevMode: vi.fn().mockResolvedValue(false),
+    })),
+  }
+})
+
 // Create fake logger - record calls but don't verify them (behavior testing)
 function createFakeLogger(): {
   trace: ReturnType<typeof vi.fn>

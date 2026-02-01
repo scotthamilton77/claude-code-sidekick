@@ -336,10 +336,10 @@ import type { ParsedHookInput } from '@sidekick/types'
 import { handleUnifiedHookCommand } from '../hook-command.js'
 
 // Hoisted mocks
-const { mockHandleHookCommand, mockGetSetupState, mockGetPluginStatus } = vi.hoisted(() => ({
+const { mockHandleHookCommand, mockGetSetupState, mockGetDevMode } = vi.hoisted(() => ({
   mockHandleHookCommand: vi.fn(),
   mockGetSetupState: vi.fn(),
-  mockGetPluginStatus: vi.fn(),
+  mockGetDevMode: vi.fn(),
 }))
 
 // Mock the hook.js module to control internal responses
@@ -358,7 +358,7 @@ vi.mock('@sidekick/core', async (importOriginal) => {
     ...actual,
     SetupStatusService: vi.fn().mockImplementation(() => ({
       getSetupState: mockGetSetupState,
-      getPluginStatus: mockGetPluginStatus,
+      getDevMode: mockGetDevMode,
     })),
   }
 })
@@ -420,8 +420,8 @@ describe('handleUnifiedHookCommand', () => {
     vi.clearAllMocks()
     // Default to healthy setup state so tests exercise normal flow
     mockGetSetupState.mockResolvedValue('healthy')
-    // Default to no conflict
-    mockGetPluginStatus.mockResolvedValue('dev-mode')
+    // Default to dev-mode not enabled
+    mockGetDevMode.mockResolvedValue(false)
   })
 
   test('translates internal response to Claude Code format and outputs JSON', async () => {
@@ -789,13 +789,13 @@ describe('handleUnifiedHookCommand', () => {
     })
   })
 
-  describe('plugin conflict detection', () => {
+  describe('devMode-based conflict detection', () => {
     beforeEach(() => {
       mockGetSetupState.mockResolvedValue('healthy')
     })
 
-    test('returns empty response when conflict detected and force not passed', async () => {
-      mockGetPluginStatus.mockResolvedValue('conflict')
+    test('returns empty response when devMode is true and force not passed', async () => {
+      mockGetDevMode.mockResolvedValue(true)
 
       const stdout = new CollectingWritable()
       const result = await handleUnifiedHookCommand('SessionStart', baseOptions, mockLogger, stdout)
@@ -806,15 +806,15 @@ describe('handleUnifiedHookCommand', () => {
       expect(output).toEqual({})
       // Should NOT call internal hook handler
       expect(mockHandleHookCommand).not.toHaveBeenCalled()
-      // Should log about conflict
+      // Should log about dev-mode conflict
       expect(mockLogger.debug).toHaveBeenCalledWith(
-        'Plugin conflict detected, bailing early (let dev-mode win)',
+        'Dev-mode active, bailing early (let dev-mode hooks win)',
         expect.objectContaining({ hookName: 'SessionStart' })
       )
     })
 
-    test('proceeds normally when conflict detected but force flag is true', async () => {
-      mockGetPluginStatus.mockResolvedValue('conflict')
+    test('proceeds normally when devMode is true but force flag is true', async () => {
+      mockGetDevMode.mockResolvedValue(true)
       mockHandleHookCommand.mockImplementation(
         (_hookName: unknown, _options: unknown, _logger: unknown, stdout: Writable) => {
           stdout.write('{"additionalContext":"Force mode response"}\n')
@@ -832,8 +832,8 @@ describe('handleUnifiedHookCommand', () => {
       expect(output.hookSpecificOutput?.additionalContext).toContain('Force mode response')
     })
 
-    test('proceeds normally when no conflict exists', async () => {
-      mockGetPluginStatus.mockResolvedValue('dev-mode')
+    test('proceeds normally when devMode is false', async () => {
+      mockGetDevMode.mockResolvedValue(false)
       mockHandleHookCommand.mockImplementation(
         (_hookName: unknown, _options: unknown, _logger: unknown, stdout: Writable) => {
           stdout.write('{"additionalContext":"Normal response"}\n')
@@ -844,12 +844,12 @@ describe('handleUnifiedHookCommand', () => {
       const stdout = new CollectingWritable()
       await handleUnifiedHookCommand('SessionStart', baseOptions, mockLogger, stdout)
 
-      // Should call internal handler when no conflict
+      // Should call internal handler when devMode is false
       expect(mockHandleHookCommand).toHaveBeenCalled()
     })
 
-    test('proceeds normally when plugin status check fails', async () => {
-      mockGetPluginStatus.mockRejectedValue(new Error('Failed to check status'))
+    test('proceeds normally when devMode check fails (fail open)', async () => {
+      mockGetDevMode.mockRejectedValue(new Error('Failed to check devMode'))
       mockHandleHookCommand.mockImplementation(
         (_hookName: unknown, _options: unknown, _logger: unknown, stdout: Writable) => {
           stdout.write('{}\n')
