@@ -760,6 +760,13 @@ async function doCleanAll(
 
   await removeDirectory(path.join(sidekickDir, 'state'), 'state', stdout)
 
+  // Remove setup-status.json (created by dev-mode enable)
+  const setupStatusPath = path.join(sidekickDir, 'setup-status.json')
+  if (await fileExists(setupStatusPath)) {
+    await unlink(setupStatusPath)
+    log(stdout, 'info', `Removed ${setupStatusPath}`)
+  }
+
   // Clean stale sockets in /tmp
   const tmpDir = os.tmpdir()
   try {
