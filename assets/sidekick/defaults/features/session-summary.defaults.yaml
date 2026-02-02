@@ -44,7 +44,13 @@ settings:
   maxTitleWords: 8
 
   # Maximum words for generated intent description
-  maxIntentWords: 12
+  maxIntentWords: 15
+
+  # Maximum words for snarky message generation
+  maxSnarkyWords: 20
+
+  # Maximum words for resume/welcome-back message generation
+  maxResumeWords: 20
 
   # Enable snarky/humorous comments in summaries
   snarkyMessages: true

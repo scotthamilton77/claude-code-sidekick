@@ -121,6 +121,10 @@ export async function generateSnarkyMessageOnDemand(ctx: DaemonContext, sessionI
   // Build persona context for template interpolation
   const personaContext = buildPersonaContext(persona)
 
+  // Get profile configuration for snarky comment
+  const featureConfig = ctx.config.getFeature<SessionSummaryConfig>('session-summary')
+  const config = { ...DEFAULT_SESSION_SUMMARY_CONFIG, ...featureConfig.settings }
+
   // Interpolate prompt with session summary data and persona
   const prompt = interpolateTemplate(promptTemplate, {
     ...personaContext,
@@ -129,11 +133,8 @@ export async function generateSnarkyMessageOnDemand(ctx: DaemonContext, sessionI
     turn_count: ctx.transcript.getMetrics().turnCount,
     tool_count: ctx.transcript.getMetrics().toolCount,
     sessionSummary: JSON.stringify(summary, null, 2),
+    maxSnarkyWords: config.maxSnarkyWords,
   })
-
-  // Get profile configuration for snarky comment
-  const featureConfig = ctx.config.getFeature<SessionSummaryConfig>('session-summary')
-  const config = { ...DEFAULT_SESSION_SUMMARY_CONFIG, ...featureConfig.settings }
   const llmConfig = config.llm?.snarkyComment ?? DEFAULT_SESSION_SUMMARY_CONFIG.llm!.snarkyComment!
   const provider = ctx.profileFactory.createForProfile(llmConfig.profile, llmConfig.fallbackProfile)
 
@@ -224,6 +225,10 @@ export async function generateResumeMessageOnDemand(ctx: DaemonContext, sessionI
   // Build persona context for template interpolation
   const personaContext = buildPersonaContext(persona)
 
+  // Get profile configuration for resume message
+  const featureConfig = ctx.config.getFeature<SessionSummaryConfig>('session-summary')
+  const config = { ...DEFAULT_SESSION_SUMMARY_CONFIG, ...featureConfig.settings }
+
   // Get transcript excerpt
   const excerpt = ctx.transcript.getExcerpt({
     maxLines: 50,
@@ -241,11 +246,8 @@ export async function generateResumeMessageOnDemand(ctx: DaemonContext, sessionI
     latestIntent: summary.latest_intent,
     keyPhrases,
     transcript: excerpt.content,
+    maxResumeWords: config.maxResumeWords,
   })
-
-  // Get profile configuration for resume message
-  const featureConfig = ctx.config.getFeature<SessionSummaryConfig>('session-summary')
-  const config = { ...DEFAULT_SESSION_SUMMARY_CONFIG, ...featureConfig.settings }
   const llmConfig = config.llm?.resumeMessage ?? DEFAULT_SESSION_SUMMARY_CONFIG.llm!.resumeMessage!
   const provider = ctx.profileFactory.createForProfile(llmConfig.profile, llmConfig.fallbackProfile)
 
