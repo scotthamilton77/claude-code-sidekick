@@ -378,5 +378,23 @@ describe('handleDevModeCommand', () => {
       expect(result.exitCode).toBe(0)
       expect(stdout.data).toContain('Skipping session cleanup')
     })
+
+    test('removes setup-status.json with --force', async () => {
+      // Enable dev-mode first (creates .sidekick/setup-status.json)
+      await handleDevModeCommand('enable', tempDir, logger, stdout)
+      stdout.data = ''
+
+      // Verify setup-status.json exists
+      const setupStatusPath = path.join(tempDir, '.sidekick', 'setup-status.json')
+      await access(setupStatusPath, constants.F_OK) // throws if not exists
+
+      // Run clean-all
+      const result = await handleDevModeCommand('clean-all', tempDir, logger, stdout, { force: true })
+
+      expect(result.exitCode).toBe(0)
+
+      // Verify setup-status.json was removed
+      await expect(access(setupStatusPath, constants.F_OK)).rejects.toThrow()
+    })
   })
 })
