@@ -17,7 +17,8 @@
     "sidekick": "node packages/sidekick-cli/dist/bin.js",
     "test:dist:setup": "./scripts/test-dist.sh setup",
     "test:dist:teardown": "./scripts/test-dist.sh teardown",
-    "test:dist:rebuild": "./scripts/test-dist.sh rebuild"
+    "test:dist:rebuild": "./scripts/test-dist.sh rebuild",
+    "publish:dist": "./scripts/publish-dist.sh"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
