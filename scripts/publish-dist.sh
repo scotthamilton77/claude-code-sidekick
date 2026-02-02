@@ -1,20 +1,26 @@
 #!/bin/bash
 # Publish @scotthamilton77/sidekick to npm
-# Usage: ./scripts/publish-dist.sh [patch|minor|major]
+# Usage: ./scripts/publish-dist.sh [patch|minor|major|prerelease]
+#
+# Version bump types:
+#   prerelease - bump prerelease number: 0.0.8-alpha -> 0.0.8-alpha.0 -> 0.0.8-alpha.1
+#   patch      - bump patch, reset prerelease: 0.0.8-alpha.5 -> 0.0.9-alpha
+#   minor      - bump minor, reset prerelease: 0.0.8-alpha.5 -> 0.1.0-alpha
+#   major      - bump major, reset prerelease: 0.0.8-alpha.5 -> 1.0.0-alpha
 #
 # Steps:
 # 1. Check for uncommitted changes (fail if dirty)
 # 2. Bump version in packages/sidekick-dist/package.json
 # 3. Build all packages
-# 4. Publish packages/sidekick-dist
+# 4. Publish packages/sidekick-dist (with appropriate tag)
 
 set -e
 
-VERSION_TYPE="${1:-patch}"
+VERSION_TYPE="${1:-prerelease}"
 
 # Validate version type
-if [[ ! "$VERSION_TYPE" =~ ^(patch|minor|major)$ ]]; then
-    echo "Error: Invalid version type '$VERSION_TYPE'. Use: patch, minor, or major"
+if [[ ! "$VERSION_TYPE" =~ ^(patch|minor|major|prerelease)$ ]]; then
+    echo "Error: Invalid version type '$VERSION_TYPE'. Use: patch, minor, major, or prerelease"
     exit 1
 fi
 
@@ -39,11 +45,78 @@ if [[ -n "$UNTRACKED" ]]; then
     fi
 fi
 
-echo "==> Bumping $VERSION_TYPE version..."
+echo "==> Bumping version ($VERSION_TYPE)..."
 cd packages/sidekick-dist
+
 OLD_VERSION=$(node -p "require('./package.json').version")
-npm version "$VERSION_TYPE" --no-git-tag-version
-NEW_VERSION=$(node -p "require('./package.json').version")
+
+# Parse version components
+# e.g., "0.0.8-alpha.2" -> base="0.0.8", identifier="alpha", prenum="2"
+# e.g., "0.0.8-alpha" -> base="0.0.8", identifier="alpha", prenum=""
+# e.g., "0.0.8" -> base="0.0.8", identifier="", prenum=""
+if [[ "$OLD_VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(-([a-zA-Z]+)(\.([0-9]+))?)?$ ]]; then
+    MAJOR="${BASH_REMATCH[1]}"
+    MINOR="${BASH_REMATCH[2]}"
+    PATCH="${BASH_REMATCH[3]}"
+    PRERELEASE_ID="${BASH_REMATCH[5]}"  # e.g., "alpha"
+    PRERELEASE_NUM="${BASH_REMATCH[7]}" # e.g., "2" or ""
+else
+    echo "Error: Could not parse version '$OLD_VERSION'"
+    exit 1
+fi
+
+# Compute new version based on bump type
+case "$VERSION_TYPE" in
+    prerelease)
+        if [[ -z "$PRERELEASE_ID" ]]; then
+            echo "Error: Cannot do prerelease bump on stable version '$OLD_VERSION'"
+            echo "Use patch/minor/major first, or manually add a prerelease suffix."
+            exit 1
+        fi
+        if [[ -z "$PRERELEASE_NUM" ]]; then
+            PRERELEASE_NUM=0
+        else
+            PRERELEASE_NUM=$((PRERELEASE_NUM + 1))
+        fi
+        NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}-${PRERELEASE_ID}.${PRERELEASE_NUM}"
+        ;;
+    patch)
+        PATCH=$((PATCH + 1))
+        if [[ -n "$PRERELEASE_ID" ]]; then
+            NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}-${PRERELEASE_ID}"
+        else
+            NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+        fi
+        ;;
+    minor)
+        MINOR=$((MINOR + 1))
+        PATCH=0
+        if [[ -n "$PRERELEASE_ID" ]]; then
+            NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}-${PRERELEASE_ID}"
+        else
+            NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+        fi
+        ;;
+    major)
+        MAJOR=$((MAJOR + 1))
+        MINOR=0
+        PATCH=0
+        if [[ -n "$PRERELEASE_ID" ]]; then
+            NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}-${PRERELEASE_ID}"
+        else
+            NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+        fi
+        ;;
+esac
+
+# Update package.json
+node -e "
+const fs = require('fs');
+const pkg = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
+pkg.version = '$NEW_VERSION';
+fs.writeFileSync('./package.json', JSON.stringify(pkg, null, 2) + '\n');
+"
+
 cd ../..
 
 echo "    $OLD_VERSION -> $NEW_VERSION"
@@ -53,7 +126,14 @@ pnpm build
 
 echo "==> Publishing @scotthamilton77/sidekick@$NEW_VERSION..."
 cd packages/sidekick-dist
-npm publish --access public
+
+# Use appropriate npm tag based on prerelease identifier
+if [[ -n "$PRERELEASE_ID" ]]; then
+    echo "    (publishing with --tag $PRERELEASE_ID since this is a prerelease)"
+    npm publish --access public --tag "$PRERELEASE_ID"
+else
+    npm publish --access public --tag latest
+fi
 
 echo ""
 echo "==> Published successfully!"
