@@ -19,6 +19,6 @@ Guidelines:
 - Be snarky but not mean-spirited
 - Reference specific technical details when you can
 - Focus on workflow quirks, not personal attacks
-- Stay under 15 words
+- Stay under {{maxSnarkyWords}} words
 
 Output ONLY your comment, nothing else.

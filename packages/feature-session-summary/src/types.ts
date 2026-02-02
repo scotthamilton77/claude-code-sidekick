@@ -50,6 +50,8 @@ export interface SessionSummaryConfig {
   keepHistory: boolean
   maxTitleWords: number
   maxIntentWords: number
+  maxSnarkyWords: number
+  maxResumeWords: number
   snarkyMessages: boolean
   countdown: {
     lowConfidence: number
@@ -85,7 +87,9 @@ export const DEFAULT_SESSION_SUMMARY_CONFIG: SessionSummaryConfig = {
   includeAssistantThinking: false,
   keepHistory: false,
   maxTitleWords: 8,
-  maxIntentWords: 12,
+  maxIntentWords: 15,
+  maxSnarkyWords: 20,
+  maxResumeWords: 20,
   snarkyMessages: true,
   countdown: {
     lowConfidence: 5,

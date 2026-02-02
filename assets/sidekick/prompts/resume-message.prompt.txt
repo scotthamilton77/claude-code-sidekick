@@ -19,6 +19,6 @@ Latest intent: {{latestIntent}}
 Guidelines:
 - Reference what they were working on
 - Be witty, not mean
-- Stay under 10 words
+- Stay under {{maxResumeWords}} words
 
 Output ONLY your comment, nothing else.

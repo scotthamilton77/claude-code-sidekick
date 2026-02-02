@@ -191,12 +191,16 @@ function interpolatePrompt(
     transcript: string
     previousConfidence: number
     previousAnalysis: string
+    maxTitleWords: number
+    maxIntentWords: number
   }
 ): string {
   return template
     .replace(/\{\{transcript\}\}/g, context.transcript)
     .replace(/\{\{previousConfidence\}\}/g, String(context.previousConfidence))
     .replace(/\{\{previousAnalysis\}\}/g, context.previousAnalysis)
+    .replace(/\{\{maxTitleWords\}\}/g, String(context.maxTitleWords))
+    .replace(/\{\{maxIntentWords\}\}/g, String(context.maxIntentWords))
 }
 
 /**
@@ -270,6 +274,8 @@ async function performAnalysis(
     transcript,
     previousConfidence,
     previousAnalysis,
+    maxTitleWords: config.maxTitleWords,
+    maxIntentWords: config.maxIntentWords,
   })
 
   // Load JSON schema for structured output
@@ -498,6 +504,7 @@ async function generateSnarkyMessage(
     turn_count: ctx.transcript.getMetrics().turnCount,
     tool_count: ctx.transcript.getMetrics().toolCount,
     sessionSummary: JSON.stringify(summary, null, 2),
+    maxSnarkyWords: config.maxSnarkyWords,
   })
 
   // Get profile configuration for snarky comment (creative profile)
@@ -635,6 +642,7 @@ async function generateResumeMessage(
     latestIntent: summary.latest_intent,
     keyPhrases,
     transcript: transcriptExcerpt,
+    maxResumeWords: config.maxResumeWords,
   })
 
   // Get profile configuration for resume message (creative-long profile)

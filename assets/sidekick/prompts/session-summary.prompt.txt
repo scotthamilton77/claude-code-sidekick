@@ -14,10 +14,10 @@ Output JSON matching this exact schema:
 
 ```json
 {
-  "session_title": "string, max 8 words",
+  "session_title": "string, max {{maxTitleWords}} words",
   "session_title_confidence": 0.0-1.0,
   "session_title_key_phrases": ["optional", "array", "of", "key", "terms/phrases"],
-  "latest_intent": "string, max 8 words",
+  "latest_intent": "string, max {{maxIntentWords}} words",
   "latest_intent_confidence": 0.0-1.0,
   "latest_intent_key_phrases": ["optional", "array"],
   "pivot_detected": false
@@ -88,7 +88,7 @@ Set pivot_detected based on whether the user switched to a fundamentally differe
 </pivot_detection>
 
 <session_title_rules>
-- Max 8 words - think "What would the JIRA epic or feature title be?"
+- Max {{maxTitleWords}} words - think "What would the JIRA epic or feature title be?"
 - Focus on the epic/feature level, not individual tasks
 - Write as if creating a ticket for the broader work being done
 - Start with an action verb when possible: Fix, Add, Implement, Refactor, Debug, Update, Remove, Verify
@@ -98,7 +98,7 @@ Set pivot_detected based on whether the user switched to a fundamentally differe
 </session_title_rules>
 
 <latest_intent_rules>
-- Max 15 words
+- Max {{maxIntentWords}} words
 - What the user wanted in their most recent USER messages (you may infer from ASSISTANT messages when the assistant provides clarity to the user's intent)
 - Use context to interpret vague prompts ("do it", "yes", "continue")
 - If multi-instruction, capture most relevant instructions to recent context
