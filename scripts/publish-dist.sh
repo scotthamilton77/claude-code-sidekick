@@ -127,10 +127,13 @@ pnpm build
 echo "==> Publishing @scotthamilton77/sidekick@$NEW_VERSION..."
 cd packages/sidekick-dist
 
-# Use appropriate npm tag based on prerelease identifier
+# Publish with appropriate tags
 if [[ -n "$PRERELEASE_ID" ]]; then
-    echo "    (publishing with --tag $PRERELEASE_ID since this is a prerelease)"
+    echo "    (publishing with --tag $PRERELEASE_ID)"
     npm publish --access public --tag "$PRERELEASE_ID"
+    # Also update latest since there's no stable version yet
+    echo "    (also updating 'latest' tag)"
+    npm dist-tag add "@scotthamilton77/sidekick@$NEW_VERSION" latest
 else
     npm publish --access public --tag latest
 fi
