@@ -161,9 +161,10 @@ function formatApiKeyScopes(scopes: {
 }
 
 /**
- * Write statusline config to Claude Code settings.json
+ * Write statusline config to Claude Code settings.json.
+ * Returns true if written, false if skipped (e.g. dev-mode statusline detected).
  */
-async function configureStatusline(settingsPath: string, logger?: Logger): Promise<void> {
+async function configureStatusline(settingsPath: string, logger?: Logger): Promise<boolean> {
   let settings: Record<string, unknown> = {}
 
   try {
@@ -176,6 +177,13 @@ async function configureStatusline(settingsPath: string, logger?: Logger): Promi
     // File doesn't exist, start fresh
   }
 
+  // Guard: don't overwrite dev-mode statusline
+  const existing = settings.statusLine as { command?: string } | undefined
+  if (existing?.command?.includes('dev-sidekick')) {
+    logger?.warn('Statusline managed by dev-mode, skipping overwrite', { path: settingsPath })
+    return false
+  }
+
   settings.statusLine = {
     type: 'command',
     command: STATUSLINE_COMMAND,
@@ -185,6 +193,7 @@ async function configureStatusline(settingsPath: string, logger?: Logger): Promi
   await fs.mkdir(dir, { recursive: true })
   await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2) + '\n')
   logger?.info('Statusline configured', { path: settingsPath })
+  return true
 }
 
 /**
@@ -309,8 +318,12 @@ async function runStep1Statusline(wctx: WizardContext): Promise<'user' | 'projec
       ? path.join(homeDir, '.claude', 'settings.json')
       : path.join(projectDir, '.claude', 'settings.local.json')
 
-  await configureStatusline(statuslinePath, logger)
-  printStatus(ctx, 'success', `Statusline configured in ${statuslinePath}`)
+  const wrote = await configureStatusline(statuslinePath, logger)
+  if (wrote) {
+    printStatus(ctx, 'success', `Statusline configured in ${statuslinePath}`)
+  } else {
+    printStatus(ctx, 'warning', 'Statusline managed by dev-mode (skipped)')
+  }
 
   return statuslineScope
 }
@@ -528,6 +541,9 @@ async function writeStatusFiles(wctx: WizardContext, state: WizardState): Promis
 
   await setupService.writeUserStatus(userStatus)
 
+  // Preserve fields managed by other subsystems (e.g. dev-mode)
+  const existingProject = await setupService.getProjectStatus()
+
   // Always write project status now (we track gitignore at project level)
   const projectStatus: ProjectSetupStatus = {
     version: 1,
@@ -543,6 +559,7 @@ async function writeStatusFiles(wctx: WizardContext, state: WizardState): Promis
       OPENAI_API_KEY: 'not-required',
     },
     gitignore: gitignoreStatus,
+    devMode: existingProject?.devMode,
   }
   await setupService.writeProjectStatus(projectStatus)
 }
@@ -619,10 +636,13 @@ async function runWizard(
     : await runStep3Personas(wctx)
   const autoConfig = force ? 'auto' : await runStep4AutoConfig(wctx)
 
-  // In force mode, configure statusline with defaults
+  // In force mode, configure statusline with defaults (user scope)
   if (force) {
     const statuslinePath = path.join(homeDir, '.claude', 'settings.json')
-    await configureStatusline(statuslinePath, logger)
+    const wrote = await configureStatusline(statuslinePath, logger)
+    if (!wrote) {
+      stdout.write('⚠ Statusline managed by dev-mode (skipped)\n')
+    }
   }
 
   // Collect state and finalize
@@ -683,9 +703,13 @@ async function runScripted(
         ? path.join(homeDir, '.claude', 'settings.json')
         : path.join(projectDir, '.claude', 'settings.local.json')
 
-    await configureStatusline(statuslinePath, logger)
-    stdout.write(`✓ Statusline configured (${options.statuslineScope}-level)\n`)
-    configuredCount++
+    const wrote = await configureStatusline(statuslinePath, logger)
+    if (wrote) {
+      stdout.write(`✓ Statusline configured (${options.statuslineScope}-level)\n`)
+      configuredCount++
+    } else {
+      stdout.write(`⚠ Statusline managed by dev-mode (skipped)\n`)
+    }
   }
 
   // 2. Configure gitignore if specified
