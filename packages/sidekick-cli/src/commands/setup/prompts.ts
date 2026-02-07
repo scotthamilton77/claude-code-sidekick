@@ -40,11 +40,13 @@ export function printStatus(ctx: PromptContext, type: 'success' | 'warning' | 'i
 
 /**
  * Prompt for single-choice selection.
+ * @param defaultIndex - 0-based index of the default option (selected on empty input). Defaults to 0.
  */
 export async function promptSelect(
   ctx: PromptContext,
   question: string,
-  options: Array<{ value: string; label: string; description?: string }>
+  options: Array<{ value: string; label: string; description?: string }>,
+  defaultIndex = 0
 ): Promise<string> {
   ctx.stdout.write(`${question}\n\n`)
 
@@ -63,18 +65,32 @@ export async function promptSelect(
     terminal: false,
   })
 
+  const defaultNum = defaultIndex + 1
+  const prompt = `Enter choice (1-${options.length}) [${defaultNum}]: `
+
   return new Promise((resolve) => {
-    ctx.stdout.write(`Enter choice (1-${options.length}): `)
-    rl.once('line', (answer) => {
-      rl.close()
-      const num = parseInt(answer.trim(), 10)
-      if (num >= 1 && num <= options.length) {
-        resolve(options[num - 1].value)
-      } else {
-        // Default to first option
-        resolve(options[0].value)
-      }
-    })
+    const ask = (): void => {
+      ctx.stdout.write(prompt)
+      rl.once('line', (answer) => {
+        const trimmed = answer.trim()
+        if (trimmed === '') {
+          rl.close()
+          resolve(options[defaultIndex].value)
+        } else {
+          const num = parseInt(trimmed, 10)
+          if (num >= 1 && num <= options.length) {
+            rl.close()
+            resolve(options[num - 1].value)
+          } else {
+            ctx.stdout.write(
+              `${colors.yellow}Invalid choice. Enter a number between 1 and ${options.length}.${colors.reset}\n`
+            )
+            ask()
+          }
+        }
+      })
+    }
+    ask()
   })
 }
 
@@ -90,17 +106,29 @@ export async function promptConfirm(ctx: PromptContext, question: string, defaul
     terminal: false,
   })
 
+  const prompt = `${question} ${hint} `
+
   return new Promise((resolve) => {
-    ctx.stdout.write(`${question} ${hint} `)
-    rl.once('line', (answer) => {
-      rl.close()
-      const normalized = answer.trim().toLowerCase()
-      if (normalized === '') {
-        resolve(defaultYes)
-      } else {
-        resolve(normalized === 'y' || normalized === 'yes')
-      }
-    })
+    const ask = (): void => {
+      ctx.stdout.write(prompt)
+      rl.once('line', (answer) => {
+        const normalized = answer.trim().toLowerCase()
+        if (normalized === '') {
+          rl.close()
+          resolve(defaultYes)
+        } else if (normalized === 'y' || normalized === 'yes') {
+          rl.close()
+          resolve(true)
+        } else if (normalized === 'n' || normalized === 'no') {
+          rl.close()
+          resolve(false)
+        } else {
+          ctx.stdout.write(`${colors.yellow}Please enter y or n.${colors.reset}\n`)
+          ask()
+        }
+      })
+    }
+    ask()
   })
 }
 

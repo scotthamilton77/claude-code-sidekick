@@ -336,10 +336,18 @@ import type { ParsedHookInput } from '@sidekick/types'
 import { handleUnifiedHookCommand } from '../hook-command.js'
 
 // Hoisted mocks
-const { mockHandleHookCommand, mockGetSetupState, mockGetDevMode } = vi.hoisted(() => ({
+const {
+  mockHandleHookCommand,
+  mockGetSetupState,
+  mockGetDevMode,
+  mockShouldAutoConfigureProject,
+  mockAutoConfigureProject,
+} = vi.hoisted(() => ({
   mockHandleHookCommand: vi.fn(),
   mockGetSetupState: vi.fn(),
   mockGetDevMode: vi.fn(),
+  mockShouldAutoConfigureProject: vi.fn(),
+  mockAutoConfigureProject: vi.fn(),
 }))
 
 // Mock the hook.js module to control internal responses
@@ -359,6 +367,8 @@ vi.mock('@sidekick/core', async (importOriginal) => {
     SetupStatusService: vi.fn().mockImplementation(() => ({
       getSetupState: mockGetSetupState,
       getDevMode: mockGetDevMode,
+      shouldAutoConfigureProject: mockShouldAutoConfigureProject,
+      autoConfigureProject: mockAutoConfigureProject,
     })),
   }
 })
@@ -422,6 +432,9 @@ describe('handleUnifiedHookCommand', () => {
     mockGetSetupState.mockResolvedValue('healthy')
     // Default to dev-mode not enabled
     mockGetDevMode.mockResolvedValue(false)
+    // Default to auto-configure not needed
+    mockShouldAutoConfigureProject.mockResolvedValue(false)
+    mockAutoConfigureProject.mockResolvedValue(false)
   })
 
   test('translates internal response to Claude Code format and outputs JSON', async () => {
@@ -861,6 +874,103 @@ describe('handleUnifiedHookCommand', () => {
       await handleUnifiedHookCommand('SessionStart', baseOptions, mockLogger, stdout)
 
       // Should proceed with internal handler on error (fail open)
+      expect(mockHandleHookCommand).toHaveBeenCalled()
+    })
+  })
+
+  describe('auto-configure on SessionStart', () => {
+    beforeEach(() => {
+      mockGetDevMode.mockResolvedValue(false)
+    })
+
+    test('calls autoConfigureProject on SessionStart when shouldAutoConfigureProject returns true', async () => {
+      mockShouldAutoConfigureProject.mockResolvedValue(true)
+      mockAutoConfigureProject.mockResolvedValue(true)
+      mockGetSetupState.mockResolvedValue('healthy')
+      mockHandleHookCommand.mockImplementation(
+        (_hookName: unknown, _options: unknown, _logger: unknown, stdout: Writable) => {
+          stdout.write('{"additionalContext":"Normal response"}\n')
+          return Promise.resolve({ exitCode: 0, output: '{}' })
+        }
+      )
+
+      const stdout = new CollectingWritable()
+      await handleUnifiedHookCommand('SessionStart', baseOptions, mockLogger, stdout)
+
+      expect(mockAutoConfigureProject).toHaveBeenCalled()
+      expect(mockHandleHookCommand).toHaveBeenCalled()
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        'Project auto-configured on SessionStart',
+        expect.objectContaining({ projectRoot: '/project' })
+      )
+    })
+
+    test('does not call autoConfigureProject when shouldAutoConfigureProject returns false', async () => {
+      mockShouldAutoConfigureProject.mockResolvedValue(false)
+      mockGetSetupState.mockResolvedValue('healthy')
+      mockHandleHookCommand.mockImplementation(
+        (_hookName: unknown, _options: unknown, _logger: unknown, stdout: Writable) => {
+          stdout.write('{}\n')
+          return Promise.resolve({ exitCode: 0, output: '{}' })
+        }
+      )
+
+      const stdout = new CollectingWritable()
+      await handleUnifiedHookCommand('SessionStart', baseOptions, mockLogger, stdout)
+
+      expect(mockAutoConfigureProject).not.toHaveBeenCalled()
+      expect(mockHandleHookCommand).toHaveBeenCalled()
+    })
+
+    test('does not call autoConfigureProject for non-SessionStart hooks', async () => {
+      mockShouldAutoConfigureProject.mockResolvedValue(true)
+      mockGetSetupState.mockResolvedValue('healthy')
+      mockHandleHookCommand.mockImplementation(
+        (_hookName: unknown, _options: unknown, _logger: unknown, stdout: Writable) => {
+          stdout.write('{}\n')
+          return Promise.resolve({ exitCode: 0, output: '{}' })
+        }
+      )
+
+      const stdout = new CollectingWritable()
+      await handleUnifiedHookCommand('UserPromptSubmit', baseOptions, mockLogger, stdout)
+
+      expect(mockAutoConfigureProject).not.toHaveBeenCalled()
+    })
+
+    test('continues gracefully when auto-configure fails', async () => {
+      mockShouldAutoConfigureProject.mockRejectedValue(new Error('Auto-configure check failed'))
+      mockGetSetupState.mockResolvedValue('partial')
+
+      const stdout = new CollectingWritable()
+      const result = await handleUnifiedHookCommand('SessionStart', baseOptions, mockLogger, stdout)
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'Failed to auto-configure project',
+        expect.objectContaining({ error: 'Auto-configure check failed' })
+      )
+      expect(result.exitCode).toBe(0)
+      const output = JSON.parse(stdout.data.trim())
+      expect(output.hookSpecificOutput?.additionalContext).toContain('project is not configured')
+    })
+
+    test('auto-configure enables healthy mode - removes degraded response', async () => {
+      mockShouldAutoConfigureProject.mockResolvedValue(true)
+      mockAutoConfigureProject.mockResolvedValue(true)
+      mockGetSetupState.mockResolvedValue('healthy')
+      mockHandleHookCommand.mockImplementation(
+        (_hookName: unknown, _options: unknown, _logger: unknown, stdout: Writable) => {
+          stdout.write('{"additionalContext":"Full features enabled"}\n')
+          return Promise.resolve({ exitCode: 0, output: '{}' })
+        }
+      )
+
+      const stdout = new CollectingWritable()
+      await handleUnifiedHookCommand('SessionStart', baseOptions, mockLogger, stdout)
+
+      const output = JSON.parse(stdout.data.trim())
+      expect(output.systemMessage).toBeUndefined()
+      expect(output.hookSpecificOutput?.additionalContext).toContain('Full features enabled')
       expect(mockHandleHookCommand).toHaveBeenCalled()
     })
   })

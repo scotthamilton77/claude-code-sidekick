@@ -254,13 +254,32 @@ const DEGRADED_MODE_MESSAGES: Record<
 const VERBOSE_DEGRADED_HOOKS: ReadonlySet<HookName> = new Set(['SessionStart', 'UserPromptSubmit'])
 
 /**
+ * Attempt to auto-configure the project on SessionStart.
+ * Called when user has autoConfigureProjects: true preference and project is not yet configured.
+ */
+async function maybeAutoConfigureProject(projectRoot: string, logger: Logger): Promise<boolean> {
+  try {
+    const setupService = new SetupStatusService(projectRoot, { logger })
+    const shouldAuto = await setupService.shouldAutoConfigureProject()
+    if (!shouldAuto) return false
+
+    const configured = await setupService.autoConfigureProject()
+    if (configured) {
+      logger.info('Project auto-configured on SessionStart', { projectRoot })
+    }
+    return configured
+  } catch (err) {
+    logger.warn('Failed to auto-configure project', {
+      error: err instanceof Error ? err.message : String(err),
+      projectRoot,
+    })
+    return false
+  }
+}
+
+/**
  * Check setup state and return degraded mode response if not healthy.
  * Returns null if setup is healthy and normal hook execution should proceed.
- *
- * @param projectRoot - Project directory for setup status lookup
- * @param hookName - The hook being invoked (determines verbosity)
- * @param logger - Logger for diagnostic output
- * @returns HookResponse for degraded mode, or null for normal execution
  */
 async function checkSetupState(projectRoot: string, hookName: HookName, logger: Logger): Promise<HookResponse | null> {
   let state: SetupState
@@ -374,6 +393,12 @@ export async function handleUnifiedHookCommand(
         hookName,
       })
     }
+  }
+
+  // On SessionStart, attempt auto-configure if user preference is enabled
+  // This must happen BEFORE checkSetupState so the project becomes configured
+  if (hookName === 'SessionStart') {
+    await maybeAutoConfigureProject(projectRoot, logger)
   }
 
   // Check setup state before attempting daemon/IPC operations

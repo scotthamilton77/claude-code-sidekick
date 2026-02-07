@@ -25,6 +25,77 @@ export const ProjectApiKeyHealthSchema = z.enum([
 ])
 export type ProjectApiKeyHealth = z.infer<typeof ProjectApiKeyHealthSchema>
 
+// ============================================================================
+// New comprehensive API key status types (v2)
+// ============================================================================
+
+/**
+ * Per-scope status for an API key.
+ */
+export const ScopeStatusSchema = z.enum(['healthy', 'invalid', 'missing'])
+export type ScopeStatus = z.infer<typeof ScopeStatusSchema>
+
+/**
+ * API key scope identifier.
+ */
+export const ApiKeyScopeSchema = z.enum(['project', 'user', 'env'])
+export type ApiKeyScope = z.infer<typeof ApiKeyScopeSchema>
+
+/**
+ * Comprehensive API key status for USER level (no project scope).
+ * Used in ~/.sidekick/setup-status.json
+ */
+export const UserApiKeyStatusSchema = z.object({
+  /** Which scope's key is being used (first valid in priority order) */
+  used: z.enum(['user', 'env']).nullable(),
+  /** Overall status based on the used key */
+  status: ScopeStatusSchema,
+  /** Per-scope breakdown */
+  scopes: z.object({
+    user: ScopeStatusSchema,
+    env: ScopeStatusSchema,
+  }),
+})
+export type UserApiKeyStatus = z.infer<typeof UserApiKeyStatusSchema>
+
+/**
+ * Comprehensive API key status for PROJECT level (includes project scope).
+ * Used in .sidekick/setup-status.json
+ */
+export const ProjectApiKeyStatusSchema = z.object({
+  /** Which scope's key is being used (first valid in priority order) */
+  used: z.enum(['project', 'user', 'env']).nullable(),
+  /** Overall status based on the used key */
+  status: ScopeStatusSchema,
+  /** Per-scope breakdown */
+  scopes: z.object({
+    project: ScopeStatusSchema,
+    user: ScopeStatusSchema,
+    env: ScopeStatusSchema,
+  }),
+})
+export type ProjectApiKeyStatus = z.infer<typeof ProjectApiKeyStatusSchema>
+
+/**
+ * Statusline installation status - matches PluginInstallationStatus pattern.
+ * Indicates WHERE the statusline is configured, not just IF.
+ */
+export const StatuslineStatusSchema = z.enum([
+  'user', // Configured in ~/.claude/settings.json
+  'project', // Configured in .claude/settings.local.json
+  'both', // Configured in both (project overrides user)
+  'none', // Not configured anywhere
+])
+export type StatuslineStatus = z.infer<typeof StatuslineStatusSchema>
+
+/**
+ * API key value in user status - accepts both old string format and new object format.
+ * Old format: 'healthy' | 'invalid' | 'missing' | 'not-required' | 'pending-validation'
+ * New format: { used, status, scopes }
+ */
+export const UserApiKeyValueSchema = z.union([ApiKeyHealthSchema, UserApiKeyStatusSchema])
+export type UserApiKeyValue = z.infer<typeof UserApiKeyValueSchema>
+
 /**
  * User-level setup status stored in ~/.sidekick/setup-status.json
  */
@@ -36,10 +107,10 @@ export const UserSetupStatusSchema = z.object({
     defaultStatuslineScope: z.enum(['user', 'project']),
     defaultApiKeyScope: z.enum(['user', 'project', 'skip']),
   }),
-  statusline: z.enum(['configured', 'skipped']),
+  statusline: StatuslineStatusSchema,
   apiKeys: z.object({
-    OPENROUTER_API_KEY: ApiKeyHealthSchema,
-    OPENAI_API_KEY: ApiKeyHealthSchema,
+    OPENROUTER_API_KEY: UserApiKeyValueSchema,
+    OPENAI_API_KEY: UserApiKeyValueSchema,
   }),
   /** True if sidekick plugin detected at user scope via `claude plugin list` */
   pluginDetected: z.boolean().optional(),
@@ -58,16 +129,24 @@ export const GitignoreStatusSchema = z.enum([
 export type GitignoreStatus = z.infer<typeof GitignoreStatusSchema>
 
 /**
+ * API key value in project status - accepts both old string format and new object format.
+ * Old format: 'healthy' | 'invalid' | 'missing' | 'not-required' | 'pending-validation' | 'user'
+ * New format: { used, status, scopes }
+ */
+export const ProjectApiKeyValueSchema = z.union([ProjectApiKeyHealthSchema, ProjectApiKeyStatusSchema])
+export type ProjectApiKeyValue = z.infer<typeof ProjectApiKeyValueSchema>
+
+/**
  * Project-level setup status stored in .sidekick/setup-status.json
  */
 export const ProjectSetupStatusSchema = z.object({
   version: z.literal(1),
   lastUpdatedAt: z.string(), // ISO timestamp
   autoConfigured: z.boolean(),
-  statusline: z.enum(['configured', 'skipped', 'user']),
+  statusline: StatuslineStatusSchema,
   apiKeys: z.object({
-    OPENROUTER_API_KEY: ProjectApiKeyHealthSchema,
-    OPENAI_API_KEY: ProjectApiKeyHealthSchema,
+    OPENROUTER_API_KEY: ProjectApiKeyValueSchema,
+    OPENAI_API_KEY: ProjectApiKeyValueSchema,
   }),
   gitignore: GitignoreStatusSchema.optional().default('unknown'),
   /** True if sidekick plugin detected at project scope via `claude plugin list` */

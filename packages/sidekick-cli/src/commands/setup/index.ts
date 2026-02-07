@@ -9,6 +9,7 @@ import {
   installGitignoreSection,
   detectGitignoreStatus,
   validateOpenRouterKey,
+  type AllScopesDetectionResult,
   type PluginInstallationStatus,
   type PluginLivenessStatus,
 } from '@sidekick/core'
@@ -141,6 +142,25 @@ function getLivenessLabel(status: PluginLivenessStatus): string {
 }
 
 /**
+ * Format scope status as icon for compact display.
+ */
+function getScopeIcon(status: 'healthy' | 'invalid' | 'missing'): string {
+  return status === 'healthy' ? '✓' : '✗'
+}
+
+/**
+ * Format API key scopes for ultra-compact display.
+ * Format: [project ✓ user ✓ env ✗]
+ */
+function formatApiKeyScopes(scopes: {
+  project: 'healthy' | 'invalid' | 'missing'
+  user: 'healthy' | 'invalid' | 'missing'
+  env: 'healthy' | 'invalid' | 'missing'
+}): string {
+  return `[project ${getScopeIcon(scopes.project)} user ${getScopeIcon(scopes.user)} env ${getScopeIcon(scopes.env)}]`
+}
+
+/**
  * Write statusline config to Claude Code settings.json
  */
 async function configureStatusline(settingsPath: string, logger?: Logger): Promise<void> {
@@ -198,37 +218,6 @@ async function writeApiKeyToEnv(envPath: string, key: string, value: string): Pr
 }
 
 /**
- * Check if API key exists in environment or .env files
- */
-async function findExistingApiKey(keyName: string, homeDir: string, projectDir: string): Promise<string | null> {
-  // Check environment variable
-  if (process.env[keyName]) {
-    return process.env[keyName]
-  }
-
-  // Check .env files
-  const envPaths = [
-    path.join(homeDir, '.sidekick', '.env'),
-    path.join(projectDir, '.sidekick', '.env'),
-    path.join(projectDir, '.sidekick', '.env.local'),
-  ]
-
-  for (const envPath of envPaths) {
-    try {
-      const content = await fs.readFile(envPath, 'utf-8')
-      const match = content.match(new RegExp(`^${keyName}=(.+)$`, 'm'))
-      if (match) {
-        return match[1]
-      }
-    } catch {
-      // File doesn't exist
-    }
-  }
-
-  return null
-}
-
-/**
  * Write persona enabled/disabled setting to sidekick features config.
  * Per CONFIG-SYSTEM.md, feature flags go in features.yaml (not config.yaml).
  */
@@ -281,6 +270,7 @@ interface WizardState {
   gitignoreStatus: GitignoreStatus
   wantPersonas: boolean
   apiKeyHealth: ApiKeyHealth
+  apiKeyDetection: AllScopesDetectionResult | null
   autoConfig: 'auto' | 'ask' | 'manual'
 }
 
@@ -387,7 +377,9 @@ async function runStep2Gitignore(wctx: WizardContext, force: boolean): Promise<G
 /**
  * Step 3: Configure persona features and API key.
  */
-async function runStep3Personas(wctx: WizardContext): Promise<{ wantPersonas: boolean; apiKeyHealth: ApiKeyHealth }> {
+async function runStep3Personas(
+  wctx: WizardContext
+): Promise<{ wantPersonas: boolean; apiKeyHealth: ApiKeyHealth; apiKeyDetection: AllScopesDetectionResult | null }> {
   const { ctx, homeDir, projectDir } = wctx
   const stdout = ctx.stdout
 
@@ -401,50 +393,70 @@ async function runStep3Personas(wctx: WizardContext): Promise<{ wantPersonas: bo
 
   const wantPersonas = await promptConfirm(ctx, 'Enable persona features?', true)
   let apiKeyHealth: ApiKeyHealth = 'not-required'
+  let apiKeyDetection: AllScopesDetectionResult | null = null
 
   if (!wantPersonas) {
     await writePersonaConfig(projectDir, homeDir, false)
     printStatus(ctx, 'info', 'Personas disabled')
   } else {
     await writePersonaConfig(projectDir, homeDir, true)
-    apiKeyHealth = await configureApiKey(wctx)
+    const result = await configureApiKey(wctx)
+    apiKeyHealth = result.health
+    apiKeyDetection = result.detection
   }
 
-  return { wantPersonas, apiKeyHealth }
+  return { wantPersonas, apiKeyHealth, apiKeyDetection }
 }
 
 /**
  * Configure API key (sub-step of Step 3).
+ * Uses detectAllApiKeys to check all scopes with validation, shows per-scope results.
  */
-async function configureApiKey(wctx: WizardContext): Promise<ApiKeyHealth> {
-  const { ctx, homeDir, projectDir, logger } = wctx
+async function configureApiKey(
+  wctx: WizardContext
+): Promise<{ health: ApiKeyHealth; detection: AllScopesDetectionResult }> {
+  const { ctx, homeDir, projectDir, logger, setupService } = wctx
   const stdout = ctx.stdout
 
-  // Check for existing key
-  const existingKey = await findExistingApiKey('OPENROUTER_API_KEY', homeDir, projectDir)
+  // Detect keys across all scopes with validation
+  stdout.write('\nChecking API keys...\n')
+  const detection = await setupService.detectAllApiKeys('OPENROUTER_API_KEY')
 
-  if (existingKey) {
-    printStatus(ctx, 'success', 'OPENROUTER_API_KEY found')
-    stdout.write('Validating... ')
-    const result = await validateOpenRouterKey(existingKey, logger)
-    if (result.valid) {
-      stdout.write('valid!\n')
-      return 'healthy'
-    } else {
-      stdout.write(`invalid (${result.error})\n`)
-      return 'invalid'
-    }
+  // Display per-scope results
+  const scopeLabels = {
+    project: 'project (.sidekick/.env)',
+    user: 'user (~/.sidekick/.env)',
+    env: 'env (OPENROUTER_API_KEY)',
+  }
+  for (const scope of ['project', 'user', 'env'] as const) {
+    const r = detection[scope]
+    const icon = r.found ? (r.status === 'healthy' ? '✓' : '✗') : '-'
+    const label = r.found ? r.status : 'not found'
+    stdout.write(`  ${icon} ${scopeLabels[scope]}: ${label}\n`)
   }
 
-  // No existing key - prompt to configure
-  printStatus(ctx, 'warning', 'OPENROUTER_API_KEY not found')
-  const configureNow = await promptConfirm(ctx, 'Configure API key now?', true)
+  // Check if any scope has a healthy key
+  const healthyScope = (['project', 'user', 'env'] as const).find((s) => detection[s].status === 'healthy')
+  if (healthyScope) {
+    printStatus(ctx, 'success', `OpenRouter API Key: healthy (using ${healthyScope})`)
+    return { health: 'healthy', detection }
+  }
+
+  // Check if any key was found but invalid
+  const invalidScope = (['project', 'user', 'env'] as const).find((s) => detection[s].found)
+  if (invalidScope) {
+    printStatus(ctx, 'warning', 'API key found but validation failed')
+  } else {
+    printStatus(ctx, 'warning', 'OPENROUTER_API_KEY not found')
+  }
+
+  const configureNow = await promptConfirm(ctx, invalidScope ? 'Replace API key?' : 'Configure API key now?', true)
 
   if (!configureNow) {
     stdout.write('\n')
     printStatus(ctx, 'warning', 'Persona features will show warnings in the statusline until an API key is configured.')
     stdout.write("Run 'sidekick setup' again or ask Claude to help configure API keys using /sidekick-config.\n")
-    return 'missing'
+    return { health: 'missing', detection }
   }
 
   // User wants to configure key now
@@ -464,13 +476,15 @@ async function configureApiKey(wctx: WizardContext): Promise<ApiKeyHealth> {
     stdout.write('valid!\n')
     await writeApiKeyToEnv(envPath, 'OPENROUTER_API_KEY', apiKey)
     printStatus(ctx, 'success', `API key saved to ${envPath}`)
-    return 'healthy'
   } else {
     stdout.write(`invalid (${result.error})\n`)
     printStatus(ctx, 'warning', 'API key validation failed, saving anyway')
     await writeApiKeyToEnv(envPath, 'OPENROUTER_API_KEY', apiKey)
-    return 'invalid'
   }
+
+  // Re-detect after writing to get accurate scope state
+  const postDetection = await setupService.detectAllApiKeys('OPENROUTER_API_KEY')
+  return { health: result.valid ? 'healthy' : 'invalid', detection: postDetection }
 }
 
 /**
@@ -495,7 +509,7 @@ async function runStep4AutoConfig(wctx: WizardContext): Promise<'auto' | 'ask' |
  */
 async function writeStatusFiles(wctx: WizardContext, state: WizardState): Promise<void> {
   const { setupService } = wctx
-  const { statuslineScope, gitignoreStatus, wantPersonas, apiKeyHealth, autoConfig } = state
+  const { statuslineScope, gitignoreStatus, wantPersonas, apiKeyHealth, apiKeyDetection, autoConfig } = state
 
   const userStatus: UserSetupStatus = {
     version: 1,
@@ -505,9 +519,9 @@ async function writeStatusFiles(wctx: WizardContext, state: WizardState): Promis
       defaultStatuslineScope: statuslineScope,
       defaultApiKeyScope: wantPersonas ? 'user' : 'skip',
     },
-    statusline: 'configured',
+    statusline: statuslineScope,
     apiKeys: {
-      OPENROUTER_API_KEY: apiKeyHealth,
+      OPENROUTER_API_KEY: apiKeyDetection ? setupService.buildUserApiKeyStatus(apiKeyDetection) : apiKeyHealth,
       OPENAI_API_KEY: 'not-required',
     },
   }
@@ -519,9 +533,13 @@ async function writeStatusFiles(wctx: WizardContext, state: WizardState): Promis
     version: 1,
     lastUpdatedAt: new Date().toISOString(),
     autoConfigured: false,
-    statusline: statuslineScope === 'project' ? 'configured' : 'user',
+    statusline: statuslineScope,
     apiKeys: {
-      OPENROUTER_API_KEY: apiKeyHealth === 'healthy' ? 'user' : apiKeyHealth,
+      OPENROUTER_API_KEY: apiKeyDetection
+        ? setupService.buildProjectApiKeyStatus(apiKeyDetection)
+        : apiKeyHealth === 'healthy'
+          ? 'user'
+          : apiKeyHealth,
       OPENAI_API_KEY: 'not-required',
     },
     gitignore: gitignoreStatus,
@@ -548,6 +566,14 @@ function printSummary(wctx: WizardContext, state: WizardState): void {
 
   const apiKeyStatusType = getApiKeyStatusType(apiKeyHealth)
   printStatus(ctx, apiKeyStatusType, `API Key: ${apiKeyHealth}`)
+  if (state.apiKeyDetection) {
+    const scopes = {
+      project: state.apiKeyDetection.project.status,
+      user: state.apiKeyDetection.user.status,
+      env: state.apiKeyDetection.env.status,
+    }
+    stdout.write(`         ${formatApiKeyScopes(scopes)}\n`)
+  }
   printStatus(ctx, 'success', `Auto-configure: ${autoConfig === 'auto' ? 'Enabled' : 'Disabled'}`)
 
   stdout.write('\n')
@@ -588,8 +614,8 @@ async function runWizard(
 
   const statuslineScope = force ? 'user' : await runStep1Statusline(wctx)
   const gitignoreStatus = await runStep2Gitignore(wctx, force)
-  const { wantPersonas, apiKeyHealth } = force
-    ? { wantPersonas: true, apiKeyHealth: 'not-required' as const }
+  const { wantPersonas, apiKeyHealth, apiKeyDetection } = force
+    ? { wantPersonas: true, apiKeyHealth: 'not-required' as const, apiKeyDetection: null }
     : await runStep3Personas(wctx)
   const autoConfig = force ? 'auto' : await runStep4AutoConfig(wctx)
 
@@ -600,7 +626,14 @@ async function runWizard(
   }
 
   // Collect state and finalize
-  const state: WizardState = { statuslineScope, gitignoreStatus, wantPersonas, apiKeyHealth, autoConfig }
+  const state: WizardState = {
+    statuslineScope,
+    gitignoreStatus,
+    wantPersonas,
+    apiKeyHealth,
+    apiKeyDetection,
+    autoConfig,
+  }
   await writeStatusFiles(wctx, state)
 
   if (!force) {
@@ -716,7 +749,7 @@ async function runScripted(
         defaultStatuslineScope: 'user',
         defaultApiKeyScope: 'user',
       },
-      statusline: 'skipped', // Default to skipped if no prior setup
+      statusline: 'none', // Default to none if no prior setup
       apiKeys: {
         OPENROUTER_API_KEY: 'not-required',
         OPENAI_API_KEY: 'not-required',
@@ -784,17 +817,20 @@ async function runDoctor(
   const pluginLabel = getPluginStatusLabel(pluginStatus)
   const livenessIcon = getLivenessIcon(liveness)
   const livenessLabel = getLivenessLabel(liveness)
-  const statuslineIcon = doctorResult.statusline.actual === 'configured' ? '✓' : '⚠'
+  const statuslineIcon = doctorResult.statusline.actual !== 'none' ? '✓' : '⚠'
   const gitignoreIcon = gitignore === 'installed' ? '✓' : '⚠'
-  const openRouterHealth = doctorResult.apiKeys.OPENROUTER_API_KEY.actual
+  const openRouterResult = doctorResult.apiKeys.OPENROUTER_API_KEY
+  const openRouterHealth = openRouterResult.actual
   const apiKeyIcon = openRouterHealth === 'healthy' || openRouterHealth === 'not-required' ? '✓' : '⚠'
+  // Ultra-compact scope breakdown
+  const scopeBreakdown = formatApiKeyScopes(openRouterResult.scopes)
 
   stdout.write('\n')
   stdout.write(`${pluginIcon} Plugin: ${pluginLabel}\n`)
   stdout.write(`${livenessIcon} Plugin Liveness: ${livenessLabel}\n`)
   stdout.write(`${statuslineIcon} Statusline: ${doctorResult.statusline.actual}\n`)
   stdout.write(`${gitignoreIcon} Gitignore: ${gitignore}\n`)
-  stdout.write(`${apiKeyIcon} OpenRouter API Key: ${openRouterHealth}\n`)
+  stdout.write(`${apiKeyIcon} OpenRouter API Key: ${openRouterHealth} ${scopeBreakdown}\n`)
 
   const isPluginOk = pluginStatus === 'plugin' || pluginStatus === 'dev-mode'
   const isPluginLive = liveness === 'active'

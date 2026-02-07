@@ -113,11 +113,12 @@ describe('handleSetupCommand', () => {
   })
 
   describe('doctor mode', () => {
-    test('reports not-setup when no status files exist', async () => {
+    test('reports none when no status files exist', async () => {
       const result = await handleSetupCommand(projectDir, logger, output, { checkOnly: true, homeDir })
 
       expect(result.exitCode).toBe(1)
-      expect(output.data).toContain('not-setup')
+      // With new schema, 'none' means "not configured anywhere"
+      expect(output.data).toContain('Statusline: none')
       expect(output.data).toContain('Sidekick Doctor')
     })
 
@@ -134,7 +135,7 @@ describe('handleSetupCommand', () => {
           defaultStatuslineScope: 'user',
           defaultApiKeyScope: 'user',
         },
-        statusline: 'configured',
+        statusline: 'user',
         apiKeys: {
           OPENROUTER_API_KEY: 'missing',
           OPENAI_API_KEY: 'not-required',
@@ -161,7 +162,7 @@ describe('handleSetupCommand', () => {
           defaultStatuslineScope: 'user',
           defaultApiKeyScope: 'user',
         },
-        statusline: 'configured',
+        statusline: 'user',
         apiKeys: {
           OPENROUTER_API_KEY: 'invalid',
           OPENAI_API_KEY: 'not-required',
@@ -212,7 +213,7 @@ describe('handleSetupCommand', () => {
           defaultStatuslineScope: 'user',
           defaultApiKeyScope: 'user',
         },
-        statusline: 'configured',
+        statusline: 'user',
         apiKeys: {
           OPENROUTER_API_KEY: 'healthy',
           OPENAI_API_KEY: 'not-required',
@@ -275,7 +276,7 @@ describe('handleSetupCommand', () => {
           defaultStatuslineScope: 'user',
           defaultApiKeyScope: 'skip',
         },
-        statusline: 'configured',
+        statusline: 'user', // New schema: where configured, not boolean-ish
         apiKeys: {
           OPENROUTER_API_KEY: 'not-required',
           OPENAI_API_KEY: 'not-required',
@@ -353,7 +354,7 @@ describe('handleSetupCommand', () => {
           defaultStatuslineScope: 'user',
           defaultApiKeyScope: 'user',
         },
-        statusline: 'configured',
+        statusline: 'user',
         apiKeys: {
           OPENROUTER_API_KEY: 'missing',
           OPENAI_API_KEY: 'not-required',
@@ -369,7 +370,7 @@ describe('handleSetupCommand', () => {
         version: 1,
         lastUpdatedAt: new Date().toISOString(),
         autoConfigured: false,
-        statusline: 'configured',
+        statusline: 'user',
         apiKeys: {
           OPENROUTER_API_KEY: 'user',
           OPENAI_API_KEY: 'not-required',
