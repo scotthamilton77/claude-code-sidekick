@@ -80,7 +80,6 @@ npx @sidekick/cli persona set marvin --session-id=<session-id>
 ## Available Personas
 
 - **Marvin** - The paranoid android from Hitchhiker's Guide
-- **GLaDOS** - The sarcastic AI from Portal
 - **Skippy** - The irreverent AI from Expeditionary Force
 - **Jarvis** - The sophisticated AI assistant
 - **Data** - The logical android from Star Trek

@@ -399,7 +399,7 @@ async function runStep3Personas(
   printHeader(
     ctx,
     'Step 3: Persona Features',
-    'Sidekick includes AI personas (Marvin, GLaDOS, Skippy, etc.) that add\npersonality to your coding sessions with snarky messages and contextual nudges.'
+    'Sidekick includes AI personas (Marvin, Skippy, etc.) that add\npersonality to your coding sessions with snarky messages and contextual nudges.'
   )
 
   stdout.write('These require an OpenRouter API key (small cost per message).\n\n')
