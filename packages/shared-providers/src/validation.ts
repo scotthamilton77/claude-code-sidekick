@@ -11,16 +11,20 @@ import type { ValidationResult } from './providers/base.js'
 /**
  * Provider-specific validation endpoints.
  * These endpoints are free to call and don't consume credits.
+ *
+ * NOTE: OpenRouter's /api/v1/models is public (returns 200 for any key).
+ * We use /api/v1/key instead, which requires authentication and returns
+ * 401 for invalid keys.
  */
 const VALIDATION_ENDPOINTS = {
-  openrouter: 'https://openrouter.ai/api/v1/models',
+  openrouter: 'https://openrouter.ai/api/v1/key',
   openai: 'https://api.openai.com/v1/models',
 } as const
 
 export type ValidatableProviderType = keyof typeof VALIDATION_ENDPOINTS
 
 /**
- * Validate an API key by calling the provider's models endpoint.
+ * Validate an API key by calling a provider endpoint that requires authentication.
  */
 async function validateApiKey(
   provider: ValidatableProviderType,

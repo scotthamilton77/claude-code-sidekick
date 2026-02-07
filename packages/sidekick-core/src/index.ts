@@ -126,8 +126,13 @@ export {
   type DoctorCheckOptions,
   type DoctorCheckResult,
   type DoctorItemResult,
+  type DoctorApiKeyResult,
   type PluginInstallationStatus,
   type PluginLivenessStatus,
+  type ApiKeySource,
+  type ApiKeyDetectionResult,
+  type ScopeDetectionResult,
+  type AllScopesDetectionResult,
 } from './setup-status-service'
 // Re-export validation utilities from shared-providers
 export { validateOpenRouterKey, validateOpenAIKey, type ValidationResult } from '@sidekick/shared-providers'

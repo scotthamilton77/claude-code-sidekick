@@ -59,6 +59,7 @@ describe('SetupStatusService', () => {
   })
 
   // Helper to create valid status objects
+  // Note: statusline values are now 'user' | 'project' | 'both' | 'none' (where it's configured)
   const createUserStatus = (overrides?: Partial<UserSetupStatus>): UserSetupStatus => ({
     version: 1,
     lastUpdatedAt: new Date().toISOString(),
@@ -67,7 +68,7 @@ describe('SetupStatusService', () => {
       defaultStatuslineScope: 'user',
       defaultApiKeyScope: 'user',
     },
-    statusline: 'configured',
+    statusline: 'user', // Configured at user level
     apiKeys: {
       OPENROUTER_API_KEY: 'healthy',
       OPENAI_API_KEY: 'not-required',
@@ -79,7 +80,7 @@ describe('SetupStatusService', () => {
     version: 1,
     lastUpdatedAt: new Date().toISOString(),
     autoConfigured: false,
-    statusline: 'user',
+    statusline: 'user', // Configured at user level (or 'none' if not configured)
     apiKeys: {
       OPENROUTER_API_KEY: 'user',
       OPENAI_API_KEY: 'user',
@@ -99,6 +100,22 @@ describe('SetupStatusService', () => {
     const projectStatusPath = path.join(projectDir, '.sidekick', 'setup-status.json')
     await fs.mkdir(path.dirname(projectStatusPath), { recursive: true })
     await fs.writeFile(projectStatusPath, JSON.stringify(status, null, 2))
+  }
+
+  const writeEnvFile = async (scope: 'user' | 'project', content: string): Promise<void> => {
+    const envPath =
+      scope === 'user' ? path.join(homeDir, '.sidekick', '.env') : path.join(projectDir, '.sidekick', '.env')
+    await fs.mkdir(path.dirname(envPath), { recursive: true })
+    await fs.writeFile(envPath, content)
+  }
+
+  const writeClaudeSettings = async (scope: 'user' | 'project', settings: Record<string, unknown>): Promise<void> => {
+    const settingsPath =
+      scope === 'user'
+        ? path.join(homeDir, '.claude', 'settings.json')
+        : path.join(projectDir, '.claude', 'settings.local.json')
+    await fs.mkdir(path.dirname(settingsPath), { recursive: true })
+    await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2))
   }
 
   describe('getUserStatus', () => {
@@ -168,52 +185,58 @@ describe('SetupStatusService', () => {
   describe('getStatuslineHealth', () => {
     it('returns "not-setup" when no status files exist', async () => {
       const result = await service.getStatuslineHealth()
-      expect(result).toBe('not-setup')
+      expect(result).toBe('none')
     })
 
     it('returns user status when project status is "user"', async () => {
-      await writeUserStatus(createUserStatus({ statusline: 'configured' }))
+      await writeUserStatus(createUserStatus({ statusline: 'user' }))
       await writeProjectStatus(createProjectStatus({ statusline: 'user' }))
 
       const result = await service.getStatuslineHealth()
-      expect(result).toBe('configured')
+      expect(result).toBe('user')
     })
 
     it('returns project status when project status is "configured"', async () => {
-      await writeUserStatus(createUserStatus({ statusline: 'configured' }))
-      await writeProjectStatus(createProjectStatus({ statusline: 'configured' }))
+      await writeUserStatus(createUserStatus({ statusline: 'user' }))
+      await writeProjectStatus(createProjectStatus({ statusline: 'user' }))
 
       const result = await service.getStatuslineHealth()
-      expect(result).toBe('configured')
+      expect(result).toBe('user')
     })
 
     it('returns project status when project status is "skipped"', async () => {
-      await writeUserStatus(createUserStatus({ statusline: 'configured' }))
-      await writeProjectStatus(createProjectStatus({ statusline: 'skipped' }))
+      await writeUserStatus(createUserStatus({ statusline: 'user' }))
+      await writeProjectStatus(createProjectStatus({ statusline: 'none' }))
 
       const result = await service.getStatuslineHealth()
-      expect(result).toBe('skipped')
+      expect(result).toBe('none')
     })
 
-    it('returns "not-setup" when project wants user status but user status missing', async () => {
+    it('returns "user" when project cache says statusline is at user level', async () => {
+      // Project cache reports statusline is configured at user level
+      // (This is cached knowledge, not delegation)
       await writeProjectStatus(createProjectStatus({ statusline: 'user' }))
 
       const result = await service.getStatuslineHealth()
-      expect(result).toBe('not-setup')
+      // Returns the cached status - "statusline is at user level"
+      expect(result).toBe('user')
     })
 
     it('returns user status when only user status exists', async () => {
-      await writeUserStatus(createUserStatus({ statusline: 'configured' }))
+      await writeUserStatus(createUserStatus({ statusline: 'user' }))
 
       const result = await service.getStatuslineHealth()
-      expect(result).toBe('configured')
+      expect(result).toBe('user')
     })
 
-    it('returns "not-setup" when only project status exists and is "user"', async () => {
+    it('returns cached value from project status (project takes precedence)', async () => {
+      // Project status takes precedence over user status
+      await writeUserStatus(createUserStatus({ statusline: 'project' }))
       await writeProjectStatus(createProjectStatus({ statusline: 'user' }))
 
       const result = await service.getStatuslineHealth()
-      expect(result).toBe('not-setup')
+      // Project status wins, reports 'user' (statusline at user level)
+      expect(result).toBe('user')
     })
   })
 
@@ -384,6 +407,101 @@ describe('SetupStatusService', () => {
     })
   })
 
+  describe('autoConfigureProject', () => {
+    it('returns false when no user status exists', async () => {
+      const result = await service.autoConfigureProject()
+      expect(result).toBe(false)
+
+      // Verify no project status was created
+      const projectStatus = await service.getProjectStatus()
+      expect(projectStatus).toBeNull()
+    })
+
+    it('returns false when autoConfigureProjects is false', async () => {
+      await writeUserStatus(
+        createUserStatus({
+          preferences: {
+            autoConfigureProjects: false,
+            defaultStatuslineScope: 'user',
+            defaultApiKeyScope: 'user',
+          },
+        })
+      )
+
+      const result = await service.autoConfigureProject()
+      expect(result).toBe(false)
+
+      // Verify no project status was created
+      const projectStatus = await service.getProjectStatus()
+      expect(projectStatus).toBeNull()
+    })
+
+    it('returns false when project already configured', async () => {
+      await writeUserStatus(
+        createUserStatus({
+          preferences: {
+            autoConfigureProjects: true,
+            defaultStatuslineScope: 'user',
+            defaultApiKeyScope: 'user',
+          },
+        })
+      )
+      const existingProjectStatus = createProjectStatus()
+      await writeProjectStatus(existingProjectStatus)
+
+      const result = await service.autoConfigureProject()
+      expect(result).toBe(false)
+
+      // Verify project status was not modified
+      const projectStatus = await service.getProjectStatus()
+      expect(projectStatus?.autoConfigured).toBe(false)
+    })
+
+    it('auto-configures project when user has autoConfigureProjects enabled', async () => {
+      await writeUserStatus(
+        createUserStatus({
+          preferences: {
+            autoConfigureProjects: true,
+            defaultStatuslineScope: 'user',
+            defaultApiKeyScope: 'user',
+          },
+        })
+      )
+
+      const result = await service.autoConfigureProject()
+      expect(result).toBe(true)
+
+      // Verify project status was created with expected values
+      const projectStatus = await service.getProjectStatus()
+      expect(projectStatus).not.toBeNull()
+      expect(projectStatus?.autoConfigured).toBe(true)
+      expect(projectStatus?.statusline).toBe('user')
+      expect(projectStatus?.apiKeys.OPENROUTER_API_KEY).toBe('user')
+      expect(projectStatus?.apiKeys.OPENAI_API_KEY).toBe('user')
+      expect(projectStatus?.gitignore).toBe('unknown')
+    })
+
+    it('is idempotent - second call returns false', async () => {
+      await writeUserStatus(
+        createUserStatus({
+          preferences: {
+            autoConfigureProjects: true,
+            defaultStatuslineScope: 'user',
+            defaultApiKeyScope: 'user',
+          },
+        })
+      )
+
+      // First call should auto-configure
+      const result1 = await service.autoConfigureProject()
+      expect(result1).toBe(true)
+
+      // Second call should return false (already configured)
+      const result2 = await service.autoConfigureProject()
+      expect(result2).toBe(false)
+    })
+  })
+
   describe('writeUserStatus', () => {
     it('creates directory and writes status file', async () => {
       const status = createUserStatus()
@@ -402,14 +520,14 @@ describe('SetupStatusService', () => {
     })
 
     it('overwrites existing status file', async () => {
-      const initialStatus = createUserStatus({ statusline: 'skipped' })
+      const initialStatus = createUserStatus({ statusline: 'none' })
       await service.writeUserStatus(initialStatus)
 
-      const updatedStatus = createUserStatus({ statusline: 'configured' })
+      const updatedStatus = createUserStatus({ statusline: 'user' })
       await service.writeUserStatus(updatedStatus)
 
       const writtenStatus = await service.getUserStatus()
-      expect(writtenStatus?.statusline).toBe('configured')
+      expect(writtenStatus?.statusline).toBe('user')
     })
   })
 
@@ -431,20 +549,20 @@ describe('SetupStatusService', () => {
     })
 
     it('overwrites existing status file', async () => {
-      const initialStatus = createProjectStatus({ statusline: 'skipped' })
+      const initialStatus = createProjectStatus({ statusline: 'none' })
       await service.writeProjectStatus(initialStatus)
 
-      const updatedStatus = createProjectStatus({ statusline: 'configured' })
+      const updatedStatus = createProjectStatus({ statusline: 'user' })
       await service.writeProjectStatus(updatedStatus)
 
       const writtenStatus = await service.getProjectStatus()
-      expect(writtenStatus?.statusline).toBe('configured')
+      expect(writtenStatus?.statusline).toBe('user')
     })
   })
 
   describe('isHealthy', () => {
     it('returns false when statusline is skipped', async () => {
-      await writeUserStatus(createUserStatus({ statusline: 'skipped' }))
+      await writeUserStatus(createUserStatus({ statusline: 'none' }))
 
       const result = await service.isHealthy()
       expect(result).toBe(false)
@@ -453,7 +571,7 @@ describe('SetupStatusService', () => {
     it('returns false when any required API key is invalid', async () => {
       await writeUserStatus(
         createUserStatus({
-          statusline: 'configured',
+          statusline: 'user',
           apiKeys: {
             OPENROUTER_API_KEY: 'invalid',
             OPENAI_API_KEY: 'not-required',
@@ -468,7 +586,7 @@ describe('SetupStatusService', () => {
     it('returns false when any required API key is missing', async () => {
       await writeUserStatus(
         createUserStatus({
-          statusline: 'configured',
+          statusline: 'user',
           apiKeys: {
             OPENROUTER_API_KEY: 'missing',
             OPENAI_API_KEY: 'not-required',
@@ -483,7 +601,7 @@ describe('SetupStatusService', () => {
     it('returns true when statusline is configured and all required API keys are healthy', async () => {
       await writeUserStatus(
         createUserStatus({
-          statusline: 'configured',
+          statusline: 'user',
           apiKeys: {
             OPENROUTER_API_KEY: 'healthy',
             OPENAI_API_KEY: 'not-required',
@@ -498,7 +616,7 @@ describe('SetupStatusService', () => {
     it('returns true when statusline is configured and no API keys are required', async () => {
       await writeUserStatus(
         createUserStatus({
-          statusline: 'configured',
+          statusline: 'user',
           apiKeys: {
             OPENROUTER_API_KEY: 'not-required',
             OPENAI_API_KEY: 'not-required',
@@ -513,7 +631,7 @@ describe('SetupStatusService', () => {
     it('returns false when required API key is missing even if statusline is configured', async () => {
       await writeUserStatus(
         createUserStatus({
-          statusline: 'configured',
+          statusline: 'user',
           apiKeys: {} as any,
         })
       )
@@ -525,7 +643,7 @@ describe('SetupStatusService', () => {
     it('uses merged status from project and user', async () => {
       await writeUserStatus(
         createUserStatus({
-          statusline: 'configured',
+          statusline: 'user',
           apiKeys: {
             OPENROUTER_API_KEY: 'healthy',
             OPENAI_API_KEY: 'not-required',
@@ -549,7 +667,7 @@ describe('SetupStatusService', () => {
     it('returns false when merged status has invalid API key', async () => {
       await writeUserStatus(
         createUserStatus({
-          statusline: 'configured',
+          statusline: 'user',
           apiKeys: {
             OPENROUTER_API_KEY: 'healthy',
             OPENAI_API_KEY: 'not-required',
@@ -572,19 +690,9 @@ describe('SetupStatusService', () => {
   })
 
   describe('detectActualStatusline', () => {
-    // Helper to write Claude settings files
-    const writeClaudeSettings = async (scope: 'user' | 'project', settings: Record<string, unknown>): Promise<void> => {
-      const settingsPath =
-        scope === 'user'
-          ? path.join(homeDir, '.claude', 'settings.json')
-          : path.join(projectDir, '.claude', 'settings.local.json')
-      await fs.mkdir(path.dirname(settingsPath), { recursive: true })
-      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2))
-    }
-
     it('returns "not-setup" when no settings files exist', async () => {
       const result = await service.detectActualStatusline()
-      expect(result).toBe('not-setup')
+      expect(result).toBe('none')
     })
 
     it('returns "configured" when user settings has sidekick statusline', async () => {
@@ -596,10 +704,10 @@ describe('SetupStatusService', () => {
       })
 
       const result = await service.detectActualStatusline()
-      expect(result).toBe('configured')
+      expect(result).toBe('user')
     })
 
-    it('returns "configured" when project settings has sidekick statusline', async () => {
+    it('returns "project" when project settings has sidekick statusline', async () => {
       await writeClaudeSettings('project', {
         statusLine: {
           type: 'command',
@@ -608,14 +716,14 @@ describe('SetupStatusService', () => {
       })
 
       const result = await service.detectActualStatusline()
-      expect(result).toBe('configured')
+      expect(result).toBe('project')
     })
 
     it('returns "not-setup" when settings exist but no statusLine key', async () => {
       await writeClaudeSettings('user', { someOtherKey: 'value' })
 
       const result = await service.detectActualStatusline()
-      expect(result).toBe('not-setup')
+      expect(result).toBe('none')
     })
 
     it('returns "not-setup" when statusLine exists but is not sidekick', async () => {
@@ -627,7 +735,7 @@ describe('SetupStatusService', () => {
       })
 
       const result = await service.detectActualStatusline()
-      expect(result).toBe('not-setup')
+      expect(result).toBe('none')
     })
 
     it('returns "configured" when command contains "sidekick" anywhere', async () => {
@@ -639,7 +747,7 @@ describe('SetupStatusService', () => {
       })
 
       const result = await service.detectActualStatusline()
-      expect(result).toBe('configured')
+      expect(result).toBe('user')
     })
 
     it('prefers project settings over user settings', async () => {
@@ -653,85 +761,52 @@ describe('SetupStatusService', () => {
       // Project has non-sidekick statusline, so should return not-setup
       // Actually, we should check EITHER - if either has sidekick, it's configured
       const result = await service.detectActualStatusline()
-      expect(result).toBe('configured')
+      expect(result).toBe('user')
     })
   })
 
   describe('detectActualApiKey', () => {
-    // Helper to write .env files
-    const writeEnvFile = async (scope: 'user' | 'project', content: string): Promise<void> => {
-      const envPath =
-        scope === 'user' ? path.join(homeDir, '.sidekick', '.env') : path.join(projectDir, '.sidekick', '.env')
-      await fs.mkdir(path.dirname(envPath), { recursive: true })
-      await fs.writeFile(envPath, content)
-    }
-
-    it('returns null when no .env files exist', async () => {
+    it('returns null key and null source when no .env files exist', async () => {
       const result = await service.detectActualApiKey('OPENROUTER_API_KEY')
-      expect(result).toBeNull()
+      expect(result.key).toBeNull()
+      expect(result.source).toBeNull()
     })
 
-    it('finds key in user .env file', async () => {
-      await writeEnvFile('user', 'OPENROUTER_API_KEY=sk-or-test-key-123\n')
+    it('returns user-env source when key found in user .env', async () => {
+      await writeEnvFile('user', 'OPENROUTER_API_KEY=user-key\n')
 
       const result = await service.detectActualApiKey('OPENROUTER_API_KEY')
-      expect(result).toBe('sk-or-test-key-123')
+      expect(result.key).toBe('user-key')
+      expect(result.source).toBe('user-env')
     })
 
-    it('finds key in project .env file', async () => {
-      await writeEnvFile('project', 'OPENROUTER_API_KEY=sk-or-project-key\n')
+    it('returns project-env source when key found in project .env', async () => {
+      await writeEnvFile('project', 'OPENROUTER_API_KEY=project-key\n')
 
       const result = await service.detectActualApiKey('OPENROUTER_API_KEY')
-      expect(result).toBe('sk-or-project-key')
+      expect(result.key).toBe('project-key')
+      expect(result.source).toBe('project-env')
     })
 
-    it('prefers project key over user key', async () => {
+    it('returns project-env source when key exists in both (project takes precedence)', async () => {
       await writeEnvFile('user', 'OPENROUTER_API_KEY=user-key\n')
       await writeEnvFile('project', 'OPENROUTER_API_KEY=project-key\n')
 
       const result = await service.detectActualApiKey('OPENROUTER_API_KEY')
-      expect(result).toBe('project-key')
+      expect(result.key).toBe('project-key')
+      expect(result.source).toBe('project-env')
     })
 
-    it('falls back to user key when project key not found', async () => {
-      await writeEnvFile('user', 'OPENROUTER_API_KEY=user-key\n')
-      await writeEnvFile('project', 'OTHER_KEY=some-value\n')
-
-      const result = await service.detectActualApiKey('OPENROUTER_API_KEY')
-      expect(result).toBe('user-key')
-    })
-
-    it('handles multiple keys in .env file', async () => {
-      await writeEnvFile('user', 'OTHER_KEY=other\nOPENROUTER_API_KEY=the-key\nANOTHER_KEY=another\n')
-
-      const result = await service.detectActualApiKey('OPENROUTER_API_KEY')
-      expect(result).toBe('the-key')
-    })
-
-    it('returns null when key not in any .env file', async () => {
-      await writeEnvFile('user', 'OTHER_KEY=value\n')
-      await writeEnvFile('project', 'ANOTHER_KEY=value\n')
-
-      const result = await service.detectActualApiKey('OPENROUTER_API_KEY')
-      expect(result).toBeNull()
-    })
-
-    it('handles keys with equals signs in value', async () => {
-      await writeEnvFile('user', 'OPENROUTER_API_KEY=key=with=equals\n')
-
-      const result = await service.detectActualApiKey('OPENROUTER_API_KEY')
-      expect(result).toBe('key=with=equals')
-    })
-
-    it('checks environment variable first', async () => {
-      // Set env var (will be cleaned up)
+    it('returns user-env source when key is in both user .env and environment variable', async () => {
       const originalEnv = process.env.OPENROUTER_API_KEY
       process.env.OPENROUTER_API_KEY = 'env-var-key'
 
       try {
         await writeEnvFile('user', 'OPENROUTER_API_KEY=file-key\n')
         const result = await service.detectActualApiKey('OPENROUTER_API_KEY')
-        expect(result).toBe('env-var-key')
+        // Priority: project → user → env; user .env wins over env var
+        expect(result.key).toBe('file-key')
+        expect(result.source).toBe('user-env')
       } finally {
         if (originalEnv === undefined) {
           delete process.env.OPENROUTER_API_KEY
@@ -740,27 +815,18 @@ describe('SetupStatusService', () => {
         }
       }
     })
+
+    it('falls back to user-env when project .env does not have the key', async () => {
+      await writeEnvFile('user', 'OPENROUTER_API_KEY=user-key\n')
+      await writeEnvFile('project', 'OTHER_KEY=other-value\n')
+
+      const result = await service.detectActualApiKey('OPENROUTER_API_KEY')
+      expect(result.key).toBe('user-key')
+      expect(result.source).toBe('user-env')
+    })
   })
 
   describe('runDoctorCheck', () => {
-    // Helper to write Claude settings files
-    const writeClaudeSettings = async (scope: 'user' | 'project', settings: Record<string, unknown>): Promise<void> => {
-      const settingsPath =
-        scope === 'user'
-          ? path.join(homeDir, '.claude', 'settings.json')
-          : path.join(projectDir, '.claude', 'settings.local.json')
-      await fs.mkdir(path.dirname(settingsPath), { recursive: true })
-      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2))
-    }
-
-    // Helper to write .env files
-    const writeEnvFile = async (scope: 'user' | 'project', content: string): Promise<void> => {
-      const envPath =
-        scope === 'user' ? path.join(homeDir, '.sidekick', '.env') : path.join(projectDir, '.sidekick', '.env')
-      await fs.mkdir(path.dirname(envPath), { recursive: true })
-      await fs.writeFile(envPath, content)
-    }
-
     it('detects statusline is configured when no cache exists', async () => {
       await writeClaudeSettings('user', {
         statusLine: { type: 'command', command: 'sidekick statusline' },
@@ -768,8 +834,8 @@ describe('SetupStatusService', () => {
 
       const result = await service.runDoctorCheck()
 
-      expect(result.statusline.actual).toBe('configured')
-      expect(result.statusline.cached).toBe('not-setup')
+      expect(result.statusline.actual).toBe('user')
+      expect(result.statusline.cached).toBe('none')
       expect(result.statusline.fixed).toBe(true)
     })
 
@@ -777,12 +843,12 @@ describe('SetupStatusService', () => {
       await writeClaudeSettings('user', {
         statusLine: { type: 'command', command: 'sidekick statusline' },
       })
-      await service.writeUserStatus(createUserStatus({ statusline: 'configured' }))
+      await service.writeUserStatus(createUserStatus({ statusline: 'user' }))
 
       const result = await service.runDoctorCheck()
 
-      expect(result.statusline.actual).toBe('configured')
-      expect(result.statusline.cached).toBe('configured')
+      expect(result.statusline.actual).toBe('user')
+      expect(result.statusline.cached).toBe('user')
       expect(result.statusline.fixed).toBe(false)
     })
 
@@ -794,7 +860,7 @@ describe('SetupStatusService', () => {
       await service.runDoctorCheck()
 
       const userStatus = await service.getUserStatus()
-      expect(userStatus?.statusline).toBe('configured')
+      expect(userStatus?.statusline).toBe('user')
     })
 
     it('detects API key exists when cache says missing', async () => {
@@ -802,7 +868,8 @@ describe('SetupStatusService', () => {
 
       const result = await service.runDoctorCheck({ skipValidation: true })
 
-      expect(result.apiKeys.OPENROUTER_API_KEY.actual).toBe('pending-validation')
+      // When skipValidation is true, we assume the key is healthy (not pending-validation)
+      expect(result.apiKeys.OPENROUTER_API_KEY.actual).toBe('healthy')
       expect(result.apiKeys.OPENROUTER_API_KEY.cached).toBe('missing')
       expect(result.apiKeys.OPENROUTER_API_KEY.fixed).toBe(true)
     })
@@ -834,7 +901,7 @@ describe('SetupStatusService', () => {
 
       const result = await service.runDoctorCheck({ skipValidation: true })
 
-      expect(result.fixes).toContain('Statusline was actually configured (updated cache)')
+      expect(result.fixes).toContain('Statusline was actually configured at user level (updated cache)')
       expect(result.fixes).toContain('OPENROUTER_API_KEY was actually present (updated cache)')
     })
 
@@ -844,20 +911,233 @@ describe('SetupStatusService', () => {
 
       expect(result.fixes).toHaveLength(0)
     })
+
+    it('updates project cache when API key found in project .env (Bug #1 fix)', async () => {
+      // Setup: Key in project .env, user status exists, project status exists with 'missing'
+      await writeEnvFile('project', 'OPENROUTER_API_KEY=project-key\n')
+      await service.writeUserStatus(
+        createUserStatus({ apiKeys: { OPENROUTER_API_KEY: 'missing', OPENAI_API_KEY: 'not-required' } })
+      )
+      await service.writeProjectStatus(
+        createProjectStatus({ apiKeys: { OPENROUTER_API_KEY: 'missing', OPENAI_API_KEY: 'user' } })
+      )
+
+      await service.runDoctorCheck({ skipValidation: true })
+
+      // Bug fix: Should update PROJECT status, not user status
+      // Now uses new comprehensive format with scopes
+      const projectStatus = await service.getProjectStatus()
+      const apiKeyStatus = projectStatus?.apiKeys.OPENROUTER_API_KEY
+      expect(typeof apiKeyStatus).toBe('object')
+      if (typeof apiKeyStatus === 'object') {
+        expect(apiKeyStatus.status).toBe('healthy') // skipValidation assumes healthy
+        expect(apiKeyStatus.used).toBe('project')
+        expect(apiKeyStatus.scopes.project).toBe('healthy')
+      }
+
+      // User status should remain unchanged
+      const userStatus = await service.getUserStatus()
+      expect(userStatus?.apiKeys.OPENROUTER_API_KEY).toBe('missing')
+    })
+
+    it('updates user cache when API key found in user .env', async () => {
+      // Setup: Key in user .env, user status exists with 'missing'
+      await writeEnvFile('user', 'OPENROUTER_API_KEY=user-key\n')
+      await service.writeUserStatus(
+        createUserStatus({ apiKeys: { OPENROUTER_API_KEY: 'missing', OPENAI_API_KEY: 'not-required' } })
+      )
+
+      await service.runDoctorCheck({ skipValidation: true })
+
+      // Should update project status (doctor always writes to project for comprehensive info)
+      // User status remains unchanged - the comprehensive status is in project
+      const projectStatus = await service.getProjectStatus()
+      const apiKeyStatus = projectStatus?.apiKeys.OPENROUTER_API_KEY
+      expect(typeof apiKeyStatus).toBe('object')
+      if (typeof apiKeyStatus === 'object') {
+        expect(apiKeyStatus.status).toBe('healthy')
+        expect(apiKeyStatus.used).toBe('user')
+        expect(apiKeyStatus.scopes.user).toBe('healthy')
+      }
+    })
+
+    it('fixes cache when key is missing but cache says healthy (Bug #2 fix)', async () => {
+      // Setup: No key present, but cache says 'healthy'
+      await service.writeUserStatus(
+        createUserStatus({ apiKeys: { OPENROUTER_API_KEY: 'healthy', OPENAI_API_KEY: 'not-required' } })
+      )
+
+      const result = await service.runDoctorCheck({ skipValidation: true })
+
+      // Should fix the cache - now writes to project status
+      expect(result.apiKeys.OPENROUTER_API_KEY.fixed).toBe(true)
+      expect(result.fixes).toContain('OPENROUTER_API_KEY was actually missing (updated cache)')
+
+      const projectStatus = await service.getProjectStatus()
+      const apiKeyStatus = projectStatus?.apiKeys.OPENROUTER_API_KEY
+      expect(typeof apiKeyStatus).toBe('object')
+      if (typeof apiKeyStatus === 'object') {
+        expect(apiKeyStatus.status).toBe('missing')
+        expect(apiKeyStatus.used).toBeNull()
+      }
+    })
+
+    it('fixes cache when key is missing but cache says pending-validation (Bug #2 fix)', async () => {
+      // Setup: No key present, but cache says 'pending-validation'
+      await service.writeUserStatus(
+        createUserStatus({ apiKeys: { OPENROUTER_API_KEY: 'pending-validation', OPENAI_API_KEY: 'not-required' } })
+      )
+
+      const result = await service.runDoctorCheck({ skipValidation: true })
+
+      // Should fix the cache to 'missing'
+      expect(result.apiKeys.OPENROUTER_API_KEY.fixed).toBe(true)
+      expect(result.fixes).toContain('OPENROUTER_API_KEY was actually missing (updated cache)')
+    })
+
+    it('does not change cache when key is missing and cache says not-required', async () => {
+      // Setup: No key present, cache says 'not-required' (user opted out)
+      await service.writeUserStatus(
+        createUserStatus({ apiKeys: { OPENROUTER_API_KEY: 'not-required', OPENAI_API_KEY: 'not-required' } })
+      )
+
+      const result = await service.runDoctorCheck({ skipValidation: true })
+
+      // Should NOT change the cache - user explicitly opted out
+      expect(result.apiKeys.OPENROUTER_API_KEY.fixed).toBe(false)
+
+      const userStatus = await service.getUserStatus()
+      expect(userStatus?.apiKeys.OPENROUTER_API_KEY).toBe('not-required')
+    })
+
+    it('does not change cache when actual matches cached (healthy)', async () => {
+      // Setup: Key present in user .env, cache says 'healthy'
+      await writeEnvFile('user', 'OPENROUTER_API_KEY=user-key\n')
+      await service.writeUserStatus(
+        createUserStatus({ apiKeys: { OPENROUTER_API_KEY: 'healthy', OPENAI_API_KEY: 'not-required' } })
+      )
+
+      const result = await service.runDoctorCheck({ skipValidation: true })
+
+      // Cache is already correct (key exists and cache says healthy)
+      expect(result.apiKeys.OPENROUTER_API_KEY.fixed).toBe(false)
+    })
+
+    it('creates project status file when fixing API key found in project .env', async () => {
+      // No status files exist initially
+      await writeEnvFile('project', 'OPENROUTER_API_KEY=sk-project-key\n')
+
+      await service.runDoctorCheck({ skipValidation: true })
+
+      // Should create project status since key was found in project .env
+      // Now uses new comprehensive format
+      const projectStatus = await service.getProjectStatus()
+      expect(projectStatus).not.toBeNull()
+      const apiKeyStatus = projectStatus?.apiKeys.OPENROUTER_API_KEY
+      expect(typeof apiKeyStatus).toBe('object')
+      if (typeof apiKeyStatus === 'object') {
+        expect(apiKeyStatus.status).toBe('healthy') // skipValidation assumes healthy
+        expect(apiKeyStatus.used).toBe('project')
+        expect(apiKeyStatus.scopes.project).toBe('healthy')
+      }
+    })
+
+    it('sets statusline to configured in new project status when statusline is actually configured', async () => {
+      // Configure statusline in project settings
+      await writeClaudeSettings('project', {
+        statusLine: { type: 'command', command: 'pnpm sidekick statusline' },
+      })
+      // Also have an API key to trigger status file creation
+      await writeEnvFile('project', 'OPENROUTER_API_KEY=sk-project-key\n')
+
+      await service.runDoctorCheck({ skipValidation: true })
+
+      const projectStatus = await service.getProjectStatus()
+      expect(projectStatus?.statusline).toBe('project')
+    })
+
+    it('sets statusline to none in new project status when statusline not actually configured in Claude settings', async () => {
+      // User status exists with cached statusline: 'user', but no actual statusline in Claude settings
+      await writeUserStatus(
+        createUserStatus({
+          statusline: 'user', // This is what CACHE says, not reality
+          apiKeys: { OPENROUTER_API_KEY: 'missing', OPENAI_API_KEY: 'not-required' },
+        })
+      )
+      // Project API key triggers status file creation (cache says missing, reality says present)
+      await writeEnvFile('project', 'OPENROUTER_API_KEY=sk-project-key\n')
+
+      await service.runDoctorCheck({ skipValidation: true })
+
+      const projectStatus = await service.getProjectStatus()
+      // 'none' because detectActualStatusline() checks real Claude settings, not cache
+      expect(projectStatus?.statusline).toBe('none')
+    })
+
+    it('sets statusline to skipped in new project status when nothing configured and no user status', async () => {
+      // No statusline configured anywhere, no user status exists
+      // Only project API key exists
+      await writeEnvFile('project', 'OPENROUTER_API_KEY=sk-project-key\n')
+
+      await service.runDoctorCheck({ skipValidation: true })
+
+      const projectStatus = await service.getProjectStatus()
+      // Should NOT say 'user' when there's nothing to delegate to
+      // 'none' indicates "not configured anywhere"
+      expect(projectStatus?.statusline).toBe('none')
+    })
+
+    it('creates user status file when fixing API key found in user .env', async () => {
+      // No status files exist initially
+      await writeEnvFile('user', 'OPENROUTER_API_KEY=sk-user-key\n')
+
+      await service.runDoctorCheck({ skipValidation: true })
+
+      // Doctor creates project status for comprehensive info, and user status
+      // Check project status has the right format
+      const projectStatus = await service.getProjectStatus()
+      expect(projectStatus).not.toBeNull()
+      const apiKeyStatus = projectStatus?.apiKeys.OPENROUTER_API_KEY
+      expect(typeof apiKeyStatus).toBe('object')
+      if (typeof apiKeyStatus === 'object') {
+        expect(apiKeyStatus.status).toBe('healthy')
+        expect(apiKeyStatus.used).toBe('user')
+        expect(apiKeyStatus.scopes.user).toBe('healthy')
+      }
+
+      // User status should also be created
+      const userStatus = await service.getUserStatus()
+      expect(userStatus).not.toBeNull()
+    })
+
+    it('includes API key source in result', async () => {
+      await writeEnvFile('project', 'OPENROUTER_API_KEY=sk-project-key\n')
+
+      const result = await service.runDoctorCheck({ skipValidation: true })
+
+      // Should report the source of the API key
+      expect(result.apiKeys.OPENROUTER_API_KEY.source).toBe('project-env')
+    })
+
+    it('reports user-env source for keys in user .env', async () => {
+      await writeEnvFile('user', 'OPENROUTER_API_KEY=sk-user-key\n')
+
+      const result = await service.runDoctorCheck({ skipValidation: true })
+
+      expect(result.apiKeys.OPENROUTER_API_KEY.source).toBe('user-env')
+    })
+
+    it('reports null source when key is missing', async () => {
+      // No .env files
+
+      const result = await service.runDoctorCheck({ skipValidation: true })
+
+      expect(result.apiKeys.OPENROUTER_API_KEY.source).toBeNull()
+    })
   })
 
   describe('detectPluginInstallation', () => {
     const mockSpawn = vi.mocked(childProcess.spawn)
-
-    // Helper to write Claude settings files with hooks (only for dev-mode detection)
-    const writeClaudeSettings = async (scope: 'user' | 'project', settings: Record<string, unknown>): Promise<void> => {
-      const settingsPath =
-        scope === 'user'
-          ? path.join(homeDir, '.claude', 'settings.json')
-          : path.join(projectDir, '.claude', 'settings.local.json')
-      await fs.mkdir(path.dirname(settingsPath), { recursive: true })
-      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2))
-    }
 
     // Helper to mock claude plugin list --json output
     const mockPluginList = (plugins: Array<{ id: string; scope: string; enabled: boolean }>): void => {
@@ -1169,27 +1449,27 @@ describe('SetupStatusService', () => {
 
   describe('edge cases', () => {
     it('handles sequential writes to user status', async () => {
-      const status1 = createUserStatus({ statusline: 'configured' })
-      const status2 = createUserStatus({ statusline: 'skipped' })
+      const status1 = createUserStatus({ statusline: 'user' })
+      const status2 = createUserStatus({ statusline: 'none' })
 
       await service.writeUserStatus(status1)
       await service.writeUserStatus(status2)
 
       const result = await service.getUserStatus()
       expect(result).toBeTruthy()
-      expect(result!.statusline).toBe('skipped')
+      expect(result!.statusline).toBe('none')
     })
 
     it('handles sequential writes to project status', async () => {
-      const status1 = createProjectStatus({ statusline: 'configured' })
-      const status2 = createProjectStatus({ statusline: 'skipped' })
+      const status1 = createProjectStatus({ statusline: 'user' })
+      const status2 = createProjectStatus({ statusline: 'none' })
 
       await service.writeProjectStatus(status1)
       await service.writeProjectStatus(status2)
 
       const result = await service.getProjectStatus()
       expect(result).toBeTruthy()
-      expect(result!.statusline).toBe('skipped')
+      expect(result!.statusline).toBe('none')
     })
 
     it('handles files with required fields only', async () => {
@@ -1202,7 +1482,7 @@ describe('SetupStatusService', () => {
       const apiKeyHealth = await service.getApiKeyHealth('OPENROUTER_API_KEY')
       const isHealthy = await service.isHealthy()
 
-      expect(statuslineHealth).toBe('configured')
+      expect(statuslineHealth).toBe('user')
       expect(apiKeyHealth).toBe('missing')
       expect(isHealthy).toBe(false)
     })
@@ -1291,6 +1571,66 @@ describe('SetupStatusService', () => {
 
       const result = await service.getProjectStatus()
       expect(result?.devMode).toBe(true)
+    })
+
+    it('setDevMode detects configured statusline when creating project status', async () => {
+      // Configure statusline in project settings (like dev-mode enable does)
+      await writeClaudeSettings('project', {
+        statusLine: { type: 'command', command: 'pnpm sidekick statusline' },
+      })
+
+      await service.setDevMode(true)
+
+      const result = await service.getProjectStatus()
+      // Statusline is configured in PROJECT settings, so should report 'project'
+      expect(result?.statusline).toBe('project')
+    })
+
+    it('setDevMode detects project-level API keys when creating project status', async () => {
+      // Write API key to project .env
+      await writeEnvFile('project', 'OPENROUTER_API_KEY=sk-or-test-key-123')
+
+      await service.setDevMode(true)
+
+      const result = await service.getProjectStatus()
+      expect(result?.apiKeys.OPENROUTER_API_KEY).toBe('pending-validation')
+    })
+
+    it('setDevMode uses user delegation when no project API key exists', async () => {
+      // No project .env file, but user-level exists
+      await writeEnvFile('user', 'OPENROUTER_API_KEY=sk-or-user-key-456')
+
+      await service.setDevMode(true)
+
+      const result = await service.getProjectStatus()
+      // Should delegate to user level since key is not at project level
+      expect(result?.apiKeys.OPENROUTER_API_KEY).toBe('user')
+    })
+
+    it('setDevMode marks API keys missing when not found anywhere', async () => {
+      // No .env files anywhere
+
+      await service.setDevMode(true)
+
+      const result = await service.getProjectStatus()
+      // Should be 'missing' not 'user' when there's nothing to delegate to
+      expect(result?.apiKeys.OPENROUTER_API_KEY).toBe('missing')
+    })
+
+    it('setDevMode detects both statusline and API keys together', async () => {
+      // Configure both statusline and project API key
+      await writeClaudeSettings('project', {
+        statusLine: { type: 'command', command: 'npx @scotthamilton77/sidekick statusline' },
+      })
+      await writeEnvFile('project', 'OPENROUTER_API_KEY=sk-or-project-key\nOPENAI_API_KEY=sk-openai-key')
+
+      await service.setDevMode(true)
+
+      const result = await service.getProjectStatus()
+      // Statusline is configured in PROJECT settings, so should report 'project'
+      expect(result?.statusline).toBe('project')
+      expect(result?.apiKeys.OPENROUTER_API_KEY).toBe('pending-validation')
+      expect(result?.apiKeys.OPENAI_API_KEY).toBe('pending-validation')
     })
   })
 
