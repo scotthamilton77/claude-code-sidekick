@@ -271,58 +271,6 @@ export async function initializeSession(options: {
   }
 }
 
-/**
- * Auto-start daemon if in hook mode with a project root.
- * Non-throwing: logs warnings on failure and gracefully degrades.
- * Skips daemon start if setup is not healthy to avoid ProviderErrors.
- *
- * @param options - Hook mode flag, project root, and logger
- * @returns Whether daemon was successfully started
- */
-export async function ensureDaemon(options: {
-  hookMode: boolean
-  projectRoot: string | undefined
-  logger: Logger
-}): Promise<{ started: boolean }> {
-  const { hookMode, projectRoot, logger } = options
-
-  if (!hookMode || !projectRoot) {
-    return { started: false }
-  }
-
-  // Check setup state before starting daemon to avoid ProviderErrors
-  // when API keys are not configured
-  try {
-    const { SetupStatusService } = await import('@sidekick/core')
-    const setupService = new SetupStatusService(projectRoot)
-    const setupState = await setupService.getSetupState()
-
-    if (setupState !== 'healthy') {
-      logger.debug('Skipping daemon start - setup not healthy', { setupState })
-      return { started: false }
-    }
-  } catch (err) {
-    // If we can't check setup status, proceed with daemon start attempt
-    logger.warn('Failed to check setup status, proceeding with daemon start', {
-      error: err instanceof Error ? err.message : String(err),
-    })
-  }
-
-  try {
-    const { DaemonClient } = await import('@sidekick/core')
-    const daemonClient = new DaemonClient(projectRoot, logger)
-    await daemonClient.start()
-    logger.debug('Daemon auto-started for hook execution')
-    return { started: true }
-  } catch (err) {
-    const error = err instanceof Error ? err : new Error(String(err))
-    logger.warn('Failed to auto-start daemon, proceeding with sync paths', {
-      error: error.message,
-    })
-    return { started: false }
-  }
-}
-
 const GLOBAL_HELP_TEXT = `Usage: sidekick <command> [options]
 
 Commands:
@@ -664,16 +612,8 @@ export async function runCli(options: RunCliOptions): Promise<{ exitCode: number
     logger: runtime.logger,
   })
 
-  // 3. Ensure daemon is running (async, no-throw)
-  // Trigger for unified 'sidekick hook <name>' command with explicit --project-dir
-  const isHookExecution = parsed.command === 'hook' && Boolean(parsed.projectDir)
-  await ensureDaemon({
-    hookMode: isHookExecution,
-    projectRoot: runtime.projectRoot,
-    logger: runtime.logger,
-  })
-
-  // 4. Route command to appropriate handler
+  // 3. Route command to appropriate handler
+  // Note: daemon startup is handled inside handleUnifiedHookCommand (after auto-configure)
   const result = await routeCommand({
     parsed,
     runtime,
@@ -681,7 +621,7 @@ export async function runCli(options: RunCliOptions): Promise<{ exitCode: number
     stdout,
   })
 
-  // 5. Persist CLI log metrics (async, no-throw)
+  // 4. Persist CLI log metrics (async, no-throw)
   if (sessionId) {
     await persistCliLogMetrics(runtime.stateService, sessionId, runtime.getLogCounts(), runtime.logger)
   }

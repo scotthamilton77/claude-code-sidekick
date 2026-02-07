@@ -48,14 +48,11 @@ vi.mock('../commands/ui.js', () => ({
   handleUiCommand: mockHandleUiCommand,
 }))
 
-// Mock @sidekick/core to prevent actual daemon operations
+// Mock @sidekick/core to prevent actual operations during CLI routing tests
 vi.mock('@sidekick/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@sidekick/core')>()
   return {
     ...actual,
-    DaemonClient: vi.fn(() => ({
-      start: vi.fn().mockResolvedValue(undefined),
-    })),
   }
 })
 

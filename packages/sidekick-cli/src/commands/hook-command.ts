@@ -16,7 +16,7 @@
 
 import type { Writable } from 'node:stream'
 import type { Logger, SetupState } from '@sidekick/core'
-import { SetupStatusService, createAssetResolver, getDefaultAssetsDir } from '@sidekick/core'
+import { DaemonClient, SetupStatusService, createAssetResolver, getDefaultAssetsDir } from '@sidekick/core'
 import type { HookName, ParsedHookInput } from '@sidekick/types'
 import type { RuntimeShell } from '../runtime.js'
 import { handleHookCommand, type HookResponse } from './hook.js'
@@ -321,6 +321,45 @@ async function checkSetupState(projectRoot: string, hookName: HookName, logger: 
   }
 }
 
+/**
+ * Ensure daemon is running for hook execution.
+ * Non-throwing: logs warnings on failure and gracefully degrades.
+ * Checks setup state first to avoid ProviderErrors when API keys aren't configured.
+ *
+ * @param projectRoot - Project root directory
+ * @param logger - Logger for diagnostic output
+ * @returns Whether daemon was successfully started
+ */
+async function ensureDaemonForHook(projectRoot: string, logger: Logger): Promise<boolean> {
+  // Check setup state before starting daemon to avoid ProviderErrors
+  try {
+    const setupService = new SetupStatusService(projectRoot)
+    const setupState = await setupService.getSetupState()
+
+    if (setupState !== 'healthy') {
+      logger.debug('Skipping daemon start - setup not healthy', { setupState })
+      return false
+    }
+  } catch (err) {
+    // If we can't check setup status, proceed with daemon start attempt
+    logger.warn('Failed to check setup status for daemon start, proceeding anyway', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+  }
+
+  try {
+    const daemonClient = new DaemonClient(projectRoot, logger)
+    await daemonClient.start()
+    logger.debug('Daemon started for hook execution')
+    return true
+  } catch (err) {
+    logger.warn('Failed to start daemon for hook, proceeding without daemon features', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+    return false
+  }
+}
+
 export interface HookCommandResult {
   exitCode: number
   output: string
@@ -400,6 +439,9 @@ export async function handleUnifiedHookCommand(
   if (hookName === 'SessionStart') {
     await maybeAutoConfigureProject(projectRoot, logger)
   }
+
+  // Ensure daemon is running (after auto-configure so setup state is current)
+  await ensureDaemonForHook(projectRoot, logger)
 
   // Check setup state before attempting daemon/IPC operations
   // Skip daemon entirely if setup is not healthy to avoid ProviderErrors
