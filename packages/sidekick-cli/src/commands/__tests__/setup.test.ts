@@ -12,7 +12,7 @@
  * @see setup/index.ts handleSetupCommand
  */
 import { Writable } from 'node:stream'
-import { mkdir, writeFile, rm } from 'node:fs/promises'
+import { mkdir, writeFile, readFile, rm } from 'node:fs/promises'
 import path from 'node:path'
 import { EventEmitter } from 'node:events'
 import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest'
@@ -340,7 +340,123 @@ describe('handleSetupCommand', () => {
       expect(result.exitCode).toBe(1)
       expect(output.data).toContain('sidekick setup')
     })
+  })
 
+  describe('scripted mode - dev-mode statusline protection', () => {
+    test('skips statusline when dev-mode is active at project scope', async () => {
+      // Pre-populate project settings with dev-sidekick statusline
+      const claudeDir = path.join(projectDir, '.claude')
+      await mkdir(claudeDir, { recursive: true })
+      const settingsPath = path.join(claudeDir, 'settings.local.json')
+      const devModeSettings = {
+        statusLine: {
+          type: 'command',
+          command: '/path/to/dev-sidekick statusline --project-dir=$CLAUDE_PROJECT_DIR',
+        },
+      }
+      await writeFile(settingsPath, JSON.stringify(devModeSettings, null, 2) + '\n')
+
+      const result = await handleSetupCommand(projectDir, logger, output, {
+        statuslineScope: 'project',
+        homeDir,
+      })
+
+      expect(result.exitCode).toBe(0)
+      // Should warn about dev-mode
+      expect(output.data).toContain('dev-mode')
+      expect(output.data).toContain('skipped')
+
+      // File should remain unchanged
+      const afterContent = await readFile(settingsPath, 'utf-8')
+      const afterSettings = JSON.parse(afterContent)
+      expect(afterSettings.statusLine.command).toContain('dev-sidekick')
+    })
+
+    test('writes statusline when dev-mode is NOT active at project scope', async () => {
+      const result = await handleSetupCommand(projectDir, logger, output, {
+        statuslineScope: 'project',
+        homeDir,
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(output.data).toContain('Statusline configured')
+
+      // Should have written the npx command
+      const settingsPath = path.join(projectDir, '.claude', 'settings.local.json')
+      const content = await readFile(settingsPath, 'utf-8')
+      const settings = JSON.parse(content)
+      expect(settings.statusLine.command).toContain('npx @scotthamilton77/sidekick')
+    })
+
+    test('preserves devMode flag in project setup-status.json during force mode', async () => {
+      // Pre-populate project setup-status.json with devMode: true
+      const projectSidekickDir = path.join(projectDir, '.sidekick')
+      await mkdir(projectSidekickDir, { recursive: true })
+      const statusPath = path.join(projectSidekickDir, 'setup-status.json')
+      const existingStatus = {
+        version: 1,
+        lastUpdatedAt: new Date().toISOString(),
+        autoConfigured: false,
+        statusline: 'user',
+        apiKeys: {
+          OPENROUTER_API_KEY: 'missing',
+          OPENAI_API_KEY: 'not-required',
+        },
+        gitignore: 'unknown',
+        devMode: true,
+      }
+      await writeFile(statusPath, JSON.stringify(existingStatus, null, 2) + '\n')
+
+      // --force runs through runWizard() which calls writeStatusFiles()
+      const result = await handleSetupCommand(projectDir, logger, output, {
+        force: true,
+        homeDir,
+      })
+
+      expect(result.exitCode).toBe(0)
+
+      // Project setup-status.json should still have devMode: true
+      const afterContent = await readFile(statusPath, 'utf-8')
+      const afterStatus = JSON.parse(afterContent)
+      expect(afterStatus.devMode).toBe(true)
+    })
+
+    test('writes statusline to user scope even when dev-mode is active at project scope', async () => {
+      // Set up dev-mode statusline at project scope
+      const projectClaudeDir = path.join(projectDir, '.claude')
+      await mkdir(projectClaudeDir, { recursive: true })
+      const projectSettingsPath = path.join(projectClaudeDir, 'settings.local.json')
+      const devModeSettings = {
+        statusLine: {
+          type: 'command',
+          command: '/path/to/dev-sidekick statusline --project-dir=$CLAUDE_PROJECT_DIR',
+        },
+      }
+      await writeFile(projectSettingsPath, JSON.stringify(devModeSettings, null, 2) + '\n')
+
+      // Request user-scope statusline — should succeed (different file)
+      const result = await handleSetupCommand(projectDir, logger, output, {
+        statuslineScope: 'user',
+        homeDir,
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(output.data).toContain('Statusline configured')
+
+      // User-level settings should have the npx command
+      const userSettingsPath = path.join(homeDir, '.claude', 'settings.json')
+      const content = await readFile(userSettingsPath, 'utf-8')
+      const settings = JSON.parse(content)
+      expect(settings.statusLine.command).toContain('npx @scotthamilton77/sidekick')
+
+      // Project-level dev-mode statusline should remain unchanged
+      const projectContent = await readFile(projectSettingsPath, 'utf-8')
+      const projectSettings = JSON.parse(projectContent)
+      expect(projectSettings.statusLine.command).toContain('dev-sidekick')
+    })
+  })
+
+  describe('doctor mode', () => {
     test('respects project-level status over user-level', async () => {
       // Create user-level status (missing key)
       const userSidekickDir = path.join(homeDir, '.sidekick')
