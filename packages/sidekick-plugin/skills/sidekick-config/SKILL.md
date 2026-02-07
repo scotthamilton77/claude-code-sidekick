@@ -63,18 +63,33 @@ npx @scotthamilton77/sidekick doctor
 Sidekick Doctor
 ===============
 
-⚠ Statusline: skipped         # or "installed (user)" / "installed (project)"
-✓ Gitignore: installed        # or "⚠ Gitignore: not configured"
-✓ OpenRouter API Key: configured  # or "⚠ OpenRouter API Key: missing"
-⚠ Overall: needs attention    # or "✓ Overall: ready"
+Checking configuration...
+
+[Cache corrections if any]
+
+Checking live status of Sidekick... this may take a few moments.
+
+✓ Plugin: installed            # or "✗ not installed" / "✓ dev-mode (local)" / "⚠ conflict (both)"
+✓ Plugin Liveness: hooks responding  # or "✗ hooks not detected" / "⚠ check failed"
+✓ Statusline: user             # or "⚠ none" / "✓ project"
+✓ Gitignore: installed         # or "⚠ not-installed"
+✓ OpenRouter API Key: healthy [project ✓ user ✓ env ✗]  # per-scope breakdown
+✓ Overall: healthy             # or "⚠ needs attention"
 ```
 
-### Step 2: Handle API Key (If Missing)
+**Note:** The API key line now shows per-scope detection results. Each scope (project, user, env) shows ✓ (healthy), ✗ (missing/invalid).
 
-**CRITICAL:** The setup CLI cannot accept API keys directly. If the API key is missing, instruct the user:
+### Step 2: Handle API Key (If Missing or Invalid)
+
+**CRITICAL:** The setup CLI cannot accept API keys directly. The doctor now shows per-scope status:
+- `healthy` — key found and validated
+- `invalid` — key found but validation failed
+- `missing` / `not found` — no key at that scope
+
+If no scope has a healthy key, instruct the user:
 
 ```
-Your OpenRouter API key is not configured. Please add it manually:
+Your OpenRouter API key is not configured (or invalid). Please add it manually:
 
 1. Get a key at https://openrouter.ai → Keys → Create Key
 2. Add to your config (choose one):
@@ -94,9 +109,11 @@ Based on doctor output, ask about unconfigured items:
 
 | Doctor Shows | Ask User |
 |--------------|----------|
-| Statusline: skipped | "Configure statusline? (user-level or project-level?)" |
-| Gitignore: not configured | "Update .gitignore to exclude sidekick files?" |
+| Statusline: none | "Configure statusline? (user-level or project-level?)" |
+| Gitignore: not-installed | "Update .gitignore to exclude sidekick files?" |
 | (always ask if not using --force) | "Enable persona features?" |
+
+**Dev-mode note:** If doctor shows `Plugin: dev-mode (local)`, the setup command will automatically skip overwriting a dev-mode statusline at that scope and print `⚠ Statusline managed by dev-mode (skipped)`.
 
 ### Step 4: Run Setup with Flags
 
