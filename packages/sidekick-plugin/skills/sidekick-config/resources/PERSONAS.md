@@ -28,7 +28,6 @@ Personas define character voices for snarky messages, resume messages, and empty
 | `skippy` | Expeditionary Force | Irreverent AI |
 | `c3po` | Star Wars | Anxious protocol droid |
 | `darth-vader` | Star Wars | Commanding Sith Lord |
-| `glados` | Portal | Passive-aggressive AI |
 | `yoda` | Star Wars | Wise Jedi master |
 
 ## Persona Structure

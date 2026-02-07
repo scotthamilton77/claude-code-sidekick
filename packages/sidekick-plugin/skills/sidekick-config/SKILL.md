@@ -19,7 +19,7 @@ Configure sidekick by first running diagnostics, then executing setup with appro
 - User wants to change LLM models/profiles
 - User wants to customize the statusline format
 - User wants to add or change personas
-- User wants to change/set/switch the session persona (e.g., "change persona to marvin", "set persona", "switch to GLaDOS")
+- User wants to change/set/switch the session persona (e.g., "change persona to marvin", "set persona", "switch to skippy")
 - User wants to adjust reminders or other features
 - User wants to modify prompt templates
 - User asks about sidekick configuration options
@@ -233,9 +233,9 @@ The assistant has access to the current session ID via `<session-info>` in the c
 npx @scotthamilton77/sidekick persona set <persona-id> --session-id=<session-id>
 ```
 
-**Example:** If session ID is `abc-123` and user wants GLaDOS:
+**Example:** If session ID is `abc-123` and user wants kramer:
 ```bash
-npx @scotthamilton77/sidekick persona set glados --session-id=abc-123
+npx @scotthamilton77/sidekick persona set kramer --session-id=abc-123
 ```
 
 **List available personas:**
