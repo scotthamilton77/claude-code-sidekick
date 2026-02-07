@@ -342,12 +342,14 @@ const {
   mockGetDevMode,
   mockShouldAutoConfigureProject,
   mockAutoConfigureProject,
+  mockDaemonStart,
 } = vi.hoisted(() => ({
   mockHandleHookCommand: vi.fn(),
   mockGetSetupState: vi.fn(),
   mockGetDevMode: vi.fn(),
   mockShouldAutoConfigureProject: vi.fn(),
   mockAutoConfigureProject: vi.fn(),
+  mockDaemonStart: vi.fn(),
 }))
 
 // Mock the hook.js module to control internal responses
@@ -359,7 +361,7 @@ vi.mock('../hook.js', async (importOriginal) => {
   }
 })
 
-// Mock SetupStatusService to control setup state
+// Mock SetupStatusService and DaemonClient to control setup state and daemon startup
 vi.mock('@sidekick/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@sidekick/core')>()
   return {
@@ -369,6 +371,9 @@ vi.mock('@sidekick/core', async (importOriginal) => {
       getDevMode: mockGetDevMode,
       shouldAutoConfigureProject: mockShouldAutoConfigureProject,
       autoConfigureProject: mockAutoConfigureProject,
+    })),
+    DaemonClient: vi.fn().mockImplementation(() => ({
+      start: mockDaemonStart,
     })),
   }
 })
@@ -435,6 +440,8 @@ describe('handleUnifiedHookCommand', () => {
     // Default to auto-configure not needed
     mockShouldAutoConfigureProject.mockResolvedValue(false)
     mockAutoConfigureProject.mockResolvedValue(false)
+    // Default daemon start to succeed
+    mockDaemonStart.mockResolvedValue(undefined)
   })
 
   test('translates internal response to Claude Code format and outputs JSON', async () => {
@@ -971,6 +978,86 @@ describe('handleUnifiedHookCommand', () => {
       const output = JSON.parse(stdout.data.trim())
       expect(output.systemMessage).toBeUndefined()
       expect(output.hookSpecificOutput?.additionalContext).toContain('Full features enabled')
+      expect(mockHandleHookCommand).toHaveBeenCalled()
+    })
+  })
+
+  describe('daemon startup', () => {
+    beforeEach(() => {
+      mockGetDevMode.mockResolvedValue(false)
+      mockGetSetupState.mockResolvedValue('healthy')
+      mockHandleHookCommand.mockImplementation(
+        (_hookName: unknown, _options: unknown, _logger: unknown, stdout: Writable) => {
+          stdout.write('{}\n')
+          return Promise.resolve({ exitCode: 0, output: '{}' })
+        }
+      )
+    })
+
+    test('starts daemon after auto-configure on SessionStart', async () => {
+      mockShouldAutoConfigureProject.mockResolvedValue(true)
+      mockAutoConfigureProject.mockResolvedValue(true)
+
+      const stdout = new CollectingWritable()
+      await handleUnifiedHookCommand('SessionStart', baseOptions, mockLogger, stdout)
+
+      expect(mockDaemonStart).toHaveBeenCalledOnce()
+      expect(mockLogger.debug).toHaveBeenCalledWith('Daemon started for hook execution')
+    })
+
+    test('starts daemon for non-SessionStart hooks when healthy', async () => {
+      const stdout = new CollectingWritable()
+      await handleUnifiedHookCommand('UserPromptSubmit', baseOptions, mockLogger, stdout)
+
+      expect(mockDaemonStart).toHaveBeenCalledOnce()
+    })
+
+    test('skips daemon start when setup not healthy', async () => {
+      mockGetSetupState.mockResolvedValue('partial')
+
+      const stdout = new CollectingWritable()
+      await handleUnifiedHookCommand('SessionStart', baseOptions, mockLogger, stdout)
+
+      expect(mockDaemonStart).not.toHaveBeenCalled()
+      expect(mockLogger.debug).toHaveBeenCalledWith(
+        'Skipping daemon start - setup not healthy',
+        expect.objectContaining({ setupState: 'partial' })
+      )
+    })
+
+    test('gracefully handles daemon start failure', async () => {
+      mockDaemonStart.mockRejectedValue(new Error('Daemon failed to start within timeout'))
+
+      const stdout = new CollectingWritable()
+      const result = await handleUnifiedHookCommand('SessionStart', baseOptions, mockLogger, stdout)
+
+      // Should not crash - exit code should be 0
+      expect(result.exitCode).toBe(0)
+      expect(mockDaemonStart).toHaveBeenCalledOnce()
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'Failed to start daemon for hook, proceeding without daemon features',
+        expect.objectContaining({ error: 'Daemon failed to start within timeout' })
+      )
+      // Hook should still complete
+      expect(mockHandleHookCommand).toHaveBeenCalled()
+    })
+
+    test('does not crash when setup check throws', async () => {
+      // First call from ensureDaemonForHook throws, second call from checkSetupState succeeds
+      mockGetSetupState.mockRejectedValueOnce(new Error('Config corrupted')).mockResolvedValueOnce('healthy')
+
+      const stdout = new CollectingWritable()
+      const result = await handleUnifiedHookCommand('SessionStart', baseOptions, mockLogger, stdout)
+
+      expect(result.exitCode).toBe(0)
+      // Should log warning about failed setup check
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'Failed to check setup status for daemon start, proceeding anyway',
+        expect.objectContaining({ error: 'Config corrupted' })
+      )
+      // Daemon start should still be attempted (fail-open)
+      expect(mockDaemonStart).toHaveBeenCalled()
+      // Hook should still complete
       expect(mockHandleHookCommand).toHaveBeenCalled()
     })
   })
