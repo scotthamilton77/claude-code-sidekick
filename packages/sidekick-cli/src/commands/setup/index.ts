@@ -10,6 +10,7 @@ import {
   detectGitignoreStatus,
   validateOpenRouterKey,
   type AllScopesDetectionResult,
+  type ApiKeySource,
   type PluginInstallationStatus,
   type PluginLivenessStatus,
 } from '@sidekick/core'
@@ -158,6 +159,20 @@ function formatApiKeyScopes(scopes: {
   env: 'healthy' | 'invalid' | 'missing'
 }): string {
   return `[project ${getScopeIcon(scopes.project)} user ${getScopeIcon(scopes.user)} env ${getScopeIcon(scopes.env)}]`
+}
+
+/**
+ * Format API key source for display in doctor output.
+ * Returns ' (from <label>)' or empty string if no source.
+ */
+function formatApiKeySource(source: ApiKeySource | null): string {
+  if (!source) return ''
+  const labels: Record<ApiKeySource, string> = {
+    'project-env': 'project .env',
+    'user-env': 'user .env',
+    'env-var': 'env variable',
+  }
+  return ` (from ${labels[source]})`
 }
 
 /**
@@ -848,13 +863,14 @@ async function runDoctor(
   const apiKeyIcon = openRouterHealth === 'healthy' || openRouterHealth === 'not-required' ? '✓' : '⚠'
   // Ultra-compact scope breakdown
   const scopeBreakdown = formatApiKeyScopes(openRouterResult.scopes)
+  const sourceLabel = formatApiKeySource(openRouterResult.source)
 
   stdout.write('\n')
   stdout.write(`${pluginIcon} Plugin: ${pluginLabel}\n`)
   stdout.write(`${livenessIcon} Plugin Liveness: ${livenessLabel}\n`)
   stdout.write(`${statuslineIcon} Statusline: ${doctorResult.statusline.actual}\n`)
   stdout.write(`${gitignoreIcon} Gitignore: ${gitignore}\n`)
-  stdout.write(`${apiKeyIcon} OpenRouter API Key: ${openRouterHealth} ${scopeBreakdown}\n`)
+  stdout.write(`${apiKeyIcon} OpenRouter API Key: ${openRouterHealth}${sourceLabel} ${scopeBreakdown}\n`)
 
   const isPluginOk = pluginStatus === 'plugin' || pluginStatus === 'dev-mode'
   const isPluginLive = liveness === 'active'
