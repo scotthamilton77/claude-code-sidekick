@@ -32,7 +32,7 @@ export type ProjectApiKeyHealth = z.infer<typeof ProjectApiKeyHealthSchema>
 /**
  * Per-scope status for an API key.
  */
-export const ScopeStatusSchema = z.enum(['healthy', 'invalid', 'missing'])
+export const ScopeStatusSchema = z.enum(['healthy', 'invalid', 'missing', 'not-required'])
 export type ScopeStatus = z.infer<typeof ScopeStatusSchema>
 
 /**
