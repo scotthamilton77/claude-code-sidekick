@@ -1,4 +1,3 @@
-// @ts-nocheck - vitest 4.x Mock<Procedure | Constructable> type incompatibility. See beads issue for cleanup task.
 /**
  * Tests for UI command handler.
  *
@@ -15,6 +14,7 @@
 import { EventEmitter } from 'node:events'
 import { Writable } from 'node:stream'
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest'
+import type { Logger } from '@sidekick/types'
 
 // CollectingWritable to capture stdout output
 class CollectingWritable extends Writable {
@@ -26,23 +26,19 @@ class CollectingWritable extends Writable {
   }
 }
 
-// Create a fake child process that emits events
-function createFakeChildProcess(): EventEmitter & {
+// Minimal shape of a child process for testing
+type FakeChildProcess = EventEmitter & {
   pid: number
   exitCode: number | null
   stdout: EventEmitter | null
   stderr: EventEmitter | null
   kill: ReturnType<typeof vi.fn>
   unref: ReturnType<typeof vi.fn>
-} {
-  const proc = new EventEmitter() as EventEmitter & {
-    pid: number
-    exitCode: number | null
-    stdout: EventEmitter | null
-    stderr: EventEmitter | null
-    kill: ReturnType<typeof vi.fn>
-    unref: ReturnType<typeof vi.fn>
-  }
+}
+
+// Create a fake child process that emits events
+function createFakeChildProcess(): FakeChildProcess {
+  const proc = new EventEmitter() as FakeChildProcess
   proc.pid = 12345
   proc.exitCode = null
   proc.stdout = new EventEmitter()
@@ -86,16 +82,7 @@ vi.mock('node:child_process', () => ({
 }))
 
 // Create fake logger
-function createFakeLogger(): {
-  trace: ReturnType<typeof vi.fn>
-  debug: ReturnType<typeof vi.fn>
-  info: ReturnType<typeof vi.fn>
-  warn: ReturnType<typeof vi.fn>
-  error: ReturnType<typeof vi.fn>
-  fatal: ReturnType<typeof vi.fn>
-  child: ReturnType<typeof vi.fn>
-  flush: ReturnType<typeof vi.fn>
-} {
+function createFakeLogger(): Logger {
   return {
     trace: vi.fn() as any,
     debug: vi.fn() as any,
@@ -103,7 +90,7 @@ function createFakeLogger(): {
     warn: vi.fn() as any,
     error: vi.fn() as any,
     fatal: vi.fn() as any,
-    child: vi.fn(() => createFakeLogger()),
+    child: vi.fn(() => createFakeLogger()) as any,
     flush: vi.fn() as any,
   }
 }
@@ -112,7 +99,7 @@ import { handleUiCommand } from '../ui'
 
 describe('handleUiCommand', () => {
   let stdout: CollectingWritable
-  let logger: ReturnType<typeof createFakeLogger>
+  let logger: Logger
   const signalHandlers: Map<string, () => void> = new Map()
 
   // Helper to get the server process (first spawned)

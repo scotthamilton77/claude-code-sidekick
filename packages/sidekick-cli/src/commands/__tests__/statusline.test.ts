@@ -1,4 +1,3 @@
-// @ts-nocheck - vitest 4.x Mock<Procedure | Constructable> type incompatibility. See beads issue for cleanup task.
 /**
  * Tests for statusline command handler.
  *
@@ -11,6 +10,7 @@
  */
 import { Writable } from 'node:stream'
 import { describe, expect, test, vi, beforeEach } from 'vitest'
+import type { Logger } from '@sidekick/types'
 
 // CollectingWritable to capture stdout output
 class CollectingWritable extends Writable {
@@ -38,23 +38,14 @@ vi.mock('@sidekick/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@sidekick/core')>()
   return {
     ...actual,
-    SetupStatusService: vi.fn().mockImplementation(() => ({
-      getDevMode: vi.fn().mockResolvedValue(false),
-    })),
+    SetupStatusService: vi.fn().mockImplementation(function () {
+      return { getDevMode: vi.fn().mockResolvedValue(false) }
+    }),
   }
 })
 
 // Create fake logger - record calls but don't verify them (behavior testing)
-function createFakeLogger(): {
-  trace: ReturnType<typeof vi.fn>
-  debug: ReturnType<typeof vi.fn>
-  info: ReturnType<typeof vi.fn>
-  warn: ReturnType<typeof vi.fn>
-  error: ReturnType<typeof vi.fn>
-  fatal: ReturnType<typeof vi.fn>
-  child: ReturnType<typeof vi.fn>
-  flush: ReturnType<typeof vi.fn>
-} {
+function createFakeLogger(): Logger {
   return {
     trace: vi.fn() as any,
     debug: vi.fn() as any,
@@ -62,7 +53,7 @@ function createFakeLogger(): {
     warn: vi.fn() as any,
     error: vi.fn() as any,
     fatal: vi.fn() as any,
-    child: vi.fn(() => createFakeLogger()),
+    child: vi.fn(() => createFakeLogger()) as any,
     flush: vi.fn() as any,
   }
 }
@@ -71,7 +62,7 @@ import { handleStatuslineCommand } from '../statusline'
 
 describe('handleStatuslineCommand', () => {
   let stdout: CollectingWritable
-  let logger: ReturnType<typeof createFakeLogger>
+  let logger: Logger
 
   beforeEach(() => {
     stdout = new CollectingWritable()

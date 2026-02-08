@@ -39,10 +39,9 @@ vi.mock('@sidekick/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@sidekick/core')>()
   return {
     ...actual,
-    IpcService: vi.fn().mockImplementation(() => ({
-      send: mockSend,
-      close: mockClose,
-    })),
+    IpcService: vi.fn().mockImplementation(function () {
+      return { send: mockSend, close: mockClose }
+    }),
   }
 })
 

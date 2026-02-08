@@ -169,18 +169,8 @@ See README.md "Testing Outside Dev-Mode" section for full instructions.
    }
    ```
 
-**Legacy test files**: Six test files use `// @ts-nocheck` to suppress vitest 4.x type errors:
-- `packages/shared-providers/src/__tests__/providers/emulators/emulator-state.test.ts`
-- `packages/sidekick-cli/src/commands/__tests__/dev-mode.test.ts`
-- `packages/sidekick-cli/src/commands/__tests__/persona.test.ts`
-- `packages/sidekick-cli/src/commands/__tests__/sessions.test.ts`
-- `packages/sidekick-cli/src/commands/__tests__/statusline.test.ts`
-- `packages/sidekick-cli/src/commands/__tests__/ui.test.ts`
-
-**Do NOT use `@ts-nocheck` in new test files**. Instead:
+**Do NOT use `@ts-nocheck` in test files**. Instead:
 - Use `function` keyword (not arrow functions) for constructor mocks
 - Cast `vi.fn()` results with `as any` when needed for type compatibility
-- Create typed helper functions for common mock patterns
-
-See bead `sidekick--1` for cleanup task to refactor legacy test files.
+- Use `Logger` from `@sidekick/types` as return type for `createFakeLogger()` helpers
 </vitest_upgrade>
