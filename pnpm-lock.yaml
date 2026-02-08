@@ -150,9 +150,6 @@ importers:
         specifier: ^4.1.13
         version: 4.1.13
     devDependencies:
-      '@sidekick/core':
-        specifier: workspace:*
-        version: link:../sidekick-core
       '@types/node':
         specifier: ^22.7.4
         version: 22.19.1
