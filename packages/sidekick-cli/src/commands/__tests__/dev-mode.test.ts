@@ -1,4 +1,3 @@
-// @ts-nocheck - vitest 4.x Mock<Procedure | Constructable> type incompatibility. See beads issue for cleanup task.
 /**
  * Tests for dev-mode command handler.
  *
@@ -16,6 +15,7 @@ import { mkdir, writeFile, readFile, rm, access } from 'node:fs/promises'
 import { constants } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest'
+import type { Logger } from '@sidekick/types'
 import { handleDevModeCommand } from '../dev-mode'
 
 // CollectingWritable to capture stdout output
@@ -29,16 +29,7 @@ class CollectingWritable extends Writable {
 }
 
 // Create fake logger
-function createFakeLogger(): {
-  trace: ReturnType<typeof vi.fn>
-  debug: ReturnType<typeof vi.fn>
-  info: ReturnType<typeof vi.fn>
-  warn: ReturnType<typeof vi.fn>
-  error: ReturnType<typeof vi.fn>
-  fatal: ReturnType<typeof vi.fn>
-  child: ReturnType<typeof vi.fn>
-  flush: ReturnType<typeof vi.fn>
-} {
+function createFakeLogger(): Logger {
   return {
     trace: vi.fn() as any,
     debug: vi.fn() as any,
@@ -46,7 +37,7 @@ function createFakeLogger(): {
     warn: vi.fn() as any,
     error: vi.fn() as any,
     fatal: vi.fn() as any,
-    child: vi.fn(() => createFakeLogger()),
+    child: vi.fn(() => createFakeLogger()) as any,
     flush: vi.fn() as any,
   }
 }
@@ -57,9 +48,9 @@ vi.mock('@sidekick/core', async (importOriginal) => {
   return {
     ...actual,
     Logger: vi.fn(),
-    DaemonClient: vi.fn().mockImplementation(() => ({
-      kill: vi.fn().mockResolvedValue({ killed: false }),
-    })),
+    DaemonClient: vi.fn().mockImplementation(function () {
+      return { kill: vi.fn().mockResolvedValue({ killed: false }) }
+    }),
     killAllDaemons: vi.fn().mockResolvedValue([]),
     getSocketPath: vi.fn((dir: string) => path.join(dir, '.sidekick', 'sidekickd.sock')),
     getTokenPath: vi.fn((dir: string) => path.join(dir, '.sidekick', 'sidekickd.token')),
@@ -70,7 +61,7 @@ vi.mock('@sidekick/core', async (importOriginal) => {
 
 describe('handleDevModeCommand', () => {
   let stdout: CollectingWritable
-  let logger: ReturnType<typeof createFakeLogger>
+  let logger: Logger
   let tempDir: string
 
   beforeEach(async () => {

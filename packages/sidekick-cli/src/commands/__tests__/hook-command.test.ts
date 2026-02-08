@@ -366,15 +366,17 @@ vi.mock('@sidekick/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@sidekick/core')>()
   return {
     ...actual,
-    SetupStatusService: vi.fn().mockImplementation(() => ({
-      getSetupState: mockGetSetupState,
-      getDevMode: mockGetDevMode,
-      shouldAutoConfigureProject: mockShouldAutoConfigureProject,
-      autoConfigureProject: mockAutoConfigureProject,
-    })),
-    DaemonClient: vi.fn().mockImplementation(() => ({
-      start: mockDaemonStart,
-    })),
+    SetupStatusService: vi.fn().mockImplementation(function () {
+      return {
+        getSetupState: mockGetSetupState,
+        getDevMode: mockGetDevMode,
+        shouldAutoConfigureProject: mockShouldAutoConfigureProject,
+        autoConfigureProject: mockAutoConfigureProject,
+      }
+    }),
+    DaemonClient: vi.fn().mockImplementation(function () {
+      return { start: mockDaemonStart }
+    }),
   }
 })
 

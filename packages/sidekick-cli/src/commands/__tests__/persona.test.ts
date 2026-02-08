@@ -1,4 +1,3 @@
-// @ts-nocheck - vitest 4.x Mock<Procedure | Constructable> type incompatibility. See beads issue for cleanup task.
 /**
  * Tests for persona command handler.
  *
@@ -12,6 +11,7 @@
  */
 import { Writable } from 'node:stream'
 import { describe, expect, test, vi, beforeEach } from 'vitest'
+import type { Logger } from '@sidekick/types'
 
 // Mock @sidekick/core before importing the module under test
 // Note: vi.mock is hoisted, so we use vi.hoisted to define mock functions
@@ -37,21 +37,21 @@ const {
 
 vi.mock('@sidekick/core', () => {
   return {
-    DaemonClient: vi.fn().mockImplementation(() => ({
-      start: mockDaemonStart,
-    })),
-    IpcService: vi.fn().mockImplementation(() => ({
-      send: mockIpcSend,
-      close: mockIpcClose,
-    })),
-    StateService: vi.fn().mockImplementation(() => ({
-      sessionStatePath: vi.fn().mockReturnValue('/mock/path/to/state.json'),
-      delete: mockStateServiceDelete,
-    })),
-    SessionStateAccessor: vi.fn().mockImplementation(() => ({
-      read: mockPersonaAccessorRead,
-      write: mockPersonaAccessorWrite,
-    })),
+    DaemonClient: vi.fn().mockImplementation(function () {
+      return { start: mockDaemonStart }
+    }),
+    IpcService: vi.fn().mockImplementation(function () {
+      return { send: mockIpcSend, close: mockIpcClose }
+    }),
+    StateService: vi.fn().mockImplementation(function () {
+      return {
+        sessionStatePath: vi.fn().mockReturnValue('/mock/path/to/state.json'),
+        delete: mockStateServiceDelete,
+      }
+    }),
+    SessionStateAccessor: vi.fn().mockImplementation(function () {
+      return { read: mockPersonaAccessorRead, write: mockPersonaAccessorWrite }
+    }),
     sessionState: vi.fn().mockReturnValue({
       filename: 'session-persona.json',
       schema: {},
@@ -72,18 +72,7 @@ class CollectingWritable extends Writable {
   }
 }
 
-type FakeLogger = {
-  trace: ReturnType<typeof vi.fn>
-  debug: ReturnType<typeof vi.fn>
-  info: ReturnType<typeof vi.fn>
-  warn: ReturnType<typeof vi.fn>
-  error: ReturnType<typeof vi.fn>
-  fatal: ReturnType<typeof vi.fn>
-  child: ReturnType<typeof vi.fn>
-  flush: ReturnType<typeof vi.fn>
-}
-
-function createFakeLogger(): FakeLogger {
+function createFakeLogger(): Logger {
   return {
     trace: vi.fn() as any,
     debug: vi.fn() as any,
@@ -91,7 +80,7 @@ function createFakeLogger(): FakeLogger {
     warn: vi.fn() as any,
     error: vi.fn() as any,
     fatal: vi.fn() as any,
-    child: vi.fn(() => createFakeLogger()),
+    child: vi.fn(() => createFakeLogger()) as any,
     flush: vi.fn() as any,
   }
 }
@@ -100,7 +89,7 @@ import { handlePersonaCommand } from '../persona'
 
 describe('handlePersonaCommand', () => {
   let stdout: CollectingWritable
-  let logger: FakeLogger
+  let logger: Logger
   const projectRoot = '/mock/project'
 
   beforeEach(() => {

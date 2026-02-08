@@ -10,16 +10,12 @@ import type { RuntimeShell } from '../runtime'
 
 // Mock the external dependencies
 vi.mock('@sidekick/core', () => ({
-  HandlerRegistryImpl: vi.fn().mockImplementation(() => ({
-    register: vi.fn(),
-    invokeHook: vi.fn(),
-    setContext: vi.fn(),
-  })),
-  DaemonClient: vi.fn().mockImplementation(() => ({
-    start: vi.fn(),
-    stop: vi.fn(),
-    status: vi.fn(),
-  })),
+  HandlerRegistryImpl: vi.fn().mockImplementation(function () {
+    return { register: vi.fn(), invokeHook: vi.fn(), setContext: vi.fn() }
+  }),
+  DaemonClient: vi.fn().mockImplementation(function () {
+    return { start: vi.fn(), stop: vi.fn(), status: vi.fn() }
+  }),
 }))
 
 // Note: @sidekick/feature-reminders mock removed - no longer testing registerCLIFeatures
