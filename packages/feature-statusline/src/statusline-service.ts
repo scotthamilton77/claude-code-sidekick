@@ -16,7 +16,13 @@ import type {
   PersonaDefinition,
   ApiKeyHealth,
 } from '@sidekick/types'
-import { createPersonaLoader, getDefaultPersonasDir, SetupStatusService, type ApiKeyName, type SetupState } from '@sidekick/core'
+import {
+  createPersonaLoader,
+  getDefaultPersonasDir,
+  SetupStatusService,
+  type ApiKeyName,
+  type SetupState,
+} from '@sidekick/core'
 import {
   Formatter,
   calculateContextUsage,
