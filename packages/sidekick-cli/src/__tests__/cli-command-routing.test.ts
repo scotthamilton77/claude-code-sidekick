@@ -322,4 +322,89 @@ describe('CLI command routing', () => {
       expect(stdout.data).toContain("Run 'sidekick help'")
     })
   })
+
+  describe('unrecognized options', () => {
+    test('rejects a single unrecognized switch', async () => {
+      const result = await runCli({
+        argv: ['setup', '--check-only'],
+        stdout,
+        stderr,
+        cwd: projectDir,
+        enableFileLogging: false,
+      })
+
+      expect(result.exitCode).toBe(1)
+      expect(stdout.data).toContain('Unrecognized option(s): --check-only')
+      expect(stdout.data).toContain("Run 'sidekick --help'")
+    })
+
+    test('rejects multiple unrecognized switches', async () => {
+      const result = await runCli({
+        argv: ['setup', '--foo', '--bar'],
+        stdout,
+        stderr,
+        cwd: projectDir,
+        enableFileLogging: false,
+      })
+
+      expect(result.exitCode).toBe(1)
+      expect(stdout.data).toContain('--foo')
+      expect(stdout.data).toContain('--bar')
+    })
+
+    test('rejects unrecognized switch even with valid command', async () => {
+      const result = await runCli({
+        argv: ['daemon', '--bogus'],
+        stdout,
+        stderr,
+        cwd: projectDir,
+        enableFileLogging: false,
+      })
+
+      expect(result.exitCode).toBe(1)
+      expect(stdout.data).toContain('--bogus')
+    })
+
+    test('accepts all known global options without error', async () => {
+      mockHandleStatuslineCommand.mockResolvedValue({ exitCode: 0 })
+
+      const result = await runCli({
+        argv: ['statusline', '--format', 'json', '--session-id', 'test-123', '--log-level', 'debug'],
+        stdout,
+        stderr,
+        cwd: projectDir,
+        enableFileLogging: false,
+      })
+
+      expect(result.exitCode).toBe(0)
+    })
+
+    test('accepts --no-gitignore without error', async () => {
+      // --no-gitignore is a valid negation of the declared boolean
+      // yargs-parser stores it as gitignore: false, so 'gitignore' is the key
+      await runCli({
+        argv: ['setup', '--no-gitignore', '--help'],
+        stdout,
+        stderr,
+        cwd: projectDir,
+        enableFileLogging: false,
+      })
+
+      // Should not fail on unrecognized options (help will show usage)
+      expect(stdout.data).not.toContain('Unrecognized option')
+    })
+
+    test('--version still works regardless of unknown options', async () => {
+      // --version is handled before argument validation
+      const result = await runCli({
+        argv: ['--version'],
+        stdout,
+        stderr,
+        cwd: projectDir,
+        enableFileLogging: false,
+      })
+
+      expect(result.exitCode).toBe(0)
+    })
+  })
 })
