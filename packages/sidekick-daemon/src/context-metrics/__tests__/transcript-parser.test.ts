@@ -1,7 +1,5 @@
 /**
  * Tests for transcript-parser.ts
- *
- * @see METRICS_PLAN.md §Step 2
  */
 
 import { describe, it, expect } from 'vitest'

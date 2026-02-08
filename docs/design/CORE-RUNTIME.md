@@ -196,10 +196,12 @@ The runtime context is a **discriminated union** enabling type-safe role detecti
 
 ```typescript
 // Base context shared by CLI and Daemon
+// NOTE: Uses minimal service constraints (MinimalConfigService, MinimalAssetResolver)
+// to avoid circular dependencies between @sidekick/types and @sidekick/core.
 interface BaseContext {
-  config: ConfigService
+  config: MinimalConfigService
   logger: Logger
-  assets: AssetResolver
+  assets: MinimalAssetResolver
   paths: RuntimePaths
   handlers: HandlerRegistry
 }
@@ -210,12 +212,21 @@ export interface CLIContext extends BaseContext {
   daemon: DaemonClient // IPC client to Daemon
 }
 
-// Daemon extends base with role discriminant, LLM, staging, and transcript capabilities
+// Daemon extends base with role discriminant and async services
 export interface DaemonContext extends BaseContext {
   role: 'daemon' // Discriminant for type narrowing
-  llm: LLMService
+  llm: LLMProvider // Default profile provider
+  profileFactory: ProfileProviderFactory // Creates per-feature providers from named profiles
   staging: StagingService // Writes reminder files for CLI consumption
   transcript: TranscriptService // Metrics owner, file watcher, event emitter
+  stateService: MinimalStateService // Atomic file operations with schema validation
+  orchestrator?: ReminderCoordinator // Optional cross-reminder coordination
+}
+
+// Task context for background task execution
+export interface TaskContext extends DaemonContext {
+  taskId: string // Unique task identifier
+  signal: AbortSignal // For task cancellation
 }
 
 // Discriminated union - TypeScript narrows on context.role

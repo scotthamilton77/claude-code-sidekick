@@ -379,7 +379,6 @@ export interface CompactionHistoryState {
  *
  * Location: `~/.sidekick/state/baseline-user-context-token-metrics.json`
  *
- * @see METRICS_PLAN.md
  */
 export const BaseTokenMetricsStateSchema = z.object({
   /** System prompt tokens (~3.2k) */
@@ -408,7 +407,6 @@ export type BaseTokenMetricsState = z.infer<typeof BaseTokenMetricsStateSchema>
  *
  * Location: `.sidekick/state/baseline-project-context-token-metrics.json`
  *
- * @see METRICS_PLAN.md
  */
 export const ProjectContextMetricsSchema = z.object({
   /** MCP tools tokens (variable per project) */
@@ -429,7 +427,6 @@ export type ProjectContextMetrics = z.infer<typeof ProjectContextMetricsSchema>
  *
  * Location: `.sidekick/sessions/{id}/state/context-metrics.json`
  *
- * @see METRICS_PLAN.md
  */
 export const SessionContextMetricsSchema = z.object({
   /** Session identifier */

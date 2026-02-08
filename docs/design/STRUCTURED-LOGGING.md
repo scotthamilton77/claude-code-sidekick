@@ -64,10 +64,9 @@ All Sidekick events conform to the `SidekickEvent` schema defined in `docs/desig
 interface SidekickEvent {
   type: string
   time: number // Unix timestamp (ms)
-  source: 'cli' | 'daemon'
+  source: 'cli' | 'daemon' | 'transcript'
   context: {
     session_id: string // Required: correlates all events in a session
-    scope?: 'project' | 'user' // Which scope this event occurred in
     correlation_id?: string // Unique ID for the CLI command execution
     trace_id?: string // Optional: links causally-related events
     hook?: string // Optional: which hook triggered this event
@@ -107,7 +106,6 @@ When a `SidekickEvent` is logged, Pino adds standard fields:
   "source": "cli",
   "context": {
     "session_id": "sess-abc123",
-    "scope": "project",
     "correlation_id": "corr-456",
     "trace_id": "req-789",
     "hook": "UserPromptSubmit"
@@ -132,7 +130,7 @@ When a `SidekickEvent` is logged, Pino adds standard fields:
 | Event              | When                                   |
 | ------------------ | -------------------------------------- |
 | `EventReceived`    | IPC event arrives from CLI             |
-| `HandlerExecuted`  | Handler completes (success or failure) |
+| `EventProcessed`   | Handler completes (success or failure) |
 | `ReminderStaged`   | Reminder file created/updated          |
 | `SummaryUpdated`   | Session summary recalculated           |
 | `RemindersCleared` | Stage directory cleaned (SessionStart) |
@@ -148,8 +146,7 @@ Telemetry events use a specialized format for metrics collection. They are writt
   "event_type": "telemetry",
   "source": "daemon",
   "context": {
-    "session_id": "sess-abc123",
-    "scope": "project"
+    "session_id": "sess-abc123"
   },
   "metric": {
     "name": "llm_request_duration_ms",
@@ -217,7 +214,6 @@ const sessionLogger = rootLogger.child({
   source: "cli",
   context: {
     session_id: "sess-abc123",
-    scope: "project",
     correlation_id: "corr-456"
   }
 });

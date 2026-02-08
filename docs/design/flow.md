@@ -100,7 +100,6 @@ Events use a discriminated union pattern for type-safe handler dispatch.
 interface EventContext {
   sessionId: string // Required: correlates all events in a session
   timestamp: number // Unix timestamp (ms)
-  scope?: 'project' | 'user' // Which scope this event occurred in
   correlationId?: string // Unique ID for the CLI command execution
   traceId?: string // Optional: links causally-related events
 }
@@ -112,6 +111,7 @@ type TranscriptEventType =
   | 'ToolCall' // Tool invocation recorded
   | 'ToolResult' // Tool result recorded
   | 'Compact' // Transcript was compacted
+  | 'BulkProcessingComplete' // Initial historical replay finished
 
 // Hook events - discriminated union by hook name
 // Each hook type has a specific payload shape
@@ -228,13 +228,19 @@ interface TranscriptEvent {
   }
 }
 
-// Metrics snapshot embedded in TranscriptEvent (subset for event payload)
-// See docs/design/TRANSCRIPT-PROCESSING.md §3.1 for full TranscriptMetrics schema
+// Full TranscriptMetrics schema (see docs/design/TRANSCRIPT-PROCESSING.md §3.1)
+// Embedded in TranscriptEvent metadata for each event
 interface TranscriptMetrics {
   turnCount: number // Total user prompts in session
+  toolsThisTurn: number // Tools since last UserPrompt (resets)
   toolCount: number // Total tool invocations in session
-  toolsThisTurn: number // Tools since last UserPrompt
-  totalTokens: number // Estimated total tokens in transcript
+  messageCount: number // Total messages (user + assistant + system)
+  tokenUsage: TokenUsageMetrics // Detailed token metrics from API responses
+  currentContextTokens: number | null // Current context window tokens (resets on compact)
+  isPostCompactIndeterminate: boolean // True after compact until first usage block
+  toolsPerTurn: number // Average tools per turn
+  lastProcessedLine: number // Watermark for incremental processing
+  lastUpdatedAt: number // Timestamp of last metrics update
 }
 
 // Unified event type - discriminated union
@@ -646,7 +652,7 @@ If file write fails during staging:
 | Event                      | When                                        |
 | -------------------------- | ------------------------------------------- |
 | `EventReceived`            | IPC event arrives from CLI                  |
-| `HandlerExecuted`          | Handler completes (success or failure)      |
+| `EventProcessed`           | Handler completes (success or failure)      |
 | `ReminderStaged`           | Reminder file created/updated               |
 | `SummaryUpdated`           | Session summary recalculated                |
 | `RemindersCleared`         | Stage directory cleaned (SessionStart)      |

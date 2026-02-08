@@ -362,7 +362,7 @@ export async function routeCommand(context: {
   }
 
   // Handle unified hook command: sidekick hook <hook-name>
-  // Outputs Claude Code format directly (no bash+jq translation needed)
+  // Outputs Claude Code format directly
   if (parsed.command === 'hook') {
     const { parseHookArg, handleUnifiedHookCommand } = await import('./commands/hook-command.js')
     const hookArg = parsed._?.[1] as string | undefined

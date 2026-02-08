@@ -246,7 +246,7 @@ export class Daemon {
       metricsPersistIntervalMs: this.configService.transcript.metricsPersistIntervalMs,
     })
 
-    // Initialize Context Metrics Service (METRICS_PLAN.md)
+    // Initialize Context Metrics Service
     this.contextMetricsService = createContextMetricsService({
       projectDir,
       logger: this.logger,

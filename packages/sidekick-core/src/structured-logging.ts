@@ -1062,7 +1062,7 @@ export const LogEvents = {
 
   /**
    * Create a TranscriptEventEmitted event (logged when TranscriptService emits an event).
-   * @see docs/design/MONITORING-UI.md §4.1
+   * @see packages/sidekick-ui/docs/MONITORING-UI.md §4.1
    */
   transcriptEventEmitted(
     context: EventLogContext,
@@ -1098,7 +1098,7 @@ export const LogEvents = {
 
   /**
    * Create a PreCompactCaptured event (logged when pre-compact snapshot is saved).
-   * @see docs/design/MONITORING-UI.md §4.1
+   * @see packages/sidekick-ui/docs/MONITORING-UI.md §4.1
    */
   preCompactCaptured(
     context: EventLogContext,

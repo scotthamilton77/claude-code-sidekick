@@ -112,7 +112,7 @@ The Daemon prepares future CLI actions by staging files. This decouples async Da
 │   └── Stop/
 ├── state/                    # Persistent state files
 │   ├── session-summary.json
-│   └── session-state.json
+│   └── transcript-metrics.json
 └── transcripts/              # Pre-compact snapshots (for Monitoring UI)
 ```
 

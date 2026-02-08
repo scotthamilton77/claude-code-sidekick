@@ -79,59 +79,84 @@ features.reminders.settings.turn_cadence=6
 ### 5.1 Core Config Schema
 
 ```typescript
-import { z } from "zod";
+import { z } from "zod/v4";
+
+const LogLevelSchema = z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal'])
 
 export const CoreConfigSchema = z.object({
   logging: z.object({
-    level: z.enum(["debug", "info", "warn", "error"]).default("info"),
-    format: z.enum(["pretty", "json"]).default("pretty"),
-    consoleEnabled: z.boolean().default(false),  // Enable console output (in addition to file)
-  }),
+    level: z.enum(["debug", "info", "warn", "error"]),
+    format: z.enum(["pretty", "json"]),
+    consoleEnabled: z.boolean(),
+    /** Per-component log level overrides (e.g., 'reminders', 'statusline') */
+    components: z.record(z.string(), LogLevelSchema).optional(),
+  }).strict(),
   paths: z.object({
-    state: z.string().default(".sidekick"),  // Base path for session state
-    assets: z.string().optional(),            // Custom assets path override
-  }),
+    state: z.string(),    // Base path for session state
+    assets: z.string().optional(),  // Custom assets path override
+  }).strict(),
   daemon: z.object({
-    idleTimeoutMs: z.number().default(300000),      // Auto-shutdown after 5 min idle
-    shutdownTimeoutMs: z.number().default(30000),   // Grace period for in-flight tasks
-  }).optional(),
-});
+    idleTimeoutMs: z.number().min(0),
+    shutdownTimeoutMs: z.number().min(0),
+  }).strict(),
+  ipc: z.object({
+    connectTimeoutMs: z.number().min(0),
+    requestTimeoutMs: z.number().min(0),
+    maxRetries: z.number().min(0),
+    retryDelayMs: z.number().min(0),
+  }).strict(),
+  development: z.object({
+    enabled: z.boolean(),
+  }).strict(),
+}).strict();
 
 export type CoreConfig = z.infer<typeof CoreConfigSchema>;
 ```
 
-**Note**: Daemon settings are optional; defaults apply when daemon is spawned. See `docs/design/CLI.md §7` and `docs/design/DAEMON.md §2` for lifecycle details.
+**Note**: Defaults for all fields come from `assets/sidekick/defaults/core.defaults.yaml`. See `docs/design/CLI.md §7` and `docs/design/DAEMON.md §2` for lifecycle details.
 
 ### 5.2 LLM Config Schema
 
+The LLM configuration uses a **profile-based system** (see `docs/design/LLM_PROFILES.md`):
+
 ```typescript
+const LlmProviderSchema = z.enum(['claude-cli', 'openai', 'openrouter', 'custom', 'emulator'])
+
+const LlmProfileSchema = z.object({
+  provider: LlmProviderSchema,
+  model: z.string(),
+  temperature: z.number().min(0).max(2),
+  maxTokens: z.number().positive(),
+  timeout: z.number().min(1).max(300),
+  timeoutMaxRetries: z.number().min(0).max(10),
+  // OpenRouter-specific provider routing
+  providerAllowlist: z.array(z.string()).optional(),
+  providerBlocklist: z.array(z.string()).optional(),
+})
+
 export const LlmConfigSchema = z.object({
-  // Primary provider settings
-  provider: z
-    .enum(["claude-cli", "openai", "openrouter", "custom"])
-    .default("claude-cli"),
-  model: z.string().optional(),
-  temperature: z.number().min(0).max(1).default(0),
-  maxTokens: z.number().optional(),
-
-  // Fallback provider (used when primary fails after retries)
-  fallbackProvider: z.enum(["claude-cli", "openai", "openrouter", "custom"]).optional(),
-  fallbackModel: z.string().optional(),
-
-  // Resilience settings
-  timeout: z.number().min(1).max(300).default(30),        // Request timeout in seconds
-  timeoutMaxRetries: z.number().min(0).max(10).default(3), // Retries before fallback
-
-  // Debugging
-  debugDumpEnabled: z.boolean().default(false),  // Dump LLM request/response to logs
-
-  // API keys should come from .env files, not config
+  defaultProfile: z.string(),
+  profiles: z.record(z.string(), LlmProfileSchema),
+  fallbacks: z.record(z.string(), LlmProfileSchema).optional(),
+  global: z.object({
+    debugDumpEnabled: z.boolean(),
+    emulatedProvider: z.enum(['claude-cli', 'openai', 'openrouter']).optional(),
+  }).strict().optional(),
+}).strict().superRefine((data, ctx) => {
+  // Validate defaultProfile references an existing profile
+  if (!data.profiles[data.defaultProfile]) {
+    ctx.addIssue({
+      code: 'custom',
+      message: `defaultProfile "${data.defaultProfile}" not found in profiles`,
+      path: ['defaultProfile'],
+    })
+  }
 });
 
 export type LlmConfig = z.infer<typeof LlmConfigSchema>;
 ```
 
-**Note**: Fallback and resilience settings support the LLM provider implementation. See `docs/design/LLM-PROVIDERS.md §5` for retry/fallback policy details.
+**Note**: Features reference LLM profiles by name (e.g., `fast-lite`, `creative`). Profiles are self-contained configurations with provider, model, temperature, maxTokens, timeout, and retries. See `docs/design/LLM_PROFILES.md` for details. Defaults come from `assets/sidekick/defaults/llm.defaults.yaml`.
 
 ### 5.3 Transcript Config Schema
 
@@ -290,9 +315,8 @@ class AssetResolver {
 
 ```bash
 # Quick user-level overrides
-llm.provider=openai
-llm.model=gpt-4o
 logging.level=debug
+features.reminders.enabled=true
 ```
 
 ### 9.2 `.sidekick/config.yaml` (Project Core)
@@ -315,11 +339,30 @@ daemon:
 ### 9.3 `.sidekick/llm.yaml` (Project LLM)
 
 ```yaml
-# LLM provider configuration
+# LLM provider configuration (profile-based)
 # API keys should be in .env files, not here
-provider: openai
-model: gpt-4o
-temperature: 0.1
+defaultProfile: fast-lite
+
+profiles:
+  fast-lite:
+    provider: openrouter
+    model: google/gemini-2.0-flash-lite-001
+    temperature: 0
+    maxTokens: 1000
+    timeout: 15
+    timeoutMaxRetries: 2
+
+fallbacks:
+  cheap-fallback:
+    provider: openrouter
+    model: google/gemini-2.5-flash-lite
+    temperature: 0
+    maxTokens: 1000
+    timeout: 30
+    timeoutMaxRetries: 3
+
+global:
+  debugDumpEnabled: false
 ```
 
 ### 9.4 `.sidekick/features.yaml` (Project Features)

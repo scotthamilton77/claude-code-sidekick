@@ -52,38 +52,42 @@ Tool interactions are **nested**, not top-level:
 - `tool_use` → `assistant.message.content[{type: 'tool_use', name, id, input}]`
 - `tool_result` → `user.message.content[{type: 'tool_result', tool_use_id, content}]`
 
-#### 2.1.2 Canonical Event Model (`TranscriptEvent`)
+#### 2.1.2 Canonical Event Model (`CanonicalTranscriptEntry`)
 
-The internal, standardized representation used by Sidekick features. This model is provider-agnostic.
+The internal, standardized representation used by Sidekick features. This model is provider-agnostic. Defined in `packages/types/src/services/transcript.ts`.
 
 ```typescript
-interface TranscriptEvent {
+interface CanonicalTranscriptEntry {
   id: string // Unique ID (UUID or hash)
   timestamp: Date // Normalized timestamp
   role: 'user' | 'assistant' | 'system'
   type: 'text' | 'tool_use' | 'tool_result'
-  content: string | object
+  content: string | Record<string, unknown>
   metadata: {
     provider: string // e.g., 'claude', 'openai'
     originalId?: string // ID from the provider if available
-    [key: string]: any
+    lineNumber?: number // Line number in original transcript
+    [key: string]: unknown
   }
 }
 ```
 
 #### 2.1.3 Transcript Object
 
-A wrapper around the list of events providing utility methods.
+An interface wrapper around the list of entries providing utility methods. Defined in `packages/types/src/services/transcript.ts`.
 
 ```typescript
-class Transcript {
-  events: TranscriptEvent[]
+interface Transcript {
+  entries: CanonicalTranscriptEntry[]
   metadata: TranscriptMetadata
-
-  get lastUserMessage(): TranscriptEvent | undefined
-  get lastAssistantMessage(): TranscriptEvent | undefined
   toString(): string // Renders the transcript as a readable string
-  filter(predicate: (e: TranscriptEvent) => boolean): Transcript
+}
+
+interface TranscriptMetadata {
+  sessionId: string
+  transcriptPath: string
+  lineCount: number
+  lastModified: number
 }
 ```
 
@@ -116,7 +120,7 @@ A lightweight filter that runs _before_ normalization to discard irrelevant even
 Converts loose `RawTranscriptEvent`s into strict `CanonicalTranscriptEvent`s using a "cherry-picking" strategy.
 
 - **Input**: `RawTranscriptEvent[]`.
-- **Output**: `TranscriptEvent[]`.
+- **Output**: `CanonicalTranscriptEntry[]`.
 - **Responsibilities**:
   - **Safe Extraction**: Using JSON-path style accessors (e.g., `lodash.get`) to pull required fields.
   - **Resilience**: If non-critical fields are missing, it defaults them rather than crashing.
@@ -127,8 +131,8 @@ Converts loose `RawTranscriptEvent`s into strict `CanonicalTranscriptEvent`s usi
 
 Cleans the transcript to make it suitable for context window insertion or analysis.
 
-- **Input**: `TranscriptEvent[]`.
-- **Output**: `TranscriptEvent[]`.
+- **Input**: `CanonicalTranscriptEntry[]`.
+- **Output**: `CanonicalTranscriptEntry[]`.
 - **Responsibilities**:
   - **Coalescing**: Merging contiguous messages from the same role (optional, config-driven).
   - **Noise Reduction**: Removing specific known noise patterns or empty messages that survived the raw filter.
@@ -140,7 +144,9 @@ The main entry point in `sidekick-core`. TranscriptService is the **single sourc
 
 **Lifecycle Methods**:
 
-- `initialize(sessionId: string, transcriptPath: string): Promise<void>` — Start watching transcript
+- `prepare(sessionId: string, transcriptPath: string): Promise<void>` — Set up paths and load persisted state (no file watching or event emission yet)
+- `start(): Promise<void>` — Start file watching and process existing transcript content (must call `prepare()` first)
+- `catchUp(): Promise<void>` — Force immediate catch-up read of transcript file (ensures buffer reflects latest file contents)
 - `shutdown(): Promise<void>` — Stop watching, flush state
 
 **Shutdown Requirements**:
@@ -151,7 +157,8 @@ The main entry point in `sidekick-core`. TranscriptService is the **single sourc
 **Transcript Access**:
 
 - `getTranscript(): Transcript` — Get current normalized transcript
-- `getExcerpt(options: ExcerptOptions): TranscriptExcerpt` — Get windowed excerpt for LLM context
+- `getExcerpt(options?: ExcerptOptions): TranscriptExcerpt` — Get windowed excerpt for LLM context (supports bookmark-based tiered extraction)
+- `getRecentEntries(count?: number): CanonicalTranscriptEntry[]` — Get recent entries from in-memory buffer (avoids full file read)
 
 **Metrics Access** (see §3 for schema):
 
@@ -186,6 +193,10 @@ interface TranscriptMetrics {
 
   // Token metrics (extracted from native transcript metadata)
   tokenUsage: TokenUsageMetrics
+
+  // Context window tracking
+  currentContextTokens: number | null // Current context window tokens (resets on compact, null when unknown)
+  isPostCompactIndeterminate: boolean // True after compact until first usage block arrives
 
   // Derived ratios
   toolsPerTurn: number // Average tools per turn (toolCount / turnCount)
@@ -446,7 +457,7 @@ transcript file changed
 
 The `packages/types` package will host:
 
-1.  `CanonicalTranscriptSchema`: The strict Zod schema for our internal `TranscriptEvent`.
+1.  `CanonicalTranscriptEntry`: TypeScript interface for our internal canonical entry (in `packages/types/src/services/transcript.ts`).
 2.  `TranscriptMetricsSchema`: Schema for metrics persistence.
 3.  `CompactionHistorySchema`: Schema for compaction timeline.
 

@@ -87,9 +87,9 @@ npx @sidekick/cli persona set marvin --session-id=<session-id>
 
 ## Documentation
 
-- [Configuration Guide](https://github.com/scotthamilton77/claude-config/blob/main/docs/CONFIGURATION.md)
-- [Persona Customization](https://github.com/scotthamilton77/claude-config/blob/main/docs/PERSONAS.md)
-- [Architecture](https://github.com/scotthamilton77/claude-config/blob/main/docs/ARCHITECTURE.md)
+- [User Guide](https://github.com/scotthamilton77/claude-code-sidekick/blob/main/docs/USER-GUIDE.md)
+- [Developer Guide](https://github.com/scotthamilton77/claude-code-sidekick/blob/main/docs/DEVELOPER-GUIDE.md)
+- [Architecture](https://github.com/scotthamilton77/claude-code-sidekick/blob/main/docs/ARCHITECTURE.md)
 
 ## License
 

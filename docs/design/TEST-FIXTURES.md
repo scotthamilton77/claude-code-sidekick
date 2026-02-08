@@ -7,34 +7,27 @@ The `testing-fixtures` package provides shared infrastructure for testing the Si
 ## 2. Package Structure
 
 ```
-packages/testing/fixtures/
+packages/testing-fixtures/
 ├── src/
 │   ├── mocks/              # Mock implementations of core services
+│   │   ├── MockAssetResolver.ts
 │   │   ├── MockConfigService.ts
+│   │   ├── MockHandlerRegistry.ts   # Handler registration and dispatch
 │   │   ├── MockLLMService.ts
 │   │   ├── MockLogger.ts
-│   │   ├── MockAssetResolver.ts
-│   │   ├── MockDaemonClient.ts
-│   │   ├── MockHandlerRegistry.ts   # Handler registration and dispatch
-│   │   ├── MockTranscriptService.ts # Transcript watching and metrics
-│   │   └── MockStagingService.ts    # Reminder file staging
+│   │   ├── MockStagingService.ts    # Reminder file staging
+│   │   ├── MockStateService.ts      # Atomic state file operations
+│   │   ├── MockTelemetry.ts         # Telemetry/metrics mock
+│   │   └── MockTranscriptService.ts # Transcript watching and metrics
 │   ├── factories/          # Factory functions to generate typed test data
-│   │   ├── config.factory.ts
-│   │   ├── transcript.factory.ts
-│   │   ├── context.factory.ts
-│   │   ├── event.factory.ts         # SidekickEvent variants
-│   │   ├── reminder.factory.ts      # Staged reminder files
-│   │   └── metrics.factory.ts       # TranscriptMetrics snapshots
-│   ├── harness/            # Integration test runners
-│   │   ├── CLITestHarness.ts
-│   │   ├── DaemonTestHarness.ts # Daemon process testing
-│   │   ├── StagingHelper.ts         # Stage directory utilities
-│   │   └── TestEnvironment.ts
-│   └── loaders/            # Helpers to load data from root test-data/
-│       └── LegacyTranscriptLoader.ts
-├── index.ts                # Public API export
+│   │   ├── config.factory.ts        # Configuration test data
+│   │   ├── context.factory.ts       # RuntimeContext variants (CLI/Daemon)
+│   │   └── feature.factory.ts       # Feature manifest and registration
+│   └── index.ts            # Public API export
 └── package.json
 ```
+
+**Note**: The `harness/` and `loaders/` directories described in the original design have not been implemented. Integration test harnesses are a future enhancement.
 
 ## 3. Core Mocks
 
@@ -301,7 +294,6 @@ export function createEventContext(overrides: Partial<EventContext> = {}): Event
   return {
     sessionId: `test-session-${eventCounter++}`,
     timestamp: Date.now(),
-    scope: 'project',
     ...overrides,
   };
 }

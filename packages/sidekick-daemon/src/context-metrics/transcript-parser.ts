@@ -6,7 +6,6 @@
  * - Visual format with ANSI escape codes (real output)
  * - Markdown table format (legacy/hypothetical)
  *
- * @see METRICS_PLAN.md §Step 2
  */
 
 import type { ParsedContextTable } from './types.js'
@@ -66,7 +65,7 @@ export function parseTokenCount(value: string): number {
 
 /**
  * Check if content contains /context command output.
- * Uses self-identifying markers per METRICS_PLAN.md §Step 5.
+ * Uses self-identifying markers in /context output.
  *
  * @param content - Message content to check
  * @returns true if content appears to be /context output

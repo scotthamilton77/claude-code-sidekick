@@ -1,7 +1,5 @@
 /**
  * Tests for Typed State Accessors.
- *
- * @see docs/ROADMAP.md Phase 9.3.7
  */
 
 import { describe, it, expect, beforeEach } from 'vitest'

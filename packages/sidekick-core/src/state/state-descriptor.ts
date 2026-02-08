@@ -5,7 +5,7 @@
  * Used by feature packages to define their state files without exposing
  * implementation details to consumers.
  *
- * @see docs/design/STATE-SERVICE.md
+ * @see docs/plans/2026-01-12-state-service-design.md
  */
 
 import type { ZodType } from 'zod'

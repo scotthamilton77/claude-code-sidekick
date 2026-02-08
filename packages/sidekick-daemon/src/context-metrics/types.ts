@@ -4,7 +4,6 @@
  * Re-exports types from @sidekick/types and defines internal types
  * for parsing Claude Code's /context command output.
  *
- * @see METRICS_PLAN.md
  */
 
 // Re-export schemas and types from @sidekick/types
