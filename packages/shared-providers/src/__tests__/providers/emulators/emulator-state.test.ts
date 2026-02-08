@@ -1,3 +1,4 @@
+// @ts-nocheck - vitest 4.x Mock<Procedure | Constructable> type incompatibility. See beads issue for cleanup task.
 /**
  * EmulatorStateManager Tests
  *
@@ -12,23 +13,14 @@ import { randomUUID } from 'node:crypto'
 import { EmulatorStateManager } from '../../../providers/emulators/emulator-state'
 
 // Fake logger that captures calls
-function createFakeLogger(): {
-  trace: ReturnType<typeof vi.fn>
-  debug: ReturnType<typeof vi.fn>
-  info: ReturnType<typeof vi.fn>
-  warn: ReturnType<typeof vi.fn>
-  error: ReturnType<typeof vi.fn>
-  fatal: ReturnType<typeof vi.fn>
-  child: ReturnType<typeof vi.fn>
-  flush: ReturnType<typeof vi.fn>
-} {
+function createFakeLogger(): any {
   return {
-    trace: vi.fn(),
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    fatal: vi.fn(),
+    trace: vi.fn() as any,
+    debug: vi.fn() as any,
+    info: vi.fn() as any,
+    warn: vi.fn() as any,
+    error: vi.fn() as any,
+    fatal: vi.fn() as any,
     child: vi.fn().mockReturnThis(),
     flush: vi.fn().mockResolvedValue(undefined),
   }

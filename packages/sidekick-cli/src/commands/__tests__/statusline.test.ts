@@ -1,3 +1,4 @@
+// @ts-nocheck - vitest 4.x Mock<Procedure | Constructable> type incompatibility. See beads issue for cleanup task.
 /**
  * Tests for statusline command handler.
  *
@@ -55,14 +56,14 @@ function createFakeLogger(): {
   flush: ReturnType<typeof vi.fn>
 } {
   return {
-    trace: vi.fn(),
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    fatal: vi.fn(),
+    trace: vi.fn() as any,
+    debug: vi.fn() as any,
+    info: vi.fn() as any,
+    warn: vi.fn() as any,
+    error: vi.fn() as any,
+    fatal: vi.fn() as any,
     child: vi.fn(() => createFakeLogger()),
-    flush: vi.fn(),
+    flush: vi.fn() as any,
   }
 }
 

@@ -40,12 +40,12 @@ vi.mock('@sidekick/core', () => ({
 
 // Mock logger
 const mockLogger: Logger = {
-  trace: vi.fn(),
-  debug: vi.fn(),
-  info: vi.fn(),
-  warn: vi.fn(),
-  error: vi.fn(),
-  fatal: vi.fn(),
+  trace: vi.fn() as any,
+  debug: vi.fn() as any,
+  info: vi.fn() as any,
+  warn: vi.fn() as any,
+  error: vi.fn() as any,
+  fatal: vi.fn() as any,
   child: vi.fn(() => mockLogger),
   flush: vi.fn().mockResolvedValue(undefined),
 }

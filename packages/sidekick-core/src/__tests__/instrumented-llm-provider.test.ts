@@ -8,14 +8,14 @@ import { InstrumentedLLMProvider } from '../instrumented-llm-provider.js'
 
 // Mock logger
 const createMockLogger = (): Logger => ({
-  trace: vi.fn(),
-  debug: vi.fn(),
-  info: vi.fn(),
-  warn: vi.fn(),
-  error: vi.fn(),
-  fatal: vi.fn(),
+  trace: vi.fn() as any,
+  debug: vi.fn() as any,
+  info: vi.fn() as any,
+  warn: vi.fn() as any,
+  error: vi.fn() as any,
+  fatal: vi.fn() as any,
   child: vi.fn(() => createMockLogger()),
-  flush: vi.fn(),
+  flush: vi.fn() as any,
 })
 
 // Mock StateService that stores state in memory
@@ -32,15 +32,15 @@ const createMockStateService = (): MinimalStateService & { store: Map<string, un
         return Promise.resolve({ data: value, source: 'default' })
       }
       return Promise.reject(new Error(`File not found: ${path}`))
-    }),
+    }) as any,
     write: vi.fn((path: string, data: unknown, _schema: unknown): Promise<void> => {
       store.set(path, data)
       return Promise.resolve()
-    }),
+    }) as any,
     delete: vi.fn((path: string): Promise<void> => {
       store.delete(path)
       return Promise.resolve()
-    }),
+    }) as any,
     sessionStatePath: vi.fn((sessionId: string, filename: string): string => {
       return `/mock/sessions/${sessionId}/state/${filename}`
     }),
@@ -439,12 +439,12 @@ describe('InstrumentedLLMProvider', () => {
     let incrementSpy: ReturnType<typeof vi.fn>
 
     beforeEach(() => {
-      histogramSpy = vi.fn()
-      incrementSpy = vi.fn()
+      histogramSpy = vi.fn() as any
+      incrementSpy = vi.fn() as any
       mockTelemetry = {
-        increment: incrementSpy,
-        gauge: vi.fn(),
-        histogram: histogramSpy,
+        increment: incrementSpy as any,
+        gauge: vi.fn() as any,
+        histogram: histogramSpy as any,
       }
     })
 

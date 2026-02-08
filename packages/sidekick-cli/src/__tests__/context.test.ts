@@ -31,17 +31,17 @@ function createMockRuntime(overrides: Partial<RuntimeShell> = {}): RuntimeShell 
       get: vi.fn(),
     } as unknown as RuntimeShell['config'],
     logger: {
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
+      debug: vi.fn() as any,
+      info: vi.fn() as any,
+      warn: vi.fn() as any,
+      error: vi.fn() as any,
       child: vi.fn().mockReturnThis(),
     } as unknown as RuntimeShell['logger'],
     assets: {
       resolve: vi.fn(),
     } as unknown as RuntimeShell['assets'],
     telemetry: {
-      flush: vi.fn(),
+      flush: vi.fn() as any,
     } as unknown as RuntimeShell['telemetry'],
     stateService: {
       read: vi.fn(),

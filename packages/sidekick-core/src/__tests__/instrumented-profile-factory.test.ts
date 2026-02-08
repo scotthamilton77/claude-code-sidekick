@@ -38,14 +38,14 @@ function createTestDir(): string {
 
 function createMockLogger(): Logger {
   return {
-    trace: vi.fn(),
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    fatal: vi.fn(),
+    trace: vi.fn() as any,
+    debug: vi.fn() as any,
+    info: vi.fn() as any,
+    warn: vi.fn() as any,
+    error: vi.fn() as any,
+    fatal: vi.fn() as any,
     child: vi.fn(() => createMockLogger()),
-    flush: vi.fn(),
+    flush: vi.fn() as any,
   }
 }
 
@@ -61,15 +61,15 @@ function createMockStateService(): MinimalStateService {
         return Promise.resolve({ data: value, source: 'default' })
       }
       return Promise.reject(new Error(`File not found: ${path}`))
-    }),
+    }) as any,
     write: vi.fn((path: string, data: unknown, _schema: unknown): Promise<void> => {
       store.set(path, data)
       return Promise.resolve()
-    }),
+    }) as any,
     delete: vi.fn((path: string): Promise<void> => {
       store.delete(path)
       return Promise.resolve()
-    }),
+    }) as any,
     sessionStatePath: vi.fn((sessionId: string, filename: string): string => {
       return `/mock/sessions/${sessionId}/state/${filename}`
     }),

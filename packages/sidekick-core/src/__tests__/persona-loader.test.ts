@@ -12,7 +12,7 @@ function createMockLogger(): Logger & { warn: ReturnType<typeof vi.fn> } {
     trace: mockFn,
     debug: mockFn,
     info: mockFn,
-    warn: vi.fn(),
+    warn: vi.fn() as any,
     error: mockFn,
     fatal: mockFn,
     child: () => logger,
