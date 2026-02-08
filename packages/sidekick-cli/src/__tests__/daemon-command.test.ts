@@ -34,7 +34,9 @@ const { mockDaemonClient, mockKillAllDaemons } = vi.hoisted(() => ({
 
 // Mock @sidekick/core module
 vi.mock('@sidekick/core', () => ({
-  DaemonClient: vi.fn(function () { return mockDaemonClient }),
+  DaemonClient: vi.fn(function () {
+    return mockDaemonClient
+  }),
   killAllDaemons: mockKillAllDaemons,
 }))
 

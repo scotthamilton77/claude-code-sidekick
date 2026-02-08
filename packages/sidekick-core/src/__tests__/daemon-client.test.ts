@@ -86,7 +86,7 @@ describe('DaemonClient', () => {
       const client = new DaemonClient(tmpProjectDir, logger)
 
       // Mock process.kill to track calls without actually killing
-      const killSpy = vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
+      const killSpy = vi.spyOn(process, 'kill').mockImplementation((_pid, signal) => {
         if (signal === 0) return true // Process alive check
         if (signal === 'SIGKILL') return true // Simulate successful kill
         return true
@@ -110,7 +110,7 @@ describe('DaemonClient', () => {
       const client = new DaemonClient(tmpProjectDir, logger)
 
       // Mock process.kill to fail on SIGKILL but succeed on signal 0 (alive check)
-      const killSpy = vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
+      const killSpy = vi.spyOn(process, 'kill').mockImplementation((_pid, signal) => {
         if (signal === 0) return true // Process is alive
         // SIGKILL fails
         const err = new Error('EPERM') as NodeJS.ErrnoException
@@ -202,7 +202,12 @@ describe('DaemonClient', () => {
         unref: vi.fn(),
         pid: 12345,
       }
-      mockSpawn = vi.mocked(spawn).mockReturnValue(mockChildProcess as ChildProcess)
+      // mockClear() resets call history — vi.restoreAllMocks() only restores spies (vi.spyOn),
+      // not standalone vi.fn() instances from vi.mock() factories
+      mockSpawn = vi
+        .mocked(spawn)
+        .mockClear()
+        .mockReturnValue(mockChildProcess as ChildProcess)
     })
 
     it('should spawn daemon when none running', async () => {
@@ -1040,7 +1045,7 @@ describe('killAllDaemons', () => {
     await fs.writeFile(pidFilePath, JSON.stringify(livePidInfo))
 
     // Mock process.kill to track calls without actually killing
-    const killSpy = vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
+    const killSpy = vi.spyOn(process, 'kill').mockImplementation((_pid, signal) => {
       if (signal === 0) return true // Alive check
       if (signal === 'SIGKILL') return true // Kill
       return true
@@ -1074,7 +1079,7 @@ describe('killAllDaemons', () => {
     await fs.writeFile(pidFilePath, JSON.stringify(pidInfo))
 
     // Mock process.kill to simulate EPERM error
-    const killSpy = vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
+    const killSpy = vi.spyOn(process, 'kill').mockImplementation((_pid, signal) => {
       if (signal === 0) return true // Process is alive
       // SIGKILL fails with EPERM
       const err = new Error('EPERM: operation not permitted') as NodeJS.ErrnoException
