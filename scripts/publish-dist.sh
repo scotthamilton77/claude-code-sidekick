@@ -119,6 +119,22 @@ fs.writeFileSync('./package.json', JSON.stringify(pkg, null, 2) + '\n');
 
 cd ../..
 
+# Sync version to plugin metadata files
+node -e "
+const fs = require('fs');
+const files = [
+  'packages/sidekick-plugin/.claude-plugin/plugin.json',
+  '.claude-plugin/marketplace.json',
+];
+for (const file of files) {
+  const json = JSON.parse(fs.readFileSync(file, 'utf8'));
+  if (json.version) json.version = '$NEW_VERSION';
+  if (json.plugins) json.plugins.forEach(p => { if (p.version) p.version = '$NEW_VERSION'; });
+  fs.writeFileSync(file, JSON.stringify(json, null, 2) + '\n');
+}
+console.log('    Synced version to plugin.json and marketplace.json');
+"
+
 echo "    $OLD_VERSION -> $NEW_VERSION"
 
 echo "==> Building all packages..."
@@ -142,7 +158,7 @@ echo ""
 echo "==> Published successfully!"
 echo ""
 echo "Don't forget to commit the version bump:"
-echo "  git add packages/sidekick-dist/package.json"
+echo "  git add packages/sidekick-dist/package.json packages/sidekick-plugin/.claude-plugin/plugin.json .claude-plugin/marketplace.json"
 echo "  git commit -m \"chore: release @scotthamilton77/sidekick@$NEW_VERSION\""
 echo "  git tag v$NEW_VERSION"
 echo "  git push && git push --tags"

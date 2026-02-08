@@ -1,0 +1,25 @@
+{
+  "name": "claude-code-sidekick",
+  "owner": {
+    "name": "Scott Hamilton"
+  },
+  "metadata": {
+    "description": "Opinionated AI coding companion with personas, session tracking, and contextual nudges to ensure the AI stays on track to your instructions"
+  },
+  "plugins": [
+    {
+      "name": "sidekick",
+      "source": "./packages/sidekick-plugin",
+      "description": "AI coding companion with personas, session tracking, and contextual nudges to ensure the AI stays on track to your instructions",
+      "version": "0.0.8-alpha.2",
+      "author": {
+        "name": "Scott Hamilton"
+      },
+      "homepage": "https://github.com/scotthamilton77/claude-code-sidekick",
+      "repository": "https://github.com/scotthamilton77/claude-code-sidekick",
+      "license": "MIT",
+      "keywords": ["claude", "hooks", "personas", "productivity", "session-tracking"],
+      "category": "productivity"
+    }
+  ]
+}
