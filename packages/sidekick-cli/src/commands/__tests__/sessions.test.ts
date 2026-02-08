@@ -1,4 +1,3 @@
-// @ts-nocheck - vitest 4.x Mock<Procedure | Constructable> type incompatibility. See beads issue for cleanup task.
 /**
  * Tests for sessions command handler.
  *
@@ -17,6 +16,8 @@ import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import { Writable } from 'node:stream'
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest'
+import type { Logger } from '@sidekick/types'
+import { handleSessionsCommand, type SessionInfo } from '../sessions'
 
 // CollectingWritable to capture stdout output
 class CollectingWritable extends Writable {
@@ -29,16 +30,7 @@ class CollectingWritable extends Writable {
 }
 
 // Create fake logger (we don't test logging behavior, just need the interface)
-function createFakeLogger(): {
-  trace: ReturnType<typeof vi.fn>
-  debug: ReturnType<typeof vi.fn>
-  info: ReturnType<typeof vi.fn>
-  warn: ReturnType<typeof vi.fn>
-  error: ReturnType<typeof vi.fn>
-  fatal: ReturnType<typeof vi.fn>
-  child: ReturnType<typeof vi.fn>
-  flush: ReturnType<typeof vi.fn>
-} {
+function createFakeLogger(): Logger {
   return {
     trace: vi.fn() as any,
     debug: vi.fn() as any,
@@ -46,12 +38,10 @@ function createFakeLogger(): {
     warn: vi.fn() as any,
     error: vi.fn() as any,
     fatal: vi.fn() as any,
-    child: vi.fn(() => createFakeLogger()),
+    child: vi.fn(() => createFakeLogger()) as any,
     flush: vi.fn() as any,
   }
 }
-
-import { handleSessionsCommand, type SessionInfo } from '../sessions'
 
 describe('handleSessionsCommand', () => {
   let tempDir: string
