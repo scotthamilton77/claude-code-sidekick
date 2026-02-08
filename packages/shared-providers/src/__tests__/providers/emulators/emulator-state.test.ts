@@ -1,4 +1,3 @@
-// @ts-nocheck - vitest 4.x Mock<Procedure | Constructable> type incompatibility. See beads issue for cleanup task.
 /**
  * EmulatorStateManager Tests
  *
@@ -107,7 +106,9 @@ describe('EmulatorStateManager', () => {
 
         expect(state1).toBe(state2) // Same object reference
         // Debug for "not found" should only be called once
-        expect(ctx.logger.debug.mock.calls.filter((c) => (c[0] as string).includes('not found')).length).toBe(1)
+        expect(
+          ctx.logger.debug.mock.calls.filter((c: unknown[]) => (c[0] as string).includes('not found')).length
+        ).toBe(1)
       } finally {
         await ctx.cleanup()
       }
