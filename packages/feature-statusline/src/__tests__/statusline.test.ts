@@ -28,7 +28,11 @@ import { StateService } from '@sidekick/core'
 import type { MinimalAssetResolver } from '@sidekick/types'
 import { getDefaultOverhead, readContextOverhead } from '../context-overhead-reader.js'
 import { createStateReader, discoverPreviousResumeMessage } from '../state-reader.js'
-import { createStatuslineService, type ClaudeCodeStatusInput, type MinimalSetupStatusService } from '../statusline-service.js'
+import {
+  createStatuslineService,
+  type ClaudeCodeStatusInput,
+  type MinimalSetupStatusService,
+} from '../statusline-service.js'
 import { DEFAULT_STATUSLINE_CONFIG, type StatuslineViewModel } from '../types.js'
 
 /**

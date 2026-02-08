@@ -58,6 +58,12 @@ export default defineConfig({
         'packages/sidekick-ui/src/lib/filter-parser.ts', // Untested utility (deferred)
         'packages/sidekick-ui/server/**', // Vite dev server plugins
       ],
+      thresholds: {
+        statements: 80,
+        branches: 75,
+        functions: 80,
+        lines: 80,
+      },
     },
   },
 })
