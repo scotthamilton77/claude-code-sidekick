@@ -66,6 +66,9 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
 
+/** Flush microtask queue so fire-and-forget promises settle */
+const flushPromises = (): Promise<void> => new Promise<void>((resolve) => setTimeout(resolve, 0))
+
 describe('Session Summary Side-Effects', () => {
   let ctx: DaemonContext
   let logger: MockLogger
@@ -179,6 +182,7 @@ describe('Session Summary Side-Effects', () => {
 
       // No need to queue LLM response since it should be skipped
       await updateSessionSummary(createBulkProcessingEvent(sessionId), ctx)
+      await flushPromises()
 
       // LLM should NOT be called during bulk processing
       expect(llm.recordedRequests).toHaveLength(0)
@@ -214,6 +218,7 @@ describe('Session Summary Side-Effects', () => {
       ])
 
       await updateSessionSummary(createBulkProcessingCompleteEvent(sessionId), ctx)
+      await flushPromises()
 
       // LLM should be called (summary + side effects)
       expect(llm.recordedRequests.length).toBeGreaterThanOrEqual(1)
@@ -231,6 +236,7 @@ describe('Session Summary Side-Effects', () => {
       transcript.setMetrics({ turnCount: 0 })
 
       await updateSessionSummary(createBulkProcessingCompleteEvent(sessionId), ctx)
+      await flushPromises()
 
       // LLM should NOT be called
       expect(llm.recordedRequests).toHaveLength(0)
@@ -269,6 +275,7 @@ describe('Session Summary Side-Effects', () => {
       ])
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+      await flushPromises()
 
       // Check snarky message was generated (JSON via stateService)
       const snarkyPath = stateService.sessionStatePath(sessionId, 'snarky-message.json')
@@ -302,6 +309,7 @@ describe('Session Summary Side-Effects', () => {
       ])
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+      await flushPromises()
 
       const snarkyPath = stateService.sessionStatePath(sessionId, 'snarky-message.json')
       const snarkyContent = stateService.getStored(snarkyPath) as { message: string; timestamp: string }
@@ -334,6 +342,7 @@ describe('Session Summary Side-Effects', () => {
       ])
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+      await flushPromises()
 
       const snarkyPath = stateService.sessionStatePath(sessionId, 'snarky-message.json')
       const snarkyContent = stateService.getStored(snarkyPath) as { message: string; timestamp: string }
@@ -366,6 +375,7 @@ describe('Session Summary Side-Effects', () => {
       ])
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+      await flushPromises()
 
       const snarkyPath = stateService.sessionStatePath(sessionId, 'snarky-message.json')
       const snarkyContent = stateService.getStored(snarkyPath) as { message: string; timestamp: string }
@@ -397,6 +407,7 @@ describe('Session Summary Side-Effects', () => {
       ])
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+      await flushPromises()
 
       const snarkyPath = stateService.sessionStatePath(sessionId, 'snarky-message.json')
       const snarkyContent = stateService.getStored(snarkyPath) as { message: string; timestamp: string }
@@ -436,6 +447,7 @@ describe('Session Summary Side-Effects', () => {
       )
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+      await flushPromises()
 
       // Should only have 1 LLM call (summary), not 2 (summary + snarky)
       expect(llm.recordedRequests).toHaveLength(1)
@@ -471,6 +483,7 @@ describe('Session Summary Side-Effects', () => {
       ])
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+      await flushPromises()
 
       // LLM should be called 3 times (1: summary, 2: snarky, 3: resume)
       expect(llm.recordedRequests).toHaveLength(3)
@@ -506,6 +519,7 @@ describe('Session Summary Side-Effects', () => {
       ])
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+      await flushPromises()
 
       // Should have 2 LLM calls (summary + resume) since no resume exists, no snarky (same title/intent)
       expect(llm.recordedRequests).toHaveLength(2)
@@ -547,6 +561,7 @@ describe('Session Summary Side-Effects', () => {
       )
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+      await flushPromises()
 
       // Should only have 1 LLM call (summary) - resume already exists, no snarky (same values)
       expect(llm.recordedRequests).toHaveLength(1)
@@ -554,6 +569,7 @@ describe('Session Summary Side-Effects', () => {
       // Resume file should still have original content
       const resumePath = stateService.sessionStatePath(sessionId, 'resume-message.json')
       const resumeContent = stateService.getStored(resumePath) as Record<string, unknown>
+      expect(resumeContent.snarky_comment).toBe('Original snarky')
     })
 
     it('does not generate resume message when confidence is below threshold', async () => {
@@ -581,6 +597,7 @@ describe('Session Summary Side-Effects', () => {
       )
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+      await flushPromises()
 
       // Should only have 1 LLM call (summary) - resume skipped due to low confidence, no snarky (same values)
       expect(llm.recordedRequests).toHaveLength(1)
@@ -631,6 +648,7 @@ describe('Session Summary Side-Effects', () => {
 
       // Should not throw - main flow continues despite snarky failure
       await expect(updateSessionSummary(createUserPromptEvent(sessionId), ctxWithErrors)).resolves.not.toThrow()
+      await flushPromises()
 
       // Summary should still be updated
       const summaryPath = stateService.sessionStatePath(sessionId, 'session-summary.json')

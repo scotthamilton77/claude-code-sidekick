@@ -110,7 +110,7 @@ Per **docs/design/flow.md §2.3**, the unified HandlerRegistry processes both CL
 - **Unified Event Queue**: Handlers register for hook events, transcript events, or both via filter patterns.
 - **Execution Priority**: Determines handler invocation order (higher priority runs first).
 - **Error Isolation**: Handlers implement internal try/catch. Unhandled exceptions are logged; execution continues to next handler.
-- **Concurrency Model**: Hook events processed sequentially (synchronous response required); transcript events processed concurrently (fire-and-forget).
+- **Concurrency Model**: Hook events processed sequentially (synchronous response required); transcript events are concurrent within each event (handlers run via `Promise.all`) but serialized across events (each line fully settles before the next starts).
 - **Role Separation**: CLI handles hook dispatch; Daemon handles transcript events and async work.
 
 **Handler Signature**:
@@ -302,7 +302,7 @@ type EventHandler<T extends RuntimeContext = RuntimeContext> = (
 interface HandlerRegistry {
   register(options: HandlerRegistration): void
   invokeHook(hook: HookName, event: HookEvent): Promise<HookResponse> // Sequential, returns response
-  emitTranscriptEvent(eventType: TranscriptEventType, entry: TranscriptEntry, lineNumber: number): void // Concurrent, fire-and-forget
+  emitTranscriptEvent(eventType: TranscriptEventType, entry: TranscriptEntry, lineNumber: number): Promise<void> // Handlers run concurrently within event; callers serialize across events
 }
 ```
 

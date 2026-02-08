@@ -122,7 +122,8 @@ export interface HandlerRegistration<TContext extends HandlerContext = HandlerCo
  *
  * Processing model:
  * - Hook events: Handlers execute sequentially (must produce single response)
- * - Transcript events: Handlers execute concurrently (fire-and-forget)
+ * - Transcript events: Handlers run concurrently within a single event,
+ *   but events are serialized across lines (each line settles before the next)
  *
  * Error handling:
  * - Handlers should implement internal try/catch for graceful degradation
@@ -147,7 +148,8 @@ export interface HandlerRegistry {
 
   /**
    * Emit a transcript event to matching handlers.
-   * Executes matching handlers concurrently (fire-and-forget).
+   * Handlers for a single event run concurrently via Promise.all,
+   * but callers serialize across events (await each before the next).
    *
    * @param eventType - The transcript event type
    * @param entry - Raw transcript entry
@@ -159,5 +161,5 @@ export interface HandlerRegistry {
     entry: TranscriptEntry,
     lineNumber: number,
     isBulkProcessing?: boolean
-  ): void
+  ): Promise<void>
 }

@@ -1211,7 +1211,7 @@ export class TranscriptServiceImpl implements TranscriptService {
             continue
           }
           const entry = parsed.data as TranscriptEntry
-          this.processEntry(entry, lineNumber)
+          await this.processEntry(entry, lineNumber)
         } catch {
           this.options.logger.warn('Skipping malformed transcript line', {
             sessionId: this.sessionId,
@@ -1240,7 +1240,7 @@ export class TranscriptServiceImpl implements TranscriptService {
     // Emit BulkProcessingComplete if we were in bulk mode
     if (isBulkStart && this.isBulkProcessing) {
       this.isBulkProcessing = false
-      this.emitEvent('BulkProcessingComplete', {} as TranscriptEntry, lineNumber)
+      await this.emitEvent('BulkProcessingComplete', {} as TranscriptEntry, lineNumber)
       this.options.logger.info('Bulk processing complete', {
         sessionId: this.sessionId,
         totalLinesProcessed: lineNumber,
@@ -1326,7 +1326,7 @@ export class TranscriptServiceImpl implements TranscriptService {
    * - isMeta messages (disclaimer/caveat messages injected by Claude Code)
    * - local-command-stdout messages (output from slash commands like /context)
    */
-  private processEntry(entry: TranscriptEntry, lineNumber: number): void {
+  private async processEntry(entry: TranscriptEntry, lineNumber: number): Promise<void> {
     const entryType = entry.type as string | undefined
 
     switch (entryType) {
@@ -1344,7 +1344,7 @@ export class TranscriptServiceImpl implements TranscriptService {
           // Still emit UserPrompt for local command output (e.g., /context) so handlers can process it
           // Handlers that want to scrape /context output need to receive these events
           if (isLocalCommandOutput) {
-            this.emitEvent('UserPrompt', entry, lineNumber)
+            await this.emitEvent('UserPrompt', entry, lineNumber)
           }
         } else {
           // Real user prompt: new turn, reset toolsThisTurn
@@ -1352,11 +1352,11 @@ export class TranscriptServiceImpl implements TranscriptService {
           this.metrics.messageCount++
           this.metrics.toolsThisTurn = 0
           this.updateToolsPerTurn()
-          this.emitEvent('UserPrompt', entry, lineNumber)
+          await this.emitEvent('UserPrompt', entry, lineNumber)
         }
 
         // Process tool_result blocks nested in user message content
-        this.processNestedToolResults(entry, lineNumber)
+        await this.processNestedToolResults(entry, lineNumber)
         break
       }
 
@@ -1364,17 +1364,17 @@ export class TranscriptServiceImpl implements TranscriptService {
         // Assistant message: increment messageCount, extract token usage
         this.metrics.messageCount++
         this.extractTokenUsage(entry)
-        this.emitEvent('AssistantMessage', entry, lineNumber)
+        await this.emitEvent('AssistantMessage', entry, lineNumber)
 
         // Process tool_use blocks nested in assistant message content
-        this.processNestedToolUses(entry, lineNumber)
+        await this.processNestedToolUses(entry, lineNumber)
         break
 
       case 'system': {
         // Check for compact_boundary entry (indicates compaction occurred)
         const subtype = (entry as { subtype?: string }).subtype
         if (subtype === 'compact_boundary') {
-          this.handleCompactBoundary(entry, lineNumber)
+          await this.handleCompactBoundary(entry, lineNumber)
         }
         // Skip other system entry types
         break
@@ -1434,7 +1434,7 @@ export class TranscriptServiceImpl implements TranscriptService {
    * Process nested tool_use blocks inside assistant message content.
    * Real transcripts have: assistant.message.content[{type: 'tool_use', name: '...'}]
    */
-  private processNestedToolUses(entry: TranscriptEntry, lineNumber: number): void {
+  private async processNestedToolUses(entry: TranscriptEntry, lineNumber: number): Promise<void> {
     const message = entry.message as { content?: Array<{ type?: string; name?: string }> } | undefined
     if (!message?.content || !Array.isArray(message.content)) return
 
@@ -1452,7 +1452,7 @@ export class TranscriptServiceImpl implements TranscriptService {
           name: block.name,
           ...block,
         }
-        this.emitEvent('ToolCall', toolEntry, lineNumber)
+        await this.emitEvent('ToolCall', toolEntry, lineNumber)
       }
     }
   }
@@ -1462,7 +1462,7 @@ export class TranscriptServiceImpl implements TranscriptService {
    * Real transcripts have: user.message.content[{type: 'tool_result', ...}]
    * Note: Tool counting happens in processNestedToolUses (on ToolCall), not here.
    */
-  private processNestedToolResults(entry: TranscriptEntry, lineNumber: number): void {
+  private async processNestedToolResults(entry: TranscriptEntry, lineNumber: number): Promise<void> {
     const message = entry.message as { content?: Array<{ type?: string; tool_use_id?: string }> } | undefined
     if (!message?.content || !Array.isArray(message.content)) return
 
@@ -1473,7 +1473,7 @@ export class TranscriptServiceImpl implements TranscriptService {
           type: 'tool_result',
           ...block,
         }
-        this.emitEvent('ToolResult', toolEntry, lineNumber)
+        await this.emitEvent('ToolResult', toolEntry, lineNumber)
       }
     }
   }
@@ -1482,7 +1482,7 @@ export class TranscriptServiceImpl implements TranscriptService {
    * Handle compact_boundary entry detected in transcript.
    * Sets indeterminate state until next usage block arrives.
    */
-  private handleCompactBoundary(entry: TranscriptEntry, lineNumber: number): void {
+  private async handleCompactBoundary(entry: TranscriptEntry, lineNumber: number): Promise<void> {
     const metadata = (entry as { compactMetadata?: { trigger?: string; preTokens?: number } }).compactMetadata
 
     this.options.logger.info('Compaction boundary detected in transcript', {
@@ -1497,7 +1497,7 @@ export class TranscriptServiceImpl implements TranscriptService {
     this.metrics.isPostCompactIndeterminate = true
 
     // Emit Compact event for handlers
-    this.emitEvent('Compact', entry, lineNumber)
+    await this.emitEvent('Compact', entry, lineNumber)
   }
 
   /**
@@ -1578,8 +1578,8 @@ export class TranscriptServiceImpl implements TranscriptService {
    * Emit a transcript event to the handler registry.
    * Metrics are updated BEFORE emitting, so handlers see current state.
    */
-  private emitEvent(eventType: TranscriptEventType, entry: TranscriptEntry, lineNumber: number): void {
-    this.options.handlers.emitTranscriptEvent(eventType, entry, lineNumber, this.isBulkProcessing)
+  private async emitEvent(eventType: TranscriptEventType, entry: TranscriptEntry, lineNumber: number): Promise<void> {
+    await this.options.handlers.emitTranscriptEvent(eventType, entry, lineNumber, this.isBulkProcessing)
   }
 
   // ============================================================================

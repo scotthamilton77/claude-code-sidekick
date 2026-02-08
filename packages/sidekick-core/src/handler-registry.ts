@@ -6,7 +6,8 @@
  *
  * Processing model:
  * - Hook events: Handlers execute sequentially (must produce single response)
- * - Transcript events: Handlers execute concurrently (fire-and-forget)
+ * - Transcript events: Handlers run concurrently within a single event,
+ *   but events are serialized across lines (each line settles before the next)
  *
  * @see docs/design/flow.md §2.3 Handler Registration
  * @see docs/design/CORE-RUNTIME.md §3.5 Handler Registry
@@ -210,15 +211,15 @@ export class HandlerRegistryImpl implements HandlerRegistry {
   }
 
   // ============================================================================
-  // Transcript Event Dispatch (Concurrent)
+  // Transcript Event Dispatch (Concurrent within event, serialized across events)
   // ============================================================================
 
-  emitTranscriptEvent(
+  async emitTranscriptEvent(
     eventType: TranscriptEventType,
     entry: TranscriptEntry,
     lineNumber: number,
     isBulkProcessing = false
-  ): void {
+  ): Promise<void> {
     const matchingHandlers = this.getHandlersForTranscript(eventType)
 
     // Build transcript event (needed for logging even if no handlers)
@@ -256,11 +257,8 @@ export class HandlerRegistryImpl implements HandlerRegistry {
       handlerCount: matchingHandlers.length,
     })
 
-    // Fire-and-forget: invoke all handlers concurrently
-    for (const handler of matchingHandlers) {
-      // Don't await - handlers run concurrently
-      void this.invokeTranscriptHandler(handler, event)
-    }
+    // Run all matching handlers concurrently, await settlement before returning
+    await Promise.all(matchingHandlers.map((h) => this.invokeTranscriptHandler(h, event)))
   }
 
   private async invokeTranscriptHandler(handler: StoredHandler, event: TranscriptEvent): Promise<void> {

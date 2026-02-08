@@ -57,8 +57,9 @@ export class MockHandlerRegistry implements HandlerRegistry {
     return Promise.resolve(this.defaultHookResponse)
   }
 
-  emitTranscriptEvent(eventType: TranscriptEventType, entry: TranscriptEntry, lineNumber: number): void {
+  emitTranscriptEvent(eventType: TranscriptEventType, entry: TranscriptEntry, lineNumber: number): Promise<void> {
     this.emitTranscriptCalls.push({ eventType, entry, lineNumber })
+    return Promise.resolve()
   }
 
   // ========== Test helpers ==========

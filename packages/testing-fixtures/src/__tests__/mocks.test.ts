@@ -22,7 +22,7 @@ import {
   createTestFeature,
   createRecordingFeature,
 } from '../index'
-import type { SessionStartHookEvent, TranscriptEvent, EventContext, StagedReminder } from '@sidekick/types'
+import type { SessionStartHookEvent, EventContext, StagedReminder } from '@sidekick/types'
 
 /** Helper to create valid StagedReminder test fixtures */
 function createTestReminder(name: string, overrides: Partial<StagedReminder> = {}): StagedReminder {
@@ -1286,9 +1286,9 @@ describe('MockHandlerRegistry', () => {
   })
 
   describe('emitTranscriptEvent', () => {
-    it('records emission', () => {
+    it('records emission', async () => {
       const entry = { type: 'human', message: 'Hello' }
-      registry.emitTranscriptEvent('UserPrompt', entry, 42)
+      await registry.emitTranscriptEvent('UserPrompt', entry, 42)
 
       const calls = registry.getEmitTranscriptCalls()
       expect(calls).toHaveLength(1)
@@ -1307,7 +1307,7 @@ describe('MockHandlerRegistry', () => {
         handler: async () => {},
       })
       await registry.invokeHook('SessionStart', sessionStartEvent)
-      registry.emitTranscriptEvent('UserPrompt', {}, 1)
+      await registry.emitTranscriptEvent('UserPrompt', {}, 1)
       registry.defaultHookResponse = { blocking: true }
 
       registry.reset()

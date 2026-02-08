@@ -386,7 +386,7 @@ TranscriptService emits transcript events into the Daemon's unified event queue 
 
 ```typescript
 // TranscriptService emits events to the EventDispatcher
-private emitTranscriptEvent(eventType: TranscriptEventType, entry: TranscriptEntry, lineNumber: number): void {
+private async emitTranscriptEvent(eventType: TranscriptEventType, entry: TranscriptEntry, lineNumber: number): Promise<void> {
   // Note: Metrics are already updated before this call
   const event: TranscriptEvent = {
     kind: 'transcript',
@@ -411,7 +411,7 @@ private emitTranscriptEvent(eventType: TranscriptEventType, entry: TranscriptEnt
 }
 ```
 
-Handlers registered for transcript events (via `filter: { kind: 'transcript', eventTypes: [...] }`) are invoked concurrently.
+Handlers registered for transcript events (via `filter: { kind: 'transcript', eventTypes: [...] }`) run concurrently within each event via `Promise.all`; the caller serializes across events so each line fully settles before the next starts.
 
 ## 6. Implementation Details
 

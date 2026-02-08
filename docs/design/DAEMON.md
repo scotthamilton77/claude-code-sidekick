@@ -138,7 +138,7 @@ See **docs/design/flow.md §4** for reminder file schema and **docs/design/FEATU
 
 The Daemon registers **handlers** that execute in response to events from two sources:
 1. **Hook Events**: Received via IPC from CLI (processed sequentially for synchronous response).
-2. **Transcript Events**: Emitted by TranscriptService on file changes (processed concurrently, fire-and-forget).
+2. **Transcript Events**: Emitted by TranscriptService on file changes (handlers run concurrently within each event via `Promise.all`; events are serialized across lines — each line fully settles before the next starts).
 
 Per **docs/design/flow.md §2.3** and **docs/design/CORE-RUNTIME.md §3.5**, handlers register with filters to specify which events they process:
 
