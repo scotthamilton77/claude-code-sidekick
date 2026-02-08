@@ -29,9 +29,9 @@ function createMockLogger(): Logger & {
   const mockFn = vi.fn()
   const logger: Logger = {
     trace: mockFn,
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
+    debug: vi.fn() as any,
+    info: vi.fn() as any,
+    warn: vi.fn() as any,
     error: mockFn,
     fatal: mockFn,
     child: () => logger,

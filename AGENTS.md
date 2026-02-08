@@ -122,3 +122,65 @@ See README.md "Testing Outside Dev-Mode" section for full instructions.
 
 **Behavior Changes**: `prefer-nullish-coalescing` ignores conditional tests; dot-directories matched by default in `parserOptions.project` globs
 </typescript_tooling>
+
+<vitest_upgrade>
+<!-- PRESERVE: vitest 4.x upgrade context and migration notes -->
+
+**Versions**: vitest 4.0.18, vite 6.x, esbuild 0.27.3
+
+**Why we upgraded**: Security vulnerability GHSA-67mh-4wv8-2f99 in esbuild <0.27.3 (bundled with vite 5.x). Required upgrading:
+- vite 5.x → 6.x (to get patched esbuild)
+- vitest 2.x → 4.x (hard dependency on vite 6.x)
+
+**Vitest 2.x → 4.x Breaking Changes**:
+
+1. **Constructor mocking**: `vi.fn()` and `vi.spyOn()` now return `Mock<Procedure | Constructable>` instead of simple function type
+   - Arrow functions **cannot** be used as constructor mocks
+   - Use `function` keyword or `class` keyword for constructors
+
+   ```typescript
+   // ❌ BROKEN in vitest 4.x
+   vi.mock('openai', () => ({
+     default: vi.fn().mockImplementation(() => ({ /* mock */ }))  // Arrow function!
+   }))
+
+   // ✅ WORKS in vitest 4.x
+   vi.mock('openai', () => ({
+     default: vi.fn().mockImplementation(function() {  // function keyword
+       return { /* mock */ }
+     })
+   }))
+   ```
+
+2. **Mock type compatibility**: `vi.fn()` results must be cast when assigned to typed interfaces
+   ```typescript
+   // ❌ Type error in vitest 4.x
+   const mockLogger: Logger = {
+     trace: vi.fn(),
+     debug: vi.fn(),
+     // ... Mock<Procedure | Constructable> not assignable to (msg: string) => void
+   }
+
+   // ✅ Cast to bypass type checking
+   const mockLogger: Logger = {
+     trace: vi.fn() as any,
+     debug: vi.fn() as any,
+     // ... or use a helper function that returns 'any'
+   }
+   ```
+
+**Legacy test files**: Six test files use `// @ts-nocheck` to suppress vitest 4.x type errors:
+- `packages/shared-providers/src/__tests__/providers/emulators/emulator-state.test.ts`
+- `packages/sidekick-cli/src/commands/__tests__/dev-mode.test.ts`
+- `packages/sidekick-cli/src/commands/__tests__/persona.test.ts`
+- `packages/sidekick-cli/src/commands/__tests__/sessions.test.ts`
+- `packages/sidekick-cli/src/commands/__tests__/statusline.test.ts`
+- `packages/sidekick-cli/src/commands/__tests__/ui.test.ts`
+
+**Do NOT use `@ts-nocheck` in new test files**. Instead:
+- Use `function` keyword (not arrow functions) for constructor mocks
+- Cast `vi.fn()` results with `as any` when needed for type compatibility
+- Create typed helper functions for common mock patterns
+
+See bead `sidekick--1` for cleanup task to refactor legacy test files.
+</vitest_upgrade>

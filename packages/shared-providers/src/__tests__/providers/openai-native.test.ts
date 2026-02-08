@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createLogManager } from '@sidekick/core'
 import { OpenAINativeProvider, AuthError, RateLimitError, TimeoutError, ProviderError } from '../../index'
 import OpenAI from 'openai'
@@ -8,13 +8,15 @@ const mockCreate = vi.fn()
 
 // Mock the OpenAI module
 vi.mock('openai', () => {
-  const MockOpenAI = vi.fn().mockImplementation(() => ({
-    chat: {
-      completions: {
-        create: mockCreate,
+  const MockOpenAI = vi.fn().mockImplementation(function () {
+    return {
+      chat: {
+        completions: {
+          create: mockCreate,
+        },
       },
-    },
-  }))
+    }
+  })
   return {
     default: Object.assign(MockOpenAI, {
       APIError: class APIError extends Error {

@@ -320,7 +320,7 @@ describe('IPC', () => {
     const VALID_TOKEN = 'valid-test-token-abc123'
 
     // Creates a handler that implements token validation (like daemon does)
-    const createTokenValidatingHandler = (expectedToken: string): ReturnType<typeof vi.fn> => {
+    const createTokenValidatingHandler = (expectedToken: string): any => {
       return vi.fn().mockImplementation((method: string, params: unknown) => {
         const p = params as Record<string, unknown> | undefined
 

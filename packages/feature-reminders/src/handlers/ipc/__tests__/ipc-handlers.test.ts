@@ -53,10 +53,10 @@ function createMockStateService(): MockStateService {
 
 function createMockLogger(): IPCHandlerContext['logger'] {
   return {
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
+    debug: vi.fn() as any,
+    info: vi.fn() as any,
+    warn: vi.fn() as any,
+    error: vi.fn() as any,
   }
 }
 

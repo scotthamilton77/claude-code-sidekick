@@ -56,12 +56,12 @@ function createMockStateService(): MinimalStateService {
 
 function createMockLogger(): Logger {
   return {
-    trace: vi.fn(),
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    fatal: vi.fn(),
+    trace: vi.fn() as any,
+    debug: vi.fn() as any,
+    info: vi.fn() as any,
+    warn: vi.fn() as any,
+    error: vi.fn() as any,
+    fatal: vi.fn() as any,
     child: vi.fn().mockReturnThis(),
     flush: vi.fn().mockResolvedValue(undefined),
   }

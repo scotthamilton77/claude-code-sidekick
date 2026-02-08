@@ -12,17 +12,19 @@ import { OpenAINativeProvider } from '../providers/openai-native'
 // Mock the OpenAI client
 vi.mock('openai', () => {
   return {
-    default: vi.fn().mockImplementation(() => ({
-      chat: {
-        completions: {
-          create: vi.fn().mockResolvedValue({
-            choices: [{ message: { content: 'test response' } }],
-            model: 'test-model',
-            usage: { prompt_tokens: 10, completion_tokens: 20 },
-          }),
+    default: vi.fn().mockImplementation(function () {
+      return {
+        chat: {
+          completions: {
+            create: vi.fn().mockResolvedValue({
+              choices: [{ message: { content: 'test response' } }],
+              model: 'test-model',
+              usage: { prompt_tokens: 10, completion_tokens: 20 },
+            }),
+          },
         },
-      },
-    })),
+      }
+    }),
   }
 })
 
@@ -42,16 +44,15 @@ describe('OpenAINativeProvider - Provider Routing', () => {
       model: 'test-model',
       usage: { prompt_tokens: 10, completion_tokens: 20 },
     })
-    vi.mocked(OpenAI).mockImplementation(
-      () =>
-        ({
-          chat: {
-            completions: {
-              create: mockCreate,
-            },
+    vi.mocked(OpenAI).mockImplementation(function () {
+      return {
+        chat: {
+          completions: {
+            create: mockCreate,
           },
-        }) as any
-    )
+        },
+      } as any
+    })
   })
 
   afterEach(() => {
@@ -202,12 +203,12 @@ describe('OpenAINativeProvider - Provider Routing', () => {
   describe('Provider routing logged in initialization', () => {
     it('logs providerAllowlist and providerBlocklist in debug output', () => {
       const mockLogger = {
-        trace: vi.fn(),
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-        fatal: vi.fn(),
+        trace: vi.fn() as any,
+        debug: vi.fn() as any,
+        info: vi.fn() as any,
+        warn: vi.fn() as any,
+        error: vi.fn() as any,
+        fatal: vi.fn() as any,
         child: vi.fn().mockReturnThis(),
         flush: vi.fn().mockResolvedValue(undefined),
       } as any
