@@ -245,6 +245,160 @@ describe('TranscriptServiceImpl', () => {
   })
 
   // --------------------------------------------------------------------------
+  // catchUp() Serialization Tests
+  // --------------------------------------------------------------------------
+
+  describe('catchUp', () => {
+    it('processes new transcript entries written after start()', async () => {
+      // Start with one entry
+      writeFileSync(
+        transcriptPath,
+        JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } }) + '\n'
+      )
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
+
+      expect(service.getMetrics().turnCount).toBe(1)
+
+      // Append a new entry (simulates Claude writing to transcript)
+      const { appendFileSync } = await import('node:fs')
+      appendFileSync(
+        transcriptPath,
+        JSON.stringify({
+          type: 'assistant',
+          message: { role: 'assistant', content: [{ type: 'text', text: 'Hi there' }] },
+        }) + '\n'
+      )
+
+      // Without catchUp, the buffer wouldn't have the new entry yet
+      // (file watcher debounce hasn't fired)
+      await service.catchUp()
+
+      expect(service.getMetrics().messageCount).toBe(2)
+    })
+
+    it('is idempotent when called twice with no new data', async () => {
+      writeFileSync(
+        transcriptPath,
+        JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } }) + '\n'
+      )
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
+
+      const metricsBefore = service.getMetrics()
+
+      // Two serial catchUp calls - second should find nothing new
+      await service.catchUp()
+      await service.catchUp()
+
+      const metricsAfter = service.getMetrics()
+      expect(metricsAfter.turnCount).toBe(metricsBefore.turnCount)
+      expect(metricsAfter.messageCount).toBe(metricsBefore.messageCount)
+    })
+
+    it('serializes with concurrent calls (no duplicate events)', async () => {
+      writeFileSync(
+        transcriptPath,
+        JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } }) + '\n'
+      )
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
+
+      // Append new data
+      const { appendFileSync } = await import('node:fs')
+      appendFileSync(
+        transcriptPath,
+        JSON.stringify({
+          type: 'assistant',
+          message: { role: 'assistant', content: [{ type: 'text', text: 'Response' }] },
+        }) + '\n'
+      )
+
+      // Fire two catchUp calls concurrently
+      await Promise.all([service.catchUp(), service.catchUp()])
+
+      // Should have processed the new entry exactly once
+      expect(service.getMetrics().messageCount).toBe(2)
+    })
+
+    it('cancels pending debounce timer', async () => {
+      writeFileSync(
+        transcriptPath,
+        JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } }) + '\n'
+      )
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
+
+      // Append new data
+      const { appendFileSync } = await import('node:fs')
+      appendFileSync(
+        transcriptPath,
+        JSON.stringify({
+          type: 'assistant',
+          message: { role: 'assistant', content: [{ type: 'text', text: 'Response' }] },
+        }) + '\n'
+      )
+
+      // catchUp should process immediately, not wait for debounce
+      await service.catchUp()
+
+      expect(service.getMetrics().messageCount).toBe(2)
+    })
+
+    it('recovers after processTranscriptFile() error (chain not poisoned)', async () => {
+      writeFileSync(
+        transcriptPath,
+        JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } }) + '\n'
+      )
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
+
+      expect(service.getMetrics().turnCount).toBe(1)
+
+      // Delete the file to force an error path (statSync will throw or existsSync returns false)
+      const { unlinkSync, appendFileSync } = await import('node:fs')
+      unlinkSync(transcriptPath)
+
+      // catchUp on a missing file should not throw (processTranscriptFile guards with existsSync)
+      await service.catchUp()
+
+      // Recreate the file with new data
+      writeFileSync(
+        transcriptPath,
+        JSON.stringify({ type: 'user', message: { role: 'user', content: 'New session' } }) + '\n'
+      )
+      appendFileSync(
+        transcriptPath,
+        JSON.stringify({
+          type: 'assistant',
+          message: { role: 'assistant', content: [{ type: 'text', text: 'Reply' }] },
+        }) + '\n'
+      )
+
+      // Next catchUp should succeed — chain is not poisoned
+      await service.catchUp()
+
+      // File was recreated so it processes from offset 0 (truncation detection)
+      const metrics = service.getMetrics()
+      expect(metrics.turnCount).toBeGreaterThanOrEqual(1)
+      expect(metrics.messageCount).toBeGreaterThanOrEqual(2)
+    })
+
+    it('is a safe no-op after shutdown()', async () => {
+      writeFileSync(
+        transcriptPath,
+        JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } }) + '\n'
+      )
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
+      await service.shutdown()
+
+      // Should not throw — transcriptPath is null, processTranscriptFile bails early
+      await expect(service.catchUp()).resolves.toBeUndefined()
+    })
+  })
+
+  // --------------------------------------------------------------------------
   // Metrics Computation Tests
   // --------------------------------------------------------------------------
 

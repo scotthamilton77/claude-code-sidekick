@@ -497,6 +497,7 @@ export class Daemon {
       const transcriptPath = reconstructTranscriptPath(this.projectDir, sessionId)
       const transcriptService = await this.serviceFactory.prepareTranscriptService(sessionId, transcriptPath)
       await transcriptService.start()
+      await transcriptService.catchUp()
 
       // Get context for task execution
       const ctx = await this.getContextForTask(sessionId)
@@ -868,9 +869,9 @@ export class Daemon {
     const resolvedTranscriptPath = transcriptPath ?? reconstructTranscriptPath(this.projectDir, sessionId)
     const transcriptService = await this.serviceFactory.prepareTranscriptService(sessionId, resolvedTranscriptPath)
     await transcriptService.start()
+    await transcriptService.catchUp()
 
     const ctx = await this.getContextForTask(sessionId)
-    // Replace stub transcript with actual service
     const ctxWithTranscript = { ...ctx, transcript: transcriptService }
 
     return generateSnarkyMessageOnDemand(ctxWithTranscript, sessionId)
@@ -896,9 +897,9 @@ export class Daemon {
     const resolvedTranscriptPath = transcriptPath ?? reconstructTranscriptPath(this.projectDir, sessionId)
     const transcriptService = await this.serviceFactory.prepareTranscriptService(sessionId, resolvedTranscriptPath)
     await transcriptService.start()
+    await transcriptService.catchUp()
 
     const ctx = await this.getContextForTask(sessionId)
-    // Replace stub transcript with actual service
     const ctxWithTranscript = { ...ctx, transcript: transcriptService }
 
     return generateResumeMessageOnDemand(ctxWithTranscript, sessionId)
@@ -938,6 +939,7 @@ export class Daemon {
     const stagingService = this.serviceFactory.getStagingService(sessionId)
     const transcriptService = await this.serviceFactory.prepareTranscriptService(sessionId, resolvedTranscriptPath)
     await transcriptService.start()
+    await transcriptService.catchUp()
 
     const featureConfig = this.configService.getFeature<{ settings?: { completion_detection?: unknown } }>('reminders')
     const settings = featureConfig.settings?.completion_detection as
@@ -1135,6 +1137,7 @@ export class Daemon {
     const transcriptService: TranscriptService = {
       prepare: async () => {},
       start: async () => {},
+      catchUp: async () => {},
       shutdown: async () => {},
       getTranscript: () => ({
         entries: [],
@@ -1298,6 +1301,9 @@ export class Daemon {
 
     // STEP 3: Start transcript service - NOW events can fire with full context
     await transcriptService.start()
+
+    // STEP 4: Force-read any transcript data the file watcher hasn't consumed yet
+    await transcriptService.catchUp()
 
     log.debug('DaemonContext set for handler invocation')
   }
