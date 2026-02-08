@@ -156,6 +156,18 @@ export interface TranscriptService {
   start(): Promise<void>
 
   /**
+   * Force an immediate catch-up read of the transcript file.
+   * Ensures the in-memory buffer reflects the latest file contents
+   * before returning. Serialized with file-watcher processing to
+   * prevent concurrent reads.
+   *
+   * Call this before reading from the buffer (e.g. getRecentEntries)
+   * when you need guaranteed-fresh data — the file watcher's debounce
+   * may not have fired yet.
+   */
+  catchUp(): Promise<void>
+
+  /**
    * Shutdown the service.
    * Stops file watching and persists final state.
    */
@@ -172,6 +184,12 @@ export interface TranscriptService {
   /**
    * Get a windowed excerpt for LLM context.
    * Supports bookmark-based tiered extraction.
+   *
+   * Note: Reads from the in-memory buffer, which may lag behind the file
+   * due to file-watcher debouncing. Call {@link catchUp} first if you
+   * need guaranteed-fresh data. The daemon does this automatically before
+   * dispatching to hook handlers.
+   *
    * @see docs/design/FEATURE-SESSION-SUMMARY.md §3.2.2
    */
   getExcerpt(options?: ExcerptOptions): TranscriptExcerpt
@@ -181,6 +199,11 @@ export interface TranscriptService {
    * Returns normalized entries in chronological order (oldest first).
    * Use this instead of getTranscript() when you only need recent entries,
    * as it avoids reading the full transcript file.
+   *
+   * Note: Reads from the in-memory buffer, which may lag behind the file
+   * due to file-watcher debouncing. Call {@link catchUp} first if you
+   * need guaranteed-fresh data. The daemon does this automatically before
+   * dispatching to hook handlers.
    *
    * @param count Maximum number of entries to return (default: 100)
    * @returns Array of canonical transcript entries

@@ -252,6 +252,9 @@ export class TranscriptServiceImpl implements TranscriptService {
   /** Byte offset of last processed position in transcript file */
   private lastProcessedByteOffset = 0
 
+  /** Serializes all processTranscriptFile() calls to prevent concurrent reads. */
+  private processChain: Promise<void> = Promise.resolve()
+
   // Circular buffer for excerpt generation (avoids re-reading large files)
   /** Ring buffer of recent transcript entries for excerpt queries */
   private excerptBuffer: BufferedEntry[] = []
@@ -334,10 +337,39 @@ export class TranscriptServiceImpl implements TranscriptService {
       this.persistIntervalTimer.unref()
     }
 
-    // Process existing content (emits events)
-    await this.processTranscriptFile()
+    // Process existing content (emits events), serialized through the chain
+    await this.enqueueProcessing()
 
     this.options.logger.info('TranscriptService started', { sessionId: this.sessionId })
+  }
+
+  /**
+   * Force an immediate catch-up read of the transcript file.
+   * Serialized with file-watcher processing via the promise chain.
+   * If the buffer is already current, this returns immediately.
+   */
+  async catchUp(): Promise<void> {
+    // Cancel any pending debounced processing — we're about to read now
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer)
+      this.debounceTimer = null
+    }
+    await this.enqueueProcessing()
+  }
+
+  /**
+   * Enqueue a processTranscriptFile() call through the serialization chain.
+   * Guarantees no concurrent execution: if a call is in-flight, this one
+   * waits for it to finish, then runs (finding nothing new if the first
+   * call already consumed everything).
+   */
+  private enqueueProcessing(): Promise<void> {
+    const next = this.processChain.then(() => this.processTranscriptFile())
+    // Swallow errors on the chain itself so a failed call doesn't break
+    // subsequent enqueued calls. The returned promise still rejects for
+    // the caller who enqueued it.
+    this.processChain = next.catch(() => {})
+    return next
   }
 
   async shutdown(): Promise<void> {
@@ -360,6 +392,9 @@ export class TranscriptServiceImpl implements TranscriptService {
       await this.watcher.close()
       this.watcher = null
     }
+
+    // Wait for any in-flight processing to complete before persisting
+    await this.processChain
 
     // Persist final state immediately
     await this.persistMetrics(true)
@@ -1073,7 +1108,7 @@ export class TranscriptServiceImpl implements TranscriptService {
         clearTimeout(this.debounceTimer)
       }
       this.debounceTimer = setTimeout(() => {
-        this.processTranscriptFile().catch((err) => {
+        this.enqueueProcessing().catch((err) => {
           this.options.logger.error('Error processing transcript file', { err, sessionId: this.sessionId })
         })
       }, this.options.watchDebounceMs)

@@ -99,6 +99,13 @@ export class MockTranscriptService implements TranscriptService {
     return Promise.resolve()
   }
 
+  /**
+   * Force catch-up read. No-op in mock since there's no file to read.
+   */
+  catchUp(): Promise<void> {
+    return Promise.resolve()
+  }
+
   shutdown(): Promise<void> {
     this.sessionId = null
     this.transcriptPath = null
