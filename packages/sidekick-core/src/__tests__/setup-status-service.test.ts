@@ -183,7 +183,7 @@ describe('SetupStatusService', () => {
   })
 
   describe('getStatuslineHealth', () => {
-    it('returns "not-setup" when no status files exist', async () => {
+    it('returns "none" when no status files exist', async () => {
       const result = await service.getStatuslineHealth()
       expect(result).toBe('none')
     })
@@ -196,7 +196,7 @@ describe('SetupStatusService', () => {
       expect(result).toBe('user')
     })
 
-    it('returns project status when project status is "configured"', async () => {
+    it('returns "user" when project status is "user"', async () => {
       await writeUserStatus(createUserStatus({ statusline: 'user' }))
       await writeProjectStatus(createProjectStatus({ statusline: 'user' }))
 
@@ -204,7 +204,7 @@ describe('SetupStatusService', () => {
       expect(result).toBe('user')
     })
 
-    it('returns project status when project status is "skipped"', async () => {
+    it('returns "none" when project status is "none"', async () => {
       await writeUserStatus(createUserStatus({ statusline: 'user' }))
       await writeProjectStatus(createProjectStatus({ statusline: 'none' }))
 
@@ -690,12 +690,12 @@ describe('SetupStatusService', () => {
   })
 
   describe('detectActualStatusline', () => {
-    it('returns "not-setup" when no settings files exist', async () => {
+    it('returns "none" when no settings files exist', async () => {
       const result = await service.detectActualStatusline()
       expect(result).toBe('none')
     })
 
-    it('returns "configured" when user settings has sidekick statusline', async () => {
+    it('returns "user" when user settings has sidekick statusline', async () => {
       await writeClaudeSettings('user', {
         statusLine: {
           type: 'command',
@@ -719,14 +719,14 @@ describe('SetupStatusService', () => {
       expect(result).toBe('project')
     })
 
-    it('returns "not-setup" when settings exist but no statusLine key', async () => {
+    it('returns "none" when settings exist but no statusLine key', async () => {
       await writeClaudeSettings('user', { someOtherKey: 'value' })
 
       const result = await service.detectActualStatusline()
       expect(result).toBe('none')
     })
 
-    it('returns "not-setup" when statusLine exists but is not sidekick', async () => {
+    it('returns "none" when statusLine exists but is not sidekick', async () => {
       await writeClaudeSettings('user', {
         statusLine: {
           type: 'command',
@@ -738,7 +738,7 @@ describe('SetupStatusService', () => {
       expect(result).toBe('none')
     })
 
-    it('returns "configured" when command contains "sidekick" anywhere', async () => {
+    it('returns "user" when command contains "sidekick" anywhere', async () => {
       await writeClaudeSettings('user', {
         statusLine: {
           type: 'command',
@@ -750,7 +750,7 @@ describe('SetupStatusService', () => {
       expect(result).toBe('user')
     })
 
-    it('prefers project settings over user settings', async () => {
+    it('returns "user" when only user settings has sidekick statusline', async () => {
       await writeClaudeSettings('user', {
         statusLine: { type: 'command', command: 'sidekick statusline' },
       })
@@ -758,8 +758,7 @@ describe('SetupStatusService', () => {
         statusLine: { type: 'command', command: 'other-tool statusline' },
       })
 
-      // Project has non-sidekick statusline, so should return not-setup
-      // Actually, we should check EITHER - if either has sidekick, it's configured
+      // Project has non-sidekick statusline, user has sidekick - returns 'user'
       const result = await service.detectActualStatusline()
       expect(result).toBe('user')
     })

@@ -42,12 +42,12 @@ export function printStatus(ctx: PromptContext, type: 'success' | 'warning' | 'i
  * Prompt for single-choice selection.
  * @param defaultIndex - 0-based index of the default option (selected on empty input). Defaults to 0.
  */
-export async function promptSelect(
+export async function promptSelect<T extends string>(
   ctx: PromptContext,
   question: string,
-  options: Array<{ value: string; label: string; description?: string }>,
+  options: Array<{ value: T; label: string; description?: string }>,
   defaultIndex = 0
-): Promise<string> {
+): Promise<T> {
   ctx.stdout.write(`${question}\n\n`)
 
   options.forEach((opt, i) => {

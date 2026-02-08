@@ -196,6 +196,9 @@ export class SetupStatusService {
   async getUserStatus(): Promise<UserSetupStatus | null> {
     try {
       const content = await fs.readFile(this.userStatusPath, 'utf-8')
+      // Intentional error handling asymmetry:
+      // - JSON.parse throws SyntaxError on corrupt/unparseable files (hard error, file is broken)
+      // - safeParse returns null on schema mismatch (graceful, forward-compatible with schema changes)
       const parsed = UserSetupStatusSchema.safeParse(JSON.parse(content))
       if (!parsed.success) {
         this.logger?.warn('Invalid user setup status', { error: parsed.error })
@@ -303,7 +306,13 @@ export class SetupStatusService {
     try {
       const content = await fs.readFile(envPath, 'utf-8')
       const match = content.match(new RegExp(`^${keyName}=(.+)$`, 'm'))
-      return match ? match[1] : null
+      if (!match) return null
+      let value = match[1].trim()
+      // Strip surrounding quotes (single or double)
+      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1)
+      }
+      return value
     } catch {
       return null
     }
@@ -862,13 +871,18 @@ export class SetupStatusService {
     const apiKeyResults: Record<ApiKeyName, DoctorApiKeyResult> = {} as Record<ApiKeyName, DoctorApiKeyResult>
     const keysToCheck: ApiKeyName[] = ['OPENROUTER_API_KEY', 'OPENAI_API_KEY']
 
-    for (const keyName of keysToCheck) {
-      // Detect across all scopes
-      const detection = await this.detectAllApiKeys(keyName, options.skipValidation)
-      const projectApiKeyStatus = this.buildProjectApiKeyStatus(detection)
+    // Detect all keys and cached health in parallel (IO-bound operations)
+    const [detections, cachedHealthValues] = await Promise.all([
+      Promise.all(keysToCheck.map((keyName) => this.detectAllApiKeys(keyName, options.skipValidation))),
+      Promise.all(keysToCheck.map((keyName) => this.getEffectiveApiKeyHealth(keyName))),
+    ])
 
-      // Get cached health for comparison
-      const cachedHealth = await this.getEffectiveApiKeyHealth(keyName)
+    // Process results and update caches sequentially (writes have ordering dependencies)
+    for (let i = 0; i < keysToCheck.length; i++) {
+      const keyName = keysToCheck[i]
+      const detection = detections[i]
+      const cachedHealth = cachedHealthValues[i]
+      const projectApiKeyStatus = this.buildProjectApiKeyStatus(detection)
 
       const actualHealth = toScopeStatus(projectApiKeyStatus.status) as ApiKeyHealth
       const source: ApiKeySource | null = projectApiKeyStatus.used
