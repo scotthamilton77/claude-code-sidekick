@@ -93,31 +93,63 @@ interface RunCliOptions {
 }
 
 /**
+ * Error thrown when CLI receives unrecognized options.
+ */
+export class UnknownOptionError extends Error {
+  constructor(public readonly unknownOptions: string[]) {
+    const formatted = unknownOptions.map((k) => `--${k}`).join(', ')
+    super(`Unrecognized option(s): ${formatted}`)
+    this.name = 'UnknownOptionError'
+  }
+}
+
+/** Declared CLI options for strict validation. */
+const CLI_OPTIONS = {
+  boolean: ['wait', 'open', 'prefer-project', 'help', 'version', 'kill', 'force', 'gitignore', 'personas'] as const,
+  string: [
+    'project-dir',
+    'log-level',
+    'format',
+    'host',
+    'session-id',
+    'type',
+    'statusline-scope',
+    'api-key-scope',
+    'auto-config',
+  ] as const,
+  number: ['port', 'width'] as const,
+  alias: { h: 'help', v: 'version' } as const,
+}
+
+/** All keys yargs-parser may produce from declared options + positional args. */
+const KNOWN_KEYS = new Set<string>([
+  '_', // positional args (always present)
+  ...CLI_OPTIONS.boolean,
+  ...CLI_OPTIONS.string,
+  ...CLI_OPTIONS.number,
+  ...Object.keys(CLI_OPTIONS.alias),
+])
+
+/**
  * Parse CLI arguments using a well-tested open-source parser to reduce bespoke flag handling.
+ * Throws UnknownOptionError for any unrecognized switches.
  */
 function parseArgs(argv: string[]): ParsedArgs {
   const parsed = yargsParser(argv, {
-    boolean: ['wait', 'open', 'prefer-project', 'help', 'version', 'kill', 'force', 'gitignore', 'personas'],
-    string: [
-      'project-dir',
-      'log-level',
-      'format',
-      'host',
-      'session-id',
-      'type',
-      'statusline-scope',
-      'api-key-scope',
-      'auto-config',
-    ],
-    number: ['port', 'width'],
-    alias: {
-      h: 'help',
-      v: 'version',
-    },
+    boolean: [...CLI_OPTIONS.boolean],
+    string: [...CLI_OPTIONS.string],
+    number: [...CLI_OPTIONS.number],
+    alias: { ...CLI_OPTIONS.alias },
     configuration: {
       'camel-case-expansion': false,
     },
   })
+
+  // Strict validation: reject unrecognized options
+  const unknownKeys = Object.keys(parsed).filter((k) => !KNOWN_KEYS.has(k))
+  if (unknownKeys.length > 0) {
+    throw new UnknownOptionError(unknownKeys)
+  }
 
   const command = parsed._[0] as string | undefined
 
@@ -589,7 +621,17 @@ export async function runCli(options: RunCliOptions): Promise<{ exitCode: number
   }
 
   // 1. Initialize runtime (synchronous)
-  const initResult = initializeRuntime(options)
+  let initResult: InitializeRuntimeResult
+  try {
+    initResult = initializeRuntime(options)
+  } catch (err) {
+    if (err instanceof UnknownOptionError) {
+      const errorMsg = `Error: ${err.message}\nRun 'sidekick --help' for available options.\n`
+      stdout.write(errorMsg)
+      return { exitCode: 1, stdout: errorMsg, stderr: '' }
+    }
+    throw err
+  }
   if (initResult.shouldExit) {
     return { exitCode: 0, stdout: '', stderr: '' }
   }
