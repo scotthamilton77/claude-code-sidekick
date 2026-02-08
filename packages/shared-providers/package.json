@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@sidekick/types": "workspace:*",
-    "openai": "^4.77.3",
+    "openai": "^6.18.0",
     "zod": "^4.1.13"
   },
   "devDependencies": {
