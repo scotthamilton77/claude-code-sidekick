@@ -732,7 +732,7 @@ export interface StatuslineErrorEvent extends LoggingEventBase {
  * Internal event: Transcript event emitted.
  * Emitted when TranscriptService detects and emits a transcript event.
  *
- * @see docs/design/MONITORING-UI.md §4.1
+ * @see packages/sidekick-ui/docs/MONITORING-UI.md §4.1
  */
 export interface TranscriptEventEmittedEvent extends LoggingEventBase {
   type: 'TranscriptEventEmitted'
@@ -757,7 +757,7 @@ export interface TranscriptEventEmittedEvent extends LoggingEventBase {
  * Internal event: Pre-compact snapshot captured.
  * Emitted when CLI copies transcript before compaction.
  *
- * @see docs/design/MONITORING-UI.md §4.1
+ * @see packages/sidekick-ui/docs/MONITORING-UI.md §4.1
  */
 export interface PreCompactCapturedEvent extends LoggingEventBase {
   type: 'PreCompactCaptured'

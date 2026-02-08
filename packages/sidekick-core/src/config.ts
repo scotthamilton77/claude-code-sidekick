@@ -310,7 +310,7 @@ interface ParsedUnifiedConfig {
 }
 
 /**
- * Parse a sidekick.config file with bash-style dot-notation.
+ * Parse a sidekick.config file with dot-notation.
  * Per docs/design/CONFIG-SYSTEM.md §4.2
  *
  * Format:

@@ -1,41 +1,33 @@
-# Claude Code Configuration Lab
+# Sidekick
 
-**Experimental proving ground for Claude Code hooks, commands, agents, and skills**
+**A hook-driven companion for Claude Code: session tracking, reminders, personas, and a monitoring UI**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Overview
 
-This repository serves as a development and testing environment for [Claude Code](https://claude.com/claude-code) configurations before deploying them to your global `~/.claude` directory. It implements a dual-scope architecture where all capabilities work identically in both project-local and user-global contexts.
+Sidekick is a TypeScript monorepo that extends [Claude Code](https://claude.com/claude-code) with a hook-driven daemon, session tracking, reminders, persona system, and a monitoring UI. It implements a dual-scope architecture where all capabilities work identically in both project-local (`.claude/`) and user-global (`~/.claude/`) contexts.
 
 ### Key Features
 
-- **Hook System**: Conversation tracking, topic classification, and response monitoring
-- **Bidirectional Sync**: Seamless transfer between project and global configurations
-- **Command Templates**: Experimental slash command patterns for development workflows
-- **Dual-Scope Testing**: Validate configurations locally before global deployment
-- **Comprehensive Testing**: Test harnesses for setup scripts and hook behavior
+- **Hook System**: Conversation tracking, topic classification, and response monitoring via TypeScript daemon
+- **Session Summary**: LLM-based conversation analysis with adaptive polling
+- **Statusline**: Token tracking, cost display, git branch, and persona indicator
+- **Reminders**: Two-tier system (pause-and-reflect, verify-completion) for workflow nudges
+- **Personas**: 20 character personalities for response flavor
+- **Dual-Scope Parity**: Identical behavior in project (`.claude/`) and user (`~/.claude/`) scopes
+- **Monitoring UI**: React-based time-travel debugging interface
 
 ## Quick Start
 
 ### Prerequisites
 
-**Required for all functionality:**
-
 | Tool | Version | Check Command | Install (macOS) |
 |------|---------|---------------|-----------------|
 | [Claude Code CLI](https://docs.claude.com/en/docs/claude-code) | Latest | `claude --version` | `npm install -g @anthropic-ai/claude-code` |
-| [Node.js](https://nodejs.org/) | ≥20.x | `node --version` | `brew install node` |
+| [Node.js](https://nodejs.org/) | >=20.x | `node --version` | `brew install node` |
 | [pnpm](https://pnpm.io/) | 9.12.2 | `pnpm --version` | `npm install -g pnpm@9.12.2` or `corepack enable` |
-| [jq](https://stedolan.github.io/jq/) | ≥1.6 | `jq --version` | `brew install jq` |
-| Git | ≥2.x | `git --version` | `brew install git` |
-| Bash | ≥3.2 | `bash --version` | Built-in on macOS |
-
-**Optional (for development scripts):**
-
-| Tool | Version | Check Command | Install (macOS) |
-|------|---------|---------------|-----------------|
-| Python 3 | ≥3.9 | `python3 --version` | `brew install python3` |
+| Git | >=2.x | `git --version` | `brew install git` |
 
 **Quick install of missing tools (macOS):**
 
@@ -44,7 +36,7 @@ This repository serves as a development and testing environment for [Claude Code
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
 # Install required tools
-brew install node jq
+brew install node git
 
 # Install pnpm (via corepack, recommended)
 corepack enable && corepack prepare pnpm@9.12.2 --activate
@@ -58,8 +50,8 @@ npm install -g pnpm@9.12.2
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/scotthamilton77/claude-config.git
-cd claude-config
+git clone https://github.com/scotthamilton77/claude-code-sidekick.git
+cd claude-code-sidekick
 ```
 
 2. Install dependencies and build:
@@ -90,19 +82,25 @@ pnpm sidekick dev-mode enable
 │   ├── settings.local.json     # Local overrides (gitignored)
 │   └── mcp.json                # MCP server config
 ├── packages/                   # TypeScript monorepo packages
+│   ├── types/                  # Shared TypeScript types and Zod schemas
 │   ├── sidekick-core/          # Core services (config, transcript, logging)
-│   ├── sidekick-cli/           # CLI entrypoint and hook dispatcher
-│   ├── sidekick-daemon/        # Background daemon for session management
-│   ├── sidekick-plugin/        # Claude Code plugin (hooks.json)
+│   ├── shared-providers/       # LLM provider abstractions (OpenRouter default)
 │   ├── feature-reminders/      # Reminder staging and orchestration
-│   ├── feature-session-summary/# LLM-based analysis
+│   ├── feature-session-summary/# LLM-based conversation analysis
 │   ├── feature-statusline/     # Token tracking and status display
-│   └── shared-providers/       # LLM provider abstractions
+│   ├── sidekick-daemon/        # Background daemon for session management
+│   ├── sidekick-cli/           # CLI entrypoint and hook dispatcher
+│   ├── sidekick-dist/          # Distribution bundle for npm (@scotthamilton77/sidekick)
+│   ├── sidekick-plugin/        # Claude Code plugin (hooks.json)
+│   ├── sidekick-ui/            # Monitoring UI (React SPA)
+│   └── testing-fixtures/       # Shared test mocks and factories
 ├── assets/sidekick/            # Shared configuration and templates
 │   ├── defaults/               # YAML config defaults
 │   ├── personas/               # Character personality profiles
 │   ├── prompts/                # LLM prompt templates
-│   └── reminders/              # Reminder templates (YAML)
+│   ├── reminders/              # Reminder templates (YAML)
+│   ├── schemas/                # JSON Schema artifacts
+│   └── templates/              # Misc templates
 └── scripts/                    # Development utilities
     ├── dev-mode.sh             # Wrapper for dev-mode CLI
     └── dev-sidekick/           # Development hook scripts
@@ -123,7 +121,7 @@ Sidekick is a **TypeScript-based hook system** that enhances Claude Code with se
 - **Session Summary**: LLM-based conversation analysis with adaptive polling
 - **Statusline**: Token tracking, cost display, git branch, persona indicator
 - **Reminders**: Two-tier system (pause-and-reflect, verify-completion)
-- **Personas**: 17 character personalities for response flavor
+- **Personas**: 20 character personalities for response flavor
 
 **Architecture**:
 
@@ -221,9 +219,9 @@ Before publishing a new version:
 | **Hook scripts** | `scripts/dev-sidekick/*` | `packages/sidekick-plugin/hooks/hooks.json` |
 | **Use case** | Rapid iteration | E2E/integration testing |
 
-### Node Package Tests & Coverage
+### Test Coverage
 
-All TypeScript packages under `packages/` use Vitest with coverage enabled by default. Run the workspace tests after `pnpm install`:
+All packages use Vitest with coverage enabled by default. Run the workspace tests after `pnpm install`:
 
 ```bash
 pnpm test
@@ -243,7 +241,7 @@ The repository includes configurations for:
 
 Configure in `.claude/mcp.json`.
 
-### Configuration
+### Sidekick Configuration
 
 Sidekick uses **YAML-based configuration** with a cascade system:
 
@@ -331,9 +329,11 @@ packages/
 
 assets/sidekick/             # Shared configuration and templates
 ├── defaults/                # YAML config defaults
-├── personas/                # Character personality profiles (17 personas)
+├── personas/                # Character personality profiles (20 personas)
 ├── prompts/                 # LLM prompt templates
-└── reminders/               # Reminder YAML templates
+├── reminders/               # Reminder YAML templates
+├── schemas/                 # JSON Schema artifacts
+└── templates/               # Misc templates
 ```
 
 ### CLI Commands
@@ -381,21 +381,6 @@ pnpm sidekick persona test <persona-id> --session-id=<session-id> [--type=snarky
 **Output format**: Use `--format=json` for structured output or `--format=table` for ASCII tables.
 
 Available personas are defined in `assets/sidekick/personas/`.
-
-## Development Patterns
-
-### Dual-Scope Compatibility
-
-All scripts must work in both contexts:
-
-- **Project scope**: `.claude/` within this repository
-- **User scope**: `~/.claude/` global directory
-
-Use environment variables (`$CLAUDE_PROJECT_DIR`) and dynamic path resolution. See `scripts/setup-reminders.sh:186-254` for implementation patterns.
-
-### Timestamp-Based Sync
-
-Sync scripts only copy files newer than their destinations, preserving timestamps for idempotent operations.
 
 ## Troubleshooting
 
@@ -446,5 +431,5 @@ Built for [Claude Code](https://docs.claude.com/en/docs/claude-code) by Anthropi
 ## Links
 
 - [Claude Code Documentation](https://docs.claude.com/en/docs/claude-code)
-- [Issue Tracker](https://github.com/scotthamilton77/claude-config/issues)
-- [Changelog](https://github.com/scotthamilton77/claude-config/commits/main)
+- [Issue Tracker](https://github.com/scotthamilton77/claude-code-sidekick/issues)
+- [Changelog](https://github.com/scotthamilton77/claude-code-sidekick/commits/main)

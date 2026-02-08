@@ -1,8 +1,7 @@
 /**
  * Unit tests for hook command handler.
  *
- * Tests the hook event construction, response formatting, and hook name mapping
- * per Phase 8 requirements.
+ * Tests the hook event construction, response formatting, and hook name mapping.
  *
  * @see docs/design/flow.md §5 Complete Hook Flows
  */

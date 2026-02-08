@@ -1,6 +1,6 @@
 # Context Metrics Low-Level Design
 
-This document describes the context-metrics module in `packages/sidekickd/src/context-metrics/`, which captures Claude Code's actual context window overhead for accurate statusline rendering.
+This document describes the context-metrics module in `packages/sidekick-daemon/src/context-metrics/`, which captures Claude Code's actual context window overhead for accurate statusline rendering.
 
 **Related Documentation:**
 - `docs/design/DAEMON.md` §4.8: ContextMetricsService integration
@@ -47,7 +47,7 @@ Add a `context-metrics` module to daemon that:
 ## 5. Module Structure
 
 ```
-packages/sidekickd/src/context-metrics/
+packages/sidekick-daemon/src/context-metrics/
 ├── index.ts                    # Public exports
 ├── types.ts                    # Schemas and interfaces
 ├── context-metrics-service.ts  # Main service class
@@ -264,7 +264,7 @@ When statusline needs context metrics:
 
 ## 8. Critical Files
 
-1. `packages/sidekickd/src/daemon.ts` - Integration point
+1. `packages/sidekick-daemon/src/daemon.ts` - Integration point
 2. `packages/types/src/services/state.ts` - Schema extensions
 3. `packages/feature-statusline/src/state-reader.ts` - Read context metrics
 4. `packages/feature-statusline/src/statusline-service.ts` - Use metrics in calculations

@@ -215,10 +215,9 @@ All Daemon events follow the unified `SidekickEvent` schema:
 interface SidekickEvent {
   type: string
   time: number                    // Unix timestamp (ms)
-  source: 'cli' | 'daemon'
+  source: 'cli' | 'daemon' | 'transcript'
   context: {
     session_id: string            // Required: correlates all events
-    scope?: 'project' | 'user'
     correlation_id?: string       // Unique ID for CLI command execution
     trace_id?: string             // Links causally-related events
     hook?: string                 // Which hook triggered this event
@@ -237,7 +236,7 @@ interface SidekickEvent {
 | Event Type         | When                                   | Payload                                    |
 | ------------------ | -------------------------------------- | ------------------------------------------ |
 | `EventReceived`    | IPC event arrives from CLI             | `{ metadata: { hook, params } }`           |
-| `HandlerExecuted`  | Handler completes (success or failure) | `{ state: { handler, result }, reason? }`  |
+| `EventProcessed`   | Handler completes (success or failure) | `{ state: { handlerId, success }, metadata: { durationMs } }` |
 | `ReminderStaged`   | Reminder file created/updated          | `{ state: { hook, reminder_name } }`       |
 | `SummaryUpdated`   | Session summary recalculated           | `{ state: { summary } }`                   |
 | `RemindersCleared` | Stage directory cleaned (SessionStart) | `{ metadata: { session_id } }`             |
@@ -251,7 +250,7 @@ interface SidekickEvent {
 ```json
 // Handler executed successfully
 {
-  "type": "HandlerExecuted",
+  "type": "EventProcessed",
   "time": 1678888888888,
   "source": "daemon",
   "context": {

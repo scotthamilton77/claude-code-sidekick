@@ -36,11 +36,12 @@ export const manifest: FeatureManifest = {
 
 Per **docs/design/flow.md §2.3**, handlers register with filters to specify which events they process:
 
-| Filter Type | Event(s)       | Handler                     | Priority | Description                                       |
-| ----------- | -------------- | --------------------------- | -------- | ------------------------------------------------- |
-| hook        | `SessionStart` | `CreateFirstSessionSummary` | 80       | Create placeholder summary (first-prompt default) |
-| transcript  | `UserPrompt`   | `UpdateSessionSummary`      | 80       | Force immediate analysis (new user intent)        |
-| transcript  | `ToolCall`     | `UpdateSessionSummary`      | 70       | Conditional analysis (if cadence met)             |
+| Filter Type | Event(s)                 | Handler                     | Priority | Description                                       |
+| ----------- | ------------------------ | --------------------------- | -------- | ------------------------------------------------- |
+| hook        | `SessionStart`           | `CreateFirstSessionSummary` | 80       | Create placeholder summary (first-prompt default) |
+| transcript  | `UserPrompt`             | `UpdateSessionSummary`      | 80       | Force immediate analysis (new user intent)        |
+| transcript  | `ToolResult`             | `UpdateSessionSummary`      | 70       | Conditional analysis (if cadence met)             |
+| transcript  | `BulkProcessingComplete` | `UpdateSessionSummary`      | 80       | One-time analysis after bulk transcript replay    |
 
 **Key Change**: Summary updates are now triggered by transcript events rather than hook events. This ensures the feature reacts to actual transcript content changes rather than hook timing.
 
@@ -68,12 +69,16 @@ UserPrompt (TranscriptEvent)
       ├─ Generate snarky message if title or intent changed significantly (side-effect)
       └─ Generate resume message if title changed significantly (side-effect)
 
-ToolCall (TranscriptEvent)
+ToolResult (TranscriptEvent)
   └─[Daemon] UpdateSessionSummary (force=false)
       ├─ Query ctx.transcript.getMetrics() for tool count
       ├─ Check countdown; skip if not zero
       ├─ (If countdown reached) Same flow as UserPrompt
       └─ Decrement countdown
+
+BulkProcessingComplete (TranscriptEvent)
+  └─[Daemon] UpdateSessionSummary (force=true)
+      └─ One-time analysis after historical transcript replay
 
 Statusline (external)
   └─ Read state/session-summary.json synchronously
@@ -144,10 +149,11 @@ Performs LLM-based transcript analysis to update the session summary. Uses confi
 
 #### 3.2.1 Trigger Logic & Throttling
 
-| Trigger (Event)           | Behavior                                        |
-| ------------------------- | ----------------------------------------------- |
-| `UserPrompt` (transcript) | **Force** analysis (user intent likely changed) |
-| `ToolCall` (transcript)   | **Conditional**: only if countdown reached zero |
+| Trigger (Event)                    | Behavior                                        |
+| ---------------------------------- | ----------------------------------------------- |
+| `UserPrompt` (transcript)          | **Force** analysis (user intent likely changed) |
+| `ToolResult` (transcript)          | **Conditional**: only if countdown reached zero |
+| `BulkProcessingComplete` (transcript) | One-time analysis after historical transcript replay |
 
 **Key Change**: Triggers are now based on transcript events rather than hook events. This decouples summary updates from hook timing and allows reaction to actual transcript content.
 
@@ -158,7 +164,7 @@ Performs LLM-based transcript analysis to update the session summary. Uses confi
   - **High Confidence (>0.8)**: Reset to **20** (check again after 20 tool uses)
   - **Medium Confidence (0.6-0.8)**: Reset to **5**
   - **Low Confidence (<0.6)**: Reset to **1** (check almost immediately)
-- **Decrement**: Every `PostToolUse` decrements the counter
+- **Decrement**: Every `ToolResult` transcript event decrements the counter
 - **Fire**: When `countdown <= 0`, analysis is triggered
 
 #### 3.2.2 Transcript Extraction (The "Bookmark" System)
@@ -183,11 +189,13 @@ To handle long sessions without hitting token limits, we use a **Tiered Extracti
 
 **Provider Configuration**: Each LLM task has its own provider/model configuration with fallback:
 
-| Task               | Config Key            | Default Provider | Default Model                      | Fallback Provider | Fallback Model |
-| ------------------ | --------------------- | ---------------- | ---------------------------------- | ----------------- | -------------- |
-| **Summary**        | `llm.summary.*`       | `openrouter`     | `google/gemini-2.0-flash-lite-001` | `openai-api`      | `gpt-5-nano`   |
-| **Snarky Message** | `llm.snarkyComment.*` | `openrouter`     | `qwen/qwen3-235b-a22b-2507`        | `openai-api`      | `gpt-5-nano`   |
-| **Resume Message** | `llm.resume.*`        | `openrouter`     | `qwen/qwen3-235b-a22b-2507`        | `openai-api`      | `gpt-5-nano`   |
+Each LLM task references a named profile (see `docs/design/LLM_PROFILES.md`):
+
+| Task               | Config Key                     | Default Profile | Fallback Profile  |
+| ------------------ | ------------------------------ | --------------- | ----------------- |
+| **Summary**        | `settings.llm.sessionSummary`  | `fast-lite`     | `cheap-fallback`  |
+| **Snarky Message** | `settings.llm.snarkyComment`   | `creative`      | `cheap-fallback`  |
+| **Resume Message** | `settings.llm.resumeMessage`   | `creative-long` | `cheap-fallback`  |
 
 **Prompt Templates** (in `assets/sidekick/prompts/`):
 
@@ -268,7 +276,6 @@ The Session Summary feature emits `SidekickEvent` events (per **docs/design/flow
   "source": "daemon",
   "context": {
     "session_id": "sess-001",
-    "scope": "project",
     "correlation_id": "cli-invoke-123",
     "trace_id": "req-123",
     "hook": "UserPromptSubmit",
@@ -300,7 +307,6 @@ The Session Summary feature emits `SidekickEvent` events (per **docs/design/flow
   "source": "daemon",
   "context": {
     "session_id": "sess-001",
-    "scope": "project",
     "correlation_id": "cli-invoke-124",
     "hook": "PostToolUse"
   },
@@ -348,39 +354,27 @@ features:
 
 ### 4.2 LLM Configuration
 
-Each LLM task has dedicated provider/model settings with fallback chain: (**NOTE TO CLAUDE** when it comes time for implementation, note that these are examples, but `docs/design/LLM-PROVIDERS.md` should be the source of truth for this!)
+Each LLM task references a named profile via `settings.llm` (see `docs/design/LLM_PROFILES.md` for the profile system):
 
 ```yaml
-# .sidekick/llm.yaml (task-specific settings)
-llm:
-  # Session summary analysis
-  summary:
-    provider: openrouter
-    model: google/gemini-2.0-flash-lite-001
-    fallbackProvider: openai-api
-    fallbackModel: gpt-5-nano
-    timeout: 10
-    temperature: 0.3 # Low temperature for consistent extraction
-
-  # Snarky comment generation (separate LLM call)
-  snarkyComment:
-    provider: openrouter
-    model: qwen/qwen3-235b-a22b-2507
-    fallbackProvider: openai-api
-    fallbackModel: gpt-5-nano
-    timeout: 15
-    temperature: 1.2 # High temperature for creative snark
-
-  # Resume message generation (separate LLM call)
-  resume:
-    provider: openrouter
-    model: qwen/qwen3-235b-a22b-2507
-    fallbackProvider: openai-api
-    fallbackModel: gpt-5-nano
-    timeout: 30
-    temperature: 1.2 # High temperature for natural messages
-    minConfidence: 0.7 # Only generate if both confidences >= this
+# assets/sidekick/defaults/features/session-summary.defaults.yaml
+enabled: true
+settings:
+  llm:
+    sessionSummary:
+      profile: fast-lite
+      fallbackProfile: cheap-fallback
+    snarkyComment:
+      profile: creative
+      fallbackProfile: cheap-fallback
+    resumeMessage:
+      profile: creative-long
+      fallbackProfile: cheap-fallback
+  excerptLines: 80
+  filterToolMessages: true
 ```
+
+Profiles are defined in `llm.yaml` (e.g., `fast-lite` for cheap/fast analysis, `creative` for high-temperature generation). Temperature and maxTokens are part of the profile, not per-request.
 
 ## 5. Implementation Plan
 

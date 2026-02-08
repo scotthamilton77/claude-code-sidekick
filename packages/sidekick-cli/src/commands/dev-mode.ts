@@ -2,7 +2,6 @@
  * Dev-Mode Command Handler
  *
  * Manages development hooks for local Sidekick testing.
- * Port of scripts/dev-mode.sh to TypeScript CLI.
  *
  * Commands:
  * - enable: Add dev-sidekick to .claude/settings.local.json
@@ -10,8 +9,6 @@
  * - status: Show current dev-mode state
  * - clean: Truncate logs, kill daemon, clean state folders
  * - clean-all: Full cleanup including sessions and stale sockets
- *
- * @see scripts/dev-mode.sh (original bash implementation)
  */
 import { readFile, writeFile, mkdir, readdir, stat, unlink, rm, access, truncate, cp } from 'node:fs/promises'
 import { constants } from 'node:fs'

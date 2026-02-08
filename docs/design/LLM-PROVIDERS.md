@@ -61,17 +61,28 @@ LLM providers operate exclusively within the **Daemon** (async side) of the CLI/
 ```
 packages/shared-providers/
 ├── src/
-│   ├── index.ts            # Public API exports
-│   ├── interface.ts        # LLMProvider, LLMRequest, LLMResponse types
-│   ├── factory.ts          # ProviderFactory for instantiating providers
-│   ├── errors.ts           # Standardized error types
-│   ├── fallback.ts         # FallbackProvider wrapper
+│   ├── index.ts              # Public API exports
+│   ├── factory.ts            # ProviderFactory for instantiating providers
+│   ├── profile-factory.ts    # ProfileProviderFactory (profile-based provider creation)
+│   ├── errors.ts             # Standardized error types
+│   ├── fallback.ts           # FallbackProvider wrapper
+│   ├── validation.ts         # Input validation utilities
+│   ├── claude-cli-spawn.ts   # Claude CLI process spawning utilities
 │   └── providers/
-│       ├── base.ts         # Abstract base class (logging, redaction)
-│       ├── anthropic-cli.ts # Claude CLI wrapper implementation
-│       ├── openai-native.ts # OpenAI SDK implementation (handles OpenAI & OpenRouter)
-└── test/                   # Unit and integration tests
+│       ├── base.ts           # Abstract base class (logging, redaction)
+│       ├── anthropic-cli.ts  # Claude CLI wrapper implementation
+│       ├── openai-native.ts  # OpenAI SDK implementation (handles OpenAI & OpenRouter)
+│       └── emulators/        # Provider emulators for testing
+│           ├── index.ts
+│           ├── base-emulator.ts
+│           ├── emulator-state.ts
+│           ├── openai-emulator.ts
+│           ├── openrouter-emulator.ts
+│           └── claude-cli-emulator.ts
+└── test/                     # Unit and integration tests
 ```
+
+**Note**: Type interfaces (`LLMProvider`, `LLMRequest`, `LLMResponse`, `ProfileProviderFactory`) are defined in `packages/types/src/llm.ts`, not in the shared-providers package.
 
 ## 3. Interfaces & Types
 
@@ -84,25 +95,24 @@ export interface Message {
 }
 
 /**
- * Correlation context for log tracing. Inherited from EventContext (docs/design/flow.md §3.2).
- * Providers propagate these fields to all log entries for end-to-end traceability.
+ * JSON Schema configuration for structured output.
  */
-export interface LLMCallContext {
-  sessionId: string;        // Required: correlates to Sidekick session
-  correlationId?: string;   // Unique ID for the originating CLI command
-  traceId?: string;         // Links causally-related operations
+export interface JsonSchemaConfig {
+  name: string;
+  schema: Record<string, unknown>;
+  strict?: boolean;
 }
 
 export interface LLMRequest {
   messages: Message[];
   system?: string;          // System prompt
   model?: string;           // Override configured model
-  temperature?: number;
-  maxTokens?: number;
-  // Flexible map for provider-specific parameters (e.g. top_p, frequency_penalty)
+  // JSON Schema for structured output (native provider support with fallback)
+  jsonSchema?: JsonSchemaConfig;
+  // Flexible map for provider-specific parameters
   additionalParams?: Record<string, unknown>;
-  // Correlation context for structured logging
-  context: LLMCallContext;
+  // NOTE: temperature and maxTokens are NOT per-request.
+  // They come from the profile configuration. See docs/design/LLM_PROFILES.md.
 }
 
 export interface LLMResponse {
@@ -117,23 +127,24 @@ export interface LLMResponse {
     status: number;
     body: string;           // JSON string of the full response
   };
-  // Echo back context for log correlation
-  context: LLMCallContext;
 }
 
 export interface LLMProvider {
-  /**
-   * Unique identifier for the provider (e.g., "openai")
-   */
   id: string;
-
-  /**
-   * Send a completion request to the LLM.
-   * Context is required for log correlation across CLI/Daemon boundary.
-   */
   complete(request: LLMRequest): Promise<LLMResponse>;
 }
+
+/**
+ * Profile-based provider factory.
+ * Creates providers from named profile configurations.
+ */
+export interface ProfileProviderFactory {
+  createForProfile(profileId: string, fallbackProfileId?: string): LLMProvider;
+  createDefault(): LLMProvider;
+}
 ```
+
+**Note**: `LLMCallContext` has been removed. Correlation context for logging is managed internally by the instrumented provider wrappers in `sidekick-core`, not passed per-request.
 
 ### 3.2 Context Propagation
 

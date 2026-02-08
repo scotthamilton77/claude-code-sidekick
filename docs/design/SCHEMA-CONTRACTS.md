@@ -23,16 +23,28 @@ The `packages/types` package serves as the **single source of truth** for all da
 ```
 packages/types/
 ├── src/
-│   ├── services/        # Service-specific schemas
-│   │   ├── config.ts    # Configuration file schemas
-│   │   ├── state.ts     # Session state schemas
-│   │   └── ...
-│   ├── events.ts        # Event schemas (HookEvent, TranscriptEvent)
-│   ├── llm.ts           # LLM provider interfaces
-│   └── index.ts         # Main export
-├── scripts/
-│   └── generate-schemas.ts # Build script to emit JSON Schemas
-├── dist/                # Compiled JS/DTS
+│   ├── services/                  # Service-specific schemas and interfaces
+│   │   ├── config.ts              # Configuration service interfaces
+│   │   ├── state.ts               # Session state schemas
+│   │   ├── staging.ts             # Staging service interface
+│   │   ├── transcript.ts          # Transcript service interface
+│   │   ├── daemon-client.ts       # Daemon client interface
+│   │   ├── daemon-status.ts       # Daemon status schemas
+│   │   ├── persona.ts             # Persona definition schemas
+│   │   ├── reminder-coordinator.ts # Reminder coordination interface
+│   │   ├── service-factory.ts     # Service factory interface
+│   │   └── index.ts               # Service re-exports
+│   ├── context.ts                 # RuntimeContext (CLIContext, DaemonContext)
+│   ├── events.ts                  # Event schemas (HookEvent, TranscriptEvent, logging events)
+│   ├── handler-registry.ts        # HandlerRegistry interface, filters, result types
+│   ├── hook-input.ts              # Claude Code hook input Zod schemas
+│   ├── llm.ts                     # LLM provider interfaces (LLMProvider, ProfileProviderFactory)
+│   ├── logger.ts                  # Logger interface
+│   ├── paths.ts                   # RuntimePaths interface
+│   ├── tasks.ts                   # Task-related types
+│   ├── setup-status.ts            # Setup status types
+│   └── index.ts                   # Main export
+├── dist/                          # Compiled JS/DTS
 └── package.json
 ```
 
@@ -47,18 +59,17 @@ The build process is two-fold:
 
 ## 3. Core Schemas
 
-### 3.1 Configuration (`src/config/`)
+### 3.1 Configuration (`packages/sidekick-core/src/config.ts`)
 
-Defines the structure of `sidekick.yaml`.
+Configuration Zod schemas live in `packages/sidekick-core/src/config.ts` (not in the types package), with minimal service interfaces in `packages/types/src/services/config.ts` to avoid circular dependencies.
 
-- **User Config**: Global settings (LLM provider keys, default model, telemetry opt-out).
-- **Project Config**: Per-project overrides (enabled features, project-specific prompt variables).
+The configuration uses a **profile-based LLM system** (see `docs/design/LLM_PROFILES.md`):
 
-**Key Fields**:
+- **LLM**: `{ defaultProfile: string, profiles: Record<string, LlmProfile>, fallbacks: Record<string, LlmProfile>, global: { debugDumpEnabled } }`
+- **Features**: `{ [featureName]: { enabled: boolean, settings: Record<string, unknown> } }`
+- **Logging**: `{ level: "debug" | "info" | "warn" | "error", format: "pretty" | "json", consoleEnabled: boolean }`
 
-- `llm`: `{ provider: "claude-cli" | "openai" | "openrouter" | "custom", model: string, ... }`
-- `features`: `{ [featureName]: { enabled: boolean, ...config } }`
-- `logging`: `{ level: "debug" | "info", redactor: string[] }`
+LLM providers now include `'emulator'` in addition to `'claude-cli' | 'openai' | 'openrouter' | 'custom'`.
 
 ### 3.2 Events (`src/events/`)
 
@@ -66,13 +77,12 @@ Defines the unified event model per **docs/design/flow.md §3**. All events flow
 
 #### EventContext
 
-Shared context for all events:
+Shared context for all events (defined in `packages/types/src/events.ts`):
 
 ```typescript
 interface EventContext {
   sessionId: string // Required: correlates all events in a session
   timestamp: number // Unix timestamp (ms)
-  scope?: 'project' | 'user' // Which scope this event occurred in
   correlationId?: string // Unique ID for the CLI command execution
   traceId?: string // Optional: links causally-related events
 }
@@ -173,7 +183,7 @@ type HookName = HookEvent['hook']
 Emitted by TranscriptService when new entries appear in the transcript file:
 
 ```typescript
-type TranscriptEventType = 'UserPrompt' | 'AssistantMessage' | 'ToolCall' | 'ToolResult' | 'Compact'
+type TranscriptEventType = 'UserPrompt' | 'AssistantMessage' | 'ToolCall' | 'ToolResult' | 'Compact' | 'BulkProcessingComplete'
 
 interface TranscriptEvent {
   kind: 'transcript'
@@ -188,6 +198,7 @@ interface TranscriptEvent {
   metadata: {
     transcriptPath: string
     metrics: TranscriptMetrics // Snapshot after this event
+    isBulkProcessing?: boolean // True during first-time historical replay
   }
 }
 ```
@@ -213,14 +224,20 @@ Defines session-level structures.
 
 #### TranscriptMetrics
 
-Derived metrics maintained by TranscriptService:
+Derived metrics maintained by TranscriptService (defined in `packages/types/src/events.ts`):
 
 ```typescript
 interface TranscriptMetrics {
   turnCount: number // Total user prompts in session
-  toolCount: number // Total tool invocations in session
   toolsThisTurn: number // Tools since last UserPrompt (auto-resets)
-  totalTokens: number // Estimated total tokens in transcript
+  toolCount: number // Total tool invocations across session
+  messageCount: number // Total messages (user + assistant + system)
+  tokenUsage: TokenUsageMetrics // Detailed token metrics from API responses
+  currentContextTokens: number | null // Current context window tokens (resets on compact)
+  isPostCompactIndeterminate: boolean // True after compact until first usage block
+  toolsPerTurn: number // Average tools per turn
+  lastProcessedLine: number // Watermark for incremental processing
+  lastUpdatedAt: number // Timestamp of last metrics update
 }
 ```
 
@@ -237,50 +254,47 @@ interface TranscriptEntry {
 }
 ```
 
-#### SessionState
+#### SessionStateSnapshot
 
-Runtime state for a session:
+Runtime state snapshot for a session (defined in `packages/types/src/services/state.ts`):
 
 ```typescript
-interface SessionState {
+interface SessionStateSnapshot {
   sessionId: string
-  startTime: number // Unix timestamp (ms)
-  scope: 'project' | 'user'
-  transcriptPath: string
-  metrics: TranscriptMetrics
+  timestamp: number // Unix timestamp (ms) of this snapshot
+  summary?: SessionSummaryState
+  resume?: ResumeMessageState
+  metrics?: TranscriptMetricsState
 }
 ```
 
-### 3.4 IPC Protocol (`src/ipc/`)
+### 3.4 IPC Protocol (`packages/sidekick-core/src/ipc/`)
 
 Defines the contract between the CLI (client) and the Background Daemon (server).
 
 - **Transport**: Unix Domain Socket (Linux/macOS) or Named Pipe (Windows).
-- **Format**: Newline-Delimited JSON (NDJSON).
-- **Semantics**: Fire-and-forget events (CLI → Daemon). No request/response for hook events.
+- **Format**: JSON-RPC 2.0 over Newline-Delimited JSON (NDJSON) framing.
+- **Semantics**: Request/response protocol. CLI sends JSON-RPC calls, Daemon returns results.
 
-Per **docs/design/flow.md §2.1**, the CLI and Daemon communicate asynchronously:
+The IPC implementation lives in `packages/sidekick-core/src/ipc/` with `client.ts`, `server.ts`, and `protocol.ts`.
 
-- CLI sends `SidekickEvent` to Daemon via IPC
-- Daemon "responds" by staging files that CLI reads on subsequent hook invocations
-- No synchronous IPC response is expected for hook events
+Per **docs/design/flow.md §2.1**, while the IPC uses request/response, the CLI does not wait for heavy Daemon processing. The Daemon acknowledges receipt quickly, then performs background work asynchronously. Results are staged as files for CLI consumption on subsequent hook invocations.
 
-**IPC Message Schema**:
+**IPC Message Schema** (JSON-RPC 2.0):
 
 ```typescript
-// CLI → Daemon: events flow one-way
-type IpcMessage = SidekickEvent
-
-// Wire format: NDJSON (one JSON object per line)
-// Example: {"kind":"hook","hook":"SessionStart","context":{...},"payload":{...}}\n
+// Wire format: JSON-RPC 2.0, NDJSON framed (one JSON object per line)
+// Request:  {"jsonrpc":"2.0","method":"hookEvent","params":{...},"id":1}\n
+// Response: {"jsonrpc":"2.0","result":"ok","id":1}\n
 ```
 
 **Connection Lifecycle**:
 
-1. CLI connects to socket (path derived from project root hash)
-2. CLI writes NDJSON event
-3. CLI disconnects (or keeps connection for subsequent events)
-4. Daemon processes event asynchronously
+1. CLI connects to socket (path at `<project>/.sidekick/sidekickd.sock`)
+2. CLI sends JSON-RPC request with hook event data
+3. Daemon acknowledges receipt
+4. CLI disconnects (or keeps connection for subsequent calls)
+5. Daemon processes event asynchronously
 
 ### 3.5 Feature Contracts (`src/features/`)
 
@@ -328,10 +342,30 @@ interface ReminderDefinition {
 
 #### Statusline
 
+The statusline configuration schema is defined in `packages/feature-statusline/src/types.ts` (`StatuslineConfigSchema`):
+
 ```typescript
 interface StatuslineConfig {
-  components: string[] // Ordered list of component IDs
-  refreshInterval: number // Milliseconds between updates
+  enabled: boolean
+  format: string // Template string with {placeholders}
+  thresholds: {
+    tokens: { warning: number; critical: number }
+    cost: { warning: number; critical: number }
+    logs: { warning: number; critical: number }
+  }
+  theme: {
+    useNerdFonts: boolean | 'full' | 'safe' | 'ascii'
+    supportedMarkdown: { bold: boolean; italic: boolean; code: boolean }
+    colors: {
+      model: string
+      tokens: string
+      title: string
+      summary: string
+      cwd: string
+      duration: string
+      branch?: string
+    }
+  }
 }
 ```
 
@@ -391,11 +425,11 @@ To ensure `assets/sidekick` remains the canonical source for non-TypeScript tool
 
 ### 7.1 Config Schema Location
 
-**Decision**: Keep the _Zod definition_ in `schema-contracts`. `sidekick-core` imports it to validate loaded config. This prevents circular dependencies and allows standalone validation tools.
+**Decision**: Keep the Zod definitions in `packages/sidekick-core/src/config.ts`. Minimal service interfaces live in `packages/types/src/services/config.ts` to avoid circular dependencies.
 
 ### 7.2 IPC Transport
 
-**Decision**: Use Node.js native `net` module with **Unix Domain Sockets** (Linux/macOS) or **Named Pipes** (Windows) using **Newline Delimited JSON (NDJSON)**.
+**Decision**: Use Node.js native `net` module with **Unix Domain Sockets** (Linux/macOS) or **Named Pipes** (Windows) using **JSON-RPC 2.0 over Newline Delimited JSON (NDJSON)** framing.
 
 **Options Considered**:
 
@@ -416,7 +450,7 @@ The "Sidekick" philosophy prioritizes **Simplicity** and **No Unnecessary Code**
 
 To satisfy the **Single Writer** principle (Target Arch §3.3), the Daemon must be a **Singleton per Project**. Multiple terminal windows (sessions) within the same project connect to the _same_ Daemon instance.
 
-- **Socket Resolution**: The socket path is derived from a stable hash of the project root path (e.g., `~/.sidekick/ipc/proj-<hash>.sock`). This ensures all sessions in the project discover the same daemon.
+- **Socket Resolution**: The socket path is at `<project-root>/.sidekick/sidekickd.sock`. This ensures all sessions in the project discover the same daemon.
 - **Multiplexing**: The `net.Server` handles concurrent connections from multiple CLI processes.
 - **Session Context**: Every `SidekickEvent` includes `context.sessionId` so the Daemon knows which session the event originates from.
 

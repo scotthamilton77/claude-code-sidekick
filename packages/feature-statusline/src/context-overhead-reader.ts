@@ -4,7 +4,6 @@
  * Reads context metrics from base and project state files to calculate
  * the total fixed overhead that reduces available context window.
  *
- * @see METRICS_PLAN.md
  */
 
 import { StateService } from '@sidekick/core'

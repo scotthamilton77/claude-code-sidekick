@@ -4,7 +4,6 @@
  * Manages capture and storage of Claude Code's context window overhead metrics.
  * Handles both initial capture (via CLI) and ongoing monitoring (via transcript events).
  *
- * @see METRICS_PLAN.md §Step 3
  */
 
 import * as fs from 'node:fs/promises'

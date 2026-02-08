@@ -269,7 +269,6 @@ The CLI emits `SidekickEvent` records (see `docs/design/flow.md` §3.2) for ever
   "source": "cli",
   "context": {
     "session_id": "sess-abc123",
-    "scope": "project",
     "correlation_id": "corr-456",
     "hook": "UserPromptSubmit"
   },
@@ -290,7 +289,6 @@ The CLI emits `SidekickEvent` records (see `docs/design/flow.md` §3.2) for ever
   "source": "cli",
   "context": {
     "session_id": "sess-abc123",
-    "scope": "project",
     "correlation_id": "corr-456",
     "trace_id": "req-789",
     "hook": "UserPromptSubmit"

@@ -6,7 +6,7 @@
  *
  * Features create accessors from their descriptors and use them in handlers.
  *
- * @see docs/design/STATE-SERVICE.md
+ * @see docs/plans/2026-01-12-state-service-design.md
  */
 
 import type { MinimalStateService, StateReadResult } from '@sidekick/types'

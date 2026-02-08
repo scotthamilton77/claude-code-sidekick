@@ -383,7 +383,7 @@ export async function handleHookCommand(
     // Merge responses (CLI takes precedence)
     const mergedResponse = mergeHookResponses(daemonResponse, cliResponse ?? {})
 
-    // Output internal HookResponse format (shell scripts will translate to Claude Code format)
+    // Output internal HookResponse format
     const outputStr = JSON.stringify(mergedResponse)
     stdout.write(`${outputStr}\n`)
 

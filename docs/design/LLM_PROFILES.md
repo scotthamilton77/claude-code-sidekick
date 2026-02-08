@@ -295,7 +295,7 @@ export class ProfileProviderFactory {
 
 ### Step 5: Update Daemon
 
-**File**: `packages/sidekickd/src/daemon.ts`
+**File**: `packages/sidekick-daemon/src/daemon.ts`
 
 Replace hardcoded provider creation at lines ~610 and ~751:
 
@@ -371,7 +371,7 @@ export interface SessionSummarySettings {
 | `packages/sidekick-core/src/config.ts` | New profile schemas, `validateProfileReferences()` |
 | `packages/shared-providers/src/profile-factory.ts` | **NEW** - ProfileProviderFactory |
 | `packages/shared-providers/src/index.ts` | Export ProfileProviderFactory |
-| `packages/sidekickd/src/daemon.ts` | Use ProfileProviderFactory, wire `ctx.llm` and `ctx.profileFactory` |
+| `packages/sidekick-daemon/src/daemon.ts` | Use ProfileProviderFactory, wire `ctx.llm` and `ctx.profileFactory` |
 | `packages/feature-session-summary/src/handlers/update-summary.ts` | Use profiles via `ctx.profileFactory` |
 | `packages/types/src/features/session-summary.ts` | Add LlmSubFeatureConfig types |
 | `assets/sidekick/defaults/llm.defaults.yaml` | New profile structure |
