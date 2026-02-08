@@ -1109,29 +1109,273 @@ describe('SetupStatusService', () => {
       expect(userStatus).not.toBeNull()
     })
 
-    it('includes API key source in result', async () => {
+    it('reports which scope is used for project .env key', async () => {
       await writeEnvFile('project', 'OPENROUTER_API_KEY=sk-project-key\n')
 
       const result = await service.runDoctorCheck({ skipValidation: true })
 
-      // Should report the source of the API key
-      expect(result.apiKeys.OPENROUTER_API_KEY.source).toBe('project-env')
+      expect(result.apiKeys.OPENROUTER_API_KEY.used).toBe('project')
     })
 
-    it('reports user-env source for keys in user .env', async () => {
+    it('reports which scope is used for user .env key', async () => {
       await writeEnvFile('user', 'OPENROUTER_API_KEY=sk-user-key\n')
 
       const result = await service.runDoctorCheck({ skipValidation: true })
 
-      expect(result.apiKeys.OPENROUTER_API_KEY.source).toBe('user-env')
+      expect(result.apiKeys.OPENROUTER_API_KEY.used).toBe('user')
     })
 
-    it('reports null source when key is missing', async () => {
+    it('reports null used when key is missing', async () => {
       // No .env files
 
       const result = await service.runDoctorCheck({ skipValidation: true })
 
-      expect(result.apiKeys.OPENROUTER_API_KEY.source).toBeNull()
+      expect(result.apiKeys.OPENROUTER_API_KEY.used).toBeNull()
+    })
+  })
+
+  describe('buildUserApiKeyStatus', () => {
+    it('returns healthy with user scope when user key is healthy', () => {
+      const detection: import('../setup-status-service.js').AllScopesDetectionResult = {
+        project: { found: false, key: null, status: 'missing' },
+        user: { found: true, key: 'sk-user', status: 'healthy' },
+        env: { found: false, key: null, status: 'missing' },
+      }
+
+      const result = service.buildUserApiKeyStatus(detection)
+
+      expect(result.used).toBe('user')
+      expect(result.status).toBe('healthy')
+      expect(result.scopes.user).toBe('healthy')
+      expect(result.scopes.env).toBe('missing')
+    })
+
+    it('returns healthy with env scope when env key is healthy and user missing', () => {
+      const detection: import('../setup-status-service.js').AllScopesDetectionResult = {
+        project: { found: false, key: null, status: 'missing' },
+        user: { found: false, key: null, status: 'missing' },
+        env: { found: true, key: 'sk-env', status: 'healthy' },
+      }
+
+      const result = service.buildUserApiKeyStatus(detection)
+
+      expect(result.used).toBe('env')
+      expect(result.status).toBe('healthy')
+      expect(result.scopes.env).toBe('healthy')
+    })
+
+    it('prefers user over env when both healthy', () => {
+      const detection: import('../setup-status-service.js').AllScopesDetectionResult = {
+        project: { found: false, key: null, status: 'missing' },
+        user: { found: true, key: 'sk-user', status: 'healthy' },
+        env: { found: true, key: 'sk-env', status: 'healthy' },
+      }
+
+      const result = service.buildUserApiKeyStatus(detection)
+
+      expect(result.used).toBe('user')
+      expect(result.scopes.user).toBe('healthy')
+      expect(result.scopes.env).toBe('healthy')
+    })
+
+    it('returns invalid when keys found but none healthy', () => {
+      const detection: import('../setup-status-service.js').AllScopesDetectionResult = {
+        project: { found: false, key: null, status: 'missing' },
+        user: { found: true, key: 'bad-key', status: 'invalid' },
+        env: { found: false, key: null, status: 'missing' },
+      }
+
+      const result = service.buildUserApiKeyStatus(detection)
+
+      expect(result.used).toBeNull()
+      expect(result.status).toBe('invalid')
+      expect(result.scopes.user).toBe('invalid')
+    })
+
+    it('returns missing when no keys found at user or env scope', () => {
+      const detection: import('../setup-status-service.js').AllScopesDetectionResult = {
+        project: { found: true, key: 'sk-proj', status: 'healthy' },
+        user: { found: false, key: null, status: 'missing' },
+        env: { found: false, key: null, status: 'missing' },
+      }
+
+      const result = service.buildUserApiKeyStatus(detection)
+
+      // User-level doesn't see project scope
+      expect(result.used).toBeNull()
+      expect(result.status).toBe('missing')
+    })
+  })
+
+  describe('buildProjectApiKeyStatus', () => {
+    it('returns healthy with project scope when project key is healthy', () => {
+      const detection: import('../setup-status-service.js').AllScopesDetectionResult = {
+        project: { found: true, key: 'sk-proj', status: 'healthy' },
+        user: { found: false, key: null, status: 'missing' },
+        env: { found: false, key: null, status: 'missing' },
+      }
+
+      const result = service.buildProjectApiKeyStatus(detection)
+
+      expect(result.used).toBe('project')
+      expect(result.status).toBe('healthy')
+      expect(result.scopes.project).toBe('healthy')
+    })
+
+    it('falls through to user when project key invalid', () => {
+      const detection: import('../setup-status-service.js').AllScopesDetectionResult = {
+        project: { found: true, key: 'bad-proj', status: 'invalid' },
+        user: { found: true, key: 'sk-user', status: 'healthy' },
+        env: { found: false, key: null, status: 'missing' },
+      }
+
+      const result = service.buildProjectApiKeyStatus(detection)
+
+      expect(result.used).toBe('user')
+      expect(result.status).toBe('healthy')
+      expect(result.scopes.project).toBe('invalid')
+      expect(result.scopes.user).toBe('healthy')
+    })
+
+    it('falls through to env when project and user keys both invalid', () => {
+      const detection: import('../setup-status-service.js').AllScopesDetectionResult = {
+        project: { found: true, key: 'bad-proj', status: 'invalid' },
+        user: { found: true, key: 'bad-user', status: 'invalid' },
+        env: { found: true, key: 'sk-env', status: 'healthy' },
+      }
+
+      const result = service.buildProjectApiKeyStatus(detection)
+
+      expect(result.used).toBe('env')
+      expect(result.status).toBe('healthy')
+    })
+
+    it('returns invalid when all keys found but none healthy', () => {
+      const detection: import('../setup-status-service.js').AllScopesDetectionResult = {
+        project: { found: true, key: 'bad1', status: 'invalid' },
+        user: { found: true, key: 'bad2', status: 'invalid' },
+        env: { found: true, key: 'bad3', status: 'invalid' },
+      }
+
+      const result = service.buildProjectApiKeyStatus(detection)
+
+      expect(result.used).toBeNull()
+      expect(result.status).toBe('invalid')
+    })
+
+    it('returns missing when no keys found anywhere', () => {
+      const detection: import('../setup-status-service.js').AllScopesDetectionResult = {
+        project: { found: false, key: null, status: 'missing' },
+        user: { found: false, key: null, status: 'missing' },
+        env: { found: false, key: null, status: 'missing' },
+      }
+
+      const result = service.buildProjectApiKeyStatus(detection)
+
+      expect(result.used).toBeNull()
+      expect(result.status).toBe('missing')
+      expect(result.scopes).toEqual({ project: 'missing', user: 'missing', env: 'missing' })
+    })
+
+    it('respects priority order: project > user > env', () => {
+      const detection: import('../setup-status-service.js').AllScopesDetectionResult = {
+        project: { found: true, key: 'sk-proj', status: 'healthy' },
+        user: { found: true, key: 'sk-user', status: 'healthy' },
+        env: { found: true, key: 'sk-env', status: 'healthy' },
+      }
+
+      const result = service.buildProjectApiKeyStatus(detection)
+
+      expect(result.used).toBe('project')
+    })
+  })
+
+  describe('detectAllApiKeys', () => {
+    it('detects key in project .env', async () => {
+      await writeEnvFile('project', 'OPENROUTER_API_KEY=sk-proj-key\n')
+
+      const result = await service.detectAllApiKeys('OPENROUTER_API_KEY', true)
+
+      expect(result.project.found).toBe(true)
+      expect(result.project.key).toBe('sk-proj-key')
+      expect(result.project.status).toBe('healthy') // skipValidation
+      expect(result.user.found).toBe(false)
+      expect(result.env.found).toBe(false)
+    })
+
+    it('detects key in user .env', async () => {
+      await writeEnvFile('user', 'OPENROUTER_API_KEY=sk-user-key\n')
+
+      const result = await service.detectAllApiKeys('OPENROUTER_API_KEY', true)
+
+      expect(result.user.found).toBe(true)
+      expect(result.user.key).toBe('sk-user-key')
+      expect(result.user.status).toBe('healthy')
+      expect(result.project.found).toBe(false)
+    })
+
+    it('detects keys at multiple scopes independently', async () => {
+      await writeEnvFile('project', 'OPENROUTER_API_KEY=sk-proj\n')
+      await writeEnvFile('user', 'OPENROUTER_API_KEY=sk-user\n')
+
+      const result = await service.detectAllApiKeys('OPENROUTER_API_KEY', true)
+
+      expect(result.project.found).toBe(true)
+      expect(result.project.key).toBe('sk-proj')
+      expect(result.user.found).toBe(true)
+      expect(result.user.key).toBe('sk-user')
+    })
+
+    it('returns all missing when no keys found', async () => {
+      const result = await service.detectAllApiKeys('OPENROUTER_API_KEY', true)
+
+      expect(result.project.found).toBe(false)
+      expect(result.user.found).toBe(false)
+      expect(result.env.found).toBe(false)
+      expect(result.project.status).toBe('missing')
+      expect(result.user.status).toBe('missing')
+      expect(result.env.status).toBe('missing')
+    })
+
+    it('strips quotes from .env values', async () => {
+      await writeEnvFile('user', 'OPENROUTER_API_KEY="sk-quoted-key"\n')
+
+      const result = await service.detectAllApiKeys('OPENROUTER_API_KEY', true)
+
+      expect(result.user.key).toBe('sk-quoted-key')
+    })
+  })
+
+  describe('static helper methods', () => {
+    it('userApiKeyStatusFromHealth converts not-required', () => {
+      const result = SetupStatusService.userApiKeyStatusFromHealth('not-required')
+
+      expect(result.used).toBeNull()
+      expect(result.status).toBe('not-required')
+      expect(result.scopes.user).toBe('missing')
+      expect(result.scopes.env).toBe('missing')
+    })
+
+    it('userApiKeyStatusFromHealth converts missing', () => {
+      const result = SetupStatusService.userApiKeyStatusFromHealth('missing')
+
+      expect(result.used).toBeNull()
+      expect(result.status).toBe('missing')
+    })
+
+    it('projectApiKeyStatusFromHealth converts not-required', () => {
+      const result = SetupStatusService.projectApiKeyStatusFromHealth('not-required')
+
+      expect(result.used).toBeNull()
+      expect(result.status).toBe('not-required')
+      expect(result.scopes).toEqual({ project: 'missing', user: 'missing', env: 'missing' })
+    })
+
+    it('projectApiKeyStatusFromHealth converts healthy', () => {
+      const result = SetupStatusService.projectApiKeyStatusFromHealth('healthy')
+
+      expect(result.used).toBeNull()
+      expect(result.status).toBe('healthy')
     })
   })
 
@@ -1592,7 +1836,14 @@ describe('SetupStatusService', () => {
       await service.setDevMode(true)
 
       const result = await service.getProjectStatus()
-      expect(result?.apiKeys.OPENROUTER_API_KEY).toBe('pending-validation')
+      // Now writes new object format with per-scope breakdown (skipValidation=true → healthy)
+      const apiKeyStatus = result?.apiKeys.OPENROUTER_API_KEY
+      expect(typeof apiKeyStatus).toBe('object')
+      if (typeof apiKeyStatus === 'object') {
+        expect(apiKeyStatus.used).toBe('project')
+        expect(apiKeyStatus.status).toBe('healthy')
+        expect(apiKeyStatus.scopes.project).toBe('healthy')
+      }
     })
 
     it('setDevMode uses user delegation when no project API key exists', async () => {
@@ -1602,8 +1853,15 @@ describe('SetupStatusService', () => {
       await service.setDevMode(true)
 
       const result = await service.getProjectStatus()
-      // Should delegate to user level since key is not at project level
-      expect(result?.apiKeys.OPENROUTER_API_KEY).toBe('user')
+      // Should detect key at user scope (skipValidation=true → healthy)
+      const apiKeyStatus = result?.apiKeys.OPENROUTER_API_KEY
+      expect(typeof apiKeyStatus).toBe('object')
+      if (typeof apiKeyStatus === 'object') {
+        expect(apiKeyStatus.used).toBe('user')
+        expect(apiKeyStatus.status).toBe('healthy')
+        expect(apiKeyStatus.scopes.user).toBe('healthy')
+        expect(apiKeyStatus.scopes.project).toBe('missing')
+      }
     })
 
     it('setDevMode marks API keys missing when not found anywhere', async () => {
@@ -1612,8 +1870,12 @@ describe('SetupStatusService', () => {
       await service.setDevMode(true)
 
       const result = await service.getProjectStatus()
-      // Should be 'missing' not 'user' when there's nothing to delegate to
-      expect(result?.apiKeys.OPENROUTER_API_KEY).toBe('missing')
+      const apiKeyStatus = result?.apiKeys.OPENROUTER_API_KEY
+      expect(typeof apiKeyStatus).toBe('object')
+      if (typeof apiKeyStatus === 'object') {
+        expect(apiKeyStatus.used).toBeNull()
+        expect(apiKeyStatus.status).toBe('missing')
+      }
     })
 
     it('setDevMode detects both statusline and API keys together', async () => {
@@ -1628,8 +1890,19 @@ describe('SetupStatusService', () => {
       const result = await service.getProjectStatus()
       // Statusline is configured in PROJECT settings, so should report 'project'
       expect(result?.statusline).toBe('project')
-      expect(result?.apiKeys.OPENROUTER_API_KEY).toBe('pending-validation')
-      expect(result?.apiKeys.OPENAI_API_KEY).toBe('pending-validation')
+      // Both keys detected at project scope (skipValidation=true → healthy)
+      const orStatus = result?.apiKeys.OPENROUTER_API_KEY
+      const oaiStatus = result?.apiKeys.OPENAI_API_KEY
+      expect(typeof orStatus).toBe('object')
+      expect(typeof oaiStatus).toBe('object')
+      if (typeof orStatus === 'object') {
+        expect(orStatus.used).toBe('project')
+        expect(orStatus.status).toBe('healthy')
+      }
+      if (typeof oaiStatus === 'object') {
+        expect(oaiStatus.used).toBe('project')
+        expect(oaiStatus.status).toBe('healthy')
+      }
     })
   })
 

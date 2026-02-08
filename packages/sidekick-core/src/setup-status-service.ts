@@ -89,8 +89,6 @@ export interface DoctorItemResult {
 }
 
 export interface DoctorApiKeyResult extends DoctorItemResult {
-  /** Where the API key was found: 'env-var', 'user-env', 'project-env', or null if missing */
-  source: ApiKeySource | null
   /** Which scope's key is being used (first valid in priority order) */
   used: 'project' | 'user' | 'env' | null
   /** Per-scope status breakdown */
@@ -143,6 +141,7 @@ export interface SetupStatusServiceOptions {
 function toScopeStatus(health: string): ScopeStatus {
   if (health === 'healthy') return 'healthy'
   if (health === 'invalid') return 'invalid'
+  if (health === 'not-required') return 'not-required'
   return 'missing'
 }
 
@@ -153,13 +152,6 @@ function determineOverallStatus(used: string | null, anyKeyFound: boolean): Scop
   if (used) return 'healthy'
   if (anyKeyFound) return 'invalid'
   return 'missing'
-}
-
-/** Maps API key scope to source identifier */
-const SCOPE_TO_SOURCE: Record<string, ApiKeySource> = {
-  project: 'project-env',
-  user: 'user-env',
-  env: 'env-var',
 }
 
 /**
@@ -419,6 +411,24 @@ export class SetupStatusService {
   }
 
   /**
+   * Build a UserApiKeyStatus from a simple health string.
+   * Used when no scope-level detection is available (e.g. force mode, user opted out).
+   */
+  static userApiKeyStatusFromHealth(health: ApiKeyHealth): UserApiKeyStatus {
+    const status = toScopeStatus(health)
+    return { used: null, status, scopes: { user: 'missing', env: 'missing' } }
+  }
+
+  /**
+   * Build a ProjectApiKeyStatus from a simple health string.
+   * Used when no scope-level detection is available (e.g. force mode, user opted out).
+   */
+  static projectApiKeyStatusFromHealth(health: ApiKeyHealth): ProjectApiKeyStatus {
+    const status = toScopeStatus(health)
+    return { used: null, status, scopes: { project: 'missing', user: 'missing', env: 'missing' } }
+  }
+
+  /**
    * Detect actual statusline configuration by reading Claude settings files.
    * Returns WHERE the statusline is configured, matching PluginInstallationStatus pattern.
    */
@@ -675,37 +685,20 @@ export class SetupStatusService {
       // Detect actual configuration state instead of lazy delegation
       const statusline = await this.detectActualStatusline()
 
-      // Detect API keys and determine appropriate status for each
-      const openRouterResult = await this.detectActualApiKey('OPENROUTER_API_KEY')
-      const openAIResult = await this.detectActualApiKey('OPENAI_API_KEY')
-
-      // Determine API key health based on where key was found:
-      // - project-env: 'pending-validation' (project owns this key)
-      // - user-env or env-var: 'user' (delegate to user level)
-      // - not found: check if user-level has it, otherwise 'missing'
-      const getApiKeyHealth = async (result: ApiKeyDetectionResult): Promise<ProjectApiKeyHealth> => {
-        if (result.source === 'project-env') {
-          return 'pending-validation'
-        }
-        if (result.source === 'user-env' || result.source === 'env-var') {
-          return 'user'
-        }
-        // Key not found - check if user-level setup exists to delegate to
-        const userStatus = await this.getUserStatus()
-        if (userStatus) {
-          return 'user'
-        }
-        return 'missing'
-      }
+      // Detect API keys across all scopes (skip validation — dev-mode toggle shouldn't hit network)
+      const [openRouterDetection, openAIDetection] = await Promise.all([
+        this.detectAllApiKeys('OPENROUTER_API_KEY', true),
+        this.detectAllApiKeys('OPENAI_API_KEY', true),
+      ])
 
       await this.writeProjectStatus({
         version: 1,
         lastUpdatedAt: new Date().toISOString(),
         autoConfigured: false,
-        statusline, // Now directly uses 'user' | 'project' | 'both' | 'none'
+        statusline,
         apiKeys: {
-          OPENROUTER_API_KEY: await getApiKeyHealth(openRouterResult),
-          OPENAI_API_KEY: await getApiKeyHealth(openAIResult),
+          OPENROUTER_API_KEY: this.buildProjectApiKeyStatus(openRouterDetection),
+          OPENAI_API_KEY: this.buildProjectApiKeyStatus(openAIDetection),
         },
         gitignore: 'unknown',
         devMode: enabled,
@@ -764,7 +757,9 @@ export class SetupStatusService {
       projectDir: this.projectDir,
     })
 
-    // Create project status that inherits all settings from user-level
+    // Create project status that delegates API keys to user level.
+    // Uses 'user' string (not object format) intentionally — this is a delegation marker
+    // meaning "check user-level status for real health". No scope detection is performed.
     const projectStatus: ProjectSetupStatus = {
       version: 1,
       lastUpdatedAt: new Date().toISOString(),
@@ -885,9 +880,6 @@ export class SetupStatusService {
       const projectApiKeyStatus = this.buildProjectApiKeyStatus(detection)
 
       const actualHealth = toScopeStatus(projectApiKeyStatus.status) as ApiKeyHealth
-      const source: ApiKeySource | null = projectApiKeyStatus.used
-        ? (SCOPE_TO_SOURCE[projectApiKeyStatus.used] ?? null)
-        : null
 
       // Fix cache in BOTH directions
       const anyKeyPresent = detection.project.found || detection.user.found || detection.env.found
@@ -949,7 +941,6 @@ export class SetupStatusService {
         actual: actualHealth,
         cached: cachedHealth,
         fixed: keyFixed,
-        source,
         used: projectApiKeyStatus.used,
         scopes: projectApiKeyStatus.scopes,
       }

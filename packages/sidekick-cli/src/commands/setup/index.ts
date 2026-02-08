@@ -144,9 +144,12 @@ function getLivenessLabel(status: PluginLivenessStatus): string {
 
 /**
  * Format scope status as icon for compact display.
+ * ✓ = key found and valid, ✗ = key found but invalid, - = not found or not required
  */
-function getScopeIcon(status: 'healthy' | 'invalid' | 'missing'): string {
-  return status === 'healthy' ? '✓' : '✗'
+function getScopeIcon(status: 'healthy' | 'invalid' | 'missing' | 'not-required'): string {
+  if (status === 'healthy') return '✓'
+  if (status === 'invalid') return '✗'
+  return '-'
 }
 
 /**
@@ -154,9 +157,9 @@ function getScopeIcon(status: 'healthy' | 'invalid' | 'missing'): string {
  * Format: [project ✓ user ✓ env ✗]
  */
 function formatApiKeyScopes(scopes: {
-  project: 'healthy' | 'invalid' | 'missing'
-  user: 'healthy' | 'invalid' | 'missing'
-  env: 'healthy' | 'invalid' | 'missing'
+  project: 'healthy' | 'invalid' | 'missing' | 'not-required'
+  user: 'healthy' | 'invalid' | 'missing' | 'not-required'
+  env: 'healthy' | 'invalid' | 'missing' | 'not-required'
 }): string {
   return `[project ${getScopeIcon(scopes.project)} user ${getScopeIcon(scopes.user)} env ${getScopeIcon(scopes.env)}]`
 }
@@ -324,7 +327,11 @@ async function runStep1Statusline(wctx: WizardContext): Promise<'user' | 'projec
 
   const statuslineScope = await promptSelect(ctx, 'Where should sidekick configure your statusline?', [
     { value: 'user' as const, label: 'User-level (~/.claude/settings.json)', description: 'Works in all projects' },
-    { value: 'project' as const, label: 'Project-level (.claude/settings.local.json)', description: 'This project only' },
+    {
+      value: 'project' as const,
+      label: 'Project-level (.claude/settings.local.json)',
+      description: 'This project only',
+    },
   ])
 
   // Configure statusline
@@ -556,8 +563,10 @@ async function writeStatusFiles(wctx: WizardContext, state: WizardState): Promis
     },
     statusline: statuslineScope,
     apiKeys: {
-      OPENROUTER_API_KEY: apiKeyDetection ? setupService.buildUserApiKeyStatus(apiKeyDetection) : apiKeyHealth,
-      OPENAI_API_KEY: 'not-required',
+      OPENROUTER_API_KEY: apiKeyDetection
+        ? setupService.buildUserApiKeyStatus(apiKeyDetection)
+        : SetupStatusService.userApiKeyStatusFromHealth(apiKeyHealth),
+      OPENAI_API_KEY: SetupStatusService.userApiKeyStatusFromHealth('not-required'),
     },
   }
 
@@ -567,15 +576,10 @@ async function writeStatusFiles(wctx: WizardContext, state: WizardState): Promis
   const existingProject = await setupService.getProjectStatus()
 
   // Determine project-level API key status:
-  // Use comprehensive detection if available, delegate to user for healthy keys, else use raw health
-  let projectOpenRouterStatus: ProjectSetupStatus['apiKeys']['OPENROUTER_API_KEY']
-  if (apiKeyDetection) {
-    projectOpenRouterStatus = setupService.buildProjectApiKeyStatus(apiKeyDetection)
-  } else if (apiKeyHealth === 'healthy') {
-    projectOpenRouterStatus = 'user'
-  } else {
-    projectOpenRouterStatus = apiKeyHealth
-  }
+  // Use comprehensive detection if available, else convert health string to object format
+  const projectOpenRouterStatus = apiKeyDetection
+    ? setupService.buildProjectApiKeyStatus(apiKeyDetection)
+    : SetupStatusService.projectApiKeyStatusFromHealth(apiKeyHealth)
 
   // Always write project status now (we track gitignore at project level)
   const projectStatus: ProjectSetupStatus = {
@@ -585,7 +589,7 @@ async function writeStatusFiles(wctx: WizardContext, state: WizardState): Promis
     statusline: statuslineScope,
     apiKeys: {
       OPENROUTER_API_KEY: projectOpenRouterStatus,
-      OPENAI_API_KEY: 'not-required',
+      OPENAI_API_KEY: SetupStatusService.projectApiKeyStatusFromHealth('not-required'),
     },
     gitignore: gitignoreStatus,
     devMode: existingProject?.devMode,
@@ -891,7 +895,8 @@ async function runDoctor(
   const apiKeyIcon = openRouterHealth === 'healthy' || openRouterHealth === 'not-required' ? '✓' : '⚠'
   // Ultra-compact scope breakdown
   const scopeBreakdown = formatApiKeyScopes(openRouterResult.scopes)
-  const sourceLabel = formatApiKeySource(openRouterResult.source)
+  const usedToSource: Record<string, ApiKeySource> = { project: 'project-env', user: 'user-env', env: 'env-var' }
+  const sourceLabel = formatApiKeySource(openRouterResult.used ? (usedToSource[openRouterResult.used] ?? null) : null)
 
   stdout.write('\n')
   stdout.write(`${pluginIcon} Plugin: ${pluginLabel}\n`)
