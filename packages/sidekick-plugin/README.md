@@ -11,38 +11,30 @@ Opinionated AI coding companion with personas, session tracking, and contextual 
 
 ## Installation
 
-### Via Claude Code Plugin (Recommended)
+### Via Claude Code Marketplace (Recommended)
 
 ```bash
-# In a Claude Code session:
-/plugin install sidekick
-/plugin enable sidekick --user   # For all projects
+# Add the marketplace
+claude plugin marketplace add scotthamilton77/claude-code-sidekick
+
+# Install the plugin
+claude plugin install sidekick@claude-code-sidekick
+
+# Enable for all projects (user scope) or current project only
+claude plugin enable sidekick@claude-code-sidekick --scope user
 # or
-/plugin enable sidekick --project  # For current project only
+claude plugin enable sidekick@claude-code-sidekick --scope project
 ```
 
-### Manual Installation
+After installation, hooks use `npx @scotthamilton77/sidekick` to run commands. The npm package is fetched automatically on first use.
 
-1. Install the CLI globally:
-   ```bash
-   npm i -g @sidekick/cli
-   ```
+### Manual Installation (via --plugin-dir)
 
-2. Add hooks to your Claude Code settings (`~/.claude/settings.json`):
-   ```json
-   {
-     "hooks": {
-       "SessionStart": [{ "hooks": [{ "type": "command", "command": "sidekick hook session-start" }] }],
-       "SessionEnd": [{ "hooks": [{ "type": "command", "command": "sidekick hook session-end" }] }],
-       "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "sidekick hook user-prompt-submit" }] }],
-       "PreToolUse": [{ "hooks": [{ "type": "command", "command": "sidekick hook pre-tool-use" }] }],
-       "PostToolUse": [{ "matcher": "*", "hooks": [{ "type": "command", "command": "sidekick hook post-tool-use" }] }],
-       "Stop": [{ "hooks": [{ "type": "command", "command": "sidekick hook stop" }] }],
-       "PreCompact": [{ "hooks": [{ "type": "command", "command": "sidekick hook pre-compact" }] }]
-     },
-     "statusLine": { "type": "command", "command": "sidekick statusline --hook" }
-   }
-   ```
+For development or testing, you can point Claude Code directly at the plugin:
+
+```bash
+claude --plugin-dir=/path/to/claude-code-sidekick/packages/sidekick-plugin
+```
 
 ## Configuration
 
@@ -71,10 +63,10 @@ features.statusline.settings.format={model} | {tokenPercentageActual}
 
 ```bash
 # List available personas
-npx @sidekick/cli persona list
+npx @scotthamilton77/sidekick persona list
 
 # Set persona for current session
-npx @sidekick/cli persona set marvin --session-id=<session-id>
+npx @scotthamilton77/sidekick persona set marvin --session-id=<session-id>
 ```
 
 ## Available Personas
