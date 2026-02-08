@@ -47,6 +47,7 @@ function createMockHandlerRegistry(): HandlerRegistry & {
     invokeHook: vi.fn(() => Promise.resolve({})),
     emitTranscriptEvent: vi.fn((eventType, entry, lineNumber) => {
       emittedEvents.push({ eventType, entry, lineNumber })
+      return Promise.resolve()
     }),
     emittedEvents,
   }

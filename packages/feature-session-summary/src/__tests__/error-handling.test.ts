@@ -28,6 +28,9 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
 
+/** Flush microtask queue so fire-and-forget promises settle */
+const flushPromises = (): Promise<void> => new Promise<void>((resolve) => setTimeout(resolve, 0))
+
 /**
  * Extended MockLLMService with error simulation support.
  * Uses a combined queue where each item can be either a response string or an Error.
@@ -156,6 +159,7 @@ describe('Session Summary Error Handling', () => {
       // (assets.resolve() will return null)
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+      await flushPromises()
 
       // Verify error was logged
       const errorLogs = logger.recordedLogs.filter((log) => log.level === 'error')
@@ -186,6 +190,7 @@ describe('Session Summary Error Handling', () => {
       llm.queueResponse('This is not valid JSON at all!')
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+      await flushPromises()
 
       // Verify warning was logged
       const warnLogs = logger.recordedLogs.filter((log) => log.level === 'warn')
@@ -218,6 +223,7 @@ describe('Session Summary Error Handling', () => {
       )
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+      await flushPromises()
 
       // Verify warning was logged
       const warnLogs = logger.recordedLogs.filter((log) => log.level === 'warn')
@@ -276,6 +282,7 @@ describe('Session Summary Error Handling', () => {
       )
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+      await flushPromises()
 
       // Verify the prompt was interpolated correctly
       expect(llm.recordedRequests).toHaveLength(1)
@@ -333,6 +340,7 @@ describe('Session Summary Error Handling', () => {
       llm.queueResponse(`Here's my analysis:\n\`\`\`json\n${JSON.stringify(validResponse, null, 2)}\n\`\`\``)
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+      await flushPromises()
 
       // Verify no warnings were logged
       const warnLogs = logger.recordedLogs.filter((log) => log.level === 'warn')
@@ -366,6 +374,7 @@ describe('Session Summary Error Handling', () => {
       llm.queueResponse(`\`\`\`\n${JSON.stringify(validResponse)}\n\`\`\``)
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+      await flushPromises()
 
       // Verify correct parsing
       const statePath = stateService.sessionStatePath(sessionId, 'session-summary.json')
@@ -394,6 +403,7 @@ describe('Session Summary Error Handling', () => {
       llm.queueResponse(`\`\`\`json\n\n\n${JSON.stringify(validResponse, null, 2)}\n\n\n\`\`\``)
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+      await flushPromises()
 
       // Verify correct parsing despite extra whitespace
       const statePath = stateService.sessionStatePath(sessionId, 'session-summary.json')
@@ -436,6 +446,7 @@ describe('Session Summary Error Handling', () => {
       )
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+      await flushPromises()
 
       // Verify warning was logged
       const warnLogs = logger.recordedLogs.filter((log) => log.level === 'warn')
@@ -486,6 +497,7 @@ describe('Session Summary Error Handling', () => {
       llm.queueError(new Error('LLM API timeout'))
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+      await flushPromises()
 
       // Verify warning was logged about snarky failure
       const warnLogs = logger.recordedLogs.filter((log) => log.level === 'warn')
@@ -519,6 +531,7 @@ describe('Session Summary Error Handling', () => {
       )
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+      await flushPromises()
 
       // Verify warning was logged
       const warnLogs = logger.recordedLogs.filter((log) => log.level === 'warn')
@@ -561,6 +574,7 @@ describe('Session Summary Error Handling', () => {
       ])
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+      await flushPromises()
 
       // Verify main summary was still updated
       const summaryPath = stateService.sessionStatePath(sessionId, 'session-summary.json')
@@ -600,6 +614,7 @@ describe('Session Summary Error Handling', () => {
       ])
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+      await flushPromises()
 
       // Verify resume message was saved with quotes stripped
       const resumePath = stateService.sessionStatePath(sessionId, 'resume-message.json')
@@ -635,6 +650,7 @@ describe('Session Summary Error Handling', () => {
       llm.queueError(new Error('Network timeout'))
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+      await flushPromises()
 
       // Verify warning was logged
       const warnLogs = logger.recordedLogs.filter((log) => log.level === 'warn')
@@ -665,6 +681,7 @@ describe('Session Summary Error Handling', () => {
       llm.queueError(new Error('API rate limit exceeded'))
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+      await flushPromises()
 
       // Verify error was logged
       const errorLogs = logger.recordedLogs.filter((log) => log.level === 'error')
@@ -704,6 +721,7 @@ describe('Session Summary Error Handling', () => {
       llm.queueError(new Error('Connection timeout'))
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+      await flushPromises()
 
       // Verify previous values were preserved as fallback
       const stateContent = stateService.getStored(summaryPath) as Record<string, unknown>
@@ -754,6 +772,7 @@ describe('Session Summary Error Handling', () => {
       llm.queueError(new Error('Resume LLM failed'))
 
       await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+      await flushPromises()
 
       // Verify both warnings were logged
       const warnLogs = logger.recordedLogs.filter((log) => log.level === 'warn')

@@ -311,10 +311,7 @@ describe('HandlerRegistryImpl', () => {
 
       const entry: TranscriptEntry = { type: 'tool_use', name: 'Bash' }
 
-      registry.emitTranscriptEvent('ToolCall', entry, 42)
-
-      // Wait for async handlers to complete
-      await new Promise((resolve) => setTimeout(resolve, 50))
+      await registry.emitTranscriptEvent('ToolCall', entry, 42)
 
       expect(received).toContain('ToolCall')
     })
@@ -331,9 +328,7 @@ describe('HandlerRegistryImpl', () => {
 
       const entry: TranscriptEntry = { type: 'tool_use', name: 'Read' }
 
-      registry.emitTranscriptEvent('ToolCall', entry, 10)
-
-      await new Promise((resolve) => setTimeout(resolve, 50))
+      await registry.emitTranscriptEvent('ToolCall', entry, 10)
 
       expect(called).not.toHaveBeenCalled()
     })

@@ -128,7 +128,7 @@ class TestHandlerRegistry implements HandlerRegistry {
    * implementation doesn't wait for handlers to complete before returning.
    * Tests should add appropriate delays after transcript operations.
    */
-  emitTranscriptEvent(eventType: TranscriptEventType, entry: TranscriptEntry, lineNumber: number): void {
+  async emitTranscriptEvent(eventType: TranscriptEventType, entry: TranscriptEntry, lineNumber: number): Promise<void> {
     const event: TranscriptEvent = {
       kind: 'transcript',
       eventType,
@@ -153,13 +153,14 @@ class TestHandlerRegistry implements HandlerRegistry {
       })
       .sort((a, b) => b.priority - a.priority)
 
-    // Execute handlers and track promises for cleanup
-    for (const handler of matchingHandlers) {
-      const promise = handler.handler(event, this.context).then((result) => {
+    // Execute handlers concurrently and track for cleanup
+    const promises = matchingHandlers.map((handler) =>
+      handler.handler(event, this.context).then((result) => {
         handlerResults.push({ handlerId: handler.id, result })
       })
-      this.pendingHandlers.push(promise)
-    }
+    )
+    this.pendingHandlers.push(...promises)
+    await Promise.all(promises)
 
     this.emittedEvents.push({ eventType, entry, lineNumber, handlerResults })
   }
@@ -617,7 +618,7 @@ describe('RuntimeContext Wiring Verification', () => {
       handlers: {
         register: vi.fn(),
         invokeHook: vi.fn(),
-        emitTranscriptEvent: vi.fn(),
+        emitTranscriptEvent: vi.fn().mockResolvedValue(undefined),
       },
       paths: {
         userConfigDir: '/mock/.sidekick',

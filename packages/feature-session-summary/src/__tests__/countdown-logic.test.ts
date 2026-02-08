@@ -27,6 +27,9 @@ import type { TranscriptEvent } from '@sidekick/core'
 import type { SummaryCountdownState } from '../types'
 import { DEFAULT_SESSION_SUMMARY_CONFIG } from '../types'
 
+/** Flush microtask queue so fire-and-forget promises settle */
+const flushPromises = (): Promise<void> => new Promise<void>((resolve) => setTimeout(resolve, 0))
+
 describe('Session Summary Countdown Logic', () => {
   let ctx: DaemonContext
   let logger: MockLogger
@@ -127,6 +130,7 @@ describe('Session Summary Countdown Logic', () => {
       writeCountdownState(sessionId, { countdown: 5, bookmark_line: 0 })
 
       await updateSessionSummary(createToolResultEvent(sessionId), ctx)
+      await flushPromises()
 
       // Countdown should be decremented to 4
       const state = readCountdownState(sessionId)
@@ -142,6 +146,7 @@ describe('Session Summary Countdown Logic', () => {
       writeCountdownState(sessionId, { countdown: 3, bookmark_line: 50 })
 
       await updateSessionSummary(createToolResultEvent(sessionId), ctx)
+      await flushPromises()
 
       const state = readCountdownState(sessionId)
       expect(state.countdown).toBe(2)
@@ -154,6 +159,7 @@ describe('Session Summary Countdown Logic', () => {
       writeCountdownState(sessionId, { countdown: 1, bookmark_line: 100 })
 
       await updateSessionSummary(createToolResultEvent(sessionId), ctx)
+      await flushPromises()
 
       const state = readCountdownState(sessionId)
       expect(state.countdown).toBe(0)
@@ -182,6 +188,7 @@ describe('Session Summary Countdown Logic', () => {
       )
 
       await updateSessionSummary(createToolResultEvent(sessionId, 120), ctx)
+      await flushPromises()
 
       // LLM should be called
       expect(llm.recordedRequests).toHaveLength(1)
@@ -210,6 +217,7 @@ describe('Session Summary Countdown Logic', () => {
       )
 
       await updateSessionSummary(createToolResultEvent(sessionId), ctx)
+      await flushPromises()
 
       // LLM called
       expect(llm.recordedRequests).toHaveLength(1)
@@ -238,6 +246,7 @@ describe('Session Summary Countdown Logic', () => {
       )
 
       await updateSessionSummary(createToolResultEvent(sessionId), ctx)
+      await flushPromises()
 
       const state = readCountdownState(sessionId)
       expect(state.countdown).toBe(DEFAULT_SESSION_SUMMARY_CONFIG.countdown.highConfidence)
@@ -259,6 +268,7 @@ describe('Session Summary Countdown Logic', () => {
       )
 
       await updateSessionSummary(createToolResultEvent(sessionId), ctx)
+      await flushPromises()
 
       const state = readCountdownState(sessionId)
       expect(state.countdown).toBe(DEFAULT_SESSION_SUMMARY_CONFIG.countdown.highConfidence)
@@ -283,6 +293,7 @@ describe('Session Summary Countdown Logic', () => {
       )
 
       await updateSessionSummary(createToolResultEvent(sessionId), ctx)
+      await flushPromises()
 
       const state = readCountdownState(sessionId)
       expect(state.countdown).toBe(DEFAULT_SESSION_SUMMARY_CONFIG.countdown.mediumConfidence)
@@ -305,6 +316,7 @@ describe('Session Summary Countdown Logic', () => {
       )
 
       await updateSessionSummary(createToolResultEvent(sessionId), ctx)
+      await flushPromises()
 
       const state = readCountdownState(sessionId)
       expect(state.countdown).toBe(DEFAULT_SESSION_SUMMARY_CONFIG.countdown.mediumConfidence)
@@ -329,6 +341,7 @@ describe('Session Summary Countdown Logic', () => {
       )
 
       await updateSessionSummary(createToolResultEvent(sessionId), ctx)
+      await flushPromises()
 
       const state = readCountdownState(sessionId)
       expect(state.countdown).toBe(DEFAULT_SESSION_SUMMARY_CONFIG.countdown.lowConfidence)
@@ -351,6 +364,7 @@ describe('Session Summary Countdown Logic', () => {
       )
 
       await updateSessionSummary(createToolResultEvent(sessionId), ctx)
+      await flushPromises()
 
       const state = readCountdownState(sessionId)
       expect(state.countdown).toBe(DEFAULT_SESSION_SUMMARY_CONFIG.countdown.lowConfidence)
@@ -372,6 +386,7 @@ describe('Session Summary Countdown Logic', () => {
       )
 
       await updateSessionSummary(createToolResultEvent(sessionId), ctx)
+      await flushPromises()
 
       const state = readCountdownState(sessionId)
       expect(state.countdown).toBe(DEFAULT_SESSION_SUMMARY_CONFIG.countdown.lowConfidence)
@@ -395,6 +410,7 @@ describe('Session Summary Countdown Logic', () => {
       )
 
       await updateSessionSummary(createToolResultEvent(sessionId), ctx)
+      await flushPromises()
 
       // With no state file, countdown starts at 0, triggers analysis immediately
       expect(llm.recordedRequests).toHaveLength(1)
@@ -414,16 +430,19 @@ describe('Session Summary Countdown Logic', () => {
 
       // Event 1: countdown 3 → 2
       await updateSessionSummary(createToolResultEvent(sessionId, 100), ctx)
+      await flushPromises()
       expect(readCountdownState(sessionId).countdown).toBe(2)
       expect(llm.recordedRequests).toHaveLength(0)
 
       // Event 2: countdown 2 → 1
       await updateSessionSummary(createToolResultEvent(sessionId, 105), ctx)
+      await flushPromises()
       expect(readCountdownState(sessionId).countdown).toBe(1)
       expect(llm.recordedRequests).toHaveLength(0)
 
       // Event 3: countdown 1 → 0
       await updateSessionSummary(createToolResultEvent(sessionId, 110), ctx)
+      await flushPromises()
       expect(readCountdownState(sessionId).countdown).toBe(0)
       expect(llm.recordedRequests).toHaveLength(0)
 
@@ -439,6 +458,7 @@ describe('Session Summary Countdown Logic', () => {
       )
 
       await updateSessionSummary(createToolResultEvent(sessionId, 115), ctx)
+      await flushPromises()
       expect(llm.recordedRequests).toHaveLength(1)
 
       // Countdown reset to configured high confidence tier (0.9 + 0.85) / 2 = 0.875 > 0.8
@@ -474,6 +494,7 @@ describe('Session Summary Countdown Logic', () => {
       )
 
       await updateSessionSummary(createToolResultEvent(sessionId, eventLineNumber), ctx)
+      await flushPromises()
 
       const state = readCountdownState(sessionId)
       // High confidence: bookmark should be updated to event's lineNumber
@@ -498,6 +519,7 @@ describe('Session Summary Countdown Logic', () => {
       )
 
       await updateSessionSummary(createToolResultEvent(sessionId, 300), ctx)
+      await flushPromises()
 
       const state = readCountdownState(sessionId)
       // Low confidence: bookmark should be reset to 0
@@ -523,6 +545,7 @@ describe('Session Summary Countdown Logic', () => {
       )
 
       await updateSessionSummary(createToolResultEvent(sessionId, 400), ctx)
+      await flushPromises()
 
       const state = readCountdownState(sessionId)
       // Medium confidence: bookmark should be preserved
@@ -548,6 +571,7 @@ describe('Session Summary Countdown Logic', () => {
       )
 
       await updateSessionSummary(createToolResultEvent(sessionId, 500), ctx)
+      await flushPromises()
 
       const state = readCountdownState(sessionId)
       // At exactly 0.7: not < 0.7, not > 0.8, so preserve
@@ -572,6 +596,7 @@ describe('Session Summary Countdown Logic', () => {
       )
 
       await updateSessionSummary(createToolResultEvent(sessionId, eventLineNumber), ctx)
+      await flushPromises()
 
       const state = readCountdownState(sessionId)
       // At 0.81 (> 0.8): set bookmark to lineNumber
@@ -596,6 +621,7 @@ describe('Session Summary Countdown Logic', () => {
         })
       )
       await updateSessionSummary(createToolResultEvent(sessionId, 200), ctx)
+      await flushPromises()
 
       let state = readCountdownState(sessionId)
       expect(state.bookmark_line).toBe(initialBookmark)
@@ -614,6 +640,7 @@ describe('Session Summary Countdown Logic', () => {
         })
       )
       await updateSessionSummary(createToolResultEvent(sessionId, 300), ctx)
+      await flushPromises()
 
       state = readCountdownState(sessionId)
       expect(state.bookmark_line).toBe(initialBookmark)

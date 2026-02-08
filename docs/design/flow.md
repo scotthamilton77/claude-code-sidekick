@@ -71,7 +71,7 @@ interface HandlerResult {
 **Processing Model**:
 
 - **Hook events**: Handlers execute sequentially (must produce single response to CLI)
-- **Transcript events**: Handlers execute concurrently (fire-and-forget, no response needed)
+- **Transcript events**: Handlers for a single event run concurrently via `Promise.all`; callers serialize across events (each line settles before the next)
 
 Handlers are responsible for their own error handling via internal try/catch. Unhandled exceptions are logged by the framework, and execution continues to the next handler.
 
