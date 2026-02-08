@@ -16,17 +16,7 @@ import type {
   PersonaDefinition,
   ApiKeyHealth,
 } from '@sidekick/types'
-import { createPersonaLoader, getDefaultPersonasDir, SetupStatusService, type SetupState } from '@sidekick/core'
-
-/**
- * Minimal interface for setup status checking.
- * StatuslineService only needs these two methods from SetupStatusService.
- * This allows tests to provide a simple mock without implementing the full class.
- */
-export interface MinimalSetupStatusService {
-  getSetupState(): Promise<SetupState>
-  getEffectiveApiKeyHealth(key: 'OPENROUTER_API_KEY' | 'OPENAI_API_KEY'): Promise<ApiKeyHealth>
-}
+import { createPersonaLoader, getDefaultPersonasDir, SetupStatusService, type ApiKeyName, type SetupState } from '@sidekick/core'
 import {
   Formatter,
   calculateContextUsage,
@@ -44,6 +34,8 @@ import { StateReader, createStateReader, discoverPreviousResumeMessage } from '.
 import { readContextOverhead, getDefaultOverhead, type ContextOverhead } from './context-overhead-reader.js'
 import {
   normalizeSymbolMode,
+  DEFAULT_PLACEHOLDERS,
+  DEFAULT_STATUSLINE_CONFIG,
   type DisplayMode,
   type ResumeMessageState,
   TranscriptMetricsState,
@@ -54,7 +46,42 @@ import {
   StatuslineViewModel,
   LogMetricsState,
 } from './types.js'
-import { DEFAULT_PLACEHOLDERS, DEFAULT_STATUSLINE_CONFIG } from './types.js'
+
+/**
+ * Minimal interface for setup status checking.
+ * StatuslineService only needs these two methods from SetupStatusService.
+ * This allows tests to provide a simple mock without implementing the full class.
+ */
+export interface MinimalSetupStatusService {
+  getSetupState(): Promise<SetupState>
+  getEffectiveApiKeyHealth(key: ApiKeyName): Promise<ApiKeyHealth>
+}
+
+/**
+ * Empty base view model for setup_warning display mode.
+ * Only `summary` varies per-call; all other fields are static empty/default values.
+ */
+const EMPTY_STATUSLINE_VIEWMODEL: Omit<StatuslineViewModel, 'summary'> = {
+  model: '',
+  contextWindow: '',
+  tokenUsageActual: '',
+  tokenUsageEffective: '',
+  tokenPercentageActual: '',
+  tokenPercentageEffective: '',
+  tokensStatus: 'normal',
+  cost: '',
+  costStatus: 'normal',
+  duration: '',
+  cwd: '',
+  branch: '',
+  branchColor: '',
+  displayMode: 'setup_warning',
+  title: '',
+  warningCount: 0,
+  errorCount: 0,
+  logStatus: 'normal',
+  personaName: '',
+} as const
 
 // ============================================================================
 // Claude Code Hook Input Types
@@ -417,18 +444,21 @@ export class StatuslineService {
           state,
         }
       case 'unhealthy': {
-        // Check which key is the problem
-        const keyHealth = await this.setupService.getEffectiveApiKeyHealth('OPENROUTER_API_KEY')
-        if (keyHealth === 'missing') {
-          return {
-            warning: "OPENROUTER_API_KEY not found. Run 'sidekick doctor' or /sidekick-config",
-            state,
+        // Check both API keys to determine which is the problem
+        const keysToCheck: ApiKeyName[] = ['OPENROUTER_API_KEY', 'OPENAI_API_KEY']
+        for (const keyName of keysToCheck) {
+          const keyHealth = await this.setupService.getEffectiveApiKeyHealth(keyName)
+          if (keyHealth === 'missing') {
+            return {
+              warning: `${keyName} not found. Run 'sidekick doctor' or /sidekick-config`,
+              state,
+            }
           }
-        }
-        if (keyHealth === 'invalid') {
-          return {
-            warning: "API key invalid. Run 'sidekick doctor' to fix.",
-            state,
+          if (keyHealth === 'invalid') {
+            return {
+              warning: `${keyName} invalid. Run 'sidekick doctor' to fix.`,
+              state,
+            }
           }
         }
         return {
@@ -447,26 +477,8 @@ export class StatuslineService {
    */
   private buildMinimalViewModel(setupCheck: { warning: string; state: SetupState }): StatuslineViewModel {
     return {
-      model: '',
-      contextWindow: '',
-      tokenUsageActual: '',
-      tokenUsageEffective: '',
-      tokenPercentageActual: '',
-      tokenPercentageEffective: '',
-      tokensStatus: 'normal',
-      cost: '',
-      costStatus: 'normal',
-      duration: '',
-      cwd: '',
-      branch: '',
-      branchColor: '',
-      displayMode: 'setup_warning',
+      ...EMPTY_STATUSLINE_VIEWMODEL,
       summary: setupCheck.warning,
-      title: '',
-      warningCount: 0,
-      errorCount: 0,
-      logStatus: 'normal',
-      personaName: '',
     }
   }
 

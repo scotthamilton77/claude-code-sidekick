@@ -28,7 +28,7 @@ import { StateService } from '@sidekick/core'
 import type { MinimalAssetResolver } from '@sidekick/types'
 import { getDefaultOverhead, readContextOverhead } from '../context-overhead-reader.js'
 import { createStateReader, discoverPreviousResumeMessage } from '../state-reader.js'
-import { createStatuslineService, type ClaudeCodeStatusInput } from '../statusline-service.js'
+import { createStatuslineService, type ClaudeCodeStatusInput, type MinimalSetupStatusService } from '../statusline-service.js'
 import { DEFAULT_STATUSLINE_CONFIG, type StatuslineViewModel } from '../types.js'
 
 /**
@@ -176,30 +176,15 @@ function createTestPersistedMetrics(overrides?: {
 /**
  * Mock SetupStatusService that always returns healthy status.
  * Used in tests to bypass real file system checks.
+ * Only implements the two methods required by MinimalSetupStatusService.
  */
-class MockSetupStatusService {
+class MockSetupStatusService implements MinimalSetupStatusService {
   getSetupState(): Promise<'healthy'> {
     return Promise.resolve('healthy')
   }
 
   getEffectiveApiKeyHealth(): Promise<'healthy'> {
     return Promise.resolve('healthy')
-  }
-
-  getApiKeyHealth(): Promise<'healthy'> {
-    return Promise.resolve('healthy')
-  }
-
-  isHealthy(): Promise<boolean> {
-    return Promise.resolve(true)
-  }
-
-  getUserStatus(): Promise<null> {
-    return Promise.resolve(null)
-  }
-
-  getProjectStatus(): Promise<null> {
-    return Promise.resolve(null)
   }
 }
 
