@@ -26,7 +26,7 @@ export interface SetupCommandOptions {
   gitignore?: boolean // true = install, false = skip, undefined = not specified
   personas?: boolean // true = enable, false = disable, undefined = not specified
   apiKeyScope?: 'user' | 'project' // where to save API key (reads from OPENROUTER_API_KEY env)
-  autoConfig?: 'auto' | 'ask' | 'manual'
+  autoConfig?: 'auto' | 'manual'
   // Testing override - allows tests to specify home directory
   homeDir?: string
 }
@@ -53,7 +53,7 @@ Scripting Flags (for non-interactive/partial setup):
   --personas                    Enable persona features
   --no-personas                 Disable persona features
   --api-key-scope=<scope>       Save API key from OPENROUTER_API_KEY env: user | project
-  --auto-config=<mode>          Auto-configure preference: auto | ask | manual
+  --auto-config=<mode>          Auto-configure preference: auto | manual
 
 Examples:
   sidekick setup                              Interactive wizard
@@ -245,7 +245,7 @@ async function writeApiKeyToEnv(envPath: string, key: string, value: string): Pr
  * Write persona enabled/disabled setting to sidekick features config.
  * Per CONFIG-SYSTEM.md, feature flags go in features.yaml (not config.yaml).
  */
-async function writePersonaConfig(_projectDir: string, homeDir: string, enabled: boolean): Promise<void> {
+async function writePersonaConfig(homeDir: string, enabled: boolean): Promise<void> {
   // Write to user-level features config (~/.sidekick/features.yaml)
   const configDir = path.join(homeDir, '.sidekick')
   const featuresPath = path.join(configDir, 'features.yaml')
@@ -295,7 +295,7 @@ interface WizardState {
   wantPersonas: boolean
   apiKeyHealth: ApiKeyHealth
   apiKeyDetection: AllScopesDetectionResult | null
-  autoConfig: 'auto' | 'ask' | 'manual'
+  autoConfig: 'auto' | 'manual'
 }
 
 // ============================================================================
@@ -322,10 +322,10 @@ async function runStep1Statusline(wctx: WizardContext): Promise<'user' | 'projec
 
   printHeader(ctx, 'Step 1: Statusline Configuration', 'Claude Code plugins cannot provide statusline config directly.')
 
-  const statuslineScope = (await promptSelect(ctx, 'Where should sidekick configure your statusline?', [
-    { value: 'user', label: 'User-level (~/.claude/settings.json)', description: 'Works in all projects' },
-    { value: 'project', label: 'Project-level (.claude/settings.local.json)', description: 'This project only' },
-  ])) as 'user' | 'project'
+  const statuslineScope = await promptSelect(ctx, 'Where should sidekick configure your statusline?', [
+    { value: 'user' as const, label: 'User-level (~/.claude/settings.json)', description: 'Works in all projects' },
+    { value: 'project' as const, label: 'Project-level (.claude/settings.local.json)', description: 'This project only' },
+  ])
 
   // Configure statusline
   const statuslinePath =
@@ -393,11 +393,14 @@ async function runStep2Gitignore(wctx: WizardContext, force: boolean): Promise<G
   }
 
   // Both 'installed' and 'already-installed' are success states
-  const message = needsRepair
-    ? 'Repaired sidekick section in .gitignore'
-    : result.status === 'already-installed'
-      ? 'Sidekick entries already present in .gitignore'
-      : 'Added sidekick section to .gitignore'
+  let message: string
+  if (needsRepair) {
+    message = 'Repaired sidekick section in .gitignore'
+  } else if (result.status === 'already-installed') {
+    message = 'Sidekick entries already present in .gitignore'
+  } else {
+    message = 'Added sidekick section to .gitignore'
+  }
   printStatus(ctx, 'success', message)
   return 'installed'
 }
@@ -408,7 +411,7 @@ async function runStep2Gitignore(wctx: WizardContext, force: boolean): Promise<G
 async function runStep3Personas(
   wctx: WizardContext
 ): Promise<{ wantPersonas: boolean; apiKeyHealth: ApiKeyHealth; apiKeyDetection: AllScopesDetectionResult | null }> {
-  const { ctx, homeDir, projectDir } = wctx
+  const { ctx, homeDir } = wctx
   const stdout = ctx.stdout
 
   printHeader(
@@ -424,10 +427,10 @@ async function runStep3Personas(
   let apiKeyDetection: AllScopesDetectionResult | null = null
 
   if (!wantPersonas) {
-    await writePersonaConfig(projectDir, homeDir, false)
+    await writePersonaConfig(homeDir, false)
     printStatus(ctx, 'info', 'Personas disabled')
   } else {
-    await writePersonaConfig(projectDir, homeDir, true)
+    await writePersonaConfig(homeDir, true)
     const result = await configureApiKey(wctx)
     apiKeyHealth = result.health
     apiKeyDetection = result.detection
@@ -442,7 +445,7 @@ async function runStep3Personas(
  */
 async function configureApiKey(
   wctx: WizardContext
-): Promise<{ health: ApiKeyHealth; detection: AllScopesDetectionResult }> {
+): Promise<{ health: ApiKeyHealth; detection: AllScopesDetectionResult | null }> {
   const { ctx, homeDir, projectDir, logger, setupService } = wctx
   const stdout = ctx.stdout
 
@@ -488,12 +491,17 @@ async function configureApiKey(
   }
 
   // User wants to configure key now
-  const keyScope = (await promptSelect(ctx, 'Where should the API key be stored?', [
-    { value: 'user', label: 'User-level (~/.sidekick/.env)', description: 'Works in all projects' },
-    { value: 'project', label: 'Project-level (.sidekick/.env)', description: 'This project only' },
-  ])) as 'user' | 'project'
+  const keyScope = await promptSelect(ctx, 'Where should the API key be stored?', [
+    { value: 'user' as const, label: 'User-level (~/.sidekick/.env)', description: 'Works in all projects' },
+    { value: 'project' as const, label: 'Project-level (.sidekick/.env)', description: 'This project only' },
+  ])
 
   const apiKey = await promptInput(ctx, 'Paste your OpenRouter API key')
+
+  if (!apiKey) {
+    printStatus(ctx, 'warning', 'No API key entered, skipping')
+    return { health: 'missing' as ApiKeyHealth, detection: null }
+  }
 
   stdout.write('Validating... ')
   const result = await validateOpenRouterKey(apiKey, logger)
@@ -510,24 +518,23 @@ async function configureApiKey(
     await writeApiKeyToEnv(envPath, 'OPENROUTER_API_KEY', apiKey)
   }
 
-  // Re-detect after writing to get accurate scope state
-  const postDetection = await setupService.detectAllApiKeys('OPENROUTER_API_KEY')
+  // Re-detect after writing to get accurate scope state (skip validation — we just validated above)
+  const postDetection = await setupService.detectAllApiKeys('OPENROUTER_API_KEY', true)
   return { health: result.valid ? 'healthy' : 'invalid', detection: postDetection }
 }
 
 /**
  * Step 4: Configure auto-configuration preference.
  */
-async function runStep4AutoConfig(wctx: WizardContext): Promise<'auto' | 'ask' | 'manual'> {
+async function runStep4AutoConfig(wctx: WizardContext): Promise<'auto' | 'manual'> {
   const { ctx } = wctx
 
   printHeader(ctx, 'Step 4: Project Auto-Configuration')
 
-  const autoConfig = (await promptSelect(ctx, 'When sidekick runs in a new project for the first time:', [
-    { value: 'auto', label: 'Auto-configure using my defaults', description: 'Recommended' },
-    { value: 'ask', label: 'Ask me each time' },
-    { value: 'manual', label: 'Do nothing', description: 'Manual setup only' },
-  ])) as 'auto' | 'ask' | 'manual'
+  const autoConfig = await promptSelect(ctx, 'When sidekick runs in a new project for the first time:', [
+    { value: 'auto' as const, label: 'Auto-configure using my defaults', description: 'Recommended' },
+    { value: 'manual' as const, label: 'Do nothing', description: 'Manual setup only' },
+  ])
 
   return autoConfig
 }
@@ -559,6 +566,17 @@ async function writeStatusFiles(wctx: WizardContext, state: WizardState): Promis
   // Preserve fields managed by other subsystems (e.g. dev-mode)
   const existingProject = await setupService.getProjectStatus()
 
+  // Determine project-level API key status:
+  // Use comprehensive detection if available, delegate to user for healthy keys, else use raw health
+  let projectOpenRouterStatus: ProjectSetupStatus['apiKeys']['OPENROUTER_API_KEY']
+  if (apiKeyDetection) {
+    projectOpenRouterStatus = setupService.buildProjectApiKeyStatus(apiKeyDetection)
+  } else if (apiKeyHealth === 'healthy') {
+    projectOpenRouterStatus = 'user'
+  } else {
+    projectOpenRouterStatus = apiKeyHealth
+  }
+
   // Always write project status now (we track gitignore at project level)
   const projectStatus: ProjectSetupStatus = {
     version: 1,
@@ -566,11 +584,7 @@ async function writeStatusFiles(wctx: WizardContext, state: WizardState): Promis
     autoConfigured: false,
     statusline: statuslineScope,
     apiKeys: {
-      OPENROUTER_API_KEY: apiKeyDetection
-        ? setupService.buildProjectApiKeyStatus(apiKeyDetection)
-        : apiKeyHealth === 'healthy'
-          ? 'user'
-          : apiKeyHealth,
+      OPENROUTER_API_KEY: projectOpenRouterStatus,
       OPENAI_API_KEY: 'not-required',
     },
     gitignore: gitignoreStatus,
@@ -589,10 +603,22 @@ function printSummary(wctx: WizardContext, state: WizardState): void {
 
   printHeader(ctx, 'Summary')
   printStatus(ctx, 'success', `Statusline: ${statuslineScope === 'user' ? 'User-level' : 'Project-level'}`)
-  const gitignoreStatusType =
-    gitignoreStatus === 'installed' ? 'success' : gitignoreStatus === 'incomplete' ? 'warning' : 'info'
-  const gitignoreLabel =
-    gitignoreStatus === 'installed' ? 'Configured' : gitignoreStatus === 'incomplete' ? 'Incomplete' : 'Skipped'
+
+  let gitignoreStatusType: 'success' | 'warning' | 'info'
+  let gitignoreLabel: string
+  switch (gitignoreStatus) {
+    case 'installed':
+      gitignoreStatusType = 'success'
+      gitignoreLabel = 'Configured'
+      break
+    case 'incomplete':
+      gitignoreStatusType = 'warning'
+      gitignoreLabel = 'Incomplete'
+      break
+    default:
+      gitignoreStatusType = 'info'
+      gitignoreLabel = 'Skipped'
+  }
   printStatus(ctx, gitignoreStatusType, `Gitignore: ${gitignoreLabel}`)
   printStatus(ctx, wantPersonas ? 'success' : 'info', `Personas: ${wantPersonas ? 'Enabled' : 'Disabled'}`)
 
@@ -744,7 +770,7 @@ async function runScripted(
 
   // 3. Configure personas if specified
   if (options.personas !== undefined) {
-    await writePersonaConfig(projectDir, homeDir, options.personas)
+    await writePersonaConfig(homeDir, options.personas)
     stdout.write(`✓ Personas ${options.personas ? 'enabled' : 'disabled'}\n`)
     configuredCount++
   }
@@ -819,9 +845,10 @@ async function runDoctor(
   projectDir: string,
   logger: Logger,
   stdout: NodeJS.WritableStream,
-  overrideHomeDir?: string
+  options?: { homeDir?: string; skipLiveness?: boolean }
 ): Promise<SetupCommandResult> {
-  const homeDir = overrideHomeDir ?? os.homedir()
+  const homeDir = options?.homeDir ?? os.homedir()
+  const skipLiveness = options?.skipLiveness ?? false
   const setupService = new SetupStatusService(projectDir, { homeDir, logger })
 
   stdout.write('\nSidekick Doctor\n')
@@ -847,15 +874,16 @@ async function runDoctor(
     stdout.write('\n')
   }
 
-  // Test plugin liveness (spawns Claude session)
-  stdout.write('Checking live status of Sidekick... this may take a few moments.\n')
-  const liveness = await setupService.detectPluginLiveness()
+  // Test plugin liveness (spawns Claude session) — skip in automated flows
+  let liveness: PluginLivenessStatus | null = null
+  if (!skipLiveness) {
+    stdout.write('Checking live status of Sidekick... this may take a few moments.\n')
+    liveness = await setupService.detectPluginLiveness()
+  }
 
   // Display current state
   const pluginIcon = getPluginStatusIcon(pluginStatus)
   const pluginLabel = getPluginStatusLabel(pluginStatus)
-  const livenessIcon = getLivenessIcon(liveness)
-  const livenessLabel = getLivenessLabel(liveness)
   const statuslineIcon = doctorResult.statusline.actual !== 'none' ? '✓' : '⚠'
   const gitignoreIcon = gitignore === 'installed' ? '✓' : '⚠'
   const openRouterResult = doctorResult.apiKeys.OPENROUTER_API_KEY
@@ -867,13 +895,17 @@ async function runDoctor(
 
   stdout.write('\n')
   stdout.write(`${pluginIcon} Plugin: ${pluginLabel}\n`)
-  stdout.write(`${livenessIcon} Plugin Liveness: ${livenessLabel}\n`)
+  if (liveness !== null) {
+    const livenessIcon = getLivenessIcon(liveness)
+    const livenessLabel = getLivenessLabel(liveness)
+    stdout.write(`${livenessIcon} Plugin Liveness: ${livenessLabel}\n`)
+  }
   stdout.write(`${statuslineIcon} Statusline: ${doctorResult.statusline.actual}\n`)
   stdout.write(`${gitignoreIcon} Gitignore: ${gitignore}\n`)
   stdout.write(`${apiKeyIcon} OpenRouter API Key: ${openRouterHealth}${sourceLabel} ${scopeBreakdown}\n`)
 
   const isPluginOk = pluginStatus === 'plugin' || pluginStatus === 'dev-mode'
-  const isPluginLive = liveness === 'active'
+  const isPluginLive = liveness === null || liveness === 'active'
   const isHealthy = doctorResult.overallHealth === 'healthy' && gitignore === 'installed' && isPluginOk && isPluginLive
   const overallIcon = isHealthy ? '✓' : '⚠'
   stdout.write(`${overallIcon} Overall: ${isHealthy ? 'healthy' : 'needs attention'}\n`)
@@ -899,7 +931,7 @@ export async function handleSetupCommand(
     return { exitCode: 0 }
   }
   if (options.checkOnly) {
-    return runDoctor(projectDir, logger, stdout, options.homeDir)
+    return runDoctor(projectDir, logger, stdout, { homeDir: options.homeDir })
   }
   if (hasScriptingFlags(options)) {
     return runScripted(projectDir, logger, stdout, options)

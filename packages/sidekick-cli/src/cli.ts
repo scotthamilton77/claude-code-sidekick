@@ -77,7 +77,7 @@ interface ParsedArgs {
   gitignore?: boolean
   personas?: boolean
   apiKeyScope?: 'user' | 'project'
-  autoConfig?: 'auto' | 'ask' | 'manual'
+  autoConfig?: 'auto' | 'manual'
 }
 
 interface RunCliOptions {
@@ -152,7 +152,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     gitignore: hasGitignoreFlag ? Boolean(parsed.gitignore) : undefined,
     personas: hasPersonasFlag ? Boolean(parsed.personas) : undefined,
     apiKeyScope: parsed['api-key-scope'] as 'user' | 'project' | undefined,
-    autoConfig: parsed['auto-config'] as 'auto' | 'ask' | 'manual' | undefined,
+    autoConfig: parsed['auto-config'] as 'auto' | 'manual' | undefined,
   }
 }
 
