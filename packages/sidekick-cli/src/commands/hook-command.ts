@@ -221,8 +221,8 @@ export interface HookCommandOptions {
   hookInput: ParsedHookInput
   correlationId: string
   runtime: RuntimeShell
-  /** Force execution even in conflict state (dev-mode passes this) */
-  force?: boolean
+  /** Signal from dev-mode hooks: bypass conflict detection and auto-correct devMode flag if needed */
+  forceDevMode?: boolean
 }
 
 /**
@@ -403,16 +403,29 @@ export async function handleUnifiedHookCommand(
   logger: Logger,
   stdout: Writable
 ): Promise<HookCommandResult> {
-  const { projectRoot, hookInput, correlationId, runtime, force } = options
+  const { projectRoot, hookInput, correlationId, runtime, forceDevMode } = options
 
   logger.debug('Unified hook command invoked', { hookName, sessionId: hookInput.sessionId })
 
-  // Check for dev-mode conflict: if devMode flag is true in project status,
-  // dev-mode hooks are active. Since dev-mode hooks pass --force, we can
-  // distinguish plugin hooks (no --force) from dev-mode hooks (--force).
-  // If devMode is true and --force not passed, we're the plugin hooks and
-  // should bail early to let dev-mode hooks win.
-  if (!force) {
+  // Dev-mode conflict detection:
+  // Dev-mode hooks pass --force-dev-mode to identify themselves.
+  // Plugin hooks (no --force-dev-mode) bail early if devMode flag is set.
+  // Safety net: if --force-dev-mode is passed but devMode flag is off, auto-correct it.
+  if (forceDevMode) {
+    try {
+      const setupService = new SetupStatusService(projectRoot)
+      const devMode = await setupService.getDevMode()
+      if (!devMode) {
+        logger.warn('Dev-mode hooks running but devMode flag is off — auto-correcting', { hookName })
+        await setupService.setDevMode(true)
+      }
+    } catch (err) {
+      logger.warn('Failed to auto-correct devMode flag', {
+        error: err instanceof Error ? err.message : String(err),
+        hookName,
+      })
+    }
+  } else {
     try {
       const setupService = new SetupStatusService(projectRoot)
       const devMode = await setupService.getDevMode()

@@ -340,6 +340,7 @@ const {
   mockHandleHookCommand,
   mockGetSetupState,
   mockGetDevMode,
+  mockSetDevMode,
   mockShouldAutoConfigureProject,
   mockAutoConfigureProject,
   mockDaemonStart,
@@ -347,6 +348,7 @@ const {
   mockHandleHookCommand: vi.fn(),
   mockGetSetupState: vi.fn(),
   mockGetDevMode: vi.fn(),
+  mockSetDevMode: vi.fn(),
   mockShouldAutoConfigureProject: vi.fn(),
   mockAutoConfigureProject: vi.fn(),
   mockDaemonStart: vi.fn(),
@@ -370,6 +372,7 @@ vi.mock('@sidekick/core', async (importOriginal) => {
       return {
         getSetupState: mockGetSetupState,
         getDevMode: mockGetDevMode,
+        setDevMode: mockSetDevMode,
         shouldAutoConfigureProject: mockShouldAutoConfigureProject,
         autoConfigureProject: mockAutoConfigureProject,
       }
@@ -439,6 +442,7 @@ describe('handleUnifiedHookCommand', () => {
     mockGetSetupState.mockResolvedValue('healthy')
     // Default to dev-mode not enabled
     mockGetDevMode.mockResolvedValue(false)
+    mockSetDevMode.mockResolvedValue(undefined)
     // Default to auto-configure not needed
     mockShouldAutoConfigureProject.mockResolvedValue(false)
     mockAutoConfigureProject.mockResolvedValue(false)
@@ -816,7 +820,7 @@ describe('handleUnifiedHookCommand', () => {
       mockGetSetupState.mockResolvedValue('healthy')
     })
 
-    test('returns empty response when devMode is true and force not passed', async () => {
+    test('returns empty response when devMode is true and forceDevMode not passed', async () => {
       mockGetDevMode.mockResolvedValue(true)
 
       const stdout = new CollectingWritable()
@@ -835,7 +839,7 @@ describe('handleUnifiedHookCommand', () => {
       )
     })
 
-    test('proceeds normally when devMode is true but force flag is true', async () => {
+    test('proceeds normally when devMode is true but forceDevMode flag is true', async () => {
       mockGetDevMode.mockResolvedValue(true)
       mockHandleHookCommand.mockImplementation(
         (_hookName: unknown, _options: unknown, _logger: unknown, stdout: Writable) => {
@@ -844,14 +848,39 @@ describe('handleUnifiedHookCommand', () => {
         }
       )
 
-      const optionsWithForce = { ...baseOptions, force: true }
+      const optionsWithForce = { ...baseOptions, forceDevMode: true }
       const stdout = new CollectingWritable()
       await handleUnifiedHookCommand('SessionStart', optionsWithForce, mockLogger, stdout)
 
-      // Should call internal handler when force is passed
+      // Should call internal handler when forceDevMode is passed
       expect(mockHandleHookCommand).toHaveBeenCalled()
-      const output = JSON.parse(stdout.data.trim())
-      expect(output.hookSpecificOutput?.additionalContext).toContain('Force mode response')
+      // Should NOT try to auto-correct since devMode is already true
+      expect(mockSetDevMode).not.toHaveBeenCalled()
+    })
+
+    test('auto-corrects devMode flag when forceDevMode is true but devMode is false', async () => {
+      mockGetDevMode.mockResolvedValue(false)
+      mockSetDevMode.mockResolvedValue(undefined)
+      mockHandleHookCommand.mockImplementation(
+        (_hookName: unknown, _options: unknown, _logger: unknown, stdout: Writable) => {
+          stdout.write('{"additionalContext":"Auto-corrected response"}\n')
+          return Promise.resolve({ exitCode: 0, output: '{}' })
+        }
+      )
+
+      const optionsWithForce = { ...baseOptions, forceDevMode: true }
+      const stdout = new CollectingWritable()
+      await handleUnifiedHookCommand('SessionStart', optionsWithForce, mockLogger, stdout)
+
+      // Should auto-correct the devMode flag
+      expect(mockSetDevMode).toHaveBeenCalledWith(true)
+      // Should log a warning about the auto-correction
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'Dev-mode hooks running but devMode flag is off — auto-correcting',
+        expect.objectContaining({ hookName: 'SessionStart' })
+      )
+      // Should still proceed with the hook
+      expect(mockHandleHookCommand).toHaveBeenCalled()
     })
 
     test('proceeds normally when devMode is false', async () => {

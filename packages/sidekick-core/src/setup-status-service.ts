@@ -757,6 +757,9 @@ export class SetupStatusService {
       projectDir: this.projectDir,
     })
 
+    // Preserve sticky fields (e.g. devMode) from any pre-existing project status
+    const existing = await this.getProjectStatus()
+
     // Create project status that delegates API keys to user level.
     // Uses 'user' string (not object format) intentionally — this is a delegation marker
     // meaning "check user-level status for real health". No scope detection is performed.
@@ -770,6 +773,7 @@ export class SetupStatusService {
         OPENAI_API_KEY: 'user',
       },
       gitignore: 'unknown',
+      ...(existing?.devMode !== undefined && { devMode: existing.devMode }),
     }
 
     await this.writeProjectStatus(projectStatus)
@@ -824,7 +828,8 @@ export class SetupStatusService {
         if (projectStatus) {
           await this.updateProjectStatus({ statusline: actualStatusline })
         } else {
-          // Create new project status
+          // Create new project status (preserve devMode if somehow set externally)
+          const existingForDevMode = await this.getProjectStatus()
           await this.writeProjectStatus({
             version: 1,
             lastUpdatedAt: new Date().toISOString(),
@@ -835,6 +840,7 @@ export class SetupStatusService {
               OPENAI_API_KEY: 'user',
             },
             gitignore: 'unknown',
+            ...(existingForDevMode?.devMode !== undefined && { devMode: existingForDevMode.devMode }),
           })
         }
       } else {
@@ -903,7 +909,8 @@ export class SetupStatusService {
           // Build user status for user-level file
           const userApiKeyStatus = this.buildUserApiKeyStatus(detection)
 
-          // Create project status with comprehensive info
+          // Create project status with comprehensive info (preserve devMode if somehow set)
+          const existingForDevMode = await this.getProjectStatus()
           await this.writeProjectStatus({
             version: 1,
             lastUpdatedAt: new Date().toISOString(),
@@ -914,6 +921,7 @@ export class SetupStatusService {
               OPENAI_API_KEY: keyName === 'OPENAI_API_KEY' ? projectApiKeyStatus : 'user',
             },
             gitignore: 'unknown',
+            ...(existingForDevMode?.devMode !== undefined && { devMode: existingForDevMode.devMode }),
           })
 
           // Also create user status if it doesn't exist
