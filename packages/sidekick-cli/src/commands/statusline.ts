@@ -33,8 +33,8 @@ export interface StatuslineCommandOptions {
   assets?: AssetResolver
   /** Show help */
   help?: boolean
-  /** Force execution even in conflict state (dev-mode passes this) */
-  force?: boolean
+  /** Signal from dev-mode hooks: bypass conflict detection and auto-correct devMode flag if needed */
+  forceDevMode?: boolean
 }
 
 const USAGE_TEXT = `Usage: sidekick statusline [options]
@@ -164,12 +164,24 @@ export async function handleStatuslineCommand(
     return { exitCode: 0 }
   }
 
-  // Check for dev-mode conflict: if devMode flag is true in project status,
-  // dev-mode hooks are active. Since dev-mode passes --force, we can
-  // distinguish plugin (no --force) from dev-mode (--force).
-  // If devMode is true and --force not passed, we're the plugin and
-  // should bail early to let dev-mode win.
-  if (!options.force) {
+  // Dev-mode conflict detection for statusline:
+  // Dev-mode hooks pass --force-dev-mode to identify themselves.
+  // Plugin (no --force-dev-mode) bails early if devMode flag is set.
+  // Safety net: if --force-dev-mode is passed but devMode flag is off, auto-correct it.
+  if (options.forceDevMode) {
+    try {
+      const setupService = new SetupStatusService(projectDir)
+      const devMode = await setupService.getDevMode()
+      if (!devMode) {
+        logger.warn('Dev-mode statusline running but devMode flag is off — auto-correcting')
+        await setupService.setDevMode(true)
+      }
+    } catch (err) {
+      logger.warn('Failed to auto-correct devMode flag in statusline', {
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+  } else {
     try {
       const setupService = new SetupStatusService(projectDir)
       const devMode = await setupService.getDevMode()

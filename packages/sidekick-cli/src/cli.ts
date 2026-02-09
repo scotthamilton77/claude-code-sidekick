@@ -71,6 +71,7 @@ interface ParsedArgs {
   version?: boolean
   kill?: boolean
   force?: boolean
+  forceDevMode?: boolean
   _?: (string | number)[]
   // Setup command scripting flags (undefined = not specified, true/false = explicitly set)
   statuslineScope?: 'user' | 'project'
@@ -105,7 +106,18 @@ export class UnknownOptionError extends Error {
 
 /** Declared CLI options for strict validation. */
 const CLI_OPTIONS = {
-  boolean: ['wait', 'open', 'prefer-project', 'help', 'version', 'kill', 'force', 'gitignore', 'personas'] as const,
+  boolean: [
+    'wait',
+    'open',
+    'prefer-project',
+    'help',
+    'version',
+    'kill',
+    'force',
+    'force-dev-mode',
+    'gitignore',
+    'personas',
+  ] as const,
   string: [
     'project-dir',
     'log-level',
@@ -178,6 +190,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     version: Boolean(parsed.version),
     kill: Boolean(parsed.kill),
     force: Boolean(parsed.force),
+    forceDevMode: Boolean(parsed['force-dev-mode']),
     _: parsed._,
     // Setup command scripting flags - only set if explicitly provided
     statuslineScope: parsed['statusline-scope'] as 'user' | 'project' | undefined,
@@ -424,7 +437,7 @@ Examples:
         hookInput,
         correlationId: runtime.correlationId,
         runtime,
-        force: parsed.force,
+        forceDevMode: parsed.forceDevMode,
       },
       runtime.logger,
       stdout
@@ -468,7 +481,7 @@ Examples:
       configService: runtime.config,
       assets: runtime.assets,
       help: parsed.help,
-      force: parsed.force,
+      forceDevMode: parsed.forceDevMode,
     })
     return { exitCode: result.exitCode, stdout: '', stderr: '' }
   }
