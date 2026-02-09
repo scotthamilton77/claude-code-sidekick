@@ -1,11 +1,16 @@
 {
   "name": "sidekick",
-  "version": "0.0.8-alpha.2",
+  "version": "0.0.8-alpha.3",
   "description": "Opinionated AI coding companion with personas, session tracking, and contextual nudges",
   "author": {
     "name": "Scott Hamilton"
   },
   "repository": "https://github.com/scotthamilton77/claude-code-sidekick",
   "license": "MIT",
-  "keywords": ["claude", "hooks", "personas", "productivity"]
+  "keywords": [
+    "claude",
+    "hooks",
+    "personas",
+    "productivity"
+  ]
 }
