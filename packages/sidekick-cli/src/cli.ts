@@ -72,6 +72,8 @@ interface ParsedArgs {
   kill?: boolean
   force?: boolean
   forceDevMode?: boolean
+  'dry-run'?: boolean
+  scope?: string
   _?: (string | number)[]
   // Setup command scripting flags (undefined = not specified, true/false = explicitly set)
   statuslineScope?: 'user' | 'project'
@@ -115,6 +117,7 @@ const CLI_OPTIONS = {
     'kill',
     'force',
     'force-dev-mode',
+    'dry-run',
     'gitignore',
     'personas',
   ] as const,
@@ -125,6 +128,7 @@ const CLI_OPTIONS = {
     'host',
     'session-id',
     'type',
+    'scope',
     'statusline-scope',
     'api-key-scope',
     'auto-config',
@@ -557,6 +561,17 @@ Examples:
       personas: parsed.personas,
       apiKeyScope: parsed.apiKeyScope,
       autoConfig: parsed.autoConfig,
+    })
+    return { exitCode: result.exitCode, stdout: '', stderr: '' }
+  }
+
+  if (parsed.command === 'uninstall') {
+    const { handleUninstallCommand } = await import('./commands/uninstall.js')
+    const result = await handleUninstallCommand(runtime.projectRoot || process.cwd(), runtime.logger, stdout, {
+      force: Boolean(parsed.force),
+      dryRun: Boolean(parsed['dry-run']),
+      scope: parsed.scope as 'user' | 'project' | undefined,
+      stdin: process.stdin,
     })
     return { exitCode: result.exitCode, stdout: '', stderr: '' }
   }
