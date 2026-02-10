@@ -832,6 +832,24 @@ async function runScripted(
     configuredCount++
   }
 
+  // Write project setup-status.json so hooks know this project is configured
+  if (configuredCount > 0) {
+    const existingProject = await setupService.getProjectStatus()
+    const projectStatus: ProjectSetupStatus = {
+      version: 1,
+      lastUpdatedAt: new Date().toISOString(),
+      autoConfigured: false,
+      statusline: options.statuslineScope ?? existingProject?.statusline ?? 'none',
+      apiKeys: existingProject?.apiKeys ?? {
+        OPENROUTER_API_KEY: SetupStatusService.projectApiKeyStatusFromHealth('not-required'),
+        OPENAI_API_KEY: SetupStatusService.projectApiKeyStatusFromHealth('not-required'),
+      },
+      gitignore: options.gitignore ? 'installed' : (existingProject?.gitignore ?? 'unknown'),
+      ...(existingProject?.devMode !== undefined && { devMode: existingProject.devMode }),
+    }
+    await setupService.writeProjectStatus(projectStatus)
+  }
+
   if (configuredCount === 0) {
     stdout.write('No configuration changes made. Use --help to see available options.\n')
   } else {
