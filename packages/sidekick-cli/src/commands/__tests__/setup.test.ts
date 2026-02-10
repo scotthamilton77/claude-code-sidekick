@@ -456,6 +456,53 @@ describe('handleSetupCommand', () => {
     })
   })
 
+  describe('scripted mode - project status file', () => {
+    test('writes setup-status.json when using CLI flags', async () => {
+      const result = await handleSetupCommand(projectDir, logger, output, {
+        statuslineScope: 'project',
+        personas: true,
+        homeDir,
+      })
+
+      expect(result.exitCode).toBe(0)
+      // setup-status.json should exist
+      const statusPath = path.join(projectDir, '.sidekick', 'setup-status.json')
+      const content = await readFile(statusPath, 'utf-8')
+      const status = JSON.parse(content)
+      expect(status.version).toBe(1)
+      expect(status.statusline).toBe('project')
+    })
+
+    test('preserves devMode when writing setup-status.json in scripted mode', async () => {
+      // Pre-populate with a valid project status including devMode: true
+      const sidekickDir = path.join(projectDir, '.sidekick')
+      await mkdir(sidekickDir, { recursive: true })
+      await writeFile(
+        path.join(sidekickDir, 'setup-status.json'),
+        JSON.stringify({
+          version: 1,
+          lastUpdatedAt: new Date().toISOString(),
+          autoConfigured: false,
+          statusline: 'user',
+          apiKeys: { OPENROUTER_API_KEY: 'not-required', OPENAI_API_KEY: 'not-required' },
+          gitignore: 'installed',
+          devMode: true,
+        })
+      )
+
+      const result = await handleSetupCommand(projectDir, logger, output, {
+        statuslineScope: 'project',
+        homeDir,
+      })
+
+      expect(result.exitCode).toBe(0)
+      const content = await readFile(path.join(sidekickDir, 'setup-status.json'), 'utf-8')
+      const status = JSON.parse(content)
+      expect(status.devMode).toBe(true)
+      expect(status.statusline).toBe('project')
+    })
+  })
+
   describe('doctor mode', () => {
     test('respects project-level status over user-level', async () => {
       // Create user-level status (missing key)
