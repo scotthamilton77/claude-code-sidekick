@@ -25,17 +25,21 @@ export type ValidatableProviderType = keyof typeof VALIDATION_ENDPOINTS
 
 /**
  * Validate an API key by calling a provider endpoint that requires authentication.
+ *
+ * @param timeoutMs - Optional fetch timeout in milliseconds. When omitted, fetch waits indefinitely.
  */
 async function validateApiKey(
   provider: ValidatableProviderType,
   apiKey: string,
-  logger?: Logger
+  logger?: Logger,
+  timeoutMs?: number
 ): Promise<ValidationResult> {
   const endpoint = VALIDATION_ENDPOINTS[provider]
 
   try {
     const response = await fetch(endpoint, {
       headers: { Authorization: `Bearer ${apiKey}` },
+      ...(timeoutMs !== undefined && { signal: AbortSignal.timeout(timeoutMs) }),
     })
 
     if (response.ok) {
@@ -46,23 +50,29 @@ async function validateApiKey(
     }
     return { valid: false, error: `API returned status ${response.status}` }
   } catch (err) {
-    logger?.warn('API key validation failed', { provider, error: err })
-    return { valid: false, error: err instanceof Error ? err.message : 'Network error' }
+    const isTimeout = err instanceof DOMException && err.name === 'TimeoutError'
+    const errorMsg = isTimeout
+      ? `Validation timed out after ${timeoutMs}ms`
+      : err instanceof Error
+        ? err.message
+        : 'Network error'
+    logger?.warn('API key validation failed', { provider, error: errorMsg, isTimeout })
+    return { valid: false, error: errorMsg }
   }
 }
 
 /**
  * Validate OpenRouter API key.
  */
-export function validateOpenRouterKey(apiKey: string, logger?: Logger): Promise<ValidationResult> {
-  return validateApiKey('openrouter', apiKey, logger)
+export function validateOpenRouterKey(apiKey: string, logger?: Logger, timeoutMs?: number): Promise<ValidationResult> {
+  return validateApiKey('openrouter', apiKey, logger, timeoutMs)
 }
 
 /**
  * Validate OpenAI API key.
  */
-export function validateOpenAIKey(apiKey: string, logger?: Logger): Promise<ValidationResult> {
-  return validateApiKey('openai', apiKey, logger)
+export function validateOpenAIKey(apiKey: string, logger?: Logger, timeoutMs?: number): Promise<ValidationResult> {
+  return validateApiKey('openai', apiKey, logger, timeoutMs)
 }
 
 // Re-export ValidationResult type

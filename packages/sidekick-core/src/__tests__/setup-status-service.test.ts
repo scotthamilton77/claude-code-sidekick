@@ -1516,9 +1516,9 @@ describe('SetupStatusService', () => {
         return proc as unknown as childProcess.ChildProcess
       })
 
-      // Should not throw, just return 'none' (fail open)
+      // Should not throw, return 'error' to distinguish from genuine 'none'
       const result = await service.detectPluginInstallation()
-      expect(result).toBe('none')
+      expect(result).toBe('error')
     })
 
     it('handles invalid JSON from claude CLI gracefully', async () => {
@@ -1536,9 +1536,9 @@ describe('SetupStatusService', () => {
         return proc as unknown as childProcess.ChildProcess
       })
 
-      // Should not throw, just return 'none'
+      // Should not throw, return 'error' for invalid JSON
       const result = await service.detectPluginInstallation()
-      expect(result).toBe('none')
+      expect(result).toBe('error')
     })
   })
 
@@ -1640,7 +1640,7 @@ describe('SetupStatusService', () => {
       expect(capturedSafeWords[0]).not.toBe(capturedSafeWords[1])
     })
 
-    it('returns "error" and kills process on timeout', async () => {
+    it('returns "timeout" and kills process on timeout', async () => {
       vi.useFakeTimers()
 
       mockSpawn.mockImplementation(() => {
@@ -1659,7 +1659,7 @@ describe('SetupStatusService', () => {
       await vi.advanceTimersByTimeAsync(31000)
 
       const result = await resultPromise
-      expect(result).toBe('error')
+      expect(result).toBe('timeout')
 
       vi.useRealTimers()
     })

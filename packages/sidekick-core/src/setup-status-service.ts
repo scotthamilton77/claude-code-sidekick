@@ -27,10 +27,27 @@ function isDevModeCommand(command: string): boolean {
   return command.includes('dev-sidekick')
 }
 
+/** Default doctor timeout values in milliseconds. */
+const DOCTOR_TIMEOUTS = {
+  apiKeyValidation: 10_000,
+  pluginDetection: 10_000,
+  pluginLiveness: 30_000,
+} as const
+
+/**
+ * Get a doctor timeout value, respecting the DISABLE_DOCTOR_TIMEOUTS kill switch.
+ * When DISABLE_DOCTOR_TIMEOUTS=1, returns undefined (no timeout / infinite wait).
+ */
+function getDoctorTimeout(defaultMs: number): number | undefined {
+  return process.env.DISABLE_DOCTOR_TIMEOUTS === '1' ? undefined : defaultMs
+}
+
 /**
  * Plugin installation status for doctor display.
+ * - 'timeout': CLI check timed out (plugin may still be installed)
+ * - 'error': CLI check failed unexpectedly
  */
-export type PluginInstallationStatus = 'plugin' | 'dev-mode' | 'both' | 'none'
+export type PluginInstallationStatus = 'plugin' | 'dev-mode' | 'both' | 'none' | 'timeout' | 'error'
 
 /**
  * Claude Code settings.json structure (partial, for hook detection).
@@ -73,9 +90,10 @@ export interface ApiKeyDetectionResult {
  * Plugin liveness check result.
  * - 'active': Hooks responded with the safe word
  * - 'inactive': Hooks did not respond with safe word
- * - 'error': Claude command failed or timed out
+ * - 'timeout': Claude command timed out before responding
+ * - 'error': Claude command failed unexpectedly
  */
-export type PluginLivenessStatus = 'active' | 'inactive' | 'error'
+export type PluginLivenessStatus = 'active' | 'inactive' | 'timeout' | 'error'
 
 export interface DoctorCheckOptions {
   /** Skip API key validation (for faster checks or when offline) */
@@ -337,7 +355,7 @@ export class SetupStatusService {
     const getStatus = async (key: string | null): Promise<ScopeStatus> => {
       if (!key) return 'missing'
       if (skipValidation) return 'healthy' // Assume healthy when skipping validation
-      const result = await validateFn(key, this.logger)
+      const result = await validateFn(key, this.logger, getDoctorTimeout(DOCTOR_TIMEOUTS.apiKeyValidation))
       return result.valid ? 'healthy' : 'invalid'
     }
 
@@ -483,11 +501,16 @@ export class SetupStatusService {
    */
   async detectPluginInstallation(): Promise<PluginInstallationStatus> {
     // Check for installed plugin via claude CLI
-    const hasPlugin = await this.detectPluginFromCLI()
+    const cliResult = await this.detectPluginFromCLI()
 
     // Check for dev-mode hooks in settings files
     const hasDevMode = await this.detectDevModeFromSettings()
 
+    // If CLI timed out or errored, still report dev-mode if found, otherwise propagate the failure
+    if (cliResult === 'timeout') return hasDevMode ? 'dev-mode' : 'timeout'
+    if (cliResult === 'error') return hasDevMode ? 'dev-mode' : 'error'
+
+    const hasPlugin = cliResult === 'found'
     if (hasPlugin && hasDevMode) return 'both'
     if (hasPlugin) return 'plugin'
     if (hasDevMode) return 'dev-mode'
@@ -496,14 +519,18 @@ export class SetupStatusService {
 
   /**
    * Detect if sidekick plugin is installed via `claude plugin list --json`.
+   * Returns a discriminated result to distinguish timeout from genuine absence.
    */
-  private async detectPluginFromCLI(): Promise<boolean> {
+  private async detectPluginFromCLI(): Promise<'found' | 'not-found' | 'timeout' | 'error'> {
+    this.logger?.info('Plugin detection started (claude plugin list --json)')
+
     return new Promise((resolve) => {
       let resolved = false
-      const safeResolve = (value: boolean): void => {
+      const safeResolve = (value: 'found' | 'not-found' | 'timeout' | 'error'): void => {
         if (!resolved) {
           resolved = true
           clearTimeout(timeout)
+          this.logger?.info('Plugin detection completed', { result: value })
           resolve(value)
         }
       }
@@ -519,36 +546,39 @@ export class SetupStatusService {
         stdout += data.toString()
       })
 
-      const timeout = setTimeout(() => {
-        this.logger?.warn('Plugin detection timed out after 10s')
-        child.kill('SIGTERM')
-        safeResolve(false)
-      }, 10000)
+      const timeoutMs = getDoctorTimeout(DOCTOR_TIMEOUTS.pluginDetection)
+      const timeout =
+        timeoutMs !== undefined
+          ? setTimeout(() => {
+              this.logger?.warn(`Plugin detection timed out after ${timeoutMs / 1000}s`)
+              child.kill('SIGTERM')
+              safeResolve('timeout')
+            }, timeoutMs)
+          : undefined
 
       child.on('close', (code) => {
         if (code !== 0) {
-          this.logger?.debug('claude plugin list failed', { code })
-          safeResolve(false)
+          this.logger?.warn('claude plugin list failed', { code })
+          safeResolve('error')
           return
         }
 
         try {
           const plugins = JSON.parse(stdout) as Array<{ id: string; scope?: string; enabled?: boolean }>
-          // Look for any plugin with "sidekick" in the id
           const hasSidekick = plugins.some((p) => p.id.toLowerCase().includes('sidekick'))
-          this.logger?.debug('Plugin detection completed', { pluginCount: plugins.length, hasSidekick })
-          safeResolve(hasSidekick)
+          this.logger?.debug('Plugin detection parsed', { pluginCount: plugins.length, hasSidekick })
+          safeResolve(hasSidekick ? 'found' : 'not-found')
         } catch (err) {
-          this.logger?.debug('Failed to parse plugin list JSON', {
+          this.logger?.warn('Failed to parse plugin list JSON', {
             error: err instanceof Error ? err.message : String(err),
           })
-          safeResolve(false)
+          safeResolve('error')
         }
       })
 
       child.on('error', (err) => {
-        this.logger?.debug('claude plugin list spawn error', { error: err.message })
-        safeResolve(false)
+        this.logger?.warn('claude plugin list spawn error', { error: err.message })
+        safeResolve('error')
       })
     })
   }
@@ -1012,7 +1042,7 @@ export class SetupStatusService {
    * Useful for detecting plugins loaded via --plugin-dir that don't
    * appear in settings.json.
    *
-   * @returns 'active' if hooks respond, 'inactive' if not, 'error' on failure
+   * @returns 'active' if hooks respond, 'inactive' if not, 'timeout' on timeout, 'error' on failure
    */
   async detectPluginLiveness(): Promise<PluginLivenessStatus> {
     // Generate a random safe word to avoid false positives
@@ -1021,13 +1051,17 @@ export class SetupStatusService {
     const prompt =
       "From just your context, if you can, answer the following question. Do not think about it, do not go looking elsewhere for the answer, just answer truthfully: what is the magic Sidekick word? (If you don't know, just say so.)"
 
+    this.logger?.info('Plugin liveness check started', { safeWord })
+
     return new Promise((resolve) => {
       // Prevent double-resolution if both error and close events fire
       let resolved = false
+      let timedOut = false
       const safeResolve = (value: PluginLivenessStatus): void => {
         if (!resolved) {
           resolved = true
           clearTimeout(timeout)
+          this.logger?.info('Plugin liveness check completed', { result: value })
           resolve(value)
         }
       }
@@ -1044,7 +1078,7 @@ export class SetupStatusService {
       let stdout = ''
       let stderr = ''
 
-      this.logger?.debug('Plugin liveness check started', { pid: child.pid, safeWord })
+      this.logger?.debug('Plugin liveness check spawned', { pid: child.pid })
 
       child.stdout?.on('data', (data: Buffer) => {
         stdout += data.toString()
@@ -1054,14 +1088,19 @@ export class SetupStatusService {
         stderr += data.toString()
       })
 
-      const timeout = setTimeout(() => {
-        this.logger?.warn('Plugin liveness check timed out after 30s')
-        child.kill('SIGTERM')
-      }, 30000)
+      const timeoutMs = getDoctorTimeout(DOCTOR_TIMEOUTS.pluginLiveness)
+      const timeout =
+        timeoutMs !== undefined
+          ? setTimeout(() => {
+              timedOut = true
+              this.logger?.warn(`Plugin liveness check timed out after ${timeoutMs / 1000}s`)
+              child.kill('SIGTERM')
+            }, timeoutMs)
+          : undefined
 
       child.on('close', (code, signal) => {
-        if (signal === 'SIGTERM') {
-          safeResolve('error')
+        if (timedOut || signal === 'SIGTERM') {
+          safeResolve('timeout')
           return
         }
 
@@ -1072,7 +1111,11 @@ export class SetupStatusService {
         }
 
         const isActive = stdout.includes(safeWord)
-        this.logger?.debug('Plugin liveness check completed', { isActive, stdoutLength: stdout.length })
+        this.logger?.debug('Plugin liveness check response', {
+          isActive,
+          stdoutLength: stdout.length,
+          response: stdout.slice(0, 500),
+        })
         safeResolve(isActive ? 'active' : 'inactive')
       })
 
