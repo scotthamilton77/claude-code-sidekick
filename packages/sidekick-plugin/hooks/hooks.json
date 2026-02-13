@@ -1,30 +1,30 @@
 {
   "hooks": {
     "SessionStart": [{
-      "hooks": [{ "type": "command", "command": "npx @scotthamilton77/sidekick hook session-start --project-dir=$CLAUDE_PROJECT_DIR" }]
+      "hooks": [{ "type": "command", "command": "npx --yes @scotthamilton77/sidekick hook session-start --project-dir=$CLAUDE_PROJECT_DIR" }]
     }],
     "SessionEnd": [{
-      "hooks": [{ "type": "command", "command": "npx @scotthamilton77/sidekick hook session-end --project-dir=$CLAUDE_PROJECT_DIR" }]
+      "hooks": [{ "type": "command", "command": "npx --yes @scotthamilton77/sidekick hook session-end --project-dir=$CLAUDE_PROJECT_DIR" }]
     }],
     "UserPromptSubmit": [{
-      "hooks": [{ "type": "command", "command": "npx @scotthamilton77/sidekick hook user-prompt-submit --project-dir=$CLAUDE_PROJECT_DIR" }]
+      "hooks": [{ "type": "command", "command": "npx --yes @scotthamilton77/sidekick hook user-prompt-submit --project-dir=$CLAUDE_PROJECT_DIR" }]
     }],
     "PreToolUse": [{
-      "hooks": [{ "type": "command", "command": "npx @scotthamilton77/sidekick hook pre-tool-use --project-dir=$CLAUDE_PROJECT_DIR" }]
+      "hooks": [{ "type": "command", "command": "npx --yes @scotthamilton77/sidekick hook pre-tool-use --project-dir=$CLAUDE_PROJECT_DIR" }]
     }],
     "PostToolUse": [{
       "matcher": "*",
-      "hooks": [{ "type": "command", "command": "npx @scotthamilton77/sidekick hook post-tool-use --project-dir=$CLAUDE_PROJECT_DIR" }]
+      "hooks": [{ "type": "command", "command": "npx --yes @scotthamilton77/sidekick hook post-tool-use --project-dir=$CLAUDE_PROJECT_DIR" }]
     }],
     "Stop": [{
-      "hooks": [{ "type": "command", "command": "npx @scotthamilton77/sidekick hook stop --project-dir=$CLAUDE_PROJECT_DIR" }]
+      "hooks": [{ "type": "command", "command": "npx --yes @scotthamilton77/sidekick hook stop --project-dir=$CLAUDE_PROJECT_DIR" }]
     }],
     "PreCompact": [{
-      "hooks": [{ "type": "command", "command": "npx @scotthamilton77/sidekick hook pre-compact --project-dir=$CLAUDE_PROJECT_DIR" }]
+      "hooks": [{ "type": "command", "command": "npx --yes @scotthamilton77/sidekick hook pre-compact --project-dir=$CLAUDE_PROJECT_DIR" }]
     }]
   },
   "statusLine": {
     "type": "command",
-    "command": "npx @scotthamilton77/sidekick statusline --project-dir=$CLAUDE_PROJECT_DIR"
+    "command": "npx --yes @scotthamilton77/sidekick statusline --project-dir=$CLAUDE_PROJECT_DIR"
   }
 }
