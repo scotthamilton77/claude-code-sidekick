@@ -457,7 +457,9 @@ export async function handleUnifiedHookCommand(
 
   // Check setup state before attempting daemon/IPC operations
   // Skip daemon entirely if setup is not healthy to avoid ProviderErrors
-  const degradedResponse = await checkSetupState(projectRoot, hookName, logger)
+  // Bypass degraded mode during liveness checks so the safe word gets injected
+  const isLivenessCheck = !!process.env.SIDEKICK_LIVENESS_CHECK
+  const degradedResponse = isLivenessCheck ? null : await checkSetupState(projectRoot, hookName, logger)
   if (degradedResponse !== null) {
     // Return degraded mode response - no daemon interaction
     // Only SessionStart and UserPromptSubmit return informative messages;
@@ -497,7 +499,7 @@ export async function handleUnifiedHookCommand(
 
   // Inject safe word liveness probe for SessionStart
   if (hookName === 'SessionStart') {
-    const safeWord = process.env.SIDEKICK_SAFE_WORD ?? 'nope'
+    const safeWord = process.env.SIDEKICK_LIVENESS_CHECK ?? 'nope'
     const safeWordContext = loadSafeWordContext(safeWord, projectRoot, logger)
 
     if (safeWordContext) {

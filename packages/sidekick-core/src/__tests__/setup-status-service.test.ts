@@ -1552,7 +1552,7 @@ describe('SetupStatusService', () => {
     it('returns "active" when Claude responds with the safe word', async () => {
       mockSpawn.mockImplementation((_cmd, _args, options) => {
         const proc = createMockChildProcess()
-        const safeWord = (options?.env as Record<string, string>)?.SIDEKICK_SAFE_WORD ?? 'nope'
+        const safeWord = (options?.env as Record<string, string>)?.SIDEKICK_LIVENESS_CHECK ?? 'nope'
 
         // Simulate async response
         setImmediate(() => {
@@ -1619,7 +1619,7 @@ describe('SetupStatusService', () => {
 
       mockSpawn.mockImplementation((_cmd, _args, options) => {
         const proc = createMockChildProcess()
-        const safeWord = (options?.env as Record<string, string>)?.SIDEKICK_SAFE_WORD
+        const safeWord = (options?.env as Record<string, string>)?.SIDEKICK_LIVENESS_CHECK
 
         if (safeWord) {
           capturedSafeWords.push(safeWord)

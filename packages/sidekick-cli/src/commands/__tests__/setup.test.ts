@@ -53,7 +53,7 @@ vi.mock('node:child_process', async (importOriginal) => {
       if (cmd === 'claude' && args?.includes('-p')) {
         setImmediate(() => {
           // Echo back the safe word from env
-          const safeWord = options?.env?.SIDEKICK_SAFE_WORD ?? 'unknown'
+          const safeWord = options?.env?.SIDEKICK_LIVENESS_CHECK ?? 'unknown'
           proc.stdout.emit('data', Buffer.from(`The magic word is: ${safeWord}`))
           proc.emit('close', 0, null)
         })

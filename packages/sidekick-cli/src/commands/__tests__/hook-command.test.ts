@@ -706,9 +706,9 @@ describe('handleUnifiedHookCommand', () => {
       mockGetSetupState.mockResolvedValue('healthy')
     })
 
-    test('injects safe word context when SIDEKICK_SAFE_WORD env var is set', async () => {
-      const originalEnv = process.env.SIDEKICK_SAFE_WORD
-      process.env.SIDEKICK_SAFE_WORD = 'test-safe-word-xyz'
+    test('injects safe word context when SIDEKICK_LIVENESS_CHECK env var is set', async () => {
+      const originalEnv = process.env.SIDEKICK_LIVENESS_CHECK
+      process.env.SIDEKICK_LIVENESS_CHECK = 'test-safe-word-xyz'
 
       try {
         mockHandleHookCommand.mockImplementation(
@@ -727,16 +727,16 @@ describe('handleUnifiedHookCommand', () => {
         expect(output.hookSpecificOutput?.additionalContext).toContain('magic Sidekick word')
       } finally {
         if (originalEnv === undefined) {
-          delete process.env.SIDEKICK_SAFE_WORD
+          delete process.env.SIDEKICK_LIVENESS_CHECK
         } else {
-          process.env.SIDEKICK_SAFE_WORD = originalEnv
+          process.env.SIDEKICK_LIVENESS_CHECK = originalEnv
         }
       }
     })
 
     test('uses default safe word "nope" when env var not set', async () => {
-      const originalEnv = process.env.SIDEKICK_SAFE_WORD
-      delete process.env.SIDEKICK_SAFE_WORD
+      const originalEnv = process.env.SIDEKICK_LIVENESS_CHECK
+      delete process.env.SIDEKICK_LIVENESS_CHECK
 
       try {
         mockHandleHookCommand.mockImplementation(
@@ -754,14 +754,14 @@ describe('handleUnifiedHookCommand', () => {
         expect(output.hookSpecificOutput?.additionalContext).toContain('nope')
       } finally {
         if (originalEnv !== undefined) {
-          process.env.SIDEKICK_SAFE_WORD = originalEnv
+          process.env.SIDEKICK_LIVENESS_CHECK = originalEnv
         }
       }
     })
 
     test('appends safe word context to existing additionalContext', async () => {
-      const originalEnv = process.env.SIDEKICK_SAFE_WORD
-      process.env.SIDEKICK_SAFE_WORD = 'custom-safe-word'
+      const originalEnv = process.env.SIDEKICK_LIVENESS_CHECK
+      process.env.SIDEKICK_LIVENESS_CHECK = 'custom-safe-word'
 
       try {
         mockHandleHookCommand.mockImplementation(
@@ -780,16 +780,16 @@ describe('handleUnifiedHookCommand', () => {
         expect(output.hookSpecificOutput?.additionalContext).toContain('custom-safe-word')
       } finally {
         if (originalEnv === undefined) {
-          delete process.env.SIDEKICK_SAFE_WORD
+          delete process.env.SIDEKICK_LIVENESS_CHECK
         } else {
-          process.env.SIDEKICK_SAFE_WORD = originalEnv
+          process.env.SIDEKICK_LIVENESS_CHECK = originalEnv
         }
       }
     })
 
     test('does not inject safe word for non-SessionStart hooks', async () => {
-      const originalEnv = process.env.SIDEKICK_SAFE_WORD
-      process.env.SIDEKICK_SAFE_WORD = 'should-not-appear'
+      const originalEnv = process.env.SIDEKICK_LIVENESS_CHECK
+      process.env.SIDEKICK_LIVENESS_CHECK = 'should-not-appear'
 
       try {
         mockHandleHookCommand.mockImplementation(
@@ -807,9 +807,9 @@ describe('handleUnifiedHookCommand', () => {
         expect(output.hookSpecificOutput?.additionalContext).toBeUndefined()
       } finally {
         if (originalEnv === undefined) {
-          delete process.env.SIDEKICK_SAFE_WORD
+          delete process.env.SIDEKICK_LIVENESS_CHECK
         } else {
-          process.env.SIDEKICK_SAFE_WORD = originalEnv
+          process.env.SIDEKICK_LIVENESS_CHECK = originalEnv
         }
       }
     })

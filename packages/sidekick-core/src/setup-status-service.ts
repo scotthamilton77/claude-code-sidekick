@@ -509,6 +509,7 @@ export class SetupStatusService {
       }
 
       const child = spawn('claude', ['plugin', 'list', '--json'], {
+        cwd: this.projectDir,
         stdio: ['ignore', 'pipe', 'pipe'],
       })
 
@@ -1035,7 +1036,8 @@ export class SetupStatusService {
       // When spawned from within another Claude session (e.g., via doctor command),
       // exec() can cause the child to inherit TTY and hang waiting for input.
       const child = spawn('claude', ['-p', prompt], {
-        env: { ...process.env, SIDEKICK_SAFE_WORD: safeWord },
+        cwd: this.projectDir,
+        env: { ...process.env, SIDEKICK_LIVENESS_CHECK: safeWord },
         stdio: ['ignore', 'pipe', 'pipe'],
       })
 
