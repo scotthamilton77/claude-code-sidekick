@@ -1,6 +1,6 @@
 {
   "name": "@scotthamilton77/sidekick",
-  "version": "0.0.8-alpha.4",
+  "version": "0.0.8-alpha.5",
   "description": "AI pair programming assistant with personas, session tracking, and contextual nudges",
   "bin": {
     "sidekick": "dist/bin.js"
