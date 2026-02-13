@@ -27,6 +27,8 @@ export interface SetupCommandOptions {
   personas?: boolean // true = enable, false = disable, undefined = not specified
   apiKeyScope?: 'user' | 'project' // where to save API key (reads from OPENROUTER_API_KEY env)
   autoConfig?: 'auto' | 'manual'
+  // Doctor filtering - comma-separated list of checks to run
+  only?: string
   // Testing override - allows tests to specify home directory
   homeDir?: string
 }
@@ -43,6 +45,8 @@ When scripting flags are provided, runs non-interactively for those settings onl
 
 Options:
   --check                       Check configuration status (alias: sidekick doctor)
+  --only=<checks>               Run only specific doctor checks (comma-separated)
+                                Valid checks: api-keys, statusline, gitignore, plugin, liveness
   --force                       Apply all defaults non-interactively
   --help                        Show this help message
 
@@ -58,6 +62,8 @@ Scripting Flags (for non-interactive/partial setup):
 Examples:
   sidekick setup                              Interactive wizard
   sidekick setup --check                      Check current status
+  sidekick doctor --only=liveness             Run only the liveness check
+  sidekick doctor --only=plugin,liveness      Run plugin and liveness checks
   sidekick setup --statusline-scope=user      Configure statusline only
   sidekick setup --gitignore --personas       Configure gitignore and enable personas
   OPENROUTER_API_KEY=sk-xxx sidekick setup --personas --api-key-scope=user
@@ -72,7 +78,7 @@ const STATUSLINE_COMMAND = 'npx @scotthamilton77/sidekick statusline --project-d
 /**
  * Map plugin installation status to human-readable label.
  */
-function getPluginStatusLabel(status: 'plugin' | 'dev-mode' | 'both' | 'none'): string {
+function getPluginStatusLabel(status: PluginInstallationStatus): string {
   switch (status) {
     case 'plugin':
       return 'installed'
@@ -82,6 +88,10 @@ function getPluginStatusLabel(status: 'plugin' | 'dev-mode' | 'both' | 'none'): 
       return 'conflict (both plugin and dev-mode detected!)'
     case 'none':
       return 'not installed'
+    case 'timeout':
+      return 'check timed out'
+    case 'error':
+      return 'check failed'
   }
 }
 
@@ -108,6 +118,8 @@ function getPluginStatusIcon(status: PluginInstallationStatus): string {
     case 'dev-mode':
       return '✓'
     case 'both':
+    case 'timeout':
+    case 'error':
       return '⚠'
     case 'none':
       return '✗'
@@ -123,6 +135,7 @@ function getLivenessIcon(status: PluginLivenessStatus): string {
       return '✓'
     case 'inactive':
       return '✗'
+    case 'timeout':
     case 'error':
       return '⚠'
   }
@@ -137,6 +150,8 @@ function getLivenessLabel(status: PluginLivenessStatus): string {
       return 'hooks responding'
     case 'inactive':
       return 'hooks not detected'
+    case 'timeout':
+      return 'check timed out'
     case 'error':
       return 'check failed'
   }
@@ -863,81 +878,142 @@ async function runScripted(
  * Run the doctor/check mode.
  * Now checks actual config state against cache and updates cache if mismatched.
  */
+const DOCTOR_CHECK_NAMES = ['api-keys', 'statusline', 'gitignore', 'plugin', 'liveness'] as const
+type DoctorCheckName = (typeof DOCTOR_CHECK_NAMES)[number]
+
+function parseDoctorOnly(only: string | undefined): Set<DoctorCheckName> | null {
+  if (!only) return null
+  const requested = only.split(',').map((s) => s.trim())
+  const invalid = requested.filter((s) => !DOCTOR_CHECK_NAMES.includes(s as DoctorCheckName))
+  if (invalid.length > 0) {
+    throw new Error(`Unknown doctor check(s): ${invalid.join(', ')}. Valid: ${DOCTOR_CHECK_NAMES.join(', ')}`)
+  }
+  return new Set(requested as DoctorCheckName[])
+}
+
 async function runDoctor(
   projectDir: string,
   logger: Logger,
   stdout: NodeJS.WritableStream,
-  options?: { homeDir?: string; skipLiveness?: boolean }
+  options?: { homeDir?: string; only?: string }
 ): Promise<SetupCommandResult> {
   const homeDir = options?.homeDir ?? os.homedir()
-  const skipLiveness = options?.skipLiveness ?? false
   const setupService = new SetupStatusService(projectDir, { homeDir, logger })
+
+  let filter: Set<DoctorCheckName> | null
+  try {
+    filter = parseDoctorOnly(options?.only)
+  } catch (err) {
+    stdout.write(`${err instanceof Error ? err.message : String(err)}\n`)
+    return { exitCode: 1 }
+  }
+  const shouldRun = (check: DoctorCheckName): boolean => filter === null || filter.has(check)
 
   stdout.write('\nSidekick Doctor\n')
   stdout.write('===============\n\n')
 
-  stdout.write('Checking configuration...\n\n')
+  // --- Fire all requested checks, report each as it completes ---
+  // Node.js is single-threaded: each .then() callback runs to completion
+  // before the next, so stdout.write calls never interleave mid-line.
+  // Output order is non-deterministic but every line is self-labeled.
 
-  // Run the doctor check which compares actual state vs cache
-  const doctorResult = await setupService.runDoctorCheck()
+  const promises: Promise<unknown>[] = []
 
-  // Also check gitignore (not part of the cache system)
-  const gitignore = await detectGitignoreStatus(projectDir)
-
-  // Check plugin installation status
-  const pluginStatus = await setupService.detectPluginInstallation()
-
-  // Report any fixes made
-  if (doctorResult.fixes.length > 0) {
-    stdout.write('Cache corrections:\n')
-    for (const fix of doctorResult.fixes) {
-      stdout.write(`  ✓ ${fix}\n`)
-    }
-    stdout.write('\n')
+  // api-keys and statusline share runDoctorCheck(); run it if either is requested
+  type DoctorCheckResult = Awaited<ReturnType<SetupStatusService['runDoctorCheck']>>
+  let doctorResult: DoctorCheckResult | null = null
+  if (shouldRun('api-keys') || shouldRun('statusline')) {
+    promises.push(
+      setupService.runDoctorCheck().then((result) => {
+        doctorResult = result
+        if (result.fixes.length > 0) {
+          stdout.write('Cache corrections:\n')
+          for (const fix of result.fixes) {
+            stdout.write(`  ✓ ${fix}\n`)
+          }
+        }
+        if (shouldRun('api-keys')) {
+          const openRouterResult = result.apiKeys.OPENROUTER_API_KEY
+          const openRouterHealth = openRouterResult.actual
+          const apiKeyIcon = openRouterHealth === 'healthy' || openRouterHealth === 'not-required' ? '✓' : '⚠'
+          const scopeBreakdown = formatApiKeyScopes(openRouterResult.scopes)
+          const usedToSource: Record<string, ApiKeySource> = {
+            project: 'project-env',
+            user: 'user-env',
+            env: 'env-var',
+          }
+          const sourceLabel = formatApiKeySource(
+            openRouterResult.used ? (usedToSource[openRouterResult.used] ?? null) : null
+          )
+          stdout.write(`${apiKeyIcon} OpenRouter API Key: ${openRouterHealth}${sourceLabel} ${scopeBreakdown}\n`)
+        }
+        if (shouldRun('statusline')) {
+          const statuslineIcon = result.statusline.actual !== 'none' ? '✓' : '⚠'
+          stdout.write(`${statuslineIcon} Statusline: ${result.statusline.actual}\n`)
+        }
+      })
+    )
   }
 
-  // Test plugin liveness (spawns Claude session) — skip in automated flows
+  let gitignore: string | null = null
+  if (shouldRun('gitignore')) {
+    promises.push(
+      detectGitignoreStatus(projectDir).then((result) => {
+        gitignore = result
+        const gitignoreIcon = result === 'installed' ? '✓' : '⚠'
+        stdout.write(`${gitignoreIcon} Gitignore: ${result}\n`)
+      })
+    )
+  }
+
+  // Chain liveness off plugin detection — starts as soon as plugin check resolves,
+  // without waiting for the potentially slow API key validation fetch.
+  let pluginStatus: PluginInstallationStatus | null = null
   let liveness: PluginLivenessStatus | null = null
-  if (!skipLiveness) {
-    stdout.write('Checking live status of Sidekick... this may take a few moments.\n')
-    liveness = await setupService.detectPluginLiveness()
+  if (shouldRun('plugin') || shouldRun('liveness')) {
+    promises.push(
+      setupService.detectPluginInstallation().then(async (status) => {
+        pluginStatus = status
+        if (shouldRun('plugin')) {
+          const pluginIcon = getPluginStatusIcon(status)
+          const pluginLabel = getPluginStatusLabel(status)
+          stdout.write(`${pluginIcon} Plugin: ${pluginLabel}\n`)
+        }
+
+        const isPluginPresent = status === 'plugin' || status === 'dev-mode' || status === 'both'
+        if (shouldRun('liveness') && isPluginPresent) {
+          logger.info('Starting plugin liveness check')
+          liveness = await setupService.detectPluginLiveness()
+          const livenessIcon = getLivenessIcon(liveness)
+          const livenessLabel = getLivenessLabel(liveness)
+          stdout.write(`${livenessIcon} Plugin Liveness: ${livenessLabel}\n`)
+          logger.info('Plugin liveness check reported', { status: liveness })
+        }
+      })
+    )
   }
 
-  // Display current state
-  const pluginIcon = getPluginStatusIcon(pluginStatus)
-  const pluginLabel = getPluginStatusLabel(pluginStatus)
-  const statuslineIcon = doctorResult.statusline.actual !== 'none' ? '✓' : '⚠'
-  const gitignoreIcon = gitignore === 'installed' ? '✓' : '⚠'
-  const openRouterResult = doctorResult.apiKeys.OPENROUTER_API_KEY
-  const openRouterHealth = openRouterResult.actual
-  const apiKeyIcon = openRouterHealth === 'healthy' || openRouterHealth === 'not-required' ? '✓' : '⚠'
-  // Ultra-compact scope breakdown
-  const scopeBreakdown = formatApiKeyScopes(openRouterResult.scopes)
-  const usedToSource: Record<string, ApiKeySource> = { project: 'project-env', user: 'user-env', env: 'env-var' }
-  const sourceLabel = formatApiKeySource(openRouterResult.used ? (usedToSource[openRouterResult.used] ?? null) : null)
+  await Promise.all(promises)
 
-  stdout.write('\n')
-  stdout.write(`${pluginIcon} Plugin: ${pluginLabel}\n`)
-  if (liveness !== null) {
-    const livenessIcon = getLivenessIcon(liveness)
-    const livenessLabel = getLivenessLabel(liveness)
-    stdout.write(`${livenessIcon} Plugin Liveness: ${livenessLabel}\n`)
-  }
-  stdout.write(`${statuslineIcon} Statusline: ${doctorResult.statusline.actual}\n`)
-  stdout.write(`${gitignoreIcon} Gitignore: ${gitignore}\n`)
-  stdout.write(`${apiKeyIcon} OpenRouter API Key: ${openRouterHealth}${sourceLabel} ${scopeBreakdown}\n`)
+  // --- Overall summary (only meaningful when running all checks) ---
+  if (filter === null) {
+    const isPluginOk = pluginStatus === 'plugin' || pluginStatus === 'dev-mode'
+    const isPluginLive = liveness === null || liveness === 'active'
+    // After Promise.all with filter===null, all checks have run and populated these variables.
+    // TS can't track mutations inside .then() callbacks, so we assert non-null.
+    const isHealthy =
+      doctorResult!.overallHealth === 'healthy' && gitignore === 'installed' && isPluginOk && isPluginLive
+    const overallIcon = isHealthy ? '✓' : '⚠'
+    stdout.write(`${overallIcon} Overall: ${isHealthy ? 'healthy' : 'needs attention'}\n`)
 
-  const isPluginOk = pluginStatus === 'plugin' || pluginStatus === 'dev-mode'
-  const isPluginLive = liveness === null || liveness === 'active'
-  const isHealthy = doctorResult.overallHealth === 'healthy' && gitignore === 'installed' && isPluginOk && isPluginLive
-  const overallIcon = isHealthy ? '✓' : '⚠'
-  stdout.write(`${overallIcon} Overall: ${isHealthy ? 'healthy' : 'needs attention'}\n`)
+    if (!isHealthy) {
+      stdout.write("\nRun 'sidekick setup' to configure.\n")
+    }
 
-  if (!isHealthy) {
-    stdout.write("\nRun 'sidekick setup' to configure.\n")
+    return { exitCode: isHealthy ? 0 : 1 }
   }
 
-  return { exitCode: isHealthy ? 0 : 1 }
+  return { exitCode: 0 }
 }
 
 /**
@@ -954,7 +1030,7 @@ export async function handleSetupCommand(
     return { exitCode: 0 }
   }
   if (options.checkOnly) {
-    return runDoctor(projectDir, logger, stdout, { homeDir: options.homeDir })
+    return runDoctor(projectDir, logger, stdout, { homeDir: options.homeDir, only: options.only })
   }
   if (hasScriptingFlags(options)) {
     return runScripted(projectDir, logger, stdout, options)

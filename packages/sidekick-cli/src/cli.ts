@@ -81,6 +81,7 @@ interface ParsedArgs {
   personas?: boolean
   apiKeyScope?: 'user' | 'project'
   autoConfig?: 'auto' | 'manual'
+  only?: string
 }
 
 interface RunCliOptions {
@@ -132,6 +133,7 @@ const CLI_OPTIONS = {
     'statusline-scope',
     'api-key-scope',
     'auto-config',
+    'only',
   ] as const,
   number: ['port', 'width'] as const,
   alias: { h: 'help', v: 'version' } as const,
@@ -202,6 +204,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     personas: hasPersonasFlag ? Boolean(parsed.personas) : undefined,
     apiKeyScope: parsed['api-key-scope'] as 'user' | 'project' | undefined,
     autoConfig: parsed['auto-config'] as 'auto' | 'manual' | undefined,
+    only: parsed.only as string | undefined,
   }
 }
 
@@ -580,6 +583,7 @@ Examples:
     const { handleSetupCommand } = await import('./commands/setup.js')
     const result = await handleSetupCommand(runtime.projectRoot || process.cwd(), runtime.logger, stdout, {
       checkOnly: true,
+      only: parsed.only,
     })
     return { exitCode: result.exitCode, stdout: '', stderr: '' }
   }
