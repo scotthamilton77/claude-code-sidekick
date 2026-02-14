@@ -20,7 +20,7 @@
     "@types/pino-pretty": "^5.0.0",
     "pino-pretty": "^13.1.2",
     "typescript": "^5.6.3",
-    "vitest": "^2.1.1"
+    "vitest": "^4.0.18"
   },
   "dependencies": {
     "@sidekick/shared-providers": "workspace:*",

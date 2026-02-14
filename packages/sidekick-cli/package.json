@@ -27,6 +27,6 @@
     "@types/node": "^22.7.4",
     "@types/yargs-parser": "^21.0.3",
     "typescript": "^5.6.3",
-    "vitest": "^2.1.1"
+    "vitest": "^4.0.18"
   }
 }
