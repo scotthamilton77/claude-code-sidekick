@@ -69,12 +69,14 @@ interface ParsedArgs {
   scope?: string
   _?: (string | number)[]
   // Setup command scripting flags (undefined = not specified, true/false = explicitly set)
-  statuslineScope?: 'user' | 'project'
+  statuslineScope?: 'user' | 'project' | 'local'
   gitignore?: boolean
   personas?: boolean
   apiKeyScope?: 'user' | 'project'
   autoConfig?: 'auto' | 'manual'
   only?: string
+  marketplaceScope?: 'user' | 'project' | 'local'
+  pluginScope?: 'user' | 'project' | 'local'
 }
 
 interface RunCliOptions {
@@ -127,6 +129,8 @@ const CLI_OPTIONS = {
     'api-key-scope',
     'auto-config',
     'only',
+    'marketplace-scope',
+    'plugin-scope',
   ] as const,
   number: ['port', 'width'] as const,
   alias: { h: 'help', v: 'version' } as const,
@@ -192,12 +196,14 @@ function parseArgs(argv: string[]): ParsedArgs {
     forceDevMode: Boolean(parsed['force-dev-mode']),
     _: parsed._,
     // Setup command scripting flags - only set if explicitly provided
-    statuslineScope: parsed['statusline-scope'] as 'user' | 'project' | undefined,
+    statuslineScope: parsed['statusline-scope'] as 'user' | 'project' | 'local' | undefined,
     gitignore: hasGitignoreFlag ? Boolean(parsed.gitignore) : undefined,
     personas: hasPersonasFlag ? Boolean(parsed.personas) : undefined,
     apiKeyScope: parsed['api-key-scope'] as 'user' | 'project' | undefined,
     autoConfig: parsed['auto-config'] as 'auto' | 'manual' | undefined,
     only: parsed.only as string | undefined,
+    marketplaceScope: parsed['marketplace-scope'] as 'user' | 'project' | 'local' | undefined,
+    pluginScope: parsed['plugin-scope'] as 'user' | 'project' | 'local' | undefined,
   }
 }
 
@@ -557,6 +563,8 @@ Examples:
       personas: parsed.personas,
       apiKeyScope: parsed.apiKeyScope,
       autoConfig: parsed.autoConfig,
+      marketplaceScope: parsed.marketplaceScope,
+      pluginScope: parsed.pluginScope,
     })
     return { exitCode: result.exitCode, stdout: '', stderr: '' }
   }
