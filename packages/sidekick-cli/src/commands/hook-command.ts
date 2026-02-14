@@ -15,7 +15,7 @@
 
 import type { Writable } from 'node:stream'
 import type { Logger, SetupState } from '@sidekick/core'
-import { DaemonClient, SetupStatusService, createAssetResolver, getDefaultAssetsDir } from '@sidekick/core'
+import { DaemonClient, SetupStatusService, createAssetResolver, getDefaultAssetsDir, isInSandbox } from '@sidekick/core'
 import type { HookName, ParsedHookInput } from '@sidekick/types'
 import type { RuntimeShell } from '../runtime.js'
 import { handleHookCommand, type HookResponse } from './hook.js'
@@ -330,6 +330,13 @@ async function checkSetupState(projectRoot: string, hookName: HookName, logger: 
  * @returns Whether daemon was successfully started
  */
 async function ensureDaemonForHook(projectRoot: string, logger: Logger): Promise<boolean> {
+  // Fast-path: skip daemon entirely in sandbox mode.
+  // Sandbox blocks Unix sockets, so DaemonClient.start() would timeout.
+  if (isInSandbox()) {
+    logger.debug('Skipping daemon start — sandbox mode')
+    return false
+  }
+
   // Check setup state before starting daemon to avoid ProviderErrors
   try {
     const setupService = new SetupStatusService(projectRoot)

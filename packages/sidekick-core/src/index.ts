@@ -204,5 +204,7 @@ export {
   type PersistedTranscriptState,
 } from './state/index.js'
 
+export { isInSandbox } from './sandbox'
+
 // Note: LLMService should be imported directly from '@sidekick/shared-providers'
 // to avoid circular dependencies between packages
