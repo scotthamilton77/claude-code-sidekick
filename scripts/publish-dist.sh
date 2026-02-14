@@ -143,22 +143,22 @@ pnpm build
 echo "==> Publishing @scotthamilton77/sidekick@$NEW_VERSION..."
 cd packages/sidekick-dist
 
-# Publish with appropriate tags
-if [[ -n "$PRERELEASE_ID" ]]; then
-    echo "    (publishing with --tag $PRERELEASE_ID)"
-    npm publish --access public --tag "$PRERELEASE_ID"
-    # Also update latest since there's no stable version yet
-    echo "    (also updating 'latest' tag)"
-    npm dist-tag add "@scotthamilton77/sidekick@$NEW_VERSION" latest
-else
-    npm publish --access public --tag latest
-fi
+# Publish with appropriate tag
+# NOTE: For prerelease versions, we publish directly to 'latest' since there's
+# no stable version yet. When a stable release ships, change this to publish
+# prerelease with --tag <prerelease-id> (e.g. --tag alpha) instead.
+npm publish --access public --tag latest
+
+cd ../..
 
 echo ""
-echo "==> Published successfully!"
+echo "==> Published successfully! Committing version bump..."
+
+git add packages/sidekick-dist/package.json packages/sidekick-plugin/.claude-plugin/plugin.json .claude-plugin/marketplace.json
+git commit -m "chore: release @scotthamilton77/sidekick@$NEW_VERSION"
+git tag "v$NEW_VERSION"
+
+echo "==> Committed and tagged v$NEW_VERSION"
 echo ""
-echo "Don't forget to commit the version bump:"
-echo "  git add packages/sidekick-dist/package.json packages/sidekick-plugin/.claude-plugin/plugin.json .claude-plugin/marketplace.json"
-echo "  git commit -m \"chore: release @scotthamilton77/sidekick@$NEW_VERSION\""
-echo "  git tag v$NEW_VERSION"
+echo "Don't forget to push:"
 echo "  git push && git push --tags"
