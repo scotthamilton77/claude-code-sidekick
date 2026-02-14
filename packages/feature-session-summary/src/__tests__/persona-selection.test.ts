@@ -10,6 +10,7 @@ import {
   filterPersonasByAllowList,
   selectRandomPersona,
   selectPersonaForSession,
+  ensurePersonaForSession,
 } from '../handlers/persona-selection'
 import { createMockDaemonContext, MockLogger, MockStateService } from '@sidekick/testing-fixtures'
 import { DEFAULT_SESSION_SUMMARY_CONFIG } from '../types'
@@ -326,5 +327,85 @@ describe('selectPersonaForSession', () => {
     await selectPersonaForSession('test-session', DEFAULT_SESSION_SUMMARY_CONFIG, ctx)
 
     expect(mockCreatePersonaLoader).toHaveBeenCalledWith(expect.objectContaining({ projectRoot: '/custom/project' }))
+  })
+})
+
+// ============================================================================
+// ensurePersonaForSession Tests (sidekick-p4h)
+// ============================================================================
+
+describe('ensurePersonaForSession', () => {
+  let mockLogger: MockLogger
+  let mockStateService: MockStateService
+  let mockCreatePersonaLoader: ReturnType<typeof vi.fn>
+
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    mockLogger = new MockLogger()
+    mockStateService = new MockStateService()
+
+    const coreMod = await import('@sidekick/core')
+    mockCreatePersonaLoader = coreMod.createPersonaLoader as ReturnType<typeof vi.fn>
+  })
+
+  function setupMockLoader(personas: Map<string, PersonaDefinition>): void {
+    mockCreatePersonaLoader.mockReturnValue({
+      discover: () => personas,
+      load: vi.fn(),
+      loadFile: vi.fn(),
+      resolver: {},
+      cascadeLayers: [],
+    })
+  }
+
+  it('re-selects persona when persona state is missing', async () => {
+    const personas = new Map<string, PersonaDefinition>()
+    personas.set('skippy', createMockPersona('skippy', 'Skippy'))
+    setupMockLoader(personas)
+
+    const ctx = createMockDaemonContext({ logger: mockLogger, stateService: mockStateService })
+
+    // No persona state exists — should trigger re-selection
+    await ensurePersonaForSession('test-session', ctx)
+
+    // Verify persona was selected and persisted
+    const paths = mockStateService.getPaths()
+    const personaPath = paths.find((p) => p.includes('session-persona.json'))
+    expect(personaPath).toBeDefined()
+
+    const stored = mockStateService.getStored(personaPath!) as { persona_id: string }
+    expect(stored.persona_id).toBe('skippy')
+
+    // Verify recovery was logged
+    expect(mockLogger.wasLoggedAtLevel('Persona state missing for active session, re-selecting', 'info')).toBe(true)
+  })
+
+  it('does not re-select when persona state already exists', async () => {
+    const personas = new Map<string, PersonaDefinition>()
+    personas.set('skippy', createMockPersona('skippy'))
+    personas.set('bones', createMockPersona('bones'))
+    setupMockLoader(personas)
+
+    const ctx = createMockDaemonContext({ logger: mockLogger, stateService: mockStateService })
+
+    // Pre-populate persona state
+    await selectPersonaForSession('test-session', DEFAULT_SESSION_SUMMARY_CONFIG, ctx)
+    const pathsBefore = mockStateService.getPaths()
+    const personaPath = pathsBefore.find((p) => p.includes('session-persona.json'))!
+    const storedBefore = mockStateService.getStored(personaPath) as { persona_id: string }
+
+    // Clear call counts
+    vi.clearAllMocks()
+    setupMockLoader(personas)
+
+    // Ensure should be a no-op
+    await ensurePersonaForSession('test-session', ctx)
+
+    // Persona state should be unchanged
+    const storedAfter = mockStateService.getStored(personaPath) as { persona_id: string }
+    expect(storedAfter.persona_id).toBe(storedBefore.persona_id)
+
+    // No recovery log
+    expect(mockLogger.wasLoggedAtLevel('Persona state missing for active session, re-selecting', 'info')).toBe(false)
   })
 })
