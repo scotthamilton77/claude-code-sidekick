@@ -269,6 +269,19 @@ async function killDaemon(
 
 // --- Settings surgery ---
 
+/** Recursively delete keys whose values are empty plain objects `{}`. */
+function pruneEmptyObjects(obj: Record<string, unknown>): void {
+  for (const key of Object.keys(obj)) {
+    const val = obj[key]
+    if (val !== null && typeof val === 'object' && !Array.isArray(val)) {
+      pruneEmptyObjects(val as Record<string, unknown>)
+      if (Object.keys(val as Record<string, unknown>).length === 0) {
+        delete obj[key]
+      }
+    }
+  }
+}
+
 async function cleanSettingsFile(
   settingsPath: string,
   scope: 'user' | 'project',
@@ -345,6 +358,9 @@ async function cleanSettingsFile(
   }
 
   if (modified && !options.dryRun) {
+    // Prune empty plain objects recursively (e.g. "enabledPlugins": {} after plugin removal)
+    pruneEmptyObjects(settings)
+
     // Check if settings is now empty
     if (Object.keys(settings).length === 0) {
       await fs.unlink(settingsPath)
