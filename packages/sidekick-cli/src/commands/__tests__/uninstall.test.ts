@@ -13,8 +13,7 @@
  *
  * @see uninstall.ts handleUninstallCommand
  */
-import { Writable } from 'node:stream'
-import { Readable } from 'node:stream'
+import { Writable, Readable } from 'node:stream'
 import { mkdir, writeFile, readFile, rm } from 'node:fs/promises'
 import path from 'node:path'
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest'
@@ -671,6 +670,139 @@ describe('handleUninstallCommand', () => {
       const userIdx = stdout.data.indexOf('  user:\n')
       const projectIdx = stdout.data.indexOf('  project:\n')
       expect(userIdx).toBeLessThan(projectIdx)
+    })
+  })
+
+  describe('dev-mode guard', () => {
+    /** Write a project setup-status.json with devMode: true (common fixture for guard tests). */
+    async function writeDevModeStatus(): Promise<void> {
+      await writeFile(
+        path.join(tempDir, '.sidekick', 'setup-status.json'),
+        JSON.stringify({
+          version: 1,
+          devMode: true,
+          autoConfigured: false,
+          statusline: 'local',
+          apiKeys: { OPENROUTER_API_KEY: 'missing', OPENAI_API_KEY: 'missing' },
+          lastUpdatedAt: new Date().toISOString(),
+        })
+      )
+    }
+
+    test('skips project setup-status.json deletion when dev-mode is active', async () => {
+      await writeDevModeStatus()
+
+      const result = await handleUninstallCommand(tempDir, logger, stdout, {
+        force: true,
+        scope: 'project',
+        userHome,
+      })
+
+      expect(result.exitCode).toBe(0)
+      // setup-status.json should still exist
+      const content = await readFile(path.join(tempDir, '.sidekick', 'setup-status.json'), 'utf-8')
+      expect(JSON.parse(content).devMode).toBe(true)
+      expect(stdout.data).toContain('dev-mode')
+    })
+
+    test('skips gitignore removal when dev-mode is active', async () => {
+      await writeDevModeStatus()
+      const gitignoreContent = [
+        'node_modules/',
+        '',
+        '# >>> sidekick',
+        '.sidekick/logs/',
+        '.sidekick/sessions/',
+        '.sidekick/state/',
+        '.sidekick/setup-status.json',
+        '.sidekick/.env',
+        '.sidekick/.env.local',
+        '.sidekick/sidekick*.pid',
+        '.sidekick/sidekick*.token',
+        '# <<< sidekick',
+      ].join('\n')
+      await writeFile(path.join(tempDir, '.gitignore'), gitignoreContent)
+
+      const result = await handleUninstallCommand(tempDir, logger, stdout, {
+        force: true,
+        scope: 'project',
+        userHome,
+      })
+
+      expect(result.exitCode).toBe(0)
+      const updated = await readFile(path.join(tempDir, '.gitignore'), 'utf-8')
+      expect(updated).toContain('# >>> sidekick')
+      expect(stdout.data).toContain('dev-mode')
+    })
+
+    test('skips settings.local.json cleanup when dev-mode is active', async () => {
+      await writeDevModeStatus()
+      const settings = {
+        statusLine: { type: 'command', command: '$CLAUDE_PROJECT_DIR/scripts/dev-sidekick/statusline' },
+        hooks: {
+          SessionStart: [
+            { hooks: [{ type: 'command', command: '$CLAUDE_PROJECT_DIR/scripts/dev-sidekick/session-start' }] },
+          ],
+        },
+      }
+      await writeFile(path.join(tempDir, '.claude', 'settings.local.json'), JSON.stringify(settings, null, 2))
+
+      const result = await handleUninstallCommand(tempDir, logger, stdout, {
+        force: true,
+        scope: 'project',
+        userHome,
+      })
+
+      expect(result.exitCode).toBe(0)
+      const updated = JSON.parse(await readFile(path.join(tempDir, '.claude', 'settings.local.json'), 'utf-8'))
+      expect(updated.statusLine.command).toContain('dev-sidekick')
+      expect(updated.hooks.SessionStart).toHaveLength(1)
+    })
+
+    test('still allows transient data removal when dev-mode is active', async () => {
+      await writeDevModeStatus()
+      await mkdir(path.join(tempDir, '.sidekick', 'logs'), { recursive: true })
+      await writeFile(path.join(tempDir, '.sidekick', 'logs', 'test.log'), 'log data')
+
+      const result = await handleUninstallCommand(tempDir, logger, stdout, {
+        force: true,
+        scope: 'project',
+        userHome,
+      })
+
+      expect(result.exitCode).toBe(0)
+      await expect(readFile(path.join(tempDir, '.sidekick', 'logs', 'test.log'), 'utf-8')).rejects.toThrow()
+    })
+
+    test('still allows user-scope cleanup when dev-mode is active at project scope', async () => {
+      await writeDevModeStatus()
+      await writeFile(path.join(userHome, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+
+      const result = await handleUninstallCommand(tempDir, logger, stdout, {
+        force: true,
+        userHome,
+      })
+
+      expect(result.exitCode).toBe(0)
+      await expect(readFile(path.join(userHome, '.sidekick', 'setup-status.json'), 'utf-8')).rejects.toThrow()
+      const projectStatus = await readFile(path.join(tempDir, '.sidekick', 'setup-status.json'), 'utf-8')
+      expect(JSON.parse(projectStatus).devMode).toBe(true)
+    })
+
+    test('non-dev-mode uninstall behavior unchanged', async () => {
+      await writeFile(
+        path.join(tempDir, '.sidekick', 'setup-status.json'),
+        JSON.stringify({ version: 1, autoConfigured: true })
+      )
+
+      const result = await handleUninstallCommand(tempDir, logger, stdout, {
+        force: true,
+        scope: 'project',
+        userHome,
+      })
+
+      expect(result.exitCode).toBe(0)
+      await expect(readFile(path.join(tempDir, '.sidekick', 'setup-status.json'), 'utf-8')).rejects.toThrow()
     })
   })
 })

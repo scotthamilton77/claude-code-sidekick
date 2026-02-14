@@ -26,6 +26,7 @@ import {
   getUserDaemonsDir,
   SetupStatusService,
   installGitignoreSection,
+  removeGitignoreSection,
   type UserPidInfo,
 } from '@sidekick/core'
 
@@ -441,6 +442,7 @@ async function doEnable(projectDir: string, stdout: NodeJS.WritableStream): Prom
   // Update devMode flag in project setup-status.json
   const setupService = new SetupStatusService(projectDir)
   await setupService.setDevMode(true)
+  await setupService.updateProjectStatus({ statusline: 'local', gitignore: 'installed' })
 
   log(stdout, 'info', `Dev-mode hooks enabled in ${settingsPath}`)
   log(stdout, 'info', '')
@@ -518,6 +520,17 @@ async function doDisable(projectDir: string, stdout: NodeJS.WritableStream): Pro
 
   // Remove sidekick-config skill copied during enable
   await removeDevSkill(projectDir, stdout)
+
+  // Conditionally remove gitignore entries
+  const pluginInstalled = await setupService.isPluginInstalled()
+  if (pluginInstalled) {
+    log(stdout, 'info', 'Skipping .gitignore cleanup — plugin is still installed')
+  } else {
+    const removed = await removeGitignoreSection(projectDir)
+    if (removed) {
+      log(stdout, 'info', 'Removed .gitignore entries for .sidekick/')
+    }
+  }
 
   log(stdout, 'info', '')
   log(stdout, 'info', 'Dev-mode disabled. Restart Claude Code to apply changes.')
