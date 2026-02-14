@@ -133,6 +133,27 @@ describe('handleUninstallCommand', () => {
       expect(stdout.data).toContain('project')
     })
 
+    test('detects project scope via sidekick content in .claude/settings.json (project-level)', async () => {
+      // No setup-status.json — detection must fall through to settings files
+      const settings = {
+        statusLine: {
+          type: 'command',
+          command: 'npx @scotthamilton77/sidekick statusline --project-dir=$CLAUDE_PROJECT_DIR',
+        },
+      }
+      await writeFile(path.join(tempDir, '.claude', 'settings.json'), JSON.stringify(settings, null, 2))
+
+      const result = await handleUninstallCommand(tempDir, logger, stdout, {
+        force: true,
+        userHome,
+      })
+
+      expect(result.exitCode).toBe(0)
+      // Should detect project scope and report removal
+      expect(stdout.data).toContain('project')
+      expect(stdout.data).not.toContain('No sidekick installation detected')
+    })
+
     test('detects user scope when ~/.sidekick/setup-status.json exists', async () => {
       await writeFile(path.join(userHome, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
 
@@ -270,6 +291,32 @@ describe('handleUninstallCommand', () => {
       expect(result.exitCode).toBe(0)
       const updated = JSON.parse(await readFile(path.join(userHome, '.claude', 'settings.json'), 'utf-8'))
       expect(updated.statusLine.command).toBe('some-other-tool statusline')
+    })
+
+    test('removes sidekick statusline from project-level .claude/settings.json', async () => {
+      const settings = {
+        statusLine: {
+          type: 'command',
+          command: 'npx @scotthamilton77/sidekick statusline --project-dir=$CLAUDE_PROJECT_DIR',
+        },
+        someOtherSetting: true,
+      }
+      await writeFile(path.join(tempDir, '.claude', 'settings.json'), JSON.stringify(settings, null, 2))
+      await writeFile(
+        path.join(tempDir, '.sidekick', 'setup-status.json'),
+        JSON.stringify({ version: 1 })
+      )
+
+      const result = await handleUninstallCommand(tempDir, logger, stdout, {
+        force: true,
+        scope: 'project',
+        userHome,
+      })
+
+      expect(result.exitCode).toBe(0)
+      const updated = JSON.parse(await readFile(path.join(tempDir, '.claude', 'settings.json'), 'utf-8'))
+      expect(updated.statusLine).toBeUndefined()
+      expect(updated.someOtherSetting).toBe(true)
     })
 
     test('removes sidekick hooks from settings.local.json', async () => {
