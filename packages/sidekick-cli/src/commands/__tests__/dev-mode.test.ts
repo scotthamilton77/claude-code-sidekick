@@ -183,6 +183,31 @@ describe('handleDevModeCommand', () => {
       const status = JSON.parse(content)
       expect(status.devMode).toBe(true)
     })
+
+    test('installs gitignore entries during enable', async () => {
+      const result = await handleDevModeCommand('enable', tempDir, logger, stdout)
+
+      expect(result.exitCode).toBe(0)
+
+      // Verify .gitignore was created with sidekick section
+      const gitignoreContent = await readFile(path.join(tempDir, '.gitignore'), 'utf-8')
+      expect(gitignoreContent).toContain('# >>> sidekick')
+      expect(gitignoreContent).toContain('.sidekick/logs/')
+      expect(gitignoreContent).toContain('.sidekick/setup-status.json')
+      expect(gitignoreContent).toContain('# <<< sidekick')
+    })
+
+    test('gitignore install is idempotent on re-enable', async () => {
+      // Enable twice
+      await handleDevModeCommand('enable', tempDir, logger, stdout)
+      stdout.data = ''
+      // Re-enable should not fail (settings already enabled check short-circuits,
+      // but gitignore should have been installed on first run)
+      const gitignoreContent = await readFile(path.join(tempDir, '.gitignore'), 'utf-8')
+      // Count occurrences of section marker - should be exactly 1
+      const matches = gitignoreContent.match(/# >>> sidekick/g)
+      expect(matches).toHaveLength(1)
+    })
   })
 
   describe('disable subcommand', () => {

@@ -25,6 +25,7 @@ import {
   getUserPidPath,
   getUserDaemonsDir,
   SetupStatusService,
+  installGitignoreSection,
   type UserPidInfo,
 } from '@sidekick/core'
 
@@ -380,6 +381,16 @@ async function doEnable(projectDir: string, stdout: NodeJS.WritableStream): Prom
 
   // Copy sidekick-config skill from plugin, transforming for dev use
   await copySkillForDev(projectDir, stdout)
+
+  // Install gitignore entries for .sidekick/ tracking files
+  const gitignoreResult = await installGitignoreSection(projectDir)
+  if (gitignoreResult.status === 'installed') {
+    log(stdout, 'info', 'Installed .gitignore entries for .sidekick/')
+  } else if (gitignoreResult.status === 'already-installed') {
+    log(stdout, 'info', '.gitignore entries already installed')
+  } else {
+    log(stdout, 'warn', `Failed to install .gitignore entries: ${gitignoreResult.error}`)
+  }
 
   // Backup existing settings
   await backupSettings(settingsPath, stdout)
