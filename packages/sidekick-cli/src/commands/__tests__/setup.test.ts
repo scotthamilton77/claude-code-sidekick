@@ -343,8 +343,8 @@ describe('handleSetupCommand', () => {
   })
 
   describe('scripted mode - dev-mode statusline protection', () => {
-    test('skips statusline when dev-mode is active at project scope', async () => {
-      // Pre-populate project settings with dev-sidekick statusline
+    test('skips statusline when dev-mode is active at local scope', async () => {
+      // Pre-populate local settings with dev-sidekick statusline
       const claudeDir = path.join(projectDir, '.claude')
       await mkdir(claudeDir, { recursive: true })
       const settingsPath = path.join(claudeDir, 'settings.local.json')
@@ -357,7 +357,7 @@ describe('handleSetupCommand', () => {
       await writeFile(settingsPath, JSON.stringify(devModeSettings, null, 2) + '\n')
 
       const result = await handleSetupCommand(projectDir, logger, output, {
-        statuslineScope: 'project',
+        statuslineScope: 'local',
         homeDir,
       })
 
@@ -372,9 +372,9 @@ describe('handleSetupCommand', () => {
       expect(afterSettings.statusLine.command).toContain('dev-sidekick')
     })
 
-    test('writes statusline when dev-mode is NOT active at project scope', async () => {
+    test('writes statusline when dev-mode is NOT active at local scope', async () => {
       const result = await handleSetupCommand(projectDir, logger, output, {
-        statuslineScope: 'project',
+        statuslineScope: 'local',
         homeDir,
       })
 
@@ -421,8 +421,8 @@ describe('handleSetupCommand', () => {
       expect(afterStatus.devMode).toBe(true)
     })
 
-    test('writes statusline to user scope even when dev-mode is active at project scope', async () => {
-      // Set up dev-mode statusline at project scope
+    test('writes statusline to user scope even when dev-mode is active at local scope', async () => {
+      // Set up dev-mode statusline at local scope
       const projectClaudeDir = path.join(projectDir, '.claude')
       await mkdir(projectClaudeDir, { recursive: true })
       const projectSettingsPath = path.join(projectClaudeDir, 'settings.local.json')
@@ -449,7 +449,7 @@ describe('handleSetupCommand', () => {
       const settings = JSON.parse(content)
       expect(settings.statusLine.command).toContain('npx @scotthamilton77/sidekick')
 
-      // Project-level dev-mode statusline should remain unchanged
+      // Local-level dev-mode statusline should remain unchanged
       const projectContent = await readFile(projectSettingsPath, 'utf-8')
       const projectSettings = JSON.parse(projectContent)
       expect(projectSettings.statusLine.command).toContain('dev-sidekick')

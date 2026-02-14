@@ -15,6 +15,7 @@ import {
   type PluginLivenessStatus,
 } from '@sidekick/core'
 import { printHeader, printStatus, promptSelect, promptConfirm, promptInput, type PromptContext } from './prompts.js'
+import { ensurePluginInstalled, getValidPluginScopes, type InstallScope } from './plugin-installer.js'
 
 export interface SetupCommandOptions {
   checkOnly?: boolean
@@ -22,11 +23,14 @@ export interface SetupCommandOptions {
   stdin?: NodeJS.ReadableStream
   help?: boolean
   // Scripting flags for non-interactive setup
-  statuslineScope?: 'user' | 'project'
+  statuslineScope?: InstallScope
   gitignore?: boolean // true = install, false = skip, undefined = not specified
   personas?: boolean // true = enable, false = disable, undefined = not specified
   apiKeyScope?: 'user' | 'project' // where to save API key (reads from OPENROUTER_API_KEY env)
   autoConfig?: 'auto' | 'manual'
+  // Plugin installation flags
+  marketplaceScope?: InstallScope
+  pluginScope?: InstallScope
   // Doctor filtering - comma-separated list of checks to run
   only?: string
   // Testing override - allows tests to specify home directory
@@ -51,7 +55,9 @@ Options:
   --help                        Show this help message
 
 Scripting Flags (for non-interactive/partial setup):
-  --statusline-scope=<scope>    Configure statusline: user | project
+  --marketplace-scope=<scope>   Install marketplace: user | project | local
+  --plugin-scope=<scope>        Install plugin: user | project | local
+  --statusline-scope=<scope>    Configure statusline: user | project | local
   --gitignore                   Update .gitignore to exclude sidekick files
   --no-gitignore                Skip .gitignore configuration
   --personas                    Enable persona features
@@ -70,6 +76,18 @@ Examples:
 `
 
 const STATUSLINE_COMMAND = 'npx @scotthamilton77/sidekick statusline --project-dir=$CLAUDE_PROJECT_DIR'
+
+/** Resolve the settings file path for a given statusline scope. */
+function statuslineSettingsPath(scope: InstallScope, homeDir: string, projectDir: string): string {
+  switch (scope) {
+    case 'user':
+      return path.join(homeDir, '.claude', 'settings.json')
+    case 'project':
+      return path.join(projectDir, '.claude', 'settings.json')
+    case 'local':
+      return path.join(projectDir, '.claude', 'settings.local.json')
+  }
+}
 
 // ============================================================================
 // Helper Functions
@@ -308,7 +326,7 @@ interface WizardContext {
 }
 
 interface WizardState {
-  statuslineScope: 'user' | 'project'
+  statuslineScope: InstallScope
   gitignoreStatus: GitignoreStatus
   wantPersonas: boolean
   apiKeyHealth: ApiKeyHealth
@@ -333,31 +351,40 @@ function printWizardHeader(stdout: NodeJS.WritableStream): void {
 }
 
 /**
- * Step 1: Configure statusline location.
+ * Step 2: Configure statusline location.
+ * Statusline scope must be equal to or narrower than plugin scope.
  */
-async function runStep1Statusline(wctx: WizardContext): Promise<'user' | 'project'> {
+async function runStep2Statusline(wctx: WizardContext, pluginScope: InstallScope): Promise<InstallScope> {
   const { ctx, homeDir, projectDir, logger } = wctx
 
-  printHeader(ctx, 'Step 1: Statusline Configuration', 'Claude Code plugins cannot provide statusline config directly.')
+  printHeader(ctx, 'Step 2: Statusline Configuration', 'Claude Code plugins cannot provide statusline config directly.')
 
-  const statuslineScope = await promptSelect(ctx, 'Where should sidekick configure your statusline?', [
-    { value: 'user' as const, label: 'User-level (~/.claude/settings.json)', description: 'Works in all projects' },
-    {
-      value: 'project' as const,
-      label: 'Project-level (.claude/settings.local.json)',
-      description: 'This project only',
-    },
-  ])
+  const STATUSLINE_SCOPE_OPTIONS: Record<InstallScope, { label: string; description: string }> = {
+    user: { label: 'User-level (~/.claude/settings.json)', description: 'Works in all projects' },
+    project: { label: 'Project-level (.claude/settings.json)', description: 'Shared via git' },
+    local: { label: 'Local (.claude/settings.local.json)', description: 'This machine only, not shared via git' },
+  }
+
+  const validScopes = getValidPluginScopes(pluginScope)
+  let statuslineScope: InstallScope
+
+  if (validScopes.length === 1) {
+    statuslineScope = validScopes[0]
+    printStatus(ctx, 'info', `Statusline scope auto-selected: ${statuslineScope} (constrained by plugin scope)`)
+  } else {
+    const options = validScopes.map((scope) => ({
+      value: scope,
+      ...STATUSLINE_SCOPE_OPTIONS[scope],
+    }))
+    statuslineScope = await promptSelect(ctx, 'Where should sidekick configure your statusline?', options)
+  }
 
   // Configure statusline
-  const statuslinePath =
-    statuslineScope === 'user'
-      ? path.join(homeDir, '.claude', 'settings.json')
-      : path.join(projectDir, '.claude', 'settings.local.json')
+  const settingsPath = statuslineSettingsPath(statuslineScope, homeDir, projectDir)
 
-  const wrote = await configureStatusline(statuslinePath, logger)
+  const wrote = await configureStatusline(settingsPath, logger)
   if (wrote) {
-    printStatus(ctx, 'success', `Statusline configured in ${statuslinePath}`)
+    printStatus(ctx, 'success', `Statusline configured in ${settingsPath}`)
   } else {
     printStatus(ctx, 'warning', 'Statusline managed by dev-mode (skipped)')
   }
@@ -366,9 +393,9 @@ async function runStep1Statusline(wctx: WizardContext): Promise<'user' | 'projec
 }
 
 /**
- * Step 2: Configure .gitignore for sidekick files.
+ * Step 3: Configure .gitignore for sidekick files.
  */
-async function runStep2Gitignore(wctx: WizardContext, force: boolean): Promise<GitignoreStatus> {
+async function runStep3Gitignore(wctx: WizardContext, force: boolean): Promise<GitignoreStatus> {
   const { ctx, projectDir } = wctx
 
   // Check current status
@@ -390,7 +417,7 @@ async function runStep2Gitignore(wctx: WizardContext, force: boolean): Promise<G
   }
 
   // Interactive mode: ask user
-  printHeader(ctx, 'Step 2: Git Configuration', 'Sidekick creates logs and session data that should not be committed.')
+  printHeader(ctx, 'Step 3: Git Configuration', 'Sidekick creates logs and session data that should not be committed.')
 
   if (needsRepair) {
     printStatus(ctx, 'warning', 'Existing .gitignore section is incomplete and needs repair')
@@ -428,9 +455,9 @@ async function runStep2Gitignore(wctx: WizardContext, force: boolean): Promise<G
 }
 
 /**
- * Step 3: Configure persona features and API key.
+ * Step 4: Configure persona features and API key.
  */
-async function runStep3Personas(
+async function runStep4Personas(
   wctx: WizardContext
 ): Promise<{ wantPersonas: boolean; apiKeyHealth: ApiKeyHealth; apiKeyDetection: AllScopesDetectionResult | null }> {
   const { ctx, homeDir } = wctx
@@ -438,7 +465,7 @@ async function runStep3Personas(
 
   printHeader(
     ctx,
-    'Step 3: Persona Features',
+    'Step 4: Persona Features',
     'Sidekick includes AI personas (Marvin, Skippy, etc.) that add\npersonality to your coding sessions with snarky messages and contextual nudges.'
   )
 
@@ -462,7 +489,7 @@ async function runStep3Personas(
 }
 
 /**
- * Configure API key (sub-step of Step 3).
+ * Configure API key (sub-step of Step 4).
  * Uses detectAllApiKeys to check all scopes with validation, shows per-scope results.
  */
 async function configureApiKey(
@@ -546,12 +573,12 @@ async function configureApiKey(
 }
 
 /**
- * Step 4: Configure auto-configuration preference.
+ * Step 5: Configure auto-configuration preference.
  */
-async function runStep4AutoConfig(wctx: WizardContext): Promise<'auto' | 'manual'> {
+async function runStep5AutoConfig(wctx: WizardContext): Promise<'auto' | 'manual'> {
   const { ctx } = wctx
 
-  printHeader(ctx, 'Step 4: Project Auto-Configuration')
+  printHeader(ctx, 'Step 5: Project Auto-Configuration')
 
   const autoConfig = await promptSelect(ctx, 'When sidekick runs in a new project for the first time:', [
     { value: 'auto' as const, label: 'Auto-configure using my defaults', description: 'Recommended' },
@@ -621,7 +648,8 @@ function printSummary(wctx: WizardContext, state: WizardState): void {
   const stdout = ctx.stdout
 
   printHeader(ctx, 'Summary')
-  printStatus(ctx, 'success', `Statusline: ${statuslineScope === 'user' ? 'User-level' : 'Project-level'}`)
+  const scopeLabel = { user: 'User-level', project: 'Project-level', local: 'Local' }[statuslineScope]
+  printStatus(ctx, 'success', `Statusline: ${scopeLabel}`)
 
   let gitignoreStatusType: 'success' | 'warning' | 'info'
   let gitignoreLabel: string
@@ -689,17 +717,33 @@ async function runWizard(
     printWizardHeader(stdout)
   }
 
-  const statuslineScope = force ? 'user' : await runStep1Statusline(wctx)
-  const gitignoreStatus = await runStep2Gitignore(wctx, force)
+  // Step 1: Plugin installation
+  const pluginResult = await ensurePluginInstalled({
+    logger,
+    stdout,
+    force,
+    projectDir,
+    ctx: wctx.ctx,
+    marketplaceScope: options.marketplaceScope,
+    pluginScope: options.pluginScope,
+  })
+  if (pluginResult.error) {
+    logger.warn('Plugin installation had issues, continuing with setup', { error: pluginResult.error })
+  }
+
+  // Force mode: statusline defaults to plugin scope (respects scope constraint)
+  const forceStatuslineScope = pluginResult.pluginScope
+  const statuslineScope = force ? forceStatuslineScope : await runStep2Statusline(wctx, pluginResult.pluginScope)
+  const gitignoreStatus = await runStep3Gitignore(wctx, force)
   const { wantPersonas, apiKeyHealth, apiKeyDetection } = force
     ? { wantPersonas: true, apiKeyHealth: 'not-required' as const, apiKeyDetection: null }
-    : await runStep3Personas(wctx)
-  const autoConfig = force ? 'auto' : await runStep4AutoConfig(wctx)
+    : await runStep4Personas(wctx)
+  const autoConfig = force ? 'auto' : await runStep5AutoConfig(wctx)
 
-  // In force mode, configure statusline with defaults (user scope)
+  // In force mode, configure statusline at same scope as plugin
   if (force) {
-    const statuslinePath = path.join(homeDir, '.claude', 'settings.json')
-    const wrote = await configureStatusline(statuslinePath, logger)
+    const settingsPath = statuslineSettingsPath(forceStatuslineScope, homeDir, projectDir)
+    const wrote = await configureStatusline(settingsPath, logger)
     if (!wrote) {
       stdout.write('⚠ Statusline managed by dev-mode (skipped)\n')
     }
@@ -721,7 +765,10 @@ async function runWizard(
   } else {
     // Force mode: show brief summary of what was configured
     stdout.write('Setup complete (force mode):\n')
-    stdout.write(`  Statusline: user-level (~/.claude/settings.json)\n`)
+    stdout.write(`  Plugin: ${pluginResult.pluginAction} (${pluginResult.pluginScope})\n`)
+    stdout.write(
+      `  Statusline: ${forceStatuslineScope} (${statuslineSettingsPath(forceStatuslineScope, homeDir, projectDir)})\n`
+    )
     stdout.write(`  Gitignore: ${gitignoreStatus === 'installed' ? 'configured' : 'skipped'}\n`)
     stdout.write(`  Personas: enabled (API key not configured)\n`)
     stdout.write(`  Auto-configure: enabled\n`)
@@ -735,6 +782,8 @@ async function runWizard(
  */
 function hasScriptingFlags(options: SetupCommandOptions): boolean {
   return (
+    options.marketplaceScope !== undefined ||
+    options.pluginScope !== undefined ||
     options.statuslineScope !== undefined ||
     options.gitignore !== undefined ||
     options.personas !== undefined ||
@@ -756,14 +805,28 @@ async function runScripted(
   const setupService = new SetupStatusService(projectDir, { homeDir, logger })
   let configuredCount = 0
 
+  // 0. Install marketplace/plugin if specified
+  if (options.marketplaceScope !== undefined || options.pluginScope !== undefined) {
+    const pluginResult = await ensurePluginInstalled({
+      logger,
+      stdout,
+      force: true, // scripted mode never prompts
+      projectDir,
+      marketplaceScope: options.marketplaceScope,
+      pluginScope: options.pluginScope,
+    })
+    if (pluginResult.error) {
+      stdout.write(`⚠ Plugin installation issue: ${pluginResult.error}\n`)
+    } else {
+      configuredCount++
+    }
+  }
+
   // 1. Configure statusline if specified
   if (options.statuslineScope) {
-    const statuslinePath =
-      options.statuslineScope === 'user'
-        ? path.join(homeDir, '.claude', 'settings.json')
-        : path.join(projectDir, '.claude', 'settings.local.json')
+    const settingsPath = statuslineSettingsPath(options.statuslineScope, homeDir, projectDir)
 
-    const wrote = await configureStatusline(statuslinePath, logger)
+    const wrote = await configureStatusline(settingsPath, logger)
     if (wrote) {
       stdout.write(`✓ Statusline configured (${options.statuslineScope}-level)\n`)
       configuredCount++

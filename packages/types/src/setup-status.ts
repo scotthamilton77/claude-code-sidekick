@@ -82,8 +82,9 @@ export type ProjectApiKeyStatus = z.infer<typeof ProjectApiKeyStatusSchema>
  */
 export const StatuslineStatusSchema = z.enum([
   'user', // Configured in ~/.claude/settings.json
-  'project', // Configured in .claude/settings.local.json
-  'both', // Configured in both (project overrides user)
+  'project', // Configured in .claude/settings.json (shared via git)
+  'local', // Configured in .claude/settings.local.json (not shared)
+  'both', // Configured in multiple locations
   'none', // Not configured anywhere
 ])
 export type StatuslineStatus = z.infer<typeof StatuslineStatusSchema>
@@ -104,7 +105,7 @@ export const UserSetupStatusSchema = z.object({
   lastUpdatedAt: z.string(), // ISO timestamp
   preferences: z.object({
     autoConfigureProjects: z.boolean(),
-    defaultStatuslineScope: z.enum(['user', 'project']),
+    defaultStatuslineScope: z.enum(['user', 'project', 'local']),
     defaultApiKeyScope: z.enum(['user', 'project', 'skip']),
   }),
   statusline: StatuslineStatusSchema,
