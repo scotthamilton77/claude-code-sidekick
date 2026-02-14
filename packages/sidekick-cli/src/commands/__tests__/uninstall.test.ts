@@ -302,10 +302,7 @@ describe('handleUninstallCommand', () => {
         someOtherSetting: true,
       }
       await writeFile(path.join(tempDir, '.claude', 'settings.json'), JSON.stringify(settings, null, 2))
-      await writeFile(
-        path.join(tempDir, '.sidekick', 'setup-status.json'),
-        JSON.stringify({ version: 1 })
-      )
+      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
         force: true,
@@ -356,6 +353,113 @@ describe('handleUninstallCommand', () => {
       expect(updated.statusLine).toBeUndefined()
       // Other keys preserved
       expect(updated.someOtherKey).toBe('keep-me')
+    })
+
+    test('prunes empty object values left after removing sidekick entries', async () => {
+      // enabledPlugins becomes {} after sidekick removal — should be pruned
+      const settings = {
+        statusLine: {
+          type: 'command',
+          command: 'npx @scotthamilton77/sidekick statusline --project-dir=$CLAUDE_PROJECT_DIR',
+        },
+        enabledPlugins: { sidekick: true },
+        someOtherSetting: true,
+      }
+      await writeFile(path.join(userHome, '.claude', 'settings.json'), JSON.stringify(settings, null, 2))
+      await writeFile(path.join(userHome, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+
+      // Simulate plugin uninstall removing the sidekick key from enabledPlugins externally.
+      // cleanSettingsFile only handles statusLine and hooks, so we test that leftover
+      // empty objects from ANY source get pruned after sidekick removal.
+      // To isolate the pruning behavior, manually remove the plugin key before uninstall
+      // so cleanSettingsFile sees { enabledPlugins: {}, someOtherSetting: true } after statusLine removal.
+      const preClean = JSON.parse(await readFile(path.join(userHome, '.claude', 'settings.json'), 'utf-8'))
+      delete preClean.enabledPlugins.sidekick
+      await writeFile(path.join(userHome, '.claude', 'settings.json'), JSON.stringify(preClean, null, 2))
+
+      const result = await handleUninstallCommand(tempDir, logger, stdout, {
+        force: true,
+        userHome,
+      })
+
+      expect(result.exitCode).toBe(0)
+      const updated = JSON.parse(await readFile(path.join(userHome, '.claude', 'settings.json'), 'utf-8'))
+      expect(updated.enabledPlugins).toBeUndefined() // empty {} should be pruned
+      expect(updated.someOtherSetting).toBe(true)
+    })
+
+    test('deletes settings file when only empty objects remain after surgery', async () => {
+      // After removing sidekick statusLine, only empty objects remain — file should be deleted
+      const settings = {
+        statusLine: {
+          type: 'command',
+          command: 'npx @scotthamilton77/sidekick statusline --project-dir=$CLAUDE_PROJECT_DIR',
+        },
+        enabledPlugins: {},
+        emptySection: {},
+      }
+      await writeFile(path.join(userHome, '.claude', 'settings.json'), JSON.stringify(settings, null, 2))
+      await writeFile(path.join(userHome, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+
+      const result = await handleUninstallCommand(tempDir, logger, stdout, {
+        force: true,
+        userHome,
+      })
+
+      expect(result.exitCode).toBe(0)
+      // File should be deleted — only empty objects remained after statusLine removal
+      await expect(readFile(path.join(userHome, '.claude', 'settings.json'), 'utf-8')).rejects.toThrow()
+    })
+
+    test('prunes nested empty objects recursively', async () => {
+      const settings = {
+        statusLine: {
+          type: 'command',
+          command: 'npx @scotthamilton77/sidekick statusline --project-dir=$CLAUDE_PROJECT_DIR',
+        },
+        outer: { inner: {} },
+        someOtherSetting: 'keep',
+      }
+      await writeFile(path.join(userHome, '.claude', 'settings.json'), JSON.stringify(settings, null, 2))
+      await writeFile(path.join(userHome, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+
+      const result = await handleUninstallCommand(tempDir, logger, stdout, {
+        force: true,
+        userHome,
+      })
+
+      expect(result.exitCode).toBe(0)
+      const updated = JSON.parse(await readFile(path.join(userHome, '.claude', 'settings.json'), 'utf-8'))
+      expect(updated.outer).toBeUndefined() // { inner: {} } → {} → pruned
+      expect(updated.someOtherSetting).toBe('keep')
+    })
+
+    test('does not prune empty arrays or non-object values', async () => {
+      const settings = {
+        statusLine: {
+          type: 'command',
+          command: 'npx @scotthamilton77/sidekick statusline --project-dir=$CLAUDE_PROJECT_DIR',
+        },
+        emptyArray: [],
+        emptyString: '',
+        zero: 0,
+        nullVal: null,
+      }
+      await writeFile(path.join(userHome, '.claude', 'settings.json'), JSON.stringify(settings, null, 2))
+      await writeFile(path.join(userHome, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+
+      const result = await handleUninstallCommand(tempDir, logger, stdout, {
+        force: true,
+        userHome,
+      })
+
+      expect(result.exitCode).toBe(0)
+      const updated = JSON.parse(await readFile(path.join(userHome, '.claude', 'settings.json'), 'utf-8'))
+      // These should NOT be pruned — only empty plain objects {}
+      expect(updated.emptyArray).toEqual([])
+      expect(updated.emptyString).toBe('')
+      expect(updated.zero).toBe(0)
+      expect(updated.nullVal).toBeNull()
     })
 
     test('deletes settings.local.json if empty after surgery', async () => {
