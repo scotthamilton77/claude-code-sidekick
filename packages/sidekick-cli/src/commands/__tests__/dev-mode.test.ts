@@ -208,6 +208,48 @@ describe('handleDevModeCommand', () => {
       const matches = gitignoreContent.match(/# >>> sidekick/g)
       expect(matches).toHaveLength(1)
     })
+
+    test('creates setup-status.json with statusline local and gitignore installed', async () => {
+      const result = await handleDevModeCommand('enable', tempDir, logger, stdout)
+
+      expect(result.exitCode).toBe(0)
+
+      const setupStatusPath = path.join(tempDir, '.sidekick', 'setup-status.json')
+      const content = await readFile(setupStatusPath, 'utf-8')
+      const status = JSON.parse(content)
+      expect(status.devMode).toBe(true)
+      expect(status.statusline).toBe('local')
+      expect(status.gitignore).toBe('installed')
+    })
+
+    test('updates existing setup-status.json to local statusline and installed gitignore', async () => {
+      // Create an existing setup-status.json with different values
+      const setupStatusPath = path.join(tempDir, '.sidekick', 'setup-status.json')
+      await writeFile(
+        setupStatusPath,
+        JSON.stringify({
+          version: 1,
+          lastUpdatedAt: new Date().toISOString(),
+          autoConfigured: true,
+          statusline: 'user',
+          apiKeys: { OPENROUTER_API_KEY: 'missing', OPENAI_API_KEY: 'missing' },
+          gitignore: 'unknown',
+          devMode: false,
+        })
+      )
+
+      const result = await handleDevModeCommand('enable', tempDir, logger, stdout)
+
+      expect(result.exitCode).toBe(0)
+
+      const content = await readFile(setupStatusPath, 'utf-8')
+      const status = JSON.parse(content)
+      expect(status.devMode).toBe(true)
+      expect(status.statusline).toBe('local')
+      expect(status.gitignore).toBe('installed')
+      // Should preserve autoConfigured
+      expect(status.autoConfigured).toBe(true)
+    })
   })
 
   describe('disable subcommand', () => {
@@ -284,6 +326,47 @@ describe('handleDevModeCommand', () => {
       const content = await readFile(setupStatusPath, 'utf-8')
       const status = JSON.parse(content)
       expect(status.devMode).toBe(false)
+    })
+
+    test('removes gitignore entries when no plugin installed', async () => {
+      // Enable (installs gitignore)
+      await handleDevModeCommand('enable', tempDir, logger, stdout)
+      stdout.data = ''
+
+      // Verify gitignore exists
+      const gitignoreContent = await readFile(path.join(tempDir, '.gitignore'), 'utf-8')
+      expect(gitignoreContent).toContain('# >>> sidekick')
+
+      // Disable
+      const result = await handleDevModeCommand('disable', tempDir, logger, stdout)
+
+      expect(result.exitCode).toBe(0)
+
+      // Gitignore section should be removed
+      const updated = await readFile(path.join(tempDir, '.gitignore'), 'utf-8')
+      expect(updated).not.toContain('# >>> sidekick')
+    })
+
+    test('preserves gitignore entries when plugin is detected', async () => {
+      // Enable (installs gitignore)
+      await handleDevModeCommand('enable', tempDir, logger, stdout)
+      stdout.data = ''
+
+      // Simulate plugin being detected by setting pluginDetected flag
+      const setupStatusPath = path.join(tempDir, '.sidekick', 'setup-status.json')
+      const status = JSON.parse(await readFile(setupStatusPath, 'utf-8'))
+      status.pluginDetected = true
+      await writeFile(setupStatusPath, JSON.stringify(status, null, 2))
+
+      // Disable
+      const result = await handleDevModeCommand('disable', tempDir, logger, stdout)
+
+      expect(result.exitCode).toBe(0)
+      expect(stdout.data).toContain('plugin')
+
+      // Gitignore section should be preserved
+      const gitignoreContent = await readFile(path.join(tempDir, '.gitignore'), 'utf-8')
+      expect(gitignoreContent).toContain('# >>> sidekick')
     })
   })
 

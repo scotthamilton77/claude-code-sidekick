@@ -5,6 +5,7 @@
       "Bash(pnpm:*)"
     ]
   },
+  "enabledPlugins": {},
   "sandbox": {
     "enabled": true,
     "allowUnsandboxedCommands": true

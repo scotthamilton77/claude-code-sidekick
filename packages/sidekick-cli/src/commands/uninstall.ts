@@ -12,7 +12,7 @@ import { execFile } from 'node:child_process'
 import { Readable } from 'node:stream'
 import type { Writable } from 'node:stream'
 import type { Logger } from '@sidekick/types'
-import { DaemonClient, removeGitignoreSection } from '@sidekick/core'
+import { DaemonClient, removeGitignoreSection, SetupStatusService } from '@sidekick/core'
 
 export interface UninstallCommandOptions {
   /** Skip confirmation prompts */
@@ -53,6 +53,17 @@ export async function handleUninstallCommand(
     return { exitCode: 0, output: '' }
   }
 
+  // Detect dev-mode status for project scope
+  let devModeActive = false
+  if (projectDetected) {
+    const setupService = new SetupStatusService(projectDir)
+    devModeActive = await setupService.getDevMode()
+    if (devModeActive) {
+      logger.info('Dev-mode active — skipping dev-mode-managed artifacts')
+      stdout.write('Dev-mode active — skipping dev-mode-managed artifacts.\n')
+    }
+  }
+
   // Step 1: Detect and uninstall Claude Code plugin
   if (userDetected || projectDetected) {
     await uninstallPlugin(logger, stdout, actions, { force, dryRun })
@@ -68,10 +79,20 @@ export async function handleUninstallCommand(
   // project (.claude/settings.json), and local (.claude/settings.local.json).
   // Clean all applicable files.
   if (projectDetected) {
-    await cleanSettingsFile(path.join(projectDir, '.claude', 'settings.local.json'), 'project', logger, actions, {
-      dryRun,
-      removeHooks: true,
-    })
+    if (devModeActive) {
+      // Dev-mode owns settings.local.json — don't touch it
+      actions.push({
+        scope: 'project',
+        artifact: 'settings.local.json',
+        path: path.join(projectDir, '.claude', 'settings.local.json'),
+        action: 'skipped',
+      })
+    } else {
+      await cleanSettingsFile(path.join(projectDir, '.claude', 'settings.local.json'), 'project', logger, actions, {
+        dryRun,
+        removeHooks: true,
+      })
+    }
     await cleanSettingsFile(path.join(projectDir, '.claude', 'settings.json'), 'project', logger, actions, {
       dryRun,
       removeHooks: true,
@@ -86,9 +107,24 @@ export async function handleUninstallCommand(
 
   // Step 4: Remove config files
   if (projectDetected) {
-    await removeFile(path.join(projectDir, '.sidekick', 'setup-status.json'), 'project', 'setup-status.json', actions, {
-      dryRun,
-    })
+    if (devModeActive) {
+      actions.push({
+        scope: 'project',
+        artifact: 'setup-status.json',
+        path: path.join(projectDir, '.sidekick', 'setup-status.json'),
+        action: 'skipped',
+      })
+    } else {
+      await removeFile(
+        path.join(projectDir, '.sidekick', 'setup-status.json'),
+        'project',
+        'setup-status.json',
+        actions,
+        {
+          dryRun,
+        }
+      )
+    }
   }
   if (userDetected) {
     await removeFile(path.join(userHome, '.sidekick', 'setup-status.json'), 'user', 'setup-status.json', actions, {
@@ -132,7 +168,14 @@ export async function handleUninstallCommand(
 
   // Step 7: Clean gitignore
   if (projectDetected) {
-    if (dryRun) {
+    if (devModeActive) {
+      actions.push({
+        scope: 'project',
+        artifact: '.gitignore section',
+        path: path.join(projectDir, '.gitignore'),
+        action: 'skipped',
+      })
+    } else if (dryRun) {
       actions.push({
         scope: 'project',
         artifact: '.gitignore section',
