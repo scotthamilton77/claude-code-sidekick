@@ -20,6 +20,7 @@ import {
   getUserDaemonsDir,
 } from './ipc/transport.js'
 import { Logger } from './logger.js'
+import { isInSandbox } from './sandbox.js'
 
 /**
  * Lockfile timeout and retry settings for daemon startup serialization.
@@ -65,6 +66,13 @@ export class DaemonClient {
   }
 
   async start(): Promise<void> {
+    // Defense-in-depth: skip daemon start in sandbox mode.
+    // Sandbox blocks Unix sockets (EPERM), so startup would burn 5-20s on timeouts.
+    if (isInSandbox()) {
+      this.logger.debug('Skipping daemon start — sandbox mode detected')
+      return
+    }
+
     // Use lockfile to serialize concurrent startup attempts
     await this.withStartupLock(async () => {
       // Clean up stale files if process died without cleanup

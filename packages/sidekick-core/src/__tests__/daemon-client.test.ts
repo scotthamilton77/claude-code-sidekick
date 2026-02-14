@@ -977,10 +977,12 @@ describe('DaemonClient — sandbox timeout reproduction (a08)', () => {
 
       // Mock spawn to "succeed" (child process starts) but never create socket/pid files
       // This simulates sandbox: spawn works, but daemon can't bind socket (EPERM)
-      vi.mocked(spawn).mockClear().mockReturnValue({
-        unref: vi.fn(),
-        pid: 99999,
-      } as unknown as ChildProcess)
+      vi.mocked(spawn)
+        .mockClear()
+        .mockReturnValue({
+          unref: vi.fn(),
+          pid: 99999,
+        } as unknown as ChildProcess)
 
       const waitForStartup = (
         client as unknown as { waitForStartup: (t: number) => Promise<void> }
@@ -1001,10 +1003,12 @@ describe('DaemonClient — sandbox timeout reproduction (a08)', () => {
       const client = new DaemonClient(tmpProjectDir, logger)
 
       // Mock spawn (succeeds but daemon can't create socket)
-      vi.mocked(spawn).mockClear().mockReturnValue({
-        unref: vi.fn(),
-        pid: 99999,
-      } as unknown as ChildProcess)
+      vi.mocked(spawn)
+        .mockClear()
+        .mockReturnValue({
+          unref: vi.fn(),
+          pid: 99999,
+        } as unknown as ChildProcess)
 
       // Use a short waitForStartup timeout to keep test fast
       // In production this is 5000ms — that's the 5s hang per hook invocation
@@ -1041,10 +1045,12 @@ describe('DaemonClient — sandbox timeout reproduction (a08)', () => {
       await fs.writeFile(getTokenPath(tmpProjectDir), 'stale-token')
 
       // Mock spawn
-      vi.mocked(spawn).mockClear().mockReturnValue({
-        unref: vi.fn(),
-        pid: 99999,
-      } as unknown as ChildProcess)
+      vi.mocked(spawn)
+        .mockClear()
+        .mockReturnValue({
+          unref: vi.fn(),
+          pid: 99999,
+        } as unknown as ChildProcess)
 
       // Track which phases execute and how long each takes
       const phases: Array<{ name: string; durationMs: number }> = []
@@ -1053,10 +1059,7 @@ describe('DaemonClient — sandbox timeout reproduction (a08)', () => {
       // But it returns false (mismatch assumed), triggering stop() + restart
 
       // Mock killForcefully to prevent actually killing our process
-      vi.spyOn(
-        client as unknown as { killForcefully: () => Promise<void> },
-        'killForcefully'
-      ).mockResolvedValue()
+      vi.spyOn(client as unknown as { killForcefully: () => Promise<void> }, 'killForcefully').mockResolvedValue()
 
       // Instrument waitForShutdown with short timeout
       const SHORT_TIMEOUT = 200
@@ -1141,9 +1144,7 @@ describe('DaemonClient — sandbox timeout reproduction (a08)', () => {
       })
 
       // Mock connect to throw EPERM (what sandbox actually does on socket creation)
-      vi.spyOn(client, 'connect').mockRejectedValue(
-        Object.assign(new Error('connect EPERM'), { code: 'EPERM' })
-      )
+      vi.spyOn(client, 'connect').mockRejectedValue(Object.assign(new Error('connect EPERM'), { code: 'EPERM' }))
 
       const start = Date.now()
       await expect(client.callWithRetry('ping', {}, 3)).rejects.toThrow('EPERM')
@@ -1152,6 +1153,89 @@ describe('DaemonClient — sandbox timeout reproduction (a08)', () => {
       // EPERM is NOT in transient patterns — should fail on first attempt, no retries
       expect(elapsed).toBeLessThan(100)
     })
+  })
+})
+
+/**
+ * Sandbox short-circuit tests (sidekick-a08 fix).
+ *
+ * Verifies that DaemonClient.start() returns immediately in sandbox mode
+ * without spawning a daemon or touching the filesystem.
+ */
+describe('DaemonClient — sandbox short-circuit fix (a08)', () => {
+  let originalSandboxEnv: string | undefined
+
+  beforeEach(async () => {
+    tmpProjectDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sidekick-sandbox-fix-'))
+    tmpUserDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sidekick-user-fix-'))
+    await fs.mkdir(path.join(tmpProjectDir, '.sidekick'), { recursive: true })
+    vi.spyOn(os, 'homedir').mockReturnValue(tmpUserDir)
+
+    originalSandboxEnv = process.env.SANDBOX_RUNTIME
+  })
+
+  afterEach(async () => {
+    // Restore env before restoring mocks
+    if (originalSandboxEnv === undefined) {
+      delete process.env.SANDBOX_RUNTIME
+    } else {
+      process.env.SANDBOX_RUNTIME = originalSandboxEnv
+    }
+
+    vi.restoreAllMocks()
+    await fs.rm(tmpProjectDir, { recursive: true, force: true }).catch(() => {})
+    await fs.rm(tmpUserDir, { recursive: true, force: true }).catch(() => {})
+  })
+
+  it('start() should return immediately when SANDBOX_RUNTIME=1 (< 50ms, no spawn)', async () => {
+    process.env.SANDBOX_RUNTIME = '1'
+
+    const client = new DaemonClient(tmpProjectDir, logger)
+    vi.mocked(spawn).mockClear()
+
+    const start = Date.now()
+    await client.start()
+    const elapsed = Date.now() - start
+
+    expect(elapsed).toBeLessThan(50)
+    expect(spawn).not.toHaveBeenCalled()
+  })
+
+  it('start() should still spawn daemon when SANDBOX_RUNTIME is unset', async () => {
+    delete process.env.SANDBOX_RUNTIME
+
+    const client = new DaemonClient(tmpProjectDir, logger)
+    vi.mocked(spawn)
+      .mockClear()
+      .mockReturnValue({
+        unref: vi.fn(),
+        pid: 12345,
+      } as unknown as ChildProcess)
+
+    // Mock waitForStartup to succeed immediately (we're testing spawn, not startup)
+    vi.spyOn(client as unknown as { waitForStartup: () => Promise<void> }, 'waitForStartup').mockResolvedValue()
+
+    await client.start()
+
+    expect(spawn).toHaveBeenCalled()
+  })
+
+  it('start() should still spawn daemon when SANDBOX_RUNTIME=0', async () => {
+    process.env.SANDBOX_RUNTIME = '0'
+
+    const client = new DaemonClient(tmpProjectDir, logger)
+    vi.mocked(spawn)
+      .mockClear()
+      .mockReturnValue({
+        unref: vi.fn(),
+        pid: 12345,
+      } as unknown as ChildProcess)
+
+    vi.spyOn(client as unknown as { waitForStartup: () => Promise<void> }, 'waitForStartup').mockResolvedValue()
+
+    await client.start()
+
+    expect(spawn).toHaveBeenCalled()
   })
 })
 

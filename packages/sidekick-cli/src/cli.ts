@@ -32,14 +32,6 @@ declare const __SIDEKICK_VERSION__: string | undefined
 const VERSION = typeof __SIDEKICK_VERSION__ !== 'undefined' ? __SIDEKICK_VERSION__ : 'dev'
 
 /**
- * Detect if running in Claude Code sandbox mode.
- * Sandbox mode sets SANDBOX_RUNTIME=1 and blocks Unix socket operations.
- */
-function isInSandbox(): boolean {
-  return process.env.SANDBOX_RUNTIME === '1'
-}
-
-/**
  * Error message for sandbox mode.
  * Provides actionable guidance for users running in Claude Code.
  */
@@ -52,6 +44,7 @@ Example: { "command": "pnpm sidekick daemon status", "dangerouslyDisableSandbox"
 `
 import { LogMetricsStateSchema } from '@sidekick/types'
 import type { Logger } from '@sidekick/core'
+import { isInSandbox } from '@sidekick/core'
 import { bootstrapRuntime, type RuntimeShell } from './runtime'
 
 interface ParsedArgs {
