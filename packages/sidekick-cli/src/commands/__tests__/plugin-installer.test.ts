@@ -774,4 +774,58 @@ describe('ensurePluginInstalled', () => {
       expect(result.pluginAction).toBe('already-installed')
     })
   })
+
+  describe('dev-mode scope guard', () => {
+    test('interactive mode auto-selects user scope when dev-mode active', async () => {
+      const stdin = createFakeStdin([])
+
+      const executor = createFakeExecutor(
+        new Map([
+          ['claude plugin marketplace list --json', { stdout: '[]', exitCode: 0 }],
+          ['claude plugin marketplace add', { stdout: 'Added', exitCode: 0 }],
+          ['claude plugin list --json', { stdout: '[]', exitCode: 0 }],
+          ['claude plugin install', { stdout: 'Installed', exitCode: 0 }],
+        ])
+      )
+
+      const result = await ensurePluginInstalled({
+        logger,
+        stdout: output,
+        force: false,
+        projectDir,
+        executor,
+        ctx: { stdin, stdout: output },
+        isDevMode: true,
+      })
+
+      expect(result.marketplaceScope).toBe('user')
+      expect(result.pluginScope).toBe('user')
+      // Should not have prompted for scope
+      expect(output.data).not.toMatch(/Where should/)
+      expect(output.data).toContain('dev-mode')
+    })
+
+    test('force mode uses user scope when dev-mode active regardless of defaults', async () => {
+      const executor = createFakeExecutor(
+        new Map([
+          ['claude plugin marketplace list --json', { stdout: '[]', exitCode: 0 }],
+          ['claude plugin marketplace add', { stdout: 'Added', exitCode: 0 }],
+          ['claude plugin list --json', { stdout: '[]', exitCode: 0 }],
+          ['claude plugin install', { stdout: 'Installed', exitCode: 0 }],
+        ])
+      )
+
+      const result = await ensurePluginInstalled({
+        logger,
+        stdout: output,
+        force: true,
+        projectDir,
+        executor,
+        isDevMode: true,
+      })
+
+      expect(result.marketplaceScope).toBe('user')
+      expect(result.pluginScope).toBe('user')
+    })
+  })
 })

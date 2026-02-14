@@ -42,6 +42,7 @@ export interface PluginInstallerOptions {
   ctx?: PromptContext
   marketplaceScope?: InstallScope
   pluginScope?: InstallScope
+  isDevMode?: boolean
 }
 
 // ============================================================================
@@ -362,9 +363,9 @@ export async function ensurePluginInstalled(options: PluginInstallerOptions): Pr
     marketplaceScope = options.marketplaceScope
     pluginScope = options.pluginScope
   } else if (force) {
-    // Force mode: use specified or detected or default
-    marketplaceScope = options.marketplaceScope ?? detectedMktScope ?? 'user'
-    pluginScope = options.pluginScope ?? 'user'
+    // Force mode: use specified or detected or default (dev-mode overrides to user)
+    marketplaceScope = options.isDevMode ? 'user' : (options.marketplaceScope ?? detectedMktScope ?? 'user')
+    pluginScope = options.isDevMode ? 'user' : (options.pluginScope ?? 'user')
   } else if (options.ctx) {
     // Interactive mode: prompt only for missing components
     printHeader(
@@ -373,9 +374,16 @@ export async function ensurePluginInstalled(options: PluginInstallerOptions): Pr
       'Sidekick needs the marketplace and plugin installed in Claude Code.'
     )
 
+    if (options.isDevMode) {
+      printStatus(options.ctx, 'info', 'Dev-mode active \u2014 only user scope available for plugin installation')
+    }
+
     if (detectedMktScope) {
       marketplaceScope = detectedMktScope
       printStatus(options.ctx, 'info', `Marketplace already installed (${detectedMktScope})`)
+    } else if (options.isDevMode) {
+      marketplaceScope = 'user'
+      printStatus(options.ctx, 'info', 'Marketplace scope: user (constrained by dev-mode)')
     } else {
       marketplaceScope = await promptMarketplaceScope(options.ctx)
     }
@@ -383,6 +391,9 @@ export async function ensurePluginInstalled(options: PluginInstallerOptions): Pr
     if (pluginDetected) {
       pluginScope = marketplaceScope
       printStatus(options.ctx, 'info', 'Plugin already installed')
+    } else if (options.isDevMode) {
+      pluginScope = 'user'
+      printStatus(options.ctx, 'info', 'Plugin scope: user (constrained by dev-mode)')
     } else {
       const validPluginScopes = getValidPluginScopes(marketplaceScope)
       if (validPluginScopes.length === 1) {

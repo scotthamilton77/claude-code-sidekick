@@ -354,10 +354,26 @@ function printWizardHeader(stdout: NodeJS.WritableStream): void {
  * Step 2: Configure statusline location.
  * Statusline scope must be equal to or narrower than plugin scope.
  */
-async function runStep2Statusline(wctx: WizardContext, pluginScope: InstallScope): Promise<InstallScope> {
+async function runStep2Statusline(
+  wctx: WizardContext,
+  pluginScope: InstallScope,
+  isDevMode: boolean
+): Promise<InstallScope> {
   const { ctx, homeDir, projectDir, logger } = wctx
 
   printHeader(ctx, 'Step 2: Statusline Configuration', 'Claude Code plugins cannot provide statusline config directly.')
+
+  // Dev-mode: force user scope
+  if (isDevMode) {
+    const settingsPath = statuslineSettingsPath('user', homeDir, projectDir)
+    const wrote = await configureStatusline(settingsPath, logger)
+    if (wrote) {
+      printStatus(ctx, 'success', 'Statusline configured at user scope (dev-mode active)')
+    } else {
+      printStatus(ctx, 'warning', 'Statusline managed by dev-mode (skipped)')
+    }
+    return 'user'
+  }
 
   const STATUSLINE_SCOPE_OPTIONS: Record<InstallScope, { label: string; description: string }> = {
     user: { label: 'User-level (~/.claude/settings.json)', description: 'Works in all projects' },
@@ -696,7 +712,8 @@ async function runWizard(
   projectDir: string,
   logger: Logger,
   stdout: NodeJS.WritableStream,
-  options: SetupCommandOptions
+  options: SetupCommandOptions,
+  isDevMode: boolean
 ): Promise<SetupCommandResult> {
   const homeDir = options.homeDir ?? os.homedir()
   const wctx: WizardContext = {
@@ -717,6 +734,14 @@ async function runWizard(
     printWizardHeader(stdout)
   }
 
+  // Dev-mode banner
+  if (isDevMode && !force) {
+    stdout.write('\n')
+    stdout.write('  ⚠ Dev-mode is active — project and local scope options are unavailable.\n')
+    stdout.write('    Only user-scope configuration is available for plugin and statusline.\n')
+    stdout.write('\n')
+  }
+
   // Step 1: Plugin installation
   const pluginResult = await ensurePluginInstalled({
     logger,
@@ -726,6 +751,7 @@ async function runWizard(
     ctx: wctx.ctx,
     marketplaceScope: options.marketplaceScope,
     pluginScope: options.pluginScope,
+    isDevMode,
   })
   if (pluginResult.error) {
     logger.warn('Plugin installation had issues, continuing with setup', { error: pluginResult.error })
@@ -733,7 +759,10 @@ async function runWizard(
 
   // Force mode: statusline defaults to plugin scope (respects scope constraint)
   const forceStatuslineScope = pluginResult.pluginScope
-  const statuslineScope = force ? forceStatuslineScope : await runStep2Statusline(wctx, pluginResult.pluginScope)
+  const forceEffectiveScope: InstallScope = isDevMode ? 'user' : forceStatuslineScope
+  const statuslineScope = force
+    ? forceEffectiveScope
+    : await runStep2Statusline(wctx, pluginResult.pluginScope, isDevMode)
   const gitignoreStatus = await runStep3Gitignore(wctx, force)
   const { wantPersonas, apiKeyHealth, apiKeyDetection } = force
     ? { wantPersonas: true, apiKeyHealth: 'not-required' as const, apiKeyDetection: null }
@@ -742,7 +771,7 @@ async function runWizard(
 
   // In force mode, configure statusline at same scope as plugin
   if (force) {
-    const settingsPath = statuslineSettingsPath(forceStatuslineScope, homeDir, projectDir)
+    const settingsPath = statuslineSettingsPath(forceEffectiveScope, homeDir, projectDir)
     const wrote = await configureStatusline(settingsPath, logger)
     if (!wrote) {
       stdout.write('⚠ Statusline managed by dev-mode (skipped)\n')
@@ -767,7 +796,7 @@ async function runWizard(
     stdout.write('Setup complete (force mode):\n')
     stdout.write(`  Plugin: ${pluginResult.pluginAction} (${pluginResult.pluginScope})\n`)
     stdout.write(
-      `  Statusline: ${forceStatuslineScope} (${statuslineSettingsPath(forceStatuslineScope, homeDir, projectDir)})\n`
+      `  Statusline: ${forceEffectiveScope} (${statuslineSettingsPath(forceEffectiveScope, homeDir, projectDir)})\n`
     )
     stdout.write(`  Gitignore: ${gitignoreStatus === 'installed' ? 'configured' : 'skipped'}\n`)
     stdout.write(`  Personas: enabled (API key not configured)\n`)
@@ -799,10 +828,32 @@ async function runScripted(
   projectDir: string,
   logger: Logger,
   stdout: NodeJS.WritableStream,
-  options: SetupCommandOptions
+  options: SetupCommandOptions,
+  isDevMode: boolean
 ): Promise<SetupCommandResult> {
   const homeDir = options.homeDir ?? os.homedir()
   const setupService = new SetupStatusService(projectDir, { homeDir, logger })
+
+  // Dev-mode scope guard: block project/local scopes
+  if (isDevMode) {
+    const blocked: string[] = []
+    if (options.marketplaceScope && options.marketplaceScope !== 'user') {
+      blocked.push(`--marketplace-scope=${options.marketplaceScope}`)
+    }
+    if (options.pluginScope && options.pluginScope !== 'user') {
+      blocked.push(`--plugin-scope=${options.pluginScope}`)
+    }
+    if (options.statuslineScope && options.statuslineScope !== 'user') {
+      blocked.push(`--statusline-scope=${options.statuslineScope}`)
+    }
+
+    if (blocked.length > 0) {
+      stdout.write(`✗ Dev-mode is active. Cannot use non-user scopes: ${blocked.join(', ')}\n`)
+      stdout.write('  Disable dev-mode first (pnpm sidekick dev-mode disable) or use user scope.\n')
+      return { exitCode: 1 }
+    }
+  }
+
   let configuredCount = 0
 
   // 0. Install marketplace/plugin if specified
@@ -1095,8 +1146,13 @@ export async function handleSetupCommand(
   if (options.checkOnly) {
     return runDoctor(projectDir, logger, stdout, { homeDir: options.homeDir, only: options.only })
   }
+  // Detect dev-mode before dispatch (doctor mode is unaffected)
+  const homeDir = options.homeDir ?? os.homedir()
+  const setupService = new SetupStatusService(projectDir, { homeDir, logger })
+  const isDevMode = await setupService.getDevMode()
+
   if (hasScriptingFlags(options)) {
-    return runScripted(projectDir, logger, stdout, options)
+    return runScripted(projectDir, logger, stdout, options, isDevMode)
   }
-  return runWizard(projectDir, logger, stdout, options)
+  return runWizard(projectDir, logger, stdout, options, isDevMode)
 }
