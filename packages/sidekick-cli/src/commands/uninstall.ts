@@ -64,8 +64,15 @@ export async function handleUninstallCommand(
   }
 
   // Step 3: Settings.json surgery
+  // Install supports three scopes: user (~/.claude/settings.json),
+  // project (.claude/settings.json), and local (.claude/settings.local.json).
+  // Clean all applicable files.
   if (projectDetected) {
     await cleanSettingsFile(path.join(projectDir, '.claude', 'settings.local.json'), 'project', logger, actions, {
+      dryRun,
+      removeHooks: true,
+    })
+    await cleanSettingsFile(path.join(projectDir, '.claude', 'settings.json'), 'project', logger, actions, {
       dryRun,
       removeHooks: true,
     })
@@ -156,13 +163,16 @@ async function detectProjectScope(projectDir: string): Promise<boolean> {
     await fs.access(path.join(projectDir, '.sidekick', 'setup-status.json'))
     return true
   } catch {
-    // Also check for sidekick entries in settings.local.json
-    try {
-      const content = await fs.readFile(path.join(projectDir, '.claude', 'settings.local.json'), 'utf-8')
-      return content.includes('sidekick')
-    } catch {
-      return false
+    // Also check for sidekick entries in settings.local.json or settings.json
+    for (const file of ['settings.local.json', 'settings.json']) {
+      try {
+        const content = await fs.readFile(path.join(projectDir, '.claude', file), 'utf-8')
+        if (content.includes('sidekick')) return true
+      } catch {
+        // File doesn't exist, try next
+      }
     }
+    return false
   }
 }
 
