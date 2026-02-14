@@ -146,3 +146,31 @@ export async function selectPersonaForSession(
 
   return selected.id
 }
+
+/**
+ * Ensure persona state exists for a session, re-selecting if missing.
+ * Recovers from state loss caused by clean-all, sidekick-config setup,
+ * or other operations that clear session state mid-session.
+ *
+ * No-op when persona state already exists.
+ *
+ * @param sessionId - Session identifier
+ * @param ctx - Daemon context
+ */
+export async function ensurePersonaForSession(sessionId: string, ctx: DaemonContext): Promise<void> {
+  try {
+    const summaryState = createSessionSummaryState(ctx.stateService)
+    const result = await summaryState.sessionPersona.read(sessionId)
+    if (result.data) return
+
+    ctx.logger.info('Persona state missing for active session, re-selecting', { sessionId })
+    const featureConfig = ctx.config.getFeature<SessionSummaryConfig>('session-summary')
+    const config = { ...DEFAULT_SESSION_SUMMARY_CONFIG, ...featureConfig.settings }
+    await selectPersonaForSession(sessionId, config, ctx)
+  } catch (err) {
+    ctx.logger.warn('Failed to ensure persona for session', {
+      sessionId,
+      error: err instanceof Error ? err.message : String(err),
+    })
+  }
+}
