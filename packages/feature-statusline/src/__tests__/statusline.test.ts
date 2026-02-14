@@ -30,6 +30,7 @@ import { getDefaultOverhead, readContextOverhead } from '../context-overhead-rea
 import { createStateReader, discoverPreviousResumeMessage } from '../state-reader.js'
 import {
   createStatuslineService,
+  deterministicIndex,
   type ClaudeCodeStatusInput,
   type MinimalSetupStatusService,
 } from '../statusline-service.js'
@@ -3159,6 +3160,42 @@ describe('StatuslineService', () => {
 
       expect(result1.viewModel.summary).toBe(result2.viewModel.summary)
       expect(result2.viewModel.summary).toBe(result3.viewModel.summary)
+    })
+  })
+
+  describe('deterministic empty message selection (sidekick-fqj)', () => {
+    /**
+     * Bug: Persona empty messages flicker because Math.random() is called
+     * on every render. Fix: use a deterministic hash of the session ID.
+     *
+     * These tests verify the deterministicIndex utility function directly.
+     */
+
+    it('returns same index for same session ID', () => {
+      const idx1 = deterministicIndex('session-abc-123', 5)
+      const idx2 = deterministicIndex('session-abc-123', 5)
+      expect(idx1).toBe(idx2)
+    })
+
+    it('returns index within bounds', () => {
+      for (const len of [1, 2, 3, 10, 100]) {
+        const idx = deterministicIndex('any-session', len)
+        expect(idx).toBeGreaterThanOrEqual(0)
+        expect(idx).toBeLessThan(len)
+      }
+    })
+
+    it('returns 0 for array length 1', () => {
+      expect(deterministicIndex('any-session', 1)).toBe(0)
+    })
+
+    it('produces different indices for different session IDs (statistical)', () => {
+      const indices = new Set<number>()
+      // With 20 different sessions and array length 5, expect at least 2 distinct indices
+      for (let i = 0; i < 20; i++) {
+        indices.add(deterministicIndex(`session-${i}`, 5))
+      }
+      expect(indices.size).toBeGreaterThan(1)
     })
   })
 })

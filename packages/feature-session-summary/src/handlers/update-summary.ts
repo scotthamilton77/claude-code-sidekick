@@ -18,6 +18,7 @@ import type { ResumeMessageState, SessionSummaryConfig, SessionSummaryState } fr
 import { DEFAULT_SESSION_SUMMARY_CONFIG, RESUME_MIN_CONFIDENCE } from '../types.js'
 import { createSessionSummaryState, type SessionSummaryStateAccessors } from '../state.js'
 import { buildPersonaContext, loadSessionPersona, stripSurroundingQuotes } from './persona-utils.js'
+import { ensurePersonaForSession } from './persona-selection.js'
 
 const PROMPT_FILE = 'prompts/session-summary.prompt.txt'
 const SNARKY_PROMPT_FILE = 'prompts/snarky-message.prompt.txt'
@@ -98,6 +99,11 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
 
   // Handle BulkProcessingComplete - run one-time analysis after bulk replay
   if (event.eventType === 'BulkProcessingComplete') {
+    // Ensure persona state exists (recovery after clean-all or setup reset)
+    // BulkProcessingComplete fires when daemon starts watching a session,
+    // which happens after daemon restart following state-clearing operations.
+    await ensurePersonaForSession(sessionId, ctx)
+
     // Skip if no user interaction in transcript (e.g., only summary/system entries)
     const metrics = ctx.transcript.getMetrics()
     if (metrics.turnCount === 0) {

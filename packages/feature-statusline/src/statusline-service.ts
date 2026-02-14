@@ -362,8 +362,7 @@ export class StatuslineService {
 
     // Try persona-specific empty messages first
     if (persona.statusline_empty_messages && persona.statusline_empty_messages.length > 0) {
-      const randomIndex = Math.floor(Math.random() * persona.statusline_empty_messages.length)
-      return persona.statusline_empty_messages[randomIndex]
+      return persona.statusline_empty_messages[deterministicIndex(this.sessionId, persona.statusline_empty_messages.length)]
     }
 
     // Fallback to default asset file (for sidekick persona or personas without messages)
@@ -394,8 +393,7 @@ export class StatuslineService {
       return DEFAULT_PLACEHOLDERS.newSession
     }
 
-    const randomIndex = Math.floor(Math.random() * messages.length)
-    return messages[randomIndex]
+    return messages[deterministicIndex(this.sessionId, messages.length)]
   }
 
   /**
@@ -953,4 +951,24 @@ export class StatuslineService {
  */
 export function createStatuslineService(config: StatuslineServiceConfig): StatuslineService {
   return new StatuslineService(config)
+}
+
+/**
+ * Deterministic index selection based on a seed string (session ID).
+ * Produces a stable index for a given seed + array length, avoiding
+ * the flickering caused by Math.random() on every render.
+ *
+ * Uses djb2 hash algorithm for fast, well-distributed hashing.
+ *
+ * @param seed - Seed string (typically session ID)
+ * @param arrayLength - Length of array to index into
+ * @returns Stable index in range [0, arrayLength)
+ */
+export function deterministicIndex(seed: string, arrayLength: number): number {
+  if (arrayLength <= 1) return 0
+  let hash = 5381
+  for (let i = 0; i < seed.length; i++) {
+    hash = ((hash << 5) + hash + seed.charCodeAt(i)) | 0
+  }
+  return Math.abs(hash) % arrayLength
 }
