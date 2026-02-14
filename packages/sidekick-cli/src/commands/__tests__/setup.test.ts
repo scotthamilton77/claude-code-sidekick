@@ -483,15 +483,16 @@ describe('handleSetupCommand', () => {
           version: 1,
           lastUpdatedAt: new Date().toISOString(),
           autoConfigured: false,
-          statusline: 'user',
+          statusline: 'local',
           apiKeys: { OPENROUTER_API_KEY: 'not-required', OPENAI_API_KEY: 'not-required' },
           gitignore: 'installed',
           devMode: true,
         })
       )
 
+      // Use user scope (allowed under dev-mode) to verify devMode flag is preserved
       const result = await handleSetupCommand(projectDir, logger, output, {
-        statuslineScope: 'project',
+        statuslineScope: 'user',
         homeDir,
       })
 
@@ -499,7 +500,107 @@ describe('handleSetupCommand', () => {
       const content = await readFile(path.join(sidekickDir, 'setup-status.json'), 'utf-8')
       const status = JSON.parse(content)
       expect(status.devMode).toBe(true)
-      expect(status.statusline).toBe('project')
+      expect(status.statusline).toBe('user')
+    })
+  })
+
+  describe('scripted mode - dev-mode scope guard', () => {
+    async function enableDevMode(): Promise<void> {
+      const sidekickDir = path.join(projectDir, '.sidekick')
+      await mkdir(sidekickDir, { recursive: true })
+      await writeFile(
+        path.join(sidekickDir, 'setup-status.json'),
+        JSON.stringify({
+          version: 1,
+          lastUpdatedAt: new Date().toISOString(),
+          autoConfigured: false,
+          statusline: 'local',
+          apiKeys: {
+            OPENROUTER_API_KEY: 'not-required',
+            OPENAI_API_KEY: 'not-required',
+          },
+          gitignore: 'installed',
+          devMode: true,
+        })
+      )
+    }
+
+    test('rejects --statusline-scope=project when dev-mode active', async () => {
+      await enableDevMode()
+      const result = await handleSetupCommand(projectDir, logger, output, {
+        statuslineScope: 'project',
+        homeDir,
+      })
+
+      expect(result.exitCode).toBe(1)
+      expect(output.data).toContain('Dev-mode')
+      expect(output.data).toContain('--statusline-scope=project')
+    })
+
+    test('rejects --statusline-scope=local when dev-mode active', async () => {
+      await enableDevMode()
+      const result = await handleSetupCommand(projectDir, logger, output, {
+        statuslineScope: 'local',
+        homeDir,
+      })
+
+      expect(result.exitCode).toBe(1)
+      expect(output.data).toContain('Dev-mode')
+    })
+
+    test('allows --statusline-scope=user when dev-mode active', async () => {
+      await enableDevMode()
+      const result = await handleSetupCommand(projectDir, logger, output, {
+        statuslineScope: 'user',
+        homeDir,
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(output.data).not.toContain('Dev-mode is active')
+    })
+
+    test('rejects --marketplace-scope=project when dev-mode active', async () => {
+      await enableDevMode()
+      const result = await handleSetupCommand(projectDir, logger, output, {
+        marketplaceScope: 'project',
+        homeDir,
+      })
+
+      expect(result.exitCode).toBe(1)
+      expect(output.data).toContain('Dev-mode')
+    })
+
+    test('rejects --plugin-scope=local when dev-mode active', async () => {
+      await enableDevMode()
+      const result = await handleSetupCommand(projectDir, logger, output, {
+        pluginScope: 'local',
+        homeDir,
+      })
+
+      expect(result.exitCode).toBe(1)
+      expect(output.data).toContain('Dev-mode')
+    })
+
+    test('allows all non-scope flags when dev-mode active', async () => {
+      await enableDevMode()
+      const result = await handleSetupCommand(projectDir, logger, output, {
+        gitignore: true,
+        personas: true,
+        homeDir,
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(output.data).not.toContain('Dev-mode is active')
+    })
+
+    test('no blocking when dev-mode is NOT active', async () => {
+      // No dev-mode setup — should allow project scope normally
+      const result = await handleSetupCommand(projectDir, logger, output, {
+        statuslineScope: 'project',
+        homeDir,
+      })
+
+      expect(result.exitCode).toBe(0)
     })
   })
 
