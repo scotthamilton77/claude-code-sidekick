@@ -947,6 +947,214 @@ describe('DaemonClient', () => {
   })
 })
 
+/**
+ * Sandbox timeout reproduction tests (sidekick-a08)
+ *
+ * When hooks run inside Claude Code's sandbox, Unix socket operations fail
+ * with EPERM. The daemon startup path accumulates timeouts from multiple
+ * phases that each independently wait for a socket that can never appear.
+ *
+ * These tests reproduce the timeout stacking with short durations to verify
+ * the problem and serve as regression tests for the fix.
+ */
+describe('DaemonClient — sandbox timeout reproduction (a08)', () => {
+  beforeEach(async () => {
+    tmpProjectDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sidekick-sandbox-repro-'))
+    tmpUserDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sidekick-user-repro-'))
+    await fs.mkdir(path.join(tmpProjectDir, '.sidekick'), { recursive: true })
+    vi.spyOn(os, 'homedir').mockReturnValue(tmpUserDir)
+  })
+
+  afterEach(async () => {
+    vi.restoreAllMocks()
+    await fs.rm(tmpProjectDir, { recursive: true, force: true }).catch(() => {})
+    await fs.rm(tmpUserDir, { recursive: true, force: true }).catch(() => {})
+  })
+
+  describe('cold start — daemon spawned but socket never appears', () => {
+    it('should burn the full waitForStartup timeout when socket cannot be created', async () => {
+      const client = new DaemonClient(tmpProjectDir, logger)
+
+      // Mock spawn to "succeed" (child process starts) but never create socket/pid files
+      // This simulates sandbox: spawn works, but daemon can't bind socket (EPERM)
+      vi.mocked(spawn).mockClear().mockReturnValue({
+        unref: vi.fn(),
+        pid: 99999,
+      } as unknown as ChildProcess)
+
+      const waitForStartup = (
+        client as unknown as { waitForStartup: (t: number) => Promise<void> }
+      ).waitForStartup.bind(client)
+
+      const TIMEOUT_MS = 500 // Short timeout for test speed
+      const start = Date.now()
+
+      await expect(waitForStartup(TIMEOUT_MS)).rejects.toThrow('Daemon failed to start within timeout')
+
+      const elapsed = Date.now() - start
+      // Should have burned at least the full timeout polling
+      expect(elapsed).toBeGreaterThanOrEqual(TIMEOUT_MS - 50) // small tolerance
+      expect(elapsed).toBeLessThan(TIMEOUT_MS + 500) // shouldn't overshoot much
+    })
+
+    it('should accumulate lock + waitForStartup time in start()', async () => {
+      const client = new DaemonClient(tmpProjectDir, logger)
+
+      // Mock spawn (succeeds but daemon can't create socket)
+      vi.mocked(spawn).mockClear().mockReturnValue({
+        unref: vi.fn(),
+        pid: 99999,
+      } as unknown as ChildProcess)
+
+      // Use a short waitForStartup timeout to keep test fast
+      // In production this is 5000ms — that's the 5s hang per hook invocation
+      const STARTUP_TIMEOUT_MS = 300
+      vi.spyOn(
+        client as unknown as { waitForStartup: (t?: number) => Promise<void> },
+        'waitForStartup'
+      ).mockImplementation(async () => {
+        // Simulate the real polling behavior with a short timeout
+        const startTime = Date.now()
+        while (Date.now() - startTime < STARTUP_TIMEOUT_MS) {
+          await new Promise((r) => setTimeout(r, 50))
+        }
+        throw new Error('Daemon failed to start within timeout')
+      })
+
+      const start = Date.now()
+
+      // start() catches the timeout via withStartupLock, which propagates it
+      await expect(client.start()).rejects.toThrow('Daemon failed to start within timeout')
+
+      const elapsed = Date.now() - start
+      expect(elapsed).toBeGreaterThanOrEqual(STARTUP_TIMEOUT_MS - 50)
+    })
+  })
+
+  describe('stale files — previous daemon left PID/token, compounding timeouts', () => {
+    it('should compound checkVersion + waitForShutdown + waitForStartup timeouts', async () => {
+      const client = new DaemonClient(tmpProjectDir, logger)
+
+      // Simulate stale state: PID file for alive process, token file, no socket
+      // This is what happens when a previous non-sandboxed session's daemon files linger
+      await fs.writeFile(getPidPath(tmpProjectDir), process.pid.toString())
+      await fs.writeFile(getTokenPath(tmpProjectDir), 'stale-token')
+
+      // Mock spawn
+      vi.mocked(spawn).mockClear().mockReturnValue({
+        unref: vi.fn(),
+        pid: 99999,
+      } as unknown as ChildProcess)
+
+      // Track which phases execute and how long each takes
+      const phases: Array<{ name: string; durationMs: number }> = []
+
+      // checkVersion: will try ipcClient.connect() → ENOENT (no socket file) → fast fail
+      // But it returns false (mismatch assumed), triggering stop() + restart
+
+      // Mock killForcefully to prevent actually killing our process
+      vi.spyOn(
+        client as unknown as { killForcefully: () => Promise<void> },
+        'killForcefully'
+      ).mockResolvedValue()
+
+      // Instrument waitForShutdown with short timeout
+      const SHORT_TIMEOUT = 200
+      const origWaitForShutdown = (
+        client as unknown as { waitForShutdown: (t?: number) => Promise<void> }
+      ).waitForShutdown.bind(client)
+      vi.spyOn(
+        client as unknown as { waitForShutdown: (t?: number) => Promise<void> },
+        'waitForShutdown'
+      ).mockImplementation(async () => {
+        const phaseStart = Date.now()
+        await origWaitForShutdown(SHORT_TIMEOUT)
+        phases.push({ name: 'waitForShutdown', durationMs: Date.now() - phaseStart })
+      })
+
+      // Instrument waitForStartup with short timeout
+      vi.spyOn(
+        client as unknown as { waitForStartup: (t?: number) => Promise<void> },
+        'waitForStartup'
+      ).mockImplementation(async () => {
+        const phaseStart = Date.now()
+        const startTime = Date.now()
+        while (Date.now() - startTime < SHORT_TIMEOUT) {
+          await new Promise((r) => setTimeout(r, 50))
+        }
+        phases.push({ name: 'waitForStartup', durationMs: Date.now() - phaseStart })
+        throw new Error('Daemon failed to start within timeout')
+      })
+
+      const totalStart = Date.now()
+      await expect(client.start()).rejects.toThrow('Daemon failed to start within timeout')
+      const totalElapsed = Date.now() - totalStart
+
+      // Both timeout phases should have executed (compounding)
+      const phaseNames = phases.map((p) => p.name)
+      expect(phaseNames).toContain('waitForShutdown')
+      expect(phaseNames).toContain('waitForStartup')
+
+      // Total time should be at least the sum of both timeout phases
+      // In production: waitForShutdown(5s) + waitForStartup(5s) = 10s minimum
+      const combinedPhaseTime = phases.reduce((sum, p) => sum + p.durationMs, 0)
+      expect(totalElapsed).toBeGreaterThanOrEqual(combinedPhaseTime - 100)
+    })
+  })
+
+  describe('IPC retry — ENOENT misclassified as transient', () => {
+    it('should fail fast with EINVAL when socket path does not exist (not ENOENT)', async () => {
+      // KEY FINDING: When parent directory exists but socket file doesn't,
+      // macOS returns EINVAL ("Invalid argument"), not ENOENT.
+      // EINVAL is NOT in the transient error list, so callWithRetry does NOT retry.
+      // This means the IPC retry layer is NOT a significant contributor to sandbox hangs.
+      const { IpcClient } = await import('../ipc/client.js')
+      const bogusSocketPath = path.join(tmpProjectDir, '.sidekick', 'nonexistent.sock')
+
+      const client = new IpcClient(bogusSocketPath, logger, {
+        connectTimeoutMs: 500,
+        requestTimeoutMs: 500,
+        maxRetries: 3,
+        retryDelayMs: 50,
+      })
+
+      const start = Date.now()
+      const thrownError = await client.callWithRetry('ping', {}, 3).catch((e: Error) => e)
+      const elapsed = Date.now() - start
+
+      expect(thrownError).toBeInstanceOf(Error)
+      // macOS returns EINVAL for non-existent socket paths (parent dir exists)
+      expect((thrownError as Error).message).toContain('EINVAL')
+      // EINVAL is not transient — fails immediately, no retries
+      expect(elapsed).toBeLessThan(50)
+    })
+
+    it('should classify EPERM as non-transient and fail immediately', async () => {
+      const { IpcClient } = await import('../ipc/client.js')
+      const bogusSocketPath = path.join(tmpProjectDir, '.sidekick', 'nonexistent.sock')
+
+      const client = new IpcClient(bogusSocketPath, logger, {
+        connectTimeoutMs: 500,
+        requestTimeoutMs: 500,
+        maxRetries: 3,
+        retryDelayMs: 50,
+      })
+
+      // Mock connect to throw EPERM (what sandbox actually does on socket creation)
+      vi.spyOn(client, 'connect').mockRejectedValue(
+        Object.assign(new Error('connect EPERM'), { code: 'EPERM' })
+      )
+
+      const start = Date.now()
+      await expect(client.callWithRetry('ping', {}, 3)).rejects.toThrow('EPERM')
+      const elapsed = Date.now() - start
+
+      // EPERM is NOT in transient patterns — should fail on first attempt, no retries
+      expect(elapsed).toBeLessThan(100)
+    })
+  })
+})
+
 describe('killAllDaemons', () => {
   let tmpUserDir: string
 
