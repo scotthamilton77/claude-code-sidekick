@@ -54,7 +54,13 @@ fi
 # Install Claude Code if requested
 if [ "$INSTALL_CLAUDE_CODE" = "true" ]; then
   echo "Installing Claude Code..."
-  npm install -g @anthropic-ai/claude-code || echo "WARNING: Claude Code installation failed"
+  curl -fsSL https://claude.ai/install.sh | bash || echo "WARNING: Claude Code installation failed"
+
+  # Ensure claude is on PATH for future sessions
+  if [ -d "$HOME/.claude/bin" ] && ! grep -q '\.claude/bin' ~/.bashrc; then
+    echo 'export PATH="$HOME/.claude/bin:$PATH"' >> ~/.bashrc
+  fi
+  export PATH="$HOME/.claude/bin:$PATH"
 fi
 
 # Install Gemini CLI if requested
