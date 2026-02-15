@@ -210,6 +210,19 @@ export interface TranscriptService {
    */
   getRecentEntries(count?: number): CanonicalTranscriptEntry[]
 
+  /**
+   * Get recent text-only transcript entries from the in-memory buffer.
+   * Scans the full circular buffer but only returns entries with `type === 'text'`.
+   * This guarantees the caller always finds user prompts regardless of how many
+   * tool_use/tool_result entries dominate the buffer.
+   *
+   * Returns entries in chronological order (oldest first).
+   *
+   * @param count Maximum number of text entries to return (default: 10)
+   * @returns Array of canonical transcript entries where type === 'text'
+   */
+  getRecentTextEntries(count?: number): CanonicalTranscriptEntry[]
+
   // ---- Metrics Access ----
 
   /**

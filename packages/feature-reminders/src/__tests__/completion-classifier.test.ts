@@ -165,7 +165,10 @@ describe('completion-classifier', () => {
       expect(result.lastUserPrompt).toBe('Real user message')
     })
 
-    it('skips tool_use and tool_result entries', () => {
+    it('only sees text entries (tool_use/tool_result filtered at buffer level)', () => {
+      // getRecentTextEntries pre-filters to type === 'text', so tool entries
+      // never reach extractConversationContext. setMockEntries + getRecentTextEntries
+      // simulates this by filtering mockEntries for type === 'text'.
       transcript.setMockEntries([
         createEntry('user', 'Real user message'),
         createEntry('assistant', 'I will use a tool', { type: 'text' }),

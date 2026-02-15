@@ -2702,4 +2702,143 @@ describe('TranscriptServiceImpl', () => {
       })
     })
   })
+
+  describe('getRecentTextEntries', () => {
+    let testDir: string
+    let transcriptPath: string
+    let service: TranscriptServiceImpl
+
+    beforeEach(() => {
+      testDir = createTestDir()
+      transcriptPath = join(testDir, 'transcript.jsonl')
+      service = new TranscriptServiceImpl({
+        watchDebounceMs: 100,
+        metricsPersistIntervalMs: 60000,
+        handlers: createMockHandlerRegistry(),
+        logger: createMockLogger(),
+        stateDir: testDir,
+        stateService: new MockStateService(),
+      })
+    })
+
+    afterEach(async () => {
+      await service.shutdown()
+      cleanupTestDir(testDir)
+    })
+
+    it('returns empty array when buffer is empty', () => {
+      const entries = service.getRecentTextEntries()
+      expect(entries).toEqual([])
+    })
+
+    it('returns only text entries, filtering out tool_use and tool_result', async () => {
+      const lines = [
+        JSON.stringify({ type: 'user', message: { role: 'user', content: 'Fix the bug' } }),
+        JSON.stringify({
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: [
+              { type: 'text', text: 'I will read the file' },
+              { type: 'tool_use', id: 'tool-1', name: 'Read', input: { path: 'foo.ts' } },
+            ],
+          },
+        }),
+        JSON.stringify({
+          type: 'user',
+          message: {
+            role: 'user',
+            content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: 'file contents' }],
+          },
+        }),
+        JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: 'Here is the fix' } }),
+      ]
+      writeFileSync(transcriptPath, lines.join('\n'))
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
+
+      const entries = service.getRecentTextEntries(10)
+
+      // Should only contain text entries, not tool_use/tool_result
+      expect(entries.every((e) => e.type === 'text')).toBe(true)
+      // Should find the user prompt and assistant messages
+      const contents = entries.map((e) => e.content)
+      expect(contents).toContain('Fix the bug')
+      expect(contents).toContain('I will read the file')
+      expect(contents).toContain('Here is the fix')
+    })
+
+    it('respects count parameter', async () => {
+      const lines = Array.from({ length: 10 }, (_, i) =>
+        JSON.stringify({ type: 'user', message: { role: 'user', content: `Message ${i + 1}` } })
+      )
+      writeFileSync(transcriptPath, lines.join('\n'))
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
+
+      const entries = service.getRecentTextEntries(3)
+
+      expect(entries).toHaveLength(3)
+      // Should be the LAST 3 text entries in chronological order
+      expect(entries[0].content).toBe('Message 8')
+      expect(entries[1].content).toBe('Message 9')
+      expect(entries[2].content).toBe('Message 10')
+    })
+
+    it('returns in chronological order (oldest first)', async () => {
+      const lines = [
+        JSON.stringify({ type: 'user', message: { role: 'user', content: 'First' } }),
+        JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: 'Second' } }),
+        JSON.stringify({ type: 'user', message: { role: 'user', content: 'Third' } }),
+      ]
+      writeFileSync(transcriptPath, lines.join('\n'))
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
+
+      const entries = service.getRecentTextEntries(10)
+
+      expect(entries[0].content).toBe('First')
+      expect(entries[entries.length - 1].content).toBe('Third')
+    })
+
+    it('finds text entries even when dominated by tool calls', async () => {
+      // Simulate a tool-heavy turn: 1 user prompt, then 50 tool_use/tool_result pairs
+      const lines: string[] = [
+        JSON.stringify({ type: 'user', message: { role: 'user', content: 'Refactor the codebase' } }),
+      ]
+      for (let i = 0; i < 50; i++) {
+        lines.push(
+          JSON.stringify({
+            type: 'assistant',
+            message: {
+              role: 'assistant',
+              content: [{ type: 'tool_use', id: `tool-${i}`, name: 'Read', input: {} }],
+            },
+          })
+        )
+        lines.push(
+          JSON.stringify({
+            type: 'user',
+            message: {
+              role: 'user',
+              content: [{ type: 'tool_result', tool_use_id: `tool-${i}`, content: 'result' }],
+            },
+          })
+        )
+      }
+      lines.push(JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: 'All done' } }))
+
+      writeFileSync(transcriptPath, lines.join('\n'))
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
+
+      const entries = service.getRecentTextEntries(5)
+
+      // Should find text entries despite 100 tool entries in between
+      expect(entries.every((e) => e.type === 'text')).toBe(true)
+      const contents = entries.map((e) => e.content)
+      expect(contents).toContain('Refactor the codebase')
+      expect(contents).toContain('All done')
+    })
+  })
 })
