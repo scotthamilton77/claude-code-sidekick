@@ -93,11 +93,11 @@ export class StagingServiceCore {
 
   /**
    * Ensure a directory exists.
+   * Always calls mkdir (idempotent with recursive:true) to avoid TOCTOU race
+   * where existsSync returns true but directory is deleted before use.
    */
   private async ensureDir(dir: string): Promise<void> {
-    if (!existsSync(dir)) {
-      await mkdir(dir, { recursive: true })
-    }
+    await mkdir(dir, { recursive: true })
   }
 
   // ============================================================================
@@ -120,8 +120,24 @@ export class StagingServiceCore {
     // Ensure directory exists
     await this.ensureDir(hookDir)
 
-    // Atomic write with schema validation
-    await this.options.stateService.write(reminderPath, data, StagedReminderSchema)
+    // Atomic write with schema validation.
+    // Retry once on ENOENT — handles race with concurrent clearStaging deleting
+    // the directory between ensureDir and write.
+    try {
+      await this.options.stateService.write(reminderPath, data, StagedReminderSchema)
+    } catch (err) {
+      if (err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'ENOENT') {
+        this.options.logger.debug('ENOENT during staging write, retrying after mkdir', {
+          sessionId,
+          hookName,
+          reminderName,
+        })
+        await this.ensureDir(hookDir)
+        await this.options.stateService.write(reminderPath, data, StagedReminderSchema)
+      } else {
+        throw err
+      }
+    }
 
     // Log ReminderStaged event
     const event = LogEvents.reminderStaged(
@@ -219,19 +235,15 @@ export class StagingServiceCore {
    */
   async clearStaging(sessionId: string, hookName?: string, _options?: { logger?: Logger }): Promise<void> {
     // Note: logger available via _options?.logger for future use
+    // Use force:true to avoid TOCTOU race where existsSync returns true
+    // but directory is deleted before rm runs.
     if (hookName) {
       validatePathSegment(hookName, 'hookName')
-      // Clear specific hook directory
       const hookDir = this.getHookDirPath(sessionId, hookName)
-      if (existsSync(hookDir)) {
-        await rm(hookDir, { recursive: true })
-      }
+      await rm(hookDir, { recursive: true, force: true })
     } else {
-      // Clear entire staging root
       const stagingRoot = this.getStagingRoot(sessionId)
-      if (existsSync(stagingRoot)) {
-        await rm(stagingRoot, { recursive: true })
-      }
+      await rm(stagingRoot, { recursive: true, force: true })
     }
   }
 
