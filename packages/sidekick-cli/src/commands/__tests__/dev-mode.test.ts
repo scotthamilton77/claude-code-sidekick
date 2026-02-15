@@ -215,11 +215,11 @@ describe('handleDevModeCommand', () => {
     })
 
     test('gitignore install is idempotent on re-enable', async () => {
-      // Enable twice
+      // First enable
       await handleDevModeCommand('enable', tempDir, logger, stdout)
       stdout.data = ''
-      // Re-enable should not fail (settings already enabled check short-circuits,
-      // but gitignore should have been installed on first run)
+      // Second enable — gitignore should not get a duplicate section
+      await handleDevModeCommand('enable', tempDir, logger, stdout)
       const gitignoreContent = await readFile(path.join(tempDir, '.gitignore'), 'utf-8')
       // Count occurrences of section marker - should be exactly 1
       const matches = gitignoreContent.match(/# >>> sidekick/g)
