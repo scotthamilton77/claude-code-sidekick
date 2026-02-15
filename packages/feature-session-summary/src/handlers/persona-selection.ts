@@ -2,7 +2,7 @@
  * Persona Selection Handler
  *
  * Selects and persists a random persona on SessionStart.
- * Respects allowList configuration and logs warnings for unknown entries.
+ * Respects allowList and blockList configuration and logs warnings for unknown entries.
  *
  * @see docs/design/PERSONA-PROFILES-DESIGN.md - Selection Algorithm
  */
@@ -14,49 +14,63 @@ import type { SessionSummaryConfig } from '../types.js'
 import { DEFAULT_SESSION_SUMMARY_CONFIG } from '../types.js'
 
 /**
- * Parse the allowList string into an array of persona IDs.
+ * Parse a comma-separated persona list string into an array of persona IDs.
  * Splits on commas, trims whitespace, and filters empty entries.
  *
- * @param allowList - Comma-separated string of persona IDs
- * @returns Array of persona IDs (empty if allowList was empty/whitespace)
+ * @param list - Comma-separated string of persona IDs
+ * @returns Array of persona IDs (empty if list was empty/whitespace)
  */
-export function parseAllowList(allowList: string): string[] {
-  if (!allowList || !allowList.trim()) {
+export function parsePersonaList(list: string): string[] {
+  if (!list || !list.trim()) {
     return []
   }
-  return allowList
+  return list
     .split(',')
     .map((id) => id.trim())
     .filter((id) => id.length > 0)
 }
 
 /**
- * Filter personas by allowList and log warnings for unknown entries.
+ * Filter personas by allowList and blockList, logging warnings for unknown entries.
  *
  * @param personas - Map of all available personas
  * @param allowList - Array of allowed persona IDs (empty = all personas)
+ * @param blockList - Array of blocked persona IDs to exclude
  * @param logger - Logger for warnings
  * @returns Filtered array of personas
  */
-export function filterPersonasByAllowList(
+export function filterPersonas(
   personas: Map<string, PersonaDefinition>,
   allowList: string[],
+  blockList: string[],
   logger: { warn: (msg: string, data?: Record<string, unknown>) => void }
 ): PersonaDefinition[] {
-  // If allowList is empty, return all personas
+  // Step 1: Apply allowList (empty = all, non-empty = only listed)
+  let result: PersonaDefinition[]
   if (allowList.length === 0) {
-    return Array.from(personas.values())
+    result = Array.from(personas.values())
+  } else {
+    result = []
+    for (const id of allowList) {
+      const persona = personas.get(id)
+      if (persona) {
+        result.push(persona)
+      } else {
+        logger.warn('Unknown persona in allowList, ignoring', { personaId: id })
+      }
+    }
   }
 
-  // Filter to allowed personas, logging warnings for unknown entries
-  const result: PersonaDefinition[] = []
-  for (const id of allowList) {
-    const persona = personas.get(id)
-    if (persona) {
-      result.push(persona)
-    } else {
-      logger.warn('Unknown persona in allowList, ignoring', { personaId: id })
+  // Step 2: Remove blocked personas
+  if (blockList.length > 0) {
+    const blockedSet = new Set(blockList)
+    // Warn about unknown blockList entries
+    for (const id of blockList) {
+      if (!personas.has(id)) {
+        logger.warn('Unknown persona in blockList, ignoring', { personaId: id })
+      }
     }
+    result = result.filter((p) => !blockedSet.has(p.id))
   }
 
   return result
@@ -110,14 +124,16 @@ export async function selectPersonaForSession(
     return null
   }
 
-  // Parse and filter by allowList
-  const allowList = parseAllowList(personaConfig.allowList ?? '')
-  const eligiblePersonas = filterPersonasByAllowList(allPersonas, allowList, ctx.logger)
+  // Parse and filter by allowList and blockList
+  const allowList = parsePersonaList(personaConfig.allowList ?? '')
+  const blockList = parsePersonaList(personaConfig.blockList ?? '')
+  const eligiblePersonas = filterPersonas(allPersonas, allowList, blockList, ctx.logger)
 
   if (eligiblePersonas.length === 0) {
-    ctx.logger.warn('No eligible personas after allowList filtering', {
+    ctx.logger.warn('No eligible personas after filtering', {
       sessionId,
       allowList,
+      blockList,
       availablePersonas: Array.from(allPersonas.keys()),
     })
     return null

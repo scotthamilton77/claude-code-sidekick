@@ -80,6 +80,10 @@ settings:
     # Comma-separated allow-list of persona IDs (empty = all available personas)
     # Example: "sidekick,skippy,bones" to restrict selection to these three
     allowList: ""
+    # Comma-separated block-list of persona IDs excluded from random selection
+    # These personas are never picked randomly, but can still be set manually
+    # Default: "disabled" prevents the no-persona mode from being randomly selected
+    blockList: "disabled"
     # Maximum age (in hours) for resume messages to be considered fresh
     # Sessions older than this will use persona empty-messages instead
     resumeFreshnessHours: 4

@@ -6,8 +6,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { PersonaDefinition } from '@sidekick/types'
 import {
-  parseAllowList,
-  filterPersonasByAllowList,
+  parsePersonaList,
+  filterPersonas,
   selectRandomPersona,
   selectPersonaForSession,
   ensurePersonaForSession,
@@ -45,47 +45,47 @@ function createMockPersona(id: string, displayName?: string): PersonaDefinition 
 }
 
 // ============================================================================
-// parseAllowList Tests
+// parsePersonaList Tests
 // ============================================================================
 
-describe('parseAllowList', () => {
+describe('parsePersonaList', () => {
   it('returns empty array for empty string', () => {
-    expect(parseAllowList('')).toEqual([])
+    expect(parsePersonaList('')).toEqual([])
   })
 
   it('returns empty array for whitespace-only string', () => {
-    expect(parseAllowList('   ')).toEqual([])
-    expect(parseAllowList('\t\n')).toEqual([])
+    expect(parsePersonaList('   ')).toEqual([])
+    expect(parsePersonaList('\t\n')).toEqual([])
   })
 
   it('parses single persona ID', () => {
-    expect(parseAllowList('skippy')).toEqual(['skippy'])
+    expect(parsePersonaList('skippy')).toEqual(['skippy'])
   })
 
   it('parses multiple comma-separated IDs', () => {
-    expect(parseAllowList('skippy,bones,scotty')).toEqual(['skippy', 'bones', 'scotty'])
+    expect(parsePersonaList('skippy,bones,scotty')).toEqual(['skippy', 'bones', 'scotty'])
   })
 
   it('trims whitespace around IDs', () => {
-    expect(parseAllowList('  skippy  ,  bones  ,  scotty  ')).toEqual(['skippy', 'bones', 'scotty'])
+    expect(parsePersonaList('  skippy  ,  bones  ,  scotty  ')).toEqual(['skippy', 'bones', 'scotty'])
   })
 
   it('filters out empty entries from trailing commas', () => {
-    expect(parseAllowList('skippy,bones,')).toEqual(['skippy', 'bones'])
-    expect(parseAllowList(',skippy,bones')).toEqual(['skippy', 'bones'])
-    expect(parseAllowList('skippy,,bones')).toEqual(['skippy', 'bones'])
+    expect(parsePersonaList('skippy,bones,')).toEqual(['skippy', 'bones'])
+    expect(parsePersonaList(',skippy,bones')).toEqual(['skippy', 'bones'])
+    expect(parsePersonaList('skippy,,bones')).toEqual(['skippy', 'bones'])
   })
 
   it('handles mixed whitespace and commas', () => {
-    expect(parseAllowList(' , skippy , , bones , ')).toEqual(['skippy', 'bones'])
+    expect(parsePersonaList(' , skippy , , bones , ')).toEqual(['skippy', 'bones'])
   })
 })
 
 // ============================================================================
-// filterPersonasByAllowList Tests
+// filterPersonas Tests
 // ============================================================================
 
-describe('filterPersonasByAllowList', () => {
+describe('filterPersonas', () => {
   let mockLogger: MockLogger
 
   beforeEach(() => {
@@ -102,7 +102,7 @@ describe('filterPersonasByAllowList', () => {
 
   it('returns all personas when allowList is empty', () => {
     const personas = createPersonasMap(['skippy', 'bones', 'scotty'])
-    const result = filterPersonasByAllowList(personas, [], mockLogger)
+    const result = filterPersonas(personas, [], [], mockLogger)
 
     expect(result).toHaveLength(3)
     expect(result.map((p) => p.id)).toContain('skippy')
@@ -113,7 +113,7 @@ describe('filterPersonasByAllowList', () => {
 
   it('filters to only allowed personas', () => {
     const personas = createPersonasMap(['skippy', 'bones', 'scotty', 'sidekick'])
-    const result = filterPersonasByAllowList(personas, ['skippy', 'bones'], mockLogger)
+    const result = filterPersonas(personas, ['skippy', 'bones'], [], mockLogger)
 
     expect(result).toHaveLength(2)
     expect(result.map((p) => p.id)).toContain('skippy')
@@ -123,7 +123,7 @@ describe('filterPersonasByAllowList', () => {
 
   it('logs warning for unknown persona IDs in allowList', () => {
     const personas = createPersonasMap(['skippy', 'bones'])
-    const result = filterPersonasByAllowList(personas, ['skippy', 'unknown', 'bones'], mockLogger)
+    const result = filterPersonas(personas, ['skippy', 'unknown', 'bones'], [], mockLogger)
 
     expect(result).toHaveLength(2)
     const warnLogs = mockLogger.getLogsByLevel('warn')
@@ -134,7 +134,7 @@ describe('filterPersonasByAllowList', () => {
 
   it('returns empty array when all allowList entries are unknown', () => {
     const personas = createPersonasMap(['skippy', 'bones'])
-    const result = filterPersonasByAllowList(personas, ['unknown1', 'unknown2'], mockLogger)
+    const result = filterPersonas(personas, ['unknown1', 'unknown2'], [], mockLogger)
 
     expect(result).toHaveLength(0)
     expect(mockLogger.getLogsByLevel('warn')).toHaveLength(2)
@@ -142,11 +142,65 @@ describe('filterPersonasByAllowList', () => {
 
   it('preserves order from allowList', () => {
     const personas = createPersonasMap(['skippy', 'bones', 'scotty'])
-    const result = filterPersonasByAllowList(personas, ['scotty', 'skippy'], mockLogger)
+    const result = filterPersonas(personas, ['scotty', 'skippy'], [], mockLogger)
 
     expect(result).toHaveLength(2)
     expect(result[0].id).toBe('scotty')
     expect(result[1].id).toBe('skippy')
+  })
+
+  // blockList tests
+
+  it('excludes blocked personas when allowList is empty', () => {
+    const personas = createPersonasMap(['skippy', 'bones', 'disabled'])
+    const result = filterPersonas(personas, [], ['disabled'], mockLogger)
+
+    expect(result).toHaveLength(2)
+    expect(result.map((p) => p.id)).toContain('skippy')
+    expect(result.map((p) => p.id)).toContain('bones')
+    expect(result.map((p) => p.id)).not.toContain('disabled')
+  })
+
+  it('blockList overrides allowList', () => {
+    const personas = createPersonasMap(['skippy', 'bones', 'scotty'])
+    const result = filterPersonas(personas, ['skippy', 'bones'], ['bones'], mockLogger)
+
+    expect(result).toHaveLength(1)
+    expect(result[0].id).toBe('skippy')
+  })
+
+  it('empty blockList has no effect', () => {
+    const personas = createPersonasMap(['skippy', 'bones'])
+    const result = filterPersonas(personas, [], [], mockLogger)
+
+    expect(result).toHaveLength(2)
+  })
+
+  it('multiple blockList entries are excluded', () => {
+    const personas = createPersonasMap(['skippy', 'bones', 'scotty', 'disabled'])
+    const result = filterPersonas(personas, [], ['disabled', 'scotty'], mockLogger)
+
+    expect(result).toHaveLength(2)
+    expect(result.map((p) => p.id)).toContain('skippy')
+    expect(result.map((p) => p.id)).toContain('bones')
+  })
+
+  it('logs warning for unknown blockList entries', () => {
+    const personas = createPersonasMap(['skippy', 'bones'])
+    const result = filterPersonas(personas, [], ['unknown-persona'], mockLogger)
+
+    expect(result).toHaveLength(2)
+    const warnLogs = mockLogger.getLogsByLevel('warn')
+    expect(warnLogs).toHaveLength(1)
+    expect(warnLogs[0].msg).toBe('Unknown persona in blockList, ignoring')
+    expect(warnLogs[0].meta).toEqual({ personaId: 'unknown-persona' })
+  })
+
+  it('returns empty array when all personas are blocked', () => {
+    const personas = createPersonasMap(['skippy', 'bones'])
+    const result = filterPersonas(personas, [], ['skippy', 'bones'], mockLogger)
+
+    expect(result).toHaveLength(0)
   })
 })
 
@@ -239,12 +293,15 @@ describe('selectPersonaForSession', () => {
     setupMockLoader(personas)
 
     const ctx = createMockDaemonContext({ logger: mockLogger, stateService: mockStateService })
-    const config = { ...DEFAULT_SESSION_SUMMARY_CONFIG, personas: { allowList: 'unknown', resumeFreshnessHours: 4 } }
+    const config = {
+      ...DEFAULT_SESSION_SUMMARY_CONFIG,
+      personas: { allowList: 'unknown', blockList: '', resumeFreshnessHours: 4 },
+    }
 
     const result = await selectPersonaForSession('test-session', config, ctx)
 
     expect(result).toBeNull()
-    expect(mockLogger.wasLoggedAtLevel('No eligible personas after allowList filtering', 'warn')).toBe(true)
+    expect(mockLogger.wasLoggedAtLevel('No eligible personas after filtering', 'warn')).toBe(true)
   })
 
   it('selects and persists a persona when available', async () => {
@@ -290,7 +347,10 @@ describe('selectPersonaForSession', () => {
     setupMockLoader(personas)
 
     const ctx = createMockDaemonContext({ logger: mockLogger, stateService: mockStateService })
-    const config = { ...DEFAULT_SESSION_SUMMARY_CONFIG, personas: { allowList: 'bones', resumeFreshnessHours: 4 } }
+    const config = {
+      ...DEFAULT_SESSION_SUMMARY_CONFIG,
+      personas: { allowList: 'bones', blockList: '', resumeFreshnessHours: 4 },
+    }
 
     const result = await selectPersonaForSession('test-session', config, ctx)
 
@@ -305,7 +365,7 @@ describe('selectPersonaForSession', () => {
 
     const ctx = createMockDaemonContext({ logger: mockLogger, stateService: mockStateService })
     // Config with partial personas config - should merge with defaults
-    const config = { ...DEFAULT_SESSION_SUMMARY_CONFIG, personas: { allowList: '' } }
+    const config = { ...DEFAULT_SESSION_SUMMARY_CONFIG, personas: { allowList: '', blockList: '' } }
 
     const result = await selectPersonaForSession('test-session', config as typeof DEFAULT_SESSION_SUMMARY_CONFIG, ctx)
 
@@ -327,6 +387,41 @@ describe('selectPersonaForSession', () => {
     await selectPersonaForSession('test-session', DEFAULT_SESSION_SUMMARY_CONFIG, ctx)
 
     expect(mockCreatePersonaLoader).toHaveBeenCalledWith(expect.objectContaining({ projectRoot: '/custom/project' }))
+  })
+
+  it('blockList excludes persona from selection', async () => {
+    const personas = new Map<string, PersonaDefinition>()
+    personas.set('skippy', createMockPersona('skippy'))
+    personas.set('disabled', createMockPersona('disabled'))
+    setupMockLoader(personas)
+
+    const ctx = createMockDaemonContext({ logger: mockLogger, stateService: mockStateService })
+    const config = {
+      ...DEFAULT_SESSION_SUMMARY_CONFIG,
+      personas: { allowList: '', blockList: 'disabled', resumeFreshnessHours: 4 },
+    }
+
+    const result = await selectPersonaForSession('test-session', config, ctx)
+
+    // Only skippy should be selected since disabled is blocked
+    expect(result).toBe('skippy')
+  })
+
+  it('blockList overrides allowList in config', async () => {
+    const personas = new Map<string, PersonaDefinition>()
+    personas.set('skippy', createMockPersona('skippy'))
+    personas.set('bones', createMockPersona('bones'))
+    setupMockLoader(personas)
+
+    const ctx = createMockDaemonContext({ logger: mockLogger, stateService: mockStateService })
+    const config = {
+      ...DEFAULT_SESSION_SUMMARY_CONFIG,
+      personas: { allowList: 'skippy,bones', blockList: 'bones', resumeFreshnessHours: 4 },
+    }
+
+    const result = await selectPersonaForSession('test-session', config, ctx)
+
+    expect(result).toBe('skippy')
   })
 })
 
