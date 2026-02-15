@@ -529,6 +529,101 @@ describe('StagingServiceCore', () => {
     })
   })
 
+  describe('ENOENT resilience', () => {
+    it('should retry on ENOENT from concurrent clearStaging race', async () => {
+      const logger = createMockLogger()
+      const realStateService = createStateService(testDir, logger)
+      let writeCallCount = 0
+
+      // Mock StateService that fails with ENOENT on first write (simulating
+      // a concurrent clearStaging deleting the directory after ensureDir)
+      const racingStateService = {
+        write: async (...args: Parameters<typeof realStateService.write>) => {
+          writeCallCount++
+          if (writeCallCount === 1) {
+            const err = new Error('ENOENT: no such file or directory') as NodeJS.ErrnoException
+            err.code = 'ENOENT'
+            throw err
+          }
+          return realStateService.write(...args)
+        },
+        read: realStateService.read.bind(realStateService),
+        delete: realStateService.delete.bind(realStateService),
+      }
+
+      const core = createCore(testDir, {
+        logger,
+        stateService: racingStateService as any,
+      })
+
+      const reminder = createTestReminder({ name: 'RetryTest' })
+      await core.stageReminder('session-1', 'Stop', 'RetryTest', reminder)
+
+      // Should have retried: first write ENOENT, second write success
+      expect(writeCallCount).toBe(2)
+
+      // Verify the reminder was actually staged
+      // Use real state service to read the file
+      const hookDir = join(testDir, 'sessions', 'session-1', 'stage', 'Stop')
+      expect(existsSync(hookDir)).toBe(true)
+    })
+
+    it('should propagate non-ENOENT errors without retry', async () => {
+      const logger = createMockLogger()
+      const realStateService = createStateService(testDir, logger)
+
+      const failingStateService = {
+        write: () => {
+          const err = new Error('EACCES: permission denied') as NodeJS.ErrnoException
+          err.code = 'EACCES'
+          return Promise.reject(err)
+        },
+        read: realStateService.read.bind(realStateService),
+        delete: realStateService.delete.bind(realStateService),
+      }
+
+      const core = createCore(testDir, {
+        logger,
+        stateService: failingStateService as any,
+      })
+
+      const reminder = createTestReminder({ name: 'PermTest' })
+      await expect(core.stageReminder('session-1', 'Stop', 'PermTest', reminder)).rejects.toThrow('EACCES')
+    })
+
+    it('should log debug message on ENOENT retry', async () => {
+      const logger = createMockLogger()
+      const realStateService = createStateService(testDir, logger)
+      let writeCallCount = 0
+
+      const racingStateService = {
+        write: async (...args: Parameters<typeof realStateService.write>) => {
+          writeCallCount++
+          if (writeCallCount === 1) {
+            const err = new Error('ENOENT: no such file or directory') as NodeJS.ErrnoException
+            err.code = 'ENOENT'
+            throw err
+          }
+          return realStateService.write(...args)
+        },
+        read: realStateService.read.bind(realStateService),
+        delete: realStateService.delete.bind(realStateService),
+      }
+
+      const core = createCore(testDir, {
+        logger,
+        stateService: racingStateService as any,
+      })
+
+      await core.stageReminder('session-1', 'Stop', 'R1', createTestReminder())
+
+      expect(logger.debug).toHaveBeenCalledWith(
+        'ENOENT during staging write, retrying after mkdir',
+        expect.objectContaining({ sessionId: 'session-1', hookName: 'Stop' })
+      )
+    })
+  })
+
   describe('async API', () => {
     it('should stage and read reminders', async () => {
       const core = createCore(testDir)
