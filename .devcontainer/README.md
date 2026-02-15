@@ -90,7 +90,7 @@ Create `.devcontainer/project-setup.sh` — it runs automatically at the end of 
 
 ### AI Tool Installation Fails
 
-Some AI CLI tools may not be publicly available yet. Check installation logs in post-create output.
+Claude Code is installed via its official installer (`curl -fsSL https://claude.ai/install.sh | bash`), not npm. Other AI CLI tools use npm global installs. Check installation logs in post-create output.
 
 ### Secrets Not Available
 
