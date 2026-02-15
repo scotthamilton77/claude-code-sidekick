@@ -35,6 +35,7 @@ if [ "$INSTALL_UV" = "true" ]; then
 
   # Add uv to PATH for current and future sessions
   echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> ~/.bashrc
+  echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> ~/.zshrc
   export PATH="$HOME/.cargo/bin:$PATH"
 
   # Install Python
@@ -57,8 +58,9 @@ if [ "$INSTALL_CLAUDE_CODE" = "true" ]; then
   curl -fsSL https://claude.ai/install.sh | bash || echo "WARNING: Claude Code installation failed"
 
   # Ensure claude is on PATH for future sessions
-  if [ -d "$HOME/.claude/bin" ] && ! grep -q '\.claude/bin' ~/.bashrc; then
-    echo 'export PATH="$HOME/.claude/bin:$PATH"' >> ~/.bashrc
+  if [ -d "$HOME/.claude/bin" ]; then
+    grep -q '\.claude/bin' ~/.bashrc 2>/dev/null || echo 'export PATH="$HOME/.claude/bin:$PATH"' >> ~/.bashrc
+    grep -q '\.claude/bin' ~/.zshrc 2>/dev/null || echo 'export PATH="$HOME/.claude/bin:$PATH"' >> ~/.zshrc
   fi
   export PATH="$HOME/.claude/bin:$PATH"
 fi
@@ -72,6 +74,7 @@ if ! command -v brew >/dev/null 2>&1; then
   if [ -d "/home/linuxbrew/.linuxbrew" ]; then
     eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
     echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> ~/.bashrc
+    echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> ~/.zshrc
   fi
 fi
 
