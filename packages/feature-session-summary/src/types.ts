@@ -66,6 +66,8 @@ export interface SessionSummaryConfig {
   personas?: {
     /** Comma-separated allow-list of persona IDs (empty = all available) */
     allowList: string
+    /** Comma-separated block-list of persona IDs excluded from selection */
+    blockList: string
     /** Maximum age (hours) for resume messages to be considered fresh */
     resumeFreshnessHours: number
   }
@@ -102,6 +104,7 @@ export const DEFAULT_SESSION_SUMMARY_CONFIG: SessionSummaryConfig = {
   },
   personas: {
     allowList: '',
+    blockList: 'disabled',
     resumeFreshnessHours: 4,
   },
 }

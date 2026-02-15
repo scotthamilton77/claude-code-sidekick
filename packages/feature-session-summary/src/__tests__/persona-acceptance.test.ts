@@ -14,7 +14,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { PersonaDefinition, SessionPersonaState, Logger } from '@sidekick/types'
-import { parseAllowList, filterPersonasByAllowList } from '../handlers/persona-selection'
+import { parsePersonaList, filterPersonas } from '../handlers/persona-selection'
 import { interpolateTemplate, buildPersonaContext } from '../handlers/update-summary'
 
 // ============================================================================
@@ -111,8 +111,8 @@ tone_traits: [exclamatory]
     const mockLogger = createMockLogger()
 
     // When filtering with empty allow-list
-    const allowList = parseAllowList('')
-    const eligible = filterPersonasByAllowList(personas, allowList, mockLogger)
+    const allowList = parsePersonaList('')
+    const eligible = filterPersonas(personas, allowList, [], mockLogger)
 
     // Then all personas are eligible
     expect(eligible.length).toBe(3)
@@ -286,8 +286,8 @@ describe('Acceptance Test #9: No personas available', () => {
     const mockLogger = createMockLogger()
 
     // When no personas and empty allow-list
-    const allowList = parseAllowList('')
-    const eligible = filterPersonasByAllowList(personas, allowList, mockLogger)
+    const allowList = parsePersonaList('')
+    const eligible = filterPersonas(personas, allowList, [], mockLogger)
 
     // Then no personas are eligible
     expect(eligible.length).toBe(0)
@@ -409,5 +409,47 @@ describe('Acceptance Test #13: Resume within freshness window', () => {
 
     expect(effectiveResumeData).not.toBeNull()
     expect(effectiveResumeData!.resume_message).toContain('Welcome back')
+  })
+})
+
+// ============================================================================
+// Test #14: BlockList excludes personas from random selection
+// ============================================================================
+
+describe('Acceptance Test #14: BlockList excludes personas from selection', () => {
+  it('disabled persona excluded by default blockList', () => {
+    const personas = new Map<string, PersonaDefinition>()
+    personas.set('skippy', createMockPersona('skippy'))
+    personas.set('bones', createMockPersona('bones'))
+    personas.set('disabled', createMockPersona('disabled', 'Disabled'))
+
+    const mockLogger = createMockLogger()
+
+    const allowList = parsePersonaList('')
+    const blockList = parsePersonaList('disabled')
+    const eligible = filterPersonas(personas, allowList, blockList, mockLogger)
+
+    expect(eligible).toHaveLength(2)
+    expect(eligible.map((p) => p.id)).toContain('skippy')
+    expect(eligible.map((p) => p.id)).toContain('bones')
+    expect(eligible.map((p) => p.id)).not.toContain('disabled')
+  })
+
+  it('blockList overrides allowList', () => {
+    const personas = new Map<string, PersonaDefinition>()
+    personas.set('skippy', createMockPersona('skippy'))
+    personas.set('bones', createMockPersona('bones'))
+    personas.set('disabled', createMockPersona('disabled', 'Disabled'))
+
+    const mockLogger = createMockLogger()
+
+    // Both allowList and blockList include 'disabled'
+    const allowList = parsePersonaList('skippy,disabled')
+    const blockList = parsePersonaList('disabled')
+    const eligible = filterPersonas(personas, allowList, blockList, mockLogger)
+
+    // blockList wins — disabled is excluded
+    expect(eligible).toHaveLength(1)
+    expect(eligible[0].id).toBe('skippy')
   })
 })
