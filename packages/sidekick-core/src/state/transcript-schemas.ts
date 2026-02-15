@@ -143,6 +143,8 @@ export const PersistedTranscriptStateSchema = z.object({
   metrics: TranscriptMetricsSchema,
   /** When this state was persisted (Unix ms) */
   persistedAt: z.number(),
+  /** Byte offset into transcript file for incremental processing (optional for backward compat) */
+  lastProcessedByteOffset: z.number().optional(),
 })
 
 export type PersistedTranscriptState = z.infer<typeof PersistedTranscriptStateSchema>

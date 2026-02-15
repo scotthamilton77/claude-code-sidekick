@@ -13,4 +13,4 @@ additionalContext: |
 
 userMessage: "Checkpoint: asking the agent to report on progress..."
 
-reason: "Checkpoint - {{toolsThisTurn}} tools used this turn"
+reason: "Checkpoint - {{toolsSinceBaseline}} tools since last checkpoint"
