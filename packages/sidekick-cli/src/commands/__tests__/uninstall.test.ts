@@ -55,10 +55,11 @@ function createAutoStdin(answer: string): Readable {
 }
 
 // Hoisted mocks (must be declared before vi.mock factories)
-const { mockDaemonKill, mockDaemonStopAndWait, mockExecFile } = vi.hoisted(() => ({
+const { mockDaemonKill, mockDaemonStopAndWait, mockExecFile, mockKillAllDaemons } = vi.hoisted(() => ({
   mockDaemonKill: vi.fn().mockResolvedValue({ killed: false }),
   mockDaemonStopAndWait: vi.fn().mockResolvedValue(true),
   mockExecFile: vi.fn(),
+  mockKillAllDaemons: vi.fn().mockResolvedValue([]),
 }))
 
 // Mock @sidekick/core
@@ -70,7 +71,7 @@ vi.mock('@sidekick/core', async (importOriginal) => {
     DaemonClient: vi.fn().mockImplementation(function () {
       return { kill: mockDaemonKill, stopAndWait: mockDaemonStopAndWait }
     }),
-    killAllDaemons: vi.fn().mockResolvedValue([]),
+    killAllDaemons: mockKillAllDaemons,
     getSocketPath: vi.fn((dir: string) => path.join(dir, '.sidekick', 'sidekickd.sock')),
     getTokenPath: vi.fn((dir: string) => path.join(dir, '.sidekick', 'sidekickd.token')),
     getLockPath: vi.fn((dir: string) => path.join(dir, '.sidekick', 'sidekickd.lock')),
@@ -105,6 +106,7 @@ describe('handleUninstallCommand', () => {
     mockDaemonKill.mockClear()
     mockDaemonStopAndWait.mockClear()
     mockExecFile.mockClear()
+    mockKillAllDaemons.mockClear()
     // Default: no plugin installed
     mockExecFile.mockImplementation(
       (_cmd: string, _args: string[], callback: (err: Error | null, stdout: string, stderr: string) => void) => {
@@ -671,6 +673,68 @@ describe('handleUninstallCommand', () => {
 
       expect(result.exitCode).toBe(0)
       expect(mockDaemonKill).toHaveBeenCalled()
+    })
+  })
+
+  describe('user-scope daemon killing', () => {
+    test('kills all daemons during user-scope uninstall', async () => {
+      await writeFile(path.join(userHome, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      mockKillAllDaemons.mockResolvedValue([
+        { projectDir: '/project/a', pid: 1001, killed: true },
+        { projectDir: '/project/b', pid: 1002, killed: true },
+      ])
+
+      const result = await handleUninstallCommand(tempDir, logger, stdout, {
+        force: true,
+        userHome,
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(mockKillAllDaemons).toHaveBeenCalled()
+      // Each killed daemon should appear in the report
+      expect(stdout.data).toContain('Daemon (PID 1001)')
+      expect(stdout.data).toContain('Daemon (PID 1002)')
+    })
+
+    test('does not kill all daemons for project-only scope', async () => {
+      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+
+      const result = await handleUninstallCommand(tempDir, logger, stdout, {
+        force: true,
+        scope: 'project',
+        userHome,
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(mockKillAllDaemons).not.toHaveBeenCalled()
+    })
+
+    test('handles killAllDaemons failures gracefully', async () => {
+      await writeFile(path.join(userHome, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      mockKillAllDaemons.mockResolvedValue([{ projectDir: '/project/a', pid: 1001, killed: false, error: 'EPERM' }])
+
+      const result = await handleUninstallCommand(tempDir, logger, stdout, {
+        force: true,
+        userHome,
+      })
+
+      expect(result.exitCode).toBe(0)
+      // Failed kill should still be reported
+      expect(stdout.data).toContain('Daemon (PID 1001)')
+    })
+
+    test('dry-run reports user daemons without killing', async () => {
+      await writeFile(path.join(userHome, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+
+      const result = await handleUninstallCommand(tempDir, logger, stdout, {
+        force: true,
+        dryRun: true,
+        userHome,
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(mockKillAllDaemons).not.toHaveBeenCalled()
+      expect(stdout.data).toContain('dry-run')
     })
   })
 
