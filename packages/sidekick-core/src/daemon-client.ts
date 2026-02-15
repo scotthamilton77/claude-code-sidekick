@@ -477,6 +477,13 @@ export interface KillResult {
   error?: string
 }
 
+export interface KillAllOptions {
+  /** Attempt graceful IPC shutdown before SIGKILL. Default: false */
+  graceful?: boolean
+  /** Timeout for graceful shutdown per daemon in ms. Default: 3000 */
+  gracefulTimeoutMs?: number
+}
+
 /**
  * Kill all daemons by scanning ~/.sidekick/daemons/*.pid files.
  *
@@ -484,11 +491,13 @@ export interface KillResult {
  * verifies each process is alive, sends SIGKILL, and cleans up associated files.
  *
  * @param logger - Logger instance for reporting
+ * @param options - Options for kill behavior (e.g. graceful shutdown)
  * @returns Array of results for each daemon found
  *
  * @see docs/design/CLI.md §7 Daemon Lifecycle Management
  */
-export async function killAllDaemons(logger: Logger): Promise<KillResult[]> {
+export async function killAllDaemons(logger: Logger, options: KillAllOptions = {}): Promise<KillResult[]> {
+  const { graceful = false, gracefulTimeoutMs = 3000 } = options
   const results: KillResult[] = []
   const daemonsDir = getUserDaemonsDir()
 
@@ -520,7 +529,26 @@ export async function killAllDaemons(logger: Logger): Promise<KillResult[]> {
         continue
       }
 
-      // Process is alive, kill it
+      // Try graceful shutdown first if requested
+      if (graceful) {
+        try {
+          const client = new DaemonClient(info.projectDir, logger)
+          const stopped = await client.stopAndWait(gracefulTimeoutMs)
+          if (stopped) {
+            logger.info('Daemon stopped gracefully', { pid: info.pid, projectDir: info.projectDir })
+            results.push({ projectDir: info.projectDir, pid: info.pid, killed: true })
+            await fs.unlink(pidPath).catch(() => {})
+            continue
+          }
+        } catch (err) {
+          logger.debug('Graceful stop failed, falling back to SIGKILL', {
+            pid: info.pid,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        }
+      }
+
+      // Force kill (SIGKILL)
       try {
         process.kill(info.pid, 'SIGKILL')
         logger.info('Killed daemon', { pid: info.pid, projectDir: info.projectDir })
