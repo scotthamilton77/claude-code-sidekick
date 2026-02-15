@@ -55,8 +55,9 @@ function createAutoStdin(answer: string): Readable {
 }
 
 // Hoisted mocks (must be declared before vi.mock factories)
-const { mockDaemonKill, mockExecFile } = vi.hoisted(() => ({
+const { mockDaemonKill, mockDaemonStopAndWait, mockExecFile } = vi.hoisted(() => ({
   mockDaemonKill: vi.fn().mockResolvedValue({ killed: false }),
+  mockDaemonStopAndWait: vi.fn().mockResolvedValue(true),
   mockExecFile: vi.fn(),
 }))
 
@@ -67,7 +68,7 @@ vi.mock('@sidekick/core', async (importOriginal) => {
     ...actual,
     Logger: vi.fn(),
     DaemonClient: vi.fn().mockImplementation(function () {
-      return { kill: mockDaemonKill }
+      return { kill: mockDaemonKill, stopAndWait: mockDaemonStopAndWait }
     }),
     killAllDaemons: vi.fn().mockResolvedValue([]),
     getSocketPath: vi.fn((dir: string) => path.join(dir, '.sidekick', 'sidekickd.sock')),
@@ -102,6 +103,7 @@ describe('handleUninstallCommand', () => {
     await mkdir(path.join(userHome, '.sidekick'), { recursive: true })
 
     mockDaemonKill.mockClear()
+    mockDaemonStopAndWait.mockClear()
     mockExecFile.mockClear()
     // Default: no plugin installed
     mockExecFile.mockImplementation(
@@ -605,10 +607,11 @@ describe('handleUninstallCommand', () => {
   })
 
   describe('daemon handling', () => {
-    test('kills project daemon during uninstall', async () => {
+    test('kills project daemon during uninstall (graceful fails, falls back to kill)', async () => {
       await writeFile(path.join(tempDir, '.sidekick', 'sidekickd.pid'), '12345')
       await writeFile(path.join(tempDir, '.sidekick', 'sidekickd.token'), 'test-token')
       await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      mockDaemonStopAndWait.mockResolvedValue(false) // Graceful fails
       mockDaemonKill.mockResolvedValue({ killed: true })
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
@@ -618,10 +621,56 @@ describe('handleUninstallCommand', () => {
       })
 
       expect(result.exitCode).toBe(0)
+      expect(mockDaemonStopAndWait).toHaveBeenCalledWith(3000)
       expect(mockDaemonKill).toHaveBeenCalled()
       // PID and token files should be cleaned up
       await expect(readFile(path.join(tempDir, '.sidekick', 'sidekickd.pid'), 'utf-8')).rejects.toThrow()
       await expect(readFile(path.join(tempDir, '.sidekick', 'sidekickd.token'), 'utf-8')).rejects.toThrow()
+    })
+
+    test('attempts graceful stop before kill during uninstall', async () => {
+      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      mockDaemonStopAndWait.mockResolvedValue(true)
+
+      const result = await handleUninstallCommand(tempDir, logger, stdout, {
+        force: true,
+        scope: 'project',
+        userHome,
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(mockDaemonStopAndWait).toHaveBeenCalledWith(3000)
+      // When graceful succeeds, kill should NOT be called
+      expect(mockDaemonKill).not.toHaveBeenCalled()
+    })
+
+    test('falls back to kill when graceful stop fails', async () => {
+      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      mockDaemonStopAndWait.mockResolvedValue(false) // Graceful failed (timeout)
+
+      const result = await handleUninstallCommand(tempDir, logger, stdout, {
+        force: true,
+        scope: 'project',
+        userHome,
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(mockDaemonStopAndWait).toHaveBeenCalledWith(3000)
+      expect(mockDaemonKill).toHaveBeenCalled()
+    })
+
+    test('falls back to kill when graceful stop throws', async () => {
+      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      mockDaemonStopAndWait.mockRejectedValue(new Error('IPC connection failed'))
+
+      const result = await handleUninstallCommand(tempDir, logger, stdout, {
+        force: true,
+        scope: 'project',
+        userHome,
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(mockDaemonKill).toHaveBeenCalled()
     })
   })
 
@@ -678,7 +727,8 @@ describe('handleUninstallCommand', () => {
 
       expect(result.exitCode).toBe(0)
       expect(stdout.data).toContain('dry-run')
-      // Daemon should NOT have been killed
+      // Daemon should NOT have been stopped or killed
+      expect(mockDaemonStopAndWait).not.toHaveBeenCalled()
       expect(mockDaemonKill).not.toHaveBeenCalled()
       // Plugin uninstall should NOT have been called
       const uninstallCall = mockExecFile.mock.calls.find((call: any[]) => call[1]?.includes('uninstall'))
