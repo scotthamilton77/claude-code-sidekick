@@ -63,19 +63,6 @@ packages/sidekick-ui/vite.config.d.ts
 packages/sidekick-ui/vitest.config.js
 packages/sidekick-ui/vitest.config.d.ts
 
-# beads ignores
-# Worktree redirect file (contains relative path to main repo's .beads/)
-# Must not be committed as paths would be wrong in other clones
-redirect
-
-# Merge artifacts (temporary files from 3-way merge)
-beads.base.jsonl
-beads.base.meta.json
-beads.left.jsonl
-beads.left.meta.json
-beads.right.jsonl
-beads.right.meta.json
-
 # Sync state (local-only, per-machine)
 # These files are machine-specific and should not be shared across clones
 .sync.lock
