@@ -736,40 +736,75 @@ export class TranscriptServiceImpl implements TranscriptService {
       return []
     }
 
-    // Get buffered entries in chronological order
-    const bufferedEntries = this.getBufferedEntries()
+    const recentRaw = this.getBufferedEntries().slice(-count)
 
-    // Take the last `count` entries
-    const recentRaw = bufferedEntries.slice(-count)
-
-    // Parse and normalize each entry
     const results: CanonicalTranscriptEntry[] = []
     for (const entry of recentRaw) {
-      try {
-        const parsed = TranscriptEntrySchema.safeParse(JSON.parse(entry.rawLine))
-        if (!parsed.success) {
-          this.options.logger.warn('Failed to parse transcript entry', {
-            lineNumber: entry.lineNumber,
-            rawLine: entry.rawLine,
-            error: parsed.error.message,
-          })
-          continue
-        }
-        const rawEntry = parsed.data as TranscriptEntry
-        const normalized = this.normalizeEntry(rawEntry, entry.lineNumber)
-        if (normalized) {
-          results.push(...normalized)
-        }
-      } catch {
-        // Skip malformed entries
-        this.options.logger.warn('Skipping malformed transcript entry', {
-          lineNumber: entry.lineNumber,
-          rawLine: entry.rawLine,
-        })
+      const normalized = this.parseBufferedEntry(entry)
+      if (normalized) {
+        results.push(...normalized)
       }
     }
 
     return results
+  }
+
+  /**
+   * Get recent text-only transcript entries from the in-memory buffer.
+   * Scans the full circular buffer but only returns entries with `type === 'text'`.
+   * This guarantees the caller always finds user prompts regardless of how many
+   * tool_use/tool_result entries dominate the buffer.
+   *
+   * @param count Maximum number of text entries to return (default: 10)
+   * @returns Array of canonical transcript entries where type === 'text'
+   */
+  getRecentTextEntries(count = 10): CanonicalTranscriptEntry[] {
+    if (this.excerptBufferCount === 0) {
+      return []
+    }
+
+    const bufferedEntries = this.getBufferedEntries()
+
+    // Iterate backwards, collecting only text entries
+    const textEntries: CanonicalTranscriptEntry[] = []
+    for (let i = bufferedEntries.length - 1; i >= 0 && textEntries.length < count; i--) {
+      const normalized = this.parseBufferedEntry(bufferedEntries[i])
+      if (!normalized) continue
+
+      for (let j = normalized.length - 1; j >= 0 && textEntries.length < count; j--) {
+        if (normalized[j].type === 'text') {
+          textEntries.push(normalized[j])
+        }
+      }
+    }
+
+    // Return in chronological order (oldest first)
+    return textEntries.reverse()
+  }
+
+  /**
+   * Parse and normalize a buffered entry into canonical entries.
+   * Returns null for unparseable or non-message entries.
+   */
+  private parseBufferedEntry(entry: BufferedEntry): CanonicalTranscriptEntry[] | null {
+    try {
+      const parsed = TranscriptEntrySchema.safeParse(JSON.parse(entry.rawLine))
+      if (!parsed.success) {
+        this.options.logger.warn('Failed to parse transcript entry', {
+          lineNumber: entry.lineNumber,
+          rawLine: entry.rawLine,
+          error: parsed.error.message,
+        })
+        return null
+      }
+      return this.normalizeEntry(parsed.data as TranscriptEntry, entry.lineNumber)
+    } catch {
+      this.options.logger.warn('Skipping malformed transcript entry', {
+        lineNumber: entry.lineNumber,
+        rawLine: entry.rawLine,
+      })
+      return null
+    }
   }
 
   /**

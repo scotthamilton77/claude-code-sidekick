@@ -143,6 +143,10 @@ export class MockTranscriptService implements TranscriptService {
     return this.mockEntries.slice(-count)
   }
 
+  getRecentTextEntries(count = 10): import('@sidekick/types').CanonicalTranscriptEntry[] {
+    return this.mockEntries.filter((e) => e.type === 'text').slice(-count)
+  }
+
   getMetrics(): TranscriptMetrics {
     return this.deepCloneMetrics()
   }

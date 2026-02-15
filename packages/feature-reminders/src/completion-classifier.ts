@@ -62,32 +62,40 @@ export function isRealUserPromptContent(content: string): boolean {
 /**
  * Extract the last user prompt and last assistant message from transcript.
  * Filters out:
- * - tool_use and tool_result entries (via entry.type)
  * - isMeta messages (via metadata flag)
  * - isCompactSummary messages (via metadata flag)
  * - System-generated content patterns (via isRealUserPromptContent)
  *
- * Uses getRecentEntries() instead of getTranscript() to avoid reading
- * the full transcript file (which can be >500MB and exceed V8 string limits).
+ * Uses getRecentTextEntries() to scan the full 500-entry circular buffer
+ * for text-only entries. This guarantees finding the user prompt even in
+ * tool-heavy turns where tool_use/tool_result entries dominate the buffer.
  */
 export function extractConversationContext(ctx: DaemonContext): ConversationContext {
-  // Get recent entries from buffer - we only need last few user/assistant messages
-  // 100 entries should be more than enough to find the last prompt/response pair
-  const entries = ctx.transcript.getRecentEntries(100)
+  // Get recent text entries from buffer — pre-filtered to type === 'text'
+  // 10 entries gives headroom for filtering meta/compact/system entries
+  const entries = ctx.transcript.getRecentTextEntries(10)
 
   let lastUserPrompt: string | null = null
   let lastAssistantMessage: string | null = null
+  let skippedMeta = 0
+  let skippedCompact = 0
+  let skippedSystemContent = 0
+  let scannedCount = 0
 
   // Iterate in reverse to find the most recent entries
   for (let i = entries.length - 1; i >= 0; i--) {
+    scannedCount++
     const entry = entries[i]
 
-    // Only consider text entries (skip tool_use and tool_result)
-    if (entry.type !== 'text') continue
-
     // Skip system-generated entries via metadata flags
-    if (entry.metadata.isMeta === true) continue
-    if (entry.metadata.isCompactSummary === true) continue
+    if (entry.metadata.isMeta === true) {
+      skippedMeta++
+      continue
+    }
+    if (entry.metadata.isCompactSummary === true) {
+      skippedCompact++
+      continue
+    }
 
     // Extract content as string
     const content = typeof entry.content === 'string' ? entry.content : JSON.stringify(entry.content)
@@ -98,6 +106,8 @@ export function extractConversationContext(ctx: DaemonContext): ConversationCont
       // Filter out system-generated content patterns
       if (isRealUserPromptContent(content)) {
         lastUserPrompt = content
+      } else {
+        skippedSystemContent++
       }
     }
 
@@ -106,6 +116,20 @@ export function extractConversationContext(ctx: DaemonContext): ConversationCont
       break
     }
   }
+
+  ctx.logger.debug('VC context extraction', {
+    totalEntries: entries.length,
+    scanned: scannedCount,
+    skippedMeta,
+    skippedCompact,
+    skippedSystemContent,
+    foundUserPrompt: lastUserPrompt !== null,
+    foundAssistantMessage: lastAssistantMessage !== null,
+    userPromptLength: lastUserPrompt?.length ?? 0,
+    assistantMessageLength: lastAssistantMessage?.length ?? 0,
+    userPromptPreview: lastUserPrompt?.slice(0, 150) ?? '(none)',
+    assistantMessagePreview: lastAssistantMessage?.slice(0, 300) ?? '(none)',
+  })
 
   return { lastUserPrompt, lastAssistantMessage }
 }
@@ -216,17 +240,29 @@ export async function classifyCompletion(options: ClassifyCompletionOptions): Pr
   const llmConfig = settings.llm ?? DEFAULT_COMPLETION_DETECTION_SETTINGS.llm!
   const provider = ctx.profileFactory.createForProfile(llmConfig.profile, llmConfig.fallback_profile)
 
+  ctx.logger.info('VC classification: calling LLM', {
+    profile: llmConfig.profile,
+    fallbackProfile: llmConfig.fallback_profile,
+    hasJsonSchema: !!schemaContent,
+    promptLength: prompt.length,
+  })
+
   try {
     const response = await provider.complete({
       messages: [{ role: 'user', content: prompt }],
       jsonSchema,
     })
 
+    ctx.logger.debug('VC LLM raw response', {
+      contentLength: response.content.length,
+      content: response.content.slice(0, 500),
+    })
+
     const llmResponse = parseResponse(response.content)
 
     if (!llmResponse) {
       ctx.logger.warn('Failed to parse completion classifier response', {
-        content: response.content.slice(0, 200),
+        content: response.content.slice(0, 500),
       })
       return DEFAULT_RESULT
     }
@@ -249,11 +285,12 @@ export async function classifyCompletion(options: ClassifyCompletionOptions): Pr
     }
     // ASKING_QUESTION and ANSWERING_QUESTION get no user message (silent)
 
-    ctx.logger.info('Completion classification result', {
+    ctx.logger.info('VC classification result', {
       category: classification.category,
       confidence: classification.confidence,
+      confidenceThreshold: settings.confidence_threshold,
       shouldBlock,
-      reasoning: classification.reasoning?.slice(0, 100),
+      reasoning: classification.reasoning,
     })
 
     return { classification, shouldBlock, userMessage }
