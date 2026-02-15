@@ -72,7 +72,7 @@ export function registerStagePauseAndReflect(context: RuntimeContext): void {
       return {
         reminderId: ReminderIds.PAUSE_AND_REFLECT,
         targetHook: 'PreToolUse',
-        templateContext: { toolsThisTurn: metrics.toolsThisTurn },
+        templateContext: { toolsThisTurn: metrics.toolsThisTurn, toolsSinceBaseline },
       }
     },
   })

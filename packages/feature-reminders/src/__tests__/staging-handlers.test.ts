@@ -73,7 +73,7 @@ blocking: true
 priority: 80
 persistent: false
 additionalContext: "Checkpoint at {{toolsThisTurn}} tools"
-reason: "Checkpoint - {{toolsThisTurn}} tools used"
+reason: "Checkpoint - {{toolsSinceBaseline}} tools since last checkpoint"
 `,
       'reminders/user-prompt-submit.yaml': `id: user-prompt-submit
 blocking: false
@@ -142,7 +142,7 @@ reason: "Verify completion before stopping"
       registerStagePauseAndReflect(ctx)
 
       const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
-      const event = createTestTranscriptEvent({ toolsThisTurn: 10 }) // Below default 15
+      const event = createTestTranscriptEvent({ toolsThisTurn: 10 }) // Below default 60
 
       await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
 
@@ -153,7 +153,7 @@ reason: "Verify completion before stopping"
       registerStagePauseAndReflect(ctx)
 
       const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
-      const event = createTestTranscriptEvent({ toolsThisTurn: 15 })
+      const event = createTestTranscriptEvent({ toolsThisTurn: 60 })
 
       await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
 
@@ -168,7 +168,7 @@ reason: "Verify completion before stopping"
       registerStagePauseAndReflect(ctx)
 
       const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
-      const event = createTestTranscriptEvent({ toolsThisTurn: 20 })
+      const event = createTestTranscriptEvent({ toolsThisTurn: 65 })
 
       // First call stages
       await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
@@ -183,13 +183,13 @@ reason: "Verify completion before stopping"
       registerStagePauseAndReflect(ctx)
 
       const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
-      const event = createTestTranscriptEvent({ toolsThisTurn: 30 })
+      const event = createTestTranscriptEvent({ toolsThisTurn: 65 })
 
       await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
 
       const reminders = staging.getRemindersForHook('PreToolUse')
-      expect(reminders[0].additionalContext).toBe('Checkpoint at 30 tools')
-      expect(reminders[0].reason).toBe('Checkpoint - 30 tools used')
+      expect(reminders[0].additionalContext).toBe('Checkpoint at 65 tools')
+      expect(reminders[0].reason).toBe('Checkpoint - 65 tools since last checkpoint')
     })
 
     describe('P&R baseline threshold adjustment', () => {
@@ -243,8 +243,8 @@ reason: "Verify completion before stopping"
         registerStagePauseAndReflect(ctxWithPath)
 
         const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
-        // Default threshold is 15, so this should trigger
-        const event = createEventWithSession({ turnCount: 1, toolsThisTurn: 15, toolCount: 15 })
+        // Default threshold is 60, so this should trigger
+        const event = createEventWithSession({ turnCount: 1, toolsThisTurn: 60, toolCount: 60 })
 
         await handler?.handler(event, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
 
@@ -252,11 +252,11 @@ reason: "Verify completion before stopping"
       })
 
       it('adjusts threshold based on baseline when VC was consumed same turn', async () => {
-        // Set up baseline indicating VC was consumed at tool 8 on turn 1
+        // Set up baseline indicating VC was consumed at tool 20 on turn 1
         const stateService = new MockStateService(testProjectDir)
         const baseline: PRBaselineState = {
           turnCount: 1,
-          toolsThisTurn: 8,
+          toolsThisTurn: 20,
           timestamp: Date.now(),
         }
         const baselinePath = stateService.sessionStatePath(sessionId, 'pr-baseline.json')
@@ -279,14 +279,14 @@ reason: "Verify completion before stopping"
 
         const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
 
-        // At tool 15 on turn 1: 15 - 8 = 7 < 15 threshold, should NOT fire
-        const event15 = createEventWithSession({ turnCount: 1, toolsThisTurn: 15, toolCount: 15 })
-        await handler?.handler(event15, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
+        // At tool 60 on turn 1: 60 - 20 = 40 < 60 threshold, should NOT fire
+        const event60 = createEventWithSession({ turnCount: 1, toolsThisTurn: 60, toolCount: 60 })
+        await handler?.handler(event60, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
         expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(0)
 
-        // At tool 23 on turn 1: 23 - 8 = 15 >= 15 threshold, SHOULD fire
-        const event23 = createEventWithSession({ turnCount: 1, toolsThisTurn: 23, toolCount: 23 })
-        await handler?.handler(event23, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
+        // At tool 80 on turn 1: 80 - 20 = 60 >= 60 threshold, SHOULD fire
+        const event80 = createEventWithSession({ turnCount: 1, toolsThisTurn: 80, toolCount: 80 })
+        await handler?.handler(event80, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
         expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
       })
 
@@ -295,7 +295,7 @@ reason: "Verify completion before stopping"
         const stateService = new MockStateService(testProjectDir)
         const baseline: PRBaselineState = {
           turnCount: 1,
-          toolsThisTurn: 8,
+          toolsThisTurn: 20,
           timestamp: Date.now(),
         }
         const baselinePath = stateService.sessionStatePath(sessionId, 'pr-baseline.json')
@@ -319,8 +319,8 @@ reason: "Verify completion before stopping"
         const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
 
         // On turn 2, baseline from turn 1 should be ignored
-        // At tool 15 on turn 2: uses default threshold (0), so 15 >= 15, SHOULD fire
-        const event = createEventWithSession({ turnCount: 2, toolsThisTurn: 15, toolCount: 100 })
+        // At tool 60 on turn 2: uses default threshold (0), so 60 >= 60, SHOULD fire
+        const event = createEventWithSession({ turnCount: 2, toolsThisTurn: 60, toolCount: 100 })
         await handler?.handler(event, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
 
         expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
@@ -349,7 +349,7 @@ reason: "Verify completion before stopping"
 
         const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
         // Should use default threshold (0) and not crash
-        const event = createEventWithSession({ turnCount: 1, toolsThisTurn: 15, toolCount: 15 })
+        const event = createEventWithSession({ turnCount: 1, toolsThisTurn: 60, toolCount: 60 })
 
         await handler?.handler(event, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
 
@@ -363,9 +363,9 @@ reason: "Verify completion before stopping"
 
         const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
 
-        // First trigger at tool 15 - stages P&R
-        const event15 = createTestTranscriptEvent({ turnCount: 1, toolsThisTurn: 15, toolCount: 15 })
-        await handler?.handler(event15, ctx as unknown as import('@sidekick/types').HandlerContext)
+        // First trigger at tool 60 - stages P&R
+        const event60 = createTestTranscriptEvent({ turnCount: 1, toolsThisTurn: 60, toolCount: 60 })
+        await handler?.handler(event60, ctx as unknown as import('@sidekick/types').HandlerContext)
         expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
 
         // Simulate consumption: add to consumed list with stagedAt metrics
@@ -374,14 +374,14 @@ reason: "Verify completion before stopping"
           blocking: true,
           priority: 80,
           persistent: false,
-          stagedAt: { timestamp: Date.now(), turnCount: 1, toolsThisTurn: 15, toolCount: 15 },
+          stagedAt: { timestamp: Date.now(), turnCount: 1, toolsThisTurn: 60, toolCount: 60 },
         })
         await staging.deleteReminder('PreToolUse', 'pause-and-reflect')
         expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(0)
 
-        // At tool 20 same turn: 20 - 15 = 5 < 15 threshold, should NOT re-stage
-        const event20 = createTestTranscriptEvent({ turnCount: 1, toolsThisTurn: 20, toolCount: 20 })
-        await handler?.handler(event20, ctx as unknown as import('@sidekick/types').HandlerContext)
+        // At tool 80 same turn: 80 - 60 = 20 < 60 threshold, should NOT re-stage
+        const event80 = createTestTranscriptEvent({ turnCount: 1, toolsThisTurn: 80, toolCount: 80 })
+        await handler?.handler(event80, ctx as unknown as import('@sidekick/types').HandlerContext)
 
         expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(0)
       })
@@ -391,9 +391,9 @@ reason: "Verify completion before stopping"
 
         const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
 
-        // First trigger at tool 15 - stages P&R
-        const event15 = createTestTranscriptEvent({ turnCount: 1, toolsThisTurn: 15, toolCount: 15 })
-        await handler?.handler(event15, ctx as unknown as import('@sidekick/types').HandlerContext)
+        // First trigger at tool 60 - stages P&R
+        const event60 = createTestTranscriptEvent({ turnCount: 1, toolsThisTurn: 60, toolCount: 60 })
+        await handler?.handler(event60, ctx as unknown as import('@sidekick/types').HandlerContext)
         expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
 
         // Simulate consumption
@@ -402,13 +402,13 @@ reason: "Verify completion before stopping"
           blocking: true,
           priority: 80,
           persistent: false,
-          stagedAt: { timestamp: Date.now(), turnCount: 1, toolsThisTurn: 15, toolCount: 15 },
+          stagedAt: { timestamp: Date.now(), turnCount: 1, toolsThisTurn: 60, toolCount: 60 },
         })
         await staging.deleteReminder('PreToolUse', 'pause-and-reflect')
 
-        // At tool 30 same turn: 30 >= 15 + 15 threshold, SHOULD re-stage
-        const event30 = createTestTranscriptEvent({ turnCount: 1, toolsThisTurn: 30, toolCount: 30 })
-        await handler?.handler(event30, ctx as unknown as import('@sidekick/types').HandlerContext)
+        // At tool 120 same turn: 120 >= 60 + 60 threshold, SHOULD re-stage
+        const event120 = createTestTranscriptEvent({ turnCount: 1, toolsThisTurn: 120, toolCount: 120 })
+        await handler?.handler(event120, ctx as unknown as import('@sidekick/types').HandlerContext)
 
         expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
       })
@@ -418,8 +418,8 @@ reason: "Verify completion before stopping"
 
         const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
 
-        // First trigger at tool 15 on turn 1
-        const event1 = createTestTranscriptEvent({ turnCount: 1, toolsThisTurn: 15, toolCount: 15 })
+        // First trigger at tool 60 on turn 1
+        const event1 = createTestTranscriptEvent({ turnCount: 1, toolsThisTurn: 60, toolCount: 60 })
         await handler?.handler(event1, ctx as unknown as import('@sidekick/types').HandlerContext)
         expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
 
@@ -429,12 +429,12 @@ reason: "Verify completion before stopping"
           blocking: true,
           priority: 80,
           persistent: false,
-          stagedAt: { timestamp: Date.now(), turnCount: 1, toolsThisTurn: 15, toolCount: 15 },
+          stagedAt: { timestamp: Date.now(), turnCount: 1, toolsThisTurn: 60, toolCount: 60 },
         })
         await staging.deleteReminder('PreToolUse', 'pause-and-reflect')
 
-        // Turn 2 at tool 15: new turn, should reactivate
-        const event2 = createTestTranscriptEvent({ turnCount: 2, toolsThisTurn: 15, toolCount: 30 })
+        // Turn 2 at tool 60: new turn, should reactivate
+        const event2 = createTestTranscriptEvent({ turnCount: 2, toolsThisTurn: 60, toolCount: 120 })
         await handler?.handler(event2, ctx as unknown as import('@sidekick/types').HandlerContext)
 
         expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
@@ -444,11 +444,11 @@ reason: "Verify completion before stopping"
         const testProjectDir = '/tmp/claude/test-pr-max-baseline'
         const sessionId = 'test-session'
 
-        // Set up baseline indicating VC was consumed at tool 10 on turn 1
+        // Set up baseline indicating VC was consumed at tool 20 on turn 1
         const stateService = new MockStateService(testProjectDir)
         const baseline: PRBaselineState = {
           turnCount: 1,
-          toolsThisTurn: 10,
+          toolsThisTurn: 20,
           timestamp: Date.now(),
         }
         const baselinePath = stateService.sessionStatePath(sessionId, 'pr-baseline.json')
@@ -484,29 +484,29 @@ reason: "Verify completion before stopping"
           }
         }
 
-        // First P&R triggered at tool 25 (10 + 15 threshold)
-        const event25 = createEventWithSession({ turnCount: 1, toolsThisTurn: 25, toolCount: 25 })
-        await handler?.handler(event25, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
+        // First P&R triggered at tool 80 (20 + 60 threshold)
+        const event80 = createEventWithSession({ turnCount: 1, toolsThisTurn: 80, toolCount: 80 })
+        await handler?.handler(event80, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
         expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
 
-        // Simulate P&R consumption at tool 25
+        // Simulate P&R consumption at tool 80
         staging.addConsumedReminder('PreToolUse', 'pause-and-reflect', {
           name: 'pause-and-reflect',
           blocking: true,
           priority: 80,
           persistent: false,
-          stagedAt: { timestamp: Date.now(), turnCount: 1, toolsThisTurn: 25, toolCount: 25 },
+          stagedAt: { timestamp: Date.now(), turnCount: 1, toolsThisTurn: 80, toolCount: 80 },
         })
         await staging.deleteReminder('PreToolUse', 'pause-and-reflect')
 
-        // At tool 35: max(10, 25) = 25 baseline, 35 - 25 = 10 < 15 threshold, should NOT fire
-        const event35 = createEventWithSession({ turnCount: 1, toolsThisTurn: 35, toolCount: 35 })
-        await handler?.handler(event35, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
+        // At tool 120: max(20, 80) = 80 baseline, 120 - 80 = 40 < 60 threshold, should NOT fire
+        const event120 = createEventWithSession({ turnCount: 1, toolsThisTurn: 120, toolCount: 120 })
+        await handler?.handler(event120, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
         expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(0)
 
-        // At tool 40: 40 >= 25 + 15 threshold, SHOULD fire
-        const event40 = createEventWithSession({ turnCount: 1, toolsThisTurn: 40, toolCount: 40 })
-        await handler?.handler(event40, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
+        // At tool 140: 140 >= 80 + 60 threshold, SHOULD fire
+        const event140 = createEventWithSession({ turnCount: 1, toolsThisTurn: 140, toolCount: 140 })
+        await handler?.handler(event140, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
         expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
       })
     })
@@ -919,7 +919,7 @@ reason: "Verify completion before stopping"
       const reminders = staging.getRemindersForHook('Stop')
       expect(reminders).toHaveLength(1)
       expect(reminders[0].name).toBe('verify-completion')
-      expect(logger.wasLogged('Re-staged verify-completion due to unverified changes')).toBe(true)
+      expect(logger.wasLogged('VC unstage: re-staged for next Stop')).toBe(true)
     })
 
     it('does not re-stage when cycle limit reached', async () => {
@@ -962,7 +962,7 @@ reason: "Verify completion before stopping"
 
       // Reminder should be deleted, not re-staged
       expect(staging.getRemindersForHook('Stop')).toHaveLength(0)
-      expect(logger.wasLogged('Verification cycle limit reached, not re-staging')).toBe(true)
+      expect(logger.wasLogged('VC unstage: cycle limit reached, clearing')).toBe(true)
     })
 
     it('handles missing sessionId gracefully', async () => {

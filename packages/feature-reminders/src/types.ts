@@ -127,7 +127,7 @@ export const DEFAULT_COMPLETION_DETECTION_SETTINGS: CompletionDetectionSettings 
  * Default reminder settings values
  */
 export const DEFAULT_REMINDERS_SETTINGS: RemindersSettings = {
-  pause_and_reflect_threshold: 15,
+  pause_and_reflect_threshold: 60,
   source_code_patterns: DEFAULT_SOURCE_CODE_PATTERNS,
   max_verification_cycles: 0, // 0 = unlimited
 }

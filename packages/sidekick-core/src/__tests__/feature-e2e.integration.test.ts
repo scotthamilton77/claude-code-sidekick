@@ -86,7 +86,7 @@ checkFixtureAvailability()
 // ============================================================================
 
 const REMINDER_THRESHOLDS = {
-  pause_and_reflect_threshold: 15,
+  pause_and_reflect_threshold: 60,
 } as const
 
 const REMINDER_IDS = {
@@ -449,7 +449,7 @@ describe('Feature E2E: Threshold Logic with Synthetic Data', () => {
     // When a new user message arrives, turnCount increments and toolsThisTurn resets
 
     const entries = []
-    const numTools = 25 // More than pause_and_reflect_threshold
+    const numTools = REMINDER_THRESHOLDS.pause_and_reflect_threshold + 5 // More than pause_and_reflect_threshold
 
     // Assistant message with MULTIPLE tool_use blocks (this is how Claude Code structures it)
     const toolUses = []

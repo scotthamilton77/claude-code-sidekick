@@ -286,10 +286,12 @@ export class TranscriptServiceImpl implements TranscriptService {
     // Try to recover from persisted state
     const recovered = await this.loadPersistedState()
     if (recovered) {
-      this.metrics = recovered
+      this.metrics = recovered.metrics
+      this.lastProcessedByteOffset = recovered.byteOffset
       this.options.logger.info('Recovered transcript state', {
         sessionId,
         lastProcessedLine: this.metrics.lastProcessedLine,
+        lastProcessedByteOffset: this.lastProcessedByteOffset,
       })
     } else {
       this.metrics = createDefaultMetrics()
@@ -1664,6 +1666,7 @@ export class TranscriptServiceImpl implements TranscriptService {
       sessionId: this.sessionId,
       metrics: this.deepCloneMetrics(),
       persistedAt: now,
+      lastProcessedByteOffset: this.lastProcessedByteOffset,
     }
 
     try {
@@ -1674,7 +1677,7 @@ export class TranscriptServiceImpl implements TranscriptService {
     }
   }
 
-  private async loadPersistedState(): Promise<TranscriptMetrics | null> {
+  private async loadPersistedState(): Promise<{ metrics: TranscriptMetrics; byteOffset: number } | null> {
     const statePath = this.getMetricsStatePath()
     if (!statePath) return null
 
@@ -1695,7 +1698,10 @@ export class TranscriptServiceImpl implements TranscriptService {
       }
 
       // Schema-validated data is already in correct format
-      return result.data.metrics
+      return {
+        metrics: result.data.metrics,
+        byteOffset: result.data.lastProcessedByteOffset ?? 0,
+      }
     } catch (err) {
       // StateNotFoundError is expected for new sessions - don't log warning
       if (err instanceof StateNotFoundError) {
