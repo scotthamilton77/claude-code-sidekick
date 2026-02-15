@@ -22,6 +22,9 @@ Development container for the Claude Code Sidekick project.
 - **GitHub CLI**: gh for GitHub operations
 - **VS Code Extensions**: Prettier, ESLint, TypeScript, YAML
 - **Sudo Access**: Passwordless sudo for node user
+- **Homebrew**: Linux package manager (for beads and other tools)
+- **[agents-config](https://github.com/scotthamilton77/agents-config)**: Claude configuration and scripts, cloned to `/workspaces/agents-config`
+- **[beads](https://github.com/steveyegge/beads)**: AI-native issue tracking (`bd` CLI), installed via Homebrew with Claude plugin
 
 ## Optional Tools
 
