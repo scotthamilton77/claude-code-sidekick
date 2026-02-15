@@ -57,4 +57,6 @@ RUN mkdir -p /home/node/.claude \
     && chown -R node:node /home/node/.claude
 
 # Source secrets file if mounted
-RUN echo '\n# Source API keys from mounted secrets\n[ -r ~/.secrets ] && . ~/.secrets' >> /home/node/.bashrc
+# Source API keys from mounted secrets (both shells)
+RUN echo '\n# Source API keys from mounted secrets\n[ -r ~/.secrets/api-keys ] && . ~/.secrets/api-keys' >> /home/node/.bashrc \
+    && echo '\n# Source API keys from mounted secrets\n[ -r ~/.secrets/api-keys ] && . ~/.secrets/api-keys' >> /home/node/.zshrc
