@@ -351,7 +351,7 @@ async function killAllTrackedDaemons(
   }
 
   try {
-    const results: KillResult[] = await killAllDaemons(logger)
+    const results: KillResult[] = await killAllDaemons(logger, { graceful: true, gracefulTimeoutMs: 3000 })
     for (const result of results) {
       actions.push({
         scope: 'user',
