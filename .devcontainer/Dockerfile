@@ -1,9 +1,8 @@
-FROM mcr.microsoft.com/devcontainers/javascript-node:20
+FROM mcr.microsoft.com/devcontainers/javascript-node:24
 
-# Install comprehensive system dependencies
+# Install system dependencies
 RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
     && apt-get -y install --no-install-recommends \
-    postgresql-client \
     tree \
     jq \
     git \
@@ -15,10 +14,6 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
     unzip \
     zip \
     findutils \
-    build-essential \
-    gcc \
-    g++ \
-    make \
     python3 \
     python3-pip \
     python3-venv \
@@ -38,6 +33,7 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
     less \
     patch \
     rsync \
+    lsof \
     net-tools \
     iputils-ping \
     dnsutils \
@@ -45,28 +41,20 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
     telnet \
     traceroute \
     tcpdump \
-    lsof \
     strace \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Install bun as node user
-USER node
-RUN curl -fsSL https://bun.sh/install | bash
-USER root
-
-# Install global npm packages for development
-RUN npm install -g \
-    typescript \
-    ts-node \
-    nodemon \
-    pm2
+# Install yq (YAML processor, companion to jq)
+RUN curl -fsSL https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -o /usr/local/bin/yq \
+    && chmod +x /usr/local/bin/yq
 
 # Ensure node user has passwordless sudo
 RUN echo "node ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers.d/node
 
-# Create directory structure for optional external mounts with proper permissions
-RUN mkdir -p /home/node/.claude && chown -R node:node /home/node/.claude
+# Create directory structure for mounts with proper permissions
+RUN mkdir -p /home/node/.claude \
+    && chown -R node:node /home/node/.claude
 
-# Docker CLI is already installed in the base image
-# The workspace directory will be created by VS Code during mount
+# Source secrets file if mounted
+RUN echo '\n# Source API keys from mounted secrets\n[ -r ~/.secrets ] && . ~/.secrets' >> /home/node/.bashrc
