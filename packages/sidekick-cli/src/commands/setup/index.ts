@@ -906,6 +906,33 @@ async function runScripted(
     await writePersonaConfig(homeDir, options.personas)
     stdout.write(`✓ Personas ${options.personas ? 'enabled' : 'disabled'}\n`)
     configuredCount++
+
+    // When personas are disabled, mark API key as not-required in user status
+    // (mirrors wizard behavior in writeStatusFiles)
+    if (!options.personas) {
+      const existingUserStatus = await setupService.getUserStatus()
+      const userStatus: UserSetupStatus = existingUserStatus ?? {
+        version: 1,
+        lastUpdatedAt: new Date().toISOString(),
+        preferences: {
+          autoConfigureProjects: false,
+          defaultStatuslineScope: 'user',
+          defaultApiKeyScope: 'skip',
+        },
+        statusline: 'none',
+        apiKeys: {
+          OPENROUTER_API_KEY: SetupStatusService.userApiKeyStatusFromHealth('not-required'),
+          OPENAI_API_KEY: SetupStatusService.userApiKeyStatusFromHealth('not-required'),
+        },
+      }
+      userStatus.apiKeys = {
+        ...userStatus.apiKeys,
+        OPENROUTER_API_KEY: SetupStatusService.userApiKeyStatusFromHealth('not-required'),
+      }
+      userStatus.preferences.defaultApiKeyScope = 'skip'
+      userStatus.lastUpdatedAt = new Date().toISOString()
+      await setupService.writeUserStatus(userStatus)
+    }
   }
 
   // 4. Configure API key if scope specified and env var present
@@ -969,10 +996,16 @@ async function runScripted(
       lastUpdatedAt: new Date().toISOString(),
       autoConfigured: false,
       statusline: options.statuslineScope ?? existingProject?.statusline ?? 'none',
-      apiKeys: existingProject?.apiKeys ?? {
-        OPENROUTER_API_KEY: SetupStatusService.projectApiKeyStatusFromHealth('not-required'),
-        OPENAI_API_KEY: SetupStatusService.projectApiKeyStatusFromHealth('not-required'),
-      },
+      apiKeys:
+        options.personas === false
+          ? {
+              OPENROUTER_API_KEY: SetupStatusService.projectApiKeyStatusFromHealth('not-required'),
+              OPENAI_API_KEY: SetupStatusService.projectApiKeyStatusFromHealth('not-required'),
+            }
+          : (existingProject?.apiKeys ?? {
+              OPENROUTER_API_KEY: SetupStatusService.projectApiKeyStatusFromHealth('not-required'),
+              OPENAI_API_KEY: SetupStatusService.projectApiKeyStatusFromHealth('not-required'),
+            }),
       gitignore: options.gitignore ? 'installed' : (existingProject?.gitignore ?? 'unknown'),
       ...(existingProject?.devMode !== undefined && { devMode: existingProject.devMode }),
     }

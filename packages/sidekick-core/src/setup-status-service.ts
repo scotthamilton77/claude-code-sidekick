@@ -201,6 +201,26 @@ export class SetupStatusService {
     return path.join(this.projectDir, '.sidekick', 'setup-status.json')
   }
 
+  // === Feature config ===
+
+  /**
+   * Check if personas are enabled by reading ~/.sidekick/features.yaml.
+   * Returns true if enabled or if the config doesn't exist (default on).
+   */
+  async isPersonasEnabled(): Promise<boolean> {
+    const featuresPath = path.join(this.homeDir, '.sidekick', 'features.yaml')
+    try {
+      const content = await fs.readFile(featuresPath, 'utf-8')
+      const match = /^personas:\s*\n\s*enabled:\s*(true|false)/m.exec(content)
+      if (match) {
+        return match[1] === 'true'
+      }
+      return true // default: enabled
+    } catch {
+      return true // file doesn't exist: default enabled
+    }
+  }
+
   // === Low-level read/write ===
 
   async getUserStatus(): Promise<UserSetupStatus | null> {
@@ -983,6 +1003,12 @@ export class SetupStatusService {
         used: projectApiKeyStatus.used,
         scopes: projectApiKeyStatus.scopes,
       }
+    }
+
+    // If personas are disabled, OPENROUTER_API_KEY is not required regardless of live detection
+    const personasEnabled = await this.isPersonasEnabled()
+    if (!personasEnabled && apiKeyResults.OPENROUTER_API_KEY.actual === 'missing') {
+      apiKeyResults.OPENROUTER_API_KEY.actual = 'not-required'
     }
 
     // Determine overall health
