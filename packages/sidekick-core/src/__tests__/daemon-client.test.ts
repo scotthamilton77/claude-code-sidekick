@@ -1419,4 +1419,95 @@ describe('killAllDaemons', () => {
 
     killSpy.mockRestore()
   })
+
+  it('should attempt graceful stop before SIGKILL when graceful option is true', async () => {
+    const pidInfo: UserPidInfo = {
+      pid: process.pid,
+      projectDir: tmpUserDir,
+      startedAt: new Date().toISOString(),
+    }
+
+    const pidFilePath = path.join(getUserDaemonsDir(), 'graceful.pid')
+    await fs.writeFile(pidFilePath, JSON.stringify(pidInfo))
+
+    // Mock process.kill for alive check
+    const killSpy = vi.spyOn(process, 'kill').mockImplementation((_pid, signal) => {
+      if (signal === 0) return true
+      if (signal === 'SIGKILL') return true
+      return true
+    })
+
+    // Mock DaemonClient.stopAndWait to succeed
+    const stopAndWaitMock = vi.fn().mockResolvedValue(true)
+    vi.spyOn(DaemonClient.prototype, 'stopAndWait').mockImplementation(stopAndWaitMock)
+
+    const results = await killAllDaemons(logger, { graceful: true, gracefulTimeoutMs: 3000 })
+
+    expect(results).toHaveLength(1)
+    expect(results[0].killed).toBe(true)
+    expect(stopAndWaitMock).toHaveBeenCalledWith(3000)
+    // SIGKILL should NOT have been sent (graceful succeeded)
+    expect(killSpy).not.toHaveBeenCalledWith(process.pid, 'SIGKILL')
+
+    killSpy.mockRestore()
+  })
+
+  it('should fall back to SIGKILL when graceful stop fails', async () => {
+    const pidInfo: UserPidInfo = {
+      pid: process.pid,
+      projectDir: tmpUserDir,
+      startedAt: new Date().toISOString(),
+    }
+
+    const pidFilePath = path.join(getUserDaemonsDir(), 'fallback.pid')
+    await fs.writeFile(pidFilePath, JSON.stringify(pidInfo))
+
+    const killSpy = vi.spyOn(process, 'kill').mockImplementation((_pid, signal) => {
+      if (signal === 0) return true
+      if (signal === 'SIGKILL') return true
+      return true
+    })
+
+    // Mock DaemonClient.stopAndWait to fail
+    vi.spyOn(DaemonClient.prototype, 'stopAndWait').mockResolvedValue(false)
+
+    const results = await killAllDaemons(logger, { graceful: true, gracefulTimeoutMs: 3000 })
+
+    expect(results).toHaveLength(1)
+    expect(results[0].killed).toBe(true)
+    // SIGKILL should have been sent as fallback
+    expect(killSpy).toHaveBeenCalledWith(process.pid, 'SIGKILL')
+
+    killSpy.mockRestore()
+  })
+
+  it('should skip graceful stop when graceful option is false (default)', async () => {
+    const pidInfo: UserPidInfo = {
+      pid: process.pid,
+      projectDir: tmpUserDir,
+      startedAt: new Date().toISOString(),
+    }
+
+    const pidFilePath = path.join(getUserDaemonsDir(), 'nograceful.pid')
+    await fs.writeFile(pidFilePath, JSON.stringify(pidInfo))
+
+    const killSpy = vi.spyOn(process, 'kill').mockImplementation((_pid, signal) => {
+      if (signal === 0) return true
+      if (signal === 'SIGKILL') return true
+      return true
+    })
+
+    const stopAndWaitSpy = vi.spyOn(DaemonClient.prototype, 'stopAndWait')
+
+    const results = await killAllDaemons(logger)
+
+    expect(results).toHaveLength(1)
+    expect(results[0].killed).toBe(true)
+    // No graceful stop attempted
+    expect(stopAndWaitSpy).not.toHaveBeenCalled()
+    // Straight to SIGKILL
+    expect(killSpy).toHaveBeenCalledWith(process.pid, 'SIGKILL')
+
+    killSpy.mockRestore()
+  })
 })
