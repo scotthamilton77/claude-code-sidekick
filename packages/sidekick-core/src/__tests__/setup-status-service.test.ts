@@ -1132,6 +1132,70 @@ describe('SetupStatusService', () => {
 
       expect(result.apiKeys.OPENROUTER_API_KEY.used).toBeNull()
     })
+
+    it('reports not-required when personas are disabled and no API key present', async () => {
+      // Write features.yaml with personas disabled
+      const sidekickDir = path.join(homeDir, '.sidekick')
+      await fs.mkdir(sidekickDir, { recursive: true })
+      await fs.writeFile(path.join(sidekickDir, 'features.yaml'), 'personas:\n  enabled: false\n')
+
+      const result = await service.runDoctorCheck({ skipValidation: true })
+
+      expect(result.apiKeys.OPENROUTER_API_KEY.actual).toBe('not-required')
+    })
+
+    it('reports healthy when personas are disabled but API key exists', async () => {
+      // Write features.yaml with personas disabled
+      const sidekickDir = path.join(homeDir, '.sidekick')
+      await fs.mkdir(sidekickDir, { recursive: true })
+      await fs.writeFile(path.join(sidekickDir, 'features.yaml'), 'personas:\n  enabled: false\n')
+      // But also have an API key present
+      await writeEnvFile('user', 'OPENROUTER_API_KEY=sk-test-key\n')
+
+      const result = await service.runDoctorCheck({ skipValidation: true })
+
+      // Key is present and healthy — should report healthy, not not-required
+      expect(result.apiKeys.OPENROUTER_API_KEY.actual).toBe('healthy')
+    })
+
+    it('reports missing when personas are enabled and no API key present', async () => {
+      // Write features.yaml with personas enabled
+      const sidekickDir = path.join(homeDir, '.sidekick')
+      await fs.mkdir(sidekickDir, { recursive: true })
+      await fs.writeFile(path.join(sidekickDir, 'features.yaml'), 'personas:\n  enabled: true\n')
+
+      const result = await service.runDoctorCheck({ skipValidation: true })
+
+      // Personas enabled, no key — should remain missing
+      expect(result.apiKeys.OPENROUTER_API_KEY.actual).toBe('missing')
+    })
+  })
+
+  describe('isPersonasEnabled', () => {
+    it('returns true when features.yaml does not exist', async () => {
+      expect(await service.isPersonasEnabled()).toBe(true)
+    })
+
+    it('returns true when personas enabled in features.yaml', async () => {
+      const sidekickDir = path.join(homeDir, '.sidekick')
+      await fs.mkdir(sidekickDir, { recursive: true })
+      await fs.writeFile(path.join(sidekickDir, 'features.yaml'), 'personas:\n  enabled: true\n')
+      expect(await service.isPersonasEnabled()).toBe(true)
+    })
+
+    it('returns false when personas disabled in features.yaml', async () => {
+      const sidekickDir = path.join(homeDir, '.sidekick')
+      await fs.mkdir(sidekickDir, { recursive: true })
+      await fs.writeFile(path.join(sidekickDir, 'features.yaml'), 'personas:\n  enabled: false\n')
+      expect(await service.isPersonasEnabled()).toBe(false)
+    })
+
+    it('returns true when features.yaml exists but has no personas section', async () => {
+      const sidekickDir = path.join(homeDir, '.sidekick')
+      await fs.mkdir(sidekickDir, { recursive: true })
+      await fs.writeFile(path.join(sidekickDir, 'features.yaml'), 'reminders:\n  enabled: true\n')
+      expect(await service.isPersonasEnabled()).toBe(true)
+    })
   })
 
   describe('buildUserApiKeyStatus', () => {

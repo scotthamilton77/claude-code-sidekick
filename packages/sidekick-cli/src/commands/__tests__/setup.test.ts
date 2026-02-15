@@ -504,6 +504,76 @@ describe('handleSetupCommand', () => {
     })
   })
 
+  describe('scripted mode - --no-personas updates status files', () => {
+    test('marks API key as not-required in user status when personas disabled', async () => {
+      const result = await handleSetupCommand(projectDir, logger, output, {
+        personas: false,
+        homeDir,
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(output.data).toContain('Personas disabled')
+
+      // User status should have OPENROUTER_API_KEY marked as not-required
+      const userStatusPath = path.join(homeDir, '.sidekick', 'setup-status.json')
+      const content = await readFile(userStatusPath, 'utf-8')
+      const status = JSON.parse(content)
+      expect(status.apiKeys.OPENROUTER_API_KEY.status).toBe('not-required')
+      expect(status.preferences.defaultApiKeyScope).toBe('skip')
+    })
+
+    test('marks API key as not-required in project status when personas disabled', async () => {
+      const result = await handleSetupCommand(projectDir, logger, output, {
+        personas: false,
+        homeDir,
+      })
+
+      expect(result.exitCode).toBe(0)
+
+      // Project status should have OPENROUTER_API_KEY marked as not-required
+      const projectStatusPath = path.join(projectDir, '.sidekick', 'setup-status.json')
+      const content = await readFile(projectStatusPath, 'utf-8')
+      const status = JSON.parse(content)
+      expect(status.apiKeys.OPENROUTER_API_KEY.status).toBe('not-required')
+    })
+
+    test('overwrites existing healthy API key status when personas disabled', async () => {
+      // Pre-populate with healthy API key status (from previous setup with personas enabled)
+      const sidekickDir = path.join(projectDir, '.sidekick')
+      await mkdir(sidekickDir, { recursive: true })
+      await writeFile(
+        path.join(sidekickDir, 'setup-status.json'),
+        JSON.stringify({
+          version: 1,
+          lastUpdatedAt: new Date().toISOString(),
+          autoConfigured: false,
+          statusline: 'user',
+          apiKeys: {
+            OPENROUTER_API_KEY: {
+              used: 'user',
+              status: 'healthy',
+              scopes: { project: 'missing', user: 'healthy', env: 'missing' },
+            },
+            OPENAI_API_KEY: 'not-required',
+          },
+          gitignore: 'installed',
+        })
+      )
+
+      const result = await handleSetupCommand(projectDir, logger, output, {
+        personas: false,
+        homeDir,
+      })
+
+      expect(result.exitCode).toBe(0)
+
+      // Project status should now show not-required, not healthy
+      const content = await readFile(path.join(sidekickDir, 'setup-status.json'), 'utf-8')
+      const status = JSON.parse(content)
+      expect(status.apiKeys.OPENROUTER_API_KEY.status).toBe('not-required')
+    })
+  })
+
   describe('scripted mode - dev-mode scope guard', () => {
     async function enableDevMode(): Promise<void> {
       const sidekickDir = path.join(projectDir, '.sidekick')
