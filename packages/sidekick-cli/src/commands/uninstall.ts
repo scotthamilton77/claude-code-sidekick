@@ -12,7 +12,8 @@ import { execFile } from 'node:child_process'
 import { Readable } from 'node:stream'
 import type { Writable } from 'node:stream'
 import type { Logger } from '@sidekick/types'
-import { DaemonClient, removeGitignoreSection, SetupStatusService } from '@sidekick/core'
+import { DaemonClient, killAllDaemons, removeGitignoreSection, SetupStatusService } from '@sidekick/core'
+import type { KillResult } from '@sidekick/core'
 
 export interface UninstallCommandOptions {
   /** Skip confirmation prompts */
@@ -72,6 +73,11 @@ export async function handleUninstallCommand(
   // Step 2: Kill daemons (project scope)
   if (projectDetected) {
     await killDaemon(projectDir, logger, stdout, actions, { dryRun })
+  }
+
+  // Step 2b: Kill ALL tracked daemons (user scope)
+  if (userDetected) {
+    await killAllTrackedDaemons(logger, stdout, actions, { dryRun })
   }
 
   // Step 3: Settings.json surgery
@@ -325,6 +331,37 @@ async function killDaemon(
     })
   } catch (err) {
     logger.debug('Daemon kill failed (may not be running)', { error: (err as Error).message })
+  }
+}
+
+async function killAllTrackedDaemons(
+  logger: Logger,
+  _stdout: Writable,
+  actions: UninstallAction[],
+  options: { dryRun: boolean }
+): Promise<void> {
+  if (options.dryRun) {
+    actions.push({
+      scope: 'user',
+      artifact: 'All tracked daemons',
+      path: '~/.sidekick/daemons/',
+      action: 'would-remove',
+    })
+    return
+  }
+
+  try {
+    const results: KillResult[] = await killAllDaemons(logger)
+    for (const result of results) {
+      actions.push({
+        scope: 'user',
+        artifact: `Daemon (PID ${result.pid})`,
+        path: result.projectDir,
+        action: result.killed ? 'removed' : 'skipped',
+      })
+    }
+  } catch (err) {
+    logger.debug('killAllDaemons failed', { error: (err as Error).message })
   }
 }
 
