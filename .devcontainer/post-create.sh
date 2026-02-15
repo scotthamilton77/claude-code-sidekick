@@ -76,10 +76,12 @@ if ! command -v brew >/dev/null 2>&1; then
 fi
 
 # Clone and install agents-config (sibling to workspace)
+# Note: /workspaces is owned by root, so we need sudo to clone there
 WORKSPACE_PARENT="$(dirname "$PWD")"
 if [ ! -d "$WORKSPACE_PARENT/agents-config" ]; then
   echo "Cloning agents-config..."
-  git clone https://github.com/scotthamilton77/agents-config.git "$WORKSPACE_PARENT/agents-config"
+  sudo git clone https://github.com/scotthamilton77/agents-config.git "$WORKSPACE_PARENT/agents-config"
+  sudo chown -R "$(id -u):$(id -g)" "$WORKSPACE_PARENT/agents-config"
 fi
 echo "Running agents-config install..."
 bash "$WORKSPACE_PARENT/agents-config/scripts/install.sh" --yes
@@ -90,11 +92,19 @@ if ! command -v bd >/dev/null 2>&1; then
   brew install beads
 fi
 
-echo "Setting up beads..."
-bd setup claude
-bd setup-codex
+# echo "Setting up beads..."
+# bd setup claude
+# bd setup codex
 
-echo "Installing beads Claude plugin..."
+echo "Installing Claude plugins..."
+claude plugin marketplace add https://github.com/anthropics/claude-plugins-official.git
+claude plugin install code-review@claude-plugins-official
+claude plugin install code-simplifier@claude-plugins-official
+claude plugin install context7@claude-plugins-official
+claude plugin install frontend-design@claude-plugins-official
+claude plugin install playwright@claude-plugins-official
+claude plugin install superpowers@claude-plugins-official
+claude plugin install typescript-lsp@claude-plugins-official
 claude plugin marketplace add steveyegge/beads
 claude plugin install beads
 
