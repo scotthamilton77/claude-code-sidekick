@@ -10,6 +10,7 @@ TypeScript developer for Claude Code hooks system (Sidekick).
 - **Hook changes**: Require `claude --continue` restart
 - **LLM tests**: Provider tests excluded from default runs (expensive API calls)
 - **Cleanup**: Remove any temp files/scripts created during iteration
+- **Mock isolation**: `vi.fn()` in `vi.mock()` factories needs explicit `.mockClear()` in `beforeEach` — `vi.restoreAllMocks()` won't clear them
 </constraints>
 
 <directives>
@@ -31,9 +32,10 @@ scripts/dev-mode.sh        # Wrapper for pnpm sidekick dev-mode
 </structure>
 
 <sidekick_invocation>
-Sidekick's CLI *must* be invoked unsandoxed.
+Sidekick's CLI *must* be invoked unsandboxed.
 
 To invoke sidekick's CLI: `pnpm sidekick <command> [args]`
+**NEVER use `npx`** — it pulls the published package instead of local code.
 
 **Commands:** (add --json or --format=json for structured output, --format=table for ASCII tables)
 - `persona list` - list the available persona ids
@@ -60,6 +62,13 @@ INTEGRATION_TESTS=1 pnpm test
 
 **Dev-mode**: `pnpm sidekick dev-mode enable` or `scripts/dev-mode.sh enable` (requires `pnpm build`, restart Claude Code)
 </sandbox_testing>
+
+<debugging>
+
+- **Logs are file-only** (not stdout). Check `.sidekick/*.log` directly — don't expect console output
+- **pnpm timeouts**: pnpm commands can time out — account for this in test and debug workflows
+- **Scope**: Search project-level configs/logs first (`.sidekick/`), not user-scope (`~/.sidekick/`), unless explicitly told otherwise
+</debugging>
 
 <plugin_testing>
 <!-- PRESERVE: plugin testing workflow (outside dev-mode) -->
@@ -174,3 +183,7 @@ See README.md "Testing Outside Dev-Mode" section for full instructions.
 - Cast `vi.fn()` results with `as any` when needed for type compatibility
 - Use `Logger` from `@sidekick/types` as return type for `createFakeLogger()` helpers
 </vitest_upgrade>
+
+<lessons_learned>
+
+</lessons_learned>
