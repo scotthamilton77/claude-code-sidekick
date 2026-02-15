@@ -7,7 +7,7 @@
   },
 
   "mounts": [
-    // Mount host secrets file (read-only) for API keys
+    // Mount host secrets directory (read-only) for API keys
     "source=${localEnv:HOME}/.secrets,target=/home/node/.secrets,type=bind,readonly"
   ],
 
