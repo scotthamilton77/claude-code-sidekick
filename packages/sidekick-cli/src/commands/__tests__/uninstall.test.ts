@@ -646,6 +646,63 @@ describe('handleUninstallCommand', () => {
       const env = await readFile(path.join(tempDir, '.sidekick', '.env'), 'utf-8')
       expect(env).toBeTruthy()
     })
+
+    test('does not kill daemon or uninstall plugin in dry-run mode', async () => {
+      // Mock: plugin list returns sidekick
+      mockExecFile.mockImplementation(
+        (cmd: string, args: string[], callback: (err: Error | null, stdout: string, stderr: string) => void) => {
+          if (args.includes('list')) {
+            callback(
+              null,
+              JSON.stringify([{ id: 'sidekick@claude-code-sidekick', version: '0.0.8', scope: 'user', enabled: true }]),
+              ''
+            )
+          } else if (args.includes('uninstall')) {
+            callback(null, '', '')
+          } else {
+            callback(null, '[]', '')
+          }
+        }
+      )
+      mockDaemonKill.mockResolvedValue({ killed: true })
+
+      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(tempDir, '.sidekick', 'sidekickd.pid'), '12345')
+
+      const result = await handleUninstallCommand(tempDir, logger, stdout, {
+        force: true,
+        dryRun: true,
+        scope: 'project',
+        userHome,
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(stdout.data).toContain('dry-run')
+      // Daemon should NOT have been killed
+      expect(mockDaemonKill).not.toHaveBeenCalled()
+      // Plugin uninstall should NOT have been called
+      const uninstallCall = mockExecFile.mock.calls.find((call: any[]) => call[1]?.includes('uninstall'))
+      expect(uninstallCall).toBeUndefined()
+      // Files should still exist
+      const pid = await readFile(path.join(tempDir, '.sidekick', 'sidekickd.pid'), 'utf-8')
+      expect(pid).toBe('12345')
+    })
+
+    test('--dry-run flag is propagated through CLI arg parsing (regression)', async () => {
+      // This test verifies that the CLI arg parser correctly threads --dry-run
+      // through to the uninstall handler. Previously, parseArgs() omitted dry-run
+      // from its return value, causing --dry-run to execute a real uninstall.
+      const { initializeRuntime } = await import('../../cli.js')
+
+      const { parsed } = initializeRuntime({
+        argv: ['uninstall', '--dry-run', '--force'],
+        enableFileLogging: false,
+      })
+
+      expect(parsed['dry-run']).toBe(true)
+      expect(parsed.command).toBe('uninstall')
+      expect(parsed.force).toBe(true)
+    })
   })
 
   describe('report', () => {

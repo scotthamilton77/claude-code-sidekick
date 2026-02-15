@@ -121,11 +121,11 @@ async function copySkillForDev(projectDir: string, stdout: NodeJS.WritableStream
   await rm(destSkillDir, { recursive: true, force: true })
   await cp(srcSkillDir, destSkillDir, { recursive: true })
 
-  // Transform SKILL.md: npx @sidekick/cli → pnpm sidekick
+  // Transform SKILL.md: npx @scotthamilton77/sidekick → pnpm sidekick
   const skillMdPath = path.join(destSkillDir, 'SKILL.md')
   if (await fileExists(skillMdPath)) {
     const content = await readFile(skillMdPath, 'utf-8')
-    const transformed = content.replace(/npx @sidekick\/cli/g, 'pnpm sidekick')
+    const transformed = content.replace(/npx @scotthamilton77\/sidekick/g, 'pnpm sidekick')
     await writeFile(skillMdPath, transformed)
   }
 
@@ -461,7 +461,11 @@ async function doEnable(projectDir: string, stdout: NodeJS.WritableStream): Prom
 /**
  * Disable dev-mode hooks.
  */
-async function doDisable(projectDir: string, stdout: NodeJS.WritableStream): Promise<DevModeCommandResult> {
+async function doDisable(
+  projectDir: string,
+  logger: Logger,
+  stdout: NodeJS.WritableStream
+): Promise<DevModeCommandResult> {
   log(stdout, 'step', 'Disabling dev-mode hooks...')
 
   const settingsPath = path.join(projectDir, '.claude', 'settings.local.json')
@@ -530,6 +534,13 @@ async function doDisable(projectDir: string, stdout: NodeJS.WritableStream): Pro
     if (removed) {
       log(stdout, 'info', 'Removed .gitignore entries for .sidekick/')
     }
+  }
+
+  // Kill running daemon to avoid orphaned processes
+  const daemonClient = new DaemonClient(projectDir, logger)
+  const killResult = await daemonClient.kill()
+  if (killResult.killed) {
+    log(stdout, 'info', `Killed daemon (PID ${killResult.pid})`)
   }
 
   log(stdout, 'info', '')
@@ -835,7 +846,7 @@ export async function handleDevModeCommand(
     case 'enable':
       return doEnable(projectDir, stdout)
     case 'disable':
-      return doDisable(projectDir, stdout)
+      return doDisable(projectDir, logger, stdout)
     case 'status':
       return doStatus(projectDir, stdout)
     case 'clean':

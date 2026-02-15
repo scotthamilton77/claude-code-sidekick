@@ -17,6 +17,7 @@ import path from 'node:path'
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest'
 import type { Logger } from '@sidekick/types'
 import { handleDevModeCommand } from '../dev-mode'
+import { DaemonClient } from '@sidekick/core'
 
 // CollectingWritable to capture stdout output
 class CollectingWritable extends Writable {
@@ -93,6 +94,22 @@ describe('handleDevModeCommand', () => {
     }
     // Create mock CLI binary
     await writeFile(path.join(tempDir, 'packages', 'sidekick-cli', 'dist', 'bin.js'), '')
+    // Create mock plugin skill source directory with SKILL.md
+    const skillSrcDir = path.join(tempDir, 'packages', 'sidekick-plugin', 'skills', 'sidekick-config')
+    await mkdir(skillSrcDir, { recursive: true })
+    await writeFile(
+      path.join(skillSrcDir, 'SKILL.md'),
+      [
+        '# Sidekick Config Skill',
+        '',
+        '```bash',
+        'npx @scotthamilton77/sidekick doctor',
+        '```',
+        '',
+        'Run `npx @scotthamilton77/sidekick setup --force` to configure.',
+        '',
+      ].join('\n')
+    )
   })
 
   afterEach(async () => {
@@ -220,6 +237,22 @@ describe('handleDevModeCommand', () => {
       expect(status.devMode).toBe(true)
       expect(status.statusline).toBe('local')
       expect(status.gitignore).toBe('installed')
+    })
+
+    test('copies SKILL.md and transforms npx @scotthamilton77/sidekick to pnpm sidekick', async () => {
+      const result = await handleDevModeCommand('enable', tempDir, logger, stdout)
+
+      expect(result.exitCode).toBe(0)
+
+      // Verify the skill was copied and transformed
+      const destSkillMd = path.join(tempDir, '.claude', 'skills', 'sidekick-config', 'SKILL.md')
+      const content = await readFile(destSkillMd, 'utf-8')
+
+      // Should have replaced npx @scotthamilton77/sidekick with pnpm sidekick
+      expect(content).toContain('pnpm sidekick doctor')
+      expect(content).toContain('pnpm sidekick setup --force')
+      // Should NOT contain the original npx references
+      expect(content).not.toContain('npx @scotthamilton77/sidekick')
     })
 
     test('updates existing setup-status.json to local statusline and installed gitignore', async () => {
@@ -367,6 +400,43 @@ describe('handleDevModeCommand', () => {
       // Gitignore section should be preserved
       const gitignoreContent = await readFile(path.join(tempDir, '.gitignore'), 'utf-8')
       expect(gitignoreContent).toContain('# >>> sidekick')
+    })
+
+    test('kills running daemon during disable', async () => {
+      // Configure DaemonClient mock to report a killed daemon
+      const mockKill = vi.fn().mockResolvedValue({ killed: true, pid: 12345 })
+      vi.mocked(DaemonClient).mockImplementation(function () {
+        return { kill: mockKill } as any
+      })
+
+      // Enable first
+      await handleDevModeCommand('enable', tempDir, logger, stdout)
+      stdout.data = ''
+
+      // Disable
+      const result = await handleDevModeCommand('disable', tempDir, logger, stdout)
+
+      expect(result.exitCode).toBe(0)
+      expect(mockKill).toHaveBeenCalled()
+      expect(stdout.data).toContain('Killed daemon')
+      expect(stdout.data).toContain('12345')
+
+      // Restore default mock behavior for other tests
+      vi.mocked(DaemonClient).mockImplementation(function () {
+        return { kill: vi.fn().mockResolvedValue({ killed: false }) } as any
+      })
+    })
+
+    test('does not log kill message when no daemon running during disable', async () => {
+      // Enable first
+      await handleDevModeCommand('enable', tempDir, logger, stdout)
+      stdout.data = ''
+
+      // Disable (default mock returns killed: false)
+      const result = await handleDevModeCommand('disable', tempDir, logger, stdout)
+
+      expect(result.exitCode).toBe(0)
+      expect(stdout.data).not.toContain('Killed daemon')
     })
   })
 
