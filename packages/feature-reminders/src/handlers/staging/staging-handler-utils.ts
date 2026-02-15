@@ -59,7 +59,10 @@ export function createStagingHandler(context: RuntimeContext, config: StagingHan
     // Skip staging during bulk transcript reconstruction - staging is a live operation
     // that shouldn't be triggered by historical event replay. Handlers for
     // BulkProcessingComplete can stage reminders needed after reconstruction.
-    if (isTranscriptEvent(event) && event.metadata.isBulkProcessing) return
+    if (isTranscriptEvent(event) && event.metadata.isBulkProcessing) {
+      ;(ctx as unknown as DaemonContext).logger.debug('Skipped staging during bulk processing', { handlerId: id })
+      return
+    }
 
     const daemonCtx = ctx as unknown as DaemonContext
     const action = await execute(event, daemonCtx)
