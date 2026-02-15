@@ -186,4 +186,5 @@ See README.md "Testing Outside Dev-Mode" section for full instructions.
 
 <lessons_learned>
 
+- **Monorepo dep upgrades**: When changing a dependency version in root `package.json`, update ALL workspace `package.json` files referencing the same dep. Run `pnpm install` and verify `pnpm-lock.yaml` reflects one version.
 </lessons_learned>
