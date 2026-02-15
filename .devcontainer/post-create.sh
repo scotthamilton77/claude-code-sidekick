@@ -63,6 +63,41 @@ if [ "$INSTALL_CLAUDE_CODE" = "true" ]; then
   export PATH="$HOME/.claude/bin:$PATH"
 fi
 
+# Install Homebrew (needed for beads and other tools)
+if ! command -v brew >/dev/null 2>&1; then
+  echo "Installing Homebrew..."
+  NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+  # Add brew to PATH for current and future sessions
+  if [ -d "/home/linuxbrew/.linuxbrew" ]; then
+    eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+    echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> ~/.bashrc
+  fi
+fi
+
+# Clone and install agents-config (sibling to workspace)
+WORKSPACE_PARENT="$(dirname "$PWD")"
+if [ ! -d "$WORKSPACE_PARENT/agents-config" ]; then
+  echo "Cloning agents-config..."
+  git clone https://github.com/scotthamilton77/agents-config.git "$WORKSPACE_PARENT/agents-config"
+fi
+echo "Running agents-config install..."
+bash "$WORKSPACE_PARENT/agents-config/scripts/install.sh" --yes
+
+# Install and configure beads
+if ! command -v bd >/dev/null 2>&1; then
+  echo "Installing beads..."
+  brew install beads
+fi
+
+echo "Setting up beads..."
+bd setup claude
+bd setup-codex
+
+echo "Installing beads Claude plugin..."
+claude plugin marketplace add steveyegge/beads
+claude plugin install beads
+
 # Install Gemini CLI if requested
 if [ "$INSTALL_GEMINI_CLI" = "true" ]; then
   echo "Installing Gemini CLI..."
@@ -102,7 +137,12 @@ fi
 echo ""
 echo "Development environment setup complete!"
 echo ""
-echo "Installed AI Tools:"
+echo "Always-Installed Tools:"
+echo "  - Homebrew (package manager)"
+echo "  - agents-config (Claude configuration)"
+echo "  - beads (AI-native issue tracking)"
+echo ""
+echo "Optional AI Tools:"
 [ "$INSTALL_CLAUDE_CODE" = "true" ] && echo "  - Claude Code CLI"
 [ "$INSTALL_GEMINI_CLI" = "true" ] && echo "  - Gemini CLI"
 [ "$INSTALL_CODEX_CLI" = "true" ] && echo "  - OpenAI Codex CLI"
