@@ -1,24 +1,16 @@
 {
-  "name": "Node AI Stack Dev Environment",
+  "name": "Sidekick Dev",
 
-  // Use custom Dockerfile
   "build": {
     "dockerfile": "Dockerfile",
     "context": "."
   },
 
-  // Mounts - Configure via .env file
-  // Uncomment and customize as needed based on your .env configuration
   "mounts": [
-    // Docker socket for Docker-in-Docker (SECURITY: only for trusted projects)
-    // "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
+    // Mount host secrets file (read-only) for API keys
+    "source=${localEnv:HOME}/.secrets,target=/home/node/.secrets,type=bind,readonly"
   ],
 
-  // Connect to external Docker network (e.g., for PostgreSQL)
-  // Uncomment if using external database container
-  // "runArgs": ["--network=${localEnv:DOCKER_NETWORK}"],
-
-  // Run post-creation setup script
   "postCreateCommand": "bash .devcontainer/post-create.sh",
 
   "customizations": {
@@ -27,8 +19,7 @@
         "esbenp.prettier-vscode",
         "dbaeumer.vscode-eslint",
         "redhat.vscode-yaml",
-        "ms-vscode.vscode-typescript-next",
-        "ckolkman.vscode-postgres"
+        "ms-vscode.vscode-typescript-next"
       ],
       "settings": {
         "terminal.integrated.defaultProfile.linux": "bash",
@@ -44,39 +35,17 @@
     }
   },
 
-  // Forward ports for services
-  "forwardPorts": [5432, 3000],
+  "forwardPorts": [3000],
   "portsAttributes": {
-    "5432": { "label": "PostgreSQL", "onAutoForward": "silent" },
     "3000": { "label": "Web App", "onAutoForward": "notify" }
   },
 
-  // Pass through API keys from host environment
   "remoteEnv": {
-    // AI API Keys
-    "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}",
-    "PERPLEXITY_API_KEY": "${localEnv:PERPLEXITY_API_KEY}",
-    "OPENAI_API_KEY": "${localEnv:OPENAI_API_KEY}",
-    "GOOGLE_API_KEY": "${localEnv:GOOGLE_API_KEY}",
-    "XAI_API_KEY": "${localEnv:XAI_API_KEY}",
-    "OPENROUTER_API_KEY": "${localEnv:OPENROUTER_API_KEY}",
-    "MISTRAL_API_KEY": "${localEnv:MISTRAL_API_KEY}",
-    "GROQ_API_KEY": "${localEnv:GROQ_API_KEY}",
-
-    // Database Configuration (optional)
-    "POSTGRES_HOST": "${localEnv:POSTGRES_HOST}",
-    "POSTGRES_PORT": "${localEnv:POSTGRES_PORT}",
-    "POSTGRES_DB": "${localEnv:POSTGRES_DB}",
-    "POSTGRES_USER": "${localEnv:POSTGRES_USER}",
-    "POSTGRES_PASSWORD": "${localEnv:POSTGRES_PASSWORD}",
-
-    // Installation Flags (passed to post-create script)
-    // Note: install.sh will replace these with actual values
+    // Installation flags (passed to post-create script)
     "INSTALL_CLAUDE_CODE": "true",
     "INSTALL_GEMINI_CLI": "true",
     "INSTALL_CODEX_CLI": "true",
     "INSTALL_UV": "true",
-    "INSTALL_SPECIFY_CLI": "true",
     "PYTHON_VERSION": "latest",
 
     // Mark as devcontainer environment for scripts
