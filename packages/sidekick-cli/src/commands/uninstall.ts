@@ -303,8 +303,26 @@ async function killDaemon(
 
   try {
     const client = new DaemonClient(projectDir, logger)
+
+    // Try graceful shutdown first (3s timeout)
+    const stopped = await client.stopAndWait(3000).catch(() => false)
+
+    if (stopped) {
+      logger.info('Daemon stopped gracefully')
+      actions.push({ scope: 'project', artifact: 'Daemon process', path: projectDir, action: 'removed' })
+      return
+    }
+
+    // Graceful failed — force kill
+    logger.info('Graceful stop failed, killing daemon forcefully')
     const result = await client.kill()
     logger.info('Daemon kill result', { result })
+    actions.push({
+      scope: 'project',
+      artifact: 'Daemon process',
+      path: projectDir,
+      action: result.killed ? 'removed' : 'not-found',
+    })
   } catch (err) {
     logger.debug('Daemon kill failed (may not be running)', { error: (err as Error).message })
   }
