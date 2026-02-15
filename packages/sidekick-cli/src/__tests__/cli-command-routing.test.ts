@@ -28,11 +28,13 @@ class CollectingWritable extends Writable {
 }
 
 // Mock handlers - return observable exit codes
-const { mockHandleDaemonCommand, mockHandleStatuslineCommand, mockHandleUiCommand } = vi.hoisted(() => ({
-  mockHandleDaemonCommand: vi.fn(),
-  mockHandleStatuslineCommand: vi.fn(),
-  mockHandleUiCommand: vi.fn(),
-}))
+const { mockHandleDaemonCommand, mockHandleStatuslineCommand, mockHandleUiCommand, mockHandleSetupCommand } =
+  vi.hoisted(() => ({
+    mockHandleDaemonCommand: vi.fn(),
+    mockHandleStatuslineCommand: vi.fn(),
+    mockHandleUiCommand: vi.fn(),
+    mockHandleSetupCommand: vi.fn(),
+  }))
 
 // Mock the command handler modules
 vi.mock('../commands/daemon.js', () => ({
@@ -46,6 +48,10 @@ vi.mock('../commands/statusline.js', () => ({
 
 vi.mock('../commands/ui.js', () => ({
   handleUiCommand: mockHandleUiCommand,
+}))
+
+vi.mock('../commands/setup.js', () => ({
+  handleSetupCommand: mockHandleSetupCommand,
 }))
 
 // Mock @sidekick/core to prevent actual operations during CLI routing tests
@@ -303,6 +309,51 @@ describe('CLI command routing', () => {
       })
 
       expect(result.exitCode).toBe(0)
+    })
+  })
+
+  describe('setup command', () => {
+    test('accepts --check and routes to doctor mode', async () => {
+      mockHandleSetupCommand.mockResolvedValue({ exitCode: 0 })
+
+      const result = await runCli({
+        argv: ['setup', '--check'],
+        stdout,
+        stderr,
+        cwd: projectDir,
+        enableFileLogging: false,
+      })
+
+      expect(result.exitCode).toBe(0)
+      // Should NOT be rejected as unrecognized
+      expect(stdout.data).not.toContain('Unrecognized option')
+      // Handler should be called with checkOnly: true
+      expect(mockHandleSetupCommand).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(Object),
+        expect.any(Object),
+        expect.objectContaining({ checkOnly: true })
+      )
+    })
+
+    test('passes --only filter through with --check', async () => {
+      mockHandleSetupCommand.mockResolvedValue({ exitCode: 0 })
+
+      const result = await runCli({
+        argv: ['setup', '--check', '--only', 'liveness'],
+        stdout,
+        stderr,
+        cwd: projectDir,
+        enableFileLogging: false,
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(mockHandleSetupCommand).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(Object),
+        expect.any(Object),
+        expect.objectContaining({ checkOnly: true, only: 'liveness' })
+      )
     })
   })
 

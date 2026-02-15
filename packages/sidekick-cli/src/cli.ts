@@ -63,6 +63,7 @@ interface ParsedArgs {
   help?: boolean
   version?: boolean
   kill?: boolean
+  check?: boolean
   force?: boolean
   forceDevMode?: boolean
   'dry-run'?: boolean
@@ -114,6 +115,7 @@ const CLI_OPTIONS = {
     'force',
     'force-dev-mode',
     'dry-run',
+    'check',
     'gitignore',
     'personas',
   ] as const,
@@ -192,8 +194,10 @@ function parseArgs(argv: string[]): ParsedArgs {
     help: Boolean(parsed.help),
     version: Boolean(parsed.version),
     kill: Boolean(parsed.kill),
+    check: Boolean(parsed.check),
     force: Boolean(parsed.force),
     forceDevMode: Boolean(parsed['force-dev-mode']),
+    'dry-run': Boolean(parsed['dry-run']),
     _: parsed._,
     // Setup command scripting flags - only set if explicitly provided
     statuslineScope: parsed['statusline-scope'] as 'user' | 'project' | 'local' | undefined,
@@ -555,7 +559,8 @@ Examples:
     const { handleSetupCommand } = await import('./commands/setup.js')
     const result = await handleSetupCommand(runtime.projectRoot || process.cwd(), runtime.logger, stdout, {
       help: parsed.help,
-      checkOnly: parsed._?.[1] === '--check',
+      checkOnly: parsed.check,
+      only: parsed.only,
       stdin: process.stdin,
       // Scripting flags for non-interactive setup
       statuslineScope: parsed.statuslineScope,
