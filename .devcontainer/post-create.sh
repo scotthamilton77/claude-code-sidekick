@@ -4,7 +4,7 @@ set -e
 echo "Setting up Sidekick development environment..."
 
 # Source secrets if mounted (needed for non-interactive post-create context)
-[ -r ~/.secrets ] && . ~/.secrets
+[ -r ~/.secrets/api-keys ] && . ~/.secrets/api-keys
 
 # Read installation flags from environment
 INSTALL_UV=${INSTALL_UV:-false}
