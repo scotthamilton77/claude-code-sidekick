@@ -1160,7 +1160,7 @@ async function runDoctor(
     stdout.write(`${overallIcon} Overall: ${isHealthy ? 'healthy' : 'needs attention'}\n`)
 
     if (!isHealthy) {
-      stdout.write("\nRun 'sidekick setup' to configure.\n")
+      stdout.write("\nRun 'sidekick doctor --fix' to auto-fix, or 'sidekick setup' to configure interactively.\n")
     }
 
     return { exitCode: isHealthy ? 0 : 1 }
