@@ -209,7 +209,6 @@ export {
 
 export { readDaemonHealth, updateDaemonHealth } from './daemon-health'
 export { isInSandbox } from './sandbox'
-export { getGitFileStatus, parseGitStatusOutput } from './git-status'
 
 // Note: LLMService should be imported directly from '@sidekick/shared-providers'
 // to avoid circular dependencies between packages
