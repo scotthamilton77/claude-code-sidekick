@@ -33,7 +33,13 @@ export function registerStageStopReminders(context: RuntimeContext): void {
 
       // Check if file path matches any configured source code patterns
       const isMatch = picomatch.isMatch(filePath, config.source_code_patterns)
-      if (!isMatch) return undefined
+      if (!isMatch) {
+        ctx.logger.debug('VC staging: file edit skipped (no pattern match)', {
+          toolName,
+          filePath,
+        })
+        return undefined
+      }
 
       const metrics = event.metadata.metrics
 
@@ -43,8 +49,26 @@ export function registerStageStopReminders(context: RuntimeContext): void {
       if (lastConsumed?.stagedAt) {
         const shouldReactivate = metrics.turnCount > lastConsumed.stagedAt.turnCount
 
-        if (!shouldReactivate) return undefined
+        if (!shouldReactivate) {
+          ctx.logger.debug('VC staging: skipped (already consumed this turn)', {
+            currentTurn: metrics.turnCount,
+            lastConsumedTurn: lastConsumed.stagedAt.turnCount,
+          })
+          return undefined
+        }
+        ctx.logger.info('VC staging: reactivating on new turn', {
+          currentTurn: metrics.turnCount,
+          lastConsumedTurn: lastConsumed.stagedAt.turnCount,
+        })
       }
+
+      ctx.logger.info('VC staging: staging verify-completion', {
+        toolName,
+        filePath,
+        turnCount: metrics.turnCount,
+        toolCount: metrics.toolCount,
+        firstTimeThisSession: !lastConsumed,
+      })
 
       return {
         reminderId: ReminderIds.VERIFY_COMPLETION,

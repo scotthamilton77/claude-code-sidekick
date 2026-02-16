@@ -45,6 +45,16 @@ export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
         const config = { ...DEFAULT_REMINDERS_SETTINGS, ...featureConfig.settings }
         const maxCycles = config.max_verification_cycles ?? 0
 
+        daemonCtx.logger.info('VC unstage: unverified changes detected on UserPromptSubmit', {
+          sessionId,
+          cycleCount: unverifiedState.cycleCount,
+          maxCycles,
+          lastCategory: unverifiedState.lastClassification.category,
+          lastConfidence: unverifiedState.lastClassification.confidence,
+          setAtTurn: unverifiedState.setAt.turnCount,
+          setAtToolCount: unverifiedState.setAt.toolCount,
+        })
+
         if (maxCycles === 0 || unverifiedState.cycleCount < maxCycles) {
           // Re-stage verify-completion for next Stop
           const reminder = resolveReminder(ReminderIds.VERIFY_COMPLETION, {
@@ -63,28 +73,35 @@ export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
                 toolCount: unverifiedState.setAt.toolCount,
               },
             })
-            daemonCtx.logger.info('Re-staged verify-completion due to unverified changes', {
+            daemonCtx.logger.info('VC unstage: re-staged for next Stop', {
+              sessionId,
               cycleCount: unverifiedState.cycleCount,
               lastCategory: unverifiedState.lastClassification.category,
             })
             // Don't delete - we just re-staged it
             return
           } else {
-            daemonCtx.logger.warn('Failed to resolve verify-completion reminder for re-staging')
+            daemonCtx.logger.warn('VC unstage: failed to resolve reminder for re-staging')
           }
         } else {
           // Cycle limit reached - delete vc-unverified state
-          daemonCtx.logger.info('Verification cycle limit reached, not re-staging', {
+          daemonCtx.logger.info('VC unstage: cycle limit reached, clearing', {
+            sessionId,
             cycleCount: unverifiedState.cycleCount,
             maxCycles,
           })
           await remindersState.vcUnverified.delete(sessionId)
         }
+      } else {
+        daemonCtx.logger.info('VC unstage: no unverified changes, clearing reminder', {
+          sessionId,
+          hadState: unverifiedState !== null,
+        })
       }
 
       // Delete the existing staged reminder (no unverified state or limit reached)
       await daemonCtx.staging.deleteReminder('Stop', ReminderIds.VERIFY_COMPLETION)
-      daemonCtx.logger.debug('Unstaged verify-completion reminder on UserPromptSubmit')
+      daemonCtx.logger.debug('VC unstage: deleted staged verify-completion reminder')
     },
   })
 }
