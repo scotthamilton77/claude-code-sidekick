@@ -380,6 +380,7 @@ vi.mock('@sidekick/core', async (importOriginal) => {
     DaemonClient: vi.fn().mockImplementation(function () {
       return { start: mockDaemonStart }
     }),
+    updateDaemonHealth: vi.fn().mockResolvedValue(false),
   }
 })
 
@@ -1059,15 +1060,22 @@ describe('handleUnifiedHookCommand', () => {
     test('gracefully handles daemon start failure', async () => {
       mockDaemonStart.mockRejectedValue(new Error('Daemon failed to start within timeout'))
 
+      const { updateDaemonHealth } = await import('@sidekick/core')
+      const mockUpdateHealth = vi.mocked(updateDaemonHealth)
+      mockUpdateHealth.mockClear()
+
       const stdout = new CollectingWritable()
       const result = await handleUnifiedHookCommand('SessionStart', baseOptions, mockLogger, stdout)
 
       // Should not crash - exit code should be 0
       expect(result.exitCode).toBe(0)
       expect(mockDaemonStart).toHaveBeenCalledOnce()
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        'Failed to start daemon for hook, proceeding without daemon features',
-        expect.objectContaining({ error: 'Daemon failed to start within timeout' })
+      // Should write daemon health as failed (via updateDaemonHealth)
+      expect(mockUpdateHealth).toHaveBeenCalledWith(
+        '/project',
+        'failed',
+        expect.anything(),
+        'Daemon failed to start within timeout'
       )
       // Hook should still complete
       expect(mockHandleHookCommand).toHaveBeenCalled()
