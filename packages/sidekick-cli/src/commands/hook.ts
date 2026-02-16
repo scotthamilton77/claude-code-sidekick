@@ -296,6 +296,8 @@ export interface HandleHookOptions {
   hookInput: ParsedHookInput
   correlationId: string
   runtime: RuntimeShell
+  /** Whether the daemon is available for IPC. When false, IPC send is skipped. */
+  daemonAvailable?: boolean
 }
 
 export interface HandleHookResult {
@@ -350,67 +352,69 @@ export async function handleHookCommand(
   })
   registerCLIFeatures(cliContext)
 
-  // Create IpcService for daemon communication
-  const ipcService = new IpcService(projectRoot, logger)
-
-  try {
-    // Send hook event to daemon via IPC
-    // Graceful degradation: returns null if daemon unavailable
-    const daemonResponse = await ipcService.send<HookResponse>('hook.invoke', {
-      hook: hookName,
-      event,
-    })
-
-    if (daemonResponse === null) {
-      logger.warn('Daemon unavailable for hook', { hook: hookName })
-    } else {
-      logger.debug('Received hook response from daemon', {
+  // Send hook event to daemon via IPC (gated on daemon availability)
+  let daemonResponse: HookResponse | null = null
+  if (options.daemonAvailable !== false) {
+    const ipcService = new IpcService(projectRoot, logger)
+    try {
+      daemonResponse = await ipcService.send<HookResponse>('hook.invoke', {
         hook: hookName,
-        hasBlocking: daemonResponse?.blocking,
-        hasContext: !!daemonResponse?.additionalContext,
+        event,
       })
+
+      if (daemonResponse === null) {
+        logger.warn('Daemon unavailable for hook', { hook: hookName })
+      } else {
+        logger.debug('Received hook response from daemon', {
+          hook: hookName,
+          hasBlocking: daemonResponse?.blocking,
+          hasContext: !!daemonResponse?.additionalContext,
+        })
+      }
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err))
+      logger.error('Hook dispatch failed', { hook: hookName, error: error.message })
+
+      // Log HookCompleted event (failure case)
+      logEvent(logger, LogEvents.hookCompleted(logContext, { durationMs: Date.now() - startTime }))
+
+      // Return empty response to allow action to proceed
+      stdout.write('{}\n')
+      return { exitCode: 0, output: '{}' }
+    } finally {
+      ipcService.close()
     }
-
-    // Invoke CLI-side consumption handlers
-    const cliResponse = await cliContext.handlers.invokeHook(hookName, event)
-
-    logger.debug('CLI handlers invoked', {
-      hook: hookName,
-      hasCliResponse: !!cliResponse,
-      hasBlocking: cliResponse?.blocking,
-    })
-
-    // Merge responses (CLI takes precedence)
-    const mergedResponse = mergeHookResponses(daemonResponse, cliResponse ?? {})
-
-    // Output internal HookResponse format
-    const outputStr = JSON.stringify(mergedResponse)
-    stdout.write(`${outputStr}\n`)
-
-    // Log HookCompleted event
-    logEvent(
-      logger,
-      LogEvents.hookCompleted(
-        logContext,
-        { durationMs: Date.now() - startTime },
-        { reminderReturned: !!mergedResponse.additionalContext }
-      )
-    )
-
-    return { exitCode: 0, output: outputStr }
-  } catch (err) {
-    const error = err instanceof Error ? err : new Error(String(err))
-    logger.error('Hook dispatch failed', { hook: hookName, error: error.message })
-
-    // Log HookCompleted event (failure case)
-    logEvent(logger, LogEvents.hookCompleted(logContext, { durationMs: Date.now() - startTime }))
-
-    // Return empty response to allow action to proceed
-    stdout.write('{}\n')
-    return { exitCode: 0, output: '{}' }
-  } finally {
-    ipcService.close()
+  } else {
+    logger.debug('Skipping IPC send - daemon not available', { hook: hookName })
   }
+
+  // Invoke CLI-side consumption handlers
+  const cliResponse = await cliContext.handlers.invokeHook(hookName, event)
+
+  logger.debug('CLI handlers invoked', {
+    hook: hookName,
+    hasCliResponse: !!cliResponse,
+    hasBlocking: cliResponse?.blocking,
+  })
+
+  // Merge responses (CLI takes precedence)
+  const mergedResponse = mergeHookResponses(daemonResponse, cliResponse ?? {})
+
+  // Output internal HookResponse format
+  const outputStr = JSON.stringify(mergedResponse)
+  stdout.write(`${outputStr}\n`)
+
+  // Log HookCompleted event
+  logEvent(
+    logger,
+    LogEvents.hookCompleted(
+      logContext,
+      { durationMs: Date.now() - startTime },
+      { reminderReturned: !!mergedResponse.additionalContext }
+    )
+  )
+
+  return { exitCode: 0, output: outputStr }
 }
 /**
  * Check if a CLI command string represents a hook command.
