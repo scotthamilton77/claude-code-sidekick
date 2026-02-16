@@ -248,6 +248,9 @@ export class TranscriptServiceImpl implements TranscriptService {
   /** Track whether we're in bulk processing mode (first-time transcript replay) */
   private isBulkProcessing = false
 
+  /** Map tool_use_id → tool name so ToolResult events can include the tool name */
+  private toolUseIdToName = new Map<string, string>()
+
   // Streaming state for incremental file processing
   /** Byte offset of last processed position in transcript file */
   private lastProcessedByteOffset = 0
@@ -1472,11 +1475,16 @@ export class TranscriptServiceImpl implements TranscriptService {
    * Real transcripts have: assistant.message.content[{type: 'tool_use', name: '...'}]
    */
   private async processNestedToolUses(entry: TranscriptEntry, lineNumber: number): Promise<void> {
-    const message = entry.message as { content?: Array<{ type?: string; name?: string }> } | undefined
+    const message = entry.message as { content?: Array<{ type?: string; id?: string; name?: string }> } | undefined
     if (!message?.content || !Array.isArray(message.content)) return
 
     for (const block of message.content) {
       if (block.type === 'tool_use') {
+        // Track tool_use_id → name so ToolResult events can resolve the tool name
+        if (block.id && block.name) {
+          this.toolUseIdToName.set(block.id, block.name)
+        }
+
         // Count the tool call (increment here so metrics are current when ToolCall event fires)
         this.metrics.toolCount++
         this.metrics.toolsThisTurn++
@@ -1505,10 +1513,14 @@ export class TranscriptServiceImpl implements TranscriptService {
 
     for (const block of message.content) {
       if (block.type === 'tool_result') {
+        // Resolve tool name from preceding tool_use block
+        const toolName = block.tool_use_id ? this.toolUseIdToName.get(block.tool_use_id) : undefined
+
         // Emit ToolResult event for each tool_result block
         const toolEntry: TranscriptEntry = {
           type: 'tool_result',
           ...block,
+          ...(toolName ? { tool_name: toolName } : {}),
         }
         await this.emitEvent('ToolResult', toolEntry, lineNumber)
       }
