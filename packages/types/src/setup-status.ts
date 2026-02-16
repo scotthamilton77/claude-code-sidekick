@@ -156,3 +156,20 @@ export const ProjectSetupStatusSchema = z.object({
   devMode: z.boolean().optional(),
 })
 export type ProjectSetupStatus = z.infer<typeof ProjectSetupStatusSchema>
+
+/**
+ * Daemon runtime health status.
+ * Tracks whether the daemon process started successfully.
+ * Written by CLI on state transitions, read by statusline.
+ *
+ * @see docs/plans/2026-02-16-daemon-health-state-design.md
+ */
+export const DaemonHealthStatusSchema = z.enum(['unknown', 'healthy', 'failed'])
+export type DaemonHealthStatus = z.infer<typeof DaemonHealthStatusSchema>
+
+export const DaemonHealthSchema = z.object({
+  status: DaemonHealthStatusSchema,
+  lastCheckedAt: z.string(),
+  error: z.string().optional(),
+})
+export type DaemonHealth = z.infer<typeof DaemonHealthSchema>
