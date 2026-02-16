@@ -15,7 +15,14 @@
 
 import type { Writable } from 'node:stream'
 import type { Logger, SetupState } from '@sidekick/core'
-import { DaemonClient, SetupStatusService, createAssetResolver, getDefaultAssetsDir, isInSandbox } from '@sidekick/core'
+import {
+  DaemonClient,
+  SetupStatusService,
+  createAssetResolver,
+  getDefaultAssetsDir,
+  isInSandbox,
+  updateDaemonHealth,
+} from '@sidekick/core'
 import type { HookName, ParsedHookInput } from '@sidekick/types'
 import type { RuntimeShell } from '../runtime.js'
 import { handleHookCommand, type HookResponse } from './hook.js'
@@ -357,11 +364,11 @@ async function ensureDaemonForHook(projectRoot: string, logger: Logger): Promise
     const daemonClient = new DaemonClient(projectRoot, logger)
     await daemonClient.start()
     logger.debug('Daemon started for hook execution')
+    await updateDaemonHealth(projectRoot, 'healthy', logger)
     return true
   } catch (err) {
-    logger.warn('Failed to start daemon for hook, proceeding without daemon features', {
-      error: err instanceof Error ? err.message : String(err),
-    })
+    const errorMessage = err instanceof Error ? err.message : String(err)
+    await updateDaemonHealth(projectRoot, 'failed', logger, errorMessage)
     return false
   }
 }
