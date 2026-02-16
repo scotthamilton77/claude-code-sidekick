@@ -728,4 +728,137 @@ describe('handleSetupCommand', () => {
       expect(output.data).toContain('needs attention')
     })
   })
+
+  describe('doctor --fix mode', () => {
+    test('fixes missing gitignore', async () => {
+      await handleSetupCommand(projectDir, logger, output, {
+        checkOnly: true,
+        fix: true,
+        homeDir,
+      })
+
+      // Should have attempted to fix gitignore
+      expect(output.data).toContain('Gitignore')
+      // Check that .gitignore was created with sidekick section
+      const gitignorePath = path.join(projectDir, '.gitignore')
+      const content = await readFile(gitignorePath, 'utf-8')
+      expect(content).toContain('# >>> sidekick')
+    })
+
+    test('fixes missing statusline by configuring at user scope', async () => {
+      // Create user setup-status so that check doesn't fail on missing user setup
+      const sidekickDir = path.join(homeDir, '.sidekick')
+      await mkdir(sidekickDir, { recursive: true })
+      await writeFile(
+        path.join(sidekickDir, 'setup-status.json'),
+        JSON.stringify({
+          version: 1,
+          lastUpdatedAt: new Date().toISOString(),
+          preferences: { autoConfigureProjects: true, defaultStatuslineScope: 'user', defaultApiKeyScope: 'skip' },
+          statusline: 'none',
+          apiKeys: { OPENROUTER_API_KEY: 'not-required', OPENAI_API_KEY: 'not-required' },
+        })
+      )
+
+      await handleSetupCommand(projectDir, logger, output, {
+        checkOnly: true,
+        fix: true,
+        homeDir,
+      })
+
+      expect(output.data).toContain('Statusline')
+      // User-level settings.json should have been created with statusline
+      const settingsPath = path.join(homeDir, '.claude', 'settings.json')
+      const content = await readFile(settingsPath, 'utf-8')
+      const settings = JSON.parse(content)
+      expect(settings.statusLine.command).toContain('sidekick')
+    })
+
+    test('fixes missing user setup-status file', async () => {
+      // No user setup-status.json exists
+      await handleSetupCommand(projectDir, logger, output, {
+        checkOnly: true,
+        fix: true,
+        homeDir,
+      })
+
+      expect(output.data).toContain('User Setup')
+      // User setup-status.json should now exist
+      const statusPath = path.join(homeDir, '.sidekick', 'setup-status.json')
+      const content = await readFile(statusPath, 'utf-8')
+      const status = JSON.parse(content)
+      expect(status.version).toBe(1)
+    })
+
+    test('skips API key issues with guidance message', async () => {
+      // Create user setup with missing API key
+      const sidekickDir = path.join(homeDir, '.sidekick')
+      await mkdir(sidekickDir, { recursive: true })
+      await writeFile(
+        path.join(sidekickDir, 'setup-status.json'),
+        JSON.stringify({
+          version: 1,
+          lastUpdatedAt: new Date().toISOString(),
+          preferences: { autoConfigureProjects: true, defaultStatuslineScope: 'user', defaultApiKeyScope: 'user' },
+          statusline: 'user',
+          apiKeys: { OPENROUTER_API_KEY: 'missing', OPENAI_API_KEY: 'not-required' },
+        })
+      )
+
+      // Create statusline so that's not a problem
+      const claudeDir = path.join(homeDir, '.claude')
+      await mkdir(claudeDir, { recursive: true })
+      await writeFile(
+        path.join(claudeDir, 'settings.json'),
+        JSON.stringify({ statusLine: { command: 'npx @scotthamilton77/sidekick statusline' } })
+      )
+
+      const result = await handleSetupCommand(projectDir, logger, output, {
+        checkOnly: true,
+        fix: true,
+        homeDir,
+      })
+
+      // API key can't be auto-fixed — should mention manual setup and exit 1
+      expect(output.data).toContain('sidekick setup')
+      expect(result.exitCode).toBe(1)
+    })
+
+    test('prints fix actions and reports unfixable issues', async () => {
+      // Start with no config at all — everything unhealthy
+      // After --fix: statusline, gitignore, user setup should be fixed
+      // API key remains unfixable (personas enabled by default)
+      const result = await handleSetupCommand(projectDir, logger, output, {
+        checkOnly: true,
+        fix: true,
+        homeDir,
+      })
+
+      // Should have printed fix actions
+      expect(output.data).toContain('Fixing')
+      // API key is unfixable → exit 1
+      expect(result.exitCode).toBe(1)
+      expect(output.data).toContain('Requires manual action')
+    })
+
+    test('respects --only filter during fix', async () => {
+      const result = await handleSetupCommand(projectDir, logger, output, {
+        checkOnly: true,
+        fix: true,
+        only: 'gitignore',
+        homeDir,
+      })
+
+      expect(result.exitCode).toBe(0)
+
+      // Should fix gitignore
+      const gitignorePath = path.join(projectDir, '.gitignore')
+      const content = await readFile(gitignorePath, 'utf-8')
+      expect(content).toContain('# >>> sidekick')
+
+      // Should NOT have created statusline settings (not in --only)
+      const settingsPath = path.join(homeDir, '.claude', 'settings.json')
+      await expect(readFile(settingsPath, 'utf-8')).rejects.toThrow()
+    })
+  })
 })

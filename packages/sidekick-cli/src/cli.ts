@@ -340,7 +340,7 @@ Commands:
   dev-mode <subcommand>    Manage development hooks (enable, disable, status, clean)
   ui                       Launch the web UI
   setup                    Run the setup wizard (configure statusline, API keys)
-  doctor                   Check sidekick health (alias: setup --check)
+  doctor [--fix]           Check sidekick health (--fix to auto-repair)
 
 Global Options:
   --help, -h               Show this help message
