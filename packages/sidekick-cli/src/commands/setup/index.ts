@@ -1098,6 +1098,10 @@ async function runDoctor(
           const statuslineIcon = result.statusline.actual !== 'none' ? '✓' : '⚠'
           stdout.write(`${statuslineIcon} Statusline: ${result.statusline.actual}\n`)
         }
+        if (!result.userSetupExists) {
+          const setupIcon = '⚠'
+          stdout.write(`${setupIcon} User Setup: missing (~/.sidekick/setup-status.json not found)\n`)
+        }
       })
     )
   }

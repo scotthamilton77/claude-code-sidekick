@@ -1169,6 +1169,78 @@ describe('SetupStatusService', () => {
       // Personas enabled, no key — should remain missing
       expect(result.apiKeys.OPENROUTER_API_KEY.actual).toBe('missing')
     })
+
+    it('reports unhealthy when user setup-status file is missing but project exists', async () => {
+      // Project status has correct cache — no fixes trigger, so user file never gets created.
+      // But getSetupState() returns 'not-run' because user file is missing.
+      await writeClaudeSettings('project', {
+        statusLine: { type: 'command', command: 'sidekick statusline' },
+      })
+      await writeEnvFile('project', 'OPENROUTER_API_KEY=sk-test-key\n')
+      await service.writeProjectStatus(
+        createProjectStatus({
+          statusline: 'project',
+          apiKeys: {
+            OPENROUTER_API_KEY: {
+              status: 'healthy',
+              scopes: { project: 'healthy', user: 'missing', env: 'missing' },
+              used: 'project',
+            },
+            OPENAI_API_KEY: 'not-required',
+          },
+        })
+      )
+
+      const result = await service.runDoctorCheck({ skipValidation: true })
+
+      expect(result.userSetupExists).toBe(false)
+      expect(result.overallHealth).toBe('unhealthy')
+    })
+
+    it('reports healthy when user setup-status file exists with valid config', async () => {
+      await writeClaudeSettings('user', {
+        statusLine: { type: 'command', command: 'sidekick statusline' },
+      })
+      await writeEnvFile('user', 'OPENROUTER_API_KEY=sk-test-key\n')
+      await service.writeUserStatus(
+        createUserStatus({
+          statusline: 'user',
+          apiKeys: { OPENROUTER_API_KEY: 'healthy', OPENAI_API_KEY: 'not-required' },
+        })
+      )
+
+      const result = await service.runDoctorCheck({ skipValidation: true })
+
+      expect(result.userSetupExists).toBe(true)
+      expect(result.overallHealth).toBe('healthy')
+    })
+
+    it('does not add user setup warning to cache fixes array', async () => {
+      // User file missing is a diagnostic finding, not a cache correction
+      await writeClaudeSettings('project', {
+        statusLine: { type: 'command', command: 'sidekick statusline' },
+      })
+      await writeEnvFile('project', 'OPENROUTER_API_KEY=sk-test-key\n')
+      await service.writeProjectStatus(
+        createProjectStatus({
+          statusline: 'project',
+          apiKeys: {
+            OPENROUTER_API_KEY: {
+              status: 'healthy',
+              scopes: { project: 'healthy', user: 'missing', env: 'missing' },
+              used: 'project',
+            },
+            OPENAI_API_KEY: 'not-required',
+          },
+        })
+      )
+
+      const result = await service.runDoctorCheck({ skipValidation: true })
+
+      // fixes only contains cache corrections, not diagnostic findings
+      expect(result.fixes).toHaveLength(0)
+      expect(result.userSetupExists).toBe(false)
+    })
   })
 
   describe('isPersonasEnabled', () => {
