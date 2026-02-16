@@ -689,6 +689,89 @@ describe('SetupStatusService', () => {
     })
   })
 
+  describe('getSetupState', () => {
+    it('returns not-run when neither user nor project status exists', async () => {
+      const state = await service.getSetupState()
+      expect(state).toBe('not-run')
+    })
+
+    it('returns partial when user status exists but project does not', async () => {
+      await writeUserStatus(createUserStatus())
+      const state = await service.getSetupState()
+      expect(state).toBe('partial')
+    })
+
+    it('returns healthy when both user and project status exist and are healthy', async () => {
+      await writeUserStatus(createUserStatus({ statusline: 'user' }))
+      await writeProjectStatus(createProjectStatus({ statusline: 'user' }))
+      await writeClaudeSettings('user', {
+        statusLine: { type: 'command', command: 'sidekick statusline' },
+      })
+      await writeEnvFile('user', 'OPENROUTER_API_KEY=sk-test-key\n')
+
+      const state = await service.getSetupState()
+      expect(state).toBe('healthy')
+    })
+
+    it('returns healthy when user status is missing but project is healthy', async () => {
+      // This is the bug: previously returned 'not-run' causing "Sidekick not configured" message
+      await writeProjectStatus(
+        createProjectStatus({
+          statusline: 'project',
+          apiKeys: {
+            OPENROUTER_API_KEY: {
+              status: 'healthy',
+              scopes: { project: 'healthy', user: 'missing', env: 'missing' },
+              used: 'project',
+            },
+            OPENAI_API_KEY: 'not-required',
+          },
+        })
+      )
+      await writeClaudeSettings('project', {
+        statusLine: { type: 'command', command: 'sidekick statusline' },
+      })
+      await writeEnvFile('project', 'OPENROUTER_API_KEY=sk-test-key\n')
+
+      const state = await service.getSetupState()
+      expect(state).toBe('healthy')
+    })
+
+    it('returns unhealthy when user status is missing and project has invalid key', async () => {
+      await writeProjectStatus(
+        createProjectStatus({
+          statusline: 'project',
+          apiKeys: {
+            OPENROUTER_API_KEY: 'invalid',
+            OPENAI_API_KEY: 'not-required',
+          },
+        })
+      )
+      await writeClaudeSettings('project', {
+        statusLine: { type: 'command', command: 'sidekick statusline' },
+      })
+
+      const state = await service.getSetupState()
+      expect(state).toBe('unhealthy')
+    })
+
+    it('returns unhealthy when user status is missing and project has no statusline', async () => {
+      // Project status file exists (setup was run) but config is incomplete
+      await writeProjectStatus(
+        createProjectStatus({
+          statusline: 'none',
+          apiKeys: {
+            OPENROUTER_API_KEY: 'missing',
+            OPENAI_API_KEY: 'not-required',
+          },
+        })
+      )
+
+      const state = await service.getSetupState()
+      expect(state).toBe('unhealthy')
+    })
+  })
+
   describe('detectActualStatusline', () => {
     it('returns "none" when no settings files exist', async () => {
       const result = await service.detectActualStatusline()
