@@ -1053,14 +1053,17 @@ export class SetupStatusService {
     const userStatus = await this.getUserStatus()
     const projectStatus = await this.getProjectStatus()
 
-    if (!userStatus) {
+    if (!userStatus && !projectStatus) {
       return 'not-run'
     }
 
-    if (!projectStatus) {
+    if (userStatus && !projectStatus) {
       return 'partial'
     }
 
+    // Both exist, or project exists without user file.
+    // When user file is missing but project is healthy, treat as functional —
+    // doctor separately flags the missing user file.
     const isHealthy = await this.isHealthy()
     return isHealthy ? 'healthy' : 'unhealthy'
   }
