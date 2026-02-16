@@ -357,6 +357,43 @@ describe('CLI command routing', () => {
     })
   })
 
+  describe('install command (alias for setup)', () => {
+    test('routes to setup handler', async () => {
+      mockHandleSetupCommand.mockResolvedValue({ exitCode: 0 })
+
+      const result = await runCli({
+        argv: ['install'],
+        stdout,
+        stderr,
+        cwd: projectDir,
+        enableFileLogging: false,
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(mockHandleSetupCommand).toHaveBeenCalled()
+    })
+
+    test('passes setup flags through', async () => {
+      mockHandleSetupCommand.mockResolvedValue({ exitCode: 0 })
+
+      const result = await runCli({
+        argv: ['install', '--check'],
+        stdout,
+        stderr,
+        cwd: projectDir,
+        enableFileLogging: false,
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(mockHandleSetupCommand).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(Object),
+        expect.any(Object),
+        expect.objectContaining({ checkOnly: true })
+      )
+    })
+  })
+
   describe('unknown command', () => {
     test('returns error for unknown command', async () => {
       const result = await runCli({

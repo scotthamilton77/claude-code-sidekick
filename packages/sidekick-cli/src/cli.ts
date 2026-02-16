@@ -340,6 +340,7 @@ Commands:
   dev-mode <subcommand>    Manage development hooks (enable, disable, status, clean)
   ui                       Launch the web UI
   setup                    Run the setup wizard (configure statusline, API keys)
+  install                  Alias for setup
   doctor [--fix]           Check sidekick health (--fix to auto-repair)
 
 Global Options:
@@ -558,7 +559,7 @@ Examples:
     return { exitCode: result.exitCode, stdout: '', stderr: '' }
   }
 
-  if (parsed.command === 'setup') {
+  if (parsed.command === 'setup' || parsed.command === 'install') {
     const { handleSetupCommand } = await import('./commands/setup.js')
     const result = await handleSetupCommand(runtime.projectRoot || process.cwd(), runtime.logger, stdout, {
       help: parsed.help,
