@@ -49,7 +49,4 @@ export {
   DaemonGlobalLogMetricsDescriptor,
 } from './log-metrics-descriptors.js'
 
-// Daemon health descriptor
-export { DaemonHealthDescriptor } from './daemon-health-descriptor.js'
-
 // PathResolver is intentionally NOT exported - it's internal to StateService

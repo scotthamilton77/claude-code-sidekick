@@ -8,11 +8,11 @@
  */
 
 import * as fs from 'node:fs/promises'
-import { existsSync, mkdirSync } from 'node:fs'
+import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Logger } from '@sidekick/types'
-import { readDaemonHealth, writeDaemonHealth, updateDaemonHealth } from '../daemon-health.js'
+import { readDaemonHealth, updateDaemonHealth } from '../daemon-health.js'
 
 const TEST_DIR = `/tmp/test-daemon-health-${process.pid}`
 const STATE_DIR = join(TEST_DIR, '.sidekick', 'state')
