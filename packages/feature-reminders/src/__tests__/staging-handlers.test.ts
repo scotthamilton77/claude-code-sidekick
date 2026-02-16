@@ -24,6 +24,7 @@ import type {
   PRBaselineState,
   UserPromptSubmitHookEvent,
 } from '@sidekick/types'
+import { LastStagedPersonaSchema } from '@sidekick/types'
 import { registerStagePauseAndReflect } from '../handlers/staging/stage-pause-and-reflect'
 import { registerStageDefaultUserPrompt } from '../handlers/staging/stage-default-user-prompt'
 import { registerStageStopReminders } from '../handlers/staging/stage-stop-reminders'
@@ -1612,6 +1613,153 @@ additionalContext: "Persona: {{persona_name}} - {{persona_tone}}"
         await restagePersonaRemindersForActiveSessions(ctxFactory, [], logger as any)
 
         expect(ctxFactory).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('persona change detection (last-staged tracking)', () => {
+      const personaReminderYaml = {
+        'reminders/remember-your-persona.yaml': `id: remember-your-persona
+blocking: false
+priority: 5
+persistent: true
+additionalContext: "Persona: {{persona_name}} - {{persona_tone}}"
+`,
+        'reminders/persona-changed.yaml': `id: persona-changed
+blocking: false
+priority: 8
+persistent: false
+additionalContext: "Your persona has changed to: {{persona_name}}"
+`,
+      }
+
+      const personaB = {
+        id: 'vader',
+        display_name: 'Vader',
+        theme: 'A Sith Lord',
+        personality_traits: ['menacing', 'dramatic'],
+        tone_traits: ['deep', 'commanding'],
+        snarky_examples: ['I find your lack of faith disturbing.'],
+      }
+
+      function createCtxWithState(projectDir: string) {
+        const stateService = new MockStateService(projectDir)
+        const ctxWithState = createMockDaemonContext({
+          staging,
+          logger,
+          handlers,
+          assets,
+          stateService,
+          paths: {
+            projectDir,
+            userConfigDir: '/mock/user',
+            projectConfigDir: '/mock/project-config',
+          },
+        })
+        assets.registerAll(personaReminderYaml)
+        return { stateService, ctx: ctxWithState }
+      }
+
+      it('does NOT stage persona-changed on first staging (never_staged → persona)', async () => {
+        const { stateService, ctx: testCtx } = createCtxWithState('/tmp/claude/test-change-detect-1')
+        setupPersonaState(stateService, 'skippy')
+        setupPersonaLoader('skippy', testPersona)
+
+        await stagePersonaRemindersForSession(testCtx, sessionId, { includeChangedReminder: true })
+
+        expect(staging.getRemindersForHook('UserPromptSubmit').some((r) => r.name === 'remember-your-persona')).toBe(
+          true
+        )
+        expect(staging.getRemindersForHook('UserPromptSubmit').some((r) => r.name === 'persona-changed')).toBe(false)
+      })
+
+      it('stages persona-changed when persona genuinely changes (A → B)', async () => {
+        const { stateService, ctx: testCtx } = createCtxWithState('/tmp/claude/test-change-detect-2')
+
+        setupPersonaState(stateService, 'skippy')
+        setupPersonaLoader('skippy', testPersona)
+        await stagePersonaRemindersForSession(testCtx, sessionId)
+
+        await staging.deleteReminder('UserPromptSubmit', 'remember-your-persona')
+        await staging.deleteReminder('SessionStart', 'remember-your-persona')
+
+        setupPersonaState(stateService, 'vader')
+        setupPersonaLoader('vader', personaB)
+        await stagePersonaRemindersForSession(testCtx, sessionId, { includeChangedReminder: true })
+
+        expect(staging.getRemindersForHook('UserPromptSubmit').some((r) => r.name === 'persona-changed')).toBe(true)
+      })
+
+      it('does NOT stage persona-changed when same persona is re-staged', async () => {
+        const { stateService, ctx: testCtx } = createCtxWithState('/tmp/claude/test-change-detect-3')
+        setupPersonaState(stateService, 'skippy')
+        setupPersonaLoader('skippy', testPersona)
+
+        await stagePersonaRemindersForSession(testCtx, sessionId)
+        await stagePersonaRemindersForSession(testCtx, sessionId, { includeChangedReminder: true })
+
+        expect(staging.getRemindersForHook('UserPromptSubmit').some((r) => r.name === 'persona-changed')).toBe(false)
+      })
+
+      it('stages persona-changed when going from cleared → persona mid-session', async () => {
+        const { stateService, ctx: testCtx } = createCtxWithState('/tmp/claude/test-change-detect-4')
+
+        setupPersonaState(stateService, 'skippy')
+        setupPersonaLoader('skippy', testPersona)
+        await stagePersonaRemindersForSession(testCtx, sessionId)
+
+        // Clear persona
+        const personaPath = stateService.sessionStatePath(sessionId, 'session-persona.json')
+        await stateService.delete(personaPath)
+        mockCreatePersonaLoader.mockReturnValue({ discover: () => new Map() })
+        await stagePersonaRemindersForSession(testCtx, sessionId)
+
+        await staging.deleteReminder('UserPromptSubmit', 'remember-your-persona')
+        await staging.deleteReminder('SessionStart', 'remember-your-persona')
+
+        setupPersonaState(stateService, 'vader')
+        setupPersonaLoader('vader', personaB)
+        await stagePersonaRemindersForSession(testCtx, sessionId, { includeChangedReminder: true })
+
+        expect(staging.getRemindersForHook('UserPromptSubmit').some((r) => r.name === 'persona-changed')).toBe(true)
+      })
+
+      it('does NOT stage persona-changed on SessionStart path (no includeChangedReminder)', async () => {
+        const { stateService, ctx: testCtx } = createCtxWithState('/tmp/claude/test-change-detect-5')
+        setupPersonaState(stateService, 'skippy')
+        setupPersonaLoader('skippy', testPersona)
+
+        await stagePersonaRemindersForSession(testCtx, sessionId)
+
+        expect(staging.getRemindersForHook('UserPromptSubmit').some((r) => r.name === 'persona-changed')).toBe(false)
+      })
+
+      it('writes last-staged state after successful staging', async () => {
+        const { stateService, ctx: testCtx } = createCtxWithState('/tmp/claude/test-change-detect-6')
+        setupPersonaState(stateService, 'skippy')
+        setupPersonaLoader('skippy', testPersona)
+
+        await stagePersonaRemindersForSession(testCtx, sessionId)
+
+        const lastStagedPath = stateService.sessionStatePath(sessionId, 'last-staged-persona.json')
+        const result = await stateService.read(lastStagedPath, LastStagedPersonaSchema, null)
+        expect(result.data).toEqual({ personaId: 'skippy' })
+      })
+
+      it('writes null personaId to last-staged state when clearing', async () => {
+        const { stateService, ctx: testCtx } = createCtxWithState('/tmp/claude/test-change-detect-7')
+
+        setupPersonaState(stateService, 'skippy')
+        setupPersonaLoader('skippy', testPersona)
+        await stagePersonaRemindersForSession(testCtx, sessionId)
+
+        const personaPath = stateService.sessionStatePath(sessionId, 'session-persona.json')
+        await stateService.delete(personaPath)
+        mockCreatePersonaLoader.mockReturnValue({ discover: () => new Map() })
+        await stagePersonaRemindersForSession(testCtx, sessionId)
+
+        const lastStagedPath = stateService.sessionStatePath(sessionId, 'last-staged-persona.json')
+        const result = await stateService.read(lastStagedPath, LastStagedPersonaSchema, null)
+        expect(result.data).toEqual({ personaId: null })
       })
     })
   })

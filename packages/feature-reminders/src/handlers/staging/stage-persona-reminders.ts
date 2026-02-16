@@ -12,7 +12,13 @@
 import type { RuntimeContext } from '@sidekick/core'
 import { createPersonaLoader, getDefaultPersonasDir } from '@sidekick/core'
 import type { DaemonContext, HookName, Logger, PersonaDefinition, SidekickEvent, HandlerContext } from '@sidekick/types'
-import { isDaemonContext, isHookEvent, isSessionStartEvent, SessionPersonaStateSchema } from '@sidekick/types'
+import {
+  isDaemonContext,
+  isHookEvent,
+  isSessionStartEvent,
+  LastStagedPersonaSchema,
+  SessionPersonaStateSchema,
+} from '@sidekick/types'
 import { resolveReminder, stageReminder } from '../../reminder-utils.js'
 import { ReminderIds } from '../../types.js'
 
@@ -54,12 +60,19 @@ const PERSONA_REMINDER_HOOKS: HookName[] = ['UserPromptSubmit', 'SessionStart']
 /**
  * Remove all persona-related reminders from staging.
  * Used when persona injection is disabled or no active persona exists.
+ * Records the cleared state for change detection when a prior staging exists.
  */
-async function clearPersonaReminders(ctx: DaemonContext): Promise<void> {
+async function clearPersonaReminders(ctx: DaemonContext, sessionId: string): Promise<void> {
   for (const hook of PERSONA_REMINDER_HOOKS) {
     await ctx.staging.deleteReminder(hook, ReminderIds.REMEMBER_YOUR_PERSONA)
   }
   await ctx.staging.deleteReminder('UserPromptSubmit', ReminderIds.PERSONA_CHANGED)
+
+  // Record that persona was explicitly cleared (distinguishes from never-staged)
+  const lastStaged = await readLastStagedPersona(ctx, sessionId)
+  if (lastStaged !== null) {
+    await writeLastStagedPersona(ctx, sessionId, null)
+  }
 }
 
 /**
@@ -98,6 +111,27 @@ async function loadPersonaForSession(ctx: DaemonContext, sessionId: string): Pro
 }
 
 /**
+ * Read the last-staged persona state for change detection.
+ * Returns null if no state file exists (never staged).
+ */
+async function readLastStagedPersona(
+  ctx: DaemonContext,
+  sessionId: string
+): Promise<{ personaId: string | null } | null> {
+  const path = ctx.stateService.sessionStatePath(sessionId, 'last-staged-persona.json')
+  const result = await ctx.stateService.read(path, LastStagedPersonaSchema, null)
+  return result.data
+}
+
+/**
+ * Write last-staged persona state after staging.
+ */
+async function writeLastStagedPersona(ctx: DaemonContext, sessionId: string, personaId: string | null): Promise<void> {
+  const path = ctx.stateService.sessionStatePath(sessionId, 'last-staged-persona.json')
+  await ctx.stateService.write(path, { personaId }, LastStagedPersonaSchema)
+}
+
+/**
  * Check if persona injection is enabled in config.
  * Defaults to true if not explicitly set.
  */
@@ -120,7 +154,7 @@ export async function stagePersonaRemindersForSession(
   options?: { includeChangedReminder?: boolean }
 ): Promise<void> {
   if (!isPersonaInjectionEnabled(ctx)) {
-    await clearPersonaReminders(ctx)
+    await clearPersonaReminders(ctx, sessionId)
     ctx.logger.debug('Persona injection disabled by config, cleaned up reminders', { sessionId })
     return
   }
@@ -128,7 +162,7 @@ export async function stagePersonaRemindersForSession(
   const persona = await loadPersonaForSession(ctx, sessionId)
 
   if (!persona) {
-    await clearPersonaReminders(ctx)
+    await clearPersonaReminders(ctx, sessionId)
     ctx.logger.debug('Persona cleared or disabled, unstaged persona reminders', { sessionId })
     return
   }
@@ -153,21 +187,37 @@ export async function stagePersonaRemindersForSession(
     return
   }
 
-  // Optionally stage one-shot "persona-changed" for UserPromptSubmit
+  // Determine if persona actually changed for one-shot decision
   if (options?.includeChangedReminder) {
-    const changedReminder = resolveReminder(ReminderIds.PERSONA_CHANGED, {
-      context: templateContext,
-      assets: ctx.assets,
-    })
-    if (changedReminder) {
-      await stageReminder(ctx, 'UserPromptSubmit', changedReminder)
+    const lastStaged = await readLastStagedPersona(ctx, sessionId)
+    const isGenuineChange =
+      lastStaged !== null && // null = never staged (initialization) → skip
+      lastStaged.personaId !== persona.id // different persona (including null→X for cleared→persona)
+
+    if (isGenuineChange) {
+      const changedReminder = resolveReminder(ReminderIds.PERSONA_CHANGED, {
+        context: templateContext,
+        assets: ctx.assets,
+      })
+      if (changedReminder) {
+        await stageReminder(ctx, 'UserPromptSubmit', changedReminder)
+      } else {
+        ctx.logger.warn('Failed to resolve persona-changed reminder', {
+          reminderId: ReminderIds.PERSONA_CHANGED,
+          sessionId,
+        })
+      }
     } else {
-      ctx.logger.warn('Failed to resolve persona-changed reminder', {
-        reminderId: ReminderIds.PERSONA_CHANGED,
+      ctx.logger.debug('Skipping persona-changed one-shot', {
         sessionId,
+        reason: lastStaged === null ? 'first staging (initialization)' : 'same persona',
+        personaId: persona.id,
       })
     }
   }
+
+  // Record what we just staged for future change detection
+  await writeLastStagedPersona(ctx, sessionId, persona.id)
 
   ctx.logger.info('Staged persona reminders', {
     sessionId,

@@ -97,6 +97,24 @@ export const SessionPersonaStateSchema = z.object({
 export type SessionPersonaState = z.infer<typeof SessionPersonaStateSchema>
 
 /**
+ * Tracks which persona was last staged into reminders for change detection.
+ * Three logical states:
+ * - File absent: never staged (session initialization)
+ * - { personaId: null }: explicitly cleared mid-session
+ * - { personaId: "X" }: persona X was last staged
+ *
+ * Location: `.sidekick/sessions/{sessionId}/state/last-staged-persona.json`
+ *
+ * @see docs/plans/2026-02-16-persona-change-detection-design.md
+ */
+export const LastStagedPersonaSchema = z.object({
+  /** Last staged persona ID, or null if explicitly cleared */
+  personaId: z.string().nullable(),
+})
+
+export type LastStagedPersona = z.infer<typeof LastStagedPersonaSchema>
+
+/**
  * Internal countdown state for throttling session summary updates.
  * Stored alongside session summary for persistence across Daemon restarts.
  *
