@@ -227,9 +227,6 @@ export class SetupStatusService {
   async getUserStatus(): Promise<UserSetupStatus | null> {
     try {
       const content = await fs.readFile(this.userStatusPath, 'utf-8')
-      // Intentional error handling asymmetry:
-      // - JSON.parse throws SyntaxError on corrupt/unparseable files (hard error, file is broken)
-      // - safeParse returns null on schema mismatch (graceful, forward-compatible with schema changes)
       const parsed = UserSetupStatusSchema.safeParse(JSON.parse(content))
       if (!parsed.success) {
         this.logger?.warn('Invalid user setup status', { error: parsed.error })
@@ -238,6 +235,13 @@ export class SetupStatusService {
       return parsed.data
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+        return null
+      }
+      if (err instanceof SyntaxError) {
+        this.logger?.warn('Corrupt user setup-status.json, treating as missing', {
+          path: this.userStatusPath,
+          error: err.message,
+        })
         return null
       }
       throw err
@@ -255,6 +259,13 @@ export class SetupStatusService {
       return parsed.data
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+        return null
+      }
+      if (err instanceof SyntaxError) {
+        this.logger?.warn('Corrupt project setup-status.json, treating as missing', {
+          path: this.projectStatusPath,
+          error: err.message,
+        })
         return null
       }
       throw err
