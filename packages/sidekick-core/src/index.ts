@@ -200,6 +200,7 @@ export {
   DaemonLogMetricsDescriptor,
   CliLogMetricsDescriptor,
   DaemonGlobalLogMetricsDescriptor,
+  DaemonHealthDescriptor,
   // Types for state schemas
   type PersistedTranscriptState,
 } from './state/index.js'
