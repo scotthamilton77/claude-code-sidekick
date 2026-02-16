@@ -65,6 +65,7 @@ interface ParsedArgs {
   kill?: boolean
   check?: boolean
   force?: boolean
+  fix?: boolean
   forceDevMode?: boolean
   'dry-run'?: boolean
   scope?: string
@@ -113,6 +114,7 @@ const CLI_OPTIONS = {
     'version',
     'kill',
     'force',
+    'fix',
     'force-dev-mode',
     'dry-run',
     'check',
@@ -196,6 +198,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     kill: Boolean(parsed.kill),
     check: Boolean(parsed.check),
     force: Boolean(parsed.force),
+    fix: Boolean(parsed.fix),
     forceDevMode: Boolean(parsed['force-dev-mode']),
     'dry-run': Boolean(parsed['dry-run']),
     _: parsed._,
@@ -589,6 +592,7 @@ Examples:
     const { handleSetupCommand } = await import('./commands/setup.js')
     const result = await handleSetupCommand(runtime.projectRoot || process.cwd(), runtime.logger, stdout, {
       checkOnly: true,
+      fix: parsed.fix,
       only: parsed.only,
     })
     return { exitCode: result.exitCode, stdout: '', stderr: '' }
