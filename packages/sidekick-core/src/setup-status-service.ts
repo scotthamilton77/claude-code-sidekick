@@ -118,6 +118,7 @@ export interface DoctorApiKeyResult extends DoctorItemResult {
 }
 
 export interface DoctorCheckResult {
+  userSetupExists: boolean
   statusline: DoctorItemResult
   apiKeys: Record<ApiKeyName, DoctorApiKeyResult>
   overallHealth: 'healthy' | 'unhealthy'
@@ -1011,6 +1012,10 @@ export class SetupStatusService {
       apiKeyResults.OPENROUTER_API_KEY.actual = 'not-required'
     }
 
+    // Check if user setup-status file exists
+    const userStatus = await this.getUserStatus()
+    const userSetupExists = userStatus !== null
+
     // Determine overall health
     // Statusline is healthy if configured anywhere (not 'none')
     const isStatuslineHealthy = actualStatusline !== 'none'
@@ -1018,9 +1023,11 @@ export class SetupStatusService {
     const openRouterCached = apiKeyResults.OPENROUTER_API_KEY.cached
     // API key is healthy if: actual key is present OR user opted out (not-required)
     const isApiKeyHealthy = openRouterActual !== 'missing' || openRouterCached === 'not-required'
-    const overallHealth: 'healthy' | 'unhealthy' = isStatuslineHealthy && isApiKeyHealthy ? 'healthy' : 'unhealthy'
+    const overallHealth: 'healthy' | 'unhealthy' =
+      userSetupExists && isStatuslineHealthy && isApiKeyHealthy ? 'healthy' : 'unhealthy'
 
     return {
+      userSetupExists,
       statusline: {
         actual: actualStatusline,
         cached: cachedStatusline,
