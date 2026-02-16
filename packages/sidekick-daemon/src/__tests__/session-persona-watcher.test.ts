@@ -89,7 +89,7 @@ describe('SessionPersonaWatcher', () => {
   })
 
   describe('start', () => {
-    it('should log start message with sidekickDir and pattern', () => {
+    it('should log start message with sidekickDir and sessionsDir', () => {
       const onChange = vi.fn()
       const watcher = new SessionPersonaWatcher({ sidekickDir }, logger, onChange)
 
@@ -98,8 +98,7 @@ describe('SessionPersonaWatcher', () => {
       expect(logger.wasLogged('SessionPersonaWatcher started')).toBe(true)
       const logEntry = logger.recordedLogs.find((log) => log.msg === 'SessionPersonaWatcher started')
       expect(logEntry?.meta?.sidekickDir).toBe(sidekickDir)
-      expect(logEntry?.meta?.pattern).toContain('session-persona.json')
-      expect(logEntry?.meta?.pattern).toContain('sessions')
+      expect(logEntry?.meta?.sessionsDir).toContain('sessions')
 
       watcher.stop()
     })

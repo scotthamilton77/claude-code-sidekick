@@ -1,11 +1,13 @@
 /**
- * SessionPersonaWatcher - Watches session-persona.json files for persona changes.
+ * SessionPersonaWatcher - Watches for session-persona.json changes.
  *
- * Monitors `.sidekick/sessions\/*\/state/session-persona.json` for changes.
- * Used to trigger snarky/resume message regeneration when CLI writes
- * persona changes directly (bypassing IPC for sandbox compatibility).
+ * Watches `.sidekick/sessions/` directory and filters for
+ * `session-persona.json` file events. Used to trigger snarky/resume
+ * message regeneration when CLI writes persona changes directly
+ * (bypassing IPC for sandbox compatibility).
  *
- * Uses chokidar for reliable cross-platform file watching.
+ * Note: chokidar v4+ removed glob support, so we watch the sessions
+ * directory and filter events by filename instead.
  *
  * @see docs/design/DAEMON.md
  */
@@ -13,6 +15,8 @@
 import { Logger } from '@sidekick/core'
 import { watch, type FSWatcher } from 'chokidar'
 import path from 'path'
+
+const PERSONA_FILENAME = 'session-persona.json'
 
 /**
  * Session persona change event.
@@ -61,10 +65,19 @@ export function extractSessionIdFromPath(filePath: string): string | null {
 }
 
 /**
- * Watches session-persona.json files for changes.
+ * Check if a file path is a session-persona.json file.
+ */
+function isPersonaFile(filePath: string): boolean {
+  return path.basename(filePath) === PERSONA_FILENAME
+}
+
+/**
+ * Watches for session-persona.json file changes.
  *
- * When the CLI writes directly to session-persona.json (bypassing IPC),
- * this watcher detects the change and allows the daemon to react.
+ * Watches the sessions/ directory recursively and filters for
+ * session-persona.json events. When the CLI writes directly to
+ * session-persona.json (bypassing IPC), this watcher detects
+ * the change and allows the daemon to react.
  */
 export class SessionPersonaWatcher {
   private sidekickDir: string
@@ -93,18 +106,26 @@ export class SessionPersonaWatcher {
   /**
    * Start watching for session persona changes.
    *
-   * Watches session persona files using glob pattern.
+   * Watches the sessions/ directory and filters for session-persona.json files.
    */
   start(): void {
     this.readyPromise = new Promise((resolve) => {
       this.readyResolve = resolve
     })
 
-    const watchPattern = path.join(this.sidekickDir, 'sessions', '*', 'state', 'session-persona.json')
+    const sessionsDir = path.join(this.sidekickDir, 'sessions')
 
-    this.watcher = watch(watchPattern, {
+    this.watcher = watch(sessionsDir, {
       ignoreInitial: true,
-      usePolling: false,
+      ignored: (filePath: string, stats) => {
+        // When stats is undefined (e.g. root path on initial call),
+        // don't ignore — we can't determine if it's a directory
+        if (!stats) return false
+        // Allow directories to be traversed
+        if (stats.isDirectory()) return false
+        // Only watch session-persona.json files
+        return !isPersonaFile(filePath)
+      },
     })
 
     this.watcher
@@ -121,7 +142,7 @@ export class SessionPersonaWatcher {
 
     this.logger.info('SessionPersonaWatcher started', {
       sidekickDir: this.sidekickDir,
-      pattern: watchPattern,
+      sessionsDir,
     })
   }
 

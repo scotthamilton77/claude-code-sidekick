@@ -534,6 +534,39 @@ describe('StateService', () => {
       expect(result.source).toBe('default')
     })
 
+    it('invalidateCache forces next read from disk', async () => {
+      const cachedState = new StateService(testDir, {
+        logger: createMockLogger(),
+        cache: true,
+      })
+
+      const path = cachedState.globalStatePath('cache-invalidate.json')
+      await cachedState.write(path, { value: 1 }, TestSchema)
+      await cachedState.read(path, TestSchema, { value: 0 }) // Populate cache
+
+      // Modify file directly (simulating external process write)
+      writeFileSync(path, JSON.stringify({ value: 42 }), 'utf-8')
+
+      // Without invalidation, cache would return stale value
+      const staleResult = await cachedState.read(path, TestSchema, { value: 0 })
+      expect(staleResult.data.value).toBe(1) // Stale cached value
+
+      // Invalidate and re-read
+      cachedState.invalidateCache(path)
+      const freshResult = await cachedState.read(path, TestSchema, { value: 0 })
+      expect(freshResult.data.value).toBe(42) // Fresh from disk
+    })
+
+    it('invalidateCache is no-op when cache is disabled', () => {
+      const uncachedState = new StateService(testDir, {
+        logger: createMockLogger(),
+        cache: false,
+      })
+
+      // Should not throw
+      uncachedState.invalidateCache('/some/path.json')
+    })
+
     it('does not cache when cache option is false', async () => {
       const uncachedState = new StateService(testDir, {
         logger: createMockLogger(),
