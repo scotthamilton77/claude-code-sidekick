@@ -249,6 +249,18 @@ export class StateService {
   }
 
   /**
+   * Invalidate cached entry for a path.
+   * Used when an external process writes a file that this StateService has cached.
+   * The next read() will re-read from disk.
+   * No-op if caching is disabled or path is not cached.
+   */
+  invalidateCache(path: string): void {
+    if (this.cache?.delete(path)) {
+      this.logger?.debug('Cache invalidated', { path })
+    }
+  }
+
+  /**
    * Rename/move state file.
    * Creates destination directory if needed.
    */

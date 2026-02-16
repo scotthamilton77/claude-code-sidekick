@@ -498,6 +498,11 @@ export class Daemon {
     this.logger.info('Regenerating messages after persona change', { sessionId })
 
     try {
+      // Invalidate cached session-persona.json so loadSessionPersona reads the new
+      // persona from disk (the CLI wrote it via a separate StateService instance)
+      const personaPath = this.stateService.sessionStatePath(sessionId, 'session-persona.json')
+      this.stateService.invalidateCache(personaPath)
+
       // Stage placeholder snarky message and clear stale resume message immediately,
       // so the statusline doesn't show the previous persona's messages during LLM regeneration
       await stagePersonaTransition(this.stateService, sessionId)
