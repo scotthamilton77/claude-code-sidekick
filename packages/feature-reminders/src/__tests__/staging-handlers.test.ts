@@ -1641,7 +1641,7 @@ additionalContext: "Your persona has changed to: {{persona_name}}"
         snarky_examples: ['I find your lack of faith disturbing.'],
       }
 
-      function createCtxWithState(projectDir: string) {
+      function createCtxWithState(projectDir: string): { stateService: MockStateService; ctx: DaemonContext } {
         const stateService = new MockStateService(projectDir)
         const ctxWithState = createMockDaemonContext({
           staging,
