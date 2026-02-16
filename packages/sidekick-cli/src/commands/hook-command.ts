@@ -460,7 +460,7 @@ export async function handleUnifiedHookCommand(
   }
 
   // Ensure daemon is running (after auto-configure so setup state is current)
-  await ensureDaemonForHook(projectRoot, logger)
+  const daemonAvailable = await ensureDaemonForHook(projectRoot, logger)
 
   // Check setup state before attempting daemon/IPC operations
   // Skip daemon entirely if setup is not healthy to avoid ProviderErrors
@@ -496,6 +496,7 @@ export async function handleUnifiedHookCommand(
       hookInput,
       correlationId,
       runtime,
+      daemonAvailable,
     },
     logger,
     captureStream

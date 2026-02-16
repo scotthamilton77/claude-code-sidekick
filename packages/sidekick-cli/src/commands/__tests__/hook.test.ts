@@ -490,4 +490,13 @@ describe('handleHookCommand', () => {
 
     expect(mockClose).toHaveBeenCalledOnce()
   })
+
+  test('skips IPC send when daemonAvailable is false', async () => {
+    const stdout = new CollectingWritable()
+    const options = { ...baseOptions, daemonAvailable: false }
+    const result = await handleHookCommand('SessionStart', options, mockLogger, stdout)
+
+    expect(result.exitCode).toBe(0)
+    expect(mockSend).not.toHaveBeenCalled()
+  })
 })
