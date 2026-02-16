@@ -187,4 +187,5 @@ See README.md "Testing Outside Dev-Mode" section for full instructions.
 <lessons_learned>
 
 - **Monorepo dep upgrades**: When changing a dependency version in root `package.json`, update ALL workspace `package.json` files referencing the same dep. Run `pnpm install` and verify `pnpm-lock.yaml` reflects one version.
+- **Beads workflow**: Always `bd update <id> --status=in_progress` BEFORE starting work on an issue. Do not begin implementation while the bead is still `open`.
 </lessons_learned>
