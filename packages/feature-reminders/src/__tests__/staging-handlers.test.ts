@@ -1641,6 +1641,11 @@ additionalContext: "Your persona has changed to: {{persona_name}}"
         snarky_examples: ['I find your lack of faith disturbing.'],
       }
 
+      /** Check whether a named reminder is staged for a given hook */
+      function hasReminderStaged(hookName: string, reminderName: string): boolean {
+        return staging.getRemindersForHook(hookName).some((r) => r.name === reminderName)
+      }
+
       function createCtxWithState(projectDir: string): { stateService: MockStateService; ctx: DaemonContext } {
         const stateService = new MockStateService(projectDir)
         const ctxWithState = createMockDaemonContext({
@@ -1666,10 +1671,8 @@ additionalContext: "Your persona has changed to: {{persona_name}}"
 
         await stagePersonaRemindersForSession(testCtx, sessionId, { includeChangedReminder: true })
 
-        expect(staging.getRemindersForHook('UserPromptSubmit').some((r) => r.name === 'remember-your-persona')).toBe(
-          true
-        )
-        expect(staging.getRemindersForHook('UserPromptSubmit').some((r) => r.name === 'persona-changed')).toBe(false)
+        expect(hasReminderStaged('UserPromptSubmit', 'remember-your-persona')).toBe(true)
+        expect(hasReminderStaged('UserPromptSubmit', 'persona-changed')).toBe(false)
       })
 
       it('stages persona-changed when persona genuinely changes (A → B)', async () => {
@@ -1686,7 +1689,7 @@ additionalContext: "Your persona has changed to: {{persona_name}}"
         setupPersonaLoader('vader', personaB)
         await stagePersonaRemindersForSession(testCtx, sessionId, { includeChangedReminder: true })
 
-        expect(staging.getRemindersForHook('UserPromptSubmit').some((r) => r.name === 'persona-changed')).toBe(true)
+        expect(hasReminderStaged('UserPromptSubmit', 'persona-changed')).toBe(true)
       })
 
       it('does NOT stage persona-changed when same persona is re-staged', async () => {
@@ -1697,7 +1700,7 @@ additionalContext: "Your persona has changed to: {{persona_name}}"
         await stagePersonaRemindersForSession(testCtx, sessionId)
         await stagePersonaRemindersForSession(testCtx, sessionId, { includeChangedReminder: true })
 
-        expect(staging.getRemindersForHook('UserPromptSubmit').some((r) => r.name === 'persona-changed')).toBe(false)
+        expect(hasReminderStaged('UserPromptSubmit', 'persona-changed')).toBe(false)
       })
 
       it('stages persona-changed when going from cleared → persona mid-session', async () => {
@@ -1720,7 +1723,7 @@ additionalContext: "Your persona has changed to: {{persona_name}}"
         setupPersonaLoader('vader', personaB)
         await stagePersonaRemindersForSession(testCtx, sessionId, { includeChangedReminder: true })
 
-        expect(staging.getRemindersForHook('UserPromptSubmit').some((r) => r.name === 'persona-changed')).toBe(true)
+        expect(hasReminderStaged('UserPromptSubmit', 'persona-changed')).toBe(true)
       })
 
       it('does NOT stage persona-changed on SessionStart path (no includeChangedReminder)', async () => {
@@ -1730,7 +1733,7 @@ additionalContext: "Your persona has changed to: {{persona_name}}"
 
         await stagePersonaRemindersForSession(testCtx, sessionId)
 
-        expect(staging.getRemindersForHook('UserPromptSubmit').some((r) => r.name === 'persona-changed')).toBe(false)
+        expect(hasReminderStaged('UserPromptSubmit', 'persona-changed')).toBe(false)
       })
 
       it('writes last-staged state after successful staging', async () => {
