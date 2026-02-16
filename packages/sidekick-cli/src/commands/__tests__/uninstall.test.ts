@@ -13,7 +13,7 @@
  *
  * @see uninstall.ts handleUninstallCommand
  */
-import { Writable, Readable } from 'node:stream'
+import { Writable, Readable, PassThrough } from 'node:stream'
 import { mkdir, writeFile, readFile, rm } from 'node:fs/promises'
 import path from 'node:path'
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest'
@@ -52,6 +52,22 @@ function createAutoStdin(answer: string): Readable {
     },
   })
   return readable
+}
+
+/** Create a stdin that responds to multiple sequential prompts with a short delay between answers. */
+function createMultiAnswerStdin(...answers: string[]): Readable {
+  const stream = new PassThrough()
+  let index = 0
+  const pushNext = (): void => {
+    if (index < answers.length) {
+      stream.write(answers[index++] + '\n')
+      setTimeout(pushNext, 10)
+    } else {
+      stream.end()
+    }
+  }
+  setTimeout(pushNext, 10)
+  return stream
 }
 
 // Hoisted mocks (must be declared before vi.mock factories)
@@ -542,7 +558,7 @@ describe('handleUninstallCommand', () => {
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
         scope: 'project',
-        stdin: createAutoStdin('n'),
+        stdin: createMultiAnswerStdin('y', 'n'),
         userHome,
       })
 
@@ -974,6 +990,120 @@ describe('handleUninstallCommand', () => {
 
       expect(result.exitCode).toBe(0)
       await expect(readFile(path.join(tempDir, '.sidekick', 'setup-status.json'), 'utf-8')).rejects.toThrow()
+    })
+  })
+
+  describe('detection summary and confirmation', () => {
+    test('shows detection summary before prompting when not --force', async () => {
+      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(
+        path.join(tempDir, '.claude', 'settings.json'),
+        JSON.stringify({
+          statusLine: { type: 'command', command: 'npx @scotthamilton77/sidekick statusline' },
+        })
+      )
+      await mkdir(path.join(tempDir, '.sidekick', 'logs'), { recursive: true })
+
+      const result = await handleUninstallCommand(tempDir, logger, stdout, {
+        scope: 'project',
+        stdin: createAutoStdin('y'),
+        userHome,
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(stdout.data).toContain('Detected sidekick installation:')
+      expect(stdout.data).toContain('project:')
+      expect(stdout.data).toContain('Settings:')
+      expect(stdout.data).toContain('statusline')
+      expect(stdout.data).toContain('Config:')
+      expect(stdout.data).toContain('Data:')
+      expect(stdout.data).toContain('Proceed with uninstall?')
+    })
+
+    test('skips summary and prompt when --force is set', async () => {
+      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+
+      const result = await handleUninstallCommand(tempDir, logger, stdout, {
+        force: true,
+        scope: 'project',
+        userHome,
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(stdout.data).not.toContain('Detected sidekick installation:')
+      expect(stdout.data).not.toContain('Proceed with uninstall?')
+    })
+
+    test('skips summary and prompt when --dry-run is set', async () => {
+      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+
+      const result = await handleUninstallCommand(tempDir, logger, stdout, {
+        force: true,
+        dryRun: true,
+        scope: 'project',
+        userHome,
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(stdout.data).not.toContain('Detected sidekick installation:')
+      expect(stdout.data).toContain('dry-run')
+    })
+
+    test('exits with code 0 and cancellation message when user declines', async () => {
+      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+
+      const result = await handleUninstallCommand(tempDir, logger, stdout, {
+        scope: 'project',
+        stdin: createAutoStdin('n'),
+        userHome,
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(stdout.data).toContain('Uninstall cancelled.')
+      const status = await readFile(path.join(tempDir, '.sidekick', 'setup-status.json'), 'utf-8')
+      expect(status).toBeTruthy()
+    })
+
+    test('shows both scopes when both are detected', async () => {
+      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(userHome, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+
+      const result = await handleUninstallCommand(tempDir, logger, stdout, {
+        stdin: createAutoStdin('y'),
+        userHome,
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(stdout.data).toContain('project:')
+      expect(stdout.data).toContain('user:')
+    })
+
+    test('shows plugin in summary when plugin is installed', async () => {
+      mockExecFile.mockImplementation(
+        (cmd: string, args: string[], callback: (err: Error | null, stdout: string, stderr: string) => void) => {
+          if (args.includes('list')) {
+            callback(
+              null,
+              JSON.stringify([{ id: 'sidekick@claude-code-sidekick', version: '0.0.8', scope: 'user', enabled: true }]),
+              ''
+            )
+          } else if (args.includes('uninstall')) {
+            callback(null, '', '')
+          } else {
+            callback(null, '[]', '')
+          }
+        }
+      )
+      await writeFile(path.join(userHome, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+
+      const result = await handleUninstallCommand(tempDir, logger, stdout, {
+        stdin: createAutoStdin('y'),
+        userHome,
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(stdout.data).toContain('Plugin:')
+      expect(stdout.data).toContain('sidekick@')
     })
   })
 })
