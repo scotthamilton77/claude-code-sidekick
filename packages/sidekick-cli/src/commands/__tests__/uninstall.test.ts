@@ -1034,11 +1034,10 @@ describe('handleUninstallCommand', () => {
       expect(stdout.data).not.toContain('Proceed with uninstall?')
     })
 
-    test('skips summary and prompt when --dry-run is set', async () => {
+    test('skips summary and prompt when --dry-run is set (without --force)', async () => {
       await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
-        force: true,
         dryRun: true,
         scope: 'project',
         userHome,
