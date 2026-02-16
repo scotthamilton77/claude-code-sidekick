@@ -4,9 +4,10 @@
  * All consumption handlers follow the same pattern:
  * 1. CLI context guard
  * 2. Create staging reader
- * 3. Get highest priority reminder
- * 4. Rename if not persistent (preserves consumption history)
- * 5. Build HookResponse (via strategy or default)
+ * 3. Get all reminders sorted by priority (highest first)
+ * 4. Rename all non-persistent reminders (preserves consumption history)
+ * 5. Build HookResponse from primary (highest priority) reminder
+ * 6. Append additionalContext from secondary reminders
  *
  * Supports optional response building strategy for custom logic (e.g., smart completion detection).
  *
@@ -107,27 +108,41 @@ export function createConsumptionHandler(context: RuntimeContext, config: Consum
         sessionId,
       })
 
-      // Get highest priority reminder
+      // Get all reminders sorted by priority (highest first)
       const reminders = reader.listReminders(hook)
       if (reminders.length === 0) {
         return { response: {} }
       }
 
-      const reminder = reminders[0]
+      // Primary reminder (highest priority) determines blocking and userMessage
+      const primary = reminders[0]
 
-      // Rename if not persistent (preserves consumption history for reactivation)
-      if (!reminder.persistent) {
-        reader.renameReminder(hook, reminder.name)
+      // Rename all non-persistent reminders (preserves consumption history for reactivation)
+      for (const reminder of reminders) {
+        if (!reminder.persistent) {
+          reader.renameReminder(hook, reminder.name)
+        }
       }
 
-      // Build response using strategy or default
-      const response = buildResponse
-        ? await buildResponse({ reminder, reader, cliCtx, sessionId, event, supportsBlocking })
-        : buildDefaultResponse(reminder, supportsBlocking)
+      // Build response using strategy or default (primary reminder for backward compat)
+      let response = buildResponse
+        ? await buildResponse({ reminder: primary, reader, cliCtx, sessionId, event, supportsBlocking })
+        : buildDefaultResponse(primary, supportsBlocking)
 
-      // Call optional onConsume callback for side effects
+      // Append additionalContext from secondary reminders (primary is already in response)
+      const secondaryContexts = reminders
+        .slice(1)
+        .map((r) => r.additionalContext)
+        .filter((ctx): ctx is string => !!ctx)
+      if (secondaryContexts.length > 0) {
+        const existing = response.additionalContext
+        const combined = existing ? [existing, ...secondaryContexts] : secondaryContexts
+        response = { ...response, additionalContext: combined.join('\n\n') }
+      }
+
+      // Call optional onConsume callback with primary reminder
       if (onConsume) {
-        await onConsume({ reminder, reader, cliCtx, sessionId })
+        await onConsume({ reminder: primary, reader, cliCtx, sessionId })
       }
 
       // Log ReminderConsumed event
@@ -139,11 +154,11 @@ export function createConsumptionHandler(context: RuntimeContext, config: Consum
             hook,
           },
           {
-            reminderName: reminder.name,
+            reminderName: primary.name,
             reminderReturned: true,
             blocking: response.blocking ?? false,
-            priority: reminder.priority,
-            persistent: reminder.persistent,
+            priority: primary.priority,
+            persistent: primary.persistent,
           }
         )
       )

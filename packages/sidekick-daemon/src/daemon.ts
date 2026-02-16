@@ -32,6 +32,7 @@ import {
   handleVCUnverifiedClear,
   ReminderEvents,
   ReminderOrchestrator,
+  stagePersonaRemindersForSession,
 } from '@sidekick/feature-reminders'
 import {
   registerHandlers as registerSessionSummaryHandlers,
@@ -476,7 +477,14 @@ export class Daemon {
       eventType: event.eventType,
     })
 
-    // Skip regeneration if persona was cleared (unlink)
+    // Invalidate cached persona state once, before both consumers read it
+    const personaPath = this.stateService.sessionStatePath(event.sessionId, 'session-persona.json')
+    this.stateService.invalidateCache(personaPath)
+
+    // Stage/update persona reminders for injection (fire-and-forget)
+    void this.stagePersonaRemindersOnChange(event)
+
+    // Skip message regeneration if persona was cleared (unlink)
     if (event.eventType === 'unlink') {
       this.logger.debug('Persona cleared, skipping message regeneration', {
         sessionId: event.sessionId,
@@ -489,6 +497,25 @@ export class Daemon {
   }
 
   /**
+   * Stage or remove persona reminders when persona changes mid-session.
+   * On set/change: updates persistent reminder and stages one-shot "persona-changed".
+   * On clear (unlink): removes any existing persona reminders.
+   */
+  private async stagePersonaRemindersOnChange(event: PersonaChangeEvent): Promise<void> {
+    try {
+      const ctx = await this.getContextForTask(event.sessionId)
+      await stagePersonaRemindersForSession(ctx, event.sessionId, {
+        includeChangedReminder: event.eventType !== 'unlink',
+      })
+    } catch (err) {
+      this.logger.error('Failed to stage persona reminders on change', {
+        sessionId: event.sessionId,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+  }
+
+  /**
    * Regenerate snarky and resume messages for a session after persona change.
    *
    * This is called asynchronously after the persona file changes.
@@ -498,11 +525,6 @@ export class Daemon {
     this.logger.info('Regenerating messages after persona change', { sessionId })
 
     try {
-      // Invalidate cached session-persona.json so loadSessionPersona reads the new
-      // persona from disk (the CLI wrote it via a separate StateService instance)
-      const personaPath = this.stateService.sessionStatePath(sessionId, 'session-persona.json')
-      this.stateService.invalidateCache(personaPath)
-
       // Stage placeholder snarky message and clear stale resume message immediately,
       // so the statusline doesn't show the previous persona's messages during LLM regeneration
       await stagePersonaTransition(this.stateService, sessionId)

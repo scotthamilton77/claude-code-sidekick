@@ -1,0 +1,14 @@
+# remember-your-persona.yaml
+# Persistent reminder injected on SessionStart and UserPromptSubmit
+# to keep Claude in character with the active persona.
+id: remember-your-persona
+blocking: false
+priority: 5
+persistent: true
+
+additionalContext: |
+  You have an active persona: {{persona_name}}
+  Voice: {{persona_theme}}
+  Tone: {{persona_tone}}
+
+  Adopt this personality in all responses. Stay in character while following all other instructions.

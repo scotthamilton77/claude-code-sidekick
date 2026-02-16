@@ -12,6 +12,7 @@ import { registerInjectUserPromptSubmit } from './inject-user-prompt-submit'
 import { registerInjectPreToolUse } from './inject-pre-tool-use'
 import { registerInjectPostToolUse } from './inject-post-tool-use'
 import { registerInjectStop } from './inject-stop'
+import { registerInjectSessionStart } from './inject-session-start'
 
 /**
  * Register all consumption handlers
@@ -21,4 +22,5 @@ export function registerConsumptionHandlers(context: RuntimeContext): void {
   registerInjectPreToolUse(context)
   registerInjectPostToolUse(context)
   registerInjectStop(context)
+  registerInjectSessionStart(context)
 }

@@ -195,21 +195,17 @@ describe('createConsumptionHandler', () => {
         ctx as unknown as import('@sidekick/types').HandlerContext
       )
 
-      // Should return the highest priority reminder (90)
+      // Should concatenate all contexts, highest priority first
       expect(result).toEqual({
-        response: { additionalContext: 'High priority context' },
+        response: {
+          additionalContext: 'High priority context\n\nMedium priority context\n\nLow priority context',
+        },
       })
 
-      // High priority reminder should be consumed (renamed)
+      // All non-persistent reminders should be consumed (renamed)
       expect(existsSync(join(stagingDir, 'high-priority.json'))).toBe(false)
-      const highFiles = readdirSync(stagingDir).filter(
-        (f: string) => f.startsWith('high-priority.') && f.endsWith('.json')
-      )
-      expect(highFiles.length).toBe(1)
-
-      // Other reminders should still exist
-      expect(existsSync(join(stagingDir, 'low-priority.json'))).toBe(true)
-      expect(existsSync(join(stagingDir, 'medium-priority.json'))).toBe(true)
+      expect(existsSync(join(stagingDir, 'low-priority.json'))).toBe(false)
+      expect(existsSync(join(stagingDir, 'medium-priority.json'))).toBe(false)
     })
 
     it('returns reminder content from staged file', async () => {
@@ -418,6 +414,224 @@ describe('createConsumptionHandler', () => {
 
       expect(result).toEqual({
         response: { additionalContext: 'Just info' },
+      })
+    })
+  })
+
+  describe('multi-reminder concatenation', () => {
+    it('concatenates additionalContext from ALL reminders by priority', async () => {
+      const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'PreToolUse')
+
+      writeFileSync(
+        join(stagingDir, 'low-priority.json'),
+        JSON.stringify(
+          createReminder({
+            name: 'low-priority',
+            priority: 10,
+            persistent: true,
+            additionalContext: 'Low priority context',
+          })
+        )
+      )
+      writeFileSync(
+        join(stagingDir, 'high-priority.json'),
+        JSON.stringify(
+          createReminder({
+            name: 'high-priority',
+            priority: 90,
+            persistent: true,
+            additionalContext: 'High priority context',
+          })
+        )
+      )
+      writeFileSync(
+        join(stagingDir, 'medium-priority.json'),
+        JSON.stringify(
+          createReminder({
+            name: 'medium-priority',
+            priority: 50,
+            persistent: true,
+            additionalContext: 'Medium priority context',
+          })
+        )
+      )
+
+      createConsumptionHandler(ctx, {
+        id: 'test:consume',
+        hook: 'PreToolUse',
+      })
+
+      const handler = handlers.getHandler('test:consume')
+      const result = await handler?.handler(
+        createPreToolUseEvent(),
+        ctx as unknown as import('@sidekick/types').HandlerContext
+      )
+
+      // Should concatenate all contexts, highest priority first
+      expect(result).toEqual({
+        response: {
+          additionalContext: 'High priority context\n\nMedium priority context\n\nLow priority context',
+        },
+      })
+    })
+
+    it('uses highest-priority reminder for blocking and userMessage', async () => {
+      const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'Stop')
+
+      writeFileSync(
+        join(stagingDir, 'high-priority.json'),
+        JSON.stringify(
+          createReminder({
+            name: 'high-priority',
+            priority: 90,
+            persistent: true,
+            blocking: true,
+            reason: 'High priority reason',
+            userMessage: 'High priority message',
+            additionalContext: 'High context',
+          })
+        )
+      )
+      writeFileSync(
+        join(stagingDir, 'low-priority.json'),
+        JSON.stringify(
+          createReminder({
+            name: 'low-priority',
+            priority: 10,
+            persistent: true,
+            blocking: true,
+            reason: 'Low priority reason',
+            userMessage: 'Low priority message',
+            additionalContext: 'Low context',
+          })
+        )
+      )
+
+      createConsumptionHandler(ctx, {
+        id: 'test:consume',
+        hook: 'Stop',
+        supportsBlocking: true,
+      })
+
+      const handler = handlers.getHandler('test:consume')
+      const result = await handler?.handler(
+        createStopEvent(),
+        ctx as unknown as import('@sidekick/types').HandlerContext
+      )
+
+      // Blocking and userMessage from highest-priority; additionalContext concatenated
+      expect(result).toEqual({
+        response: {
+          blocking: true,
+          reason: 'High priority reason',
+          userMessage: 'High priority message',
+          additionalContext: 'High context\n\nLow context',
+        },
+      })
+    })
+
+    it('renames all non-persistent reminders after consumption', async () => {
+      const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'PreToolUse')
+
+      writeFileSync(
+        join(stagingDir, 'one-shot-a.json'),
+        JSON.stringify(
+          createReminder({
+            name: 'one-shot-a',
+            priority: 90,
+            additionalContext: 'A context',
+          })
+        )
+      )
+      writeFileSync(
+        join(stagingDir, 'one-shot-b.json'),
+        JSON.stringify(
+          createReminder({
+            name: 'one-shot-b',
+            priority: 10,
+            additionalContext: 'B context',
+          })
+        )
+      )
+      writeFileSync(
+        join(stagingDir, 'persistent-c.json'),
+        JSON.stringify(
+          createReminder({
+            name: 'persistent-c',
+            priority: 50,
+            persistent: true,
+            additionalContext: 'C context',
+          })
+        )
+      )
+
+      createConsumptionHandler(ctx, {
+        id: 'test:consume',
+        hook: 'PreToolUse',
+      })
+
+      const handler = handlers.getHandler('test:consume')
+      await handler?.handler(createPreToolUseEvent(), ctx as unknown as import('@sidekick/types').HandlerContext)
+
+      // Non-persistent reminders should be renamed
+      expect(existsSync(join(stagingDir, 'one-shot-a.json'))).toBe(false)
+      expect(existsSync(join(stagingDir, 'one-shot-b.json'))).toBe(false)
+      // Persistent reminder should still exist
+      expect(existsSync(join(stagingDir, 'persistent-c.json'))).toBe(true)
+    })
+
+    it('skips reminders without additionalContext in concatenation', async () => {
+      const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'PreToolUse')
+
+      writeFileSync(
+        join(stagingDir, 'with-context.json'),
+        JSON.stringify(
+          createReminder({
+            name: 'with-context',
+            priority: 90,
+            persistent: true,
+            additionalContext: 'Has context',
+          })
+        )
+      )
+      writeFileSync(
+        join(stagingDir, 'no-context.json'),
+        JSON.stringify(
+          createReminder({
+            name: 'no-context',
+            priority: 50,
+            persistent: true,
+          })
+        )
+      )
+      writeFileSync(
+        join(stagingDir, 'also-has-context.json'),
+        JSON.stringify(
+          createReminder({
+            name: 'also-has-context',
+            priority: 10,
+            persistent: true,
+            additionalContext: 'Also has context',
+          })
+        )
+      )
+
+      createConsumptionHandler(ctx, {
+        id: 'test:consume',
+        hook: 'PreToolUse',
+      })
+
+      const handler = handlers.getHandler('test:consume')
+      const result = await handler?.handler(
+        createPreToolUseEvent(),
+        ctx as unknown as import('@sidekick/types').HandlerContext
+      )
+
+      // Should skip the reminder without additionalContext
+      expect(result).toEqual({
+        response: {
+          additionalContext: 'Has context\n\nAlso has context',
+        },
       })
     })
   })

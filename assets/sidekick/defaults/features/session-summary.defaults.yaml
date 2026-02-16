@@ -87,3 +87,7 @@ settings:
     # Maximum age (in hours) for resume messages to be considered fresh
     # Sessions older than this will use persona empty-messages instead
     resumeFreshnessHours: 4
+    # Inject active persona into Claude Code's system prompt via reminders
+    # When true, a persistent reminder is staged on SessionStart and UserPromptSubmit
+    # describing the persona's voice/personality for Claude to adopt
+    injectPersonaIntoClaude: true

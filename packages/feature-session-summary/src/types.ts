@@ -70,6 +70,8 @@ export interface SessionSummaryConfig {
     blockList: string
     /** Maximum age (hours) for resume messages to be considered fresh */
     resumeFreshnessHours: number
+    /** Inject active persona into Claude Code's system prompt via reminders */
+    injectPersonaIntoClaude?: boolean
   }
 }
 
@@ -106,6 +108,7 @@ export const DEFAULT_SESSION_SUMMARY_CONFIG: SessionSummaryConfig = {
     allowList: '',
     blockList: 'disabled',
     resumeFreshnessHours: 4,
+    injectPersonaIntoClaude: true,
   },
 }
 

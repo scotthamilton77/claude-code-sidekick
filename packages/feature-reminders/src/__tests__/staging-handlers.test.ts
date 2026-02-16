@@ -29,14 +29,26 @@ import { registerStageDefaultUserPrompt } from '../handlers/staging/stage-defaul
 import { registerStageStopReminders } from '../handlers/staging/stage-stop-reminders'
 import { registerUnstageVerifyCompletion } from '../handlers/staging/unstage-verify-completion'
 import { registerStageBashChanges } from '../handlers/staging/stage-stop-bash-changes'
+import { registerStagePersonaReminders } from '../handlers/staging/stage-persona-reminders'
 import { getGitFileStatus } from '@sidekick/core'
 
-// Mock getGitFileStatus for bash changes tests — preserves all other @sidekick/core exports
+// Mock @sidekick/core — preserves all other exports, mocks specific functions
 vi.mock('@sidekick/core', async (importOriginal) => {
   const mod = await importOriginal<typeof import('@sidekick/core')>()
-  return { ...mod, getGitFileStatus: vi.fn().mockResolvedValue([]) }
+  return {
+    ...mod,
+    getGitFileStatus: vi.fn().mockResolvedValue([]),
+    createPersonaLoader: vi.fn().mockReturnValue({
+      discover: () => new Map(),
+    }),
+    getDefaultPersonasDir: vi.fn().mockReturnValue('/mock/personas'),
+  }
 })
 const mockGetGitFileStatus = getGitFileStatus as ReturnType<typeof vi.fn>
+
+// Import the mocked function for persona tests
+import { createPersonaLoader } from '@sidekick/core'
+const mockCreatePersonaLoader = createPersonaLoader as ReturnType<typeof vi.fn>
 
 function createTestTranscriptEvent(
   metrics: Partial<TranscriptMetrics>,
@@ -1241,6 +1253,223 @@ reason: "Verify completion before stopping"
 
         expect(staging.getRemindersForHook('Stop')).toHaveLength(1)
       })
+    })
+  })
+
+  describe('registerStagePersonaReminders', () => {
+    const sessionId = 'test-session'
+
+    function createSessionStartEvent() {
+      return {
+        kind: 'hook' as const,
+        hook: 'SessionStart' as const,
+        context: { sessionId, timestamp: Date.now() },
+        payload: { startType: 'startup' as const, transcriptPath: '/test/transcript.jsonl' },
+      }
+    }
+
+    function setupPersonaState(stateService: MockStateService, personaId: string): void {
+      const personaPath = stateService.sessionStatePath(sessionId, 'session-persona.json')
+      stateService.setStored(personaPath, {
+        persona_id: personaId,
+        selected_from: [personaId],
+        timestamp: new Date().toISOString(),
+      })
+    }
+
+    function setupPersonaLoader(personaId: string, persona: Record<string, unknown>): void {
+      mockCreatePersonaLoader.mockReturnValue({
+        discover: () => new Map([[personaId, persona]]),
+      })
+    }
+
+    const testPersona = {
+      id: 'skippy',
+      display_name: 'Skippy',
+      theme: 'A sarcastic AI',
+      personality_traits: ['arrogant', 'brilliant'],
+      tone_traits: ['snarky', 'playful'],
+      snarky_examples: ['Still confused?', 'Typical monkey.'],
+    }
+
+    beforeEach(() => {
+      mockCreatePersonaLoader.mockClear()
+      mockCreatePersonaLoader.mockReturnValue({
+        discover: () => new Map(),
+      })
+    })
+
+    it('registers for SessionStart hook', () => {
+      registerStagePersonaReminders(ctx)
+
+      const hookHandlers = handlers.getHandlersForHook('SessionStart')
+      const personaHandler = hookHandlers.find((h) => h.id === 'reminders:stage-persona-reminders')
+      expect(personaHandler).toBeDefined()
+    })
+
+    it('stages remember-your-persona for UserPromptSubmit and SessionStart when persona is active', async () => {
+      const stateService = new MockStateService('/tmp/claude/test-persona-staging')
+      const ctxWithState = createMockDaemonContext({
+        staging,
+        logger,
+        handlers,
+        assets,
+        stateService,
+        paths: {
+          projectDir: '/tmp/claude/test-persona-staging',
+          userConfigDir: '/mock/user',
+          projectConfigDir: '/mock/project-config',
+        },
+      })
+
+      // Register persona reminder YAML in assets
+      assets.registerAll({
+        'reminders/remember-your-persona.yaml': `id: remember-your-persona
+blocking: false
+priority: 5
+persistent: true
+additionalContext: "Persona: {{persona_name}} - {{persona_tone}}"
+`,
+      })
+
+      setupPersonaState(stateService, 'skippy')
+      setupPersonaLoader('skippy', testPersona)
+
+      registerStagePersonaReminders(ctxWithState)
+
+      const handler = handlers.getHandler('reminders:stage-persona-reminders')
+      await handler?.handler(
+        createSessionStartEvent(),
+        ctxWithState as unknown as import('@sidekick/types').HandlerContext
+      )
+
+      // Should be staged for both hooks
+      const upsReminders = staging.getRemindersForHook('UserPromptSubmit')
+      const ssReminders = staging.getRemindersForHook('SessionStart')
+
+      expect(upsReminders.some((r) => r.name === 'remember-your-persona')).toBe(true)
+      expect(ssReminders.some((r) => r.name === 'remember-your-persona')).toBe(true)
+
+      // Verify template interpolation
+      const upsReminder = upsReminders.find((r) => r.name === 'remember-your-persona')
+      expect(upsReminder?.additionalContext).toContain('Skippy')
+      expect(upsReminder?.additionalContext).toContain('snarky, playful')
+    })
+
+    it('does NOT stage when persona is disabled', async () => {
+      const stateService = new MockStateService('/tmp/claude/test-persona-disabled')
+      const ctxWithState = createMockDaemonContext({
+        staging,
+        logger,
+        handlers,
+        assets,
+        stateService,
+        paths: {
+          projectDir: '/tmp/claude/test-persona-disabled',
+          userConfigDir: '/mock/user',
+          projectConfigDir: '/mock/project-config',
+        },
+      })
+
+      setupPersonaState(stateService, 'disabled')
+
+      registerStagePersonaReminders(ctxWithState)
+
+      const handler = handlers.getHandler('reminders:stage-persona-reminders')
+      await handler?.handler(
+        createSessionStartEvent(),
+        ctxWithState as unknown as import('@sidekick/types').HandlerContext
+      )
+
+      expect(staging.getRemindersForHook('UserPromptSubmit').some((r) => r.name === 'remember-your-persona')).toBe(
+        false
+      )
+      expect(staging.getRemindersForHook('SessionStart').some((r) => r.name === 'remember-your-persona')).toBe(false)
+    })
+
+    it('does NOT stage when no persona is set', async () => {
+      // No persona state written — stateService returns null
+      const stateService = new MockStateService('/tmp/claude/test-no-persona')
+      const ctxWithState = createMockDaemonContext({
+        staging,
+        logger,
+        handlers,
+        assets,
+        stateService,
+        paths: {
+          projectDir: '/tmp/claude/test-no-persona',
+          userConfigDir: '/mock/user',
+          projectConfigDir: '/mock/project-config',
+        },
+      })
+
+      registerStagePersonaReminders(ctxWithState)
+
+      const handler = handlers.getHandler('reminders:stage-persona-reminders')
+      await handler?.handler(
+        createSessionStartEvent(),
+        ctxWithState as unknown as import('@sidekick/types').HandlerContext
+      )
+
+      expect(staging.getRemindersForHook('UserPromptSubmit').some((r) => r.name === 'remember-your-persona')).toBe(
+        false
+      )
+    })
+
+    it('does NOT stage when injectPersonaIntoClaude config is false', async () => {
+      const config = new MockConfigService()
+      config.set({
+        features: {
+          'session-summary': {
+            enabled: true,
+            settings: {
+              personas: {
+                injectPersonaIntoClaude: false,
+              },
+            },
+          },
+        },
+      })
+
+      const stateService = new MockStateService('/tmp/claude/test-persona-config-off')
+      const ctxWithConfig = createMockDaemonContext({
+        staging,
+        logger,
+        handlers,
+        assets,
+        stateService,
+        config,
+        paths: {
+          projectDir: '/tmp/claude/test-persona-config-off',
+          userConfigDir: '/mock/user',
+          projectConfigDir: '/mock/project-config',
+        },
+      })
+
+      setupPersonaState(stateService, 'skippy')
+      setupPersonaLoader('skippy', testPersona)
+
+      registerStagePersonaReminders(ctxWithConfig)
+
+      const handler = handlers.getHandler('reminders:stage-persona-reminders')
+      await handler?.handler(
+        createSessionStartEvent(),
+        ctxWithConfig as unknown as import('@sidekick/types').HandlerContext
+      )
+
+      expect(staging.getRemindersForHook('UserPromptSubmit').some((r) => r.name === 'remember-your-persona')).toBe(
+        false
+      )
+    })
+
+    it('does not register when context is not DaemonContext', () => {
+      const cliCtx = createMockCLIContext({ logger, handlers })
+
+      registerStagePersonaReminders(cliCtx as unknown as DaemonContext)
+
+      expect(
+        handlers.getHandlersForHook('SessionStart').filter((h) => h.id === 'reminders:stage-persona-reminders')
+      ).toHaveLength(0)
     })
   })
 })
