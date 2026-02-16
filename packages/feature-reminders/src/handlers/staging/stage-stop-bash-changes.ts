@@ -97,6 +97,12 @@ export function registerStageBashChanges(context: RuntimeContext): void {
       const baselineSet = new Set(baseline)
       const newFiles = current.filter((f) => !baselineSet.has(f))
 
+      ctx.logger.debug('Bash VC: git status diff', {
+        baselineCount: baseline.length,
+        currentCount: current.length,
+        newFileCount: newFiles.length,
+      })
+
       if (newFiles.length === 0) return undefined
 
       // Filter through source code patterns

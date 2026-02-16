@@ -968,6 +968,67 @@ describe('TranscriptServiceImpl', () => {
         })
       )
     })
+
+    it('includes tool_name on ToolResult entries when preceding ToolCall exists', async () => {
+      const transcript = [
+        JSON.stringify({
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: [{ type: 'tool_use', id: 'tool-1', name: 'Bash', input: { command: 'touch foo.ts' } }],
+          },
+        }),
+        JSON.stringify({
+          type: 'user',
+          message: {
+            role: 'user',
+            content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: '' }],
+          },
+        }),
+      ].join('\n')
+      writeFileSync(transcriptPath, transcript)
+
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
+
+      const toolResultEvent = handlers.emittedEvents.find((e) => e.eventType === 'ToolResult')
+      expect(toolResultEvent).toBeDefined()
+      expect((toolResultEvent!.entry as Record<string, unknown>).tool_name).toBe('Bash')
+    })
+
+    it('resolves tool_name for multiple tool_use/tool_result pairs', async () => {
+      const transcript = [
+        JSON.stringify({
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: [
+              { type: 'tool_use', id: 'tool-1', name: 'Bash', input: { command: 'ls' } },
+              { type: 'tool_use', id: 'tool-2', name: 'Read', input: { file_path: '/test' } },
+            ],
+          },
+        }),
+        JSON.stringify({
+          type: 'user',
+          message: {
+            role: 'user',
+            content: [
+              { type: 'tool_result', tool_use_id: 'tool-1', content: 'output' },
+              { type: 'tool_result', tool_use_id: 'tool-2', content: 'file contents' },
+            ],
+          },
+        }),
+      ].join('\n')
+      writeFileSync(transcriptPath, transcript)
+
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
+
+      const toolResults = handlers.emittedEvents.filter((e) => e.eventType === 'ToolResult')
+      expect(toolResults).toHaveLength(2)
+      expect((toolResults[0].entry as Record<string, unknown>).tool_name).toBe('Bash')
+      expect((toolResults[1].entry as Record<string, unknown>).tool_name).toBe('Read')
+    })
   })
 
   // --------------------------------------------------------------------------
