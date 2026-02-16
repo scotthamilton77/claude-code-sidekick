@@ -270,6 +270,31 @@ async function detectUserScope(userHome: string): Promise<boolean> {
 
 // --- Detection summary ---
 
+async function exists(filePath: string): Promise<boolean> {
+  try {
+    await fs.access(filePath)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Check whether a parsed settings object contains any sidekick-related hook commands. */
+function containsSidekickHooks(settings: Record<string, unknown>): boolean {
+  if (!settings.hooks) return false
+  const hooks = settings.hooks as Record<string, unknown[]>
+  return Object.values(hooks).some(
+    (handlers) =>
+      Array.isArray(handlers) &&
+      handlers.some((h) => {
+        const handler = h as { hooks?: Array<{ command?: string }> }
+        return handler.hooks?.some(
+          (hook) => hook.command?.includes('sidekick') || hook.command?.includes('dev-sidekick')
+        )
+      })
+  )
+}
+
 async function collectDetectionSummary(
   projectDir: string,
   userHome: string,
@@ -299,27 +324,15 @@ async function collectDetectionSummary(
     const settingsDetails: string[] = []
     for (const file of ['settings.json', 'settings.local.json']) {
       if (devModeActive && file === 'settings.local.json') continue
+      const content = await readFileOrNull(path.join(projectDir, '.claude', file))
+      if (!content) continue
       try {
-        const content = await fs.readFile(path.join(projectDir, '.claude', file), 'utf-8')
         const settings = JSON.parse(content) as Record<string, unknown>
         const sl = settings.statusLine as { command?: string } | undefined
         if (sl?.command?.includes('sidekick')) settingsDetails.push('statusline')
-        if (settings.hooks) {
-          const hooks = settings.hooks as Record<string, unknown[]>
-          const hasSidekickHooks = Object.values(hooks).some(
-            (handlers) =>
-              Array.isArray(handlers) &&
-              handlers.some((h) => {
-                const handler = h as { hooks?: Array<{ command?: string }> }
-                return handler.hooks?.some(
-                  (hook) => hook.command?.includes('sidekick') || hook.command?.includes('dev-sidekick')
-                )
-              })
-          )
-          if (hasSidekickHooks) settingsDetails.push('hooks')
-        }
+        if (containsSidekickHooks(settings)) settingsDetails.push('hooks')
       } catch {
-        /* file doesn't exist */
+        /* invalid JSON */
       }
     }
     if (settingsDetails.length > 0) {
@@ -327,59 +340,35 @@ async function collectDetectionSummary(
     }
 
     // Daemon
-    try {
-      await fs.access(path.join(projectDir, '.sidekick', 'sidekickd.pid'))
+    if (await exists(path.join(projectDir, '.sidekick', 'sidekickd.pid'))) {
       summary.project.push({ label: 'Daemon', details: 'pid file found' })
-    } catch {
-      /* no daemon */
     }
 
     // Config
-    const configFiles: string[] = []
     if (!devModeActive) {
-      try {
-        await fs.access(path.join(projectDir, '.sidekick', 'setup-status.json'))
-        configFiles.push('setup-status.json')
-      } catch {
-        /* */
+      const configFiles = await detectExistingItems(projectDir, ['setup-status.json'])
+      if (configFiles.length > 0) {
+        summary.project.push({ label: 'Config', details: configFiles.join(', ') })
       }
-    }
-    if (configFiles.length > 0) {
-      summary.project.push({ label: 'Config', details: configFiles.join(', ') })
     }
 
     // Data
-    const dataItems: string[] = []
-    for (const dir of ['logs', 'sessions', 'state']) {
-      try {
-        await fs.access(path.join(projectDir, '.sidekick', dir))
-        dataItems.push(`${dir}/`)
-      } catch {
-        /* */
-      }
-    }
+    const dataItems = await detectExistingItems(projectDir, ['logs', 'sessions', 'state'], '/')
     if (dataItems.length > 0) {
       summary.project.push({ label: 'Data', details: dataItems.join(', ') })
     }
 
     // .env
-    try {
-      const envContent = await fs.readFile(path.join(projectDir, '.sidekick', '.env'), 'utf-8')
-      const hasKeys = envContent.split('\n').some((l) => l.includes('=') && !l.startsWith('#'))
-      summary.project.push({ label: '.env', details: hasKeys ? 'contains API keys' : 'present' })
-    } catch {
-      /* no .env */
+    const envDetail = await detectEnvFile(path.join(projectDir, '.sidekick', '.env'))
+    if (envDetail) {
+      summary.project.push({ label: '.env', details: envDetail })
     }
 
     // .gitignore
     if (!devModeActive) {
-      try {
-        const gitignore = await fs.readFile(path.join(projectDir, '.gitignore'), 'utf-8')
-        if (gitignore.includes('# >>> sidekick')) {
-          summary.project.push({ label: '.gitignore', details: 'sidekick section' })
-        }
-      } catch {
-        /* no gitignore */
+      const gitignore = await readFileOrNull(path.join(projectDir, '.gitignore'))
+      if (gitignore?.includes('# >>> sidekick')) {
+        summary.project.push({ label: '.gitignore', details: 'sidekick section' })
       }
     }
   }
@@ -387,54 +376,33 @@ async function collectDetectionSummary(
   // --- User scope ---
   if (userDetected) {
     // Settings
-    try {
-      const content = await fs.readFile(path.join(userHome, '.claude', 'settings.json'), 'utf-8')
-      const settings = JSON.parse(content) as Record<string, unknown>
-      const sl = settings.statusLine as { command?: string } | undefined
-      if (sl?.command?.includes('sidekick')) {
-        summary.user.push({ label: 'Settings', details: 'statusline' })
+    const userSettings = await readFileOrNull(path.join(userHome, '.claude', 'settings.json'))
+    if (userSettings) {
+      try {
+        const settings = JSON.parse(userSettings) as Record<string, unknown>
+        const sl = settings.statusLine as { command?: string } | undefined
+        if (sl?.command?.includes('sidekick')) {
+          summary.user.push({ label: 'Settings', details: 'statusline' })
+        }
+      } catch {
+        /* invalid JSON */
       }
-    } catch {
-      /* */
     }
 
     // Config
-    const userConfigFiles: string[] = []
-    try {
-      await fs.access(path.join(userHome, '.sidekick', 'setup-status.json'))
-      userConfigFiles.push('setup-status.json')
-    } catch {
-      /* */
-    }
-    try {
-      await fs.access(path.join(userHome, '.sidekick', 'features.yaml'))
-      userConfigFiles.push('features.yaml')
-    } catch {
-      /* */
-    }
+    const userConfigFiles = await detectExistingItems(userHome, ['setup-status.json', 'features.yaml'])
     if (userConfigFiles.length > 0) {
       summary.user.push({ label: 'Config', details: userConfigFiles.join(', ') })
     }
 
     // .env
-    try {
-      const envContent = await fs.readFile(path.join(userHome, '.sidekick', '.env'), 'utf-8')
-      const hasKeys = envContent.split('\n').some((l) => l.includes('=') && !l.startsWith('#'))
-      summary.user.push({ label: '.env', details: hasKeys ? 'contains API keys' : 'present' })
-    } catch {
-      /* no .env */
+    const userEnvDetail = await detectEnvFile(path.join(userHome, '.sidekick', '.env'))
+    if (userEnvDetail) {
+      summary.user.push({ label: '.env', details: userEnvDetail })
     }
 
     // Data (user scope has state/ and daemons/)
-    const userDataItems: string[] = []
-    for (const dir of ['state', 'daemons']) {
-      try {
-        await fs.access(path.join(userHome, '.sidekick', dir))
-        userDataItems.push(`${dir}/`)
-      } catch {
-        /* */
-      }
-    }
+    const userDataItems = await detectExistingItems(userHome, ['state', 'daemons'], '/')
     if (userDataItems.length > 0) {
       summary.user.push({ label: 'Data', details: userDataItems.join(', ') })
     }
@@ -443,16 +411,42 @@ async function collectDetectionSummary(
   return summary
 }
 
+/** Return file content or null if the file does not exist or is unreadable. */
+async function readFileOrNull(filePath: string): Promise<string | null> {
+  try {
+    return await fs.readFile(filePath, 'utf-8')
+  } catch {
+    return null
+  }
+}
+
+/** Check which items from a list exist under `baseDir/.sidekick/`, returning their names with an optional suffix. */
+async function detectExistingItems(baseDir: string, items: string[], suffix = ''): Promise<string[]> {
+  const found: string[] = []
+  for (const item of items) {
+    if (await exists(path.join(baseDir, '.sidekick', item))) {
+      found.push(`${item}${suffix}`)
+    }
+  }
+  return found
+}
+
+/** Detect a .env file and describe its content. Returns null if no file exists. */
+async function detectEnvFile(envPath: string): Promise<string | null> {
+  const content = await readFileOrNull(envPath)
+  if (!content) return null
+  const hasKeys = content.split('\n').some((l) => l.includes('=') && !l.startsWith('#'))
+  return hasKeys ? 'contains API keys' : 'present'
+}
+
 function printDetectionSummary(stdout: Writable, summary: DetectionSummary): void {
   stdout.write('\nDetected sidekick installation:\n')
-  const scopes: Array<{ key: keyof DetectionSummary; label: string }> = [
-    { key: 'user', label: 'user' },
-    { key: 'project', label: 'project' },
-  ]
-  for (const { key, label } of scopes) {
-    if (summary[key].length === 0) continue
-    stdout.write(`  ${label}:\n`)
-    for (const cat of summary[key]) {
+  const scopes = ['user', 'project'] as const
+  for (const scope of scopes) {
+    const categories = summary[scope]
+    if (categories.length === 0) continue
+    stdout.write(`  ${scope}:\n`)
+    for (const cat of categories) {
       stdout.write(`    ${cat.label}: ${cat.details}\n`)
     }
   }
