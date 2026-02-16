@@ -40,13 +40,21 @@ export function registerInjectStop(context: RuntimeContext): void {
       // Smart completion detection: classify assistant's stopping intent
       const projectDir = cliCtx.paths.projectDir
       if (!projectDir) {
-        cliCtx.logger.warn('Cannot run completion classification: projectDir not available')
+        cliCtx.logger.warn('VC inject-stop: projectDir not available, defaulting to block')
         return buildDefaultResponse(reminder, supportsBlocking)
       }
 
       // Get transcript path from event
       const stopEvent = event as StopHookEvent
       const transcriptPath = stopEvent.payload?.transcriptPath
+
+      const metrics = reminder.stagedAt ?? { turnCount: 0, toolsThisTurn: 0, toolCount: 0 }
+      cliCtx.logger.info('VC inject-stop: classifying stop intent', {
+        sessionId,
+        transcriptPath: transcriptPath ? '(provided)' : '(none)',
+        stagedAtTurn: metrics.turnCount,
+        stagedAtToolCount: metrics.toolCount,
+      })
 
       // Call Daemon for classification
       const ipc = new IpcService(projectDir, cliCtx.logger)
@@ -56,25 +64,36 @@ export function registerInjectStop(context: RuntimeContext): void {
           transcriptPath,
         })) as ClassificationResult
 
-        cliCtx.logger.info('Completion classification result', {
+        cliCtx.logger.info('VC inject-stop: classification received', {
           category: classification.category,
           confidence: classification.confidence,
           shouldBlock: classification.shouldBlock,
+          reasoning: classification.reasoning?.slice(0, 200),
         })
 
         // Determine response based on classification
         if (classification.shouldBlock) {
           // Claiming completion with high confidence - block with verification
+          cliCtx.logger.info('VC inject-stop: BLOCKING (claiming completion)', { sessionId })
           // Clear unverified state since verification is now happening
           try {
             await ipc.send('vc-unverified.clear', { sessionId })
           } catch (clearErr) {
-            cliCtx.logger.warn('Failed to clear vc-unverified state', { error: String(clearErr) })
+            cliCtx.logger.warn('VC inject-stop: failed to clear vc-unverified state', {
+              error: String(clearErr),
+            })
           }
           return buildDefaultResponse(reminder, supportsBlocking)
         } else {
           // Non-blocking: set unverified state so we re-stage on next UserPromptSubmit
-          const metrics = reminder.stagedAt ?? { turnCount: 0, toolsThisTurn: 0, toolCount: 0 }
+          cliCtx.logger.info('VC inject-stop: NOT BLOCKING', {
+            sessionId,
+            category: classification.category,
+            action:
+              classification.category === 'ASKING_QUESTION' || classification.category === 'ANSWERING_QUESTION'
+                ? 'silent'
+                : 'notify',
+          })
           try {
             await ipc.send('vc-unverified.set', {
               sessionId,
@@ -89,7 +108,9 @@ export function registerInjectStop(context: RuntimeContext): void {
               },
             })
           } catch (setErr) {
-            cliCtx.logger.warn('Failed to set vc-unverified state', { error: String(setErr) })
+            cliCtx.logger.warn('VC inject-stop: failed to set vc-unverified state', {
+              error: String(setErr),
+            })
           }
 
           if (classification.category === 'ASKING_QUESTION' || classification.category === 'ANSWERING_QUESTION') {
@@ -106,7 +127,7 @@ export function registerInjectStop(context: RuntimeContext): void {
         }
       } catch (err) {
         // On IPC failure, default to blocking (safe fallback)
-        cliCtx.logger.error('Completion classification IPC failed - defaulting to block', { error: String(err) })
+        cliCtx.logger.error('VC inject-stop: IPC failed, defaulting to block', { error: String(err) })
         return buildDefaultResponse(reminder, supportsBlocking)
       } finally {
         ipc.close()

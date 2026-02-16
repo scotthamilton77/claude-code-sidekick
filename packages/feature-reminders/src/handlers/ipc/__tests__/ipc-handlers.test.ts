@@ -166,7 +166,7 @@ describe('IPC Handlers', () => {
       expect(written.setAt.turnCount).toBe(5)
     })
 
-    it('logs debug message with cycle count', async () => {
+    it('logs info message with classification details', async () => {
       await handleVCUnverifiedSet(
         {
           sessionId: 'session-456',
@@ -176,9 +176,16 @@ describe('IPC Handlers', () => {
         ctx
       )
 
-      expect(logger.debug).toHaveBeenCalledWith(
-        'Set VC unverified state',
-        expect.objectContaining({ sessionId: 'session-456', cycleCount: 1 })
+      expect(logger.info).toHaveBeenCalledWith(
+        'VC unverified state set',
+        expect.objectContaining({
+          sessionId: 'session-456',
+          category: 'test',
+          confidence: 0.8,
+          cycleCount: 1,
+          turnCount: 1,
+          toolCount: 5,
+        })
       )
     })
   })
@@ -191,11 +198,11 @@ describe('IPC Handlers', () => {
       expect(stateService.deletedPaths).toContain(expectedPath)
     })
 
-    it('logs debug message', async () => {
+    it('logs info message', async () => {
       await handleVCUnverifiedClear({ sessionId: 'session-789' }, ctx)
 
-      expect(logger.debug).toHaveBeenCalledWith(
-        'Cleared VC unverified state',
+      expect(logger.info).toHaveBeenCalledWith(
+        'VC unverified state cleared',
         expect.objectContaining({ sessionId: 'session-789' })
       )
     })

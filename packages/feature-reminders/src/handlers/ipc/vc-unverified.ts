@@ -35,7 +35,14 @@ export async function handleVCUnverifiedSet(params: VCUnverifiedSetParams, ctx: 
 
   await remindersState.vcUnverified.write(sessionId, state)
 
-  ctx.logger.debug('Set VC unverified state', { sessionId, classification, cycleCount: newCycleCount })
+  ctx.logger.info('VC unverified state set', {
+    sessionId,
+    category: classification.category,
+    confidence: classification.confidence,
+    cycleCount: newCycleCount,
+    turnCount: metrics.turnCount,
+    toolCount: metrics.toolCount,
+  })
 }
 
 /** Removes unverified state when verification actually occurs. */
@@ -45,5 +52,5 @@ export async function handleVCUnverifiedClear(params: VCUnverifiedClearParams, c
   const remindersState = createRemindersState(ctx.stateService)
   await remindersState.vcUnverified.delete(sessionId)
 
-  ctx.logger.debug('Cleared VC unverified state', { sessionId })
+  ctx.logger.info('VC unverified state cleared', { sessionId })
 }
