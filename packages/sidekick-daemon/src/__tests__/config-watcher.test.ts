@@ -5,6 +5,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MockLogger } from '@sidekick/testing-fixtures'
 import { ConfigChangeEvent, ConfigWatcher } from '../config-watcher.js'
 
+/**
+ * Mock chokidar to verify watcher configuration (depth, ignored, etc.)
+ * Real chokidar is used for behavior tests; this mock is only for the
+ * "depth separation" tests that verify internal watcher setup.
+ */
+const mockChokidarWatch = vi.fn()
+vi.mock('chokidar', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('chokidar')>()
+  return {
+    ...actual,
+    watch: (...args: Parameters<typeof actual.watch>) => {
+      mockChokidarWatch(...args)
+      return actual.watch(...args)
+    },
+  }
+})
+
 let tmpDir: string
 let sidekickDir: string
 let logger: MockLogger
@@ -251,5 +268,92 @@ describe('ConfigWatcher', () => {
     watcher.stop()
 
     expect(logger.wasLogged('ConfigWatcher stopped')).toBe(true)
+  })
+
+  describe('daemon runtime file ignoring', () => {
+    it.each(['sidekickd.lock', 'sidekickd.pid', 'sidekickd.token'])(
+      'should not trigger onChange for %s changes',
+      async (filename) => {
+        // Create a config file to prove the watcher works for real config
+        const configPath = path.join(sidekickDir, 'config.yaml')
+        await fs.writeFile(configPath, 'logging:\n  level: info\n', 'utf-8')
+
+        const onChange = vi.fn()
+        const watcher = new ConfigWatcher({ projectDir: sidekickDir }, logger, onChange)
+
+        try {
+          watcher.start()
+          await watcher.ready()
+
+          // Write runtime file (should be ignored by ConfigWatcher)
+          const runtimePath = path.join(sidekickDir, filename)
+          await fs.writeFile(runtimePath, 'test-content', 'utf-8')
+
+          // Give chokidar time to process events
+          await new Promise((r) => setTimeout(r, 300))
+
+          // Runtime file should NOT have triggered onChange
+          expect(onChange).not.toHaveBeenCalled()
+
+          // Now modify a real config file to prove the watcher is alive
+          await fs.writeFile(configPath, 'logging:\n  level: debug\n', 'utf-8')
+
+          await vi.waitFor(
+            () => {
+              expect(onChange).toHaveBeenCalled()
+            },
+            { timeout: 1000 }
+          )
+
+          // Only the config.yaml change should appear
+          expect(onChange.mock.calls[0][0]).toMatchObject({ file: 'config.yaml' })
+        } finally {
+          watcher.stop()
+        }
+      }
+    )
+  })
+
+  describe('depth separation in dev mode', () => {
+    beforeEach(() => {
+      mockChokidarWatch.mockClear()
+    })
+
+    it('should use depth 0 for config dirs and depth 2 for assets dir', () => {
+      const assetsDir = path.join(tmpDir, 'assets', 'sidekick')
+
+      const onChange = vi.fn()
+      const watcher = new ConfigWatcher({ projectDir: sidekickDir, devAssetsDir: assetsDir }, logger, onChange)
+
+      watcher.start()
+
+      // Should create two watchers with different depths
+      expect(mockChokidarWatch).toHaveBeenCalledTimes(2)
+
+      // First call: config dirs at depth 0
+      const configCall = mockChokidarWatch.mock.calls[0]
+      expect(configCall[0]).toEqual(expect.arrayContaining([sidekickDir]))
+      expect(configCall[1]).toMatchObject({ depth: 0 })
+
+      // Second call: assets dir at depth 2
+      const assetsCall = mockChokidarWatch.mock.calls[1]
+      expect(assetsCall[0]).toEqual([assetsDir])
+      expect(assetsCall[1]).toMatchObject({ depth: 2 })
+
+      watcher.stop()
+    })
+
+    it('should use single watcher at depth 0 when no devAssetsDir', () => {
+      const onChange = vi.fn()
+      const watcher = new ConfigWatcher({ projectDir: sidekickDir }, logger, onChange)
+
+      watcher.start()
+
+      // Should create only one watcher
+      expect(mockChokidarWatch).toHaveBeenCalledTimes(1)
+      expect(mockChokidarWatch.mock.calls[0][1]).toMatchObject({ depth: 0 })
+
+      watcher.stop()
+    })
   })
 })

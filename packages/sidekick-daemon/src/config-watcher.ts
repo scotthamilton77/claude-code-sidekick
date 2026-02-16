@@ -2,15 +2,19 @@
  * ConfigWatcher - Watches configuration directories for hot-reload.
  *
  * Per design/DAEMON.md §4.3: Watches config directories for changes.
- * On any file change, triggers a callback for config reload.
+ * On any config file change, triggers a callback for config reload.
  *
  * Watches cascade layers in priority order:
- * - Project-level: .sidekick/ (higher priority)
- * - User-level: ~/.sidekick/ (lower priority)
- * - Dev mode: assets/sidekick/ (source defaults, lowest priority)
+ * - Project-level: .sidekick/ (higher priority, depth 0)
+ * - User-level: ~/.sidekick/ (lower priority, depth 0)
+ * - Dev mode: assets/sidekick/ (source defaults, lowest priority, depth 2)
  *
- * Does NOT filter by filename - any change in these directories triggers
- * a reload. This keeps the watcher decoupled from config file knowledge.
+ * Config directories (.sidekick/) are watched at depth 0 because config files
+ * live directly at the root. The assets directory needs depth 2 to reach
+ * subdirectories like defaults/, prompts/, personas/.
+ *
+ * Daemon runtime files (sidekickd.lock, .pid, .token) are ignored to prevent
+ * unnecessary config reload churn from IPC operations.
  *
  * Uses chokidar for reliable cross-platform file watching, handling:
  * - Atomic writes (editor save patterns)
@@ -25,6 +29,9 @@ import { Logger } from '@sidekick/core'
 import { watch, type FSWatcher } from 'chokidar'
 import { homedir } from 'os'
 import path from 'path'
+
+/** Daemon runtime files that should never trigger config reloads */
+const IGNORED_RUNTIME_FILES = new Set(['sidekickd.lock', 'sidekickd.pid', 'sidekickd.token'])
 
 /**
  * Configuration change event.
@@ -55,8 +62,6 @@ export interface ConfigWatcherOptions {
   userDir?: string
   /** Source assets directory to watch in dev mode (e.g., assets/sidekick/) */
   devAssetsDir?: string
-  /** Patterns or function to ignore within watched directories */
-  ignored?: string[] | ((path: string) => boolean)
 }
 
 /**
@@ -66,9 +71,9 @@ export class ConfigWatcher {
   private projectDir: string
   private userDir: string
   private devAssetsDir: string | undefined
-  private ignored: string[] | ((path: string) => boolean)
   private logger: Logger
-  private watcher: FSWatcher | null = null
+  private configWatcher: FSWatcher | null = null
+  private assetsWatcher: FSWatcher | null = null
   private onChange: ConfigChangeHandler
   private debounceTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private readyPromise: Promise<void> | null = null
@@ -87,7 +92,6 @@ export class ConfigWatcher {
     this.projectDir = options.projectDir
     this.userDir = options.userDir ?? path.join(homedir(), '.sidekick')
     this.devAssetsDir = options.devAssetsDir
-    this.ignored = options.ignored ?? []
     this.logger = logger
     this.onChange = onChange
   }
@@ -95,8 +99,8 @@ export class ConfigWatcher {
   /**
    * Start watching configuration files.
    *
-   * Watches cascade layers for changes. In dev mode, also watches
-   * the source assets directory for immediate feedback during development.
+   * Creates separate watchers for config dirs (depth 0) and assets dir (depth 2)
+   * to avoid watching unnecessary subdirectories in .sidekick/.
    */
   start(): void {
     // Create ready promise for async initialization
@@ -104,48 +108,70 @@ export class ConfigWatcher {
       this.readyResolve = resolve
     })
 
-    // Build list of directories to watch
-    const dirsToWatch = [this.projectDir, this.userDir]
-    if (this.devAssetsDir) {
-      dirsToWatch.push(this.devAssetsDir)
+    // Track readiness of all watchers
+    let configReady = false
+    let assetsReady = !this.devAssetsDir // Already "ready" if not watching assets
+    const checkAllReady = (): void => {
+      if (configReady && assetsReady) {
+        this.logger.debug('ConfigWatcher ready')
+        this.readyResolve?.()
+      }
     }
 
-    this.watcher = watch(dirsToWatch, {
-      // Watch subdirectories for assets (defaults/, prompts/, personas/)
-      // but not too deep to avoid watching node_modules etc.
-      depth: this.devAssetsDir ? 2 : 0,
-      // Ignore initial scan - we only care about changes
+    // Config dirs watcher: depth 0 (config files live at root of .sidekick/)
+    // Ignores daemon runtime files to prevent reload churn from IPC operations
+    const configDirs = [this.projectDir, this.userDir]
+    this.configWatcher = watch(configDirs, {
+      depth: 0,
       ignoreInitial: true,
-      // Use polling as fallback for network filesystems
       usePolling: false,
-      // Don't use awaitWriteFinish - we have our own debouncing,
-      // and awaitWriteFinish can delay/skip 'add' events
-      ignored: this.ignored,
+      ignored: (filePath: string) => IGNORED_RUNTIME_FILES.has(path.basename(filePath)),
     })
 
-    this.watcher
+    this.configWatcher
       .on('add', (filePath) => this.handleEvent('add', filePath))
       .on('change', (filePath) => this.handleEvent('change', filePath))
       .on('unlink', (filePath) => this.handleEvent('unlink', filePath))
       .on('error', (err) => {
-        this.logger.error('ConfigWatcher error', { error: err })
+        this.logger.error('ConfigWatcher error (config dirs)', { error: err })
       })
       .on('ready', () => {
-        this.logger.debug('ConfigWatcher ready')
-        this.readyResolve?.()
+        configReady = true
+        checkAllReady()
       })
+
+    // Assets watcher: depth 2 (assets has subdirectories: defaults/, prompts/, personas/)
+    // Only created in dev mode
+    if (this.devAssetsDir) {
+      this.assetsWatcher = watch([this.devAssetsDir], {
+        depth: 2,
+        ignoreInitial: true,
+        usePolling: false,
+      })
+
+      this.assetsWatcher
+        .on('add', (filePath) => this.handleEvent('add', filePath))
+        .on('change', (filePath) => this.handleEvent('change', filePath))
+        .on('unlink', (filePath) => this.handleEvent('unlink', filePath))
+        .on('error', (err) => {
+          this.logger.error('ConfigWatcher error (assets dir)', { error: err })
+        })
+        .on('ready', () => {
+          assetsReady = true
+          checkAllReady()
+        })
+    }
 
     this.logger.info('ConfigWatcher started', {
       projectDir: this.projectDir,
       userDir: this.userDir,
       devAssetsDir: this.devAssetsDir ?? '(not watching)',
-      depth: this.devAssetsDir ? 2 : 0,
     })
   }
 
   /**
    * Wait for the watcher to be ready.
-   * Resolves when chokidar has finished its initial scan.
+   * Resolves when all chokidar watchers have finished their initial scan.
    */
   async ready(): Promise<void> {
     if (this.readyPromise) {
@@ -157,9 +183,13 @@ export class ConfigWatcher {
    * Stop watching all configuration files.
    */
   stop(): void {
-    if (this.watcher) {
-      void this.watcher.close()
-      this.watcher = null
+    if (this.configWatcher) {
+      void this.configWatcher.close()
+      this.configWatcher = null
+    }
+    if (this.assetsWatcher) {
+      void this.assetsWatcher.close()
+      this.assetsWatcher = null
     }
 
     // Clear any pending debounce timers
@@ -173,7 +203,6 @@ export class ConfigWatcher {
 
   /**
    * Handle file system event with debouncing.
-   * No filtering - any file change in the watched directories triggers the callback.
    */
   private handleEvent(eventType: 'add' | 'change' | 'unlink', filePath: string): void {
     const filename = path.basename(filePath)

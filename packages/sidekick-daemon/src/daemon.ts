@@ -210,16 +210,13 @@ export class Daemon {
 
     // Initialize Config Watcher for hot-reload (design/DAEMON.md §4.3)
     // In dev mode, also watch source assets directory for immediate feedback
+    // ConfigWatcher handles depth separation internally:
+    // - Config dirs (.sidekick/): depth 0, ignores daemon runtime files
+    // - Assets dir: depth 2 for subdirectories (defaults/, prompts/, personas/)
     this.configWatcher = new ConfigWatcher(
       {
         projectDir: this.stateService.rootDir(),
         devAssetsDir: this.configService.core.development.enabled ? getDefaultAssetsDir() : undefined,
-        // Ignore non-config directories to prevent unnecessary reloads
-        // Uses function matcher since glob patterns don't match dotfiles (.sidekick)
-        // - logs: prevents feedback loop (log writes triggering config reload)
-        // - sessions: session state files, watched separately by SessionPersonaWatcher
-        // - state: daemon runtime state, not configuration
-        ignored: (filePath: string) => /\/(logs|sessions|state)\//.test(filePath),
       },
       this.logger,
       this.handleConfigChange.bind(this)
