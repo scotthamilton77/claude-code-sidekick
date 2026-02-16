@@ -72,7 +72,7 @@ profiles:
     provider: openrouter
     model: google/gemini-2.5-flash-lite
     temperature: 1.2
-    maxTokens: 25
+    maxTokens: 100
     timeout: 10
     timeoutMaxRetries: 2
 
