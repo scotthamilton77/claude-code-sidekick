@@ -19,6 +19,7 @@ import type {
 import {
   createPersonaLoader,
   getDefaultPersonasDir,
+  readDaemonHealth,
   SetupStatusService,
   type ApiKeyName,
   type SetupState,
@@ -362,7 +363,9 @@ export class StatuslineService {
 
     // Try persona-specific empty messages first
     if (persona.statusline_empty_messages && persona.statusline_empty_messages.length > 0) {
-      return persona.statusline_empty_messages[deterministicIndex(this.sessionId, persona.statusline_empty_messages.length)]
+      return persona.statusline_empty_messages[
+        deterministicIndex(this.sessionId, persona.statusline_empty_messages.length)
+      ]
     }
 
     // Fallback to default asset file (for sidekick persona or personas without messages)
@@ -508,6 +511,27 @@ export class StatuslineService {
         displayMode: 'setup_warning',
         staleData: false,
         viewModel,
+      }
+    }
+
+    // Check daemon health - if daemon failed, show degraded warning
+    // Lower priority than setup issues (checked second)
+    if (this.projectDir) {
+      const daemonHealth = await readDaemonHealth(this.projectDir)
+      if (daemonHealth.status === 'failed') {
+        const warning = daemonHealth.error
+          ? `Daemon not running: ${daemonHealth.error}. Sidekick features limited.`
+          : 'Daemon not running. Sidekick features limited.'
+        const viewModel = this.buildMinimalViewModel({ warning, state: 'healthy' })
+        const ANSI_YELLOW = '\x1b[33m'
+        const ANSI_RESET = '\x1b[0m'
+        const text = this.useColors ? `${ANSI_YELLOW}${warning}${ANSI_RESET}` : warning
+        return {
+          text,
+          displayMode: 'setup_warning',
+          staleData: false,
+          viewModel,
+        }
       }
     }
 

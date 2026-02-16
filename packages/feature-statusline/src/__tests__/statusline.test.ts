@@ -3198,4 +3198,130 @@ describe('StatuslineService', () => {
       expect(indices.size).toBeGreaterThan(1)
     })
   })
+
+  describe('daemon health degraded display', () => {
+    it('shows degraded warning when daemon health is failed', async () => {
+      // Write daemon-health.json with failed status to the test project's state dir
+      const healthPath = path.join(projectRoot, '.sidekick', 'state', 'daemon-health.json')
+      await fs.writeFile(
+        healthPath,
+        JSON.stringify({
+          status: 'failed',
+          lastCheckedAt: new Date().toISOString(),
+          error: 'Connection refused',
+        })
+      )
+
+      const service = createStatuslineService({
+        stateService,
+        setupService,
+        sessionId,
+        cwd: '/test',
+        useColors: false,
+        projectDir: projectRoot,
+      })
+
+      const result = await service.render()
+
+      expect(result.displayMode).toBe('setup_warning')
+      expect(result.text).toContain('Daemon not running')
+      expect(result.text).toContain('Connection refused')
+      expect(result.text).toContain('Sidekick features limited')
+      expect(result.staleData).toBe(false)
+    })
+
+    it('shows degraded warning without error detail when error is absent', async () => {
+      const healthPath = path.join(projectRoot, '.sidekick', 'state', 'daemon-health.json')
+      await fs.writeFile(
+        healthPath,
+        JSON.stringify({
+          status: 'failed',
+          lastCheckedAt: new Date().toISOString(),
+        })
+      )
+
+      const service = createStatuslineService({
+        stateService,
+        setupService,
+        sessionId,
+        cwd: '/test',
+        useColors: false,
+        projectDir: projectRoot,
+      })
+
+      const result = await service.render()
+
+      expect(result.displayMode).toBe('setup_warning')
+      expect(result.text).toBe('Daemon not running. Sidekick features limited.')
+    })
+
+    it('renders normally when daemon health is healthy', async () => {
+      const healthPath = path.join(projectRoot, '.sidekick', 'state', 'daemon-health.json')
+      await fs.writeFile(
+        healthPath,
+        JSON.stringify({
+          status: 'healthy',
+          lastCheckedAt: new Date().toISOString(),
+        })
+      )
+
+      const service = createStatuslineService({
+        stateService,
+        setupService,
+        sessionId,
+        cwd: '/test',
+        useColors: false,
+        projectDir: projectRoot,
+      })
+
+      const result = await service.render()
+
+      // Should proceed to normal rendering, not show a warning
+      expect(result.displayMode).not.toBe('setup_warning')
+    })
+
+    it('renders normally when daemon health file does not exist', async () => {
+      // No daemon-health.json written — readDaemonHealth returns { status: 'unknown' }
+      const service = createStatuslineService({
+        stateService,
+        setupService,
+        sessionId,
+        cwd: '/test',
+        useColors: false,
+        projectDir: projectRoot,
+      })
+
+      const result = await service.render()
+
+      // Should proceed to normal rendering (unknown = not failed)
+      expect(result.displayMode).not.toBe('setup_warning')
+    })
+
+    it('skips daemon health check when projectDir is not set', async () => {
+      // Even if a daemon-health.json exists, without projectDir it cannot be read
+      const healthPath = path.join(projectRoot, '.sidekick', 'state', 'daemon-health.json')
+      await fs.writeFile(
+        healthPath,
+        JSON.stringify({
+          status: 'failed',
+          lastCheckedAt: new Date().toISOString(),
+          error: 'Connection refused',
+        })
+      )
+
+      const service = createStatuslineService({
+        stateService,
+        setupService,
+        sessionId,
+        cwd: '/test',
+        useColors: false,
+        // projectDir intentionally omitted
+      })
+
+      const result = await service.render()
+
+      // Without projectDir, daemon health is not checked — normal render
+      expect(result.displayMode).not.toBe('setup_warning')
+    })
+  })
 })
