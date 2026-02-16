@@ -1040,11 +1040,140 @@ function parseDoctorOnly(only: string | undefined): Set<DoctorCheckName> | null 
   return new Set(requested as DoctorCheckName[])
 }
 
+/** Result type from SetupStatusService.runDoctorCheck() */
+type DoctorCheckResultType = Awaited<ReturnType<SetupStatusService['runDoctorCheck']>>
+
+/**
+ * Apply targeted fixes for unhealthy doctor items.
+ * When filter is null (unfiltered), runs all fixes and reports unfixable items.
+ * When filter is provided, only runs fixes for the specified checks.
+ */
+async function runDoctorFixes(
+  projectDir: string,
+  logger: Logger,
+  stdout: NodeJS.WritableStream,
+  context: {
+    homeDir: string
+    filter: Set<DoctorCheckName> | null
+    doctorResult: DoctorCheckResultType | null
+    gitignore: string | null
+    pluginStatus: PluginInstallationStatus | null
+    liveness: PluginLivenessStatus | null
+  }
+): Promise<SetupCommandResult> {
+  const { homeDir, filter, doctorResult, gitignore, pluginStatus, liveness } = context
+  const isFullMode = filter === null
+  const shouldFix = (check: DoctorCheckName): boolean => isFullMode || filter.has(check)
+
+  logger.info('Starting doctor fix mode', { homeDir, isFullMode, gitignore, pluginStatus, liveness })
+  stdout.write('\nFixing detected issues...\n\n')
+
+  let fixedCount = 0
+  const unfixable: string[] = []
+
+  // Fix: Missing user setup-status file (only in full mode — not a named check)
+  if (isFullMode && doctorResult && !doctorResult.userSetupExists) {
+    stdout.write('Fixing: User Setup\n')
+    const setupService = new SetupStatusService(projectDir, { homeDir, logger })
+    const userStatus: UserSetupStatus = {
+      version: 1,
+      lastUpdatedAt: new Date().toISOString(),
+      preferences: {
+        autoConfigureProjects: true,
+        defaultStatuslineScope: 'user',
+        defaultApiKeyScope: 'skip',
+      },
+      statusline: 'none',
+      apiKeys: {
+        OPENROUTER_API_KEY: SetupStatusService.userApiKeyStatusFromHealth('not-required'),
+        OPENAI_API_KEY: SetupStatusService.userApiKeyStatusFromHealth('not-required'),
+      },
+    }
+    await setupService.writeUserStatus(userStatus)
+    stdout.write('  ✓ Created ~/.sidekick/setup-status.json with defaults\n')
+    fixedCount++
+  }
+
+  // Fix: Missing statusline
+  if (shouldFix('statusline') && doctorResult?.statusline.actual === 'none') {
+    stdout.write('Fixing: Statusline\n')
+    const settingsPath = statuslineSettingsPath('user', homeDir, projectDir)
+    const wrote = await configureStatusline(settingsPath, logger)
+    if (wrote) {
+      stdout.write('  ✓ Statusline configured at user scope\n')
+      fixedCount++
+    } else {
+      stdout.write('  ⚠ Statusline managed by dev-mode (skipped)\n')
+    }
+  }
+
+  // Fix: Missing/incomplete gitignore
+  if (shouldFix('gitignore') && gitignore !== null && gitignore !== 'installed') {
+    stdout.write('Fixing: Gitignore\n')
+    const result = await installGitignoreSection(projectDir)
+    if (result.status === 'error') {
+      stdout.write(`  ⚠ Failed to update .gitignore: ${result.error}\n`)
+    } else {
+      stdout.write('  ✓ Gitignore configured\n')
+      fixedCount++
+    }
+  }
+
+  // Fix: Missing plugin
+  if (shouldFix('plugin') && pluginStatus === 'none') {
+    stdout.write('Fixing: Plugin\n')
+    try {
+      const pluginResult = await ensurePluginInstalled({
+        logger,
+        stdout,
+        force: true,
+        projectDir,
+        marketplaceScope: 'user',
+      })
+      if (pluginResult.error) {
+        stdout.write(`  ⚠ Plugin installation issue: ${pluginResult.error}\n`)
+      } else {
+        stdout.write(`  ✓ Plugin installed (${pluginResult.pluginScope})\n`)
+        fixedCount++
+      }
+    } catch (err) {
+      stdout.write(`  ⚠ Plugin installation failed: ${err instanceof Error ? err.message : String(err)}\n`)
+    }
+  }
+
+  // Unfixable items (only tracked in full mode)
+  if (isFullMode && doctorResult) {
+    const openRouterHealth = doctorResult.apiKeys.OPENROUTER_API_KEY.actual
+    if (openRouterHealth !== 'healthy' && openRouterHealth !== 'not-required') {
+      unfixable.push("API Key: Run 'sidekick setup' to configure API keys interactively.")
+    }
+    if (liveness !== null && liveness !== 'active') {
+      unfixable.push('Plugin Liveness: Restart Claude Code to activate hooks: claude --continue')
+    }
+  }
+
+  // Summary
+  stdout.write('\n')
+  if (fixedCount > 0) {
+    stdout.write(`Fixed ${fixedCount} issue${fixedCount === 1 ? '' : 's'}.\n`)
+  } else if (!isFullMode) {
+    stdout.write('No fixable issues found.\n')
+  }
+  if (unfixable.length > 0) {
+    stdout.write('\nRequires manual action:\n')
+    for (const msg of unfixable) {
+      stdout.write(`  → ${msg}\n`)
+    }
+  }
+
+  return { exitCode: unfixable.length > 0 ? 1 : 0 }
+}
+
 async function runDoctor(
   projectDir: string,
   logger: Logger,
   stdout: NodeJS.WritableStream,
-  options?: { homeDir?: string; only?: string }
+  options?: { homeDir?: string; only?: string; fix?: boolean }
 ): Promise<SetupCommandResult> {
   const homeDir = options?.homeDir ?? os.homedir()
   const setupService = new SetupStatusService(projectDir, { homeDir, logger })
@@ -1069,8 +1198,7 @@ async function runDoctor(
   const promises: Promise<unknown>[] = []
 
   // api-keys and statusline share runDoctorCheck(); run it if either is requested
-  type DoctorCheckResult = Awaited<ReturnType<SetupStatusService['runDoctorCheck']>>
-  let doctorResult: DoctorCheckResult | null = null
+  let doctorResult: DoctorCheckResultType | null = null
   if (shouldRun('api-keys') || shouldRun('statusline')) {
     promises.push(
       setupService.runDoctorCheck().then((result) => {
@@ -1159,11 +1287,34 @@ async function runDoctor(
     const overallIcon = isHealthy ? '✓' : '⚠'
     stdout.write(`${overallIcon} Overall: ${isHealthy ? 'healthy' : 'needs attention'}\n`)
 
+    if (!isHealthy && options?.fix) {
+      return runDoctorFixes(projectDir, logger, stdout, {
+        homeDir,
+        filter: null,
+        doctorResult: doctorResult!,
+        gitignore: gitignore!,
+        pluginStatus: pluginStatus!,
+        liveness,
+      })
+    }
+
     if (!isHealthy) {
       stdout.write("\nRun 'sidekick doctor --fix' to auto-fix, or 'sidekick setup' to configure interactively.\n")
     }
 
     return { exitCode: isHealthy ? 0 : 1 }
+  }
+
+  // Filtered fix mode (--only + --fix)
+  if (options?.fix) {
+    return runDoctorFixes(projectDir, logger, stdout, {
+      homeDir,
+      filter,
+      doctorResult,
+      gitignore,
+      pluginStatus,
+      liveness,
+    })
   }
 
   return { exitCode: 0 }
@@ -1183,7 +1334,7 @@ export async function handleSetupCommand(
     return { exitCode: 0 }
   }
   if (options.checkOnly) {
-    return runDoctor(projectDir, logger, stdout, { homeDir: options.homeDir, only: options.only })
+    return runDoctor(projectDir, logger, stdout, { homeDir: options.homeDir, only: options.only, fix: options.fix })
   }
   // Detect dev-mode before dispatch (doctor mode is unaffected)
   const homeDir = options.homeDir ?? os.homedir()
