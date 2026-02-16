@@ -11,10 +11,35 @@
  */
 import type { RuntimeContext } from '@sidekick/core'
 import { createPersonaLoader, getDefaultPersonasDir } from '@sidekick/core'
-import type { DaemonContext, HookName, PersonaDefinition, SidekickEvent, HandlerContext } from '@sidekick/types'
+import type { DaemonContext, HookName, Logger, PersonaDefinition, SidekickEvent, HandlerContext } from '@sidekick/types'
 import { isDaemonContext, isHookEvent, isSessionStartEvent, SessionPersonaStateSchema } from '@sidekick/types'
 import { resolveReminder, stageReminder } from '../../reminder-utils.js'
 import { ReminderIds } from '../../types.js'
+
+/**
+ * Re-stage persona reminders for all active sessions.
+ * Called by daemon when `injectPersonaIntoClaude` config changes mid-session.
+ *
+ * Uses ctxFactory pattern to avoid passing daemon internals directly.
+ */
+export async function restagePersonaRemindersForActiveSessions(
+  ctxFactory: (sessionId: string) => Promise<DaemonContext>,
+  sessionIds: string[],
+  logger: Logger
+): Promise<void> {
+  logger.info('Re-staging persona reminders for active sessions', { count: sessionIds.length })
+  for (const sessionId of sessionIds) {
+    try {
+      const ctx = await ctxFactory(sessionId)
+      await stagePersonaRemindersForSession(ctx, sessionId)
+    } catch (err) {
+      logger.error('Failed to restage persona reminders', {
+        sessionId,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+  }
+}
 
 /** Minimal type for reading session-summary config without cross-feature import */
 interface PersonaInjectionConfig {
@@ -25,6 +50,17 @@ interface PersonaInjectionConfig {
 
 /** Target hooks for persona reminders */
 const PERSONA_REMINDER_HOOKS: HookName[] = ['UserPromptSubmit', 'SessionStart']
+
+/**
+ * Remove all persona-related reminders from staging.
+ * Used when persona injection is disabled or no active persona exists.
+ */
+async function clearPersonaReminders(ctx: DaemonContext): Promise<void> {
+  for (const hook of PERSONA_REMINDER_HOOKS) {
+    await ctx.staging.deleteReminder(hook, ReminderIds.REMEMBER_YOUR_PERSONA)
+  }
+  await ctx.staging.deleteReminder('UserPromptSubmit', ReminderIds.PERSONA_CHANGED)
+}
 
 /**
  * Build persona template context from a PersonaDefinition.
@@ -84,18 +120,15 @@ export async function stagePersonaRemindersForSession(
   options?: { includeChangedReminder?: boolean }
 ): Promise<void> {
   if (!isPersonaInjectionEnabled(ctx)) {
-    ctx.logger.debug('Persona injection disabled by config', { sessionId })
+    await clearPersonaReminders(ctx)
+    ctx.logger.debug('Persona injection disabled by config, cleaned up reminders', { sessionId })
     return
   }
 
   const persona = await loadPersonaForSession(ctx, sessionId)
 
   if (!persona) {
-    // No active persona or disabled — remove any existing persona reminders
-    for (const hook of PERSONA_REMINDER_HOOKS) {
-      await ctx.staging.deleteReminder(hook, ReminderIds.REMEMBER_YOUR_PERSONA)
-    }
-    await ctx.staging.deleteReminder('UserPromptSubmit', ReminderIds.PERSONA_CHANGED)
+    await clearPersonaReminders(ctx)
     ctx.logger.debug('Persona cleared or disabled, unstaged persona reminders', { sessionId })
     return
   }

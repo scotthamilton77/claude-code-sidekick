@@ -42,7 +42,10 @@ export { registerConsumptionHandlers } from './handlers/consumption'
 export { registerStagingHandlers } from './handlers/staging'
 
 // Re-export persona staging for daemon persona-change wiring
-export { stagePersonaRemindersForSession } from './handlers/staging/stage-persona-reminders'
+export {
+  stagePersonaRemindersForSession,
+  restagePersonaRemindersForActiveSessions,
+} from './handlers/staging/stage-persona-reminders'
 
 // Re-export completion classifier for IPC use
 export {

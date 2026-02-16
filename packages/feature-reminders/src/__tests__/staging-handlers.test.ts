@@ -29,7 +29,11 @@ import { registerStageDefaultUserPrompt } from '../handlers/staging/stage-defaul
 import { registerStageStopReminders } from '../handlers/staging/stage-stop-reminders'
 import { registerUnstageVerifyCompletion } from '../handlers/staging/unstage-verify-completion'
 import { registerStageBashChanges } from '../handlers/staging/stage-stop-bash-changes'
-import { registerStagePersonaReminders } from '../handlers/staging/stage-persona-reminders'
+import {
+  registerStagePersonaReminders,
+  stagePersonaRemindersForSession,
+  restagePersonaRemindersForActiveSessions,
+} from '../handlers/staging/stage-persona-reminders'
 import { getGitFileStatus } from '@sidekick/core'
 
 // Mock @sidekick/core — preserves all other exports, mocks specific functions
@@ -1470,6 +1474,145 @@ additionalContext: "Persona: {{persona_name}} - {{persona_tone}}"
       expect(
         handlers.getHandlersForHook('SessionStart').filter((h) => h.id === 'reminders:stage-persona-reminders')
       ).toHaveLength(0)
+    })
+
+    it('cleans up existing persona reminders when injectPersonaIntoClaude is false', async () => {
+      const config = new MockConfigService()
+      // Start with injection enabled
+      config.set({
+        features: {
+          'session-summary': {
+            enabled: true,
+            settings: {
+              personas: {
+                injectPersonaIntoClaude: true,
+              },
+            },
+          },
+        },
+      })
+
+      const stateService = new MockStateService('/tmp/claude/test-persona-cleanup')
+      const ctxEnabled = createMockDaemonContext({
+        staging,
+        logger,
+        handlers,
+        assets,
+        stateService,
+        config,
+        paths: {
+          projectDir: '/tmp/claude/test-persona-cleanup',
+          userConfigDir: '/mock/user',
+          projectConfigDir: '/mock/project-config',
+        },
+      })
+
+      // Register persona reminder YAML
+      assets.registerAll({
+        'reminders/remember-your-persona.yaml': `id: remember-your-persona
+blocking: false
+priority: 5
+persistent: true
+additionalContext: "Persona: {{persona_name}} - {{persona_tone}}"
+`,
+      })
+
+      setupPersonaState(stateService, 'skippy')
+      setupPersonaLoader('skippy', testPersona)
+
+      // Stage reminders with injection enabled
+      await stagePersonaRemindersForSession(ctxEnabled, sessionId)
+
+      // Verify reminders are staged
+      expect(staging.getRemindersForHook('UserPromptSubmit').some((r) => r.name === 'remember-your-persona')).toBe(true)
+      expect(staging.getRemindersForHook('SessionStart').some((r) => r.name === 'remember-your-persona')).toBe(true)
+
+      // Now disable injection
+      config.set({
+        features: {
+          'session-summary': {
+            enabled: true,
+            settings: {
+              personas: {
+                injectPersonaIntoClaude: false,
+              },
+            },
+          },
+        },
+      })
+
+      // Re-stage - should clean up
+      await stagePersonaRemindersForSession(ctxEnabled, sessionId)
+
+      // Verify reminders are cleaned up
+      expect(staging.getRemindersForHook('UserPromptSubmit').some((r) => r.name === 'remember-your-persona')).toBe(
+        false
+      )
+      expect(staging.getRemindersForHook('SessionStart').some((r) => r.name === 'remember-your-persona')).toBe(false)
+    })
+
+    describe('restagePersonaRemindersForActiveSessions', () => {
+      it('calls stagePersonaRemindersForSession for each session ID', async () => {
+        const stateService = new MockStateService('/tmp/claude/test-restage')
+        const ctxForSession = createMockDaemonContext({
+          staging,
+          logger,
+          handlers,
+          assets,
+          stateService,
+          paths: {
+            projectDir: '/tmp/claude/test-restage',
+            userConfigDir: '/mock/user',
+            projectConfigDir: '/mock/project-config',
+          },
+        })
+
+        const ctxFactory = vi.fn().mockResolvedValue(ctxForSession)
+        const sessionIds = ['session-1', 'session-2', 'session-3']
+
+        await restagePersonaRemindersForActiveSessions(ctxFactory, sessionIds, logger as any)
+
+        expect(ctxFactory).toHaveBeenCalledTimes(3)
+        expect(ctxFactory).toHaveBeenCalledWith('session-1')
+        expect(ctxFactory).toHaveBeenCalledWith('session-2')
+        expect(ctxFactory).toHaveBeenCalledWith('session-3')
+      })
+
+      it('handles errors for individual sessions without failing the loop', async () => {
+        const stateService = new MockStateService('/tmp/claude/test-restage-error')
+        const ctxForSession = createMockDaemonContext({
+          staging,
+          logger,
+          handlers,
+          assets,
+          stateService,
+          paths: {
+            projectDir: '/tmp/claude/test-restage-error',
+            userConfigDir: '/mock/user',
+            projectConfigDir: '/mock/project-config',
+          },
+        })
+
+        const ctxFactory = vi
+          .fn()
+          .mockRejectedValueOnce(new Error('Session 1 context failed'))
+          .mockResolvedValueOnce(ctxForSession)
+
+        await restagePersonaRemindersForActiveSessions(ctxFactory, ['session-1', 'session-2'], logger as any)
+
+        // Should have called factory for both sessions despite first failing
+        expect(ctxFactory).toHaveBeenCalledTimes(2)
+        // Should have logged the error
+        expect(logger.wasLogged('Failed to restage persona reminders')).toBe(true)
+      })
+
+      it('handles empty session list gracefully', async () => {
+        const ctxFactory = vi.fn()
+
+        await restagePersonaRemindersForActiveSessions(ctxFactory, [], logger as any)
+
+        expect(ctxFactory).not.toHaveBeenCalled()
+      })
     })
   })
 })

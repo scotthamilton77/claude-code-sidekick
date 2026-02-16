@@ -33,6 +33,7 @@ import {
   ReminderEvents,
   ReminderOrchestrator,
   stagePersonaRemindersForSession,
+  restagePersonaRemindersForActiveSessions,
 } from '@sidekick/feature-reminders'
 import {
   registerHandlers as registerSessionSummaryHandlers,
@@ -436,6 +437,10 @@ export class Daemon {
         })
       }
 
+      // Detect persona injection config change before reassigning configService
+      const oldInjection = this.getPersonaInjectionEnabled(this.configService)
+      const newInjection = this.getPersonaInjectionEnabled(newConfigService)
+
       // Update stored config service
       this.configService = newConfigService
 
@@ -451,6 +456,20 @@ export class Daemon {
       // Clear instrumented providers cache - they wrap the old base provider
       // and need to be recreated with the new config on next use
       this.instrumentedProviders.clear()
+
+      // Restage persona reminders for active sessions if injection setting changed
+      if (oldInjection !== newInjection) {
+        // logCounters tracks sessions that have sent at least one hook event
+        // since daemon startup. Sessions that haven't interacted yet will
+        // pick up the new config on their next hook invocation.
+        const activeSessionIds = [...this.logCounters.keys()]
+        this.logger.info('Persona injection config changed, restaging reminders', {
+          oldValue: oldInjection,
+          newValue: newInjection,
+          activeSessions: activeSessionIds.length,
+        })
+        void restagePersonaRemindersForActiveSessions(this.getContextForTask.bind(this), activeSessionIds, this.logger)
+      }
 
       this.logger.info('Configuration reloaded successfully')
     } catch (err) {
@@ -553,6 +572,15 @@ export class Daemon {
         error: err instanceof Error ? err.message : String(err),
       })
     }
+  }
+
+  /**
+   * Read the persona injection enabled flag from a config service.
+   * Defaults to true if not explicitly set.
+   */
+  private getPersonaInjectionEnabled(config: ConfigService): boolean {
+    type PersonaSettings = { personas?: { injectPersonaIntoClaude?: boolean } }
+    return config.getFeature<PersonaSettings>('session-summary').settings?.personas?.injectPersonaIntoClaude ?? true
   }
 
   /**
