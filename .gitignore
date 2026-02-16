@@ -73,3 +73,13 @@ export-state/
 # Dist testing backup
 packages/sidekick-dist/*.tgz
 .worktrees/
+# >>> sidekick
+.sidekick/logs/
+.sidekick/sessions/
+.sidekick/state/
+.sidekick/setup-status.json
+.sidekick/.env
+.sidekick/.env.local
+.sidekick/sidekick*.pid
+.sidekick/sidekick*.token
+# <<< sidekick
