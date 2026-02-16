@@ -205,6 +205,7 @@ export {
   type PersistedTranscriptState,
 } from './state/index.js'
 
+export { readDaemonHealth, writeDaemonHealth, updateDaemonHealth } from './daemon-health'
 export { isInSandbox } from './sandbox'
 
 // Note: LLMService should be imported directly from '@sidekick/shared-providers'
