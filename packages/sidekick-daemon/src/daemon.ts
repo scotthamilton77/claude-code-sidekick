@@ -67,6 +67,7 @@ import { registerStandardTaskHandlers } from './task-handlers.js'
 import { TaskRegistry } from './task-registry.js'
 import { TaskEngine } from './task-engine.js'
 import { DaemonStatusDescriptor } from './state-descriptors.js'
+import { stagePersonaTransition } from './persona-transition.js'
 
 // Read version from root package.json (single source of truth for monorepo)
 // Path is relative to dist/ output location: dist/ → packages/pkg/ → packages/ → root/
@@ -497,6 +498,10 @@ export class Daemon {
     this.logger.info('Regenerating messages after persona change', { sessionId })
 
     try {
+      // Stage placeholder snarky message and clear stale resume message immediately,
+      // so the statusline doesn't show the previous persona's messages during LLM regeneration
+      await stagePersonaTransition(this.stateService, sessionId)
+
       // Prepare transcript service for the session
       const transcriptPath = reconstructTranscriptPath(this.projectDir, sessionId)
       const transcriptService = await this.serviceFactory.prepareTranscriptService(sessionId, transcriptPath)
