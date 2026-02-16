@@ -132,12 +132,13 @@ describe('SetupStatusService', () => {
       expect(result).toEqual(status)
     })
 
-    it('throws when user status file contains invalid JSON', async () => {
+    it('returns null when user status file contains corrupt JSON', async () => {
       const userStatusPath = path.join(homeDir, '.sidekick', 'setup-status.json')
       await fs.mkdir(path.dirname(userStatusPath), { recursive: true })
       await fs.writeFile(userStatusPath, '{invalid json}')
 
-      await expect(service.getUserStatus()).rejects.toThrow()
+      const result = await service.getUserStatus()
+      expect(result).toBeNull()
     })
 
     it('returns null when user status file contains invalid schema', async () => {
@@ -164,12 +165,13 @@ describe('SetupStatusService', () => {
       expect(result).toEqual(status)
     })
 
-    it('throws when project status file contains invalid JSON', async () => {
+    it('returns null when project status file contains corrupt JSON', async () => {
       const projectStatusPath = path.join(projectDir, '.sidekick', 'setup-status.json')
       await fs.mkdir(path.dirname(projectStatusPath), { recursive: true })
       await fs.writeFile(projectStatusPath, '{invalid json}')
 
-      await expect(service.getProjectStatus()).rejects.toThrow()
+      const result = await service.getProjectStatus()
+      expect(result).toBeNull()
     })
 
     it('returns null when project status file contains invalid schema', async () => {
@@ -1273,6 +1275,17 @@ describe('SetupStatusService', () => {
           },
         })
       )
+
+      const result = await service.runDoctorCheck({ skipValidation: true })
+
+      expect(result.userSetupExists).toBe(false)
+      expect(result.overallHealth).toBe('unhealthy')
+    })
+
+    it('reports unhealthy (not crash) when user setup-status file contains corrupt JSON', async () => {
+      const userStatusPath = path.join(homeDir, '.sidekick', 'setup-status.json')
+      await fs.mkdir(path.dirname(userStatusPath), { recursive: true })
+      await fs.writeFile(userStatusPath, '{invalid json}')
 
       const result = await service.runDoctorCheck({ skipValidation: true })
 
