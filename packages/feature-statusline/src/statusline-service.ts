@@ -482,10 +482,26 @@ export class StatuslineService {
    * Build minimal view model for setup_warning display mode.
    * Only includes fields needed for warning display.
    */
-  private buildMinimalViewModel(setupCheck: { warning: string; state: SetupState }): StatuslineViewModel {
+  private buildMinimalViewModel(warning: string): StatuslineViewModel {
     return {
       ...EMPTY_STATUSLINE_VIEWMODEL,
-      summary: setupCheck.warning,
+      summary: warning,
+    }
+  }
+
+  /**
+   * Build a StatuslineRenderResult for warning display with yellow ANSI coloring.
+   * Shared by setup warnings and daemon health warnings.
+   */
+  private buildWarningResult(warning: string): StatuslineRenderResult {
+    const ANSI_YELLOW = '\x1b[33m'
+    const ANSI_RESET = '\x1b[0m'
+    const text = this.useColors ? `${ANSI_YELLOW}${warning}${ANSI_RESET}` : warning
+    return {
+      text,
+      displayMode: 'setup_warning',
+      staleData: false,
+      viewModel: this.buildMinimalViewModel(warning),
     }
   }
 
@@ -501,17 +517,7 @@ export class StatuslineService {
     // Check setup status FIRST - if unhealthy, return only the warning
     const setupCheck = await this.checkSetupStatus()
     if (setupCheck.state !== 'healthy') {
-      const viewModel = this.buildMinimalViewModel(setupCheck)
-      // Apply yellow color directly (ANSI code)
-      const ANSI_YELLOW = '\x1b[33m'
-      const ANSI_RESET = '\x1b[0m'
-      const text = this.useColors ? `${ANSI_YELLOW}${setupCheck.warning}${ANSI_RESET}` : setupCheck.warning
-      return {
-        text,
-        displayMode: 'setup_warning',
-        staleData: false,
-        viewModel,
-      }
+      return this.buildWarningResult(setupCheck.warning)
     }
 
     // Check daemon health - if daemon failed, show degraded warning
@@ -522,16 +528,7 @@ export class StatuslineService {
         const warning = daemonHealth.error
           ? `Daemon not running: ${daemonHealth.error}. Sidekick features limited.`
           : 'Daemon not running. Sidekick features limited.'
-        const viewModel = this.buildMinimalViewModel({ warning, state: 'healthy' })
-        const ANSI_YELLOW = '\x1b[33m'
-        const ANSI_RESET = '\x1b[0m'
-        const text = this.useColors ? `${ANSI_YELLOW}${warning}${ANSI_RESET}` : warning
-        return {
-          text,
-          displayMode: 'setup_warning',
-          staleData: false,
-          viewModel,
-        }
+        return this.buildWarningResult(warning)
       }
     }
 

@@ -62,7 +62,7 @@ export async function readDaemonHealth(projectDir: string): Promise<DaemonHealth
  * @param projectDir - Project root directory containing `.sidekick/`
  * @param health - Health state to persist
  */
-export async function writeDaemonHealth(projectDir: string, health: DaemonHealth): Promise<void> {
+async function writeDaemonHealth(projectDir: string, health: DaemonHealth): Promise<void> {
   const path = healthFilePath(projectDir)
   const dir = dirname(path)
 
@@ -122,9 +122,7 @@ export async function updateDaemonHealth(
   const health: DaemonHealth = {
     status: newStatus,
     lastCheckedAt: new Date().toISOString(),
-  }
-  if (error !== undefined) {
-    health.error = error
+    ...(error !== undefined && { error }),
   }
 
   // Attempt atomic write — failures are non-fatal

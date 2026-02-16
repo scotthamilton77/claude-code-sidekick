@@ -45,6 +45,9 @@ export type {
   MetricsPersistPayload,
   TrackedTask,
   TaskRegistryState,
+  // Daemon health types
+  DaemonHealth,
+  DaemonHealthStatus,
 } from '@sidekick/types'
 
 // Re-export task type constants and schemas
@@ -200,13 +203,13 @@ export {
   DaemonLogMetricsDescriptor,
   CliLogMetricsDescriptor,
   DaemonGlobalLogMetricsDescriptor,
-  DaemonHealthDescriptor,
   // Types for state schemas
   type PersistedTranscriptState,
 } from './state/index.js'
 
-export { readDaemonHealth, writeDaemonHealth, updateDaemonHealth } from './daemon-health'
+export { readDaemonHealth, updateDaemonHealth } from './daemon-health'
 export { isInSandbox } from './sandbox'
+export { getGitFileStatus, parseGitStatusOutput } from './git-status'
 
 // Note: LLMService should be imported directly from '@sidekick/shared-providers'
 // to avoid circular dependencies between packages
