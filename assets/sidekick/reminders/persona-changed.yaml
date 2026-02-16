@@ -1,0 +1,17 @@
+# persona-changed.yaml
+# One-shot reminder fired when persona changes mid-session.
+# Consumed after delivery (non-persistent).
+id: persona-changed
+blocking: false
+priority: 8
+persistent: false
+
+additionalContext: |
+  Your persona has changed to: {{persona_name}}
+  Voice: {{persona_theme}}
+  Tone: {{persona_tone}}
+
+  Examples of this persona's style:
+  {{persona_snarky_examples}}
+
+  Adopt this new personality immediately. Stay in character while following all other instructions.
