@@ -35,6 +35,16 @@ interface UninstallAction {
   action: 'removed' | 'skipped' | 'not-found' | 'kept' | 'would-remove'
 }
 
+interface DetectionCategory {
+  label: string
+  details: string
+}
+
+interface DetectionSummary {
+  project: DetectionCategory[]
+  user: DetectionCategory[]
+}
+
 export async function handleUninstallCommand(
   projectDir: string,
   logger: Logger,
@@ -62,6 +72,24 @@ export async function handleUninstallCommand(
     if (devModeActive) {
       logger.info('Dev-mode active — skipping dev-mode-managed artifacts')
       stdout.write('Dev-mode active — skipping dev-mode-managed artifacts.\n')
+    }
+  }
+
+  // Show detection summary and confirm (unless --force or --dry-run)
+  if (!force && !dryRun) {
+    const summary = await collectDetectionSummary(
+      projectDir,
+      userHome,
+      projectDetected,
+      userDetected,
+      devModeActive,
+      logger
+    )
+    printDetectionSummary(stdout, summary)
+    const proceed = await promptYesNo('Proceed with uninstall?', stdout, stdin)
+    if (!proceed) {
+      stdout.write('Uninstall cancelled.\n')
+      return { exitCode: 0, output: '' }
     }
   }
 
@@ -238,6 +266,191 @@ async function detectUserScope(userHome: string): Promise<boolean> {
       return false
     }
   }
+}
+
+// --- Detection summary ---
+
+async function exists(filePath: string): Promise<boolean> {
+  try {
+    await fs.access(filePath)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Check whether a parsed settings object contains any sidekick-related hook commands. */
+function containsSidekickHooks(settings: Record<string, unknown>): boolean {
+  if (!settings.hooks) return false
+  const hooks = settings.hooks as Record<string, unknown[]>
+  return Object.values(hooks).some(
+    (handlers) =>
+      Array.isArray(handlers) &&
+      handlers.some((h) => {
+        const handler = h as { hooks?: Array<{ command?: string }> }
+        return handler.hooks?.some(
+          (hook) => hook.command?.includes('sidekick') || hook.command?.includes('dev-sidekick')
+        )
+      })
+  )
+}
+
+async function collectDetectionSummary(
+  projectDir: string,
+  userHome: string,
+  projectDetected: boolean,
+  userDetected: boolean,
+  devModeActive: boolean,
+  logger: Logger
+): Promise<DetectionSummary> {
+  const summary: DetectionSummary = { project: [], user: [] }
+
+  // --- Plugin detection ---
+  try {
+    const plugins = await execFileAsync('claude', ['plugin', 'list', '--json'])
+    const pluginList = JSON.parse(plugins) as Array<{ id: string; scope: string }>
+    const sidekickPlugin = pluginList.find((p) => p.id.startsWith('sidekick@'))
+    if (sidekickPlugin) {
+      const scope = sidekickPlugin.scope as 'user' | 'project'
+      summary[scope].push({ label: 'Plugin', details: sidekickPlugin.id })
+    }
+  } catch {
+    logger.debug('Could not detect plugin for summary (claude CLI may not be available)')
+  }
+
+  // --- Project scope ---
+  if (projectDetected) {
+    // Settings
+    const settingsDetails: string[] = []
+    for (const file of ['settings.json', 'settings.local.json']) {
+      if (devModeActive && file === 'settings.local.json') continue
+      const content = await readFileOrNull(path.join(projectDir, '.claude', file))
+      if (!content) continue
+      try {
+        const settings = JSON.parse(content) as Record<string, unknown>
+        const sl = settings.statusLine as { command?: string } | undefined
+        if (sl?.command?.includes('sidekick')) settingsDetails.push('statusline')
+        if (containsSidekickHooks(settings)) settingsDetails.push('hooks')
+      } catch {
+        /* invalid JSON */
+      }
+    }
+    if (settingsDetails.length > 0) {
+      summary.project.push({ label: 'Settings', details: [...new Set(settingsDetails)].join(', ') })
+    }
+
+    // Daemon
+    if (await exists(path.join(projectDir, '.sidekick', 'sidekickd.pid'))) {
+      summary.project.push({ label: 'Daemon', details: 'pid file found' })
+    }
+
+    // Config
+    if (!devModeActive) {
+      const configFiles = await detectExistingItems(projectDir, ['setup-status.json'])
+      if (configFiles.length > 0) {
+        summary.project.push({ label: 'Config', details: configFiles.join(', ') })
+      }
+    }
+
+    // Data
+    const dataItems = await detectExistingItems(projectDir, ['logs', 'sessions', 'state'], '/')
+    if (dataItems.length > 0) {
+      summary.project.push({ label: 'Data', details: dataItems.join(', ') })
+    }
+
+    // .env
+    const envDetail = await detectEnvFile(path.join(projectDir, '.sidekick', '.env'))
+    if (envDetail) {
+      summary.project.push({ label: '.env', details: envDetail })
+    }
+
+    // .gitignore
+    if (!devModeActive) {
+      const gitignore = await readFileOrNull(path.join(projectDir, '.gitignore'))
+      if (gitignore?.includes('# >>> sidekick')) {
+        summary.project.push({ label: '.gitignore', details: 'sidekick section' })
+      }
+    }
+  }
+
+  // --- User scope ---
+  if (userDetected) {
+    // Settings
+    const userSettings = await readFileOrNull(path.join(userHome, '.claude', 'settings.json'))
+    if (userSettings) {
+      try {
+        const settings = JSON.parse(userSettings) as Record<string, unknown>
+        const sl = settings.statusLine as { command?: string } | undefined
+        if (sl?.command?.includes('sidekick')) {
+          summary.user.push({ label: 'Settings', details: 'statusline' })
+        }
+      } catch {
+        /* invalid JSON */
+      }
+    }
+
+    // Config
+    const userConfigFiles = await detectExistingItems(userHome, ['setup-status.json', 'features.yaml'])
+    if (userConfigFiles.length > 0) {
+      summary.user.push({ label: 'Config', details: userConfigFiles.join(', ') })
+    }
+
+    // .env
+    const userEnvDetail = await detectEnvFile(path.join(userHome, '.sidekick', '.env'))
+    if (userEnvDetail) {
+      summary.user.push({ label: '.env', details: userEnvDetail })
+    }
+
+    // Data (user scope has state/ and daemons/)
+    const userDataItems = await detectExistingItems(userHome, ['state', 'daemons'], '/')
+    if (userDataItems.length > 0) {
+      summary.user.push({ label: 'Data', details: userDataItems.join(', ') })
+    }
+  }
+
+  return summary
+}
+
+/** Return file content or null if the file does not exist or is unreadable. */
+async function readFileOrNull(filePath: string): Promise<string | null> {
+  try {
+    return await fs.readFile(filePath, 'utf-8')
+  } catch {
+    return null
+  }
+}
+
+/** Check which items from a list exist under `baseDir/.sidekick/`, returning their names with an optional suffix. */
+async function detectExistingItems(baseDir: string, items: string[], suffix = ''): Promise<string[]> {
+  const found: string[] = []
+  for (const item of items) {
+    if (await exists(path.join(baseDir, '.sidekick', item))) {
+      found.push(`${item}${suffix}`)
+    }
+  }
+  return found
+}
+
+/** Detect a .env file and describe its content. Returns null if no file exists. */
+async function detectEnvFile(envPath: string): Promise<string | null> {
+  const content = await readFileOrNull(envPath)
+  if (!content) return null
+  const hasKeys = content.split('\n').some((l) => l.includes('=') && !l.startsWith('#'))
+  return hasKeys ? 'contains API keys' : 'present'
+}
+
+function printDetectionSummary(stdout: Writable, summary: DetectionSummary): void {
+  stdout.write('\nDetected sidekick installation:\n')
+  const scopes = ['user', 'project'] as const
+  for (const scope of scopes) {
+    const categories = summary[scope]
+    if (categories.length === 0) continue
+    stdout.write(`  ${scope}:\n`)
+    for (const cat of categories) {
+      stdout.write(`    ${cat.label}: ${cat.details}\n`)
+    }
+  }
+  stdout.write('\n')
 }
 
 // --- Plugin ---
