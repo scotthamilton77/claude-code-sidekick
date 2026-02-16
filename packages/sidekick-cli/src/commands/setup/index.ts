@@ -19,6 +19,7 @@ import { ensurePluginInstalled, getValidPluginScopes, type InstallScope } from '
 
 export interface SetupCommandOptions {
   checkOnly?: boolean
+  fix?: boolean
   force?: boolean
   stdin?: NodeJS.ReadableStream
   help?: boolean
@@ -49,6 +50,7 @@ When scripting flags are provided, runs non-interactively for those settings onl
 
 Options:
   --check                       Check configuration status (alias: sidekick doctor)
+  --fix                         Auto-fix detected issues (use with --check or doctor)
   --only=<checks>               Run only specific doctor checks (comma-separated)
                                 Valid checks: api-keys, statusline, gitignore, plugin, liveness
   --force                       Apply all defaults non-interactively
