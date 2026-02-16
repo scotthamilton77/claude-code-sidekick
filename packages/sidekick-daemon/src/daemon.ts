@@ -52,7 +52,7 @@ import type {
   ProfileProviderFactory as ProfileProviderFactoryInterface,
   LogMetricsState,
 } from '@sidekick/types'
-import { LogMetricsStateSchema } from '@sidekick/types'
+import { LogMetricsStateSchema, DaemonHealthSchema } from '@sidekick/types'
 import { ProfileProviderFactory, type LLMProvider } from '@sidekick/shared-providers'
 import { InstrumentedLLMProvider, InstrumentedProfileProviderFactory } from '@sidekick/core'
 import { randomBytes } from 'crypto'
@@ -330,6 +330,23 @@ export class Daemon {
       this.startEvictionTimer()
 
       this.logger.info('Daemon started successfully')
+
+      // 12. Report healthy status (clears any previous failed state)
+      try {
+        const healthPath = this.stateService.globalStatePath('daemon-health.json')
+        await this.stateService.write(
+          healthPath,
+          {
+            status: 'healthy',
+            lastCheckedAt: new Date().toISOString(),
+          },
+          DaemonHealthSchema
+        )
+      } catch (err) {
+        this.logger.warn('Failed to write daemon health state', {
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
     } catch (err) {
       this.logger.fatal('Failed to start daemon', { error: err })
       await this.cleanup()
