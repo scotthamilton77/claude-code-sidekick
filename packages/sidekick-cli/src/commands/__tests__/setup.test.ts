@@ -334,6 +334,14 @@ describe('handleSetupCommand', () => {
       expect(output.data).toContain('Gitignore:')
     })
 
+    test('suggests doctor --fix and setup when not healthy', async () => {
+      const result = await handleSetupCommand(projectDir, logger, output, { checkOnly: true, homeDir })
+
+      expect(result.exitCode).toBe(1)
+      expect(output.data).toContain('sidekick doctor --fix')
+      expect(output.data).toContain('sidekick setup')
+    })
+
     test('suggests running setup when not healthy', async () => {
       const result = await handleSetupCommand(projectDir, logger, output, { checkOnly: true, homeDir })
 
