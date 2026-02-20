@@ -394,6 +394,54 @@ describe('CLI command routing', () => {
     })
   })
 
+  describe('hook command', () => {
+    test.each([
+      ['malformed JSON', 'invalid'],
+      ['valid JSON without session_id', JSON.stringify({ some: 'data' })],
+      ['empty string', ''],
+    ])('returns empty JSON response when stdin is %s', async (_label, stdinData) => {
+      const result = await runCli({
+        argv: ['hook', 'session-start', '--project-dir', projectDir],
+        stdinData,
+        stdout,
+        stderr,
+        cwd: projectDir,
+        enableFileLogging: false,
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(stdout.data.trim()).toBe('{}')
+    })
+
+    test('returns error for unknown hook name', async () => {
+      const result = await runCli({
+        argv: ['hook', 'unknown-hook', '--project-dir', projectDir],
+        stdinData: JSON.stringify({ session_id: 'test-123' }),
+        stdout,
+        stderr,
+        cwd: projectDir,
+        enableFileLogging: false,
+      })
+
+      expect(result.exitCode).toBe(1)
+      expect(stdout.data).toContain("Unknown hook name 'unknown-hook'")
+    })
+
+    test('returns error when --project-dir is missing', async () => {
+      const result = await runCli({
+        argv: ['hook', 'session-start'],
+        stdinData: JSON.stringify({ session_id: 'test-123' }),
+        stdout,
+        stderr,
+        cwd: projectDir,
+        enableFileLogging: false,
+      })
+
+      expect(result.exitCode).toBe(1)
+      expect(stdout.data).toContain('requires --project-dir')
+    })
+  })
+
   describe('unknown command', () => {
     test('returns error for unknown command', async () => {
       const result = await runCli({
