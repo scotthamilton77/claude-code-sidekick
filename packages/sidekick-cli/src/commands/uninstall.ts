@@ -830,7 +830,7 @@ function printReport(stdout: Writable, actions: UninstallAction[], dryRun: boole
     printScopeGrouped(stdout, skipped, (a) => a.artifact, sortByArtifact)
   }
 
-  stdout.write('\nSidekick uninstalled. Restart Claude Code to apply changes.\n')
+  stdout.write('\nSidekick uninstalled.\n')
 }
 
 /** Print actions grouped by scope (user first, then project), sorted within each group. */

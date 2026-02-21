@@ -453,7 +453,7 @@ async function doEnable(projectDir: string, stdout: NodeJS.WritableStream): Prom
   log(stdout, 'info', '')
   log(stdout, 'info', 'Next steps:')
   log(stdout, 'info', '  1. Ensure CLI is built: pnpm build')
-  log(stdout, 'info', '  2. Restart Claude Code: claude --continue')
+  log(stdout, 'info', '  2. Verify sidekick is active (check statusline or run: pnpm sidekick doctor)')
 
   return { exitCode: 0 }
 }
@@ -544,7 +544,7 @@ async function doDisable(
   }
 
   log(stdout, 'info', '')
-  log(stdout, 'info', 'Dev-mode disabled. Restart Claude Code to apply changes.')
+  log(stdout, 'info', 'Dev-mode disabled.')
 
   return { exitCode: 0 }
 }
@@ -732,7 +732,7 @@ async function doClean(
   }
 
   stdout.write('\n')
-  log(stdout, 'info', 'Clean complete. Restart Claude Code with: claude --continue')
+  log(stdout, 'info', 'Clean complete.')
 
   return { exitCode: 0 }
 }
@@ -814,7 +814,7 @@ async function doCleanAll(
   }
 
   stdout.write('\n')
-  log(stdout, 'info', 'Full clean complete. Restart Claude Code with: claude --continue')
+  log(stdout, 'info', 'Full clean complete.')
 
   return { exitCode: 0 }
 }

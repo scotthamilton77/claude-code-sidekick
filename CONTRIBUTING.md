@@ -66,7 +66,6 @@ Enable dev-mode to test hooks locally (within this project only):
 
 ```bash
 pnpm sidekick dev-mode enable
-# Restart Claude Code to pick up hooks
 ```
 
 After making changes:

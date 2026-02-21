@@ -96,5 +96,5 @@ core.development.enabled=true
 
 ## Notes
 
-- Changes to daemon/IPC settings require restart: `claude --continue`
+- Changes to daemon/IPC settings may require a daemon restart (`sidekick daemon kill && sidekick daemon start`)
 - Logging changes apply immediately (hot-reload)

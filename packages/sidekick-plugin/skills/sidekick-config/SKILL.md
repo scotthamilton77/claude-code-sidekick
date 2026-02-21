@@ -384,9 +384,7 @@ For prompts, reminders, and other assets:
 
 ## Hot-Reloading
 
-**Most settings apply immediately.** Only these require `claude --continue`:
-- Daemon/IPC connection settings
-- Hook-related changes
+**Most settings apply immediately.** Daemon/IPC connection settings may require a daemon restart (`sidekick daemon kill && sidekick daemon start`).
 
 ## Common Mistakes
 

@@ -22,102 +22,89 @@ Sidekick is a Claude Code hooks companion that adds session summaries, reminders
 
 | Tool | Version | Install (macOS) |
 |------|---------|-----------------|
-| [Claude Code CLI](https://docs.claude.com/en/docs/claude-code) | Latest | `npm install -g @anthropic-ai/claude-code` |
-| [Node.js](https://nodejs.org/) | >=20.x | `brew install node` |
+| [Claude Code CLI](https://docs.claude.com/en/docs/claude-code) | Latest | [Install guide](https://docs.claude.com/en/docs/claude-code) |
+| [Node.js](https://nodejs.org/) | >=20.x | [nodejs.org](https://nodejs.org/) |
 
 Sidekick also requires an **OpenRouter API key** if you want persona-powered features (snarky comments, resume messages). Get one at [openrouter.ai](https://openrouter.ai/).
 
-### Option 1: Plugin Installation (Recommended)
+### Run the Setup Wizard
 
-Start Claude Code with the plugin directory:
-
-```bash
-claude --plugin-dir=/path/to/claude-code-sidekick/packages/sidekick-plugin
-```
-
-The plugin's `hooks.json` uses `npx @scotthamilton77/sidekick` to invoke the published npm package. The first run will download it automatically.
-
-After launching with the plugin, run the setup wizard:
+The setup wizard handles everything -- plugin installation, statusline, gitignore, personas, and API keys:
 
 ```bash
-npx @scotthamilton77/sidekick setup
+npx -y @scotthamilton77/sidekick setup
 ```
 
-### Option 2: Local Development (Dev-Mode)
+The wizard walks through five steps:
 
-For contributors or anyone working on the Sidekick codebase itself:
+1. **Plugin installation** -- installs the marketplace and plugin (offers scope selection: user, project, or local).
+2. **Statusline** -- configures the Claude Code status bar (user or project scope).
+3. **Git configuration** -- adds `.sidekick/` to `.gitignore` so logs and session data are not committed.
+4. **Persona features** -- enable/disable personas and configure your OpenRouter API key.
+5. **Auto-configuration** -- whether Sidekick should auto-configure when you enter a new project.
+
+After setup completes, you should see the Sidekick statusline and persona greeting in your Claude Code session.
+
+### What If Setup Is Incomplete?
+
+Sidekick detects incomplete or unhealthy configurations and notifies you automatically:
+
+- **Statusline warning** -- shows a setup message instead of the normal status bar.
+- **Session messages** -- at session start and after submitting prompts, Sidekick tells Claude Code that setup is incomplete and suggests running setup.
+- **In-session fix** -- use the `/sidekick-config` skill inside Claude Code to diagnose and resolve issues without leaving your session.
+
+You can also run the doctor command from the terminal:
 
 ```bash
-git clone https://github.com/scotthamilton77/claude-code-sidekick.git
-cd claude-code-sidekick
-pnpm install
-pnpm build
-pnpm sidekick dev-mode enable
-# Restart Claude Code to pick up hooks
+npx -y @scotthamilton77/sidekick doctor
 ```
 
-Dev-mode writes hook entries to `.claude/settings.local.json` and points them at the local build in `scripts/dev-sidekick/`. It only works within the project directory.
-
-### Key Difference: Plugin vs Dev-Mode
-
-| Aspect | Plugin | Dev-Mode |
-|--------|--------|----------|
-| Where it works | Any project | This project only |
-| CLI source | npm (`npx @scotthamilton77/sidekick`) | Local build (`packages/sidekick-cli/dist/`) |
-| Setup | `claude --plugin-dir=...` | `pnpm sidekick dev-mode enable` |
-| Use case | Normal usage | Development/iteration |
+For contributing to the Sidekick codebase, see the [Developer Guide](DEVELOPER-GUIDE.md).
 
 ---
 
 ## Setup Wizard
 
-The setup wizard configures statusline, gitignore, personas, and API keys.
+The setup wizard configures plugin installation, statusline, gitignore, personas, and API keys.
 
 ### Interactive Mode
 
 ```bash
-# Plugin users:
-npx @scotthamilton77/sidekick setup
-
-# Dev-mode users:
-pnpm sidekick setup
+npx -y @scotthamilton77/sidekick setup
 ```
 
-The wizard walks through four steps:
+The wizard walks through five steps:
 
-1. **Statusline Configuration** -- user-level (`~/.claude/settings.json`, works everywhere) or project-level (`.claude/settings.local.json`, this project only).
-2. **Git Configuration** -- adds `.sidekick/` entries to `.gitignore` so logs and session data are not committed.
-3. **Persona Features** -- enable/disable personas and configure your OpenRouter API key.
-4. **Auto-Configuration** -- whether Sidekick should auto-configure when you enter a new project.
+1. **Plugin Installation** -- verifies the marketplace and plugin are installed; offers to install if missing.
+2. **Statusline Configuration** -- user-level (`~/.claude/settings.json`, works everywhere) or project-level (`.claude/settings.local.json`, this project only).
+3. **Git Configuration** -- adds `.sidekick/` entries to `.gitignore` so logs and session data are not committed.
+4. **Persona Features** -- enable/disable personas and configure your OpenRouter API key.
+5. **Auto-Configuration** -- whether Sidekick should auto-configure when you enter a new project.
+
+`install` is an alias for `setup` -- both run the same wizard.
 
 ### Non-Interactive Mode
 
 For scripting or CI, pass flags directly:
 
 ```bash
-sidekick setup --statusline-scope=user --gitignore --personas
-sidekick setup --force   # Apply all defaults non-interactively
+npx -y @scotthamilton77/sidekick setup --statusline-scope=user --gitignore --personas
+npx -y @scotthamilton77/sidekick setup --force   # Apply all defaults non-interactively
 ```
 
 Available scripting flags:
 
 | Flag | Description |
 |------|-------------|
-| `--statusline-scope=user\|project` | Configure statusline scope |
+| `--marketplace-scope=user\|project\|local` | Install marketplace at scope |
+| `--plugin-scope=user\|project\|local` | Install plugin at scope |
+| `--statusline-scope=user\|project\|local` | Configure statusline scope |
 | `--gitignore` / `--no-gitignore` | Update or skip .gitignore |
 | `--personas` / `--no-personas` | Enable or disable personas |
 | `--api-key-scope=user\|project` | Save API key from `OPENROUTER_API_KEY` env var |
 | `--auto-config=auto\|manual` | Auto-configure preference |
-| `--check` | Check configuration status (doctor mode) |
+| `--check` | Check configuration status (equivalent to `sidekick doctor`) |
 | `--force` | Apply all defaults without prompting |
-
-### Doctor / Health Check
-
-```bash
-sidekick setup --check
-```
-
-Reports the state of plugin installation, statusline, gitignore, and API key health across all scopes (project, user, environment).
 
 ---
 
@@ -395,7 +382,7 @@ Available reminders:
 
 ## CLI Commands
 
-All commands support `--format=json` for structured output or `--format=table` for ASCII tables. In dev-mode, use `pnpm sidekick`. For plugin installations, use `npx @scotthamilton77/sidekick`.
+All commands support `--format=json` for structured output. Invoke commands via `npx @scotthamilton77/sidekick <command>` or just `sidekick <command>` if you have the package installed globally.
 
 ### `sessions` -- List Tracked Sessions
 
@@ -435,29 +422,71 @@ sidekick persona test skippy --session-id=ID --type=resume
 
 The `set` and `clear` commands write directly to state files (no daemon IPC required). The `test` command requires the daemon because it triggers LLM generation.
 
-### `dev-mode` -- Development Hook Management
-
-Only relevant for contributors working on the Sidekick codebase.
-
-```bash
-sidekick dev-mode enable             # Register dev hooks in settings.local.json
-sidekick dev-mode disable            # Remove dev hooks
-sidekick dev-mode status             # Show current state + hook scripts
-sidekick dev-mode clean              # Truncate logs, kill daemon, clean state
-sidekick dev-mode clean-all          # Full cleanup: + sessions, sockets, state dirs
-sidekick dev-mode clean --force      # Skip confirmation prompts
-```
-
-After `enable`, restart Claude Code with `claude --continue`.
-
-### `setup` -- Run Setup Wizard
+### `setup` / `install` -- Run Setup Wizard
 
 ```bash
 sidekick setup                       # Interactive wizard
-sidekick setup --check               # Doctor / health check
+sidekick install                     # Alias for setup
 sidekick setup --force               # Apply defaults non-interactively
+sidekick setup --check               # Check status (equivalent to doctor)
 sidekick setup --help                # Show all scripting flags
 ```
+
+See [Setup Wizard](#setup-wizard) above for detailed flag documentation.
+
+### `doctor` -- Health Check and Auto-Fix
+
+Checks the health of your Sidekick installation across all scopes (project, user, environment).
+
+```bash
+sidekick doctor                          # Full health check
+sidekick doctor --fix                    # Auto-fix detected issues
+sidekick doctor --only=plugin,liveness   # Check specific areas only
+```
+
+**Checks performed:**
+
+| Check | What It Verifies |
+|-------|-----------------|
+| `api-keys` | OpenRouter API key across project `.env`, user `.env`, and environment |
+| `statusline` | Statusline configured in Claude Code settings |
+| `gitignore` | `.gitignore` has sidekick entries |
+| `plugin` | Claude Code plugin is installed |
+| `liveness` | Hooks are actually responding (requires plugin) |
+
+**Auto-fixable issues** (`--fix`):
+
+- Missing statusline configuration (installs at user scope)
+- Missing or incomplete `.gitignore` entries
+- Missing plugin (installs marketplace at user scope)
+- Missing user setup-status file
+
+**Requires manual action:**
+
+- API key issues (run `sidekick setup` interactively)
+- Plugin liveness issues (use `/sidekick-config` skill in Claude Code, or run `sidekick setup`)
+
+### `uninstall` -- Remove Sidekick
+
+Removes the Sidekick plugin, daemon, configuration, and session data.
+
+```bash
+sidekick uninstall                    # Interactive with confirmation
+sidekick uninstall --force            # No confirmation prompts
+sidekick uninstall --dry-run          # Show what would be removed
+sidekick uninstall --scope=project    # Only project scope
+sidekick uninstall --scope=user       # Only user scope
+```
+
+**What gets removed:**
+
+- Claude Code plugin registration
+- Background daemon (graceful shutdown, then force kill)
+- Statusline and hook entries from settings files
+- Configuration files (`setup-status.json`, `features.yaml`)
+- API key `.env` files (prompts for confirmation unless `--force`)
+- Transient data (logs, sessions, state, PID files)
+- `.gitignore` sidekick section
 
 ### `ui` -- Launch Monitoring UI
 
@@ -614,8 +643,9 @@ The daemon auto-starts when hooks fire. If it keeps dying, check `.sidekick/side
 
 ### Statusline Not Showing
 
-1. **Check hooks are installed**: Run `sidekick setup --check` to verify.
-2. **Check settings.json**: The statusline must be configured in `~/.claude/settings.json` (user-level) or `.claude/settings.local.json` (project-level):
+1. **Run doctor**: `sidekick doctor` checks statusline configuration.
+2. **Auto-fix**: `sidekick doctor --fix` can install the statusline configuration automatically.
+3. **Check settings.json**: The statusline must be configured in `~/.claude/settings.json` (user-level) or `.claude/settings.json` (project-level) or `.claude/settings.local.json` (project-local):
    ```json
    {
      "statusLine": {
@@ -624,43 +654,37 @@ The daemon auto-starts when hooks fire. If it keeps dying, check `.sidekick/side
      }
    }
    ```
-3. **Restart Claude Code**: Hook changes require a restart (`claude --continue`).
+4. **In-session fix**: Use the `/sidekick-config` skill inside Claude Code to diagnose and resolve setup issues.
 
 ### Personas Not Working
 
-1. **Check if enabled**: `sidekick setup --check` shows persona/API key status.
+1. **Run doctor**: `sidekick doctor --only=api-keys` checks API key health.
 2. **API key missing**: Persona features require an OpenRouter API key. Run `sidekick setup` to configure one, or set `OPENROUTER_API_KEY` in your environment.
 3. **API key invalid**: The doctor check validates keys. Look for `invalid` status in the scopes output.
 
 ### Plugin Not Detected
 
 ```bash
-# Verify you launched Claude Code with the plugin flag
-claude --plugin-dir=/path/to/claude-code-sidekick/packages/sidekick-plugin
+# Run doctor to check plugin status
+sidekick doctor --only=plugin,liveness
 
-# Check plugin status
-sidekick setup --check
+# Auto-fix: installs the marketplace and plugin at user scope
+sidekick doctor --fix
 ```
 
 The doctor check reports plugin installation status (`plugin`, `dev-mode`, `both`, or `none`) and liveness (whether hooks are responding).
 
-### Dev-Mode Conflicts
-
-If both plugin and dev-mode are detected, the doctor check shows a `both` status. Disable one:
-
-```bash
-# Disable dev-mode
-sidekick dev-mode disable
-```
-
 ### Full Reset
 
 ```bash
-# Kill daemon + truncate logs + clean state
-sidekick dev-mode clean
+# Uninstall everything (with confirmation)
+sidekick uninstall
 
-# Nuclear option: also removes sessions, sockets, and state dirs
-sidekick dev-mode clean-all --force
+# Preview what would be removed
+sidekick uninstall --dry-run
+
+# Uninstall without confirmation
+sidekick uninstall --force
 
 # Kill all daemons across all projects
 sidekick daemon kill-all
@@ -675,7 +699,7 @@ sidekick daemon kill
 sidekick daemon start
 ```
 
-Check for stale socket files in `/tmp/` (named `sidekick-*.sock`). The `clean-all` command removes these.
+Check for stale socket files in `/tmp/` (named `sidekick-*.sock`). The `uninstall` command removes these.
 
 ### State Directory Layout
 

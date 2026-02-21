@@ -69,7 +69,7 @@ sidekick-cli  ----IPC (fire-and-forget)----> sidekick-daemon
 | pnpm | 9.12.2 | `corepack enable && corepack prepare pnpm@9.12.2 --activate` |
 
 | Git | >=2.x | `brew install git` |
-| Claude Code CLI | Latest | `npm install -g @anthropic-ai/claude-code` |
+| Claude Code CLI | Latest | [Install guide](https://docs.claude.com/en/docs/claude-code) |
 
 ### Clone and Build
 
@@ -192,25 +192,54 @@ In **plugin mode**, `hooks.json` uses `npx @scotthamilton77/sidekick` which fetc
 
 ## Development Workflow
 
+### Getting Started with Dev-Mode
+
+Dev-mode is the contributor workflow for testing local changes within this project. It registers hook scripts in `.claude/settings.local.json` that point at your local build instead of the npm package.
+
+```bash
+# 1. Build the monorepo
+pnpm build
+
+# 2. Enable dev-mode (installs local hook scripts)
+pnpm sidekick dev-mode enable
+
+# 3. Verify dev-mode is active
+pnpm sidekick dev-mode status
+```
+
+After enabling, the Sidekick statusline and persona should appear in your Claude Code session. If hooks are not firing, check `pnpm sidekick dev-mode status` to verify the hook scripts exist and point to the correct local build paths.
+
 ### Iterating on Code
 
-1. Enable dev-mode to install local hook scripts:
-   ```bash
-   pnpm sidekick dev-mode enable
-   ```
-   This creates hook scripts in `.claude/hooks/sidekick/` that point to the local build.
+1. Make changes to source files under `packages/`.
 
-2. Make changes to source files under `packages/`.
-
-3. Rebuild:
+2. Rebuild:
    ```bash
    pnpm build
    ```
 
-4. **Restart Claude Code** (required for hook changes to take effect):
-   ```bash
-   claude --continue
-   ```
+Claude Code picks up hook changes automatically — no restart required. Changes to daemon code require a daemon restart (`pnpm sidekick daemon kill && pnpm sidekick daemon start`).
+
+### Troubleshooting Dev-Mode
+
+**Hooks not firing**: Run `pnpm sidekick dev-mode status` to check hook script paths. If they point to stale locations, run `pnpm sidekick dev-mode disable && pnpm sidekick dev-mode enable` to re-register.
+
+**Plugin and dev-mode conflict**: If both the marketplace plugin and dev-mode are active, `pnpm sidekick doctor` reports a `both` status. THIS SHOULD NOT BE A PROBLEM (sidekick is engineered to run safely in this configuration, favoring the dev-mode hooks), but if you suspect it is causing issues, disable one — typically disable the plugin when developing:
+```bash
+claude plugin uninstall sidekick
+```
+
+**Daemon not picking up changes**: The daemon is a long-running process. If you changed daemon code, you must restart it:
+```bash
+pnpm sidekick daemon kill
+pnpm sidekick daemon start
+```
+
+**Full reset of transient state**: Use `clean` or `clean-all` to wipe transient state:
+```bash
+pnpm sidekick dev-mode clean       # Truncate logs, kill daemon(s)
+pnpm sidekick dev-mode clean-all   # Also removes sessions, sockets, state
+```
 
 ### Verification Checklist
 
@@ -313,6 +342,10 @@ Full integration coverage including IPC:
 ```bash
 INTEGRATION_TESTS=1 pnpm test
 ```
+
+### Known Warning: Zod Peer Dependency
+
+`pnpm install` emits `openai@4.x` → `zod@^3.23.8` peer complaints because we intentionally run `zod@^4.1.13` across the workspace for improved schema tooling. The OpenAI SDK still functions with zod 4, so the warning is ignored until we adopt OpenAI 6.x (which officially supports newer zod) or migrate to the Responses API.
 
 ### Test Infrastructure
 

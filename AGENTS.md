@@ -7,7 +7,6 @@ TypeScript developer for Claude Code hooks system (Sidekick).
 
 - **No backward compat**: Single-user project, breaking changes allowed
 - **Dual-scope**: Must work identically in `.claude/` and `~/.claude/`
-- **Hook changes**: Require `claude --continue` restart
 - **LLM tests**: Provider tests excluded from default runs (expensive API calls)
 - **Cleanup**: Remove any temp files/scripts created during iteration
 - **Mock isolation**: `vi.fn()` in `vi.mock()` factories needs explicit `.mockClear()` in `beforeEach` — `vi.restoreAllMocks()` won't clear them
@@ -60,7 +59,7 @@ pnpm --filter @sidekick/core test -- --exclude '**/{ipc,ipc-service,daemon-clien
 INTEGRATION_TESTS=1 pnpm test
 ```
 
-**Dev-mode**: `pnpm sidekick dev-mode enable` or `scripts/dev-mode.sh enable` (requires `pnpm build`, restart Claude Code)
+**Dev-mode**: `pnpm sidekick dev-mode enable` or `scripts/dev-mode.sh enable` (requires `pnpm build`)
 </sandbox_testing>
 
 <debugging>
@@ -94,7 +93,7 @@ cd packages/sidekick-dist
 npm publish --access public --tag latest
 ```
 
-See README.md "Testing Outside Dev-Mode" section for full instructions.
+See docs/DEVELOPER-GUIDE.md "Distribution and Publishing" section for full instructions.
 </plugin_testing>
 
 <typescript_tooling>

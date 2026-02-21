@@ -78,7 +78,7 @@ grep OPENROUTER ~/.sidekick/.env
 
 ### Key Not Being Picked Up
 
-1. **Restart Claude Code** after adding keys to `.env` files
+1. **Run `sidekick doctor`** after adding keys to `.env` files to verify they are detected
 2. Verify no typos in variable name (case-sensitive)
 3. Check file isn't malformed (no quotes around value needed, no trailing spaces)
 

@@ -700,7 +700,7 @@ function printSummary(wctx: WizardContext, state: WizardState): void {
   printStatus(ctx, 'success', `Auto-configure: ${autoConfig === 'auto' ? 'Enabled' : 'Disabled'}`)
 
   stdout.write('\n')
-  stdout.write('Restart Claude Code to see your statusline: claude --continue\n')
+  stdout.write('Setup complete! Your statusline and hooks are now active.\n')
 }
 
 // ============================================================================
@@ -1148,7 +1148,9 @@ async function runDoctorFixes(
       unfixable.push("API Key: Run 'sidekick setup' to configure API keys interactively.")
     }
     if (liveness !== null && liveness !== 'active') {
-      unfixable.push('Plugin Liveness: Restart Claude Code to activate hooks: claude --continue')
+      unfixable.push(
+        "Plugin Liveness: Hooks not responding. Try running '/sidekick-config' in Claude Code or 'sidekick setup' from the terminal."
+      )
     }
   }
 

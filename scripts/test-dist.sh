@@ -60,7 +60,7 @@ setup() {
     echo "- hooks.json swapped for local testing"
     echo "- Original backed up to TESTING-DO_NOT_COMMIT_ME.json"
     echo ""
-    echo "Restart Claude Code to test. Run 'pnpm test:dist:teardown' when done."
+    echo "Verify sidekick is active in Claude Code. Run 'pnpm test:dist:teardown' when done."
 }
 
 teardown() {
@@ -122,7 +122,7 @@ rebuild() {
 
     echo ""
     echo "=== Rebuild complete ==="
-    echo "Restart Claude Code to test changes."
+    echo "Verify sidekick is active in Claude Code."
 }
 
 case "${1:-}" in
