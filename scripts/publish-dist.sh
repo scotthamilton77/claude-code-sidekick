@@ -9,7 +9,7 @@
 #   major      - bump major, reset prerelease: 0.0.8-alpha.5 -> 1.0.0-alpha
 #
 # Steps:
-# 1. Check for uncommitted changes (fail if dirty)
+# 1. Check for uncommitted changes (fail if dirty, tolerating leftover version-bump files)
 # 2. Bump version in packages/sidekick-dist/package.json
 # 3. Build all packages
 # 4. Publish packages/sidekick-dist (with appropriate tag)
@@ -34,25 +34,12 @@ VERSION_BUMP_FILES=(
 )
 
 if ! git diff --quiet || ! git diff --cached --quiet; then
-    # Get list of changed files (staged + unstaged, no duplicates)
-    DIRTY_FILES=$(git diff --name-only; git diff --cached --name-only)
-    DIRTY_FILES=$(echo "$DIRTY_FILES" | sort -u)
+    # Get changed files (staged + unstaged, deduplicated)
+    DIRTY_FILES=$({ git diff --name-only; git diff --cached --name-only; } | sort -u)
 
-    # Check if every dirty file is a known version-bump file
-    NON_VERSION_FILES=""
-    while IFS= read -r file; do
-        [[ -z "$file" ]] && continue
-        IS_VERSION_FILE=false
-        for vf in "${VERSION_BUMP_FILES[@]}"; do
-            if [[ "$file" == "$vf" ]]; then
-                IS_VERSION_FILE=true
-                break
-            fi
-        done
-        if [[ "$IS_VERSION_FILE" == false ]]; then
-            NON_VERSION_FILES+="$file"$'\n'
-        fi
-    done <<< "$DIRTY_FILES"
+    # Filter out known version-bump files; anything remaining is unexpected
+    NON_VERSION_FILES=$(grep -vxFf <(printf '%s\n' "${VERSION_BUMP_FILES[@]}") \
+        <<< "$DIRTY_FILES" || true)
 
     if [[ -n "$NON_VERSION_FILES" ]]; then
         echo "Error: You have uncommitted changes. Commit or stash them before publishing."
@@ -186,7 +173,7 @@ cd ../..
 echo ""
 echo "==> Published successfully! Committing version bump..."
 
-git add packages/sidekick-dist/package.json packages/sidekick-plugin/.claude-plugin/plugin.json .claude-plugin/marketplace.json
+git add "${VERSION_BUMP_FILES[@]}"
 git commit -m "chore: release @scotthamilton77/sidekick@$NEW_VERSION"
 git tag "v$NEW_VERSION"
 
