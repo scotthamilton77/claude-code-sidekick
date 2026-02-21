@@ -10,6 +10,7 @@
  * - status: Check daemon status and ping
  * - kill: Forcefully kill project-local daemon (SIGKILL)
  * - kill-all: Kill all daemons across all projects
+ * - kill-zombies: Find and kill unregistered daemon processes
  *
  * @see docs/design/CLI.md §7 Daemon Lifecycle Management
  */

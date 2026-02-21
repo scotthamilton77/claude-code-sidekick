@@ -603,7 +603,7 @@ export async function findZombieDaemons(logger: Logger): Promise<ZombieProcess[]
     psOutput = await new Promise<string>((resolve, reject) => {
       execFile('ps', ['-eo', 'pid,args'], (err, stdout) => {
         if (err) {
-          reject(err)
+          reject(err as Error)
         } else {
           resolve(stdout)
         }
@@ -639,6 +639,9 @@ export async function findZombieDaemons(logger: Logger): Promise<ZombieProcess[]
 
     const pid = parseInt(trimmed.substring(0, spaceIdx), 10)
     if (isNaN(pid)) continue
+
+    // Exclude our own process
+    if (pid === process.pid) continue
 
     const command = trimmed.substring(spaceIdx + 1).trim()
     candidates.push({ pid, command })

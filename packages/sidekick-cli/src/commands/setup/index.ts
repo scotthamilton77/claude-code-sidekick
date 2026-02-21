@@ -1124,8 +1124,10 @@ async function runDoctorFixes(
     if (zombieResults.length > 0) {
       stdout.write('Fixing: Zombie Daemons\n')
       const killed = zombieResults.filter((r) => r.killed).length
-      stdout.write(`  ✓ Killed ${killed} zombie daemon${killed === 1 ? '' : 's'}\n`)
-      fixedCount += killed > 0 ? 1 : 0
+      if (killed > 0) {
+        stdout.write(`  ✓ Killed ${killed} zombie daemon${killed === 1 ? '' : 's'}\n`)
+        fixedCount++
+      }
       const failed = zombieResults.filter((r) => !r.killed)
       for (const f of failed) {
         stdout.write(`  ⚠ Failed to kill PID ${f.pid}: ${f.error}\n`)
