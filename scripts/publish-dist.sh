@@ -25,11 +25,43 @@ if [[ ! "$VERSION_TYPE" =~ ^(patch|minor|major|prerelease)$ ]]; then
 fi
 
 echo "==> Checking for uncommitted changes..."
+# These files get version-bumped during publish; leftover changes from a
+# previous failed run are safe to ignore (they'll be overwritten).
+VERSION_BUMP_FILES=(
+    "packages/sidekick-dist/package.json"
+    "packages/sidekick-plugin/.claude-plugin/plugin.json"
+    ".claude-plugin/marketplace.json"
+)
+
 if ! git diff --quiet || ! git diff --cached --quiet; then
-    echo "Error: You have uncommitted changes. Commit or stash them before publishing."
-    echo ""
-    git status --short
-    exit 1
+    # Get list of changed files (staged + unstaged, no duplicates)
+    DIRTY_FILES=$(git diff --name-only; git diff --cached --name-only)
+    DIRTY_FILES=$(echo "$DIRTY_FILES" | sort -u)
+
+    # Check if every dirty file is a known version-bump file
+    NON_VERSION_FILES=""
+    while IFS= read -r file; do
+        [[ -z "$file" ]] && continue
+        IS_VERSION_FILE=false
+        for vf in "${VERSION_BUMP_FILES[@]}"; do
+            if [[ "$file" == "$vf" ]]; then
+                IS_VERSION_FILE=true
+                break
+            fi
+        done
+        if [[ "$IS_VERSION_FILE" == false ]]; then
+            NON_VERSION_FILES+="$file"$'\n'
+        fi
+    done <<< "$DIRTY_FILES"
+
+    if [[ -n "$NON_VERSION_FILES" ]]; then
+        echo "Error: You have uncommitted changes. Commit or stash them before publishing."
+        echo ""
+        git status --short
+        exit 1
+    fi
+
+    echo "    (ignoring leftover version-bump changes from previous run)"
 fi
 
 # Check for untracked files that might be important
