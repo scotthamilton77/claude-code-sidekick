@@ -9,6 +9,8 @@ import {
   installGitignoreSection,
   detectGitignoreStatus,
   validateOpenRouterKey,
+  findZombieDaemons,
+  killZombieDaemons,
   type AllScopesDetectionResult,
   type ApiKeySource,
   type PluginInstallationStatus,
@@ -1002,7 +1004,7 @@ async function runScripted(
  * Run the doctor/check mode.
  * Now checks actual config state against cache and updates cache if mismatched.
  */
-const DOCTOR_CHECK_NAMES = ['api-keys', 'statusline', 'gitignore', 'plugin', 'liveness'] as const
+const DOCTOR_CHECK_NAMES = ['api-keys', 'statusline', 'gitignore', 'plugin', 'liveness', 'zombies'] as const
 type DoctorCheckName = (typeof DOCTOR_CHECK_NAMES)[number]
 
 function parseDoctorOnly(only: string | undefined): Set<DoctorCheckName> | null {
@@ -1113,6 +1115,21 @@ async function runDoctorFixes(
       }
     } catch (err) {
       stdout.write(`  ⚠ Plugin installation failed: ${err instanceof Error ? err.message : String(err)}\n`)
+    }
+  }
+
+  // Fix: Zombie daemons
+  if (shouldFix('zombies')) {
+    const zombieResults = await killZombieDaemons(logger)
+    if (zombieResults.length > 0) {
+      stdout.write('Fixing: Zombie Daemons\n')
+      const killed = zombieResults.filter((r) => r.killed).length
+      stdout.write(`  ✓ Killed ${killed} zombie daemon${killed === 1 ? '' : 's'}\n`)
+      fixedCount += killed > 0 ? 1 : 0
+      const failed = zombieResults.filter((r) => !r.killed)
+      for (const f of failed) {
+        stdout.write(`  ⚠ Failed to kill PID ${f.pid}: ${f.error}\n`)
+      }
     }
   }
 
@@ -1251,6 +1268,22 @@ async function runDoctor(
     )
   }
 
+  // Zombie daemon check
+  let zombieCount = 0
+  if (shouldRun('zombies')) {
+    promises.push(
+      findZombieDaemons(logger).then((zombies) => {
+        zombieCount = zombies.length
+        const zombieIcon = zombies.length === 0 ? '✓' : '⚠'
+        const label =
+          zombies.length === 0
+            ? 'none detected'
+            : `${zombies.length} found (run 'sidekick daemon kill-zombies' or 'sidekick doctor --fix --only=zombies')`
+        stdout.write(`${zombieIcon} Zombie Daemons: ${label}\n`)
+      })
+    )
+  }
+
   await Promise.all(promises)
 
   // --- Overall summary (only meaningful when running all checks) ---
@@ -1260,7 +1293,11 @@ async function runDoctor(
     // After Promise.all with filter===null, all checks have run and populated these variables.
     // TS can't track mutations inside .then() callbacks, so we assert non-null.
     const isHealthy =
-      doctorResult!.overallHealth === 'healthy' && gitignore === 'installed' && isPluginOk && isPluginLive
+      doctorResult!.overallHealth === 'healthy' &&
+      gitignore === 'installed' &&
+      isPluginOk &&
+      isPluginLive &&
+      zombieCount === 0
     const overallIcon = isHealthy ? '✓' : '⚠'
     stdout.write(`${overallIcon} Overall: ${isHealthy ? 'healthy' : 'needs attention'}\n`)
 

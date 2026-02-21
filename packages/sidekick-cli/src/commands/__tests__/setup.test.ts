@@ -19,6 +19,16 @@ import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest'
 import { handleSetupCommand } from '../setup'
 import type { Logger } from '@sidekick/types'
 
+// Mock zombie daemon detection so ps output from the test runner doesn't pollute doctor checks
+vi.mock('@sidekick/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@sidekick/core')>()
+  return {
+    ...actual,
+    findZombieDaemons: vi.fn().mockResolvedValue([]),
+    killZombieDaemons: vi.fn().mockResolvedValue([]),
+  }
+})
+
 // Mock child_process.spawn to intercept claude CLI calls
 vi.mock('node:child_process', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:child_process')>()
