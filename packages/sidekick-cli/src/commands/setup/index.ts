@@ -473,41 +473,47 @@ async function runStep3Gitignore(wctx: WizardContext, force: boolean): Promise<G
 }
 
 /**
- * Step 4: Configure persona features and API key.
+ * Step 4: Configure API key for LLM features.
+ * API keys power all LLM features: session titles, topic classification,
+ * completion detection, and persona messages. This step runs independently
+ * of persona enablement.
  */
-async function runStep4Personas(
+async function runStep4ApiKey(
   wctx: WizardContext
-): Promise<{ wantPersonas: boolean; apiKeyHealth: ApiKeyHealth; apiKeyDetection: AllScopesDetectionResult | null }> {
-  const { ctx, homeDir } = wctx
-  const stdout = ctx.stdout
+): Promise<{ apiKeyHealth: ApiKeyHealth; apiKeyDetection: AllScopesDetectionResult | null }> {
+  const { ctx } = wctx
 
   printHeader(
     ctx,
-    'Step 4: Persona Features',
-    'Sidekick includes AI personas (Marvin, Skippy, etc.) that add\npersonality to your coding sessions with snarky messages and contextual nudges.'
+    'Step 4: API Key Configuration',
+    'Sidekick uses an OpenRouter API key for LLM-powered features:\nsession titles, topic classification, completion detection, and persona messages.'
   )
 
-  stdout.write('These require an OpenRouter API key (small cost per message).\n\n')
-
-  const wantPersonas = await promptConfirm(ctx, 'Enable persona features?', true)
-  let apiKeyHealth: ApiKeyHealth = 'not-required'
-  let apiKeyDetection: AllScopesDetectionResult | null = null
-
-  if (!wantPersonas) {
-    await writePersonaConfig(homeDir, false)
-    printStatus(ctx, 'info', 'Personas disabled')
-  } else {
-    await writePersonaConfig(homeDir, true)
-    const result = await configureApiKey(wctx)
-    apiKeyHealth = result.health
-    apiKeyDetection = result.detection
-  }
-
-  return { wantPersonas, apiKeyHealth, apiKeyDetection }
+  const result = await configureApiKey(wctx)
+  return { apiKeyHealth: result.health, apiKeyDetection: result.detection }
 }
 
 /**
- * Configure API key (sub-step of Step 4).
+ * Step 5: Configure persona features.
+ */
+async function runStep5Personas(wctx: WizardContext): Promise<boolean> {
+  const { ctx, homeDir } = wctx
+
+  printHeader(
+    ctx,
+    'Step 5: Persona Features',
+    'Sidekick includes AI personas (Marvin, Skippy, etc.) that add\npersonality to your coding sessions with snarky messages and contextual nudges.'
+  )
+
+  const wantPersonas = await promptConfirm(ctx, 'Enable persona features?', true)
+  await writePersonaConfig(homeDir, wantPersonas)
+  printStatus(ctx, wantPersonas ? 'success' : 'info', `Personas ${wantPersonas ? 'enabled' : 'disabled'}`)
+
+  return wantPersonas
+}
+
+/**
+ * Configure API key.
  * Uses detectAllApiKeys to check all scopes with validation, shows per-scope results.
  */
 async function configureApiKey(
@@ -552,7 +558,7 @@ async function configureApiKey(
 
   if (!configureNow) {
     stdout.write('\n')
-    printStatus(ctx, 'warning', 'Persona features will show warnings in the statusline until an API key is configured.')
+    printStatus(ctx, 'warning', 'LLM features will be limited until an API key is configured.')
     stdout.write("Run 'sidekick setup' again or ask Claude to help configure API keys using /sidekick-config.\n")
     return { health: 'missing', detection }
   }
@@ -591,12 +597,12 @@ async function configureApiKey(
 }
 
 /**
- * Step 5: Configure auto-configuration preference.
+ * Step 6: Configure auto-configuration preference.
  */
-async function runStep5AutoConfig(wctx: WizardContext): Promise<'auto' | 'manual'> {
+async function runStep6AutoConfig(wctx: WizardContext): Promise<'auto' | 'manual'> {
   const { ctx } = wctx
 
-  printHeader(ctx, 'Step 5: Project Auto-Configuration')
+  printHeader(ctx, 'Step 6: Project Auto-Configuration')
 
   const autoConfig = await promptSelect(ctx, 'When sidekick runs in a new project for the first time:', [
     { value: 'auto' as const, label: 'Auto-configure using my defaults', description: 'Recommended' },
@@ -611,7 +617,7 @@ async function runStep5AutoConfig(wctx: WizardContext): Promise<'auto' | 'manual
  */
 async function writeStatusFiles(wctx: WizardContext, state: WizardState): Promise<void> {
   const { setupService } = wctx
-  const { statuslineScope, gitignoreStatus, wantPersonas, apiKeyHealth, apiKeyDetection, autoConfig } = state
+  const { statuslineScope, gitignoreStatus, apiKeyHealth, apiKeyDetection, autoConfig } = state
 
   const userStatus: UserSetupStatus = {
     version: 1,
@@ -619,7 +625,7 @@ async function writeStatusFiles(wctx: WizardContext, state: WizardState): Promis
     preferences: {
       autoConfigureProjects: autoConfig === 'auto',
       defaultStatuslineScope: statuslineScope,
-      defaultApiKeyScope: wantPersonas ? 'user' : 'skip',
+      defaultApiKeyScope: 'user',
     },
     statusline: statuslineScope,
     apiKeys: {
@@ -766,10 +772,11 @@ async function runWizard(
     ? forceEffectiveScope
     : await runStep2Statusline(wctx, pluginResult.pluginScope, isDevMode)
   const gitignoreStatus = await runStep3Gitignore(wctx, force)
-  const { wantPersonas, apiKeyHealth, apiKeyDetection } = force
-    ? { wantPersonas: true, apiKeyHealth: 'not-required' as const, apiKeyDetection: null }
-    : await runStep4Personas(wctx)
-  const autoConfig = force ? 'auto' : await runStep5AutoConfig(wctx)
+  const { apiKeyHealth, apiKeyDetection } = force
+    ? { apiKeyHealth: 'missing' as const, apiKeyDetection: null }
+    : await runStep4ApiKey(wctx)
+  const wantPersonas = force ? true : await runStep5Personas(wctx)
+  const autoConfig = force ? 'auto' : await runStep6AutoConfig(wctx)
 
   // In force mode, configure statusline at same scope as plugin
   if (force) {
@@ -801,7 +808,8 @@ async function runWizard(
       `  Statusline: ${forceEffectiveScope} (${statuslineSettingsPath(forceEffectiveScope, homeDir, projectDir)})\n`
     )
     stdout.write(`  Gitignore: ${gitignoreStatus === 'installed' ? 'configured' : 'skipped'}\n`)
-    stdout.write(`  Personas: enabled (API key not configured)\n`)
+    stdout.write(`  API Key: not configured (run 'sidekick setup' to add)\n`)
+    stdout.write(`  Personas: enabled\n`)
     stdout.write(`  Auto-configure: enabled\n`)
   }
 
@@ -908,33 +916,6 @@ async function runScripted(
     await writePersonaConfig(homeDir, options.personas)
     stdout.write(`✓ Personas ${options.personas ? 'enabled' : 'disabled'}\n`)
     configuredCount++
-
-    // When personas are disabled, mark API key as not-required in user status
-    // (mirrors wizard behavior in writeStatusFiles)
-    if (!options.personas) {
-      const existingUserStatus = await setupService.getUserStatus()
-      const userStatus: UserSetupStatus = existingUserStatus ?? {
-        version: 1,
-        lastUpdatedAt: new Date().toISOString(),
-        preferences: {
-          autoConfigureProjects: false,
-          defaultStatuslineScope: 'user',
-          defaultApiKeyScope: 'skip',
-        },
-        statusline: 'none',
-        apiKeys: {
-          OPENROUTER_API_KEY: SetupStatusService.userApiKeyStatusFromHealth('not-required'),
-          OPENAI_API_KEY: SetupStatusService.userApiKeyStatusFromHealth('not-required'),
-        },
-      }
-      userStatus.apiKeys = {
-        ...userStatus.apiKeys,
-        OPENROUTER_API_KEY: SetupStatusService.userApiKeyStatusFromHealth('not-required'),
-      }
-      userStatus.preferences.defaultApiKeyScope = 'skip'
-      userStatus.lastUpdatedAt = new Date().toISOString()
-      await setupService.writeUserStatus(userStatus)
-    }
   }
 
   // 4. Configure API key if scope specified and env var present
@@ -978,8 +959,8 @@ async function runScripted(
       },
       statusline: 'none', // Default to none if no prior setup
       apiKeys: {
-        OPENROUTER_API_KEY: 'not-required',
-        OPENAI_API_KEY: 'not-required',
+        OPENROUTER_API_KEY: 'missing',
+        OPENAI_API_KEY: 'missing',
       },
     }
 
@@ -998,16 +979,10 @@ async function runScripted(
       lastUpdatedAt: new Date().toISOString(),
       autoConfigured: false,
       statusline: options.statuslineScope ?? existingProject?.statusline ?? 'none',
-      apiKeys:
-        options.personas === false
-          ? {
-              OPENROUTER_API_KEY: SetupStatusService.projectApiKeyStatusFromHealth('not-required'),
-              OPENAI_API_KEY: SetupStatusService.projectApiKeyStatusFromHealth('not-required'),
-            }
-          : (existingProject?.apiKeys ?? {
-              OPENROUTER_API_KEY: SetupStatusService.projectApiKeyStatusFromHealth('not-required'),
-              OPENAI_API_KEY: SetupStatusService.projectApiKeyStatusFromHealth('not-required'),
-            }),
+      apiKeys: existingProject?.apiKeys ?? {
+        OPENROUTER_API_KEY: SetupStatusService.projectApiKeyStatusFromHealth('missing'),
+        OPENAI_API_KEY: SetupStatusService.projectApiKeyStatusFromHealth('not-required'),
+      },
       gitignore: options.gitignore ? 'installed' : (existingProject?.gitignore ?? 'unknown'),
       ...(existingProject?.devMode !== undefined && { devMode: existingProject.devMode }),
     }
@@ -1081,12 +1056,12 @@ async function runDoctorFixes(
       preferences: {
         autoConfigureProjects: true,
         defaultStatuslineScope: 'user',
-        defaultApiKeyScope: 'skip',
+        defaultApiKeyScope: 'user',
       },
       statusline: 'none',
       apiKeys: {
-        OPENROUTER_API_KEY: SetupStatusService.userApiKeyStatusFromHealth('not-required'),
-        OPENAI_API_KEY: SetupStatusService.userApiKeyStatusFromHealth('not-required'),
+        OPENROUTER_API_KEY: SetupStatusService.userApiKeyStatusFromHealth('missing'),
+        OPENAI_API_KEY: SetupStatusService.userApiKeyStatusFromHealth('missing'),
       },
     }
     await setupService.writeUserStatus(userStatus)

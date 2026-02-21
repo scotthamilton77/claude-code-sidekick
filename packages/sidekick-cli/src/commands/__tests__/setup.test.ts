@@ -512,8 +512,8 @@ describe('handleSetupCommand', () => {
     })
   })
 
-  describe('scripted mode - --no-personas updates status files', () => {
-    test('marks API key as not-required in user status when personas disabled', async () => {
+  describe('scripted mode - --no-personas does not affect API key status', () => {
+    test('does not mark project API key as not-required when personas disabled', async () => {
       const result = await handleSetupCommand(projectDir, logger, output, {
         personas: false,
         homeDir,
@@ -522,31 +522,17 @@ describe('handleSetupCommand', () => {
       expect(result.exitCode).toBe(0)
       expect(output.data).toContain('Personas disabled')
 
-      // User status should have OPENROUTER_API_KEY marked as not-required
-      const userStatusPath = path.join(homeDir, '.sidekick', 'setup-status.json')
-      const content = await readFile(userStatusPath, 'utf-8')
-      const status = JSON.parse(content)
-      expect(status.apiKeys.OPENROUTER_API_KEY.status).toBe('not-required')
-      expect(status.preferences.defaultApiKeyScope).toBe('skip')
-    })
-
-    test('marks API key as not-required in project status when personas disabled', async () => {
-      const result = await handleSetupCommand(projectDir, logger, output, {
-        personas: false,
-        homeDir,
-      })
-
-      expect(result.exitCode).toBe(0)
-
-      // Project status should have OPENROUTER_API_KEY marked as not-required
+      // Disabling personas should NOT write API key status to user setup-status.
+      // API keys are independent of persona choice — they power all LLM features.
+      // The project status should not mark the key as not-required either.
       const projectStatusPath = path.join(projectDir, '.sidekick', 'setup-status.json')
       const content = await readFile(projectStatusPath, 'utf-8')
       const status = JSON.parse(content)
-      expect(status.apiKeys.OPENROUTER_API_KEY.status).toBe('not-required')
+      expect(status.apiKeys.OPENROUTER_API_KEY.status).not.toBe('not-required')
     })
 
-    test('overwrites existing healthy API key status when personas disabled', async () => {
-      // Pre-populate with healthy API key status (from previous setup with personas enabled)
+    test('preserves existing API key status when personas disabled', async () => {
+      // Pre-populate with healthy API key status (from previous setup)
       const sidekickDir = path.join(projectDir, '.sidekick')
       await mkdir(sidekickDir, { recursive: true })
       await writeFile(
@@ -575,10 +561,10 @@ describe('handleSetupCommand', () => {
 
       expect(result.exitCode).toBe(0)
 
-      // Project status should now show not-required, not healthy
+      // Existing healthy API key status should be preserved, not downgraded
       const content = await readFile(path.join(sidekickDir, 'setup-status.json'), 'utf-8')
       const status = JSON.parse(content)
-      expect(status.apiKeys.OPENROUTER_API_KEY.status).toBe('not-required')
+      expect(status.apiKeys.OPENROUTER_API_KEY.status).toBe('healthy')
     })
   })
 

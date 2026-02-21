@@ -25,7 +25,7 @@ Sidekick is a Claude Code hooks companion that adds session summaries, reminders
 | [Claude Code CLI](https://docs.claude.com/en/docs/claude-code) | Latest | [Install guide](https://docs.claude.com/en/docs/claude-code) |
 | [Node.js](https://nodejs.org/) | >=20.x | [nodejs.org](https://nodejs.org/) |
 
-Sidekick also requires an **OpenRouter API key** if you want persona-powered features (snarky comments, resume messages). Get one at [openrouter.ai](https://openrouter.ai/).
+Sidekick also requires an **OpenRouter API key** for LLM-powered features (session titles, topic classification, completion detection, and persona messages). Get one at [openrouter.ai](https://openrouter.ai/).
 
 ### Run the Setup Wizard
 
@@ -35,13 +35,14 @@ The setup wizard handles everything -- plugin installation, statusline, gitignor
 npx -y @scotthamilton77/sidekick setup
 ```
 
-The wizard walks through five steps:
+The wizard walks through six steps:
 
 1. **Plugin installation** -- installs the marketplace and plugin (offers scope selection: user, project, or local).
 2. **Statusline** -- configures the Claude Code status bar (user or project scope).
 3. **Git configuration** -- adds `.sidekick/` to `.gitignore` so logs and session data are not committed.
-4. **Persona features** -- enable/disable personas and configure your OpenRouter API key.
-5. **Auto-configuration** -- whether Sidekick should auto-configure when you enter a new project.
+4. **API key configuration** -- configures your OpenRouter API key for all LLM features.
+5. **Persona features** -- enable/disable AI personas (Marvin, Skippy, etc.).
+6. **Auto-configuration** -- whether Sidekick should auto-configure when you enter a new project.
 
 After setup completes, you should see the Sidekick statusline and persona greeting in your Claude Code session.
 
@@ -73,13 +74,14 @@ The setup wizard configures plugin installation, statusline, gitignore, personas
 npx -y @scotthamilton77/sidekick setup
 ```
 
-The wizard walks through five steps:
+The wizard walks through six steps:
 
 1. **Plugin Installation** -- verifies the marketplace and plugin are installed; offers to install if missing.
 2. **Statusline Configuration** -- user-level (`~/.claude/settings.json`, works everywhere) or project-level (`.claude/settings.local.json`, this project only).
 3. **Git Configuration** -- adds `.sidekick/` entries to `.gitignore` so logs and session data are not committed.
-4. **Persona Features** -- enable/disable personas and configure your OpenRouter API key.
-5. **Auto-Configuration** -- whether Sidekick should auto-configure when you enter a new project.
+4. **API Key Configuration** -- configures your OpenRouter API key for all LLM features (session titles, topic classification, completion detection, and persona messages).
+5. **Persona Features** -- enable/disable AI personas (Marvin, Skippy, etc.).
+6. **Auto-Configuration** -- whether Sidekick should auto-configure when you enter a new project.
 
 `install` is an alias for `setup` -- both run the same wizard.
 
@@ -659,7 +661,7 @@ The daemon auto-starts when hooks fire. If it keeps dying, check `.sidekick/side
 ### Personas Not Working
 
 1. **Run doctor**: `sidekick doctor --only=api-keys` checks API key health.
-2. **API key missing**: Persona features require an OpenRouter API key. Run `sidekick setup` to configure one, or set `OPENROUTER_API_KEY` in your environment.
+2. **API key missing**: LLM features (including personas) require an OpenRouter API key. Run `sidekick setup` to configure one, or set `OPENROUTER_API_KEY` in your environment.
 3. **API key invalid**: The doctor check validates keys. Look for `invalid` status in the scopes output.
 
 ### Plugin Not Detected
