@@ -26,12 +26,13 @@ The system is organized as a monorepo with a clear distinction between runtime p
 packages/
 ├── sidekick-core/          # Shared runtime library (see docs/design/CORE-RUNTIME.md)
 ├── sidekick-cli/           # CLI entry + hook commands (see docs/design/CLI.md)
-├── sidekickd/    # Background process for async work (see docs/design/DAEMON.md)
+├── sidekick-daemon/        # Background process for async work (see docs/design/DAEMON.md)
+├── sidekick-dist/          # npm distribution bundle (published as @scotthamilton77/sidekick)
+├── sidekick-plugin/        # Claude Code plugin config (hooks.json, skills) — not a workspace member
 ├── sidekick-ui/            # Monitoring UI for debugging (see packages/sidekick-ui/docs/MONITORING-UI.md)
 ├── feature-session-summary/# Session summary feature (see docs/design/FEATURE-SESSION-SUMMARY.md)
 ├── feature-reminders/      # Reminder system (see docs/design/FEATURE-REMINDERS.md)
 ├── feature-statusline/     # Statusline rendering (see docs/design/FEATURE-STATUSLINE.md)
-├── feature-resume/         # Resume message generation (see docs/design/FEATURE-RESUME.md)
 ├── shared-providers/       # LLM provider adapters (see docs/design/LLM-PROVIDERS.md)
 ├── testing-fixtures/       # Shared test infrastructure (see docs/design/TEST-FIXTURES.md)
 └── types/                  # Shared TypeScript types + Zod schemas (see docs/design/SCHEMA-CONTRACTS.md)
@@ -50,16 +51,17 @@ packages/
 
 ## 3. Runtime Architecture
 
-### 3.1 Hook Wrapper Architecture
+### 3.1 Hook Architecture
 
-Hooks configured in Claude Code's `settings.json` are **bash scripts** installed to `.claude/hooks/sidekick/` (project-scope) or `~/.claude/hooks/sidekick/` (user-scope). These bash scripts:
+Hooks are registered as **JSON command entries** in the Claude Code plugin file (`packages/sidekick-plugin/hooks/hooks.json`). Each hook entry invokes the Node.js CLI directly:
 
-1. Extract their own location using bash introspection.
-2. Access Claude Code environment including `$CLAUDE_PROJECT_DIR`.
-3. Forward explicit parameters to the Node.js CLI (`--hook-script-path`, `--project-dir`).
-4. Invoke the Node.js CLI via `npx @sidekick/cli` or global install.
+```
+npx --yes @scotthamilton77/sidekick hook <name> --project-dir=$CLAUDE_PROJECT_DIR
+```
 
-This decouples Claude Code's hook registration from the Node.js runtime. See **docs/design/CLI.md §3.1** for details.
+Claude Code's plugin system executes these commands natively — no bash wrapper scripts are involved. The plugin file also registers the statusline command.
+
+See **docs/design/CLI.md §3.1** for hook dispatch details.
 
 ### 3.2 CLI/Daemon Relationship
 
@@ -128,10 +130,10 @@ Configuration uses **YAML** for domain-specific files with a bash-style `sidekic
 
 1. Internal Defaults
 2. Environment Variables (`SIDEKICK_*`) + `.env` files
-3. User Unified Config (`~/.sidekick/sidekick.config`)
-4. User Domain Config (`~/.sidekick/{domain}.yaml`)
-5. Project Unified Config (`.sidekick/sidekick.config`)
-6. Project Domain Config (`.sidekick/{domain}.yaml`)
+3. User Domain Config (`~/.sidekick/{domain}.yaml`)
+4. User Unified Config (`~/.sidekick/sidekick.config`) — overrides domain YAML
+5. Project Domain Config (`.sidekick/{domain}.yaml`)
+6. Project Unified Config (`.sidekick/sidekick.config`) — overrides domain YAML
 7. Project-Local Overrides (`.sidekick/{domain}.yaml.local`)
 
 See **docs/design/CONFIG-SYSTEM.md** for complete schema and merge semantics.
@@ -140,7 +142,7 @@ See **docs/design/CONFIG-SYSTEM.md** for complete schema and merge semantics.
 
 - **Architecture**: A detached Node.js process acts as the background daemon.
 - **Scope**: Daemon is **always project-scoped** (`.sidekick/sidekickd.pid`).
-- **IPC**: Unix domain sockets (`.sidekick/sidekickd.sock`) with **Newline-Delimited JSON (NDJSON)** protocol. Auth via shared token (`.sidekick/sidekickd.token`).
+- **IPC**: Unix domain sockets (`.sidekick/sidekickd.sock`) with **JSON-RPC 2.0** protocol (newline-framed). Auth via shared token (`.sidekick/sidekickd.token`).
 - **Single Writer**: Acts as the single writer for shared state files using atomic writes (temp file + `mv`).
 
 See **docs/design/DAEMON.md** for lifecycle management, handler execution, and task queue.
@@ -154,10 +156,9 @@ See **docs/design/LLM-PROVIDERS.md** for provider architecture and **docs/design
 
 ## 4. Installation & Distribution
 
-- **Hook Installation**: Installer creates bash wrapper scripts in `.claude/hooks/sidekick/` (project) or `~/.claude/hooks/sidekick/` (user).
-- **Node.js Runtime Distribution**:
-  - **Default**: `npx @sidekick/cli <hook>` inside a project (project-scoped).
-  - **Optional**: `npm i -g @sidekick/cli` for user-scope hooks.
+- **Plugin Installation**: Sidekick is installed via the Claude Code plugin system (`plugin-installer.ts`), which registers JSON hook entries — no bash wrapper scripts.
+- **Node.js Runtime Distribution**: Published as `@scotthamilton77/sidekick` on npm. Hooks invoke `npx --yes @scotthamilton77/sidekick hook <name>` to fetch and run the CLI.
+- **Distribution Package**: `packages/sidekick-dist/` bundles the CLI for npm publication. `packages/sidekick-plugin/` contains the Claude Code plugin config (`hooks.json` and skills).
 - **Dual-Scope Configs**: `.sidekick/` and `~/.sidekick/` store overrides, logs, and sessions. The Node runtime reads/writes identical paths to maintain manual workflow compatibility.
 
 ## 5. Testing & Validation Strategy
