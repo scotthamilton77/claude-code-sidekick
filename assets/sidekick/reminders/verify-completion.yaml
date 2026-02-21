@@ -11,11 +11,12 @@ additionalContext: |
   Before claiming this task is complete, you must verify:
 
   For Code Changes:
-  - Run type-check: `pnpm typecheck` (includes test files)
   - Run build: `pnpm build` (excludes test files - both required)
-  - Run lint: `pnpm lint` (must show zero warnings)
   - Run relevant tests: `pnpm test` (targeted tests for changed code)
-  - If your changes impact existing documentation that you haven't already updated, inform the user and ask whether this should be updated as a next step.
+  - Run the `code-simplifier` agent to simplify and refine the code for clarity and maintainability.
+  - Run the `code-reviewer` agent to review your changes against the plan and coding standards.
+  - If your changes impact existing documentation that you haven't already updated,
+    inform the user and ask whether this should be updated as a next step.
 
   For Documentation/Config:
   - Verify file paths and references are correct
