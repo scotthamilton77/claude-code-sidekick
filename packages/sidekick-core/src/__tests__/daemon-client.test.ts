@@ -1520,12 +1520,23 @@ describe('killAllDaemons', () => {
   })
 })
 
-describe('findZombieDaemons', () => {
+describe('zombie daemon detection and cleanup', () => {
   let tmpUserDir: string
   const mockExecFile = vi.mocked(execFile)
 
+  /**
+   * Mock `ps -eo pid,args` to return the given output string.
+   * Eliminates the verbose callback-style boilerplate from each test.
+   */
+  function mockPsOutput(stdout: string, err: Error | null = null): void {
+    mockExecFile.mockImplementation((_cmd: unknown, _args: unknown, cb: unknown) => {
+      ;(cb as (err: Error | null, stdout: string, stderr: string) => void)(err, stdout, '')
+      return undefined as any
+    })
+  }
+
   beforeEach(async () => {
-    tmpUserDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sidekick-zombie-find-'))
+    tmpUserDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sidekick-zombie-test-'))
     await fs.mkdir(path.join(tmpUserDir, '.sidekick', 'daemons'), { recursive: true })
 
     vi.spyOn(os, 'homedir').mockReturnValue(tmpUserDir)
@@ -1537,199 +1548,118 @@ describe('findZombieDaemons', () => {
     await fs.rm(tmpUserDir, { recursive: true, force: true }).catch(() => {})
   })
 
-  it('should return empty array when ps output has no matching lines', async () => {
-    mockExecFile.mockImplementation((_cmd: unknown, _args: unknown, cb: unknown) => {
-      ;(cb as (err: Error | null, stdout: string, stderr: string) => void)(
-        null,
-        '  PID ARGS\n 1234 /usr/bin/bash\n 5678 node /some/other/app\n',
-        ''
+  describe('findZombieDaemons', () => {
+    it('should return empty array when ps output has no matching lines', async () => {
+      mockPsOutput('  PID ARGS\n 1234 /usr/bin/bash\n 5678 node /some/other/app\n')
+
+      const result = await findZombieDaemons(logger)
+      expect(result).toEqual([])
+    })
+
+    it('should return empty array when all daemon PIDs are registered', async () => {
+      // Create a registered PID file
+      const pidInfo = JSON.stringify({ pid: 1234, projectDir: '/test/project', startedAt: new Date().toISOString() })
+      await fs.writeFile(path.join(getUserDaemonsDir(), 'test.pid'), pidInfo)
+
+      mockPsOutput('  PID ARGS\n 1234 node /path/to/sidekick-daemon/dist/index.js /test/project\n')
+
+      const result = await findZombieDaemons(logger)
+      expect(result).toEqual([])
+    })
+
+    it('should return unregistered daemon PID as zombie', async () => {
+      mockPsOutput('  PID ARGS\n 9999 node /path/to/sidekick-daemon/dist/index.js /project\n')
+
+      const result = await findZombieDaemons(logger)
+      expect(result).toHaveLength(1)
+      expect(result[0].pid).toBe(9999)
+      expect(result[0].command).toContain('sidekick-daemon')
+    })
+
+    it('should detect production path (sidekick/dist/daemon.js)', async () => {
+      mockPsOutput('  PID ARGS\n 4567 node /home/user/.npm/sidekick/dist/daemon.js /my/project\n')
+
+      const result = await findZombieDaemons(logger)
+      expect(result).toHaveLength(1)
+      expect(result[0].pid).toBe(4567)
+      expect(result[0].command).toContain('daemon.js')
+    })
+
+    it('should filter out grep process from ps output', async () => {
+      mockPsOutput(
+        '  PID ARGS\n 1111 grep node sidekick daemon\n 2222 node /path/to/sidekick-daemon/dist/index.js /proj\n'
       )
-      return undefined as any // eslint-disable-line @typescript-eslint/no-explicit-any
+
+      const result = await findZombieDaemons(logger)
+      // Only PID 2222 should be returned (grep filtered out)
+      expect(result).toHaveLength(1)
+      expect(result[0].pid).toBe(2222)
     })
 
-    const result = await findZombieDaemons(logger)
-    expect(result).toEqual([])
-  })
+    it('should return empty array when ps command fails', async () => {
+      mockPsOutput('', new Error('ps: command not found'))
 
-  it('should return empty array when all daemon PIDs are registered', async () => {
-    // Create a registered PID file
-    const pidInfo = JSON.stringify({ pid: 1234, projectDir: '/test/project', startedAt: new Date().toISOString() })
-    await fs.writeFile(path.join(getUserDaemonsDir(), 'test.pid'), pidInfo)
+      const result = await findZombieDaemons(logger)
+      expect(result).toEqual([])
+    })
 
-    mockExecFile.mockImplementation((_cmd: unknown, _args: unknown, cb: unknown) => {
-      ;(cb as (err: Error | null, stdout: string, stderr: string) => void)(
-        null,
-        '  PID ARGS\n 1234 node /path/to/sidekick-daemon/dist/index.js /test/project\n',
-        ''
+    it('should treat all found processes as zombies when daemons directory is missing', async () => {
+      // Remove the daemons directory
+      await fs.rm(getUserDaemonsDir(), { recursive: true, force: true })
+
+      mockPsOutput(
+        '  PID ARGS\n 7777 node /path/to/sidekick-daemon/dist/index.js /project\n 8888 node /path/to/sidekick/dist/daemon.js /other\n'
       )
-      return undefined as any // eslint-disable-line @typescript-eslint/no-explicit-any
-    })
 
-    const result = await findZombieDaemons(logger)
-    expect(result).toEqual([])
+      const result = await findZombieDaemons(logger)
+      expect(result).toHaveLength(2)
+      expect(result.map((z) => z.pid).sort()).toEqual([7777, 8888])
+    })
   })
 
-  it('should return unregistered daemon PID as zombie', async () => {
-    // No registered PID files — but daemons dir exists (empty)
-    mockExecFile.mockImplementation((_cmd: unknown, _args: unknown, cb: unknown) => {
-      ;(cb as (err: Error | null, stdout: string, stderr: string) => void)(
-        null,
-        '  PID ARGS\n 9999 node /path/to/sidekick-daemon/dist/index.js /project\n',
-        ''
-      )
-      return undefined as any // eslint-disable-line @typescript-eslint/no-explicit-any
+  describe('killZombieDaemons', () => {
+    it('should return empty array when no zombies found', async () => {
+      mockPsOutput('  PID ARGS\n 1234 /usr/bin/bash\n')
+
+      const results = await killZombieDaemons(logger)
+      expect(results).toEqual([])
     })
 
-    const result = await findZombieDaemons(logger)
-    expect(result).toHaveLength(1)
-    expect(result[0].pid).toBe(9999)
-    expect(result[0].command).toContain('sidekick-daemon')
-  })
+    it('should SIGKILL zombie and return KillResult with killed:true', async () => {
+      mockPsOutput('  PID ARGS\n 5555 node /path/to/sidekick-daemon/dist/index.js /project\n')
 
-  it('should detect production path (sidekick/dist/daemon.js)', async () => {
-    mockExecFile.mockImplementation((_cmd: unknown, _args: unknown, cb: unknown) => {
-      ;(cb as (err: Error | null, stdout: string, stderr: string) => void)(
-        null,
-        '  PID ARGS\n 4567 node /home/user/.npm/sidekick/dist/daemon.js /my/project\n',
-        ''
-      )
-      return undefined as any // eslint-disable-line @typescript-eslint/no-explicit-any
+      const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true)
+
+      const results = await killZombieDaemons(logger)
+
+      expect(results).toHaveLength(1)
+      expect(results[0]).toEqual({
+        projectDir: 'unknown',
+        pid: 5555,
+        killed: true,
+      })
+      expect(killSpy).toHaveBeenCalledWith(5555, 'SIGKILL')
+
+      killSpy.mockRestore()
     })
 
-    const result = await findZombieDaemons(logger)
-    expect(result).toHaveLength(1)
-    expect(result[0].pid).toBe(4567)
-    expect(result[0].command).toContain('daemon.js')
-  })
+    it('should return KillResult with killed:false and error on EPERM', async () => {
+      mockPsOutput('  PID ARGS\n 6666 node /path/to/sidekick-daemon/dist/index.js /project\n')
 
-  it('should filter out grep process from ps output', async () => {
-    mockExecFile.mockImplementation((_cmd: unknown, _args: unknown, cb: unknown) => {
-      ;(cb as (err: Error | null, stdout: string, stderr: string) => void)(
-        null,
-        '  PID ARGS\n 1111 grep node sidekick daemon\n 2222 node /path/to/sidekick-daemon/dist/index.js /proj\n',
-        ''
-      )
-      return undefined as any // eslint-disable-line @typescript-eslint/no-explicit-any
+      const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => {
+        const err = new Error('EPERM: operation not permitted') as NodeJS.ErrnoException
+        err.code = 'EPERM'
+        throw err
+      })
+
+      const results = await killZombieDaemons(logger)
+
+      expect(results).toHaveLength(1)
+      expect(results[0].killed).toBe(false)
+      expect(results[0].error).toContain('EPERM')
+      expect(results[0].projectDir).toBe('unknown')
+
+      killSpy.mockRestore()
     })
-
-    const result = await findZombieDaemons(logger)
-    // Only PID 2222 should be returned (grep filtered out)
-    expect(result).toHaveLength(1)
-    expect(result[0].pid).toBe(2222)
-  })
-
-  it('should return empty array when ps command fails', async () => {
-    mockExecFile.mockImplementation((_cmd: unknown, _args: unknown, cb: unknown) => {
-      ;(cb as (err: Error | null, stdout: string, stderr: string) => void)(
-        new Error('ps: command not found'),
-        '',
-        ''
-      )
-      return undefined as any // eslint-disable-line @typescript-eslint/no-explicit-any
-    })
-
-    const result = await findZombieDaemons(logger)
-    expect(result).toEqual([])
-  })
-
-  it('should treat all found processes as zombies when daemons directory is missing', async () => {
-    // Remove the daemons directory
-    await fs.rm(getUserDaemonsDir(), { recursive: true, force: true })
-
-    mockExecFile.mockImplementation((_cmd: unknown, _args: unknown, cb: unknown) => {
-      ;(cb as (err: Error | null, stdout: string, stderr: string) => void)(
-        null,
-        '  PID ARGS\n 7777 node /path/to/sidekick-daemon/dist/index.js /project\n 8888 node /path/to/sidekick/dist/daemon.js /other\n',
-        ''
-      )
-      return undefined as any // eslint-disable-line @typescript-eslint/no-explicit-any
-    })
-
-    const result = await findZombieDaemons(logger)
-    expect(result).toHaveLength(2)
-    expect(result.map((z) => z.pid).sort()).toEqual([7777, 8888])
-  })
-})
-
-describe('killZombieDaemons', () => {
-  let tmpUserDir: string
-  const mockExecFile = vi.mocked(execFile)
-
-  beforeEach(async () => {
-    tmpUserDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sidekick-zombie-kill-'))
-    await fs.mkdir(path.join(tmpUserDir, '.sidekick', 'daemons'), { recursive: true })
-
-    vi.spyOn(os, 'homedir').mockReturnValue(tmpUserDir)
-    mockExecFile.mockClear()
-  })
-
-  afterEach(async () => {
-    vi.restoreAllMocks()
-    await fs.rm(tmpUserDir, { recursive: true, force: true }).catch(() => {})
-  })
-
-  it('should return empty array when no zombies found', async () => {
-    mockExecFile.mockImplementation((_cmd: unknown, _args: unknown, cb: unknown) => {
-      ;(cb as (err: Error | null, stdout: string, stderr: string) => void)(
-        null,
-        '  PID ARGS\n 1234 /usr/bin/bash\n',
-        ''
-      )
-      return undefined as any // eslint-disable-line @typescript-eslint/no-explicit-any
-    })
-
-    const results = await killZombieDaemons(logger)
-    expect(results).toEqual([])
-  })
-
-  it('should SIGKILL zombie and return KillResult with killed:true', async () => {
-    mockExecFile.mockImplementation((_cmd: unknown, _args: unknown, cb: unknown) => {
-      ;(cb as (err: Error | null, stdout: string, stderr: string) => void)(
-        null,
-        '  PID ARGS\n 5555 node /path/to/sidekick-daemon/dist/index.js /project\n',
-        ''
-      )
-      return undefined as any // eslint-disable-line @typescript-eslint/no-explicit-any
-    })
-
-    const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true)
-
-    const results = await killZombieDaemons(logger)
-
-    expect(results).toHaveLength(1)
-    expect(results[0]).toEqual({
-      projectDir: 'unknown',
-      pid: 5555,
-      killed: true,
-    })
-    expect(killSpy).toHaveBeenCalledWith(5555, 'SIGKILL')
-
-    killSpy.mockRestore()
-  })
-
-  it('should return KillResult with killed:false and error on EPERM', async () => {
-    mockExecFile.mockImplementation((_cmd: unknown, _args: unknown, cb: unknown) => {
-      ;(cb as (err: Error | null, stdout: string, stderr: string) => void)(
-        null,
-        '  PID ARGS\n 6666 node /path/to/sidekick-daemon/dist/index.js /project\n',
-        ''
-      )
-      return undefined as any // eslint-disable-line @typescript-eslint/no-explicit-any
-    })
-
-    const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => {
-      const err = new Error('EPERM: operation not permitted') as NodeJS.ErrnoException
-      err.code = 'EPERM'
-      throw err
-    })
-
-    const results = await killZombieDaemons(logger)
-
-    expect(results).toHaveLength(1)
-    expect(results[0].killed).toBe(false)
-    expect(results[0].error).toContain('EPERM')
-    expect(results[0].projectDir).toBe('unknown')
-
-    killSpy.mockRestore()
   })
 })

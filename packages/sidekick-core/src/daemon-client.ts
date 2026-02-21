@@ -53,6 +53,13 @@ interface HandshakeResponse {
 // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
 const CLIENT_VERSION: string = require('../../../package.json').version
 
+/**
+ * Extract a human-readable message from an unknown error value.
+ */
+function toErrorMsg(err: unknown): string {
+  return err instanceof Error ? err.message : String(err)
+}
+
 export class DaemonClient {
   private projectDir: string
   private logger: Logger
@@ -552,7 +559,7 @@ export async function killAllDaemons(logger: Logger, options: KillAllOptions = {
         } catch (err) {
           logger.debug('Graceful stop failed, falling back to SIGKILL', {
             pid: info.pid,
-            error: err instanceof Error ? err.message : String(err),
+            error: toErrorMsg(err),
           })
         }
       }
@@ -563,9 +570,9 @@ export async function killAllDaemons(logger: Logger, options: KillAllOptions = {
         logger.info('Killed daemon', { pid: info.pid, projectDir: info.projectDir })
         results.push({ projectDir: info.projectDir, pid: info.pid, killed: true })
       } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err)
-        logger.warn('Failed to kill daemon', { pid: info.pid, error: errorMsg })
-        results.push({ projectDir: info.projectDir, pid: info.pid, killed: false, error: errorMsg })
+        const msg = toErrorMsg(err)
+        logger.warn('Failed to kill daemon', { pid: info.pid, error: msg })
+        results.push({ projectDir: info.projectDir, pid: info.pid, killed: false, error: msg })
       }
 
       // Clean up user-level PID file
@@ -578,7 +585,7 @@ export async function killAllDaemons(logger: Logger, options: KillAllOptions = {
       }
     } catch (err) {
       // Invalid JSON or read error - clean up the bad file
-      logger.warn('Invalid PID file, removing', { pidFile, error: err instanceof Error ? err.message : String(err) })
+      logger.warn('Invalid PID file, removing', { pidFile, error: toErrorMsg(err) })
       await fs.unlink(pidPath).catch(() => {})
     }
   }
@@ -611,16 +618,15 @@ export async function findZombieDaemons(logger: Logger): Promise<ZombieProcess[]
     })
   } catch (err) {
     logger.warn('Failed to run ps — cannot detect zombie daemons', {
-      error: err instanceof Error ? err.message : String(err),
+      error: toErrorMsg(err),
     })
     return []
   }
 
   // Filter lines that look like sidekick daemon processes
-  const lines = psOutput.split('\n')
   const candidates: ZombieProcess[] = []
 
-  for (const line of lines) {
+  for (const line of psOutput.split('\n')) {
     const lower = line.toLowerCase()
 
     // Must contain both 'sidekick' and 'daemon' (matches dev and prod paths)
@@ -632,23 +638,14 @@ export async function findZombieDaemons(logger: Logger): Promise<ZombieProcess[]
     // Exclude grep/kill-zombies processes that happen to match
     if (lower.includes('grep') || lower.includes('kill-zombies')) continue
 
-    // Parse PID and command from the line
-    const trimmed = line.trim()
-    const spaceIdx = trimmed.indexOf(' ')
-    if (spaceIdx === -1) continue
+    // Parse PID and command from "  PID ARGS" format
+    const match = line.match(/^\s*(\d+)\s+(.+)$/)
+    if (!match) continue
 
-    const pid = parseInt(trimmed.substring(0, spaceIdx), 10)
-    if (isNaN(pid)) continue
-
-    // Exclude our own process
+    const pid = parseInt(match[1], 10)
     if (pid === process.pid) continue
 
-    const command = trimmed.substring(spaceIdx + 1).trim()
-    candidates.push({ pid, command })
-  }
-
-  if (candidates.length === 0) {
-    return []
+    candidates.push({ pid, command: match[2] })
   }
 
   // Read registered PIDs from ~/.sidekick/daemons/*.pid
@@ -712,9 +709,9 @@ export async function killZombieDaemons(logger: Logger): Promise<KillResult[]> {
       logger.info('Killed zombie daemon', { pid: zombie.pid, command: zombie.command })
       results.push({ projectDir: 'unknown', pid: zombie.pid, killed: true })
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : String(err)
-      logger.warn('Failed to kill zombie daemon', { pid: zombie.pid, error: errorMsg })
-      results.push({ projectDir: 'unknown', pid: zombie.pid, killed: false, error: errorMsg })
+      const msg = toErrorMsg(err)
+      logger.warn('Failed to kill zombie daemon', { pid: zombie.pid, error: msg })
+      results.push({ projectDir: 'unknown', pid: zombie.pid, killed: false, error: msg })
     }
   }
 
