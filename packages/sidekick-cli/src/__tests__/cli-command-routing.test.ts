@@ -355,6 +355,46 @@ describe('CLI command routing', () => {
         expect.objectContaining({ checkOnly: true, only: 'liveness' })
       )
     })
+
+    test('forwards --force flag to handler', async () => {
+      mockHandleSetupCommand.mockResolvedValue({ exitCode: 0 })
+
+      const result = await runCli({
+        argv: ['setup', '--force'],
+        stdout,
+        stderr,
+        cwd: projectDir,
+        enableFileLogging: false,
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(mockHandleSetupCommand).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(Object),
+        expect.any(Object),
+        expect.objectContaining({ force: true })
+      )
+    })
+
+    test('forwards --fix flag to handler with --check', async () => {
+      mockHandleSetupCommand.mockResolvedValue({ exitCode: 0 })
+
+      const result = await runCli({
+        argv: ['setup', '--check', '--fix'],
+        stdout,
+        stderr,
+        cwd: projectDir,
+        enableFileLogging: false,
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(mockHandleSetupCommand).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(Object),
+        expect.any(Object),
+        expect.objectContaining({ checkOnly: true, fix: true })
+      )
+    })
   })
 
   describe('install command (alias for setup)', () => {

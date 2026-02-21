@@ -564,6 +564,8 @@ Examples:
     const result = await handleSetupCommand(runtime.projectRoot || process.cwd(), runtime.logger, stdout, {
       help: parsed.help,
       checkOnly: parsed.check,
+      fix: parsed.fix,
+      force: parsed.force,
       only: parsed.only,
       stdin: process.stdin,
       // Scripting flags for non-interactive setup
