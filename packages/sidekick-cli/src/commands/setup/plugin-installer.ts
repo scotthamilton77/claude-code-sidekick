@@ -10,7 +10,7 @@ import { printHeader, printStatus, promptSelect, type PromptContext } from './pr
 // ============================================================================
 
 export const MARKETPLACE_NAME = 'claude-code-sidekick'
-export const MARKETPLACE_SOURCE = 'github:scotthamilton77/claude-code-sidekick'
+export const MARKETPLACE_SOURCE = 'scotthamilton77/claude-code-sidekick'
 export const PLUGIN_NAME = 'sidekick'
 
 const ALL_SCOPES: readonly InstallScope[] = ['user', 'project', 'local'] as const
