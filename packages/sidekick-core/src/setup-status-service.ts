@@ -1017,12 +1017,6 @@ export class SetupStatusService {
       }
     }
 
-    // If personas are disabled, OPENROUTER_API_KEY is not required regardless of live detection
-    const personasEnabled = await this.isPersonasEnabled()
-    if (!personasEnabled && apiKeyResults.OPENROUTER_API_KEY.actual === 'missing') {
-      apiKeyResults.OPENROUTER_API_KEY.actual = 'not-required'
-    }
-
     // Check if user setup-status file exists
     const userStatus = await this.getUserStatus()
     const userSetupExists = userStatus !== null
