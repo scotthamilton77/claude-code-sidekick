@@ -44,8 +44,16 @@ describe('SetupStatusService', () => {
   let projectDir: string
   let homeDir: string
   let service: SetupStatusService
+  let savedOpenRouterKey: string | undefined
+  let savedOpenAIKey: string | undefined
 
   beforeEach(async () => {
+    // Isolate from real environment API keys
+    savedOpenRouterKey = process.env.OPENROUTER_API_KEY
+    savedOpenAIKey = process.env.OPENAI_API_KEY
+    delete process.env.OPENROUTER_API_KEY
+    delete process.env.OPENAI_API_KEY
+
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'setup-status-test-'))
     projectDir = path.join(tempDir, 'project')
     homeDir = path.join(tempDir, 'home')
@@ -55,6 +63,13 @@ describe('SetupStatusService', () => {
   })
 
   afterEach(async () => {
+    // Restore environment API keys
+    if (savedOpenRouterKey !== undefined) {
+      process.env.OPENROUTER_API_KEY = savedOpenRouterKey
+    }
+    if (savedOpenAIKey !== undefined) {
+      process.env.OPENAI_API_KEY = savedOpenAIKey
+    }
     await fs.rm(tempDir, { recursive: true, force: true })
   })
 

@@ -95,8 +95,16 @@ describe('handleSetupCommand', () => {
   let homeDir: string
   let output: CollectingWritable
   let logger: Logger
+  let savedOpenRouterKey: string | undefined
+  let savedOpenAIKey: string | undefined
 
   beforeEach(async () => {
+    // Isolate from real environment API keys
+    savedOpenRouterKey = process.env.OPENROUTER_API_KEY
+    savedOpenAIKey = process.env.OPENAI_API_KEY
+    delete process.env.OPENROUTER_API_KEY
+    delete process.env.OPENAI_API_KEY
+
     // Use /tmp/claude for sandbox compatibility
     tempDir = `/tmp/claude/setup-cmd-test-${Date.now()}`
     projectDir = path.join(tempDir, 'project')
@@ -109,6 +117,13 @@ describe('handleSetupCommand', () => {
   })
 
   afterEach(async () => {
+    // Restore environment API keys
+    if (savedOpenRouterKey !== undefined) {
+      process.env.OPENROUTER_API_KEY = savedOpenRouterKey
+    }
+    if (savedOpenAIKey !== undefined) {
+      process.env.OPENAI_API_KEY = savedOpenAIKey
+    }
     await rm(tempDir, { recursive: true, force: true })
   })
 
