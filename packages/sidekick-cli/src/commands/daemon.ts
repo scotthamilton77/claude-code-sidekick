@@ -13,7 +13,7 @@
  *
  * @see docs/design/CLI.md §7 Daemon Lifecycle Management
  */
-import { killAllDaemons, Logger, DaemonClient } from '@sidekick/core'
+import { killAllDaemons, killZombieDaemons, Logger, DaemonClient } from '@sidekick/core'
 import type { KillResult } from '@sidekick/core'
 
 export interface DaemonCommandOptions {
@@ -28,11 +28,12 @@ export interface DaemonCommandResult {
 const USAGE_TEXT = `Usage: sidekick daemon <command> [options]
 
 Commands:
-  start      Start the project-local daemon
-  stop       Gracefully stop the daemon via IPC
-  status     Check daemon status and ping
-  kill       Forcefully terminate the daemon (SIGKILL)
-  kill-all   Kill all daemons across all projects
+  start          Start the project-local daemon
+  stop           Gracefully stop the daemon via IPC
+  status         Check daemon status and ping
+  kill           Forcefully terminate the daemon (SIGKILL)
+  kill-all       Kill all daemons across all projects
+  kill-zombies   Find and kill unregistered daemon processes
 
 Options:
   --wait     Wait for daemon to fully stop (with 'stop' command)
@@ -43,6 +44,7 @@ Examples:
   sidekick daemon stop --wait
   sidekick daemon status
   sidekick daemon kill-all
+  sidekick daemon kill-zombies
 `
 
 export async function handleDaemonCommand(
@@ -106,6 +108,24 @@ export async function handleDaemonCommand(
         }
         const killedCount = results.filter((r: KillResult) => r.killed).length
         stdout.write(`\nKilled ${killedCount} of ${results.length} daemons\n`)
+      }
+      break
+    }
+
+    case 'kill-zombies': {
+      const results = await killZombieDaemons(logger)
+      if (results.length === 0) {
+        stdout.write('No zombie daemons found\n')
+      } else {
+        for (const result of results) {
+          if (result.killed) {
+            stdout.write(`Killed zombie: PID ${result.pid}\n`)
+          } else {
+            stdout.write(`Failed: PID ${result.pid}: ${result.error}\n`)
+          }
+        }
+        const killedCount = results.filter((r: KillResult) => r.killed).length
+        stdout.write(`\nKilled ${killedCount} of ${results.length} zombie daemons\n`)
       }
       break
     }
