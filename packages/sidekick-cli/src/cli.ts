@@ -342,6 +342,7 @@ Commands:
   setup                    Run the setup wizard (configure statusline, API keys)
   install                  Alias for setup
   doctor [--fix]           Check sidekick health (--fix to auto-repair)
+  uninstall [--force]      Remove sidekick (plugin, hooks, settings, data)
 
 Global Options:
   --help, -h               Show this help message
@@ -581,6 +582,24 @@ Examples:
   }
 
   if (parsed.command === 'uninstall') {
+    if (parsed.help) {
+      const helpText = `Usage: sidekick uninstall [options]
+
+Remove sidekick from user and/or project scope (plugin, hooks, settings, data).
+
+Options:
+  --force                  Skip confirmation prompts
+  --dry-run                Show what would be removed without acting
+  --scope=<user|project>   Limit uninstall to a specific scope
+
+Examples:
+  sidekick uninstall
+  sidekick uninstall --dry-run
+  sidekick uninstall --force --scope=project
+`
+      stdout.write(helpText)
+      return { exitCode: 0, stdout: helpText, stderr: '' }
+    }
     const { handleUninstallCommand } = await import('./commands/uninstall.js')
     const result = await handleUninstallCommand(runtime.projectRoot || process.cwd(), runtime.logger, stdout, {
       force: Boolean(parsed.force),

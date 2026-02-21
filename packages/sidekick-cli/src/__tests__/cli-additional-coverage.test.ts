@@ -7,6 +7,7 @@
  * - persona command
  * - sessions command
  * - dev-mode command
+ * - uninstall command
  * - persistCliLogMetrics error path
  */
 import { Writable } from 'node:stream'
@@ -451,6 +452,24 @@ describe('CLI additional coverage', () => {
         expect.any(Object),
         expect.objectContaining({ force: true })
       )
+    })
+  })
+
+  describe('uninstall command', () => {
+    test('shows help when uninstall --help is used', async () => {
+      const result = await runCli({
+        argv: ['uninstall', '--help'],
+        stdout,
+        stderr,
+        cwd: projectDir,
+        enableFileLogging: false,
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(stdout.data).toContain('Usage: sidekick uninstall [options]')
+      expect(stdout.data).toContain('--force')
+      expect(stdout.data).toContain('--dry-run')
+      expect(stdout.data).toContain('--scope=<user|project>')
     })
   })
 })
