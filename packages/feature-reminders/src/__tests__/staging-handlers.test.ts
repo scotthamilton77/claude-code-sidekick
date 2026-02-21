@@ -1259,6 +1259,94 @@ reason: "Verify completion before stopping"
         expect(staging.getRemindersForHook('Stop')).toHaveLength(1)
       })
     })
+
+    describe('edge cases', () => {
+      it('concurrent Bash executions use updated baseline from first execution', async () => {
+        registerStageBashChanges(ctx)
+
+        // Capture initial baseline with no files
+        mockGetGitFileStatus.mockResolvedValue([])
+        const baselineHandler = handlers.getHandler('reminders:git-baseline-capture')
+        await baselineHandler?.handler(
+          createUserPromptSubmitEvent(),
+          ctx as unknown as import('@sidekick/types').HandlerContext
+        )
+
+        // First Bash creates src/a.ts — stages VC, baseline updated to ['src/a.ts']
+        mockGetGitFileStatus.mockResolvedValue(['src/a.ts'])
+        const bashHandler = handlers.getHandler('reminders:stage-stop-bash-changes')
+        const event1 = createToolResultEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, 'Bash')
+        await bashHandler?.handler(event1, ctx as unknown as import('@sidekick/types').HandlerContext)
+        expect(staging.getRemindersForHook('Stop')).toHaveLength(1)
+
+        // Delete staged reminder to allow re-staging (simulate idempotency gate reset)
+        await staging.deleteReminder('Stop', 'verify-completion')
+
+        // Second Bash — git status still returns ['src/a.ts'] (no NEW files since updated baseline)
+        // If it used the stale baseline ([]), it would incorrectly detect src/a.ts as new
+        mockGetGitFileStatus.mockResolvedValue(['src/a.ts'])
+        const event2 = createToolResultEvent({ turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, 'Bash')
+        await bashHandler?.handler(event2, ctx as unknown as import('@sidekick/types').HandlerContext)
+
+        // Should NOT stage because no new files relative to updated baseline
+        expect(staging.getRemindersForHook('Stop')).toHaveLength(0)
+      })
+
+      it('malformed source_code_patterns config falls back gracefully', async () => {
+        // Configure empty source_code_patterns array
+        ;(ctx.config as import('@sidekick/testing-fixtures').MockConfigService).set({
+          features: {
+            reminders: {
+              enabled: true,
+              settings: {
+                source_code_patterns: [],
+              },
+            },
+          },
+        })
+
+        registerStageBashChanges(ctx)
+
+        // Capture baseline with no files
+        mockGetGitFileStatus.mockResolvedValue([])
+        const baselineHandler = handlers.getHandler('reminders:git-baseline-capture')
+        await baselineHandler?.handler(
+          createUserPromptSubmitEvent(),
+          ctx as unknown as import('@sidekick/types').HandlerContext
+        )
+
+        // Bash creates a source file
+        mockGetGitFileStatus.mockResolvedValue(['src/app.ts'])
+        const bashHandler = handlers.getHandler('reminders:stage-stop-bash-changes')
+        const event = createToolResultEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, 'Bash')
+
+        // Should not crash and should not stage (no patterns match)
+        await bashHandler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+
+        expect(staging.getRemindersForHook('Stop')).toHaveLength(0)
+      })
+
+      it('does not stage when getGitFileStatus returns empty (git unavailable)', async () => {
+        registerStageBashChanges(ctx)
+
+        // Capture baseline with some files
+        mockGetGitFileStatus.mockResolvedValue(['src/existing.ts'])
+        const baselineHandler = handlers.getHandler('reminders:git-baseline-capture')
+        await baselineHandler?.handler(
+          createUserPromptSubmitEvent(),
+          ctx as unknown as import('@sidekick/types').HandlerContext
+        )
+
+        // After Bash, getGitFileStatus returns [] (git unavailable or errored)
+        mockGetGitFileStatus.mockResolvedValue([])
+        const bashHandler = handlers.getHandler('reminders:stage-stop-bash-changes')
+        const event = createToolResultEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, 'Bash')
+        await bashHandler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+
+        // No new files detected (empty current minus baseline = nothing new)
+        expect(staging.getRemindersForHook('Stop')).toHaveLength(0)
+      })
+    })
   })
 
   describe('registerStagePersonaReminders', () => {

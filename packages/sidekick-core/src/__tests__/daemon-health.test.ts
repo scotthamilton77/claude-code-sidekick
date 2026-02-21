@@ -234,5 +234,73 @@ describe('daemon-health', () => {
         await fs.chmod(STATE_DIR, 0o755)
       }
     })
+
+    it('handles concurrent calls with different statuses without corruption', async () => {
+      const loggerA = createMockLogger()
+      const loggerB = createMockLogger()
+
+      // Fire two concurrent transitions from unknown: one to healthy, one to failed.
+      // Both will read "unknown" as current status and attempt writes.
+      // Atomic rename ensures whichever write lands last produces a valid file.
+      const [resultA, resultB] = await Promise.all([
+        updateDaemonHealth(TEST_DIR, 'healthy', loggerA),
+        updateDaemonHealth(TEST_DIR, 'failed', loggerB, 'Connection refused'),
+      ])
+
+      // Both calls should report a change (unknown -> healthy, unknown -> failed)
+      expect(resultA).toBe(true)
+      expect(resultB).toBe(true)
+
+      // The file on disk must be valid JSON with one of the two statuses —
+      // atomic rename guarantees no partial/corrupt writes.
+      const health = await readDaemonHealth(TEST_DIR)
+      expect(['healthy', 'failed']).toContain(health.status)
+      expect(health.lastCheckedAt).toBeDefined()
+
+      // If the last writer was "failed", the error field should be present
+      if (health.status === 'failed') {
+        expect(health.error).toBe('Connection refused')
+      }
+    })
+
+    it('persists failed status that signals daemon unavailability (skip-IPC path)', async () => {
+      const logger = createMockLogger()
+
+      // Simulate daemon startup failure: transition unknown -> failed
+      const changed = await updateDaemonHealth(TEST_DIR, 'failed', logger, 'ECONNREFUSED')
+
+      expect(changed).toBe(true)
+
+      // Read back the health state — this is what ensureDaemonForHook uses
+      // to determine daemonAvailable. A 'failed' status means the daemon
+      // could not start, so the CLI-only path (skip-IPC) should be used.
+      const health = await readDaemonHealth(TEST_DIR)
+      expect(health.status).toBe('failed')
+      expect(health.error).toBe('ECONNREFUSED')
+      expect(health.lastCheckedAt).toBeDefined()
+
+      // Verify the status is stable: a second read returns the same result
+      // (no side-effects from reading)
+      const healthAgain = await readDaemonHealth(TEST_DIR)
+      expect(healthAgain.status).toBe('failed')
+      expect(healthAgain.error).toBe('ECONNREFUSED')
+      expect(healthAgain.lastCheckedAt).toBe(health.lastCheckedAt)
+
+      // Subsequent updateDaemonHealth with same 'failed' status is a no-op
+      // (log-once semantics: daemon stays unavailable without log spam)
+      vi.mocked(logger.info).mockClear()
+      vi.mocked(logger.error).mockClear()
+
+      const changedAgain = await updateDaemonHealth(TEST_DIR, 'failed', logger, 'still down')
+
+      expect(changedAgain).toBe(false)
+      expect(logger.info).not.toHaveBeenCalled()
+      expect(logger.error).not.toHaveBeenCalled()
+
+      // Health file still shows original error (file was not rewritten)
+      const healthFinal = await readDaemonHealth(TEST_DIR)
+      expect(healthFinal.status).toBe('failed')
+      expect(healthFinal.error).toBe('ECONNREFUSED')
+    })
   })
 })

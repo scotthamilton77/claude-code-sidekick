@@ -842,6 +842,179 @@ describe('handleSetupCommand', () => {
       expect(output.data).toContain('Requires manual action')
     })
 
+    test('exits 0 with no fixes when already healthy', async () => {
+      // Set up fully healthy state: statusline, API key, gitignore, user setup
+      const claudeDir = path.join(homeDir, '.claude')
+      await mkdir(claudeDir, { recursive: true })
+      await writeFile(
+        path.join(claudeDir, 'settings.json'),
+        JSON.stringify(
+          {
+            statusLine: { command: 'npx @scotthamilton77/sidekick statusline' },
+            hooks: {
+              SessionStart: [
+                { hooks: [{ type: 'command', command: 'npx @scotthamilton77/sidekick hook session-start' }] },
+              ],
+            },
+          },
+          null,
+          2
+        )
+      )
+
+      // User .env with API key
+      const sidekickDir = path.join(homeDir, '.sidekick')
+      await mkdir(sidekickDir, { recursive: true })
+      await writeFile(path.join(sidekickDir, '.env'), 'OPENROUTER_API_KEY=sk-or-test-key\n')
+
+      // User setup-status.json
+      await writeFile(
+        path.join(sidekickDir, 'setup-status.json'),
+        JSON.stringify({
+          version: 1,
+          lastUpdatedAt: new Date().toISOString(),
+          preferences: { autoConfigureProjects: true, defaultStatuslineScope: 'user', defaultApiKeyScope: 'user' },
+          statusline: 'user',
+          apiKeys: { OPENROUTER_API_KEY: 'healthy', OPENAI_API_KEY: 'not-required' },
+        })
+      )
+
+      // Complete .gitignore
+      const gitignorePath = path.join(projectDir, '.gitignore')
+      await writeFile(
+        gitignorePath,
+        [
+          '# >>> sidekick',
+          '.sidekick/logs/',
+          '.sidekick/sessions/',
+          '.sidekick/state/',
+          '.sidekick/setup-status.json',
+          '.sidekick/.env',
+          '.sidekick/.env.local',
+          '.sidekick/sidekick*.pid',
+          '.sidekick/sidekick*.token',
+          '# <<< sidekick',
+        ].join('\n') + '\n'
+      )
+
+      const result = await handleSetupCommand(projectDir, logger, output, {
+        checkOnly: true,
+        fix: true,
+        homeDir,
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(output.data).toContain('healthy')
+      // No fix actions should be reported
+      expect(output.data).not.toContain('Fixing')
+      expect(output.data).not.toContain('Requires manual action')
+    })
+
+    test('reports no fixable issues for --fix --only=api-keys', async () => {
+      // API keys cannot be auto-fixed — --only=api-keys with --fix should report
+      // the API key status but perform no actual fixes
+      const result = await handleSetupCommand(projectDir, logger, output, {
+        checkOnly: true,
+        fix: true,
+        only: 'api-keys',
+        homeDir,
+      })
+
+      // Filtered fix mode — no fix block exists for api-keys
+      expect(result.exitCode).toBe(0)
+      expect(output.data).toContain('OpenRouter API Key')
+      expect(output.data).toContain('No fixable issues found')
+      // Should NOT have fixed anything else (statusline, gitignore, etc.)
+      expect(output.data).not.toContain('Fixing: Statusline')
+      expect(output.data).not.toContain('Fixing: Gitignore')
+    })
+
+    test('skips statusline fix when dev-mode statusline is active', async () => {
+      // Dev-mode statusline at local scope — detectActualStatusline sees it as
+      // configured (command contains "sidekick"), so the fix block is not entered.
+      const projectClaudeDir = path.join(projectDir, '.claude')
+      await mkdir(projectClaudeDir, { recursive: true })
+      await writeFile(
+        path.join(projectClaudeDir, 'settings.local.json'),
+        JSON.stringify({
+          statusLine: {
+            type: 'command',
+            command: '/path/to/dev-sidekick statusline --project-dir=$CLAUDE_PROJECT_DIR',
+          },
+        })
+      )
+
+      // User setup-status exists (to avoid user-setup fix noise)
+      const sidekickDir = path.join(homeDir, '.sidekick')
+      await mkdir(sidekickDir, { recursive: true })
+      await writeFile(
+        path.join(sidekickDir, 'setup-status.json'),
+        JSON.stringify({
+          version: 1,
+          lastUpdatedAt: new Date().toISOString(),
+          preferences: { autoConfigureProjects: true, defaultStatuslineScope: 'user', defaultApiKeyScope: 'skip' },
+          statusline: 'none',
+          apiKeys: { OPENROUTER_API_KEY: 'not-required', OPENAI_API_KEY: 'not-required' },
+        })
+      )
+
+      const result = await handleSetupCommand(projectDir, logger, output, {
+        checkOnly: true,
+        fix: true,
+        only: 'statusline',
+        homeDir,
+      })
+
+      // Statusline is detected as configured via dev-mode — no fix attempted
+      expect(result.exitCode).toBe(0)
+      expect(output.data).not.toContain('Fixing: Statusline')
+      expect(output.data).toContain('No fixable issues found')
+
+      // Dev-mode statusline should remain untouched
+      const localContent = await readFile(path.join(projectClaudeDir, 'settings.local.json'), 'utf-8')
+      const localSettings = JSON.parse(localContent)
+      expect(localSettings.statusLine.command).toContain('dev-sidekick')
+    })
+
+    test('is idempotent — second --fix applies no new fixes', async () => {
+      // First run: no config at all — fixes statusline, gitignore, user setup
+      // API key remains unfixable in both runs
+      const result1 = await handleSetupCommand(projectDir, logger, output, {
+        checkOnly: true,
+        fix: true,
+        homeDir,
+      })
+
+      // First run should apply fixes
+      expect(output.data).toContain('Fixing')
+      expect(result1.exitCode).toBe(1) // API key unfixable → exit 1
+
+      // Capture what was fixed in the first run
+      const firstRunOutput = output.data
+      expect(firstRunOutput).toContain('Fixing: Statusline')
+      expect(firstRunOutput).toContain('Fixing: Gitignore')
+      expect(firstRunOutput).toContain('Fixing: User Setup')
+
+      // Reset output for second run
+      output = new CollectingWritable()
+
+      // Second run: statusline, gitignore, user-setup are now healthy —
+      // only API key remains unfixable, no new fixes should be applied
+      const result2 = await handleSetupCommand(projectDir, logger, output, {
+        checkOnly: true,
+        fix: true,
+        homeDir,
+      })
+
+      // Still exit 1 (API key remains unfixable) but no fixes applied
+      expect(result2.exitCode).toBe(1)
+      expect(output.data).not.toContain('Fixing: Statusline')
+      expect(output.data).not.toContain('Fixing: Gitignore')
+      expect(output.data).not.toContain('Fixing: User Setup')
+      // API key still flagged as unfixable
+      expect(output.data).toContain('Requires manual action')
+    })
+
     test('respects --only filter during fix', async () => {
       const result = await handleSetupCommand(projectDir, logger, output, {
         checkOnly: true,

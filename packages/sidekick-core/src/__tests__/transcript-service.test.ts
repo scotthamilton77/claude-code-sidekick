@@ -2710,6 +2710,35 @@ describe('TranscriptServiceImpl', () => {
         expect(excerpt.content).toContain('[USER]:')
       })
 
+      it('maintains chronological order after buffer wraparound', async () => {
+        // Create more entries than EXCERPT_BUFFER_SIZE (500) to trigger wraparound
+        const totalEntries = 510
+        const lines = createTranscriptLines(totalEntries)
+        writeFileSync(transcriptPath, lines.join('\n'))
+        await service.prepare('test-session', transcriptPath)
+        await service.start()
+
+        const internals = getTestHelpers(service)
+        // Buffer should be capped at 500 (EXCERPT_BUFFER_SIZE)
+        expect(internals.excerptBufferCount).toBe(500)
+
+        const buffered = internals.getBufferedEntries()
+        expect(buffered).toHaveLength(500)
+
+        // Oldest entries (1-10) should have been evicted
+        const firstLineNumber = buffered[0].lineNumber
+        expect(firstLineNumber).toBe(11) // first 10 evicted
+
+        // Last entry should be the most recent
+        const lastLineNumber = buffered[buffered.length - 1].lineNumber
+        expect(lastLineNumber).toBe(totalEntries)
+
+        // Verify strict chronological order throughout the wrapped buffer
+        for (let i = 1; i < buffered.length; i++) {
+          expect(buffered[i].lineNumber).toBeGreaterThan(buffered[i - 1].lineNumber)
+        }
+      })
+
       it('maintains buffer on incremental updates', async () => {
         // Start with 5 lines
         const initialLines = createTranscriptLines(5)
@@ -2900,6 +2929,52 @@ describe('TranscriptServiceImpl', () => {
       const contents = entries.map((e) => e.content)
       expect(contents).toContain('Refactor the codebase')
       expect(contents).toContain('All done')
+    })
+
+    it('returns empty array when count is 0', async () => {
+      const lines = [
+        JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } }),
+        JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: 'Hi there' } }),
+      ]
+      writeFileSync(transcriptPath, lines.join('\n'))
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
+
+      const entries = service.getRecentTextEntries(0)
+      expect(entries).toEqual([])
+    })
+
+    it('returns empty array when count is negative', async () => {
+      const lines = [
+        JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } }),
+        JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: 'Hi there' } }),
+      ]
+      writeFileSync(transcriptPath, lines.join('\n'))
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
+
+      const entries = service.getRecentTextEntries(-5)
+      expect(entries).toEqual([])
+    })
+
+    it('returns entries with empty text content', async () => {
+      const lines = [
+        JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } }),
+        JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: '' } }),
+        JSON.stringify({ type: 'user', message: { role: 'user', content: 'World' } }),
+      ]
+      writeFileSync(transcriptPath, lines.join('\n'))
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
+
+      const entries = service.getRecentTextEntries(10)
+
+      // All three should be present — empty string is valid text content
+      expect(entries).toHaveLength(3)
+      const contents = entries.map((e) => e.content)
+      expect(contents).toContain('Hello')
+      expect(contents).toContain('')
+      expect(contents).toContain('World')
     })
   })
 })

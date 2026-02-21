@@ -73,4 +73,41 @@ describe('stagePersonaTransition', () => {
     const result = await stateService.read(snarkyPath, SnarkyMessageStateSchema, { message: '', timestamp: '' })
     expect(result.data.message).toBe('Persona changed.')
   })
+
+  it('should overwrite corrupt snarky-message.json without throwing', async () => {
+    const snarkyPath = stateService.sessionStatePath(sessionId, 'snarky-message.json')
+    await fs.mkdir(path.dirname(snarkyPath), { recursive: true })
+    await fs.writeFile(snarkyPath, '<<<not json at all>>>', 'utf-8')
+
+    await expect(stagePersonaTransition(stateService, sessionId)).resolves.toBeUndefined()
+
+    const result = await stateService.read(snarkyPath, SnarkyMessageStateSchema, { message: '', timestamp: '' })
+    expect(result.data.message).toBe('Persona changed.')
+    expect(result.data.timestamp).toBeTruthy()
+  })
+
+  it('should delete corrupt resume-message.json without throwing', async () => {
+    const resumePath = stateService.sessionStatePath(sessionId, 'resume-message.json')
+    await fs.mkdir(path.dirname(resumePath), { recursive: true })
+    await fs.writeFile(resumePath, '<<<not json at all>>>', 'utf-8')
+
+    await expect(stagePersonaTransition(stateService, sessionId)).resolves.toBeUndefined()
+
+    await expect(fs.access(resumePath)).rejects.toThrow()
+  })
+
+  it('should have placeholder on disk before returning (ordering guarantee)', async () => {
+    const snarkyPath = stateService.sessionStatePath(sessionId, 'snarky-message.json')
+    await fs.mkdir(path.dirname(snarkyPath), { recursive: true })
+
+    const beforeIso = new Date().toISOString()
+    await stagePersonaTransition(stateService, sessionId)
+
+    // Read raw file immediately — placeholder must already be on disk
+    const raw = await fs.readFile(snarkyPath, 'utf-8')
+    const parsed = JSON.parse(raw) as { message: string; timestamp: string }
+
+    expect(parsed.message).toBe('Persona changed.')
+    expect(parsed.timestamp >= beforeIso).toBe(true)
+  })
 })

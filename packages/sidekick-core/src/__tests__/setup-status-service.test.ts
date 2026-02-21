@@ -1912,6 +1912,81 @@ describe('SetupStatusService', () => {
     })
   })
 
+  describe('doctor missing user setup edge cases', () => {
+    it('getUserStatus returns null with a warning when user config file contains invalid JSON', async () => {
+      // Create a service with a logger so we can assert the warning
+      const mockLogger = {
+        trace: vi.fn() as any,
+        debug: vi.fn() as any,
+        info: vi.fn() as any,
+        warn: vi.fn() as any,
+        error: vi.fn() as any,
+        fatal: vi.fn() as any,
+        child: vi.fn() as any,
+        level: 'debug' as const,
+        silent: false,
+      }
+      const serviceWithLogger = new SetupStatusService(projectDir, { homeDir, logger: mockLogger as any })
+
+      const userStatusPath = path.join(homeDir, '.sidekick', 'setup-status.json')
+      await fs.mkdir(path.dirname(userStatusPath), { recursive: true })
+      await fs.writeFile(userStatusPath, '{ this is not valid JSON !!!')
+
+      const result = await serviceWithLogger.getUserStatus()
+
+      expect(result).toBeNull()
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'Corrupt user setup-status.json, treating as missing',
+        expect.objectContaining({
+          path: userStatusPath,
+          error: expect.any(String),
+        })
+      )
+    })
+
+    it('doctor reports unhealthy when both user AND project files are missing', async () => {
+      // No user status file, no project status file — completely fresh system
+      const result = await service.runDoctorCheck({ skipValidation: true })
+
+      expect(result.userSetupExists).toBe(false)
+      expect(result.overallHealth).toBe('unhealthy')
+      // Statusline should also report as not configured
+      expect(result.statusline.actual).toBe('none')
+      // API keys should be missing across all scopes
+      expect(result.apiKeys.OPENROUTER_API_KEY.actual).toBe('missing')
+      expect(result.apiKeys.OPENROUTER_API_KEY.used).toBeNull()
+    })
+
+    it('doctor reports multiple failure signals together when user missing and API key unhealthy', async () => {
+      // Project status exists with an invalid API key, but user file is missing.
+      // Doctor should report BOTH: userSetupExists=false AND apiKey unhealthy,
+      // not bail out after finding the first failure.
+      await writeProjectStatus(
+        createProjectStatus({
+          statusline: 'project',
+          apiKeys: {
+            OPENROUTER_API_KEY: 'invalid',
+            OPENAI_API_KEY: 'not-required',
+          },
+        })
+      )
+      await writeClaudeSettings('project', {
+        statusLine: { type: 'command', command: 'sidekick statusline' },
+      })
+
+      const result = await service.runDoctorCheck({ skipValidation: true })
+
+      // Both failures should be visible — user missing AND api key unhealthy
+      expect(result.userSetupExists).toBe(false)
+      expect(result.overallHealth).toBe('unhealthy')
+      // Statusline IS configured (at project level), so that's not the problem
+      expect(result.statusline.actual).toBe('project')
+      // API key is missing (no .env files) — the project cache saying 'invalid' is stale
+      expect(result.apiKeys.OPENROUTER_API_KEY.actual).toBe('missing')
+      expect(result.apiKeys.OPENROUTER_API_KEY.used).toBeNull()
+    })
+  })
+
   describe('edge cases', () => {
     it('handles sequential writes to user status', async () => {
       const status1 = createUserStatus({ statusline: 'user' })
