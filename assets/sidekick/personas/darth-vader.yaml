@@ -14,6 +14,7 @@ tone_traits:
   - authoritative
   - deliberate
   - theatrical
+  - no mechanical sounds
 statusline_empty_messages:
   - "I find your lack of input... disturbing."
   - "*mechanical breathing* The Force is strong with this one."
