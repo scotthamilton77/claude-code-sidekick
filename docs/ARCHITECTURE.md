@@ -40,14 +40,14 @@ packages/
 
 ### 2.2 Interface Contracts
 
-- **Feature Packages**: Must expose a standard interface `register(context)` and ship compiled JS ready for dynamic loading.
+- **Feature Packages**: Must expose a standard interface `register(context)` and ship compiled JS ready for dynamic loading. Exception: `feature-statusline` is CLI-only (invoked via `sidekick statusline` command) and does not expose `register()`.
 - **Schema Contracts**: Publishes generated TypeScript types plus JSON Schema artifacts. Python tools import JSON Schema directly from `assets/sidekick/schemas`.
 
 ### 2.3 Static Assets (`assets/sidekick/`)
 
-- **Authoritative Location**: Contains all shipped defaults—prompts (`prompts/*.prompt.txt`), schemas (`schemas/*.json`), reminders (`reminders/*.yaml`), and templates.
+- **Authoritative Location**: Contains all shipped defaults—prompts (`prompts/*.prompt.txt`), schemas (`schemas/*.json`), reminders (`reminders/*.yaml`), personas (`personas/*.yaml`, 20 character profiles for prompt interpolation), and feature defaults (`defaults/features/`).
 - **Monorepo Lockstep**: `assets/sidekick` represents the current development state (HEAD). Compatibility is enforced by `packages/types` (Zod/TS types) during the build.
-- **Runtime Access**: `sidekick-core` exposes helpers (`assetResolver.resolve(...)`) that read from assets by default, respecting the cascade. See **docs/design/CORE-RUNTIME.md §3.3** for cascade order.
+- **Runtime Access**: `sidekick-core` exposes an `assetResolver` with a **6-layer cascade**: (1) bundled defaults, (2) user-installed (`~/.claude/hooks/sidekick/assets/`), (3) user-persistent (`~/.sidekick/assets/`), (4) project-installed (`.claude/hooks/sidekick/assets/`), (5) project-persistent (`.sidekick/assets/`), (6) project-local (`.sidekick/assets.local/`). See **docs/design/CORE-RUNTIME.md §3.3**.
 
 ## 3. Runtime Architecture
 
@@ -71,6 +71,7 @@ The CLI and Daemon operate as **separate processes** with distinct responsibilit
 | -------------- | -------------------------------------------------------------------- | ------------------------------- |
 | **CLI**        | Synchronous hook responses, reads staged files, logs events          | `.sidekick/logs/cli.log`        |
 | **Daemon** | Async background work (LLM calls, transcript analysis), stages files | `.sidekick/logs/sidekickd.log` |
+| **Transcript** | Transcript-derived events (separate stream from CLI/Daemon logs)     | `.sidekick/logs/transcript-events.log` |
 
 **Communication**: CLI sends events to Daemon via IPC (fire-and-forget). Daemon "responds" by staging files that CLI reads on subsequent hook invocations.
 
@@ -81,7 +82,7 @@ See **docs/design/flow.md §2.1** for the complete interaction model.
 The system uses a **unified event model** with discriminated unions:
 
 - **Hook Events**: External events from Claude Code (`SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Stop`, `PreCompact`, `SessionEnd`)
-- **Transcript Events**: Internal events from TranscriptService (`UserPrompt`, `AssistantMessage`, `ToolCall`, `ToolResult`, `Compact`)
+- **Transcript Events**: Internal events from TranscriptService (`UserPrompt`, `AssistantMessage`, `ToolCall`, `ToolResult`, `Compact`, `BulkProcessingComplete`)
 
 Both event types flow through a unified **HandlerRegistry** with filter-based registration. Handlers specify which events they process via `{ kind: 'hook', hooks: [...] }` or `{ kind: 'transcript', eventTypes: [...] }`.
 
@@ -165,7 +166,7 @@ See **docs/design/LLM-PROVIDERS.md** for provider architecture and **docs/design
 
 - **Unit Tests**: Each package includes Vitest suites. `sidekick-core` covers config, cascade, and providers.
 - **Integration Tests**: Run the Node CLI against recorded transcripts from `test-data/` and diff outputs with expected results.
-- **Test Fixtures**: Shared mocks (`MockLLMService`, `MockHandlerRegistry`, `MockTranscriptService`, `MockStagingService`), factories for events/reminders/metrics, and harnesses for CLI and Daemon testing.
+- **Test Fixtures**: Shared mocks (`MockLLMService`, `MockHandlerRegistry`, `MockTranscriptService`, `MockStagingService`, `MockStateService`, `MockLogger`, `MockConfigService`, `MockAssetResolver`, `MockTelemetry`), factories for events/reminders/metrics, and harnesses for CLI and Daemon testing.
 
 See **docs/design/TEST-FIXTURES.md** for complete testing infrastructure.
 
