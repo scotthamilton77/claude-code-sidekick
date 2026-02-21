@@ -26,6 +26,9 @@ export default tseslint.config(
       'packages/sidekick-ui/server/**/*.js',
       'packages/sidekick-ui/server/**/*.d.ts',
       'packages/sidekick-ui/*.d.ts',
+      // Packages with no TypeScript source (distribution/plugin config only)
+      'packages/sidekick-dist/**',
+      'packages/sidekick-plugin/**',
     ],
   },
 

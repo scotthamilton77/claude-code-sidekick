@@ -46,7 +46,7 @@ export class IpcServer {
   }
 
   private async handleMessage(socket: net.Socket, message: string): Promise<void> {
-    let id: string | number | null = null
+    let id: string | number | null
     let method: string | undefined
     try {
       const json: unknown = JSON.parse(message)

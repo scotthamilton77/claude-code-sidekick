@@ -146,7 +146,8 @@ export function createCascadingResolver(options: CascadingResolverOptions): Casc
         return parseYaml(content) as T
       } catch (error) {
         throw new Error(
-          `Failed to parse YAML file ${relativePath}: ${error instanceof Error ? error.message : String(error)}`
+          `Failed to parse YAML file ${relativePath}: ${error instanceof Error ? error.message : String(error)}`,
+          { cause: error }
         )
       }
     },

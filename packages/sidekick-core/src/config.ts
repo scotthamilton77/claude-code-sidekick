@@ -442,7 +442,7 @@ function tryReadYaml(filePath: string): Record<string, unknown> | null {
     return parsed ?? {}
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
-    throw new Error(`Failed to parse YAML at ${filePath}: ${message}`)
+    throw new Error(`Failed to parse YAML at ${filePath}: ${message}`, { cause: err })
   }
 }
 

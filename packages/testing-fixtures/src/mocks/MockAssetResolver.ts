@@ -71,7 +71,8 @@ export class MockAssetResolver implements AssetResolver {
       return parseYaml(content) as T
     } catch (error) {
       throw new Error(
-        `Failed to parse YAML asset ${relativePath}: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to parse YAML asset ${relativePath}: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error }
       )
     }
   }
