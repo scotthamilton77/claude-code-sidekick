@@ -119,7 +119,7 @@ export {
   type UpgradeOptions,
 } from './structured-logging'
 
-export { killAllDaemons, DaemonClient, type KillResult, type KillAllOptions, type UserPidInfo } from './daemon-client'
+export { killAllDaemons, killZombieDaemons, findZombieDaemons, DaemonClient, type KillResult, type KillAllOptions, type UserPidInfo, type ZombieProcess } from './daemon-client'
 export {
   SetupStatusService,
   createSetupStatusService,

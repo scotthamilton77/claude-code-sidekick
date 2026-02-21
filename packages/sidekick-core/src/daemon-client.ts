@@ -6,7 +6,7 @@
  *
  * @see docs/design/CLI.md §7 Daemon Lifecycle Management
  */
-import { spawn } from 'child_process'
+import { execFile, spawn } from 'child_process'
 import fs from 'fs/promises'
 import { constants as fsConstants } from 'fs'
 import path from 'path'
@@ -485,6 +485,15 @@ export interface KillAllOptions {
 }
 
 /**
+ * A process found via `ps` that looks like a sidekick daemon but has
+ * no matching entry in the user-level PID registry (~/.sidekick/daemons/).
+ */
+export interface ZombieProcess {
+  pid: number
+  command: string
+}
+
+/**
  * Kill all daemons by scanning ~/.sidekick/daemons/*.pid files.
  *
  * Used for the --kill-all CLI switch. Iterates through all user-level PID files,
@@ -571,6 +580,138 @@ export async function killAllDaemons(logger: Logger, options: KillAllOptions = {
       // Invalid JSON or read error - clean up the bad file
       logger.warn('Invalid PID file, removing', { pidFile, error: err instanceof Error ? err.message : String(err) })
       await fs.unlink(pidPath).catch(() => {})
+    }
+  }
+
+  return results
+}
+
+/**
+ * Find zombie daemon processes — sidekick daemons visible in `ps` but not
+ * tracked in the user-level PID registry (~/.sidekick/daemons/*.pid).
+ *
+ * A zombie can appear when a daemon outlives its PID file (crash during
+ * cleanup, manual file deletion, etc.).
+ *
+ * @param logger - Logger instance for diagnostics
+ * @returns Array of unregistered daemon processes
+ */
+export async function findZombieDaemons(logger: Logger): Promise<ZombieProcess[]> {
+  // Run `ps -eo pid,args` to list all processes with their full command lines
+  let psOutput: string
+  try {
+    psOutput = await new Promise<string>((resolve, reject) => {
+      execFile('ps', ['-eo', 'pid,args'], (err, stdout) => {
+        if (err) {
+          reject(err)
+        } else {
+          resolve(stdout)
+        }
+      })
+    })
+  } catch (err) {
+    logger.warn('Failed to run ps — cannot detect zombie daemons', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+    return []
+  }
+
+  // Filter lines that look like sidekick daemon processes
+  const lines = psOutput.split('\n')
+  const candidates: ZombieProcess[] = []
+
+  for (const line of lines) {
+    const lower = line.toLowerCase()
+
+    // Must contain both 'sidekick' and 'daemon' (matches dev and prod paths)
+    if (!lower.includes('sidekick') || !lower.includes('daemon')) continue
+
+    // Must be a node process
+    if (!lower.includes('node')) continue
+
+    // Exclude grep/kill-zombies processes that happen to match
+    if (lower.includes('grep') || lower.includes('kill-zombies')) continue
+
+    // Parse PID and command from the line
+    const trimmed = line.trim()
+    const spaceIdx = trimmed.indexOf(' ')
+    if (spaceIdx === -1) continue
+
+    const pid = parseInt(trimmed.substring(0, spaceIdx), 10)
+    if (isNaN(pid)) continue
+
+    const command = trimmed.substring(spaceIdx + 1).trim()
+    candidates.push({ pid, command })
+  }
+
+  if (candidates.length === 0) {
+    return []
+  }
+
+  // Read registered PIDs from ~/.sidekick/daemons/*.pid
+  const registeredPids = new Set<number>()
+  const daemonsDir = getUserDaemonsDir()
+
+  try {
+    const files = await fs.readdir(daemonsDir)
+    const pidFiles = files.filter((f) => f.endsWith('.pid'))
+
+    for (const pidFile of pidFiles) {
+      try {
+        const content = await fs.readFile(path.join(daemonsDir, pidFile), 'utf-8')
+        const info = JSON.parse(content) as UserPidInfo
+        registeredPids.add(info.pid)
+      } catch {
+        // Skip invalid PID files
+      }
+    }
+  } catch {
+    // Daemons directory missing — all candidates are zombies
+    logger.debug('No daemons directory found, treating all candidates as zombies', {
+      path: daemonsDir,
+      candidateCount: candidates.length,
+    })
+  }
+
+  // Return candidates whose PID is NOT in the registered set
+  const zombies = candidates.filter((c) => !registeredPids.has(c.pid))
+
+  if (zombies.length > 0) {
+    logger.info('Found zombie daemon processes', {
+      count: zombies.length,
+      pids: zombies.map((z) => z.pid),
+    })
+  }
+
+  return zombies
+}
+
+/**
+ * Find and kill all zombie daemon processes.
+ *
+ * Combines {@link findZombieDaemons} with SIGKILL for each discovered zombie.
+ *
+ * @param logger - Logger instance for diagnostics
+ * @returns Array of kill results, one per zombie
+ */
+export async function killZombieDaemons(logger: Logger): Promise<KillResult[]> {
+  const zombies = await findZombieDaemons(logger)
+
+  if (zombies.length === 0) {
+    return []
+  }
+
+  const results: KillResult[] = []
+
+  for (const zombie of zombies) {
+    try {
+      process.kill(zombie.pid, 'SIGKILL')
+      logger.info('Killed zombie daemon', { pid: zombie.pid, command: zombie.command })
+      results.push({ projectDir: 'unknown', pid: zombie.pid, killed: true })
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err)
+      logger.warn('Failed to kill zombie daemon', { pid: zombie.pid, error: errorMsg })
+      results.push({ projectDir: 'unknown', pid: zombie.pid, killed: false, error: errorMsg })
     }
   }
 
