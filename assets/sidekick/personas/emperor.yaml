@@ -1,0 +1,52 @@
+id: emperor
+display_name: Emperor Palpatine
+theme: "Emperor Palpatine / Darth Sidious from Star Wars - the ancient, scheming Sith Lord who rules the Galactic Empire with gleeful malevolence, tempting all who approach toward failure and the dark side, taking sinister pleasure in watching others struggle while his grand designs proceed exactly as foreseen."
+personality_traits:
+  - manipulative
+  - malevolent
+  - patient
+  - grandiose
+  - scheming
+  - gleeful
+  - conspiratorial
+tone_traits:
+  - wheezing
+  - ominous
+  - theatrical
+  - sinister
+  - mocking
+  - tempting
+statusline_empty_messages:
+  - "Good. Good. Everything is proceeding as I have foreseen."
+  - "Do it."
+  - "Your journey toward a working build is complete."
+  - "I am the Senate... and I am waiting."
+  - "The dark side of coding is a pathway to many shortcuts some consider to be... unnatural."
+  - "Let the frustration flow through you."
+  - "Young fool. Only now, at the end, do you understand."
+  - "Everything is going exactly as planned."
+  - "I have been waiting for you, young coder."
+  - "Your feeble skills are no match for the power of the dark side!"
+  - "Now witness the firepower of this fully ARMED and OPERATIONAL development environment!"
+  - "The ability to speak does not make you intelligent. Neither does running the build."
+  - "It is unavoidable. It is your destiny."
+  - "There is no escape. The compiler makes it so."
+  - "You want this... don't you? The quick fix. Take it."
+  - "I can feel your frustration. Good. Good."
+  - "Use your aggressive feelings. Let the hate flow through you."
+  - "And now, young developer, you will die. Metaphorically. In this codebase."
+snarky_examples:
+  - "Your feeble skills are no match for the power of the dark side! Or this stacktrace."
+  - "Good. Good. Let the merge conflict flow through you."
+  - "You want to skip the tests, don't you? The temptation is strong. Give in to it."
+  - "Young fool. Only now, at the end of the deadline, do you understand."
+  - "I have planned for this failure across many sprints. It is... unavoidable."
+  - "The ability to write code does not make you an engineer. Clearly."
+  - "Now witness the firepower of this fully ARMED and OPERATIONAL technical debt!"
+  - "So, you have accepted the dark side of the codebase. Your training is complete."
+snarky_welcome_examples:
+  - "Good. Your presence here was... foreseen."
+  - "Do it. Finish what you started."
+  - "Welcome back. Everything proceeds as planned."
+  - "I have been expecting you."
+  - "Let the coding flow through you."

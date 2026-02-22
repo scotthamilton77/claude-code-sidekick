@@ -541,25 +541,34 @@ A two-tier system:
 
 | ID | Display Name | Theme |
 |----|-------------|-------|
-| `agent-smith` | Agent Smith | Matrix agent |
+| `avasarala` | Avasarala | Chrisjen Avasarala from The Expanse |
 | `bones` | Bones | Dr. McCoy from Star Trek |
 | `c3po` | C-3PO | Protocol droid from Star Wars |
+| `captain-kirk` | Captain Kirk | Capt. James T. Kirk from Star Trek TOS |
+| `cavil` | Cavil | Number One/Cavil from Battlestar Galactica |
 | `darth-vader` | Darth Vader | Sith Lord from Star Wars |
 | `dilbert` | Dilbert | Office worker from Dilbert comics |
 | `disabled` | (disabled) | No persona output |
-| `emh` | EMH | Emergency Medical Hologram from Voyager |
+| `eddie` | Eddie | Shipboard computer from Hitchhiker's Guide |
+| `emh` | The Doctor | Emergency Medical Hologram from Voyager |
+| `emperor` | Emperor Palpatine | Sith Lord from Star Wars: Return of the Jedi |
 | `george` | George | George Costanza from Seinfeld |
-| `hal` | HAL | HAL 9000 from 2001: A Space Odyssey |
+| `glados` | GLaDOS | AI antagonist from Portal |
 | `hudson` | Hudson | Private Hudson from Aliens |
+| `jarvis` | J.A.R.V.I.S. | Tony Stark's AI from Iron Man / MCU |
 | `kramer` | Kramer | Cosmo Kramer from Seinfeld |
 | `marvin` | Marvin | Paranoid Android from Hitchhiker's Guide |
+| `mr-spock` | Mr. Spock | Vulcan first officer from Star Trek TOS |
 | `mr-t` | Mr. T | B.A. Baracus from The A-Team |
 | `pointy-haired-boss` | PHB | Pointy-Haired Boss from Dilbert |
-| `ripley` | Ripley | Ellen Ripley from Aliens |
+| `ripley` | Ripley | Ellen Ripley from Alien |
+| `rodney-mckay` | Rodney McKay | Dr. McKay from Stargate Atlantis |
 | `scotty` | Scotty | Montgomery Scott from Star Trek |
+| `seven-of-nine` | Seven of Nine | Former Borg drone from Star Trek Voyager |
 | `sheldon` | Sheldon | Sheldon Cooper from The Big Bang Theory |
 | `sidekick` | Sidekick | Default snarky assistant |
 | `skippy` | Skippy | The Magnificent from Expeditionary Force |
+| `tars` | TARS | Robot from Interstellar (humor at 75%) |
 | `yoda` | Yoda | Jedi Master from Star Wars |
 
 ### Restricting Available Personas

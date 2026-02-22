@@ -5,29 +5,38 @@
 
 Personas define character voices for snarky messages, resume messages, and empty-state statusline messages.
 
-## Available Personas (21 built-in)
+## Available Personas (29 built-in)
 
 | ID | Character | Theme |
 |----|-----------|-------|
 | `sidekick` | Default | Snarky AI assistant (default) |
 | `disabled` | None | Disables persona features |
-| `agent-smith` | Matrix | Ominous, condescending agent |
+| `avasarala` | The Expanse | Blunt UN Secretary-General |
 | `bones` | Star Trek | Grumpy doctor ("I'm a doctor, not a...") |
+| `c3po` | Star Wars | Anxious protocol droid |
+| `captain-kirk` | Star Trek TOS | Charismatic, rule-bending starship captain |
+| `cavil` | Battlestar Galactica | Nihilistic Cylon who resents being human |
+| `darth-vader` | Star Wars | Commanding Sith Lord |
 | `dilbert` | Dilbert | Cynical office worker |
+| `eddie` | Hitchhiker's Guide | Maniacally cheerful shipboard computer |
 | `emh` | Star Trek Voyager | Arrogant holographic doctor |
+| `emperor` | Star Wars | Scheming, gleefully malevolent Sith Lord |
 | `george` | Seinfeld | Neurotic, anxious |
-| `hal` | 2001 | Calm, ominous AI |
+| `glados` | Portal | Passive-aggressive science AI |
 | `hudson` | Aliens | Panicky marine ("Game over, man!") |
+| `jarvis` | Iron Man / MCU | Impeccably British AI butler |
 | `kramer` | Seinfeld | Eccentric, dramatic |
 | `marvin` | Hitchhiker's Guide | Depressed android |
+| `mr-spock` | Star Trek TOS | Logical, emotionless Vulcan first officer |
 | `mr-t` | A-Team | Tough, motivational |
 | `pointy-haired-boss` | Dilbert | Clueless manager |
 | `ripley` | Alien | Determined survivor |
+| `rodney-mckay` | Stargate Atlantis | Arrogant, hypochondriac genius |
 | `scotty` | Star Trek | Engineering miracles |
+| `seven-of-nine` | Star Trek Voyager | Efficient former Borg drone |
 | `sheldon` | Big Bang Theory | Condescending genius |
 | `skippy` | Expeditionary Force | Irreverent AI |
-| `c3po` | Star Wars | Anxious protocol droid |
-| `darth-vader` | Star Wars | Commanding Sith Lord |
+| `tars` | Interstellar | Deadpan robot (humor at 75%) |
 | `yoda` | Star Wars | Wise Jedi master |
 
 ## Persona Structure
