@@ -12,7 +12,11 @@
 # 4. Publish packages/sidekick-dist
 # 5. Commit version bump and tag
 
-set -e
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+DIST_DIR="$PROJECT_ROOT/packages/sidekick-dist"
 
 VERSION_TYPE="${1:-patch}"
 
@@ -21,6 +25,8 @@ if [[ ! "$VERSION_TYPE" =~ ^(patch|minor|major)$ ]]; then
     echo "Error: Invalid version type '$VERSION_TYPE'. Use: patch, minor, or major"
     exit 1
 fi
+
+cd "$PROJECT_ROOT"
 
 echo "==> Checking for uncommitted changes..."
 # These files get version-bumped during publish; leftover changes from a
@@ -41,7 +47,7 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
 
     if [[ -n "$NON_VERSION_FILES" ]]; then
         echo "Error: You have uncommitted changes. Commit or stash them before publishing."
-        echo ""
+        echo
         git status --short
         exit 1
     fi
@@ -54,7 +60,7 @@ UNTRACKED=$(git ls-files --others --exclude-standard)
 if [[ -n "$UNTRACKED" ]]; then
     echo "Warning: You have untracked files:"
     echo "$UNTRACKED"
-    echo ""
+    echo
     read -p "Continue anyway? [y/N] " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
@@ -63,9 +69,8 @@ if [[ -n "$UNTRACKED" ]]; then
 fi
 
 echo "==> Bumping version ($VERSION_TYPE)..."
-cd packages/sidekick-dist
 
-OLD_VERSION=$(node -p "require('./package.json').version")
+OLD_VERSION=$(node -p "require('$DIST_DIR/package.json').version")
 
 # Parse version: x.y.z
 if [[ "$OLD_VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
@@ -95,27 +100,22 @@ esac
 
 NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
 
-# Update package.json
-node -e "
+# Update package.json and plugin metadata files
+NEW_VERSION="$NEW_VERSION" node -e "
 const fs = require('fs');
-const pkg = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
-pkg.version = '$NEW_VERSION';
-fs.writeFileSync('./package.json', JSON.stringify(pkg, null, 2) + '\n');
-"
 
-cd ../..
+const pkg = JSON.parse(fs.readFileSync('$DIST_DIR/package.json', 'utf8'));
+pkg.version = process.env.NEW_VERSION;
+fs.writeFileSync('$DIST_DIR/package.json', JSON.stringify(pkg, null, 2) + '\n');
 
-# Sync version to plugin metadata files
-node -e "
-const fs = require('fs');
-const files = [
+const metadataFiles = [
   'packages/sidekick-plugin/.claude-plugin/plugin.json',
   '.claude-plugin/marketplace.json',
 ];
-for (const file of files) {
+for (const file of metadataFiles) {
   const json = JSON.parse(fs.readFileSync(file, 'utf8'));
-  if (json.version) json.version = '$NEW_VERSION';
-  if (json.plugins) json.plugins.forEach(p => { if (p.version) p.version = '$NEW_VERSION'; });
+  if (json.version) json.version = process.env.NEW_VERSION;
+  if (json.plugins) json.plugins.forEach(p => { if (p.version) p.version = process.env.NEW_VERSION; });
   fs.writeFileSync(file, JSON.stringify(json, null, 2) + '\n');
 }
 console.log('    Synced version to plugin.json and marketplace.json');
@@ -127,13 +127,11 @@ echo "==> Building all packages..."
 pnpm build
 
 echo "==> Publishing @scotthamilton77/sidekick@$NEW_VERSION..."
-cd packages/sidekick-dist
-
+cd "$DIST_DIR"
 npm publish --access public --tag latest
+cd "$PROJECT_ROOT"
 
-cd ../..
-
-echo ""
+echo
 echo "==> Published successfully! Committing version bump..."
 
 git add "${VERSION_BUMP_FILES[@]}"
@@ -141,6 +139,6 @@ git commit -m "chore: release @scotthamilton77/sidekick@$NEW_VERSION"
 git tag "v$NEW_VERSION"
 
 echo "==> Committed and tagged v$NEW_VERSION"
-echo ""
+echo
 echo "Don't forget to push:"
 echo "  git push && git push --tags"

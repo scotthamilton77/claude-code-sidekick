@@ -426,7 +426,7 @@ These patterns are enforced by code review and documented in `packages/AGENTS.md
    ```json
    {
      "name": "@sidekick/feature-foo",
-     "version": "0.0.1-alpha",
+     "version": "0.1.0",
      "type": "commonjs",
      "main": "dist/index.js",
      "types": "dist/index.d.ts",
