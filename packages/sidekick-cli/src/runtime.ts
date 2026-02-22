@@ -147,19 +147,23 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
   const isInteractive = options.interactive ?? process.env.SIDEKICK_INTERACTIVE === '1'
   const enableFileLogging = options.enableFileLogging ?? true
 
+  // Compute file destination config once (used by logManager, facade upgrade, and bindSessionId)
+  const rotation = config.core.logging.rotation
+  const fileDestination = enableFileLogging
+    ? {
+        path: logFilePath,
+        maxSizeBytes: rotation?.maxSizeBytes ?? 10_485_760,
+        maxFiles: rotation?.maxFiles ?? 5,
+      }
+    : undefined
+
   // Create the full log manager for structured logging
   const logManager = createLogManager({
     name: 'sidekick:cli',
     level: effectiveLogLevel,
     context: logContext,
     destinations: {
-      file: enableFileLogging
-        ? {
-            path: logFilePath,
-            maxSizeBytes: config.core.logging.rotation?.maxSizeBytes ?? 10_485_760,
-            maxFiles: config.core.logging.rotation?.maxFiles ?? 5,
-          }
-        : undefined,
+      file: fileDestination,
       console: {
         enabled: isInteractive,
         pretty: isInteractive,
@@ -174,13 +178,7 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
     level: effectiveLogLevel,
     context: logContext,
     destinations: {
-      file: enableFileLogging
-        ? {
-            path: logFilePath,
-            maxSizeBytes: config.core.logging.rotation?.maxSizeBytes ?? 10_485_760,
-            maxFiles: config.core.logging.rotation?.maxFiles ?? 5,
-          }
-        : undefined,
+      file: fileDestination,
       console: {
         enabled: isInteractive,
         pretty: isInteractive,
@@ -248,13 +246,7 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
         level: effectiveLogLevel,
         context: logContext,
         destinations: {
-          file: enableFileLogging
-            ? {
-                path: logFilePath,
-                maxSizeBytes: config.core.logging.rotation?.maxSizeBytes ?? 10_485_760,
-                maxFiles: config.core.logging.rotation?.maxFiles ?? 5,
-              }
-            : undefined,
+          file: fileDestination,
           console: {
             enabled: isInteractive,
             pretty: isInteractive,

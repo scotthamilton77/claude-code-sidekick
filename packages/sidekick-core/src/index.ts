@@ -108,6 +108,8 @@ export {
   createLoggerFacade,
   setupGlobalErrorHandlers,
   getComponentLogLevel,
+  DEFAULT_ROTATE_SIZE_BYTES,
+  DEFAULT_MAX_FILES,
   LogEvents,
   logEvent,
   type EventLogContext,
@@ -119,7 +121,16 @@ export {
   type UpgradeOptions,
 } from './structured-logging'
 
-export { killAllDaemons, killZombieDaemons, findZombieDaemons, DaemonClient, type KillResult, type KillAllOptions, type UserPidInfo, type ZombieProcess } from './daemon-client'
+export {
+  killAllDaemons,
+  killZombieDaemons,
+  findZombieDaemons,
+  DaemonClient,
+  type KillResult,
+  type KillAllOptions,
+  type UserPidInfo,
+  type ZombieProcess,
+} from './daemon-client'
 export {
   SetupStatusService,
   createSetupStatusService,
