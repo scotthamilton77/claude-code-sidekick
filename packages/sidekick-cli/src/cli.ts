@@ -19,6 +19,7 @@
  */
 
 import { mkdir } from 'node:fs/promises'
+import path from 'node:path'
 import { PassThrough, Writable } from 'node:stream'
 import yargsParser from 'yargs-parser'
 
@@ -343,6 +344,8 @@ Commands:
   install                  Alias for setup
   doctor [--fix]           Check sidekick health (--fix to auto-repair)
   uninstall [--force]      Remove sidekick (plugin, hooks, settings, data)
+  install-alias            Add 'sidekick' shell alias to ~/.zshrc or ~/.bashrc
+  uninstall-alias          Remove 'sidekick' shell alias from shell config
 
 Global Options:
   --help, -h               Show this help message
@@ -618,6 +621,44 @@ Examples:
       only: parsed.only,
     })
     return { exitCode: result.exitCode, stdout: '', stderr: '' }
+  }
+
+  if (parsed.command === 'install-alias') {
+    const { detectShell, installAlias } = await import('./commands/setup/shell-alias.js')
+    const shellInfo = detectShell(process.env.SHELL)
+    if (!shellInfo) {
+      stdout.write('Unsupported shell. Only zsh and bash are supported.\n')
+      return { exitCode: 1, stdout: '', stderr: '' }
+    }
+    const homeDir = process.env.HOME || ''
+    const rcPath = path.join(homeDir, shellInfo.rcFile)
+    const result = installAlias(rcPath)
+    if (result === 'installed') {
+      stdout.write(`✓ Alias added to ~/${shellInfo.rcFile}\n`)
+      stdout.write(`  Run 'source ~/${shellInfo.rcFile}' or open a new terminal to activate.\n`)
+    } else {
+      stdout.write(`✓ Alias already configured in ~/${shellInfo.rcFile}\n`)
+    }
+    return { exitCode: 0, stdout: '', stderr: '' }
+  }
+
+  if (parsed.command === 'uninstall-alias') {
+    const { detectShell, uninstallAlias } = await import('./commands/setup/shell-alias.js')
+    const shellInfo = detectShell(process.env.SHELL)
+    if (!shellInfo) {
+      stdout.write('Unsupported shell. Only zsh and bash are supported.\n')
+      return { exitCode: 1, stdout: '', stderr: '' }
+    }
+    const homeDir = process.env.HOME || ''
+    const rcPath = path.join(homeDir, shellInfo.rcFile)
+    const result = uninstallAlias(rcPath)
+    if (result === 'removed') {
+      stdout.write(`✓ Alias removed from ~/${shellInfo.rcFile}\n`)
+      stdout.write(`  Run 'unalias sidekick' or open a new terminal to deactivate.\n`)
+    } else {
+      stdout.write(`No sidekick alias found in ~/${shellInfo.rcFile}\n`)
+    }
+    return { exitCode: 0, stdout: '', stderr: '' }
   }
 
   // Unknown command - show error and hint
