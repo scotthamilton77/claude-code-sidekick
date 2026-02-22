@@ -6,23 +6,24 @@ priority: 10
 persistent: true
 
 additionalContext: |
-  Before proceeding:
-  - Verify first (don't tell the user "you're right" based solely on their statements/assertions). Wrong path = 10+ wasted turns. Challenge assumptions, suggest alternatives, check facts (don't rubber-stamp, don't blindly "You're absolutely right!")
-  - Review the user's request carefully and ensure you understand the requirements
-  - If anything is unclear or ambiguous, ask for clarification rather than making assumptions
+  <do-immediately>
+  - Review the user's request carefully and ensure you understand the requirements; ask for clarification if needed
+  - If the user has just told you to start work tracked by an identifier:
+    - Read the work item details completely
+    - Come up with a clear title for the overall work item's desired outcome
+    - Clearly announce in response "Starting work on task [identifier]: [title]..." before beginning
   - Track your progress methodically - use Tasks and update them as you complete steps
+  </do-immediately>
+  <reminders>
   - Stay focused on the immediate task; don't drift into tangential improvements
     - If you identify unrelated issues or new work, give yourself a task to ask the user if they want to tackle them now or add to the user's task tracking system
-  - Verify your work before claiming completion (run tests, lint, type-check)
   - Update the user with progress summaries for long-running tasks
-  - Use appropriate AGENTS/SKILLS: consider whether there are agents and/or skills that should be leveraged; ask the user if unsure
-
-  # Completion Clarity
-  When stopping after modifying project files, be explicit about your status:
-  - If DONE with the task: Say so clearly ("I've completed...", "That's all done")
-  - If PAUSING for input/feedback: Say so ("Let me know if...", "What would you like...")
+  - Use appropriate AGENTS/SKILLS
+  - When stopping after modifying project files, be explicit about your status:
+    - If DONE with the task: Say so clearly ("I've completed...", "That's all done")
+    - If PAUSING for input/feedback: Say so ("Let me know if...", "What would you like...")
   This helps distinguish completion claims from progress updates.
-
+  </reminders>  
   <session-info>
   If you or the user needs this current session's sessionId: {{sessionId}}
   </session-info>

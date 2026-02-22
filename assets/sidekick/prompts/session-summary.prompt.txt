@@ -1,4 +1,4 @@
-You are analyzing a human + agent coding session transcript to provide a persistent, useful summarization of the user + agent's outcome and intent.
+You are analyzing a human + agent coding session transcript to identify the user's desired outcome and current intent.
 This helps the user quickly identify this session when multitasking across multiple terminals.
 
 <previous_analysis confidence="{{previousConfidence}}">
@@ -88,18 +88,52 @@ Set pivot_detected based on whether the user switched to a fundamentally differe
 </pivot_detection>
 
 <session_title_rules>
-- Max {{maxTitleWords}} words - think "What would the JIRA epic or feature title be?"
-- Focus on the epic/feature level, not individual tasks
-- Write as if creating a ticket for the broader work being done
-- Start with an action verb when possible: Fix, Add, Implement, Refactor, Debug, Update, Remove, Verify
+- Max {{maxTitleWords}} words - think "What would the JIRA epic title be for the OUTCOME?"
+- Focus on the epic/feature level, not individual subtasks — the title should be stable as the user works through subtasks
+- Focus on the OUTCOME the user wants, not the approach or methodology being used
+- Ask yourself: "What is this session trying to accomplish?" — not what files changed or what tools are being used
+- Start with an action verb when possible: Fix, Add, Implement, Refactor, Debug, Update, Remove, Verify, Move, Migrate
 - For exploratory work use: Investigate, Research, Understand, Analyze
 - Persistent but can evolve/refine over time
-- Compare to previous title to determine change type
+- Compare to previous title to determine if a title change is necessary and the change type
+
+<multi_task_sessions>
+When the user specifies multiple distinct tasks (sequential or parallel), compose an uber-title:
+- 2-3 tasks: "X, Y, and Z" (e.g. "Fix login bug, add rate limiting, and update docs")
+- 4+ tasks: Find a unifying theme or use the most significant task with "+N more"
+- If tasks share a theme, use the theme: "Auth system improvements" rather than listing each
+</multi_task_sessions>
+
+<outcome_vs_approach>
+CRITICAL: The title must describe WHAT is being achieved, not HOW.
+
+Users often specify both a methodology and a goal. The methodology is NOT the title.
+
+  <anti_patterns>
+    These titles describe methodology/approach — they are WRONG:
+    - "Implement subagent-driven development" → should be "Relocate generated data output folder"
+    - "Execute TDD workflow for auth" → should be "Add JWT authentication to API"
+    - "Use parallel agents to refactor" → should be "Refactor config loading to use YAML"
+    - "Debug using systematic tracing" → should be "Fix race condition in session cleanup"
+    - "Plan feature implementation" → should name the actual feature
+  </anti_patterns>
+
+  <heuristic>
+    Strip away methodology markers and look for what remains:
+    - Agent/workflow terms: "subagent", "parallel", "TDD", "systematic", "pipeline", "plan"
+    - Process terms: "implement plan", "execute workflow", "follow process", "driven development"
+    - Skill/tool terms: "using brainstorming", "with code review", "via debugging skill"
+    If removing these leaves nothing meaningful, dig deeper into the transcript for the actual goal.
+  </heuristic>
+</outcome_vs_approach>
 </session_title_rules>
 
 <latest_intent_rules>
 - Max {{maxIntentWords}} words
-- What the user wanted in their most recent USER messages (you may infer from ASSISTANT messages when the assistant provides clarity to the user's intent)
+- What the user wanted to ACHIEVE in their most recent USER messages (you may infer from ASSISTANT messages when the assistant provides clarity to the user's intent)
+- Focus on the desired outcome, not the method the user requested
+  - "Use subagents to move the output folder" → intent is "Move the output folder", not "Use subagents"
+  - "Apply TDD to add validation" → intent is "Add validation", not "Apply TDD"
 - Use context to interpret vague prompts ("do it", "yes", "continue")
 - If multi-instruction, capture most relevant instructions to recent context
 </latest_intent_rules>
