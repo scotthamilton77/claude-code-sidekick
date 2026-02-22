@@ -188,3 +188,24 @@ See docs/DEVELOPER-GUIDE.md "Distribution and Publishing" section for full instr
 - **Monorepo dep upgrades**: When changing a dependency version in root `package.json`, update ALL workspace `package.json` files referencing the same dep. Run `pnpm install` and verify `pnpm-lock.yaml` reflects one version.
 - **Beads workflow**: Always `bd update <id> --status=in_progress` BEFORE starting work on an issue. Do not begin implementation while the bead is still `open`.
 </lessons_learned>
+
+# Session Completion
+
+**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+
+**MANDATORY WORKFLOW:**
+
+1. **File issues for remaining work** - Create issues for anything that needs follow-up
+2. **Run quality gates** (if code changed) - Tests, linters, builds, code-review and code-simplifier agents
+3. **PAUSE FOR USER REVIEW** - only after user agrees or explicitly asks for a commit
+4. **Update issue status** - ONLY AFTER USER PERMITS: close finished work, update in-progress items
+  4a. **PUSH TO REMOTE** - This is MANDATORY:
+    ```bash
+    git pull --rebase
+    bd sync
+    git push
+    git status  # MUST show "up to date with origin"
+    ```
+  4b. **Clean up** - Clear stashes, prune remote branches
+  4c. **Verify** - All changes committed AND pushed
+  4d. **Hand off** - Provide context for next session
