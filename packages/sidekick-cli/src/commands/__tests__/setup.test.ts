@@ -17,7 +17,17 @@ import path from 'node:path'
 import { EventEmitter } from 'node:events'
 import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest'
 import { handleSetupCommand } from '../setup'
+import { detectInstalledScope } from '../setup/plugin-installer.js'
 import type { Logger } from '@sidekick/types'
+
+// Mock plugin scope detection so tests don't call real CLI
+vi.mock('../setup/plugin-installer.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../setup/plugin-installer.js')>()
+  return {
+    ...actual,
+    detectInstalledScope: vi.fn().mockResolvedValue(null),
+  }
+})
 
 // Mock zombie daemon detection so ps output from the test runner doesn't pollute doctor checks
 vi.mock('@sidekick/core', async (importOriginal) => {
@@ -1078,6 +1088,31 @@ describe('handleSetupCommand', () => {
       const content = await readFile(userStatusPath, 'utf-8')
       const status = JSON.parse(content)
       expect(status.preferences.autoConfigureProjects).toBe(true)
+    })
+
+    test('scripted mode detects project-scoped plugin and warns when --plugin-scope omitted', async () => {
+      vi.mocked(detectInstalledScope).mockResolvedValueOnce('project')
+
+      const result = await handleSetupCommand(projectDir, logger, output, {
+        autoConfig: 'auto',
+        homeDir,
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(output.data).toContain('Auto-configure requires user-scoped plugin installation')
+      expect(output.data).toContain('Skipping --auto-config=auto')
+    })
+
+    test('scripted mode detects user-scoped plugin and allows when --plugin-scope omitted', async () => {
+      vi.mocked(detectInstalledScope).mockResolvedValueOnce('user')
+
+      const result = await handleSetupCommand(projectDir, logger, output, {
+        autoConfig: 'auto',
+        homeDir,
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(output.data).toContain("Auto-config set to 'auto'")
     })
 
     test('scripted mode allows --auto-config=manual regardless of plugin scope', async () => {

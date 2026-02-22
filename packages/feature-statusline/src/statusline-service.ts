@@ -62,6 +62,7 @@ import {
 export interface MinimalSetupStatusService {
   getSetupState(): Promise<SetupState>
   getEffectiveApiKeyHealth(key: ApiKeyName): Promise<ApiKeyHealth>
+  shouldAutoConfigureProject(): Promise<boolean>
 }
 
 /**
@@ -446,6 +447,11 @@ export class StatuslineService {
           state,
         }
       case 'partial':
+        // Suppress warning when auto-configure is pending (race: statusline runs
+        // before SessionStart finishes writing setup-status.json)
+        if (await this.setupService.shouldAutoConfigureProject()) {
+          return { warning: '', state: 'healthy' }
+        }
         return {
           warning: "Project not configured. Run 'sidekick setup' for this project.",
           state,

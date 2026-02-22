@@ -18,6 +18,7 @@ import {
   type ProjectApiKeyStatus,
 } from '@sidekick/types'
 import { validateOpenRouterKey, validateOpenAIKey } from '@sidekick/shared-providers'
+import { installGitignoreSection } from './gitignore.js'
 
 function isSidekickStatuslineCommand(command: string | undefined): boolean {
   return command?.toLowerCase().includes('sidekick') ?? false
@@ -822,12 +823,21 @@ export class SetupStatusService {
       projectDir: this.projectDir,
     })
 
-    // Preserve sticky fields (e.g. devMode) from any pre-existing project status
-    const existing = await this.getProjectStatus()
+    // Install gitignore section (idempotent — safe to call repeatedly)
+    const gitResult = await installGitignoreSection(this.projectDir)
+    const gitignoreStatus = gitResult.status === 'error' ? 'missing' : 'installed'
+    if (gitResult.status === 'error') {
+      this.logger?.warn('Gitignore installation failed during auto-configure', {
+        projectDir: this.projectDir,
+        error: gitResult.error,
+      })
+    }
 
     // Create project status that delegates API keys to user level.
     // Uses 'user' string (not object format) intentionally — this is a delegation marker
     // meaning "check user-level status for real health". No scope detection is performed.
+    // Note: devMode is not preserved here because isProjectConfigured() above confirmed
+    // no project status exists (devMode is only set via setDevMode which creates status first).
     const projectStatus: ProjectSetupStatus = {
       version: 1,
       lastUpdatedAt: new Date().toISOString(),
@@ -837,8 +847,7 @@ export class SetupStatusService {
         OPENROUTER_API_KEY: 'user',
         OPENAI_API_KEY: 'user',
       },
-      gitignore: 'unknown',
-      ...(existing?.devMode !== undefined && { devMode: existing.devMode }),
+      gitignore: gitignoreStatus,
     }
 
     await this.writeProjectStatus(projectStatus)
@@ -893,8 +902,7 @@ export class SetupStatusService {
         if (projectStatus) {
           await this.updateProjectStatus({ statusline: actualStatusline })
         } else {
-          // Create new project status (preserve devMode if somehow set externally)
-          const existingForDevMode = await this.getProjectStatus()
+          // Create new project status (projectStatus is null here)
           await this.writeProjectStatus({
             version: 1,
             lastUpdatedAt: new Date().toISOString(),
@@ -905,7 +913,6 @@ export class SetupStatusService {
               OPENAI_API_KEY: 'user',
             },
             gitignore: 'unknown',
-            ...(existingForDevMode?.devMode !== undefined && { devMode: existingForDevMode.devMode }),
           })
         }
       } else {
@@ -974,8 +981,7 @@ export class SetupStatusService {
           // Build user status for user-level file
           const userApiKeyStatus = this.buildUserApiKeyStatus(detection)
 
-          // Create project status with comprehensive info (preserve devMode if somehow set)
-          const existingForDevMode = await this.getProjectStatus()
+          // Create project status with comprehensive info (projectStatus is null here)
           await this.writeProjectStatus({
             version: 1,
             lastUpdatedAt: new Date().toISOString(),
@@ -986,7 +992,6 @@ export class SetupStatusService {
               OPENAI_API_KEY: keyName === 'OPENAI_API_KEY' ? projectApiKeyStatus : 'user',
             },
             gitignore: 'unknown',
-            ...(existingForDevMode?.devMode !== undefined && { devMode: existingForDevMode.devMode }),
           })
 
           // Also create user status if it doesn't exist

@@ -181,7 +181,7 @@ function createTestPersistedMetrics(overrides?: {
 /**
  * Mock SetupStatusService that always returns healthy status.
  * Used in tests to bypass real file system checks.
- * Only implements the two methods required by MinimalSetupStatusService.
+ * Implements the three methods required by MinimalSetupStatusService.
  */
 class MockSetupStatusService implements MinimalSetupStatusService {
   getSetupState(): Promise<'healthy'> {
@@ -190,6 +190,10 @@ class MockSetupStatusService implements MinimalSetupStatusService {
 
   getEffectiveApiKeyHealth(): Promise<'healthy'> {
     return Promise.resolve('healthy')
+  }
+
+  shouldAutoConfigureProject(): Promise<boolean> {
+    return Promise.resolve(false)
   }
 }
 
@@ -3023,6 +3027,51 @@ describe('StatuslineService', () => {
 
       expect(result.displayMode).toBe('session_summary')
       expect(result.viewModel.summary).toBe('Debugging authentication flow')
+    })
+  })
+
+  describe('setup status race condition (sidekick-gmab)', () => {
+    it('suppresses partial warning when auto-configure is pending', async () => {
+      // Simulate the race: setupService sees partial state but auto-configure is enabled
+      const racySetupService: MinimalSetupStatusService = {
+        getSetupState: () => Promise.resolve('partial' as const),
+        getEffectiveApiKeyHealth: () => Promise.resolve('healthy' as const),
+        shouldAutoConfigureProject: () => Promise.resolve(true),
+      }
+
+      const service = createStatuslineService({
+        stateService,
+        setupService: racySetupService,
+        sessionId,
+        cwd: '/test',
+        useColors: false,
+      })
+
+      const result = await service.render()
+
+      // Should NOT show setup_warning — auto-configure will handle it
+      expect(result.displayMode).not.toBe('setup_warning')
+    })
+
+    it('shows partial warning when auto-configure is disabled', async () => {
+      const noAutoSetupService: MinimalSetupStatusService = {
+        getSetupState: () => Promise.resolve('partial' as const),
+        getEffectiveApiKeyHealth: () => Promise.resolve('healthy' as const),
+        shouldAutoConfigureProject: () => Promise.resolve(false),
+      }
+
+      const service = createStatuslineService({
+        stateService,
+        setupService: noAutoSetupService,
+        sessionId,
+        cwd: '/test',
+        useColors: false,
+      })
+
+      const result = await service.render()
+
+      expect(result.displayMode).toBe('setup_warning')
+      expect(result.text).toContain('sidekick setup')
     })
   })
 

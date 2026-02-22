@@ -212,6 +212,16 @@ async function detectMarketplaceAnywhere(
   return { scope: null, cliAvailable }
 }
 
+/**
+ * Detect the installed marketplace/plugin scope without requiring a CommandExecutor.
+ * Convenience wrapper for use outside the plugin installer flow.
+ */
+export async function detectInstalledScope(projectDir: string, logger: Logger): Promise<InstallScope | null> {
+  const executor = createDefaultExecutor()
+  const result = await detectMarketplaceAnywhere(executor, projectDir, logger)
+  return result.scope
+}
+
 // ============================================================================
 // Installation helpers
 // ============================================================================

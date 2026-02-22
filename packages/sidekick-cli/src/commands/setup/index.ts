@@ -17,7 +17,12 @@ import {
   type PluginLivenessStatus,
 } from '@sidekick/core'
 import { printHeader, printStatus, promptSelect, promptConfirm, promptInput, type PromptContext } from './prompts.js'
-import { ensurePluginInstalled, getValidPluginScopes, type InstallScope } from './plugin-installer.js'
+import {
+  ensurePluginInstalled,
+  getValidPluginScopes,
+  detectInstalledScope,
+  type InstallScope,
+} from './plugin-installer.js'
 
 export interface SetupCommandOptions {
   checkOnly?: boolean
@@ -955,8 +960,8 @@ async function runScripted(
 
   // 5. Configure auto-config preference if specified
   if (options.autoConfig) {
-    // Determine effective plugin scope: explicit flag > default
-    const effectivePluginScope = options.pluginScope ?? 'user'
+    // Determine effective plugin scope: explicit flag > detected > default
+    const effectivePluginScope = options.pluginScope ?? (await detectInstalledScope(projectDir, logger)) ?? 'user'
 
     if (options.autoConfig === 'auto' && effectivePluginScope !== 'user') {
       stdout.write(

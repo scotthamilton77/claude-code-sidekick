@@ -495,7 +495,12 @@ describe('SetupStatusService', () => {
       expect(projectStatus?.statusline).toBe('user')
       expect(projectStatus?.apiKeys.OPENROUTER_API_KEY).toBe('user')
       expect(projectStatus?.apiKeys.OPENAI_API_KEY).toBe('user')
-      expect(projectStatus?.gitignore).toBe('unknown')
+      expect(projectStatus?.gitignore).toBe('installed')
+
+      // Verify .gitignore was actually created with sidekick section
+      const gitignoreContent = await fs.readFile(path.join(projectDir, '.gitignore'), 'utf-8')
+      expect(gitignoreContent).toContain('# >>> sidekick')
+      expect(gitignoreContent).toContain('.sidekick/logs/')
     })
 
     it('is idempotent - second call returns false', async () => {
