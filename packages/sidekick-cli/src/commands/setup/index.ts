@@ -23,6 +23,7 @@ import {
   detectInstalledScope,
   type InstallScope,
 } from './plugin-installer.js'
+import { detectShell, installAlias, isAliasInRcFile } from './shell-alias.js'
 
 export interface SetupCommandOptions {
   checkOnly?: boolean
@@ -341,6 +342,7 @@ interface WizardState {
   apiKeyHealth: ApiKeyHealth
   apiKeyDetection: AllScopesDetectionResult | null
   autoConfig: 'auto' | 'manual'
+  shellAlias: 'installed' | 'already-installed' | 'skipped' | 'unsupported'
 }
 
 // ============================================================================
@@ -625,6 +627,47 @@ async function runStep6AutoConfig(wctx: WizardContext, pluginScope: InstallScope
 }
 
 /**
+ * Step 7: Configure shell alias for easier CLI access.
+ */
+async function runStep7ShellAlias(
+  wctx: WizardContext
+): Promise<'installed' | 'already-installed' | 'skipped' | 'unsupported'> {
+  const { ctx, homeDir } = wctx
+  const shellInfo = detectShell(process.env.SHELL)
+
+  printHeader(ctx, 'Step 7: Shell Alias')
+
+  if (!shellInfo) {
+    printStatus(ctx, 'info', 'Unsupported shell — only zsh and bash are supported')
+    return 'unsupported'
+  }
+
+  const rcPath = path.join(homeDir, shellInfo.rcFile)
+
+  if (isAliasInRcFile(rcPath)) {
+    printStatus(ctx, 'success', `Shell alias already configured in ~/${shellInfo.rcFile}`)
+    return 'already-installed'
+  }
+
+  const choice = await promptSelect(ctx, "Add a 'sidekick' shell alias for easier CLI access?", [
+    { value: 'yes' as const, label: 'Yes', description: `Add alias to ~/${shellInfo.rcFile}` },
+    { value: 'no' as const, label: 'No', description: 'Skip — use npx @scotthamilton77/sidekick' },
+  ])
+
+  if (choice === 'no') {
+    printStatus(ctx, 'info', 'Shell alias skipped')
+    return 'skipped'
+  }
+
+  const result = installAlias(rcPath)
+  if (result === 'installed') {
+    printStatus(ctx, 'success', `Alias added to ~/${shellInfo.rcFile}`)
+    printStatus(ctx, 'info', `Run 'source ~/${shellInfo.rcFile}' or open a new terminal to activate`)
+  }
+  return result
+}
+
+/**
  * Write the status files based on wizard results.
  */
 async function writeStatusFiles(wctx: WizardContext, state: WizardState): Promise<void> {
@@ -717,6 +760,16 @@ function printSummary(wctx: WizardContext, state: WizardState): void {
   }
   printStatus(ctx, 'success', `Auto-configure: ${autoConfig === 'auto' ? 'Enabled' : 'Disabled'}`)
 
+  const aliasStatusType: 'success' | 'info' =
+    state.shellAlias === 'installed' || state.shellAlias === 'already-installed' ? 'success' : 'info'
+  const aliasLabels: Record<WizardState['shellAlias'], string> = {
+    installed: 'Installed',
+    'already-installed': 'Already configured',
+    skipped: 'Skipped',
+    unsupported: 'Unsupported shell',
+  }
+  printStatus(ctx, aliasStatusType, `Shell Alias: ${aliasLabels[state.shellAlias]}`)
+
   stdout.write('\n')
   stdout.write('Setup complete! Your statusline and hooks are now active.\n')
 }
@@ -790,6 +843,7 @@ async function runWizard(
   const wantPersonas = force ? true : await runStep5Personas(wctx)
   const forceAutoConfig = pluginResult.pluginScope === 'user' ? 'auto' : 'manual'
   const autoConfig = force ? forceAutoConfig : await runStep6AutoConfig(wctx, pluginResult.pluginScope)
+  const shellAlias = force ? ('skipped' as const) : await runStep7ShellAlias(wctx)
 
   // In force mode, configure statusline at same scope as plugin
   if (force) {
@@ -808,6 +862,7 @@ async function runWizard(
     apiKeyHealth,
     apiKeyDetection,
     autoConfig,
+    shellAlias,
   }
   await writeStatusFiles(wctx, state)
 
@@ -824,6 +879,7 @@ async function runWizard(
     stdout.write(`  API Key: not configured (run 'sidekick setup' to add)\n`)
     stdout.write(`  Personas: enabled\n`)
     stdout.write(`  Auto-configure: ${autoConfig === 'auto' ? 'enabled' : 'disabled'}\n`)
+    stdout.write(`  Shell Alias: skipped (run 'sidekick install-alias' to add)\n`)
   }
 
   return { exitCode: 0 }
