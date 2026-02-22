@@ -961,28 +961,38 @@ async function runScripted(
 
   // 5. Configure auto-config preference if specified
   if (options.autoConfig) {
-    // Read existing user status or create new
-    const existingUserStatus = await setupService.getUserStatus()
-    const userStatus: UserSetupStatus = existingUserStatus ?? {
-      version: 1,
-      lastUpdatedAt: new Date().toISOString(),
-      preferences: {
-        autoConfigureProjects: options.autoConfig === 'auto',
-        defaultStatuslineScope: 'user',
-        defaultApiKeyScope: 'user',
-      },
-      statusline: 'none', // Default to none if no prior setup
-      apiKeys: {
-        OPENROUTER_API_KEY: 'missing',
-        OPENAI_API_KEY: 'missing',
-      },
-    }
+    // Determine effective plugin scope: explicit flag > default
+    const effectivePluginScope = options.pluginScope ?? 'user'
 
-    userStatus.preferences.autoConfigureProjects = options.autoConfig === 'auto'
-    userStatus.lastUpdatedAt = new Date().toISOString()
-    await setupService.writeUserStatus(userStatus)
-    stdout.write(`✓ Auto-config set to '${options.autoConfig}'\n`)
-    configuredCount++
+    if (options.autoConfig === 'auto' && effectivePluginScope !== 'user') {
+      stdout.write(
+        `⚠ Auto-configure requires user-scoped plugin installation (plugin scope: ${effectivePluginScope})\n`
+      )
+      stdout.write('  Skipping --auto-config=auto. Install plugin at user scope to enable.\n')
+    } else {
+      // Read existing user status or create new
+      const existingUserStatus = await setupService.getUserStatus()
+      const userStatus: UserSetupStatus = existingUserStatus ?? {
+        version: 1,
+        lastUpdatedAt: new Date().toISOString(),
+        preferences: {
+          autoConfigureProjects: options.autoConfig === 'auto',
+          defaultStatuslineScope: 'user',
+          defaultApiKeyScope: 'user',
+        },
+        statusline: 'none',
+        apiKeys: {
+          OPENROUTER_API_KEY: 'missing',
+          OPENAI_API_KEY: 'missing',
+        },
+      }
+
+      userStatus.preferences.autoConfigureProjects = options.autoConfig === 'auto'
+      userStatus.lastUpdatedAt = new Date().toISOString()
+      await setupService.writeUserStatus(userStatus)
+      stdout.write(`✓ Auto-config set to '${options.autoConfig}'\n`)
+      configuredCount++
+    }
   }
 
   // Write project setup-status.json so hooks know this project is configured
