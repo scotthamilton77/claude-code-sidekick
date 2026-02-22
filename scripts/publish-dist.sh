@@ -1,9 +1,10 @@
 #!/bin/bash
 # Publish @scotthamilton77/sidekick to npm
-# Usage: ./scripts/publish-dist.sh [patch|minor|major]
+# Usage: ./scripts/publish-dist.sh [patch|minor|major|--no-bump]
 #
 # Default (no args) bumps patch: 0.1.0 -> 0.1.1 -> 0.1.2
 # Minor and major bumps are available but intended for manual use.
+# --no-bump publishes the current version as-is (useful for first release).
 #
 # Steps:
 # 1. Check for uncommitted changes (fail if dirty, tolerating leftover version-bump files)
@@ -18,11 +19,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 DIST_DIR="$PROJECT_ROOT/packages/sidekick-dist"
 
+NO_BUMP=false
 VERSION_TYPE="${1:-patch}"
 
-# Validate version type
-if [[ ! "$VERSION_TYPE" =~ ^(patch|minor|major)$ ]]; then
-    echo "Error: Invalid version type '$VERSION_TYPE'. Use: patch, minor, or major"
+if [[ "$VERSION_TYPE" == "--no-bump" ]]; then
+    NO_BUMP=true
+elif [[ ! "$VERSION_TYPE" =~ ^(patch|minor|major)$ ]]; then
+    echo "Error: Invalid version type '$VERSION_TYPE'. Use: patch, minor, major, or --no-bump"
     exit 1
 fi
 
@@ -68,40 +71,45 @@ if [[ -n "$UNTRACKED" ]]; then
     fi
 fi
 
-echo "==> Bumping version ($VERSION_TYPE)..."
+NEW_VERSION=$(node -p "require('$DIST_DIR/package.json').version")
 
-OLD_VERSION=$(node -p "require('$DIST_DIR/package.json').version")
-
-# Parse version: x.y.z
-if [[ "$OLD_VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-    MAJOR="${BASH_REMATCH[1]}"
-    MINOR="${BASH_REMATCH[2]}"
-    PATCH="${BASH_REMATCH[3]}"
+if [[ "$NO_BUMP" == true ]]; then
+    echo "==> Publishing current version ($NEW_VERSION) without bump..."
 else
-    echo "Error: Could not parse version '$OLD_VERSION' (expected x.y.z)"
-    exit 1
-fi
+    echo "==> Bumping version ($VERSION_TYPE)..."
 
-# Compute new version
-case "$VERSION_TYPE" in
-    patch)
-        PATCH=$((PATCH + 1))
-        ;;
-    minor)
-        MINOR=$((MINOR + 1))
-        PATCH=0
-        ;;
-    major)
-        MAJOR=$((MAJOR + 1))
-        MINOR=0
-        PATCH=0
-        ;;
-esac
+    OLD_VERSION="$NEW_VERSION"
 
-NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+    # Parse version: x.y.z
+    if [[ "$OLD_VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+        MAJOR="${BASH_REMATCH[1]}"
+        MINOR="${BASH_REMATCH[2]}"
+        PATCH="${BASH_REMATCH[3]}"
+    else
+        echo "Error: Could not parse version '$OLD_VERSION' (expected x.y.z)"
+        exit 1
+    fi
 
-# Update package.json and plugin metadata files
-NEW_VERSION="$NEW_VERSION" node -e "
+    # Compute new version
+    case "$VERSION_TYPE" in
+        patch)
+            PATCH=$((PATCH + 1))
+            ;;
+        minor)
+            MINOR=$((MINOR + 1))
+            PATCH=0
+            ;;
+        major)
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+            PATCH=0
+            ;;
+    esac
+
+    NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+
+    # Update package.json and plugin metadata files
+    NEW_VERSION="$NEW_VERSION" node -e "
 const fs = require('fs');
 
 const pkg = JSON.parse(fs.readFileSync('$DIST_DIR/package.json', 'utf8'));
@@ -121,7 +129,8 @@ for (const file of metadataFiles) {
 console.log('    Synced version to plugin.json and marketplace.json');
 "
 
-echo "    $OLD_VERSION -> $NEW_VERSION"
+    echo "    $OLD_VERSION -> $NEW_VERSION"
+fi
 
 echo "==> Building all packages..."
 pnpm build
@@ -132,13 +141,19 @@ npm publish --access public --tag latest
 cd "$PROJECT_ROOT"
 
 echo
-echo "==> Published successfully! Committing version bump..."
+echo "==> Published successfully!"
 
-git add "${VERSION_BUMP_FILES[@]}"
-git commit -m "chore: release @scotthamilton77/sidekick@$NEW_VERSION"
-git tag "v$NEW_VERSION"
+if [[ "$NO_BUMP" == true ]]; then
+    git tag "v$NEW_VERSION"
+    echo "==> Tagged v$NEW_VERSION"
+else
+    echo "    Committing version bump..."
+    git add "${VERSION_BUMP_FILES[@]}"
+    git commit -m "chore: release @scotthamilton77/sidekick@$NEW_VERSION"
+    git tag "v$NEW_VERSION"
+    echo "==> Committed and tagged v$NEW_VERSION"
+fi
 
-echo "==> Committed and tagged v$NEW_VERSION"
 echo
 echo "Don't forget to push:"
 echo "  git push && git push --tags"
