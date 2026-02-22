@@ -107,6 +107,7 @@ Available scripting flags:
 | `--personas` / `--no-personas` | Enable or disable personas |
 | `--api-key-scope=user\|project` | Save API key from `OPENROUTER_API_KEY` env var |
 | `--auto-config=auto\|manual` | Auto-configure preference (requires `--plugin-scope=user`) |
+| `--alias` / `--no-alias` | Add or remove `sidekick` shell alias (zsh/bash) |
 | `--check` | Check configuration status (equivalent to `sidekick doctor`) |
 | `--force` | Apply all defaults without prompting |
 
@@ -493,17 +494,6 @@ sidekick uninstall --scope=user       # Only user scope
 - Transient data (logs, sessions, state, PID files)
 - `.gitignore` sidekick section
 - Shell alias from `.zshrc` / `.bashrc` (if installed)
-
-### `install-alias` / `uninstall-alias` -- Manage Shell Alias
-
-```bash
-sidekick install-alias              # Add alias to ~/.zshrc or ~/.bashrc
-sidekick uninstall-alias            # Remove alias from rc file
-```
-
-Adds or removes a `sidekick` shell alias (`alias sidekick='npx @scotthamilton77/sidekick'`) to your shell configuration file. The alias block is bracketed with marker comments for surgical removal. Supported on zsh and bash only.
-
-After installing, run `source ~/.zshrc` (or `~/.bashrc`) or open a new terminal for the alias to take effect.
 
 ### `ui` -- Launch Monitoring UI
 

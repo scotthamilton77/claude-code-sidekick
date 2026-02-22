@@ -23,7 +23,7 @@ import {
   detectInstalledScope,
   type InstallScope,
 } from './plugin-installer.js'
-import { detectShell, installAlias, isAliasInRcFile } from './shell-alias.js'
+import { detectShell, installAlias, uninstallAlias, isAliasInRcFile } from './shell-alias.js'
 
 export interface SetupCommandOptions {
   checkOnly?: boolean
@@ -35,6 +35,7 @@ export interface SetupCommandOptions {
   statuslineScope?: InstallScope
   gitignore?: boolean // true = install, false = skip, undefined = not specified
   personas?: boolean // true = enable, false = disable, undefined = not specified
+  alias?: boolean // true = install, false = remove, undefined = not specified
   apiKeyScope?: 'user' | 'project' // where to save API key (reads from OPENROUTER_API_KEY env)
   autoConfig?: 'auto' | 'manual'
   // Plugin installation flags
@@ -74,6 +75,8 @@ Scripting Flags (for non-interactive/partial setup):
   --no-personas                 Disable persona features
   --api-key-scope=<scope>       Save API key from OPENROUTER_API_KEY env: user | project
   --auto-config=<mode>          Auto-configure preference: auto | manual
+  --alias                       Add 'sidekick' shell alias to ~/.zshrc or ~/.bashrc
+  --no-alias                    Remove 'sidekick' shell alias from shell config
 
 Examples:
   sidekick setup                              Interactive wizard
@@ -879,7 +882,7 @@ async function runWizard(
     stdout.write(`  API Key: not configured (run 'sidekick setup' to add)\n`)
     stdout.write(`  Personas: enabled\n`)
     stdout.write(`  Auto-configure: ${autoConfig === 'auto' ? 'enabled' : 'disabled'}\n`)
-    stdout.write(`  Shell Alias: skipped (run 'sidekick install-alias' to add)\n`)
+    stdout.write(`  Shell Alias: skipped (run 'sidekick setup --alias' to add)\n`)
   }
 
   return { exitCode: 0 }
@@ -896,7 +899,8 @@ function hasScriptingFlags(options: SetupCommandOptions): boolean {
     options.gitignore !== undefined ||
     options.personas !== undefined ||
     options.apiKeyScope !== undefined ||
-    options.autoConfig !== undefined
+    options.autoConfig !== undefined ||
+    options.alias !== undefined
   )
 }
 
@@ -1046,6 +1050,33 @@ async function runScripted(
       userStatus.lastUpdatedAt = new Date().toISOString()
       await setupService.writeUserStatus(userStatus)
       stdout.write(`✓ Auto-config set to '${options.autoConfig}'\n`)
+      configuredCount++
+    }
+  }
+
+  // 6. Install or remove shell alias if specified
+  if (options.alias !== undefined) {
+    const shellInfo = detectShell(process.env.SHELL)
+    if (!shellInfo) {
+      stdout.write('⚠ Unsupported shell — only zsh and bash are supported\n')
+    } else {
+      const rcPath = path.join(homeDir, shellInfo.rcFile)
+      if (options.alias) {
+        const result = installAlias(rcPath)
+        if (result === 'installed') {
+          stdout.write(`✓ Shell alias added to ~/${shellInfo.rcFile}\n`)
+          stdout.write(`  Run 'source ~/${shellInfo.rcFile}' or open a new terminal to activate.\n`)
+        } else {
+          stdout.write(`✓ Shell alias already configured in ~/${shellInfo.rcFile}\n`)
+        }
+      } else {
+        const result = uninstallAlias(rcPath)
+        if (result === 'removed') {
+          stdout.write(`✓ Shell alias removed from ~/${shellInfo.rcFile}\n`)
+        } else {
+          stdout.write(`- No shell alias found in ~/${shellInfo.rcFile}\n`)
+        }
+      }
       configuredCount++
     }
   }
