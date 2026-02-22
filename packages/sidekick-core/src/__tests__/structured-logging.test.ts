@@ -3,6 +3,8 @@ import { Writable, PassThrough } from 'node:stream'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import * as fs from 'node:fs'
+import { mkdtempSync, rmSync, readdirSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 
 // We'll import these once implemented
 // For now, define the interfaces we expect to implement
@@ -53,7 +55,7 @@ interface LogManagerOptions {
   destinations?: {
     file?: {
       path: string
-      rotateSize?: number
+      maxSizeBytes?: number
       maxFiles?: number
     }
     console?: {
@@ -1320,6 +1322,61 @@ describe('Structured Logging', () => {
       const logEntry = parseLogLine(lines[0])
       expect(logEntry.msg).toBe('Unhandled promise rejection')
       expect(logEntry.reason).toBe('string rejection reason')
+    })
+  })
+
+  describe('createLogManager with rotation', () => {
+    let tmpDir: string
+
+    beforeEach(() => {
+      tmpDir = mkdtempSync(path.join(tmpdir(), 'sidekick-log-rotation-'))
+    })
+
+    afterEach(() => {
+      rmSync(tmpDir, { recursive: true, force: true })
+    })
+
+    it('writes log entries to a numbered file when maxSizeBytes/maxFiles are specified', async () => {
+      const logPath = path.join(tmpDir, 'test.log')
+      const { createLogManager } = await import('../structured-logging')
+      const logManager = createLogManager({
+        name: 'test',
+        level: 'info',
+        destinations: {
+          file: {
+            path: logPath,
+            maxSizeBytes: 512, // tiny threshold to trigger rotation quickly
+            maxFiles: 3,
+          },
+        },
+      })
+
+      const logger = logManager.getLogger()
+
+      // Write enough data to trigger rotation
+      for (let i = 0; i < 15; i++) {
+        logger.info(`Log entry number ${i} with padding`.padEnd(80, 'x'))
+      }
+
+      await logger.flush()
+      // Give rotation a moment to complete (pino-roll rotates on drain event)
+      await new Promise((resolve) => setTimeout(resolve, 300))
+
+      // At least one numbered file should exist (pino-roll Extension Last Format: test.1.log, test.2.log)
+      const files = readdirSync(tmpDir)
+      expect(files.some((f) => /^test\.\d+\.log$/.test(f))).toBe(true)
+    })
+
+    it('does not throw when maxSizeBytes/maxFiles are not provided (legacy path)', async () => {
+      const logPath = path.join(tmpDir, 'legacy.log')
+      const { createLogManager } = await import('../structured-logging')
+      expect(() => {
+        createLogManager({
+          name: 'test',
+          level: 'info',
+          destinations: { file: { path: logPath } },
+        })
+      }).not.toThrow()
     })
   })
 

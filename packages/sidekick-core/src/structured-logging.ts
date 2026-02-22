@@ -107,7 +107,7 @@ export interface LogManagerOptions {
   destinations?: {
     file?: {
       path: string
-      rotateSize?: number
+      maxSizeBytes?: number
       maxFiles?: number
     }
     console?: {
@@ -122,6 +122,94 @@ export interface LogManagerOptions {
 
 // Default sensitive keys to redact
 const DEFAULT_REDACT_KEYS = ['apiKey', 'token', 'secret', 'authorization', 'password', 'key']
+
+// =============================================================================
+// BufferedRotatingStream — async pino-roll initialization with write buffering
+// =============================================================================
+
+/**
+ * A Writable stream that initializes pino-roll rotation asynchronously.
+ * Buffers writes until pino-roll is ready, then delegates.
+ * Falls back to appendFileSync if pino-roll initialization fails.
+ *
+ * @internal
+ */
+class BufferedRotatingStream extends Writable {
+  private realStream: Writable | null = null
+  private readonly pending: Array<{
+    chunk: Buffer | string
+    callback: (err?: Error | null) => void
+  }> = []
+  private fallbackPath: string | null = null
+
+  constructor(filePath: string, maxSizeBytes: number, maxFiles: number) {
+    super()
+    this.fallbackPath = filePath
+
+    // Ensure log directory exists before passing to pino-roll
+    const dir = dirname(filePath)
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true })
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const pinoRoll = require('pino-roll') as (opts: {
+      file: string
+      size: string
+      limit: { count: number }
+      mkdir: boolean
+    }) => Promise<Writable>
+
+    const sizeMB = Math.max(1, Math.round(maxSizeBytes / (1024 * 1024)))
+
+    pinoRoll({
+      file: filePath,
+      size: `${sizeMB}m`,
+      limit: { count: maxFiles },
+      mkdir: true,
+    })
+      .then((stream) => {
+        this.realStream = stream
+        this.fallbackPath = null
+        // Flush pending writes
+        for (const { chunk, callback } of this.pending) {
+          this.realStream.write(chunk, callback)
+        }
+        this.pending.length = 0
+      })
+      .catch(() => {
+        // pino-roll failed — drain pending via appendFileSync fallback
+        for (const { chunk, callback } of this.pending) {
+          try {
+            appendFileSync(filePath, chunk)
+            callback()
+          } catch (writeErr) {
+            callback(writeErr as Error)
+          }
+        }
+        this.pending.length = 0
+      })
+  }
+
+  _write(chunk: Buffer | string, _encoding: string, callback: (err?: Error | null) => void): void {
+    if (this.realStream) {
+      this.realStream.write(chunk, callback)
+    } else if (this.fallbackPath === null) {
+      // Init failed and fallback already drained
+      callback()
+    } else {
+      this.pending.push({ chunk, callback })
+    }
+  }
+
+  _final(callback: () => void): void {
+    if (this.realStream) {
+      this.realStream.end(callback)
+    } else {
+      callback()
+    }
+  }
+}
 
 // =============================================================================
 // Redaction Utilities
@@ -227,24 +315,30 @@ export function createLogManager(options: LogManagerOptions): LogManager {
   } else if (destinations?.file) {
     // File destination
     const filePath = destinations.file.path
-    const fileDir = dirname(filePath)
+    const { maxSizeBytes, maxFiles } = destinations.file
 
-    // Ensure directory exists
-    if (!existsSync(fileDir)) {
-      mkdirSync(fileDir, { recursive: true })
+    let fileStream: Writable
+
+    if (maxSizeBytes !== undefined && maxFiles !== undefined) {
+      // Use rotating stream via pino-roll
+      fileStream = new BufferedRotatingStream(filePath, maxSizeBytes, maxFiles)
+    } else {
+      // Legacy: simple append (no rotation)
+      const fileDir = dirname(filePath)
+      if (!existsSync(fileDir)) {
+        mkdirSync(fileDir, { recursive: true })
+      }
+      fileStream = new Writable({
+        write(chunk: Buffer | string, _encoding, callback) {
+          try {
+            appendFileSync(filePath, chunk)
+            callback()
+          } catch (err) {
+            callback(err as Error)
+          }
+        },
+      })
     }
-
-    // Create a simple file destination stream
-    const fileStream = new Writable({
-      write(chunk: Buffer | string, _encoding, callback) {
-        try {
-          appendFileSync(filePath, chunk)
-          callback()
-        } catch (err) {
-          callback(err as Error)
-        }
-      },
-    })
 
     pinoInstance = pino(pinoOptions, fileStream)
   } else {
@@ -339,6 +433,10 @@ export interface ContextLoggerOptions {
   logsDir?: string
   /** Log filename (required when logsDir is set) */
   logFile?: string
+  /** Max size in bytes before rotating. If set, maxFiles must also be set. */
+  maxSizeBytes?: number
+  /** Max number of rotated files to keep. */
+  maxFiles?: number
   /** Custom redaction paths */
   redactPaths?: string[]
   /** Test stream (bypasses file output) */
@@ -393,6 +491,8 @@ export function createContextLogger(options: ContextLoggerOptions): ContextLogge
     context = {},
     logsDir,
     logFile,
+    maxSizeBytes,
+    maxFiles,
     redactPaths,
     testStream,
   } = options
@@ -426,24 +526,26 @@ export function createContextLogger(options: ContextLoggerOptions): ContextLogge
       throw new Error('logFile is required when logsDir is set')
     }
     const logPath = join(logsDir, logFile)
-    const logDir = dirname(logPath)
 
-    // Ensure directory exists
-    if (!existsSync(logDir)) {
-      mkdirSync(logDir, { recursive: true })
+    let fileStream: Writable
+    if (maxSizeBytes !== undefined && maxFiles !== undefined) {
+      fileStream = new BufferedRotatingStream(logPath, maxSizeBytes, maxFiles)
+    } else {
+      const logDir = dirname(logPath)
+      if (!existsSync(logDir)) {
+        mkdirSync(logDir, { recursive: true })
+      }
+      fileStream = new Writable({
+        write(chunk: Buffer | string, _encoding, callback) {
+          try {
+            appendFileSync(logPath, chunk)
+            callback()
+          } catch (err) {
+            callback(err as Error)
+          }
+        },
+      })
     }
-
-    // Create file destination stream
-    const fileStream = new Writable({
-      write(chunk: Buffer | string, _encoding, callback) {
-        try {
-          appendFileSync(logPath, chunk)
-          callback()
-        } catch (err) {
-          callback(err as Error)
-        }
-      },
-    })
 
     pinoInstance = pino(pinoOptions, fileStream)
   } else {
