@@ -11,6 +11,7 @@
  * @see https://docs.anthropic.com/en/docs/claude-code/hooks
  */
 
+import { existsSync } from 'node:fs'
 import * as path from 'node:path'
 import type { Logger, ConfigService, AssetResolver } from '@sidekick/core'
 import { LogEvents, logEvent, StateService, SetupStatusService, type EventLogContext } from '@sidekick/core'
@@ -149,7 +150,9 @@ export interface StatuslineCommandResult {
 /**
  * Handle the statusline command.
  *
- * This is designed for minimal latency - it should complete in <50ms.
+ * This is designed for minimal latency - typically completes in <50ms.
+ * Exception: on new sessions, may poll up to 1s for persona state (race condition
+ * where Claude Code fires statusline before SessionStart writes persona file).
  * When hookInput is provided, uses data directly from Claude Code instead of state files.
  */
 export async function handleStatuslineCommand(
@@ -213,6 +216,33 @@ export async function handleStatuslineCommand(
 
   // Create StateService for state file access
   const stateService = new StateService(projectDir)
+
+  // Wait for persona state file on new sessions.
+  // Claude Code fires statusline and SessionStart in parallel; persona state
+  // may not yet exist when the statusline first renders.
+  if (sessionId !== 'current') {
+    const personaStatePath = stateService.sessionStatePath(sessionId, 'session-persona.json')
+    if (!existsSync(personaStatePath)) {
+      const POLL_INTERVAL_MS = 25
+      const POLL_TIMEOUT_MS = 1000
+      const pollStart = performance.now()
+      let found = false
+
+      while (performance.now() - pollStart < POLL_TIMEOUT_MS) {
+        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+        if (existsSync(personaStatePath)) {
+          found = true
+          break
+        }
+      }
+
+      const waitedMs = Math.round(performance.now() - pollStart)
+      logger.info(found ? 'Persona file appeared after polling' : 'Persona file poll timed out', {
+        sessionId,
+        waitedMs,
+      })
+    }
+  }
 
   // Build event context for structured logging
   const eventContext: EventLogContext = {

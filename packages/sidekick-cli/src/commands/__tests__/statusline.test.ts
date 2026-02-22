@@ -9,7 +9,7 @@
  * @see statusline.ts handleStatuslineCommand
  */
 import { Writable } from 'node:stream'
-import { describe, expect, test, vi, beforeEach } from 'vitest'
+import { afterEach, describe, expect, test, vi, beforeEach } from 'vitest'
 import type { Logger } from '@sidekick/types'
 
 // CollectingWritable to capture stdout output
@@ -21,6 +21,19 @@ class CollectingWritable extends Writable {
     callback()
   }
 }
+
+// Mock node:fs for existsSync control in persona polling tests
+// vi.hoisted ensures the variable is available when the hoisted vi.mock factory runs
+const { mockExistsSync } = vi.hoisted(() => ({
+  mockExistsSync: vi.fn().mockReturnValue(true),
+}))
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>()
+  return {
+    ...actual,
+    existsSync: mockExistsSync,
+  }
+})
 
 // Mock the service factory
 const mockRender = vi.fn()
@@ -68,6 +81,9 @@ describe('handleStatuslineCommand', () => {
     stdout = new CollectingWritable()
     logger = createFakeLogger()
     vi.clearAllMocks()
+    // Reset existsSync (clearAllMocks doesn't reset implementation)
+    mockExistsSync.mockReset()
+    mockExistsSync.mockReturnValue(true)
   })
 
   describe('successful render', () => {
@@ -348,6 +364,92 @@ describe('handleStatuslineCommand', () => {
       expect(mockCreateStatuslineService).toHaveBeenCalledWith(
         expect.objectContaining({
           useColors: false,
+        })
+      )
+    })
+  })
+
+  describe('persona file polling (new session race condition)', () => {
+    const mockRenderResult = {
+      text: '[session] opus | 50k tokens | $0.42',
+      displayMode: 'active' as const,
+      staleData: false,
+      viewModel: {
+        model: 'opus',
+        tokenUsageActual: '50k',
+        tokenUsageEffective: '100k',
+      },
+    }
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    test('skips polling when sessionId is "current"', async () => {
+      mockExistsSync.mockReturnValue(false)
+      mockRender.mockResolvedValue(mockRenderResult)
+
+      await handleStatuslineCommand('/project', logger, stdout)
+
+      // Should not check for persona file when sessionId is 'current'
+      expect(mockExistsSync).not.toHaveBeenCalledWith(expect.stringContaining('session-persona.json'))
+    })
+
+    test('skips polling when persona file already exists', async () => {
+      mockExistsSync.mockReturnValue(true)
+      mockRender.mockResolvedValue(mockRenderResult)
+
+      await handleStatuslineCommand('/project', logger, stdout, {
+        sessionId: 'test-session',
+      })
+
+      // File exists on first check — no polling, no log
+      expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining('Persona file'), expect.anything())
+    })
+
+    test('polls and finds persona file', async () => {
+      let callCount = 0
+      mockExistsSync.mockImplementation((p: unknown) => {
+        if (typeof p === 'string' && p.includes('session-persona.json')) {
+          return ++callCount > 3
+        }
+        return true
+      })
+      mockRender.mockResolvedValue(mockRenderResult)
+
+      await handleStatuslineCommand('/project', logger, stdout, {
+        sessionId: 'test-session',
+      })
+
+      expect(logger.info).toHaveBeenCalledWith(
+        'Persona file appeared after polling',
+        expect.objectContaining({
+          sessionId: 'test-session',
+          waitedMs: expect.any(Number),
+        })
+      )
+    })
+
+    test('logs timeout when persona file never appears', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'performance'] })
+      mockExistsSync.mockImplementation((p: unknown) => {
+        if (typeof p === 'string' && p.includes('session-persona.json')) return false
+        return true
+      })
+      mockRender.mockResolvedValue(mockRenderResult)
+
+      const promise = handleStatuslineCommand('/project', logger, stdout, {
+        sessionId: 'test-session',
+      })
+
+      await vi.advanceTimersByTimeAsync(1100)
+      await promise
+
+      expect(logger.info).toHaveBeenCalledWith(
+        'Persona file poll timed out',
+        expect.objectContaining({
+          sessionId: 'test-session',
+          waitedMs: expect.any(Number),
         })
       )
     })
