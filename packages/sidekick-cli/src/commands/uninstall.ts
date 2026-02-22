@@ -227,7 +227,27 @@ export async function handleUninstallCommand(
     }
   }
 
-  // Step 8: Report
+  // Step 8: Remove shell alias
+  if (userDetected) {
+    const { detectShell, uninstallAlias } = await import('./setup/shell-alias.js')
+    const shellInfo = detectShell(process.env.SHELL)
+    if (shellInfo) {
+      const rcPath = path.join(userHome, shellInfo.rcFile)
+      if (dryRun) {
+        actions.push({ scope: 'user', artifact: 'shell alias', path: rcPath, action: 'would-remove' })
+      } else {
+        const result = uninstallAlias(rcPath)
+        actions.push({
+          scope: 'user',
+          artifact: 'shell alias',
+          path: rcPath,
+          action: result === 'removed' ? 'removed' : 'not-found',
+        })
+      }
+    }
+  }
+
+  // Step 9: Report
   printReport(stdout, actions, dryRun)
 
   return { exitCode: 0, output: '' }
