@@ -330,6 +330,7 @@ interface WizardContext {
 }
 
 interface WizardState {
+  pluginScope: InstallScope
   statuslineScope: InstallScope
   gitignoreStatus: GitignoreStatus
   wantPersonas: boolean
@@ -601,10 +602,15 @@ async function configureApiKey(
 /**
  * Step 6: Configure auto-configuration preference.
  */
-async function runStep6AutoConfig(wctx: WizardContext): Promise<'auto' | 'manual'> {
+async function runStep6AutoConfig(wctx: WizardContext, pluginScope: InstallScope): Promise<'auto' | 'manual'> {
   const { ctx } = wctx
 
   printHeader(ctx, 'Step 6: Project Auto-Configuration')
+
+  if (pluginScope !== 'user') {
+    printStatus(ctx, 'info', 'Auto-configure requires user-scoped plugin installation (skipped)')
+    return 'manual'
+  }
 
   const autoConfig = await promptSelect(ctx, 'When sidekick runs in a new project for the first time:', [
     { value: 'auto' as const, label: 'Auto-configure using my defaults', description: 'Recommended' },
@@ -778,7 +784,12 @@ async function runWizard(
     ? { apiKeyHealth: 'missing' as const, apiKeyDetection: null }
     : await runStep4ApiKey(wctx)
   const wantPersonas = force ? true : await runStep5Personas(wctx)
-  const autoConfig = force ? 'auto' : await runStep6AutoConfig(wctx)
+  const effectivePluginScope = pluginResult.pluginScope
+  const autoConfig = force
+    ? effectivePluginScope === 'user'
+      ? 'auto'
+      : 'manual'
+    : await runStep6AutoConfig(wctx, effectivePluginScope)
 
   // In force mode, configure statusline at same scope as plugin
   if (force) {
@@ -791,6 +802,7 @@ async function runWizard(
 
   // Collect state and finalize
   const state: WizardState = {
+    pluginScope: effectivePluginScope,
     statuslineScope,
     gitignoreStatus,
     wantPersonas,
@@ -812,7 +824,7 @@ async function runWizard(
     stdout.write(`  Gitignore: ${gitignoreStatus === 'installed' ? 'configured' : 'skipped'}\n`)
     stdout.write(`  API Key: not configured (run 'sidekick setup' to add)\n`)
     stdout.write(`  Personas: enabled\n`)
-    stdout.write(`  Auto-configure: enabled\n`)
+    stdout.write(`  Auto-configure: ${autoConfig === 'auto' ? 'enabled' : 'disabled (requires user-scoped plugin)'}\n`)
   }
 
   return { exitCode: 0 }
