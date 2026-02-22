@@ -1252,6 +1252,23 @@ async function runDoctorFixes(
     }
   }
 
+  // Fix: Missing shell alias
+  if (shouldFix('shell-alias')) {
+    const shellInfo = detectShell(process.env.SHELL)
+    if (shellInfo) {
+      const rcPath = path.join(homeDir, shellInfo.rcFile)
+      if (!isAliasInRcFile(rcPath)) {
+        stdout.write('Fixing: Shell Alias\n')
+        const aliasResult = installAlias(rcPath)
+        if (aliasResult === 'installed') {
+          stdout.write(`  ✓ Shell alias added to ~/${shellInfo.rcFile}\n`)
+          stdout.write(`  Run 'source ~/${shellInfo.rcFile}' or open a new terminal to activate.\n`)
+          fixedCount++
+        }
+      }
+    }
+  }
+
   // Unfixable items (only tracked in full mode)
   if (isFullMode && doctorResult) {
     const openRouterHealth = doctorResult.apiKeys.OPENROUTER_API_KEY.actual
@@ -1424,26 +1441,10 @@ async function runDoctor(
       stdout.write('• Shell Alias: unsupported shell (zsh/bash only)\n')
     } else {
       const rcPath = path.join(homeDir, shellInfo.rcFile)
-      const inRcFile = isAliasInRcFile(rcPath)
-      let commandAvailable = false
-      try {
-        const { execSync } = await import('node:child_process')
-        execSync('command -v sidekick', { stdio: 'ignore' })
-        commandAvailable = true
-      } catch {
-        /* not available */
-      }
-
-      if (inRcFile && commandAvailable) {
-        stdout.write('✓ Shell Alias: configured (active)\n')
-      } else if (inRcFile) {
-        stdout.write(
-          `⚠ Shell Alias: configured (inactive — run 'source ~/${shellInfo.rcFile}' or open a new terminal)\n`
-        )
-      } else if (commandAvailable) {
-        stdout.write('✓ Shell Alias: not configured (sidekick available via other means)\n')
+      if (isAliasInRcFile(rcPath)) {
+        stdout.write(`✓ Shell Alias: configured (~/${shellInfo.rcFile})\n`)
       } else {
-        stdout.write("⚠ Shell Alias: not configured (run 'sidekick setup' to add)\n")
+        stdout.write("• Shell Alias: not configured (run 'sidekick setup --alias' to add)\n")
       }
     }
   }
