@@ -153,7 +153,11 @@ export class Daemon {
       level: this.configService.core.logging.level,
       context: {},
       destinations: {
-        file: { path: path.join(logDir, 'sidekickd.log') },
+        file: {
+          path: path.join(logDir, 'sidekickd.log'),
+          maxSizeBytes: this.configService.core.logging.rotation?.maxSizeBytes ?? 10_485_760,
+          maxFiles: this.configService.core.logging.rotation?.maxFiles ?? 5,
+        },
         console: { enabled: this.configService.core.logging.consoleEnabled },
       },
     })

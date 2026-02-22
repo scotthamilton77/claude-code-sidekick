@@ -153,7 +153,13 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
     level: effectiveLogLevel,
     context: logContext,
     destinations: {
-      file: enableFileLogging ? { path: logFilePath } : undefined,
+      file: enableFileLogging
+        ? {
+            path: logFilePath,
+            maxSizeBytes: config.core.logging.rotation?.maxSizeBytes ?? 10_485_760,
+            maxFiles: config.core.logging.rotation?.maxFiles ?? 5,
+          }
+        : undefined,
       console: {
         enabled: isInteractive,
         pretty: isInteractive,
@@ -168,7 +174,13 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
     level: effectiveLogLevel,
     context: logContext,
     destinations: {
-      file: enableFileLogging ? { path: logFilePath } : undefined,
+      file: enableFileLogging
+        ? {
+            path: logFilePath,
+            maxSizeBytes: config.core.logging.rotation?.maxSizeBytes ?? 10_485_760,
+            maxFiles: config.core.logging.rotation?.maxFiles ?? 5,
+          }
+        : undefined,
       console: {
         enabled: isInteractive,
         pretty: isInteractive,
@@ -236,7 +248,13 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
         level: effectiveLogLevel,
         context: logContext,
         destinations: {
-          file: enableFileLogging ? { path: logFilePath } : undefined,
+          file: enableFileLogging
+            ? {
+                path: logFilePath,
+                maxSizeBytes: config.core.logging.rotation?.maxSizeBytes ?? 10_485_760,
+                maxFiles: config.core.logging.rotation?.maxFiles ?? 5,
+              }
+            : undefined,
           console: {
             enabled: isInteractive,
             pretty: isInteractive,
