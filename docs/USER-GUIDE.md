@@ -81,7 +81,7 @@ The wizard walks through six steps:
 3. **Git Configuration** -- adds `.sidekick/` entries to `.gitignore` so logs and session data are not committed.
 4. **API Key Configuration** -- configures your OpenRouter API key for all LLM features (session titles, topic classification, completion detection, and persona messages).
 5. **Persona Features** -- enable/disable AI personas (Marvin, Skippy, etc.).
-6. **Auto-Configuration** -- whether Sidekick should auto-configure when you enter a new project.
+6. **Auto-Configuration** -- whether Sidekick should auto-configure when you enter a new project. Only available when the plugin is installed at user scope, since auto-configure relies on hooks firing globally.
 
 `install` is an alias for `setup` -- both run the same wizard.
 
@@ -104,7 +104,7 @@ Available scripting flags:
 | `--gitignore` / `--no-gitignore` | Update or skip .gitignore |
 | `--personas` / `--no-personas` | Enable or disable personas |
 | `--api-key-scope=user\|project` | Save API key from `OPENROUTER_API_KEY` env var |
-| `--auto-config=auto\|manual` | Auto-configure preference |
+| `--auto-config=auto\|manual` | Auto-configure preference (requires `--plugin-scope=user`) |
 | `--check` | Check configuration status (equivalent to `sidekick doctor`) |
 | `--force` | Apply all defaults without prompting |
 
