@@ -1,7 +1,42 @@
-import { defineConfig } from 'vitest/config'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { configDefaults, defineConfig } from 'vitest/config'
+
+const rootDir = dirname(fileURLToPath(import.meta.url))
+
+// Directories to exclude from test discovery and coverage instrumentation.
+// Prevents worktree copies and .claude metadata from being picked up.
+const worktreeExcludes = [
+  '**/.claude/**',
+  '**/.worktree/**',
+  '**/.worktrees/**',
+  '**/worktree/**',
+  '**/worktrees/**',
+]
 
 export default defineConfig({
+  resolve: {
+    // Root-level aliases ensure workspace packages resolve during coverage runs.
+    // Per-workspace vitest configs define their own aliases for `pnpm test`,
+    // but `vitest run --coverage` at root needs these as a fallback.
+    alias: {
+      // Only infrastructure packages are aliased here. Feature packages
+      // (feature-reminders, feature-session-summary, feature-statusline) are
+      // intentionally omitted — their consumers are excluded from coverage,
+      // and adding them creates transitive mock conflicts in tests.
+      '@sidekick/types': resolve(rootDir, 'packages/types/src'),
+      '@sidekick/core': resolve(rootDir, 'packages/sidekick-core/src'),
+      '@sidekick/shared-providers': resolve(rootDir, 'packages/shared-providers/src'),
+      '@sidekick/testing-fixtures': resolve(rootDir, 'packages/testing-fixtures/src'),
+    },
+  },
   test: {
+    // Coverage instrumentation adds significant overhead; 15s prevents false timeouts
+    testTimeout: 15_000,
+    exclude: [
+      ...configDefaults.exclude,
+      ...worktreeExcludes,
+    ],
     coverage: {
       enabled: true,
       provider: 'v8',
@@ -9,6 +44,7 @@ export default defineConfig({
       reportsDirectory: './coverage',
       include: ['packages/*/src/**/*.ts'],
       exclude: [
+        ...worktreeExcludes,
         '**/dist/**',
         '**/node_modules/**',
         '**/*.test.ts',
