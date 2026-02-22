@@ -54,7 +54,7 @@ Options:
   --check                       Check configuration status (alias: sidekick doctor)
   --fix                         Auto-fix detected issues (use with --check or doctor)
   --only=<checks>               Run only specific doctor checks (comma-separated)
-                                Valid checks: api-keys, statusline, gitignore, plugin, liveness
+                                Valid checks: api-keys, statusline, gitignore, plugin, liveness, zombies, auto-config
   --force                       Apply all defaults non-interactively
   --help                        Show this help message
 
@@ -824,7 +824,7 @@ async function runWizard(
     stdout.write(`  Gitignore: ${gitignoreStatus === 'installed' ? 'configured' : 'skipped'}\n`)
     stdout.write(`  API Key: not configured (run 'sidekick setup' to add)\n`)
     stdout.write(`  Personas: enabled\n`)
-    stdout.write(`  Auto-configure: ${autoConfig === 'auto' ? 'enabled' : 'disabled (requires user-scoped plugin)'}\n`)
+    stdout.write(`  Auto-configure: ${autoConfig === 'auto' ? 'enabled' : 'disabled'}\n`)
   }
 
   return { exitCode: 0 }
@@ -1277,7 +1277,7 @@ async function runDoctor(
   // without waiting for the potentially slow API key validation fetch.
   let pluginStatus: PluginInstallationStatus | null = null
   let liveness: PluginLivenessStatus | null = null
-  if (shouldRun('plugin') || shouldRun('liveness')) {
+  if (shouldRun('plugin') || shouldRun('liveness') || shouldRun('auto-config')) {
     promises.push(
       setupService.detectPluginInstallation().then(async (status) => {
         pluginStatus = status
