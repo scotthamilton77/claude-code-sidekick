@@ -1,6 +1,6 @@
 {
   "name": "@sidekick/feature-reminders",
-  "version": "0.0.1-alpha",
+  "version": "0.1.0",
   "description": "Context-aware reminders feature for Sidekick",
   "type": "commonjs",
   "main": "dist/index.js",

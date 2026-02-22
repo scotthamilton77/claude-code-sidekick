@@ -1,6 +1,6 @@
 {
   "name": "@sidekick/types",
-  "version": "0.0.1-alpha",
+  "version": "0.1.0",
   "description": "Shared type definitions for the Sidekick runtime - zero dependencies",
   "type": "commonjs",
   "main": "dist/index.js",

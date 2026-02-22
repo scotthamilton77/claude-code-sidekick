@@ -1,6 +1,6 @@
 {
   "name": "@sidekick/cli",
-  "version": "0.0.1-alpha",
+  "version": "0.1.0",
   "type": "commonjs",
   "main": "dist/cli.js",
   "types": "dist/cli.d.ts",

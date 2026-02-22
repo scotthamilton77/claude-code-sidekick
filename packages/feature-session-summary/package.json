@@ -1,6 +1,6 @@
 {
   "name": "@sidekick/feature-session-summary",
-  "version": "0.0.1-alpha",
+  "version": "0.1.0",
   "description": "Session title and intent tracking via LLM analysis for Sidekick",
   "type": "commonjs",
   "main": "dist/index.js",
