@@ -1026,7 +1026,15 @@ async function runScripted(
  * Run the doctor/check mode.
  * Now checks actual config state against cache and updates cache if mismatched.
  */
-const DOCTOR_CHECK_NAMES = ['api-keys', 'statusline', 'gitignore', 'plugin', 'liveness', 'zombies'] as const
+const DOCTOR_CHECK_NAMES = [
+  'api-keys',
+  'statusline',
+  'gitignore',
+  'plugin',
+  'liveness',
+  'zombies',
+  'auto-config',
+] as const
 type DoctorCheckName = (typeof DOCTOR_CHECK_NAMES)[number]
 
 function parseDoctorOnly(only: string | undefined): Set<DoctorCheckName> | null {
@@ -1309,6 +1317,18 @@ async function runDoctor(
   }
 
   await Promise.all(promises)
+
+  // --- Auto-configure consistency check ---
+  if (shouldRun('auto-config')) {
+    const userStatus = await setupService.getUserStatus()
+    if (userStatus?.preferences.autoConfigureProjects) {
+      const isUserScoped = pluginStatus === 'plugin' || pluginStatus === 'both'
+      if (!isUserScoped) {
+        stdout.write('⚠ Auto-configure is enabled but plugin is not installed at user scope\n')
+        stdout.write("  Auto-configure won't work in new projects. Run 'sidekick setup' with user-scoped plugin.\n")
+      }
+    }
+  }
 
   // --- Overall summary (only meaningful when running all checks) ---
   if (filter === null) {
