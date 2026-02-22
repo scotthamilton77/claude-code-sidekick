@@ -35,7 +35,7 @@ The setup wizard handles everything -- plugin installation, statusline, gitignor
 npx -y @scotthamilton77/sidekick setup
 ```
 
-The wizard walks through six steps:
+The wizard walks through seven steps:
 
 1. **Plugin installation** -- installs the marketplace and plugin (offers scope selection: user, project, or local).
 2. **Statusline** -- configures the Claude Code status bar (user or project scope).
@@ -43,6 +43,7 @@ The wizard walks through six steps:
 4. **API key configuration** -- configures your OpenRouter API key for all LLM features.
 5. **Persona features** -- enable/disable AI personas (Marvin, Skippy, etc.).
 6. **Auto-configuration** -- whether Sidekick should auto-configure when you enter a new project.
+7. **Shell alias** -- optionally adds a `sidekick` shell alias to your `.zshrc` or `.bashrc` so you can type `sidekick` instead of `npx @scotthamilton77/sidekick`.
 
 After setup completes, you should see the Sidekick statusline and persona greeting in your Claude Code session.
 
@@ -74,7 +75,7 @@ The setup wizard configures plugin installation, statusline, gitignore, personas
 npx -y @scotthamilton77/sidekick setup
 ```
 
-The wizard walks through six steps:
+The wizard walks through seven steps:
 
 1. **Plugin Installation** -- verifies the marketplace and plugin are installed; offers to install if missing.
 2. **Statusline Configuration** -- user-level (`~/.claude/settings.json`, works everywhere) or project-level (`.claude/settings.local.json`, this project only).
@@ -82,6 +83,7 @@ The wizard walks through six steps:
 4. **API Key Configuration** -- configures your OpenRouter API key for all LLM features (session titles, topic classification, completion detection, and persona messages).
 5. **Persona Features** -- enable/disable AI personas (Marvin, Skippy, etc.).
 6. **Auto-Configuration** -- whether Sidekick should auto-configure when you enter a new project. Only available when the plugin is installed at user scope, since auto-configure relies on hooks firing globally.
+7. **Shell Alias** -- optionally adds a `sidekick` shell alias to your `.zshrc` or `.bashrc` so you can type `sidekick` instead of `npx @scotthamilton77/sidekick`. Supported on zsh and bash only.
 
 `install` is an alias for `setup` -- both run the same wizard.
 
@@ -455,6 +457,7 @@ sidekick doctor --only=plugin,liveness   # Check specific areas only
 | `gitignore` | `.gitignore` has sidekick entries |
 | `plugin` | Claude Code plugin is installed |
 | `liveness` | Hooks are actually responding (requires plugin) |
+| `shell-alias` | Shell alias in `.zshrc` / `.bashrc` (informational, does not affect health) |
 
 **Auto-fixable issues** (`--fix`):
 
@@ -489,6 +492,18 @@ sidekick uninstall --scope=user       # Only user scope
 - API key `.env` files (prompts for confirmation unless `--force`)
 - Transient data (logs, sessions, state, PID files)
 - `.gitignore` sidekick section
+- Shell alias from `.zshrc` / `.bashrc` (if installed)
+
+### `install-alias` / `uninstall-alias` -- Manage Shell Alias
+
+```bash
+sidekick install-alias              # Add alias to ~/.zshrc or ~/.bashrc
+sidekick uninstall-alias            # Remove alias from rc file
+```
+
+Adds or removes a `sidekick` shell alias (`alias sidekick='npx @scotthamilton77/sidekick'`) to your shell configuration file. The alias block is bracketed with marker comments for surgical removal. Supported on zsh and bash only.
+
+After installing, run `source ~/.zshrc` (or `~/.bashrc`) or open a new terminal for the alias to take effect.
 
 ### `ui` -- Launch Monitoring UI
 
