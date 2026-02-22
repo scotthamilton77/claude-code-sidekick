@@ -285,6 +285,12 @@ describe('ConfigWatcher', () => {
           watcher.start()
           await watcher.ready()
 
+          // macOS FSEvents can deliver buffered events from before the watcher
+          // started, even after ready() resolves. Wait briefly then clear so
+          // the assertions below only see events triggered by this test.
+          await new Promise((r) => setTimeout(r, 300))
+          onChange.mockClear()
+
           // Write runtime file (should be ignored by ConfigWatcher)
           const runtimePath = path.join(sidekickDir, filename)
           await fs.writeFile(runtimePath, 'test-content', 'utf-8')
