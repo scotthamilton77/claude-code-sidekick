@@ -1428,6 +1428,13 @@ export class Daemon {
     await fs.writeFile(userPidPath, userPidData, 'utf-8')
   }
 
+  /**
+   * Generate and persist the IPC auth token.
+   *
+   * Format: 64-char hex string from 32 cryptographically random bytes.
+   * Written with mode 0600 so only the owning user can read it.
+   * Deleted on shutdown (cleanup) or stale-file recovery (DaemonClient).
+   */
   private async writeToken(): Promise<void> {
     this.token = randomBytes(32).toString('hex')
     const tokenPath = getTokenPath(this.projectDir)

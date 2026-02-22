@@ -43,7 +43,7 @@ export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
         // Check cycle limit
         const featureConfig = context.config.getFeature<RemindersSettings>('reminders')
         const config = { ...DEFAULT_REMINDERS_SETTINGS, ...featureConfig.settings }
-        const maxCycles = config.max_verification_cycles ?? 0
+        const maxCycles = config.max_verification_cycles ?? -1
 
         daemonCtx.logger.info('VC unstage: unverified changes detected on UserPromptSubmit', {
           sessionId,
@@ -55,7 +55,7 @@ export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
           setAtToolCount: unverifiedState.setAt.toolCount,
         })
 
-        if (maxCycles === 0 || unverifiedState.cycleCount < maxCycles) {
+        if (maxCycles < 0 || unverifiedState.cycleCount < maxCycles) {
           // Re-stage verify-completion for next Stop
           const reminder = resolveReminder(ReminderIds.VERIFY_COMPLETION, {
             context: {},

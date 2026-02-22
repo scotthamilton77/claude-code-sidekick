@@ -1020,7 +1020,7 @@ describe('createTestConfig', () => {
     })
 
     expect(config.core.logging.level).toBe('debug')
-    expect(config.core.logging.format).toBe('pretty') // Default preserved
+    expect(config.core.logging.format).toBe('json') // Default preserved
   })
 
   it('supports feature flags with enabled/settings structure', () => {

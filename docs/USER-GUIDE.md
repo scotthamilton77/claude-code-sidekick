@@ -315,7 +315,7 @@ reminders:
   enabled: true
   settings:
     pause_and_reflect_threshold: 60    # Tool calls before checkpoint
-    max_verification_cycles: 0         # 0 = unlimited re-evaluation
+    max_verification_cycles: -1        # -1 = unlimited, 0 = disabled
     source_code_patterns:              # Globs that trigger verify-completion
       - "**/*.ts"
       - "**/*.py"

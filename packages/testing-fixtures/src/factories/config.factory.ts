@@ -29,7 +29,7 @@ const DEFAULT_CONFIG: SidekickConfig = {
   core: {
     logging: {
       level: 'info',
-      format: 'pretty',
+      format: 'json',
       consoleEnabled: false,
       components: {},
     },

@@ -62,6 +62,13 @@ export function validateSocketPath(socketPath: string): void {
   }
 }
 
+/**
+ * Path to the IPC authentication token file.
+ *
+ * The token is a 64-char hex string (32 random bytes) written by the daemon
+ * on startup with mode 0600. CLI reads it to authenticate IPC requests.
+ * Cleaned up on daemon shutdown; gitignored via `.sidekick/sidekick*.token`.
+ */
 export function getTokenPath(projectDir: string): string {
   return path.join(projectDir, '.sidekick', 'sidekickd.token')
 }

@@ -60,8 +60,8 @@ settings:
   # When verify-completion fires but doesn't block (e.g., ASKING_QUESTION),
   # we track unverified changes and re-stage on the next UserPromptSubmit.
   # This limits how many times we'll re-evaluate before giving up.
-  # 0 = unlimited (default)
-  max_verification_cycles: 0
+  # -1 = unlimited (default), 0 = disabled, positive = exact limit
+  max_verification_cycles: -1
 
   # Smart completion detection settings
   # Classifies assistant's stopping intent to avoid blocking when not claiming completion

@@ -95,7 +95,7 @@ Controls automated reminders during development.
 |---------|------|---------|-------------|
 | `pause_and_reflect_threshold` | number | 60 | Tool calls before checkpoint |
 | `source_code_patterns` | array | [...] | Glob patterns triggering verify-completion |
-| `max_verification_cycles` | number | 0 | Re-eval limit (0=unlimited) |
+| `max_verification_cycles` | number | -1 | Re-eval limit (-1=unlimited, 0=disabled) |
 | `completion_detection.enabled` | boolean | true | Smart completion classification |
 | `completion_detection.confidence_threshold` | number | 0.7 | Minimum confidence to block |
 | `completion_detection.llm.profile` | string | `fast-lite` | LLM for classification |

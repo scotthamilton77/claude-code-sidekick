@@ -9,7 +9,7 @@
 import { spawn } from 'node:child_process'
 
 /** Default timeout for git status command (ms) */
-const DEFAULT_TIMEOUT_MS = 200
+const DEFAULT_TIMEOUT_MS = 500
 
 /**
  * Parse git status --porcelain output into file paths.
@@ -47,7 +47,7 @@ export function parseGitStatusOutput(output: string): string[] {
  * Returns empty array on timeout, error, or if not a git repo.
  *
  * @param cwd - Working directory for git command
- * @param timeoutMs - Timeout in milliseconds (default: 200ms)
+ * @param timeoutMs - Timeout in milliseconds (default: 500ms)
  * @returns Array of changed file paths, or empty array on failure
  */
 export async function getGitFileStatus(cwd: string, timeoutMs: number = DEFAULT_TIMEOUT_MS): Promise<string[]> {

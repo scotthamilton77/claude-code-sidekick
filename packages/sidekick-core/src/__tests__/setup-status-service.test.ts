@@ -546,6 +546,16 @@ describe('SetupStatusService', () => {
       const writtenStatus = await service.getUserStatus()
       expect(writtenStatus?.statusline).toBe('user')
     })
+
+    it('sets file permissions to 0o600', async () => {
+      const status = createUserStatus()
+      await service.writeUserStatus(status)
+
+      const userStatusPath = path.join(homeDir, '.sidekick', 'setup-status.json')
+      const stat = await fs.stat(userStatusPath)
+      // 0o600 = owner read/write only (octal 0100600 includes file type bits)
+      expect(stat.mode & 0o777).toBe(0o600)
+    })
   })
 
   describe('writeProjectStatus', () => {
@@ -574,6 +584,15 @@ describe('SetupStatusService', () => {
 
       const writtenStatus = await service.getProjectStatus()
       expect(writtenStatus?.statusline).toBe('user')
+    })
+
+    it('sets file permissions to 0o600', async () => {
+      const status = createProjectStatus()
+      await service.writeProjectStatus(status)
+
+      const projectStatusPath = path.join(projectDir, '.sidekick', 'setup-status.json')
+      const stat = await fs.stat(projectStatusPath)
+      expect(stat.mode & 0o777).toBe(0o600)
     })
   })
 

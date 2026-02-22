@@ -28,7 +28,7 @@ import type { AssetResolver } from '../assets'
  */
 const TEST_DEFAULTS = {
   core: {
-    logging: { level: 'info', format: 'pretty', consoleEnabled: false },
+    logging: { level: 'info', format: 'json', consoleEnabled: false },
     paths: { state: '.sidekick' },
     daemon: { idleTimeoutMs: 300000, shutdownTimeoutMs: 30000 },
     ipc: { connectTimeoutMs: 5000, requestTimeoutMs: 30000, maxRetries: 3, retryDelayMs: 100 },
@@ -319,7 +319,7 @@ describe('loadConfig - YAML parsing', () => {
 
     // Core defaults from mock assets
     expect(config.core.logging.level).toBe('info')
-    expect(config.core.logging.format).toBe('pretty')
+    expect(config.core.logging.format).toBe('json')
     expect(config.core.paths.state).toBe('.sidekick')
 
     // LLM defaults - profile-based structure

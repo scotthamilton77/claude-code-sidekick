@@ -7,7 +7,7 @@ logging:
   # Log level: trace, debug, info, warn, error, fatal
   level: info
   # Output format: pretty (human-readable) or json (structured)
-  format: pretty
+  format: json
   # Enable console output in addition to file logging
   consoleEnabled: false
   # Log rotation settings

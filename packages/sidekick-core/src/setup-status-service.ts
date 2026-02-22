@@ -276,7 +276,8 @@ export class SetupStatusService {
     const validated = UserSetupStatusSchema.parse(status)
     const dir = path.dirname(this.userStatusPath)
     await fs.mkdir(dir, { recursive: true })
-    await fs.writeFile(this.userStatusPath, JSON.stringify(validated, null, 2) + '\n')
+    await fs.writeFile(this.userStatusPath, JSON.stringify(validated, null, 2) + '\n', { mode: 0o600 })
+    await fs.chmod(this.userStatusPath, 0o600)
     this.logger?.debug('User setup status written', { path: this.userStatusPath })
   }
 
@@ -284,7 +285,8 @@ export class SetupStatusService {
     const validated = ProjectSetupStatusSchema.parse(status)
     const dir = path.dirname(this.projectStatusPath)
     await fs.mkdir(dir, { recursive: true })
-    await fs.writeFile(this.projectStatusPath, JSON.stringify(validated, null, 2) + '\n')
+    await fs.writeFile(this.projectStatusPath, JSON.stringify(validated, null, 2) + '\n', { mode: 0o600 })
+    await fs.chmod(this.projectStatusPath, 0o600)
     this.logger?.debug('Project setup status written', { path: this.projectStatusPath })
   }
 

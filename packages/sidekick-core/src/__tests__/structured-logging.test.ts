@@ -322,6 +322,55 @@ describe('Structured Logging', () => {
       expect(log.safeField).toBe('this-is-fine')
     })
 
+    it('should redact environment variable name keys for defense-in-depth', async () => {
+      const { createLogManager } = await import('../structured-logging')
+      const { stream, lines } = createTestStream()
+
+      const logManager = createLogManager({
+        name: 'sidekick:test',
+        level: 'info',
+        testStream: stream,
+      })
+
+      const logger = logManager.getLogger()
+      logger.info('Env var leak', {
+        OPENROUTER_API_KEY: 'or-leaked-key',
+        OPENAI_API_KEY: 'sk-leaked-key',
+        GITHUB_API_KEY: 'ghp-leaked-key',
+        SAFE_VALUE: 'not-redacted',
+      })
+      await logger.flush()
+
+      const log = parseLogLine(lines[0])
+      expect(log.OPENROUTER_API_KEY).toBe('[Redacted]')
+      expect(log.OPENAI_API_KEY).toBe('[Redacted]')
+      expect(log.GITHUB_API_KEY).toBe('[Redacted]')
+      expect(log.SAFE_VALUE).toBe('not-redacted')
+    })
+
+    it('should redact env var keys at nested levels', async () => {
+      const { createLogManager } = await import('../structured-logging')
+      const { stream, lines } = createTestStream()
+
+      const logManager = createLogManager({
+        name: 'sidekick:test',
+        level: 'info',
+        testStream: stream,
+      })
+
+      const logger = logManager.getLogger()
+      logger.info('Nested env var leak', {
+        config: {
+          OPENAI_API_KEY: 'sk-nested-leak',
+        },
+      })
+      await logger.flush()
+
+      const log = parseLogLine(lines[0])
+      const config = log.config as Record<string, unknown>
+      expect(config.OPENAI_API_KEY).toBe('[Redacted]')
+    })
+
     it('should redact nested sensitive keys', async () => {
       const { createLogManager } = await import('../structured-logging')
       const { stream, lines } = createTestStream()
@@ -1181,7 +1230,7 @@ describe('Structured Logging', () => {
 
     it('should provide setupGlobalErrorHandlers utility', async () => {
       const { createLogManager, setupGlobalErrorHandlers } = await import('../structured-logging')
-      const { stream, lines } = createTestStream()
+      const { stream } = createTestStream()
 
       const logManager = createLogManager({
         name: 'sidekick:test',

@@ -10,7 +10,7 @@ export interface RemindersSettings {
   pause_and_reflect_threshold: number
   source_code_patterns: string[]
   completion_detection?: CompletionDetectionSettings
-  /** Max re-evaluation cycles for non-blocking verification (0 = unlimited) */
+  /** Max re-evaluation cycles for non-blocking verification (-1 = unlimited, 0 = disabled) */
   max_verification_cycles?: number
 }
 
@@ -129,7 +129,7 @@ export const DEFAULT_COMPLETION_DETECTION_SETTINGS: CompletionDetectionSettings 
 export const DEFAULT_REMINDERS_SETTINGS: RemindersSettings = {
   pause_and_reflect_threshold: 60,
   source_code_patterns: DEFAULT_SOURCE_CODE_PATTERNS,
-  max_verification_cycles: 0, // 0 = unlimited
+  max_verification_cycles: -1, // -1 = unlimited, 0 = disabled
 }
 
 /**

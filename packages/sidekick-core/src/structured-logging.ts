@@ -126,8 +126,19 @@ export const DEFAULT_ROTATE_SIZE_BYTES = 10 * 1024 * 1024
 /** Default number of rotated files to retain. */
 export const DEFAULT_MAX_FILES = 5
 
-// Default sensitive keys to redact
-const DEFAULT_REDACT_KEYS = ['apiKey', 'token', 'secret', 'authorization', 'password', 'key']
+// Default sensitive keys to redact (pino redaction is case-sensitive and path-exact)
+const DEFAULT_REDACT_KEYS = [
+  'apiKey',
+  'token',
+  'secret',
+  'authorization',
+  'password',
+  'key',
+  // Defense-in-depth: env var names that may leak into log metadata
+  'OPENROUTER_API_KEY',
+  'OPENAI_API_KEY',
+  'GITHUB_API_KEY',
+]
 
 // =============================================================================
 // BufferedRotatingStream — async pino-roll initialization with write buffering
