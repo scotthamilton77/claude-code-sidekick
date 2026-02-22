@@ -1405,11 +1405,11 @@ async function runDoctor(
 
       if (inRcFile && commandAvailable) {
         stdout.write('✓ Shell Alias: configured (active)\n')
-      } else if (inRcFile && !commandAvailable) {
+      } else if (inRcFile) {
         stdout.write(
           `⚠ Shell Alias: configured (inactive — run 'source ~/${shellInfo.rcFile}' or open a new terminal)\n`
         )
-      } else if (!inRcFile && commandAvailable) {
+      } else if (commandAvailable) {
         stdout.write('✓ Shell Alias: not configured (sidekick available via other means)\n')
       } else {
         stdout.write("⚠ Shell Alias: not configured (run 'sidekick setup' to add)\n")

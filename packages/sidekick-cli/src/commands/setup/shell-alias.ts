@@ -1,4 +1,3 @@
-// packages/sidekick-cli/src/commands/setup/shell-alias.ts
 import * as fs from 'node:fs'
 
 const MARKER_START = '# >>> sidekick alias >>>'
@@ -54,8 +53,7 @@ export function uninstallAlias(rcFilePath: string): 'removed' | 'not-found' {
   if (endIdx < startIdx) return 'not-found'
 
   const before = content.substring(0, startIdx)
-  let afterStart = endIdx + MARKER_END.length
-  if (content[afterStart] === '\n') afterStart += 1
+  const afterStart = endIdx + MARKER_END.length + (content[endIdx + MARKER_END.length] === '\n' ? 1 : 0)
   const after = content.substring(afterStart)
   fs.writeFileSync(rcFilePath, before + after)
   return 'removed'

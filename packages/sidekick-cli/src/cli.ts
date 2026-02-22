@@ -19,6 +19,7 @@
  */
 
 import { mkdir } from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
 import { PassThrough, Writable } from 'node:stream'
 import yargsParser from 'yargs-parser'
@@ -623,40 +624,31 @@ Examples:
     return { exitCode: result.exitCode, stdout: '', stderr: '' }
   }
 
-  if (parsed.command === 'install-alias') {
-    const { detectShell, installAlias } = await import('./commands/setup/shell-alias.js')
+  if (parsed.command === 'install-alias' || parsed.command === 'uninstall-alias') {
+    const { detectShell, installAlias, uninstallAlias } = await import('./commands/setup/shell-alias.js')
     const shellInfo = detectShell(process.env.SHELL)
     if (!shellInfo) {
       stdout.write('Unsupported shell. Only zsh and bash are supported.\n')
       return { exitCode: 1, stdout: '', stderr: '' }
     }
-    const homeDir = process.env.HOME || ''
-    const rcPath = path.join(homeDir, shellInfo.rcFile)
-    const result = installAlias(rcPath)
-    if (result === 'installed') {
-      stdout.write(`✓ Alias added to ~/${shellInfo.rcFile}\n`)
-      stdout.write(`  Run 'source ~/${shellInfo.rcFile}' or open a new terminal to activate.\n`)
-    } else {
-      stdout.write(`✓ Alias already configured in ~/${shellInfo.rcFile}\n`)
-    }
-    return { exitCode: 0, stdout: '', stderr: '' }
-  }
+    const rcPath = path.join(os.homedir(), shellInfo.rcFile)
 
-  if (parsed.command === 'uninstall-alias') {
-    const { detectShell, uninstallAlias } = await import('./commands/setup/shell-alias.js')
-    const shellInfo = detectShell(process.env.SHELL)
-    if (!shellInfo) {
-      stdout.write('Unsupported shell. Only zsh and bash are supported.\n')
-      return { exitCode: 1, stdout: '', stderr: '' }
-    }
-    const homeDir = process.env.HOME || ''
-    const rcPath = path.join(homeDir, shellInfo.rcFile)
-    const result = uninstallAlias(rcPath)
-    if (result === 'removed') {
-      stdout.write(`✓ Alias removed from ~/${shellInfo.rcFile}\n`)
-      stdout.write(`  Run 'unalias sidekick' or open a new terminal to deactivate.\n`)
+    if (parsed.command === 'install-alias') {
+      const result = installAlias(rcPath)
+      if (result === 'installed') {
+        stdout.write(`✓ Alias added to ~/${shellInfo.rcFile}\n`)
+        stdout.write(`  Run 'source ~/${shellInfo.rcFile}' or open a new terminal to activate.\n`)
+      } else {
+        stdout.write(`✓ Alias already configured in ~/${shellInfo.rcFile}\n`)
+      }
     } else {
-      stdout.write(`No sidekick alias found in ~/${shellInfo.rcFile}\n`)
+      const result = uninstallAlias(rcPath)
+      if (result === 'removed') {
+        stdout.write(`✓ Alias removed from ~/${shellInfo.rcFile}\n`)
+        stdout.write(`  Run 'unalias sidekick' or open a new terminal to deactivate.\n`)
+      } else {
+        stdout.write(`No sidekick alias found in ~/${shellInfo.rcFile}\n`)
+      }
     }
     return { exitCode: 0, stdout: '', stderr: '' }
   }
