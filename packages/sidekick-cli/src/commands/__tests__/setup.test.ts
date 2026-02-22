@@ -1045,4 +1045,108 @@ describe('handleSetupCommand', () => {
       await expect(readFile(settingsPath, 'utf-8')).rejects.toThrow()
     })
   })
+
+  describe('auto-configure scope gate', () => {
+    test('scripted mode warns and skips --auto-config=auto when plugin scope is project', async () => {
+      const result = await handleSetupCommand(projectDir, logger, output, {
+        pluginScope: 'project',
+        autoConfig: 'auto',
+        homeDir,
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(output.data).toContain('Auto-configure requires user-scoped plugin installation')
+      expect(output.data).toContain('Skipping --auto-config=auto')
+
+      // User status should NOT have autoConfigureProjects: true
+      const userStatusPath = path.join(homeDir, '.sidekick', 'setup-status.json')
+      await expect(readFile(userStatusPath, 'utf-8')).rejects.toThrow()
+    })
+
+    test('scripted mode allows --auto-config=auto when plugin scope is user', async () => {
+      const result = await handleSetupCommand(projectDir, logger, output, {
+        pluginScope: 'user',
+        autoConfig: 'auto',
+        homeDir,
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(output.data).toContain("Auto-config set to 'auto'")
+
+      // User status should have autoConfigureProjects: true
+      const userStatusPath = path.join(homeDir, '.sidekick', 'setup-status.json')
+      const content = await readFile(userStatusPath, 'utf-8')
+      const status = JSON.parse(content)
+      expect(status.preferences.autoConfigureProjects).toBe(true)
+    })
+
+    test('scripted mode allows --auto-config=manual regardless of plugin scope', async () => {
+      const result = await handleSetupCommand(projectDir, logger, output, {
+        pluginScope: 'project',
+        autoConfig: 'manual',
+        homeDir,
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(output.data).toContain("Auto-config set to 'manual'")
+
+      // User status should have autoConfigureProjects: false
+      const userStatusPath = path.join(homeDir, '.sidekick', 'setup-status.json')
+      const content = await readFile(userStatusPath, 'utf-8')
+      const status = JSON.parse(content)
+      expect(status.preferences.autoConfigureProjects).toBe(false)
+    })
+
+    test('doctor warns when auto-configure enabled but plugin not user-scoped', async () => {
+      // Setup: user status with autoConfigureProjects: true
+      const sidekickDir = path.join(homeDir, '.sidekick')
+      await mkdir(sidekickDir, { recursive: true })
+      await writeFile(
+        path.join(sidekickDir, 'setup-status.json'),
+        JSON.stringify({
+          version: 1,
+          lastUpdatedAt: new Date().toISOString(),
+          preferences: { autoConfigureProjects: true, defaultStatuslineScope: 'user', defaultApiKeyScope: 'user' },
+          statusline: 'user',
+          apiKeys: { OPENROUTER_API_KEY: 'missing', OPENAI_API_KEY: 'not-required' },
+        })
+      )
+
+      // Override spawn mock to report NO plugin installed (plugin detection returns 'none')
+      const { spawn } = await import('node:child_process')
+      vi.mocked(spawn).mockImplementation((cmd: string, args?: readonly string[]) => {
+        const proc = new EventEmitter() as EventEmitter & {
+          stdout: EventEmitter
+          stderr: EventEmitter
+          pid: number
+          kill: () => void
+        }
+        proc.stdout = new EventEmitter()
+        proc.stderr = new EventEmitter()
+        proc.pid = 12345
+        proc.kill = () => {}
+
+        if (cmd === 'claude' && args?.includes('plugin') && args?.includes('list')) {
+          setImmediate(() => {
+            // Return empty array = no plugin installed
+            proc.stdout.emit('data', Buffer.from('[]'))
+            proc.emit('close', 0, null)
+          })
+          return proc as ReturnType<typeof spawn>
+        }
+
+        setImmediate(() => proc.emit('close', 0, null))
+        return proc as ReturnType<typeof spawn>
+      })
+
+      const result = await handleSetupCommand(projectDir, logger, output, {
+        checkOnly: true,
+        only: 'auto-config',
+        homeDir,
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(output.data).toContain('Auto-configure is enabled but plugin is not installed at user scope')
+    })
+  })
 })
