@@ -60,7 +60,7 @@ Options:
   --check                       Check configuration status (alias: sidekick doctor)
   --fix                         Auto-fix detected issues (use with --check or doctor)
   --only=<checks>               Run only specific doctor checks (comma-separated)
-                                Valid checks: api-keys, statusline, gitignore, plugin, liveness, zombies, auto-config
+                                Valid checks: api-keys, statusline, gitignore, plugin, liveness, zombies, auto-config, shell-alias
   --force                       Apply all defaults non-interactively
   --help                        Show this help message
 
@@ -1089,6 +1089,7 @@ const DOCTOR_CHECK_NAMES = [
   'liveness',
   'zombies',
   'auto-config',
+  'shell-alias',
 ] as const
 type DoctorCheckName = (typeof DOCTOR_CHECK_NAMES)[number]
 
@@ -1381,6 +1382,37 @@ async function runDoctor(
       if (!isUserScoped) {
         stdout.write('⚠ Auto-configure is enabled but plugin is not installed at user scope\n')
         stdout.write("  Auto-configure won't work in new projects. Run 'sidekick setup' with user-scoped plugin.\n")
+      }
+    }
+  }
+
+  // Shell alias check
+  if (shouldRun('shell-alias')) {
+    const shellInfo = detectShell(process.env.SHELL)
+    if (!shellInfo) {
+      stdout.write('• Shell Alias: unsupported shell (zsh/bash only)\n')
+    } else {
+      const rcPath = path.join(homeDir, shellInfo.rcFile)
+      const inRcFile = isAliasInRcFile(rcPath)
+      let commandAvailable = false
+      try {
+        const { execSync } = await import('node:child_process')
+        execSync('command -v sidekick', { stdio: 'ignore' })
+        commandAvailable = true
+      } catch {
+        /* not available */
+      }
+
+      if (inRcFile && commandAvailable) {
+        stdout.write('✓ Shell Alias: configured (active)\n')
+      } else if (inRcFile && !commandAvailable) {
+        stdout.write(
+          `⚠ Shell Alias: configured (inactive — run 'source ~/${shellInfo.rcFile}' or open a new terminal)\n`
+        )
+      } else if (!inRcFile && commandAvailable) {
+        stdout.write('✓ Shell Alias: not configured (sidekick available via other means)\n')
+      } else {
+        stdout.write("⚠ Shell Alias: not configured (run 'sidekick setup' to add)\n")
       }
     }
   }
