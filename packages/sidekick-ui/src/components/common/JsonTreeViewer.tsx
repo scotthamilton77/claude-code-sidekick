@@ -137,7 +137,6 @@ const JsonTreeNode: React.FC<JsonTreeNodeProps> = ({
           {!isExpanded && !isLast && <span className="text-slate-500">,</span>}
         </div>
 
-        {/* eslint-disable @typescript-eslint/no-unsafe-assignment -- Dynamic JSON requires any */}
         {isExpanded && (
           <>
             {value.map((item, index) => (
@@ -154,7 +153,6 @@ const JsonTreeNode: React.FC<JsonTreeNodeProps> = ({
             </div>
           </>
         )}
-        {/* eslint-enable @typescript-eslint/no-unsafe-assignment */}
       </div>
     )
   }
@@ -195,7 +193,6 @@ const JsonTreeNode: React.FC<JsonTreeNodeProps> = ({
           {!isExpanded && !isLast && <span className="text-slate-500">,</span>}
         </div>
 
-        {/* eslint-disable @typescript-eslint/no-unsafe-assignment -- Dynamic JSON requires any */}
         {isExpanded && (
           <>
             {entries.map(([key, val], index) => (
@@ -214,7 +211,6 @@ const JsonTreeNode: React.FC<JsonTreeNodeProps> = ({
             </div>
           </>
         )}
-        {/* eslint-enable @typescript-eslint/no-unsafe-assignment */}
       </div>
     )
   }
@@ -253,7 +249,6 @@ const JsonTreeViewer: React.FC<JsonTreeViewerProps> = ({
 
   return (
     <div className={`overflow-y-auto p-4 ${className}`} style={{ maxHeight: maxHeight ? `${maxHeight}px` : undefined }}>
-      {/* eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- Dynamic JSON tree requires any */}
       <JsonTreeNode value={data} level={0} isLast={true} defaultExpanded={rootExpanded} />
     </div>
   )

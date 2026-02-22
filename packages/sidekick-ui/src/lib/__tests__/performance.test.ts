@@ -168,7 +168,6 @@ function expectPerformance(name: string, actualMs: number, baseThresholdMs: numb
   const ciNote = isCI ? ' (CI mode)' : ''
 
   // Log actual time for CI monitoring (useful for tracking perf trends)
-  // eslint-disable-next-line no-console -- Performance test output for CI
   console.log(`[PERF] ${name}: ${actualMs.toFixed(2)}ms (threshold: ${effectiveThreshold}ms)${ciNote}`)
 
   // Assert threshold

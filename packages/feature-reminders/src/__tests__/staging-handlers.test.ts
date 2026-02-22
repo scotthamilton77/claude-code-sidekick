@@ -19,6 +19,7 @@ import {
 } from '@sidekick/testing-fixtures'
 import type {
   DaemonContext,
+  SessionStartHookEvent,
   TranscriptEvent,
   TranscriptMetrics,
   PRBaselineState,
@@ -1352,7 +1353,7 @@ reason: "Verify completion before stopping"
   describe('registerStagePersonaReminders', () => {
     const sessionId = 'test-session'
 
-    function createSessionStartEvent() {
+    function createSessionStartEvent(): SessionStartHookEvent {
       return {
         kind: 'hook' as const,
         hook: 'SessionStart' as const,

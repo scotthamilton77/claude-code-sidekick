@@ -132,7 +132,6 @@ function main(): void {
     statePath: findStatePath(preferProject, process.cwd()),
   }
 
-  // eslint-disable-next-line no-console -- CLI server startup banner
   console.log(
     [
       'Sidekick Monitoring UI - Production Server',
@@ -188,16 +187,13 @@ function main(): void {
 
   // Start server
   server.listen(port, () => {
-    // eslint-disable-next-line no-console -- CLI server startup message
     console.log(`  Server listening on http://localhost:${port}\n`)
   })
 
   // Graceful shutdown handler
   const shutdown = (): void => {
-    // eslint-disable-next-line no-console -- CLI shutdown message
     console.log('\nShutting down server...')
     server.close(() => {
-      // eslint-disable-next-line no-console -- CLI shutdown confirmation
       console.log('Server closed')
       process.exit(0)
     })
