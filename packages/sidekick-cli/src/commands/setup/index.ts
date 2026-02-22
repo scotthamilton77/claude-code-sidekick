@@ -330,7 +330,6 @@ interface WizardContext {
 }
 
 interface WizardState {
-  pluginScope: InstallScope
   statuslineScope: InstallScope
   gitignoreStatus: GitignoreStatus
   wantPersonas: boolean
@@ -784,12 +783,8 @@ async function runWizard(
     ? { apiKeyHealth: 'missing' as const, apiKeyDetection: null }
     : await runStep4ApiKey(wctx)
   const wantPersonas = force ? true : await runStep5Personas(wctx)
-  const effectivePluginScope = pluginResult.pluginScope
-  const autoConfig = force
-    ? effectivePluginScope === 'user'
-      ? 'auto'
-      : 'manual'
-    : await runStep6AutoConfig(wctx, effectivePluginScope)
+  const forceAutoConfig = pluginResult.pluginScope === 'user' ? 'auto' : 'manual'
+  const autoConfig = force ? forceAutoConfig : await runStep6AutoConfig(wctx, pluginResult.pluginScope)
 
   // In force mode, configure statusline at same scope as plugin
   if (force) {
@@ -802,7 +797,6 @@ async function runWizard(
 
   // Collect state and finalize
   const state: WizardState = {
-    pluginScope: effectivePluginScope,
     statuslineScope,
     gitignoreStatus,
     wantPersonas,
