@@ -10,9 +10,9 @@ Be respectful, professional, and constructive.
 
 ## How Can I Contribute?
 
-### Reporting Bugs
+### Reporting Bugs (Users)
 
-Before creating bug reports, please check existing issues. When you create a bug report, include:
+If you're a **user** who found a bug, open a [GitHub Issue](https://github.com/scotthamilton77/claude-code-sidekick/issues). Include:
 
 - **Clear description** of the problem
 - **Steps to reproduce** the issue
@@ -20,17 +20,54 @@ Before creating bug reports, please check existing issues. When you create a bug
 - **Environment details** (OS, Claude Code version, Node.js version, pnpm version)
 - **Relevant logs** from `.sidekick/sidekick.log` if applicable
 
-### Suggesting Enhancements
+### Suggesting Enhancements (Users)
 
-Enhancement suggestions are tracked as GitHub issues. When suggesting:
+Enhancement suggestions from users are also tracked as [GitHub Issues](https://github.com/scotthamilton77/claude-code-sidekick/issues).
 
-- **Use a clear title** describing the enhancement
-- **Provide detailed explanation** of the proposed functionality
-- **Explain why this would be useful** to the Claude Code community
+### Finding Work (Developers)
+
+Development work is tracked with **beads** (`bd`), a git-backed issue tracker. GitHub Issues are for user-facing bug reports and feature requests; beads is for developer-facing task tracking.
+
+```bash
+# See what's available to work on
+bd ready
+
+# View details of a specific issue
+bd show <id>
+
+# Found a bug while developing? Create a bead, not a GitHub Issue
+bd create --title="Fix race condition in daemon startup" --type=bug --priority=2
+```
+
+### Working on an Issue
+
+All work happens on **branches** — never commit directly to `main`.
+
+```bash
+# 1. Claim the issue
+bd update <id> --status=in_progress
+
+# 2. Create a branch
+git checkout -b feat/short-description
+
+# 3. Do the work, commit with semantic prefixes
+git commit -m "feat(daemon): add graceful shutdown"
+
+# 4. Verify before pushing
+pnpm build && pnpm typecheck && pnpm lint && pnpm test
+
+# 5. Push and open a PR against main
+git push -u origin feat/short-description
+gh pr create
+
+# 6. Close the issue when the PR is merged
+bd close <id>
+bd sync
+```
 
 ### Pull Requests
 
-1. **Fork the repository** and create your branch from `main`
+1. **Create your branch** from `main` (never commit directly to `main`)
 2. **Install dependencies**: `pnpm install`
 3. **Build**: `pnpm build`
 4. **Verify before submitting**:
@@ -76,6 +113,16 @@ pnpm typecheck && pnpm test   # Verify
 ```
 
 See the [Developer Guide](docs/DEVELOPER-GUIDE.md#development-workflow) for the full workflow, including daemon management, log inspection, and persona testing.
+
+## Development Toolchain
+
+Beyond Node.js and pnpm, the development workflow uses several additional tools:
+
+- **beads** (`bd`): Issue tracking for multi-session work — `brew install beads`
+- **Claude Code plugins**: code-review, code-simplifier, context7, superpowers (from `claude-plugins-official`), and beads (from `steveyegge/beads`). See the [Developer Guide prerequisites](docs/DEVELOPER-GUIDE.md#claude-code-plugins) for install commands.
+- **agents-config** (optional): The maintainer's Claude Code skills and personas. Not required for building or contributing — the devcontainer installs it automatically if present.
+
+> **Fastest path**: Use the [devcontainer](docs/DEVELOPER-GUIDE.md#dev-container-recommended) — it installs everything automatically.
 
 ## Project Structure
 

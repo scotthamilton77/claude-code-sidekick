@@ -65,11 +65,31 @@ sidekick-cli  ----IPC (fire-and-forget)----> sidekick-daemon
 
 | Tool | Version | Install (macOS) |
 |------|---------|-----------------|
+| Homebrew | Latest | [brew.sh](https://brew.sh) (macOS built-in, Linux: linuxbrew) |
 | Node.js | >=20.x | `brew install node` |
 | pnpm | 9.12.2 | `corepack enable && corepack prepare pnpm@9.12.2 --activate` |
-
 | Git | >=2.x | `brew install git` |
 | Claude Code CLI | Latest | [Install guide](https://docs.claude.com/en/docs/claude-code) |
+| beads (`bd`) | Latest | `brew install beads` — issue tracking for multi-session work |
+
+### Claude Code Plugins
+
+The development workflow requires several Claude Code plugins. Install them from the marketplace:
+
+```bash
+# Official plugins (code review, code simplifier, context7, etc.)
+claude plugin marketplace add https://github.com/anthropics/claude-plugins-official.git
+claude plugin install code-review@claude-plugins-official
+claude plugin install code-simplifier@claude-plugins-official
+claude plugin install context7@claude-plugins-official
+claude plugin install superpowers@claude-plugins-official
+
+# Beads issue tracking plugin
+claude plugin marketplace add steveyegge/beads
+claude plugin install beads
+```
+
+> **Tip**: The [devcontainer](#dev-container-recommended) installs all of the above automatically — it's the fastest path to a working environment.
 
 ### Clone and Build
 
@@ -88,9 +108,17 @@ pnpm test        # Run all unit tests (mocked LLM, zero API costs)
 pnpm lint        # ESLint all packages
 ```
 
-### Dev Container (Optional)
+### Dev Container (Recommended)
 
-A `.devcontainer/` configuration is provided for VS Code Remote Containers / GitHub Codespaces. It installs Node.js, pnpm, Claude Code CLI, and runs `pnpm install` automatically via `post-create.sh`. API keys are forwarded from host environment variables.
+A `.devcontainer/` configuration is provided for VS Code Remote Containers / GitHub Codespaces. It's the recommended path for new contributors — everything is installed automatically via `post-create.sh`:
+
+- **Homebrew** (package manager)
+- **agents-config** (optional — maintainer's Claude Code skills and personas)
+- **beads** (`bd` CLI for issue tracking)
+- **Claude Code plugins**: code-review, code-simplifier, context7, frontend-design, playwright, superpowers, typescript-lsp (from `claude-plugins-official`), and beads (from `steveyegge/beads`)
+- **pnpm** and project dependencies
+
+API keys are forwarded from host environment variables.
 
 ---
 
@@ -250,6 +278,50 @@ pnpm build       # Build all packages
 pnpm typecheck   # Type-check (includes test files)
 pnpm lint        # ESLint
 pnpm test        # Unit tests
+```
+
+### Issue Tracking with Beads
+
+Development work is tracked with **beads** (`bd`), a git-backed issue tracker that lives in `.beads/` and syncs via git. GitHub Issues are for user-facing bug reports; beads is for developer task tracking.
+
+**Finding work:**
+
+```bash
+bd ready                        # Show issues with no blockers
+bd list --status=open           # All open issues
+bd show <id>                    # Full details, dependencies, acceptance criteria
+```
+
+**Working on an issue:**
+
+All work happens on **branches** — never commit directly to `main`.
+
+```bash
+bd update <id> --status=in_progress   # Claim the issue
+git checkout -b feat/short-description # Branch from main
+
+# ... do the work ...
+
+git push -u origin feat/short-description
+gh pr create                          # Open a PR against main
+bd close <id>                         # After PR is merged
+```
+
+**Discovered work while developing:**
+
+```bash
+# Found a bug? Create a bead — don't fix it inline
+bd create --title="Fix edge case in config cascade" --type=bug --priority=2
+```
+
+### Session Completion
+
+When ending a work session, sync beads and push to remote:
+
+```bash
+bd sync          # Commit and sync issue tracking state
+git push         # Push code and beads changes to remote
+git status       # Verify working tree is clean and up to date
 ```
 
 ### Useful CLI Commands
@@ -441,7 +513,7 @@ These patterns are enforced by code review and documented in `packages/AGENTS.md
      "devDependencies": {
        "@sidekick/testing-fixtures": "workspace:*",
        "typescript": "^5.6.3",
-       "vitest": "^2.1.1"
+       "vitest": "^4.0.18"
      }
    }
    ```
@@ -459,6 +531,26 @@ These patterns are enforced by code review and documented in `packages/AGENTS.md
 ---
 
 ## Distribution and Publishing
+
+### Publishing with publish-dist (Preferred)
+
+The `publish-dist` script handles version bumping, building, publishing, committing, and tagging in one step:
+
+```bash
+pnpm run publish:dist            # Bump patch (0.1.0 -> 0.1.1) and publish
+pnpm run publish:dist minor      # Bump minor (0.1.1 -> 0.2.0) and publish
+pnpm run publish:dist major      # Bump major (0.2.0 -> 1.0.0) and publish
+pnpm run publish:dist --no-bump  # Publish current version as-is
+```
+
+The script will:
+1. Check for uncommitted changes (fail if dirty)
+2. Bump version in `packages/sidekick-dist/package.json` and sync to plugin metadata
+3. Build all packages
+4. Publish to npm
+5. Commit the version bump and create a `v{version}` git tag
+
+After publishing, push the commit and tag: `git push && git push --tags`
 
 ### How the npm Package is Built
 

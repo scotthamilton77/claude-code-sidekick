@@ -43,37 +43,13 @@ For detailed configuration options, see the [User Guide](docs/USER-GUIDE.md). Fo
 
 ```
 .
-├── .claude/                    # Project-scoped Claude configuration
-│   ├── skills/                 # Claude Code skills
-│   ├── agents/                 # Custom agent definitions
-│   ├── CLAUDE.md               # Project instructions
-│   ├── settings.json           # Permission configuration
-│   ├── settings.local.json     # Local overrides (gitignored)
-│   └── mcp.json                # MCP server config
-├── packages/                   # TypeScript monorepo packages
-│   ├── types/                  # Shared TypeScript types and Zod schemas
-│   ├── sidekick-core/          # Core services (config, transcript, logging)
-│   ├── shared-providers/       # LLM provider abstractions (OpenRouter default)
-│   ├── feature-reminders/      # Reminder staging and orchestration
-│   ├── feature-session-summary/# LLM-based conversation analysis
-│   ├── feature-statusline/     # Token tracking and status display
-│   ├── sidekick-daemon/        # Background daemon for session management
-│   ├── sidekick-cli/           # CLI entrypoint and hook dispatcher
-│   ├── sidekick-dist/          # Distribution bundle for npm (@scotthamilton77/sidekick)
-│   ├── sidekick-plugin/        # Claude Code plugin (hooks.json)
-│   ├── sidekick-ui/            # Monitoring UI (React SPA)
-│   └── testing-fixtures/       # Shared test mocks and factories
-├── assets/sidekick/            # Shared configuration and templates
-│   ├── defaults/               # YAML config defaults
-│   ├── personas/               # Character personality profiles
-│   ├── prompts/                # LLM prompt templates
-│   ├── reminders/              # Reminder templates (YAML)
-│   ├── schemas/                # JSON Schema artifacts
-│   └── templates/              # Misc templates
-└── scripts/                    # Development utilities
-    ├── dev-mode.sh             # Wrapper for dev-mode CLI
-    └── dev-sidekick/           # Development hook scripts
+├── .claude/                    # Claude Code configuration (settings, hooks, MCP)
+├── packages/                   # TypeScript monorepo packages (12 packages)
+├── assets/sidekick/            # YAML config defaults, personas, prompt templates
+└── scripts/                    # Development and publishing utilities
 ```
+
+See the [Developer Guide](docs/DEVELOPER-GUIDE.md) for the full package breakdown and dependency graph.
 
 ### Hook System (Sidekick)
 
