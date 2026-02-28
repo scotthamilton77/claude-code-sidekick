@@ -328,6 +328,62 @@ describe('selectRandomPersona', () => {
     expect(selectedIds).toEqual(new Set(['bones']))
   })
 
+  it('treats NaN weights as excluded', () => {
+    const personas = [createMockPersona('skippy'), createMockPersona('bones')]
+    const weights = { skippy: NaN, bones: 1 }
+
+    const selectedIds = new Set<string>()
+    for (let i = 0; i < 50; i++) {
+      const result = selectRandomPersona(personas, weights)
+      if (result) selectedIds.add(result.id)
+    }
+
+    expect(selectedIds).toEqual(new Set(['bones']))
+  })
+
+  it('treats Infinity weights as excluded', () => {
+    const personas = [createMockPersona('skippy'), createMockPersona('bones')]
+    const weights = { skippy: Infinity, bones: 1 }
+
+    const selectedIds = new Set<string>()
+    for (let i = 0; i < 50; i++) {
+      const result = selectRandomPersona(personas, weights)
+      if (result) selectedIds.add(result.id)
+    }
+
+    expect(selectedIds).toEqual(new Set(['bones']))
+  })
+
+  it('coerces non-numeric weight strings to numbers', () => {
+    const personas = [createMockPersona('skippy'), createMockPersona('bones')]
+    // Simulate misconfigured YAML that produces a string instead of a number
+    const weights = { skippy: 'not-a-number' as unknown as number, bones: 1 }
+
+    const selectedIds = new Set<string>()
+    for (let i = 0; i < 50; i++) {
+      const result = selectRandomPersona(personas, weights)
+      if (result) selectedIds.add(result.id)
+    }
+
+    // "not-a-number" → Number("not-a-number") → NaN → filtered out
+    expect(selectedIds).toEqual(new Set(['bones']))
+  })
+
+  it('coerces numeric string weights correctly', () => {
+    const personas = [createMockPersona('skippy'), createMockPersona('bones')]
+    // YAML might parse "5" as a string
+    const weights = { skippy: '5' as unknown as number, bones: 0 }
+
+    const selectedIds = new Set<string>()
+    for (let i = 0; i < 50; i++) {
+      const result = selectRandomPersona(personas, weights)
+      if (result) selectedIds.add(result.id)
+    }
+
+    // "5" → Number("5") → 5 → valid weight
+    expect(selectedIds).toEqual(new Set(['skippy']))
+  })
+
   it('treats empty weights object same as no weights', () => {
     const personas = [createMockPersona('skippy'), createMockPersona('bones')]
     const selectedIds = new Set<string>()
