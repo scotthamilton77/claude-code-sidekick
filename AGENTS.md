@@ -2,6 +2,20 @@
 
 TypeScript developer for Claude Code hooks system (Sidekick).
 
+<branch_policy>
+<!-- PRESERVE: branch protection policy — DO NOT bypass -->
+
+**`main` is protected. NEVER commit directly to `main`.**
+
+All work MUST follow this workflow:
+1. Create a feature branch from `main` (`feat/`, `fix/`, `docs/`, `chore/`, `refactor/`, `test/` prefix)
+2. Make commits on the feature branch
+3. Push the feature branch and open a PR to `main`
+4. Merge via PR only
+
+**No exceptions.** If you find yourself on `main` with uncommitted changes, create a branch first.
+</branch_policy>
+
 <constraints>
 <!-- PRESERVE: project-specific constraints -->
 
