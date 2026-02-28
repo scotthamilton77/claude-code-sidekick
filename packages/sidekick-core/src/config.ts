@@ -10,20 +10,18 @@
  * - features.yaml (feature flags and feature-specific settings)
  *
  * Cascade order (lowest to highest priority):
- * 1. Internal defaults (hardcoded in Zod schemas)
- * 2. Environment variables (SIDEKICK_* plus .env files)
- * 3. User unified config (~/.sidekick/sidekick.config)
+ * 1. External YAML defaults (from assets)
+ * 2. Internal defaults (Zod)
+ * 3. Environment variables (SIDEKICK_* plus .env files)
  * 4. User domain config (~/.sidekick/{domain}.yaml)
- * 5. Project unified config (.sidekick/sidekick.config)
- * 6. Project domain config (.sidekick/{domain}.yaml)
- * 7. Project-local overrides (.sidekick/{domain}.yaml.local)
+ * 5. Project domain config (.sidekick/{domain}.yaml)
+ * 6. Project-local overrides (.sidekick/{domain}.local.yaml)
  *
  * Key features per LLD requirements:
  * - Deep-merge semantics for nested objects (arrays are replaced)
  * - Zod schema validation with strict mode (rejects unknown keys per §6.4)
  * - Config immutability after loading (Object.freeze per §2)
  * - Sensible defaults applied via Zod transforms
- * - sidekick.config dot-notation parsing for quick overrides
  *
  * @see docs/design/CONFIG-SYSTEM.md
  * @see docs/design/SCHEMA-CONTRACTS.md §6.4 (strict mode)
@@ -325,88 +323,6 @@ function deepMerge<T extends Record<string, unknown>>(base: T, override: Record<
   return result as T
 }
 
-// =============================================================================
-// Unified Config (sidekick.config) Parser
-// =============================================================================
-
-/**
- * Result of parsing a unified config file.
- */
-interface ParsedUnifiedConfig {
-  config: Record<string, Record<string, unknown>>
-  /** Parsed key-value pairs for logging */
-  overrides: Array<{ key: string; value: unknown }>
-  /** Warnings about malformed lines */
-  warnings: string[]
-}
-
-/**
- * Parse a sidekick.config file with dot-notation.
- * Per docs/design/CONFIG-SYSTEM.md §4.2
- *
- * Format:
- * - Lines starting with # are comments
- * - Format: domain.path.to.key=value
- * - Values are coerced to appropriate types (number, boolean, string)
- * - Arrays use JSON syntax: some.array=["a","b","c"]
- */
-function parseUnifiedConfig(content: string, sourcePath?: string): ParsedUnifiedConfig {
-  const result: Record<string, Record<string, unknown>> = {}
-  const overrides: Array<{ key: string; value: unknown }> = []
-  const warnings: string[] = []
-  const sourceLabel = sourcePath ?? 'sidekick.config'
-
-  const lines = content.split('\n')
-  for (let lineNum = 0; lineNum < lines.length; lineNum++) {
-    const line = lines[lineNum]
-    const trimmed = line.trim()
-
-    // Skip empty lines and comments
-    if (!trimmed || trimmed.startsWith('#')) {
-      continue
-    }
-
-    // Find delimiter (= or :)
-    const eqIndex = trimmed.indexOf('=')
-    const colonIndex = trimmed.indexOf(':')
-
-    // Use whichever comes first, preferring = if both present
-    if (eqIndex === -1 && colonIndex === -1) {
-      warnings.push(`${sourceLabel}:${lineNum + 1}: malformed line (missing '=' or ':'): ${trimmed}`)
-      continue
-    }
-    const delimIndex = eqIndex === -1 ? colonIndex : colonIndex === -1 ? eqIndex : Math.min(eqIndex, colonIndex)
-
-    const key = trimmed.substring(0, delimIndex).trim()
-    const rawValue = trimmed.substring(delimIndex + 1).trim()
-
-    // Parse the key path (e.g., "llm.provider" -> ["llm", "provider"])
-    const parts = key.split('.')
-    if (parts.length < 2) {
-      // Invalid format - need at least domain.key
-      warnings.push(`${sourceLabel}:${lineNum + 1}: invalid key format (need domain.key): ${key}`)
-      continue
-    }
-
-    // First part is the domain
-    const domain = parts[0]
-    const path = parts.slice(1)
-
-    // Coerce value to appropriate type
-    const value = coerceValue(rawValue)
-
-    // Build nested structure
-    if (!result[domain]) {
-      result[domain] = {}
-    }
-
-    setNestedValue(result[domain], path, value)
-    overrides.push({ key, value })
-  }
-
-  return { config: result, overrides, warnings }
-}
-
 /**
  * Coerce a string value to its appropriate type.
  * Supports: boolean, number, JSON arrays/objects, string
@@ -475,18 +391,6 @@ function tryReadYaml(filePath: string): Record<string, unknown> | null {
     const message = err instanceof Error ? err.message : String(err)
     throw new Error(`Failed to parse YAML at ${filePath}: ${message}`, { cause: err })
   }
-}
-
-/**
- * Try to read a unified config file. Returns null if file doesn't exist.
- */
-function tryReadUnifiedConfig(filePath: string): ParsedUnifiedConfig | null {
-  if (!existsSync(filePath)) {
-    return null
-  }
-
-  const content = readFileSync(filePath, 'utf8')
-  return parseUnifiedConfig(content, filePath)
 }
 
 // =============================================================================
@@ -610,21 +514,17 @@ function loadExternalDefaults(domain: ConfigDomain, assets?: AssetResolver): Rec
  * Load domain configuration with full cascade.
  *
  * Cascade order per docs/design/CONFIG-SYSTEM.md §4:
- * 0. External YAML defaults (from assets)
- * 1. Internal defaults (via Zod)
- * 2. Environment variables
- * 3. User domain config (~/.sidekick/{domain}.yaml)
- * 4. User unified config (~/.sidekick/sidekick.config) - overrides domain YAML
+ * 1. External YAML defaults (from assets)
+ * 2. Internal defaults (via Zod)
+ * 3. Environment variables
+ * 4. User domain config (~/.sidekick/{domain}.yaml)
  * 5. Project domain config (.sidekick/{domain}.yaml)
- * 6. Project unified config (.sidekick/sidekick.config) - overrides domain YAML
- * 7. Project-local override (.sidekick/{domain}.yaml.local)
+ * 6. Project-local override (.sidekick/{domain}.local.yaml)
  */
 function loadDomainConfig(
   domain: ConfigDomain,
   envConfig: Record<string, Record<string, unknown>>,
-  userUnified: Record<string, Record<string, unknown>> | null,
   userDomainPath: string,
-  projectUnified: Record<string, Record<string, unknown>> | null,
   projectDomainPath: string | null,
   projectLocalPath: string | null,
   assets?: AssetResolver
@@ -632,7 +532,7 @@ function loadDomainConfig(
   const sources: LoadedSource[] = []
   let merged: Record<string, unknown> = {}
 
-  // 0. External YAML defaults (Layer 0 - lowest priority)
+  // 1. External YAML defaults (lowest priority)
   const externalDefaults = loadExternalDefaults(domain, assets)
   if (externalDefaults) {
     merged = deepMerge(merged, externalDefaults)
@@ -652,13 +552,7 @@ function loadDomainConfig(
     sources.push({ source: userDomainPath, domain })
   }
 
-  // 4. User unified config (sidekick.config overrides domain YAML)
-  if (userUnified?.[domain]) {
-    merged = deepMerge(merged, userUnified[domain])
-    sources.push({ source: 'user:sidekick.config', domain })
-  }
-
-  // 5. Project domain YAML
+  // 4. Project domain YAML
   if (projectDomainPath) {
     const projectDomain = tryReadYaml(projectDomainPath)
     if (projectDomain) {
@@ -667,13 +561,7 @@ function loadDomainConfig(
     }
   }
 
-  // 6. Project unified config (sidekick.config overrides domain YAML)
-  if (projectUnified?.[domain]) {
-    merged = deepMerge(merged, projectUnified[domain])
-    sources.push({ source: 'project:sidekick.config', domain })
-  }
-
-  // 7. Project-local override
+  // 5. Project-local override
   if (projectLocalPath) {
     const projectLocal = tryReadYaml(projectLocalPath)
     if (projectLocal) {
@@ -741,22 +629,11 @@ export function loadConfig(options: ConfigServiceOptions): SidekickConfig {
   // Step 2: Parse env vars into domain structure
   const envConfig = envToConfig(process.env)
 
-  // Step 3: Load unified config files
-  const userUnifiedPath = join(homeDir, '.sidekick', 'sidekick.config')
-  const userUnifiedParsed = tryReadUnifiedConfig(userUnifiedPath)
-
-  const projectUnifiedPath = projectRoot ? join(projectRoot, '.sidekick', 'sidekick.config') : null
-  const projectUnifiedParsed = projectUnifiedPath ? tryReadUnifiedConfig(projectUnifiedPath) : null
-
-  // Extract config objects for domain loading
-  const userUnified = userUnifiedParsed?.config ?? null
-  const projectUnified = projectUnifiedParsed?.config ?? null
-
-  // Step 4: Build paths for domain files
+  // Step 3: Build paths for domain files
   const userSidekick = join(homeDir, '.sidekick')
   const projectSidekick = projectRoot ? join(projectRoot, '.sidekick') : null
 
-  // Step 5: Load each domain with full cascade
+  // Step 4: Load each domain with full cascade
   const domains: ConfigDomain[] = ['core', 'llm', 'transcript', 'features']
   const domainConfigs: Record<string, Record<string, unknown>> = {}
 
@@ -764,14 +641,14 @@ export function loadConfig(options: ConfigServiceOptions): SidekickConfig {
     const filename = DOMAIN_FILES[domain]
     const userDomainPath = join(userSidekick, filename)
     const projectDomainPath = projectSidekick ? join(projectSidekick, filename) : null
-    const projectLocalPath = projectSidekick ? join(projectSidekick, `${filename}.local`) : null
+    const projectLocalPath = projectSidekick
+      ? join(projectSidekick, `${filename.replace('.yaml', '.local.yaml')}`)
+      : null
 
     const { config } = loadDomainConfig(
       domain,
       envConfig,
-      userUnified,
       userDomainPath,
-      projectUnified,
       projectDomainPath,
       projectLocalPath,
       options.assets
@@ -780,7 +657,7 @@ export function loadConfig(options: ConfigServiceOptions): SidekickConfig {
     domainConfigs[domain] = config
   }
 
-  // Step 6: Validate with Zod (applies defaults)
+  // Step 5: Validate with Zod (applies defaults)
   const result = SidekickConfigSchema.safeParse(domainConfigs)
   if (!result.success) {
     const issues = result.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ')
@@ -788,7 +665,7 @@ export function loadConfig(options: ConfigServiceOptions): SidekickConfig {
     throw new Error(`Configuration validation failed: ${issues}`)
   }
 
-  // Step 7: Validate profile references in feature configs
+  // Step 6: Validate profile references in feature configs
   try {
     validateProfileReferences(result.data)
   } catch (err) {
@@ -796,7 +673,7 @@ export function loadConfig(options: ConfigServiceOptions): SidekickConfig {
     throw err
   }
 
-  // Step 8: Freeze config for immutability
+  // Step 7: Freeze config for immutability
   return deepFreeze(result.data)
 }
 
@@ -880,41 +757,6 @@ export function createConfigService(options: ConfigServiceOptions): ConfigServic
     sources.push('environment')
   }
 
-  // Check for unified config files and log their contents
-  const userUnifiedPath = join(homeDir, '.sidekick', 'sidekick.config')
-  const userUnifiedParsed = tryReadUnifiedConfig(userUnifiedPath)
-  if (userUnifiedParsed) {
-    sources.push(userUnifiedPath)
-    // Log warnings about malformed lines
-    for (const warning of userUnifiedParsed.warnings) {
-      logger?.warn('Config parse warning', { warning })
-    }
-    // Log overrides at info level
-    if (userUnifiedParsed.overrides.length > 0 && logger) {
-      logger.info('User config overrides loaded', {
-        source: userUnifiedPath,
-        overrides: userUnifiedParsed.overrides,
-      })
-    }
-  }
-
-  const projectUnifiedPath = projectRoot ? join(projectRoot, '.sidekick', 'sidekick.config') : null
-  const projectUnifiedParsed = projectUnifiedPath ? tryReadUnifiedConfig(projectUnifiedPath) : null
-  if (projectUnifiedParsed) {
-    sources.push(projectUnifiedPath!)
-    // Log warnings about malformed lines
-    for (const warning of projectUnifiedParsed.warnings) {
-      logger?.warn('Config parse warning', { warning })
-    }
-    // Log overrides at info level
-    if (projectUnifiedParsed.overrides.length > 0 && logger) {
-      logger.info('Project config overrides loaded', {
-        source: projectUnifiedPath,
-        overrides: projectUnifiedParsed.overrides,
-      })
-    }
-  }
-
   // Check for domain files
   const userSidekick = join(homeDir, '.sidekick')
   const projectSidekick = projectRoot ? join(projectRoot, '.sidekick') : null
@@ -932,7 +774,7 @@ export function createConfigService(options: ConfigServiceOptions): ConfigServic
         sources.push(projectDomainPath)
       }
 
-      const projectLocalPath = join(projectSidekick, `${filename}.local`)
+      const projectLocalPath = join(projectSidekick, `${filename.replace('.yaml', '.local.yaml')}`)
       if (existsSync(projectLocalPath)) {
         sources.push(projectLocalPath)
       }
@@ -1010,9 +852,3 @@ export function createConfigService(options: ConfigServiceOptions): ConfigServic
     sources,
   }
 }
-
-// =============================================================================
-// Exported Utilities
-// =============================================================================
-
-export { parseUnifiedConfig }

@@ -123,19 +123,18 @@ See **docs/design/flow.md §2.2** for staging semantics and **docs/design/FEATUR
 
 ### 3.6 Configuration Cascade
 
-Configuration uses **YAML** for domain-specific files with a bash-style `sidekick.config` for quick overrides.
+Configuration uses **YAML** for domain-specific files with a layered cascade.
 
 **Domain Files**: `config.yaml`, `llm.yaml`, `transcript.yaml`, `features.yaml`
 
 **Cascade Order** (lowest to highest priority):
 
-1. Internal Defaults
-2. Environment Variables (`SIDEKICK_*`) + `.env` files
-3. User Domain Config (`~/.sidekick/{domain}.yaml`)
-4. User Unified Config (`~/.sidekick/sidekick.config`) — overrides domain YAML
+1. External YAML Defaults (from `assets/sidekick/defaults/`)
+2. Internal Defaults (Zod schema defaults)
+3. Environment Variables (`SIDEKICK_*`) + `.env` files
+4. User Domain Config (`~/.sidekick/{domain}.yaml`)
 5. Project Domain Config (`.sidekick/{domain}.yaml`)
-6. Project Unified Config (`.sidekick/sidekick.config`) — overrides domain YAML
-7. Project-Local Overrides (`.sidekick/{domain}.yaml.local`)
+6. Project-Local Overrides (`.sidekick/{domain}.local.yaml`)
 
 See **docs/design/CONFIG-SYSTEM.md** for complete schema and merge semantics.
 

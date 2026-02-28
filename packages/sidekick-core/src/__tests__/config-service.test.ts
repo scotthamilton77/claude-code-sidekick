@@ -5,7 +5,6 @@
  * Covers:
  * - YAML parsing (valid/invalid domain files)
  * - Domain file cascade precedence
- * - sidekick.config dot-notation parsing
  * - ConfigService interface
  * - Immutability requirements
  */
@@ -15,7 +14,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
-import { createConfigService, loadConfig, parseUnifiedConfig } from '../config'
+import { createConfigService, loadConfig } from '../config'
 import type { AssetResolver } from '../assets'
 
 // =============================================================================
@@ -119,177 +118,6 @@ afterEach(() => {
     }
   }
   savedEnv = {}
-})
-
-// =============================================================================
-// parseUnifiedConfig Tests (sidekick.config dot-notation)
-// =============================================================================
-
-describe('parseUnifiedConfig', () => {
-  test('parses simple key=value pairs', () => {
-    const content = `
-llm.provider=openai
-llm.model=gpt-4o
-core.logging.level=debug
-`
-    const result = parseUnifiedConfig(content)
-
-    expect(result.config.llm).toEqual({
-      provider: 'openai',
-      model: 'gpt-4o',
-    })
-    expect(result.config.core).toEqual({
-      logging: { level: 'debug' },
-    })
-  })
-
-  test('accepts both = and : as delimiters', () => {
-    const content = `
-llm.provider=openai
-llm.model: gpt-4o
-core.logging.level:debug
-features.reminders.settings.threshold = 10
-`
-    const result = parseUnifiedConfig(content)
-
-    expect(result.config.llm).toEqual({
-      provider: 'openai',
-      model: 'gpt-4o',
-    })
-    expect(result.config.core).toEqual({
-      logging: { level: 'debug' },
-    })
-    expect(result.config.features).toEqual({
-      reminders: { settings: { threshold: 10 } },
-    })
-    expect(result.warnings).toHaveLength(0)
-  })
-
-  test('skips comments and empty lines', () => {
-    const content = `
-# This is a comment
-llm.provider=openai
-
-# Another comment
-llm.model=gpt-4o
-`
-    const result = parseUnifiedConfig(content)
-
-    expect(result.config.llm).toEqual({
-      provider: 'openai',
-      model: 'gpt-4o',
-    })
-  })
-
-  test('coerces boolean values', () => {
-    const content = `
-llm.debugDumpEnabled=true
-features.reminders.enabled=false
-`
-    const result = parseUnifiedConfig(content)
-
-    expect(result.config.llm?.debugDumpEnabled).toBe(true)
-    expect(result.config.features?.reminders).toEqual({ enabled: false })
-  })
-
-  test('coerces numeric values', () => {
-    const content = `
-llm.temperature=0.7
-llm.timeout=60
-transcript.watchDebounceMs=200
-`
-    const result = parseUnifiedConfig(content)
-
-    expect(result.config.llm?.temperature).toBe(0.7)
-    expect(result.config.llm?.timeout).toBe(60)
-    expect(result.config.transcript?.watchDebounceMs).toBe(200)
-  })
-
-  test('parses JSON arrays', () => {
-    const content = `features.test.settings.items=["a","b","c"]`
-    const result = parseUnifiedConfig(content)
-
-    expect(result.config.features?.test).toEqual({
-      settings: { items: ['a', 'b', 'c'] },
-    })
-  })
-
-  test('parses JSON objects', () => {
-    const content = `features.test.settings.nested={"key":"value","num":42}`
-    const result = parseUnifiedConfig(content)
-
-    expect(result.config.features?.test).toEqual({
-      settings: { nested: { key: 'value', num: 42 } },
-    })
-  })
-
-  test('handles quoted strings', () => {
-    const content = `
-llm.model="gpt-4o-mini"
-core.paths.state='custom-state'
-`
-    const result = parseUnifiedConfig(content)
-
-    expect(result.config.llm?.model).toBe('gpt-4o-mini')
-    expect(result.config.core?.paths).toEqual({ state: 'custom-state' })
-  })
-
-  test('ignores malformed lines and collects warnings', () => {
-    const content = `
-llm.provider=openai
-invalid line without equals
-single.key
-=value without key
-llm.model=gpt-4o
-`
-    const result = parseUnifiedConfig(content)
-
-    expect(result.config.llm).toEqual({
-      provider: 'openai',
-      model: 'gpt-4o',
-    })
-  })
-
-  test('builds deeply nested structures', () => {
-    const content = `features.reminders.settings.thresholds.stuck=40`
-    const result = parseUnifiedConfig(content)
-
-    expect(result.config.features?.reminders).toEqual({
-      settings: {
-        thresholds: { stuck: 40 },
-      },
-    })
-  })
-
-  test('collects overrides for logging', () => {
-    const content = `
-llm.provider=openai
-llm.model=gpt-4o
-`
-    const result = parseUnifiedConfig(content)
-
-    expect(result.overrides).toHaveLength(2)
-    expect(result.overrides).toContainEqual({ key: 'llm.provider', value: 'openai' })
-    expect(result.overrides).toContainEqual({ key: 'llm.model', value: 'gpt-4o' })
-  })
-
-  test('collects warnings for malformed lines', () => {
-    const content = `
-llm.provider=openai
-features.reminders.threshold: 4
-no_delimiter_here
-single=value
-`
-    const result = parseUnifiedConfig(content, 'test.config')
-
-    // Line 3 (features.reminders.threshold: 4) is valid now that we accept ':'
-    // Line 4 has no delimiter, line 5 has invalid key format (not dot-notation)
-    expect(result.warnings).toHaveLength(2)
-    expect(result.warnings[0]).toContain('test.config:4')
-    expect(result.warnings[0]).toContain("missing '=' or ':'")
-    expect(result.warnings[1]).toContain('test.config:5')
-    expect(result.warnings[1]).toContain('invalid key format')
-  })
 })
 
 // =============================================================================
@@ -478,14 +306,14 @@ describe('loadConfig - cascade precedence', () => {
     expect(config.core.logging.level).toBe('debug')
   })
 
-  test('user unified config overrides env', () => {
+  test('user domain YAML overrides env', () => {
     const homeDir = join(tempRoot, 'home')
     const userSidekick = join(homeDir, '.sidekick')
     mkdirSync(userSidekick, { recursive: true })
 
     process.env.SIDEKICK_LOG_LEVEL = 'debug'
 
-    writeFileSync(join(userSidekick, 'sidekick.config'), `core.logging.level=warn`)
+    writeFileSync(join(userSidekick, 'config.yaml'), `logging:\n  level: warn`)
 
     const config = loadConfig({
       projectRoot: join(tempRoot, 'project'),
@@ -496,25 +324,7 @@ describe('loadConfig - cascade precedence', () => {
     expect(config.core.logging.level).toBe('warn')
   })
 
-  test('user unified config overrides user domain YAML', () => {
-    const homeDir = join(tempRoot, 'home')
-    const userSidekick = join(homeDir, '.sidekick')
-    mkdirSync(userSidekick, { recursive: true })
-
-    writeFileSync(join(userSidekick, 'config.yaml'), `logging:\n  level: error`)
-    writeFileSync(join(userSidekick, 'sidekick.config'), `core.logging.level=warn`)
-
-    const config = loadConfig({
-      projectRoot: join(tempRoot, 'project'),
-      homeDir,
-      assets: createMockAssets(),
-    })
-
-    // sidekick.config overrides domain YAML
-    expect(config.core.logging.level).toBe('warn')
-  })
-
-  test('project unified config overrides user domain YAML', () => {
+  test('project domain YAML overrides user domain YAML', () => {
     const homeDir = join(tempRoot, 'home')
     const projectDir = join(tempRoot, 'project')
     const userSidekick = join(homeDir, '.sidekick')
@@ -523,7 +333,7 @@ describe('loadConfig - cascade precedence', () => {
     mkdirSync(projectSidekick, { recursive: true })
 
     writeFileSync(join(userSidekick, 'config.yaml'), `logging:\n  level: warn`)
-    writeFileSync(join(projectSidekick, 'sidekick.config'), `core.logging.level=error`)
+    writeFileSync(join(projectSidekick, 'config.yaml'), `logging:\n  level: error`)
 
     const config = loadConfig({
       projectRoot: projectDir,
@@ -534,33 +344,14 @@ describe('loadConfig - cascade precedence', () => {
     expect(config.core.logging.level).toBe('error')
   })
 
-  test('project unified config overrides project domain YAML', () => {
-    const homeDir = join(tempRoot, 'home')
-    const projectDir = join(tempRoot, 'project')
-    const projectSidekick = join(projectDir, '.sidekick')
-    mkdirSync(projectSidekick, { recursive: true })
-
-    writeFileSync(join(projectSidekick, 'config.yaml'), `logging:\n  level: error`)
-    writeFileSync(join(projectSidekick, 'sidekick.config'), `core.logging.level=warn`)
-
-    const config = loadConfig({
-      projectRoot: projectDir,
-      homeDir,
-      assets: createMockAssets(),
-    })
-
-    // sidekick.config overrides domain YAML
-    expect(config.core.logging.level).toBe('warn')
-  })
-
-  test('project-local (.yaml.local) has highest priority', () => {
+  test('project-local (.local.yaml) has highest priority', () => {
     const homeDir = join(tempRoot, 'home')
     const projectDir = join(tempRoot, 'project')
     const projectSidekick = join(projectDir, '.sidekick')
     mkdirSync(projectSidekick, { recursive: true })
 
     writeFileSync(join(projectSidekick, 'config.yaml'), `logging:\n  level: warn`)
-    writeFileSync(join(projectSidekick, 'config.yaml.local'), `logging:\n  level: debug`)
+    writeFileSync(join(projectSidekick, 'config.local.yaml'), `logging:\n  level: debug`)
 
     const config = loadConfig({
       projectRoot: projectDir,
@@ -626,7 +417,7 @@ test:
     )
 
     writeFileSync(
-      join(projectSidekick, 'features.yaml.local'),
+      join(projectSidekick, 'features.local.yaml'),
       `
 test:
   settings:

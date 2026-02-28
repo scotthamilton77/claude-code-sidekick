@@ -23,10 +23,8 @@ Priority (lowest to highest):
 2. Internal Zod defaults (hardcoded fallbacks)
 3. Environment variables (`SIDEKICK_*`, `.env`)
 4. User domain YAML (`~/.sidekick/{domain}.yaml`)
-5. User unified config (`~/.sidekick/sidekick.config`)
-6. Project domain YAML (`.sidekick/{domain}.yaml`)
-7. Project unified config (`.sidekick/sidekick.config`)
-8. Project-local overrides (`.sidekick/{domain}.yaml.local`)
+5. Project domain YAML (`.sidekick/{domain}.yaml`)
+6. Project-local overrides (`.sidekick/{domain}.local.yaml`)
 
 ## Overriding Defaults
 
@@ -42,19 +40,6 @@ cp assets/sidekick/defaults/llm.defaults.yaml .sidekick/llm.yaml
 ```
 
 Edit the copied file—each has inline comments explaining options.
-
-### Quick Overrides (sidekick.config)
-
-For surgical one-line changes without copying full files:
-
-```bash
-# ~/.sidekick/sidekick.config or .sidekick/sidekick.config
-llm.provider=openai
-llm.temperature=0.5
-core.logging.level=debug
-features.reminders.enabled=false
-features.statusline.thresholds.tokens.warning=50000
-```
 
 ### Environment Variables
 

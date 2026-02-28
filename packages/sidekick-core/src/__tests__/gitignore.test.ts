@@ -229,6 +229,7 @@ describe('gitignore utilities', () => {
       expect(GITIGNORE_ENTRIES).toContain('.sidekick/.env.local')
       expect(GITIGNORE_ENTRIES).toContain('.sidekick/sidekick*.pid')
       expect(GITIGNORE_ENTRIES).toContain('.sidekick/sidekick*.token')
+      expect(GITIGNORE_ENTRIES).toContain('*.local.yaml')
     })
   })
 })

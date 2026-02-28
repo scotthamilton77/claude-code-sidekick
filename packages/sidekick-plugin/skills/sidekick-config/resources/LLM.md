@@ -73,17 +73,16 @@ global:
 | `timeoutMaxRetries` | number | 2 | Retry attempts on timeout |
 | `global.debugDumpEnabled` | boolean | false | Log all LLM requests/responses |
 
-## Surgical Changes (sidekick.config)
+## Local Overrides (llm.local.yaml)
 
-```bash
-# Change default profile
-llm.defaultProfile=creative
+For local-only changes that are not tracked in git, create `.sidekick/llm.local.yaml`:
 
-# Adjust timeout for a profile
-llm.profiles.fast-lite.timeout=30
+```yaml
+# .sidekick/llm.local.yaml
+defaultProfile: creative
 
-# Enable debug logging
-llm.global.debugDumpEnabled=true
+global:
+  debugDumpEnabled: true
 ```
 
 ## Full Override (llm.yaml)

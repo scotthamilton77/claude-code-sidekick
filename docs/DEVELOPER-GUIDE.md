@@ -362,8 +362,9 @@ tail -f .sidekick/sidekick.log
 # Option 1: Environment variable
 SIDEKICK_LOG_LEVEL=debug pnpm sidekick daemon start
 
-# Option 2: Config file (.sidekick/sidekick.config)
-core.logging.level=debug
+# Option 2: YAML config (.sidekick/config.local.yaml)
+# logging:
+#   level: debug
 ```
 
 ---
@@ -441,12 +442,12 @@ Sidekick uses **YAML-based configuration** with a cascade that merges settings f
 
 ### Cascade Order (lowest to highest priority)
 
-1. **Bundled defaults**: `assets/sidekick/defaults/*.yaml`
-2. **User domain YAML**: `~/.sidekick/*.yaml`
-3. **User unified config**: `~/.sidekick/sidekick.config`
-4. **Project domain YAML**: `.sidekick/*.yaml`
-5. **Project unified config**: `.sidekick/sidekick.config`
-6. **Environment variables**: `SIDEKICK_*` prefixed
+1. **External YAML defaults**: `assets/sidekick/defaults/*.yaml`
+2. **Internal defaults**: Zod schema defaults (hardcoded fallbacks)
+3. **Environment variables**: `SIDEKICK_*` prefixed + `.env` files
+4. **User domain YAML**: `~/.sidekick/*.yaml`
+5. **Project domain YAML**: `.sidekick/*.yaml`
+6. **Project-local overrides**: `.sidekick/*.local.yaml` (untracked)
 
 ### Configuration Domains
 
@@ -457,15 +458,14 @@ Sidekick uses **YAML-based configuration** with a cascade that merges settings f
 | `transcript.yaml` | Transcript processing thresholds |
 | `features.yaml` | Feature flags and tuning parameters |
 
-### Quick Overrides
+### Local Overrides
 
-The `sidekick.config` file uses dot-notation for rapid overrides without editing YAML:
+Use `.local.yaml` files for untracked per-developer overrides:
 
-```bash
-# .sidekick/sidekick.config
-core.logging.level=debug
-llm.provider=openrouter
-features.statusline.enabled=true
+```yaml
+# .sidekick/config.local.yaml
+logging:
+  level: debug
 ```
 
 Access configuration programmatically via `ConfigService` from `@sidekick/core`. Never import `dotenv` directly.
