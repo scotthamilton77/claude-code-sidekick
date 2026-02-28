@@ -932,16 +932,16 @@ describe('configGet - optional options parameter', () => {
   })
 
   test('accepts no options argument (defaults to empty object)', () => {
-    // Without options, configGet should not throw a TypeError.
-    // It uses the cascade path which needs assets for defaults, so
-    // pass minimal options to prove the default parameter works.
-    const result = configGet('core.logging.level', {
-      homeDir: join(tempRoot, 'home'),
-      projectRoot: join(tempRoot, 'project'),
-      assets: createMockAssets(),
-    })
-    expect(result).not.toBeUndefined()
-    expect(result!.value).toBe('info')
+    // Call with literally no second argument to verify the optional
+    // parameter works at both the type and runtime level (no TypeError).
+    // The cascade load will throw a validation error (no assets/defaults),
+    // but the key assertion is that it does NOT throw a TypeError from
+    // attempting to destructure undefined options.
+    try {
+      configGet('core.logging.level')
+    } catch (err) {
+      expect(err).not.toBeInstanceOf(TypeError)
+    }
   })
 
   test('works with minimal scope-specific options (no projectRoot or assets)', () => {
