@@ -71,7 +71,7 @@ function deepFreeze<T>(obj: T): T {
  */
 export type ConfigDomain = 'core' | 'llm' | 'transcript' | 'features'
 
-const DOMAIN_FILES: Record<ConfigDomain, string> = {
+export const DOMAIN_FILES: Record<ConfigDomain, string> = {
   core: 'config.yaml',
   llm: 'llm.yaml',
   transcript: 'transcript.yaml',
@@ -299,7 +299,7 @@ export const SidekickConfigSchema = z.object({
  * - Arrays: Replaced (higher priority replaces lower)
  * - Primitives: Replaced
  */
-function deepMerge<T extends Record<string, unknown>>(base: T, override: Record<string, unknown>): T {
+export function deepMerge<T extends Record<string, unknown>>(base: T, override: Record<string, unknown>): T {
   const result = { ...base } as Record<string, unknown>
 
   for (const key of Object.keys(override)) {
@@ -327,7 +327,7 @@ function deepMerge<T extends Record<string, unknown>>(base: T, override: Record<
  * Coerce a string value to its appropriate type.
  * Supports: boolean, number, JSON arrays/objects, string
  */
-function coerceValue(raw: string): unknown {
+export function coerceValue(raw: string): unknown {
   // Boolean
   if (raw === 'true') return true
   if (raw === 'false') return false
@@ -356,7 +356,7 @@ function coerceValue(raw: string): unknown {
 /**
  * Set a nested value in an object given a path array.
  */
-function setNestedValue(obj: Record<string, unknown>, path: string[], value: unknown): void {
+export function setNestedValue(obj: Record<string, unknown>, path: string[], value: unknown): void {
   let current = obj
   for (let i = 0; i < path.length - 1; i++) {
     const key = path[i]
@@ -376,7 +376,7 @@ function setNestedValue(obj: Record<string, unknown>, path: string[], value: unk
  * Try to read and parse a YAML file. Returns null if file doesn't exist.
  * Throws on parse errors.
  */
-function tryReadYaml(filePath: string): Record<string, unknown> | null {
+export function tryReadYaml(filePath: string): Record<string, unknown> | null {
   if (!existsSync(filePath)) {
     return null
   }
@@ -490,7 +490,7 @@ interface LoadedSource {
  * External YAML defaults file paths by domain.
  * These are loaded from assets as Layer 0 of the cascade.
  */
-const EXTERNAL_DEFAULTS_FILES: Record<ConfigDomain, string> = {
+export const EXTERNAL_DEFAULTS_FILES: Record<ConfigDomain, string> = {
   core: 'defaults/core.defaults.yaml',
   llm: 'defaults/llm.defaults.yaml',
   transcript: 'defaults/transcript.defaults.yaml',

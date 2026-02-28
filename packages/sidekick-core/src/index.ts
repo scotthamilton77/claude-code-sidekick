@@ -84,6 +84,7 @@ export {
   type PersonaLoadResult,
 } from './persona-loader'
 export * from './config'
+export * from './config-writer'
 export * from './feature-registry'
 export * from './feature-types'
 export * from './ipc/client'
