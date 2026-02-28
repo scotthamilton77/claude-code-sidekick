@@ -85,6 +85,7 @@ export interface ParsedDotPath {
 // =============================================================================
 
 const VALID_DOMAINS = new Set<string>(['core', 'llm', 'transcript', 'features'])
+const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype'])
 
 // =============================================================================
 // parseDotPath
@@ -114,9 +115,16 @@ export function parseDotPath(dotPath: string): ParsedDotPath {
     )
   }
 
+  const keyPath = segments.slice(1)
+  for (const key of keyPath) {
+    if (FORBIDDEN_KEYS.has(key)) {
+      throw new Error(`Invalid key segment "${key}" in config path`)
+    }
+  }
+
   return {
     domain: domainCandidate as ConfigDomain,
-    keyPath: segments.slice(1),
+    keyPath,
   }
 }
 
@@ -361,8 +369,10 @@ export function configUnset(dotPath: string, options: ConfigUnsetOptions = {}): 
   const doc = YAML.parseDocument(content)
 
   const existed = doc.getIn(keyPath) !== undefined
-  doc.deleteIn(keyPath)
-  writeFileSync(filePath, doc.toString(), 'utf8')
+  if (existed) {
+    doc.deleteIn(keyPath)
+    writeFileSync(filePath, doc.toString(), 'utf8')
+  }
 
   return { domain, path: keyPath, filePath, existed }
 }
