@@ -1,5 +1,5 @@
 /**
- * Config Writer Tests (configGet)
+ * Config Writer Tests (configGet + configSet)
  *
  * Tests the config-writer module that provides programmatic access
  * to config values via dot-path notation (e.g., 'core.logging.level').
@@ -9,15 +9,16 @@
  * - configGet: cascade-resolved reads
  * - configGet with scope: scope-specific reads (user, project, local)
  * - getNestedValue: nested object traversal
+ * - configSet: comment-preserving YAML writes with validation
  */
 
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
 import type { AssetResolver } from '../assets'
-import { configGet, parseDotPath } from '../config-writer'
+import { configGet, configSet, parseDotPath } from '../config-writer'
 
 // =============================================================================
 // Test Helpers: Standard Defaults (same pattern as config-service.test.ts)
@@ -394,5 +395,274 @@ describe('configGet - scope-specific reads', () => {
     })
 
     expect(result).toBeUndefined()
+  })
+})
+
+// =============================================================================
+// configSet Tests
+// =============================================================================
+
+describe('configSet', () => {
+  const tempRoot = join(tmpdir(), 'sidekick-config-set-tests')
+
+  beforeEach(() => {
+    mkdirSync(tempRoot, { recursive: true })
+  })
+
+  afterEach(() => {
+    if (existsSync(tempRoot)) {
+      rmSync(tempRoot, { recursive: true, force: true })
+    }
+  })
+
+  test('writes value to correct file at project scope (default)', () => {
+    const homeDir = join(tempRoot, 'home')
+    const projectDir = join(tempRoot, 'project')
+    const projectSidekick = join(projectDir, '.sidekick')
+    mkdirSync(projectSidekick, { recursive: true })
+
+    const result = configSet('core.logging.level', 'debug', {
+      projectRoot: projectDir,
+      homeDir,
+      assets: createMockAssets(),
+    })
+
+    expect(result.domain).toBe('core')
+    expect(result.path).toEqual(['logging', 'level'])
+    expect(result.value).toBe('debug')
+    expect(result.filePath).toBe(join(projectSidekick, 'config.yaml'))
+
+    // Verify file was actually written
+    const content = readFileSync(result.filePath, 'utf8')
+    expect(content).toContain('debug')
+  })
+
+  test('writes to user scope with scope=user', () => {
+    const homeDir = join(tempRoot, 'home')
+    const projectDir = join(tempRoot, 'project')
+
+    const result = configSet('core.logging.level', 'warn', {
+      scope: 'user',
+      projectRoot: projectDir,
+      homeDir,
+      assets: createMockAssets(),
+    })
+
+    expect(result.domain).toBe('core')
+    expect(result.path).toEqual(['logging', 'level'])
+    expect(result.value).toBe('warn')
+    expect(result.filePath).toBe(join(homeDir, '.sidekick', 'config.yaml'))
+
+    // Verify via configGet that the value is in user scope
+    const getResult = configGet('core.logging.level', {
+      scope: 'user',
+      projectRoot: projectDir,
+      homeDir,
+      assets: createMockAssets(),
+    })
+    expect(getResult!.value).toBe('warn')
+  })
+
+  test('writes to local scope with scope=local', () => {
+    const homeDir = join(tempRoot, 'home')
+    const projectDir = join(tempRoot, 'project')
+
+    const result = configSet('core.logging.level', 'error', {
+      scope: 'local',
+      projectRoot: projectDir,
+      homeDir,
+      assets: createMockAssets(),
+    })
+
+    expect(result.domain).toBe('core')
+    expect(result.filePath).toBe(join(projectDir, '.sidekick', 'config.local.yaml'))
+
+    // Verify via configGet
+    const getResult = configGet('core.logging.level', {
+      scope: 'local',
+      projectRoot: projectDir,
+      homeDir,
+      assets: createMockAssets(),
+    })
+    expect(getResult!.value).toBe('error')
+  })
+
+  test('auto-detects types: numbers, booleans, strings', () => {
+    const homeDir = join(tempRoot, 'home')
+    const projectDir = join(tempRoot, 'project')
+    const assets = createMockAssets()
+
+    // Number: '42' -> 42
+    const numResult = configSet('transcript.watchDebounceMs', '42', {
+      projectRoot: projectDir,
+      homeDir,
+      assets,
+    })
+    expect(numResult.value).toBe(42)
+
+    // Boolean: 'true' -> true
+    const boolResult = configSet('core.development.enabled', 'true', {
+      projectRoot: projectDir,
+      homeDir,
+      assets,
+    })
+    expect(boolResult.value).toBe(true)
+
+    // String stays as string
+    const strResult = configSet('core.logging.level', 'debug', {
+      projectRoot: projectDir,
+      homeDir,
+      assets,
+    })
+    expect(strResult.value).toBe('debug')
+  })
+
+  test('preserves existing YAML comments when updating a file', () => {
+    const homeDir = join(tempRoot, 'home')
+    const projectDir = join(tempRoot, 'project')
+    const projectSidekick = join(projectDir, '.sidekick')
+    mkdirSync(projectSidekick, { recursive: true })
+
+    // Write a file with comments
+    const yamlWithComments = `# Core configuration
+logging:
+  # Log level: debug, info, warn, error
+  level: info
+  format: json
+  consoleEnabled: false
+`
+    writeFileSync(join(projectSidekick, 'config.yaml'), yamlWithComments)
+
+    // Update a value
+    configSet('core.logging.level', 'debug', {
+      projectRoot: projectDir,
+      homeDir,
+      assets: createMockAssets(),
+    })
+
+    // Read back and verify comments are preserved
+    const content = readFileSync(join(projectSidekick, 'config.yaml'), 'utf8')
+    expect(content).toContain('# Core configuration')
+    expect(content).toContain('# Log level: debug, info, warn, error')
+    expect(content).toContain('debug')
+    expect(content).not.toContain('level: info')
+  })
+
+  test('creates parent directories if they do not exist', () => {
+    const homeDir = join(tempRoot, 'home')
+    const projectDir = join(tempRoot, 'project')
+    // Note: NOT creating .sidekick directory beforehand
+
+    const result = configSet('core.logging.level', 'debug', {
+      projectRoot: projectDir,
+      homeDir,
+      assets: createMockAssets(),
+    })
+
+    expect(existsSync(result.filePath)).toBe(true)
+    const content = readFileSync(result.filePath, 'utf8')
+    expect(content).toContain('debug')
+  })
+
+  test('seeds from bundled defaults when creating a new file', () => {
+    const homeDir = join(tempRoot, 'home')
+    const projectDir = join(tempRoot, 'project')
+
+    // Create a defaults file with comments in a temp location
+    const defaultsDir = join(tempRoot, 'assets')
+    mkdirSync(join(defaultsDir, 'defaults'), { recursive: true })
+    const defaultsContent = `# Default core configuration
+# Managed by Sidekick
+logging:
+  # Available levels: debug, info, warn, error
+  level: info
+  format: json
+  consoleEnabled: false
+paths:
+  state: .sidekick
+daemon:
+  idleTimeoutMs: 300000
+  shutdownTimeoutMs: 30000
+ipc:
+  connectTimeoutMs: 5000
+  requestTimeoutMs: 30000
+  maxRetries: 3
+  retryDelayMs: 100
+development:
+  enabled: false
+`
+    writeFileSync(join(defaultsDir, 'defaults', 'core.defaults.yaml'), defaultsContent)
+
+    // Create mock assets that returns real file path for resolvePath
+    const assets = createMockAssets()
+    const seedAssets: AssetResolver = {
+      ...assets,
+      resolvePath: (path: string) => {
+        if (path === 'defaults/core.defaults.yaml') {
+          return join(defaultsDir, 'defaults', 'core.defaults.yaml')
+        }
+        return null
+      },
+    }
+
+    configSet('core.logging.level', 'debug', {
+      projectRoot: projectDir,
+      homeDir,
+      assets: seedAssets,
+    })
+
+    // Verify the written file has the comments from defaults
+    const filePath = join(projectDir, '.sidekick', 'config.yaml')
+    const content = readFileSync(filePath, 'utf8')
+    expect(content).toContain('# Default core configuration')
+    expect(content).toContain('# Available levels: debug, info, warn, error')
+    expect(content).toContain('level: debug')
+  })
+
+  test('rejects invalid values via cascade validation', () => {
+    const homeDir = join(tempRoot, 'home')
+    const projectDir = join(tempRoot, 'project')
+
+    // Try to set an invalid log level (not in the enum)
+    expect(() =>
+      configSet('core.logging.level', 'verbose', {
+        projectRoot: projectDir,
+        homeDir,
+        assets: createMockAssets(),
+      })
+    ).toThrow(/validation failed/i)
+  })
+
+  test('handles nested dot-paths creating intermediate objects', () => {
+    const homeDir = join(tempRoot, 'home')
+    const projectDir = join(tempRoot, 'project')
+
+    configSet('core.logging.level', 'warn', {
+      projectRoot: projectDir,
+      homeDir,
+      assets: createMockAssets(),
+    })
+
+    // Verify the nested structure was created
+    const getResult = configGet('core.logging.level', {
+      scope: 'project',
+      projectRoot: projectDir,
+      homeDir,
+      assets: createMockAssets(),
+    })
+    expect(getResult!.value).toBe('warn')
+  })
+
+  test('throws when trying to set entire domain (empty keyPath)', () => {
+    const homeDir = join(tempRoot, 'home')
+    const projectDir = join(tempRoot, 'project')
+
+    expect(() =>
+      configSet('core', '{}', {
+        projectRoot: projectDir,
+        homeDir,
+        assets: createMockAssets(),
+      })
+    ).toThrow(/cannot set an entire domain/i)
   })
 })

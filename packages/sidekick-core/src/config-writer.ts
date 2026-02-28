@@ -1,21 +1,20 @@
 /**
  * Config Writer Module
  *
- * Provides programmatic read access to config values via dot-path notation.
+ * Provides programmatic read/write access to config values via dot-path notation.
  * Supports both cascade-resolved reads (full merge) and scope-specific reads
- * (user, project, local).
- *
- * This module will grow to include configSet, configUnset, and configList
- * in subsequent tasks.
+ * (user, project, local), and comment-preserving YAML writes with validation.
  *
  * @see docs/design/CONFIG-SYSTEM.md
  */
 
-import { join } from 'node:path'
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
+import { dirname, join } from 'node:path'
+import YAML from 'yaml'
 import type { AssetResolver } from './assets'
 import type { Logger } from '@sidekick/types'
-import { type ConfigDomain, DOMAIN_FILES, loadConfig, tryReadYaml } from './config'
+import { coerceValue, type ConfigDomain, DOMAIN_FILES, EXTERNAL_DEFAULTS_FILES, loadConfig, tryReadYaml } from './config'
 
 // =============================================================================
 // Types
@@ -35,6 +34,21 @@ export interface ConfigGetResult {
   value: unknown
   domain: ConfigDomain
   path: string[]
+}
+
+export interface ConfigSetOptions {
+  scope?: ConfigScope
+  projectRoot?: string
+  homeDir?: string
+  assets?: AssetResolver
+  logger?: Logger
+}
+
+export interface ConfigSetResult {
+  domain: ConfigDomain
+  path: string[]
+  value: unknown
+  filePath: string
 }
 
 export interface ParsedDotPath {
@@ -191,4 +205,109 @@ export function configGet(dotPath: string, options: ConfigGetOptions): ConfigGet
   }
 
   return { value, domain, path: keyPath }
+}
+
+// =============================================================================
+// configSet
+// =============================================================================
+
+/**
+ * Set a config value by dot-path, writing to the appropriate scope file.
+ *
+ * Uses the `yaml` package's Document API to preserve YAML comments when
+ * modifying existing files. When creating a new file, seeds from bundled
+ * defaults (if available) to include helpful comments.
+ *
+ * Validates the change against the full cascade config via `loadConfig()`.
+ * If validation fails, the original file is restored and an error is thrown.
+ *
+ * @throws Error if the dot-path points to an entire domain (empty keyPath)
+ * @throws Error if the scope file path cannot be resolved (e.g., no projectRoot for project scope)
+ * @throws Error if the new value fails cascade validation
+ */
+export function configSet(dotPath: string, rawValue: string, options: ConfigSetOptions = {}): ConfigSetResult {
+  const { domain, keyPath } = parseDotPath(dotPath)
+
+  if (keyPath.length === 0) {
+    throw new Error('Cannot set an entire domain. Specify a key path (e.g., "core.logging.level")')
+  }
+
+  const home = options.homeDir ?? homedir()
+  const scope = options.scope ?? 'project'
+  const coercedValue = coerceValue(rawValue)
+
+  // Resolve the target file path
+  const filePath = getScopeFilePath(domain, scope, options.projectRoot, home)
+  if (!filePath) {
+    throw new Error(`Cannot resolve file path for domain "${domain}" at scope "${scope}". Is projectRoot set?`)
+  }
+
+  // Save original state for rollback on validation failure
+  const fileExisted = existsSync(filePath)
+  const originalContent = fileExisted ? readFileSync(filePath, 'utf8') : null
+
+  // Build the YAML document (comment-preserving AST)
+  let doc: YAML.Document
+  if (fileExisted) {
+    doc = YAML.parseDocument(originalContent!)
+  } else {
+    // Try to seed from bundled defaults
+    doc = seedDocumentFromDefaults(domain, options.assets) ?? new YAML.Document({})
+  }
+
+  // Set the value in the document AST
+  doc.setIn(keyPath, coercedValue)
+
+  // Write the file
+  const dir = dirname(filePath)
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true })
+  }
+  writeFileSync(filePath, doc.toString(), 'utf8')
+
+  // Validate: load the full cascade with the change applied
+  try {
+    loadConfig({
+      projectRoot: options.projectRoot,
+      homeDir: home,
+      assets: options.assets,
+      logger: options.logger,
+    })
+  } catch (err) {
+    // Rollback: restore original file or delete if it didn't exist
+    if (fileExisted) {
+      writeFileSync(filePath, originalContent!, 'utf8')
+    } else {
+      try {
+        unlinkSync(filePath)
+      } catch {
+        // Best effort cleanup
+      }
+    }
+
+    const message = err instanceof Error ? err.message : String(err)
+    throw new Error(`Configuration validation failed after setting "${dotPath}": ${message}`)
+  }
+
+  return {
+    domain,
+    path: keyPath,
+    value: coercedValue,
+    filePath,
+  }
+}
+
+/**
+ * Attempt to seed a YAML Document from bundled defaults.
+ * Returns null if no defaults file is available.
+ */
+function seedDocumentFromDefaults(domain: ConfigDomain, assets?: AssetResolver): YAML.Document | null {
+  if (!assets) return null
+
+  const defaultsRelPath = EXTERNAL_DEFAULTS_FILES[domain]
+  const defaultsAbsPath = assets.resolvePath(defaultsRelPath)
+  if (!defaultsAbsPath || !existsSync(defaultsAbsPath)) return null
+
+  const raw = readFileSync(defaultsAbsPath, 'utf8')
+  return YAML.parseDocument(raw)
 }
