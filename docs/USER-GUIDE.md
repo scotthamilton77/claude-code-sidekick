@@ -558,7 +558,7 @@ A two-tier system:
 | `disabled` | (disabled) | No persona output |
 | `eddie` | Eddie | Shipboard computer from Hitchhiker's Guide |
 | `emh` | The Doctor | Emergency Medical Hologram from Voyager |
-| `emperor` | Emperor Palpatine | Sith Lord from Star Wars: Return of the Jedi |
+| `emperor-palpatine` | Emperor Palpatine | Sith Lord from Star Wars: Return of the Jedi |
 | `george` | George | George Costanza from Seinfeld |
 | `glados` | GLaDOS | AI antagonist from Portal |
 | `hudson` | Hudson | Private Hudson from Aliens |

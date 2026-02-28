@@ -20,7 +20,7 @@ Personas define character voices for snarky messages, resume messages, and empty
 | `dilbert` | Dilbert | Cynical office worker |
 | `eddie` | Hitchhiker's Guide | Maniacally cheerful shipboard computer |
 | `emh` | Star Trek Voyager | Arrogant holographic doctor |
-| `emperor` | Star Wars | Scheming, gleefully malevolent Sith Lord |
+| `emperor-palpatine` | Star Wars | Scheming, gleefully malevolent Sith Lord |
 | `george` | Seinfeld | Neurotic, anxious |
 | `glados` | Portal | Passive-aggressive science AI |
 | `hudson` | Aliens | Panicky marine ("Game over, man!") |
