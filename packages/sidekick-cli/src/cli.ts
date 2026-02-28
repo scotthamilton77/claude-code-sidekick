@@ -211,6 +211,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     personas: hasPersonasFlag ? Boolean(parsed.personas) : undefined,
     apiKeyScope: parsed['api-key-scope'] as 'user' | 'project' | undefined,
     autoConfig: parsed['auto-config'] as 'auto' | 'manual' | undefined,
+    scope: parsed.scope as string | undefined,
     only: parsed.only as string | undefined,
     marketplaceScope: parsed['marketplace-scope'] as 'user' | 'project' | 'local' | undefined,
     pluginScope: parsed['plugin-scope'] as 'user' | 'project' | 'local' | undefined,
