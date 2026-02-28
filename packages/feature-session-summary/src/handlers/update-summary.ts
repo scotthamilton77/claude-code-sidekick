@@ -627,6 +627,8 @@ async function generateResumeMessage(
       session_title: summary.session_title,
       snarky_comment: summary.latest_intent,
       timestamp: new Date().toISOString(),
+      persona_id: null,
+      persona_display_name: null,
     }
 
     await summaryState.resumeMessage.write(sessionId, resumeState)
@@ -707,6 +709,8 @@ async function generateResumeMessage(
       session_title: summary.session_title,
       snarky_comment: snarkyWelcome,
       timestamp: new Date().toISOString(),
+      persona_id: persona?.id ?? null,
+      persona_display_name: persona?.display_name ?? null,
     }
 
     // Save via typed accessor

@@ -47,6 +47,8 @@ describe('stagePersonaTransition', () => {
         session_title: 'Old session',
         snarky_comment: 'Welcome back',
         timestamp: '2026-01-01T00:00:00.000Z',
+        persona_id: 'sidekick',
+        persona_display_name: 'Sidekick',
       },
       ResumeMessageStateSchema
     )
