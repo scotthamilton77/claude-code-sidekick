@@ -194,7 +194,7 @@ Handlers may trigger **tasks**—long-running async jobs that run off the critic
 Watches files to trigger reactive behaviors.
 
 #### Configuration Watching
-- **Targets**: `.sidekick/config.yaml`, `.env`.
+- **Targets**: `.sidekick/core.yaml`, `.env`.
 - **Action**: On change, reload config in-memory. If critical config changes (e.g., log level), apply immediately.
 
 #### Transcript Watching (via TranscriptService)

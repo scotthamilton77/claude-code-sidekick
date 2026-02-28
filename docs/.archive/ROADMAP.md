@@ -30,7 +30,7 @@ Built monitoring UI infrastructure. Key outcomes:
 
 Implemented configuration cascade with YAML domain files. Key outcomes:
 
-- 4 domain files: `config.yaml`, `llm.yaml`, `transcript.yaml`, `features.yaml`
+- 4 domain files: `core.yaml`, `llm.yaml`, `transcript.yaml`, `features.yaml`
 - 7-layer cascade: defaults → env → user unified → user domain → project unified → project domain → project-local
 - `sidekick.config` unified override support (dot-notation)
 - Derived path helpers for staging directories

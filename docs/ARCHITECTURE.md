@@ -125,7 +125,7 @@ See **docs/design/flow.md §2.2** for staging semantics and **docs/design/FEATUR
 
 Configuration uses **YAML** for domain-specific files with a layered cascade.
 
-**Domain Files**: `config.yaml`, `llm.yaml`, `transcript.yaml`, `features.yaml`
+**Domain Files**: `core.yaml`, `llm.yaml`, `transcript.yaml`, `features.yaml`
 
 **Cascade Order** (lowest to highest priority):
 

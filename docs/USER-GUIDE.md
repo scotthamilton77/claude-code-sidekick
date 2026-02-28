@@ -629,7 +629,7 @@ Sidekick logs to `.sidekick/logs/` (project-level). The main log file is `.sidek
 tail -f .sidekick/sidekick.log
 
 # Enable debug logging via YAML config
-# Add to .sidekick/config.yaml or .sidekick/config.local.yaml:
+# Add to .sidekick/core.yaml or .sidekick/core.local.yaml:
 #   logging:
 #     level: debug
 

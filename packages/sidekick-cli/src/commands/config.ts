@@ -264,14 +264,14 @@ Examples:
  *
  * Routes to appropriate handler based on subcommand.
  */
-export async function handleConfigCommand(
+export function handleConfigCommand(
   subcommand: string | undefined,
   args: (string | number)[],
   projectRoot: string,
   logger: Logger,
   stdout: Writable,
   options: ConfigCommandOptions
-): Promise<ConfigCommandResult> {
+): ConfigCommandResult {
   switch (subcommand) {
     case 'get':
       return handleGet(args, projectRoot, logger, stdout, options)

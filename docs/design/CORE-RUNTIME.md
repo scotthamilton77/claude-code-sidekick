@@ -73,9 +73,9 @@ Responsible for loading, merging, and validating configuration.
 - **Sources** (in priority order):
   1.  Internal Defaults
   2.  Environment Variables (`SIDEKICK_*`)
-  3.  User Config (`~/.sidekick/config.yaml`)
-  4.  Project Config (`.sidekick/config.yaml`)
-  5.  Local Overrides (`.sidekick/config.local.yaml`)
+  3.  User Config (`~/.sidekick/core.yaml`)
+  4.  Project Config (`.sidekick/core.yaml`)
+  5.  Local Overrides (`.sidekick/core.local.yaml`)
 - **Validation**: Uses Zod schemas. Invalid config prevents startup (fail-fast).
 - **Access**: `config.get('key')` or typed accessors `config.llm.temperature`.
 

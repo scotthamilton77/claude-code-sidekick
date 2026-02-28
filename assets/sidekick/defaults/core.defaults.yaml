@@ -1,6 +1,6 @@
 # Core Configuration Defaults
 # This file defines default values for logging, paths, daemon, and IPC settings.
-# Override in ~/.sidekick/config.yaml or .sidekick/config.yaml
+# Override in ~/.sidekick/core.yaml or .sidekick/core.yaml
 
 # Logging configuration
 logging:

@@ -129,6 +129,16 @@ beforeEach(() => {
   // Create unique temp directory per test
   tempRoot = join(tmpdir(), `sidekick-config-cli-tests-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
   mkdirSync(tempRoot, { recursive: true })
+
+  // Isolate home directory so real ~/.sidekick/ cannot influence cascade reads
+  const tempHome = join(tempRoot, 'home')
+  mkdirSync(tempHome, { recursive: true })
+  for (const key of ['HOME', 'USERPROFILE'] as const) {
+    if (!(key in savedEnv)) {
+      savedEnv[key] = process.env[key]
+    }
+    process.env[key] = tempHome
+  }
 })
 
 afterEach(() => {
@@ -156,13 +166,13 @@ describe('handleConfigCommand', () => {
   // ---------------------------------------------------------------------------
   // 1. config get core.logging.level — returns the resolved value
   // ---------------------------------------------------------------------------
-  test('config get returns the cascade-resolved default value', async () => {
+  test('config get returns the cascade-resolved default value', () => {
     const projectDir = join(tempRoot, 'project')
     mkdirSync(projectDir, { recursive: true })
     const assets = createMockAssets()
     const { stdout, output } = createTestStdout()
 
-    const result = await handleConfigCommand('get', ['core.logging.level'], projectDir, noopLogger, stdout, {
+    const result = handleConfigCommand('get', ['core.logging.level'], projectDir, noopLogger, stdout, {
       assets,
     })
 
@@ -173,16 +183,16 @@ describe('handleConfigCommand', () => {
   // ---------------------------------------------------------------------------
   // 2. config get core.logging.level --scope=project — scope-specific value
   // ---------------------------------------------------------------------------
-  test('config get with scope returns the scope-specific value', async () => {
+  test('config get with scope returns the scope-specific value', () => {
     const projectDir = join(tempRoot, 'project')
     const projectSidekick = join(projectDir, '.sidekick')
     mkdirSync(projectSidekick, { recursive: true })
-    writeFileSync(join(projectSidekick, 'config.yaml'), 'logging:\n  level: debug\n')
+    writeFileSync(join(projectSidekick, 'core.yaml'), 'logging:\n  level: debug\n')
 
     const assets = createMockAssets()
     const { stdout, output } = createTestStdout()
 
-    const result = await handleConfigCommand('get', ['core.logging.level'], projectDir, noopLogger, stdout, {
+    const result = handleConfigCommand('get', ['core.logging.level'], projectDir, noopLogger, stdout, {
       scope: 'project',
       assets,
     })
@@ -194,20 +204,15 @@ describe('handleConfigCommand', () => {
   // ---------------------------------------------------------------------------
   // 3. config get core.nonexistent.path — returns appropriate error
   // ---------------------------------------------------------------------------
-  test('config get for nonexistent path returns exit code 1 with error message', async () => {
+  test('config get for nonexistent path returns exit code 1 with error message', () => {
     const projectDir = join(tempRoot, 'project')
     mkdirSync(projectDir, { recursive: true })
     const assets = createMockAssets()
     const { stdout, output } = createTestStdout()
 
-    const result = await handleConfigCommand(
-      'get',
-      ['core.nonexistent.path'],
-      projectDir,
-      noopLogger,
-      stdout,
-      { assets }
-    )
+    const result = handleConfigCommand('get', ['core.nonexistent.path'], projectDir, noopLogger, stdout, {
+      assets,
+    })
 
     expect(result.exitCode).toBe(1)
     expect(output()).toContain('No value found')
@@ -216,26 +221,21 @@ describe('handleConfigCommand', () => {
   // ---------------------------------------------------------------------------
   // 4. config set core.logging.level debug — writes and returns success
   // ---------------------------------------------------------------------------
-  test('config set writes value and returns success', async () => {
+  test('config set writes value and returns success', () => {
     const projectDir = join(tempRoot, 'project')
     mkdirSync(projectDir, { recursive: true })
     const assets = createMockAssets()
     const { stdout, output } = createTestStdout()
 
-    const result = await handleConfigCommand(
-      'set',
-      ['core.logging.level', 'debug'],
-      projectDir,
-      noopLogger,
-      stdout,
-      { assets }
-    )
+    const result = handleConfigCommand('set', ['core.logging.level', 'debug'], projectDir, noopLogger, stdout, {
+      assets,
+    })
 
     expect(result.exitCode).toBe(0)
     expect(output()).toContain('Set')
 
     // Verify the file was actually written
-    const configPath = join(projectDir, '.sidekick', 'config.yaml')
+    const configPath = join(projectDir, '.sidekick', 'core.yaml')
     expect(existsSync(configPath)).toBe(true)
     const content = readFileSync(configPath, 'utf8')
     expect(content).toContain('debug')
@@ -244,20 +244,15 @@ describe('handleConfigCommand', () => {
   // ---------------------------------------------------------------------------
   // 5. config set core.logging.level verbose — returns validation error
   // ---------------------------------------------------------------------------
-  test('config set with invalid value returns exit code 1 with error', async () => {
+  test('config set with invalid value returns exit code 1 with error', () => {
     const projectDir = join(tempRoot, 'project')
     mkdirSync(projectDir, { recursive: true })
     const assets = createMockAssets()
     const { stdout, output } = createTestStdout()
 
-    const result = await handleConfigCommand(
-      'set',
-      ['core.logging.level', 'verbose'],
-      projectDir,
-      noopLogger,
-      stdout,
-      { assets }
-    )
+    const result = handleConfigCommand('set', ['core.logging.level', 'verbose'], projectDir, noopLogger, stdout, {
+      assets,
+    })
 
     expect(result.exitCode).toBe(1)
     expect(output()).toMatch(/validation/i)
@@ -266,31 +261,26 @@ describe('handleConfigCommand', () => {
   // ---------------------------------------------------------------------------
   // 6. config unset core.logging.level — removes override and returns success
   // ---------------------------------------------------------------------------
-  test('config unset removes override and returns success', async () => {
+  test('config unset removes override and returns success', () => {
     const projectDir = join(tempRoot, 'project')
     const projectSidekick = join(projectDir, '.sidekick')
     mkdirSync(projectSidekick, { recursive: true })
 
     // First set a value so there is something to unset
-    writeFileSync(join(projectSidekick, 'config.yaml'), 'logging:\n  level: debug\n  format: json\n')
+    writeFileSync(join(projectSidekick, 'core.yaml'), 'logging:\n  level: debug\n  format: json\n')
 
     const assets = createMockAssets()
     const { stdout, output } = createTestStdout()
 
-    const result = await handleConfigCommand(
-      'unset',
-      ['core.logging.level'],
-      projectDir,
-      noopLogger,
-      stdout,
-      { assets }
-    )
+    const result = handleConfigCommand('unset', ['core.logging.level'], projectDir, noopLogger, stdout, {
+      assets,
+    })
 
     expect(result.exitCode).toBe(0)
     expect(output()).toContain('Unset')
 
     // Verify the key was actually removed from the file
-    const content = readFileSync(join(projectSidekick, 'config.yaml'), 'utf8')
+    const content = readFileSync(join(projectSidekick, 'core.yaml'), 'utf8')
     expect(content).not.toContain('level')
     expect(content).toContain('format: json')
   })
@@ -298,20 +288,17 @@ describe('handleConfigCommand', () => {
   // ---------------------------------------------------------------------------
   // 7. config list --scope=project — lists all project overrides
   // ---------------------------------------------------------------------------
-  test('config list with scope shows all overrides as dot-paths', async () => {
+  test('config list with scope shows all overrides as dot-paths', () => {
     const projectDir = join(tempRoot, 'project')
     const projectSidekick = join(projectDir, '.sidekick')
     mkdirSync(projectSidekick, { recursive: true })
 
-    writeFileSync(
-      join(projectSidekick, 'config.yaml'),
-      'logging:\n  level: debug\n  format: text\n'
-    )
+    writeFileSync(join(projectSidekick, 'core.yaml'), 'logging:\n  level: debug\n  format: text\n')
 
     const assets = createMockAssets()
     const { stdout, output } = createTestStdout()
 
-    const result = await handleConfigCommand('list', [], projectDir, noopLogger, stdout, {
+    const result = handleConfigCommand('list', [], projectDir, noopLogger, stdout, {
       scope: 'project',
       assets,
     })
@@ -325,12 +312,12 @@ describe('handleConfigCommand', () => {
   // ---------------------------------------------------------------------------
   // 8. config --help — shows help text
   // ---------------------------------------------------------------------------
-  test('--help shows usage information', async () => {
+  test('--help shows usage information', () => {
     const projectDir = join(tempRoot, 'project')
     mkdirSync(projectDir, { recursive: true })
     const { stdout, output } = createTestStdout()
 
-    const result = await handleConfigCommand('--help', [], projectDir, noopLogger, stdout, {})
+    const result = handleConfigCommand('--help', [], projectDir, noopLogger, stdout, {})
 
     expect(result.exitCode).toBe(0)
     expect(output()).toContain('Usage')
@@ -339,12 +326,12 @@ describe('handleConfigCommand', () => {
   // ---------------------------------------------------------------------------
   // 9. Unknown subcommand — shows error
   // ---------------------------------------------------------------------------
-  test('unknown subcommand returns error with help text', async () => {
+  test('unknown subcommand returns error with help text', () => {
     const projectDir = join(tempRoot, 'project')
     mkdirSync(projectDir, { recursive: true })
     const { stdout, output } = createTestStdout()
 
-    const result = await handleConfigCommand('invalid', [], projectDir, noopLogger, stdout, {})
+    const result = handleConfigCommand('invalid', [], projectDir, noopLogger, stdout, {})
 
     expect(result.exitCode).toBe(1)
     const text = output()

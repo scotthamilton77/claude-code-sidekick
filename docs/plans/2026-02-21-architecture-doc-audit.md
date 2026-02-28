@@ -135,7 +135,7 @@ All of these packages exist with matching names:
 
 ### Confirmed (6)
 - YAML domain files with bash-style `sidekick.config` overrides
-- All 4 domain files exist: `config.yaml`, `llm.yaml`, `transcript.yaml`, `features.yaml`
+- All 4 domain files exist: `core.yaml`, `llm.yaml`, `transcript.yaml`, `features.yaml`
 - `.env` file loading implemented (user, project, project-local)
 - `.yaml.local` override files supported (highest priority)
 - `.sidekick/` paths used for both scopes

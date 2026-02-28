@@ -929,13 +929,15 @@ export class StatuslineService {
           : DEFAULT_PLACEHOLDERS.newSession
         let resumeSummary = resume?.snarky_comment || emptySessionMessage
 
-        // Attribution wrapper: when source persona differs from current, prefix with source name
+        // Attribution wrapper: when source persona differs from current, prefix with source name.
+        // Do not require a resolved PersonaDefinition; fall back to persona_id when persona is null.
+        const isPersonaDisabled = persona?.id === 'disabled'
+
         if (
           resume?.persona_id &&
           resume.persona_display_name &&
-          persona &&
-          persona.id !== 'disabled' &&
-          resume.persona_id !== persona.id
+          !isPersonaDisabled &&
+          resume.persona_id !== persona?.id
         ) {
           resumeSummary = `${resume.persona_display_name}: ${resumeSummary}`
         }

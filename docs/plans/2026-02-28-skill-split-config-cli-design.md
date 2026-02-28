@@ -229,7 +229,7 @@ The first path segment determines the config domain, which maps to exactly one Y
 
 | Domain | YAML File | Local Override |
 |--------|-----------|----------------|
-| `core` | `config.yaml` | `config.local.yaml` |
+| `core` | `core.yaml` | `core.local.yaml` |
 | `llm` | `llm.yaml` | `llm.local.yaml` |
 | `transcript` | `transcript.yaml` | `transcript.local.yaml` |
 | `features` | `features.yaml` | `features.local.yaml` |
@@ -242,7 +242,7 @@ Remaining path segments map to nested YAML keys within the domain file:
 | `llm.profiles.my-profile` | `llm.yaml` | `profiles: my-profile:` |
 | `features.statusline.settings.format` | `features.yaml` | `statusline: settings: format:` |
 | `features.session-summary.settings.personas.weights.skippy` | `features.yaml` | `session-summary: settings: personas: weights: skippy:` |
-| `core.logging.level` | `config.yaml` | `logging: level:` |
+| `core.logging.level` | `core.yaml` | `logging: level:` |
 
 All feature settings (statusline, reminders, session-summary) live in a single `features.yaml` file — there are no per-feature files.
 

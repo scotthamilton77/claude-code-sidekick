@@ -95,7 +95,7 @@ This document preserves the full implementation details of completed phases from
     - [x] Author tests upfront that cover requirements to be implemented/updated
   - [x] **Architectural alignment tasks** (added post-architecture-pivot)
     - [x] Migrate config format from JSONC to YAML domain files (per docs/design/CONFIG-SYSTEM.md §3):
-      - [x] `config.yaml` (core: paths, logging) — implemented as `CoreConfigSchema`
+      - [x] `core.yaml` (core: paths, logging) — implemented as `CoreConfigSchema`
       - [x] `llm.yaml` (provider settings, model selection) — implemented as `LlmConfigSchema`
       - [x] `transcript.yaml` (watchDebounceMs, metricsPersistIntervalMs) — implemented as `TranscriptConfigSchema`
       - [x] `features.yaml` (feature flags and feature-specific settings) — implemented as `FeaturesConfigSchema`
@@ -521,7 +521,7 @@ This document preserves the full implementation details of completed phases from
     - [x] Supervisor auto-start on first hook invocation (if not running)
     - [x] Connection pooling: reuse socket across hook invocations within CLI process
     - [x] Graceful degradation: CLI proceeds with sync paths when supervisor unavailable, logging warnings
-    - [x] Timeout/retry logic for IPC calls (configurable via `config.yaml`)
+    - [x] Timeout/retry logic for IPC calls (configurable via `core.yaml`)
     - [x] Testing: CLI lifecycle commands, auto-start behavior, fallback paths, timeout handling
     - [x] **Verification gate**: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
   - [x] **5.6 UI Integration** - COMPLETE 2025-12-04

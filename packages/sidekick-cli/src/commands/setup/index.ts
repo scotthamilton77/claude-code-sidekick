@@ -292,7 +292,7 @@ async function writeApiKeyToEnv(envPath: string, key: string, value: string): Pr
 
 /**
  * Write persona enabled/disabled setting to sidekick features config.
- * Per CONFIG-SYSTEM.md, feature flags go in features.yaml (not config.yaml).
+ * Per CONFIG-SYSTEM.md, feature flags go in features.yaml (not core.yaml).
  */
 async function writePersonaConfig(homeDir: string, enabled: boolean): Promise<void> {
   // Write to user-level features config (~/.sidekick/features.yaml)

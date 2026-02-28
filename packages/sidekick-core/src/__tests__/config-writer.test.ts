@@ -17,7 +17,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, test } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 import type { AssetResolver } from '../assets'
 import { configGet, configList, configSet, configUnset, parseDotPath } from '../config-writer'
@@ -238,7 +238,7 @@ describe('configGet - cascade-resolved', () => {
     const projectDir = join(tempRoot, 'project')
     const projectSidekick = join(projectDir, '.sidekick')
     mkdirSync(projectSidekick, { recursive: true })
-    writeFileSync(join(projectSidekick, 'config.yaml'), `logging:\n  level: debug`)
+    writeFileSync(join(projectSidekick, 'core.yaml'), `logging:\n  level: debug`)
 
     const result = configGet('core.logging.level', {
       projectRoot: projectDir,
@@ -275,8 +275,8 @@ describe('configGet - scope-specific reads', () => {
     mkdirSync(userSidekick, { recursive: true })
     mkdirSync(projectSidekick, { recursive: true })
 
-    writeFileSync(join(userSidekick, 'config.yaml'), `logging:\n  level: warn`)
-    writeFileSync(join(projectSidekick, 'config.yaml'), `logging:\n  level: error`)
+    writeFileSync(join(userSidekick, 'core.yaml'), `logging:\n  level: warn`)
+    writeFileSync(join(projectSidekick, 'core.yaml'), `logging:\n  level: error`)
 
     const result = configGet('core.logging.level', {
       scope: 'project',
@@ -297,8 +297,8 @@ describe('configGet - scope-specific reads', () => {
     mkdirSync(userSidekick, { recursive: true })
     mkdirSync(projectSidekick, { recursive: true })
 
-    writeFileSync(join(userSidekick, 'config.yaml'), `logging:\n  level: warn`)
-    writeFileSync(join(projectSidekick, 'config.yaml'), `logging:\n  level: error`)
+    writeFileSync(join(userSidekick, 'core.yaml'), `logging:\n  level: warn`)
+    writeFileSync(join(projectSidekick, 'core.yaml'), `logging:\n  level: error`)
 
     const result = configGet('core.logging.level', {
       scope: 'user',
@@ -317,8 +317,8 @@ describe('configGet - scope-specific reads', () => {
     const projectSidekick = join(projectDir, '.sidekick')
     mkdirSync(projectSidekick, { recursive: true })
 
-    writeFileSync(join(projectSidekick, 'config.yaml'), `logging:\n  level: error`)
-    writeFileSync(join(projectSidekick, 'config.local.yaml'), `logging:\n  level: debug`)
+    writeFileSync(join(projectSidekick, 'core.yaml'), `logging:\n  level: error`)
+    writeFileSync(join(projectSidekick, 'core.local.yaml'), `logging:\n  level: debug`)
 
     const result = configGet('core.logging.level', {
       scope: 'local',
@@ -337,7 +337,7 @@ describe('configGet - scope-specific reads', () => {
     const userSidekick = join(homeDir, '.sidekick')
     mkdirSync(userSidekick, { recursive: true })
 
-    writeFileSync(join(userSidekick, 'config.yaml'), `logging:\n  level: warn`)
+    writeFileSync(join(userSidekick, 'core.yaml'), `logging:\n  level: warn`)
 
     const result = configGet('core.logging.level', {
       scope: 'local',
@@ -357,8 +357,8 @@ describe('configGet - scope-specific reads', () => {
     mkdirSync(userSidekick, { recursive: true })
     mkdirSync(projectSidekick, { recursive: true })
 
-    writeFileSync(join(userSidekick, 'config.yaml'), `logging:\n  level: warn`)
-    writeFileSync(join(projectSidekick, 'config.yaml'), `logging:\n  level: error`)
+    writeFileSync(join(userSidekick, 'core.yaml'), `logging:\n  level: warn`)
+    writeFileSync(join(projectSidekick, 'core.yaml'), `logging:\n  level: error`)
 
     // No scope = cascade-resolved (should return 'error' since project overrides user)
     const cascadeResult = configGet('core.logging.level', {
@@ -387,7 +387,7 @@ describe('configGet - scope-specific reads', () => {
     mkdirSync(projectSidekick, { recursive: true })
 
     // Only project has the value, user file does not exist
-    writeFileSync(join(projectSidekick, 'config.yaml'), `logging:\n  level: error`)
+    writeFileSync(join(projectSidekick, 'core.yaml'), `logging:\n  level: error`)
 
     const result = configGet('core.logging.level', {
       scope: 'user',
@@ -432,7 +432,7 @@ describe('configSet', () => {
     expect(result.domain).toBe('core')
     expect(result.path).toEqual(['logging', 'level'])
     expect(result.value).toBe('debug')
-    expect(result.filePath).toBe(join(projectSidekick, 'config.yaml'))
+    expect(result.filePath).toBe(join(projectSidekick, 'core.yaml'))
 
     // Verify file was actually written
     const content = readFileSync(result.filePath, 'utf8')
@@ -453,7 +453,7 @@ describe('configSet', () => {
     expect(result.domain).toBe('core')
     expect(result.path).toEqual(['logging', 'level'])
     expect(result.value).toBe('warn')
-    expect(result.filePath).toBe(join(homeDir, '.sidekick', 'config.yaml'))
+    expect(result.filePath).toBe(join(homeDir, '.sidekick', 'core.yaml'))
 
     // Verify via configGet that the value is in user scope
     const getResult = configGet('core.logging.level', {
@@ -477,7 +477,7 @@ describe('configSet', () => {
     })
 
     expect(result.domain).toBe('core')
-    expect(result.filePath).toBe(join(projectDir, '.sidekick', 'config.local.yaml'))
+    expect(result.filePath).toBe(join(projectDir, '.sidekick', 'core.local.yaml'))
 
     // Verify via configGet
     const getResult = configGet('core.logging.level', {
@@ -533,7 +533,7 @@ logging:
   format: json
   consoleEnabled: false
 `
-    writeFileSync(join(projectSidekick, 'config.yaml'), yamlWithComments)
+    writeFileSync(join(projectSidekick, 'core.yaml'), yamlWithComments)
 
     // Update a value
     configSet('core.logging.level', 'debug', {
@@ -543,7 +543,7 @@ logging:
     })
 
     // Read back and verify comments are preserved
-    const content = readFileSync(join(projectSidekick, 'config.yaml'), 'utf8')
+    const content = readFileSync(join(projectSidekick, 'core.yaml'), 'utf8')
     expect(content).toContain('# Core configuration')
     expect(content).toContain('# Log level: debug, info, warn, error')
     expect(content).toContain('debug')
@@ -614,7 +614,7 @@ development:
     })
 
     // Verify the written file has the comments from defaults
-    const filePath = join(projectDir, '.sidekick', 'config.yaml')
+    const filePath = join(projectDir, '.sidekick', 'core.yaml')
     const content = readFileSync(filePath, 'utf8')
     expect(content).toContain('# Default core configuration')
     expect(content).toContain('# Available levels: debug, info, warn, error')
@@ -693,7 +693,7 @@ describe('configUnset', () => {
     mkdirSync(projectSidekick, { recursive: true })
 
     // Set a value first
-    writeFileSync(join(projectSidekick, 'config.yaml'), `logging:\n  level: debug\n  format: json\n`)
+    writeFileSync(join(projectSidekick, 'core.yaml'), `logging:\n  level: debug\n  format: json\n`)
 
     const result = configUnset('core.logging.level', {
       projectRoot: projectDir,
@@ -703,10 +703,10 @@ describe('configUnset', () => {
     expect(result.existed).toBe(true)
     expect(result.domain).toBe('core')
     expect(result.path).toEqual(['logging', 'level'])
-    expect(result.filePath).toBe(join(projectSidekick, 'config.yaml'))
+    expect(result.filePath).toBe(join(projectSidekick, 'core.yaml'))
 
     // Verify key is gone but sibling remains
-    const content = readFileSync(join(projectSidekick, 'config.yaml'), 'utf8')
+    const content = readFileSync(join(projectSidekick, 'core.yaml'), 'utf8')
     expect(content).not.toContain('level')
     expect(content).toContain('format: json')
   })
@@ -724,14 +724,14 @@ logging:
   # Output format
   format: json
 `
-    writeFileSync(join(projectSidekick, 'config.yaml'), yamlWithComments)
+    writeFileSync(join(projectSidekick, 'core.yaml'), yamlWithComments)
 
     configUnset('core.logging.level', {
       projectRoot: projectDir,
       homeDir,
     })
 
-    const content = readFileSync(join(projectSidekick, 'config.yaml'), 'utf8')
+    const content = readFileSync(join(projectSidekick, 'core.yaml'), 'utf8')
     expect(content).toContain('# Core configuration')
     expect(content).toContain('# Output format')
     expect(content).toContain('format: json')
@@ -760,8 +760,8 @@ logging:
     mkdirSync(projectSidekick, { recursive: true })
 
     // User scope has 'warn', project scope has 'error'
-    writeFileSync(join(userSidekick, 'config.yaml'), `logging:\n  level: warn\n`)
-    writeFileSync(join(projectSidekick, 'config.yaml'), `logging:\n  level: error\n`)
+    writeFileSync(join(userSidekick, 'core.yaml'), `logging:\n  level: warn\n`)
+    writeFileSync(join(projectSidekick, 'core.yaml'), `logging:\n  level: error\n`)
 
     // Cascade before unset: project overrides user -> 'error'
     const before = configGet('core.logging.level', {
@@ -794,7 +794,7 @@ logging:
     mkdirSync(projectSidekick, { recursive: true })
 
     // File exists but does not contain the key we're unsetting
-    writeFileSync(join(projectSidekick, 'config.yaml'), `logging:\n  level: info\n`)
+    writeFileSync(join(projectSidekick, 'core.yaml'), `logging:\n  level: info\n`)
 
     const result = configUnset('core.logging.nonexistent', {
       scope: 'project',
@@ -804,7 +804,7 @@ logging:
 
     expect(result.existed).toBe(false)
     // File should still have the original content
-    const content = readFileSync(join(projectSidekick, 'config.yaml'), 'utf8')
+    const content = readFileSync(join(projectSidekick, 'core.yaml'), 'utf8')
     expect(content).toContain('level: info')
   })
 
@@ -844,7 +844,7 @@ describe('configList', () => {
     const projectSidekick = join(projectDir, '.sidekick')
     mkdirSync(projectSidekick, { recursive: true })
 
-    writeFileSync(join(projectSidekick, 'config.yaml'), `logging:\n  level: debug\n`)
+    writeFileSync(join(projectSidekick, 'core.yaml'), `logging:\n  level: debug\n`)
 
     const result = configList({
       scope: 'project',
@@ -862,7 +862,7 @@ describe('configList', () => {
     const projectSidekick = join(projectDir, '.sidekick')
     mkdirSync(projectSidekick, { recursive: true })
 
-    writeFileSync(join(projectSidekick, 'config.yaml'), `logging:\n  level: debug\n`)
+    writeFileSync(join(projectSidekick, 'core.yaml'), `logging:\n  level: debug\n`)
     writeFileSync(join(projectSidekick, 'transcript.yaml'), `watchDebounceMs: 200\n`)
 
     const result = configList({
@@ -898,7 +898,7 @@ describe('configList', () => {
     mkdirSync(projectSidekick, { recursive: true })
 
     writeFileSync(
-      join(projectSidekick, 'config.yaml'),
+      join(projectSidekick, 'core.yaml'),
       `logging:\n  level: warn\n  format: text\ndevelopment:\n  enabled: true\n`
     )
 
@@ -911,5 +911,166 @@ describe('configList', () => {
     expect(result.entries).toContainEqual({ path: 'core.logging.level', value: 'warn' })
     expect(result.entries).toContainEqual({ path: 'core.logging.format', value: 'text' })
     expect(result.entries).toContainEqual({ path: 'core.development.enabled', value: true })
+  })
+})
+
+// =============================================================================
+// Bug A: configGet with no options argument
+// =============================================================================
+
+describe('configGet - optional options parameter', () => {
+  const tempRoot = join(tmpdir(), 'sidekick-config-get-optional-tests')
+
+  beforeEach(() => {
+    mkdirSync(tempRoot, { recursive: true })
+  })
+
+  afterEach(() => {
+    if (existsSync(tempRoot)) {
+      rmSync(tempRoot, { recursive: true, force: true })
+    }
+  })
+
+  test('accepts no options argument (defaults to empty object)', () => {
+    // Call with literally no second argument to verify the optional
+    // parameter works at both the type and runtime level (no TypeError).
+    // The cascade load will throw a validation error (no assets/defaults),
+    // but the key assertion is that it does NOT throw a TypeError from
+    // attempting to destructure undefined options.
+    try {
+      configGet('core.logging.level')
+    } catch (err) {
+      expect(err).not.toBeInstanceOf(TypeError)
+    }
+  })
+
+  test('works with minimal scope-specific options (no projectRoot or assets)', () => {
+    // Scope-specific read that won't hit loadConfig validation.
+    // Verifies configGet works with just scope + homeDir.
+    const result = configGet('core.nonexistent.path', {
+      scope: 'user',
+      homeDir: join(tempRoot, 'home'),
+    })
+    expect(result).toBeUndefined()
+  })
+})
+
+// =============================================================================
+// Bug A: configSet with no options (defaults projectRoot to cwd)
+// =============================================================================
+
+describe('configSet - projectRoot defaults to cwd', () => {
+  const tempRoot = join(tmpdir(), 'sidekick-config-set-cwd-tests')
+
+  beforeEach(() => {
+    mkdirSync(tempRoot, { recursive: true })
+  })
+
+  afterEach(() => {
+    if (existsSync(tempRoot)) {
+      rmSync(tempRoot, { recursive: true, force: true })
+    }
+  })
+
+  test('uses cwd as projectRoot when no projectRoot is provided for project scope', () => {
+    const fakeCwd = join(tempRoot, 'fake-cwd')
+    mkdirSync(fakeCwd, { recursive: true })
+    const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(fakeCwd)
+
+    try {
+      const homeDir = join(tempRoot, 'home')
+      const result = configSet('core.logging.level', 'debug', {
+        homeDir,
+        assets: createMockAssets(),
+      })
+
+      expect(result.filePath).toContain('.sidekick')
+      expect(result.filePath).toContain('core.yaml')
+      expect(result.value).toBe('debug')
+    } finally {
+      cwdSpy.mockRestore()
+    }
+  })
+})
+
+// =============================================================================
+// Bug B: YAML parse error checking
+// =============================================================================
+
+describe('YAML parse error checking', () => {
+  const tempRoot = join(tmpdir(), 'sidekick-yaml-parse-error-tests')
+
+  beforeEach(() => {
+    mkdirSync(tempRoot, { recursive: true })
+  })
+
+  afterEach(() => {
+    if (existsSync(tempRoot)) {
+      rmSync(tempRoot, { recursive: true, force: true })
+    }
+  })
+
+  test('configSet throws on malformed existing YAML', () => {
+    const homeDir = join(tempRoot, 'home')
+    const projectDir = join(tempRoot, 'project')
+    const projectSidekick = join(projectDir, '.sidekick')
+    mkdirSync(projectSidekick, { recursive: true })
+
+    // Write malformed YAML (duplicate key with different indentation, unquoted colon)
+    writeFileSync(join(projectSidekick, 'core.yaml'), `logging:\n  level: info\n  level: {{\n`)
+
+    expect(() =>
+      configSet('core.logging.format', 'json', {
+        projectRoot: projectDir,
+        homeDir,
+        assets: createMockAssets(),
+      })
+    ).toThrow(/failed to parse yaml/i)
+  })
+
+  test('configUnset throws on malformed YAML', () => {
+    const homeDir = join(tempRoot, 'home')
+    const projectDir = join(tempRoot, 'project')
+    const projectSidekick = join(projectDir, '.sidekick')
+    mkdirSync(projectSidekick, { recursive: true })
+
+    // Write malformed YAML
+    writeFileSync(join(projectSidekick, 'core.yaml'), `logging:\n  level: {{\n`)
+
+    expect(() =>
+      configUnset('core.logging.level', {
+        projectRoot: projectDir,
+        homeDir,
+      })
+    ).toThrow(/failed to parse yaml/i)
+  })
+
+  test('configSet throws on malformed bundled defaults YAML', () => {
+    const homeDir = join(tempRoot, 'home')
+    const projectDir = join(tempRoot, 'project')
+
+    // Create a malformed defaults file
+    const defaultsDir = join(tempRoot, 'assets')
+    mkdirSync(join(defaultsDir, 'defaults'), { recursive: true })
+    writeFileSync(join(defaultsDir, 'defaults', 'core.defaults.yaml'), `logging:\n  level: {{\n`)
+
+    const assets = createMockAssets()
+    const seedAssets: AssetResolver = {
+      ...assets,
+      resolvePath: (path: string) => {
+        if (path === 'defaults/core.defaults.yaml') {
+          return join(defaultsDir, 'defaults', 'core.defaults.yaml')
+        }
+        return null
+      },
+    }
+
+    expect(() =>
+      configSet('core.logging.level', 'debug', {
+        projectRoot: projectDir,
+        homeDir,
+        assets: seedAssets,
+      })
+    ).toThrow(/invalid bundled defaults yaml/i)
   })
 })

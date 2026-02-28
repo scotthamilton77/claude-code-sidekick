@@ -18,7 +18,7 @@ Configuration is organized into logical domains, each with its own file and sche
 
 | Domain       | Filename          | Purpose                                   |
 | ------------ | ----------------- | ----------------------------------------- |
-| `core`       | `config.yaml`     | Paths, logging, general settings          |
+| `core`       | `core.yaml`       | Paths, logging, general settings          |
 | `llm`        | `llm.yaml`        | LLM provider settings, model selection    |
 | `transcript` | `transcript.yaml` | Transcript processing, metrics            |
 | `features`   | `features.yaml`   | Feature flags and feature-specific config |
@@ -283,7 +283,7 @@ class AssetResolver {
 
 ## 9. Example Configuration Files
 
-### 9.1 `.sidekick/config.yaml` (Project Core)
+### 9.1 `.sidekick/core.yaml` (Project Core)
 
 ```yaml
 # Core Sidekick configuration
@@ -354,18 +354,13 @@ The configuration system provides diagnostic logging to help troubleshoot config
 
 ### 10.1 Load-Time Logging
 
-When configuration is loaded via `createConfigService()`, the following is logged:
+When configuration is loaded via `createConfigService()`, sources are collected into a `sources` array for debugging but no info-level log messages are emitted. The loaded sources are available via `configService.sources` for diagnostic inspection.
 
 | Level | Condition | Message |
 |-------|-----------|---------|
-| `info` | User config overrides found | `User config overrides loaded` with source path |
-| `info` | Project config overrides found | `Project config overrides loaded` with source path |
-
-**Example info:**
-```
-info: User config overrides loaded { source: "~/.sidekick/llm.yaml" }
-info: Project config overrides loaded { source: ".sidekick/features.yaml" }
-```
+| `debug` | Feature defaults loaded | `getFeature: loaded configs` with feature name and settings |
+| `error` | Validation fails | `Configuration validation failed` with Zod issues |
+| `error` | Profile reference invalid | `Profile reference validation failed` with error message |
 
 ### 10.2 Hot-Reload Logging
 

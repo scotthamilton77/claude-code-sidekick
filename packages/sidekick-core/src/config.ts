@@ -4,7 +4,7 @@
  * Implements the configuration service per docs/design/CONFIG-SYSTEM.md.
  *
  * Provides a multi-layer configuration cascade with YAML domain files:
- * - config.yaml (core: paths, logging)
+ * - core.yaml (core: paths, logging)
  * - llm.yaml (provider settings, model selection)
  * - transcript.yaml (watchDebounceMs, metricsPersistIntervalMs)
  * - features.yaml (feature flags and feature-specific settings)
@@ -72,7 +72,7 @@ function deepFreeze<T>(obj: T): T {
 export type ConfigDomain = 'core' | 'llm' | 'transcript' | 'features'
 
 export const DOMAIN_FILES: Record<ConfigDomain, string> = {
-  core: 'config.yaml',
+  core: 'core.yaml',
   llm: 'llm.yaml',
   transcript: 'transcript.yaml',
   features: 'features.yaml',
@@ -655,6 +655,31 @@ export function loadConfig(options: ConfigServiceOptions): SidekickConfig {
     )
 
     domainConfigs[domain] = config
+  }
+
+  // Step 4b: Warn about legacy sidekick.config files (no longer read)
+  const legacyDirs = [userSidekick, projectSidekick].filter(Boolean) as string[]
+  for (const dir of legacyDirs) {
+    const legacyPath = join(dir, 'sidekick.config')
+    if (existsSync(legacyPath)) {
+      options.logger?.warn(
+        `Legacy sidekick.config found at "${legacyPath}" — this file is no longer read. Migrate settings to .sidekick/{domain}.yaml files (core.yaml, llm.yaml, transcript.yaml, features.yaml).`
+      )
+    }
+
+    // Warn about renamed config.yaml -> core.yaml
+    const oldConfigPath = join(dir, 'config.yaml')
+    if (existsSync(oldConfigPath)) {
+      options.logger?.warn(
+        `Renamed config file found at "${oldConfigPath}" — "config.yaml" has been renamed to "core.yaml". Please rename your file.`
+      )
+    }
+    const oldConfigLocalPath = join(dir, 'config.local.yaml')
+    if (existsSync(oldConfigLocalPath)) {
+      options.logger?.warn(
+        `Renamed config file found at "${oldConfigLocalPath}" — "config.local.yaml" has been renamed to "core.local.yaml". Please rename your file.`
+      )
+    }
   }
 
   // Step 5: Validate with Zod (applies defaults)

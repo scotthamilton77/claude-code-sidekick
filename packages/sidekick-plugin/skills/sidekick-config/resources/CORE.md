@@ -1,7 +1,7 @@
 # Core Configuration Reference
 
 **Default file:** `assets/sidekick/defaults/core.defaults.yaml`
-**Override locations:** `~/.sidekick/config.yaml` or `.sidekick/config.yaml`
+**Override locations:** `~/.sidekick/core.yaml` or `.sidekick/core.yaml`
 
 ## Structure
 
@@ -68,12 +68,12 @@ development:
 |---------|------|---------|-------------|
 | `development.enabled` | boolean | `false` | Enable dev mode behaviors |
 
-## Local Overrides (config.local.yaml)
+## Local Overrides (core.local.yaml)
 
-For local-only changes that are not tracked in git, create `.sidekick/config.local.yaml`:
+For local-only changes that are not tracked in git, create `.sidekick/core.local.yaml`:
 
 ```yaml
-# .sidekick/config.local.yaml
+# .sidekick/core.local.yaml
 logging:
   level: debug
   consoleEnabled: true

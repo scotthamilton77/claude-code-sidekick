@@ -48,7 +48,7 @@ describe('ConfigWatcher', () => {
 
   it('should call onChange when watched config file changes', async () => {
     // Create config file BEFORE starting watcher (chokidar ignores initial scan)
-    const configPath = path.join(sidekickDir, 'config.yaml')
+    const configPath = path.join(sidekickDir, 'core.yaml')
     await fs.writeFile(configPath, 'logging:\n  level: info\n', 'utf-8')
 
     const onChange = vi.fn()
@@ -69,7 +69,7 @@ describe('ConfigWatcher', () => {
     )
 
     const event: ConfigChangeEvent = onChange.mock.calls[0][0] as ConfigChangeEvent
-    expect(event.file).toBe('config.yaml')
+    expect(event.file).toBe('core.yaml')
     expect(event.eventType).toBe('change')
     expect(event.scope).toBe('project')
 
@@ -275,7 +275,7 @@ describe('ConfigWatcher', () => {
       'should not trigger onChange for %s changes',
       async (filename) => {
         // Create a config file to prove the watcher works for real config
-        const configPath = path.join(sidekickDir, 'config.yaml')
+        const configPath = path.join(sidekickDir, 'core.yaml')
         await fs.writeFile(configPath, 'logging:\n  level: info\n', 'utf-8')
 
         const onChange = vi.fn()
@@ -311,8 +311,8 @@ describe('ConfigWatcher', () => {
             { timeout: 1000 }
           )
 
-          // Only the config.yaml change should appear
-          expect(onChange.mock.calls[0][0]).toMatchObject({ file: 'config.yaml' })
+          // Only the core.yaml change should appear
+          expect(onChange.mock.calls[0][0]).toMatchObject({ file: 'core.yaml' })
         } finally {
           watcher.stop()
         }

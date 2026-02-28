@@ -83,5 +83,5 @@ worktrees/
 .sidekick/.env.local
 .sidekick/sidekick*.pid
 .sidekick/sidekick*.token
-*.local.yaml
+.sidekick/*.local.yaml
 # <<< sidekick
