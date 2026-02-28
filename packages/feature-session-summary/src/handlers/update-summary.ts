@@ -17,7 +17,12 @@ import { z } from 'zod'
 import type { ResumeMessageState, SessionSummaryConfig, SessionSummaryState } from '../types.js'
 import { DEFAULT_SESSION_SUMMARY_CONFIG, RESUME_MIN_CONFIDENCE } from '../types.js'
 import { createSessionSummaryState, type SessionSummaryStateAccessors } from '../state.js'
-import { buildPersonaContext, loadSessionPersona, stripSurroundingQuotes } from './persona-utils.js'
+import {
+  buildPersonaContext,
+  getEffectiveProfile,
+  loadSessionPersona,
+  stripSurroundingQuotes,
+} from './persona-utils.js'
 import { ensurePersonaForSession } from './persona-selection.js'
 
 const PROMPT_FILE = 'prompts/session-summary.prompt.txt'
@@ -523,7 +528,20 @@ async function generateSnarkyMessage(
 
   // Get profile configuration for snarky comment (creative profile)
   const llmConfig = config.llm?.snarkyComment ?? DEFAULT_SESSION_SUMMARY_CONFIG.llm!.snarkyComment!
-  const provider = ctx.profileFactory.createForProfile(llmConfig.profile, llmConfig.fallbackProfile)
+
+  // Resolve persona-specific LLM profile override
+  const profileResult = getEffectiveProfile(persona, llmConfig, config, ctx.config.llm.profiles, ctx.logger)
+  if ('errorMessage' in profileResult) {
+    // Write error as the snarky message
+    const snarkyState: SnarkyMessageState = {
+      message: profileResult.errorMessage,
+      timestamp: new Date().toISOString(),
+    }
+    await summaryState.snarkyMessage.write(sessionId, snarkyState)
+    return
+  }
+
+  const provider = ctx.profileFactory.createForProfile(profileResult.profileId, llmConfig.fallbackProfile)
 
   try {
     const response = await provider.complete({
@@ -661,7 +679,18 @@ async function generateResumeMessage(
 
   // Get profile configuration for resume message (creative-long profile)
   const llmConfig = config.llm?.resumeMessage ?? DEFAULT_SESSION_SUMMARY_CONFIG.llm!.resumeMessage!
-  const provider = ctx.profileFactory.createForProfile(llmConfig.profile, llmConfig.fallbackProfile)
+
+  // Resolve persona-specific LLM profile override
+  const profileResult = getEffectiveProfile(persona, llmConfig, config, ctx.config.llm.profiles, ctx.logger)
+  if ('errorMessage' in profileResult) {
+    ctx.logger.error('Skipping resume generation due to invalid persona profile', {
+      sessionId,
+      errorMessage: profileResult.errorMessage,
+    })
+    return
+  }
+
+  const provider = ctx.profileFactory.createForProfile(profileResult.profileId, llmConfig.fallbackProfile)
 
   try {
     // Resume message outputs plain text (snarky_welcome only)

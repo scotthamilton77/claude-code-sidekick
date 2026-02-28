@@ -13,7 +13,12 @@ import { DEFAULT_SESSION_SUMMARY_CONFIG, RESUME_MIN_CONFIDENCE } from '../types.
 import { createSessionSummaryState } from '../state.js'
 import { createPersonaLoader, getDefaultPersonasDir } from '@sidekick/core'
 import { interpolateTemplate } from './update-summary.js'
-import { buildPersonaContext, loadSessionPersona, stripSurroundingQuotes } from './persona-utils.js'
+import {
+  buildPersonaContext,
+  getEffectiveProfile,
+  loadSessionPersona,
+  stripSurroundingQuotes,
+} from './persona-utils.js'
 
 const SNARKY_PROMPT_FILE = 'prompts/snarky-message.prompt.txt'
 const RESUME_PROMPT_FILE = 'prompts/resume-message.prompt.txt'
@@ -136,7 +141,14 @@ export async function generateSnarkyMessageOnDemand(ctx: DaemonContext, sessionI
     maxSnarkyWords: config.maxSnarkyWords,
   })
   const llmConfig = config.llm?.snarkyComment ?? DEFAULT_SESSION_SUMMARY_CONFIG.llm!.snarkyComment!
-  const provider = ctx.profileFactory.createForProfile(llmConfig.profile, llmConfig.fallbackProfile)
+
+  // Resolve persona-specific LLM profile override
+  const profileResult = getEffectiveProfile(persona, llmConfig, config, ctx.config.llm.profiles, ctx.logger)
+  if ('errorMessage' in profileResult) {
+    return { success: false, error: profileResult.errorMessage }
+  }
+
+  const provider = ctx.profileFactory.createForProfile(profileResult.profileId, llmConfig.fallbackProfile)
 
   try {
     const response = await provider.complete({
@@ -249,7 +261,14 @@ export async function generateResumeMessageOnDemand(ctx: DaemonContext, sessionI
     maxResumeWords: config.maxResumeWords,
   })
   const llmConfig = config.llm?.resumeMessage ?? DEFAULT_SESSION_SUMMARY_CONFIG.llm!.resumeMessage!
-  const provider = ctx.profileFactory.createForProfile(llmConfig.profile, llmConfig.fallbackProfile)
+
+  // Resolve persona-specific LLM profile override
+  const profileResult = getEffectiveProfile(persona, llmConfig, config, ctx.config.llm.profiles, ctx.logger)
+  if ('errorMessage' in profileResult) {
+    return { success: false, error: profileResult.errorMessage }
+  }
+
+  const provider = ctx.profileFactory.createForProfile(profileResult.profileId, llmConfig.fallbackProfile)
 
   try {
     // Resume message now outputs plain text (snarky_welcome only)

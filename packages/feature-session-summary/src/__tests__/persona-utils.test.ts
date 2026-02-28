@@ -9,11 +9,23 @@
  * - loadSessionPersona (integration with state and persona loader)
  */
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { join } from 'node:path'
 import type { PersonaDefinition, SessionPersonaState, Logger } from '@sidekick/types'
-import { buildPersonaContext, stripSurroundingQuotes, loadSessionPersona } from '../handlers/persona-utils'
+import {
+  buildPersonaContext,
+  stripSurroundingQuotes,
+  loadSessionPersona,
+  resolvePersonaLlmProfile,
+  validatePersonaLlmProfile,
+  getEffectiveProfile,
+  mergePersonaConfig,
+  _resetProfileWarningState,
+} from '../handlers/persona-utils'
+import type { PersonaProfileConfig } from '../handlers/persona-utils'
 import type { SessionSummaryStateAccessors } from '../state'
+import { DEFAULT_SESSION_SUMMARY_CONFIG } from '../types'
+import type { SessionSummaryConfig } from '../types'
 
 // ============================================================================
 // Test Helpers
@@ -269,5 +281,278 @@ describe('loadSessionPersona', () => {
 
     // Should return null because the fake stateService returns no data
     expect(result).toBeNull()
+  })
+})
+
+// ============================================================================
+// resolvePersonaLlmProfile Tests
+// ============================================================================
+
+describe('resolvePersonaLlmProfile', () => {
+  const basePersona = createPersonaWithExamples()
+
+  it('returns undefined when all sources are empty', () => {
+    const config: PersonaProfileConfig = {}
+    expect(resolvePersonaLlmProfile('test-persona', basePersona, config)).toBeUndefined()
+  })
+
+  it('returns defaultLlmProfile when only that is set', () => {
+    const config: PersonaProfileConfig = { defaultLlmProfile: 'creative' }
+    expect(resolvePersonaLlmProfile('test-persona', basePersona, config)).toBe('creative')
+  })
+
+  it('returns persona YAML llmProfile over defaultLlmProfile', () => {
+    const persona = createPersonaWithExamples({ llmProfile: 'fast-lite' })
+    const config: PersonaProfileConfig = { defaultLlmProfile: 'creative' }
+    expect(resolvePersonaLlmProfile('test-persona', persona, config)).toBe('fast-lite')
+  })
+
+  it('returns config llmProfiles[id] over YAML llmProfile', () => {
+    const persona = createPersonaWithExamples({ llmProfile: 'fast-lite' })
+    const config: PersonaProfileConfig = {
+      defaultLlmProfile: 'creative',
+      llmProfiles: { 'test-persona': 'creative-long' },
+    }
+    expect(resolvePersonaLlmProfile('test-persona', persona, config)).toBe('creative-long')
+  })
+
+  it('treats empty string defaultLlmProfile as unset', () => {
+    const config: PersonaProfileConfig = { defaultLlmProfile: '' }
+    expect(resolvePersonaLlmProfile('test-persona', basePersona, config)).toBeUndefined()
+  })
+
+  it('returns defaultLlmProfile when persona is null', () => {
+    const config: PersonaProfileConfig = { defaultLlmProfile: 'creative' }
+    expect(resolvePersonaLlmProfile('unknown', null, config)).toBe('creative')
+  })
+
+  it('returns undefined when persona is null and no default set', () => {
+    const config: PersonaProfileConfig = {}
+    expect(resolvePersonaLlmProfile('unknown', null, config)).toBeUndefined()
+  })
+
+  it('treats empty string in llmProfiles[id] as unset, falls through to YAML', () => {
+    const persona = createPersonaWithExamples({ llmProfile: 'fast-lite' })
+    const config: PersonaProfileConfig = {
+      llmProfiles: { 'test-persona': '' },
+    }
+    // Empty string is falsy, so falls through to YAML llmProfile
+    expect(resolvePersonaLlmProfile('test-persona', persona, config)).toBe('fast-lite')
+  })
+})
+
+// ============================================================================
+// validatePersonaLlmProfile Tests
+// ============================================================================
+
+describe('validatePersonaLlmProfile', () => {
+  const availableProfiles = {
+    'fast-lite': { provider: 'openrouter', model: 'test' },
+    creative: { provider: 'openrouter', model: 'test' },
+    'creative-long': { provider: 'openrouter', model: 'test' },
+  }
+
+  beforeEach(() => {
+    _resetProfileWarningState()
+  })
+
+  it('returns profileId for a valid profile', () => {
+    const mockLogger = createMockLogger()
+    const result = validatePersonaLlmProfile('creative', 'avasarala', 'creative', availableProfiles, false, mockLogger)
+    expect(result).toEqual({ profileId: 'creative' })
+  })
+
+  it('warns once and returns feature fallback for invalid non-default profile', () => {
+    const warnings: unknown[][] = []
+    const mockLogger = {
+      ...createMockLogger(),
+      warn: (msg: string, meta?: Record<string, unknown>) => {
+        warnings.push([msg, meta])
+      },
+    }
+
+    const result = validatePersonaLlmProfile(
+      'nonexistent',
+      'avasarala',
+      'creative',
+      availableProfiles,
+      false,
+      mockLogger
+    )
+
+    expect(result).toEqual({ profileId: 'creative' })
+    expect(warnings).toHaveLength(1)
+  })
+
+  it('errors once and returns errorMessage for invalid defaultLlmProfile', () => {
+    const errors: unknown[][] = []
+    const mockLogger = {
+      ...createMockLogger(),
+      error: (msg: string, meta?: Record<string, unknown>) => {
+        errors.push([msg, meta])
+      },
+    }
+
+    const result = validatePersonaLlmProfile(
+      'nonexistent',
+      'avasarala',
+      'creative',
+      availableProfiles,
+      true,
+      mockLogger
+    )
+
+    expect(result).toEqual({ errorMessage: "Persona avasarala's profile nonexistent is not recognized" })
+    expect(errors).toHaveLength(1)
+  })
+
+  it('deduplicates warn: second call with same invalid profile does not log again', () => {
+    const warnings: unknown[][] = []
+    const mockLogger = {
+      ...createMockLogger(),
+      warn: (msg: string, meta?: Record<string, unknown>) => {
+        warnings.push([msg, meta])
+      },
+    }
+
+    validatePersonaLlmProfile('nonexistent', 'avasarala', 'creative', availableProfiles, false, mockLogger)
+    validatePersonaLlmProfile('nonexistent', 'skippy', 'creative', availableProfiles, false, mockLogger)
+
+    expect(warnings).toHaveLength(1)
+  })
+
+  it('deduplicates error: second call with same invalid default does not log again', () => {
+    const errors: unknown[][] = []
+    const mockLogger = {
+      ...createMockLogger(),
+      error: (msg: string, meta?: Record<string, unknown>) => {
+        errors.push([msg, meta])
+      },
+    }
+
+    validatePersonaLlmProfile('nonexistent', 'avasarala', 'creative', availableProfiles, true, mockLogger)
+    validatePersonaLlmProfile('nonexistent', 'skippy', 'creative', availableProfiles, true, mockLogger)
+
+    expect(errors).toHaveLength(1)
+  })
+
+  it('warns for different invalid profiles separately', () => {
+    const warnings: unknown[][] = []
+    const mockLogger = {
+      ...createMockLogger(),
+      warn: (msg: string, meta?: Record<string, unknown>) => {
+        warnings.push([msg, meta])
+      },
+    }
+
+    validatePersonaLlmProfile('bad1', 'avasarala', 'creative', availableProfiles, false, mockLogger)
+    validatePersonaLlmProfile('bad2', 'skippy', 'creative', availableProfiles, false, mockLogger)
+
+    expect(warnings).toHaveLength(2)
+  })
+})
+
+// ============================================================================
+// mergePersonaConfig Tests
+// ============================================================================
+
+describe('mergePersonaConfig', () => {
+  it('returns defaults when config has no personas', () => {
+    const config = { ...DEFAULT_SESSION_SUMMARY_CONFIG }
+    delete config.personas
+
+    const result = mergePersonaConfig(config)
+
+    expect(result.defaultLlmProfile).toBe(DEFAULT_SESSION_SUMMARY_CONFIG.personas!.defaultLlmProfile)
+  })
+
+  it('merges user overrides over defaults', () => {
+    const config: SessionSummaryConfig = {
+      ...DEFAULT_SESSION_SUMMARY_CONFIG,
+      personas: {
+        ...DEFAULT_SESSION_SUMMARY_CONFIG.personas!,
+        defaultLlmProfile: 'custom-profile',
+      },
+    }
+
+    const result = mergePersonaConfig(config)
+
+    expect(result.defaultLlmProfile).toBe('custom-profile')
+  })
+})
+
+// ============================================================================
+// getEffectiveProfile Tests
+// ============================================================================
+
+describe('getEffectiveProfile', () => {
+  const availableProfiles = {
+    'fast-lite': { provider: 'openrouter', model: 'test' },
+    creative: { provider: 'openrouter', model: 'test' },
+    'creative-long': { provider: 'openrouter', model: 'test' },
+  }
+
+  beforeEach(() => {
+    _resetProfileWarningState()
+  })
+
+  it('returns feature profile when persona is null and no config overrides', () => {
+    const llmConfig = { profile: 'creative', fallbackProfile: 'cheap-fallback' }
+    const config = { ...DEFAULT_SESSION_SUMMARY_CONFIG }
+
+    const result = getEffectiveProfile(null, llmConfig, config, availableProfiles, createMockLogger())
+
+    expect(result).toEqual({ profileId: 'creative' })
+  })
+
+  it('returns persona YAML profile when valid and available', () => {
+    const persona = createPersonaWithExamples({ llmProfile: 'fast-lite' })
+    const llmConfig = { profile: 'creative' }
+    const config = { ...DEFAULT_SESSION_SUMMARY_CONFIG }
+
+    const result = getEffectiveProfile(persona, llmConfig, config, availableProfiles, createMockLogger())
+
+    expect(result).toEqual({ profileId: 'fast-lite' })
+  })
+
+  it('returns feature fallback when resolved profile is invalid (non-default source)', () => {
+    const persona = createPersonaWithExamples({ llmProfile: 'nonexistent' })
+    const llmConfig = { profile: 'creative' }
+    const config = { ...DEFAULT_SESSION_SUMMARY_CONFIG }
+
+    const result = getEffectiveProfile(persona, llmConfig, config, availableProfiles, createMockLogger())
+
+    expect(result).toEqual({ profileId: 'creative' })
+  })
+
+  it('returns errorMessage when invalid profile comes from defaultLlmProfile', () => {
+    const llmConfig = { profile: 'creative' }
+    const config: SessionSummaryConfig = {
+      ...DEFAULT_SESSION_SUMMARY_CONFIG,
+      personas: {
+        ...DEFAULT_SESSION_SUMMARY_CONFIG.personas!,
+        defaultLlmProfile: 'nonexistent',
+      },
+    }
+
+    const result = getEffectiveProfile(null, llmConfig, config, availableProfiles, createMockLogger())
+
+    expect('errorMessage' in result).toBe(true)
+  })
+
+  it('returns per-persona config override when available and valid', () => {
+    const persona = createPersonaWithExamples({ id: 'skippy', llmProfile: 'fast-lite' })
+    const llmConfig = { profile: 'creative' }
+    const config: SessionSummaryConfig = {
+      ...DEFAULT_SESSION_SUMMARY_CONFIG,
+      personas: {
+        ...DEFAULT_SESSION_SUMMARY_CONFIG.personas!,
+        llmProfiles: { skippy: 'creative-long' },
+      },
+    }
+
+    const result = getEffectiveProfile(persona, llmConfig, config, availableProfiles, createMockLogger())
+
+    expect(result).toEqual({ profileId: 'creative-long' })
   })
 })

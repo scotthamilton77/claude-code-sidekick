@@ -91,3 +91,11 @@ settings:
     # When true, a persistent reminder is staged on SessionStart and UserPromptSubmit
     # describing the persona's voice/personality for Claude to adopt
     injectPersonaIntoClaude: true
+    # Default LLM profile for all persona-driven outputs (snarky, resume)
+    # Empty string = use feature's own profile (e.g. snarkyComment.profile)
+    # Must match a profile ID in llm.profiles
+    defaultLlmProfile: ""
+    # Per-persona LLM profile overrides: personaId → profileId
+    # Overrides both defaultLlmProfile and persona YAML llmProfile
+    # Example: { avasarala: "creative-long", skippy: "fast-lite" }
+    llmProfiles: {}

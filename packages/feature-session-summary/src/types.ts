@@ -15,7 +15,7 @@ export type { ResumeMessageState, SessionSummaryState, SummaryCountdownState }
 export interface LlmSubFeatureConfig {
   /** Profile ID from llm.profiles */
   profile: string
-  /** Optional fallback profile ID from llm.fallbacks */
+  /** Optional fallback profile ID from llm.fallbackProfiles */
   fallbackProfile?: string
 }
 
@@ -72,6 +72,10 @@ export interface SessionSummaryConfig {
     resumeFreshnessHours: number
     /** Inject active persona into Claude Code's system prompt via reminders */
     injectPersonaIntoClaude?: boolean
+    /** Default LLM profile for all persona-driven outputs (empty = use feature default) */
+    defaultLlmProfile?: string
+    /** Per-persona LLM profile overrides (personaId → profileId) */
+    llmProfiles?: Record<string, string>
   }
 }
 
@@ -109,6 +113,8 @@ export const DEFAULT_SESSION_SUMMARY_CONFIG: SessionSummaryConfig = {
     blockList: 'disabled',
     resumeFreshnessHours: 4,
     injectPersonaIntoClaude: true,
+    defaultLlmProfile: '',
+    llmProfiles: {},
   },
 }
 
