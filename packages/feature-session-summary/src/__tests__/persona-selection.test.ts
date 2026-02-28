@@ -246,6 +246,99 @@ describe('selectRandomPersona', () => {
     expect(selectedIds.has('bones')).toBe(true)
     expect(selectedIds.has('scotty')).toBe(true)
   })
+
+  // Weighted selection tests
+
+  it('uses uniform distribution when no weights provided', () => {
+    const personas = [createMockPersona('skippy'), createMockPersona('bones')]
+    const selectedIds = new Set<string>()
+
+    for (let i = 0; i < 100; i++) {
+      const result = selectRandomPersona(personas)
+      if (result) selectedIds.add(result.id)
+    }
+
+    expect(selectedIds.size).toBe(2)
+  })
+
+  it('excludes personas with weight 0', () => {
+    const personas = [createMockPersona('skippy'), createMockPersona('bones'), createMockPersona('scotty')]
+    const weights = { bones: 0 }
+
+    const selectedIds = new Set<string>()
+    for (let i = 0; i < 100; i++) {
+      const result = selectRandomPersona(personas, weights)
+      if (result) selectedIds.add(result.id)
+    }
+
+    expect(selectedIds.has('bones')).toBe(false)
+    expect(selectedIds.has('skippy')).toBe(true)
+    expect(selectedIds.has('scotty')).toBe(true)
+  })
+
+  it('returns null when all personas have weight 0', () => {
+    const personas = [createMockPersona('skippy'), createMockPersona('bones')]
+    const weights = { skippy: 0, bones: 0 }
+
+    const result = selectRandomPersona(personas, weights)
+    expect(result).toBeNull()
+  })
+
+  it('defaults unspecified weights to 1', () => {
+    const personas = [createMockPersona('skippy'), createMockPersona('bones')]
+    // Only skippy has explicit weight; bones defaults to 1
+    const weights = { skippy: 1 }
+
+    const selectedIds = new Set<string>()
+    for (let i = 0; i < 100; i++) {
+      const result = selectRandomPersona(personas, weights)
+      if (result) selectedIds.add(result.id)
+    }
+
+    // Both should be selected since both effectively have weight 1
+    expect(selectedIds.size).toBe(2)
+  })
+
+  it('heavily weighted persona is selected much more often', () => {
+    const personas = [createMockPersona('skippy'), createMockPersona('bones')]
+    const weights = { skippy: 100, bones: 1 }
+
+    const counts: Record<string, number> = { skippy: 0, bones: 0 }
+    const iterations = 1000
+    for (let i = 0; i < iterations; i++) {
+      const result = selectRandomPersona(personas, weights)
+      if (result) counts[result.id]++
+    }
+
+    // skippy should get ~99% of selections (100/101)
+    expect(counts.skippy).toBeGreaterThan(iterations * 0.9)
+    expect(counts.bones).toBeGreaterThan(0) // bones should still appear occasionally
+  })
+
+  it('treats negative weights as excluded', () => {
+    const personas = [createMockPersona('skippy'), createMockPersona('bones')]
+    const weights = { skippy: -5, bones: 1 }
+
+    const selectedIds = new Set<string>()
+    for (let i = 0; i < 50; i++) {
+      const result = selectRandomPersona(personas, weights)
+      if (result) selectedIds.add(result.id)
+    }
+
+    expect(selectedIds).toEqual(new Set(['bones']))
+  })
+
+  it('treats empty weights object same as no weights', () => {
+    const personas = [createMockPersona('skippy'), createMockPersona('bones')]
+    const selectedIds = new Set<string>()
+
+    for (let i = 0; i < 100; i++) {
+      const result = selectRandomPersona(personas, {})
+      if (result) selectedIds.add(result.id)
+    }
+
+    expect(selectedIds.size).toBe(2)
+  })
 })
 
 // ============================================================================
@@ -422,6 +515,57 @@ describe('selectPersonaForSession', () => {
     const result = await selectPersonaForSession('test-session', config, ctx)
 
     expect(result).toBe('skippy')
+  })
+
+  it('passes persona weights from config to selection', async () => {
+    const personas = new Map<string, PersonaDefinition>()
+    personas.set('skippy', createMockPersona('skippy'))
+    personas.set('bones', createMockPersona('bones'))
+    setupMockLoader(personas)
+
+    const ctx = createMockDaemonContext({ logger: mockLogger, stateService: mockStateService })
+    const config = {
+      ...DEFAULT_SESSION_SUMMARY_CONFIG,
+      personas: {
+        allowList: '',
+        blockList: '',
+        resumeFreshnessHours: 4,
+        weights: { skippy: 100, bones: 0 },
+      },
+    }
+
+    // With bones at weight 0, only skippy should ever be selected
+    const results = new Set<string>()
+    for (let i = 0; i < 20; i++) {
+      const result = await selectPersonaForSession(`session-${i}`, config, ctx)
+      if (result) results.add(result)
+    }
+
+    expect(results.has('skippy')).toBe(true)
+    expect(results.has('bones')).toBe(false)
+  })
+
+  it('returns null when all eligible personas have weight 0', async () => {
+    const personas = new Map<string, PersonaDefinition>()
+    personas.set('skippy', createMockPersona('skippy'))
+    personas.set('bones', createMockPersona('bones'))
+    setupMockLoader(personas)
+
+    const ctx = createMockDaemonContext({ logger: mockLogger, stateService: mockStateService })
+    const config = {
+      ...DEFAULT_SESSION_SUMMARY_CONFIG,
+      personas: {
+        allowList: '',
+        blockList: '',
+        resumeFreshnessHours: 4,
+        weights: { skippy: 0, bones: 0 },
+      },
+    }
+
+    const result = await selectPersonaForSession('test-session', config, ctx)
+
+    expect(result).toBeNull()
+    expect(mockLogger.wasLoggedAtLevel('No eligible personas after applying weights', 'warn')).toBe(true)
   })
 })
 

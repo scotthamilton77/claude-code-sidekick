@@ -591,6 +591,21 @@ session-summary:
 
 An empty `allowList` (default) means all personas are available.
 
+### Weighting Persona Selection
+
+Control how often each persona is selected with `weights`. Higher weight = more likely. Default weight is 1 for any persona not listed. Weight 0 excludes a persona.
+
+```yaml
+session-summary:
+  settings:
+    personas:
+      weights:
+        darth-vader: 100
+        emperor-palpatine: 50
+```
+
+Weights are applied after allowList/blockList filtering.
+
 ### Custom Personas
 
 Place a YAML file in `.sidekick/personas/` (project-level) or `~/.sidekick/personas/` (user-level). Required fields:

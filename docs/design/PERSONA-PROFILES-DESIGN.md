@@ -97,6 +97,11 @@ settings:
   personas:
     # Comma-separated allow-list (empty means all available personas)
     allowList: ""
+    # Comma-separated block-list of persona IDs excluded from random selection
+    blockList: "disabled"
+    # Per-persona selection weights (default 1, 0 = excluded)
+    # Applied after allowList/blockList filtering
+    weights: {}
     # Maximum age (in hours) for resume messages to be considered fresh
     # Sessions older than this will use persona empty-messages instead
     resumeFreshnessHours: 4
@@ -105,6 +110,8 @@ settings:
 **Parsing rules**:
 - `allowList` is split on commas, trimmed, and filtered for non-empty tokens.
 - If the resulting list is empty, consider it "unset" and allow all discovered personas.
+- `blockList` is split the same way; blocked personas are removed after allowList filtering.
+- `weights` maps persona IDs to numeric weights. Default weight is 1. Weight 0 excludes a persona (complementing blockList). Negative weights are treated as 0.
 - `resumeFreshnessHours` must be a positive number; defaults to 4 if missing or invalid.
 
 ### Session Persona State
@@ -126,14 +133,18 @@ This state is created on `SessionStart` for `startup` and `clear` (same gating a
 ### Selection Algorithm
 
 1. Load persona definitions from cascade.
-2. Parse `allowList`.
+2. Parse `allowList` and `blockList`.
 3. Determine selection pool:
    - If allow-list is empty: all personas.
    - If allow-list contains unknown names: log a warning and ignore unknown entries.
-4. Pick a random persona from the pool (true randomness).
+   - Remove blocked personas from the pool.
+4. Apply weights to survivors:
+   - Each persona gets its configured weight (default 1).
+   - Personas with weight 0 are excluded.
+   - Sum all weights, pick random point in [0, totalWeight), walk through personas accumulating weight until threshold crossed.
 5. Persist selection to `session-persona.json`.
 
-If the pool is empty (no personas found), disable persona injection and log a warning.
+If the pool is empty after filtering and weighting, disable persona injection and log a warning.
 
 ### Default Personas
 
