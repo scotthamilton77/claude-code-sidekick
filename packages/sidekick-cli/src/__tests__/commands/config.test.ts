@@ -115,6 +115,9 @@ let savedEnv: Record<string, string | undefined> = {}
 let tempRoot: string
 
 beforeEach(() => {
+  // Reset before accumulating to prevent stale state if a test throws
+  savedEnv = {}
+
   // Isolate SIDEKICK_* env vars
   for (const key of Object.keys(process.env)) {
     if (key.startsWith('SIDEKICK_')) {
@@ -257,7 +260,7 @@ describe('handleConfigCommand', () => {
     )
 
     expect(result.exitCode).toBe(1)
-    expect(output()).toMatch(/error/i)
+    expect(output()).toMatch(/validation/i)
   })
 
   // ---------------------------------------------------------------------------
@@ -343,6 +346,7 @@ describe('handleConfigCommand', () => {
 
     const result = await handleConfigCommand('invalid', [], projectDir, noopLogger, stdout, {})
 
+    expect(result.exitCode).toBe(1)
     const text = output()
     expect(text).toMatch(/[Uu]nknown/)
     // Should also display help text after the error

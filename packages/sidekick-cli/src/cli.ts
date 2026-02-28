@@ -338,6 +338,7 @@ const GLOBAL_HELP_TEXT = `Usage: sidekick <command> [options]
 Commands:
   hook <hook-name>         Execute Claude Code hook (session-start, user-prompt-submit, etc.)
   persona <subcommand>     Manage session personas (list, set, clear, test)
+  config <subcommand>      Manage configuration (get, set, unset, list)
   sessions                 List all daemon-tracked sessions
   daemon <subcommand>      Manage the background daemon (start, stop, status, kill)
   statusline               Render the status line (used by hooks)
@@ -535,6 +536,26 @@ Examples:
         format: parsed.format === 'json' || parsed.format === 'table' ? parsed.format : undefined,
         testType: parsed.messageType,
         width: parsed.width,
+      }
+    )
+    return { exitCode: result.exitCode, stdout: result.output, stderr: '' }
+  }
+
+  if (parsed.command === 'config') {
+    const { handleConfigCommand } = await import('./commands/config.js')
+    const subcommand = parsed.help ? '--help' : (parsed._?.[1] as string | undefined)
+    const args = parsed._?.slice(2) ?? []
+
+    const result = await handleConfigCommand(
+      subcommand,
+      args,
+      runtime.projectRoot || process.cwd(),
+      runtime.logger,
+      stdout,
+      {
+        scope: parsed.scope as 'user' | 'project' | 'local' | undefined,
+        format: parsed.format === 'json' ? 'json' : undefined,
+        assets: runtime.assets,
       }
     )
     return { exitCode: result.exitCode, stdout: result.output, stderr: '' }
