@@ -175,6 +175,10 @@ export const ResumeMessageStateSchema = z.object({
   snarky_comment: z.string(),
   /** ISO8601 timestamp when this was generated */
   timestamp: z.string(),
+  /** Persona ID that generated this message (null when persona disabled) */
+  persona_id: z.string().nullable().default(null),
+  /** Display name for attribution (null when persona disabled) */
+  persona_display_name: z.string().nullable().default(null),
 })
 
 export type ResumeMessageState = z.infer<typeof ResumeMessageStateSchema>
