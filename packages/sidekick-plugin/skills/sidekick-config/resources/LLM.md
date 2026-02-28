@@ -19,7 +19,9 @@ profiles:                        # Primary profiles (referenced by features)
     providerAllowlist: [...]     # OpenRouter only
     providerBlocklist: [...]     # OpenRouter only
 
-fallbacks:                       # Used when primary fails
+defaultFallbackProfileId: <id>   # Default fallback when none specified
+
+fallbackProfiles:                # Used when primary fails
   <profile-id>:
     # Same structure as profiles
 

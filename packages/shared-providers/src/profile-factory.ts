@@ -17,7 +17,13 @@ export class ProfileProviderFactory {
 
   /**
    * Creates a provider for a profile, reading config at call time.
-   * Wraps with FallbackProvider if fallbackProfile specified.
+   * Wraps with FallbackProvider if a fallback is resolved.
+   *
+   * Fallback resolution cascade:
+   *   1. Explicit fallbackProfileId parameter (caller override)
+   *   2. Profile-level fallbackProfileId (per-profile config)
+   *   3. Global defaultFallbackProfileId (llm config level)
+   *   4. No fallback
    */
   createForProfile(profileId: string, fallbackProfileId?: string): LLMProvider {
     const profile = this.configService.llm.profiles[profileId]
@@ -27,14 +33,18 @@ export class ProfileProviderFactory {
 
     const primary = this.createProvider(profile, profileId)
 
-    if (!fallbackProfileId) return primary
+    // Resolve fallback: explicit > profile-level > global default
+    const resolvedFallbackId =
+      fallbackProfileId ?? profile.fallbackProfileId ?? this.configService.llm.defaultFallbackProfileId
 
-    const fallback = this.configService.llm.fallbacks[fallbackProfileId]
+    if (!resolvedFallbackId) return primary
+
+    const fallback = this.configService.llm.fallbackProfiles[resolvedFallbackId]
     if (!fallback) {
-      throw new Error(`Fallback profile "${fallbackProfileId}" not found`)
+      throw new Error(`Fallback profile "${resolvedFallbackId}" not found`)
     }
 
-    return new FallbackProvider(primary, [this.createProvider(fallback, fallbackProfileId)], this.logger)
+    return new FallbackProvider(primary, [this.createProvider(fallback, resolvedFallbackId)], this.logger)
   }
 
   /**

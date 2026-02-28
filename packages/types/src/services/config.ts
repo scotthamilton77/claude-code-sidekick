@@ -30,6 +30,8 @@ export interface MinimalLlmProfile {
   readonly maxTokens?: number
   readonly timeout?: number
   readonly timeoutMaxRetries?: number
+  /** Optional fallback profile ID from fallbackProfiles namespace */
+  readonly fallbackProfileId?: string
   /** OpenRouter-specific provider routing */
   readonly providerAllowlist?: readonly string[]
   readonly providerBlocklist?: readonly string[]
@@ -46,8 +48,9 @@ export interface MinimalConfigService {
   }
   readonly llm: {
     readonly defaultProfile: string
+    readonly defaultFallbackProfileId?: string
     readonly profiles: Record<string, MinimalLlmProfile>
-    readonly fallbacks: Record<string, MinimalLlmProfile>
+    readonly fallbackProfiles: Record<string, MinimalLlmProfile>
   }
   getAll(): unknown
   getFeature<T = Record<string, unknown>>(name: string): { enabled: boolean; settings: T }

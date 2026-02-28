@@ -52,6 +52,7 @@ const DEFAULT_CONFIG: SidekickConfig = {
   },
   llm: {
     defaultProfile: 'fast-lite',
+    defaultFallbackProfileId: 'cheap-fallback',
     profiles: {
       'fast-lite': {
         provider: 'openrouter',
@@ -78,7 +79,7 @@ const DEFAULT_CONFIG: SidekickConfig = {
         timeoutMaxRetries: 2,
       },
     },
-    fallbacks: {
+    fallbackProfiles: {
       'cheap-fallback': {
         provider: 'openrouter',
         model: 'google/gemini-2.5-flash-lite',

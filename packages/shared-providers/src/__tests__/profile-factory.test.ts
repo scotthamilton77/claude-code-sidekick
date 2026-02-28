@@ -27,14 +27,16 @@ function createFakeLogger(): Logger {
 // Helper to create a minimal ConfigService fake
 function createFakeConfigService(
   profiles: Record<string, LlmProfile> = {},
-  fallbacks: Record<string, LlmProfile> = {},
-  defaultProfile = 'default'
+  fallbackProfiles: Record<string, LlmProfile> = {},
+  defaultProfile = 'default',
+  defaultFallbackProfileId?: string
 ): ConfigService {
   return {
     llm: {
       profiles,
-      fallbacks,
+      fallbackProfiles,
       defaultProfile,
+      ...(defaultFallbackProfileId !== undefined && { defaultFallbackProfileId }),
     },
   } as unknown as ConfigService
 }
@@ -169,6 +171,91 @@ describe('ProfileProviderFactory', () => {
       const factory = new ProfileProviderFactory(configService, logger)
 
       expect(() => factory.createDefault()).toThrow('Profile "nonexistent" not found')
+    })
+  })
+
+  describe('fallback resolution cascade', () => {
+    it('uses profile fallbackProfileId when no explicit fallback param given', () => {
+      const profilesWithFallback = {
+        default: {
+          ...sampleProfiles.default,
+          fallbackProfileId: 'backup',
+        } as LlmProfile,
+      }
+      configService = createFakeConfigService(profilesWithFallback, sampleFallbacks)
+      const factory = new ProfileProviderFactory(configService, logger)
+
+      const provider = factory.createForProfile('default')
+
+      expect(provider).toBeInstanceOf(FallbackProvider)
+    })
+
+    it('uses defaultFallbackProfileId when profile has no fallbackProfileId', () => {
+      configService = createFakeConfigService(sampleProfiles, sampleFallbacks, 'default', 'backup')
+      const factory = new ProfileProviderFactory(configService, logger)
+
+      const provider = factory.createForProfile('default')
+
+      expect(provider).toBeInstanceOf(FallbackProvider)
+    })
+
+    it('explicit param takes precedence over profile fallbackProfileId', () => {
+      // Profile points to nonexistent fallback - would throw if cascade is wrong
+      const profilesWithFallback = {
+        default: {
+          ...sampleProfiles.default,
+          fallbackProfileId: 'nonexistent-profile-fallback',
+        } as LlmProfile,
+      }
+      configService = createFakeConfigService(profilesWithFallback, sampleFallbacks)
+      const factory = new ProfileProviderFactory(configService, logger)
+
+      // Explicit 'backup' should win over profile's nonexistent fallback
+      const provider = factory.createForProfile('default', 'backup')
+
+      expect(provider).toBeInstanceOf(FallbackProvider)
+    })
+
+    it('explicit param takes precedence over defaultFallbackProfileId', () => {
+      // defaultFallbackProfileId points to nonexistent fallback - would throw if cascade is wrong
+      configService = createFakeConfigService(sampleProfiles, sampleFallbacks, 'default', 'nonexistent-global-fallback')
+      const factory = new ProfileProviderFactory(configService, logger)
+
+      // Explicit 'backup' should win over default's nonexistent fallback
+      const provider = factory.createForProfile('default', 'backup')
+
+      expect(provider).toBeInstanceOf(FallbackProvider)
+    })
+
+    it('profile fallbackProfileId takes precedence over defaultFallbackProfileId', () => {
+      const profilesWithFallback = {
+        default: {
+          ...sampleProfiles.default,
+          fallbackProfileId: 'backup',
+        } as LlmProfile,
+      }
+      // defaultFallbackProfileId points to nonexistent - would throw if cascade is wrong
+      configService = createFakeConfigService(
+        profilesWithFallback,
+        sampleFallbacks,
+        'default',
+        'nonexistent-global-fallback'
+      )
+      const factory = new ProfileProviderFactory(configService, logger)
+
+      // Profile-level 'backup' should win over default's nonexistent fallback
+      const provider = factory.createForProfile('default')
+
+      expect(provider).toBeInstanceOf(FallbackProvider)
+    })
+
+    it('no fallback when none specified at any level', () => {
+      configService = createFakeConfigService(sampleProfiles)
+      const factory = new ProfileProviderFactory(configService, logger)
+
+      const provider = factory.createForProfile('default')
+
+      expect(provider).not.toBeInstanceOf(FallbackProvider)
     })
   })
 

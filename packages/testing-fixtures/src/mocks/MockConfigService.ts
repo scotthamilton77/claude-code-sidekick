@@ -45,6 +45,7 @@ const DEFAULT_CORE: CoreConfig = {
 
 const DEFAULT_LLM: LlmConfig = {
   defaultProfile: 'fast-lite',
+  defaultFallbackProfileId: 'cheap-fallback',
   profiles: {
     'fast-lite': {
       provider: 'openrouter',
@@ -71,7 +72,7 @@ const DEFAULT_LLM: LlmConfig = {
       timeoutMaxRetries: 2,
     },
   },
-  fallbacks: {
+  fallbackProfiles: {
     'cheap-fallback': {
       provider: 'openrouter',
       model: 'google/gemini-2.5-flash-lite',

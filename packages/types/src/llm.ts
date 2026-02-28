@@ -73,7 +73,7 @@ export interface ProfileProviderFactory {
    * Wraps with FallbackProvider if fallbackProfileId is specified.
    *
    * @param profileId - Name of the profile in llm.profiles
-   * @param fallbackProfileId - Optional name of fallback profile in llm.fallbacks
+   * @param fallbackProfileId - Optional name of fallback profile in llm.fallbackProfiles
    */
   createForProfile(profileId: string, fallbackProfileId?: string): LLMProvider
 

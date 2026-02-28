@@ -32,6 +32,10 @@
 # Default profile used when no specific profile is requested
 defaultProfile: fast-lite
 
+# Default fallback profile used when a primary profile fails and no
+# profile-specific fallbackProfileId is set.
+defaultFallbackProfileId: cheap-fallback
+
 # OpenRouter Provider Routing
 # Control which backend providers OpenRouter uses via allowlist/blocklist.
 # Maps to OpenRouter's provider.only (allowlist) and provider.ignore (blocklist).
@@ -87,7 +91,7 @@ profiles:
     timeoutMaxRetries: 2
 
 # Fallback profiles - only used when primary fails
-fallbacks:
+fallbackProfiles:
   cheap-fallback:
     provider: openrouter
     model: google/gemini-2.5-flash-lite

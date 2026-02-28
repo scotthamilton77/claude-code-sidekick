@@ -6,7 +6,8 @@ Replace hardcoded LLM values throughout the codebase with a named profile system
 - **Profiles** are complete, standalone LLM configurations (provider, model, temperature, maxTokens, timeout, timeoutMaxRetries)
 - **Features reference profiles by ID** - no inline overrides allowed
 - **One profile is marked as default** via `defaultProfile: <name>`
-- **Fallback profiles** live in a separate section and cannot have fallbacks themselves (prevents cycles)
+- **Fallback profiles** live in a separate `fallbackProfiles` section and cannot have fallbacks themselves (prevents cycles)
+- **A default fallback profile** can be specified via `defaultFallbackProfileId`
 - **Config loader validates all references** at startup (no dangling profile IDs)
 
 ---
@@ -108,7 +109,9 @@ profiles:
     timeout: 20
     timeoutMaxRetries: 2
 
-fallbacks:
+defaultFallbackProfileId: cheap-fallback
+
+fallbackProfiles:
   cheap-fallback:
     provider: openrouter
     model: google/gemini-2.5-flash-lite
@@ -166,7 +169,8 @@ const LlmProfileSchema = z.object({
 const LlmConfigSchema = z.object({
   defaultProfile: z.string(),
   profiles: z.record(z.string(), LlmProfileSchema),
-  fallbacks: z.record(z.string(), LlmProfileSchema).optional().default({}),
+  defaultFallbackProfileId: z.string().optional(),
+  fallbackProfiles: z.record(z.string(), LlmProfileSchema).optional().default({}),
   global: z.object({
     debugDumpEnabled: z.boolean().default(false),
     emulatedProvider: EmulatedProviderSchema.optional(),
@@ -192,7 +196,7 @@ Add validation function called after Zod parsing, before `deepFreeze()` (integra
 ```typescript
 function validateProfileReferences(config: SidekickConfig): void {
   const validProfiles = new Set(Object.keys(config.llm.profiles))
-  const validFallbacks = new Set(Object.keys(config.llm.fallbacks ?? {}))
+  const validFallbacks = new Set(Object.keys(config.llm.fallbackProfiles ?? {}))
   const errors: string[] = []
 
   for (const [featureName, featureConfig] of Object.entries(config.features)) {
@@ -257,7 +261,7 @@ export class ProfileProviderFactory {
 
     if (!fallbackProfileId) return primary
 
-    const fallback = this.configService.llm.fallbacks?.[fallbackProfileId]
+    const fallback = this.configService.llm.fallbackProfiles?.[fallbackProfileId]
     if (!fallback) {
       throw new Error(`Fallback profile "${fallbackProfileId}" not found`)
     }
@@ -398,7 +402,7 @@ Make sure to capture these in the actual profiles configuration.
 1. **Schema validation**: Zod validates profile completeness (all required fields)
 2. **Default reference**: `superRefine` ensures `defaultProfile` references an existing profile
 3. **Reference validation**: `validateProfileReferences()` checks all feature profile references exist
-4. **Namespace separation**: Primary profiles in `profiles`, fallbacks in `fallbacks` - `profile` cannot reference a fallback
+4. **Namespace separation**: Primary profiles in `profiles`, fallbacks in `fallbackProfiles` - `profile` cannot reference a fallback
 5. **Startup failure**: Invalid config throws descriptive error, prevents app from starting
 
 ---

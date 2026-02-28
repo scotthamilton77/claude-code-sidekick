@@ -137,7 +137,8 @@ const LlmProfileSchema = z.object({
 export const LlmConfigSchema = z.object({
   defaultProfile: z.string(),
   profiles: z.record(z.string(), LlmProfileSchema),
-  fallbacks: z.record(z.string(), LlmProfileSchema).optional(),
+  defaultFallbackProfileId: z.string().optional(),
+  fallbackProfiles: z.record(z.string(), LlmProfileSchema).optional(),
   global: z.object({
     debugDumpEnabled: z.boolean(),
     emulatedProvider: z.enum(['claude-cli', 'openai', 'openrouter']).optional(),
@@ -352,7 +353,9 @@ profiles:
     timeout: 15
     timeoutMaxRetries: 2
 
-fallbacks:
+defaultFallbackProfileId: cheap-fallback
+
+fallbackProfiles:
   cheap-fallback:
     provider: openrouter
     model: google/gemini-2.5-flash-lite

@@ -148,7 +148,7 @@ describe('Config-YAML Alignment', () => {
 
     it('should have fallback profiles with all required fields', () => {
       const yamlDefaults = loadYamlFile('llm.defaults.yaml')
-      const fallbacks = yamlDefaults.fallbacks as Record<string, unknown> | undefined
+      const fallbacks = yamlDefaults.fallbackProfiles as Record<string, unknown> | undefined
 
       if (fallbacks) {
         const requiredProfileFields = ['provider', 'model', 'temperature', 'maxTokens', 'timeout', 'timeoutMaxRetries']

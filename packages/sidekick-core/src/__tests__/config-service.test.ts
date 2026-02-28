@@ -1406,7 +1406,7 @@ session-summary:
     writeFileSync(
       join(projectSidekick, 'llm.yaml'),
       `
-fallbacks:
+fallbackProfiles:
   cheap-fallback:
     provider: openrouter
     model: test-model
@@ -1485,7 +1485,7 @@ profiles:
     maxTokens: 2000
     timeout: 30
     timeoutMaxRetries: 2
-fallbacks:
+fallbackProfiles:
   custom-fallback:
     provider: openrouter
     model: fallback-model
@@ -1518,6 +1518,6 @@ session-summary:
     })
 
     expect(config.llm.profiles['custom-profile']).toBeDefined()
-    expect(config.llm.fallbacks['custom-fallback']).toBeDefined()
+    expect(config.llm.fallbackProfiles['custom-fallback']).toBeDefined()
   })
 })

@@ -209,7 +209,9 @@ profiles:
     timeout: 20
     timeoutMaxRetries: 2
 
-fallbacks:
+defaultFallbackProfileId: cheap-fallback
+
+fallbackProfiles:
   cheap-fallback:
     provider: openrouter
     model: google/gemini-2.5-flash-lite

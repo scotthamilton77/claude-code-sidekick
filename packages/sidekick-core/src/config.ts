@@ -170,6 +170,8 @@ const LlmProfileSchema = z.object({
   maxTokens: z.number().positive(),
   timeout: z.number().min(1).max(300),
   timeoutMaxRetries: z.number().min(0).max(10),
+  // Optional fallback profile ID from fallbackProfiles namespace
+  fallbackProfileId: z.string().optional(),
   // OpenRouter-specific provider routing (ignored for other providers)
   providerAllowlist: z.array(z.string()).optional(),
   providerBlocklist: z.array(z.string()).optional(),
@@ -182,8 +184,9 @@ export type LlmProfile = z.infer<typeof LlmProfileSchema>
 export const LlmConfigSchema = z
   .object({
     defaultProfile: z.string(),
+    defaultFallbackProfileId: z.string().optional(),
     profiles: z.record(z.string(), LlmProfileSchema),
-    fallbacks: z.record(z.string(), LlmProfileSchema).optional(),
+    fallbackProfiles: z.record(z.string(), LlmProfileSchema).optional(),
     global: z
       .object({
         debugDumpEnabled: z.boolean(),
@@ -203,11 +206,32 @@ export const LlmConfigSchema = z
         input: data.defaultProfile,
       })
     }
+    // Validate defaultFallbackProfileId references an existing fallback profile
+    if (data.defaultFallbackProfileId && !data.fallbackProfiles?.[data.defaultFallbackProfileId]) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `defaultFallbackProfileId "${data.defaultFallbackProfileId}" not found in fallbackProfiles`,
+        path: ['defaultFallbackProfileId'],
+        input: data.defaultFallbackProfileId,
+      })
+    }
+    // Validate per-profile fallbackProfileId references
+    for (const [profileName, profile] of Object.entries(data.profiles)) {
+      if (profile.fallbackProfileId && !data.fallbackProfiles?.[profile.fallbackProfileId]) {
+        ctx.addIssue({
+          code: 'custom',
+          message: `Profile "${profileName}" fallbackProfileId "${profile.fallbackProfileId}" not found in fallbackProfiles`,
+          path: ['profiles', profileName, 'fallbackProfileId'],
+          input: profile.fallbackProfileId,
+        })
+      }
+    }
   })
   .transform((val) => ({
     defaultProfile: val.defaultProfile,
+    defaultFallbackProfileId: val.defaultFallbackProfileId,
     profiles: val.profiles,
-    fallbacks: val.fallbacks ?? {},
+    fallbackProfiles: val.fallbackProfiles ?? {},
     global: val.global ?? { debugDumpEnabled: false, emulatedProvider: undefined },
   }))
 
@@ -667,7 +691,7 @@ function loadDomainConfig(
  */
 function validateProfileReferences(config: SidekickConfig): void {
   const validProfiles = new Set(Object.keys(config.llm.profiles))
-  const validFallbacks = new Set(Object.keys(config.llm.fallbacks))
+  const validFallbacks = new Set(Object.keys(config.llm.fallbackProfiles))
   const errors: string[] = []
 
   for (const [featureName, featureConfig] of Object.entries(config.features)) {

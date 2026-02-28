@@ -47,7 +47,7 @@ const mockContextGetter: ContextGetter = () =>
           'fast-lite': { provider: 'openrouter', model: 'test-model' },
           creative: { provider: 'openrouter', model: 'test-model' },
         },
-        fallbacks: {
+        fallbackProfiles: {
           'cheap-fallback': { provider: 'openrouter', model: 'test-fallback' },
         },
       },
@@ -136,6 +136,7 @@ const mockConfig: SidekickConfig = {
   },
   llm: {
     defaultProfile: 'fast-lite',
+    defaultFallbackProfileId: undefined,
     profiles: {
       'fast-lite': {
         provider: 'openrouter',
@@ -146,7 +147,7 @@ const mockConfig: SidekickConfig = {
         timeoutMaxRetries: 3,
       },
     },
-    fallbacks: {},
+    fallbackProfiles: {},
     global: {
       debugDumpEnabled: false,
       emulatedProvider: undefined,

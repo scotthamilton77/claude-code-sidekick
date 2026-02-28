@@ -1023,8 +1023,9 @@ export class Daemon {
         },
         llm: {
           defaultProfile: this.configService.llm.defaultProfile,
+          defaultFallbackProfileId: this.configService.llm.defaultFallbackProfileId,
           profiles: this.configService.llm.profiles,
-          fallbacks: this.configService.llm.fallbacks,
+          fallbackProfiles: this.configService.llm.fallbackProfiles,
         },
         getAll: () => this.configService.getAll(),
         getFeature: <T = Record<string, unknown>>(name: string) => this.configService.getFeature<T>(name),
@@ -1232,8 +1233,9 @@ export class Daemon {
         },
         llm: {
           defaultProfile: this.configService.llm.defaultProfile,
+          defaultFallbackProfileId: this.configService.llm.defaultFallbackProfileId,
           profiles: this.configService.llm.profiles,
-          fallbacks: this.configService.llm.fallbacks,
+          fallbackProfiles: this.configService.llm.fallbackProfiles,
         },
         getAll: () => this.configService.getAll(),
         getFeature: <T = Record<string, unknown>>(name: string) => {
@@ -1339,8 +1341,9 @@ export class Daemon {
         },
         llm: {
           defaultProfile: this.configService.llm.defaultProfile,
+          defaultFallbackProfileId: this.configService.llm.defaultFallbackProfileId,
           profiles: this.configService.llm.profiles,
-          fallbacks: this.configService.llm.fallbacks,
+          fallbackProfiles: this.configService.llm.fallbackProfiles,
         },
         getAll: () => this.configService.getAll(),
         getFeature: <T = Record<string, unknown>>(name: string) => this.configService.getFeature<T>(name),
@@ -1699,8 +1702,9 @@ export class Daemon {
         },
         llm: {
           defaultProfile: this.configService.llm.defaultProfile,
+          defaultFallbackProfileId: this.configService.llm.defaultFallbackProfileId,
           profiles: this.configService.llm.profiles,
-          fallbacks: this.configService.llm.fallbacks,
+          fallbackProfiles: this.configService.llm.fallbackProfiles,
         },
         getAll: () => this.configService.getAll(),
         getFeature: <T = Record<string, unknown>>(name: string) => this.configService.getFeature<T>(name),

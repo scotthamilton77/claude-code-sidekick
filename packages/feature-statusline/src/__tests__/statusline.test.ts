@@ -2687,7 +2687,7 @@ describe('StatuslineService', () => {
     it('uses configService settings when provided', async () => {
       const mockConfigService = {
         core: { logging: { level: 'info', components: {} }, development: { enabled: false } },
-        llm: { defaultProfile: 'default', profiles: {}, fallbacks: {} },
+        llm: { defaultProfile: 'default', profiles: {}, fallbackProfiles: {} },
         getAll: () => ({}),
         getFeature: <T>(name: string): { enabled: boolean; settings: T } => {
           if (name === 'statusline') {
