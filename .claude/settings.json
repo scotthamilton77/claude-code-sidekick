@@ -16,9 +16,5 @@
   },
   "enabledPlugins": {
     "playwright@claude-plugins-official": false
-  },
-  "sandbox": {
-    "enabled": true,
-    "allowUnsandboxedCommands": true
   }
 }
