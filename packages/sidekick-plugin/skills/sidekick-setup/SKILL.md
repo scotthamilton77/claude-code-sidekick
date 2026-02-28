@@ -1,15 +1,17 @@
 ---
-name: sidekick-config
-description: Use when user asks to configure, customize, or set up sidekick. Use when user wants to set up API keys, troubleshoot credential errors, change LLM models, personas, statusline, reminders, or override any sidekick settings. Also use when user wants to change/set/switch the session persona.
+name: sidekick-setup
+description: Use when user asks to set up sidekick, troubleshoot credential errors, configure statusline, customize reminders or prompts, or asks general configuration questions. NOT for persona changes — use sidekick-personas instead.
 ---
 
-# Sidekick Configuration
+# Sidekick Setup & Configuration
 
 ## Overview
 
 Configure sidekick by first running diagnostics, then executing setup with appropriate parameters.
 
 **Key principle:** Always run `doctor` first to understand current state before making changes.
+
+**For persona configuration** (change persona, weight pool, curate list, create custom, improve voice): use the `sidekick-personas` skill instead.
 
 ## When to Use
 
@@ -18,8 +20,6 @@ Configure sidekick by first running diagnostics, then executing setup with appro
 - User gets "requires apiKey" or credential errors
 - User wants to change LLM models/profiles
 - User wants to customize the statusline format
-- User wants to add or change personas
-- User wants to change/set/switch the session persona (e.g., "change persona to marvin", "set persona", "switch to skippy")
 - User wants to adjust reminders or other features
 - User wants to modify prompt templates
 - User asks about sidekick configuration options
@@ -77,11 +77,9 @@ Checking live status of Sidekick... this may take a few moments.
 ✓ Overall: healthy             # or "⚠ needs attention"
 ```
 
-**Note:** The API key line now shows per-scope detection results. Each scope (project, user, env) shows ✓ (healthy), ✗ (missing/invalid).
-
 ### Step 2: Handle API Key (If Missing or Invalid)
 
-**CRITICAL:** The setup CLI cannot accept API keys directly. The doctor now shows per-scope status:
+**CRITICAL:** The setup CLI cannot accept API keys directly. The doctor shows per-scope status:
 - `healthy` — key found and validated
 - `invalid` — key found but validation failed
 - `missing` / `not found` — no key at that scope
@@ -117,7 +115,6 @@ Based on doctor output, ask about unconfigured items:
 
 ### Step 4: Run Setup with Flags
 
-**Setup command flags:**
 ```bash
 npx @scotthamilton77/sidekick setup [options]
 
@@ -130,7 +127,7 @@ Options:
   --force                            Apply all defaults non-interactively
 ```
 
-**Examples based on user responses:**
+**Examples:**
 ```bash
 # User wants statusline at user level, gitignore, and personas
 npx @scotthamilton77/sidekick setup --statusline-scope=user --gitignore --personas
@@ -142,17 +139,39 @@ npx @scotthamilton77/sidekick setup --statusline-scope=project --no-gitignore --
 npx @scotthamilton77/sidekick setup --force
 ```
 
+## Config CLI
+
+Read or write any configuration value using dot-path notation:
+
+```bash
+# Read (cascade-resolved value — what's actually in effect)
+npx @scotthamilton77/sidekick config get <dot.path> [--scope=user|project|local] [--format=json]
+
+# Write (requires scope question first)
+npx @scotthamilton77/sidekick config set <dot.path> <value> [--scope=user|project|local]
+
+# Remove an override (fall back to next cascade level)
+npx @scotthamilton77/sidekick config unset <dot.path> [--scope=user|project|local]
+```
+
+**Dot-path examples:**
+
+| Dot Path | Domain File | YAML Key |
+|----------|-------------|----------|
+| `llm.defaultProfile` | `llm.yaml` | `defaultProfile:` |
+| `features.statusline.settings.format` | `features.yaml` | `statusline: settings: format:` |
+| `core.logging.level` | `core.yaml` | `logging: level:` |
+
 ## Advanced Configuration (Post-Setup)
 
-For changes beyond initial setup, use the interactive flow below.
-
-## Choosing Configuration Method
+### Choosing Configuration Method
 
 | Method | When to Use | Example |
 |--------|-------------|---------|
-| **YAML file** | Any settings change | Custom LLM profile, feature flags |
+| **Config CLI** | Single values, validated changes | `config set llm.defaultProfile my-profile` |
+| **YAML file** | Complex objects, multiple settings | Custom LLM profile with all fields |
 | **`.local.yaml` file** | Local-only overrides (untracked) | Debug logging, dev settings |
-| **Asset override** | Modify prompts, reminders, personas | Custom prompt template |
+| **Asset override** | Modify prompts, reminders | Custom prompt template |
 
 ### YAML Files
 
@@ -217,47 +236,6 @@ statusline:
       useNerdFonts: ascii
 ```
 
-### Change Session Persona
-
-The assistant has access to the current session ID via `<session-info>` in the context. To change the persona for the current session:
-
-```bash
-npx @scotthamilton77/sidekick persona set <persona-id> --session-id=<session-id>
-```
-
-**Example:** If session ID is `abc-123` and user wants kramer:
-```bash
-npx @scotthamilton77/sidekick persona set kramer --session-id=abc-123
-```
-
-**List available personas:**
-```bash
-npx @scotthamilton77/sidekick persona list
-```
-
-See [resources/PERSONAS.md](resources/PERSONAS.md) for available personas and creating custom ones.
-
-### Add Custom Persona
-
-**Location:** `.sidekick/personas/` or `~/.sidekick/personas/` (NOT `assets/sidekick/personas/`)
-
-**Length limits:** snarky_examples ≤15 words, snarky_welcome_examples ≤10 words
-
-```yaml
-# ~/.sidekick/personas/pirate.yaml
-id: pirate
-display_name: Captain
-theme: "A swashbuckling pirate captain"
-personality_traits: [adventurous, dramatic]
-tone_traits: [nautical, bold]
-statusline_empty_messages:
-  - "Ahoy! Ready to plunder some code?"
-snarky_examples:                    # Max 15 words each
-  - "Arr, that code be messier than Davy Jones' locker!"
-snarky_welcome_examples:            # Max 10 words each (for returning users)
-  - "Ye were sailin' these seas. Continue the voyage?"
-```
-
 ### Modify Prompt Template
 
 Copy and customize:
@@ -268,7 +246,7 @@ cp assets/sidekick/prompts/snarky-message.prompt.txt .sidekick/assets/prompts/
 
 ### Generate Reminders from CLAUDE.md
 
-When user asks to "generate reminders", "customize reminders from my rules", or "infuse my CLAUDE.md (or AGENTS.md) into reminders":
+When user asks to "generate reminders", "customize reminders from my rules", or "infuse my CLAUDE.md into reminders":
 
 **Interactive Flow:**
 1. Ask: Which reminder types? (user-prompt-submit, verify-completion, or both)
@@ -281,53 +259,12 @@ When user asks to "generate reminders", "customize reminders from my rules", or 
 
 | Type | When It Fires | Purpose |
 |------|---------------|---------|
-| `user-prompt-submit` | Every user message | Input processing discipline: verify assumptions, ask clarifications, plan approach |
-| `verify-completion` | Before claiming "done" | Output verification: run tests, check requirements, evidence before assertions |
-
-**What Each Reminder Should Capture:**
-
-**user-prompt-submit** - Extract from CLAUDE.md:
-- Critical behavioral rules ("verify before agreeing", "challenge confident users")
-- When to ask clarifying questions vs. proceed
-- Workflow discipline (TodoWrite usage, skill invocation)
-- Project-specific constraints that affect how to interpret requests
-
-**verify-completion** - Extract from CLAUDE.md:
-- Definition of done / acceptance criteria
-- Required verification commands (build, test, lint, typecheck)
-- Documentation requirements
-- Commit/PR policies
-- Quality gates
-
-**Presenting to User:**
-
-Show side-by-side:
-```
-CURRENT DEFAULT:
-[show additionalContext from default YAML]
-
-SUGGESTED CUSTOMIZATION (based on your CLAUDE.md):
-[generated reminder incorporating their rules]
-
-CHANGES MADE:
-- Added: [specific rule from their CLAUDE.md]
-- Emphasized: [rule they mention frequently]
-- Removed: [default that conflicts with their workflow]
-```
+| `user-prompt-submit` | Every user message | Input processing discipline |
+| `verify-completion` | Before claiming "done" | Output verification |
 
 **Writing the Reminder:**
 
 **CRITICAL:** Only customize `additionalContext`. Copy all other fields exactly from the source.
-
-| Field | Customize? | Notes |
-|-------|------------|-------|
-| `id` | NO | Must match source exactly |
-| `blocking` | NO | Must match source exactly |
-| `priority` | NO | Must match source exactly |
-| `persistent` | NO | Must match source exactly |
-| `additionalContext` | **YES** | This is what you generate |
-| `userMessage` | Only if user requests | Optional - ask user first |
-| `reason` | Only if user requests | Optional - ask user first |
 
 ```yaml
 # .sidekick/assets/reminders/user-prompt-submit.yaml
@@ -340,10 +277,6 @@ persistent: true
 # THIS is what you customize:
 additionalContext: |
   [Generated content based on CLAUDE.md analysis]
-
-# Only include if user explicitly requests customization:
-# userMessage: "..."
-# reason: "..."
 ```
 
 **Location:** `.sidekick/assets/reminders/` or `~/.sidekick/assets/reminders/`
@@ -359,16 +292,16 @@ For prompts, reminders, and other assets:
 
 ## Hot-Reloading
 
-**Most settings apply immediately.** Daemon/IPC connection settings may require a daemon restart (`sidekick daemon kill && sidekick daemon start`).
+**Most settings apply immediately.** Daemon/IPC connection settings may require a daemon restart (`npx @scotthamilton77/sidekick daemon kill && npx @scotthamilton77/sidekick daemon start`).
 
 ## Common Mistakes
 
 | Mistake | Correct Approach |
 |---------|-----------------|
-| Put persona in `assets/sidekick/personas/` | Use `.sidekick/personas/` or `~/.sidekick/personas/` |
 | Wrap features.yaml content under `features:` | Feature names at root: `statusline:`, not `features: statusline:` |
 | Assume project scope | Ask user: user-level or project-level? |
 | Say "restart required" | Most changes hot-reload automatically |
+| Edit YAML directly for simple changes | Use `config set` CLI — it validates inputs |
 
 ## Debugging
 

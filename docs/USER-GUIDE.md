@@ -53,7 +53,7 @@ Sidekick detects incomplete or unhealthy configurations and notifies you automat
 
 - **Statusline warning** -- shows a setup message instead of the normal status bar.
 - **Session messages** -- at session start and after submitting prompts, Sidekick tells Claude Code that setup is incomplete and suggests running setup.
-- **In-session fix** -- use the `/sidekick-config` skill inside Claude Code to diagnose and resolve issues without leaving your session.
+- **In-session fix** -- use the `/sidekick-setup` skill inside Claude Code to diagnose and resolve issues without leaving your session.
 
 You can also run the doctor command from the terminal:
 
@@ -460,7 +460,7 @@ sidekick doctor --only=plugin,liveness   # Check specific areas only
 **Requires manual action:**
 
 - API key issues (run `sidekick setup` interactively)
-- Plugin liveness issues (use `/sidekick-config` skill in Claude Code, or run `sidekick setup`)
+- Plugin liveness issues (use `/sidekick-setup` skill in Claude Code, or run `sidekick setup`)
 
 ### `uninstall` -- Remove Sidekick
 
@@ -676,7 +676,7 @@ The daemon auto-starts when hooks fire. If it keeps dying, check `.sidekick/side
      }
    }
    ```
-4. **In-session fix**: Use the `/sidekick-config` skill inside Claude Code to diagnose and resolve setup issues.
+4. **In-session fix**: Use the `/sidekick-setup` skill inside Claude Code to diagnose and resolve setup issues.
 
 ### Personas Not Working
 

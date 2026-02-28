@@ -571,7 +571,7 @@ async function configureApiKey(
   if (!configureNow) {
     stdout.write('\n')
     printStatus(ctx, 'warning', 'LLM features will be limited until an API key is configured.')
-    stdout.write("Run 'sidekick setup' again or ask Claude to help configure API keys using /sidekick-config.\n")
+    stdout.write("Run 'sidekick setup' again or ask Claude to help configure API keys using /sidekick-setup.\n")
     return { health: 'missing', detection }
   }
 
@@ -1277,7 +1277,7 @@ async function runDoctorFixes(
     }
     if (liveness !== null && liveness !== 'active') {
       unfixable.push(
-        "Plugin Liveness: Hooks not responding. Try running '/sidekick-config' in Claude Code or 'sidekick setup' from the terminal."
+        "Plugin Liveness: Hooks not responding. Try running '/sidekick-setup' in Claude Code or 'sidekick setup' from the terminal."
       )
     }
   }
