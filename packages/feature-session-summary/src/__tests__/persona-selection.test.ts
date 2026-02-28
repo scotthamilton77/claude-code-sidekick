@@ -315,9 +315,15 @@ describe('selectRandomPersona', () => {
     expect(counts.bones).toBeGreaterThan(0) // bones should still appear occasionally
   })
 
-  it('treats negative weights as excluded', () => {
+  it.each([
+    { label: 'negative', weight: -5 },
+    { label: 'NaN', weight: NaN },
+    { label: 'Infinity', weight: Infinity },
+    { label: '-Infinity', weight: -Infinity },
+    { label: 'non-numeric string', weight: 'not-a-number' as unknown as number },
+  ])('excludes persona with $label weight', ({ weight }) => {
     const personas = [createMockPersona('skippy'), createMockPersona('bones')]
-    const weights = { skippy: -5, bones: 1 }
+    const weights = { skippy: weight, bones: 1 }
 
     const selectedIds = new Set<string>()
     for (let i = 0; i < 50; i++) {
@@ -326,6 +332,21 @@ describe('selectRandomPersona', () => {
     }
 
     expect(selectedIds).toEqual(new Set(['bones']))
+  })
+
+  it('coerces numeric string weights correctly', () => {
+    const personas = [createMockPersona('skippy'), createMockPersona('bones')]
+    // YAML might parse "5" as a string
+    const weights = { skippy: '5' as unknown as number, bones: 0 }
+
+    const selectedIds = new Set<string>()
+    for (let i = 0; i < 50; i++) {
+      const result = selectRandomPersona(personas, weights)
+      if (result) selectedIds.add(result.id)
+    }
+
+    // "5" → Number("5") → 5 → valid weight
+    expect(selectedIds).toEqual(new Set(['skippy']))
   })
 
   it('treats empty weights object same as no weights', () => {

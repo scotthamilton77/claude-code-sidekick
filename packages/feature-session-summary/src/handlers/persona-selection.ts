@@ -78,12 +78,12 @@ export function filterPersonas(
 
 /**
  * Select a random persona from the available pool, optionally using weights.
- * When weights are provided, personas with weight 0 are excluded and selection
+ * When weights are provided, personas with non-positive or non-finite weights are excluded and selection
  * probability is proportional to each persona's weight. Unspecified weights default to 1.
  *
  * @param personas - Array of personas to select from
- * @param weights - Optional map of persona ID to selection weight (default 1, 0 = excluded)
- * @returns Selected persona, or null if pool is empty or all weights are 0
+ * @param weights - Optional map of persona ID to selection weight (default 1, non-positive/non-finite = excluded)
+ * @returns Selected persona, or null if pool is empty or all weights are non-positive/non-finite
  */
 export function selectRandomPersona(
   personas: PersonaDefinition[],
@@ -93,10 +93,14 @@ export function selectRandomPersona(
     return null
   }
 
-  // Build weighted entries: assign weight per persona, filter out weight 0
+  // Build weighted entries: assign weight per persona, filter out non-positive/invalid weights
   const weighted = personas
-    .map((p) => ({ persona: p, weight: weights?.[p.id] ?? 1 }))
-    .filter((entry) => entry.weight > 0)
+    .map((p) => {
+      const raw = weights?.[p.id]
+      const weight = raw === undefined ? 1 : Number(raw)
+      return { persona: p, weight }
+    })
+    .filter((entry) => Number.isFinite(entry.weight) && entry.weight > 0)
 
   if (weighted.length === 0) {
     return null
