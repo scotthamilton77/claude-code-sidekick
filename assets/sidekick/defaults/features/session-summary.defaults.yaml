@@ -99,3 +99,8 @@ settings:
     # Overrides both defaultLlmProfile and persona YAML llmProfile
     # Example: { avasarala: "creative-long", skippy: "fast-lite" }
     llmProfiles: {}
+    # Per-persona selection weights: personaId → weight number
+    # Default weight = 1 for any persona not listed. Weight 0 = excluded from selection.
+    # Applied AFTER allowList/blockList filtering.
+    # Example: { darth-vader: 100, emperor-palpatine: 50 }
+    weights: {}

@@ -77,17 +77,44 @@ export function filterPersonas(
 }
 
 /**
- * Select a random persona from the available pool.
+ * Select a random persona from the available pool, optionally using weights.
+ * When weights are provided, personas with weight 0 are excluded and selection
+ * probability is proportional to each persona's weight. Unspecified weights default to 1.
  *
  * @param personas - Array of personas to select from
- * @returns Selected persona, or null if pool is empty
+ * @param weights - Optional map of persona ID to selection weight (default 1, 0 = excluded)
+ * @returns Selected persona, or null if pool is empty or all weights are 0
  */
-export function selectRandomPersona(personas: PersonaDefinition[]): PersonaDefinition | null {
+export function selectRandomPersona(
+  personas: PersonaDefinition[],
+  weights?: Record<string, number>
+): PersonaDefinition | null {
   if (personas.length === 0) {
     return null
   }
-  const index = Math.floor(Math.random() * personas.length)
-  return personas[index]
+
+  // Build weighted entries: assign weight per persona, filter out weight 0
+  const weighted = personas
+    .map((p) => ({ persona: p, weight: weights?.[p.id] ?? 1 }))
+    .filter((entry) => entry.weight > 0)
+
+  if (weighted.length === 0) {
+    return null
+  }
+
+  const totalWeight = weighted.reduce((sum, entry) => sum + entry.weight, 0)
+  const threshold = Math.random() * totalWeight
+
+  let accumulated = 0
+  for (const entry of weighted) {
+    accumulated += entry.weight
+    if (accumulated > threshold) {
+      return entry.persona
+    }
+  }
+
+  // Floating-point edge case: return last entry
+  return weighted[weighted.length - 1].persona
 }
 
 /**
@@ -139,9 +166,16 @@ export async function selectPersonaForSession(
     return null
   }
 
-  // Select random persona
-
-  const selected = selectRandomPersona(eligiblePersonas)!
+  // Select random persona (weighted if configured)
+  const selected = selectRandomPersona(eligiblePersonas, personaConfig.weights)
+  if (!selected) {
+    ctx.logger.warn('No eligible personas after applying weights', {
+      sessionId,
+      weights: personaConfig.weights,
+      eligibleCount: eligiblePersonas.length,
+    })
+    return null
+  }
 
   // Persist selection
   const personaState: SessionPersonaState = {

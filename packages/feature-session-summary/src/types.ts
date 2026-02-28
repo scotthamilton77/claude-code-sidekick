@@ -76,6 +76,8 @@ export interface SessionSummaryConfig {
     defaultLlmProfile?: string
     /** Per-persona LLM profile overrides (personaId → profileId) */
     llmProfiles?: Record<string, string>
+    /** Per-persona selection weights (personaId → weight). Default weight = 1. Weight 0 = excluded. */
+    weights?: Record<string, number>
   }
 }
 
@@ -115,6 +117,7 @@ export const DEFAULT_SESSION_SUMMARY_CONFIG: SessionSummaryConfig = {
     injectPersonaIntoClaude: true,
     defaultLlmProfile: '',
     llmProfiles: {},
+    weights: {},
   },
 }
 

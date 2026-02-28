@@ -139,6 +139,8 @@ Controls session title, intent tracking, and persona-driven messages.
 | `bookmark.confidenceThreshold` | number | 0.8 | Min confidence for bookmark |
 | `bookmark.resetThreshold` | number | 0.7 | Confidence to reset bookmark |
 | `personas.allowList` | string | "" | Comma-separated allowed personas |
+| `personas.blockList` | string | "disabled" | Comma-separated excluded personas |
+| `personas.weights` | Record | {} | Per-persona selection weights (default 1, 0 = excluded) |
 | `personas.resumeFreshnessHours` | number | 4 | Max age for resume messages |
 
 ---
@@ -163,6 +165,9 @@ features.session-summary.settings.personas.resumeFreshnessHours=8
 
 # Restrict personas
 features.session-summary.settings.personas.allowList=sidekick,marvin
+
+# Weight personas (darth-vader 100x more likely than others)
+features.session-summary.settings.personas.weights.darth-vader=100
 ```
 
 ## Full Override

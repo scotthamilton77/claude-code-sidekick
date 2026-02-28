@@ -156,6 +156,23 @@ session-summary:
 features.session-summary.settings.personas.allowList=sidekick,marvin,pirate
 ```
 
+### Weight Persona Selection
+
+Control how often each persona is selected. Higher weight = more likely. Default weight is 1. Weight 0 excludes a persona (like blockList).
+
+```yaml
+# features.yaml
+session-summary:
+  settings:
+    personas:
+      weights:
+        darth-vader: 100
+        emperor-palpatine: 50
+        sidekick: 1
+```
+
+Weights are applied after allowList/blockList filtering.
+
 ## Persona Cascade (Priority Order)
 
 1. `.sidekick/personas/` - Project overrides
