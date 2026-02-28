@@ -3065,6 +3065,43 @@ describe('StatuslineService', () => {
       expect(result.displayMode).toBe('resume_message')
       expect(result.viewModel.summary).toBe('Welcome back!')
     })
+
+    it('does not prefix attribution when current persona is disabled', async () => {
+      await fs.writeFile(
+        path.join(stateDir, 'resume-message.json'),
+        JSON.stringify({
+          last_task_id: null,
+          session_title: 'Feature X',
+          snarky_comment: 'Back already? Shocking.',
+          timestamp: new Date().toISOString(),
+          persona_id: 'tars',
+          persona_display_name: 'TARS',
+        })
+      )
+      await fs.writeFile(
+        path.join(stateDir, 'session-persona.json'),
+        JSON.stringify({
+          persona_id: 'disabled',
+          selected_from: [],
+          timestamp: new Date().toISOString(),
+        })
+      )
+
+      const service = createStatuslineService({
+        stateService,
+        setupService,
+        sessionId,
+        cwd: '/test',
+        useColors: false,
+        isResumedSession: true,
+        projectDir: projectRoot,
+      })
+
+      const result = await service.render()
+
+      expect(result.displayMode).toBe('resume_message')
+      expect(result.viewModel.summary).toBe('Back already? Shocking.')
+    })
   })
 
   describe('display mode determination', () => {
