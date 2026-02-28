@@ -280,11 +280,11 @@ describe('handleDevModeCommand', () => {
       const enableResult = await handleDevModeCommand('enable', tempDir, logger, stdout)
       expect(enableResult.exitCode).toBe(0)
 
-      const destConfigSkill = path.join(tempDir, '.claude', 'skills', 'sidekick-setup', 'SKILL.md')
+      const destSetupSkill = path.join(tempDir, '.claude', 'skills', 'sidekick-setup', 'SKILL.md')
       const destPersonasSkill = path.join(tempDir, '.claude', 'skills', 'sidekick-personas', 'SKILL.md')
 
       // Sanity-check that both skills exist after enable
-      await access(destConfigSkill, constants.F_OK)
+      await access(destSetupSkill, constants.F_OK)
       await access(destPersonasSkill, constants.F_OK)
 
       stdout.data = ''
@@ -293,7 +293,7 @@ describe('handleDevModeCommand', () => {
       const disableResult = await handleDevModeCommand('disable', tempDir, logger, stdout)
       expect(disableResult.exitCode).toBe(0)
 
-      await expect(access(destConfigSkill, constants.F_OK)).rejects.toMatchObject({ code: 'ENOENT' })
+      await expect(access(destSetupSkill, constants.F_OK)).rejects.toMatchObject({ code: 'ENOENT' })
       await expect(access(destPersonasSkill, constants.F_OK)).rejects.toMatchObject({ code: 'ENOENT' })
     })
 
