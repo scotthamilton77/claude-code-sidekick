@@ -119,51 +119,35 @@ snarky_welcome_examples:                   # 8-10 words each
 ### Set Session Persona
 
 ```bash
-# Full path (use in this project)
-node packages/sidekick-cli/dist/bin.js persona <persona-id> --session-id=<id>
-
-# Or if sidekick CLI is in PATH
-sidekick persona <persona-id> --session-id=<id>
+pnpm sidekick persona set <persona-id> --session-id=<id>
 ```
 
 ### Clear Session Persona
 
 ```bash
-node packages/sidekick-cli/dist/bin.js persona --session-id=<id>
+pnpm sidekick persona clear --session-id=<id>
 ```
 
 ### Test Persona Voice
 
 ```bash
-node packages/sidekick-cli/dist/bin.js persona-test <persona-id> --session-id=<id> --type=snarky
-node packages/sidekick-cli/dist/bin.js persona-test <persona-id> --session-id=<id> --type=resume
+pnpm sidekick persona test <persona-id> --session-id=<id> --type=snarky
+pnpm sidekick persona test <persona-id> --session-id=<id> --type=resume
 ```
 
 ### Restrict Available Personas
 
-In `features.yaml`:
-
-```yaml
-# features.yaml
-session-summary:
-  settings:
-    personas:
-      allowList: "sidekick,marvin,pirate"
+```bash
+pnpm sidekick config set features.session-summary.settings.personas.allowList "sidekick,marvin,pirate" --scope=user
 ```
 
 ### Weight Persona Selection
 
 Control how often each persona is selected. Higher weight = more likely. Default weight is 1. Weight 0 excludes a persona (like blockList).
 
-```yaml
-# features.yaml
-session-summary:
-  settings:
-    personas:
-      weights:
-        darth-vader: 100
-        emperor-palpatine: 50
-        sidekick: 1
+```bash
+pnpm sidekick config set features.session-summary.settings.personas.weights.darth-vader 100 --scope=user
+pnpm sidekick config set features.session-summary.settings.personas.weights.emperor-palpatine 50 --scope=user
 ```
 
 Weights are applied after allowList/blockList filtering.

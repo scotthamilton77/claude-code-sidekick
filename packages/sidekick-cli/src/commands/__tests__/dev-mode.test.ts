@@ -275,6 +275,28 @@ describe('handleDevModeCommand', () => {
       expect(content).not.toContain('npx @scotthamilton77/sidekick')
     })
 
+    test('disable removes all dynamically copied plugin skills', async () => {
+      // Enable dev-mode to copy skills into .claude/skills/
+      const enableResult = await handleDevModeCommand('enable', tempDir, logger, stdout)
+      expect(enableResult.exitCode).toBe(0)
+
+      const destConfigSkill = path.join(tempDir, '.claude', 'skills', 'sidekick-config', 'SKILL.md')
+      const destPersonasSkill = path.join(tempDir, '.claude', 'skills', 'sidekick-personas', 'SKILL.md')
+
+      // Sanity-check that both skills exist after enable
+      await access(destConfigSkill, constants.F_OK)
+      await access(destPersonasSkill, constants.F_OK)
+
+      stdout.data = ''
+
+      // Disable and verify all copied skills are removed
+      const disableResult = await handleDevModeCommand('disable', tempDir, logger, stdout)
+      expect(disableResult.exitCode).toBe(0)
+
+      await expect(access(destConfigSkill, constants.F_OK)).rejects.toMatchObject({ code: 'ENOENT' })
+      await expect(access(destPersonasSkill, constants.F_OK)).rejects.toMatchObject({ code: 'ENOENT' })
+    })
+
     test('updates existing setup-status.json to local statusline and installed gitignore', async () => {
       // Create an existing setup-status.json with different values
       const setupStatusPath = path.join(tempDir, '.sidekick', 'setup-status.json')

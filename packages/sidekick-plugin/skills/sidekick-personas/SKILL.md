@@ -122,7 +122,7 @@ See [resources/PERSONAS.md](resources/PERSONAS.md) for full persona catalogue wi
 | "less X" | 0.1-0.5 |
 | "never X" | 0 |
 
-**Weights are ratios:** A weight of 100 vs others at 1 means ~99% selection. Don't use extreme values like 1,000,000 — anything above 1000 is effectively "always". For "always this persona right now", use `persona set` instead.
+**Weights are ratios:** Selection probability is `weight / sum(weights)`. A weight of 100 with N others at 1 means selection ~`100 / (100 + N)` of the time. Don't use extreme values — anything above 1000 is effectively "always". For "always this persona right now", use `persona set` instead.
 
 ```bash
 pnpm sidekick config set features.session-summary.settings.personas.weights.darth-vader 100 --scope=project
@@ -207,9 +207,15 @@ Each step uses the corresponding recipe above (Curate → allowList, Weight → 
 
 **Session-only:** `pnpm sidekick persona set disabled --session-id=<session-id>` (no scope question)
 
-**Permanently** (scope question required): `pnpm sidekick config set features.session-summary.settings.personas.allowList "disabled" --scope=user`
+**Permanently** (scope question required — two commands needed):
 
-The `disabled` persona turns off snarky messages, resume messages, and persona-specific empty messages.
+```bash
+# Must clear blockList first — default blockList contains "disabled"
+pnpm sidekick config unset features.session-summary.settings.personas.blockList --scope=user
+pnpm sidekick config set features.session-summary.settings.personas.allowList "disabled" --scope=user
+```
+
+The `disabled` persona turns off snarky messages, resume messages, and persona-specific empty messages. Clearing blockList is required because it takes precedence over allowList.
 
 ## Common Mistakes
 
