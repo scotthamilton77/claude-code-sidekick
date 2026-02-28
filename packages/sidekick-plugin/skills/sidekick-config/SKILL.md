@@ -150,24 +150,11 @@ For changes beyond initial setup, use the interactive flow below.
 
 | Method | When to Use | Example |
 |--------|-------------|---------|
-| **sidekick.config** | Single setting, quick tweak | Change one threshold |
-| **YAML file** | Multiple settings, complex objects | Custom LLM profile |
+| **YAML file** | Any settings change | Custom LLM profile, feature flags |
+| **`.local.yaml` file** | Local-only overrides (untracked) | Debug logging, dev settings |
 | **Asset override** | Modify prompts, reminders, personas | Custom prompt template |
 
-### sidekick.config (Surgical Changes)
-
-Best for one-off settings using dot-notation:
-
-```bash
-# .sidekick/sidekick.config or ~/.sidekick/sidekick.config
-llm.defaultProfile=creative
-features.statusline.settings.format={model} | {tokenPercentageActual}
-features.reminders.settings.pause_and_reflect_threshold=100
-features.session-summary.settings.personas.resumeFreshnessHours=8
-core.logging.level=debug
-```
-
-### YAML Files (Broader Changes)
+### YAML Files
 
 Best for complex objects or multiple related settings. Copy the default file and modify:
 
@@ -184,7 +171,7 @@ Best for complex objects or multiple related settings. Copy the default file and
 | **Local** | `.sidekick/*.local` | Personal overrides, untracked | No |
 
 **Override order (highest to lowest):**
-1. `.sidekick/{domain}.yaml.local` - Project local (untracked)
+1. `.sidekick/{domain}.local.yaml` - Project local (untracked)
 2. `.sidekick/{domain}.yaml` - Project (tracked)
 3. `~/.sidekick/{domain}.yaml` - User
 4. `assets/sidekick/defaults/` - Bundled defaults
@@ -205,12 +192,6 @@ Best for complex objects or multiple related settings. Copy the default file and
 
 ### Change Default LLM Model
 
-**Surgical (sidekick.config):**
-```bash
-llm.defaultProfile=creative
-```
-
-**Full control (llm.yaml):**
 ```yaml
 # .sidekick/llm.yaml
 defaultProfile: my-cheap-profile
@@ -226,12 +207,6 @@ profiles:
 
 ### Customize Statusline
 
-**Surgical:**
-```bash
-features.statusline.settings.format={model} | {tokenPercentageActual}
-```
-
-**Full control:**
 ```yaml
 # .sidekick/features.yaml
 statusline:
@@ -393,7 +368,6 @@ For prompts, reminders, and other assets:
 | Put persona in `assets/sidekick/personas/` | Use `.sidekick/personas/` or `~/.sidekick/personas/` |
 | Wrap features.yaml content under `features:` | Feature names at root: `statusline:`, not `features: statusline:` |
 | Assume project scope | Ask user: user-level or project-level? |
-| Use YAML for single setting | Use `sidekick.config` for surgical changes |
 | Say "restart required" | Most changes hot-reload automatically |
 
 ## Debugging
@@ -402,11 +376,14 @@ For prompts, reminders, and other assets:
 # View loaded config
 cat ~/.sidekick/llm.yaml
 cat .sidekick/features.yaml
-cat .sidekick/sidekick.config
 
-# Enable debug logging
-echo "core.logging.level=debug" >> .sidekick/sidekick.config
-echo "llm.global.debugDumpEnabled=true" >> .sidekick/sidekick.config
+# Enable debug logging (use .local.yaml for local overrides)
+# .sidekick/config.local.yaml:
+#   logging:
+#     level: debug
+# .sidekick/llm.local.yaml:
+#   global:
+#     debugDumpEnabled: true
 
 # Check daemon logs
 tail -f .sidekick/logs/daemon.log

@@ -119,12 +119,12 @@ Available scripting flags:
 
 Configuration loads from multiple layers. Later layers override earlier ones:
 
-1. **Bundled Defaults** -- `assets/sidekick/defaults/*.yaml` (shipped with Sidekick)
-2. **User Domain YAML** -- `~/.sidekick/*.yaml`
-3. **User Unified Config** -- `~/.sidekick/sidekick.config`
-4. **Project Domain YAML** -- `.sidekick/*.yaml`
-5. **Project Unified Config** -- `.sidekick/sidekick.config`
-6. **Environment Variables** -- `SIDEKICK_*` prefixed vars
+1. **External YAML Defaults** -- `assets/sidekick/defaults/*.yaml` (shipped with Sidekick)
+2. **Internal Defaults** -- Zod schema defaults (hardcoded fallbacks)
+3. **Environment Variables** -- `SIDEKICK_*` prefixed vars + `.env` files
+4. **User Domain YAML** -- `~/.sidekick/*.yaml`
+5. **Project Domain YAML** -- `.sidekick/*.yaml`
+6. **Project-Local Overrides** -- `.sidekick/*.local.yaml` (untracked)
 
 ### Configuration Domains
 
@@ -138,18 +138,6 @@ Each domain is a separate YAML file:
 | Features | `features.yaml` | Feature flags and per-feature settings |
 
 Place overrides in `~/.sidekick/` (user-level) or `.sidekick/` (project-level).
-
-### Quick Override (dot-notation)
-
-The `sidekick.config` file supports dot-notation for quick changes without writing YAML:
-
-```bash
-# ~/.sidekick/sidekick.config or .sidekick/sidekick.config
-core.logging.level=debug
-llm.defaultProfile=creative
-features.statusline.enabled=true
-features.reminders.settings.pause_and_reflect_threshold=40
-```
 
 ### Core Configuration (`core.yaml`)
 
@@ -640,9 +628,10 @@ Sidekick logs to `.sidekick/logs/` (project-level). The main log file is `.sidek
 # Tail logs in real time
 tail -f .sidekick/sidekick.log
 
-# Enable debug logging via config
-# Add to .sidekick/sidekick.config:
-core.logging.level=debug
+# Enable debug logging via YAML config
+# Add to .sidekick/config.yaml or .sidekick/config.local.yaml:
+#   logging:
+#     level: debug
 
 # Or via environment variable
 SIDEKICK_LOG_LEVEL=debug
@@ -763,5 +752,4 @@ User-level state is under `~/.sidekick/`:
   state/                    # User-level state
   daemons/                  # PID files for all project daemons
   *.yaml                    # User config overrides
-  sidekick.config           # User dot-notation overrides
 ```

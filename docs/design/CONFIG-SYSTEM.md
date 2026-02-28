@@ -8,7 +8,6 @@ The Configuration System loads, validates, and merges configuration from multipl
 
 - **Strict Validation**: All configuration validated against Zod schemas at runtime. Invalid config prevents startup with clear error messages.
 - **YAML Standard**: Domain-specific configuration files use YAML for human-readable, comment-friendly configuration.
-- **Unified Override**: A bash-style `sidekick.config` provides quick overrides using dot-notation (lower priority than domain files).
 - **Deterministic Cascade**: Configuration resolved in a specific order; higher-specificity layers override lower ones.
 - **Domain Separation**: Configuration split by functional domain (LLM, features, logging, etc.).
 - **Immutability**: Once loaded, configuration objects are frozen. (Hot-reloaded configs do atomic replacement; consumers of config objects must cache neither values nor references.)
@@ -34,45 +33,18 @@ Each domain file is resolved independently through the cascade (Section 4). The 
 
 Configuration is resolved in this order (lowest to highest priority):
 
-1. **Internal Defaults**: Hardcoded defaults in `sidekick-core`.
-2. **Environment Variables**: `SIDEKICK_*` values plus `.env` files: `~/.sidekick/.env` → `.sidekick/.env` → `.sidekick/.env.local`.
-3. **User Unified Config**: `~/.sidekick/sidekick.config` (bash-style, dot-notation).
+1. **External YAML Defaults**: Bundled defaults from `assets/sidekick/defaults/*.yaml`.
+2. **Internal Defaults**: Hardcoded defaults in `sidekick-core` (Zod schema defaults).
+3. **Environment Variables**: `SIDEKICK_*` values plus `.env` files: `~/.sidekick/.env` → `.sidekick/.env` → `.sidekick/.env.local`.
 4. **User Domain Config**: `~/.sidekick/{domain}.yaml`.
-5. **Project Unified Config**: `.sidekick/sidekick.config` (bash-style, dot-notation).
-6. **Project Domain Config**: `.sidekick/{domain}.yaml` (committed to repo).
-7. **Project-Local Overrides**: `.sidekick/{domain}.yaml.local` (untracked, highest priority).
+5. **Project Domain Config**: `.sidekick/{domain}.yaml` (committed to repo).
+6. **Project-Local Overrides**: `.sidekick/{domain}.local.yaml` (untracked, highest priority).
 
 ### 4.1 Merge Strategy
 
 - **Objects**: Deep merged.
 - **Arrays**: Replaced (higher priority replaces lower priority).
 - **Primitives**: Replaced.
-
-### 4.2 Unified Config Format (`sidekick.config`)
-
-The `sidekick.config` file provides a convenience layer for quick overrides without editing multiple YAML files:
-
-```bash
-# ~/.sidekick/sidekick.config
-# Bash-style key=value with hash comments
-# Dot-notation maps to nested objects
-
-llm.provider=openai
-llm.model=gpt-4o
-llm.temperature=0.1
-
-logging.level=debug
-
-features.reminders.enabled=true
-features.reminders.settings.turn_cadence=6
-```
-
-**Parsing Rules**:
-- Lines starting with `#` are comments
-- Format: `domain.path.to.key=value`
-- Values are coerced to appropriate types (number, boolean, string)
-- Arrays use JSON syntax: `some.array=["a","b","c"]`
-- Domain-specific YAML files always take precedence over unified config at the same scope level
 
 ## 5. Data Structures
 
@@ -248,15 +220,14 @@ class ConfigService {
 
   public async load(): Promise<void> {
     // For each domain:
-    // 1. Load internal defaults
-    // 2. Apply environment variables
-    // 3. Parse and apply user unified config (sidekick.config)
+    // 1. Load external YAML defaults (from assets)
+    // 2. Load internal defaults (Zod schema defaults)
+    // 3. Apply environment variables
     // 4. Load and merge user domain config ({domain}.yaml)
-    // 5. Parse and apply project unified config (sidekick.config)
-    // 6. Load and merge project domain config ({domain}.yaml)
-    // 7. Load and merge project-local config ({domain}.yaml.local)
-    // 8. Validate against schema
-    // 9. Freeze
+    // 5. Load and merge project domain config ({domain}.yaml)
+    // 6. Load and merge project-local config ({domain}.local.yaml)
+    // 7. Validate against schema
+    // 8. Freeze
   }
 
   public get core(): CoreConfig { return this.config.core; }
@@ -312,15 +283,7 @@ class AssetResolver {
 
 ## 9. Example Configuration Files
 
-### 9.1 `~/.sidekick/sidekick.config` (User Unified)
-
-```bash
-# Quick user-level overrides
-logging.level=debug
-features.reminders.enabled=true
-```
-
-### 9.2 `.sidekick/config.yaml` (Project Core)
+### 9.1 `.sidekick/config.yaml` (Project Core)
 
 ```yaml
 # Core Sidekick configuration
@@ -337,7 +300,7 @@ daemon:
   shutdownTimeoutMs: 30000  # 30 seconds
 ```
 
-### 9.3 `.sidekick/llm.yaml` (Project LLM)
+### 9.2 `.sidekick/llm.yaml` (Project LLM)
 
 ```yaml
 # LLM provider configuration (profile-based)
@@ -368,7 +331,7 @@ global:
   debugDumpEnabled: false
 ```
 
-### 9.4 `.sidekick/features.yaml` (Project Features)
+### 9.3 `.sidekick/features.yaml` (Project Features)
 
 ```yaml
 # Feature flags and settings
@@ -395,19 +358,13 @@ When configuration is loaded via `createConfigService()`, the following is logge
 
 | Level | Condition | Message |
 |-------|-----------|---------|
-| `warn` | Malformed line in `sidekick.config` | `Config parse warning` with line number and issue (missing `=`, invalid key format) |
-| `info` | User config overrides found | `User config overrides loaded` with source path and key-value pairs |
-| `info` | Project config overrides found | `Project config overrides loaded` with source path and key-value pairs |
-
-**Example warnings:**
-```
-warn: Config parse warning { warning: "sidekick.config:18: malformed line (missing '='): features.reminders.threshold: 4" }
-warn: Config parse warning { warning: "sidekick.config:5: invalid key format (need domain.key): single" }
-```
+| `info` | User config overrides found | `User config overrides loaded` with source path |
+| `info` | Project config overrides found | `Project config overrides loaded` with source path |
 
 **Example info:**
 ```
-info: Project config overrides loaded { source: ".sidekick/sidekick.config", overrides: [{ key: "features.reminders.enabled", value: true }] }
+info: User config overrides loaded { source: "~/.sidekick/llm.yaml" }
+info: Project config overrides loaded { source: ".sidekick/features.yaml" }
 ```
 
 ### 10.2 Hot-Reload Logging
@@ -423,7 +380,7 @@ When configuration files change and the daemon reloads config, the following is 
 
 **Example:**
 ```
-info: Configuration change detected { file: "sidekick.config", eventType: "change" }
+info: Configuration change detected { file: "features.yaml", eventType: "change" }
 info: Configuration values changed { changes: [{ path: "features.reminders.settings.pause_and_reflect_threshold", old: 15, new: 4 }] }
 info: Configuration reloaded successfully
 ```
@@ -452,8 +409,8 @@ The following are internal implementation concerns, not exposed via configuratio
 ## 12. Decisions
 
 - **Domain-based files**: Configuration split by functional domain for clarity and independent override.
-- **Unified config convenience**: `sidekick.config` provides quick bash-style overrides without editing multiple files.
+- **Local overrides**: `.local.yaml` files provide untracked per-developer overrides without editing shared YAML files.
 - **Feature-specific schemas in feature LLDs**: Feature settings schemas live in their respective feature docs, not here.
 - **Derived vs. configurable paths**: Session/staging paths derived from `paths.state`; internal structure is not configurable.
 - **Daemon in core domain**: Daemon settings (`idleTimeoutMs`, `shutdownTimeoutMs`) live in CoreConfig as they are operational/runtime concerns alongside logging and paths.
-- **Hot reloading**: ConfigService watches domain files and `sidekick.config` for changes. On file change, the entire config is reloaded and atomically replaced. Consumers must not cache config values or references—always access via `configService.{domain}` accessors. File watching uses chokidar with debouncing to avoid thrashing on rapid edits.
+- **Hot reloading**: ConfigService watches domain files for changes. On file change, the entire config is reloaded and atomically replaced. Consumers must not cache config values or references—always access via `configService.{domain}` accessors. File watching uses chokidar with debouncing to avoid thrashing on rapid edits.

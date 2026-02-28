@@ -141,7 +141,7 @@ node packages/sidekick-cli/dist/bin.js persona-test <persona-id> --session-id=<i
 
 ### Restrict Available Personas
 
-In `features.yaml` or `sidekick.config`:
+In `features.yaml`:
 
 ```yaml
 # features.yaml
@@ -149,11 +149,6 @@ session-summary:
   settings:
     personas:
       allowList: "sidekick,marvin,pirate"
-```
-
-```bash
-# sidekick.config
-features.session-summary.settings.personas.allowList=sidekick,marvin,pirate
 ```
 
 ### Weight Persona Selection

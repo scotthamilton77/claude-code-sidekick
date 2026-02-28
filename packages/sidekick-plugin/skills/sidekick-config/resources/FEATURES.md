@@ -145,29 +145,28 @@ Controls session title, intent tracking, and persona-driven messages.
 
 ---
 
-## Surgical Changes (sidekick.config)
+## Local Overrides (features.local.yaml)
 
-```bash
-# Disable statusline
-features.statusline.enabled=false
+For local-only changes that are not tracked in git, create `.sidekick/features.local.yaml`:
 
-# Minimal statusline format
-features.statusline.settings.format={model} | {tokenPercentageActual}
+```yaml
+# .sidekick/features.local.yaml
+statusline:
+  enabled: false
 
-# Increase pause-and-reflect threshold
-features.reminders.settings.pause_and_reflect_threshold=100
+reminders:
+  settings:
+    pause_and_reflect_threshold: 100
+    completion_detection:
+      enabled: false
 
-# Disable completion detection (always block)
-features.reminders.settings.completion_detection.enabled=false
-
-# Change resume message freshness to 8 hours
-features.session-summary.settings.personas.resumeFreshnessHours=8
-
-# Restrict personas
-features.session-summary.settings.personas.allowList=sidekick,marvin
-
-# Weight personas (darth-vader 100x more likely than others)
-features.session-summary.settings.personas.weights.darth-vader=100
+session-summary:
+  settings:
+    personas:
+      resumeFreshnessHours: 8
+      allowList: "sidekick,marvin"
+      weights:
+        darth-vader: 100
 ```
 
 ## Full Override

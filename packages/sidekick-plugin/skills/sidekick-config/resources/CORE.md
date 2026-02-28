@@ -68,20 +68,21 @@ development:
 |---------|------|---------|-------------|
 | `development.enabled` | boolean | `false` | Enable dev mode behaviors |
 
-## Surgical Changes (sidekick.config)
+## Local Overrides (config.local.yaml)
 
-```bash
-# Enable debug logging
-core.logging.level=debug
+For local-only changes that are not tracked in git, create `.sidekick/config.local.yaml`:
 
-# Enable console output
-core.logging.consoleEnabled=true
+```yaml
+# .sidekick/config.local.yaml
+logging:
+  level: debug
+  consoleEnabled: true
 
-# Extend daemon idle timeout to 30 min
-core.daemon.idleTimeoutMs=1800000
+daemon:
+  idleTimeoutMs: 1800000   # Extend to 30 min
 
-# Enable dev mode
-core.development.enabled=true
+development:
+  enabled: true
 ```
 
 ## Environment Variables

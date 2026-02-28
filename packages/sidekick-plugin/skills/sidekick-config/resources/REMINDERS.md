@@ -60,10 +60,11 @@ If stuck: Tell the user what's not working and what you need.
 If progressing: Give a brief update, then continue.
 ```
 
-**Configuration:**
-```bash
-# Adjust threshold
-features.reminders.settings.pause_and_reflect_threshold=100
+**Configuration (features.yaml):**
+```yaml
+reminders:
+  settings:
+    pause_and_reflect_threshold: 100
 ```
 
 ---
@@ -89,13 +90,13 @@ For Code Changes:
 Evidence before assertions. Don't claim success without verification.
 ```
 
-**Configuration:**
-```bash
-# Disable smart completion detection (always block)
-features.reminders.settings.completion_detection.enabled=false
-
-# Adjust confidence threshold
-features.reminders.settings.completion_detection.confidence_threshold=0.8
+**Configuration (features.yaml):**
+```yaml
+reminders:
+  settings:
+    completion_detection:
+      enabled: false              # Disable smart completion detection (always block)
+      confidence_threshold: 0.8   # Or adjust threshold
 ```
 
 ---
@@ -169,10 +170,11 @@ reminders:
   enabled: false
 ```
 
-Or set very high thresholds:
-```bash
-# sidekick.config - effectively disable pause-and-reflect
-features.reminders.settings.pause_and_reflect_threshold=999999
+Or set very high thresholds in `features.yaml` or `features.local.yaml`:
+```yaml
+reminders:
+  settings:
+    pause_and_reflect_threshold: 999999
 ```
 
 ## Variables in Templates

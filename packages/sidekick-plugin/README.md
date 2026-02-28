@@ -49,15 +49,14 @@ Use the `/sidekick-config` skill in Claude Code to configure sidekick interactiv
 
 ### Quick Settings
 
-Create `.sidekick/sidekick.config` or `~/.sidekick/sidekick.config`:
+Create or edit `.sidekick/llm.yaml` (project-level) or `~/.sidekick/llm.yaml` (user-level):
 
-```bash
+```yaml
 # Change default LLM profile
-llm.defaultProfile=creative
-
-# Customize statusline format
-features.statusline.settings.format={model} | {tokenPercentageActual}
+defaultProfile: creative
 ```
+
+For local overrides that are not tracked in git, use `.sidekick/llm.local.yaml`.
 
 ### Change Persona
 
