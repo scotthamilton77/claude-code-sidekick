@@ -315,9 +315,15 @@ describe('selectRandomPersona', () => {
     expect(counts.bones).toBeGreaterThan(0) // bones should still appear occasionally
   })
 
-  it('treats negative weights as excluded', () => {
+  it.each([
+    { label: 'negative', weight: -5 },
+    { label: 'NaN', weight: NaN },
+    { label: 'Infinity', weight: Infinity },
+    { label: '-Infinity', weight: -Infinity },
+    { label: 'non-numeric string', weight: 'not-a-number' as unknown as number },
+  ])('excludes persona with $label weight', ({ weight }) => {
     const personas = [createMockPersona('skippy'), createMockPersona('bones')]
-    const weights = { skippy: -5, bones: 1 }
+    const weights = { skippy: weight, bones: 1 }
 
     const selectedIds = new Set<string>()
     for (let i = 0; i < 50; i++) {
@@ -325,47 +331,6 @@ describe('selectRandomPersona', () => {
       if (result) selectedIds.add(result.id)
     }
 
-    expect(selectedIds).toEqual(new Set(['bones']))
-  })
-
-  it('treats NaN weights as excluded', () => {
-    const personas = [createMockPersona('skippy'), createMockPersona('bones')]
-    const weights = { skippy: NaN, bones: 1 }
-
-    const selectedIds = new Set<string>()
-    for (let i = 0; i < 50; i++) {
-      const result = selectRandomPersona(personas, weights)
-      if (result) selectedIds.add(result.id)
-    }
-
-    expect(selectedIds).toEqual(new Set(['bones']))
-  })
-
-  it('treats Infinity weights as excluded', () => {
-    const personas = [createMockPersona('skippy'), createMockPersona('bones')]
-    const weights = { skippy: Infinity, bones: 1 }
-
-    const selectedIds = new Set<string>()
-    for (let i = 0; i < 50; i++) {
-      const result = selectRandomPersona(personas, weights)
-      if (result) selectedIds.add(result.id)
-    }
-
-    expect(selectedIds).toEqual(new Set(['bones']))
-  })
-
-  it('coerces non-numeric weight strings to numbers', () => {
-    const personas = [createMockPersona('skippy'), createMockPersona('bones')]
-    // Simulate misconfigured YAML that produces a string instead of a number
-    const weights = { skippy: 'not-a-number' as unknown as number, bones: 1 }
-
-    const selectedIds = new Set<string>()
-    for (let i = 0; i < 50; i++) {
-      const result = selectRandomPersona(personas, weights)
-      if (result) selectedIds.add(result.id)
-    }
-
-    // "not-a-number" → Number("not-a-number") → NaN → filtered out
     expect(selectedIds).toEqual(new Set(['bones']))
   })
 

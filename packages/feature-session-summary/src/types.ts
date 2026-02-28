@@ -76,7 +76,7 @@ export interface SessionSummaryConfig {
     defaultLlmProfile?: string
     /** Per-persona LLM profile overrides (personaId → profileId) */
     llmProfiles?: Record<string, string>
-    /** Per-persona selection weights (personaId → weight). Default weight = 1. Weight 0 = excluded. */
+    /** Per-persona selection weights (personaId → weight). Default weight = 1. Non-positive/non-finite = excluded. */
     weights?: Record<string, number>
   }
 }
