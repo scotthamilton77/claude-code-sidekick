@@ -282,9 +282,8 @@ Instead of complex circuit breakers, we provide the `FallbackProvider` capabilit
 
 ### 6.1 Credential Precedence
 
-Credentials are resolved in the following order:
-1. **Environment Variables** (Recommended): `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` (for CLI auth if needed), `OPENROUTER_API_KEY`.
-2. **Configuration File**: `llm.apiKey` in `core.yaml`.
+Credentials are resolved from **environment variables** (loaded from `.env` files by the setup command):
+- `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`
 
 ### 6.2 Redaction
 
