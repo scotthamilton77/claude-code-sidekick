@@ -657,6 +657,17 @@ export function loadConfig(options: ConfigServiceOptions): SidekickConfig {
     domainConfigs[domain] = config
   }
 
+  // Step 4b: Warn about legacy sidekick.config files (no longer read)
+  const legacyDirs = [userSidekick, projectSidekick].filter(Boolean) as string[]
+  for (const dir of legacyDirs) {
+    const legacyPath = join(dir, 'sidekick.config')
+    if (existsSync(legacyPath)) {
+      options.logger?.warn(
+        `Legacy sidekick.config found at "${legacyPath}" — this file is no longer read. Migrate settings to {domain}.yaml / {domain}.local.yaml files.`
+      )
+    }
+  }
+
   // Step 5: Validate with Zod (applies defaults)
   const result = SidekickConfigSchema.safeParse(domainConfigs)
   if (!result.success) {

@@ -913,3 +913,166 @@ describe('configList', () => {
     expect(result.entries).toContainEqual({ path: 'core.development.enabled', value: true })
   })
 })
+
+// =============================================================================
+// Bug A: configGet with no options argument
+// =============================================================================
+
+describe('configGet - optional options parameter', () => {
+  const tempRoot = join(tmpdir(), 'sidekick-config-get-optional-tests')
+
+  beforeEach(() => {
+    mkdirSync(tempRoot, { recursive: true })
+  })
+
+  afterEach(() => {
+    if (existsSync(tempRoot)) {
+      rmSync(tempRoot, { recursive: true, force: true })
+    }
+  })
+
+  test('accepts no options argument (defaults to empty object)', () => {
+    // Without options, configGet should not throw a TypeError.
+    // It uses the cascade path which needs assets for defaults, so
+    // pass minimal options to prove the default parameter works.
+    const result = configGet('core.logging.level', {
+      homeDir: join(tempRoot, 'home'),
+      projectRoot: join(tempRoot, 'project'),
+      assets: createMockAssets(),
+    })
+    expect(result).not.toBeUndefined()
+    expect(result!.value).toBe('info')
+  })
+
+  test('compiles with no second argument (type-level check)', () => {
+    // Scope-specific read that won't hit loadConfig validation.
+    // The key check: configGet(dotPath) compiles without a second arg.
+    const result = configGet('core.nonexistent.path', {
+      scope: 'user',
+      homeDir: join(tempRoot, 'home'),
+    })
+    expect(result).toBeUndefined()
+  })
+})
+
+// =============================================================================
+// Bug A: configSet with no options (defaults projectRoot to cwd)
+// =============================================================================
+
+describe('configSet - projectRoot defaults to cwd', () => {
+  const tempRoot = join(tmpdir(), 'sidekick-config-set-cwd-tests')
+  let cwdCreatedPath: string | null = null
+
+  beforeEach(() => {
+    mkdirSync(tempRoot, { recursive: true })
+    cwdCreatedPath = null
+  })
+
+  afterEach(() => {
+    // Clean up any file created in the real cwd by the test
+    if (cwdCreatedPath && existsSync(cwdCreatedPath)) {
+      rmSync(cwdCreatedPath)
+    }
+    if (existsSync(tempRoot)) {
+      rmSync(tempRoot, { recursive: true, force: true })
+    }
+  })
+
+  test('uses cwd as projectRoot when no projectRoot is provided for project scope', () => {
+    // Provide homeDir and assets but NOT projectRoot — should default to cwd
+    const homeDir = join(tempRoot, 'home')
+    const result = configSet('core.logging.level', 'debug', {
+      homeDir,
+      assets: createMockAssets(),
+    })
+
+    cwdCreatedPath = result.filePath
+
+    // Should have resolved a filePath under cwd (process.cwd())
+    expect(result.filePath).toContain('.sidekick')
+    expect(result.filePath).toContain('config.yaml')
+    expect(result.value).toBe('debug')
+  })
+})
+
+// =============================================================================
+// Bug B: YAML parse error checking
+// =============================================================================
+
+describe('YAML parse error checking', () => {
+  const tempRoot = join(tmpdir(), 'sidekick-yaml-parse-error-tests')
+
+  beforeEach(() => {
+    mkdirSync(tempRoot, { recursive: true })
+  })
+
+  afterEach(() => {
+    if (existsSync(tempRoot)) {
+      rmSync(tempRoot, { recursive: true, force: true })
+    }
+  })
+
+  test('configSet throws on malformed existing YAML', () => {
+    const homeDir = join(tempRoot, 'home')
+    const projectDir = join(tempRoot, 'project')
+    const projectSidekick = join(projectDir, '.sidekick')
+    mkdirSync(projectSidekick, { recursive: true })
+
+    // Write malformed YAML (duplicate key with different indentation, unquoted colon)
+    writeFileSync(join(projectSidekick, 'config.yaml'), `logging:\n  level: info\n  level: {{\n`)
+
+    expect(() =>
+      configSet('core.logging.format', 'json', {
+        projectRoot: projectDir,
+        homeDir,
+        assets: createMockAssets(),
+      })
+    ).toThrow(/failed to parse yaml/i)
+  })
+
+  test('configUnset throws on malformed YAML', () => {
+    const homeDir = join(tempRoot, 'home')
+    const projectDir = join(tempRoot, 'project')
+    const projectSidekick = join(projectDir, '.sidekick')
+    mkdirSync(projectSidekick, { recursive: true })
+
+    // Write malformed YAML
+    writeFileSync(join(projectSidekick, 'config.yaml'), `logging:\n  level: {{\n`)
+
+    expect(() =>
+      configUnset('core.logging.level', {
+        projectRoot: projectDir,
+        homeDir,
+      })
+    ).toThrow(/failed to parse yaml/i)
+  })
+
+  test('configSet throws on malformed bundled defaults YAML', () => {
+    const homeDir = join(tempRoot, 'home')
+    const projectDir = join(tempRoot, 'project')
+
+    // Create a malformed defaults file
+    const defaultsDir = join(tempRoot, 'assets')
+    mkdirSync(join(defaultsDir, 'defaults'), { recursive: true })
+    writeFileSync(join(defaultsDir, 'defaults', 'core.defaults.yaml'), `logging:\n  level: {{\n`)
+
+    const assets = createMockAssets()
+    const seedAssets: AssetResolver = {
+      ...assets,
+      resolvePath: (path: string) => {
+        if (path === 'defaults/core.defaults.yaml') {
+          return join(defaultsDir, 'defaults', 'core.defaults.yaml')
+        }
+        return null
+      },
+    }
+
+    expect(() =>
+      configSet('core.logging.level', 'debug', {
+        projectRoot: projectDir,
+        homeDir,
+        assets: seedAssets,
+      })
+    ).toThrow(/invalid bundled defaults yaml/i)
+  })
+})

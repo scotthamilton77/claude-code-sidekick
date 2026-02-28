@@ -29,7 +29,7 @@ All work MUST follow this workflow:
 <directives>
 
 - **Architecture questions**: Cite `docs/ARCHITECTURE.md` or `docs/design/FOO.md`—don't guess
-- **Verification**: Run `pnpm build && pnpm typecheck` before completion
+- **Verification**: Run `pnpm build && pnpm typecheck && pnpm lint` before completion
 </directives>
 
 <structure>

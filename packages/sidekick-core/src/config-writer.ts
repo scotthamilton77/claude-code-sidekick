@@ -14,7 +14,14 @@ import { dirname, join } from 'node:path'
 import YAML from 'yaml'
 import type { AssetResolver } from './assets'
 import type { Logger } from '@sidekick/types'
-import { coerceValue, type ConfigDomain, DOMAIN_FILES, EXTERNAL_DEFAULTS_FILES, loadConfig, tryReadYaml } from './config'
+import {
+  coerceValue,
+  type ConfigDomain,
+  DOMAIN_FILES,
+  EXTERNAL_DEFAULTS_FILES,
+  loadConfig,
+  tryReadYaml,
+} from './config'
 
 // =============================================================================
 // Types
@@ -110,9 +117,7 @@ export function parseDotPath(dotPath: string): ParsedDotPath {
   const domainCandidate = segments[0]
 
   if (!VALID_DOMAINS.has(domainCandidate)) {
-    throw new Error(
-      `Unknown domain "${domainCandidate}". Valid domains: ${[...VALID_DOMAINS].join(', ')}`
-    )
+    throw new Error(`Unknown domain "${domainCandidate}". Valid domains: ${[...VALID_DOMAINS].join(', ')}`)
   }
 
   const keyPath = segments.slice(1)
@@ -196,7 +201,7 @@ export function getScopeFilePath(
  *
  * Returns undefined if the path does not exist in the resolved config (or scope file).
  */
-export function configGet(dotPath: string, options: ConfigGetOptions): ConfigGetResult | undefined {
+export function configGet(dotPath: string, options: ConfigGetOptions = {}): ConfigGetResult | undefined {
   const { domain, keyPath } = parseDotPath(dotPath)
   const home = options.homeDir ?? homedir()
 
@@ -268,8 +273,11 @@ export function configSet(dotPath: string, rawValue: string, options: ConfigSetO
   const scope = options.scope ?? 'project'
   const coercedValue = coerceValue(rawValue)
 
+  // Default projectRoot to cwd for project/local scopes
+  const projectRoot = options.projectRoot ?? (scope !== 'user' ? process.cwd() : undefined)
+
   // Resolve the target file path
-  const filePath = getScopeFilePath(domain, scope, options.projectRoot, home)
+  const filePath = getScopeFilePath(domain, scope, projectRoot, home)
   if (!filePath) {
     throw new Error(`Cannot resolve file path for domain "${domain}" at scope "${scope}". Is projectRoot set?`)
   }
@@ -282,6 +290,7 @@ export function configSet(dotPath: string, rawValue: string, options: ConfigSetO
   let doc: YAML.Document
   if (fileExisted) {
     doc = YAML.parseDocument(originalContent!)
+    throwOnYamlErrors(doc, `Failed to parse YAML at "${filePath}"`)
   } else {
     // Try to seed from bundled defaults
     doc = seedDocumentFromDefaults(domain, options.assets) ?? new YAML.Document({})
@@ -300,7 +309,7 @@ export function configSet(dotPath: string, rawValue: string, options: ConfigSetO
   // Validate: load the full cascade with the change applied
   try {
     loadConfig({
-      projectRoot: options.projectRoot,
+      projectRoot,
       homeDir: home,
       assets: options.assets,
       logger: options.logger,
@@ -318,7 +327,7 @@ export function configSet(dotPath: string, rawValue: string, options: ConfigSetO
     }
 
     const message = err instanceof Error ? err.message : String(err)
-    throw new Error(`Configuration validation failed after setting "${dotPath}": ${message}`)
+    throw new Error(`Configuration validation failed after setting "${dotPath}": ${message}`, { cause: err })
   }
 
   return {
@@ -367,6 +376,7 @@ export function configUnset(dotPath: string, options: ConfigUnsetOptions = {}): 
 
   const content = readFileSync(filePath, 'utf8')
   const doc = YAML.parseDocument(content)
+  throwOnYamlErrors(doc, `Failed to parse YAML at "${filePath}"`)
 
   const existed = doc.getIn(keyPath) !== undefined
   if (existed) {
@@ -429,6 +439,16 @@ function flattenObject(
 }
 
 /**
+ * Throw if a parsed YAML document contains errors.
+ */
+function throwOnYamlErrors(doc: YAML.Document, context: string): void {
+  if (doc.errors.length > 0) {
+    const messages = doc.errors.map((e) => e.message).join('; ')
+    throw new Error(`${context}: ${messages}`)
+  }
+}
+
+/**
  * Attempt to seed a YAML Document from bundled defaults.
  * Returns null if no defaults file is available.
  */
@@ -440,5 +460,7 @@ function seedDocumentFromDefaults(domain: ConfigDomain, assets?: AssetResolver):
   if (!defaultsAbsPath || !existsSync(defaultsAbsPath)) return null
 
   const raw = readFileSync(defaultsAbsPath, 'utf8')
-  return YAML.parseDocument(raw)
+  const doc = YAML.parseDocument(raw)
+  throwOnYamlErrors(doc, `Invalid bundled defaults YAML for domain "${domain}"`)
+  return doc
 }

@@ -12,10 +12,11 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, test } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 import { createConfigService, loadConfig } from '../config'
 import type { AssetResolver } from '../assets'
+import type { Logger } from '@sidekick/types'
 
 // =============================================================================
 // Test Helpers: Standard Defaults
@@ -1310,5 +1311,115 @@ session-summary:
 
     expect(config.llm.profiles['custom-profile']).toBeDefined()
     expect(config.llm.fallbackProfiles['custom-fallback']).toBeDefined()
+  })
+})
+
+// =============================================================================
+// Legacy sidekick.config Warning Tests
+// =============================================================================
+
+describe('loadConfig - legacy sidekick.config warning', () => {
+  const tempRoot = join(tmpdir(), 'sidekick-legacy-config-tests')
+
+  function createFakeLogger(): Logger {
+    return {
+      trace: vi.fn() as any,
+      debug: vi.fn() as any,
+      info: vi.fn() as any,
+      warn: vi.fn() as any,
+      error: vi.fn() as any,
+      fatal: vi.fn() as any,
+      child: vi.fn().mockReturnThis(),
+      flush: vi.fn().mockResolvedValue(undefined),
+    } as unknown as Logger
+  }
+
+  beforeEach(() => {
+    mkdirSync(tempRoot, { recursive: true })
+  })
+
+  afterEach(() => {
+    if (existsSync(tempRoot)) {
+      rmSync(tempRoot, { recursive: true, force: true })
+    }
+  })
+
+  test('warns when user-scope sidekick.config exists', () => {
+    const homeDir = join(tempRoot, 'home')
+    const userSidekick = join(homeDir, '.sidekick')
+    mkdirSync(userSidekick, { recursive: true })
+
+    writeFileSync(join(userSidekick, 'sidekick.config'), 'core.logging.level=debug\n')
+
+    const logger = createFakeLogger()
+
+    loadConfig({
+      projectRoot: join(tempRoot, 'project'),
+      homeDir,
+      assets: createMockAssets(),
+      logger,
+    })
+
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('Legacy sidekick.config found'))
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(join(userSidekick, 'sidekick.config')))
+  })
+
+  test('warns when project-scope sidekick.config exists', () => {
+    const homeDir = join(tempRoot, 'home')
+    const projectDir = join(tempRoot, 'project')
+    const projectSidekick = join(projectDir, '.sidekick')
+    mkdirSync(projectSidekick, { recursive: true })
+
+    writeFileSync(join(projectSidekick, 'sidekick.config'), 'core.logging.level=debug\n')
+
+    const logger = createFakeLogger()
+
+    loadConfig({
+      projectRoot: projectDir,
+      homeDir,
+      assets: createMockAssets(),
+      logger,
+    })
+
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('Legacy sidekick.config found'))
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(join(projectSidekick, 'sidekick.config')))
+  })
+
+  test('warns for both user and project sidekick.config files', () => {
+    const homeDir = join(tempRoot, 'home')
+    const projectDir = join(tempRoot, 'project')
+    const userSidekick = join(homeDir, '.sidekick')
+    const projectSidekick = join(projectDir, '.sidekick')
+    mkdirSync(userSidekick, { recursive: true })
+    mkdirSync(projectSidekick, { recursive: true })
+
+    writeFileSync(join(userSidekick, 'sidekick.config'), 'core.logging.level=debug\n')
+    writeFileSync(join(projectSidekick, 'sidekick.config'), 'core.logging.level=warn\n')
+
+    const logger = createFakeLogger()
+
+    loadConfig({
+      projectRoot: projectDir,
+      homeDir,
+      assets: createMockAssets(),
+      logger,
+    })
+
+    expect(logger.warn).toHaveBeenCalledTimes(2)
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(join(userSidekick, 'sidekick.config')))
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(join(projectSidekick, 'sidekick.config')))
+  })
+
+  test('does not warn when no sidekick.config files exist', () => {
+    const logger = createFakeLogger()
+
+    loadConfig({
+      projectRoot: join(tempRoot, 'project'),
+      homeDir: join(tempRoot, 'home'),
+      assets: createMockAssets(),
+      logger,
+    })
+
+    expect(logger.warn).not.toHaveBeenCalled()
   })
 })

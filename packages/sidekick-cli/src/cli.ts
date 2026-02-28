@@ -547,18 +547,11 @@ Examples:
     const subcommand = parsed.help ? '--help' : (parsed._?.[1] as string | undefined)
     const args = parsed._?.slice(2) ?? []
 
-    const result = await handleConfigCommand(
-      subcommand,
-      args,
-      runtime.projectRoot || process.cwd(),
-      runtime.logger,
-      stdout,
-      {
-        scope: parsed.scope as 'user' | 'project' | 'local' | undefined,
-        format: parsed.format === 'json' ? 'json' : undefined,
-        assets: runtime.assets,
-      }
-    )
+    const result = handleConfigCommand(subcommand, args, runtime.projectRoot || process.cwd(), runtime.logger, stdout, {
+      scope: parsed.scope as 'user' | 'project' | 'local' | undefined,
+      format: parsed.format === 'json' ? 'json' : undefined,
+      assets: runtime.assets,
+    })
     return { exitCode: result.exitCode, stdout: result.output, stderr: '' }
   }
 

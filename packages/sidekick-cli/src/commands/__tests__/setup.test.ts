@@ -268,6 +268,7 @@ describe('handleSetupCommand', () => {
         '.sidekick/.env.local',
         '.sidekick/sidekick*.pid',
         '.sidekick/sidekick*.token',
+        '.sidekick/*.local.yaml',
         '# <<< sidekick',
       ].join('\n')
       await writeFile(gitignorePath, completeGitignore + '\n')
@@ -331,6 +332,7 @@ describe('handleSetupCommand', () => {
         '.sidekick/.env.local',
         '.sidekick/sidekick*.pid',
         '.sidekick/sidekick*.token',
+        '.sidekick/*.local.yaml',
         '# <<< sidekick',
       ].join('\n')
       await writeFile(gitignorePath, completeGitignore + '\n')
@@ -913,6 +915,7 @@ describe('handleSetupCommand', () => {
           '.sidekick/.env.local',
           '.sidekick/sidekick*.pid',
           '.sidekick/sidekick*.token',
+          '.sidekick/*.local.yaml',
           '# <<< sidekick',
         ].join('\n') + '\n'
       )

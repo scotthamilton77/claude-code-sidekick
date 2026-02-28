@@ -168,7 +168,7 @@ Best for complex objects or multiple related settings. Copy the default file and
 |-------|----------|----------|----------|
 | **User** | `~/.sidekick/` | Personal defaults across all projects | Yes |
 | **Project** | `.sidekick/` | Project-specific, shared with team | Yes (git) |
-| **Local** | `.sidekick/*.local` | Personal overrides, untracked | No |
+| **Local** | `.sidekick/{domain}.local.yaml` | Personal overrides, untracked | No |
 
 **Override order (highest to lowest):**
 1. `.sidekick/{domain}.local.yaml` - Project local (untracked)
