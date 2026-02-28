@@ -572,6 +572,87 @@ describe('Session Summary Side-Effects', () => {
       expect(resumeContent.snarky_comment).toBe('Original snarky')
     })
 
+    it('includes persona_id and persona_display_name from active persona', async () => {
+      const sessionId = 'test-persona-resume'
+
+      // Set up session persona pointing to bundled 'sidekick' persona
+      stateService.setStored(stateService.sessionStatePath(sessionId, 'session-persona.json'), {
+        persona_id: 'sidekick',
+        selected_from: ['sidekick'],
+        timestamp: new Date().toISOString(),
+      })
+
+      // Pre-create existing summary with SAME values (no snarky triggered)
+      stateService.setStored(stateService.sessionStatePath(sessionId, 'session-summary.json'), {
+        session_id: sessionId,
+        session_title: 'Persona Test',
+        session_title_confidence: 0.8,
+        latest_intent: 'Testing persona',
+        latest_intent_confidence: 0.8,
+        timestamp: new Date().toISOString(),
+      })
+
+      // Queue LLM responses: 1) summary (same values), 2) resume message (no resume exists)
+      llm.queueResponses([
+        JSON.stringify({
+          session_title: 'Persona Test',
+          session_title_confidence: 0.9,
+          latest_intent: 'Testing persona',
+          latest_intent_confidence: 0.9,
+          pivot_detected: false,
+        }),
+        'Welcome back, developer.',
+      ])
+
+      await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+      await flushPromises()
+
+      const resumePath = stateService.sessionStatePath(sessionId, 'resume-message.json')
+      const resumeContent = stateService.getStored(resumePath) as Record<string, unknown>
+      expect(resumeContent.persona_id).toBe('sidekick')
+      expect(resumeContent.persona_display_name).toBe('Sidekick')
+    })
+
+    it('stores null persona fields when disabled persona is active', async () => {
+      const sessionId = 'test-disabled-persona-resume'
+
+      // Set up session persona pointing to bundled 'disabled' persona
+      stateService.setStored(stateService.sessionStatePath(sessionId, 'session-persona.json'), {
+        persona_id: 'disabled',
+        selected_from: ['disabled'],
+        timestamp: new Date().toISOString(),
+      })
+
+      // Pre-create existing summary with SAME values (no snarky triggered)
+      stateService.setStored(stateService.sessionStatePath(sessionId, 'session-summary.json'), {
+        session_id: sessionId,
+        session_title: 'Disabled Test',
+        session_title_confidence: 0.8,
+        latest_intent: 'Testing disabled',
+        latest_intent_confidence: 0.8,
+        timestamp: new Date().toISOString(),
+      })
+
+      // Queue LLM response: 1) summary (same values) — resume uses deterministic path (no LLM)
+      llm.queueResponse(
+        JSON.stringify({
+          session_title: 'Disabled Test',
+          session_title_confidence: 0.9,
+          latest_intent: 'Testing disabled',
+          latest_intent_confidence: 0.9,
+          pivot_detected: false,
+        })
+      )
+
+      await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+      await flushPromises()
+
+      const resumePath = stateService.sessionStatePath(sessionId, 'resume-message.json')
+      const resumeContent = stateService.getStored(resumePath) as Record<string, unknown>
+      expect(resumeContent.persona_id).toBeNull()
+      expect(resumeContent.persona_display_name).toBeNull()
+    })
+
     it('does not generate resume message when confidence is below threshold', async () => {
       const sessionId = 'test-session-6'
 
