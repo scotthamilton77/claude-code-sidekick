@@ -94,7 +94,7 @@ describe('handleDevModeCommand', () => {
     }
     // Create mock CLI binary
     await writeFile(path.join(tempDir, 'packages', 'sidekick-cli', 'dist', 'bin.js'), '')
-    // Create mock plugin skill source directory with SKILL.md
+    // Create mock plugin skill source directories with SKILL.md
     const skillSrcDir = path.join(tempDir, 'packages', 'sidekick-plugin', 'skills', 'sidekick-config')
     await mkdir(skillSrcDir, { recursive: true })
     await writeFile(
@@ -109,6 +109,12 @@ describe('handleDevModeCommand', () => {
         'Run `npx @scotthamilton77/sidekick setup --force` to configure.',
         '',
       ].join('\n')
+    )
+    const personasSkillDir = path.join(tempDir, 'packages', 'sidekick-plugin', 'skills', 'sidekick-personas')
+    await mkdir(personasSkillDir, { recursive: true })
+    await writeFile(
+      path.join(personasSkillDir, 'SKILL.md'),
+      '# Sidekick Personas Skill\n\nRun `npx @scotthamilton77/sidekick persona list`.\n'
     )
   })
 
@@ -252,6 +258,20 @@ describe('handleDevModeCommand', () => {
       expect(content).toContain('pnpm sidekick doctor')
       expect(content).toContain('pnpm sidekick setup --force')
       // Should NOT contain the original npx references
+      expect(content).not.toContain('npx @scotthamilton77/sidekick')
+    })
+
+    test('copies all plugin skills dynamically, not just sidekick-config', async () => {
+      const result = await handleDevModeCommand('enable', tempDir, logger, stdout)
+
+      expect(result.exitCode).toBe(0)
+
+      // Verify sidekick-personas skill was also copied and transformed
+      const destPersonasMd = path.join(tempDir, '.claude', 'skills', 'sidekick-personas', 'SKILL.md')
+      const content = await readFile(destPersonasMd, 'utf-8')
+
+      expect(content).toContain('# Sidekick Personas Skill')
+      expect(content).toContain('pnpm sidekick persona list')
       expect(content).not.toContain('npx @scotthamilton77/sidekick')
     })
 

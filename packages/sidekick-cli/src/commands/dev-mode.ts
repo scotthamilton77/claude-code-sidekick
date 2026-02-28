@@ -104,42 +104,56 @@ async function fileExists(filePath: string): Promise<boolean> {
 }
 
 /**
- * Copy sidekick-config skill from plugin to project, transforming for dev use.
- * Replaces "npx @sidekick/cli" with "pnpm sidekick" in SKILL.md.
+ * Copy all plugin skills from packages/sidekick-plugin/skills/ to .claude/skills/,
+ * transforming for dev use. Replaces "npx @scotthamilton77/sidekick" with "pnpm sidekick" in SKILL.md.
  */
-async function copySkillForDev(projectDir: string, stdout: NodeJS.WritableStream): Promise<void> {
-  const srcSkillDir = path.join(projectDir, 'packages', 'sidekick-plugin', 'skills', 'sidekick-config')
-  const destSkillDir = path.join(projectDir, '.claude', 'skills', 'sidekick-config')
+async function copySkillsForDev(projectDir: string, stdout: NodeJS.WritableStream): Promise<void> {
+  const srcSkillsRoot = path.join(projectDir, 'packages', 'sidekick-plugin', 'skills')
 
-  // Check source exists
-  if (!(await fileExists(srcSkillDir))) {
-    log(stdout, 'warn', `Plugin skill not found at ${srcSkillDir}, skipping skill copy`)
+  if (!(await fileExists(srcSkillsRoot))) {
+    log(stdout, 'warn', `Plugin skills directory not found at ${srcSkillsRoot}, skipping skill copy`)
     return
   }
 
-  // Copy entire directory recursively
-  await rm(destSkillDir, { recursive: true, force: true })
-  await cp(srcSkillDir, destSkillDir, { recursive: true })
+  const entries = await readdir(srcSkillsRoot, { withFileTypes: true })
+  const skillDirs = entries.filter((e) => e.isDirectory())
 
-  // Transform SKILL.md: npx @scotthamilton77/sidekick → pnpm sidekick
-  const skillMdPath = path.join(destSkillDir, 'SKILL.md')
-  if (await fileExists(skillMdPath)) {
-    const content = await readFile(skillMdPath, 'utf-8')
-    const transformed = content.replace(/npx @scotthamilton77\/sidekick/g, 'pnpm sidekick')
-    await writeFile(skillMdPath, transformed)
+  for (const skillDir of skillDirs) {
+    const srcDir = path.join(srcSkillsRoot, skillDir.name)
+    const destDir = path.join(projectDir, '.claude', 'skills', skillDir.name)
+
+    await rm(destDir, { recursive: true, force: true })
+    await cp(srcDir, destDir, { recursive: true })
+
+    // Transform SKILL.md: npx @scotthamilton77/sidekick → pnpm sidekick
+    const skillMdPath = path.join(destDir, 'SKILL.md')
+    if (await fileExists(skillMdPath)) {
+      const content = await readFile(skillMdPath, 'utf-8')
+      const transformed = content.replace(/npx @scotthamilton77\/sidekick/g, 'pnpm sidekick')
+      await writeFile(skillMdPath, transformed)
+    }
+
+    log(stdout, 'info', `Copied ${skillDir.name} skill to ${destDir}`)
   }
-
-  log(stdout, 'info', `Copied sidekick-config skill to ${destSkillDir}`)
 }
 
 /**
- * Remove the dev-mode sidekick-config skill from project.
+ * Remove all dev-mode skills that were copied from the plugin.
  */
-async function removeDevSkill(projectDir: string, stdout: NodeJS.WritableStream): Promise<void> {
-  const destSkillDir = path.join(projectDir, '.claude', 'skills', 'sidekick-config')
-  if (await fileExists(destSkillDir)) {
-    await rm(destSkillDir, { recursive: true, force: true })
-    log(stdout, 'info', `Removed sidekick-config skill from ${destSkillDir}`)
+async function removeDevSkills(projectDir: string, stdout: NodeJS.WritableStream): Promise<void> {
+  const srcSkillsRoot = path.join(projectDir, 'packages', 'sidekick-plugin', 'skills')
+
+  if (!(await fileExists(srcSkillsRoot))) return
+
+  const entries = await readdir(srcSkillsRoot, { withFileTypes: true })
+  const skillDirs = entries.filter((e) => e.isDirectory())
+
+  for (const skillDir of skillDirs) {
+    const destDir = path.join(projectDir, '.claude', 'skills', skillDir.name)
+    if (await fileExists(destDir)) {
+      await rm(destDir, { recursive: true, force: true })
+      log(stdout, 'info', `Removed ${skillDir.name} skill from ${destDir}`)
+    }
   }
 }
 
@@ -380,8 +394,8 @@ async function doEnable(projectDir: string, stdout: NodeJS.WritableStream): Prom
   // Ensure .claude directory exists
   await mkdir(path.join(projectDir, '.claude'), { recursive: true })
 
-  // Copy sidekick-config skill from plugin, transforming for dev use
-  await copySkillForDev(projectDir, stdout)
+  // Copy plugin skills to .claude/skills/, transforming for dev use
+  await copySkillsForDev(projectDir, stdout)
 
   // Install gitignore entries for .sidekick/ tracking files
   const gitignoreResult = await installGitignoreSection(projectDir)
@@ -522,8 +536,8 @@ async function doDisable(
     log(stdout, 'info', `Dev-mode hooks removed from ${settingsPath}`)
   }
 
-  // Remove sidekick-config skill copied during enable
-  await removeDevSkill(projectDir, stdout)
+  // Remove plugin skills copied during enable
+  await removeDevSkills(projectDir, stdout)
 
   // Conditionally remove gitignore entries
   const pluginInstalled = await setupService.isPluginInstalled()
