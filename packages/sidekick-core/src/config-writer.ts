@@ -51,6 +51,30 @@ export interface ConfigSetResult {
   filePath: string
 }
 
+export interface ConfigUnsetOptions {
+  scope?: ConfigScope
+  projectRoot?: string
+  homeDir?: string
+}
+
+export interface ConfigUnsetResult {
+  domain: ConfigDomain
+  path: string[]
+  filePath: string
+  existed: boolean
+}
+
+export interface ConfigListOptions {
+  scope?: ConfigScope
+  projectRoot?: string
+  homeDir?: string
+}
+
+export interface ConfigListResult {
+  scope: ConfigScope
+  entries: Array<{ path: string; value: unknown }>
+}
+
 export interface ParsedDotPath {
   domain: ConfigDomain
   keyPath: string[]
@@ -294,6 +318,103 @@ export function configSet(dotPath: string, rawValue: string, options: ConfigSetO
     path: keyPath,
     value: coercedValue,
     filePath,
+  }
+}
+
+// =============================================================================
+// configUnset
+// =============================================================================
+
+/**
+ * Remove a config key from the specified scope file.
+ *
+ * Uses the `yaml` package's Document API to preserve YAML comments.
+ * Returns `existed: false` if the file doesn't exist or the key wasn't present.
+ * After unset, the cascade falls through to the next lower-priority scope.
+ *
+ * Note: Empty parent maps are intentionally not pruned after deletion.
+ * They are harmless in the cascade (deep-merge treats `{}` as a no-op).
+ *
+ * @throws Error if the dot-path points to an entire domain (empty keyPath)
+ * @throws Error if the scope file path cannot be resolved
+ */
+export function configUnset(dotPath: string, options: ConfigUnsetOptions = {}): ConfigUnsetResult {
+  const { domain, keyPath } = parseDotPath(dotPath)
+
+  if (keyPath.length === 0) {
+    throw new Error('Cannot unset an entire domain. Specify a key path (e.g., "core.logging.level")')
+  }
+
+  const home = options.homeDir ?? homedir()
+  const scope = options.scope ?? 'project'
+
+  const filePath = getScopeFilePath(domain, scope, options.projectRoot, home)
+  if (!filePath) {
+    throw new Error(`Cannot resolve file path for domain "${domain}" at scope "${scope}". Is projectRoot set?`)
+  }
+
+  if (!existsSync(filePath)) {
+    return { domain, path: keyPath, filePath, existed: false }
+  }
+
+  const content = readFileSync(filePath, 'utf8')
+  const doc = YAML.parseDocument(content)
+
+  const existed = doc.getIn(keyPath) !== undefined
+  doc.deleteIn(keyPath)
+  writeFileSync(filePath, doc.toString(), 'utf8')
+
+  return { domain, path: keyPath, filePath, existed }
+}
+
+// =============================================================================
+// configList
+// =============================================================================
+
+/**
+ * List all config overrides at a given scope, flattened into dot-path entries.
+ *
+ * Iterates over all valid domains, reads the scope file for each, and
+ * flattens nested objects into `domain.key.subkey` format.
+ */
+export function configList(options: ConfigListOptions = {}): ConfigListResult {
+  const home = options.homeDir ?? homedir()
+  const scope = options.scope ?? 'project'
+  const entries: Array<{ path: string; value: unknown }> = []
+
+  for (const domain of VALID_DOMAINS) {
+    const filePath = getScopeFilePath(domain as ConfigDomain, scope, options.projectRoot, home)
+    if (!filePath) continue
+
+    const raw = tryReadYaml(filePath)
+    if (!raw || Object.keys(raw).length === 0) continue
+
+    flattenObject(raw, domain, entries)
+  }
+
+  return { scope, entries }
+}
+
+// =============================================================================
+// Internal Helpers
+// =============================================================================
+
+/**
+ * Recursively flatten a nested object into dot-path entries.
+ * Arrays and non-object values are treated as leaf entries.
+ */
+function flattenObject(
+  obj: Record<string, unknown>,
+  prefix: string,
+  entries: Array<{ path: string; value: unknown }>
+): void {
+  for (const [key, value] of Object.entries(obj)) {
+    const path = `${prefix}.${key}`
+    if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+      flattenObject(value as Record<string, unknown>, path, entries)
+    } else {
+      entries.push({ path, value })
+    }
   }
 }
 

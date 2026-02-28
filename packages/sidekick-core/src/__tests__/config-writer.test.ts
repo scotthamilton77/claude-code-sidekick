@@ -1,5 +1,5 @@
 /**
- * Config Writer Tests (configGet + configSet)
+ * Config Writer Tests (configGet + configSet + configUnset + configList)
  *
  * Tests the config-writer module that provides programmatic access
  * to config values via dot-path notation (e.g., 'core.logging.level').
@@ -10,6 +10,8 @@
  * - configGet with scope: scope-specific reads (user, project, local)
  * - getNestedValue: nested object traversal
  * - configSet: comment-preserving YAML writes with validation
+ * - configUnset: key removal with comment preservation
+ * - configList: flattened dot-path listing of scope overrides
  */
 
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -18,7 +20,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
 import type { AssetResolver } from '../assets'
-import { configGet, configSet, parseDotPath } from '../config-writer'
+import { configGet, configList, configSet, configUnset, parseDotPath } from '../config-writer'
 
 // =============================================================================
 // Test Helpers: Standard Defaults (same pattern as config-service.test.ts)
@@ -664,5 +666,250 @@ development:
         assets: createMockAssets(),
       })
     ).toThrow(/cannot set an entire domain/i)
+  })
+})
+
+// =============================================================================
+// configUnset Tests
+// =============================================================================
+
+describe('configUnset', () => {
+  const tempRoot = join(tmpdir(), 'sidekick-config-unset-tests')
+
+  beforeEach(() => {
+    mkdirSync(tempRoot, { recursive: true })
+  })
+
+  afterEach(() => {
+    if (existsSync(tempRoot)) {
+      rmSync(tempRoot, { recursive: true, force: true })
+    }
+  })
+
+  test('removes a key from the scope file', () => {
+    const homeDir = join(tempRoot, 'home')
+    const projectDir = join(tempRoot, 'project')
+    const projectSidekick = join(projectDir, '.sidekick')
+    mkdirSync(projectSidekick, { recursive: true })
+
+    // Set a value first
+    writeFileSync(join(projectSidekick, 'config.yaml'), `logging:\n  level: debug\n  format: json\n`)
+
+    const result = configUnset('core.logging.level', {
+      projectRoot: projectDir,
+      homeDir,
+    })
+
+    expect(result.existed).toBe(true)
+    expect(result.domain).toBe('core')
+    expect(result.path).toEqual(['logging', 'level'])
+    expect(result.filePath).toBe(join(projectSidekick, 'config.yaml'))
+
+    // Verify key is gone but sibling remains
+    const content = readFileSync(join(projectSidekick, 'config.yaml'), 'utf8')
+    expect(content).not.toContain('level')
+    expect(content).toContain('format: json')
+  })
+
+  test('preserves YAML comments in remaining content', () => {
+    const homeDir = join(tempRoot, 'home')
+    const projectDir = join(tempRoot, 'project')
+    const projectSidekick = join(projectDir, '.sidekick')
+    mkdirSync(projectSidekick, { recursive: true })
+
+    const yamlWithComments = `# Core configuration
+logging:
+  # Log level setting
+  level: debug
+  # Output format
+  format: json
+`
+    writeFileSync(join(projectSidekick, 'config.yaml'), yamlWithComments)
+
+    configUnset('core.logging.level', {
+      projectRoot: projectDir,
+      homeDir,
+    })
+
+    const content = readFileSync(join(projectSidekick, 'config.yaml'), 'utf8')
+    expect(content).toContain('# Core configuration')
+    expect(content).toContain('# Output format')
+    expect(content).toContain('format: json')
+    expect(content).not.toContain('level: debug')
+  })
+
+  test('returns existed: false for nonexistent file (no error)', () => {
+    const homeDir = join(tempRoot, 'home')
+    const projectDir = join(tempRoot, 'project')
+    // Note: NOT creating .sidekick directory or file
+
+    const result = configUnset('core.logging.level', {
+      projectRoot: projectDir,
+      homeDir,
+    })
+
+    expect(result.existed).toBe(false)
+  })
+
+  test('after unset, cascade falls through to lower-priority scope', () => {
+    const homeDir = join(tempRoot, 'home')
+    const projectDir = join(tempRoot, 'project')
+    const userSidekick = join(homeDir, '.sidekick')
+    const projectSidekick = join(projectDir, '.sidekick')
+    mkdirSync(userSidekick, { recursive: true })
+    mkdirSync(projectSidekick, { recursive: true })
+
+    // User scope has 'warn', project scope has 'error'
+    writeFileSync(join(userSidekick, 'config.yaml'), `logging:\n  level: warn\n`)
+    writeFileSync(join(projectSidekick, 'config.yaml'), `logging:\n  level: error\n`)
+
+    // Cascade before unset: project overrides user -> 'error'
+    const before = configGet('core.logging.level', {
+      projectRoot: projectDir,
+      homeDir,
+      assets: createMockAssets(),
+    })
+    expect(before!.value).toBe('error')
+
+    // Unset from project scope
+    configUnset('core.logging.level', {
+      scope: 'project',
+      projectRoot: projectDir,
+      homeDir,
+    })
+
+    // Cascade after unset: falls through to user -> 'warn'
+    const after = configGet('core.logging.level', {
+      projectRoot: projectDir,
+      homeDir,
+      assets: createMockAssets(),
+    })
+    expect(after!.value).toBe('warn')
+  })
+
+  test('returns existed: false when key is not present in existing file', () => {
+    const homeDir = join(tempRoot, 'home')
+    const projectDir = join(tempRoot, 'project')
+    const projectSidekick = join(projectDir, '.sidekick')
+    mkdirSync(projectSidekick, { recursive: true })
+
+    // File exists but does not contain the key we're unsetting
+    writeFileSync(join(projectSidekick, 'config.yaml'), `logging:\n  level: info\n`)
+
+    const result = configUnset('core.logging.nonexistent', {
+      scope: 'project',
+      projectRoot: projectDir,
+      homeDir,
+    })
+
+    expect(result.existed).toBe(false)
+    // File should still have the original content
+    const content = readFileSync(join(projectSidekick, 'config.yaml'), 'utf8')
+    expect(content).toContain('level: info')
+  })
+
+  test('throws when trying to unset entire domain (empty keyPath)', () => {
+    const homeDir = join(tempRoot, 'home')
+    const projectDir = join(tempRoot, 'project')
+
+    expect(() =>
+      configUnset('core', {
+        projectRoot: projectDir,
+        homeDir,
+      })
+    ).toThrow(/cannot unset an entire domain/i)
+  })
+})
+
+// =============================================================================
+// configList Tests
+// =============================================================================
+
+describe('configList', () => {
+  const tempRoot = join(tmpdir(), 'sidekick-config-list-tests')
+
+  beforeEach(() => {
+    mkdirSync(tempRoot, { recursive: true })
+  })
+
+  afterEach(() => {
+    if (existsSync(tempRoot)) {
+      rmSync(tempRoot, { recursive: true, force: true })
+    }
+  })
+
+  test('returns all overrides at project scope', () => {
+    const homeDir = join(tempRoot, 'home')
+    const projectDir = join(tempRoot, 'project')
+    const projectSidekick = join(projectDir, '.sidekick')
+    mkdirSync(projectSidekick, { recursive: true })
+
+    writeFileSync(join(projectSidekick, 'config.yaml'), `logging:\n  level: debug\n`)
+
+    const result = configList({
+      scope: 'project',
+      projectRoot: projectDir,
+      homeDir,
+    })
+
+    expect(result.scope).toBe('project')
+    expect(result.entries).toContainEqual({ path: 'core.logging.level', value: 'debug' })
+  })
+
+  test('returns overrides across all domain files at a scope', () => {
+    const homeDir = join(tempRoot, 'home')
+    const projectDir = join(tempRoot, 'project')
+    const projectSidekick = join(projectDir, '.sidekick')
+    mkdirSync(projectSidekick, { recursive: true })
+
+    writeFileSync(join(projectSidekick, 'config.yaml'), `logging:\n  level: debug\n`)
+    writeFileSync(join(projectSidekick, 'transcript.yaml'), `watchDebounceMs: 200\n`)
+
+    const result = configList({
+      scope: 'project',
+      projectRoot: projectDir,
+      homeDir,
+    })
+
+    expect(result.scope).toBe('project')
+    expect(result.entries).toContainEqual({ path: 'core.logging.level', value: 'debug' })
+    expect(result.entries).toContainEqual({ path: 'transcript.watchDebounceMs', value: 200 })
+  })
+
+  test('returns empty entries when no files exist at scope', () => {
+    const homeDir = join(tempRoot, 'home')
+    const projectDir = join(tempRoot, 'project')
+    // No .sidekick directories created
+
+    const result = configList({
+      scope: 'project',
+      projectRoot: projectDir,
+      homeDir,
+    })
+
+    expect(result.scope).toBe('project')
+    expect(result.entries).toEqual([])
+  })
+
+  test('flattens nested values into dot-path format', () => {
+    const homeDir = join(tempRoot, 'home')
+    const projectDir = join(tempRoot, 'project')
+    const projectSidekick = join(projectDir, '.sidekick')
+    mkdirSync(projectSidekick, { recursive: true })
+
+    writeFileSync(
+      join(projectSidekick, 'config.yaml'),
+      `logging:\n  level: warn\n  format: text\ndevelopment:\n  enabled: true\n`
+    )
+
+    const result = configList({
+      scope: 'project',
+      projectRoot: projectDir,
+      homeDir,
+    })
+
+    expect(result.entries).toContainEqual({ path: 'core.logging.level', value: 'warn' })
+    expect(result.entries).toContainEqual({ path: 'core.logging.format', value: 'text' })
+    expect(result.entries).toContainEqual({ path: 'core.development.enabled', value: true })
   })
 })
