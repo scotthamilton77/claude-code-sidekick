@@ -362,7 +362,7 @@ tail -f .sidekick/sidekick.log
 # Option 1: Environment variable
 SIDEKICK_LOG_LEVEL=debug pnpm sidekick daemon start
 
-# Option 2: YAML config (.sidekick/config.local.yaml)
+# Option 2: YAML config (.sidekick/core.local.yaml)
 # logging:
 #   level: debug
 ```
@@ -463,7 +463,7 @@ Sidekick uses **YAML-based configuration** with a cascade that merges settings f
 Use `.local.yaml` files for untracked per-developer overrides:
 
 ```yaml
-# .sidekick/config.local.yaml
+# .sidekick/core.local.yaml
 logging:
   level: debug
 ```

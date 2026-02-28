@@ -171,7 +171,7 @@ describe('loadConfig - YAML parsing', () => {
     mkdirSync(projectSidekick, { recursive: true })
 
     writeFileSync(
-      join(projectSidekick, 'config.yaml'),
+      join(projectSidekick, 'core.yaml'),
       `
 logging:
   level: debug
@@ -199,7 +199,7 @@ paths:
 
     // Invalid YAML: bad indentation
     writeFileSync(
-      join(projectSidekick, 'config.yaml'),
+      join(projectSidekick, 'core.yaml'),
       `
 logging:
   level: debug
@@ -221,7 +221,7 @@ logging:
     const projectSidekick = join(projectDir, '.sidekick')
     mkdirSync(projectSidekick, { recursive: true })
 
-    writeFileSync(join(projectSidekick, 'config.yaml'), '')
+    writeFileSync(join(projectSidekick, 'core.yaml'), '')
 
     const config = loadConfig({
       projectRoot: projectDir,
@@ -239,7 +239,7 @@ logging:
     mkdirSync(projectSidekick, { recursive: true })
 
     writeFileSync(
-      join(projectSidekick, 'config.yaml'),
+      join(projectSidekick, 'core.yaml'),
       `
 logging:
   level: info
@@ -261,7 +261,7 @@ unknownKey: should-fail
     mkdirSync(projectSidekick, { recursive: true })
 
     writeFileSync(
-      join(projectSidekick, 'config.yaml'),
+      join(projectSidekick, 'core.yaml'),
       `
 logging:
   level: info
@@ -314,7 +314,7 @@ describe('loadConfig - cascade precedence', () => {
 
     process.env.SIDEKICK_LOG_LEVEL = 'debug'
 
-    writeFileSync(join(userSidekick, 'config.yaml'), `logging:\n  level: warn`)
+    writeFileSync(join(userSidekick, 'core.yaml'), `logging:\n  level: warn`)
 
     const config = loadConfig({
       projectRoot: join(tempRoot, 'project'),
@@ -333,8 +333,8 @@ describe('loadConfig - cascade precedence', () => {
     mkdirSync(userSidekick, { recursive: true })
     mkdirSync(projectSidekick, { recursive: true })
 
-    writeFileSync(join(userSidekick, 'config.yaml'), `logging:\n  level: warn`)
-    writeFileSync(join(projectSidekick, 'config.yaml'), `logging:\n  level: error`)
+    writeFileSync(join(userSidekick, 'core.yaml'), `logging:\n  level: warn`)
+    writeFileSync(join(projectSidekick, 'core.yaml'), `logging:\n  level: error`)
 
     const config = loadConfig({
       projectRoot: projectDir,
@@ -351,8 +351,8 @@ describe('loadConfig - cascade precedence', () => {
     const projectSidekick = join(projectDir, '.sidekick')
     mkdirSync(projectSidekick, { recursive: true })
 
-    writeFileSync(join(projectSidekick, 'config.yaml'), `logging:\n  level: warn`)
-    writeFileSync(join(projectSidekick, 'config.local.yaml'), `logging:\n  level: debug`)
+    writeFileSync(join(projectSidekick, 'core.yaml'), `logging:\n  level: warn`)
+    writeFileSync(join(projectSidekick, 'core.local.yaml'), `logging:\n  level: debug`)
 
     const config = loadConfig({
       projectRoot: projectDir,
@@ -373,7 +373,7 @@ describe('loadConfig - cascade precedence', () => {
 
     // User sets logging level and format
     writeFileSync(
-      join(userSidekick, 'config.yaml'),
+      join(userSidekick, 'core.yaml'),
       `
 logging:
   level: warn
@@ -383,7 +383,7 @@ logging:
 
     // Project only overrides level, format should be preserved
     writeFileSync(
-      join(projectSidekick, 'config.yaml'),
+      join(projectSidekick, 'core.yaml'),
       `
 logging:
   level: error
@@ -456,7 +456,7 @@ profiles:
     )
 
     // Project sets core config and overrides LLM profile provider
-    writeFileSync(join(projectSidekick, 'config.yaml'), `logging:\n  level: debug`)
+    writeFileSync(join(projectSidekick, 'core.yaml'), `logging:\n  level: debug`)
     writeFileSync(
       join(projectSidekick, 'llm.yaml'),
       `
@@ -574,7 +574,7 @@ reminders:
     const projectDir = join(tempRoot, 'project')
     const projectSidekick = join(projectDir, '.sidekick')
     mkdirSync(projectSidekick, { recursive: true })
-    writeFileSync(join(projectSidekick, 'config.yaml'), `logging:\n  level: debug`)
+    writeFileSync(join(projectSidekick, 'core.yaml'), `logging:\n  level: debug`)
 
     const service = createConfigService({
       projectRoot: projectDir,
@@ -582,7 +582,7 @@ reminders:
       assets: createMockAssets(),
     })
 
-    expect(service.sources).toContainEqual(expect.stringContaining('config.yaml'))
+    expect(service.sources).toContainEqual(expect.stringContaining('core.yaml'))
   })
 })
 
@@ -799,7 +799,7 @@ describe('loadConfig - external defaults', () => {
     const projectDir = join(tempRoot, 'project')
     const projectSidekick = join(projectDir, '.sidekick')
     mkdirSync(projectSidekick, { recursive: true })
-    writeFileSync(join(projectSidekick, 'config.yaml'), `logging:\n  level: error`)
+    writeFileSync(join(projectSidekick, 'core.yaml'), `logging:\n  level: error`)
 
     // Use createMockAssets with custom core defaults
     const mockAssets = createMockAssets({
@@ -1064,7 +1064,7 @@ describe('loadConfig - validation', () => {
     const projectSidekick = join(projectDir, '.sidekick')
     mkdirSync(projectSidekick, { recursive: true })
 
-    writeFileSync(join(projectSidekick, 'config.yaml'), `logging:\n  level: invalid`)
+    writeFileSync(join(projectSidekick, 'core.yaml'), `logging:\n  level: invalid`)
 
     expect(() =>
       loadConfig({

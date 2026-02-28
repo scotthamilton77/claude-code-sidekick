@@ -378,7 +378,7 @@ cat ~/.sidekick/llm.yaml
 cat .sidekick/features.yaml
 
 # Enable debug logging (use .local.yaml for local overrides)
-# .sidekick/config.local.yaml:
+# .sidekick/core.local.yaml:
 #   logging:
 #     level: debug
 # .sidekick/llm.local.yaml:

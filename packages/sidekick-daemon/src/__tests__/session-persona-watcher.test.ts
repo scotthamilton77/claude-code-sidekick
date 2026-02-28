@@ -31,7 +31,7 @@ describe('extractSessionIdFromPath', () => {
   })
 
   it('should return null for path without /sessions/', () => {
-    const path = '/project/.sidekick/config.yaml'
+    const path = '/project/.sidekick/core.yaml'
     expect(extractSessionIdFromPath(path)).toBeNull()
   })
 

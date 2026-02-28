@@ -284,7 +284,7 @@ Instead of complex circuit breakers, we provide the `FallbackProvider` capabilit
 
 Credentials are resolved in the following order:
 1. **Environment Variables** (Recommended): `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` (for CLI auth if needed), `OPENROUTER_API_KEY`.
-2. **Configuration File**: `llm.apiKey` in `config.yaml`.
+2. **Configuration File**: `llm.apiKey` in `core.yaml`.
 
 ### 6.2 Redaction
 

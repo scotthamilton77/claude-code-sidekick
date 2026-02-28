@@ -187,7 +187,7 @@ describe('handleConfigCommand', () => {
     const projectDir = join(tempRoot, 'project')
     const projectSidekick = join(projectDir, '.sidekick')
     mkdirSync(projectSidekick, { recursive: true })
-    writeFileSync(join(projectSidekick, 'config.yaml'), 'logging:\n  level: debug\n')
+    writeFileSync(join(projectSidekick, 'core.yaml'), 'logging:\n  level: debug\n')
 
     const assets = createMockAssets()
     const { stdout, output } = createTestStdout()
@@ -235,7 +235,7 @@ describe('handleConfigCommand', () => {
     expect(output()).toContain('Set')
 
     // Verify the file was actually written
-    const configPath = join(projectDir, '.sidekick', 'config.yaml')
+    const configPath = join(projectDir, '.sidekick', 'core.yaml')
     expect(existsSync(configPath)).toBe(true)
     const content = readFileSync(configPath, 'utf8')
     expect(content).toContain('debug')
@@ -267,7 +267,7 @@ describe('handleConfigCommand', () => {
     mkdirSync(projectSidekick, { recursive: true })
 
     // First set a value so there is something to unset
-    writeFileSync(join(projectSidekick, 'config.yaml'), 'logging:\n  level: debug\n  format: json\n')
+    writeFileSync(join(projectSidekick, 'core.yaml'), 'logging:\n  level: debug\n  format: json\n')
 
     const assets = createMockAssets()
     const { stdout, output } = createTestStdout()
@@ -280,7 +280,7 @@ describe('handleConfigCommand', () => {
     expect(output()).toContain('Unset')
 
     // Verify the key was actually removed from the file
-    const content = readFileSync(join(projectSidekick, 'config.yaml'), 'utf8')
+    const content = readFileSync(join(projectSidekick, 'core.yaml'), 'utf8')
     expect(content).not.toContain('level')
     expect(content).toContain('format: json')
   })
@@ -293,7 +293,7 @@ describe('handleConfigCommand', () => {
     const projectSidekick = join(projectDir, '.sidekick')
     mkdirSync(projectSidekick, { recursive: true })
 
-    writeFileSync(join(projectSidekick, 'config.yaml'), 'logging:\n  level: debug\n  format: text\n')
+    writeFileSync(join(projectSidekick, 'core.yaml'), 'logging:\n  level: debug\n  format: text\n')
 
     const assets = createMockAssets()
     const { stdout, output } = createTestStdout()

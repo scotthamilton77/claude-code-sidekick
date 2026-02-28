@@ -6,7 +6,7 @@
  * - Connection pooling (connection reused within CLI session)
  * - Automatic reconnection on transient failures
  * - Graceful degradation when daemon unavailable
- * - Configurable timeout/retry settings from config.yaml
+ * - Configurable timeout/retry settings from core.yaml
  *
  * @see docs/design/CLI.md §4 Daemon Interaction
  * @see docs/design/CONFIG-SYSTEM.md (ipc config settings)
@@ -63,7 +63,7 @@ export class IpcService {
   }
 
   /**
-   * Create IpcService from CoreConfig, using IPC settings from config.yaml.
+   * Create IpcService from CoreConfig, using IPC settings from core.yaml.
    *
    * @param projectDir - Project directory path
    * @param logger - Logger instance

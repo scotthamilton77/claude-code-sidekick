@@ -18,7 +18,7 @@ Configuration is organized into logical domains, each with its own file and sche
 
 | Domain       | Filename          | Purpose                                   |
 | ------------ | ----------------- | ----------------------------------------- |
-| `core`       | `config.yaml`     | Paths, logging, general settings          |
+| `core`       | `core.yaml`       | Paths, logging, general settings          |
 | `llm`        | `llm.yaml`        | LLM provider settings, model selection    |
 | `transcript` | `transcript.yaml` | Transcript processing, metrics            |
 | `features`   | `features.yaml`   | Feature flags and feature-specific config |
@@ -283,7 +283,7 @@ class AssetResolver {
 
 ## 9. Example Configuration Files
 
-### 9.1 `.sidekick/config.yaml` (Project Core)
+### 9.1 `.sidekick/core.yaml` (Project Core)
 
 ```yaml
 # Core Sidekick configuration
