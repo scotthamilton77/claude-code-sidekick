@@ -731,7 +731,8 @@ export class StatuslineService {
       summary,
       resume,
       snarkyMessage,
-      emptySessionMessage
+      emptySessionMessage,
+      persona
     )
 
     // Calculate effective tokens for display
@@ -918,14 +919,27 @@ export class StatuslineService {
     summary: SessionSummaryState,
     resume: ResumeMessageState | null,
     snarkyMessage: string,
-    emptySessionMessage: string
+    emptySessionMessage: string,
+    persona: PersonaDefinition | null
   ): { summaryText: string; title: string } {
     switch (displayMode) {
       case 'resume_message': {
         const resumeTitle = resume?.session_title
           ? `Last Session: ${resume.session_title}`
           : DEFAULT_PLACEHOLDERS.newSession
-        const resumeSummary = resume?.snarky_comment || emptySessionMessage
+        let resumeSummary = resume?.snarky_comment || emptySessionMessage
+
+        // Attribution wrapper: when source persona differs from current, prefix with source name
+        if (
+          resume?.persona_id &&
+          resume.persona_display_name &&
+          persona &&
+          persona.id !== 'disabled' &&
+          resume.persona_id !== persona.id
+        ) {
+          resumeSummary = `${resume.persona_display_name}: ${resumeSummary}`
+        }
+
         return {
           summaryText: resumeSummary,
           title: resumeTitle,
