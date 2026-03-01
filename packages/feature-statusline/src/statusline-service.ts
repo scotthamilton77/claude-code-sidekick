@@ -463,7 +463,7 @@ export class StatuslineService {
           const keyHealth = await this.setupService.getEffectiveApiKeyHealth(keyName)
           if (keyHealth === 'missing') {
             return {
-              warning: `${keyName} not found. Run 'sidekick doctor' or /sidekick-config`,
+              warning: `${keyName} not found. Run 'sidekick doctor' or /sidekick-setup`,
               state,
             }
           }

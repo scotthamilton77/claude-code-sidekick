@@ -95,12 +95,12 @@ describe('handleDevModeCommand', () => {
     // Create mock CLI binary
     await writeFile(path.join(tempDir, 'packages', 'sidekick-cli', 'dist', 'bin.js'), '')
     // Create mock plugin skill source directories with SKILL.md
-    const skillSrcDir = path.join(tempDir, 'packages', 'sidekick-plugin', 'skills', 'sidekick-config')
+    const skillSrcDir = path.join(tempDir, 'packages', 'sidekick-plugin', 'skills', 'sidekick-setup')
     await mkdir(skillSrcDir, { recursive: true })
     await writeFile(
       path.join(skillSrcDir, 'SKILL.md'),
       [
-        '# Sidekick Config Skill',
+        '# Sidekick Setup Skill',
         '',
         '```bash',
         'npx @scotthamilton77/sidekick doctor',
@@ -251,7 +251,7 @@ describe('handleDevModeCommand', () => {
       expect(result.exitCode).toBe(0)
 
       // Verify the skill was copied and transformed
-      const destSkillMd = path.join(tempDir, '.claude', 'skills', 'sidekick-config', 'SKILL.md')
+      const destSkillMd = path.join(tempDir, '.claude', 'skills', 'sidekick-setup', 'SKILL.md')
       const content = await readFile(destSkillMd, 'utf-8')
 
       // Should have replaced npx @scotthamilton77/sidekick with pnpm sidekick
@@ -261,7 +261,7 @@ describe('handleDevModeCommand', () => {
       expect(content).not.toContain('npx @scotthamilton77/sidekick')
     })
 
-    test('copies all plugin skills dynamically, not just sidekick-config', async () => {
+    test('copies all plugin skills dynamically, not just sidekick-setup', async () => {
       const result = await handleDevModeCommand('enable', tempDir, logger, stdout)
 
       expect(result.exitCode).toBe(0)
@@ -280,11 +280,11 @@ describe('handleDevModeCommand', () => {
       const enableResult = await handleDevModeCommand('enable', tempDir, logger, stdout)
       expect(enableResult.exitCode).toBe(0)
 
-      const destConfigSkill = path.join(tempDir, '.claude', 'skills', 'sidekick-config', 'SKILL.md')
+      const destSetupSkill = path.join(tempDir, '.claude', 'skills', 'sidekick-setup', 'SKILL.md')
       const destPersonasSkill = path.join(tempDir, '.claude', 'skills', 'sidekick-personas', 'SKILL.md')
 
       // Sanity-check that both skills exist after enable
-      await access(destConfigSkill, constants.F_OK)
+      await access(destSetupSkill, constants.F_OK)
       await access(destPersonasSkill, constants.F_OK)
 
       stdout.data = ''
@@ -293,7 +293,7 @@ describe('handleDevModeCommand', () => {
       const disableResult = await handleDevModeCommand('disable', tempDir, logger, stdout)
       expect(disableResult.exitCode).toBe(0)
 
-      await expect(access(destConfigSkill, constants.F_OK)).rejects.toMatchObject({ code: 'ENOENT' })
+      await expect(access(destSetupSkill, constants.F_OK)).rejects.toMatchObject({ code: 'ENOENT' })
       await expect(access(destPersonasSkill, constants.F_OK)).rejects.toMatchObject({ code: 'ENOENT' })
     })
 

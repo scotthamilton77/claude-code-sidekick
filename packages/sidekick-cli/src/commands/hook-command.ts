@@ -240,11 +240,11 @@ const DEGRADED_MODE_MESSAGES: Record<
   { additionalContext: string; userMessage: string }
 > = {
   'not-run': {
-    additionalContext: `Sidekick plugin detected but not configured. Features like reminders, personas, and statusline are unavailable until setup is complete. If you haven't already, ask the user if you should execute the sidekick-config skill.`,
+    additionalContext: `Sidekick plugin detected but not configured. Features like reminders, personas, and statusline are unavailable until setup is complete. If you haven't already, ask the user if you should execute the sidekick-setup skill.`,
     userMessage: `Sidekick is installed but not configured. Run 'sidekick setup' to configure.`,
   },
   partial: {
-    additionalContext: `Sidekick user setup is complete but this project is not configured. Features like reminders, personas, and statusline are unavailable until project setup is complete. If you haven't already, ask the user if you should execute the sidekick-config skill.`,
+    additionalContext: `Sidekick user setup is complete but this project is not configured. Features like reminders, personas, and statusline are unavailable until project setup is complete. If you haven't already, ask the user if you should execute the sidekick-setup skill.`,
     userMessage: `Sidekick project setup incomplete. Run 'sidekick setup' in this project to configure.`,
   },
   unhealthy: {

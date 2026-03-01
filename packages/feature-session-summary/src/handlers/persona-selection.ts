@@ -203,7 +203,7 @@ export async function selectPersonaForSession(
 
 /**
  * Ensure persona state exists for a session, re-selecting if missing.
- * Recovers from state loss caused by clean-all, sidekick-config setup,
+ * Recovers from state loss caused by clean-all, the sidekick-setup skill,
  * or other operations that clear session state mid-session.
  *
  * No-op when persona state already exists.

@@ -38,7 +38,7 @@ claude --plugin-dir=/path/to/claude-code-sidekick/packages/sidekick-plugin
 
 ## Configuration
 
-Use the `/sidekick-config` skill in Claude Code to configure sidekick interactively, or configure manually:
+Use the `/sidekick-setup` skill in Claude Code to configure sidekick interactively, or configure manually:
 
 ### Configuration Locations
 
