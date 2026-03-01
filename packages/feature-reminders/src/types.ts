@@ -141,6 +141,7 @@ export const ReminderIds = {
   VERIFY_COMPLETION: 'verify-completion',
   REMEMBER_YOUR_PERSONA: 'remember-your-persona',
   PERSONA_CHANGED: 'persona-changed',
+  USER_PROFILE: 'user-profile',
 } as const
 
 export type ReminderId = (typeof ReminderIds)[keyof typeof ReminderIds]
