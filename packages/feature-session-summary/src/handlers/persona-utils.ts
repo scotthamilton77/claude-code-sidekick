@@ -5,7 +5,7 @@
  * for persona loading, template context building, and text processing.
  */
 
-import type { DaemonContext, PersonaDefinition } from '@sidekick/types'
+import type { DaemonContext, PersonaDefinition, UserProfile } from '@sidekick/types'
 import { createPersonaLoader, getDefaultPersonasDir } from '@sidekick/core'
 import { createSessionSummaryState, type SessionSummaryStateAccessors } from '../state.js'
 import type { LlmSubFeatureConfig, SessionSummaryConfig } from '../types.js'
@@ -26,6 +26,34 @@ export interface PersonaTemplateContext {
   persona_snarky_examples: string
   persona_snarky_welcome_examples: string
   persona_situation: string
+}
+
+/**
+ * Template context for user profile prompt injection.
+ */
+export interface UserProfileTemplateContext {
+  user_name: string
+  user_role: string
+  user_interests: string
+}
+
+/**
+ * Build user profile template context.
+ * Returns empty strings if profile is null (file doesn't exist).
+ */
+export function buildUserProfileContext(profile: UserProfile | null): UserProfileTemplateContext {
+  if (!profile) {
+    return {
+      user_name: '',
+      user_role: '',
+      user_interests: '',
+    }
+  }
+  return {
+    user_name: profile.name,
+    user_role: profile.role,
+    user_interests: profile.interests.join(', '),
+  }
 }
 
 /**

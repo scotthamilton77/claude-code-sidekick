@@ -14,6 +14,7 @@ import { join } from 'node:path'
 import type { PersonaDefinition, SessionPersonaState, Logger } from '@sidekick/types'
 import {
   buildPersonaContext,
+  buildUserProfileContext,
   stripSurroundingQuotes,
   loadSessionPersona,
   resolvePersonaLlmProfile,
@@ -22,6 +23,7 @@ import {
   mergePersonaConfig,
   _resetProfileWarningState,
 } from '../handlers/persona-utils'
+import type { UserProfile } from '@sidekick/types'
 import type { PersonaProfileConfig } from '../handlers/persona-utils'
 import type { SessionSummaryStateAccessors } from '../state'
 import { DEFAULT_SESSION_SUMMARY_CONFIG } from '../types'
@@ -554,5 +556,34 @@ describe('getEffectiveProfile', () => {
     const result = getEffectiveProfile(persona, llmConfig, config, availableProfiles, createMockLogger())
 
     expect(result).toEqual({ profileId: 'creative-long' })
+  })
+})
+
+// ============================================================================
+// buildUserProfileContext Tests
+// ============================================================================
+
+describe('buildUserProfileContext', () => {
+  it('returns populated context when profile is provided', () => {
+    const profile: UserProfile = {
+      name: 'Scott',
+      role: 'Software Architect',
+      interests: ['Sci-Fi', '80s sitcoms'],
+    }
+    const context = buildUserProfileContext(profile)
+    expect(context).toEqual({
+      user_name: 'Scott',
+      user_role: 'Software Architect',
+      user_interests: 'Sci-Fi, 80s sitcoms',
+    })
+  })
+
+  it('returns empty strings when profile is null', () => {
+    const context = buildUserProfileContext(null)
+    expect(context).toEqual({
+      user_name: '',
+      user_role: '',
+      user_interests: '',
+    })
   })
 })
