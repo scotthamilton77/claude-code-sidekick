@@ -15,10 +15,12 @@ import { createPersonaLoader, getDefaultPersonasDir } from '@sidekick/core'
 import { interpolateTemplate } from './update-summary.js'
 import {
   buildPersonaContext,
+  buildUserProfileContext,
   getEffectiveProfile,
   loadSessionPersona,
   stripSurroundingQuotes,
 } from './persona-utils.js'
+import { loadUserProfile } from '@sidekick/core'
 
 const SNARKY_PROMPT_FILE = 'prompts/snarky-message.prompt.txt'
 const RESUME_PROMPT_FILE = 'prompts/resume-message.prompt.txt'
@@ -123,8 +125,9 @@ export async function generateSnarkyMessageOnDemand(ctx: DaemonContext, sessionI
     }
   }
 
-  // Build persona context for template interpolation
+  // Build persona and user profile context for template interpolation
   const personaContext = buildPersonaContext(persona)
+  const userProfileContext = buildUserProfileContext(loadUserProfile({ logger: ctx.logger }))
 
   // Get profile configuration for snarky comment
   const featureConfig = ctx.config.getFeature<SessionSummaryConfig>('session-summary')
@@ -133,6 +136,7 @@ export async function generateSnarkyMessageOnDemand(ctx: DaemonContext, sessionI
   // Interpolate prompt with session summary data and persona
   const prompt = interpolateTemplate(promptTemplate, {
     ...personaContext,
+    ...userProfileContext,
     session_title: summary.session_title,
     latest_intent: summary.latest_intent,
     turn_count: ctx.transcript.getMetrics().turnCount,
@@ -236,8 +240,9 @@ export async function generateResumeMessageOnDemand(ctx: DaemonContext, sessionI
     }
   }
 
-  // Build persona context for template interpolation
+  // Build persona and user profile context for template interpolation
   const personaContext = buildPersonaContext(persona)
+  const userProfileContext = buildUserProfileContext(loadUserProfile({ logger: ctx.logger }))
 
   // Get profile configuration for resume message
   const featureConfig = ctx.config.getFeature<SessionSummaryConfig>('session-summary')
@@ -255,6 +260,7 @@ export async function generateResumeMessageOnDemand(ctx: DaemonContext, sessionI
   const keyPhrases = summary.session_title_key_phrases?.join(', ') ?? ''
   const prompt = interpolateTemplate(promptTemplate, {
     ...personaContext,
+    ...userProfileContext,
     sessionTitle: summary.session_title,
     confidence: summary.session_title_confidence,
     latestIntent: summary.latest_intent,

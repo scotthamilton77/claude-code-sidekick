@@ -19,10 +19,12 @@ import { DEFAULT_SESSION_SUMMARY_CONFIG, RESUME_MIN_CONFIDENCE } from '../types.
 import { createSessionSummaryState, type SessionSummaryStateAccessors } from '../state.js'
 import {
   buildPersonaContext,
+  buildUserProfileContext,
   getEffectiveProfile,
   loadSessionPersona,
   stripSurroundingQuotes,
 } from './persona-utils.js'
+import { loadUserProfile } from '@sidekick/core'
 import { ensurePersonaForSession } from './persona-selection.js'
 
 const PROMPT_FILE = 'prompts/session-summary.prompt.txt'
@@ -512,12 +514,14 @@ async function generateSnarkyMessage(
     return
   }
 
-  // Build persona context for template interpolation
+  // Build persona and user profile context for template interpolation
   const personaContext = buildPersonaContext(persona)
+  const userProfileContext = buildUserProfileContext(loadUserProfile({ logger: ctx.logger }))
 
   // Interpolate prompt with session summary data and persona
   const prompt = interpolateTemplate(promptTemplate, {
     ...personaContext,
+    ...userProfileContext,
     session_title: summary.session_title,
     latest_intent: summary.latest_intent,
     turn_count: ctx.transcript.getMetrics().turnCount,
@@ -664,13 +668,15 @@ async function generateResumeMessage(
     )
   )
 
-  // Build persona context for template interpolation
+  // Build persona and user profile context for template interpolation
   const personaContext = buildPersonaContext(persona)
+  const userProfileContext = buildUserProfileContext(loadUserProfile({ logger: ctx.logger }))
 
   // Interpolate prompt with session data and persona
   const keyPhrases = summary.session_title_key_phrases?.join(', ') ?? ''
   const prompt = interpolateTemplate(promptTemplate, {
     ...personaContext,
+    ...userProfileContext,
     sessionTitle: summary.session_title,
     confidence: summary.session_title_confidence,
     latestIntent: summary.latest_intent,
