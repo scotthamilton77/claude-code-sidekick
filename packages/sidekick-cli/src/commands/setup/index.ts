@@ -23,6 +23,7 @@ import {
   detectInstalledScope,
   type InstallScope,
 } from './plugin-installer.js'
+import { runUserProfileStep } from './user-profile-setup.js'
 import { detectShell, installAlias, uninstallAlias, isAliasInRcFile } from './shell-alias.js'
 
 export interface SetupCommandOptions {
@@ -847,6 +848,7 @@ async function runWizard(
   const forceAutoConfig = pluginResult.pluginScope === 'user' ? 'auto' : 'manual'
   const autoConfig = force ? forceAutoConfig : await runStep6AutoConfig(wctx, pluginResult.pluginScope)
   const shellAlias = force ? ('skipped' as const) : await runStep7ShellAlias(wctx)
+  const _userProfile = force ? { configured: false } : await runUserProfileStep(wctx.ctx, homeDir)
 
   // In force mode, configure statusline at same scope as plugin
   if (force) {
