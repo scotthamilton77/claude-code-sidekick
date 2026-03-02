@@ -80,6 +80,10 @@ interface ParsedArgs {
   marketplaceScope?: 'user' | 'project' | 'local'
   pluginScope?: 'user' | 'project' | 'local'
   alias?: boolean
+  // User profile scripting flags
+  userProfileName?: string
+  userProfileRole?: string
+  userProfileInterests?: string
 }
 
 interface RunCliOptions {
@@ -137,6 +141,9 @@ const CLI_OPTIONS = {
     'only',
     'marketplace-scope',
     'plugin-scope',
+    'user-profile-name',
+    'user-profile-role',
+    'user-profile-interests',
   ] as const,
   number: ['port', 'width'] as const,
   alias: { h: 'help', v: 'version' } as const,
@@ -216,6 +223,9 @@ function parseArgs(argv: string[]): ParsedArgs {
     marketplaceScope: parsed['marketplace-scope'] as 'user' | 'project' | 'local' | undefined,
     pluginScope: parsed['plugin-scope'] as 'user' | 'project' | 'local' | undefined,
     alias: hasAliasFlag ? Boolean(parsed.alias) : undefined,
+    userProfileName: parsed['user-profile-name'] as string | undefined,
+    userProfileRole: parsed['user-profile-role'] as string | undefined,
+    userProfileInterests: parsed['user-profile-interests'] as string | undefined,
   }
 }
 
@@ -597,6 +607,9 @@ Examples:
       marketplaceScope: parsed.marketplaceScope,
       pluginScope: parsed.pluginScope,
       alias: parsed.alias,
+      userProfileName: parsed.userProfileName,
+      userProfileRole: parsed.userProfileRole,
+      userProfileInterests: parsed.userProfileInterests,
     })
     return { exitCode: result.exitCode, stdout: '', stderr: '' }
   }

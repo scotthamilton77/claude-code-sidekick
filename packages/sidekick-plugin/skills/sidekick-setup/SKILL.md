@@ -125,6 +125,9 @@ Options:
   --no-gitignore                     Skip .gitignore
   --personas                         Enable personas
   --no-personas                      Disable personas
+  --user-profile-name=<name>         Set user profile name
+  --user-profile-role=<role>         Set user profile role
+  --user-profile-interests=<list>    Set interests (comma-separated)
   --force                            Apply all defaults non-interactively
 ```
 
@@ -247,11 +250,22 @@ cp assets/sidekick/prompts/snarky-message.prompt.txt .sidekick/assets/prompts/
 
 ### Configure User Profile
 
-The user profile is stored at `~/.sidekick/user.yaml`. Run setup to configure:
+The user profile is stored at `~/.sidekick/user.yaml`.
+
+**Interactive** (Step 8 in the wizard):
 ```bash
 npx @scotthamilton77/sidekick setup
 ```
-Follow the Step 8 prompt for user profile details. Or create the file manually:
+
+**Non-interactive** (scripting flags):
+```bash
+npx @scotthamilton77/sidekick setup \
+  --user-profile-name="Scott" \
+  --user-profile-role="Software Architect" \
+  --user-profile-interests="Sci-Fi,hiking"
+```
+
+Or create the file manually:
 ```yaml
 # ~/.sidekick/user.yaml
 name: "Your Name"
