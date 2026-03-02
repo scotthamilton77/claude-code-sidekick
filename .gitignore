@@ -85,3 +85,7 @@ worktrees/
 .sidekick/sidekick*.token
 .sidekick/*.local.yaml
 # <<< sidekick
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db
