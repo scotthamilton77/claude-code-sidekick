@@ -1,0 +1,11 @@
+# user-profile.yaml
+# Persistent reminder injected on SessionStart and UserPromptSubmit
+# when a user profile exists at ~/.sidekick/user.yaml.
+id: user-profile
+blocking: false
+priority: 4
+persistent: true
+
+additionalContext: |
+  This session is with {{user_name}} ({{user_role}}).
+  Interests: {{user_interests}}.

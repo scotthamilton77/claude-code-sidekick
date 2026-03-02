@@ -21,6 +21,7 @@ import {
   buildPersonaContext,
   getEffectiveProfile,
   loadSessionPersona,
+  loadUserProfileContext,
   stripSurroundingQuotes,
 } from './persona-utils.js'
 import { ensurePersonaForSession } from './persona-selection.js'
@@ -512,12 +513,14 @@ async function generateSnarkyMessage(
     return
   }
 
-  // Build persona context for template interpolation
+  // Build persona and user profile context for template interpolation
   const personaContext = buildPersonaContext(persona)
+  const userProfileContext = loadUserProfileContext(ctx.logger)
 
   // Interpolate prompt with session summary data and persona
   const prompt = interpolateTemplate(promptTemplate, {
     ...personaContext,
+    ...userProfileContext,
     session_title: summary.session_title,
     latest_intent: summary.latest_intent,
     turn_count: ctx.transcript.getMetrics().turnCount,
@@ -664,13 +667,15 @@ async function generateResumeMessage(
     )
   )
 
-  // Build persona context for template interpolation
+  // Build persona and user profile context for template interpolation
   const personaContext = buildPersonaContext(persona)
+  const userProfileContext = loadUserProfileContext(ctx.logger)
 
   // Interpolate prompt with session data and persona
   const keyPhrases = summary.session_title_key_phrases?.join(', ') ?? ''
   const prompt = interpolateTemplate(promptTemplate, {
     ...personaContext,
+    ...userProfileContext,
     sessionTitle: summary.session_title,
     confidence: summary.session_title_confidence,
     latestIntent: summary.latest_intent,

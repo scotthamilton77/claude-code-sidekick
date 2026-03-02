@@ -17,6 +17,7 @@ import {
   buildPersonaContext,
   getEffectiveProfile,
   loadSessionPersona,
+  loadUserProfileContext,
   stripSurroundingQuotes,
 } from './persona-utils.js'
 
@@ -123,8 +124,9 @@ export async function generateSnarkyMessageOnDemand(ctx: DaemonContext, sessionI
     }
   }
 
-  // Build persona context for template interpolation
+  // Build persona and user profile context for template interpolation
   const personaContext = buildPersonaContext(persona)
+  const userProfileContext = loadUserProfileContext(ctx.logger)
 
   // Get profile configuration for snarky comment
   const featureConfig = ctx.config.getFeature<SessionSummaryConfig>('session-summary')
@@ -133,6 +135,7 @@ export async function generateSnarkyMessageOnDemand(ctx: DaemonContext, sessionI
   // Interpolate prompt with session summary data and persona
   const prompt = interpolateTemplate(promptTemplate, {
     ...personaContext,
+    ...userProfileContext,
     session_title: summary.session_title,
     latest_intent: summary.latest_intent,
     turn_count: ctx.transcript.getMetrics().turnCount,
@@ -236,8 +239,9 @@ export async function generateResumeMessageOnDemand(ctx: DaemonContext, sessionI
     }
   }
 
-  // Build persona context for template interpolation
+  // Build persona and user profile context for template interpolation
   const personaContext = buildPersonaContext(persona)
+  const userProfileContext = loadUserProfileContext(ctx.logger)
 
   // Get profile configuration for resume message
   const featureConfig = ctx.config.getFeature<SessionSummaryConfig>('session-summary')
@@ -255,6 +259,7 @@ export async function generateResumeMessageOnDemand(ctx: DaemonContext, sessionI
   const keyPhrases = summary.session_title_key_phrases?.join(', ') ?? ''
   const prompt = interpolateTemplate(promptTemplate, {
     ...personaContext,
+    ...userProfileContext,
     sessionTitle: summary.session_title,
     confidence: summary.session_title_confidence,
     latestIntent: summary.latest_intent,

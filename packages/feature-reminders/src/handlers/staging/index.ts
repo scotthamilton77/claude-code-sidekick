@@ -14,6 +14,7 @@ import { registerStageStopReminders } from './stage-stop-reminders'
 import { registerStageBashChanges } from './stage-stop-bash-changes'
 import { registerUnstageVerifyCompletion } from './unstage-verify-completion'
 import { registerStagePersonaReminders } from './stage-persona-reminders'
+import { registerStageUserProfileReminders } from './stage-user-profile-reminders'
 
 /**
  * Register all staging handlers
@@ -25,4 +26,5 @@ export function registerStagingHandlers(context: RuntimeContext): void {
   registerStageBashChanges(context)
   registerUnstageVerifyCompletion(context)
   registerStagePersonaReminders(context)
+  registerStageUserProfileReminders(context)
 }

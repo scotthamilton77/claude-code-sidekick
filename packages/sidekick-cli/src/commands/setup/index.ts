@@ -23,6 +23,7 @@ import {
   detectInstalledScope,
   type InstallScope,
 } from './plugin-installer.js'
+import { runUserProfileStep, serializeProfileYaml } from './user-profile-setup.js'
 import { detectShell, installAlias, uninstallAlias, isAliasInRcFile } from './shell-alias.js'
 
 export interface SetupCommandOptions {
@@ -43,6 +44,10 @@ export interface SetupCommandOptions {
   pluginScope?: InstallScope
   // Doctor filtering - comma-separated list of checks to run
   only?: string
+  // User profile scripting flags
+  userProfileName?: string
+  userProfileRole?: string
+  userProfileInterests?: string // comma-separated
   // Testing override - allows tests to specify home directory
   homeDir?: string
 }
@@ -77,6 +82,9 @@ Scripting Flags (for non-interactive/partial setup):
   --auto-config=<mode>          Auto-configure preference: auto | manual
   --alias                       Add 'sidekick' shell alias to ~/.zshrc or ~/.bashrc
   --no-alias                    Remove 'sidekick' shell alias from shell config
+  --user-profile-name=<name>    Set user profile name (creates ~/.sidekick/user.yaml)
+  --user-profile-role=<role>    Set user profile role (e.g., "Software Architect")
+  --user-profile-interests=<i>  Set user interests (comma-separated)
 
 Examples:
   sidekick setup                              Interactive wizard
@@ -86,6 +94,7 @@ Examples:
   sidekick setup --statusline-scope=user      Configure statusline only
   sidekick setup --gitignore --personas       Configure gitignore and enable personas
   OPENROUTER_API_KEY=sk-xxx sidekick setup --personas --api-key-scope=user
+  sidekick setup --user-profile-name="Scott" --user-profile-role="Software Architect" --user-profile-interests="Sci-Fi,hiking"
 `
 
 const STATUSLINE_COMMAND = 'npx @scotthamilton77/sidekick statusline --project-dir=$CLAUDE_PROJECT_DIR'
@@ -847,6 +856,7 @@ async function runWizard(
   const forceAutoConfig = pluginResult.pluginScope === 'user' ? 'auto' : 'manual'
   const autoConfig = force ? forceAutoConfig : await runStep6AutoConfig(wctx, pluginResult.pluginScope)
   const shellAlias = force ? ('skipped' as const) : await runStep7ShellAlias(wctx)
+  const _userProfile = force ? { configured: false } : await runUserProfileStep(wctx.ctx, homeDir)
 
   // In force mode, configure statusline at same scope as plugin
   if (force) {
@@ -900,7 +910,10 @@ function hasScriptingFlags(options: SetupCommandOptions): boolean {
     options.personas !== undefined ||
     options.apiKeyScope !== undefined ||
     options.autoConfig !== undefined ||
-    options.alias !== undefined
+    options.alias !== undefined ||
+    options.userProfileName !== undefined ||
+    options.userProfileRole !== undefined ||
+    options.userProfileInterests !== undefined
   )
 }
 
@@ -1077,6 +1090,33 @@ async function runScripted(
           stdout.write(`- No shell alias found in ~/${shellInfo.rcFile}\n`)
         }
       }
+      configuredCount++
+    }
+  }
+
+  // 7. Configure user profile if any profile flags specified
+  const hasProfileFlags = options.userProfileName || options.userProfileRole || options.userProfileInterests
+  if (hasProfileFlags) {
+    if (!options.userProfileName) {
+      stdout.write('⚠ --user-profile-name is required when using user profile flags\n')
+    } else if (!options.userProfileRole) {
+      stdout.write('⚠ --user-profile-role is required when --user-profile-name is provided\n')
+    } else {
+      const profile = {
+        name: options.userProfileName,
+        role: options.userProfileRole,
+        interests: options.userProfileInterests
+          ? options.userProfileInterests
+              .split(',')
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : [],
+      }
+      const sidekickDir = path.join(homeDir, '.sidekick')
+      await fs.mkdir(sidekickDir, { recursive: true })
+      const filePath = path.join(sidekickDir, 'user.yaml')
+      await fs.writeFile(filePath, serializeProfileYaml(profile), 'utf-8')
+      stdout.write(`✓ User profile saved to ${filePath}\n`)
       configuredCount++
     }
   }
