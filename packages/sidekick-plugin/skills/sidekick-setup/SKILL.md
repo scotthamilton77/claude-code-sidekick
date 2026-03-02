@@ -25,6 +25,20 @@ Configure sidekick by first running diagnostics, then executing setup with appro
 - User asks about sidekick configuration options
 - User wants to set up or update their user profile (name, role, interests)
 
+## Quick Dispatch
+
+**If the user asks for a specific feature, go directly to its section — skip the full wizard.**
+
+| User Request | Go To |
+|---|---|
+| "set up my user profile" / "configure my profile" | [Configure User Profile](#configure-user-profile) |
+| "change my LLM model" / "switch models" | [Change Default LLM Model](#change-default-llm-model) |
+| "customize my statusline" | [Customize Statusline](#customize-statusline) |
+| "set up reminders" / "customize reminders" | [Generate Reminders from CLAUDE.md](#generate-reminders-from-claudemd) |
+| "configure sidekick" / general setup | Full Setup Workflow below |
+
+Only run the full doctor → setup wizard when the user asks for general configuration or initial setup.
+
 ## Setup Workflow (Initial Configuration)
 
 ```dot
@@ -250,9 +264,15 @@ cp assets/sidekick/prompts/snarky-message.prompt.txt .sidekick/assets/prompts/
 
 ### Configure User Profile
 
-The user profile is stored at `~/.sidekick/user.yaml`.
+The user profile (`~/.sidekick/user.yaml`) lets personas personalize messages with the user's name, role, and interests.
 
-**Interactive** (Step 8 in the wizard):
+**Agent workflow (preferred for targeted requests):**
+1. Check if `~/.sidekick/user.yaml` exists
+2. If it exists, show current values and ask if the user wants to keep or change them
+3. If missing or changing, ask for: **name**, **role**, **interests** (comma-separated)
+4. Write `~/.sidekick/user.yaml`
+
+**Via CLI wizard** (Step 8 in the full wizard):
 ```bash
 npx @scotthamilton77/sidekick setup
 ```
@@ -265,7 +285,7 @@ npx @scotthamilton77/sidekick setup \
   --user-profile-interests="Sci-Fi,hiking"
 ```
 
-Or create the file manually:
+**Manual file format:**
 ```yaml
 # ~/.sidekick/user.yaml
 name: "Your Name"
