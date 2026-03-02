@@ -17,10 +17,14 @@ export interface UserProfileSetupResult {
  * Serialize a user profile to YAML format.
  * Simple enough to avoid adding a yaml dependency to sidekick-cli.
  */
+function escapeYamlString(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+}
+
 function serializeProfileYaml(profile: { name: string; role: string; interests: string[] }): string {
-  const lines = [`name: "${profile.name}"`, `role: "${profile.role}"`, 'interests:']
+  const lines = [`name: "${escapeYamlString(profile.name)}"`, `role: "${escapeYamlString(profile.role)}"`, 'interests:']
   for (const interest of profile.interests) {
-    lines.push(`  - "${interest}"`)
+    lines.push(`  - "${escapeYamlString(interest)}"`)
   }
   return lines.join('\n') + '\n'
 }

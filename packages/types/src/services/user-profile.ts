@@ -8,9 +8,9 @@ import { z } from 'zod'
 
 export const UserProfileSchema = z.object({
   /** User's display name */
-  name: z.string(),
+  name: z.string().min(1),
   /** User's role (e.g., "Software Architect") */
-  role: z.string(),
+  role: z.string().min(1),
   /** User's interests as string array */
   interests: z.array(z.string()),
 })

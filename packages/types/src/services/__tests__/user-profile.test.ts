@@ -35,4 +35,14 @@ describe('UserProfileSchema', () => {
     const result = UserProfileSchema.safeParse({ name: 'Scott', role: 'Dev', interests: [42] })
     expect(result.success).toBe(false)
   })
+
+  it('rejects empty name', () => {
+    const result = UserProfileSchema.safeParse({ name: '', role: 'Dev', interests: [] })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects empty role', () => {
+    const result = UserProfileSchema.safeParse({ name: 'Scott', role: '', interests: [] })
+    expect(result.success).toBe(false)
+  })
 })
