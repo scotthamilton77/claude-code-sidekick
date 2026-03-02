@@ -1,12 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { join } from 'node:path'
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import type { Logger } from '@sidekick/types'
 import { loadUserProfile } from '../user-profile-loader'
 
 const TEST_HOME = join(process.cwd(), 'tmp-test-home')
 const SIDEKICK_DIR = join(TEST_HOME, '.sidekick')
 
-function createFakeLogger() {
+function createFakeLogger(): Logger {
   return {
     trace: () => {},
     debug: () => {},
