@@ -15,12 +15,11 @@ import { createPersonaLoader, getDefaultPersonasDir } from '@sidekick/core'
 import { interpolateTemplate } from './update-summary.js'
 import {
   buildPersonaContext,
-  buildUserProfileContext,
   getEffectiveProfile,
   loadSessionPersona,
+  loadUserProfileContext,
   stripSurroundingQuotes,
 } from './persona-utils.js'
-import { loadUserProfile } from '@sidekick/core'
 
 const SNARKY_PROMPT_FILE = 'prompts/snarky-message.prompt.txt'
 const RESUME_PROMPT_FILE = 'prompts/resume-message.prompt.txt'
@@ -127,7 +126,7 @@ export async function generateSnarkyMessageOnDemand(ctx: DaemonContext, sessionI
 
   // Build persona and user profile context for template interpolation
   const personaContext = buildPersonaContext(persona)
-  const userProfileContext = buildUserProfileContext(loadUserProfile({ logger: ctx.logger }))
+  const userProfileContext = loadUserProfileContext(ctx.logger)
 
   // Get profile configuration for snarky comment
   const featureConfig = ctx.config.getFeature<SessionSummaryConfig>('session-summary')
@@ -242,7 +241,7 @@ export async function generateResumeMessageOnDemand(ctx: DaemonContext, sessionI
 
   // Build persona and user profile context for template interpolation
   const personaContext = buildPersonaContext(persona)
-  const userProfileContext = buildUserProfileContext(loadUserProfile({ logger: ctx.logger }))
+  const userProfileContext = loadUserProfileContext(ctx.logger)
 
   // Get profile configuration for resume message
   const featureConfig = ctx.config.getFeature<SessionSummaryConfig>('session-summary')

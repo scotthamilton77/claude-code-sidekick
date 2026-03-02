@@ -6,7 +6,7 @@
  */
 
 import type { DaemonContext, PersonaDefinition, UserProfile } from '@sidekick/types'
-import { createPersonaLoader, getDefaultPersonasDir } from '@sidekick/core'
+import { createPersonaLoader, getDefaultPersonasDir, loadUserProfile } from '@sidekick/core'
 import { createSessionSummaryState, type SessionSummaryStateAccessors } from '../state.js'
 import type { LlmSubFeatureConfig, SessionSummaryConfig } from '../types.js'
 import { DEFAULT_SESSION_SUMMARY_CONFIG } from '../types.js'
@@ -54,6 +54,14 @@ export function buildUserProfileContext(profile: UserProfile | null): UserProfil
     user_role: profile.role,
     user_interests: profile.interests.join(', '),
   }
+}
+
+/**
+ * Load user profile from disk and build template context.
+ * Convenience wrapper combining loadUserProfile + buildUserProfileContext.
+ */
+export function loadUserProfileContext(logger: DaemonContext['logger']): UserProfileTemplateContext {
+  return buildUserProfileContext(loadUserProfile({ logger }))
 }
 
 /**
