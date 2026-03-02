@@ -23,6 +23,7 @@ Configure sidekick by first running diagnostics, then executing setup with appro
 - User wants to adjust reminders or other features
 - User wants to modify prompt templates
 - User asks about sidekick configuration options
+- User wants to set up or update their user profile (name, role, interests)
 
 ## Setup Workflow (Initial Configuration)
 
@@ -242,6 +243,22 @@ Copy and customize:
 ```bash
 cp assets/sidekick/prompts/snarky-message.prompt.txt .sidekick/assets/prompts/
 # Then edit .sidekick/assets/prompts/snarky-message.prompt.txt
+```
+
+### Configure User Profile
+
+The user profile is stored at `~/.sidekick/user.yaml`. Run setup to configure:
+```bash
+npx @scotthamilton77/sidekick setup
+```
+Follow the Step 8 prompt for user profile details. Or create the file manually:
+```yaml
+# ~/.sidekick/user.yaml
+name: "Your Name"
+role: "Your Role"
+interests:
+  - "Interest 1"
+  - "Interest 2"
 ```
 
 ### Generate Reminders from CLAUDE.md
