@@ -1,0 +1,5 @@
+{"author":"Scott Hamilton","created_at":"2026-02-15T14:59:01Z","id":1,"issue_id":"sidekick-7r8g","text":"Manual testing found 3 bugs: gitignore not preserved on disable (j9o), daemon not killed on disable (esu), SKILL.md transform regex broken (qyv)"}
+{"author":"Scott Hamilton","created_at":"2026-02-15T14:59:01Z","id":2,"issue_id":"sidekick-8hnn","text":"Manual testing found --dry-run executes real uninstall (ggq), preventing safe scope verification"}
+{"author":"Scott Hamilton","created_at":"2026-02-15T14:59:01Z","id":3,"issue_id":"sidekick-993d","text":"Manual testing found --check flag rejected by CLI arg parser (6zh)"}
+{"author":"Scott Hamilton","created_at":"2026-01-24T12:15:53Z","id":4,"issue_id":"sidekick-i1b","text":"Full session ID for testing: f759532d-2924-4001-9ce8-84bd8f875384"}
+{"author":"Scott Hamilton","created_at":"2026-02-15T14:59:01Z","id":5,"issue_id":"sidekick-xg58","text":"Manual testing found dry-run bug (ggq) prevents safe verification of dev-mode preservation behavior"}
