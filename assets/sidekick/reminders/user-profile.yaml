@@ -7,5 +7,5 @@ priority: 4
 persistent: true
 
 additionalContext: |
-  This session is with {{user_name}}{{#if user_role}} ({{user_role}}){{/if}}.
-  {{#if user_interests}}Interests: {{user_interests}}.{{/if}}
+  This session is with {{user_name}} ({{user_role}}).
+  Interests: {{user_interests}}.

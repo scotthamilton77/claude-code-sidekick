@@ -22,9 +22,14 @@ export function escapeYamlString(value: string): string {
 }
 
 export function serializeProfileYaml(profile: { name: string; role: string; interests: string[] }): string {
-  const lines = [`name: "${escapeYamlString(profile.name)}"`, `role: "${escapeYamlString(profile.role)}"`, 'interests:']
-  for (const interest of profile.interests) {
-    lines.push(`  - "${escapeYamlString(interest)}"`)
+  const lines = [`name: "${escapeYamlString(profile.name)}"`, `role: "${escapeYamlString(profile.role)}"`]
+  if (profile.interests.length === 0) {
+    lines.push('interests: []')
+  } else {
+    lines.push('interests:')
+    for (const interest of profile.interests) {
+      lines.push(`  - "${escapeYamlString(interest)}"`)
+    }
   }
   return lines.join('\n') + '\n'
 }
@@ -65,7 +70,7 @@ export async function runUserProfileStep(ctx: PromptContext, homeDir: string): P
     .map((s) => s.trim())
     .filter(Boolean)
 
-  const profile = { name: name.trim(), role: role.trim(), interests }
+  const profile = { name: name.trim(), role: role.trim() || 'User', interests }
 
   const sidekickDir = path.join(homeDir, '.sidekick')
   await fs.mkdir(sidekickDir, { recursive: true })

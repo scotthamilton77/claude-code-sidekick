@@ -911,7 +911,9 @@ function hasScriptingFlags(options: SetupCommandOptions): boolean {
     options.apiKeyScope !== undefined ||
     options.autoConfig !== undefined ||
     options.alias !== undefined ||
-    options.userProfileName !== undefined
+    options.userProfileName !== undefined ||
+    options.userProfileRole !== undefined ||
+    options.userProfileInterests !== undefined
   )
 }
 
@@ -1092,24 +1094,31 @@ async function runScripted(
     }
   }
 
-  // 7. Configure user profile if name specified
-  if (options.userProfileName) {
-    const profile = {
-      name: options.userProfileName,
-      role: options.userProfileRole ?? '',
-      interests: options.userProfileInterests
-        ? options.userProfileInterests
-            .split(',')
-            .map((s) => s.trim())
-            .filter(Boolean)
-        : [],
+  // 7. Configure user profile if any profile flags specified
+  const hasProfileFlags = options.userProfileName || options.userProfileRole || options.userProfileInterests
+  if (hasProfileFlags) {
+    if (!options.userProfileName) {
+      stdout.write('⚠ --user-profile-name is required when using user profile flags\n')
+    } else if (!options.userProfileRole) {
+      stdout.write('⚠ --user-profile-role is required when --user-profile-name is provided\n')
+    } else {
+      const profile = {
+        name: options.userProfileName,
+        role: options.userProfileRole,
+        interests: options.userProfileInterests
+          ? options.userProfileInterests
+              .split(',')
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : [],
+      }
+      const sidekickDir = path.join(homeDir, '.sidekick')
+      await fs.mkdir(sidekickDir, { recursive: true })
+      const filePath = path.join(sidekickDir, 'user.yaml')
+      await fs.writeFile(filePath, serializeProfileYaml(profile), 'utf-8')
+      stdout.write(`✓ User profile saved to ${filePath}\n`)
+      configuredCount++
     }
-    const sidekickDir = path.join(homeDir, '.sidekick')
-    await fs.mkdir(sidekickDir, { recursive: true })
-    const filePath = path.join(sidekickDir, 'user.yaml')
-    await fs.writeFile(filePath, serializeProfileYaml(profile), 'utf-8')
-    stdout.write(`✓ User profile saved to ${filePath}\n`)
-    configuredCount++
   }
 
   // Write project setup-status.json so hooks know this project is configured
