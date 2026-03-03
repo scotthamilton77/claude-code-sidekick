@@ -106,7 +106,9 @@ settings:
     # Example: { avasarala: "creative-long", skippy: "fast-lite" }
     llmProfiles: {}
     # Per-persona selection weights: personaId → weight number
-    # Default weight = 1 for any persona not listed. Weight 0 = excluded from selection.
+    # Default weight = 1 for any persona not listed.
+    # Non-positive (0 or negative), non-finite (NaN, Infinity), or non-numeric values = excluded.
+    # String values are coerced via Number() (e.g. "5" → 5).
     # Applied AFTER allowList/blockList filtering.
     # Example: { darth-vader: 100, emperor: 50 }
     weights: {}

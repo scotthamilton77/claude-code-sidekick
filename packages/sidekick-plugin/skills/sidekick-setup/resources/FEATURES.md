@@ -140,7 +140,7 @@ Controls session title, intent tracking, and persona-driven messages.
 | `bookmark.resetThreshold` | number | 0.7 | Confidence to reset bookmark |
 | `personas.allowList` | string | "" | Comma-separated allowed personas |
 | `personas.blockList` | string | "disabled" | Comma-separated excluded personas |
-| `personas.weights` | Record | {} | Per-persona selection weights (default 1, 0 = excluded) |
+| `personas.weights` | Record | {} | Per-persona selection weights (default 1, non-positive/non-finite = excluded) |
 | `personas.resumeFreshnessHours` | number | 4 | Max age for resume messages |
 
 ---

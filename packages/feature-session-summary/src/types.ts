@@ -78,8 +78,8 @@ export interface SessionSummaryConfig {
     defaultLlmProfile?: string
     /** Per-persona LLM profile overrides (personaId → profileId) */
     llmProfiles?: Record<string, string>
-    /** Per-persona selection weights (personaId → weight). Default weight = 1. Non-positive/non-finite = excluded. */
-    weights?: Record<string, number>
+    /** Per-persona selection weights (personaId → weight). Default weight = 1. Non-positive/non-finite = excluded. Values are coerced via Number() to handle YAML string inputs. */
+    weights?: Record<string, number | string>
   }
 }
 

@@ -320,7 +320,7 @@ describe('selectRandomPersona', () => {
     { label: 'NaN', weight: NaN },
     { label: 'Infinity', weight: Infinity },
     { label: '-Infinity', weight: -Infinity },
-    { label: 'non-numeric string', weight: 'not-a-number' as unknown as number },
+    { label: 'non-numeric string', weight: 'not-a-number' },
   ])('excludes persona with $label weight', ({ weight }) => {
     const personas = [createMockPersona('skippy'), createMockPersona('bones')]
     const weights = { skippy: weight, bones: 1 }
@@ -337,7 +337,7 @@ describe('selectRandomPersona', () => {
   it('coerces numeric string weights correctly', () => {
     const personas = [createMockPersona('skippy'), createMockPersona('bones')]
     // YAML might parse "5" as a string
-    const weights = { skippy: '5' as unknown as number, bones: 0 }
+    const weights = { skippy: '5', bones: 0 }
 
     const selectedIds = new Set<string>()
     for (let i = 0; i < 50; i++) {
