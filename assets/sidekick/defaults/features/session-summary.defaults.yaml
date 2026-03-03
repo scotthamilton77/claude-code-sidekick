@@ -77,6 +77,12 @@ settings:
   # Persona configuration for creative outputs (snarky messages, resume messages)
   # See docs/design/PERSONA-PROFILES-DESIGN.md
   personas:
+    # Pin a specific persona for all new sessions
+    # When set, this persona is used instead of random selection
+    # Can be set at project scope (.sidekick/) or user scope (~/.sidekick/)
+    # Project scope takes priority over user scope
+    # Empty string means no pin (random selection)
+    pinnedPersona: ""
     # Comma-separated allow-list of persona IDs (empty = all available personas)
     # Example: "sidekick,skippy,bones" to restrict selection to these three
     allowList: ""

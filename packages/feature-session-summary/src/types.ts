@@ -64,6 +64,8 @@ export interface SessionSummaryConfig {
   }
   /** Persona configuration for creative outputs */
   personas?: {
+    /** Pin a specific persona for all new sessions (empty = random selection) */
+    pinnedPersona?: string
     /** Comma-separated allow-list of persona IDs (empty = all available) */
     allowList: string
     /** Comma-separated block-list of persona IDs excluded from selection */
@@ -111,6 +113,7 @@ export const DEFAULT_SESSION_SUMMARY_CONFIG: SessionSummaryConfig = {
     resetThreshold: 0.7,
   },
   personas: {
+    pinnedPersona: '',
     allowList: '',
     blockList: 'disabled',
     resumeFreshnessHours: 4,
