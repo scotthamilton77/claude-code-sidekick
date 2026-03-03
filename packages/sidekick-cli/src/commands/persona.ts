@@ -431,10 +431,13 @@ Subcommands:
   list                          List available persona IDs
   set <persona-id>              Set session persona (requires --session-id)
   clear                         Clear session persona (requires --session-id)
+  pin <persona-id>              Pin persona for all new sessions
+  unpin                         Remove pinned persona
   test <persona-id>             Test persona voice (requires --session-id)
 
 Options:
   --session-id=<id>             Session ID for set/clear/test commands
+  --scope=<project|user>        Scope for pin/unpin (default: project)
   --type=snarky|resume          Message type for test command (default: snarky)
   --format=<format>             Output format: json (default) or table
   --width=<n>                   Table width in characters (default: 100)
@@ -442,7 +445,10 @@ Options:
 Examples:
   sidekick persona list
   sidekick persona list --format=table
-  sidekick persona list --format=table --width=120
+  sidekick persona pin darth-vader
+  sidekick persona pin darth-vader --scope=user
+  sidekick persona unpin
+  sidekick persona unpin --scope=user
   sidekick persona set marvin --session-id=abc123
   sidekick persona clear --session-id=abc123
   sidekick persona test skippy --session-id=abc123 --type=snarky
