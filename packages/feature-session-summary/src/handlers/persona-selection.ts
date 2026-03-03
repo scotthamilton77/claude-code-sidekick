@@ -155,6 +155,35 @@ export async function selectPersonaForSession(
     return null
   }
 
+  // Check for pinned persona (bypasses allowList/blockList/weights)
+  const pinnedPersona = personaConfig.pinnedPersona?.trim()
+  if (pinnedPersona) {
+    const pinned = allPersonas.get(pinnedPersona)
+    if (pinned) {
+      // Persist pinned persona as session selection
+      const personaState: SessionPersonaState = {
+        persona_id: pinned.id,
+        selected_from: [pinned.id],
+        timestamp: new Date().toISOString(),
+      }
+      const summaryState = createSessionSummaryState(ctx.stateService)
+      await summaryState.sessionPersona.write(sessionId, personaState)
+
+      ctx.logger.info('Using pinned persona for session', {
+        sessionId,
+        personaId: pinned.id,
+        personaName: pinned.display_name,
+      })
+      return pinned.id
+    }
+
+    ctx.logger.warn('Pinned persona not found, falling back to random selection', {
+      sessionId,
+      pinnedPersona,
+      availablePersonas: Array.from(allPersonas.keys()),
+    })
+  }
+
   // Parse and filter by allowList and blockList
   const allowList = parsePersonaList(personaConfig.allowList ?? '')
   const blockList = parsePersonaList(personaConfig.blockList ?? '')

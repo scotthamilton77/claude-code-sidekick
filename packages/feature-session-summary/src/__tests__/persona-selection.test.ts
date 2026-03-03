@@ -588,6 +588,95 @@ describe('selectPersonaForSession', () => {
     expect(result).toBeNull()
     expect(mockLogger.wasLoggedAtLevel('No eligible personas after applying weights', 'warn')).toBe(true)
   })
+
+  describe('pinned persona', () => {
+    it('uses pinned persona when it exists in discovered personas', async () => {
+      const personas = new Map<string, PersonaDefinition>()
+      personas.set('skippy', createMockPersona('skippy'))
+      personas.set('bones', createMockPersona('bones'))
+      personas.set('scotty', createMockPersona('scotty'))
+      setupMockLoader(personas)
+
+      const ctx = createMockDaemonContext({ logger: mockLogger, stateService: mockStateService })
+      const config = {
+        ...DEFAULT_SESSION_SUMMARY_CONFIG,
+        personas: { pinnedPersona: 'bones', allowList: '', blockList: '', resumeFreshnessHours: 4 },
+      }
+
+      // Run multiple times to verify it never selects randomly
+      for (let i = 0; i < 10; i++) {
+        const result = await selectPersonaForSession(`session-${i}`, config, ctx)
+        expect(result).toBe('bones')
+      }
+
+      expect(mockLogger.wasLoggedAtLevel('Using pinned persona for session', 'info')).toBe(true)
+    })
+
+    it('falls back to random when pinned persona is not found', async () => {
+      const personas = new Map<string, PersonaDefinition>()
+      personas.set('skippy', createMockPersona('skippy'))
+      setupMockLoader(personas)
+
+      const ctx = createMockDaemonContext({ logger: mockLogger, stateService: mockStateService })
+      const config = {
+        ...DEFAULT_SESSION_SUMMARY_CONFIG,
+        personas: { pinnedPersona: 'nonexistent', allowList: '', blockList: '', resumeFreshnessHours: 4 },
+      }
+
+      const result = await selectPersonaForSession('test-session', config, ctx)
+
+      // Should fall back to random (only skippy available)
+      expect(result).toBe('skippy')
+      expect(mockLogger.wasLoggedAtLevel('Pinned persona not found, falling back to random selection', 'warn')).toBe(
+        true
+      )
+    })
+
+    it('uses random selection when pinnedPersona is empty string', async () => {
+      const personas = new Map<string, PersonaDefinition>()
+      personas.set('skippy', createMockPersona('skippy'))
+      personas.set('bones', createMockPersona('bones'))
+      setupMockLoader(personas)
+
+      const ctx = createMockDaemonContext({ logger: mockLogger, stateService: mockStateService })
+      const config = {
+        ...DEFAULT_SESSION_SUMMARY_CONFIG,
+        personas: { pinnedPersona: '', allowList: '', blockList: '', resumeFreshnessHours: 4 },
+      }
+
+      // Should work like normal random selection
+      const results = new Set<string>()
+      for (let i = 0; i < 50; i++) {
+        const result = await selectPersonaForSession(`session-${i}`, config, ctx)
+        if (result) results.add(result)
+      }
+
+      expect(results.size).toBe(2) // Both should be selected eventually
+    })
+
+    it('pinned persona bypasses allowList and blockList', async () => {
+      const personas = new Map<string, PersonaDefinition>()
+      personas.set('skippy', createMockPersona('skippy'))
+      personas.set('bones', createMockPersona('bones'))
+      setupMockLoader(personas)
+
+      const ctx = createMockDaemonContext({ logger: mockLogger, stateService: mockStateService })
+      const config = {
+        ...DEFAULT_SESSION_SUMMARY_CONFIG,
+        personas: {
+          pinnedPersona: 'bones',
+          allowList: 'skippy', // bones NOT in allowList
+          blockList: 'bones', // bones IS in blockList
+          resumeFreshnessHours: 4,
+        },
+      }
+
+      const result = await selectPersonaForSession('test-session', config, ctx)
+
+      // Pin overrides allowList/blockList
+      expect(result).toBe('bones')
+    })
+  })
 })
 
 // ============================================================================
