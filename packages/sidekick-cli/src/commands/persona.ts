@@ -22,6 +22,8 @@ import {
   discoverPersonas,
   getDefaultPersonasDir,
   configSet,
+  configGet,
+  configUnset,
 } from '@sidekick/core'
 import type { SessionPersonaState } from '@sidekick/types'
 import { SessionPersonaStateSchema } from '@sidekick/types'
@@ -379,6 +381,47 @@ function handlePersonaPin(
 }
 
 /**
+ * Handle the persona unpin subcommand.
+ *
+ * Removes pinnedPersona config at the specified scope (default: project).
+ * Idempotent: succeeds even when no pin exists.
+ */
+function handlePersonaUnpin(
+  projectRoot: string,
+  logger: Logger,
+  stdout: Writable,
+  options: PersonaCommandOptions
+): PersonaCommandResult {
+  const scope = options.scope ?? 'project'
+
+  logger.info('Unpinning persona', { scope })
+
+  try {
+    // Read current pin value for response
+    const current = configGet('features.session-summary.personas.pinnedPersona', { scope, projectRoot })
+    const previousPersonaId = (current?.value as string) || null
+
+    configUnset('features.session-summary.personas.pinnedPersona', { scope, projectRoot })
+
+    logger.info('Persona unpinned', { scope, previousPersonaId })
+
+    return writeJsonResponse(
+      stdout,
+      {
+        success: true,
+        scope,
+        previousPersonaId,
+      },
+      0
+    )
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err)
+    logger.error('Failed to unpin persona', { error: errorMsg })
+    return writeJsonResponse(stdout, { success: false, error: errorMsg }, 1)
+  }
+}
+
+/**
  * Show usage help for the persona command.
  */
 function showPersonaHelp(stdout: Writable): PersonaCommandResult {
@@ -456,6 +499,9 @@ export async function handlePersonaCommand(
         return { exitCode: 1, output: error }
       }
       return handlePersonaPin(personaId, projectRoot, logger, stdout, options)
+
+    case 'unpin':
+      return handlePersonaUnpin(projectRoot, logger, stdout, options)
 
     case 'help':
     case '--help':

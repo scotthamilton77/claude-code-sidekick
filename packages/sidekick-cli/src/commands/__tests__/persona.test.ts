@@ -26,6 +26,7 @@ const {
   mockPersonaAccessorWrite,
   mockConfigSet,
   mockConfigGet,
+  mockConfigUnset,
 } = vi.hoisted(() => ({
   mockDaemonStart: vi.fn(),
   mockIpcSend: vi.fn(),
@@ -37,6 +38,7 @@ const {
   mockPersonaAccessorWrite: vi.fn(),
   mockConfigSet: vi.fn(),
   mockConfigGet: vi.fn(),
+  mockConfigUnset: vi.fn(),
 }))
 
 vi.mock('@sidekick/core', () => {
@@ -65,6 +67,7 @@ vi.mock('@sidekick/core', () => {
     getDefaultPersonasDir: mockGetDefaultPersonasDir,
     configSet: mockConfigSet,
     configGet: mockConfigGet,
+    configUnset: mockConfigUnset,
   }
 })
 
@@ -125,6 +128,12 @@ describe('handlePersonaCommand', () => {
       filePath: '/mock/.sidekick/features.yaml',
     })
     mockConfigGet.mockReturnValue(undefined)
+    mockConfigUnset.mockReturnValue({
+      domain: 'features',
+      path: ['session-summary', 'personas', 'pinnedPersona'],
+      filePath: '/mock/.sidekick/features.yaml',
+      existed: true,
+    })
   })
 
   describe('subcommand routing', () => {
@@ -486,6 +495,72 @@ describe('handlePersonaCommand', () => {
       const output = JSON.parse(stdout.data)
       expect(output.success).toBe(false)
       expect(output.error).toContain('Write failed')
+    })
+  })
+
+  describe('persona unpin', () => {
+    test('unpins persona from project scope by default', async () => {
+      mockConfigGet.mockReturnValueOnce({ value: 'marvin', domain: 'features', path: [] })
+
+      const result = await handlePersonaCommand('unpin', [], projectRoot, logger, stdout, {})
+
+      expect(result.exitCode).toBe(0)
+      expect(mockConfigUnset).toHaveBeenCalledWith(
+        'features.session-summary.personas.pinnedPersona',
+        expect.objectContaining({ scope: 'project', projectRoot })
+      )
+
+      const output = JSON.parse(stdout.data)
+      expect(output.success).toBe(true)
+      expect(output.scope).toBe('project')
+      expect(output.previousPersonaId).toBe('marvin')
+    })
+
+    test('unpins persona from user scope when specified', async () => {
+      mockConfigGet.mockReturnValueOnce({ value: 'skippy', domain: 'features', path: [] })
+
+      const result = await handlePersonaCommand('unpin', [], projectRoot, logger, stdout, { scope: 'user' })
+
+      expect(result.exitCode).toBe(0)
+      expect(mockConfigUnset).toHaveBeenCalledWith(
+        'features.session-summary.personas.pinnedPersona',
+        expect.objectContaining({ scope: 'user' })
+      )
+
+      const output = JSON.parse(stdout.data)
+      expect(output.scope).toBe('user')
+      expect(output.previousPersonaId).toBe('skippy')
+    })
+
+    test('succeeds idempotently when no pin exists', async () => {
+      mockConfigGet.mockReturnValueOnce(undefined)
+      mockConfigUnset.mockReturnValueOnce({
+        existed: false,
+        domain: 'features',
+        path: [],
+        filePath: '/mock/.sidekick/features.yaml',
+      })
+
+      const result = await handlePersonaCommand('unpin', [], projectRoot, logger, stdout, {})
+
+      expect(result.exitCode).toBe(0)
+      const output = JSON.parse(stdout.data)
+      expect(output.success).toBe(true)
+      expect(output.previousPersonaId).toBeNull()
+    })
+
+    test('handles configUnset failure', async () => {
+      mockConfigGet.mockReturnValueOnce({ value: 'marvin', domain: 'features', path: [] })
+      mockConfigUnset.mockImplementationOnce(() => {
+        throw new Error('Permission denied')
+      })
+
+      const result = await handlePersonaCommand('unpin', [], projectRoot, logger, stdout, {})
+
+      expect(result.exitCode).toBe(1)
+      const output = JSON.parse(stdout.data)
+      expect(output.success).toBe(false)
+      expect(output.error).toContain('Permission denied')
     })
   })
 })
