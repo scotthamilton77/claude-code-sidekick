@@ -143,7 +143,7 @@ pnpm sidekick config set features.session-summary.settings.personas.allowList "s
 
 ### Weight Persona Selection
 
-Control how often each persona is selected. Higher weight = more likely. Default weight is 1. Weight 0 excludes a persona (like blockList).
+Control how often each persona is selected. Higher weight = more likely. Default weight is 1. Non-positive or non-finite values exclude a persona (like blockList).
 
 ```bash
 pnpm sidekick config set features.session-summary.settings.personas.weights.darth-vader 100 --scope=user

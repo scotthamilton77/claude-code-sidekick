@@ -581,7 +581,7 @@ An empty `allowList` (default) means all personas are available.
 
 ### Weighting Persona Selection
 
-Control how often each persona is selected with `weights`. Higher weight = more likely. Default weight is 1 for any persona not listed. Weight 0 excludes a persona.
+Control how often each persona is selected with `weights`. Higher weight = more likely. Default weight is 1 for any persona not listed. Non-positive or non-finite values exclude a persona.
 
 ```yaml
 session-summary:

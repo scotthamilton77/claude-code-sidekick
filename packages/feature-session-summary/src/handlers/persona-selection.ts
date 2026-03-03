@@ -82,12 +82,12 @@ export function filterPersonas(
  * probability is proportional to each persona's weight. Unspecified weights default to 1.
  *
  * @param personas - Array of personas to select from
- * @param weights - Optional map of persona ID to selection weight (default 1, non-positive/non-finite = excluded)
+ * @param weights - Optional map of persona ID to selection weight (default 1, non-positive/non-finite = excluded). Values are coerced via Number() to handle YAML string inputs.
  * @returns Selected persona, or null if pool is empty or all weights are non-positive/non-finite
  */
 export function selectRandomPersona(
   personas: PersonaDefinition[],
-  weights?: Record<string, number>
+  weights?: Record<string, number | string>
 ): PersonaDefinition | null {
   if (personas.length === 0) {
     return null
