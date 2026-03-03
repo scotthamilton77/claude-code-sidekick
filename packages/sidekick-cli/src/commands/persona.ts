@@ -5,6 +5,8 @@
  *   - persona list              List available persona IDs
  *   - persona set <id>          Set session persona (requires --session-id)
  *   - persona clear             Clear session persona (requires --session-id)
+ *   - persona pin <id>          Pin persona for new sessions (--scope=project|user)
+ *   - persona unpin             Remove pinned persona (--scope=project|user)
  *   - persona test <id>         Test persona voice (requires --session-id)
  *
  * All commands support --format=json or --format=table for output.
