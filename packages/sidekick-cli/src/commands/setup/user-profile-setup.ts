@@ -56,14 +56,14 @@ export async function runUserProfileStep(ctx: PromptContext, homeDir: string): P
     }
   }
 
-  const name = await promptInput(ctx, 'Your name:')
+  const name = await promptInput(ctx, 'Your name')
   if (!name.trim()) {
     printStatus(ctx, 'info', 'Skipped user profile (no name provided)')
     return { configured: false }
   }
 
-  const role = await promptInput(ctx, 'Your role (e.g., Software Architect):')
-  const interestsRaw = await promptInput(ctx, 'Interests (comma-separated, e.g., Sci-Fi, hiking):')
+  const role = await promptInput(ctx, 'Your role (e.g., Software Architect)')
+  const interestsRaw = await promptInput(ctx, 'Interests (comma-separated, e.g., Sci-Fi, hiking)')
 
   const interests = interestsRaw
     .split(',')
