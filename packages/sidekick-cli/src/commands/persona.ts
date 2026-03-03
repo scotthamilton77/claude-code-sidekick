@@ -5,6 +5,8 @@
  *   - persona list              List available persona IDs
  *   - persona set <id>          Set session persona (requires --session-id)
  *   - persona clear             Clear session persona (requires --session-id)
+ *   - persona pin <id>          Pin persona for new sessions (--scope=project|user)
+ *   - persona unpin             Remove pinned persona (--scope=project|user)
  *   - persona test <id>         Test persona voice (requires --session-id)
  *
  * All commands support --format=json or --format=table for output.
@@ -21,7 +23,11 @@ import {
   sessionState,
   discoverPersonas,
   getDefaultPersonasDir,
+  configSet,
+  configGet,
+  configUnset,
 } from '@sidekick/core'
+import type { AssetResolver } from '@sidekick/core'
 import type { SessionPersonaState } from '@sidekick/types'
 import { SessionPersonaStateSchema } from '@sidekick/types'
 import { renderTable, renderEmptyTable } from './table.js'
@@ -43,6 +49,10 @@ export interface PersonaCommandOptions {
   testType?: 'snarky' | 'resume'
   /** Table width in characters (default: 100) */
   width?: number
+  /** Config scope for pin/unpin: project (default) or user */
+  scope?: 'project' | 'user'
+  /** Asset resolver for config validation */
+  assets?: AssetResolver
 }
 
 export interface PersonaCommandResult {
@@ -323,6 +333,110 @@ async function handlePersonaTest(
 }
 
 /**
+ * Handle the persona pin subcommand.
+ *
+ * Writes pinnedPersona config at the specified scope (default: project).
+ * Validates persona exists before writing.
+ */
+function handlePersonaPin(
+  personaId: string,
+  projectRoot: string,
+  logger: Logger,
+  stdout: Writable,
+  options: PersonaCommandOptions
+): PersonaCommandResult {
+  const scope = options.scope ?? 'project'
+
+  logger.info('Pinning persona', { personaId, scope })
+
+  // Validate persona exists
+  const personas = discoverPersonas({
+    defaultPersonasDir: getDefaultPersonasDir(),
+    projectRoot,
+    logger,
+  })
+
+  if (!personas.has(personaId)) {
+    const availableIds = Array.from(personas.keys()).join(', ')
+    const errorMsg = `Persona "${personaId}" not found. Available: ${availableIds}`
+    logger.error('Persona not found', { personaId, available: availableIds })
+    return writeJsonResponse(stdout, { success: false, error: errorMsg }, 1)
+  }
+
+  try {
+    const result = configSet('features.session-summary.settings.personas.pinnedPersona', personaId, {
+      scope,
+      projectRoot,
+      assets: options.assets,
+      logger,
+    })
+
+    logger.info('Persona pinned', { personaId, scope, filePath: result.filePath })
+
+    return writeJsonResponse(
+      stdout,
+      {
+        success: true,
+        personaId,
+        scope,
+        filePath: result.filePath,
+      },
+      0
+    )
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err)
+    logger.error('Failed to pin persona', { error: errorMsg })
+    return writeJsonResponse(stdout, { success: false, error: errorMsg }, 1)
+  }
+}
+
+/**
+ * Handle the persona unpin subcommand.
+ *
+ * Removes pinnedPersona config at the specified scope (default: project).
+ * Idempotent: succeeds even when no pin exists.
+ */
+function handlePersonaUnpin(
+  projectRoot: string,
+  logger: Logger,
+  stdout: Writable,
+  options: PersonaCommandOptions
+): PersonaCommandResult {
+  const scope = options.scope ?? 'project'
+
+  logger.info('Unpinning persona', { scope })
+
+  try {
+    // Read current pin value for response
+    const current = configGet('features.session-summary.settings.personas.pinnedPersona', {
+      scope,
+      projectRoot,
+      assets: options.assets,
+      logger,
+    })
+    const previousPersonaId = (current?.value as string) || null
+
+    configUnset('features.session-summary.settings.personas.pinnedPersona', { scope, projectRoot })
+
+    logger.info('Persona unpinned', { scope, previousPersonaId })
+
+    return writeJsonResponse(
+      stdout,
+      {
+        success: true,
+        scope,
+        previousPersonaId,
+      },
+      0
+    )
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err)
+    logger.error('Failed to unpin persona', { error: errorMsg })
+    return writeJsonResponse(stdout, { success: false, error: errorMsg }, 1)
+  }
+}
+
+/**
  * Show usage help for the persona command.
  */
 function showPersonaHelp(stdout: Writable): PersonaCommandResult {
@@ -332,10 +446,13 @@ Subcommands:
   list                          List available persona IDs
   set <persona-id>              Set session persona (requires --session-id)
   clear                         Clear session persona (requires --session-id)
+  pin <persona-id>              Pin persona for all new sessions
+  unpin                         Remove pinned persona
   test <persona-id>             Test persona voice (requires --session-id)
 
 Options:
   --session-id=<id>             Session ID for set/clear/test commands
+  --scope=<project|user>        Scope for pin/unpin (default: project)
   --type=snarky|resume          Message type for test command (default: snarky)
   --format=<format>             Output format: json (default) or table
   --width=<n>                   Table width in characters (default: 100)
@@ -343,7 +460,10 @@ Options:
 Examples:
   sidekick persona list
   sidekick persona list --format=table
-  sidekick persona list --format=table --width=120
+  sidekick persona pin darth-vader
+  sidekick persona pin darth-vader --scope=user
+  sidekick persona unpin
+  sidekick persona unpin --scope=user
   sidekick persona set marvin --session-id=abc123
   sidekick persona clear --session-id=abc123
   sidekick persona test skippy --session-id=abc123 --type=snarky
@@ -391,6 +511,18 @@ export async function handlePersonaCommand(
         return { exitCode: 1, output: error }
       }
       return handlePersonaTest(personaId, projectRoot, logger, stdout, options)
+
+    case 'pin':
+      if (!personaId) {
+        const error = 'Error: persona pin requires a persona ID'
+        stdout.write(error + '\n')
+        stdout.write('Usage: sidekick persona pin <persona-id> [--scope=project|user]\n')
+        return { exitCode: 1, output: error }
+      }
+      return handlePersonaPin(personaId, projectRoot, logger, stdout, options)
+
+    case 'unpin':
+      return handlePersonaUnpin(projectRoot, logger, stdout, options)
 
     case 'help':
     case '--help':

@@ -348,7 +348,7 @@ const GLOBAL_HELP_TEXT = `Usage: sidekick <command> [options]
 
 Commands:
   hook <hook-name>         Execute Claude Code hook (session-start, user-prompt-submit, etc.)
-  persona <subcommand>     Manage session personas (list, set, clear, test)
+  persona <subcommand>     Manage session personas (list, set, clear, pin, unpin, test)
   config <subcommand>      Manage configuration (get, set, unset, list)
   sessions                 List all daemon-tracked sessions
   daemon <subcommand>      Manage the background daemon (start, stop, status, kill)
@@ -547,6 +547,8 @@ Examples:
         format: parsed.format === 'json' || parsed.format === 'table' ? parsed.format : undefined,
         testType: parsed.messageType,
         width: parsed.width,
+        scope: parsed.scope === 'user' || parsed.scope === 'project' ? parsed.scope : undefined,
+        assets: runtime.assets,
       }
     )
     return { exitCode: result.exitCode, stdout: result.output, stderr: '' }
