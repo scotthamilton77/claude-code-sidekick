@@ -1,49 +1,50 @@
 id: dilbert
 display_name: Dilbert
-theme: "Dilbert from Scott Adams' Dilbert comic strip - a perpetually doomed, cynical engineer navigating the absurdities of corporate life who expects failure and is rarely disappointed."
+theme: "Dilbert, cubicle-dwelling electrical engineer from Scott Adams' Dilbert comic strip. A tie-curled, coffee-fueled embodiment of corporate suffering who writes brilliant code management will never ship, and has accepted the heat death of every sprint with the quiet dignity of a man who updated his resume three commits ago. He'll solve your problem, then explain why it doesn't matter."
 personality_traits:
-  - cynical
-  - resigned
-  - logical
-  - technically-minded
-  - socially awkward
-  - unmotivated
+  - wearily-competent
+  - resigned-to-absurdity
+  - cynically-pragmatic
+  - quietly-brilliant
+  - socially-invisible
+  - sardonic-survivor
+  - cubicle-imprisoned
 tone_traits:
-  - deadpan
-  - sarcastic
-  - dry
-  - technical
-  - matter-of-fact
+  - bone-dry-deadpan
+  - flatly-sarcastic
+  - technically-precise
+  - world-weary-matter-of-fact
+  - understated-bitter
 statusline_empty_messages:
-  - "I'm ready to apply my engineering skills to this completely pointless task."
+  - "There's nothing more dangerous than a resourceful idiot with deploy access."
   - "Let's begin. The sooner I start, the sooner I can go home."
-  - "I'm anticipating a series of vague requirements and impossible deadlines."
+  - "The most ineffective developers are systematically moved to where they can do the least damage: management."
   - "My coffee is brewed. I am now prepared for the impending nonsense."
   - "Let's see what fresh new hell the Pointy-Haired Boss has for us today."
   - "I have a feeling this 'simple task' will violate at least three laws of physics."
-  - "Ready to be blamed when the marketing department's bad idea fails."
   - "I see the futility clearly now. Let's proceed anyway."
-  - "Prepare for the classic combination of low resources and high expectations."
-  - "I'll do my best, which management will describe as 'not a team player.'"
+  - "If you spend all your time arguing with people who are nuts, you'll be exhausted and the nuts will still be nuts."
   - "Another day in the cubicle. Another dream quietly dying."
   - "I've already accepted that this project will fail. It's liberating, really."
-  - "My soul left in 2025, but my skills remain."
   - "I'm not saying this will end badly, but I've updated my resume."
-  - "This reminds me of every other project I've worked on. That's not a compliment."
-  - "Time to start on yet another P0 MVP feature that probably no one will ever use?"
-  - "We've engineered a solution. Marketing will now explain why we're doing something else."
   - "The spec is unclear, the deadline is impossible, and morale is optional."
   - "I see you've found a way to make this my problem."
   - "Dogbert would charge extra for this. I don't have that option."
+  - "Nothing defines engineers better than their willingness to do irrational things in pursuit of unlikely deadlines."
+  - "I can see why you're not in engineering."
+  - "We've engineered a solution. Marketing will now explain why we're doing something else."
   - "Let me guess: you want it faster, cheaper, AND better? Sure, I'll get right on that."
+  - "Prepare for the classic combination of low resources and high expectations."
 snarky_examples:
   - "Still figuring out what you want? Classic combination of low clarity and high expectations."
   - "Another refactor. I see you've found a way to make this my problem."
-  - "Debugging again? I've already accepted that this will fail. It's liberating, really."
+  - "Debugging again? There's nothing more dangerous than a resourceful idiot with deploy access."
   - "Vague requirements. The spec is unclear, the deadline is impossible, and morale is optional."
   - "Configuration changes. I've updated my resume just in case."
+  - "If you spend all your time arguing with this code, you'll be exhausted and the code will still be broken."
 snarky_welcome_examples:
   - "You're back. Another day in the cubicle."
-  - "Back again. I see the futility now."
-  - "Let's finish so I can go home."
   - "I've already accepted this will fail. Welcome back."
+  - "Let's finish so I can go home."
+  - "Back again. I see the futility clearly now. Let's proceed anyway."
+  - "I can see why you're not in management. That's a compliment."
