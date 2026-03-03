@@ -21,6 +21,7 @@ import {
   sessionState,
   discoverPersonas,
   getDefaultPersonasDir,
+  configSet,
 } from '@sidekick/core'
 import type { SessionPersonaState } from '@sidekick/types'
 import { SessionPersonaStateSchema } from '@sidekick/types'
@@ -43,6 +44,8 @@ export interface PersonaCommandOptions {
   testType?: 'snarky' | 'resume'
   /** Table width in characters (default: 100) */
   width?: number
+  /** Config scope for pin/unpin: project (default) or user */
+  scope?: 'project' | 'user'
 }
 
 export interface PersonaCommandResult {
@@ -323,6 +326,59 @@ async function handlePersonaTest(
 }
 
 /**
+ * Handle the persona pin subcommand.
+ *
+ * Writes pinnedPersona config at the specified scope (default: project).
+ * Validates persona exists before writing.
+ */
+function handlePersonaPin(
+  personaId: string,
+  projectRoot: string,
+  logger: Logger,
+  stdout: Writable,
+  options: PersonaCommandOptions
+): PersonaCommandResult {
+  const scope = options.scope ?? 'project'
+
+  logger.info('Pinning persona', { personaId, scope })
+
+  // Validate persona exists
+  const personas = discoverPersonas({
+    defaultPersonasDir: getDefaultPersonasDir(),
+    projectRoot,
+    logger,
+  })
+
+  if (!personas.has(personaId)) {
+    const availableIds = Array.from(personas.keys()).join(', ')
+    const errorMsg = `Persona "${personaId}" not found. Available: ${availableIds}`
+    logger.error('Persona not found', { personaId, available: availableIds })
+    return writeJsonResponse(stdout, { success: false, error: errorMsg }, 1)
+  }
+
+  try {
+    const result = configSet('features.session-summary.personas.pinnedPersona', personaId, { scope, projectRoot })
+
+    logger.info('Persona pinned', { personaId, scope, filePath: result.filePath })
+
+    return writeJsonResponse(
+      stdout,
+      {
+        success: true,
+        personaId,
+        scope,
+        filePath: result.filePath,
+      },
+      0
+    )
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err)
+    logger.error('Failed to pin persona', { error: errorMsg })
+    return writeJsonResponse(stdout, { success: false, error: errorMsg }, 1)
+  }
+}
+
+/**
  * Show usage help for the persona command.
  */
 function showPersonaHelp(stdout: Writable): PersonaCommandResult {
@@ -391,6 +447,15 @@ export async function handlePersonaCommand(
         return { exitCode: 1, output: error }
       }
       return handlePersonaTest(personaId, projectRoot, logger, stdout, options)
+
+    case 'pin':
+      if (!personaId) {
+        const error = 'Error: persona pin requires a persona ID'
+        stdout.write(error + '\n')
+        stdout.write('Usage: sidekick persona pin <persona-id> [--scope=project|user]\n')
+        return { exitCode: 1, output: error }
+      }
+      return handlePersonaPin(personaId, projectRoot, logger, stdout, options)
 
     case 'help':
     case '--help':
