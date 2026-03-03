@@ -25,6 +25,7 @@ import {
   configGet,
   configUnset,
 } from '@sidekick/core'
+import type { AssetResolver } from '@sidekick/core'
 import type { SessionPersonaState } from '@sidekick/types'
 import { SessionPersonaStateSchema } from '@sidekick/types'
 import { renderTable, renderEmptyTable } from './table.js'
@@ -48,6 +49,8 @@ export interface PersonaCommandOptions {
   width?: number
   /** Config scope for pin/unpin: project (default) or user */
   scope?: 'project' | 'user'
+  /** Asset resolver for config validation */
+  assets?: AssetResolver
 }
 
 export interface PersonaCommandResult {
@@ -359,7 +362,12 @@ function handlePersonaPin(
   }
 
   try {
-    const result = configSet('features.session-summary.personas.pinnedPersona', personaId, { scope, projectRoot })
+    const result = configSet('features.session-summary.settings.personas.pinnedPersona', personaId, {
+      scope,
+      projectRoot,
+      assets: options.assets,
+      logger,
+    })
 
     logger.info('Persona pinned', { personaId, scope, filePath: result.filePath })
 
@@ -398,10 +406,15 @@ function handlePersonaUnpin(
 
   try {
     // Read current pin value for response
-    const current = configGet('features.session-summary.personas.pinnedPersona', { scope, projectRoot })
+    const current = configGet('features.session-summary.settings.personas.pinnedPersona', {
+      scope,
+      projectRoot,
+      assets: options.assets,
+      logger,
+    })
     const previousPersonaId = (current?.value as string) || null
 
-    configUnset('features.session-summary.personas.pinnedPersona', { scope, projectRoot })
+    configUnset('features.session-summary.settings.personas.pinnedPersona', { scope, projectRoot })
 
     logger.info('Persona unpinned', { scope, previousPersonaId })
 

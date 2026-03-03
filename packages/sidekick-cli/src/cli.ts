@@ -548,6 +548,7 @@ Examples:
         testType: parsed.messageType,
         width: parsed.width,
         scope: parsed.scope === 'user' || parsed.scope === 'project' ? parsed.scope : undefined,
+        assets: runtime.assets,
       }
     )
     return { exitCode: result.exitCode, stdout: result.output, stderr: '' }

@@ -448,7 +448,7 @@ describe('handlePersonaCommand', () => {
 
       expect(result.exitCode).toBe(0)
       expect(mockConfigSet).toHaveBeenCalledWith(
-        'features.session-summary.personas.pinnedPersona',
+        'features.session-summary.settings.personas.pinnedPersona',
         'marvin',
         expect.objectContaining({ scope: 'project', projectRoot })
       )
@@ -464,7 +464,7 @@ describe('handlePersonaCommand', () => {
 
       expect(result.exitCode).toBe(0)
       expect(mockConfigSet).toHaveBeenCalledWith(
-        'features.session-summary.personas.pinnedPersona',
+        'features.session-summary.settings.personas.pinnedPersona',
         'marvin',
         expect.objectContaining({ scope: 'user' })
       )
@@ -506,7 +506,7 @@ describe('handlePersonaCommand', () => {
 
       expect(result.exitCode).toBe(0)
       expect(mockConfigUnset).toHaveBeenCalledWith(
-        'features.session-summary.personas.pinnedPersona',
+        'features.session-summary.settings.personas.pinnedPersona',
         expect.objectContaining({ scope: 'project', projectRoot })
       )
 
@@ -523,7 +523,7 @@ describe('handlePersonaCommand', () => {
 
       expect(result.exitCode).toBe(0)
       expect(mockConfigUnset).toHaveBeenCalledWith(
-        'features.session-summary.personas.pinnedPersona',
+        'features.session-summary.settings.personas.pinnedPersona',
         expect.objectContaining({ scope: 'user' })
       )
 
