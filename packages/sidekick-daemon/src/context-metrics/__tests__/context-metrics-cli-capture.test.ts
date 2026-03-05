@@ -1,14 +1,13 @@
 /**
  * Tests for ContextMetricsService CLI Capture Methods
  *
- * These tests cover the private captureBaseMetrics() and readContextOutputFromTranscript()
- * methods by mocking the external CLI dependency.
+ * These tests cover the private captureBaseMetrics() method
+ * by mocking the external CLI dependency.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
-import { homedir } from 'node:os'
 import { MockLogger } from '@sidekick/testing-fixtures'
 import { StateService } from '@sidekick/core'
 import { ContextMetricsService } from '../context-metrics-service.js'
@@ -208,67 +207,26 @@ describe('ContextMetricsService CLI Capture', () => {
     })
   })
 
-  // Integration tests that exercise the full capture flow
-  // These require INTEGRATION_TESTS=1 and write to ~/.claude/projects/
-  describe.skipIf(!process.env.INTEGRATION_TESTS)('captureBaseMetrics() integration', () => {
-    const TEMP_CAPTURE_DIR = '/tmp/sidekick/context-capture'
+  // Integration tests that exercise the full stdout capture flow
+  describe.skipIf(!process.env.INTEGRATION_TESTS)('captureBaseMetrics() stdout capture', () => {
+    it('should capture metrics from CLI stdout with visual format', async () => {
+      const contextStdout = ` Context Usage
+⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁   claude-opus-4-6 · 63k/200k tokens (32%)
 
-    beforeEach(async () => {
-      // Clean up temp capture dir
-      try {
-        await fs.rm(TEMP_CAPTURE_DIR, { recursive: true, force: true })
-      } catch {
-        // Ignore
-      }
-    })
+  System prompt: 3.6k tokens (1.8%)
+  System tools: 18.9k tokens (9.5%)
+  MCP tools: 1.1k tokens (0.5%)
+  Custom agents: 319 tokens (0.2%)
+  Memory files: 5.5k tokens (2.8%)
+  Skills: 2k tokens (1.0%)
+  Messages: 32.2k tokens (16.1%)
+  Free space: 103k (51.7%)
+  Autocompact buffer: 33k tokens (16.5%)`
 
-    afterEach(async () => {
-      // Clean up temp capture dir and transcript files
-      try {
-        await fs.rm(TEMP_CAPTURE_DIR, { recursive: true, force: true })
-      } catch {
-        // Ignore
-      }
-    })
-
-    it('should handle CLI spawn and process transcript output', async () => {
-      // Create the temp capture directory that captureBaseMetrics expects
-      await fs.mkdir(TEMP_CAPTURE_DIR, { recursive: true })
-      const resolvedTempDir = await fs.realpath(TEMP_CAPTURE_DIR)
-      const encodedPath = resolvedTempDir.replace(/\//g, '-').replace(/^-/, '-')
-      const transcriptDir = path.join(homedir(), '.claude', 'projects', encodedPath)
-
-      // Mock will create transcript file when called
-      mockedSpawnClaudeCli.mockImplementation(async (opts) => {
-        const args = opts.args ?? []
-        const sessionIdIndex = args.indexOf('--session-id')
-        if (sessionIdIndex !== -1) {
-          const mockSessionId = args[sessionIdIndex + 1]
-          await fs.mkdir(transcriptDir, { recursive: true })
-
-          const contextOutput = `<local-command-stdout>## Context Usage
-
-**Model:** claude-opus-4-5-20251101
-**Tokens:** 63.0k / 200.0k (32%)
-
-### Categories
-
-| Category | Tokens | Percentage |
-|----------|--------|------------|
-| System prompt | 2.9k | 1.4% |
-| System tools | 15.1k | 7.6% |
-| MCP tools | 1.2k | 0.6% |
-| Custom agents | 300 | 0.2% |
-| Memory files | 1.5k | 0.8% |
-| Autocompact buffer | 45.0k | 22.5% |
-</local-command-stdout>`
-
-          const transcriptEntry = JSON.stringify({
-            message: { content: contextOutput },
-          })
-          await fs.writeFile(path.join(transcriptDir, `${mockSessionId}.jsonl`), transcriptEntry)
-        }
-        return { exitCode: 0, stdout: '', stderr: '' }
+      mockedSpawnClaudeCli.mockResolvedValue({
+        exitCode: 0,
+        stdout: contextStdout,
+        stderr: '',
       })
 
       const service = new ContextMetricsService({
@@ -280,30 +238,51 @@ describe('ContextMetricsService CLI Capture', () => {
       })
 
       await service.initialize()
+      await new Promise((r) => setTimeout(r, 500))
 
-      // Wait for async capture to complete
-      await new Promise((r) => setTimeout(r, 1000))
-
-      // Should have captured successfully
       expect(logger.wasLogged('Base metrics captured successfully')).toBe(true)
 
-      // Verify metrics were written
       const metrics = await service.readBaseMetrics()
       expect(metrics.capturedFrom).toBe('context_command')
-      expect(metrics.systemPromptTokens).toBe(2900)
-
-      // Clean up transcript dir
-      try {
-        await fs.rm(transcriptDir, { recursive: true, force: true })
-      } catch {
-        // Ignore
-      }
+      expect(metrics.systemPromptTokens).toBe(3600)
+      expect(metrics.systemToolsTokens).toBe(18900)
+      expect(metrics.autocompactBufferTokens).toBe(33000)
     })
 
-    it('should handle missing transcript file', async () => {
-      await fs.mkdir(TEMP_CAPTURE_DIR, { recursive: true })
+    it('should capture metrics from CLI stdout with ANSI escape codes', async () => {
+      const ansiStdout = `\x1b[1mContext Usage\x1b[22m
+\x1b[38;2;102;102;102mclaude-opus-4-6 · 25k/200k tokens (13%)\x1b[39m
+\x1b[38;2;153;153;153m⛁\x1b[39m System prompt: \x1b[38;2;102;102;102m3.2k tokens (1.6%)\x1b[39m
+\x1b[38;2;102;102;102m⛁\x1b[39m System tools: \x1b[38;2;102;102;102m17.9k tokens (9.0%)\x1b[39m
+\x1b[38;2;102;102;102m⛝\x1b[39m Autocompact buffer: \x1b[38;2;102;102;102m45.0k tokens (22.5%)\x1b[39m`
 
-      // Mock returns success but doesn't create transcript file
+      mockedSpawnClaudeCli.mockResolvedValue({
+        exitCode: 0,
+        stdout: ansiStdout,
+        stderr: '',
+      })
+
+      const service = new ContextMetricsService({
+        projectDir,
+        logger,
+        projectStateService,
+        userStateService,
+        skipCliCapture: false,
+      })
+
+      await service.initialize()
+      await new Promise((r) => setTimeout(r, 500))
+
+      expect(logger.wasLogged('Base metrics captured successfully')).toBe(true)
+
+      const metrics = await service.readBaseMetrics()
+      expect(metrics.capturedFrom).toBe('context_command')
+      expect(metrics.systemPromptTokens).toBe(3200)
+      expect(metrics.systemToolsTokens).toBe(17900)
+      expect(metrics.autocompactBufferTokens).toBe(45000)
+    })
+
+    it('should record error when stdout is empty', async () => {
       mockedSpawnClaudeCli.mockResolvedValue({
         exitCode: 0,
         stdout: '',
@@ -319,34 +298,16 @@ describe('ContextMetricsService CLI Capture', () => {
       })
 
       await service.initialize()
-      await new Promise((r) => setTimeout(r, 1000))
+      await new Promise((r) => setTimeout(r, 500))
 
-      // Should have logged error about missing transcript
-      expect(
-        logger.wasLoggedAtLevel('Transcript file not found', 'warn') ||
-          logger.wasLoggedAtLevel('Failed to extract /context output from transcript', 'warn')
-      ).toBe(true)
+      expect(logger.wasLoggedAtLevel('CLI stdout was empty', 'warn')).toBe(true)
     })
 
-    it('should handle transcript with no context output', async () => {
-      await fs.mkdir(TEMP_CAPTURE_DIR, { recursive: true })
-      const resolvedTempDir = await fs.realpath(TEMP_CAPTURE_DIR)
-      const encodedPath = resolvedTempDir.replace(/\//g, '-').replace(/^-/, '-')
-      const transcriptDir = path.join(homedir(), '.claude', 'projects', encodedPath)
-
-      mockedSpawnClaudeCli.mockImplementation(async (opts) => {
-        const args = opts.args ?? []
-        const sessionIdIndex = args.indexOf('--session-id')
-        if (sessionIdIndex !== -1) {
-          const mockSessionId = args[sessionIdIndex + 1]
-          await fs.mkdir(transcriptDir, { recursive: true })
-          // Write transcript without context output
-          const transcriptEntry = JSON.stringify({
-            message: { content: 'Just a regular message without context' },
-          })
-          await fs.writeFile(path.join(transcriptDir, `${mockSessionId}.jsonl`), transcriptEntry)
-        }
-        return { exitCode: 0, stdout: '', stderr: '' }
+    it('should record error when stdout is not /context output', async () => {
+      mockedSpawnClaudeCli.mockResolvedValue({
+        exitCode: 0,
+        stdout: 'Some random CLI output that is not /context',
+        stderr: '',
       })
 
       const service = new ContextMetricsService({
@@ -358,39 +319,20 @@ describe('ContextMetricsService CLI Capture', () => {
       })
 
       await service.initialize()
-      await new Promise((r) => setTimeout(r, 1000))
+      await new Promise((r) => setTimeout(r, 500))
 
-      expect(logger.wasLoggedAtLevel('No /context output found in transcript', 'warn')).toBe(true)
-
-      try {
-        await fs.rm(transcriptDir, { recursive: true, force: true })
-      } catch {
-        // Ignore
-      }
+      expect(logger.wasLoggedAtLevel('CLI stdout does not appear to be /context output', 'warn')).toBe(true)
     })
 
-    it('should handle transcript with invalid context table', async () => {
-      await fs.mkdir(TEMP_CAPTURE_DIR, { recursive: true })
-      const resolvedTempDir = await fs.realpath(TEMP_CAPTURE_DIR)
-      const encodedPath = resolvedTempDir.replace(/\//g, '-').replace(/^-/, '-')
-      const transcriptDir = path.join(homedir(), '.claude', 'projects', encodedPath)
+    it('should record error when stdout has context markers but unparseable table', async () => {
+      const badStdout = `Context Usage
+System prompt: not-a-number tokens
+System tools: also-not-a-number tokens`
 
-      mockedSpawnClaudeCli.mockImplementation(async (opts) => {
-        const args = opts.args ?? []
-        const sessionIdIndex = args.indexOf('--session-id')
-        if (sessionIdIndex !== -1) {
-          const mockSessionId = args[sessionIdIndex + 1]
-          await fs.mkdir(transcriptDir, { recursive: true })
-          // Has local-command-stdout but invalid table
-          const invalidContextOutput = `<local-command-stdout>## Context Usage
-Not a valid table format - missing required rows
-</local-command-stdout>`
-          const transcriptEntry = JSON.stringify({
-            message: { content: invalidContextOutput },
-          })
-          await fs.writeFile(path.join(transcriptDir, `${mockSessionId}.jsonl`), transcriptEntry)
-        }
-        return { exitCode: 0, stdout: '', stderr: '' }
+      mockedSpawnClaudeCli.mockResolvedValue({
+        exitCode: 0,
+        stdout: badStdout,
+        stderr: '',
       })
 
       const service = new ContextMetricsService({
@@ -402,23 +344,15 @@ Not a valid table format - missing required rows
       })
 
       await service.initialize()
-      await new Promise((r) => setTimeout(r, 1000))
+      await new Promise((r) => setTimeout(r, 500))
 
-      expect(
-        logger.wasLoggedAtLevel('Transcript content does not appear to be /context output', 'warn') ||
-          logger.wasLoggedAtLevel('Failed to parse /context table output', 'warn')
-      ).toBe(true)
-
-      try {
-        await fs.rm(transcriptDir, { recursive: true, force: true })
-      } catch {
-        // Ignore
-      }
+      const hasError =
+        logger.wasLoggedAtLevel('CLI stdout does not appear to be /context output', 'warn') ||
+        logger.wasLoggedAtLevel('Failed to parse /context table from CLI stdout', 'warn')
+      expect(hasError).toBe(true)
     })
 
     it('should handle CLI spawn error', async () => {
-      await fs.mkdir(TEMP_CAPTURE_DIR, { recursive: true })
-
       mockedSpawnClaudeCli.mockRejectedValue(new Error('CLI spawn failed'))
 
       const service = new ContextMetricsService({
@@ -433,45 +367,6 @@ Not a valid table format - missing required rows
       await new Promise((r) => setTimeout(r, 500))
 
       expect(logger.wasLoggedAtLevel('CLI capture failed', 'warn')).toBe(true)
-    })
-
-    it('should handle unparseable JSON lines in transcript', async () => {
-      await fs.mkdir(TEMP_CAPTURE_DIR, { recursive: true })
-      const resolvedTempDir = await fs.realpath(TEMP_CAPTURE_DIR)
-      const encodedPath = resolvedTempDir.replace(/\//g, '-').replace(/^-/, '-')
-      const transcriptDir = path.join(homedir(), '.claude', 'projects', encodedPath)
-
-      mockedSpawnClaudeCli.mockImplementation(async (opts) => {
-        const args = opts.args ?? []
-        const sessionIdIndex = args.indexOf('--session-id')
-        if (sessionIdIndex !== -1) {
-          const mockSessionId = args[sessionIdIndex + 1]
-          await fs.mkdir(transcriptDir, { recursive: true })
-          // Write invalid JSON
-          await fs.writeFile(path.join(transcriptDir, `${mockSessionId}.jsonl`), 'not valid json\nalso invalid\n')
-        }
-        return { exitCode: 0, stdout: '', stderr: '' }
-      })
-
-      const service = new ContextMetricsService({
-        projectDir,
-        logger,
-        projectStateService,
-        userStateService,
-        skipCliCapture: false,
-      })
-
-      await service.initialize()
-      await new Promise((r) => setTimeout(r, 1000))
-
-      // Should gracefully handle and log no context found
-      expect(logger.wasLoggedAtLevel('No /context output found in transcript', 'warn')).toBe(true)
-
-      try {
-        await fs.rm(transcriptDir, { recursive: true, force: true })
-      } catch {
-        // Ignore
-      }
     })
   })
 })
