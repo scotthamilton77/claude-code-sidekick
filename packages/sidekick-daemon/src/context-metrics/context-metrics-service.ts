@@ -243,8 +243,6 @@ export class ContextMetricsService {
         stderrLength: result.stderr.length,
       })
 
-      // Parse /context output directly from stdout
-      // Wrap in <local-command-stdout> tags so existing parser pipeline works
       const stdout = result.stdout.trim()
 
       if (!stdout) {

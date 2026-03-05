@@ -209,6 +209,20 @@ describe('ContextMetricsService CLI Capture', () => {
 
   // Integration tests that exercise the full stdout capture flow
   describe.skipIf(!process.env.INTEGRATION_TESTS)('captureBaseMetrics() stdout capture', () => {
+    /** Create a service with CLI capture enabled and wait for async capture to settle. */
+    async function initializeWithCapture(): Promise<ContextMetricsService> {
+      const service = new ContextMetricsService({
+        projectDir,
+        logger,
+        projectStateService,
+        userStateService,
+        skipCliCapture: false,
+      })
+      await service.initialize()
+      await new Promise((r) => setTimeout(r, 500))
+      return service
+    }
+
     it('should capture metrics from CLI stdout with visual format', async () => {
       const contextStdout = ` Context Usage
 ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁   claude-opus-4-6 · 63k/200k tokens (32%)
@@ -229,16 +243,7 @@ describe('ContextMetricsService CLI Capture', () => {
         stderr: '',
       })
 
-      const service = new ContextMetricsService({
-        projectDir,
-        logger,
-        projectStateService,
-        userStateService,
-        skipCliCapture: false,
-      })
-
-      await service.initialize()
-      await new Promise((r) => setTimeout(r, 500))
+      const service = await initializeWithCapture()
 
       expect(logger.wasLogged('Base metrics captured successfully')).toBe(true)
 
@@ -262,16 +267,7 @@ describe('ContextMetricsService CLI Capture', () => {
         stderr: '',
       })
 
-      const service = new ContextMetricsService({
-        projectDir,
-        logger,
-        projectStateService,
-        userStateService,
-        skipCliCapture: false,
-      })
-
-      await service.initialize()
-      await new Promise((r) => setTimeout(r, 500))
+      const service = await initializeWithCapture()
 
       expect(logger.wasLogged('Base metrics captured successfully')).toBe(true)
 
@@ -289,18 +285,9 @@ describe('ContextMetricsService CLI Capture', () => {
         stderr: '',
       })
 
-      const service = new ContextMetricsService({
-        projectDir,
-        logger,
-        projectStateService,
-        userStateService,
-        skipCliCapture: false,
-      })
+      await initializeWithCapture()
 
-      await service.initialize()
-      await new Promise((r) => setTimeout(r, 500))
-
-      expect(logger.wasLoggedAtLevel('CLI stdout was empty', 'warn')).toBe(true)
+      expect(logger.wasLoggedAtLevel('CLI stdout was empty \u2014 /context produced no output', 'warn')).toBe(true)
     })
 
     it('should record error when stdout is not /context output', async () => {
@@ -310,16 +297,7 @@ describe('ContextMetricsService CLI Capture', () => {
         stderr: '',
       })
 
-      const service = new ContextMetricsService({
-        projectDir,
-        logger,
-        projectStateService,
-        userStateService,
-        skipCliCapture: false,
-      })
-
-      await service.initialize()
-      await new Promise((r) => setTimeout(r, 500))
+      await initializeWithCapture()
 
       expect(logger.wasLoggedAtLevel('CLI stdout does not appear to be /context output', 'warn')).toBe(true)
     })
@@ -335,16 +313,7 @@ System tools: also-not-a-number tokens`
         stderr: '',
       })
 
-      const service = new ContextMetricsService({
-        projectDir,
-        logger,
-        projectStateService,
-        userStateService,
-        skipCliCapture: false,
-      })
-
-      await service.initialize()
-      await new Promise((r) => setTimeout(r, 500))
+      await initializeWithCapture()
 
       const hasError =
         logger.wasLoggedAtLevel('CLI stdout does not appear to be /context output', 'warn') ||
@@ -355,16 +324,7 @@ System tools: also-not-a-number tokens`
     it('should handle CLI spawn error', async () => {
       mockedSpawnClaudeCli.mockRejectedValue(new Error('CLI spawn failed'))
 
-      const service = new ContextMetricsService({
-        projectDir,
-        logger,
-        projectStateService,
-        userStateService,
-        skipCliCapture: false,
-      })
-
-      await service.initialize()
-      await new Promise((r) => setTimeout(r, 500))
+      await initializeWithCapture()
 
       expect(logger.wasLoggedAtLevel('CLI capture failed', 'warn')).toBe(true)
     })
