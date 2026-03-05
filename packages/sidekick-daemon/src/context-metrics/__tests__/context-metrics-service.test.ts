@@ -4,8 +4,8 @@
  * Tests initialization, metrics read/write, event handling, and computed values.
  * CLI capture is skipped via skipCliCapture flag.
  *
- * NOTE: CLI capture methods (captureBaseMetrics, readContextOutputFromTranscript)
- * are integration-test territory - they spawn external CLI and read from ~/.claude/.
+ * NOTE: CLI capture (captureBaseMetrics) is integration-test territory -
+ * it spawns an external CLI process.
  * Run with INTEGRATION_TESTS=1 outside sandbox for full coverage.
  */
 
