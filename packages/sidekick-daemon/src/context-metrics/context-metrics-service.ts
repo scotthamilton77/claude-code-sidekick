@@ -9,7 +9,6 @@
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { homedir } from 'node:os'
 import type { Logger, HandlerRegistry, TranscriptEvent } from '@sidekick/core'
 import { isTranscriptEvent } from '@sidekick/core'
 import type { MinimalStateService } from '@sidekick/types'
@@ -206,9 +205,8 @@ export class ContextMetricsService {
    * Capture base metrics by running `claude -p "/context"`.
    * This is an expensive operation that spawns a new Claude session.
    *
-   * IMPORTANT: The Claude CLI does NOT output to stdout. Instead, it writes
-   * all output to a transcript file at ~/.claude/projects/{encoded-cwd}/{session-id}.jsonl.
-   * We must read the transcript file after the CLI exits to get the /context output.
+   * Parses /context output directly from CLI stdout, wrapping it in
+   * <local-command-stdout> tags so the existing parser pipeline works.
    */
   private async captureBaseMetrics(): Promise<void> {
     const sessionId = randomUUID()
@@ -234,7 +232,7 @@ export class ContextMetricsService {
         args,
         cwd: tempDir,
         timeout: CLI_CAPTURE_TIMEOUT_MS,
-        maxRetries: 1, // Limited retries for capture (not critical path)
+        maxRetries: 1,
         logger: this.logger,
         providerId: 'context-metrics',
       })
@@ -245,65 +243,58 @@ export class ContextMetricsService {
         stderrLength: result.stderr.length,
       })
 
-      // Read the /context output from the transcript file
-      // CLI writes to: ~/.claude/projects/{encoded-cwd}/{session-id}.jsonl
-      const output = await this.readContextOutputFromTranscript(tempDir, sessionId)
+      // Parse /context output directly from stdout
+      // Wrap in <local-command-stdout> tags so existing parser pipeline works
+      const stdout = result.stdout.trim()
 
-      if (!output) {
-        const errorMessage = 'Failed to extract /context output from transcript'
-        this.logger.warn(errorMessage, { sessionId, tempDir })
+      if (!stdout) {
+        const errorMessage = 'CLI stdout was empty — /context produced no output'
+        this.logger.warn(errorMessage, { sessionId })
         await this.recordCaptureError(errorMessage)
         return
       }
 
-      this.logger.debug('Extracted /context output from transcript', {
-        outputLength: output.length,
-        outputPreview: output.slice(0, 200),
-      })
+      const wrappedOutput = `<local-command-stdout>${stdout}</local-command-stdout>`
 
-      // Parse the output
-      if (isContextCommandOutput(output)) {
-        const parsed = parseContextTable(output)
-        if (parsed) {
-          const metrics: BaseTokenMetricsState = {
-            systemPromptTokens: parsed.systemPrompt,
-            systemToolsTokens: parsed.systemTools,
-            autocompactBufferTokens: parsed.autocompactBuffer,
-            capturedAt: Date.now(),
-            capturedFrom: 'context_command',
-            sessionId,
-            // Clear error state on success
-            lastErrorAt: null,
-            lastErrorMessage: null,
-          }
-
-          await this.writeBaseMetrics(metrics)
-          this.logger.info('Base metrics captured successfully', {
-            systemPromptTokens: metrics.systemPromptTokens,
-            systemToolsTokens: metrics.systemToolsTokens,
-            autocompactBufferTokens: metrics.autocompactBufferTokens,
-            sessionId,
-          })
-          return
-        } else {
-          const errorMessage = 'Failed to parse /context table output'
-          this.logger.warn(errorMessage, {
-            outputLength: output.length,
-            outputPreview: output.slice(0, 500),
-          })
-          await this.recordCaptureError(errorMessage)
-        }
-      } else {
-        const errorMessage = 'Transcript content does not appear to be /context output'
+      if (!isContextCommandOutput(wrappedOutput)) {
+        const errorMessage = 'CLI stdout does not appear to be /context output'
         this.logger.warn(errorMessage, {
-          outputLength: output.length,
-          outputPreview: output.slice(0, 500),
-          hasLocalCommandTag: output.includes('<local-command-stdout>'),
-          hasSystemPrompt: output.includes('System prompt'),
-          hasSystemTools: output.includes('System tools'),
+          stdoutLength: stdout.length,
+          stdoutPreview: stdout.slice(0, 500),
         })
         await this.recordCaptureError(errorMessage)
+        return
       }
+
+      const parsed = parseContextTable(wrappedOutput)
+      if (!parsed) {
+        const errorMessage = 'Failed to parse /context table from CLI stdout'
+        this.logger.warn(errorMessage, {
+          stdoutLength: stdout.length,
+          stdoutPreview: stdout.slice(0, 500),
+        })
+        await this.recordCaptureError(errorMessage)
+        return
+      }
+
+      const metrics: BaseTokenMetricsState = {
+        systemPromptTokens: parsed.systemPrompt,
+        systemToolsTokens: parsed.systemTools,
+        autocompactBufferTokens: parsed.autocompactBuffer,
+        capturedAt: Date.now(),
+        capturedFrom: 'context_command',
+        sessionId,
+        lastErrorAt: null,
+        lastErrorMessage: null,
+      }
+
+      await this.writeBaseMetrics(metrics)
+      this.logger.info('Base metrics captured successfully', {
+        systemPromptTokens: metrics.systemPromptTokens,
+        systemToolsTokens: metrics.systemToolsTokens,
+        autocompactBufferTokens: metrics.autocompactBufferTokens,
+        sessionId,
+      })
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err)
       this.logger.warn('CLI capture failed', {
@@ -311,68 +302,6 @@ export class ContextMetricsService {
         stack: err instanceof Error ? err.stack : undefined,
       })
       await this.recordCaptureError(errorMessage)
-    }
-  }
-
-  /**
-   * Read the /context output from the transcript file.
-   *
-   * Claude CLI writes output to: ~/.claude/projects/{encoded-cwd}/{session-id}.jsonl
-   * where encoded-cwd replaces / with - (e.g., /tmp/foo → -tmp-foo)
-   *
-   * @returns The content containing <local-command-stdout>, or null if not found
-   */
-  private async readContextOutputFromTranscript(cwd: string, sessionId: string): Promise<string | null> {
-    try {
-      // Resolve symlinks (macOS /tmp → /private/tmp)
-      const resolvedCwd = await fs.realpath(cwd)
-
-      // Encode the cwd path: /private/tmp/foo → -private-tmp-foo
-      const encodedPath = resolvedCwd.replace(/\//g, '-').replace(/^-/, '-')
-
-      // Build transcript path
-      const transcriptPath = path.join(homedir(), '.claude', 'projects', encodedPath, `${sessionId}.jsonl`)
-
-      this.logger.debug('Reading transcript file', { transcriptPath })
-
-      // Wait a moment for file system to sync
-      await new Promise((resolve) => setTimeout(resolve, 100))
-
-      // Check if file exists
-      try {
-        await fs.access(transcriptPath)
-      } catch {
-        this.logger.warn('Transcript file not found', { transcriptPath })
-        return null
-      }
-
-      // Read and parse the transcript
-      const content = await fs.readFile(transcriptPath, 'utf-8')
-      const lines = content.trim().split('\n').filter(Boolean)
-
-      // Find the line with <local-command-stdout> containing /context output
-      for (const line of lines) {
-        try {
-          const entry = JSON.parse(line) as { message?: { content?: string } }
-          const messageContent = entry.message?.content
-          if (typeof messageContent === 'string' && messageContent.includes('<local-command-stdout>')) {
-            return messageContent
-          }
-        } catch {
-          // Skip unparseable lines
-        }
-      }
-
-      this.logger.warn('No /context output found in transcript', {
-        transcriptPath,
-        lineCount: lines.length,
-      })
-      return null
-    } catch (err) {
-      this.logger.warn('Failed to read transcript file', {
-        error: err instanceof Error ? err.message : String(err),
-      })
-      return null
     }
   }
 
