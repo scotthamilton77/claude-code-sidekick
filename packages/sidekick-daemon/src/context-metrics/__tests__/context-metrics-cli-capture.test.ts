@@ -208,8 +208,8 @@ describe('ContextMetricsService CLI Capture', () => {
   })
 
   // Integration tests that exercise the full stdout capture flow
-  describe.skipIf(!process.env.INTEGRATION_TESTS)('captureBaseMetrics() stdout capture', () => {
-    /** Create a service with CLI capture enabled and wait for async capture to settle. */
+  describe('captureBaseMetrics() stdout capture', () => {
+    /** Create a service with CLI capture enabled and poll until async capture settles. */
     async function initializeWithCapture(): Promise<ContextMetricsService> {
       const service = new ContextMetricsService({
         projectDir,
@@ -219,7 +219,18 @@ describe('ContextMetricsService CLI Capture', () => {
         skipCliCapture: false,
       })
       await service.initialize()
-      await new Promise((r) => setTimeout(r, 500))
+      // Poll for capture completion instead of fixed sleep
+      const deadline = Date.now() + 5_000
+      while (Date.now() < deadline) {
+        const hasResult =
+          logger.wasLogged('Base metrics captured successfully') ||
+          logger.wasLoggedAtLevel('CLI stdout was empty \u2014 /context produced no output', 'warn') ||
+          logger.wasLoggedAtLevel('CLI stdout does not appear to be /context output', 'warn') ||
+          logger.wasLoggedAtLevel('Failed to parse /context table from CLI stdout', 'warn') ||
+          logger.wasLoggedAtLevel('CLI capture failed', 'warn')
+        if (hasResult) break
+        await new Promise((r) => setTimeout(r, 10))
+      }
       return service
     }
 

@@ -257,6 +257,7 @@ export class ContextMetricsService {
       if (!isContextCommandOutput(wrappedOutput)) {
         const errorMessage = 'CLI stdout does not appear to be /context output'
         this.logger.warn(errorMessage, {
+          sessionId,
           stdoutLength: stdout.length,
           stdoutPreview: stdout.slice(0, 500),
         })
@@ -268,6 +269,7 @@ export class ContextMetricsService {
       if (!parsed) {
         const errorMessage = 'Failed to parse /context table from CLI stdout'
         this.logger.warn(errorMessage, {
+          sessionId,
           stdoutLength: stdout.length,
           stdoutPreview: stdout.slice(0, 500),
         })
