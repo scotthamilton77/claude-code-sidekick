@@ -216,7 +216,7 @@ See docs/DEVELOPER-GUIDE.md "Distribution and Publishing" section for full instr
   4a. **PUSH TO REMOTE** - This is MANDATORY:
     ```bash
     git pull --rebase
-    bd sync
+    bd dolt push
     git push
     git status  # MUST show "up to date with origin"
     ```
@@ -323,7 +323,7 @@ For more details, see README.md and docs/QUICKSTART.md.
 4. **PUSH TO REMOTE** - This is MANDATORY:
    ```bash
    git pull --rebase
-   bd sync
+   bd dolt push
    git push
    git status  # MUST show "up to date with origin"
    ```

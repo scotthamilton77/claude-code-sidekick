@@ -10,14 +10,14 @@
 ```
 [ ] 1. git status              (check what changed)
 [ ] 2. git add <files>         (stage code changes)
-[ ] 3. bd sync                 (commit beads changes)
+[ ] 3. bd dolt push             (push beads changes)
 ```
 
 ## Core Rules
 - Track strategic work in beads (multi-session, dependencies, discovered work)
 - Use `bd create` for issues, TodoWrite for simple single-session execution
 - When in doubt, prefer bd—persistence you don't need beats lost context
-- Git workflow: hooks auto-sync, run `bd sync` at session end
+- Git workflow: hooks auto-sync, run `bd dolt push` at session end
 - Session management: check `bd ready` for available work
 
 ## Essential Commands
@@ -46,8 +46,8 @@
 - `bd show <id>` - See what's blocking/blocked by this issue
 
 ### Sync & Collaboration
-- `bd sync` - Sync with git remote (run at session end)
-- `bd sync --status` - Check sync status without syncing
+- `bd dolt push` - Push beads changes to remote (run at session end)
+- `bd dolt pull` - Pull beads changes from remote
 
 ### Project Health
 - `bd stats` - Project statistics (open/closed/blocked counts)
@@ -65,7 +65,7 @@ bd update <id> --status=in_progress  # Claim it
 **Completing work:**
 ```bash
 bd close <id1> <id2> ...    # Close all completed issues at once
-bd sync                     # Push to remote
+bd dolt push                # Push to remote
 ```
 
 **Creating dependent work:**
