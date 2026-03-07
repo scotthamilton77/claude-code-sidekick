@@ -23,8 +23,10 @@ function t(offsetMinutes: number): number {
   return baseTime + offsetMinutes * 60_000
 }
 
-function ledOff(confidence: 'red' | 'amber' | 'green' = 'green'): LEDState {
-  return { vcBuild: false, vcTypecheck: false, vcTest: false, vcLint: false, verifyCompletion: false, pauseAndReflect: false, titleConfidence: confidence }
+const CONFIDENCE_PCT: Record<string, number> = { red: 25, amber: 55, green: 85 }
+
+function ledOff(confidence: 'red' | 'amber' | 'green' = 'green', pct?: number): LEDState {
+  return { vcBuild: false, vcTypecheck: false, vcTest: false, vcLint: false, verifyCompletion: false, pauseAndReflect: false, titleConfidence: confidence, titleConfidencePct: pct ?? CONFIDENCE_PCT[confidence] }
 }
 
 function ledWith(overrides: Partial<LEDState>, base: LEDState = ledOff()): LEDState {

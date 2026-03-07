@@ -14,7 +14,7 @@ interface TranscriptProps {
 
 const DEFAULT_LED: LEDState = {
   vcBuild: false, vcTypecheck: false, vcTest: false, vcLint: false,
-  verifyCompletion: false, pauseAndReflect: false, titleConfidence: 'green',
+  verifyCompletion: false, pauseAndReflect: false, titleConfidence: 'green', titleConfidencePct: 85,
 }
 
 export function Transcript({ lines, ledStates, scrollToLineId }: TranscriptProps) {

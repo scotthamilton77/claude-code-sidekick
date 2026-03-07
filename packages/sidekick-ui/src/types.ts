@@ -109,6 +109,7 @@ export interface LEDState {
   verifyCompletion: boolean
   pauseAndReflect: boolean
   titleConfidence: 'red' | 'amber' | 'green'
+  titleConfidencePct: number
 }
 
 // ============================================================================
