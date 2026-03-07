@@ -2,76 +2,30 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Ensure full height */
-html,
-body,
-#root {
-    height: 100%;
-    margin: 0;
-    padding: 0;
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #f1f5f9; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* Dark mode scrollbar */
+.dark ::-webkit-scrollbar-track { background: #1e293b; }
+.dark ::-webkit-scrollbar-thumb { background: #475569; }
+.dark ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+/* Rotated text for compressed panels — reads bottom-to-top */
+.text-vertical {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  white-space: nowrap;
 }
 
-::-webkit-scrollbar-track {
-    background: #f1f5f9;
-}
-
-::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
-}
-
-/* Custom range slider for timeline */
-.timeline-slider {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 100%;
-    height: 100%;
-    background: transparent;
-    cursor: pointer;
-    writing-mode: vertical-lr;
-    /* direction: rtl was causing inverted behavior - top should be min, bottom max */
-}
-
-.timeline-slider::-webkit-slider-runnable-track {
-    width: 4px;
-    height: 100%;
-    background: transparent;
-}
-
-.timeline-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 16px;
-    height: 16px;
-    background: white;
-    border: 2px solid #6366f1;
-    border-radius: 50%;
-    cursor: grab;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-    margin-left: -6px;
-}
-
-.timeline-slider::-webkit-slider-thumb:hover {
-    background: #eef2ff;
-    transform: scale(1.1);
-}
-
-.timeline-slider::-moz-range-thumb {
-    width: 16px;
-    height: 16px;
-    background: white;
-    border: 2px solid #6366f1;
-    border-radius: 50%;
-    cursor: grab;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+/* Panel transition */
+.panel-transition {
+  transition: flex-basis 200ms ease-out, width 200ms ease-out, opacity 150ms ease-out;
 }
