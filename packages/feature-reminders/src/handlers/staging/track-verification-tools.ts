@@ -19,6 +19,7 @@ import type {
 } from '@sidekick/types'
 import { isDaemonContext, isTranscriptEvent } from '@sidekick/types'
 import picomatch from 'picomatch'
+import { findMatchingPattern } from '../../tool-pattern-matcher.js'
 import { resolveReminder, stageReminder } from '../../reminder-utils.js'
 import {
   ReminderIds,
@@ -168,19 +169,28 @@ async function handleBashCommand(
 
     const reminderId = TOOL_REMINDER_MAP[toolName]
     if (!reminderId) continue
-    if (!toolConfig.patterns.some((pattern) => command.includes(pattern))) continue
+    const match = findMatchingPattern(command, toolConfig.patterns)
+    if (!match) continue
 
     toolsState[toolName] = {
       status: 'verified',
       editsSinceVerified: 0,
       lastVerifiedAt: Date.now(),
       lastStagedAt: toolsState[toolName]?.lastStagedAt ?? null,
+      lastMatchedToolId: match.tool_id,
+      lastMatchedScope: match.scope,
     }
 
     await daemonCtx.staging.deleteReminder('Stop', reminderId)
     anyUnstaged = true
 
-    daemonCtx.logger.debug('VC tool verified', { toolName, reminderId, command: command.slice(0, 100) })
+    daemonCtx.logger.debug('VC tool verified', {
+      toolName,
+      reminderId,
+      matchedToolId: match.tool_id,
+      matchedScope: match.scope,
+      command: command.slice(0, 100),
+    })
   }
 
   if (anyUnstaged) {

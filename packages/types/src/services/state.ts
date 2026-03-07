@@ -340,6 +340,10 @@ export const VerificationToolStatusSchema = z.object({
   lastVerifiedAt: z.number().nullable(),
   /** Unix timestamp (ms) when last staged, null if never */
   lastStagedAt: z.number().nullable(),
+  /** tool_id of the pattern that last matched (metadata for future scope-aware logic) */
+  lastMatchedToolId: z.string().nullable().optional(),
+  /** Scope of the last matched pattern */
+  lastMatchedScope: z.enum(['project', 'package', 'file']).nullable().optional(),
 })
 
 export type VerificationToolStatusState = z.infer<typeof VerificationToolStatusSchema>

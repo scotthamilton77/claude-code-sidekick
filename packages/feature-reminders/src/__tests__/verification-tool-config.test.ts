@@ -1,11 +1,53 @@
 import { describe, it, expect } from 'vitest'
-import { VerificationToolConfigSchema, DEFAULT_VERIFICATION_TOOLS } from '../types.js'
+import { ToolPatternSchema, VerificationToolConfigSchema, DEFAULT_VERIFICATION_TOOLS } from '../types.js'
+
+describe('ToolPatternSchema', () => {
+  it('validates a complete tool pattern', () => {
+    const result = ToolPatternSchema.safeParse({
+      tool_id: 'pnpm-build',
+      tool: 'pnpm build',
+      scope: 'project',
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('defaults scope to project', () => {
+    const result = ToolPatternSchema.parse({
+      tool_id: 'tsc',
+      tool: 'tsc',
+    })
+    expect(result.scope).toBe('project')
+  })
+
+  it('accepts null tool (disabled pattern)', () => {
+    const result = ToolPatternSchema.safeParse({
+      tool_id: 'esbuild',
+      tool: null,
+      scope: 'file',
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects missing tool_id', () => {
+    const result = ToolPatternSchema.safeParse({ tool: 'pnpm build' })
+    expect(result.success).toBe(false)
+  })
+
+  it('validates scope enum', () => {
+    const result = ToolPatternSchema.safeParse({
+      tool_id: 'x',
+      tool: 'x',
+      scope: 'invalid',
+    })
+    expect(result.success).toBe(false)
+  })
+})
 
 describe('VerificationToolConfig', () => {
   it('validates a well-formed tool config', () => {
     const config = {
       enabled: true,
-      patterns: ['pnpm build'],
+      patterns: [{ tool_id: 'pnpm-build', tool: 'pnpm build', scope: 'project' }],
       clearing_threshold: 3,
       clearing_patterns: ['**/*.ts'],
     }
@@ -32,7 +74,7 @@ describe('VerificationToolConfig', () => {
   it('rejects non-positive clearing_threshold', () => {
     const config = {
       enabled: true,
-      patterns: ['pnpm build'],
+      patterns: [{ tool_id: 'x', tool: 'x', scope: 'project' }],
       clearing_threshold: 0,
       clearing_patterns: ['**/*.ts'],
     }
