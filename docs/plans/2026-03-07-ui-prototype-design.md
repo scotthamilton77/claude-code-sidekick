@@ -26,12 +26,14 @@ Dashboard compresses to timeline-rail-only view with rotated label. Detail panel
 
 ### Compression Behavior
 
-- Compressed panels show rotated 90-degree CCW text (read bottom-to-top) with the current context (project/session or session/event).
-- Each panel has a collapse/expand chevron in its title bar.
+- Compressed panels collapse to ~32-40px width showing rotated 90-degree CCW text (read bottom-to-top).
+- Compressed label format: `"Project A / Auth Bug Investigation"` (session selector) or `"Auth Bug Investigation — 10:02 AM"` (dashboard).
+- Each panel has a collapse/expand chevron **in its title/header bar** (not floating on borders).
 - Expanding a panel compresses its rightward neighbor(s).
 - Collapsing a panel expands its leftward neighbor.
-- Clicking the compressed panel's rotated text also re-expands it.
+- Clicking the compressed panel's rotated text also re-expands it (same as clicking the expand chevron).
 - Transition: CSS `transition` on `width`/`flex-basis` (~200ms ease-out).
+- Panel content is reactive to width — compressed panels show only the rotated label; expanded panels render full content.
 
 ### Detail Panel Navigation
 
@@ -129,7 +131,11 @@ App
 - Confidence values varying across sessions to test visualization
 - At least one session with a compaction boundary
 
-## 7. Open Questions to Resolve via Prototype
+## 7. Prior Implementation
+
+The previous UI implementation is archived at `packages/sidekick-ui/.archive/` for reference. It contains working examples of event adapters, log parsers, state inspection, and replay engine — all wired to real data. The architecture has changed, but individual utilities may be worth consulting.
+
+## 8. Open Questions to Resolve via Prototype
 
 These are intentionally left as experiments:
 
