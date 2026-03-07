@@ -1,70 +1,135 @@
-// Event types displayed on the timeline
-export type EventType =
-  | 'session-start'
+// ============================================================================
+// Sidekick Event Types (16 types — what Sidekick itself did)
+// ============================================================================
+
+export type SidekickEventType =
+  | 'reminder-staged'
+  | 'reminder-unstaged'
+  | 'reminder-consumed'
+  | 'decision'
+  | 'session-summary-start'
+  | 'session-summary-finish'
+  | 'session-title-changed'
+  | 'intent-changed'
+  | 'snarky-message-start'
+  | 'snarky-message-finish'
+  | 'resume-message-start'
+  | 'resume-message-finish'
+  | 'persona-selected'
+  | 'persona-changed'
+  | 'statusline-rendered'
+  | 'log-error'
+
+// ============================================================================
+// Transcript Line Types (conversation + Sidekick events inline)
+// ============================================================================
+
+export type TranscriptLineType =
   | 'user-message'
   | 'assistant-message'
   | 'tool-use'
-  | 'hook-execution'
-  | 'decision'
-  | 'state-change'
-  | 'reminder'
+  | 'tool-result'
   | 'compaction'
-  | 'persona-change'
-  | 'llm-call'
-  | 'error'
-  | 'statusline-call'
+  | SidekickEventType
 
-// A single event on the timeline
-export interface TimelineEvent {
+// A single line in the transcript
+export interface TranscriptLine {
   id: string
   timestamp: number
-  type: EventType
-  label: string
+  type: TranscriptLineType
   content?: string
-  // Tool events
+
+  // assistant-message
+  thinking?: string
+
+  // tool-use
   toolName?: string
   toolInput?: Record<string, unknown>
-  toolResult?: Record<string, unknown>
   toolDurationMs?: number
-  // State/summary events
-  confidence?: number
-  stateSnapshot?: Record<string, unknown>
-  previousSnapshot?: Record<string, unknown>
-  // Reminder events
-  reminderAction?: 'staged' | 'consumed' | 'cleared'
-  reminderHook?: string
-  reminderBlocking?: boolean
-  reminderPriority?: number
-  // Decision events
-  decisionCategory?: 'summary' | 'reminder' | 'context-prune' | 'handler'
-  decisionReasoning?: string
-  decisionImpact?: string
-  // LLM call events
-  llmModel?: string
-  llmTokensIn?: number
-  llmTokensOut?: number
-  llmCostUsd?: number
-  llmLatencyMs?: number
-  // Persona change events
-  personaFrom?: string
-  personaTo?: string
-  // Compaction events
+
+  // tool-result
+  toolOutput?: string
+  toolSuccess?: boolean
+
+  // compaction
   compactionSegment?: number
   compactionTokensBefore?: number
   compactionTokensAfter?: number
-  // Hook execution events
-  hookName?: string
-  hookDurationMs?: number
-  hookSuccess?: boolean
-  hookOutput?: string
-  // Error events
+
+  // reminder-staged / reminder-unstaged / reminder-consumed
+  reminderId?: string
+  reminderBlocking?: boolean
+
+  // decision
+  decisionCategory?: string
+  decisionReasoning?: string
+
+  // session-title-changed / intent-changed
+  previousValue?: string
+  newValue?: string
+  confidence?: number
+
+  // persona-selected / persona-changed
+  personaFrom?: string
+  personaTo?: string
+
+  // statusline-rendered
+  statuslineContent?: string
+
+  // log-error
   errorMessage?: string
   errorStack?: string
-  // Statusline events
-  statuslineContent?: string
+
+  // snarky-message-finish / resume-message-finish
+  generatedMessage?: string
 }
 
-// Session metadata
+// ============================================================================
+// Sidekick Event (timeline-only, references transcript line)
+// ============================================================================
+
+export interface SidekickEvent {
+  id: string
+  timestamp: number
+  type: SidekickEventType
+  label: string
+  detail?: string
+  transcriptLineId: string // for scroll-sync
+}
+
+// ============================================================================
+// LED State (blocking reminder indicators per transcript line)
+// ============================================================================
+
+export interface LEDState {
+  vcBuild: boolean
+  vcTypecheck: boolean
+  vcTest: boolean
+  vcLint: boolean
+  verifyCompletion: boolean
+  pauseAndReflect: boolean
+  titleConfidence: 'red' | 'amber' | 'green'
+}
+
+// ============================================================================
+// State Snapshot (Sidekick state files at a point in time)
+// ============================================================================
+
+export interface StateSnapshot {
+  timestamp: number
+  sessionSummary?: Record<string, unknown>
+  sessionPersona?: Record<string, unknown>
+  snarkyMessage?: Record<string, unknown>
+  resumeMessage?: Record<string, unknown>
+  transcriptMetrics?: Record<string, unknown>
+  llmMetrics?: Record<string, unknown>
+  summaryCountdown?: Record<string, unknown>
+}
+
+// ============================================================================
+// Session & Project
+// ============================================================================
+
 export interface Session {
   id: string
   title: string
@@ -80,58 +145,67 @@ export interface Session {
   taskQueueCount?: number
   contextWindowPct?: number
   status: 'active' | 'completed'
-  events: TimelineEvent[]
+  transcriptLines: TranscriptLine[]
+  sidekickEvents: SidekickEvent[]
+  ledStates: Map<string, LEDState> // keyed by transcript line ID
+  stateSnapshots: StateSnapshot[]
 }
 
-// Project grouping
 export interface Project {
   id: string
   name: string
   sessions: Session[]
 }
 
-// Focus filter types (matches EventType categories)
-export type FocusFilter =
-  | 'hooks'
-  | 'transcript'
-  | 'decisions'
+// ============================================================================
+// Timeline Filter
+// ============================================================================
+
+export type TimelineFilter =
   | 'reminders'
-  | 'llm-calls'
-  | 'state-changes'
+  | 'decisions'
+  | 'session-analysis'
+  | 'statusline'
   | 'errors'
 
-// Map EventType → FocusFilter for filtering logic
-export const EVENT_TO_FILTER: Partial<Record<EventType, FocusFilter>> = {
-  'hook-execution': 'hooks',
-  'tool-use': 'hooks',
-  'user-message': 'transcript',
-  'assistant-message': 'transcript',
+export const SIDEKICK_EVENT_TO_FILTER: Record<SidekickEventType, TimelineFilter> = {
+  'reminder-staged': 'reminders',
+  'reminder-unstaged': 'reminders',
+  'reminder-consumed': 'reminders',
   'decision': 'decisions',
-  'state-change': 'state-changes',
-  'reminder': 'reminders',
-  'llm-call': 'llm-calls',
-  'error': 'errors',
-  // statusline-call, session-start, compaction, persona-change → always visible
+  'session-summary-start': 'session-analysis',
+  'session-summary-finish': 'session-analysis',
+  'session-title-changed': 'session-analysis',
+  'intent-changed': 'session-analysis',
+  'snarky-message-start': 'session-analysis',
+  'snarky-message-finish': 'session-analysis',
+  'resume-message-start': 'session-analysis',
+  'resume-message-finish': 'session-analysis',
+  'persona-selected': 'session-analysis',
+  'persona-changed': 'session-analysis',
+  'statusline-rendered': 'statusline',
+  'log-error': 'errors',
 }
 
-// Navigation depth
+// ============================================================================
+// Navigation State
+// ============================================================================
+
 export type NavigationDepth = 'selector' | 'dashboard' | 'detail'
 
-// Panel state
 export interface PanelState {
   expanded: boolean
 }
 
-// Full navigation state
 export interface NavigationState {
   depth: NavigationDepth
   selectedProjectId: string | null
   selectedSessionId: string | null
-  selectedEventId: string | null
+  selectedTranscriptLineId: string | null
+  syncedTranscriptLineId: string | null // for timeline → transcript scroll-sync
   selectorPanel: PanelState
-  dashboardPanel: PanelState
   detailPanel: PanelState
-  activeFilters: Set<FocusFilter>
+  timelineFilters: Set<TimelineFilter>
   searchQuery: string
   darkMode: boolean
 }

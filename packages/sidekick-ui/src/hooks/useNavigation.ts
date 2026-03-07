@@ -1,16 +1,16 @@
 import { createContext, useContext, type Dispatch } from 'react'
-import type { NavigationState, FocusFilter } from '../types'
+import type { NavigationState, TimelineFilter } from '../types'
 
 // Action types
 type NavigationAction =
   | { type: 'SELECT_SESSION'; projectId: string; sessionId: string }
-  | { type: 'SELECT_EVENT'; eventId: string }
-  | { type: 'DESELECT_EVENT' }
+  | { type: 'SELECT_TRANSCRIPT_LINE'; lineId: string }
+  | { type: 'CLOSE_DETAIL' }
+  | { type: 'SYNC_TO_TIMELINE_EVENT'; lineId: string }
+  | { type: 'CLEAR_SYNC' }
   | { type: 'BACK_TO_SELECTOR' }
   | { type: 'TOGGLE_SELECTOR_PANEL' }
-  | { type: 'TOGGLE_DASHBOARD_PANEL' }
-  | { type: 'TOGGLE_DETAIL_PANEL' }
-  | { type: 'TOGGLE_FILTER'; filter: FocusFilter }
+  | { type: 'TOGGLE_TIMELINE_FILTER'; filter: TimelineFilter }
   | { type: 'SET_SEARCH'; query: string }
   | { type: 'TOGGLE_DARK_MODE' }
 
@@ -18,11 +18,11 @@ const initialState: NavigationState = {
   depth: 'selector',
   selectedProjectId: null,
   selectedSessionId: null,
-  selectedEventId: null,
+  selectedTranscriptLineId: null,
+  syncedTranscriptLineId: null,
   selectorPanel: { expanded: true },
-  dashboardPanel: { expanded: false },
   detailPanel: { expanded: false },
-  activeFilters: new Set(),
+  timelineFilters: new Set(),
   searchQuery: '',
   darkMode: false,
 }
@@ -35,102 +35,80 @@ function navigationReducer(state: NavigationState, action: NavigationAction): Na
         depth: 'dashboard',
         selectedProjectId: action.projectId,
         selectedSessionId: action.sessionId,
-        selectedEventId: null,
+        selectedTranscriptLineId: null,
+        syncedTranscriptLineId: null,
         selectorPanel: { expanded: false },
-        dashboardPanel: { expanded: true },
         detailPanel: { expanded: false },
       }
-    case 'SELECT_EVENT':
+
+    case 'SELECT_TRANSCRIPT_LINE':
       return {
         ...state,
         depth: 'detail',
-        selectedEventId: action.eventId,
-        selectorPanel: { expanded: false },
-        dashboardPanel: { expanded: false },
+        selectedTranscriptLineId: action.lineId,
+        syncedTranscriptLineId: null,
         detailPanel: { expanded: true },
       }
-    case 'DESELECT_EVENT':
+
+    case 'CLOSE_DETAIL':
       return {
         ...state,
         depth: 'dashboard',
-        selectedEventId: null,
-        dashboardPanel: { expanded: true },
+        selectedTranscriptLineId: null,
         detailPanel: { expanded: false },
       }
+
+    case 'SYNC_TO_TIMELINE_EVENT':
+      return {
+        ...state,
+        syncedTranscriptLineId: action.lineId,
+      }
+
+    case 'CLEAR_SYNC':
+      return {
+        ...state,
+        syncedTranscriptLineId: null,
+      }
+
     case 'BACK_TO_SELECTOR':
       return {
         ...state,
         depth: 'selector',
         selectedProjectId: null,
         selectedSessionId: null,
-        selectedEventId: null,
+        selectedTranscriptLineId: null,
+        syncedTranscriptLineId: null,
         selectorPanel: { expanded: true },
-        dashboardPanel: { expanded: false },
         detailPanel: { expanded: false },
       }
+
     case 'TOGGLE_SELECTOR_PANEL':
-      // Expanding selector compresses dashboard/detail
       if (!state.selectorPanel.expanded) {
         return {
           ...state,
           depth: 'selector',
           selectorPanel: { expanded: true },
-          dashboardPanel: { expanded: false },
           detailPanel: { expanded: false },
         }
       }
-      // Collapsing selector expands dashboard (if session selected)
       if (state.selectedSessionId) {
         return {
           ...state,
-          depth: state.selectedEventId ? 'detail' : 'dashboard',
+          depth: state.selectedTranscriptLineId ? 'detail' : 'dashboard',
           selectorPanel: { expanded: false },
-          dashboardPanel: { expanded: !state.selectedEventId },
-          detailPanel: { expanded: !!state.selectedEventId },
+          detailPanel: { expanded: !!state.selectedTranscriptLineId },
         }
       }
       return state
 
-    case 'TOGGLE_DASHBOARD_PANEL':
-      if (!state.dashboardPanel.expanded) {
-        // Expanding dashboard compresses detail
-        return {
-          ...state,
-          depth: 'dashboard',
-          dashboardPanel: { expanded: true },
-          detailPanel: { expanded: false },
-        }
-      }
-      // Collapsing dashboard expands selector
-      return {
-        ...state,
-        depth: 'selector',
-        selectorPanel: { expanded: true },
-        dashboardPanel: { expanded: false },
-        detailPanel: { expanded: false },
-      }
-
-    case 'TOGGLE_DETAIL_PANEL':
-      if (!state.detailPanel.expanded) {
-        return state // Can't expand detail without selecting an event
-      }
-      // Collapsing detail expands dashboard
-      return {
-        ...state,
-        depth: 'dashboard',
-        selectedEventId: null,
-        dashboardPanel: { expanded: true },
-        detailPanel: { expanded: false },
-      }
-
-    case 'TOGGLE_FILTER': {
-      const newFilters = new Set(state.activeFilters)
+    case 'TOGGLE_TIMELINE_FILTER': {
+      const newFilters = new Set(state.timelineFilters)
       if (newFilters.has(action.filter)) {
         newFilters.delete(action.filter)
       } else {
         newFilters.add(action.filter)
       }
-      return { ...state, activeFilters: newFilters }
+      return { ...state, timelineFilters: newFilters }
     }
 
     case 'SET_SEARCH':
