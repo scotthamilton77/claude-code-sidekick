@@ -1,6 +1,6 @@
 # Sidekick UI — Consolidated Requirements
 
-> Consolidated from Phase 1 analysis (sidekick-n4lx.1, n4lx.2, n4lx.3).
+> Consolidated from Phase 1 analysis (sidekick-n4lx.1, sidekick-n4lx.2, sidekick-n4lx.3).
 > Supersedes MONITORING-UI.md as the authoritative requirements source.
 > Status: **Approved** (2026-03-07)
 
@@ -83,7 +83,7 @@ Auto-follow new events as they arrive. File watching or polling — implementati
 
 ### G-1: Persona System
 - **MVP**: Display active persona at any point in time (from session state files). Show persona change events and trait injection events on the timeline.
-- **Future** (sidekick-qubi, P4): Force persona change on active session from UI; re-run snarky-comment LLM call with different persona.
+- **Future** (sidekick-qubi, P4): Force persona change on active session from UI; re-run snarky-comment LLM call with different persona. Note: this would require revisiting the read-only constraint in sections 6 and 7.
 
 ### G-2: Task Engine
 - **Dashboard**: Show queued/executing task count as summary indicator.
