@@ -768,14 +768,8 @@ export class StatuslineService {
       // Use baseline when effectiveTokens is below the known minimum system overhead.
       // At session start, current_usage may have incomplete data (cache fields unpopulated
       // until the first API response arrives), producing artificially low values.
-      // Baseline = systemPromptTokens + systemToolsTokens + mcpToolsTokens + customAgentsTokens + memoryFilesTokens
-      // Note: autocompactBufferTokens is NOT included as it's reserved buffer, not actual usage
-      const baselineMinimum =
-        baseline.systemPromptTokens +
-        baseline.systemToolsTokens +
-        baseline.mcpToolsTokens +
-        baseline.customAgentsTokens +
-        baseline.memoryFilesTokens
+      // totalOverhead includes autocompactBufferTokens, but that's reserved buffer, not actual usage
+      const baselineMinimum = baseline.totalOverhead - baseline.autocompactBufferTokens
       if (effectiveTokens < baselineMinimum) {
         effectiveTokens = baselineMinimum
         usingBaseline = true
