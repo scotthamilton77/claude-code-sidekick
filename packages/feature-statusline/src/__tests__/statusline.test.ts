@@ -2244,12 +2244,12 @@ describe('StatuslineService', () => {
     expect(result.displayMode).toBe('session_summary')
     expect(result.viewModel.model).toBe('3-5-sonnet')
     // Token display format: tokenUsageActual = context, tokenUsageEffective = context + buffer
-    // - tokenUsageActual = 30k (from totalInputTokens in hookInput)
-    // - tokenUsageEffective = 30k + ~45k buffer = 75k
+    // - tokenUsageActual = 45k (input 30k + output 15k from hookInput current_usage)
+    // - tokenUsageEffective = 45k + ~45k buffer = 90k
     // This test implicitly depends on the default autocompact buffer value.
     // If defaults change in @sidekick/types, update expected total accordingly.
-    expect(result.viewModel.tokenUsageActual).toBe('30k')
-    expect(result.viewModel.tokenUsageEffective).toBe('75k')
+    expect(result.viewModel.tokenUsageActual).toBe('45k')
+    expect(result.viewModel.tokenUsageEffective).toBe('90k')
     expect(result.viewModel.title).toBe('Auth bug fix')
   })
 
@@ -2569,6 +2569,55 @@ describe('StatuslineService', () => {
 
       // Should use baseline metrics (non-zero tokens from system defaults)
       expect(result.viewModel.tokenUsageActual).not.toBe('0')
+    })
+
+    it('uses baseline when current_usage is below system overhead (incomplete cache data)', async () => {
+      // At session start, current_usage may have incomplete cache fields
+      // (e.g., input_tokens=4000 but cache_read=0 before first API response)
+      // The statusline should recognize this is below minimum system overhead and use baseline
+      const hookInput: ClaudeCodeStatusInput = {
+        hook_event_name: 'Status',
+        session_id: 'test-session',
+        transcript_path: '/path/to/transcript.json',
+        cwd: '/test',
+        version: '1.0.0',
+        model: { id: 'claude-opus-4-1', display_name: 'Opus' },
+        workspace: { current_dir: '/test', project_dir: '/test' },
+        output_style: { name: 'default' },
+        cost: {
+          total_cost_usd: 0,
+          total_duration_ms: 0,
+          total_api_duration_ms: 0,
+          total_lines_added: 0,
+          total_lines_removed: 0,
+        },
+        context_window: {
+          total_input_tokens: 4000,
+          total_output_tokens: 0,
+          context_window_size: 200000,
+          current_usage: {
+            input_tokens: 4000,
+            output_tokens: 0,
+            cache_creation_input_tokens: 0,
+            cache_read_input_tokens: 0,
+          },
+        },
+      }
+
+      const service = createStatuslineService({
+        stateService,
+        setupService,
+        sessionId,
+        cwd: '/test',
+        useColors: false,
+        hookInput,
+      })
+
+      const result = await service.render()
+
+      // 4000 is below system overhead (3200 + 17900 = 21100), so baseline should be used
+      // Default baseline = 21100 tokens = "21k"
+      expect(result.viewModel.tokenUsageActual).toBe('21k')
     })
 
     it('falls back to baseline when null current_usage and transcript has zero tokens', async () => {
