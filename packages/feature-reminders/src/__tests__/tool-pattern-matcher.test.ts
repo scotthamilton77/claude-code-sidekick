@@ -86,6 +86,15 @@ describe('matchesToolPattern', () => {
     expect(matchesToolPattern('pnpm build', '')).toBe(false)
   })
 
+  // Whitespace handling
+  it('matches pattern with leading/trailing whitespace', () => {
+    expect(matchesToolPattern('pnpm build', '  pnpm build  ')).toBe(true)
+  })
+
+  it('rejects whitespace-only pattern', () => {
+    expect(matchesToolPattern('pnpm build', '   ')).toBe(false)
+  })
+
   // Multi-token tool patterns
   it('matches tsc --noEmit with extra flags', () => {
     expect(matchesToolPattern('tsc --noEmit --pretty', 'tsc --noEmit')).toBe(true)
@@ -101,9 +110,11 @@ describe('matchesToolPattern', () => {
 })
 
 describe('findMatchingPattern', () => {
+  // Order matters: specific workspace patterns must precede generic ones
+  // (mirrors DEFAULT_VERIFICATION_TOOLS in types.ts)
   const patterns: ToolPattern[] = [
-    { tool_id: 'pnpm-build', tool: 'pnpm build', scope: 'project' },
     { tool_id: 'pnpm-filter-build', tool: 'pnpm --filter * build', scope: 'package' },
+    { tool_id: 'pnpm-build', tool: 'pnpm build', scope: 'project' },
     { tool_id: 'disabled', tool: null, scope: 'project' },
   ]
 
@@ -113,9 +124,10 @@ describe('findMatchingPattern', () => {
     expect(match?.scope).toBe('project')
   })
 
-  it('matches the more specific pattern when applicable', () => {
+  it('matches workspace-scoped pattern with correct scope for filtered commands', () => {
     const match = findMatchingPattern('pnpm --filter foo build', patterns)
-    expect(match).toBeDefined()
+    expect(match?.tool_id).toBe('pnpm-filter-build')
+    expect(match?.scope).toBe('package')
   })
 
   it('returns null for no match', () => {
