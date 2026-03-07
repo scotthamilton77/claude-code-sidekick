@@ -10,7 +10,7 @@
 import type { RuntimeContext } from '@sidekick/core'
 import type { DaemonContext, VCUnverifiedState } from '@sidekick/types'
 import { isDaemonContext, isHookEvent } from '@sidekick/types'
-import { ReminderIds, DEFAULT_REMINDERS_SETTINGS, type RemindersSettings } from '../../types.js'
+import { ReminderIds, ALL_VC_REMINDER_IDS, DEFAULT_REMINDERS_SETTINGS, type RemindersSettings } from '../../types.js'
 import { resolveReminder, stageReminder } from '../../reminder-utils.js'
 import { createRemindersState } from '../../state.js'
 
@@ -99,9 +99,11 @@ export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
         })
       }
 
-      // Delete the existing staged reminder (no unverified state or limit reached)
-      await daemonCtx.staging.deleteReminder('Stop', ReminderIds.VERIFY_COMPLETION)
-      daemonCtx.logger.debug('VC unstage: deleted staged verify-completion reminder')
+      // Delete the existing staged reminders (no unverified state or limit reached)
+      for (const vcId of ALL_VC_REMINDER_IDS) {
+        await daemonCtx.staging.deleteReminder('Stop', vcId)
+      }
+      daemonCtx.logger.debug('VC unstage: deleted all VC reminders')
     },
   })
 }

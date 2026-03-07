@@ -1,0 +1,15 @@
+# vc-typecheck.yaml
+# Per-tool verification reminder: type checking
+id: vc-typecheck
+blocking: true
+priority: 50
+persistent: false
+
+additionalContext: |
+  <vc-typecheck>
+  You have modified source files but have not run a type check.
+  Run the project's typecheck command before claiming completion.
+  </vc-typecheck>
+
+userMessage: "Verification needed: typecheck not run since last code changes"
+reason: "Source files modified without subsequent typecheck verification"

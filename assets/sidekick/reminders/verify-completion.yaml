@@ -1,8 +1,9 @@
 # verify-completion.yaml
-# Blocks execution before task completion to enforce verification
+# Wrapper reminder that aggregates per-tool VC reminders.
+# Priority 51 ensures this is primary (consumed first); per-tool reminders at 50 are secondaries.
 id: verify-completion
 blocking: true
-priority: 50
+priority: 51
 persistent: false
 
 additionalContext: |
@@ -14,24 +15,8 @@ additionalContext: |
   - The verification evidence is done just before this reminder was triggered.
   - You're not claiming "done" but stopping to give an update or ask for more info.
 
-  Otherwise, this step is mandatory to ensure quality and completeness. Make sure you're really complete, then provide a revised report to the user.
-
-  For significant (more than just a few lines) code changes (only if not already done recently):
-  - Run build: `pnpm build` (excludes test files - both required)
-  - Run relevant tests: `pnpm test` (targeted tests for changed code)
-  - Run the `code-simplifier` agent to simplify and refine the code for clarity and maintainability.
-  - Run the `code-reviewer` agent to review your changes against the plan and coding standards.
-  - If your changes impact existing documentation that you haven't already updated,
-    inform the user and ask whether this should be updated as a next step.
-
-  General:
-  - Confirm all requirements from the original request are met
-  - Check for unintended side effects or regressions
-  - Ensure no temporary files, debug code, or stray changes remain
-  - DON'T COMMIT unless explicitly instructed. User says "make changes" ≠ "commit changes". Wait for explicit approval.
+  Otherwise, this step is mandatory. The following verification steps are outstanding:
   </completion-verification-required>
-  For Code Changes:
 
 userMessage: "Asking the agent to verify completion before stopping..."
-
-reason: "Verify completion before stopping - did you run tests and checks?"
+reason: "Verify completion before stopping - outstanding verification steps detected"

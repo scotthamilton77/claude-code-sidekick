@@ -1,0 +1,15 @@
+# vc-build.yaml
+# Per-tool verification reminder: build step
+id: vc-build
+blocking: true
+priority: 50
+persistent: false
+
+additionalContext: |
+  <vc-build>
+  You have modified source files but have not run a build step.
+  Run the project's build command before claiming completion.
+  </vc-build>
+
+userMessage: "Verification needed: build not run since last code changes"
+reason: "Source files modified without subsequent build verification"

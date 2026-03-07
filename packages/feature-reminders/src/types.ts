@@ -3,6 +3,140 @@
  * @see docs/design/FEATURE-REMINDERS.md
  */
 
+import { z } from 'zod'
+
+// ============================================================================
+// Verification Tool Configuration
+// ============================================================================
+
+/** Zod schema for a single verification tool config */
+export const VerificationToolConfigSchema = z.object({
+  enabled: z.boolean(),
+  patterns: z.array(z.string()).min(1),
+  clearing_threshold: z.number().int().positive(),
+  clearing_patterns: z.array(z.string()).min(1),
+})
+
+export type VerificationToolConfig = z.infer<typeof VerificationToolConfigSchema>
+
+/** Zod schema for the full verification_tools map */
+export const VerificationToolsMapSchema = z.record(z.string(), VerificationToolConfigSchema)
+
+export type VerificationToolsMap = z.infer<typeof VerificationToolsMapSchema>
+
+/** Default verification tools (fat defaults for all ecosystems) */
+export const DEFAULT_VERIFICATION_TOOLS: VerificationToolsMap = {
+  build: {
+    enabled: true,
+    patterns: [
+      'pnpm build',
+      'npm run build',
+      'yarn build',
+      'tsc',
+      'esbuild',
+      'python setup.py build',
+      'pip install',
+      'poetry build',
+      'mvn compile',
+      'mvn package',
+      'gradle build',
+      'gradlew build',
+      'go build',
+      'cargo build',
+      'make build',
+      'cmake --build',
+      'docker build',
+    ],
+    clearing_threshold: 3,
+    clearing_patterns: [
+      '**/*.ts',
+      '**/*.tsx',
+      '**/*.js',
+      '**/*.jsx',
+      '**/*.py',
+      '**/*.java',
+      '**/*.kt',
+      '**/*.go',
+      '**/*.rs',
+      '**/*.c',
+      '**/*.cpp',
+      '**/*.cs',
+    ],
+  },
+  typecheck: {
+    enabled: true,
+    patterns: ['pnpm typecheck', 'tsc --noEmit', 'mypy', 'pyright', 'pytype', 'go vet'],
+    clearing_threshold: 3,
+    clearing_patterns: ['**/*.ts', '**/*.tsx', '**/*.py', '**/*.go'],
+  },
+  test: {
+    enabled: true,
+    patterns: [
+      'pnpm test',
+      'npm test',
+      'yarn test',
+      'vitest',
+      'jest',
+      'pytest',
+      'python -m pytest',
+      'go test',
+      'cargo test',
+      'mvn test',
+      'gradle test',
+      'gradlew test',
+      'dotnet test',
+      'make test',
+    ],
+    clearing_threshold: 3,
+    clearing_patterns: [
+      '**/*.ts',
+      '**/*.tsx',
+      '**/*.js',
+      '**/*.jsx',
+      '**/*.py',
+      '**/*.java',
+      '**/*.kt',
+      '**/*.go',
+      '**/*.rs',
+      '**/*.test.*',
+      '**/*.spec.*',
+      '**/test_*',
+    ],
+  },
+  lint: {
+    enabled: true,
+    patterns: [
+      'pnpm lint',
+      'npm run lint',
+      'yarn lint',
+      'eslint',
+      'ruff check',
+      'flake8',
+      'pylint',
+      'golangci-lint',
+      'cargo clippy',
+      'ktlint',
+      'dotnet format',
+    ],
+    clearing_threshold: 5,
+    clearing_patterns: [
+      '**/*.ts',
+      '**/*.tsx',
+      '**/*.js',
+      '**/*.jsx',
+      '**/*.py',
+      '**/*.java',
+      '**/*.kt',
+      '**/*.go',
+      '**/*.rs',
+    ],
+  },
+}
+
+// ============================================================================
+// Reminder Settings
+// ============================================================================
+
 /**
  * Reminder settings (the inner settings object from features.yaml)
  */
@@ -12,6 +146,8 @@ export interface RemindersSettings {
   completion_detection?: CompletionDetectionSettings
   /** Max re-evaluation cycles for non-blocking verification (-1 = unlimited, 0 = disabled) */
   max_verification_cycles?: number
+  /** Per-tool verification configuration */
+  verification_tools?: VerificationToolsMap
 }
 
 /**
@@ -130,6 +266,7 @@ export const DEFAULT_REMINDERS_SETTINGS: RemindersSettings = {
   pause_and_reflect_threshold: 60,
   source_code_patterns: DEFAULT_SOURCE_CODE_PATTERNS,
   max_verification_cycles: -1, // -1 = unlimited, 0 = disabled
+  verification_tools: DEFAULT_VERIFICATION_TOOLS,
 }
 
 /**
@@ -139,9 +276,24 @@ export const ReminderIds = {
   USER_PROMPT_SUBMIT: 'user-prompt-submit',
   PAUSE_AND_REFLECT: 'pause-and-reflect',
   VERIFY_COMPLETION: 'verify-completion',
+  VC_BUILD: 'vc-build',
+  VC_TYPECHECK: 'vc-typecheck',
+  VC_TEST: 'vc-test',
+  VC_LINT: 'vc-lint',
   REMEMBER_YOUR_PERSONA: 'remember-your-persona',
   PERSONA_CHANGED: 'persona-changed',
   USER_PROFILE: 'user-profile',
 } as const
+
+/** All per-tool VC reminder IDs */
+export const VC_TOOL_REMINDER_IDS = [
+  ReminderIds.VC_BUILD,
+  ReminderIds.VC_TYPECHECK,
+  ReminderIds.VC_TEST,
+  ReminderIds.VC_LINT,
+] as const
+
+/** All VC-related reminder IDs (wrapper + per-tool) */
+export const ALL_VC_REMINDER_IDS = [ReminderIds.VERIFY_COMPLETION, ...VC_TOOL_REMINDER_IDS] as const
 
 export type ReminderId = (typeof ReminderIds)[keyof typeof ReminderIds]

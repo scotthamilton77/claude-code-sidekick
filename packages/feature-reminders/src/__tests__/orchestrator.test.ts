@@ -87,13 +87,18 @@ describe('ReminderOrchestrator', () => {
   })
 
   describe('onReminderStaged', () => {
-    it('Rule 1: unstages VC when P&R staged', async () => {
+    it('Rule 1: unstages all VC reminders when P&R staged', async () => {
       await orchestrator.onReminderStaged({ name: ReminderIds.PAUSE_AND_REFLECT, hook: 'PreToolUse' }, 'session-123')
 
       expect(getStagingService).toHaveBeenCalledWith('session-123')
+      // Should delete wrapper + all per-tool VC reminders
       expect(staging.deleteReminder).toHaveBeenCalledWith('Stop', ReminderIds.VERIFY_COMPLETION)
+      expect(staging.deleteReminder).toHaveBeenCalledWith('Stop', ReminderIds.VC_BUILD)
+      expect(staging.deleteReminder).toHaveBeenCalledWith('Stop', ReminderIds.VC_TYPECHECK)
+      expect(staging.deleteReminder).toHaveBeenCalledWith('Stop', ReminderIds.VC_TEST)
+      expect(staging.deleteReminder).toHaveBeenCalledWith('Stop', ReminderIds.VC_LINT)
       expect(logger.debug).toHaveBeenCalledWith(
-        'Unstaged VC after P&R staged',
+        'Unstaged all VC reminders after P&R staged',
         expect.objectContaining({ sessionId: 'session-123' })
       )
     })
@@ -112,7 +117,7 @@ describe('ReminderOrchestrator', () => {
       await orchestrator.onReminderStaged({ name: ReminderIds.PAUSE_AND_REFLECT, hook: 'PreToolUse' }, 'session-123')
 
       expect(logger.warn).toHaveBeenCalledWith(
-        'Failed to unstage VC after P&R staged',
+        'Failed to unstage VC reminders after P&R staged',
         expect.objectContaining({ error: 'Delete failed' })
       )
     })

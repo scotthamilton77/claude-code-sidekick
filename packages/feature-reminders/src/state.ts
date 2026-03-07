@@ -8,8 +8,8 @@
  */
 
 import { sessionState, SessionStateAccessor } from '@sidekick/core'
-import type { MinimalStateService, PRBaselineState, VCUnverifiedState } from '@sidekick/types'
-import { PRBaselineStateSchema, VCUnverifiedStateSchema } from '@sidekick/types'
+import type { MinimalStateService, PRBaselineState, VCUnverifiedState, VerificationToolsState } from '@sidekick/types'
+import { PRBaselineStateSchema, VCUnverifiedStateSchema, VerificationToolsStateSchema } from '@sidekick/types'
 
 // ============================================================================
 // State Descriptors
@@ -39,6 +39,17 @@ const VCUnverifiedDescriptor = sessionState('vc-unverified.json', VCUnverifiedSt
   trackHistory: true,
 })
 
+/**
+ * Verification Tools state descriptor.
+ * Per-tool tracking of build/typecheck/test/lint verification status.
+ * Default: {} (empty — no tools tracked until first file edit)
+ * trackHistory: false — high-frequency updates, no need for history
+ */
+const VerificationToolsDescriptor = sessionState('verification-tools.json', VerificationToolsStateSchema, {
+  defaultValue: {},
+  trackHistory: false,
+})
+
 // ============================================================================
 // State Accessor Types
 // ============================================================================
@@ -51,6 +62,8 @@ export interface RemindersStateAccessors {
   prBaseline: SessionStateAccessor<PRBaselineState, null>
   /** VC unverified state (unverified source code changes) */
   vcUnverified: SessionStateAccessor<VCUnverifiedState, null>
+  /** Per-tool verification status (build, typecheck, test, lint) */
+  verificationTools: SessionStateAccessor<VerificationToolsState, Record<string, never>>
 }
 
 // ============================================================================
@@ -68,5 +81,6 @@ export function createRemindersState(stateService: MinimalStateService): Reminde
   return {
     prBaseline: new SessionStateAccessor(stateService, PRBaselineDescriptor),
     vcUnverified: new SessionStateAccessor(stateService, VCUnverifiedDescriptor),
+    verificationTools: new SessionStateAccessor(stateService, VerificationToolsDescriptor),
   }
 }
