@@ -1,76 +1,79 @@
 import { useRef, useEffect, useCallback, useMemo } from 'react'
-import type { TimelineEvent } from '../../types'
-import { EVENT_TO_FILTER } from '../../types'
+import type { TranscriptLine, LEDState } from '../../types'
 import { useNavigation } from '../../hooks/useNavigation'
 import { SearchFilterBar } from './SearchFilterBar'
-import { TranscriptEventCard } from './TranscriptEvent'
+import { LEDColorKey } from './LEDColorKey'
+import { LEDGutter } from './LEDGutter'
+import { TranscriptLineCard } from './TranscriptLine'
 
 interface TranscriptProps {
-  events: TimelineEvent[]
-  scrollToEventId: string | null
-  hoveredEventId: string | null
-  onHoverEvent: (id: string | null) => void
+  lines: TranscriptLine[]
+  ledStates: Map<string, LEDState>
+  scrollToLineId: string | null
 }
 
-export function Transcript({ events, scrollToEventId, hoveredEventId, onHoverEvent }: TranscriptProps) {
-  const { state, dispatch } = useNavigation()
-  const eventRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+const DEFAULT_LED: LEDState = {
+  vcBuild: false, vcTypecheck: false, vcTest: false, vcLint: false,
+  verifyCompletion: false, pauseAndReflect: false, titleConfidence: 'green',
+}
 
-  // Scroll to event when requested
+export function Transcript({ lines, ledStates, scrollToLineId }: TranscriptProps) {
+  const { state, dispatch } = useNavigation()
+  const lineRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+
+  // Scroll to line when timeline syncs
   useEffect(() => {
-    if (scrollToEventId) {
-      const el = eventRefs.current.get(scrollToEventId)
+    if (scrollToLineId) {
+      const el = lineRefs.current.get(scrollToLineId)
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' })
       }
     }
-  }, [scrollToEventId])
+  }, [scrollToLineId])
 
   const setRef = useCallback((id: string) => (el: HTMLDivElement | null) => {
     if (el) {
-      eventRefs.current.set(id, el)
+      lineRefs.current.set(id, el)
     } else {
-      eventRefs.current.delete(id)
+      lineRefs.current.delete(id)
     }
   }, [])
 
-  const isEventDimmed = useCallback(
-    (event: TimelineEvent): boolean => {
-      if (state.activeFilters.size === 0) return false
-      const filter = EVENT_TO_FILTER[event.type]
-      if (!filter) return false
-      return !state.activeFilters.has(filter)
-    },
-    [state.activeFilters]
-  )
-
-  const filteredEvents = useMemo(() => {
-    if (!state.searchQuery) return events
+  const filteredLines = useMemo(() => {
+    if (!state.searchQuery) return lines
     const q = state.searchQuery.toLowerCase()
-    return events.filter(e =>
-      e.label.toLowerCase().includes(q) ||
-      e.content?.toLowerCase().includes(q) ||
-      e.toolName?.toLowerCase().includes(q) ||
-      e.hookName?.toLowerCase().includes(q) ||
-      e.errorMessage?.toLowerCase().includes(q)
+    return lines.filter(line =>
+      line.content?.toLowerCase().includes(q) ||
+      line.toolName?.toLowerCase().includes(q) ||
+      line.toolOutput?.toLowerCase().includes(q) ||
+      line.errorMessage?.toLowerCase().includes(q) ||
+      line.reminderId?.toLowerCase().includes(q) ||
+      line.decisionReasoning?.toLowerCase().includes(q) ||
+      line.statuslineContent?.toLowerCase().includes(q) ||
+      line.newValue?.toLowerCase().includes(q) ||
+      line.generatedMessage?.toLowerCase().includes(q)
     )
-  }, [events, state.searchQuery])
+  }, [lines, state.searchQuery])
 
   return (
     <div className="h-full flex flex-col">
       <SearchFilterBar />
+      <LEDColorKey />
       <div className="flex-1 overflow-y-auto py-1">
-        {filteredEvents.map(event => (
-          <div key={event.id} ref={setRef(event.id)}>
-            <TranscriptEventCard
-              event={event}
-              isSelected={state.selectedEventId === event.id}
-              isHovered={hoveredEventId === event.id}
-              isDimmed={isEventDimmed(event)}
-              onClick={() => dispatch({ type: 'SELECT_EVENT', eventId: event.id })}
-              onMouseEnter={() => onHoverEvent(event.id)}
-              onMouseLeave={() => onHoverEvent(null)}
-            />
+        {filteredLines.map(line => (
+          <div key={line.id} ref={setRef(line.id)} className="flex">
+            {/* LED Gutter */}
+            <LEDGutter ledState={ledStates.get(line.id) ?? DEFAULT_LED} />
+
+            {/* Transcript content */}
+            <div className="flex-1 min-w-0">
+              <TranscriptLineCard
+                line={line}
+                isSelected={state.selectedTranscriptLineId === line.id}
+                isSynced={state.syncedTranscriptLineId === line.id}
+                onClick={() => dispatch({ type: 'SELECT_TRANSCRIPT_LINE', lineId: line.id })}
+              />
+            </div>
           </div>
         ))}
       </div>

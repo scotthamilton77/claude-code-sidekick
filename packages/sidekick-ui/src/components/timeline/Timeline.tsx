@@ -1,51 +1,39 @@
 import { useCallback } from 'react'
-import type { TimelineEvent } from '../../types'
-import { EVENT_TO_FILTER } from '../../types'
+import type { SidekickEvent } from '../../types'
+import { SIDEKICK_EVENT_TO_FILTER } from '../../types'
 import { useNavigation } from '../../hooks/useNavigation'
-import { FocusFilterBar } from './FocusFilterBar'
+import { TimelineFilterBar } from './TimelineFilterBar'
 import { TimelineEventItem } from './TimelineEvent'
-import { CompactionMarker } from './CompactionMarker'
 
 interface TimelineProps {
-  events: TimelineEvent[]
-  hoveredEventId: string | null
-  onHoverEvent: (id: string | null) => void
+  events: SidekickEvent[]
 }
 
-export function Timeline({ events, hoveredEventId, onHoverEvent }: TimelineProps) {
+export function Timeline({ events }: TimelineProps) {
   const { state, dispatch } = useNavigation()
 
   const isEventDimmed = useCallback(
-    (event: TimelineEvent): boolean => {
-      if (state.activeFilters.size === 0) return false
-      const filter = EVENT_TO_FILTER[event.type]
-      if (!filter) return false // Always-visible types
-      return !state.activeFilters.has(filter)
+    (event: SidekickEvent): boolean => {
+      if (state.timelineFilters.size === 0) return false
+      const filter = SIDEKICK_EVENT_TO_FILTER[event.type]
+      return !state.timelineFilters.has(filter)
     },
-    [state.activeFilters]
+    [state.timelineFilters]
   )
 
   return (
     <div className="h-full flex flex-col">
-      <FocusFilterBar />
+      <TimelineFilterBar />
       <div className="flex-1 overflow-y-auto py-1">
-        {events.map(event => {
-          if (event.type === 'compaction') {
-            return <CompactionMarker key={event.id} event={event} />
-          }
-          return (
-            <TimelineEventItem
-              key={event.id}
-              event={event}
-              isSelected={state.selectedEventId === event.id}
-              isHovered={hoveredEventId === event.id}
-              isDimmed={isEventDimmed(event)}
-              onClick={() => dispatch({ type: 'SELECT_EVENT', eventId: event.id })}
-              onMouseEnter={() => onHoverEvent(event.id)}
-              onMouseLeave={() => onHoverEvent(null)}
-            />
-          )
-        })}
+        {events.map(event => (
+          <TimelineEventItem
+            key={event.id}
+            event={event}
+            isSynced={state.syncedTranscriptLineId === event.transcriptLineId}
+            isDimmed={isEventDimmed(event)}
+            onClick={() => dispatch({ type: 'SYNC_TO_TIMELINE_EVENT', lineId: event.transcriptLineId })}
+          />
+        ))}
       </div>
     </div>
   )
