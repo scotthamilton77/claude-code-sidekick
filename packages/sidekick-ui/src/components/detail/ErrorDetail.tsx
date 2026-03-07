@@ -1,28 +1,26 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
-import type { TimelineEvent } from '../../types'
+import type { TranscriptLine } from '../../types'
 
 interface ErrorDetailProps {
-  event: TimelineEvent
+  line: TranscriptLine
 }
 
-export function ErrorDetail({ event }: ErrorDetailProps) {
+export function ErrorDetail({ line }: ErrorDetailProps) {
   const [showStack, setShowStack] = useState(false)
 
   return (
     <div className="p-3 space-y-3 border-l-2 border-red-400">
-      {/* Error message */}
-      {event.errorMessage && (
+      {line.errorMessage && (
         <div>
           <h3 className="text-[10px] font-medium text-red-500 mb-1">Error</h3>
           <p className="text-xs font-mono text-red-700 dark:text-red-400 leading-relaxed">
-            {event.errorMessage}
+            {line.errorMessage}
           </p>
         </div>
       )}
 
-      {/* Stack trace */}
-      {event.errorStack && (
+      {line.errorStack && (
         <div className="border border-slate-200 dark:border-slate-700 rounded">
           <button
             onClick={() => setShowStack(!showStack)}
@@ -34,7 +32,7 @@ export function ErrorDetail({ event }: ErrorDetailProps) {
           {showStack && (
             <div className="px-2 py-1.5 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 overflow-auto max-h-[300px]">
               <pre className="text-[10px] font-mono text-slate-600 dark:text-slate-400 leading-relaxed whitespace-pre-wrap">
-                {event.errorStack}
+                {line.errorStack}
               </pre>
             </div>
           )}
