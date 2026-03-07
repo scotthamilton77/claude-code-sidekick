@@ -749,7 +749,9 @@ export class StatuslineService {
 
       if (usage) {
         // Normal case: use current_usage from hook input
-        effectiveTokens = usage.input_tokens + usage.cache_creation_input_tokens + usage.cache_read_input_tokens
+        // Include output_tokens — model responses in conversation history consume context window space
+        effectiveTokens =
+          usage.input_tokens + usage.output_tokens + usage.cache_creation_input_tokens + usage.cache_read_input_tokens
       } else {
         // current_usage is null (can happen at session start) - fallback to transcript metrics
         // This prevents "flashing" baseline values when hook input arrives before current_usage is populated
@@ -763,16 +765,19 @@ export class StatuslineService {
         }
       }
 
-      // When effectiveTokens is 0 (new session, /clear, or no data), use baseline estimate
+      // Use baseline when effectiveTokens is below the known minimum system overhead.
+      // At session start, current_usage may have incomplete data (cache fields unpopulated
+      // until the first API response arrives), producing artificially low values.
       // Baseline = systemPromptTokens + systemToolsTokens + mcpToolsTokens + customAgentsTokens + memoryFilesTokens
       // Note: autocompactBufferTokens is NOT included as it's reserved buffer, not actual usage
-      if (effectiveTokens === 0) {
-        effectiveTokens =
-          baseline.systemPromptTokens +
-          baseline.systemToolsTokens +
-          baseline.mcpToolsTokens +
-          baseline.customAgentsTokens +
-          baseline.memoryFilesTokens
+      const baselineMinimum =
+        baseline.systemPromptTokens +
+        baseline.systemToolsTokens +
+        baseline.mcpToolsTokens +
+        baseline.customAgentsTokens +
+        baseline.memoryFilesTokens
+      if (effectiveTokens < baselineMinimum) {
+        effectiveTokens = baselineMinimum
         usingBaseline = true
       }
     } else {
