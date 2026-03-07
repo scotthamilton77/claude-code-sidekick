@@ -22,7 +22,7 @@ export function matchesToolPattern(command: string, pattern: string): boolean {
   if (!command || !pattern) return false
 
   const segments = command.split(SHELL_OPERATOR_RE)
-  const patternTokens = pattern.split(/\s+/)
+  const patternTokens = pattern.trim().split(/\s+/).filter(Boolean)
   if (patternTokens.length === 0) return false
 
   return segments.some((segment) => {

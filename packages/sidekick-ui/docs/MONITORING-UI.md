@@ -1,3 +1,5 @@
+> **Deprecated**: This document has been superseded by [REQUIREMENTS.md](./REQUIREMENTS.md) as the authoritative requirements source.
+
 # Monitoring UI Low-Level Design
 
 ## 1. Overview
