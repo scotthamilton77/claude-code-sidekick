@@ -22,7 +22,7 @@ import type {
   CoordinationMetrics,
 } from '@sidekick/types'
 import { createRemindersState, type RemindersStateAccessors } from './state.js'
-import { ReminderIds } from './types.js'
+import { ReminderIds, ALL_VC_REMINDER_IDS } from './types.js'
 
 // ============================================================================
 // Types
@@ -70,14 +70,16 @@ export class ReminderOrchestrator implements ReminderCoordinator {
    * - Rule 1: P&R staged → unstage VC (cascade prevention)
    */
   async onReminderStaged(reminder: ReminderRef, sessionId: string): Promise<void> {
-    // P&R staged → unstage VC (cascade prevention)
+    // P&R staged → unstage all VC reminders (cascade prevention)
     if (reminder.name === ReminderIds.PAUSE_AND_REFLECT) {
       try {
         const staging = this.deps.getStagingService(sessionId)
-        await staging.deleteReminder('Stop', ReminderIds.VERIFY_COMPLETION)
-        this.deps.logger.debug('Unstaged VC after P&R staged', { sessionId })
+        for (const vcId of ALL_VC_REMINDER_IDS) {
+          await staging.deleteReminder('Stop', vcId)
+        }
+        this.deps.logger.debug('Unstaged all VC reminders after P&R staged', { sessionId })
       } catch (err) {
-        this.deps.logger.warn('Failed to unstage VC after P&R staged', {
+        this.deps.logger.warn('Failed to unstage VC reminders after P&R staged', {
           sessionId,
           error: err instanceof Error ? err.message : String(err),
         })

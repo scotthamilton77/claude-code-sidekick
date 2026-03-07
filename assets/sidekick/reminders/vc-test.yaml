@@ -1,0 +1,15 @@
+# vc-test.yaml
+# Per-tool verification reminder: test suite
+id: vc-test
+blocking: true
+priority: 50
+persistent: false
+
+additionalContext: |
+  <vc-test>
+  You have modified source files but have not run tests.
+  Run the relevant test suite before claiming completion.
+  </vc-test>
+
+userMessage: "Verification needed: tests not run since last code changes"
+reason: "Source files modified without subsequent test verification"

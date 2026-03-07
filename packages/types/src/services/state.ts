@@ -320,6 +320,36 @@ export const VCUnverifiedStateSchema = z.object({
 })
 
 // ============================================================================
+// Verification Tools State Schema
+// ============================================================================
+
+/**
+ * Zod schema for per-tool verification status.
+ * Tracks whether each verification tool (build, test, etc.) needs re-running.
+ *
+ * Location: `.sidekick/sessions/{sessionId}/state/verification-tools.json`
+ *
+ * @see docs/plans/2026-03-05-dynamic-vc-tool-tracking-design.md
+ */
+export const VerificationToolStatusSchema = z.object({
+  /** Current state: staged (needs run), verified (recently run), cooldown (post-verified, counting edits) */
+  status: z.enum(['staged', 'verified', 'cooldown']),
+  /** Number of qualifying file edits since last verification */
+  editsSinceVerified: z.number(),
+  /** Unix timestamp (ms) when last verified, null if never */
+  lastVerifiedAt: z.number().nullable(),
+  /** Unix timestamp (ms) when last staged, null if never */
+  lastStagedAt: z.number().nullable(),
+})
+
+export type VerificationToolStatusState = z.infer<typeof VerificationToolStatusSchema>
+
+/** Map of tool name → verification status */
+export const VerificationToolsStateSchema = z.record(z.string(), VerificationToolStatusSchema)
+
+export type VerificationToolsState = z.infer<typeof VerificationToolsStateSchema>
+
+// ============================================================================
 // Staged Reminders State
 // ============================================================================
 

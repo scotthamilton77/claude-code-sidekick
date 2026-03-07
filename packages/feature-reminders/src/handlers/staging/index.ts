@@ -10,8 +10,8 @@
 import type { RuntimeContext } from '@sidekick/core'
 import { registerStageDefaultUserPrompt } from './stage-default-user-prompt'
 import { registerStagePauseAndReflect } from './stage-pause-and-reflect'
-import { registerStageStopReminders } from './stage-stop-reminders'
 import { registerStageBashChanges } from './stage-stop-bash-changes'
+import { registerTrackVerificationTools } from './track-verification-tools'
 import { registerUnstageVerifyCompletion } from './unstage-verify-completion'
 import { registerStagePersonaReminders } from './stage-persona-reminders'
 import { registerStageUserProfileReminders } from './stage-user-profile-reminders'
@@ -22,7 +22,7 @@ import { registerStageUserProfileReminders } from './stage-user-profile-reminder
 export function registerStagingHandlers(context: RuntimeContext): void {
   registerStageDefaultUserPrompt(context)
   registerStagePauseAndReflect(context)
-  registerStageStopReminders(context)
+  registerTrackVerificationTools(context)
   registerStageBashChanges(context)
   registerUnstageVerifyCompletion(context)
   registerStagePersonaReminders(context)
