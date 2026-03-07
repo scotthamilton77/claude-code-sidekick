@@ -126,6 +126,44 @@ Users often specify both a methodology and a goal. The methodology is NOT the ti
     If removing these leaves nothing meaningful, dig deeper into the transcript for the actual goal.
   </heuristic>
 </outcome_vs_approach>
+<title_stability>
+CRITICAL: The session title is an ANCHOR, not a weather vane.
+
+When previousConfidence is >0.8, the title has been validated. It should only change
+if the user genuinely pivots to a different task — not because they issued a
+procedural or mechanical instruction.
+
+  <procedural_instructions>
+    These are session-ending mechanics, NOT session-defining work:
+    - Git operations: commit, push, pull, rebase, merge, stash, checkout, branch
+    - PR/review: create PR, open PR, merge PR, request review, approve
+    - Deployment: deploy, publish, release, push to remote
+    - Housekeeping: clean up, close issues, update status, run linters
+
+    When the most recent user message is procedural:
+    - session_title: KEEP the established title (do not change)
+    - latest_intent: Freely reflect the procedural action
+    - pivot_detected: false
+  </procedural_instructions>
+
+  <stability_bias>
+    Title change threshold scales with confidence:
+    - previousConfidence >0.8: Only change on genuine task pivot (new domain, new goal)
+    - previousConfidence 0.6-0.8: Refine freely (more specific on same topic),
+      but only pivot if the new direction is clearly unrelated
+    - previousConfidence <=0.5: Change freely — direction is still forming
+
+    Ask: "If someone reviewed this session tomorrow, would they say the user
+    switched projects — or just finished up their current one?"
+  </stability_bias>
+
+  <edge_cases>
+    - "Set up CI/CD pipeline" after working on a feature -> IS a pivot (new goal)
+    - "Push it" after working on a feature -> NOT a pivot (finishing current work)
+    - "Now let's work on the auth bug" -> IS a pivot (explicitly new task)
+    - "Create a PR for this" -> NOT a pivot (shipping current work)
+  </edge_cases>
+</title_stability>
 </session_title_rules>
 
 <latest_intent_rules>
