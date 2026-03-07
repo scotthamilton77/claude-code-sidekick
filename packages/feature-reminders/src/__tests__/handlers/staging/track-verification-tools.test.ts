@@ -277,6 +277,54 @@ additionalContext: "Lint needed"
     expect(staging.getRemindersForHook('Stop')).toHaveLength(0)
   })
 
+  it('unstages vc-test when workspace-scoped test command is observed', async () => {
+    const handler = getRegisteredHandler()
+
+    await handler(
+      createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/index.ts'),
+      ctx as any
+    )
+    await handler(
+      createBashEvent(
+        { turnCount: 1, toolsThisTurn: 2, toolCount: 2 },
+        'pnpm --filter @sidekick/core test -- --exclude foo'
+      ),
+      ctx as any
+    )
+
+    expect(getStagedNames(staging)).not.toContain(ReminderIds.VC_TEST)
+  })
+
+  it('unstages vc-build when workspace-scoped build command is observed', async () => {
+    const handler = getRegisteredHandler()
+
+    await handler(
+      createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/index.ts'),
+      ctx as any
+    )
+    await handler(
+      createBashEvent({ turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, 'pnpm --filter @sidekick/core build'),
+      ctx as any
+    )
+
+    expect(getStagedNames(staging)).not.toContain(ReminderIds.VC_BUILD)
+  })
+
+  it('stores lastMatchedToolId and lastMatchedScope on verification', async () => {
+    const handler = getRegisteredHandler()
+
+    await handler(
+      createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/index.ts'),
+      ctx as any
+    )
+    await handler(createBashEvent({ turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, 'pnpm build'), ctx as any)
+
+    const statePath = stateService.sessionStatePath('test-session', 'verification-tools.json')
+    const state = stateService.getStored(statePath) as Record<string, Record<string, unknown>>
+    expect(state.build.lastMatchedToolId).toBe('pnpm-build')
+    expect(state.build.lastMatchedScope).toBe('project')
+  })
+
   // --------------------------------------------------------------------------
   // Cooldown and re-staging
   // --------------------------------------------------------------------------

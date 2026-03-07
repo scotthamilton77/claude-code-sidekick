@@ -68,27 +68,82 @@ settings:
   # When source files are edited, tools transition to STAGED (needing re-run).
   # When the tool's command is observed, it transitions to VERIFIED.
   # After VERIFIED, a configurable number of file edits (clearing_threshold) triggers re-staging.
+  #
+  # Pattern fields:
+  #   tool_id: stable key for override/removal by project or user config
+  #   tool: token pattern for matching (null = disabled)
+  #   scope: metadata — project, package, or file
   verification_tools:
     build:
       enabled: true
       patterns:
-        - "pnpm build"
-        - "npm run build"
-        - "yarn build"
-        - "tsc"
-        - "esbuild"
-        - "python setup.py build"
-        - "pip install"
-        - "poetry build"
-        - "mvn compile"
-        - "mvn package"
-        - "gradle build"
-        - "gradlew build"
-        - "go build"
-        - "cargo build"
-        - "make build"
-        - "cmake --build"
-        - "docker build"
+        # TypeScript/JavaScript
+        - tool_id: tsc
+          tool: "tsc"
+          scope: project
+        - tool_id: esbuild
+          tool: "esbuild"
+          scope: file
+        - tool_id: pnpm-build
+          tool: "pnpm build"
+          scope: project
+        - tool_id: pnpm-filter-build
+          tool: "pnpm --filter * build"
+          scope: package
+        - tool_id: npm-build
+          tool: "npm run build"
+          scope: project
+        - tool_id: yarn-build
+          tool: "yarn build"
+          scope: project
+        - tool_id: yarn-workspace-build
+          tool: "yarn workspace * build"
+          scope: package
+        # Python
+        - tool_id: python-setup-build
+          tool: "python setup.py build"
+          scope: project
+        - tool_id: pip-install
+          tool: "pip install"
+          scope: project
+        - tool_id: poetry-build
+          tool: "poetry build"
+          scope: project
+        # JVM
+        - tool_id: mvn-compile
+          tool: "mvn compile"
+          scope: project
+        - tool_id: mvn-package
+          tool: "mvn package"
+          scope: project
+        - tool_id: gradle-build
+          tool: "gradle build"
+          scope: project
+        - tool_id: gradlew-build
+          tool: "./gradlew build"
+          scope: project
+        # Go
+        - tool_id: go-build
+          tool: "go build"
+          scope: project
+        # Rust
+        - tool_id: cargo-build
+          tool: "cargo build"
+          scope: project
+        # C/C++
+        - tool_id: make-build
+          tool: "make build"
+          scope: project
+        - tool_id: make-default
+          tool: "make"
+          scope: project
+        - tool_id: cmake-build
+          tool: "cmake --build"
+          scope: project
+        # Containers
+        - tool_id: docker-build
+          tool: "docker build"
+          scope: project
       clearing_threshold: 3
       clearing_patterns:
         - "**/*.ts"
@@ -106,12 +161,36 @@ settings:
     typecheck:
       enabled: true
       patterns:
-        - "pnpm typecheck"
-        - "tsc --noEmit"
-        - "mypy"
-        - "pyright"
-        - "pytype"
-        - "go vet"
+        - tool_id: tsc-noEmit
+          tool: "tsc --noEmit"
+          scope: project
+        - tool_id: pnpm-typecheck
+          tool: "pnpm typecheck"
+          scope: project
+        - tool_id: pnpm-filter-typecheck
+          tool: "pnpm --filter * typecheck"
+          scope: package
+        - tool_id: npm-typecheck
+          tool: "npm run typecheck"
+          scope: project
+        - tool_id: yarn-typecheck
+          tool: "yarn typecheck"
+          scope: project
+        - tool_id: yarn-workspace-typecheck
+          tool: "yarn workspace * typecheck"
+          scope: package
+        - tool_id: mypy
+          tool: "mypy"
+          scope: project
+        - tool_id: pyright
+          tool: "pyright"
+          scope: project
+        - tool_id: pytype
+          tool: "pytype"
+          scope: project
+        - tool_id: go-vet
+          tool: "go vet"
+          scope: project
       clearing_threshold: 3
       clearing_patterns:
         - "**/*.ts"
@@ -121,20 +200,57 @@ settings:
     test:
       enabled: true
       patterns:
-        - "pnpm test"
-        - "npm test"
-        - "yarn test"
-        - "vitest"
-        - "jest"
-        - "pytest"
-        - "python -m pytest"
-        - "go test"
-        - "cargo test"
-        - "mvn test"
-        - "gradle test"
-        - "gradlew test"
-        - "dotnet test"
-        - "make test"
+        - tool_id: vitest
+          tool: "vitest"
+          scope: project
+        - tool_id: jest
+          tool: "jest"
+          scope: project
+        - tool_id: pnpm-test
+          tool: "pnpm test"
+          scope: project
+        - tool_id: pnpm-filter-test
+          tool: "pnpm --filter * test"
+          scope: package
+        - tool_id: npm-test
+          tool: "npm test"
+          scope: project
+        - tool_id: yarn-test
+          tool: "yarn test"
+          scope: project
+        - tool_id: yarn-workspace-test
+          tool: "yarn workspace * test"
+          scope: package
+        - tool_id: pytest
+          tool: "pytest"
+          scope: project
+        - tool_id: python-pytest
+          tool: "python -m pytest"
+          scope: project
+        - tool_id: python-unittest
+          tool: "python -m unittest"
+          scope: project
+        - tool_id: mvn-test
+          tool: "mvn test"
+          scope: project
+        - tool_id: gradle-test
+          tool: "gradle test"
+          scope: project
+        - tool_id: gradlew-test
+          tool: "./gradlew test"
+          scope: project
+        - tool_id: go-test
+          tool: "go test"
+          scope: project
+        - tool_id: cargo-test
+          tool: "cargo test"
+          scope: project
+        - tool_id: dotnet-test
+          tool: "dotnet test"
+          scope: project
+        - tool_id: make-test
+          tool: "make test"
+          scope: project
       clearing_threshold: 3
       clearing_patterns:
         - "**/*.ts"
@@ -152,17 +268,45 @@ settings:
     lint:
       enabled: true
       patterns:
-        - "pnpm lint"
-        - "npm run lint"
-        - "yarn lint"
-        - "eslint"
-        - "ruff check"
-        - "flake8"
-        - "pylint"
-        - "golangci-lint"
-        - "cargo clippy"
-        - "ktlint"
-        - "dotnet format"
+        - tool_id: eslint
+          tool: "eslint"
+          scope: project
+        - tool_id: pnpm-lint
+          tool: "pnpm lint"
+          scope: project
+        - tool_id: pnpm-filter-lint
+          tool: "pnpm --filter * lint"
+          scope: package
+        - tool_id: npm-lint
+          tool: "npm run lint"
+          scope: project
+        - tool_id: yarn-lint
+          tool: "yarn lint"
+          scope: project
+        - tool_id: yarn-workspace-lint
+          tool: "yarn workspace * lint"
+          scope: package
+        - tool_id: ruff
+          tool: "ruff"
+          scope: project
+        - tool_id: flake8
+          tool: "flake8"
+          scope: project
+        - tool_id: pylint
+          tool: "pylint"
+          scope: project
+        - tool_id: golangci-lint
+          tool: "golangci-lint"
+          scope: project
+        - tool_id: cargo-clippy
+          tool: "cargo clippy"
+          scope: project
+        - tool_id: ktlint
+          tool: "ktlint"
+          scope: project
+        - tool_id: dotnet-format
+          tool: "dotnet format"
+          scope: project
       clearing_threshold: 5
       clearing_patterns:
         - "**/*.ts"
