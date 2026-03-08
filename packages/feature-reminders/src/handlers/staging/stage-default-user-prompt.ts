@@ -64,24 +64,24 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
 
   // Daemon-only handlers: throttle registration, counter resets, and re-staging
   if (!isDaemonContext(context)) return
-  const daemonCtx = context as unknown as DaemonContext
 
   // Handler 1c: Register UPS reminder in throttle state on SessionStart
   context.handlers.register({
     id: 'reminders:throttle-register-ups-session-start',
     priority: 49,
     filter: { kind: 'hook', hooks: ['SessionStart'] },
-    handler: async (event) => {
+    handler: async (event, ctx) => {
       if (!isHookEvent(event) || !isSessionStartEvent(event)) return
+      const handlerCtx = ctx as unknown as DaemonContext
       const sessionId = event.context.sessionId
       if (!sessionId) return
       const reminder = resolveReminder(ReminderIds.USER_PROMPT_SUBMIT, {
         context: { sessionId },
-        assets: daemonCtx.assets,
+        assets: handlerCtx.assets,
       })
       if (reminder) {
         await registerThrottledReminder(
-          daemonCtx,
+          handlerCtx,
           sessionId,
           ReminderIds.USER_PROMPT_SUBMIT,
           'UserPromptSubmit',
@@ -96,11 +96,12 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
     id: 'reminders:throttle-reset-session-start',
     priority: 48,
     filter: { kind: 'hook', hooks: ['SessionStart'] },
-    handler: async (event) => {
+    handler: async (event, ctx) => {
       if (!isHookEvent(event) || !isSessionStartEvent(event)) return
+      const handlerCtx = ctx as unknown as DaemonContext
       const sessionId = event.context.sessionId
       if (!sessionId) return
-      await resetThrottleCounters(daemonCtx, sessionId)
+      await resetThrottleCounters(handlerCtx, sessionId)
     },
   })
 
@@ -109,12 +110,13 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
     id: 'reminders:throttle-reset-bulk',
     priority: 49,
     filter: { kind: 'transcript', eventTypes: ['BulkProcessingComplete'] },
-    handler: async (event) => {
+    handler: async (event, ctx) => {
       if (!isTranscriptEvent(event)) return
       if (event.metadata.isBulkProcessing) return
+      const handlerCtx = ctx as unknown as DaemonContext
       const sessionId = event.context?.sessionId
       if (!sessionId) return
-      await resetThrottleCounters(daemonCtx, sessionId)
+      await resetThrottleCounters(handlerCtx, sessionId)
     },
   })
 
@@ -123,16 +125,17 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
     id: 'reminders:throttle-restage',
     priority: 50,
     filter: { kind: 'transcript', eventTypes: ['UserPrompt', 'AssistantMessage'] },
-    handler: async (event) => {
+    handler: async (event, ctx) => {
       if (!isTranscriptEvent(event)) return
 
       // Skip bulk replay
       if (event.metadata.isBulkProcessing) return
 
+      const handlerCtx = ctx as unknown as DaemonContext
       const sessionId = event.context?.sessionId
       if (!sessionId) return
 
-      const remindersState = createRemindersState(daemonCtx.stateService)
+      const remindersState = createRemindersState(handlerCtx.stateService)
 
       // Read all throttle entries
       const result = await remindersState.reminderThrottle.read(sessionId)
@@ -141,7 +144,7 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
       if (Object.keys(state).length === 0) return
 
       // Read thresholds from config
-      const featureConfig = daemonCtx.config.getFeature<RemindersSettings>('reminders')
+      const featureConfig = handlerCtx.config.getFeature<RemindersSettings>('reminders')
       const config = { ...DEFAULT_REMINDERS_SETTINGS, ...featureConfig.settings }
       const thresholds = config.reminder_thresholds ?? {}
 
@@ -163,12 +166,12 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
             toolsThisTurn: metrics.toolsThisTurn,
             toolCount: metrics.toolCount,
           }
-          await stageReminder(daemonCtx, typedEntry.targetHook, {
+          await stageReminder(handlerCtx, typedEntry.targetHook, {
             ...(typedEntry.cachedReminder as StagedReminder),
             stagedAt,
           })
           state[reminderId] = { ...typedEntry, messagesSinceLastStaging: 0 }
-          daemonCtx.logger.debug('Throttle: re-staged reminder', {
+          handlerCtx.logger.debug('Throttle: re-staged reminder', {
             sessionId,
             reminderId,
             messageCount: newCount,
