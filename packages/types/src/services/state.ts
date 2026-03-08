@@ -354,23 +354,40 @@ export const VerificationToolsStateSchema = z.record(z.string(), VerificationToo
 export type VerificationToolsState = z.infer<typeof VerificationToolsStateSchema>
 
 // ============================================================================
-// UPS Throttle State Schema
+// Reminder Throttle State Schema
 // ============================================================================
 
 /**
- * Tracks conversation messages since the user-prompt-submit reminder was last staged.
- * Used by the daemon to throttle re-staging of the UPS reminder.
+ * Per-reminder throttle entry.
+ * Stores counter, target hook, and cached resolved reminder for re-staging.
  *
- * Location: `.sidekick/sessions/{sessionId}/state/ups-throttle.json`
+ * Location: `.sidekick/sessions/{sessionId}/state/reminder-throttle.json`
  *
- * @see docs/plans/2026-03-08-ups-throttle-design.md
+ * @see docs/plans/2026-03-08-generic-reminder-throttle-design.md
  */
-export const UPSThrottleStateSchema = z.object({
+export const ReminderThrottleEntrySchema = z.object({
   /** Number of conversation messages since the reminder was last staged */
   messagesSinceLastStaging: z.number().int().nonnegative(),
+  /** Hook to re-stage the reminder for */
+  targetHook: z.string(),
+  /** Cached resolved reminder content for re-staging */
+  cachedReminder: z.object({
+    name: z.string(),
+    blocking: z.boolean(),
+    priority: z.number(),
+    persistent: z.boolean(),
+    userMessage: z.string().optional(),
+    additionalContext: z.string().optional(),
+    reason: z.string().optional(),
+  }),
 })
 
-export type UPSThrottleState = z.infer<typeof UPSThrottleStateSchema>
+export type ReminderThrottleEntry = z.infer<typeof ReminderThrottleEntrySchema>
+
+/** Map of reminder ID → throttle entry */
+export const ReminderThrottleStateSchema = z.record(z.string(), ReminderThrottleEntrySchema)
+
+export type ReminderThrottleState = z.infer<typeof ReminderThrottleStateSchema>
 
 // ============================================================================
 // Staged Reminders State
