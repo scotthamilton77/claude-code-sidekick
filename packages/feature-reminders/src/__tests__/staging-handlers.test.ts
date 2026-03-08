@@ -819,6 +819,44 @@ additionalContext: "Lint needed"
       expect(logger.wasLogged('VC unstage: cycle limit reached, clearing')).toBe(true)
     })
 
+    it('does not re-stage wrapper when all tools are verified with zero pending edits', async () => {
+      const stateService = new MockStateService(testProjectDir)
+
+      // Set vc-unverified state (would normally trigger re-staging)
+      const vcUnverifiedPath = stateService.sessionStatePath(sessionId, 'vc-unverified.json')
+      stateService.setStored(vcUnverifiedPath, {
+        hasUnverifiedChanges: true,
+        cycleCount: 1,
+        setAt: { timestamp: Date.now(), turnCount: 1, toolsThisTurn: 5, toolCount: 5 },
+        lastClassification: { category: 'OTHER', confidence: 0.5 },
+      })
+
+      // Set verification-tools state: all tools verified, zero pending edits
+      const vtPath = stateService.sessionStatePath(sessionId, 'verification-tools.json')
+      stateService.setStored(vtPath, {
+        build: { status: 'verified', editsSinceVerified: 0, lastVerifiedAt: Date.now(), lastStagedAt: Date.now() },
+        typecheck: { status: 'verified', editsSinceVerified: 0, lastVerifiedAt: Date.now(), lastStagedAt: Date.now() },
+        test: { status: 'verified', editsSinceVerified: 0, lastVerifiedAt: Date.now(), lastStagedAt: Date.now() },
+        lint: { status: 'verified', editsSinceVerified: 0, lastVerifiedAt: Date.now(), lastStagedAt: Date.now() },
+      })
+
+      const ctxWithPath = createMockDaemonContext({
+        staging,
+        logger,
+        handlers,
+        assets,
+        stateService,
+        paths: { projectDir: testProjectDir, userConfigDir: '/mock/user', projectConfigDir: '/mock/project-config' },
+      })
+
+      registerUnstageVerifyCompletion(ctxWithPath)
+      const handler = handlers.getHandler('reminders:unstage-verify-completion')
+      await handler?.handler(createHookEvent(), ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
+
+      // Wrapper should NOT be re-staged — nothing needs verification
+      expect(staging.getRemindersForHook('Stop')).toHaveLength(0)
+    })
+
     it('handles missing sessionId gracefully', async () => {
       registerUnstageVerifyCompletion(ctx)
 

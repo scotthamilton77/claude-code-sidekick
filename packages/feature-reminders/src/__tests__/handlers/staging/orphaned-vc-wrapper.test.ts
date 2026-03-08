@@ -315,8 +315,8 @@ describe('Orphaned VC wrapper — Scenario B: unverified re-stage without per-to
     await unstageHandler(createUserPromptSubmitEvent(), ctx as any)
     snapshotStaging(staging, 'Step 5: After UserPromptSubmit with vc-unverified')
 
-    // --- BUG: wrapper re-staged but NO per-tool reminders ---
-    const wrapperOrphaned = hasWrapper(staging) && getPerToolNames(staging).length === 0
-    expect(wrapperOrphaned).toBe(true) // This PROVES the bug exists
+    // FIX: wrapper is NOT re-staged because all tools are verified
+    expect(hasWrapper(staging)).toBe(false)
+    expect(getPerToolNames(staging)).toHaveLength(0)
   })
 })
