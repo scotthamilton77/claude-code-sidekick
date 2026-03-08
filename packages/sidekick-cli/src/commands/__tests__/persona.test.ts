@@ -12,6 +12,7 @@
 import { Writable } from 'node:stream'
 import { describe, expect, test, vi, beforeEach } from 'vitest'
 import type { Logger } from '@sidekick/types'
+import { createFakeLogger } from '@sidekick/testing-fixtures'
 
 // Mock @sidekick/core before importing the module under test
 // Note: vi.mock is hoisted, so we use vi.hoisted to define mock functions
@@ -78,19 +79,6 @@ class CollectingWritable extends Writable {
   _write(chunk: Buffer | string, _encoding: BufferEncoding, callback: (error?: Error | null) => void): void {
     this.data += chunk.toString()
     callback()
-  }
-}
-
-function createFakeLogger(): Logger {
-  return {
-    trace: vi.fn() as any,
-    debug: vi.fn() as any,
-    info: vi.fn() as any,
-    warn: vi.fn() as any,
-    error: vi.fn() as any,
-    fatal: vi.fn() as any,
-    child: vi.fn(() => createFakeLogger()) as any,
-    flush: vi.fn() as any,
   }
 }
 

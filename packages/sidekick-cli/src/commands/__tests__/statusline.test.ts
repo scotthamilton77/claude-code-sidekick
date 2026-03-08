@@ -11,6 +11,7 @@
 import { Writable } from 'node:stream'
 import { afterEach, describe, expect, test, vi, beforeEach } from 'vitest'
 import type { Logger } from '@sidekick/types'
+import { createFakeLogger } from '@sidekick/testing-fixtures'
 
 // CollectingWritable to capture stdout output
 class CollectingWritable extends Writable {
@@ -56,20 +57,6 @@ vi.mock('@sidekick/core', async (importOriginal) => {
     }),
   }
 })
-
-// Create fake logger - record calls but don't verify them (behavior testing)
-function createFakeLogger(): Logger {
-  return {
-    trace: vi.fn() as any,
-    debug: vi.fn() as any,
-    info: vi.fn() as any,
-    warn: vi.fn() as any,
-    error: vi.fn() as any,
-    fatal: vi.fn() as any,
-    child: vi.fn(() => createFakeLogger()) as any,
-    flush: vi.fn() as any,
-  }
-}
 
 import { handleStatuslineCommand } from '../statusline'
 

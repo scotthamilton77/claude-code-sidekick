@@ -154,6 +154,9 @@ importers:
         specifier: ^4.1.13
         version: 4.3.6
     devDependencies:
+      '@sidekick/testing-fixtures':
+        specifier: workspace:*
+        version: link:../testing-fixtures
       '@types/node':
         specifier: ^22.7.4
         version: 22.19.10
@@ -182,6 +185,9 @@ importers:
         specifier: ^21.1.1
         version: 21.1.1
     devDependencies:
+      '@sidekick/testing-fixtures':
+        specifier: workspace:*
+        version: link:../testing-fixtures
       '@types/node':
         specifier: ^22.7.4
         version: 22.19.10

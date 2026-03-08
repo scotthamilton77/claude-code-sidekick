@@ -16,7 +16,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 import { createConfigService, loadConfig } from '../config'
 import type { AssetResolver } from '../assets'
-import type { Logger } from '@sidekick/types'
+import { createFakeLogger } from '@sidekick/testing-fixtures'
 
 // =============================================================================
 // Test Helpers: Standard Defaults
@@ -1320,19 +1320,6 @@ session-summary:
 
 describe('loadConfig - legacy sidekick.config warning', () => {
   const tempRoot = join(tmpdir(), 'sidekick-legacy-config-tests')
-
-  function createFakeLogger(): Logger {
-    return {
-      trace: vi.fn() as any,
-      debug: vi.fn() as any,
-      info: vi.fn() as any,
-      warn: vi.fn() as any,
-      error: vi.fn() as any,
-      fatal: vi.fn() as any,
-      child: vi.fn().mockReturnThis(),
-      flush: vi.fn().mockResolvedValue(undefined),
-    } as unknown as Logger
-  }
 
   beforeEach(() => {
     mkdirSync(tempRoot, { recursive: true })

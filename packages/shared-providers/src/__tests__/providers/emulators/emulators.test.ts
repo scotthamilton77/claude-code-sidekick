@@ -7,6 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { LLMRequest, Logger } from '@sidekick/types'
+import { createFakeLogger } from '@sidekick/testing-fixtures'
 import { OpenAIEmulator } from '../../../providers/emulators/openai-emulator'
 import { OpenRouterEmulator } from '../../../providers/emulators/openrouter-emulator'
 import type { EmulatorStateManager } from '../../../providers/emulators/emulator-state'
@@ -27,20 +28,6 @@ function createFakeStateManager(): EmulatorStateManager {
     }),
     reset: vi.fn().mockResolvedValue(undefined),
   } as unknown as EmulatorStateManager
-}
-
-// Fake logger
-function createFakeLogger(): Logger {
-  return {
-    trace: vi.fn() as any,
-    debug: vi.fn() as any,
-    info: vi.fn() as any,
-    warn: vi.fn() as any,
-    error: vi.fn() as any,
-    fatal: vi.fn() as any,
-    child: vi.fn().mockReturnThis(),
-    flush: vi.fn().mockResolvedValue(undefined),
-  } as unknown as Logger
 }
 
 // Standard test request

@@ -429,10 +429,10 @@ describe('stageToolsForFiles', () => {
 })
 
 // --------------------------------------------------------------------------
-// stageToolReminderIfNeeded failure handling
+// ensureToolReminderStaged failure handling
 // --------------------------------------------------------------------------
 
-describe('stageToolReminderIfNeeded failure does not pollute state', () => {
+describe('ensureToolReminderStaged failure does not pollute state', () => {
   let staging: MockStagingService
   let logger: MockLogger
   let handlers: MockHandlerRegistry

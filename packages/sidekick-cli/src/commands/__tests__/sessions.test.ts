@@ -17,6 +17,7 @@ import * as path from 'node:path'
 import { Writable } from 'node:stream'
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest'
 import type { Logger } from '@sidekick/types'
+import { createFakeLogger } from '@sidekick/testing-fixtures'
 import { handleSessionsCommand, type SessionInfo } from '../sessions'
 
 // CollectingWritable to capture stdout output
@@ -26,20 +27,6 @@ class CollectingWritable extends Writable {
   _write(chunk: Buffer | string, _encoding: BufferEncoding, callback: (error?: Error | null) => void): void {
     this.data += chunk.toString()
     callback()
-  }
-}
-
-// Create fake logger (we don't test logging behavior, just need the interface)
-function createFakeLogger(): Logger {
-  return {
-    trace: vi.fn() as any,
-    debug: vi.fn() as any,
-    info: vi.fn() as any,
-    warn: vi.fn() as any,
-    error: vi.fn() as any,
-    fatal: vi.fn() as any,
-    child: vi.fn(() => createFakeLogger()) as any,
-    flush: vi.fn() as any,
   }
 }
 
