@@ -108,6 +108,7 @@
 {"created_at":"2026-02-16T13:41:48Z","created_by":"import","depends_on_id":"sidekick-0o4.7","issue_id":"sidekick-fnd","type":"blocks"}
 {"created_at":"2026-02-16T13:41:48Z","created_by":"import","depends_on_id":"sidekick-86a","issue_id":"sidekick-gcp","type":"parent-child"}
 {"created_at":"2026-02-28T08:40:53Z","created_by":"Scott Hamilton","depends_on_id":"sidekick-3wn9","issue_id":"sidekick-hih5","type":"blocks"}
+{"created_at":"2026-03-07T20:56:03Z","created_by":"Scott Hamilton","depends_on_id":"sidekick-3lbi","issue_id":"sidekick-hvgb","type":"discovered-from"}
 {"created_at":"2026-02-16T13:41:48Z","created_by":"import","depends_on_id":"sidekick-7p4","issue_id":"sidekick-iwk","type":"blocks"}
 {"created_at":"2026-02-16T13:41:48Z","created_by":"import","depends_on_id":"sidekick-0o4.2","issue_id":"sidekick-j8p","type":"parent-child"}
 {"created_at":"2026-02-16T13:41:48Z","created_by":"import","depends_on_id":"sidekick-dv2","issue_id":"sidekick-jiu","type":"blocks"}
