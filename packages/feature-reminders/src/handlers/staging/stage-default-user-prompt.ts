@@ -10,9 +10,12 @@
  * @see docs/design/FEATURE-REMINDERS.md §5.1
  */
 import type { RuntimeContext } from '@sidekick/core'
-import { isHookEvent, isSessionStartEvent, isTranscriptEvent } from '@sidekick/types'
+import type { DaemonContext } from '@sidekick/types'
+import { isDaemonContext, isHookEvent, isSessionStartEvent, isTranscriptEvent } from '@sidekick/types'
 import { createStagingHandler } from './staging-handler-utils.js'
-import { ReminderIds } from '../../types.js'
+import { ReminderIds, DEFAULT_REMINDERS_SETTINGS, type RemindersSettings } from '../../types.js'
+import { resolveReminder, stageReminder } from '../../reminder-utils.js'
+import { createRemindersState } from '../../state.js'
 
 export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
   // Handler 1: Stage on SessionStart (normal flow)
@@ -33,6 +36,23 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
     },
   })
 
+  // Handler 1b: Reset UPS throttle counter on SessionStart
+  if (isDaemonContext(context)) {
+    const startCtx = context as unknown as DaemonContext
+    context.handlers.register({
+      id: 'reminders:ups-throttle-reset-session-start',
+      priority: 49,
+      filter: { kind: 'hook', hooks: ['SessionStart'] },
+      handler: async (event) => {
+        if (!isHookEvent(event) || !isSessionStartEvent(event)) return
+        const sessionId = event.context.sessionId
+        if (!sessionId) return
+        const remindersState = createRemindersState(startCtx.stateService)
+        await remindersState.upsThrottle.write(sessionId, { messagesSinceLastStaging: 0 })
+      },
+    })
+  }
+
   // Handler 2: Stage after bulk transcript reconstruction (mid-session restart)
   // This handles the case where daemon restarts without a SessionStart event
   // (e.g., after dev-mode.sh clean-all removes the staging directory)
@@ -49,6 +69,81 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
         targetHook: 'UserPromptSubmit',
         skipIfExists: true, // Don't duplicate if SessionStart already staged
         templateContext: { sessionId: event.context?.sessionId ?? 'unknown' },
+      }
+    },
+  })
+
+  // Handler 2b: Reset UPS throttle counter on BulkProcessingComplete
+  if (isDaemonContext(context)) {
+    const bulkCtx = context as unknown as DaemonContext
+    context.handlers.register({
+      id: 'reminders:ups-throttle-reset-bulk',
+      priority: 49,
+      filter: { kind: 'transcript', eventTypes: ['BulkProcessingComplete'] },
+      handler: async (event) => {
+        if (!isTranscriptEvent(event)) return
+        if (event.metadata.isBulkProcessing) return
+        const sessionId = event.context?.sessionId
+        if (!sessionId) return
+        const remindersState = createRemindersState(bulkCtx.stateService)
+        await remindersState.upsThrottle.write(sessionId, { messagesSinceLastStaging: 0 })
+      },
+    })
+  }
+
+  // Handler 3: Throttle re-staging based on conversation message count
+  if (!isDaemonContext(context)) return
+
+  context.handlers.register({
+    id: 'reminders:ups-throttle-restage',
+    priority: 50,
+    filter: { kind: 'transcript', eventTypes: ['UserPrompt', 'AssistantMessage'] },
+    handler: async (event, ctx) => {
+      if (!isTranscriptEvent(event)) return
+      if (!isDaemonContext(ctx as unknown as RuntimeContext)) return
+
+      // Skip bulk replay
+      if (event.metadata.isBulkProcessing) return
+
+      const sessionId = event.context?.sessionId
+      if (!sessionId) return
+
+      const handlerCtx = ctx as unknown as DaemonContext
+      const remindersState = createRemindersState(handlerCtx.stateService)
+
+      // Read-modify-write is safe: transcript events are processed serially per session
+      // Read current counter
+      const result = await remindersState.upsThrottle.read(sessionId)
+      const current = result.data.messagesSinceLastStaging
+
+      // Read threshold from config
+      const featureConfig = handlerCtx.config.getFeature<RemindersSettings>('reminders')
+      const config = { ...DEFAULT_REMINDERS_SETTINGS, ...featureConfig.settings }
+      const threshold = config.user_prompt_submit_threshold ?? 10
+
+      const newCount = current + 1
+
+      if (newCount >= threshold) {
+        // Re-stage the reminder
+        const reminder = resolveReminder(ReminderIds.USER_PROMPT_SUBMIT, {
+          context: { sessionId },
+          assets: handlerCtx.assets,
+        })
+
+        if (reminder) {
+          await stageReminder(handlerCtx, 'UserPromptSubmit', reminder)
+          handlerCtx.logger.debug('UPS throttle: re-staged reminder', {
+            sessionId,
+            messageCount: newCount,
+            threshold,
+          })
+        }
+
+        // Reset counter
+        await remindersState.upsThrottle.write(sessionId, { messagesSinceLastStaging: 0 })
+      } else {
+        // Increment counter
+        await remindersState.upsThrottle.write(sessionId, { messagesSinceLastStaging: newCount })
       }
     },
   })

@@ -36,6 +36,7 @@ import {
   restagePersonaRemindersForActiveSessions,
 } from '../handlers/staging/stage-persona-reminders'
 import { getGitFileStatus } from '@sidekick/core'
+import { createRemindersState } from '../state'
 
 // Mock @sidekick/core — preserves all other exports, mocks specific functions
 vi.mock('@sidekick/core', async (importOriginal) => {
@@ -79,6 +80,29 @@ function createTestTranscriptEvent(
   }
 }
 
+function createConversationTranscriptEvent(
+  eventType: 'UserPrompt' | 'AssistantMessage',
+  sessionId: string = 'test-session',
+  metrics?: Partial<TranscriptMetrics>
+): TranscriptEvent {
+  return {
+    kind: 'transcript',
+    eventType,
+    context: {
+      sessionId,
+      timestamp: Date.now(),
+    },
+    payload: {
+      lineNumber: 1,
+      entry: {},
+    },
+    metadata: {
+      transcriptPath: '/test/transcript.jsonl',
+      metrics: { ...createDefaultMetrics(), ...(metrics ?? {}) },
+    },
+  }
+}
+
 describe('staging handlers', () => {
   let ctx: DaemonContext
   let staging: MockStagingService
@@ -104,7 +128,7 @@ reason: "Checkpoint - {{toolsSinceBaseline}} tools since last checkpoint"
       'reminders/user-prompt-submit.yaml': `id: user-prompt-submit
 blocking: false
 priority: 10
-persistent: true
+persistent: false
 additionalContext: "Standard user prompt reminder"
 `,
       'reminders/verify-completion.yaml': `id: verify-completion
@@ -567,11 +591,11 @@ additionalContext: "Lint needed"
       registerStageDefaultUserPrompt(ctx)
 
       const registrations = handlers.getHandlersForHook('SessionStart')
-      expect(registrations).toHaveLength(1)
-      expect(registrations[0].id).toBe('reminders:stage-default-user-prompt')
+      const stageHandler = registrations.find((h) => h.id === 'reminders:stage-default-user-prompt')
+      expect(stageHandler).toBeDefined()
     })
 
-    it('stages persistent reminder on SessionStart', async () => {
+    it('stages non-persistent reminder on SessionStart', async () => {
       registerStageDefaultUserPrompt(ctx)
 
       const handler = handlers.getHandler('reminders:stage-default-user-prompt')
@@ -587,7 +611,7 @@ additionalContext: "Lint needed"
       const reminders = staging.getRemindersForHook('UserPromptSubmit')
       expect(reminders).toHaveLength(1)
       expect(reminders[0].name).toBe('user-prompt-submit')
-      expect(reminders[0].persistent).toBe(true)
+      expect(reminders[0].persistent).toBe(false)
       expect(reminders[0].priority).toBe(10)
     })
 
@@ -595,8 +619,8 @@ additionalContext: "Lint needed"
       registerStageDefaultUserPrompt(ctx)
 
       const transcriptHandlers = handlers.getHandlersByKind('transcript')
-      expect(transcriptHandlers).toHaveLength(1)
-      expect(transcriptHandlers[0].id).toBe('reminders:stage-default-user-prompt-after-bulk')
+      const bulkHandler = transcriptHandlers.find((h) => h.id === 'reminders:stage-default-user-prompt-after-bulk')
+      expect(bulkHandler).toBeDefined()
     })
 
     it('stages reminder on BulkProcessingComplete with skipIfExists', async () => {
@@ -649,6 +673,206 @@ additionalContext: "Lint needed"
       // Should still only have one reminder (not duplicated)
       expect(staging.getRemindersForHook('UserPromptSubmit')).toHaveLength(1)
     })
+
+    describe('throttle re-staging', () => {
+      let stateService: MockStateService
+
+      beforeEach(() => {
+        stateService = new MockStateService()
+        staging = new MockStagingService()
+        logger = new MockLogger()
+        handlers = new MockHandlerRegistry()
+        assets = new MockAssetResolver()
+
+        assets.registerAll({
+          'reminders/user-prompt-submit.yaml': `id: user-prompt-submit
+blocking: false
+priority: 10
+persistent: false
+additionalContext: "Standard user prompt reminder"
+`,
+        })
+
+        ctx = createMockDaemonContext({ staging, logger, handlers, assets, stateService })
+      })
+
+      it('registers a transcript handler for UserPrompt and AssistantMessage', () => {
+        registerStageDefaultUserPrompt(ctx)
+
+        const transcriptHandlers = handlers.getHandlersByKind('transcript')
+        const throttleHandler = transcriptHandlers.find((h) => h.id === 'reminders:ups-throttle-restage')
+        expect(throttleHandler).toBeDefined()
+      })
+
+      it('increments message counter on UserPrompt event', async () => {
+        registerStageDefaultUserPrompt(ctx)
+
+        const handler = handlers.getHandler('reminders:ups-throttle-restage')
+        const event = createConversationTranscriptEvent('UserPrompt')
+        await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+
+        const remindersState = createRemindersState(stateService)
+        const result = await remindersState.upsThrottle.read('test-session')
+        expect(result.data.messagesSinceLastStaging).toBe(1)
+      })
+
+      it('increments message counter on AssistantMessage event', async () => {
+        registerStageDefaultUserPrompt(ctx)
+
+        const handler = handlers.getHandler('reminders:ups-throttle-restage')
+        const event = createConversationTranscriptEvent('AssistantMessage')
+        await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+
+        const remindersState = createRemindersState(stateService)
+        const result = await remindersState.upsThrottle.read('test-session')
+        expect(result.data.messagesSinceLastStaging).toBe(1)
+      })
+
+      it('does not re-stage when below threshold', async () => {
+        registerStageDefaultUserPrompt(ctx)
+
+        const handler = handlers.getHandler('reminders:ups-throttle-restage')
+
+        // Fire 9 events (below default threshold of 10)
+        for (let i = 0; i < 9; i++) {
+          const event = createConversationTranscriptEvent('UserPrompt')
+          await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+        }
+
+        // The SessionStart handler stages one, but the throttle should not add another
+        // Clear any staged reminders from SessionStart to isolate throttle behavior
+        const reminders = staging.getRemindersForHook('UserPromptSubmit')
+        // Only the SessionStart handler would have staged one; throttle should not have
+        // Since we didn't fire SessionStart, there should be none from throttle
+        expect(reminders.filter((r) => r.name === 'user-prompt-submit')).toHaveLength(0)
+      })
+
+      it('re-stages reminder when threshold is met', async () => {
+        registerStageDefaultUserPrompt(ctx)
+
+        const handler = handlers.getHandler('reminders:ups-throttle-restage')
+
+        // Fire 10 events (meets default threshold of 10)
+        for (let i = 0; i < 10; i++) {
+          const event = createConversationTranscriptEvent('UserPrompt')
+          await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+        }
+
+        const reminders = staging.getRemindersForHook('UserPromptSubmit')
+        expect(reminders.some((r) => r.name === 'user-prompt-submit')).toBe(true)
+      })
+
+      it('resets counter after re-staging', async () => {
+        registerStageDefaultUserPrompt(ctx)
+
+        const handler = handlers.getHandler('reminders:ups-throttle-restage')
+
+        // Fire 10 events to trigger re-staging
+        for (let i = 0; i < 10; i++) {
+          const event = createConversationTranscriptEvent('UserPrompt')
+          await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+        }
+
+        const remindersState = createRemindersState(stateService)
+        const result = await remindersState.upsThrottle.read('test-session')
+        expect(result.data.messagesSinceLastStaging).toBe(0)
+      })
+
+      it('skips bulk replay events', async () => {
+        registerStageDefaultUserPrompt(ctx)
+
+        const handler = handlers.getHandler('reminders:ups-throttle-restage')
+        const event = createConversationTranscriptEvent('UserPrompt')
+        // Add bulk processing flag
+        const bulkEvent = {
+          ...event,
+          metadata: { ...event.metadata, isBulkProcessing: true },
+        }
+        await handler?.handler(bulkEvent, ctx as unknown as import('@sidekick/types').HandlerContext)
+
+        const remindersState = createRemindersState(stateService)
+        const result = await remindersState.upsThrottle.read('test-session')
+        expect(result.data.messagesSinceLastStaging).toBe(0)
+      })
+
+      it('respects configurable threshold', async () => {
+        const configWithThreshold = new MockConfigService()
+        configWithThreshold.set({
+          features: {
+            reminders: { enabled: true, settings: { user_prompt_submit_threshold: 3 } },
+          },
+        })
+
+        const customCtx = createMockDaemonContext({
+          staging,
+          logger,
+          handlers,
+          assets,
+          stateService,
+          config: configWithThreshold,
+        })
+
+        registerStageDefaultUserPrompt(customCtx)
+
+        const handler = handlers.getHandler('reminders:ups-throttle-restage')
+
+        // Fire 3 events (meets custom threshold of 3)
+        for (let i = 0; i < 3; i++) {
+          const event = createConversationTranscriptEvent('UserPrompt')
+          await handler?.handler(event, customCtx as unknown as import('@sidekick/types').HandlerContext)
+        }
+
+        const reminders = staging.getRemindersForHook('UserPromptSubmit')
+        expect(reminders.some((r) => r.name === 'user-prompt-submit')).toBe(true)
+      })
+
+      it('resets counter on SessionStart', async () => {
+        registerStageDefaultUserPrompt(ctx)
+
+        // Write state with existing counter
+        const remindersState = createRemindersState(stateService)
+        await remindersState.upsThrottle.write('test-session', { messagesSinceLastStaging: 5 })
+
+        // Fire SessionStart via the reset handler
+        const resetHandler = handlers.getHandler('reminders:ups-throttle-reset-session-start')
+        const sessionEvent = {
+          kind: 'hook' as const,
+          hook: 'SessionStart' as const,
+          context: { sessionId: 'test-session', timestamp: Date.now() },
+          payload: { startType: 'startup' as const, transcriptPath: '/test/transcript.jsonl' },
+        }
+        await resetHandler?.handler(sessionEvent, ctx as unknown as import('@sidekick/types').HandlerContext)
+
+        const result = await remindersState.upsThrottle.read('test-session')
+        expect(result.data.messagesSinceLastStaging).toBe(0)
+      })
+
+      it('resets counter on BulkProcessingComplete', async () => {
+        registerStageDefaultUserPrompt(ctx)
+
+        // Write state with existing counter
+        const remindersState = createRemindersState(stateService)
+        await remindersState.upsThrottle.write('test-session', { messagesSinceLastStaging: 5 })
+
+        // Fire BulkProcessingComplete via the reset handler
+        const resetHandler = handlers.getHandler('reminders:ups-throttle-reset-bulk')
+        const bulkCompleteEvent: TranscriptEvent = {
+          kind: 'transcript',
+          eventType: 'BulkProcessingComplete',
+          context: { sessionId: 'test-session', timestamp: Date.now() },
+          payload: { lineNumber: 1, entry: {} },
+          metadata: {
+            transcriptPath: '/test/transcript.jsonl',
+            metrics: createDefaultMetrics(),
+            isBulkProcessing: false,
+          },
+        }
+        await resetHandler?.handler(bulkCompleteEvent, ctx as unknown as import('@sidekick/types').HandlerContext)
+
+        const result = await remindersState.upsThrottle.read('test-session')
+        expect(result.data.messagesSinceLastStaging).toBe(0)
+      })
+    })
   })
 
   describe('handler registration filters', () => {
@@ -663,7 +887,8 @@ additionalContext: "Lint needed"
       registerStageDefaultUserPrompt(ctx)
 
       const hookHandlers = handlers.getHandlersByKind('hook')
-      expect(hookHandlers).toHaveLength(1)
+      const stageHandler = hookHandlers.find((h) => h.id === 'reminders:stage-default-user-prompt')
+      expect(stageHandler).toBeDefined()
     })
   })
 
