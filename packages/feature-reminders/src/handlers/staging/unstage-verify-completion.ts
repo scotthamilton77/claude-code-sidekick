@@ -56,32 +56,57 @@ export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
         })
 
         if (maxCycles < 0 || unverifiedState.cycleCount < maxCycles) {
-          // Re-stage verify-completion for next Stop
-          const reminder = resolveReminder(ReminderIds.VERIFY_COMPLETION, {
-            context: {},
-            assets: daemonCtx.assets,
+          // Check if any tools actually need verification before re-staging wrapper
+          const verificationToolsResult = await remindersState.verificationTools.read(sessionId)
+          const toolsState = verificationToolsResult.data
+          const verificationTools = config.verification_tools ?? {}
+
+          const hasToolsNeedingVerification = Object.entries(verificationTools).some(([toolName, toolConfig]) => {
+            if (!toolConfig.enabled) return false
+            const state = toolsState[toolName]
+            if (!state) return true // never tracked = needs verification
+            if (state.status === 'staged') return true
+            if (state.status === 'verified' || state.status === 'cooldown') {
+              return state.editsSinceVerified >= toolConfig.clearing_threshold
+            }
+            return false
           })
 
-          if (reminder) {
-            // Stage with fresh metrics from current state
-            await stageReminder(daemonCtx, 'Stop', {
-              ...reminder,
-              stagedAt: {
-                timestamp: Date.now(),
-                turnCount: unverifiedState.setAt.turnCount,
-                toolsThisTurn: unverifiedState.setAt.toolsThisTurn,
-                toolCount: unverifiedState.setAt.toolCount,
-              },
-            })
-            daemonCtx.logger.info('VC unstage: re-staged for next Stop', {
+          if (!hasToolsNeedingVerification) {
+            daemonCtx.logger.info('VC unstage: all tools verified, skipping wrapper re-stage', {
               sessionId,
               cycleCount: unverifiedState.cycleCount,
-              lastCategory: unverifiedState.lastClassification.category,
             })
-            // Don't delete - we just re-staged it
-            return
+            await remindersState.vcUnverified.delete(sessionId)
+            // Fall through to delete all VC reminders
           } else {
-            daemonCtx.logger.warn('VC unstage: failed to resolve reminder for re-staging')
+            // Re-stage verify-completion for next Stop
+            const reminder = resolveReminder(ReminderIds.VERIFY_COMPLETION, {
+              context: {},
+              assets: daemonCtx.assets,
+            })
+
+            if (reminder) {
+              // Stage with fresh metrics from current state
+              await stageReminder(daemonCtx, 'Stop', {
+                ...reminder,
+                stagedAt: {
+                  timestamp: Date.now(),
+                  turnCount: unverifiedState.setAt.turnCount,
+                  toolsThisTurn: unverifiedState.setAt.toolsThisTurn,
+                  toolCount: unverifiedState.setAt.toolCount,
+                },
+              })
+              daemonCtx.logger.info('VC unstage: re-staged for next Stop', {
+                sessionId,
+                cycleCount: unverifiedState.cycleCount,
+                lastCategory: unverifiedState.lastClassification.category,
+              })
+              // Don't delete - we just re-staged it
+              return
+            } else {
+              daemonCtx.logger.warn('VC unstage: failed to resolve reminder for re-staging')
+            }
           }
         } else {
           // Cycle limit reached - delete vc-unverified state
