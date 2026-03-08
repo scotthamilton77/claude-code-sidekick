@@ -7,8 +7,10 @@
  *    (e.g., dev-mode.sh clean-all removes staging directory, then daemon
  *    restarts and reconstructs transcript - SessionStart doesn't fire mid-session)
  *
- * Generic throttle handlers reset counters and re-stage any throttle-eligible
- * reminder when its message count threshold is reached.
+ * Throttle opt-in: Reminders are throttled by explicit `registerThrottledReminder`
+ * calls in their originating handlers (not by YAML config). The YAML
+ * `reminder_thresholds` map controls the re-staging interval (message count)
+ * but does not control which reminders are throttled.
  *
  * @see docs/design/FEATURE-REMINDERS.md §5.1
  */
