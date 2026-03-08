@@ -124,7 +124,7 @@ export type StatuslineConfig = z.infer<typeof StatuslineConfigSchema>
  */
 export const DEFAULT_STATUSLINE_CONFIG: StatuslineConfig = {
   enabled: true,
-  format: '[{model}] | {contextBar} {tokenPercentageActual} | {logs} | {cwd}{branch}\n{title} | {summary}',
+  format: "{personaName,prefix='[',suffix='] | '}{model,prefix='[',suffix='] | '}{contextBar} {tokenPercentageActual} | {logs} | {cwd,maxLength=40,truncateStyle='path'}{branch,prefix=' ∗ ',maxLength=40} | {title,wrapAt=80,prefix=' | ',wrapPrefix='\\n'}\n{summary}",
   thresholds: {
     tokens: { warning: 100000, critical: 160000 },
     cost: { warning: 0.5, critical: 1.0 },
@@ -136,7 +136,7 @@ export const DEFAULT_STATUSLINE_CONFIG: StatuslineConfig = {
     colors: {
       model: 'blue',
       tokens: 'green',
-      title: 'blue',
+      title: 'cyan',
       summary: 'magenta',
       cwd: 'white',
       duration: 'white',
