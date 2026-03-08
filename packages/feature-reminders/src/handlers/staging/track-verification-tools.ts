@@ -121,6 +121,7 @@ export async function stageToolsForFiles(
           }
         }
         await stageToolReminderIfNeeded(daemonCtx, reminderId, stagedNames)
+        stagedNames.add(reminderId)
         anyStaged = true
       } else {
         // verified or cooldown — count edits toward re-staging threshold
@@ -133,6 +134,7 @@ export async function stageToolsForFiles(
             lastStagedAt: Date.now(),
           }
           await stageToolReminderIfNeeded(daemonCtx, reminderId, stagedNames)
+          stagedNames.add(reminderId)
           anyStaged = true
         } else {
           toolsState[toolName] = {

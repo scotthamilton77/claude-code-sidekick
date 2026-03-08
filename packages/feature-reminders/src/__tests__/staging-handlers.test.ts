@@ -739,11 +739,9 @@ additionalContext: "Standard user prompt reminder"
           await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
         }
 
-        // The SessionStart handler stages one, but the throttle should not add another
-        // Clear any staged reminders from SessionStart to isolate throttle behavior
+        // No SessionStart was fired, so only throttle could have staged.
+        // 9 events is below threshold (10), so nothing should be staged.
         const reminders = staging.getRemindersForHook('UserPromptSubmit')
-        // Only the SessionStart handler would have staged one; throttle should not have
-        // Since we didn't fire SessionStart, there should be none from throttle
         expect(reminders.filter((r) => r.name === 'user-prompt-submit')).toHaveLength(0)
       })
 

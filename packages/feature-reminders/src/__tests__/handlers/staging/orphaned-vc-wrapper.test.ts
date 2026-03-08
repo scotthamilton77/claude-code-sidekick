@@ -116,8 +116,10 @@ function snapshotStaging(staging: MockStagingService, label: string): void {
   const names = getStagedNames(staging)
   const perTool = getPerToolNames(staging)
   const wrapper = hasWrapper(staging)
-  // eslint-disable-next-line no-console
-  console.log(`  [${label}] staged=${names.length} | wrapper=${wrapper} | per-tool=[${perTool.join(',')}]`)
+  if (process.env.DEBUG_STAGING_SNAPSHOT) {
+    // eslint-disable-next-line no-console
+    console.log(`  [${label}] staged=${names.length} | wrapper=${wrapper} | per-tool=[${perTool.join(',')}]`)
+  }
 }
 
 // ============================================================================
@@ -263,7 +265,7 @@ describe('Orphaned VC wrapper — Scenario B: unverified re-stage without per-to
     ctx = createMockDaemonContext({ staging, logger, handlers, assets, stateService })
   })
 
-  it('reproduces orphaned wrapper: vc-unverified re-stages wrapper but not per-tool reminders', async () => {
+  it('prevents orphaned wrapper: vc-unverified does not re-stage wrapper when all tools are verified', async () => {
     registerTrackVerificationTools(ctx)
     registerUnstageVerifyCompletion(ctx)
 

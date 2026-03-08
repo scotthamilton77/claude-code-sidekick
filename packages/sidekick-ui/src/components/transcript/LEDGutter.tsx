@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, type MouseEvent } from 'react'
 import type { LEDState } from '../../types'
 
 interface LEDGutterProps {
@@ -38,7 +38,7 @@ export function LEDGutter({ ledState }: LEDGutterProps) {
   const [mouseX, setMouseX] = useState<number | null>(null)
   const [containerRect, setContainerRect] = useState<{ left: number; width: number } | null>(null)
 
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+  const handleMouseMove = useCallback((e: MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect()
     setMouseX(e.clientX)
     setContainerRect({ left: rect.left, width: rect.width })

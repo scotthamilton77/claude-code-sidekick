@@ -367,7 +367,7 @@ export type VerificationToolsState = z.infer<typeof VerificationToolsStateSchema
  */
 export const UPSThrottleStateSchema = z.object({
   /** Number of conversation messages since the reminder was last staged */
-  messagesSinceLastStaging: z.number(),
+  messagesSinceLastStaging: z.number().int().nonnegative(),
 })
 
 export type UPSThrottleState = z.infer<typeof UPSThrottleStateSchema>
