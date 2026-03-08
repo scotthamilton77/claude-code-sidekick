@@ -7,6 +7,20 @@ description: Use when user asks to change, switch, configure, weight, curate, or
 
 Configure persona selection, voice quality, and custom personas using the sidekick CLI.
 
+## How Personas Work
+
+Sidekick personas give Claude a distinct character voice during your coding sessions. Each persona has a theme, personality traits, tone descriptors, and example quotes drawn from iconic characters (Star Trek, Star Wars, Seinfeld, and more).
+
+**What they affect:**
+- **Statusline messages** — character-flavoured status updates while you work
+- **Snarky comments** — in-character reactions to your coding behaviour
+- **Resume messages** — welcome-back messages when returning to a session
+- **System prompt injection** — Claude adopts the persona's voice in conversation (configurable)
+
+**How selection works:** When a new session starts, sidekick picks a persona from the available pool (filtered by allowList/blockList, weighted by per-persona weights). You can also pin a specific persona, carry one through `/clear`, or switch mid-session.
+
+*Ask about specific configuration options for details on pinning, weighting, curating the pool, or creating custom personas.*
+
 ## When to Use
 
 - "change persona", "switch to X", "be marvin"
@@ -80,6 +94,68 @@ pnpm sidekick persona test <id> --session-id=<session-id>   # Show voice to conf
 
 No scope question needed — session-level operation.
 
+### Pin Persona
+
+**Questions:** 1 (scope). No session ID needed — this is a persistent setting.
+
+Pin a specific persona so it's used for ALL new sessions instead of random selection.
+
+```bash
+# Pin at project scope (default)
+pnpm sidekick persona pin <id>
+
+# Pin at user scope (all projects)
+pnpm sidekick persona pin <id> --scope=user
+
+# Remove pin (reverts to random selection)
+pnpm sidekick persona unpin
+pnpm sidekick persona unpin --scope=user
+
+# Verify
+pnpm sidekick config get features.session-summary.settings.personas.pinnedPersona --format=json
+```
+
+**Precedence:** `pinnedPersona` overrides allowList, blockList, and weights. If pinned, those filters are bypassed.
+
+**Scope note:** Project scope takes priority over user scope. If the project pins `darth-vader` and the user pins `bones`, `darth-vader` wins when in that project.
+
+### Persist Through Clear
+
+**Questions:** 1 (scope).
+
+Control whether the active persona survives a `/clear` command or gets re-rolled.
+
+| Intent | Value | Effect |
+|--------|-------|--------|
+| "keep my persona through /clear" | `true` (default) | Same persona after `/clear` |
+| "give me a new persona on /clear" | `false` | Random re-selection after `/clear` |
+
+```bash
+# Disable persistence (get new persona on /clear)
+pnpm sidekick config set features.session-summary.settings.personas.persistThroughClear false --scope=user
+
+# Re-enable (default behaviour)
+pnpm sidekick config set features.session-summary.settings.personas.persistThroughClear true --scope=user
+```
+
+**Note:** `pinnedPersona` always takes precedence — if a persona is pinned, it's used regardless of this setting.
+
+### Toggle Persona Injection
+
+**Questions:** 1 (scope).
+
+Control whether the active persona's voice is injected into Claude's system prompt.
+
+```bash
+# Disable persona voice injection (persona still shows in statusline)
+pnpm sidekick config set features.session-summary.settings.personas.injectPersonaIntoClaude false --scope=user
+
+# Re-enable (default)
+pnpm sidekick config set features.session-summary.settings.personas.injectPersonaIntoClaude true --scope=user
+```
+
+When disabled, personas still appear in the statusline but Claude won't adopt the character's voice in responses.
+
 ### Curate the Pool
 
 **Questions:** 0-1 (confirm list if ambiguous). Then scope question.
@@ -105,7 +181,7 @@ pnpm sidekick config set features.session-summary.settings.personas.blockList "m
 pnpm sidekick config get features.session-summary.settings.personas --format=json
 ```
 
-**Available Star Trek personas:** `bones`, `scotty`, `mr-spock`, `emh`, `seven-of-nine`, `captain-kirk`
+**Available Star Trek personas:** `bones`, `scotty`, `mr-spock`, `emh`, `seven-of-nine`, `captain-kirk`, `q`, `quark`, `gowron`, `borg-queen`
 
 See [resources/PERSONAS.md](resources/PERSONAS.md) for full persona catalogue with IDs.
 

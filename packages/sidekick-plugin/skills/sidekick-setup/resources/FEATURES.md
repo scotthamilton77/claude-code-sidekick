@@ -142,6 +142,11 @@ Controls session title, intent tracking, and persona-driven messages.
 | `personas.blockList` | string | "disabled" | Comma-separated excluded personas |
 | `personas.weights` | Record | {} | Per-persona selection weights (default 1, non-positive/non-finite = excluded) |
 | `personas.resumeFreshnessHours` | number | 4 | Max age for resume messages |
+| `personas.pinnedPersona` | string | "" | Pin a specific persona for all sessions |
+| `personas.persistThroughClear` | boolean | true | Preserve persona across `/clear` |
+| `personas.injectPersonaIntoClaude` | boolean | true | Inject persona voice into system prompt |
+| `personas.defaultLlmProfile` | string | "" | Default LLM profile for persona outputs |
+| `personas.llmProfiles` | Record | {} | Per-persona LLM profile overrides |
 
 ---
 
@@ -163,6 +168,8 @@ reminders:
 session-summary:
   settings:
     personas:
+      pinnedPersona: "darth-vader"
+      persistThroughClear: false
       resumeFreshnessHours: 8
       allowList: "sidekick,marvin"
       weights:
