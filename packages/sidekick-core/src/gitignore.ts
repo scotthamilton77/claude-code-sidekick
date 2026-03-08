@@ -25,6 +25,7 @@ export const GITIGNORE_ENTRIES = [
   '.sidekick/sidekick*.pid',
   '.sidekick/sidekick*.token',
   '.sidekick/*.local.yaml',
+  '.sidekick/features.yaml',
 ]
 
 export interface GitignoreResult {
