@@ -335,6 +335,7 @@ export async function handleHookCommand(
     hook: hookName,
   }
   logEvent(logger, LogEvents.hookReceived(logContext, { cwd: hookInput.cwd, mode: 'hook' }))
+  logger.debug('Hook invocation received', { hook: hookName, sessionId: hookInput.sessionId })
 
   // Build typed HookEvent from parsed input
   const event = buildHookEvent(hookName, hookInput, correlationId)

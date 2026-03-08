@@ -187,7 +187,10 @@ class BufferedRotatingStream extends Writable {
     })
       .then((stream) => {
         this.realStream = stream
-        this.drainPending((chunk, cb) => stream.write(chunk, cb))
+        this.drainPending((chunk, cb) => {
+          stream.write(chunk)
+          cb()
+        })
       })
       .catch((err) => {
         process.stderr.write(`[sidekick] pino-roll init failed, using appendFileSync fallback: ${err}\n`)
@@ -197,7 +200,12 @@ class BufferedRotatingStream extends Writable {
 
   _write(chunk: Buffer | string, _encoding: string, callback: (err?: Error | null) => void): void {
     if (this.realStream) {
-      this.realStream.write(chunk, callback)
+      // pino-roll returns a SonicBoom stream, not a standard Node.js Writable.
+      // SonicBoom.write() ignores the callback parameter, so we must call it
+      // ourselves. Without this, the Writable base class hangs waiting for a
+      // callback that never fires, silently dropping all subsequent writes.
+      this.realStream.write(chunk)
+      callback()
     } else if (this.initPending) {
       this.pending.push({ chunk, callback })
     } else {
