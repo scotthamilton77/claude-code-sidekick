@@ -687,6 +687,175 @@ describe('selectPersonaForSession', () => {
       expect(result).toBe('bones')
     })
   })
+
+  describe('persona persistence through clear', () => {
+    let mockLogger: MockLogger
+    let mockStateService: MockStateService
+    let mockCreatePersonaLoader: ReturnType<typeof vi.fn>
+
+    beforeEach(async () => {
+      vi.clearAllMocks()
+      mockLogger = new MockLogger()
+      mockStateService = new MockStateService()
+      const coreMod = await import('@sidekick/core')
+      mockCreatePersonaLoader = coreMod.createPersonaLoader as ReturnType<typeof vi.fn>
+    })
+
+    function setupMockLoader(personas: Map<string, PersonaDefinition>): void {
+      mockCreatePersonaLoader.mockReturnValue({
+        discover: () => personas,
+        load: vi.fn(),
+        loadFile: vi.fn(),
+        resolver: {},
+        cascadeLayers: [],
+      })
+    }
+
+    it('preserves persona on clear when persistThroughClear is true and cache has valid entry', async () => {
+      const personas = new Map<string, PersonaDefinition>()
+      personas.set('skippy', createMockPersona('skippy'))
+      personas.set('bones', createMockPersona('bones'))
+      setupMockLoader(personas)
+
+      const ctx = createMockDaemonContext({
+        logger: mockLogger,
+        stateService: mockStateService,
+        personaClearCache: { consume: () => 'bones' },
+      })
+
+      const config = {
+        ...DEFAULT_SESSION_SUMMARY_CONFIG,
+        personas: { ...DEFAULT_SESSION_SUMMARY_CONFIG.personas, persistThroughClear: true },
+      }
+
+      // @ts-expect-error options parameter not yet added (RED phase)
+      const result = await selectPersonaForSession('new-session', config, ctx, { startType: 'clear' })
+
+      expect(result).toBe('bones')
+      expect(mockLogger.wasLoggedAtLevel('Preserved persona through clear', 'info')).toBe(true)
+    })
+
+    it('re-selects randomly when persistThroughClear is false', async () => {
+      const personas = new Map<string, PersonaDefinition>()
+      personas.set('skippy', createMockPersona('skippy'))
+      setupMockLoader(personas)
+
+      const consumeMock = vi.fn(() => 'skippy')
+      const ctx = createMockDaemonContext({
+        logger: mockLogger,
+        stateService: mockStateService,
+        personaClearCache: { consume: consumeMock },
+      })
+
+      const config = {
+        ...DEFAULT_SESSION_SUMMARY_CONFIG,
+        personas: { ...DEFAULT_SESSION_SUMMARY_CONFIG.personas, persistThroughClear: false },
+      }
+
+      // @ts-expect-error options parameter not yet added (RED phase)
+      await selectPersonaForSession('new-session', config, ctx, { startType: 'clear' })
+
+      // consume should NOT have been called since persist is disabled
+      expect(consumeMock).not.toHaveBeenCalled()
+    })
+
+    it('falls through to normal selection when cache returns null', async () => {
+      const personas = new Map<string, PersonaDefinition>()
+      personas.set('skippy', createMockPersona('skippy'))
+      setupMockLoader(personas)
+
+      const ctx = createMockDaemonContext({
+        logger: mockLogger,
+        stateService: mockStateService,
+        personaClearCache: { consume: () => null },
+      })
+
+      const config = {
+        ...DEFAULT_SESSION_SUMMARY_CONFIG,
+        personas: { ...DEFAULT_SESSION_SUMMARY_CONFIG.personas, persistThroughClear: true },
+      }
+
+      // @ts-expect-error options parameter not yet added (RED phase)
+      const result = await selectPersonaForSession('new-session', config, ctx, { startType: 'clear' })
+
+      expect(result).toBe('skippy') // falls through to random (only one available)
+    })
+
+    it('falls through when cached persona ID not found in discovered personas', async () => {
+      const personas = new Map<string, PersonaDefinition>()
+      personas.set('skippy', createMockPersona('skippy'))
+      setupMockLoader(personas)
+
+      const ctx = createMockDaemonContext({
+        logger: mockLogger,
+        stateService: mockStateService,
+        personaClearCache: { consume: () => 'deleted-persona' },
+      })
+
+      const config = {
+        ...DEFAULT_SESSION_SUMMARY_CONFIG,
+        personas: { ...DEFAULT_SESSION_SUMMARY_CONFIG.personas, persistThroughClear: true },
+      }
+
+      // @ts-expect-error options parameter not yet added (RED phase)
+      const result = await selectPersonaForSession('new-session', config, ctx, { startType: 'clear' })
+
+      expect(result).toBe('skippy')
+      expect(
+        mockLogger.wasLoggedAtLevel(
+          'Cached persona from clear not found in available personas, falling back to selection',
+          'warn'
+        )
+      ).toBe(true)
+    })
+
+    it('does not use cache on startup (only on clear)', async () => {
+      const personas = new Map<string, PersonaDefinition>()
+      personas.set('skippy', createMockPersona('skippy'))
+      setupMockLoader(personas)
+
+      const consumeMock = vi.fn(() => 'skippy')
+      const ctx = createMockDaemonContext({
+        logger: mockLogger,
+        stateService: mockStateService,
+        personaClearCache: { consume: consumeMock },
+      })
+
+      // @ts-expect-error options parameter not yet added (RED phase)
+      await selectPersonaForSession('new-session', DEFAULT_SESSION_SUMMARY_CONFIG, ctx, { startType: 'startup' })
+
+      expect(consumeMock).not.toHaveBeenCalled()
+    })
+
+    it('pinnedPersona takes precedence over clear cache', async () => {
+      const personas = new Map<string, PersonaDefinition>()
+      personas.set('skippy', createMockPersona('skippy'))
+      personas.set('bones', createMockPersona('bones'))
+      setupMockLoader(personas)
+
+      const consumeMock = vi.fn(() => 'bones')
+      const ctx = createMockDaemonContext({
+        logger: mockLogger,
+        stateService: mockStateService,
+        personaClearCache: { consume: consumeMock },
+      })
+
+      const config = {
+        ...DEFAULT_SESSION_SUMMARY_CONFIG,
+        personas: {
+          ...DEFAULT_SESSION_SUMMARY_CONFIG.personas,
+          pinnedPersona: 'skippy',
+          persistThroughClear: true,
+        },
+      }
+
+      // @ts-expect-error options parameter not yet added (RED phase)
+      const result = await selectPersonaForSession('new-session', config, ctx, { startType: 'clear' })
+
+      expect(result).toBe('skippy') // pinned wins
+      expect(consumeMock).not.toHaveBeenCalled() // cache never consulted
+    })
+  })
 })
 
 // ============================================================================
