@@ -76,6 +76,13 @@ function getStagedNames(staging: MockStagingService, hook = 'Stop'): string[] {
   return staging.getRemindersForHook(hook).map((r: StagedReminder) => r.name)
 }
 
+function getHandlerFromContext(ctx: DaemonContext, handlers: MockHandlerRegistry): EventHandler {
+  registerTrackVerificationTools(ctx)
+  const reg = handlers.getHandler('reminders:track-verification-tools')
+  expect(reg).toBeDefined()
+  return reg!.handler
+}
+
 // ============================================================================
 // Tests
 // ============================================================================
@@ -418,5 +425,104 @@ additionalContext: "Lint needed"
 describe('stageToolsForFiles', () => {
   it('is exported as a function', () => {
     expect(typeof stageToolsForFiles).toBe('function')
+  })
+})
+
+// --------------------------------------------------------------------------
+// stageToolReminderIfNeeded failure handling
+// --------------------------------------------------------------------------
+
+describe('stageToolReminderIfNeeded failure does not pollute state', () => {
+  let staging: MockStagingService
+  let logger: MockLogger
+  let handlers: MockHandlerRegistry
+  let assets: MockAssetResolver
+  let stateService: MockStateService
+  let ctx: DaemonContext
+
+  beforeEach(() => {
+    staging = new MockStagingService()
+    logger = new MockLogger()
+    handlers = new MockHandlerRegistry()
+    assets = new MockAssetResolver()
+    stateService = new MockStateService()
+  })
+
+  it('does not stage wrapper when all per-tool reminders fail to resolve', async () => {
+    // Register ONLY the wrapper — per-tool YAMLs are missing
+    assets.registerAll({
+      'reminders/verify-completion.yaml': `id: verify-completion
+blocking: true
+priority: 51
+persistent: false
+additionalContext: "Wrapper"
+`,
+    })
+
+    ctx = createMockDaemonContext({ staging, logger, handlers, assets, stateService })
+    const handler = getHandlerFromContext(ctx, handlers)
+    const event = createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/index.ts')
+
+    await handler(event, ctx as any)
+
+    // No per-tool reminders could resolve, so wrapper must NOT be staged
+    const names = getStagedNames(staging)
+    expect(names).not.toContain(ReminderIds.VERIFY_COMPLETION)
+    expect(names).toHaveLength(0)
+  })
+
+  it('does not mark tool as staged when its reminder fails to resolve', async () => {
+    // Register wrapper + only vc-build — others missing
+    assets.registerAll({
+      'reminders/verify-completion.yaml': `id: verify-completion
+blocking: true
+priority: 51
+persistent: false
+additionalContext: "Wrapper"
+`,
+      'reminders/vc-build.yaml': `id: vc-build
+blocking: true
+priority: 50
+persistent: false
+additionalContext: "Build needed"
+`,
+    })
+
+    ctx = createMockDaemonContext({ staging, logger, handlers, assets, stateService })
+    const handler = getHandlerFromContext(ctx, handlers)
+    const event = createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/index.ts')
+
+    await handler(event, ctx as any)
+
+    // Only vc-build + wrapper should be staged (the others failed to resolve)
+    const names = getStagedNames(staging)
+    expect(names).toContain(ReminderIds.VC_BUILD)
+    expect(names).toContain(ReminderIds.VERIFY_COMPLETION)
+    expect(names).not.toContain(ReminderIds.VC_TYPECHECK)
+    expect(names).not.toContain(ReminderIds.VC_TEST)
+    expect(names).not.toContain(ReminderIds.VC_LINT)
+    expect(names).toHaveLength(2)
+  })
+
+  it('returns false from stageToolsForFiles when all reminders fail', async () => {
+    // No reminder YAMLs registered at all
+    ctx = createMockDaemonContext({ staging, logger, handlers, assets, stateService })
+
+    const { createRemindersState } = await import('../../../state.js')
+    const remindersState = createRemindersState(stateService as any)
+    const verificationTools = {
+      build: { enabled: true, patterns: [], clearing_patterns: ['**/*.ts'], clearing_threshold: 3 },
+    }
+
+    const result = await stageToolsForFiles(
+      ['/mock/project/src/index.ts'],
+      ctx,
+      'test-session',
+      verificationTools,
+      {},
+      remindersState
+    )
+
+    expect(result).toBe(false)
   })
 })

@@ -112,30 +112,34 @@ export async function stageToolsForFiles(
       const current = toolsState[toolName]
 
       if (!current || current.status === 'staged') {
-        if (!current) {
-          toolsState[toolName] = {
-            status: 'staged',
-            editsSinceVerified: 0,
-            lastVerifiedAt: null,
-            lastStagedAt: Date.now(),
+        const staged = await stageToolReminderIfNeeded(daemonCtx, reminderId, stagedNames)
+        if (staged) {
+          if (!current) {
+            toolsState[toolName] = {
+              status: 'staged',
+              editsSinceVerified: 0,
+              lastVerifiedAt: null,
+              lastStagedAt: Date.now(),
+            }
           }
+          stagedNames.add(reminderId)
+          anyStaged = true
         }
-        await stageToolReminderIfNeeded(daemonCtx, reminderId, stagedNames)
-        stagedNames.add(reminderId)
-        anyStaged = true
       } else {
         // verified or cooldown — count edits toward re-staging threshold
         const newEdits = current.editsSinceVerified + 1
         if (newEdits >= toolConfig.clearing_threshold) {
-          toolsState[toolName] = {
-            ...current,
-            status: 'staged',
-            editsSinceVerified: 0,
-            lastStagedAt: Date.now(),
+          const staged = await stageToolReminderIfNeeded(daemonCtx, reminderId, stagedNames)
+          if (staged) {
+            toolsState[toolName] = {
+              ...current,
+              status: 'staged',
+              editsSinceVerified: 0,
+              lastStagedAt: Date.now(),
+            }
+            stagedNames.add(reminderId)
+            anyStaged = true
           }
-          await stageToolReminderIfNeeded(daemonCtx, reminderId, stagedNames)
-          stagedNames.add(reminderId)
-          anyStaged = true
         } else {
           toolsState[toolName] = {
             ...current,
@@ -232,8 +236,8 @@ async function stageToolReminderIfNeeded(
   daemonCtx: DaemonContext,
   reminderId: string,
   stagedNames: Set<string>
-): Promise<void> {
-  if (stagedNames.has(reminderId)) return
+): Promise<boolean> {
+  if (stagedNames.has(reminderId)) return true
 
   const reminder = resolveReminder(reminderId, {
     context: {},
@@ -241,11 +245,12 @@ async function stageToolReminderIfNeeded(
   })
   if (!reminder) {
     daemonCtx.logger.warn('Failed to resolve VC tool reminder', { reminderId })
-    return
+    return false
   }
 
   await stageReminder(daemonCtx, 'Stop', {
     ...reminder,
     stagedAt: { timestamp: Date.now(), turnCount: 0, toolsThisTurn: 0, toolCount: 0 },
   })
+  return true
 }
