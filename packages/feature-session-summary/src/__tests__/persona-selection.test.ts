@@ -13,6 +13,7 @@ import {
   ensurePersonaForSession,
 } from '../handlers/persona-selection'
 import { createMockDaemonContext, MockLogger, MockStateService } from '@sidekick/testing-fixtures'
+import type { SessionSummaryConfig } from '../types'
 import { DEFAULT_SESSION_SUMMARY_CONFIG } from '../types'
 
 // Mock the @sidekick/core module for persona loader
@@ -43,6 +44,16 @@ function createMockPersona(id: string, displayName?: string): PersonaDefinition 
     tone_traits: ['tone1', 'tone2'],
   }
 }
+
+// ============================================================================
+// DEFAULT_SESSION_SUMMARY_CONFIG Tests
+// ============================================================================
+
+describe('DEFAULT_SESSION_SUMMARY_CONFIG', () => {
+  it('has persistThroughClear defaulting to true', () => {
+    expect(DEFAULT_SESSION_SUMMARY_CONFIG.personas?.persistThroughClear).toBe(true)
+  })
+})
 
 // ============================================================================
 // parsePersonaList Tests
@@ -675,6 +686,160 @@ describe('selectPersonaForSession', () => {
 
       // Pin overrides allowList/blockList
       expect(result).toBe('bones')
+    })
+  })
+
+  describe('persona persistence through clear', () => {
+    let mockLogger: MockLogger
+    let mockStateService: MockStateService
+    let mockCreatePersonaLoader: ReturnType<typeof vi.fn>
+
+    beforeEach(async () => {
+      vi.clearAllMocks()
+      mockLogger = new MockLogger()
+      mockStateService = new MockStateService()
+      const coreMod = await import('@sidekick/core')
+      mockCreatePersonaLoader = coreMod.createPersonaLoader as ReturnType<typeof vi.fn>
+    })
+
+    function setupMockLoader(personas: Map<string, PersonaDefinition>): void {
+      mockCreatePersonaLoader.mockReturnValue({
+        discover: () => personas,
+        load: vi.fn(),
+        loadFile: vi.fn(),
+        resolver: {},
+        cascadeLayers: [],
+      })
+    }
+
+    /** Build a config with persona overrides, properly typed */
+    function configWith(
+      personaOverrides: Partial<NonNullable<SessionSummaryConfig['personas']>>
+    ): SessionSummaryConfig {
+      return {
+        ...DEFAULT_SESSION_SUMMARY_CONFIG,
+        personas: { ...DEFAULT_SESSION_SUMMARY_CONFIG.personas, ...personaOverrides },
+      } as SessionSummaryConfig
+    }
+
+    it('preserves persona on clear when persistThroughClear is true and cache has valid entry', async () => {
+      const personas = new Map<string, PersonaDefinition>()
+      personas.set('skippy', createMockPersona('skippy'))
+      personas.set('bones', createMockPersona('bones'))
+      setupMockLoader(personas)
+
+      const ctx = createMockDaemonContext({
+        logger: mockLogger,
+        stateService: mockStateService,
+        personaClearCache: { consume: () => 'bones' },
+      })
+
+      const config = configWith({ persistThroughClear: true })
+
+      const result = await selectPersonaForSession('new-session', config, ctx, { startType: 'clear' })
+
+      expect(result).toBe('bones')
+      expect(mockLogger.wasLoggedAtLevel('Preserved persona through clear', 'info')).toBe(true)
+    })
+
+    it('re-selects randomly when persistThroughClear is false', async () => {
+      const personas = new Map<string, PersonaDefinition>()
+      personas.set('skippy', createMockPersona('skippy'))
+      setupMockLoader(personas)
+
+      const consumeMock = vi.fn(() => 'skippy')
+      const ctx = createMockDaemonContext({
+        logger: mockLogger,
+        stateService: mockStateService,
+        personaClearCache: { consume: consumeMock },
+      })
+
+      const config = configWith({ persistThroughClear: false })
+
+      await selectPersonaForSession('new-session', config, ctx, { startType: 'clear' })
+
+      // consume should NOT have been called since persist is disabled
+      expect(consumeMock).not.toHaveBeenCalled()
+    })
+
+    it('falls through to normal selection when cache returns null', async () => {
+      const personas = new Map<string, PersonaDefinition>()
+      personas.set('skippy', createMockPersona('skippy'))
+      setupMockLoader(personas)
+
+      const ctx = createMockDaemonContext({
+        logger: mockLogger,
+        stateService: mockStateService,
+        personaClearCache: { consume: () => null },
+      })
+
+      const config = configWith({ persistThroughClear: true })
+
+      const result = await selectPersonaForSession('new-session', config, ctx, { startType: 'clear' })
+
+      expect(result).toBe('skippy') // falls through to random (only one available)
+    })
+
+    it('falls through when cached persona ID not found in discovered personas', async () => {
+      const personas = new Map<string, PersonaDefinition>()
+      personas.set('skippy', createMockPersona('skippy'))
+      setupMockLoader(personas)
+
+      const ctx = createMockDaemonContext({
+        logger: mockLogger,
+        stateService: mockStateService,
+        personaClearCache: { consume: () => 'deleted-persona' },
+      })
+
+      const config = configWith({ persistThroughClear: true })
+
+      const result = await selectPersonaForSession('new-session', config, ctx, { startType: 'clear' })
+
+      expect(result).toBe('skippy')
+      expect(
+        mockLogger.wasLoggedAtLevel(
+          'Cached persona from clear not found in available personas, falling back to selection',
+          'warn'
+        )
+      ).toBe(true)
+    })
+
+    it('does not use cache on startup (only on clear)', async () => {
+      const personas = new Map<string, PersonaDefinition>()
+      personas.set('skippy', createMockPersona('skippy'))
+      setupMockLoader(personas)
+
+      const consumeMock = vi.fn(() => 'skippy')
+      const ctx = createMockDaemonContext({
+        logger: mockLogger,
+        stateService: mockStateService,
+        personaClearCache: { consume: consumeMock },
+      })
+
+      await selectPersonaForSession('new-session', DEFAULT_SESSION_SUMMARY_CONFIG, ctx, { startType: 'startup' })
+
+      expect(consumeMock).not.toHaveBeenCalled()
+    })
+
+    it('pinnedPersona takes precedence over clear cache', async () => {
+      const personas = new Map<string, PersonaDefinition>()
+      personas.set('skippy', createMockPersona('skippy'))
+      personas.set('bones', createMockPersona('bones'))
+      setupMockLoader(personas)
+
+      const consumeMock = vi.fn(() => 'bones')
+      const ctx = createMockDaemonContext({
+        logger: mockLogger,
+        stateService: mockStateService,
+        personaClearCache: { consume: consumeMock },
+      })
+
+      const config = configWith({ pinnedPersona: 'skippy', persistThroughClear: true })
+
+      const result = await selectPersonaForSession('new-session', config, ctx, { startType: 'clear' })
+
+      expect(result).toBe('skippy') // pinned wins
+      expect(consumeMock).not.toHaveBeenCalled() // cache never consulted
     })
   })
 })

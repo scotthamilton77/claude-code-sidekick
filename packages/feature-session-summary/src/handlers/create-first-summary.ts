@@ -48,5 +48,5 @@ export async function createFirstSessionSummary(event: SessionStartHookEvent, ct
 
   // Select and persist persona for this session
   // Runs in parallel with summary creation (fire and forget style error handling)
-  await selectPersonaForSession(sessionId, config, ctx)
+  await selectPersonaForSession(sessionId, config, ctx, { startType })
 }

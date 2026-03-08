@@ -73,6 +73,10 @@ export interface DaemonContext extends BaseContext {
   stateService: MinimalStateService
   /** Optional reminder coordinator for cross-reminder rules */
   orchestrator?: ReminderCoordinator
+  /** Optional persona clear handoff cache for preserving persona across /clear */
+  personaClearCache?: {
+    consume(): string | null
+  }
 }
 
 /**

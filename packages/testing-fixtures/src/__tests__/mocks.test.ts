@@ -989,6 +989,36 @@ describe('createMockDaemonContext', () => {
   })
 })
 
+describe('createMockDaemonContext personaClearCache', () => {
+  it('does not include personaClearCache by default', () => {
+    const ctx = createMockDaemonContext()
+    expect(ctx.personaClearCache).toBeUndefined()
+  })
+
+  it('includes personaClearCache when provided in overrides', () => {
+    const cache = { consume: () => 'cached-persona-id' }
+    const ctx = createMockDaemonContext({ personaClearCache: cache })
+    expect(ctx.personaClearCache).toBe(cache)
+    expect(ctx.personaClearCache!.consume()).toBe('cached-persona-id')
+  })
+
+  it('consume returns null after cache is exhausted', () => {
+    let consumed = false
+    const cache = {
+      consume(): string | null {
+        if (!consumed) {
+          consumed = true
+          return 'bones'
+        }
+        return null
+      },
+    }
+    const ctx = createMockDaemonContext({ personaClearCache: cache })
+    expect(ctx.personaClearCache!.consume()).toBe('bones')
+    expect(ctx.personaClearCache!.consume()).toBeNull()
+  })
+})
+
 describe('createTestConfig', () => {
   it('creates config with sensible defaults', () => {
     const config = createTestConfig()

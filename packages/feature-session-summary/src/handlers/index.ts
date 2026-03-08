@@ -69,3 +69,4 @@ export {
   type GenerationResult,
   type SetPersonaResult,
 } from './on-demand-generation.js'
+export { type PersonaSelectionOptions } from './persona-selection.js'

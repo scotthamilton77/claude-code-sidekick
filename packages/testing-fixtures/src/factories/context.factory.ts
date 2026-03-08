@@ -113,6 +113,7 @@ export interface MockDaemonContextOptions {
   staging?: MockStagingService
   transcript?: MockTranscriptService
   stateService?: MockStateService
+  personaClearCache?: { consume(): string | null }
 }
 
 /**
@@ -145,6 +146,7 @@ export function createMockDaemonContext(overrides?: MockDaemonContextOptions): D
     staging: overrides?.staging ?? new MockStagingService(),
     transcript: overrides?.transcript ?? new MockTranscriptService(),
     stateService: overrides?.stateService ?? new MockStateService(),
+    ...(overrides?.personaClearCache ? { personaClearCache: overrides.personaClearCache } : {}),
   }
 }
 

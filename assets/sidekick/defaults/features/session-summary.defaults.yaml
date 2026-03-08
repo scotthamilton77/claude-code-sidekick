@@ -112,3 +112,6 @@ settings:
     # Applied AFTER allowList/blockList filtering.
     # Example: { darth-vader: 100, emperor: 50 }
     weights: {}
+    # Preserve persona across /clear instead of re-rolling
+    # When true, /clear keeps the same persona. When false, a new persona is randomly selected.
+    persistThroughClear: true

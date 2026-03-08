@@ -40,6 +40,7 @@ import {
   setSessionPersona,
   generateSnarkyMessageOnDemand,
   generateResumeMessageOnDemand,
+  createSessionSummaryState,
 } from '@sidekick/feature-session-summary'
 import type {
   HandlerRegistry,
@@ -118,6 +119,8 @@ export class Daemon {
   private orchestrator: ReminderOrchestrator
   /** Per-session log counters for statusline {logs} indicator */
   private logCounters = new Map<string, { warnings: number; errors: number }>()
+  /** Transient cache for persona handoff across /clear boundaries */
+  private lastClearedPersona: { personaId: string; timestamp: number } | null = null
   /** Global log counters for daemon-level errors (not tied to any session) */
   private globalLogCounters = { warnings: 0, errors: 0 }
   /** Typed accessor for daemon status state */
@@ -130,6 +133,28 @@ export class Daemon {
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null
   private evictionTimer: ReturnType<typeof setInterval> | null = null
   private startTime: number = Date.now()
+
+  /** Cache persona for handoff on clear. */
+  private cachePersonaForClear(personaId: string): void {
+    this.lastClearedPersona = { personaId, timestamp: Date.now() }
+    this.logger.debug('Cached persona for clear handoff', { personaId })
+  }
+
+  /** Consume cached persona if fresh (< 5s). Returns null if stale/absent. */
+  private consumeCachedPersona(): string | null {
+    if (!this.lastClearedPersona) return null
+    const HANDOFF_TTL_MS = 5000
+    const age = Date.now() - this.lastClearedPersona.timestamp
+    if (age > HANDOFF_TTL_MS) {
+      this.logger.debug('Stale persona handoff ignored', { age, personaId: this.lastClearedPersona.personaId })
+      this.lastClearedPersona = null
+      return null
+    }
+    const personaId = this.lastClearedPersona.personaId
+    this.lastClearedPersona = null
+    this.logger.debug('Consumed persona from clear handoff', { personaId, age })
+    return personaId
+  }
 
   constructor(projectDir: string) {
     this.projectDir = projectDir
@@ -824,6 +849,22 @@ export class Daemon {
     const log = options?.logger ?? this.logger
     const sessionId = event.context?.sessionId
     if (sessionId) {
+      // Capture persona for clear handoff before shutting down services
+      const payload = event.payload as { endReason?: string }
+      if (payload.endReason === 'clear') {
+        try {
+          const summaryState = createSessionSummaryState(this.stateService)
+          const result = await summaryState.sessionPersona.read(sessionId)
+          if (result.data?.persona_id) {
+            this.cachePersonaForClear(result.data.persona_id)
+          }
+        } catch (err) {
+          log.warn('Failed to cache persona for clear handoff', {
+            error: err instanceof Error ? err.message : String(err),
+          })
+        }
+      }
+
       // Shutdown instrumented LLM provider (persists final metrics)
       const instrumentedProvider = this.instrumentedProviders.get(sessionId)
       if (instrumentedProvider) {
@@ -1358,6 +1399,9 @@ export class Daemon {
       transcript: transcriptService,
       stateService: this.stateService,
       orchestrator: this.orchestrator,
+      personaClearCache: {
+        consume: () => this.consumeCachedPersona(),
+      },
     }
 
     // Update handler registry with session info and providers
