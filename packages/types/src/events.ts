@@ -32,17 +32,24 @@ export interface EventContext {
 // ============================================================================
 
 /**
+ * All supported hook names as a const tuple.
+ * Single source of truth for both the HookName type and Zod validation.
+ */
+export const HOOK_NAMES = [
+  'SessionStart',
+  'SessionEnd',
+  'UserPromptSubmit',
+  'PreToolUse',
+  'PostToolUse',
+  'Stop',
+  'PreCompact',
+] as const
+
+/**
  * All supported hook names.
  * Derived from Claude Code's hook system.
  */
-export type HookName =
-  | 'SessionStart'
-  | 'SessionEnd'
-  | 'UserPromptSubmit'
-  | 'PreToolUse'
-  | 'PostToolUse'
-  | 'Stop'
-  | 'PreCompact'
+export type HookName = (typeof HOOK_NAMES)[number]
 
 export interface SessionStartHookEvent {
   kind: 'hook'
