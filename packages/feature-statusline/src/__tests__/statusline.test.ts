@@ -22,7 +22,6 @@ import {
   getBranchColor,
   getContextBarStatus,
   getThresholdStatus,
-  shortenPath,
 } from '../formatter.js'
 import { StateService } from '@sidekick/core'
 import type { MinimalAssetResolver } from '@sidekick/types'
@@ -247,54 +246,6 @@ describe('Formatter utilities', () => {
 
     it('formats hours and minutes', () => {
       expect(formatDuration(3720000)).toBe('1h2m')
-    })
-  })
-
-  describe('shortenPath', () => {
-    it('replaces home dir with tilde', () => {
-      expect(shortenPath('/home/user/project', '/home/user')).toBe('~/project')
-    })
-
-    it('shortens long paths to ellipsis + last two segments', () => {
-      // Path > 20 chars gets shortened
-      expect(shortenPath('/home/user/projects/my-app')).toBe('…/projects/my-app')
-    })
-
-    it('falls back to last segment when two segments too long', () => {
-      // Two segments too long, falls back to just the last segment
-      expect(shortenPath('/home/user/very-long-folder/another-long-name')).toBe('…/another-long-name')
-    })
-
-    it('hard truncates when even one segment is too long', () => {
-      // Even one segment is too long - hard truncate, no trailing ellipsis
-      expect(shortenPath('/home/user/this-is-a-ridiculously-long-folder-name')).toBe('…/this-is-a-ridiculo')
-    })
-
-    it('returns short paths as-is', () => {
-      expect(shortenPath('/home/project')).toBe('/home/project')
-    })
-
-    it('returns paths under 20 chars as-is even with many segments', () => {
-      expect(shortenPath('/a/b/c/d/e')).toBe('/a/b/c/d/e')
-    })
-
-    it('handles single segment path that is too long', () => {
-      // A path like "/verylongsinglesegment" (single slash) that exceeds 20 chars
-      const longSegment = '/this-is-a-super-long-single-segment-path'
-      const result = shortenPath(longSegment)
-      // Should use ellipsis + truncated content
-      expect(result.startsWith('…')).toBe(true)
-      expect(result.length).toBeLessThanOrEqual(20)
-    })
-
-    it('handles single segment without slashes that is too long', () => {
-      // A path without any slashes (just a very long segment name)
-      // This is an edge case for paths like relative names
-      const longSegmentNoSlash = 'this-is-a-very-long-segment-without-any-slashes'
-      const result = shortenPath(longSegmentNoSlash)
-      // Should hard truncate with leading ellipsis
-      expect(result.startsWith('…')).toBe(true)
-      expect(result.length).toBeLessThanOrEqual(20)
     })
   })
 

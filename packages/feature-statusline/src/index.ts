@@ -29,7 +29,6 @@ export {
   formatTokens,
   formatCost,
   formatDuration,
-  shortenPath,
   formatBranch,
   getThresholdStatus,
   type FormatterConfig,
