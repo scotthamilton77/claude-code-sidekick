@@ -142,7 +142,10 @@ export class Daemon {
 
   /** Consume cached persona if fresh (< 5s). Returns null if stale/absent. */
   private consumeCachedPersona(): string | null {
-    if (!this.lastClearedPersona) return null
+    if (!this.lastClearedPersona) {
+      this.logger.debug('consumeCachedPersona: no cached persona available')
+      return null
+    }
     const HANDOFF_TTL_MS = 5000
     const age = Date.now() - this.lastClearedPersona.timestamp
     if (age > HANDOFF_TTL_MS) {
@@ -743,7 +746,7 @@ export class Daemon {
       context: { sessionId, correlationId },
     })
 
-    requestLogger.debug('Handling hook invocation', { hook })
+    requestLogger.debug('Hook invocation received', { hook, sessionId })
 
     // Log EventReceived event
     if (sessionId) {
@@ -851,11 +854,13 @@ export class Daemon {
     if (sessionId) {
       // Capture persona for clear handoff before shutting down services
       const payload = event.payload as { endReason?: string }
+      log.debug('handleSessionEnd entered', { sessionId, endReason: payload.endReason })
       if (payload.endReason === 'clear') {
         try {
           const summaryState = createSessionSummaryState(this.stateService)
           const result = await summaryState.sessionPersona.read(sessionId)
           if (result.data?.persona_id) {
+            log.debug('Caching persona for clear handoff', { personaId: result.data.persona_id })
             this.cachePersonaForClear(result.data.persona_id)
           }
         } catch (err) {
@@ -863,6 +868,8 @@ export class Daemon {
             error: err instanceof Error ? err.message : String(err),
           })
         }
+      } else {
+        log.debug('SessionEnd reason is not clear, skipping persona cache', { endReason: payload.endReason })
       }
 
       // Shutdown instrumented LLM provider (persists final metrics)

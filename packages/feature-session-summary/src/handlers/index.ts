@@ -20,9 +20,9 @@ export function registerHandlers(context: RuntimeContext): void {
     id: 'session-summary:init',
     priority: 80,
     filter: { kind: 'hook', hooks: ['SessionStart'] },
-    handler: async (event) => {
+    handler: async (event, context) => {
       if (!isHookEvent(event) || !isSessionStartEvent(event)) return
-      await createFirstSessionSummary(event, ctx)
+      await createFirstSessionSummary(event, context as unknown as DaemonContext)
     },
   })
 

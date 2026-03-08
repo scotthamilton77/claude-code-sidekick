@@ -1416,6 +1416,56 @@ describe('Structured Logging', () => {
       expect(files.some((f) => /^test\.\d+\.log$/.test(f))).toBe(true)
     })
 
+    it('writes ALL sequential log entries through BufferedRotatingStream (not just the first)', async () => {
+      const logPath = path.join(tmpDir, 'multi.log')
+      const { createLogManager } = await import('../structured-logging')
+      const logManager = createLogManager({
+        name: 'test',
+        level: 'info',
+        destinations: {
+          file: {
+            path: logPath,
+            maxSizeBytes: 10 * 1024 * 1024, // 10MB - large enough to avoid rotation
+            maxFiles: 3,
+          },
+        },
+      })
+
+      const logger = logManager.getLogger()
+
+      // Write first entry (this one works — gets buffered and drained)
+      logger.info('Entry one')
+
+      // Wait for pino-roll async init to complete and drain pending buffer
+      await new Promise((resolve) => setTimeout(resolve, 200))
+
+      // Write more entries AFTER pino-roll has initialized
+      logger.info('Entry two')
+      logger.info('Entry three')
+
+      // Also test child logger writes
+      const child = logger.child({ component: 'test-child' })
+      child.info('Entry from child')
+
+      await logger.flush()
+      await new Promise((resolve) => setTimeout(resolve, 200))
+
+      // Read ALL log files produced by pino-roll (numbered: multi.1.log, etc.)
+      const files = readdirSync(tmpDir).filter((f) => f.startsWith('multi'))
+      expect(files.length).toBeGreaterThan(0)
+
+      let totalLines = 0
+      for (const file of files) {
+        const content = fs.readFileSync(path.join(tmpDir, file), 'utf-8').trim()
+        if (content) {
+          totalLines += content.split('\n').length
+        }
+      }
+
+      // ALL four entries must appear, not just the first
+      expect(totalLines).toBeGreaterThanOrEqual(4)
+    })
+
     it('does not throw when maxSizeBytes/maxFiles are not provided (legacy path)', async () => {
       const logPath = path.join(tmpDir, 'legacy.log')
       const { createLogManager } = await import('../structured-logging')
