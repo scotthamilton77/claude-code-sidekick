@@ -43,6 +43,7 @@ export async function registerThrottledReminder(
       blocking: resolvedReminder.blocking,
       priority: resolvedReminder.priority,
       persistent: resolvedReminder.persistent,
+      throttle: resolvedReminder.throttle,
       userMessage: resolvedReminder.userMessage,
       additionalContext: resolvedReminder.additionalContext,
       reason: resolvedReminder.reason,
