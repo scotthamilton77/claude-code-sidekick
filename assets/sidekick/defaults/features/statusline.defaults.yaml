@@ -40,7 +40,7 @@ settings:
   #   With buffer:      "{tokenUsageActual}|{tokenUsageEffective}"    → "45k|90k"
   #   Verbose:          "{contextBar} {tokenUsageActual}/{contextWindow} ({tokenPercentageEffective})"
   #
-  format: "{personaName,prefix='[',suffix='] | '}{model,prefix='[',suffix='] | '}{contextBar} {tokenPercentageActual} | {logs} | {cwd}{branch}\n{title} | {summary}"
+  format: "{personaName,prefix='[',suffix='] | '}{model,prefix='[',suffix='] | '}{contextBar} {tokenPercentageActual} | {logs} | {cwd}{branch} | {title}\n{summary}"
 
   # Threshold configuration for visual warnings
   thresholds:
