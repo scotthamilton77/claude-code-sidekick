@@ -27,10 +27,8 @@ import type {
 } from '@sidekick/types'
 import { LastStagedPersonaSchema } from '@sidekick/types'
 import { registerStagePauseAndReflect } from '../handlers/staging/stage-pause-and-reflect'
-import {
-  registerStageDefaultUserPrompt,
-  registerThrottledReminder,
-} from '../handlers/staging/stage-default-user-prompt'
+import { registerStageDefaultUserPrompt } from '../handlers/staging/stage-default-user-prompt'
+import { registerThrottledReminder } from '../handlers/staging/throttle-utils'
 import { registerUnstageVerifyCompletion } from '../handlers/staging/unstage-verify-completion'
 import { registerStageBashChanges } from '../handlers/staging/stage-stop-bash-changes'
 import {
