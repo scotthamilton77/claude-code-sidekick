@@ -3,6 +3,7 @@
  */
 
 // Matches all ANSI escape sequences (CSI sequences, OSC, etc.)
+// eslint-disable-next-line no-control-regex
 const ANSI_REGEX = /\x1b\[[0-9;]*[a-zA-Z]|\x1b\][^\x07]*\x07/g
 
 /** Strip ANSI escape codes from a string. */

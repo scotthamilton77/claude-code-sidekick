@@ -103,11 +103,21 @@ function parseTokenOptions(optionsStr?: string): TokenOptions {
     const key = match[1]
     const val = match[2].replace(/\\'/g, "'").replace(/\\\\/g, '\\')
     switch (key) {
-      case 'prefix': options.prefix = val; break
-      case 'suffix': options.suffix = val; break
-      case 'truncateStyle': options.truncateStyle = val as 'suffix' | 'prefix' | 'path'; break
-      case 'wrapPrefix': options.wrapPrefix = val; break
-      case 'wrapSuffix': options.wrapSuffix = val; break
+      case 'prefix':
+        options.prefix = val
+        break
+      case 'suffix':
+        options.suffix = val
+        break
+      case 'truncateStyle':
+        options.truncateStyle = val as 'suffix' | 'prefix' | 'path'
+        break
+      case 'wrapPrefix':
+        options.wrapPrefix = val
+        break
+      case 'wrapSuffix':
+        options.wrapSuffix = val
+        break
     }
   }
 
@@ -117,8 +127,12 @@ function parseTokenOptions(optionsStr?: string): TokenOptions {
     const key = match[1]
     const val = parseInt(match[2], 10)
     switch (key) {
-      case 'maxLength': options.maxLength = val; break
-      case 'wrapAt': options.wrapAt = val; break
+      case 'maxLength':
+        options.maxLength = val
+        break
+      case 'wrapAt':
+        options.wrapAt = val
+        break
     }
   }
 
@@ -130,10 +144,13 @@ function parseTokenOptions(optionsStr?: string): TokenOptions {
  */
 function applyTruncation(value: string, maxLength: number, style: 'suffix' | 'prefix' | 'path'): string {
   switch (style) {
-    case 'prefix': return truncatePrefix(value, maxLength)
-    case 'path': return truncatePath(value, maxLength)
+    case 'prefix':
+      return truncatePrefix(value, maxLength)
+    case 'path':
+      return truncatePath(value, maxLength)
     case 'suffix':
-    default: return truncateSuffix(value, maxLength)
+    default:
+      return truncateSuffix(value, maxLength)
   }
 }
 

@@ -871,7 +871,7 @@ export class StatuslineService {
     const worktree = this.hookInput?.worktree
     const projectRoot = worktree?.original_cwd ?? this.hookInput?.workspace?.project_dir ?? this.cwd
     const projectDirShort = path.basename(projectRoot)
-    const homeShorten = (p: string) =>
+    const homeShorten = (p: string): string =>
       this.homeDir && p.startsWith(this.homeDir) ? '~' + p.slice(this.homeDir.length) : p
 
     return {
