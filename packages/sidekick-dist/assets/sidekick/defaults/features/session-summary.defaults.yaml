@@ -1,0 +1,117 @@
+# Session Summary Feature Defaults
+# This file defines default values for the session summary feature.
+# Override in ~/.sidekick/features.yaml or .sidekick/features.yaml under features.session-summary
+
+# Enable or disable the session summary feature
+enabled: true
+
+settings:
+  # LLM profiles for sub-features
+  llm:
+    # Profile for session summary generation (classification, title, intent)
+    sessionSummary:
+      profile: fast-lite
+      fallbackProfile: cheap-fallback
+    # Profile for snarky comment generation
+    snarkyComment:
+      profile: creative
+      fallbackProfile: cheap-fallback
+    # Profile for resume message generation
+    resumeMessage:
+      profile: creative-long
+      fallbackProfile: cheap-fallback
+
+  # Number of transcript lines to include in excerpt for LLM analysis
+  excerptLines: 80
+
+  # Include tool messages ([TOOL]: and [RESULT]:) in excerpt
+  # When false, both tool usage and tool results are omitted
+  includeToolMessages: true
+
+  # Include full tool output content in [RESULT]: lines
+  # Only relevant when includeToolMessages is true
+  # When false, shows "[RESULT]: (output omitted)" instead
+  includeToolOutputs: false
+
+  # Include assistant thinking blocks in excerpt
+  # When true, shows "[THINKING]: ..." for thinking content
+  includeAssistantThinking: false
+
+  # Keep summary history across compactions
+  keepHistory: false
+
+  # Maximum words for generated session title
+  maxTitleWords: 8
+
+  # Maximum words for generated intent description
+  maxIntentWords: 15
+
+  # Maximum words for snarky message generation
+  maxSnarkyWords: 20
+
+  # Maximum words for resume/welcome-back message generation
+  maxResumeWords: 20
+
+  # Enable snarky/humorous comments in summaries
+  snarkyMessages: true
+
+  # Countdown configuration for summary refresh timing
+  # Counts ToolResult events (each tool use decrements by 1)
+  # Lower values = more frequent updates (more LLM calls)
+  countdown:
+    # Tool results until next summary when confidence is low (≤0.6)
+    lowConfidence: 5
+    # Tool results until next summary when confidence is medium (0.6-0.8)
+    mediumConfidence: 10
+    # Tool results until next summary when confidence is high (>0.8)
+    # Set very high to effectively disable automatic refresh
+    highConfidence: 10000
+
+  # Bookmark configuration for tracking session progress
+  bookmark:
+    # Minimum confidence required to create a bookmark
+    confidenceThreshold: 0.8
+    # Confidence drop below which bookmark resets
+    resetThreshold: 0.7
+
+  # Persona configuration for creative outputs (snarky messages, resume messages)
+  # See docs/design/PERSONA-PROFILES-DESIGN.md
+  personas:
+    # Pin a specific persona for all new sessions
+    # When set, this persona is used instead of random selection
+    # Can be set at project scope (.sidekick/) or user scope (~/.sidekick/)
+    # Project scope takes priority over user scope
+    # Empty string means no pin (random selection)
+    pinnedPersona: ""
+    # Comma-separated allow-list of persona IDs (empty = all available personas)
+    # Example: "sidekick,skippy,bones" to restrict selection to these three
+    allowList: ""
+    # Comma-separated block-list of persona IDs excluded from random selection
+    # These personas are never picked randomly, but can still be set manually
+    # Default: "disabled" prevents the no-persona mode from being randomly selected
+    blockList: "disabled"
+    # Maximum age (in hours) for resume messages to be considered fresh
+    # Sessions older than this will use persona empty-messages instead
+    resumeFreshnessHours: 4
+    # Inject active persona into Claude Code's system prompt via reminders
+    # When true, a persistent reminder is staged on SessionStart and UserPromptSubmit
+    # describing the persona's voice/personality for Claude to adopt
+    injectPersonaIntoClaude: true
+    # Default LLM profile for all persona-driven outputs (snarky, resume)
+    # Empty string = use feature's own profile (e.g. snarkyComment.profile)
+    # Must match a profile ID in llm.profiles
+    defaultLlmProfile: ""
+    # Per-persona LLM profile overrides: personaId → profileId
+    # Overrides both defaultLlmProfile and persona YAML llmProfile
+    # Example: { avasarala: "creative-long", skippy: "fast-lite" }
+    llmProfiles: {}
+    # Per-persona selection weights: personaId → weight number
+    # Default weight = 1 for any persona not listed.
+    # Non-positive (0 or negative), non-finite (NaN, Infinity), or non-numeric values = excluded.
+    # String values are coerced via Number() (e.g. "5" → 5).
+    # Applied AFTER allowList/blockList filtering.
+    # Example: { darth-vader: 100, emperor: 50 }
+    weights: {}
+    # Preserve persona across /clear instead of re-rolling
+    # When true, /clear keeps the same persona. When false, a new persona is randomly selected.
+    persistThroughClear: true
