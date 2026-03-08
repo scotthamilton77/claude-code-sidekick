@@ -718,8 +718,8 @@ describe('selectPersonaForSession', () => {
     ): SessionSummaryConfig {
       return {
         ...DEFAULT_SESSION_SUMMARY_CONFIG,
-        personas: { ...DEFAULT_SESSION_SUMMARY_CONFIG.personas!, ...personaOverrides },
-      }
+        personas: { ...DEFAULT_SESSION_SUMMARY_CONFIG.personas, ...personaOverrides },
+      } as SessionSummaryConfig
     }
 
     it('preserves persona on clear when persistThroughClear is true and cache has valid entry', async () => {
