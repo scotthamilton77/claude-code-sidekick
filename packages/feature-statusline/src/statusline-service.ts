@@ -183,9 +183,9 @@ export interface ClaudeCodeWorktree {
   /** Branch name in the worktree */
   branch: string
   /** Original working directory (main repo root) */
-  original_cwd: string
+  original_cwd?: string
   /** Branch name of the original repo */
-  original_branch: string
+  original_branch?: string
 }
 
 /**
@@ -869,7 +869,7 @@ export class StatuslineService {
 
     // Worktree-aware project directory resolution
     const worktree = this.hookInput?.worktree
-    const projectRoot = worktree?.original_cwd ?? this.hookInput?.workspace?.project_dir ?? this.cwd
+    const projectRoot = worktree?.original_cwd || this.hookInput?.workspace?.project_dir || this.cwd
     const projectDirShort = path.basename(projectRoot)
     const homeShorten = (p: string): string =>
       this.homeDir && p.startsWith(this.homeDir) ? '~' + p.slice(this.homeDir.length) : p

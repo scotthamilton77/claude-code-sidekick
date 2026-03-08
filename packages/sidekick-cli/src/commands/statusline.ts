@@ -148,8 +148,8 @@ export function parseStatuslineInput(raw: Record<string, unknown>): ClaudeCodeSt
             name: typeof wt.name === 'string' ? wt.name : '',
             path: typeof wt.path === 'string' ? wt.path : '',
             branch: typeof wt.branch === 'string' ? wt.branch : '',
-            original_cwd: typeof wt.original_cwd === 'string' ? wt.original_cwd : '',
-            original_branch: typeof wt.original_branch === 'string' ? wt.original_branch : '',
+            original_cwd: typeof wt.original_cwd === 'string' ? wt.original_cwd : undefined,
+            original_branch: typeof wt.original_branch === 'string' ? wt.original_branch : undefined,
           }
         })()
       : undefined,

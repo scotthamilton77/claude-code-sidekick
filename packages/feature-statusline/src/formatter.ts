@@ -267,9 +267,31 @@ export class Formatter {
     let currentLineWidth = 0
 
     // Replace {token} and {token,options...} patterns left-to-right
-    let result = template.replace(/\{(\w+)(?:,([^}]*))?\}/g, (_match, tokenName: string, optionsStr?: string) => {
+    const TOKEN_REGEX = /\{(\w+)(?:,([^}]*))?\}/g
+    let result = ''
+    let lastIndex = 0
+    let match: RegExpExecArray | null
+
+    while ((match = TOKEN_REGEX.exec(template)) !== null) {
+      // Add literal text before this match and update line width
+      const literal = template.slice(lastIndex, match.index)
+      result += literal
+      // Update line width for literal text
+      const literalNewline = literal.lastIndexOf('\n')
+      if (literalNewline >= 0) {
+        currentLineWidth = visibleLength(literal.slice(literalNewline + 1))
+      } else {
+        currentLineWidth += visibleLength(literal)
+      }
+
+      const tokenName = match[1]
+      const optionsStr = match[2]
       let value = rawTokens[tokenName] ?? ''
-      if (!value) return EMPTY_MARKER
+      if (!value) {
+        result += EMPTY_MARKER
+        lastIndex = TOKEN_REGEX.lastIndex
+        continue
+      }
 
       const options = parseTokenOptions(optionsStr)
 
@@ -295,18 +317,19 @@ export class Formatter {
 
       // Build the full segment and update line width tracking
       const segment = prefix + colorized + suffix
-      const lastNewline = segment.lastIndexOf('\n')
-      if (lastNewline >= 0) {
-        currentLineWidth = visibleLength(segment.slice(lastNewline + 1))
+      const lastNewlineInSegment = segment.lastIndexOf('\n')
+      if (lastNewlineInSegment >= 0) {
+        currentLineWidth = visibleLength(segment.slice(lastNewlineInSegment + 1))
       } else {
         currentLineWidth += visibleLength(segment)
       }
 
-      return segment
-    })
+      result += segment
+      lastIndex = TOKEN_REGEX.lastIndex
+    }
 
-    // Update line width for literal text between tokens
-    // (The regex replace handles tokens; literal text contributes to width via the result)
+    // Add any remaining literal text after the last match
+    result += template.slice(lastIndex)
 
     // Clean up separators around empty markers (handles both | and \n)
     result = result.replace(new RegExp(`\\s*[|\\n]\\s*${EMPTY_MARKER}\\s*[|\\n]\\s*`, 'g'), ' | ')

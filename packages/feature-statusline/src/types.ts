@@ -125,7 +125,7 @@ export type StatuslineConfig = z.infer<typeof StatuslineConfigSchema>
 export const DEFAULT_STATUSLINE_CONFIG: StatuslineConfig = {
   enabled: true,
   format:
-    "{personaName,prefix='[',suffix='] | '}{model,prefix='[',suffix='] | '}{contextBar} {tokenPercentageActual} | {logs} | {cwd,maxLength=40,truncateStyle='path'}{branch,prefix=' ∗ ',maxLength=40} | {title,wrapAt=80,prefix=' | ',wrapPrefix='\\n'}\n{summary}",
+    "{personaName,prefix='[',suffix='] | '}{model,prefix='[',suffix='] | '}{contextBar} {tokenPercentageActual} | {logs} | {cwd,maxLength=40,truncateStyle='path'}{branch,prefix=' ∗ ',maxLength=40}{title,wrapAt=80,prefix=' | ',wrapPrefix='\\n'}\n{summary}",
   thresholds: {
     tokens: { warning: 100000, critical: 160000 },
     cost: { warning: 0.5, critical: 1.0 },
