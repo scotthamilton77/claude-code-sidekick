@@ -1,5 +1,5 @@
 /**
- * Stage verify-completion when Bash tool modifies source files
+ * Stage per-tool VC reminders when Bash tool modifies source files
  *
  * Two cooperating handlers sharing closure state:
  * 1. UserPromptSubmit hook handler - captures git status baseline per session
@@ -10,10 +10,11 @@
 import type { RuntimeContext } from '@sidekick/core'
 import { getGitFileStatus } from '@sidekick/core'
 import { isDaemonContext, isHookEvent, isTranscriptEvent } from '@sidekick/types'
-import type { DaemonContext } from '@sidekick/types'
+import type { DaemonContext, VerificationToolsState } from '@sidekick/types'
 import picomatch from 'picomatch'
-import { createStagingHandler } from './staging-handler-utils.js'
+import { stageToolsForFiles } from './track-verification-tools.js'
 import { ReminderIds, DEFAULT_REMINDERS_SETTINGS, type RemindersSettings } from '../../types.js'
+import { createRemindersState } from '../../state.js'
 
 const GIT_STATUS_TIMEOUT_MS = 200
 const MAX_BASELINES = 50
@@ -56,39 +57,41 @@ export function registerStageBashChanges(context: RuntimeContext): void {
     },
   })
 
-  // Handler B: Detect Bash file changes on ToolResult
-  createStagingHandler(context, {
+  // Handler B: Detect Bash file changes on ToolResult, stage per-tool VC reminders
+  context.handlers.register({
     id: 'reminders:stage-stop-bash-changes',
     priority: 55,
     filter: { kind: 'transcript', eventTypes: ['ToolResult'] },
-    execute: async (event, ctx) => {
-      if (!isTranscriptEvent(event)) return undefined
+    handler: async (event, ctx) => {
+      if (!isTranscriptEvent(event)) return
+      if (event.metadata.isBulkProcessing) return
+      if (!isDaemonContext(ctx as unknown as RuntimeContext)) return
 
-      // Only check Bash tool results
+      const daemonCtx = ctx as unknown as DaemonContext
+
       const toolName = event.payload.toolName
-      if (toolName !== 'Bash') return undefined
+      if (toolName !== 'Bash') return
 
       const sessionId = event.context?.sessionId
-      if (!sessionId) return undefined
+      if (!sessionId) return
 
-      // Get baseline — if none exists (daemon restart mid-turn), skip
       const baseline = baselines.get(sessionId)
       if (!baseline) {
-        ctx.logger.debug('Bash VC: no baseline for session, skipping', { sessionId })
-        return undefined
+        daemonCtx.logger.debug('Bash VC: no baseline for session, skipping', { sessionId })
+        return
       }
 
       // Check once-per-turn reactivation
       const metrics = event.metadata.metrics
-      const lastConsumed = await ctx.staging.getLastConsumed('Stop', ReminderIds.VERIFY_COMPLETION)
+      const lastConsumed = await daemonCtx.staging.getLastConsumed('Stop', ReminderIds.VERIFY_COMPLETION)
       if (lastConsumed?.stagedAt) {
         const shouldReactivate = metrics.turnCount > lastConsumed.stagedAt.turnCount
         if (!shouldReactivate) {
-          ctx.logger.debug('Bash VC: skipped (already consumed this turn)', {
+          daemonCtx.logger.debug('Bash VC: skipped (already consumed this turn)', {
             currentTurn: metrics.turnCount,
             lastConsumedTurn: lastConsumed.stagedAt.turnCount,
           })
-          return undefined
+          return
         }
       }
 
@@ -97,13 +100,13 @@ export function registerStageBashChanges(context: RuntimeContext): void {
       const baselineSet = new Set(baseline)
       const newFiles = current.filter((f) => !baselineSet.has(f))
 
-      ctx.logger.debug('Bash VC: git status diff', {
+      daemonCtx.logger.debug('Bash VC: git status diff', {
         baselineCount: baseline.length,
         currentCount: current.length,
         newFileCount: newFiles.length,
       })
 
-      if (newFiles.length === 0) return undefined
+      if (newFiles.length === 0) return
 
       // Filter through source code patterns
       const featureConfig = context.config.getFeature<RemindersSettings>('reminders')
@@ -111,25 +114,26 @@ export function registerStageBashChanges(context: RuntimeContext): void {
       const sourceMatches = newFiles.filter((f) => picomatch.isMatch(f, config.source_code_patterns))
 
       if (sourceMatches.length === 0) {
-        ctx.logger.debug('Bash VC: new files found but no source code matches', {
-          newFiles,
-        })
-        return undefined
+        daemonCtx.logger.debug('Bash VC: new files found but no source code matches', { newFiles })
+        return
       }
 
-      ctx.logger.info('Bash VC: staging verify-completion', {
+      daemonCtx.logger.info('Bash VC: staging per-tool reminders for source changes', {
         sourceMatches,
         turnCount: metrics.turnCount,
         toolCount: metrics.toolCount,
       })
 
-      // Update baseline to current state to avoid redundant git calls
+      // Update baseline to current state
       baselines.set(sessionId, current)
 
-      return {
-        reminderId: ReminderIds.VERIFY_COMPLETION,
-        targetHook: 'Stop',
-      }
+      // Stage per-tool reminders using shared logic
+      const verificationTools = config.verification_tools ?? {}
+      const remindersState = createRemindersState(daemonCtx.stateService)
+      const stateResult = await remindersState.verificationTools.read(sessionId)
+      const toolsState: VerificationToolsState = { ...stateResult.data }
+
+      await stageToolsForFiles(sourceMatches, daemonCtx, sessionId, verificationTools, toolsState, remindersState)
     },
   })
 }

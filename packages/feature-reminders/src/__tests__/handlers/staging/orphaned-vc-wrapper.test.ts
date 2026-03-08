@@ -150,7 +150,7 @@ describe('Orphaned VC wrapper — Scenario A: bash-changes stages wrapper indepe
     ctx = createMockDaemonContext({ staging, logger, handlers, assets, stateService })
   })
 
-  it('reproduces orphaned wrapper: all per-tool verified, then bash modifies source files', async () => {
+  it('no longer orphans wrapper: bash-changes respects per-tool cooldown after verification', async () => {
     // Register both handlers
     registerTrackVerificationTools(ctx)
     registerStageBashChanges(ctx)
@@ -187,7 +187,8 @@ describe('Orphaned VC wrapper — Scenario A: bash-changes stages wrapper indepe
     expect(hasWrapper(staging)).toBe(false) // wrapper correctly removed
 
     // --- Step 4: Same bash command modified source files (git status changed) ---
-    // stage-stop-bash-changes fires on ToolResult (after Bash completes)
+    // stage-stop-bash-changes fires on ToolResult — now uses stageToolsForFiles
+    // which respects cooldown: tools just verified, single file doesn't hit threshold
     mockGetGitFileStatus.mockResolvedValue(['src/existing.ts', 'src/generated-output.ts'])
     await bashChangesHandler(
       createBashToolResultEvent({ turnCount: 1, toolsThisTurn: 2, toolCount: 2 }),
@@ -195,9 +196,33 @@ describe('Orphaned VC wrapper — Scenario A: bash-changes stages wrapper indepe
     )
     snapshotStaging(staging, 'Step 4: After bash-changes detects new source file')
 
-    // --- BUG: wrapper is staged but NO per-tool reminders exist ---
-    const wrapperOrphaned = hasWrapper(staging) && getPerToolNames(staging).length === 0
-    expect(wrapperOrphaned).toBe(true) // This PROVES the bug exists
+    // FIX: neither wrapper NOR per-tool staged — cooldown respected, no orphan possible
+    expect(hasWrapper(staging)).toBe(false)
+    expect(getPerToolNames(staging)).toHaveLength(0)
+  })
+
+  it('stages per-tool + wrapper when bash creates files before any verification', async () => {
+    // Register both handlers
+    registerTrackVerificationTools(ctx)
+    registerStageBashChanges(ctx)
+
+    const gitBaselineHandler = handlers.getHandler('reminders:git-baseline-capture')!.handler
+    const bashChangesHandler = handlers.getHandler('reminders:stage-stop-bash-changes')!.handler
+
+    // --- Step 1: Capture empty baseline ---
+    mockGetGitFileStatus.mockResolvedValue([])
+    await gitBaselineHandler(createUserPromptSubmitEvent(), ctx as any)
+
+    // --- Step 2: Bash creates a source file (no prior verification) ---
+    mockGetGitFileStatus.mockResolvedValue(['src/new-feature.ts'])
+    await bashChangesHandler(
+      createBashToolResultEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }),
+      ctx as any
+    )
+
+    // FIX: wrapper staged WITH per-tool children — no orphan
+    expect(hasWrapper(staging)).toBe(true)
+    expect(getPerToolNames(staging).length).toBeGreaterThan(0)
   })
 })
 

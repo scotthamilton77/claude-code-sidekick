@@ -113,6 +113,30 @@ priority: 50
 persistent: false
 reason: "Verify completion before stopping"
 `,
+      'reminders/vc-build.yaml': `id: vc-build
+blocking: true
+priority: 50
+persistent: false
+additionalContext: "Build needed"
+`,
+      'reminders/vc-typecheck.yaml': `id: vc-typecheck
+blocking: true
+priority: 50
+persistent: false
+additionalContext: "Typecheck needed"
+`,
+      'reminders/vc-test.yaml': `id: vc-test
+blocking: true
+priority: 50
+persistent: false
+additionalContext: "Test needed"
+`,
+      'reminders/vc-lint.yaml': `id: vc-lint
+blocking: true
+priority: 50
+persistent: false
+additionalContext: "Lint needed"
+`,
     })
 
     ctx = createMockDaemonContext({ staging, logger, handlers, assets })
@@ -907,9 +931,36 @@ reason: "Verify completion before stopping"
       const event = createToolResultEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, 'Bash')
       await bashHandler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
 
-      const reminders = staging.getRemindersForHook('Stop')
-      expect(reminders).toHaveLength(1)
-      expect(reminders[0].name).toBe('verify-completion')
+      const names = staging.getRemindersForHook('Stop').map((r) => r.name)
+      // Should stage per-tool reminders AND wrapper
+      expect(names).toContain('verify-completion')
+      expect(names).toContain('vc-build')
+    })
+
+    it('stages per-tool VC reminders when Bash modifies source files', async () => {
+      registerStageBashChanges(ctx)
+
+      // Capture baseline with no files
+      mockGetGitFileStatus.mockResolvedValue([])
+      const baselineHandler = handlers.getHandler('reminders:git-baseline-capture')
+      await baselineHandler?.handler(
+        createUserPromptSubmitEvent(),
+        ctx as unknown as import('@sidekick/types').HandlerContext
+      )
+
+      // Bash creates a source file
+      mockGetGitFileStatus.mockResolvedValue(['src/new-feature.ts'])
+      const bashHandler = handlers.getHandler('reminders:stage-stop-bash-changes')
+      const event = createToolResultEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, 'Bash')
+      await bashHandler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+
+      const names = staging.getRemindersForHook('Stop').map((r) => r.name)
+      // Should have per-tool reminders AND wrapper
+      expect(names).toContain('vc-build')
+      expect(names).toContain('vc-typecheck')
+      expect(names).toContain('vc-test')
+      expect(names).toContain('vc-lint')
+      expect(names).toContain('verify-completion')
     })
 
     it('does not stage when Bash does not modify files', async () => {
@@ -1006,7 +1057,7 @@ reason: "Verify completion before stopping"
         const bashHandler = handlers.getHandler('reminders:stage-stop-bash-changes')
         const event1 = createToolResultEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, 'Bash')
         await bashHandler?.handler(event1, ctx as unknown as import('@sidekick/types').HandlerContext)
-        expect(staging.getRemindersForHook('Stop')).toHaveLength(1)
+        expect(staging.getRemindersForHook('Stop').map((r) => r.name)).toContain('verify-completion')
 
         // Simulate consumption on turn 1
         staging.addConsumedReminder('Stop', 'verify-completion', {
@@ -1017,14 +1068,13 @@ reason: "Verify completion before stopping"
           stagedAt: { timestamp: Date.now(), turnCount: 1, toolsThisTurn: 1, toolCount: 1 },
         })
         await staging.deleteReminder('Stop', 'verify-completion')
-        expect(staging.getRemindersForHook('Stop')).toHaveLength(0)
 
-        // Second Bash in SAME turn — should NOT re-stage
+        // Second Bash in SAME turn — should NOT re-stage wrapper
         mockGetGitFileStatus.mockResolvedValue(['src/a.ts', 'src/b.ts'])
         const event2 = createToolResultEvent({ turnCount: 1, toolsThisTurn: 5, toolCount: 5 }, 'Bash')
         await bashHandler?.handler(event2, ctx as unknown as import('@sidekick/types').HandlerContext)
 
-        expect(staging.getRemindersForHook('Stop')).toHaveLength(0)
+        expect(staging.getRemindersForHook('Stop').map((r) => r.name)).not.toContain('verify-completion')
       })
 
       it('DOES re-stage VC after consumption on NEW turn', async () => {
@@ -1043,7 +1093,7 @@ reason: "Verify completion before stopping"
         const bashHandler = handlers.getHandler('reminders:stage-stop-bash-changes')
         const event1 = createToolResultEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, 'Bash')
         await bashHandler?.handler(event1, ctx as unknown as import('@sidekick/types').HandlerContext)
-        expect(staging.getRemindersForHook('Stop')).toHaveLength(1)
+        expect(staging.getRemindersForHook('Stop').map((r) => r.name)).toContain('verify-completion')
 
         // Simulate consumption on turn 1
         staging.addConsumedReminder('Stop', 'verify-completion', {
@@ -1055,12 +1105,12 @@ reason: "Verify completion before stopping"
         })
         await staging.deleteReminder('Stop', 'verify-completion')
 
-        // Bash on NEW turn (turn 2) — SHOULD re-stage
+        // Bash on NEW turn (turn 2) — SHOULD re-stage wrapper
         mockGetGitFileStatus.mockResolvedValue(['src/a.ts', 'src/c.ts'])
         const event2 = createToolResultEvent({ turnCount: 2, toolsThisTurn: 1, toolCount: 10 }, 'Bash')
         await bashHandler?.handler(event2, ctx as unknown as import('@sidekick/types').HandlerContext)
 
-        expect(staging.getRemindersForHook('Stop')).toHaveLength(1)
+        expect(staging.getRemindersForHook('Stop').map((r) => r.name)).toContain('verify-completion')
       })
     })
 
@@ -1081,10 +1131,12 @@ reason: "Verify completion before stopping"
         const bashHandler = handlers.getHandler('reminders:stage-stop-bash-changes')
         const event1 = createToolResultEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, 'Bash')
         await bashHandler?.handler(event1, ctx as unknown as import('@sidekick/types').HandlerContext)
-        expect(staging.getRemindersForHook('Stop')).toHaveLength(1)
+        expect(staging.getRemindersForHook('Stop').map((r) => r.name)).toContain('verify-completion')
 
-        // Delete staged reminder to allow re-staging (simulate idempotency gate reset)
-        await staging.deleteReminder('Stop', 'verify-completion')
+        // Delete all staged reminders to allow re-staging (simulate idempotency gate reset)
+        for (const r of staging.getRemindersForHook('Stop')) {
+          await staging.deleteReminder('Stop', r.name)
+        }
 
         // Second Bash — git status still returns ['src/a.ts'] (no NEW files since updated baseline)
         // If it used the stale baseline ([]), it would incorrectly detect src/a.ts as new
