@@ -27,7 +27,10 @@ import type {
 } from '@sidekick/types'
 import { LastStagedPersonaSchema } from '@sidekick/types'
 import { registerStagePauseAndReflect } from '../handlers/staging/stage-pause-and-reflect'
-import { registerStageDefaultUserPrompt } from '../handlers/staging/stage-default-user-prompt'
+import {
+  registerStageDefaultUserPrompt,
+  registerThrottledReminder,
+} from '../handlers/staging/stage-default-user-prompt'
 import { registerUnstageVerifyCompletion } from '../handlers/staging/unstage-verify-completion'
 import { registerStageBashChanges } from '../handlers/staging/stage-stop-bash-changes'
 import {
@@ -677,7 +680,7 @@ additionalContext: "Lint needed"
     describe('throttle re-staging', () => {
       let stateService: MockStateService
 
-      beforeEach(() => {
+      beforeEach(async () => {
         stateService = new MockStateService()
         staging = new MockStagingService()
         logger = new MockLogger()
@@ -694,44 +697,60 @@ additionalContext: "Standard user prompt reminder"
         })
 
         ctx = createMockDaemonContext({ staging, logger, handlers, assets, stateService })
+
+        // Seed throttle state so the generic handler has a registered entry
+        const seedState = createRemindersState(stateService)
+        await seedState.reminderThrottle.write('test-session', {
+          'user-prompt-submit': {
+            messagesSinceLastStaging: 0,
+            targetHook: 'UserPromptSubmit',
+            cachedReminder: {
+              name: 'user-prompt-submit',
+              blocking: false,
+              priority: 10,
+              persistent: false,
+              additionalContext: 'Standard user prompt reminder',
+            },
+          },
+        })
       })
 
       it('registers a transcript handler for UserPrompt and AssistantMessage', () => {
         registerStageDefaultUserPrompt(ctx)
 
         const transcriptHandlers = handlers.getHandlersByKind('transcript')
-        const throttleHandler = transcriptHandlers.find((h) => h.id === 'reminders:ups-throttle-restage')
+        const throttleHandler = transcriptHandlers.find((h) => h.id === 'reminders:throttle-restage')
         expect(throttleHandler).toBeDefined()
       })
 
       it('increments message counter on UserPrompt event', async () => {
         registerStageDefaultUserPrompt(ctx)
 
-        const handler = handlers.getHandler('reminders:ups-throttle-restage')
+        const handler = handlers.getHandler('reminders:throttle-restage')
         const event = createConversationTranscriptEvent('UserPrompt')
         await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
 
         const remindersState = createRemindersState(stateService)
-        const result = await remindersState.upsThrottle.read('test-session')
-        expect(result.data.messagesSinceLastStaging).toBe(1)
+        const result = await remindersState.reminderThrottle.read('test-session')
+        expect(result.data['user-prompt-submit'].messagesSinceLastStaging).toBe(1)
       })
 
       it('increments message counter on AssistantMessage event', async () => {
         registerStageDefaultUserPrompt(ctx)
 
-        const handler = handlers.getHandler('reminders:ups-throttle-restage')
+        const handler = handlers.getHandler('reminders:throttle-restage')
         const event = createConversationTranscriptEvent('AssistantMessage')
         await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
 
         const remindersState = createRemindersState(stateService)
-        const result = await remindersState.upsThrottle.read('test-session')
-        expect(result.data.messagesSinceLastStaging).toBe(1)
+        const result = await remindersState.reminderThrottle.read('test-session')
+        expect(result.data['user-prompt-submit'].messagesSinceLastStaging).toBe(1)
       })
 
       it('does not re-stage when below threshold', async () => {
         registerStageDefaultUserPrompt(ctx)
 
-        const handler = handlers.getHandler('reminders:ups-throttle-restage')
+        const handler = handlers.getHandler('reminders:throttle-restage')
 
         // Fire 9 events (below default threshold of 10)
         for (let i = 0; i < 9; i++) {
@@ -748,7 +767,7 @@ additionalContext: "Standard user prompt reminder"
       it('re-stages reminder when threshold is met', async () => {
         registerStageDefaultUserPrompt(ctx)
 
-        const handler = handlers.getHandler('reminders:ups-throttle-restage')
+        const handler = handlers.getHandler('reminders:throttle-restage')
 
         // Fire 10 events (meets default threshold of 10)
         for (let i = 0; i < 10; i++) {
@@ -763,7 +782,7 @@ additionalContext: "Standard user prompt reminder"
       it('resets counter after re-staging', async () => {
         registerStageDefaultUserPrompt(ctx)
 
-        const handler = handlers.getHandler('reminders:ups-throttle-restage')
+        const handler = handlers.getHandler('reminders:throttle-restage')
 
         // Fire 10 events to trigger re-staging
         for (let i = 0; i < 10; i++) {
@@ -772,14 +791,14 @@ additionalContext: "Standard user prompt reminder"
         }
 
         const remindersState = createRemindersState(stateService)
-        const result = await remindersState.upsThrottle.read('test-session')
-        expect(result.data.messagesSinceLastStaging).toBe(0)
+        const result = await remindersState.reminderThrottle.read('test-session')
+        expect(result.data['user-prompt-submit'].messagesSinceLastStaging).toBe(0)
       })
 
       it('skips bulk replay events', async () => {
         registerStageDefaultUserPrompt(ctx)
 
-        const handler = handlers.getHandler('reminders:ups-throttle-restage')
+        const handler = handlers.getHandler('reminders:throttle-restage')
         const event = createConversationTranscriptEvent('UserPrompt')
         // Add bulk processing flag
         const bulkEvent = {
@@ -789,15 +808,15 @@ additionalContext: "Standard user prompt reminder"
         await handler?.handler(bulkEvent, ctx as unknown as import('@sidekick/types').HandlerContext)
 
         const remindersState = createRemindersState(stateService)
-        const result = await remindersState.upsThrottle.read('test-session')
-        expect(result.data.messagesSinceLastStaging).toBe(0)
+        const result = await remindersState.reminderThrottle.read('test-session')
+        expect(result.data['user-prompt-submit'].messagesSinceLastStaging).toBe(0)
       })
 
       it('respects configurable threshold', async () => {
         const configWithThreshold = new MockConfigService()
         configWithThreshold.set({
           features: {
-            reminders: { enabled: true, settings: { user_prompt_submit_threshold: 3 } },
+            reminders: { enabled: true, settings: { reminder_thresholds: { 'user-prompt-submit': 3 } } },
           },
         })
 
@@ -812,7 +831,7 @@ additionalContext: "Standard user prompt reminder"
 
         registerStageDefaultUserPrompt(customCtx)
 
-        const handler = handlers.getHandler('reminders:ups-throttle-restage')
+        const handler = handlers.getHandler('reminders:throttle-restage')
 
         // Fire 3 events (meets custom threshold of 3)
         for (let i = 0; i < 3; i++) {
@@ -829,10 +848,16 @@ additionalContext: "Standard user prompt reminder"
 
         // Write state with existing counter
         const remindersState = createRemindersState(stateService)
-        await remindersState.upsThrottle.write('test-session', { messagesSinceLastStaging: 5 })
+        await remindersState.reminderThrottle.write('test-session', {
+          'user-prompt-submit': {
+            messagesSinceLastStaging: 5,
+            targetHook: 'UserPromptSubmit',
+            cachedReminder: { name: 'user-prompt-submit', blocking: false, priority: 10, persistent: false },
+          },
+        })
 
         // Fire SessionStart via the reset handler
-        const resetHandler = handlers.getHandler('reminders:ups-throttle-reset-session-start')
+        const resetHandler = handlers.getHandler('reminders:throttle-reset-session-start')
         const sessionEvent = {
           kind: 'hook' as const,
           hook: 'SessionStart' as const,
@@ -841,8 +866,8 @@ additionalContext: "Standard user prompt reminder"
         }
         await resetHandler?.handler(sessionEvent, ctx as unknown as import('@sidekick/types').HandlerContext)
 
-        const result = await remindersState.upsThrottle.read('test-session')
-        expect(result.data.messagesSinceLastStaging).toBe(0)
+        const result = await remindersState.reminderThrottle.read('test-session')
+        expect(result.data['user-prompt-submit'].messagesSinceLastStaging).toBe(0)
       })
 
       it('resets counter on BulkProcessingComplete', async () => {
@@ -850,10 +875,16 @@ additionalContext: "Standard user prompt reminder"
 
         // Write state with existing counter
         const remindersState = createRemindersState(stateService)
-        await remindersState.upsThrottle.write('test-session', { messagesSinceLastStaging: 5 })
+        await remindersState.reminderThrottle.write('test-session', {
+          'user-prompt-submit': {
+            messagesSinceLastStaging: 5,
+            targetHook: 'UserPromptSubmit',
+            cachedReminder: { name: 'user-prompt-submit', blocking: false, priority: 10, persistent: false },
+          },
+        })
 
         // Fire BulkProcessingComplete via the reset handler
-        const resetHandler = handlers.getHandler('reminders:ups-throttle-reset-bulk')
+        const resetHandler = handlers.getHandler('reminders:throttle-reset-bulk')
         const bulkCompleteEvent: TranscriptEvent = {
           kind: 'transcript',
           eventType: 'BulkProcessingComplete',
@@ -867,8 +898,98 @@ additionalContext: "Standard user prompt reminder"
         }
         await resetHandler?.handler(bulkCompleteEvent, ctx as unknown as import('@sidekick/types').HandlerContext)
 
-        const result = await remindersState.upsThrottle.read('test-session')
-        expect(result.data.messagesSinceLastStaging).toBe(0)
+        const result = await remindersState.reminderThrottle.read('test-session')
+        expect(result.data['user-prompt-submit'].messagesSinceLastStaging).toBe(0)
+      })
+
+      it('throttles multiple reminders independently', async () => {
+        // Seed both UPS and persona in throttle state
+        const remindersState = createRemindersState(stateService)
+        await remindersState.reminderThrottle.write('test-session', {
+          'user-prompt-submit': {
+            messagesSinceLastStaging: 0,
+            targetHook: 'UserPromptSubmit',
+            cachedReminder: {
+              name: 'user-prompt-submit',
+              blocking: false,
+              priority: 10,
+              persistent: false,
+              additionalContext: 'UPS content',
+            },
+          },
+          'remember-your-persona': {
+            messagesSinceLastStaging: 0,
+            targetHook: 'UserPromptSubmit',
+            cachedReminder: {
+              name: 'remember-your-persona',
+              blocking: false,
+              priority: 5,
+              persistent: false,
+              additionalContext: 'Persona content',
+            },
+          },
+        })
+
+        const configWithThresholds = new MockConfigService()
+        configWithThresholds.set({
+          features: {
+            reminders: {
+              enabled: true,
+              settings: {
+                reminder_thresholds: {
+                  'user-prompt-submit': 10,
+                  'remember-your-persona': 3,
+                },
+              },
+            },
+          },
+        })
+
+        const customCtx = createMockDaemonContext({
+          staging,
+          logger,
+          handlers,
+          assets,
+          stateService,
+          config: configWithThresholds,
+        })
+
+        registerStageDefaultUserPrompt(customCtx)
+        const handler = handlers.getHandler('reminders:throttle-restage')
+
+        // Fire 3 events — persona should fire, UPS should not
+        for (let i = 0; i < 3; i++) {
+          const event = createConversationTranscriptEvent('UserPrompt')
+          await handler?.handler(event, customCtx as unknown as import('@sidekick/types').HandlerContext)
+        }
+
+        const reminders = staging.getRemindersForHook('UserPromptSubmit')
+        expect(reminders.some((r) => r.name === 'remember-your-persona')).toBe(true)
+        expect(reminders.some((r) => r.name === 'user-prompt-submit')).toBe(false)
+
+        // Verify persona counter reset, UPS counter at 3
+        const result = await remindersState.reminderThrottle.read('test-session')
+        expect(result.data['remember-your-persona'].messagesSinceLastStaging).toBe(0)
+        expect(result.data['user-prompt-submit'].messagesSinceLastStaging).toBe(3)
+      })
+
+      it('registerThrottledReminder caches reminder for re-staging', async () => {
+        const stateService2 = new MockStateService()
+        const testCtx = createMockDaemonContext({ staging, logger, handlers, assets, stateService: stateService2 })
+
+        await registerThrottledReminder(testCtx, 'test-session', 'test-reminder', 'UserPromptSubmit', {
+          name: 'test-reminder',
+          blocking: false,
+          priority: 10,
+          persistent: false,
+          additionalContext: 'Test content',
+        })
+
+        const remindersState = createRemindersState(stateService2)
+        const result = await remindersState.reminderThrottle.read('test-session')
+        expect(result.data['test-reminder']).toBeDefined()
+        expect(result.data['test-reminder'].messagesSinceLastStaging).toBe(0)
+        expect(result.data['test-reminder'].cachedReminder.additionalContext).toBe('Test content')
       })
     })
   })
