@@ -2,5 +2,6 @@
   "database": "dolt",
   "backend": "dolt",
   "dolt_mode": "server",
-  "dolt_database": "beads_sidekick"
+  "dolt_database": "claude_code_sidekick",
+  "project_id": "d3cb3a9a-9125-4b7e-b872-4f49eb8d8def"
 }
