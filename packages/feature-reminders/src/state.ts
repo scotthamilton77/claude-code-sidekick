@@ -8,8 +8,19 @@
  */
 
 import { sessionState, SessionStateAccessor } from '@sidekick/core'
-import type { MinimalStateService, PRBaselineState, VCUnverifiedState, VerificationToolsState } from '@sidekick/types'
-import { PRBaselineStateSchema, VCUnverifiedStateSchema, VerificationToolsStateSchema } from '@sidekick/types'
+import type {
+  MinimalStateService,
+  PRBaselineState,
+  UPSThrottleState,
+  VCUnverifiedState,
+  VerificationToolsState,
+} from '@sidekick/types'
+import {
+  PRBaselineStateSchema,
+  UPSThrottleStateSchema,
+  VCUnverifiedStateSchema,
+  VerificationToolsStateSchema,
+} from '@sidekick/types'
 
 // ============================================================================
 // State Descriptors
@@ -50,6 +61,17 @@ const VerificationToolsDescriptor = sessionState('verification-tools.json', Veri
   trackHistory: false,
 })
 
+/**
+ * UPS Throttle state descriptor.
+ * Tracks conversation messages since last user-prompt-submit staging.
+ * Default: { messagesSinceLastStaging: 0 }
+ * trackHistory: false — high-frequency updates, no need for history
+ */
+const UPSThrottleDescriptor = sessionState('ups-throttle.json', UPSThrottleStateSchema, {
+  defaultValue: { messagesSinceLastStaging: 0 },
+  trackHistory: false,
+})
+
 // ============================================================================
 // State Accessor Types
 // ============================================================================
@@ -64,6 +86,8 @@ export interface RemindersStateAccessors {
   vcUnverified: SessionStateAccessor<VCUnverifiedState, null>
   /** Per-tool verification status (build, typecheck, test, lint) */
   verificationTools: SessionStateAccessor<VerificationToolsState, Record<string, never>>
+  /** UPS throttle state (conversation message counter) */
+  upsThrottle: SessionStateAccessor<UPSThrottleState, { messagesSinceLastStaging: number }>
 }
 
 // ============================================================================
@@ -82,5 +106,6 @@ export function createRemindersState(stateService: MinimalStateService): Reminde
     prBaseline: new SessionStateAccessor(stateService, PRBaselineDescriptor),
     vcUnverified: new SessionStateAccessor(stateService, VCUnverifiedDescriptor),
     verificationTools: new SessionStateAccessor(stateService, VerificationToolsDescriptor),
+    upsThrottle: new SessionStateAccessor(stateService, UPSThrottleDescriptor),
   }
 }
