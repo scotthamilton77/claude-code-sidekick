@@ -21,6 +21,7 @@ import {
 } from '@sidekick/types'
 import { resolveReminder, stageReminder } from '../../reminder-utils.js'
 import { ReminderIds } from '../../types.js'
+import { registerThrottledReminder } from './stage-default-user-prompt.js'
 
 /**
  * Re-stage persona reminders for all active sessions.
@@ -178,6 +179,10 @@ export async function stagePersonaRemindersForSession(
   if (reminder) {
     for (const targetHook of PERSONA_REMINDER_HOOKS) {
       await stageReminder(ctx, targetHook, reminder)
+      // Register for throttle re-staging (UserPromptSubmit only)
+      if (targetHook === 'UserPromptSubmit') {
+        await registerThrottledReminder(ctx, sessionId, ReminderIds.REMEMBER_YOUR_PERSONA, 'UserPromptSubmit', reminder)
+      }
     }
   } else {
     ctx.logger.warn('Failed to resolve persona reminder', {
