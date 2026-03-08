@@ -72,6 +72,7 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
     filter: { kind: 'hook', hooks: ['SessionStart'] },
     handler: async (event, ctx) => {
       if (!isHookEvent(event) || !isSessionStartEvent(event)) return
+      if (!isDaemonContext(ctx as unknown as RuntimeContext)) return
       const handlerCtx = ctx as unknown as DaemonContext
       const sessionId = event.context.sessionId
       if (!sessionId) return
@@ -98,6 +99,7 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
     filter: { kind: 'hook', hooks: ['SessionStart'] },
     handler: async (event, ctx) => {
       if (!isHookEvent(event) || !isSessionStartEvent(event)) return
+      if (!isDaemonContext(ctx as unknown as RuntimeContext)) return
       const handlerCtx = ctx as unknown as DaemonContext
       const sessionId = event.context.sessionId
       if (!sessionId) return
@@ -113,6 +115,7 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
     handler: async (event, ctx) => {
       if (!isTranscriptEvent(event)) return
       if (event.metadata.isBulkProcessing) return
+      if (!isDaemonContext(ctx as unknown as RuntimeContext)) return
       const handlerCtx = ctx as unknown as DaemonContext
       const sessionId = event.context?.sessionId
       if (!sessionId) return
@@ -131,6 +134,7 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
       // Skip bulk replay
       if (event.metadata.isBulkProcessing) return
 
+      if (!isDaemonContext(ctx as unknown as RuntimeContext)) return
       const handlerCtx = ctx as unknown as DaemonContext
       const sessionId = event.context?.sessionId
       if (!sessionId) return
