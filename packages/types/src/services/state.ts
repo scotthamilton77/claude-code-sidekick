@@ -377,6 +377,7 @@ export const ReminderThrottleEntrySchema = z.object({
     blocking: z.boolean(),
     priority: z.number(),
     persistent: z.boolean(),
+    throttle: z.boolean().optional(),
     userMessage: z.string().optional(),
     additionalContext: z.string().optional(),
     reason: z.string().optional(),
