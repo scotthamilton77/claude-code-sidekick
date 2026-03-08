@@ -20,7 +20,7 @@ import {
   createDefaultMetrics,
 } from '@sidekick/testing-fixtures'
 import type { DaemonContext, TranscriptEvent, TranscriptMetrics, StagedReminder, EventHandler } from '@sidekick/types'
-import { registerTrackVerificationTools } from '../../../handlers/staging/track-verification-tools.js'
+import { registerTrackVerificationTools, stageToolsForFiles } from '../../../handlers/staging/track-verification-tools.js'
 import { ReminderIds } from '../../../types.js'
 
 // ============================================================================
@@ -409,5 +409,11 @@ additionalContext: "Lint needed"
     await handler(event, ctx as any)
 
     expect(getStagedNames(staging)).toContain(ReminderIds.VC_BUILD)
+  })
+})
+
+describe('stageToolsForFiles', () => {
+  it('is exported as a function', () => {
+    expect(typeof stageToolsForFiles).toBe('function')
   })
 })

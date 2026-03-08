@@ -82,6 +82,77 @@ export function registerTrackVerificationTools(context: RuntimeContext): void {
   })
 }
 
+/**
+ * Stage per-tool VC reminders for the given file paths.
+ * Respects the per-tool state machine (staged/verified/cooldown).
+ * Stages the wrapper reminder if any per-tool reminder was staged.
+ *
+ * @returns true if any per-tool reminder was staged
+ */
+export async function stageToolsForFiles(
+  filePaths: string[],
+  daemonCtx: DaemonContext,
+  sessionId: string,
+  verificationTools: VerificationToolsMap,
+  toolsState: VerificationToolsState,
+  remindersState: RemindersStateAccessors
+): Promise<boolean> {
+  const existingReminders = await daemonCtx.staging.listReminders('Stop')
+  const stagedNames = new Set(existingReminders.map((r) => r.name))
+  let anyStaged = false
+
+  for (const filePath of filePaths) {
+    for (const [toolName, toolConfig] of Object.entries(verificationTools)) {
+      if (!toolConfig.enabled) continue
+
+      const reminderId = TOOL_REMINDER_MAP[toolName]
+      if (!reminderId) continue
+      if (!picomatch.isMatch(filePath, toolConfig.clearing_patterns)) continue
+
+      const current = toolsState[toolName]
+
+      if (!current || current.status === 'staged') {
+        if (!current) {
+          toolsState[toolName] = {
+            status: 'staged',
+            editsSinceVerified: 0,
+            lastVerifiedAt: null,
+            lastStagedAt: Date.now(),
+          }
+        }
+        await stageToolReminderIfNeeded(daemonCtx, reminderId, stagedNames)
+        anyStaged = true
+      } else {
+        // verified or cooldown — count edits toward re-staging threshold
+        const newEdits = current.editsSinceVerified + 1
+        if (newEdits >= toolConfig.clearing_threshold) {
+          toolsState[toolName] = {
+            ...current,
+            status: 'staged',
+            editsSinceVerified: 0,
+            lastStagedAt: Date.now(),
+          }
+          await stageToolReminderIfNeeded(daemonCtx, reminderId, stagedNames)
+          anyStaged = true
+        } else {
+          toolsState[toolName] = {
+            ...current,
+            status: 'cooldown',
+            editsSinceVerified: newEdits,
+          }
+        }
+      }
+    }
+  }
+
+  if (anyStaged) {
+    await stageToolReminderIfNeeded(daemonCtx, ReminderIds.VERIFY_COMPLETION, stagedNames)
+  }
+
+  await remindersState.verificationTools.write(sessionId, toolsState)
+  return anyStaged
+}
+
 async function handleFileEdit(
   event: TranscriptEvent,
   daemonCtx: DaemonContext,
@@ -97,58 +168,7 @@ async function handleFileEdit(
   const projectDir = daemonCtx.paths?.projectDir
   if (projectDir && !filePath.startsWith(projectDir)) return
 
-  // Cache staged reminder names once to avoid repeated listReminders calls
-  const existingReminders = await daemonCtx.staging.listReminders('Stop')
-  const stagedNames = new Set(existingReminders.map((r) => r.name))
-  let anyStaged = false
-
-  for (const [toolName, toolConfig] of Object.entries(verificationTools)) {
-    if (!toolConfig.enabled) continue
-
-    const reminderId = TOOL_REMINDER_MAP[toolName]
-    if (!reminderId) continue
-    if (!picomatch.isMatch(filePath, toolConfig.clearing_patterns)) continue
-
-    const current = toolsState[toolName]
-
-    if (!current || current.status === 'staged') {
-      if (!current) {
-        toolsState[toolName] = {
-          status: 'staged',
-          editsSinceVerified: 0,
-          lastVerifiedAt: null,
-          lastStagedAt: Date.now(),
-        }
-      }
-      await stageToolReminderIfNeeded(daemonCtx, reminderId, stagedNames)
-      anyStaged = true
-    } else {
-      // verified or cooldown — count edits toward re-staging threshold
-      const newEdits = current.editsSinceVerified + 1
-      if (newEdits >= toolConfig.clearing_threshold) {
-        toolsState[toolName] = {
-          ...current,
-          status: 'staged',
-          editsSinceVerified: 0,
-          lastStagedAt: Date.now(),
-        }
-        await stageToolReminderIfNeeded(daemonCtx, reminderId, stagedNames)
-        anyStaged = true
-      } else {
-        toolsState[toolName] = {
-          ...current,
-          status: 'cooldown',
-          editsSinceVerified: newEdits,
-        }
-      }
-    }
-  }
-
-  if (anyStaged) {
-    await stageToolReminderIfNeeded(daemonCtx, ReminderIds.VERIFY_COMPLETION, stagedNames)
-  }
-
-  await remindersState.verificationTools.write(sessionId, toolsState)
+  await stageToolsForFiles([filePath], daemonCtx, sessionId, verificationTools, toolsState, remindersState)
 }
 
 async function handleBashCommand(
