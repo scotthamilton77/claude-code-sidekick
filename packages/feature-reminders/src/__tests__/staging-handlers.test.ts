@@ -83,7 +83,7 @@ function createTestTranscriptEvent(
 function createConversationTranscriptEvent(
   eventType: 'UserPrompt' | 'AssistantMessage',
   sessionId: string = 'test-session',
-  metrics?: Partial<TranscriptMetrics>,
+  metrics?: Partial<TranscriptMetrics>
 ): TranscriptEvent {
   return {
     kind: 'transcript',

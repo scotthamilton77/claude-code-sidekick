@@ -111,6 +111,7 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
       const handlerCtx = ctx as unknown as DaemonContext
       const remindersState = createRemindersState(handlerCtx.stateService)
 
+      // Read-modify-write is safe: transcript events are processed serially per session
       // Read current counter
       const result = await remindersState.upsThrottle.read(sessionId)
       const current = result.data.messagesSinceLastStaging

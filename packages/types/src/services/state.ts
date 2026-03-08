@@ -354,6 +354,25 @@ export const VerificationToolsStateSchema = z.record(z.string(), VerificationToo
 export type VerificationToolsState = z.infer<typeof VerificationToolsStateSchema>
 
 // ============================================================================
+// UPS Throttle State Schema
+// ============================================================================
+
+/**
+ * Tracks conversation messages since the user-prompt-submit reminder was last staged.
+ * Used by the daemon to throttle re-staging of the UPS reminder.
+ *
+ * Location: `.sidekick/sessions/{sessionId}/state/ups-throttle.json`
+ *
+ * @see docs/plans/2026-03-08-ups-throttle-design.md
+ */
+export const UPSThrottleStateSchema = z.object({
+  /** Number of conversation messages since the reminder was last staged */
+  messagesSinceLastStaging: z.number(),
+})
+
+export type UPSThrottleState = z.infer<typeof UPSThrottleStateSchema>
+
+// ============================================================================
 // Staged Reminders State
 // ============================================================================
 
@@ -770,25 +789,6 @@ export interface MinimalStateService {
 // ============================================================================
 // Unified Session State Response
 // ============================================================================
-
-// ============================================================================
-// UPS Throttle State Schema
-// ============================================================================
-
-/**
- * Tracks conversation messages since the user-prompt-submit reminder was last staged.
- * Used by the daemon to throttle re-staging of the UPS reminder.
- *
- * Location: `.sidekick/sessions/{sessionId}/state/ups-throttle.json`
- *
- * @see docs/plans/2026-03-08-ups-throttle-design.md
- */
-export const UPSThrottleStateSchema = z.object({
-  /** Number of conversation messages since the reminder was last staged */
-  messagesSinceLastStaging: z.number(),
-})
-
-export type UPSThrottleState = z.infer<typeof UPSThrottleStateSchema>
 
 /**
  * Complete session state snapshot for UI State Inspector.
