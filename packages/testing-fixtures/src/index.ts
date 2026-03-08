@@ -50,3 +50,5 @@ export { createTestConfig } from './factories/config.factory'
 
 export { createTestFeature, createRecordingFeature } from './factories/feature.factory'
 export type { FeatureConfig, FeatureHooks, TestFeature } from './factories/feature.factory'
+
+export { createFakeLogger } from './factories/logger.factory'
