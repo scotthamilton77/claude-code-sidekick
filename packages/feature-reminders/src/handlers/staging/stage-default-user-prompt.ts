@@ -13,7 +13,7 @@
  * @see docs/design/FEATURE-REMINDERS.md §5.1
  */
 import type { RuntimeContext } from '@sidekick/core'
-import type { DaemonContext, HookName, StagedReminder } from '@sidekick/types'
+import type { DaemonContext, HookName, StagedReminder, StagingMetrics } from '@sidekick/types'
 import { isDaemonContext, isHookEvent, isSessionStartEvent, isTranscriptEvent } from '@sidekick/types'
 import { createStagingHandler } from './staging-handler-utils.js'
 import { ReminderIds, DEFAULT_REMINDERS_SETTINGS, type RemindersSettings } from '../../types.js'
@@ -197,7 +197,18 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
         const newCount = entry.messagesSinceLastStaging + 1
 
         if (newCount >= threshold) {
-          await stageReminder(handlerCtx, entry.targetHook as HookName, entry.cachedReminder as StagedReminder)
+          // Build stagedAt metrics from the triggering transcript event (consistent with createStagingHandler)
+          const metrics = event.metadata.metrics
+          const stagedAt: StagingMetrics = {
+            timestamp: Date.now(),
+            turnCount: metrics.turnCount,
+            toolsThisTurn: metrics.toolsThisTurn,
+            toolCount: metrics.toolCount,
+          }
+          await stageReminder(handlerCtx, entry.targetHook as HookName, {
+            ...(entry.cachedReminder as StagedReminder),
+            stagedAt,
+          })
           state[reminderId] = { ...entry, messagesSinceLastStaging: 0 }
           handlerCtx.logger.debug('Throttle: re-staged reminder', {
             sessionId,
