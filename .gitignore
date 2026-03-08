@@ -89,3 +89,6 @@ worktrees/
 # Dolt database files (added by bd init)
 .dolt/
 *.db
+
+# beads - (added by user)
+dolt*.lock
