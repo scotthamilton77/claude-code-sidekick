@@ -20,7 +20,10 @@ import {
   createDefaultMetrics,
 } from '@sidekick/testing-fixtures'
 import type { DaemonContext, TranscriptEvent, TranscriptMetrics, StagedReminder, EventHandler } from '@sidekick/types'
-import { registerTrackVerificationTools, stageToolsForFiles } from '../../../handlers/staging/track-verification-tools.js'
+import {
+  registerTrackVerificationTools,
+  stageToolsForFiles,
+} from '../../../handlers/staging/track-verification-tools.js'
 import { ReminderIds } from '../../../types.js'
 
 // ============================================================================

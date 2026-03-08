@@ -61,18 +61,16 @@ export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
           const toolsState = verificationToolsResult.data
           const verificationTools = config.verification_tools ?? {}
 
-          const hasToolsNeedingVerification = Object.entries(verificationTools).some(
-            ([toolName, toolConfig]) => {
-              if (!toolConfig.enabled) return false
-              const state = toolsState[toolName]
-              if (!state) return true // never tracked = needs verification
-              if (state.status === 'staged') return true
-              if (state.status === 'verified' || state.status === 'cooldown') {
-                return state.editsSinceVerified >= toolConfig.clearing_threshold
-              }
-              return false
+          const hasToolsNeedingVerification = Object.entries(verificationTools).some(([toolName, toolConfig]) => {
+            if (!toolConfig.enabled) return false
+            const state = toolsState[toolName]
+            if (!state) return true // never tracked = needs verification
+            if (state.status === 'staged') return true
+            if (state.status === 'verified' || state.status === 'cooldown') {
+              return state.editsSinceVerified >= toolConfig.clearing_threshold
             }
-          )
+            return false
+          })
 
           if (!hasToolsNeedingVerification) {
             daemonCtx.logger.info('VC unstage: all tools verified, skipping wrapper re-stage', {

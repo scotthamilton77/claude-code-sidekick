@@ -75,10 +75,7 @@ function createBashToolCallEvent(
   }
 }
 
-function createBashToolResultEvent(
-  metrics: Partial<TranscriptMetrics>,
-  sessionId = 'test-session'
-): TranscriptEvent {
+function createBashToolResultEvent(metrics: Partial<TranscriptMetrics>, sessionId = 'test-session'): TranscriptEvent {
   return {
     kind: 'transcript',
     eventType: 'ToolResult',
@@ -93,7 +90,12 @@ function createUserPromptSubmitEvent(sessionId = 'test-session'): UserPromptSubm
     kind: 'hook',
     hook: 'UserPromptSubmit',
     context: { sessionId, timestamp: Date.now() },
-    payload: { prompt: 'continue', transcriptPath: '/test/transcript.jsonl', cwd: '/mock/project', permissionMode: 'default' },
+    payload: {
+      prompt: 'continue',
+      transcriptPath: '/test/transcript.jsonl',
+      cwd: '/mock/project',
+      permissionMode: 'default',
+    },
   }
 }
 
@@ -140,11 +142,16 @@ describe('Orphaned VC wrapper — Scenario A: bash-changes stages wrapper indepe
     mockGetGitFileStatus.mockResolvedValue([])
 
     assets.registerAll({
-      'reminders/verify-completion.yaml': 'id: verify-completion\nblocking: true\npriority: 51\npersistent: false\nadditionalContext: "Wrapper"\n',
-      'reminders/vc-build.yaml': 'id: vc-build\nblocking: true\npriority: 50\npersistent: false\nadditionalContext: "Build needed"\n',
-      'reminders/vc-typecheck.yaml': 'id: vc-typecheck\nblocking: true\npriority: 50\npersistent: false\nadditionalContext: "Typecheck needed"\n',
-      'reminders/vc-test.yaml': 'id: vc-test\nblocking: true\npriority: 50\npersistent: false\nadditionalContext: "Test needed"\n',
-      'reminders/vc-lint.yaml': 'id: vc-lint\nblocking: true\npriority: 50\npersistent: false\nadditionalContext: "Lint needed"\n',
+      'reminders/verify-completion.yaml':
+        'id: verify-completion\nblocking: true\npriority: 51\npersistent: false\nadditionalContext: "Wrapper"\n',
+      'reminders/vc-build.yaml':
+        'id: vc-build\nblocking: true\npriority: 50\npersistent: false\nadditionalContext: "Build needed"\n',
+      'reminders/vc-typecheck.yaml':
+        'id: vc-typecheck\nblocking: true\npriority: 50\npersistent: false\nadditionalContext: "Typecheck needed"\n',
+      'reminders/vc-test.yaml':
+        'id: vc-test\nblocking: true\npriority: 50\npersistent: false\nadditionalContext: "Test needed"\n',
+      'reminders/vc-lint.yaml':
+        'id: vc-lint\nblocking: true\npriority: 50\npersistent: false\nadditionalContext: "Lint needed"\n',
     })
 
     ctx = createMockDaemonContext({ staging, logger, handlers, assets, stateService })
@@ -190,10 +197,7 @@ describe('Orphaned VC wrapper — Scenario A: bash-changes stages wrapper indepe
     // stage-stop-bash-changes fires on ToolResult — now uses stageToolsForFiles
     // which respects cooldown: tools just verified, single file doesn't hit threshold
     mockGetGitFileStatus.mockResolvedValue(['src/existing.ts', 'src/generated-output.ts'])
-    await bashChangesHandler(
-      createBashToolResultEvent({ turnCount: 1, toolsThisTurn: 2, toolCount: 2 }),
-      ctx as any
-    )
+    await bashChangesHandler(createBashToolResultEvent({ turnCount: 1, toolsThisTurn: 2, toolCount: 2 }), ctx as any)
     snapshotStaging(staging, 'Step 4: After bash-changes detects new source file')
 
     // FIX: neither wrapper NOR per-tool staged — cooldown respected, no orphan possible
@@ -215,10 +219,7 @@ describe('Orphaned VC wrapper — Scenario A: bash-changes stages wrapper indepe
 
     // --- Step 2: Bash creates a source file (no prior verification) ---
     mockGetGitFileStatus.mockResolvedValue(['src/new-feature.ts'])
-    await bashChangesHandler(
-      createBashToolResultEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }),
-      ctx as any
-    )
+    await bashChangesHandler(createBashToolResultEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }), ctx as any)
 
     // FIX: wrapper staged WITH per-tool children — no orphan
     expect(hasWrapper(staging)).toBe(true)
@@ -247,11 +248,16 @@ describe('Orphaned VC wrapper — Scenario B: unverified re-stage without per-to
     stateService = new MockStateService()
 
     assets.registerAll({
-      'reminders/verify-completion.yaml': 'id: verify-completion\nblocking: true\npriority: 51\npersistent: false\nadditionalContext: "Wrapper"\n',
-      'reminders/vc-build.yaml': 'id: vc-build\nblocking: true\npriority: 50\npersistent: false\nadditionalContext: "Build needed"\n',
-      'reminders/vc-typecheck.yaml': 'id: vc-typecheck\nblocking: true\npriority: 50\npersistent: false\nadditionalContext: "Typecheck needed"\n',
-      'reminders/vc-test.yaml': 'id: vc-test\nblocking: true\npriority: 50\npersistent: false\nadditionalContext: "Test needed"\n',
-      'reminders/vc-lint.yaml': 'id: vc-lint\nblocking: true\npriority: 50\npersistent: false\nadditionalContext: "Lint needed"\n',
+      'reminders/verify-completion.yaml':
+        'id: verify-completion\nblocking: true\npriority: 51\npersistent: false\nadditionalContext: "Wrapper"\n',
+      'reminders/vc-build.yaml':
+        'id: vc-build\nblocking: true\npriority: 50\npersistent: false\nadditionalContext: "Build needed"\n',
+      'reminders/vc-typecheck.yaml':
+        'id: vc-typecheck\nblocking: true\npriority: 50\npersistent: false\nadditionalContext: "Typecheck needed"\n',
+      'reminders/vc-test.yaml':
+        'id: vc-test\nblocking: true\npriority: 50\npersistent: false\nadditionalContext: "Test needed"\n',
+      'reminders/vc-lint.yaml':
+        'id: vc-lint\nblocking: true\npriority: 50\npersistent: false\nadditionalContext: "Lint needed"\n',
     })
 
     ctx = createMockDaemonContext({ staging, logger, handlers, assets, stateService })
