@@ -17,6 +17,9 @@ export * from './types.js'
 // ANSI utilities
 export { stripAnsi, visibleLength } from './ansi-utils.js'
 
+// Truncation strategies
+export { truncateSuffix, truncatePrefix, truncatePath } from './truncation.js'
+
 // Core components
 export { StateReader, createStateReader, type StateReaderConfig } from './state-reader.js'
 export { GitProvider, createGitProvider, type GitProviderConfig, type GitBranchResult } from './git-provider.js'
