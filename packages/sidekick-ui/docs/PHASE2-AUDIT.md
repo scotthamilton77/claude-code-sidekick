@@ -277,7 +277,145 @@ How to bridge logging events to UI timeline events?
 | Missing task lifecycle logging | 4 events | MEDIUM |
 | UI-only type aggregation (TranscriptLine) | 1 | MEDIUM |
 
-## 6. Traceability
+## 6. MONITORING-UI.md Accuracy Assessment
+
+Section-by-section review of MONITORING-UI.md against current implementation and REQUIREMENTS.md.
+
+### 6.1 Section 1: Overview
+
+**Status**: ⚠️ Partially Stale
+
+**What holds**:
+- Core concept of time travel debugging via log-based state reconstruction remains the architectural foundation (REQUIREMENTS.md F-2).
+- The monitoring UI's purpose — visibility into internal state, decision-making, and session evolution — is unchanged.
+
+**What's stale**:
+- Referenced design docs (TRANSCRIPT-PROCESSING.md, DAEMON.md, STRUCTURED-LOGGING.md) have evolved; cross-references may point to outdated section numbers.
+- No mention of personas, LLM telemetry, context metrics, task engine, or other features added since the original design.
+
+**Reference**: REQUIREMENTS.md §1 (Purpose & Users), REQUIREMENTS.md §5 (Architecture Gap Coverage).
+
+### 6.2 Section 2: Architecture
+
+**Status**: ⚠️ Partially Stale
+
+**What holds**:
+- Tech stack (React + Vite + TypeScript + TailwindCSS) confirmed by REQUIREMENTS.md §6.
+- Data flow diagram is largely correct for file-based data sources (logs, session state, transcript, staged reminders, transcript snapshots).
+- Local SPA architecture confirmed by REQUIREMENTS.md §6.
+
+**What's stale**:
+- References `npx @sidekick/ui` — package is `@scotthamilton77/sidekick`, and project conventions require `pnpm sidekick` (never `npx`).
+- "Polling / WebSocket (future)" — REQUIREMENTS.md §7 explicitly rules out WebSocket. File watching or polling only.
+- Missing new data sources: persona state files (`session-persona.json`), LLM metrics (`llm-metrics.json`), context metrics, log-metrics.json, resume-message.json, snarky-message.json. See PHASE2-AUDIT §2.4 for full state file inventory.
+
+**Reference**: REQUIREMENTS.md §6 (Design Constraints), §7 (Non-Goals), PHASE2-AUDIT §2.4.
+
+### 6.3 Section 3: Core Features
+
+**Status**: ⚠️ Partially Stale
+
+**3.1 Compaction Timeline**: ✅ Accurate. Concept, UI behavior, and compaction-history.json schema all hold. Confirmed by REQUIREMENTS.md F-1.
+
+**3.2 Time Travel (Replay Engine)**: ⚠️ Partially stale. Core mechanism (NDJSON log ingestion, sessionId filtering, timestamp merging, state timeline) holds per REQUIREMENTS.md F-2. However, event types have expanded significantly — 28+ logging events exist vs the subset documented here (see PHASE2-AUDIT §1.1).
+
+**3.2 Views**:
+
+| View | Status | Notes |
+|------|--------|-------|
+| A. Session Timeline | ⚠️ Partially stale | Missing LLM calls, persona events, task events, context metrics. See REQUIREMENTS.md F-3 which adds these. |
+| B. Transcript Viewer | ✅ Accurate | Matches REQUIREMENTS.md F-4. |
+| C. State Inspector | ⚠️ Partially stale | Lists only session-summary.json and session-state.json. Missing 18 state types (PHASE2-AUDIT §1.3). REQUIREMENTS.md F-5 scopes to all files under `.sidekick/sessions/{sessionId}/**`. |
+| D. Decision Log | ✅ Accurate | Matches REQUIREMENTS.md F-6. |
+| E. System Health | ⚠️ Partially stale | Core concept (daemon metrics, offline detection) holds per REQUIREMENTS.md F-7. However, daemon-status.json schema has evolved (DaemonStatusSchema in @sidekick/types includes restart history, memory leak detection). REQUIREMENTS.md G-9 adds daemon health enhancements. |
+
+**Reference**: REQUIREMENTS.md §4 (Core Features), PHASE2-AUDIT §1.3, §3.1.
+
+### 6.4 Section 4: Data Sources & Schema
+
+**Status**: ⚠️ Partially Stale
+
+**4.1 SidekickEvent Schema**: ⚠️ Partially stale.
+- Base EventContext interface is conceptually correct (sessionId, timestamp, scope, correlationId, traceId, hook).
+- SidekickEvent discriminated union (HookEvent | TranscriptEvent) is too narrow — actual TypeScript types define 28+ logging event types not covered here (PHASE2-AUDIT §1.1).
+- Event tables (CLI-Logged, Daemon-Logged) are incomplete. `HandlerExecuted` has been renamed to `EventProcessed` in implementation (PHASE2-AUDIT §2.5).
+- Example JSON flows are conceptually correct but event names and payload schemas don't match current implementations (e.g., UI expects start/finish pairs for session-summary but daemon logs a single `SummaryUpdated` event).
+
+**4.2 TranscriptMetrics**: ✅ Largely accurate. Metrics schema (turnCount, toolsThisTurn, toolCount, messageCount, tokenUsage, toolsPerTurn) matches current implementation.
+
+**4.3 Transcript Correlation**: ✅ Accurate. sessionId as primary correlator and timestamp-based alignment remain correct.
+
+**Reference**: PHASE2-AUDIT §1 (Type Inventory), §2.5 (Event Naming Mismatch).
+
+### 6.5 Section 5: UI Layout
+
+**Status**: ⚠️ Partially Stale
+
+**What holds**:
+- Left/right panel concept partially survives in REQUIREMENTS.md navigation model (session dashboard + detail panel).
+- Search/filter bar concept confirmed by REQUIREMENTS.md F-8.
+- Time travel gutter / scrubbing interaction model aligns with REQUIREMENTS.md DP-1 (Timeline is the Spine) and DP-2 (Time-Correlated Linked Views).
+
+**What's stale**:
+- "Unified Cockpit" concept superseded by REQUIREMENTS.md §3 navigation model: left-to-right progressive disclosure with project/session selector -> session dashboard -> detail panel.
+- Light-only theme ("no option to switch to dark mode") contradicts REQUIREMENTS.md §6: "Light default + dark mode".
+- The two-panel layout (stream + inspector) doesn't account for the three-level navigation model (projects/sessions -> dashboard -> detail).
+
+**Reference**: REQUIREMENTS.md §3 (Navigation Model), §6 (Design Constraints).
+
+### 6.6 Section 6: Implementation Strategy
+
+**Status**: ❌ Mostly Stale
+
+**What holds**:
+- Step 2 (UI scaffold with log parser) and Step 3 (replay reducer logic) are still valid implementation approaches.
+
+**What's stale**:
+- Step 1 references "Update sidekick-core and sidekick-daemon" — the package structure has evolved significantly (feature packages like feature-reminders, shared-providers, context-metrics service, etc.). Instrumentation is largely complete.
+- The 4-step strategy is too simplistic for the current architecture. PHASE2-AUDIT §4 documents key architectural decisions needed (logging events in UI, HTTP server architecture, event adapter strategy, type safety).
+- No mention of mock-first prototyping approach required by REQUIREMENTS.md §6 ("Prototype-first: Build interactive prototype not wired to real data").
+
+**Reference**: REQUIREMENTS.md §6 (Prototype-first constraint), PHASE2-AUDIT §4 (Architectural Decisions).
+
+### 6.7 Section 7: Outstanding Questions
+
+**Status**: ⚠️ Partially Stale
+
+**What holds**:
+- The progressive disclosure recommendation for UI noise management is sound and aligns with implementation.
+
+**What's stale**:
+- The question is answered: REQUIREMENTS.md DP-4 codifies progressive drill-down as a design principle. Summary-level indicators on the dashboard, detail via overlays/panels that expand rightward.
+
+**Reference**: REQUIREMENTS.md §2 DP-4 (Progressive Drill-Down).
+
+### 6.8 Section 8: UI Mockups
+
+**Status**: ❌ Stale
+
+The document itself acknowledges this: "FIXME these options are out of date with changes to requirements and the ui-mockup/*.html mockup file."
+
+None of the three mockup options (Data-Dense Dashboard, Focus & Flow, Timeline-Centric) match the REQUIREMENTS.md §3 navigation model (left-to-right progressive disclosure). The mockups show a static two-panel layout without the project/session selector or three-level drill-down.
+
+**Reference**: REQUIREMENTS.md §3 (Navigation Model), §8 (Open Questions for Prototyping).
+
+### 6.9 Summary
+
+| Section | Status | Verdict |
+|---------|--------|---------|
+| 1. Overview | ⚠️ Partially Stale | Core concept holds; missing new features |
+| 2. Architecture | ⚠️ Partially Stale | Tech stack holds; package name, WebSocket, data sources stale |
+| 3. Core Features | ⚠️ Partially Stale | Compaction/transcript viewer accurate; timeline/inspector incomplete |
+| 4. Data Sources & Schema | ⚠️ Partially Stale | Metrics accurate; event types significantly outdated |
+| 5. UI Layout | ⚠️ Partially Stale | Interaction model holds; layout and theme stale |
+| 6. Implementation Strategy | ❌ Mostly Stale | Package structure and approach outdated |
+| 7. Outstanding Questions | ⚠️ Partially Stale | Question answered by REQUIREMENTS.md DP-4 |
+| 8. UI Mockups | ❌ Stale | Self-identified as out of date; none match requirements |
+
+**Overall assessment**: MONITORING-UI.md retains value as context for the original design intent (time travel debugging, log-based reconstruction, compaction awareness). However, it should not be used for implementation decisions — REQUIREMENTS.md and this audit document supersede it for all actionable requirements, event schemas, and UI layout specifications.
+
+## 7. Traceability
+>>>>>>> f9d4315 (docs(ui): add MONITORING-UI.md accuracy assessment to Phase 2 audit)
 
 | Source | Issue | Status |
 |--------|-------|--------|
@@ -285,4 +423,4 @@ How to bridge logging events to UI timeline events?
 | API handler audit | sidekick-n4lx.6 | Closed |
 | New features survey | sidekick-n4lx.7 | Closed |
 | Requirements (Phase 1) | sidekick-n4lx.4 | Closed |
-| Next: Document MONITORING-UI.md accuracy | sidekick-n4lx.8 | Open (unblocked) |
+| MONITORING-UI.md accuracy assessment | sidekick-n4lx.8 | Closed |
