@@ -47,12 +47,12 @@ digraph setup_flow {
     node [shape=box];
 
     start [label="User wants to configure sidekick" shape=ellipse];
-    run_doctor [label="Run: npx @scotthamilton77/sidekick doctor"];
+    run_doctor [label="Run: pnpm sidekick doctor"];
     parse_output [label="Parse doctor output:\n- Statusline status\n- Gitignore status\n- API Key status\n- Overall status"];
     check_apikey [label="API Key missing?" shape=diamond];
     ask_apikey [label="Ask user to add API key manually\nto ~/.sidekick/.env or .sidekick/.env"];
     gather_params [label="Based on doctor output,\nask user about missing items:\n- Statusline scope (user/project)\n- Gitignore (yes/no)\n- Personas (yes/no)"];
-    run_setup [label="Run: npx @scotthamilton77/sidekick setup\nwith appropriate flags"];
+    run_setup [label="Run: pnpm sidekick setup\nwith appropriate flags"];
     done [label="Configuration complete" shape=ellipse];
 
     start -> run_doctor;
@@ -70,7 +70,7 @@ digraph setup_flow {
 
 **Always start with diagnostics:**
 ```bash
-npx @scotthamilton77/sidekick doctor
+pnpm sidekick doctor
 ```
 
 **Doctor output format:**
@@ -131,7 +131,7 @@ Based on doctor output, ask about unconfigured items:
 ### Step 4: Run Setup with Flags
 
 ```bash
-npx @scotthamilton77/sidekick setup [options]
+pnpm sidekick setup [options]
 
 Options:
   --statusline-scope=<user|project>  Configure statusline scope
@@ -148,13 +148,13 @@ Options:
 **Examples:**
 ```bash
 # User wants statusline at user level, gitignore, and personas
-npx @scotthamilton77/sidekick setup --statusline-scope=user --gitignore --personas
+pnpm sidekick setup --statusline-scope=user --gitignore --personas
 
 # User wants project-level statusline, no gitignore changes
-npx @scotthamilton77/sidekick setup --statusline-scope=project --no-gitignore --personas
+pnpm sidekick setup --statusline-scope=project --no-gitignore --personas
 
 # Apply all defaults without prompting
-npx @scotthamilton77/sidekick setup --force
+pnpm sidekick setup --force
 ```
 
 ## Config CLI
@@ -163,13 +163,13 @@ Read or write any configuration value using dot-path notation:
 
 ```bash
 # Read (cascade-resolved value — what's actually in effect)
-npx @scotthamilton77/sidekick config get <dot.path> [--scope=user|project|local] [--format=json]
+pnpm sidekick config get <dot.path> [--scope=user|project|local] [--format=json]
 
 # Write (requires scope question first)
-npx @scotthamilton77/sidekick config set <dot.path> <value> [--scope=user|project|local]
+pnpm sidekick config set <dot.path> <value> [--scope=user|project|local]
 
 # Remove an override (fall back to next cascade level)
-npx @scotthamilton77/sidekick config unset <dot.path> [--scope=user|project|local]
+pnpm sidekick config unset <dot.path> [--scope=user|project|local]
 ```
 
 **Dot-path examples:**
@@ -274,12 +274,12 @@ The user profile (`~/.sidekick/user.yaml`) lets personas personalize messages wi
 
 **Via CLI wizard** (Step 8 in the full wizard):
 ```bash
-npx @scotthamilton77/sidekick setup
+pnpm sidekick setup
 ```
 
 **Non-interactive** (scripting flags):
 ```bash
-npx @scotthamilton77/sidekick setup \
+pnpm sidekick setup \
   --user-profile-name="Scott" \
   --user-profile-role="Software Architect" \
   --user-profile-interests="Sci-Fi,hiking"
@@ -343,7 +343,7 @@ For prompts, reminders, and other assets:
 
 ## Hot-Reloading
 
-**Most settings apply immediately.** Daemon/IPC connection settings may require a daemon restart (`npx @scotthamilton77/sidekick daemon kill && npx @scotthamilton77/sidekick daemon start`).
+**Most settings apply immediately.** Daemon/IPC connection settings may require a daemon restart (`pnpm sidekick daemon kill && pnpm sidekick daemon start`).
 
 ## Common Mistakes
 
