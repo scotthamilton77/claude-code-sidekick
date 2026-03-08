@@ -14,6 +14,9 @@
 // Types and schemas
 export * from './types.js'
 
+// ANSI utilities
+export { stripAnsi, visibleLength } from './ansi-utils.js'
+
 // Core components
 export { StateReader, createStateReader, type StateReaderConfig } from './state-reader.js'
 export { GitProvider, createGitProvider, type GitProviderConfig, type GitBranchResult } from './git-provider.js'
