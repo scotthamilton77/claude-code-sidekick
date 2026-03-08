@@ -86,7 +86,13 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
           assets: regCtx.assets,
         })
         if (reminder) {
-          await registerThrottledReminder(regCtx, sessionId, ReminderIds.USER_PROMPT_SUBMIT, 'UserPromptSubmit', reminder)
+          await registerThrottledReminder(
+            regCtx,
+            sessionId,
+            ReminderIds.USER_PROMPT_SUBMIT,
+            'UserPromptSubmit',
+            reminder
+          )
         }
       },
     })
