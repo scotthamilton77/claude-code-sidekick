@@ -15,7 +15,7 @@
  * @see docs/design/FEATURE-REMINDERS.md §5.1
  */
 import type { RuntimeContext } from '@sidekick/core'
-import type { DaemonContext, HookName, StagedReminder, StagingMetrics } from '@sidekick/types'
+import type { DaemonContext, StagedReminder, StagingMetrics } from '@sidekick/types'
 import { isDaemonContext, isHookEvent, isSessionStartEvent, isTranscriptEvent } from '@sidekick/types'
 import { createStagingHandler } from './staging-handler-utils.js'
 import { ReminderIds, DEFAULT_REMINDERS_SETTINGS, type RemindersSettings } from '../../types.js'
@@ -183,7 +183,7 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
             toolsThisTurn: metrics.toolsThisTurn,
             toolCount: metrics.toolCount,
           }
-          await stageReminder(handlerCtx, entry.targetHook as HookName, {
+          await stageReminder(handlerCtx, entry.targetHook, {
             ...(entry.cachedReminder as StagedReminder),
             stagedAt,
           })
