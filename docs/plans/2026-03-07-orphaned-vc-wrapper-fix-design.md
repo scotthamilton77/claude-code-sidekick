@@ -1,18 +1,12 @@
 # Fix Orphaned verify-completion Wrapper Reminder
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
-
 **Goal:** Prevent the `verify-completion` wrapper reminder from staging without per-tool VC children, fixing two independent orphaning paths.
 
 **Architecture:** Extract shared file-to-tool staging logic from `handleFileEdit`, reuse in `stage-stop-bash-changes` and `unstage-verify-completion`. Enforce invariant: wrapper never stages without at least one per-tool child.
 
 **Tech Stack:** TypeScript, vitest, @sidekick/feature-reminders, picomatch
 
-**Worktree:** `/Users/scott/src/projects/claude-code-sidekick/.worktrees/fix-orphaned-vc-wrapper`
 **Branch:** `fix/orphaned-vc-wrapper`
-
-> **IMPORTANT:** All work MUST be done in the worktree above, NOT the main project directory.
-> Run `cd /Users/scott/src/projects/claude-code-sidekick/.worktrees/fix-orphaned-vc-wrapper` before any commands.
 
 **Date:** 2026-03-07
 **Issue:** sidekick-tw9t

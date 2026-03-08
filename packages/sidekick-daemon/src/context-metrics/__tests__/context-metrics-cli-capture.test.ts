@@ -229,7 +229,7 @@ describe('ContextMetricsService CLI Capture', () => {
           logger.wasLoggedAtLevel('Failed to parse /context table from CLI stdout', 'warn') ||
           logger.wasLoggedAtLevel('CLI capture failed', 'warn')
         if (hasResult) break
-        await new Promise((r) => setTimeout(r, 10))
+        await new Promise((r) => setTimeout(r, 25))
       }
       return service
     }

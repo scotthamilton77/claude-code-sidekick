@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import type { TranscriptLine } from '../../types'
 
@@ -33,7 +33,7 @@ export function ToolDetail({ line }: ToolDetailProps) {
   )
 }
 
-function Collapsible({ label, open, onToggle, children }: { label: string; open: boolean; onToggle: () => void; children: React.ReactNode }) {
+function Collapsible({ label, open, onToggle, children }: { label: string; open: boolean; onToggle: () => void; children: ReactNode }) {
   return (
     <div className="border border-slate-200 dark:border-slate-700 rounded">
       <button

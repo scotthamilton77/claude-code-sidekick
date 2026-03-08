@@ -124,6 +124,13 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
       const newCount = current + 1
 
       if (newCount >= threshold) {
+        // Idempotency check: skip if already staged
+        const existing = await handlerCtx.staging.listReminders('UserPromptSubmit')
+        if (existing.some((r) => r.name === ReminderIds.USER_PROMPT_SUBMIT)) {
+          await remindersState.upsThrottle.write(sessionId, { messagesSinceLastStaging: 0 })
+          return
+        }
+
         // Re-stage the reminder
         const reminder = resolveReminder(ReminderIds.USER_PROMPT_SUBMIT, {
           context: { sessionId },
@@ -137,10 +144,21 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
             messageCount: newCount,
             threshold,
           })
-        }
 
-        // Reset counter
-        await remindersState.upsThrottle.write(sessionId, { messagesSinceLastStaging: 0 })
+          // Notify orchestrator for cross-reminder coordination
+          if (handlerCtx.orchestrator) {
+            await handlerCtx.orchestrator.onReminderStaged(
+              { name: ReminderIds.USER_PROMPT_SUBMIT, hook: 'UserPromptSubmit' },
+              sessionId
+            )
+          }
+
+          // Reset counter only after successful stage
+          await remindersState.upsThrottle.write(sessionId, { messagesSinceLastStaging: 0 })
+        } else {
+          // Resolve failed — increment counter, don't reset
+          await remindersState.upsThrottle.write(sessionId, { messagesSinceLastStaging: newCount })
+        }
       } else {
         // Increment counter
         await remindersState.upsThrottle.write(sessionId, { messagesSinceLastStaging: newCount })
