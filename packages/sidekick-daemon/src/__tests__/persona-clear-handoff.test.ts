@@ -18,6 +18,7 @@ import path from 'path'
 import { StateService } from '@sidekick/core'
 import { createSessionSummaryState } from '@sidekick/feature-session-summary'
 import { SessionPersonaStateSchema } from '@sidekick/types'
+import type { Logger } from '@sidekick/types'
 
 // We test the Daemon's private methods via (daemon as any) since the cache
 // logic is internal. This is consistent with other daemon test files.
@@ -26,8 +27,15 @@ import { SessionPersonaStateSchema } from '@sidekick/types'
 // Helpers
 // ---------------------------------------------------------------------------
 
+interface CacheHarness {
+  logger: Logger
+  lastClearedPersona: { personaId: string; timestamp: number } | null
+  cachePersonaForClear(personaId: string): void
+  consumeCachedPersona(): string | null
+}
+
 /** Minimal fake logger that satisfies Logger interface */
-function createFakeLogger() {
+function createFakeLogger(): Logger {
   return {
     trace: vi.fn() as any,
     debug: vi.fn() as any,
@@ -36,6 +44,7 @@ function createFakeLogger() {
     error: vi.fn() as any,
     fatal: vi.fn() as any,
     child: vi.fn().mockReturnThis() as any,
+    flush: vi.fn().mockResolvedValue(undefined) as any,
   }
 }
 
@@ -43,7 +52,7 @@ function createFakeLogger() {
  * Create a minimal object that mimics the Daemon's cache fields and methods.
  * This avoids constructing the full Daemon (which requires IPC, file watchers, etc.).
  */
-function createCacheHarness() {
+function createCacheHarness(): CacheHarness {
   const logger = createFakeLogger()
 
   // Replicate the private state + methods from Daemon

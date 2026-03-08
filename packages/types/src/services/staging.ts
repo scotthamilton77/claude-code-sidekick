@@ -84,6 +84,8 @@ export interface StagedReminder {
   additionalContext?: string
   /** Reason for blocking (blocking reminders) */
   reason?: string
+  /** Whether this reminder participates in message-count throttling */
+  throttle?: boolean
   /** Metrics snapshot at staging time (for reactivation decisions) */
   stagedAt?: StagingMetrics
 }
@@ -114,6 +116,7 @@ export const StagedReminderSchema = z.object({
   userMessage: z.string().optional(),
   additionalContext: z.string().optional(),
   reason: z.string().optional(),
+  throttle: z.boolean().optional(),
   stagedAt: StagingMetricsSchema.optional(),
 })
 

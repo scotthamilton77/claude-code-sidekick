@@ -7,49 +7,21 @@
  *    (e.g., dev-mode.sh clean-all removes staging directory, then daemon
  *    restarts and reconstructs transcript - SessionStart doesn't fire mid-session)
  *
- * Generic throttle handlers reset counters and re-stage any throttle-eligible
- * reminder when its message count threshold is reached.
+ * Throttle opt-in: Reminders are throttled by explicit `registerThrottledReminder`
+ * calls in their originating handlers (not by YAML config). The YAML
+ * `reminder_thresholds` map controls the re-staging interval (message count)
+ * but does not control which reminders are throttled.
  *
  * @see docs/design/FEATURE-REMINDERS.md §5.1
  */
 import type { RuntimeContext } from '@sidekick/core'
-import type { DaemonContext, HookName, StagedReminder } from '@sidekick/types'
+import type { DaemonContext, StagedReminder, StagingMetrics } from '@sidekick/types'
 import { isDaemonContext, isHookEvent, isSessionStartEvent, isTranscriptEvent } from '@sidekick/types'
 import { createStagingHandler } from './staging-handler-utils.js'
 import { ReminderIds, DEFAULT_REMINDERS_SETTINGS, type RemindersSettings } from '../../types.js'
 import { resolveReminder, stageReminder } from '../../reminder-utils.js'
 import { createRemindersState } from '../../state.js'
-
-/**
- * Register a reminder in the throttle state.
- * Called by originating handlers when they first stage a throttle-eligible reminder.
- * Stores the counter (reset to 0) and caches the resolved reminder for re-staging.
- */
-export async function registerThrottledReminder(
-  ctx: DaemonContext,
-  sessionId: string,
-  reminderId: string,
-  targetHook: HookName,
-  resolvedReminder: StagedReminder
-): Promise<void> {
-  const remindersState = createRemindersState(ctx.stateService)
-  const result = await remindersState.reminderThrottle.read(sessionId)
-  const state = { ...result.data }
-  state[reminderId] = {
-    messagesSinceLastStaging: 0,
-    targetHook,
-    cachedReminder: {
-      name: resolvedReminder.name,
-      blocking: resolvedReminder.blocking,
-      priority: resolvedReminder.priority,
-      persistent: resolvedReminder.persistent,
-      userMessage: resolvedReminder.userMessage,
-      additionalContext: resolvedReminder.additionalContext,
-      reason: resolvedReminder.reason,
-    },
-  }
-  await remindersState.reminderThrottle.write(sessionId, state)
-}
+import { registerThrottledReminder } from './throttle-utils.js'
 
 export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
   // Handler 1: Stage on SessionStart (normal flow)
@@ -86,7 +58,13 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
           assets: regCtx.assets,
         })
         if (reminder) {
-          await registerThrottledReminder(regCtx, sessionId, ReminderIds.USER_PROMPT_SUBMIT, 'UserPromptSubmit', reminder)
+          await registerThrottledReminder(
+            regCtx,
+            sessionId,
+            ReminderIds.USER_PROMPT_SUBMIT,
+            'UserPromptSubmit',
+            reminder
+          )
         }
       },
     })
@@ -197,7 +175,18 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
         const newCount = entry.messagesSinceLastStaging + 1
 
         if (newCount >= threshold) {
-          await stageReminder(handlerCtx, entry.targetHook as HookName, entry.cachedReminder as StagedReminder)
+          // Build stagedAt metrics from the triggering transcript event (consistent with createStagingHandler)
+          const metrics = event.metadata.metrics
+          const stagedAt: StagingMetrics = {
+            timestamp: Date.now(),
+            turnCount: metrics.turnCount,
+            toolsThisTurn: metrics.toolsThisTurn,
+            toolCount: metrics.toolCount,
+          }
+          await stageReminder(handlerCtx, entry.targetHook, {
+            ...(entry.cachedReminder as StagedReminder),
+            stagedAt,
+          })
           state[reminderId] = { ...entry, messagesSinceLastStaging: 0 }
           handlerCtx.logger.debug('Throttle: re-staged reminder', {
             sessionId,

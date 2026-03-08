@@ -27,10 +27,8 @@ import type {
 } from '@sidekick/types'
 import { LastStagedPersonaSchema } from '@sidekick/types'
 import { registerStagePauseAndReflect } from '../handlers/staging/stage-pause-and-reflect'
-import {
-  registerStageDefaultUserPrompt,
-  registerThrottledReminder,
-} from '../handlers/staging/stage-default-user-prompt'
+import { registerStageDefaultUserPrompt } from '../handlers/staging/stage-default-user-prompt'
+import { registerThrottledReminder } from '../handlers/staging/throttle-utils'
 import { registerUnstageVerifyCompletion } from '../handlers/staging/unstage-verify-completion'
 import { registerStageBashChanges } from '../handlers/staging/stage-stop-bash-changes'
 import {
@@ -777,6 +775,35 @@ additionalContext: "Standard user prompt reminder"
 
         const reminders = staging.getRemindersForHook('UserPromptSubmit')
         expect(reminders.some((r) => r.name === 'user-prompt-submit')).toBe(true)
+      })
+
+      it('includes stagedAt metrics from triggering event when re-staging', async () => {
+        registerStageDefaultUserPrompt(ctx)
+
+        const handler = handlers.getHandler('reminders:throttle-restage')
+
+        // Fire 9 events to get just below threshold
+        for (let i = 0; i < 9; i++) {
+          const event = createConversationTranscriptEvent('UserPrompt')
+          await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+        }
+
+        // Fire the 10th event with specific metrics — this triggers re-staging
+        const triggeringEvent = createConversationTranscriptEvent('UserPrompt', 'test-session', {
+          turnCount: 5,
+          toolsThisTurn: 3,
+          toolCount: 42,
+        })
+        await handler?.handler(triggeringEvent, ctx as unknown as import('@sidekick/types').HandlerContext)
+
+        const reminders = staging.getRemindersForHook('UserPromptSubmit')
+        const restaged = reminders.find((r) => r.name === 'user-prompt-submit')
+        expect(restaged).toBeDefined()
+        expect(restaged!.stagedAt).toBeDefined()
+        expect(restaged!.stagedAt!.turnCount).toBe(5)
+        expect(restaged!.stagedAt!.toolsThisTurn).toBe(3)
+        expect(restaged!.stagedAt!.toolCount).toBe(42)
+        expect(restaged!.stagedAt!.timestamp).toBeGreaterThan(0)
       })
 
       it('resets counter after re-staging', async () => {

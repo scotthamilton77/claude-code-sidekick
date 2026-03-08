@@ -10,6 +10,7 @@
  */
 
 import { z } from 'zod'
+import { HOOK_NAMES } from '../events.js'
 import type { CompactionEntry } from './transcript.js'
 
 // ============================================================================
@@ -369,13 +370,14 @@ export const ReminderThrottleEntrySchema = z.object({
   /** Number of conversation messages since the reminder was last staged */
   messagesSinceLastStaging: z.number().int().nonnegative(),
   /** Hook to re-stage the reminder for */
-  targetHook: z.string(),
+  targetHook: z.enum(HOOK_NAMES),
   /** Cached resolved reminder content for re-staging */
   cachedReminder: z.object({
     name: z.string(),
     blocking: z.boolean(),
     priority: z.number(),
     persistent: z.boolean(),
+    throttle: z.boolean().optional(),
     userMessage: z.string().optional(),
     additionalContext: z.string().optional(),
     reason: z.string().optional(),

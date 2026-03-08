@@ -119,6 +119,7 @@ export function resolveReminder(
       blocking: def.blocking,
       priority: def.priority,
       persistent: def.persistent,
+      throttle: def.throttle,
       userMessage: def.userMessage ? interpolateTemplate(def.userMessage, context) : undefined,
       additionalContext: def.additionalContext ? interpolateTemplate(def.additionalContext, context) : undefined,
       reason: def.reason ? interpolateTemplate(def.reason, context) : undefined,

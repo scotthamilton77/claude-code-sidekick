@@ -21,7 +21,7 @@ import {
 } from '@sidekick/types'
 import { resolveReminder, stageReminder } from '../../reminder-utils.js'
 import { ReminderIds } from '../../types.js'
-import { registerThrottledReminder } from './stage-default-user-prompt.js'
+import { registerThrottledReminder } from './throttle-utils.js'
 
 /**
  * Re-stage persona reminders for all active sessions.
