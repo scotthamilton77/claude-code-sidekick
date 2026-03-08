@@ -205,10 +205,6 @@ See docs/DEVELOPER-GUIDE.md "Distribution and Publishing" section for full instr
 - **Beads workflow**: Always `bd update <id> --status=in_progress` BEFORE starting work on an issue. Do not begin implementation while the bead is still `open`.
 </lessons_learned>
 
-# Session Completion
-
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
-
 <!-- BEGIN BEADS INTEGRATION -->
 # Beads Issue Tracking
 
@@ -258,5 +254,4 @@ bd sync                               # Sync with git remote
 - `2` - Medium (default, nice-to-have)
 - `3` - Low (polish, optimization)
 - `4` - Backlog (future ideas)
-- <!-- END BEADS INTEGRATION -->
-- 
+<!-- END BEADS INTEGRATION -->
