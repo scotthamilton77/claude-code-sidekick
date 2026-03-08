@@ -224,12 +224,20 @@ export interface StatuslineViewModel {
   costStatus: ThresholdStatus
   /** Formatted duration (e.g., "12m") */
   duration: string
-  /** Current working directory (shortened) */
+  /** Current working directory (home-shortened full path) */
   cwd: string
-  /** Git branch with icon (e.g., "⎇ main") */
+  /** Git branch name (raw, no icon) */
   branch: string
   /** Color name for branch based on pattern (main=green, feature=blue, hotfix=red, other=magenta) */
   branchColor: string
+  /** Project directory basename (e.g., "claude-code-sidekick") */
+  projectDirShort: string
+  /** Project directory full path, home-shortened (e.g., "~/src/projects/claude-code-sidekick") */
+  projectDirFull: string
+  /** Worktree name (empty if not in worktree) */
+  worktreeName: string
+  /** Worktree name if in worktree, else raw branch name */
+  worktreeOrBranch: string
   /** Display mode determines summary content */
   displayMode: DisplayMode
   /** Summary text (varies by display mode) */

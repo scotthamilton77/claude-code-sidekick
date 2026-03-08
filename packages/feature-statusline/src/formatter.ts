@@ -127,7 +127,11 @@ export class Formatter {
       cost: this.colorizeByStatus(viewModel.cost, viewModel.costStatus),
       duration: this.colorize(viewModel.duration, this.theme.colors.duration),
       cwd: this.colorize(viewModel.cwd, this.theme.colors.cwd),
-      branch: viewModel.branch ? ` ${this.colorize(viewModel.branch, branchColor)}` : '',
+      branch: viewModel.branch ? this.colorize(viewModel.branch, branchColor) : '',
+      projectDirShort: this.colorize(viewModel.projectDirShort, this.theme.colors.cwd),
+      projectDirFull: this.colorize(viewModel.projectDirFull, this.theme.colors.cwd),
+      worktreeName: viewModel.worktreeName ? this.colorize(viewModel.worktreeName, branchColor) : '',
+      worktreeOrBranch: this.colorize(viewModel.worktreeOrBranch, branchColor),
       summary: this.colorize(convertedSummary, this.theme.colors.summary),
       title: this.colorize(convertedTitle, this.theme.colors.title),
       contextBar: formatContextBar(viewModel.contextUsage, this.useColors, symbolMode),
@@ -331,31 +335,22 @@ export function shortenPath(fullPath: string, homeDir?: string): string {
 }
 
 /**
- * Format cwd for display with folder icon.
- * - "full": Uses 📁 emoji
- * - "safe": No icon (emoji causes VS Code terminal width issues)
- * - "ascii": No icon
+ * Format cwd for display (home-shortened, no icon or truncation).
+ * Truncation is now handled via template attributes (maxLength, truncateStyle).
  */
-export function formatCwd(fullPath: string, homeDir?: string, symbolMode: SymbolMode = 'full'): string {
-  // Only "full" mode uses the folder emoji - it causes width issues in VS Code terminal
-  const icon = symbolMode === 'full' ? '📁 ' : ''
-  return `${icon}${shortenPath(fullPath, homeDir)}`
+export function formatCwd(fullPath: string, homeDir?: string): string {
+  if (homeDir && fullPath.startsWith(homeDir)) {
+    return '~' + fullPath.slice(homeDir.length)
+  }
+  return fullPath
 }
 
 /**
- * Format git branch with icon.
- * - "full": Uses ⎇ (helm symbol, U+2387)
- * - "safe": Uses ∗ (asterisk operator, U+2217) - safe BMP character
- * - "ascii": Uses * (ASCII asterisk)
+ * Format git branch for display (raw name, no icon).
+ * Icons are now added via template prefix attributes.
  */
-export function formatBranch(branch: string, symbolMode: SymbolMode): string {
-  if (!branch) return ''
-  const icons: Record<SymbolMode, string> = {
-    full: '⎇',
-    safe: '∗',
-    ascii: '*',
-  }
-  return `${icons[symbolMode]} ${branch}`
+export function formatBranch(branch: string): string {
+  return branch
 }
 
 /**

@@ -300,13 +300,11 @@ describe('Formatter utilities', () => {
 
   describe('formatBranch', () => {
     it('returns empty string for empty branch', () => {
-      expect(formatBranch('', 'full')).toBe('')
+      expect(formatBranch('')).toBe('')
     })
 
-    it('formats branch based on symbol mode', () => {
-      expect(formatBranch('main', 'full')).toBe('⎇ main')
-      expect(formatBranch('main', 'safe')).toBe('∗ main')
-      expect(formatBranch('main', 'ascii')).toBe('* main')
+    it('returns raw branch name without icon', () => {
+      expect(formatBranch('main')).toBe('main')
     })
   })
 
@@ -544,22 +542,17 @@ describe('Formatter utilities', () => {
     })
   })
 
-  describe('formatCwd symbol mode', () => {
-    it('includes folder emoji in full mode', () => {
-      const cwd = formatCwd('/home/user/project', '/home/user', 'full')
-      expect(cwd).toMatch(/^📁 /)
+  describe('formatCwd', () => {
+    it('home-shortens paths', () => {
+      expect(formatCwd('/home/user/project', '/home/user')).toBe('~/project')
     })
 
-    it('omits icon in safe mode', () => {
-      const cwd = formatCwd('/home/user/project', '/home/user', 'safe')
-      expect(cwd).not.toContain('📁')
-      expect(cwd).toBe('~/project')
+    it('returns path as-is when no homeDir match', () => {
+      expect(formatCwd('/other/path', '/home/user')).toBe('/other/path')
     })
 
-    it('omits icon in ascii mode', () => {
-      const cwd = formatCwd('/home/user/project', '/home/user', 'ascii')
-      expect(cwd).not.toContain('📁')
-      expect(cwd).toBe('~/project')
+    it('returns path as-is when no homeDir provided', () => {
+      expect(formatCwd('/home/user/project')).toBe('/home/user/project')
     })
   })
 })
@@ -803,13 +796,17 @@ describe('Formatter class', () => {
       costStatus: 'normal' as const,
       duration: '12m',
       cwd: '~/project',
-      branch: '⎇ main',
+      branch: 'main',
       branchColor: 'green',
       displayMode: 'session_summary' as const,
       summary: 'Fixing auth bug',
       title: 'Auth bug fix',
       warningCount: 0,
       errorCount: 0,
+      projectDirShort: 'project',
+      projectDirFull: '~/project',
+      worktreeName: '',
+      worktreeOrBranch: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -843,6 +840,10 @@ describe('Formatter class', () => {
       title: '', // Empty title
       warningCount: 0,
       errorCount: 0,
+      projectDirShort: 'project',
+      projectDirFull: '~/project',
+      worktreeName: '',
+      worktreeOrBranch: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -877,6 +878,10 @@ describe('Formatter class', () => {
       title: '', // Empty title
       warningCount: 0,
       errorCount: 0,
+      projectDirShort: 'project',
+      projectDirFull: '~/project',
+      worktreeName: '',
+      worktreeOrBranch: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -911,6 +916,10 @@ describe('Formatter class', () => {
       title: 'Test',
       warningCount: 0,
       errorCount: 0,
+      projectDirShort: 'project',
+      projectDirFull: '~/project',
+      worktreeName: '',
+      worktreeOrBranch: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -944,6 +953,10 @@ describe('Formatter class', () => {
       title: 'Test title',
       warningCount: 0,
       errorCount: 0,
+      projectDirShort: 'project',
+      projectDirFull: '~/project',
+      worktreeName: '',
+      worktreeOrBranch: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -978,6 +991,10 @@ describe('Formatter class', () => {
       title: 'Test title',
       warningCount: 0,
       errorCount: 0,
+      projectDirShort: 'project',
+      projectDirFull: '~/project',
+      worktreeName: '',
+      worktreeOrBranch: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -1002,8 +1019,12 @@ describe('Formatter prefix/suffix syntax', () => {
     costStatus: 'normal' as const,
     duration: '12m',
     cwd: '~/project',
-    branch: '⎇ main',
+    branch: 'main',
     branchColor: 'green',
+    projectDirShort: 'project',
+    projectDirFull: '~/project',
+    worktreeName: '',
+    worktreeOrBranch: 'main',
     displayMode: 'session_summary' as const,
     summary: 'Test summary',
     title: 'Test title',
@@ -1134,6 +1155,10 @@ describe('Formatter with colors enabled', () => {
       title: 'Test',
       warningCount: 0,
       errorCount: 0,
+      projectDirShort: 'project',
+      projectDirFull: '~/project',
+      worktreeName: '',
+      worktreeOrBranch: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -1168,6 +1193,10 @@ describe('Formatter with colors enabled', () => {
       title: 'Test',
       warningCount: 0,
       errorCount: 0,
+      projectDirShort: 'project',
+      projectDirFull: '~/project',
+      worktreeName: '',
+      worktreeOrBranch: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -1201,6 +1230,10 @@ describe('Formatter with colors enabled', () => {
       title: 'Test',
       warningCount: 0,
       errorCount: 0,
+      projectDirShort: 'project',
+      projectDirFull: '~/project',
+      worktreeName: '',
+      worktreeOrBranch: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -1237,6 +1270,10 @@ describe('Formatter with colors enabled', () => {
       title: 'Test',
       warningCount: 0,
       errorCount: 0,
+      projectDirShort: 'project',
+      projectDirFull: '~/project',
+      worktreeName: '',
+      worktreeOrBranch: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -1273,6 +1310,10 @@ describe('Formatter with colors enabled', () => {
       title: 'Test',
       warningCount: 0,
       errorCount: 0,
+      projectDirShort: 'project',
+      projectDirFull: '~/project',
+      worktreeName: '',
+      worktreeOrBranch: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -1316,6 +1357,10 @@ describe('Formatter with colors enabled', () => {
       title: 'Test',
       warningCount: 0,
       errorCount: 0,
+      projectDirShort: 'project',
+      projectDirFull: '~/project',
+      worktreeName: '',
+      worktreeOrBranch: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -1351,6 +1396,10 @@ describe('Formatter with colors enabled', () => {
       title: 'Test',
       warningCount: 0,
       errorCount: 0,
+      projectDirShort: 'project',
+      projectDirFull: '~/project',
+      worktreeName: '',
+      worktreeOrBranch: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -1378,20 +1427,24 @@ describe('Formatter with colors enabled', () => {
       costStatus: 'normal' as const,
       duration: '12m',
       cwd: '~/project',
-      branch: '⎇ main',
+      branch: 'main',
       branchColor: 'green',
       displayMode: 'session_summary' as const,
       summary: 'Test',
       title: 'Test',
       warningCount: 0,
       errorCount: 0,
+      projectDirShort: 'project',
+      projectDirFull: '~/project',
+      worktreeName: '',
+      worktreeOrBranch: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
 
     const result = formatter.format('{branch}', viewModel)
     expect(result).toContain(ANSI.green)
-    expect(result).toContain('⎇ main')
+    expect(result).toContain('main')
   })
 })
 
@@ -1579,6 +1632,10 @@ describe('Formatter.convertMarkdown', () => {
       title: 'Test',
       warningCount: 0,
       errorCount: 0,
+      projectDirShort: 'project',
+      projectDirFull: '~/project',
+      worktreeName: '',
+      worktreeOrBranch: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -1613,6 +1670,10 @@ describe('Formatter.convertMarkdown', () => {
       title: 'Fix *critical* bug',
       warningCount: 0,
       errorCount: 0,
+      projectDirShort: 'project',
+      projectDirFull: '~/project',
+      worktreeName: '',
+      worktreeOrBranch: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
