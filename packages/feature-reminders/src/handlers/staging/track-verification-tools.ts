@@ -112,7 +112,7 @@ export async function stageToolsForFiles(
       const current = toolsState[toolName]
 
       if (!current || current.status === 'staged') {
-        const staged = await stageToolReminderIfNeeded(daemonCtx, reminderId, stagedNames)
+        const staged = await ensureToolReminderStaged(daemonCtx, reminderId, stagedNames)
         if (staged) {
           if (!current) {
             toolsState[toolName] = {
@@ -129,7 +129,7 @@ export async function stageToolsForFiles(
         // verified or cooldown — count edits toward re-staging threshold
         const newEdits = current.editsSinceVerified + 1
         if (newEdits >= toolConfig.clearing_threshold) {
-          const staged = await stageToolReminderIfNeeded(daemonCtx, reminderId, stagedNames)
+          const staged = await ensureToolReminderStaged(daemonCtx, reminderId, stagedNames)
           if (staged) {
             toolsState[toolName] = {
               ...current,
@@ -152,7 +152,10 @@ export async function stageToolsForFiles(
   }
 
   if (anyStaged) {
-    await stageToolReminderIfNeeded(daemonCtx, ReminderIds.VERIFY_COMPLETION, stagedNames)
+    const wrapperStaged = await ensureToolReminderStaged(daemonCtx, ReminderIds.VERIFY_COMPLETION, stagedNames)
+    if (!wrapperStaged) {
+      daemonCtx.logger.warn('Failed to stage verify-completion wrapper reminder', { sessionId })
+    }
   }
 
   await remindersState.verificationTools.write(sessionId, toolsState)
@@ -232,7 +235,7 @@ async function handleBashCommand(
   }
 }
 
-async function stageToolReminderIfNeeded(
+async function ensureToolReminderStaged(
   daemonCtx: DaemonContext,
   reminderId: string,
   stagedNames: Set<string>

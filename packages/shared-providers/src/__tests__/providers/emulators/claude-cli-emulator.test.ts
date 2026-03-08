@@ -10,21 +10,8 @@ import { mkdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type { Logger, LLMRequest } from '@sidekick/types'
+import { createFakeLogger } from '@sidekick/testing-fixtures'
 import { ClaudeCliEmulator } from '../../../providers/emulators/claude-cli-emulator'
-
-// Fake logger
-function createFakeLogger(): Logger {
-  return {
-    trace: vi.fn() as any,
-    debug: vi.fn() as any,
-    info: vi.fn() as any,
-    warn: vi.fn() as any,
-    error: vi.fn() as any,
-    fatal: vi.fn() as any,
-    child: vi.fn().mockReturnThis(),
-    flush: vi.fn().mockResolvedValue(undefined),
-  } as unknown as Logger
-}
 
 // Standard test request
 const testRequest: LLMRequest = {

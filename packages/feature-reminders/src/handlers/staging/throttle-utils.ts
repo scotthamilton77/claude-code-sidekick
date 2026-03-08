@@ -6,7 +6,7 @@
  *
  * @see docs/design/FEATURE-REMINDERS.md
  */
-import type { DaemonContext, HookName, StagedReminder } from '@sidekick/types'
+import type { CachedReminder, DaemonContext, HookName, ReminderThrottleState, StagedReminder } from '@sidekick/types'
 import { createRemindersState } from '../../state.js'
 
 /**
@@ -24,19 +24,26 @@ export async function registerThrottledReminder(
   const remindersState = createRemindersState(ctx.stateService)
   const result = await remindersState.reminderThrottle.read(sessionId)
   const state = { ...result.data }
+  // Strip stagedAt via destructure-rest — keeps cachedReminder in sync if StagedReminder gains fields
+  const { stagedAt: _stagedAt, ...cachedReminder }: StagedReminder = resolvedReminder
   state[reminderId] = {
     messagesSinceLastStaging: 0,
     targetHook,
-    cachedReminder: {
-      name: resolvedReminder.name,
-      blocking: resolvedReminder.blocking,
-      priority: resolvedReminder.priority,
-      persistent: resolvedReminder.persistent,
-      throttle: resolvedReminder.throttle,
-      userMessage: resolvedReminder.userMessage,
-      additionalContext: resolvedReminder.additionalContext,
-      reason: resolvedReminder.reason,
-    },
+    cachedReminder: cachedReminder as CachedReminder,
+  }
+  await remindersState.reminderThrottle.write(sessionId, state)
+}
+
+/**
+ * Reset all throttle counters for a session.
+ * Called on SessionStart and BulkProcessingComplete to restart throttle intervals.
+ */
+export async function resetThrottleCounters(ctx: DaemonContext, sessionId: string): Promise<void> {
+  const remindersState = createRemindersState(ctx.stateService)
+  const result = await remindersState.reminderThrottle.read(sessionId)
+  const state: ReminderThrottleState = { ...result.data }
+  for (const key of Object.keys(state)) {
+    state[key] = { ...state[key], messagesSinceLastStaging: 0 }
   }
   await remindersState.reminderThrottle.write(sessionId, state)
 }

@@ -15,6 +15,7 @@ import { EventEmitter } from 'node:events'
 import { Writable } from 'node:stream'
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest'
 import type { Logger } from '@sidekick/types'
+import { createFakeLogger } from '@sidekick/testing-fixtures'
 
 // CollectingWritable to capture stdout output
 class CollectingWritable extends Writable {
@@ -80,20 +81,6 @@ const { mockSpawn, getSpawnedProcesses, clearSpawnedProcesses } = vi.hoisted(() 
 vi.mock('node:child_process', () => ({
   spawn: mockSpawn,
 }))
-
-// Create fake logger
-function createFakeLogger(): Logger {
-  return {
-    trace: vi.fn() as any,
-    debug: vi.fn() as any,
-    info: vi.fn() as any,
-    warn: vi.fn() as any,
-    error: vi.fn() as any,
-    fatal: vi.fn() as any,
-    child: vi.fn(() => createFakeLogger()) as any,
-    flush: vi.fn() as any,
-  }
-}
 
 import { handleUiCommand } from '../ui'
 

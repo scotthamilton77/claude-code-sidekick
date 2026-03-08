@@ -15,13 +15,13 @@
  * @see docs/design/FEATURE-REMINDERS.md §5.1
  */
 import type { RuntimeContext } from '@sidekick/core'
-import type { DaemonContext, StagedReminder, StagingMetrics } from '@sidekick/types'
+import type { DaemonContext, ReminderThrottleEntry, StagedReminder, StagingMetrics } from '@sidekick/types'
 import { isDaemonContext, isHookEvent, isSessionStartEvent, isTranscriptEvent } from '@sidekick/types'
 import { createStagingHandler } from './staging-handler-utils.js'
 import { ReminderIds, DEFAULT_REMINDERS_SETTINGS, type RemindersSettings } from '../../types.js'
 import { resolveReminder, stageReminder } from '../../reminder-utils.js'
 import { createRemindersState } from '../../state.js'
-import { registerThrottledReminder } from './throttle-utils.js'
+import { registerThrottledReminder, resetThrottleCounters } from './throttle-utils.js'
 
 export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
   // Handler 1: Stage on SessionStart (normal flow)
@@ -81,13 +81,7 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
         if (!isHookEvent(event) || !isSessionStartEvent(event)) return
         const sessionId = event.context.sessionId
         if (!sessionId) return
-        const remindersState = createRemindersState(startCtx.stateService)
-        const result = await remindersState.reminderThrottle.read(sessionId)
-        const state = { ...result.data }
-        for (const key of Object.keys(state)) {
-          state[key] = { ...state[key], messagesSinceLastStaging: 0 }
-        }
-        await remindersState.reminderThrottle.write(sessionId, state)
+        await resetThrottleCounters(startCtx, sessionId)
       },
     })
   }
@@ -124,13 +118,7 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
         if (event.metadata.isBulkProcessing) return
         const sessionId = event.context?.sessionId
         if (!sessionId) return
-        const remindersState = createRemindersState(bulkCtx.stateService)
-        const result = await remindersState.reminderThrottle.read(sessionId)
-        const state = { ...result.data }
-        for (const key of Object.keys(state)) {
-          state[key] = { ...state[key], messagesSinceLastStaging: 0 }
-        }
-        await remindersState.reminderThrottle.write(sessionId, state)
+        await resetThrottleCounters(bulkCtx, sessionId)
       },
     })
   }
@@ -169,10 +157,11 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
       let changed = false
 
       for (const [reminderId, entry] of Object.entries(state)) {
+        const typedEntry = entry as ReminderThrottleEntry
         const threshold = thresholds[reminderId]
         if (threshold === undefined) continue
 
-        const newCount = entry.messagesSinceLastStaging + 1
+        const newCount = typedEntry.messagesSinceLastStaging + 1
 
         if (newCount >= threshold) {
           // Build stagedAt metrics from the triggering transcript event (consistent with createStagingHandler)
@@ -183,11 +172,11 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
             toolsThisTurn: metrics.toolsThisTurn,
             toolCount: metrics.toolCount,
           }
-          await stageReminder(handlerCtx, entry.targetHook, {
-            ...(entry.cachedReminder as StagedReminder),
+          await stageReminder(handlerCtx, typedEntry.targetHook, {
+            ...(typedEntry.cachedReminder as StagedReminder),
             stagedAt,
           })
-          state[reminderId] = { ...entry, messagesSinceLastStaging: 0 }
+          state[reminderId] = { ...typedEntry, messagesSinceLastStaging: 0 }
           handlerCtx.logger.debug('Throttle: re-staged reminder', {
             sessionId,
             reminderId,
@@ -195,7 +184,7 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
             threshold,
           })
         } else {
-          state[reminderId] = { ...entry, messagesSinceLastStaging: newCount }
+          state[reminderId] = { ...typedEntry, messagesSinceLastStaging: newCount }
         }
         changed = true
       }

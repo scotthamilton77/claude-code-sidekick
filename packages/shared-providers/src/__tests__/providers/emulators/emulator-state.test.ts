@@ -9,21 +9,8 @@ import { describe, it, expect, vi } from 'vitest'
 import { mkdir, rm, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
+import { createFakeLogger } from '@sidekick/testing-fixtures'
 import { EmulatorStateManager } from '../../../providers/emulators/emulator-state'
-
-// Fake logger that captures calls
-function createFakeLogger(): any {
-  return {
-    trace: vi.fn() as any,
-    debug: vi.fn() as any,
-    info: vi.fn() as any,
-    warn: vi.fn() as any,
-    error: vi.fn() as any,
-    fatal: vi.fn() as any,
-    child: vi.fn().mockReturnThis(),
-    flush: vi.fn().mockResolvedValue(undefined),
-  }
-}
 
 // Helper to create isolated test context - each test gets its own directory
 async function createTestContext(): Promise<{
@@ -107,7 +94,9 @@ describe('EmulatorStateManager', () => {
         expect(state1).toBe(state2) // Same object reference
         // Debug for "not found" should only be called once
         expect(
-          ctx.logger.debug.mock.calls.filter((c: unknown[]) => (c[0] as string).includes('not found')).length
+          (ctx.logger.debug as unknown as { mock: { calls: unknown[][] } }).mock.calls.filter((c: unknown[]) =>
+            (c[0] as string).includes('not found')
+          ).length
         ).toBe(1)
       } finally {
         await ctx.cleanup()

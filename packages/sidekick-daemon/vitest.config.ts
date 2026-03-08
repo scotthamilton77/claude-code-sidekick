@@ -10,6 +10,7 @@ export default defineConfig({
     alias: {
       // Ensure workspace packages resolve to their dist directories for runtime values
       '@sidekick/types': resolve(packagesDir, 'types/dist/index.js'),
+      '@sidekick/testing-fixtures': resolve(packagesDir, 'testing-fixtures/src'),
     },
   },
   test: {

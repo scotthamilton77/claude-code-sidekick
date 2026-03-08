@@ -8,6 +8,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@sidekick/core': resolve(rootDir, '../sidekick-core/src'),
+      '@sidekick/testing-fixtures': resolve(rootDir, '../testing-fixtures/src'),
     },
   },
   test: {

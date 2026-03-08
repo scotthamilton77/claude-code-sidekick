@@ -7,22 +7,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { Logger } from '@sidekick/types'
 import type { ConfigService, LlmProfile } from '@sidekick/core'
+import { createFakeLogger } from '@sidekick/testing-fixtures'
 import { ProfileProviderFactory } from '../profile-factory'
 import { FallbackProvider } from '../fallback'
-
-// Fake logger
-function createFakeLogger(): Logger {
-  return {
-    trace: vi.fn() as any,
-    debug: vi.fn() as any,
-    info: vi.fn() as any,
-    warn: vi.fn() as any,
-    error: vi.fn() as any,
-    fatal: vi.fn() as any,
-    child: vi.fn().mockReturnThis(),
-    flush: vi.fn().mockResolvedValue(undefined),
-  } as unknown as Logger
-}
 
 // Helper to create a minimal ConfigService fake
 function createFakeConfigService(
