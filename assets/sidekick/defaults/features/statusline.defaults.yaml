@@ -20,18 +20,33 @@ settings:
   #   {logs}                    - Warning/error counts (e.g., "⚠0 ✗0")
   #   {cost}                    - Session cost (e.g., "$0.15")
   #   {duration}                - Session duration (e.g., "12m")
-  #   {cwd}                     - Current working directory
-  #   {branch}                  - Git branch with icon (e.g., "⎇ main")
+  #   {cwd}                     - Current working directory (home-shortened)
+  #   {branch}                  - Git branch name (raw, use prefix for icon)
+  #   {projectDirShort}         - Project directory basename (e.g., "claude-code-sidekick")
+  #   {projectDirFull}          - Project directory full path (home-shortened)
+  #   {worktreeName}            - Worktree name (empty if not in worktree)
+  #   {worktreeOrBranch}        - Worktree name if in worktree, else branch name
   #   {title}                   - Session title
   #   {summary}                 - Session summary/intent
   #   {personaName}             - Current persona name (empty if disabled or no persona)
   #
-  # Conditional prefix/suffix syntax:
+  # Token attributes:
   #   {token,prefix='...',suffix='...'}
   #   - prefix and suffix only render when the token value is non-empty
   #   - Either or both can be specified
   #   - Use backslash to escape quotes: \'
   #   - Example: {personaName,prefix='[',suffix='] | '} → "[jarvis] | " or "" (if empty)
+  #
+  #   {token,maxLength=N}                    - Maximum visible character width
+  #   {token,maxLength=N,truncateStyle='...'} - Truncation strategy (default: suffix)
+  #     - 'suffix': Right-truncate with trailing ellipsis (e.g., "claude-co…")
+  #     - 'prefix': Left-truncate with leading ellipsis (e.g., "…-sidekick")
+  #     - 'path':   Path-aware truncation (e.g., "project/…/src")
+  #
+  #   {token,wrapAt=N,prefix='...',wrapPrefix='...'}
+  #     - wrapAt=N: Line width threshold for responsive wrapping
+  #     - wrapPrefix/wrapSuffix: Alternatives used when line exceeds wrapAt
+  #     - Example: {title,wrapAt=80,prefix=' | ',wrapPrefix='\n'} wraps to newline if >80 cols
   #
   # Example configurations:
   #   Simple ratio:     "{tokenUsageActual}/{contextWindow}"          → "45k/200k"
@@ -40,7 +55,7 @@ settings:
   #   With buffer:      "{tokenUsageActual}|{tokenUsageEffective}"    → "45k|90k"
   #   Verbose:          "{contextBar} {tokenUsageActual}/{contextWindow} ({tokenPercentageEffective})"
   #
-  format: "{personaName,prefix='[',suffix='] | '}{model,prefix='[',suffix='] | '}{contextBar} {tokenPercentageActual} | {logs} | {cwd}{branch} | {title}\n{summary}"
+  format: "{personaName,prefix='[',suffix='] | '}{model,prefix='[',suffix='] | '}{contextBar} {tokenPercentageActual} | {logs} | {cwd,maxLength=40,truncateStyle='path'}{branch,prefix=' ∗ ',maxLength=40}{title,wrapAt=80,prefix=' | ',wrapPrefix='\\n'}\n{summary}"
 
   # Threshold configuration for visual warnings
   thresholds:
@@ -86,7 +101,7 @@ settings:
     colors:
       model: blue
       tokens: green
-      title: blue
+      title: cyan
       summary: magenta
       cwd: white
       duration: white

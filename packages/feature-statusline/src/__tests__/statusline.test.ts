@@ -22,7 +22,6 @@ import {
   getBranchColor,
   getContextBarStatus,
   getThresholdStatus,
-  shortenPath,
 } from '../formatter.js'
 import { StateService } from '@sidekick/core'
 import type { MinimalAssetResolver } from '@sidekick/types'
@@ -250,63 +249,13 @@ describe('Formatter utilities', () => {
     })
   })
 
-  describe('shortenPath', () => {
-    it('replaces home dir with tilde', () => {
-      expect(shortenPath('/home/user/project', '/home/user')).toBe('~/project')
-    })
-
-    it('shortens long paths to ellipsis + last two segments', () => {
-      // Path > 20 chars gets shortened
-      expect(shortenPath('/home/user/projects/my-app')).toBe('…/projects/my-app')
-    })
-
-    it('falls back to last segment when two segments too long', () => {
-      // Two segments too long, falls back to just the last segment
-      expect(shortenPath('/home/user/very-long-folder/another-long-name')).toBe('…/another-long-name')
-    })
-
-    it('hard truncates when even one segment is too long', () => {
-      // Even one segment is too long - hard truncate, no trailing ellipsis
-      expect(shortenPath('/home/user/this-is-a-ridiculously-long-folder-name')).toBe('…/this-is-a-ridiculo')
-    })
-
-    it('returns short paths as-is', () => {
-      expect(shortenPath('/home/project')).toBe('/home/project')
-    })
-
-    it('returns paths under 20 chars as-is even with many segments', () => {
-      expect(shortenPath('/a/b/c/d/e')).toBe('/a/b/c/d/e')
-    })
-
-    it('handles single segment path that is too long', () => {
-      // A path like "/verylongsinglesegment" (single slash) that exceeds 20 chars
-      const longSegment = '/this-is-a-super-long-single-segment-path'
-      const result = shortenPath(longSegment)
-      // Should use ellipsis + truncated content
-      expect(result.startsWith('…')).toBe(true)
-      expect(result.length).toBeLessThanOrEqual(20)
-    })
-
-    it('handles single segment without slashes that is too long', () => {
-      // A path without any slashes (just a very long segment name)
-      // This is an edge case for paths like relative names
-      const longSegmentNoSlash = 'this-is-a-very-long-segment-without-any-slashes'
-      const result = shortenPath(longSegmentNoSlash)
-      // Should hard truncate with leading ellipsis
-      expect(result.startsWith('…')).toBe(true)
-      expect(result.length).toBeLessThanOrEqual(20)
-    })
-  })
-
   describe('formatBranch', () => {
     it('returns empty string for empty branch', () => {
-      expect(formatBranch('', 'full')).toBe('')
+      expect(formatBranch('')).toBe('')
     })
 
-    it('formats branch based on symbol mode', () => {
-      expect(formatBranch('main', 'full')).toBe('⎇ main')
-      expect(formatBranch('main', 'safe')).toBe('∗ main')
-      expect(formatBranch('main', 'ascii')).toBe('* main')
+    it('returns raw branch name without icon', () => {
+      expect(formatBranch('main')).toBe('main')
     })
   })
 
@@ -544,22 +493,17 @@ describe('Formatter utilities', () => {
     })
   })
 
-  describe('formatCwd symbol mode', () => {
-    it('includes folder emoji in full mode', () => {
-      const cwd = formatCwd('/home/user/project', '/home/user', 'full')
-      expect(cwd).toMatch(/^📁 /)
+  describe('formatCwd', () => {
+    it('home-shortens paths', () => {
+      expect(formatCwd('/home/user/project', '/home/user')).toBe('~/project')
     })
 
-    it('omits icon in safe mode', () => {
-      const cwd = formatCwd('/home/user/project', '/home/user', 'safe')
-      expect(cwd).not.toContain('📁')
-      expect(cwd).toBe('~/project')
+    it('returns path as-is when no homeDir match', () => {
+      expect(formatCwd('/other/path', '/home/user')).toBe('/other/path')
     })
 
-    it('omits icon in ascii mode', () => {
-      const cwd = formatCwd('/home/user/project', '/home/user', 'ascii')
-      expect(cwd).not.toContain('📁')
-      expect(cwd).toBe('~/project')
+    it('returns path as-is when no homeDir provided', () => {
+      expect(formatCwd('/home/user/project')).toBe('/home/user/project')
     })
   })
 })
@@ -803,13 +747,17 @@ describe('Formatter class', () => {
       costStatus: 'normal' as const,
       duration: '12m',
       cwd: '~/project',
-      branch: '⎇ main',
+      branch: 'main',
       branchColor: 'green',
       displayMode: 'session_summary' as const,
       summary: 'Fixing auth bug',
       title: 'Auth bug fix',
       warningCount: 0,
       errorCount: 0,
+      projectDirShort: 'project',
+      projectDirFull: '~/project',
+      worktreeName: '',
+      worktreeOrBranch: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -843,6 +791,10 @@ describe('Formatter class', () => {
       title: '', // Empty title
       warningCount: 0,
       errorCount: 0,
+      projectDirShort: 'project',
+      projectDirFull: '~/project',
+      worktreeName: '',
+      worktreeOrBranch: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -877,6 +829,10 @@ describe('Formatter class', () => {
       title: '', // Empty title
       warningCount: 0,
       errorCount: 0,
+      projectDirShort: 'project',
+      projectDirFull: '~/project',
+      worktreeName: '',
+      worktreeOrBranch: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -911,6 +867,10 @@ describe('Formatter class', () => {
       title: 'Test',
       warningCount: 0,
       errorCount: 0,
+      projectDirShort: 'project',
+      projectDirFull: '~/project',
+      worktreeName: '',
+      worktreeOrBranch: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -944,6 +904,10 @@ describe('Formatter class', () => {
       title: 'Test title',
       warningCount: 0,
       errorCount: 0,
+      projectDirShort: 'project',
+      projectDirFull: '~/project',
+      worktreeName: '',
+      worktreeOrBranch: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -978,6 +942,10 @@ describe('Formatter class', () => {
       title: 'Test title',
       warningCount: 0,
       errorCount: 0,
+      projectDirShort: 'project',
+      projectDirFull: '~/project',
+      worktreeName: '',
+      worktreeOrBranch: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -989,31 +957,36 @@ describe('Formatter class', () => {
   })
 })
 
-describe('Formatter prefix/suffix syntax', () => {
-  const makeViewModel = (overrides: Record<string, unknown> = {}): StatuslineViewModel => ({
-    model: 'claude-3-5-sonnet',
-    contextWindow: '200k',
-    tokenUsageActual: '45k',
-    tokenUsageEffective: '90k',
-    tokenPercentageActual: '22%',
-    tokenPercentageEffective: '45%',
-    tokensStatus: 'normal' as const,
-    cost: '$0.15',
-    costStatus: 'normal' as const,
-    duration: '12m',
-    cwd: '~/project',
-    branch: '⎇ main',
-    branchColor: 'green',
-    displayMode: 'session_summary' as const,
-    summary: 'Test summary',
-    title: 'Test title',
-    warningCount: 0,
-    errorCount: 0,
-    logStatus: 'normal' as const,
-    personaName: '',
-    ...overrides,
-  })
+/** Shared test helper: creates a StatuslineViewModel with overrides */
+const makeViewModel = (overrides: Record<string, unknown> = {}): StatuslineViewModel => ({
+  model: 'claude-3-5-sonnet',
+  contextWindow: '200k',
+  tokenUsageActual: '45k',
+  tokenUsageEffective: '90k',
+  tokenPercentageActual: '22%',
+  tokenPercentageEffective: '45%',
+  tokensStatus: 'normal' as const,
+  cost: '$0.15',
+  costStatus: 'normal' as const,
+  duration: '12m',
+  cwd: '~/project',
+  branch: 'main',
+  branchColor: 'green',
+  projectDirShort: 'project',
+  projectDirFull: '~/project',
+  worktreeName: '',
+  worktreeOrBranch: 'main',
+  displayMode: 'session_summary' as const,
+  summary: 'Test summary',
+  title: 'Test title',
+  warningCount: 0,
+  errorCount: 0,
+  logStatus: 'normal' as const,
+  personaName: '',
+  ...overrides,
+})
 
+describe('Formatter prefix/suffix syntax', () => {
   const formatter = createFormatter({
     theme: DEFAULT_STATUSLINE_CONFIG.theme,
     useColors: false,
@@ -1099,6 +1072,96 @@ describe('Formatter prefix/suffix syntax', () => {
   })
 })
 
+describe('template truncation', () => {
+  const formatter = createFormatter({
+    theme: DEFAULT_STATUSLINE_CONFIG.theme,
+    useColors: false,
+  })
+
+  it('applies suffix truncation with maxLength', () => {
+    const viewModel = makeViewModel({ cwd: 'claude-code-sidekick' })
+    const result = formatter.format("{cwd,maxLength=10,truncateStyle='suffix'}", viewModel)
+    expect(result).toBe('claude-co…')
+  })
+
+  it('applies prefix truncation with maxLength', () => {
+    const viewModel = makeViewModel({ cwd: 'claude-code-sidekick' })
+    const result = formatter.format("{cwd,maxLength=10,truncateStyle='prefix'}", viewModel)
+    expect(result).toBe('…-sidekick')
+  })
+
+  it('applies path truncation with maxLength', () => {
+    const viewModel = makeViewModel({ cwd: 'project/packages/core/src' })
+    const result = formatter.format("{cwd,maxLength=20,truncateStyle='path'}", viewModel)
+    expect(result).toBe('project/…/src')
+  })
+
+  it('defaults truncateStyle to suffix', () => {
+    const viewModel = makeViewModel({ cwd: 'claude-code-sidekick' })
+    const result = formatter.format('{cwd,maxLength=10}', viewModel)
+    expect(result).toBe('claude-co…')
+  })
+
+  it('applies maxLength independently of prefix/suffix', () => {
+    // Prefix is rendered around the truncated value; maxLength applies to the value only
+    const viewModel = makeViewModel({ cwd: 'claude-code-sidekick' })
+    const result = formatter.format("{model}{cwd,maxLength=10,prefix=' | '}", viewModel)
+    expect(result).toBe('claude-3-5-sonnet | claude-co…')
+  })
+
+  it('does not truncate when value fits maxLength', () => {
+    const viewModel = makeViewModel({ cwd: 'short' })
+    const result = formatter.format('{cwd,maxLength=10}', viewModel)
+    expect(result).toBe('short')
+  })
+})
+
+describe('template wrapAt', () => {
+  it('should NOT wrap when line width is under wrapAt threshold', () => {
+    const fmt = createFormatter({ theme: DEFAULT_STATUSLINE_CONFIG.theme, useColors: false })
+    const vm = makeViewModel({ model: 'opus', title: 'Short' })
+    const template = "{model} | {title,wrapAt=80,prefix=' | ',wrapPrefix='\\n'}"
+    const result = fmt.format(template, vm)
+    expect(result).toContain('opus |  | Short')
+  })
+
+  it('should wrap when line width exceeds wrapAt threshold', () => {
+    const fmt = createFormatter({ theme: DEFAULT_STATUSLINE_CONFIG.theme, useColors: false })
+    const vm = makeViewModel({ model: 'opus', title: 'A longer title here' })
+    // wrapAt=10 is small enough that "opus | " (7 chars) + prefix (3) + title exceeds it
+    const template = "{model} | {title,wrapAt=10,prefix=' | ',wrapPrefix='\\n'}"
+    const result = fmt.format(template, vm)
+    expect(result).toContain('opus | \\nA longer title here')
+  })
+
+  it('should use wrapSuffix when wrapping', () => {
+    const fmt = createFormatter({ theme: DEFAULT_STATUSLINE_CONFIG.theme, useColors: false })
+    const vm = makeViewModel({ model: 'opus', title: 'Title' })
+    const template = "{model} | {title,wrapAt=5,prefix=' | ',wrapPrefix='\\n> ',wrapSuffix=' <'}"
+    const result = fmt.format(template, vm)
+    expect(result).toContain('\\n> Title <')
+  })
+
+  it('should track literal text width between tokens', () => {
+    const fmt = createFormatter({ theme: DEFAULT_STATUSLINE_CONFIG.theme, useColors: false })
+    // "opus" (4) + " | lots of padding text | " (27) = 31 chars before title
+    const vm = makeViewModel({ model: 'opus', cwd: 'lots of padding text', title: 'Title' })
+    const template = "{model} | {cwd} | {title,wrapAt=30,prefix=' | ',wrapPrefix='\\n'}"
+    const result = fmt.format(template, vm)
+    // Width exceeds 30, so should wrap
+    expect(result).toContain('\\nTitle')
+  })
+
+  it('should reset line width after newline in template', () => {
+    const fmt = createFormatter({ theme: DEFAULT_STATUSLINE_CONFIG.theme, useColors: false })
+    const vm = makeViewModel({ model: 'opus', summary: 'sum', title: 'Title' })
+    // First line is short, then literal \n resets width, then title should NOT wrap
+    const template = "{model}\\n{title,wrapAt=80,prefix=' | ',wrapPrefix='\\n'}"
+    const result = fmt.format(template, vm)
+    expect(result).toContain(' | Title')
+  })
+})
+
 describe('Formatter with colors enabled', () => {
   const ANSI = {
     reset: '\x1b[0m',
@@ -1134,6 +1197,10 @@ describe('Formatter with colors enabled', () => {
       title: 'Test',
       warningCount: 0,
       errorCount: 0,
+      projectDirShort: 'project',
+      projectDirFull: '~/project',
+      worktreeName: '',
+      worktreeOrBranch: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -1168,6 +1235,10 @@ describe('Formatter with colors enabled', () => {
       title: 'Test',
       warningCount: 0,
       errorCount: 0,
+      projectDirShort: 'project',
+      projectDirFull: '~/project',
+      worktreeName: '',
+      worktreeOrBranch: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -1201,6 +1272,10 @@ describe('Formatter with colors enabled', () => {
       title: 'Test',
       warningCount: 0,
       errorCount: 0,
+      projectDirShort: 'project',
+      projectDirFull: '~/project',
+      worktreeName: '',
+      worktreeOrBranch: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -1237,6 +1312,10 @@ describe('Formatter with colors enabled', () => {
       title: 'Test',
       warningCount: 0,
       errorCount: 0,
+      projectDirShort: 'project',
+      projectDirFull: '~/project',
+      worktreeName: '',
+      worktreeOrBranch: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -1273,6 +1352,10 @@ describe('Formatter with colors enabled', () => {
       title: 'Test',
       warningCount: 0,
       errorCount: 0,
+      projectDirShort: 'project',
+      projectDirFull: '~/project',
+      worktreeName: '',
+      worktreeOrBranch: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -1316,6 +1399,10 @@ describe('Formatter with colors enabled', () => {
       title: 'Test',
       warningCount: 0,
       errorCount: 0,
+      projectDirShort: 'project',
+      projectDirFull: '~/project',
+      worktreeName: '',
+      worktreeOrBranch: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -1351,6 +1438,10 @@ describe('Formatter with colors enabled', () => {
       title: 'Test',
       warningCount: 0,
       errorCount: 0,
+      projectDirShort: 'project',
+      projectDirFull: '~/project',
+      worktreeName: '',
+      worktreeOrBranch: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -1378,20 +1469,24 @@ describe('Formatter with colors enabled', () => {
       costStatus: 'normal' as const,
       duration: '12m',
       cwd: '~/project',
-      branch: '⎇ main',
+      branch: 'main',
       branchColor: 'green',
       displayMode: 'session_summary' as const,
       summary: 'Test',
       title: 'Test',
       warningCount: 0,
       errorCount: 0,
+      projectDirShort: 'project',
+      projectDirFull: '~/project',
+      worktreeName: '',
+      worktreeOrBranch: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
 
     const result = formatter.format('{branch}', viewModel)
     expect(result).toContain(ANSI.green)
-    expect(result).toContain('⎇ main')
+    expect(result).toContain('main')
   })
 })
 
@@ -1579,6 +1674,10 @@ describe('Formatter.convertMarkdown', () => {
       title: 'Test',
       warningCount: 0,
       errorCount: 0,
+      projectDirShort: 'project',
+      projectDirFull: '~/project',
+      worktreeName: '',
+      worktreeOrBranch: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -1613,6 +1712,10 @@ describe('Formatter.convertMarkdown', () => {
       title: 'Fix *critical* bug',
       warningCount: 0,
       errorCount: 0,
+      projectDirShort: 'project',
+      projectDirFull: '~/project',
+      worktreeName: '',
+      worktreeOrBranch: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }

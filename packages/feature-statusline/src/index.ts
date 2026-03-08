@@ -14,6 +14,12 @@
 // Types and schemas
 export * from './types.js'
 
+// ANSI utilities
+export { stripAnsi, visibleLength } from './ansi-utils.js'
+
+// Truncation strategies
+export { truncateSuffix, truncatePrefix, truncatePath } from './truncation.js'
+
 // Core components
 export { StateReader, createStateReader, type StateReaderConfig } from './state-reader.js'
 export { GitProvider, createGitProvider, type GitProviderConfig, type GitBranchResult } from './git-provider.js'
@@ -23,7 +29,6 @@ export {
   formatTokens,
   formatCost,
   formatDuration,
-  shortenPath,
   formatBranch,
   getThresholdStatus,
   type FormatterConfig,
@@ -39,6 +44,7 @@ export {
   type ClaudeCodeCost,
   type ClaudeCodeCurrentUsage,
   type ClaudeCodeContextWindow,
+  type ClaudeCodeWorktree,
 } from './statusline-service.js'
 export {
   readContextOverhead,

@@ -140,6 +140,19 @@ export function parseStatuslineInput(raw: Record<string, unknown>): ClaudeCodeSt
           }
         : null,
     },
+    // Parse optional worktree data (only present in worktree sessions)
+    worktree: raw.worktree
+      ? (() => {
+          const wt = raw.worktree as Record<string, unknown>
+          return {
+            name: typeof wt.name === 'string' ? wt.name : '',
+            path: typeof wt.path === 'string' ? wt.path : '',
+            branch: typeof wt.branch === 'string' ? wt.branch : '',
+            original_cwd: typeof wt.original_cwd === 'string' ? wt.original_cwd : undefined,
+            original_branch: typeof wt.original_branch === 'string' ? wt.original_branch : undefined,
+          }
+        })()
+      : undefined,
   }
 }
 

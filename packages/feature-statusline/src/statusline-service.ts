@@ -24,6 +24,7 @@ import {
   type ApiKeyName,
   type SetupState,
 } from '@sidekick/core'
+import * as path from 'node:path'
 import {
   Formatter,
   calculateContextUsage,
@@ -40,7 +41,6 @@ import { GitProvider, createGitProvider } from './git-provider.js'
 import { StateReader, createStateReader, discoverPreviousResumeMessage } from './state-reader.js'
 import { readContextOverhead, getDefaultOverhead, type ContextOverhead } from './context-overhead-reader.js'
 import {
-  normalizeSymbolMode,
   DEFAULT_PLACEHOLDERS,
   DEFAULT_STATUSLINE_CONFIG,
   type DisplayMode,
@@ -85,6 +85,10 @@ const EMPTY_STATUSLINE_VIEWMODEL: Omit<StatuslineViewModel, 'summary'> = {
   branchColor: '',
   displayMode: 'setup_warning',
   title: '',
+  projectDirShort: '',
+  projectDirFull: '',
+  worktreeName: '',
+  worktreeOrBranch: '',
   warningCount: 0,
   errorCount: 0,
   logStatus: 'normal',
@@ -168,6 +172,23 @@ export interface ClaudeCodeContextWindow {
 }
 
 /**
+ * Worktree information from Claude Code status hook.
+ * Present only when the session is running inside a git worktree.
+ */
+export interface ClaudeCodeWorktree {
+  /** Worktree name */
+  name: string
+  /** Full path to worktree directory */
+  path: string
+  /** Branch name in the worktree */
+  branch: string
+  /** Original working directory (main repo root) */
+  original_cwd?: string
+  /** Branch name of the original repo */
+  original_branch?: string
+}
+
+/**
  * Complete status hook input from Claude Code.
  * This is the exact structure passed to statusline hooks.
  *
@@ -194,6 +215,8 @@ export interface ClaudeCodeStatusInput {
   cost: ClaudeCodeCost
   /** Context window information */
   context_window: ClaudeCodeContextWindow
+  /** Worktree information (present only when session is in a git worktree) */
+  worktree?: ClaudeCodeWorktree
 }
 
 // ============================================================================
@@ -844,6 +867,13 @@ export class StatuslineService {
     // Get persona name (empty if no persona or disabled)
     const personaName = persona && persona.id !== 'disabled' ? persona.display_name : ''
 
+    // Worktree-aware project directory resolution
+    const worktree = this.hookInput?.worktree
+    const projectRoot = worktree?.original_cwd || this.hookInput?.workspace?.project_dir || this.cwd
+    const projectDirShort = path.basename(projectRoot)
+    const homeShorten = (p: string): string =>
+      this.homeDir && p.startsWith(this.homeDir) ? '~' + p.slice(this.homeDir.length) : p
+
     return {
       model: this.formatModelName(modelName),
       contextWindow: formatTokens(contextWindowSize),
@@ -855,9 +885,13 @@ export class StatuslineService {
       cost: formatCost(costUsd),
       costStatus: getThresholdStatus(costUsd, this.config.thresholds.cost),
       duration: formatDuration(durationMs),
-      cwd: formatCwd(this.cwd, this.homeDir, normalizeSymbolMode(this.config.theme.useNerdFonts)),
-      branch: formatBranch(branch, normalizeSymbolMode(this.config.theme.useNerdFonts)),
+      cwd: formatCwd(this.cwd, this.homeDir),
+      branch: formatBranch(branch),
       branchColor: getBranchColor(branch),
+      projectDirShort,
+      projectDirFull: homeShorten(projectRoot),
+      worktreeName: worktree?.name ?? '',
+      worktreeOrBranch: worktree?.name ?? branch,
       displayMode,
       summary: summaryText,
       title,
