@@ -14,6 +14,8 @@ All work MUST follow this workflow:
 4. Merge via PR only
 
 **No exceptions.** If you find yourself on `main` with uncommitted changes, create a branch first.
+
+**Worktree requirement**: All work that modifies files MUST be performed in an isolated git worktree (`isolation: "worktree"` on the Agent tool). This keeps the main working tree clean and prevents conflicts between concurrent agents or with the user's workspace. Read-only operations (research, exploration, code review) do not require a worktree.
 </branch_policy>
 
 <constraints>
