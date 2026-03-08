@@ -9,6 +9,8 @@
  * @see docs/design/FEATURE-STATUSLINE.md §5.3 Formatter, §8.1 Template Engine
  */
 
+import { visibleLength } from './ansi-utils.js'
+import { truncateSuffix, truncatePrefix, truncatePath } from './truncation.js'
 import {
   normalizeSymbolMode,
   type ContextBarStatus,
@@ -72,6 +74,70 @@ function getColor(name: string): string {
 }
 
 // ============================================================================
+// Token Options Parsing
+// ============================================================================
+
+interface TokenOptions {
+  prefix?: string
+  suffix?: string
+  maxLength?: number
+  truncateStyle?: 'suffix' | 'prefix' | 'path'
+  wrapAt?: number
+  wrapPrefix?: string
+  wrapSuffix?: string
+}
+
+/**
+ * Parse token options from the comma-separated options string.
+ * Supports: prefix='...', suffix='...', maxLength=N, truncateStyle='...',
+ *           wrapAt=N, wrapPrefix='...', wrapSuffix='...'
+ */
+function parseTokenOptions(optionsStr?: string): TokenOptions {
+  if (!optionsStr) return {}
+  const options: TokenOptions = {}
+
+  // Parse string options: key='value' with escaped quotes
+  const stringPattern = /(\w+)='((?:[^'\\]|\\.)*)'/g
+  let match
+  while ((match = stringPattern.exec(optionsStr)) !== null) {
+    const key = match[1]
+    const val = match[2].replace(/\\'/g, "'").replace(/\\\\/g, '\\')
+    switch (key) {
+      case 'prefix': options.prefix = val; break
+      case 'suffix': options.suffix = val; break
+      case 'truncateStyle': options.truncateStyle = val as 'suffix' | 'prefix' | 'path'; break
+      case 'wrapPrefix': options.wrapPrefix = val; break
+      case 'wrapSuffix': options.wrapSuffix = val; break
+    }
+  }
+
+  // Parse numeric options: key=number (not followed by a quote, to avoid matching string values)
+  const numPattern = /(\w+)=(\d+)(?=[,}]|$)/g
+  while ((match = numPattern.exec(optionsStr)) !== null) {
+    const key = match[1]
+    const val = parseInt(match[2], 10)
+    switch (key) {
+      case 'maxLength': options.maxLength = val; break
+      case 'wrapAt': options.wrapAt = val; break
+    }
+  }
+
+  return options
+}
+
+/**
+ * Apply truncation strategy to a raw string value.
+ */
+function applyTruncation(value: string, maxLength: number, style: 'suffix' | 'prefix' | 'path'): string {
+  switch (style) {
+    case 'prefix': return truncatePrefix(value, maxLength)
+    case 'path': return truncatePath(value, maxLength)
+    case 'suffix':
+    default: return truncateSuffix(value, maxLength)
+  }
+}
+
+// ============================================================================
 // Formatter Class
 // ============================================================================
 
@@ -105,85 +171,130 @@ export class Formatter {
    * (e.g., a snarky comment containing "|") are preserved.
    */
   format(template: string, viewModel: StatuslineViewModel): string {
-    // Build token map with formatted values
-    // Note: tokens/cost/logs use threshold-based coloring (normal/warning/critical)
-    // Branch uses theme.colors.branch if set, otherwise pattern-based coloring from viewModel.branchColor
     const branchColor = this.theme.colors.branch ?? viewModel.branchColor
     const symbolMode = normalizeSymbolMode(this.theme.useNerdFonts)
     const logsText = formatLogs(viewModel.warningCount, viewModel.errorCount, symbolMode)
 
-    // Convert markdown for title/summary before colorizing
+    // Convert markdown for title/summary
     const convertedSummary = this.convertMarkdown(viewModel.summary)
     const convertedTitle = this.convertMarkdown(viewModel.title)
 
-    const tokens: Record<string, string> = {
-      model: this.colorize(viewModel.model, this.theme.colors.model),
-      // Atomic token placeholders - each can be used independently in templates
-      contextWindow: this.colorize(viewModel.contextWindow, this.theme.colors.tokens),
-      tokenUsageActual: this.colorizeByStatus(viewModel.tokenUsageActual, viewModel.tokensStatus),
-      tokenUsageEffective: this.colorizeByStatus(viewModel.tokenUsageEffective, viewModel.tokensStatus),
-      tokenPercentageActual: this.colorizeByStatus(viewModel.tokenPercentageActual, viewModel.tokensStatus),
-      tokenPercentageEffective: this.colorizeByStatus(viewModel.tokenPercentageEffective, viewModel.tokensStatus),
-      cost: this.colorizeByStatus(viewModel.cost, viewModel.costStatus),
-      duration: this.colorize(viewModel.duration, this.theme.colors.duration),
-      cwd: this.colorize(viewModel.cwd, this.theme.colors.cwd),
-      branch: viewModel.branch ? this.colorize(viewModel.branch, branchColor) : '',
-      projectDirShort: this.colorize(viewModel.projectDirShort, this.theme.colors.cwd),
-      projectDirFull: this.colorize(viewModel.projectDirFull, this.theme.colors.cwd),
-      worktreeName: viewModel.worktreeName ? this.colorize(viewModel.worktreeName, branchColor) : '',
-      worktreeOrBranch: this.colorize(viewModel.worktreeOrBranch, branchColor),
-      summary: this.colorize(convertedSummary, this.theme.colors.summary),
-      title: this.colorize(convertedTitle, this.theme.colors.title),
+    // Raw token values (pre-color) — truncation operates on these
+    const rawTokens: Record<string, string> = {
+      model: viewModel.model,
+      contextWindow: viewModel.contextWindow,
+      tokenUsageActual: viewModel.tokenUsageActual,
+      tokenUsageEffective: viewModel.tokenUsageEffective,
+      tokenPercentageActual: viewModel.tokenPercentageActual,
+      tokenPercentageEffective: viewModel.tokenPercentageEffective,
+      cost: viewModel.cost,
+      duration: viewModel.duration,
+      cwd: viewModel.cwd,
+      branch: viewModel.branch,
+      projectDirShort: viewModel.projectDirShort,
+      projectDirFull: viewModel.projectDirFull,
+      worktreeName: viewModel.worktreeName,
+      worktreeOrBranch: viewModel.worktreeOrBranch,
+      summary: convertedSummary,
+      title: convertedTitle,
+      logs: logsText,
+      personaName: viewModel.personaName,
+      // Pre-formatted tokens (already contain ANSI if colors enabled)
       contextBar: formatContextBar(viewModel.contextUsage, this.useColors, symbolMode),
-      logs: this.colorizeByStatus(logsText, viewModel.logStatus),
-      // Persona name token - empty string when no persona or disabled
-      personaName: viewModel.personaName
-        ? this.colorize(viewModel.personaName, (this.theme.colors as Record<string, string>).persona ?? 'cyan')
-        : '',
     }
 
-    // Marker for empty values - allows safe cleanup without affecting separator chars in token values
+    // Colorization function per token — returns colored version of a value
+    const personaColor = (this.theme.colors as Record<string, string>).persona ?? 'cyan'
+    const colorizeToken = (tokenName: string, value: string): string => {
+      switch (tokenName) {
+        case 'tokenUsageActual':
+        case 'tokenUsageEffective':
+        case 'tokenPercentageActual':
+        case 'tokenPercentageEffective':
+          return this.colorizeByStatus(value, viewModel.tokensStatus)
+        case 'cost':
+          return this.colorizeByStatus(value, viewModel.costStatus)
+        case 'logs':
+          return this.colorizeByStatus(value, viewModel.logStatus)
+        case 'model':
+          return this.colorize(value, this.theme.colors.model)
+        case 'contextWindow':
+          return this.colorize(value, this.theme.colors.tokens)
+        case 'duration':
+          return this.colorize(value, this.theme.colors.duration)
+        case 'cwd':
+        case 'projectDirShort':
+        case 'projectDirFull':
+          return this.colorize(value, this.theme.colors.cwd)
+        case 'branch':
+        case 'worktreeOrBranch':
+        case 'worktreeName':
+          return this.colorize(value, branchColor)
+        case 'summary':
+          return this.colorize(value, this.theme.colors.summary)
+        case 'title':
+          return this.colorize(value, this.theme.colors.title)
+        case 'personaName':
+          return this.colorize(value, personaColor)
+        case 'contextBar':
+          return value // already formatted with colors
+        default:
+          return value
+      }
+    }
+
+    // Marker for empty values
     const EMPTY_MARKER = '\x00EMPTY\x00'
 
-    // Replace {token} and {token,prefix='...',suffix='...'} patterns
-    // Regex captures: {tokenName} or {tokenName,options...}
-    // Options are parsed separately to handle prefix='...' and suffix='...'
+    // Track visible line width for wrapAt support
+    let currentLineWidth = 0
+
+    // Replace {token} and {token,options...} patterns left-to-right
     let result = template.replace(/\{(\w+)(?:,([^}]*))?\}/g, (_match, tokenName: string, optionsStr?: string) => {
-      const value = tokens[tokenName] ?? ''
+      let value = rawTokens[tokenName] ?? ''
+      if (!value) return EMPTY_MARKER
 
-      // Parse prefix/suffix options if present
-      let prefix = ''
-      let suffix = ''
-      if (optionsStr) {
-        // Match prefix='...' with support for escaped quotes
-        const prefixMatch = optionsStr.match(/prefix='((?:[^'\\]|\\.)*)'/)
-        if (prefixMatch) {
-          prefix = prefixMatch[1].replace(/\\'/g, "'").replace(/\\\\/g, '\\')
-        }
-        // Match suffix='...' with support for escaped quotes
-        const suffixMatch = optionsStr.match(/suffix='((?:[^'\\]|\\.)*)'/)
-        if (suffixMatch) {
-          suffix = suffixMatch[1].replace(/\\'/g, "'").replace(/\\\\/g, '\\')
+      const options = parseTokenOptions(optionsStr)
+
+      // Apply truncation to raw value (before colorization)
+      if (options.maxLength !== undefined && tokenName !== 'contextBar') {
+        value = applyTruncation(value, options.maxLength, options.truncateStyle ?? 'suffix')
+      }
+
+      // Colorize the (possibly truncated) value
+      const colorized = colorizeToken(tokenName, value)
+
+      // Choose prefix/suffix, applying wrapAt logic if specified
+      let prefix = options.prefix ?? ''
+      let suffix = options.suffix ?? ''
+
+      if (options.wrapAt !== undefined) {
+        const candidateWidth = currentLineWidth + visibleLength(prefix) + visibleLength(value)
+        if (candidateWidth > options.wrapAt) {
+          prefix = options.wrapPrefix ?? prefix
+          suffix = options.wrapSuffix ?? suffix
         }
       }
 
-      // If value is empty, return marker (prefix/suffix are NOT rendered)
-      if (!value) {
-        return EMPTY_MARKER
+      // Build the full segment and update line width tracking
+      const segment = prefix + colorized + suffix
+      const lastNewline = segment.lastIndexOf('\n')
+      if (lastNewline >= 0) {
+        currentLineWidth = visibleLength(segment.slice(lastNewline + 1))
+      } else {
+        currentLineWidth += visibleLength(segment)
       }
 
-      // Value is non-empty: render with prefix and suffix
-      return prefix + value + suffix
+      return segment
     })
 
+    // Update line width for literal text between tokens
+    // (The regex replace handles tokens; literal text contributes to width via the result)
+
     // Clean up separators around empty markers (handles both | and \n)
-    // Pattern: separator + optional whitespace + EMPTY + optional whitespace + separator → single separator
     result = result.replace(new RegExp(`\\s*[|\\n]\\s*${EMPTY_MARKER}\\s*[|\\n]\\s*`, 'g'), ' | ')
-    // Pattern: EMPTY at start followed by separator → remove (anchored to start)
     result = result.replace(new RegExp(`^${EMPTY_MARKER}\\s*[|\\n]\\s*`), '')
-    // Pattern: separator followed by EMPTY at end → remove (anchored to end)
     result = result.replace(new RegExp(`\\s*[|\\n]\\s*${EMPTY_MARKER}$`), '')
-    // Remove any remaining empty markers (standalone, preserves adjacent separators)
     result = result.replace(new RegExp(EMPTY_MARKER, 'g'), '')
 
     // Final edge cleanup: trailing/leading separators

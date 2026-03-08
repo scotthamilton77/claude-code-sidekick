@@ -1006,35 +1006,36 @@ describe('Formatter class', () => {
   })
 })
 
-describe('Formatter prefix/suffix syntax', () => {
-  const makeViewModel = (overrides: Record<string, unknown> = {}): StatuslineViewModel => ({
-    model: 'claude-3-5-sonnet',
-    contextWindow: '200k',
-    tokenUsageActual: '45k',
-    tokenUsageEffective: '90k',
-    tokenPercentageActual: '22%',
-    tokenPercentageEffective: '45%',
-    tokensStatus: 'normal' as const,
-    cost: '$0.15',
-    costStatus: 'normal' as const,
-    duration: '12m',
-    cwd: '~/project',
-    branch: 'main',
-    branchColor: 'green',
-    projectDirShort: 'project',
-    projectDirFull: '~/project',
-    worktreeName: '',
-    worktreeOrBranch: 'main',
-    displayMode: 'session_summary' as const,
-    summary: 'Test summary',
-    title: 'Test title',
-    warningCount: 0,
-    errorCount: 0,
-    logStatus: 'normal' as const,
-    personaName: '',
-    ...overrides,
-  })
+/** Shared test helper: creates a StatuslineViewModel with overrides */
+const makeViewModel = (overrides: Record<string, unknown> = {}): StatuslineViewModel => ({
+  model: 'claude-3-5-sonnet',
+  contextWindow: '200k',
+  tokenUsageActual: '45k',
+  tokenUsageEffective: '90k',
+  tokenPercentageActual: '22%',
+  tokenPercentageEffective: '45%',
+  tokensStatus: 'normal' as const,
+  cost: '$0.15',
+  costStatus: 'normal' as const,
+  duration: '12m',
+  cwd: '~/project',
+  branch: 'main',
+  branchColor: 'green',
+  projectDirShort: 'project',
+  projectDirFull: '~/project',
+  worktreeName: '',
+  worktreeOrBranch: 'main',
+  displayMode: 'session_summary' as const,
+  summary: 'Test summary',
+  title: 'Test title',
+  warningCount: 0,
+  errorCount: 0,
+  logStatus: 'normal' as const,
+  personaName: '',
+  ...overrides,
+})
 
+describe('Formatter prefix/suffix syntax', () => {
   const formatter = createFormatter({
     theme: DEFAULT_STATUSLINE_CONFIG.theme,
     useColors: false,
@@ -1117,6 +1118,50 @@ describe('Formatter prefix/suffix syntax', () => {
       viewModel
     )
     expect(result).toBe('claude-3-5-sonnet')
+  })
+})
+
+describe('template truncation', () => {
+  const formatter = createFormatter({
+    theme: DEFAULT_STATUSLINE_CONFIG.theme,
+    useColors: false,
+  })
+
+  it('applies suffix truncation with maxLength', () => {
+    const viewModel = makeViewModel({ cwd: 'claude-code-sidekick' })
+    const result = formatter.format("{cwd,maxLength=10,truncateStyle='suffix'}", viewModel)
+    expect(result).toBe('claude-co…')
+  })
+
+  it('applies prefix truncation with maxLength', () => {
+    const viewModel = makeViewModel({ cwd: 'claude-code-sidekick' })
+    const result = formatter.format("{cwd,maxLength=10,truncateStyle='prefix'}", viewModel)
+    expect(result).toBe('…-sidekick')
+  })
+
+  it('applies path truncation with maxLength', () => {
+    const viewModel = makeViewModel({ cwd: 'project/packages/core/src' })
+    const result = formatter.format("{cwd,maxLength=20,truncateStyle='path'}", viewModel)
+    expect(result).toBe('project/…/src')
+  })
+
+  it('defaults truncateStyle to suffix', () => {
+    const viewModel = makeViewModel({ cwd: 'claude-code-sidekick' })
+    const result = formatter.format('{cwd,maxLength=10}', viewModel)
+    expect(result).toBe('claude-co…')
+  })
+
+  it('applies maxLength independently of prefix/suffix', () => {
+    // Prefix is rendered around the truncated value; maxLength applies to the value only
+    const viewModel = makeViewModel({ cwd: 'claude-code-sidekick' })
+    const result = formatter.format("{model}{cwd,maxLength=10,prefix=' | '}", viewModel)
+    expect(result).toBe('claude-3-5-sonnet | claude-co…')
+  })
+
+  it('does not truncate when value fits maxLength', () => {
+    const viewModel = makeViewModel({ cwd: 'short' })
+    const result = formatter.format('{cwd,maxLength=10}', viewModel)
+    expect(result).toBe('short')
   })
 })
 
