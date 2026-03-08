@@ -187,8 +187,8 @@ export interface RemindersSettings {
   max_verification_cycles?: number
   /** Per-tool verification configuration */
   verification_tools?: VerificationToolsMap
-  /** Conversation messages between user-prompt-submit reminder injections (default: 10) */
-  user_prompt_submit_threshold?: number
+  /** Per-reminder throttle thresholds: reminder ID → message count between injections */
+  reminder_thresholds?: Record<string, number>
 }
 
 /**
@@ -199,6 +199,8 @@ export interface ReminderDefinition {
   blocking: boolean
   priority: number
   persistent: boolean
+  /** Whether this reminder participates in message-count throttling */
+  throttle?: boolean
   userMessage?: string
   additionalContext?: string
   reason?: string
@@ -308,7 +310,10 @@ export const DEFAULT_REMINDERS_SETTINGS: RemindersSettings = {
   source_code_patterns: DEFAULT_SOURCE_CODE_PATTERNS,
   max_verification_cycles: -1, // -1 = unlimited, 0 = disabled
   verification_tools: DEFAULT_VERIFICATION_TOOLS,
-  user_prompt_submit_threshold: 10,
+  reminder_thresholds: {
+    'user-prompt-submit': 10,
+    'remember-your-persona': 5,
+  },
 }
 
 /**
