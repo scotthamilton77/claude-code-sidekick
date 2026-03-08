@@ -122,17 +122,27 @@ export function selectRandomPersona(
 }
 
 /**
+ * Options for persona selection behavior.
+ */
+export interface PersonaSelectionOptions {
+  /** How the session started */
+  startType?: 'startup' | 'clear' | 'resume' | 'compact'
+}
+
+/**
  * Select and persist a persona for the session.
  *
  * @param sessionId - Session identifier
  * @param config - Session summary feature config (merged with defaults)
  * @param ctx - Daemon context
+ * @param options - Optional selection behavior overrides
  * @returns Selected persona ID, or null if selection was skipped/failed
  */
 export async function selectPersonaForSession(
   sessionId: string,
   config: SessionSummaryConfig,
-  ctx: DaemonContext
+  ctx: DaemonContext,
+  options?: PersonaSelectionOptions
 ): Promise<string | null> {
   // Merge persona config with defaults
   const personaConfig = {
@@ -182,6 +192,36 @@ export async function selectPersonaForSession(
       pinnedPersona,
       availablePersonas: Array.from(allPersonas.keys()),
     })
+  }
+
+  // Check for persona preserved from /clear handoff
+  const persistThroughClear = personaConfig.persistThroughClear ?? true
+  if (persistThroughClear && options?.startType === 'clear' && ctx.personaClearCache) {
+    const cachedPersonaId = ctx.personaClearCache.consume()
+    if (cachedPersonaId) {
+      const cachedPersona = allPersonas.get(cachedPersonaId)
+      if (cachedPersona) {
+        const personaState: SessionPersonaState = {
+          persona_id: cachedPersona.id,
+          selected_from: [cachedPersona.id],
+          timestamp: new Date().toISOString(),
+        }
+        const summaryState = createSessionSummaryState(ctx.stateService)
+        await summaryState.sessionPersona.write(sessionId, personaState)
+
+        ctx.logger.info('Preserved persona through clear', {
+          sessionId,
+          personaId: cachedPersona.id,
+          personaName: cachedPersona.display_name,
+        })
+        return cachedPersona.id
+      } else {
+        ctx.logger.warn('Cached persona from clear not found in available personas, falling back to selection', {
+          sessionId,
+          cachedPersonaId,
+        })
+      }
+    }
   }
 
   // Parse and filter by allowList and blockList

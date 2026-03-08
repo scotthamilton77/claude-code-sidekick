@@ -13,6 +13,7 @@ import {
   ensurePersonaForSession,
 } from '../handlers/persona-selection'
 import { createMockDaemonContext, MockLogger, MockStateService } from '@sidekick/testing-fixtures'
+import type { SessionSummaryConfig } from '../types'
 import { DEFAULT_SESSION_SUMMARY_CONFIG } from '../types'
 
 // Mock the @sidekick/core module for persona loader
@@ -711,6 +712,16 @@ describe('selectPersonaForSession', () => {
       })
     }
 
+    /** Build a config with persona overrides, properly typed */
+    function configWith(
+      personaOverrides: Partial<NonNullable<SessionSummaryConfig['personas']>>
+    ): SessionSummaryConfig {
+      return {
+        ...DEFAULT_SESSION_SUMMARY_CONFIG,
+        personas: { ...DEFAULT_SESSION_SUMMARY_CONFIG.personas!, ...personaOverrides },
+      }
+    }
+
     it('preserves persona on clear when persistThroughClear is true and cache has valid entry', async () => {
       const personas = new Map<string, PersonaDefinition>()
       personas.set('skippy', createMockPersona('skippy'))
@@ -723,12 +734,8 @@ describe('selectPersonaForSession', () => {
         personaClearCache: { consume: () => 'bones' },
       })
 
-      const config = {
-        ...DEFAULT_SESSION_SUMMARY_CONFIG,
-        personas: { ...DEFAULT_SESSION_SUMMARY_CONFIG.personas, persistThroughClear: true },
-      }
+      const config = configWith({ persistThroughClear: true })
 
-      // @ts-expect-error options parameter not yet added (RED phase)
       const result = await selectPersonaForSession('new-session', config, ctx, { startType: 'clear' })
 
       expect(result).toBe('bones')
@@ -747,12 +754,8 @@ describe('selectPersonaForSession', () => {
         personaClearCache: { consume: consumeMock },
       })
 
-      const config = {
-        ...DEFAULT_SESSION_SUMMARY_CONFIG,
-        personas: { ...DEFAULT_SESSION_SUMMARY_CONFIG.personas, persistThroughClear: false },
-      }
+      const config = configWith({ persistThroughClear: false })
 
-      // @ts-expect-error options parameter not yet added (RED phase)
       await selectPersonaForSession('new-session', config, ctx, { startType: 'clear' })
 
       // consume should NOT have been called since persist is disabled
@@ -770,12 +773,8 @@ describe('selectPersonaForSession', () => {
         personaClearCache: { consume: () => null },
       })
 
-      const config = {
-        ...DEFAULT_SESSION_SUMMARY_CONFIG,
-        personas: { ...DEFAULT_SESSION_SUMMARY_CONFIG.personas, persistThroughClear: true },
-      }
+      const config = configWith({ persistThroughClear: true })
 
-      // @ts-expect-error options parameter not yet added (RED phase)
       const result = await selectPersonaForSession('new-session', config, ctx, { startType: 'clear' })
 
       expect(result).toBe('skippy') // falls through to random (only one available)
@@ -792,12 +791,8 @@ describe('selectPersonaForSession', () => {
         personaClearCache: { consume: () => 'deleted-persona' },
       })
 
-      const config = {
-        ...DEFAULT_SESSION_SUMMARY_CONFIG,
-        personas: { ...DEFAULT_SESSION_SUMMARY_CONFIG.personas, persistThroughClear: true },
-      }
+      const config = configWith({ persistThroughClear: true })
 
-      // @ts-expect-error options parameter not yet added (RED phase)
       const result = await selectPersonaForSession('new-session', config, ctx, { startType: 'clear' })
 
       expect(result).toBe('skippy')
@@ -821,7 +816,6 @@ describe('selectPersonaForSession', () => {
         personaClearCache: { consume: consumeMock },
       })
 
-      // @ts-expect-error options parameter not yet added (RED phase)
       await selectPersonaForSession('new-session', DEFAULT_SESSION_SUMMARY_CONFIG, ctx, { startType: 'startup' })
 
       expect(consumeMock).not.toHaveBeenCalled()
@@ -840,16 +834,8 @@ describe('selectPersonaForSession', () => {
         personaClearCache: { consume: consumeMock },
       })
 
-      const config = {
-        ...DEFAULT_SESSION_SUMMARY_CONFIG,
-        personas: {
-          ...DEFAULT_SESSION_SUMMARY_CONFIG.personas,
-          pinnedPersona: 'skippy',
-          persistThroughClear: true,
-        },
-      }
+      const config = configWith({ pinnedPersona: 'skippy', persistThroughClear: true })
 
-      // @ts-expect-error options parameter not yet added (RED phase)
       const result = await selectPersonaForSession('new-session', config, ctx, { startType: 'clear' })
 
       expect(result).toBe('skippy') // pinned wins
