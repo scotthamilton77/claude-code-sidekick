@@ -255,3 +255,22 @@ bd sync                               # Sync with git remote
 - `3` - Low (polish, optimization)
 - `4` - Backlog (future ideas)
 <!-- END BEADS INTEGRATION -->
+
+## Beads + Worktree Safety
+
+  When agents run in git worktrees (e.g., Claude Code `isolation: "worktree"`),
+  the beads Dolt server can get confused about its data directory.
+
+  ### Prevention
+  - If `bd` commands fail after a worktree agent completes, run:
+    ```bash
+    bd dolt stop && bd dolt start
+  - If that still shows the wrong path in bd dolt status, ensure you're
+  running from the main working tree (not a worktree), then retry.
+
+  If bd commands return "database not found"
+
+  1. bd dolt stop — kill the misdirected server
+  2. cd to the main project root (not a worktree)
+  3. bd dolt start — restart from the correct location
+  4. bd dolt status — verify Data: points to .beads/dolt in the main tree
