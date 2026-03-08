@@ -230,6 +230,7 @@ describe('gitignore utilities', () => {
       expect(GITIGNORE_ENTRIES).toContain('.sidekick/sidekick*.pid')
       expect(GITIGNORE_ENTRIES).toContain('.sidekick/sidekick*.token')
       expect(GITIGNORE_ENTRIES).toContain('.sidekick/*.local.yaml')
+      expect(GITIGNORE_ENTRIES).toContain('.sidekick/features.yaml')
     })
   })
 })
