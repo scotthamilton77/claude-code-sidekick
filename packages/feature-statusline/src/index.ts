@@ -42,6 +42,7 @@ export {
   type ClaudeCodeCost,
   type ClaudeCodeCurrentUsage,
   type ClaudeCodeContextWindow,
+  type ClaudeCodeWorktree,
 } from './statusline-service.js'
 export {
   readContextOverhead,

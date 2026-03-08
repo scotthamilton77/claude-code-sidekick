@@ -168,6 +168,23 @@ export interface ClaudeCodeContextWindow {
 }
 
 /**
+ * Worktree information from Claude Code status hook.
+ * Present only when the session is running inside a git worktree.
+ */
+export interface ClaudeCodeWorktree {
+  /** Worktree name */
+  name: string
+  /** Full path to worktree directory */
+  path: string
+  /** Branch name in the worktree */
+  branch: string
+  /** Original working directory (main repo root) */
+  original_cwd: string
+  /** Branch name of the original repo */
+  original_branch: string
+}
+
+/**
  * Complete status hook input from Claude Code.
  * This is the exact structure passed to statusline hooks.
  *
@@ -194,6 +211,8 @@ export interface ClaudeCodeStatusInput {
   cost: ClaudeCodeCost
   /** Context window information */
   context_window: ClaudeCodeContextWindow
+  /** Worktree information (present only when session is in a git worktree) */
+  worktree?: ClaudeCodeWorktree
 }
 
 // ============================================================================
