@@ -45,6 +45,16 @@ function createMockPersona(id: string, displayName?: string): PersonaDefinition 
 }
 
 // ============================================================================
+// DEFAULT_SESSION_SUMMARY_CONFIG Tests
+// ============================================================================
+
+describe('DEFAULT_SESSION_SUMMARY_CONFIG', () => {
+  it('has persistThroughClear defaulting to true', () => {
+    expect(DEFAULT_SESSION_SUMMARY_CONFIG.personas?.persistThroughClear).toBe(true)
+  })
+})
+
+// ============================================================================
 // parsePersonaList Tests
 // ============================================================================
 

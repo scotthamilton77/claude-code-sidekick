@@ -80,6 +80,8 @@ export interface SessionSummaryConfig {
     llmProfiles?: Record<string, string>
     /** Per-persona selection weights (personaId → weight). Default weight = 1. Non-positive/non-finite = excluded. Values are coerced via Number() to handle YAML string inputs. */
     weights?: Record<string, number | string>
+    /** Preserve persona across /clear instead of re-rolling (default: true) */
+    persistThroughClear?: boolean
   }
 }
 
@@ -121,6 +123,7 @@ export const DEFAULT_SESSION_SUMMARY_CONFIG: SessionSummaryConfig = {
     defaultLlmProfile: '',
     llmProfiles: {},
     weights: {},
+    persistThroughClear: true,
   },
 }
 
