@@ -1131,7 +1131,7 @@ describe('template wrapAt', () => {
     // wrapAt=10 is small enough that "opus | " (7 chars) + prefix (3) + title exceeds it
     const template = "{model} | {title,wrapAt=10,prefix=' | ',wrapPrefix='\\n'}"
     const result = fmt.format(template, vm)
-    expect(result).toContain('opus | \\nA longer title here')
+    expect(result).toContain('opus | \nA longer title here')
   })
 
   it('should use wrapSuffix when wrapping', () => {
@@ -1139,7 +1139,7 @@ describe('template wrapAt', () => {
     const vm = makeViewModel({ model: 'opus', title: 'Title' })
     const template = "{model} | {title,wrapAt=5,prefix=' | ',wrapPrefix='\\n> ',wrapSuffix=' <'}"
     const result = fmt.format(template, vm)
-    expect(result).toContain('\\n> Title <')
+    expect(result).toContain('\n> Title <')
   })
 
   it('should track literal text width between tokens', () => {
@@ -1149,7 +1149,7 @@ describe('template wrapAt', () => {
     const template = "{model} | {cwd} | {title,wrapAt=30,prefix=' | ',wrapPrefix='\\n'}"
     const result = fmt.format(template, vm)
     // Width exceeds 30, so should wrap
-    expect(result).toContain('\\nTitle')
+    expect(result).toContain('\nTitle')
   })
 
   it('should reset line width after newline in template', () => {

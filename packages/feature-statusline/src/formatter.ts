@@ -188,6 +188,10 @@ export class Formatter {
    * (e.g., a snarky comment containing "|") are preserved.
    */
   format(template: string, viewModel: StatuslineViewModel): string {
+    // Convert escape sequences in template literal text
+    // YAML double-quoted \\n becomes literal backslash+n in JS; convert to real newline
+    template = template.replace(/\\n/g, '\n')
+
     const branchColor = this.theme.colors.branch ?? viewModel.branchColor
     const symbolMode = normalizeSymbolMode(this.theme.useNerdFonts)
     const logsText = formatLogs(viewModel.warningCount, viewModel.errorCount, symbolMode)
