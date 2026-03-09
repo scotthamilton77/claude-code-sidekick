@@ -117,7 +117,7 @@ interface StateFileResponse<T> {
 | 19 | `state/task-registry.json` | `TaskRegistryState` | `TaskRegistryStateSchema` | On task enqueue/complete | G-2 |
 | 20 | `state/daemon-global-log-metrics.json` | `LogMetricsState` | `LogMetricsStateSchema` | On warn/error/fatal | G-8, F-7 |
 
-> **Note on `summary-countdown.json`**: Despite a stale comment in the Zod schema source (`packages/feature-session-summary/src/state.ts`) that says "Part of session-summary.json", this state is persisted as a separate file `summary-countdown.json`.
+> **Note on `summary-countdown.json`**: Despite a stale comment in the Zod schema's JSDoc that says "Part of session-summary.json", this state is persisted as a separate file `summary-countdown.json`.
 
 > **Persona definitions**: The UI needs `PersonaDefinition` (from `@sidekick/types`, services/persona.ts) to display persona details beyond the ID stored in `SessionPersonaState`. Persona definitions are loaded from YAML asset files (`assets/sidekick/personas/*.yaml`), not from session state. The backend should serve them via a dedicated endpoint (route TBD in Section 4).
 
@@ -268,6 +268,8 @@ Each `StagedReminderWithContext` shares common fields with `StagedReminder` but 
 - `suppressed: boolean` — Whether the reminder is currently suppressed
 - `stagedAt: number` — Unix ms timestamp when staged
 
+> **Note on `StagedRemindersSnapshot` and `StagedReminderWithContext`**: These are plain interfaces with no Zod schemas. Validation occurs at the individual file level using `StagedReminderSchema` from `@sidekick/types`.
+
 ### 3.6 Daemon Status Response
 
 **Endpoint**: `GET /api/daemon/status`
@@ -291,7 +293,7 @@ The `DaemonStatusWithHealth` type (from `@sidekick/types`, services/daemon-statu
 | Field | Type | Description |
 |---|---|---|
 | `isOnline` | `boolean` | Whether daemon is online |
-| `fileMtime` | `number \| undefined` | File modification time from filesystem |
+| `fileMtime?` | `number` | File modification time from filesystem (optional) |
 
 **Health derivation rules** (computed by the backend):
 - `isOnline = true` when `daemon-status.json` mtime is within 30 seconds of current time (REQUIREMENTS.md F-7: "30s mtime threshold")
@@ -408,7 +410,7 @@ interface SessionStateResponse {
 }
 ```
 
-### 3.9 Deferred Endpoints
+### 3.8 Deferred Endpoints
 
 The following endpoints are anticipated but their full data contracts are deferred until the underlying features are implemented:
 
@@ -416,7 +418,7 @@ The following endpoints are anticipated but their full data contracts are deferr
 - **`GET /api/sessions/:id/pre-compact`** — Pre-compaction transcript snapshots (REQUIREMENTS.md F-1). Serves files referenced by `CompactionHistoryState.entries[].transcriptSnapshotPath`. Contract TBD.
 - **Individual state file routes (`GET /api/sessions/:id/state/:filename`)** — Follow the `StateFileResponse<T>` pattern from §3.3. Exact route enumeration deferred to Section 4 (API Layer Architecture).
 
-### 3.10 Requirement Traceability
+### 3.9 Requirement Traceability
 
 Every data contract in this section maps to one or more features from REQUIREMENTS.md §4-5.
 
@@ -447,10 +449,10 @@ Every data contract in this section maps to one or more features from REQUIREMEN
 | `DaemonStatusWithHealth` | §3.6 | F-7 (System Health), G-9 (Daemon Health) |
 | `SessionStateSnapshot` (extended) | §3.7 | F-5 (State Inspector) |
 | `LogMetricsState` (global) | §3.3 #20 | G-8 (Structured Logging), F-7 (System Health) |
-| `PersonaDefinition` | §3.3 | G-1 (Persona System) |
-| Deferred: `/api/config` | §3.9 | G-4 (Configuration) |
-| Deferred: `/api/sessions/:id/pre-compact` | §3.9 | F-1 (Compaction-Aware Time Travel) |
-| Deferred: `/api/sessions/:id/state/:filename` | §3.9 | F-5 (State Inspector) |
+| `PersonaDefinition` _(note)_ | §3.3 | G-1 (Persona System) — route TBD in Section 4 |
+| Deferred: `/api/config` | §3.8 | G-4 (Configuration) |
+| Deferred: `/api/sessions/:id/pre-compact` | §3.8 | F-1 (Compaction-Aware Time Travel) |
+| Deferred: `/api/sessions/:id/state/:filename` | §3.8 | F-5 (State Inspector) |
 
 ## 4. API Layer Architecture
 <!-- Placeholder: sidekick-4385facb -->
