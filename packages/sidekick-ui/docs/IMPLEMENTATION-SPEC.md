@@ -22,13 +22,13 @@ All types referenced below are from `@sidekick/types` unless otherwise noted. Im
 2. **Validate at the boundary** — Zod schemas validate data at the backend boundary (when reading files from disk), not at the frontend. The frontend receives pre-validated, typed JSON from the backend. This keeps the React bundle free of Zod and ensures a single validation point.
 
 3. **Thin response wrappers** — API response types add only transport-level metadata around canonical types. The wrapper fields are:
-   - `timestamp` — Unix ms when the response was assembled
-   - `source` — Data provenance (`'file'`, `'derived'`, `'cached'`)
-   - `stale` — Boolean indicating whether the source file's mtime is older than an acceptable threshold
+   - `timestamp` — Unix ms when the response was assembled (present on **all** responses)
+   - `source` — Data provenance (`'file'`, `'derived'`, `'cached'`) (present on all responses)
+   - `stale` — Boolean indicating whether the source file's mtime is older than an acceptable threshold (present only on **file-backed single-resource** responses such as `StateFileResponse<T>` and `DaemonStatusResponse`; omitted from aggregation endpoints like `SessionListResponse`, `LogStreamResponse`, `StagedRemindersResponse`, and `SessionStateResponse`)
 
 #### 3.1.1 Standard Response Envelope
 
-All API endpoints use the wrapper fields above for success responses. For error responses, all endpoints return a standard error envelope:
+All API endpoints include `timestamp` and `source` in success responses. File-backed single-resource responses additionally include `stale`. For error responses, all endpoints return a standard error envelope:
 
 ```typescript
 /** Standard error response for all API endpoints. */
@@ -112,7 +112,7 @@ interface StateFileResponse<T> {
 | 14 | `sessions/{id}/state/context-metrics.json` | `SessionContextMetrics` | `SessionContextMetricsSchema` | On context analysis | G-7 |
 | 15 | `sessions/{id}/state/llm-metrics.json` | `LLMMetricsState` | `LLMMetricsStateSchema` | On LLM call completion | G-3 |
 | 16 | `state/daemon-status.json` | `DaemonStatus` | `DaemonStatusSchema` | Every 5s heartbeat | F-7, G-9 |
-| 17 | `state/baseline-user-context-token-metrics.json` | `BaseTokenMetricsState` | `BaseTokenMetricsStateSchema` | On context capture | G-7 |
+| 17 | `~/.sidekick/state/baseline-user-context-token-metrics.json` (user-scoped) | `BaseTokenMetricsState` | `BaseTokenMetricsStateSchema` | On context capture | G-7 |
 | 18 | `state/baseline-project-context-token-metrics.json` | `ProjectContextMetrics` | `ProjectContextMetricsSchema` | On project analysis | G-7 |
 | 19 | `state/task-registry.json` | `TaskRegistryState` | `TaskRegistryStateSchema` | On task enqueue/complete | G-2 |
 | 20 | `state/daemon-global-log-metrics.json` | `LogMetricsState` | `LogMetricsStateSchema` | On warn/error/fatal | G-8, F-7 |
@@ -121,9 +121,10 @@ interface StateFileResponse<T> {
 
 > **Persona definitions**: The UI needs `PersonaDefinition` (from `@sidekick/types`, services/persona.ts) to display persona details beyond the ID stored in `SessionPersonaState`. Persona definitions are loaded from YAML asset files (`assets/sidekick/personas/*.yaml`), not from session state. The backend should serve them via a dedicated endpoint (route TBD in Section 4).
 
-**Import paths** — All types and schemas are available from the barrel export:
+**Import paths** — Types and schemas are available from the barrel export. Use `import type` for TypeScript types (erased at runtime) and a regular `import` for Zod schemas (runtime values):
 
 ```typescript
+// Type-only imports (erased at runtime)
 import type {
   SessionSummaryState,
   SessionPersonaState,
@@ -145,6 +146,24 @@ import type {
   DaemonStatus,
   TaskRegistryState,
 } from '@sidekick/types'
+
+// Runtime value imports (Zod schemas for validation)
+import {
+  SessionSummaryStateSchema,
+  SessionPersonaStateSchema,
+  LastStagedPersonaSchema,
+  SummaryCountdownStateSchema,
+  TranscriptMetricsStateSchema,
+  LogMetricsStateSchema,
+  SnarkyMessageStateSchema,
+  ResumeMessageStateSchema,
+  SessionContextMetricsSchema,
+  LLMMetricsStateSchema,
+  BaseTokenMetricsStateSchema,
+  ProjectContextMetricsSchema,
+  DaemonStatusSchema,
+  TaskRegistryStateSchema,
+} from '@sidekick/types'
 ```
 
 **Note on `PRBaselineState` and `VCUnverifiedState`**: The TypeScript interfaces are defined in `@sidekick/types` (services/staging.ts) while their Zod schemas are defined in services/state.ts. Both are re-exported from the barrel.
@@ -156,6 +175,8 @@ import type {
 **Endpoint**: `GET /api/logs/:type`
 **Data source**: `.sidekick/logs/{cli,sidekickd}.log` (NDJSON via Pino)
 **Requirements**: REQUIREMENTS.md F-2 (Log-Based Replay Engine), G-8 (Structured Logging)
+
+> **Log type-to-filename mapping**: The `:type` path parameter maps to filenames as follows: `type=cli` reads `cli.log`; `type=daemon` reads `sidekickd.log` (not `daemon.log`). See `LogSource` in `@sidekick/types` (events.ts).
 
 Log files are NDJSON (newline-delimited JSON) written by Pino. Each line is a self-contained log record. See PHASE2-AUDIT §2.4 for the on-disk schema.
 
