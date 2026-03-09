@@ -17,7 +17,7 @@ All types referenced below are from `@sidekick/types` unless otherwise noted. Im
 
 ### 3.1 Design Principles
 
-1. **Reuse canonical types** — All API responses reuse types from `@sidekick/types`. The UI must not redefine state types locally. The current `Record<string, unknown>` fields in the UI's `StateSnapshot` (PHASE2-AUDIT §1.2) are a type safety regression that this spec corrects (see §3.7).
+1. **Reuse canonical types** — All API responses reuse types from `@sidekick/types`. The UI must not redefine state types locally. The current `Record<string, unknown>` fields in the UI's `StateSnapshot` (PHASE2-AUDIT §1.3) are a type safety regression that this spec corrects (see §3.7).
 
 2. **Validate at the boundary** — Zod schemas validate data at the backend boundary (when reading files from disk), not at the frontend. The frontend receives pre-validated, typed JSON from the backend. This keeps the React bundle free of Zod and ensures a single validation point.
 
@@ -25,6 +25,23 @@ All types referenced below are from `@sidekick/types` unless otherwise noted. Im
    - `timestamp` — Unix ms when the response was assembled
    - `source` — Data provenance (`'file'`, `'derived'`, `'cached'`)
    - `stale` — Boolean indicating whether the source file's mtime is older than an acceptable threshold
+
+#### 3.1.1 Standard Response Envelope
+
+All API endpoints use the wrapper fields above for success responses. For error responses, all endpoints return a standard error envelope:
+
+```typescript
+/** Standard error response for all API endpoints. */
+interface ApiErrorResponse {
+  timestamp: number
+  error: {
+    code: string
+    message: string
+    /** Optional details (e.g., Zod validation errors) */
+    details?: unknown
+  }
+}
+```
 
 ### 3.2 Session List Response
 
@@ -98,6 +115,11 @@ interface StateFileResponse<T> {
 | 17 | `state/baseline-user-context-token-metrics.json` | `BaseTokenMetricsState` | `BaseTokenMetricsStateSchema` | On context capture | G-7 |
 | 18 | `state/baseline-project-context-token-metrics.json` | `ProjectContextMetrics` | `ProjectContextMetricsSchema` | On project analysis | G-7 |
 | 19 | `state/task-registry.json` | `TaskRegistryState` | `TaskRegistryStateSchema` | On task enqueue/complete | G-2 |
+| 20 | `state/daemon-global-log-metrics.json` | `LogMetricsState` | `LogMetricsStateSchema` | On warn/error/fatal | G-8, F-7 |
+
+> **Note on `summary-countdown.json`**: Despite a stale comment in the Zod schema source (`packages/feature-session-summary/src/state.ts`) that says "Part of session-summary.json", this state is persisted as a separate file `summary-countdown.json`.
+
+> **Persona definitions**: The UI needs `PersonaDefinition` (from `@sidekick/types`, services/persona.ts) to display persona details beyond the ID stored in `SessionPersonaState`. Persona definitions are loaded from YAML asset files (`assets/sidekick/personas/*.yaml`), not from session state. The backend should serve them via a dedicated endpoint (route TBD in Section 4).
 
 **Import paths** — All types and schemas are available from the barrel export:
 
@@ -176,6 +198,8 @@ interface PinoLogRecord {
 
 Records where `type`, `source`, `context`, and `payload` are all present can be narrowed to the `LoggingEvent` discriminated union from `@sidekick/types` (events.ts). This narrowing is performed by the event adapter (see Section 2).
 
+> **Note on `payload` typing**: The `Record<string, unknown>` typing on `payload` (and its nested fields) is intentional at the raw log record layer. Pino records are polymorphic — each event type has a different payload shape, and the record type represents the raw on-disk format before any narrowing. Strict typing is achieved when the event adapter (Section 2) narrows records to the `LoggingEvent` discriminated union from `@sidekick/types`, which provides per-event-type payload interfaces.
+
 #### Pagination contract
 
 ```typescript
@@ -239,7 +263,7 @@ The `StagedRemindersSnapshot` type (from `@sidekick/types`, services/state.ts) c
 | `countByHook` | `Record<string, number>` | Count by hook name |
 | `suppressedHooks` | `string[]` | Hooks that have suppression markers |
 
-Each `StagedReminderWithContext` extends the base `StagedReminder` with:
+Each `StagedReminderWithContext` shares common fields with `StagedReminder` but is a standalone interface (not an extension). Key differences: `StagedReminder.stagedAt` is `StagingMetrics` (an object with timing details), while `StagedReminderWithContext.stagedAt` is `number` (Unix ms). Fields:
 - `hookName: string` — Which hook this reminder targets
 - `suppressed: boolean` — Whether the reminder is currently suppressed
 - `stagedAt: number` — Unix ms timestamp when staged
@@ -288,7 +312,11 @@ The base `DaemonStatus` fields:
 
 ### 3.7 Updated SessionStateSnapshot
 
-The current UI defines `StateSnapshot` (packages/sidekick-ui/src/types.ts) with `Record<string, unknown>` for all fields — a type safety regression identified in PHASE2-AUDIT §1.2.
+**Endpoint**: `GET /api/sessions/:id/state`
+**Data source**: All state files under `.sidekick/sessions/{id}/state/`
+**Requirement**: REQUIREMENTS.md F-5 (State Inspector)
+
+The current UI defines `StateSnapshot` (packages/sidekick-ui/src/types.ts) with `Record<string, unknown>` for all fields — a type safety regression identified in PHASE2-AUDIT §1.3.
 
 **Correction**: The UI's `StateSnapshot` should be replaced with `SessionStateSnapshot` from `@sidekick/types` (services/state.ts), extended with additional fields the UI needs that the canonical type does not yet include.
 
@@ -333,6 +361,7 @@ The canonical `SessionStateSnapshot` is missing several state types that the UI 
 | `reminderThrottle` | `ReminderThrottleState` | `reminder-throttle.json` | G-6 (Reminder System) |
 | `prBaseline` | `PRBaselineState` | `pr-baseline.json` | G-6 (Reminder System) |
 | `vcUnverified` | `VCUnverifiedState` | `vc-unverified.json` | G-6 (Reminder System) |
+| `lastStagedPersona` | `LastStagedPersona` | `last-staged-persona.json` | G-1 (Persona System) |
 
 #### Proposed extended type
 
@@ -356,6 +385,7 @@ interface SessionStateSnapshot {
 
   // --- To be added ---
   sessionPersona?: SessionPersonaState
+  lastStagedPersona?: LastStagedPersona
   snarkyMessage?: SnarkyMessageState
   summaryCountdown?: SummaryCountdownState
   verificationTools?: VerificationToolsState
@@ -378,7 +408,15 @@ interface SessionStateResponse {
 }
 ```
 
-### 3.8 Requirement Traceability
+### 3.9 Deferred Endpoints
+
+The following endpoints are anticipated but their full data contracts are deferred until the underlying features are implemented:
+
+- **`GET /api/config`** — Resolved Sidekick configuration (REQUIREMENTS.md G-4, P4 priority). Contract TBD when G-4 is implemented.
+- **`GET /api/sessions/:id/pre-compact`** — Pre-compaction transcript snapshots (REQUIREMENTS.md F-1). Serves files referenced by `CompactionHistoryState.entries[].transcriptSnapshotPath`. Contract TBD.
+- **Individual state file routes (`GET /api/sessions/:id/state/:filename`)** — Follow the `StateFileResponse<T>` pattern from §3.3. Exact route enumeration deferred to Section 4 (API Layer Architecture).
+
+### 3.10 Requirement Traceability
 
 Every data contract in this section maps to one or more features from REQUIREMENTS.md §4-5.
 
@@ -408,6 +446,11 @@ Every data contract in this section maps to one or more features from REQUIREMEN
 | `StagedRemindersSnapshot` | §3.5 | G-6 (Reminder System) |
 | `DaemonStatusWithHealth` | §3.6 | F-7 (System Health), G-9 (Daemon Health) |
 | `SessionStateSnapshot` (extended) | §3.7 | F-5 (State Inspector) |
+| `LogMetricsState` (global) | §3.3 #20 | G-8 (Structured Logging), F-7 (System Health) |
+| `PersonaDefinition` | §3.3 | G-1 (Persona System) |
+| Deferred: `/api/config` | §3.9 | G-4 (Configuration) |
+| Deferred: `/api/sessions/:id/pre-compact` | §3.9 | F-1 (Compaction-Aware Time Travel) |
+| Deferred: `/api/sessions/:id/state/:filename` | §3.9 | F-5 (State Inspector) |
 
 ## 4. API Layer Architecture
 <!-- Placeholder: sidekick-4385facb -->
