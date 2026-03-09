@@ -61,7 +61,7 @@ settings:
   #   Project name:   "{projectDirShort}"                               → "claude-code-sidekick"
   #   Worktree badge: "{worktreeName,prefix=' [wt:',suffix=']'}"       → " [wt:feature-x]" or ""
   #
-  format: "{personaName,prefix='[',suffix='] | '}{model,prefix='[',suffix='] | '}{contextBar} {tokenPercentageActual} | {logs} | {cwd,maxLength=40,truncateStyle='path'}{branch,prefix=' ∗ ',maxLength=40}{title,wrapAt=80,prefix=' | ',wrapPrefix='\\n'}{summary,wrapAt=80,prefix=' | ',wrapPrefix='\\n'}"
+  format: "{personaName,prefix='[',suffix='] | '}{model,prefix='[',suffix='] | '}{contextBar} {tokenPercentageActual} | {logs} | {projectDirShort,maxLength=40}: {cwd,maxLength=40,truncateStyle='path'}{worktreeOrBranch,prefix=' ∗ ',maxLength=40}{title,wrapAt=120,prefix=' | ',wrapPrefix='\\n'}{summary,wrapAt=120,prefix=' | ',wrapPrefix='\\n'}"
 
   # Threshold configuration for visual warnings
   thresholds:
