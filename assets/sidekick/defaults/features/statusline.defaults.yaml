@@ -17,6 +17,8 @@ settings:
   #   {tokenUsageEffective}     - Current tokens + compaction buffer (e.g., "90k")
   #   {tokenPercentageActual}   - Actual usage as % of context window (e.g., "22%")
   #   {tokenPercentageEffective}- Effective usage as % of context window (e.g., "45%")
+  #   Note: After context compaction, token metrics display "⟳ compacted" or "⟳"
+  #   until fresh data arrives from the next status update.
   #   {logs}                    - Warning/error counts (e.g., "⚠0 ✗0")
   #   {cost}                    - Session cost (e.g., "$0.15")
   #   {duration}                - Session duration (e.g., "12m")
@@ -43,9 +45,10 @@ settings:
   #     - 'prefix': Left-truncate with leading ellipsis (e.g., "…-sidekick")
   #     - 'path':   Path-aware truncation (e.g., "project/…/src")
   #
-  #   {token,wrapAt=N,prefix='...',wrapPrefix='...'}
+  #   {token,wrapAt=N,prefix='...',wrapPrefix='...',wrapSuffix='...'}
   #     - wrapAt=N: Line width threshold for responsive wrapping
-  #     - wrapPrefix/wrapSuffix: Alternatives used when line exceeds wrapAt
+  #     - wrapPrefix: Alternative prefix used when line exceeds wrapAt (default: prefix)
+  #     - wrapSuffix: Alternative suffix used when line exceeds wrapAt (default: suffix)
   #     - Example: {title,wrapAt=80,prefix=' | ',wrapPrefix='\n'} wraps to newline if >80 cols
   #
   # Example configurations:
@@ -54,8 +57,11 @@ settings:
   #   Bar + percent:    "{contextBar} {tokenPercentageActual}"        → "🪙 ▓▓▒|░░░ 22%"
   #   With buffer:      "{tokenUsageActual}|{tokenUsageEffective}"    → "45k|90k"
   #   Verbose:          "{contextBar} {tokenUsageActual}/{contextWindow} ({tokenPercentageEffective})"
+  #   Worktree-aware: "{worktreeOrBranch,prefix=' ∗ '}"                → " ∗ my-worktree" or " ∗ main"
+  #   Project name:   "{projectDirShort}"                               → "claude-code-sidekick"
+  #   Worktree badge: "{worktreeName,prefix=' [wt:',suffix=']'}"       → " [wt:feature-x]" or ""
   #
-  format: "{personaName,prefix='[',suffix='] | '}{model,prefix='[',suffix='] | '}{contextBar} {tokenPercentageActual} | {logs} | {cwd,maxLength=40,truncateStyle='path'}{branch,prefix=' ∗ ',maxLength=40}{title,wrapAt=80,prefix=' | ',wrapPrefix='\\n'}\n{summary}"
+  format: "{personaName,prefix='[',suffix='] | '}{model,prefix='[',suffix='] | '}{contextBar} {tokenPercentageActual} | {logs} | {cwd,maxLength=40,truncateStyle='path'}{branch,prefix=' ∗ ',maxLength=40}{title,wrapAt=80,prefix=' | ',wrapPrefix='\\n'}{summary,wrapAt=80,prefix=' | ',wrapPrefix='\\n'}"
 
   # Threshold configuration for visual warnings
   thresholds:
