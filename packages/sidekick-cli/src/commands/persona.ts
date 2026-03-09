@@ -439,7 +439,7 @@ function handlePersonaUnpin(
 /**
  * Show usage help for the persona command.
  */
-function showPersonaHelp(stdout: Writable): PersonaCommandResult {
+function showPersonaHelp(stdout: Writable, exitCode = 0): PersonaCommandResult {
   stdout.write(`Usage: sidekick persona <subcommand> [options]
 
 Subcommands:
@@ -468,7 +468,7 @@ Examples:
   sidekick persona clear --session-id=abc123
   sidekick persona test skippy --session-id=abc123 --type=snarky
 `)
-  return { exitCode: 0, output: '' }
+  return { exitCode, output: '' }
 }
 
 /**
@@ -531,10 +531,10 @@ export async function handlePersonaCommand(
 
     case undefined:
       stdout.write('Error: persona command requires a subcommand\n\n')
-      return showPersonaHelp(stdout)
+      return showPersonaHelp(stdout, 1)
 
     default:
       stdout.write(`Error: Unknown persona subcommand: ${subcommand}\n\n`)
-      return showPersonaHelp(stdout)
+      return showPersonaHelp(stdout, 1)
   }
 }
