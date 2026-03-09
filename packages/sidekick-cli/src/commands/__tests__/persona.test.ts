@@ -128,7 +128,7 @@ describe('handlePersonaCommand', () => {
     test('shows help when no subcommand provided', async () => {
       const result = await handlePersonaCommand(undefined, [], projectRoot, logger, stdout, {})
 
-      expect(result.exitCode).toBe(0)
+      expect(result.exitCode).toBe(1)
       expect(stdout.data).toContain('Error: persona command requires a subcommand')
       expect(stdout.data).toContain('Usage: sidekick persona <subcommand>')
     })
@@ -136,7 +136,7 @@ describe('handlePersonaCommand', () => {
     test('shows help for unknown subcommand', async () => {
       const result = await handlePersonaCommand('unknown', [], projectRoot, logger, stdout, {})
 
-      expect(result.exitCode).toBe(0)
+      expect(result.exitCode).toBe(1)
       expect(stdout.data).toContain('Error: Unknown persona subcommand: unknown')
       expect(stdout.data).toContain('Usage: sidekick persona <subcommand>')
     })
