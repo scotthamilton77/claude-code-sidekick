@@ -12,6 +12,7 @@
 import { z } from 'zod'
 import { HOOK_NAMES } from '../events.js'
 import type { CompactionEntry } from './transcript.js'
+import { StagedReminderSchema } from './staging.js'
 
 // ============================================================================
 // Session Summary State
@@ -371,16 +372,7 @@ export type VerificationToolsState = z.infer<typeof VerificationToolsStateSchema
  * Single source of truth for both throttle state and runtime construction.
  * Derived type: `CachedReminder = z.infer<typeof CachedReminderSchema>`
  */
-export const CachedReminderSchema = z.object({
-  name: z.string(),
-  blocking: z.boolean(),
-  priority: z.number(),
-  persistent: z.boolean(),
-  throttle: z.boolean().optional(),
-  userMessage: z.string().optional(),
-  additionalContext: z.string().optional(),
-  reason: z.string().optional(),
-})
+export const CachedReminderSchema = StagedReminderSchema.omit({ stagedAt: true })
 
 export type CachedReminder = z.infer<typeof CachedReminderSchema>
 
