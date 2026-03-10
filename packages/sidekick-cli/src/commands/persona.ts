@@ -28,6 +28,7 @@ import {
   configUnset,
 } from '@sidekick/core'
 import type { AssetResolver } from '@sidekick/core'
+import type { PersonaDefinition } from '@sidekick/types'
 import type { SessionPersonaState } from '@sidekick/types'
 import { SessionPersonaStateSchema } from '@sidekick/types'
 import { renderTable, renderEmptyTable } from './table.js'
@@ -69,6 +70,32 @@ function writeJsonResponse(
   const output = JSON.stringify(response, null, 2)
   stdout.write(output + '\n')
   return { exitCode, output }
+}
+
+/**
+ * Validate that a persona exists. Returns the discovered personas map on success,
+ * or null after writing an error JSON response.
+ */
+function validatePersonaExists(
+  personaId: string,
+  opts: { projectRoot: string; logger: Logger; stdout: Writable }
+):
+  | { personas: Map<string, PersonaDefinition>; result?: undefined }
+  | { personas?: undefined; result: PersonaCommandResult } {
+  const personas = discoverPersonas({
+    defaultPersonasDir: getDefaultPersonasDir(),
+    projectRoot: opts.projectRoot,
+    logger: opts.logger,
+  })
+
+  if (!personas.has(personaId)) {
+    const availableIds = Array.from(personas.keys()).join(', ')
+    const errorMsg = `Persona "${personaId}" not found. Available: ${availableIds}`
+    opts.logger.error('Persona not found', { personaId, available: availableIds })
+    return { result: writeJsonResponse(opts.stdout, { success: false, error: errorMsg }, 1) }
+  }
+
+  return { personas }
 }
 
 /**
@@ -159,18 +186,9 @@ async function handlePersonaSet(
   logger.info('Setting persona', { personaId, sessionId })
 
   // Validate persona exists
-  const personas = discoverPersonas({
-    defaultPersonasDir: getDefaultPersonasDir(),
-    projectRoot,
-    logger,
-  })
-
-  if (!personas.has(personaId)) {
-    const availableIds = Array.from(personas.keys()).join(', ')
-    const errorMsg = `Persona "${personaId}" not found. Available: ${availableIds}`
-    logger.error('Persona not found', { personaId, available: availableIds })
-    return writeJsonResponse(stdout, { success: false, error: errorMsg }, 1)
-  }
+  const validation = validatePersonaExists(personaId, { projectRoot, logger, stdout })
+  if (validation.result) return validation.result
+  const personas = validation.personas
 
   // Create state service and accessor for direct file write
   const stateService = new StateService(projectRoot, { cache: false, logger })
@@ -350,18 +368,8 @@ function handlePersonaPin(
   logger.info('Pinning persona', { personaId, scope })
 
   // Validate persona exists
-  const personas = discoverPersonas({
-    defaultPersonasDir: getDefaultPersonasDir(),
-    projectRoot,
-    logger,
-  })
-
-  if (!personas.has(personaId)) {
-    const availableIds = Array.from(personas.keys()).join(', ')
-    const errorMsg = `Persona "${personaId}" not found. Available: ${availableIds}`
-    logger.error('Persona not found', { personaId, available: availableIds })
-    return writeJsonResponse(stdout, { success: false, error: errorMsg }, 1)
-  }
+  const validation = validatePersonaExists(personaId, { projectRoot, logger, stdout })
+  if (validation.result) return validation.result
 
   try {
     const result = configSet('features.session-summary.settings.personas.pinnedPersona', personaId, {
