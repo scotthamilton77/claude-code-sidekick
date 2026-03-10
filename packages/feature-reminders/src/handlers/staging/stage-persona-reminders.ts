@@ -1,7 +1,7 @@
 /**
  * Stage persona reminders on SessionStart
  *
- * Stages a persistent "remember-your-persona" reminder for both
+ * Stages the throttle-managed "remember-your-persona" reminder for both
  * UserPromptSubmit and SessionStart hooks when the active persona
  * is not "disabled" and the injectPersonaIntoClaude config is true.
  *

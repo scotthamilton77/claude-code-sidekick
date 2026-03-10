@@ -5,7 +5,6 @@ id: remember-your-persona
 blocking: false
 priority: 5
 persistent: false
-throttle: true
 
 additionalContext: |
   You have an active persona: {{persona_name}}

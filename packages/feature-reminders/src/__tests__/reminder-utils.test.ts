@@ -88,47 +88,10 @@ additionalContext: "Test context"
         blocking: true,
         priority: 80,
         persistent: false,
-        throttle: undefined,
         additionalContext: 'Test context',
         userMessage: undefined,
         reason: undefined,
       })
-    })
-
-    it('propagates throttle: true from YAML to resolved reminder', () => {
-      const yamlContent = `id: throttled-reminder
-blocking: false
-priority: 10
-persistent: false
-throttle: true
-additionalContext: "Throttled content"
-`
-      writeFileSync(join(testAssetsDir, 'reminders', 'throttled-reminder.yaml'), yamlContent)
-
-      const result = resolveReminder('throttled-reminder', {}, testAssetsDir)
-      expect(result).toEqual({
-        name: 'throttled-reminder',
-        blocking: false,
-        priority: 10,
-        persistent: false,
-        throttle: true,
-        additionalContext: 'Throttled content',
-        userMessage: undefined,
-        reason: undefined,
-      })
-    })
-
-    it('propagates throttle: false from YAML to resolved reminder', () => {
-      const yamlContent = `id: non-throttled
-blocking: true
-priority: 80
-persistent: false
-throttle: false
-`
-      writeFileSync(join(testAssetsDir, 'reminders', 'non-throttled.yaml'), yamlContent)
-
-      const result = resolveReminder('non-throttled', {}, testAssetsDir)
-      expect(result?.throttle).toBe(false)
     })
 
     it('interpolates template variables in content fields', () => {
@@ -163,7 +126,7 @@ reason: "Stop reason with {{count}}"
         blocking: false,
         priority: 50,
         persistent: true,
-        throttle: undefined,
+
         userMessage: 'User message with 10',
         additionalContext: 'Additional context with 10',
         reason: 'Stop reason with 10',
@@ -184,7 +147,7 @@ persistent: false
         blocking: true,
         priority: 60,
         persistent: false,
-        throttle: undefined,
+
         userMessage: undefined,
         additionalContext: undefined,
         reason: undefined,

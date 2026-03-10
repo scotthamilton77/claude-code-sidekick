@@ -4,7 +4,6 @@ id: user-prompt-submit
 blocking: false
 priority: 10
 persistent: false
-throttle: true
 
 additionalContext: |
   <do-immediately>
