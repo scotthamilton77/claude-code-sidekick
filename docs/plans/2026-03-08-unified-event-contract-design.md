@@ -31,9 +31,9 @@ Rationale:
 
 ### Canonical Vocabulary
 
-A single `SidekickEventType` union in `@sidekick/types` replaces both the current logging event types and the UI's local event types. Both the CLI/daemon (as writers) and the UI (as reader) import from the same source.
+A single `UIEventType` union in `@sidekick/types` replaces the UI's local event types and serves as the canonical vocabulary for user-facing state changes. Both the CLI/daemon (as writers) and the UI (as reader) import from the same source.
 
-The current `LoggingEvent` types (`HookReceived`, `EventProcessed`, etc.) remain as-is for internal observability. The new canonical events are **in addition to** logging events — they represent user-visible state changes that the UI timeline needs.
+During migration, the existing `LoggingEvent` types (`HookReceived`, `EventProcessed`, etc.) remain as-is for internal observability. The `UIEventType` canonical events are an additional, UI-focused vocabulary that represent user-visible state changes the timeline needs. Over time, we may deprecate `LoggingEvent` variants that duplicate `UIEventType`, but they are not immediately replaced.
 
 ### Event Visibility
 
@@ -76,7 +76,7 @@ All validated as real state transitions. None are phantoms.
 
 - CLI writes canonical events to `cli.log`
 - Daemon writes canonical events to `sidekickd.log`
-- Both use identical NDJSON schema (same `SidekickEventType` discriminator)
+- Both use identical NDJSON schema (same `UIEventType` discriminator)
 - UI merges both files by timestamp (already does this per REQUIREMENTS.md F-2)
 - No routing changes required
 
@@ -100,7 +100,7 @@ This design produces two outputs:
 
 Adopt `category:action` format for canonical event names (e.g., `reminder:staged`, `session-summary:start`). This replaces the current kebab-case UI types (`reminder-staged`) and PascalCase logging types (`ReminderStaged`).
 
-Categories: `reminder`, `session-summary`, `snarky-message`, `resume-message`, `persona`, `statusline`, `decision`, `daemon`, `hook`, `error`.
+Categories: `reminder`, `session-summary`, `session-title`, `intent`, `snarky-message`, `resume-message`, `persona`, `statusline`, `decision`, `daemon`, `hook`, `event`, `ipc`, `config`, `session`, `transcript`, `error`.
 
 ## What This Does NOT Change
 

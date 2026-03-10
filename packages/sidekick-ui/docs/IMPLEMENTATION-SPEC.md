@@ -8,7 +8,7 @@
 
 ## 2. Unified Event Contract
 
-> **Design decision:** No adapter layer. One canonical event vocabulary in `@sidekick/types`, consumed by both emitters (CLI, daemon) and the UI. See `docs/plans/2026-03-08-unified-event-contract-design.md` for rationale.
+> **Design decision:** No adapter layer. One canonical event vocabulary in `@sidekick/types`, consumed by both emitters (CLI, daemon) and the UI. See [`docs/plans/2026-03-08-unified-event-contract-design.md`](/docs/plans/2026-03-08-unified-event-contract-design.md) for rationale.
 
 ### 2.1 Design Decision: No Adapter Layer
 
@@ -36,7 +36,7 @@ PHASE2-AUDIT §4 (specifically the event adapter strategy recommendation) recomm
 
 Canonical event names use `category:action` format. This replaces the current kebab-case UI types (`reminder-staged`) and PascalCase logging types (`ReminderStaged`).
 
-**Categories:** `reminder`, `session-summary`, `snarky-message`, `resume-message`, `persona`, `statusline`, `decision`, `hook`, `event`, `daemon`, `ipc`, `config`, `session`, `transcript`, `error`
+**Categories:** `reminder`, `session-summary`, `session-title`, `intent`, `snarky-message`, `resume-message`, `persona`, `statusline`, `decision`, `hook`, `event`, `daemon`, `ipc`, `config`, `session`, `transcript`, `error`
 
 **Examples:** `reminder:staged`, `session-summary:start`, `persona:selected`, `hook:received`
 
@@ -52,8 +52,8 @@ type EventVisibility = 'timeline' | 'log' | 'both'
 | Value | Meaning | Examples |
 |-------|---------|---------|
 | `timeline` | Main event timeline — user-visible state changes | `reminder:staged`, `session-summary:finish`, `persona:selected` |
-| `log` | Log viewer panel only (REQUIREMENTS.md G-8) — internal machinery | `daemon:started`, `config:watcher-started`, `summary:skipped` |
-| `both` | Both timeline and log viewer | `hook:received`, `hook:completed`, `error` |
+| `log` | Log viewer panel only (REQUIREMENTS.md G-8) — internal machinery | `daemon:started`, `config:watcher-started`, `session-summary:skipped` |
+| `both` | Both timeline and log viewer | `hook:received`, `hook:completed`, `error:occurred` |
 
 The visibility is part of the type definition in `@sidekick/types`. The UI reads this field to decide where to render — no conditional filter logic needed.
 
@@ -73,7 +73,7 @@ Every event type in the unified vocabulary, organized by category. The **Emitter
 | 2 | `reminder:unstaged` | `timeline` | daemon | **new** | _(no event — `ctx.staging.deleteReminder()` is silent)_ | `reminderName`, `hookName`, `reason` |
 | 3 | `reminder:consumed` | `timeline` | cli | **rename** | `ReminderConsumed` | `reminderName`, `reminderReturned`, `blocking?`, `priority?`, `persistent?` |
 | 4 | `reminder:cleared` | `timeline` | daemon | **rename** | `RemindersCleared` | `clearedCount`, `hookNames?`, `reason` |
-| 5 | `decision` | `timeline` | daemon | **new** | _(logger.info calls with `decision` field, not structured events)_ | `category`, `decision`, `reason`, `detail` |
+| 5 | `decision:recorded` | `timeline` | daemon | **new** | _(logger.info calls with `decision` field, not structured events)_ | `decision`, `reason`, `detail` |
 | 6 | `session-summary:start` | `timeline` | daemon | **new** | _(implicit — LLM call begins)_ | `reason`, `countdown` |
 | 7 | `session-summary:finish` | `timeline` | daemon | **rename+split** | `SummaryUpdated` | `session_title`, `session_title_confidence`, `latest_intent`, `latest_intent_confidence`, `processing_time_ms`, `pivot_detected` |
 | 8 | `session-title:changed` | `timeline` | daemon | **new (extracted)** | _(buried in `SummaryUpdated.metadata.old_title`)_ | `previousValue`, `newValue`, `confidence` |
@@ -99,12 +99,12 @@ Every event type in the unified vocabulary, organized by category. The **Emitter
 | 23 | `ipc:started` | `log` | daemon | **rename** | `IpcServerStarted` | `socketPath` |
 | 24 | `config:watcher-started` | `log` | daemon | **rename** | `ConfigWatcherStarted` | `projectDir`, `watchedFiles` |
 | 25 | `session:eviction-started` | `log` | daemon | **rename** | `SessionEvictionStarted` | `intervalMs` |
-| 26 | `summary:skipped` | `log` | daemon | **rename** | `SummarySkipped` | `countdown`, `countdown_threshold`, `reason` |
-| 27 | `resume:skipped` | `log` | daemon | **rename** | `ResumeSkipped` | `title_confidence`, `intent_confidence`, `min_confidence`, `reason` |
+| 26 | `session-summary:skipped` | `log` | daemon | **rename** | `SummarySkipped` | `countdown`, `countdown_threshold`, `reason` |
+| 27 | `resume-message:skipped` | `log` | daemon | **rename** | `ResumeSkipped` | `title_confidence`, `intent_confidence`, `min_confidence`, `reason` |
 | 28 | `statusline:error` | `both` | cli | **rename** | `StatuslineError` | `reason`, `file`, `fallbackUsed`, `error` |
 | 29 | `transcript:emitted` | `log` | transcript | **rename** | `TranscriptEventEmitted` | `eventType`, `lineNumber`, `uuid`, `toolName` |
 | 30 | `transcript:pre-compact` | `log` | transcript | **rename** | `PreCompactCaptured` | `snapshotPath`, `lineCount` |
-| 31 | `error` | `both` | both | **new** | _(replaces UI-local `log-error`)_ | `errorMessage`, `errorStack?`, `source` |
+| 31 | `error:occurred` | `both` | both | **new** | _(replaces UI-local `log-error`)_ | `errorMessage`, `errorStack?`, `source` |
 
 > **†** `hook` is currently stored in `EventLogContext` (the `context` object), not in `payload`. Canonical events flatten this into the payload for consistency — the `hook` field moves from `context.hook` to `payload.hook`.
 
@@ -213,9 +213,9 @@ Modify `update-summary.ts`, snarky message handler, and resume handler to emit `
 
 Modify `persona-selection.ts` to emit `persona:selected` after writing `session-persona.json`. Modify `stage-persona-reminders.ts` to emit `persona:changed` when persona changes mid-session.
 
-#### R4: Daemon — emit `decision` events
+#### R4: Daemon — emit `decision:recorded` events
 
-Promote the current `logger.info('LLM call: ..., { decision }')` calls in `update-summary.ts` (and similar handlers) to structured `decision` events with category, decision value, and reasoning.
+Promote the current `logger.info('LLM call: ..., { decision }')` calls in `update-summary.ts` (and similar handlers) to structured `decision:recorded` events with decision value and reasoning.
 
 #### R5: Daemon — emit `reminder:unstaged`
 
@@ -229,9 +229,9 @@ Extract discrete events from `SummaryUpdated` by comparing `old_title`/`old_inte
 
 Ensure the daemon's `ReminderStaged` event payload matches the canonical `reminder:staged` schema. Current payload already has the right fields; this is primarily a naming alignment.
 
-#### R8: Daemon — emit `error` events
+#### R8: Daemon — emit `error:occurred` events
 
-Add a structured `error` event type for daemon-level errors that should appear on the UI timeline (replacing the UI-local `log-error` concept).
+Add a structured `error:occurred` event type for daemon-level errors that should appear on the UI timeline (replacing the UI-local `log-error` concept).
 
 ### 2.10 Cross-Reference Updates
 

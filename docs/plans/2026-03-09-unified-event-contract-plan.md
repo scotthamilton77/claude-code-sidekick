@@ -35,11 +35,11 @@
 **Step 1:** Create beads for each CLI/daemon change required:
 - Daemon: emit start/finish pairs for summary, snarky, resume
 - Daemon: emit persona:selected and persona:changed events
-- Daemon: emit decision events
+- Daemon: emit decision:recorded events
 - Daemon: emit reminder:unstaged events
-- Daemon: emit session-title-changed and intent-changed as discrete events (extract from SummaryUpdated)
+- Daemon: emit session-title:changed and intent:changed as discrete events (extract from SummaryUpdated)
 - CLI/daemon: align ReminderStaged schema with canonical contract
-- Types: add canonical SidekickEventType union to @sidekick/types
+- Types: add canonical UIEventType union to @sidekick/types
 
 **Step 2:** Set dependencies (all depend on the types change)
 
