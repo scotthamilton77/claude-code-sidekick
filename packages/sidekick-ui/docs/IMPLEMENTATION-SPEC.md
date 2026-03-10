@@ -6,8 +6,233 @@
 ## 1. [TBD — Overview/Scope]
 <!-- Placeholder: produced by another task -->
 
-## 2. Event Adapter Mapping
-<!-- Placeholder: sidekick-2d509e94 -->
+## 2. Unified Event Contract
+
+> **Design decision:** No adapter layer. One canonical event vocabulary in `@sidekick/types`, consumed by both emitters (CLI, daemon) and the UI. See `docs/plans/2026-03-08-unified-event-contract-design.md` for rationale.
+
+### 2.1 Design Decision: No Adapter Layer
+
+PHASE2-AUDIT §4.3 recommended restoring an archived `event-adapter.ts` pattern to translate between 28+ logging event types and 16 UI event types. This spec **rejects that approach** in favor of a unified event vocabulary.
+
+**Why:**
+- An adapter layer adds a translation surface that must be maintained as either side evolves
+- The mismatches between logging events and UI events represent real gaps in daemon observability, not a presentation problem
+- The daemon already knows about these state transitions — it's just not announcing them
+
+**What changes:**
+- A new canonical `UIEventType` union is defined in `@sidekick/types` (the shared types package)
+- The CLI and daemon emit canonical events to their respective log files using this shared vocabulary
+- The UI reads log files and consumes events directly — no translation step
+- The current UI-local `SidekickEventType` (packages/sidekick-ui/src/types.ts) is deprecated and replaced by the canonical type
+
+**What does NOT change:**
+- `HookEvent` types (input events from Claude Code) — unchanged
+- `TranscriptEvent` types (from file watching) — unchanged
+- `LoggingEventBase` structure — internal logging events continue for detailed observability
+- Log file locations — `cli.log` and `sidekickd.log` stay where they are
+- Pino NDJSON record format — canonical events are additional structured fields within log records
+
+### 2.2 Naming Convention
+
+Canonical event names use `category:action` format. This replaces the current kebab-case UI types (`reminder-staged`) and PascalCase logging types (`ReminderStaged`).
+
+**Categories:** `reminder`, `session-summary`, `snarky-message`, `resume-message`, `persona`, `statusline`, `decision`, `hook`, `event`, `daemon`, `ipc`, `config`, `session`, `transcript`, `error`
+
+**Examples:** `reminder:staged`, `session-summary:start`, `persona:selected`, `hook:received`
+
+### 2.3 Event Visibility
+
+Every canonical event carries a `visibility` field defined in the type contract:
+
+```typescript
+/** Where this event appears in the UI. */
+type EventVisibility = 'timeline' | 'log' | 'both'
+```
+
+| Value | Meaning | Examples |
+|-------|---------|---------|
+| `timeline` | Main event timeline — user-visible state changes | `reminder:staged`, `session-summary:finish`, `persona:selected` |
+| `log` | Log viewer panel only (REQUIREMENTS.md G-8) — internal machinery | `daemon:started`, `config:watcher-started`, `summary:skipped` |
+| `both` | Both timeline and log viewer | `hook:received`, `hook:completed`, `error` |
+
+The visibility is part of the type definition in `@sidekick/types`. The UI reads this field to decide where to render — no conditional filter logic needed.
+
+### 2.4 Canonical Event Table
+
+Every event type in the unified vocabulary, organized by category. The **Emitter** column indicates which process writes the event to its log file. The **Status** column indicates whether this is an existing event being renamed or a new event the emitter must start producing.
+
+#### Timeline Events (user-visible state changes)
+
+| # | Canonical Name | Visibility | Emitter | Status | Current Source | Payload (key fields) |
+|---|---------------|------------|---------|--------|---------------|---------------------|
+| 1 | `reminder:staged` | `timeline` | daemon | **rename** | `ReminderStaged` | `reminderName`, `hookName`, `blocking`, `priority`, `persistent` |
+| 2 | `reminder:unstaged` | `timeline` | daemon | **new** | _(no event — `ctx.staging.deleteReminder()` is silent)_ | `reminderName`, `hookName`, `reason` |
+| 3 | `reminder:consumed` | `timeline` | cli | **rename** | `ReminderConsumed` | `reminderName`, `reminderReturned`, `blocking`, `priority`, `persistent` |
+| 4 | `reminder:cleared` | `timeline` | daemon | **rename** | `RemindersCleared` | `clearedCount`, `hookNames`, `reason` |
+| 5 | `decision` | `timeline` | daemon | **new** | _(logger.info calls with `decision` field, not structured events)_ | `category`, `decision`, `reason`, `detail` |
+| 6 | `session-summary:start` | `timeline` | daemon | **new** | _(implicit — LLM call begins)_ | `reason`, `countdown` |
+| 7 | `session-summary:finish` | `timeline` | daemon | **rename+split** | `SummaryUpdated` | `session_title`, `session_title_confidence`, `latest_intent`, `latest_intent_confidence`, `processing_time_ms`, `pivot_detected` |
+| 8 | `session-title:changed` | `timeline` | daemon | **new (extracted)** | _(buried in `SummaryUpdated.metadata.old_title`)_ | `previousValue`, `newValue`, `confidence` |
+| 9 | `intent:changed` | `timeline` | daemon | **new (extracted)** | _(buried in `SummaryUpdated.metadata.old_intent`)_ | `previousValue`, `newValue`, `confidence` |
+| 10 | `snarky-message:start` | `timeline` | daemon | **new** | _(implicit — task begins)_ | `sessionId` |
+| 11 | `snarky-message:finish` | `timeline` | daemon | **new** | _(state file written, no event)_ | `generatedMessage` |
+| 12 | `resume-message:start` | `timeline` | daemon | **rename** | `ResumeGenerating` | `title_confidence`, `intent_confidence` |
+| 13 | `resume-message:finish` | `timeline` | daemon | **rename** | `ResumeUpdated` | `snarky_comment`, `timestamp` |
+| 14 | `persona:selected` | `timeline` | daemon | **new** | _(state file written via `summaryState.sessionPersona.write()`)_ | `personaId`, `selectionMethod` (`pinned` \| `handoff` \| `random`), `poolSize` |
+| 15 | `persona:changed` | `timeline` | daemon | **new** | _(persona reminders staged, no discrete event)_ | `personaFrom`, `personaTo`, `reason` |
+| 16 | `statusline:rendered` | `timeline` | cli | **rename** | `StatuslineRendered` | `displayMode`, `staleData`, `model`, `tokens`, `durationMs` |
+
+#### Log-Only Events (internal machinery)
+
+| # | Canonical Name | Visibility | Emitter | Status | Current Source | Payload (key fields) |
+|---|---------------|------------|---------|--------|---------------|---------------------|
+| 17 | `hook:received` | `both` | cli | **rename** | `HookReceived` | `hook`, `cwd`, `mode` |
+| 18 | `hook:completed` | `both` | cli | **rename** | `HookCompleted` | `hook`, `durationMs`, `reminderReturned`, `responseType` |
+| 19 | `event:received` | `log` | daemon | **rename** | `EventReceived` | `eventKind`, `eventType`, `hook` |
+| 20 | `event:processed` | `log` | daemon | **rename** | `EventProcessed` | `handlerId`, `success`, `durationMs`, `error` |
+| 21 | `daemon:starting` | `log` | daemon | **rename** | `DaemonStarting` | `projectDir`, `pid` |
+| 22 | `daemon:started` | `log` | daemon | **rename** | `DaemonStarted` | `startupDurationMs` |
+| 23 | `ipc:started` | `log` | daemon | **rename** | `IpcServerStarted` | `socketPath` |
+| 24 | `config:watcher-started` | `log` | daemon | **rename** | `ConfigWatcherStarted` | `projectDir`, `watchedFiles` |
+| 25 | `session:eviction-started` | `log` | daemon | **rename** | `SessionEvictionStarted` | `intervalMs` |
+| 26 | `summary:skipped` | `log` | daemon | **rename** | `SummarySkipped` | `countdown`, `countdown_threshold`, `reason` |
+| 27 | `resume:skipped` | `log` | daemon | **rename** | `ResumeSkipped` | `title_confidence`, `intent_confidence`, `min_confidence`, `reason` |
+| 28 | `statusline:error` | `both` | cli | **rename** | `StatuslineError` | `reason`, `file`, `fallbackUsed`, `error` |
+| 29 | `transcript:emitted` | `log` | transcript | **rename** | `TranscriptEventEmitted` | `eventType`, `lineNumber`, `uuid`, `toolName` |
+| 30 | `transcript:pre-compact` | `log` | transcript | **rename** | `PreCompactCaptured` | `snapshotPath`, `lineCount` |
+| 31 | `error` | `both` | both | **new** | _(replaces UI-local `log-error`)_ | `errorMessage`, `errorStack`, `source` |
+
+### 2.5 Naming Mismatch Resolution (PHASE2-AUDIT §2.5)
+
+| # | Audit Mismatch | Resolution | Canonical Name(s) |
+|---|---------------|------------|-------------------|
+| 1 | UI expects `session-summary-start/finish` pair; daemon logs single `SummaryUpdated` | Daemon emits real start/finish pair. `SummaryUpdated` splits into `session-summary:start` (emitted when LLM call begins) and `session-summary:finish` (emitted on completion). Title/intent changes extracted as discrete events. | `session-summary:start`, `session-summary:finish`, `session-title:changed`, `intent:changed` |
+| 2 | UI expects `persona-selected/changed`; daemon emits nothing | Daemon emits new events at the points where it already writes persona state files and stages persona reminders. | `persona:selected`, `persona:changed` |
+| 3 | UI expects `statusline-rendered`; daemon doesn't emit (CLI-only) | No change needed — CLI already emits `StatuslineRendered` to `cli.log`, which the UI reads. Rename to canonical format. | `statusline:rendered` |
+| 4 | UI `reminder-staged` vs daemon `ReminderStaged` (different payload schema) | Align payload schema to canonical contract. The daemon's `ReminderStaged` payload is the source of truth; the UI's `TranscriptLine` fields (`reminderId`, `reminderBlocking`) map to `reminderName` and `blocking`. | `reminder:staged` |
+
+### 2.6 Start/Finish Pairs
+
+The daemon emits real start/finish pairs for async LLM-driven operations. These pairs are genuine state transitions — the daemon already tracks task lifecycle via the task registry.
+
+| Operation | Start Event | Finish Event | Daemon Source |
+|-----------|------------|--------------|---------------|
+| Session summary | `session-summary:start` | `session-summary:finish` | `update-summary.ts` — emits start before LLM call, finish after state write |
+| Snarky message | `snarky-message:start` | `snarky-message:finish` | Snarky generation task — emits start before LLM call, finish after `snarky-message.json` write |
+| Resume message | `resume-message:start` | `resume-message:finish` | Resume generation task — already emits `ResumeGenerating` (renamed to start) and `ResumeUpdated` (renamed to finish) |
+
+**Error case:** If an LLM call fails between start and finish, the finish event includes an `error` field and `success: false`. The UI can show a failed state rather than an infinite spinner.
+
+```typescript
+/** Start event payload (common shape for all LLM operations). */
+interface LLMOperationStartPayload {
+  sessionId: string
+  reason: string
+}
+
+/** Finish event payload (common shape). */
+interface LLMOperationFinishPayload {
+  sessionId: string
+  success: boolean
+  durationMs: number
+  error?: string
+  // Operation-specific fields follow (see §2.4 table)
+}
+```
+
+### 2.7 Two-File Contract
+
+The UI's data source is two NDJSON log files:
+
+| File | Writer | Content |
+|------|--------|---------|
+| `.sidekick/logs/cli.log` | CLI hook process | `hook:*`, `reminder:consumed`, `statusline:*` events |
+| `.sidekick/logs/sidekickd.log` | Daemon process | All other events (daemon lifecycle, summary, persona, reminders staged, etc.) |
+
+Both files use identical event schema. The UI merges records from both files by `time` field (Unix ms) to produce a unified timeline.
+
+**Schema alignment requirement:** Both CLI and daemon must emit canonical events using the same `UIEventType` discriminator and payload structure defined in `@sidekick/types`. The Pino log record wraps the canonical event:
+
+```typescript
+// What a canonical event looks like in NDJSON (Pino record with structured fields)
+{
+  "level": 30,
+  "time": 1741500000000,
+  "pid": 12345,
+  "name": "sidekickd",
+  "msg": "reminder:staged",
+  // --- Canonical event fields ---
+  "type": "reminder:staged",
+  "visibility": "timeline",
+  "source": "daemon",
+  "context": {
+    "sessionId": "abc-123",
+    "correlationId": "...",
+    "traceId": "..."
+  },
+  "payload": {
+    "reminderName": "verify-completion",
+    "hookName": "Stop",
+    "blocking": true,
+    "priority": 0,
+    "persistent": false
+  }
+}
+```
+
+### 2.8 Deprecation List
+
+| Current Type | Location | Action |
+|-------------|----------|--------|
+| `SidekickEventType` (16 values) | `packages/sidekick-ui/src/types.ts` | **Delete.** Replace with `UIEventType` from `@sidekick/types`. |
+| `SidekickEvent` interface | `packages/sidekick-ui/src/types.ts` | **Delete.** Replace with canonical type from `@sidekick/types`. |
+| `SIDEKICK_EVENT_TO_FILTER` map | `packages/sidekick-ui/src/types.ts` | **Migrate.** Move to `@sidekick/types` using `visibility` field and a `category` field for filter groups. |
+| `TranscriptLine.type: SidekickEventType` | `packages/sidekick-ui/src/types.ts` | **Update.** Use `UIEventType` from `@sidekick/types`. |
+| PascalCase logging event types | `packages/types/src/events.ts` | **Keep but supplement.** `LoggingEvent` types remain for backward compatibility. New canonical events with `category:action` names are emitted alongside. Migration path: once all consumers adopt canonical names, PascalCase types can be removed. |
+
+### 2.9 Requirements Backlog (Changes Needed in CLI/Daemon)
+
+This section catalogs the implementation work required to make the CLI and daemon emit the canonical event vocabulary. Each item becomes a separate bead.
+
+#### R1: Define canonical `UIEventType` in `@sidekick/types`
+
+Add the `UIEventType` union, `EventVisibility` type, and per-event payload interfaces to `packages/types/src/events.ts`. This is the foundation — all other changes depend on it.
+
+#### R2: Daemon — emit start/finish pairs for LLM operations
+
+Modify `update-summary.ts`, snarky message handler, and resume handler to emit `session-summary:start/finish`, `snarky-message:start/finish`, and `resume-message:start/finish` events. Resume already emits `ResumeGenerating`/`ResumeUpdated` — rename and align payload.
+
+#### R3: Daemon — emit `persona:selected` and `persona:changed`
+
+Modify `persona-selection.ts` to emit `persona:selected` after writing `session-persona.json`. Modify `stage-persona-reminders.ts` to emit `persona:changed` when persona changes mid-session.
+
+#### R4: Daemon — emit `decision` events
+
+Promote the current `logger.info('LLM call: ..., { decision }')` calls in `update-summary.ts` (and similar handlers) to structured `decision` events with category, decision value, and reasoning.
+
+#### R5: Daemon — emit `reminder:unstaged`
+
+Modify `ctx.staging.deleteReminder()` call sites (e.g., `unstage-verify-completion.ts`, `stage-persona-reminders.ts`) to emit `reminder:unstaged` events when reminders are removed.
+
+#### R6: Daemon — emit `session-title:changed` and `intent:changed`
+
+Extract discrete events from `SummaryUpdated` by comparing `old_title`/`old_intent` metadata fields with current values. Emit `session-title:changed` and/or `intent:changed` only when values actually differ.
+
+#### R7: CLI/Daemon — align `ReminderStaged` payload with canonical contract
+
+Ensure the daemon's `ReminderStaged` event payload matches the canonical `reminder:staged` schema. Current payload already has the right fields; this is primarily a naming alignment.
+
+#### R8: Daemon — emit `error` events
+
+Add a structured `error` event type for daemon-level errors that should appear on the UI timeline (replacing the UI-local `log-error` concept).
+
+### 2.10 Cross-Reference Updates
+
+Section 3.4 (Log Stream Response) references "the event adapter (see Section 2)" for narrowing `PinoLogRecord` to typed events. Under the unified contract, this narrowing is simpler:
+
+- Records with a `type` field matching a `UIEventType` value can be narrowed directly to the canonical event type — no adapter translation needed
+- Records with a `type` field matching a `LoggingEvent` type (PascalCase) are legacy logging events — rendered in the log viewer
+- Records with neither are plain Pino log lines — rendered in the log viewer as unstructured entries
 
 ## 3. Data Contracts
 
@@ -217,9 +442,9 @@ interface PinoLogRecord {
 }
 ```
 
-Records where `type`, `source`, `context`, and `payload` are all present can be narrowed to the `LoggingEvent` discriminated union from `@sidekick/types` (events.ts). This narrowing is performed by the event adapter (see Section 2).
+Records where `type`, `source`, `context`, and `payload` are all present can be narrowed directly to typed events. Records whose `type` matches a `UIEventType` value (Section 2) narrow to the canonical event type. Records whose `type` matches a `LoggingEvent` type (PascalCase) narrow to the `LoggingEvent` discriminated union. No adapter translation is needed — the unified event contract (Section 2) ensures both emitters and the UI share the same vocabulary.
 
-> **Note on `payload` typing**: The `Record<string, unknown>` typing on `payload` (and its nested fields) is intentional at the raw log record layer. Pino records are polymorphic — each event type has a different payload shape, and the record type represents the raw on-disk format before any narrowing. Strict typing is achieved when the event adapter (Section 2) narrows records to the `LoggingEvent` discriminated union from `@sidekick/types`, which provides per-event-type payload interfaces.
+> **Note on `payload` typing**: The `Record<string, unknown>` typing on `payload` (and its nested fields) is intentional at the raw log record layer. Pino records are polymorphic — each event type has a different payload shape, and the record type represents the raw on-disk format before any narrowing. Strict typing is achieved when the UI narrows records to canonical event types via the `UIEventType` discriminator (Section 2) or to the `LoggingEvent` discriminated union from `@sidekick/types`, which provides per-event-type payload interfaces.
 
 #### Pagination contract
 
