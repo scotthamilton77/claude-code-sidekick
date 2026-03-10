@@ -17,6 +17,9 @@
     "@sidekick/types": "workspace:*",
     "yaml": "^2.8.2"
   },
+  "peerDependencies": {
+    "vitest": "^4.0.0"
+  },
   "devDependencies": {
     "@sidekick/core": "workspace:*",
     "@types/node": "^22.7.4",

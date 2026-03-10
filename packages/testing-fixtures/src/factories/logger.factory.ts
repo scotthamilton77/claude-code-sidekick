@@ -8,7 +8,17 @@
  */
 
 import { vi } from 'vitest'
+import type { Mock } from 'vitest'
 import type { Logger } from '@sidekick/types'
+
+/**
+ * Logger where every method is a vitest Mock, enabling direct `.mock.calls`
+ * access without casting. Intersected with Logger so it remains assignable
+ * to Logger-typed parameters.
+ */
+export type MockedLogger = {
+  [K in keyof Logger]: Mock
+} & Logger
 
 /**
  * Create a fake Logger with vi.fn() methods for spy-based assertions.
@@ -20,9 +30,11 @@ import type { Logger } from '@sidekick/types'
  * const logger = createFakeLogger()
  * myFunction(logger)
  * expect(logger.warn).toHaveBeenCalledWith('something happened')
+ * // Direct mock access without casting:
+ * expect(logger.debug.mock.calls).toHaveLength(1)
  * ```
  */
-export function createFakeLogger(): Logger {
+export function createFakeLogger(): MockedLogger {
   return {
     trace: vi.fn(),
     debug: vi.fn(),
@@ -32,5 +44,5 @@ export function createFakeLogger(): Logger {
     fatal: vi.fn(),
     child: vi.fn(() => createFakeLogger()),
     flush: vi.fn().mockResolvedValue(undefined),
-  } as unknown as Logger
+  } as unknown as MockedLogger
 }
