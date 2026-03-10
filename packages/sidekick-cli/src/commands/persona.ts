@@ -74,7 +74,7 @@ function writeJsonResponse(
 
 /**
  * Validate that a persona exists. Returns the discovered personas map on success,
- * or null after writing an error JSON response.
+ * or an error result after writing an error JSON response.
  */
 function validatePersonaExists(
   personaId: string,

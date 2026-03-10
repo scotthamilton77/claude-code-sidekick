@@ -126,7 +126,6 @@ reason: "Stop reason with {{count}}"
         blocking: false,
         priority: 50,
         persistent: true,
-
         userMessage: 'User message with 10',
         additionalContext: 'Additional context with 10',
         reason: 'Stop reason with 10',
@@ -147,7 +146,6 @@ persistent: false
         blocking: true,
         priority: 60,
         persistent: false,
-
         userMessage: undefined,
         additionalContext: undefined,
         reason: undefined,
