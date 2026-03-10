@@ -708,7 +708,392 @@ Every data contract in this section maps to one or more features from REQUIREMEN
 | Deferred: `/api/sessions/:id/state/:filename` | §3.8 | F-5 (State Inspector) |
 
 ## 4. API Layer Architecture
-<!-- Placeholder: sidekick-4385facb -->
+
+> **Design decision:** Vite dev proxy with `fs.watch`-driven cache and SSE push. See [`docs/plans/2026-03-09-api-layer-architecture-design.md`](/docs/plans/2026-03-09-api-layer-architecture-design.md) for rationale and alternatives considered.
+
+### 4.1 Backend Architecture: Vite Middleware Plugin
+
+The UI backend runs as a Vite middleware plugin — API routes are registered as Connect middleware on the Vite dev server. No standalone HTTP server process.
+
+**Why Vite-only:**
+- Single-user local tool with no production deployment scenario
+- The archived `.archive/server/api-plugin.ts` demonstrates this pattern (itty-router over Vite middleware)
+- One process to manage; handlers are portable if a standalone server is ever needed
+- Hot module reload for the React frontend works seamlessly alongside the API
+
+**Entry point:** A Vite plugin exports a `configureServer` hook that registers an itty-router instance as Connect middleware. All `/api/*` requests are handled by the router; everything else falls through to Vite's default static/HMR handling.
+
+```typescript
+import type { Plugin } from 'vite'
+import { Router } from 'itty-router'
+
+export function sidekickApiPlugin(): Plugin {
+  return {
+    name: 'sidekick-api',
+    configureServer(server) {
+      const router = Router({ base: '/api' })
+      // Register routes (see §4.5)
+      server.middlewares.use(async (req, res, next) => {
+        if (!req.url?.startsWith('/api')) return next()
+        // Route handling...
+      })
+    },
+  }
+}
+```
+
+### 4.2 File Watching and Cache Layer
+
+The backend watches `.sidekick/` directories using `fs.watch` and maintains an in-memory cache of file contents. File changes trigger cache invalidation, re-reads, and SSE notifications to the frontend.
+
+#### 4.2.1 Architecture Layers
+
+```
+┌──────────────┐     events      ┌──────────────┐    invalidate    ┌──────────────┐
+│  FileWatcher │ ──────────────► │  FileCache   │ ───────────────► │  SSE Bus     │
+│  (fs.watch)  │  file:changed   │  (in-memory) │   push to        │  (EventSource)│
+│              │  file:created   │              │   connected       │              │
+│              │  file:deleted   │              │   clients         │              │
+└──────────────┘                 └──────────────┘                  └──────────────┘
+       ▲                                │
+       │ attach/detach                  │ serve from cache
+       │ (lazy, per session)            ▼
+┌──────────────┐                 ┌──────────────┐
+│  Session     │                 │  API Handlers│
+│  Selection   │                 │  (itty-router)│
+└──────────────┘                 └──────────────┘
+```
+
+#### 4.2.2 FileWatcher
+
+Watches directories recursively via `fs.watch`. Emits typed events when files change.
+
+```typescript
+/** Events emitted by the FileWatcher. */
+interface FileWatcherEvent {
+  type: 'file:changed' | 'file:created' | 'file:deleted'
+  /** Absolute path to the affected file */
+  path: string
+  /** Unix ms timestamp of the event */
+  timestamp: number
+}
+```
+
+**Behavior:**
+- Watches directories, not individual files — picks up new files automatically
+- Debounces duplicate FSEvents notifications (macOS batches rapid changes; 50ms debounce window)
+- Ignores dotfiles, `.tmp` files, and partial writes (files ending in `.tmp` or `~`)
+- Emits `file:created` for new files, `file:changed` for modifications, `file:deleted` for removals
+- On watcher error: logs, attempts re-establishment with exponential backoff (1s, 2s, 4s, max 30s). After 5 consecutive failures, falls back to polling (2s interval) for that directory.
+
+**Lazy attachment:** Watchers are not created on server startup. They attach when the user selects a session (see §4.4) and detach when the user navigates away. This avoids watching dozens of inactive session directories.
+
+**Watch targets per active session:**
+
+| Directory | Purpose | Watch Depth |
+|-----------|---------|-------------|
+| `{project}/.sidekick/sessions/{id}/state/` | Session state files | Flat (no subdirs) |
+| `{project}/.sidekick/state/` | Daemon status, task registry, global metrics | Flat |
+| `{project}/.sidekick/logs/` | Log files (for rotation detection) | Flat |
+| `{project}/.sidekick/sessions/{id}/stage/` | Staged reminders | Recursive (hook subdirs) |
+
+#### 4.2.3 FileCache
+
+In-memory cache of parsed file contents with mtime tracking.
+
+```typescript
+interface CacheEntry<T> {
+  /** Parsed and validated file content */
+  data: T | null
+  /** File modification time (Unix ms) from fs.stat */
+  mtime: number | null
+  /** When this entry was last read from disk */
+  lastRead: number
+  /** Whether the last read failed (parse error, missing file) */
+  error?: string
+}
+```
+
+**Behavior:**
+- On `file:changed` / `file:created`: re-read file from disk, parse JSON, validate with Zod schema (where available), update cache entry
+- On `file:deleted`: set `data: null`, `mtime: null`
+- API handlers read from cache, never directly from disk (except on cache miss, which triggers a synchronous read)
+- Cache entries are keyed by absolute file path
+- No TTL — entries are invalidated only by watcher events
+- Cache is cleared entirely when the active session changes
+
+#### 4.2.4 SSE Push (Server-Sent Events)
+
+One SSE endpoint pushes file change notifications to the frontend. The frontend uses these to know which data to re-fetch.
+
+**Endpoint:** `GET /api/events`
+
+**Connection lifecycle:**
+- One SSE connection at a time per browser tab
+- When the user selects a session, the frontend opens an SSE connection (or the existing connection is re-scoped)
+- When the user switches sessions, the backend tears down old watchers and spins up new ones; the SSE connection stays open but begins emitting events for the new session
+- Standard SSE reconnection via `EventSource` API (browser handles retry automatically)
+
+**Event format:**
+
+```typescript
+/** SSE data payload for file change events. */
+interface FileChangeSSEEvent {
+  /** Change type */
+  type: 'file:changed' | 'file:created' | 'file:deleted'
+  /** Relative path within .sidekick/ (e.g., 'sessions/abc/state/session-summary.json') */
+  path: string
+  /** Unix ms timestamp */
+  timestamp: number
+}
+
+/** SSE data payload for session lifecycle events. */
+interface SessionChangeSSEEvent {
+  /** Lifecycle type */
+  type: 'session:activated' | 'session:deactivated'
+  /** Session ID */
+  sessionId: string
+  /** Project ID (dash-encoded path) */
+  projectId: string
+  timestamp: number
+}
+```
+
+**Wire format** (standard SSE):
+```
+event: file:changed
+data: {"type":"file:changed","path":"sessions/abc/state/session-summary.json","timestamp":1741500000000}
+
+event: session:activated
+data: {"type":"session:activated","sessionId":"abc","projectId":"-Users-scott-src-projects-foo","timestamp":1741500001000}
+```
+
+**Design note:** SSE carries notifications only, not data. The frontend receives a change event and re-fetches the affected resource via the REST API. This avoids duplicating validation/transformation logic in the SSE path and keeps SSE payloads minimal.
+
+### 4.3 Error Handling
+
+#### 4.3.1 Missing Files
+
+A state file that doesn't exist yet is **normal** — the session just started or the feature hasn't triggered. This is not an error condition.
+
+**Response:** Return `data: null` with `fileMtime: null` in the `StateFileResponse<T>` envelope. The frontend renders a placeholder or "waiting for data" state. No error toast, no log noise.
+
+#### 4.3.2 Locked or Busy Files
+
+The daemon uses atomic write-to-temp-then-rename for all state files, so true file locks are extremely unlikely. A file is either fully written (readable) or not yet renamed into place (invisible to readers).
+
+**Response:** On `EACCES` or `EBUSY`, retry once after 100ms. If retry fails, serve stale cached data (if available) with `stale: true` in the response envelope. If no cached data exists, return `data: null` with error details.
+
+#### 4.3.3 Corrupt JSON
+
+`JSON.parse` failures or Zod validation failures when reading a state file.
+
+**Response:** Log the error (file path, error message, raw content preview). Return `data: null` with error details in the response. The server continues serving other files normally. One bad file does not crash the backend or affect other endpoints.
+
+```typescript
+/** Error detail included when a file fails validation. */
+interface FileReadError {
+  /** Error category */
+  code: 'PARSE_ERROR' | 'VALIDATION_ERROR' | 'READ_ERROR'
+  /** Human-readable message */
+  message: string
+  /** File path that failed */
+  filePath: string
+}
+```
+
+#### 4.3.4 Log Rotation Mid-Read
+
+The log handler tracks byte offsets for incremental reads (§3.4). Log rotation is detected when the current file size is smaller than the last known offset.
+
+**Response:** Reset offset to zero, re-read from the beginning. Include `rotationDetected: true` in the `LogStreamResponse` so the frontend knows to clear its log buffer and rebuild from the fresh data.
+
+```typescript
+// Addition to LogStreamResponse (extends §3.4)
+interface LogStreamResponse {
+  // ... existing fields from §3.4 ...
+  /** True if log rotation was detected (file truncated or replaced) */
+  rotationDetected: boolean
+}
+```
+
+#### 4.3.5 Watcher Errors
+
+`fs.watch` can emit errors due to permissions, exceeding the OS file descriptor limit, or unmounted volumes.
+
+**Response:** Log the error with the affected directory path. Attempt to re-establish the watch with exponential backoff (1s → 2s → 4s → 8s → 16s → 30s cap). After 5 consecutive failures for the same directory, fall back to polling (2s interval) for that directory only. Emit a `watcher:degraded` SSE event so the frontend can display a subtle indicator that updates may be delayed.
+
+```typescript
+/** SSE event when a watcher falls back to polling. */
+interface WatcherDegradedSSEEvent {
+  type: 'watcher:degraded'
+  /** Directory that fell back to polling */
+  directory: string
+  /** Polling interval in ms */
+  pollingIntervalMs: number
+  timestamp: number
+}
+```
+
+### 4.4 Scope Resolution: Navigation Funnel
+
+The UI follows a navigation funnel from projects → sessions → active session. Each level reads from a different scope.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 1. Startup: read ~/.sidekick/                               │
+│    → Discover known projects (project registry)             │
+│    → Load user-level config/preferences                     │
+├─────────────────────────────────────────────────────────────┤
+│ 2. Project selected: read {projectPath}/.sidekick/          │
+│    → List sessions from sessions/ directory                 │
+│    → Read daemon status from state/daemon-status.json       │
+├─────────────────────────────────────────────────────────────┤
+│ 3. Session selected: attach watchers to                     │
+│    {projectPath}/.sidekick/sessions/{id}/state/              │
+│    {projectPath}/.sidekick/sessions/{id}/stage/              │
+│    {projectPath}/.sidekick/state/                            │
+│    {projectPath}/.sidekick/logs/                             │
+│    → SSE begins pushing file change events                  │
+│    → Cache populates with initial file reads                │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Key properties:**
+
+- **`~/.sidekick/`** serves global navigation data only (project registry, user config). No watchers here — this data changes infrequently and is read on demand.
+- **Project `.sidekick/`** is read on demand for session listing and daemon status. No persistent watchers at this level.
+- **Session `.sidekick/sessions/{id}/`** is the active workspace. Watchers, cache, and SSE all attach here when the user selects a session.
+- **Session switching** tears down all watchers and clears the cache before attaching to the new session. The SSE connection stays open and begins emitting events for the new session.
+
+#### 4.4.1 Project Discovery
+
+On startup, the backend reads `~/.sidekick/` to find a registry of known projects. This registry maps project IDs to filesystem paths and basic metadata.
+
+> **Dependency:** The project registry feature does not yet exist. See `claude-code-sidekick-099` (P1, blocked by this spec). Until implemented, the UI can fall back to a startup parameter (e.g., `--project-dir`) or discover the project from the current working directory.
+
+#### 4.4.2 Session Discovery
+
+Given a project path, the backend reads `{projectPath}/.sidekick/sessions/` to list available sessions. Each subdirectory is a session. The `SessionListEntry` type (§3.2) provides the ID, path, last-modified time, and whether the session has state data.
+
+### 4.5 API Route Design
+
+Routes follow the navigation funnel: global → project → session. All routes return JSON with the response envelopes defined in Section 3.
+
+#### 4.5.1 Project ID Encoding
+
+Project identifiers use the same convention as Claude Code's `~/.claude/projects/` directory: the absolute project path with path separators replaced by `-`.
+
+| Project Path | Project ID |
+|---|---|
+| `/Users/scott/src/projects/claude-code-sidekick` | `-Users-scott-src-projects-claude-code-sidekick` |
+| `/Users/scott/src/oss/beads` | `-Users-scott-src-oss-beads` |
+
+**Encoding:** Replace every `/` with `-`.
+**Decoding:** Replace the leading `-` with `/`, then replace each subsequent `-` with `/`. (Note: this is lossy if directory names contain hyphens. In practice, Claude Code uses the same convention and it works because project paths rarely have ambiguous hyphen placement. The backend resolves the decoded path against the project registry to handle edge cases.)
+
+#### 4.5.2 Route Table
+
+##### Tier 1: Global
+
+| Method | Route | Response Type | Source |
+|--------|-------|--------------|--------|
+| `GET` | `/api/projects` | `ProjectListResponse` | `~/.sidekick/` registry |
+| `GET` | `/api/config` | _Deferred (§3.8)_ | `~/.sidekick/config/` |
+
+```typescript
+/** Single project entry in the listing. */
+interface ProjectListEntry {
+  /** Dash-encoded project path (§4.5.1) */
+  id: string
+  /** Absolute filesystem path to the project root */
+  path: string
+  /** Human-readable project name (directory basename) */
+  name: string
+  /** Whether {path}/.sidekick/ exists and is accessible */
+  accessible: boolean
+  /** Last modification time of the .sidekick/ directory (Unix ms) */
+  lastModified: number | null
+}
+
+/** Response for GET /api/projects */
+interface ProjectListResponse {
+  timestamp: number
+  source: 'file'
+  projects: ProjectListEntry[]
+  totalCount: number
+}
+```
+
+##### Tier 2: Project
+
+| Method | Route | Response Type | Source |
+|--------|-------|--------------|--------|
+| `GET` | `/api/projects/:projectId/sessions` | `SessionListResponse` (§3.2) | `{project}/.sidekick/sessions/` |
+| `GET` | `/api/projects/:projectId/daemon/status` | `DaemonStatusResponse` (§3.6) | `{project}/.sidekick/state/daemon-status.json` |
+
+##### Tier 3: Session
+
+| Method | Route | Response Type | Source |
+|--------|-------|--------------|--------|
+| `GET` | `/api/projects/:projectId/sessions/:sessionId/state` | `SessionStateResponse` (§3.7) | All state files aggregated |
+| `GET` | `/api/projects/:projectId/sessions/:sessionId/state/:filename` | `StateFileResponse<T>` (§3.3) | Individual state file |
+| `GET` | `/api/projects/:projectId/sessions/:sessionId/logs/:type` | `LogStreamResponse` (§3.4) | `cli.log` or `sidekickd.log` |
+| `GET` | `/api/projects/:projectId/sessions/:sessionId/compaction-history` | `StateFileResponse<CompactionHistoryState>` | `compaction-history.json` |
+| `GET` | `/api/projects/:projectId/sessions/:sessionId/pre-compact/:timestamp` | _Deferred (§3.8)_ | Pre-compaction snapshot |
+| `GET` | `/api/projects/:projectId/sessions/:sessionId/reminders/staged` | `StagedRemindersResponse` (§3.5) | `stage/{hook}/*.json` |
+| `GET` | `/api/projects/:projectId/personas` | `PersonaListResponse` | Persona YAML assets |
+
+##### SSE
+
+| Method | Route | Response Type | Purpose |
+|--------|-------|--------------|---------|
+| `GET` | `/api/events` | SSE stream | File change + session lifecycle notifications |
+
+##### State File Routes
+
+The `:filename` parameter in `/api/projects/:projectId/sessions/:sessionId/state/:filename` maps to files under `.sidekick/sessions/{id}/state/`. The filename is the JSON file's basename without extension.
+
+| `:filename` Value | File | Response Type |
+|---|---|---|
+| `session-summary` | `session-summary.json` | `StateFileResponse<SessionSummaryState>` |
+| `session-persona` | `session-persona.json` | `StateFileResponse<SessionPersonaState>` |
+| `last-staged-persona` | `last-staged-persona.json` | `StateFileResponse<LastStagedPersona>` |
+| `summary-countdown` | `summary-countdown.json` | `StateFileResponse<SummaryCountdownState>` |
+| `transcript-metrics` | `transcript-metrics.json` | `StateFileResponse<TranscriptMetricsState>` |
+| `daemon-log-metrics` | `daemon-log-metrics.json` | `StateFileResponse<LogMetricsState>` |
+| `snarky-message` | `snarky-message.json` | `StateFileResponse<SnarkyMessageState>` |
+| `resume-message` | `resume-message.json` | `StateFileResponse<ResumeMessageState>` |
+| `pr-baseline` | `pr-baseline.json` | `StateFileResponse<PRBaselineState>` |
+| `vc-unverified` | `vc-unverified.json` | `StateFileResponse<VCUnverifiedState>` |
+| `verification-tools` | `verification-tools.json` | `StateFileResponse<VerificationToolsState>` |
+| `reminder-throttle` | `reminder-throttle.json` | `StateFileResponse<ReminderThrottleState>` |
+| `compaction-history` | `compaction-history.json` | `StateFileResponse<CompactionHistoryState>` |
+| `context-metrics` | `context-metrics.json` | `StateFileResponse<SessionContextMetrics>` |
+| `llm-metrics` | `llm-metrics.json` | `StateFileResponse<LLMMetricsState>` |
+
+### 4.6 Cross-References
+
+- **Section 2** (Unified Event Contract) defines the canonical events that appear in log files read by the `/api/.../logs/:type` endpoint
+- **Section 3** (Data Contracts) defines the response types for every endpoint listed in §4.5.2
+- **§3.4** (`LogStreamResponse`) is extended in §4.3.4 with `rotationDetected`
+- **§3.8** (Deferred Endpoints) lists contracts not yet specified: `/api/config` and `/api/.../pre-compact/:timestamp`
+- **`claude-code-sidekick-099`** tracks the project registry feature required by §4.4.1
+
+### 4.7 Requirements Traceability
+
+| Requirement | Section | How Addressed |
+|---|---|---|
+| REQUIREMENTS.md §6 (file-based data source) | §4.1, §4.2 | Backend reads `.sidekick/` files via Vite middleware; no daemon modification |
+| REQUIREMENTS.md §7 (no WebSocket) | §4.2.4 | SSE (plain HTTP) used for push notifications instead of WebSocket |
+| PHASE2-AUDIT §4.2 (Option C: file-based reads) | §4.1 | Vite middleware plugin reads state files directly |
+| PHASE2-AUDIT §2.4 (state file inventory) | §4.5.2 | All 20 state files from §3.3 exposed via REST endpoints |
+| REQUIREMENTS.md §3 (navigation model) | §4.4 | Navigation funnel: projects → sessions → active session |
+| REQUIREMENTS.md F-5 (state inspector) | §4.5.2 | Aggregated and individual state file endpoints |
+| REQUIREMENTS.md F-2 (log-based replay) | §4.5.2 | Log stream endpoint with offset pagination |
+| REQUIREMENTS.md F-7 (system health) | §4.5.2 | Daemon status endpoint with 30s offline threshold |
+| REQUIREMENTS.md G-6 (reminder system) | §4.5.2 | Staged reminders endpoint |
+| REQUIREMENTS.md F-1 (compaction time travel) | §4.5.2 | Compaction history and pre-compact snapshot endpoints |
 
 ## 5. Performance Requirements
 <!-- Placeholder: sidekick-35ddf68f -->
