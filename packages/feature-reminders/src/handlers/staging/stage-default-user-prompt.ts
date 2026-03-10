@@ -65,7 +65,7 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
   // Daemon-only handlers: throttle registration, counter resets, and re-staging
   if (!isDaemonContext(context)) return
 
-  // Handler 1c: Register UPS reminder in throttle state on SessionStart
+  // Handler 3: Register UPS reminder in throttle state on SessionStart
   context.handlers.register({
     id: 'reminders:throttle-register-ups-session-start',
     priority: 49,
@@ -92,7 +92,7 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
     },
   })
 
-  // Handler 1b: Reset all throttle counters on SessionStart
+  // Handler 4: Reset all throttle counters on SessionStart
   context.handlers.register({
     id: 'reminders:throttle-reset-session-start',
     priority: 48,
@@ -107,7 +107,7 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
     },
   })
 
-  // Handler 2b: Reset all throttle counters on BulkProcessingComplete
+  // Handler 5: Reset all throttle counters on BulkProcessingComplete
   context.handlers.register({
     id: 'reminders:throttle-reset-bulk',
     priority: 49,
@@ -123,7 +123,7 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
     },
   })
 
-  // Handler 3: Generic throttle re-staging based on conversation message count
+  // Handler 6: Generic throttle re-staging based on conversation message count
   context.handlers.register({
     id: 'reminders:throttle-restage',
     priority: 50,

@@ -43,13 +43,9 @@ interests:
   it('returns null and logs warning for malformed YAML', () => {
     writeFileSync(join(SIDEKICK_DIR, 'user.yaml'), '{{{{not yaml')
     const logger = createFakeLogger()
-    const warnCalls: unknown[] = []
-    logger.warn = (...args: unknown[]) => {
-      warnCalls.push(args)
-    }
     const result = loadUserProfile({ homeDir: TEST_HOME, logger })
     expect(result).toBeNull()
-    expect(warnCalls.length).toBeGreaterThan(0)
+    expect(logger.warn.mock.calls.length).toBeGreaterThan(0)
   })
 
   it('returns null and logs warning for missing required fields', () => {
@@ -60,13 +56,9 @@ name: "Scott"
 `
     )
     const logger = createFakeLogger()
-    const warnCalls: unknown[] = []
-    logger.warn = (...args: unknown[]) => {
-      warnCalls.push(args)
-    }
     const result = loadUserProfile({ homeDir: TEST_HOME, logger })
     expect(result).toBeNull()
-    expect(warnCalls.length).toBeGreaterThan(0)
+    expect(logger.warn.mock.calls.length).toBeGreaterThan(0)
   })
 
   it('returns null when ~/.sidekick/ directory does not exist', () => {
