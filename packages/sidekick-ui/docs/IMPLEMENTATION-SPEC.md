@@ -93,7 +93,7 @@ Every event type in the unified vocabulary, organized by category. The **Emitter
 | 17 | `hook:received` | `both` | cli | **rename** | `HookReceived` | `hook`†, `cwd?`, `mode?` |
 | 18 | `hook:completed` | `both` | cli | **rename** | `HookCompleted` | `hook`†, `durationMs`, `reminderReturned?`, `responseType?` |
 | 19 | `event:received` | `log` | daemon | **rename** | `EventReceived` | `eventKind`, `eventType`, `hook` |
-| 20 | `event:processed` | `log` | daemon | **rename** | `EventProcessed` | `handlerId`, `success`, `durationMs`, `error` |
+| 20 | `event:processed` | `log` | daemon | **rename** | `EventProcessed` | `handlerId`, `success`, `durationMs`, `error?` |
 | 21 | `daemon:starting` | `log` | daemon | **rename** | `DaemonStarting` | `projectDir`, `pid` |
 | 22 | `daemon:started` | `log` | daemon | **rename** | `DaemonStarted` | `startupDurationMs` |
 | 23 | `ipc:started` | `log` | daemon | **rename** | `IpcServerStarted` | `socketPath` |
@@ -101,8 +101,8 @@ Every event type in the unified vocabulary, organized by category. The **Emitter
 | 25 | `session:eviction-started` | `log` | daemon | **rename** | `SessionEvictionStarted` | `intervalMs` |
 | 26 | `session-summary:skipped` | `log` | daemon | **rename** | `SummarySkipped` | `countdown`, `countdown_threshold`, `reason` |
 | 27 | `resume-message:skipped` | `log` | daemon | **rename** | `ResumeSkipped` | `title_confidence`, `intent_confidence`, `min_confidence`, `reason` |
-| 28 | `statusline:error` | `both` | cli | **rename** | `StatuslineError` | `reason`, `file`, `fallbackUsed`, `error` |
-| 29 | `transcript:emitted` | `log` | transcript | **rename** | `TranscriptEventEmitted` | `eventType`, `lineNumber`, `uuid`, `toolName` |
+| 28 | `statusline:error` | `both` | cli | **rename** | `StatuslineError` | `reason`, `file?`, `fallbackUsed`, `error?` |
+| 29 | `transcript:emitted` | `log` | transcript | **rename** | `TranscriptEventEmitted` | `eventType`, `lineNumber`, `uuid?`, `toolName?` |
 | 30 | `transcript:pre-compact` | `log` | transcript | **rename** | `PreCompactCaptured` | `snapshotPath`, `lineCount` |
 | 31 | `error:occurred` | `both` | both | **new** | _(replaces UI-local `log-error`)_ | `errorMessage`, `errorStack?`, `source` |
 
