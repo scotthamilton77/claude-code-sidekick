@@ -847,3 +847,419 @@ export function isDaemonLoggingEvent(event: LoggingEvent): event is DaemonLoggin
 export function isTranscriptLoggingEvent(event: LoggingEvent): event is TranscriptLoggingEvent {
   return event.source === 'transcript'
 }
+
+// ============================================================================
+// Canonical UI Event Types
+// ============================================================================
+//
+// Unified event vocabulary for the Sidekick monitoring UI.
+// Uses `category:action` naming convention. Payloads are FLAT (no state/metadata nesting).
+//
+// @see packages/sidekick-ui/docs/IMPLEMENTATION-SPEC.md §2.2–2.4
+
+/**
+ * Event visibility determines where the event is rendered in the UI.
+ * - `timeline`: Main timeline panel (user-visible state changes)
+ * - `log`: Log viewer panel only (internal machinery)
+ * - `both`: Both timeline and log viewer
+ */
+export type EventVisibility = 'timeline' | 'log' | 'both'
+
+/**
+ * All 31 canonical UI event type names as a const tuple.
+ * Single source of truth for both the UIEventType union and runtime validation.
+ */
+export const UI_EVENT_TYPES = [
+  // Reminder events
+  'reminder:staged',
+  'reminder:unstaged',
+  'reminder:consumed',
+  'reminder:cleared',
+  // Decision events
+  'decision:recorded',
+  // Session summary events
+  'session-summary:start',
+  'session-summary:finish',
+  // Session state change events
+  'session-title:changed',
+  'intent:changed',
+  // Snarky message events
+  'snarky-message:start',
+  'snarky-message:finish',
+  // Resume message events
+  'resume-message:start',
+  'resume-message:finish',
+  // Persona events
+  'persona:selected',
+  'persona:changed',
+  // Statusline events
+  'statusline:rendered',
+  // Hook lifecycle events
+  'hook:received',
+  'hook:completed',
+  // Daemon event processing
+  'event:received',
+  'event:processed',
+  // Daemon lifecycle events
+  'daemon:starting',
+  'daemon:started',
+  'ipc:started',
+  'config:watcher-started',
+  'session:eviction-started',
+  // Skipped operation events
+  'session-summary:skipped',
+  'resume-message:skipped',
+  // Error events
+  'statusline:error',
+  // Transcript events
+  'transcript:emitted',
+  'transcript:pre-compact',
+  // General error
+  'error:occurred',
+] as const
+
+/**
+ * Union of all canonical UI event type names.
+ * Derived from the UI_EVENT_TYPES const tuple.
+ */
+export type UIEventType = (typeof UI_EVENT_TYPES)[number]
+
+// ============================================================================
+// Per-Event Payload Interfaces (flat structure)
+// ============================================================================
+
+/** Payload for `reminder:staged` — a reminder was staged for a hook. */
+export interface ReminderStagedPayload {
+  reminderName: string
+  hookName: string
+  blocking: boolean
+  priority: number
+  persistent: boolean
+}
+
+/** Payload for `reminder:unstaged` — a reminder was removed from staging. */
+export interface ReminderUnstagedPayload {
+  reminderName: string
+  hookName: string
+  reason: string
+}
+
+/** Payload for `reminder:consumed` — a reminder was consumed by a hook. */
+export interface ReminderConsumedPayload {
+  reminderName: string
+  reminderReturned: boolean
+  blocking?: boolean
+  priority?: number
+  persistent?: boolean
+}
+
+/** Payload for `reminder:cleared` — reminders were bulk-cleared. */
+export interface ReminderClearedPayload {
+  clearedCount: number
+  hookNames?: string[]
+  reason: string
+}
+
+/** Payload for `decision:recorded` — an LLM decision was captured. */
+export interface DecisionRecordedPayload {
+  decision: string
+  reason: string
+  detail: string
+}
+
+/** Payload for `session-summary:start` — LLM summary generation began. */
+export interface SessionSummaryStartPayload {
+  reason: string
+  countdown: number
+}
+
+/** Payload for `session-summary:finish` — LLM summary generation completed. */
+export interface SessionSummaryFinishPayload {
+  session_title: string
+  session_title_confidence: number
+  latest_intent: string
+  latest_intent_confidence: number
+  processing_time_ms: number
+  pivot_detected: boolean
+}
+
+/** Payload for `session-title:changed` — session title was updated. */
+export interface SessionTitleChangedPayload {
+  previousValue: string
+  newValue: string
+  confidence: number
+}
+
+/** Payload for `intent:changed` — latest intent was updated. */
+export interface IntentChangedPayload {
+  previousValue: string
+  newValue: string
+  confidence: number
+}
+
+/** Payload for `snarky-message:start` — snarky message generation began. */
+export interface SnarkyMessageStartPayload {
+  sessionId: string
+}
+
+/** Payload for `snarky-message:finish` — snarky message generation completed. */
+export interface SnarkyMessageFinishPayload {
+  generatedMessage: string
+}
+
+/** Payload for `resume-message:start` — resume message generation began. */
+export interface ResumeMessageStartPayload {
+  title_confidence: number
+  intent_confidence: number
+}
+
+/** Payload for `resume-message:finish` — resume message generation completed. */
+export interface ResumeMessageFinishPayload {
+  snarky_comment: string
+  timestamp: string
+}
+
+/** Payload for `persona:selected` — a persona was selected for a session. */
+export interface PersonaSelectedPayload {
+  personaId: string
+  selectionMethod: 'pinned' | 'handoff' | 'random'
+  poolSize: number
+}
+
+/** Payload for `persona:changed` — persona changed mid-session. */
+export interface PersonaChangedPayload {
+  personaFrom: string
+  personaTo: string
+  reason: string
+}
+
+/** Payload for `statusline:rendered` — statusline was rendered. */
+export interface StatuslineRenderedPayload {
+  displayMode: string
+  staleData: boolean
+  model?: string
+  tokens?: number
+  durationMs: number
+}
+
+/** Payload for `hook:received` — a hook event was received by the CLI. */
+export interface HookReceivedPayload {
+  hook: string
+  cwd?: string
+  mode?: string
+}
+
+/** Payload for `hook:completed` — a hook event was processed by the CLI. */
+export interface HookCompletedPayload {
+  hook: string
+  durationMs: number
+  reminderReturned?: boolean
+  responseType?: string
+}
+
+/** Payload for `event:received` — daemon received an event for processing. */
+export interface EventReceivedPayload {
+  eventKind: string
+  eventType: string
+  hook: string
+}
+
+/** Payload for `event:processed` — daemon finished processing an event. */
+export interface EventProcessedPayload {
+  handlerId: string
+  success: boolean
+  durationMs: number
+  error?: string
+}
+
+/** Payload for `daemon:starting` — daemon process is starting. */
+export interface DaemonStartingPayload {
+  projectDir: string
+  pid: number
+}
+
+/** Payload for `daemon:started` — daemon process started successfully. */
+export interface DaemonStartedPayload {
+  startupDurationMs: number
+}
+
+/** Payload for `ipc:started` — IPC server started listening. */
+export interface IpcStartedPayload {
+  socketPath: string
+}
+
+/** Payload for `config:watcher-started` — config watcher started. */
+export interface ConfigWatcherStartedPayload {
+  projectDir: string
+  watchedFiles: string[]
+}
+
+/** Payload for `session:eviction-started` — session eviction timer started. */
+export interface SessionEvictionStartedPayload {
+  intervalMs: number
+}
+
+/** Payload for `session-summary:skipped` — summary update was skipped. */
+export interface SessionSummarySkippedPayload {
+  countdown: number
+  countdown_threshold: number
+  reason: string
+}
+
+/** Payload for `resume-message:skipped` — resume generation was skipped. */
+export interface ResumeMessageSkippedPayload {
+  title_confidence: number
+  intent_confidence: number
+  min_confidence: number
+  reason: string
+}
+
+/** Payload for `statusline:error` — statusline render error. */
+export interface StatuslineErrorPayload {
+  reason: string
+  file?: string
+  fallbackUsed: boolean
+  error?: string
+}
+
+/** Payload for `transcript:emitted` — transcript event emitted. */
+export interface TranscriptEmittedPayload {
+  eventType: string
+  lineNumber: number
+  uuid?: string
+  toolName?: string
+}
+
+/** Payload for `transcript:pre-compact` — pre-compact snapshot captured. */
+export interface TranscriptPreCompactPayload {
+  snapshotPath: string
+  lineCount: number
+}
+
+/** Payload for `error:occurred` — a general error occurred. */
+export interface ErrorOccurredPayload {
+  errorMessage: string
+  errorStack?: string
+  source: string
+}
+
+// ============================================================================
+// Payload Mapping (UIEventType → Payload Interface)
+// ============================================================================
+
+/**
+ * Maps each UIEventType to its corresponding payload interface.
+ */
+export interface UIEventPayloadMap {
+  'reminder:staged': ReminderStagedPayload
+  'reminder:unstaged': ReminderUnstagedPayload
+  'reminder:consumed': ReminderConsumedPayload
+  'reminder:cleared': ReminderClearedPayload
+  'decision:recorded': DecisionRecordedPayload
+  'session-summary:start': SessionSummaryStartPayload
+  'session-summary:finish': SessionSummaryFinishPayload
+  'session-title:changed': SessionTitleChangedPayload
+  'intent:changed': IntentChangedPayload
+  'snarky-message:start': SnarkyMessageStartPayload
+  'snarky-message:finish': SnarkyMessageFinishPayload
+  'resume-message:start': ResumeMessageStartPayload
+  'resume-message:finish': ResumeMessageFinishPayload
+  'persona:selected': PersonaSelectedPayload
+  'persona:changed': PersonaChangedPayload
+  'statusline:rendered': StatuslineRenderedPayload
+  'hook:received': HookReceivedPayload
+  'hook:completed': HookCompletedPayload
+  'event:received': EventReceivedPayload
+  'event:processed': EventProcessedPayload
+  'daemon:starting': DaemonStartingPayload
+  'daemon:started': DaemonStartedPayload
+  'ipc:started': IpcStartedPayload
+  'config:watcher-started': ConfigWatcherStartedPayload
+  'session:eviction-started': SessionEvictionStartedPayload
+  'session-summary:skipped': SessionSummarySkippedPayload
+  'resume-message:skipped': ResumeMessageSkippedPayload
+  'statusline:error': StatuslineErrorPayload
+  'transcript:emitted': TranscriptEmittedPayload
+  'transcript:pre-compact': TranscriptPreCompactPayload
+  'error:occurred': ErrorOccurredPayload
+}
+
+/**
+ * Utility type: resolves the payload interface for a given UIEventType.
+ */
+export type PayloadFor<T extends UIEventType> = UIEventPayloadMap[T]
+
+// ============================================================================
+// Canonical Event Interface
+// ============================================================================
+
+/**
+ * A canonical UI event with type-safe payload discrimination.
+ * Use the `type` field as a discriminator to narrow the payload type.
+ *
+ * @example
+ * ```typescript
+ * function handleEvent(event: CanonicalEvent) {
+ *   if (event.type === 'reminder:staged') {
+ *     // event.payload is ReminderStagedPayload
+ *     console.log(event.payload.reminderName)
+ *   }
+ * }
+ * ```
+ */
+export interface CanonicalEvent<T extends UIEventType = UIEventType> {
+  type: T
+  visibility: (typeof UI_EVENT_VISIBILITY)[T]
+  source: LogSource
+  /** Unix timestamp (ms) — when the event occurred. Used by the UI to merge/sort events. */
+  time: number
+  context: EventLogContext
+  payload: PayloadFor<T>
+}
+
+// ============================================================================
+// Event Visibility Map
+// ============================================================================
+
+/**
+ * Const record mapping each UIEventType to its EventVisibility.
+ * Derived from the §2.4 canonical event table.
+ *
+ * @see packages/sidekick-ui/docs/IMPLEMENTATION-SPEC.md §2.4
+ */
+export const UI_EVENT_VISIBILITY = {
+  // Timeline events (user-visible state changes)
+  'reminder:staged': 'timeline',
+  'reminder:unstaged': 'timeline',
+  'reminder:consumed': 'timeline',
+  'reminder:cleared': 'timeline',
+  'decision:recorded': 'timeline',
+  'session-summary:start': 'timeline',
+  'session-summary:finish': 'timeline',
+  'session-title:changed': 'timeline',
+  'intent:changed': 'timeline',
+  'snarky-message:start': 'timeline',
+  'snarky-message:finish': 'timeline',
+  'resume-message:start': 'timeline',
+  'resume-message:finish': 'timeline',
+  'persona:selected': 'timeline',
+  'persona:changed': 'timeline',
+  'statusline:rendered': 'timeline',
+  // Both (timeline + log viewer)
+  'hook:received': 'both',
+  'hook:completed': 'both',
+  'statusline:error': 'both',
+  'error:occurred': 'both',
+  // Log-only (internal machinery)
+  'event:received': 'log',
+  'event:processed': 'log',
+  'daemon:starting': 'log',
+  'daemon:started': 'log',
+  'ipc:started': 'log',
+  'config:watcher-started': 'log',
+  'session:eviction-started': 'log',
+  'session-summary:skipped': 'log',
+  'resume-message:skipped': 'log',
+  'transcript:emitted': 'log',
+  'transcript:pre-compact': 'log',
+} as const satisfies Record<UIEventType, EventVisibility>
