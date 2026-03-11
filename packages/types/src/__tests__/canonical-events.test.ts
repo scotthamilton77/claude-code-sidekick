@@ -345,10 +345,23 @@ describe('CanonicalEvent', () => {
     expectTypeOf<ReminderStagedEvent['type']>().toEqualTypeOf<'reminder:staged'>()
   })
 
+  it('narrows visibility type by discriminator', () => {
+    // Visibility is derived from UI_EVENT_VISIBILITY, not free-form
+    type DaemonStartedEvent = CanonicalEvent<'daemon:started'>
+    expectTypeOf<DaemonStartedEvent['visibility']>().toEqualTypeOf<'log'>()
+
+    type ReminderStagedEvent = CanonicalEvent<'reminder:staged'>
+    expectTypeOf<ReminderStagedEvent['visibility']>().toEqualTypeOf<'timeline'>()
+
+    type HookReceivedEvent = CanonicalEvent<'hook:received'>
+    expectTypeOf<HookReceivedEvent['visibility']>().toEqualTypeOf<'both'>()
+  })
+
   it('has required fields', () => {
     expectTypeOf<CanonicalEvent>().toHaveProperty('type')
     expectTypeOf<CanonicalEvent>().toHaveProperty('visibility')
     expectTypeOf<CanonicalEvent>().toHaveProperty('source')
+    expectTypeOf<CanonicalEvent>().toHaveProperty('time')
     expectTypeOf<CanonicalEvent>().toHaveProperty('context')
     expectTypeOf<CanonicalEvent>().toHaveProperty('payload')
   })

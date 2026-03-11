@@ -1209,8 +1209,10 @@ export type PayloadFor<T extends UIEventType> = UIEventPayloadMap[T]
  */
 export interface CanonicalEvent<T extends UIEventType = UIEventType> {
   type: T
-  visibility: EventVisibility
-  source: 'cli' | 'daemon' | 'transcript'
+  visibility: (typeof UI_EVENT_VISIBILITY)[T]
+  source: LogSource
+  /** Unix timestamp (ms) — when the event occurred. Used by the UI to merge/sort events. */
+  time: number
   context: EventLogContext
   payload: PayloadFor<T>
 }
@@ -1225,7 +1227,7 @@ export interface CanonicalEvent<T extends UIEventType = UIEventType> {
  *
  * @see packages/sidekick-ui/docs/IMPLEMENTATION-SPEC.md §2.4
  */
-export const UI_EVENT_VISIBILITY: Record<UIEventType, EventVisibility> = {
+export const UI_EVENT_VISIBILITY = {
   // Timeline events (user-visible state changes)
   'reminder:staged': 'timeline',
   'reminder:unstaged': 'timeline',
@@ -1260,4 +1262,4 @@ export const UI_EVENT_VISIBILITY: Record<UIEventType, EventVisibility> = {
   'resume-message:skipped': 'log',
   'transcript:emitted': 'log',
   'transcript:pre-compact': 'log',
-}
+} as const satisfies Record<UIEventType, EventVisibility>
