@@ -94,7 +94,7 @@ describe('UIEventType', () => {
   it('UIEventType union matches the const array', () => {
     // Type-level check: every element of UI_EVENT_TYPES is assignable to UIEventType
     const first: UIEventType = UI_EVENT_TYPES[0]
-    expectTypeOf(first).toMatchTypeOf<UIEventType>()
+    expectTypeOf(first).toExtend<UIEventType>()
   })
 })
 
