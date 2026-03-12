@@ -1,10 +1,11 @@
 /**
  * Tests for handler-level event emission in update-summary.ts
  *
- * Verifies that updateSessionSummary() emits a SummaryUpdated logging event
- * with correct type discriminator and payload fields when LLM analysis completes.
+ * Verifies that updateSessionSummary() emits discrete session-summary:start,
+ * session-summary:finish, session-title:changed, and intent:changed events
+ * with correct type discriminators and payload fields when LLM analysis completes.
  *
- * @see docs/plans/2026-03-11-align-event-naming-plan.md Task 0E
+ * @see docs/plans/2026-03-11-align-event-naming-plan.md Task 0E, Task 8
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
@@ -97,7 +98,7 @@ describe('Session Summary Event Emission', () => {
     } as TranscriptEvent
   }
 
-  it('emits SummaryUpdated event with correct type and payload after LLM analysis', async () => {
+  it('emits session-summary:start and session-summary:finish events after LLM analysis', async () => {
     const sessionId = 'test-event-emission'
 
     // Queue LLM responses: 1) summary, 2) snarky (initial analysis), 3) resume (no resume exists)
@@ -116,39 +117,27 @@ describe('Session Summary Event Emission', () => {
     await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
     await flushPromises()
 
-    // Find the SummaryUpdated event in logged info messages
-    const summaryUpdatedLogs = logger.getLogsByLevel('info').filter((log) => log.meta?.type === 'SummaryUpdated')
+    // Find the start event
+    const startLogs = logger.getLogsByLevel('info').filter((log) => log.meta?.type === 'session-summary:start')
+    expect(startLogs).toHaveLength(1)
+    expect(startLogs[0].meta?.source).toBe('daemon')
+    expect(startLogs[0].meta?.reason).toBe('user_prompt_forced')
 
-    expect(summaryUpdatedLogs).toHaveLength(1)
+    // Find the finish event
+    const finishLogs = logger.getLogsByLevel('info').filter((log) => log.meta?.type === 'session-summary:finish')
+    expect(finishLogs).toHaveLength(1)
 
-    const logEntry = summaryUpdatedLogs[0]
-
-    // Verify type discriminator
-    expect(logEntry.meta?.type).toBe('SummaryUpdated')
-
-    // Verify source
-    expect(logEntry.meta?.source).toBe('daemon')
-
-    // Verify reason is used as the log message
-    expect(logEntry.msg).toBe('user_prompt_forced')
-
-    // Verify payload state fields
-    const state = logEntry.meta?.state as Record<string, unknown>
-    expect(state.session_title).toBe('Bug Fix Session')
-    expect(state.session_title_confidence).toBe(0.9)
-    expect(state.latest_intent).toBe('Fixing authentication bug')
-    expect(state.latest_intent_confidence).toBe(0.85)
-
-    // Verify payload metadata fields
-    const metadata = logEntry.meta?.metadata as Record<string, unknown>
-    expect(metadata.pivot_detected).toBe(false)
-    expect(metadata.processing_time_ms).toBeGreaterThanOrEqual(0)
-
-    // Verify reason in payload
-    expect(logEntry.meta?.reason).toBe('user_prompt_forced')
+    const finishMeta = finishLogs[0].meta as Record<string, unknown>
+    expect(finishMeta.source).toBe('daemon')
+    expect(finishMeta.session_title).toBe('Bug Fix Session')
+    expect(finishMeta.session_title_confidence).toBe(0.9)
+    expect(finishMeta.latest_intent).toBe('Fixing authentication bug')
+    expect(finishMeta.latest_intent_confidence).toBe(0.85)
+    expect(finishMeta.pivot_detected).toBe(false)
+    expect(finishMeta.processing_time_ms).toBeGreaterThanOrEqual(0)
   })
 
-  it('emits SummaryUpdated event with old title/intent in metadata when summary changes', async () => {
+  it('emits session-title:changed and intent:changed events when summary changes', async () => {
     const sessionId = 'test-event-emission-changed'
 
     // Pre-create existing summary with different values
@@ -177,12 +166,90 @@ describe('Session Summary Event Emission', () => {
     await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
     await flushPromises()
 
-    const summaryUpdatedLogs = logger.getLogsByLevel('info').filter((log) => log.meta?.type === 'SummaryUpdated')
-    expect(summaryUpdatedLogs).toHaveLength(1)
+    // Verify title-changed event
+    const titleLogs = logger.getLogsByLevel('info').filter((log) => log.meta?.type === 'session-title:changed')
+    expect(titleLogs).toHaveLength(1)
+    const titleMeta = titleLogs[0].meta as Record<string, unknown>
+    expect(titleMeta.previousValue).toBe('Old Title')
+    expect(titleMeta.newValue).toBe('New Title')
+    expect(titleMeta.confidence).toBe(0.95)
 
-    const metadata = summaryUpdatedLogs[0].meta?.metadata as Record<string, unknown>
-    expect(metadata.old_title).toBe('Old Title')
-    expect(metadata.old_intent).toBe('Old intent')
-    expect(metadata.pivot_detected).toBe(true)
+    // Verify intent-changed event
+    const intentLogs = logger.getLogsByLevel('info').filter((log) => log.meta?.type === 'intent:changed')
+    expect(intentLogs).toHaveLength(1)
+    const intentMeta = intentLogs[0].meta as Record<string, unknown>
+    expect(intentMeta.previousValue).toBe('Old intent')
+    expect(intentMeta.newValue).toBe('New intent')
+    expect(intentMeta.confidence).toBe(0.9)
+  })
+
+  it('does not emit title/intent-changed events when values are unchanged', async () => {
+    const sessionId = 'test-event-emission-unchanged'
+
+    // Pre-create existing summary with same values the LLM will return
+    stateService.setStored(stateService.sessionStatePath(sessionId, 'session-summary.json'), {
+      session_id: sessionId,
+      session_title: 'Same Title',
+      session_title_confidence: 0.8,
+      latest_intent: 'Same intent',
+      latest_intent_confidence: 0.8,
+      timestamp: new Date().toISOString(),
+    })
+
+    llm.queueResponses([
+      JSON.stringify({
+        session_title: 'Same Title',
+        session_title_confidence: 0.95,
+        latest_intent: 'Same intent',
+        latest_intent_confidence: 0.9,
+        pivot_detected: false,
+      }),
+    ])
+
+    await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+    await flushPromises()
+
+    // Should still emit start and finish
+    const startLogs = logger.getLogsByLevel('info').filter((log) => log.meta?.type === 'session-summary:start')
+    expect(startLogs).toHaveLength(1)
+    const finishLogs = logger.getLogsByLevel('info').filter((log) => log.meta?.type === 'session-summary:finish')
+    expect(finishLogs).toHaveLength(1)
+
+    // Should NOT emit title or intent changed
+    const titleLogs = logger.getLogsByLevel('info').filter((log) => log.meta?.type === 'session-title:changed')
+    expect(titleLogs).toHaveLength(0)
+    const intentLogs = logger.getLogsByLevel('info').filter((log) => log.meta?.type === 'intent:changed')
+    expect(intentLogs).toHaveLength(0)
+  })
+
+  it('does not emit title/intent-changed events on first analysis (no previous summary)', async () => {
+    const sessionId = 'test-event-emission-first'
+
+    llm.queueResponses([
+      JSON.stringify({
+        session_title: 'New Session',
+        session_title_confidence: 0.9,
+        latest_intent: 'Starting fresh',
+        latest_intent_confidence: 0.85,
+        pivot_detected: false,
+      }),
+      'Fresh start!',
+      'Welcome!',
+    ])
+
+    await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+    await flushPromises()
+
+    // Should emit start and finish
+    const startLogs = logger.getLogsByLevel('info').filter((log) => log.meta?.type === 'session-summary:start')
+    expect(startLogs).toHaveLength(1)
+    const finishLogs = logger.getLogsByLevel('info').filter((log) => log.meta?.type === 'session-summary:finish')
+    expect(finishLogs).toHaveLength(1)
+
+    // Should NOT emit title or intent changed (no previous to diff against)
+    const titleLogs = logger.getLogsByLevel('info').filter((log) => log.meta?.type === 'session-title:changed')
+    expect(titleLogs).toHaveLength(0)
+    const intentLogs = logger.getLogsByLevel('info').filter((log) => log.meta?.type === 'intent:changed')
+    expect(intentLogs).toHaveLength(0)
   })
 })
