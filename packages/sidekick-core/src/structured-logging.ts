@@ -772,6 +772,7 @@ import type {
   StatuslineErrorEvent,
   TranscriptEventEmittedEvent,
   PreCompactCapturedEvent,
+  ErrorOccurredEvent,
   LoggingEventBase,
   TranscriptEventType,
   TranscriptMetrics,
@@ -1264,6 +1265,39 @@ export const LogEvents = {
         lineCount: state.lineCount,
         transcriptPath: metadata.transcriptPath,
         metrics: metadata.metrics,
+      },
+    }
+  },
+
+  // --- Error Events ---
+
+  /**
+   * Create an ErrorOccurred event (logged when error/fatal level log is emitted).
+   * Emitted automatically by HookableLogger hook — no manual call-site changes needed.
+   */
+  errorOccurred(
+    context: EventLogContext,
+    state: {
+      errorMessage: string
+      errorStack?: string
+      source: 'daemon' | 'cli'
+    }
+  ): ErrorOccurredEvent {
+    return {
+      type: 'error:occurred',
+      time: Date.now(),
+      source: state.source,
+      context: {
+        sessionId: context.sessionId,
+        correlationId: context.correlationId,
+        traceId: context.traceId,
+        hook: context.hook,
+        taskId: context.taskId,
+      },
+      payload: {
+        errorMessage: state.errorMessage,
+        errorStack: state.errorStack,
+        source: state.source,
       },
     }
   },

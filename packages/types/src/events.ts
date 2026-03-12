@@ -611,6 +611,15 @@ export interface PreCompactCapturedEvent extends LoggingEventBase<TranscriptPreC
 }
 
 /**
+ * Error occurred in daemon or CLI.
+ * Emitted automatically by HookableLogger on error/fatal log calls.
+ */
+export interface ErrorOccurredEvent extends LoggingEventBase<ErrorOccurredPayload> {
+  type: 'error:occurred'
+  source: 'daemon' | 'cli'
+}
+
+/**
  * Union of all CLI logging events.
  */
 export type CLILoggingEvent =
@@ -641,6 +650,7 @@ export type DaemonLoggingEvent =
   | ResumeUpdatedEvent
   | ResumeSkippedEvent
   | RemindersClearedEvent
+  | ErrorOccurredEvent
 
 /**
  * Union of transcript-related logging events.
