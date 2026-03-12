@@ -11,6 +11,8 @@
 import type {
   SessionSummaryStartEvent,
   SessionSummaryFinishEvent,
+  SnarkyMessageStartEvent,
+  SnarkyMessageFinishEvent,
   SessionTitleChangedEvent,
   IntentChangedEvent,
   SummarySkippedEvent,
@@ -18,6 +20,8 @@ import type {
   EventLogContext,
   SessionSummaryStartPayload,
   SessionSummaryFinishPayload,
+  SnarkyMessageStartPayload,
+  SnarkyMessageFinishPayload,
   SessionTitleChangedPayload,
   IntentChangedPayload,
   DecisionRecordedPayload,
@@ -86,6 +90,40 @@ export const SessionSummaryEvents = {
   intentChanged(context: EventLogContext, payload: IntentChangedPayload): IntentChangedEvent {
     return {
       type: 'intent:changed',
+      time: Date.now(),
+      source: 'daemon',
+      context: {
+        sessionId: context.sessionId,
+        correlationId: context.correlationId,
+        traceId: context.traceId,
+        hook: context.hook,
+        taskId: context.taskId,
+      },
+      payload,
+    }
+  },
+
+  /** Emitted when snarky message generation begins. */
+  snarkyMessageStart(context: EventLogContext, payload: SnarkyMessageStartPayload): SnarkyMessageStartEvent {
+    return {
+      type: 'snarky-message:start',
+      time: Date.now(),
+      source: 'daemon',
+      context: {
+        sessionId: context.sessionId,
+        correlationId: context.correlationId,
+        traceId: context.traceId,
+        hook: context.hook,
+        taskId: context.taskId,
+      },
+      payload,
+    }
+  },
+
+  /** Emitted when snarky message generation completes. */
+  snarkyMessageFinish(context: EventLogContext, payload: SnarkyMessageFinishPayload): SnarkyMessageFinishEvent {
+    return {
+      type: 'snarky-message:finish',
       time: Date.now(),
       source: 'daemon',
       context: {

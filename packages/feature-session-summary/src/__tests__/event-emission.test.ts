@@ -311,4 +311,74 @@ describe('Session Summary Event Emission', () => {
     const intentLogs = logger.getLogsByLevel('info').filter((log) => log.meta?.type === 'intent:changed')
     expect(intentLogs).toHaveLength(0)
   })
+
+  it('emits snarky-message:start and snarky-message:finish events during snarky generation', async () => {
+    const sessionId = 'test-snarky-events'
+
+    // Queue LLM responses: 1) summary, 2) snarky message, 3) resume message (no resume exists)
+    llm.queueResponses([
+      JSON.stringify({
+        session_title: 'Snarky Test Session',
+        session_title_confidence: 0.9,
+        latest_intent: 'Testing snarky events',
+        latest_intent_confidence: 0.85,
+        pivot_detected: false,
+      }),
+      'Oh look, another test session. How original.',
+      'Welcome back to testing.',
+    ])
+
+    await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+    await flushPromises()
+
+    // Find the snarky-message:start event
+    const startLogs = logger.getLogsByLevel('info').filter((log) => log.meta?.type === 'snarky-message:start')
+    expect(startLogs).toHaveLength(1)
+    expect(startLogs[0].meta?.source).toBe('daemon')
+    expect(startLogs[0].meta?.sessionId).toBe(sessionId)
+
+    // Find the snarky-message:finish event
+    const finishLogs = logger.getLogsByLevel('info').filter((log) => log.meta?.type === 'snarky-message:finish')
+    expect(finishLogs).toHaveLength(1)
+    expect(finishLogs[0].meta?.source).toBe('daemon')
+    expect(finishLogs[0].meta?.generatedMessage).toBe('Oh look, another test session. How original.')
+  })
+
+  it('emits snarky-message:start before snarky-message:finish in correct order', async () => {
+    const sessionId = 'test-snarky-ordering'
+
+    // Pre-create existing summary so title change triggers snarky generation
+    stateService.setStored(stateService.sessionStatePath(sessionId, 'session-summary.json'), {
+      session_id: sessionId,
+      session_title: 'Previous Title',
+      session_title_confidence: 0.8,
+      latest_intent: 'Previous intent',
+      latest_intent_confidence: 0.8,
+      timestamp: new Date().toISOString(),
+    })
+
+    // Queue LLM responses: 1) summary with changed title, 2) snarky, 3) resume (pivot detected)
+    llm.queueResponses([
+      JSON.stringify({
+        session_title: 'Changed Title',
+        session_title_confidence: 0.95,
+        latest_intent: 'Changed intent',
+        latest_intent_confidence: 0.9,
+        pivot_detected: true,
+      }),
+      'Title changed! How unpredictable.',
+      'Welcome back.',
+    ])
+
+    await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+    await flushPromises()
+
+    // Collect all info logs with event types to verify ordering
+    const eventLogs = logger
+      .getLogsByLevel('info')
+      .filter((log) => typeof log.meta?.type === 'string' && log.meta.type.startsWith('snarky-message:'))
+      .map((log) => log.meta?.type as string)
+
+    expect(eventLogs).toEqual(['snarky-message:start', 'snarky-message:finish'])
+  })
 })

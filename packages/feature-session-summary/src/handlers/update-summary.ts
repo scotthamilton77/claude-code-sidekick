@@ -585,6 +585,9 @@ async function generateSnarkyMessage(
 
   const provider = ctx.profileFactory.createForProfile(profileResult.profileId, llmConfig.fallbackProfile)
 
+  // Emit snarky-message:start event before LLM call
+  logEvent(ctx.logger, SessionSummaryEvents.snarkyMessageStart({ sessionId }, { sessionId }))
+
   try {
     const response = await provider.complete({
       messages: [{ role: 'user', content: prompt }],
@@ -601,6 +604,9 @@ async function generateSnarkyMessage(
 
     // Save via typed accessor (atomic write with schema validation)
     await summaryState.snarkyMessage.write(sessionId, snarkyState)
+
+    // Emit snarky-message:finish event after writing
+    logEvent(ctx.logger, SessionSummaryEvents.snarkyMessageFinish({ sessionId }, { generatedMessage: snarkyMessage }))
 
     ctx.logger.debug('Generated snarky message', {
       sessionId,

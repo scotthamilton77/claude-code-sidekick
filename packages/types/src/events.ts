@@ -499,6 +499,18 @@ export interface SessionSummaryFinishEvent extends LoggingEventBase<SessionSumma
   source: 'daemon'
 }
 
+/** Emitted when snarky message LLM generation begins. */
+export interface SnarkyMessageStartEvent extends LoggingEventBase<SnarkyMessageStartPayload> {
+  type: 'snarky-message:start'
+  source: 'daemon'
+}
+
+/** Emitted when snarky message LLM generation completes. */
+export interface SnarkyMessageFinishEvent extends LoggingEventBase<SnarkyMessageFinishPayload> {
+  type: 'snarky-message:finish'
+  source: 'daemon'
+}
+
 /** Emitted when session title changes (conditional on diff). */
 export interface SessionTitleChangedEvent extends LoggingEventBase<SessionTitleChangedPayload> {
   type: 'session-title:changed'
@@ -649,6 +661,8 @@ export type DaemonLoggingEvent =
   | SessionEvictionStartedEvent
   | SessionSummaryStartEvent
   | SessionSummaryFinishEvent
+  | SnarkyMessageStartEvent
+  | SnarkyMessageFinishEvent
   | SessionTitleChangedEvent
   | IntentChangedEvent
   | SummarySkippedEvent
