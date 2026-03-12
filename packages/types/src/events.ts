@@ -382,7 +382,8 @@ export interface EventLogContext {
  * @see docs/design/STRUCTURED-LOGGING.md §3.3 Log Record Format
  * @see docs/design/flow.md §7 Logging Events
  */
-export interface LoggingEventBase<P = Record<string, unknown>> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export interface LoggingEventBase<P = any> {
   /** Event type discriminator */
   type: string
   /** Unix timestamp (ms) - when the event occurred */
