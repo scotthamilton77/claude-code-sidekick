@@ -10,6 +10,8 @@
  */
 
 import type { RuntimeContext } from '@sidekick/core'
+import { logEvent } from '@sidekick/core'
+import { ReminderEvents } from '../../events.js'
 import type {
   DaemonContext,
   HandlerContext,
@@ -211,6 +213,13 @@ async function handleBashCommand(
     }
 
     await daemonCtx.staging.deleteReminder('Stop', reminderId)
+    logEvent(
+      daemonCtx.logger,
+      ReminderEvents.reminderUnstaged(
+        { sessionId },
+        { reminderName: reminderId, hookName: 'Stop', reason: 'tool_verified' }
+      )
+    )
     anyUnstaged = true
 
     daemonCtx.logger.debug('VC tool verified', {
@@ -228,6 +237,13 @@ async function handleBashCommand(
 
     if (!hasPerToolReminders) {
       await daemonCtx.staging.deleteReminder('Stop', ReminderIds.VERIFY_COMPLETION)
+      logEvent(
+        daemonCtx.logger,
+        ReminderEvents.reminderUnstaged(
+          { sessionId },
+          { reminderName: ReminderIds.VERIFY_COMPLETION, hookName: 'Stop', reason: 'all_tools_verified' }
+        )
+      )
       daemonCtx.logger.info('All VC tools verified, unstaged wrapper', { sessionId })
     }
 

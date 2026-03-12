@@ -42,6 +42,39 @@ describe('ReminderEvents', () => {
 
   // Note: reminderStaged stays in @sidekick/core (used by staging-service.ts)
 
+  describe('reminderUnstaged', () => {
+    it('should create ReminderUnstaged events', () => {
+      const event = ReminderEvents.reminderUnstaged(
+        { sessionId: 'sess-123', hook: 'Stop' },
+        {
+          reminderName: 'verify-completion',
+          hookName: 'Stop',
+          reason: 'no_unverified_changes',
+        }
+      )
+
+      expect(event.type).toBe('reminder:unstaged')
+      expect(event.source).toBe('daemon')
+      expect(event.payload.reminderName).toBe('verify-completion')
+      expect(event.payload.hookName).toBe('Stop')
+      expect(event.payload.reason).toBe('no_unverified_changes')
+      expect(event.context.sessionId).toBe('sess-123')
+      expect(event.context.hook).toBe('Stop')
+    })
+
+    it('should handle minimal context', () => {
+      const event = ReminderEvents.reminderUnstaged(
+        { sessionId: 'sess-456' },
+        { reminderName: 'test', hookName: 'PreToolUse', reason: 'cascade' }
+      )
+
+      expect(event.payload.reminderName).toBe('test')
+      expect(event.payload.hookName).toBe('PreToolUse')
+      expect(event.payload.reason).toBe('cascade')
+      expect(event.context.hook).toBeUndefined()
+    })
+  })
+
   describe('remindersCleared', () => {
     it('should create RemindersCleared events', () => {
       const event = ReminderEvents.remindersCleared(

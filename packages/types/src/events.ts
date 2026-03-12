@@ -583,6 +583,11 @@ export interface ResumeSkippedEvent extends LoggingEventBase<ResumeMessageSkippe
   source: 'daemon'
 }
 
+export interface ReminderUnstagedEvent extends LoggingEventBase<ReminderUnstagedPayload> {
+  type: 'reminder:unstaged'
+  source: 'daemon'
+}
+
 export interface RemindersClearedEvent extends LoggingEventBase<ReminderClearedPayload> {
   type: 'reminder:cleared'
   source: 'daemon'
@@ -668,6 +673,7 @@ export type DaemonLoggingEvent =
   | EventReceivedEvent
   | EventProcessedEvent
   | ReminderStagedEvent
+  | ReminderUnstagedEvent
   | DaemonStartingEvent
   | DaemonStartedEvent
   | IpcServerStartedEvent

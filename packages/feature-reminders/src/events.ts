@@ -8,7 +8,12 @@
  * @see docs/design/FEATURE-REMINDERS.md
  */
 
-import type { ReminderConsumedEvent, RemindersClearedEvent, EventLogContext } from '@sidekick/types'
+import type {
+  ReminderConsumedEvent,
+  ReminderUnstagedEvent,
+  RemindersClearedEvent,
+  EventLogContext,
+} from '@sidekick/types'
 
 // Re-export for consumers
 export type { EventLogContext } from '@sidekick/types'
@@ -54,6 +59,36 @@ export const ReminderEvents = {
   },
 
   // Note: reminderStaged stays in @sidekick/core (used by staging-service.ts, circular dep)
+
+  /**
+   * Create a ReminderUnstaged event (logged when a reminder is removed from staging).
+   */
+  reminderUnstaged(
+    context: EventLogContext,
+    state: {
+      reminderName: string
+      hookName: string
+      reason: string
+    }
+  ): ReminderUnstagedEvent {
+    return {
+      type: 'reminder:unstaged',
+      time: Date.now(),
+      source: 'daemon',
+      context: {
+        sessionId: context.sessionId,
+        correlationId: context.correlationId,
+        traceId: context.traceId,
+        hook: context.hook,
+        taskId: context.taskId,
+      },
+      payload: {
+        reminderName: state.reminderName,
+        hookName: state.hookName,
+        reason: state.reason,
+      },
+    }
+  },
 
   /**
    * Create a RemindersCleared event (logged when staging directory is cleaned).
