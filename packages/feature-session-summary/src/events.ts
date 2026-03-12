@@ -71,7 +71,7 @@ export const SessionSummaryEvents = {
     }
   ): SummarySkippedEvent {
     return {
-      type: 'SummarySkipped',
+      type: 'session-summary:skipped',
       time: Date.now(),
       source: 'daemon',
       context: {
@@ -82,7 +82,8 @@ export const SessionSummaryEvents = {
         taskId: context.taskId,
       },
       payload: {
-        metadata,
+        countdown: metadata.countdown,
+        countdown_threshold: metadata.countdown_threshold,
         reason: 'countdown_active',
       },
     }

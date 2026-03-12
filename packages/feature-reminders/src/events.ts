@@ -30,10 +30,10 @@ export const ReminderEvents = {
       priority?: number
       persistent?: boolean
     },
-    metadata?: { stagingPath?: string }
+    _metadata?: { stagingPath?: string }
   ): ReminderConsumedEvent {
     return {
-      type: 'ReminderConsumed',
+      type: 'reminder:consumed',
       time: Date.now(),
       source: 'cli',
       context: {
@@ -44,8 +44,11 @@ export const ReminderEvents = {
         taskId: context.taskId,
       },
       payload: {
-        state,
-        metadata,
+        reminderName: state.reminderName,
+        reminderReturned: state.reminderReturned,
+        blocking: state.blocking,
+        priority: state.priority,
+        persistent: state.persistent,
       },
     }
   },
@@ -61,7 +64,7 @@ export const ReminderEvents = {
     reason: 'session_start' | 'manual'
   ): RemindersClearedEvent {
     return {
-      type: 'RemindersCleared',
+      type: 'reminder:cleared',
       time: Date.now(),
       source: 'daemon',
       context: {
@@ -72,7 +75,8 @@ export const ReminderEvents = {
         taskId: context.taskId,
       },
       payload: {
-        state,
+        clearedCount: state.clearedCount,
+        hookNames: state.hookNames,
         reason,
       },
     }
