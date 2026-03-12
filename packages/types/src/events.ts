@@ -488,32 +488,27 @@ export interface SessionEvictionStartedEvent extends LoggingEventBase<SessionEvi
   source: 'daemon'
 }
 
-/**
- * Internal event: Summary recalculated successfully
- * Emitted when session summary is updated via LLM analysis.
- *
- * @see docs/design/FEATURE-SESSION-SUMMARY.md §3.4
- */
-export interface SummaryUpdatedEventPayload {
-  state: {
-    session_title: string
-    session_title_confidence: number
-    latest_intent: string
-    latest_intent_confidence: number
-  }
-  metadata: {
-    countdown_reset_to: number
-    tokens_used?: number
-    processing_time_ms?: number
-    pivot_detected: boolean
-    old_title?: string
-    old_intent?: string
-  }
-  reason: 'user_prompt_forced' | 'countdown_reached' | 'compaction_reset'
+/** Emitted when session summary LLM generation begins. */
+export interface SessionSummaryStartEvent extends LoggingEventBase<SessionSummaryStartPayload> {
+  type: 'session-summary:start'
+  source: 'daemon'
 }
 
-export interface SummaryUpdatedEvent extends LoggingEventBase<SummaryUpdatedEventPayload> {
-  type: 'SummaryUpdated'
+/** Emitted when session summary LLM generation completes. */
+export interface SessionSummaryFinishEvent extends LoggingEventBase<SessionSummaryFinishPayload> {
+  type: 'session-summary:finish'
+  source: 'daemon'
+}
+
+/** Emitted when session title changes (conditional on diff). */
+export interface SessionTitleChangedEvent extends LoggingEventBase<SessionTitleChangedPayload> {
+  type: 'session-title:changed'
+  source: 'daemon'
+}
+
+/** Emitted when latest intent changes (conditional on diff). */
+export interface IntentChangedEvent extends LoggingEventBase<IntentChangedPayload> {
+  type: 'intent:changed'
   source: 'daemon'
 }
 
@@ -638,7 +633,10 @@ export type DaemonLoggingEvent =
   | IpcServerStartedEvent
   | ConfigWatcherStartedEvent
   | SessionEvictionStartedEvent
-  | SummaryUpdatedEvent
+  | SessionSummaryStartEvent
+  | SessionSummaryFinishEvent
+  | SessionTitleChangedEvent
+  | IntentChangedEvent
   | SummarySkippedEvent
   | ResumeGeneratingEvent
   | ResumeUpdatedEvent
