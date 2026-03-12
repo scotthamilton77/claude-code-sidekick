@@ -1512,6 +1512,82 @@ describe('Structured Logging', () => {
       expect(log.type).toBe('HookReceived')
       expect(log.source).toBe('cli')
     })
+
+    it('logEvent should flatten payload fields into log output', async () => {
+      const { createContextLogger, LogEvents, logEvent } = await import('../structured-logging')
+      const { stream, lines } = createTestStream()
+
+      const logger = createContextLogger({
+        source: 'daemon',
+        context: { sessionId: 'sess-456' },
+        testStream: stream,
+      })
+
+      const event = LogEvents.eventProcessed(
+        { sessionId: 'sess-456' },
+        { handlerId: 'reminders:stage', success: true },
+        { durationMs: 42 }
+      )
+
+      logEvent(logger, event)
+      await logger.flush()
+
+      expect(lines.length).toBe(1)
+      const log = parseLogLine(lines[0])
+
+      // Payload fields should be flattened at the top level
+      expect(log.type).toBe('EventProcessed')
+      expect(log.source).toBe('daemon')
+      expect(log.state).toEqual({ handlerId: 'reminders:stage', success: true })
+      expect(log.metadata).toEqual({ durationMs: 42 })
+    })
+
+    it('logEvent should use payload.reason as message when present', async () => {
+      const { createContextLogger, LogEvents, logEvent } = await import('../structured-logging')
+      const { stream, lines } = createTestStream()
+
+      const logger = createContextLogger({
+        source: 'daemon',
+        context: { sessionId: 'sess-789' },
+        testStream: stream,
+      })
+
+      // ResumeGenerating has reason: 'pivot_detected'
+      const eventWithReason = LogEvents.resumeGenerating(
+        { sessionId: 'sess-789' },
+        { title_confidence: 0.9, intent_confidence: 0.85 }
+      )
+
+      logEvent(logger, eventWithReason)
+      await logger.flush()
+
+      const logWithReason = parseLogLine(lines[0])
+      expect(logWithReason.msg).toBe('pivot_detected')
+      expect(logWithReason.reason).toBe('pivot_detected')
+    })
+
+    it('logEvent should fall back to event.type as message when no reason', async () => {
+      const { createContextLogger, LogEvents, logEvent } = await import('../structured-logging')
+      const { stream, lines } = createTestStream()
+
+      const logger = createContextLogger({
+        source: 'cli',
+        context: { sessionId: 'sess-abc' },
+        testStream: stream,
+      })
+
+      // HookReceived has no reason field in payload
+      const eventNoReason = LogEvents.hookReceived(
+        { sessionId: 'sess-abc', hook: 'SessionStart' },
+        { mode: 'hook' }
+      )
+
+      logEvent(logger, eventNoReason)
+      await logger.flush()
+
+      const logNoReason = parseLogLine(lines[0])
+      expect(logNoReason.msg).toBe('HookReceived')
+    })
   })
 
   describe('Error Handling', () => {
