@@ -767,5 +767,8 @@ export async function runCli(options: RunCliOptions): Promise<{ exitCode: number
     await persistCliLogMetrics(runtime.stateService, sessionId, runtime.getLogCounts(), runtime.logger)
   }
 
+  // 5. Flush logger to ensure async file transport writes complete
+  await runtime.logger.flush()
+
   return result
 }
