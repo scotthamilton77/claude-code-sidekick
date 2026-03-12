@@ -193,7 +193,7 @@ export class Daemon {
     // Uses hookable logger pattern to extract sessionId from log metadata
     this.logger = createHookableLogger(this.logManager.getLogger(), {
       levels: ['warn', 'error', 'fatal'],
-      hook: (level, _msg, meta) => {
+      hook: (level, msg, meta) => {
         // Extract sessionId from log metadata context
         const sessionId =
           (meta?.context as { sessionId?: string })?.sessionId ?? (meta as { sessionId?: string })?.sessionId
@@ -208,6 +208,30 @@ export class Daemon {
           // Global counter for daemon-level logs without session context
           if (level === 'warn') this.globalLogCounters.warnings++
           else this.globalLogCounters.errors++ // error and fatal
+        }
+
+        // Emit structured error:occurred event for error/fatal levels
+        if (level === 'error' || level === 'fatal') {
+          const errorObj = (meta?.error ?? meta?.err) as { message?: string; stack?: string } | undefined
+          const errorMessage = errorObj?.message ?? msg
+          const errorStack = errorObj?.stack
+
+          // Log on the BASE logger to avoid infinite recursion through the hookable wrapper
+          const event = LogEvents.errorOccurred(
+            {
+              sessionId: sessionId ?? 'daemon',
+              correlationId: (meta?.context as { correlationId?: string })?.correlationId,
+              traceId: (meta?.context as { traceId?: string })?.traceId,
+              hook: undefined,
+              taskId: undefined,
+            },
+            {
+              errorMessage,
+              errorStack,
+              source: 'daemon',
+            }
+          )
+          logEvent(this.logManager.getLogger(), event)
         }
       },
     })
