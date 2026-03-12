@@ -86,10 +86,10 @@ describe('SessionSummaryEvents', () => {
         { countdown: 5, countdown_threshold: 0 }
       )
 
-      expect(event.type).toBe('SummarySkipped')
+      expect(event.type).toBe('session-summary:skipped')
       expect(event.source).toBe('daemon')
-      expect(event.payload.metadata.countdown).toBe(5)
-      expect(event.payload.metadata.countdown_threshold).toBe(0)
+      expect(event.payload.countdown).toBe(5)
+      expect(event.payload.countdown_threshold).toBe(0)
       expect(event.payload.reason).toBe('countdown_active')
     })
 

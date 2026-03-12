@@ -800,7 +800,7 @@ export const LogEvents = {
     metadata: { cwd?: string; mode?: 'hook' | 'interactive' }
   ): HookReceivedEvent {
     return {
-      type: 'HookReceived',
+      type: 'hook:received',
       time: Date.now(),
       source: 'cli',
       context: {
@@ -810,7 +810,9 @@ export const LogEvents = {
         hook: context.hook,
       },
       payload: {
-        metadata,
+        hook: context.hook,
+        cwd: metadata.cwd,
+        mode: metadata.mode,
       },
     }
   },
@@ -824,7 +826,7 @@ export const LogEvents = {
     state?: { reminderReturned?: boolean; responseType?: string }
   ): HookCompletedEvent {
     return {
-      type: 'HookCompleted',
+      type: 'hook:completed',
       time: Date.now(),
       source: 'cli',
       context: {
@@ -834,8 +836,10 @@ export const LogEvents = {
         hook: context.hook,
       },
       payload: {
-        state,
-        metadata,
+        hook: context.hook,
+        durationMs: metadata.durationMs,
+        reminderReturned: state?.reminderReturned,
+        responseType: state?.responseType,
       },
     }
   },
@@ -850,7 +854,7 @@ export const LogEvents = {
     metadata: { eventKind: 'hook' | 'transcript'; eventType?: string; hook?: string }
   ): EventReceivedEvent {
     return {
-      type: 'EventReceived',
+      type: 'event:received',
       time: Date.now(),
       source: 'daemon',
       context: {
@@ -861,7 +865,9 @@ export const LogEvents = {
         taskId: context.taskId,
       },
       payload: {
-        metadata,
+        eventKind: metadata.eventKind,
+        eventType: metadata.eventType ?? '',
+        hook: metadata.hook ?? '',
       },
     }
   },
@@ -876,7 +882,7 @@ export const LogEvents = {
     metadata: { durationMs: number; error?: string }
   ): EventProcessedEvent {
     return {
-      type: 'EventProcessed',
+      type: 'event:processed',
       time: Date.now(),
       source: 'daemon',
       context: {
@@ -887,8 +893,10 @@ export const LogEvents = {
         taskId: context.taskId,
       },
       payload: {
-        state,
-        metadata,
+        handlerId: state.handlerId,
+        success: state.success,
+        durationMs: metadata.durationMs,
+        error: metadata.error,
       },
     }
   },
@@ -905,10 +913,10 @@ export const LogEvents = {
       priority: number
       persistent: boolean
     },
-    metadata?: { stagingPath?: string }
+    _metadata?: { stagingPath?: string }
   ): ReminderStagedEvent {
     return {
-      type: 'ReminderStaged',
+      type: 'reminder:staged',
       time: Date.now(),
       source: 'daemon',
       context: {
@@ -919,8 +927,11 @@ export const LogEvents = {
         taskId: context.taskId,
       },
       payload: {
-        state,
-        metadata,
+        reminderName: state.reminderName,
+        hookName: state.hookName,
+        blocking: state.blocking,
+        priority: state.priority,
+        persistent: state.persistent,
       },
     }
   },
@@ -932,14 +943,15 @@ export const LogEvents = {
    */
   daemonStarting(metadata: { projectDir: string; pid: number }): DaemonStartingEvent {
     return {
-      type: 'DaemonStarting',
+      type: 'daemon:starting',
       time: Date.now(),
       source: 'daemon',
       context: {
         sessionId: '',
       },
       payload: {
-        metadata,
+        projectDir: metadata.projectDir,
+        pid: metadata.pid,
       },
     }
   },
@@ -949,14 +961,14 @@ export const LogEvents = {
    */
   daemonStarted(metadata: { startupDurationMs: number }): DaemonStartedEvent {
     return {
-      type: 'DaemonStarted',
+      type: 'daemon:started',
       time: Date.now(),
       source: 'daemon',
       context: {
         sessionId: '',
       },
       payload: {
-        metadata,
+        startupDurationMs: metadata.startupDurationMs,
       },
     }
   },
@@ -966,14 +978,14 @@ export const LogEvents = {
    */
   ipcServerStarted(metadata: { socketPath: string }): IpcServerStartedEvent {
     return {
-      type: 'IpcServerStarted',
+      type: 'ipc:started',
       time: Date.now(),
       source: 'daemon',
       context: {
         sessionId: '',
       },
       payload: {
-        metadata,
+        socketPath: metadata.socketPath,
       },
     }
   },
@@ -983,14 +995,15 @@ export const LogEvents = {
    */
   configWatcherStarted(metadata: { projectDir: string; watchedFiles: string[] }): ConfigWatcherStartedEvent {
     return {
-      type: 'ConfigWatcherStarted',
+      type: 'config:watcher-started',
       time: Date.now(),
       source: 'daemon',
       context: {
         sessionId: '',
       },
       payload: {
-        metadata,
+        projectDir: metadata.projectDir,
+        watchedFiles: metadata.watchedFiles,
       },
     }
   },
@@ -1000,14 +1013,14 @@ export const LogEvents = {
    */
   sessionEvictionStarted(metadata: { intervalMs: number }): SessionEvictionStartedEvent {
     return {
-      type: 'SessionEvictionStarted',
+      type: 'session:eviction-started',
       time: Date.now(),
       source: 'daemon',
       context: {
         sessionId: '',
       },
       payload: {
-        metadata,
+        intervalMs: metadata.intervalMs,
       },
     }
   },
@@ -1031,7 +1044,7 @@ export const LogEvents = {
     }
   ): StatuslineRenderedEvent {
     return {
-      type: 'StatuslineRendered',
+      type: 'statusline:rendered',
       time: Date.now(),
       source: 'cli',
       context: {
@@ -1042,8 +1055,11 @@ export const LogEvents = {
         taskId: context.taskId,
       },
       payload: {
-        state,
-        metadata,
+        displayMode: state.displayMode,
+        staleData: state.staleData,
+        model: metadata.model,
+        tokens: metadata.tokens,
+        durationMs: metadata.durationMs,
       },
     }
   },
@@ -1062,7 +1078,7 @@ export const LogEvents = {
     }
   ): StatuslineErrorEvent {
     return {
-      type: 'StatuslineError',
+      type: 'statusline:error',
       time: Date.now(),
       source: 'cli',
       context: {
@@ -1074,7 +1090,9 @@ export const LogEvents = {
       },
       payload: {
         reason,
-        metadata,
+        file: metadata.file,
+        fallbackUsed: metadata.fallbackUsed,
+        error: metadata.error,
       },
     }
   },
@@ -1093,7 +1111,7 @@ export const LogEvents = {
     }
   ): ResumeGeneratingEvent {
     return {
-      type: 'ResumeGenerating',
+      type: 'resume-message:start',
       time: Date.now(),
       source: 'daemon',
       context: {
@@ -1104,8 +1122,8 @@ export const LogEvents = {
         taskId: context.taskId,
       },
       payload: {
-        metadata,
-        reason: 'pivot_detected',
+        title_confidence: metadata.title_confidence,
+        intent_confidence: metadata.intent_confidence,
       },
     }
   },
@@ -1122,7 +1140,7 @@ export const LogEvents = {
     }
   ): ResumeUpdatedEvent {
     return {
-      type: 'ResumeUpdated',
+      type: 'resume-message:finish',
       time: Date.now(),
       source: 'daemon',
       context: {
@@ -1133,8 +1151,8 @@ export const LogEvents = {
         taskId: context.taskId,
       },
       payload: {
-        state,
-        reason: 'generation_complete',
+        snarky_comment: state.snarky_comment,
+        timestamp: state.timestamp,
       },
     }
   },
@@ -1153,7 +1171,7 @@ export const LogEvents = {
     reason: 'confidence_below_threshold' | 'no_pivot_detected'
   ): ResumeSkippedEvent {
     return {
-      type: 'ResumeSkipped',
+      type: 'resume-message:skipped',
       time: Date.now(),
       source: 'daemon',
       context: {
@@ -1164,7 +1182,9 @@ export const LogEvents = {
         taskId: context.taskId,
       },
       payload: {
-        metadata,
+        title_confidence: metadata.title_confidence,
+        intent_confidence: metadata.intent_confidence,
+        min_confidence: metadata.min_confidence,
         reason,
       },
     }
@@ -1184,14 +1204,14 @@ export const LogEvents = {
       uuid?: string
       toolName?: string
     },
-    metadata: {
+    _metadata: {
       transcriptPath: string
       contentPreview?: string
       metrics: TranscriptMetrics
     }
   ): TranscriptEventEmittedEvent {
     return {
-      type: 'TranscriptEventEmitted',
+      type: 'transcript:emitted',
       time: Date.now(),
       source: 'transcript',
       context: {
@@ -1202,8 +1222,10 @@ export const LogEvents = {
         taskId: context.taskId,
       },
       payload: {
-        state,
-        metadata,
+        eventType: state.eventType,
+        lineNumber: state.lineNumber,
+        uuid: state.uuid,
+        toolName: state.toolName,
       },
     }
   },
@@ -1218,13 +1240,13 @@ export const LogEvents = {
       snapshotPath: string
       lineCount: number
     },
-    metadata: {
+    _metadata: {
       transcriptPath: string
       metrics: TranscriptMetrics
     }
   ): PreCompactCapturedEvent {
     return {
-      type: 'PreCompactCaptured',
+      type: 'transcript:pre-compact',
       time: Date.now(),
       source: 'transcript',
       context: {
@@ -1235,9 +1257,8 @@ export const LogEvents = {
         taskId: context.taskId,
       },
       payload: {
-        state,
-        metadata,
-        reason: 'pre_compact_hook',
+        snapshotPath: state.snapshotPath,
+        lineCount: state.lineCount,
       },
     }
   },
@@ -1249,7 +1270,8 @@ export const LogEvents = {
  * The event is logged at INFO level with all fields flattened appropriately.
  */
 export function logEvent(logger: Logger, event: LoggingEventBase): void {
-  logger.info(event.payload.reason ?? `${event.type}`, {
+  const reason = 'reason' in event.payload ? (event.payload.reason as string) : undefined
+  logger.info(reason ?? `${event.type}`, {
     type: event.type,
     source: event.source,
     ...event.payload,
