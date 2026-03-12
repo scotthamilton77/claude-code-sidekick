@@ -1385,6 +1385,113 @@ describe('Structured Logging', () => {
       expect(event.payload.reason).toBe('pre_compact_hook')
     })
 
+    // --- Type Guard Tests ---
+
+    it('isLoggingEvent should return true for valid logging events', async () => {
+      const { isLoggingEvent } = await import('@sidekick/types')
+      const { LogEvents } = await import('../structured-logging')
+
+      const hookReceived = LogEvents.hookReceived(
+        { sessionId: 'sess-1', hook: 'SessionStart' },
+        { mode: 'hook' }
+      )
+      expect(isLoggingEvent(hookReceived)).toBe(true)
+
+      const daemonStarted = LogEvents.daemonStarted({ startupDurationMs: 100 })
+      expect(isLoggingEvent(daemonStarted)).toBe(true)
+
+      const statuslineRendered = LogEvents.statuslineRendered(
+        { sessionId: 'sess-1' },
+        { displayMode: 'session_summary', staleData: false },
+        { durationMs: 10 }
+      )
+      expect(isLoggingEvent(statuslineRendered)).toBe(true)
+    })
+
+    it('isLoggingEvent should return false for non-logging objects', async () => {
+      const { isLoggingEvent } = await import('@sidekick/types')
+
+      expect(isLoggingEvent(null)).toBe(false)
+      expect(isLoggingEvent(undefined)).toBe(false)
+      expect(isLoggingEvent('string')).toBe(false)
+      expect(isLoggingEvent(42)).toBe(false)
+      expect(isLoggingEvent({})).toBe(false)
+      expect(isLoggingEvent({ type: 'Foo' })).toBe(false) // missing time, source, context, payload
+      expect(isLoggingEvent({ type: 'Foo', time: 1, source: 'cli' })).toBe(false) // missing context, payload
+    })
+
+    it('isCLILoggingEvent should identify CLI-sourced events', async () => {
+      const { isCLILoggingEvent } = await import('@sidekick/types')
+      const { LogEvents } = await import('../structured-logging')
+
+      const hookReceived = LogEvents.hookReceived(
+        { sessionId: 'sess-1', hook: 'SessionStart' },
+        { mode: 'hook' }
+      )
+      expect(isCLILoggingEvent(hookReceived)).toBe(true)
+
+      const statuslineRendered = LogEvents.statuslineRendered(
+        { sessionId: 'sess-1' },
+        { displayMode: 'session_summary', staleData: false },
+        { durationMs: 10 }
+      )
+      expect(isCLILoggingEvent(statuslineRendered)).toBe(true)
+
+      // Daemon event should return false
+      const daemonStarted = LogEvents.daemonStarted({ startupDurationMs: 100 })
+      expect(isCLILoggingEvent(daemonStarted)).toBe(false)
+    })
+
+    it('isDaemonLoggingEvent should identify daemon-sourced events', async () => {
+      const { isDaemonLoggingEvent } = await import('@sidekick/types')
+      const { LogEvents } = await import('../structured-logging')
+
+      const daemonStarting = LogEvents.daemonStarting({ projectDir: '/tmp', pid: 1 })
+      expect(isDaemonLoggingEvent(daemonStarting)).toBe(true)
+
+      const eventProcessed = LogEvents.eventProcessed(
+        { sessionId: 'sess-1' },
+        { handlerId: 'test', success: true },
+        { durationMs: 5 }
+      )
+      expect(isDaemonLoggingEvent(eventProcessed)).toBe(true)
+
+      // CLI event should return false
+      const hookReceived = LogEvents.hookReceived(
+        { sessionId: 'sess-1', hook: 'SessionStart' },
+        { mode: 'hook' }
+      )
+      expect(isDaemonLoggingEvent(hookReceived)).toBe(false)
+    })
+
+    it('isTranscriptLoggingEvent should identify transcript-sourced events', async () => {
+      const { isTranscriptLoggingEvent } = await import('@sidekick/types')
+      const { LogEvents } = await import('../structured-logging')
+      const { createDefaultMetrics } = await import('../transcript-service')
+
+      const metrics = createDefaultMetrics()
+
+      const transcriptEvent = LogEvents.transcriptEventEmitted(
+        { sessionId: 'sess-1' },
+        { eventType: 'UserPrompt', lineNumber: 1 },
+        { transcriptPath: '/tmp/t.jsonl', metrics }
+      )
+      expect(isTranscriptLoggingEvent(transcriptEvent)).toBe(true)
+
+      const preCompact = LogEvents.preCompactCaptured(
+        { sessionId: 'sess-1' },
+        { snapshotPath: '/tmp/snap.jsonl', lineCount: 10 },
+        { transcriptPath: '/tmp/t.jsonl', metrics }
+      )
+      expect(isTranscriptLoggingEvent(preCompact)).toBe(true)
+
+      // Daemon event should return false
+      const daemonStarted = LogEvents.daemonStarted({ startupDurationMs: 100 })
+      expect(isTranscriptLoggingEvent(daemonStarted)).toBe(false)
+    })
+
+    // --- logEvent Integration Tests ---
+
     it('should support logEvent helper to emit events via logger', async () => {
       const { createContextLogger, LogEvents, logEvent } = await import('../structured-logging')
       const { stream, lines } = createTestStream()
