@@ -17,6 +17,8 @@ import type {
   IntentChangedEvent,
   SummarySkippedEvent,
   DecisionRecordedEvent,
+  PersonaSelectedEvent,
+  PersonaChangedEvent,
   EventLogContext,
   SessionSummaryStartPayload,
   SessionSummaryFinishPayload,
@@ -25,6 +27,8 @@ import type {
   SessionTitleChangedPayload,
   IntentChangedPayload,
   DecisionRecordedPayload,
+  PersonaSelectedPayload,
+  PersonaChangedPayload,
 } from '@sidekick/types'
 
 // Re-export for consumers
@@ -177,6 +181,47 @@ export const DecisionEvents = {
   decisionRecorded(context: EventLogContext, payload: DecisionRecordedPayload): DecisionRecordedEvent {
     return {
       type: 'decision:recorded',
+      time: Date.now(),
+      source: 'daemon',
+      context: {
+        sessionId: context.sessionId,
+        correlationId: context.correlationId,
+        traceId: context.traceId,
+        hook: context.hook,
+        taskId: context.taskId,
+      },
+      payload,
+    }
+  },
+}
+/* v8 ignore stop */
+
+/**
+ * Factory functions for creating persona-related logging events.
+ */
+/* v8 ignore start -- pure data factories with deterministic structure */
+export const PersonaEvents = {
+  /** Emitted when a persona is selected for a session. */
+  personaSelected(context: EventLogContext, payload: PersonaSelectedPayload): PersonaSelectedEvent {
+    return {
+      type: 'persona:selected',
+      time: Date.now(),
+      source: 'daemon',
+      context: {
+        sessionId: context.sessionId,
+        correlationId: context.correlationId,
+        traceId: context.traceId,
+        hook: context.hook,
+        taskId: context.taskId,
+      },
+      payload,
+    }
+  },
+
+  /** Emitted when persona changes mid-session. */
+  personaChanged(context: EventLogContext, payload: PersonaChangedPayload): PersonaChangedEvent {
+    return {
+      type: 'persona:changed',
       time: Date.now(),
       source: 'daemon',
       context: {

@@ -10,7 +10,7 @@
  * @see docs/plans/2026-02-16-persona-injection.md
  */
 import type { RuntimeContext } from '@sidekick/core'
-import { createPersonaLoader, getDefaultPersonasDir } from '@sidekick/core'
+import { createPersonaLoader, getDefaultPersonasDir, logEvent, LogEvents } from '@sidekick/core'
 import type { DaemonContext, HookName, Logger, PersonaDefinition, SidekickEvent, HandlerContext } from '@sidekick/types'
 import {
   isDaemonContext,
@@ -200,6 +200,18 @@ export async function stagePersonaRemindersForSession(
       lastStaged.personaId !== persona.id // different persona (including null→X for cleared→persona)
 
     if (isGenuineChange) {
+      logEvent(
+        ctx.logger,
+        LogEvents.personaChanged(
+          { sessionId },
+          {
+            personaFrom: lastStaged.personaId ?? 'none',
+            personaTo: persona.id,
+            reason: 'mid_session_change',
+          }
+        )
+      )
+
       const changedReminder = resolveReminder(ReminderIds.PERSONA_CHANGED, {
         context: templateContext,
         assets: ctx.assets,

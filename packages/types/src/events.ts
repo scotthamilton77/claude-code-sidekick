@@ -440,6 +440,20 @@ export interface ReminderStagedEvent extends LoggingEventBase<ReminderStagedPayl
   source: 'daemon'
 }
 
+// --- Persona Events ---
+
+/** Emitted when a persona is selected for a session. */
+export interface PersonaSelectedEvent extends LoggingEventBase<PersonaSelectedPayload> {
+  type: 'persona:selected'
+  source: 'daemon'
+}
+
+/** Emitted when persona changes mid-session. */
+export interface PersonaChangedEvent extends LoggingEventBase<PersonaChangedPayload> {
+  type: 'persona:changed'
+  source: 'daemon'
+}
+
 // --- Daemon Lifecycle Events ---
 
 /**
@@ -671,6 +685,8 @@ export type DaemonLoggingEvent =
   | ResumeSkippedEvent
   | RemindersClearedEvent
   | DecisionRecordedEvent
+  | PersonaSelectedEvent
+  | PersonaChangedEvent
   | ErrorOccurredEvent
 
 /**

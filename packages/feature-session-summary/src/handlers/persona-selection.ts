@@ -7,9 +7,10 @@
  * @see docs/design/PERSONA-PROFILES-DESIGN.md - Selection Algorithm
  */
 
-import { createPersonaLoader, getDefaultPersonasDir } from '@sidekick/core'
+import { createPersonaLoader, getDefaultPersonasDir, logEvent } from '@sidekick/core'
 import type { DaemonContext, SessionPersonaState, PersonaDefinition } from '@sidekick/types'
 import { createSessionSummaryState } from '../state.js'
+import { PersonaEvents } from '../events.js'
 import type { SessionSummaryConfig } from '../types.js'
 import { DEFAULT_SESSION_SUMMARY_CONFIG } from '../types.js'
 
@@ -179,11 +180,17 @@ export async function selectPersonaForSession(
       const summaryState = createSessionSummaryState(ctx.stateService)
       await summaryState.sessionPersona.write(sessionId, personaState)
 
-      ctx.logger.info('Using pinned persona for session', {
-        sessionId,
-        personaId: pinned.id,
-        personaName: pinned.display_name,
-      })
+      logEvent(
+        ctx.logger,
+        PersonaEvents.personaSelected(
+          { sessionId },
+          {
+            personaId: pinned.id,
+            selectionMethod: 'pinned',
+            poolSize: 1,
+          }
+        )
+      )
       return pinned.id
     }
 
@@ -219,11 +226,17 @@ export async function selectPersonaForSession(
         const summaryState = createSessionSummaryState(ctx.stateService)
         await summaryState.sessionPersona.write(sessionId, personaState)
 
-        ctx.logger.info('[persona-lifecycle] ClearHandoff: persisted preserved persona to new session', {
-          sessionId,
-          personaId: cachedPersona.id,
-          personaName: cachedPersona.display_name,
-        })
+        logEvent(
+          ctx.logger,
+          PersonaEvents.personaSelected(
+            { sessionId },
+            {
+              personaId: cachedPersona.id,
+              selectionMethod: 'handoff',
+              poolSize: 1,
+            }
+          )
+        )
         return cachedPersona.id
       } else {
         ctx.logger.warn('Cached persona from clear not found in available personas, falling back to selection', {
@@ -270,12 +283,17 @@ export async function selectPersonaForSession(
   const summaryState = createSessionSummaryState(ctx.stateService)
   await summaryState.sessionPersona.write(sessionId, personaState)
 
-  ctx.logger.info('Selected persona for session', {
-    sessionId,
-    personaId: selected.id,
-    personaName: selected.display_name,
-    poolSize: eligiblePersonas.length,
-  })
+  logEvent(
+    ctx.logger,
+    PersonaEvents.personaSelected(
+      { sessionId },
+      {
+        personaId: selected.id,
+        selectionMethod: 'random',
+        poolSize: eligiblePersonas.length,
+      }
+    )
+  )
 
   return selected.id
 }
