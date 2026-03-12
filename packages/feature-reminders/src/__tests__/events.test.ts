@@ -18,22 +18,25 @@ describe('ReminderEvents', () => {
         }
       )
 
-      expect(event.type).toBe('ReminderConsumed')
+      expect(event.type).toBe('reminder:consumed')
       expect(event.source).toBe('cli')
-      expect(event.payload.state.reminderName).toBe('AreYouStuckReminder')
-      expect(event.payload.state.blocking).toBe(true)
+      expect(event.payload.reminderName).toBe('AreYouStuckReminder')
+      expect(event.payload.blocking).toBe(true)
       expect(event.context.sessionId).toBe('sess-123')
       expect(event.context.hook).toBe('PreToolUse')
     })
 
-    it('should include optional metadata', () => {
+    it('should handle optional fields', () => {
       const event = ReminderEvents.reminderConsumed(
         { sessionId: 'sess-123' },
-        { reminderName: 'test', reminderReturned: true },
-        { stagingPath: '/tmp/staging/test.json' }
+        { reminderName: 'test', reminderReturned: true }
       )
 
-      expect(event.payload.metadata?.stagingPath).toBe('/tmp/staging/test.json')
+      expect(event.payload.reminderName).toBe('test')
+      expect(event.payload.reminderReturned).toBe(true)
+      expect(event.payload.blocking).toBeUndefined()
+      expect(event.payload.priority).toBeUndefined()
+      expect(event.payload.persistent).toBeUndefined()
     })
   })
 
@@ -47,10 +50,10 @@ describe('ReminderEvents', () => {
         'session_start'
       )
 
-      expect(event.type).toBe('RemindersCleared')
+      expect(event.type).toBe('reminder:cleared')
       expect(event.source).toBe('daemon')
-      expect(event.payload.state.clearedCount).toBe(3)
-      expect(event.payload.state.hookNames).toEqual(['PreToolUse', 'Stop'])
+      expect(event.payload.clearedCount).toBe(3)
+      expect(event.payload.hookNames).toEqual(['PreToolUse', 'Stop'])
       expect(event.payload.reason).toBe('session_start')
     })
 

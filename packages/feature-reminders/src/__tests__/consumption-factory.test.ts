@@ -650,15 +650,14 @@ describe('createConsumptionHandler', () => {
       await handler?.handler(createPreToolUseEvent(), ctx as unknown as import('@sidekick/types').HandlerContext)
 
       // Verify structured log event was recorded (logEvent logs with message = event.type)
-      expect(logger.wasLoggedAtLevel('ReminderConsumed', 'info')).toBe(true)
+      expect(logger.wasLoggedAtLevel('reminder:consumed', 'info')).toBe(true)
 
       // Verify the log contains expected metadata
-      const logRecord = logger.recordedLogs.find((log) => log.msg === 'ReminderConsumed')
+      const logRecord = logger.recordedLogs.find((log) => log.msg === 'reminder:consumed')
       expect(logRecord).toBeDefined()
-      expect(logRecord?.meta?.type).toBe('ReminderConsumed')
-      // The state is nested in meta
-      const state = logRecord?.meta?.state as { reminderName?: string } | undefined
-      expect(state?.reminderName).toBe('test')
+      expect(logRecord?.meta?.type).toBe('reminder:consumed')
+      // Payload is flat (no state/metadata nesting)
+      expect(logRecord?.meta?.reminderName).toBe('test')
     })
   })
 })
