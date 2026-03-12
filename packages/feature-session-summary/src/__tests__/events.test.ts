@@ -6,58 +6,50 @@ import { describe, it, expect } from 'vitest'
 import { SessionSummaryEvents } from '../events.js'
 
 describe('SessionSummaryEvents', () => {
-  describe('summaryUpdated', () => {
-    it('should create SummaryUpdated events with reason', () => {
-      const event = SessionSummaryEvents.summaryUpdated(
+  describe('summaryStart', () => {
+    it('should create session-summary:start events', () => {
+      const event = SessionSummaryEvents.summaryStart(
+        { sessionId: 'sess-123' },
+        { reason: 'user_prompt_forced', countdown: 5 }
+      )
+
+      expect(event.type).toBe('session-summary:start')
+      expect(event.source).toBe('daemon')
+      expect(event.time).toBeGreaterThan(0)
+      expect(event.context.sessionId).toBe('sess-123')
+      expect(event.payload.reason).toBe('user_prompt_forced')
+      expect(event.payload.countdown).toBe(5)
+    })
+  })
+
+  describe('summaryFinish', () => {
+    it('should create session-summary:finish events', () => {
+      const event = SessionSummaryEvents.summaryFinish(
         { sessionId: 'sess-123' },
         {
           session_title: 'Working on OAuth',
           session_title_confidence: 0.95,
           latest_intent: 'Fixing token expiration',
           latest_intent_confidence: 0.88,
-        },
-        {
-          countdown_reset_to: 20,
-          tokens_used: 150,
           processing_time_ms: 200,
           pivot_detected: false,
-          old_title: 'Setting up OAuth',
-          old_intent: 'Configuring provider',
-        },
-        'user_prompt_forced'
+        }
       )
 
-      expect(event.type).toBe('SummaryUpdated')
+      expect(event.type).toBe('session-summary:finish')
       expect(event.source).toBe('daemon')
-      expect(event.payload.reason).toBe('user_prompt_forced')
-      expect(event.payload.state.session_title).toBe('Working on OAuth')
-      expect(event.payload.state.session_title_confidence).toBe(0.95)
-      expect(event.payload.metadata.pivot_detected).toBe(false)
-      expect(event.payload.metadata.countdown_reset_to).toBe(20)
-    })
-
-    it('should support countdown_reached reason', () => {
-      const event = SessionSummaryEvents.summaryUpdated(
-        { sessionId: 'sess-123' },
-        {
-          session_title: 'Test',
-          session_title_confidence: 0.9,
-          latest_intent: 'Testing',
-          latest_intent_confidence: 0.9,
-        },
-        {
-          countdown_reset_to: 10,
-          pivot_detected: true,
-        },
-        'countdown_reached'
-      )
-
-      expect(event.payload.reason).toBe('countdown_reached')
-      expect(event.payload.metadata.pivot_detected).toBe(true)
+      expect(event.time).toBeGreaterThan(0)
+      expect(event.context.sessionId).toBe('sess-123')
+      expect(event.payload.session_title).toBe('Working on OAuth')
+      expect(event.payload.session_title_confidence).toBe(0.95)
+      expect(event.payload.latest_intent).toBe('Fixing token expiration')
+      expect(event.payload.latest_intent_confidence).toBe(0.88)
+      expect(event.payload.processing_time_ms).toBe(200)
+      expect(event.payload.pivot_detected).toBe(false)
     })
 
     it('should include context fields', () => {
-      const event = SessionSummaryEvents.summaryUpdated(
+      const event = SessionSummaryEvents.summaryFinish(
         {
           sessionId: 'sess-123',
           correlationId: 'corr-456',
@@ -68,9 +60,9 @@ describe('SessionSummaryEvents', () => {
           session_title_confidence: 0.9,
           latest_intent: 'Testing',
           latest_intent_confidence: 0.9,
-        },
-        { countdown_reset_to: 10, pivot_detected: false },
-        'compaction_reset'
+          processing_time_ms: 100,
+          pivot_detected: false,
+        }
       )
 
       expect(event.context.sessionId).toBe('sess-123')
@@ -79,8 +71,48 @@ describe('SessionSummaryEvents', () => {
     })
   })
 
+  describe('titleChanged', () => {
+    it('should create session-title:changed events', () => {
+      const event = SessionSummaryEvents.titleChanged(
+        { sessionId: 'sess-123' },
+        {
+          previousValue: 'Setting up OAuth',
+          newValue: 'Working on OAuth',
+          confidence: 0.95,
+        }
+      )
+
+      expect(event.type).toBe('session-title:changed')
+      expect(event.source).toBe('daemon')
+      expect(event.time).toBeGreaterThan(0)
+      expect(event.payload.previousValue).toBe('Setting up OAuth')
+      expect(event.payload.newValue).toBe('Working on OAuth')
+      expect(event.payload.confidence).toBe(0.95)
+    })
+  })
+
+  describe('intentChanged', () => {
+    it('should create intent:changed events', () => {
+      const event = SessionSummaryEvents.intentChanged(
+        { sessionId: 'sess-123' },
+        {
+          previousValue: 'Configuring provider',
+          newValue: 'Fixing token expiration',
+          confidence: 0.88,
+        }
+      )
+
+      expect(event.type).toBe('intent:changed')
+      expect(event.source).toBe('daemon')
+      expect(event.time).toBeGreaterThan(0)
+      expect(event.payload.previousValue).toBe('Configuring provider')
+      expect(event.payload.newValue).toBe('Fixing token expiration')
+      expect(event.payload.confidence).toBe(0.88)
+    })
+  })
+
   describe('summarySkipped', () => {
-    it('should create SummarySkipped events', () => {
+    it('should create session-summary:skipped events', () => {
       const event = SessionSummaryEvents.summarySkipped(
         { sessionId: 'sess-123' },
         { countdown: 5, countdown_threshold: 0 }
