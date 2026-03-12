@@ -277,8 +277,8 @@ interface ApiErrorResponse {
 
 ### 3.2 Session List Response
 
-**Endpoint**: `GET /api/sessions`
-**Data source**: `.sidekick/sessions/` directory listing
+**Endpoint**: `GET /api/projects/:projectId/sessions`
+**Data source**: `{project}/.sidekick/sessions/` directory listing
 **Requirement**: REQUIREMENTS.md §3 (Navigation Model — session selector)
 
 ```typescript
@@ -296,7 +296,7 @@ interface SessionListEntry {
   hasState: boolean
 }
 
-/** Response for GET /api/sessions */
+/** Response for GET /api/projects/:projectId/sessions */
 interface SessionListResponse {
   timestamp: number
   source: 'file'
@@ -351,7 +351,7 @@ interface StateFileResponse<T> {
 
 > **Note on `summary-countdown.json`**: Despite a stale comment in the Zod schema's JSDoc that says "Part of session-summary.json", this state is persisted as a separate file `summary-countdown.json`.
 
-> **Persona definitions**: The UI needs `PersonaDefinition` (from `@sidekick/types`, services/persona.ts) to display persona details beyond the ID stored in `SessionPersonaState`. Persona definitions are loaded from YAML asset files (`assets/sidekick/personas/*.yaml`), not from session state. The backend should serve them via a dedicated endpoint (route TBD in Section 4).
+> **Persona definitions**: The UI needs `PersonaDefinition` (from `@sidekick/types`, services/persona.ts) to display persona details beyond the ID stored in `SessionPersonaState`. Persona definitions are loaded from YAML asset files (`assets/sidekick/personas/*.yaml`), not from session state. The backend serves them via `GET /api/projects/:projectId/personas` (Tier 2, Section 4.5.2).
 
 **Import paths** — Types and schemas are available from the barrel export. Use `import type` for TypeScript types (erased at runtime) and a regular `import` for Zod schemas (runtime values):
 
@@ -709,7 +709,7 @@ Every data contract in this section maps to one or more features from REQUIREMEN
 
 ## 4. API Layer Architecture
 
-> **Design decision:** Vite dev proxy with `fs.watch`-driven cache and SSE push. See [`docs/plans/2026-03-09-api-layer-architecture-design.md`](/docs/plans/2026-03-09-api-layer-architecture-design.md) for rationale and alternatives considered.
+> **Design decision:** Vite dev proxy with `chokidar`-driven cache and SSE push. See [`docs/plans/2026-03-09-api-layer-architecture-design.md`](/docs/plans/2026-03-09-api-layer-architecture-design.md) for rationale and alternatives considered.
 
 ### 4.1 Backend Architecture: Vite Middleware Plugin
 
@@ -744,14 +744,16 @@ export function sidekickApiPlugin(): Plugin {
 
 ### 4.2 File Watching and Cache Layer
 
-The backend watches `.sidekick/` directories using `fs.watch` and maintains an in-memory cache of file contents. File changes trigger cache invalidation, re-reads, and SSE notifications to the frontend.
+The backend watches `.sidekick/` directories using `chokidar` and maintains an in-memory cache of file contents. File changes trigger cache invalidation, re-reads, and SSE notifications to the frontend.
+
+> **Why `chokidar` over `fs.watch`:** Node's built-in `fs.watch` does not support recursive watching on Linux (only macOS and Windows). The codebase already uses `chokidar` for file watching (see `packages/sidekick-daemon/src/config-watcher.ts`), so this is consistent with the existing approach. `chokidar` provides reliable cross-platform file watching with built-in debouncing, glob filtering, and atomic write detection.
 
 #### 4.2.1 Architecture Layers
 
 ```
 ┌──────────────┐     events      ┌──────────────┐    invalidate    ┌──────────────┐
 │  FileWatcher │ ──────────────► │  FileCache   │ ───────────────► │  SSE Bus     │
-│  (fs.watch)  │  file:changed   │  (in-memory) │   push to        │  (EventSource)│
+│  (chokidar)  │  file:changed   │  (in-memory) │   push to        │  (EventSource)│
 │              │  file:created   │              │   connected       │              │
 │              │  file:deleted   │              │   clients         │              │
 └──────────────┘                 └──────────────┘                  └──────────────┘
@@ -766,7 +768,7 @@ The backend watches `.sidekick/` directories using `fs.watch` and maintains an i
 
 #### 4.2.2 FileWatcher
 
-Watches directories recursively via `fs.watch`. Emits typed events when files change.
+Watches directories recursively via `chokidar`. Emits typed events when files change.
 
 ```typescript
 /** Events emitted by the FileWatcher. */
@@ -781,7 +783,7 @@ interface FileWatcherEvent {
 
 **Behavior:**
 - Watches directories, not individual files — picks up new files automatically
-- Debounces duplicate FSEvents notifications (macOS batches rapid changes; 50ms debounce window)
+- Debounces duplicate notifications (chokidar handles FSEvents batching on macOS; 50ms `awaitWriteFinish` stabilization threshold)
 - Ignores dotfiles, `.tmp` files, and partial writes (files ending in `.tmp` or `~`)
 - Emits `file:created` for new files, `file:changed` for modifications, `file:deleted` for removals
 - On watcher error: logs, attempts re-establishment with exponential backoff (1s, 2s, 4s, max 30s). After 5 consecutive failures, falls back to polling (2s interval) for that directory.
@@ -853,7 +855,7 @@ interface SessionChangeSSEEvent {
   type: 'session:activated' | 'session:deactivated'
   /** Session ID */
   sessionId: string
-  /** Project ID (dash-encoded path) */
+  /** Project ID (base64url-encoded path) */
   projectId: string
   timestamp: number
 }
@@ -865,7 +867,7 @@ event: file:changed
 data: {"type":"file:changed","path":"sessions/abc/state/session-summary.json","timestamp":1741500000000}
 
 event: session:activated
-data: {"type":"session:activated","sessionId":"abc","projectId":"-Users-scott-src-projects-foo","timestamp":1741500001000}
+data: {"type":"session:activated","sessionId":"abc","projectId":"L1VzZXJzL3Njb3R0L3NyYy9wcm9qZWN0cy9mb28","timestamp":1741500001000}
 ```
 
 **Design note:** SSE carries notifications only, not data. The frontend receives a change event and re-fetches the affected resource via the REST API. This avoids duplicating validation/transformation logic in the SSE path and keeps SSE payloads minimal.
@@ -919,7 +921,7 @@ interface LogStreamResponse {
 
 #### 4.3.5 Watcher Errors
 
-`fs.watch` can emit errors due to permissions, exceeding the OS file descriptor limit, or unmounted volumes.
+`chokidar` can emit errors due to permissions, exceeding the OS file descriptor limit, or unmounted volumes.
 
 **Response:** Log the error with the affected directory path. Attempt to re-establish the watch with exponential backoff (1s → 2s → 4s → 8s → 16s → 30s cap). After 5 consecutive failures for the same directory, fall back to polling (2s interval) for that directory only. Emit a `watcher:degraded` SSE event so the frontend can display a subtle indicator that updates may be delayed.
 
@@ -982,15 +984,17 @@ Routes follow the navigation funnel: global → project → session. All routes 
 
 #### 4.5.1 Project ID Encoding
 
-Project identifiers use the same convention as Claude Code's `~/.claude/projects/` directory: the absolute project path with path separators replaced by `-`.
+Project identifiers use **base64url** encoding of the absolute project path. This provides lossless round-tripping for any valid filesystem path, including paths containing hyphens or non-ASCII characters.
 
 | Project Path | Project ID |
 |---|---|
-| `/Users/scott/src/projects/claude-code-sidekick` | `-Users-scott-src-projects-claude-code-sidekick` |
-| `/Users/scott/src/oss/beads` | `-Users-scott-src-oss-beads` |
+| `/Users/scott/src/projects/claude-code-sidekick` | `L1VzZXJzL3Njb3R0L3NyYy9wcm9qZWN0cy9jbGF1ZGUtY29kZS1zaWRla2ljaw` |
+| `/Users/scott/src/oss/beads` | `L1VzZXJzL3Njb3R0L3NyYy9vc3MvYmVhZHM` |
 
-**Encoding:** Replace every `/` with `-`.
-**Decoding:** Replace the leading `-` with `/`, then replace each subsequent `-` with `/`. (Note: this is lossy if directory names contain hyphens. In practice, Claude Code uses the same convention and it works because project paths rarely have ambiguous hyphen placement. The backend resolves the decoded path against the project registry to handle edge cases.)
+**Encoding:** `Buffer.from(path).toString('base64url')` — standard base64url (RFC 4648 §5), no padding.
+**Decoding:** `Buffer.from(projectId, 'base64url').toString('utf8')`.
+
+> **Why not dash-encoding (Claude Code convention)?** Claude Code's `~/.claude/projects/` directory uses `/` → `-` substitution, but this encoding is lossy — it cannot round-trip paths that contain hyphens (e.g., `/home/my-user/my-project`). Since the UI needs to decode project IDs back to filesystem paths for file reads, lossless encoding is required. The backend can still cross-reference against Claude Code's dash-encoded directory names for project discovery.
 
 #### 4.5.2 Route Table
 
@@ -1000,11 +1004,12 @@ Project identifiers use the same convention as Claude Code's `~/.claude/projects
 |--------|-------|--------------|--------|
 | `GET` | `/api/projects` | `ProjectListResponse` | `~/.sidekick/` registry |
 | `GET` | `/api/config` | _Deferred (§3.8)_ | `~/.sidekick/config/` |
+| `GET` | `/api/state/baseline-user-context-token-metrics` | `StateFileResponse<BaseTokenMetricsState>` (§3.3 #17) | `~/.sidekick/state/baseline-user-context-token-metrics.json` |
 
 ```typescript
 /** Single project entry in the listing. */
 interface ProjectListEntry {
-  /** Dash-encoded project path (§4.5.1) */
+  /** Base64url-encoded project path (§4.5.1) */
   id: string
   /** Absolute filesystem path to the project root */
   path: string
@@ -1031,6 +1036,10 @@ interface ProjectListResponse {
 |--------|-------|--------------|--------|
 | `GET` | `/api/projects/:projectId/sessions` | `SessionListResponse` (§3.2) | `{project}/.sidekick/sessions/` |
 | `GET` | `/api/projects/:projectId/daemon/status` | `DaemonStatusResponse` (§3.6) | `{project}/.sidekick/state/daemon-status.json` |
+| `GET` | `/api/projects/:projectId/state/baseline-project-context-token-metrics` | `StateFileResponse<ProjectContextMetrics>` (§3.3 #18) | `{project}/.sidekick/state/baseline-project-context-token-metrics.json` |
+| `GET` | `/api/projects/:projectId/state/task-registry` | `StateFileResponse<TaskRegistryState>` (§3.3 #19) | `{project}/.sidekick/state/task-registry.json` |
+| `GET` | `/api/projects/:projectId/state/daemon-global-log-metrics` | `StateFileResponse<LogMetricsState>` (§3.3 #20) | `{project}/.sidekick/state/daemon-global-log-metrics.json` |
+| `GET` | `/api/projects/:projectId/personas` | `PersonaListResponse` | Persona YAML assets |
 
 ##### Tier 3: Session
 
@@ -1039,10 +1048,8 @@ interface ProjectListResponse {
 | `GET` | `/api/projects/:projectId/sessions/:sessionId/state` | `SessionStateResponse` (§3.7) | All state files aggregated |
 | `GET` | `/api/projects/:projectId/sessions/:sessionId/state/:filename` | `StateFileResponse<T>` (§3.3) | Individual state file |
 | `GET` | `/api/projects/:projectId/sessions/:sessionId/logs/:type` | `LogStreamResponse` (§3.4) | `cli.log` or `sidekickd.log` |
-| `GET` | `/api/projects/:projectId/sessions/:sessionId/compaction-history` | `StateFileResponse<CompactionHistoryState>` | `compaction-history.json` |
 | `GET` | `/api/projects/:projectId/sessions/:sessionId/pre-compact/:timestamp` | _Deferred (§3.8)_ | Pre-compaction snapshot |
 | `GET` | `/api/projects/:projectId/sessions/:sessionId/reminders/staged` | `StagedRemindersResponse` (§3.5) | `stage/{hook}/*.json` |
-| `GET` | `/api/projects/:projectId/personas` | `PersonaListResponse` | Persona YAML assets |
 
 ##### SSE
 
@@ -1087,7 +1094,7 @@ The `:filename` parameter in `/api/projects/:projectId/sessions/:sessionId/state
 | REQUIREMENTS.md §6 (file-based data source) | §4.1, §4.2 | Backend reads `.sidekick/` files via Vite middleware; no daemon modification |
 | REQUIREMENTS.md §7 (no WebSocket) | §4.2.4 | SSE (plain HTTP) used for push notifications instead of WebSocket |
 | PHASE2-AUDIT §4.2 (Option C: file-based reads) | §4.1 | Vite middleware plugin reads state files directly |
-| PHASE2-AUDIT §2.4 (state file inventory) | §4.5.2 | All 20 state files from §3.3 exposed via REST endpoints |
+| PHASE2-AUDIT §2.4 (state file inventory) | §4.5.2 | All 20 state files from §3.3 exposed via REST endpoints — session-scoped (#1-#16) via Tier 3 `state/:filename`, project-scoped (#18-#20) via Tier 2, user-scoped (#17) via Tier 1 |
 | REQUIREMENTS.md §3 (navigation model) | §4.4 | Navigation funnel: projects → sessions → active session |
 | REQUIREMENTS.md F-5 (state inspector) | §4.5.2 | Aggregated and individual state file endpoints |
 | REQUIREMENTS.md F-2 (log-based replay) | §4.5.2 | Log stream endpoint with offset pagination |

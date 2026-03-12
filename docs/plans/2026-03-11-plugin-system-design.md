@@ -223,9 +223,10 @@ New service loaded at daemon startup that manages plugin lifecycle.
 interface PluginRegistry {
   loadManifests(): Promise<void>
   resolvePlugins(): Promise<void>
-  getTriggers(type: TriggerType): Trigger[]
-  getEnabledPlugins(): Plugin[]
+  getTriggers(type: TriggerType): { pluginId: string; trigger: Trigger }[]
+  getEnabledPlugins(): ResolvedPlugin[]
   isEnabled(pluginId: string): boolean
+  resolvePluginReminder(pluginId: string, reminderId: string): string | null
   startWatching(): void      // Begin hot-reload file watching
   stopWatching(): void       // Clean up watchers
 }
@@ -236,7 +237,7 @@ interface PluginRegistry {
 ```typescript
 interface DaemonContext {
   // ... existing fields
-  pluginRegistry: PluginRegistry
+  pluginRegistry?: PluginRegistry  // Optional during incremental rollout
 }
 ```
 

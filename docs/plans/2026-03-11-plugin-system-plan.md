@@ -223,7 +223,7 @@ describe('PluginMetadataSchema', () => {
 })
 ```
 
-Run: `pnpm --filter @sidekick/types test -- --testPathPattern=plugin-registry`
+Run: `pnpm --filter @sidekick/types test -- src/__tests__/plugin-registry`
 Expected: FAIL (module not found)
 
 **Step 2: Implement types and schemas**
@@ -455,8 +455,8 @@ export interface PluginRegistry {
   /** Resolve plugin folders via asset cascade, load metadata + triggers */
   resolvePlugins(): Promise<void>
 
-  /** Get all triggers of a specific type from enabled plugins */
-  getTriggers(type: TriggerType): Trigger[]
+  /** Get all triggers of a specific type from enabled plugins, with source plugin ID */
+  getTriggers(type: TriggerType): { pluginId: string; trigger: Trigger }[]
 
   /** Get all enabled, resolved plugins */
   getEnabledPlugins(): ResolvedPlugin[]
@@ -484,7 +484,7 @@ export * from './plugin-registry.js'
 
 **Step 4: Verify tests pass**
 
-Run: `pnpm --filter @sidekick/types test -- --testPathPattern=plugin-registry`
+Run: `pnpm --filter @sidekick/types test -- src/__tests__/plugin-registry`
 Expected: PASS
 
 **Step 5: Verify build**
@@ -506,7 +506,7 @@ feat(types): add plugin system types and Zod schemas
 
 **Files:**
 - Create: `packages/sidekick-core/src/plugin-registry.ts`
-- Create: `packages/sidekick-core/src/plugin-registry.test.ts`
+- Create: `packages/sidekick-core/src/__tests__/plugin-registry.test.ts`
 - Modify: `packages/sidekick-core/src/index.ts` (add export)
 
 **Context:** Implementation follows the ServiceFactory pattern in `packages/sidekick-core/src/service-factory.ts`. The registry loads manifests from `.sidekick/plugins.yaml` and `~/.sidekick/plugins.yaml`, resolves plugin folders via the asset cascade (project → user → bundled), reads `plugin.yaml` and `triggers/triggers.yaml` from each, and provides query methods.
@@ -536,7 +536,7 @@ import * as path from 'node:path'
 import * as os from 'node:os'
 import * as yaml from 'js-yaml'
 import { PluginRegistryImpl } from '../plugin-registry.js'
-import { createFakeLogger } from './test-helpers.js'
+import { createFakeLogger } from '@sidekick/testing-fixtures'
 
 function createTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'plugin-test-'))
@@ -596,7 +596,7 @@ function writeManifest(
 }
 ```
 
-Run: `pnpm --filter @sidekick/core test -- --testPathPattern=plugin-registry`
+Run: `pnpm --filter @sidekick/core test -- src/__tests__/plugin-registry`
 Expected: FAIL (module not found)
 
 **Step 2: Implement PluginRegistryImpl**
@@ -606,10 +606,10 @@ Create: `packages/sidekick-core/src/plugin-registry.ts`
 Constructor takes options:
 ```typescript
 export interface PluginRegistryOptions {
-  /** Project .sidekick/ directory */
-  projectDir: string
-  /** User ~/.sidekick/ directory */
-  userDir?: string
+  /** Project .sidekick/ directory (e.g., /path/to/project/.sidekick) */
+  projectSidekickDir: string
+  /** User ~/.sidekick/ directory (e.g., ~/.sidekick) */
+  userSidekickDir?: string
   /** Bundled assets/sidekick/ directory (for bundled plugins) */
   assetsDir?: string
   /** Logger */
@@ -618,14 +618,14 @@ export interface PluginRegistryOptions {
 ```
 
 Implementation outline:
-- `loadManifests()`: Read and parse `plugins.yaml` from projectDir and userDir. Merge with project-scope winning on conflict. Handle missing files with empty defaults.
-- `resolvePlugins()`: For each enabled plugin in merged manifest, search cascade (projectDir/plugins/{id} → userDir/plugins/{id} → assetsDir/plugins/{id}) for first folder containing `plugin.yaml`. Parse metadata and triggers. Store in internal `Map<string, ResolvedPlugin>`.
-- `getTriggers(type)`: Filter all triggers from resolved plugins by type discriminant.
+- `loadManifests()`: Read and parse `plugins.yaml` from projectSidekickDir and userSidekickDir. Merge with project-scope winning on conflict. Handle missing files with empty defaults.
+- `resolvePlugins()`: For each enabled plugin in merged manifest, search cascade (projectSidekickDir/plugins/{id} → userSidekickDir/plugins/{id} → assetsDir/plugins/{id}) for first folder containing `plugin.yaml`. Parse metadata and triggers. Store in internal `Map<string, ResolvedPlugin>`.
+- `getTriggers(type)`: Filter all triggers from resolved plugins by type discriminant. Return `{ pluginId, trigger }[]` to preserve plugin source for `resolvePluginReminder()` calls.
 - `getEnabledPlugins()`: Return all values from resolved plugins map.
 - `isEnabled(pluginId)`: Check merged manifest.
 - `resolvePluginReminder(pluginId, reminderId)`: Read `reminders/{reminderId}.yaml` from the plugin's resolved folder, walking the cascade.
 
-Run: `pnpm --filter @sidekick/core test -- --testPathPattern=plugin-registry`
+Run: `pnpm --filter @sidekick/core test -- src/__tests__/plugin-registry`
 Expected: PASS
 
 **Step 3: Export from package**
@@ -637,7 +637,7 @@ export { PluginRegistryImpl, type PluginRegistryOptions } from './plugin-registr
 
 **Step 4: Verify build**
 
-Run: `pnpm --filter @sidekick/core build && pnpm --filter @sidekick/core test -- --testPathPattern=plugin-registry`
+Run: `pnpm --filter @sidekick/core build && pnpm --filter @sidekick/core test -- src/__tests__/plugin-registry`
 Expected: PASS
 
 **Step 5: Commit**
@@ -688,13 +688,13 @@ vi.mock('chokidar', () => ({
 }))
 ```
 
-Run: `pnpm --filter @sidekick/core test -- --testPathPattern=plugin-registry`
+Run: `pnpm --filter @sidekick/core test -- src/__tests__/plugin-registry`
 Expected: FAIL (startWatching not implemented)
 
 **Step 2: Implement startWatching() and stopWatching()**
 
 Follow `config-watcher.ts` line 105-170 pattern:
-- Create watchers for: `${projectDir}/plugins.yaml`, `${userDir}/plugins.yaml`, `${projectDir}/plugins/*/`, `${userDir}/plugins/*/`
+- Create watchers for: `${projectSidekickDir}/plugins.yaml`, `${userSidekickDir}/plugins.yaml`, `${projectSidekickDir}/plugins/*/`, `${userSidekickDir}/plugins/*/`
 - Depth 1 for plugin folders (plugin.yaml and triggers/ files)
 - `ignoreInitial: true`, `usePolling: false`
 - On `add`/`change`/`unlink`: debounce 100ms, then re-load manifests + re-resolve
@@ -706,7 +706,7 @@ Follow `config-watcher.ts` line 105-170 pattern:
 Add `on(event: 'plugin:reloaded', handler: () => void)` method using Node EventEmitter.
 Emit `plugin:reloaded` after successful re-resolve.
 
-Run: `pnpm --filter @sidekick/core test -- --testPathPattern=plugin-registry`
+Run: `pnpm --filter @sidekick/core test -- src/__tests__/plugin-registry`
 Expected: PASS
 
 **Step 4: Verify build**
@@ -758,8 +758,8 @@ In `packages/sidekick-daemon/src/daemon.ts`, after ConfigWatcher creation (line 
 ```typescript
     // Initialize Plugin Registry for extension management
     this.pluginRegistry = new PluginRegistryImpl({
-      projectDir: this.stateService.rootDir(),
-      userDir: path.join(homedir(), '.sidekick'),
+      projectSidekickDir: this.stateService.rootDir(),
+      userSidekickDir: path.join(homedir(), '.sidekick'),
       assetsDir: getDefaultAssetsDir(),
       logger: this.logger,
     })
@@ -843,7 +843,7 @@ it('stages reminder from plugin absence trigger when source edited', async () =>
 })
 ```
 
-Run: `pnpm --filter @sidekick/feature-reminders test -- --testPathPattern=track-verification`
+Run: `pnpm --filter @sidekick/feature-reminders test -- src/handlers/staging/__tests__/track-verification`
 Expected: FAIL
 
 **Step 2: Refactor handler to read from PluginRegistry**
@@ -938,7 +938,7 @@ it('stages reminder when tool matches reactive trigger pattern', async () => {
 })
 ```
 
-Run: `pnpm --filter @sidekick/feature-reminders test -- --testPathPattern=handle-reactive`
+Run: `pnpm --filter @sidekick/feature-reminders test -- src/handlers/staging/__tests__/handle-reactive`
 Expected: FAIL (module not found)
 
 **Step 2: Implement handler**
@@ -957,6 +957,7 @@ export function registerReactiveTriggersHandler(context: RuntimeContext): void {
       if (!isTranscriptEvent(event)) return
       if (event.metadata.isBulkProcessing) return
 
+      if (!isDaemonContext(ctx as unknown as RuntimeContext)) return
       const daemonCtx = ctx as unknown as DaemonContext
       if (!daemonCtx.pluginRegistry) return
 
@@ -964,9 +965,9 @@ export function registerReactiveTriggersHandler(context: RuntimeContext): void {
       if (!toolName) return
 
       const command = extractToolInput(event)?.command as string | undefined
-      const triggers = daemonCtx.pluginRegistry.getTriggers('reactive')
+      const triggerEntries = daemonCtx.pluginRegistry.getTriggers('reactive')
 
-      for (const trigger of triggers) {
+      for (const { pluginId, trigger } of triggerEntries) {
         if (!trigger.enabled) continue
         if (trigger.type !== 'reactive') continue
         if (trigger.match.tool !== toolName) continue
@@ -983,10 +984,7 @@ export function registerReactiveTriggersHandler(context: RuntimeContext): void {
           }
         }
 
-        // Resolve and stage reminder from plugin
-        const pluginId = findPluginForTrigger(daemonCtx.pluginRegistry, trigger.id)
-        if (!pluginId) continue
-
+        // Resolve and stage reminder from plugin (pluginId from getTriggers)
         const reminderContent = daemonCtx.pluginRegistry.resolvePluginReminder(
           pluginId,
           trigger.reminder
@@ -1071,7 +1069,7 @@ describe('appendEnrichmentOutput', () => {
 })
 ```
 
-Run: `pnpm --filter @sidekick/core test -- --testPathPattern=prompt-enrichment`
+Run: `pnpm --filter @sidekick/core test -- src/__tests__/prompt-enrichment`
 Expected: FAIL
 
 **Step 2: Implement enrichment file utilities**
@@ -1146,7 +1144,7 @@ export async function consumeEnrichmentFiles(
 }
 ```
 
-Run: `pnpm --filter @sidekick/core test -- --testPathPattern=prompt-enrichment`
+Run: `pnpm --filter @sidekick/core test -- src/__tests__/prompt-enrichment`
 Expected: PASS
 
 **Step 3: Write failing tests for enrichment trigger handler**
@@ -1159,7 +1157,7 @@ Test cases:
 5. Handles command failure gracefully (logs error, does not stage)
 6. Respects enabled: false
 
-Run: `pnpm --filter @sidekick/feature-reminders test -- --testPathPattern=handle-prompt-enrichment`
+Run: `pnpm --filter @sidekick/feature-reminders test -- src/handlers/staging/__tests__/handle-prompt-enrichment`
 Expected: FAIL
 
 **Step 4: Implement enrichment trigger handler**
@@ -1180,7 +1178,7 @@ const { stdout } = await execAsync(trigger.enrichment.command, {
 
 if (stdout.trim()) {
   await appendEnrichmentOutput({
-    sessionDir: path.join(daemonCtx.paths.projectDir, '.sidekick', 'sessions', sessionId),
+    sessionDir: daemonCtx.stateService.sessionRootDir(sessionId),
     target: trigger.enrichment.target,
     triggerId: trigger.id,
     content: stdout,
@@ -1190,7 +1188,7 @@ if (stdout.trim()) {
 
 **Step 5: Verify all tests pass**
 
-Run: `pnpm --filter @sidekick/core test -- --testPathPattern=prompt-enrichment && pnpm --filter @sidekick/feature-reminders test -- --testPathPattern=handle-prompt-enrichment`
+Run: `pnpm --filter @sidekick/core test -- src/__tests__/prompt-enrichment && pnpm --filter @sidekick/feature-reminders test -- src/handlers/staging/__tests__/handle-prompt-enrichment`
 Expected: PASS
 
 **Step 6: Commit**
@@ -1316,7 +1314,7 @@ it('loads superpowers plugin from bundled assets', async () => {
   writeManifest(projectDir, { superpowers: { enabled: true, version: '1.0.0' } })
 
   const registry = new PluginRegistryImpl({
-    projectDir,
+    projectSidekickDir: projectDir,
     assetsDir: path.resolve(__dirname, '../../../../assets/sidekick'),
     logger: createFakeLogger(),
   })
@@ -1330,11 +1328,12 @@ it('loads superpowers plugin from bundled assets', async () => {
 
   const absenceTriggers = registry.getTriggers('absence')
   expect(absenceTriggers).toHaveLength(1)
-  expect(absenceTriggers[0].id).toBe('vc-code-review')
+  expect(absenceTriggers[0].pluginId).toBe('superpowers')
+  expect(absenceTriggers[0].trigger.id).toBe('vc-code-review')
 })
 ```
 
-Run: `pnpm --filter @sidekick/core test -- --testPathPattern=plugin-registry`
+Run: `pnpm --filter @sidekick/core test -- src/__tests__/plugin-registry`
 Expected: PASS
 
 **Step 6: Commit**
@@ -1462,9 +1461,9 @@ const TOOL_REMINDER_MAP: Record<string, string> = {
 // After (dynamic, with static fallback):
 function getToolReminderMap(pluginRegistry?: PluginRegistry): Record<string, string> {
   if (pluginRegistry) {
-    const absenceTriggers = pluginRegistry.getTriggers('absence')
+    const triggerEntries = pluginRegistry.getTriggers('absence')
     const map: Record<string, string> = {}
-    for (const trigger of absenceTriggers) {
+    for (const { trigger } of triggerEntries) {
       if (trigger.type === 'absence') {
         map[trigger.id] = trigger.reminder
       }
@@ -1487,19 +1486,17 @@ Update `ensureToolReminderStaged()` to check plugin reminder resolution first:
 async function ensureToolReminderStaged(
   daemonCtx: DaemonContext,
   reminderId: string,
-  stagedNames: Set<string>
+  stagedNames: Set<string>,
+  pluginId?: string
 ): Promise<boolean> {
   if (stagedNames.has(reminderId)) return true
 
-  // Try plugin reminder first
+  // Try plugin reminder first (pluginId comes from getTriggers result)
   let reminder: StagedReminder | null = null
-  if (daemonCtx.pluginRegistry) {
-    const pluginId = findPluginForReminder(daemonCtx.pluginRegistry, reminderId)
-    if (pluginId) {
-      const content = daemonCtx.pluginRegistry.resolvePluginReminder(pluginId, reminderId)
-      if (content) {
-        reminder = resolveReminderFromContent(content, {})
-      }
+  if (daemonCtx.pluginRegistry && pluginId) {
+    const content = daemonCtx.pluginRegistry.resolvePluginReminder(pluginId, reminderId)
+    if (content) {
+      reminder = resolveReminderFromContent(content, {})
     }
   }
 
@@ -1525,7 +1522,7 @@ async function ensureToolReminderStaged(
 
 This is the critical safety check. Every existing VC-tools test must pass unchanged.
 
-Run: `pnpm --filter @sidekick/feature-reminders test && pnpm --filter @sidekick/core test -- --testPathPattern=plugin-registry`
+Run: `pnpm --filter @sidekick/feature-reminders test && pnpm --filter @sidekick/core test -- src/__tests__/plugin-registry`
 Expected: PASS
 
 **Step 7: Verify build**
@@ -1580,7 +1577,7 @@ describe('discoverPlugins', () => {
       '{"detected": true, "scope": "project"}'
     )
 
-    await discoverPlugins({ projectDir, assetsDir, logger })
+    await discoverPlugins({ projectSidekickDir: projectDir, assetsDir, logger })
 
     const manifest = yaml.load(
       fs.readFileSync(path.join(projectDir, 'plugins.yaml'), 'utf-8')
@@ -1597,7 +1594,7 @@ describe('discoverPlugins', () => {
 })
 ```
 
-Run: `pnpm --filter @sidekick/cli test -- --testPathPattern=plugin-discovery`
+Run: `pnpm --filter @sidekick/cli test -- src/commands/setup/__tests__/plugin-discovery`
 Expected: FAIL (module not found)
 
 **Step 2: Implement discoverPlugins()**
@@ -1621,22 +1618,22 @@ import {
 const execAsync = promisify(exec)
 
 export interface PluginDiscoveryOptions {
-  projectDir: string
-  userDir?: string
+  projectSidekickDir: string
+  userSidekickDir?: string
   assetsDir?: string
   logger: Logger
 }
 
 export async function discoverPlugins(options: PluginDiscoveryOptions): Promise<void> {
-  const { projectDir, userDir, assetsDir, logger } = options
+  const { projectSidekickDir, userSidekickDir, assetsDir, logger } = options
 
   // 1. Find all plugin folders across cascade levels
-  const pluginDirs = await findPluginFolders(projectDir, userDir, assetsDir)
+  const pluginDirs = await findPluginFolders(projectSidekickDir, userSidekickDir, assetsDir)
 
   // 2. Load existing manifests (to preserve enabled: false overrides)
-  const projectManifest = await loadExistingManifest(path.join(projectDir, 'plugins.yaml'))
-  const userManifest = userDir
-    ? await loadExistingManifest(path.join(userDir, 'plugins.yaml'))
+  const projectManifest = await loadExistingManifest(path.join(projectSidekickDir, 'plugins.yaml'))
+  const userManifest = userSidekickDir
+    ? await loadExistingManifest(path.join(userSidekickDir, 'plugins.yaml'))
     : { plugins: {} }
 
   // 3. For each plugin, detect and update manifest
@@ -1696,9 +1693,9 @@ export async function discoverPlugins(options: PluginDiscoveryOptions): Promise<
   }
 
   // 4. Write updated manifests
-  await writeManifest(path.join(projectDir, 'plugins.yaml'), projectManifest)
-  if (userDir) {
-    await writeManifest(path.join(userDir, 'plugins.yaml'), userManifest)
+  await writeManifest(path.join(projectSidekickDir, 'plugins.yaml'), projectManifest)
+  if (userSidekickDir) {
+    await writeManifest(path.join(userSidekickDir, 'plugins.yaml'), userManifest)
   }
 }
 ```
@@ -1710,8 +1707,8 @@ In `packages/sidekick-cli/src/commands/setup/index.ts`, add a plugin discovery s
 ```typescript
 // Plugin discovery phase
 await discoverPlugins({
-  projectDir: sidekickDir,
-  userDir: userSidekickDir,
+  projectSidekickDir: sidekickDir,
+  userSidekickDir: userSidekickDir,
   assetsDir: getDefaultAssetsDir(),
   logger,
 })
@@ -1719,7 +1716,7 @@ await discoverPlugins({
 
 **Step 4: Verify tests pass**
 
-Run: `pnpm --filter @sidekick/cli test -- --testPathPattern=plugin-discovery`
+Run: `pnpm --filter @sidekick/cli test -- src/commands/setup/__tests__/plugin-discovery`
 Expected: PASS
 
 **Step 5: Verify full build**
