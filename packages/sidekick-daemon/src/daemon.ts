@@ -855,7 +855,7 @@ export class Daemon {
     if (sessionId) {
       // Capture persona for clear handoff before shutting down services
       const payload = event.payload as { endReason?: string }
-      log.info('[persona-lifecycle] ClearHandoff: handleSessionEnd entered with endReason=clear', {
+      log.info('[persona-lifecycle] ClearHandoff: handleSessionEnd entered', {
         sessionId,
         endReason: payload.endReason,
       })
