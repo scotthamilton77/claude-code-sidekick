@@ -1116,8 +1116,211 @@ describe('Structured Logging', () => {
       expect(event.payload.metadata.durationMs).toBe(12)
     })
 
-    // Note: ReminderStaged, SummaryUpdated, SummarySkipped, RemindersCleared events
-    // moved to their respective feature packages (9.5.2)
+    it('should create ReminderStaged events with state and metadata', async () => {
+      const { LogEvents } = await import('../structured-logging')
+
+      const event = LogEvents.reminderStaged(
+        { sessionId: 'sess-123', correlationId: 'corr-456', hook: 'PostToolUse' },
+        {
+          reminderName: 'stuck-loop',
+          hookName: 'UserPromptSubmit',
+          blocking: true,
+          priority: 10,
+          persistent: false,
+        },
+        { stagingPath: '/tmp/staging/stuck-loop.md' }
+      )
+
+      expect(event.type).toBe('ReminderStaged')
+      expect(event.source).toBe('daemon')
+      expect(event.time).toBeGreaterThan(0)
+      expect(event.context.sessionId).toBe('sess-123')
+      expect(event.context.correlationId).toBe('corr-456')
+      expect(event.context.hook).toBe('PostToolUse')
+      expect(event.payload.state.reminderName).toBe('stuck-loop')
+      expect(event.payload.state.hookName).toBe('UserPromptSubmit')
+      expect(event.payload.state.blocking).toBe(true)
+      expect(event.payload.state.priority).toBe(10)
+      expect(event.payload.state.persistent).toBe(false)
+      expect(event.payload.metadata?.stagingPath).toBe('/tmp/staging/stuck-loop.md')
+    })
+
+    it('should create ReminderStaged events without optional metadata', async () => {
+      const { LogEvents } = await import('../structured-logging')
+
+      const event = LogEvents.reminderStaged(
+        { sessionId: 'sess-123' },
+        {
+          reminderName: 'test-reminder',
+          hookName: 'SessionStart',
+          blocking: false,
+          priority: 0,
+          persistent: true,
+        }
+      )
+
+      expect(event.type).toBe('ReminderStaged')
+      expect(event.payload.metadata).toBeUndefined()
+    })
+
+    it('should create DaemonStarting events with project dir and pid', async () => {
+      const { LogEvents } = await import('../structured-logging')
+
+      const event = LogEvents.daemonStarting({ projectDir: '/workspaces/project', pid: 12345 })
+
+      expect(event.type).toBe('DaemonStarting')
+      expect(event.source).toBe('daemon')
+      expect(event.time).toBeGreaterThan(0)
+      expect(event.context.sessionId).toBe('')
+      expect(event.payload.metadata.projectDir).toBe('/workspaces/project')
+      expect(event.payload.metadata.pid).toBe(12345)
+    })
+
+    it('should create DaemonStarted events with startup duration', async () => {
+      const { LogEvents } = await import('../structured-logging')
+
+      const event = LogEvents.daemonStarted({ startupDurationMs: 250 })
+
+      expect(event.type).toBe('DaemonStarted')
+      expect(event.source).toBe('daemon')
+      expect(event.time).toBeGreaterThan(0)
+      expect(event.context.sessionId).toBe('')
+      expect(event.payload.metadata.startupDurationMs).toBe(250)
+    })
+
+    it('should create IpcServerStarted events with socket path', async () => {
+      const { LogEvents } = await import('../structured-logging')
+
+      const event = LogEvents.ipcServerStarted({ socketPath: '/tmp/sidekick.sock' })
+
+      expect(event.type).toBe('IpcServerStarted')
+      expect(event.source).toBe('daemon')
+      expect(event.time).toBeGreaterThan(0)
+      expect(event.context.sessionId).toBe('')
+      expect(event.payload.metadata.socketPath).toBe('/tmp/sidekick.sock')
+    })
+
+    it('should create ConfigWatcherStarted events with watched files', async () => {
+      const { LogEvents } = await import('../structured-logging')
+
+      const event = LogEvents.configWatcherStarted({
+        projectDir: '/workspaces/project',
+        watchedFiles: ['sidekick.yaml', '.sidekick/config.yaml'],
+      })
+
+      expect(event.type).toBe('ConfigWatcherStarted')
+      expect(event.source).toBe('daemon')
+      expect(event.time).toBeGreaterThan(0)
+      expect(event.context.sessionId).toBe('')
+      expect(event.payload.metadata.projectDir).toBe('/workspaces/project')
+      expect(event.payload.metadata.watchedFiles).toEqual(['sidekick.yaml', '.sidekick/config.yaml'])
+    })
+
+    it('should create SessionEvictionStarted events with interval', async () => {
+      const { LogEvents } = await import('../structured-logging')
+
+      const event = LogEvents.sessionEvictionStarted({ intervalMs: 300000 })
+
+      expect(event.type).toBe('SessionEvictionStarted')
+      expect(event.source).toBe('daemon')
+      expect(event.time).toBeGreaterThan(0)
+      expect(event.context.sessionId).toBe('')
+      expect(event.payload.metadata.intervalMs).toBe(300000)
+    })
+
+    it('should create StatuslineRendered events with display mode and metrics', async () => {
+      const { LogEvents } = await import('../structured-logging')
+
+      const event = LogEvents.statuslineRendered(
+        { sessionId: 'sess-123', hook: 'Stop' },
+        { displayMode: 'session_summary', staleData: false },
+        { model: 'claude-sonnet-4-20250514', tokens: 1500, durationMs: 35 }
+      )
+
+      expect(event.type).toBe('StatuslineRendered')
+      expect(event.source).toBe('cli')
+      expect(event.time).toBeGreaterThan(0)
+      expect(event.context.sessionId).toBe('sess-123')
+      expect(event.context.hook).toBe('Stop')
+      expect(event.payload.state.displayMode).toBe('session_summary')
+      expect(event.payload.state.staleData).toBe(false)
+      expect(event.payload.metadata.model).toBe('claude-sonnet-4-20250514')
+      expect(event.payload.metadata.tokens).toBe(1500)
+      expect(event.payload.metadata.durationMs).toBe(35)
+    })
+
+    it('should create StatuslineError events with reason and fallback info', async () => {
+      const { LogEvents } = await import('../structured-logging')
+
+      const event = LogEvents.statuslineError(
+        { sessionId: 'sess-123' },
+        'state_file_missing',
+        { file: '/tmp/state.json', fallbackUsed: true, error: 'ENOENT' }
+      )
+
+      expect(event.type).toBe('StatuslineError')
+      expect(event.source).toBe('cli')
+      expect(event.time).toBeGreaterThan(0)
+      expect(event.context.sessionId).toBe('sess-123')
+      expect(event.payload.reason).toBe('state_file_missing')
+      expect(event.payload.metadata.file).toBe('/tmp/state.json')
+      expect(event.payload.metadata.fallbackUsed).toBe(true)
+      expect(event.payload.metadata.error).toBe('ENOENT')
+    })
+
+    it('should create ResumeGenerating events with confidence scores', async () => {
+      const { LogEvents } = await import('../structured-logging')
+
+      const event = LogEvents.resumeGenerating(
+        { sessionId: 'sess-123', traceId: 'trace-789' },
+        { title_confidence: 0.85, intent_confidence: 0.92 }
+      )
+
+      expect(event.type).toBe('ResumeGenerating')
+      expect(event.source).toBe('daemon')
+      expect(event.time).toBeGreaterThan(0)
+      expect(event.context.sessionId).toBe('sess-123')
+      expect(event.context.traceId).toBe('trace-789')
+      expect(event.payload.metadata.title_confidence).toBe(0.85)
+      expect(event.payload.metadata.intent_confidence).toBe(0.92)
+      expect(event.payload.reason).toBe('pivot_detected')
+    })
+
+    it('should create ResumeUpdated events with snarky comment and timestamp', async () => {
+      const { LogEvents } = await import('../structured-logging')
+
+      const event = LogEvents.resumeUpdated(
+        { sessionId: 'sess-123' },
+        { snarky_comment: 'Nice try, but I remember everything.', timestamp: '2026-03-11T10:00:00Z' }
+      )
+
+      expect(event.type).toBe('ResumeUpdated')
+      expect(event.source).toBe('daemon')
+      expect(event.time).toBeGreaterThan(0)
+      expect(event.context.sessionId).toBe('sess-123')
+      expect(event.payload.state.snarky_comment).toBe('Nice try, but I remember everything.')
+      expect(event.payload.state.timestamp).toBe('2026-03-11T10:00:00Z')
+      expect(event.payload.reason).toBe('generation_complete')
+    })
+
+    it('should create ResumeSkipped events with confidence thresholds', async () => {
+      const { LogEvents } = await import('../structured-logging')
+
+      const event = LogEvents.resumeSkipped(
+        { sessionId: 'sess-123' },
+        { title_confidence: 0.3, intent_confidence: 0.4, min_confidence: 0.7 },
+        'confidence_below_threshold'
+      )
+
+      expect(event.type).toBe('ResumeSkipped')
+      expect(event.source).toBe('daemon')
+      expect(event.time).toBeGreaterThan(0)
+      expect(event.context.sessionId).toBe('sess-123')
+      expect(event.payload.metadata.title_confidence).toBe(0.3)
+      expect(event.payload.metadata.intent_confidence).toBe(0.4)
+      expect(event.payload.metadata.min_confidence).toBe(0.7)
+      expect(event.payload.reason).toBe('confidence_below_threshold')
+    })
 
     it('should create TranscriptEventEmitted events with uuid', async () => {
       const { LogEvents } = await import('../structured-logging')
