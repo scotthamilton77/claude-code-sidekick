@@ -961,6 +961,7 @@ export interface TranscriptEmittedPayload {
   toolName?: string
   transcriptPath?: string
   contentPreview?: string
+  metrics?: TranscriptMetrics
 }
 
 /** Payload for `transcript:pre-compact` — pre-compact snapshot captured. */
@@ -968,6 +969,7 @@ export interface TranscriptPreCompactPayload {
   snapshotPath: string
   lineCount: number
   transcriptPath?: string
+  metrics?: TranscriptMetrics
 }
 
 /** Payload for `error:occurred` — a general error occurred. */

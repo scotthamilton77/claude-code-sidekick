@@ -1228,6 +1228,7 @@ export const LogEvents = {
         toolName: state.toolName,
         transcriptPath: metadata.transcriptPath,
         contentPreview: metadata.contentPreview,
+        metrics: metadata.metrics,
       },
     }
   },
@@ -1262,6 +1263,7 @@ export const LogEvents = {
         snapshotPath: state.snapshotPath,
         lineCount: state.lineCount,
         transcriptPath: metadata.transcriptPath,
+        metrics: metadata.metrics,
       },
     }
   },
@@ -1274,10 +1276,7 @@ export const LogEvents = {
  */
 export function logEvent(logger: Logger, event: LoggingEventBase): void {
   const payload = event.payload
-  const meta =
-    payload != null && typeof payload === 'object' && !Array.isArray(payload)
-      ? (payload as Record<string, unknown>)
-      : {}
+  const meta = payload != null && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
   const reason = 'reason' in meta ? String(meta.reason) : undefined
   logger.info(reason ?? `${event.type}`, {
     type: event.type,
