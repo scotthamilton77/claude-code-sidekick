@@ -64,13 +64,13 @@ function DetailContent({ line }: { line: TranscriptLine }) {
   switch (line.type) {
     case 'tool-use':
       return <ToolDetail line={line} />
-    case 'decision':
+    case 'decision:recorded':
       return <DecisionDetail line={line} />
-    case 'reminder-staged':
-    case 'reminder-unstaged':
-    case 'reminder-consumed':
+    case 'reminder:staged':
+    case 'reminder:unstaged':
+    case 'reminder:consumed':
       return <ReminderDetail line={line} />
-    case 'log-error':
+    case 'error:occurred':
       return <ErrorDetail line={line} />
     case 'user-message':
     case 'assistant-message':
@@ -79,15 +79,15 @@ function DetailContent({ line }: { line: TranscriptLine }) {
       return <ToolResultDetail line={line} />
     case 'compaction':
       return <CompactionDetail line={line} />
-    case 'statusline-rendered':
+    case 'statusline:rendered':
       return (
         <div className="p-3">
           <h3 className="text-[10px] font-medium text-slate-500 mb-1">Statusline Content</h3>
           <p className="text-xs font-mono text-teal-600 dark:text-teal-400">{line.statuslineContent}</p>
         </div>
       )
-    case 'session-title-changed':
-    case 'intent-changed':
+    case 'session-title:changed':
+    case 'intent:changed':
       return (
         <div className="p-3 space-y-2">
           {line.previousValue && (
@@ -115,8 +115,8 @@ function DetailContent({ line }: { line: TranscriptLine }) {
           )}
         </div>
       )
-    case 'persona-selected':
-    case 'persona-changed':
+    case 'persona:selected':
+    case 'persona:changed':
       return (
         <div className="p-3 space-y-2">
           {line.personaFrom && (
@@ -131,8 +131,8 @@ function DetailContent({ line }: { line: TranscriptLine }) {
           </div>
         </div>
       )
-    case 'snarky-message-finish':
-    case 'resume-message-finish':
+    case 'snarky-message:finish':
+    case 'resume-message:finish':
       return (
         <div className="p-3">
           <h3 className="text-[10px] font-medium text-slate-500 mb-1">Generated Message</h3>
