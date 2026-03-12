@@ -14,11 +14,13 @@ import type {
   SessionTitleChangedEvent,
   IntentChangedEvent,
   SummarySkippedEvent,
+  DecisionRecordedEvent,
   EventLogContext,
   SessionSummaryStartPayload,
   SessionSummaryFinishPayload,
   SessionTitleChangedPayload,
   IntentChangedPayload,
+  DecisionRecordedPayload,
 } from '@sidekick/types'
 
 // Re-export for consumers
@@ -124,6 +126,29 @@ export const SessionSummaryEvents = {
         countdown_threshold: metadata.countdown_threshold,
         reason: 'countdown_active',
       },
+    }
+  },
+}
+
+/**
+ * Factory functions for creating decision:recorded logging events.
+ * Captures LLM call decisions (calling, skipped) with reasoning.
+ */
+export const DecisionEvents = {
+  /** Emitted when an LLM decision is recorded. */
+  decisionRecorded(context: EventLogContext, payload: DecisionRecordedPayload): DecisionRecordedEvent {
+    return {
+      type: 'decision:recorded',
+      time: Date.now(),
+      source: 'daemon',
+      context: {
+        sessionId: context.sessionId,
+        correlationId: context.correlationId,
+        traceId: context.traceId,
+        hook: context.hook,
+        taskId: context.taskId,
+      },
+      payload,
     }
   },
 }

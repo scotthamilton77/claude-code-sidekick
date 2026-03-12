@@ -562,6 +562,12 @@ export interface RemindersClearedEvent extends LoggingEventBase<ReminderClearedP
   source: 'daemon'
 }
 
+/** Emitted when an LLM decision is recorded (calling, skipped, etc.). */
+export interface DecisionRecordedEvent extends LoggingEventBase<DecisionRecordedPayload> {
+  type: 'decision:recorded'
+  source: 'daemon'
+}
+
 // --- Statusline Events (per docs/design/FEATURE-STATUSLINE.md §8.5) ---
 
 /**
@@ -650,6 +656,7 @@ export type DaemonLoggingEvent =
   | ResumeUpdatedEvent
   | ResumeSkippedEvent
   | RemindersClearedEvent
+  | DecisionRecordedEvent
   | ErrorOccurredEvent
 
 /**

@@ -222,6 +222,65 @@ describe('Session Summary Event Emission', () => {
     expect(intentLogs).toHaveLength(0)
   })
 
+  it('emits decision:recorded event with decision=calling on UserPrompt', async () => {
+    const sessionId = 'test-decision-calling'
+
+    llm.queueResponses([
+      JSON.stringify({
+        session_title: 'Decision Test',
+        session_title_confidence: 0.9,
+        latest_intent: 'Testing decisions',
+        latest_intent_confidence: 0.85,
+        pivot_detected: false,
+      }),
+      'Snark!',
+      'Welcome!',
+    ])
+
+    await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+    await flushPromises()
+
+    const decisionLogs = logger.getLogsByLevel('info').filter((log) => log.meta?.type === 'decision:recorded')
+    expect(decisionLogs).toHaveLength(1)
+    expect(decisionLogs[0].meta?.decision).toBe('calling')
+    expect(decisionLogs[0].meta?.reason).toBe('UserPrompt event forces immediate analysis')
+    expect(decisionLogs[0].meta?.detail).toBe('session-summary analysis')
+    expect(decisionLogs[0].meta?.source).toBe('daemon')
+  })
+
+  it('emits decision:recorded event with decision=skipped on countdown active', async () => {
+    const sessionId = 'test-decision-skipped'
+
+    // Pre-set countdown state so ToolResult is skipped
+    stateService.setStored(stateService.sessionStatePath(sessionId, 'summary-countdown.json'), {
+      countdown: 5,
+      bookmark_line: 0,
+    })
+
+    const toolResultEvent: TranscriptEvent = {
+      kind: 'transcript',
+      eventType: 'ToolResult',
+      context: {
+        sessionId,
+        timestamp: Date.now(),
+      },
+      payload: {
+        lineNumber: 50,
+        entry: {},
+        toolName: 'Read',
+      },
+      metadata: {},
+    } as TranscriptEvent
+
+    await updateSessionSummary(toolResultEvent, ctx)
+
+    const decisionLogs = logger.getLogsByLevel('info').filter((log) => log.meta?.type === 'decision:recorded')
+    expect(decisionLogs).toHaveLength(1)
+    expect(decisionLogs[0].meta?.decision).toBe('skipped')
+    expect(decisionLogs[0].meta?.reason).toContain('countdown not reached')
+    expect(decisionLogs[0].meta?.detail).toBe('session-summary analysis')
+  })
+
   it('does not emit title/intent-changed events on first analysis (no previous summary)', async () => {
     const sessionId = 'test-event-emission-first'
 

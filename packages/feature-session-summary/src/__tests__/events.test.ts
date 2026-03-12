@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { SessionSummaryEvents } from '../events.js'
+import { SessionSummaryEvents, DecisionEvents } from '../events.js'
 
 describe('SessionSummaryEvents', () => {
   describe('summaryStart', () => {
@@ -132,6 +132,65 @@ describe('SessionSummaryEvents', () => {
       )
 
       expect(event.context.sessionId).toBe('sess-456')
+    })
+  })
+})
+
+describe('DecisionEvents', () => {
+  describe('decisionRecorded', () => {
+    it('should create decision:recorded events with correct type and source', () => {
+      const event = DecisionEvents.decisionRecorded(
+        { sessionId: 'sess-123' },
+        {
+          decision: 'calling',
+          reason: 'UserPrompt event forces immediate analysis',
+          detail: 'session-summary analysis',
+        }
+      )
+
+      expect(event.type).toBe('decision:recorded')
+      expect(event.source).toBe('daemon')
+      expect(event.time).toBeGreaterThan(0)
+      expect(event.context.sessionId).toBe('sess-123')
+      expect(event.payload.decision).toBe('calling')
+      expect(event.payload.reason).toBe('UserPrompt event forces immediate analysis')
+      expect(event.payload.detail).toBe('session-summary analysis')
+    })
+
+    it('should create skipped decision events', () => {
+      const event = DecisionEvents.decisionRecorded(
+        { sessionId: 'sess-456' },
+        {
+          decision: 'skipped',
+          reason: 'countdown not reached (5 tool results remaining)',
+          detail: 'session-summary analysis',
+        }
+      )
+
+      expect(event.type).toBe('decision:recorded')
+      expect(event.payload.decision).toBe('skipped')
+      expect(event.payload.reason).toBe('countdown not reached (5 tool results remaining)')
+    })
+
+    it('should include full context fields', () => {
+      const event = DecisionEvents.decisionRecorded(
+        {
+          sessionId: 'sess-123',
+          correlationId: 'corr-456',
+          traceId: 'trace-789',
+          taskId: 'task-abc',
+        },
+        {
+          decision: 'calling',
+          reason: 'countdown reached zero',
+          detail: 'session-summary analysis',
+        }
+      )
+
+      expect(event.context.sessionId).toBe('sess-123')
+      expect(event.context.correlationId).toBe('corr-456')
+      expect(event.context.traceId).toBe('trace-789')
+      expect(event.context.taskId).toBe('task-abc')
     })
   })
 })
