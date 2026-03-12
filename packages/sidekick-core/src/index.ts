@@ -219,6 +219,13 @@ export {
   type PersistedTranscriptState,
 } from './state/index.js'
 
+export {
+  encodeProjectDir,
+  decodeProjectDir,
+  ProjectRegistryService,
+  type PruneOptions,
+  type PruneResult,
+} from './project-registry'
 export { readDaemonHealth, updateDaemonHealth } from './daemon-health'
 export { isInSandbox } from './sandbox'
 export { getGitFileStatus, parseGitStatusOutput } from './git-status'
