@@ -382,7 +382,7 @@ export interface EventLogContext {
  * @see docs/design/STRUCTURED-LOGGING.md §3.3 Log Record Format
  * @see docs/design/flow.md §7 Logging Events
  */
-export interface LoggingEventBase<P = object> {
+export interface LoggingEventBase<P extends object = object> {
   /** Event type discriminator */
   type: string
   /** Unix timestamp (ms) - when the event occurred */
