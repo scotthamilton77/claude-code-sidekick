@@ -196,13 +196,18 @@ export async function selectPersonaForSession(
 
   // Check for persona preserved from /clear handoff
   const persistThroughClear = personaConfig.persistThroughClear ?? true
-  ctx.logger.debug('Persona clear handoff check', {
+  ctx.logger.info('[persona-lifecycle] ClearHandoff: checking clear cache', {
+    sessionId,
     persistThroughClear,
     startType: options?.startType,
     hasClearCache: !!ctx.personaClearCache,
   })
   if (persistThroughClear && options?.startType === 'clear' && ctx.personaClearCache) {
     const cachedPersonaId = ctx.personaClearCache.consume()
+    ctx.logger.info('[persona-lifecycle] ClearHandoff: consumed cache', {
+      sessionId,
+      cachedPersonaId: cachedPersonaId ?? null,
+    })
     if (cachedPersonaId) {
       const cachedPersona = allPersonas.get(cachedPersonaId)
       if (cachedPersona) {
@@ -214,7 +219,7 @@ export async function selectPersonaForSession(
         const summaryState = createSessionSummaryState(ctx.stateService)
         await summaryState.sessionPersona.write(sessionId, personaState)
 
-        ctx.logger.info('Preserved persona through clear', {
+        ctx.logger.info('[persona-lifecycle] ClearHandoff: persisted preserved persona to new session', {
           sessionId,
           personaId: cachedPersona.id,
           personaName: cachedPersona.display_name,

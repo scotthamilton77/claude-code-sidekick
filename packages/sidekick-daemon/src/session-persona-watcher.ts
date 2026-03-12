@@ -189,7 +189,11 @@ export class SessionPersonaWatcher {
 
     const timer = setTimeout(() => {
       this.debounceTimers.delete(filePath)
-      this.logger.info('Session persona changed', { sessionId, eventType })
+      this.logger.info('[persona-lifecycle] PersonaWatcher: debounce fired, dispatching change event', {
+        sessionId,
+        eventType,
+        timestamp: new Date().toISOString(),
+      })
 
       try {
         this.onChange({

@@ -208,10 +208,16 @@ async function handlePersonaSet(
 
     await personaAccessor.write(sessionId, newState)
 
+    const personaFilePath = stateService.sessionStatePath(sessionId, 'session-persona.json')
     if (previousPersonaId) {
-      logger.info('Persona changed', { from: previousPersonaId, to: personaId })
+      logger.info('[persona-lifecycle] PersonaSet: persona changed', {
+        sessionId,
+        from: previousPersonaId,
+        to: personaId,
+        filePath: personaFilePath,
+      })
     } else {
-      logger.info('Persona set', { personaId })
+      logger.info('[persona-lifecycle] PersonaSet: persona set', { sessionId, personaId, filePath: personaFilePath })
     }
 
     return writeJsonResponse(stdout, { success: true, personaId, previousPersonaId }, 0)

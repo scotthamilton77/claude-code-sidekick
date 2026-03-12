@@ -520,9 +520,10 @@ export class Daemon {
    * On 'unlink' (persona cleared), skips regeneration since there's no persona to voice.
    */
   private handlePersonaChange(event: PersonaChangeEvent): void {
-    this.logger.info('Session persona changed via file', {
+    this.logger.info('[persona-lifecycle] PersonaWatcher: file change received by daemon handler', {
       sessionId: event.sessionId,
       eventType: event.eventType,
+      timestamp: new Date().toISOString(),
     })
 
     // Invalidate cached persona state once, before both consumers read it
@@ -854,13 +855,30 @@ export class Daemon {
     if (sessionId) {
       // Capture persona for clear handoff before shutting down services
       const payload = event.payload as { endReason?: string }
-      log.debug('handleSessionEnd entered', { sessionId, endReason: payload.endReason })
+      log.info('[persona-lifecycle] ClearHandoff: handleSessionEnd entered with endReason=clear', {
+        sessionId,
+        endReason: payload.endReason,
+      })
       if (payload.endReason === 'clear') {
         try {
           const summaryState = createSessionSummaryState(this.stateService)
+          // Invalidate cache before reading to ensure fresh disk read
+          const personaPath = this.stateService.sessionStatePath(sessionId, 'session-persona.json')
+          this.stateService.invalidateCache(personaPath)
+          log.info('[persona-lifecycle] ClearHandoff: invalidated StateService cache before persona read', {
+            sessionId,
+            personaPath,
+          })
           const result = await summaryState.sessionPersona.read(sessionId)
+          log.info('[persona-lifecycle] ClearHandoff: read persona from disk', {
+            sessionId,
+            personaId: result.data?.persona_id ?? null,
+          })
           if (result.data?.persona_id) {
-            log.debug('Caching persona for clear handoff', { personaId: result.data.persona_id })
+            log.info('[persona-lifecycle] ClearHandoff: caching persona for clear handoff', {
+              sessionId,
+              personaId: result.data.persona_id,
+            })
             this.cachePersonaForClear(result.data.persona_id)
           }
         } catch (err) {
@@ -869,7 +887,10 @@ export class Daemon {
           })
         }
       } else {
-        log.debug('SessionEnd reason is not clear, skipping persona cache', { endReason: payload.endReason })
+        log.info('[persona-lifecycle] ClearHandoff: SessionEnd reason is not clear, skipping persona cache', {
+          sessionId,
+          endReason: payload.endReason,
+        })
       }
 
       // Shutdown instrumented LLM provider (persists final metrics)
