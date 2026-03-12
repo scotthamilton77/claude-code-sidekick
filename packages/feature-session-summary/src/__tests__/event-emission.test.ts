@@ -222,6 +222,65 @@ describe('Session Summary Event Emission', () => {
     expect(intentLogs).toHaveLength(0)
   })
 
+  it('emits decision:recorded event with decision=calling on UserPrompt', async () => {
+    const sessionId = 'test-decision-calling'
+
+    llm.queueResponses([
+      JSON.stringify({
+        session_title: 'Decision Test',
+        session_title_confidence: 0.9,
+        latest_intent: 'Testing decisions',
+        latest_intent_confidence: 0.85,
+        pivot_detected: false,
+      }),
+      'Snark!',
+      'Welcome!',
+    ])
+
+    await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+    await flushPromises()
+
+    const decisionLogs = logger.getLogsByLevel('info').filter((log) => log.meta?.type === 'decision:recorded')
+    expect(decisionLogs).toHaveLength(1)
+    expect(decisionLogs[0].meta?.decision).toBe('calling')
+    expect(decisionLogs[0].meta?.reason).toBe('UserPrompt event forces immediate analysis')
+    expect(decisionLogs[0].meta?.detail).toBe('session-summary analysis')
+    expect(decisionLogs[0].meta?.source).toBe('daemon')
+  })
+
+  it('emits decision:recorded event with decision=skipped on countdown active', async () => {
+    const sessionId = 'test-decision-skipped'
+
+    // Pre-set countdown state so ToolResult is skipped
+    stateService.setStored(stateService.sessionStatePath(sessionId, 'summary-countdown.json'), {
+      countdown: 5,
+      bookmark_line: 0,
+    })
+
+    const toolResultEvent: TranscriptEvent = {
+      kind: 'transcript',
+      eventType: 'ToolResult',
+      context: {
+        sessionId,
+        timestamp: Date.now(),
+      },
+      payload: {
+        lineNumber: 50,
+        entry: {},
+        toolName: 'Read',
+      },
+      metadata: {},
+    } as TranscriptEvent
+
+    await updateSessionSummary(toolResultEvent, ctx)
+
+    const decisionLogs = logger.getLogsByLevel('info').filter((log) => log.meta?.type === 'decision:recorded')
+    expect(decisionLogs).toHaveLength(1)
+    expect(decisionLogs[0].meta?.decision).toBe('skipped')
+    expect(decisionLogs[0].meta?.reason).toContain('countdown not reached')
+    expect(decisionLogs[0].meta?.detail).toBe('session-summary analysis')
+  })
+
   it('does not emit title/intent-changed events on first analysis (no previous summary)', async () => {
     const sessionId = 'test-event-emission-first'
 
@@ -251,5 +310,75 @@ describe('Session Summary Event Emission', () => {
     expect(titleLogs).toHaveLength(0)
     const intentLogs = logger.getLogsByLevel('info').filter((log) => log.meta?.type === 'intent:changed')
     expect(intentLogs).toHaveLength(0)
+  })
+
+  it('emits snarky-message:start and snarky-message:finish events during snarky generation', async () => {
+    const sessionId = 'test-snarky-events'
+
+    // Queue LLM responses: 1) summary, 2) snarky message, 3) resume message (no resume exists)
+    llm.queueResponses([
+      JSON.stringify({
+        session_title: 'Snarky Test Session',
+        session_title_confidence: 0.9,
+        latest_intent: 'Testing snarky events',
+        latest_intent_confidence: 0.85,
+        pivot_detected: false,
+      }),
+      'Oh look, another test session. How original.',
+      'Welcome back to testing.',
+    ])
+
+    await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+    await flushPromises()
+
+    // Find the snarky-message:start event
+    const startLogs = logger.getLogsByLevel('info').filter((log) => log.meta?.type === 'snarky-message:start')
+    expect(startLogs).toHaveLength(1)
+    expect(startLogs[0].meta?.source).toBe('daemon')
+    expect(startLogs[0].meta?.sessionId).toBe(sessionId)
+
+    // Find the snarky-message:finish event
+    const finishLogs = logger.getLogsByLevel('info').filter((log) => log.meta?.type === 'snarky-message:finish')
+    expect(finishLogs).toHaveLength(1)
+    expect(finishLogs[0].meta?.source).toBe('daemon')
+    expect(finishLogs[0].meta?.generatedMessage).toBe('Oh look, another test session. How original.')
+  })
+
+  it('emits snarky-message:start before snarky-message:finish in correct order', async () => {
+    const sessionId = 'test-snarky-ordering'
+
+    // Pre-create existing summary so title change triggers snarky generation
+    stateService.setStored(stateService.sessionStatePath(sessionId, 'session-summary.json'), {
+      session_id: sessionId,
+      session_title: 'Previous Title',
+      session_title_confidence: 0.8,
+      latest_intent: 'Previous intent',
+      latest_intent_confidence: 0.8,
+      timestamp: new Date().toISOString(),
+    })
+
+    // Queue LLM responses: 1) summary with changed title, 2) snarky, 3) resume (pivot detected)
+    llm.queueResponses([
+      JSON.stringify({
+        session_title: 'Changed Title',
+        session_title_confidence: 0.95,
+        latest_intent: 'Changed intent',
+        latest_intent_confidence: 0.9,
+        pivot_detected: true,
+      }),
+      'Title changed! How unpredictable.',
+      'Welcome back.',
+    ])
+
+    await updateSessionSummary(createUserPromptEvent(sessionId), ctx)
+    await flushPromises()
+
+    // Collect all info logs with event types to verify ordering
+    const eventLogs = logger
+      .getLogsByLevel('info')
+      .filter((log) => typeof log.meta?.type === 'string' && log.meta.type.startsWith('snarky-message:'))
+      .map((log) => log.meta?.type as string)
+
+    expect(eventLogs).toEqual(['snarky-message:start', 'snarky-message:finish'])
   })
 })

@@ -13,6 +13,7 @@
  * @see docs/plans/2026-01-18-reminder-orchestrator-design.md
  */
 
+import { logEvent } from '@sidekick/core'
 import type {
   Logger,
   MinimalStateService,
@@ -21,6 +22,7 @@ import type {
   ReminderRef,
   CoordinationMetrics,
 } from '@sidekick/types'
+import { ReminderEvents } from './events.js'
 import { createRemindersState, type RemindersStateAccessors } from './state.js'
 import { ReminderIds, ALL_VC_REMINDER_IDS } from './types.js'
 
@@ -74,8 +76,17 @@ export class ReminderOrchestrator implements ReminderCoordinator {
     if (reminder.name === ReminderIds.PAUSE_AND_REFLECT) {
       try {
         const staging = this.deps.getStagingService(sessionId)
+        const eventContext = { sessionId }
         for (const vcId of ALL_VC_REMINDER_IDS) {
           await staging.deleteReminder('Stop', vcId)
+          logEvent(
+            this.deps.logger,
+            ReminderEvents.reminderUnstaged(eventContext, {
+              reminderName: vcId,
+              hookName: 'Stop',
+              reason: 'pause_and_reflect_cascade',
+            })
+          )
         }
         this.deps.logger.debug('Unstaged all VC reminders after P&R staged', { sessionId })
       } catch (err) {
@@ -115,6 +126,13 @@ export class ReminderOrchestrator implements ReminderCoordinator {
       try {
         const staging = this.deps.getStagingService(sessionId)
         await staging.deleteReminder('PreToolUse', ReminderIds.PAUSE_AND_REFLECT)
+        logEvent(
+          this.deps.logger,
+          ReminderEvents.reminderUnstaged(
+            { sessionId },
+            { reminderName: ReminderIds.PAUSE_AND_REFLECT, hookName: 'PreToolUse', reason: 'vc_consumed_cascade' }
+          )
+        )
         this.deps.logger.debug('Unstaged P&R after VC consumed', { sessionId })
       } catch (err) {
         this.deps.logger.warn('Failed to unstage P&R after VC consumed', {

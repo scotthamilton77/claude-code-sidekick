@@ -440,6 +440,20 @@ export interface ReminderStagedEvent extends LoggingEventBase<ReminderStagedPayl
   source: 'daemon'
 }
 
+// --- Persona Events ---
+
+/** Emitted when a persona is selected for a session. */
+export interface PersonaSelectedEvent extends LoggingEventBase<PersonaSelectedPayload> {
+  type: 'persona:selected'
+  source: 'daemon'
+}
+
+/** Emitted when persona changes mid-session. */
+export interface PersonaChangedEvent extends LoggingEventBase<PersonaChangedPayload> {
+  type: 'persona:changed'
+  source: 'daemon'
+}
+
 // --- Daemon Lifecycle Events ---
 
 /**
@@ -496,6 +510,18 @@ export interface SessionSummaryStartEvent extends LoggingEventBase<SessionSummar
 /** Emitted when session summary LLM generation completes. */
 export interface SessionSummaryFinishEvent extends LoggingEventBase<SessionSummaryFinishPayload> {
   type: 'session-summary:finish'
+  source: 'daemon'
+}
+
+/** Emitted when snarky message LLM generation begins. */
+export interface SnarkyMessageStartEvent extends LoggingEventBase<SnarkyMessageStartPayload> {
+  type: 'snarky-message:start'
+  source: 'daemon'
+}
+
+/** Emitted when snarky message LLM generation completes. */
+export interface SnarkyMessageFinishEvent extends LoggingEventBase<SnarkyMessageFinishPayload> {
+  type: 'snarky-message:finish'
   source: 'daemon'
 }
 
@@ -557,8 +583,19 @@ export interface ResumeSkippedEvent extends LoggingEventBase<ResumeMessageSkippe
   source: 'daemon'
 }
 
+export interface ReminderUnstagedEvent extends LoggingEventBase<ReminderUnstagedPayload> {
+  type: 'reminder:unstaged'
+  source: 'daemon'
+}
+
 export interface RemindersClearedEvent extends LoggingEventBase<ReminderClearedPayload> {
   type: 'reminder:cleared'
+  source: 'daemon'
+}
+
+/** Emitted when an LLM decision is recorded (calling, skipped, etc.). */
+export interface DecisionRecordedEvent extends LoggingEventBase<DecisionRecordedPayload> {
+  type: 'decision:recorded'
   source: 'daemon'
 }
 
@@ -636,6 +673,7 @@ export type DaemonLoggingEvent =
   | EventReceivedEvent
   | EventProcessedEvent
   | ReminderStagedEvent
+  | ReminderUnstagedEvent
   | DaemonStartingEvent
   | DaemonStartedEvent
   | IpcServerStartedEvent
@@ -643,6 +681,8 @@ export type DaemonLoggingEvent =
   | SessionEvictionStartedEvent
   | SessionSummaryStartEvent
   | SessionSummaryFinishEvent
+  | SnarkyMessageStartEvent
+  | SnarkyMessageFinishEvent
   | SessionTitleChangedEvent
   | IntentChangedEvent
   | SummarySkippedEvent
@@ -650,6 +690,9 @@ export type DaemonLoggingEvent =
   | ResumeUpdatedEvent
   | ResumeSkippedEvent
   | RemindersClearedEvent
+  | DecisionRecordedEvent
+  | PersonaSelectedEvent
+  | PersonaChangedEvent
   | ErrorOccurredEvent
 
 /**

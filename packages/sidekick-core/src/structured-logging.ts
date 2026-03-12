@@ -768,6 +768,8 @@ import type {
   ResumeGeneratingEvent,
   ResumeUpdatedEvent,
   ResumeSkippedEvent,
+  PersonaSelectedEvent,
+  PersonaChangedEvent,
   StatuslineRenderedEvent,
   StatuslineErrorEvent,
   TranscriptEventEmittedEvent,
@@ -777,6 +779,8 @@ import type {
   TranscriptEventType,
   TranscriptMetrics,
   EventLogContext,
+  PersonaSelectedPayload,
+  PersonaChangedPayload,
 } from '@sidekick/types'
 
 // Re-export for backward compatibility
@@ -1188,6 +1192,46 @@ export const LogEvents = {
         min_confidence: metadata.min_confidence,
         reason,
       },
+    }
+  },
+
+  // --- Persona Events ---
+
+  /**
+   * Create a PersonaSelected event (logged when a persona is selected for a session).
+   */
+  personaSelected(context: EventLogContext, payload: PersonaSelectedPayload): PersonaSelectedEvent {
+    return {
+      type: 'persona:selected',
+      time: Date.now(),
+      source: 'daemon',
+      context: {
+        sessionId: context.sessionId,
+        correlationId: context.correlationId,
+        traceId: context.traceId,
+        hook: context.hook,
+        taskId: context.taskId,
+      },
+      payload,
+    }
+  },
+
+  /**
+   * Create a PersonaChanged event (logged when persona changes mid-session).
+   */
+  personaChanged(context: EventLogContext, payload: PersonaChangedPayload): PersonaChangedEvent {
+    return {
+      type: 'persona:changed',
+      time: Date.now(),
+      source: 'daemon',
+      context: {
+        sessionId: context.sessionId,
+        correlationId: context.correlationId,
+        traceId: context.traceId,
+        hook: context.hook,
+        taskId: context.taskId,
+      },
+      payload,
     }
   },
 

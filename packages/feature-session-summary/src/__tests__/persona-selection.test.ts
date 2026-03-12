@@ -439,10 +439,10 @@ describe('selectPersonaForSession', () => {
     const result = await selectPersonaForSession('test-session', DEFAULT_SESSION_SUMMARY_CONFIG, ctx)
 
     expect(result).toBe('skippy')
-    expect(mockLogger.wasLoggedAtLevel('Selected persona for session', 'info')).toBe(true)
+    expect(mockLogger.wasLoggedAtLevel('persona:selected', 'info')).toBe(true)
     const infoLogs = mockLogger.getLogsByLevel('info')
-    const selectionLog = infoLogs.find((log) => log.msg === 'Selected persona for session')
-    expect(selectionLog?.meta).toMatchObject({ sessionId: 'test-session', personaId: 'skippy' })
+    const selectionLog = infoLogs.find((log) => log.msg === 'persona:selected')
+    expect(selectionLog?.meta).toMatchObject({ type: 'persona:selected', personaId: 'skippy' })
   })
 
   it('persists persona state with correct structure', async () => {
@@ -620,7 +620,7 @@ describe('selectPersonaForSession', () => {
         expect(result).toBe('bones')
       }
 
-      expect(mockLogger.wasLoggedAtLevel('Using pinned persona for session', 'info')).toBe(true)
+      expect(mockLogger.wasLoggedAtLevel('persona:selected', 'info')).toBe(true)
     })
 
     it('falls back to random when pinned persona is not found', async () => {
@@ -739,7 +739,7 @@ describe('selectPersonaForSession', () => {
       const result = await selectPersonaForSession('new-session', config, ctx, { startType: 'clear' })
 
       expect(result).toBe('bones')
-      expect(mockLogger.wasLoggedAtLevel('Preserved persona through clear', 'info')).toBe(true)
+      expect(mockLogger.wasLoggedAtLevel('persona:selected', 'info')).toBe(true)
     })
 
     it('re-selects randomly when persistThroughClear is false', async () => {

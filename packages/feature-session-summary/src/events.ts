@@ -11,14 +11,24 @@
 import type {
   SessionSummaryStartEvent,
   SessionSummaryFinishEvent,
+  SnarkyMessageStartEvent,
+  SnarkyMessageFinishEvent,
   SessionTitleChangedEvent,
   IntentChangedEvent,
   SummarySkippedEvent,
+  DecisionRecordedEvent,
+  PersonaSelectedEvent,
+  PersonaChangedEvent,
   EventLogContext,
   SessionSummaryStartPayload,
   SessionSummaryFinishPayload,
+  SnarkyMessageStartPayload,
+  SnarkyMessageFinishPayload,
   SessionTitleChangedPayload,
   IntentChangedPayload,
+  DecisionRecordedPayload,
+  PersonaSelectedPayload,
+  PersonaChangedPayload,
 } from '@sidekick/types'
 
 // Re-export for consumers
@@ -97,6 +107,40 @@ export const SessionSummaryEvents = {
     }
   },
 
+  /** Emitted when snarky message generation begins. */
+  snarkyMessageStart(context: EventLogContext, payload: SnarkyMessageStartPayload): SnarkyMessageStartEvent {
+    return {
+      type: 'snarky-message:start',
+      time: Date.now(),
+      source: 'daemon',
+      context: {
+        sessionId: context.sessionId,
+        correlationId: context.correlationId,
+        traceId: context.traceId,
+        hook: context.hook,
+        taskId: context.taskId,
+      },
+      payload,
+    }
+  },
+
+  /** Emitted when snarky message generation completes. */
+  snarkyMessageFinish(context: EventLogContext, payload: SnarkyMessageFinishPayload): SnarkyMessageFinishEvent {
+    return {
+      type: 'snarky-message:finish',
+      time: Date.now(),
+      source: 'daemon',
+      context: {
+        sessionId: context.sessionId,
+        correlationId: context.correlationId,
+        traceId: context.traceId,
+        hook: context.hook,
+        taskId: context.taskId,
+      },
+      payload,
+    }
+  },
+
   /**
    * Create a SummarySkipped event (logged when summary update is deferred).
    * @see docs/design/FEATURE-SESSION-SUMMARY.md §3.4
@@ -124,6 +168,70 @@ export const SessionSummaryEvents = {
         countdown_threshold: metadata.countdown_threshold,
         reason: 'countdown_active',
       },
+    }
+  },
+}
+
+/**
+ * Factory functions for creating decision:recorded logging events.
+ * Captures LLM call decisions (calling, skipped) with reasoning.
+ */
+export const DecisionEvents = {
+  /** Emitted when an LLM decision is recorded. */
+  decisionRecorded(context: EventLogContext, payload: DecisionRecordedPayload): DecisionRecordedEvent {
+    return {
+      type: 'decision:recorded',
+      time: Date.now(),
+      source: 'daemon',
+      context: {
+        sessionId: context.sessionId,
+        correlationId: context.correlationId,
+        traceId: context.traceId,
+        hook: context.hook,
+        taskId: context.taskId,
+      },
+      payload,
+    }
+  },
+}
+/* v8 ignore stop */
+
+/**
+ * Factory functions for creating persona-related logging events.
+ */
+/* v8 ignore start -- pure data factories with deterministic structure */
+export const PersonaEvents = {
+  /** Emitted when a persona is selected for a session. */
+  personaSelected(context: EventLogContext, payload: PersonaSelectedPayload): PersonaSelectedEvent {
+    return {
+      type: 'persona:selected',
+      time: Date.now(),
+      source: 'daemon',
+      context: {
+        sessionId: context.sessionId,
+        correlationId: context.correlationId,
+        traceId: context.traceId,
+        hook: context.hook,
+        taskId: context.taskId,
+      },
+      payload,
+    }
+  },
+
+  /** Emitted when persona changes mid-session. */
+  personaChanged(context: EventLogContext, payload: PersonaChangedPayload): PersonaChangedEvent {
+    return {
+      type: 'persona:changed',
+      time: Date.now(),
+      source: 'daemon',
+      context: {
+        sessionId: context.sessionId,
+        correlationId: context.correlationId,
+        traceId: context.traceId,
+        hook: context.hook,
+        taskId: context.taskId,
+      },
+      payload,
     }
   },
 }

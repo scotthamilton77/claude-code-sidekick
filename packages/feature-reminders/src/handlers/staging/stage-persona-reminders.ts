@@ -10,7 +10,8 @@
  * @see docs/plans/2026-02-16-persona-injection.md
  */
 import type { RuntimeContext } from '@sidekick/core'
-import { createPersonaLoader, getDefaultPersonasDir } from '@sidekick/core'
+import { createPersonaLoader, getDefaultPersonasDir, logEvent, LogEvents } from '@sidekick/core'
+import { ReminderEvents } from '../../events.js'
 import type { DaemonContext, HookName, Logger, PersonaDefinition, SidekickEvent, HandlerContext } from '@sidekick/types'
 import {
   isDaemonContext,
@@ -64,10 +65,27 @@ const PERSONA_REMINDER_HOOKS: HookName[] = ['UserPromptSubmit', 'SessionStart']
  * Records the cleared state for change detection when a prior staging exists.
  */
 async function clearPersonaReminders(ctx: DaemonContext, sessionId: string): Promise<void> {
+  const eventContext = { sessionId }
   for (const hook of PERSONA_REMINDER_HOOKS) {
     await ctx.staging.deleteReminder(hook, ReminderIds.REMEMBER_YOUR_PERSONA)
+    logEvent(
+      ctx.logger,
+      ReminderEvents.reminderUnstaged(eventContext, {
+        reminderName: ReminderIds.REMEMBER_YOUR_PERSONA,
+        hookName: hook,
+        reason: 'persona_cleared',
+      })
+    )
   }
   await ctx.staging.deleteReminder('UserPromptSubmit', ReminderIds.PERSONA_CHANGED)
+  logEvent(
+    ctx.logger,
+    ReminderEvents.reminderUnstaged(eventContext, {
+      reminderName: ReminderIds.PERSONA_CHANGED,
+      hookName: 'UserPromptSubmit',
+      reason: 'persona_cleared',
+    })
+  )
 
   // Record that persona was explicitly cleared (distinguishes from never-staged)
   const lastStaged = await readLastStagedPersona(ctx, sessionId)
@@ -200,6 +218,18 @@ export async function stagePersonaRemindersForSession(
       lastStaged.personaId !== persona.id // different persona (including null→X for cleared→persona)
 
     if (isGenuineChange) {
+      logEvent(
+        ctx.logger,
+        LogEvents.personaChanged(
+          { sessionId },
+          {
+            personaFrom: lastStaged.personaId ?? 'none',
+            personaTo: persona.id,
+            reason: 'mid_session_change',
+          }
+        )
+      )
+
       const changedReminder = resolveReminder(ReminderIds.PERSONA_CHANGED, {
         context: templateContext,
         assets: ctx.assets,

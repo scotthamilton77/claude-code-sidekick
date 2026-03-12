@@ -11,7 +11,7 @@
 
 import type { TranscriptEvent } from '@sidekick/core'
 import { logEvent, LogEvents } from '@sidekick/core'
-import { SessionSummaryEvents } from '../events.js'
+import { SessionSummaryEvents, DecisionEvents } from '../events.js'
 import type { DaemonContext, EventContext, SummaryCountdownState, SnarkyMessageState } from '@sidekick/types'
 import { z } from 'zod'
 import type { ResumeMessageState, SessionSummaryConfig, SessionSummaryState } from '../types.js'
@@ -113,19 +113,25 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
     // Skip if no user interaction in transcript (e.g., only summary/system entries)
     const metrics = ctx.transcript.getMetrics()
     if (metrics.turnCount === 0) {
-      ctx.logger.info('LLM call: session-summary analysis', {
-        sessionId,
-        decision: 'skipped',
-        reason: 'BulkProcessingComplete with no user turns (turnCount=0)',
-      })
+      logEvent(
+        ctx.logger,
+        DecisionEvents.decisionRecorded(event.context, {
+          decision: 'skipped',
+          reason: 'BulkProcessingComplete with no user turns (turnCount=0)',
+          detail: 'session-summary analysis',
+        })
+      )
       return
     }
 
-    ctx.logger.info('LLM call: session-summary analysis', {
-      sessionId,
-      decision: 'calling',
-      reason: 'BulkProcessingComplete - analyzing full transcript',
-    })
+    logEvent(
+      ctx.logger,
+      DecisionEvents.decisionRecorded(event.context, {
+        decision: 'calling',
+        reason: 'BulkProcessingComplete - analyzing full transcript',
+        detail: 'session-summary analysis',
+      })
+    )
     const countdown = await loadCountdownState(summaryState, sessionId)
     void performAnalysis(event, ctx, summaryState, countdown, 'user_prompt_forced')
     return
@@ -136,33 +142,42 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
 
   // UserPrompt forces immediate analysis
   if (isUserPrompt) {
-    ctx.logger.info('LLM call: session-summary analysis', {
-      sessionId,
-      decision: 'calling',
-      reason: 'UserPrompt event forces immediate analysis',
-    })
+    logEvent(
+      ctx.logger,
+      DecisionEvents.decisionRecorded(event.context, {
+        decision: 'calling',
+        reason: 'UserPrompt event forces immediate analysis',
+        detail: 'session-summary analysis',
+      })
+    )
     void performAnalysis(event, ctx, summaryState, countdown, 'user_prompt_forced')
     return
   }
 
   // ToolResult: check countdown
   if (countdown.countdown > 0) {
-    ctx.logger.info('LLM call: session-summary analysis', {
-      sessionId,
-      decision: 'skipped',
-      reason: `countdown not reached (${countdown.countdown} tool results remaining)`,
-    })
+    logEvent(
+      ctx.logger,
+      DecisionEvents.decisionRecorded(event.context, {
+        decision: 'skipped',
+        reason: `countdown not reached (${countdown.countdown} tool results remaining)`,
+        detail: 'session-summary analysis',
+      })
+    )
     countdown.countdown--
     await saveCountdownState(summaryState, sessionId, countdown)
     return
   }
 
   // Countdown reached zero - perform analysis
-  ctx.logger.info('LLM call: session-summary analysis', {
-    sessionId,
-    decision: 'calling',
-    reason: 'countdown reached zero after ToolResult',
-  })
+  logEvent(
+    ctx.logger,
+    DecisionEvents.decisionRecorded(event.context, {
+      decision: 'calling',
+      reason: 'countdown reached zero after ToolResult',
+      detail: 'session-summary analysis',
+    })
+  )
   void performAnalysis(event, ctx, summaryState, countdown, 'countdown_reached')
 }
 
@@ -570,6 +585,9 @@ async function generateSnarkyMessage(
 
   const provider = ctx.profileFactory.createForProfile(profileResult.profileId, llmConfig.fallbackProfile)
 
+  // Emit snarky-message:start event before LLM call
+  logEvent(ctx.logger, SessionSummaryEvents.snarkyMessageStart({ sessionId }, { sessionId }))
+
   try {
     const response = await provider.complete({
       messages: [{ role: 'user', content: prompt }],
@@ -586,6 +604,9 @@ async function generateSnarkyMessage(
 
     // Save via typed accessor (atomic write with schema validation)
     await summaryState.snarkyMessage.write(sessionId, snarkyState)
+
+    // Emit snarky-message:finish event after writing
+    logEvent(ctx.logger, SessionSummaryEvents.snarkyMessageFinish({ sessionId }, { generatedMessage: snarkyMessage }))
 
     ctx.logger.debug('Generated snarky message', {
       sessionId,

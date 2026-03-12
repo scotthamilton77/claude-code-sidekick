@@ -8,7 +8,9 @@
  * @see docs/design/FEATURE-REMINDERS.md §5.3
  */
 import type { RuntimeContext } from '@sidekick/core'
-import type { DaemonContext, VCUnverifiedState } from '@sidekick/types'
+import { logEvent } from '@sidekick/core'
+import type { DaemonContext, VCUnverifiedState, EventLogContext } from '@sidekick/types'
+import { ReminderEvents } from '../../events.js'
 import { isDaemonContext, isHookEvent } from '@sidekick/types'
 import { ReminderIds, ALL_VC_REMINDER_IDS, DEFAULT_REMINDERS_SETTINGS, type RemindersSettings } from '../../types.js'
 import { resolveReminder, stageReminder } from '../../reminder-utils.js'
@@ -31,6 +33,13 @@ export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
       if (!sessionId) {
         daemonCtx.logger.warn('No sessionId in UserPromptSubmit event')
         await daemonCtx.staging.deleteReminder('Stop', ReminderIds.VERIFY_COMPLETION)
+        logEvent(
+          daemonCtx.logger,
+          ReminderEvents.reminderUnstaged(
+            { sessionId: '' },
+            { reminderName: ReminderIds.VERIFY_COMPLETION, hookName: 'Stop', reason: 'no_session_id' }
+          )
+        )
         return
       }
 
@@ -125,8 +134,14 @@ export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
       }
 
       // Delete the existing staged reminders (no unverified state or limit reached)
+      const eventContext: EventLogContext = { sessionId }
+      const reason = unverifiedState?.hasUnverifiedChanges ? 'cycle_limit_reached' : 'no_unverified_changes'
       for (const vcId of ALL_VC_REMINDER_IDS) {
         await daemonCtx.staging.deleteReminder('Stop', vcId)
+        logEvent(
+          daemonCtx.logger,
+          ReminderEvents.reminderUnstaged(eventContext, { reminderName: vcId, hookName: 'Stop', reason })
+        )
       }
       daemonCtx.logger.debug('VC unstage: deleted all VC reminders')
     },

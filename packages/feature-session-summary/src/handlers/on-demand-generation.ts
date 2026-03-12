@@ -12,6 +12,8 @@ import type { ResumeMessageState, SessionSummaryConfig } from '../types.js'
 import { DEFAULT_SESSION_SUMMARY_CONFIG, RESUME_MIN_CONFIDENCE } from '../types.js'
 import { createSessionSummaryState } from '../state.js'
 import { createPersonaLoader, getDefaultPersonasDir } from '@sidekick/core'
+import { logEvent } from '@sidekick/core'
+import { SessionSummaryEvents } from '../events.js'
 import { interpolateTemplate } from './update-summary.js'
 import {
   buildPersonaContext,
@@ -153,6 +155,9 @@ export async function generateSnarkyMessageOnDemand(ctx: DaemonContext, sessionI
 
   const provider = ctx.profileFactory.createForProfile(profileResult.profileId, llmConfig.fallbackProfile)
 
+  // Emit snarky-message:start event before LLM call
+  logEvent(ctx.logger, SessionSummaryEvents.snarkyMessageStart({ sessionId }, { sessionId }))
+
   try {
     const response = await provider.complete({
       messages: [{ role: 'user', content: prompt }],
@@ -166,6 +171,9 @@ export async function generateSnarkyMessageOnDemand(ctx: DaemonContext, sessionI
     }
 
     await summaryState.snarkyMessage.write(sessionId, snarkyState)
+
+    // Emit snarky-message:finish event after writing
+    logEvent(ctx.logger, SessionSummaryEvents.snarkyMessageFinish({ sessionId }, { generatedMessage: snarkyMessage }))
 
     ctx.logger.info('Generated snarky message on-demand', {
       sessionId,

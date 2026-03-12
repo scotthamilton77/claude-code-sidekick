@@ -6,7 +6,8 @@
  * exists at ~/.sidekick/user.yaml.
  */
 import type { RuntimeContext } from '@sidekick/core'
-import { loadUserProfile } from '@sidekick/core'
+import { loadUserProfile, logEvent } from '@sidekick/core'
+import { ReminderEvents } from '../../events.js'
 import type { DaemonContext, HookName, SidekickEvent, HandlerContext } from '@sidekick/types'
 import { isDaemonContext, isHookEvent, isSessionStartEvent } from '@sidekick/types'
 import { resolveReminder, stageReminder } from '../../reminder-utils.js'
@@ -23,8 +24,17 @@ export async function stageUserProfileRemindersForSession(ctx: DaemonContext, se
   const profile = loadUserProfile({ logger: ctx.logger })
 
   if (!profile) {
+    const eventContext = { sessionId }
     for (const hook of USER_PROFILE_REMINDER_HOOKS) {
       await ctx.staging.deleteReminder(hook, ReminderIds.USER_PROFILE)
+      logEvent(
+        ctx.logger,
+        ReminderEvents.reminderUnstaged(eventContext, {
+          reminderName: ReminderIds.USER_PROFILE,
+          hookName: hook,
+          reason: 'no_user_profile',
+        })
+      )
     }
     return
   }
