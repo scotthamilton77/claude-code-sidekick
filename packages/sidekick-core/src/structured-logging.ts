@@ -1270,11 +1270,16 @@ export const LogEvents = {
  * The event is logged at INFO level with all fields flattened appropriately.
  */
 export function logEvent(logger: Logger, event: LoggingEventBase): void {
-  const reason = 'reason' in event.payload ? (event.payload.reason as string) : undefined
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- payload is intentionally any for generic event spreading
+  const payload = event.payload
+  const reason =
+    typeof payload === 'object' && payload !== null && 'reason' in payload
+      ? String((payload as { reason: unknown }).reason)
+      : undefined
   logger.info(reason ?? `${event.type}`, {
     type: event.type,
     source: event.source,
-    ...event.payload,
+    ...(payload as Record<string, unknown>),
   })
 }
 

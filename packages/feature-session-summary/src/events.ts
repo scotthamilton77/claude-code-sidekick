@@ -19,7 +19,6 @@ import type {
   SessionSummaryFinishPayload,
   SessionTitleChangedPayload,
   IntentChangedPayload,
-  SessionSummarySkippedPayload,
 } from '@sidekick/types'
 
 // Re-export for consumers
@@ -31,10 +30,7 @@ export type { EventLogContext } from '@sidekick/types'
 /* v8 ignore start -- pure data factories with deterministic structure */
 export const SessionSummaryEvents = {
   /** Emitted when summary generation begins. */
-  summaryStart(
-    context: EventLogContext,
-    payload: SessionSummaryStartPayload
-  ): SessionSummaryStartEvent {
+  summaryStart(context: EventLogContext, payload: SessionSummaryStartPayload): SessionSummaryStartEvent {
     return {
       type: 'session-summary:start',
       time: Date.now(),
@@ -51,10 +47,7 @@ export const SessionSummaryEvents = {
   },
 
   /** Emitted when summary generation completes. */
-  summaryFinish(
-    context: EventLogContext,
-    payload: SessionSummaryFinishPayload
-  ): SessionSummaryFinishEvent {
+  summaryFinish(context: EventLogContext, payload: SessionSummaryFinishPayload): SessionSummaryFinishEvent {
     return {
       type: 'session-summary:finish',
       time: Date.now(),
@@ -71,10 +64,7 @@ export const SessionSummaryEvents = {
   },
 
   /** Emitted when session title changes. */
-  titleChanged(
-    context: EventLogContext,
-    payload: SessionTitleChangedPayload
-  ): SessionTitleChangedEvent {
+  titleChanged(context: EventLogContext, payload: SessionTitleChangedPayload): SessionTitleChangedEvent {
     return {
       type: 'session-title:changed',
       time: Date.now(),
@@ -91,10 +81,7 @@ export const SessionSummaryEvents = {
   },
 
   /** Emitted when latest intent changes. */
-  intentChanged(
-    context: EventLogContext,
-    payload: IntentChangedPayload
-  ): IntentChangedEvent {
+  intentChanged(context: EventLogContext, payload: IntentChangedPayload): IntentChangedEvent {
     return {
       type: 'intent:changed',
       time: Date.now(),
