@@ -382,8 +382,7 @@ export interface EventLogContext {
  * @see docs/design/STRUCTURED-LOGGING.md §3.3 Log Record Format
  * @see docs/design/flow.md §7 Logging Events
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface LoggingEventBase<P = any> {
+export interface LoggingEventBase<P extends object = object> {
   /** Event type discriminator */
   type: string
   /** Unix timestamp (ms) - when the event occurred */
@@ -892,8 +891,8 @@ export interface HookCompletedPayload {
 /** Payload for `event:received` — daemon received an event for processing. */
 export interface EventReceivedPayload {
   eventKind: string
-  eventType: string
-  hook: string
+  eventType?: string
+  hook?: string
 }
 
 /** Payload for `event:processed` — daemon finished processing an event. */
@@ -960,12 +959,17 @@ export interface TranscriptEmittedPayload {
   lineNumber: number
   uuid?: string
   toolName?: string
+  transcriptPath?: string
+  contentPreview?: string
+  metrics?: TranscriptMetrics
 }
 
 /** Payload for `transcript:pre-compact` — pre-compact snapshot captured. */
 export interface TranscriptPreCompactPayload {
   snapshotPath: string
   lineCount: number
+  transcriptPath?: string
+  metrics?: TranscriptMetrics
 }
 
 /** Payload for `error:occurred` — a general error occurred. */

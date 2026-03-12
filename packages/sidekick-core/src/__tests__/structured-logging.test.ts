@@ -1353,6 +1353,9 @@ describe('Structured Logging', () => {
       expect(event.payload.lineNumber).toBe(42)
       expect(event.payload.uuid).toBe('abc-123-def-456')
       expect(event.payload.toolName).toBe('Bash')
+      expect(event.payload.transcriptPath).toBe('/tmp/transcript.jsonl')
+      expect(event.payload.contentPreview).toBe('echo hello...')
+      expect(event.payload.metrics).toEqual(metrics)
     })
 
     it('should create PreCompactCaptured events', async () => {
@@ -1378,6 +1381,8 @@ describe('Structured Logging', () => {
       expect(event.source).toBe('transcript')
       expect(event.payload.snapshotPath).toBe('/tmp/snapshot.jsonl')
       expect(event.payload.lineCount).toBe(100)
+      expect(event.payload.transcriptPath).toBe('/tmp/transcript.jsonl')
+      expect(event.payload.metrics).toEqual(metrics)
     })
 
     // --- Type Guard Tests ---

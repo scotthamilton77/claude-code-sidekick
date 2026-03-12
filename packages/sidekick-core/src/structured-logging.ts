@@ -866,8 +866,8 @@ export const LogEvents = {
       },
       payload: {
         eventKind: metadata.eventKind,
-        eventType: metadata.eventType ?? '',
-        hook: metadata.hook ?? '',
+        ...(metadata.eventType !== undefined && { eventType: metadata.eventType }),
+        ...(metadata.hook !== undefined && { hook: metadata.hook }),
       },
     }
   },
@@ -878,7 +878,7 @@ export const LogEvents = {
    */
   eventProcessed(
     context: EventLogContext,
-    state: { handlerId: string; success: boolean; stopped?: boolean },
+    state: { handlerId: string; success: boolean },
     metadata: { durationMs: number; error?: string }
   ): EventProcessedEvent {
     return {
@@ -1204,7 +1204,7 @@ export const LogEvents = {
       uuid?: string
       toolName?: string
     },
-    _metadata: {
+    metadata: {
       transcriptPath: string
       contentPreview?: string
       metrics: TranscriptMetrics
@@ -1226,6 +1226,9 @@ export const LogEvents = {
         lineNumber: state.lineNumber,
         uuid: state.uuid,
         toolName: state.toolName,
+        transcriptPath: metadata.transcriptPath,
+        contentPreview: metadata.contentPreview,
+        metrics: metadata.metrics,
       },
     }
   },
@@ -1240,7 +1243,7 @@ export const LogEvents = {
       snapshotPath: string
       lineCount: number
     },
-    _metadata: {
+    metadata: {
       transcriptPath: string
       metrics: TranscriptMetrics
     }
@@ -1259,6 +1262,8 @@ export const LogEvents = {
       payload: {
         snapshotPath: state.snapshotPath,
         lineCount: state.lineCount,
+        transcriptPath: metadata.transcriptPath,
+        metrics: metadata.metrics,
       },
     }
   },
@@ -1270,16 +1275,13 @@ export const LogEvents = {
  * The event is logged at INFO level with all fields flattened appropriately.
  */
 export function logEvent(logger: Logger, event: LoggingEventBase): void {
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- payload is intentionally any for generic event spreading
   const payload = event.payload
-  const reason =
-    typeof payload === 'object' && payload !== null && 'reason' in payload
-      ? String((payload as { reason: unknown }).reason)
-      : undefined
+  const meta = payload != null && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
+  const reason = 'reason' in meta ? String(meta.reason) : undefined
   logger.info(reason ?? `${event.type}`, {
     type: event.type,
     source: event.source,
-    ...(payload as Record<string, unknown>),
+    ...meta,
   })
 }
 
