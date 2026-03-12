@@ -116,10 +116,17 @@ const PathsSchema = z
 
 // Daemon and IPC defaults now come from assets/sidekick/defaults/core.defaults.yaml
 
+const ProjectsSchema = z
+  .object({
+    retentionDays: z.number().min(1),
+  })
+  .strict()
+
 const DaemonSchema = z
   .object({
     idleTimeoutMs: z.number().min(0),
     shutdownTimeoutMs: z.number().min(0),
+    projects: ProjectsSchema,
   })
   .strict()
 
