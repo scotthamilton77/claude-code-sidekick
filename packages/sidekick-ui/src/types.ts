@@ -3,22 +3,22 @@
 // ============================================================================
 
 export type SidekickEventType =
-  | 'reminder-staged'
-  | 'reminder-unstaged'
-  | 'reminder-consumed'
-  | 'decision'
-  | 'session-summary-start'
-  | 'session-summary-finish'
-  | 'session-title-changed'
-  | 'intent-changed'
-  | 'snarky-message-start'
-  | 'snarky-message-finish'
-  | 'resume-message-start'
-  | 'resume-message-finish'
-  | 'persona-selected'
-  | 'persona-changed'
-  | 'statusline-rendered'
-  | 'log-error'
+  | 'reminder:staged'
+  | 'reminder:unstaged'
+  | 'reminder:consumed'
+  | 'decision:recorded'
+  | 'session-summary:start'
+  | 'session-summary:finish'
+  | 'session-title:changed'
+  | 'intent:changed'
+  | 'snarky-message:start'
+  | 'snarky-message:finish'
+  | 'resume-message:start'
+  | 'resume-message:finish'
+  | 'persona:selected'
+  | 'persona:changed'
+  | 'statusline:rendered'
+  | 'error:occurred'
 
 // ============================================================================
 // Transcript Line Types (conversation + Sidekick events inline)
@@ -56,31 +56,31 @@ export interface TranscriptLine {
   compactionTokensBefore?: number
   compactionTokensAfter?: number
 
-  // reminder-staged / reminder-unstaged / reminder-consumed
+  // reminder:staged / reminder:unstaged / reminder:consumed
   reminderId?: string
   reminderBlocking?: boolean
 
-  // decision
+  // decision:recorded
   decisionCategory?: string
   decisionReasoning?: string
 
-  // session-title-changed / intent-changed
+  // session-title:changed / intent:changed
   previousValue?: string
   newValue?: string
   confidence?: number
 
-  // persona-selected / persona-changed
+  // persona:selected / persona:changed
   personaFrom?: string
   personaTo?: string
 
-  // statusline-rendered
+  // statusline:rendered
   statuslineContent?: string
 
-  // log-error
+  // error:occurred
   errorMessage?: string
   errorStack?: string
 
-  // snarky-message-finish / resume-message-finish
+  // snarky-message:finish / resume-message:finish
   generatedMessage?: string
 }
 
@@ -170,22 +170,22 @@ export type TimelineFilter =
   | 'errors'
 
 export const SIDEKICK_EVENT_TO_FILTER: Record<SidekickEventType, TimelineFilter> = {
-  'reminder-staged': 'reminders',
-  'reminder-unstaged': 'reminders',
-  'reminder-consumed': 'reminders',
-  'decision': 'decisions',
-  'session-summary-start': 'session-analysis',
-  'session-summary-finish': 'session-analysis',
-  'session-title-changed': 'session-analysis',
-  'intent-changed': 'session-analysis',
-  'snarky-message-start': 'session-analysis',
-  'snarky-message-finish': 'session-analysis',
-  'resume-message-start': 'session-analysis',
-  'resume-message-finish': 'session-analysis',
-  'persona-selected': 'session-analysis',
-  'persona-changed': 'session-analysis',
-  'statusline-rendered': 'statusline',
-  'log-error': 'errors',
+  'reminder:staged': 'reminders',
+  'reminder:unstaged': 'reminders',
+  'reminder:consumed': 'reminders',
+  'decision:recorded': 'decisions',
+  'session-summary:start': 'session-analysis',
+  'session-summary:finish': 'session-analysis',
+  'session-title:changed': 'session-analysis',
+  'intent:changed': 'session-analysis',
+  'snarky-message:start': 'session-analysis',
+  'snarky-message:finish': 'session-analysis',
+  'resume-message:start': 'session-analysis',
+  'resume-message:finish': 'session-analysis',
+  'persona:selected': 'session-analysis',
+  'persona:changed': 'session-analysis',
+  'statusline:rendered': 'statusline',
+  'error:occurred': 'errors',
 }
 
 // ============================================================================

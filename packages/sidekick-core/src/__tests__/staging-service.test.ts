@@ -192,13 +192,11 @@ describe('SessionScopedStagingService (via createService)', () => {
       expect(logger.info).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
-          type: 'ReminderStaged',
+          type: 'reminder:staged',
           source: 'daemon',
-          state: expect.objectContaining({
-            reminderName: 'TestReminder',
-            hookName: 'UserPromptSubmit',
-            priority: 75,
-          }),
+          reminderName: 'TestReminder',
+          hookName: 'UserPromptSubmit',
+          priority: 75,
         })
       )
     })

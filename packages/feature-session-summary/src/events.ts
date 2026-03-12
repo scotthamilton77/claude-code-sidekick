@@ -8,7 +8,18 @@
  * @see docs/design/FEATURE-SESSION-SUMMARY.md §3.4
  */
 
-import type { SummaryUpdatedEvent, SummarySkippedEvent, EventLogContext } from '@sidekick/types'
+import type {
+  SessionSummaryStartEvent,
+  SessionSummaryFinishEvent,
+  SessionTitleChangedEvent,
+  IntentChangedEvent,
+  SummarySkippedEvent,
+  EventLogContext,
+  SessionSummaryStartPayload,
+  SessionSummaryFinishPayload,
+  SessionTitleChangedPayload,
+  IntentChangedPayload,
+} from '@sidekick/types'
 
 // Re-export for consumers
 export type { EventLogContext } from '@sidekick/types'
@@ -18,30 +29,10 @@ export type { EventLogContext } from '@sidekick/types'
  */
 /* v8 ignore start -- pure data factories with deterministic structure */
 export const SessionSummaryEvents = {
-  /**
-   * Create a SummaryUpdated event (logged when session summary is recalculated).
-   * @see docs/design/FEATURE-SESSION-SUMMARY.md §3.4
-   */
-  summaryUpdated(
-    context: EventLogContext,
-    state: {
-      session_title: string
-      session_title_confidence: number
-      latest_intent: string
-      latest_intent_confidence: number
-    },
-    metadata: {
-      countdown_reset_to: number
-      tokens_used?: number
-      processing_time_ms?: number
-      pivot_detected: boolean
-      old_title?: string
-      old_intent?: string
-    },
-    reason: 'user_prompt_forced' | 'countdown_reached' | 'compaction_reset'
-  ): SummaryUpdatedEvent {
+  /** Emitted when summary generation begins. */
+  summaryStart(context: EventLogContext, payload: SessionSummaryStartPayload): SessionSummaryStartEvent {
     return {
-      type: 'SummaryUpdated',
+      type: 'session-summary:start',
       time: Date.now(),
       source: 'daemon',
       context: {
@@ -51,11 +42,58 @@ export const SessionSummaryEvents = {
         hook: context.hook,
         taskId: context.taskId,
       },
-      payload: {
-        state,
-        metadata,
-        reason,
+      payload,
+    }
+  },
+
+  /** Emitted when summary generation completes. */
+  summaryFinish(context: EventLogContext, payload: SessionSummaryFinishPayload): SessionSummaryFinishEvent {
+    return {
+      type: 'session-summary:finish',
+      time: Date.now(),
+      source: 'daemon',
+      context: {
+        sessionId: context.sessionId,
+        correlationId: context.correlationId,
+        traceId: context.traceId,
+        hook: context.hook,
+        taskId: context.taskId,
       },
+      payload,
+    }
+  },
+
+  /** Emitted when session title changes. */
+  titleChanged(context: EventLogContext, payload: SessionTitleChangedPayload): SessionTitleChangedEvent {
+    return {
+      type: 'session-title:changed',
+      time: Date.now(),
+      source: 'daemon',
+      context: {
+        sessionId: context.sessionId,
+        correlationId: context.correlationId,
+        traceId: context.traceId,
+        hook: context.hook,
+        taskId: context.taskId,
+      },
+      payload,
+    }
+  },
+
+  /** Emitted when latest intent changes. */
+  intentChanged(context: EventLogContext, payload: IntentChangedPayload): IntentChangedEvent {
+    return {
+      type: 'intent:changed',
+      time: Date.now(),
+      source: 'daemon',
+      context: {
+        sessionId: context.sessionId,
+        correlationId: context.correlationId,
+        traceId: context.traceId,
+        hook: context.hook,
+        taskId: context.taskId,
+      },
+      payload,
     }
   },
 
@@ -71,7 +109,7 @@ export const SessionSummaryEvents = {
     }
   ): SummarySkippedEvent {
     return {
-      type: 'SummarySkipped',
+      type: 'session-summary:skipped',
       time: Date.now(),
       source: 'daemon',
       context: {
@@ -82,7 +120,8 @@ export const SessionSummaryEvents = {
         taskId: context.taskId,
       },
       payload: {
-        metadata,
+        countdown: metadata.countdown,
+        countdown_threshold: metadata.countdown_threshold,
         reason: 'countdown_active',
       },
     }

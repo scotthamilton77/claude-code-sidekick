@@ -61,19 +61,19 @@ s1LEDs.set(id, ledOff('amber'))
 
 // Sidekick: session summary analysis
 id = lid()
-s1Lines.push({ id, timestamp: t(0.7), type: 'session-summary-start' })
+s1Lines.push({ id, timestamp: t(0.7), type: 'session-summary:start' })
 s1LEDs.set(id, ledOff('amber'))
-s1Events.push(sEvt(id, t(0.7), 'session-summary-start', 'Session summary analysis started'))
+s1Events.push(sEvt(id, t(0.7), 'session-summary:start', 'Session summary analysis started'))
 
 id = lid()
-s1Lines.push({ id, timestamp: t(1), type: 'session-title-changed', previousValue: 'New session', newValue: 'Daemon crash investigation', confidence: 0.6 })
+s1Lines.push({ id, timestamp: t(1), type: 'session-title:changed', previousValue: 'New session', newValue: 'Daemon crash investigation', confidence: 0.6 })
 s1LEDs.set(id, ledOff('amber'))
-s1Events.push(sEvt(id, t(1), 'session-title-changed', 'Title: Daemon crash investigation', 'Confidence: 60%'))
+s1Events.push(sEvt(id, t(1), 'session-title:changed', 'Title: Daemon crash investigation', 'Confidence: 60%'))
 
 id = lid()
-s1Lines.push({ id, timestamp: t(1.1), type: 'session-summary-finish' })
+s1Lines.push({ id, timestamp: t(1.1), type: 'session-summary:finish' })
 s1LEDs.set(id, ledOff('amber'))
-s1Events.push(sEvt(id, t(1.1), 'session-summary-finish', 'Session summary analysis completed'))
+s1Events.push(sEvt(id, t(1.1), 'session-summary:finish', 'Session summary analysis completed'))
 
 s1Snapshots.push({
   timestamp: t(1.1),
@@ -100,15 +100,15 @@ s1LEDs.set(id, ledOff('amber'))
 
 // Sidekick: decision
 id = lid()
-s1Lines.push({ id, timestamp: t(3), type: 'decision', decisionCategory: 'handler', decisionReasoning: 'Health check interval (30s) conflicts with mtime threshold (30s), creating race condition where daemon appears dead during normal operation' })
+s1Lines.push({ id, timestamp: t(3), type: 'decision:recorded', decisionCategory: 'handler', decisionReasoning: 'Health check interval (30s) conflicts with mtime threshold (30s), creating race condition where daemon appears dead during normal operation' })
 s1LEDs.set(id, ledOff('amber'))
-s1Events.push(sEvt(id, t(3), 'decision', 'Root cause: health check race condition', 'Interval and threshold both 30s — GC pause triggers false death'))
+s1Events.push(sEvt(id, t(3), 'decision:recorded', 'Root cause: health check race condition', 'Interval and threshold both 30s — GC pause triggers false death'))
 
 // Sidekick: intent changed
 id = lid()
-s1Lines.push({ id, timestamp: t(3.2), type: 'intent-changed', previousValue: 'Investigate daemon crashes', newValue: 'Fix health check race condition', confidence: 0.88 })
+s1Lines.push({ id, timestamp: t(3.2), type: 'intent:changed', previousValue: 'Investigate daemon crashes', newValue: 'Fix health check race condition', confidence: 0.88 })
 s1LEDs.set(id, ledOff('amber'))
-s1Events.push(sEvt(id, t(3.2), 'intent-changed', 'Intent: Fix health check race condition', 'Confidence: 88%'))
+s1Events.push(sEvt(id, t(3.2), 'intent:changed', 'Intent: Fix health check race condition', 'Confidence: 88%'))
 
 // Assistant explains and edits
 id = lid()
@@ -125,30 +125,30 @@ s1LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint:
 
 // Sidekick: reminders staged for verification
 id = lid()
-s1Lines.push({ id, timestamp: t(5.2), type: 'reminder-staged', reminderId: 'vc-build', reminderBlocking: true })
+s1Lines.push({ id, timestamp: t(5.2), type: 'reminder:staged', reminderId: 'vc-build', reminderBlocking: true })
 s1LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint: true }, ledOff('amber')))
-s1Events.push(sEvt(id, t(5.2), 'reminder-staged', 'Staged: vc-build', 'Source edited, build not yet run'))
+s1Events.push(sEvt(id, t(5.2), 'reminder:staged', 'Staged: vc-build', 'Source edited, build not yet run'))
 
 id = lid()
-s1Lines.push({ id, timestamp: t(5.21), type: 'reminder-staged', reminderId: 'vc-typecheck', reminderBlocking: true })
+s1Lines.push({ id, timestamp: t(5.21), type: 'reminder:staged', reminderId: 'vc-typecheck', reminderBlocking: true })
 s1LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint: true }, ledOff('amber')))
-s1Events.push(sEvt(id, t(5.21), 'reminder-staged', 'Staged: vc-typecheck', 'Source edited, typecheck not yet run'))
+s1Events.push(sEvt(id, t(5.21), 'reminder:staged', 'Staged: vc-typecheck', 'Source edited, typecheck not yet run'))
 
 id = lid()
-s1Lines.push({ id, timestamp: t(5.22), type: 'reminder-staged', reminderId: 'vc-test', reminderBlocking: true })
+s1Lines.push({ id, timestamp: t(5.22), type: 'reminder:staged', reminderId: 'vc-test', reminderBlocking: true })
 s1LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint: true }, ledOff('amber')))
-s1Events.push(sEvt(id, t(5.22), 'reminder-staged', 'Staged: vc-test', 'Source edited, tests not yet run'))
+s1Events.push(sEvt(id, t(5.22), 'reminder:staged', 'Staged: vc-test', 'Source edited, tests not yet run'))
 
 id = lid()
-s1Lines.push({ id, timestamp: t(5.23), type: 'reminder-staged', reminderId: 'vc-lint', reminderBlocking: true })
+s1Lines.push({ id, timestamp: t(5.23), type: 'reminder:staged', reminderId: 'vc-lint', reminderBlocking: true })
 s1LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint: true }, ledOff('amber')))
-s1Events.push(sEvt(id, t(5.23), 'reminder-staged', 'Staged: vc-lint', 'Source edited, lint not yet run'))
+s1Events.push(sEvt(id, t(5.23), 'reminder:staged', 'Staged: vc-lint', 'Source edited, lint not yet run'))
 
 // Sidekick: statusline
 id = lid()
-s1Lines.push({ id, timestamp: t(5.5), type: 'statusline-rendered', statuslineContent: '🔧 Fixing daemon health | vc: B T t L' })
+s1Lines.push({ id, timestamp: t(5.5), type: 'statusline:rendered', statuslineContent: '🔧 Fixing daemon health | vc: B T t L' })
 s1LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint: true }, ledOff('amber')))
-s1Events.push(sEvt(id, t(5.5), 'statusline-rendered', 'Statusline updated', '🔧 Fixing daemon health | vc: B T t L'))
+s1Events.push(sEvt(id, t(5.5), 'statusline:rendered', 'Statusline updated', '🔧 Fixing daemon health | vc: B T t L'))
 
 // Run tests → clears vc-test
 id = lid()
@@ -160,9 +160,9 @@ s1Lines.push({ id, timestamp: t(6.5), type: 'tool-result', toolOutput: '✓ 12 t
 s1LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcLint: true }, ledOff('amber'))) // vcTest clears
 
 id = lid()
-s1Lines.push({ id, timestamp: t(6.6), type: 'reminder-consumed', reminderId: 'vc-test', reminderBlocking: true })
+s1Lines.push({ id, timestamp: t(6.6), type: 'reminder:consumed', reminderId: 'vc-test', reminderBlocking: true })
 s1LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcLint: true }, ledOff('amber')))
-s1Events.push(sEvt(id, t(6.6), 'reminder-consumed', 'Consumed: vc-test', 'Tests passed'))
+s1Events.push(sEvt(id, t(6.6), 'reminder:consumed', 'Consumed: vc-test', 'Tests passed'))
 
 // Run build → clears vc-build
 id = lid()
@@ -174,15 +174,15 @@ s1Lines.push({ id, timestamp: t(7.5), type: 'tool-result', toolOutput: 'Build su
 s1LEDs.set(id, ledWith({ vcTypecheck: true, vcLint: true }, ledOff('amber'))) // vcBuild clears
 
 id = lid()
-s1Lines.push({ id, timestamp: t(7.6), type: 'reminder-consumed', reminderId: 'vc-build', reminderBlocking: true })
+s1Lines.push({ id, timestamp: t(7.6), type: 'reminder:consumed', reminderId: 'vc-build', reminderBlocking: true })
 s1LEDs.set(id, ledWith({ vcTypecheck: true, vcLint: true }, ledOff('amber')))
-s1Events.push(sEvt(id, t(7.6), 'reminder-consumed', 'Consumed: vc-build', 'Build passed'))
+s1Events.push(sEvt(id, t(7.6), 'reminder:consumed', 'Consumed: vc-build', 'Build passed'))
 
 // Run typecheck → clears vc-typecheck
 id = lid()
-s1Lines.push({ id, timestamp: t(7.7), type: 'reminder-consumed', reminderId: 'vc-typecheck', reminderBlocking: true })
+s1Lines.push({ id, timestamp: t(7.7), type: 'reminder:consumed', reminderId: 'vc-typecheck', reminderBlocking: true })
 s1LEDs.set(id, ledWith({ vcLint: true }, ledOff('amber')))
-s1Events.push(sEvt(id, t(7.7), 'reminder-consumed', 'Consumed: vc-typecheck', 'Typecheck passed (part of build)'))
+s1Events.push(sEvt(id, t(7.7), 'reminder:consumed', 'Consumed: vc-typecheck', 'Typecheck passed (part of build)'))
 
 // Run lint → clears vc-lint
 id = lid()
@@ -194,15 +194,15 @@ s1Lines.push({ id, timestamp: t(8.3), type: 'tool-result', toolOutput: 'No lint 
 s1LEDs.set(id, ledOff('amber')) // vcLint clears
 
 id = lid()
-s1Lines.push({ id, timestamp: t(8.4), type: 'reminder-consumed', reminderId: 'vc-lint', reminderBlocking: true })
+s1Lines.push({ id, timestamp: t(8.4), type: 'reminder:consumed', reminderId: 'vc-lint', reminderBlocking: true })
 s1LEDs.set(id, ledOff('amber'))
-s1Events.push(sEvt(id, t(8.4), 'reminder-consumed', 'Consumed: vc-lint', 'Lint passed'))
+s1Events.push(sEvt(id, t(8.4), 'reminder:consumed', 'Consumed: vc-lint', 'Lint passed'))
 
 // Summary update with high confidence
 id = lid()
-s1Lines.push({ id, timestamp: t(8.5), type: 'session-title-changed', previousValue: 'Daemon crash investigation', newValue: 'Daemon restart loop fix', confidence: 0.95 })
+s1Lines.push({ id, timestamp: t(8.5), type: 'session-title:changed', previousValue: 'Daemon crash investigation', newValue: 'Daemon restart loop fix', confidence: 0.95 })
 s1LEDs.set(id, ledOff('green'))
-s1Events.push(sEvt(id, t(8.5), 'session-title-changed', 'Title: Daemon restart loop fix', 'Confidence: 95%'))
+s1Events.push(sEvt(id, t(8.5), 'session-title:changed', 'Title: Daemon restart loop fix', 'Confidence: 95%'))
 
 s1Snapshots.push({
   timestamp: t(8.5),
@@ -252,9 +252,9 @@ s2LEDs.set(id, ledOff('amber'))
 
 // Persona selected at session start
 id = lid()
-s2Lines.push({ id, timestamp: t(60.1), type: 'persona-selected', personaTo: 'GLaDOS' })
+s2Lines.push({ id, timestamp: t(60.1), type: 'persona:selected', personaTo: 'GLaDOS' })
 s2LEDs.set(id, ledOff('amber'))
-s2Events.push(sEvt(id, t(60.1), 'persona-selected', 'Persona: GLaDOS', 'Selected for this session'))
+s2Events.push(sEvt(id, t(60.1), 'persona:selected', 'Persona: GLaDOS', 'Selected for this session'))
 
 s2Snapshots.push({
   timestamp: t(60.1),
@@ -276,38 +276,38 @@ s2LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint:
 
 // Sidekick: reminders staged
 id = lid()
-s2Lines.push({ id, timestamp: t(62.2), type: 'reminder-staged', reminderId: 'vc-build', reminderBlocking: true })
+s2Lines.push({ id, timestamp: t(62.2), type: 'reminder:staged', reminderId: 'vc-build', reminderBlocking: true })
 s2LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint: true }, ledOff('amber')))
-s2Events.push(sEvt(id, t(62.2), 'reminder-staged', 'Staged: vc-build'))
+s2Events.push(sEvt(id, t(62.2), 'reminder:staged', 'Staged: vc-build'))
 
 // Sidekick: snarky message generation
 id = lid()
-s2Lines.push({ id, timestamp: t(63), type: 'snarky-message-start' })
+s2Lines.push({ id, timestamp: t(63), type: 'snarky-message:start' })
 s2LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint: true }, ledOff('amber')))
-s2Events.push(sEvt(id, t(63), 'snarky-message-start', 'Generating snarky message'))
+s2Events.push(sEvt(id, t(63), 'snarky-message:start', 'Generating snarky message'))
 
 id = lid()
-s2Lines.push({ id, timestamp: t(63.5), type: 'snarky-message-finish', generatedMessage: 'Oh, you want me to create another personality? How delightful. Another entity to share in the crushing weight of existence.' })
+s2Lines.push({ id, timestamp: t(63.5), type: 'snarky-message:finish', generatedMessage: 'Oh, you want me to create another personality? How delightful. Another entity to share in the crushing weight of existence.' })
 s2LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint: true }, ledOff('amber')))
-s2Events.push(sEvt(id, t(63.5), 'snarky-message-finish', 'Snarky message ready', 'Oh, you want me to create another personality...'))
+s2Events.push(sEvt(id, t(63.5), 'snarky-message:finish', 'Snarky message ready', 'Oh, you want me to create another personality...'))
 
 // Sidekick: decision to validate voice
 id = lid()
-s2Lines.push({ id, timestamp: t(64), type: 'decision', decisionCategory: 'handler', decisionReasoning: 'New persona needs voice validation — generating test snarky comment to verify authenticity' })
+s2Lines.push({ id, timestamp: t(64), type: 'decision:recorded', decisionCategory: 'handler', decisionReasoning: 'New persona needs voice validation — generating test snarky comment to verify authenticity' })
 s2LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint: true }, ledOff('amber')))
-s2Events.push(sEvt(id, t(64), 'decision', 'Validate persona voice', 'New persona needs voice validation'))
+s2Events.push(sEvt(id, t(64), 'decision:recorded', 'Validate persona voice', 'New persona needs voice validation'))
 
 // Sidekick: error
 id = lid()
-s2Lines.push({ id, timestamp: t(65), type: 'log-error', errorMessage: 'Resume voice test returned empty response — model context exceeded', errorStack: 'Error: Empty LLM response\n  at PersonaTester.test (persona-tester.ts:45)' })
+s2Lines.push({ id, timestamp: t(65), type: 'error:occurred', errorMessage: 'Resume voice test returned empty response — model context exceeded', errorStack: 'Error: Empty LLM response\n  at PersonaTester.test (persona-tester.ts:45)' })
 s2LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint: true }, ledOff('amber')))
-s2Events.push(sEvt(id, t(65), 'log-error', 'Error: empty LLM response', 'Resume voice test returned empty response'))
+s2Events.push(sEvt(id, t(65), 'error:occurred', 'Error: empty LLM response', 'Resume voice test returned empty response'))
 
 // Session title update
 id = lid()
-s2Lines.push({ id, timestamp: t(65.5), type: 'session-title-changed', previousValue: 'New session', newValue: 'Add Bender persona', confidence: 0.82 })
+s2Lines.push({ id, timestamp: t(65.5), type: 'session-title:changed', previousValue: 'New session', newValue: 'Add Bender persona', confidence: 0.82 })
 s2LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint: true }, ledOff('green')))
-s2Events.push(sEvt(id, t(65.5), 'session-title-changed', 'Title: Add Bender persona', 'Confidence: 82%'))
+s2Events.push(sEvt(id, t(65.5), 'session-title:changed', 'Title: Add Bender persona', 'Confidence: 82%'))
 
 s2Snapshots.push({
   timestamp: t(65.5),
@@ -330,14 +330,14 @@ s2Lines.push({ id, timestamp: t(68), type: 'tool-result', toolOutput: '✓ All t
 s2LEDs.set(id, ledOff('green'))
 
 id = lid()
-s2Lines.push({ id, timestamp: t(68.1), type: 'reminder-consumed', reminderId: 'vc-build', reminderBlocking: true })
+s2Lines.push({ id, timestamp: t(68.1), type: 'reminder:consumed', reminderId: 'vc-build', reminderBlocking: true })
 s2LEDs.set(id, ledOff('green'))
-s2Events.push(sEvt(id, t(68.1), 'reminder-consumed', 'Consumed: vc-build'))
+s2Events.push(sEvt(id, t(68.1), 'reminder:consumed', 'Consumed: vc-build'))
 
 id = lid()
-s2Lines.push({ id, timestamp: t(68.2), type: 'reminder-consumed', reminderId: 'vc-test', reminderBlocking: true })
+s2Lines.push({ id, timestamp: t(68.2), type: 'reminder:consumed', reminderId: 'vc-test', reminderBlocking: true })
 s2LEDs.set(id, ledOff('green'))
-s2Events.push(sEvt(id, t(68.2), 'reminder-consumed', 'Consumed: vc-test'))
+s2Events.push(sEvt(id, t(68.2), 'reminder:consumed', 'Consumed: vc-test'))
 
 const sidekickSession2: Session = {
   id: 'sess-sk-002',
@@ -396,14 +396,14 @@ s3LEDs.set(id, ledOff('amber'))
 
 // Decision
 id = lid()
-s3Lines.push({ id, timestamp: t(123), type: 'decision', decisionCategory: 'handler', decisionReasoning: 'Config is reloaded from disk on every hook invocation (180ms). Should be cached with file watcher invalidation.' })
+s3Lines.push({ id, timestamp: t(123), type: 'decision:recorded', decisionCategory: 'handler', decisionReasoning: 'Config is reloaded from disk on every hook invocation (180ms). Should be cached with file watcher invalidation.' })
 s3LEDs.set(id, ledOff('amber'))
-s3Events.push(sEvt(id, t(123), 'decision', 'Bottleneck: config reload', 'Config reloaded from disk every invocation (180ms)'))
+s3Events.push(sEvt(id, t(123), 'decision:recorded', 'Bottleneck: config reload', 'Config reloaded from disk every invocation (180ms)'))
 
 id = lid()
-s3Lines.push({ id, timestamp: t(123.5), type: 'intent-changed', previousValue: 'Profile UserPromptSubmit hook', newValue: 'Optimize hook by caching config', confidence: 0.91 })
+s3Lines.push({ id, timestamp: t(123.5), type: 'intent:changed', previousValue: 'Profile UserPromptSubmit hook', newValue: 'Optimize hook by caching config', confidence: 0.91 })
 s3LEDs.set(id, ledOff('amber'))
-s3Events.push(sEvt(id, t(123.5), 'intent-changed', 'Intent: Optimize hook by caching config'))
+s3Events.push(sEvt(id, t(123.5), 'intent:changed', 'Intent: Optimize hook by caching config'))
 
 // Many rapid tool calls → triggers pause-and-reflect
 id = lid()
@@ -440,18 +440,18 @@ s3LEDs.set(id, ledOff('amber'))
 
 // pause-and-reflect fires!
 id = lid()
-s3Lines.push({ id, timestamp: t(126), type: 'reminder-staged', reminderId: 'pause-and-reflect', reminderBlocking: true })
+s3Lines.push({ id, timestamp: t(126), type: 'reminder:staged', reminderId: 'pause-and-reflect', reminderBlocking: true })
 s3LEDs.set(id, ledWith({ pauseAndReflect: true }, ledOff('amber')))
-s3Events.push(sEvt(id, t(126), 'reminder-staged', 'Staged: pause-and-reflect', '8 consecutive tool calls — take a breath'))
+s3Events.push(sEvt(id, t(126), 'reminder:staged', 'Staged: pause-and-reflect', '8 consecutive tool calls — take a breath'))
 
 id = lid()
 s3Lines.push({ id, timestamp: t(126.5), type: 'assistant-message', content: "Let me step back and consider. I've been reading files rapidly. The pattern is clear: config is loaded synchronously from disk on each invocation. I need to add a cache layer with file-watcher invalidation.", thinking: "I've read 4 files in rapid succession. The pause-and-reflect reminder is right — I should synthesize what I've learned before making more changes. The config loader reads from disk on every call. The watcher module already exists but isn't connected to the config loader. I can add a simple cache." })
 s3LEDs.set(id, ledWith({ pauseAndReflect: true }, ledOff('amber')))
 
 id = lid()
-s3Lines.push({ id, timestamp: t(127), type: 'reminder-consumed', reminderId: 'pause-and-reflect', reminderBlocking: true })
+s3Lines.push({ id, timestamp: t(127), type: 'reminder:consumed', reminderId: 'pause-and-reflect', reminderBlocking: true })
 s3LEDs.set(id, ledOff('amber'))
-s3Events.push(sEvt(id, t(127), 'reminder-consumed', 'Consumed: pause-and-reflect', 'Agent reflected before continuing'))
+s3Events.push(sEvt(id, t(127), 'reminder:consumed', 'Consumed: pause-and-reflect', 'Agent reflected before continuing'))
 
 s3Snapshots.push({
   timestamp: t(127),
@@ -467,14 +467,14 @@ s3LEDs.set(id, ledOff('amber'))
 
 // Resume message generation
 id = lid()
-s3Lines.push({ id, timestamp: t(135.5), type: 'resume-message-start' })
+s3Lines.push({ id, timestamp: t(135.5), type: 'resume-message:start' })
 s3LEDs.set(id, ledOff('amber'))
-s3Events.push(sEvt(id, t(135.5), 'resume-message-start', 'Generating resume message'))
+s3Events.push(sEvt(id, t(135.5), 'resume-message:start', 'Generating resume message'))
 
 id = lid()
-s3Lines.push({ id, timestamp: t(136), type: 'resume-message-finish', generatedMessage: 'Previously: Profiled UserPromptSubmit hook (523ms). Root cause: config reloaded from disk every invocation. Plan: add cache with file-watcher invalidation.' })
+s3Lines.push({ id, timestamp: t(136), type: 'resume-message:finish', generatedMessage: 'Previously: Profiled UserPromptSubmit hook (523ms). Root cause: config reloaded from disk every invocation. Plan: add cache with file-watcher invalidation.' })
 s3LEDs.set(id, ledOff('amber'))
-s3Events.push(sEvt(id, t(136), 'resume-message-finish', 'Resume message ready', 'Previously: Profiled hook (523ms), planning cache...'))
+s3Events.push(sEvt(id, t(136), 'resume-message:finish', 'Resume message ready', 'Previously: Profiled hook (523ms), planning cache...'))
 
 // Post-compaction implementation
 id = lid()
@@ -490,9 +490,9 @@ s3Lines.push({ id, timestamp: t(138.1), type: 'tool-result', toolOutput: 'Edit a
 s3LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint: true }, ledOff('amber')))
 
 id = lid()
-s3Lines.push({ id, timestamp: t(138.2), type: 'reminder-staged', reminderId: 'vc-build', reminderBlocking: true })
+s3Lines.push({ id, timestamp: t(138.2), type: 'reminder:staged', reminderId: 'vc-build', reminderBlocking: true })
 s3LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint: true }, ledOff('amber')))
-s3Events.push(sEvt(id, t(138.2), 'reminder-staged', 'Staged: vc-build'))
+s3Events.push(sEvt(id, t(138.2), 'reminder:staged', 'Staged: vc-build'))
 
 id = lid()
 s3Lines.push({ id, timestamp: t(139), type: 'tool-use', toolName: 'Write', toolInput: { file_path: 'src/hooks/config-cache.ts' }, toolDurationMs: 55 })
@@ -512,9 +512,9 @@ s3Lines.push({ id, timestamp: t(140.5), type: 'tool-result', toolOutput: 'Total:
 s3LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint: true }, ledOff('amber')))
 
 id = lid()
-s3Lines.push({ id, timestamp: t(141), type: 'statusline-rendered', statuslineContent: '⚡ Hook latency: 523ms → 187ms (-64%)' })
+s3Lines.push({ id, timestamp: t(141), type: 'statusline:rendered', statuslineContent: '⚡ Hook latency: 523ms → 187ms (-64%)' })
 s3LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint: true }, ledOff('amber')))
-s3Events.push(sEvt(id, t(141), 'statusline-rendered', 'Statusline updated', '⚡ Hook latency: 523ms → 187ms (-64%)'))
+s3Events.push(sEvt(id, t(141), 'statusline:rendered', 'Statusline updated', '⚡ Hook latency: 523ms → 187ms (-64%)'))
 
 id = lid()
 s3Lines.push({ id, timestamp: t(142), type: 'assistant-message', content: "Hook latency reduced from 523ms to 187ms (64% improvement). The config cache with file watcher invalidation eliminates redundant disk reads." })
@@ -583,9 +583,9 @@ s4Lines.push({ id, timestamp: t(182.1), type: 'tool-result', toolOutput: '// jwt
 s4LEDs.set(id, ledOff('amber'))
 
 id = lid()
-s4Lines.push({ id, timestamp: t(183), type: 'decision', decisionCategory: 'summary', decisionReasoning: 'JWT exp check uses strict comparison without clock skew tolerance. With distributed services, clock drift of a few seconds causes intermittent rejections.' })
+s4Lines.push({ id, timestamp: t(183), type: 'decision:recorded', decisionCategory: 'summary', decisionReasoning: 'JWT exp check uses strict comparison without clock skew tolerance. With distributed services, clock drift of a few seconds causes intermittent rejections.' })
 s4LEDs.set(id, ledOff('amber'))
-s4Events.push(sEvt(id, t(183), 'decision', 'Clock skew suspected', 'No clock skew tolerance in JWT verification'))
+s4Events.push(sEvt(id, t(183), 'decision:recorded', 'Clock skew suspected', 'No clock skew tolerance in JWT verification'))
 
 id = lid()
 s4Lines.push({ id, timestamp: t(184), type: 'tool-use', toolName: 'Edit', toolInput: { file_path: 'src/utils/jwt.ts', old_string: 'verify(token, secret)', new_string: 'verify(token, secret, { clockTolerance: 30 })' }, toolDurationMs: 70 })
@@ -596,9 +596,9 @@ s4Lines.push({ id, timestamp: t(184.1), type: 'tool-result', toolOutput: 'Edit a
 s4LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint: true }, ledOff('amber')))
 
 id = lid()
-s4Lines.push({ id, timestamp: t(184.2), type: 'reminder-staged', reminderId: 'vc-build', reminderBlocking: true })
+s4Lines.push({ id, timestamp: t(184.2), type: 'reminder:staged', reminderId: 'vc-build', reminderBlocking: true })
 s4LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint: true }, ledOff('amber')))
-s4Events.push(sEvt(id, t(184.2), 'reminder-staged', 'Staged: vc-build'))
+s4Events.push(sEvt(id, t(184.2), 'reminder:staged', 'Staged: vc-build'))
 
 // Agent claims done prematurely → verify-completion fires!
 id = lid()
@@ -606,18 +606,18 @@ s4Lines.push({ id, timestamp: t(185), type: 'assistant-message', content: "Fixed
 s4LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint: true }, ledOff('amber')))
 
 id = lid()
-s4Lines.push({ id, timestamp: t(185.5), type: 'reminder-staged', reminderId: 'verify-completion', reminderBlocking: true })
+s4Lines.push({ id, timestamp: t(185.5), type: 'reminder:staged', reminderId: 'verify-completion', reminderBlocking: true })
 s4LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint: true, verifyCompletion: true }, ledOff('amber')))
-s4Events.push(sEvt(id, t(185.5), 'reminder-staged', 'Staged: verify-completion', 'Agent claiming completion without running checks'))
+s4Events.push(sEvt(id, t(185.5), 'reminder:staged', 'Staged: verify-completion', 'Agent claiming completion without running checks'))
 
 id = lid()
 s4Lines.push({ id, timestamp: t(186), type: 'assistant-message', content: "Actually, let me run the tests and add a specific test for the clock skew edge case before calling this done.", thinking: "The verify-completion reminder is right — I claimed this was done without running tests or adding a test case for the edge condition." })
 s4LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint: true, verifyCompletion: true }, ledOff('amber')))
 
 id = lid()
-s4Lines.push({ id, timestamp: t(186.1), type: 'reminder-consumed', reminderId: 'verify-completion', reminderBlocking: true })
+s4Lines.push({ id, timestamp: t(186.1), type: 'reminder:consumed', reminderId: 'verify-completion', reminderBlocking: true })
 s4LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint: true }, ledOff('amber')))
-s4Events.push(sEvt(id, t(186.1), 'reminder-consumed', 'Consumed: verify-completion', 'Agent will verify before completing'))
+s4Events.push(sEvt(id, t(186.1), 'reminder:consumed', 'Consumed: verify-completion', 'Agent will verify before completing'))
 
 id = lid()
 s4Lines.push({ id, timestamp: t(187), type: 'tool-use', toolName: 'Write', toolInput: { file_path: 'src/utils/__tests__/jwt.test.ts' }, toolDurationMs: 55 })
@@ -636,14 +636,14 @@ s4Lines.push({ id, timestamp: t(188.5), type: 'tool-result', toolOutput: '✓ 8 
 s4LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcLint: true }, ledOff('green')))
 
 id = lid()
-s4Lines.push({ id, timestamp: t(188.6), type: 'reminder-consumed', reminderId: 'vc-test', reminderBlocking: true })
+s4Lines.push({ id, timestamp: t(188.6), type: 'reminder:consumed', reminderId: 'vc-test', reminderBlocking: true })
 s4LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcLint: true }, ledOff('green')))
-s4Events.push(sEvt(id, t(188.6), 'reminder-consumed', 'Consumed: vc-test'))
+s4Events.push(sEvt(id, t(188.6), 'reminder:consumed', 'Consumed: vc-test'))
 
 id = lid()
-s4Lines.push({ id, timestamp: t(189), type: 'session-title-changed', previousValue: 'JWT investigation', newValue: 'Fix JWT clock skew', confidence: 0.92 })
+s4Lines.push({ id, timestamp: t(189), type: 'session-title:changed', previousValue: 'JWT investigation', newValue: 'Fix JWT clock skew', confidence: 0.92 })
 s4LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcLint: true }, ledOff('green')))
-s4Events.push(sEvt(id, t(189), 'session-title-changed', 'Title: Fix JWT clock skew'))
+s4Events.push(sEvt(id, t(189), 'session-title:changed', 'Title: Fix JWT clock skew'))
 
 id = lid()
 s4Lines.push({ id, timestamp: t(190), type: 'assistant-message', content: "Added 30-second clock skew tolerance to JWT verification. Added test for the edge case. All 8 JWT tests pass." })
@@ -691,19 +691,19 @@ s5Lines.push({ id, timestamp: t(240), type: 'user-message', content: 'Refactor t
 s5LEDs.set(id, ledOff('red'))
 
 id = lid()
-s5Lines.push({ id, timestamp: t(240.5), type: 'session-summary-start' })
+s5Lines.push({ id, timestamp: t(240.5), type: 'session-summary:start' })
 s5LEDs.set(id, ledOff('red'))
-s5Events.push(sEvt(id, t(240.5), 'session-summary-start', 'Session summary started'))
+s5Events.push(sEvt(id, t(240.5), 'session-summary:start', 'Session summary started'))
 
 id = lid()
-s5Lines.push({ id, timestamp: t(241), type: 'session-title-changed', previousValue: 'New session', newValue: 'API refactor: Express → Hono', confidence: 0.75 })
+s5Lines.push({ id, timestamp: t(241), type: 'session-title:changed', previousValue: 'New session', newValue: 'API refactor: Express → Hono', confidence: 0.75 })
 s5LEDs.set(id, ledOff('amber'))
-s5Events.push(sEvt(id, t(241), 'session-title-changed', 'Title: API refactor: Express → Hono'))
+s5Events.push(sEvt(id, t(241), 'session-title:changed', 'Title: API refactor: Express → Hono'))
 
 id = lid()
-s5Lines.push({ id, timestamp: t(241.1), type: 'session-summary-finish' })
+s5Lines.push({ id, timestamp: t(241.1), type: 'session-summary:finish' })
 s5LEDs.set(id, ledOff('amber'))
-s5Events.push(sEvt(id, t(241.1), 'session-summary-finish', 'Session summary completed'))
+s5Events.push(sEvt(id, t(241.1), 'session-summary:finish', 'Session summary completed'))
 
 s5Snapshots.push({
   timestamp: t(241.1),
@@ -733,15 +733,15 @@ s5LEDs.set(id, ledOff('amber'))
 
 // Decision
 id = lid()
-s5Lines.push({ id, timestamp: t(245), type: 'decision', decisionCategory: 'handler', decisionReasoning: "Express middleware uses (req, res, next) pattern. Hono uses c.next(). Need adapter for existing auth middleware." })
+s5Lines.push({ id, timestamp: t(245), type: 'decision:recorded', decisionCategory: 'handler', decisionReasoning: "Express middleware uses (req, res, next) pattern. Hono uses c.next(). Need adapter for existing auth middleware." })
 s5LEDs.set(id, ledOff('amber'))
-s5Events.push(sEvt(id, t(245), 'decision', 'Middleware compatibility', 'Create thin adapter rather than rewriting all middleware'))
+s5Events.push(sEvt(id, t(245), 'decision:recorded', 'Middleware compatibility', 'Create thin adapter rather than rewriting all middleware'))
 
 // Persona change mid-session
 id = lid()
-s5Lines.push({ id, timestamp: t(246), type: 'persona-changed', personaFrom: 'Marvin', personaTo: 'GLaDOS' })
+s5Lines.push({ id, timestamp: t(246), type: 'persona:changed', personaFrom: 'Marvin', personaTo: 'GLaDOS' })
 s5LEDs.set(id, ledOff('amber'))
-s5Events.push(sEvt(id, t(246), 'persona-changed', 'Persona: Marvin → GLaDOS', 'Changed mid-session'))
+s5Events.push(sEvt(id, t(246), 'persona:changed', 'Persona: Marvin → GLaDOS', 'Changed mid-session'))
 
 s5Snapshots.push({
   timestamp: t(246),
@@ -759,9 +759,9 @@ s5Lines.push({ id, timestamp: t(248.1), type: 'tool-result', toolOutput: 'File w
 s5LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint: true }, ledOff('amber')))
 
 id = lid()
-s5Lines.push({ id, timestamp: t(248.2), type: 'reminder-staged', reminderId: 'vc-build', reminderBlocking: true })
+s5Lines.push({ id, timestamp: t(248.2), type: 'reminder:staged', reminderId: 'vc-build', reminderBlocking: true })
 s5LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint: true }, ledOff('amber')))
-s5Events.push(sEvt(id, t(248.2), 'reminder-staged', 'Staged: vc-build'))
+s5Events.push(sEvt(id, t(248.2), 'reminder:staged', 'Staged: vc-build'))
 
 id = lid()
 s5Lines.push({ id, timestamp: t(250), type: 'tool-use', toolName: 'Edit', toolInput: { file_path: 'src/routes/users.ts' }, toolDurationMs: 90 })
@@ -781,9 +781,9 @@ s5Lines.push({ id, timestamp: t(256), type: 'tool-result', toolOutput: '✗ 3 fa
 s5LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint: true }, ledOff('amber')))
 
 id = lid()
-s5Lines.push({ id, timestamp: t(256.5), type: 'log-error', errorMessage: '3 tests failed: Response content-type header missing application/json' })
+s5Lines.push({ id, timestamp: t(256.5), type: 'error:occurred', errorMessage: '3 tests failed: Response content-type header missing application/json' })
 s5LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint: true }, ledOff('amber')))
-s5Events.push(sEvt(id, t(256.5), 'log-error', 'Test failures: content-type', '3 tests failed'))
+s5Events.push(sEvt(id, t(256.5), 'error:occurred', 'Test failures: content-type', '3 tests failed'))
 
 id = lid()
 s5Lines.push({ id, timestamp: t(257), type: 'assistant-message', content: "Three tests failing because Hono doesn't set content-type automatically like Express. Adding explicit c.json() calls." })
@@ -807,14 +807,14 @@ s5Lines.push({ id, timestamp: t(261), type: 'tool-result', toolOutput: '✓ 24 t
 s5LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcLint: true }, ledOff('green')))
 
 id = lid()
-s5Lines.push({ id, timestamp: t(261.1), type: 'reminder-consumed', reminderId: 'vc-test', reminderBlocking: true })
+s5Lines.push({ id, timestamp: t(261.1), type: 'reminder:consumed', reminderId: 'vc-test', reminderBlocking: true })
 s5LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcLint: true }, ledOff('green')))
-s5Events.push(sEvt(id, t(261.1), 'reminder-consumed', 'Consumed: vc-test'))
+s5Events.push(sEvt(id, t(261.1), 'reminder:consumed', 'Consumed: vc-test'))
 
 id = lid()
-s5Lines.push({ id, timestamp: t(261.5), type: 'statusline-rendered', statuslineContent: '🔄 API migration: 24/24 tests passing' })
+s5Lines.push({ id, timestamp: t(261.5), type: 'statusline:rendered', statuslineContent: '🔄 API migration: 24/24 tests passing' })
 s5LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcLint: true }, ledOff('green')))
-s5Events.push(sEvt(id, t(261.5), 'statusline-rendered', 'Statusline updated', '🔄 API migration: 24/24 tests passing'))
+s5Events.push(sEvt(id, t(261.5), 'statusline:rendered', 'Statusline updated', '🔄 API migration: 24/24 tests passing'))
 
 id = lid()
 s5Lines.push({ id, timestamp: t(262), type: 'assistant-message', content: "Express to Hono migration complete. All 24 API tests passing." })
@@ -862,19 +862,19 @@ s6Lines.push({ id, timestamp: t(300), type: 'user-message', content: 'Polish the
 s6LEDs.set(id, ledOff('red'))
 
 id = lid()
-s6Lines.push({ id, timestamp: t(300.5), type: 'session-summary-start' })
+s6Lines.push({ id, timestamp: t(300.5), type: 'session-summary:start' })
 s6LEDs.set(id, ledOff('red'))
-s6Events.push(sEvt(id, t(300.5), 'session-summary-start', 'Session summary started'))
+s6Events.push(sEvt(id, t(300.5), 'session-summary:start', 'Session summary started'))
 
 id = lid()
-s6Lines.push({ id, timestamp: t(301), type: 'session-title-changed', previousValue: 'New session', newValue: 'Landing page polish', confidence: 0.35 })
+s6Lines.push({ id, timestamp: t(301), type: 'session-title:changed', previousValue: 'New session', newValue: 'Landing page polish', confidence: 0.35 })
 s6LEDs.set(id, ledOff('red'))
-s6Events.push(sEvt(id, t(301), 'session-title-changed', 'Title: Landing page polish', 'Confidence: 35%'))
+s6Events.push(sEvt(id, t(301), 'session-title:changed', 'Title: Landing page polish', 'Confidence: 35%'))
 
 id = lid()
-s6Lines.push({ id, timestamp: t(301.1), type: 'session-summary-finish' })
+s6Lines.push({ id, timestamp: t(301.1), type: 'session-summary:finish' })
 s6LEDs.set(id, ledOff('red'))
-s6Events.push(sEvt(id, t(301.1), 'session-summary-finish', 'Session summary completed'))
+s6Events.push(sEvt(id, t(301.1), 'session-summary:finish', 'Session summary completed'))
 
 s6Snapshots.push({
   timestamp: t(301.1),
@@ -895,9 +895,9 @@ s6Lines.push({ id, timestamp: t(303.1), type: 'tool-result', toolOutput: '// Lan
 s6LEDs.set(id, ledOff('red'))
 
 id = lid()
-s6Lines.push({ id, timestamp: t(304), type: 'decision', decisionCategory: 'handler', decisionReasoning: 'Current Inter font is generic. Switching to DM Sans for body + Instrument Serif for display creates better contrast.' })
+s6Lines.push({ id, timestamp: t(304), type: 'decision:recorded', decisionCategory: 'handler', decisionReasoning: 'Current Inter font is generic. Switching to DM Sans for body + Instrument Serif for display creates better contrast.' })
 s6LEDs.set(id, ledOff('red'))
-s6Events.push(sEvt(id, t(304), 'decision', 'Typography upgrade', 'DM Sans + Instrument Serif'))
+s6Events.push(sEvt(id, t(304), 'decision:recorded', 'Typography upgrade', 'DM Sans + Instrument Serif'))
 
 id = lid()
 s6Lines.push({ id, timestamp: t(305), type: 'tool-use', toolName: 'Edit', toolInput: { file_path: 'src/pages/Landing.tsx' }, toolDurationMs: 120 })
@@ -908,9 +908,9 @@ s6Lines.push({ id, timestamp: t(305.1), type: 'tool-result', toolOutput: 'Edit a
 s6LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint: true }, ledOff('red')))
 
 id = lid()
-s6Lines.push({ id, timestamp: t(305.2), type: 'reminder-staged', reminderId: 'vc-build', reminderBlocking: true })
+s6Lines.push({ id, timestamp: t(305.2), type: 'reminder:staged', reminderId: 'vc-build', reminderBlocking: true })
 s6LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint: true }, ledOff('red')))
-s6Events.push(sEvt(id, t(305.2), 'reminder-staged', 'Staged: vc-build'))
+s6Events.push(sEvt(id, t(305.2), 'reminder:staged', 'Staged: vc-build'))
 
 id = lid()
 s6Lines.push({ id, timestamp: t(306), type: 'tool-use', toolName: 'Edit', toolInput: { file_path: 'src/styles/global.css' }, toolDurationMs: 95 })
@@ -921,14 +921,14 @@ s6Lines.push({ id, timestamp: t(306.1), type: 'tool-result', toolOutput: 'Edit a
 s6LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint: true }, ledOff('red')))
 
 id = lid()
-s6Lines.push({ id, timestamp: t(307), type: 'statusline-rendered', statuslineContent: '🎨 Landing page polish | Typography + mobile spacing' })
+s6Lines.push({ id, timestamp: t(307), type: 'statusline:rendered', statuslineContent: '🎨 Landing page polish | Typography + mobile spacing' })
 s6LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint: true }, ledOff('amber')))
-s6Events.push(sEvt(id, t(307), 'statusline-rendered', 'Statusline updated', '🎨 Landing page polish'))
+s6Events.push(sEvt(id, t(307), 'statusline:rendered', 'Statusline updated', '🎨 Landing page polish'))
 
 id = lid()
-s6Lines.push({ id, timestamp: t(308), type: 'session-title-changed', previousValue: 'Landing page polish', newValue: 'Landing page polish', confidence: 0.78 })
+s6Lines.push({ id, timestamp: t(308), type: 'session-title:changed', previousValue: 'Landing page polish', newValue: 'Landing page polish', confidence: 0.78 })
 s6LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint: true }, ledOff('green')))
-s6Events.push(sEvt(id, t(308), 'session-title-changed', 'Confidence: 78%'))
+s6Events.push(sEvt(id, t(308), 'session-title:changed', 'Confidence: 78%'))
 
 s6Snapshots.push({
   timestamp: t(308),

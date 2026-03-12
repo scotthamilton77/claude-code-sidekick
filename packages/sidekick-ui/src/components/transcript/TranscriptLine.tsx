@@ -125,32 +125,32 @@ function isSidekickEventType(type: TranscriptLineType): boolean {
 
 function renderSidekickDetail(line: TLine) {
   switch (line.type) {
-    case 'reminder-staged':
-    case 'reminder-unstaged':
-    case 'reminder-consumed':
+    case 'reminder:staged':
+    case 'reminder:unstaged':
+    case 'reminder:consumed':
       return (
         <div className="flex items-center gap-2 text-[10px] mt-0.5">
           <span className={`px-1 py-0.5 rounded font-medium ${
-            line.type === 'reminder-staged' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
-              : line.type === 'reminder-consumed' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+            line.type === 'reminder:staged' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
+              : line.type === 'reminder:consumed' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
                 : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
           }`}>
-            {line.type.split('-').pop()}
+            {line.type.split(':').pop()}
           </span>
           <span className="font-mono text-slate-500">{line.reminderId}</span>
           {line.reminderBlocking && <span className="text-red-400 font-medium">blocking</span>}
         </div>
       )
 
-    case 'decision':
+    case 'decision:recorded':
       return line.decisionReasoning ? (
         <p className="text-[10px] text-amber-700 dark:text-amber-400 mt-0.5 italic line-clamp-2">
           {line.decisionReasoning}
         </p>
       ) : null
 
-    case 'session-title-changed':
-    case 'intent-changed':
+    case 'session-title:changed':
+    case 'intent:changed':
       return (
         <div className="text-[10px] text-slate-500 mt-0.5">
           {line.previousValue && <span className="line-through mr-1">{line.previousValue}</span>}
@@ -161,8 +161,8 @@ function renderSidekickDetail(line: TLine) {
         </div>
       )
 
-    case 'persona-selected':
-    case 'persona-changed':
+    case 'persona:selected':
+    case 'persona:changed':
       return (
         <div className="text-[10px] text-slate-500 mt-0.5">
           {line.personaFrom && <span className="line-through mr-1">{line.personaFrom}</span>}
@@ -170,22 +170,22 @@ function renderSidekickDetail(line: TLine) {
         </div>
       )
 
-    case 'statusline-rendered':
+    case 'statusline:rendered':
       return line.statuslineContent ? (
         <p className="text-[10px] text-teal-600 dark:text-teal-400 mt-0.5 font-mono">
           {line.statuslineContent}
         </p>
       ) : null
 
-    case 'log-error':
+    case 'error:occurred':
       return line.errorMessage ? (
         <p className="text-[10px] text-red-600 dark:text-red-400 mt-0.5 font-mono">
           {line.errorMessage}
         </p>
       ) : null
 
-    case 'snarky-message-finish':
-    case 'resume-message-finish':
+    case 'snarky-message:finish':
+    case 'resume-message:finish':
       return line.generatedMessage ? (
         <p className="text-[10px] text-purple-600 dark:text-purple-400 mt-0.5 italic line-clamp-2">
           "{line.generatedMessage}"
@@ -207,29 +207,29 @@ function getLineStyles(line: TLine) {
       return { bg: 'bg-slate-50 dark:bg-slate-800/50', border: 'border border-cyan-200 dark:border-cyan-800', Icon: Terminal, iconColor: 'text-cyan-500', label: line.toolName ?? 'Tool', labelColor: 'text-cyan-600 dark:text-cyan-400' }
     case 'tool-result':
       return { bg: 'bg-slate-50 dark:bg-slate-800/50', border: `border ${line.toolSuccess === false ? 'border-red-300 dark:border-red-800' : 'border-slate-200 dark:border-slate-700'}`, Icon: FileText, iconColor: line.toolSuccess === false ? 'text-red-500' : 'text-slate-400', label: 'Result', labelColor: line.toolSuccess === false ? 'text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-slate-400' }
-    case 'reminder-staged':
-    case 'reminder-unstaged':
-    case 'reminder-consumed':
+    case 'reminder:staged':
+    case 'reminder:unstaged':
+    case 'reminder:consumed':
       return { bg: 'bg-rose-50/50 dark:bg-rose-950/20', border: 'border border-rose-200 dark:border-rose-800/50', Icon: Bell, iconColor: 'text-rose-500', label: 'Reminder', labelColor: 'text-rose-600 dark:text-rose-400' }
-    case 'decision':
+    case 'decision:recorded':
       return { bg: 'bg-amber-50/50 dark:bg-amber-950/20', border: 'border border-amber-200 dark:border-amber-800/50', Icon: Lightbulb, iconColor: 'text-amber-500', label: line.decisionCategory ? `Decision: ${line.decisionCategory}` : 'Decision', labelColor: 'text-amber-600 dark:text-amber-400' }
-    case 'session-summary-start':
-    case 'session-summary-finish':
-      return { bg: 'bg-purple-50/50 dark:bg-purple-950/20', border: 'border border-purple-200 dark:border-purple-800/50', Icon: Play, iconColor: 'text-purple-500', label: line.type === 'session-summary-start' ? 'Summary ▶' : 'Summary ■', labelColor: 'text-purple-600 dark:text-purple-400' }
-    case 'session-title-changed':
-    case 'intent-changed':
-      return { bg: 'bg-purple-50/50 dark:bg-purple-950/20', border: 'border border-purple-200 dark:border-purple-800/50', Icon: FileText, iconColor: 'text-purple-500', label: line.type === 'session-title-changed' ? 'Title Changed' : 'Intent Changed', labelColor: 'text-purple-600 dark:text-purple-400' }
-    case 'snarky-message-start':
-    case 'snarky-message-finish':
-    case 'resume-message-start':
-    case 'resume-message-finish':
-      return { bg: 'bg-purple-50/50 dark:bg-purple-950/20', border: 'border border-purple-200 dark:border-purple-800/50', Icon: line.type.includes('start') ? Play : Square, iconColor: 'text-purple-500', label: line.type.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), labelColor: 'text-purple-600 dark:text-purple-400' }
-    case 'persona-selected':
-    case 'persona-changed':
-      return { bg: 'bg-pink-50/50 dark:bg-pink-950/20', border: 'border border-pink-200 dark:border-pink-800/50', Icon: UserCog, iconColor: 'text-pink-500', label: line.type === 'persona-selected' ? 'Persona Selected' : 'Persona Changed', labelColor: 'text-pink-600 dark:text-pink-400' }
-    case 'statusline-rendered':
+    case 'session-summary:start':
+    case 'session-summary:finish':
+      return { bg: 'bg-purple-50/50 dark:bg-purple-950/20', border: 'border border-purple-200 dark:border-purple-800/50', Icon: Play, iconColor: 'text-purple-500', label: line.type === 'session-summary:start' ? 'Summary ▶' : 'Summary ■', labelColor: 'text-purple-600 dark:text-purple-400' }
+    case 'session-title:changed':
+    case 'intent:changed':
+      return { bg: 'bg-purple-50/50 dark:bg-purple-950/20', border: 'border border-purple-200 dark:border-purple-800/50', Icon: FileText, iconColor: 'text-purple-500', label: line.type === 'session-title:changed' ? 'Title Changed' : 'Intent Changed', labelColor: 'text-purple-600 dark:text-purple-400' }
+    case 'snarky-message:start':
+    case 'snarky-message:finish':
+    case 'resume-message:start':
+    case 'resume-message:finish':
+      return { bg: 'bg-purple-50/50 dark:bg-purple-950/20', border: 'border border-purple-200 dark:border-purple-800/50', Icon: line.type.includes('start') ? Play : Square, iconColor: 'text-purple-500', label: line.type.replace(/[:-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), labelColor: 'text-purple-600 dark:text-purple-400' }
+    case 'persona:selected':
+    case 'persona:changed':
+      return { bg: 'bg-pink-50/50 dark:bg-pink-950/20', border: 'border border-pink-200 dark:border-pink-800/50', Icon: UserCog, iconColor: 'text-pink-500', label: line.type === 'persona:selected' ? 'Persona Selected' : 'Persona Changed', labelColor: 'text-pink-600 dark:text-pink-400' }
+    case 'statusline:rendered':
       return { bg: 'bg-teal-50/50 dark:bg-teal-950/20', border: 'border border-teal-200 dark:border-teal-800/50', Icon: Gauge, iconColor: 'text-teal-500', label: 'Statusline', labelColor: 'text-teal-600 dark:text-teal-400' }
-    case 'log-error':
+    case 'error:occurred':
       return { bg: 'bg-red-50 dark:bg-red-950/30', border: 'border-2 border-red-300 dark:border-red-800', Icon: AlertTriangle, iconColor: 'text-red-500', label: 'Error', labelColor: 'text-red-600 dark:text-red-400' }
     default:
       return { bg: 'bg-slate-50 dark:bg-slate-800', border: 'border border-slate-200 dark:border-slate-700', Icon: FileText, iconColor: 'text-slate-400', label: line.type, labelColor: 'text-slate-500' }

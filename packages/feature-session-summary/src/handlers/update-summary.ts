@@ -245,6 +245,16 @@ async function performAnalysis(
   const { sessionId } = event.context
   try {
     const startTime = Date.now()
+
+    // Emit session-summary:start event
+    logEvent(
+      ctx.logger,
+      SessionSummaryEvents.summaryStart(event.context, {
+        reason,
+        countdown: countdown.countdown,
+      })
+    )
+
     // Use getFeature() to get merged config from cascade
     const featureConfig = ctx.config.getFeature<SessionSummaryConfig>('session-summary')
     const config = { ...DEFAULT_SESSION_SUMMARY_CONFIG, ...featureConfig.settings }
@@ -400,28 +410,42 @@ async function performAnalysis(
       await Promise.all(sideEffects)
     }
 
-    // Log update event
+    // Log summary completion
     logEvent(
       ctx.logger,
-      SessionSummaryEvents.summaryUpdated(
-        event.context,
-        {
-          session_title: updatedSummary.session_title,
-          session_title_confidence: updatedSummary.session_title_confidence,
-          latest_intent: updatedSummary.latest_intent,
-          latest_intent_confidence: updatedSummary.latest_intent_confidence,
-        },
-        {
-          countdown_reset_to: newCountdown,
-          tokens_used: tokensUsed,
-          processing_time_ms: updatedSummary.stats?.processing_time_ms ?? 0,
-          pivot_detected: updatedSummary.pivot_detected ?? false,
-          old_title: currentSummary?.session_title,
-          old_intent: currentSummary?.latest_intent,
-        },
-        reason
-      )
+      SessionSummaryEvents.summaryFinish(event.context, {
+        session_title: updatedSummary.session_title,
+        session_title_confidence: updatedSummary.session_title_confidence,
+        latest_intent: updatedSummary.latest_intent,
+        latest_intent_confidence: updatedSummary.latest_intent_confidence,
+        processing_time_ms: updatedSummary.stats?.processing_time_ms ?? 0,
+        pivot_detected: updatedSummary.pivot_detected ?? false,
+      })
     )
+
+    // Emit title-changed if title differs
+    if (currentSummary && updatedSummary.session_title !== currentSummary.session_title) {
+      logEvent(
+        ctx.logger,
+        SessionSummaryEvents.titleChanged(event.context, {
+          previousValue: currentSummary.session_title,
+          newValue: updatedSummary.session_title,
+          confidence: updatedSummary.session_title_confidence,
+        })
+      )
+    }
+
+    // Emit intent-changed if intent differs
+    if (currentSummary && updatedSummary.latest_intent !== currentSummary.latest_intent) {
+      logEvent(
+        ctx.logger,
+        SessionSummaryEvents.intentChanged(event.context, {
+          previousValue: currentSummary.latest_intent,
+          newValue: updatedSummary.latest_intent,
+          confidence: updatedSummary.latest_intent_confidence,
+        })
+      )
+    }
 
     ctx.logger.info('Updated session summary', {
       sessionId,

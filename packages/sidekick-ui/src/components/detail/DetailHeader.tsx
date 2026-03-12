@@ -93,16 +93,16 @@ function getLineLabel(line: TranscriptLine): string {
     case 'tool-use': return line.toolName ?? 'Tool use'
     case 'tool-result': return 'Tool result'
     case 'compaction': return `Compaction (segment ${line.compactionSegment ?? '?'})`
-    case 'reminder-staged':
-    case 'reminder-unstaged':
-    case 'reminder-consumed': return `${line.type}: ${line.reminderId ?? ''}`
-    case 'decision': return line.decisionCategory ? `Decision: ${line.decisionCategory}` : 'Decision'
-    case 'session-title-changed': return line.newValue ? `Title → ${line.newValue}` : 'Title changed'
-    case 'intent-changed': return line.newValue ? `Intent → ${line.newValue}` : 'Intent changed'
-    case 'persona-selected': return `Persona: ${line.personaTo ?? ''}`
-    case 'persona-changed': return `${line.personaFrom ?? ''} → ${line.personaTo ?? ''}`
-    case 'statusline-rendered': return 'Statusline rendered'
-    case 'log-error': return line.errorMessage?.slice(0, 60) ?? 'Error'
+    case 'reminder:staged':
+    case 'reminder:unstaged':
+    case 'reminder:consumed': return `${line.type}: ${line.reminderId ?? ''}`
+    case 'decision:recorded': return line.decisionCategory ? `Decision: ${line.decisionCategory}` : 'Decision'
+    case 'session-title:changed': return line.newValue ? `Title → ${line.newValue}` : 'Title changed'
+    case 'intent:changed': return line.newValue ? `Intent → ${line.newValue}` : 'Intent changed'
+    case 'persona:selected': return `Persona: ${line.personaTo ?? ''}`
+    case 'persona:changed': return `${line.personaFrom ?? ''} → ${line.personaTo ?? ''}`
+    case 'statusline:rendered': return 'Statusline rendered'
+    case 'error:occurred': return line.errorMessage?.slice(0, 60) ?? 'Error'
     default: return line.type
   }
 }

@@ -382,7 +382,8 @@ export interface EventLogContext {
  * @see docs/design/STRUCTURED-LOGGING.md §3.3 Log Record Format
  * @see docs/design/flow.md §7 Logging Events
  */
-export interface LoggingEventBase {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export interface LoggingEventBase<P = any> {
   /** Event type discriminator */
   type: string
   /** Unix timestamp (ms) - when the event occurred */
@@ -391,76 +392,38 @@ export interface LoggingEventBase {
   source: LogSource
   /** Correlation context */
   context: EventLogContext
-  /** Event-specific payload */
-  payload: {
-    state?: Record<string, unknown>
-    metadata?: Record<string, unknown>
-    reason?: string
-  }
+  /** Event-specific payload (flat structure — overridden in each subtype) */
+  payload: P
 }
 
 // --- CLI-Logged Events (per docs/design/flow.md §7.1) ---
 
-export interface HookReceivedEvent extends LoggingEventBase {
-  type: 'HookReceived'
+export interface HookReceivedEvent extends LoggingEventBase<HookReceivedPayload> {
+  type: 'hook:received'
   source: 'cli'
   context: LoggingEventBase['context'] & {
     hook: string
   }
-  payload: {
-    metadata: {
-      cwd?: string
-      mode?: 'hook' | 'interactive'
-    }
-  }
 }
 
-export interface ReminderConsumedEvent extends LoggingEventBase {
-  type: 'ReminderConsumed'
+export interface ReminderConsumedEvent extends LoggingEventBase<ReminderConsumedPayload> {
+  type: 'reminder:consumed'
   source: 'cli'
-  payload: {
-    state: {
-      reminderName: string
-      reminderReturned: boolean
-      blocking?: boolean
-      priority?: number
-      persistent?: boolean
-    }
-    metadata?: {
-      stagingPath?: string
-    }
-  }
 }
 
-export interface HookCompletedEvent extends LoggingEventBase {
-  type: 'HookCompleted'
+export interface HookCompletedEvent extends LoggingEventBase<HookCompletedPayload> {
+  type: 'hook:completed'
   source: 'cli'
   context: LoggingEventBase['context'] & {
     hook: string
-  }
-  payload: {
-    state?: {
-      reminderReturned?: boolean
-      responseType?: string
-    }
-    metadata: {
-      durationMs: number
-    }
   }
 }
 
 // --- Daemon-Logged Events (per docs/design/flow.md §7.2) ---
 
-export interface EventReceivedEvent extends LoggingEventBase {
-  type: 'EventReceived'
+export interface EventReceivedEvent extends LoggingEventBase<EventReceivedPayload> {
+  type: 'event:received'
   source: 'daemon'
-  payload: {
-    metadata: {
-      eventKind: 'hook' | 'transcript'
-      eventType?: string
-      hook?: string
-    }
-  }
 }
 
 /**
@@ -468,37 +431,14 @@ export interface EventReceivedEvent extends LoggingEventBase {
  * Emitted when a handler finishes processing an event.
  * (Renamed from HandlerExecuted for consistency with EventReceived)
  */
-export interface EventProcessedEvent extends LoggingEventBase {
-  type: 'EventProcessed'
+export interface EventProcessedEvent extends LoggingEventBase<EventProcessedPayload> {
+  type: 'event:processed'
   source: 'daemon'
-  payload: {
-    state: {
-      handlerId: string
-      success: boolean
-      stopped?: boolean
-    }
-    metadata: {
-      durationMs: number
-      error?: string
-    }
-  }
 }
 
-export interface ReminderStagedEvent extends LoggingEventBase {
-  type: 'ReminderStaged'
+export interface ReminderStagedEvent extends LoggingEventBase<ReminderStagedPayload> {
+  type: 'reminder:staged'
   source: 'daemon'
-  payload: {
-    state: {
-      reminderName: string
-      hookName: string
-      blocking: boolean
-      priority: number
-      persistent: boolean
-    }
-    metadata?: {
-      stagingPath?: string
-    }
-  }
 }
 
 // --- Daemon Lifecycle Events ---
@@ -507,100 +447,69 @@ export interface ReminderStagedEvent extends LoggingEventBase {
  * Daemon process starting.
  * Emitted at the beginning of daemon initialization.
  */
-export interface DaemonStartingEvent extends LoggingEventBase {
-  type: 'DaemonStarting'
+export interface DaemonStartingEvent extends LoggingEventBase<DaemonStartingPayload> {
+  type: 'daemon:starting'
   source: 'daemon'
-  payload: {
-    metadata: {
-      projectDir: string
-      pid: number
-    }
-  }
 }
 
 /**
  * Daemon process started successfully.
  * Emitted when all daemon components are initialized.
  */
-export interface DaemonStartedEvent extends LoggingEventBase {
-  type: 'DaemonStarted'
+export interface DaemonStartedEvent extends LoggingEventBase<DaemonStartedPayload> {
+  type: 'daemon:started'
   source: 'daemon'
-  payload: {
-    metadata: {
-      startupDurationMs: number
-    }
-  }
 }
 
 /**
  * IPC server started and listening.
  * Emitted when Unix socket is ready to accept connections.
  */
-export interface IpcServerStartedEvent extends LoggingEventBase {
-  type: 'IpcServerStarted'
+export interface IpcServerStartedEvent extends LoggingEventBase<IpcStartedPayload> {
+  type: 'ipc:started'
   source: 'daemon'
-  payload: {
-    metadata: {
-      socketPath: string
-    }
-  }
 }
 
 /**
  * Config watcher started.
  * Emitted when file watcher begins monitoring config files.
  */
-export interface ConfigWatcherStartedEvent extends LoggingEventBase {
-  type: 'ConfigWatcherStarted'
+export interface ConfigWatcherStartedEvent extends LoggingEventBase<ConfigWatcherStartedPayload> {
+  type: 'config:watcher-started'
   source: 'daemon'
-  payload: {
-    metadata: {
-      projectDir: string
-      watchedFiles: string[]
-    }
-  }
 }
 
 /**
  * Session eviction timer started.
  * Emitted when idle session cleanup timer is activated.
  */
-export interface SessionEvictionStartedEvent extends LoggingEventBase {
-  type: 'SessionEvictionStarted'
+export interface SessionEvictionStartedEvent extends LoggingEventBase<SessionEvictionStartedPayload> {
+  type: 'session:eviction-started'
   source: 'daemon'
-  payload: {
-    metadata: {
-      intervalMs: number
-    }
-  }
 }
 
-/**
- * Internal event: Summary recalculated successfully
- * Emitted when session summary is updated via LLM analysis.
- *
- * @see docs/design/FEATURE-SESSION-SUMMARY.md §3.4
- */
-export interface SummaryUpdatedEvent extends LoggingEventBase {
-  type: 'SummaryUpdated'
+/** Emitted when session summary LLM generation begins. */
+export interface SessionSummaryStartEvent extends LoggingEventBase<SessionSummaryStartPayload> {
+  type: 'session-summary:start'
   source: 'daemon'
-  payload: {
-    state: {
-      session_title: string
-      session_title_confidence: number
-      latest_intent: string
-      latest_intent_confidence: number
-    }
-    metadata: {
-      countdown_reset_to: number
-      tokens_used?: number
-      processing_time_ms?: number
-      pivot_detected: boolean
-      old_title?: string
-      old_intent?: string
-    }
-    reason: 'user_prompt_forced' | 'countdown_reached' | 'compaction_reset'
-  }
+}
+
+/** Emitted when session summary LLM generation completes. */
+export interface SessionSummaryFinishEvent extends LoggingEventBase<SessionSummaryFinishPayload> {
+  type: 'session-summary:finish'
+  source: 'daemon'
+}
+
+/** Emitted when session title changes (conditional on diff). */
+export interface SessionTitleChangedEvent extends LoggingEventBase<SessionTitleChangedPayload> {
+  type: 'session-title:changed'
+  source: 'daemon'
+}
+
+/** Emitted when latest intent changes (conditional on diff). */
+export interface IntentChangedEvent extends LoggingEventBase<IntentChangedPayload> {
+  type: 'intent:changed'
+  source: 'daemon'
 }
 
 /**
@@ -609,16 +518,9 @@ export interface SummaryUpdatedEvent extends LoggingEventBase {
  *
  * @see docs/design/FEATURE-SESSION-SUMMARY.md §3.4
  */
-export interface SummarySkippedEvent extends LoggingEventBase {
-  type: 'SummarySkipped'
+export interface SummarySkippedEvent extends LoggingEventBase<SessionSummarySkippedPayload> {
+  type: 'session-summary:skipped'
   source: 'daemon'
-  payload: {
-    metadata: {
-      countdown: number
-      countdown_threshold: number
-    }
-    reason: 'countdown_active'
-  }
 }
 
 // --- Resume Events (per docs/design/FEATURE-RESUME.md §5.3) ---
@@ -629,16 +531,9 @@ export interface SummarySkippedEvent extends LoggingEventBase {
  *
  * @see docs/design/FEATURE-RESUME.md §5.3
  */
-export interface ResumeGeneratingEvent extends LoggingEventBase {
-  type: 'ResumeGenerating'
+export interface ResumeGeneratingEvent extends LoggingEventBase<ResumeMessageStartPayload> {
+  type: 'resume-message:start'
   source: 'daemon'
-  payload: {
-    metadata: {
-      title_confidence: number
-      intent_confidence: number
-    }
-    reason: 'pivot_detected'
-  }
 }
 
 /**
@@ -647,16 +542,9 @@ export interface ResumeGeneratingEvent extends LoggingEventBase {
  *
  * @see docs/design/FEATURE-RESUME.md §5.3
  */
-export interface ResumeUpdatedEvent extends LoggingEventBase {
-  type: 'ResumeUpdated'
+export interface ResumeUpdatedEvent extends LoggingEventBase<ResumeMessageFinishPayload> {
+  type: 'resume-message:finish'
   source: 'daemon'
-  payload: {
-    state: {
-      snarky_comment: string
-      timestamp: string
-    }
-    reason: 'generation_complete'
-  }
 }
 
 /**
@@ -665,29 +553,14 @@ export interface ResumeUpdatedEvent extends LoggingEventBase {
  *
  * @see docs/design/FEATURE-RESUME.md §5.3
  */
-export interface ResumeSkippedEvent extends LoggingEventBase {
-  type: 'ResumeSkipped'
+export interface ResumeSkippedEvent extends LoggingEventBase<ResumeMessageSkippedPayload> {
+  type: 'resume-message:skipped'
   source: 'daemon'
-  payload: {
-    metadata: {
-      title_confidence: number
-      intent_confidence: number
-      min_confidence: number
-    }
-    reason: 'confidence_below_threshold' | 'no_pivot_detected'
-  }
 }
 
-export interface RemindersClearedEvent extends LoggingEventBase {
-  type: 'RemindersCleared'
+export interface RemindersClearedEvent extends LoggingEventBase<ReminderClearedPayload> {
+  type: 'reminder:cleared'
   source: 'daemon'
-  payload: {
-    state: {
-      clearedCount: number
-      hookNames?: string[]
-    }
-    reason: 'session_start' | 'manual'
-  }
 }
 
 // --- Statusline Events (per docs/design/FEATURE-STATUSLINE.md §8.5) ---
@@ -698,20 +571,9 @@ export interface RemindersClearedEvent extends LoggingEventBase {
  *
  * @see docs/design/FEATURE-STATUSLINE.md §8.5
  */
-export interface StatuslineRenderedEvent extends LoggingEventBase {
-  type: 'StatuslineRendered'
+export interface StatuslineRenderedEvent extends LoggingEventBase<StatuslineRenderedPayload> {
+  type: 'statusline:rendered'
   source: 'cli'
-  payload: {
-    state: {
-      displayMode: 'session_summary' | 'resume_message' | 'empty_summary' | 'setup_warning'
-      staleData: boolean
-    }
-    metadata: {
-      model?: string
-      tokens?: number
-      durationMs: number
-    }
-  }
 }
 
 /**
@@ -720,17 +582,9 @@ export interface StatuslineRenderedEvent extends LoggingEventBase {
  *
  * @see docs/design/FEATURE-STATUSLINE.md §8.5
  */
-export interface StatuslineErrorEvent extends LoggingEventBase {
-  type: 'StatuslineError'
+export interface StatuslineErrorEvent extends LoggingEventBase<StatuslineErrorPayload> {
+  type: 'statusline:error'
   source: 'cli'
-  payload: {
-    reason: 'state_file_missing' | 'parse_error' | 'git_timeout' | 'unknown'
-    metadata: {
-      file?: string
-      fallbackUsed: boolean
-      error?: string
-    }
-  }
 }
 
 // --- Transcript Events (logged to transcript-events.log) ---
@@ -741,23 +595,9 @@ export interface StatuslineErrorEvent extends LoggingEventBase {
  *
  * @see packages/sidekick-ui/docs/MONITORING-UI.md §4.1
  */
-export interface TranscriptEventEmittedEvent extends LoggingEventBase {
-  type: 'TranscriptEventEmitted'
+export interface TranscriptEventEmittedEvent extends LoggingEventBase<TranscriptEmittedPayload> {
+  type: 'transcript:emitted'
   source: 'transcript'
-  payload: {
-    state: {
-      eventType: TranscriptEventType
-      lineNumber: number
-      /** UUID of the transcript line for quick lookup */
-      uuid?: string
-      toolName?: string
-    }
-    metadata: {
-      transcriptPath: string
-      contentPreview?: string // Truncated for logging
-      metrics: TranscriptMetrics
-    }
-  }
 }
 
 /**
@@ -766,20 +606,9 @@ export interface TranscriptEventEmittedEvent extends LoggingEventBase {
  *
  * @see packages/sidekick-ui/docs/MONITORING-UI.md §4.1
  */
-export interface PreCompactCapturedEvent extends LoggingEventBase {
-  type: 'PreCompactCaptured'
+export interface PreCompactCapturedEvent extends LoggingEventBase<TranscriptPreCompactPayload> {
+  type: 'transcript:pre-compact'
   source: 'transcript'
-  payload: {
-    state: {
-      snapshotPath: string
-      lineCount: number
-    }
-    metadata: {
-      transcriptPath: string
-      metrics: TranscriptMetrics
-    }
-    reason: 'pre_compact_hook'
-  }
 }
 
 /**
@@ -804,7 +633,10 @@ export type DaemonLoggingEvent =
   | IpcServerStartedEvent
   | ConfigWatcherStartedEvent
   | SessionEvictionStartedEvent
-  | SummaryUpdatedEvent
+  | SessionSummaryStartEvent
+  | SessionSummaryFinishEvent
+  | SessionTitleChangedEvent
+  | IntentChangedEvent
   | SummarySkippedEvent
   | ResumeGeneratingEvent
   | ResumeUpdatedEvent
