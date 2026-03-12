@@ -126,7 +126,7 @@ const DaemonSchema = z
   .object({
     idleTimeoutMs: z.number().min(0),
     shutdownTimeoutMs: z.number().min(0),
-    projects: ProjectsSchema,
+    projects: ProjectsSchema.default({ retentionDays: 30 }),
   })
   .strict()
 

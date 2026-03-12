@@ -40,12 +40,10 @@ describe('Daemon project registry integration', () => {
     await service.register(projectDir)
 
     const first = (await service.list())[0]
-    await new Promise(r => setTimeout(r, 10))
+    await new Promise((r) => setTimeout(r, 10))
     await service.register(projectDir)
     const second = (await service.list())[0]
 
-    expect(new Date(second.lastActive).getTime()).toBeGreaterThanOrEqual(
-      new Date(first.lastActive).getTime()
-    )
+    expect(new Date(second.lastActive).getTime()).toBeGreaterThanOrEqual(new Date(first.lastActive).getTime())
   })
 })

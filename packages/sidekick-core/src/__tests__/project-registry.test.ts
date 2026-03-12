@@ -3,11 +3,7 @@ import { mkdirSync, rmSync, existsSync, readFileSync, writeFileSync } from 'node
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { randomBytes } from 'node:crypto'
-import {
-  encodeProjectDir,
-  decodeProjectDir,
-  ProjectRegistryService,
-} from '../project-registry.js'
+import { encodeProjectDir, decodeProjectDir, ProjectRegistryService } from '../project-registry.js'
 
 // --- Encoding/Decoding ---
 
@@ -82,13 +78,11 @@ describe('ProjectRegistryService', () => {
       const first = JSON.parse(readFileSync(entryFile, 'utf-8'))
 
       // Small delay to ensure different timestamp
-      await new Promise(r => setTimeout(r, 10))
+      await new Promise((r) => setTimeout(r, 10))
       await service.register(projectDir)
 
       const second = JSON.parse(readFileSync(entryFile, 'utf-8'))
-      expect(new Date(second.lastActive).getTime()).toBeGreaterThanOrEqual(
-        new Date(first.lastActive).getTime()
-      )
+      expect(new Date(second.lastActive).getTime()).toBeGreaterThanOrEqual(new Date(first.lastActive).getTime())
     })
   })
 
@@ -104,7 +98,7 @@ describe('ProjectRegistryService', () => {
 
       const entries = await service.list()
       expect(entries).toHaveLength(2)
-      expect(entries.map(e => e.displayName).sort()).toEqual(['project-a', 'project-b'])
+      expect(entries.map((e) => e.displayName).sort()).toEqual(['project-a', 'project-b'])
     })
 
     it('skips directories without registry.json', async () => {
