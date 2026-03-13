@@ -1103,7 +1103,128 @@ The `:filename` parameter in `/api/projects/:projectId/sessions/:sessionId/state
 | REQUIREMENTS.md F-1 (compaction time travel) | §4.5.2 | Compaction history and pre-compact snapshot endpoints |
 
 ## 5. Performance Requirements
-<!-- Placeholder: sidekick-35ddf68f -->
+
+> **Design decision:** Green-field targets — neither REQUIREMENTS.md nor PHASE2-AUDIT.md define concrete performance metrics. Targets below are derived from observed data volumes (PHASE2-AUDIT §2.4), UX expectations for a local dev tool, and the architectural constraints established in §4 (file-based data source, SSE push, Vite middleware). See [`docs/plans/2026-03-13-performance-requirements-design.md`](/docs/plans/2026-03-13-performance-requirements-design.md) for rationale.
+
+### 5.1 Design Principles
+
+Three principles govern performance work in the UI:
+
+1. **Measure, don't guess** — `performance.mark()` / `performance.measure()` at key boundaries. No premature optimization without profiling data.
+2. **Rotation is the regulator** — The log rotation policy (10MB × 5 files, PHASE2-AUDIT §2.4) is the natural bound on data volume. Performance targets are derived from this ceiling, not from unbounded growth assumptions.
+3. **Single-session model** — One session is hydrated at a time. When the user navigates to a different session, the previous session's parsed data is released. No multi-session caching.
+
+### 5.2 Virtual Scrolling
+
+**Threshold:** 200 events — below this, native DOM rendering; at or above, virtual scrolling activates.
+
+**Library:** TanStack Virtual (formerly react-virtual) — zero-dependency, ~3KB gzipped, framework-agnostic.
+
+**Why 200:**
+At ~300 bytes/event, 200 events is ~60KB of data — trivially renderable with native DOM. Beyond 200, DOM node count causes measurable layout thrash. The known pain point (1000+ events noted in epic sidekick-n4lx) is well above this threshold.
+
+**Why buy, not build:**
+TanStack Virtual is mature, actively maintained, and smaller than any custom implementation would be. The virtualizer handles variable-height rows (event detail expansion) out of the box.
+
+**Risk:** None identified at this threshold. TanStack Virtual handles 100K+ rows efficiently.
+
+### 5.3 Live Mode Polling
+
+**Interval:** 1,000ms (1 second) frontend refetch cycle after SSE notification.
+
+**Architecture:** Backend pushes SSE change notifications via chokidar file watching (§4.2, 50ms write-finish stabilization). Frontend coalesces multiple SSE notifications within a 1s window into a single data fetch.
+
+**Why 1 second:**
+Balances perceptible real-time feel against unnecessary re-renders. The debounce prevents render storms during burst writes (e.g., rapid hook execution producing many events in quick succession).
+
+**Risk:** If events arrive faster than 1/sec sustained, the UI batches them — the user sees slight "catch-up" but no data loss. Acceptable for a dev monitoring tool.
+
+**Reference:** REQUIREMENTS.md F-9 (live mode auto-follow).
+
+### 5.4 Rendering Budget
+
+**Target:** 16ms per frame (60fps).
+
+**Strategy:** React 18 `startTransition` for non-urgent timeline updates. Only auto-follow scroll-to-bottom in live mode is treated as urgent. Event list re-renders are low-priority transitions that React can interrupt without dropping frames.
+
+**Rule:** If a single render pass exceeds 16ms, that is a bug to be profiled and fixed — not a trigger for architectural changes. The virtualizer + React concurrent features should keep well within budget for expected data volumes.
+
+### 5.5 Log File Ingestion
+
+**Max file size:** 10MB per file — matching the log rotation cap (PHASE2-AUDIT §2.4: `DEFAULT_ROTATE_SIZE_BYTES = 10 * 1024 * 1024`).
+
+**Parsing strategy:** Backend (Vite middleware, §4.1) parses NDJSON server-side and serves typed JSON arrays to the frontend. The browser never touches raw log files directly.
+
+**No streaming parser needed:** At 10MB max and ~300–500 bytes/event, worst case is ~33,000 events from a single file. Line-split + `JSON.parse` per line handles this in under 100ms. Streaming parsers add complexity without measurable benefit at this scale.
+
+**Multi-file reconstruction:** For sessions spanning multiple rotated log files, the backend reads all relevant files (up to 5 × 10MB = 50MB) and merges by timestamp (§2.7 log file contract).
+
+### 5.6 Initial Load Time
+
+**Target:** Under 1 second from session selection to fully rendered timeline.
+
+**Budget breakdown** (typical session, ~500 events):
+
+| Phase | Budget |
+|---|---|
+| Backend file read + NDJSON parse | ~50ms |
+| Network transfer (localhost) | ~10ms (negligible, same machine) |
+| React render + virtualized list mount | ~100ms |
+| Headroom | ~840ms |
+
+**Why this is achievable:** Local dev tool — no network latency, no CDN, no cold starts. Data is on the same filesystem. Budget math suggests actual load times will be well under this target for typical sessions.
+
+**Measurement:** `performance.mark()` / `performance.measure()` at session load boundaries. No external APM required for a local tool.
+
+### 5.7 Memory Budget
+
+**Target:** 256MB maximum browser heap for a single fully-loaded session.
+
+**Budget breakdown** (worst case — session spanning all 5 rotated log files):
+
+| Component | Estimate |
+|---|---|
+| Raw NDJSON | up to 50MB (5 × 10MB rotation cap) |
+| Parsed JS objects (~2–5× serialized size) | 100–250MB |
+| React component tree + virtualizer state | ~5MB |
+| String interning overhead | ~5MB |
+
+**Context:** Claude Code's default model now uses 1M-token context windows (up from 240K). At ~4 bytes/token, sessions can generate substantially more events than previously expected. A single long-running session may span all 5 rotated log files.
+
+**Eviction policy:** None. The log rotation policy (50MB total per stream) bounds the theoretical maximum. When the user navigates to a different session, the previous session's data is released (single-session model, §5.1).
+
+**Diagnostic threshold:** If `performance.memory.usedJSHeapSize` exceeds 256MB, this indicates a memory leak — not normal operation. Even worst-case hydration should remain under 256MB.
+
+**Why 256MB:** Modern dev machines have 16–64GB RAM. 256MB for a dev tool tab is within normal Chrome tab operating parameters (200–500MB typical).
+
+### 5.8 Performance Targets Summary
+
+| Area | Target | Bound By | Measurement |
+|---|---|---|---|
+| Virtual scrolling threshold | 200 events | DOM layout performance | Component renders below/above threshold |
+| Live mode polling | 1s refetch cycle | UX responsiveness vs CPU | SSE notification → render complete |
+| Rendering budget | 16ms/frame (60fps) | Browser refresh rate | `PerformanceObserver` long-task detection |
+| Log file ingestion | 10MB/file, 50MB total | Log rotation policy | Backend parse time |
+| Initial load time | < 1 second | User perception | `performance.measure()` |
+| Memory budget | 256MB browser heap | Log rotation × JS overhead | `performance.memory.usedJSHeapSize` |
+
+### 5.9 Risks and Fallback Strategies
+
+| Risk | Trigger | Fallback |
+|---|---|---|
+| Event count exceeds virtualizer's practical limit | > 100,000 events in a single session | Unlikely given rotation cap (~50MB / ~500 bytes = ~100K max). If hit, paginate at the API level (§4.5.2 offset pagination) |
+| Log parse time exceeds 1s budget | Files approach 50MB total for one session | Backend streams partial results; frontend renders incrementally as chunks arrive |
+| Memory exceeds 256MB | Memory leak or unexpectedly large event payloads | Profile with Chrome DevTools; likely cause is retained references, not data volume |
+| Live mode causes sustained high CPU | Rapid event bursts (>10 events/sec sustained) | Increase debounce window dynamically; cap refetch rate |
+
+### 5.10 Requirements Traceability
+
+| Requirement | Section | How Addressed |
+|---|---|---|
+| REQUIREMENTS.md F-9 (live mode) | §5.3 | 1s polling interval with SSE notification coalescing |
+| PHASE2-AUDIT §2.4 (log rotation) | §5.5, §5.7 | Rotation caps (10MB/file, 5 files) used as natural performance bounds |
+| PHASE2-AUDIT §4.2 (chokidar file watching) | §5.3 | 50ms stabilization feeds SSE push; frontend debounces at 1s |
+| sidekick-n4lx epic (1000+ event lag) | §5.2 | Virtual scrolling at 200-event threshold via TanStack Virtual |
 
 ## 6. Component-to-Type Wiring
 <!-- Placeholder: sidekick-e4374d53 -->
