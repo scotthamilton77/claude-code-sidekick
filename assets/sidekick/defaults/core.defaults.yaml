@@ -34,7 +34,7 @@ daemon:
   shutdownTimeoutMs: 30000
   # Project registry settings (for UI discovery)
   projects:
-    # Auto-prune projects older than this many days (0 to disable)
+    # Auto-prune projects inactive for more than this many days
     retentionDays: 30
 
 # IPC (Inter-Process Communication) configuration

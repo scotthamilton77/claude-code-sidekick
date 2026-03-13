@@ -3,9 +3,9 @@ import { mkdirSync, rmSync, existsSync, readFileSync, writeFileSync } from 'node
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { randomBytes } from 'node:crypto'
-import { encodeProjectDir, decodeProjectDir, ProjectRegistryService } from '../project-registry.js'
+import { encodeProjectDir, ProjectRegistryService } from '../project-registry.js'
 
-// --- Encoding/Decoding ---
+// --- Encoding ---
 
 describe('encodeProjectDir', () => {
   it('replaces slashes with dashes', () => {
@@ -14,21 +14,6 @@ describe('encodeProjectDir', () => {
 
   it('handles root path', () => {
     expect(encodeProjectDir('/')).toBe('-')
-  })
-})
-
-describe('decodeProjectDir', () => {
-  it('restores slashes from dashes', () => {
-    expect(decodeProjectDir('-Users-scott-src-project')).toBe('/Users/scott/src/project')
-  })
-
-  it('handles root path', () => {
-    expect(decodeProjectDir('-')).toBe('/')
-  })
-
-  it('roundtrips with encodeProjectDir for paths without dashes', () => {
-    const original = '/Users/scott/src/projects/myproject'
-    expect(decodeProjectDir(encodeProjectDir(original))).toBe(original)
   })
 })
 

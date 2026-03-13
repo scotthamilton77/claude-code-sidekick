@@ -11,7 +11,7 @@ function createTestDir(): string {
   return dir
 }
 
-describe('Daemon project registry integration', () => {
+describe('ProjectRegistryService (daemon usage patterns)', () => {
   let registryRoot: string
   let projectDir: string
 

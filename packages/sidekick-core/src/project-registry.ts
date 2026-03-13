@@ -1,21 +1,19 @@
 import { existsSync } from 'node:fs'
 import fs from 'node:fs/promises'
+import { randomBytes } from 'node:crypto'
 import { basename, join } from 'node:path'
 import { ProjectRegistryEntrySchema, type ProjectRegistryEntry } from '@sidekick/types'
 
 /**
  * Encode an absolute project path to a directory name.
  * Mirrors Claude Code's ~/.claude/projects/ convention: replace '/' with '-'.
+ *
+ * Note: This encoding is lossy — paths containing literal dashes cannot be
+ * decoded back. The canonical path is always read from registry.json, not
+ * reconstructed from the directory name.
  */
 export function encodeProjectDir(absPath: string): string {
   return absPath.replace(/\//g, '-')
-}
-
-/**
- * Decode an encoded directory name back to an absolute path.
- */
-export function decodeProjectDir(encoded: string): string {
-  return encoded.replace(/-/g, '/')
 }
 
 export interface PruneOptions {
@@ -54,10 +52,16 @@ export class ProjectRegistryService {
       lastActive: new Date().toISOString(),
     }
 
-    // Atomic write: temp file + rename
-    const tmpPath = `${entryFile}.${Date.now()}.tmp`
-    await fs.writeFile(tmpPath, JSON.stringify(entry, null, 2), 'utf-8')
-    await fs.rename(tmpPath, entryFile)
+    // Atomic write: temp file + rename (random suffix to avoid collision)
+    const tmpPath = `${entryFile}.${randomBytes(6).toString('hex')}.tmp`
+    try {
+      await fs.writeFile(tmpPath, JSON.stringify(entry, null, 2), 'utf-8')
+      await fs.rename(tmpPath, entryFile)
+    } catch (err) {
+      // Best-effort cleanup of temp file on failure
+      await fs.unlink(tmpPath).catch(() => {})
+      throw err
+    }
   }
 
   /**
@@ -113,8 +117,8 @@ export class ProjectRegistryService {
         const raw = await fs.readFile(entryFile, 'utf-8')
         entry = ProjectRegistryEntrySchema.parse(JSON.parse(raw))
       } catch {
-        // Can't read entry — remove the directory
-        await fs.rm(entryDir, { recursive: true })
+        // Can't read entry — best-effort remove the directory
+        await fs.rm(entryDir, { recursive: true, force: true })
         continue
       }
 
@@ -127,7 +131,7 @@ export class ProjectRegistryService {
       }
 
       if (reason) {
-        await fs.rm(entryDir, { recursive: true })
+        await fs.rm(entryDir, { recursive: true, force: true })
         pruned.push({ path: entry.path, reason })
       }
     }
