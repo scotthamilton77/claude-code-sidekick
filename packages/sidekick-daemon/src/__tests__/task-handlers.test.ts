@@ -130,7 +130,7 @@ const mockConfig: SidekickConfig = {
   core: {
     logging: { level: 'error', format: 'json', consoleEnabled: false, components: {} },
     paths: { state: '.sidekick' },
-    daemon: { idleTimeoutMs: 300000, shutdownTimeoutMs: 30000 },
+    daemon: { idleTimeoutMs: 300000, shutdownTimeoutMs: 30000, projects: { retentionDays: 30 } },
     ipc: { connectTimeoutMs: 5000, requestTimeoutMs: 30000, maxRetries: 3, retryDelayMs: 100 },
     development: { enabled: false },
   },

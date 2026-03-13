@@ -39,6 +39,7 @@ const DEFAULT_CONFIG: SidekickConfig = {
     daemon: {
       idleTimeoutMs: 300000,
       shutdownTimeoutMs: 30000,
+      projects: { retentionDays: 30 },
     },
     ipc: {
       connectTimeoutMs: 5000,

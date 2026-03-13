@@ -13,6 +13,7 @@ import {
   GlobalStateAccessor,
   HandlerRegistryImpl,
   updateDaemonHealth,
+  ProjectRegistryService,
   IpcServer,
   Logger,
   LogManager,
@@ -132,6 +133,8 @@ export class Daemon {
   private idleCheckInterval: ReturnType<typeof setInterval> | null = null
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null
   private evictionTimer: ReturnType<typeof setInterval> | null = null
+  private registryHeartbeatInterval: ReturnType<typeof setInterval> | null = null
+  private registryService: ProjectRegistryService
   private startTime: number = Date.now()
 
   /** Cache persona for handoff on clear. */
@@ -251,6 +254,10 @@ export class Daemon {
       logger: this.logger,
       config: () => this.configService.getAll(),
     })
+    // Project registry for UI discovery (~/.sidekick/projects/)
+    const registryRoot = path.join(homedir(), '.sidekick', 'projects')
+    this.registryService = new ProjectRegistryService(registryRoot)
+
     // Non-caching state service for staging files (cross-process access)
     // CLI writes/deletes staging files, daemon reads them - caching would cause staleness
     this.stagingStateService = new StateService(projectDir, {
@@ -386,6 +393,10 @@ export class Daemon {
       // 11. Start periodic session eviction
       this.startEvictionTimer()
 
+      // 12. Register project and start registry heartbeat (hourly)
+      await this.registerProject()
+      this.startRegistryHeartbeat()
+
       this.logger.info('Daemon started successfully')
 
       // 12. Report healthy status (clears any previous failed state)
@@ -408,6 +419,9 @@ export class Daemon {
 
     // Clear eviction timer
     this.stopEvictionTimer()
+
+    // Stop registry heartbeat
+    this.stopRegistryHeartbeat()
 
     // Stop config watcher
     this.configWatcher.stop()
@@ -1648,6 +1662,39 @@ export class Daemon {
     if (this.evictionTimer) {
       clearInterval(this.evictionTimer)
       this.evictionTimer = null
+    }
+  }
+
+  // --- Project Registry ---
+
+  private static readonly REGISTRY_HEARTBEAT_INTERVAL_MS = 60 * 60 * 1000 // 1 hour
+
+  private async registerProject(): Promise<void> {
+    try {
+      await this.registryService.register(this.projectDir)
+      this.logger.info('Project registered for UI discovery', { projectDir: this.projectDir })
+    } catch (err) {
+      this.logger.warn('Failed to register project', {
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+  }
+
+  private startRegistryHeartbeat(): void {
+    this.registryHeartbeatInterval = setInterval(() => {
+      void this.registerProject()
+    }, Daemon.REGISTRY_HEARTBEAT_INTERVAL_MS)
+
+    this.registryHeartbeatInterval.unref()
+    this.logger.debug('Registry heartbeat started', {
+      intervalMs: Daemon.REGISTRY_HEARTBEAT_INTERVAL_MS,
+    })
+  }
+
+  private stopRegistryHeartbeat(): void {
+    if (this.registryHeartbeatInterval) {
+      clearInterval(this.registryHeartbeatInterval)
+      this.registryHeartbeatInterval = null
     }
   }
 
