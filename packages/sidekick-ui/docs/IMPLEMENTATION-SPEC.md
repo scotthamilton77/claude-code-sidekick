@@ -1109,4 +1109,515 @@ The `:filename` parameter in `/api/projects/:projectId/sessions/:sessionId/state
 <!-- Placeholder: sidekick-e4374d53 -->
 
 ## 7. New Feature Integration
-<!-- Placeholder: sidekick-a8437ed4 -->
+This section specifies the UI integration for each new feature identified in PHASE2-AUDIT §3.3. Features are organized by tier (critical gaps → important enhancements → future work). Each Tier 1 and Tier 2 feature defines its data source, component placement, interaction pattern, and backend readiness.
+
+**Layout reference:** The four-panel layout from REQUIREMENTS.md §3:
+1. **Session selector** — left panel, project/session navigation
+2. **Timeline** — chronological event spine (REQUIREMENTS.md F-3, DP-1)
+3. **Transcript** — chat bubble view, time-synced (REQUIREMENTS.md F-4, DP-2)
+4. **Detail panel** — right panel, progressive drill-down (REQUIREMENTS.md DP-4)
+
+### 7.1 Tier 1: Critical Gaps
+
+#### 7.1.1 LLM Call Timeline (F-10)
+
+**Requirement**: REQUIREMENTS.md G-3 (Provider/Telemetry), PHASE2-AUDIT §3.2 item 1
+
+LLM calls are the most expensive and opaque operations in a session. Surfacing them as first-class timeline events with cost, latency, and token data gives the developer immediate visibility into provider behavior.
+
+**Data sources:**
+
+| Source | Path | Type | Status |
+|--------|------|------|--------|
+| LLM metrics state | `sessions/{id}/state/llm-metrics.json` | `LLMMetricsState` (§3.3 #15) | Schema defined, **file not written** |
+| Provider base class logs | `.sidekick/logs/sidekickd.log` | Unstructured Pino records | Logs exist but not structured events |
+
+**Why `LLMMetricsState` alone is insufficient:** The state file provides aggregate per-provider/per-model metrics (total calls, latency percentiles, token sums) but not individual call records. The UI needs per-call timeline events to support drill-in. This requires new structured events.
+
+**New canonical events required:**
+
+```typescript
+/** Emitted by the provider base class when an LLM call begins. */
+// Canonical name: 'llm:call-start'
+// Visibility: 'timeline'
+// Emitter: daemon
+interface LLMCallStartPayload {
+  callId: string            // Unique identifier for this call
+  provider: string          // e.g., 'anthropic', 'openai'
+  model: string             // e.g., 'claude-sonnet-4-20250514'
+  purpose: string           // e.g., 'session-summary', 'snarky-message', 'resume-message', 'completion-classification'
+  inputTokens?: number      // Estimated input tokens (if known before call)
+}
+
+/** Emitted by the provider base class when an LLM call completes. */
+// Canonical name: 'llm:call-finish'
+// Visibility: 'timeline'
+// Emitter: daemon
+interface LLMCallFinishPayload {
+  callId: string
+  provider: string
+  model: string
+  purpose: string
+  success: boolean
+  durationMs: number
+  inputTokens: number
+  outputTokens: number
+  totalTokens: number
+  costUsd?: number          // Calculated from token counts + model pricing
+  retryCount: number        // 0 if no retries
+  error?: string            // Present when success=false
+}
+```
+
+**Component placement:**
+
+| Panel | Rendering |
+|-------|-----------|
+| **Timeline** | LLM call events appear as timeline entries with a distinctive icon (chip/sparkle). Start/finish pairs render as a duration span. Color-coded by purpose (summary=blue, snarky=purple, resume=green, classification=amber). Cost displayed inline when available. |
+| **Detail panel** | Drill-in shows full call details: provider, model, token breakdown (input/output), latency, cost, retry history, error details. If the call was for session-summary, links to the corresponding `session-summary:finish` event. |
+| **Session selector** | No representation — LLM calls are session-level detail. |
+| **Transcript** | No direct representation — LLM calls are sidekick-internal, not part of the Claude Code transcript. |
+
+**Interaction pattern:**
+1. User sees LLM call events interleaved in the timeline (DP-1)
+2. Focus filter (REQUIREMENTS.md DP-3) "LLM Calls" highlights only `llm:call-start`/`llm:call-finish` pairs
+3. Clicking a call event opens the detail panel with full call metadata
+4. Duration spans visually connect start/finish pairs, making slow calls immediately visible
+
+**Backend readiness: 95% → 60% (revised)**
+
+The readiness score in PHASE2-AUDIT §3.3 assumed the existing provider base class logging was sufficient. It is not — structured events must be added. The `LLMMetricsState` schema and provider infrastructure exist, but the daemon does not:
+- Write `llm-metrics.json` (no task/handler for it)
+- Emit structured LLM call events (only unstructured Pino logs)
+- Track per-call cost or retry counts
+- Expose an LLM call tracking service
+
+See §7.4 (Prerequisite Tasks) items P-1 through P-4.
+
+#### 7.1.2 Task Queue Detail Panel (G-2 enhancement)
+
+**Requirement**: REQUIREMENTS.md G-2 (Task Engine), PHASE2-AUDIT §3.3 item 2
+
+The task engine orchestrates all background work (summary generation, resume messages, cleanup, metrics persistence). The UI needs visibility into what's queued, what's running, and what failed.
+
+**Data sources:**
+
+| Source | Path | Type | Status |
+|--------|------|------|--------|
+| Task registry state | `.sidekick/state/task-registry.json` | `TaskRegistryState` (§3.3 #19) | Written on startup, shutdown, and orphan cleanup — but **not** on each enqueue/complete |
+| Daemon status | `.sidekick/state/daemon-status.json` | `DaemonStatus` (§3.3 #16) | Written every 5s, includes `queue` and `activeTasks` |
+
+**Why two sources:** `DaemonStatus.activeTasks` provides a real-time snapshot of currently running tasks (updated every 5s via heartbeat). `TaskRegistryState` provides the registry of known task types but is only written on startup, shutdown, and orphan cleanup — it lacks per-enqueue/per-complete updates, runtime queue metrics, and task history.
+
+**New canonical events required:**
+
+```typescript
+/** Emitted when a task is enqueued. */
+// Canonical name: 'task:queued'
+// Visibility: 'both'
+// Emitter: daemon
+interface TaskQueuedPayload {
+  taskId: string
+  taskType: TaskType            // 'session_summary' | 'resume_generation' | 'cleanup' | 'metrics_persist' (from @sidekick/types)
+  sessionId?: string        // Present for session-scoped tasks
+  priority: number
+}
+
+/** Emitted when a task begins execution. */
+// Canonical name: 'task:started'
+// Visibility: 'log'
+// Emitter: daemon
+interface TaskStartedPayload {
+  taskId: string
+  taskType: string
+  sessionId?: string
+}
+
+/** Emitted when a task completes successfully. */
+// Canonical name: 'task:completed'
+// Visibility: 'both'
+// Emitter: daemon
+interface TaskCompletedPayload {
+  taskId: string
+  taskType: string
+  sessionId?: string
+  durationMs: number
+}
+
+/** Emitted when a task fails. */
+// Canonical name: 'task:failed'
+// Visibility: 'both'
+// Emitter: daemon
+interface TaskFailedPayload {
+  taskId: string
+  taskType: string
+  sessionId?: string
+  durationMs: number
+  error: string
+  retryable: boolean
+}
+```
+
+> **Note:** These events were already identified as missing in PHASE2-AUDIT §2.7 ("DAEMON.md S4.5 — Not implemented").
+
+**Component placement:**
+
+| Panel | Rendering |
+|-------|-----------|
+| **Session selector** | Global task queue count badge at the project level (derived from `DaemonStatus.queue.pending + DaemonStatus.queue.active`). **Note:** `DaemonStatus.queue` is daemon-global, not per-session. Per-session task counts become available once `task:queued` events (P-5) are implemented — at that point, the badge can filter by `sessionId` for per-session display. |
+| **Timeline** | `task:queued` and `task:completed`/`task:failed` events appear as timeline entries. Duration spans connect queued→completed pairs. Failed tasks render with error styling (red). |
+| **Detail panel** | Task detail view shows: task type, session, priority, duration, error details (if failed). Lists all tasks for the session with sortable columns. |
+| **Transcript** | No direct representation. |
+
+**Interaction pattern:**
+1. Session selector shows a badge with active+pending task count (summary indicator per REQUIREMENTS.md DP-4)
+2. Timeline shows task lifecycle events interleaved with other events
+3. Focus filter "Tasks" highlights task events
+4. Clicking a task event opens the detail panel with full task metadata
+5. Detail panel provides a task list view: all tasks for this session, sortable by type/status/time
+
+**Backend readiness: 90% → 70% (revised)**
+
+The task engine infrastructure is solid (`TrackedTask`, `TaskRegistryState`, abort controllers, running counter). However:
+- `task-registry.json` is only written on startup/shutdown, not on each enqueue/complete
+- No `task:queued`/`task:started`/`task:completed`/`task:failed` events emitted
+- No persistent task history (completed tasks are lost on daemon restart)
+
+See §7.4 items P-5 through P-7.
+
+#### 7.1.3 Completion Classifier Detail (G-11)
+
+**Requirement**: PHASE2-AUDIT §3.2 item 2, relates to REQUIREMENTS.md G-6 (Reminder System)
+
+The completion classifier determines whether the LLM's response indicates task completion, triggering the verify-completion reminder. Misclassification is the most common user-reported issue with sidekick reminders. Surfacing the classifier's reasoning makes debugging straightforward.
+
+**Data sources:**
+
+| Source | Path | Type | Status |
+|--------|------|------|--------|
+| Classifier implementation | `packages/feature-reminders/src/completion-classifier.ts` | Runtime only | Classification runs but emits no events |
+| Classifier result type | `packages/types/` | `CompletionClassification` | Type defined: `{ category, confidence, reasoning }` |
+| Confidence settings | Config | `confidence_threshold`, LLM profiles | Available at runtime |
+
+**New canonical event required:**
+
+```typescript
+/** Emitted after the completion classifier runs. */
+// Canonical name: 'classifier:completion-result'
+// Visibility: 'timeline'
+// Emitter: daemon
+interface CompletionClassifierResultPayload {
+  sessionId: string
+  category: 'CLAIMING_COMPLETION' | 'ASKING_QUESTION' | 'ANSWERING_QUESTION' | 'OTHER'
+  confidence: number         // 0-1
+  reasoning: string          // LLM's explanation
+  thresholdUsed: number      // confidence_threshold from config
+  thresholdMet: boolean      // confidence >= thresholdUsed
+  reminderTriggered: boolean // Whether verify-completion reminder was staged as a result
+  durationMs: number         // Classification LLM call duration
+  model: string              // Which model performed classification
+}
+```
+
+**Component placement:**
+
+| Panel | Rendering |
+|-------|-----------|
+| **Timeline** | Classification events appear after the assistant message that triggered them. Icon indicates category (checkmark for CLAIMING_COMPLETION, question mark for ASKING_QUESTION, etc.). Confidence displayed as a percentage badge with color coding (green >=0.8, amber 0.5-0.8, red <0.5). |
+| **Detail panel** | Full classifier output: category, confidence (with threshold comparison), reasoning text, whether the reminder fired, model used, latency. Links to the assistant message that was classified and the resulting `reminder:staged` event (if any). |
+| **Transcript** | Subtle indicator on the assistant message that was classified — a small badge showing the classification category. Clicking opens the detail panel. |
+| **Session selector** | No representation. |
+
+**Interaction pattern:**
+1. User sees classification events on the timeline after assistant messages
+2. Confidence badge provides at-a-glance signal quality (DP-5)
+3. Clicking opens detail panel with full reasoning
+4. From the detail panel, user can navigate to the triggering assistant message in the transcript (DP-2) and to the resulting reminder event (if staged)
+
+**Backend readiness: 85% → 65% (revised)**
+
+The classifier exists and produces `CompletionClassification` results, but:
+- No `classifier:completion-result` event is emitted
+- No persistent classification history
+- No accuracy metrics or false-positive tracking
+
+See §7.4 items P-8 and P-9.
+
+#### 7.1.4 System Health Dashboard (F-7)
+
+**Requirement**: REQUIREMENTS.md F-7 (System Health Dashboard), G-9 (Daemon Health)
+
+A persistent panel showing daemon vitals: uptime, memory, queue depth, online/offline status. This is the only feature that renders at the project level (not session level) since the daemon serves all sessions.
+
+**Data sources:**
+
+| Source | Path | Type | Status |
+|--------|------|------|--------|
+| Daemon status heartbeat | `.sidekick/state/daemon-status.json` | `DaemonStatus` (§3.3 #16) | **Written every 5s** — fully operational |
+| Global log metrics | `.sidekick/state/daemon-global-log-metrics.json` | `LogMetricsState` (§3.3 #20) | Written on warn/error/fatal |
+| Task registry | `.sidekick/state/task-registry.json` | `TaskRegistryState` (§3.3 #19) | Written on startup/shutdown |
+
+**Component placement:**
+
+| Panel | Rendering |
+|-------|-----------|
+| **Session selector** | Daemon status indicator (green dot = online, red dot = offline) at the project level, above the session list. Compact: shows uptime and memory in a single line. |
+| **Timeline** | `daemon:started`, `daemon:starting` events appear when scrubbing. Offline periods render as a gap/shading on the timeline. |
+| **Detail panel** | Full health dashboard: memory sparklines (heap/RSS over time, derived from heartbeat history), queue depth chart, active task list, error/warning counts from `LogMetricsState`, restart history (derived from `daemon:started` events in log). |
+| **Transcript** | No representation. |
+
+**Why sparklines from heartbeat history:** The daemon writes `daemon-status.json` every 5s with current memory metrics. The backend accumulates these snapshots over the session lifetime to produce a time series. No additional daemon instrumentation needed for the basic memory chart.
+
+**Interaction pattern:**
+1. Daemon status indicator is always visible in the session selector (project level)
+2. Clicking the indicator opens the full health dashboard in the detail panel
+3. Health dashboard auto-refreshes via SSE (file watcher on `daemon-status.json`)
+4. Offline detection: if `daemon-status.json` mtime exceeds 30s (REQUIREMENTS.md F-7), the indicator turns red and the dashboard shows "Daemon offline since {timestamp}"
+
+**Backend readiness: 80% (confirmed)**
+
+The `DaemonStatus` heartbeat provides the core data. Missing elements are nice-to-have for Tier 2:
+- No CPU usage tracking
+- No event queue size/lag metrics
+- No handler execution time histograms
+- No error rate calculation (available via `LogMetricsState` but not aggregated over time)
+- No IPC health metrics
+- No restart history (derivable from log events)
+
+See §7.4 items P-10 and P-11.
+
+### 7.2 Tier 2: Important Enhancements
+
+#### 7.2.1 Context Window Bar (G-7 enhancement)
+
+**Requirement**: REQUIREMENTS.md G-7 (Transcript Metrics), PHASE2-AUDIT §3.2 item 3
+
+A visual bar showing how much of Claude Code's context window is consumed by sidekick overhead (system prompt tokens, MCP tools, memory files, agents, auto-compact buffer). Critical for understanding when sessions approach context limits.
+
+**Data sources:**
+
+| Source | Path | Type | Status |
+|--------|------|------|--------|
+| User-level baseline | `~/.sidekick/state/baseline-user-context-token-metrics.json` | `BaseTokenMetricsState` (§3.3 #17) | Written on context capture |
+| Project-level metrics | `.sidekick/state/baseline-project-context-token-metrics.json` | `ProjectContextMetrics` (§3.3 #18) | Written on project analysis |
+| Session-level metrics | `sessions/{id}/state/context-metrics.json` | `SessionContextMetrics` (§3.3 #14) | Written on context analysis |
+
+**Component placement:**
+
+| Panel | Rendering |
+|-------|-----------|
+| **Session selector** | Context usage percentage badge on each session entry (e.g., "67%"). |
+| **Timeline** | Not directly on the timeline. Context metrics update on session events, not as discrete events. |
+| **Detail panel** | Stacked bar chart showing context breakdown: system prompt, tools, memory files, agents, auto-compact buffer, remaining capacity. Three layers (user → project → session) shown as nested bars. |
+| **Transcript** | Subtle context percentage indicator in the transcript header area. |
+
+**Interaction pattern:**
+1. Session entry shows context usage percentage
+2. Clicking opens the detail panel with full context breakdown
+3. Bar chart segments are labeled with token counts and percentages
+4. Three-level comparison: user baseline vs project vs session overhead
+
+**Backend readiness: 90% (confirmed)**
+
+The three-level `ContextMetricsService` is fully implemented. Missing:
+- No per-turn context usage tracking (would require new events)
+- No growth timeline (would require accumulating snapshots)
+- No compact-impact metrics (before/after context size on compaction)
+
+These are Tier 3 enhancements — the current static snapshot is sufficient for Tier 2.
+
+#### 7.2.2 Log Detail Viewer (G-8 enhancement)
+
+**Requirement**: REQUIREMENTS.md G-8 (Structured Logging), PHASE2-AUDIT §4.1 Option C
+
+A dedicated log viewer panel showing daemon and CLI log records. Time-correlated with the timeline per DP-2 — scrolling the log viewer syncs the timeline and transcript, and vice versa.
+
+**Data sources:**
+
+| Source | Path | Type | Status |
+|--------|------|------|--------|
+| CLI log | `.sidekick/logs/cli.log` | NDJSON (Pino) | Fully operational |
+| Daemon log | `.sidekick/logs/sidekickd.log` | NDJSON (Pino) | Fully operational |
+| Transcript events log | `.sidekick/logs/transcript-events.log` | NDJSON (Pino) | Fully operational — **not yet exposed via `LogStreamRequest`** (§3.4 only supports `cli` and `daemon`; requires API contract extension to add `transcript` log type) |
+| Log metrics | `sessions/{id}/state/daemon-log-metrics.json` | `LogMetricsState` (§3.3 #6) | Written on warn/error/fatal |
+
+**Component placement:**
+
+| Panel | Rendering |
+|-------|-----------|
+| **Detail panel** | Full log viewer with filters: log level (trace→fatal), source (cli/daemon — transcript logs require §3.4 API extension), session ID, text search. Records rendered as a virtual-scrolled table with timestamp, level (color-coded), source, message, and expandable payload. |
+| **Timeline** | `error:occurred` and `statusline:error` events appear on the timeline (visibility `both`). Other log events are log-panel-only (visibility `log`). |
+| **Session selector** | Error/warning count badge (from `LogMetricsState`). |
+| **Transcript** | No representation. |
+
+**Interaction pattern:**
+1. Log viewer opens as a detail panel (accessible from a toolbar button or keyboard shortcut)
+2. Level filter defaults to `info` and above (hides trace/debug)
+3. Scrolling the log viewer updates the timeline cursor position (DP-2)
+4. Clicking a timeline event scrolls the log viewer to the corresponding timestamp
+5. Error records are highlighted and expandable to show stack traces
+
+**Backend readiness: 85% (confirmed)**
+
+Log files exist and are well-structured NDJSON. The `LogStreamResponse` API (§3.4) with offset pagination handles incremental reads. Missing:
+- No server-side search/filter (client-side filtering is acceptable for Tier 2 given log file size limits of 10MB)
+- No performance histogram aggregation
+
+#### 7.2.3 Compaction Snapshot Viewer (F-1 enhancement)
+
+**Requirement**: REQUIREMENTS.md F-1 (Compaction-Aware Time Travel)
+
+View pre-compaction transcript snapshots to understand what context was lost during auto-compaction. The compaction history provides the timeline; snapshots provide the content.
+
+**Data sources:**
+
+| Source | Path | Type | Status |
+|--------|------|------|--------|
+| Compaction history | `sessions/{id}/state/compaction-history.json` | `CompactionHistoryState` (§3.3 #13) | Written on compaction events |
+| Pre-compact snapshots | Path referenced by `CompactionHistoryState.entries[].transcriptSnapshotPath` | Raw transcript text | Saved to disk on compaction |
+| Compaction metrics | Within `CompactionHistoryState.entries[].metricsAtCompaction` | Inline metrics | Available per entry |
+
+**Component placement:**
+
+| Panel | Rendering |
+|-------|-----------|
+| **Timeline** | Compaction boundaries marked with scissors icon (already specified in REQUIREMENTS.md F-1). Clicking opens the snapshot viewer. |
+| **Detail panel** | Snapshot viewer: shows the pre-compact transcript content alongside post-compact metrics. Diff view comparing what was compacted away vs what was retained. Metrics: token counts before/after, lines removed, compaction reason. |
+| **Session selector** | Compaction count badge on session entries (number of compaction points). |
+| **Transcript** | Compaction markers between transcript segments. Segment navigation at compaction boundaries. |
+
+**Interaction pattern:**
+1. Scissors icons on the timeline mark compaction boundaries
+2. Clicking a scissors icon opens the snapshot viewer in the detail panel
+3. Snapshot viewer shows the full pre-compact transcript as read-only text
+4. Toggle between "full snapshot" and "diff" view (what was removed)
+5. Metrics sidebar shows token counts, line counts, and compaction reason
+
+**Backend readiness: 85% (confirmed)**
+
+All data is available on disk. The deferred endpoint `GET /api/projects/:projectId/sessions/:sessionId/pre-compact/:timestamp` (§3.8, §4.5.2 Tier 3) must be implemented to serve snapshot files. No new daemon instrumentation required.
+
+#### 7.2.4 Confidence Visualization (G-5 enhancement)
+
+**Requirement**: REQUIREMENTS.md G-5 (Session Summary Enhancements), DP-5 (Confidence as Visual Signal)
+
+Display session summary confidence directly on timeline events. Confidence scores (0-1) for both `session_title_confidence` and `latest_intent_confidence` are already emitted in `session-summary:finish` events.
+
+**Data sources:**
+
+| Source | Path | Type | Status |
+|--------|------|------|--------|
+| Session summary state | `sessions/{id}/state/session-summary.json` | `SessionSummaryState` (§3.3 #1) | Includes `session_title_confidence`, `latest_intent_confidence` |
+| Summary finish events | `.sidekick/logs/sidekickd.log` | `session-summary:finish` (§2.4 #7) | Includes confidence in payload |
+| Resume message state | `sessions/{id}/state/resume-message.json` | `ResumeMessageState` (§3.3 #8) | Gates on `min_confidence` |
+
+**Component placement:**
+
+| Panel | Rendering |
+|-------|-----------|
+| **Timeline** | `session-summary:finish` events show a confidence indicator: color-coded badge (green >=0.8, amber 0.5-0.8, red <0.5). Both title and intent confidence displayed as a dual badge (e.g., "T:0.92 I:0.75"). |
+| **Detail panel** | Summary detail view shows full confidence data: title confidence, intent confidence, key phrases, pivot detection flag, processing time. Visual comparison of title/intent confidence against the `min_confidence` threshold used by the resume system. |
+| **Session selector** | Current session title with confidence indicator (from latest `SessionSummaryState`). |
+| **Transcript** | No representation — confidence is a sidekick-internal metric. |
+
+**Interaction pattern:**
+1. Confidence badges on timeline events provide at-a-glance quality signal (DP-5)
+2. Low-confidence events are visually distinct (amber/red), drawing attention to potentially unreliable summaries
+3. Clicking a summary event opens the detail panel with full confidence breakdown
+4. Detail panel shows whether confidence was sufficient to trigger resume message generation
+
+**Backend readiness: 95% (confirmed)**
+
+All data exists. `SessionSummaryState` includes both confidence scores. `session-summary:finish` events (once implemented per §2.4) carry confidence in the payload. No new instrumentation needed — this is purely a UI rendering task.
+
+Missing for future work:
+- No confidence history/timeline (would require accumulating per-summary confidence values)
+- No confidence decay tracking over session lifetime
+
+### 7.3 Tier 3: Future Work
+
+| Feature | Scope | Priority | Blocker |
+|---------|-------|----------|---------|
+| **Config Cascade Inspector** (G-4) | Inspector showing resolved config with layer attribution (which of 7 config layers each value came from). Requires config cascade resolution API. | P4 | Config resolution not exposed as API; tracked as `sidekick-dqw5` |
+| **Persona Profile Browser** (G-1 enhancement) | Browse all 20 persona definitions with trait details, voice samples, and personality profiles. Force persona change on active session (requires UI write capability — see REQUIREMENTS.md §7 non-goal). | P3 | Read-only constraint blocks write operations; persona YAML assets accessible but no in-session change API |
+| **Live Mode Auto-Follow** (F-9) | Auto-scroll timeline and transcript as new events arrive in real-time. Requires SSE push (§4.2.4) and efficient DOM update strategy for high-frequency events. | Post-Tier-1 | SSE infrastructure from §4.2.4 is prerequisite; interaction design TBD (pause/resume, scroll-to-bottom behavior) |
+
+### 7.4 Prerequisite Tasks: Missing Backend Instrumentation
+
+All Tier 1 features and some Tier 2 features depend on backend changes. This table consolidates every missing instrumentation item. Each row becomes a separate implementation bead.
+
+| ID | Feature | Prerequisite | Package | Complexity | Blocks |
+|----|---------|-------------|---------|------------|--------|
+| **P-1** | F-10 | Emit `llm:call-start` and `llm:call-finish` canonical events from provider base class | `@sidekick/shared-providers` | Medium | F-10 timeline rendering |
+| **P-2** | F-10 | Create LLM call tracking service that writes `llm-metrics.json` | `@sidekick/sidekick-daemon` | Medium | F-10 aggregate metrics |
+| **P-3** | F-10 | Add cost calculation based on model pricing tables | `@sidekick/shared-providers` | Low | F-10 cost display (optional — can ship without) |
+| **P-4** | F-10 | Add retry tracking to provider base class | `@sidekick/shared-providers` | Low | F-10 retry count display |
+| **P-5** | G-2 | Emit `task:queued`, `task:started`, `task:completed`, `task:failed` events from task engine | `@sidekick/sidekick-daemon` | Low | G-2 timeline events |
+| **P-6** | G-2 | Write `task-registry.json` on each enqueue/complete (not just startup/shutdown) | `@sidekick/sidekick-daemon` | Low | G-2 real-time state |
+| **P-7** | G-2 | Add persistent task history (completed tasks survive daemon restart) | `@sidekick/sidekick-daemon` | Medium | G-2 history view |
+| **P-8** | G-11 | Emit `classifier:completion-result` event from completion classifier | `@sidekick/feature-reminders` | Low | G-11 timeline rendering |
+| **P-9** | G-11 | Add persistent classification history (accumulate results in state file) | `@sidekick/feature-reminders` | Medium | G-11 history view |
+| **P-10** | F-7 | Accumulate daemon heartbeat snapshots for memory sparkline time series | `@sidekick/sidekick-ui` (backend) | Low | F-7 sparklines |
+| **P-11** | F-7 | Derive restart history from `daemon:started` events in log | `@sidekick/sidekick-ui` (backend) | Low | F-7 restart timeline |
+| **P-12** | F-1 | Implement `GET /api/projects/:projectId/sessions/:sessionId/pre-compact/:timestamp` endpoint (§3.8) | `@sidekick/sidekick-ui` (backend) | Low | F-1 snapshot viewer |
+
+**Dependency graph:**
+
+```
+P-1 ──┐
+P-2 ──┼──► F-10 (LLM Call Timeline)
+P-3 ──┤    (P-3, P-4 optional for MVP)
+P-4 ──┘
+
+P-5 ──┐
+P-6 ──┼──► G-2 (Task Queue Detail)
+P-7 ──┘    (P-7 optional for MVP)
+
+P-8 ──┬──► G-11 (Completion Classifier Detail)
+P-9 ──┘    (P-9 optional for MVP)
+
+P-10 ─┬──► F-7 (System Health Dashboard)
+P-11 ─┘    (both optional — basic dashboard works from DaemonStatus alone)
+
+P-12 ────► F-1 (Compaction Snapshot Viewer)
+```
+
+### 7.5 New Canonical Events Summary
+
+Events introduced by this section that must be added to the canonical event table (§2.4):
+
+| # | Canonical Name | Visibility | Emitter | Category | Feature |
+|---|---------------|------------|---------|----------|---------|
+| 32 | `llm:call-start` | `timeline` | daemon | Provider/Telemetry | F-10 |
+| 33 | `llm:call-finish` | `timeline` | daemon | Provider/Telemetry | F-10 |
+| 34 | `task:queued` | `both` | daemon | Task Engine | G-2 |
+| 35 | `task:started` | `log` | daemon | Task Engine | G-2 |
+| 36 | `task:completed` | `both` | daemon | Task Engine | G-2 |
+| 37 | `task:failed` | `both` | daemon | Task Engine | G-2 |
+| 38 | `classifier:completion-result` | `timeline` | daemon | Reminder System | G-11 |
+
+> **Note:** These events follow the `category:action` naming convention established in §2.2. When the prerequisite tasks (§7.4) are implemented, the following spec updates are required:
+> - Add events #32–#38 to the canonical event table in §2.4
+> - Add three new categories to the §2.2 categories list: `llm`, `task`, `classifier`
+> - Add corresponding types to the `UIEventType` union in `@sidekick/types`
+>
+> These updates are **not included in this section** — they belong to the §2 (Unified Event Contract) scope and should be applied when the prerequisite tasks land.
+
+### 7.6 Requirements Traceability
+
+| Requirement | Feature | Section | How Addressed |
+|-------------|---------|---------|---------------|
+| REQUIREMENTS.md G-3 (Provider/Telemetry) | F-10 | §7.1.1 | LLM calls as timeline events with drill-in detail panel |
+| REQUIREMENTS.md G-2 (Task Engine) | G-2 enhancement | §7.1.2 | Task queue badge + timeline events + task list detail panel |
+| REQUIREMENTS.md G-6 (Reminder System) | G-11 | §7.1.3 | Classifier result events on timeline with reasoning detail |
+| REQUIREMENTS.md F-7 (System Health) | F-7 | §7.1.4 | Daemon status indicator + health dashboard detail panel |
+| REQUIREMENTS.md G-9 (Daemon Health) | F-7 | §7.1.4 | Memory sparklines, restart history, error counts |
+| REQUIREMENTS.md G-7 (Transcript Metrics) | G-7 enhancement | §7.2.1 | Context window stacked bar chart in detail panel |
+| REQUIREMENTS.md G-8 (Structured Logging) | G-8 enhancement | §7.2.2 | Log viewer detail panel with filters and time correlation |
+| REQUIREMENTS.md F-1 (Compaction Time Travel) | F-1 enhancement | §7.2.3 | Snapshot viewer with diff view in detail panel |
+| REQUIREMENTS.md G-5 (Session Summary) | G-5 enhancement | §7.2.4 | Confidence badges on timeline + threshold comparison in detail |
+| REQUIREMENTS.md DP-5 (Confidence as Visual Signal) | G-5 enhancement | §7.2.4 | Color-coded confidence badges directly on timeline events |
+| PHASE2-AUDIT §3.2 item 1 (F-10) | F-10 | §7.1.1 | New feature fully specified |
+| PHASE2-AUDIT §3.2 item 2 (G-11) | G-11 | §7.1.3 | New feature fully specified |
+| PHASE2-AUDIT §3.3 tiers | All | §7.1-7.3 | All tiers documented per priority |
+| PHASE2-AUDIT §2.7 (missing task lifecycle events) | G-2 enhancement | §7.1.2 | Task events specified as prerequisite P-5 |
