@@ -1151,7 +1151,7 @@ Balances perceptible real-time feel against unnecessary re-renders. The debounce
 
 ### 5.5 Log File Ingestion
 
-**Max file size:** 10MB per file — matching the log rotation cap (PHASE2-AUDIT §2.4: `DEFAULT_ROTATE_SIZE_BYTES = 10 * 1024 * 1024`).
+**Max file size:** 10MB per file — matching the log rotation cap (PHASE2-AUDIT §2.4). The constant `DEFAULT_ROTATE_SIZE_BYTES` is defined in `packages/sidekick-core/src/structured-logging.ts`.
 
 **Parsing strategy:** Backend (Vite middleware, §4.1) parses NDJSON server-side and serves typed JSON arrays to the frontend. The browser never touches raw log files directly.
 
@@ -1184,7 +1184,7 @@ Balances perceptible real-time feel against unnecessary re-renders. The debounce
 
 | Component | Estimate |
 |---|---|
-| Raw NDJSON | up to 50MB (5 × 10MB rotation cap) |
+| JSON response payload (backend serves typed arrays, not raw NDJSON) | up to 50MB (5 × 10MB rotation cap) |
 | Parsed JS objects (~2–5× serialized size) | 100–250MB |
 | React component tree + virtualizer state | ~5MB |
 | String interning overhead | ~5MB |
@@ -1193,7 +1193,7 @@ Balances perceptible real-time feel against unnecessary re-renders. The debounce
 
 **Eviction policy:** None. The log rotation policy (50MB total per stream) bounds the theoretical maximum. When the user navigates to a different session, the previous session's data is released (single-session model, §5.1).
 
-**Diagnostic threshold:** If `performance.memory.usedJSHeapSize` exceeds 256MB, this indicates a memory leak — not normal operation. Even worst-case hydration should remain under 256MB.
+**Diagnostic threshold:** If `performance.memory.usedJSHeapSize` exceeds 256MB, this indicates a memory leak — not normal operation. Even worst-case hydration should remain under 256MB. Note: this API is Chrome-only (non-standard). Since the target audience uses Chrome DevTools for development, this is acceptable; for non-Chromium browsers, fall back to `performance.measureUserAgentSpecificMemory()` (standards-track, async).
 
 **Why 256MB:** Modern dev machines have 16–64GB RAM. 256MB for a dev tool tab is within normal Chrome tab operating parameters (200–500MB typical).
 
@@ -1203,7 +1203,7 @@ Balances perceptible real-time feel against unnecessary re-renders. The debounce
 |---|---|---|---|
 | Virtual scrolling threshold | 200 events | DOM layout performance | Component renders below/above threshold |
 | Live mode polling | 1s refetch cycle | UX responsiveness vs CPU | SSE notification → render complete |
-| Rendering budget | 16ms/frame (60fps) | Browser refresh rate | `PerformanceObserver` long-task detection |
+| Rendering budget | 16ms/frame (60fps) | Browser refresh rate | React Profiler + `requestAnimationFrame` frame-time sampling (Long Task API is 50ms threshold — too coarse for 16ms detection) |
 | Log file ingestion | 10MB/file, 50MB total | Log rotation policy | Backend parse time |
 | Initial load time | < 1 second | User perception | `performance.measure()` |
 | Memory budget | 256MB browser heap | Log rotation × JS overhead | `performance.memory.usedJSHeapSize` |
