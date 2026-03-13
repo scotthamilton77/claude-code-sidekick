@@ -1318,7 +1318,7 @@ export const LogEvents = {
 
   /**
    * Create a daemon ErrorOccurred event.
-   * Called by the daemon's HookableLogger error hook in daemon.ts.
+   * @see packages/sidekick-daemon/src/daemon.ts — HookableLogger error hook calls this factory.
    */
   daemonErrorOccurred(
     context: EventLogContext,
@@ -1347,7 +1347,7 @@ export const LogEvents = {
 
   /**
    * Create a CLI ErrorOccurred event.
-   * Called by the CLI's HookableLogger error hook in runtime.ts.
+   * Available for CLI error hook implementations.
    */
   cliErrorOccurred(
     context: EventLogContext,
