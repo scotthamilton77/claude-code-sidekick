@@ -649,7 +649,7 @@ export interface PreCompactCapturedEvent extends LoggingEventBase<TranscriptPreC
 
 /**
  * Error occurred in daemon.
- * Emitted automatically by HookableLogger on error/fatal log calls.
+ * Emitted by the daemon's HookableLogger error hook (see daemon.ts).
  */
 export interface DaemonErrorOccurredEvent extends LoggingEventBase<ErrorOccurredPayload> {
   type: 'error:occurred'
@@ -658,7 +658,7 @@ export interface DaemonErrorOccurredEvent extends LoggingEventBase<ErrorOccurred
 
 /**
  * Error occurred in CLI.
- * Emitted automatically by HookableLogger on error/fatal log calls.
+ * Emitted by the CLI's HookableLogger error hook (see runtime.ts).
  */
 export interface CliErrorOccurredEvent extends LoggingEventBase<ErrorOccurredPayload> {
   type: 'error:occurred'

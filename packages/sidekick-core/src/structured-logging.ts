@@ -774,7 +774,8 @@ import type {
   StatuslineErrorEvent,
   TranscriptEventEmittedEvent,
   PreCompactCapturedEvent,
-  ErrorOccurredEvent,
+  DaemonErrorOccurredEvent,
+  CliErrorOccurredEvent,
   LoggingEventBase,
   TranscriptEventType,
   TranscriptMetrics,
@@ -1316,8 +1317,8 @@ export const LogEvents = {
   // --- Error Events ---
 
   /**
-   * Create an ErrorOccurred event (logged when error/fatal level log is emitted).
-   * Emitted automatically by HookableLogger hook — no manual call-site changes needed.
+   * Create a daemon ErrorOccurred event.
+   * Called by the daemon's HookableLogger error hook in daemon.ts.
    */
   daemonErrorOccurred(
     context: EventLogContext,
@@ -1325,11 +1326,40 @@ export const LogEvents = {
       errorMessage: string
       errorStack?: string
     }
-  ): ErrorOccurredEvent {
+  ): DaemonErrorOccurredEvent {
     return {
       type: 'error:occurred',
       time: Date.now(),
       source: 'daemon',
+      context: {
+        sessionId: context.sessionId,
+        correlationId: context.correlationId,
+        traceId: context.traceId,
+        hook: context.hook,
+        taskId: context.taskId,
+      },
+      payload: {
+        errorMessage: state.errorMessage,
+        errorStack: state.errorStack,
+      },
+    }
+  },
+
+  /**
+   * Create a CLI ErrorOccurred event.
+   * Called by the CLI's HookableLogger error hook in runtime.ts.
+   */
+  cliErrorOccurred(
+    context: EventLogContext,
+    state: {
+      errorMessage: string
+      errorStack?: string
+    }
+  ): CliErrorOccurredEvent {
+    return {
+      type: 'error:occurred',
+      time: Date.now(),
+      source: 'cli',
       context: {
         sessionId: context.sessionId,
         correlationId: context.correlationId,
