@@ -1204,10 +1204,10 @@ The task engine orchestrates all background work (summary generation, resume mes
 
 | Source | Path | Type | Status |
 |--------|------|------|--------|
-| Task registry state | `.sidekick/state/task-registry.json` | `TaskRegistryState` (§3.3 #19) | **Written on startup/shutdown only** |
+| Task registry state | `.sidekick/state/task-registry.json` | `TaskRegistryState` (§3.3 #19) | Written on startup, shutdown, and orphan cleanup — but **not** on each enqueue/complete |
 | Daemon status | `.sidekick/state/daemon-status.json` | `DaemonStatus` (§3.3 #16) | Written every 5s, includes `queue` and `activeTasks` |
 
-**Why two sources:** `DaemonStatus.activeTasks` provides a real-time snapshot of currently running tasks (updated every 5s via heartbeat). `TaskRegistryState` provides the registry of known task types but is only written on daemon startup/shutdown — it lacks runtime queue metrics and task history.
+**Why two sources:** `DaemonStatus.activeTasks` provides a real-time snapshot of currently running tasks (updated every 5s via heartbeat). `TaskRegistryState` provides the registry of known task types but is only written on startup, shutdown, and orphan cleanup — it lacks per-enqueue/per-complete updates, runtime queue metrics, and task history.
 
 **New canonical events required:**
 
@@ -1218,7 +1218,7 @@ The task engine orchestrates all background work (summary generation, resume mes
 // Emitter: daemon
 interface TaskQueuedPayload {
   taskId: string
-  taskType: 'SESSION_SUMMARY' | 'RESUME_GENERATION' | 'CLEANUP' | 'METRICS_PERSIST'
+  taskType: TaskType            // 'session_summary' | 'resume_generation' | 'cleanup' | 'metrics_persist' (from @sidekick/types)
   sessionId?: string        // Present for session-scoped tasks
   priority: number
 }
@@ -1438,14 +1438,14 @@ A dedicated log viewer panel showing daemon and CLI log records. Time-correlated
 |--------|------|------|--------|
 | CLI log | `.sidekick/logs/cli.log` | NDJSON (Pino) | Fully operational |
 | Daemon log | `.sidekick/logs/sidekickd.log` | NDJSON (Pino) | Fully operational |
-| Transcript events log | `.sidekick/logs/transcript-events.log` | NDJSON (Pino) | Fully operational |
+| Transcript events log | `.sidekick/logs/transcript-events.log` | NDJSON (Pino) | Fully operational — **not yet exposed via `LogStreamRequest`** (§3.4 only supports `cli` and `daemon`; requires API contract extension to add `transcript` log type) |
 | Log metrics | `sessions/{id}/state/daemon-log-metrics.json` | `LogMetricsState` (§3.3 #6) | Written on warn/error/fatal |
 
 **Component placement:**
 
 | Panel | Rendering |
 |-------|-----------|
-| **Detail panel** | Full log viewer with filters: log level (trace→fatal), source (cli/daemon/transcript), session ID, text search. Records rendered as a virtual-scrolled table with timestamp, level (color-coded), source, message, and expandable payload. |
+| **Detail panel** | Full log viewer with filters: log level (trace→fatal), source (cli/daemon — transcript logs require §3.4 API extension), session ID, text search. Records rendered as a virtual-scrolled table with timestamp, level (color-coded), source, message, and expandable payload. |
 | **Timeline** | `error:occurred` and `statusline:error` events appear on the timeline (visibility `both`). Other log events are log-panel-only (visibility `log`). |
 | **Session selector** | Error/warning count badge (from `LogMetricsState`). |
 | **Transcript** | No representation. |
@@ -1495,7 +1495,7 @@ View pre-compaction transcript snapshots to understand what context was lost dur
 
 **Backend readiness: 85% (confirmed)**
 
-All data is available on disk. The deferred endpoint `GET /api/sessions/:id/pre-compact/:timestamp` (§3.8) must be implemented to serve snapshot files. No new daemon instrumentation required.
+All data is available on disk. The deferred endpoint `GET /api/projects/:projectId/sessions/:sessionId/pre-compact/:timestamp` (§3.8, §4.5.2 Tier 3) must be implemented to serve snapshot files. No new daemon instrumentation required.
 
 #### 7.2.4 Confidence Visualization (G-5 enhancement)
 
@@ -1559,7 +1559,7 @@ All Tier 1 features and some Tier 2 features depend on backend changes. This tab
 | **P-9** | G-11 | Add persistent classification history (accumulate results in state file) | `@sidekick/feature-reminders` | Medium | G-11 history view |
 | **P-10** | F-7 | Accumulate daemon heartbeat snapshots for memory sparkline time series | `@sidekick/sidekick-ui` (backend) | Low | F-7 sparklines |
 | **P-11** | F-7 | Derive restart history from `daemon:started` events in log | `@sidekick/sidekick-ui` (backend) | Low | F-7 restart timeline |
-| **P-12** | F-1 | Implement `GET /api/.../pre-compact/:timestamp` endpoint (§3.8) | `@sidekick/sidekick-ui` (backend) | Low | F-1 snapshot viewer |
+| **P-12** | F-1 | Implement `GET /api/projects/:projectId/sessions/:sessionId/pre-compact/:timestamp` endpoint (§3.8) | `@sidekick/sidekick-ui` (backend) | Low | F-1 snapshot viewer |
 
 **Dependency graph:**
 
@@ -1596,7 +1596,12 @@ Events introduced by this section that must be added to the canonical event tabl
 | 37 | `task:failed` | `both` | daemon | Task Engine | G-2 |
 | 38 | `classifier:completion-result` | `timeline` | daemon | Reminder System | G-11 |
 
-> **Note:** These events follow the `category:action` naming convention established in §2.2. They should be added to the `UIEventType` union in `@sidekick/types` as part of the prerequisite tasks. The §2.2 categories list must also be updated with three new categories: `llm`, `task`, `classifier`.
+> **Note:** These events follow the `category:action` naming convention established in §2.2. When the prerequisite tasks (§7.4) are implemented, the following spec updates are required:
+> - Add events #32–#38 to the canonical event table in §2.4
+> - Add three new categories to the §2.2 categories list: `llm`, `task`, `classifier`
+> - Add corresponding types to the `UIEventType` union in `@sidekick/types`
+>
+> These updates are **not included in this section** — they belong to the §2 (Unified Event Contract) scope and should be applied when the prerequisite tasks land.
 
 ### 7.6 Requirements Traceability
 
