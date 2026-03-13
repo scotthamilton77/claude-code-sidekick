@@ -1264,7 +1264,7 @@ interface TaskFailedPayload {
 
 | Panel | Rendering |
 |-------|-----------|
-| **Session selector** | Task queue count badge on each session entry (derived from `DaemonStatus.queue.pending + DaemonStatus.queue.active`). |
+| **Session selector** | Global task queue count badge at the project level (derived from `DaemonStatus.queue.pending + DaemonStatus.queue.active`). **Note:** `DaemonStatus.queue` is daemon-global, not per-session. Per-session task counts become available once `task:queued` events (P-5) are implemented — at that point, the badge can filter by `sessionId` for per-session display. |
 | **Timeline** | `task:queued` and `task:completed`/`task:failed` events appear as timeline entries. Duration spans connect queued→completed pairs. Failed tasks render with error styling (red). |
 | **Detail panel** | Task detail view shows: task type, session, priority, duration, error details (if failed). Lists all tasks for the session with sortable columns. |
 | **Transcript** | No direct representation. |
@@ -1596,7 +1596,7 @@ Events introduced by this section that must be added to the canonical event tabl
 | 37 | `task:failed` | `both` | daemon | Task Engine | G-2 |
 | 38 | `classifier:completion-result` | `timeline` | daemon | Reminder System | G-11 |
 
-> **Note:** These events follow the `category:action` naming convention established in §2.2. They should be added to the `UIEventType` union in `@sidekick/types` as part of the prerequisite tasks.
+> **Note:** These events follow the `category:action` naming convention established in §2.2. They should be added to the `UIEventType` union in `@sidekick/types` as part of the prerequisite tasks. The §2.2 categories list must also be updated with three new categories: `llm`, `task`, `classifier`.
 
 ### 7.6 Requirements Traceability
 
