@@ -649,7 +649,7 @@ export interface PreCompactCapturedEvent extends LoggingEventBase<TranscriptPreC
 
 /**
  * Error occurred in daemon.
- * Emitted automatically by HookableLogger on error/fatal log calls.
+ * @see packages/sidekick-daemon/src/daemon.ts — HookableLogger error hook emits this event.
  */
 export interface DaemonErrorOccurredEvent extends LoggingEventBase<ErrorOccurredPayload> {
   type: 'error:occurred'
@@ -658,7 +658,7 @@ export interface DaemonErrorOccurredEvent extends LoggingEventBase<ErrorOccurred
 
 /**
  * Error occurred in CLI.
- * Emitted automatically by HookableLogger on error/fatal log calls.
+ * Available for CLI error hook implementations.
  */
 export interface CliErrorOccurredEvent extends LoggingEventBase<ErrorOccurredPayload> {
   type: 'error:occurred'
