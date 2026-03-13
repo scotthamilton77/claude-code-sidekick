@@ -75,5 +75,5 @@ Neither REQUIREMENTS.md nor PHASE2-AUDIT.md define concrete performance targets 
 - IMPLEMENTATION-SPEC.md §5 (full specification)
 - REQUIREMENTS.md F-9 (live mode auto-follow)
 - PHASE2-AUDIT §2.4 (log rotation policy, data volumes)
-- PHASE2-AUDIT §4.2 (chokidar file watching)
+- IMPLEMENTATION-SPEC §4.2 (chokidar file watching)
 - Epic sidekick-n4lx (1000+ event performance)

@@ -1223,7 +1223,8 @@ Balances perceptible real-time feel against unnecessary re-renders. The debounce
 |---|---|---|
 | REQUIREMENTS.md F-9 (live mode) | §5.3 | 1s polling interval with SSE notification coalescing |
 | PHASE2-AUDIT §2.4 (log rotation) | §5.5, §5.7 | Rotation caps (10MB/file, 5 files) used as natural performance bounds |
-| PHASE2-AUDIT §4.2 (chokidar file watching) | §5.3 | 50ms stabilization feeds SSE push; frontend debounces at 1s |
+| §4.2 (chokidar file watching) | §5.3 | 50ms stabilization feeds SSE push; frontend debounces at 1s |
+| §2.7 (log file contract) | §5.5 | NDJSON format and timestamp-based merge used as ingestion pipeline input |
 | sidekick-n4lx epic (1000+ event lag) | §5.2 | Virtual scrolling at 200-event threshold via TanStack Virtual |
 
 ## 6. Component-to-Type Wiring
