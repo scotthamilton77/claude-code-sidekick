@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { LogEvents, logEvent } from '../structured-logging'
 import type { Logger } from '@sidekick/types'
 
-describe('LogEvents.errorOccurred', () => {
+describe('LogEvents.daemonErrorOccurred', () => {
   const context = {
     sessionId: 'test-session-123',
     correlationId: 'corr-456',
@@ -12,9 +12,8 @@ describe('LogEvents.errorOccurred', () => {
   }
 
   it('creates event with required fields', () => {
-    const event = LogEvents.errorOccurred(context, {
+    const event = LogEvents.daemonErrorOccurred(context, {
       errorMessage: 'Something broke',
-      source: 'daemon',
     })
 
     expect(event.type).toBe('error:occurred')
@@ -23,33 +22,28 @@ describe('LogEvents.errorOccurred', () => {
     expect(event.context.sessionId).toBe('test-session-123')
     expect(event.payload.errorMessage).toBe('Something broke')
     expect(event.payload.errorStack).toBeUndefined()
-    expect(event.payload.source).toBe('daemon')
   })
 
   it('includes optional errorStack', () => {
-    const event = LogEvents.errorOccurred(context, {
+    const event = LogEvents.daemonErrorOccurred(context, {
       errorMessage: 'Kaboom',
       errorStack: 'Error: Kaboom\n    at foo.ts:42',
-      source: 'daemon',
     })
 
     expect(event.payload.errorStack).toBe('Error: Kaboom\n    at foo.ts:42')
   })
 
-  it('works with cli source', () => {
-    const event = LogEvents.errorOccurred(context, {
-      errorMessage: 'CLI error',
-      source: 'cli',
+  it('source is always daemon', () => {
+    const event = LogEvents.daemonErrorOccurred(context, {
+      errorMessage: 'Daemon error',
     })
 
-    expect(event.source).toBe('cli')
-    expect(event.payload.source).toBe('cli')
+    expect(event.source).toBe('daemon')
   })
 
   it('preserves context fields', () => {
-    const event = LogEvents.errorOccurred(context, {
+    const event = LogEvents.daemonErrorOccurred(context, {
       errorMessage: 'Test error',
-      source: 'daemon',
     })
 
     expect(event.context).toEqual({
@@ -73,9 +67,8 @@ describe('LogEvents.errorOccurred', () => {
       flush: vi.fn() as any,
     }
 
-    const event = LogEvents.errorOccurred(context, {
+    const event = LogEvents.daemonErrorOccurred(context, {
       errorMessage: 'Test error',
-      source: 'daemon',
     })
     logEvent(mockLogger, event)
 

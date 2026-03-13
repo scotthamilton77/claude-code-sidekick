@@ -219,19 +219,27 @@ export class Daemon {
           const errorMessage = errorObj?.message ?? msg
           const errorStack = errorObj?.stack
 
+          // Extract context fields accumulated by child loggers
+          const metaContext = (meta?.context ?? {}) as {
+            sessionId?: string
+            correlationId?: string
+            traceId?: string
+            hook?: HookName
+            taskId?: string
+          }
+
           // Log on the BASE logger to avoid infinite recursion through the hookable wrapper
-          const event = LogEvents.errorOccurred(
+          const event = LogEvents.daemonErrorOccurred(
             {
-              sessionId: sessionId ?? 'daemon',
-              correlationId: (meta?.context as { correlationId?: string })?.correlationId,
-              traceId: (meta?.context as { traceId?: string })?.traceId,
-              hook: undefined,
-              taskId: undefined,
+              sessionId: sessionId ?? '',
+              correlationId: metaContext.correlationId,
+              traceId: metaContext.traceId,
+              hook: metaContext.hook,
+              taskId: metaContext.taskId,
             },
             {
               errorMessage,
               errorStack,
-              source: 'daemon',
             }
           )
           logEvent(this.logManager.getLogger(), event)

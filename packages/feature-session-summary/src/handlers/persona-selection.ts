@@ -7,10 +7,9 @@
  * @see docs/design/PERSONA-PROFILES-DESIGN.md - Selection Algorithm
  */
 
-import { createPersonaLoader, getDefaultPersonasDir, logEvent } from '@sidekick/core'
+import { createPersonaLoader, getDefaultPersonasDir, logEvent, LogEvents } from '@sidekick/core'
 import type { DaemonContext, SessionPersonaState, PersonaDefinition } from '@sidekick/types'
 import { createSessionSummaryState } from '../state.js'
-import { PersonaEvents } from '../events.js'
 import type { SessionSummaryConfig } from '../types.js'
 import { DEFAULT_SESSION_SUMMARY_CONFIG } from '../types.js'
 
@@ -182,7 +181,7 @@ export async function selectPersonaForSession(
 
       logEvent(
         ctx.logger,
-        PersonaEvents.personaSelected(
+        LogEvents.personaSelected(
           { sessionId },
           {
             personaId: pinned.id,
@@ -228,7 +227,7 @@ export async function selectPersonaForSession(
 
         logEvent(
           ctx.logger,
-          PersonaEvents.personaSelected(
+          LogEvents.personaSelected(
             { sessionId },
             {
               personaId: cachedPersona.id,
@@ -285,7 +284,7 @@ export async function selectPersonaForSession(
 
   logEvent(
     ctx.logger,
-    PersonaEvents.personaSelected(
+    LogEvents.personaSelected(
       { sessionId },
       {
         personaId: selected.id,
