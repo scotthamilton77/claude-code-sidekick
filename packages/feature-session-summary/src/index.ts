@@ -30,9 +30,4 @@ export * from './handlers/index.js'
 export * from './state.js'
 
 // Re-export event factories for logging
-export {
-  SessionSummaryEvents,
-  DecisionEvents,
-  PersonaEvents,
-  type EventLogContext as SummaryEventLogContext,
-} from './events.js'
+export { SessionSummaryEvents, DecisionEvents, type EventLogContext as SummaryEventLogContext } from './events.js'

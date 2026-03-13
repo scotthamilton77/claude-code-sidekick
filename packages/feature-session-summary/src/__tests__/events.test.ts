@@ -3,7 +3,8 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { SessionSummaryEvents, DecisionEvents, PersonaEvents } from '../events.js'
+import { SessionSummaryEvents, DecisionEvents } from '../events.js'
+import { LogEvents } from '@sidekick/core'
 
 describe('SessionSummaryEvents', () => {
   describe('summaryStart', () => {
@@ -195,10 +196,10 @@ describe('DecisionEvents', () => {
   })
 })
 
-describe('PersonaEvents', () => {
+describe('LogEvents persona factories', () => {
   describe('personaSelected', () => {
     it('should create persona:selected events', () => {
-      const event = PersonaEvents.personaSelected(
+      const event = LogEvents.personaSelected(
         { sessionId: 'sess-123' },
         { personaId: 'snarky-cat', selectionMethod: 'random', poolSize: 5 }
       )
@@ -213,7 +214,7 @@ describe('PersonaEvents', () => {
     })
 
     it('should support pinned selection method', () => {
-      const event = PersonaEvents.personaSelected(
+      const event = LogEvents.personaSelected(
         { sessionId: 'sess-123' },
         { personaId: 'zen-master', selectionMethod: 'pinned', poolSize: 1 }
       )
@@ -223,7 +224,7 @@ describe('PersonaEvents', () => {
     })
 
     it('should support handoff selection method', () => {
-      const event = PersonaEvents.personaSelected(
+      const event = LogEvents.personaSelected(
         { sessionId: 'sess-123' },
         { personaId: 'zen-master', selectionMethod: 'handoff', poolSize: 1 }
       )
@@ -232,7 +233,7 @@ describe('PersonaEvents', () => {
     })
 
     it('should include context fields', () => {
-      const event = PersonaEvents.personaSelected(
+      const event = LogEvents.personaSelected(
         {
           sessionId: 'sess-123',
           correlationId: 'corr-456',
@@ -251,7 +252,7 @@ describe('PersonaEvents', () => {
 
   describe('personaChanged', () => {
     it('should create persona:changed events', () => {
-      const event = PersonaEvents.personaChanged(
+      const event = LogEvents.personaChanged(
         { sessionId: 'sess-123' },
         { personaFrom: 'snarky-cat', personaTo: 'zen-master', reason: 'mid_session_change' }
       )
@@ -266,7 +267,7 @@ describe('PersonaEvents', () => {
     })
 
     it('should handle change from none', () => {
-      const event = PersonaEvents.personaChanged(
+      const event = LogEvents.personaChanged(
         { sessionId: 'sess-123' },
         { personaFrom: 'none', personaTo: 'snarky-cat', reason: 'mid_session_change' }
       )
@@ -276,7 +277,7 @@ describe('PersonaEvents', () => {
     })
 
     it('should include context fields', () => {
-      const event = PersonaEvents.personaChanged(
+      const event = LogEvents.personaChanged(
         {
           sessionId: 'sess-123',
           correlationId: 'corr-456',

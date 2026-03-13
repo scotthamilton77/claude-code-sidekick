@@ -333,7 +333,6 @@ describe('Per-event payload interfaces', () => {
 
   it('ErrorOccurredPayload has correct fields', () => {
     expectTypeOf<ErrorOccurredPayload>().toHaveProperty('errorMessage')
-    expectTypeOf<ErrorOccurredPayload>().toHaveProperty('source')
   })
 })
 

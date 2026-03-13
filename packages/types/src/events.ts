@@ -648,13 +648,28 @@ export interface PreCompactCapturedEvent extends LoggingEventBase<TranscriptPreC
 }
 
 /**
- * Error occurred in daemon or CLI.
+ * Error occurred in daemon.
  * Emitted automatically by HookableLogger on error/fatal log calls.
  */
-export interface ErrorOccurredEvent extends LoggingEventBase<ErrorOccurredPayload> {
+export interface DaemonErrorOccurredEvent extends LoggingEventBase<ErrorOccurredPayload> {
   type: 'error:occurred'
-  source: 'daemon' | 'cli'
+  source: 'daemon'
 }
+
+/**
+ * Error occurred in CLI.
+ * Emitted automatically by HookableLogger on error/fatal log calls.
+ */
+export interface CliErrorOccurredEvent extends LoggingEventBase<ErrorOccurredPayload> {
+  type: 'error:occurred'
+  source: 'cli'
+}
+
+/**
+ * Union of daemon and CLI error events.
+ * Use DaemonErrorOccurredEvent or CliErrorOccurredEvent for source-specific narrowing.
+ */
+export type ErrorOccurredEvent = DaemonErrorOccurredEvent | CliErrorOccurredEvent
 
 /**
  * Union of all CLI logging events.
@@ -665,6 +680,7 @@ export type CLILoggingEvent =
   | HookCompletedEvent
   | StatuslineRenderedEvent
   | StatuslineErrorEvent
+  | CliErrorOccurredEvent
 
 /**
  * Union of all Daemon logging events.
@@ -693,7 +709,7 @@ export type DaemonLoggingEvent =
   | DecisionRecordedEvent
   | PersonaSelectedEvent
   | PersonaChangedEvent
-  | ErrorOccurredEvent
+  | DaemonErrorOccurredEvent
 
 /**
  * Union of transcript-related logging events.
@@ -1029,7 +1045,6 @@ export interface TranscriptPreCompactPayload {
 export interface ErrorOccurredPayload {
   errorMessage: string
   errorStack?: string
-  source: string
 }
 
 // ============================================================================
