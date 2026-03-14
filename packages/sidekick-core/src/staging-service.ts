@@ -22,7 +22,7 @@
 import { existsSync, readdirSync } from 'node:fs'
 import { rm, mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { StagingService, StagedReminder, Logger, MinimalStateService } from '@sidekick/types'
+import type { StagingService, StagingEnrichment, StagedReminder, Logger, MinimalStateService } from '@sidekick/types'
 import { StagedReminderSchema } from '@sidekick/types'
 import { LogEvents, logEvent } from './structured-logging'
 import { StateNotFoundError } from './state/errors.js'
@@ -110,7 +110,13 @@ export class StagingServiceCore {
    *
    * @throws Error if hookName or reminderName contain path traversal characters
    */
-  async stageReminder(sessionId: string, hookName: string, reminderName: string, data: StagedReminder): Promise<void> {
+  async stageReminder(
+    sessionId: string,
+    hookName: string,
+    reminderName: string,
+    data: StagedReminder,
+    enrichment?: StagingEnrichment
+  ): Promise<void> {
     validatePathSegment(hookName, 'hookName')
     validatePathSegment(reminderName, 'reminderName')
 
@@ -151,6 +157,7 @@ export class StagingServiceCore {
         blocking: data.blocking,
         priority: data.priority,
         persistent: data.persistent,
+        ...enrichment,
       },
       { stagingPath: reminderPath }
     )
@@ -339,8 +346,8 @@ export class SessionScopedStagingService implements StagingService {
   // StagingService Interface Implementation (delegates to core)
   // ============================================================================
 
-  async stageReminder(hookName: string, reminderName: string, data: StagedReminder): Promise<void> {
-    return this.core.stageReminder(this.sessionId, hookName, reminderName, data)
+  async stageReminder(hookName: string, reminderName: string, data: StagedReminder, enrichment?: StagingEnrichment): Promise<void> {
+    return this.core.stageReminder(this.sessionId, hookName, reminderName, data, enrichment)
   }
 
   async readReminder(hookName: string, reminderName: string): Promise<StagedReminder | null> {

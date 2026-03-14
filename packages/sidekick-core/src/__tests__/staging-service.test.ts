@@ -200,6 +200,29 @@ describe('SessionScopedStagingService (via createService)', () => {
         })
       )
     })
+
+    it('should pass enrichment fields through to the logged event', async () => {
+      const logger = createMockLogger()
+      const service = createService(testDir, { logger })
+      const reminder = createTestReminder({ name: 'vc-build', priority: 80 })
+
+      await service.stageReminder('Stop', 'vc-build', reminder, {
+        reason: 'threshold_reached',
+        triggeredBy: 'file_edit',
+        thresholdState: { current: 3, threshold: 3 },
+      })
+
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          type: 'reminder:staged',
+          reminderName: 'vc-build',
+          reason: 'threshold_reached',
+          triggeredBy: 'file_edit',
+          thresholdState: { current: 3, threshold: 3 },
+        })
+      )
+    })
   })
 
   // ==========================================================================

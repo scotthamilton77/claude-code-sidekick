@@ -153,7 +153,10 @@ export async function stageToolsForFiles(
       const current = toolsState[toolName]
 
       if (!current || current.status === 'staged') {
-        const staged = await ensureToolReminderStaged(daemonCtx, reminderId, stagedNames)
+        const staged = await ensureToolReminderStaged(daemonCtx, reminderId, stagedNames, {
+          reason: current ? 're-staged' : 'initial',
+          triggeredBy: 'file_edit',
+        })
         if (staged) {
           if (!current) {
             toolsState[toolName] = {
@@ -170,7 +173,11 @@ export async function stageToolsForFiles(
         // verified or cooldown — count edits toward re-staging threshold
         const newEdits = current.editsSinceVerified + 1
         if (newEdits >= toolConfig.clearing_threshold) {
-          const staged = await ensureToolReminderStaged(daemonCtx, reminderId, stagedNames)
+          const staged = await ensureToolReminderStaged(daemonCtx, reminderId, stagedNames, {
+            reason: 'threshold_reached',
+            triggeredBy: 'file_edit',
+            thresholdState: { current: newEdits, threshold: toolConfig.clearing_threshold },
+          })
           if (staged) {
             toolsState[toolName] = {
               ...current,
@@ -307,7 +314,8 @@ async function handleBashCommand(
 async function ensureToolReminderStaged(
   daemonCtx: DaemonContext,
   reminderId: string,
-  stagedNames: Set<string>
+  stagedNames: Set<string>,
+  enrichment?: import('@sidekick/types').StagingEnrichment
 ): Promise<boolean> {
   if (stagedNames.has(reminderId)) return true
 
@@ -323,6 +331,6 @@ async function ensureToolReminderStaged(
   await stageReminder(daemonCtx, 'Stop', {
     ...reminder,
     stagedAt: { timestamp: Date.now(), turnCount: 0, toolsThisTurn: 0, toolCount: 0 },
-  })
+  }, enrichment)
   return true
 }
