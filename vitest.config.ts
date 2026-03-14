@@ -75,8 +75,11 @@ export default defineConfig({
 
         // === feature-reminders ===
         'packages/feature-reminders/src/index.ts', // Barrel file
+        'packages/feature-reminders/src/types.ts', // Pure type definitions and constants
+        'packages/feature-reminders/src/events.ts', // Pure data factories (v8 ignore in source)
         'packages/feature-reminders/src/handlers/*/index.ts', // Registration wiring
         'packages/feature-reminders/src/handlers/consumption/inject-*.ts', // Thin wrappers
+        'packages/feature-reminders/src/handlers/ipc/types.ts', // Pure type definitions
 
         // === feature-session-summary ===
         'packages/feature-session-summary/src/index.ts', // Barrel file
