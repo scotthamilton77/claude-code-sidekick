@@ -25,7 +25,15 @@ export default defineConfig({
         'coverage/**',
         'vitest.config.ts', // Config file - no runtime code
         'src/index.ts', // Barrel file - only re-exports
+        'src/providers/emulators/index.ts', // Barrel file - only re-exports
+        'src/validation.ts', // Calls external APIs (like LLM providers) - excluded from default runs
       ],
+      thresholds: {
+        statements: 90,
+        branches: 85,
+        functions: 90,
+        lines: 90,
+      },
     },
   },
 })

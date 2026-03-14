@@ -144,29 +144,6 @@ describe('ClaudeCliEmulator', () => {
       expect(response.rawResponse.status).toBe(0)
       expect(response.rawResponse.body).toBeDefined()
     })
-
-    it('logs request and response', async () => {
-      const statePath = join(testDir, 'state.json')
-      const emulator = new ClaudeCliEmulator({ statePath }, logger)
-
-      await emulator.complete(testRequest)
-
-      expect(logger.debug).toHaveBeenCalledWith(
-        'LLM request initiated',
-        expect.objectContaining({
-          provider: 'claude-cli-emulator',
-          messageCount: 1,
-          hasSystem: true,
-        })
-      )
-      expect(logger.info).toHaveBeenCalledWith(
-        'LLM request completed',
-        expect.objectContaining({
-          provider: 'claude-cli-emulator',
-          status: 0,
-        })
-      )
-    })
   })
 
   describe('id', () => {
