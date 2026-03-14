@@ -69,11 +69,18 @@ function formatDuration(ms?: number): string {
   return `${(ms / 1000).toFixed(1)}s`
 }
 
+interface PairNavigation {
+  color: string
+  isToolUse: boolean
+  onNavigate: () => void
+}
+
 interface TranscriptLineProps {
   line: TLine
   isSelected: boolean
   isSynced: boolean
   onClick: () => void
+  pairNavigation?: PairNavigation
 }
 
 /** Extract command name from content containing <command-name> tag */
@@ -82,7 +89,7 @@ function extractCommandName(content: string): string | null {
   return match ? match[1] : null
 }
 
-export function TranscriptLineCard({ line, isSelected, isSynced, onClick }: TranscriptLineProps) {
+export function TranscriptLineCard({ line, isSelected, isSynced, onClick, pairNavigation }: TranscriptLineProps) {
   const [showThinking, setShowThinking] = useState(false)
   const [showInjection, setShowInjection] = useState(false)
 
@@ -270,6 +277,17 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick }: Tran
             className={line.toolSuccess === false ? 'text-red-600 dark:text-red-400 mt-0.5' : 'text-slate-500 dark:text-slate-400 mt-0.5'}
             label="output"
           />
+        )}
+
+        {/* Tool pair navigation link */}
+        {pairNavigation && (line.type === 'tool-use' || line.type === 'tool-result') && (
+          <button
+            onClick={(e) => { e.stopPropagation(); pairNavigation.onNavigate() }}
+            className="text-[9px] mt-0.5 hover:underline"
+            style={{ color: pairNavigation.color }}
+          >
+            {pairNavigation.isToolUse ? '→ result' : '← call'}
+          </button>
         )}
 
         {/* API error message */}

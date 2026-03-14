@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useMemo } from 'react'
+import { useRef, useEffect, useCallback, useMemo, useState } from 'react'
 import type { TranscriptLine, TranscriptLineType, LEDState, TranscriptFilter } from '../../types'
 import { useNavigation } from '../../hooks/useNavigation'
 import { SearchFilterBar } from './SearchFilterBar'
@@ -6,6 +6,7 @@ import { TranscriptFilterBar } from './TranscriptFilterBar'
 import { LEDColorKey } from './LEDColorKey'
 import { LEDGutter } from './LEDGutter'
 import { TranscriptLineCard } from './TranscriptLine'
+import { useToolPairs } from './ToolPairConnector'
 
 interface TranscriptProps {
   lines: TranscriptLine[]
@@ -60,6 +61,7 @@ const DEFAULT_LED: LEDState = {
 export function Transcript({ lines, loading, error, ledStates, scrollToLineId }: TranscriptProps) {
   const { state, dispatch } = useNavigation()
   const lineRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const [hoveredToolUseId, setHoveredToolUseId] = useState<string | null>(null)
 
   // Scroll to line when timeline syncs
   useEffect(() => {
@@ -107,6 +109,31 @@ export function Transcript({ lines, loading, error, ledStates, scrollToLineId }:
     return result
   }, [lines, state.transcriptFilters, state.searchQuery])
 
+  // Compute tool pairs for connector lines
+  const toolPairs = useToolPairs(filteredLines)
+
+  // Build a lookup: toolUseId → pair for highlighting
+  const pairByToolUseId = useMemo(() => {
+    const map = new Map<string, { useIndex: number; resultIndex: number; color: string }>()
+    for (const pair of toolPairs) {
+      map.set(pair.toolUseId, pair)
+    }
+    return map
+  }, [toolPairs])
+
+  function scrollToIndex(index: number) {
+    const targetLine = filteredLines[index]
+    if (targetLine) {
+      const el = lineRefs.current.get(targetLine.id)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        // Briefly highlight via sync
+        dispatch({ type: 'SYNC_TO_TIMELINE_EVENT', lineId: targetLine.id })
+        setTimeout(() => dispatch({ type: 'CLEAR_SYNC' }), 1500)
+      }
+    }
+  }
+
   return (
     <div className="h-full flex flex-col">
       <SearchFilterBar />
@@ -128,22 +155,49 @@ export function Transcript({ lines, loading, error, ledStates, scrollToLineId }:
             No transcript available
           </div>
         )}
-        {!loading && !error && filteredLines.length > 0 && filteredLines.map(line => (
-          <div key={line.id} ref={setRef(line.id)} className="flex">
-            {/* LED Gutter — prefer line.ledState (server-computed) over Map lookup */}
-            <LEDGutter ledState={line.ledState ?? ledStates?.get(line.id) ?? DEFAULT_LED} />
+        {!loading && !error && filteredLines.length > 0 && filteredLines.map((line, index) => {
+          const pair = line.toolUseId ? pairByToolUseId.get(line.toolUseId) : undefined
+          const isHighlightedPair = hoveredToolUseId != null && line.toolUseId === hoveredToolUseId
 
-            {/* Transcript content */}
-            <div className="flex-1 min-w-0">
-              <TranscriptLineCard
-                line={line}
-                isSelected={state.selectedTranscriptLineId === line.id}
-                isSynced={state.syncedTranscriptLineId === line.id}
-                onClick={() => dispatch({ type: 'SELECT_TRANSCRIPT_LINE', lineId: line.id })}
-              />
+          return (
+            <div
+              key={line.id}
+              ref={setRef(line.id)}
+              className={`flex ${isHighlightedPair ? 'bg-indigo-50/50 dark:bg-indigo-950/30' : ''}`}
+              onMouseEnter={() => line.toolUseId && setHoveredToolUseId(line.toolUseId)}
+              onMouseLeave={() => line.toolUseId && setHoveredToolUseId(null)}
+            >
+              {/* LED Gutter with pair connector indicator */}
+              <div className="relative flex-shrink-0">
+                <LEDGutter ledState={line.ledState ?? ledStates?.get(line.id) ?? DEFAULT_LED} />
+                {pair && (
+                  <div
+                    className="absolute left-1 top-0 bottom-0 w-0.5 rounded-full"
+                    style={{
+                      backgroundColor: pair.color,
+                      opacity: isHighlightedPair ? 0.8 : 0.25,
+                    }}
+                  />
+                )}
+              </div>
+
+              {/* Transcript content */}
+              <div className="flex-1 min-w-0">
+                <TranscriptLineCard
+                  line={line}
+                  isSelected={state.selectedTranscriptLineId === line.id}
+                  isSynced={state.syncedTranscriptLineId === line.id}
+                  onClick={() => dispatch({ type: 'SELECT_TRANSCRIPT_LINE', lineId: line.id })}
+                  pairNavigation={pair ? {
+                    color: pair.color,
+                    isToolUse: line.type === 'tool-use',
+                    onNavigate: () => scrollToIndex(line.type === 'tool-use' ? pair.resultIndex : pair.useIndex),
+                  } : undefined}
+                />
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

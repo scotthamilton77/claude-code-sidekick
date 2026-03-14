@@ -5,7 +5,7 @@ import { join, basename } from 'node:path'
 import type { Plugin, ViteDevServer } from 'vite'
 import { listProjects, getProjectById, listSessions } from './sessions-api.js'
 import { parseTimelineEvents } from './timeline-api.js'
-import { parseTranscriptLines } from './transcript-api.js'
+import { parseTranscriptLines, parseSubagentTranscript } from './transcript-api.js'
 
 /**
  * Validate that a string is a safe single path segment (no traversal).
@@ -151,6 +151,36 @@ export function sessionsApiPlugin(): Plugin {
             const lines = await parseTranscriptLines(projectId, sessionId, project?.projectDir)
             res.setHeader('Content-Type', 'application/json')
             res.end(JSON.stringify({ lines }))
+            return
+          }
+
+          // GET /api/projects/:projectId/sessions/:sessionId/subagents/:agentId/transcript
+          const subagentMatch = pathname.match(/^\/api\/projects\/([^/]+)\/sessions\/([^/]+)\/subagents\/([^/]+)\/transcript$/)
+          if (subagentMatch && req.method === 'GET') {
+            const projectId = validateAndDecode(subagentMatch[1])
+            if (!projectId) {
+              sendError(res, 400, `Invalid project ID format`)
+              return
+            }
+            const sessionId = validateAndDecode(subagentMatch[2])
+            if (!sessionId) {
+              sendError(res, 400, `Invalid session ID format`)
+              return
+            }
+            const agentId = validateAndDecode(subagentMatch[3])
+            if (!agentId) {
+              sendError(res, 400, `Invalid agent ID format`)
+              return
+            }
+
+            const result = await parseSubagentTranscript(projectId, sessionId, agentId)
+            if (!result) {
+              sendError(res, 404, `Subagent not found: ${agentId}`)
+              return
+            }
+
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify(result))
             return
           }
 

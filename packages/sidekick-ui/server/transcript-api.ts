@@ -1,4 +1,4 @@
-import { readFile, stat } from 'node:fs/promises'
+import { readFile, stat, readdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { findLogFiles, readLogFile, generateLabel, type RawLogEntry } from './timeline-api.js'
@@ -55,6 +55,9 @@ export interface ApiTranscriptLine {
   isSidechain?: boolean
   isCompactSummary?: boolean
   isMeta?: boolean
+  // subagent drill-down
+  agentId?: string
+
   // LED state (computed server-side during merge)
   ledState?: {
     vcBuild: boolean
@@ -590,5 +593,118 @@ function computeLEDStates(lines: ApiTranscriptLine[]): void {
 
     // Stamp current state onto line
     line.ledState = { ...state }
+  }
+}
+
+// ============================================================================
+// Subagent Transcript Support
+// ============================================================================
+
+export interface SubagentMeta {
+  agentType?: string
+  worktreePath?: string
+  parentToolUseId?: string
+}
+
+export interface SubagentTranscriptResult {
+  lines: ApiTranscriptLine[]
+  meta: SubagentMeta
+}
+
+/**
+ * Resolve the path to a subagent's JSONL transcript file.
+ */
+function resolveSubagentPath(projectId: string, sessionId: string, agentId: string): string {
+  return join(homedir(), '.claude', 'projects', projectId, sessionId, 'subagents', `agent-${agentId}.jsonl`)
+}
+
+/**
+ * Parse a subagent's transcript and metadata.
+ * No Sidekick event interleaving or LED state computation.
+ */
+export async function parseSubagentTranscript(
+  projectId: string,
+  sessionId: string,
+  agentId: string,
+): Promise<SubagentTranscriptResult | null> {
+  const filePath = resolveSubagentPath(projectId, sessionId, agentId)
+
+  let content: string
+  try {
+    content = await readFile(filePath, 'utf-8')
+  } catch {
+    return null
+  }
+
+  if (!content.trim()) return { lines: [], meta: {} }
+
+  const results: ApiTranscriptLine[] = []
+  const rawLines = content.split('\n')
+
+  for (let lineIndex = 0; lineIndex < rawLines.length; lineIndex++) {
+    const trimmed = rawLines[lineIndex].trim()
+    if (!trimmed) continue
+
+    let entry: Record<string, unknown>
+    try {
+      entry = JSON.parse(trimmed) as Record<string, unknown>
+    } catch {
+      continue
+    }
+
+    const entryType = entry.type as string | undefined
+    if (!entryType) continue
+    if (SKIP_TYPES.has(entryType)) continue
+
+    const timestamp = parseTimestamp(entry.timestamp)
+
+    let lines: ApiTranscriptLine[]
+    switch (entryType) {
+      case 'user':
+        lines = processUserEntry(entry, lineIndex, timestamp)
+        break
+      case 'assistant':
+        lines = processAssistantEntry(entry, lineIndex, timestamp)
+        break
+      case 'system':
+        lines = processSystemEntry(entry, lineIndex, timestamp)
+        break
+      default:
+        lines = []
+    }
+
+    results.push(...lines)
+  }
+
+  // Read meta.json if present
+  const metaPath = filePath.replace('.jsonl', '.meta.json')
+  let meta: SubagentMeta = {}
+  try {
+    const metaContent = await readFile(metaPath, 'utf-8')
+    const metaData = JSON.parse(metaContent) as Record<string, unknown>
+    meta = {
+      agentType: metaData.agentType as string | undefined,
+      worktreePath: metaData.worktreePath as string | undefined,
+      parentToolUseId: metaData.parentToolUseId as string | undefined,
+    }
+  } catch {
+    // No meta file or malformed — OK
+  }
+
+  return { lines: results, meta }
+}
+
+/**
+ * List available subagent IDs for a session.
+ */
+export async function listSubagents(projectId: string, sessionId: string): Promise<string[]> {
+  const subagentsDir = join(homedir(), '.claude', 'projects', projectId, sessionId, 'subagents')
+  try {
+    const files = await readdir(subagentsDir)
+    return files
+      .filter(f => f.startsWith('agent-') && f.endsWith('.jsonl'))
+      .map(f => f.replace(/^agent-/, '').replace(/\.jsonl$/, ''))
+  } catch {
+    return []
   }
 }

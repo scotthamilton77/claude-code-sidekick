@@ -58,6 +58,9 @@ export interface TranscriptLine {
   // tool pairing
   toolUseId?: string
 
+  // subagent drill-down
+  agentId?: string
+
   // tool-use
   toolName?: string
   toolInput?: Record<string, unknown>
