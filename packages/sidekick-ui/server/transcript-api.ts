@@ -207,13 +207,16 @@ function processAssistantEntry(
         ...meta,
       })
     } else if (b.type === 'thinking') {
-      lines.push({
-        id: `transcript-${lineIndex}-${blockIndex}`,
-        timestamp,
-        type: 'assistant-message',
-        thinking: b.thinking as string,
-        ...meta,
-      })
+      const thinkingText = b.thinking as string
+      if (thinkingText) {
+        lines.push({
+          id: `transcript-${lineIndex}-${blockIndex}`,
+          timestamp,
+          type: 'assistant-message',
+          thinking: thinkingText,
+          ...meta,
+        })
+      }
     } else if (b.type === 'tool_use') {
       lines.push({
         id: `transcript-${lineIndex}-${blockIndex}`,
