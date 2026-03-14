@@ -1360,6 +1360,124 @@ interface StateTabProps {
 }
 ```
 
+### 6.3 Transformation Functions
+
+Every component marked "Transform Needed: Yes" in §6.1 requires a function to convert backend data shapes into component props. This section defines signatures and logic; implementations belong to the implementation epic.
+
+#### T-1: Log Stream → Transcript Lines
+
+```typescript
+function parseLogToTranscriptLines(
+  cliRecords: PinoLogRecord[],
+  daemonRecords: PinoLogRecord[]
+): TranscriptLine[]
+```
+
+**Input**: `PinoLogRecord[]` from `LogStreamResponse` (§3.4), one array per log source (`cli.log` + `sidekickd.log`).
+
+**Output**: `TranscriptLine[]` consumed by `Transcript`, `TranscriptLineCard`, `DetailPanel`.
+
+**Logic**: Merge records from both sources by `time` field (Unix ms). For each record, inspect the `type` field: records matching a `UIEventType` value (§2.4) map to the corresponding `TranscriptLineType`; records without a canonical type (plain Pino log lines) are filtered out of the transcript view. Conversation-level events (`user-message`, `assistant-message`, `tool-use`, `tool-result`, `compaction`) are derived from transcript event log entries (§2.4 #29). Each canonical event's payload fields are mapped to `TranscriptLine` properties — for example, `reminder:staged` payload's `reminderName` maps to `TranscriptLine.reminderId` and `blocking` maps to `TranscriptLine.reminderBlocking`.
+
+**Consumers**: `Transcript` (#3), `TranscriptLineCard` (#4), `DetailPanel` (#11)
+
+**Contracts**: Input defined by §3.4 (`LogStreamResponse`); output defined by `TranscriptLine` in `@sidekick/types`.
+
+#### T-2: State Files → LED State per Transcript Line
+
+```typescript
+function assembleLEDStates(
+  lines: TranscriptLine[],
+  stagedReminders: StagedRemindersSnapshot,
+  summaryState: SessionSummaryState | null,
+  verificationTools: VerificationToolsState | null
+): Map<string, LEDState>
+```
+
+**Input**: Transcript lines (from T-1), staged reminders (§3.5), session summary state (§3.3 #1), and verification tools state (§3.3 #11).
+
+**Output**: `Map<string, LEDState>` keyed by transcript line ID, consumed by `LEDGutter`.
+
+**Logic**: For each transcript line, compute a point-in-time LED snapshot. The six boolean LEDs (`vcBuild`, `vcTypecheck`, `vcTest`, `vcLint`, `verifyCompletion`, `pauseAndReflect`) are derived from which verification-check reminders are currently staged at that point in the transcript. When a `reminder:staged` event appears with a `reminderName` matching a VC category, the corresponding LED lights up. When a `reminder:consumed` or `reminder:unstaged` event appears, it turns off. The `titleConfidence` and `titleConfidencePct` fields derive from the most recent `session-summary:finish` event's confidence value at or before each line's timestamp.
+
+**Consumers**: `LEDGutter` (#5), `Transcript` (#3)
+
+**Contracts**: Input: `StagedRemindersSnapshot` (§3.5), `SessionSummaryState` (§3.3 #1), `VerificationToolsState` (§3.3 #11); output: `LEDState` from `@sidekick/types`.
+
+#### T-3: Log Events → Timeline Events
+
+```typescript
+function deriveTimelineEvents(
+  lines: TranscriptLine[]
+): SidekickEvent[]
+```
+
+**Input**: `TranscriptLine[]` from T-1 (already merged and sorted).
+
+**Output**: `SidekickEvent[]` consumed by `Timeline`, `TimelineEventItem`.
+
+**Logic**: Filter transcript lines to only those whose `type` is a `SidekickEventType` (the 16 Sidekick-specific event types from §2.4 #1-#16 — excludes conversation events like `user-message`, `tool-use`, etc.). For each matching line, construct a `SidekickEvent` with: `id` = line's id, `timestamp` = line's timestamp, `type` = line's type (narrowed to `SidekickEventType`), `label` = human-readable summary derived from the event type and payload (same logic as `DetailHeader.getLineLabel()`), `detail` = optional extra detail string, `transcriptLineId` = line's id (for scroll-sync from timeline to transcript).
+
+**Consumers**: `Timeline` (#8), `TimelineEventItem` (#9)
+
+**Contracts**: Input: `TranscriptLine` from `@sidekick/types`; output: `SidekickEvent` from `@sidekick/types`. Filter categories defined by `SIDEKICK_EVENT_TO_FILTER` mapping.
+
+#### T-4: Session List → Project Groups
+
+```typescript
+function groupSessionsByProject(
+  response: SessionListResponse,
+  sessionStates: Map<string, SessionStateSnapshot>
+): Project[]
+```
+
+**Input**: `SessionListResponse` (§3.2) providing the flat session list, plus a map of per-session state snapshots for metadata enrichment.
+
+**Output**: `Project[]` consumed by `SessionSelector`.
+
+**Logic**: Group `SessionListEntry` items by project ID (derived from the session directory's parent). For each session, build a `Session` object by combining `SessionListEntry` metadata (id, path, lastModified) with enrichment data from `SessionStateSnapshot` (title from `summary.session_title`, persona from `sessionPersona.persona_id`, intent from `summary.latest_intent`, confidence scores, token counts, etc.). Sessions without state are assigned default values. Group sessions into `Project` objects with name derived from the project directory basename. Sort sessions within each project by `lastModified` descending (most recent first).
+
+**Consumers**: `SessionSelector` (#1), `SummaryStrip` (#2, via selected `Session`)
+
+**Contracts**: Input: `SessionListResponse` (§3.2), `SessionStateSnapshot` (§3.7); output: `Project`, `Session` from `@sidekick/types`.
+
+#### T-5: State Files → State Tab Snapshots
+
+```typescript
+function assembleStateSnapshots(
+  stateResponses: Map<string, StateFileResponse<unknown>>,
+  sessionId: string
+): SessionStateSnapshot[]
+```
+
+**Input**: Individual `StateFileResponse<T>` results (§3.3) for each of the 20 state file types, keyed by filename.
+
+**Output**: `SessionStateSnapshot[]` consumed by `StateTab`, `DetailPanel`.
+
+**Logic**: Assemble a `SessionStateSnapshot` by reading each `StateFileResponse<T>.data` value and assigning it to the corresponding field on the snapshot. The snapshot timestamp is the maximum `fileMtime` across all constituent files. If the SSE push (§4.3) delivers a file change notification, the affected field is updated in the existing snapshot and a new snapshot is appended with the updated timestamp, preserving historical snapshots for time-travel (§5.2). The `StateTab` component's `findSnapshotAtTime()` helper then selects the appropriate snapshot for a given transcript line timestamp. The 7 state files currently shown in `STATE_FILE_LABELS` map (`sessionSummary`, `sessionPersona`, `snarkyMessage`, `resumeMessage`, `transcriptMetrics`, `llmMetrics`, `summaryCountdown`) expand to all 20 state file types (§3.3) after the canonical type extension (§3.7).
+
+**Consumers**: `StateTab` (#17), `DetailPanel` (#11)
+
+**Contracts**: Input: `StateFileResponse<T>` (§3.3); output: `SessionStateSnapshot` (§3.7, extended).
+
+#### T-6: Log Events → Detail Component Props
+
+```typescript
+function extractDetailProps(
+  line: TranscriptLine
+): Record<string, unknown>
+```
+
+**Input**: A single `TranscriptLine` from T-1.
+
+**Output**: Typed props object consumed by the appropriate detail sub-component (`ToolDetail`, `DecisionDetail`, `ReminderDetail`, `ErrorDetail`).
+
+**Logic**: This is a thin pass-through — the `TranscriptLine` interface already carries all fields needed by each detail component as optional properties. The `DetailPanel.DetailContent` switch dispatches to the correct sub-component based on `line.type`. No data transformation is needed beyond the existing `TranscriptLine` field extraction. This entry exists for completeness: the transformation is the identity function on the `TranscriptLine` type, and the detail sub-components read fields directly. If future detail components need data beyond what `TranscriptLine` carries (e.g., linked state snapshots or cross-referenced events), T-6 would be extended to accept additional data sources.
+
+**Consumers**: `DetailPanel` (#11), `ToolDetail` (#13), `DecisionDetail` (#14), `ReminderDetail` (#15), `ErrorDetail` (#16)
+
+**Contracts**: Input/output: `TranscriptLine` from `@sidekick/types`.
+
 ## 7. New Feature Integration
 This section specifies the UI integration for each new feature identified in PHASE2-AUDIT §3.3. Features are organized by tier (critical gaps → important enhancements → future work). Each Tier 1 and Tier 2 feature defines its data source, component placement, interaction pattern, and backend readiness.
 
