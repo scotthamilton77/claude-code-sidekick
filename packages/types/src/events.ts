@@ -593,6 +593,11 @@ export interface RemindersClearedEvent extends LoggingEventBase<ReminderClearedP
   source: 'daemon'
 }
 
+export interface ReminderNotStagedEvent extends LoggingEventBase<ReminderNotStagedPayload> {
+  type: 'reminder:not-staged'
+  source: 'daemon'
+}
+
 /** Emitted when an LLM decision is recorded (calling, skipped, etc.). */
 export interface DecisionRecordedEvent extends LoggingEventBase<DecisionRecordedPayload> {
   type: 'decision:recorded'
@@ -706,6 +711,7 @@ export type DaemonLoggingEvent =
   | ResumeUpdatedEvent
   | ResumeSkippedEvent
   | RemindersClearedEvent
+  | ReminderNotStagedEvent
   | DecisionRecordedEvent
   | PersonaSelectedEvent
   | PersonaChangedEvent
@@ -766,7 +772,7 @@ export function isTranscriptLoggingEvent(event: LoggingEvent): event is Transcri
 export type EventVisibility = 'timeline' | 'log' | 'both'
 
 /**
- * All 31 canonical UI event type names as a const tuple.
+ * All 32 canonical UI event type names as a const tuple.
  * Single source of truth for both the UIEventType union and runtime validation.
  */
 export const UI_EVENT_TYPES = [
@@ -775,6 +781,7 @@ export const UI_EVENT_TYPES = [
   'reminder:unstaged',
   'reminder:consumed',
   'reminder:cleared',
+  'reminder:not-staged',
   // Decision events
   'decision:recorded',
   // Session summary events
@@ -858,6 +865,22 @@ export interface ReminderClearedPayload {
   clearedCount: number
   hookNames?: string[]
   reason: string
+}
+
+/** Payload for `reminder:not-staged` — a reminder was evaluated but not staged. */
+export interface ReminderNotStagedPayload {
+  /** Which reminder was evaluated. e.g., 'vc-build', 'pause-and-reflect' */
+  reminderName: string
+  /** Which hook triggered the evaluation */
+  hookName: string
+  /** Why staging was skipped */
+  reason: string
+  /** For threshold-gated decisions: the threshold value */
+  threshold?: number
+  /** For threshold-gated decisions: the current counter value */
+  currentValue?: number
+  /** What action triggered the evaluation */
+  triggeredBy?: string
 }
 
 /** Payload for `decision:recorded` — an LLM decision was captured. */
@@ -1059,6 +1082,7 @@ export interface UIEventPayloadMap {
   'reminder:unstaged': ReminderUnstagedPayload
   'reminder:consumed': ReminderConsumedPayload
   'reminder:cleared': ReminderClearedPayload
+  'reminder:not-staged': ReminderNotStagedPayload
   'decision:recorded': DecisionRecordedPayload
   'session-summary:start': SessionSummaryStartPayload
   'session-summary:finish': SessionSummaryFinishPayload
@@ -1137,6 +1161,7 @@ export const UI_EVENT_VISIBILITY = {
   'reminder:unstaged': 'timeline',
   'reminder:consumed': 'timeline',
   'reminder:cleared': 'timeline',
+  'reminder:not-staged': 'log',
   'decision:recorded': 'timeline',
   'session-summary:start': 'timeline',
   'session-summary:finish': 'timeline',
