@@ -10,7 +10,7 @@ Plan directionally long-term, concretely short-term, revisit after each iteratio
 
 ## Current State
 
-The canonical event contract is complete: 31 `UIEventType` values defined in `@sidekick/types` with payloads, visibility mapping, and type-safe discriminated unions. The UI prototype (v1 skeleton) exists with mock data. The daemon/CLI emit ~70% of required events but with gaps and payload misalignment.
+The canonical event contract is complete: 31 `UIEventType` values defined in `@sidekick/types` with payloads, visibility mapping, and type-safe discriminated unions. The UI prototype (v1 skeleton) exists with mock data. All 20 state files are implemented and written. The daemon/CLI emit all 31 canonical events (wiring completed via PR #69). The project registry (`claude-code-sidekick-099`) is implemented.
 
 ### Architecture Stack (bottom-up)
 
@@ -18,43 +18,65 @@ The canonical event contract is complete: 31 `UIEventType` values defined in `@s
 React Frontend (19 components)         -- Can't test without API
 REST API + SSE (Vite Middleware)       -- Can't serve without events
 File Watching + Caching + Validation   -- Can't validate without schemas
-Daemon/CLI Event Emission              -- ~70% complete, 6/8 requirements pending
-Canonical Event Types (@sidekick/types) -- Complete (31 events)
+Daemon/CLI Event Emission              -- Complete (31 events + PR #69)
+Canonical Event Types (@sidekick/types) -- Complete (31 events, expanding to 32)
 ```
 
 ## Phased Approach
 
-### Phase 1: Event Emission Alignment (Concrete)
+### Phase 1: Event Enrichment (Concrete)
 
-Fix daemon/CLI to emit all canonical events with correct payloads. Four beads, all children of `sidekick-43a8b12e`:
+Original R1-R8 requirements are closed. Remaining Phase 1 work focuses on forensic enrichment of reminder events for the UI's debugging use case.
 
-#### Bead A: Align existing event payloads with canonical contract
+#### Phase 1a: Wire factory-only events (PR #69 — in review)
 
-Scope: R2 (start/finish payload alignment), R5 (`reminder:unstaged` emission at unstage points), R7 (`ReminderStaged` field naming harmonization), R8 (`error:occurred` visibility/payload review).
+6 canonical events had factories but no `logEvent()` calls. Now wired:
+daemon:starting, daemon:started, ipc:started, config:watcher-started,
+session:eviction-started, transcript:emitted. (hook:received, hook:completed,
+transcript:pre-compact were already wired.)
 
-These are small alignment tasks that share the concern of "make existing events match the canonical contract."
+#### Phase 1b: New event type — `reminder:not-staged`
 
-Parallelizable: Yes.
+**Rationale:** When the daemon evaluates whether to stage a reminder and decides NOT to, no event fires. This "negative space" is critical for forensic debugging ("why WASN'T this reminder shown?") but has no existing event to piggyback on.
 
-#### Bead B: Emit `persona:changed` event on mid-session persona switch
+**New event (#32):**
+- Type: `reminder:not-staged`
+- Visibility: `log` (high-frequency, not shown on timeline)
+- Payload:
+  ```
+  reminderName: string        — e.g., 'vc-build', 'pause-and-reflect'
+  hookName: HookName          — which hook triggered the evaluation
+  reason: string              — 'below_threshold', 'same_turn', 'feature_disabled', etc.
+  threshold?: number          — e.g., clearing_threshold: 3
+  currentValue?: number       — e.g., editsSinceVerified: 2
+  triggeredBy?: string        — 'file_edit', 'bash_command', 'tool_result'
+  ```
 
-Scope: R3. New detection logic in the daemon to distinguish initial persona selection (`persona:selected`, already emitted) from mid-session changes (`persona:changed`, new event with `personaFrom`/`personaTo`/`reason` payload).
+**Key emission points** (58 decision points identified, instrument the high-forensic-value ones):
+- VC tool edit counter below threshold (track-verification-tools.ts)
+- P&R reactivation skipped — same turn (stage-pause-and-reflect.ts)
+- P&R tools below threshold (stage-pause-and-reflect.ts)
+- Bash VC reactivation skipped — same turn (stage-stop-bash-changes.ts)
+- File pattern match rejection (track-verification-tools.ts)
+- Persona injection disabled (stage-persona-reminders.ts)
 
-Parallelizable: Yes.
+#### Phase 1c: Enrich existing reminder event payloads
 
-#### Bead C: Design and emit `decision:recorded` structured events
+Add optional fields to existing events — backward compatible, no breaking changes:
 
-Scope: R4. Currently decisions are logged as unstructured `info` messages. Requires brainstorming to define what constitutes a "decision" in the Sidekick context, what payload fields capture useful forensic data, and where in the daemon code to emit these events.
+**`reminder:staged`** — add:
+- `reason?: string` — 'initial', 're-staged', 'threshold_reached', 'cascade'
+- `triggeredBy?: string` — 'file_edit', 'bash_command', 'tool_result', 'session_start'
+- `thresholdState?: { current: number, threshold: number }`
 
-Parallelizable: Yes, after design pass (brainstorming within bead).
+**`reminder:unstaged`** — add:
+- `triggeredBy?: string` — 'cascade_from_pause_and_reflect', 'verification_passed', 'cycle_limit'
+- `toolState?: { status: string, editsSinceVerified: number }`
 
-#### Bead D: Emit discrete `session-title:changed` and `intent:changed` events
+**`reminder:consumed`** — add:
+- `classificationResult?: { category: string, confidence: number, shouldBlock: boolean }`
 
-Scope: R6. Extract state transition events from session summary processing. When a summary update changes the title or intent, emit a discrete event with `previousValue`/`newValue`/`confidence` payload rather than relying on consumers to diff state files.
-
-Parallelizable: Yes.
-
-**Note:** R1 (define `UIEventType` in `@sidekick/types`) is already complete.
+**`decision:recorded`** — no changes. Keeps its narrow scope (LLM operation gating).
 
 ### Phase 2: Tracer Bullets (Directional)
 
@@ -91,9 +113,11 @@ Decompose into beads after Phase 2 reveals the actual work.
 ## Dependency Graph
 
 ```
-Phase 1 (A, B, C, D in parallel)
-    |
-    v
+Phase 1a (PR #69 — in review)
+Phase 1b (reminder:not-staged) ──┐
+Phase 1c (payload enrichment) ───┤ parallelizable
+                                 │
+                                 v
 Phase 2 (tracer bullets -- sequential slices)
     |
     v
