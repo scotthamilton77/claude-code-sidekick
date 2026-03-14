@@ -27,9 +27,23 @@ export default defineConfig({
         'vitest.config.ts',
         // Pure type definitions - no runtime code
         'src/feature-types.ts',
-        // Barrel file - only re-exports
+        // Pure type re-exports - no runtime logic
+        'src/runtime-context.ts',
+        // Barrel files - only re-exports
         'src/index.ts',
+        'src/state/index.ts',
+        // IPC service layer - requires Unix sockets, tested via integration
+        'src/daemon-client.ts',
+        'src/ipc-service.ts',
+        // Trivial project root resolver (3 lines of logic)
+        'src/project-root.ts',
       ],
+      thresholds: {
+        statements: 90,
+        branches: 82,
+        functions: 90,
+        lines: 90,
+      },
     },
   },
 })
