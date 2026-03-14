@@ -35,6 +35,11 @@ export const ReminderEvents = {
       blocking?: boolean
       priority?: number
       persistent?: boolean
+      classificationResult?: {
+        category: string
+        confidence: number
+        shouldBlock: boolean
+      }
     },
     _metadata?: { stagingPath?: string }
   ): ReminderConsumedEvent {
@@ -55,6 +60,9 @@ export const ReminderEvents = {
         blocking: state.blocking,
         priority: state.priority,
         persistent: state.persistent,
+        ...(state.classificationResult !== undefined && {
+          classificationResult: state.classificationResult,
+        }),
       },
     }
   },
