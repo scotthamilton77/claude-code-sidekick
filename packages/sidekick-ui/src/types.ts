@@ -55,6 +55,9 @@ export interface TranscriptLine {
   // assistant-message
   thinking?: string
 
+  // tool pairing
+  toolUseId?: string
+
   // tool-use
   toolName?: string
   toolInput?: Record<string, unknown>
@@ -188,6 +191,7 @@ export interface Project {
   name: string
   projectDir?: string
   sessions: Session[]
+  sessionLoadError?: string
 }
 
 // ============================================================================
@@ -195,6 +199,8 @@ export interface Project {
 // ============================================================================
 
 export type TimelineFilter = 'reminders' | 'decisions' | 'session-analysis' | 'statusline' | 'errors'
+
+export type TranscriptFilter = 'conversation' | 'tools' | 'thinking' | 'sidekick' | 'system'
 
 export const SIDEKICK_EVENT_TO_FILTER: Record<SidekickEventType, TimelineFilter> = {
   'reminder:staged': 'reminders',
@@ -235,6 +241,7 @@ export interface NavigationState {
   selectorPanel: PanelState
   detailPanel: PanelState
   timelineFilters: Set<TimelineFilter>
+  transcriptFilters: Set<TranscriptFilter>
   searchQuery: string
   darkMode: boolean
 }

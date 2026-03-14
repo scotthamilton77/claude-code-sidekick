@@ -94,8 +94,15 @@ export function useSessions(): UseSessionsResult {
                   })
                 )
               }
-            } catch {
-              // Silently skip sessions for this project on error
+            } catch (sessionErr) {
+              const errorMsg = sessionErr instanceof Error ? sessionErr.message : String(sessionErr)
+              return {
+                id: apiProject.id,
+                name: apiProject.name,
+                projectDir: apiProject.projectDir,
+                sessions,
+                sessionLoadError: errorMsg,
+              }
             }
 
             return {

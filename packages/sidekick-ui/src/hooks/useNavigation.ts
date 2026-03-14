@@ -1,5 +1,5 @@
 import { createContext, useContext, type Dispatch } from 'react'
-import type { NavigationState, TimelineFilter } from '../types'
+import type { NavigationState, TimelineFilter, TranscriptFilter } from '../types'
 
 // Action types
 type NavigationAction =
@@ -11,6 +11,7 @@ type NavigationAction =
   | { type: 'BACK_TO_SELECTOR' }
   | { type: 'TOGGLE_SELECTOR_PANEL' }
   | { type: 'TOGGLE_TIMELINE_FILTER'; filter: TimelineFilter }
+  | { type: 'TOGGLE_TRANSCRIPT_FILTER'; filter: TranscriptFilter }
   | { type: 'SET_SEARCH'; query: string }
   | { type: 'TOGGLE_DARK_MODE' }
 
@@ -23,6 +24,7 @@ const initialState: NavigationState = {
   selectorPanel: { expanded: true },
   detailPanel: { expanded: false },
   timelineFilters: new Set<TimelineFilter>(['reminders', 'decisions', 'session-analysis', 'statusline', 'errors']),
+  transcriptFilters: new Set<TranscriptFilter>(['conversation', 'tools', 'thinking', 'sidekick', 'system']),
   searchQuery: '',
   darkMode: false,
 }
@@ -109,6 +111,16 @@ function navigationReducer(state: NavigationState, action: NavigationAction): Na
         newFilters.add(action.filter)
       }
       return { ...state, timelineFilters: newFilters }
+    }
+
+    case 'TOGGLE_TRANSCRIPT_FILTER': {
+      const newFilters = new Set(state.transcriptFilters)
+      if (newFilters.has(action.filter)) {
+        newFilters.delete(action.filter)
+      } else {
+        newFilters.add(action.filter)
+      }
+      return { ...state, transcriptFilters: newFilters }
     }
 
     case 'SET_SEARCH':

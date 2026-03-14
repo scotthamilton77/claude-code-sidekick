@@ -27,6 +27,7 @@ export interface ApiTranscriptLine {
   content?: string
   userSubtype?: ApiUserSubtype
   thinking?: string
+  toolUseId?: string
   toolName?: string
   toolInput?: Record<string, unknown>
   toolOutput?: string
@@ -183,6 +184,7 @@ function processUserEntry(entry: Record<string, unknown>, lineIndex: number, tim
         id: `transcript-${lineIndex}-${blockIndex}`,
         timestamp,
         type: 'tool-result',
+        toolUseId: b.tool_use_id as string,
         toolOutput: truncateString(extractToolResultContent(b.content), 500),
         toolSuccess: !b.is_error,
         ...meta,
@@ -245,6 +247,7 @@ function processAssistantEntry(
         id: `transcript-${lineIndex}-${blockIndex}`,
         timestamp,
         type: 'tool-use',
+        toolUseId: b.id as string,
         toolName: b.name as string,
         toolInput: b.input as Record<string, unknown>,
         ...meta,

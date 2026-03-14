@@ -556,6 +556,50 @@ describe('parseTranscriptLines', () => {
     expect(lines[0].userSubtype).toBe('command')
   })
 
+  // toolUseId capture
+  it('captures toolUseId from tool_use blocks', async () => {
+    setupTranscript(
+      makeAssistantEntry([
+        { type: 'tool_use', id: 'toolu_abc123', name: 'Read', input: { file_path: '/foo.ts' } },
+      ])
+    )
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines).toHaveLength(1)
+    expect(lines[0].type).toBe('tool-use')
+    expect(lines[0].toolUseId).toBe('toolu_abc123')
+  })
+
+  it('captures toolUseId from tool_result blocks', async () => {
+    setupTranscript(
+      makeUserEntry([
+        { type: 'tool_result', tool_use_id: 'toolu_abc123', content: 'file contents' },
+      ])
+    )
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines).toHaveLength(1)
+    expect(lines[0].type).toBe('tool-result')
+    expect(lines[0].toolUseId).toBe('toolu_abc123')
+  })
+
+  it('pairs tool_use and tool_result by matching toolUseId', async () => {
+    const content = [
+      makeAssistantEntry([
+        { type: 'tool_use', id: 'toolu_xyz', name: 'Bash', input: { command: 'ls' } },
+      ]),
+      makeUserEntry([
+        { type: 'tool_result', tool_use_id: 'toolu_xyz', content: 'output' },
+      ]),
+    ].join('\n')
+    setupTranscript(content)
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines).toHaveLength(2)
+    expect(lines[0].toolUseId).toBe('toolu_xyz')
+    expect(lines[1].toolUseId).toBe('toolu_xyz')
+  })
+
   it('classifies array text blocks with correct subtypes', async () => {
     setupTranscript(
       makeUserEntry([
