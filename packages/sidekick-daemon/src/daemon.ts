@@ -352,6 +352,9 @@ export class Daemon {
     try {
       this.logger.info('Daemon starting', { projectDir: this.projectDir, pid: process.pid })
 
+      // Emit daemon:starting event (before any initialization)
+      logEvent(this.logger, LogEvents.daemonStarting({ projectDir: this.projectDir, pid: process.pid }))
+
       // 0. Set up process-level error handlers (per design/DAEMON.md §5)
       this.setupErrorHandlers()
 
@@ -385,9 +388,16 @@ export class Daemon {
 
       // 7. Start IPC Server
       await this.ipcServer.start()
+      logEvent(this.logger, LogEvents.ipcServerStarted({ socketPath: getSocketPath(this.projectDir) }))
 
       // 8. Start config watcher for hot-reload
       this.configWatcher.start()
+      const watchedFiles = [
+        this.stateService.rootDir(),
+        path.join(homedir(), '.sidekick'),
+        ...(this.configService.core.development.enabled ? [getDefaultAssetsDir()] : []),
+      ]
+      logEvent(this.logger, LogEvents.configWatcherStarted({ projectDir: this.projectDir, watchedFiles }))
 
       // 8b. Start persona watcher for CLI-written persona changes
       this.personaWatcher.start()
@@ -406,6 +416,9 @@ export class Daemon {
       this.startRegistryHeartbeat()
 
       this.logger.info('Daemon started successfully')
+
+      // Emit daemon:started event (all initialization complete)
+      logEvent(this.logger, LogEvents.daemonStarted({ startupDurationMs: Date.now() - this.startTime }))
 
       // 12. Report healthy status (clears any previous failed state)
       await updateDaemonHealth(this.projectDir, 'healthy', this.logger)
@@ -1664,6 +1677,7 @@ export class Daemon {
     this.evictionTimer.unref()
 
     this.logger.info('Session eviction timer started', { intervalMs: EVICTION_INTERVAL_MS })
+    logEvent(this.logger, LogEvents.sessionEvictionStarted({ intervalMs: EVICTION_INTERVAL_MS }))
   }
 
   private stopEvictionTimer(): void {
