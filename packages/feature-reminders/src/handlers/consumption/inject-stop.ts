@@ -12,7 +12,11 @@
 import type { HookResponse, RuntimeContext } from '@sidekick/core'
 import { IpcService } from '@sidekick/core'
 import type { StopHookEvent } from '@sidekick/types'
-import { createConsumptionHandler, buildDefaultResponse, type ResponseBuilderResult } from './consumption-handler-factory.js'
+import {
+  createConsumptionHandler,
+  buildDefaultResponse,
+  type ResponseBuilderResult,
+} from './consumption-handler-factory.js'
 import { ReminderIds } from '../../types.js'
 import type { CompletionCategory } from '../../types.js'
 

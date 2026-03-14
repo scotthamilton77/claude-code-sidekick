@@ -346,7 +346,12 @@ export class SessionScopedStagingService implements StagingService {
   // StagingService Interface Implementation (delegates to core)
   // ============================================================================
 
-  async stageReminder(hookName: string, reminderName: string, data: StagedReminder, enrichment?: StagingEnrichment): Promise<void> {
+  async stageReminder(
+    hookName: string,
+    reminderName: string,
+    data: StagedReminder,
+    enrichment?: StagingEnrichment
+  ): Promise<void> {
     return this.core.stageReminder(this.sessionId, hookName, reminderName, data, enrichment)
   }
 
