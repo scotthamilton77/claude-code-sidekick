@@ -12,6 +12,7 @@ import type {
   ReminderConsumedEvent,
   ReminderUnstagedEvent,
   RemindersClearedEvent,
+  ReminderNotStagedEvent,
   EventLogContext,
 } from '@sidekick/types'
 
@@ -113,6 +114,42 @@ export const ReminderEvents = {
         clearedCount: state.clearedCount,
         hookNames: state.hookNames,
         reason,
+      },
+    }
+  },
+
+  /**
+   * Create a ReminderNotStaged event (logged when daemon evaluates but decides not to stage).
+   */
+  reminderNotStaged(
+    context: EventLogContext,
+    state: {
+      reminderName: string
+      hookName: string
+      reason: string
+      threshold?: number
+      currentValue?: number
+      triggeredBy?: string
+    }
+  ): ReminderNotStagedEvent {
+    return {
+      type: 'reminder:not-staged',
+      time: Date.now(),
+      source: 'daemon',
+      context: {
+        sessionId: context.sessionId,
+        correlationId: context.correlationId,
+        traceId: context.traceId,
+        hook: context.hook,
+        taskId: context.taskId,
+      },
+      payload: {
+        reminderName: state.reminderName,
+        hookName: state.hookName,
+        reason: state.reason,
+        ...(state.threshold !== undefined && { threshold: state.threshold }),
+        ...(state.currentValue !== undefined && { currentValue: state.currentValue }),
+        ...(state.triggeredBy !== undefined && { triggeredBy: state.triggeredBy }),
       },
     }
   },

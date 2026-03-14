@@ -96,4 +96,59 @@ describe('ReminderEvents', () => {
       expect(event.payload.reason).toBe('manual')
     })
   })
+
+  describe('reminderNotStaged', () => {
+    it('should create ReminderNotStaged events with required fields', () => {
+      const event = ReminderEvents.reminderNotStaged(
+        { sessionId: 'sess-123', hook: 'Stop' },
+        {
+          reminderName: 'vc-build',
+          hookName: 'Stop',
+          reason: 'below_threshold',
+        }
+      )
+
+      expect(event.type).toBe('reminder:not-staged')
+      expect(event.source).toBe('daemon')
+      expect(event.payload.reminderName).toBe('vc-build')
+      expect(event.payload.hookName).toBe('Stop')
+      expect(event.payload.reason).toBe('below_threshold')
+      expect(event.context.sessionId).toBe('sess-123')
+      expect(event.context.hook).toBe('Stop')
+      expect(event.time).toBeGreaterThan(0)
+    })
+
+    it('should include optional threshold fields when provided', () => {
+      const event = ReminderEvents.reminderNotStaged(
+        { sessionId: 'sess-456' },
+        {
+          reminderName: 'pause-and-reflect',
+          hookName: 'PreToolUse',
+          reason: 'below_threshold',
+          threshold: 5,
+          currentValue: 2,
+          triggeredBy: 'tool_result',
+        }
+      )
+
+      expect(event.payload.threshold).toBe(5)
+      expect(event.payload.currentValue).toBe(2)
+      expect(event.payload.triggeredBy).toBe('tool_result')
+    })
+
+    it('should omit optional fields when not provided', () => {
+      const event = ReminderEvents.reminderNotStaged(
+        { sessionId: 'sess-789' },
+        {
+          reminderName: 'vc-build',
+          hookName: 'Stop',
+          reason: 'feature_disabled',
+        }
+      )
+
+      expect(event.payload.threshold).toBeUndefined()
+      expect(event.payload.currentValue).toBeUndefined()
+      expect(event.payload.triggeredBy).toBeUndefined()
+    })
+  })
 })
