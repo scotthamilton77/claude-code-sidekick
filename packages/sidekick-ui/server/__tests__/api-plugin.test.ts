@@ -18,6 +18,12 @@ vi.mock('../timeline-api.js', () => ({
   parseTimelineEvents: (...args: unknown[]) => mockParseTimelineEvents(...args),
 }))
 
+const mockParseTranscriptLines = vi.fn()
+
+vi.mock('../transcript-api.js', () => ({
+  parseTranscriptLines: (...args: unknown[]) => mockParseTranscriptLines(...args),
+}))
+
 // Mock node:fs/promises (access used in timeline route)
 const mockAccess = vi.fn()
 
@@ -74,6 +80,7 @@ beforeEach(() => {
   mockGetProjectById.mockClear()
   mockListSessions.mockClear()
   mockParseTimelineEvents.mockClear()
+  mockParseTranscriptLines.mockClear()
   mockAccess.mockClear()
 })
 
@@ -221,6 +228,57 @@ describe('sessionsApiPlugin middleware', () => {
       await mw(req, res, next)
       expect(mockGetProjectById).toHaveBeenCalled()
       expect(mockParseTimelineEvents).toHaveBeenCalled()
+      expect(next).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('transcript route', () => {
+    it('GET /api/projects/-Users-foo/sessions/uuid-1/transcript returns transcript lines', async () => {
+      const mw = getMiddleware()
+      const mockLines = [{ id: '1', type: 'user-message', timestamp: 1000, content: 'hello' }]
+      mockParseTranscriptLines.mockResolvedValue(mockLines)
+      const { req, res, mockRes, next, resBody } = createMocks(
+        'GET',
+        '/api/projects/-Users-foo/sessions/uuid-1/transcript'
+      )
+      await mw(req, res, next)
+      expect(mockParseTranscriptLines).toHaveBeenCalledWith('-Users-foo', 'uuid-1')
+      expect(mockRes.statusCode).toBe(200)
+      expect(JSON.parse(resBody[0])).toEqual({ lines: mockLines })
+      expect(next).not.toHaveBeenCalled()
+    })
+
+    it('GET /api/projects/-Users-foo/sessions/uuid-1/transcript?_t=123 handles query strings', async () => {
+      const mw = getMiddleware()
+      mockParseTranscriptLines.mockResolvedValue([])
+      const { req, res, next } = createMocks(
+        'GET',
+        '/api/projects/-Users-foo/sessions/uuid-1/transcript?_t=123'
+      )
+      await mw(req, res, next)
+      expect(mockParseTranscriptLines).toHaveBeenCalledWith('-Users-foo', 'uuid-1')
+      expect(next).not.toHaveBeenCalled()
+    })
+
+    it('rejects invalid projectId in transcript route', async () => {
+      const mw = getMiddleware()
+      const { req, res, mockRes, next } = createMocks(
+        'GET',
+        '/api/projects/..%2Fetc/sessions/uuid-1/transcript'
+      )
+      await mw(req, res, next)
+      expect(mockRes.statusCode).toBe(400)
+      expect(next).not.toHaveBeenCalled()
+    })
+
+    it('rejects invalid sessionId in transcript route', async () => {
+      const mw = getMiddleware()
+      const { req, res, mockRes, next } = createMocks(
+        'GET',
+        '/api/projects/-Users-foo/sessions/..%2Fetc/transcript'
+      )
+      await mw(req, res, next)
+      expect(mockRes.statusCode).toBe(400)
       expect(next).not.toHaveBeenCalled()
     })
   })

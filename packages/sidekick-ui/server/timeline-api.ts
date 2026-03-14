@@ -181,6 +181,7 @@ async function readLogFile(filePath: string): Promise<RawLogEntry[]> {
 
       // Pino flattens payload fields into the root object.
       // Extract everything that isn't Pino metadata or known structural fields as payload.
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { level: _, pid: _p, hostname: _h, name: _n, msg: _m, time, type, context, source: _s, ...payload } = parsed
       entries.push({
         time: time as number,

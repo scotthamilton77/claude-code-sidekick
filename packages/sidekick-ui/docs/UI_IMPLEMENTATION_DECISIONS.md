@@ -213,3 +213,117 @@ Each decision follows this structure:
 **Rationale:** Users need feedback. An empty panel looks like a bug. A brief message confirms the system is working, there's just nothing to show.
 
 **Deferred work:** None.
+
+---
+
+### D13: Parent transcript only — no subagent drill-down (TB3)
+
+**Decision:** TB3 renders only the parent session transcript. Subagent conversations (stored in `subagents/agent-{id}.jsonl`) are deferred to `claude-code-sidekick-0wf`. Agent tool_use/tool_result entries appear as regular tool calls in the parent transcript.
+
+**Context:** Claude Code sessions can spawn subagent conversations stored in separate JSONL files. TB3 needs a scope decision.
+
+**Alternatives considered:**
+1. Parse and render subagent transcripts inline — complex, requires correlation logic
+2. Parent transcript only — simpler, subagent activity still visible as tool_use entries
+
+**Rationale:** Subagent drill-down is a significant feature requiring its own UX design. The parent transcript already shows Agent tool_use/tool_result entries, so no information is lost — just not expandable yet.
+
+**Deferred work:** Subagent drill-down UI. See `claude-code-sidekick-0wf`.
+
+---
+
+### D14: Self-contained transcript parser (no @sidekick/core import)
+
+**Decision:** Keep transcript-api.ts self-contained with inline parsing logic, matching the timeline-api.ts pattern. No `@sidekick/core` import — importing it breaks the Vite config chain.
+
+**Context:** Transcript parsing requires extracting text content from Claude Code JSONL entries. `@sidekick/core` already has utilities for this.
+
+**Alternatives considered:**
+1. Duplicate extraction logic in sidekick-ui — no cross-package dependency
+2. Import from `@sidekick/core` — reuse existing, tested code
+
+**Rationale:** Importing `@sidekick/core` breaks the Vite config chain: `vite.config.ts` loads `api-plugin.ts` which loads the server modules. If any server module imports `@sidekick/core`, Vite must resolve that package and its transitive dependencies (pino, chokidar, etc.) during config loading, causing resolution failures. The parsing logic is ~50 lines and self-contained, matching the pattern already established by timeline-api.ts. The `@sidekick/core` dependency remains in package.json for future SSE/live features that run outside the Vite config chain.
+
+**Deferred work:** None.
+
+---
+
+### D15: Include isSidechain entries in transcript
+
+**Decision:** Sidechain entries contain Sidekick SessionStart hook activity (bd ready, hook execution). Filtering them would hide part of the story. They render with a "sidechain" badge for visual distinction.
+
+**Context:** Claude Code JSONL entries can have `isSidechain: true`, indicating they ran outside the main conversation flow (e.g., Sidekick hook processing).
+
+**Alternatives considered:**
+1. Filter out sidechain entries — cleaner transcript, but hides hook activity
+2. Include with visual badge — complete picture with clear distinction
+
+**Rationale:** Users monitoring Sidekick want to see what hooks did. Filtering them defeats the purpose of a monitoring UI. A badge provides the visual cue that these are "behind the scenes" operations.
+
+**Deferred work:** None.
+
+---
+
+### D16: Defer Sidekick event interleaving
+
+**Decision:** TB3 shows pure Claude Code conversation turns only. Interleaving Sidekick events (reminders, decisions) by timestamp is deferred to `claude-code-sidekick-mcs`.
+
+**Context:** The full monitoring UI should show Sidekick events (from NDJSON logs) interleaved with transcript entries by timestamp.
+
+**Alternatives considered:**
+1. Interleave now — requires timestamp correlation between two data sources
+2. Defer — TB3 focuses on transcript rendering correctness
+
+**Rationale:** Interleaving requires solving timestamp correlation, visual design for mixed entry types, and scroll-sync. Each is non-trivial. TB3's job is to prove transcript parsing and rendering work correctly.
+
+**Deferred work:** Sidekick event interleaving. See `claude-code-sidekick-mcs`.
+
+---
+
+### D17: Deterministic transcript line IDs
+
+**Decision:** Format: `transcript-{lineNumber}-{blockIndex}` (both 0-indexed). Stable IDs enable future scroll-sync with timeline events (`claude-code-sidekick-sz6`).
+
+**Context:** Each `TranscriptLine` needs a unique, stable ID for React keys and future scroll-sync.
+
+**Alternatives considered:**
+1. Random UUIDs — unique but not stable across re-parses
+2. Content hash — stable but expensive and collides on duplicate content
+3. Line number + block index — stable, deterministic, zero-cost
+
+**Rationale:** Line number and block index are inherently stable for a given file state. They're free to compute and naturally unique. When the file changes (live updates), IDs shift but that's expected — React reconciliation handles it.
+
+**Deferred work:** None — IDs are ready for scroll-sync when needed.
+
+---
+
+### D18: Read entire file, no streaming
+
+**Decision:** Acceptable for TB3. A 47MB transcript with 99% queue-operation entries parses quickly since noise entries are skipped before full processing. Streaming/pagination deferred to `claude-code-sidekick-bpo`.
+
+**Context:** Claude Code transcript files can be very large (tens of MB). Need to decide whether to stream or read all at once.
+
+**Alternatives considered:**
+1. Read entire file — simple, works for TB3
+2. Stream with backpressure — handles arbitrarily large files
+3. Paginate — load chunks on demand
+
+**Rationale:** The vast majority of transcript lines are `queue-operation` entries that are skipped immediately after JSON.parse. The actual rendered content is typically <1% of the file. Full-file read with early filtering is fast enough for TB3 and avoids streaming complexity.
+
+**Deferred work:** Streaming/pagination for very large transcripts. See `claude-code-sidekick-bpo`.
+
+---
+
+### D19: Skip queue-operation entries early
+
+**Decision:** queue-operation entries are 99%+ of transcript lines. They are skipped immediately after JSON.parse by checking the `type` field, avoiding any further processing overhead.
+
+**Context:** Claude Code JSONL files contain massive numbers of `queue-operation` entries that have no user-visible meaning.
+
+**Alternatives considered:**
+1. Process all entries, filter at render time — wastes memory and CPU
+2. Skip early after type check — minimal overhead per skipped line
+
+**Rationale:** In a 47MB transcript, queue-operation entries dominate. Skipping them immediately after identifying the type field avoids allocating TranscriptLine objects, running content extraction, or any other processing. This is the critical optimization that makes full-file reads viable.
+
+**Deferred work:** None.

@@ -8,6 +8,8 @@ import { TranscriptLineCard } from './TranscriptLine'
 
 interface TranscriptProps {
   lines: TranscriptLine[]
+  loading?: boolean
+  error?: string | null
   ledStates: Map<string, LEDState>
   scrollToLineId: string | null
 }
@@ -17,7 +19,7 @@ const DEFAULT_LED: LEDState = {
   verifyCompletion: false, pauseAndReflect: false, titleConfidence: 'green', titleConfidencePct: 85,
 }
 
-export function Transcript({ lines, ledStates, scrollToLineId }: TranscriptProps) {
+export function Transcript({ lines, loading, error, ledStates, scrollToLineId }: TranscriptProps) {
   const { state, dispatch } = useNavigation()
   const lineRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
@@ -60,7 +62,22 @@ export function Transcript({ lines, ledStates, scrollToLineId }: TranscriptProps
       <SearchFilterBar />
       <LEDColorKey />
       <div className="flex-1 overflow-y-auto py-1">
-        {filteredLines.map(line => (
+        {loading && (
+          <div className="flex items-center justify-center h-full text-slate-400">
+            Loading transcript...
+          </div>
+        )}
+        {error && (
+          <div className="flex items-center justify-center h-full text-red-500 px-4 text-center">
+            {error}
+          </div>
+        )}
+        {!loading && !error && filteredLines.length === 0 && (
+          <div className="flex items-center justify-center h-full text-slate-400">
+            No transcript available
+          </div>
+        )}
+        {!loading && !error && filteredLines.length > 0 && filteredLines.map(line => (
           <div key={line.id} ref={setRef(line.id)} className="flex">
             {/* LED Gutter */}
             <LEDGutter ledState={ledStates.get(line.id) ?? DEFAULT_LED} />

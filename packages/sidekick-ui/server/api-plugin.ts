@@ -1,14 +1,26 @@
 import { access } from 'node:fs/promises'
 import type { ServerResponse } from 'node:http'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { join, basename } from 'node:path'
 import type { Plugin, ViteDevServer } from 'vite'
-import { isValidPathSegment } from '@sidekick/core'
 import { listProjects, getProjectById, listSessions } from './sessions-api.js'
 import { parseTimelineEvents } from './timeline-api.js'
+import { parseTranscriptLines } from './transcript-api.js'
 
-// Re-export for test compatibility
-export { isValidPathSegment } from '@sidekick/core'
+/**
+ * Validate that a string is a safe single path segment (no traversal).
+ *
+ * Rejects empty strings, `.`, `..`, strings containing path separators,
+ * and strings where basename differs from the input. Only allows
+ * alphanumeric characters, dots, hyphens, and underscores.
+ */
+export function isValidPathSegment(s: string): boolean {
+  if (s === '') return false
+  if (s === '.' || s === '..') return false
+  if (s.includes('/') || s.includes('\\')) return false
+  if (basename(s) !== s) return false
+  return /^[a-zA-Z0-9._-]+$/.test(s)
+}
 
 /** Sidekick project registry root (user-scope) */
 const REGISTRY_ROOT = join(homedir(), '.sidekick', 'projects')
@@ -37,6 +49,7 @@ function validateAndDecode(encoded: string): string | null {
  *   GET /api/projects — list all registered projects
  *   GET /api/projects/:id/sessions — list sessions for a project
  *   GET /api/projects/:projectId/sessions/:sessionId/timeline — timeline events
+ *   GET /api/projects/:projectId/sessions/:sessionId/transcript — transcript lines
  */
 export function sessionsApiPlugin(): Plugin {
   return {
@@ -83,9 +96,7 @@ export function sessionsApiPlugin(): Plugin {
           }
 
           // GET /api/projects/:projectId/sessions/:sessionId/timeline
-          const timelineMatch = pathname.match(
-            /^\/api\/projects\/([^/]+)\/sessions\/([^/]+)\/timeline$/
-          )
+          const timelineMatch = pathname.match(/^\/api\/projects\/([^/]+)\/sessions\/([^/]+)\/timeline$/)
           if (timelineMatch && req.method === 'GET') {
             const projectId = validateAndDecode(timelineMatch[1])
             if (!projectId) {
@@ -117,6 +128,27 @@ export function sessionsApiPlugin(): Plugin {
             const events = await parseTimelineEvents(project.projectDir, sessionId)
             res.setHeader('Content-Type', 'application/json')
             res.end(JSON.stringify({ events }))
+            return
+          }
+
+          // GET /api/projects/:projectId/sessions/:sessionId/transcript
+          const transcriptMatch = pathname.match(/^\/api\/projects\/([^/]+)\/sessions\/([^/]+)\/transcript$/)
+          if (transcriptMatch && req.method === 'GET') {
+            const projectId = validateAndDecode(transcriptMatch[1])
+            if (!projectId) {
+              sendError(res, 400, `Invalid project ID format`)
+              return
+            }
+
+            const sessionId = validateAndDecode(transcriptMatch[2])
+            if (!sessionId) {
+              sendError(res, 400, `Invalid session ID format`)
+              return
+            }
+
+            const lines = await parseTranscriptLines(projectId, sessionId)
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ lines }))
             return
           }
 

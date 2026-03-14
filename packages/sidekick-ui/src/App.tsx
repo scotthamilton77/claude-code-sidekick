@@ -2,6 +2,7 @@ import { useReducer, useEffect } from 'react'
 import { NavigationContext, initialState, navigationReducer } from './hooks/useNavigation'
 import { useSessions } from './hooks/useSessions'
 import { useTimeline } from './hooks/useTimeline'
+import { useTranscript } from './hooks/useTranscript'
 import { SessionSelector } from './components/SessionSelector'
 import { SummaryStrip } from './components/SummaryStrip'
 import { Timeline } from './components/timeline/Timeline'
@@ -17,10 +18,15 @@ function App() {
     state.selectedSessionId
   )
 
+  const { lines: transcriptLines, loading: transcriptLoading, error: transcriptError } = useTranscript(
+    state.selectedProjectId,
+    state.selectedSessionId
+  )
+
   // Derive selected data from state
   const selectedProject = projects.find(p => p.id === state.selectedProjectId)
   const selectedSession = selectedProject?.sessions.find(s => s.id === state.selectedSessionId)
-  const selectedLine = selectedSession?.transcriptLines.find(l => l.id === state.selectedTranscriptLineId)
+  const selectedLine = transcriptLines.find(l => l.id === state.selectedTranscriptLineId)
 
   const detailOpen = state.detailPanel.expanded && !!selectedLine
 
@@ -34,19 +40,19 @@ function App() {
           dispatch({ type: 'BACK_TO_SELECTOR' })
         }
       }
-      if (detailOpen && selectedSession) {
-        const idx = selectedSession.transcriptLines.findIndex(l => l.id === state.selectedTranscriptLineId)
+      if (detailOpen && transcriptLines.length > 0) {
+        const idx = transcriptLines.findIndex(l => l.id === state.selectedTranscriptLineId)
         if (e.key === 'ArrowUp' && idx > 0) {
-          dispatch({ type: 'SELECT_TRANSCRIPT_LINE', lineId: selectedSession.transcriptLines[idx - 1].id })
+          dispatch({ type: 'SELECT_TRANSCRIPT_LINE', lineId: transcriptLines[idx - 1].id })
         }
-        if (e.key === 'ArrowDown' && idx < selectedSession.transcriptLines.length - 1) {
-          dispatch({ type: 'SELECT_TRANSCRIPT_LINE', lineId: selectedSession.transcriptLines[idx + 1].id })
+        if (e.key === 'ArrowDown' && idx < transcriptLines.length - 1) {
+          dispatch({ type: 'SELECT_TRANSCRIPT_LINE', lineId: transcriptLines[idx + 1].id })
         }
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [state.depth, state.selectedTranscriptLineId, selectedSession, detailOpen])
+  }, [state.depth, state.selectedTranscriptLineId, transcriptLines, detailOpen])
 
   // Panel width classes
   const selectorWidth = state.selectorPanel.expanded ? 'flex-1' : 'w-10'
@@ -84,8 +90,10 @@ function App() {
                 {/* Transcript — shrinks when detail open */}
                 <div className={`${detailOpen ? 'flex-[2]' : 'flex-[3]'} border-r border-slate-200 dark:border-slate-700 overflow-hidden min-w-0 panel-transition`}>
                   <Transcript
-                    lines={selectedSession.transcriptLines}
-                    ledStates={selectedSession.ledStates}
+                    lines={transcriptLines}
+                    loading={transcriptLoading}
+                    error={transcriptError}
+                    ledStates={selectedSession?.ledStates ?? new Map()}
                     scrollToLineId={state.syncedTranscriptLineId}
                   />
                 </div>
@@ -95,7 +103,7 @@ function App() {
                   <div className="flex-[2] overflow-hidden panel-transition">
                     <DetailPanel
                       line={selectedLine}
-                      lines={selectedSession.transcriptLines}
+                      lines={transcriptLines}
                       stateSnapshots={selectedSession.stateSnapshots}
                     />
                   </div>
