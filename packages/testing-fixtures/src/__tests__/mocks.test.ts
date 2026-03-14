@@ -11,6 +11,7 @@ import {
   MockHandlerRegistry,
   MockTranscriptService,
   MockStagingService,
+  MockStateService,
   MockTelemetry,
   MockDaemonClient,
   MockProfileProviderFactory,
@@ -21,6 +22,7 @@ import {
   createTestConfig,
   createTestFeature,
   createRecordingFeature,
+  createFakeLogger,
 } from '../index'
 import type { SessionStartHookEvent, EventContext, StagedReminder } from '@sidekick/types'
 
@@ -1366,5 +1368,258 @@ describe('createMockDaemonContext with handlers', () => {
     expect(ctx.handlers).toBe(customHandlers)
     // Access mock-specific property through the typed reference
     expect(customHandlers.defaultHookResponse.blocking).toBe(true)
+  })
+})
+
+// ============================================================================
+// MockStateService
+// ============================================================================
+
+/** Minimal schema that accepts any object (for testing purposes) */
+const anyObjectSchema = {
+  safeParse(data: unknown) {
+    if (typeof data === 'object' && data !== null) {
+      return { success: true as const, data: data as Record<string, unknown> }
+    }
+    return { success: false as const, error: new Error('not an object') }
+  },
+  parse(data: unknown) {
+    if (typeof data === 'object' && data !== null) return data as Record<string, unknown>
+    throw new Error('not an object')
+  },
+}
+
+/** Schema that always rejects (for testing schema validation failure) */
+const rejectSchema = {
+  safeParse() {
+    return { success: false as const, error: new Error('rejected') }
+  },
+  parse(): never {
+    throw new Error('rejected')
+  },
+}
+
+describe('MockStateService', () => {
+  let state: MockStateService
+
+  beforeEach(() => {
+    state = new MockStateService()
+  })
+
+  describe('read', () => {
+    it('returns stored data with fresh source', async () => {
+      state.setStored('key', { value: 42 })
+
+      const result = await state.read('key', anyObjectSchema)
+
+      expect(result.data).toEqual({ value: 42 })
+      expect(result.source).toBe('fresh')
+    })
+
+    it('rejects with StateNotFoundError for missing key without default', async () => {
+      await expect(state.read('missing', anyObjectSchema)).rejects.toThrow('StateNotFoundError')
+    })
+
+    it('returns default value for missing key', async () => {
+      const result = await state.read('missing', anyObjectSchema, { fallback: true })
+
+      expect(result.data).toEqual({ fallback: true })
+      expect(result.source).toBe('default')
+    })
+
+    it('returns default from factory function for missing key', async () => {
+      const result = await state.read('missing', anyObjectSchema, () => ({ computed: true }))
+
+      expect(result.data).toEqual({ computed: true })
+      expect(result.source).toBe('default')
+    })
+
+    it('returns recovered source when schema validation fails with default', async () => {
+      state.setStored('key', 'not-an-object')
+
+      const result = await state.read('key', rejectSchema, { recovered: true })
+
+      expect(result.data).toEqual({ recovered: true })
+      expect(result.source).toBe('recovered')
+    })
+
+    it('returns recovered from factory when schema fails with default factory', async () => {
+      state.setStored('key', 'corrupt')
+
+      const result = await state.read('key', rejectSchema, () => ({ fromFactory: true }))
+
+      expect(result.data).toEqual({ fromFactory: true })
+      expect(result.source).toBe('recovered')
+    })
+
+    it('rejects with StateCorruptError when schema fails without default', async () => {
+      state.setStored('key', 'corrupt')
+
+      await expect(state.read('key', rejectSchema)).rejects.toThrow('StateCorruptError')
+    })
+  })
+
+  describe('write', () => {
+    it('stores data that can be read back', async () => {
+      await state.write('key', { value: 1 }, anyObjectSchema)
+
+      const result = await state.read('key', anyObjectSchema)
+      expect(result.data).toEqual({ value: 1 })
+    })
+
+    it('throws when schema validation fails', () => {
+      expect(() => state.write('key', 'invalid', rejectSchema)).toThrow('rejected')
+    })
+  })
+
+  describe('delete', () => {
+    it('removes stored data', async () => {
+      state.setStored('key', { value: 1 })
+
+      await state.delete('key')
+
+      expect(state.has('key')).toBe(false)
+    })
+  })
+
+  describe('path helpers', () => {
+    it('sessionStatePath returns correct path', () => {
+      expect(state.sessionStatePath('sess-1', 'summary.json')).toBe(
+        '/mock/project/.sidekick/sessions/sess-1/state/summary.json'
+      )
+    })
+
+    it('globalStatePath returns correct path', () => {
+      expect(state.globalStatePath('registry.json')).toBe('/mock/project/.sidekick/state/registry.json')
+    })
+
+    it('rootDir returns correct path', () => {
+      expect(state.rootDir()).toBe('/mock/project/.sidekick')
+    })
+
+    it('sessionsDir returns correct path', () => {
+      expect(state.sessionsDir()).toBe('/mock/project/.sidekick/sessions')
+    })
+
+    it('sessionRootDir returns correct path', () => {
+      expect(state.sessionRootDir('sess-1')).toBe('/mock/project/.sidekick/sessions/sess-1')
+    })
+
+    it('logsDir returns correct path', () => {
+      expect(state.logsDir()).toBe('/mock/project/.sidekick/logs')
+    })
+
+    it('uses custom project root when provided', () => {
+      const customState = new MockStateService('/custom/root')
+
+      expect(customState.rootDir()).toBe('/custom/root/.sidekick')
+    })
+  })
+
+  describe('test utilities', () => {
+    it('reset clears all stored data', () => {
+      state.setStored('a', 1)
+      state.setStored('b', 2)
+
+      state.reset()
+
+      expect(state.has('a')).toBe(false)
+      expect(state.has('b')).toBe(false)
+    })
+
+    it('getStored returns raw stored value', () => {
+      state.setStored('key', { raw: true })
+
+      expect(state.getStored('key')).toEqual({ raw: true })
+    })
+
+    it('getPaths returns all stored paths', () => {
+      state.setStored('a', 1)
+      state.setStored('b', 2)
+
+      const paths = state.getPaths()
+      expect(paths).toHaveLength(2)
+      expect(paths).toContain('a')
+      expect(paths).toContain('b')
+    })
+  })
+})
+
+// ============================================================================
+// createFakeLogger
+// ============================================================================
+
+describe('createFakeLogger', () => {
+  it('returns logger with all standard log methods', () => {
+    const logger = createFakeLogger()
+
+    // All methods should be callable without error
+    logger.trace('trace msg')
+    logger.debug('debug msg')
+    logger.info('info msg')
+    logger.warn('warn msg')
+    logger.error('error msg')
+    logger.fatal('fatal msg')
+  })
+
+  it('methods are vitest mocks that track calls', () => {
+    const logger = createFakeLogger()
+
+    logger.info('test message', { key: 'value' })
+
+    expect(logger.info).toHaveBeenCalledWith('test message', { key: 'value' })
+    expect(logger.info).toHaveBeenCalledTimes(1)
+  })
+
+  it('child returns a new fake logger', () => {
+    const logger = createFakeLogger()
+
+    const child = logger.child({ component: 'test' })
+
+    expect(child).toBeDefined()
+    expect(logger.child).toHaveBeenCalledWith({ component: 'test' })
+
+    // Child should also be a working logger
+    child.info('child message')
+    expect(child.info).toHaveBeenCalledWith('child message')
+  })
+
+  it('flush returns a resolved promise', async () => {
+    const logger = createFakeLogger()
+
+    await expect(logger.flush()).resolves.toBeUndefined()
+  })
+})
+
+// ============================================================================
+// createRecordingFeature - additional hook coverage
+// ============================================================================
+
+describe('createRecordingFeature additional hooks', () => {
+  it('records onSessionEnd calls', async () => {
+    const feature = createRecordingFeature()
+
+    await feature.hooks.onSessionEnd?.('ctx')
+
+    expect(feature.recordedCalls).toHaveLength(1)
+    expect(feature.recordedCalls[0].hook).toBe('onSessionEnd')
+  })
+
+  it('records onToolUse calls', async () => {
+    const feature = createRecordingFeature()
+
+    await feature.hooks.onToolUse?.('ctx', 'Read')
+
+    expect(feature.recordedCalls).toHaveLength(1)
+    expect(feature.recordedCalls[0].hook).toBe('onToolUse')
+    expect(feature.recordedCalls[0].args[1]).toBe('Read')
+  })
+
+  it('onUserPrompt returns the original prompt', async () => {
+    const feature = createRecordingFeature()
+
+    const result = await feature.hooks.onUserPrompt?.('ctx', 'Hello world')
+
+    expect(result).toBe('Hello world')
   })
 })

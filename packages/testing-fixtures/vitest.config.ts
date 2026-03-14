@@ -27,7 +27,15 @@ export default defineConfig({
         // Test infrastructure - this entire package is test support code
         // Testing test infrastructure has low ROI; core functionality verified in mocks.test.ts
         'src/**/__tests__/**',
+        // Barrel file (re-exports only, no logic)
+        'src/index.ts',
       ],
+      thresholds: {
+        statements: 90,
+        branches: 80,
+        functions: 90,
+        lines: 90,
+      },
     },
   },
 })
