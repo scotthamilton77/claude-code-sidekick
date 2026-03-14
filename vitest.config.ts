@@ -36,6 +36,7 @@ export default defineConfig({
     exclude: [
       ...configDefaults.exclude,
       ...worktreeExcludes,
+      '**/dist/**',
     ],
     coverage: {
       enabled: true,

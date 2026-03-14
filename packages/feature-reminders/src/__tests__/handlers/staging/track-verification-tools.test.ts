@@ -9,7 +9,7 @@
  * @see docs/plans/2026-03-05-dynamic-vc-tool-tracking-design.md
  */
 
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
   createMockDaemonContext,
   MockStagingService,
@@ -549,12 +549,20 @@ describe('ensureToolReminderStaged failure does not pollute state', () => {
   let stateService: MockStateService
   let ctx: DaemonContext
 
+  let cwdSpy: ReturnType<typeof vi.spyOn>
+
   beforeEach(() => {
     staging = new MockStagingService()
     logger = new MockLogger()
     handlers = new MockHandlerRegistry()
     assets = new MockAssetResolver()
     stateService = new MockStateService()
+    // Prevent file-system fallback from finding real YAML files
+    cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue('/nonexistent')
+  })
+
+  afterEach(() => {
+    cwdSpy.mockRestore()
   })
 
   it('does not stage wrapper when all per-tool reminders fail to resolve', async () => {

@@ -222,18 +222,24 @@ additionalContext: "Lint needed"
       // Use empty assets so resolveReminder returns null
       const emptyAssets = new MockAssetResolver()
       const ctxNoAssets = createMockDaemonContext({ staging, logger, handlers, assets: emptyAssets })
+      // Prevent file-system fallback from finding real YAML files
+      const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue('/nonexistent')
 
-      registerStagePauseAndReflect(ctxNoAssets)
+      try {
+        registerStagePauseAndReflect(ctxNoAssets)
 
-      const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
-      expect(handler).toBeDefined()
-      const event = createTestTranscriptEvent({ toolsThisTurn: 100 })
+        const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
+        expect(handler).toBeDefined()
+        const event = createTestTranscriptEvent({ toolsThisTurn: 100 })
 
-      await handler!.handler(event, ctxNoAssets as unknown as import('@sidekick/types').HandlerContext)
+        await handler!.handler(event, ctxNoAssets as unknown as import('@sidekick/types').HandlerContext)
 
-      // Should not stage and should log warning
-      expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(0)
-      expect(logger.wasLoggedAtLevel('Failed to resolve reminder', 'warn')).toBe(true)
+        // Should not stage and should log warning
+        expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(0)
+        expect(logger.wasLoggedAtLevel('Failed to resolve reminder', 'warn')).toBe(true)
+      } finally {
+        cwdSpy.mockRestore()
+      }
     })
 
     it('calls orchestrator.onReminderStaged after staging', async () => {
