@@ -105,11 +105,39 @@ export async function stageToolsForFiles(
 
   for (const filePath of filePaths) {
     for (const [toolName, toolConfig] of Object.entries(verificationTools)) {
-      if (!toolConfig.enabled) continue
+      if (!toolConfig.enabled) {
+        logEvent(
+          daemonCtx.logger,
+          ReminderEvents.reminderNotStaged(
+            { sessionId },
+            {
+              reminderName: toolName,
+              hookName: 'Stop',
+              reason: 'feature_disabled',
+              triggeredBy: 'file_edit',
+            }
+          )
+        )
+        continue
+      }
 
       const reminderId = TOOL_REMINDER_MAP[toolName]
       if (!reminderId) continue
-      if (!picomatch.isMatch(filePath, toolConfig.clearing_patterns)) continue
+      if (!picomatch.isMatch(filePath, toolConfig.clearing_patterns)) {
+        logEvent(
+          daemonCtx.logger,
+          ReminderEvents.reminderNotStaged(
+            { sessionId },
+            {
+              reminderName: reminderId,
+              hookName: 'Stop',
+              reason: 'pattern_mismatch',
+              triggeredBy: 'file_edit',
+            }
+          )
+        )
+        continue
+      }
 
       const current = toolsState[toolName]
 
@@ -148,6 +176,20 @@ export async function stageToolsForFiles(
             status: 'cooldown',
             editsSinceVerified: newEdits,
           }
+          logEvent(
+            daemonCtx.logger,
+            ReminderEvents.reminderNotStaged(
+              { sessionId },
+              {
+                reminderName: reminderId,
+                hookName: 'Stop',
+                reason: 'below_threshold',
+                threshold: toolConfig.clearing_threshold,
+                currentValue: newEdits,
+                triggeredBy: 'file_edit',
+              }
+            )
+          )
         }
       }
     }

@@ -429,6 +429,120 @@ describe('stageToolsForFiles', () => {
 })
 
 // --------------------------------------------------------------------------
+// reminder:not-staged event emission
+// --------------------------------------------------------------------------
+
+describe('reminder:not-staged events in track-verification-tools', () => {
+  let ctx: DaemonContext
+  let staging: MockStagingService
+  let logger: MockLogger
+  let handlers: MockHandlerRegistry
+  let assets: MockAssetResolver
+  let stateService: MockStateService
+
+  function getNotStagedEvents() {
+    return logger.recordedLogs.filter(
+      (log) => log.level === 'info' && log.meta?.type === 'reminder:not-staged'
+    )
+  }
+
+  beforeEach(() => {
+    staging = new MockStagingService()
+    logger = new MockLogger()
+    handlers = new MockHandlerRegistry()
+    assets = new MockAssetResolver()
+    stateService = new MockStateService()
+
+    assets.registerAll({
+      'reminders/verify-completion.yaml': `id: verify-completion
+blocking: true
+priority: 51
+persistent: false
+additionalContext: "Wrapper"
+`,
+      'reminders/vc-build.yaml': `id: vc-build
+blocking: true
+priority: 50
+persistent: false
+additionalContext: "Build needed"
+`,
+      'reminders/vc-typecheck.yaml': `id: vc-typecheck
+blocking: true
+priority: 50
+persistent: false
+additionalContext: "Typecheck needed"
+`,
+      'reminders/vc-test.yaml': `id: vc-test
+blocking: true
+priority: 50
+persistent: false
+additionalContext: "Test needed"
+`,
+      'reminders/vc-lint.yaml': `id: vc-lint
+blocking: true
+priority: 50
+persistent: false
+additionalContext: "Lint needed"
+`,
+    })
+
+    ctx = createMockDaemonContext({ staging, logger, handlers, assets, stateService })
+  })
+
+  function getRegisteredHandler(): EventHandler {
+    registerTrackVerificationTools(ctx)
+    const reg = handlers.getHandler('reminders:track-verification-tools')
+    expect(reg).toBeDefined()
+    return reg!.handler
+  }
+
+  it('should emit not-staged event when file does not match clearing patterns', async () => {
+    const handler = getRegisteredHandler()
+    // .md files don't match default clearing_patterns (**/*.ts, **/*.tsx, etc.)
+    const event = createFileEditEvent(
+      { turnCount: 1, toolsThisTurn: 1, toolCount: 1 },
+      '/mock/project/docs/README.md'
+    )
+
+    await handler(event, ctx as any)
+
+    const notStagedEvents = getNotStagedEvents()
+    // Each of the 4 tools should emit a pattern_mismatch event
+    const patternMismatches = notStagedEvents.filter((e) => e.meta?.reason === 'pattern_mismatch')
+    expect(patternMismatches.length).toBeGreaterThanOrEqual(4)
+  })
+
+  it('should emit not-staged event when below clearing threshold', async () => {
+    const handler = getRegisteredHandler()
+
+    // Edit → stage all tools
+    await handler(
+      createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/a.ts'),
+      ctx as any
+    )
+    // Verify build (moves to "verified" state)
+    await handler(createBashEvent({ turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, 'pnpm build'), ctx as any)
+
+    logger.reset()
+
+    // One more edit — should NOT re-stage build (threshold is 3), should emit below_threshold
+    await handler(
+      createFileEditEvent({ turnCount: 1, toolsThisTurn: 3, toolCount: 3 }, '/mock/project/src/b.ts'),
+      ctx as any
+    )
+
+    const notStagedEvents = getNotStagedEvents()
+    const belowThreshold = notStagedEvents.filter(
+      (e) => e.meta?.reason === 'below_threshold' && e.meta?.reminderName === 'vc-build'
+    )
+    expect(belowThreshold).toHaveLength(1)
+    expect(belowThreshold[0].meta?.threshold).toBe(3)
+    expect(belowThreshold[0].meta?.currentValue).toBe(1)
+    expect(belowThreshold[0].meta?.triggeredBy).toBe('file_edit')
+  })
+})
+
+// --------------------------------------------------------------------------
 // ensureToolReminderStaged failure handling
 // --------------------------------------------------------------------------
 
