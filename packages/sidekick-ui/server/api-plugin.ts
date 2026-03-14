@@ -1,12 +1,27 @@
 import { access } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { join, basename } from 'node:path'
 import type { Plugin, ViteDevServer } from 'vite'
 import { listProjects, getProjectById, listSessions } from './sessions-api.js'
 import { parseTimelineEvents } from './timeline-api.js'
 
 /** Sidekick project registry root (user-scope) */
 const REGISTRY_ROOT = join(homedir(), '.sidekick', 'projects')
+
+/**
+ * Validate that a string is a safe single path segment (no traversal).
+ *
+ * Rejects empty strings, `.`, `..`, strings containing path separators,
+ * and strings where basename differs from the input. Only allows
+ * alphanumeric characters, dots, hyphens, and underscores.
+ */
+export function isValidPathSegment(s: string): boolean {
+  if (s === '') return false
+  if (s === '.' || s === '..') return false
+  if (s.includes('/') || s.includes('\\')) return false
+  if (basename(s) !== s) return false
+  return /^[a-zA-Z0-9._-]+$/.test(s)
+}
 
 /**
  * Vite plugin that serves session data from the sidekick filesystem.
@@ -26,9 +41,12 @@ export function sessionsApiPlugin(): Plugin {
           return
         }
 
+        // Strip query string for route matching
+        const { pathname } = new URL(req.url!, 'http://localhost')
+
         try {
           // GET /api/projects
-          if (req.url === '/api/projects' && req.method === 'GET') {
+          if (pathname === '/api/projects' && req.method === 'GET') {
             const projects = await listProjects(REGISTRY_ROOT)
             res.setHeader('Content-Type', 'application/json')
             res.end(JSON.stringify({ projects }))
@@ -36,12 +54,12 @@ export function sessionsApiPlugin(): Plugin {
           }
 
           // GET /api/projects/:id/sessions
-          const sessionsMatch = req.url.match(/^\/api\/projects\/([^/]+)\/sessions$/)
+          const sessionsMatch = pathname.match(/^\/api\/projects\/([^/]+)\/sessions$/)
           if (sessionsMatch && req.method === 'GET') {
             const projectId = decodeURIComponent(sessionsMatch[1])
 
-            // Validate projectId format (alphanumeric, hyphens, dots, underscores)
-            if (!/^[a-zA-Z0-9._-]+$/.test(projectId)) {
+            // Validate projectId format (safe path segment)
+            if (!isValidPathSegment(projectId)) {
               res.statusCode = 400
               res.setHeader('Content-Type', 'application/json')
               res.end(JSON.stringify({ error: `Invalid project ID format: ${projectId}` }))
@@ -64,23 +82,23 @@ export function sessionsApiPlugin(): Plugin {
           }
 
           // GET /api/projects/:projectId/sessions/:sessionId/timeline
-          const timelineMatch = req.url.match(
+          const timelineMatch = pathname.match(
             /^\/api\/projects\/([^/]+)\/sessions\/([^/]+)\/timeline$/
           )
           if (timelineMatch && req.method === 'GET') {
             const projectId = decodeURIComponent(timelineMatch[1])
             const sessionId = decodeURIComponent(timelineMatch[2])
 
-            // Validate projectId format (alphanumeric, hyphens, dots, underscores)
-            if (!/^[a-zA-Z0-9._-]+$/.test(projectId)) {
+            // Validate projectId format (safe path segment)
+            if (!isValidPathSegment(projectId)) {
               res.statusCode = 400
               res.setHeader('Content-Type', 'application/json')
               res.end(JSON.stringify({ error: `Invalid project ID format: ${projectId}` }))
               return
             }
 
-            // Validate sessionId format (UUID)
-            if (!/^[a-f0-9-]+$/i.test(sessionId)) {
+            // Validate sessionId format (safe path segment)
+            if (!isValidPathSegment(sessionId)) {
               res.statusCode = 400
               res.setHeader('Content-Type', 'application/json')
               res.end(JSON.stringify({ error: `Invalid session ID format: ${sessionId}` }))
