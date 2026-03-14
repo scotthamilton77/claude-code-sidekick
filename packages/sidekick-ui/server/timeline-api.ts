@@ -179,11 +179,14 @@ async function readLogFile(filePath: string): Promise<RawLogEntry[]> {
       if (typeof parsed.type !== 'string') continue
       if (typeof parsed.time !== 'number') continue
 
+      // Pino flattens payload fields into the root object.
+      // Extract everything that isn't Pino metadata or known structural fields as payload.
+      const { level: _, pid: _p, hostname: _h, name: _n, msg: _m, time, type, context, source: _s, ...payload } = parsed
       entries.push({
-        time: parsed.time as number,
-        type: parsed.type as string,
-        context: parsed.context as { sessionId?: string } | undefined,
-        payload: (parsed.payload as Record<string, unknown>) || {},
+        time: time as number,
+        type: type as string,
+        context: context as { sessionId?: string } | undefined,
+        payload,
       })
     } catch {
       // Skip malformed JSON lines

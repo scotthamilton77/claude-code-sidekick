@@ -28,7 +28,7 @@ beforeEach(() => {
   mockReaddir.mockResolvedValue(['sidekick.1.log', 'sidekickd.1.log'])
 })
 
-/** Helper: create a valid NDJSON log line */
+/** Helper: create a valid NDJSON log line (Pino flattens payload fields to root) */
 function makeLogLine(overrides: Record<string, unknown> = {}): string {
   return JSON.stringify({
     level: 30,
@@ -39,7 +39,8 @@ function makeLogLine(overrides: Record<string, unknown> = {}): string {
     context: { sessionId: 'session-1' },
     type: 'reminder:staged',
     source: 'cli',
-    payload: { reminderName: 'vc-build', reason: 'tool_threshold' },
+    reminderName: 'vc-build',
+    reason: 'tool_threshold',
     ...overrides,
   })
 }
@@ -52,7 +53,8 @@ describe('parseTimelineEvents', () => {
     const line = makeLogLine({
       time: 1000,
       type: 'reminder:staged',
-      payload: { reminderName: 'vc-build', reason: 'tool_threshold' },
+      reminderName: 'vc-build',
+      reason: 'tool_threshold',
     })
     mockReadFile.mockImplementation((path: string) => {
       if (path.includes('sidekick.1.log')) return Promise.resolve(line)
@@ -110,7 +112,7 @@ describe('parseTimelineEvents', () => {
       'not valid json',
       makeLogLine({ time: 1000, type: 'reminder:staged' }),
       '{broken',
-      makeLogLine({ time: 2000, type: 'decision:recorded', payload: { decision: 'skip-tests', reason: 'tests passed' } }),
+      makeLogLine({ time: 2000, type: 'decision:recorded', decision: 'skip-tests', reason: 'tests passed' }),
     ].join('\n')
 
     mockReadFile.mockImplementation((path: string) => {
@@ -124,7 +126,7 @@ describe('parseTimelineEvents', () => {
 
   it('skips lines without a type field', async () => {
     const lines = [
-      JSON.stringify({ level: 30, time: 1000, context: { sessionId: 'session-1' }, payload: {} }),
+      JSON.stringify({ level: 30, time: 1000, context: { sessionId: 'session-1' } }),
       makeLogLine({ time: 2000, type: 'reminder:staged' }),
     ].join('\n')
 
@@ -141,12 +143,12 @@ describe('parseTimelineEvents', () => {
   it('merges events from both cli.log and sidekickd.log sorted by time', async () => {
     const cliLines = [
       makeLogLine({ time: 3000, type: 'reminder:staged' }),
-      makeLogLine({ time: 1000, type: 'decision:recorded', payload: { category: 'testing', reasoning: 'passes' } }),
+      makeLogLine({ time: 1000, type: 'decision:recorded', decision: 'testing', reason: 'passes' }),
     ].join('\n')
 
     const daemonLines = [
-      makeLogLine({ time: 2000, type: 'session-summary:start', payload: {} }),
-      makeLogLine({ time: 4000, type: 'session-summary:finish', payload: {} }),
+      makeLogLine({ time: 2000, type: 'session-summary:start' }),
+      makeLogLine({ time: 4000, type: 'session-summary:finish' }),
     ].join('\n')
 
     mockReadFile.mockImplementation((path: string) => {
