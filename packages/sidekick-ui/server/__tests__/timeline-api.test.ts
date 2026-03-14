@@ -192,12 +192,12 @@ describe('generateLabel', () => {
   })
 
   it('generates label for session-title:changed', () => {
-    const result = generateLabel('session-title:changed', { newTitle: 'Fix auth bug', confidence: 0.85 })
+    const result = generateLabel('session-title:changed', { newValue: 'Fix auth bug', confidence: 0.85 })
     expect(result).toEqual({ label: 'Title → "Fix auth bug"', detail: 'confidence: 0.85' })
   })
 
   it('generates label for intent:changed', () => {
-    const result = generateLabel('intent:changed', { newIntent: 'refactoring', confidence: 0.72 })
+    const result = generateLabel('intent:changed', { newValue: 'refactoring', confidence: 0.72 })
     expect(result).toEqual({ label: 'Intent → "refactoring"', detail: 'confidence: 0.72' })
   })
 
@@ -207,19 +207,19 @@ describe('generateLabel', () => {
   })
 
   it('generates label for persona:changed', () => {
-    const result = generateLabel('persona:changed', { from: 'jarvis', to: 'yoda' })
+    const result = generateLabel('persona:changed', { personaFrom: 'jarvis', personaTo: 'yoda' })
     expect(result).toEqual({ label: 'Persona: jarvis → yoda' })
   })
 
   it('generates label for error:occurred', () => {
     const longStack = 'a'.repeat(200)
-    const result = generateLabel('error:occurred', { message: 'ENOENT: no such file', stack: longStack })
+    const result = generateLabel('error:occurred', { errorMessage: 'ENOENT: no such file', errorStack: longStack })
     expect(result).toEqual({ label: 'Error: ENOENT: no such file', detail: 'a'.repeat(120) })
   })
 
   it('generates label for snarky-message:finish', () => {
     const longMessage = 'b'.repeat(100)
-    const result = generateLabel('snarky-message:finish', { message: longMessage })
+    const result = generateLabel('snarky-message:finish', { generatedMessage: longMessage })
     expect(result).toEqual({ label: 'Snarky Message', detail: 'b'.repeat(80) })
   })
 
@@ -240,13 +240,13 @@ describe('generateLabel', () => {
 
   it('generates label for resume-message:finish', () => {
     const longMessage = 'c'.repeat(100)
-    const result = generateLabel('resume-message:finish', { message: longMessage })
+    const result = generateLabel('resume-message:finish', { generatedMessage: longMessage })
     expect(result).toEqual({ label: 'Resume Complete', detail: 'c'.repeat(80) })
   })
 
   it('generates label for statusline:rendered', () => {
-    const result = generateLabel('statusline:rendered', { content: 'building...' })
-    expect(result).toEqual({ label: 'Statusline', detail: 'building...' })
+    const result = generateLabel('statusline:rendered', { displayMode: 'full', staleData: false })
+    expect(result).toEqual({ label: 'Statusline', detail: 'full' })
   })
 
   it('generates label for snarky-message:start', () => {
@@ -265,14 +265,14 @@ describe('generateLabel', () => {
   })
 
   it('truncates long detail strings for error stacks (120 chars)', () => {
-    const stack = 'x'.repeat(200)
-    const result = generateLabel('error:occurred', { message: 'err', stack })
+    const errorStack = 'x'.repeat(200)
+    const result = generateLabel('error:occurred', { errorMessage: 'err', errorStack })
     expect(result.detail).toHaveLength(120)
   })
 
   it('truncates long detail strings for messages (80 chars)', () => {
-    const message = 'y'.repeat(200)
-    const result = generateLabel('snarky-message:finish', { message })
+    const generatedMessage = 'y'.repeat(200)
+    const result = generateLabel('snarky-message:finish', { generatedMessage })
     expect(result.detail).toHaveLength(80)
   })
 })

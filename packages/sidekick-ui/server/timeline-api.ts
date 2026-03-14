@@ -62,18 +62,18 @@ export function generateLabel(
       return { label: `Decision: ${category}`, ...(reasoning ? { detail: reasoning } : {}) }
     }
     case 'session-title:changed': {
-      const title = (payload.newTitle as string) || 'unknown'
+      const newVal = (payload.newValue as string) || 'unknown'
       const confidence = payload.confidence as number | undefined
       return {
-        label: `Title → "${title}"`,
+        label: `Title → "${newVal}"`,
         ...(confidence != null ? { detail: `confidence: ${confidence}` } : {}),
       }
     }
     case 'intent:changed': {
-      const intent = (payload.newIntent as string) || 'unknown'
+      const newVal = (payload.newValue as string) || 'unknown'
       const confidence = payload.confidence as number | undefined
       return {
-        label: `Intent → "${intent}"`,
+        label: `Intent → "${newVal}"`,
         ...(confidence != null ? { detail: `confidence: ${confidence}` } : {}),
       }
     }
@@ -82,22 +82,22 @@ export function generateLabel(
       return { label: `Persona: ${id}` }
     }
     case 'persona:changed': {
-      const from = (payload.from as string) || 'unknown'
-      const to = (payload.to as string) || 'unknown'
+      const from = (payload.personaFrom as string) || 'unknown'
+      const to = (payload.personaTo as string) || 'unknown'
       return { label: `Persona: ${from} → ${to}` }
     }
     case 'error:occurred': {
-      const message = (payload.message as string) || 'unknown'
-      const stack = payload.stack as string | undefined
+      const errMsg = (payload.errorMessage as string) || 'unknown'
+      const stack = payload.errorStack as string | undefined
       return {
-        label: `Error: ${message}`,
+        label: `Error: ${errMsg}`,
         ...(stack ? { detail: stack.slice(0, 120) } : {}),
       }
     }
     case 'snarky-message:start':
       return { label: 'Snarky Message…' }
     case 'snarky-message:finish': {
-      const msg = payload.message as string | undefined
+      const msg = payload.generatedMessage as string | undefined
       return {
         label: 'Snarky Message',
         ...(msg ? { detail: msg.slice(0, 80) } : {}),
@@ -110,15 +110,17 @@ export function generateLabel(
     case 'resume-message:start':
       return { label: 'Resume Started' }
     case 'resume-message:finish': {
-      const msg = payload.message as string | undefined
+      const msg = payload.generatedMessage as string | undefined
       return {
         label: 'Resume Complete',
         ...(msg ? { detail: msg.slice(0, 80) } : {}),
       }
     }
     case 'statusline:rendered': {
-      const content = payload.content as string | undefined
-      return { label: 'Statusline', ...(content ? { detail: content } : {}) }
+      const mode = payload.displayMode as string | undefined
+      const stale = payload.staleData as boolean | undefined
+      const detail = mode ? `${mode}${stale ? ' (stale)' : ''}` : undefined
+      return { label: 'Statusline', ...(detail ? { detail } : {}) }
     }
     default: {
       // Humanize: "some-unknown:type" → "Some Unknown Type"
