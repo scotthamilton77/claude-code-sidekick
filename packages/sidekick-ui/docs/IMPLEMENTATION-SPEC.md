@@ -1454,7 +1454,7 @@ function assembleStateSnapshots(
 
 **Output**: `SessionStateSnapshot[]` consumed by `StateTab`, `DetailPanel`.
 
-**Logic**: Assemble a `SessionStateSnapshot` by reading each `StateFileResponse<T>.data` value and assigning it to the corresponding field on the snapshot. The snapshot timestamp is the maximum `fileMtime` across all constituent files. If the SSE push (§4.3) delivers a file change notification, the affected field is updated in the existing snapshot and a new snapshot is appended with the updated timestamp, preserving historical snapshots for time-travel (§5.2). The `StateTab` component's `findSnapshotAtTime()` helper then selects the appropriate snapshot for a given transcript line timestamp. The 7 state files currently shown in `STATE_FILE_LABELS` map (`sessionSummary`, `sessionPersona`, `snarkyMessage`, `resumeMessage`, `transcriptMetrics`, `llmMetrics`, `summaryCountdown`) expand to all 20 state file types (§3.3) after the canonical type extension (§3.7).
+**Logic**: Assemble a `SessionStateSnapshot` by reading each `StateFileResponse<T>.data` value and assigning it to the corresponding field on the snapshot. The snapshot timestamp is the maximum `fileMtime` across all constituent files. If the SSE push (§4.2.4) delivers a file change notification, the affected field is updated in the existing snapshot and a new snapshot is appended with the updated timestamp, preserving historical snapshots for time-travel (§5.2). The `StateTab` component's `findSnapshotAtTime()` helper then selects the appropriate snapshot for a given transcript line timestamp. The 7 state files currently shown in `STATE_FILE_LABELS` map (`sessionSummary`, `sessionPersona`, `snarkyMessage`, `resumeMessage`, `transcriptMetrics`, `llmMetrics`, `summaryCountdown`) expand to all 20 state file types (§3.3) after the canonical type extension (§3.7).
 
 **Consumers**: `StateTab` (#17), `DetailPanel` (#11)
 
@@ -1484,14 +1484,14 @@ Not all components can be wired to real data today. This section identifies comp
 
 | # | Component | Missing Data | Blocked By | Resolution |
 |---|-----------|-------------|------------|------------|
-| G-1 | `SessionSelector` | `SessionListResponse` API endpoint not implemented | §4.5 (API routes) | Implement `GET /api/projects/:projectId/sessions` endpoint returning `SessionListResponse` (§3.2) |
+| G-1 | `SessionSelector` | `SessionListResponse` API endpoint not implemented | §4.5.2 (route table) | Implement `GET /api/projects/:projectId/sessions` endpoint returning `SessionListResponse` (§3.2) |
 | G-2 | `SessionSelector` | Session enrichment requires reading all state files per session | §3.7 (type extension) | Extend `SessionStateSnapshot` with 8 missing fields (§3.7); implement `GET /api/sessions/:id/state` |
 | G-3 | `TranscriptLineCard` | Transcript events (`user-message`, `assistant-message`, `tool-use`, `tool-result`, `compaction`) have no canonical event definition | §2.4 (event table) | These events originate from Claude Code's transcript, not from Sidekick. Define a `TranscriptEventType` union in `@sidekick/types` or parse them from `transcript-events.log` via `transcript:emitted` records (§2.4 #29) |
 | G-4 | `LEDGutter` | LED assembly (T-2) requires `VerificationToolsState` which may not be written for all sessions | §3.3 #11 | Daemon must write `verification-tools.json` on tool status changes; T-2 must handle `null` gracefully |
 | G-5 | `SummaryStrip` | `Session.contextWindowPct`, `tokenCount`, `costUsd`, `durationSec`, `taskQueueCount` have no backend data source | §7.1.1 (LLM Call Timeline), §7.1.2 (Task Queue) | `contextWindowPct` from `SessionContextMetrics` (§3.3 #14); `tokenCount`/`costUsd` from `LLMMetricsState` (§3.3 #15, file not written — §7.1.1 P-1); `durationSec` derived from session start/end timestamps; `taskQueueCount` from `TaskRegistryState` (§3.3 #19) |
 | G-6 | `StateTab` | Current `StateSnapshot` uses `Record<string, unknown>` for all fields | §3.7 (type extension) | Replace UI-local `StateSnapshot` with extended `SessionStateSnapshot` from `@sidekick/types`; expand `STATE_FILE_LABELS` from 7 entries to 20 (full state file set from §3.3) |
 | G-7 | `Timeline` | 10 of 16 `SidekickEventType` values are "new" events the daemon does not yet emit | §2.9 R2–R6, R8 | Implement backend work items R2 (start/finish pairs), R3 (persona events), R4 (decision events), R5 (reminder:unstaged), R6 (title/intent changed), R8 (error:occurred) |
-| G-8 | `DetailPanel` | State snapshots for time-travel require SSE push of file changes | §4.3 (SSE Bus) | Implement SSE bus for `file:changed` notifications; `DetailPanel` rebuilds state snapshot array on push events |
+| G-8 | `DetailPanel` | State snapshots for time-travel require SSE push of file changes | §4.2.4 (SSE Push) | Implement SSE push for `file:changed` notifications; `DetailPanel` rebuilds state snapshot array on push events |
 | G-9 | `TranscriptLineCard` | Canonical `UIEventType` union not yet defined in `@sidekick/types` | §2.9 R1 | Implement R1: define `UIEventType`, `EventVisibility`, and per-event payload interfaces in `packages/types/src/events.ts` |
 
 #### Cross-Reference Summary
