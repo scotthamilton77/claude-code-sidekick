@@ -918,6 +918,9 @@ export const LogEvents = {
       blocking: boolean
       priority: number
       persistent: boolean
+      reason?: string
+      triggeredBy?: string
+      thresholdState?: { current: number; threshold: number }
     },
     _metadata?: { stagingPath?: string }
   ): ReminderStagedEvent {
@@ -938,6 +941,9 @@ export const LogEvents = {
         blocking: state.blocking,
         priority: state.priority,
         persistent: state.persistent,
+        ...(state.reason !== undefined && { reason: state.reason }),
+        ...(state.triggeredBy !== undefined && { triggeredBy: state.triggeredBy }),
+        ...(state.thresholdState !== undefined && { thresholdState: state.thresholdState }),
       },
     }
   },

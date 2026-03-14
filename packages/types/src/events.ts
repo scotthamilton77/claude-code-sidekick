@@ -842,6 +842,15 @@ export interface ReminderStagedPayload {
   blocking: boolean
   priority: number
   persistent: boolean
+  /** Why this reminder was staged */
+  reason?: string
+  /** What action triggered the staging */
+  triggeredBy?: string
+  /** For threshold-gated reminders: state at time of staging */
+  thresholdState?: {
+    current: number
+    threshold: number
+  }
 }
 
 /** Payload for `reminder:unstaged` — a reminder was removed from staging. */
