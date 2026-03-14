@@ -1,7 +1,30 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import type { SidekickEvent, SidekickEventType } from '../src/types.js'
+
+/**
+ * The 16 Sidekick event types visible in the timeline UI.
+ * Mirrors TimelineSidekickEventType from src/types.ts — kept inline to avoid
+ * cross-tsconfig imports (server uses tsconfig.node.json, src uses tsconfig.json).
+ */
+export type TimelineSidekickEventType =
+  | 'reminder:staged' | 'reminder:unstaged' | 'reminder:consumed'
+  | 'decision:recorded'
+  | 'session-summary:start' | 'session-summary:finish' | 'session-title:changed' | 'intent:changed'
+  | 'snarky-message:start' | 'snarky-message:finish' | 'resume-message:start' | 'resume-message:finish'
+  | 'persona:selected' | 'persona:changed'
+  | 'statusline:rendered'
+  | 'error:occurred'
+
+/** Timeline event returned by the API. Matches SidekickEvent from src/types.ts. */
+export interface TimelineEvent {
+  id: string
+  timestamp: number
+  type: TimelineSidekickEventType
+  label: string
+  detail?: string
+  transcriptLineId: string
+}
 
 /**
  * The 16 event types visible in the timeline UI.
@@ -38,7 +61,7 @@ interface RawLogEntry {
  * Generate a human-readable label and optional detail from an event type and payload.
  */
 export function generateLabel(
-  type: SidekickEventType | string,
+  type: TimelineSidekickEventType | string,
   payload: Record<string, unknown>
 ): { label: string; detail?: string } {
   switch (type) {
@@ -179,7 +202,7 @@ async function readLogFile(filePath: string): Promise<RawLogEntry[]> {
 export async function parseTimelineEvents(
   projectDir: string,
   sessionId: string
-): Promise<SidekickEvent[]> {
+): Promise<TimelineEvent[]> {
   const logsDir = join(projectDir, '.sidekick', 'logs')
 
   const [cliEntries, daemonEntries] = await Promise.all([
@@ -199,13 +222,13 @@ export async function parseTimelineEvents(
   // Sort by timestamp ascending
   filtered.sort((a, b) => a.time - b.time)
 
-  // Convert to SidekickEvent[]
+  // Convert to TimelineEvent[]
   return filtered.map((entry) => {
     const { label, detail } = generateLabel(entry.type, entry.payload || {})
     return {
       id: randomUUID(),
       timestamp: entry.time,
-      type: entry.type as SidekickEventType,
+      type: entry.type as TimelineSidekickEventType,
       label,
       ...(detail !== undefined ? { detail } : {}),
       transcriptLineId: '',

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { SidekickEventType } from '../../src/types.js'
+import type { TimelineSidekickEventType } from '../timeline-api.js'
 
 // Mock node:fs/promises
 const mockReadFile = vi.fn()
@@ -260,7 +260,7 @@ describe('generateLabel', () => {
   })
 
   it('falls back to humanized type for unknown event types', () => {
-    const result = generateLabel('some-unknown:type' as SidekickEventType, {})
+    const result = generateLabel('some-unknown:type' as TimelineSidekickEventType, {})
     expect(result).toEqual({ label: 'Some Unknown Type' })
   })
 

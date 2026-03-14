@@ -10,7 +10,6 @@
     "include": [
         "vite.config.ts",
         "vitest.config.ts",
-        "server/**/*.ts",
-        "src/types.ts"
+        "server/**/*.ts"
     ]
 }
