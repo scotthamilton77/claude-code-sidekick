@@ -2,12 +2,19 @@ import { useState } from 'react'
 import {
   User, Bot, Terminal, Scissors, AlertTriangle, Lightbulb,
   Bell, Gauge, UserCog, FileText, Play, Square, ChevronDown, ChevronRight,
+  Clock, GitPullRequest,
 } from 'lucide-react'
 import type { TranscriptLine as TLine, TranscriptLineType } from '../../types'
 
 function formatTime(ts: number): string {
   const d = new Date(ts)
   return d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
+function formatDuration(ms?: number): string {
+  if (ms == null) return '?'
+  if (ms < 1000) return `${ms}ms`
+  return `${(ms / 1000).toFixed(1)}s`
 }
 
 interface TranscriptLineProps {
@@ -65,6 +72,16 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick }: Tran
           <span className={`text-[10px] font-medium ${styles.labelColor}`}>
             {styles.label}
           </span>
+          {line.isSidechain && (
+            <span className="text-[9px] text-slate-400 bg-slate-100 dark:bg-slate-700 px-1 rounded">
+              sidechain
+            </span>
+          )}
+          {line.model && (
+            <span className="text-[9px] text-slate-400 bg-slate-100 dark:bg-slate-700 px-1 rounded font-mono">
+              {line.model.replace('claude-', '').split('-202')[0]}
+            </span>
+          )}
           <span className="text-[10px] text-slate-400 ml-auto tabular-nums flex-shrink-0">
             {formatTime(line.timestamp)}
           </span>
@@ -119,7 +136,8 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick }: Tran
 
 function isSidekickEventType(type: TranscriptLineType): boolean {
   return ![
-    'user-message', 'assistant-message', 'tool-use', 'tool-result', 'compaction',
+    'user-message', 'assistant-message', 'tool-use', 'tool-result',
+    'compaction', 'turn-duration', 'api-error', 'pr-link',
   ].includes(type)
 }
 
@@ -231,6 +249,12 @@ function getLineStyles(line: TLine) {
       return { bg: 'bg-teal-50/50 dark:bg-teal-950/20', border: 'border border-teal-200 dark:border-teal-800/50', Icon: Gauge, iconColor: 'text-teal-500', label: 'Statusline', labelColor: 'text-teal-600 dark:text-teal-400' }
     case 'error:occurred':
       return { bg: 'bg-red-50 dark:bg-red-950/30', border: 'border-2 border-red-300 dark:border-red-800', Icon: AlertTriangle, iconColor: 'text-red-500', label: 'Error', labelColor: 'text-red-600 dark:text-red-400' }
+    case 'turn-duration':
+      return { bg: 'bg-slate-50 dark:bg-slate-800/50', border: 'border border-slate-200 dark:border-slate-700', Icon: Clock, iconColor: 'text-slate-400', label: `Turn: ${formatDuration(line.durationMs)}`, labelColor: 'text-slate-500 dark:text-slate-400' }
+    case 'api-error':
+      return { bg: 'bg-orange-50 dark:bg-orange-950/20', border: 'border border-orange-200 dark:border-orange-800/50', Icon: AlertTriangle, iconColor: 'text-orange-500', label: `API Retry${line.retryAttempt ? ` ${line.retryAttempt}/${line.maxRetries}` : ''}`, labelColor: 'text-orange-600 dark:text-orange-400' }
+    case 'pr-link':
+      return { bg: 'bg-indigo-50 dark:bg-indigo-950/20', border: 'border border-indigo-200 dark:border-indigo-800/50', Icon: GitPullRequest, iconColor: 'text-indigo-500', label: `PR #${line.prNumber ?? '?'}`, labelColor: 'text-indigo-600 dark:text-indigo-400' }
     default:
       return { bg: 'bg-slate-50 dark:bg-slate-800', border: 'border border-slate-200 dark:border-slate-700', Icon: FileText, iconColor: 'text-slate-400', label: line.type, labelColor: 'text-slate-500' }
   }
