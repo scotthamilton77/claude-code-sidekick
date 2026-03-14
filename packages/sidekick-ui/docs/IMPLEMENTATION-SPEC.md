@@ -3,34 +3,51 @@
 > Produced from REQUIREMENTS.md + PHASE2-AUDIT.md.
 > Each section corresponds to a child task of epic sidekick-bf3bcd19.
 
-## 1. [TBD — Overview/Scope]
-<!-- Placeholder: produced by another task -->
+## 1. Overview
+
+This spec defines the implementation plan for the Sidekick Monitoring UI — a developer forensic tool for debugging sidekick internals (REQUIREMENTS.md §1). It bridges the requirements (REQUIREMENTS.md — the "what") and the architecture audit (PHASE2-AUDIT.md — the "gap map") into a concrete implementation plan (the "how").
+
+### Document Chain
+
+```
+REQUIREMENTS.md      — Approved requirements (features, constraints, design principles)
+PHASE2-AUDIT.md      — Gap analysis (@sidekick/types vs UI, API audit, new features)
+IMPLEMENTATION-SPEC.md — This document (data contracts, API design, component wiring)
+```
+
+MONITORING-UI.md is deprecated and retained for historical context only.
+
+### Scope
+
+This spec covers:
+- **§2**: Unified event vocabulary — canonical event types shared by emitters and UI
+- **§3**: Data contracts — TypeScript interfaces for every API response
+- **§4**: API layer architecture — Vite middleware, file watching, SSE push
+- **§5**: Performance requirements — virtual scrolling, rendering budget, memory limits
+- **§6**: Component-to-type wiring — how React components connect to backend data
+- **§7**: New feature integration — LLM calls, task queue, classifier, health dashboard
+
+### Conventions
+
+- All types live in `@sidekick/types` (the shared types package). The UI does not define its own domain types.
+- Event names use `category:action` format (e.g., `reminder:staged`, `session-summary:finish`).
+- Timeline filter categories derive from the event type's category prefix (the part before `:`). For example, `reminder:staged` → filter category `reminders`.
 
 ## 2. Unified Event Contract
 
 > **Design decision:** No adapter layer. One canonical event vocabulary in `@sidekick/types`, consumed by both emitters (CLI, daemon) and the UI. See [`docs/plans/2026-03-08-unified-event-contract-design.md`](/docs/plans/2026-03-08-unified-event-contract-design.md) for rationale.
 
-### 2.1 Design Decision: No Adapter Layer
+### 2.1 Architecture
 
-PHASE2-AUDIT §4 (specifically the event adapter strategy recommendation) recommended restoring an archived `event-adapter.ts` pattern to translate between 28+ logging event types and 16 UI event types. This spec **rejects that approach** in favor of a unified event vocabulary.
+The canonical `UIEventType` union in `@sidekick/types` is the single event vocabulary, shared by all emitters (CLI, daemon) and the UI. The CLI and daemon emit canonical events to their respective log files; the UI reads those log files and consumes events directly.
 
-**Why:**
-- An adapter layer adds a translation surface that must be maintained as either side evolves
-- The mismatches between logging events and UI events represent real gaps in daemon observability, not a presentation problem
-- The daemon already knows about these state transitions — it's just not announcing them
+This eliminates translation layers — the daemon announces state transitions using the same names the UI renders. Mismatches between logging events and UI events identified in PHASE2-AUDIT §2.5 are resolved by making the daemon emit the events the UI needs.
 
-**What changes:**
-- A new canonical `UIEventType` union is defined in `@sidekick/types` (the shared types package)
-- The CLI and daemon emit canonical events to their respective log files using this shared vocabulary
-- The UI reads log files and consumes events directly — no translation step
-- The current UI-local `SidekickEventType` (packages/sidekick-ui/src/types.ts) is deprecated and replaced by the canonical type
-
-**What does NOT change:**
-- `HookEvent` types (input events from Claude Code) — unchanged
-- `TranscriptEvent` types (from file watching) — unchanged
-- `LoggingEventBase` structure — internal logging events continue for detailed observability
-- Log file locations — `cli.log` and `sidekickd.log` stay where they are
-- Pino NDJSON record format — canonical events are additional structured fields within log records
+**Unchanged:**
+- `HookEvent` types (input events from Claude Code)
+- `TranscriptEvent` types (from file watching)
+- Log file locations (`cli.log` and `sidekickd.log`)
+- Pino NDJSON record format — canonical events are structured fields within log records
 
 ### 2.2 Naming Convention
 
@@ -61,7 +78,7 @@ The visibility is part of the type definition in `@sidekick/types`. The UI reads
 
 Every event type in the unified vocabulary, organized by category. The **Emitter** column indicates which process writes the event to its log file. The **Status** column indicates whether this is an existing event being renamed or a new event the emitter must start producing.
 
-> **Payload structure:** Canonical event payloads are **flat** — all fields live directly under `payload`, not nested in `state`/`metadata` sub-objects. This is a deliberate simplification from the current `LoggingEventBase` structure, which nests fields under `payload.state` and `payload.metadata`. The flattening happens at the canonical event boundary; existing `LoggingEvent` types retain their nested structure until deprecated.
+> **Payload structure:** Canonical event payloads are **flat** — all fields live directly under `payload`, not nested in `state`/`metadata` sub-objects. This is a deliberate simplification from the current `LoggingEventBase` structure, which nests fields under `payload.state` and `payload.metadata`. The flattening happens at the canonical event boundary.
 >
 > **Optional fields:** Fields suffixed with `?` in the payload column are optional. All other fields are required.
 
@@ -102,9 +119,9 @@ Every event type in the unified vocabulary, organized by category. The **Emitter
 | 26 | `session-summary:skipped` | `log` | daemon | **rename** | `SummarySkipped` | `countdown`, `countdown_threshold`, `reason` |
 | 27 | `resume-message:skipped` | `log` | daemon | **rename** | `ResumeSkipped` | `title_confidence`, `intent_confidence`, `min_confidence`, `reason` |
 | 28 | `statusline:error` | `both` | cli | **rename** | `StatuslineError` | `reason`, `file?`, `fallbackUsed`, `error?` |
-| 29 | `transcript:emitted` | `log` | transcript | **rename** | `TranscriptEventEmitted` | `eventType`, `lineNumber`, `uuid?`, `toolName?` |
-| 30 | `transcript:pre-compact` | `log` | transcript | **rename** | `PreCompactCaptured` | `snapshotPath`, `lineCount` |
-| 31 | `error:occurred` | `both` | both | **new** | _(replaces UI-local `log-error`)_ | `errorMessage`, `errorStack?`, `source` |
+| 29 | `transcript:emitted` | `log` | daemon | **rename** | `TranscriptEventEmitted` | `eventType`, `lineNumber`, `uuid?`, `toolName?` |
+| 30 | `transcript:pre-compact` | `log` | daemon | **rename** | `PreCompactCaptured` | `snapshotPath`, `lineCount` |
+| 31 | `error:occurred` | `both` | both | **new** | _(structured error event)_ | `errorMessage`, `errorStack?`, `source` |
 
 > **†** `hook` is currently stored in `EventLogContext` (the `context` object), not in `payload`. Canonical events flatten this into the payload for consistency — the `hook` field moves from `context.hook` to `payload.hook`.
 
@@ -153,10 +170,9 @@ The UI's data sources are NDJSON log files:
 | File | Writer | Content |
 |------|--------|---------|
 | `.sidekick/logs/cli.log` | CLI hook process | `hook:*`, `reminder:consumed`, `statusline:*` events |
-| `.sidekick/logs/sidekickd.log` | Daemon process | All other events (daemon lifecycle, summary, persona, reminders staged, etc.) |
-| `.sidekick/logs/transcript-events.log` | Transcript service | `transcript:emitted`, `transcript:pre-compact` events |
+| `.sidekick/logs/sidekickd.log` | Daemon process | All other events (daemon lifecycle, summary, persona, reminders staged, `transcript:emitted`, `transcript:pre-compact`, etc.) |
 
-All files use identical event schema. The UI merges records from all files by `time` field (Unix ms) to produce a unified timeline. The primary merge is `cli.log` + `sidekickd.log` for the main event stream; `transcript-events.log` feeds the log viewer panel only (its events all have `visibility: 'log'`).
+Both files use identical event schema. The UI merges records from both files by `time` field (Unix ms) to produce a unified timeline.
 
 **Schema alignment requirement:** Both CLI and daemon must emit canonical events using the same `UIEventType` discriminator and payload structure defined in `@sidekick/types`. The Pino log record wraps the canonical event:
 
@@ -187,15 +203,22 @@ All files use identical event schema. The UI merges records from all files by `t
 }
 ```
 
-### 2.8 Deprecation List
+### 2.8 Filter Category Derivation
 
-| Current Type | Location | Action |
-|-------------|----------|--------|
-| `SidekickEventType` (16 values) | `packages/sidekick-ui/src/types.ts` | **Delete.** Replace with `UIEventType` from `@sidekick/types`. |
-| `SidekickEvent` interface | `packages/sidekick-ui/src/types.ts` | **Delete.** Replace with canonical type from `@sidekick/types`. |
-| `SIDEKICK_EVENT_TO_FILTER` map | `packages/sidekick-ui/src/types.ts` | **Migrate.** Move to `@sidekick/types`. Filter groups derive from the `type` field's category prefix (the part before `:`). For example, `reminder:staged` → category `reminder`. No separate `category` field needed — it's encoded in the naming convention. |
-| `TranscriptLine.type: SidekickEventType` | `packages/sidekick-ui/src/types.ts` | **Update.** Use `UIEventType` from `@sidekick/types`. |
-| PascalCase logging event types | `packages/types/src/events.ts` | **Replace.** Single-user project — no backward compatibility needed. PascalCase `LoggingEvent` types, unions, and type guards are replaced by canonical `category:action` types. Factory functions (`LogEvents.*`, `SessionSummaryEvents.*`, `ReminderEvents.*`) updated to emit canonical names. **Special case — `SummaryUpdated`:** Splits into `session-summary:finish` + conditionally `session-title:changed` and `intent:changed`. |
+Timeline filter categories derive from the event type's category prefix (the part before `:`):
+
+| Category Prefix | Filter Category | Events |
+|----------------|----------------|--------|
+| `reminder` | `reminders` | `reminder:staged`, `reminder:unstaged`, `reminder:consumed`, `reminder:cleared` |
+| `decision` | `decisions` | `decision:recorded` |
+| `session-summary`, `session-title`, `intent`, `snarky-message`, `resume-message`, `persona` | `session-analysis` | All session lifecycle events |
+| `statusline` | `statusline` | `statusline:rendered` |
+| `error` | `errors` | `error:occurred` |
+| `llm` | `llm-calls` | `llm:call-start`, `llm:call-finish` (§7.1.1) |
+| `task` | `tasks` | `task:queued`, `task:completed`, `task:failed` (§7.1.2) |
+| `classifier` | `reminders` | `classifier:completion-result` (§7.1.3) — grouped with reminders since it drives reminder staging |
+
+The `TimelineFilter` type and `EVENT_TO_FILTER` mapping in `@sidekick/types` implement this derivation.
 
 ### 2.9 Requirements Backlog (Changes Needed in CLI/Daemon)
 
@@ -231,15 +254,14 @@ Ensure the daemon's `ReminderStaged` event payload matches the canonical `remind
 
 #### R8: Daemon — emit `error:occurred` events
 
-Add a structured `error:occurred` event type for daemon-level errors that should appear on the UI timeline (replacing the UI-local `log-error` concept).
+Add a structured `error:occurred` event type for daemon-level errors that should appear on the UI timeline.
 
-### 2.10 Cross-Reference Updates
+### 2.10 Cross-Reference
 
-Section 3.4 (Log Stream Response) references "the event adapter (see Section 2)" for narrowing `PinoLogRecord` to typed events. Under the unified contract, this narrowing is simpler:
+Section 3.4 (Log Stream Response) uses the `UIEventType` discriminator to narrow `PinoLogRecord` to typed events:
 
-- Records with a `type` field matching a `UIEventType` value can be narrowed directly to the canonical event type — no adapter translation needed
-- Records with a `type` field matching a `LoggingEvent` type (PascalCase) are legacy logging events — rendered in the log viewer
-- Records with neither are plain Pino log lines — rendered in the log viewer as unstructured entries
+- Records with a `type` field matching a `UIEventType` value narrow directly to the canonical event type
+- Records without a recognized `type` are plain Pino log lines, rendered as unstructured entries in the log viewer
 
 ## 3. Data Contracts
 
@@ -249,7 +271,7 @@ All types referenced below are from `@sidekick/types` unless otherwise noted. Im
 
 ### 3.1 Design Principles
 
-1. **Reuse canonical types** — All API responses reuse types from `@sidekick/types`. The UI must not redefine state types locally. The current `Record<string, unknown>` fields in the UI's `StateSnapshot` (PHASE2-AUDIT §1.3) are a type safety regression that this spec corrects (see §3.7).
+1. **Reuse canonical types** — All API responses reuse types from `@sidekick/types`. The UI does not redefine state types locally. See §3.7 for the `SessionStateSnapshot` type.
 
 2. **Validate at the boundary** — Zod schemas validate data at the backend boundary (when reading files from disk), not at the frontend. The frontend receives pre-validated, typed JSON from the backend. This keeps the React bundle free of Zod and ensures a single validation point.
 
@@ -565,17 +587,13 @@ The base `DaemonStatus` fields:
 | `queue` | `DaemonQueueMetrics` | `{ pending, active }` task counts |
 | `activeTasks` | `ActiveTaskInfo[]` | `{ id, type, startTime }` per task |
 
-### 3.7 Updated SessionStateSnapshot
+### 3.7 Session State Snapshot
 
 **Endpoint**: `GET /api/sessions/:id/state`
 **Data source**: All state files under `.sidekick/sessions/{id}/state/`
 **Requirement**: REQUIREMENTS.md F-5 (State Inspector)
 
-The current UI defines `StateSnapshot` (packages/sidekick-ui/src/types.ts) with `Record<string, unknown>` for all fields — a type safety regression identified in PHASE2-AUDIT §1.3.
-
-**Correction**: The UI's `StateSnapshot` should be replaced with `SessionStateSnapshot` from `@sidekick/types` (services/state.ts), extended with additional fields the UI needs that the canonical type does not yet include.
-
-#### Current canonical `SessionStateSnapshot` (from `@sidekick/types`)
+`SessionStateSnapshot` from `@sidekick/types` aggregates all session state files into a single typed object:
 
 ```typescript
 interface SessionStateSnapshot {
@@ -589,56 +607,6 @@ interface SessionStateSnapshot {
   compactionHistory?: CompactionHistoryState
   llmMetrics?: LLMMetricsState
   logMetrics?: LogMetricsState
-}
-```
-
-#### Fields present in canonical type but absent from UI's `StateSnapshot`
-
-These fields exist in `SessionStateSnapshot` but the current UI type omits them:
-
-| Field | Type | Requirement |
-|---|---|---|
-| `logMetrics` | `LogMetricsState` | G-8 (Structured Logging) |
-| `contextMetrics` | `SessionContextMetrics` | G-7 (Transcript Metrics) |
-| `stagedReminders` | `StagedRemindersSnapshot` | G-6 (Reminder System) |
-| `compactionHistory` | `CompactionHistoryState` | F-1 (Compaction-Aware Time Travel) |
-
-#### Fields the UI needs but the canonical type is missing
-
-The canonical `SessionStateSnapshot` is missing several state types that the UI requires for complete session inspection (REQUIREMENTS.md F-5: "all files under `.sidekick/sessions/{sessionId}/**`"):
-
-| Field | Type | File | Requirement |
-|---|---|---|---|
-| `sessionPersona` | `SessionPersonaState` | `session-persona.json` | G-1 (Persona System) |
-| `snarkyMessage` | `SnarkyMessageState` | `snarky-message.json` | G-5 (Session Summary) |
-| `summaryCountdown` | `SummaryCountdownState` | `summary-countdown.json` | G-5 (Session Summary) |
-| `verificationTools` | `VerificationToolsState` | `verification-tools.json` | G-6 (Reminder System) |
-| `reminderThrottle` | `ReminderThrottleState` | `reminder-throttle.json` | G-6 (Reminder System) |
-| `prBaseline` | `PRBaselineState` | `pr-baseline.json` | G-6 (Reminder System) |
-| `vcUnverified` | `VCUnverifiedState` | `vc-unverified.json` | G-6 (Reminder System) |
-| `lastStagedPersona` | `LastStagedPersona` | `last-staged-persona.json` | G-1 (Persona System) |
-
-#### Proposed extended type
-
-The canonical `SessionStateSnapshot` in `@sidekick/types` should be extended to include the missing fields. This is the single source of truth for both the backend and the UI:
-
-```typescript
-// Proposed update to @sidekick/types/services/state.ts
-interface SessionStateSnapshot {
-  sessionId: string
-  timestamp: number
-
-  // --- Already present ---
-  summary?: SessionSummaryState
-  resume?: ResumeMessageState
-  metrics?: TranscriptMetricsState
-  contextMetrics?: SessionContextMetrics
-  stagedReminders?: StagedRemindersSnapshot
-  compactionHistory?: CompactionHistoryState
-  llmMetrics?: LLMMetricsState
-  logMetrics?: LogMetricsState
-
-  // --- To be added ---
   sessionPersona?: SessionPersonaState
   lastStagedPersona?: LastStagedPersona
   snarkyMessage?: SnarkyMessageState
@@ -650,7 +618,7 @@ interface SessionStateSnapshot {
 }
 ```
 
-**Migration path**: When the canonical type is updated, the UI's local `StateSnapshot` type in `packages/sidekick-ui/src/types.ts` should be deleted and replaced with a direct import of `SessionStateSnapshot` from `@sidekick/types`.
+All fields are optional — a session may not have triggered all features. The backend reads each state file, validates with its Zod schema, and assembles the snapshot.
 
 #### API response
 
@@ -1237,48 +1205,48 @@ Section 6 maps each v2 prototype React component to its target `@sidekick/types`
 
 The v2 prototype contains 19 React components organized by panel. Each row identifies the canonical `@sidekick/types` type(s) that will feed the component's props and whether a transformation function is needed to bridge the backend data shape to the component's prop interface.
 
-**Import path:** All types use the barrel import `@sidekick/types` (mapped in `tsconfig.base.json`). Types marked "UI-local" below are currently defined in `packages/sidekick-ui/src/types.ts` and must be migrated to `@sidekick/types` as part of §2.9 R1 before wiring can proceed.
+**Import path:** All types use the barrel import `@sidekick/types` (mapped in `tsconfig.base.json`).
 
 #### Session Selector Panel
 
 | # | Component | Panel | Target Type(s) | Import Path | Transform Needed |
 |---|-----------|-------|----------------|-------------|-----------------|
-| 1 | `SessionSelector` | Session Selector | `SessionListResponse` (§3.2), `Session`, `Project` | `@sidekick/types` (UI-local: `Session`, `Project`) | Yes |
+| 1 | `SessionSelector` | Session Selector | `SessionListResponse` (§3.2), `Session`, `Project` | `@sidekick/types` | Yes |
 
 #### Summary Strip
 
 | # | Component | Panel | Target Type(s) | Import Path | Transform Needed |
 |---|-----------|-------|----------------|-------------|-----------------|
-| 2 | `SummaryStrip` | Summary Strip | `Session` | `@sidekick/types` (UI-local: `Session`) | No |
+| 2 | `SummaryStrip` | Summary Strip | `Session` | `@sidekick/types` | No |
 
 #### Transcript Panel
 
 | # | Component | Panel | Target Type(s) | Import Path | Transform Needed |
 |---|-----------|-------|----------------|-------------|-----------------|
-| 3 | `Transcript` | Transcript | `TranscriptLine[]`, `Map<string, LEDState>` | `@sidekick/types` (UI-local: `TranscriptLine`, `LEDState`) | Yes |
-| 4 | `TranscriptLineCard` | Transcript | `TranscriptLine` | `@sidekick/types` (UI-local: `TranscriptLine`) | Yes |
-| 5 | `LEDGutter` | Transcript | `LEDState` | `@sidekick/types` (UI-local: `LEDState`) | Yes |
+| 3 | `Transcript` | Transcript | `TranscriptLine[]`, `Map<string, LEDState>` | `@sidekick/types` | Yes |
+| 4 | `TranscriptLineCard` | Transcript | `TranscriptLine` | `@sidekick/types` | Yes |
+| 5 | `LEDGutter` | Transcript | `LEDState` | `@sidekick/types` | Yes |
 | 6 | `LEDColorKey` | Transcript | _(none — static UI)_ | — | No |
-| 7 | `SearchFilterBar` | Transcript | `NavigationState` | `@sidekick/types` (UI-local: `NavigationState`) | No |
+| 7 | `SearchFilterBar` | Transcript | `NavigationState` | `@sidekick/types` | No |
 
 #### Timeline Panel
 
 | # | Component | Panel | Target Type(s) | Import Path | Transform Needed |
 |---|-----------|-------|----------------|-------------|-----------------|
-| 8 | `Timeline` | Timeline | `SidekickEvent[]` (timeline), `TimelineFilter` | `@sidekick/types` (UI-local: `SidekickEvent`, `TimelineFilter`) | Yes |
-| 9 | `TimelineEventItem` | Timeline | `SidekickEvent` (timeline) | `@sidekick/types` (UI-local: `SidekickEvent`) | No |
-| 10 | `TimelineFilterBar` | Timeline | `TimelineFilter`, `NavigationState` | `@sidekick/types` (UI-local: `TimelineFilter`, `NavigationState`) | No |
+| 8 | `Timeline` | Timeline | `SidekickEvent[]` (timeline), `TimelineFilter` | `@sidekick/types` | Yes |
+| 9 | `TimelineEventItem` | Timeline | `SidekickEvent` (timeline) | `@sidekick/types` | No |
+| 10 | `TimelineFilterBar` | Timeline | `TimelineFilter`, `NavigationState` | `@sidekick/types` | No |
 
 #### Detail Panel
 
 | # | Component | Panel | Target Type(s) | Import Path | Transform Needed |
 |---|-----------|-------|----------------|-------------|-----------------|
-| 11 | `DetailPanel` | Detail | `TranscriptLine`, `TranscriptLine[]`, `StateSnapshot` | `@sidekick/types` (UI-local: `TranscriptLine`, `StateSnapshot`) | Yes |
-| 12 | `DetailHeader` | Detail | `TranscriptLine` | `@sidekick/types` (UI-local: `TranscriptLine`) | No |
-| 13 | `ToolDetail` | Detail | `TranscriptLine` | `@sidekick/types` (UI-local: `TranscriptLine`) | No |
-| 14 | `DecisionDetail` | Detail | `TranscriptLine` | `@sidekick/types` (UI-local: `TranscriptLine`) | No |
-| 15 | `ReminderDetail` | Detail | `TranscriptLine` | `@sidekick/types` (UI-local: `TranscriptLine`) | No |
-| 16 | `ErrorDetail` | Detail | `TranscriptLine` | `@sidekick/types` (UI-local: `TranscriptLine`) | No |
+| 11 | `DetailPanel` | Detail | `TranscriptLine`, `TranscriptLine[]`, `StateSnapshot` | `@sidekick/types` | Yes |
+| 12 | `DetailHeader` | Detail | `TranscriptLine` | `@sidekick/types` | No |
+| 13 | `ToolDetail` | Detail | `TranscriptLine` | `@sidekick/types` | No |
+| 14 | `DecisionDetail` | Detail | `TranscriptLine` | `@sidekick/types` | No |
+| 15 | `ReminderDetail` | Detail | `TranscriptLine` | `@sidekick/types` | No |
+| 16 | `ErrorDetail` | Detail | `TranscriptLine` | `@sidekick/types` | No |
 | 17 | `StateTab` | Detail | `SessionStateSnapshot` (§3.7) | `@sidekick/types` | Yes |
 
 #### Shared / Layout
@@ -1308,25 +1276,23 @@ Each component's props are categorized by alignment with `@sidekick/types`:
 
 #### Aligned Components (props match target type shape — no transformation needed)
 
-> **Prerequisite**: The components below are aligned in **shape** — their props already match the target type interfaces. However, `Session`, `SidekickEvent` (timeline), `TranscriptLine`, `NavigationState`, and `TimelineFilter` are currently UI-local types (defined in `packages/sidekick-ui/src/types.ts`). They must be migrated to `@sidekick/types` as part of §2.9 R1 before these components can import from the canonical package. No prop changes are needed when that migration happens — only the import path changes.
+**SummaryStrip** — Aligned (`Session`). Props: `{ session: Session }`. The `Session` type contains all fields the component reads (`persona`, `intent`, `intentConfidence`, `contextWindowPct`, `taskQueueCount`, `tokenCount`, `costUsd`, `durationSec`, `status`).
 
-**SummaryStrip** — Aligned (UI-local `Session`). Props: `{ session: Session }`. The `Session` type contains all fields the component reads (`persona`, `intent`, `intentConfidence`, `contextWindowPct`, `taskQueueCount`, `tokenCount`, `costUsd`, `durationSec`, `status`).
+**TimelineEventItem** — Aligned (`SidekickEvent`). Props: `{ event: SidekickEvent; isSynced: boolean; isDimmed: boolean; onClick: () => void }`. The `SidekickEvent` (timeline) type matches directly. `isSynced`, `isDimmed`, and `onClick` are UI interaction props derived from `NavigationState`.
 
-**TimelineEventItem** — Aligned (UI-local `SidekickEvent`). Props: `{ event: SidekickEvent; isSynced: boolean; isDimmed: boolean; onClick: () => void }`. The `SidekickEvent` (timeline) type matches directly. `isSynced`, `isDimmed`, and `onClick` are UI interaction props derived from `NavigationState`.
+**TimelineFilterBar** — Aligned (`TimelineFilter`, `NavigationState`). No external props; reads `NavigationState` via `useNavigation()` hook. Uses `TimelineFilter` type directly.
 
-**TimelineFilterBar** — Aligned (UI-local `TimelineFilter`, `NavigationState`). No external props; reads `NavigationState` via `useNavigation()` hook. Uses `TimelineFilter` type directly.
+**SearchFilterBar** — Aligned (`NavigationState`). No external props; reads `NavigationState` via `useNavigation()` hook. Dispatches `SET_SEARCH` action.
 
-**SearchFilterBar** — Aligned (UI-local `NavigationState`). No external props; reads `NavigationState` via `useNavigation()` hook. Dispatches `SET_SEARCH` action.
+**DetailHeader** — Aligned (`TranscriptLine`). Props: `{ line: TranscriptLine; currentIndex: number; totalCount: number; activeTab: 'details' | 'state'; onTabChange: (tab) => void; onPrev: () => void; onNext: () => void; onClose: () => void }`. Uses `TranscriptLine` directly; navigation props are UI-local.
 
-**DetailHeader** — Aligned (UI-local `TranscriptLine`). Props: `{ line: TranscriptLine; currentIndex: number; totalCount: number; activeTab: 'details' | 'state'; onTabChange: (tab) => void; onPrev: () => void; onNext: () => void; onClose: () => void }`. Uses `TranscriptLine` directly; navigation props are UI-local.
+**ToolDetail** — Aligned (`TranscriptLine`). Props: `{ line: TranscriptLine }`. Reads `toolName`, `toolDurationMs`, `toolInput` fields directly from `TranscriptLine`.
 
-**ToolDetail** — Aligned (UI-local `TranscriptLine`). Props: `{ line: TranscriptLine }`. Reads `toolName`, `toolDurationMs`, `toolInput` fields directly from `TranscriptLine`.
+**DecisionDetail** — Aligned (`TranscriptLine`). Props: `{ line: TranscriptLine }`. Reads `decisionCategory`, `decisionReasoning` fields directly from `TranscriptLine`.
 
-**DecisionDetail** — Aligned (UI-local `TranscriptLine`). Props: `{ line: TranscriptLine }`. Reads `decisionCategory`, `decisionReasoning` fields directly from `TranscriptLine`.
+**ReminderDetail** — Aligned (`TranscriptLine`). Props: `{ line: TranscriptLine }`. Reads `reminderId`, `reminderBlocking`, `content` fields directly from `TranscriptLine`.
 
-**ReminderDetail** — Aligned (UI-local `TranscriptLine`). Props: `{ line: TranscriptLine }`. Reads `reminderId`, `reminderBlocking`, `content` fields directly from `TranscriptLine`.
-
-**ErrorDetail** — Aligned (UI-local `TranscriptLine`). Props: `{ line: TranscriptLine }`. Reads `errorMessage`, `errorStack` fields directly from `TranscriptLine`.
+**ErrorDetail** — Aligned (`TranscriptLine`). Props: `{ line: TranscriptLine }`. Reads `errorMessage`, `errorStack` fields directly from `TranscriptLine`.
 
 > **Note on detail sub-components**: `ToolDetail`, `DecisionDetail`, `ReminderDetail`, and `ErrorDetail` all receive a `TranscriptLine` directly from `DetailPanel` without transformation. The `TranscriptLine` interface carries all fields these components need as optional properties; `DetailPanel.DetailContent` dispatches to the correct sub-component based on `line.type`. No transformation function is needed.
 
@@ -1421,7 +1387,7 @@ function deriveTimelineEvents(
 
 **Consumers**: `Timeline` (#8), `TimelineEventItem` (#9)
 
-**Contracts**: Input: `TranscriptLine` (UI-local, to migrate to `@sidekick/types`); output: `SidekickEvent` (timeline type, UI-local). Visibility filter uses `EventVisibility` from `@sidekick/types` (§2.3). Filter categories defined by `SIDEKICK_EVENT_TO_FILTER` mapping.
+**Contracts**: Input: `TranscriptLine` from `@sidekick/types`; output: `SidekickEvent` (timeline type) from `@sidekick/types`. Visibility filter uses `EventVisibility` from `@sidekick/types` (§2.3). Filter categories defined by `EVENT_TO_FILTER` mapping.
 
 #### T-4: Session List → Project Groups
 
@@ -1469,13 +1435,13 @@ Not all components can be wired to real data today. This section identifies comp
 |---|-----------|-------------|------------|------------|
 | G-1 | `SessionSelector` | `SessionListResponse` API endpoint not implemented | §4.5.2 (route table) | Implement `GET /api/projects/:projectId/sessions` endpoint returning `SessionListResponse` (§3.2) |
 | G-2 | `SessionSelector` | Session enrichment requires reading all state files per session | §3.7 (type extension) | Extend `SessionStateSnapshot` with 8 missing fields (§3.7); implement `GET /api/sessions/:id/state` |
-| G-3 | `TranscriptLineCard` | Transcript events (`user-message`, `assistant-message`, `tool-use`, `tool-result`, `compaction`) have no canonical event definition | §2.4 (event table) | These events originate from Claude Code's transcript, not from Sidekick. Define a `TranscriptEventType` union in `@sidekick/types` or parse them from `transcript-events.log` via `transcript:emitted` records (§2.4 #29) |
+| G-3 | `TranscriptLineCard` | Transcript events (`user-message`, `assistant-message`, `tool-use`, `tool-result`, `compaction`) have no canonical event definition | §2.4 (event table) | Parse from log records via `transcript:emitted` entries (§2.4 #29) |
 | G-4 | `LEDGutter` | LED assembly (T-2) requires `VerificationToolsState` which may not be written for all sessions | §3.3 #11 | Daemon must write `verification-tools.json` on tool status changes; T-2 must handle `null` gracefully |
 | G-5 | `SummaryStrip` | `Session.contextWindowPct`, `tokenCount`, `costUsd`, `durationSec`, `taskQueueCount` have no backend data source | §7.1.1 (LLM Call Timeline), §7.1.2 (Task Queue) | `contextWindowPct` from `SessionContextMetrics` (§3.3 #14); `tokenCount`/`costUsd` from `LLMMetricsState` (§3.3 #15, file not written — §7.1.1 P-1); `durationSec` derived from session start/end timestamps; `taskQueueCount` from `TaskRegistryState` (§3.3 #19) |
-| G-6 | `StateTab` | Current `StateSnapshot` uses `Record<string, unknown>` for all fields | §3.7 (type extension) | Replace UI-local `StateSnapshot` with extended `SessionStateSnapshot` from `@sidekick/types`; expand `STATE_FILE_LABELS` from 7 entries to 20 (full state file set from §3.3) |
-| G-7 | `Timeline` | 10 of 16 `SidekickEventType` values are "new" events the daemon does not yet emit | §2.9 R2–R6, R8 | Implement backend work items R2 (start/finish pairs), R3 (persona events), R4 (decision events), R5 (reminder:unstaged), R6 (title/intent changed), R8 (error:occurred) |
+| G-6 | `StateTab` | `SessionStateSnapshot` needs all state file fields | §3.7 (type extension) | Use `SessionStateSnapshot` from `@sidekick/types`; expand `STATE_FILE_LABELS` from 7 entries to 20 (full state file set from §3.3) |
+| G-7 | `Timeline` | 10 of 16 `UIEventType` timeline events not yet emitted by daemon | §2.9 R2–R6, R8 | Implement backend work items R2 (start/finish pairs), R3 (persona events), R4 (decision events), R5 (reminder:unstaged), R6 (title/intent changed), R8 (error:occurred) |
 | G-8 | `DetailPanel` | State snapshots for time-travel require SSE push of file changes | §4.2.4 (SSE Push) | Implement SSE push for `file:changed` notifications; `DetailPanel` rebuilds state snapshot array on push events |
-| G-9 | `TranscriptLineCard` | Canonical `UIEventType` union not yet defined in `@sidekick/types` | §2.9 R1 | Implement R1: define `UIEventType`, `EventVisibility`, and per-event payload interfaces in `packages/types/src/events.ts` |
+| G-9 | `TranscriptLineCard` | `UIEventType`, `EventVisibility`, and per-event payload interfaces needed | §2.9 R1 | Define `UIEventType`, `EventVisibility`, and per-event payload interfaces in `@sidekick/types` |
 
 #### Cross-Reference Summary
 
@@ -1831,14 +1797,13 @@ A dedicated log viewer panel showing daemon and CLI log records. Time-correlated
 |--------|------|------|--------|
 | CLI log | `.sidekick/logs/cli.log` | NDJSON (Pino) | Fully operational |
 | Daemon log | `.sidekick/logs/sidekickd.log` | NDJSON (Pino) | Fully operational |
-| Transcript events log | `.sidekick/logs/transcript-events.log` | NDJSON (Pino) | Fully operational — **not yet exposed via `LogStreamRequest`** (§3.4 only supports `cli` and `daemon`; requires API contract extension to add `transcript` log type) |
 | Log metrics | `sessions/{id}/state/daemon-log-metrics.json` | `LogMetricsState` (§3.3 #6) | Written on warn/error/fatal |
 
 **Component placement:**
 
 | Panel | Rendering |
 |-------|-----------|
-| **Detail panel** | Full log viewer with filters: log level (trace→fatal), source (cli/daemon — transcript logs require §3.4 API extension), session ID, text search. Records rendered as a virtual-scrolled table with timestamp, level (color-coded), source, message, and expandable payload. |
+| **Detail panel** | Full log viewer with filters: log level (trace→fatal), source (cli/daemon), session ID, text search. Records rendered as a virtual-scrolled table with timestamp, level (color-coded), source, message, and expandable payload. |
 | **Timeline** | `error:occurred` and `statusline:error` events appear on the timeline (visibility `both`). Other log events are log-panel-only (visibility `log`). |
 | **Session selector** | Error/warning count badge (from `LogMetricsState`). |
 | **Transcript** | No representation. |
@@ -1989,12 +1954,7 @@ Events introduced by this section that must be added to the canonical event tabl
 | 37 | `task:failed` | `both` | daemon | Task Engine | G-2 |
 | 38 | `classifier:completion-result` | `timeline` | daemon | Reminder System | G-11 |
 
-> **Note:** These events follow the `category:action` naming convention established in §2.2. When the prerequisite tasks (§7.4) are implemented, the following spec updates are required:
-> - Add events #32–#38 to the canonical event table in §2.4
-> - Add three new categories to the §2.2 categories list: `llm`, `task`, `classifier`
-> - Add corresponding types to the `UIEventType` union in `@sidekick/types`
->
-> These updates are **not included in this section** — they belong to the §2 (Unified Event Contract) scope and should be applied when the prerequisite tasks land.
+> **Note:** These 7 events follow the `category:action` naming convention (§2.2) and extend the canonical event table (§2.4) to a total of 38 events. Three new categories are added: `llm`, `task`, `classifier`. The corresponding `UIEventType` values and filter category mappings (§2.8) are included in the table above.
 
 ### 7.6 Requirements Traceability
 

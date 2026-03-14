@@ -25,13 +25,13 @@ All events (LLM calls, persona changes, reminders, session summaries, hook execu
 Focusing on a timestamp in any panel (logs, transcript, state inspector, detail overlay) syncs all other visible panels to that moment. Every view is temporally linked.
 
 ### DP-3: Focus Filters
-The timeline supports emphasis modes that highlight specific event types (hook events, reminder lifecycle, session summary events, LLM calls). Whether these filters are mutually exclusive or composable is TBD via prototyping.
+The timeline supports emphasis modes that highlight specific event types (hook events, reminder lifecycle, session summary events, LLM calls). Filters are composable — multiple filters can be active simultaneously. Non-matching events dim rather than hide, preserving timeline context.
 
 ### DP-4: Progressive Drill-Down
 The dashboard shows summary-level indicators (task queue count, active persona, context window %). Detail is accessed via overlays or panels that expand rightward, following the compression pattern (see Navigation Model).
 
 ### DP-5: Confidence as Visual Signal
-Session summary confidence is communicated directly on timeline events (via color coding, icons, or sparkline indicators) rather than in a separate panel. Exact treatment TBD via prototyping.
+Session summary confidence is communicated directly on timeline events via color-coded badges (green ≥0.8, amber 0.5–0.8, red <0.5) with dual badge format showing both title and intent confidence.
 
 ## 3. Navigation Model
 
@@ -97,7 +97,7 @@ Auto-follow new events as they arrive. File watching or polling — implementati
 - **Future** (sidekick-dqw5, P4): Inspector showing resolved config with layer attribution (which of 7 layers each value came from).
 
 ### G-5: Session Summary Enhancements
-- Confidence trends visualized on timeline events (DP-5). Exact treatment (color, icon, sparkline, alternative timeline view) TBD via prototyping.
+- Confidence trends visualized on timeline events (DP-5).
 - Detail drill-in for any session summary analysis event showing full analysis results.
 
 ### G-6: Reminder System
@@ -138,12 +138,14 @@ Auto-follow new events as they arrive. File watching or polling — implementati
 - Database backend
 - WebSocket server (file watching/polling sufficient)
 
-## 8. Open Questions (for Prototyping)
+## 8. Resolved Design Questions
 
-- **Focus filters**: Mutually exclusive or composable? How do combined filters render?
-- **Confidence visualization**: Color-coded timeline events? Inline sparkline? Separate gutter track?
-- **Drill-down compression**: Animation/transition behavior when panels compress leftward?
-- **Session selector**: Tree view? List with search? Grouped by project?
+Questions from initial requirements, resolved during prototyping:
+
+- **Focus filters**: Composable. Multiple filters can be active simultaneously (implemented as `Set<TimelineFilter>`). Non-matching events dim rather than hide, preserving timeline context.
+- **Confidence visualization**: Color-coded badges on timeline events (green ≥0.8, amber 0.5–0.8, red <0.5). Dual badge format showing both title and intent confidence.
+- **Drill-down compression**: Panels compress leftward with CSS transitions. The session selector compresses to a 40px vertical label; the dashboard compresses when the detail panel opens.
+- **Session selector**: Tree view grouped by project, with sessions sorted by last-modified (most recent first). Expandable project nodes, live indicator for active sessions.
 
 ## 9. Traceability
 
