@@ -1,6 +1,6 @@
 {
   "name": "sidekick",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "Opinionated AI coding companion with personas, session tracking, and contextual nudges",
   "author": {
     "name": "Scott Hamilton"
