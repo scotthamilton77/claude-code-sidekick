@@ -87,14 +87,8 @@ export function isValidPathSegment(s: string): boolean {
  * @throws Error if segment is invalid
  */
 export function validatePathSegment(segment: string, name: string): void {
-  if (!segment) {
-    throw new Error(`${name} cannot be empty`)
-  }
-  if (segment.includes('..') || segment.includes('/') || segment.includes('\\')) {
-    throw new Error(`Invalid ${name}: path traversal characters not allowed`)
-  }
-  if (segment.startsWith('.')) {
-    throw new Error(`Invalid ${name}: cannot start with '.'`)
+  if (!isValidPathSegment(segment)) {
+    throw new Error(`Invalid ${name}: must be a non-empty alphanumeric string without path separators`)
   }
 }
 

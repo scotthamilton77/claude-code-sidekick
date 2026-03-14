@@ -95,29 +95,37 @@ describe('Path Validation', () => {
     })
 
     it('throws for empty segment with descriptive message', () => {
-      expect(() => validatePathSegment('', 'hookName')).toThrow('hookName cannot be empty')
+      expect(() => validatePathSegment('', 'hookName')).toThrow(
+        'Invalid hookName: must be a non-empty alphanumeric string without path separators'
+      )
     })
 
     it('throws for path traversal with descriptive message', () => {
       expect(() => validatePathSegment('..', 'hookName')).toThrow(
-        'Invalid hookName: path traversal characters not allowed'
+        'Invalid hookName: must be a non-empty alphanumeric string without path separators'
       )
     })
 
     it('throws for forward slash with descriptive message', () => {
       expect(() => validatePathSegment('foo/bar', 'reminderName')).toThrow(
-        'Invalid reminderName: path traversal characters not allowed'
+        'Invalid reminderName: must be a non-empty alphanumeric string without path separators'
       )
     })
 
     it('throws for backslash with descriptive message', () => {
       expect(() => validatePathSegment('foo\\bar', 'reminderName')).toThrow(
-        'Invalid reminderName: path traversal characters not allowed'
+        'Invalid reminderName: must be a non-empty alphanumeric string without path separators'
       )
     })
 
-    it('throws for dot-prefixed segment with descriptive message', () => {
-      expect(() => validatePathSegment('.hidden', 'hookName')).toThrow("Invalid hookName: cannot start with '.'")
+    it('allows dot-prefixed segments (delegated to isValidPathSegment)', () => {
+      expect(() => validatePathSegment('.hidden', 'hookName')).not.toThrow()
+    })
+
+    it('throws for segments with special characters', () => {
+      expect(() => validatePathSegment('foo@bar', 'hookName')).toThrow(
+        'Invalid hookName: must be a non-empty alphanumeric string without path separators'
+      )
     })
   })
 })
