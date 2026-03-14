@@ -41,6 +41,11 @@ export interface ApiTranscriptLine {
   isMeta?: boolean
 }
 
+/** Truncate a string to a maximum length, appending ellipsis if needed. */
+function truncateString(s: string, max: number): string {
+  return s.length > max ? s.slice(0, max) + '\u2026' : s
+}
+
 /** Raw entry types to skip entirely (noise). */
 const SKIP_TYPES = new Set(['queue-operation', 'file-history-snapshot', 'last-prompt', 'progress'])
 
@@ -155,7 +160,7 @@ function processUserEntry(entry: Record<string, unknown>, lineIndex: number, tim
         id: `transcript-${lineIndex}-${blockIndex}`,
         timestamp,
         type: 'tool-result',
-        toolOutput: extractToolResultContent(b.content),
+        toolOutput: truncateString(extractToolResultContent(b.content), 500),
         toolSuccess: !b.is_error,
         ...meta,
       })

@@ -19,6 +19,34 @@ import {
 } from 'lucide-react'
 import type { TranscriptLine as TLine, TranscriptLineType } from '../../types'
 
+function truncate(s: string, max: number): string {
+  return s.length > max ? s.slice(0, max) + '\u2026' : s
+}
+
+function formatToolInput(toolName?: string, input?: Record<string, unknown>): string {
+  if (!input) return ''
+  if (toolName === 'Bash' && typeof input.command === 'string') {
+    return truncate(input.command, 200)
+  }
+  if ((toolName === 'Read' || toolName === 'Edit' || toolName === 'Write') && typeof input.file_path === 'string') {
+    return truncate(input.file_path, 200)
+  }
+  if (toolName === 'Grep' && typeof input.pattern === 'string') {
+    return `/${truncate(input.pattern, 100)}/`
+  }
+  if (toolName === 'Glob' && typeof input.pattern === 'string') {
+    return truncate(input.pattern, 200)
+  }
+  if (toolName === 'Agent' && typeof input.description === 'string') {
+    return truncate(input.description, 200)
+  }
+  // Fallback: show first string value
+  for (const val of Object.values(input)) {
+    if (typeof val === 'string') return truncate(val, 150)
+  }
+  return ''
+}
+
 function formatTime(ts: number): string {
   const d = new Date(ts)
   return d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
@@ -91,6 +119,9 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick }: Tran
           {line.isSidechain && (
             <span className="text-[9px] text-slate-400 bg-slate-100 dark:bg-slate-700 px-1 rounded">sidechain</span>
           )}
+          {line.type === 'assistant-message' && !line.content && line.thinking && (
+            <span className="text-[9px] text-slate-400 bg-slate-100 dark:bg-slate-700 px-1 rounded">thinking</span>
+          )}
           {line.model && (
             <span className="text-[9px] text-slate-400 bg-slate-100 dark:bg-slate-700 px-1 rounded font-mono">
               {line.model.replace('claude-', '').split('-202')[0]}
@@ -108,8 +139,15 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick }: Tran
           </p>
         )}
 
-        {/* Thinking block (collapsible) */}
-        {line.type === 'assistant-message' && line.thinking && (
+        {/* Thinking-only assistant message — show thinking as primary content */}
+        {line.type === 'assistant-message' && !line.content && line.thinking && (
+          <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed mt-0.5 pl-3 border-l-2 border-slate-200 dark:border-slate-700 italic line-clamp-3">
+            {line.thinking}
+          </p>
+        )}
+
+        {/* Thinking block (collapsible) — only when there IS text content */}
+        {line.type === 'assistant-message' && line.content && line.thinking && (
           <button
             onClick={(e) => {
               e.stopPropagation()
@@ -132,6 +170,11 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick }: Tran
           <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
             <span className="font-mono">{line.toolName}</span>
             {line.toolDurationMs != null && <span className="ml-2">{line.toolDurationMs}ms</span>}
+            {line.toolInput && (
+              <p className="font-mono text-slate-400 dark:text-slate-500 mt-0.5 line-clamp-2">
+                {formatToolInput(line.toolName, line.toolInput)}
+              </p>
+            )}
           </div>
         )}
 

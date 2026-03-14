@@ -512,4 +512,31 @@ describe('parseTranscriptLines', () => {
     expect(lines).toHaveLength(1)
     expect(lines[0].isCompactSummary).toBe(true)
   })
+
+  it('truncates long tool result output to 500 chars', async () => {
+    const longOutput = 'x'.repeat(1000)
+    setupTranscript(
+      makeUserEntry([
+        { type: 'tool_result', tool_use_id: 'tool-1', content: longOutput },
+      ])
+    )
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines).toHaveLength(1)
+    expect(lines[0].toolOutput!.length).toBeLessThanOrEqual(501) // 500 + ellipsis char
+    expect(lines[0].toolOutput!.endsWith('\u2026')).toBe(true)
+  })
+
+  it('does not truncate tool result output under 500 chars', async () => {
+    const shortOutput = 'x'.repeat(200)
+    setupTranscript(
+      makeUserEntry([
+        { type: 'tool_result', tool_use_id: 'tool-1', content: shortOutput },
+      ])
+    )
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines).toHaveLength(1)
+    expect(lines[0].toolOutput).toBe(shortOutput)
+  })
 })
