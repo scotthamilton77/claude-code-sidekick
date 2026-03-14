@@ -127,6 +127,17 @@ export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
           await remindersState.vcUnverified.delete(sessionId)
         }
       } else {
+        logEvent(
+          daemonCtx.logger,
+          ReminderEvents.reminderNotStaged(
+            { sessionId },
+            {
+              reminderName: 'verify-completion',
+              hookName: 'Stop',
+              reason: 'no_unverified_changes',
+            }
+          )
+        )
         daemonCtx.logger.info('VC unstage: no unverified changes, clearing reminder', {
           sessionId,
           hadState: unverifiedState !== null,

@@ -1442,6 +1442,34 @@ additionalContext: "Standard user prompt reminder"
       // Should not register any handlers
       expect(handlers.getHandlersForHook('UserPromptSubmit')).toHaveLength(0)
     })
+
+    it('should emit not-staged when no unverified changes exist', async () => {
+      const ctxWithPath = createMockDaemonContext({
+        staging,
+        logger,
+        handlers,
+        assets,
+        paths: {
+          projectDir: testProjectDir,
+          userConfigDir: '/mock/user',
+          projectConfigDir: '/mock/project-config',
+        },
+      })
+
+      registerUnstageVerifyCompletion(ctxWithPath)
+
+      logger.reset()
+
+      const handler = handlers.getHandler('reminders:unstage-verify-completion')
+      await handler?.handler(createHookEvent(), ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
+
+      const notStagedEvents = logger.recordedLogs.filter(
+        (log) => log.level === 'info' && log.meta?.type === 'reminder:not-staged'
+      )
+      expect(notStagedEvents).toHaveLength(1)
+      expect(notStagedEvents[0].meta?.reason).toBe('no_unverified_changes')
+      expect(notStagedEvents[0].meta?.reminderName).toBe('verify-completion')
+    })
   })
 
   describe('registerStageBashChanges', () => {
