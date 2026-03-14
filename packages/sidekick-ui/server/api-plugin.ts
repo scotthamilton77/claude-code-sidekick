@@ -6,6 +6,7 @@ import type { Plugin, ViteDevServer } from 'vite'
 import { isValidPathSegment } from '@sidekick/core'
 import { listProjects, getProjectById, listSessions } from './sessions-api.js'
 import { parseTimelineEvents } from './timeline-api.js'
+import { parseTranscriptLines } from './transcript-api.js'
 
 // Re-export for test compatibility
 export { isValidPathSegment } from '@sidekick/core'
@@ -37,6 +38,7 @@ function validateAndDecode(encoded: string): string | null {
  *   GET /api/projects — list all registered projects
  *   GET /api/projects/:id/sessions — list sessions for a project
  *   GET /api/projects/:projectId/sessions/:sessionId/timeline — timeline events
+ *   GET /api/projects/:projectId/sessions/:sessionId/transcript — transcript lines
  */
 export function sessionsApiPlugin(): Plugin {
   return {
@@ -117,6 +119,29 @@ export function sessionsApiPlugin(): Plugin {
             const events = await parseTimelineEvents(project.projectDir, sessionId)
             res.setHeader('Content-Type', 'application/json')
             res.end(JSON.stringify({ events }))
+            return
+          }
+
+          // GET /api/projects/:projectId/sessions/:sessionId/transcript
+          const transcriptMatch = pathname.match(
+            /^\/api\/projects\/([^/]+)\/sessions\/([^/]+)\/transcript$/
+          )
+          if (transcriptMatch && req.method === 'GET') {
+            const projectId = validateAndDecode(transcriptMatch[1])
+            if (!projectId) {
+              sendError(res, 400, `Invalid project ID format`)
+              return
+            }
+
+            const sessionId = validateAndDecode(transcriptMatch[2])
+            if (!sessionId) {
+              sendError(res, 400, `Invalid session ID format`)
+              return
+            }
+
+            const lines = await parseTranscriptLines(projectId, sessionId)
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ lines }))
             return
           }
 
