@@ -43,6 +43,8 @@ The canonical `UIEventType` union in `@sidekick/types` is the single event vocab
 
 This eliminates translation layers — the daemon announces state transitions using the same names the UI renders. Mismatches between logging events and UI events identified in PHASE2-AUDIT §2.5 are resolved by making the daemon emit the events the UI needs.
 
+`UIEventType` defines the event vocabulary for UI consumption. Internal `LoggingEvent` types (from `@sidekick/types/events.ts`) continue to exist for detailed observability — they are written to log files alongside canonical events but are not rendered on the UI timeline. The log viewer panel (REQUIREMENTS.md G-8) displays both canonical events and raw logging records.
+
 **Unchanged:**
 - `HookEvent` types (input events from Claude Code)
 - `TranscriptEvent` types (from file watching)
@@ -84,44 +86,46 @@ Every event type in the unified vocabulary, organized by category. The **Emitter
 
 #### Timeline Events (user-visible state changes)
 
-| # | Canonical Name | Visibility | Emitter | Current Source | Payload (key fields) |
-|---|---------------|------------|---------|---------------|---------------------|
-| 1 | `reminder:staged` | `timeline` | daemon | `ReminderStaged` | `reminderName`, `hookName`, `blocking`, `priority`, `persistent` |
-| 2 | `reminder:unstaged` | `timeline` | daemon | _(no event — `ctx.staging.deleteReminder()` is silent)_ | `reminderName`, `hookName`, `reason` |
-| 3 | `reminder:consumed` | `timeline` | cli | `ReminderConsumed` | `reminderName`, `reminderReturned`, `blocking?`, `priority?`, `persistent?` |
-| 4 | `reminder:cleared` | `timeline` | daemon | `RemindersCleared` | `clearedCount`, `hookNames?`, `reason` |
-| 5 | `decision:recorded` | `timeline` | daemon | _(logger.info calls with `decision` field, not structured events)_ | `decision`, `reason`, `detail` |
-| 6 | `session-summary:start` | `timeline` | daemon | _(implicit — LLM call begins)_ | `reason`, `countdown` |
-| 7 | `session-summary:finish` | `timeline` | daemon | `SummaryUpdated` | `session_title`, `session_title_confidence`, `latest_intent`, `latest_intent_confidence`, `processing_time_ms`, `pivot_detected` |
-| 8 | `session-title:changed` | `timeline` | daemon | _(buried in `SummaryUpdated.metadata.old_title`)_ | `previousValue`, `newValue`, `confidence` |
-| 9 | `intent:changed` | `timeline` | daemon | _(buried in `SummaryUpdated.metadata.old_intent`)_ | `previousValue`, `newValue`, `confidence` |
-| 10 | `snarky-message:start` | `timeline` | daemon | _(implicit — task begins)_ | `sessionId` |
-| 11 | `snarky-message:finish` | `timeline` | daemon | _(state file written, no event)_ | `generatedMessage` |
-| 12 | `resume-message:start` | `timeline` | daemon | `ResumeGenerating` | `title_confidence`, `intent_confidence` |
-| 13 | `resume-message:finish` | `timeline` | daemon | `ResumeUpdated` | `snarky_comment`, `timestamp` |
-| 14 | `persona:selected` | `timeline` | daemon | _(state file written via `summaryState.sessionPersona.write()`)_ | `personaId`, `selectionMethod` (`pinned` \| `handoff` \| `random`), `poolSize` |
-| 15 | `persona:changed` | `timeline` | daemon | _(persona reminders staged, no discrete event)_ | `personaFrom`, `personaTo`, `reason` |
-| 16 | `statusline:rendered` | `timeline` | cli | `StatuslineRendered` | `displayMode`, `staleData`, `model?`, `tokens?`, `durationMs` |
+| # | Canonical Name | Visibility | Emitter | Payload (key fields) |
+|---|---------------|------------|---------|---------------------|
+| 1 | `reminder:staged` | `timeline` | daemon | `reminderName`, `hookName`, `blocking`, `priority`, `persistent` |
+| 2 | `reminder:unstaged` | `timeline` | daemon | `reminderName`, `hookName`, `reason` |
+| 3 | `reminder:consumed` | `timeline` | cli | `reminderName`, `reminderReturned`, `blocking?`, `priority?`, `persistent?` |
+| 4 | `reminder:cleared` | `timeline` | daemon | `clearedCount`, `hookNames?`, `reason` |
+| 5 | `decision:recorded` | `timeline` | daemon | `decision`, `reason`, `detail` |
+| 6 | `session-summary:start` | `timeline` | daemon | `reason`, `countdown` |
+| 7 | `session-summary:finish` | `timeline` | daemon | `session_title`, `session_title_confidence`, `latest_intent`, `latest_intent_confidence`, `processing_time_ms`, `pivot_detected` |
+| 8 | `session-title:changed` | `timeline` | daemon | `previousValue`, `newValue`, `confidence` |
+| 9 | `intent:changed` | `timeline` | daemon | `previousValue`, `newValue`, `confidence` |
+| 10 | `snarky-message:start` | `timeline` | daemon | `sessionId` |
+| 11 | `snarky-message:finish` | `timeline` | daemon | `generatedMessage` |
+| 12 | `resume-message:start` | `timeline` | daemon | `title_confidence`, `intent_confidence` |
+| 13 | `resume-message:finish` | `timeline` | daemon | `snarky_comment`, `timestamp` |
+| 14 | `persona:selected` | `timeline` | daemon | `personaId`, `selectionMethod` (`pinned` \| `handoff` \| `random`), `poolSize` |
+| 15 | `persona:changed` | `timeline` | daemon | `personaFrom`, `personaTo`, `reason` |
+| 16 | `statusline:rendered` | `timeline` | cli | `displayMode`, `staleData`, `model?`, `tokens?`, `durationMs` |
+
+> **Persona event semantics**: `persona:selected` fires when the persona selection algorithm runs and produces a choice (may fire multiple times per session as the algorithm re-runs). `persona:changed` fires only when the active persona switches to a different `personaId` — if `persona:selected` produces the same persona, no `persona:changed` event is emitted.
 
 #### Log-Only Events (internal machinery)
 
-| # | Canonical Name | Visibility | Emitter | Current Source | Payload (key fields) |
-|---|---------------|------------|---------|---------------|---------------------|
-| 17 | `hook:received` | `both` | cli | `HookReceived` | `hook`†, `cwd?`, `mode?` |
-| 18 | `hook:completed` | `both` | cli | `HookCompleted` | `hook`†, `durationMs`, `reminderReturned?`, `responseType?` |
-| 19 | `event:received` | `log` | daemon | `EventReceived` | `eventKind`, `eventType`, `hook` |
-| 20 | `event:processed` | `log` | daemon | `EventProcessed` | `handlerId`, `success`, `durationMs`, `error?` |
-| 21 | `daemon:starting` | `log` | daemon | `DaemonStarting` | `projectDir`, `pid` |
-| 22 | `daemon:started` | `log` | daemon | `DaemonStarted` | `startupDurationMs` |
-| 23 | `ipc:started` | `log` | daemon | `IpcServerStarted` | `socketPath` |
-| 24 | `config:watcher-started` | `log` | daemon | `ConfigWatcherStarted` | `projectDir`, `watchedFiles` |
-| 25 | `session:eviction-started` | `log` | daemon | `SessionEvictionStarted` | `intervalMs` |
-| 26 | `session-summary:skipped` | `log` | daemon | `SummarySkipped` | `countdown`, `countdown_threshold`, `reason` |
-| 27 | `resume-message:skipped` | `log` | daemon | `ResumeSkipped` | `title_confidence`, `intent_confidence`, `min_confidence`, `reason` |
-| 28 | `statusline:error` | `both` | cli | `StatuslineError` | `reason`, `file?`, `fallbackUsed`, `error?` |
-| 29 | `transcript:emitted` | `log` | daemon | `TranscriptEventEmitted` | `eventType`, `lineNumber`, `uuid?`, `toolName?` |
-| 30 | `transcript:pre-compact` | `log` | daemon | `PreCompactCaptured` | `snapshotPath`, `lineCount` |
-| 31 | `error:occurred` | `both` | both | _(structured error event)_ | `errorMessage`, `errorStack?`, `source` |
+| # | Canonical Name | Visibility | Emitter | Payload (key fields) |
+|---|---------------|------------|---------|---------------------|
+| 17 | `hook:received` | `both` | cli | `hook`†, `cwd?`, `mode?` |
+| 18 | `hook:completed` | `both` | cli | `hook`†, `durationMs`, `reminderReturned?`, `responseType?` |
+| 19 | `event:received` | `log` | daemon | `eventKind`, `eventType`, `hook` |
+| 20 | `event:processed` | `log` | daemon | `handlerId`, `success`, `durationMs`, `error?` |
+| 21 | `daemon:starting` | `log` | daemon | `projectDir`, `pid` |
+| 22 | `daemon:started` | `log` | daemon | `startupDurationMs` |
+| 23 | `ipc:started` | `log` | daemon | `socketPath` |
+| 24 | `config:watcher-started` | `log` | daemon | `projectDir`, `watchedFiles` |
+| 25 | `session:eviction-started` | `log` | daemon | `intervalMs` |
+| 26 | `session-summary:skipped` | `log` | daemon | `countdown`, `countdown_threshold`, `reason` |
+| 27 | `resume-message:skipped` | `log` | daemon | `title_confidence`, `intent_confidence`, `min_confidence`, `reason` |
+| 28 | `statusline:error` | `both` | cli | `reason`, `file?`, `fallbackUsed`, `error?` |
+| 29 | `transcript:emitted` | `log` | daemon | `eventType`, `lineNumber`, `uuid?`, `toolName?` |
+| 30 | `transcript:pre-compact` | `log` | daemon | `snapshotPath`, `lineCount` |
+| 31 | `error:occurred` | `both` | both | `errorMessage`, `errorStack?`, `source` |
 
 > **†** `hook` is currently stored in `EventLogContext` (the `context` object), not in `payload`. Canonical events flatten this into the payload for consistency — the `hook` field moves from `context.hook` to `payload.hook`.
 
@@ -173,6 +177,8 @@ The UI's data sources are NDJSON log files:
 | `.sidekick/logs/sidekickd.log` | Daemon process | All other events (daemon lifecycle, summary, persona, reminders staged, `transcript:emitted`, `transcript:pre-compact`, etc.) |
 
 Both files use identical event schema. The UI merges records from both files by `time` field (Unix ms) to produce a unified timeline.
+
+> **Exhaustive list**: These are the only two log files in the sidekick deployment. All canonical events and internal logging records are written to one of these files based on their emitter process.
 
 **Schema alignment requirement:** Both CLI and daemon must emit canonical events using the same `UIEventType` discriminator and payload structure defined in `@sidekick/types`. The Pino log record wraps the canonical event:
 
@@ -375,6 +381,8 @@ interface StateFileResponse<T> {
 
 > **Persona definitions**: The UI needs `PersonaDefinition` (from `@sidekick/types`, services/persona.ts) to display persona details beyond the ID stored in `SessionPersonaState`. Persona definitions are loaded from YAML asset files (`assets/sidekick/personas/*.yaml`), not from session state. The backend serves them via `GET /api/projects/:projectId/personas` (Tier 2, Section 4.5.2).
 
+> **Note on dual `LogMetricsState` files**: Session-scoped `daemon-log-metrics.json` (#6) tracks errors and warnings for a single session. Global `daemon-global-log-metrics.json` (#20) tracks daemon-level metrics across all sessions. Both use the same `LogMetricsState` type but serve different scopes.
+
 **Import paths** — Types and schemas are available from the barrel export. Use `import type` for TypeScript types (erased at runtime) and a regular `import` for Zod schemas (runtime values):
 
 ```typescript
@@ -430,7 +438,7 @@ import {
 **Data source**: `.sidekick/logs/{cli,sidekickd}.log` (NDJSON via Pino)
 **Requirements**: REQUIREMENTS.md F-2 (Log-Based Replay Engine), G-8 (Structured Logging)
 
-> **Log type-to-filename mapping**: The `:type` path parameter maps to filenames as follows: `type=cli` reads `cli.log`; `type=daemon` reads `sidekickd.log` (not `daemon.log`). See `LogSource` in `@sidekick/types` (events.ts).
+> **Log type-to-filename mapping**: Query parameter `type=cli` maps to `cli.log`; `type=daemon` maps to `sidekickd.log`.
 
 Log files are NDJSON (newline-delimited JSON) written by Pino. Each line is a self-contained log record. See PHASE2-AUDIT §2.4 for the on-disk schema.
 
@@ -803,6 +811,14 @@ One SSE endpoint pushes file change notifications to the frontend. The frontend 
 - When the user selects a session, the frontend opens an SSE connection (or the existing connection is re-scoped)
 - When the user switches sessions, the backend tears down old watchers and spins up new ones; the SSE connection stays open but begins emitting events for the new session
 - Standard SSE reconnection via `EventSource` API (browser handles retry automatically)
+
+**Event ordering on session switch:**
+1. `session:deactivated` for the previous session
+2. File watchers for the previous session are torn down (no further file events for that session)
+3. `session:activated` for the new session
+4. New watchers attach; `file:changed`/`file:created` events begin for the new session
+
+Clients should clear cached state on `session:deactivated` and rebuild on `session:activated`.
 
 **Event format:**
 
