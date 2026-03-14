@@ -1,11 +1,14 @@
 import { readFile, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { findLogFiles, readLogFile, generateLabel, type RawLogEntry } from './timeline-api.js'
 
 /**
  * Transcript line types visible in the UI.
  * Mirrors TranscriptLineType from src/types.ts — kept inline to avoid
  * cross-tsconfig imports (server uses tsconfig.node.json, src uses tsconfig.json).
+ *
+ * Includes all 17 SidekickEventType values for interleaved events.
  */
 export type ApiTranscriptLineType =
   | 'user-message'
@@ -16,6 +19,14 @@ export type ApiTranscriptLineType =
   | 'turn-duration'
   | 'api-error'
   | 'pr-link'
+  // Sidekick event types (17)
+  | 'reminder:staged' | 'reminder:unstaged' | 'reminder:consumed' | 'reminder:cleared'
+  | 'decision:recorded'
+  | 'session-summary:start' | 'session-summary:finish' | 'session-title:changed' | 'intent:changed'
+  | 'snarky-message:start' | 'snarky-message:finish' | 'resume-message:start' | 'resume-message:finish'
+  | 'persona:selected' | 'persona:changed'
+  | 'statusline:rendered'
+  | 'error:occurred'
 
 export type ApiUserSubtype = 'prompt' | 'system-injection' | 'command' | 'skill-content'
 
@@ -44,6 +55,30 @@ export interface ApiTranscriptLine {
   isSidechain?: boolean
   isCompactSummary?: boolean
   isMeta?: boolean
+  // LED state (computed server-side during merge)
+  ledState?: {
+    vcBuild: boolean
+    vcTypecheck: boolean
+    vcTest: boolean
+    vcLint: boolean
+    verifyCompletion: boolean
+    pauseAndReflect: boolean
+    titleConfidence: 'red' | 'amber' | 'green'
+    titleConfidencePct: number
+  }
+  // Sidekick event fields
+  reminderId?: string
+  reminderBlocking?: boolean
+  decisionCategory?: string
+  decisionReasoning?: string
+  previousValue?: string
+  newValue?: string
+  confidence?: number
+  personaFrom?: string
+  personaTo?: string
+  statuslineContent?: string
+  errorStack?: string
+  generatedMessage?: string
 }
 
 /** Truncate a string to a maximum length, appending ellipsis if needed. */
@@ -346,14 +381,89 @@ function extractMetadata(
   return result
 }
 
+/** The 17 Sidekick event types that can appear in the transcript. */
+const SIDEKICK_EVENT_TYPES = new Set([
+  'reminder:staged', 'reminder:unstaged', 'reminder:consumed', 'reminder:cleared',
+  'decision:recorded',
+  'session-summary:start', 'session-summary:finish', 'session-title:changed', 'intent:changed',
+  'snarky-message:start', 'snarky-message:finish', 'resume-message:start', 'resume-message:finish',
+  'persona:selected', 'persona:changed',
+  'statusline:rendered',
+  'error:occurred',
+])
+
+/**
+ * Convert a Sidekick NDJSON log entry to an ApiTranscriptLine.
+ */
+function sidekickEventToTranscriptLine(entry: RawLogEntry, index: number): ApiTranscriptLine {
+  const payload = entry.payload ?? {}
+  const { label } = generateLabel(entry.type, payload)
+
+  const line: ApiTranscriptLine = {
+    id: `sidekick-${index}`,
+    timestamp: entry.time,
+    type: entry.type as ApiTranscriptLineType,
+    content: label,
+  }
+
+  // Copy event-specific payload fields
+  if (payload.reminderName) line.reminderId = payload.reminderName as string
+  if (payload.reminderType) line.reminderId = payload.reminderType as string
+  if (payload.blocking === true) line.reminderBlocking = true
+  if (payload.category) line.decisionCategory = payload.category as string
+  if (payload.decision) line.decisionCategory = payload.decision as string
+  if (payload.reason) line.decisionReasoning = payload.reason as string
+  if (payload.previousValue) line.previousValue = payload.previousValue as string
+  if (payload.newValue) line.newValue = payload.newValue as string
+  if (payload.confidence != null) line.confidence = payload.confidence as number
+  if (payload.personaFrom) line.personaFrom = payload.personaFrom as string
+  if (payload.personaTo) line.personaTo = payload.personaTo as string
+  if (payload.personaId) line.personaTo = payload.personaId as string
+  if (payload.displayMode) line.statuslineContent = payload.displayMode as string
+  if (payload.errorMessage) line.errorMessage = payload.errorMessage as string
+  if (payload.errorStack) line.errorStack = payload.errorStack as string
+  if (payload.generatedMessage) line.generatedMessage = payload.generatedMessage as string
+  if (payload.snarky_comment) line.generatedMessage = payload.snarky_comment as string
+
+  return line
+}
+
+/**
+ * Read Sidekick events for a session from NDJSON log files.
+ */
+async function readSidekickEvents(projectDir: string, sessionId: string): Promise<ApiTranscriptLine[]> {
+  const logsDir = join(projectDir, '.sidekick', 'logs')
+
+  const [cliFiles, daemonFiles] = await Promise.all([
+    findLogFiles(logsDir, 'sidekick.'),
+    findLogFiles(logsDir, 'sidekickd.'),
+  ])
+
+  const allFiles = [...cliFiles, ...daemonFiles]
+  const fileResults = await Promise.all(allFiles.map(readLogFile))
+  const allEntries = fileResults.flat()
+
+  // Filter by sessionId and visible event types
+  const filtered = allEntries.filter(
+    (entry) =>
+      entry.context?.sessionId === sessionId &&
+      SIDEKICK_EVENT_TYPES.has(entry.type)
+  )
+
+  return filtered.map((entry, index) => sidekickEventToTranscriptLine(entry, index))
+}
+
 /**
  * Parse a Claude Code transcript JSONL file into ApiTranscriptLine[].
  *
- * Reads the JSONL file, skips noise entry types, and transforms each
- * relevant entry into one or more ApiTranscriptLine objects.
- * Returns lines in file order (no sorting).
+ * When projectDir is provided, also reads Sidekick NDJSON logs and
+ * interleaves events by timestamp.
  */
-export async function parseTranscriptLines(projectId: string, sessionId: string): Promise<ApiTranscriptLine[]> {
+export async function parseTranscriptLines(
+  projectId: string,
+  sessionId: string,
+  projectDir?: string,
+): Promise<ApiTranscriptLine[]> {
   const filePath = await resolveTranscriptPath(projectId, sessionId)
   if (!filePath) return []
 
@@ -412,5 +522,73 @@ export async function parseTranscriptLines(projectId: string, sessionId: string)
     results.push(...lines)
   }
 
+  // If projectDir provided, interleave Sidekick events and compute LED states
+  if (projectDir) {
+    const sidekickLines = await readSidekickEvents(projectDir, sessionId)
+    results.push(...sidekickLines)
+    // Sort merged results by timestamp (stable sort preserves file order for same timestamp)
+    results.sort((a, b) => a.timestamp - b.timestamp)
+    // Compute LED states after merge
+    computeLEDStates(results)
+  }
+
   return results
+}
+
+/** LED state fields tracked across transcript lines. */
+interface RunningLEDState {
+  vcBuild: boolean
+  vcTypecheck: boolean
+  vcTest: boolean
+  vcLint: boolean
+  verifyCompletion: boolean
+  pauseAndReflect: boolean
+  titleConfidence: 'red' | 'amber' | 'green'
+  titleConfidencePct: number
+}
+
+/** Map reminder names to LED state keys. */
+function mapReminderToLED(reminderId: string | undefined): keyof RunningLEDState | null {
+  switch (reminderId) {
+    case 'vc-build': return 'vcBuild'
+    case 'vc-typecheck': return 'vcTypecheck'
+    case 'vc-test': return 'vcTest'
+    case 'vc-lint': return 'vcLint'
+    case 'verify-completion': return 'verifyCompletion'
+    case 'pause-and-reflect': return 'pauseAndReflect'
+    default: return null
+  }
+}
+
+/**
+ * Walk the merged transcript top-to-bottom, computing LED states.
+ * Each line gets a snapshot of the current LED state after any mutations it causes.
+ */
+function computeLEDStates(lines: ApiTranscriptLine[]): void {
+  const state: RunningLEDState = {
+    vcBuild: false, vcTypecheck: false, vcTest: false, vcLint: false,
+    verifyCompletion: false, pauseAndReflect: false,
+    titleConfidence: 'green', titleConfidencePct: 85,
+  }
+
+  for (const line of lines) {
+    if (line.type === 'reminder:staged') {
+      const key = mapReminderToLED(line.reminderId)
+      if (key && typeof state[key] === 'boolean') {
+        ;(state as Record<string, boolean>)[key] = true
+      }
+    } else if (line.type === 'reminder:unstaged' || line.type === 'reminder:consumed' || line.type === 'reminder:cleared') {
+      const key = mapReminderToLED(line.reminderId)
+      if (key && typeof state[key] === 'boolean') {
+        ;(state as Record<string, boolean>)[key] = false
+      }
+    } else if (line.type === 'session-title:changed' && line.confidence != null) {
+      const pct = Math.round(line.confidence * 100)
+      state.titleConfidencePct = pct
+      state.titleConfidence = pct >= 80 ? 'green' : pct >= 50 ? 'amber' : 'red'
+    }
+
+    // Stamp current state onto line
+    line.ledState = { ...state }
+  }
 }

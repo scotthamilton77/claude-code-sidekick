@@ -110,6 +110,9 @@ export interface TranscriptLine {
   prUrl?: string
   prNumber?: number
 
+  // LED state (computed server-side)
+  ledState?: LEDState
+
   // metadata flags (from Claude Code transcript entries)
   model?: string
   isSidechain?: boolean

@@ -146,7 +146,9 @@ export function sessionsApiPlugin(): Plugin {
               return
             }
 
-            const lines = await parseTranscriptLines(projectId, sessionId)
+            // Look up project to get projectDir for Sidekick event interleaving
+            const project = await getProjectById(REGISTRY_ROOT, projectId)
+            const lines = await parseTranscriptLines(projectId, sessionId, project?.projectDir)
             res.setHeader('Content-Type', 'application/json')
             res.end(JSON.stringify({ lines }))
             return

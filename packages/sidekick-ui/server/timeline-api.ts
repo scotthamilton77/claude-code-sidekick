@@ -51,7 +51,7 @@ const TIMELINE_EVENT_TYPES = new Set<string>([
 ])
 
 /** Parsed raw log entry before conversion to SidekickEvent */
-interface RawLogEntry {
+export interface RawLogEntry {
   time: number
   type: string
   context?: { sessionId?: string }
@@ -164,7 +164,7 @@ export function generateLabel(
  * Read an NDJSON log file, returning parsed entries.
  * Returns empty array if the file doesn't exist or is empty.
  */
-async function readLogFile(filePath: string): Promise<RawLogEntry[]> {
+export async function readLogFile(filePath: string): Promise<RawLogEntry[]> {
   let content: string
   try {
     content = await readFile(filePath, 'utf-8')
@@ -206,7 +206,7 @@ async function readLogFile(filePath: string): Promise<RawLogEntry[]> {
  * Find all log files matching a prefix in the logs directory.
  * Handles pino-roll rotation: sidekick.log, sidekick.1.log, sidekick.2.log, etc.
  */
-async function findLogFiles(logsDir: string, prefix: string): Promise<string[]> {
+export async function findLogFiles(logsDir: string, prefix: string): Promise<string[]> {
   try {
     const files = await readdir(logsDir)
     return files

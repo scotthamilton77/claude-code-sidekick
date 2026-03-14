@@ -11,7 +11,7 @@ interface TranscriptProps {
   lines: TranscriptLine[]
   loading?: boolean
   error?: string | null
-  ledStates: Map<string, LEDState>
+  ledStates?: Map<string, LEDState>  // deprecated — prefer line.ledState
   scrollToLineId: string | null
 }
 
@@ -130,8 +130,8 @@ export function Transcript({ lines, loading, error, ledStates, scrollToLineId }:
         )}
         {!loading && !error && filteredLines.length > 0 && filteredLines.map(line => (
           <div key={line.id} ref={setRef(line.id)} className="flex">
-            {/* LED Gutter */}
-            <LEDGutter ledState={ledStates.get(line.id) ?? DEFAULT_LED} />
+            {/* LED Gutter — prefer line.ledState (server-computed) over Map lookup */}
+            <LEDGutter ledState={line.ledState ?? ledStates?.get(line.id) ?? DEFAULT_LED} />
 
             {/* Transcript content */}
             <div className="flex-1 min-w-0">

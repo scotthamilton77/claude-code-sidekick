@@ -92,6 +92,26 @@ function makePrLinkEntry(overrides: Record<string, unknown> = {}): string {
   })
 }
 
+// Mock timeline-api dependencies for interleaving tests
+const mockFindLogFiles = vi.fn()
+const mockReadLogFile = vi.fn()
+
+vi.mock('../timeline-api.js', async () => {
+  const actual = await vi.importActual<typeof import('../timeline-api.js')>('../timeline-api.js')
+  return {
+    ...actual,
+    findLogFiles: (...args: unknown[]) => mockFindLogFiles(...args),
+    readLogFile: (...args: unknown[]) => mockReadLogFile(...args),
+  }
+})
+
+beforeEach(() => {
+  mockFindLogFiles.mockClear()
+  mockReadLogFile.mockClear()
+  // Default: no log files found
+  mockFindLogFiles.mockResolvedValue([])
+})
+
 // Import after mocks
 import { resolveTranscriptPath, parseTranscriptLines } from '../transcript-api.js'
 
@@ -636,5 +656,50 @@ describe('parseTranscriptLines', () => {
     const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(1)
     expect(lines[0].toolOutput).toBe(shortOutput)
+  })
+
+  // Event interleaving tests
+  it('interleaves Sidekick events when projectDir is provided', async () => {
+    // Set up Claude Code transcript with entries at t=1000 and t=3000
+    setupTranscript([
+      makeUserEntry('Hello', { timestamp: '2025-01-15T10:00:01.000Z' }),
+      makeAssistantEntry(
+        [{ type: 'text', text: 'Hi' }],
+        { timestamp: '2025-01-15T10:00:03.000Z' }
+      ),
+    ].join('\n'))
+
+    // Set up Sidekick events at t=2000 (between the two Claude Code entries)
+    // findLogFiles is called twice (cli + daemon prefix), return file only for cli
+    mockFindLogFiles.mockImplementation((dir: string, prefix: string) => {
+      if (prefix === 'sidekick.') return Promise.resolve(['/fake/logs/sidekick.1.log'])
+      return Promise.resolve([])
+    })
+    mockReadLogFile.mockResolvedValue([
+      {
+        time: new Date('2025-01-15T10:00:02.000Z').getTime(),
+        type: 'reminder:staged',
+        context: { sessionId: 'session-1' },
+        payload: { reminderName: 'vc-build', reason: 'tool_threshold' },
+      },
+    ])
+
+    const lines = await parseTranscriptLines('myproject', 'session-1', '/fake/project')
+    expect(lines).toHaveLength(3)
+    // Should be sorted by timestamp: user(1s) → sidekick(2s) → assistant(3s)
+    expect(lines[0].type).toBe('user-message')
+    expect(lines[1].type).toBe('reminder:staged')
+    expect(lines[1].reminderId).toBe('vc-build')
+    expect(lines[2].type).toBe('assistant-message')
+  })
+
+  it('returns only Claude Code lines when no projectDir', async () => {
+    setupTranscript(makeUserEntry('Hello'))
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines).toHaveLength(1)
+    expect(lines[0].type).toBe('user-message')
+    // Should not have called findLogFiles
+    expect(mockFindLogFiles).not.toHaveBeenCalled()
   })
 })

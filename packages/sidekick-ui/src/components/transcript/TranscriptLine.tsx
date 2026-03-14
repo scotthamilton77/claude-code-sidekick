@@ -18,6 +18,7 @@ import {
   GitPullRequest,
 } from 'lucide-react'
 import type { TranscriptLine as TLine, TranscriptLineType } from '../../types'
+import { CollapsibleContent } from './CollapsibleContent'
 
 function truncate(s: string, max: number): string {
   return s.length > max ? s.slice(0, max) + '\u2026' : s
@@ -201,9 +202,15 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick }: Tran
 
         {/* Thinking-only assistant message — show thinking as primary content */}
         {line.type === 'assistant-message' && !line.content && line.thinking && (
-          <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed mt-0.5 pl-3 border-l-2 border-slate-200 dark:border-slate-700 italic line-clamp-3">
-            {line.thinking}
-          </p>
+          <div className="pl-3 border-l-2 border-slate-200 dark:border-slate-700 mt-0.5">
+            <CollapsibleContent
+              content={line.thinking}
+              previewLines={3}
+              previewChars={300}
+              className="text-slate-500 dark:text-slate-400 italic"
+              label="thinking"
+            />
+          </div>
         )}
 
         {/* Thinking block (collapsible) — only when there IS text content */}
@@ -220,9 +227,15 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick }: Tran
           </button>
         )}
         {showThinking && line.thinking && (
-          <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed mt-1 pl-3 border-l-2 border-slate-200 dark:border-slate-700 italic line-clamp-5">
-            {line.thinking}
-          </p>
+          <div className="pl-3 border-l-2 border-slate-200 dark:border-slate-700 mt-1">
+            <CollapsibleContent
+              content={line.thinking}
+              previewLines={5}
+              previewChars={500}
+              className="text-slate-500 dark:text-slate-400 italic"
+              label="thinking"
+            />
+          </div>
         )}
 
         {/* Tool use details */}
@@ -230,25 +243,33 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick }: Tran
           <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
             <span className="font-mono">{line.toolName}</span>
             {line.toolDurationMs != null && <span className="ml-2">{line.toolDurationMs}ms</span>}
-            {line.toolInput &&
-              (() => {
-                const preview = formatToolInput(line.toolName, line.toolInput)
-                return preview ? (
-                  <p className="font-mono text-slate-400 dark:text-slate-500 mt-0.5 line-clamp-2">{preview}</p>
-                ) : null
-              })()}
+            {line.toolInput && (() => {
+              const preview = formatToolInput(line.toolName, line.toolInput)
+              const fullJson = JSON.stringify(line.toolInput, null, 2)
+              return preview ? (
+                <CollapsibleContent
+                  content={fullJson}
+                  previewLines={2}
+                  previewChars={200}
+                  mono
+                  className="text-slate-400 dark:text-slate-500 mt-0.5"
+                  label="input"
+                />
+              ) : null
+            })()}
           </div>
         )}
 
         {/* Tool result */}
         {line.type === 'tool-result' && line.toolOutput && (
-          <p
-            className={`text-[10px] font-mono mt-0.5 line-clamp-2 ${
-              line.toolSuccess === false ? 'text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-slate-400'
-            }`}
-          >
-            {line.toolOutput}
-          </p>
+          <CollapsibleContent
+            content={line.toolOutput}
+            previewLines={3}
+            previewChars={300}
+            mono
+            className={line.toolSuccess === false ? 'text-red-600 dark:text-red-400 mt-0.5' : 'text-slate-500 dark:text-slate-400 mt-0.5'}
+            label="output"
+          />
         )}
 
         {/* API error message */}
