@@ -33,17 +33,15 @@ function mockExecSuccess(stdout: string) {
   mockExec.mockImplementation(
     (_cmd: string, _opts: unknown, cb: (err: Error | null, stdout: string, stderr: string) => void) => {
       cb(null, stdout, '')
-    },
+    }
   )
 }
 
 /** Helper: mock exec to call back with error */
 function mockExecFailure(message: string) {
-  mockExec.mockImplementation(
-    (_cmd: string, _opts: unknown, cb: (err: Error) => void) => {
-      cb(new Error(message))
-    },
-  )
+  mockExec.mockImplementation((_cmd: string, _opts: unknown, cb: (err: Error) => void) => {
+    cb(new Error(message))
+  })
 }
 
 describe('listProjects', () => {
@@ -54,9 +52,7 @@ describe('listProjects', () => {
   })
 
   it('returns projects from registry entries', async () => {
-    mockReaddir.mockResolvedValue([
-      { name: '-Users-scott-src-myproject', isDirectory: () => true },
-    ])
+    mockReaddir.mockResolvedValue([{ name: '-Users-scott-src-myproject', isDirectory: () => true }])
 
     const registryEntry = {
       path: '/Users/scott/src/myproject',
@@ -79,9 +75,7 @@ describe('listProjects', () => {
   })
 
   it('returns active=false when heartbeat is stale', async () => {
-    mockReaddir.mockResolvedValue([
-      { name: 'proj1', isDirectory: () => true },
-    ])
+    mockReaddir.mockResolvedValue([{ name: 'proj1', isDirectory: () => true }])
 
     const registryEntry = {
       path: '/Users/scott/src/proj1',
@@ -98,15 +92,15 @@ describe('listProjects', () => {
   })
 
   it('returns branch=unknown when git fails', async () => {
-    mockReaddir.mockResolvedValue([
-      { name: 'proj1', isDirectory: () => true },
-    ])
+    mockReaddir.mockResolvedValue([{ name: 'proj1', isDirectory: () => true }])
 
-    mockReadFile.mockResolvedValue(JSON.stringify({
-      path: '/Users/scott/src/proj1',
-      displayName: 'proj1',
-      lastActive: new Date().toISOString(),
-    }))
+    mockReadFile.mockResolvedValue(
+      JSON.stringify({
+        path: '/Users/scott/src/proj1',
+        displayName: 'proj1',
+        lastActive: new Date().toISOString(),
+      })
+    )
     mockAccess.mockResolvedValue(undefined)
     mockExecFailure('not a git repo')
 
@@ -115,18 +109,14 @@ describe('listProjects', () => {
   })
 
   it('skips non-directory entries', async () => {
-    mockReaddir.mockResolvedValue([
-      { name: 'some-file.txt', isDirectory: () => false },
-    ])
+    mockReaddir.mockResolvedValue([{ name: 'some-file.txt', isDirectory: () => false }])
 
     const result = await listProjects('/fake/.sidekick/projects')
     expect(result).toEqual([])
   })
 
   it('skips entries with invalid registry.json', async () => {
-    mockReaddir.mockResolvedValue([
-      { name: 'proj1', isDirectory: () => true },
-    ])
+    mockReaddir.mockResolvedValue([{ name: 'proj1', isDirectory: () => true }])
     mockReadFile.mockResolvedValue('not valid json')
 
     const result = await listProjects('/fake/.sidekick/projects')
@@ -142,23 +132,23 @@ describe('listSessions', () => {
   })
 
   it('returns sessions from session directories', async () => {
-    mockReaddir.mockResolvedValue([
-      { name: 'abc-123', isDirectory: () => true },
-    ])
+    mockReaddir.mockResolvedValue([{ name: 'abc-123', isDirectory: () => true }])
 
     const sessionDate = new Date('2026-03-10T14:30:00Z')
     mockStat.mockResolvedValue({ mtime: sessionDate })
 
     mockReadFile.mockImplementation((filePath: string) => {
       if (filePath.includes('session-summary.json')) {
-        return Promise.resolve(JSON.stringify({
-          title: 'Fix daemon restart',
-          intent: 'Bug fix',
-          intentConfidence: 0.85,
-        }))
+        return Promise.resolve(
+          JSON.stringify({
+            session_title: 'Fix daemon restart',
+            latest_intent: 'Bug fix',
+            latest_intent_confidence: 0.85,
+          })
+        )
       }
       if (filePath.includes('session-persona.json')) {
-        return Promise.resolve(JSON.stringify({ personaId: 'jarvis' }))
+        return Promise.resolve(JSON.stringify({ persona_id: 'jarvis' }))
       }
       return Promise.reject(new Error('ENOENT'))
     })
@@ -167,7 +157,7 @@ describe('listSessions', () => {
     expect(result).toHaveLength(1)
     expect(result[0]).toEqual({
       id: 'abc-123',
-      title: 'Fix daemon restart',
+      title: 'abc-123 — Fix daemon restart',
       date: sessionDate.toISOString(),
       status: 'completed',
       persona: 'jarvis',
@@ -177,29 +167,23 @@ describe('listSessions', () => {
   })
 
   it('uses truncated session ID when session-summary.json is missing', async () => {
-    mockReaddir.mockResolvedValue([
-      { name: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890', isDirectory: () => true },
-    ])
+    mockReaddir.mockResolvedValue([{ name: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890', isDirectory: () => true }])
     mockStat.mockResolvedValue({ mtime: new Date('2026-03-10T14:30:00Z') })
     mockReadFile.mockRejectedValue(new Error('ENOENT'))
 
     const result = await listSessions('/fake/project')
-    expect(result[0].title).toBe('a1b2c3d4')
+    expect(result[0].title).toBe('a1b2c3d4 — No Title')
   })
 
   it('skips non-directory entries', async () => {
-    mockReaddir.mockResolvedValue([
-      { name: 'some-file.log', isDirectory: () => false },
-    ])
+    mockReaddir.mockResolvedValue([{ name: 'some-file.log', isDirectory: () => false }])
 
     const result = await listSessions('/fake/project')
     expect(result).toEqual([])
   })
 
   it('marks session as active when isProjectActive=true and state is recently modified', async () => {
-    mockReaddir.mockResolvedValue([
-      { name: 'session-1', isDirectory: () => true },
-    ])
+    mockReaddir.mockResolvedValue([{ name: 'session-1', isDirectory: () => true }])
     mockStat.mockResolvedValue({ mtime: new Date(Date.now() - 1000) })
     mockReadFile.mockRejectedValue(new Error('ENOENT'))
 

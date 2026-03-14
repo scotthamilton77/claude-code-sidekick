@@ -74,6 +74,9 @@ export async function listProjects(registryRoot: string): Promise<ApiProject[]> 
         continue // skip projects whose directory is gone
       }
 
+      // Filter out private/temp directories by default
+      if (dirent.name.startsWith('-private')) continue
+
       const lastActiveMs = new Date(entry.lastActive).getTime()
       const active = Date.now() - lastActiveMs < ACTIVE_THRESHOLD_MS
 
@@ -97,10 +100,7 @@ export async function listProjects(registryRoot: string): Promise<ApiProject[]> 
 /**
  * List all sessions for a project by scanning its .sidekick/sessions/ directory.
  */
-export async function listSessions(
-  projectDir: string,
-  isProjectActive = false,
-): Promise<ApiSession[]> {
+export async function listSessions(projectDir: string, isProjectActive = false): Promise<ApiSession[]> {
   const sessionsDir = join(projectDir, '.sidekick', 'sessions')
 
   let dirents
@@ -123,11 +123,11 @@ export async function listSessions(
 
     // Determine if session is active
     const isRecentlyModified = Date.now() - dirStat.mtime.getTime() < SESSION_ACTIVE_THRESHOLD_MS
-    const status: 'active' | 'completed' =
-      isProjectActive && isRecentlyModified ? 'active' : 'completed'
+    const status: 'active' | 'completed' = isProjectActive && isRecentlyModified ? 'active' : 'completed'
 
     // Try to read session-summary.json
-    let title = dirent.name.slice(0, 8) // fallback: truncated ID
+    const shortId = dirent.name.slice(0, 8)
+    let title = `${shortId} — No Title` // fallback
     let intent: string | undefined
     let intentConfidence: number | undefined
 
@@ -135,13 +135,13 @@ export async function listSessions(
       const summaryPath = join(sessionDir, 'state', 'session-summary.json')
       const raw = await readFile(summaryPath, 'utf-8')
       const summary = JSON.parse(raw) as {
-        title?: string
-        intent?: string
-        intentConfidence?: number
+        session_title?: string
+        latest_intent?: string
+        latest_intent_confidence?: number
       }
-      if (summary.title) title = summary.title
-      if (summary.intent) intent = summary.intent
-      if (summary.intentConfidence != null) intentConfidence = summary.intentConfidence
+      if (summary.session_title) title = `${shortId} — ${summary.session_title}`
+      if (summary.latest_intent) intent = summary.latest_intent
+      if (summary.latest_intent_confidence != null) intentConfidence = summary.latest_intent_confidence
     } catch {
       // Use fallback title
     }
@@ -151,8 +151,8 @@ export async function listSessions(
     try {
       const personaPath = join(sessionDir, 'state', 'session-persona.json')
       const raw = await readFile(personaPath, 'utf-8')
-      const personaData = JSON.parse(raw) as { personaId?: string }
-      if (personaData.personaId) persona = personaData.personaId
+      const personaData = JSON.parse(raw) as { persona_id?: string }
+      if (personaData.persona_id) persona = personaData.persona_id
     } catch {
       // No persona set
     }

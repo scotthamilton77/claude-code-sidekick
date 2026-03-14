@@ -11,26 +11,17 @@ interface SessionSelectorProps {
 
 export function SessionSelector({ projects }: SessionSelectorProps) {
   const { state, dispatch } = useNavigation()
-  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(
-    new Set(projects.map(p => p.id))
-  )
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set(projects.map((p) => p.id)))
 
   if (!state.selectorPanel.expanded) {
-    const selectedProject = projects.find(p => p.id === state.selectedProjectId)
-    const selectedSession = selectedProject?.sessions.find(s => s.id === state.selectedSessionId)
-    const label = selectedSession
-      ? `${selectedProject?.name} / ${selectedSession.title}`
-      : 'Sessions'
-    return (
-      <CompressedLabel
-        text={label}
-        onClick={() => dispatch({ type: 'TOGGLE_SELECTOR_PANEL' })}
-      />
-    )
+    const selectedProject = projects.find((p) => p.id === state.selectedProjectId)
+    const selectedSession = selectedProject?.sessions.find((s) => s.id === state.selectedSessionId)
+    const label = selectedSession ? `${selectedProject?.name} / ${selectedSession.title}` : 'Sessions'
+    return <CompressedLabel text={label} onClick={() => dispatch({ type: 'TOGGLE_SELECTOR_PANEL' })} />
   }
 
   function toggleProject(projectId: string) {
-    setExpandedProjects(prev => {
+    setExpandedProjects((prev) => {
       const next = new Set(prev)
       if (next.has(projectId)) {
         next.delete(projectId)
@@ -50,30 +41,36 @@ export function SessionSelector({ projects }: SessionSelectorProps) {
         collapseDirection="left"
       />
       <div className="flex-1 overflow-y-auto p-2">
-        {projects.map(project => (
+        {projects.map((project) => (
           <div key={project.id} className="mb-3">
             {/* Project header */}
             <button
               onClick={() => toggleProject(project.id)}
               className="flex items-center gap-1.5 w-full px-2 py-1.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800 rounded transition-colors"
             >
-              {expandedProjects.has(project.id)
-                ? <ChevronDown size={14} className="text-slate-400" />
-                : <ChevronRight size={14} className="text-slate-400" />
-              }
+              {expandedProjects.has(project.id) ? (
+                <ChevronDown size={14} className="text-slate-400" />
+              ) : (
+                <ChevronRight size={14} className="text-slate-400" />
+              )}
               <FolderOpen size={14} className="text-amber-500" />
-              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                {project.name}
-              </span>
-              <span className="text-[10px] text-slate-400 ml-auto">
-                {project.sessions.length}
-              </span>
+              <div className="flex-1 min-w-0">
+                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  {project.name}
+                </span>
+                {project.projectDir && (
+                  <div className="text-[9px] text-slate-400 truncate" title={project.projectDir}>
+                    {project.projectDir}
+                  </div>
+                )}
+              </div>
+              <span className="text-[10px] text-slate-400 ml-auto flex-shrink-0">{project.sessions.length}</span>
             </button>
 
             {/* Session list */}
             {expandedProjects.has(project.id) && (
               <div className="ml-5 mt-1 space-y-1">
-                {project.sessions.map(session => {
+                {project.sessions.map((session) => {
                   const isSelected = state.selectedSessionId === session.id
                   return (
                     <button
@@ -86,11 +83,13 @@ export function SessionSelector({ projects }: SessionSelectorProps) {
                       }`}
                     >
                       <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                          session.status === 'active'
-                            ? 'bg-emerald-400 shadow-sm shadow-emerald-400/50'
-                            : 'bg-slate-300 dark:bg-slate-600'
-                        }`} />
+                        <div
+                          className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                            session.status === 'active'
+                              ? 'bg-emerald-400 shadow-sm shadow-emerald-400/50'
+                              : 'bg-slate-300 dark:bg-slate-600'
+                          }`}
+                        />
                         <span className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">
                           {session.title}
                         </span>

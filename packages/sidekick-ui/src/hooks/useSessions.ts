@@ -29,6 +29,21 @@ export interface UseSessionsResult {
  * Fetch session data from the Vite dev server API.
  * Maps API responses into the existing Project/Session types.
  */
+/**
+ * Format ISO date string to mm/dd/yyyy hh:mm am/pm in the OS timezone.
+ */
+function formatDate(isoDate: string): string {
+  const d = new Date(isoDate)
+  return d.toLocaleString('en-US', {
+    month: '2-digit',
+    day: '2-digit',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  })
+}
+
 export function useSessions(): UseSessionsResult {
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
@@ -54,9 +69,7 @@ export function useSessions(): UseSessionsResult {
             let sessions: Session[] = []
 
             try {
-              const sessionsRes = await fetch(
-                `/api/projects/${encodeURIComponent(apiProject.id)}/sessions`,
-              )
+              const sessionsRes = await fetch(`/api/projects/${encodeURIComponent(apiProject.id)}/sessions`)
               if (sessionsRes.ok) {
                 const { sessions: apiSessions } = (await sessionsRes.json()) as {
                   sessions: ApiSession[]
@@ -65,7 +78,7 @@ export function useSessions(): UseSessionsResult {
                   (s): Session => ({
                     id: s.id,
                     title: s.title,
-                    date: s.date,
+                    date: formatDate(s.date),
                     branch: apiProject.branch,
                     projectId: apiProject.id,
                     persona: s.persona,
@@ -77,7 +90,7 @@ export function useSessions(): UseSessionsResult {
                     sidekickEvents: [],
                     ledStates: new Map(),
                     stateSnapshots: [],
-                  }),
+                  })
                 )
               }
             } catch {
@@ -87,9 +100,10 @@ export function useSessions(): UseSessionsResult {
             return {
               id: apiProject.id,
               name: apiProject.name,
+              projectDir: apiProject.projectDir,
               sessions,
             }
-          }),
+          })
         )
 
         if (!cancelled) {
